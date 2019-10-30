@@ -161,6 +161,7 @@ runLHG2 config red hal ord solver simplifier pres_names final_st bindings = do
     let ret' = filter (\(ExecRes {final_state = s}) -> mi == (abstractCallsNum s)) ret
 
     ret'' <- mapM (reduceCalls config final_bindings) ret'
+    ret''' <- mapM (checkAbstracted config final_bindings) ret''
 
     let exec_res = 
             map (\(ExecRes { final_state = s
@@ -171,7 +172,7 @@ runLHG2 config red hal ord solver simplifier pres_names final_st bindings = do
                                 s {track = map (subVarFuncCall (model s) (expr_env s) (type_classes s)) $ abstract_calls $ track s}
                            , conc_args = es
                            , conc_out = e
-                           , violated = ais})) ret''
+                           , violated = ais})) ret'''
 
     return (exec_res, final_bindings)
 

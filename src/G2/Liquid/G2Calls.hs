@@ -1,7 +1,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Liquid.G2Calls (reduceCalls) where
+module G2.Liquid.G2Calls ( checkAbstracted
+                         , reduceCalls) where
 
 import G2.Config
 import G2.Execution
@@ -14,7 +15,52 @@ import G2.Solver
 
 import G2.Lib.Printers
 
+import Control.Monad
 import qualified Data.Map as M
+
+-------------------------------
+-- Check Abstracted
+-------------------------------
+-- Checks if the abstracted functions actually deviate from the real function behavior.
+-- If they do not, they can simply be eliminated from the state.
+
+checkAbstracted :: Config -> Bindings -> ExecRes LHTracker -> IO (ExecRes LHTracker)
+checkAbstracted config bindings er@(ExecRes{ final_state = s@State { track = lht }}) = do
+    SomeSolver solver <- initSolver config
+    let simplifier = ADTSimplifier arbValue
+
+    abstracted' <- filterM (checkAbstracted' solver simplifier (sharing config) s bindings) $ abstract_calls lht
+
+    close solver
+
+    return $ er { final_state = s {track = lht { abstract_calls = abstracted' }}}
+
+checkAbstracted' :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Sharing -> State LHTracker -> Bindings -> FuncCall -> IO Bool
+checkAbstracted' solver simplifier share s bindings (FuncCall { funcName = n, arguments = ars, returns = r })
+    | Just e <- E.lookup n $ expr_env s = do
+        let 
+            e' = mkApp $ Var (Id n (typeOf e)):ars
+
+            ds = deepseq_walkers bindings
+            strict_call = maybe e' (fillLHDictArgs ds) $ mkStrict_maybe ds e'
+
+        let s' = elimAsserts . pickHead $
+                   s { expr_env = model s `E.union'` expr_env s
+                     , curr_expr = CurrExpr Evaluate e'}
+
+        (er, _) <- runG2WithSomes 
+                        (SomeReducer (StdRed share solver simplifier))
+                        (SomeHalter SWHNFHalter)
+                        (SomeOrderer NextOrderer)
+                        solver simplifier emptyMemConfig s' bindings
+
+        case er of
+            [ExecRes
+                {
+                    final_state = (State { curr_expr = CurrExpr _ ce})
+                }] -> return . not $ ce `eqUpToTypes` r
+            _ -> error $ "checkAbstracted': Bad return from runG2WithSomes"
+    | otherwise = error $ "checkAbstracted': Bad return from runG2WithSomes"
 
 -------------------------------
 -- Reduce Calls

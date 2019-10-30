@@ -3,56 +3,57 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Language.Expr ( module G2.Language.Casts
-                                  , unApp
-                                  , mkApp
-                                  , mkDCTrue
-                                  , mkDCFalse
-                                  , mkTrue
-                                  , mkFalse
-                                  , mkBool
-                                  , mkDCInt
-                                  , mkDCInteger
-                                  , mkDCFloat
-                                  , mkDCDouble
-                                  , mkDCChar
-                                  , mkCons
-                                  , mkEmpty
-                                  , mkIdentity
-                                  , mkEqIntExpr
-                                  , mkGeIntExpr
-                                  , mkLeIntExpr
-                                  , mkAndExpr
-                                  , replaceVar
-                                  , getFuncCalls
-                                  , getFuncCallsRHS
-                                  , modifyAppTop
-                                  , modifyAppLHS
-                                  , modifyAppRHS
-                                  , modifyLamTop
-                                  , nonDataFunctionCalls
-                                  , appCenter
-                                  , mapArgs
-                                  , mkLams
-                                  , elimAsserts
-                                  , leadingLamUsesIds
-                                  , leadingLamIds
-                                  , insertInLams
-                                  , maybeInsertInLams
-                                  , inLams
-                                  , replaceASTs
-                                  , args
-                                  , passedArgs
-                                  , vars
-                                  , varIds
-                                  , varNames
-                                  , varId
-                                  , symbVars
-                                  , freeVars
-                                  , alphaReduction
-                                  , varBetaReduction
-                                  , etaExpandTo
-                                  , mkStrict
-                                  , mkStrict_maybe) where
+                        , eqUpToTypes
+                        , unApp
+                        , mkApp
+                        , mkDCTrue
+                        , mkDCFalse
+                        , mkTrue
+                        , mkFalse
+                        , mkBool
+                        , mkDCInt
+                        , mkDCInteger
+                        , mkDCFloat
+                        , mkDCDouble
+                        , mkDCChar
+                        , mkCons
+                        , mkEmpty
+                        , mkIdentity
+                        , mkEqIntExpr
+                        , mkGeIntExpr
+                        , mkLeIntExpr
+                        , mkAndExpr
+                        , replaceVar
+                        , getFuncCalls
+                        , getFuncCallsRHS
+                        , modifyAppTop
+                        , modifyAppLHS
+                        , modifyAppRHS
+                        , modifyLamTop
+                        , nonDataFunctionCalls
+                        , appCenter
+                        , mapArgs
+                        , mkLams
+                        , elimAsserts
+                        , leadingLamUsesIds
+                        , leadingLamIds
+                        , insertInLams
+                        , maybeInsertInLams
+                        , inLams
+                        , replaceASTs
+                        , args
+                        , passedArgs
+                        , vars
+                        , varIds
+                        , varNames
+                        , varId
+                        , symbVars
+                        , freeVars
+                        , alphaReduction
+                        , varBetaReduction
+                        , etaExpandTo
+                        , mkStrict
+                        , mkStrict_maybe) where
 
 import G2.Language.AST
 import G2.Language.Casts
@@ -68,6 +69,29 @@ import Data.Foldable
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Semigroup
+
+eqUpToTypes :: Expr -> Expr -> Bool
+eqUpToTypes (Var (Id n _)) (Var (Id n' _)) = n == n'
+eqUpToTypes (Lit l) (Lit l') = l == l'
+eqUpToTypes (Prim p _) (Prim p' _) = p == p'
+eqUpToTypes (Data (DataCon n _)) (Data (DataCon n' _)) = n == n'
+eqUpToTypes (App e1 e2) (App e1' e2') = e1 `eqUpToTypes` e1' && e2 `eqUpToTypes` e2'
+eqUpToTypes (Lam lu (Id n _) e) (Lam lu' (Id n' _) e') = lu == lu' && n == n' && e `eqUpToTypes` e'
+eqUpToTypes (Let b e) (Let b' e') =
+    let
+        be_eq = all (\((Id n _, be), (Id n' _, be')) -> n == n' && be `eqUpToTypes` be') $ zip b b'
+    in
+    be_eq && e `eqUpToTypes` e'
+eqUpToTypes (Case _ _ _) (Case _ _ _) = error "Case not supported"
+eqUpToTypes (Type _) (Type _) = True
+eqUpToTypes (Cast e _) (Cast e' _) = e `eqUpToTypes` e'
+eqUpToTypes (Coercion _) (Coercion _) = True
+eqUpToTypes (Tick _ e) (Tick _ e') = e `eqUpToTypes` e'
+eqUpToTypes (NonDet es) (NonDet es') = all (uncurry eqUpToTypes) $ zip es es'
+eqUpToTypes (SymGen _) (SymGen _) = True
+eqUpToTypes (Assume _ _ _) (Assume _ _ _) = True
+eqUpToTypes (Assert _ _ _) (Assert _ _ _) = True
+eqUpToTypes _ _ = False
 
 -- | Unravels the application spine.
 unApp :: Expr -> [Expr]
