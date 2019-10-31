@@ -122,7 +122,8 @@ checkCounterexample exg2 ghci config cex@(FuncCall {funcName = n}) = do
 
     let s' = checkCounterexample' cex s
 
-    (fsl, _) <- genericG2Call config' s' bindings
+    SomeSolver solver <- initSolver config
+    (fsl, _) <- genericG2Call config' solver s' bindings
 
     case fsl of
         [ExecRes
@@ -199,8 +200,10 @@ evalMeasures' :: ( ASTContainer t Expr
 evalMeasures' meas_names s bindings config meas tcv e =  do
     let m_sts = evalMeasures'' meas_names s bindings meas tcv e
 
+    SomeSolver solver <- initSolver config
+
     m_sts' <- mapM (\(n, e_in, s_meas) -> do
-        (er, _) <- genericG2Call config s_meas bindings
+        (er, _) <- genericG2Call config solver s_meas bindings
         case er of
             [er'] -> 
                 let 
@@ -259,30 +262,13 @@ evalMeasuresCE bindings i e bound =
 -------------------------------
 genericG2Call :: ( ASTContainer t Expr
                  , ASTContainer t Type
-                 , Named t) => Config -> State t -> Bindings -> IO ([ExecRes t], Bindings)
-genericG2Call config s bindings = do
-    SomeSolver solver <- initSolver config
+                 , Named t
+                 , Solver solver) => Config -> solver -> State t -> Bindings -> IO ([ExecRes t], Bindings)
+genericG2Call config solver s bindings = do
     let simplifier = ADTSimplifier arbValue
         share = sharing config
 
     fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier ))
-                           (SomeHalter SWHNFHalter)
-                           (SomeOrderer NextOrderer)
-                           solver simplifier emptyMemConfig s bindings
-
-    close solver
-
-    return fslb
-
-genericG2CallLogging :: ( ASTContainer t Expr
-                        , ASTContainer t Type
-                        , Named t) => Config -> State t -> Bindings -> IO ([ExecRes t], Bindings)
-genericG2CallLogging config s bindings = do
-    SomeSolver solver <- initSolver config
-    let simplifier = ADTSimplifier arbValue
-        share = sharing config
-
-    fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier :<~ Logger "error2"))
                            (SomeHalter SWHNFHalter)
                            (SomeOrderer NextOrderer)
                            solver simplifier emptyMemConfig s bindings

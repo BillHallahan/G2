@@ -56,7 +56,9 @@ inference' g2config lhconfig ghci exg2 gs fc = do
 
             putStrLn $ "res = " ++ show res
 
+            putStrLn "Before checkNewConstraints"
             new_fc <- checkNewConstraints ghci exg2 g2config (concat res)
+            putStrLn "After checkNewConstraints"
             case new_fc of
                 Left ce -> return . Left $ ce
                 Right new_fc' -> do
@@ -65,7 +67,9 @@ inference' g2config lhconfig ghci exg2 gs fc = do
                         fc' = foldr insertFC fc new_fc'
 
                     -- Synthesize
+                    putStrLn "Before genMeasureExs"
                     meas_ex <- genMeasureExs exg2 merged_ghci g2config fc'
+                    putStrLn "After genMeasureExs"
                     gs' <- foldM (synthesize ghci meas_ex fc') gs new_fc_funcs
                     
                     inference' g2config lhconfig ghci exg2 gs' fc'
