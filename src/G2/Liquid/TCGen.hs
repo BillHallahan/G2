@@ -382,6 +382,7 @@ createOrdFunc pr n adt = do
 mkOrdCases :: Primitive -> KnownValues -> Id -> Id -> Name -> AlgDataTy -> LHStateM Expr
 mkOrdCases pr kv i1 i2 n (DataTyCon { data_cons = [dc]})
     | n == KV.tyInt kv = mkPrimOrdCases pr TyLitInt i1 i2 dc
+    | n == KV.tyInteger kv = mkPrimOrdCases pr TyLitInt i1 i2 dc
     | n == KV.tyFloat kv = mkPrimOrdCases pr TyLitFloat i1 i2 dc
     | n == KV.tyDouble kv = mkPrimOrdCases pr TyLitDouble i1 i2 dc
     | otherwise = mkTrueE

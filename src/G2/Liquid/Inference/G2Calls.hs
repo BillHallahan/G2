@@ -40,9 +40,6 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
-import Debug.Trace
-
-
 -------------------------------
 -- Generating Counterexamples
 -------------------------------
@@ -82,8 +79,8 @@ inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
         (limHalt, limOrd) = limitByAccepted (cut_off config)
         state_name = Name "state" Nothing 0 Nothing
 
-        searched_below = SearchedBelowHalter { found_at_least = 5
-                                             , discarded_at_least = 40 }
+        searched_below = SearchedBelowHalter { found_at_least = 3
+                                             , discarded_at_least = 6 }
     in
     if higherOrderSolver config == AllFuncs then
         ( SomeReducer NonRedPCRed
@@ -92,12 +89,11 @@ inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
                   Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn))
         , SomeHalter
                 (MaxOutputsHalter (maxOutputs config)
-                  :<~> ZeroHalter (steps config)
                   :<~> LHAbsHalter entry mb_modname (expr_env st)
                   :<~> searched_below
                   :<~> SwitchEveryNHalter (switch_after config)
                   :<~> AcceptHalter)
-        , SomeOrderer NextOrderer)
+        , SomeOrderer LHLimitByAcceptedOrderer)
     else
         (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng)
             <~| (case logStates config of
@@ -106,12 +102,11 @@ inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
         , SomeHalter
             (DiscardIfAcceptedTag state_name
               :<~> MaxOutputsHalter (maxOutputs config)
-              :<~> ZeroHalter (steps config)
               :<~> LHAbsHalter entry mb_modname (expr_env st)
               :<~> searched_below
               :<~> SwitchEveryNHalter (switch_after config)
               :<~> AcceptHalter)
-        , SomeOrderer NextOrderer)
+        , SomeOrderer LHLimitByAcceptedOrderer)
 
 -------------------------------
 -- Checking Counterexamples
@@ -180,7 +175,9 @@ evalMeasures exg2 ghci config es = do
     let config' = config { counterfactual = NotCounterfactual }
         arb_i = nameOcc . idName . fst . head . exg2_binds . snd $ exg2
 
-    (_, _, s, bindings, meas, tcv, _) <- liquidState arb_i exg2 ghci config' (emptyMemConfig { pres_func = presMeasureNames })
+    (_, _, s, bindings, meas, tcv, _) <- liquidState' arb_i exg2 ghci config'
+                                                (emptyMemConfig { pres_func = presMeasureNames })
+                                                (\_ _ ng _ _ _ _ -> (Prim Undefined TyBottom, [], [], ng))
 
     let s' = s { true_assert = True }
 
@@ -229,7 +226,6 @@ evalMeasures'' meas_names s b m tcv e =
                                                 _ -> Nothing
                                         at -> Nothing) $ E.toExprList filtered_m
     in
-    trace ("meas_nameOcc = " ++ show meas_nameOcc ++ "\bE.keys filtered_m = " ++ show (E.keys filtered_m))
     map (\(n, me, bound) ->
             let
                 i = Id n (typeOf me)
@@ -254,7 +250,7 @@ evalMeasuresCE bindings i e bound =
         ds = deepseq_walkers bindings
 
         call =  mkApp $ Var i:map Type bound_tys ++ lh_dicts ++ [e]
-        str_call = fillLHDictArgs ds $ mkStrict ds call
+        str_call =  maybe call (fillLHDictArgs ds) $ mkStrict_maybe ds call -- fillLHDictArgs ds $ mkStrict ds call
     in
     str_call
 

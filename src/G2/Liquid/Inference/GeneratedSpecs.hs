@@ -42,8 +42,11 @@ addSpecToGhcInfo n e =
 
 addPost :: Expr -> SpecType -> SpecType
 addPost e rfun@(RFun { rt_out = out }) = rfun { rt_out = addPost e out }
+addPost e rall@(RAllT { rt_ty = out }) =
+	rall { rt_ty = addPost e out }
 addPost e rapp@(RApp { rt_reft = u@(MkUReft {ur_reft = Reft (ur_s, ur_e) }) }) =
     rapp { rt_reft = u { ur_reft = Reft (ur_s, PAnd [ur_e, e])}}
+addPost _ st = error $ "addPost: Unhandled SpecType " ++ show st
 
 zeroOutUnq :: G2.Name -> G2.Name
 zeroOutUnq (G2.Name n m _ l) = G2.Name n m 0 l

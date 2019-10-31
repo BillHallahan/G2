@@ -494,15 +494,18 @@ instance Halter SWHNFHalter () t where
             False -> Continue
     stepHalter _ _ _ _ _ = ()
 
--- | Accepts a state when it is in ExecNormalForm and true_assert is true
+-- | Accepts a state when it is in SWHNF and true_assert is true
+-- Discards it if in SWHNF and true_assert is false
 data AcceptHalter = AcceptHalter
 
 instance Halter AcceptHalter () t where
     initHalt _ _ = ()
     updatePerStateHalt _ _ _ _ = ()
     stopRed _ _ _ s =
-        case isExecValueForm s && true_assert s of
-            True -> Accept
+        case isExecValueForm s of
+            True 
+                | true_assert s -> Accept
+                | otherwise -> Discard
             False -> Continue
     stepHalter _ _ _ _ _ = ()
 
@@ -539,7 +542,7 @@ data SwitchEveryNHalter = SwitchEveryNHalter Int
 instance Halter SwitchEveryNHalter Int t where
     initHalt (SwitchEveryNHalter sw) _ = sw
     updatePerStateHalt (SwitchEveryNHalter sw) _ _ _ = sw
-    stopRed _ i _ _ = if i <= 0 then Switch else Continue
+    stopRed _ i pr _ = if i <= 0 then Switch else Continue
     stepHalter _ i _ _ _ = i - 1
 
 -- | Switches execution every n steps, where n is divided every time

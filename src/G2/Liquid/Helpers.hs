@@ -1,10 +1,12 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
 
-module G2.Liquid.Helpers ( getGHCInfos
+module G2.Liquid.Helpers ( MeasureSymbols (..)
+                         , getGHCInfos
                          , funcSpecs
                          , findFuncSpec
                          , measureSpecs
+                         , measureSymbols
                          , varEqName
                          , namesEq
                          , fillLHDictArgs ) where
@@ -12,6 +14,7 @@ module G2.Liquid.Helpers ( getGHCInfos
 import G2.Language as G2
 
 import qualified Language.Haskell.Liquid.GHC.Interface as LHI
+import Language.Fixpoint.Types.Names
 import Language.Haskell.Liquid.Types hiding (Config, cls, names)
 import qualified Language.Haskell.Liquid.UX.Config as LHC
 
@@ -71,6 +74,11 @@ measureSpecs = concatMap (gsMeasures . gsData . giSpec)
 #else
 measureSpecs = concatMap (gsMeasures . spec)
 #endif
+
+newtype MeasureSymbols = MeasureSymbols { symbols :: [Symbol] }
+
+measureSymbols :: [GhcInfo] -> MeasureSymbols
+measureSymbols = MeasureSymbols . map (val . name) . measureSpecs
 
 -- The walk function takes lhDict arguments that are not correctly accounted for by mkStrict.
 -- The arguments are not actually used, so, here, we fill them in with undefined. 

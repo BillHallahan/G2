@@ -98,8 +98,17 @@ liquidState :: T.Text -> (Maybe T.Text, ExtractedG2)
                       -> Config
                       -> MemConfig
                       -> IO (Lang.Id, CounterfactualName, State LHTracker, Bindings, Measures, TCValues, MemConfig)
-liquidState entry (mb_modname, exg2) ghci config memconfig = do
-    let (init_state, ifi, bindings) = initState exg2 True entry mb_modname (mkCurrExpr Nothing Nothing) config
+liquidState entry (mb_modname, exg2) ghci config memconfig =
+    liquidState' entry (mb_modname, exg2) ghci config memconfig (mkCurrExpr Nothing Nothing)
+
+liquidState' :: T.Text -> (Maybe T.Text, ExtractedG2)
+                       -> [GhcInfo]
+                       -> Config
+                       -> MemConfig
+                       -> MkCurrExpr
+                       -> IO (Lang.Id, CounterfactualName, State LHTracker, Bindings, Measures, TCValues, MemConfig)
+liquidState' entry (mb_modname, exg2) ghci config memconfig mkCurr = do
+    let (init_state, ifi, bindings) = initState exg2 True entry mb_modname mkCurr config
     let (init_state', bindings') = (markAndSweepPreserving (reqNames init_state `mappend` memconfig) init_state bindings)
     let cleaned_state = init_state' { type_env = type_env init_state } 
 

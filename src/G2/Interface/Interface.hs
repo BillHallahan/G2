@@ -1,7 +1,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Interface.Interface ( doTimeout
+module G2.Interface.Interface ( MkCurrExpr
+                              , doTimeout
                               , maybeDoTimeout
 
                               , initState

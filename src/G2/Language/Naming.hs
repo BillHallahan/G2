@@ -14,6 +14,7 @@ module G2.Language.Naming
     , renameAll
     , nameToStr
     , strToName
+    , maybe_StrToName
     , mkNameGen
     , varIds
     , varNames
@@ -82,12 +83,19 @@ nameToStr (Name n Nothing i _) = T.unpack n ++ "_n__" ++ show i
 -- Loses location information
 strToName :: String -> Name
 strToName str =
+    case maybe_StrToName str of
+        Just n -> n
+        Nothing -> error "strToName: Bad conversion"
+
+maybe_StrToName :: String -> Maybe Name
+maybe_StrToName str
+    | (n, _:q:_:mi) <- breakList (\s -> isPrefixOf "_m_" s || isPrefixOf "_n_" s) str
+    , (m, _:i) <- break ((==) '_') mi =
     let
-        (n, _:q:_:mi) = breakList (\s -> isPrefixOf "_m_" s || isPrefixOf "_n_" s) str
-        (m, _:i) = break ((==) '_') mi
         m' = if q == 'm' then Just m else Nothing
     in
-    Name (T.pack n) (fmap T.pack m') (read i :: Int) Nothing
+    Just $ Name (T.pack n) (fmap T.pack m') (read i :: Int) Nothing
+    | otherwise = Nothing
 
 -- | Initializes a `NameGen`.  The returned `NameGen` is guarenteed to not give any `Name`
 -- in the given `Named` type.

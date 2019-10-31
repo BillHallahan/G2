@@ -4,6 +4,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module G2.Liquid.LHReducers ( LHRed (..)
+                            , LHLimitByAcceptedOrderer (..)
                             , LHLimitByAcceptedHalter
                             , LHLimitByAcceptedOrderer
                             , LHAbsHalter (..)
@@ -27,6 +28,8 @@ import G2.Liquid.Annotations
 import Data.Monoid
 import Data.Semigroup
 import qualified Data.Text as T
+
+import Debug.Trace
 
 -- lhReduce
 -- When reducing for LH, we change the rule for evaluating Var f.
@@ -121,10 +124,10 @@ instance Reducer LHRed () LHTracker where
             Nothing -> return (Finished, [(s, ())], b, lhr)
 
 limitByAccepted :: Int -> (LHLimitByAcceptedHalter, LHLimitByAcceptedOrderer)
-limitByAccepted i = (LHLimitByAcceptedHalter i, LHLimitByAcceptedOrderer i)
+limitByAccepted i = (LHLimitByAcceptedHalter i, LHLimitByAcceptedOrderer)
 
--- LHLimitByAcceptedHalter and LHLimitByAcceptedOrderer should always be used
--- together.
+-- LHLimitByAcceptedHalter should always be used
+-- with LHLimitByAcceptedOrderer.
 -- LHLimitByAcceptedHalter is parameterized by a cutoff, `c`.
 -- It allows execution of a state only if
 --    (1) No counterexamples have been found
@@ -165,7 +168,7 @@ instance Halter LHLimitByAcceptedHalter (Maybe Int) LHTracker where
     stepHalter _ hv _ _ _ = hv
 
 -- | Runs the state that had the fewest number of rules applied.
-data LHLimitByAcceptedOrderer = LHLimitByAcceptedOrderer Int
+data LHLimitByAcceptedOrderer = LHLimitByAcceptedOrderer
  
 instance Orderer LHLimitByAcceptedOrderer () Int LHTracker where
     initPerStateOrder _ _ = ()
@@ -198,7 +201,11 @@ instance Halter LHAbsHalter Int LHTracker where
 
     updatePerStateHalt _ ii (Processed {accepted = acc}) _ = minimum $ ii:map (length . abstract_calls . track) acc
 
-    stopRed _ hv _ s = if length (abstract_calls $ track s) > hv then Discard else Continue
+    stopRed _ hv pr s =
+        if length (abstract_calls $ track s) > hv
+            then trace ("accepted " ++ show (length (accepted pr)) ++ " discarded "
+                            ++ show (length (discarded pr)) ++ " discarded no abs " ++ show (length (filter (\s -> abstractCallsNum s == 0) $ discarded pr))) Discard
+            else Continue
 
     stepHalter _ hv _ _ _ = hv
 
@@ -240,6 +247,6 @@ instance Halter SearchedBelowHalter () LHTracker where
             min_abs = minAbstractCalls acc
             acc' = filter (\acc_s -> abstractCallsNum acc_s == min_abs) acc
 
-            dis_less_than_min = filter (\s -> abstractCallsNum s < min_abs) dis
+            dis_less_than_min = filter (\s -> abstractCallsNum s < min_abs || abstractCallsNum s == 0) dis
 
     stepHalter _ hv _ _ _ = hv

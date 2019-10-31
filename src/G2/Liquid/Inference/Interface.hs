@@ -54,6 +54,8 @@ inference' g2config lhconfig ghci exg2 gs fc = do
 
             res <- mapM (genNewConstraints merged_ghci exg2 g2config) bad'
 
+            putStrLn $ "res = " ++ show res
+
             new_fc <- checkNewConstraints ghci exg2 g2config (concat res)
             case new_fc of
                 Left ce -> return . Left $ ce
@@ -70,7 +72,7 @@ inference' g2config lhconfig ghci exg2 gs fc = do
 
 genNewConstraints :: [GhcInfo] -> (Maybe T.Text, ExtractedG2) -> G2.Config -> T.Text -> IO [CounterExample]
 genNewConstraints ghci exg2 g2config n = do
-    ((exec_res, _), i) <- runLHCore n exg2 ghci g2config
+    ((exec_res, _), i) <- runLHInferenceCore n exg2 ghci g2config
     return $ map (lhStateToCE i) exec_res
 
 checkNewConstraints :: [GhcInfo] -> (Maybe T.Text, ExtractedG2) -> G2.Config -> [CounterExample] -> IO (Either [CounterExample] [FuncConstraint])
@@ -93,7 +95,7 @@ synthesize ghci meas_ex fc gs n = do
         spec = case findFuncSpec ghci n of
                 Just spec' -> spec'
                 Nothing -> error $ "No spec found for " ++ show n
-    new_spec <- refSynth spec meas_ex fc_of_n
+    new_spec <- refSynth spec meas_ex fc_of_n (measureSymbols ghci)
 
     putStrLn $ "spec = " ++ show spec
     putStrLn $ "new_spec = " ++ show new_spec

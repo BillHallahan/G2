@@ -3,9 +3,12 @@
 module G2.Liquid.Inference.RefSynth (refSynth) where
 
 import G2.Language.AST
+import G2.Language.Expr
 import G2.Language.Naming
 import G2.Language.Syntax as G2
 import G2.Language.Typing
+import G2.Liquid.Conversion
+import G2.Liquid.Helpers
 import G2.Liquid.Inference.FuncConstraint
 import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.PolyRef
@@ -31,8 +34,8 @@ import System.IO
 import System.IO.Temp
 import qualified System.Process as P
 
-refSynth :: SpecType -> MeasureExs -> [FuncConstraint] -> IO LH.Expr
-refSynth spec meas_ex fc = do
+refSynth :: SpecType -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> IO LH.Expr
+refSynth spec meas_ex fc meas_sym = do
     putStrLn $ "fc = " ++ show fc
     putStrLn $ "extractPolyBound fc = "
                 ++ show (map (map extractPolyBound . arguments . constraint) $ fc)
@@ -50,7 +53,7 @@ refSynth spec meas_ex fc = do
         Right res' -> do
             putStrLn . T.unpack $ sygus
             let smt_st = parse . lexSygus $ stripUnsat res'
-                lh_st = refToLHExpr spec smt_st
+                lh_st = refToLHExpr spec smt_st meas_sym
 
             print smt_st
 
@@ -73,7 +76,7 @@ sygusCall meas_ex fcs@(fc:_) =
 
         varN = map (\i -> "x" ++ show i) ([0..] :: [Integer])
         sortVars = map (uncurry SortedVar) . zip varN
-                        . map (typeToSort sort_map) $ filter (not . isTYPE) ts
+                        . map (typeToSort sort_map) . filter (not . isLHDict) $ filter (not . isTYPE) ts
     in
     [ SmtCmd (SetLogic "ALL")]
     ++
@@ -86,6 +89,10 @@ sygusCall meas_ex fcs@(fc:_) =
     map (constraints expr_dt_map) fcs
     ++
     [ CheckSynth ]
+    where
+        isLHDict e
+            | (TyCon (Name n _ _ _) _):_ <- unTyApp e = n == "lh"
+            | otherwise = False
 sygusCall _ _ = error "sygusCall: empty list"
 
 grammar :: TMeasureExs -> SortMap -> GrammarDef
@@ -139,7 +146,17 @@ constraints edtm (Neg fc) =
 
 funcCallTerm :: ExprDTMap ->  FuncCall -> Term
 funcCallTerm edtm (FuncCall { arguments = args, returns = r}) =
-    TermCall (ISymb "refinement") (map (exprToTerm edtm) args ++ [exprToTerm edtm r])
+    let
+        args' = filter (not . isLhDict) . filter (not . isType) $ args
+    in
+    TermCall (ISymb "refinement") (map (exprToTerm edtm) args' ++ [exprToTerm edtm r])
+    where
+        isType (Type _) = True
+        isType _ = False
+
+        isLhDict e
+            | (Data (DataCon (Name n _ _ _) _)):_ <- unApp e = n == "lh"
+            | otherwise = False
 
 exprToTerm :: ExprDTMap -> G2.Expr -> Term
 exprToTerm _ (App _ (Lit l)) = litToTerm l
@@ -312,54 +329,59 @@ stripUnsat :: String -> String
 stripUnsat ('u':'n':'s':'a':'t':xs) = xs
 stripUnsat xs = xs
 
-refToLHExpr :: SpecType -> [Cmd] -> LH.Expr
-refToLHExpr st [SmtCmd cmd] = refToLHExpr' st cmd
+refToLHExpr :: SpecType -> [Cmd] -> MeasureSymbols -> LH.Expr
+refToLHExpr st [SmtCmd cmd] meas_sym = refToLHExpr' st cmd meas_sym
 
-refToLHExpr' :: SpecType -> SmtCmd -> LH.Expr
-refToLHExpr' st (DefineFun _ args _ trm) =
+refToLHExpr' :: SpecType -> SmtCmd -> MeasureSymbols -> LH.Expr
+refToLHExpr' st (DefineFun _ args _ trm) meas_sym =
     let
         args' = map (\(SortedVar sym _) -> sym) args
 
         symbs = specTypeSymbols st
         symbsArgs = M.fromList $ zip args' symbs
     in
-    termToLHExpr symbsArgs trm
+    termToLHExpr meas_sym symbsArgs trm
 
-termToLHExpr :: M.Map Sy.Symbol LH.Symbol -> Term -> LH.Expr
-termToLHExpr m (TermIdent (ISymb v)) =
-    case M.lookup v m of
+termToLHExpr :: MeasureSymbols -> M.Map Sy.Symbol LH.Symbol -> Term -> LH.Expr
+termToLHExpr meas_sym m_args (TermIdent (ISymb v)) =
+    case M.lookup v m_args of
         Just v' -> EVar v'
-        Nothing -> error "termToLHExpr: Variable not found"
-termToLHExpr _ (TermLit l) = ECon (litToLHConstant l)
-termToLHExpr m (TermCall (ISymb v) ts)
+        Nothing -> error "termToLHExpr meas_sym m_args: Variable not found"
+termToLHExpr _ _ (TermLit l) = ECon (litToLHConstant l)
+termToLHExpr meas_sym@(MeasureSymbols meas_sym') m_args (TermCall (ISymb v) ts)
+    -- Measures
+    | Just meas <- find (\meas' -> Just (symbolName meas') == maybe_StrToName v) meas_sym' =
+        foldl' EApp (EVar meas) $ map (termToLHExpr meas_sym m_args) ts
     -- EBin
     | "+" <- v
-    , [t1, t2] <- ts = EBin LH.Plus (termToLHExpr m t1) (termToLHExpr m t2)
+    , [t1, t2] <- ts = EBin LH.Plus (termToLHExpr meas_sym m_args t1) (termToLHExpr meas_sym m_args t2)
     | "-" <- v
-    , [t1] <- ts = ENeg (termToLHExpr m t1)
+    , [t1] <- ts = ENeg (termToLHExpr meas_sym m_args t1)
     | "-" <- v
-    , [t1, t2] <- ts = EBin LH.Minus (termToLHExpr m t1) (termToLHExpr m t2)
+    , [t1, t2] <- ts = EBin LH.Minus (termToLHExpr meas_sym m_args t1) (termToLHExpr meas_sym m_args t2)
     | "*" <- v
-    , [t1, t2] <- ts = EBin LH.Times (termToLHExpr m t1) (termToLHExpr m t2)
+    , [t1, t2] <- ts = EBin LH.Times (termToLHExpr meas_sym m_args t1) (termToLHExpr meas_sym m_args t2)
     -- | "mod" <- v
-    -- , [t1, t2] <- ts = EBin LH.Mod (termToLHExpr m t1) (termToLHExpr m t2)
+    -- , [t1, t2] <- ts = EBin LH.Mod (termToLHExpr meas_sym m_args t1) (termToLHExpr meas_sym m_args t2)
     -- More EBin...
-    | "and" <- v = PAnd $ map (termToLHExpr m) ts
-    | "or" <- v = POr $ map (termToLHExpr m) ts
-    | "not" <- v, [t1] <- ts = PNot (termToLHExpr m t1)
+    | "and" <- v = PAnd $ map (termToLHExpr meas_sym m_args) ts
+    | "or" <- v = POr $ map (termToLHExpr meas_sym m_args) ts
+    | "not" <- v, [t1] <- ts = PNot (termToLHExpr meas_sym m_args t1)
+    | "=>" <- v
+    , [t1, t2] <- ts = PImp (termToLHExpr meas_sym m_args t1) (termToLHExpr meas_sym m_args t2)
     -- PAtom
     | "=" <- v
-    , [t1, t2] <- ts = PAtom LH.Eq (termToLHExpr m t1) (termToLHExpr m t2)
+    , [t1, t2] <- ts = PAtom LH.Eq (termToLHExpr meas_sym m_args t1) (termToLHExpr meas_sym m_args t2)
     | ">" <- v 
-    , [t1, t2] <- ts = PAtom LH.Gt (termToLHExpr m t1) (termToLHExpr m t2)
+    , [t1, t2] <- ts = PAtom LH.Gt (termToLHExpr meas_sym m_args t1) (termToLHExpr meas_sym m_args t2)
      | ">=" <- v 
-    , [t1, t2] <- ts = PAtom LH.Ge (termToLHExpr m t1) (termToLHExpr m t2)
+    , [t1, t2] <- ts = PAtom LH.Ge (termToLHExpr meas_sym m_args t1) (termToLHExpr meas_sym m_args t2)
     | "<" <- v 
-    , [t1, t2] <- ts = PAtom LH.Lt (termToLHExpr m t1) (termToLHExpr m t2)
+    , [t1, t2] <- ts = PAtom LH.Lt (termToLHExpr meas_sym m_args t1) (termToLHExpr meas_sym m_args t2)
    | "<=" <- v 
-    , [t1, t2] <- ts = PAtom LH.Le (termToLHExpr m t1) (termToLHExpr m t2)
+    , [t1, t2] <- ts = PAtom LH.Le (termToLHExpr meas_sym m_args t1) (termToLHExpr meas_sym m_args t2)
     -- More PAtom...
-termToLHExpr _ t = error $ "termToLHExpr: unhandled " ++ show t
+termToLHExpr _ _ t = error $ "termToLHExpr meas_sym m_args: unhandled " ++ show t
 
 litToLHConstant :: Sy.Lit -> Constant
 litToLHConstant (LitNum n) = I n
@@ -368,7 +390,7 @@ specTypeSymbols :: SpecType -> [LH.Symbol]
 specTypeSymbols (RFun { rt_bind = b, rt_out = out }) = b:specTypeSymbols out
 specTypeSymbols (RApp { rt_reft = ref }) = [reftSymbol $ ur_reft ref]
 specTypeSymbols (RVar {}) = error "RVar"
-specTypeSymbols (RAllT {}) = error "RAllT"
+specTypeSymbols (RAllT { rt_ty = out }) = specTypeSymbols out
 
 reftSymbol :: Reft -> LH.Symbol
 reftSymbol = fst . unpackReft
