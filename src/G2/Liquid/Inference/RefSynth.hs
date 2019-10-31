@@ -119,6 +119,7 @@ grammar meas_ex sort_map =
             GroupedRuleList "I" intSort 
                 ([ GVariable intSort
                  , GConstant intSort
+                 , GBfTerm $ BfLiteral $ LitNum 0
                  , GBfTerm $ BfIdentifierBfs (ISymb "+") [intBf, intBf]
                  , GBfTerm $ BfIdentifierBfs (ISymb "-") [intBf, intBf]
                  , GBfTerm $ BfIdentifierBfs (ISymb "*") [intBf, intBf]
@@ -159,6 +160,9 @@ funcCallTerm edtm (FuncCall { arguments = args, returns = r}) =
             | otherwise = False
 
 exprToTerm :: ExprDTMap -> G2.Expr -> Term
+exprToTerm _ (Data (DataCon (Name n _ _ _) _))
+    | "True" <- n = TermLit $ LitBool True
+    | "False" <- n =TermLit $ LitBool False
 exprToTerm _ (App _ (Lit l)) = litToTerm l
 exprToTerm _ (Lit l) = litToTerm l
 exprToTerm edtm e

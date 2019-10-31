@@ -63,6 +63,7 @@ initKnownValues eenv tenv =
 
     , andFunc = exprWithStrName eenv "&&"
     , orFunc = exprWithStrName eenv "||"
+    , notFunc = exprWithStrName eenv "not"
 
     , patErrorFunc = exprWithStrName eenv "patError"
     }

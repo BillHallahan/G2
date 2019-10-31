@@ -414,7 +414,7 @@ solveStates'' :: ( Named t
                  , ASTContainer t G2.Type
                  , Solver solver
                  , Simplifier simplifier) => solver -> simplifier -> Bindings -> [State t] -> IO (Maybe (ExecRes t))
-solveStates'' _ _ _ [] =return Nothing
+solveStates'' _ _ _ [] = return Nothing
 solveStates'' sol simplifier b (s:xs) = do
     m_ex_res <- runG2Solving sol simplifier b s
     case m_ex_res of

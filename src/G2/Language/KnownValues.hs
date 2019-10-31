@@ -61,6 +61,7 @@ data KnownValues = KnownValues {
 
                  , andFunc :: Name
                  , orFunc :: Name
+                 , notFunc :: Name
 
                  , patErrorFunc :: Name
                  } deriving (Show, Eq, Read, Typeable, Data)

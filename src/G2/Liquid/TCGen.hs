@@ -65,6 +65,7 @@ createTCValues kv = do
 
                         , lhAnd = KV.andFunc kv
                         , lhOr = KV.orFunc kv
+                        , lhNot = KV.notFunc kv
 
                         , lhPP = lhPPN })
 

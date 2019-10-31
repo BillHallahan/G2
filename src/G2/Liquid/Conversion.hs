@@ -397,7 +397,7 @@ convertLHExpr m bt _ (POr es) = do
         _ -> return $ foldr (\e -> App (App orE e)) false es'
 convertLHExpr m bt _ (PNot e) = do
     e' <- convertLHExpr m bt Nothing e
-    no <- mkNotE
+    no <- notM
     return (App no e') 
 convertLHExpr m bt t (PImp e1 e2) = do
     e1' <- convertLHExpr m bt t e1
