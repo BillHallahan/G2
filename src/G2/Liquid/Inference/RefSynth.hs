@@ -36,13 +36,6 @@ import qualified System.Process as P
 
 refSynth :: SpecType -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> IO LH.Expr
 refSynth spec meas_ex fc meas_sym = do
-    putStrLn $ "fc = " ++ show fc
-    putStrLn $ "extractPolyBound fc = "
-                ++ show (map (map extractPolyBound . arguments . constraint) $ fc)
-
-    putStrLn $ "meas_ex = " ++ show meas_ex
-    putStrLn $ "repArgsWithPrims . filterMeasureExs $ meas_ex = " ++ show (fst . repArgsWithPrims . filterMeasureExs $ meas_ex)
-
     let sygus = printSygus $ sygusCall meas_ex fc
     print sygus
 
@@ -64,19 +57,25 @@ refSynth spec meas_ex fc meas_sym = do
 -------------------------------
 
 sygusCall :: MeasureExs -> [FuncConstraint] -> [Cmd]
-sygusCall meas_ex fcs@(fc:_) =
+sygusCall meas_ex fcs@(_:_) =
     let
-        (meas_ex', sort_map) = repArgsWithPrims . filterMeasureExs $ meas_ex
+        -- We can't have higher order arguments into SyGuS, so just ignore them
+        fcs'@(fc:_) = map elimHigherOrderArgs fcs
+
+        ts = map typeOf (arguments $ constraint fc) ++ [typeOf (returns $ constraint fc)]
+
+        (meas_ex', sort_map) = repArgsWithPrims
+                             . filterByTypeMeasureEx ts
+                             . filterNonPrimMeasureExs $ meas_ex
         expr_dt_map = exprToDTMap sort_map
 
         declare_dts = sortMapToDeclareDTs sort_map
         meas_funs = measuresToDefineFuns meas_ex'
 
-        ts = map typeOf (arguments $ constraint fc) ++ [typeOf (returns $ constraint fc)]
-
         varN = map (\i -> "x" ++ show i) ([0..] :: [Integer])
         sortVars = map (uncurry SortedVar) . zip varN
-                        . map (typeToSort sort_map) . filter (not . isLHDict) $ filter (not . isTYPE) ts
+                        . map (typeToSort sort_map) . filter (not . isLHDict)
+                        $ filter (not . isTYPE) ts
     in
     [ SmtCmd (SetLogic "ALL")]
     ++
@@ -84,9 +83,9 @@ sygusCall meas_ex fcs@(fc:_) =
     ++
     map SmtCmd meas_funs
     ++
-    [SynthFun "refinement" sortVars boolSort (Just $ grammar meas_ex' sort_map) ]
+    [SynthFun "refinement" sortVars boolSort (Just $ grammar meas_ex' sort_map)]
     ++
-    map (constraints expr_dt_map) fcs
+    map (constraints expr_dt_map) fcs'
     ++
     [ CheckSynth ]
     where
@@ -135,6 +134,15 @@ grammar meas_ex sort_map =
          , intRuleList
          ]
          ++ map (uncurry dtGroupRuleList) gramNames) 
+
+elimHigherOrderArgs :: FuncConstraint -> FuncConstraint
+elimHigherOrderArgs fc =
+    let
+        cons = constraint fc
+        as = arguments cons
+        as' = filter (not . isTyFun . typeOf) as
+    in
+    fc { constraint = cons { arguments = as' }}
 
 dtGroupRuleList :: Symbol -> Sort -> GroupedRuleList
 dtGroupRuleList symb srt = GroupedRuleList symb srt [GVariable srt]
@@ -304,8 +312,8 @@ measureExToTMeasureEx sort_map esm (MeasureEx { meas_in = m_in, meas_out = m_out
 exprToDTMap :: SortMap -> ExprDTMap
 exprToDTMap = HM.fromList . map (\(e, sym, srt) -> (e, (sym, srt))) . concatMap dt_cons . HM.elems
 
-filterMeasureExs :: MeasureExs -> MeasureExs
-filterMeasureExs = filterErrors . filterNonPrimsMeasureExs
+filterNonPrimMeasureExs :: MeasureExs -> MeasureExs
+filterNonPrimMeasureExs = filterErrors . filterNonPrimsMeasureExs
 
 -- | Eliminates measures where any of the returned values is Error
 filterErrors :: MeasureExs -> MeasureExs
@@ -324,6 +332,12 @@ isErrorReturns :: MeasureEx -> Bool
 isErrorReturns (MeasureEx { meas_out = Prim Undefined _ }) = True
 isErrorReturns (MeasureEx { meas_out = Prim Error _ }) = True
 isErrorReturns _ = False
+
+-- | Filters a MeasureEx to only measures that take one of the types in ts
+filterByTypeMeasureEx :: [Type] -> MeasureExs -> MeasureExs
+filterByTypeMeasureEx ts =
+    HM.filter (not . HS.null)
+    . HM.map (HS.filter (\meas -> typeOf (meas_in meas) `elem` ts))
 
 -------------------------------
 -- Converting to refinement

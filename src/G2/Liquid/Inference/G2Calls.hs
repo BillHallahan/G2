@@ -80,7 +80,8 @@ inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
         state_name = Name "state" Nothing 0 Nothing
 
         searched_below = SearchedBelowHalter { found_at_least = 3
-                                             , discarded_at_least = 6 }
+                                             , discarded_at_least = 6
+                                             , discarded_at_most = 15 }
     in
     if higherOrderSolver config == AllFuncs then
         ( SomeReducer NonRedPCRed

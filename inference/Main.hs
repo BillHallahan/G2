@@ -13,6 +13,11 @@ main = do
     case as of
         (f:_) -> do
             gs <- inference config [] [f] []
-            putStrLn "Safe"
-            print gs
+            case gs of
+                Left gs' -> do
+                    putStrLn "Counterexample"
+                    print gs'
+                Right gs' -> do
+                    putStrLn "Safe"
+                    print gs'
         [] -> error "No path given"

@@ -227,10 +227,12 @@ instance Halter LHMaxOutputsHalter Int LHTracker where
 
 -- | Suppose that the minimal number of abstracted calls in an accepted state is m.
 -- This Halter discards all unprocessed states after finding at least found_at_least states with
--- exactly m abstracted calls, if at least discarded_at_least states with fewer than m accepted
--- calls have been discarded.
+-- exactly m abstracted calls, if either:
+-- (1) at least discarded_at_least states with fewer than m accepted calls have been discarded.
+-- (2) at most discarded_at_most states with fewer than m accepted calls have been discarded.
 data SearchedBelowHalter = SearchedBelowHalter { found_at_least :: Int
-                                               , discarded_at_least :: Int }
+                                               , discarded_at_least :: Int
+                                               , discarded_at_most :: Int }
 
 instance Halter SearchedBelowHalter () LHTracker where
     initHalt _ _ = ()
@@ -238,15 +240,23 @@ instance Halter SearchedBelowHalter () LHTracker where
     updatePerStateHalt _ hv _ _ = hv
 
     stopRed sbh m (Processed { accepted = acc, discarded = dis }) s
-        | length acc' >= found_at_least sbh
+        | length_acc' >= found_at_least sbh
         , abstractCallsNum s >= min_abs = Discard
-        | length acc' >= found_at_least sbh
-        , length dis_less_than_min >= discarded_at_least sbh = Discard
+
+        | length_acc' >= found_at_least sbh
+        , length_dis_ltm >= discarded_at_least sbh = Discard
+
+        | length_acc' >= 1
+        , length_dis_ltm >= discarded_at_most sbh = Discard
+
         | otherwise = Continue
         where
             min_abs = minAbstractCalls acc
+            
             acc' = filter (\acc_s -> abstractCallsNum acc_s == min_abs) acc
+            length_acc' = length acc'
 
             dis_less_than_min = filter (\s -> abstractCallsNum s < min_abs || abstractCallsNum s == 0) dis
+            length_dis_ltm = length dis_less_than_min
 
     stepHalter _ hv _ _ _ = hv
