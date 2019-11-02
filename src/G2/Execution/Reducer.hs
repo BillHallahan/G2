@@ -60,6 +60,7 @@ import G2.Config.Config
 import qualified G2.Language.ExprEnv as E
 import G2.Execution.Rules
 import qualified G2.Execution.WorkGraph as WG
+import G2.Execution.Zipper
 import G2.Language
 import qualified G2.Language.Monad as MD
 import qualified G2.Language.Stack as Stck
@@ -948,7 +949,10 @@ runReducerMerge red hal simplifier s b = do
     let pr = Processed {accepted = [], discarded = []}
         s' = ExState {state = s {merge_stack = [0]}, halter_val = initHalt hal s, reducer_val = initReducer red s, order_val = Nothing}
         workGraph = WG.initGraph s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStatesGraph addIdxFunc logState
+        -- zipper = initZipper s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStatesZipper resetMergingZipper
+
     (_, (_, _, _, b', pr')) <- WG.work workGraph
+    -- (_, _, _, b', pr') <- evalZipper zipper
     res <- mapM (\ExState {state = st} -> return st) (accepted pr')
     return (res, b')
 
@@ -1037,3 +1041,51 @@ addIdxFunc newIdx exS@(ExState {state = st@(State {merge_stack = ms})}) = exS {s
 -- function for Logger in workGraph that outputs curr_expr
 logState :: Show t => ExState rv hv sov t -> String
 logState (ExState { state = (State {curr_expr = ce}) }) = show ce
+
+-- | Remove any MergePtFrame-s in the exec_stack of the ExState. Called when we float states to Root when tree grows too deep
+resetMergingZipper :: (ExState rv hv sov t) -> (ExState rv hv sov t)
+resetMergingZipper rs@(ExState {state = s}) =
+    let st = exec_stack s
+        st' = delMergePtFrames st
+        s' = s {exec_stack = st', cases = M.empty, depth_exceeded = False}
+    in rs {state = s'}
+
+delMergePtFrames :: Stck.Stack Frame -> Stck.Stack Frame
+delMergePtFrames st =
+    let xs = Stck.toList st
+        xs' = filter (\fr -> case fr of
+                                MergePtFrame _ -> False
+                                _ -> True) xs
+    in Stck.fromList xs'
+
+-- | Iterates through list and attempts to merge adjacent ExStates if possible. Does not consider all possible combinations
+-- because number of successful merges only seem to increase marginally in such a case
+mergeStatesZipper :: (Eq t, Named t, Simplifier simplifier)
+                  => [ExState rv hv sov t] -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
+                  -> ([ExState rv hv sov t], (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)))
+mergeStatesZipper (x1:x2:xs) (r, h, simplifier, b, pr) =
+    case mergeStates' x1 x2 b simplifier of
+        (Just exS, b') -> mergeStatesZipper (exS:xs) (r, h, simplifier, b', pr)
+        (Nothing, b') -> let (merged, e) = mergeStatesZipper (x2:xs) (r, h, simplifier, b', pr)
+                         in (x1:merged, e)
+mergeStatesZipper ls e = (ls, e)
+
+-- | Similar to mergeStatesZipper, but considers all possible combinations when merging states
+mergeStatesAllZipper :: (Eq t, Named t, Simplifier simplifier)
+                     => [ExState rv hv sov t] -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
+                     -> ([ExState rv hv sov t], (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)))
+mergeStatesAllZipper (x:xs) (r, h, simplifier, b, pr) =
+    let (done, rest, b') = mergeStatesAllZipper' x [] xs b simplifier
+        (mergedStates, e) = mergeStatesAllZipper rest (r, h, simplifier, b', pr)
+    in (done:mergedStates, e)
+mergeStatesAllZipper [] e = ([], e)
+
+mergeStatesAllZipper' :: (Eq t, Named t, Simplifier simplifier)
+                      => (ExState rv hv sov t) -> [ExState rv hv sov t] -> [ExState rv hv sov t] -> Bindings -> simplifier
+                      -> ((ExState rv hv sov t), [ExState rv hv sov t], Bindings)
+mergeStatesAllZipper' x1 checked (x2:xs) b simplifier =
+    case mergeStates' x1 x2 b simplifier of
+        (Just exS, b') -> mergeStatesAllZipper' exS checked xs b' simplifier
+        (Nothing, b') -> mergeStatesAllZipper' x1 (x2:checked) xs b' simplifier
+mergeStatesAllZipper' x1 checked [] b _ = (x1, checked, b)
+
