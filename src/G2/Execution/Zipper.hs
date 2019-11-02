@@ -27,8 +27,8 @@ data Tree a = CaseSplit [Tree a] -- Node corresponding to point at which executi
 newtype Cxt a = Cxt [(Tree a, [Tree a])]
 type Zipper a = (Tree a, Cxt a)
 
-data ZipperTree a b = ZipperTree { zipper :: Zipper a
-                                 , env :: b -- ^ Values that might be needed or are modified during reduction
+data ZipperTree a b = ZipperTree { zipper :: Zipper a -- ^ Zipper on a tree of a-s
+                                 , env :: b -- ^ Values that might be needed for reduction
                                  , work_func :: a -> b -> IO ([a], b, WG.Status) -- ^ Function to perform work on an object
                                  , merge_func :: [a] -> b -> ([a], b) -- ^ Func to merge objects at specified idx
                                  , reset_merging_func :: a -> a }
@@ -66,8 +66,8 @@ evalZipper zipTree@(ZipperTree { zipper = zipr, env = e, work_func = workFn, mer
             WG.Discard -> do
                 let zipr' = deleteNode zipr
                 evalZipper (zipTree { zipper = zipr', env = e' })
-            WG.Mergeable -> do -- ignore switch for now
-                let tree' = ReadyToMerge (head as) (count - 1) -- redRules only returns 1 state when reducerRes is MergePoint
+            WG.Mergeable -> do
+                let tree' = ReadyToMerge (head as) (count - 1) -- redRules only returns 1 state when status is Mergeable
                     zipr' = (tree', snd zipr)
                 evalZipper (zipTree { zipper = zipr', env = e' })
             WG.WorkSaturated -> do

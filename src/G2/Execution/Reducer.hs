@@ -956,7 +956,7 @@ runReducerMerge red hal simplifier s b = do
     res <- mapM (\ExState {state = st} -> return st) (accepted pr')
     return (res, b')
 
--- | work_func for WorkGraph. Reduces the ExState `exS` and returns the reduceds along with the appropriate Status
+-- | work_func for both WorkGraph and ZipperTree. Reduces the ExState `exS` and returns the reduceds along with the appropriate Status
 runReducerMerge' :: (Show t, Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
                  => ExState rv hv sov t
                  -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
@@ -1042,6 +1042,8 @@ addIdxFunc newIdx exS@(ExState {state = st@(State {merge_stack = ms})}) = exS {s
 logState :: Show t => ExState rv hv sov t -> String
 logState (ExState { state = (State {curr_expr = ce}) }) = show ce
 
+------------------------------------------------------------------------------------------------------------------------------
+
 -- | Remove any MergePtFrame-s in the exec_stack of the ExState. Called when we float states to Root when tree grows too deep
 resetMergingZipper :: (ExState rv hv sov t) -> (ExState rv hv sov t)
 resetMergingZipper rs@(ExState {state = s}) =
@@ -1058,7 +1060,8 @@ delMergePtFrames st =
                                 _ -> True) xs
     in Stck.fromList xs'
 
--- | Iterates through list and attempts to merge adjacent ExStates if possible. Does not consider all possible combinations
+-- | Merge Function for ZipperTree
+-- Iterates through list and attempts to merge adjacent ExStates if possible. Does not consider all possible combinations
 -- because number of successful merges only seem to increase marginally in such a case
 mergeStatesZipper :: (Eq t, Named t, Simplifier simplifier)
                   => [ExState rv hv sov t] -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
