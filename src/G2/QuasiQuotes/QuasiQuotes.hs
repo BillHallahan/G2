@@ -35,6 +35,7 @@ import qualified Data.Map as M
 import Data.Maybe
 import Data.IORef
 import qualified Data.Text as T
+import qualified G2.Language.ExprEnv as E
 
 import Language.Haskell.TH.Lib
 import Language.Haskell.TH.Syntax as TH

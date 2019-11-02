@@ -948,6 +948,7 @@ runReducerMerge red hal simplifier s b = do
     let pr = Processed {accepted = [], discarded = []}
         s' = ExState {state = s {merge_stack = [0]}, halter_val = initHalt hal s, reducer_val = initReducer red s, order_val = Nothing}
         workGraph = WG.initGraph s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStatesGraph addIdxFunc logState
+
     (_, (_, _, _, b', pr')) <- WG.work workGraph
     let res = mapProcessed state pr'
     return (res, b')
