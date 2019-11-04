@@ -237,7 +237,7 @@ runExecutionQ :: Merging -> State () -> Bindings -> Config -> Q ExecOut
 runExecutionQ mergestates s b config = do
   runIO $ do
     let (s', b') = addAssume s b
-    
+
     SomeSolver solver <- initSolverInfinite config
     let simplifier = IdSimplifier
     case qqRedHaltOrd config solver simplifier mergestates of
@@ -280,13 +280,16 @@ qqRedHaltOrd :: (Solver solver, Simplifier simplifier) => Config -> solver -> si
 qqRedHaltOrd config solver simplifier mergeStates =
     let
         share = sharing config
+        logSt = logStates config
 
         tr_ng = mkNameGen ()
         state_name = G2.Name "state" Nothing 0 Nothing
     in
     ( SomeReducer
         (NonRedPCRed :<~| TaggerRed state_name tr_ng)
-            <~| (SomeReducer (StdRed share mergeStates solver simplifier))
+            <~| (case logSt of
+                    Just fp -> SomeReducer (StdRed share mergeStates solver simplifier :<~ Logger fp)
+                    Nothing -> SomeReducer (StdRed share mergeStates solver simplifier))
     , SomeHalter
         (DiscardIfAcceptedTag state_name 
         :<~> AcceptHalter)
@@ -459,4 +462,5 @@ toSymbArgsTuple in_ids cleaned tenv_name = do
 qqConfig :: IO Config
 qqConfig = do
   homedir <- getHomeDirectory
+  -- return $ mkConfig homedir ["--log-states", "../Debugging Output/g2q/sumEvens2"] M.empty
   return $ mkConfig homedir [] M.empty
