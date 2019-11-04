@@ -11,12 +11,14 @@ import G2.Language as G2
 import qualified G2.Language.ExprEnv as E
 import G2.Liquid.Helpers
 import G2.Liquid.LHReducers
+import G2.Liquid.Types
 import G2.Solver
 
 import G2.Lib.Printers
 
 import Control.Monad
 import qualified Data.Map as M
+import Data.Maybe
 
 -------------------------------
 -- Check Abstracted
@@ -24,19 +26,36 @@ import qualified Data.Map as M
 -- Checks if the abstracted functions actually deviate from the real function behavior.
 -- If they do not, they can simply be eliminated from the state.
 
-checkAbstracted :: Config -> Bindings -> ExecRes LHTracker -> IO (ExecRes LHTracker)
+-- The result of a call to checkAbstracted'.  Either the function does not need
+-- to be abstract, or we get the actual result of executing the function call. 
+data AbstractedRes = AbstractRes Abstracted
+                   | NotAbstractRes
+
+toAbstracted :: AbstractedRes -> Maybe Abstracted
+toAbstracted (AbstractRes a) = Just a
+toAbstracted _ = Nothing
+
+checkAbstracted :: Config -> Bindings -> ExecRes LHTracker -> IO (ExecRes [Abstracted])
 checkAbstracted config bindings er@(ExecRes{ final_state = s@State { track = lht }}) = do
     SomeSolver solver <- initSolver config
     let simplifier = ADTSimplifier arbValue
 
-    abstracted' <- filterM (checkAbstracted' solver simplifier (sharing config) s bindings) $ abstract_calls lht
+    let check = checkAbstracted' solver simplifier (sharing config) s bindings
+    abstracted' <- return . mapMaybe toAbstracted =<< mapM check (abstract_calls lht)
 
     close solver
 
-    return $ er { final_state = s {track = lht { abstract_calls = abstracted' }}}
+    return $ er { final_state = s {track = abstracted' }}
 
-checkAbstracted' :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Sharing -> State LHTracker -> Bindings -> FuncCall -> IO Bool
-checkAbstracted' solver simplifier share s bindings (FuncCall { funcName = n, arguments = ars, returns = r })
+checkAbstracted' :: (Solver solver, Simplifier simplifier)
+                 => solver
+                 -> simplifier
+                 -> Sharing
+                 -> State LHTracker
+                 -> Bindings
+                 -> FuncCall
+                 -> IO AbstractedRes
+checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName = n, arguments = ars, returns = r })
     | Just e <- E.lookup n $ expr_env s = do
         let 
             e' = mkApp $ Var (Id n (typeOf e)):ars
@@ -58,7 +77,13 @@ checkAbstracted' solver simplifier share s bindings (FuncCall { funcName = n, ar
             [ExecRes
                 {
                     final_state = (State { curr_expr = CurrExpr _ ce})
-                }] -> return . not $ ce `eqUpToTypes` r
+                }] -> case not $ ce `eqUpToTypes` r of
+                        True ->
+                            return $ AbstractRes 
+                                        ( Abstracted { abstract = abs_fc
+                                                     , real = abs_fc { returns = ce } }
+                                        )
+                        False -> return NotAbstractRes
             _ -> error $ "checkAbstracted': Bad return from runG2WithSomes"
     | otherwise = error $ "checkAbstracted': Bad return from runG2WithSomes"
 

@@ -9,6 +9,9 @@ module G2.Liquid.Types ( LHOutput (..)
                        , LHStateM (..)
                        , ExState (..)
                        , AnnotMap (..)
+                       , Abstracted (..)
+
+                       , mapAbstractedFCs
                        , consLHState
                        , deconsLHState
                        , measuresM
@@ -82,8 +85,8 @@ data LHOutput = LHOutput { ghcI :: GhcInfo
                          , cgI :: CGInfo
                          , solution :: FixSolution }
 
-data CounterExample = DirectCounter L.FuncCall [L.FuncCall]
-                    | CallsCounter L.FuncCall L.FuncCall [L.FuncCall]
+data CounterExample = DirectCounter L.FuncCall [Abstracted]
+                    | CallsCounter L.FuncCall L.FuncCall [Abstracted]
                     deriving (Eq, Show, Read)
 
 type Measures = L.ExprEnv
@@ -93,6 +96,27 @@ type Assumptions = M.Map L.Name L.Expr
 newtype AnnotMap =
     AM { unAnnotMap :: HM.HashMap L.Span [(Maybe T.Text, L.Expr)] }
     deriving (Eq, Show, Read)
+
+-- Abstracted values
+data Abstracted = Abstracted { abstract :: L.FuncCall
+                             , real :: L.FuncCall }
+                             deriving (Eq, Show, Read)
+
+mapAbstractedFCs :: (L.FuncCall -> L.FuncCall) ->  Abstracted -> Abstracted
+mapAbstractedFCs f (Abstracted { abstract = a, real = r }) =
+    Abstracted { abstract = f a, real = f r }
+
+instance L.ASTContainer Abstracted L.Expr where
+    containedASTs ab = L.containedASTs (abstract ab) ++ L.containedASTs (real ab)
+    modifyContainedASTs f (Abstracted { abstract = a, real = r }) =
+        Abstracted { abstract = L.modifyContainedASTs f a
+                   , real = L.modifyContainedASTs f r}
+
+instance L.ASTContainer Abstracted L.Type where
+    containedASTs ab = L.containedASTs (abstract ab) ++ L.containedASTs (real ab)
+    modifyContainedASTs f (Abstracted { abstract = a, real = r }) =
+        Abstracted { abstract = L.modifyContainedASTs f a
+                   , real = L.modifyContainedASTs f r}
 
 -- [LHState]
 -- measures is an extra expression environment, used to build Assertions.

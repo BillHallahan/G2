@@ -47,7 +47,7 @@ runLHInferenceCore :: T.Text
                    -> (Maybe T.Text, ExtractedG2)
                    -> [GhcInfo]
                    -> Config
-                   -> IO (([ExecRes [FuncCall]], Bindings), Id)
+                   -> IO (([ExecRes [Abstracted]], Bindings), Id)
 runLHInferenceCore entry (mb_modname, exg2) ghci config = do
     (ifi, cfn, final_st, bindings, _, _, pres_names) <- liquidState entry (mb_modname, exg2) ghci config mempty
 
@@ -115,7 +115,6 @@ inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
 -- Does a given (counter)example violate a specification?
 -- This allows us to check if a found counterexample violates a user-provided specifications,
 -- or a synthesized specification
-
 checkCounterexample :: (Maybe T.Text, ExtractedG2) -> [GhcInfo] -> Config -> FuncCall -> IO Bool
 checkCounterexample exg2 ghci config cex@(FuncCall {funcName = n}) = do
     let config' = config { counterfactual = NotCounterfactual }

@@ -107,8 +107,10 @@ synthesize ghci meas_ex fc gs n = do
     return $ insertGS n new_spec gs
 
 cexsToFuncConstraints :: (Maybe T.Text, ExtractedG2) -> [GhcInfo] -> G2.Config -> CounterExample -> IO (Either CounterExample [FuncConstraint])
-cexsToFuncConstraints _ _ _ (DirectCounter _ fcs@(_:_)) = return . Right $ map Neg fcs
-cexsToFuncConstraints _ _ _ (CallsCounter _ _ fcs@(_:_)) = return . Right $ map Neg fcs
+cexsToFuncConstraints _ _ _ (DirectCounter _ fcs@(_:_)) =
+    return . Right $ map (Neg . abstract) fcs
+cexsToFuncConstraints _ _ _ (CallsCounter _ _ fcs@(_:_)) =
+    return . Right $ map (Neg . abstract) fcs
 cexsToFuncConstraints exg2 ghci g2config cex@(DirectCounter fc []) = do
     v_cex <- checkCounterexample exg2 ghci g2config fc
     case v_cex of

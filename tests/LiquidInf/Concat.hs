@@ -1,6 +1,8 @@
 {-@ LIQUID "--prune-unsorted" @-}
 
-module Concat where
+-- {-@ include <include/Concat.hquals> @-}
+
+module Concat (size, sumsize) where
 
 import Prelude hiding (concat)
 

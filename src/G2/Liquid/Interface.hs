@@ -60,7 +60,7 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: [FilePath] -> [FilePath] -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (([ExecRes [FuncCall]], Bindings), Lang.Id)
+findCounterExamples :: [FilePath] -> [FilePath] -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (([ExecRes [Abstracted]], Bindings), Lang.Id)
 findCounterExamples proj fp entry libs lhlibs config = do
     let config' = config { mode = Liquid }
 
@@ -79,7 +79,7 @@ findCounterExamples proj fp entry libs lhlibs config = do
 runLHCore :: T.Text -> (Maybe T.Text, ExtractedG2)
                     -> [GhcInfo]
                     -> Config
-                    -> IO (([ExecRes [FuncCall]], Bindings), Lang.Id)
+                    -> IO (([ExecRes [Abstracted]], Bindings), Lang.Id)
 runLHCore entry (mb_modname, exg2) ghci config = do
     (ifi, cfn, final_st, bindings, _, _, pres_names) <- liquidState entry (mb_modname, exg2) ghci config mempty
 
@@ -159,7 +159,7 @@ runLHG2 :: (Solver solver, Simplifier simplifier)
         -> MemConfig
         -> State LHTracker
         -> Bindings
-        -> IO ([ExecRes [FuncCall]], Bindings)
+        -> IO ([ExecRes [Abstracted]], Bindings)
 runLHG2 config red hal ord solver simplifier pres_names final_st bindings = do
     (ret, final_bindings) <- runG2WithSomes red hal ord solver simplifier pres_names final_st bindings
 
@@ -173,15 +173,18 @@ runLHG2 config red hal ord solver simplifier pres_names final_st bindings = do
     ret''' <- mapM (checkAbstracted config final_bindings) ret''
 
     let exec_res = 
-            map (\(ExecRes { final_state = s
-                           , conc_args = es
-                           , conc_out = e
-                           , violated = ais}) ->
-                  (ExecRes { final_state =
-                                s {track = map (subVarFuncCall (model s) (expr_env s) (type_classes s)) $ abstract_calls $ track s}
-                           , conc_args = es
-                           , conc_out = e
-                           , violated = ais})) ret'''
+          map (\(ExecRes { final_state = s
+                         , conc_args = es
+                         , conc_out = e
+                         , violated = ais}) ->
+                (ExecRes { final_state =
+                              s {track = 
+                                    map (mapAbstractedFCs (subVarFuncCall (model s) (expr_env s) (type_classes s)))
+                                    $ track s
+                                }
+                         , conc_args = es
+                         , conc_out = e
+                         , violated = ais})) ret'''
 
     return (exec_res, final_bindings)
 
@@ -374,7 +377,7 @@ parseLHOut entry ((ExecRes { final_state = s
            , violating = if called `sameFuncNameArgs` viFunc then Nothing else viFunc
            , abstracted = abstr} : tl
 
-lhStateToCE :: Lang.Id -> ExecRes [FuncCall] -> CounterExample
+lhStateToCE :: Lang.Id -> ExecRes [Abstracted] -> CounterExample
 lhStateToCE i (ExecRes { final_state = s
                        , conc_args = inArg
                        , conc_out = ex
