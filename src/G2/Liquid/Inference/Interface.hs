@@ -17,6 +17,7 @@ import Language.Haskell.Liquid.Types as LH
 
 import Control.Monad
 import Data.Either
+import Data.List
 import qualified Data.Text as T
 
 inference :: G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO (Either [CounterExample] GeneratedSpecs)
@@ -62,7 +63,7 @@ inference' g2config lhconfig ghci exg2 gs fc = do
             case new_fc of
                 Left ce -> return . Left $ ce
                 Right new_fc' -> do
-                    let new_fc_funcs = map (funcName . constraint) new_fc'
+                    let new_fc_funcs = nub $ map (funcName . constraint) new_fc'
 
                         fc' = foldr insertFC fc new_fc'
 
