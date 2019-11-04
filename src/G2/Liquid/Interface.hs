@@ -114,15 +114,32 @@ liquidState' :: T.Text -> (Maybe T.Text, ExtractedG2)
                        -> MemConfig
                        -> MkCurrExpr
                        -> IO (Lang.Id, CounterfactualName, State LHTracker, Bindings, Measures, TCValues, MemConfig)
-liquidState' entry (mb_modname, exg2) ghci config memconfig mkCurr = do
-    let (init_state, ifi, bindings) = initState exg2 True entry mb_modname mkCurr config
+liquidState' entry mb_exg2 ghci config memconfig mkCurr = do
+    let (cleaned_state, ifi, bindings') = liquidReadyState entry mb_exg2 mkCurr config
+    fromLiquidReadyState cleaned_state ifi bindings' ghci config memconfig
+
+liquidReadyState :: T.Text
+                 -> (Maybe T.Text, ExtractedG2)
+                 -> MkCurrExpr
+                 -> Config
+                 -> (State (), Lang.Id, Bindings)
+liquidReadyState entry (mb_modname, exg2) = initState exg2 True entry mb_modname
+
+fromLiquidReadyState :: State ()
+                     -> Lang.Id
+                     -> Bindings
+                     -> [GhcInfo]
+                     -> Config
+                     -> MemConfig
+                     -> IO (Lang.Id, CounterfactualName, State LHTracker, Bindings, Measures, TCValues, MemConfig)
+fromLiquidReadyState init_state ifi bindings ghci config memconfig = do
     let (init_state', bindings') = (markAndSweepPreserving (reqNames init_state `mappend` memconfig) init_state bindings)
-    let cleaned_state = init_state' { type_env = type_env init_state } 
+        cleaned_state = init_state' { type_env = type_env init_state } 
 
     let (no_part_state@(State {expr_env = np_eenv})) = cleaned_state
     let np_ng = name_gen bindings'
 
-    let renme = E.keys np_eenv -- \\ nub (Lang.names (type_classes no_part_state))
+    let renme = E.keys np_eenv
     let ((meenv, mkv, mtc, minst), ng') = doRenames renme np_ng 
             (np_eenv, known_values no_part_state, type_classes no_part_state, higher_order_inst bindings')
     

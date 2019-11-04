@@ -37,7 +37,6 @@ import qualified System.Process as P
 refSynth :: SpecType -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> IO LH.Expr
 refSynth spec meas_ex fc meas_sym = do
     let sygus = printSygus $ sygusCall meas_ex fc
-    print sygus
 
     res <- runCVC4 $ T.unpack sygus
 
