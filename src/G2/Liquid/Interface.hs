@@ -1,7 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module G2.Liquid.Interface where
+module G2.Liquid.Interface ( Abstracted (..)
+                           , findCounterExamples
+                           , runLHG2
+                           , runLHCore
+                           , liquidState
+                           , liquidState'
+                           , lhStateToCE
+                           , printLHOut) where
 
 import G2.Config.Config
 
@@ -309,7 +316,7 @@ pprint (v, r) = do
     putStrLn $ show i
     putStrLn $ show doc
 
-printLHOut :: Lang.Id -> [ExecRes [FuncCall]] -> IO ()
+printLHOut :: Lang.Id -> [ExecRes [Abstracted]] -> IO ()
 printLHOut entry = printParsedLHOut . parseLHOut entry
 
 printParsedLHOut :: [LHReturn] -> IO ()
@@ -356,7 +363,7 @@ printFuncInfo :: FuncInfo -> IO ()
 printFuncInfo (FuncInfo {funcArgs = call, funcReturn = output}) =
     TI.putStrLn $ call `T.append` " = " `T.append` output
 
-parseLHOut :: Lang.Id -> [ExecRes [FuncCall]] -> [LHReturn]
+parseLHOut :: Lang.Id -> [ExecRes [Abstracted]] -> [LHReturn]
 parseLHOut _ [] = []
 parseLHOut entry ((ExecRes { final_state = s
                            , conc_args = inArg
@@ -371,7 +378,7 @@ parseLHOut entry ((ExecRes { final_state = s
       called = FuncInfo {func = nameOcc $ idName entry, funcArgs = funcCall, funcReturn = funcOut}
       viFunc = fmap (parseLHFuncTuple s) ais
 
-      abstr = map (parseLHFuncTuple s) $ track s
+      abstr = map (parseLHFuncTuple s) . map abstract $ track s
   in
   LHReturn { calledFunc = called
            , violating = if called `sameFuncNameArgs` viFunc then Nothing else viFunc

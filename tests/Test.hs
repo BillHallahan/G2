@@ -750,7 +750,7 @@ findCounterExamples' :: FilePath
                      -> [FilePath]
                      -> [FilePath]
                      -> Config
-                     -> IO (Maybe (Either SomeException [ExecRes [FuncCall]]))
+                     -> IO (Maybe (Either SomeException [ExecRes [Abstracted]]))
 findCounterExamples' fp entry libs lhlibs config =
     let
         proj = takeDirectory fp

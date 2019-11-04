@@ -3,6 +3,7 @@ module Reqs ( Reqs (..)
             , checkAbsLHExprGen ) where
 
 import G2.Language
+import G2.Liquid.Interface
 
 -- | Requirements
 -- We use these to define checks on tests returning function inputs
@@ -37,15 +38,15 @@ checkExprGen exprs i reqList =
 givenLengthCheck :: Int -> ([Expr] -> Bool) -> [Expr] -> Bool
 givenLengthCheck i f e = if length e == i then f e else False
 
-checkAbsLHExprGen :: [(State [FuncCall], [Expr], Expr)] -> Int -> [Reqs ([Expr] -> Expr -> [FuncCall] -> Bool)] -> [TestErrors] 
+checkAbsLHExprGen :: [(State [Abstracted], [Expr], Expr)] -> Int -> [Reqs ([Expr] -> Expr -> [FuncCall] -> Bool)] -> [TestErrors] 
 checkAbsLHExprGen exprs i reqList =
     let
         argChecksAll =
-            if and . map (\f -> all (\(s, es, e) -> lhGivenLengthCheck i f es e (track s)) exprs) $ [f | RForAll f <- reqList]
+            if and . map (\f -> all (\(s, es, e) -> lhGivenLengthCheck i f es e (map abstract $ track s)) exprs) $ [f | RForAll f <- reqList]
                 then []
                 else [ArgsForAllFailed]
         argChecksEx =
-            if and . map (\f -> any (\(s, es, e) -> lhGivenLengthCheck i f es e (track s)) exprs) $ [f | RExists f <- reqList]
+            if and . map (\f -> any (\(s, es, e) -> lhGivenLengthCheck i f es e (map abstract $ track s)) exprs) $ [f | RExists f <- reqList]
                 then []
                 else [ArgsExistFailed]
         checkL = checkLengths (map (\(_, e, _) -> e) exprs) i reqList
