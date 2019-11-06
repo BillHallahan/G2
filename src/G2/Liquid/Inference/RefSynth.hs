@@ -1,6 +1,20 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Liquid.Inference.RefSynth (refSynth) where
+module G2.Liquid.Inference.RefSynth ( SortMap
+                                    , TMeasureExs
+                                    , refSynth
+                                    
+                                    , grammar
+                                    , intRuleList
+                                    , boolRuleList
+
+                                    , intSort
+                                    , boolSort
+
+                                    , termToLHExpr
+
+                                    , runCVC4
+                                    , runCVC4Stream ) where
 
 import G2.Language.AST
 import G2.Language.Expr
@@ -38,7 +52,7 @@ refSynth :: SpecType -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> IO L
 refSynth spec meas_ex fc meas_sym = do
     let sygus = printSygus $ sygusCall meas_ex fc
 
-    res <- runCVC4 $ T.unpack sygus
+    res <- runCVC4 (T.unpack sygus)
 
     case res of
         Left _ -> error "refSynth: Bad call to CVC4"
@@ -100,39 +114,43 @@ grammar meas_ex sort_map =
         gramNames = zip (map (\i -> "G" ++ show i) [0..]) $ map (IdentSort . ISymb) sorts
         sortsToGN = HM.fromList $ map swap gramNames
 
-        boolRuleList =
-            GroupedRuleList "B" boolSort 
-                ([ GVariable boolSort
-                 , GConstant boolSort
-                 , GBfTerm $ BfIdentifierBfs (ISymb "=") [intBf, intBf]
-                 , GBfTerm $ BfIdentifierBfs (ISymb "<") [intBf, intBf]
-                 , GBfTerm $ BfIdentifierBfs (ISymb "=>") [boolBf, boolBf]
-                 , GBfTerm $ BfIdentifierBfs (ISymb "and") [boolBf, boolBf]
-                 , GBfTerm $ BfIdentifierBfs (ISymb "or") [boolBf, boolBf]
-                 , GBfTerm $ BfIdentifierBfs (ISymb "not") [boolBf]
-                 ]
-                 ++ measureExsToGTerm sortsToGN boolSort meas_ex)
+        brl = GroupedRuleList "B" boolSort
+                (boolRuleList ++ measureExsToGTerm sortsToGN boolSort meas_ex)
 
-        intRuleList =
-            GroupedRuleList "I" intSort 
-                ([ GVariable intSort
-                 , GConstant intSort
-                 , GBfTerm $ BfLiteral $ LitNum 0
-                 , GBfTerm $ BfIdentifierBfs (ISymb "+") [intBf, intBf]
-                 , GBfTerm $ BfIdentifierBfs (ISymb "-") [intBf, intBf]
-                 , GBfTerm $ BfIdentifierBfs (ISymb "*") [intBf, intBf]
-                 -- , GBfTerm $ BfIdentifierBfs (ISymb "mod") [intBf, intBf]
-                 ]
-                 ++ measureExsToGTerm sortsToGN intSort meas_ex)
+        irl = GroupedRuleList "I" intSort
+                (intRuleList ++ measureExsToGTerm sortsToGN intSort meas_ex)
     in
     GrammarDef
         ([ SortedVar "B" boolSort
          , SortedVar "I" intSort ]
          ++ map (uncurry SortedVar) gramNames)
-        ([ boolRuleList
-         , intRuleList
+        ([ brl
+         , irl
          ]
          ++ map (uncurry dtGroupRuleList) gramNames) 
+
+intRuleList :: [GTerm]
+intRuleList =
+    [ GVariable intSort
+    , GConstant intSort
+    , GBfTerm $ BfLiteral $ LitNum 0
+    , GBfTerm $ BfIdentifierBfs (ISymb "+") [intBf, intBf]
+    , GBfTerm $ BfIdentifierBfs (ISymb "-") [intBf, intBf]
+    , GBfTerm $ BfIdentifierBfs (ISymb "*") [intBf, intBf]
+    -- , GBfTerm $ BfIdentifierBfs (ISymb "mod") [intBf, intBf]
+    ]
+
+boolRuleList :: [GTerm]
+boolRuleList =
+    [ GVariable boolSort
+    , GConstant boolSort
+    , GBfTerm $ BfIdentifierBfs (ISymb "=") [intBf, intBf]
+    , GBfTerm $ BfIdentifierBfs (ISymb "<") [intBf, intBf]
+    , GBfTerm $ BfIdentifierBfs (ISymb "=>") [boolBf, boolBf]
+    , GBfTerm $ BfIdentifierBfs (ISymb "and") [boolBf, boolBf]
+    , GBfTerm $ BfIdentifierBfs (ISymb "or") [boolBf, boolBf]
+    , GBfTerm $ BfIdentifierBfs (ISymb "not") [boolBf]
+    ]
 
 elimHigherOrderArgs :: FuncConstraint -> FuncConstraint
 elimHigherOrderArgs fc =
@@ -433,5 +451,44 @@ runCVC4 sygus =
                     Just c -> c          -- Mac
                     Nothing -> "timeout" -- Linux
 
-            P.readProcess toCommand ["10", "cvc4", fp, "--lang=sygus2"] "")
+            P.readProcess toCommand (["10", "cvc4", fp, "--lang=sygus2"]) "")
         )
+
+runCVC4Stream :: Int -> String -> IO (Either SomeException String)
+runCVC4Stream max_size sygus =
+    try (
+        withSystemTempFile ("cvc4_input.sy")
+            (\fp h -> do
+                hPutStr h sygus
+                -- We call hFlush to prevent hPutStr from buffering
+                hFlush h
+
+                toCommandOSX <- findExecutable "gtimeout" 
+                let toCommand = case toCommandOSX of
+                        Just c -> c          -- Mac
+                        Nothing -> "timeout" -- Linux
+
+                -- P.readProcess "cvc4" ([fp, "--lang=sygus2", "--sygus-abort-size=" ++ show max_size]) "")
+                (inp, outp, errp, ph) <- P.runInteractiveCommand
+                                            $ "cvc4 " ++ fp ++ " --lang=sygus2 --sygus-stream --sygus-abort-size=" ++ show max_size
+
+                lnes <- readLines outp []
+
+                hClose inp
+                hClose outp
+                hClose errp
+
+                return lnes
+            )
+        )
+
+readLines :: Handle -> [String] -> IO String
+readLines h lnes = do
+    b <- hIsEOF h
+    if b
+        then return . concat . reverse $ lnes
+        else do
+            lne <- hGetLine h
+            if "(error" `isInfixOf` lne
+                then readLines h lnes
+                else readLines h (lne:lnes)

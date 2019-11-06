@@ -105,6 +105,7 @@ library
                        , G2.Liquid.Inference.RefSynth
                        , G2.Liquid.Inference.Verify
                        , G2.Liquid.Inference.GeneratedSpecs
+                       , G2.Liquid.Inference.QualifGen
 
                        , G2.Postprocessing.Interface
 
