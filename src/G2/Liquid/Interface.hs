@@ -1,12 +1,26 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module G2.Liquid.Interface ( Abstracted (..)
+module G2.Liquid.Interface ( LiquidData (..)
+                           , LiquidReadyState (..)
+                           , Abstracted (..)
                            , findCounterExamples
                            , runLHG2
                            , runLHCore
-                           , liquidState
-                           , liquidState'
+                           , liquidStateWithCall
+                           , liquidStateWithCall'
+                           , liquidStateFromSimpleStateWithCall
+                           , liquidStateFromSimpleStateWithCall'
+                           , liquidStateFromSimpleState
+
+                           , cleanReadyState
+                           , fromLiquidNoCleaning
+                           , createLiquidReadyState
+                           , processLiquidReadyState
+                           , processLiquidReadyStateWithCall
+
+                           , reqNames
+
                            , lhStateToCE
                            , printLHOut) where
 
@@ -88,7 +102,11 @@ runLHCore :: T.Text -> (Maybe T.Text, ExtractedG2)
                     -> Config
                     -> IO (([ExecRes [Abstracted]], Bindings), Lang.Id)
 runLHCore entry (mb_modname, exg2) ghci config = do
-    (ifi, cfn, final_st, bindings, _, _, pres_names) <- liquidState entry (mb_modname, exg2) ghci config mempty
+    LiquidData { ls_state = final_st
+               , ls_bindings = bindings
+               , ls_id = ifi
+               , ls_counterfactual_name = cfn
+               , ls_memconfig = pres_names } <- liquidStateWithCall entry (mb_modname, exg2) ghci config mempty
 
     SomeSolver solver <- initSolver config
     let simplifier = ADTSimplifier arbValue
@@ -100,57 +118,145 @@ runLHCore entry (mb_modname, exg2) ghci config = do
 
     return ((exec_res, final_bindings), ifi)
 
-liquidState :: T.Text -> (Maybe T.Text, ExtractedG2)
+{-# INLINE liquidStateWithCall #-}
+liquidStateWithCall :: T.Text -> (Maybe T.Text, ExtractedG2)
                       -> [GhcInfo]
                       -> Config
                       -> MemConfig
-                      -> IO (Lang.Id, CounterfactualName, State LHTracker, Bindings, Measures, TCValues, MemConfig)
-liquidState entry (mb_modname, exg2) ghci config memconfig =
-    liquidState' entry (mb_modname, exg2) ghci config memconfig (mkCurrExpr Nothing Nothing)
+                      -> IO LiquidData
+liquidStateWithCall entry (mb_modname, exg2) ghci config memconfig =
+    liquidStateWithCall' entry (mb_modname, exg2) ghci config memconfig (mkCurrExpr Nothing Nothing) mkArgTys
 
-liquidState' :: T.Text -> (Maybe T.Text, ExtractedG2)
+{-# INLINE liquidStateWithCall' #-}
+liquidStateWithCall' :: T.Text -> (Maybe T.Text, ExtractedG2)
                        -> [GhcInfo]
                        -> Config
                        -> MemConfig
-                       -> MkCurrExpr
-                       -> IO (Lang.Id, CounterfactualName, State LHTracker, Bindings, Measures, TCValues, MemConfig)
-liquidState' entry mb_exg2 ghci config memconfig mkCurr = do
-    let (cleaned_state, ifi, bindings') = liquidReadyState entry mb_exg2 mkCurr config
-    fromLiquidReadyState cleaned_state ifi bindings' ghci config memconfig
+                       -> (Lang.Id -> MkCurrExpr)
+                       -> (Lang.Expr -> MkArgTypes)
+                       -> IO LiquidData
+liquidStateWithCall' entry (mb_m, exg2) ghci config memconfig mkCurr argTys = do
+    let simp_s = initSimpleState exg2
+    liquidStateFromSimpleStateWithCall' simp_s ghci entry mb_m config memconfig mkCurr argTys
 
-liquidReadyState :: T.Text
-                 -> (Maybe T.Text, ExtractedG2)
-                 -> MkCurrExpr
-                 -> Config
-                 -> (State (), Lang.Id, Bindings)
-liquidReadyState entry (mb_modname, exg2) = initState exg2 True entry mb_modname
+{-# INLINE liquidStateFromSimpleStateWithCall #-}
+liquidStateFromSimpleStateWithCall :: SimpleState
+                                   -> [GhcInfo]
+                                   -> T.Text
+                                   -> Maybe T.Text
+                                   -> Config
+                                   -> MemConfig
+                                   -> IO LiquidData
+liquidStateFromSimpleStateWithCall simp_s ghci entry mb_m config memconfig =
+    liquidStateFromSimpleStateWithCall' simp_s ghci entry mb_m config memconfig (mkCurrExpr Nothing Nothing) mkArgTys
 
+{-# INLINE liquidStateFromSimpleStateWithCall' #-}
+liquidStateFromSimpleStateWithCall' :: SimpleState
+                                    -> [GhcInfo]
+                                    -> T.Text
+                                    -> Maybe T.Text
+                                    -> Config
+                                    -> MemConfig
+                                    -> (Lang.Id -> MkCurrExpr)
+                                    -> (Lang.Expr -> MkArgTypes)
+                                    -> IO LiquidData
+liquidStateFromSimpleStateWithCall' simp_s ghci entry mb_m config memconfig mkCurr argTys = do
+    let (s, i, bindings') = initStateFromSimpleStateWithCall simp_s True entry mb_m mkCurr argTys config
+    
+    fromLiquidReadyState s i bindings' ghci config memconfig
+
+{-# INLINE liquidStateFromSimpleState #-}
+liquidStateFromSimpleState :: SimpleState
+                            -> [GhcInfo]
+                            -> Config
+                            -> MemConfig
+                            -> MkCurrExpr
+                            -> MkArgTypes
+                            -> IO LiquidData
+liquidStateFromSimpleState simp_s ghci config memconfig mkCurr argTys = do
+    let (s, bindings') = initLHStateFromSimpleState simp_s mkCurr argTys config
+    
+    fromLiquidReadyState s (Id (Name "" Nothing 0 Nothing) TyUnknown) bindings' ghci config memconfig
+
+{-# INLINE initLHStateFromSimpleState #-}
+initLHStateFromSimpleState :: SimpleState -> MkCurrExpr -> MkArgTypes -> Config -> (State (), Bindings)
+initLHStateFromSimpleState s mkCurr argTys config = initStateFromSimpleState s True mkCurr argTys config
+
+{-# INLINE fromLiquidReadyState #-}
 fromLiquidReadyState :: State ()
                      -> Lang.Id
                      -> Bindings
                      -> [GhcInfo]
                      -> Config
                      -> MemConfig
-                     -> IO (Lang.Id, CounterfactualName, State LHTracker, Bindings, Measures, TCValues, MemConfig)
+                     -> IO LiquidData
 fromLiquidReadyState init_state ifi bindings ghci config memconfig = do
     let (init_state', bindings') = (markAndSweepPreserving (reqNames init_state `mappend` memconfig) init_state bindings)
         cleaned_state = init_state' { type_env = type_env init_state } 
+    fromLiquidNoCleaning cleaned_state ifi bindings' ghci config memconfig
 
-    let (no_part_state@(State {expr_env = np_eenv})) = cleaned_state
-    let np_ng = name_gen bindings'
+data LiquidReadyState = LiquidReadyState { lr_state :: LHState
+                                         , lr_binding :: Bindings
+                                         , lr_known_values :: KnownValues
+                                         , lr_type_classes :: TypeClasses
+                                         , lr_higher_ord_insts :: S.HashSet Name }
 
-    let renme = E.keys np_eenv
-    let ((meenv, mkv, mtc, minst), ng') = doRenames renme np_ng 
-            (np_eenv, known_values no_part_state, type_classes no_part_state, higher_order_inst bindings')
-    
-    let ng_bindings = bindings' {name_gen = ng'}
+data LiquidData = LiquidData { ls_state :: State LHTracker
+                             , ls_bindings :: Bindings
+                             , ls_id :: Lang.Id
+                             , ls_counterfactual_name :: CounterfactualName
+                             , ls_measures :: Measures
+                             , ls_tcv :: TCValues
+                             , ls_memconfig :: MemConfig }
 
-    let ng_state = no_part_state {track = []}
+cleanReadyState :: LiquidReadyState -> MemConfig -> LiquidReadyState
+cleanReadyState lrs@(LiquidReadyState { lr_state = lhs@(LHState { state = s }), lr_binding = b }) memconfig =
+    let
+        (s', b') = (markAndSweepPreserving (reqNames s `mappend` memconfig) s b)
+        s'' = s' { type_env = type_env s }
+    in
+    lrs { lr_state = lhs { state = s'' }, lr_binding = b' }
 
-    let (lh_state, lh_bindings) = createLHState meenv mkv ng_state ng_bindings
+fromLiquidNoCleaning :: State ()
+                     -> Lang.Id
+                     -> Bindings
+                     -> [GhcInfo]
+                     -> Config
+                     -> MemConfig
+                     -> IO LiquidData
+fromLiquidNoCleaning init_state ifi bindings ghci config memconfig = do
+    let lrs = createLiquidReadyState init_state bindings ghci
+    processLiquidReadyState lrs ifi ghci config memconfig
 
-    let (cfn, (merged_state, bindings'')) = runLHStateM (initializeLH (counterfactual config) ghci ifi lh_bindings) lh_state lh_bindings
-    let bindings''' = bindings'' { higher_order_inst = minst }
+createLiquidReadyState :: State () -> Bindings -> [GhcInfo] -> LiquidReadyState
+createLiquidReadyState s@(State {expr_env = eenv}) bindings ghci =
+    let
+        np_ng = name_gen bindings
+
+        renme = E.keys eenv
+        ((meenv, mkv, mtc, minst), ng') = doRenames renme np_ng 
+            (eenv, known_values s, type_classes s, higher_order_inst bindings)
+
+        s' = s { track = [] }
+        bindings' = bindings { name_gen = ng' }
+
+        (lh_state, lh_bindings) = createLHState meenv mkv s' bindings'
+        (data_state, data_bindings) = execLHStateM (initializeLHData ghci) lh_state lh_bindings
+    in
+    LiquidReadyState { lr_state = data_state
+                     , lr_binding = data_bindings
+                     , lr_known_values = mkv
+                     , lr_type_classes = mtc
+                     , lr_higher_ord_insts = minst } -- (mkv, mtc, minst, data_state, data_bindings)
+
+processLiquidReadyState :: LiquidReadyState -> Lang.Id -> [GhcInfo] -> Config -> MemConfig -> IO LiquidData -- (Lang.Id, CounterfactualName, State LHTracker, Bindings, Measures, TCValues, MemConfig)
+processLiquidReadyState (LiquidReadyState { lr_state = lh_state
+                                          , lr_binding = lh_bindings
+                                          , lr_known_values = mkv
+                                          , lr_type_classes = mtc
+                                          , lr_higher_ord_insts = minst}) ifi ghci config memconfig = do
+    let (cfn, (merged_state, bindings')) = runLHStateM (initializeLHSpecs (counterfactual config) ghci ifi lh_bindings) lh_state lh_bindings
+    let bindings'' = bindings' { higher_order_inst = minst }
 
     let tcv = tcvalues merged_state
     let merged_state' = deconsLHState merged_state
@@ -171,7 +277,38 @@ fromLiquidReadyState init_state ifi bindings ghci config memconfig = do
     let final_st = track_state { known_values = mkv
                                , type_classes = unionTypeClasses mtc (type_classes track_state)}
 
-    return (ifi, cfn, final_st, bindings''', measures merged_state, tcv, pres_names' `mappend` memconfig)
+    return $ LiquidData { ls_state = final_st
+                        , ls_bindings = bindings''
+                        , ls_id = ifi
+                        , ls_counterfactual_name = cfn
+                        , ls_measures = measures merged_state
+                        , ls_tcv = tcv
+                        , ls_memconfig = pres_names' `mappend` memconfig }
+
+processLiquidReadyStateWithCall :: LiquidReadyState -> [GhcInfo] -> T.Text -> Maybe T.Text-> Config -> MemConfig -> IO LiquidData
+processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState { state = s })
+                                                      , lr_binding = bindings})
+                                                                ghci f m_mod config memconfig = do
+    let (ie, fe) = case findFunc f m_mod (expr_env s) of
+                          Left ie' -> ie'
+                          Right errs -> error errs
+
+        (ce, is, f_i, ng') = mkCurrExpr Nothing Nothing ie (type_classes s) (name_gen bindings)
+                                      (expr_env s) (deepseq_walkers bindings) (known_values s) config
+
+        lhs' = lhs { state = s { expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) (expr_env s) is
+                               , curr_expr = CurrExpr Evaluate ce
+                               , symbolic_ids = is }
+                   }
+        (lhs'', bindings') = execLHStateM (addLHTCCurrExpr) lhs' (bindings { name_gen = ng' })
+
+        lrs' = lrs { lr_state = lhs''
+                   , lr_binding = bindings' { fixed_inputs = f_i
+                                            , input_names = map idName is
+                                            }
+                   }
+
+    processLiquidReadyState lrs' ie ghci config memconfig
 
 runLHG2 :: (Solver solver, Simplifier simplifier)
         => Config
@@ -262,12 +399,19 @@ lhReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
 
 initializeLH :: Counterfactual -> [GhcInfo] -> Lang.Id -> Bindings -> LHStateM Lang.Name
 initializeLH counter ghcInfos ifi bindings = do
+    initializeLHData ghcInfos
+    initializeLHSpecs counter ghcInfos ifi bindings
+
+initializeLHData :: [GhcInfo] -> LHStateM ()
+initializeLHData ghcInfos = do
     addLHTC
     addOrdToNum
 
     let lh_measures = measureSpecs ghcInfos
     createMeasures lh_measures
 
+initializeLHSpecs :: Counterfactual -> [GhcInfo] -> Lang.Id -> Bindings -> LHStateM Lang.Name
+initializeLHSpecs counter ghcInfos ifi bindings = do
     let specs = funcSpecs ghcInfos
     mergeLHSpecState specs
 

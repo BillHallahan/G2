@@ -83,8 +83,8 @@ parseHaskellQ str = do
     -- Get names for the lambdas for the regular inputs
     exG2 <- parseHaskellQ' qext
     config <- runIO qqConfig
-    let (init_s, _, init_b) = initState' exG2 (T.pack functionName) (Just $ T.pack moduleName)
-                                        (mkCurrExpr Nothing Nothing) config
+    let (init_s, init_b) = initStateWithCall' exG2 (T.pack functionName) (Just $ T.pack moduleName)
+                                        (mkCurrExpr Nothing Nothing) (mkArgTys) config
 
     runIO $ releaseIORefLock
 

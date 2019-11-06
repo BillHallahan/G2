@@ -82,7 +82,7 @@ findFunc s m_mod eenv =
         [] -> Right $ "No functions with name " ++ (T.unpack s)
         [(n, e)] -> Left (Id n (typeOf e) , e)
         pairs -> case m_mod of
-            Nothing -> Right $ "Multiple functions with same name. " ++
+            Nothing -> Right $ "Multiple functions with same name. " ++ show s ++ " " ++ show m_mod ++
                                "Wrap the target function in a module so we can try again!"
             Just m -> case filter (\(n, _) -> nameModule n == Just m) pairs of
                 [(n, e)] -> Left (Id n (typeOf e), e)

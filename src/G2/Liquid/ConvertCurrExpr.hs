@@ -108,15 +108,19 @@ addCurrExprAssumption :: Id -> Bindings -> LHStateM ()
 addCurrExprAssumption ifi (Bindings {fixed_inputs = fi}) = do
     (CurrExpr er ce) <- currExpr
 
+    lh_tc_n <- lhTCM
+    let lh_tc = TyCon lh_tc_n TYPE
+    let fi' = filter (\e -> tyAppCenter (typeOf e) /= lh_tc) fi
+
     assumpt <- lookupAssumptionM (idName ifi)
     -- fi <- fixedInputs
     eenv <- exprEnv
     inames <- inputNames
 
-    lh <- mapM (lhTCDict' M.empty) $ mapMaybe typeType fi
+    lh <- mapM (lhTCDict' M.empty) $ mapMaybe typeType fi'
 
     let is = catMaybes (map (E.getIdFromName eenv) inames)   
-    let (typs, ars) = span isType $ fi ++ map Var is
+    let (typs, ars) = span isType $ fi' ++ map Var is
 
     case assumpt of
         Just assumpt' -> do

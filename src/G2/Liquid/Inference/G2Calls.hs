@@ -16,6 +16,7 @@ module G2.Liquid.Inference.G2Calls ( MeasureExs
 import G2.Config
 
 import G2.Execution
+import qualified G2.Initialization.Types as IT
 import G2.Interface
 import G2.Language
 import qualified G2.Language.ExprEnv as E
@@ -44,17 +45,22 @@ import qualified Data.Text as T
 -- Generating Counterexamples
 -------------------------------
 runLHInferenceCore :: T.Text
-                   -> (Maybe T.Text, ExtractedG2)
+                   -> Maybe T.Text
+                   -> LiquidReadyState
                    -> [GhcInfo]
                    -> Config
                    -> IO (([ExecRes [Abstracted]], Bindings), Id)
-runLHInferenceCore entry (mb_modname, exg2) ghci config = do
-    (ifi, cfn, final_st, bindings, _, _, pres_names) <- liquidState entry (mb_modname, exg2) ghci config mempty
+runLHInferenceCore entry m lrs ghci config = do
+    LiquidData { ls_state = final_st
+               , ls_bindings = bindings
+               , ls_id = ifi
+               , ls_counterfactual_name = cfn
+               , ls_memconfig = pres_names } <- processLiquidReadyStateWithCall lrs ghci entry m config mempty
 
     SomeSolver solver <- initSolver config
     let simplifier = ADTSimplifier arbValue
 
-    let (red, hal, ord) = inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn final_st
+    let (red, hal, ord) = inferenceReducerHalterOrderer config solver simplifier entry m cfn final_st
     (exec_res, final_bindings) <- runLHG2 config red hal ord solver simplifier pres_names final_st bindings
 
     close solver
@@ -115,10 +121,12 @@ inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
 -- Does a given (counter)example violate a specification?
 -- This allows us to check if a found counterexample violates a user-provided specifications,
 -- or a synthesized specification
-checkCounterexample :: (Maybe T.Text, ExtractedG2) -> [GhcInfo] -> Config -> FuncCall -> IO Bool
-checkCounterexample exg2 ghci config cex@(FuncCall {funcName = n}) = do
+checkCounterexample :: LiquidReadyState -> [GhcInfo] -> Config -> FuncCall -> IO Bool
+checkCounterexample lrs ghci config cex@(FuncCall { funcName = Name n m _ _ }) = do
     let config' = config { counterfactual = NotCounterfactual }
-    (_, _, s, bindings, _, _, _) <- liquidState (nameOcc n) exg2 ghci config' mempty
+    -- We use the same function to instantiate this state as in runLHInferenceCore, so all the names line up
+    LiquidData { ls_state = s
+               , ls_bindings = bindings } <- processLiquidReadyStateWithCall lrs ghci n m config' mempty
 
     let s' = checkCounterexample' cex s
 
@@ -141,6 +149,7 @@ checkCounterexample' fc@(FuncCall { funcName = n }) s@(State { expr_env = eenv }
     in
     s { curr_expr = CurrExpr Evaluate e'
       , true_assert = True }
+    | otherwise = error $ "checkCounterexample': Name not found " ++ show n
 
 toJustSpec :: FuncCall -> [Id] -> Expr -> Expr
 toJustSpec (FuncCall { arguments = ars, returns = ret }) is (Let [(b, _)] (Assert _ e _)) =
@@ -171,23 +180,29 @@ instance AST e => ASTContainer (GMeasureEx e) e where
     modifyContainedASTs f (MeasureEx { meas_in = m_in, meas_out = m_out }) =
         MeasureEx { meas_in = f m_in, meas_out = f m_out }
 
-evalMeasures :: (Maybe T.Text, ExtractedG2) -> [GhcInfo] -> Config -> [Expr] -> IO MeasureExs
-evalMeasures exg2 ghci config es = do
+evalMeasures :: LiquidReadyState -> [GhcInfo] -> Config -> [Expr] -> IO MeasureExs
+evalMeasures lrs ghci config es = do
     let config' = config { counterfactual = NotCounterfactual }
-        arb_i = nameOcc . idName . fst . head . exg2_binds . snd $ exg2
 
-    (_, _, s, bindings, meas, tcv, _) <- liquidState' arb_i exg2 ghci config'
-                                                (emptyMemConfig { pres_func = presMeasureNames })
-                                                (\_ _ ng _ _ _ _ -> (Prim Undefined TyBottom, [], [], ng))
+    let memc = emptyMemConfig { pres_func = presMeasureNames }
+    LiquidData { ls_state = s
+               , ls_bindings = bindings
+               , ls_measures = meas
+               , ls_tcv = tcv
+               , ls_memconfig = pres_names } <- processLiquidReadyState lrs (Id (Name "" Nothing 0 Nothing) TyUnknown) ghci config' memc
+
+    putStrLn $ "meas_nameOcc = " ++ show meas_nameOcc
+    putStrLn $ "res = " ++ show (pres_func memc s bindings HS.empty)
 
     let s' = s { true_assert = True }
+        (final_s, final_b) = markAndSweepPreserving pres_names s' bindings
 
-    return . foldr (HM.unionWith HS.union) HM.empty =<< mapM (evalMeasures' meas_names s' bindings config' meas tcv) es
+    return . foldr (HM.unionWith HS.union) HM.empty =<< mapM (evalMeasures' meas_names final_s final_b config' meas tcv) es
     where
         meas_names = map (val . name) $ measureSpecs ghci
         meas_nameOcc = map (\(Name n md _ _) -> (n, md)) $ map symbolName meas_names
 
-        presMeasureNames s b hs =
+        presMeasureNames s _ hs =
             let
                 eenv = E.filterWithKey (\(Name n md _ _) _ -> (n, md) `elem` meas_nameOcc) (expr_env s)
                 eenv_meas_names = E.keys eenv
@@ -221,7 +236,7 @@ evalMeasures'' meas_names s b m tcv e =
     let
         meas_nameOcc = map (\(Name n md _ _) -> (n, md)) $ map symbolName meas_names
 
-        filtered_m = E.filterWithKey (\(Name n md _ _) _ -> (n, md) `elem` meas_nameOcc) m
+        filtered_m = E.filterWithKey (\(Name n md i _) _ -> (n, md) `elem` meas_nameOcc && i == 0) m
         rel_m = mapMaybe (\(n, me) -> case filter notLH . argumentTypes . PresType . inTyForAlls . typeOf $ me of
                                         [t] ->
                                             case typeOf e `specializes` t of
@@ -253,7 +268,7 @@ evalMeasuresCE bindings i e bound =
         ds = deepseq_walkers bindings
 
         call =  mkApp $ Var i:map Type bound_tys ++ lh_dicts ++ [e]
-        str_call =  maybe call (fillLHDictArgs ds) $ mkStrict_maybe ds call -- fillLHDictArgs ds $ mkStrict ds call
+        str_call = maybe call (fillLHDictArgs ds) $ mkStrict_maybe ds call -- fillLHDictArgs ds $ mkStrict ds call
     in
     str_call
 
@@ -269,6 +284,23 @@ genericG2Call config solver s bindings = do
         share = sharing config
 
     fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier ))
+                           (SomeHalter SWHNFHalter)
+                           (SomeOrderer NextOrderer)
+                           solver simplifier emptyMemConfig s bindings
+
+    close solver
+
+    return fslb
+
+genericG2CallLogging :: ( ASTContainer t Expr
+                        , ASTContainer t Type
+                        , Named t
+                        , Solver solver) => Config -> solver -> State t -> Bindings -> IO ([ExecRes t], Bindings)
+genericG2CallLogging config solver s bindings = do
+    let simplifier = ADTSimplifier arbValue
+        share = sharing config
+
+    fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier :<~ LimLogger 0 0 [] "aMeasures"))
                            (SomeHalter SWHNFHalter)
                            (SomeOrderer NextOrderer)
                            solver simplifier emptyMemConfig s bindings

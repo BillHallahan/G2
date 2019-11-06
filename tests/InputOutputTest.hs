@@ -53,7 +53,7 @@ checkInputOutput'' src md entry i req config = do
     let proj = map takeDirectory src
     (mb_modname, exg2) <- translateLoaded proj src [] simplTranslationConfig config
 
-    let (init_state, _, bindings) = initState exg2 False (T.pack entry) mb_modname (mkCurrExpr Nothing Nothing) config
+    let (init_state, bindings) = initStateWithCall exg2 False (T.pack entry) mb_modname (mkCurrExpr Nothing Nothing) mkArgTys config
     
     (r, _) <- runG2WithConfig init_state config bindings
 

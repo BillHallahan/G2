@@ -2,15 +2,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Liquid.AddLHTC ( addLHTC
-                                   , addLHTCExprPasses ) where
+                         , addLHTCCurrExpr
+                         , addLHTCExprPasses ) where
 
 import G2.Language
 import G2.Language.Monad
 import G2.Liquid.Types
 
 import qualified Data.Map as M
-
-import Debug.Trace
 
 -- | Adds the LiquidHaskell typeclass to all functions in the ExprEnv, and to
 -- the current expression.  This requires:
@@ -20,7 +19,10 @@ import Debug.Trace
 addLHTC :: LHStateM ()
 addLHTC = do
     mapME addLHTCExprEnv
+    addLHTCCurrExpr
 
+addLHTCCurrExpr :: LHStateM ()
+addLHTCCurrExpr = do
     (CurrExpr er ce) <- currExpr
     ce' <- addLHTCExprPasses M.empty ce
     putCurrExpr (CurrExpr er ce')
@@ -154,11 +156,19 @@ addLHTCExprPasses m = modifyAppTopE (addLHTCExprPasses' m)
 
 addLHTCExprPasses' :: M.Map Name Id -> Expr -> LHStateM Expr
 addLHTCExprPasses' m a@(App _ _)
-    | (Data _:_) <- unApp a  = return a
-    | otherwise = do
-        let a' = unApp a
-        a'' <- addLHTCExprPasses'' m [] a'
-        return $ mkApp a''
+    | (Data _:_) <- as = return a
+    | otherwise = do    
+        if any (isLHDict) as
+            then return a
+            else do
+                a' <- addLHTCExprPasses'' m [] as
+                return $ mkApp a'
+    where
+        as = unApp a
+
+        isLHDict (Var (Id _ t))
+            | TyCon (Name "lh" _ _ _) _ <- tyAppCenter t = True
+        isLHDict _ = False
 
 addLHTCExprPasses' _ e = return e
 

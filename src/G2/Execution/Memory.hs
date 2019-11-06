@@ -25,12 +25,12 @@ data MemConfig = MemConfig { search_names :: [Name]
                            , pres_func :: PreservingFunc }
 
 instance Monoid MemConfig where
-    mempty = MemConfig { search_names = [], pres_func = \ _ _ hs -> hs }
+    mempty = MemConfig { search_names = [], pres_func = \ _ _ -> id }
 
     mappend (MemConfig { search_names = sn1, pres_func = pf1 })
             (MemConfig { search_names = sn2, pres_func = pf2 }) =
                 MemConfig { search_names = sn1 ++ sn2
-                          , pres_func = \s b hs -> pf1 s b $ pf2 s b hs}
+                          , pres_func = \s b hs -> pf1 s b hs `S.union` pf2 s b hs}
 
 emptyMemConfig :: MemConfig
 emptyMemConfig = MemConfig { search_names = [], pres_func = \_ _ a -> a }
