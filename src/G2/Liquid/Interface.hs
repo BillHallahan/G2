@@ -18,6 +18,7 @@ module G2.Liquid.Interface ( LiquidData (..)
                            , createLiquidReadyState
                            , processLiquidReadyState
                            , processLiquidReadyStateWithCall
+                           , extractWithoutSpecs
 
                            , processLiquidReadyStateCleaning
 
@@ -259,24 +260,36 @@ processLiquidReadyStateCleaning lrs ifi ghci config memconfig =
     processLiquidReadyState lrs' ifi ghci config memconfig
 
 processLiquidReadyState :: LiquidReadyState -> Lang.Id -> [GhcInfo] -> Config -> MemConfig -> IO LiquidData
-processLiquidReadyState (LiquidReadyState { lr_state = lh_state
-                                          , lr_binding = lh_bindings
-                                          , lr_known_values = mkv
-                                          , lr_type_classes = mtc
-                                          , lr_higher_ord_insts = minst}) ifi ghci config memconfig = do
+processLiquidReadyState lrs@(LiquidReadyState { lr_state = lh_state
+                                              , lr_binding = lh_bindings
+                                              , lr_known_values = mkv
+                                              , lr_type_classes = mtc
+                                              , lr_higher_ord_insts = minst}) ifi ghci config memconfig = do
     let (cfn, (merged_state, bindings')) = runLHStateM (initializeLHSpecs (counterfactual config) ghci ifi lh_bindings) lh_state lh_bindings
+        lrs' = lrs { lr_state = merged_state, lr_binding = bindings'}
+
+    lhs <- extractWithoutSpecs lrs' ifi ghci config memconfig
+    return $ lhs { ls_counterfactual_name = cfn }
+
+extractWithoutSpecs :: LiquidReadyState -> Lang.Id -> [GhcInfo] -> Config -> MemConfig -> IO LiquidData
+extractWithoutSpecs (LiquidReadyState { lr_state = s
+                                      , lr_binding = bindings
+                                      , lr_known_values = mkv
+                                      , lr_type_classes = mtc
+                                      , lr_higher_ord_insts = minst}) ifi ghci config memconfig = do
+    let (lh_s, bindings') = execLHStateM (return ()) s bindings
     let bindings'' = bindings' { higher_order_inst = minst }
 
-    let tcv = tcvalues merged_state
-    let merged_state' = deconsLHState merged_state
+    let tcv = tcvalues lh_s
+    let lh_s' = deconsLHState lh_s
 
-    let annm = annots merged_state
-        pres_names = addSearchNames (names tcv ++ names mkv) $ reqNames merged_state'
+    let annm = annots lh_s
+        pres_names = addSearchNames (names tcv ++ names mkv) $ reqNames lh_s'
         pres_names' = addSearchNames (names annm) pres_names
 
-    let track_state = merged_state' {track = LHTracker { abstract_calls = []
-                                                       , last_var = Nothing
-                                                       , annotations = annm} }
+    let track_state = lh_s' {track = LHTracker { abstract_calls = []
+                                            , last_var = Nothing
+                                            , annotations = annm} }
 
     -- We replace certain function name lists in the final State with names
     -- mapping into the measures from the LHState.  These functions do not
@@ -289,8 +302,8 @@ processLiquidReadyState (LiquidReadyState { lr_state = lh_state
     return $ LiquidData { ls_state = final_st
                         , ls_bindings = bindings''
                         , ls_id = ifi
-                        , ls_counterfactual_name = cfn
-                        , ls_measures = measures merged_state
+                        , ls_counterfactual_name = error "No counterfactual name"
+                        , ls_measures = measures lh_s
                         , ls_tcv = tcv
                         , ls_memconfig = pres_names' `mappend` memconfig }
 

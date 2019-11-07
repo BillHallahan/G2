@@ -189,7 +189,7 @@ evalMeasures lrs ghci config es = do
                , ls_bindings = bindings
                , ls_measures = meas
                , ls_tcv = tcv
-               , ls_memconfig = pres_names } <- processLiquidReadyState lrs (Id (Name "" Nothing 0 Nothing) TyUnknown) ghci config' memc
+               , ls_memconfig = pres_names } <- extractWithoutSpecs lrs (Id (Name "" Nothing 0 Nothing) TyUnknown) ghci config' memc
 
     putStrLn $ "meas_nameOcc = " ++ show meas_nameOcc
     putStrLn $ "res = " ++ show (pres_func memc s bindings HS.empty)
