@@ -10,6 +10,8 @@ import Language.Fixpoint.Solver
 import Language.Fixpoint.Types.Constraints
 import Language.Haskell.Liquid.Types as LH
 
+import Control.DeepSeq
+import Data.Time.Clock
 import System.Environment
 
 main :: IO ()
@@ -31,7 +33,7 @@ checkQualifs f config = do
     
     finfo <- parseFInfo ["qualif.hquals"]
 
-    lhconfig <- lhConfig [] []
+    lhconfig <- quals finfo `deepseq` lhConfig [] []
     let lhconfig' = lhconfig { pruneUnsorted = True }
     ghcis <- ghcInfos Nothing lhconfig' [f]
     let ghcis' = map (\ghci ->
@@ -41,10 +43,14 @@ checkQualifs f config = do
                         in
                         ghci { spec = spc' }) ghcis
 
+    start <- getCurrentTime
     res <- verify lhconfig' ghcis'
+    stop <- getCurrentTime
 
     case res of -- print $ quals finfo
-        Safe -> putStrLn "Safe"
+        Safe -> do
+            putStrLn "Safe"
+            print (stop `diffUTCTime` start)
         _ -> putStrLn "Unsafe"
 
 callInference :: String -> G2.Config -> IO ()

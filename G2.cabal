@@ -222,8 +222,10 @@ executable Inference
   -- other-extensions:    
   build-depends:         g2
                        , base >= 4.8 && < 5
+                       , deepseq >= 1.4 && < 2
                        , liquid-fixpoint
-                       ,liquidhaskell
+                       , liquidhaskell
+                       , time
   default-language:    Haskell2010
   ghc-options:         -threaded -Wall
                        -- -fprof-auto "-with-rtsopts=-p"
