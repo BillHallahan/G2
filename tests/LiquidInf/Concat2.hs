@@ -1,4 +1,5 @@
 {-@ LIQUID "--prune-unsorted" @-}
+{-@ LIQUID "--no-termination" @-}
 
 -- {-@ include <include/Concat2.hquals> @-}
 
@@ -7,7 +8,7 @@ module Concat2 (size, sumsize) where
 import Prelude hiding (concat)
 
 data List a = a :+: List a
-			| Nil
+            | Nil
 
 {-@ measure size @-}
 size :: List a -> Int

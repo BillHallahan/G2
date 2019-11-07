@@ -385,7 +385,8 @@ termToLHExpr meas_sym m_args (TermIdent (ISymb v)) =
 termToLHExpr _ _ (TermLit l) = ECon (litToLHConstant l)
 termToLHExpr meas_sym@(MeasureSymbols meas_sym') m_args (TermCall (ISymb v) ts)
     -- Measures
-    | Just meas <- find (\meas' -> Just (symbolName meas') == maybe_StrToName v) meas_sym' =
+    | Just meas <- find (\meas' -> Just (symbolName meas') == maybe_StrToName v
+                                    || T.unpack (nameOcc (symbolName meas')) == v) meas_sym' =
         foldl' EApp (EVar meas) $ map (termToLHExpr meas_sym m_args) ts
     -- EBin
     | "+" <- v

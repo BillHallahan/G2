@@ -1,30 +1,59 @@
 module Main (main) where
 
-import G2.Config
+import G2.Config as G2
 import G2.Liquid.Inference.Interface
 import G2.Liquid.Inference.QualifGen
+import G2.Liquid.Inference.Verify
+import G2.Liquid.Types
+
+import Language.Fixpoint.Solver
+import Language.Fixpoint.Types.Constraints
+import Language.Haskell.Liquid.Types as LH
 
 import System.Environment
 
 main :: IO ()
 main = do
     as <- getArgs
-
-    if "--qualif" `elem` as then qualifGen "qualif.hquals" else callInference as
-
-
-callInference :: [String] -> IO ()
-callInference as = do
-    config <- getConfig as
+    config <- G2.getConfig as
 
     case as of
         (f:_) -> do
-            gs <- inference config [] [f] []
-            case gs of
-                Left gs' -> do
-                    putStrLn "Counterexample"
-                    print gs'
-                Right gs' -> do
-                    putStrLn "Safe"
-                    print gs'
-        [] -> error "No path given"
+            if "--qualif" `elem` as
+                then checkQualifs f config
+                else callInference f config
+        _ -> error "No path given"
+
+
+checkQualifs :: String -> G2.Config -> IO ()
+checkQualifs f config = do
+    -- qualifGen "qualif.hquals" 
+    
+    finfo <- parseFInfo ["qualif.hquals"]
+
+    lhconfig <- lhConfig [] []
+    let lhconfig' = lhconfig { pruneUnsorted = True }
+    ghcis <- ghcInfos Nothing lhconfig' [f]
+    let ghcis' = map (\ghci ->
+                        let
+                            spc = spec ghci
+                            spc' = spc { gsQualifiers = gsQualifiers spc ++ quals finfo }
+                        in
+                        ghci { spec = spc' }) ghcis
+
+    res <- verify lhconfig' ghcis'
+
+    case res of -- print $ quals finfo
+        Safe -> putStrLn "Safe"
+        _ -> putStrLn "Unsafe"
+
+callInference :: String -> G2.Config -> IO ()
+callInference f config = do
+    gs <- inference config [] [f] []
+    case gs of
+        Left gs' -> do
+            putStrLn "Counterexample"
+            print gs'
+        Right gs' -> do
+            putStrLn "Safe"
+            print gs'

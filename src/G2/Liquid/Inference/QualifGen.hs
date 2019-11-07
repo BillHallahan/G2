@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Liquid.Inference.QualifGen (qualifGen) where
@@ -10,6 +11,7 @@ import Sygus.ParseSygus
 import Sygus.Print
 import Sygus.Syntax
 
+import Language.Fixpoint.Types.Constraints
 import qualified Language.Fixpoint.Types.Names as LH
 import Language.Fixpoint.Types.PrettyPrint
 
@@ -27,7 +29,8 @@ data QMeasure = QMeasure { m_name :: String
                          , triv_out :: Term }
 
 -- Mocking datatypes
-data QDataType = QDataType { dt_name :: String
+data QDataType = QDataType { dt_smt_name :: String
+                           , dt_name :: String
                            , dt_cons :: [String] }
 
 data QualifConfig = QualifConfig { max_vars :: Int
@@ -40,10 +43,12 @@ qualifGen qualif_fp = do
     let qc = QualifConfig 
                 { max_vars = 3
                 , max_size = 5
-                , datatypes = [ QDataType { dt_name = "List"
+                , datatypes = [ QDataType { dt_smt_name = "List"
+                                          , dt_name = "List a"
                                           , dt_cons = ["cons", "nil"] }
-                              , QDataType { dt_name = "List_List"
-                                          , dt_cons = ["cons", "nil"] }]
+                              , QDataType { dt_smt_name = "List_List"
+                                          , dt_name = "List (List b)"
+                                          , dt_cons = ["cons_cons", "nil_nil"] }]
                 , measures =
                     [ QMeasure { m_name = "size"
                                , m_in = listSort
@@ -55,7 +60,7 @@ qualifGen qualif_fp = do
                     , QMeasure { m_name = "sumsize"
                                , m_in = IdentSort (ISymb "List_List")
                                , m_out = intSort
-                               , triv_out = trivOutGen (TermIdent (ISymb "cons"))
+                               , triv_out = trivOutGen (TermIdent (ISymb "cons_cons"))
                                                        (TermLit $ LitNum 3000)
                                                        (TermLit $ LitNum 4000)
                                }
@@ -64,7 +69,7 @@ qualifGen qualif_fp = do
 
     cmds <- qualifCalls qc
 
-    let printable_quals = map (cmdToQualifs (measures qc)) cmds
+    let printable_quals = map (cmdToQualifs (datatypes qc) (measures qc)) cmds
     
     writeFile qualif_fp (intercalate "\n" printable_quals)
 
@@ -78,11 +83,14 @@ qualifCalls (QualifConfig { max_vars = max_v
                           , max_size = max_s
                           , datatypes = dt
                           , measures = meas }) = do
-    r <- mapM (\v_num -> do
-            let varN = map (\i -> "x" ++ show i) ([0..v_num] :: [Int])
-                s_vars = map (uncurry SortedVar) $ zip varN (repeat listSort)
 
-            let call = qualifCalls' dt meas s_vars
+    let srtss = concatMap (flip combinations (possibleDTs dt)) [1..max_v]
+
+    r <- mapM (\srts -> do
+            let varN = map (\i -> "x" ++ show i) ([0..] :: [Int])
+                svs = map (uncurry SortedVar) $ zip varN srts
+
+            let call = qualifCalls' dt meas svs
             putStrLn . T.unpack $ printSygus call
             res <- runCVC4Stream max_s . T.unpack $ printSygus call
 
@@ -93,9 +101,20 @@ qualifCalls (QualifConfig { max_vars = max_v
                         all_used_res = filter defineFunAllUsed p_res
 
                     return all_used_res
-         ) [0..max_v - 1]
+         ) srtss
 
     return $ concat r
+
+combinations :: Int -> [a] -> [[a]]
+combinations 0 _ = [[]]
+combinations !n xs = [x:ys | x <- xs, ys <- combinations (n - 1) xs]
+
+possibleDTs :: [QDataType] -> [Sort]
+possibleDTs dts =
+    let
+        srts = map (IdentSort . ISymb . dt_smt_name) dts
+    in
+    [intSort, boolSort] ++ srts
 
 qualifCalls' :: [QDataType] -> [QMeasure] -> [SortedVar] -> [Cmd]
 qualifCalls' q_dt q_meas sortVars =
@@ -166,7 +185,7 @@ isAnd _ = False
 -- | Converts a QDataType to a declare-datatype
 qDataTypeToDeclareDataType :: QDataType -> Cmd
 qDataTypeToDeclareDataType q_dt =
-    SmtCmd . DeclareDatatype (dt_name q_dt)
+    SmtCmd . DeclareDatatype (dt_smt_name q_dt)
             . DTDec . map (flip DTConsDec []) $ dt_cons q_dt 
 
 -- | Converts a QMeasure to a define-fun
@@ -202,8 +221,8 @@ usedIdentifiers (TermLet vb t) = concatMap usedInVarBindings vb ++ usedIdentifie
 usedInVarBindings :: VarBinding -> [Identifier]
 usedInVarBindings (VarBinding _ t) = usedIdentifiers t
 
-cmdToQualifs :: [QMeasure] -> Cmd -> String
-cmdToQualifs meas (SmtCmd (DefineFun _ sv _ t)) =
+cmdToQualifs :: [QDataType] -> [QMeasure] -> Cmd -> String
+cmdToQualifs dts meas (SmtCmd (DefineFun _ sv _ t)) =
     let
         sv_str = map sortedVarSymbol sv
         sv_to_symb = M.fromList . zip sv_str $ map LH.symbol sv_str
@@ -211,20 +230,22 @@ cmdToQualifs meas (SmtCmd (DefineFun _ sv _ t)) =
         lh_expr = termToLHExpr (MeasureSymbols $ map (LH.symbol . m_name) meas) sv_to_symb t
         lh_expr_str = map (\c -> if c == '\n' then ' ' else c) $ show (pprintTidy Full lh_expr)
     in
-    "qualif Qualif(" ++ bindSortedVars sv ++ ") : (" ++ lh_expr_str ++ ")"
+    "qualif Qualif(" ++ bindSortedVars dts sv ++ ") : (" ++ lh_expr_str ++ ")"
 
 sortedVarSymbol :: SortedVar -> Symbol
 sortedVarSymbol (SortedVar v _) = v
 
-bindSortedVars :: [SortedVar] -> String
-bindSortedVars = intercalate ", " . map bindSortedVar
+bindSortedVars :: [QDataType] -> [SortedVar] -> String
+bindSortedVars dts = intercalate ", " . map (bindSortedVar dts)
 
-bindSortedVar :: SortedVar -> String
-bindSortedVar (SortedVar v srt) = v ++ ":" ++ sortString srt
+bindSortedVar :: [QDataType] -> SortedVar -> String
+bindSortedVar dts (SortedVar v srt) = v ++ ":" ++ sortString dts srt
 
-sortString :: Sort -> String
-sortString (IdentSort (ISymb s)) = s
-sortString _ = error "sortString: Unexpected sort"
+sortString :: [QDataType] -> Sort -> String
+sortString dts (IdentSort (ISymb s))
+    | Just dt <- find (\d -> s == dt_smt_name d) dts = dt_name dt
+    | otherwise = s
+sortString _ _ = error "sortString: Unexpected sort"
 
 
 -------------------------------
