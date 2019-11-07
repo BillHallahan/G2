@@ -19,6 +19,8 @@ module G2.Liquid.Interface ( LiquidData (..)
                            , processLiquidReadyState
                            , processLiquidReadyStateWithCall
 
+                           , processLiquidReadyStateCleaning
+
                            , reqNames
 
                            , lhStateToCE
@@ -249,7 +251,14 @@ createLiquidReadyState s@(State {expr_env = eenv}) bindings ghci =
                      , lr_type_classes = mtc
                      , lr_higher_ord_insts = minst } -- (mkv, mtc, minst, data_state, data_bindings)
 
-processLiquidReadyState :: LiquidReadyState -> Lang.Id -> [GhcInfo] -> Config -> MemConfig -> IO LiquidData -- (Lang.Id, CounterfactualName, State LHTracker, Bindings, Measures, TCValues, MemConfig)
+processLiquidReadyStateCleaning :: LiquidReadyState -> Lang.Id -> [GhcInfo] -> Config -> MemConfig -> IO LiquidData
+processLiquidReadyStateCleaning lrs ifi ghci config memconfig =
+    let
+        lrs' = cleanReadyState lrs memconfig
+    in
+    processLiquidReadyState lrs' ifi ghci config memconfig
+
+processLiquidReadyState :: LiquidReadyState -> Lang.Id -> [GhcInfo] -> Config -> MemConfig -> IO LiquidData
 processLiquidReadyState (LiquidReadyState { lr_state = lh_state
                                           , lr_binding = lh_bindings
                                           , lr_known_values = mkv
@@ -308,7 +317,7 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
                                             }
                    }
 
-    processLiquidReadyState lrs' ie ghci config memconfig
+    processLiquidReadyStateCleaning lrs' ie ghci config memconfig
 
 runLHG2 :: (Solver solver, Simplifier simplifier)
         => Config
