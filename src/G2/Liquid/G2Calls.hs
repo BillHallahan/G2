@@ -20,6 +20,8 @@ import Control.Monad
 import qualified Data.Map as M
 import Data.Maybe
 
+import Data.Monoid
+
 -------------------------------
 -- Check Abstracted
 -------------------------------
@@ -65,14 +67,13 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
 
         let s' = elimAsserts . pickHead $
                    s { expr_env = model s `E.union'` expr_env s
-                     , curr_expr = CurrExpr Evaluate e'}
+                     , curr_expr = CurrExpr Evaluate strict_call}
 
         (er, _) <- runG2WithSomes 
                         (SomeReducer (StdRed share solver simplifier))
                         (SomeHalter SWHNFHalter)
                         (SomeOrderer NextOrderer)
                         solver simplifier emptyMemConfig s' bindings
-
         case er of
             [ExecRes
                 {

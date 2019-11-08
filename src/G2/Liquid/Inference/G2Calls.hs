@@ -60,7 +60,7 @@ runLHInferenceCore entry m lrs ghci config = do
     SomeSolver solver <- initSolver config
     let simplifier = ADTSimplifier arbValue
 
-    let (red, hal, ord) = inferenceReducerHalterOrderer config solver simplifier entry m cfn final_st
+    (red, hal, ord) <- inferenceReducerHalterOrderer config solver simplifier entry m cfn final_st
     (exec_res, final_bindings) <- runLHG2 config red hal ord solver simplifier pres_names final_st bindings
 
     close solver
@@ -75,8 +75,8 @@ inferenceReducerHalterOrderer :: (Solver solver, Simplifier simplifier)
                               -> Maybe T.Text
                               -> Name
                               -> State t
-                              -> (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
-inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
+                              -> IO (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
+inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn st = do
     let
         ng = mkNameGen ()
 
@@ -88,8 +88,10 @@ inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
         searched_below = SearchedBelowHalter { found_at_least = 3
                                              , discarded_at_least = 6
                                              , discarded_at_most = 15 }
-    in
-    if higherOrderSolver config == AllFuncs then
+    
+    timer_halter <- timerHalter 10
+
+    return $ if higherOrderSolver config == AllFuncs then 
         ( SomeReducer NonRedPCRed
             <~| (case logStates config of
                   Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
@@ -99,7 +101,8 @@ inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
                   :<~> LHAbsHalter entry mb_modname (expr_env st)
                   :<~> searched_below
                   :<~> SwitchEveryNHalter (switch_after config)
-                  :<~> AcceptHalter)
+                  :<~> AcceptHalter
+                  :<~> timer_halter)
         , SomeOrderer LHLimitByAcceptedOrderer)
     else
         (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng)
@@ -112,7 +115,8 @@ inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
               :<~> LHAbsHalter entry mb_modname (expr_env st)
               :<~> searched_below
               :<~> SwitchEveryNHalter (switch_after config)
-              :<~> AcceptHalter)
+              :<~> AcceptHalter
+              :<~> timer_halter)
         , SomeOrderer LHLimitByAcceptedOrderer)
 
 -------------------------------

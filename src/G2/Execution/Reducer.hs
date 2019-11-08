@@ -44,6 +44,8 @@ module G2.Execution.Reducer ( Reducer (..)
                             , RecursiveCutOff (..)
                             , VarLookupLimit (..)
                             , BranchAdjVarLookupLimit (..)
+                            , TimerHalter
+                            , timerHalter
 
                             -- Orderers
                             , OCombiner (..)
