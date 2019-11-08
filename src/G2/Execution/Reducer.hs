@@ -71,6 +71,7 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.List as L
+import Data.Time.Clock
 import System.Directory
 
 -- | Used when applying execution rules
@@ -149,7 +150,7 @@ class Halter h hv t | h -> hv where
     discardOnStart _ _ _ _ = False
 
     -- | Determines whether to continue reduction on the current state
-    stopRed :: h -> hv -> Processed (State t) -> State t -> HaltC
+    stopRed :: h -> hv -> Processed (State t) -> State t -> IO HaltC
 
     -- | Takes a state, and updates it's halter record field
     stepHalter :: h -> hv -> Processed (State t) -> [State t] -> State t -> hv
@@ -423,7 +424,6 @@ outputState fdn is s b = do
 
     putStrLn fn
 
-
 -- | Allows executing multiple halters.
 -- If the halters disagree, prioritizes the order:
 -- Discard, Accept, Switch, Continue
@@ -469,12 +469,11 @@ instance (Halter h1 hv1 t, Halter h2 hv2 t) => Halter (HCombiner h1 h2) (C hv1 h
         in
         b1 || b2
 
-    stopRed (h1 :<~> h2) (C hv1 hv2) proc s =
-        let
-            hc1 = stopRed h1 hv1 proc s
-            hc2 = stopRed h2 hv2 proc s
-        in
-        min hc1 hc2
+    stopRed (h1 :<~> h2) (C hv1 hv2) proc s = do
+        hc1 <- stopRed h1 hv1 proc s
+        hc2 <- stopRed h2 hv2 proc s
+
+        return $ min hc1 hc2
 
     stepHalter (h1 :<~> h2) (C hv1 hv2) proc xs s =
         let
@@ -490,8 +489,8 @@ instance Halter SWHNFHalter () t where
     updatePerStateHalt _ _ _ _ = ()
     stopRed _ _ _ s =
         case isExecValueForm s of
-            True -> Accept
-            False -> Continue
+            True -> return Accept
+            False -> return Continue
     stepHalter _ _ _ _ _ = ()
 
 -- | Accepts a state when it is in SWHNF and true_assert is true
@@ -504,9 +503,9 @@ instance Halter AcceptHalter () t where
     stopRed _ _ _ s =
         case isExecValueForm s of
             True 
-                | true_assert s -> Accept
-                | otherwise -> Discard
-            False -> Continue
+                | true_assert s -> return Accept
+                | otherwise -> return Discard
+            False -> return Continue
     stepHalter _ _ _ _ _ = ()
 
 -- | Allows execution to continue until the step counter hits 0, then discards the state
@@ -521,9 +520,9 @@ instance Halter ZeroHalter Int t where
 halterSub1 :: Halter h Int t => h -> Int -> Processed (State t) -> [State t] -> State t -> Int
 halterSub1 _ h _ _ _ = h - 1
 
-halterIsZero :: Halter h Int t => h -> Int -> Processed (State t) -> State t -> HaltC
-halterIsZero _ 0 _ _ = Discard
-halterIsZero _ _ _ _ = Continue
+halterIsZero :: Halter h Int t => h -> Int -> Processed (State t) -> State t -> IO HaltC
+halterIsZero _ 0 _ _ = return Discard
+halterIsZero _ _ _ _ = return Continue
 
 data MaxOutputsHalter = MaxOutputsHalter (Maybe Int)
 
@@ -532,8 +531,8 @@ instance Halter MaxOutputsHalter (Maybe Int) t where
     updatePerStateHalt _ hv _ _ = hv
     stopRed _ m (Processed {accepted = acc}) _ =
         case m of
-            Just m' -> if length acc >= m' then Discard else Continue
-            _ -> Continue
+            Just m' -> return $ if length acc >= m' then Discard else Continue
+            _ -> return Continue
     stepHalter _ hv _ _ _ = hv
 
 -- | Switch execution every n steps
@@ -542,7 +541,7 @@ data SwitchEveryNHalter = SwitchEveryNHalter Int
 instance Halter SwitchEveryNHalter Int t where
     initHalt (SwitchEveryNHalter sw) _ = sw
     updatePerStateHalt (SwitchEveryNHalter sw) _ _ _ = sw
-    stopRed _ i pr _ = if i <= 0 then Switch else Continue
+    stopRed _ i pr _ = return $ if i <= 0 then Switch else Continue
     stepHalter _ i _ _ _ = i - 1
 
 -- | Switches execution every n steps, where n is divided every time
@@ -562,7 +561,7 @@ instance Halter BranchAdjSwitchEveryNHalter SwitchingPerState t where
     updatePerStateHalt _ sps@(SwitchingPerState { switch_at = sw }) _ _ =
         sps { counter = sw }
     stopRed _ (SwitchingPerState { counter = i }) _ _ =
-        if i <= 0 then Switch else Continue
+        return $ if i <= 0 then Switch else Continue
     stepHalter (BranchAdjSwitchEveryNHalter { switch_min = mi })
                sps@(SwitchingPerState { switch_at = sa, counter = i }) _ xs _ =
         let
@@ -580,7 +579,7 @@ instance Halter BranchAdjVarLookupLimit SwitchingPerState t where
     updatePerStateHalt _ sps@(SwitchingPerState { switch_at = sw }) _ _ =
         sps { counter = sw }
     stopRed _ (SwitchingPerState { counter = i }) _ _ =
-        if i <= 0 then Switch else Continue
+        return $ if i <= 0 then Switch else Continue
 
     stepHalter (BranchAdjVarLookupLimit { var_switch_min = mi })
                sps@(SwitchingPerState { switch_at = sa, counter = i }) _ xs
@@ -603,10 +602,10 @@ instance Halter RecursiveCutOff (HM.HashMap SpannedName Int) t where
     stopRed (RecursiveCutOff co) hv _ (State { curr_expr = CurrExpr _ (Var (Id n _)) }) =
         case HM.lookup (SpannedName n) hv of
             Just i
-                | i > co -> Discard
-                | otherwise -> Continue
-            Nothing -> Continue
-    stopRed _ _ _ _ = Continue
+                | i > co -> return Discard
+                | otherwise -> return Continue
+            Nothing -> return Continue
+    stopRed _ _ _ _ = return Continue
 
     stepHalter _ hv _ _ s@(State { curr_expr = CurrExpr _ (Var (Id n _)) })
         | not $ E.isSymbolic n (expr_env s) =
@@ -640,7 +639,7 @@ instance Halter DiscardIfAcceptedTag (S.HashSet Name) t where
         S.filter (\(Name n' m' _ _) -> n == n' && m == m') matchCurrState
 
     stopRed _ ns _ _ =
-        if not (S.null ns) then Discard else Continue
+        return $ if not (S.null ns) then Discard else Continue
 
     stepHalter _ hv _ _ _ = hv
 
@@ -652,11 +651,33 @@ data VarLookupLimit = VarLookupLimit Int
 instance Halter VarLookupLimit Int t where
     initHalt (VarLookupLimit lim) _ = lim
     updatePerStateHalt (VarLookupLimit lim) _ _ _ = lim
-    stopRed _ lim _ _ = if lim <= 0 then Switch else Continue
+    stopRed _ lim _ _ = return $ if lim <= 0 then Switch else Continue
 
     stepHalter _ lim _ _ (State { curr_expr = CurrExpr Evaluate (Var _) }) = lim - 1
     stepHalter _ lim _ _ _ = lim
 
+data TimerHalter = TimerHalter { init_time :: UTCTime, max_seconds :: NominalDiffTime }
+
+timerHalter :: NominalDiffTime -> IO TimerHalter
+timerHalter ms = do
+    curr <- getCurrentTime
+    return TimerHalter { init_time = curr, max_seconds = ms }
+
+instance Halter TimerHalter () t where
+    initHalt _ _ = ()
+    updatePerStateHalt _ _ _ _ = ()
+
+    stopRed tr@(TimerHalter { init_time = it, max_seconds = ms }) _ (Processed { accepted = acc }) s
+        | length acc >= 1= do
+            curr <- getCurrentTime
+            let diff = diffUTCTime curr it
+
+            if diff > ms
+                then return Discard
+                else return Continue
+        | otherwise = return Continue
+
+    stepHalter _ _ _ _ _ = ()
 
 -- Orderer things
 data OCombiner o1 o2 = o1 :<-> o2 deriving (Eq, Show, Read)
@@ -845,59 +866,61 @@ runReducer' :: (Reducer r rv t, Halter h hv t, Orderer or sov b t)
             -> Bindings
             -> M.Map b [ExState rv hv sov t] 
             -> IO (Processed (ExState rv hv sov t), Bindings)
-runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_val = h_val, order_val = o_val }) b xs
-    | hc == Accept =
-        let
-            pr' = pr {accepted = rs:accepted pr}
-            jrs = minState xs
-        in
-        case jrs of
-            Just (rs', xs') -> do
-                switchState red hal ord pr' rs' b xs'
-                -- runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
-            Nothing -> return (pr', b)
-    | hc == Discard =
-        let
-            pr' = pr {discarded = rs:discarded pr}
-            jrs = minState xs
-        in
-        case jrs of
-            Just (rs', xs') ->
-                switchState red hal ord pr' rs' b xs'
-                -- runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
-            Nothing -> return (pr', b)
-    | hc == Switch =
-        let
-            k = orderStates ord (order_val rs') (state rs)
-            rs' = rs { order_val = updateSelected ord (order_val rs) ps (state rs) }
+runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_val = h_val, order_val = o_val }) b xs = do
+    hc <- stopRed hal h_val ps s
+    case () of
+        ()
+            | hc == Accept ->
+                let
+                    pr' = pr {accepted = rs:accepted pr}
+                    jrs = minState xs
+                in
+                case jrs of
+                    Just (rs', xs') -> do
+                        switchState red hal ord pr' rs' b xs'
+                        -- runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
+                    Nothing -> return (pr', b)
+            | hc == Discard ->
+                let
+                    pr' = pr {discarded = rs:discarded pr}
+                    jrs = minState xs
+                in
+                case jrs of
+                    Just (rs', xs') ->
+                        switchState red hal ord pr' rs' b xs'
+                        -- runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
+                    Nothing -> return (pr', b)
+            | hc == Switch ->
+                let
+                    k = orderStates ord (order_val rs') (state rs)
+                    rs' = rs { order_val = updateSelected ord (order_val rs) ps (state rs) }
 
-            Just (rs'', xs') = minState (M.insertWith (++) k [rs'] xs)
-        in
-        switchState red hal ord pr rs'' b xs'
-        -- if not $ discardOnStart hal (halter_val rs''') ps (state rs''')
-        --     then runReducer' red hal ord pr rs''' b xs'
-        --     else runReducerList red hal ord (pr {discarded = rs''':discarded pr}) xs' b
-    | otherwise = do
-        (_, reduceds, b', red') <- redRules red r_val s b
-        let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
+                    Just (rs'', xs') = minState (M.insertWith (++) k [rs'] xs)
+                in
+                switchState red hal ord pr rs'' b xs'
+                -- if not $ discardOnStart hal (halter_val rs''') ps (state rs''')
+                --     then runReducer' red hal ord pr rs''' b xs'
+                --     else runReducerList red hal ord (pr {discarded = rs''':discarded pr}) xs' b
+            | otherwise -> do
+                (_, reduceds, b', red') <- redRules red r_val s b
+                let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
 
-        let r_vals = updateWithAll red reduceds' ++ error "List returned by updateWithAll is too short."
-            new_states = map fst reduceds'
-        
-            mod_info = map (\(s', r_val') ->
-                                rs { state = s'
-                                   , reducer_val = r_val'
-                                   , halter_val = stepHalter hal h_val ps new_states s'
-                                   , order_val = stepOrderer ord o_val ps new_states s'}) $ zip new_states r_vals
-        
-        case mod_info of
-            (s_h:ss_tail) -> do
-                let xs' = foldr (\s' -> M.insertWith (++) (orderStates ord (order_val s') (state s')) [s']) xs ss_tail
-                runReducer' red' hal ord pr s_h b' xs'
-            [] -> runReducerList red' hal ord pr xs b' 
-    where
-        hc = stopRed hal h_val ps s
-        ps = processedToState pr
+                let r_vals = updateWithAll red reduceds' ++ error "List returned by updateWithAll is too short."
+                    new_states = map fst reduceds'
+                
+                    mod_info = map (\(s', r_val') ->
+                                        rs { state = s'
+                                           , reducer_val = r_val'
+                                           , halter_val = stepHalter hal h_val ps new_states s'
+                                           , order_val = stepOrderer ord o_val ps new_states s'}) $ zip new_states r_vals
+                
+                case mod_info of
+                    (s_h:ss_tail) -> do
+                        let xs' = foldr (\s' -> M.insertWith (++) (orderStates ord (order_val s') (state s')) [s']) xs ss_tail
+                        runReducer' red' hal ord pr s_h b' xs'
+                    [] -> runReducerList red' hal ord pr xs b' 
+        where
+            ps = processedToState pr
 
 switchState :: (Reducer r rv t, Halter h hv t, Orderer or sov b t)
             => r
@@ -928,7 +951,12 @@ runReducerList :: (Reducer r rv t, Halter h hv t, Orderer or sov b t)
                -> IO (Processed (ExState rv hv sov t), Bindings)
 runReducerList red hal ord pr m binds =
     case minState m of
-        Just (x, m') -> runReducer' red hal ord pr x binds m'
+        Just (rs, m') ->
+            let
+                ps = processedToState pr
+                rs' = rs { halter_val = updatePerStateHalt hal (halter_val rs) ps (state rs) }
+            in
+            runReducer' red hal ord pr rs' binds m'
         Nothing -> return (pr, binds)
 
 -- To be used when we are possibly switching states 

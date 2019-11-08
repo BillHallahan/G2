@@ -146,6 +146,7 @@ boolRuleList =
     , GConstant boolSort
     , GBfTerm $ BfIdentifierBfs (ISymb "=") [intBf, intBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "<") [intBf, intBf]
+    , GBfTerm $ BfIdentifierBfs (ISymb "<=") [intBf, intBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "=>") [boolBf, boolBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "and") [boolBf, boolBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "or") [boolBf, boolBf]

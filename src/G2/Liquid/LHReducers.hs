@@ -81,8 +81,8 @@ data LHTracker = LHTracker { abstract_calls :: [FuncCall]
                            , last_var :: Maybe Name
                            , annotations :: AnnotMap } deriving (Eq, Show)
 
-minAbstractCalls :: (Foldable f, Functor f) => f (State LHTracker) -> Int
-minAbstractCalls = minimum . fmap abstractCallsNum
+minAbstractCalls :: [State LHTracker] -> Int
+minAbstractCalls xs = minimum $ 10000000000:fmap abstractCallsNum xs
 
 abstractCallsNum :: State LHTracker -> Int
 abstractCallsNum = length . abstract_calls . track
@@ -162,9 +162,9 @@ instance Halter LHLimitByAcceptedHalter (Maybe Int) LHTracker where
         Just . minimum . map num_steps
             $ allMin (length . abstract_calls . track) acc
     
-    stopRed _ Nothing _ _ = Continue
+    stopRed _ Nothing _ _ = return Continue
     stopRed (LHLimitByAcceptedHalter co) (Just nAcc) _ s =
-        if num_steps s > nAcc + co then Switch else Continue
+        return $ if num_steps s > nAcc + co then Switch else Continue
     
     stepHalter _ hv _ _ _ = hv
 
@@ -203,7 +203,7 @@ instance Halter LHAbsHalter Int LHTracker where
     updatePerStateHalt _ ii (Processed {accepted = acc}) _ = minimum $ ii:map (length . abstract_calls . track) acc
 
     stopRed _ hv pr s =
-        if length (abstract_calls $ track s) > hv
+        return $ if length (abstract_calls $ track s) > hv
             then trace ("accepted " ++ show (length (accepted pr)) ++ " discarded "
                             ++ show (length (discarded pr)) ++ " discarded no abs " ++ show (length (filter (\s -> abstractCallsNum s == 0) $ discarded pr))) Discard
             else Continue
@@ -218,8 +218,8 @@ instance Halter LHMaxOutputsHalter Int LHTracker where
     updatePerStateHalt _ hv _ _ = hv
 
     stopRed _ m (Processed { accepted = acc }) _
-        | length acc' >= m = Discard
-        | otherwise = Continue
+        | length acc' >= m = return Discard
+        | otherwise = return Continue
         where
             min_abs = minAbstractCalls acc
             acc' = filter (\s -> abstractCallsNum s == min_abs) acc
@@ -251,17 +251,14 @@ instance Halter SearchedBelowHalter SBInfo LHTracker where
 
             dis_less_than_min = filter (\s -> abstractCallsNum s < min_abs || abstractCallsNum s == 0) dis
 
-    stopRed sbh (SBInfo { accepted_lt_num = length_acc', discarded_lt_num = length_dis_ltm } ) (Processed { accepted = acc }) s
-        | length_acc' >= found_at_least sbh
-        , abstractCallsNum s >= min_abs = Discard
+    stopRed sbh (SBInfo { accepted_lt_num = length_acc, discarded_lt_num = length_dis_ltm } ) (Processed { accepted = acc }) s
+        | length_acc >= found_at_least sbh
+        , length_dis_ltm >= discarded_at_least sbh = return Discard
 
-        | length_acc' >= found_at_least sbh
-        , length_dis_ltm >= discarded_at_least sbh = Discard
+        | length_acc >= 1
+        , length_dis_ltm >= discarded_at_most sbh = return Discard
 
-        | length_acc' >= 1
-        , length_dis_ltm >= discarded_at_most sbh = Discard
-
-        | otherwise = Continue
+        | otherwise = return Continue
         where
             min_abs = minAbstractCalls acc
             

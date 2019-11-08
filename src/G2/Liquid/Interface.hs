@@ -2,7 +2,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 
 module G2.Liquid.Interface ( LiquidData (..)
-                           , LiquidReadyState (..)
+                           , LiquidReadyState
                            , Abstracted (..)
                            , findCounterExamples
                            , runLHG2

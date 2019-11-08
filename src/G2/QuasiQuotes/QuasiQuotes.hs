@@ -247,7 +247,7 @@ instance Halter LemmingsHalter () t where
     initHalt _ _ = ()
     updatePerStateHalt _ _ _ _ = ()
     discardOnStart _ _ pr _ = not . null . discarded $ pr
-    stopRed _ _ _ _ = Continue
+    stopRed _ _ _ _ = return Continue
     stepHalter _ _ _ _ _ = ()
 
 fileName :: String
@@ -363,8 +363,8 @@ instance Halter ErrorHalter () t where
     initHalt _ _ = ()
     updatePerStateHalt _ _ _ _ = ()
 
-    stopRed _ _ _ (State { curr_expr = CurrExpr _ (G2.Prim Error _)}) = Discard
-    stopRed _ _ _ _ = Continue
+    stopRed _ _ _ (State { curr_expr = CurrExpr _ (G2.Prim Error _)}) = return Discard
+    stopRed _ _ _ _ = return Continue
 
     stepHalter _ _ _ _ _ = ()
 
