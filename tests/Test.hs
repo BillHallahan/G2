@@ -270,10 +270,6 @@ liquidTests = return . testGroup "Liquid" =<< sequence
         [ AtLeast 3
         , RForAll (\[_, _, f, _] _ [(FuncCall { funcName = Name n _ _ _, arguments = [_, _, _, _, f', _] }) ] -> 
                     n == "map" && f == f') ]
-    , checkAbsLiquid "tests/Liquid/ListTests2.lhs" "replicate" 2000 3
-        [ AtLeast 3
-        , RForAll (\[_, nA, aA] _ [(FuncCall { funcName = Name n _ _ _, arguments = [_, _, nA', aA'] }) ]
-            -> n == "replicate" && nA == nA' && aA == aA') ]
     , checkAbsLiquid "tests/Liquid/ListTests2.lhs" "prop_size" 2000 0
         [ AtLeast 1
         , RForAll (\[] _ [(FuncCall { funcName = Name n _ _ _, returns = r }) ]
@@ -563,6 +559,12 @@ todoTests = return . testGroup "To Do" =<< sequence
     , checkLiquidWithConfig "tests/Liquid/MapReduceTest.lhs" "mapReduce" 2 (mkConfigTestWithMap {steps = 1500})
         [Exactly 0]
     , checkLiquid "tests/Liquid/NearestTest.lhs" "nearest" 1500 1 [Exactly 1]
+
+    , checkAbsLiquid "tests/Liquid/ListTests2.lhs" "replicate" 2000 3
+        [ AtLeast 3
+        , RForAll (\[_, nA, aA] _ [(FuncCall { funcName = Name n _ _ _, arguments = [_, _, nA', aA'] }) ]
+            -> n == "replicate" && nA == nA' && aA == aA') ]
+
 
     , checkExpr "tests/TestFiles/TypeClass/TypeClass5.hs" 800 "run" 2 [AtLeast 1]
     , checkExpr "tests/TestFiles/TypeClass/TypeClass5.hs" 800 "run2" 2 [AtLeast 0]

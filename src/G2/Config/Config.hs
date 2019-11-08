@@ -39,7 +39,11 @@ data Config = Config {
     , extraDefaultMods :: [FilePath]
     , logStates :: Maybe String -- ^ If Just, dumps all thes states into the given folder
     , sharing :: Sharing
+
     , counterfactual :: Counterfactual
+    , reduce_abs :: Bool
+
+
     , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
     , printCurrExpr :: Bool -- ^ Controls whether the curr expr is printed
     , printExprEnv :: Bool -- ^ Controls whether the expr env is printed
@@ -75,7 +79,10 @@ mkConfig homedir as m = Config {
     , extraDefaultMods = extraDefaultPaths (strArg "extra-base" as m id homedir)
     , logStates = strArg "log-states" as m Just Nothing
     , sharing = boolArg' "sharing" as m Sharing Sharing NoSharing
+
     , counterfactual = boolArg' "counterfactual" as m Counterfactual Counterfactual NotCounterfactual
+    , reduce_abs = boolArg "reduce-abs" as m On
+
     , maxOutputs = strArg "max-outputs" as m (Just . read) Nothing
     , printCurrExpr = boolArg "print-ce" as m Off
     , printExprEnv = boolArg "print-eenv" as m Off
