@@ -3,6 +3,8 @@
 
 module G2.Liquid.Interface ( LiquidData (..)
                            , LiquidReadyState
+                           , lr_state
+                           , lrsMeasures
                            , Abstracted (..)
                            , findCounterExamples
                            , runLHG2
@@ -272,11 +274,11 @@ processLiquidReadyState lrs@(LiquidReadyState { lr_state = lh_state
     return $ lhs { ls_counterfactual_name = cfn }
 
 extractWithoutSpecs :: LiquidReadyState -> Lang.Id -> [GhcInfo] -> Config -> MemConfig -> IO LiquidData
-extractWithoutSpecs (LiquidReadyState { lr_state = s
-                                      , lr_binding = bindings
-                                      , lr_known_values = mkv
-                                      , lr_type_classes = mtc
-                                      , lr_higher_ord_insts = minst}) ifi ghci config memconfig = do
+extractWithoutSpecs lrs@(LiquidReadyState { lr_state = s
+                                          , lr_binding = bindings
+                                          , lr_known_values = mkv
+                                          , lr_type_classes = mtc
+                                          , lr_higher_ord_insts = minst}) ifi ghci config memconfig = do
     let (lh_s, bindings') = execLHStateM (return ()) s bindings
     let bindings'' = bindings' { higher_order_inst = minst }
 
@@ -299,13 +301,27 @@ extractWithoutSpecs (LiquidReadyState { lr_state = s
     let final_st = track_state { known_values = mkv
                                , type_classes = unionTypeClasses mtc (type_classes track_state)}
 
+    let real_meas = lrsMeasures ghci lrs
+
+
     return $ LiquidData { ls_state = final_st
                         , ls_bindings = bindings''
                         , ls_id = ifi
                         , ls_counterfactual_name = error "No counterfactual name"
-                        , ls_measures = measures lh_s
+                        , ls_measures = real_meas
                         , ls_tcv = tcv
                         , ls_memconfig = pres_names' `mappend` memconfig }
+
+lrsMeasures :: [GhcInfo] -> LiquidReadyState -> Measures
+lrsMeasures ghci lrs = 
+    let
+        meas_names = map (val . name) $ measureSpecs ghci
+        meas_nameOcc = map (\(Name n md _ _) -> (n, md)) $ map symbolName meas_names
+
+        real_meas = E.filterWithKey (\(Name n md i _) _ -> 
+                                (n, md) `elem` meas_nameOcc && i == 0) . measures $ lr_state lrs
+    in
+    real_meas
 
 processLiquidReadyStateWithCall :: LiquidReadyState -> [GhcInfo] -> T.Text -> Maybe T.Text-> Config -> MemConfig -> IO LiquidData
 processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState { state = s })
@@ -330,6 +346,10 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
                                             }
                    }
 
+    putStrLn "HERE"
+    print ce
+    putStrLn "HERE 2"
+    print . curr_expr . state $ lhs''
     processLiquidReadyStateCleaning lrs' ie ghci config memconfig
 
 runLHG2 :: (Solver solver, Simplifier simplifier)
@@ -352,8 +372,8 @@ runLHG2 config red hal ord solver simplifier pres_names final_st bindings = do
                   _ -> minimum $ map (\(ExecRes {final_state = s}) -> abstractCallsNum s) ret
     let ret' = filter (\(ExecRes {final_state = s}) -> mi == (abstractCallsNum s)) ret
 
-    ret'' <- mapM (reduceCalls config final_bindings) ret'
-    ret''' <- mapM (checkAbstracted config final_bindings) ret''
+    ret'' <- mapM (reduceCalls solver simplifier config final_bindings) ret'
+    ret''' <- mapM (checkAbstracted solver simplifier config final_bindings) ret''
 
     let exec_res = 
           map (\(ExecRes { final_state = s

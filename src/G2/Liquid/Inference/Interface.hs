@@ -38,11 +38,11 @@ inference config proj fp lhlibs = do
     let simp_s = initSimpleState (snd exg2)
         lrs = createStateForInference simp_s g2config ghci
 
-    inference' g2config lhconfig' ghci (fst exg2) lrs simp_s emptyGS emptyFC 
+    inference' g2config lhconfig' ghci (fst exg2) lrs emptyGS emptyFC 
 
-inference' :: G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> SimpleState
+inference' :: G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
            -> GeneratedSpecs -> FuncConstraints -> IO (Either [CounterExample] GeneratedSpecs)
-inference' g2config lhconfig ghci m_modname lrs simp_s gs fc = do
+inference' g2config lhconfig ghci m_modname lrs gs fc = do
     print gs
 
     let merged_ghci = addSpecsToGhcInfos ghci gs
@@ -77,9 +77,9 @@ inference' g2config lhconfig ghci m_modname lrs simp_s gs fc = do
                     putStrLn "Before genMeasureExs"
                     meas_ex <- genMeasureExs lrs merged_ghci g2config fc'
                     putStrLn "After genMeasureExs"
-                    gs' <- foldM (synthesize ghci meas_ex fc') gs new_fc_funcs
+                    gs' <- foldM (synthesize ghci lrs meas_ex fc') gs new_fc_funcs
                     
-                    inference' g2config lhconfig ghci m_modname lrs simp_s gs' fc'
+                    inference' g2config lhconfig ghci m_modname lrs gs' fc'
 
 createStateForInference :: SimpleState -> G2.Config -> [GhcInfo] -> LiquidReadyState
 createStateForInference simp_s config ghci =
@@ -111,13 +111,21 @@ genMeasureExs lrs ghci g2config fcs =
     in
     evalMeasures lrs ghci g2config es
 
-synthesize :: [GhcInfo] -> MeasureExs -> FuncConstraints -> GeneratedSpecs -> Name -> IO GeneratedSpecs
-synthesize ghci meas_ex fc gs n = do
-    let fc_of_n = lookupFC n fc
+synthesize :: [GhcInfo] -> LiquidReadyState -> MeasureExs -> FuncConstraints -> GeneratedSpecs -> Name -> IO GeneratedSpecs
+synthesize ghci lrs meas_ex fc gs n = do
+    let eenv = expr_env . state $ lr_state lrs
+
+        fc_of_n = lookupFC n fc
         spec = case findFuncSpec ghci n of
                 Just spec' -> spec'
-                Nothing -> error $ "No spec found for " ++ show n
-    new_spec <- refSynth spec meas_ex fc_of_n (measureSymbols ghci)
+                Nothing -> error $ "synthesize: No spec found for " ++ show n
+        e = case E.occLookup (nameOcc n) (nameModule n) eenv of
+                Just e' -> e'
+                Nothing -> error $ "synthesize: No expr found"
+
+        meas = lrsMeasures ghci lrs
+
+    new_spec <- refSynth spec e meas meas_ex fc_of_n (measureSymbols ghci)
 
     putStrLn $ "spec = " ++ show spec
     putStrLn $ "new_spec = " ++ show new_spec

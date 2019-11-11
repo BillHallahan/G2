@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 module Main (main) where
 
 import G2.Config as G2
@@ -13,6 +14,8 @@ import Language.Haskell.Liquid.Types as LH
 import Control.DeepSeq
 import Data.Time.Clock
 import System.Environment
+
+import G2.Language
 
 main :: IO ()
 main = do

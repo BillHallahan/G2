@@ -6,9 +6,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Liquid.Inference.G2Calls ( MeasureExs
-                                   , GMeasureExs
-                                   , MeasureEx
-                                   , GMeasureEx (..)
                                    , runLHInferenceCore
                                    , checkCounterexample
                                    , evalMeasures) where
@@ -56,7 +53,6 @@ runLHInferenceCore entry m lrs ghci config = do
                , ls_id = ifi
                , ls_counterfactual_name = cfn
                , ls_memconfig = pres_names } <- processLiquidReadyStateWithCall lrs ghci entry m config mempty
-
     SomeSolver solver <- initSolver config
     let simplifier = ADTSimplifier arbValue
 
@@ -103,7 +99,7 @@ inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
                   :<~> SwitchEveryNHalter (switch_after config)
                   :<~> AcceptHalter
                   :<~> timer_halter)
-        , SomeOrderer LHLimitByAcceptedOrderer)
+        , SomeOrderer (IncrAfterN 1000 ADTHeightOrderer))
     else
         (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng)
             <~| (case logStates config of
@@ -117,7 +113,7 @@ inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
               :<~> SwitchEveryNHalter (switch_after config)
               :<~> AcceptHalter
               :<~> timer_halter)
-        , SomeOrderer LHLimitByAcceptedOrderer)
+        , SomeOrderer (IncrAfterN 1000 ADTHeightOrderer))
 
 -------------------------------
 -- Checking Counterexamples
@@ -136,6 +132,7 @@ checkCounterexample lrs ghci config cex@(FuncCall { funcName = Name n m _ _ }) =
 
     SomeSolver solver <- initSolver config
     (fsl, _) <- genericG2Call config' solver s' bindings
+    close solver
 
     case fsl of
         [ExecRes
@@ -168,21 +165,23 @@ toJustSpec _ _ _ = error "toJustSpec: ill-formed state"
 -------------------------------
 -- Evaluate all relevant measures on a given expression
 
-type MeasureExs = GMeasureExs Expr
-type GMeasureExs e = HM.HashMap Name (HS.HashSet (GMeasureEx e))
+-- type MeasureExs = GMeasureExs Expr
+-- type GMeasureExs e = HM.HashMap Name (HS.HashSet (GMeasureEx e))
 
 
-type MeasureEx = GMeasureEx Expr
-data GMeasureEx e = MeasureEx { meas_in :: e
-                              , meas_out :: e }
-                              deriving (Show, Read, Eq, Generic, Typeable, Data)
+-- type MeasureEx = GMeasureEx Expr
+-- data GMeasureEx e = MeasureEx { meas_in :: e
+--                               , meas_out :: e }
+--                               deriving (Show, Read, Eq, Generic, Typeable, Data)
 
-instance Hashable e => Hashable (GMeasureEx e)
+-- instance Hashable e => Hashable (GMeasureEx e)
 
-instance AST e => ASTContainer (GMeasureEx e) e where
-    containedASTs (MeasureEx { meas_in = m_in, meas_out = m_out }) = [m_in, m_out]
-    modifyContainedASTs f (MeasureEx { meas_in = m_in, meas_out = m_out }) =
-        MeasureEx { meas_in = f m_in, meas_out = f m_out }
+type MeasureExs = HM.HashMap Expr [(Name, Expr)]
+
+-- instance AST e => ASTContainer (GMeasureEx e) e where
+--     containedASTs (MeasureEx { meas_in = m_in, meas_out = m_out }) = [m_in, m_out]
+--     modifyContainedASTs f (MeasureEx { meas_in = m_in, meas_out = m_out }) =
+--         MeasureEx { meas_in = f m_in, meas_out = f m_out }
 
 evalMeasures :: LiquidReadyState -> [GhcInfo] -> Config -> [Expr] -> IO MeasureExs
 evalMeasures lrs ghci config es = do
@@ -201,7 +200,11 @@ evalMeasures lrs ghci config es = do
     let s' = s { true_assert = True }
         (final_s, final_b) = markAndSweepPreserving pres_names s' bindings
 
-    return . foldr (HM.unionWith HS.union) HM.empty =<< mapM (evalMeasures' meas_names final_s final_b config' meas tcv) es
+    SomeSolver solver <- initSolver config
+    meas_res <- mapM (evalMeasures' final_s final_b solver config' meas tcv) es
+    close solver
+
+    return $ foldr (HM.unionWith (++)) HM.empty meas_res
     where
         meas_names = map (val . name) $ measureSpecs ghci
         meas_nameOcc = map (\(Name n md _ _) -> (n, md)) $ map symbolName meas_names
@@ -215,11 +218,10 @@ evalMeasures lrs ghci config es = do
 
 evalMeasures' :: ( ASTContainer t Expr
                  , ASTContainer t Type
-                 , Named t) => [Symbol] -> State t -> Bindings -> Config -> Measures -> TCValues -> Expr -> IO MeasureExs
-evalMeasures' meas_names s bindings config meas tcv e =  do
-    let m_sts = evalMeasures'' meas_names s bindings meas tcv e
-
-    SomeSolver solver <- initSolver config
+                 , Named t
+                 , Solver solver) => State t -> Bindings -> solver -> Config -> Measures -> TCValues -> Expr -> IO MeasureExs
+evalMeasures' s bindings solver config meas tcv e =  do
+    let m_sts = evalMeasures'' s bindings meas tcv e
 
     m_sts' <- mapM (\(n, e_in, s_meas) -> do
         (er, _) <- genericG2Call config solver s_meas bindings
@@ -228,25 +230,26 @@ evalMeasures' meas_names s bindings config meas tcv e =  do
                 let 
                     CurrExpr _ e_out = curr_expr . final_state $ er'
                 in
-                return (n, MeasureEx { meas_in = e_in, meas_out = e_out })
-            [] -> return (n, MeasureEx { meas_in = e_in, meas_out = Prim Undefined TyBottom })
+                return (e_in, [(n, e_out)])
+            [] -> return (e_in, [(n, Prim Undefined TyBottom)])
             _ -> error "evalMeasures': Bad G2 Call") m_sts
 
-    return $ foldr (uncurry (HM.insertWith HS.union)) HM.empty
-                        $ map (\(n, ee) -> (n, HS.singleton ee)) m_sts'
+    return $ foldr (uncurry (HM.insertWith (++))) HM.empty  m_sts'
 
-evalMeasures'' :: [Symbol] -> State t -> Bindings -> Measures -> TCValues -> Expr -> [(Name, Expr, State t)]
-evalMeasures'' meas_names s b m tcv e =
+evalMeasures'' :: State t -> Bindings -> Measures -> TCValues -> Expr -> [(Name, Expr, State t)]
+evalMeasures'' s b m tcv e =
     let
-        meas_nameOcc = map (\(Name n md _ _) -> (n, md)) $ map symbolName meas_names
-
-        filtered_m = E.filterWithKey (\(Name n md i _) _ -> (n, md) `elem` meas_nameOcc && i == 0) m
-        rel_m = mapMaybe (\(n, me) -> case filter notLH . argumentTypes . PresType . inTyForAlls . typeOf $ me of
-                                        [t] ->
-                                            case typeOf e `specializes` t of
-                                                (True, bound) -> Just (n, me, bound)
-                                                _ -> Nothing
-                                        at -> Nothing) $ E.toExprList filtered_m
+        rel_m = mapMaybe (\(n, me) ->
+                              let
+                                  t_me = typeOf $ me
+                                  ret_t = returnType $ PresType t_me
+                              in
+                              case filter notLH . argumentTypes . PresType . inTyForAlls $ t_me of
+                                  [t] ->
+                                      case typeOf e `specializes` t of
+                                          (True, bound) -> Just (n, me, bound)
+                                          _ -> Nothing
+                                  at -> Nothing) $ E.toExprList m
     in
     map (\(n, me, bound) ->
             let
@@ -292,8 +295,6 @@ genericG2Call config solver s bindings = do
                            (SomeOrderer NextOrderer)
                            solver simplifier emptyMemConfig s bindings
 
-    close solver
-
     return fslb
 
 genericG2CallLogging :: ( ASTContainer t Expr
@@ -308,7 +309,5 @@ genericG2CallLogging config solver s bindings = do
                            (SomeHalter SWHNFHalter)
                            (SomeOrderer NextOrderer)
                            solver simplifier emptyMemConfig s bindings
-
-    close solver
 
     return fslb

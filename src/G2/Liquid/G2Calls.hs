@@ -37,15 +37,10 @@ toAbstracted :: AbstractedRes -> Maybe Abstracted
 toAbstracted (AbstractRes a) = Just a
 toAbstracted _ = Nothing
 
-checkAbstracted :: Config -> Bindings -> ExecRes LHTracker -> IO (ExecRes [Abstracted])
-checkAbstracted config bindings er@(ExecRes{ final_state = s@State { track = lht }}) = do
-    SomeSolver solver <- initSolver config
-    let simplifier = ADTSimplifier arbValue
-
+checkAbstracted :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Config -> Bindings -> ExecRes LHTracker -> IO (ExecRes [Abstracted])
+checkAbstracted solver simplifier config bindings er@(ExecRes{ final_state = s@State { track = lht }}) = do
     let check = checkAbstracted' solver simplifier (sharing config) s bindings
     abstracted' <- return . mapMaybe toAbstracted =<< mapM check (abstract_calls lht)
-
-    close solver
 
     return $ er { final_state = s {track = abstracted' }}
 
@@ -93,15 +88,10 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
 -------------------------------
 -- Reduces the arguments and results of the violated and abstracted functions to normal form.
 
-reduceCalls :: Config -> Bindings -> ExecRes LHTracker -> IO (ExecRes LHTracker)
-reduceCalls config bindings er = do
-    SomeSolver solver <- initSolver config
-    let simplifier = ADTSimplifier arbValue
-
+reduceCalls :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Config -> Bindings -> ExecRes LHTracker -> IO (ExecRes LHTracker)
+reduceCalls solver simplifier config bindings er = do
     er' <- reduceViolated solver simplifier (sharing config) bindings er
     er'' <- reduceAbstracted solver simplifier (sharing config) bindings er'
-
-    close solver
 
     return er''
 
