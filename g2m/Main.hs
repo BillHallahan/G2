@@ -40,21 +40,16 @@ sampleTests = do
     timeIOActionPrint "peanoAdd" $ [g2| \(p1 :: Peano) -> ?(p2 :: Peano) | fstIsEvenAddToFour p1 p2 |] Zero
     timeIOActionPrint "peanoAddSM" $ [g2M| \(p1 :: Peano) -> ?(p2 :: Peano) | fstIsEvenAddToFour p1 p2 |] Zero
 
-
 -- samePerfTests :: IO ()
 -- samePerfTests = do
     -- timeIOActionPrint "mccarthy" $ [g2| \(y :: Int) -> ?(x :: Int) | greaterThan10Less x y |] 145
     -- timeIOActionPrint "mccarthySM" $ [g2M| \(y :: Int) -> ?(x :: Int) | greaterThan10Less x y |] 145
 
-    -- timeIOActionPrint "g2" $ [g2| \(i :: Int) -> ?(t :: Tree) | treeSizeTest i t |] 3
-    -- timeIOActionPrint "g2M" $ [g2M| \(i :: Int) -> ?(t :: Tree) | treeSizeTest i t |] 3
-
-    -- timeIOActionPrint "g2" $ [g2| \(a :: Int) -> ?(b :: [Int]) | sieveTest a b |] 5
-    -- timeIOActionPrint "g2M" $ [g2M| \(a :: Int) -> ?(b :: [Int]) | sieveTest a b|] 5
-
     -- timeIOActionPrint "vectorAdd" $ [g2| \(a :: [Int]) (res :: [Int]) -> ?(b :: [Int]) | vectorAddTest a b res |] [1,2,3,2,7,4,5,6,4,5,6,7,8,9] [3,9,9,9,9,9,9,9,2,3,4,5,6,3]
     -- timeIOActionPrint "vectorAddSM" $ [g2M| \(a :: [Int]) (res :: [Int]) -> ?(b :: [Int]) | vectorAddTest a b res |] [1,2,3,2,7,4,5,6,4,5,6,7,8,9] [3,9,9,9,9,9,9,9,2,3,4,5,6,3]
 
+    -- timeIOActionPrint "g2" $ [g2| \(a :: Int) -> ?(b :: [Int]) | sieveTest a b |] 5
+    -- timeIOActionPrint "g2M" $ [g2M| \(a :: Int) -> ?(b :: [Int]) | sieveTest a b|] 5
 
 -- mergeSlowdownTests :: IO ()
 -- mergeSlowdownTests = do
