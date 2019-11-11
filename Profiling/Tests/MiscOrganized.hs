@@ -191,8 +191,8 @@ get xs j = case xs of
 repl :: Int -> [Int]
 repl x = x:repl (x+1)
 
-repl_get :: Int -> Int -> Int
-repl_get i k = (get (repl i) k)
+repl_get :: Int -> Int -> Int -> Int
+repl_get i j k = (get (repl i) k) + (get (repl j) k)
 
 -- originially did't work with merge-states (no results) due to NonDets piling on faster than they are reduced within the limit for number of states
 -- works with limit on depth of tree
@@ -403,10 +403,6 @@ zip' _ _ = error "Unequal length of lists"
 zipAssert :: (Eq a) => [a] -> [b] -> [(a,b)] -> Bool
 zipAssert a _ res = (head a) == (fst (head res))
 
---------------------------------------------------------
--- No Results with Merge states -- 
--------------------------------------------------------
--- normal version is able to produce results, but merge-states returns blank (with validateLuhn Assert, n = 3000)
 validateLuhn :: [Int] -> Bool
 validateLuhn idn = validLength && val `mod` 10 == 0
    where 
