@@ -75,6 +75,9 @@ import Var
 
 import G2.Language.KnownValues
 
+import Debug.Trace
+import G2.Language.Monad
+
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
                          , abstracted :: [FuncInfo] } deriving (Eq, Show)
@@ -270,6 +273,8 @@ processLiquidReadyState lrs@(LiquidReadyState { lr_state = lh_state
     let (cfn, (merged_state, bindings')) = runLHStateM (initializeLHSpecs (counterfactual config) ghci ifi lh_bindings) lh_state lh_bindings
         lrs' = lrs { lr_state = merged_state, lr_binding = bindings'}
 
+    print . curr_expr . state . lr_state $ lrs'
+
     lhs <- extractWithoutSpecs lrs' ifi ghci config memconfig
     return $ lhs { ls_counterfactual_name = cfn }
 
@@ -346,10 +351,6 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
                                             }
                    }
 
-    putStrLn "HERE"
-    print ce
-    putStrLn "HERE 2"
-    print . curr_expr . state $ lhs''
     processLiquidReadyStateCleaning lrs' ie ghci config memconfig
 
 runLHG2 :: (Solver solver, Simplifier simplifier)
@@ -454,9 +455,11 @@ initializeLHData ghcInfos = do
 
 initializeLHSpecs :: Counterfactual -> [GhcInfo] -> Lang.Id -> Bindings -> LHStateM Lang.Name
 initializeLHSpecs counter ghcInfos ifi bindings = do
+    (CurrExpr er ce) <- currExpr
     let specs = funcSpecs ghcInfos
     mergeLHSpecState specs
 
+    (CurrExpr er ce') <- currExpr
     addSpecialAsserts
     addTrueAsserts ifi
 

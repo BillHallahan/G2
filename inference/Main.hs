@@ -2,6 +2,7 @@
 module Main (main) where
 
 import G2.Config as G2
+import G2.Interface
 import G2.Liquid.Inference.Interface
 import G2.Liquid.Inference.QualifGen
 import G2.Liquid.Inference.Verify
@@ -47,14 +48,15 @@ checkQualifs f config = do
                         ghci { spec = spc' }) ghcis
 
     start <- getCurrentTime
-    res <- verify lhconfig' ghcis'
+    res <- doTimeout 360 $ verify lhconfig' ghcis'
     stop <- getCurrentTime
 
     case res of -- print $ quals finfo
-        Safe -> do
+        Just Safe -> do
             putStrLn "Safe"
             print (stop `diffUTCTime` start)
-        _ -> putStrLn "Unsafe"
+        Just _ -> putStrLn "Unsafe"
+        Nothing -> putStrLn "Timeout"
 
 callInference :: String -> G2.Config -> IO ()
 callInference f config = do

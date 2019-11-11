@@ -27,6 +27,14 @@ createMeasures meas = do
     nt <- return . M.fromList =<< mapMaybeM measureTypeMappings meas
     meas' <- mapMaybeM (convertMeasure nt) =<< filterM allTypesKnown meas
     
+
+    -- We remove any names covered by the Measures found by LH from the Measures we already have
+    -- to prevent using the wrong measures later
+    pre_meenv <- measuresM
+    let ns = map (\(Name n m _ _) -> (n, m)) $ M.keys nt
+        fil_meenv = E.filterWithKey (\(Name n m _ _) _ -> (n, m) `notElem` ns) pre_meenv
+    putMeasuresM fil_meenv
+
     meenv <- measuresM
     let eenvk = E.keys meenv
         mvNames = filter (flip notElem eenvk) $ varNames meas'

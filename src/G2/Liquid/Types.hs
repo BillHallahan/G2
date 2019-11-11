@@ -24,6 +24,7 @@ module G2.Liquid.Types ( LHOutput (..)
                        , lookupMeasureM
                        , insertMeasureM
                        , mapMeasuresM
+                       , putMeasuresM
                        , lookupAssumptionM
                        , insertAssumptionM
                        , mapAssumptionsM
@@ -288,6 +289,11 @@ mapMeasuresM f = do
     (s@(LHState { measures = meas }), b) <- SM.get
     meas' <- E.mapM f meas
     SM.put $ (s { measures = meas' }, b)
+
+putMeasuresM :: Measures -> LHStateM ()
+putMeasuresM meas = do
+    (s, b) <- SM.get
+    SM.put $ (s { measures = meas }, b)
 
 lookupAssumptionM :: L.Name -> LHStateM (Maybe L.Expr)
 lookupAssumptionM n = liftLHState (M.lookup n . assumptions)
