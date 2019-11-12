@@ -123,16 +123,25 @@ reduceFuncCall share solver simplifier s bindings fc@(FuncCall { arguments = ars
 
 reduceFCExpr :: (Solver solver, Simplifier simp) => Sharing -> SomeReducer LHTracker ->  solver -> simp -> State LHTracker -> Bindings -> Expr -> IO (Bindings, Expr)
 reduceFCExpr share reducer solver simplifier s bindings e 
-    | not . isTypeClass (type_classes s) $ (typeOf e) = do
-        let ds = deepseq_walkers bindings
-            e' = maybe e (fillLHDictArgs ds) $ mkStrict_maybe ds e
+    | not . isTypeClass (type_classes s) $ (typeOf e)
+    , ds <- deepseq_walkers bindings
+    , Just strict_e <-  mkStrict_maybe ds e  = do
+        let 
+            e' = fillLHDictArgs ds strict_e
 
         let s' = elimAsserts . pickHead $
                    s { expr_env = model s `E.union'` expr_env s
                    , curr_expr = CurrExpr Evaluate e'}
 
+        -- temp
+        red <- 
+                -- if isTyFun (inTyForAlls (typeOf e))
+                --     then do print (typeOf e); return (reducer <~ SomeReducer (Logger "aFun"))
+                --     else
+                        return reducer
+
         (er, bindings') <- runG2WithSomes 
-                    reducer
+                    red
                     (SomeHalter SWHNFHalter)
                     (SomeOrderer NextOrderer)
                     solver simplifier emptyMemConfig s' bindings
@@ -140,7 +149,7 @@ reduceFCExpr share reducer solver simplifier s bindings e
         case er of
             [er'] -> do
                 let (CurrExpr _ ce) = curr_expr . final_state $ er'
-                return (bindings { name_gen = name_gen bindings }, ce)
+                return (bindings { name_gen = name_gen bindings' }, ce)
             _ -> error "reduceAbstracted: Bad reduction"
     | otherwise = return (bindings, e) 
 

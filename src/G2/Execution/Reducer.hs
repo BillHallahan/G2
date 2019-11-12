@@ -390,7 +390,7 @@ instance Reducer Logger [Int] t where
 data LimLogger =
     LimLogger { every_n :: Int -- Output a state every n steps
               , after_n :: Int -- Only begin outputing after passing a certain n
-              , down_path :: [Int] -- Output states that have gone down the given path prefix
+              , down_path :: [Int] -- Output states that have gone down or are going down the given path prefix
               , output_path :: String
               }
 
@@ -402,7 +402,7 @@ instance Reducer LimLogger LLTracker t where
 
     redRules ll@(LimLogger { after_n = aft, down_path = down })
             llt@(LLTracker { ll_count = 0, ll_offset = off }) s b
-        | down `L.isPrefixOf` off
+        | down `L.isPrefixOf` off || off `L.isPrefixOf` down
         , length (rules s) >= aft = do
             outputState (output_path ll) off s b
             return (NoProgress, [(s, llt { ll_count = every_n ll })], b, ll)
@@ -420,7 +420,7 @@ outputState fdn is s b = do
     let dir = fdn ++ "/" ++ foldl' (\str i -> str ++ show i ++ "/") "" is
     createDirectoryIfMissing True dir
 
-    let fn = dir ++ "state" ++ show (length $ rules s) ++ ".txt"
+    let fn = dir ++ "state" ++ show (num_steps s) ++ ".txt"
     let write = pprExecStateStr s b
     writeFile fn write
 
@@ -800,7 +800,7 @@ adtHeight' e s =
     let
         _:es = unApp e 
     in
-    maximum $ map (\e' -> case e' of
+    maximum $ 0:map (\e' -> case e' of
                         Var (Id n _) -> adtHeight n s
                         _ -> 0) es
 

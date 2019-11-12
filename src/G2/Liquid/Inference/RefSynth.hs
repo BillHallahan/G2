@@ -309,6 +309,7 @@ measVal sorts meas_ex e (SortedVar mn _) =
 -- | Is the given type usable by SyGuS?
 relTy :: Type -> Bool
 relTy (TyVar _) = False
+relTy (TyFun _ _) = False
 relTy _ = True
 
 -------------------------------
