@@ -779,7 +779,7 @@ data ADTHeightOrderer = ADTHeightOrderer
 
 instance Orderer ADTHeightOrderer (S.HashSet Name) Int t where
     initPerStateOrder _ = S.fromList . map idName . symbolic_ids
-    orderStates _ v s = maximum . S.toList $ S.map (flip adtHeight s) v
+    orderStates _ v s = maximum $ (-1):(S.toList $ S.map (flip adtHeight s) v)
 
     updateSelected _ v _ _ = v
 

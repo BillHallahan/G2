@@ -321,7 +321,8 @@ convertLHExpr m bt _ (EApp e e') = do
         ctArgE = tyAppCenter tArgE
         ts = take (numTypeArgs f) $ tyAppArgs tArgE
     
-    case (ctArgE, f_ar_ts) of
+    case trace ("f = " ++ show f ++ "\nargE = " ++ show argE
+                ++ "\nctArgE = " ++ show ctArgE ++ "\nf_ar_ts = " ++ show f_ar_ts) (ctArgE, f_ar_ts) of
         (TyCon _ _, Just f_ar_ts') -> do
             let specTo = concatMap (map snd) $ map M.toList $ map (snd . uncurry specializes) $ zip ts f_ar_ts'
                 te = map Type specTo
@@ -490,7 +491,8 @@ correctTypes m bt mt re re' = do
        | retT == tyI
        , retT' /= tyI
        , Just iDict' <- may_iDict' -> return (e, mkApp [Var tIntgr, Type t', iDict', e'])
-       | otherwise -> error "correctTypes: Unhandled case"
+       | otherwise -> error $ "correctTypes: Unhandled case"
+                                ++ "\ne = " ++ show e ++ "\ne' = " ++ show e'
 
 convertSymbolT :: Symbol -> Type -> Id
 convertSymbolT s = Id (symbolName s)

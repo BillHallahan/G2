@@ -78,10 +78,16 @@ sygusCall e meas meas_ex fcs@(_:_) =
     let
         -- Figure out what measures we need to/can consider
         ty_e = PresType $ inTyForAlls (typeOf e)
-        ty_c = filter (not . isTYPE) . filter (not . isLHDict) $ argumentTypes ty_e ++ [returnType ty_e]
+        arg_ty_c = filter (not . isTYPE)
+                 . filter (not . isLHDict)
+                 $ argumentTypes ty_e
+        ret_ty_c = returnType ty_e
+        ty_c = arg_ty_c ++ [ret_ty_c]
 
-        ty_c' = nubBy (\t1 t2 -> t1 .::. t2) ty_c
-        dt_ts = filter (not . isPrimTy) ty_c' 
+        rel_ty_c = filter relTy ty_c
+
+        rel_ty_c' = nubBy (\t1 t2 -> t1 .::. t2) rel_ty_c
+        dt_ts = filter (not . isPrimTy) rel_ty_c' 
 
         ns = concatMap (map fst) . HM.elems $ meas_ex
         applic_meas = map (applicableMeasures meas) dt_ts
@@ -100,12 +106,12 @@ sygusCall e meas meas_ex fcs@(_:_) =
 
         varN = map (\i -> "x" ++ show i) ([0..] :: [Integer])
         sortVars = map (uncurry SortedVar) . zip varN
-                        . map (typeToSort sorts) . filter (not . isLHDict) $ ty_c
+                        . map (typeToSort sorts) . filter (not . isLHDict) $ rel_ty_c
 
         -- Converted constraints.  Measures cause us to lose information about the data, so after
         -- conversion we can have a constraint both postively and negatively.  We know that the postive
         -- constraint corresponds to an actual execution, so we keep that one, adnd drop the negative constraint.
-        cons = map (termConstraints sorts meas_ex) fcs
+        cons = map (termConstraints sorts meas_ex arg_ty_c ret_ty_c) fcs
         cons' = filterPosAndNegConstraints cons
         cons'' = map termConstraintToConstraint cons'
 
@@ -208,18 +214,19 @@ dtGroupRuleList symb srt = GroupedRuleList symb srt [GVariable srt]
 data TermConstraint = PosT { term_cons :: Term}
                     | NegT { term_cons :: Term}
 
-termConstraints :: TypesToSorts -> MeasureExs -> FuncConstraint -> TermConstraint
-termConstraints sorts meas_ex (Pos fc) =
-    PosT $ funcCallTerm sorts meas_ex fc
-termConstraints sorts meas_ex (Neg fc) =
-    NegT $ funcCallTerm sorts meas_ex fc
+termConstraints :: TypesToSorts -> MeasureExs -> [Type] -> Type -> FuncConstraint -> TermConstraint
+termConstraints sorts meas_ex arg_tys ret_ty (Pos fc) =
+    PosT $ funcCallTerm sorts meas_ex arg_tys ret_ty fc
+termConstraints sorts meas_ex arg_tys ret_ty (Neg fc) =
+    NegT $ funcCallTerm sorts meas_ex arg_tys ret_ty fc
 
-funcCallTerm :: TypesToSorts -> MeasureExs ->  FuncCall -> Term
-funcCallTerm sorts meas_ex (FuncCall { arguments = ars, returns = r}) =
+funcCallTerm :: TypesToSorts -> MeasureExs -> [Type] -> Type -> FuncCall -> Term
+funcCallTerm sorts meas_ex arg_tys ret_ty (FuncCall { arguments = ars, returns = r}) =
     let
         ars' = filter (not . isLhDict) . filter (not . isType) $ ars
     in
-    TermCall (ISymb "refinement") (map (exprToTerm sorts meas_ex) ars' ++ [exprToTerm sorts meas_ex r])
+    TermCall (ISymb "refinement")
+        (mapMaybe (uncurry (relExprToTerm sorts meas_ex)) (zip arg_tys ars') ++ [exprToTerm sorts meas_ex ret_ty r])
     where
         isType (Type _) = True
         isType _ = False
@@ -228,14 +235,19 @@ funcCallTerm sorts meas_ex (FuncCall { arguments = ars, returns = r}) =
             | (Data (DataCon (Name n _ _ _) _)):_ <- unApp e = n == "lh"
             | otherwise = False
 
-exprToTerm :: TypesToSorts -> MeasureExs -> G2.Expr -> Term
-exprToTerm _ _ (Data (DataCon (Name n _ _ _) _))
+relExprToTerm :: TypesToSorts -> MeasureExs -> Type -> G2.Expr -> Maybe Term
+relExprToTerm sorts meas_ex t e =
+    if relTy t then Just $ exprToTerm sorts meas_ex t e else Nothing
+
+exprToTerm :: TypesToSorts -> MeasureExs -> Type -> G2.Expr -> Term
+exprToTerm _ _ (TyCon (Name "Bool" _ _ _) _) (Data (DataCon (Name n _ _ _) _))
     | "True" <- n = TermLit $ LitBool True
     | "False" <- n =TermLit $ LitBool False
-exprToTerm _ _ (App _ (Lit l)) = litToTerm l
-exprToTerm _ _ (Lit l) = litToTerm l
-exprToTerm sorts meas_ex e = exprToDTTerm sorts meas_ex e
-exprToTerm _ _ e = error $ "exprToTerm: Unhandled Expr " ++ show e
+exprToTerm _ _ (TyCon (Name n _ _ _) _) (App _ (Lit l))
+    | n == "Int" || n == "Float" = litToTerm l
+exprToTerm _ _ _ (Lit l) = litToTerm l
+exprToTerm sorts meas_ex t e = exprToDTTerm sorts meas_ex t e
+exprToTerm _ _ _ e = error $ "exprToTerm: Unhandled Expr " ++ show e
 
 litToTerm :: G2.Lit -> Term
 litToTerm (LitInt i) = TermLit (LitNum i)
@@ -278,9 +290,9 @@ boolSort = IdentSort (ISymb "Bool")
 nameToSymbol :: Name -> Symbol
 nameToSymbol = nameToStr
 
-exprToDTTerm :: TypesToSorts -> MeasureExs -> G2.Expr -> Term
-exprToDTTerm sorts meas_ex e =
-    case lookupSort (typeOf e) sorts of
+exprToDTTerm :: TypesToSorts -> MeasureExs -> Type -> G2.Expr -> Term
+exprToDTTerm sorts meas_ex t e =
+    case lookupSort t sorts of
         Just si -> TermCall (ISymb (dt_name si)) $ map (measVal sorts meas_ex e) (meas_names si)
         Nothing -> error "exprToDTTerm: No sort found"
 
@@ -291,8 +303,13 @@ measVal sorts meas_ex e (SortedVar mn _) =
     in
     case HM.lookup e meas_ex of
         Just meas_out
-            |Just (_, v) <- find (\(n', _) -> nameOcc meas_n == nameOcc n') meas_out -> exprToTerm sorts meas_ex v
+            |Just (_, v) <- find (\(n', _) -> nameOcc meas_n == nameOcc n') meas_out -> exprToTerm sorts meas_ex (typeOf v) v
         Nothing -> error "measVal: Expr not found"
+
+-- | Is the given type usable by SyGuS?
+relTy :: Type -> Bool
+relTy (TyVar _) = False
+relTy _ = True
 
 -------------------------------
 -- Measures
@@ -443,7 +460,10 @@ litToLHConstant :: Sy.Lit -> Constant
 litToLHConstant (LitNum n) = I n
 
 specTypeSymbols :: SpecType -> [LH.Symbol]
-specTypeSymbols (RFun { rt_bind = b, rt_out = out }) = b:specTypeSymbols out
+specTypeSymbols (RFun { rt_bind = b, rt_in = i, rt_out = out }) =
+    case i of
+        RVar {} -> specTypeSymbols out
+        _ -> b:specTypeSymbols out
 specTypeSymbols (RApp { rt_reft = ref }) = [reftSymbol $ ur_reft ref]
 specTypeSymbols (RVar {}) = error "RVar"
 specTypeSymbols (RAllT { rt_ty = out }) = specTypeSymbols out
