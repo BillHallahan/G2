@@ -2,7 +2,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Liquid.G2Calls ( checkAbstracted
-                         , reduceCalls) where
+                         , reduceCalls
+                         , mapAccumM) where
 
 import G2.Config
 import G2.Execution
@@ -17,6 +18,7 @@ import G2.Solver
 import G2.Lib.Printers
 
 import Control.Monad
+import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
@@ -81,45 +83,45 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
                                         )
                         False -> return NotAbstractRes
             _ -> error $ "checkAbstracted': Bad return from runG2WithSomes"
-    | otherwise = error $ "checkAbstracted': Bad return from runG2WithSomes"
+    | otherwise = error $ "checkAbstracted': Bad lookup in runG2WithSomes"
 
 -------------------------------
 -- Reduce Calls
 -------------------------------
 -- Reduces the arguments and results of the violated and abstracted functions to normal form.
 
-reduceCalls :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Config -> Bindings -> ExecRes LHTracker -> IO (ExecRes LHTracker)
+reduceCalls :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Config -> Bindings -> ExecRes LHTracker -> IO (Bindings, ExecRes LHTracker)
 reduceCalls solver simplifier config bindings er = do
-    er' <- reduceViolated solver simplifier (sharing config) bindings er
-    er'' <- reduceAbstracted solver simplifier (sharing config) bindings er'
+    (bindings', er') <- reduceViolated solver simplifier (sharing config) bindings er
+    (bindings'', er'') <- reduceAbstracted solver simplifier (sharing config) bindings' er'
 
-    return er''
+    return (bindings'', er'')
 
-reduceViolated :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Sharing -> Bindings -> ExecRes LHTracker -> IO (ExecRes LHTracker)
+reduceViolated :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Sharing -> Bindings -> ExecRes LHTracker -> IO (Bindings, ExecRes LHTracker)
 reduceViolated solver simplifier share bindings er@(ExecRes { final_state = s, violated = Just v }) = do
-    v' <- reduceFuncCall share solver simplifier s bindings v
+    (bindings', v') <- reduceFuncCall share solver simplifier s bindings v
     -- putStrLn $ "v = " ++ show v
     -- putStrLn $ "v' = " ++ show v'
-    return er { violated = Just v' }
-reduceViolated _ _ _ _ er = return er 
+    return (bindings', er { violated = Just v' })
+reduceViolated _ _ _ b er = return (b, er) 
 
-reduceAbstracted :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Sharing -> Bindings -> ExecRes LHTracker -> IO (ExecRes LHTracker)
+reduceAbstracted :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Sharing -> Bindings -> ExecRes LHTracker -> IO (Bindings, ExecRes LHTracker)
 reduceAbstracted solver simplifier share bindings
                 er@(ExecRes { final_state = (s@State { track = lht}) }) = do
     let fcs = abstract_calls lht
 
-    fcs' <- mapM (reduceFuncCall share solver simplifier s bindings) fcs
+    (bindings', fcs') <- mapAccumM (reduceFuncCall share solver simplifier s) bindings fcs
 
-    return er { final_state = s { track = lht { abstract_calls = fcs' } }}
+    return (bindings', er { final_state = s { track = lht { abstract_calls = fcs' } }})
 
-reduceFuncCall :: (Solver solver, Simplifier simp) => Sharing -> solver -> simp -> State LHTracker -> Bindings -> FuncCall -> IO FuncCall
+reduceFuncCall :: (Solver solver, Simplifier simp) => Sharing -> solver -> simp -> State LHTracker -> Bindings -> FuncCall -> IO (Bindings, FuncCall)
 reduceFuncCall share solver simplifier s bindings fc@(FuncCall { arguments = ars, returns = r }) = do
-    red_ars <- mapM (reduceFCExpr share (SomeReducer (StdRed share solver simplifier)) solver simplifier s bindings) ars
-    red_r <- reduceFCExpr share (SomeReducer (StdRed share solver simplifier)) solver simplifier s bindings r
+    (bindings', red_ars) <- mapAccumM (reduceFCExpr share (SomeReducer (StdRed share solver simplifier)) solver simplifier s) bindings ars
+    (bindings'', red_r) <- reduceFCExpr share (SomeReducer (StdRed share solver simplifier)) solver simplifier s bindings' r
 
-    return fc { arguments = red_ars, returns = red_r }
+    return (bindings'', fc { arguments = red_ars, returns = red_r })
 
-reduceFCExpr :: (Solver solver, Simplifier simp) => Sharing -> SomeReducer LHTracker ->  solver -> simp -> State LHTracker -> Bindings -> Expr -> IO Expr
+reduceFCExpr :: (Solver solver, Simplifier simp) => Sharing -> SomeReducer LHTracker ->  solver -> simp -> State LHTracker -> Bindings -> Expr -> IO (Bindings, Expr)
 reduceFCExpr share reducer solver simplifier s bindings e 
     | not . isTypeClass (type_classes s) $ (typeOf e) = do
         let ds = deepseq_walkers bindings
@@ -129,7 +131,7 @@ reduceFCExpr share reducer solver simplifier s bindings e
                    s { expr_env = model s `E.union'` expr_env s
                    , curr_expr = CurrExpr Evaluate e'}
 
-        (er, _) <- runG2WithSomes 
+        (er, bindings') <- runG2WithSomes 
                     reducer
                     (SomeHalter SWHNFHalter)
                     (SomeOrderer NextOrderer)
@@ -138,9 +140,16 @@ reduceFCExpr share reducer solver simplifier s bindings e
         case er of
             [er'] -> do
                 let (CurrExpr _ ce) = curr_expr . final_state $ er'
-                return ce
+                return (bindings { name_gen = name_gen bindings }, ce)
             _ -> error "reduceAbstracted: Bad reduction"
-    | otherwise = return e 
+    | otherwise = return (bindings, e) 
+
+mapAccumM :: (Monad m, MonadPlus p) => (acc -> x -> m (acc, y)) -> acc -> [x] -> m (acc, p y)
+mapAccumM _ z [] = return (z, mzero)
+mapAccumM f z (x:xs) = do
+  (z', y) <- f z x
+  (z'', ys) <- mapAccumM f z' xs
+  return (z'', return y `mplus` ys)
 
 -------------------------------
 -- Generic

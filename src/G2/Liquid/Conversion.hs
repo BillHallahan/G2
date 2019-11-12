@@ -321,8 +321,7 @@ convertLHExpr m bt _ (EApp e e') = do
         ctArgE = tyAppCenter tArgE
         ts = take (numTypeArgs f) $ tyAppArgs tArgE
     
-    case trace ("f = " ++ show f ++ "\nargE = " ++ show argE
-                ++ "\nctArgE = " ++ show ctArgE ++ "\nf_ar_ts = " ++ show f_ar_ts) (ctArgE, f_ar_ts) of
+    case (ctArgE, f_ar_ts) of
         (TyCon _ _, Just f_ar_ts') -> do
             let specTo = concatMap (map snd) $ map M.toList $ map (snd . uncurry specializes) $ zip ts f_ar_ts'
                 te = map Type specTo

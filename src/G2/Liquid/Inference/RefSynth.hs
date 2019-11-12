@@ -463,6 +463,7 @@ specTypeSymbols :: SpecType -> [LH.Symbol]
 specTypeSymbols (RFun { rt_bind = b, rt_in = i, rt_out = out }) =
     case i of
         RVar {} -> specTypeSymbols out
+        RFun {} -> specTypeSymbols out
         _ -> b:specTypeSymbols out
 specTypeSymbols (RApp { rt_reft = ref }) = [reftSymbol $ ur_reft ref]
 specTypeSymbols (RVar {}) = error "RVar"
