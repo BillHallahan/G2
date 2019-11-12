@@ -376,7 +376,7 @@ instance Reducer TaggerRed () t where
 -- | A Reducer to producer logging output 
 data Logger = Logger String
 
-instance Reducer Logger [Int] t where
+instance Show t => Reducer Logger [Int] t where
     initReducer _ _ = []
 
     redRules l@(Logger fn) li s b = do
@@ -396,7 +396,7 @@ data LimLogger =
 
 data LLTracker = LLTracker { ll_count :: Int, ll_offset :: [Int]}
 
-instance Reducer LimLogger LLTracker t where
+instance Show t => Reducer LimLogger LLTracker t where
     initReducer ll _ =
         LLTracker { ll_count = every_n ll, ll_offset = []}
 
@@ -415,7 +415,7 @@ instance Reducer LimLogger LLTracker t where
     updateWithAll _ ss =
         map (\(llt, i) -> llt { ll_offset = ll_offset llt ++ [i] }) $ zip (map snd ss) [1..]
 
-outputState :: String -> [Int] -> State t -> Bindings -> IO ()
+outputState :: Show t => String -> [Int] -> State t -> Bindings -> IO ()
 outputState fdn is s b = do
     let dir = fdn ++ "/" ++ foldl' (\str i -> str ++ show i ++ "/") "" is
     createDirectoryIfMissing True dir

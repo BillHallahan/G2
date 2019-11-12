@@ -300,6 +300,7 @@ genericG2Call config solver s bindings = do
 genericG2CallLogging :: ( ASTContainer t Expr
                         , ASTContainer t Type
                         , Named t
+                        , Show t
                         , Solver solver) => Config -> solver -> State t -> Bindings -> IO ([ExecRes t], Bindings)
 genericG2CallLogging config solver s bindings = do
     let simplifier = ADTSimplifier arbValue

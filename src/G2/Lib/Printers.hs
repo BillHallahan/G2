@@ -258,7 +258,7 @@ injTuple :: [String] -> String
 injTuple strs = "(" ++ (intercalate "," strs) ++ ")"
 
 -- | More raw version of state dumps.
-pprExecStateStr :: State t -> Bindings -> String
+pprExecStateStr :: Show t => State t -> Bindings -> String
 pprExecStateStr ex_state b = injNewLine acc_strs
   where
     eenv_str = pprExecEEnvStr (expr_env ex_state)
@@ -274,6 +274,7 @@ pprExecStateStr ex_state b = injNewLine acc_strs
     cleaned_str = pprCleanedNamesStr (cleaned_names b)
     model_str = pprModelStr (model ex_state)
     rules_str = intercalate "\n" $ map show (zip ([0..] :: [Integer]) $ rules ex_state)
+    track_str = show (track ex_state)
     acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
                , "----- [Code] ----------------------"
                , code_str
@@ -303,6 +304,8 @@ pprExecStateStr ex_state b = injNewLine acc_strs
                , cleaned_str
                , "----- [Model] -------------------"
                , model_str
+               , "----- [Track] -------------------"
+               , track_str
                , "----- [Rules] -------------------"
                , rules_str
                , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" 

@@ -81,7 +81,10 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
                                         ( Abstracted { abstract = abs_fc
                                                      , real = abs_fc { returns = ce } }
                                         )
-                        False -> return NotAbstractRes
+                        False -> do
+                          print ce
+                          print r
+                          return NotAbstractRes
             _ -> error $ "checkAbstracted': Bad return from runG2WithSomes"
     | otherwise = error $ "checkAbstracted': Bad lookup in runG2WithSomes"
 

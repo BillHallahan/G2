@@ -20,7 +20,7 @@ import G2.Language.AST
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
 import G2.Language.Naming
-import G2.Language.Stack
+import G2.Language.Stack hiding (filter)
 import G2.Language.Syntax
 import G2.Language.TypeClasses
 import G2.Language.TypeEnv

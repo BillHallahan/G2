@@ -23,6 +23,7 @@ module G2.Liquid.LHReducers ( LHRed (..)
 import G2.Execution.Reducer
 import G2.Execution.Rules
 import G2.Language
+import qualified G2.Language.Stack as Stck
 import qualified G2.Language.ExprEnv as E
 import G2.Liquid.Annotations
 
@@ -51,12 +52,17 @@ import Debug.Trace
 --     only the information that LH also knows (that is, the information in the
 --     refinment type.)
 lhReduce :: Name -> State LHTracker -> Maybe (Rule, [State LHTracker])
-lhReduce cfn s@(State { curr_expr = CurrExpr Evaluate (Tick (NamedLoc tn) e@(Assume fc _ _))
-                      , track = tr@(LHTracker { abstract_calls = abs_c } )})
+lhReduce cfn s@(State { curr_expr = CurrExpr Evaluate (Tick (NamedLoc tn) e@(Assume (Just fc) _ _))
+                      , track = tr@(LHTracker { abstract_calls = abs_c })
+                      , exec_stack = stck})
                     | cfn == tn =
+                        let
+                            stck' = if arguments fc == [] then Stck.filter (\f -> f /= UpdateFrame (funcName fc)) stck else stck
+                        in
                         Just ( RuleOther
                              , [s { curr_expr = CurrExpr Evaluate e
-                                  , track = tr { abstract_calls = maybe abs_c (:abs_c) fc }}])
+                                  , track = tr { abstract_calls = fc:abs_c }
+                                  , exec_stack = stck' }])
                     | otherwise = Nothing
 
 lhReduce _ _ = Nothing

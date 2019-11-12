@@ -296,6 +296,10 @@ liquidTests = return . testGroup "Liquid" =<< sequence
     , checkLiquid "tests/Liquid/PostFalse.hs" "f" 2000 1 [AtLeast 1]
 
     , checkAbsLiquid "tests/Liquid/ZipWith3.hs" "prop_zipWith" 1000 1 [ AtLeast 3]
+
+    , checkAbsLiquid "tests/Liquid/Length.hs" "prop_size" 1000 0
+        [ AtLeast 1
+        , RForAll (\_ _ [ _ ]  -> True)]
     ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that

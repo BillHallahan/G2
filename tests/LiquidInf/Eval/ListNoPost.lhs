@@ -113,16 +113,16 @@ such that the following type checks:
 {-@ prop_size :: TRUE @-}
 prop_size  = lAssert (length l3 == 3)
 
-{-@ l3 :: ListN Int 3 @-}
+{-@ l3 :: List Int @-}
 l3     = 3 :+: l2
 
-{-@ l2 :: ListN Int 2 @-}
+{-@ l2 :: List Int @-}
 l2     = 2 :+: l1
 
-{-@ l1 :: ListN Int 1 @-}
+{-@ l1 :: List Int @-}
 l1     = 1 :+: l0
 
-{-@ l0 :: ListN Int 0 @-}
+{-@ l0 :: List Int @-}
 l0     = Emp :: List Int
 \end{code}
 
