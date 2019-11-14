@@ -18,6 +18,7 @@ import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Naming
 import G2.Language.Syntax as G2
+import G2.Language.TypeClasses
 import G2.Language.Typing
 import G2.Liquid.Conversion
 import G2.Liquid.Helpers
@@ -49,11 +50,12 @@ import qualified System.Process as P
 
 import Debug.Trace
 
-refSynth :: SpecType -> G2.Expr -> Measures -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> IO LH.Expr
-refSynth spc e meas meas_ex fc meas_sym = do
-    print e
-    print fc
-    let sygus = printSygus $ sygusCall e meas meas_ex fc
+refSynth :: SpecType -> G2.Expr -> TypeClasses -> Measures -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> IO LH.Expr
+refSynth spc e tc meas meas_ex fc meas_sym = do
+    putStrLn "refSynth"
+    putStrLn $ "e = " ++ show e
+    putStrLn $ "fc = " ++ show fc
+    let sygus = printSygus $ sygusCall e tc meas meas_ex fc
     putStrLn . T.unpack $ sygus
 
     res <- runCVC4 (T.unpack sygus)
@@ -73,13 +75,13 @@ refSynth spc e meas meas_ex fc meas_sym = do
 -- Constructing Sygus Formula
 -------------------------------
 
-sygusCall :: G2.Expr -> Measures -> MeasureExs -> [FuncConstraint] -> [Cmd]
-sygusCall e meas meas_ex fcs@(_:_) =
+sygusCall :: G2.Expr -> TypeClasses -> Measures -> MeasureExs -> [FuncConstraint] -> [Cmd]
+sygusCall e tc meas meas_ex fcs@(_:_) =
     let
         -- Figure out what measures we need to/can consider
         ty_e = PresType $ inTyForAlls (typeOf e)
         arg_ty_c = filter (not . isTYPE)
-                 . filter (not . isLHDict)
+                 . filter (not . isTypeClass tc)
                  $ argumentTypes ty_e
         ret_ty_c = returnType ty_e
         ty_c = arg_ty_c ++ [ret_ty_c]
@@ -98,7 +100,7 @@ sygusCall e meas meas_ex fcs@(_:_) =
 
         meas_ids' = filterNonPrimMeasure meas_ids
 
-        ts_applic_meas = trace ("dt_ts = " ++ show dt_ts ++ "\nmeas_ids' = " ++ show meas_ids') zip dt_ts meas_ids'
+        ts_applic_meas = trace ("rel_ty_c = " ++ show rel_ty_c) zip dt_ts meas_ids'
 
         sorts = typesToSort ts_applic_meas
 
@@ -134,7 +136,9 @@ sygusCall e meas meas_ex fcs@(_:_) =
         isPrimTy (TyCon (Name "Int" _ _ _) _) = True
         isPrimTy (TyCon (Name "Bool" _ _ _) _) = True
         isPrimTy _ = False
-sygusCall _ _ _ _ = error "sygusCall: empty list"
+
+        filterArgs p fc = fc { arguments = filter p (arguments fc)}
+sygusCall _ _ _ _ _ = error "sygusCall: empty list"
 
 applicableMeasures :: Measures -> Type -> [Name]
 applicableMeasures meas t =
@@ -293,7 +297,10 @@ nameToSymbol = nameToStr
 exprToDTTerm :: TypesToSorts -> MeasureExs -> Type -> G2.Expr -> Term
 exprToDTTerm sorts meas_ex t e =
     case lookupSort t sorts of
-        Just si -> TermCall (ISymb (dt_name si)) $ map (measVal sorts meas_ex e) (meas_names si)
+        Just si
+            | not . null $ meas_names si ->
+                TermCall (ISymb (dt_name si)) $ map (measVal sorts meas_ex e) (meas_names si)
+            | otherwise -> TermIdent (ISymb (dt_name si))
         Nothing -> error "exprToDTTerm: No sort found"
 
 measVal :: TypesToSorts -> MeasureExs -> G2.Expr -> SortedVar -> Term

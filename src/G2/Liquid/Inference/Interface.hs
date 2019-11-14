@@ -61,8 +61,6 @@ inference' g2config lhconfig ghci m_modname lrs gs fc = do
 
             res <- mapM (genNewConstraints merged_ghci m_modname lrs g2config) bad'
 
-            putStrLn $ "res = " ++ show res
-
             putStrLn "Before checkNewConstraints"
             new_fc <- checkNewConstraints ghci lrs g2config (concat res)
             putStrLn "After checkNewConstraints"
@@ -114,6 +112,7 @@ genMeasureExs lrs ghci g2config fcs =
 synthesize :: [GhcInfo] -> LiquidReadyState -> MeasureExs -> FuncConstraints -> GeneratedSpecs -> Name -> IO GeneratedSpecs
 synthesize ghci lrs meas_ex fc gs n = do
     let eenv = expr_env . state $ lr_state lrs
+        tc = type_classes . state $ lr_state lrs
 
         fc_of_n = lookupFC n fc
         spec = case findFuncSpec ghci n of
@@ -125,7 +124,7 @@ synthesize ghci lrs meas_ex fc gs n = do
 
         meas = lrsMeasures ghci lrs
 
-    new_spec <- refSynth spec e meas meas_ex fc_of_n (measureSymbols ghci)
+    new_spec <- refSynth spec e tc meas meas_ex fc_of_n (measureSymbols ghci)
 
     putStrLn $ "spec = " ++ show spec
     putStrLn $ "new_spec = " ++ show new_spec
