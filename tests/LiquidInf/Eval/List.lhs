@@ -31,6 +31,7 @@ module List ( List
             , foldr1
             , zipWith
             , concat
+            , die
             ) where
 
 import Prelude hiding (length, replicate, foldr, foldr1, map, concat, zipWith)
@@ -80,6 +81,8 @@ the *size*, i.e. number of elements of a `List`:
   @-}
 
 {-@ invariant {v:List a | 0 <= size v} @-}
+
+{-@ type ListNE a = {v:List a | size v > 0} @-}
 \end{code}
 
 It will be helpful to have a few abbreviations. First,

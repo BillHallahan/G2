@@ -182,7 +182,7 @@ intRuleList =
     , GBfTerm $ BfLiteral $ LitNum 0
     , GBfTerm $ BfIdentifierBfs (ISymb "+") [intBf, intBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "-") [intBf, intBf]
-    , GBfTerm $ BfIdentifierBfs (ISymb "*") [intBf, intBf]
+    -- , GBfTerm $ BfIdentifierBfs (ISymb "*") [intBf, intBf]
     -- , GBfTerm $ BfIdentifierBfs (ISymb "mod") [intBf, intBf]
     ]
 
@@ -195,8 +195,8 @@ boolRuleList =
     , GBfTerm $ BfIdentifierBfs (ISymb "<=") [intBf, intBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "=>") [boolBf, boolBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "and") [boolBf, boolBf]
-    , GBfTerm $ BfIdentifierBfs (ISymb "or") [boolBf, boolBf]
-    , GBfTerm $ BfIdentifierBfs (ISymb "not") [boolBf]
+    -- , GBfTerm $ BfIdentifierBfs (ISymb "or") [boolBf, boolBf]
+    -- , GBfTerm $ BfIdentifierBfs (ISymb "not") [boolBf]
     ]
 
 elimHigherOrderArgs :: FuncConstraint -> FuncConstraint
@@ -451,7 +451,7 @@ termToLHExpr meas_sym@(MeasureSymbols meas_sym') m_args (TermCall (ISymb v) ts)
     , [t1, t2] <- ts = PAtom LH.Le (termToLHExpr meas_sym m_args t1) (termToLHExpr meas_sym m_args t2)
     -- More PAtom...
 termToLHExpr meas_sym@(MeasureSymbols meas_sym') m_args (TermCall (ISymb v) ts) =
-    error $ "v = " ++ show v ++ "\nmeas_syms' = " ++ show meas_sym'
+    error $ "v = " ++ show (maybe_StrToName v) ++ "\nmeas_syms' = " ++ show (map symbolName meas_sym')
 termToLHExpr (_) _ t = error $ "termToLHExpr meas_sym m_args: unhandled " ++ show t
 
 zeroName :: Name -> Name

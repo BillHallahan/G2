@@ -23,6 +23,8 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , mkGeIntExpr
                         , mkLeIntExpr
                         , mkAndExpr
+                        , mkToRatioExpr
+                        , mkFromRationalExpr
                         , replaceVar
                         , getFuncCalls
                         , getFuncCallsRHS
@@ -164,6 +166,12 @@ mkLeIntExpr kv e num = App (App le e) (Lit (LitInt num))
 mkAndExpr :: KnownValues -> Expr -> Expr -> Expr
 mkAndExpr kv e1 e2 = App (App andEx e1) e2
     where andEx = mkAndPrim kv
+
+mkToRatioExpr :: KnownValues -> Expr
+mkToRatioExpr kv = Var $ Id (KV.toRatioFunc kv) TyUnknown
+
+mkFromRationalExpr :: KnownValues -> Expr
+mkFromRationalExpr kv = Var $ Id (KV.fromRationalFunc kv) TyUnknown
 
 replaceVar :: ASTContainer m Expr => Name -> Expr -> m -> m
 replaceVar n e = modifyASTs (replaceVar' n e)

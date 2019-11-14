@@ -33,7 +33,7 @@ main = do
 
 checkQualifs :: String -> G2.Config -> IO ()
 checkQualifs f config = do
-    -- qualifGen "qualif.hquals" 
+    qualifGen "qualif.hquals" 
     
     finfo <- parseFInfo ["qualif.hquals"]
 

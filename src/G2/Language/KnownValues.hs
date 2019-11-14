@@ -37,6 +37,7 @@ data KnownValues = KnownValues {
                  , numTC :: Name
                  , ordTC :: Name
                  , integralTC :: Name
+                 , fractionalTC :: Name
 
                  , eqFunc :: Name
                  , neqFunc :: Name
@@ -50,6 +51,9 @@ data KnownValues = KnownValues {
 
                  , fromIntegerFunc :: Name
                  , toIntegerFunc :: Name
+
+                 , toRatioFunc :: Name
+                 , fromRationalFunc :: Name
 
                  , geFunc :: Name
                  , gtFunc :: Name

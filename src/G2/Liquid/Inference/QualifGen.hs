@@ -3,6 +3,7 @@
 
 module G2.Liquid.Inference.QualifGen (qualifGen) where
 
+import G2.Language.Naming
 import G2.Liquid.Inference.RefSynth
 import G2.Liquid.Helpers
 
@@ -44,24 +45,24 @@ qualifGen qualif_fp = do
                 { max_vars = 3
                 , max_size = 5
                 , datatypes = [ QDataType { dt_smt_name = "List"
-                                          , dt_name = "List a"
+                                          , dt_name = "ListQualif.List a"
                                           , dt_cons = ["cons", "nil"] }
                               , QDataType { dt_smt_name = "List_List"
-                                          , dt_name = "List (List b)"
+                                          , dt_name = "ListQualif.List (ListQualif.List b)"
                                           , dt_cons = ["cons_cons", "nil_nil"] }]
                 , measures =
-                    [ QMeasure { m_name = "size"
+                    [ QMeasure { m_name = "size_m__0"
                                , m_in = listSort
                                , m_out = intSort
                                , triv_out = trivOutGen (TermIdent (ISymb "cons"))
-                                                       (TermLit $ LitNum 1000)
+                                                       (TermLit $ LitNum 0)
                                                        (TermLit $ LitNum 2000)
                                }
-                    , QMeasure { m_name = "sumsize"
+                    , QMeasure { m_name = "sizeXs_m__0"
                                , m_in = IdentSort (ISymb "List_List")
                                , m_out = intSort
                                , triv_out = trivOutGen (TermIdent (ISymb "cons_cons"))
-                                                       (TermLit $ LitNum 3000)
+                                                       (TermLit $ LitNum 0)
                                                        (TermLit $ LitNum 4000)
                                }
                     ]
@@ -227,7 +228,9 @@ cmdToQualifs dts meas (SmtCmd (DefineFun _ sv _ t)) =
         sv_str = map sortedVarSymbol sv
         sv_to_symb = M.fromList . zip sv_str $ map LH.symbol sv_str
 
-        lh_expr = termToLHExpr (MeasureSymbols $ map (LH.symbol . m_name) meas) sv_to_symb t
+        meas_names = map (nameOcc . strToName . m_name) meas
+
+        lh_expr = termToLHExpr (MeasureSymbols $ map LH.symbol meas_names) sv_to_symb t
         lh_expr_str = map (\c -> if c == '\n' then ' ' else c) $ show (pprintTidy Full lh_expr)
     in
     "qualif Qualif(" ++ bindSortedVars dts sv ++ ") : (" ++ lh_expr_str ++ ")"

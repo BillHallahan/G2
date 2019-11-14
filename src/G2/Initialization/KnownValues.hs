@@ -40,6 +40,7 @@ initKnownValues eenv tenv =
     , numTC = typeWithStrName tenv "Num"
     , ordTC = typeWithStrName tenv "Ord"
     , integralTC = typeWithStrName tenv "Integral"
+    , fractionalTC = typeWithStrName tenv "Fractional"
 
     , eqFunc = exprWithStrName eenv "=="
     , neqFunc = exprWithStrName eenv "/="
@@ -50,8 +51,12 @@ initKnownValues eenv tenv =
     , divFunc = exprWithStrName eenv "/"
     , negateFunc = exprWithStrName eenv "negate"
     , modFunc = exprWithStrName eenv "mod"
+
     , fromIntegerFunc = exprWithStrName eenv "fromInteger"
     , toIntegerFunc = exprWithStrName eenv "toInteger"
+
+    , toRatioFunc = exprWithStrName eenv "%"
+    , fromRationalFunc = exprWithStrName eenv "fromRational"
 
     , geFunc = exprWithStrName eenv ">="
     , gtFunc = exprWithStrName eenv ">"

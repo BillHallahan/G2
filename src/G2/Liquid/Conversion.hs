@@ -47,6 +47,9 @@ type NumDictMap = M.Map Name Id
 -- | A mapping of TyVar Name's, to Id's for the Integral dict's
 type IntegralDictMap = M.Map Name Id
 
+-- | A mapping of TyVar Name's, to Id's for the Fractional dict's
+type FractionalDictMap = M.Map Name Id
+
 -- | A mapping of TyVar Name's, to Id's for the Ord dict's
 type OrdDictMap = M.Map Name Id
 
@@ -54,10 +57,15 @@ type OrdDictMap = M.Map Name Id
 data DictMaps = DictMaps { lh_dicts :: LHDictMap
                          , num_dicts :: NumDictMap
                          , integral_dicts :: IntegralDictMap
+                         , fractional_dicts :: FractionalDictMap
                          , ord_dicts :: OrdDictMap } deriving (Eq, Show, Read)
 
 copyIds :: Name -> Name -> DictMaps -> DictMaps
-copyIds n1 n2 dm@(DictMaps { lh_dicts = lhd, num_dicts = nd, integral_dicts = ind, ord_dicts = od }) =
+copyIds n1 n2 dm@(DictMaps { lh_dicts = lhd
+                           , num_dicts = nd
+                           , integral_dicts = ind
+                           , fractional_dicts = frac
+                           , ord_dicts = od }) =
     let
         dm2 = case M.lookup n1 lhd of
                 Just lh -> dm { lh_dicts = M.insert n2 lh lhd }
@@ -71,11 +79,15 @@ copyIds n1 n2 dm@(DictMaps { lh_dicts = lhd, num_dicts = nd, integral_dicts = in
                 Just int -> dm3 { integral_dicts = M.insert n2 int ind }
                 Nothing -> dm3
 
-        dm5 = case M.lookup n1 od of
-                Just ord -> dm4 { ord_dicts = M.insert n2 ord od }
+        dm5 = case M.lookup n1 frac of
+                Just fr -> dm4 { fractional_dicts = M.insert n2 fr frac }
                 Nothing -> dm4
+
+        dm6 = case M.lookup n1 od of
+                Just ord -> dm5 { ord_dicts = M.insert n2 ord od }
+                Nothing -> dm5
     in
-    dm5
+    dm6
 
 -- | A mapping of variable names to the corresponding types
 type BoundTypes = M.Map Name Type
@@ -160,16 +172,19 @@ dictMapFromIds is = do
     lh <- lhTCM
     num <- numTCM
     int <- return . KV.integralTC =<< knownValues
+    frac <- return . KV.fractionalTC =<< knownValues
     ord <- ordTCM
 
     let lhm = tcWithNameMap lh is
     let nm = tcWithNameMap num is
     let im = tcWithNameMap int is
+    let fr = tcWithNameMap frac is
     let om = tcWithNameMap ord is
 
     return $ DictMaps { lh_dicts = lhm
                       , num_dicts = nm
                       , integral_dicts = im
+                      , fractional_dicts = fr
                       , ord_dicts = om }
 
 tcWithNameMap :: Name -> [Id] -> M.Map Name Id
@@ -477,21 +492,53 @@ correctTypes m bt mt re re' = do
     may_iDict <- maybeIntegralDict m t
     may_iDict' <- maybeIntegralDict m t'
 
+    may_fDict <- maybeFractionalDict m t
+    may_fDict' <- maybeFractionalDict m t'
+
+    may_ratio_e <- maybeRatioFromInteger m e
+    may_ratio_e' <- maybeRatioFromInteger m e'
+    fromRationalF <- return . mkFromRationalExpr =<< knownValues
+
     if | t == t' -> return (e, e')
        | retT /= tyI
        , retT' == tyI
        , Just nDict <- may_nDict -> return (e, mkApp [Var fIntgr, Type t, nDict, e'])
+
        | retT == tyI
        , retT' /= tyI
        , Just nDict' <- may_nDict' -> return (mkApp [Var fIntgr, Type t', nDict', e], e')
+
        | retT /= tyI
        , retT' == tyI
        , Just iDict <- may_iDict -> return (mkApp [Var tIntgr, Type t, iDict, e], e')
+
        | retT == tyI
        , retT' /= tyI
        , Just iDict' <- may_iDict' -> return (e, mkApp [Var tIntgr, Type t', iDict', e'])
+
+       | Just ratio_e <- may_ratio_e
+       , Just fDict' <- may_fDict' -> return (mkApp [fromRationalF, fDict', ratio_e], e')
+
+       | Just fDict <- may_fDict
+       , Just ratio_e' <- may_ratio_e' -> return (e', mkApp [fromRationalF, fDict, ratio_e'])
+
        | otherwise -> error $ "correctTypes: Unhandled case"
                                 ++ "\ne = " ++ show e ++ "\ne' = " ++ show e'
+
+maybeRatioFromInteger :: DictMaps -> Expr -> LHStateM (Maybe Expr)
+maybeRatioFromInteger m e = do
+    tyI <- tyIntegerT
+
+    toRatioF <- return . mkToRatioExpr =<< knownValues
+    may_iDict <- maybeIntegralDict m (typeOf e)
+
+    dcIntegerE <- mkDCIntegerE
+
+    if | Just iDict <- may_iDict
+        , typeOf e == tyI  ->
+            return . Just $ mkApp [toRatioF, iDict, e, App dcIntegerE (Lit (LitInt 1))]
+       | otherwise -> return Nothing
+
 
 convertSymbolT :: Symbol -> Type -> Id
 convertSymbolT s = Id (symbolName s)
@@ -650,6 +697,8 @@ brelTCDict = lhTCDict
 
 bopTCDict :: Bop -> DictMaps -> Type -> LHStateM Expr
 bopTCDict Ref.Mod = integralDict
+bopTCDict Ref.Div = fractionalDict
+bopTCDict Ref.RDiv = fractionalDict
 bopTCDict _ = numDict
 
 lhTCDict :: DictMaps -> Type -> LHStateM Expr
@@ -691,3 +740,15 @@ integralDict m t = do
     case tc of
         Just e -> return e
         Nothing ->  error $ "No integral dict\n" ++ show t ++ "\n" ++ show m
+
+maybeFractionalDict :: DictMaps -> Type -> LHStateM (Maybe Expr)
+maybeFractionalDict m t = do
+    integral <- return . KV.integralTC =<< knownValues
+    typeClassInstTC (fractional_dicts m) integral t
+
+fractionalDict :: DictMaps -> Type -> LHStateM Expr
+fractionalDict m t = do
+    tc <- maybeFractionalDict m t
+    case tc of
+        Just e -> return e
+        Nothing ->  error $ "No fractional dict\n" ++ show t ++ "\n" ++ show m

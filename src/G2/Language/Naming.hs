@@ -536,6 +536,7 @@ instance Named KnownValues where
             , numTC = numT
             , ordTC = ordT
             , integralTC = integralT
+            , fractionalTC = fractionalT
 
             , eqFunc = eqF
             , neqFunc = neqF
@@ -546,8 +547,12 @@ instance Named KnownValues where
             , divFunc = divF
             , negateFunc = negF
             , modFunc = modF
+
             , fromIntegerFunc = fromIntegerF
             , toIntegerFunc = toIntegerF
+
+            , toRatioFunc = toRatioF
+            , fromRationalFunc = fromRationalF
 
             , geFunc = geF
             , gtFunc = gtF
@@ -564,7 +569,9 @@ instance Named KnownValues where
             , patErrorFunc = patE
             }) =
             [dI, dF, dD, dI2, dcCh, tI, tI2, tF, tD, tCh, tB, dcT, dcF, tList, tCons, tEmp
-            , eqT, numT, ordT, integralT, eqF, neqF, plF, minusF, tmsF, divF, negF, modF, fromIntegerF, toIntegerF
+            , eqT, numT, ordT, integralT, fractionalT, eqF, neqF, plF, minusF, tmsF, divF, negF, modF
+            , fromIntegerF, toIntegerF
+            , toRatioF, fromRationalF
             , geF, gtF, ltF, leF, seT, seF
             , andF, orF, notF, patE]
 
@@ -593,6 +600,7 @@ instance Named KnownValues where
                    , numTC = numT
                    , ordTC = ordT
                    , integralTC = integralT
+                   , fractionalTC = fractionalT
 
                    , eqFunc = eqF
                    , neqFunc = neqF
@@ -603,8 +611,12 @@ instance Named KnownValues where
                    , divFunc = divF
                    , negateFunc = negF
                    , modFunc = modF
+
                    , fromIntegerFunc = fromIntegerF
                    , toIntegerFunc = toIntegerF
+
+                   , toRatioFunc = toRatioF
+                   , fromRationalFunc = fromRationalF
 
                    , geFunc = geF
                    , gtFunc = gtF
@@ -644,6 +656,7 @@ instance Named KnownValues where
                         , numTC = rename old new numT
                         , ordTC = rename old new ordT
                         , integralTC = rename old new integralT
+                        , fractionalTC = rename old new fractionalT
 
                         , eqFunc = rename old new eqF
                         , neqFunc = rename old new neqF
@@ -654,8 +667,12 @@ instance Named KnownValues where
                         , divFunc = rename old new divF
                         , negateFunc = rename old new negF
                         , modFunc = rename old new modF
+
                         , fromIntegerFunc = rename old new fromIntegerF
                         , toIntegerFunc = rename old new toIntegerF
+
+                        , toRatioFunc = rename old new toRatioF
+                        , fromRationalFunc = rename old new fromRationalF
 
                         , geFunc = rename old new geF
                         , gtFunc = rename old new gtF
