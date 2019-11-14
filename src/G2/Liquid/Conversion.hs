@@ -499,6 +499,9 @@ correctTypes m bt mt re re' = do
     may_ratio_e' <- maybeRatioFromInteger m e'
     fromRationalF <- return . mkFromRationalExpr =<< knownValues
 
+    maybe_nfiDict <- maybeNumFromIntegral m t
+    maybe_nfiDict' <- maybeNumFromIntegral m t'
+
     if | t == t' -> return (e, e')
        | retT /= tyI
        , retT' == tyI
@@ -517,13 +520,23 @@ correctTypes m bt mt re re' = do
        , Just iDict' <- may_iDict' -> return (e, mkApp [Var tIntgr, Type t', iDict', e'])
 
        | Just ratio_e <- may_ratio_e
-       , Just fDict' <- may_fDict' -> return (mkApp [fromRationalF, fDict', ratio_e], e')
+       , Just fDict' <- may_fDict' -> return (mkApp [fromRationalF, Type t', fDict', ratio_e], e')
 
        | Just fDict <- may_fDict
-       , Just ratio_e' <- may_ratio_e' -> return (e', mkApp [fromRationalF, fDict, ratio_e'])
+       , Just ratio_e' <- may_ratio_e' -> return (e', mkApp [fromRationalF, Type t, fDict, ratio_e'])
+
+       | Just iDict <- may_iDict
+       , Just nDict' <- may_nDict' ->
+            return (mkApp [Var fIntgr, Type t', nDict', mkApp [Var tIntgr, Type t, iDict, e]], e')
+
+       | Just nDict <- may_nDict
+       , Just iDict' <- may_iDict' ->
+            return (e, mkApp [Var fIntgr, Type t, nDict, mkApp [Var tIntgr, Type t', iDict', e']])
 
        | otherwise -> error $ "correctTypes: Unhandled case"
-                                ++ "\ne = " ++ show e ++ "\ne' = " ++ show e'
+                                ++ "\ne = " ++ show e
+                                ++ "\ne' = " ++ show e'
+                                ++ "\nm = " ++ show m
 
 maybeRatioFromInteger :: DictMaps -> Expr -> LHStateM (Maybe Expr)
 maybeRatioFromInteger m e = do
@@ -536,9 +549,20 @@ maybeRatioFromInteger m e = do
 
     if | Just iDict <- may_iDict
         , typeOf e == tyI  ->
-            return . Just $ mkApp [toRatioF, iDict, e, App dcIntegerE (Lit (LitInt 1))]
+            return . Just $ mkApp [toRatioF, Type (typeOf e), iDict, e, App dcIntegerE (Lit (LitInt 1))]
        | otherwise -> return Nothing
 
+
+maybeNumFromIntegral :: DictMaps -> Type -> LHStateM (Maybe Expr)
+maybeNumFromIntegral m t = do
+    may_iDict <- maybeIntegralDict m t
+
+    intExReal <- return . mkIntegralExtactReal =<< knownValues
+    realExNum <- return . mkRealExtractNum =<< knownValues
+
+    case may_iDict of
+        Just iDict -> return . Just $ App realExNum (App intExReal iDict)
+        Nothing -> return Nothing
 
 convertSymbolT :: Symbol -> Type -> Id
 convertSymbolT s = Id (symbolName s)

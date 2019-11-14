@@ -63,7 +63,7 @@ createStructEqFuncs ts = do
 
     ins <- genInsts tcn nsT t dc $ M.toList tenv'
 
-    let tc' = insertClass tcn (Class { insts = ins, typ_ids = [tci] }) tc
+    let tc' = insertClass tcn (Class { insts = ins, typ_ids = [tci], superclasses = [] }) tc
     putTypeClasses tc'
 
     F.mapM_ (\(n, n', adt) -> createStructEqFunc dcn n n' adt) $ zip3 ns' tenvK tenvV

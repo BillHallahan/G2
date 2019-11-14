@@ -91,7 +91,7 @@ createLHTCFuncs = do
     tc <- typeClasses
     tcn <- lhTCM
     tci <- freshIdN TYPE
-    let tc' = insertClass tcn (Class { insts = lhtc, typ_ids = [tci] }) tc
+    let tc' = insertClass tcn (Class { insts = lhtc, typ_ids = [tci], superclasses = [] }) tc
     putTypeClasses tc'
 
     -- Now, we do the work of actually generating all the code/functions for the typeclass

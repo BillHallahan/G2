@@ -94,7 +94,7 @@ data ExtractedG2 = ExtractedG2
   { exg2_mod_names :: [T.Text]
   , exg2_binds :: [(G2.Id, G2.Expr)]
   , exg2_tycons :: [G2.ProgramType]
-  , exg2_classes :: [(G2.Name, G2.Id, [G2.Id])]
+  , exg2_classes :: [(G2.Name, G2.Id, [G2.Id], [(G2.Type, G2.Id)])]
   , exg2_exports :: [ExportedName]
   , exg2_deps :: [T.Text]
   , exg2_rules :: ![G2.RewriteRule]

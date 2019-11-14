@@ -25,7 +25,9 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv walkers kv c
 
                 (var_ids, is, ng') = mkInputs ng typs'
                 
-                var_ex = Var f
+                -- We refind the type of f, because type synonyms get replaced during the initializaton,
+                -- after we first got the type of f.
+                var_ex = Var (Id (idName f) (typeOf ex))
                 app_ex = foldl' App var_ex $ typsE ++ var_ids
 
                 -- strict_app_ex = app_ex

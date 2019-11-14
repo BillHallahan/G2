@@ -107,7 +107,7 @@ translateLoadedD :: [FilePath]
   -> [FilePath]
   -> [FilePath]
   -> TranslationConfig
-  -> IO (Maybe T.Text, Program, [ProgramType], [(Name, Id, [Id])], [Name])
+  -> IO (Maybe T.Text, Program, [ProgramType], [(Name, Id, [Id], [(Type, Id)])], [Name])
 translateLoadedD proj src libs tr_con = do
   -- Read the extracted libs and merge them
   -- Recall that each of these files comes with NameMap and TypeNameMap

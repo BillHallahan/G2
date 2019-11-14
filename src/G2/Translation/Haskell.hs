@@ -675,9 +675,12 @@ mkCoercion tm c =
     in
     (pFst k) G2.:~ (pSnd k)
 
-mkClass :: G2.TypeNameMap -> ClsInst -> (G2.Name, G2.Id, [G2.Id])
+mkClass :: G2.TypeNameMap -> ClsInst -> (G2.Name, G2.Id, [G2.Id], [(G2.Type, G2.Id)])
 mkClass tm (ClsInst { is_cls = c, is_dfun = dfun }) = 
-    (flip mkNameLookup tm . C.className $ c, mkId tm dfun, map (mkId tm) $ C.classTyVars c)
+    ( flip mkNameLookup tm . C.className $ c
+    , mkId tm dfun
+    , map (mkId tm) $ C.classTyVars c
+    , zip (map (mkType tm) $ C.classSCTheta c) (map (mkId tm) $ C.classAllSelIds c) )
 
 
 mkRewriteRule :: G2.NameMap -> G2.TypeNameMap -> Maybe ModBreaks -> CoreRule -> Maybe G2.RewriteRule

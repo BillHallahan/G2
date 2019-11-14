@@ -33,11 +33,17 @@ data KnownValues = KnownValues {
                  , dcCons :: Name
                  , dcEmpty :: Name
 
+                 -- Typeclasses
                  , eqTC :: Name
                  , numTC :: Name
                  , ordTC :: Name
                  , integralTC :: Name
+                 , realTC :: Name
                  , fractionalTC :: Name
+
+                 -- Typeclass superclass extractors
+                 , integralExtactReal :: Name
+                 , realExtractNum :: Name
 
                  , eqFunc :: Name
                  , neqFunc :: Name

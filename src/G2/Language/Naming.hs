@@ -536,7 +536,11 @@ instance Named KnownValues where
             , numTC = numT
             , ordTC = ordT
             , integralTC = integralT
+            , realTC = realT
             , fractionalTC = fractionalT
+
+            , integralExtactReal = integralEReal
+            , realExtractNum = realENum
 
             , eqFunc = eqF
             , neqFunc = neqF
@@ -569,7 +573,9 @@ instance Named KnownValues where
             , patErrorFunc = patE
             }) =
             [dI, dF, dD, dI2, dcCh, tI, tI2, tF, tD, tCh, tB, dcT, dcF, tList, tCons, tEmp
-            , eqT, numT, ordT, integralT, fractionalT, eqF, neqF, plF, minusF, tmsF, divF, negF, modF
+            , eqT, numT, ordT, integralT, realT, fractionalT
+            , integralEReal, realENum
+            , eqF, neqF, plF, minusF, tmsF, divF, negF, modF
             , fromIntegerF, toIntegerF
             , toRatioF, fromRationalF
             , geF, gtF, ltF, leF, seT, seF
@@ -600,7 +606,11 @@ instance Named KnownValues where
                    , numTC = numT
                    , ordTC = ordT
                    , integralTC = integralT
+                   , realTC = realT
                    , fractionalTC = fractionalT
+
+                   , integralExtactReal = integralEReal
+                   , realExtractNum = realENum
 
                    , eqFunc = eqF
                    , neqFunc = neqF
@@ -656,7 +666,11 @@ instance Named KnownValues where
                         , numTC = rename old new numT
                         , ordTC = rename old new ordT
                         , integralTC = rename old new integralT
+                        , realTC = rename old new realT
                         , fractionalTC = rename old new fractionalT
+
+                        , integralExtactReal = rename old new integralEReal
+                        , realExtractNum = rename old new realENum
 
                         , eqFunc = rename old new eqF
                         , neqFunc = rename old new neqF

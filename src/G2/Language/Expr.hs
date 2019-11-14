@@ -25,6 +25,9 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , mkAndExpr
                         , mkToRatioExpr
                         , mkFromRationalExpr
+                        , mkIntegralExtactReal
+                        , mkRealExtractNum
+
                         , replaceVar
                         , getFuncCalls
                         , getFuncCallsRHS
@@ -172,6 +175,12 @@ mkToRatioExpr kv = Var $ Id (KV.toRatioFunc kv) TyUnknown
 
 mkFromRationalExpr :: KnownValues -> Expr
 mkFromRationalExpr kv = Var $ Id (KV.fromRationalFunc kv) TyUnknown
+
+mkIntegralExtactReal :: KnownValues -> Expr
+mkIntegralExtactReal kv = Var $ Id (KV.integralExtactReal kv) TyUnknown
+
+mkRealExtractNum :: KnownValues -> Expr
+mkRealExtractNum kv = Var $ Id (KV.integralExtactReal kv) TyUnknown
 
 replaceVar :: ASTContainer m Expr => Name -> Expr -> m -> m
 replaceVar n e = modifyASTs (replaceVar' n e)

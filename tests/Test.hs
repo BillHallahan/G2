@@ -295,6 +295,8 @@ liquidTests = return . testGroup "Liquid" =<< sequence
     , checkLiquid "tests/Liquid/Error4.hs" "extractRights" 1000 1 [AtLeast 1]
     , checkLiquid "tests/Liquid/PostFalse.hs" "f" 2000 1 [AtLeast 1]
 
+    , checkLiquid "tests/Liquid/TypeSym.hs" "f" 500 1 []
+
     , checkLiquid "tests/Liquid/CorrectDict.hs" "f" 2000 2 [AtLeast 1]
 
     , checkAbsLiquid "tests/Liquid/ZipWith3.hs" "prop_zipWith" 1000 1 [ AtLeast 3]

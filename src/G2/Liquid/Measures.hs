@@ -153,4 +153,5 @@ mkDictMaps :: LHDictMap -> DictMaps
 mkDictMaps ldm = DictMaps { lh_dicts = ldm
                           , num_dicts = M.empty
                           , integral_dicts = M.empty
+                          , fractional_dicts = M.empty
                           , ord_dicts = M.empty}

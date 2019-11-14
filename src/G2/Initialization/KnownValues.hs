@@ -5,13 +5,21 @@ module G2.Initialization.KnownValues (initKnownValues) where
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
 import G2.Language.Syntax
+import G2.Language.TypeClasses
 import G2.Language.TypeEnv
+import G2.Language.Typing (PresType (..), tyAppCenter, returnType)
 
+import Data.List
 import qualified Data.Map as M
 import qualified Data.Text as T
 
-initKnownValues :: E.ExprEnv -> TypeEnv -> KnownValues
-initKnownValues eenv tenv =
+initKnownValues :: E.ExprEnv -> TypeEnv -> TypeClasses -> KnownValues
+initKnownValues eenv tenv tc =
+  let
+    numT = typeWithStrName tenv "Num"
+    integralT = typeWithStrName tenv "Integral"
+    realT = typeWithStrName tenv "Real"
+  in
   KnownValues {
       tyInt = typeWithStrName tenv "Int"
     , dcInt = dcWithStrName tenv "Int" "I#"
@@ -37,10 +45,14 @@ initKnownValues eenv tenv =
     , dcEmpty = dcWithStrName tenv "[]" "[]"
 
     , eqTC = typeWithStrName tenv "Eq"
-    , numTC = typeWithStrName tenv "Num"
+    , numTC = numT
     , ordTC = typeWithStrName tenv "Ord"
-    , integralTC = typeWithStrName tenv "Integral"
+    , integralTC = integralT
+    , realTC = realT
     , fractionalTC = typeWithStrName tenv "Fractional"
+
+    , integralExtactReal = superClassExtractor tc integralT realT
+    , realExtractNum = superClassExtractor tc realT numT
 
     , eqFunc = exprWithStrName eenv "=="
     , neqFunc = exprWithStrName eenv "/="
@@ -97,3 +109,18 @@ dcWithStrName' (DataCon n@(Name n' _ _ _) _:xs) s =
   if n' == s then n else dcWithStrName' xs s
 dcWithStrName' _ s = error $ "No dc found in dcWithStrName [" ++ (show $ T.unpack s) ++ "]"
 
+superClassExtractor :: TypeClasses -> Name -> Name -> Name
+superClassExtractor tc tc_n sc_n =
+    case lookupTCClass tc_n tc of
+        Just c
+            | Just (_, i) <- find extractsSC (superclasses c) -> idName i
+            | otherwise -> error $ "superClassExtractor: Extractor not found " ++ show (superclasses c)
+        Nothing -> error $ "superClassExtractor: Class not found " ++ show tc_n
+    where
+        extractsSC (t, _) =
+            let
+                t_c = tyAppCenter . returnType . PresType $ t
+            in
+            case t_c of
+                TyCon n _ -> n == sc_n
+                _ -> False
