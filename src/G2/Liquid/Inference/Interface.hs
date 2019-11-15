@@ -9,6 +9,7 @@ import G2.Language.Support
 import G2.Language.Syntax
 import G2.Liquid.Inference.FuncConstraint
 import G2.Liquid.Inference.G2Calls
+import G2.Liquid.Inference.PolyRef
 import G2.Liquid.Helpers
 import G2.Liquid.Inference.RefSynth
 import G2.Liquid.Inference.GeneratedSpecs
@@ -105,7 +106,13 @@ checkNewConstraints ghci lrs g2config cexs = do
 genMeasureExs :: LiquidReadyState -> [GhcInfo] -> G2.Config -> FuncConstraints -> IO MeasureExs
 genMeasureExs lrs ghci g2config fcs =
     let
-        es = concatMap (\fc -> returns (constraint fc):arguments (constraint fc)) (allFC fcs)
+        es = concatMap (\fc ->
+                    let
+                        cons = constraint fc
+                        ex_poly = concat $ concatMap extractValues $ extractPolyBound (returns cons)
+                    in
+                    returns cons:arguments cons ++ ex_poly
+                ) (allFC fcs)
     in
     evalMeasures lrs ghci g2config es
 

@@ -25,6 +25,7 @@ import G2.Liquid.Helpers
 import G2.Liquid.Types
 import G2.Liquid.Inference.FuncConstraint
 import G2.Liquid.Inference.G2Calls
+import G2.Liquid.Inference.PolyRef
 
 import Sygus.LexSygus
 import Sygus.ParseSygus
@@ -54,7 +55,12 @@ refSynth :: SpecType -> G2.Expr -> TypeClasses -> Measures -> MeasureExs -> [Fun
 refSynth spc e tc meas meas_ex fc meas_sym = do
     putStrLn "refSynth"
     putStrLn $ "e = " ++ show e
-    putStrLn $ "fc = " ++ show fc
+    -- putStrLn $ "fc = " ++ show fc
+
+    mapM_ (\fc' -> do
+        putStrLn $ "fc = " ++ show fc'
+        putStrLn $ "extractPolyBound fc = " ++ show (extractPolyBound $ returns (constraint fc'))) fc
+
     let sygus = printSygus $ sygusCall e tc meas meas_ex fc
     putStrLn . T.unpack $ sygus
 
@@ -79,60 +85,29 @@ sygusCall :: G2.Expr -> TypeClasses -> Measures -> MeasureExs -> [FuncConstraint
 sygusCall e tc meas meas_ex fcs@(_:_) =
     let
         -- Figure out what measures we need to/can consider
-        ty_e = PresType $ inTyForAlls (typeOf e)
-        arg_ty_c = filter (not . isTYPE)
-                 . filter (not . isTypeClass tc)
-                 $ argumentTypes ty_e
-        ret_ty_c = returnType ty_e
-        ty_c = arg_ty_c ++ [ret_ty_c]
+        (arg_ty_c, ret_ty_c, ex_ty_c) = generateRelTypes tc e
+        func_ty_c = arg_ty_c ++ [ret_ty_c]
+        all_ty_c = func_ty_c ++ ex_ty_c
 
-        rel_ty_c = filter relTy ty_c
+        -- rel_ty_c = filter relTy func_ty_c
 
-        rel_ty_c' = nubBy (\t1 t2 -> t1 .::. t2) rel_ty_c
-        dt_ts = filter (not . isPrimTy) rel_ty_c' 
-
-        ns = concatMap (map fst) . HM.elems $ meas_ex
-        applic_meas = map (applicableMeasures meas) dt_ts
-        applic_meas' = map (filter (\m -> m `elem` ns)) applic_meas
-        meas_ids = map (map (\n -> Id n (returnType (case E.lookup n meas of
-                                                        Just e -> e
-                                                        Nothing -> error "sygusCall: No type found")))) applic_meas'
-
-        meas_ids' = filterNonPrimMeasure meas_ids
-
-        ts_applic_meas = trace ("rel_ty_c = " ++ show rel_ty_c) zip dt_ts meas_ids'
-
-        sorts = typesToSort ts_applic_meas
+        sorts = typesToSort meas meas_ex all_ty_c
 
         declare_dts = sortsToDeclareDTs sorts
 
-        varN = map (\i -> "x" ++ show i) ([0..] :: [Integer])
-        sortVars = map (uncurry SortedVar) . zip varN
-                        . map (typeToSort sorts) . filter (not . isLHDict) $ rel_ty_c
-
-        -- Converted constraints.  Measures cause us to lose information about the data, so after
-        -- conversion we can have a constraint both postively and negatively.  We know that the postive
-        -- constraint corresponds to an actual execution, so we keep that one, adnd drop the negative constraint.
-        cons = map (termConstraints sorts meas_ex arg_ty_c ret_ty_c) fcs
-        cons' = filterPosAndNegConstraints cons
-        cons'' = map termConstraintToConstraint cons'
-
+        (gram, cons) = generateGrammarAndConstraints sorts meas_ex arg_ty_c ret_ty_c fcs
     in
-    trace ("dt_ts = " ++ show dt_ts  ++"\napplic_meas' = " ++ show applic_meas' ++ "\nts = " ++ show sorts)
+    trace ("ex_ty_c = " ++ show ex_ty_c ++ "\nts = " ++ show sorts)
     [ SmtCmd (SetLogic "ALL")]
     ++
     declare_dts
     ++
-    [SynthFun "refinement" sortVars boolSort (Just $ grammar sorts)]
+    [gram]
     ++
-    cons''
+    cons
     ++
     [ CheckSynth ]
     where
-        isLHDict e
-            | (TyCon (Name n _ _ _) _):_ <- unTyApp e = n == "lh"
-            | otherwise = False
-
         isPrimTy (TyCon (Name "Int" _ _ _) _) = True
         isPrimTy (TyCon (Name "Bool" _ _ _) _) = True
         isPrimTy _ = False
@@ -156,6 +131,32 @@ applicableMeasure t e =
         notLH ty
             | TyCon (Name n _ _ _) _ <- tyAppCenter ty = n /= "lh"
             | otherwise = False
+
+generateGrammarAndConstraints :: TypesToSorts -> MeasureExs -> [Type] -> Type -> [FuncConstraint] -> (Cmd, [Cmd])
+generateGrammarAndConstraints sorts meas_ex arg_tys ret_ty fcs@(fc:_) =
+    let
+        poly_bd = extractPolyBoundWithRoot (returns $ constraint fc)
+        poly_ref_names = mapPB (\i -> "refinement_" ++ show i) $ uniqueIds poly_bd
+
+        rel_ty_c = filter relTy (arg_tys ++ [ret_ty])
+
+        varN = map (\i -> "x" ++ show i) ([0..] :: [Integer])
+        sortVars = map (uncurry SortedVar) . zip varN
+                        . map (typeToSort sorts) . filter (not . isLHDict) $ rel_ty_c
+
+        gram = grammar sorts
+        cons = generateConstraints sorts meas_ex arg_tys ret_ty fcs
+    in
+    trace ("poly_ref_names = " ++ show poly_ref_names)
+    (SynthFun "refinement" sortVars boolSort (Just gram), cons)
+    where
+        isLHDict e
+            | (TyCon (Name n _ _ _) _):_ <- unTyApp e = n == "lh"
+            | otherwise = False
+
+-------------------------------
+-- Grammar
+-------------------------------
 
 grammar :: TypesToSorts -> GrammarDef
 grammar sorts =
@@ -215,8 +216,74 @@ elimHigherOrderArgs fc =
 dtGroupRuleList :: Symbol -> Sort -> GroupedRuleList
 dtGroupRuleList symb srt = GroupedRuleList symb srt [GVariable srt]
 
+intBf :: BfTerm
+intBf = BfIdentifier (ISymb "I")
+
+boolBf :: BfTerm
+boolBf = BfIdentifier (ISymb "B")
+
+intSort :: Sort
+intSort = IdentSort (ISymb "Int")
+
+boolSort :: Sort
+boolSort = IdentSort (ISymb "Bool")
+
+nameToSymbol :: Name -> Symbol
+nameToSymbol = nameToStr
+
+exprToDTTerm :: TypesToSorts -> MeasureExs -> Type -> G2.Expr -> Term
+exprToDTTerm sorts meas_ex t e =
+    case lookupSort t sorts of
+        Just si
+            | not . null $ meas_names si ->
+                TermCall (ISymb (dt_name si)) $ map (measVal sorts meas_ex e) (meas_names si)
+            | otherwise -> TermIdent (ISymb (dt_name si))
+        Nothing -> error "exprToDTTerm: No sort found"
+
+type ArgTys = [Type]
+type RetType = Type
+type PolyTypes = [Type]
+
+generateRelTypes :: TypeClasses -> G2.Expr -> (ArgTys, RetType, PolyTypes)
+generateRelTypes tc e =
+    let
+        ty_e = PresType $ inTyForAlls (typeOf e)
+        arg_ty_c = filter (not . isTYPE)
+                 . filter (not . isTypeClass tc)
+                 $ argumentTypes ty_e
+        ret_ty_c = returnType ty_e
+
+        ex_ty_c = tail $ unTyApp ret_ty_c
+    in
+    (arg_ty_c, ret_ty_c, ex_ty_c)
+
+-- | Is the given type usable by SyGuS?
+relTy :: Type -> Bool
+relTy (TyVar _) = False
+relTy (TyFun _ _) = False
+relTy _ = True
+
+
+-------------------------------
+-- Constraints
+-------------------------------
+
 data TermConstraint = PosT { term_cons :: Term}
                     | NegT { term_cons :: Term}
+
+
+-- | Convert constraints.  Measures cause us to lose information about the data, so after
+-- conversion we can have a constraint both postively and negatively.  We know that the postive
+-- constraint corresponds to an actual execution, so we keep that one, adnd drop the negative constraint.
+
+generateConstraints :: TypesToSorts -> MeasureExs -> [Type] -> Type -> [FuncConstraint] -> [Cmd]
+generateConstraints sorts meas_ex arg_tys ret_ty fcs = 
+    let
+        cons = map (termConstraints sorts meas_ex arg_tys ret_ty) fcs
+        cons' = filterPosAndNegConstraints cons
+        cons'' = map termConstraintToConstraint cons'
+    in
+    cons''
 
 termConstraints :: TypesToSorts -> MeasureExs -> [Type] -> Type -> FuncConstraint -> TermConstraint
 termConstraints sorts meas_ex arg_tys ret_ty (Pos fc) =
@@ -279,29 +346,9 @@ typeToSort sm t
     | Just si <- lookupSort t sm = IdentSort (ISymb $ sort_name si)
 typeToSort _ t = error $ "Unknown Type " ++ show t
 
-intBf :: BfTerm
-intBf = BfIdentifier (ISymb "I")
-
-boolBf :: BfTerm
-boolBf = BfIdentifier (ISymb "B")
-
-intSort :: Sort
-intSort = IdentSort (ISymb "Int")
-
-boolSort :: Sort
-boolSort = IdentSort (ISymb "Bool")
-
-nameToSymbol :: Name -> Symbol
-nameToSymbol = nameToStr
-
-exprToDTTerm :: TypesToSorts -> MeasureExs -> Type -> G2.Expr -> Term
-exprToDTTerm sorts meas_ex t e =
-    case lookupSort t sorts of
-        Just si
-            | not . null $ meas_names si ->
-                TermCall (ISymb (dt_name si)) $ map (measVal sorts meas_ex e) (meas_names si)
-            | otherwise -> TermIdent (ISymb (dt_name si))
-        Nothing -> error "exprToDTTerm: No sort found"
+-------------------------------
+-- Measures
+-------------------------------
 
 measVal :: TypesToSorts -> MeasureExs -> G2.Expr -> SortedVar -> Term
 measVal sorts meas_ex e (SortedVar mn _) =
@@ -313,16 +360,6 @@ measVal sorts meas_ex e (SortedVar mn _) =
             |Just (_, v) <- find (\(n', _) -> nameOcc meas_n == nameOcc n') meas_out -> exprToTerm sorts meas_ex (typeOf v) v
         Nothing -> error "measVal: Expr not found"
 
--- | Is the given type usable by SyGuS?
-relTy :: Type -> Bool
-relTy (TyVar _) = False
-relTy (TyFun _ _) = False
-relTy _ = True
-
--------------------------------
--- Measures
--------------------------------
-
 newtype TypesToSorts = TypesToSorts { types_to_sorts :: [(Type, SortInfo)] }
                        deriving (Show, Read)
 
@@ -331,15 +368,40 @@ data SortInfo = SortInfo { sort_name :: Symbol
                          , meas_names :: [SortedVar]}
                          deriving (Show, Read)
 
-typesToSort :: [(Type, [Id])] -> TypesToSorts
-typesToSort ts =
+typesToSort :: Measures -> MeasureExs -> [Type] -> TypesToSorts
+typesToSort meas meas_ex ty_c =
     let
-        ts_s = map (\(i, (t, ns)) -> typesToSort' i t ns) $ zip [0..] ts
+        rel_ty_c = filter relTy ty_c
+
+        rel_ty_c' = nubBy (\t1 t2 -> t1 .::. t2) rel_ty_c
+        dt_ts = filter (not . isPrimTy) rel_ty_c' 
+
+        ns = concatMap (map fst) . HM.elems $ meas_ex
+        applic_meas = map (applicableMeasures meas) dt_ts
+        applic_meas' = map (filter (\m -> m `elem` ns)) applic_meas
+        meas_ids = map (map (\n -> Id n (returnType (case E.lookup n meas of
+                                                        Just e -> e
+                                                        Nothing -> error "sygusCall: No type found")))) applic_meas'
+
+        meas_ids' = filterNonPrimMeasure meas_ids
+
+        ts_applic_meas = zip dt_ts meas_ids'
+    in
+    typesToSort' ts_applic_meas
+    where
+        isPrimTy (TyCon (Name "Int" _ _ _) _) = True
+        isPrimTy (TyCon (Name "Bool" _ _ _) _) = True
+        isPrimTy _ = False
+
+typesToSort' :: [(Type, [Id])] -> TypesToSorts
+typesToSort' ts =
+    let
+        ts_s = map (\(i, (t, ns)) -> typesToSort'' i t ns) $ zip [0..] ts
     in
     TypesToSorts ts_s
 
-typesToSort' :: Int -> Type -> [Id] -> (Type, SortInfo)
-typesToSort' i t ns =
+typesToSort'' :: Int -> Type -> [Id] -> (Type, SortInfo)
+typesToSort'' i t ns =
     let
         srt = "Sort_" ++ show i
         dt = "DT_" ++ show i

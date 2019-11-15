@@ -1,7 +1,16 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
 
-module G2.Liquid.Inference.PolyRef (extractPolyBound) where
+module G2.Liquid.Inference.PolyRef ( PolyBound (.. )
+                                   , RefNamePolyBound
+                                   , ExprPolyBound
+                                   , extractPolyBoundWithRoot
+                                   , extractPolyBound
+
+                                   , extractValues
+                                   , uniqueIds
+                                   , mapPB
+                                   , zipPB) where
 
 import G2.Language
 
@@ -10,12 +19,18 @@ import Data.List
 import Data.Maybe
 import Debug.Trace
 
+type RefNamePolyBound = PolyBound String
+type ExprPolyBound = PolyBound [Expr]
+
 -- | The subexpressions of an expression corresponding to the polymorphic
 -- arguments.  If a polymorphic argument is instantiated with a polymorphic
 -- type, these are nested recursively.
-data PolyBound = PolyBound [Expr] [PolyBound] deriving (Read, Show)
+data PolyBound v = PolyBound v [PolyBound v] deriving (Read, Show)
 
-extractPolyBound :: Expr -> [PolyBound]
+extractPolyBoundWithRoot :: Expr -> ExprPolyBound
+extractPolyBoundWithRoot e = PolyBound [e] $ extractPolyBound e
+
+extractPolyBound :: Expr -> [ExprPolyBound]
 extractPolyBound e
     | Data dc:_ <- unApp e =
         let
@@ -27,12 +42,12 @@ extractPolyBound e
         map (\es -> PolyBound es (mergePolyBound . transpose $ map extractPolyBound es)) bound_es
     | otherwise = []
 
-mergePolyBound :: [[PolyBound]] -> [PolyBound]
+mergePolyBound :: [[ExprPolyBound]] -> [ExprPolyBound]
 mergePolyBound = mapMaybe (\pb -> case pb of
                                 (p:pbb) -> Just $ foldr mergePolyBound' p pbb
                                 [] -> Nothing)
 
-mergePolyBound' :: PolyBound -> PolyBound -> PolyBound
+mergePolyBound' :: ExprPolyBound -> ExprPolyBound -> ExprPolyBound
 mergePolyBound' (PolyBound es1 pb1) (PolyBound es2 pb2) =
     PolyBound (es1 ++ es2) (map (uncurry mergePolyBound') $ zip pb1 pb2)
 
@@ -91,3 +106,24 @@ adjustIndirectTypes e
     where
         isType (Type _) = True
         isType _ = False
+
+------
+
+extractValues :: PolyBound v -> [v]
+extractValues (PolyBound v ps) = v:concatMap extractValues ps
+
+uniqueIds :: PolyBound v -> PolyBound Int
+uniqueIds = snd . uniqueIds' 0 
+
+uniqueIds' :: Int -> PolyBound v -> (Int, PolyBound Int)
+uniqueIds' n (PolyBound _ ps) =
+    let
+        (n', ps') = mapAccumR (uniqueIds') (n + 1) ps
+    in
+    (n', PolyBound n ps')
+
+mapPB :: (a -> b) -> PolyBound a -> PolyBound b
+mapPB f (PolyBound v ps) = PolyBound (f v) (map (mapPB f) ps)
+
+zipPB :: PolyBound a -> PolyBound b -> PolyBound (a, b)
+zipPB (PolyBound a pba) (PolyBound b pbb) = PolyBound (a, b) (zipWith zipPB pba pbb)
