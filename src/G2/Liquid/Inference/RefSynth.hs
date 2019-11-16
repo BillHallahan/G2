@@ -51,17 +51,11 @@ import qualified System.Process as P
 
 import Debug.Trace
 
-refSynth :: SpecType -> G2.Expr -> TypeClasses -> Measures -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> IO LH.Expr
+refSynth :: SpecType -> G2.Expr -> TypeClasses -> Measures -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> IO (PolyBound LH.Expr)
 refSynth spc e tc meas meas_ex fc meas_sym = do
     putStrLn "refSynth"
-    putStrLn $ "e = " ++ show e
-    -- putStrLn $ "fc = " ++ show fc
-
-    mapM_ (\fc' -> do
-        putStrLn $ "fc = " ++ show fc'
-        putStrLn $ "extractPolyBound fc = " ++ show (extractPolyBound $ returns (constraint fc'))) fc
-
-    let sygus = printSygus $ sygusCall e tc meas meas_ex fc
+    let (call, rp_ns) = sygusCall e tc meas meas_ex fc
+    let sygus = printSygus call
     putStrLn . T.unpack $ sygus
 
     res <- runCVC4 (T.unpack sygus)
@@ -71,7 +65,7 @@ refSynth spc e tc meas meas_ex fc meas_sym = do
         Right res' -> do
             putStrLn . T.unpack $ sygus
             let smt_st = parse . lexSygus $ stripUnsat res'
-                lh_st = refToLHExpr spc smt_st meas_sym
+                lh_st = refToLHExpr spc rp_ns smt_st meas_sym
 
             print smt_st
 
@@ -81,7 +75,7 @@ refSynth spc e tc meas meas_ex fc meas_sym = do
 -- Constructing Sygus Formula
 -------------------------------
 
-sygusCall :: G2.Expr -> TypeClasses -> Measures -> MeasureExs -> [FuncConstraint] -> [Cmd]
+sygusCall :: G2.Expr -> TypeClasses -> Measures -> MeasureExs -> [FuncConstraint] -> ([Cmd], RefNamePolyBound)
 sygusCall e tc meas meas_ex fcs@(_:_) =
     let
         -- Figure out what measures we need to/can consider
@@ -95,18 +89,20 @@ sygusCall e tc meas meas_ex fcs@(_:_) =
 
         declare_dts = sortsToDeclareDTs sorts
 
-        (gram, cons) = generateGrammarAndConstraints sorts meas_ex arg_ty_c ret_ty_c fcs
+        (grams, cons, rp_ns) = generateGrammarsAndConstraints sorts meas_ex arg_ty_c ret_ty_c fcs
+
+        call = [ SmtCmd (SetLogic "ALL")]
+               ++
+               declare_dts
+               ++
+               grams
+               ++
+               cons
+               ++
+               [ CheckSynth ]
     in
     trace ("ex_ty_c = " ++ show ex_ty_c ++ "\nts = " ++ show sorts)
-    [ SmtCmd (SetLogic "ALL")]
-    ++
-    declare_dts
-    ++
-    [gram]
-    ++
-    cons
-    ++
-    [ CheckSynth ]
+    (call, rp_ns)
     where
         isPrimTy (TyCon (Name "Int" _ _ _) _) = True
         isPrimTy (TyCon (Name "Bool" _ _ _) _) = True
@@ -132,23 +128,34 @@ applicableMeasure t e =
             | TyCon (Name n _ _ _) _ <- tyAppCenter ty = n /= "lh"
             | otherwise = False
 
-generateGrammarAndConstraints :: TypesToSorts -> MeasureExs -> [Type] -> Type -> [FuncConstraint] -> (Cmd, [Cmd])
-generateGrammarAndConstraints sorts meas_ex arg_tys ret_ty fcs@(fc:_) =
+generateGrammarsAndConstraints :: TypesToSorts -> MeasureExs -> [Type] -> Type -> [FuncConstraint] -> ([Cmd], [Cmd], RefNamePolyBound)
+generateGrammarsAndConstraints sorts meas_ex arg_tys ret_ty fcs@(fc:_) =
     let
-        poly_bd = extractPolyBoundWithRoot (returns $ constraint fc)
+        poly_bd = extractExprPolyBoundWithRoot (returns $ constraint fc)
         poly_ref_names = mapPB (\i -> "refinement_" ++ show i) $ uniqueIds poly_bd
+        rt_bound = extractTypePolyBoundPresFull ret_ty
+        ns_rt = zipPB poly_ref_names rt_bound
 
         rel_ty_c = filter relTy (arg_tys ++ [ret_ty])
 
         varN = map (\i -> "x" ++ show i) ([0..] :: [Integer])
-        sortVars = map (uncurry SortedVar) . zip varN
-                        . map (typeToSort sorts) . filter (not . isLHDict) $ rel_ty_c
+        arg_sort_vars = map (uncurry SortedVar) . zip varN
+                        . map (typeToSort sorts) . filter (not . isLHDict) $ arg_tys
+        -- ret_sort_var = SortedVar "r" (typeToSort sorts ret_ty)
 
         gram = grammar sorts
-        cons = generateConstraints sorts meas_ex arg_tys ret_ty fcs
+
+        gram_cmds = map (\(n, rt) ->
+                        let
+                            ret_sort_var = SortedVar "r" (typeToSort sorts rt)
+                            sort_vars = arg_sort_vars ++ [ret_sort_var]
+                        in
+                        SynthFun n sort_vars boolSort (Just gram))
+                    . filter (relTy . snd) 
+                    $ extractValues ns_rt
+        cons = generateConstraints sorts meas_ex poly_ref_names arg_tys ret_ty fcs
     in
-    trace ("poly_ref_names = " ++ show poly_ref_names)
-    (SynthFun "refinement" sortVars boolSort (Just gram), cons)
+    (gram_cmds, cons, poly_ref_names)
     where
         isLHDict e
             | (TyCon (Name n _ _ _) _):_ <- unTyApp e = n == "lh"
@@ -188,7 +195,7 @@ intRuleList =
     , GBfTerm $ BfIdentifierBfs (ISymb "+") [intBf, intBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "-") [intBf, intBf]
     -- , GBfTerm $ BfIdentifierBfs (ISymb "*") [intBf, intBf]
-    -- , GBfTerm $ BfIdentifierBfs (ISymb "mod") [intBf, intBf]
+    , GBfTerm $ BfIdentifierBfs (ISymb "mod") [intBf, intBf]
     ]
 
 boolRuleList :: [GTerm]
@@ -238,7 +245,7 @@ exprToDTTerm sorts meas_ex t e =
             | not . null $ meas_names si ->
                 TermCall (ISymb (dt_name si)) $ map (measVal sorts meas_ex e) (meas_names si)
             | otherwise -> TermIdent (ISymb (dt_name si))
-        Nothing -> error "exprToDTTerm: No sort found"
+        Nothing -> error $ "exprToDTTerm: No sort found" ++ "\nsorts = " ++ show sorts ++ "\nt = " ++ show t
 
 type ArgTys = [Type]
 type RetType = Type
@@ -268,43 +275,64 @@ relTy _ = True
 -- Constraints
 -------------------------------
 
-data TermConstraint = PosT { term_cons :: Term}
-                    | NegT { term_cons :: Term}
+-- | Constraints expresessed as "anded" terms
+data TermConstraint = PosT { term_cons :: [Term] }
+                    | NegT { term_cons :: [Term] }
+                    deriving (Show, Read)
 
+modifyTC :: ([Term] -> [Term]) -> TermConstraint -> TermConstraint
+modifyTC f tc = tc { term_cons = f (term_cons tc) }
 
 -- | Convert constraints.  Measures cause us to lose information about the data, so after
 -- conversion we can have a constraint both postively and negatively.  We know that the postive
 -- constraint corresponds to an actual execution, so we keep that one, adnd drop the negative constraint.
 
-generateConstraints :: TypesToSorts -> MeasureExs -> [Type] -> Type -> [FuncConstraint] -> [Cmd]
-generateConstraints sorts meas_ex arg_tys ret_ty fcs = 
+generateConstraints :: TypesToSorts -> MeasureExs -> RefNamePolyBound -> [Type] -> Type -> [FuncConstraint] -> [Cmd]
+generateConstraints sorts meas_ex poly_names arg_tys ret_ty fcs = 
     let
-        cons = map (termConstraints sorts meas_ex arg_tys ret_ty) fcs
+        cons = map (termConstraints sorts meas_ex poly_names arg_tys ret_ty) fcs
         cons' = filterPosAndNegConstraints cons
         cons'' = map termConstraintToConstraint cons'
     in
+    trace ("cons = " ++ show cons)
     cons''
 
-termConstraints :: TypesToSorts -> MeasureExs -> [Type] -> Type -> FuncConstraint -> TermConstraint
-termConstraints sorts meas_ex arg_tys ret_ty (Pos fc) =
-    PosT $ funcCallTerm sorts meas_ex arg_tys ret_ty fc
-termConstraints sorts meas_ex arg_tys ret_ty (Neg fc) =
-    NegT $ funcCallTerm sorts meas_ex arg_tys ret_ty fc
+termConstraints :: TypesToSorts -> MeasureExs -> RefNamePolyBound -> [Type] -> Type -> FuncConstraint -> TermConstraint
+termConstraints sorts meas_ex poly_names arg_tys ret_ty (Pos fc) =
+    PosT $ funcCallTerm sorts meas_ex poly_names arg_tys ret_ty fc
+termConstraints sorts meas_ex poly_names arg_tys ret_ty (Neg fc) =
+    NegT $ funcCallTerm sorts meas_ex poly_names arg_tys ret_ty fc
 
-funcCallTerm :: TypesToSorts -> MeasureExs -> [Type] -> Type -> FuncCall -> Term
-funcCallTerm sorts meas_ex arg_tys ret_ty (FuncCall { arguments = ars, returns = r}) =
+funcCallTerm :: TypesToSorts -> MeasureExs -> RefNamePolyBound ->  [Type] -> Type -> FuncCall -> [Term]
+funcCallTerm sorts meas_ex poly_names arg_tys ret_ty (FuncCall { arguments = ars, returns = r}) =
     let
-        ars' = filter (not . isLhDict) . filter (not . isType) $ ars
+        r_bound = extractExprPolyBoundWithRoot r
+        rt_bound = extractTypePolyBoundPresFull ret_ty
+        ns_r_bound = zip3PB r_bound rt_bound poly_names
+        ns_r_bound' = concatMap expand1 (extractValues ns_r_bound)
     in
-    TermCall (ISymb "refinement")
-        (mapMaybe (uncurry (relExprToTerm sorts meas_ex)) (zip arg_tys ars') ++ [exprToTerm sorts meas_ex ret_ty r])
+    --funcCallTerm' sorts meas_ex arg_tys ret_ty ars r
+    mapMaybe (\(r, rt, n) -> funcCallTerm' sorts meas_ex arg_tys ars r rt n) $ ns_r_bound' -- r
     where
-        isType (Type _) = True
-        isType _ = False
+        expand1 :: ([a], b, c) -> [(a, b, c)]
+        expand1 (as, b, c) = map (\a -> (a, b, c)) as 
 
-        isLhDict e
-            | (Data (DataCon (Name n _ _ _) _)):_ <- unApp e = n == "lh"
-            | otherwise = False
+funcCallTerm' :: TypesToSorts -> MeasureExs -> [Type] -> [G2.Expr] -> G2.Expr -> Type -> String -> Maybe Term
+funcCallTerm' sorts meas_ex arg_tys ars r ret_ty fn
+    | relTy ret_ty =
+        let
+            ars' = filter (not . isLhDict) . filter (not . isType) $ ars
+        in
+        Just $ TermCall (ISymb fn)
+            (mapMaybe (uncurry (relExprToTerm sorts meas_ex)) (zip arg_tys ars') ++ [exprToTerm sorts meas_ex ret_ty r])
+    | otherwise = Nothing
+        where
+            isType (Type _) = True
+            isType _ = False
+
+            isLhDict e
+                | (Data (DataCon (Name n _ _ _) _)):_ <- unApp e = n == "lh"
+                | otherwise = False
 
 relExprToTerm :: TypesToSorts -> MeasureExs -> Type -> G2.Expr -> Maybe Term
 relExprToTerm sorts meas_ex t e =
@@ -327,16 +355,18 @@ litToTerm _ = error "litToTerm: Unhandled Lit"
 filterPosAndNegConstraints :: [TermConstraint] -> [TermConstraint]
 filterPosAndNegConstraints ts =
     let
-        tre = filter isPosT ts
+        tre = concatMap term_cons $ filter isPosT ts
     in
-    filter (\t -> isPosT t || all (\t' -> term_cons t /= term_cons t') tre ) ts
+    filter (not . null . term_cons)
+        $ map (\t -> if isPosT t then t else modifyTC (filter (not . flip elem tre)) t) ts
+    -- filter (\t -> isPosT t || all (\t' -> term_cons t /= term_cons t') tre ) ts
     where
         isPosT (PosT _) = True
         isPosT (NegT _) = False
 
 termConstraintToConstraint :: TermConstraint -> Cmd
-termConstraintToConstraint (PosT t) = Constraint t
-termConstraintToConstraint (NegT t) = Constraint $ TermCall (ISymb "not") [t]
+termConstraintToConstraint (PosT ts) = Constraint $ TermCall (ISymb "and") ts
+termConstraintToConstraint (NegT ts) = Constraint $ TermCall (ISymb "not") [TermCall (ISymb "and") ts]
 
 typeToSort :: TypesToSorts -> Type -> Sort
 typeToSort _ (TyCon (Name n _ _ _) _) 
@@ -467,11 +497,24 @@ stripUnsat :: String -> String
 stripUnsat ('u':'n':'s':'a':'t':xs) = xs
 stripUnsat xs = xs
 
-refToLHExpr :: SpecType -> [Cmd] -> MeasureSymbols -> LH.Expr
-refToLHExpr st [SmtCmd cmd] meas_sym = refToLHExpr' st cmd meas_sym
+refToLHExpr :: SpecType -> RefNamePolyBound -> [Cmd] -> MeasureSymbols -> PolyBound LH.Expr
+refToLHExpr st rp_ns cmds meas_sym = refToLHExpr' st (defineFunsPB cmds rp_ns) meas_sym
 
-refToLHExpr' :: SpecType -> SmtCmd -> MeasureSymbols -> LH.Expr
-refToLHExpr' st (DefineFun _ ars _ trm) meas_sym =
+defineFunsPB :: [Cmd] -> RefNamePolyBound -> PolyBound ([SortedVar], Term)
+defineFunsPB cmds = mapPB (defineFunsPB' cmds)
+
+defineFunsPB' :: [Cmd] -> String -> ([SortedVar], Term)
+defineFunsPB' cmds fn
+    | Just (SmtCmd (DefineFun _ ars _ trm)) <- find (\(SmtCmd (DefineFun n _ _ _)) -> n == fn) cmds =
+        (ars, trm)
+    | otherwise = ([], TermLit (LitBool True))
+
+refToLHExpr' :: SpecType -> PolyBound ([SortedVar], Term) -> MeasureSymbols -> PolyBound LH.Expr
+refToLHExpr' st pb_sv_t meas_sym =
+    mapPB (uncurry (refToLHExpr'' st meas_sym)) pb_sv_t
+
+refToLHExpr'' :: SpecType -> MeasureSymbols -> [SortedVar] -> Term -> LH.Expr
+refToLHExpr'' st meas_sym ars trm =
     let
         ars' = map (\(SortedVar sym _) -> sym) ars
 
@@ -485,7 +528,7 @@ termToLHExpr _ m_args (TermIdent (ISymb v)) =
     case M.lookup v m_args of
         Just v' -> EVar v'
         Nothing -> error "termToLHExpr: Variable not found"
-termToLHExpr _ _ (TermLit l) = ECon (litToLHConstant l)
+termToLHExpr _ _ (TermLit l) = litToLHConstant l
 termToLHExpr meas_sym@(MeasureSymbols meas_sym') m_args (TermCall (ISymb v) ts)
     -- Measures
     | Just meas <- find (\meas' -> Just (symbolName meas') == fmap zeroName (maybe_StrToName v)) meas_sym' =
@@ -499,8 +542,8 @@ termToLHExpr meas_sym@(MeasureSymbols meas_sym') m_args (TermCall (ISymb v) ts)
     , [t1, t2] <- ts = EBin LH.Minus (termToLHExpr meas_sym m_args t1) (termToLHExpr meas_sym m_args t2)
     | "*" <- v
     , [t1, t2] <- ts = EBin LH.Times (termToLHExpr meas_sym m_args t1) (termToLHExpr meas_sym m_args t2)
-    -- | "mod" <- v
-    -- , [t1, t2] <- ts = EBin LH.Mod (termToLHExpr meas_sym m_args t1) (termToLHExpr meas_sym m_args t2)
+    | "mod" <- v
+    , [t1, t2] <- ts = EBin LH.Mod (termToLHExpr meas_sym m_args t1) (termToLHExpr meas_sym m_args t2)
     -- More EBin...
     | "and" <- v = PAnd $ map (termToLHExpr meas_sym m_args) ts
     | "or" <- v = POr $ map (termToLHExpr meas_sym m_args) ts
@@ -526,8 +569,10 @@ termToLHExpr (_) _ t = error $ "termToLHExpr meas_sym m_args: unhandled " ++ sho
 zeroName :: Name -> Name
 zeroName (Name n m _ l) = Name n m 0 l
 
-litToLHConstant :: Sy.Lit -> Constant
-litToLHConstant (LitNum n) = I n
+litToLHConstant :: Sy.Lit -> LH.Expr
+litToLHConstant (LitNum n) = ECon (I n)
+litToLHConstant (LitBool b) = if b then PTrue else PFalse
+litToLHConstant l = error $ "litToLHConstant: Unhandled literal " ++ show l
 
 specTypeSymbols :: SpecType -> [LH.Symbol]
 specTypeSymbols (RFun { rt_bind = b, rt_in = i, rt_out = out }) =

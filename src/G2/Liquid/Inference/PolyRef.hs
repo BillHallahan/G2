@@ -4,13 +4,16 @@
 module G2.Liquid.Inference.PolyRef ( PolyBound (.. )
                                    , RefNamePolyBound
                                    , ExprPolyBound
-                                   , extractPolyBoundWithRoot
-                                   , extractPolyBound
+                                   , extractExprPolyBoundWithRoot
+                                   , extractExprPolyBound
+                                   , extractTypePolyBoundPresFull
+                                   , extractTypePolyBound
 
                                    , extractValues
                                    , uniqueIds
                                    , mapPB
-                                   , zipPB) where
+                                   , zipPB
+                                   , zip3PB) where
 
 import G2.Language
 
@@ -22,37 +25,43 @@ import Debug.Trace
 type RefNamePolyBound = PolyBound String
 type ExprPolyBound = PolyBound [Expr]
 
+type TypePolyBound = PolyBound Type
+
 -- | The subexpressions of an expression corresponding to the polymorphic
 -- arguments.  If a polymorphic argument is instantiated with a polymorphic
 -- type, these are nested recursively.
-data PolyBound v = PolyBound v [PolyBound v] deriving (Read, Show)
+data PolyBound v = PolyBound v [PolyBound v] deriving (Eq, Read, Show)
 
-extractPolyBoundWithRoot :: Expr -> ExprPolyBound
-extractPolyBoundWithRoot e = PolyBound [e] $ extractPolyBound e
+-------------------------------
+-- ExprPolyBound
+-------------------------------
 
-extractPolyBound :: Expr -> [ExprPolyBound]
-extractPolyBound e
+extractExprPolyBoundWithRoot :: Expr -> ExprPolyBound
+extractExprPolyBoundWithRoot e = PolyBound [e] $ extractExprPolyBound e
+
+extractExprPolyBound :: Expr -> [ExprPolyBound]
+extractExprPolyBound e
     | Data dc:_ <- unApp e =
         let
             bound = leadingTyForAllBindings dc
-            m = extractPolyBound' e
+            m = extractExprPolyBound' e
 
             bound_es = map (\i -> HM.lookupDefault [] i m) bound
         in
-        map (\es -> PolyBound es (mergePolyBound . transpose $ map extractPolyBound es)) bound_es
+        map (\es -> PolyBound es (mergeExprPolyBound . transpose $ map extractExprPolyBound es)) bound_es
     | otherwise = []
 
-mergePolyBound :: [[ExprPolyBound]] -> [ExprPolyBound]
-mergePolyBound = mapMaybe (\pb -> case pb of
-                                (p:pbb) -> Just $ foldr mergePolyBound' p pbb
+mergeExprPolyBound :: [[ExprPolyBound]] -> [ExprPolyBound]
+mergeExprPolyBound = mapMaybe (\pb -> case pb of
+                                (p:pbb) -> Just $ foldr mergeExprPolyBound' p pbb
                                 [] -> Nothing)
 
-mergePolyBound' :: ExprPolyBound -> ExprPolyBound -> ExprPolyBound
-mergePolyBound' (PolyBound es1 pb1) (PolyBound es2 pb2) =
-    PolyBound (es1 ++ es2) (map (uncurry mergePolyBound') $ zip pb1 pb2)
+mergeExprPolyBound' :: ExprPolyBound -> ExprPolyBound -> ExprPolyBound
+mergeExprPolyBound' (PolyBound es1 pb1) (PolyBound es2 pb2) =
+    PolyBound (es1 ++ es2) (map (uncurry mergeExprPolyBound') $ zip pb1 pb2)
 
-extractPolyBound' :: Expr -> HM.HashMap Id [Expr]
-extractPolyBound' e
+extractExprPolyBound' :: Expr -> HM.HashMap Id [Expr]
+extractExprPolyBound' e
     | Data dc:es <- unApp e =
     let
         es' = filter (not . isType) es
@@ -68,7 +77,7 @@ extractPolyBound' e
         direct_hm = foldr (HM.unionWith (++)) HM.empty
                         $ map (\(i, e) -> uncurry HM.singleton (i, e:[])) direct'
     in
-    foldr (HM.unionWith (++)) direct_hm $ map (extractPolyBound' . adjustIndirectTypes) indirect'
+    foldr (HM.unionWith (++)) direct_hm $ map (extractExprPolyBound' . adjustIndirectTypes) indirect'
     | otherwise = HM.empty
     where
         isType (Type _) = True
@@ -107,7 +116,29 @@ adjustIndirectTypes e
         isType (Type _) = True
         isType _ = False
 
-------
+
+-------------------------------
+-- TypePolyBound
+-------------------------------
+
+-- | Unrolls TyApp'ed args, while also keeping them in the base type
+extractTypePolyBoundPresFull :: Type -> TypePolyBound
+extractTypePolyBoundPresFull t =
+    let
+        (t':ts) = unTyApp t
+    in
+    PolyBound t $ map extractTypePolyBound ts
+
+extractTypePolyBound :: Type -> TypePolyBound
+extractTypePolyBound t =
+    let
+        (t':ts) = unTyApp t
+    in
+    PolyBound t' $ map extractTypePolyBound ts
+
+-------------------------------
+-- Generic PolyBound functions
+-------------------------------
 
 extractValues :: PolyBound v -> [v]
 extractValues (PolyBound v ps) = v:concatMap extractValues ps
@@ -127,3 +158,7 @@ mapPB f (PolyBound v ps) = PolyBound (f v) (map (mapPB f) ps)
 
 zipPB :: PolyBound a -> PolyBound b -> PolyBound (a, b)
 zipPB (PolyBound a pba) (PolyBound b pbb) = PolyBound (a, b) (zipWith zipPB pba pbb)
+
+zip3PB :: PolyBound a -> PolyBound b -> PolyBound c -> PolyBound (a, b, c)
+zip3PB (PolyBound a pba) (PolyBound b pbb) (PolyBound c pbc) =
+    PolyBound (a, b, c) (zipWith3 zip3PB pba pbb pbc)

@@ -4,7 +4,8 @@ module G2.Language.ArbValueGen ( ArbValueGen
                                , ArbValueFunc
                                , arbValueInit
                                , arbValue
-                               , arbValueInfinite ) where
+                               , arbValueInfinite
+                               , constArbValue ) where
 
 import G2.Language.AST
 import G2.Language.Expr
@@ -42,6 +43,14 @@ charGenInit = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9']
 -- the same Type.
 arbValue :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
 arbValue t = arbValue' getFiniteADT t
+
+
+-- | arbValue
+-- Allows the generation of arbitrary values of the given type.
+-- Cuts off recursive ADTs with a Prim Undefined
+-- Returns a new ArbValueGen that is identical to the passed ArbValueGen
+constArbValue :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+constArbValue = constArbValue' getFiniteADT
 
 -- | arbValue
 -- Allows the generation of arbitrary values of the given type.
@@ -93,6 +102,49 @@ arbValue' _ TyLitChar _ av =
     in
     (Lit (LitChar c), av { charGen = cs})
 arbValue' _ t _ av = (Prim Undefined t, av)
+
+
+constArbValue' :: GetADT -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+constArbValue' getADTF (TyFun t t') tenv av =
+    let
+      (e, _) = constArbValue' getADTF t' tenv av
+    in
+    (Lam TermL (Id (Name "_" Nothing 0 Nothing) t) e, av)
+constArbValue' getADTF t tenv av
+  | TyCon n _ <- tyAppCenter t
+  , ts <- tyAppArgs t =
+    maybe (Prim Undefined TyBottom, av) 
+          (\adt -> getADTF tenv av adt ts)
+          (M.lookup n tenv)
+constArbValue' getADTF (TyApp t1 t2) tenv av =
+  let
+      (e1, _) = constArbValue' getADTF t1 tenv av
+      (e2, _) = constArbValue' getADTF t2 tenv av
+  in
+  (App e1 e2, av)
+constArbValue' _ TyLitInt _ av =
+    let
+        i = intGen av
+    in
+    (Lit (LitInt $ i), av)
+constArbValue' _ TyLitFloat _ av =
+    let
+        f = floatGen av
+    in
+    (Lit (LitFloat $ f), av)
+constArbValue' _ TyLitDouble _ av =
+    let
+        d = doubleGen av
+    in
+    (Lit (LitDouble $ d), av)
+constArbValue' _ TyLitChar _ av =
+    let
+        c:_ = case charGen av of
+                xs@(_:_) -> xs
+                _ -> charGenInit
+    in
+    (Lit (LitChar c), av)
+constArbValue' _ t _ av = (Prim Undefined t, av)
 
 type GetADT = TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
 

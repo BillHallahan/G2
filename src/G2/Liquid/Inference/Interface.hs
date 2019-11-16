@@ -109,7 +109,7 @@ genMeasureExs lrs ghci g2config fcs =
         es = concatMap (\fc ->
                     let
                         cons = constraint fc
-                        ex_poly = concat $ concatMap extractValues $ extractPolyBound (returns cons)
+                        ex_poly = concat $ concatMap extractValues $ extractExprPolyBound (returns cons)
                     in
                     returns cons:arguments cons ++ ex_poly
                 ) (allFC fcs)
