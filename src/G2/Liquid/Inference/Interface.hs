@@ -62,6 +62,8 @@ inference' g2config lhconfig ghci m_modname lrs gs fc = do
 
             res <- mapM (genNewConstraints merged_ghci m_modname lrs g2config) bad'
 
+            putStrLn $ "res = " ++ show res
+
             putStrLn "Before checkNewConstraints"
             new_fc <- checkNewConstraints ghci lrs g2config (concat res)
             putStrLn "After checkNewConstraints"
@@ -88,7 +90,7 @@ createStateForInference simp_s config ghci =
                     (\_ -> [])
                     config
     in
-    createLiquidReadyState s b ghci
+    createLiquidReadyState s b ghci config
 
 
 genNewConstraints :: [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> G2.Config -> T.Text -> IO [CounterExample]

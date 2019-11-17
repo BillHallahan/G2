@@ -84,6 +84,8 @@ inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
         searched_below = SearchedBelowHalter { found_at_least = 3
                                              , discarded_at_least = 6
                                              , discarded_at_most = 15 }
+
+        lh_max_outputs = LHMaxOutputsHalter 10
     
     timer_halter <- timerHalter 10
 
@@ -96,6 +98,7 @@ inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
                 (MaxOutputsHalter (maxOutputs config)
                   :<~> LHAbsHalter entry mb_modname (expr_env st)
                   :<~> searched_below
+                  :<~> lh_max_outputs
                   :<~> SwitchEveryNHalter (switch_after config)
                   :<~> AcceptHalter
                   :<~> timer_halter)
@@ -110,6 +113,7 @@ inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
               :<~> MaxOutputsHalter (maxOutputs config)
               :<~> LHAbsHalter entry mb_modname (expr_env st)
               :<~> searched_below
+              :<~> lh_max_outputs
               :<~> SwitchEveryNHalter (switch_after config)
               :<~> AcceptHalter
               :<~> timer_halter)

@@ -63,7 +63,6 @@ refSynth spc e tc meas meas_ex fc meas_sym = do
     case res of
         Left _ -> error "refSynth: Bad call to CVC4"
         Right res' -> do
-            putStrLn . T.unpack $ sygus
             let smt_st = parse . lexSygus $ stripUnsat res'
                 lh_st = refToLHExpr spc rp_ns smt_st meas_sym
 
@@ -143,12 +142,12 @@ generateGrammarsAndConstraints sorts meas_ex arg_tys ret_ty fcs@(fc:_) =
                         . map (typeToSort sorts) . filter (not . isLHDict) $ arg_tys
         -- ret_sort_var = SortedVar "r" (typeToSort sorts ret_ty)
 
-        gram = grammar sorts
-
         gram_cmds = map (\(n, rt) ->
                         let
                             ret_sort_var = SortedVar "r" (typeToSort sorts rt)
                             sort_vars = arg_sort_vars ++ [ret_sort_var]
+                            
+                            gram = grammar sort_vars sorts
                         in
                         SynthFun n sort_vars boolSort (Just gram))
                     . filter (relTy . snd) 
@@ -165,18 +164,20 @@ generateGrammarsAndConstraints sorts meas_ex arg_tys ret_ty fcs@(fc:_) =
 -- Grammar
 -------------------------------
 
-grammar :: TypesToSorts -> GrammarDef
-grammar sorts =
+grammar :: [SortedVar] -> TypesToSorts -> GrammarDef
+grammar sorted_vars sorts =
     let
-        gramNames = zip (map (\i -> "G" ++ show i) ([0..] :: [Integer])) (allSortNames sorts)
+        sorts' = filterToSorts (map (\(SortedVar _ s) -> sortSymb s) sorted_vars) sorts
+
+        gramNames = zip (map (\i -> "G" ++ show i) ([0..] :: [Integer])) (allSortNames sorts')
         grams = map (\(g, s_symb) -> (g, IdentSort . ISymb $ s_symb)) gramNames
         sortsToGN = HM.fromList $ map swap gramNames
 
         brl = GroupedRuleList "B" boolSort
-                (boolRuleList ++ addSelectors sortsToGN boolSort sorts)
+                (boolRuleList ++ addSelectors sortsToGN boolSort sorts')
 
         irl = GroupedRuleList "I" intSort
-                (intRuleList ++ addSelectors sortsToGN intSort sorts)
+                (intRuleList ++ addSelectors sortsToGN intSort sorts')
     in
     GrammarDef
         ([ SortedVar "B" boolSort
@@ -186,6 +187,9 @@ grammar sorts =
          , irl
          ]
          ++ map (uncurry dtGroupRuleList) grams) 
+    where
+        sortSymb (IdentSort (ISymb s)) = s
+        sortSymb _ = error "grammar: sortSymb"
 
 intRuleList :: [GTerm]
 intRuleList =
@@ -489,6 +493,10 @@ addSelector gn s (SortedVar ident vs)
     | s == vs = Just . GBfTerm $ BfIdentifierBfs (ISymb ident) [BfIdentifier (ISymb gn)]
     | otherwise = Nothing
 
+filterToSorts :: [Symbol] -> TypesToSorts -> TypesToSorts
+filterToSorts xs (TypesToSorts sorts) =
+    TypesToSorts $ filter (\(_, s) -> any (sort_name s ==) xs) sorts
+
 -------------------------------
 -- Converting to refinement
 -------------------------------
@@ -498,7 +506,12 @@ stripUnsat ('u':'n':'s':'a':'t':xs) = xs
 stripUnsat xs = xs
 
 refToLHExpr :: SpecType -> RefNamePolyBound -> [Cmd] -> MeasureSymbols -> PolyBound LH.Expr
-refToLHExpr st rp_ns cmds meas_sym = refToLHExpr' st (defineFunsPB cmds rp_ns) meas_sym
+refToLHExpr st rp_ns cmds meas_sym =
+    let
+        termsPB = defineFunsPB cmds rp_ns
+        termsPB' = shiftPB termsPB
+    in
+    refToLHExpr' st termsPB' meas_sym
 
 defineFunsPB :: [Cmd] -> RefNamePolyBound -> PolyBound ([SortedVar], Term)
 defineFunsPB cmds = mapPB (defineFunsPB' cmds)
@@ -508,6 +521,38 @@ defineFunsPB' cmds fn
     | Just (SmtCmd (DefineFun _ ars _ trm)) <- find (\(SmtCmd (DefineFun n _ _ _)) -> n == fn) cmds =
         (ars, trm)
     | otherwise = ([], TermLit (LitBool True))
+
+-- | Shift all terms up as much as possible.  This avoids expressions being nested more deeply-
+-- and thus (in G2) checked more frequently- than needed.
+shiftPB :: PolyBound ([SortedVar], Term) -> PolyBound ([SortedVar], Term)
+shiftPB pb =
+    let
+        pb' = shiftPB' pb
+    in
+    if pb == pb' then pb else shiftPB pb'
+
+shiftPB' :: PolyBound ([SortedVar], Term) -> PolyBound ([SortedVar], Term)
+shiftPB' (PolyBound svt@(sv, t) svts) =
+    let
+        (shift, leave) =
+            partition
+                (\(PolyBound (sv', t') _) ->
+                    let
+                        t_syms = termSymbols t'
+                    in
+                    case sv' of
+                        [] -> False
+                        _ -> let SortedVar s _ = (last sv') in s `notElem` t_syms) svts
+
+        sv_new = nub $ sv ++ concatMap (\(PolyBound (sv', _) _) -> sv') shift
+        t_new =
+            case shift of
+                [] -> t
+                _ -> TermCall (ISymb "and") $ t:map (\(PolyBound (_, t') _) -> t') shift
+
+        shift_new = map (\(PolyBound _ pb) -> PolyBound ([], TermLit (LitBool True)) pb) shift
+    in
+    trace ("shift = " ++ show shift) PolyBound (sv_new, t_new) (shift_new ++ leave)
 
 refToLHExpr' :: SpecType -> PolyBound ([SortedVar], Term) -> MeasureSymbols -> PolyBound LH.Expr
 refToLHExpr' st pb_sv_t meas_sym =
@@ -589,6 +634,29 @@ reftSymbol = fst . unpackReft
 
 unpackReft :: Reft -> (LH.Symbol, LH.Expr) 
 unpackReft = coerce
+
+-- | Collects all the symbols from a term
+termSymbols :: Term -> [Symbol]
+termSymbols (TermIdent i) = identifierSymbols i
+termSymbols (TermLit _) = []
+termSymbols (TermCall i ts) = identifierSymbols i ++ concatMap termSymbols ts
+termSymbols (TermExists sv t) = map svSymbol sv ++ termSymbols t
+termSymbols (TermForAll sv t) = map svSymbol sv ++ termSymbols t
+termSymbols (TermLet vb t) = concatMap vbSymbols vb ++ termSymbols t
+
+identifierSymbols :: Identifier -> [Symbol]
+identifierSymbols (ISymb s) = [s]
+identifierSymbol (Indexed s inds) = s:mapMaybe indexSymbol inds
+
+indexSymbol :: Index -> Maybe Symbol
+indexSymbol (IndSymb s) = Just s
+indexSymbol _ = Nothing
+
+svSymbol :: SortedVar -> Symbol
+svSymbol (SortedVar s _) = s
+
+vbSymbols :: VarBinding -> [Symbol]
+vbSymbols (VarBinding s t) = s:termSymbols t
 
 -------------------------------
 -- Calling SyGuS

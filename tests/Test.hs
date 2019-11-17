@@ -304,6 +304,8 @@ liquidTests = return . testGroup "Liquid" =<< sequence
     , checkAbsLiquid "tests/Liquid/Length.hs" "prop_size" 1000 0
         [ AtLeast 1
         , RForAll (\_ _ [ _ ]  -> True)]
+
+    , checkLiquidWithConfig "tests/Liquid/NestedLength.hs" "nested" 2 (mkConfigTest {add_tyvars = True}) [AtLeast 1]
     ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
