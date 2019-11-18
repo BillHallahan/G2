@@ -18,6 +18,8 @@ import qualified Data.Map as M
 import Data.Ord
 import Data.Tuple
 
+import Debug.Trace
+
 arbValueInit :: ArbValueGen
 arbValueInit = ArbValueGen { intGen = 0
                            , floatGen = 0
@@ -155,13 +157,14 @@ getFiniteADT tenv av adt ts =
     let
         (e, av') = getADT tenv av adt ts
     in
+    trace ("ts = " ++ show ts ++ "\ncutOff = " ++ show (cutOff [] e)) 
     (cutOff [] e, av')
 
 cutOff :: [Name] -> Expr -> Expr
 cutOff ns a@(App _ _)
     | Data (DataCon n _) <- appCenter a =
-        case n `elem` ns of
-            True -> Prim Undefined TyBottom
+        case length (filter (== n) ns) > 3 of
+            True -> trace ("n = " ++ show n ++ "\nns = " ++ show ns) Prim Undefined TyBottom
             False -> mapArgs (cutOff (n:ns)) a
 cutOff _ e = e
 
@@ -181,4 +184,5 @@ getADT tenv av adt ts =
 
         (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite t tenv av_) av $ dataConArgs min_dc'
     in
+    trace (show $ map (\dc -> (dc, length . dataConArgs $ dc)) dcs)
     (mkApp $ Data min_dc':map Type ts ++ es, av')

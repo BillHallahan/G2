@@ -34,7 +34,7 @@ inference config proj fp lhlibs = do
     ghci <- ghcInfos Nothing lhconfig' fp
 
     -- Initialize G2
-    let g2config = config { mode = Liquid, steps = 2000 }
+    let g2config = config { mode = Liquid, steps = 2000, add_tyvars = True }
         transConfig = simplTranslationConfig { simpl = False }
     exg2 <- translateLoaded proj fp lhlibs transConfig g2config
     let simp_s = initSimpleState (snd exg2)

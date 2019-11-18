@@ -381,7 +381,7 @@ runLHG2 config red hal ord solver simplifier pres_names final_st bindings = do
 
     (bindings', ret'') <- mapAccumM (reduceCalls solver simplifier config) final_bindings ret'
     ret''' <- mapM (checkAbstracted solver simplifier config bindings') ret''
-
+    
     let exec_res = 
           map (\(ExecRes { final_state = s
                          , conc_args = es

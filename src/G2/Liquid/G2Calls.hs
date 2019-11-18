@@ -136,15 +136,8 @@ reduceFCExpr share reducer solver simplifier s bindings e
                    s { expr_env = model s `E.union'` expr_env s
                    , curr_expr = CurrExpr Evaluate e'}
 
-        -- temp
-        red <- 
-                -- if isTyFun (inTyForAlls (typeOf e))
-                --     then do print (typeOf e); return (reducer <~ SomeReducer (Logger "aFun"))
-                --     else
-                        return reducer
-
         (er, bindings') <- runG2WithSomes 
-                    red
+                    reducer
                     (SomeHalter SWHNFHalter)
                     (SomeOrderer NextOrderer)
                     solver simplifier emptyMemConfig s' bindings
