@@ -170,9 +170,12 @@ liquidStateFromSimpleStateWithCall' :: SimpleState
                                     -> (Lang.Expr -> MkArgTypes)
                                     -> IO LiquidData
 liquidStateFromSimpleStateWithCall' simp_s ghci entry mb_m config memconfig mkCurr argTys = do
-    let (s, i, bindings') = initStateFromSimpleStateWithCall simp_s True entry mb_m mkCurr argTys config
+    let (simp_s', unused) = if add_tyvars config
+                                  then addTyVarsEEnvTEnv simp_s
+                                  else (simp_s, emptyUP)
+        (s, i, bindings') = initStateFromSimpleStateWithCall simp_s' True entry mb_m mkCurr argTys config
     
-    fromLiquidReadyState s i bindings' ghci config memconfig
+    fromLiquidReadyState s i bindings' ghci unused config memconfig
 
 {-# INLINE liquidStateFromSimpleState #-}
 liquidStateFromSimpleState :: SimpleState
@@ -183,22 +186,26 @@ liquidStateFromSimpleState :: SimpleState
                             -> MkArgTypes
                             -> IO LiquidData
 liquidStateFromSimpleState simp_s ghci config memconfig mkCurr argTys = do
-    let (s, bindings') = initStateFromSimpleState simp_s True mkCurr argTys config
+    let (simp_s', unused) = if add_tyvars config
+                                  then addTyVarsEEnvTEnv simp_s
+                                  else (simp_s, emptyUP)
+        (s, bindings') = initStateFromSimpleState simp_s True mkCurr argTys config
     
-    fromLiquidReadyState s (Id (Name "" Nothing 0 Nothing) TyUnknown) bindings' ghci config memconfig
+    fromLiquidReadyState s (Id (Name "" Nothing 0 Nothing) TyUnknown) bindings' ghci unused config memconfig
 
 {-# INLINE fromLiquidReadyState #-}
 fromLiquidReadyState :: State ()
                      -> Lang.Id
                      -> Bindings
                      -> [GhcInfo]
+                     -> UnusedPoly
                      -> Config
                      -> MemConfig
                      -> IO LiquidData
-fromLiquidReadyState init_state ifi bindings ghci config memconfig = do
+fromLiquidReadyState init_state ifi bindings ghci unused config memconfig = do
     let (init_state', bindings') = (markAndSweepPreserving (reqNames init_state `mappend` memconfig) init_state bindings)
         cleaned_state = init_state' { type_env = type_env init_state } 
-    fromLiquidNoCleaning cleaned_state ifi bindings' ghci config memconfig
+    fromLiquidNoCleaning cleaned_state ifi bindings' ghci unused config memconfig
 
 data LiquidReadyState = LiquidReadyState { lr_state :: LHState
                                          , lr_binding :: Bindings
@@ -226,15 +233,16 @@ fromLiquidNoCleaning :: State ()
                      -> Lang.Id
                      -> Bindings
                      -> [GhcInfo]
+                     -> UnusedPoly
                      -> Config
                      -> MemConfig
                      -> IO LiquidData
-fromLiquidNoCleaning init_state ifi bindings ghci config memconfig = do
-    let lrs = createLiquidReadyState init_state bindings ghci config
+fromLiquidNoCleaning init_state ifi bindings ghci unused config memconfig = do
+    let lrs = createLiquidReadyState init_state bindings ghci unused config
     processLiquidReadyState lrs ifi ghci config memconfig
 
-createLiquidReadyState :: State () -> Bindings -> [GhcInfo] -> Config -> LiquidReadyState
-createLiquidReadyState s@(State {expr_env = eenv}) bindings ghci config =
+createLiquidReadyState :: State () -> Bindings -> [GhcInfo] -> UnusedPoly -> Config -> LiquidReadyState
+createLiquidReadyState s@(State {expr_env = eenv}) bindings ghci unused config =
     let
         np_ng = name_gen bindings
 
@@ -245,11 +253,7 @@ createLiquidReadyState s@(State {expr_env = eenv}) bindings ghci config =
         s' = s { track = [] }
         bindings' = bindings { name_gen = ng' }
 
-        (s'', meenv', unused) = if add_tyvars config
-                                  then addTyVarsEEnvTEnv s' meenv
-                                  else (s', meenv, emptyUP)
-
-        (lh_state, lh_bindings) = createLHState meenv' mkv s'' bindings'
+        (lh_state, lh_bindings) = createLHState meenv mkv s' bindings'
 
         (data_state, data_bindings) = execLHStateM (initializeLHData ghci unused config) lh_state lh_bindings
     in
