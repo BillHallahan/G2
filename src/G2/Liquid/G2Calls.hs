@@ -132,8 +132,6 @@ reduceFCExpr share reducer solver simplifier s bindings e
         let 
             e' = fillLHDictArgs ds strict_e
 
-        putStrLn $ "e = " ++ show e
-
         let s' = elimAsserts . pickHead $
                    s { expr_env = model s `E.union'` expr_env s
                    , curr_expr = CurrExpr Evaluate e'}

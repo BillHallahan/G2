@@ -76,6 +76,7 @@ inference' g2config lhconfig ghci m_modname lrs gs fc = do
                         fc' = foldr insertFC fc new_fc'
 
                     -- Synthesize
+                    putStrLn $ "fc' = " ++ show fc'
                     putStrLn "Before genMeasureExs"
                     meas_ex <- genMeasureExs lrs merged_ghci g2config fc'
                     putStrLn "After genMeasureExs"
