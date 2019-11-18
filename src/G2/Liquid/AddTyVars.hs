@@ -15,6 +15,9 @@ import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Text as T (pack)
+
+import Debug.Trace
 
 addTyVarsEEnvTEnv :: SimpleState -> (SimpleState, UnusedPoly)
 addTyVarsEEnvTEnv s@(SimpleState { expr_env = eenv, type_env = tenv}) =
@@ -83,10 +86,13 @@ addTyVarADT _ adt = adt
 -------------------------------
 addTyVarsExpr :: ASTContainer m Expr => UnusedPoly -> m -> m
 addTyVarsExpr unused =
-    modifyASTs (addTyVarsExprCase unused) . modifyAppTop (addTyVarsExprDC unused)
+    modifyASTs (addTyVarsExprCase unused) . addTyVarsExprDC unused
 
-addTyVarsExprDC :: UnusedPoly -> Expr -> Expr
-addTyVarsExprDC unused e
+addTyVarsExprDC :: ASTContainer m Expr => UnusedPoly -> m -> m
+addTyVarsExprDC unused = modifyAppTop (addTyVarsExprDC' unused)
+
+addTyVarsExprDC' :: UnusedPoly -> Expr -> Expr
+addTyVarsExprDC' unused e
     | Data dc@(DataCon n _):ars <- unApp e
     , Just is <- lookupUP n unused =
         let
@@ -96,27 +102,28 @@ addTyVarsExprDC unused e
         in
         mkApp $ Data (addTyVarDC unused dc):ty_ars ++ sym_gens ++ expr_ars
     | otherwise = e
-    where
-        isTypeExpr (Type _) = True
-        isTypeExpr _ = False
 
 addTyVarsExprCase :: UnusedPoly -> Expr -> Expr
 addTyVarsExprCase unused (Case e i as) =
-    Case e i $ map (addTyVarsAlt unused) as
+    Case e i $ map (addTyVarsAlt unused e) as
 addTyVarsExprCase _ e = e
 
-addTyVarsAlt :: UnusedPoly -> Alt -> Alt
-addTyVarsAlt unused alt@(Alt (DataAlt dc@(DataCon n t) is) e)
+addTyVarsAlt :: UnusedPoly -> Expr -> Alt -> Alt
+addTyVarsAlt unused case_e alt@(Alt (DataAlt dc@(DataCon n t) is) alt_e)
     | Just i <- lookupUP n unused = 
         let
             dc' = addTyVarDC unused dc
 
-            ty_binds = leadingTyForAllBindings dc
-            new_is = map (ty_binds !!) i
+            ty_binds = reverse . unTyApp $ typeOf case_e
+
+            n_str = "a_FILLING_IN_HERE"
+            new_is = map (\(n, tyi) -> Id (Name (T.pack $ n_str ++ show n) Nothing 0 Nothing) $ tyi) 
+                   . zip [0..]
+                   $ map (ty_binds !!) i
             is' = new_is ++ is
         in
-        Alt (DataAlt dc' is') e
-addTyVarsAlt _ alt = alt
+        Alt (DataAlt dc' is') alt_e
+addTyVarsAlt _ _ alt = alt
 
 -------------------------------
 -- Generic
@@ -133,6 +140,10 @@ addTyVarsToType i t =
         is = map (ty_binds !!) i
     in
     mapInTyForAlls (\t' -> mkTyFun $ map TyVar is ++ [t']) t
+
+isTypeExpr :: Expr -> Bool
+isTypeExpr (Type _) = True
+isTypeExpr _ = False
 
 -------------------------------
 -- PolyUnused

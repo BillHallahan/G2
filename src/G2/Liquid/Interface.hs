@@ -39,6 +39,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Execution
 
 import G2.Initialization.MkCurrExpr
+import qualified G2.Initialization.Types as T (expr_env)
 
 import G2.Liquid.AddCFBranch
 import G2.Liquid.AddLHTC
@@ -189,7 +190,7 @@ liquidStateFromSimpleState simp_s ghci config memconfig mkCurr argTys = do
     let (simp_s', unused) = if add_tyvars config
                                   then addTyVarsEEnvTEnv simp_s
                                   else (simp_s, emptyUP)
-        (s, bindings') = initStateFromSimpleState simp_s True mkCurr argTys config
+        (s, bindings') = initStateFromSimpleState simp_s' True mkCurr argTys config
     
     fromLiquidReadyState s (Id (Name "" Nothing 0 Nothing) TyUnknown) bindings' ghci unused config memconfig
 
