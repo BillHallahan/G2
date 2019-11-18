@@ -302,7 +302,7 @@ pprExecStateStr ex_state b = injNewLine acc_strs
                , model_str
                , "----- [Rules] -------------------"
                , rules_str
-               , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<" 
+               , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
                ]
 
 pprExecEEnvStr :: E.ExprEnv -> String

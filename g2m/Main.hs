@@ -10,15 +10,21 @@ import Data.Maybe
 
 main :: IO ()
 main = do
-    sampleTests
+    mergeEffectiveTests
 
--- mergeEffectiveTests :: IO ()
--- mergeEffectiveTests = do
+mergeEffectiveTests :: IO ()
+mergeEffectiveTests = do
+    timeIOActionPrint "compress4" $ [g2| \(a :: Int) -> ?(xs :: [Int]) | compressTest4 a xs |] 2
+    timeIOActionPrint "compress4SM" $ [g2M| \(a :: Int) -> ?(xs :: [Int]) | compressTest4 a xs |] 2
+
     -- timeIOActionPrint "subseqOfTest" $ [g2| \(a :: [Int]) -> ?(b :: [Int]) | subseqOfTest a b |] [1,2,1,3]
     -- timeIOActionPrint "subseqOfTestSM" $ [g2M| \(a :: [Int]) -> ?(b :: [Int]) | subseqOfTest a b |] [1,2,1,3]
 
     -- timeIOActionPrint "sumEvensTest" $ [g2| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] 5
     -- timeIOActionPrint "sumEvensTestSM" $ [g2M| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] 5
+
+    -- timeIOActionPrint "sumEvensTest" $ [g2| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] 1
+    -- timeIOActionPrint "sumEvensTestSM" $ [g2M| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] 1
 
     -- timeIOActionPrint "foldrTest" $ [g2| \(z :: Int) -> ?(xs :: [Maybe Int]) | foldrTest z xs |] 0
     -- timeIOActionPrint "foldrTestSM" $ [g2M| \(z :: Int) -> ?(xs :: [Maybe Int]) | foldrTest z xs |] 0
@@ -35,10 +41,10 @@ main = do
     -- timeIOActionPrint "replGetTest" $ [g2| \(i :: Int) -> ?(j :: Int) ?(k :: Int) | replGetTest i j k |] 3
     -- timeIOActionPrint "replGetTestSM" $ [g2M| \(i :: Int) -> ?(j :: Int) ?(k :: Int) | replGetTest i j k |] 3
 
-sampleTests :: IO ()
-sampleTests = do
-    timeIOActionPrint "peanoAdd" $ [g2| \(p1 :: Peano) -> ?(p2 :: Peano) | fstIsEvenAddToFour p1 p2 |] Zero
-    timeIOActionPrint "peanoAddSM" $ [g2M| \(p1 :: Peano) -> ?(p2 :: Peano) | fstIsEvenAddToFour p1 p2 |] Zero
+-- sampleTests :: IO ()
+-- sampleTests = do
+    -- timeIOActionPrint "peanoAdd" $ [g2| \(p1 :: Peano) -> ?(p2 :: Peano) | fstIsEvenAddToFour p1 p2 |] Zero
+    -- timeIOActionPrint "peanoAddSM" $ [g2M| \(p1 :: Peano) -> ?(p2 :: Peano) | fstIsEvenAddToFour p1 p2 |] Zero
 
 -- samePerfTests :: IO ()
 -- samePerfTests = do
@@ -53,11 +59,17 @@ sampleTests = do
 
 -- mergeSlowdownTests :: IO ()
 -- mergeSlowdownTests = do
-    -- timeIOActionPrint "compress" $ [g2| \(ys :: [Int]) -> ?(xs :: [Int]) | compressTest xs ys |] [1,2,3,4] 
-    -- timeIOActionPrint "compressSM" $ [g2M| \(ys :: [Int]) -> ?(xs :: [Int]) | compressTest xs ys |] [1,2,3,4] 
+    -- timeIOActionPrint "sumEvensTestSlow" $ [g2| \(x :: Int) -> ?(xs :: [Int]) | sumEvensSlow xs x |] 3
+    -- timeIOActionPrint "sumEvensTestSlowSM" $ [g2M| \(x :: Int) -> ?(xs :: [Int]) | sumEvensSlow xs x |] 3
+
+    -- timeIOActionPrint "compress" $ [g2| \(ys :: [Int]) -> ?(xs :: [Int]) | compressTest xs ys |] [1,2,3]
+    -- timeIOActionPrint "compressSM" $ [g2M| \(ys :: [Int]) -> ?(xs :: [Int]) | compressTest xs ys |] [1,2,3]
 
     -- timeIOActionPrint "compress2" $ [g2| \(a :: Int) -> ?(xs :: [Int]) ?(ys :: [Int]) | compressTest2 a xs ys |] 1
     -- timeIOActionPrint "compress2SM" $ [g2M| \(a :: Int) -> ?(xs :: [Int]) ?(ys :: [Int]) | compressTest2 a xs ys |] 1
+
+    -- timeIOActionPrint "compress3" $ [g2| \(a :: Int) -> ?(xs :: [Int]) | compressTest3 a xs |] 11
+    -- timeIOActionPrint "compress3SM" $ [g2M| \(a :: Int) -> ?(xs :: [Int]) | compressTest3 a xs |] 11
 
     -- timeIOActionPrint "runLengthEncode" $ [g2| \(a :: Int) -> ?(xs :: [Int]) | runLengthEncodeTest a xs |] 4
     -- timeIOActionPrint "runLengthEncodeSM" $ [g2M| \(a :: Int) -> ?(xs :: [Int]) | runLengthEncodeTest a xs |] 4

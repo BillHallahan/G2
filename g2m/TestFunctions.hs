@@ -20,6 +20,14 @@ compressTest xs ys = (compress xs == ys)
 compressTest2 :: (Eq a) => Int -> [a] -> [a] -> Bool
 compressTest2 a xs ys = (compress xs == compress ys) && (length ys > (length xs + a))
 
+-- Slowdown from 17s to 42s with SM enabled, for a = 11
+compressTest3 :: Int -> [Int] -> Bool
+compressTest3 a xs = (compress xs == [1,2,3]) && (length xs > a)
+
+-- Speedup from 58s to 18s with SM enabled, for length xs > a + 8
+compressTest4 :: Int -> [Int] -> Bool
+compressTest4 a xs = (length (compress xs) == a) && (length xs > a + 8)
+
 filter' :: (a -> Bool) -> [a] -> [a]
 filter' pred [] = []
 filter' pred (x:xs)
@@ -29,8 +37,8 @@ filter' pred (x:xs)
 sumEvens :: [Int] -> Int
 sumEvens = sum . filter' (\a -> a `mod` 2 == 0)
 
-sumEvensTestFixed :: [Int] -> Bool
-sumEvensTestFixed xs = length xs > 4 * 2 && sumEvens xs == 4 * 2
+sumEvensTestSlow :: [Int] -> Int -> Bool
+sumEvensTestSlow xs x = length xs > x * 2 && sumEvens xs == 2
 
 -- Improvement from 390s to 16s when merging enabled, with x = 5
 sumEvensTest :: [Int] -> Int -> Bool

@@ -462,5 +462,5 @@ toSymbArgsTuple in_ids cleaned tenv_name = do
 qqConfig :: IO Config
 qqConfig = do
   homedir <- getHomeDirectory
-  -- return $ mkConfig homedir ["--log-states", "../Debugging Output/g2q/sumEvens2"] M.empty
+  -- return $ mkConfig homedir ["--log-states", "../Debugging Output/g2q/sumEvensFullSM"] M.empty
   return $ mkConfig homedir [] M.empty
