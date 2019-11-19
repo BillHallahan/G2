@@ -131,6 +131,7 @@ synthesize ghci lrs meas_ex fc gs n = do
 
         meas = lrsMeasures ghci lrs
 
+    print $ "Synthesize spec for " ++ show n
     new_spec <- refSynth spec e tc meas meas_ex fc_of_n (measureSymbols ghci)
 
     putStrLn $ "spec = " ++ show spec

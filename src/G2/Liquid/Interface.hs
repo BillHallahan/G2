@@ -273,8 +273,6 @@ processLiquidReadyState lrs@(LiquidReadyState { lr_state = lh_state
     let (cfn, (merged_state, bindings')) = runLHStateM (initializeLHSpecs (counterfactual config) ghci ifi lh_bindings) lh_state lh_bindings
         lrs' = lrs { lr_state = merged_state, lr_binding = bindings'}
 
-    print . curr_expr . state . lr_state $ lrs'
-
     lhs <- extractWithoutSpecs lrs' ifi ghci config memconfig
     return $ lhs { ls_counterfactual_name = cfn }
 
