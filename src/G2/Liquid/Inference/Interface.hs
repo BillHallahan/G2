@@ -7,6 +7,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Language.Naming
 import G2.Language.Support
 import G2.Language.Syntax
+import G2.Liquid.AddTyVars
 import G2.Liquid.Inference.FuncConstraint
 import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.PolyRef
@@ -33,7 +34,7 @@ inference config proj fp lhlibs = do
     ghci <- ghcInfos Nothing lhconfig' fp
 
     -- Initialize G2
-    let g2config = config { mode = Liquid, steps = 2000 }
+    let g2config = config { mode = Liquid, steps = 2000, add_tyvars = True }
         transConfig = simplTranslationConfig { simpl = False }
     exg2 <- translateLoaded proj fp lhlibs transConfig g2config
     let simp_s = initSimpleState (snd exg2)
@@ -62,6 +63,8 @@ inference' g2config lhconfig ghci m_modname lrs gs fc = do
 
             res <- mapM (genNewConstraints merged_ghci m_modname lrs g2config) bad'
 
+            putStrLn $ "res = " ++ show res
+
             putStrLn "Before checkNewConstraints"
             new_fc <- checkNewConstraints ghci lrs g2config (concat res)
             putStrLn "After checkNewConstraints"
@@ -73,6 +76,7 @@ inference' g2config lhconfig ghci m_modname lrs gs fc = do
                         fc' = foldr insertFC fc new_fc'
 
                     -- Synthesize
+                    putStrLn $ "fc' = " ++ show fc'
                     putStrLn "Before genMeasureExs"
                     meas_ex <- genMeasureExs lrs merged_ghci g2config fc'
                     putStrLn "After genMeasureExs"
@@ -83,12 +87,13 @@ inference' g2config lhconfig ghci m_modname lrs gs fc = do
 createStateForInference :: SimpleState -> G2.Config -> [GhcInfo] -> LiquidReadyState
 createStateForInference simp_s config ghci =
     let
-        (s, b) = initStateFromSimpleState simp_s True 
+        (simp_s', unused) = if add_tyvars config then addTyVarsEEnvTEnv simp_s else (simp_s, emptyUP)
+        (s, b) = initStateFromSimpleState simp_s' True 
                     (\_ ng _ _ _ _ -> (Prim Undefined TyBottom, [], [], ng))
                     (\_ -> [])
                     config
     in
-    createLiquidReadyState s b ghci
+    createLiquidReadyState s b ghci unused config
 
 
 genNewConstraints :: [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> G2.Config -> T.Text -> IO [CounterExample]

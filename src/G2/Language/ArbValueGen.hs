@@ -154,13 +154,13 @@ getFiniteADT :: TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValue
 getFiniteADT tenv av adt ts =
     let
         (e, av') = getADT tenv av adt ts
-    in
+    in 
     (cutOff [] e, av')
 
 cutOff :: [Name] -> Expr -> Expr
 cutOff ns a@(App _ _)
     | Data (DataCon n _) <- appCenter a =
-        case n `elem` ns of
+        case length (filter (== n) ns) > 3 of
             True -> Prim Undefined TyBottom
             False -> mapArgs (cutOff (n:ns)) a
 cutOff _ e = e

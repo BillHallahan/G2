@@ -177,7 +177,7 @@ initStateFromSimpleState s useAssert mkCurr argTys config =
     let
         ts = argTys s
 
-        (s', ds_walkers) = runInitialization s ts
+        (s', ds_walkers) = runInitialization2 s ts
         eenv' = IT.expr_env s'
         tenv' = IT.type_env s'
         ng' = IT.name_gen s'
@@ -248,14 +248,16 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
         tc = initTypeClasses cls
         kv = initKnownValues eenv tenv tc
         ng = mkNameGen (prog, prog_typ)
+
+        s = IT.SimpleState { IT.expr_env = eenv
+                           , IT.type_env = tenv
+                           , IT.name_gen = ng
+                           , IT.known_values = kv
+                           , IT.type_classes = tc
+                           , IT.rewrite_rules = rs
+                           , IT.exports = es }
     in
-    IT.SimpleState { IT.expr_env = eenv
-                   , IT.type_env = tenv
-                   , IT.name_gen = ng
-                   , IT.known_values = kv
-                   , IT.type_classes = tc
-                   , IT.rewrite_rules = rs
-                   , IT.exports = es }
+    runInitialization1 s
 
 initCheckReaches :: State t -> ModuleName -> Maybe ReachFunc -> State t
 initCheckReaches s@(State { expr_env = eenv
@@ -405,7 +407,7 @@ runG2Pre :: ( Named t
 runG2Pre mem s@(State { known_values = kv, type_classes = tc }) bindings =
     let
         (swept, bindings') = markAndSweepPreserving
-                              ( names (lookupStructEqDicts kv tc)`addSearchNames` mem) s bindings
+                              ( names (lookupStructEqDicts kv tc) `addSearchNames` mem) s bindings
     in
     runPreprocessing swept bindings'
 
@@ -445,6 +447,7 @@ runG2Solving :: ( Named t
 runG2Solving solver simplifier bindings s@(State { known_values = kv })
     | true_assert s = do
         (_, m) <- solve solver s bindings (symbolic_ids s) (path_conds s)
+
         case m of
             Just m' -> do
                 let m'' = reverseSimplification simplifier s bindings m'

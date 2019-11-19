@@ -75,6 +75,8 @@ import qualified Data.Map as M
 import Data.Maybe
 import Data.Semigroup
 
+import Debug.Trace
+
 eqUpToTypes :: Expr -> Expr -> Bool
 eqUpToTypes (Var (Id n _)) (Var (Id n' _)) = n == n'
 eqUpToTypes (Lit l) (Lit l') = l == l'
@@ -214,15 +216,15 @@ modifyAppTop' f e@(App _ _) =
         e' = f e
     in
     modifyAppRHS (modifyAppTop' f) e' 
-modifyAppTop' f e = modifyChildren f e
-
-modifyAppLHS :: (Expr -> Expr) -> Expr -> Expr
-modifyAppLHS f (App e e') = App (f e) (modifyAppLHS f e')
-modifyAppLHS _ e = e
+modifyAppTop' f e = modifyChildren (modifyAppTop' f) e
 
 modifyAppRHS :: (Expr -> Expr) -> Expr -> Expr
 modifyAppRHS f (App e e') = App (modifyAppRHS f e) (f e')
 modifyAppRHS _ e = e
+
+modifyAppLHS :: (Expr -> Expr) -> Expr -> Expr
+modifyAppLHS f (App e e') = App (f e) (modifyAppLHS f e')
+modifyAppLHS _ e = e
 
 modifyLamTop :: ASTContainer m Expr => (Expr -> Expr) -> m -> m
 modifyLamTop f = modifyContainedASTs (modifyLamTop' f)

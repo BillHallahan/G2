@@ -27,6 +27,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , TaggerRed (..)
                             , Logger (..)
                             , LimLogger (..)
+                            , PredicateLogger (..)
 
                             , (<~)
                             , (<~?)
@@ -391,7 +392,7 @@ data LimLogger =
     LimLogger { every_n :: Int -- Output a state every n steps
               , after_n :: Int -- Only begin outputing after passing a certain n
               , down_path :: [Int] -- Output states that have gone down or are going down the given path prefix
-              , output_path :: String
+              , lim_output_path :: String
               }
 
 data LLTracker = LLTracker { ll_count :: Int, ll_offset :: [Int]}
@@ -404,7 +405,7 @@ instance Show t => Reducer LimLogger LLTracker t where
             llt@(LLTracker { ll_count = 0, ll_offset = off }) s b
         | down `L.isPrefixOf` off || off `L.isPrefixOf` down
         , length (rules s) >= aft = do
-            outputState (output_path ll) off s b
+            outputState (lim_output_path ll) off s b
             return (NoProgress, [(s, llt { ll_count = every_n ll })], b, ll)
         | otherwise =
             return (NoProgress, [(s, llt { ll_count = every_n ll })], b, ll)
@@ -414,6 +415,23 @@ instance Show t => Reducer LimLogger LLTracker t where
     updateWithAll _ [(_, l)] = [l]
     updateWithAll _ ss =
         map (\(llt, i) -> llt { ll_offset = ll_offset llt ++ [i] }) $ zip (map snd ss) [1..]
+
+data PredicateLogger = PredicateLogger { pred :: forall t . State t -> Bindings -> Bool
+                                       , pred_output_path :: String }
+
+instance Show t => Reducer PredicateLogger [Int] t where
+    initReducer ll _ = []
+
+    redRules pl@(PredicateLogger p out) ll s b
+        | p s b = do
+            outputState out ll s b
+            return (NoProgress, [(s, ll)], b, pl)
+        | otherwise =
+            return (NoProgress, [(s, ll)], b, pl)
+    
+    updateWithAll _ [(_, l)] = [l]
+    updateWithAll _ ss = map (\(l, i) -> l ++ [i]) $ zip (map snd ss) [1..]
+
 
 outputState :: Show t => String -> [Int] -> State t -> Bindings -> IO ()
 outputState fdn is s b = do

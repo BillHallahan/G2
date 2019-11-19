@@ -20,6 +20,8 @@ import qualified GHC as GHC
 
 import qualified Data.HashMap.Lazy as HM
 
+import Debug.Trace
+
 -- | Creates measures from LH measure specifications.
 -- This is required to find all measures that are written in comments.
 createMeasures :: [Measure SpecType GHC.DataCon] -> LHStateM ()
@@ -117,14 +119,16 @@ convertMeasure bt (M {name = n, sort = srt, eqns = eq}) = do
 convertDefs :: [Type] -> Maybe Type -> LHDictMap -> BoundTypes -> Def SpecType GHC.DataCon -> LHStateM (Maybe Alt)
 convertDefs [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})
     | TyCon _ _ <- tyAppCenter l_t
-    , st_t <- tyAppArgs l_t = do
+    , st_t <- tyAppArgs l_t
+    , dc'@(DataCon n t) <- mkData HM.empty HM.empty dc = do
     tenv <- typeEnv
-    let (DataCon n t) = mkData HM.empty HM.empty dc
-        (TyCon tn _) = tyAppCenter $ returnType $ PresType t
-        dc' = getDataConNameMod tenv tn n
+    let 
+        -- (TyCon tn _) = tyAppCenter $ returnType $ PresType t
+        -- dc' = getDataConNameMod tenv tn n
         
         -- See [1] below, we only evaluate this if Just
-        dc''@(DataCon _ dct) = fromJust dc'
+        -- dc''@(DataCon _ dct) = fromJust dc'
+        dc''@(DataCon _ dct) = fixNamesDC tenv dc'
         bnds = tyForAllBindings $ PresType dct
         dctarg = anonArgumentTypes $ PresType dct
 
@@ -139,10 +143,28 @@ convertDefs [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})
 
     e <- mkExprFromBody ret m (M.union bt $ M.fromList nt) b
     
-    case dc' of
-        Just _ -> return $ Just $ Alt (DataAlt dc'' is) e -- [1]
-        Nothing -> return Nothing
+    return $ Just $ Alt (DataAlt dc'' is) e -- [1]
+    | otherwise = return Nothing
 convertDefs _ _ _ _ _ = error "convertDefs: Unhandled Type List"
+
+fixNamesDC :: TypeEnv -> DataCon -> DataCon
+fixNamesDC tenv (DataCon n t) =
+    let
+        (TyCon tn _) = tyAppCenter $ returnType $ PresType t
+    in
+    case getDataConNameMod tenv tn n of
+        Just (DataCon n _) -> DataCon n (fixNamesType tenv t)
+        Nothing -> error "fixNamesDC: Bad DC"
+
+fixNamesType :: TypeEnv -> Type -> Type
+fixNamesType tenv = modify (fixNamesType' tenv)
+
+fixNamesType' :: TypeEnv -> Type -> Type
+fixNamesType' tenv (TyCon n k) =
+    case getTypeNameMod tenv n of
+        Just n' -> TyCon n' k
+        Nothing -> error "fixNamesType: Bad Type"
+fixNamesType' _ t = t
 
 mkExprFromBody :: Maybe Type -> LHDictMap -> BoundTypes -> Body -> LHStateM Expr
 mkExprFromBody ret m bt (E e) = convertLHExpr (mkDictMaps m) bt ret e

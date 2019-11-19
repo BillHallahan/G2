@@ -38,6 +38,9 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
+import Data.Monoid
+import G2.Language.KnownValues
+
 -------------------------------
 -- Generating Counterexamples
 -------------------------------
@@ -118,6 +121,13 @@ inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
               :<~> AcceptHalter
               :<~> timer_halter)
         , SomeOrderer (IncrAfterN 1000 ADTHeightOrderer))
+
+checkBadTy :: State t -> Bindings -> Bool
+checkBadTy s _ = getAny . evalASTs (checkBadTy' (known_values s)) $ expr_env s
+
+checkBadTy' :: KnownValues -> Expr -> Any
+checkBadTy' kv (Data (DataCon n (TyForAll _ (TyFun _ (TyFun _ _))))) = Any $ n == dcEmpty kv
+checkBadTy' _ _ = Any False
 
 -------------------------------
 -- Checking Counterexamples
@@ -307,7 +317,7 @@ genericG2CallLogging config solver s bindings = do
     let simplifier = ADTSimplifier arbValue
         share = sharing config
 
-    fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier :<~ LimLogger 0 0 [] "aMeasures"))
+    fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier))
                            (SomeHalter SWHNFHalter)
                            (SomeOrderer NextOrderer)
                            solver simplifier emptyMemConfig s bindings

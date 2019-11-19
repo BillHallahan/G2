@@ -64,9 +64,8 @@ refSynth spc e tc meas meas_ex fc meas_sym = do
 
     case res of
         Left _ -> error "refSynth: Bad call to CVC4"
-        Right smt_st -> do -- res' -> do
-            let -- smt_st = parse . lexSygus $ stripUnsat res'
-                lh_st = refToLHExpr spc rp_ns smt_st meas_sym
+        Right smt_st -> do
+            let lh_st = refToLHExpr spc rp_ns smt_st meas_sym
 
             print smt_st
 
@@ -392,7 +391,7 @@ measVal sorts meas_ex e (SortedVar mn _) =
     case HM.lookup e meas_ex of
         Just meas_out
             |Just (_, v) <- find (\(n', _) -> nameOcc meas_n == nameOcc n') meas_out -> exprToTerm sorts meas_ex (typeOf v) v
-        Nothing -> error "measVal: Expr not found"
+        Nothing -> error $ "measVal: Expr not found\nmeas_ex = " ++ show meas_ex ++ "\ne = " ++ show e
 
 newtype TypesToSorts = TypesToSorts { types_to_sorts :: [(Type, SortInfo)] }
                        deriving (Show, Read)
