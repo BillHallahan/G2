@@ -34,6 +34,7 @@ import G2.Config.Config
 import G2.Translation
 import G2.Interface
 import G2.Language as Lang
+import G2.Language.KnownValues as KV
 import qualified G2.Language.ExprEnv as E
 
 import G2.Execution
@@ -67,6 +68,7 @@ import Language.Haskell.Liquid.UX.CmdLine
 import qualified Language.Fixpoint.Types.PrettyPrint as FPP
 
 import Control.Exception
+import Control.Monad.Extra
 import Data.List
 import qualified Data.HashSet as S
 import qualified Data.Map as M
@@ -171,12 +173,12 @@ liquidStateFromSimpleStateWithCall' :: SimpleState
                                     -> (Lang.Expr -> MkArgTypes)
                                     -> IO LiquidData
 liquidStateFromSimpleStateWithCall' simp_s ghci entry mb_m config memconfig mkCurr argTys = do
-    let (simp_s', unused) = if add_tyvars config
-                                  then addTyVarsEEnvTEnv simp_s
-                                  else (simp_s, emptyUP)
+    let (simp_s', ph_tyvars) = if add_tyvars config
+                                  then fmap Just $ addTyVarsEEnvTEnv simp_s
+                                  else (simp_s, Nothing)
         (s, i, bindings') = initStateFromSimpleStateWithCall simp_s' True entry mb_m mkCurr argTys config
     
-    fromLiquidReadyState s i bindings' ghci unused config memconfig
+    fromLiquidReadyState s i bindings' ghci ph_tyvars config memconfig
 
 {-# INLINE liquidStateFromSimpleState #-}
 liquidStateFromSimpleState :: SimpleState
@@ -187,26 +189,26 @@ liquidStateFromSimpleState :: SimpleState
                             -> MkArgTypes
                             -> IO LiquidData
 liquidStateFromSimpleState simp_s ghci config memconfig mkCurr argTys = do
-    let (simp_s', unused) = if add_tyvars config
-                                  then addTyVarsEEnvTEnv simp_s
-                                  else (simp_s, emptyUP)
+    let (simp_s', ph_tyvars) = if add_tyvars config
+                                  then fmap Just $ addTyVarsEEnvTEnv simp_s
+                                  else (simp_s, Nothing)
         (s, bindings') = initStateFromSimpleState simp_s' True mkCurr argTys config
     
-    fromLiquidReadyState s (Id (Name "" Nothing 0 Nothing) TyUnknown) bindings' ghci unused config memconfig
+    fromLiquidReadyState s (Id (Name "" Nothing 0 Nothing) TyUnknown) bindings' ghci ph_tyvars config memconfig
 
 {-# INLINE fromLiquidReadyState #-}
 fromLiquidReadyState :: State ()
                      -> Lang.Id
                      -> Bindings
                      -> [GhcInfo]
-                     -> UnusedPoly
+                     -> Maybe PhantomTyVars
                      -> Config
                      -> MemConfig
                      -> IO LiquidData
-fromLiquidReadyState init_state ifi bindings ghci unused config memconfig = do
+fromLiquidReadyState init_state ifi bindings ghci ph_tyvars config memconfig = do
     let (init_state', bindings') = (markAndSweepPreserving (reqNames init_state `mappend` memconfig) init_state bindings)
         cleaned_state = init_state' { type_env = type_env init_state } 
-    fromLiquidNoCleaning cleaned_state ifi bindings' ghci unused config memconfig
+    fromLiquidNoCleaning cleaned_state ifi bindings' ghci ph_tyvars config memconfig
 
 data LiquidReadyState = LiquidReadyState { lr_state :: LHState
                                          , lr_binding :: Bindings
@@ -234,16 +236,16 @@ fromLiquidNoCleaning :: State ()
                      -> Lang.Id
                      -> Bindings
                      -> [GhcInfo]
-                     -> UnusedPoly
+                     -> Maybe PhantomTyVars
                      -> Config
                      -> MemConfig
                      -> IO LiquidData
-fromLiquidNoCleaning init_state ifi bindings ghci unused config memconfig = do
-    let lrs = createLiquidReadyState init_state bindings ghci unused config
+fromLiquidNoCleaning init_state ifi bindings ghci ph_tyvars config memconfig = do
+    let lrs = createLiquidReadyState init_state bindings ghci ph_tyvars config
     processLiquidReadyState lrs ifi ghci config memconfig
 
-createLiquidReadyState :: State () -> Bindings -> [GhcInfo] -> UnusedPoly -> Config -> LiquidReadyState
-createLiquidReadyState s@(State {expr_env = eenv}) bindings ghci unused config =
+createLiquidReadyState :: State () -> Bindings -> [GhcInfo] -> Maybe PhantomTyVars -> Config -> LiquidReadyState
+createLiquidReadyState s@(State {expr_env = eenv}) bindings ghci ph_tyvars config =
     let
         np_ng = name_gen bindings
 
@@ -256,7 +258,7 @@ createLiquidReadyState s@(State {expr_env = eenv}) bindings ghci unused config =
 
         (lh_state, lh_bindings) = createLHState meenv mkv s' bindings'
 
-        (data_state, data_bindings) = execLHStateM (initializeLHData ghci unused config) lh_state lh_bindings
+        (data_state, data_bindings) = execLHStateM (initializeLHData ghci ph_tyvars config) lh_state lh_bindings
     in
     LiquidReadyState { lr_state = data_state
                      , lr_binding = data_bindings
@@ -337,6 +339,7 @@ processLiquidReadyStateWithCall :: LiquidReadyState -> [GhcInfo] -> T.Text -> Ma
 processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState { state = s })
                                                       , lr_binding = bindings})
                                                                 ghci f m_mod config memconfig = do
+
     let (ie, fe) = case findFunc f m_mod (expr_env s) of
                           Left ie' -> ie'
                           Right errs -> error errs
@@ -445,24 +448,30 @@ lhReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
         , SomeOrderer limOrd)
 
 
-initializeLH :: Counterfactual -> [GhcInfo] -> UnusedPoly -> Lang.Id -> Bindings -> Config -> LHStateM Lang.Name
-initializeLH counter ghcInfos unused ifi bindings config = do
-    initializeLHData ghcInfos unused config
+initializeLH :: Counterfactual -> [GhcInfo] -> Maybe PhantomTyVars -> Lang.Id -> Bindings -> Config -> LHStateM Lang.Name
+initializeLH counter ghcInfos ph_tyvars ifi bindings config = do
+    initializeLHData ghcInfos ph_tyvars config
     initializeLHSpecs counter ghcInfos ifi bindings
 
-initializeLHData :: [GhcInfo] -> UnusedPoly -> Config -> LHStateM ()
-initializeLHData ghcInfos unused config = do
+initializeLHData :: [GhcInfo] -> Maybe PhantomTyVars -> Config -> LHStateM ()
+initializeLHData ghcInfos m_ph_tyvars config = do
     addLHTC
     addOrdToNum
 
-    meenv <- measuresM
     let lh_measures = measureSpecs ghcInfos
+
+    meenv <- measuresM
+    nt <- return . M.fromList =<< mapMaybeM measureTypeMappings lh_measures
+    fil_meenv <- filterMeasures' meenv (M.keys nt)
+
     createMeasures lh_measures
 
-    if add_tyvars config then addTyVarsMeasures unused else return ()
+    case m_ph_tyvars of
+      Just ph_tyvars -> addTyVarsMeasures ph_tyvars
+      Nothing -> return ()
 
     meenv' <- measuresM
-    putMeasuresM (meenv `E.union` meenv')
+    putMeasuresM (fil_meenv `E.union` meenv')
 
 initializeLHSpecs :: Counterfactual -> [GhcInfo] -> Lang.Id -> Bindings -> LHStateM Lang.Name
 initializeLHSpecs counter ghcInfos ifi bindings = do
@@ -488,6 +497,7 @@ initializeLHSpecs counter ghcInfos ifi bindings = do
 
 reqNames :: State t -> MemConfig
 reqNames (State { expr_env = eenv
+                , type_env = tenv
                 , type_classes = tc
                 , known_values = kv}) =
     let ns = Lang.names
@@ -510,6 +520,9 @@ reqNames (State { expr_env = eenv
                    , mkIff eenv
                    , mkFromInteger eenv
                    -- , mkToInteger eenv
+
+                   , mkJust kv tenv
+                   , mkNothing kv tenv
                    ]
           ++
           Lang.names 

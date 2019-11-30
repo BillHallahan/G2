@@ -18,6 +18,9 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , mkDCChar
                         , mkCons
                         , mkEmpty
+                        , mkJust
+                        , mkNothing
+
                         , mkIdentity
                         , mkEqIntExpr
                         , mkGeIntExpr
@@ -40,6 +43,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , mapArgs
                         , mkLams
                         , elimAsserts
+                        , assertsToAssumes
                         , leadingLamUsesIds
                         , leadingLamIds
                         , insertInLams
@@ -148,6 +152,12 @@ mkCons kv tenv = Data . fromJust $ getDataCon tenv (KV.tyList kv) (KV.dcCons kv)
 
 mkEmpty :: KnownValues -> TypeEnv -> Expr
 mkEmpty kv tenv = Data . fromJust $ getDataCon tenv (KV.tyList kv) (KV.dcEmpty kv)
+
+mkJust :: KnownValues -> TypeEnv -> Expr
+mkJust kv tenv = Data . fromJust $ getDataCon tenv (KV.tyMaybe kv) (KV.dcJust kv)
+
+mkNothing :: KnownValues -> TypeEnv -> Expr
+mkNothing kv tenv = Data . fromJust $ getDataCon tenv (KV.tyMaybe kv) (KV.dcNothing kv)
 
 mkIdentity :: Type -> Expr
 mkIdentity t =
@@ -269,6 +279,13 @@ elimAsserts = modifyASTs elimAsserts'
 elimAsserts' :: Expr -> Expr
 elimAsserts' (Assert _ _ e) = e
 elimAsserts' e = e
+
+assertsToAssumes :: ASTContainer m Expr => m -> m
+assertsToAssumes = modifyASTs assertsToAssumes'
+
+assertsToAssumes' :: Expr -> Expr
+assertsToAssumes' (Assert fc e e') = Assume fc e e'
+assertsToAssumes' e = e
 
 -- Runs the given function f on the expression nested in the lambdas, and
 -- rewraps the new expression with the Lambdas

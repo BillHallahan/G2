@@ -18,6 +18,7 @@ import G2.Solver
 import G2.Lib.Printers
 
 import Control.Monad
+import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
@@ -32,19 +33,25 @@ import Data.Monoid
 
 -- The result of a call to checkAbstracted'.  Either the function does not need
 -- to be abstract, or we get the actual result of executing the function call. 
-data AbstractedRes = AbstractRes Abstracted
+data AbstractedRes = AbstractRes Abstracted Model
                    | NotAbstractRes
 
 toAbstracted :: AbstractedRes -> Maybe Abstracted
-toAbstracted (AbstractRes a) = Just a
+toAbstracted (AbstractRes a _) = Just a
 toAbstracted _ = Nothing
+
+toModel :: AbstractedRes -> Maybe Model
+toModel (AbstractRes _ m) = Just m
+toModel _ = Nothing
 
 checkAbstracted :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Config -> Bindings -> ExecRes LHTracker -> IO (ExecRes [Abstracted])
 checkAbstracted solver simplifier config bindings er@(ExecRes{ final_state = s@State { track = lht }}) = do
     let check = checkAbstracted' solver simplifier (sharing config) s bindings
-    abstracted' <- return . mapMaybe toAbstracted =<< mapM check (abstract_calls lht)
+    abstractedR <- mapM check (abstract_calls lht)
+    let abstracted' = mapMaybe toAbstracted $ abstractedR
+        models = mapMaybe toModel $ abstractedR
 
-    return $ er { final_state = s {track = abstracted' }}
+    return $ er { final_state = s {track = abstracted', model = foldr HM.union (model s) models }}
 
 checkAbstracted' :: (Solver solver, Simplifier simplifier)
                  => solver
@@ -62,7 +69,7 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
             ds = deepseq_walkers bindings
             strict_call = maybe e' (fillLHDictArgs ds) $ mkStrict_maybe ds e'
 
-        let s' = elimAsserts . pickHead $
+        let s' = assertsToAssumes . pickHead $
                    s { expr_env = model s `E.union'` expr_env s
                      , curr_expr = CurrExpr Evaluate strict_call}
 
@@ -71,20 +78,18 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
                         (SomeHalter SWHNFHalter)
                         (SomeOrderer NextOrderer)
                         solver simplifier emptyMemConfig s' bindings
+        mapM_ (print . model . final_state) er
         case er of
             [ExecRes
                 {
-                    final_state = (State { curr_expr = CurrExpr _ ce})
+                    final_state = (State { curr_expr = CurrExpr _ ce, model = m})
                 }] -> case not $ ce `eqUpToTypes` r of
                         True ->
                             return $ AbstractRes 
                                         ( Abstracted { abstract = abs_fc
                                                      , real = abs_fc { returns = ce } }
-                                        )
-                        False -> do
-                          print ce
-                          print r
-                          return NotAbstractRes
+                                        ) m
+                        False -> return NotAbstractRes
             _ -> error $ "checkAbstracted': Bad return from runG2WithSomes"
     | otherwise = error $ "checkAbstracted': Bad lookup in runG2WithSomes"
 

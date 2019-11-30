@@ -12,6 +12,8 @@ module G2.Language.Typing
     , tyDouble
     , tyFloat
     , tyBool
+    , tyList
+    , tyMaybe
     , mkTyApp
     , mkTyFun
     , tyAppCenter
@@ -82,6 +84,12 @@ tyFloat kv = TyCon (KV.tyFloat kv) (tyTYPE kv)
 
 tyBool :: KV.KnownValues -> Type
 tyBool kv = TyCon (KV.tyBool kv) (tyTYPE kv)
+
+tyList :: KV.KnownValues -> Type
+tyList kv = TyCon (KV.tyList kv) (TyFun TYPE TYPE)
+
+tyMaybe :: KV.KnownValues -> Type
+tyMaybe kv = TyCon (KV.tyMaybe kv) (TyFun TYPE TYPE)
 
 tyTYPE :: KV.KnownValues -> Type
 tyTYPE _ = TYPE

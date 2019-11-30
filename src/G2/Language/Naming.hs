@@ -532,6 +532,10 @@ instance Named KnownValues where
             , dcCons = tCons
             , dcEmpty = tEmp
 
+            , tyMaybe = tMaybe
+            , dcJust = dJust
+            , dcNothing = dNothing
+
             , eqTC = eqT
             , numTC = numT
             , ordTC = ordT
@@ -572,7 +576,9 @@ instance Named KnownValues where
 
             , patErrorFunc = patE
             }) =
-            [dI, dF, dD, dI2, dcCh, tI, tI2, tF, tD, tCh, tB, dcT, dcF, tList, tCons, tEmp
+            [dI, dF, dD, dI2, dcCh, tI, tI2, tF, tD, tCh, tB, dcT, dcF
+            , tList, tCons, tEmp
+            , tMaybe, dJust, dNothing
             , eqT, numT, ordT, integralT, realT, fractionalT
             , integralEReal, realENum
             , eqF, neqF, plF, minusF, tmsF, divF, negF, modF
@@ -601,6 +607,10 @@ instance Named KnownValues where
                    , tyList = tList
                    , dcCons = tCons
                    , dcEmpty = tEmp
+
+                   , tyMaybe = tMaybe
+                   , dcJust = dJust
+                   , dcNothing = dNothing
 
                    , eqTC = eqT
                    , numTC = numT
@@ -658,9 +668,14 @@ instance Named KnownValues where
                         , tyBool = rename old new tB
                         , dcTrue = rename old new dcT
                         , dcFalse = rename old new dcF
+                        
                         , tyList = rename old new tList
                         , dcCons = rename old new tCons
                         , dcEmpty = rename old new tEmp
+
+                        , tyMaybe = rename old new tMaybe
+                        , dcJust = rename old new dJust
+                        , dcNothing = rename old new dNothing
 
                         , eqTC = rename old new eqT
                         , numTC = rename old new numT

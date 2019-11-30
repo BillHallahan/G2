@@ -33,6 +33,10 @@ data KnownValues = KnownValues {
                  , dcCons :: Name
                  , dcEmpty :: Name
 
+                 , tyMaybe :: Name
+                 , dcJust :: Name
+                 , dcNothing :: Name
+
                  -- Typeclasses
                  , eqTC :: Name
                  , numTC :: Name

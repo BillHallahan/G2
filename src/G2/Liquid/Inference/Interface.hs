@@ -67,7 +67,8 @@ inference' g2config lhconfig ghci m_modname lrs gs fc = do
 
             putStrLn "Before checkNewConstraints"
             new_fc <- checkNewConstraints ghci lrs g2config (concat res)
-            putStrLn "After checkNewConstraints"
+            putStrLn $ "After checkNewConstraints" ++ "\nlength res = " ++ show (length (concat res))
+                            ++ "\nlength new_fc = " ++ show (length new_fc)
             case new_fc of
                 Left ce -> return . Left $ ce
                 Right new_fc' -> do
@@ -76,7 +77,8 @@ inference' g2config lhconfig ghci m_modname lrs gs fc = do
                         fc' = foldr insertFC fc new_fc'
 
                     -- Synthesize
-                    putStrLn $ "fc' = " ++ show fc'
+                    -- putStrLn $ "fc' = " ++ show fc'
+                    putStrLn $ "new_fc_funcs = " ++ show new_fc_funcs
                     putStrLn "Before genMeasureExs"
                     meas_ex <- genMeasureExs lrs merged_ghci g2config fc'
                     putStrLn "After genMeasureExs"
@@ -87,13 +89,15 @@ inference' g2config lhconfig ghci m_modname lrs gs fc = do
 createStateForInference :: SimpleState -> G2.Config -> [GhcInfo] -> LiquidReadyState
 createStateForInference simp_s config ghci =
     let
-        (simp_s', unused) = if add_tyvars config then addTyVarsEEnvTEnv simp_s else (simp_s, emptyUP)
+        (simp_s', ph_tyvars) = if add_tyvars config
+                                then fmap Just $ addTyVarsEEnvTEnv simp_s
+                                else (simp_s, Nothing)
         (s, b) = initStateFromSimpleState simp_s' True 
                     (\_ ng _ _ _ _ -> (Prim Undefined TyBottom, [], [], ng))
                     (\_ -> [])
                     config
     in
-    createLiquidReadyState s b ghci unused config
+    createLiquidReadyState s b ghci ph_tyvars config
 
 
 genNewConstraints :: [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> G2.Config -> T.Text -> IO [CounterExample]

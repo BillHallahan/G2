@@ -317,7 +317,7 @@ genericG2CallLogging config solver s bindings = do
     let simplifier = ADTSimplifier arbValue
         share = sharing config
 
-    fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier))
+    fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier :<~ Logger "check"))
                            (SomeHalter SWHNFHalter)
                            (SomeOrderer NextOrderer)
                            solver simplifier emptyMemConfig s bindings

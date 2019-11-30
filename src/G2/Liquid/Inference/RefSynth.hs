@@ -249,7 +249,7 @@ exprToDTTerm sorts meas_ex t e =
             | not . null $ meas_names si ->
                 TermCall (ISymb (dt_name si)) $ map (measVal sorts meas_ex e) (meas_names si)
             | otherwise -> TermIdent (ISymb (dt_name si))
-        Nothing -> error $ "exprToDTTerm: No sort found" ++ "\nsorts = " ++ show sorts ++ "\nt = " ++ show t
+        Nothing -> error $ "exprToDTTerm: No sort found" ++ "\nsorts = " ++ show sorts ++ "\nt = " ++ show t ++ "\ne = " ++ show e
 
 type ArgTys = [Type]
 type RetType = Type
@@ -687,8 +687,9 @@ runCVC4StreamSolutions grouped sygus =
                 -- We call hFlush to prevent hPutStr from buffering
                 hFlush h
 
+                -- --no-sygus-fair-max searches for functions that minimize the sum of the sizes of all functions
                 (inp, outp, errp, _) <- P.runInteractiveCommand
-                                            $ "cvc4 " ++ fp ++ " --lang=sygus2 --sygus-stream"
+                                            $ "cvc4 " ++ fp ++ " --lang=sygus2 --no-sygus-fair-max --sygus-stream"
 
                 lnes <- checkIfSolution grouped outp
 

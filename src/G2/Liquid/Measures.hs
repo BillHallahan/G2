@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
-module G2.Liquid.Measures (Measures, createMeasures) where
+module G2.Liquid.Measures (Measures, createMeasures, filterMeasures', measureTypeMappings) where
 
 import G2.Language
 import qualified  G2.Language.ExprEnv as E
@@ -29,13 +29,7 @@ createMeasures meas = do
     nt <- return . M.fromList =<< mapMaybeM measureTypeMappings meas
     meas' <- mapMaybeM (convertMeasure nt) =<< filterM allTypesKnown meas
     
-
-    -- We remove any names covered by the Measures found by LH from the Measures we already have
-    -- to prevent using the wrong measures later
-    pre_meenv <- measuresM
-    let ns = map (\(Name n m _ _) -> (n, m)) $ M.keys nt
-        fil_meenv = E.filterWithKey (\(Name n m _ _) _ -> (n, m) `notElem` ns) pre_meenv
-    putMeasuresM fil_meenv
+    filterMeasures (M.keys nt)
 
     meenv <- measuresM
     let eenvk = E.keys meenv
@@ -45,6 +39,20 @@ createMeasures meas = do
     _ <- doRenamesN mvNames meenv'
 
     return ()
+
+-- | We remove any names covered by the Measures found by LH from the Measures we already have
+-- to prevent using the wrong measures later
+filterMeasures :: [Name] -> LHStateM ()
+filterMeasures nt = do
+    pre_meenv <- measuresM
+    fil_meenv <- filterMeasures' pre_meenv nt
+    putMeasuresM fil_meenv
+
+filterMeasures' :: Measures -> [Name] -> LHStateM Measures
+filterMeasures' pre_meenv nt = do
+    let ns = map (\(Name n m _ _) -> (n, m)) nt
+        fil_meenv = E.filterWithKey (\(Name n m _ _) _ -> (n, m) `notElem` ns) pre_meenv
+    return fil_meenv
 
 allTypesKnown :: Measure SpecType GHC.DataCon -> LHStateM Bool
 #if MIN_VERSION_liquidhaskell(0,8,6)

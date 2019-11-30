@@ -4,11 +4,11 @@
 module G2.Liquid.AddTyVars ( addTyVarsEEnvTEnv
                            , addTyVarsMeasures
 
-                           , UnusedPoly
-                           , emptyUP) where
+                           , PhantomTyVars) where
 
 import G2.Initialization.Types
-import G2.Language hiding (State (..))
+import G2.Language hiding (State (..), Bindings (..))
+import qualified G2.Language.KnownValues as KV
 import G2.Liquid.Types
 
 import qualified Data.HashMap.Lazy as HM
@@ -19,20 +19,30 @@ import Data.Text as T (pack)
 
 import Debug.Trace
 
-addTyVarsEEnvTEnv :: SimpleState -> (SimpleState, UnusedPoly)
-addTyVarsEEnvTEnv s@(SimpleState { expr_env = eenv, type_env = tenv}) =
+addTyVarsEEnvTEnv :: SimpleState -> (SimpleState, PhantomTyVars)
+addTyVarsEEnvTEnv s@(SimpleState { expr_env = eenv
+                                 , type_env = tenv
+                                 , known_values = kv
+                                 , name_gen = ng }) =
     let
+        (new_mjn, ng') = mkNewMaybe kv ng
+
         unused_poly = getUnusedPoly tenv
 
-        eenv' = addTyVarsExpr unused_poly eenv
-        tenv' = addTyVarsTypeEnv unused_poly tenv
-    in
-    (s { expr_env = eenv', type_env = tenv' }, unused_poly)
+        eenv' = addTyVarsExpr unused_poly new_mjn eenv
+        tenv' = addTyVarsTypeEnv unused_poly new_mjn tenv
 
-addTyVarsMeasures :: UnusedPoly -> LHStateM ()
-addTyVarsMeasures unused_poly = do
+        tenv'' = addNewMaybe new_mjn tenv'
+    in
+    (s { expr_env = eenv', type_env = tenv'', name_gen = ng' }
+       , PhantomTyVars { ph_new_maybe = new_mjn, ph_unused_poly = unused_poly })
+
+addTyVarsMeasures :: PhantomTyVars -> LHStateM ()
+addTyVarsMeasures PhantomTyVars { ph_new_maybe = new_mb, ph_unused_poly = unused_poly } = do
     meenv <- measuresM
-    putMeasuresM (addTyVarsExpr unused_poly meenv)
+    kv <- knownValues
+    tenv <- typeEnv
+    putMeasuresM (addTyVarsExpr unused_poly new_mb meenv)
 
 -- | Identifies data constructors with unused polymorphic arguments
 getUnusedPoly :: TypeEnv -> UnusedPoly 
@@ -73,46 +83,57 @@ getTypeInds is t =
 -------------------------------
 -- Adjust TypeEnv
 -------------------------------
-addTyVarsTypeEnv :: UnusedPoly -> TypeEnv -> TypeEnv
-addTyVarsTypeEnv unused = M.map (addTyVarADT unused) 
+addTyVarsTypeEnv :: UnusedPoly -> NewMaybe -> TypeEnv -> TypeEnv
+addTyVarsTypeEnv unused new_mb = M.map (addTyVarADT unused new_mb) 
 
-addTyVarADT :: UnusedPoly -> AlgDataTy -> AlgDataTy
-addTyVarADT unused dtc@(DataTyCon { data_cons = dcs }) =
-    dtc { data_cons = map (addTyVarDC unused) dcs }
-addTyVarADT _ adt = adt
+addTyVarADT :: UnusedPoly -> NewMaybe -> AlgDataTy -> AlgDataTy
+addTyVarADT unused new_mb dtc@(DataTyCon { data_cons = dcs }) =
+    dtc { data_cons = map (addTyVarDC unused new_mb) dcs }
+addTyVarADT _ _ adt = adt
+
+addNewMaybe :: NewMaybe -> TypeEnv -> TypeEnv
+addNewMaybe new_mb@(NewMaybe { new_maybe = new_mb_t }) tenv =
+    let
+        dtc = DataTyCon { bound_ids = [Id (new_maybe_bound new_mb) TYPE]
+                        , data_cons = [mkNewJustDC new_mb, mkNewNothingDC new_mb] }
+    in
+    M.insert new_mb_t dtc tenv
 
 -------------------------------
 -- Adjust Expr
 -------------------------------
-addTyVarsExpr :: ASTContainer m Expr => UnusedPoly -> m -> m
-addTyVarsExpr unused =
-    modifyASTs (addTyVarsExprCase unused) . addTyVarsExprDC unused
+addTyVarsExpr :: ASTContainer m Expr => UnusedPoly -> NewMaybe -> m -> m
+addTyVarsExpr unused new_mb =
+    modifyASTs (addTyVarsExprCase unused new_mb) . addTyVarsExprDC unused new_mb
 
-addTyVarsExprDC :: ASTContainer m Expr => UnusedPoly -> m -> m
-addTyVarsExprDC unused = modifyAppTop (addTyVarsExprDC' unused)
+addTyVarsExprDC :: ASTContainer m Expr => UnusedPoly -> NewMaybe -> m -> m
+addTyVarsExprDC unused new_mb = modifyAppTop (addTyVarsExprDC' unused new_mb)
 
-addTyVarsExprDC' :: UnusedPoly -> Expr -> Expr
-addTyVarsExprDC' unused e
+addTyVarsExprDC' :: UnusedPoly -> NewMaybe -> Expr -> Expr
+addTyVarsExprDC' unused new_mb e
     | Data dc@(DataCon n _):ars <- unApp e
     , Just is <- lookupUP n unused =
         let
             (ty_ars, expr_ars) = partition (isTypeExpr) ars
 
+            bnds = map (\(Type t, i) -> Id (Name "bind_for_sym" Nothing i Nothing) t) $ zip ars is
             sym_gens = map (\(Type t) -> SymGen t) $ map (ars !!) is
+            let_e = Let (zip bnds sym_gens) 
+            -- nothings = map (\(Type t) -> mkNewNothing new_mb) $ map (ars !!) is
         in
-        mkApp $ Data (addTyVarDC unused dc):ty_ars ++ sym_gens ++ expr_ars
+        let_e . mkApp $ Data (addTyVarDC unused new_mb dc):ty_ars ++ map Var bnds ++ expr_ars
     | otherwise = e
 
-addTyVarsExprCase :: UnusedPoly -> Expr -> Expr
-addTyVarsExprCase unused (Case e i as) =
-    Case e i $ map (addTyVarsAlt unused e) as
-addTyVarsExprCase _ e = e
+addTyVarsExprCase :: UnusedPoly -> NewMaybe -> Expr -> Expr
+addTyVarsExprCase unused new_mb (Case e i as) =
+    Case e i $ map (addTyVarsAlt unused new_mb e) as
+addTyVarsExprCase _ _ e = e
 
-addTyVarsAlt :: UnusedPoly -> Expr -> Alt -> Alt
-addTyVarsAlt unused case_e alt@(Alt (DataAlt dc@(DataCon n t) is) alt_e)
+addTyVarsAlt :: UnusedPoly -> NewMaybe -> Expr -> Alt -> Alt
+addTyVarsAlt unused new_mb case_e alt@(Alt (DataAlt dc@(DataCon n t) is) alt_e)
     | Just i <- lookupUP n unused = 
         let
-            dc' = addTyVarDC unused dc
+            dc' = addTyVarDC unused new_mb dc
 
             ty_binds = reverse . unTyApp $ typeOf case_e
 
@@ -123,18 +144,18 @@ addTyVarsAlt unused case_e alt@(Alt (DataAlt dc@(DataCon n t) is) alt_e)
             is' = new_is ++ is
         in
         Alt (DataAlt dc' is') alt_e
-addTyVarsAlt _ _ alt = alt
+addTyVarsAlt _ _ _ alt = alt
 
 -------------------------------
 -- Generic
 -------------------------------
-addTyVarDC :: UnusedPoly -> DataCon -> DataCon
-addTyVarDC unused dc@(DataCon n t)
-    | Just is <- lookupUP n unused = DataCon n (addTyVarsToType is t)
+addTyVarDC :: UnusedPoly -> NewMaybe -> DataCon -> DataCon
+addTyVarDC unused new_mb dc@(DataCon n t)
+    | Just is <- lookupUP n unused = DataCon n (addTyVarsToType new_mb is t)
     | otherwise = dc
 
-addTyVarsToType :: [Int] -> Type -> Type
-addTyVarsToType i t =
+addTyVarsToType :: NewMaybe -> [Int] -> Type -> Type
+addTyVarsToType new_mb i t =
     let
         ty_binds = leadingTyForAllBindings (PresType t)
         is = map (ty_binds !!) i
@@ -146,7 +167,67 @@ isTypeExpr (Type _) = True
 isTypeExpr _ = False
 
 -------------------------------
--- PolyUnused
+-- Added TyVar
+-------------------------------
+
+data PhantomTyVars = PhantomTyVars { ph_new_maybe :: NewMaybe, ph_unused_poly :: UnusedPoly }
+
+-------------------------------
+-- New Maybe
+-------------------------------
+data NewMaybe = NewMaybe { new_maybe :: Name
+
+                         , new_maybe_bound :: Name
+                         , new_just :: Name
+                         , new_nothing :: Name }
+
+mkNewMaybe :: KnownValues -> NameGen -> (NewMaybe, NameGen)
+mkNewMaybe kv ng =
+    let
+        ((n_m, n_j, n_n), ng') = renameAll ( Name "NewMaybe" Nothing 0 Nothing
+                                           , Name "NewJust" Nothing 0 Nothing
+                                           , Name "NewNothing" Nothing 0 Nothing) ng
+        bnd = Name "a_NEW_MAYBE" Nothing 0 Nothing
+    in
+    (NewMaybe { new_maybe = n_m, new_maybe_bound = bnd, new_just = n_j, new_nothing = n_n }, ng')
+
+mkNewMaybeTy :: NewMaybe -> Type
+mkNewMaybeTy new_mb = TyCon (new_maybe new_mb) (TyFun TYPE TYPE)
+
+mkNewJust :: NewMaybe -> Expr
+mkNewJust = Data . mkNewJustDC
+
+mkNewJustDC :: NewMaybe -> DataCon
+mkNewJustDC new_mb =
+    let
+        n = new_just new_mb
+
+        a = new_maybe_bound new_mb
+        tya = TyVar (Id a TYPE)
+        t = TyForAll (NamedTyBndr (Id a TYPE))
+          . TyFun tya
+          $ TyApp (TyCon (new_maybe new_mb) TYPE) tya
+    in
+    DataCon n t
+
+
+mkNewNothing :: NewMaybe -> Expr
+mkNewNothing = Data . mkNewNothingDC
+
+mkNewNothingDC :: NewMaybe -> DataCon
+mkNewNothingDC new_mb =
+    let
+        n = new_nothing new_mb
+
+        a = new_maybe_bound new_mb
+        tya = TyVar (Id a TYPE)
+        t = TyForAll (NamedTyBndr (Id a TYPE))
+          $ TyApp (TyCon (new_maybe new_mb) TYPE) tya
+    in
+    DataCon n t
+
+-------------------------------
+-- UnusedPoly
 -------------------------------
 newtype UnusedPoly = UnusedPoly (HM.HashMap Name [Int])
                      deriving (Show, Read)
