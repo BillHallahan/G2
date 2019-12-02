@@ -26,6 +26,8 @@ module G2.Execution.Reducer ( Reducer (..)
                             , NonRedPCRed (..)
                             , TaggerRed (..)
                             , Logger (..)
+                            , LimLogger (..)
+                            , PredicateLogger (..)
 
                             , (<~)
                             , (<~?)
@@ -400,19 +402,64 @@ instance Reducer Logger [Int] t where
     initReducer _ _ = []
 
     redRules l@(Logger fn) li s b = do
-        outputState fn li s b
+        outputState fn li s b pprExecStateStr
         return (NoProgress, [(s, li)], b, l)
     
     updateWithAll _ [(_, l)] = [l]
     updateWithAll _ ss = map (\(l, i) -> l ++ [i]) $ zip (map snd ss) [1..]
 
-outputState :: String -> [Int] -> State t -> Bindings -> IO ()
-outputState fdn is s b = do
+-- | A Reducer to producer limited logging output.
+data LimLogger =
+    LimLogger { every_n :: Int -- Output a state every n steps
+              , after_n :: Int -- Only begin outputing after passing a certain n
+              , down_path :: [Int] -- Output states that have gone down or are going down the given path prefix
+              , lim_output_path :: String
+              }
+
+data LLTracker = LLTracker { ll_count :: Int, ll_offset :: [Int]}
+
+instance Show t => Reducer LimLogger LLTracker t where
+    initReducer ll _ =
+        LLTracker { ll_count = every_n ll, ll_offset = []}
+
+    redRules ll@(LimLogger { after_n = aft, down_path = down })
+            llt@(LLTracker { ll_count = 0, ll_offset = off }) s b
+        | down `L.isPrefixOf` off || off `L.isPrefixOf` down
+        , length (rules s) >= aft = do
+            outputState (lim_output_path ll) off s b pprExecStateStr
+            return (NoProgress, [(s, llt { ll_count = every_n ll })], b, ll)
+        | otherwise =
+            return (NoProgress, [(s, llt { ll_count = every_n ll })], b, ll)
+    redRules ll llt@(LLTracker {ll_count = n}) s b =
+        return (NoProgress, [(s, llt { ll_count = n - 1 })], b, ll)
+
+    updateWithAll _ [(_, l)] = [l]
+    updateWithAll _ ss =
+        map (\(llt, i) -> llt { ll_offset = ll_offset llt ++ [i] }) $ zip (map snd ss) [1..]
+
+data PredicateLogger = PredicateLogger { pred :: forall t . State t -> Bindings -> Bool
+                                       , pred_output_path :: String }
+
+instance Show t => Reducer PredicateLogger [Int] t where
+    initReducer _ _ = []
+
+    redRules pl@(PredicateLogger p out) ll s b
+        | p s b = do
+            outputState out ll s b pprExecStateStr
+            return (NoProgress, [(s, ll)], b, pl)
+        | otherwise =
+            return (NoProgress, [(s, ll)], b, pl)
+
+    updateWithAll _ [(_, l)] = [l]
+    updateWithAll _ ss = map (\(l, i) -> l ++ [i]) $ zip (map snd ss) [1..]
+
+outputState :: String -> [Int] -> State t -> Bindings -> (State t -> Bindings -> String) -> IO ()
+outputState fdn is s b printer = do
     let dir = fdn ++ "/" ++ foldl' (\str i -> str ++ show i ++ "/") "" is
     createDirectoryIfMissing True dir
 
     let fn = dir ++ "state" ++ show (length $ rules s) ++ ".txt"
-    let write = pprExecStateStr s b
+    let write = printer s b
     writeFile fn write
 
     putStrLn fn

@@ -9,6 +9,7 @@ module G2.Lib.Printers ( mkCleanExprHaskell
                        , ppPathConds
                        , ppPathCond
                        , pprExecStateStr
+                       , pprExecStateCoreStr
                        , pprExecEEnvStr) where
 
 import G2.Execution.Memory
@@ -302,6 +303,29 @@ pprExecStateStr ex_state b = injNewLine acc_strs
                , model_str
                , "----- [Rules] -------------------"
                , rules_str
+               , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
+               ]
+
+-- | Dump of specific fields in state.
+pprExecStateCoreStr :: State t -> Bindings -> String
+pprExecStateCoreStr ex_state b = injNewLine acc_strs
+  where
+    estk_str = pprExecStackStr (exec_stack ex_state)
+    code_str = pprExecCodeStr (curr_expr ex_state)
+    in_names_str = show (input_names b)
+    symb_ids_str = pprSymbolicIdsStr (symbolic_ids ex_state)
+    model_str = pprModelStr (model ex_state)
+    acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
+               , "----- [Code] ----------------------"
+               , code_str
+               , "----- [Stack] ---------------------"
+               , estk_str
+               , "----- [Input Names] -----------------"
+               , in_names_str
+               , "----- [Symbolic Ids] -----------------"
+               , symb_ids_str
+               , "----- [Model] -------------------"
+               , model_str
                , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
                ]
 
