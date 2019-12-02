@@ -20,11 +20,9 @@ compressTest xs ys = (compress xs == ys)
 compressTest2 :: (Eq a) => Int -> [a] -> [a] -> Bool
 compressTest2 a xs ys = (compress xs == compress ys) && (length ys > (length xs + a))
 
--- Slowdown from 17s to 42s with SM enabled, for a = 11
 compressTest3 :: Int -> [Int] -> Bool
 compressTest3 a xs = (compress xs == [1,2,3]) && (length xs > a)
 
--- Speedup from 58s to 18s with SM enabled, for length xs > a + 8
 compressTest4 :: Int -> [Int] -> Bool
 compressTest4 a xs = (length (compress xs) == a) && (length xs > a + 8)
 
@@ -40,7 +38,6 @@ sumEvens = sum . filter' (\a -> a `mod` 2 == 0)
 sumEvensTestSlow :: [Int] -> Int -> Bool
 sumEvensTestSlow xs x = length xs > x * 2 && sumEvens xs == 2
 
--- Improvement from 390s to 16s when merging enabled, with x = 5
 sumEvensTest :: [Int] -> Int -> Bool
 sumEvensTest xs x =  sumEvens xs == 2 && length xs > x * 2
 
@@ -51,7 +48,6 @@ isSubsequenceOf' a@(x:a') (y:b)
     | x == y    = isSubsequenceOf' a' b
     | otherwise = isSubsequenceOf' a b
 
--- Improvement from 7s to 0.59s with merging, for a = [1,2,1,3]
 subseqOfTest :: [Int] -> [Int] -> Bool
 subseqOfTest a b = (isSubsequenceOf' a b) && (length b > 8)
 
@@ -64,11 +60,9 @@ keepJust a b = case a of
     Just x -> (b + 1)
     Nothing -> b
 
--- Improvement from 7.4s to 5.6s with merging enabled
 foldrTest :: Int -> [Maybe Int] -> Bool
 foldrTest z xs = ((foldrSimple keepJust z xs) > 3) && (length xs > 7)
 
--- Improvement from 22s to 3s with merging enabled
 foldrTest2 :: Int -> [Maybe Int] -> [Maybe Int] -> Bool
 foldrTest2 z xs ys = ((foldrSimple keepJust z xs) + (foldrSimple keepJust z ys)) > 9
 
@@ -106,7 +100,6 @@ divide num divisor quotient =
         then divide rem divisor (quotient + 1)
         else quotient
 
--- Improvement from 36s to 8s with merging enabled
 divideTest :: Int -> Int -> Int -> Int -> Bool
 divideTest numA numB divisorA divisorB =
     let quotA = (divide numA divisorA 0)
@@ -126,7 +119,6 @@ greaterThanNot10Less :: Int -> Int -> Bool
 greaterThanNot10Less x y = z > 100 && y /= z - 10
     where z = mccarthy x
 
--- | improvement from 15s to <1s with state merging enabled
 validateLuhn :: Int -> [Int] -> Bool
 validateLuhn a idn = validLength && val `mod` 10 == 0
    where 
@@ -136,7 +128,6 @@ validateLuhn a idn = validLength && val `mod` 10 == 0
     doubleEven n x | n `mod` 2 == 1 = let dbl = 2*x in if (dbl > 9) then dbl - 9 else dbl
                    | otherwise = x
 
--- | Slower with state merging enabled. Able to find xs that satisfies predicate quickly with SM enabled when using G2 executable
 runLengthEncodeTest :: (Eq a) => Int -> [a] -> Bool
 runLengthEncodeTest a xs = (length $ runLengthEncode xs) + a < (length xs)
 
@@ -144,7 +135,6 @@ runLengthEncode :: (Eq a) => [a] -> [(Int, a)]
 runLengthEncode [] = []
 runLengthEncode (x:xs) = (length $ x : takeWhile (==x) xs, x) : runLengthEncode (dropWhile (==x) xs)
 
--- | Slightly slower with state merging enabled. 1s -> 13s with len = 15
 reverseTest :: Int -> [Int] -> Bool
 reverseTest len a = ((reverse' a) == a) && (length a > len)
 
@@ -159,7 +149,6 @@ range' lo hi
     | lo <= hi = lo : range' (lo + 1) hi
     | otherwise = []
 
--- | Much slower with state merging enabled
 rangeAssert :: Int -> Int -> Bool
 rangeAssert lo hi = (length res) == ((hi-lo) + 1) && (hi >= 0) && (lo >= 0) && (hi - lo > 5)
     where res = range' lo hi
@@ -173,7 +162,6 @@ get xs j = case xs of
 repl :: Int -> [Int]
 repl x = x:repl (x+1)
 
--- | Slightly faster with state merging enabled. 29s -> 11s
 replGetTest :: Int -> Int -> Int -> Bool
 replGetTest i j k = (get (repl i) k) + (get (repl j) k) > 80 && i < 4 && j < 6
 
@@ -185,7 +173,6 @@ vectorAdd (x:xs) [] = (x:xs)
 vectorAdd [] (y:ys) = (y:ys)
 vectorAdd [] [] = []
 
--- | Marginally slower with state merging enabled for large res (0.2s -> 0.4s for length res == 13)
 vectorAddTest :: (Eq a, Num a) => [a] -> [a] -> [a] -> Bool
 vectorAddTest a b res = (vectorAdd a b) == res
 
