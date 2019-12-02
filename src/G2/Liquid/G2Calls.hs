@@ -107,7 +107,8 @@ reduceCalls solver simplifier config bindings er = do
 
 reduceViolated :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Sharing -> Bindings -> ExecRes LHTracker -> IO (Bindings, ExecRes LHTracker)
 reduceViolated solver simplifier share bindings er@(ExecRes { final_state = s, violated = Just v }) = do
-    (bindings', v') <- reduceFuncCall share solver simplifier s bindings v
+    let red = SomeReducer (StdRed share solver simplifier)
+    (bindings', v') <- reduceFuncCall share red solver simplifier s bindings v
     -- putStrLn $ "v = " ++ show v
     -- putStrLn $ "v' = " ++ show v'
     return (bindings', er { violated = Just v' })
@@ -116,20 +117,23 @@ reduceViolated _ _ _ b er = return (b, er)
 reduceAbstracted :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Sharing -> Bindings -> ExecRes LHTracker -> IO (Bindings, ExecRes LHTracker)
 reduceAbstracted solver simplifier share bindings
                 er@(ExecRes { final_state = (s@State { track = lht}) }) = do
-    let fcs = abstract_calls lht
+    let red = SomeReducer (StdRed share solver simplifier)
+        fcs = abstract_calls lht
 
-    (bindings', fcs') <- mapAccumM (reduceFuncCall share solver simplifier s) bindings fcs
+    (bindings', fcs') <- mapAccumM (reduceFuncCall share red solver simplifier s) bindings fcs
 
     return (bindings', er { final_state = s { track = lht { abstract_calls = fcs' } }})
 
-reduceFuncCall :: (Solver solver, Simplifier simp) => Sharing -> solver -> simp -> State LHTracker -> Bindings -> FuncCall -> IO (Bindings, FuncCall)
-reduceFuncCall share solver simplifier s bindings fc@(FuncCall { arguments = ars, returns = r }) = do
-    (bindings', red_ars) <- mapAccumM (reduceFCExpr share (SomeReducer (StdRed share solver simplifier)) solver simplifier s) bindings ars
-    (bindings'', red_r) <- reduceFCExpr share (SomeReducer (StdRed share solver simplifier)) solver simplifier s bindings' r
+reduceFuncCall :: (Solver solver, Simplifier simp) => Sharing -> SomeReducer LHTracker -> solver -> simp -> State LHTracker -> Bindings -> FuncCall -> IO (Bindings, FuncCall)
+reduceFuncCall share red solver simplifier s bindings fc@(FuncCall { arguments = ars, returns = r }) = do
+    -- (bindings', red_ars) <- mapAccumM (reduceFCExpr share (red <~ SomeReducer (Logger "arg")) solver simplifier s) bindings ars
+    -- (bindings'', red_r) <- reduceFCExpr share (red <~ SomeReducer (Logger "ret")) solver simplifier s bindings' r
+    (bindings', red_ars) <- mapAccumM (reduceFCExpr share red solver simplifier s) bindings ars
+    (bindings'', red_r) <- reduceFCExpr share red solver simplifier s bindings' r
 
     return (bindings'', fc { arguments = red_ars, returns = red_r })
 
-reduceFCExpr :: (Solver solver, Simplifier simp) => Sharing -> SomeReducer LHTracker ->  solver -> simp -> State LHTracker -> Bindings -> Expr -> IO (Bindings, Expr)
+reduceFCExpr :: (Solver solver, Simplifier simp) => Sharing -> SomeReducer LHTracker -> solver -> simp -> State LHTracker -> Bindings -> Expr -> IO (Bindings, Expr)
 reduceFCExpr share reducer solver simplifier s bindings e 
     | not . isTypeClass (type_classes s) $ (typeOf e)
     , ds <- deepseq_walkers bindings

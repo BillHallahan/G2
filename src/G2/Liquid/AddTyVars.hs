@@ -18,6 +18,8 @@ import Data.Maybe
 import Data.Text as T (pack)
 
 import Debug.Trace
+import Data.Monoid (Any (..))
+import qualified G2.Language.ExprEnv as E
 
 addTyVarsEEnvTEnv :: SimpleState -> (SimpleState, PhantomTyVars)
 addTyVarsEEnvTEnv s@(SimpleState { expr_env = eenv
@@ -29,7 +31,7 @@ addTyVarsEEnvTEnv s@(SimpleState { expr_env = eenv
 
         unused_poly = getUnusedPoly tenv
 
-        eenv' = addTyVarsExpr unused_poly new_mjn eenv
+        eenv' = addTyVarsExpr unused_poly new_mjn eenv ng eenv
         tenv' = addTyVarsTypeEnv unused_poly new_mjn tenv
 
         tenv'' = addNewMaybe new_mjn tenv'
@@ -42,7 +44,8 @@ addTyVarsMeasures PhantomTyVars { ph_new_maybe = new_mb, ph_unused_poly = unused
     meenv <- measuresM
     kv <- knownValues
     tenv <- typeEnv
-    putMeasuresM (addTyVarsExpr unused_poly new_mb meenv)
+    ng <- nameGen
+    putMeasuresM (addTyVarsExpr unused_poly new_mb meenv ng meenv)
 
 -- | Identifies data constructors with unused polymorphic arguments
 getUnusedPoly :: TypeEnv -> UnusedPoly 
@@ -102,27 +105,37 @@ addNewMaybe new_mb@(NewMaybe { new_maybe = new_mb_t }) tenv =
 -------------------------------
 -- Adjust Expr
 -------------------------------
-addTyVarsExpr :: ASTContainer m Expr => UnusedPoly -> NewMaybe -> m -> m
-addTyVarsExpr unused new_mb =
-    modifyASTs (addTyVarsExprCase unused new_mb) . addTyVarsExprDC unused new_mb
 
-addTyVarsExprDC :: ASTContainer m Expr => UnusedPoly -> NewMaybe -> m -> m
-addTyVarsExprDC unused new_mb = modifyAppTop (addTyVarsExprDC' unused new_mb)
+addTyVarsExpr :: ASTContainer m Expr => UnusedPoly -> NewMaybe -> ExprEnv -> NameGen -> m -> m
+addTyVarsExpr unused new_mb eenv ng =
+    modifyASTs (addTyVarsExprCase unused new_mb) . addTyVarsExprDC unused new_mb eenv ng . etaExpandDC eenv ng
 
-addTyVarsExprDC' :: UnusedPoly -> NewMaybe -> Expr -> Expr
-addTyVarsExprDC' unused new_mb e
-    | Data dc@(DataCon n _):ars <- unApp e
-    , Just is <- lookupUP n unused =
+etaExpandDC :: ASTContainer m Expr => ExprEnv -> NameGen -> m -> m
+etaExpandDC eenv ng = modifyAppedDatas (etaExpandDC' eenv ng) 
+
+etaExpandDC' :: ExprEnv -> NameGen -> DataCon -> [Expr] -> Expr
+etaExpandDC' eenv ng dc ars =
+    let
+        e = mkApp (Data dc:ars)
+        num_binds = length $ leadingTyForAllBindings dc
+        (e', _) = etaExpandTo eenv ng num_binds e
+    in
+    e'
+
+addTyVarsExprDC :: ASTContainer m Expr => UnusedPoly -> NewMaybe -> ExprEnv -> NameGen -> m -> m
+addTyVarsExprDC unused new_mb eenv ng = modifyAppedDatas (addTyVarsExprDC' unused new_mb eenv ng)
+
+addTyVarsExprDC' :: UnusedPoly -> NewMaybe -> ExprEnv -> NameGen -> DataCon -> [Expr] -> Expr
+addTyVarsExprDC' unused new_mb eenv ng dc@(DataCon n _) ars
+    | Just is <- lookupUP n unused =
         let
             (ty_ars, expr_ars) = partition (isTypeExpr) ars
 
-            bnds = map (\(Type t, i) -> Id (Name "bind_for_sym" Nothing i Nothing) t) $ zip ars is
             sym_gens = map (\(Type t) -> SymGen t) $ map (ars !!) is
-            let_e = Let (zip bnds sym_gens) 
             -- nothings = map (\(Type t) -> mkNewNothing new_mb) $ map (ars !!) is
         in
-        let_e . mkApp $ Data (addTyVarDC unused new_mb dc):ty_ars ++ map Var bnds ++ expr_ars
-    | otherwise = e
+        mkApp $ Data (addTyVarDC unused new_mb dc):ty_ars ++ sym_gens ++ expr_ars
+    | otherwise = mkApp $ Data dc:ars
 
 addTyVarsExprCase :: UnusedPoly -> NewMaybe -> Expr -> Expr
 addTyVarsExprCase unused new_mb (Case e i as) =

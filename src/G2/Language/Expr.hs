@@ -35,6 +35,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , getFuncCalls
                         , getFuncCallsRHS
                         , modifyAppTop
+                        , modifyAppedDatas
                         , modifyAppLHS
                         , modifyAppRHS
                         , modifyLamTop
@@ -225,8 +226,20 @@ modifyAppTop' f e@(App _ _) =
     let
         e' = f e
     in
-    modifyAppRHS (modifyAppTop' f) e' 
+    modifyAppCenter (modifyChildren (modifyAppTop' f)) $ modifyAppRHS (modifyAppTop' f) e' 
 modifyAppTop' f e = modifyChildren (modifyAppTop' f) e
+
+modifyAppedDatas :: ASTContainer m Expr => (DataCon -> [Expr] -> Expr) -> m -> m
+modifyAppedDatas f = modifyContainedASTs (modifyAppedDatas' f)
+
+modifyAppedDatas' :: (DataCon -> [Expr] -> Expr) -> Expr -> Expr
+modifyAppedDatas' f e
+    | (Data dc:es) <- unApp e =
+    let
+        e' = f dc es
+    in
+    modifyAppCenter (modifyChildren (modifyAppedDatas' f)) $ modifyAppRHS (modifyAppedDatas' f) e'
+    | otherwise = modifyChildren (modifyAppedDatas' f) e
 
 modifyAppRHS :: (Expr -> Expr) -> Expr -> Expr
 modifyAppRHS f (App e e') = App (modifyAppRHS f e) (f e')
@@ -235,6 +248,10 @@ modifyAppRHS _ e = e
 modifyAppLHS :: (Expr -> Expr) -> Expr -> Expr
 modifyAppLHS f (App e e') = App (f e) (modifyAppLHS f e')
 modifyAppLHS _ e = e
+
+modifyAppCenter :: (Expr -> Expr) -> Expr -> Expr
+modifyAppCenter f (App e e') = App (modifyAppCenter f e) e'
+modifyAppCenter f e = f e
 
 modifyLamTop :: ASTContainer m Expr => (Expr -> Expr) -> m -> m
 modifyLamTop f = modifyContainedASTs (modifyLamTop' f)
@@ -448,6 +465,7 @@ etaExpandTo' eenv ng n e = (addLamApps fn (typeOf e) e, ng')
             | otherwise = n'
             where
                 m' = M.insert v i m
+        validN _ _ i (Data _) = i
         validN eenv' m i (App e' _) = validN eenv' m (i + 1) e'
         validN eenv' m i (Let b e') =
             let
@@ -459,7 +477,7 @@ etaExpandTo' eenv ng n e = (addLamApps fn (typeOf e) e, ng')
         addLamApps :: [Name] -> Type -> Expr -> Expr
         addLamApps [] _ e' = e'
         addLamApps (_:ns) (TyForAll (NamedTyBndr b) t') e' =
-            Lam TypeL b (App (addLamApps ns t' e') (Var b))
+            Lam TypeL b (App (addLamApps ns t' e') (Type (TyVar b)))
         addLamApps (ln:ns) (TyFun t t') e' =
             Lam TermL (Id ln t) (App (addLamApps ns t' e') (Var (Id ln t)))
         addLamApps _ _ e' = e'
