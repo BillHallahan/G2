@@ -48,6 +48,8 @@ data KnownValues = KnownValues {
                  -- Typeclass superclass extractors
                  , integralExtactReal :: Name
                  , realExtractNum :: Name
+                 , realExtractOrd :: Name
+                 , ordExtractEq :: Name
 
                  , eqFunc :: Name
                  , neqFunc :: Name

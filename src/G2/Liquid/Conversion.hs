@@ -187,16 +187,6 @@ dictMapFromIds is = do
                       , fractional_dicts = fr
                       , ord_dicts = om }
 
-tcWithNameMap :: Name -> [Id] -> M.Map Name Id
-tcWithNameMap n =
-    M.fromList
-        . map (\i -> (forType $ typeOf i, i))
-        . filter (isTC n . typeOf)
-    where
-        forType :: Type -> Name
-        forType (TyApp _ (TyVar (Id n' _))) = n'
-        forType _ = error "Bad type in forType"
-
 isTC :: Name -> Type -> Bool
 isTC n t = case tyAppCenter t of
                 TyCon n' _ -> n == n'

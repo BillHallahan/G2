@@ -272,7 +272,7 @@ qqRedHaltOrd config solver simplifier =
             <~| (SomeReducer (StdRed share solver simplifier))
     , SomeHalter
         (DiscardIfAcceptedTag state_name 
-        :<~> AcceptHalter)
+        :<~> AcceptIfViolatedHalter)
     , SomeOrderer NextOrderer)
 
 addAssume :: State t -> Bindings -> (State t, Bindings)

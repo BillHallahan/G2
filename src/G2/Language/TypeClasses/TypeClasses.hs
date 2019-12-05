@@ -13,6 +13,7 @@ module G2.Language.TypeClasses.TypeClasses ( TypeClasses
                                            , lookupTCDict
                                            , lookupTCDicts
                                            , lookupTCClass
+                                           , tcWithNameMap
                                            , tcDicts
                                            , typeClassInst
                                            , satisfyingTCTypes
@@ -91,6 +92,21 @@ lookupTCDictsTypes tc = fmap (map fst) . flip lookupTCDicts tc
 
 lookupTCClass :: Name -> TypeClasses -> Maybe Class
 lookupTCClass n = M.lookup n . coerce
+
+tcWithNameMap :: Name -> [Id] -> M.Map Name Id
+tcWithNameMap n =
+    M.fromList
+        . map (\i -> (forType $ typeOf i, i))
+        . filter (isTC . typeOf)
+    where
+        forType :: Type -> Name
+        forType (TyApp _ (TyVar (Id n' _))) = n'
+        forType _ = error "Bad type in forType"
+
+        isTC :: Type -> Bool
+        isTC t = case tyAppCenter t of
+                        TyCon n' _ -> n == n'
+                        _ -> False
 
 -- tcDicts
 tcDicts :: TypeClasses -> [Id]

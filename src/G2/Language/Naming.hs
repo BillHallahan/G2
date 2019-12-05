@@ -545,6 +545,8 @@ instance Named KnownValues where
 
             , integralExtactReal = integralEReal
             , realExtractNum = realENum
+            , realExtractOrd = realEOrd
+            , ordExtractEq = ordEEq
 
             , eqFunc = eqF
             , neqFunc = neqF
@@ -580,7 +582,7 @@ instance Named KnownValues where
             , tList, tCons, tEmp
             , tMaybe, dJust, dNothing
             , eqT, numT, ordT, integralT, realT, fractionalT
-            , integralEReal, realENum
+            , integralEReal, realENum, realEOrd, ordEEq
             , eqF, neqF, plF, minusF, tmsF, divF, negF, modF
             , fromIntegerF, toIntegerF
             , toRatioF, fromRationalF
@@ -621,6 +623,8 @@ instance Named KnownValues where
 
                    , integralExtactReal = integralEReal
                    , realExtractNum = realENum
+                   , realExtractOrd = realEOrd
+                   , ordExtractEq = ordEEq
 
                    , eqFunc = eqF
                    , neqFunc = neqF
@@ -686,6 +690,8 @@ instance Named KnownValues where
 
                         , integralExtactReal = rename old new integralEReal
                         , realExtractNum = rename old new realENum
+                        , realExtractOrd = rename old new realEOrd
+                        , ordExtractEq = rename old new ordEEq
 
                         , eqFunc = rename old new eqF
                         , neqFunc = rename old new neqF

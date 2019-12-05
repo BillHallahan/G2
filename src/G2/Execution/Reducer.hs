@@ -35,7 +35,7 @@ module G2.Execution.Reducer ( Reducer (..)
 
                             -- Halters
                             , SWHNFHalter (..)
-                            , AcceptHalter (..)
+                            , AcceptIfViolatedHalter (..)
                             , HCombiner (..)
                             , ZeroHalter (..)
                             , DiscardIfAcceptedTag (..)
@@ -515,9 +515,9 @@ instance Halter SWHNFHalter () t where
 
 -- | Accepts a state when it is in SWHNF and true_assert is true
 -- Discards it if in SWHNF and true_assert is false
-data AcceptHalter = AcceptHalter
+data AcceptIfViolatedHalter = AcceptIfViolatedHalter
 
-instance Halter AcceptHalter () t where
+instance Halter AcceptIfViolatedHalter () t where
     initHalt _ _ = ()
     updatePerStateHalt _ _ _ _ = ()
     stopRed _ _ _ s =

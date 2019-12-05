@@ -30,6 +30,8 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , mkFromRationalExpr
                         , mkIntegralExtactReal
                         , mkRealExtractNum
+                        , mkRealExtractOrd
+                        , mkOrdExtractEq
 
                         , replaceVar
                         , getFuncCalls
@@ -193,7 +195,13 @@ mkIntegralExtactReal :: KnownValues -> Expr
 mkIntegralExtactReal kv = Var $ Id (KV.integralExtactReal kv) TyUnknown
 
 mkRealExtractNum :: KnownValues -> Expr
-mkRealExtractNum kv = Var $ Id (KV.integralExtactReal kv) TyUnknown
+mkRealExtractNum kv = Var $ Id (KV.realExtractNum kv) TyUnknown
+
+mkRealExtractOrd :: KnownValues -> Expr
+mkRealExtractOrd kv = Var $ Id (KV.realExtractOrd kv) TyUnknown
+
+mkOrdExtractEq :: KnownValues -> Expr
+mkOrdExtractEq kv = Var $ Id (KV.ordExtractEq kv) TyUnknown
 
 replaceVar :: ASTContainer m Expr => Name -> Expr -> m -> m
 replaceVar n e = modifyASTs (replaceVar' n e)

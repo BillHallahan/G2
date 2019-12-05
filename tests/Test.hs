@@ -255,7 +255,7 @@ liquidTests = return . testGroup "Liquid" =<< sequence
 
     , checkLiquid "tests/Liquid/Distance.lhs" "distance" 1000 4 [AtLeast 1]
     , checkLiquid "tests/Liquid/MultModules/CallZ.lhs" "callZ" 1000 3 [AtLeast 1]
-    , checkAbsLiquid "tests/Liquid/AddToEven.hs" "f" 2000 1
+    , checkAbsLiquid "tests/Liquid/AddToEven.hs" "f" 2500 1
         [ AtLeast 1
         , RForAll $ \[i] r [(FuncCall { funcName = Name n _ _ _, returns = fcr }) ]
             -> n == "g"

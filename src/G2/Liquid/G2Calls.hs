@@ -31,9 +31,12 @@ import Data.Monoid
 -- Checks if the abstracted functions actually deviate from the real function behavior.
 -- If they do not, they can simply be eliminated from the state.
 
--- The result of a call to checkAbstracted'.  Either the function does not need
--- to be abstract, or we get the actual result of executing the function call. 
+-- The result of a call to checkAbstracted'.  Either:
+-- (1) the function does need to be abstract, and we get the actual result of executing the function call. 
+-- (2) the function does not need to be abstract, but its assertion is violated
+-- (3) the function does not need to be abstract
 data AbstractedRes = AbstractRes Abstracted Model
+                   | NotAbstractResButViolated FuncCall Model
                    | NotAbstractRes
 
 toAbstracted :: AbstractedRes -> Maybe Abstracted
@@ -42,8 +45,10 @@ toAbstracted _ = Nothing
 
 toModel :: AbstractedRes -> Maybe Model
 toModel (AbstractRes _ m) = Just m
+toModel (NotAbstractResButViolated _ m) = Just m
 toModel _ = Nothing
 
+-- | Checks if abstracted functions actually had to be abstracted.
 checkAbstracted :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Config -> Bindings -> ExecRes LHTracker -> IO (ExecRes [Abstracted])
 checkAbstracted solver simplifier config bindings er@(ExecRes{ final_state = s@State { track = lht }}) = do
     let check = checkAbstracted' solver simplifier (sharing config) s bindings
@@ -69,9 +74,14 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
             ds = deepseq_walkers bindings
             strict_call = maybe e' (fillLHDictArgs ds) $ mkStrict_maybe ds e'
 
-        let s' = assertsToAssumes . pickHead $
+        -- We leave assertions in the code, and set true_assert to false so we can
+        -- tell if an assertion was violated.
+        -- If an assertion is violated, it means that the function did not need to be abstracted,
+        -- but does need to be in `assert_ids` .
+        let s' = pickHead $
                    s { expr_env = model s `E.union'` expr_env s
-                     , curr_expr = CurrExpr Evaluate strict_call}
+                     , curr_expr = CurrExpr Evaluate strict_call
+                     , true_assert = False }
 
         (er, _) <- runG2WithSomes 
                         (SomeReducer (StdRed share solver simplifier))
@@ -80,6 +90,11 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
                         solver simplifier emptyMemConfig s' bindings
         mapM_ (print . model . final_state) er
         case er of
+            er
+              | (ExecRes { 
+                  final_state = (State { curr_expr = CurrExpr _ ce, model = m})
+                        }):_ <- filter (true_assert . final_state) er
+                -> return $ NotAbstractResButViolated (abs_fc { returns = ce }) m
             [ExecRes
                 {
                     final_state = (State { curr_expr = CurrExpr _ ce, model = m})

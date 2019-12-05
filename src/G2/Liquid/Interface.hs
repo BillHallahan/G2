@@ -51,6 +51,7 @@ import G2.Liquid.ConvertCurrExpr
 import G2.Liquid.Helpers
 import G2.Liquid.LHReducers
 import G2.Liquid.Measures
+import G2.Liquid.MkLHVals
 import G2.Liquid.G2Calls
 import G2.Liquid.Simplify
 import G2.Liquid.SpecialAsserts
@@ -249,9 +250,7 @@ createLiquidReadyState s@(State {expr_env = eenv}) bindings ghci ph_tyvars confi
     let
         np_ng = name_gen bindings
 
-        renme = E.keys eenv
-        ((meenv, mkv, mtc, minst), ng') = doRenames renme np_ng 
-            (eenv, known_values s, type_classes s, higher_order_inst bindings)
+        (meenv, mkv, mtc, minst, ng') = mkLHVals s (higher_order_inst bindings) np_ng 
 
         s' = s { track = [] }
         bindings' = bindings { name_gen = ng' }
@@ -373,7 +372,8 @@ runLHG2 :: (Solver solver, Simplifier simplifier)
         -> Bindings
         -> IO ([ExecRes [Abstracted]], Bindings)
 runLHG2 config red hal ord solver simplifier pres_names final_st bindings = do
-    (ret, final_bindings) <- runG2WithSomes red hal ord solver simplifier pres_names final_st bindings
+    let only_abs_st = final_st
+    (ret, final_bindings) <- runG2WithSomes red hal ord solver simplifier pres_names only_abs_st bindings
 
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of
@@ -430,7 +430,7 @@ lhReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
                   :<~> LHAbsHalter entry mb_modname (expr_env st)
                   :<~> limHalt
                   :<~> SwitchEveryNHalter (switch_after config)
-                  :<~> AcceptHalter)
+                  :<~> AcceptIfViolatedHalter)
         , SomeOrderer limOrd)
     else
         (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng)
@@ -444,7 +444,7 @@ lhReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
               :<~> LHAbsHalter entry mb_modname (expr_env st)
               :<~> limHalt
               :<~> SwitchEveryNHalter (switch_after config)
-              :<~> AcceptHalter)
+              :<~> AcceptIfViolatedHalter)
         , SomeOrderer limOrd)
 
 
@@ -523,6 +523,9 @@ reqNames (State { expr_env = eenv
 
                    , mkJust kv tenv
                    , mkNothing kv tenv
+
+                   , mkIntegralExtactReal kv
+                   , mkRealExtractNum kv 
                    ]
           ++
           Lang.names 

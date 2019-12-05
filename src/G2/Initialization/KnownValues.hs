@@ -19,6 +19,8 @@ initKnownValues eenv tenv tc =
     numT = typeWithStrName tenv "Num"
     integralT = typeWithStrName tenv "Integral"
     realT = typeWithStrName tenv "Real"
+    eqT = typeWithStrName tenv "Eq"
+    ordT = typeWithStrName tenv "Ord"
   in
   KnownValues {
       tyInt = typeWithStrName tenv "Int"
@@ -48,15 +50,17 @@ initKnownValues eenv tenv tc =
     , dcJust = dcWithStrName tenv "Maybe" "Just"
     , dcNothing = dcWithStrName tenv "Maybe" "Nothing"
 
-    , eqTC = typeWithStrName tenv "Eq"
+    , eqTC = eqT
     , numTC = numT
-    , ordTC = typeWithStrName tenv "Ord"
+    , ordTC = ordT
     , integralTC = integralT
     , realTC = realT
     , fractionalTC = typeWithStrName tenv "Fractional"
 
     , integralExtactReal = superClassExtractor tc integralT realT
     , realExtractNum = superClassExtractor tc realT numT
+    , realExtractOrd = superClassExtractor tc realT ordT
+    , ordExtractEq = superClassExtractor tc ordT eqT
 
     , eqFunc = exprWithStrName eenv "=="
     , neqFunc = exprWithStrName eenv "/="

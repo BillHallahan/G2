@@ -74,6 +74,8 @@ import qualified Data.Text as T
 import System.FilePath
 import System.Directory
 
+import Debug.Trace
+
 -- Copying from Language.Typing so the thing we stuff into Ghc
 -- does not have to rely on Language.Typing, which depends on other things.
 mkG2TyApp :: [G2.Type] -> G2.Type
@@ -314,7 +316,7 @@ modGutsClosureToG2 nm tm mgcc tr_con =
                                 (nm2, tm, [])
                                 raw_tycons in
   -- Do the class
-  let classes = map (mkClass tm2) $ G2.mgcc_cls_insts mgcc in
+  let classes = map (mkClass nm3 tm2) $ G2.mgcc_cls_insts mgcc in
 
   -- Do the rules
   let rules = if G2.load_rewrite_rules tr_con
@@ -675,12 +677,12 @@ mkCoercion tm c =
     in
     (pFst k) G2.:~ (pSnd k)
 
-mkClass :: G2.TypeNameMap -> ClsInst -> (G2.Name, G2.Id, [G2.Id], [(G2.Type, G2.Id)])
-mkClass tm (ClsInst { is_cls = c, is_dfun = dfun }) = 
+mkClass :: G2.NameMap -> G2.TypeNameMap -> ClsInst -> (G2.Name, G2.Id, [G2.Id], [(G2.Type, G2.Id)])
+mkClass nm tm (ClsInst { is_cls = c, is_dfun = dfun }) =
     ( flip mkNameLookup tm . C.className $ c
     , mkId tm dfun
     , map (mkId tm) $ C.classTyVars c
-    , zip (map (mkType tm) $ C.classSCTheta c) (map (mkId tm) $ C.classAllSelIds c) )
+    , zip (map (mkType tm) $ C.classSCTheta c) (map (\i -> mkIdLookup i nm tm) $ C.classAllSelIds c) )
 
 
 mkRewriteRule :: G2.NameMap -> G2.TypeNameMap -> Maybe ModBreaks -> CoreRule -> Maybe G2.RewriteRule

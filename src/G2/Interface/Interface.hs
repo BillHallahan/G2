@@ -281,7 +281,7 @@ initRedHaltOrd solver simplifier config =
                  (SwitchEveryNHalter 20
                  :<~> MaxOutputsHalter (maxOutputs config)
                  :<~> ZeroHalter (steps config)
-                 :<~> AcceptHalter)
+                 :<~> AcceptIfViolatedHalter)
              , SomeOrderer $ PickLeastUsedOrderer)
         else ( SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
                  <~| (case logStates config of
@@ -292,7 +292,7 @@ initRedHaltOrd solver simplifier config =
                  :<~> SwitchEveryNHalter 20
                  :<~> MaxOutputsHalter (maxOutputs config) 
                  :<~> ZeroHalter (steps config)
-                 :<~> AcceptHalter)
+                 :<~> AcceptIfViolatedHalter)
              , SomeOrderer $ PickLeastUsedOrderer)
 
 initSolver :: Config -> IO SomeSolver

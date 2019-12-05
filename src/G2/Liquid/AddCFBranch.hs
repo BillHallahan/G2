@@ -1,11 +1,15 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Liquid.AddCFBranch ( CounterfactualName
-                             , addCounterfactualBranch) where
+                             , addCounterfactualBranch
+                             , onlyCounterfactual) where
 
 import G2.Language
 import G2.Language.Monad
 import G2.Liquid.Types
+
+import Debug.Trace
 
 type CounterfactualName = Name
 
@@ -71,3 +75,13 @@ tyBindings' _ [] = id
 tyBindings' ns (NamedType i:ts) = Lam TypeL i . tyBindings' ns ts
 tyBindings' (n:ns) (AnonType t:ts) = Lam TermL (Id n t) . tyBindings' ns ts
 tyBindings' [] _ = error "Name list exhausted in tyBindings'"
+
+-- | Eliminates the real branch of the non-deterministic choices, leaving only
+-- the abstract branch.  Assumes all non-determinisitic choices are for
+-- counterfactual symbolic execution.
+onlyCounterfactual :: ASTContainer m Expr => m -> m
+onlyCounterfactual = modifyASTs onlyCounterfactual'
+
+onlyCounterfactual' :: Expr -> Expr
+onlyCounterfactual' (NonDet [_, e]) = trace ("NonDet") e
+onlyCounterfactual' e = e

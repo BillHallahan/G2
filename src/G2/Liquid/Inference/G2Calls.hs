@@ -103,7 +103,7 @@ inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
                   :<~> searched_below
                   :<~> lh_max_outputs
                   :<~> SwitchEveryNHalter (switch_after config)
-                  :<~> AcceptHalter
+                  :<~> AcceptIfViolatedHalter
                   :<~> timer_halter)
         , SomeOrderer (IncrAfterN 1000 ADTHeightOrderer))
     else
@@ -118,7 +118,7 @@ inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
               :<~> searched_below
               :<~> lh_max_outputs
               :<~> SwitchEveryNHalter (switch_after config)
-              :<~> AcceptHalter
+              :<~> AcceptIfViolatedHalter
               :<~> timer_halter)
         , SomeOrderer (IncrAfterN 1000 ADTHeightOrderer))
 
