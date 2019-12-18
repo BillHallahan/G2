@@ -204,7 +204,6 @@ convertAssertSpecType :: DictMaps -> BoundTypes -> [Id] -> Id -> SpecType -> LHS
 convertAssertSpecType m bt is r st = do
     convertSpecType m bt is (Just r) st
 
-
 -- | See also: convertAssumeSpecType, convertAssertSpecType
 -- We can Maybe pass an Id for the value returned by the function
 -- If we do, our Expr includes the Refinement on the return value,

@@ -27,7 +27,8 @@ module G2.Liquid.Interface ( LiquidData (..)
                            , reqNames
 
                            , lhStateToCE
-                           , printLHOut) where
+                           , printLHOut
+                           , printCE) where
 
 import G2.Config.Config
 
@@ -550,29 +551,29 @@ pprint (v, r) = do
     putStrLn $ show doc
 
 printLHOut :: Lang.Id -> [ExecRes [Abstracted]] -> IO ()
-printLHOut entry = printParsedLHOut . parseLHOut entry
+printLHOut entry =
+    mapM_ (\s -> do printParsedLHOut s; putStrLn "") . map (parseLHOut entry)
 
-printParsedLHOut :: [LHReturn] -> IO ()
-printParsedLHOut [] = return ()
+printCE :: [CounterExample] -> IO ()
+printCE =
+    mapM_ (\s -> do printParsedLHOut s; putStrLn "") . map counterExampleToLHReturn
+
+printParsedLHOut :: LHReturn -> IO ()
 printParsedLHOut (LHReturn { calledFunc = FuncInfo {func = f, funcArgs = call, funcReturn = output}
                            , violating = Nothing
-                           , abstracted = abstr} : xs) = do
+                           , abstracted = abstr}) = do
     putStrLn "The call"
     TI.putStrLn $ call `T.append` " = " `T.append` output
     TI.putStrLn $ "violates " `T.append` f `T.append` "'s refinement type"
     printAbs abstr
-    putStrLn ""
-    printParsedLHOut xs
 printParsedLHOut (LHReturn { calledFunc = FuncInfo {funcArgs = call, funcReturn = output}
                            , violating = Just (FuncInfo {func = f, funcArgs = call', funcReturn = output'})
-                           , abstracted = abstr } : xs) = do
+                           , abstracted = abstr }) = do
     TI.putStrLn $ call `T.append` " = " `T.append` output
     putStrLn "makes a call to"
     TI.putStrLn $ call' `T.append` " = " `T.append` output'
     TI.putStrLn $ "violating " `T.append` f `T.append` "'s refinement type"
     printAbs abstr
-    putStrLn ""
-    printParsedLHOut xs
 
 printAbs :: [FuncInfo] -> IO ()
 printAbs fi = do
@@ -596,26 +597,48 @@ printFuncInfo :: FuncInfo -> IO ()
 printFuncInfo (FuncInfo {funcArgs = call, funcReturn = output}) =
     TI.putStrLn $ call `T.append` " = " `T.append` output
 
-parseLHOut :: Lang.Id -> [ExecRes [Abstracted]] -> [LHReturn]
-parseLHOut _ [] = []
-parseLHOut entry ((ExecRes { final_state = s
-                           , conc_args = inArg
-                           , conc_out = ex
-                           , violated = ais}):xs) =
-  let 
-      tl = parseLHOut entry xs
-      funcCall = T.pack $ mkCleanExprHaskell s 
-               . foldl (\a a' -> App a a') (Var entry) $ inArg
-      funcOut = T.pack $ mkCleanExprHaskell s $ ex
-
-      called = FuncInfo {func = nameOcc $ idName entry, funcArgs = funcCall, funcReturn = funcOut}
+parseLHOut :: Lang.Id -> ExecRes [Abstracted] -> LHReturn
+parseLHOut entry (ExecRes { final_state = s
+                          , conc_args = inArg
+                          , conc_out = ex
+                          , violated = ais}) =
+  let
+      called = funcCallToFuncInfo  (T.pack . mkCleanExprHaskell s)
+             $ FuncCall { funcName = idName entry, arguments = inArg, returns = ex}
       viFunc = fmap (parseLHFuncTuple s) ais
 
       abstr = map (parseLHFuncTuple s) . map abstract $ track s
   in
   LHReturn { calledFunc = called
            , violating = if called `sameFuncNameArgs` viFunc then Nothing else viFunc
-           , abstracted = abstr} : tl
+           , abstracted = abstr}
+
+counterExampleToLHReturn :: CounterExample -> LHReturn
+counterExampleToLHReturn (DirectCounter fc abstr) =
+    let
+        called = funcCallToFuncInfo (T.pack . mkExprHaskell) $ fc
+        abstr' = map (funcCallToFuncInfo (T.pack . mkExprHaskell) . abstract) abstr
+    in
+    LHReturn { calledFunc = called
+             , violating = Nothing
+             , abstracted = abstr'}
+counterExampleToLHReturn (CallsCounter fc viol_fc abstr) =
+    let
+        called = funcCallToFuncInfo (T.pack . mkExprHaskell) $ fc
+        viol_called = funcCallToFuncInfo (T.pack . mkExprHaskell) $ viol_fc
+        abstr' = map (funcCallToFuncInfo (T.pack . mkExprHaskell) . abstract) abstr
+    in
+    LHReturn { calledFunc = called
+             , violating = Just viol_called
+             , abstracted = abstr'}
+
+funcCallToFuncInfo :: (Expr -> T.Text) -> FuncCall -> FuncInfo
+funcCallToFuncInfo t (FuncCall { funcName = f, arguments = inArg, returns = ret }) =
+    let
+        funcCall = t . foldl (\a a' -> App a a') (Var (Id f TyUnknown)) $ inArg
+        funcOut = t ret
+    in
+    FuncInfo {func = nameOcc f, funcArgs = funcCall, funcReturn = funcOut}
 
 lhStateToCE :: Lang.Id -> ExecRes [Abstracted] -> CounterExample
 lhStateToCE i (ExecRes { final_state = s

@@ -34,7 +34,7 @@ inference config proj fp lhlibs = do
     ghci <- ghcInfos Nothing lhconfig' fp
 
     -- Initialize G2
-    let g2config = config { mode = Liquid, steps = 2000, add_tyvars = True }
+    let g2config = config { mode = Liquid, steps = 2000 }
         transConfig = simplTranslationConfig { simpl = False }
     exg2 <- translateLoaded proj fp lhlibs transConfig g2config
     let simp_s = initSimpleState (snd exg2)
@@ -63,7 +63,8 @@ inference' g2config lhconfig ghci m_modname lrs gs fc = do
 
             res <- mapM (genNewConstraints merged_ghci m_modname lrs g2config) bad'
 
-            putStrLn $ "res = " ++ show res
+            putStrLn $ "res"
+            printCE $ concat res
 
             putStrLn "Before checkNewConstraints"
             new_fc <- checkNewConstraints ghci lrs g2config (concat res)
