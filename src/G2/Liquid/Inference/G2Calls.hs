@@ -148,13 +148,15 @@ checkCounterexample lrs ghci config cex@(FuncCall { funcName = Name n m _ _ }) =
     (fsl, _) <- genericG2Call config' solver s' bindings
     close solver
 
-    case fsl of
-        [ExecRes
-            {
-                final_state = (State { curr_expr = CurrExpr _ (Data (DataCon (Name dcn _ _ _) _))})
-            }] ->
-            return $ dcn == "True"
-        _ -> error $ "checkCounterexample: Bad return from runG2WithSomes" ++ show (curr_expr . final_state . head $ fsl)
+    -- We may return multiple states if any of the specifications contained a SymGen
+    return $ any (currExprIsTrue . final_state) fsl
+    -- case fsl of
+    --     [ExecRes
+    --         {
+    --             final_state = (State { curr_expr = CurrExpr _ (Data (DataCon (Name dcn _ _ _) _))})
+    --         }] ->
+    --         return $ dcn == "True"
+    --     _ -> error $ "checkCounterexample: Bad return from runG2WithSomes" ++ show (curr_expr . final_state . head $ fsl)
 
 checkCounterexample' :: FuncCall -> State t -> State t
 checkCounterexample' fc@(FuncCall { funcName = n }) s@(State { expr_env = eenv })
@@ -173,6 +175,11 @@ toJustSpec (FuncCall { arguments = ars, returns = ret }) is (Let [(b, _)] (Asser
     in
     foldr (uncurry replaceASTs) e rep
 toJustSpec _ _ _ = error "toJustSpec: ill-formed state"
+
+currExprIsTrue :: State t -> Bool
+currExprIsTrue (State { curr_expr = CurrExpr _ (Data (DataCon (Name dcn _ _ _) _))}) = dcn == "True"
+currExprIsTrue _ = False
+
 
 -------------------------------
 -- Eval Measures
@@ -301,7 +308,7 @@ genericG2Call config solver s bindings = do
     let simplifier = ADTSimplifier arbValue
         share = sharing config
 
-    fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier ))
+    fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier))
                            (SomeHalter SWHNFHalter)
                            (SomeOrderer NextOrderer)
                            solver simplifier emptyMemConfig s bindings

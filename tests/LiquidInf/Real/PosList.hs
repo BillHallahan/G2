@@ -19,5 +19,5 @@ sumList (x :+: xs) = x + sumList xs
 filterPos :: List Int -> List Int
 filterPos Emp = Emp
 filterPos (x :+: xs)
-	| x >= 0 =  x :+: filterPos xs
-	| otherwise = filterPos xs
+    | x >= 0 =  x :+: filterPos xs
+    | otherwise = filterPos xs

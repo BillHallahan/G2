@@ -178,13 +178,17 @@ grammar sorted_vars sorts =
 
         irl = GroupedRuleList "I" intSort
                 (intRuleList ++ addSelectors sortsToGN intSort sorts')
+
+        const_int = GroupedRuleList "IConst" intSort [GConstant intSort]
     in
     GrammarDef
         ([ SortedVar "B" boolSort
-         , SortedVar "I" intSort ]
+         , SortedVar "I" intSort
+         , SortedVar "IConst" intSort ]
          ++ map (uncurry SortedVar) grams)
         ([ brl
          , irl
+         , const_int
          ]
          ++ map (uncurry dtGroupRuleList) grams) 
     where
@@ -199,7 +203,7 @@ intRuleList =
     , GBfTerm $ BfIdentifierBfs (ISymb "+") [intBf, intBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "-") [intBf, intBf]
     -- , GBfTerm $ BfIdentifierBfs (ISymb "*") [intBf, intBf]
-    , GBfTerm $ BfIdentifierBfs (ISymb "mod") [intBf, intBf]
+    , GBfTerm $ BfIdentifierBfs (ISymb "mod") [intBf, BfIdentifier (ISymb "IConst")]
     ]
 
 boolRuleList :: [GTerm]

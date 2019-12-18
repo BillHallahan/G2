@@ -1,4 +1,4 @@
-module AddToEven2 where
+module AddToEven where
 
 import Prelude hiding (zipWith)
 

@@ -80,8 +80,7 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
         -- but does need to be in `assert_ids` .
         let s' = pickHead $
                    s { expr_env = model s `E.union'` expr_env s
-                     , curr_expr = CurrExpr Evaluate strict_call
-                     , true_assert = False }
+                     , curr_expr = CurrExpr Evaluate strict_call }
 
         (er, _) <- runG2WithSomes 
                         (SomeReducer (StdRed share solver simplifier))
@@ -90,11 +89,6 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
                         solver simplifier emptyMemConfig s' bindings
         mapM_ (print . model . final_state) er
         case er of
-            er
-              | (ExecRes { 
-                  final_state = (State { curr_expr = CurrExpr _ ce, model = m})
-                        }):_ <- filter (true_assert . final_state) er
-                -> return $ NotAbstractResButViolated (abs_fc { returns = ce }) m
             [ExecRes
                 {
                     final_state = (State { curr_expr = CurrExpr _ ce, model = m})
