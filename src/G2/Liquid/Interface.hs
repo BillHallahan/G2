@@ -291,29 +291,25 @@ pprint (v, r) = do
     putStrLn $ show doc
 
 printLHOut :: Lang.Id -> [ExecRes [FuncCall]] -> IO ()
-printLHOut entry = printParsedLHOut . parseLHOut entry
+printLHOut entry =
+    mapM_ (\s -> do printParsedLHOut s; putStrLn "") . map (parseLHOut entry)
 
-printParsedLHOut :: [LHReturn] -> IO ()
-printParsedLHOut [] = return ()
+printParsedLHOut :: LHReturn -> IO ()
 printParsedLHOut (LHReturn { calledFunc = FuncInfo {func = f, funcArgs = call, funcReturn = output}
                            , violating = Nothing
-                           , abstracted = abstr} : xs) = do
+                           , abstracted = abstr}) = do
     putStrLn "The call"
     TI.putStrLn $ call `T.append` " = " `T.append` output
     TI.putStrLn $ "violates " `T.append` f `T.append` "'s refinement type"
     printAbs abstr
-    putStrLn ""
-    printParsedLHOut xs
 printParsedLHOut (LHReturn { calledFunc = FuncInfo {funcArgs = call, funcReturn = output}
                            , violating = Just (FuncInfo {func = f, funcArgs = call', funcReturn = output'})
-                           , abstracted = abstr } : xs) = do
+                           , abstracted = abstr }) = do
     TI.putStrLn $ call `T.append` " = " `T.append` output
     putStrLn "makes a call to"
     TI.putStrLn $ call' `T.append` " = " `T.append` output'
     TI.putStrLn $ "violating " `T.append` f `T.append` "'s refinement type"
     printAbs abstr
-    putStrLn ""
-    printParsedLHOut xs
 
 printAbs :: [FuncInfo] -> IO ()
 printAbs fi = do
@@ -337,14 +333,12 @@ printFuncInfo :: FuncInfo -> IO ()
 printFuncInfo (FuncInfo {funcArgs = call, funcReturn = output}) =
     TI.putStrLn $ call `T.append` " = " `T.append` output
 
-parseLHOut :: Lang.Id -> [ExecRes [FuncCall]] -> [LHReturn]
-parseLHOut _ [] = []
-parseLHOut entry ((ExecRes { final_state = s
-                           , conc_args = inArg
-                           , conc_out = ex
-                           , violated = ais}):xs) =
+parseLHOut :: Lang.Id -> ExecRes [FuncCall] -> LHReturn
+parseLHOut entry (ExecRes { final_state = s
+                          , conc_args = inArg
+                          , conc_out = ex
+                          , violated = ais}) =
   let 
-      tl = parseLHOut entry xs
       funcCall = T.pack $ mkCleanExprHaskell s 
                . foldl (\a a' -> App a a') (Var entry) $ inArg
       funcOut = T.pack $ mkCleanExprHaskell s $ ex
@@ -356,7 +350,7 @@ parseLHOut entry ((ExecRes { final_state = s
   in
   LHReturn { calledFunc = called
            , violating = if called `sameFuncNameArgs` viFunc then Nothing else viFunc
-           , abstracted = abstr} : tl
+           , abstracted = abstr}
 
 sameFuncNameArgs :: FuncInfo -> Maybe FuncInfo -> Bool
 sameFuncNameArgs _ Nothing = False
