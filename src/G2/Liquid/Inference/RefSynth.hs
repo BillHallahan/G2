@@ -40,7 +40,6 @@ import Control.Exception
 import Data.Coerce
 import Data.List
 import qualified Data.HashMap.Lazy as HM
-import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
@@ -83,13 +82,14 @@ sygusCall e tc meas meas_ex fcs@(_:_) =
         func_ty_c = arg_ty_c ++ [ret_ty_c]
         all_ty_c = func_ty_c ++ ex_ty_c
 
-        -- rel_ty_c = filter relTy func_ty_c
+        rel_arg_ty_c = filter relTy arg_ty_c
+        rel_fcs = map (relArgs arg_ty_c) fcs
 
         sorts = typesToSort meas meas_ex all_ty_c
 
         declare_dts = sortsToDeclareDTs sorts
 
-        (grams, cons, rp_ns) = generateGrammarsAndConstraints sorts meas_ex arg_ty_c ret_ty_c fcs
+        (grams, cons, rp_ns) = trace ("rel_arg_ty_c = " ++ show rel_arg_ty_c) generateGrammarsAndConstraints sorts meas_ex rel_arg_ty_c ret_ty_c rel_fcs
 
         call = [ SmtCmd (SetLogic "ALL")]
                ++
@@ -102,12 +102,6 @@ sygusCall e tc meas meas_ex fcs@(_:_) =
                [ CheckSynth ]
     in
     (call, length grams, rp_ns)
-    where
-        isPrimTy (TyCon (Name "Int" _ _ _) _) = True
-        isPrimTy (TyCon (Name "Bool" _ _ _) _) = True
-        isPrimTy _ = False
-
-        filterArgs p fc = fc { arguments = filter p (arguments fc)}
 sygusCall _ _ _ _ _ = error "sygusCall: empty list"
 
 applicableMeasures :: Measures -> Type -> [Name]
@@ -134,8 +128,6 @@ generateGrammarsAndConstraints sorts meas_ex arg_tys ret_ty fcs@(fc:_) =
         poly_ref_names = mapPB (\i -> "refinement_" ++ show i) $ uniqueIds poly_bd
         rt_bound = extractTypePolyBoundPresFull ret_ty
         ns_rt = zipPB poly_ref_names rt_bound
-
-        rel_ty_c = filter relTy (arg_tys ++ [ret_ty])
 
         varN = map (\i -> "x" ++ show i) ([0..] :: [Integer])
         arg_sort_vars = map (uncurry SortedVar) . zip varN
@@ -243,9 +235,6 @@ intSort = IdentSort (ISymb "Int")
 boolSort :: Sort
 boolSort = IdentSort (ISymb "Bool")
 
-nameToSymbol :: Name -> Symbol
-nameToSymbol = nameToStr
-
 exprToDTTerm :: TypesToSorts -> MeasureExs -> Type -> G2.Expr -> Term
 exprToDTTerm sorts meas_ex t e =
     case lookupSort t sorts of
@@ -254,6 +243,24 @@ exprToDTTerm sorts meas_ex t e =
                 TermCall (ISymb (dt_name si)) $ map (measVal sorts meas_ex e) (meas_names si)
             | otherwise -> TermIdent (ISymb (dt_name si))
         Nothing -> error $ "exprToDTTerm: No sort found" ++ "\nsorts = " ++ show sorts ++ "\nt = " ++ show t ++ "\ne = " ++ show e
+
+
+relArgs :: [Type] -> FuncConstraint -> FuncConstraint
+relArgs ts fc =
+    let
+        cons = constraint fc
+        as = filter (not . isLhDict) . filter (not . isType) $ arguments cons
+        ts_as = zip ts as
+        as' = map snd $ filter (relTy . fst) ts_as
+    in
+    fc { constraint = cons { arguments = as' }}
+    where
+        isType (Type _) = True
+        isType _ = False
+
+        isLhDict e
+            | (Data (DataCon (Name n _ _ _) _)):_ <- unApp e = n == "lh"
+            | otherwise = False
 
 type ArgTys = [Type]
 type RetType = Type
@@ -319,6 +326,7 @@ funcCallTerm sorts meas_ex poly_names arg_tys ret_ty (FuncCall { arguments = ars
         ns_r_bound' = concatMap expand1 (extractValues ns_r_bound)
     in
     --funcCallTerm' sorts meas_ex arg_tys ret_ty ars r
+    trace ("arg_tys = " ++ show arg_tys ++ "\nars = " ++ show ars)
     mapMaybe (\(r, rt, n) -> funcCallTerm' sorts meas_ex arg_tys ars r rt n) $ ns_r_bound' -- r
     where
         expand1 :: ([a], b, c) -> [(a, b, c)]
@@ -327,11 +335,8 @@ funcCallTerm sorts meas_ex poly_names arg_tys ret_ty (FuncCall { arguments = ars
 funcCallTerm' :: TypesToSorts -> MeasureExs -> [Type] -> [G2.Expr] -> G2.Expr -> Type -> String -> Maybe Term
 funcCallTerm' sorts meas_ex arg_tys ars r ret_ty fn
     | relTy ret_ty =
-        let
-            ars' = filter (not . isLhDict) . filter (not . isType) $ ars
-        in
         Just $ TermCall (ISymb fn)
-            (mapMaybe (uncurry (relExprToTerm sorts meas_ex)) (zip arg_tys ars') ++ [exprToTerm sorts meas_ex ret_ty r])
+            (map (uncurry (exprToTerm sorts meas_ex)) (zip arg_tys ars) ++ [exprToTerm sorts meas_ex ret_ty r])
     | otherwise = Nothing
         where
             isType (Type _) = True
@@ -340,10 +345,6 @@ funcCallTerm' sorts meas_ex arg_tys ars r ret_ty fn
             isLhDict e
                 | (Data (DataCon (Name n _ _ _) _)):_ <- unApp e = n == "lh"
                 | otherwise = False
-
-relExprToTerm :: TypesToSorts -> MeasureExs -> Type -> G2.Expr -> Maybe Term
-relExprToTerm sorts meas_ex t e =
-    if relTy t then Just $ exprToTerm sorts meas_ex t e else Nothing
 
 exprToTerm :: TypesToSorts -> MeasureExs -> Type -> G2.Expr -> Term
 exprToTerm _ _ (TyCon (Name "Bool" _ _ _) _) (Data (DataCon (Name n _ _ _) _))
