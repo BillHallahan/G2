@@ -2,6 +2,7 @@
 
 module G2.Lib.Printers ( mkCleanExprHaskell
                        , mkUnsugaredExprHaskell
+                       , mkExprHaskell
                        , mkTypeHaskell
                        , ppExprEnv
                        , ppRelExprEnv
@@ -39,11 +40,11 @@ mkNameHaskell = T.unpack . nameOcc
 
 mkUnsugaredExprHaskell :: State t -> Expr -> String
 mkUnsugaredExprHaskell (State {known_values = kv, type_classes = tc}) =
-    mkExprHaskell False kv . modifyFix (mkCleanExprHaskell' kv tc)
+    mkExprHaskell . modifyFix (mkCleanExprHaskell' kv tc)
 
 mkCleanExprHaskell :: State t -> Expr -> String
 mkCleanExprHaskell (State {known_values = kv, type_classes = tc}) = 
-    mkExprHaskell True kv . modifyFix (mkCleanExprHaskell' kv tc)
+    mkExprHaskell . modifyFix (mkCleanExprHaskell' kv tc)
 
 mkCleanExprHaskell' :: KnownValues -> TypeClasses -> Expr -> Expr
 mkCleanExprHaskell' kv tc e
@@ -62,8 +63,8 @@ mkCleanExprHaskell' kv tc e
 
     | otherwise = e
 
-mkExprHaskell :: Bool -> KnownValues -> Expr -> String
-mkExprHaskell sugar kv ex = mkExprHaskell' ex 0
+mkExprHaskell :: Expr -> String
+mkExprHaskell ex = mkExprHaskell' ex 0
     where
         mkExprHaskell' :: Expr -> Int -> String
         mkExprHaskell' (Var ids) _ = mkIdHaskell ids
@@ -73,13 +74,11 @@ mkExprHaskell sugar kv ex = mkExprHaskell' ex 0
 
         mkExprHaskell' a@(App ea@(App e1 e2) e3) i
             | Data (DataCon n _) <- appCenter a
-            , isTuple n
-            , sugar = printTuple kv a
+            , isTuple n = printTuple a
 
             | Data (DataCon n1 _) <- e1
-            , nameOcc n1 == ":"
-            , sugar =
-                if isLitChar e2 then printString a else printList kv a
+            , nameOcc n1 == ":" =
+                if isLitChar e2 then printString a else printList a
 
             | isInfixable e1 =
                 let
@@ -117,12 +116,12 @@ mkDataConHaskell (DataCon n _) = mkNameHaskell n
 off :: Int -> String
 off i = duplicate "   " i
 
-printList :: KnownValues -> Expr -> String
-printList kv a = "[" ++ intercalate ", " (printList' kv a) ++ "]"
+printList :: Expr -> String
+printList a = "[" ++ intercalate ", " (printList' a) ++ "]"
 
-printList' :: KnownValues -> Expr -> [String]
-printList' kv (App (App _ e) e') = mkExprHaskell True kv e:printList' kv e'
-printList' _ _ = []
+printList' :: Expr -> [String]
+printList' (App (App _ e) e') = mkExprHaskell e:printList' e'
+printList' _ = []
 
 printString :: Expr -> String
 printString a =
@@ -144,12 +143,12 @@ isTuple :: Name -> Bool
 isTuple (Name n _ _ _) = T.head n == '(' && T.last n == ')'
                      && T.all (\c -> c == '(' || c == ')' || c == ',') n
 
-printTuple :: KnownValues -> Expr -> String
-printTuple kv a = "(" ++ intercalate ", " (reverse $ printTuple' kv a) ++ ")"
+printTuple :: Expr -> String
+printTuple a = "(" ++ intercalate ", " (reverse $ printTuple' a) ++ ")"
 
-printTuple' :: KnownValues -> Expr -> [String]
-printTuple' kv (App e e') = mkExprHaskell True kv e':printTuple' kv e
-printTuple' _ _ = []
+printTuple' :: Expr -> [String]
+printTuple' (App e e') = mkExprHaskell e':printTuple' e
+printTuple' _ = []
 
 
 isInfixable :: Expr -> Bool
