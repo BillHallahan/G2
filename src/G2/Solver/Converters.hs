@@ -25,6 +25,7 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid
+import qualified Data.Set as S
 import qualified Data.Text as T
 
 import G2.Language hiding (Assert, vars)
@@ -398,7 +399,9 @@ altToSMT (LitChar c) _ = VChar c
 altToSMT am _ = error $ "Unhandled " ++ show am
 
 createUniqVarDecls :: [(Name, Sort)] -> [SMTHeader]
-createUniqVarDecls xs = createUniqVarDecls' (nub xs)
+createUniqVarDecls xs =
+    let xs' = S.toList $ S.fromList xs
+    in createUniqVarDecls' xs'
 
 createUniqVarDecls' :: [(Name, Sort)] -> [SMTHeader]
 createUniqVarDecls' [] = []
