@@ -142,7 +142,7 @@ checkNumericConstraints con pc = do
     let headers = toSMTHeaders pc
     let formula = toSolver con headers
 
-    let vs = map (\(n', srt) -> (nameToStr n', srt)) . pcVars $ PC.toList pc
+    let vs = map (\(n', srt) -> (nameToText n', srt)) . pcVars $ PC.toList pc
 
     let io = getIO con
     (_, m) <- checkSatGetModel con io formula headers vs
@@ -323,7 +323,7 @@ pathConsToSMT (ConsCond (DataCon (Name "False" _ _ _) _) e b) =
 pathConsToSMT (ConsCond (DataCon _ _) _ _) = error "Non-bool DataCon in pathConsToSMT"
 
 exprToSMT :: Expr -> SMTAST
-exprToSMT (Var (Id n t)) = V (nameToStr n) (typeToSMT t)
+exprToSMT (Var (Id n t)) = V (nameToText n) (typeToSMT t)
 exprToSMT (Lit c) =
     case c of
         LitInt i -> VInt i
@@ -336,7 +336,7 @@ exprToSMT (Data (DataCon n (TyCon (Name "Bool" _ _ _) _))) =
         "True" -> VBool True
         "False" -> VBool False
         _ -> error "Invalid bool in exprToSMT"
-exprToSMT (Data (DataCon n t)) = V (nameToStr n) (typeToSMT t)
+exprToSMT (Data (DataCon n t)) = V (nameToText n) (typeToSMT t)
 exprToSMT a@(App _ _) =
     let
         f = getFunc a
@@ -400,10 +400,10 @@ createVarDecls :: [(Name, Sort)] -> [SMTHeader]
 createVarDecls [] = []
 createVarDecls ((n,SortChar):xs) =
     let
-        lenAssert = Assert $ StrLen (V (nameToStr n) SortChar) := VInt 1
+        lenAssert = Assert $ StrLen (V (nameToText n) SortChar) := VInt 1
     in
-    VarDecl (nameToStr n) SortChar:lenAssert:createVarDecls xs
-createVarDecls ((n,s):xs) = VarDecl (nameToStr n) s:createVarDecls xs
+    VarDecl (nameToText n) SortChar:lenAssert:createVarDecls xs
+createVarDecls ((n,s):xs) = VarDecl (nameToText n) s:createVarDecls xs
 
 pcVarDecls :: [PathCond] -> [SMTHeader]
 pcVarDecls = createVarDecls . pcVars
@@ -500,7 +500,7 @@ smtastToExpr (VDouble d) = (Lit $ LitDouble d)
 smtastToExpr (VBool b) =
     Data (DataCon (Name (T.pack $ show b) Nothing 0 Nothing) (TyCon (Name "Bool" Nothing 0 Nothing) TYPE))
 smtastToExpr (VChar c) = Lit $ LitChar c
-smtastToExpr (V n s) = Var $ Id (strToName n) (sortToType s)
+smtastToExpr (V n s) = Var $ Id (textToName n) (sortToType s)
 smtastToExpr _ = error "Conversion of this SMTAST to an Expr not supported."
 
 -- | Converts a `Sort` to an `Type`.
@@ -513,4 +513,4 @@ sortToType (SortBool) = TyCon (Name "Bool" Nothing 0 Nothing) TYPE
 
 -- | Coverts an `SMTModel` to a `Model`.
 modelAsExpr :: SMTModel -> Model
-modelAsExpr = M.mapKeys strToName . M.map smtastToExpr
+modelAsExpr = M.mapKeys textToName . M.map smtastToExpr

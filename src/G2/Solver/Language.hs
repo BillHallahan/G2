@@ -13,8 +13,9 @@ import G2.Language.AST
 import G2.Solver.Solver
 
 import qualified Data.Map as M
+import qualified Data.Text as T
 
-type SMTName = String
+type SMTName = T.Text
 
 -- | These define the two kinds of top level calls we give to the SMT solver.
 -- An assertion says the given SMTAST is true

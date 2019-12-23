@@ -6,6 +6,7 @@ import G2.Solver.Language
 
 import Data.Char
 import Data.Ratio
+import qualified Data.Text as T
 import Numeric
 
 import Text.Parsec (Parsec)
@@ -73,8 +74,9 @@ letExpr = do
 identExprTuple :: Parser (SMTName, SMTAST)
 identExprTuple = do
     bind <- identifier
+    let bind' = T.pack bind
     ex <- sExpr
-    return (bind, ex)
+    return (bind', ex)
 
 boolExpr :: Parser SMTAST
 boolExpr = do
