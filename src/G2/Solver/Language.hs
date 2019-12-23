@@ -75,7 +75,7 @@ data Sort = SortInt
           | SortDouble
           | SortChar
           | SortBool
-          deriving (Show, Eq)
+          deriving (Show, Eq, Ord)
 
 isSat :: Result -> Bool
 isSat SAT = True
