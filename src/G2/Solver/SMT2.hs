@@ -26,7 +26,7 @@ import qualified Data.Map as M
 import Data.Ratio
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
-import TextShow
+import Text.Builder hiding (null)
 import System.IO
 import System.Process
 
@@ -47,17 +47,18 @@ instance Solver CVC4 where
     solve con@(CVC4 avf _) = checkModel avf con
     close = closeIO
 
-instance SMTConverter Z3 T.Text T.Text (Handle, Handle, ProcessHandle) where
+instance SMTConverter Z3 Builder Builder (Handle, Handle, ProcessHandle) where
     getIO (Z3 _ hhp) = hhp
     closeIO (Z3 _ (h_in, _, _)) = TIO.hPutStr h_in "(exit)"
 
-    empty _ = ""  
-    merge _ = (\a b -> T.concat [a,b])
+    empty _ = ""
+    merge _ = mappend
 
-    checkSat _ (h_in, h_out, _) formula = do
+    checkSat _ (h_in, h_out, _) formulaBldr = do
         -- putStrLn "checkSat"
         -- putStrLn formula
         
+        let formula = run formulaBldr
         setUpFormulaZ3 h_in formula
         r <- checkSat' h_in h_out
 
@@ -65,7 +66,8 @@ instance SMTConverter Z3 T.Text T.Text (Handle, Handle, ProcessHandle) where
 
         return r
 
-    checkSatGetModel _ (h_in, h_out, _) formula _ vs = do
+    checkSatGetModel _ (h_in, h_out, _) formulaBldr _ vs = do
+        let formula = run formulaBldr
         setUpFormulaZ3 h_in formula
         -- putStrLn "\n\n checkSatGetModel"
         -- putStrLn formula
@@ -82,7 +84,8 @@ instance SMTConverter Z3 T.Text T.Text (Handle, Handle, ProcessHandle) where
         else do
             return (r, Nothing)
 
-    checkSatGetModelGetExpr con (h_in, h_out, _) formula _ vs eenv (CurrExpr _ e) = do
+    checkSatGetModelGetExpr con (h_in, h_out, _) formulaBuilder _ vs eenv (CurrExpr _ e) = do
+        let formula = run formulaBuilder
         setUpFormulaZ3 h_in formula
         -- putStrLn "\n\n checkSatGetModelGetExpr"
         -- putStrLn formula
@@ -103,9 +106,10 @@ instance SMTConverter Z3 T.Text T.Text (Handle, Handle, ProcessHandle) where
         else do
             return (r, Nothing, Nothing)
 
+    -- overloadedStrings extension lets us create Builders from string literals
     assert _ = function1 "assert"
         
-    varDecl _ n s = T.concat["(declare-const ",n," ",s,")"]
+    varDecl _ n s = mconcat ["(declare-const ", n, " ", s, ")"]
     
     setLogic _ lgc =
         let 
@@ -120,7 +124,7 @@ instance SMTConverter Z3 T.Text T.Text (Handle, Handle, ProcessHandle) where
         in
         case lgc of
             ALL -> ""
-            _ -> T.concat["(set-logic ",s,")"]
+            _ -> mconcat ["(set-logic ", s, ")"]
 
     (.>=) _ = function2 ">="
     (.>) _ = function2 ">"
@@ -141,7 +145,7 @@ instance SMTConverter Z3 T.Text T.Text (Handle, Handle, ProcessHandle) where
     (./) _ = function2 "/"
     smtQuot _ = function2 "div"
     smtModulo _ = function2 "mod"
-    smtSqrt _ x = T.concat["(^ ",x," 0.5)"]
+    smtSqrt _ x = mconcat ["(^ ", x, " 0.5)"]
     neg _ = function1 "-"
     strLen _ = function1 "str.len"
 
@@ -150,39 +154,39 @@ instance SMTConverter Z3 T.Text T.Text (Handle, Handle, ProcessHandle) where
 
     ite _ = function3 "ite"
 
-    int _ x = if x >= 0 then showt x else T.concat["(- ", showt (abs x), ")"]
+    int _ x = if x >= 0 then string $ show x else mconcat ["(- ", string $ show (abs x), ")"]
     float _ r = 
-        T.concat ["(/ ", showt (numerator r), " ", showt (denominator r), ")"]
+        mconcat ["(/ ", string $ show (numerator r), " ", string $ show (denominator r), ")"]
     double _ r =
-        T.concat["(/ ",showt (numerator r)," ",showt (denominator r),")"]
-    char _ c = T.concat ["\"",T.singleton c,"\""]
-    bool _ b = if b then "true" else "false"
+        mconcat ["(/ ", string $ show (numerator r), " ", string $ show (denominator r), ")"]
+    char _ c = mconcat ["\"", text $ T.singleton c, "\""]
+    bool _ b = if b then text "true" else text "false"
     var _ n = function1 n
 
     sortInt _ = "Int"
     sortFloat _ = "Real"
     sortDouble _ = "Real"
-    sortChar _ = "String"
+    sortChar _ =  "String"
     sortBool _ = "Bool"
 
     cons _ n asts _ =
-        if asts /= [] then
-            T.concat["(",n," ",(T.intercalate " " asts),")"]
+        if (not $ null asts) then
+            mconcat ["(", n, " ", intercalate (text " ") asts, ")"]
         else
             n
     varName _ n _ = n
 
-instance SMTConverter CVC4 T.Text T.Text (Handle, Handle, ProcessHandle) where
+instance SMTConverter CVC4 Builder Builder (Handle, Handle, ProcessHandle) where
     getIO (CVC4 _ hhp) = hhp
     closeIO (CVC4 _ (h_in, _, _)) = TIO.hPutStr h_in "(exit)"
 
     empty _ = ""  
-    merge _ = (\a b -> T.concat [a,b])
+    merge _ = mappend
 
-    checkSat _ (h_in, h_out, _) formula = do
+    checkSat _ (h_in, h_out, _) formulaBldr = do
         -- putStrLn "checkSat"
         -- putStrLn formula
-        
+        let formula = run formulaBldr
         setUpFormulaCVC4 h_in formula
         r <- checkSat' h_in h_out
 
@@ -190,7 +194,8 @@ instance SMTConverter CVC4 T.Text T.Text (Handle, Handle, ProcessHandle) where
 
         return r
 
-    checkSatGetModel _ (h_in, h_out, _) formula _ vs = do
+    checkSatGetModel _ (h_in, h_out, _) formulaBldr _ vs = do
+        let formula = run formulaBldr
         setUpFormulaCVC4 h_in formula
         -- putStrLn "\n\n checkSatGetModel"
         -- putStrLn formula
@@ -207,7 +212,8 @@ instance SMTConverter CVC4 T.Text T.Text (Handle, Handle, ProcessHandle) where
         else do
             return (r, Nothing)
 
-    checkSatGetModelGetExpr con (h_in, h_out, _) formula _ vs eenv (CurrExpr _ e) = do
+    checkSatGetModelGetExpr con (h_in, h_out, _) formulaBldr _ vs eenv (CurrExpr _ e) = do
+        let formula = run formulaBldr
         setUpFormulaCVC4 h_in formula
         -- putStrLn "\n\n checkSatGetModelGetExpr"
         -- putStrLn formula
@@ -230,7 +236,7 @@ instance SMTConverter CVC4 T.Text T.Text (Handle, Handle, ProcessHandle) where
 
     assert _ = function1 "assert"
         
-    varDecl _ n s = T.concat["(declare-const ",n," ",s,")"]
+    varDecl _ n s = mconcat[ "(declare-const ",n, " ",s, ")"]
     
     setLogic _ lgc =
         let 
@@ -244,8 +250,8 @@ instance SMTConverter CVC4 T.Text T.Text (Handle, Handle, ProcessHandle) where
                 _ -> "ALL"
         in
         case lgc of
-            ALL -> ""
-            _ -> T.concat["(set-logic ",s,")"]
+            ALL -> text ""
+            _ -> mconcat[ "(set-logic ", s, ")"]
 
     (.>=) _ = function2 ">="
     (.>) _ = function2 ">"
@@ -266,7 +272,7 @@ instance SMTConverter CVC4 T.Text T.Text (Handle, Handle, ProcessHandle) where
     (./) _ = function2 "/"
     smtQuot _ = function2 "div"
     smtModulo _ = function2 "mod"
-    smtSqrt _ x = T.concat["(^ ",x," 0.5)"]
+    smtSqrt _ x = mconcat ["(^ ", x, " 0.5)"]
     neg _ = function1 "-"
     strLen _ = function1 "str.len"
 
@@ -274,12 +280,12 @@ instance SMTConverter CVC4 T.Text T.Text (Handle, Handle, ProcessHandle) where
 
     ite _ = function3 "ite"
 
-    int _ x = if x >= 0 then showt x else T.concat["(- ",showt (abs x),")"]
+    int _ x = if x >= 0 then string $ show x else mconcat ["(- ", string $ show (abs x), ")"]
     float _ r = 
-        T.concat["(/ ",showt (numerator r)," ",showt (denominator r),")"]
+        mconcat ["(/ ",string $ show (numerator r)," ", string $ show (denominator r), ")"]
     double _ r =
-        T.concat["(/ ",showt (numerator r)," ",showt (denominator r),")"]
-    char _ c = T.concat["\"",T.singleton c,"\""]
+        mconcat ["(/ ", string $ show (numerator r), " ", string $ show (denominator r), ")"]
+    char _ c = mconcat ["\"", text $ T.singleton c, "\""]
     bool _ b = if b then "true" else "false"
     var _ n = function1 n
 
@@ -290,23 +296,23 @@ instance SMTConverter CVC4 T.Text T.Text (Handle, Handle, ProcessHandle) where
     sortBool _ = "Bool"
 
     cons _ n asts _ =
-        if asts /= [] then
-            T.concat["(",n," ",(T.intercalate " " asts),")"]
+        if (not $ null asts) then
+            mconcat ["(", n, " ", intercalate (text " ") asts, ")"]
         else
             n
     varName _ n _ = n
 
-functionList :: T.Text -> [T.Text] -> T.Text
-functionList f xs = T.concat["(",f," ",(T.intercalate " " xs),")"]
+functionList :: Builder -> [Builder] -> Builder
+functionList f xs = mconcat ["(", f, " ", (intercalate (text " ") xs),")"]
 
-function1 :: T.Text -> T.Text -> T.Text
-function1 f a = T.concat["(",f," ",a,")"]
+function1 :: Builder -> Builder -> Builder
+function1 f a = mconcat ["(", f, " ", a, ")"]
 
-function2 :: T.Text -> T.Text -> T.Text -> T.Text
-function2 f a b = T.concat["(",f," ",a," ",b,")"]
+function2 :: Builder -> Builder -> Builder -> Builder
+function2 f a b = mconcat ["(", f, " ", a, " ", b, ")"]
 
-function3 :: T.Text -> T.Text -> T.Text -> T.Text -> T.Text
-function3 f a b c = T.concat["(",f," ",a," ",b," ",c,")"]
+function3 :: Builder -> Builder -> Builder -> Builder -> Builder
+function3 f a b c = mconcat ["(", f, " ", a, " ", b, " ", c, ")"]
 
 -- | getProcessHandles
 -- Ideally, this function should be called only once, and the same Handles should be used
@@ -387,9 +393,9 @@ checkSat' h_in h_out = do
     else do
         return (Unknown "")
 
-parseModel :: [(SMTName, T.Text, Sort)] -> SMTModel
+parseModel :: [(SMTNameBldr, T.Text, Sort)] -> SMTModel
 parseModel = foldr (\(n, s) -> M.insert n s) M.empty
-    . map (\(n, str, s) -> (n, parseToSMTAST str s))
+    . map (\(n, str, s) -> (show n, parseToSMTAST str s))
 
 parseToSMTAST :: T.Text -> Sort -> SMTAST
 parseToSMTAST str s = correctTypes s . parseGetValues $ T.unpack str
@@ -399,27 +405,27 @@ parseToSMTAST str s = correctTypes s . parseGetValues $ T.unpack str
         correctTypes (SortDouble) (VFloat r) = VDouble r
         correctTypes _ a = a
 
-getModelZ3 :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, T.Text, Sort)]
+getModelZ3 :: Handle -> Handle -> [(SMTNameBldr, Sort)] -> IO [(SMTNameBldr, T.Text, Sort)]
 getModelZ3 h_in h_out ns = do
     TIO.hPutStr h_in "(set-option :model_evaluator.completion true)\n"
     getModel' ns
     where
-        getModel' :: [(SMTName, Sort)] -> IO [(SMTName, T.Text, Sort)]
+        getModel' :: [(SMTNameBldr, Sort)] -> IO [(SMTNameBldr, T.Text, Sort)]
         getModel' [] = return []
         getModel' ((n, s):nss) = do
-            TIO.hPutStr h_in (T.concat ["(get-value (",n,"))\n"]) -- hPutStr h_in ("(eval " ++ n ++ " :completion)\n")
+            TIO.hPutStr h_in (run $ mconcat ["(get-value (", n, "))\n"]) -- hPutStr h_in ("(eval " ++ n ++ " :completion)\n")
             out <- getLinesMatchParens h_out
 
             return . (:) (n, out, s) =<< getModel' nss
 
-getModelCVC4 :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, T.Text, Sort)]
+getModelCVC4 :: Handle -> Handle -> [(SMTNameBldr, Sort)] -> IO [(SMTNameBldr, T.Text, Sort)]
 getModelCVC4 h_in h_out ns = do
     getModel' ns
     where
-        getModel' :: [(SMTName, Sort)] -> IO [(SMTName, T.Text, Sort)]
+        getModel' :: [(SMTNameBldr, Sort)] -> IO [(SMTNameBldr, T.Text, Sort)]
         getModel' [] = return []
         getModel' ((n, s):nss) = do
-            TIO.hPutStr h_in (T.concat["(get-value (",n,"))\n"])
+            TIO.hPutStr h_in (run $ mconcat ["(get-value (", n, "))\n"])
             out <- getLinesMatchParens h_out
 
             return . (:) (n, out, s) =<< getModel' nss
@@ -441,7 +447,7 @@ getLinesMatchParens' h_out n = do
         out' <- getLinesMatchParens' h_out n'
         return $ T.concat[out,out']
 
-solveExpr :: SMTConverter con T.Text out io => Handle -> Handle -> con -> ExprEnv -> Expr -> IO Expr
+solveExpr :: SMTConverter con Builder out io => Handle -> Handle -> con -> ExprEnv -> Expr -> IO Expr
 solveExpr h_in h_out con eenv e = do
     let vs = symbVars eenv e
     vs' <- solveExpr' h_in h_out con vs
@@ -449,17 +455,17 @@ solveExpr h_in h_out con eenv e = do
     
     return $ foldr (uncurry replaceASTs) e (zip vs vs'')
 
-solveExpr'  :: SMTConverter con T.Text out io => Handle -> Handle -> con -> [Expr] -> IO [SMTAST]
+solveExpr'  :: SMTConverter con Builder out io => Handle -> Handle -> con -> [Expr] -> IO [SMTAST]
 solveExpr' _ _ _ [] = return []
 solveExpr' h_in h_out con (v:vs) = do
     v' <- solveExpr'' h_in h_out con v
     vs' <- solveExpr' h_in h_out con vs
     return (v':vs')
 
-solveExpr'' :: SMTConverter con T.Text out io => Handle -> Handle -> con -> Expr -> IO SMTAST
+solveExpr'' :: SMTConverter con Builder out io => Handle -> Handle -> con -> Expr -> IO SMTAST
 solveExpr'' h_in h_out con e = do
     let smte = toSolverAST con $ exprToSMT e
-    TIO.hPutStr h_in (T.concat["(eval ",smte," :completion)\n"])
+    TIO.hPutStr h_in (T.concat["(eval ",run smte," :completion)\n"])
     out <- getLinesMatchParens h_out
 
     return $ parseToSMTAST out (typeToSMT . typeOf $ e)

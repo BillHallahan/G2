@@ -13,17 +13,18 @@ import G2.Language.AST
 import G2.Solver.Solver
 
 import qualified Data.Map as M
-import qualified Data.Text as T
+import Text.Builder
 
-type SMTName = T.Text
+type SMTNameBldr = Builder
+type SMTName = String
 
 -- | These define the two kinds of top level calls we give to the SMT solver.
 -- An assertion says the given SMTAST is true
 -- A sort decl declares a new sort.
 data SMTHeader = Assert SMTAST
-               | VarDecl SMTName Sort
+               | VarDecl SMTNameBldr Sort
                | SetLogic Logic
-               deriving (Show, Eq)
+               deriving (Show)
 
 -- | Various logics supported by (some) SMT solvers 
 data Logic = ALL | QF_LIA | QF_LRA | QF_NIA | QF_NRA | QF_LIRA | QF_NIRA deriving (Show, Eq)
@@ -55,7 +56,7 @@ data SMTAST = (:>=) SMTAST SMTAST
             | StrLen SMTAST
 
             | Ite SMTAST SMTAST SMTAST
-            | SLet (SMTName, SMTAST) SMTAST
+            | SLet (SMTNameBldr, SMTAST) SMTAST
 
             | VInt Integer
             | VFloat Rational
@@ -63,10 +64,10 @@ data SMTAST = (:>=) SMTAST SMTAST
             | VChar Char
             | VBool Bool
 
-            | V SMTName Sort
+            | V SMTNameBldr Sort
 
             | ItoR SMTAST -- ^ Integer to real conversion
-            deriving (Show, Eq)
+            deriving (Show)
 
 -- | Every `SMTAST` has a `Sort`
 data Sort = SortInt

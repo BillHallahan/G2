@@ -6,8 +6,8 @@ import G2.Solver.Language
 
 import Data.Char
 import Data.Ratio
-import qualified Data.Text as T
 import Numeric
+import qualified Text.Builder as B
 
 import Text.Parsec (Parsec)
 import Text.ParserCombinators.Parsec
@@ -71,10 +71,10 @@ letExpr = do
     ex <- sExpr
     return $ SLet bEx ex
 
-identExprTuple :: Parser (SMTName, SMTAST)
+identExprTuple :: Parser (SMTNameBldr, SMTAST)
 identExprTuple = do
     bind <- identifier
-    let bind' = T.pack bind
+    let bind' = B.string bind
     ex <- sExpr
     return (bind', ex)
 

@@ -44,11 +44,12 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     merge :: con -> out -> out -> out
 
     checkSat :: con -> io -> out -> IO Result
-    checkSatGetModel :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result, Maybe SMTModel)
-    checkSatGetModelGetExpr :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> CurrExpr -> IO (Result, Maybe SMTModel, Maybe Expr)
+    checkSatGetModel :: con -> io -> out -> [SMTHeader] -> [(SMTNameBldr, Sort)] -> IO (Result, Maybe SMTModel)
+    checkSatGetModelGetExpr :: con -> io -> out -> [SMTHeader] -> [(SMTNameBldr, Sort)] -> ExprEnv -> CurrExpr
+                            -> IO (Result, Maybe SMTModel, Maybe Expr)
 
     assert :: con -> ast -> out
-    varDecl :: con -> SMTName -> ast -> out
+    varDecl :: con -> SMTNameBldr -> ast -> out
     setLogic :: con -> Logic -> out
 
     (.>=) :: con -> ast -> ast -> ast
@@ -83,8 +84,8 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     double :: con -> Rational -> ast
     char :: con -> Char -> ast
     bool :: con -> Bool -> ast
-    cons :: con -> SMTName -> [ast] -> Sort -> ast
-    var :: con -> SMTName -> ast -> ast
+    cons :: con -> SMTNameBldr -> [ast] -> Sort -> ast
+    var :: con -> SMTNameBldr -> ast -> ast
 
     --sorts
     sortInt :: con -> ast
@@ -93,7 +94,7 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     sortChar :: con -> ast
     sortBool :: con -> ast
 
-    varName :: con -> SMTName -> Sort -> ast
+    varName :: con -> SMTNameBldr -> Sort -> ast
 
 -- | Checks if the path constraints are satisfiable
 checkConstraints :: SMTConverter con ast out io => con -> PathConds -> IO Result
@@ -142,7 +143,7 @@ checkNumericConstraints con pc = do
     let headers = toSMTHeaders pc
     let formula = toSolver con headers
 
-    let vs = map (\(n', srt) -> (nameToText n', srt)) . pcVars $ PC.toList pc
+    let vs = map (\(n', srt) -> (nameToBuilder n', srt)) . pcVars $ PC.toList pc
 
     let io = getIO con
     (_, m) <- checkSatGetModel con io formula headers vs
@@ -167,7 +168,7 @@ toSMTHeaders' pc  =
     let
         pc' = PC.toList pc
     in
-    nub (pcVarDecls pc')
+    (pcVarDecls pc')
     ++
     (pathConsToSMTHeaders pc')
 
@@ -323,7 +324,7 @@ pathConsToSMT (ConsCond (DataCon (Name "False" _ _ _) _) e b) =
 pathConsToSMT (ConsCond (DataCon _ _) _ _) = error "Non-bool DataCon in pathConsToSMT"
 
 exprToSMT :: Expr -> SMTAST
-exprToSMT (Var (Id n t)) = V (nameToText n) (typeToSMT t)
+exprToSMT (Var (Id n t)) = V (nameToBuilder n) (typeToSMT t)
 exprToSMT (Lit c) =
     case c of
         LitInt i -> VInt i
@@ -336,7 +337,7 @@ exprToSMT (Data (DataCon n (TyCon (Name "Bool" _ _ _) _))) =
         "True" -> VBool True
         "False" -> VBool False
         _ -> error "Invalid bool in exprToSMT"
-exprToSMT (Data (DataCon n t)) = V (nameToText n) (typeToSMT t)
+exprToSMT (Data (DataCon n t)) = V (nameToBuilder n) (typeToSMT t)
 exprToSMT a@(App _ _) =
     let
         f = getFunc a
@@ -396,17 +397,20 @@ altToSMT (LitDouble d) _ = VDouble d
 altToSMT (LitChar c) _ = VChar c
 altToSMT am _ = error $ "Unhandled " ++ show am
 
-createVarDecls :: [(Name, Sort)] -> [SMTHeader]
-createVarDecls [] = []
-createVarDecls ((n,SortChar):xs) =
+createUniqVarDecls :: [(Name, Sort)] -> [SMTHeader]
+createUniqVarDecls xs = createUniqVarDecls' (nub xs)
+
+createUniqVarDecls' :: [(Name, Sort)] -> [SMTHeader]
+createUniqVarDecls' [] = []
+createUniqVarDecls' ((n,SortChar):xs) =
     let
-        lenAssert = Assert $ StrLen (V (nameToText n) SortChar) := VInt 1
+        lenAssert = Assert $ StrLen (V (nameToBuilder n) SortChar) := VInt 1
     in
-    VarDecl (nameToText n) SortChar:lenAssert:createVarDecls xs
-createVarDecls ((n,s):xs) = VarDecl (nameToText n) s:createVarDecls xs
+    VarDecl (nameToBuilder n) SortChar:lenAssert:createUniqVarDecls' xs
+createUniqVarDecls' ((n,s):xs) = VarDecl (nameToBuilder n) s:createUniqVarDecls' xs
 
 pcVarDecls :: [PathCond] -> [SMTHeader]
-pcVarDecls = createVarDecls . pcVars
+pcVarDecls = createUniqVarDecls . pcVars
 
 -- Get's all variable required for a list of `PathCond` 
 pcVars :: [PathCond] -> [(Name, Sort)]
@@ -479,7 +483,7 @@ toSolverAST con (VBool b) = bool con b
 toSolverAST con (V n s) = varName con n s
 toSolverAST _ ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
 
-toSolverVarDecl :: SMTConverter con ast out io => con -> SMTName -> Sort -> out
+toSolverVarDecl :: SMTConverter con ast out io => con -> SMTNameBldr -> Sort -> out
 toSolverVarDecl con n s = varDecl con n (sortName con s)
 
 sortName :: SMTConverter con ast out io => con -> Sort -> ast
@@ -500,7 +504,7 @@ smtastToExpr (VDouble d) = (Lit $ LitDouble d)
 smtastToExpr (VBool b) =
     Data (DataCon (Name (T.pack $ show b) Nothing 0 Nothing) (TyCon (Name "Bool" Nothing 0 Nothing) TYPE))
 smtastToExpr (VChar c) = Lit $ LitChar c
-smtastToExpr (V n s) = Var $ Id (textToName n) (sortToType s)
+smtastToExpr (V n s) = Var $ Id (builderToName n) (sortToType s)
 smtastToExpr _ = error "Conversion of this SMTAST to an Expr not supported."
 
 -- | Converts a `Sort` to an `Type`.
@@ -513,4 +517,4 @@ sortToType (SortBool) = TyCon (Name "Bool" Nothing 0 Nothing) TYPE
 
 -- | Coverts an `SMTModel` to a `Model`.
 modelAsExpr :: SMTModel -> Model
-modelAsExpr = M.mapKeys textToName . M.map smtastToExpr
+modelAsExpr = M.mapKeys strToName . M.map smtastToExpr
