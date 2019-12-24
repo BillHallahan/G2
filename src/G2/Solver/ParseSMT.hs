@@ -71,12 +71,11 @@ letExpr = do
     ex <- sExpr
     return $ SLet bEx ex
 
-identExprTuple :: Parser (SMTNameBldr, SMTAST)
+identExprTuple :: Parser (SMTName, SMTAST)
 identExprTuple = do
     bind <- identifier
-    let bind' = B.string bind
     ex <- sExpr
-    return (bind', ex)
+    return (bind, ex)
 
 boolExpr :: Parser SMTAST
 boolExpr = do

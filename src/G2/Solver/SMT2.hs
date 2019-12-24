@@ -47,6 +47,7 @@ instance Solver CVC4 where
     solve con@(CVC4 avf _) = checkModel avf con
     close = closeIO
 
+-- Uses a Builder for efficient construction of output. In particular, concatenation is O(1)
 instance SMTConverter Z3 Builder Builder (Handle, Handle, ProcessHandle) where
     getIO (Z3 _ hhp) = hhp
     closeIO (Z3 _ (h_in, _, _)) = TIO.hPutStr h_in "(exit)"
@@ -161,7 +162,7 @@ instance SMTConverter Z3 Builder Builder (Handle, Handle, ProcessHandle) where
         mconcat ["(/ ", string $ show (numerator r), " ", string $ show (denominator r), ")"]
     char _ c = mconcat ["\"", text $ T.singleton c, "\""]
     bool _ b = if b then text "true" else text "false"
-    var _ n = function1 n
+    var _ n = function1 (string n)
 
     sortInt _ = "Int"
     sortFloat _ = "Real"
@@ -171,10 +172,10 @@ instance SMTConverter Z3 Builder Builder (Handle, Handle, ProcessHandle) where
 
     cons _ n asts _ =
         if (not $ null asts) then
-            mconcat ["(", n, " ", intercalate (text " ") asts, ")"]
+            mconcat ["(", string n, " ", intercalate (text " ") asts, ")"]
         else
-            n
-    varName _ n _ = n
+            string n
+    varName _ n _ = string n
 
 instance SMTConverter CVC4 Builder Builder (Handle, Handle, ProcessHandle) where
     getIO (CVC4 _ hhp) = hhp
@@ -287,7 +288,7 @@ instance SMTConverter CVC4 Builder Builder (Handle, Handle, ProcessHandle) where
         mconcat ["(/ ", string $ show (numerator r), " ", string $ show (denominator r), ")"]
     char _ c = mconcat ["\"", text $ T.singleton c, "\""]
     bool _ b = if b then "true" else "false"
-    var _ n = function1 n
+    var _ n = function1 (string n)
 
     sortInt _ = "Int"
     sortFloat _ = "Real"
@@ -297,10 +298,10 @@ instance SMTConverter CVC4 Builder Builder (Handle, Handle, ProcessHandle) where
 
     cons _ n asts _ =
         if (not $ null asts) then
-            mconcat ["(", n, " ", intercalate (text " ") asts, ")"]
+            mconcat ["(", string n, " ", intercalate (text " ") asts, ")"]
         else
-            n
-    varName _ n _ = n
+            string n
+    varName _ n _ = string n
 
 functionList :: Builder -> [Builder] -> Builder
 functionList f xs = mconcat ["(", f, " ", (intercalate (text " ") xs),")"]
@@ -393,9 +394,9 @@ checkSat' h_in h_out = do
     else do
         return (Unknown "")
 
-parseModel :: [(SMTNameBldr, T.Text, Sort)] -> SMTModel
+parseModel :: [(SMTName, T.Text, Sort)] -> SMTModel
 parseModel = foldr (\(n, s) -> M.insert n s) M.empty
-    . map (\(n, str, s) -> (show n, parseToSMTAST str s))
+    . map (\(n, str, s) -> (n, parseToSMTAST str s))
 
 parseToSMTAST :: T.Text -> Sort -> SMTAST
 parseToSMTAST str s = correctTypes s . parseGetValues $ T.unpack str
@@ -405,27 +406,27 @@ parseToSMTAST str s = correctTypes s . parseGetValues $ T.unpack str
         correctTypes (SortDouble) (VFloat r) = VDouble r
         correctTypes _ a = a
 
-getModelZ3 :: Handle -> Handle -> [(SMTNameBldr, Sort)] -> IO [(SMTNameBldr, T.Text, Sort)]
+getModelZ3 :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, T.Text, Sort)]
 getModelZ3 h_in h_out ns = do
     TIO.hPutStr h_in "(set-option :model_evaluator.completion true)\n"
     getModel' ns
     where
-        getModel' :: [(SMTNameBldr, Sort)] -> IO [(SMTNameBldr, T.Text, Sort)]
+        getModel' :: [(SMTName, Sort)] -> IO [(SMTName, T.Text, Sort)]
         getModel' [] = return []
         getModel' ((n, s):nss) = do
-            TIO.hPutStr h_in (run $ mconcat ["(get-value (", n, "))\n"]) -- hPutStr h_in ("(eval " ++ n ++ " :completion)\n")
+            TIO.hPutStr h_in (T.pack ("(get-value (" ++ n ++ "))\n")) -- hPutStr h_in ("(eval " ++ n ++ " :completion)\n")
             out <- getLinesMatchParens h_out
 
             return . (:) (n, out, s) =<< getModel' nss
 
-getModelCVC4 :: Handle -> Handle -> [(SMTNameBldr, Sort)] -> IO [(SMTNameBldr, T.Text, Sort)]
+getModelCVC4 :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, T.Text, Sort)]
 getModelCVC4 h_in h_out ns = do
     getModel' ns
     where
-        getModel' :: [(SMTNameBldr, Sort)] -> IO [(SMTNameBldr, T.Text, Sort)]
+        getModel' :: [(SMTName, Sort)] -> IO [(SMTName, T.Text, Sort)]
         getModel' [] = return []
         getModel' ((n, s):nss) = do
-            TIO.hPutStr h_in (run $ mconcat ["(get-value (", n, "))\n"])
+            TIO.hPutStr h_in (T.pack ("(get-value (" ++ n ++ "))\n"))
             out <- getLinesMatchParens h_out
 
             return . (:) (n, out, s) =<< getModel' nss

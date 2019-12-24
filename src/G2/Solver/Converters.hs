@@ -21,7 +21,6 @@ module G2.Solver.Converters
     , checkModel
     , SMTConverter (..) ) where
 
-import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid
@@ -45,8 +44,8 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     merge :: con -> out -> out -> out
 
     checkSat :: con -> io -> out -> IO Result
-    checkSatGetModel :: con -> io -> out -> [SMTHeader] -> [(SMTNameBldr, Sort)] -> IO (Result, Maybe SMTModel)
-    checkSatGetModelGetExpr :: con -> io -> out -> [SMTHeader] -> [(SMTNameBldr, Sort)] -> ExprEnv -> CurrExpr
+    checkSatGetModel :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result, Maybe SMTModel)
+    checkSatGetModelGetExpr :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> CurrExpr
                             -> IO (Result, Maybe SMTModel, Maybe Expr)
 
     assert :: con -> ast -> out
@@ -85,8 +84,8 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     double :: con -> Rational -> ast
     char :: con -> Char -> ast
     bool :: con -> Bool -> ast
-    cons :: con -> SMTNameBldr -> [ast] -> Sort -> ast
-    var :: con -> SMTNameBldr -> ast -> ast
+    cons :: con -> SMTName -> [ast] -> Sort -> ast
+    var :: con -> SMTName -> ast -> ast
 
     --sorts
     sortInt :: con -> ast
@@ -95,12 +94,12 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     sortChar :: con -> ast
     sortBool :: con -> ast
 
-    varName :: con -> SMTNameBldr -> Sort -> ast
+    varName :: con -> SMTName -> Sort -> ast
 
 -- | Checks if the path constraints are satisfiable
 checkConstraints :: SMTConverter con ast out io => con -> PathConds -> IO Result
 checkConstraints con pc = do
-    let pc' = unsafeElimCast pc
+    let pc' = unsafeElimCast $ PC.toList pc
 
     let headers = toSMTHeaders pc'
     let formula = toSolver con headers
@@ -141,10 +140,12 @@ getModelVal avf con s b (Id n _) pc = do
 
 checkNumericConstraints :: SMTConverter con ast out io => con -> PathConds -> IO (Maybe Model)
 checkNumericConstraints con pc = do
-    let headers = toSMTHeaders pc
+    let pc' = PC.toList pc
+
+    let headers = toSMTHeaders pc'
     let formula = toSolver con headers
 
-    let vs = map (\(n', srt) -> (nameToBuilder n', srt)) . pcVars $ PC.toList pc
+    let vs = map (\(n', srt) -> (nameToStr n', srt)) . pcVars $ pc'
 
     let io = getIO con
     (_, m) <- checkSatGetModel con io formula headers vs
@@ -161,17 +162,14 @@ checkNumericConstraints con pc = do
 -- we need only consider the types and path constraints of that state.
 -- We can also pass in some other Expr Container to instantiate names from, which is
 -- important if you wish to later be able to scrape variables from those Expr's
-toSMTHeaders :: PathConds -> [SMTHeader]
+toSMTHeaders :: [PathCond] -> [SMTHeader]
 toSMTHeaders = addSetLogic . toSMTHeaders'
 
-toSMTHeaders' :: PathConds -> [SMTHeader]
+toSMTHeaders' :: [PathCond] -> [SMTHeader]
 toSMTHeaders' pc  = 
-    let
-        pc' = PC.toList pc
-    in
-    (pcVarDecls pc')
+    (pcVarDecls pc)
     ++
-    (pathConsToSMTHeaders pc')
+    (pathConsToSMTHeaders pc)
 
 -- |  Determines an appropriate SetLogic command, and adds it to the headers
 addSetLogic :: [SMTHeader] -> [SMTHeader]
@@ -325,7 +323,7 @@ pathConsToSMT (ConsCond (DataCon (Name "False" _ _ _) _) e b) =
 pathConsToSMT (ConsCond (DataCon _ _) _ _) = error "Non-bool DataCon in pathConsToSMT"
 
 exprToSMT :: Expr -> SMTAST
-exprToSMT (Var (Id n t)) = V (nameToBuilder n) (typeToSMT t)
+exprToSMT (Var (Id n t)) = V (nameToStr n) (typeToSMT t)
 exprToSMT (Lit c) =
     case c of
         LitInt i -> VInt i
@@ -338,7 +336,7 @@ exprToSMT (Data (DataCon n (TyCon (Name "Bool" _ _ _) _))) =
         "True" -> VBool True
         "False" -> VBool False
         _ -> error "Invalid bool in exprToSMT"
-exprToSMT (Data (DataCon n t)) = V (nameToBuilder n) (typeToSMT t)
+exprToSMT (Data (DataCon n t)) = V (nameToStr n) (typeToSMT t)
 exprToSMT a@(App _ _) =
     let
         f = getFunc a
@@ -407,7 +405,7 @@ createUniqVarDecls' :: [(Name, Sort)] -> [SMTHeader]
 createUniqVarDecls' [] = []
 createUniqVarDecls' ((n,SortChar):xs) =
     let
-        lenAssert = Assert $ StrLen (V (nameToBuilder n) SortChar) := VInt 1
+        lenAssert = Assert $ StrLen (V (nameToStr n) SortChar) := VInt 1
     in
     VarDecl (nameToBuilder n) SortChar:lenAssert:createUniqVarDecls' xs
 createUniqVarDecls' ((n,s):xs) = VarDecl (nameToBuilder n) s:createUniqVarDecls' xs
@@ -507,7 +505,7 @@ smtastToExpr (VDouble d) = (Lit $ LitDouble d)
 smtastToExpr (VBool b) =
     Data (DataCon (Name (T.pack $ show b) Nothing 0 Nothing) (TyCon (Name "Bool" Nothing 0 Nothing) TYPE))
 smtastToExpr (VChar c) = Lit $ LitChar c
-smtastToExpr (V n s) = Var $ Id (builderToName n) (sortToType s)
+smtastToExpr (V n s) = Var $ Id (strToName n) (sortToType s)
 smtastToExpr _ = error "Conversion of this SMTAST to an Expr not supported."
 
 -- | Converts a `Sort` to an `Type`.

@@ -56,7 +56,7 @@ data SMTAST = (:>=) SMTAST SMTAST
             | StrLen SMTAST
 
             | Ite SMTAST SMTAST SMTAST
-            | SLet (SMTNameBldr, SMTAST) SMTAST
+            | SLet (SMTName, SMTAST) SMTAST
 
             | VInt Integer
             | VFloat Rational
@@ -64,7 +64,7 @@ data SMTAST = (:>=) SMTAST SMTAST
             | VChar Char
             | VBool Bool
 
-            | V SMTNameBldr Sort
+            | V SMTName Sort
 
             | ItoR SMTAST -- ^ Integer to real conversion
             deriving (Show)
