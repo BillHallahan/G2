@@ -95,6 +95,8 @@ sygusCall e tc meas meas_ex fcs@(_:_) =
                ++
                declare_dts
                ++
+               [safeModDecl]
+               ++
                grams
                ++
                cons
@@ -153,6 +155,24 @@ generateGrammarsAndConstraints sorts meas_ex arg_tys ret_ty fcs@(fc:_) =
             | otherwise = False
 
 -------------------------------
+-- define-fun
+-------------------------------
+
+-- We define a function safe-mod, which forces the denominator of mod to be positive.
+
+safeModSymb :: Symbol
+safeModSymb = "safe-mod"
+
+safeModDecl :: Cmd
+safeModDecl =
+    SmtCmd
+        . DefineFun safeModSymb [SortedVar "x" intSort, SortedVar "y" intSort] intSort
+            $ TermCall (ISymb "mod")
+                [ TermIdent (ISymb "x")
+                , TermCall (ISymb "+") [TermLit (LitNum 1), TermCall (ISymb "abs") [TermIdent (ISymb "y")]]
+                ]
+
+-------------------------------
 -- Grammar
 -------------------------------
 
@@ -195,7 +215,7 @@ intRuleList =
     , GBfTerm $ BfIdentifierBfs (ISymb "+") [intBf, intBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "-") [intBf, intBf]
     -- , GBfTerm $ BfIdentifierBfs (ISymb "*") [intBf, intBf]
-    , GBfTerm $ BfIdentifierBfs (ISymb "mod") [intBf, BfIdentifier (ISymb "IConst")]
+    , GBfTerm $ BfIdentifierBfs (ISymb safeModSymb) [intBf, BfIdentifier (ISymb "IConst")]
     ]
 
 boolRuleList :: [GTerm]
@@ -326,7 +346,6 @@ funcCallTerm sorts meas_ex poly_names arg_tys ret_ty (FuncCall { arguments = ars
         ns_r_bound' = concatMap expand1 (extractValues ns_r_bound)
     in
     --funcCallTerm' sorts meas_ex arg_tys ret_ty ars r
-    trace ("arg_tys = " ++ show arg_tys ++ "\nars = " ++ show ars)
     mapMaybe (\(r, rt, n) -> funcCallTerm' sorts meas_ex arg_tys ars r rt n) $ ns_r_bound' -- r
     where
         expand1 :: ([a], b, c) -> [(a, b, c)]
@@ -593,6 +612,10 @@ termToLHExpr meas_sym@(MeasureSymbols meas_sym') m_args (TermCall (ISymb v) ts)
     , [t1, t2] <- ts = EBin LH.Times (termToLHExpr meas_sym m_args t1) (termToLHExpr meas_sym m_args t2)
     | "mod" <- v
     , [t1, t2] <- ts = EBin LH.Mod (termToLHExpr meas_sym m_args t1) (termToLHExpr meas_sym m_args t2)
+    -- Special handling for safe-mod.  We enforce via the grammar that the denominator is an Integer
+    | "safe-mod" <- v
+    , [t1, t2] <- ts
+    , TermLit (LitNum n) <- t2 = EBin LH.Mod (termToLHExpr meas_sym m_args t1) (ECon (I ((abs n) + 1)))
     -- More EBin...
     | "and" <- v = PAnd $ map (termToLHExpr meas_sym m_args) ts
     | "or" <- v = POr $ map (termToLHExpr meas_sym m_args) ts

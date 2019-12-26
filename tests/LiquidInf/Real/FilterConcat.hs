@@ -15,10 +15,14 @@ size :: List a -> Int
 size Nil = 0
 size (x :+: xs) = 1 + size xs
 
+{-@ invariant {v:List a | 0 <= size v} @-}
+
 {-@ measure sumsize @-}
 sumsize :: List (List a) -> Int
 sumsize Nil = 0
 sumsize (x :+: xs) = size x + sumsize xs
+
+{-@ invariant {v:List (List a) | 0 <= sumsize v} @-}
 
 {-@ concatFilterOddEven :: xs:List (List Int) -> ({ys:List Int | size ys <= sumsize xs }, {zs:List Int | size zs <= sumsize xs }) @-}
 concatFilterOddEven :: List (List Int) -> (List Int, List Int)
