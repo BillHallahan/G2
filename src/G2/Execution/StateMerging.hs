@@ -58,16 +58,8 @@ isMergeableExpr eenv1 eenv2 (Var i1) (Var i2)
     | (Just (E.Sym _)) <- E.lookupConcOrSym (idName i1) eenv1
     , (Just (E.Sym _)) <- E.lookupConcOrSym (idName i2) eenv2
     , typeOf i1 == typeOf i2 = True
--- isMergeableExpr eenv1 eenv2 e1 e2
---     | isSMNF eenv1 e1
---     , isSMNF eenv2 e2 = True
--- isMergeableExpr eenv1 eenv2 e1@(Case _ _ _) e2
---     | isSMNF eenv1 e1
---     , isSMNF eenv2 e2 = True
--- isMergeableExpr eenv1 eenv2 e1 e2@(Case _ _ _)
---     | isSMNF eenv1 e1
---     , isSMNF eenv2 e2 = True
 isMergeableExpr _ _ _ _ = False
+-- (allowing all exprs in SMNF - i.e. Case Exprs, to be merged yields no performance improvement)
 
 -- | Values that are passed around and updated while merging individual fields in 2 States
 data Context t = Context { renamed1_ :: HM.HashMap Name Name -- Map from old Names in State `s1_` to new Names
