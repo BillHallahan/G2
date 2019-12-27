@@ -24,31 +24,31 @@ sumsize (x :+: xs) = size x + sumsize xs
 
 {-@ invariant {v:List (List a) | 0 <= sumsize v} @-}
 
-{-@ concatFilterOddEven :: xs:List (List Int) -> ({ys:List Int | size ys <= sumsize xs }, {zs:List Int | size zs <= sumsize xs }) @-}
-concatFilterOddEven :: List (List Int) -> (List Int, List Int)
-concatFilterOddEven xs = (concatFilterEven xs, concatFilterOdd xs)
+{-@ concatFilterPosNeg :: xs:List (List Int) -> ({ys:List Int | size ys <= sumsize xs }, {zs:List Int | size zs <= sumsize xs }) @-}
+concatFilterPosNeg :: List (List Int) -> (List Int, List Int)
+concatFilterPosNeg xs = (concatFilterPos xs, concatFilterNeg xs)
 
-{-@ concatFilterOdd :: xs:List (List Int) -> List Int @-}
-concatFilterOdd :: List (List Int) -> List Int
-concatFilterOdd xs = filterOdd (concat xs)
+{-@ concatFilterNeg :: xs:List (List Int) -> List Int @-}
+concatFilterNeg :: List (List Int) -> List Int
+concatFilterNeg xs = filterNeg (concat xs)
 
-{-@ concatFilterEven :: xs:List (List Int) -> List Int @-}
-concatFilterEven :: List (List Int) -> List Int
-concatFilterEven xs = filterEven (concat xs)
+{-@ concatFilterPos :: xs:List (List Int) -> List Int @-}
+concatFilterPos :: List (List Int) -> List Int
+concatFilterPos xs = filterPos (concat xs)
 
-{-@ filterOdd :: List Int -> List Int @-}
-filterOdd :: List Int -> List Int
-filterOdd Nil = Nil
-filterOdd (x :+: xs)
-    | x `mod` 2 == 1 = x :+: filterOdd xs
-    | otherwise = filterOdd xs
+{-@ filterNeg :: List Int -> List Int @-}
+filterNeg :: List Int -> List Int
+filterNeg Nil = Nil
+filterNeg (x :+: xs)
+    | x < 0 = x :+: filterNeg xs
+    | otherwise = filterNeg xs
 
-{-@ filterEven :: List Int -> List Int @-}
-filterEven :: List Int -> List Int
-filterEven Nil = Nil
-filterEven (x :+: xs)
-    | x `mod` 2 == 0 = x :+: filterEven xs
-    | otherwise = filterEven xs
+{-@ filterPos :: List Int -> List Int @-}
+filterPos :: List Int -> List Int
+filterPos Nil = Nil
+filterPos (x :+: xs)
+    | x > 0 = x :+: filterPos xs
+    | otherwise = filterPos xs
 
 {-@ concat :: List (List a) -> List a @-}
 concat :: List (List a) -> List a

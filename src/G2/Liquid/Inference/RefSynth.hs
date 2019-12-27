@@ -89,7 +89,7 @@ sygusCall e tc meas meas_ex fcs@(_:_) =
 
         declare_dts = sortsToDeclareDTs sorts
 
-        (grams, cons, rp_ns) = trace ("rel_arg_ty_c = " ++ show rel_arg_ty_c) generateGrammarsAndConstraints sorts meas_ex rel_arg_ty_c ret_ty_c rel_fcs
+        (grams, cons, rp_ns) = generateGrammarsAndConstraints sorts meas_ex rel_arg_ty_c ret_ty_c rel_fcs
 
         call = [ SmtCmd (SetLogic "ALL")]
                ++
@@ -337,6 +337,15 @@ termConstraints sorts meas_ex poly_names arg_tys ret_ty (Pos fc) =
 termConstraints sorts meas_ex poly_names arg_tys ret_ty (Neg fc) =
     NegT $ funcCallTerm sorts meas_ex poly_names arg_tys ret_ty fc
 
+-- When polymorphic arguments are instantiated with values, we use those as
+-- arguments for the polymorphic refinement functions.  However, even when they
+-- do not have values, we still want to enforce that (for some value) the polymorphic
+-- refinement function is true.  Thus, given arguments a_1, ..., a_n, we need to add
+-- an expression of the form:
+--      exists x . r(a_1, ..., a_n, x)
+
+data ValOrExistential v = Val v | Existential
+
 funcCallTerm :: TypesToSorts -> MeasureExs -> RefNamePolyBound ->  [Type] -> Type -> FuncCall -> [Term]
 funcCallTerm sorts meas_ex poly_names arg_tys ret_ty (FuncCall { arguments = ars, returns = r}) =
     let
@@ -345,25 +354,30 @@ funcCallTerm sorts meas_ex poly_names arg_tys ret_ty (FuncCall { arguments = ars
         ns_r_bound = zip3PB r_bound rt_bound poly_names
         ns_r_bound' = concatMap expand1 (extractValues ns_r_bound)
     in
-    --funcCallTerm' sorts meas_ex arg_tys ret_ty ars r
     mapMaybe (\(r, rt, n) -> funcCallTerm' sorts meas_ex arg_tys ars r rt n) $ ns_r_bound' -- r
     where
-        expand1 :: ([a], b, c) -> [(a, b, c)]
-        expand1 (as, b, c) = map (\a -> (a, b, c)) as 
+        expand1 :: ([a], b, c) -> [(ValOrExistential a, b, c)]
+        expand1 ([], b, c) = [(Existential, b, c) ]
+        expand1 (as, b, c) = map (\a -> (Val a, b, c)) as 
 
-funcCallTerm' :: TypesToSorts -> MeasureExs -> [Type] -> [G2.Expr] -> G2.Expr -> Type -> String -> Maybe Term
+funcCallTerm' :: TypesToSorts -> MeasureExs -> [Type] -> [G2.Expr] -> ValOrExistential G2.Expr -> Type -> String -> Maybe Term
 funcCallTerm' sorts meas_ex arg_tys ars r ret_ty fn
-    | relTy ret_ty =
-        Just $ TermCall (ISymb fn)
-            (map (uncurry (exprToTerm sorts meas_ex)) (zip arg_tys ars) ++ [exprToTerm sorts meas_ex ret_ty r])
+    | Val r' <- r
+    , relTy ret_ty =
+        let
+            trm_ret = exprToTerm sorts meas_ex ret_ty r'
+        in
+        Just $ TermCall (ISymb fn) (trm_ars ++ [trm_ret])
+    | Existential <- r
+    , relTy ret_ty =
+        let
+            srt_v = SortedVar "e_ret" $ typeToSort sorts ret_ty
+        in
+        Just . TermExists [srt_v] $ TermCall (ISymb fn) (trm_ars ++ [TermIdent (ISymb "e_ret")])
     | otherwise = Nothing
-        where
-            isType (Type _) = True
-            isType _ = False
+    where
+        trm_ars = map (uncurry (exprToTerm sorts meas_ex)) (zip arg_tys ars)
 
-            isLhDict e
-                | (Data (DataCon (Name n _ _ _) _)):_ <- unApp e = n == "lh"
-                | otherwise = False
 
 exprToTerm :: TypesToSorts -> MeasureExs -> Type -> G2.Expr -> Term
 exprToTerm _ _ (TyCon (Name "Bool" _ _ _) _) (Data (DataCon (Name n _ _ _) _))
