@@ -69,7 +69,7 @@ toNum _ s@(State {adt_int_maps = adtIntMaps
     | otherwise = (s, [p])
 
 fromNum :: ADTSimplifier -> State t -> Bindings -> Model -> Model
-fromNum (ADTSimplifier avf) (State {adt_int_maps = adtIntMaps
+fromNum (ADTSimplifier avf) s@(State {adt_int_maps = adtIntMaps
                        , simplified = smplfd
                        , expr_env = eenv
                        , type_env = tenv}) b m = HM.mapWithKey (fromNum' eenv tenv adtIntMaps smplfd avf b) m
@@ -80,7 +80,7 @@ fromNum' eenv tenv adtIntMaps smplfd avf b n val
     , isADT tCast = -- `n` is not of a primitive type, need to map back to DataCon
         let num = case val of
                 (Lit (LitInt x)) -> x
-                _ -> error "Model should only return LitInts for non-primitive type"
+                _ -> error $ "Model should only return LitInts for non-primitive type"
             dcNumMap = fromJust $ HM.lookup tCast adtIntMaps
             dc = Data $ fromJust $ lookupDC num dcNumMap
 
@@ -126,7 +126,8 @@ mkDCNumMap' :: AlgDataTy -> Maybe DCNum
 mkDCNumMap' (DataTyCon { data_cons = dcs }) =
     let (num, pairs) = mapAccumR (\count dc -> (count + 1, (count, dc))) 0 dcs
         dc2IntPairs = (\(dc, count) -> (dcName dc, count)) <$> swap <$> pairs
-    in Just $ DCNum {upperB = num - 1, dc2Int = HM.fromList dc2IntPairs, int2Dc = HM.fromList pairs}
+    in
+    Just $ DCNum {upperB = num - 1, dc2Int = HM.fromList dc2IntPairs, int2Dc = HM.fromList pairs}
 mkDCNumMap' _ = Nothing
 
 insertFlipped :: (Eq a, Hashable a) => a -> HM.HashMap a b -> b -> HM.HashMap a b

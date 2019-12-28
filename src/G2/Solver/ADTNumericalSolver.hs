@@ -18,12 +18,12 @@ import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
 
 -- | Converts constraints about ADTs to numerical constraints before sending them to other solvers
-data ADTNumericalSolver a = ADTNumericalSolver ArbValueFunc a
+data ADTNumericalSolver solver = ADTNumericalSolver ArbValueFunc solver
 
-adtNumericalSolFinite :: a -> ADTNumericalSolver a
+adtNumericalSolFinite :: solver -> ADTNumericalSolver solver
 adtNumericalSolFinite = ADTNumericalSolver arbValue
 
-adtNumericalSolInfinite :: a -> ADTNumericalSolver a
+adtNumericalSolInfinite :: solver -> ADTNumericalSolver solver
 adtNumericalSolInfinite = ADTNumericalSolver arbValueInfinite
 
 instance Solver solver => Solver (ADTNumericalSolver solver) where
@@ -41,7 +41,7 @@ instance TrSolver solver => TrSolver (ADTNumericalSolver solver) where
         return (r, m, ADTNumericalSolver avf sol')
     closeTr (ADTNumericalSolver _ s) = closeTr s
 
-checkConsistency :: TrSolver a => a -> State t -> PathConds -> IO (Result, a)
+checkConsistency :: TrSolver solver => solver -> State t -> PathConds -> IO (Result, solver)
 checkConsistency solver s@(State {known_values = kv, simplified = smplfd, adt_int_maps = adtIntMaps, expr_env = eenv}) pc
     | PC.null pc = return (SAT, solver)
     | otherwise = do
@@ -50,7 +50,7 @@ checkConsistency solver s@(State {known_values = kv, simplified = smplfd, adt_in
             pc' = foldr PC.insert pc $ eenvPCs
         checkTr solver s pc'
 
-solve' :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model, a)
+solve' :: TrSolver solver => ArbValueFunc -> solver -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model, solver)
 solve' avf sol s@(State {known_values = kv, simplified = smplfd, adt_int_maps = adtIntMaps, type_env = tenv, expr_env = eenv}) b is pc = do
     -- Split into Ids that need to be solved further by solvers, and Ids representing ADTs with no related PathConds
     let (rest, pcIds) = partition (f smplfd) is
@@ -88,8 +88,8 @@ addEEnvVals kv eenv smplfd adtIntMaps n =
     let (_, newTyp) = fromJust $ HM.lookup n smplfd
     in case E.lookup n eenv of
         Just e
-            | Data (DataCon dcN _):_ <- unApp e ->
-                let dcNumMap = fromJust $ HM.lookup newTyp adtIntMaps
-                    num = fromJust $ lookupInt dcN dcNumMap
-                in Just $ ExtCond (mkEqIntExpr kv (Var (Id n TyLitInt)) (toInteger num)) True
+            | Data (DataCon dcN _):_ <- unApp e
+            , Just dcNumMap <- HM.lookup newTyp adtIntMaps
+            , Just num <- lookupInt dcN dcNumMap ->
+                Just $ ExtCond (mkEqIntExpr kv (Var (Id n TyLitInt)) (toInteger num)) True
         _ -> Nothing

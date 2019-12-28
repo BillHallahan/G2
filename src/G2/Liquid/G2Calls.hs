@@ -78,16 +78,15 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
         -- tell if an assertion was violated.
         -- If an assertion is violated, it means that the function did not need to be abstracted,
         -- but does need to be in `assert_ids` .
-        let s' = pickHead $
-                   s { expr_env = model s `E.union'` expr_env s
-                     , curr_expr = CurrExpr Evaluate strict_call }
+        let s' = pickHead . modelToExprEnv $
+                   s { curr_expr = CurrExpr Evaluate strict_call }
 
         (er, _) <- runG2WithSomes 
                         (SomeReducer (StdRed share solver simplifier))
                         (SomeHalter SWHNFHalter)
                         (SomeOrderer NextOrderer)
                         solver simplifier emptyMemConfig s' bindings
-        mapM_ (print . model . final_state) er
+
         case er of
             [ExecRes
                 {
@@ -150,9 +149,8 @@ reduceFCExpr share reducer solver simplifier s bindings e
         let 
             e' = fillLHDictArgs ds strict_e
 
-        let s' = elimAsserts . pickHead $
-                   s { expr_env = model s `E.union'` expr_env s
-                   , curr_expr = CurrExpr Evaluate e'}
+        let s' = elimAsserts . pickHead . modelToExprEnv $
+                   s { curr_expr = CurrExpr Evaluate e'}
 
         (er, bindings') <- runG2WithSomes 
                     reducer
@@ -173,6 +171,10 @@ mapAccumM f z (x:xs) = do
   (z', y) <- f z x
   (z'', ys) <- mapAccumM f z' xs
   return (z'', return y `mplus` ys)
+
+modelToExprEnv :: State t -> State t
+modelToExprEnv s = s { expr_env = model s `E.union'` expr_env s
+                     , model = HM.empty }
 
 -------------------------------
 -- Generic

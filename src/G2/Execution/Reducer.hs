@@ -28,6 +28,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , Logger (..)
                             , LimLogger (..)
                             , PredicateLogger (..)
+                            , OnlyPath (..)
 
                             , (<~)
                             , (<~?)
@@ -431,6 +432,21 @@ instance Show t => Reducer PredicateLogger [Int] t where
     
     updateWithAll _ [(_, l)] = [l]
     updateWithAll _ ss = map (\(l, i) -> l ++ [i]) $ zip (map snd ss) [1..]
+
+
+-- | A Reducer to block states not on a given path 
+data OnlyPath = OnlyPath [Int] -- ^ The path to accept
+
+instance Reducer OnlyPath [Int] t where
+    initReducer _ _ = []
+
+    redRules ll@(OnlyPath down) off s b
+        | down `L.isPrefixOf` off || off `L.isPrefixOf` down =
+            return (NoProgress, [(s, off)], b, ll)
+        | otherwise = return (Finished, [], b, ll)
+    
+    updateWithAll _ [(_, l)] = [l]
+    updateWithAll _ ss = map (\(llt, i) -> llt ++ [i]) $ zip (map snd ss) [1..]
 
 
 outputState :: Show t => String -> [Int] -> State t -> Bindings -> IO ()

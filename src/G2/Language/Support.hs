@@ -385,8 +385,8 @@ instance Named Frame where
 instance Named DCNum where
     names (DCNum { dc2Int = m1, int2Dc = m2 }) = names (HM.keys m1) ++ names (HM.elems m2)
     rename old new dcNum@(DCNum {dc2Int = m1 , int2Dc = m2}) = dcNum { dc2Int = m1', int2Dc = m2' }
-        where m1' = rename old new m1
-              m2' = rename old new m2
+        where m1' = HM.fromList . rename old new $ HM.toList m1
+              m2' = HM.fromList . rename old new $ HM.toList m2
     renames hm dcNum@(DCNum {dc2Int = m1 , int2Dc = m2}) = dcNum { dc2Int = m1', int2Dc = m2' }
-        where m1' = renames hm m1
-              m2' = renames hm m2
+        where m1' = HM.fromList . renames hm $ HM.toList m1
+              m2' = HM.fromList . renames hm $ HM.toList m2
