@@ -74,7 +74,6 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.List as L
-import qualified Data.Sequence as S
 import System.Directory
 
 -- | Used when applying execution rules
@@ -948,7 +947,7 @@ runReducerMerge :: (Show t, Eq t, Named t, Reducer r rv t, Halter h hv t, Simpli
 runReducerMerge red hal simplifier s b = do
     let pr = Processed {accepted = [], discarded = []}
         s' = ExState {state = s {merge_stack = [0]}, halter_val = initHalt hal s, reducer_val = initReducer red s, order_val = Nothing}
-        -- workGraph = WG.initGraph s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStatesGraph addIdxFunc logState
+        -- workGraph = WG.initGraph s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStatesGraph resetSaturated logState
         zipper = initZipper s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStatesZipper resetMergingZipper
 
     -- (_, (_, _, _, b', pr')) <- WG.work workGraph
@@ -979,66 +978,24 @@ runReducerMerge' exS (red, hal, simplifier, bdg, pr) = do
                                                       $ zip new_states r_vals
             let status = case reducerRes of MergePoint -> WG.Mergeable; MaxDepth -> WG.WorkSaturated; Split -> WG.Split; _ -> WG.WorkNeeded
             return (reduceds'', (red', hal, simplifier, bdg', pr), status)
- 
- -- | merge_func for WorkGraph.
-mergeStatesGraph :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
-                 => S.Seq (ExState rv hv sov t) -> S.Seq (ExState rv hv sov t)
-                 -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
-                 -> (S.Seq (ExState rv hv sov t), S.Seq (ExState rv hv sov t), Maybe Int,
-                    (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)))
-mergeStatesGraph workSat toMerge (red, hal, simplifier, bdg, pr) =
-    let workNeeded = resetMerging <$> workSat -- reset states that have reached max depth
-
-        (merged, bdg') = mergeStatesAll toMerge bdg simplifier
-        merged' = (\exS@(ExState { state = s@(State {merge_stack = ms }) }) -- remove index from top of the merged states' stacks
-            -> exS { state = s { ready_to_merge = False, merge_stack = tail ms } }) <$> merged
-
-        -- get the new top index from the merged states' stacks
-        maybeNewIdx = if (not $ S.null merged') then getNextIdx (S.viewl merged') else Nothing
-    in (workNeeded, merged', maybeNewIdx, (red, hal, simplifier, bdg', pr))
-
--- | Returns top index in merge_stack of state
-getNextIdx :: S.ViewL (ExState rv hv sov t) -> Maybe Int
-getNextIdx ((ExState { state = (State {merge_stack = ms}) }) S.:< _) = Just $ head ms
-getNextIdx _ = Nothing
 
 -- | Reset counts of all unmerged Case Expressions to 0
-resetMerging :: (ExState rv hv sov t) -> (ExState rv hv sov t)
-resetMerging rs@(ExState {state = s}) =
+resetSaturated :: (ExState rv hv sov t) -> (ExState rv hv sov t)
+resetSaturated rs@(ExState {state = s}) =
     let s' = s {cases = M.empty, depth_exceeded = False}
     in rs {state = s'}
 
--- | Considers all possible combinations when merging states
-mergeStatesAll :: (Eq t, Named t, Simplifier simplifier) => S.Seq (ExState rv hv sov t) -> Bindings -> simplifier
-               -> (S.Seq (ExState rv hv sov t), Bindings)
-mergeStatesAll (x S.:<| xs) b simplifier =
-    let (done, rest, b') = mergeStatesAll' x S.Empty xs b simplifier
-        (mergedStates, b'') = mergeStatesAll rest b' simplifier
-    in (done S.<| mergedStates, b'')
-mergeStatesAll S.Empty b _ = (S.empty, b)
-
-mergeStatesAll' :: (Eq t, Named t, Simplifier simplifier)
-                => (ExState rv hv sov t) -> S.Seq (ExState rv hv sov t) -> S.Seq (ExState rv hv sov t) -> Bindings -> simplifier
-                -> ((ExState rv hv sov t), S.Seq (ExState rv hv sov t), Bindings)
-mergeStatesAll' x1 unmerged (x2 S.:<| xs) b simplifier =
-    case mergeStates' x1 x2 b simplifier of
-        (Just exS, b') -> mergeStatesAll' exS unmerged xs b' simplifier
-        (Nothing, b') -> mergeStatesAll' x1 (x2 S.<| unmerged) xs b' simplifier
-mergeStatesAll' x1 unmerged S.Empty b _ = (x1, unmerged, b)
-
-mergeStates' :: (Eq t, Named t, Simplifier simplifier) => (ExState rv hv sov t) -> (ExState rv hv sov t) -> Bindings -> simplifier 
-             -> (Maybe (ExState rv hv sov t), Bindings)
-mergeStates' ex1 ex2 b simplifier =
-    let res = mergeState (name_gen b) simplifier (state ex1) (state ex2)
+-- | Merge Func for WorkGraph. Attempts to merge 2 states
+mergeStatesGraph :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
+               => (ExState rv hv sov t) -> (ExState rv hv sov t) -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
+               -> (Maybe (ExState rv hv sov t), (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)))
+mergeStatesGraph ex1 ex2 (r, h, smplfr, b, pr) =
+    let res = mergeState (name_gen b) smplfr (state ex1) (state ex2)
     in case res of
-        (ng', Just s') -> (Just ex1 {state = s'}, b {name_gen = ng'}) -- todo: which reducer_val and halter_val to keep
-        (ng', Nothing) -> (Nothing, b {name_gen = ng'})
+        (ng', Just s') -> (Just ex1 {state = s'}, (r, h, smplfr, b {name_gen = ng'}, pr)) -- todo: which reducer_val and halter_val to keep
+        (ng', Nothing) -> (Nothing, (r, h, smplfr, b {name_gen = ng'}, pr))
 
--- add_idx_func for workGraph
-addIdxFunc :: Int -> ExState rv hv sov t -> ExState rv hv sov t
-addIdxFunc newIdx exS@(ExState {state = st@(State {merge_stack = ms})}) = exS {state = st { merge_stack = newIdx:ms } }
-
--- function for Logger in workGraph that outputs curr_expr
+-- | Function for Logger in workGraph that outputs curr_expr
 logState :: Show t => ExState rv hv sov t -> String
 logState (ExState { state = (State {curr_expr = ce}) }) = show ce
 
@@ -1092,3 +1049,11 @@ mergeStatesAllZipper' x1 checked (x2:xs) b simplifier =
         (Nothing, b') -> mergeStatesAllZipper' x1 (x2:checked) xs b' simplifier
 mergeStatesAllZipper' x1 checked [] b _ = (x1, checked, b)
 
+mergeStates' :: (Eq t, Named t, Simplifier simplifier)
+               => (ExState rv hv sov t) -> (ExState rv hv sov t) -> Bindings  -> simplifier
+               -> (Maybe (ExState rv hv sov t), Bindings)
+mergeStates' ex1 ex2 b simplifier =
+    let res = mergeState (name_gen b) simplifier (state ex1) (state ex2)
+    in case res of
+        (ng', Just s') -> (Just ex1 {state = s'}, b {name_gen = ng'}) -- todo: which reducer_val and halter_val to keep
+        (ng', Nothing) -> (Nothing, b {name_gen = ng'})
