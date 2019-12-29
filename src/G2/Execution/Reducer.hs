@@ -947,8 +947,8 @@ runReducerMerge :: (Show t, Eq t, Named t, Reducer r rv t, Halter h hv t, Simpli
 runReducerMerge red hal simplifier s b = do
     let pr = Processed {accepted = [], discarded = []}
         s' = ExState {state = s {merge_stack = [0]}, halter_val = initHalt hal s, reducer_val = initReducer red s, order_val = Nothing}
-        -- workGraph = WG.initGraph s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStatesGraph resetSaturated logState
-        zipper = initZipper s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStatesZipper resetMergingZipper
+        -- workGraph = WG.initGraph s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStates resetSaturated logState
+        zipper = initZipper s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStates resetMergingZipper
 
     -- (_, (_, _, _, b', pr')) <- WG.work workGraph
     (_, _, _, b', pr') <- evalZipper zipper
@@ -985,11 +985,11 @@ resetSaturated rs@(ExState {state = s}) =
     let s' = s {cases = M.empty, depth_exceeded = False}
     in rs {state = s'}
 
--- | Merge Func for WorkGraph. Attempts to merge 2 states
-mergeStatesGraph :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
-               => (ExState rv hv sov t) -> (ExState rv hv sov t) -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
-               -> (Maybe (ExState rv hv sov t), (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)))
-mergeStatesGraph ex1 ex2 (r, h, smplfr, b, pr) =
+-- | Merge Func for WorkGraph and Tree Zipper. Attempts to merge 2 states
+mergeStates :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
+            => (ExState rv hv sov t) -> (ExState rv hv sov t) -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
+            -> (Maybe (ExState rv hv sov t), (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)))
+mergeStates ex1 ex2 (r, h, smplfr, b, pr) =
     let res = mergeState (name_gen b) smplfr (state ex1) (state ex2)
     in case res of
         (ng', Just s') -> (Just ex1 {state = s'}, (r, h, smplfr, b {name_gen = ng'}, pr)) -- todo: which reducer_val and halter_val to keep
@@ -998,8 +998,6 @@ mergeStatesGraph ex1 ex2 (r, h, smplfr, b, pr) =
 -- | Function for Logger in workGraph that outputs curr_expr
 logState :: Show t => ExState rv hv sov t -> String
 logState (ExState { state = (State {curr_expr = ce}) }) = show ce
-
-------------------------------------------------------------------------------------------------------------------------------
 
 -- | Remove any MergePtFrame-s in the exec_stack of the ExState. Called when we float states to Root when tree grows too deep
 resetMergingZipper :: (ExState rv hv sov t) -> (ExState rv hv sov t)
@@ -1016,44 +1014,3 @@ delMergePtFrames st =
                                 MergePtFrame _ -> False
                                 _ -> True) xs
     in Stck.fromList xs'
-
--- | Merge Function for ZipperTree
--- Iterates through list and attempts to merge adjacent ExStates if possible. Does not consider all possible combinations
--- because number of successful merges only seem to increase marginally in such a case
-mergeStatesZipper :: (Eq t, Named t, Simplifier simplifier)
-                  => [ExState rv hv sov t] -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
-                  -> ([ExState rv hv sov t], (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)))
-mergeStatesZipper (x1:x2:xs) (r, h, simplifier, b, pr) =
-    case mergeStates' x1 x2 b simplifier of
-        (Just exS, b') -> mergeStatesZipper (exS:xs) (r, h, simplifier, b', pr)
-        (Nothing, b') -> let (merged, e) = mergeStatesZipper (x2:xs) (r, h, simplifier, b', pr)
-                         in (x1:merged, e)
-mergeStatesZipper ls e = (ls, e)
-
--- | Similar to mergeStatesZipper, but considers all possible combinations when merging states
-mergeStatesAllZipper :: (Eq t, Named t, Simplifier simplifier)
-                     => [ExState rv hv sov t] -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
-                     -> ([ExState rv hv sov t], (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)))
-mergeStatesAllZipper (x:xs) (r, h, simplifier, b, pr) =
-    let (done, rest, b') = mergeStatesAllZipper' x [] xs b simplifier
-        (mergedStates, e) = mergeStatesAllZipper rest (r, h, simplifier, b', pr)
-    in (done:mergedStates, e)
-mergeStatesAllZipper [] e = ([], e)
-
-mergeStatesAllZipper' :: (Eq t, Named t, Simplifier simplifier)
-                      => (ExState rv hv sov t) -> [ExState rv hv sov t] -> [ExState rv hv sov t] -> Bindings -> simplifier
-                      -> ((ExState rv hv sov t), [ExState rv hv sov t], Bindings)
-mergeStatesAllZipper' x1 checked (x2:xs) b simplifier =
-    case mergeStates' x1 x2 b simplifier of
-        (Just exS, b') -> mergeStatesAllZipper' exS checked xs b' simplifier
-        (Nothing, b') -> mergeStatesAllZipper' x1 (x2:checked) xs b' simplifier
-mergeStatesAllZipper' x1 checked [] b _ = (x1, checked, b)
-
-mergeStates' :: (Eq t, Named t, Simplifier simplifier)
-               => (ExState rv hv sov t) -> (ExState rv hv sov t) -> Bindings  -> simplifier
-               -> (Maybe (ExState rv hv sov t), Bindings)
-mergeStates' ex1 ex2 b simplifier =
-    let res = mergeState (name_gen b) simplifier (state ex1) (state ex2)
-    in case res of
-        (ng', Just s') -> (Just ex1 {state = s'}, b {name_gen = ng'}) -- todo: which reducer_val and halter_val to keep
-        (ng', Nothing) -> (Nothing, b {name_gen = ng'})
