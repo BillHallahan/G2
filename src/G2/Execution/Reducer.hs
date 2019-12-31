@@ -946,7 +946,7 @@ runReducerMerge :: (Show t, Eq t, Named t, Reducer r rv t, Halter h hv t, Simpli
                  -> IO ([State t], Bindings)
 runReducerMerge red hal simplifier s b = do
     let pr = Processed {accepted = [], discarded = []}
-        s' = ExState {state = s {merge_stack = [0]}, halter_val = initHalt hal s, reducer_val = initReducer red s, order_val = Nothing}
+        s' = ExState {state = s, halter_val = initHalt hal s, reducer_val = initReducer red s, order_val = Nothing}
         -- workGraph = WG.initGraph s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStates resetSaturated logState
         zipper = initZipper s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStates resetMergingZipper
 
