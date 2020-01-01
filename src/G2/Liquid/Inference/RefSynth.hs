@@ -211,12 +211,12 @@ intRuleList :: [GTerm]
 intRuleList =
     [ GVariable intSort
     , GConstant intSort
-    , GBfTerm $ BfLiteral $ LitNum 0
     , GBfTerm $ BfIdentifierBfs (ISymb "+") [intBf, intBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "-") [intBf, intBf]
-    -- , GBfTerm $ BfIdentifierBfs (ISymb "*") [intBf, intBf]
+    , GBfTerm $ BfIdentifierBfs (ISymb "*") [intBf, intBf]
     , GBfTerm $ BfIdentifierBfs (ISymb safeModSymb) [intBf, BfIdentifier (ISymb "IConst")]
     ]
+    ++ [GBfTerm . BfLiteral . LitNum $ x | x <- [0..0]]
 
 boolRuleList :: [GTerm]
 boolRuleList =
