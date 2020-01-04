@@ -29,11 +29,14 @@ import qualified Language.Fixpoint.Types as F
 import qualified Language.Fixpoint.Types.Errors as F (FixResult (..))
 import CoreSyn
 
+-- For Show instance of Cinfo
+import Language.Haskell.Liquid.Liquid ()
+
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
 
 data VerifyResult = Safe
-                  | Crash
+                  | Crash [(Integer, Cinfo)] String
                   | Unsafe [G2.Name]
 
 verify :: Config ->  [GhcInfo] -> IO VerifyResult
@@ -41,7 +44,7 @@ verify cfg ghci = do
     r <- verify' cfg ghci
     case F.resStatus r of
         F.Safe -> return Safe
-        F.Crash _ _ -> return Crash
+        F.Crash ci err -> return $ Crash ci err
         F.Unsafe bad -> return . Unsafe . map (mkName . V.varName) . catMaybes $ map (ci_var . snd) bad
 
 
@@ -143,8 +146,8 @@ dumpCs cgi = do
 pprintMany :: (PPrint a) => [a] -> Doc
 pprintMany xs = vcat [ F.pprint x $+$ text " " | x <- xs ]
 
-instance Show Cinfo where
-  show = show . F.toFix
+-- instance Show Cinfo where
+--   show = show . F.toFix
 
 solveCs :: Config -> FilePath -> CGInfo -> GhcInfo -> IO (F.Result (Integer, Cinfo))
 solveCs cfg tgt cgi info = do

@@ -128,7 +128,7 @@ generateGrammarsAndConstraints sorts meas_ex arg_tys ret_ty fcs@(fc:_) =
     let
         poly_bd = extractExprPolyBoundWithRoot (returns $ constraint fc)
         poly_ref_names = mapPB (\i -> "refinement_" ++ show i) $ uniqueIds poly_bd
-        rt_bound = extractTypePolyBoundPresFull ret_ty
+        rt_bound = extractTypePolyBound ret_ty
         ns_rt = zipPB poly_ref_names rt_bound
 
         varN = map (\i -> "x" ++ show i) ([0..] :: [Integer])
@@ -350,7 +350,7 @@ funcCallTerm :: TypesToSorts -> MeasureExs -> RefNamePolyBound ->  [Type] -> Typ
 funcCallTerm sorts meas_ex poly_names arg_tys ret_ty (FuncCall { arguments = ars, returns = r}) =
     let
         r_bound = extractExprPolyBoundWithRoot r
-        rt_bound = extractTypePolyBoundPresFull ret_ty
+        rt_bound = extractTypePolyBound ret_ty
         ns_r_bound = zip3PB r_bound rt_bound poly_names
         ns_r_bound' = concatMap expand1 (extractValues ns_r_bound)
     in
@@ -415,7 +415,7 @@ typeToSort _ (TyCon (Name n _ _ _) _)
     | n == "Bool" = boolSort
 typeToSort sm t
     | Just si <- lookupSort t sm = IdentSort (ISymb $ sort_name si)
-typeToSort _ t = error $ "Unknown Type " ++ show t
+typeToSort sm t = error $ "Unknown Type\n" ++ show t ++ "\nsm = " ++ show sm
 
 -------------------------------
 -- Measures

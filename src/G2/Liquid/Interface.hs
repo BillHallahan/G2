@@ -490,9 +490,9 @@ initializeLHSpecs counter ghcInfos ifi bindings = do
 
     ns <- convertCurrExpr ifi bindings
 
-    cfn <- if counter == Counterfactual
-                then addCounterfactualBranch ns
-                else return (Name "" Nothing 0 Nothing)
+    cfn <- case counter of
+              Counterfactual cf_mods -> addCounterfactualBranch cf_mods ns
+              NotCounterfactual -> return (Name "" Nothing 0 Nothing)
 
     return cfn
 

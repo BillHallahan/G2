@@ -17,6 +17,7 @@ import qualified G2.Initialization.Types as IT
 import G2.Interface
 import G2.Language
 import qualified G2.Language.ExprEnv as E
+import G2.Liquid.Inference.Config
 import G2.Liquid.Conversion
 import G2.Liquid.Helpers
 import G2.Liquid.Interface
@@ -48,9 +49,10 @@ runLHInferenceCore :: T.Text
                    -> Maybe T.Text
                    -> LiquidReadyState
                    -> [GhcInfo]
+                   -> InferenceConfig
                    -> Config
                    -> IO (([ExecRes [Abstracted]], Bindings), Id)
-runLHInferenceCore entry m lrs ghci config = do
+runLHInferenceCore entry m lrs ghci infconfig config = do
     LiquidData { ls_state = final_st
                , ls_bindings = bindings
                , ls_id = ifi
@@ -59,7 +61,7 @@ runLHInferenceCore entry m lrs ghci config = do
     SomeSolver solver <- initSolver config
     let simplifier = ADTSimplifier arbValue
 
-    (red, hal, ord) <- inferenceReducerHalterOrderer config solver simplifier entry m cfn final_st
+    (red, hal, ord) <- inferenceReducerHalterOrderer infconfig config solver simplifier entry m cfn final_st
     (exec_res, final_bindings) <- runLHG2 config red hal ord solver simplifier pres_names final_st bindings
 
     close solver
@@ -67,7 +69,8 @@ runLHInferenceCore entry m lrs ghci config = do
     return ((exec_res, final_bindings), ifi)
 
 inferenceReducerHalterOrderer :: (Solver solver, Simplifier simplifier)
-                              => Config
+                              => InferenceConfig
+                              -> Config
                               -> solver
                               -> simplifier
                               -> T.Text
@@ -75,7 +78,7 @@ inferenceReducerHalterOrderer :: (Solver solver, Simplifier simplifier)
                               -> Name
                               -> State t
                               -> IO (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
-inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn st = do
+inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modname cfn st = do
     let
         ng = mkNameGen ()
 
@@ -88,7 +91,7 @@ inferenceReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
                                              , discarded_at_least = 6
                                              , discarded_at_most = 15 }
 
-        lh_max_outputs = LHMaxOutputsHalter 20
+        lh_max_outputs = LHMaxOutputsHalter $ max_ce infconfig
     
     timer_halter <- timerHalter 10
 

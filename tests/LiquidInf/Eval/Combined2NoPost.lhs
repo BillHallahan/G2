@@ -122,16 +122,16 @@ such that the following type checks:
 {-@ prop_size :: TRUE @-}
 prop_size  = lAssert (length l3 == 3)
 
-{-@ l3 :: List Int @-}
+{-@ l3 :: { xs:List Int | size xs == 3 } @-}
 l3     = 3 :+: l2
 
-{-@ l2 :: List Int @-}
+{-@ l2 :: { xs:List Int | size xs == 2 } @-}
 l2     = 2 :+: l1
 
-{-@ l1 :: List Int @-}
+{-@ l1 :: { xs:List Int | size xs == 1 } @-}
 l1     = 1 :+: l0
 
-{-@ l0 :: List Int @-}
+{-@ l0 :: { xs:List Int | size xs == 0 } @-}
 l0     = Emp :: List Int
 \end{code}
 
@@ -512,6 +512,7 @@ The Kmeans clustering algorithm is shown below:
   @-}
 kmeans steps k n ps = repeat steps (kmeans1 k n ps)
 
+{-@ repeat :: Int -> (a -> a) -> a -> a @-}
 repeat :: Int -> (a -> a) -> a -> a
 repeat 0 f x = x
 repeat n f x = repeat (n-1) f (f x)

@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 -- | Haskell Translation
 module G2.Translation.Haskell
@@ -190,7 +191,8 @@ hskToG2ViaCgGuts nm tm pairs tr_con = do
 cgGutsModDetailsClosureToModGutsClosure :: G2.CgGutsClosure -> G2.ModDetailsClosure -> G2.ModGutsClosure
 cgGutsModDetailsClosureToModGutsClosure cg md =
   G2.ModGutsClosure
-    { G2.mgcc_mod_name = G2.cgcc_mod_name cg
+    { G2.mgcc_filepath = G2.cgcc_filepath cg
+    , G2.mgcc_mod_name = G2.cgcc_mod_name cg
     , G2.mgcc_binds = G2.cgcc_binds cg
     , G2.mgcc_tycons = G2.cgcc_tycons cg
     , G2.mgcc_breaks = G2.cgcc_breaks cg
@@ -209,45 +211,51 @@ mkCgGutsModDetailsClosuresFromFile :: Maybe HscTarget
   -> IO [(G2.CgGutsClosure, G2.ModDetailsClosure)]
 #if __GLASGOW_HASKELL__ < 806
 mkCgGutsModDetailsClosuresFromFile hsc proj src tr_con = do
-  (env, modgutss) <- runGhc (Just libdir) $ do
+  (env, msums, modgutss) <- runGhc (Just libdir) $ do
       _ <- loadProj hsc proj src [] tr_con
       env <- getSession
 
       mod_graph <- getModuleGraph
+
+      let msums = convertModuleGraph mod_graph
       parsed_mods <- mapM parseModule mod_graph
       typed_mods <- mapM typecheckModule parsed_mods
       desug_mods <- mapM desugarModule typed_mods
-      return (env, map coreModule desug_mods)
+      return (env, msums, map coreModule desug_mods)
 
   simplgutss <- mapM (if G2.simpl tr_con then hscSimplify env else return . id) modgutss
   tidys <- mapM (tidyProgram env) simplgutss
-  let pairs = map (\((cg, md), mg) -> (mkCgGutsClosure (mg_binds mg) cg, mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
+  let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure msums (mg_binds mg) cg
+                                      , mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
   return pairs
 #else
 mkCgGutsModDetailsClosuresFromFile hsc proj src tr_con = do
-  (env, modgutss) <- runGhc (Just libdir) $ do
+  (env, msums, modgutss) <- runGhc (Just libdir) $ do
       _ <- loadProj hsc proj src [] tr_con
       env <- getSession
 
       mod_graph <- getModuleGraph
+      let msums = convertModuleGraph mod_graph
       parsed_mods <- mapM parseModule $ mgModSummaries mod_graph
       typed_mods <- mapM typecheckModule parsed_mods
       desug_mods <- mapM desugarModule typed_mods
 
-      return (env, map coreModule desug_mods)
+      return (env, msums, map coreModule desug_mods)
 
   simplgutss <- mapM (if G2.simpl tr_con then hscSimplify env [] else return . id) modgutss
   tidys <- mapM (tidyProgram env) simplgutss
-  let pairs = map (\((cg, md), mg) -> (mkCgGutsClosure (mg_binds mg) cg, mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
+  let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure msums (mg_binds mg) cg
+                                      , mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
   return pairs
 #endif
 
 -- | The core program in the CgGuts does not include local rules after tidying.
 -- As such, we pass in the CoreProgram from the ModGuts
-mkCgGutsClosure :: CoreProgram -> CgGuts -> G2.CgGutsClosure
-mkCgGutsClosure bndrs cgguts =
+mkCgGutsClosure :: [ModSummary] -> CoreProgram -> CgGuts -> G2.CgGutsClosure
+mkCgGutsClosure msums bndrs cgguts =
   G2.CgGutsClosure
-    { G2.cgcc_mod_name = Just $ moduleNameString $ moduleName $ cg_module cgguts
+    { G2.cgcc_filepath = modFilePath msums (cg_module cgguts)
+    , G2.cgcc_mod_name = Just $ moduleNameString $ moduleName $ cg_module cgguts
     , G2.cgcc_binds = cg_binds cgguts
     , G2.cgcc_breaks = cg_modBreaks cgguts
     , G2.cgcc_tycons = cg_tycons cgguts
@@ -328,7 +336,10 @@ modGutsClosureToG2 nm tm mgcc tr_con =
   let deps = fmap T.pack $ G2.mgcc_deps mgcc in
     (nm3, tm2,
         G2.ExtractedG2
-          { G2.exg2_mod_names = maybeToList $ fmap T.pack $ G2.mgcc_mod_name mgcc
+          { G2.exg2_mod_names = fmap (G2.mgcc_filepath mgcc,) 
+                              . maybeToList 
+                              . fmap T.pack
+                              $ G2.mgcc_mod_name mgcc
           , G2.exg2_binds = binds
           , G2.exg2_tycons = tycons
           , G2.exg2_classes = classes
@@ -343,23 +354,24 @@ mkModGutsClosuresFromFile :: Maybe HscTarget
   -> G2.TranslationConfig
   -> IO [G2.ModGutsClosure]
 mkModGutsClosuresFromFile hsc proj src tr_con = do
-  (env, modgutss) <- runGhc (Just libdir) $ do
+  (env, msums, modgutss) <- runGhc (Just libdir) $ do
       _ <- loadProj hsc proj src [] tr_con
       env <- getSession
 
       mod_graph <- getModuleGraph
 
-      parsed_mods <- mapM parseModule $ convertModuleGraph mod_graph
+      let msums = convertModuleGraph mod_graph
+      parsed_mods <- mapM parseModule msums
 
       typed_mods <- mapM typecheckModule parsed_mods
       desug_mods <- mapM desugarModule typed_mods
-      return (env, map coreModule desug_mods)
+      return (env, msums, map coreModule desug_mods)
 
   if G2.simpl tr_con then do
     simpls <- mapM (hscSimplifyC env) modgutss
-    mapM (mkModGutsClosure env) simpls
+    mapM (mkModGutsClosure msums env) simpls
   else do
-    mapM (mkModGutsClosure env) modgutss
+    mapM (mkModGutsClosure msums env) modgutss
 
 {-# INLINE convertModuleGraph #-}
 convertModuleGraph :: ModuleGraph -> [ModSummary]
@@ -379,12 +391,13 @@ hscSimplifyC env = hscSimplify env []
 
 
 -- This one will need to do the Tidy program stuff
-mkModGutsClosure :: HscEnv -> ModGuts -> IO G2.ModGutsClosure
-mkModGutsClosure env modguts = do
+mkModGutsClosure :: [ModSummary] -> HscEnv -> ModGuts -> IO G2.ModGutsClosure
+mkModGutsClosure msums env modguts = do
   (cgguts, moddets) <- tidyProgram env modguts
   return
     G2.ModGutsClosure
-      { G2.mgcc_mod_name = Just $ moduleNameString $ moduleName $ cg_module cgguts
+      { G2.mgcc_filepath = modFilePath msums (mg_module modguts)
+      , G2.mgcc_mod_name = Just $ moduleNameString $ moduleName $ cg_module cgguts
       , G2.mgcc_binds = cg_binds cgguts
       , G2.mgcc_tycons = cg_tycons cgguts
       , G2.mgcc_breaks = cg_modBreaks cgguts
@@ -395,6 +408,11 @@ mkModGutsClosure env modguts = do
       , G2.mgcc_rules = mg_rules modguts
       }
 
+modFilePath :: [ModSummary] -> Module -> FilePath
+modFilePath msums m =
+    case fmap msHsFilePath $ find (\ms -> ms_mod ms == m) msums of
+        Just fp -> fp
+        Nothing -> error "modFilePath: FilePath not found"
 
 -- Merging, order matters!
 mergeExtractedG2s :: [G2.ExtractedG2] -> G2.ExtractedG2

@@ -3,6 +3,7 @@ module Main (main) where
 
 import G2.Config as G2
 import G2.Interface
+import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.Interface
 import G2.Liquid.Inference.QualifGen
 import G2.Liquid.Inference.Verify
@@ -22,12 +23,13 @@ main :: IO ()
 main = do
     as <- getArgs
     config <- G2.getConfig as
+    let infconfig = mkInferenceConfig as
 
     case as of
         (f:_) -> do
             if "--qualif" `elem` as
                 then checkQualifs f config
-                else callInference f config
+                else callInference f infconfig config
         _ -> error "No path given"
 
 
@@ -58,9 +60,9 @@ checkQualifs f config = do
         Just _ -> putStrLn "Unsafe"
         Nothing -> putStrLn "Timeout"
 
-callInference :: String -> G2.Config -> IO ()
-callInference f config = do
-    gs <- inference config [] [f] []
+callInference :: String -> InferenceConfig -> G2.Config -> IO ()
+callInference f infconfig config = do
+    gs <- inference infconfig config [] [f] []
     case gs of
         Left gs' -> do
             putStrLn "Counterexample"

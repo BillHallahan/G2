@@ -1,6 +1,7 @@
 module G2.Config.Config ( Mode (..)
                         , Sharing (..)
                         , Counterfactual (..)
+                        , CFModules (..)
                         , SMTSolver (..)
                         , HigherOrderSolver (..)
                         , IncludePath
@@ -12,8 +13,10 @@ module G2.Config.Config ( Mode (..)
 
 
 import Data.Char
+import qualified Data.HashSet as S
 import Data.List
 import qualified Data.Map as M
+import qualified Data.Text as T
 
 import System.Directory
 
@@ -22,7 +25,9 @@ data Mode = Regular | Liquid deriving (Eq, Show, Read)
 -- | Do we use sharing to only reduce variables once?
 data Sharing = Sharing | NoSharing deriving (Eq, Show, Read)
 
-data Counterfactual = Counterfactual | NotCounterfactual deriving (Eq, Show, Read)
+data Counterfactual = Counterfactual CFModules | NotCounterfactual deriving (Eq, Show, Read)
+
+data CFModules = CFAll | CFOnly (S.HashSet (Maybe T.Text)) deriving (Eq, Show, Read)
 
 data SMTSolver = ConZ3 | ConCVC4 deriving (Eq, Show, Read)
 
@@ -96,7 +101,8 @@ mkConfig homedir as m = Config {
     , validate  = boolArg "validate" as m Off
     -- , baseLibs = [BasePrelude, BaseException]
 
-    , counterfactual = boolArg' "counterfactual" as m Counterfactual Counterfactual NotCounterfactual
+    , counterfactual = boolArg' "counterfactual" as m
+                        (Counterfactual CFAll) (Counterfactual CFAll) NotCounterfactual
     , reduce_abs = boolArg "reduce-abs" as m On
     , add_tyvars = boolArg "add-tyvars" as m Off
 }

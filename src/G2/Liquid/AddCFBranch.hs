@@ -5,9 +5,12 @@ module G2.Liquid.AddCFBranch ( CounterfactualName
                              , addCounterfactualBranch
                              , onlyCounterfactual) where
 
+import G2.Config.Config
 import G2.Language
 import G2.Language.Monad
 import G2.Liquid.Types
+
+import qualified Data.HashSet as S
 
 import Debug.Trace
 
@@ -27,10 +30,14 @@ type CounterfactualName = Name
 --     This is essentially abstracting away the function definition, leaving
 --     only the information that LH also knows (that is, the information in the
 --     refinment type.)
-addCounterfactualBranch :: [Name] -> LHStateM CounterfactualName
-addCounterfactualBranch ns = do
+addCounterfactualBranch :: CFModules -> [Name] -> LHStateM CounterfactualName
+addCounterfactualBranch cf_mod ns = do
+    let ns' = case cf_mod of
+                CFAll -> ns
+                CFOnly mods -> filter (\(Name _ m _ _) -> m `S.member` mods) ns
+
     cfn <- freshSeededStringN "cf"
-    mapWithKeyME (addCounterfactualBranch' cfn ns)
+    mapWithKeyME (addCounterfactualBranch' cfn ns')
     return cfn
 
 addCounterfactualBranch' :: CounterfactualName -> [Name]-> Name -> Expr -> LHStateM Expr

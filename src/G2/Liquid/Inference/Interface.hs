@@ -8,6 +8,7 @@ import G2.Language.Naming
 import G2.Language.Support
 import G2.Language.Syntax
 import G2.Liquid.AddTyVars
+import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.FuncConstraint
 import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.PolyRef
@@ -23,28 +24,37 @@ import Language.Haskell.Liquid.Types as LH
 
 import Control.Monad
 import Data.Either
+import qualified Data.HashSet as S
 import Data.List
 import qualified Data.Text as T
 
-inference :: G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO (Either [CounterExample] GeneratedSpecs)
-inference config proj fp lhlibs = do
+inference :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO (Either [CounterExample] GeneratedSpecs)
+inference infconfig config proj fp lhlibs = do
     -- Initialize LiquidHaskell
     lhconfig <- lhConfig proj lhlibs
     let lhconfig' = lhconfig { pruneUnsorted = True }
     ghci <- ghcInfos Nothing lhconfig' fp
 
+    print fp
+
     -- Initialize G2
-    let g2config = config { mode = Liquid, steps = 2000 }
+    let g2config = config { mode = Liquid
+                          , steps = 2000 }
         transConfig = simplTranslationConfig { simpl = False }
-    exg2 <- translateLoaded proj fp lhlibs transConfig g2config
+    exg2@(main_mod, _) <- translateLoaded proj fp lhlibs transConfig g2config
+
+    print main_mod
+
+    let g2config' = g2config { counterfactual = Counterfactual . CFOnly $ S.fromList [main_mod] }
+
     let simp_s = initSimpleState (snd exg2)
-        lrs = createStateForInference simp_s g2config ghci
+        lrs = createStateForInference simp_s g2config' ghci
 
-    inference' g2config lhconfig' ghci (fst exg2) lrs emptyGS emptyFC 
+    inference' infconfig g2config' lhconfig' ghci (fst exg2) lrs emptyGS emptyFC 
 
-inference' :: G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
+inference' :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
            -> GeneratedSpecs -> FuncConstraints -> IO (Either [CounterExample] GeneratedSpecs)
-inference' g2config lhconfig ghci m_modname lrs gs fc = do
+inference' infconfig g2config lhconfig ghci m_modname lrs gs fc = do
     print gs
 
     let merged_ghci = addSpecsToGhcInfos ghci gs
@@ -54,14 +64,14 @@ inference' g2config lhconfig ghci m_modname lrs gs fc = do
 
     case res of
         Safe -> return $ Right gs
-        Crash -> error "Crash"
+        Crash ci err -> error $ "Crash\n" ++ show ci ++ "\n" ++ err
         Unsafe bad -> do
             -- Generate constraints
             let bad' = nub $ map nameOcc bad
 
             putStrLn $ "bad' = " ++ show bad'
 
-            res <- mapM (genNewConstraints merged_ghci m_modname lrs g2config) bad'
+            res <- mapM (genNewConstraints merged_ghci m_modname lrs infconfig g2config) bad'
 
             putStrLn $ "res"
             printCE $ concat res
@@ -85,7 +95,7 @@ inference' g2config lhconfig ghci m_modname lrs gs fc = do
                     putStrLn "After genMeasureExs"
                     gs' <- foldM (synthesize ghci lrs meas_ex fc') gs new_fc_funcs
                     
-                    inference' g2config lhconfig ghci m_modname lrs gs' fc'
+                    inference' infconfig g2config lhconfig ghci m_modname lrs gs' fc'
 
 createStateForInference :: SimpleState -> G2.Config -> [GhcInfo] -> LiquidReadyState
 createStateForInference simp_s config ghci =
@@ -101,9 +111,9 @@ createStateForInference simp_s config ghci =
     createLiquidReadyState s b ghci ph_tyvars config
 
 
-genNewConstraints :: [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> G2.Config -> T.Text -> IO [CounterExample]
-genNewConstraints ghci m lrs g2config n = do
-    ((exec_res, _), i) <- runLHInferenceCore n m lrs ghci g2config
+genNewConstraints :: [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> InferenceConfig -> G2.Config -> T.Text -> IO [CounterExample]
+genNewConstraints ghci m lrs infconfig g2config n = do
+    ((exec_res, _), i) <- runLHInferenceCore n m lrs ghci infconfig g2config
     return $ map (lhStateToCE i) exec_res
 
 checkNewConstraints :: [GhcInfo] -> LiquidReadyState -> G2.Config -> [CounterExample] -> IO (Either [CounterExample] [FuncConstraint])

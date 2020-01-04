@@ -6,7 +6,6 @@ module G2.Liquid.Inference.PolyRef ( PolyBound (.. )
                                    , ExprPolyBound
                                    , extractExprPolyBoundWithRoot
                                    , extractExprPolyBound
-                                   , extractTypePolyBoundPresFull
                                    , extractTypePolyBound
 
                                    , extractValues
@@ -122,19 +121,12 @@ adjustIndirectTypes e
 -------------------------------
 
 -- | Unrolls TyApp'ed args, while also keeping them in the base type
-extractTypePolyBoundPresFull :: Type -> TypePolyBound
-extractTypePolyBoundPresFull t =
-    let
-        (t':ts) = unTyApp t
-    in
-    PolyBound t $ map extractTypePolyBound ts
-
 extractTypePolyBound :: Type -> TypePolyBound
 extractTypePolyBound t =
     let
         (t':ts) = unTyApp t
     in
-    PolyBound t' $ map extractTypePolyBound ts
+    PolyBound t $ map extractTypePolyBound ts
 
 -------------------------------
 -- Generic PolyBound functions
