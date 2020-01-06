@@ -28,6 +28,8 @@ import qualified Data.HashSet as S
 import Data.List
 import qualified Data.Text as T
 
+import Language.Haskell.Liquid.Types
+
 inference :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO (Either [CounterExample] GeneratedSpecs)
 inference infconfig config proj fp lhlibs = do
     -- Initialize LiquidHaskell
@@ -35,20 +37,21 @@ inference infconfig config proj fp lhlibs = do
     let lhconfig' = lhconfig { pruneUnsorted = True }
     ghci <- ghcInfos Nothing lhconfig' fp
 
-    print fp
-
     -- Initialize G2
     let g2config = config { mode = Liquid
                           , steps = 2000 }
         transConfig = simplTranslationConfig { simpl = False }
     exg2@(main_mod, _) <- translateLoaded proj fp lhlibs transConfig g2config
 
-    print main_mod
-
     let g2config' = g2config { counterfactual = Counterfactual . CFOnly $ S.fromList [main_mod] }
 
     let simp_s = initSimpleState (snd exg2)
         lrs = createStateForInference simp_s g2config' ghci
+
+
+    -- Trying to figure out what this stuff is...
+    mapM (\g@(GI { spec = s })-> print $ gsDicts s ) ghci
+
 
     inference' infconfig g2config' lhconfig' ghci (fst exg2) lrs emptyGS emptyFC 
 

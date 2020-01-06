@@ -16,6 +16,8 @@ import qualified Data.Map as M
 
 import Var
 
+import Debug.Trace
+
 newtype GeneratedSpecs = GeneratedSpecs (M.Map G2.Name (PolyBound Expr)) deriving (Eq, Show)
 
 emptyGS :: GeneratedSpecs
@@ -49,9 +51,14 @@ addPost (PolyBound e ps)
         rapp@(RApp { rt_reft = u@(MkUReft { ur_reft = Reft (ur_s, ur_e) }), rt_args = ars }) =
     let
         rt_reft' = u { ur_reft = Reft (ur_s, PAnd [ur_e, e])}
-        ars' = map (uncurry addPost) $ zip ps ars
+        
+        -- The PolyBound will be missing refinements if there are nested
+        -- polymorphic arguments that are never instantiated.  For instance,
+        -- if the type is [[Int]], and we only have values of [] :: [[Int]]
+        ps' = ps ++ repeat (PolyBound PTrue [])
+        ars' = map (uncurry addPost) $ zip ps' ars
     in
-    rapp { rt_reft = rt_reft', rt_args = ars' }
+    trace ("ps = " ++ show ps ++ "\nars = " ++ show ars) rapp { rt_reft = rt_reft', rt_args = ars' }
 addPost _ rvar@(RVar {}) = rvar
 addPost _ st = error $ "addPost: Unhandled SpecType " ++ show st
 

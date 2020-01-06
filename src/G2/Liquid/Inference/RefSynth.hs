@@ -44,6 +44,7 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 import Data.Tuple
+import Data.Tuple.Extra
 import System.Directory
 import System.IO
 import System.IO.Temp
@@ -148,6 +149,7 @@ generateGrammarsAndConstraints sorts meas_ex arg_tys ret_ty fcs@(fc:_) =
                     $ extractValues ns_rt
         cons = generateConstraints sorts meas_ex poly_ref_names arg_tys ret_ty fcs
     in
+    trace ("poly_bd = " ++ show poly_bd)
     (gram_cmds, cons, poly_ref_names)
     where
         isLHDict e
@@ -593,15 +595,18 @@ shiftPB' (PolyBound svt@(sv, t) svts) =
 
 refToLHExpr' :: SpecType -> PolyBound ([SortedVar], Term) -> MeasureSymbols -> PolyBound LH.Expr
 refToLHExpr' st pb_sv_t meas_sym =
-    mapPB (uncurry (refToLHExpr'' st meas_sym)) pb_sv_t
+    let
+        (ars, ret) =  specTypeSymbols st
+        pb_sv_t_ret = mapPB (\((sv, t), r) -> (sv, t, r)) $ zipPB pb_sv_t ret
+    in
+    mapPB (uncurry3 (refToLHExpr'' meas_sym ars )) pb_sv_t_ret
 
-refToLHExpr'' :: SpecType -> MeasureSymbols -> [SortedVar] -> Term -> LH.Expr
-refToLHExpr'' st meas_sym ars trm =
+refToLHExpr'' :: MeasureSymbols -> [LH.Symbol] -> [SortedVar] -> Term -> LH.Symbol -> LH.Expr
+refToLHExpr'' meas_sym symbs ars trm ret =
     let
         ars' = map (\(SortedVar sym _) -> sym) ars
 
-        symbs = specTypeSymbols st
-        symbsArgs = M.fromList $ zip ars' symbs
+        symbsArgs = M.fromList $ zip ars' (symbs ++ [ret])
     in
     termToLHExpr meas_sym symbsArgs trm
 
@@ -660,15 +665,24 @@ litToLHConstant (LitNum n) = ECon (I n)
 litToLHConstant (LitBool b) = if b then PTrue else PFalse
 litToLHConstant l = error $ "litToLHConstant: Unhandled literal " ++ show l
 
-specTypeSymbols :: SpecType -> [LH.Symbol]
-specTypeSymbols (RFun { rt_bind = b, rt_in = i, rt_out = out }) =
+specTypeSymbols :: SpecType -> ([LH.Symbol], PolyBound LH.Symbol)
+specTypeSymbols st = specTypeSymbols' [] st
+
+specTypeSymbols' :: [LH.Symbol] -> SpecType -> ([LH.Symbol], PolyBound LH.Symbol)
+specTypeSymbols' symbs (RFun { rt_bind = b, rt_in = i, rt_out = out }) =
     case i of
-        RVar {} -> specTypeSymbols out
-        RFun {} -> specTypeSymbols out
-        _ -> b:specTypeSymbols out
-specTypeSymbols (RApp { rt_reft = ref }) = [reftSymbol $ ur_reft ref]
-specTypeSymbols (RVar {}) = error "RVar"
-specTypeSymbols (RAllT { rt_ty = out }) = specTypeSymbols out
+        RVar {} -> specTypeSymbols' symbs out
+        RFun {} -> specTypeSymbols' symbs out
+        _ -> specTypeSymbols' (b:symbs) out
+specTypeSymbols' symbs rapp@(RApp {}) = (reverse symbs, specTypeRAppSymbs rapp)
+specTypeSymbols' _ (RVar {}) = error "RVar"
+specTypeSymbols' symbs (RAllT { rt_ty = out }) = specTypeSymbols' symbs out
+
+specTypeRAppSymbs :: SpecType -> PolyBound LH.Symbol
+specTypeRAppSymbs (RApp { rt_reft = ref, rt_args = ars }) =
+    PolyBound (reftSymbol $ ur_reft ref) $ map specTypeRAppSymbs ars
+specTypeRAppSymbs (RVar { rt_var = v, rt_reft = ref }) = trace ("v = " ++ show v) PolyBound (reftSymbol $ ur_reft ref) []
+specTypeRAppSymbs r = error $ "specTypeRAppSymbs: Unexpected SpecType" ++ "\n" ++ show r
 
 reftSymbol :: Reft -> LH.Symbol
 reftSymbol = fst . unpackReft

@@ -19,6 +19,9 @@ import System.Environment
 
 import G2.Language
 
+
+import Language.Haskell.Liquid.GHC.Interface
+
 main :: IO ()
 main = do
     as <- getArgs
