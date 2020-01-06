@@ -10,8 +10,8 @@ f = g h 0
 
 {-@ g :: (a -> a) -> a -> a @-}
 g :: (a -> a) -> a -> a
-g _ x = x
+g j x = j x
 
 {-@ h :: Int -> Int @-}
-h   :: Int -> Int
+h :: Int -> Int
 h x = x

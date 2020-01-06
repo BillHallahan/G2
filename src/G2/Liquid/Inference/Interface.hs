@@ -43,9 +43,9 @@ inference infconfig config proj fp lhlibs = do
         transConfig = simplTranslationConfig { simpl = False }
     exg2@(main_mod, _) <- translateLoaded proj fp lhlibs transConfig g2config
 
-    let g2config' = g2config { counterfactual = Counterfactual . CFOnly $ S.fromList [main_mod] }
-
     let simp_s = initSimpleState (snd exg2)
+        g2config' = adjustConfig main_mod simp_s g2config
+
         lrs = createStateForInference simp_s g2config' ghci
 
 

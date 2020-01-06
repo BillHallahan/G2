@@ -675,7 +675,7 @@ specTypeSymbols' symbs (RFun { rt_bind = b, rt_in = i, rt_out = out }) =
         RFun {} -> specTypeSymbols' symbs out
         _ -> specTypeSymbols' (b:symbs) out
 specTypeSymbols' symbs rapp@(RApp {}) = (reverse symbs, specTypeRAppSymbs rapp)
-specTypeSymbols' _ (RVar {}) = error "RVar"
+specTypeSymbols' _ (RVar {}) = error "specTypeSymbols': passed RVar"
 specTypeSymbols' symbs (RAllT { rt_ty = out }) = specTypeSymbols' symbs out
 
 specTypeRAppSymbs :: SpecType -> PolyBound LH.Symbol

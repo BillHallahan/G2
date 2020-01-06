@@ -20,6 +20,8 @@ import qualified Data.Text as T
 
 import System.Directory
 
+import G2.Language.Syntax
+
 data Mode = Regular | Liquid deriving (Eq, Show, Read)
 
 -- | Do we use sharing to only reduce variables once?
@@ -27,7 +29,7 @@ data Sharing = Sharing | NoSharing deriving (Eq, Show, Read)
 
 data Counterfactual = Counterfactual CFModules | NotCounterfactual deriving (Eq, Show, Read)
 
-data CFModules = CFAll | CFOnly (S.HashSet (Maybe T.Text)) deriving (Eq, Show, Read)
+data CFModules = CFAll | CFOnly (S.HashSet (T.Text, Maybe T.Text)) deriving (Eq, Show, Read)
 
 data SMTSolver = ConZ3 | ConCVC4 deriving (Eq, Show, Read)
 

@@ -34,7 +34,7 @@ addCounterfactualBranch :: CFModules -> [Name] -> LHStateM CounterfactualName
 addCounterfactualBranch cf_mod ns = do
     let ns' = case cf_mod of
                 CFAll -> ns
-                CFOnly mods -> filter (\(Name _ m _ _) -> m `S.member` mods) ns
+                CFOnly mods -> filter (\(Name n m _ _) -> (n, m) `S.member` mods) ns
 
     cfn <- freshSeededStringN "cf"
     mapWithKeyME (addCounterfactualBranch' cfn ns')
