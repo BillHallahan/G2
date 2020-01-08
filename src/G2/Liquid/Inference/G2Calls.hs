@@ -202,11 +202,6 @@ currExprIsTrue _ = False
 
 type MeasureExs = HM.HashMap Expr [(Name, Expr)]
 
--- instance AST e => ASTContainer (GMeasureEx e) e where
---     containedASTs (MeasureEx { meas_in = m_in, meas_out = m_out }) = [m_in, m_out]
---     modifyContainedASTs f (MeasureEx { meas_in = m_in, meas_out = m_out }) =
---         MeasureEx { meas_in = f m_in, meas_out = f m_out }
-
 evalMeasures :: LiquidReadyState -> [GhcInfo] -> Config -> [Expr] -> IO MeasureExs
 evalMeasures lrs ghci config es = do
     let config' = config { counterfactual = NotCounterfactual }
@@ -240,7 +235,8 @@ evalMeasures lrs ghci config es = do
 evalMeasures' :: ( ASTContainer t Expr
                  , ASTContainer t Type
                  , Named t
-                 , Solver solver) => State t -> Bindings -> solver -> Config -> Measures -> TCValues -> Expr -> IO MeasureExs
+                 , Solver solver
+                 , Show t) => State t -> Bindings -> solver -> Config -> Measures -> TCValues -> Expr -> IO MeasureExs
 evalMeasures' s bindings solver config meas tcv e =  do
     let m_sts = evalMeasures'' s bindings meas tcv e
 
@@ -290,13 +286,13 @@ evalMeasuresCE bindings i e bound =
         bound_names = map idName $ tyForAllBindings i
         bound_tys = map (\n -> case M.lookup n bound of
                                 Just t -> t
-                                Nothing -> error "Bound type not found") bound_names
+                                Nothing -> error $ "Bound type not found" ++ "\n" ++ show n ++ "\ne = " ++ show e) bound_names
 
         lh_dicts = map (const $ Prim Undefined TyBottom) bound_tys
         ds = deepseq_walkers bindings
 
         call =  mkApp $ Var i:map Type bound_tys ++ lh_dicts ++ [e]
-        str_call = maybe call (fillLHDictArgs ds) $ mkStrict_maybe ds call -- fillLHDictArgs ds $ mkStrict ds call
+        str_call = maybe call (fillLHDictArgs ds) $ mkStrict_maybe ds call
     in
     str_call
 
@@ -322,12 +318,12 @@ genericG2CallLogging :: ( ASTContainer t Expr
                         , ASTContainer t Type
                         , Named t
                         , Show t
-                        , Solver solver) => Config -> solver -> State t -> Bindings -> IO ([ExecRes t], Bindings)
-genericG2CallLogging config solver s bindings = do
+                        , Solver solver) => Config -> solver -> State t -> Bindings -> String -> IO ([ExecRes t], Bindings)
+genericG2CallLogging config solver s bindings log = do
     let simplifier = ADTSimplifier arbValue
         share = sharing config
 
-    fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier :<~ Logger "check"))
+    fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier :<~ Logger log))
                            (SomeHalter SWHNFHalter)
                            (SomeOrderer NextOrderer)
                            solver simplifier emptyMemConfig s bindings

@@ -257,16 +257,6 @@ intSort = IdentSort (ISymb "Int")
 boolSort :: Sort
 boolSort = IdentSort (ISymb "Bool")
 
-exprToDTTerm :: TypesToSorts -> MeasureExs -> Type -> G2.Expr -> Term
-exprToDTTerm sorts meas_ex t e =
-    case lookupSort t sorts of
-        Just si
-            | not . null $ meas_names si ->
-                TermCall (ISymb (dt_name si)) $ map (measVal sorts meas_ex e) (meas_names si)
-            | otherwise -> TermIdent (ISymb (dt_name si))
-        Nothing -> error $ "exprToDTTerm: No sort found" ++ "\nsorts = " ++ show sorts ++ "\nt = " ++ show t ++ "\ne = " ++ show e
-
-
 relArgs :: [Type] -> FuncConstraint -> FuncConstraint
 relArgs ts fc =
     let
@@ -281,7 +271,7 @@ relArgs ts fc =
         isType _ = False
 
         isLhDict e
-            | (Data (DataCon (Name n _ _ _) _)):_ <- unApp e = n == "lh"
+            | TyApp (TyCon (Name n _ _ _) _) _ <- typeOf e = n == "lh"
             | otherwise = False
 
 type ArgTys = [Type]
@@ -349,13 +339,13 @@ termConstraints sorts meas_ex poly_names arg_tys ret_ty (Neg fc) =
 data ValOrExistential v = Val v | Existential
 
 funcCallTerm :: TypesToSorts -> MeasureExs -> RefNamePolyBound ->  [Type] -> Type -> FuncCall -> [Term]
-funcCallTerm sorts meas_ex poly_names arg_tys ret_ty (FuncCall { arguments = ars, returns = r}) =
+funcCallTerm sorts meas_ex poly_names arg_tys ret_ty fc@(FuncCall { arguments = ars, returns = r}) =
     let
         r_bound = extractExprPolyBoundWithRoot r
         rt_bound = extractTypePolyBound ret_ty
         ns_r_bound = zip3PB r_bound rt_bound poly_names
         ns_r_bound' = concatMap expand1 (extractValues ns_r_bound)
-    in
+    in trace ("fc = " ++ show fc) 
     mapMaybe (\(r, rt, n) -> funcCallTerm' sorts meas_ex arg_tys ars r rt n) $ ns_r_bound' -- r
     where
         expand1 :: ([a], b, c) -> [(ValOrExistential a, b, c)]
@@ -388,12 +378,21 @@ exprToTerm _ _ (TyCon (Name "Bool" _ _ _) _) (Data (DataCon (Name n _ _ _) _))
 exprToTerm _ _ (TyCon (Name n _ _ _) _) (App _ (Lit l))
     | n == "Int" || n == "Float" = litToTerm l
 exprToTerm _ _ _ (Lit l) = litToTerm l
-exprToTerm sorts meas_ex t e = exprToDTTerm sorts meas_ex t e
+exprToTerm sorts meas_ex t e = trace ("e = " ++ show e) exprToDTTerm sorts meas_ex t e
 exprToTerm _ _ _ e = error $ "exprToTerm: Unhandled Expr " ++ show e
 
 litToTerm :: G2.Lit -> Term
 litToTerm (LitInt i) = TermLit (LitNum i)
 litToTerm _ = error "litToTerm: Unhandled Lit"
+
+exprToDTTerm :: TypesToSorts -> MeasureExs -> Type -> G2.Expr -> Term
+exprToDTTerm sorts meas_ex t e =
+    case lookupSort t sorts of
+        Just si
+            | not . null $ meas_names si ->
+                TermCall (ISymb (dt_name si)) $ map (measVal sorts meas_ex e) (meas_names si)
+            | otherwise -> TermIdent (ISymb (dt_name si))
+        Nothing -> error $ "exprToDTTerm: No sort found" ++ "\nsorts = " ++ show sorts ++ "\nt = " ++ show t ++ "\ne = " ++ show e
 
 filterPosAndNegConstraints :: [TermConstraint] -> [TermConstraint]
 filterPosAndNegConstraints ts =
@@ -430,7 +429,7 @@ measVal sorts meas_ex e (SortedVar mn _) =
     in
     case HM.lookup e meas_ex of
         Just meas_out
-            |Just (_, v) <- find (\(n', _) -> nameOcc meas_n == nameOcc n') meas_out -> exprToTerm sorts meas_ex (typeOf v) v
+            | Just (_, v) <- find (\(n', _) -> nameOcc meas_n == nameOcc n') meas_out -> exprToTerm sorts meas_ex (typeOf v) v
         Nothing -> error $ "measVal: Expr not found\nmeas_ex = " ++ show meas_ex ++ "\ne = " ++ show e
 
 newtype TypesToSorts = TypesToSorts { types_to_sorts :: [(Type, SortInfo)] }
