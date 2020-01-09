@@ -5,8 +5,9 @@ module G2.Execution.LogZipper ( initZipper
                               , Counter
                               , Tree(..)) where
 
+import qualified Data.Array as A
+import qualified Data.Array.ST as AS
 import qualified Data.Map as M
-import qualified Data.Matrix as MA
 import Data.Maybe
 import Data.List
 import qualified Data.Set as S
@@ -324,9 +325,10 @@ logVal fl@(ForestLog { current = curr@(TreeLog { nodes = _nodes }) }) objs =
                     in n5) _nodes objs
     in fl {current = curr { nodes = _nodes' }}
 
-data Grid = Grid { canvas :: MA.Matrix Char -- 2d grid
+data Grid = Grid { canvas :: A.Array Int Char -- 2d grid represented as single array, with element (i,j) at index i*width + j
+                 , width :: Int -- width of grid
+                 , height :: Int -- height of grid
                  , depths :: M.Map Int Int -- current write depth of each level (i.e. top down)
-                 , widths :: M.Map Int Int -- current write width of each row
                  , locations :: M.Map Int Int -- depth of each idx
                  , maxWidth :: Int -- number of digits of largest idx
                  , drawn :: S.Set Int } -- list of indices already drawn
@@ -336,7 +338,7 @@ outputLog (ForestLog { current = curr@(TreeLog {nodes = _nodes}) }) = do
     let cHeight = (maybe 0 fst (M.lookupMax _nodes)) * 2
         cWidth = (3 + numDigits cHeight) * 40 -- width if all indices were written horizontally, with space in between
         c = createCanvas cHeight cWidth -- can possibly trim size by getting max level to make it more efficient in the future
-        grid = Grid { canvas = c, widths = M.empty, depths = M.empty, locations = M.empty, drawn = S.empty
+        grid = Grid { canvas = c, width = cWidth, height = cHeight, depths = M.empty, locations = M.empty, drawn = S.empty
                     , maxWidth = 3 + numDigits cHeight }
         grid' = drawTree curr grid 1 -- very first node, '0', is not in tree
     printGrid grid'
@@ -354,7 +356,7 @@ drawTree treeLog@(TreeLog { nodes = _nodes }) grid i
     | otherwise = grid
 
 drawNode :: TreeLog a -> Grid -> Obj a -> Grid
-drawNode (TreeLog { nodes = _nodes }) grid@(Grid {canvas = c, depths = d, widths = w, drawn = prevDrawn, locations = locs
+drawNode (TreeLog { nodes = _nodes }) grid@(Grid {canvas = c, width = w, depths = d, drawn = prevDrawn, locations = locs
         , maxWidth = maxW}) o@(Obj {idx = i, level = l, parents = ps})
     | True <- S.member i prevDrawn = grid
     | otherwise =
@@ -373,33 +375,42 @@ drawNode (TreeLog { nodes = _nodes }) grid@(Grid {canvas = c, depths = d, widths
 
             posJ = 1 + (l * maxW)
             posI = lDepth'
-            c' = writeStrToCanvas (posI, posJ) (show i) c
+            c' = writeStrToCanvas w (posI, posJ) (show i) c
             prevDrawn' = S.insert i prevDrawn
 
             -- draw line linking nodes from parentDepth to posI, in col posJ - 2, only if parentDepth > 0 (i.e. exists parent)
             -- and if parentLvl < l
             c'' = if parentDepth > 0 && parentLvl < l
-                then drawConnectingLine c' parentDepth posI (posJ - 2)
+                then drawConnectingLine w c' parentDepth posI (posJ - 2)
                 else c'
 
-        in {- trace ("i: " ++ (show i) ++ " children: " ++ show (children o)) $-} grid { canvas = c'', depths = d', widths = w
-            , drawn = prevDrawn', locations = locs' }
+        in {- trace ("i: " ++ (show i) ++ " children: " ++ show (children o)) $-} grid { canvas = c'', depths = d',
+            drawn = prevDrawn', locations = locs' }
 
 -- Create 2d grid of specified size with all spaces
-createCanvas :: Int -> Int -> MA.Matrix Char
-createCanvas nrows ncols = MA.matrix nrows ncols (\_ -> ' ')
+createCanvas :: Int -> Int -> A.Array Int Char
+createCanvas nrows ncols = AS.runSTArray $ do
+    c <- AS.newArray (1, nrows * ncols) ' '
+    return c
 
 -- Insert string at specified position in canvas (1-indexed)
-writeStrToCanvas :: (Int, Int) -> String -> MA.Matrix Char -> MA.Matrix Char
-writeStrToCanvas (i,j) str c = foldr (\(pos, v) _c -> MA.setElem v pos _c) c (zip (zip (repeat i) [j..]) str)
+writeStrToCanvas :: Int -> (Int, Int) -> String -> A.Array Int Char -> A.Array Int Char
+writeStrToCanvas wdth (i,j) str c = AS.runSTArray $ do
+    c' <- AS.thaw c
+    mapM_ (\((row, col), v) -> AS.writeArray c' (((row-1) * wdth) + col) v) (zip (zip (repeat i) [j..]) str)
+    return c'
 
 -- Draw a vertical line from `start` to `end` in column `col`, and two horizontal lines at either ends of vertical line
-drawConnectingLine :: MA.Matrix Char -> Int -> Int -> Int -> MA.Matrix Char
-drawConnectingLine c start end col = MA.setElem '-' (start, col-1) $ MA.setElem '-' (end, col+1) $
-    foldr (\pos _c -> MA.setElem '|' pos _c) c (zip [start..end] (repeat col))
+drawConnectingLine :: Int -> A.Array Int Char -> Int -> Int -> Int -> A.Array Int Char
+drawConnectingLine wdth c start end col = AS.runSTArray $ do
+    c' <- AS.thaw c
+    AS.writeArray c' (((start-1) * wdth) + col-1) '-'
+    AS.writeArray c' (((end-1) * wdth) + col+1) '-'
+    mapM_ (\row -> AS.writeArray c' (((row-1) * wdth) + col) '|') [start..end]
+    return c'
 
 printGrid :: Grid -> IO ()
-printGrid (Grid { canvas = c }) = mapM_ putStrLn [ map (\j -> c MA.! (i,j)) [1..MA.ncols c]| i <- [1..MA.nrows c]]
+printGrid (Grid { canvas = c, width = w, height = h }) = mapM_ putStrLn [ map (\j -> c A.! (((i-1)*w) + j)) [1..w]| i <- [1..h]]
 
 numDigits :: Int -> Int
 numDigits x = length $ show x
