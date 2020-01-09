@@ -60,7 +60,7 @@ import G2.Config.Config
 import qualified G2.Language.ExprEnv as E
 import G2.Execution.Rules
 import qualified G2.Execution.WorkGraph as WG
-import G2.Execution.Zipper
+import G2.Execution.LogZipper
 import G2.Language
 import qualified G2.Language.Monad as MD
 import qualified G2.Language.Stack as Stck
@@ -936,9 +936,6 @@ minState m =
       Just ((_, []), m') -> minState m'
       Nothing -> Nothing
 
-numStates :: M.Map b [ExState rv hv sov t] -> Int
-numStates = sum . map length . M.elems
-
 --------------------------------------------------------------------------------------------------------------------------------------
 
 runReducerMerge :: (Show t, Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
@@ -948,7 +945,7 @@ runReducerMerge red hal simplifier s b = do
     let pr = Processed {accepted = [], discarded = []}
         s' = ExState {state = s, halter_val = initHalt hal s, reducer_val = initReducer red s, order_val = Nothing}
         -- workGraph = WG.initGraph s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStates resetSaturated logState
-        zipper = initZipper s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStates resetMergingZipper
+        zipper = initZipper s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStates resetMergingZipper logState
 
     -- (_, (_, _, _, b', pr')) <- WG.work workGraph
     (_, _, _, b', pr') <- evalZipper zipper
@@ -996,8 +993,8 @@ mergeStates ex1 ex2 (r, h, smplfr, b, pr) =
         (ng', Nothing) -> (Nothing, (r, h, smplfr, b {name_gen = ng'}, pr))
 
 -- | Function for Logger in workGraph that outputs curr_expr
-logState :: Show t => ExState rv hv sov t -> String
-logState (ExState { state = (State {curr_expr = ce}) }) = show ce
+logState :: Show t => ExState rv hv sov t -> (r,h,s,Bindings,p) -> String
+logState (ExState { state = s }) (_,_,_,b,_) = pprExecStateStr s b
 
 -- | Remove any MergePtFrame-s in the exec_stack of the ExState. Called when we float states to Root when tree grows too deep
 resetMergingZipper :: (ExState rv hv sov t) -> (ExState rv hv sov t)
