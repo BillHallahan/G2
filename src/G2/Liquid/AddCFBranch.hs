@@ -12,8 +12,6 @@ import G2.Liquid.Types
 
 import qualified Data.HashSet as S
 
-import Debug.Trace
-
 type CounterfactualName = Name
 
 -- Enables finding abstract counterexamples, by adding counterfactual branches
@@ -40,7 +38,7 @@ addCounterfactualBranch cf_mod ns = do
     mapWithKeyME (addCounterfactualBranch' cfn ns')
     return cfn
 
-addCounterfactualBranch' :: CounterfactualName -> [Name]-> Name -> Expr -> LHStateM Expr
+addCounterfactualBranch' :: CounterfactualName -> [Name] -> Name -> Expr -> LHStateM Expr
 addCounterfactualBranch' cfn ns n =
     if n `elem` ns then insertInLamsE (\_ -> addCounterfactualBranch'' cfn) else return
 
@@ -90,5 +88,5 @@ onlyCounterfactual :: ASTContainer m Expr => m -> m
 onlyCounterfactual = modifyASTs onlyCounterfactual'
 
 onlyCounterfactual' :: Expr -> Expr
-onlyCounterfactual' (NonDet [_, e]) = trace ("NonDet") e
+onlyCounterfactual' (NonDet [_, e]) = e
 onlyCounterfactual' e = e

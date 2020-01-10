@@ -84,7 +84,7 @@ sygusCall e tc meas meas_ex fcs@(_:_) =
         all_ty_c = func_ty_c ++ ex_ty_c
 
         rel_arg_ty_c = filter relTy arg_ty_c
-        rel_fcs = map (relArgs arg_ty_c) fcs
+        rel_fcs = map (relArgs tc arg_ty_c) fcs
 
         sorts = typesToSort meas meas_ex all_ty_c
 
@@ -257,22 +257,21 @@ intSort = IdentSort (ISymb "Int")
 boolSort :: Sort
 boolSort = IdentSort (ISymb "Bool")
 
-relArgs :: [Type] -> FuncConstraint -> FuncConstraint
-relArgs ts fc =
+relArgs :: TypeClasses -> [Type] -> FuncConstraint -> FuncConstraint
+relArgs tc ts fc =
     let
         cons = constraint fc
-        as = filter (not . isLhDict) . filter (not . isType) $ arguments cons
+        as = filter (relArg tc) $ arguments cons
         ts_as = zip ts as
         as' = map snd $ filter (relTy . fst) ts_as
     in
     fc { constraint = cons { arguments = as' }}
+
+relArg :: TypeClasses -> G2.Expr -> Bool
+relArg tc e = (not . isTypeClass tc . typeOf $ e) && (not . isType $ e)
     where
         isType (Type _) = True
         isType _ = False
-
-        isLhDict e
-            | TyApp (TyCon (Name n _ _ _) _) _ <- typeOf e = n == "lh"
-            | otherwise = False
 
 type ArgTys = [Type]
 type RetType = Type
@@ -605,7 +604,14 @@ refToLHExpr'' meas_sym symbs ars trm ret =
     let
         ars' = map (\(SortedVar sym _) -> sym) ars
 
-        symbsArgs = M.fromList $ zip ars' (symbs ++ [ret])
+        -- This is a bit of a dirty hack.  The relArgs function drops typeclasses,
+        -- so that we don't have to deal with them in the SyGuS solver.  But we still
+        -- gather the bindings for the typeclasses with specTypeSymbols.
+        -- Fortunately, the typeclasses are always the first arguments in the list,
+        -- so we can simply take the correct number of arguments from the end of the list.
+        last_symbs = reverse . take (length ars - 1) $ reverse symbs
+
+        symbsArgs = M.fromList $ zip ars' (last_symbs ++ [ret])
     in
     termToLHExpr meas_sym symbsArgs trm
 

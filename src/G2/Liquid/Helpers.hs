@@ -26,6 +26,8 @@ import GHC as GHC
 import Name
 import Var as V
 
+import Debug.Trace
+
 -- | Interface with LH
 getGHCInfos :: LHC.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO [GhcInfo]
 getGHCInfos config proj fp lhlibs = do
@@ -43,8 +45,12 @@ funcSpecs :: [GhcInfo] -> [(Var, LocSpecType)]
 funcSpecs fs = concatMap (gsTySigs . gsSig . giSpec) fs -- Functions asserted in LH
             ++ concatMap (gsAsmSigs . gsSig . giSpec) fs -- Functions assumed in LH
 #else
-funcSpecs fs = concatMap (gsTySigs . spec) fs -- Functions asserted in LH
-            ++ concatMap (gsAsmSigs . spec) fs -- Functions assumed in LH
+funcSpecs fs =
+    let
+        asserted = concatMap (gsTySigs . spec) fs -- Functions asserted in LH
+        assumed = concatMap (gsAsmSigs . spec) fs -- Functions assumed in LH
+    in
+    asserted ++ assumed
 #endif
 
 findFuncSpec :: [GhcInfo] -> G2.Name -> Maybe SpecType

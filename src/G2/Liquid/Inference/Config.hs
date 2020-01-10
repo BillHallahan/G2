@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module G2.Liquid.Inference.Config ( InferenceConfig (..)
                                   , mkInferenceConfig
                                   , adjustConfig) where
@@ -22,11 +24,17 @@ mkInferenceConfig as = InferenceConfig { max_ce = strArg "max-ce" as M.empty rea
 adjustConfig :: Maybe T.Text -> SimpleState -> Config -> Config
 adjustConfig main_mod (SimpleState { expr_env = eenv }) config =
     let
-        ns = filter (\(Name _ m _ _) -> m == main_mod) $ E.keys eenv
-        ns' = filter (not . retTyVar eenv) ns
-        ns'' = map (\(Name n m _ _) -> (n, m)) ns'
+        ns_mm = filter (\(Name _ m _ _) -> m == main_mod) $ E.keys eenv
+        ns_mm' = filter (not . retTyVar eenv) ns_mm
+        ns_mm'' = map (\(Name n m _ _) -> (n, m)) ns_mm'
+
+
+        ns_nmm = map (\(Name n m _ _) -> (n, m))
+               . filter (\(Name _ m _ _) -> m /= main_mod)
+               $ E.keys eenv
     in
-    config { counterfactual = Counterfactual . CFOnly $ S.fromList ns'' }
+    config { counterfactual = Counterfactual . CFOnly $ S.fromList ns_mm''
+           , block_errors_in = S.empty }
 
 retTyVar :: ExprEnv -> Name -> Bool
 retTyVar eenv n

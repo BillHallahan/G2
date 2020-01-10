@@ -459,6 +459,8 @@ initializeLHData ghcInfos m_ph_tyvars config = do
     addLHTC
     addOrdToNum
 
+    addErrorAssumes config
+
     let lh_measures = measureSpecs ghcInfos
 
     meenv <- measuresM

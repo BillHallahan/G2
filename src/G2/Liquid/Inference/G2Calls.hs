@@ -7,6 +7,7 @@
 
 module G2.Liquid.Inference.G2Calls ( MeasureExs
                                    , runLHInferenceCore
+                                   , filterPassedError
                                    , checkCounterexample
                                    , evalMeasures) where
 
@@ -133,6 +134,21 @@ checkBadTy' kv (Data (DataCon n (TyForAll _ (TyFun _ (TyFun _ _))))) = Any $ n =
 checkBadTy' _ _ = Any False
 
 -------------------------------
+-- Filter Passed Error
+-------------------------------
+-- Eliminates any abstract counterexamples that were passed error
+
+filterPassedError :: [ExecRes [Abstracted]] -> [ExecRes [Abstracted]]
+filterPassedError = filter filterPassedError'
+
+filterPassedError' :: ExecRes [Abstracted] -> Bool
+filterPassedError' (ExecRes { final_state = State { track = abst } }) =
+    not $ any (any isError . arguments . abstract) abst
+    where
+        isError (Prim Error _) = True
+        isError _ = False
+
+-------------------------------
 -- Checking Counterexamples
 -------------------------------
 -- Does a given (counter)example violate a specification?
@@ -153,13 +169,6 @@ checkCounterexample lrs ghci config cex@(FuncCall { funcName = Name n m _ _ }) =
 
     -- We may return multiple states if any of the specifications contained a SymGen
     return $ any (currExprIsTrue . final_state) fsl
-    -- case fsl of
-    --     [ExecRes
-    --         {
-    --             final_state = (State { curr_expr = CurrExpr _ (Data (DataCon (Name dcn _ _ _) _))})
-    --         }] ->
-    --         return $ dcn == "True"
-    --     _ -> error $ "checkCounterexample: Bad return from runG2WithSomes" ++ show (curr_expr . final_state . head $ fsl)
 
 checkCounterexample' :: FuncCall -> State t -> State t
 checkCounterexample' fc@(FuncCall { funcName = n }) s@(State { expr_env = eenv })

@@ -1,10 +1,18 @@
 module G2.Liquid.SpecialAsserts ( addSpecialAsserts
-                                          , addTrueAsserts) where
+                                , addTrueAsserts
+                                , addErrorAssumes) where
 
+import G2.Config
 import G2.Language
+import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.KnownValues as KV
 import G2.Language.Monad
 import G2.Liquid.Types
+
+import qualified Data.HashSet as S
+import qualified Data.Text as T
+
+import Debug.Trace
 
 -- | Adds an assert of false to the function called when a pattern match fails
 addSpecialAsserts :: LHStateM ()
@@ -55,3 +63,20 @@ addTrueAsserts' ns n e
                             return e''
                     ) =<< etaExpandToE (numArgs e) e
     | otherwise = return e
+
+-- | Blocks calling error in the functions specified in the block_errors_in in
+-- the Config, by wrapping the errors in Assume False
+addErrorAssumes :: Config -> LHStateM ()
+addErrorAssumes config = mapWithKeyME (addErrorAssumes' (block_errors_in config))
+
+addErrorAssumes' :: S.HashSet (T.Text, Maybe T.Text) -> Name -> Expr -> LHStateM Expr
+addErrorAssumes' ns (Name n m _ _) e = do
+    kv <- knownValues
+    if (n, m) `S.member` ns then addErrorAssumes'' kv e else return e
+
+addErrorAssumes'' :: KnownValues -> Expr -> LHStateM Expr
+addErrorAssumes'' kv v@(Var (Id n _))
+    | KV.errorFunc kv == n = do
+        tre <- trace ("HERE n = " ++ show n) mkTrueE
+        return $ Assume Nothing tre v
+addErrorAssumes'' kv e = modifyChildrenM (addErrorAssumes'' kv) e

@@ -117,7 +117,8 @@ createStateForInference simp_s config ghci =
 genNewConstraints :: [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> InferenceConfig -> G2.Config -> T.Text -> IO [CounterExample]
 genNewConstraints ghci m lrs infconfig g2config n = do
     ((exec_res, _), i) <- runLHInferenceCore n m lrs ghci infconfig g2config
-    return $ map (lhStateToCE i) exec_res
+    let exec_res' = filterPassedError exec_res
+    return $ map (lhStateToCE i) exec_res'
 
 checkNewConstraints :: [GhcInfo] -> LiquidReadyState -> G2.Config -> [CounterExample] -> IO (Either [CounterExample] [FuncConstraint])
 checkNewConstraints ghci lrs g2config cexs = do

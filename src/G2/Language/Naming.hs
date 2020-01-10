@@ -576,6 +576,7 @@ instance Named KnownValues where
             , orFunc = orF
             , notFunc = notF
 
+            , errorFunc = errF
             , patErrorFunc = patE
             }) =
             [dI, dF, dD, dI2, dcCh, tI, tI2, tF, tD, tCh, tB, dcT, dcF
@@ -587,7 +588,8 @@ instance Named KnownValues where
             , fromIntegerF, toIntegerF
             , toRatioF, fromRationalF
             , geF, gtF, ltF, leF, seT, seF
-            , andF, orF, notF, patE]
+            , andF, orF, notF
+            , errF, patE]
 
     rename old new (KnownValues {
                      dcInt = dI
@@ -654,6 +656,7 @@ instance Named KnownValues where
                    , orFunc = orF
                    , notFunc = notF
 
+                   , errorFunc = errF
                    , patErrorFunc = patE
                    }) =
                     (KnownValues {
@@ -721,6 +724,7 @@ instance Named KnownValues where
                         , orFunc = rename old new orF
                         , notFunc = rename old new notF
 
+                        , errorFunc = rename old new errF
                         , patErrorFunc = rename old new patE
                         })
 
