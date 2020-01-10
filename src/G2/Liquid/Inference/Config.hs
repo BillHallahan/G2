@@ -19,7 +19,7 @@ import qualified Data.Text as T
 data InferenceConfig = InferenceConfig { max_ce :: Int }
 
 mkInferenceConfig :: [String] -> InferenceConfig
-mkInferenceConfig as = InferenceConfig { max_ce = strArg "max-ce" as M.empty read 20 }
+mkInferenceConfig as = InferenceConfig { max_ce = strArg "max-ce" as M.empty read 25 }
 
 adjustConfig :: Maybe T.Text -> SimpleState -> Config -> Config
 adjustConfig main_mod (SimpleState { expr_env = eenv }) config =

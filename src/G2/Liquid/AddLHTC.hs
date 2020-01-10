@@ -224,7 +224,7 @@ lhTCDict m t = do
     tc <- typeClassInstTC m lh t
     case tc of
         Just e -> return $ dropAppedLH e
-        Nothing -> return $ Var (Id (Name "BAD 2" Nothing 0 Nothing) TyUnknown)
+        Nothing -> return $ Var (Id (Name "bad2" Nothing 0 Nothing) (TyCon lh TYPE))
     where
         -- typeClassInstTC adds any needed LH Dict arguments for us.
         -- Unfortunately, the LH Dicts are then added AGAIN, by addLHTCExprEnvPasses
