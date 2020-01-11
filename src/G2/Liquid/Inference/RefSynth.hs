@@ -344,7 +344,7 @@ funcCallTerm sorts meas_ex poly_names arg_tys ret_ty fc@(FuncCall { arguments = 
         rt_bound = extractTypePolyBound ret_ty
         ns_r_bound = zip3PB r_bound rt_bound poly_names
         ns_r_bound' = concatMap expand1 (extractValues ns_r_bound)
-    in trace ("fc = " ++ show fc) 
+    in
     mapMaybe (\(r, rt, n) -> funcCallTerm' sorts meas_ex arg_tys ars r rt n) $ ns_r_bound' -- r
     where
         expand1 :: ([a], b, c) -> [(ValOrExistential a, b, c)]
@@ -377,7 +377,7 @@ exprToTerm _ _ (TyCon (Name "Bool" _ _ _) _) (Data (DataCon (Name n _ _ _) _))
 exprToTerm _ _ (TyCon (Name n _ _ _) _) (App _ (Lit l))
     | n == "Int" || n == "Float" = litToTerm l
 exprToTerm _ _ _ (Lit l) = litToTerm l
-exprToTerm sorts meas_ex t e = trace ("e = " ++ show e) exprToDTTerm sorts meas_ex t e
+exprToTerm sorts meas_ex t e = exprToDTTerm sorts meas_ex t e
 exprToTerm _ _ _ e = error $ "exprToTerm: Unhandled Expr " ++ show e
 
 litToTerm :: G2.Lit -> Term
@@ -589,7 +589,7 @@ shiftPB' (PolyBound svt@(sv, t) svts) =
 
         shift_new = map (\(PolyBound _ pb) -> PolyBound ([], TermLit (LitBool True)) pb) shift
     in
-    trace ("shift = " ++ show shift) PolyBound (sv_new, t_new) (shift_new ++ leave)
+    PolyBound (sv_new, t_new) (shift_new ++ leave)
 
 refToLHExpr' :: SpecType -> PolyBound ([SortedVar], Term) -> MeasureSymbols -> PolyBound LH.Expr
 refToLHExpr' st pb_sv_t meas_sym =
