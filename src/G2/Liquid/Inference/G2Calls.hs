@@ -7,7 +7,6 @@
 
 module G2.Liquid.Inference.G2Calls ( MeasureExs
                                    , runLHInferenceCore
-                                   , filterPassedError
                                    , checkCounterexample
                                    , evalMeasures) where
 
@@ -132,21 +131,6 @@ checkBadTy s _ = getAny . evalASTs (checkBadTy' (known_values s)) $ expr_env s
 checkBadTy' :: KnownValues -> Expr -> Any
 checkBadTy' kv (Data (DataCon n (TyForAll _ (TyFun _ (TyFun _ _))))) = Any $ n == dcEmpty kv
 checkBadTy' _ _ = Any False
-
--------------------------------
--- Filter Passed Error
--------------------------------
--- Eliminates any abstract counterexamples that were passed error
-
-filterPassedError :: [ExecRes [Abstracted]] -> [ExecRes [Abstracted]]
-filterPassedError = filter filterPassedError'
-
-filterPassedError' :: ExecRes [Abstracted] -> Bool
-filterPassedError' (ExecRes { final_state = State { track = abst } }) =
-    not $ any (any isError . arguments . abstract) abst
-    where
-        isError (Prim Error _) = True
-        isError _ = False
 
 -------------------------------
 -- Checking Counterexamples

@@ -117,15 +117,14 @@ createStateForInference simp_s config ghci =
 genNewConstraints :: [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> InferenceConfig -> G2.Config -> T.Text -> IO [CounterExample]
 genNewConstraints ghci m lrs infconfig g2config n = do
     ((exec_res, _), i) <- runLHInferenceCore n m lrs ghci infconfig g2config
-    let exec_res' = filterPassedError exec_res
-    return $ map (lhStateToCE i) exec_res'
+    return $ map (lhStateToCE i) exec_res
 
 checkNewConstraints :: [GhcInfo] -> LiquidReadyState -> G2.Config -> [CounterExample] -> IO (Either [CounterExample] [FuncConstraint])
 checkNewConstraints ghci lrs g2config cexs = do
     res <- mapM (cexsToFuncConstraints lrs ghci g2config) cexs
     case lefts res of
         res'@(_:_) -> return . Left $ res'
-        _ -> return . Right . concat . rights $ res
+        _ -> return . Right . filterErrors . concat . rights $ res
 
 genMeasureExs :: LiquidReadyState -> [GhcInfo] -> G2.Config -> FuncConstraints -> IO MeasureExs
 genMeasureExs lrs ghci g2config fcs =
@@ -178,3 +177,20 @@ cexsToFuncConstraints lrs ghci g2config cex@(CallsCounter _ fc []) = do
     case v_cex of
         True -> return . Right $ [Pos fc]
         False -> return . Left $ cex
+
+filterErrors :: [FuncConstraint] -> [FuncConstraint]
+filterErrors = filter filterErrors'
+
+filterErrors' :: FuncConstraint -> Bool
+filterErrors' fc =
+    let
+        c = constraint fc
+
+        as = not . any isError $ arguments c
+        r = not . isError . returns $ c
+    in
+    as && r
+    where
+        isError (Prim Error _) = True
+        isError _ = False
+
