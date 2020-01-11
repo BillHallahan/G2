@@ -531,14 +531,14 @@ maybeRatioFromInteger :: DictMaps -> Expr -> LHStateM (Maybe Expr)
 maybeRatioFromInteger m e = do
     tyI <- tyIntegerT
 
-    toRatioF <- return . mkToRatioExpr =<< knownValues
+    toRatioF <- lhToRatioFuncM -- return . mkToRatioExpr =<< knownValues
     may_iDict <- maybeIntegralDict m (typeOf e)
 
     dcIntegerE <- mkDCIntegerE
 
     if | Just iDict <- may_iDict
         , typeOf e == tyI  ->
-            return . Just $ mkApp [toRatioF, Type (typeOf e), iDict, e, App dcIntegerE (Lit (LitInt 1))]
+            return . trace (show toRatioF) Just $ mkApp [Var toRatioF, Type (typeOf e), iDict, e, App dcIntegerE (Lit (LitInt 1))]
        | otherwise -> return Nothing
 
 
@@ -756,7 +756,7 @@ integralDict m t = do
 
 maybeFractionalDict :: DictMaps -> Type -> LHStateM (Maybe Expr)
 maybeFractionalDict m t = do
-    integral <- return . KV.integralTC =<< knownValues
+    integral <- return . KV.fractionalTC =<< knownValues
     typeClassInstTC (fractional_dicts m) integral t
 
 fractionalDict :: DictMaps -> Type -> LHStateM Expr

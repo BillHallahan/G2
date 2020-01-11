@@ -61,6 +61,9 @@ createTCValues kv = do
                         , lhMod = KV.modFunc kv
                         , lhFromInteger = KV.fromIntegerFunc kv
                         , lhToInteger = KV.toIntegerFunc kv
+
+                        , lhToRatioFunc = KV.toRatioFunc kv
+
                         , lhNumOrd = lhNuOr
 
                         , lhAnd = KV.andFunc kv

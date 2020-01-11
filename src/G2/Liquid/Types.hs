@@ -56,6 +56,9 @@ module G2.Liquid.Types ( LHOutput (..)
                        , lhModM
                        , lhFromIntegerM
                        , lhToIntegerM
+
+                       , lhToRatioFuncM
+                       
                        , lhNumTCM
                        , lhNumOrdM
 
@@ -460,6 +463,11 @@ lhModM = liftTCValues lhMod
 lhFromIntegerM :: LHStateM L.Id
 lhFromIntegerM = do
     n <- liftTCValues lhFromInteger
+    return . L.Id n =<< numT 
+
+lhToRatioFuncM :: LHStateM L.Id
+lhToRatioFuncM = do
+    n <- liftTCValues lhToRatioFunc
     return . L.Id n =<< numT 
 
 numT :: LHStateM L.Type

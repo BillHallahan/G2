@@ -283,6 +283,7 @@ processLiquidReadyState lrs@(LiquidReadyState { lr_state = lh_state
         lrs' = lrs { lr_state = merged_state, lr_binding = bindings'}
 
     lhs <- extractWithoutSpecs lrs' ifi ghci config memconfig
+      
     return $ lhs { ls_counterfactual_name = cfn }
 
 extractWithoutSpecs :: LiquidReadyState -> Lang.Id -> [GhcInfo] -> Config -> MemConfig -> IO LiquidData
