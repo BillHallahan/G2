@@ -437,7 +437,7 @@ nearest k n centers p = pSol
     f x1 x2 = compare (distance n (snd x1) p) (distance n (snd x2) p)
     pSol    = minKeyFuncList keyList f
 
-{-@ minKeyFuncList :: (Ord v) => { xs:[(k,v)] | len xs > 0 } -> ((k,v) -> (k,v) -> Ordering) -> k @-}
+{-@ minKeyFuncList :: (Ord v) => [(k,v)] -> ((k,v) -> (k,v) -> Ordering) -> k @-}
 minKeyFuncList :: (Ord v) => [(k,v)] -> ((k,v) -> (k,v) -> Ordering) -> k
 minKeyFuncList xs f = fst $ minimumBy f xs
 \end{code}

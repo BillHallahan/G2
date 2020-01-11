@@ -538,7 +538,7 @@ maybeRatioFromInteger m e = do
 
     if | Just iDict <- may_iDict
         , typeOf e == tyI  ->
-            return . trace (show toRatioF) Just $ mkApp [Var toRatioF, Type (typeOf e), iDict, e, App dcIntegerE (Lit (LitInt 1))]
+            return . Just $ mkApp [Var toRatioF, Type (typeOf e), iDict, e, App dcIntegerE (Lit (LitInt 1))]
        | otherwise -> return Nothing
 
 
