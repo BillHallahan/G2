@@ -173,6 +173,7 @@ library
                        , liquid-fixpoint >= 0.7.0.7 && < 0.9
                        , MissingH >= 1.4.0.0 && < 1.5
                        , mtl >= 2.2 && < 2.3
+                       , random == 1.1
                        , reducers >= 3.12 && < 3.13
                        , regex-compat >= 0.95 && < 0.96
                        , regex-base >= 0.93 && < 0.94

@@ -58,7 +58,7 @@ addPost (PolyBound e ps)
         ps' = ps ++ repeat (PolyBound PTrue [])
         ars' = map (uncurry addPost) $ zip ps' ars
     in
-    trace ("ps = " ++ show ps ++ "\nars = " ++ show ars) rapp { rt_reft = rt_reft', rt_args = ars' }
+    rapp { rt_reft = rt_reft', rt_args = ars' }
 addPost _ rvar@(RVar {}) = rvar
 addPost _ st = error $ "addPost: Unhandled SpecType " ++ show st
 

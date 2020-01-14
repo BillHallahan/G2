@@ -15,29 +15,37 @@ import qualified G2.Language.ExprEnv as E
 import qualified Data.HashSet as S
 import qualified Data.Map as M
 import qualified Data.Text as T
+import Data.Time.Clock
 
-data InferenceConfig = InferenceConfig { max_ce :: Int }
+data InferenceConfig = InferenceConfig { modules :: S.HashSet (Maybe T.Text)
+                                       , max_ce :: Int 
+                                       
+                                       , timeout_se :: NominalDiffTime
+                                       , timeout_sygus :: NominalDiffTime }
 
 mkInferenceConfig :: [String] -> InferenceConfig
-mkInferenceConfig as = InferenceConfig { max_ce = strArg "max-ce" as M.empty read 25 }
+mkInferenceConfig as =
+    InferenceConfig { modules = S.empty
+                    , max_ce = strArg "max-ce" as M.empty read 25
+                    , timeout_se = strArg "timeout-se" as M.empty (fromInteger . read) 10
+                    , timeout_sygus = strArg "timeout-sygus" as M.empty (fromInteger . read) 10 }
 
 adjustConfig :: Maybe T.Text -> SimpleState -> Config -> Config
 adjustConfig main_mod (SimpleState { expr_env = eenv }) config =
     let
-        ns_mm = filter (\(Name _ m _ _) -> m == main_mod) $ E.keys eenv
-        ns_mm' = filter (not . retTyVar eenv) ns_mm
-        ns_mm'' = map (\(Name n m _ _) -> (n, m)) ns_mm'
-
+        ns_mm = refinable main_mod eenv
 
         ns_nmm = map (\(Name n m _ _) -> (n, m))
                . filter (\(Name _ m _ _) -> m /= main_mod)
                $ E.keys eenv
     in
-    config { counterfactual = Counterfactual . CFOnly $ S.fromList ns_mm''
+    config { counterfactual = Counterfactual CFAll -- . CFOnly $ S.fromList ns_mm
            , block_errors_in = S.empty }
 
-retTyVar :: ExprEnv -> Name -> Bool
-retTyVar eenv n
-    | Just e <- E.lookup n eenv
-    , TyVar _ <- returnType e = True
-    | otherwise = False
+refinable :: Maybe T.Text -> ExprEnv -> [(T.Text, Maybe T.Text)]
+refinable main_mod eenv = 
+    let
+        ns_mm = filter (\(Name _ m _ _) -> m == main_mod) $ E.keys eenv
+        ns_mm' = map (\(Name n m _ _) -> (n, m)) ns_mm
+    in
+    ns_mm'

@@ -48,12 +48,14 @@ inference infconfig config proj fp lhlibs = do
 
         lrs = createStateForInference simp_s g2config' ghci
 
+        infconfig' = infconfig { modules = S.singleton main_mod }
+
 
     -- Trying to figure out what this stuff is...
     mapM (\g@(GI { spec = s })-> print $ gsDicts s ) ghci
 
 
-    inference' infconfig g2config' lhconfig' ghci (fst exg2) lrs emptyGS emptyFC 
+    inference' infconfig' g2config' lhconfig' ghci (fst exg2) lrs emptyGS emptyFC 
 
 inference' :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
            -> GeneratedSpecs -> FuncConstraints -> IO (Either [CounterExample] GeneratedSpecs)
@@ -80,15 +82,18 @@ inference' infconfig g2config lhconfig ghci m_modname lrs gs fc = do
             printCE $ concat res
 
             putStrLn "Before checkNewConstraints"
-            new_fc <- checkNewConstraints ghci lrs g2config (concat res)
+            new_fc <- checkNewConstraints ghci lrs infconfig g2config (concat res)
             putStrLn $ "After checkNewConstraints" ++ "\nlength res = " ++ show (length (concat res))
                             ++ "\nlength new_fc = " ++ show (length new_fc)
             case new_fc of
                 Left ce -> return . Left $ ce
                 Right new_fc' -> do
-                    let new_fc_funcs = nub $ map (funcName . constraint) new_fc'
+                    let new_fc_funcs = filter (\(Name _ m _ _) -> m `S.member` (modules infconfig))
+                                     . nub $ map (funcName . constraint) new_fc'
 
                         fc' = foldr insertFC fc new_fc'
+
+                    putStrLn $ "new_fc_funcs = " ++ show new_fc_funcs
 
                     -- Synthesize
                     -- putStrLn $ "fc' = " ++ show fc'
@@ -96,7 +101,7 @@ inference' infconfig g2config lhconfig ghci m_modname lrs gs fc = do
                     putStrLn "Before genMeasureExs"
                     meas_ex <- genMeasureExs lrs merged_ghci g2config fc'
                     putStrLn "After genMeasureExs"
-                    gs' <- foldM (synthesize ghci lrs meas_ex fc') gs new_fc_funcs
+                    gs' <- foldM (synthesize infconfig ghci lrs meas_ex fc') gs new_fc_funcs
                     
                     inference' infconfig g2config lhconfig ghci m_modname lrs gs' fc'
 
@@ -119,9 +124,9 @@ genNewConstraints ghci m lrs infconfig g2config n = do
     ((exec_res, _), i) <- runLHInferenceCore n m lrs ghci infconfig g2config
     return $ map (lhStateToCE i) exec_res
 
-checkNewConstraints :: [GhcInfo] -> LiquidReadyState -> G2.Config -> [CounterExample] -> IO (Either [CounterExample] [FuncConstraint])
-checkNewConstraints ghci lrs g2config cexs = do
-    res <- mapM (cexsToFuncConstraints lrs ghci g2config) cexs
+checkNewConstraints :: [GhcInfo] -> LiquidReadyState -> InferenceConfig ->  G2.Config -> [CounterExample] -> IO (Either [CounterExample] [FuncConstraint])
+checkNewConstraints ghci lrs infconfig g2config cexs = do
+    res <- mapM (cexsToFuncConstraints lrs ghci infconfig g2config) cexs
     case lefts res of
         res'@(_:_) -> return . Left $ res'
         _ -> return . Right . filterErrors . concat . rights $ res
@@ -139,8 +144,8 @@ genMeasureExs lrs ghci g2config fcs =
     in
     evalMeasures lrs ghci g2config es
 
-synthesize :: [GhcInfo] -> LiquidReadyState -> MeasureExs -> FuncConstraints -> GeneratedSpecs -> Name -> IO GeneratedSpecs
-synthesize ghci lrs meas_ex fc gs n = do
+synthesize :: InferenceConfig -> [GhcInfo] -> LiquidReadyState -> MeasureExs -> FuncConstraints -> GeneratedSpecs -> Name -> IO GeneratedSpecs
+synthesize infconfig ghci lrs meas_ex fc gs n = do
     let eenv = expr_env . state $ lr_state lrs
         tc = type_classes . state $ lr_state lrs
 
@@ -155,28 +160,43 @@ synthesize ghci lrs meas_ex fc gs n = do
         meas = lrsMeasures ghci lrs
 
     print $ "Synthesize spec for " ++ show n
-    new_spec <- refSynth spec e tc meas meas_ex fc_of_n (measureSymbols ghci)
+    new_spec <- refSynth infconfig spec e tc meas meas_ex fc_of_n (measureSymbols ghci)
 
-    putStrLn $ "spec = " ++ show spec
-    putStrLn $ "new_spec = " ++ show new_spec
+    case new_spec of
+        Just new_spec' -> do
+            putStrLn $ "spec = " ++ show spec
+            putStrLn $ "new_spec = " ++ show new_spec'
 
-    return $ insertGS n new_spec gs
+            return $ insertGS n new_spec' gs
+        Nothing -> return gs
 
-cexsToFuncConstraints :: LiquidReadyState -> [GhcInfo] -> G2.Config -> CounterExample -> IO (Either CounterExample [FuncConstraint])
-cexsToFuncConstraints _ _ _ (DirectCounter _ fcs@(_:_)) =
-    return . Right $ map (Pos . real) fcs ++ map (Neg . abstract) fcs
-cexsToFuncConstraints _ _ _ (CallsCounter _ _ fcs@(_:_)) =
-    return . Right $ map (Pos . real) fcs ++ map (Neg . abstract) fcs
-cexsToFuncConstraints lrs ghci g2config cex@(DirectCounter fc []) = do
+-- | Converts counterexamples into constraints that the refinements must allow for, or rule out.
+cexsToFuncConstraints :: LiquidReadyState -> [GhcInfo] -> InferenceConfig -> G2.Config -> CounterExample -> IO (Either CounterExample [FuncConstraint])
+cexsToFuncConstraints _ _ infconfig _ (DirectCounter dfc fcs@(_:_))
+    | not . null $ fcs' =
+        return . Right $ map (Pos . real) fcs ++ map (Neg . abstract) fcs'
+    | otherwise = return . Right $ [Pos dfc]
+    where
+        fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
+cexsToFuncConstraints _ _ infconfig _ (CallsCounter dfc _ fcs@(_:_))
+    | not . null $ fcs' =
+        return . Right $ map (Pos . real) fcs ++ map (Neg . abstract) fcs'
+    | otherwise = return $ Right [] -- error $ "cexsToFuncConstraints" ++ show (map abstractedMod fcs) -- return . Right $ [Pos dfc] 
+    where
+        fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
+cexsToFuncConstraints lrs ghci _ g2config cex@(DirectCounter fc []) = do
     v_cex <- checkCounterexample lrs ghci g2config fc
     case v_cex of
         True -> return . Right $ [Pos fc]
         False -> return . Left $ cex
-cexsToFuncConstraints lrs ghci g2config cex@(CallsCounter _ fc []) = do
+cexsToFuncConstraints lrs ghci _ g2config cex@(CallsCounter _ fc []) = do
     v_cex <- checkCounterexample lrs ghci g2config fc
     case v_cex of
         True -> return . Right $ [Pos fc]
         False -> return . Left $ cex
+
+abstractedMod :: Abstracted -> Maybe T.Text
+abstractedMod = nameModule . funcName . abstract
 
 filterErrors :: [FuncConstraint] -> [FuncConstraint]
 filterErrors = filter filterErrors'

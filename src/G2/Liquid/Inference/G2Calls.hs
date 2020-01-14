@@ -87,13 +87,13 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
         (limHalt, limOrd) = limitByAccepted (cut_off config)
         state_name = Name "state" Nothing 0 Nothing
 
-        searched_below = SearchedBelowHalter { found_at_least = 3
-                                             , discarded_at_least = 6
-                                             , discarded_at_most = 15 }
+        -- searched_below = SearchedBelowHalter { found_at_least = 3
+        --                                      , discarded_at_least = 6
+        --                                      , discarded_at_most = 15 }
 
         lh_max_outputs = LHMaxOutputsHalter $ max_ce infconfig
     
-    timer_halter <- timerHalter 10
+    timer_halter <- timerHalter (timeout_se infconfig)
 
     return $ if higherOrderSolver config == AllFuncs then 
         ( SomeReducer NonRedPCRed
@@ -103,7 +103,7 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
         , SomeHalter
                 (MaxOutputsHalter (maxOutputs config)
                   :<~> LHAbsHalter entry mb_modname (expr_env st)
-                  :<~> searched_below
+                  -- :<~> searched_below
                   :<~> lh_max_outputs
                   :<~> SwitchEveryNHalter (switch_after config)
                   :<~> AcceptIfViolatedHalter
@@ -118,7 +118,7 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
             (DiscardIfAcceptedTag state_name
               :<~> MaxOutputsHalter (maxOutputs config)
               :<~> LHAbsHalter entry mb_modname (expr_env st)
-              :<~> searched_below
+              -- :<~> searched_below
               :<~> lh_max_outputs
               :<~> SwitchEveryNHalter (switch_after config)
               :<~> AcceptIfViolatedHalter

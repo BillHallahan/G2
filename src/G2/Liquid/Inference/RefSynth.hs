@@ -24,6 +24,7 @@ import G2.Language.Typing
 import G2.Liquid.Conversion
 import G2.Liquid.Helpers
 import G2.Liquid.Types
+import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.FuncConstraint
 import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.PolyRef
@@ -52,24 +53,29 @@ import qualified System.Process as P
 
 import Debug.Trace
 
-refSynth :: SpecType -> G2.Expr -> TypeClasses -> Measures -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> IO (PolyBound LH.Expr)
-refSynth spc e tc meas meas_ex fc meas_sym = do
-    putStrLn "refSynth"
-    let (call, f_num, rp_ns) = sygusCall e tc meas meas_ex fc
-    let sygus = printSygus call
-    putStrLn . T.unpack $ sygus
+refSynth :: InferenceConfig -> SpecType -> G2.Expr -> TypeClasses -> Measures -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> IO (Maybe (PolyBound LH.Expr))
+refSynth infconfig spc e tc meas meas_ex fc meas_sym
+    | TyVar _ <- returnType e = return Nothing
+    | otherwise = do
+        putStrLn "refSynth"
+        let (call, f_num, rp_ns) = sygusCall e tc meas meas_ex fc
+        let sygus = printSygus call
+        putStrLn . T.unpack $ sygus
 
-    -- res <- runCVC4 (T.unpack sygus)
-    res <- runCVC4StreamSolutions f_num (T.unpack sygus)
+        -- res <- runCVC4 (T.unpack sygus)
+        res <- runCVC4StreamSolutions infconfig f_num (T.unpack sygus)
 
-    case res of
-        Left _ -> error "refSynth: Bad call to CVC4"
-        Right smt_st -> do
-            let lh_st = refToLHExpr spc rp_ns smt_st meas_sym
+        case res of
+            Left _ -> do
+                putStrLn "Timeout"
+                return Nothing
+                -- error "refSynth: Bad call to CVC4"
+            Right smt_st -> do
+                let lh_st = refToLHExpr spc rp_ns smt_st meas_sym
 
-            print smt_st
+                print smt_st
 
-            return lh_st
+                return $ Just lh_st
 
 -------------------------------
 -- Constructing Sygus Formula
@@ -212,7 +218,7 @@ grammar sorted_vars sorts =
 intRuleList :: [GTerm]
 intRuleList =
     [ GVariable intSort
-    , GConstant intSort
+    -- , GConstant intSort
     , GBfTerm $ BfIdentifierBfs (ISymb "+") [intBf, intBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "-") [intBf, intBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "*") [intBf, intBf]
@@ -739,8 +745,8 @@ runCVC4 sygus =
             P.readProcess toCommand (["10", "cvc4", fp, "--lang=sygus2"]) "")
         )
 
-runCVC4StreamSolutions :: Int -> String -> IO (Either SomeException [Cmd])
-runCVC4StreamSolutions grouped sygus =
+runCVC4StreamSolutions :: InferenceConfig -> Int -> String -> IO (Either SomeException [Cmd])
+runCVC4StreamSolutions infconfig grouped sygus =
     try (
         withSystemTempFile ("cvc4_input.sy")
             (\fp h -> do
@@ -748,9 +754,12 @@ runCVC4StreamSolutions grouped sygus =
                 -- We call hFlush to prevent hPutStr from buffering
                 hFlush h
 
+                timeout <- timeOutCommand
+
                 -- --no-sygus-fair-max searches for functions that minimize the sum of the sizes of all functions
                 (inp, outp, errp, _) <- P.runInteractiveCommand
-                                            $ "cvc4 " ++ fp ++ " --lang=sygus2 --no-sygus-fair-max --sygus-stream"
+                                            $ timeout ++ " " ++ show (timeout_sygus infconfig)
+                                                ++ " cvc4 " ++ fp ++ " --lang=sygus2 --sygus-stream --no-sygus-fair-max"
 
                 lnes <- checkIfSolution grouped outp
 
@@ -832,3 +841,10 @@ readLines h lnes = do
             if "(error" `isInfixOf` lne
                 then readLines h lnes
                 else readLines h (lne:lnes)
+
+timeOutCommand :: IO String
+timeOutCommand = do
+    cmdMacOS <- findExecutable "gtimeout"
+    case cmdMacOS of
+        Just c -> return c
+        Nothing -> return "timeout"

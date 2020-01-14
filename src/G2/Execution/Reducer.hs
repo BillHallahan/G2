@@ -58,6 +58,9 @@ module G2.Execution.Reducer ( Reducer (..)
                             , SymbolicADTOrderer (..)
                             , ADTHeightOrderer (..)
                             , IncrAfterN (..)
+                            , RandomOrderer (..)
+                            , mkRandomOrderer
+                            , getRandomOrderer
 
                             , runReducer ) where
 
@@ -77,6 +80,7 @@ import Data.Maybe
 import qualified Data.List as L
 import Data.Time.Clock
 import System.Directory
+import System.Random
 
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
@@ -168,7 +172,7 @@ class Ord b => Orderer or sov b t | or -> sov, or -> b where
 
     -- | Assigns each state some value of an ordered type, and then proceeds with execution on the
     -- state assigned the minimal value
-    orderStates :: or -> sov -> State t -> b
+    orderStates :: or -> sov -> State t -> (b, or)
 
     -- | Run on the selected state, to update it's sov field
     updateSelected :: or -> sov -> Processed (State t) -> State t -> sov
@@ -735,10 +739,10 @@ instance (Orderer or1 sov1 b1 t, Orderer or2 sov2 b2 t)
     -- orderStates :: or -> sov -> State t -> b
     orderStates (or1 :<-> or2) (C sov1 sov2) s =
       let
-          sov1' = orderStates or1 sov1 s
-          sov2' = orderStates or2 sov2 s
+          (sov1', or1') = orderStates or1 sov1 s
+          (sov2', or2') = orderStates or2 sov2 s
       in
-      (sov1', sov2')
+      ((sov1', sov2'), or1' :<-> or2')
 
     -- | Run on the selected state, to update it's sov field
     -- updateSelected :: or -> sov -> Processed (State t) -> State t -> sov
@@ -761,7 +765,7 @@ data NextOrderer = NextOrderer
 
 instance Orderer NextOrderer () Int t where
     initPerStateOrder _ _ = ()
-    orderStates _ _ _ = 0
+    orderStates or _ _ = (0, or)
     updateSelected _ v _ _ = v
 
 -- | Continue execution on the state that has been picked the least in the past. 
@@ -769,7 +773,7 @@ data PickLeastUsedOrderer = PickLeastUsedOrderer
 
 instance Orderer PickLeastUsedOrderer Int Int t where
     initPerStateOrder _ _ = 0
-    orderStates _ v _ = v
+    orderStates or v _ = (v, or)
     updateSelected _ v _ _ = v + 1
 
 -- | Floors and does bucket size
@@ -778,7 +782,7 @@ data BucketSizeOrderer = BucketSizeOrderer Int
 instance Orderer BucketSizeOrderer Int Int t where
     initPerStateOrder _ _ = 0
 
-    orderStates (BucketSizeOrderer b) v _ = floor (fromIntegral v / fromIntegral b :: Float)
+    orderStates or@(BucketSizeOrderer b) v _ = (floor (fromIntegral v / fromIntegral b :: Float), or)
 
     updateSelected _ v _ _ = v + 1
 
@@ -788,7 +792,7 @@ data CaseCountOrderer = CaseCountOrderer
 instance Orderer CaseCountOrderer Int Int t where
     initPerStateOrder _ _ = 0
 
-    orderStates _ v _ = v
+    orderStates or v _ = (v, or)
 
     updateSelected _ v _ _ = v
 
@@ -801,7 +805,7 @@ data SymbolicADTOrderer = SymbolicADTOrderer
 
 instance Orderer SymbolicADTOrderer (S.HashSet Name) Int t where
     initPerStateOrder _ = S.fromList . map idName . symbolic_ids
-    orderStates _ v _ = S.size v
+    orderStates or v _ = (S.size v, or)
 
     updateSelected _ v _ _ = v
 
@@ -813,12 +817,35 @@ data ADTHeightOrderer = ADTHeightOrderer
 
 instance Orderer ADTHeightOrderer (S.HashSet Name) Int t where
     initPerStateOrder _ = S.fromList . map idName . symbolic_ids
-    orderStates _ v s = maximum $ (-1):(S.toList $ S.map (flip adtHeight s) v)
+    orderStates or v s =
+        let
+            m_height = maximum $ (-1):(S.toList $ S.map (flip adtHeight s) v)
+        in
+        (m_height, or)
 
     updateSelected _ v _ _ = v
 
     -- stepOrderer _ v _ _ s =
     --     v `S.union` (S.fromList . map idName . symbolic_ids $ s)
+
+data RandomOrderer = RandomOrderer StdGen
+
+instance Orderer RandomOrderer () Int t where
+    initPerStateOrder _ _ = ()
+
+    orderStates (RandomOrderer gen) _ _ =
+        let
+            (v, gen') = next gen
+        in
+        (v, RandomOrderer gen')
+
+    updateSelected _ v _ _ = v
+
+mkRandomOrderer :: Int -> RandomOrderer
+mkRandomOrderer = RandomOrderer . mkStdGen
+
+getRandomOrderer :: IO RandomOrderer
+getRandomOrderer = return . RandomOrderer =<< getStdGen
 
 adtHeight :: Name -> State t -> Int
 adtHeight n s@(State { expr_env = eenv })
@@ -851,11 +878,11 @@ instance (Eq sov, Enum b, Orderer ord sov b t) => Orderer (IncrAfterN ord) (Incr
         IncrAfterNTr { steps_since_change = 0
                      , incr_by = 0
                      , underlying = initPerStateOrder ord s }
-    orderStates (IncrAfterN _ ord) sov s =
+    orderStates (IncrAfterN n ord) sov s =
         let
-            b = orderStates ord (underlying sov) s
+            (b, ord') = orderStates ord (underlying sov) s
         in
-        succNTimes (incr_by sov) b
+        (succNTimes (incr_by sov) b, IncrAfterN n ord')
     updateSelected (IncrAfterN _ ord) sov pr s =
         sov { underlying = updateSelected ord (underlying sov) pr s }
     stepOrderer (IncrAfterN ma ord) sov pr xs s
@@ -928,12 +955,12 @@ runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_
                     Nothing -> return (pr', b)
             | hc == Switch ->
                 let
-                    k = orderStates ord (order_val rs') (state rs)
+                    (k, ord') = orderStates ord (order_val rs') (state rs)
                     rs' = rs { order_val = updateSelected ord (order_val rs) ps (state rs) }
 
                     Just (rs'', xs') = minState (M.insertWith (++) k [rs'] xs)
                 in
-                switchState red hal ord pr rs'' b xs'
+                switchState red hal ord' pr rs'' b xs'
                 -- if not $ discardOnStart hal (halter_val rs''') ps (state rs''')
                 --     then runReducer' red hal ord pr rs''' b xs'
                 --     else runReducerList red hal ord (pr {discarded = rs''':discarded pr}) xs' b
@@ -949,11 +976,23 @@ runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_
                                            , reducer_val = r_val'
                                            , halter_val = stepHalter hal h_val ps new_states s'
                                            , order_val = stepOrderer ord o_val ps new_states s'}) $ zip new_states r_vals
-                
+
+
+                    
+
                 case mod_info of
                     (s_h:ss_tail) -> do
-                        let xs' = foldr (\s' -> M.insertWith (++) (orderStates ord (order_val s') (state s')) [s']) xs ss_tail
-                        runReducer' red' hal ord pr s_h b' xs'
+                        let 
+                            (ord', b_ss_tail) =
+                                L.mapAccumR (\e_ord s' ->
+                                    let
+                                        (n_b, n_ord) = orderStates e_ord (order_val s') (state s')
+                                    in
+                                    (n_ord, (n_b, s'))) ord ss_tail
+
+                            xs' = foldr (\(or_b, s') -> M.insertWith (++) or_b [s']) xs b_ss_tail
+
+                        runReducer' red' hal ord' pr s_h b' xs'
                     [] -> runReducerList red' hal ord pr xs b' 
         where
             ps = processedToState pr
