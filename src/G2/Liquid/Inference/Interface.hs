@@ -44,16 +44,12 @@ inference infconfig config proj fp lhlibs = do
     exg2@(main_mod, _) <- translateLoaded proj fp lhlibs transConfig g2config
 
     let simp_s = initSimpleState (snd exg2)
-        g2config' = adjustConfig main_mod simp_s g2config
+        (g2config', infconfig') = adjustConfig main_mod simp_s g2config infconfig
 
         lrs = createStateForInference simp_s g2config' ghci
 
-        infconfig' = infconfig { modules = S.singleton main_mod }
-
-
     -- Trying to figure out what this stuff is...
     mapM (\g@(GI { spec = s })-> print $ gsDicts s ) ghci
-
 
     inference' infconfig' g2config' lhconfig' ghci (fst exg2) lrs emptyGS emptyFC 
 

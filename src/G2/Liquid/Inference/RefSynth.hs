@@ -54,9 +54,7 @@ import qualified System.Process as P
 import Debug.Trace
 
 refSynth :: InferenceConfig -> SpecType -> G2.Expr -> TypeClasses -> Measures -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> IO (Maybe (PolyBound LH.Expr))
-refSynth infconfig spc e tc meas meas_ex fc meas_sym
-    | TyVar _ <- returnType e = return Nothing
-    | otherwise = do
+refSynth infconfig spc e tc meas meas_ex fc meas_sym = do
         putStrLn "refSynth"
         let (call, f_num, rp_ns) = sygusCall e tc meas meas_ex fc
         let sygus = printSygus call

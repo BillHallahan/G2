@@ -180,7 +180,7 @@ data LHLimitByAcceptedOrderer = LHLimitByAcceptedOrderer
 instance Orderer LHLimitByAcceptedOrderer () Int LHTracker where
     initPerStateOrder _ _ = ()
 
-    orderStates or _ s = (num_steps s, or)
+    orderStates or _ _ s = (num_steps s, or)
 
     updateSelected _ _ _ _ = ()
 

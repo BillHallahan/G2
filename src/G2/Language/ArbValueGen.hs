@@ -42,7 +42,7 @@ charGenInit = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9']
 -- will give a different value the next time arbValue is called with
 -- the same Type.
 arbValue :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValue t = arbValue' getFiniteADT t
+arbValue t = arbValue' getFiniteADT M.empty t
 
 
 -- | arbValue
@@ -50,7 +50,7 @@ arbValue t = arbValue' getFiniteADT t
 -- Cuts off recursive ADTs with a Prim Undefined
 -- Returns a new ArbValueGen that is identical to the passed ArbValueGen
 constArbValue :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-constArbValue = constArbValue' getFiniteADT
+constArbValue = constArbValue' getFiniteADT M.empty
 
 -- | arbValue
 -- Allows the generation of arbitrary values of the given type.
@@ -59,101 +59,113 @@ constArbValue = constArbValue' getFiniteADT
 -- will give a different value the next time arbValue is called with
 -- the same Type.
 arbValueInfinite :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValueInfinite t = arbValue' getADT t
+arbValueInfinite t = arbValueInfinite' M.empty t
 
-arbValue' :: GetADT -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValue' getADTF (TyFun t t') tenv av =
+arbValueInfinite' :: M.Map Name Type -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+arbValueInfinite' = arbValue' getADT
+
+arbValue' :: GetADT
+          -> M.Map Name Type -- ^ Maps TyVar's to Types
+          -> Type
+          -> TypeEnv
+          -> ArbValueGen
+          -> (Expr, ArbValueGen)
+arbValue' getADTF m (TyFun t t') tenv av =
     let
-      (e, av') = arbValue' getADTF t' tenv av
+      (e, av') = arbValue' getADTF m t' tenv av
     in
     (Lam TermL (Id (Name "_" Nothing 0 Nothing) t) e, av')
-arbValue' getADTF t tenv av
+arbValue' getADTF m t tenv av
   | TyCon n _ <- tyAppCenter t
   , ts <- tyAppArgs t =
     maybe (Prim Undefined TyBottom, av) 
-          (\adt -> getADTF tenv av adt ts)
+          (\adt -> getADTF m tenv av adt ts)
           (M.lookup n tenv)
-arbValue' getADTF (TyApp t1 t2) tenv av =
+arbValue' getADTF m (TyApp t1 t2) tenv av =
   let
-      (e1, av') = arbValue' getADTF t1 tenv av
-      (e2, av'') = arbValue' getADTF t2 tenv av'
+      (e1, av') = arbValue' getADTF m t1 tenv av
+      (e2, av'') = arbValue' getADTF m t2 tenv av'
   in
   (App e1 e2, av'')
-arbValue' _ TyLitInt _ av =
+arbValue' _ _ TyLitInt _ av =
     let
         i = intGen av
     in
     (Lit (LitInt $ i), av { intGen = i + 1 })
-arbValue' _ TyLitFloat _ av =
+arbValue' _ _ TyLitFloat _ av =
     let
         f = floatGen av
     in
     (Lit (LitFloat $ f), av { floatGen = f + 1 })
-arbValue' _ TyLitDouble _ av =
+arbValue' _ _ TyLitDouble _ av =
     let
         d = doubleGen av
     in
     (Lit (LitDouble $ d), av { doubleGen = d + 1 })
-arbValue' _ TyLitChar _ av =
+arbValue' _ _ TyLitChar _ av =
     let
         c:cs = case charGen av of
                 xs@(_:_) -> xs
                 _ -> charGenInit
     in
     (Lit (LitChar c), av { charGen = cs})
-arbValue' _ t _ av = (Prim Undefined t, av)
+arbValue' getADTF m (TyVar (Id n _)) tenv av
+    | Just t <- M.lookup n m = arbValue' getADTF m t tenv av
+arbValue' _ _ t _ av = (Prim Undefined t, av)
 
 
-constArbValue' :: GetADT -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-constArbValue' getADTF (TyFun t t') tenv av =
+constArbValue' :: GetADT -> M.Map Name Type -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+constArbValue' getADTF m (TyFun t t') tenv av =
     let
-      (e, _) = constArbValue' getADTF t' tenv av
+      (e, _) = constArbValue' getADTF m t' tenv av
     in
     (Lam TermL (Id (Name "_" Nothing 0 Nothing) t) e, av)
-constArbValue' getADTF t tenv av
+constArbValue' getADTF m t tenv av
   | TyCon n _ <- tyAppCenter t
   , ts <- tyAppArgs t =
     maybe (Prim Undefined TyBottom, av) 
-          (\adt -> getADTF tenv av adt ts)
+          (\adt -> getADTF m tenv av adt ts)
           (M.lookup n tenv)
-constArbValue' getADTF (TyApp t1 t2) tenv av =
+constArbValue' getADTF m (TyApp t1 t2) tenv av =
   let
-      (e1, _) = constArbValue' getADTF t1 tenv av
-      (e2, _) = constArbValue' getADTF t2 tenv av
+      (e1, _) = constArbValue' getADTF m t1 tenv av
+      (e2, _) = constArbValue' getADTF m t2 tenv av
   in
   (App e1 e2, av)
-constArbValue' _ TyLitInt _ av =
+constArbValue' _ _ TyLitInt _ av =
     let
         i = intGen av
     in
     (Lit (LitInt $ i), av)
-constArbValue' _ TyLitFloat _ av =
+constArbValue' _ _ TyLitFloat _ av =
     let
         f = floatGen av
     in
     (Lit (LitFloat $ f), av)
-constArbValue' _ TyLitDouble _ av =
+constArbValue' _ _ TyLitDouble _ av =
     let
         d = doubleGen av
     in
     (Lit (LitDouble $ d), av)
-constArbValue' _ TyLitChar _ av =
+constArbValue' _ _ TyLitChar _ av =
     let
         c:_ = case charGen av of
                 xs@(_:_) -> xs
                 _ -> charGenInit
     in
     (Lit (LitChar c), av)
-constArbValue' _ t _ av = (Prim Undefined t, av)
+constArbValue' getADTF m (TyVar (Id n _)) tenv av
+    | Just t <- M.lookup n m = constArbValue' getADTF m t tenv av
+constArbValue' _ _ t _ av = (Prim Undefined t, av)
 
-type GetADT = TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
+type GetADT = M.Map Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
 
 -- Generates an arbitrary value of the given ADT,
 -- but will return something containing @(Prim Undefined)@ instead of an infinite Expr
-getFiniteADT :: TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
-getFiniteADT tenv av adt ts =
+getFiniteADT :: M.Map Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
+getFiniteADT m tenv av adt ts =
     let
-        (e, av') = getADT tenv av adt ts
+        (e, av') = getADT m tenv av adt ts
     in 
     (cutOff [] e, av')
 
@@ -167,8 +179,8 @@ cutOff _ e = e
 
 -- | Generates an arbitrary value of the given AlgDataTy
 -- If there is no such finite value, this may return an infinite Expr
-getADT :: TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
-getADT tenv av adt ts =
+getADT :: M.Map Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
+getADT m tenv av adt ts =
     let
         dcs = dataCon adt
         ids = boundIds adt
@@ -177,8 +189,8 @@ getADT tenv av adt ts =
         min_dc = minimumBy (comparing (length . dataConArgs)) dcs
 
         tyVIds = map TyVar ids
-        min_dc' = foldr (uncurry replaceASTs) min_dc $ zip tyVIds ts
+        m' = foldr (uncurry M.insert) m $ zip (map idName ids) ts
 
-        (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite t tenv av_) av $ dataConArgs min_dc'
+        (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite' m' t tenv av_) av $ dataConArgs min_dc
     in
-    (mkApp $ Data min_dc':map Type ts ++ es, av')
+    (mkApp $ Data min_dc:map Type ts ++ es, av')

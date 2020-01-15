@@ -76,7 +76,7 @@ inferenceReducerHalterOrderer :: (Solver solver, Simplifier simplifier)
                               -> T.Text
                               -> Maybe T.Text
                               -> Name
-                              -> State t
+                              -> State LHTracker
                               -> IO (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
 inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modname cfn st = do
     let
@@ -124,6 +124,18 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
               :<~> AcceptIfViolatedHalter
               :<~> timer_halter)
         , SomeOrderer (IncrAfterN 1000 ADTHeightOrderer))
+
+abstractedWeight :: Processed (State LHTracker) -> State LHTracker -> Int -> Int
+abstractedWeight pr s v =
+    let
+        abs_calls = map funcName . abstract_calls $ track s
+
+        acc_abs_calls = filter (not . null)
+                      . map (filter (`elem` abs_calls))
+                      . map (map funcName . abstract_calls . track)
+                      $ accepted pr
+    in
+    v + length (acc_abs_calls) * 200
 
 checkBadTy :: State t -> Bindings -> Bool
 checkBadTy s _ = getAny . evalASTs (checkBadTy' (known_values s)) $ expr_env s

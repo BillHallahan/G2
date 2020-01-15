@@ -34,6 +34,8 @@ import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 
+import Debug.Trace
+
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce sharing solver simplifier s b@(Bindings {name_gen = ng}) = do
     (r, s', ng') <- stdReduce' sharing solver simplifier s ng
@@ -504,7 +506,7 @@ createExtCond s ngen mexpr cvar (dcon, _, aexpr) =
   where
     -- Get the Bool value specified by the matching DataCon
     -- Throws an error if dcon is not a Bool Data Constructor
-    boolValue = getBoolFromDataCon s dcon
+    boolValue = trace ("mexpr = " ++ show mexpr ++ "\n" ++ show dcon) getBoolFromDataCon s dcon
     cond = ExtCond mexpr boolValue
 
     -- Now do a round of rename for binding the cvar.
