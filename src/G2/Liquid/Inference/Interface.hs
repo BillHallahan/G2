@@ -171,7 +171,7 @@ cexsToFuncConstraints :: LiquidReadyState -> [GhcInfo] -> InferenceConfig -> G2.
 cexsToFuncConstraints _ _ infconfig _ (DirectCounter dfc fcs@(_:_))
     | not . null $ fcs' =
         return . Right $ map (Pos . real) fcs ++ map (Neg . abstract) fcs'
-    | otherwise = return . Right $ [Pos dfc]
+    | otherwise = return . Right $ [] -- [Pos dfc]
     where
         fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 cexsToFuncConstraints _ _ infconfig _ (CallsCounter dfc _ fcs@(_:_))
