@@ -20,7 +20,6 @@ data FuncConstraint = Pos { constraint :: FuncCall }
                     | Neg { constraint :: FuncCall }
                     deriving (Eq, Show, Read)
 
-
 emptyFC :: FuncConstraints
 emptyFC = FuncConstraints M.empty
 

@@ -506,7 +506,7 @@ createExtCond s ngen mexpr cvar (dcon, _, aexpr) =
   where
     -- Get the Bool value specified by the matching DataCon
     -- Throws an error if dcon is not a Bool Data Constructor
-    boolValue = trace ("mexpr = " ++ show mexpr ++ "\n" ++ show dcon) getBoolFromDataCon s dcon
+    boolValue = getBoolFromDataCon s dcon
     cond = ExtCond mexpr boolValue
 
     -- Now do a round of rename for binding the cvar.
