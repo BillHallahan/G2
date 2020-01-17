@@ -108,7 +108,7 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
                   :<~> SwitchEveryNHalter (switch_after config)
                   :<~> AcceptIfViolatedHalter
                   :<~> timer_halter)
-        , SomeOrderer (IncrAfterN 1000 ADTHeightOrderer))
+        , SomeOrderer (ToOrderer $ IncrAfterN 1000 ADTHeightOrderer))
     else
         (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng)
             <~| (case logStates config of
@@ -123,7 +123,7 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
               :<~> SwitchEveryNHalter (switch_after config)
               :<~> AcceptIfViolatedHalter
               :<~> timer_halter)
-        , SomeOrderer (IncrAfterN 1000 ADTHeightOrderer))
+        , SomeOrderer (ToOrderer $ IncrAfterN 1000 ADTHeightOrderer))
 
 abstractedWeight :: Processed (State LHTracker) -> State LHTracker -> Int -> Int
 abstractedWeight pr s v =
