@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module G2.Liquid.LHReducers ( LHRed (..)
@@ -9,7 +10,9 @@ module G2.Liquid.LHReducers ( LHRed (..)
                             , LHLimitByAcceptedOrderer
                             , LHAbsHalter (..)
                             , LHMaxOutputsHalter (..)
+                            , LHLimitSameAbstractedHalter (..)
                             , SearchedBelowHalter (..)
+                            , LHLeastAbstracted (..)
                             , LHTracker (..)
 
                             , abstractCallsNum
@@ -27,7 +30,14 @@ import qualified G2.Language.Stack as Stck
 import qualified G2.Language.ExprEnv as E
 import G2.Liquid.Annotations
 
+import Data.Foldable
+import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as S
+import Data.List
+import qualified Data.Map as M
+import Data.Maybe
 import Data.Monoid
+import Data.Ord
 import Data.Semigroup
 import qualified Data.Text as T
 
@@ -223,12 +233,32 @@ instance Halter LHMaxOutputsHalter Int LHTracker where
 
     updatePerStateHalt _ hv _ _ = hv
 
-    stopRed _ m (Processed { accepted = acc }) _
-        | length acc' >= m = return Discard
-        | otherwise = return Continue
+    stopRed _ _ _ _ = return Continue
+
+    discardOnStart _ m (Processed { accepted = acc }) _ = length acc' >= m
         where
             min_abs = minAbstractCalls acc
             acc' = filter (\s -> abstractCallsNum s == min_abs) acc
+
+    stepHalter _ hv _ _ _ = hv
+
+data LHLimitSameAbstractedHalter =
+    LHLimitSameAbstractedHalter Int
+
+instance Halter LHLimitSameAbstractedHalter () LHTracker where
+    initHalt _ _ = ()
+
+    updatePerStateHalt _ hv _ _ = hv
+
+    stopRed _ _ _ _ = return Continue
+
+    discardOnStart (LHLimitSameAbstractedHalter m) _ (Processed { accepted = acc }) s =
+        M.findWithDefault 0 s_abst abst_count >= m
+        where
+            s_abst = S.fromList . map funcName . abstract_calls . track $ s
+
+            absts = map (S.fromList . map funcName . abstract_calls . track) acc
+            abst_count = foldr (M.alter (Just . maybe 0 (+ 1))) M.empty absts 
 
     stepHalter _ hv _ _ _ = hv
 
@@ -269,3 +299,43 @@ instance Halter SearchedBelowHalter SBInfo LHTracker where
             min_abs = minAbstractCalls acc
             
     stepHalter _ hv _ _ _ = hv
+
+-- | Tries to consider the same number of states with each abstracted functions
+data LHLeastAbstracted ord = LHLeastAbstracted (S.HashSet Name) ord
+
+instance (Orderer ord sov b LHTracker, Show b) => Orderer (LHLeastAbstracted ord) sov (Maybe Name, b) LHTracker where
+    initPerStateOrder (LHLeastAbstracted _ ord) = initPerStateOrder ord
+
+    orderStates (LHLeastAbstracted ns ord) sov pr s =
+        let
+            (b, ord') = orderStates ord sov pr s
+            fns = fmap funcName . listToMaybe . abstract_calls . track $ s
+        in
+        ((fns, b), LHLeastAbstracted ns ord')
+
+    updateSelected (LHLeastAbstracted _ ord) = updateSelected ord
+
+    stepOrderer (LHLeastAbstracted _ ord) = stepOrderer ord
+
+    getState (LHLeastAbstracted cf_func ord) pr m =
+        let
+            abs_f = map (fmap funcName)
+                  . map (\s -> case abstract_calls . track $ s of
+                            (n:_) -> Just n
+                            _ -> Nothing)
+                  $ accepted pr ++ discarded pr
+
+            num_abs = S.map (\n -> (n, length $ filter ((==) n) abs_f))
+                    . S.insert Nothing
+                    $ S.map Just cf_func
+
+            min_func = map fst . sortBy (comparing snd) $ S.toList num_abs
+
+            ms = filter (not . M.null . snd)
+               $ map (\n -> (n, M.filterWithKey (\(n', _) _ -> n == n') m)) min_func
+        in
+        case ms of
+            (n, m'):_ 
+                | Just (b, s) <- getState ord pr $ M.mapKeys snd m' ->
+                   Just ((n, b), s)
+            _ -> Nothing

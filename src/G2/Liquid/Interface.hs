@@ -1,5 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 module G2.Liquid.Interface ( LiquidData (..)
                            , LiquidReadyState
@@ -222,6 +223,7 @@ data LiquidData = LiquidData { ls_state :: State LHTracker
                              , ls_bindings :: Bindings
                              , ls_id :: Lang.Id
                              , ls_counterfactual_name :: CounterfactualName
+                             , ls_counterfactual_funcs :: S.HashSet Name
                              , ls_measures :: Measures
                              , ls_tcv :: TCValues
                              , ls_memconfig :: MemConfig }
@@ -279,12 +281,13 @@ processLiquidReadyState lrs@(LiquidReadyState { lr_state = lh_state
                                               , lr_known_values = mkv
                                               , lr_type_classes = mtc
                                               , lr_higher_ord_insts = minst}) ifi ghci config memconfig = do
-    let (cfn, (merged_state, bindings')) = runLHStateM (initializeLHSpecs (counterfactual config) ghci ifi lh_bindings) lh_state lh_bindings
+    let ((cfn, cff), (merged_state, bindings')) = runLHStateM (initializeLHSpecs (counterfactual config) ghci ifi lh_bindings) lh_state lh_bindings
         lrs' = lrs { lr_state = merged_state, lr_binding = bindings'}
 
     lhs <- extractWithoutSpecs lrs' ifi ghci config memconfig
       
-    return $ lhs { ls_counterfactual_name = cfn }
+    return $ lhs { ls_counterfactual_name = cfn
+                 , ls_counterfactual_funcs = cff }
 
 extractWithoutSpecs :: LiquidReadyState -> Lang.Id -> [GhcInfo] -> Config -> MemConfig -> IO LiquidData
 extractWithoutSpecs lrs@(LiquidReadyState { lr_state = s
@@ -321,6 +324,7 @@ extractWithoutSpecs lrs@(LiquidReadyState { lr_state = s
                         , ls_bindings = bindings''
                         , ls_id = ifi
                         , ls_counterfactual_name = error "No counterfactual name"
+                        , ls_counterfactual_funcs = error "No counterfactual funcs"
                         , ls_measures = real_meas
                         , ls_tcv = tcv
                         , ls_memconfig = pres_names' `mappend` memconfig }
@@ -450,7 +454,7 @@ lhReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
         , SomeOrderer limOrd)
 
 
-initializeLH :: Counterfactual -> [GhcInfo] -> Maybe PhantomTyVars -> Lang.Id -> Bindings -> Config -> LHStateM Lang.Name
+initializeLH :: Counterfactual -> [GhcInfo] -> Maybe PhantomTyVars -> Lang.Id -> Bindings -> Config -> LHStateM (Lang.Name, S.HashSet Lang.Name)
 initializeLH counter ghcInfos ph_tyvars ifi bindings config = do
     initializeLHData ghcInfos ph_tyvars config
     initializeLHSpecs counter ghcInfos ifi bindings
@@ -477,7 +481,7 @@ initializeLHData ghcInfos m_ph_tyvars config = do
     meenv' <- measuresM
     putMeasuresM (fil_meenv `E.union` meenv')
 
-initializeLHSpecs :: Counterfactual -> [GhcInfo] -> Lang.Id -> Bindings -> LHStateM Lang.Name
+initializeLHSpecs :: Counterfactual -> [GhcInfo] -> Lang.Id -> Bindings -> LHStateM (Lang.Name, S.HashSet Lang.Name)
 initializeLHSpecs counter ghcInfos ifi bindings = do
     (CurrExpr er ce) <- currExpr
     let specs = funcSpecs ghcInfos
@@ -493,11 +497,12 @@ initializeLHSpecs counter ghcInfos ifi bindings = do
 
     ns <- convertCurrExpr ifi bindings
 
-    cfn <- case counter of
-              Counterfactual cf_mods -> addCounterfactualBranch cf_mods ns
-              NotCounterfactual -> return (Name "" Nothing 0 Nothing)
+    (cfn, ns') <- case counter of
+                    Counterfactual cf_mods ->
+                        return . (,ns) =<< addCounterfactualBranch cf_mods ns
+                    NotCounterfactual -> return (Name "" Nothing 0 Nothing, [])
 
-    return cfn
+    return (cfn, S.fromList ns')
 
 reqNames :: State t -> MemConfig
 reqNames (State { expr_env = eenv

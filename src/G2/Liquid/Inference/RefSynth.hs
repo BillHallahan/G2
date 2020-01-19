@@ -153,7 +153,6 @@ generateGrammarsAndConstraints sorts meas_ex arg_tys ret_ty fcs@(fc:_) =
                     $ extractValues ns_rt
         cons = generateConstraints sorts meas_ex poly_ref_names arg_tys ret_ty fcs
     in
-    trace ("poly_bd = " ++ show poly_bd)
     (gram_cmds, cons, poly_ref_names)
     where
         isLHDict e

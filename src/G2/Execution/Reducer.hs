@@ -186,8 +186,8 @@ class Ord b => Orderer or sov b t | or -> sov, or -> b where
     stepOrderer :: or -> sov -> Processed (State t) -> [State t] -> State t -> sov 
     stepOrderer _ sov _ _ _ = sov
 
-    getState :: forall s . or -> Processed (State t) -> M.Map b s -> Maybe ((b, s), M.Map b s)
-    getState _ _ = M.minViewWithKey
+    getState :: forall s . or -> Processed (State t) -> M.Map b [s] -> Maybe (b, [s])
+    getState _ _ = M.lookupMin
 
 class Ord b => MinOrderer or sov b t | or -> sov, or -> b where
     -- | Initializing the per state ordering value 
@@ -211,7 +211,7 @@ instance (MinOrderer min_ord sov b t, Ord b) => Orderer (ToOrderer min_ord) sov 
     orderStates (ToOrderer min_ord) sov pr = fmap ToOrderer . minOrderStates min_ord sov pr
     updateSelected (ToOrderer min_ord) = minUpdateSelected min_ord
     stepOrderer (ToOrderer min_ord) = minStepOrderer min_ord
-    getState _ _ = M.minViewWithKey
+    getState _ _ = M.lookupMin
 
 data SomeReducer t where
     SomeReducer :: forall r rv t . Reducer r rv t => r -> SomeReducer t
@@ -874,16 +874,16 @@ adtHeight' e s =
 
 data RandomOrderer = RandomOrderer StdGen
 
-instance Orderer RandomOrderer () Int t where
-    initPerStateOrder _ _ = ()
+instance MinOrderer RandomOrderer () Int t where
+    minInitPerStateOrder _ _ = ()
 
-    orderStates (RandomOrderer gen) _ _ _ =
+    minOrderStates (RandomOrderer gen) _ _ _ =
         let
             (v, gen') = randomR (0, 1000) gen
         in
         (v, RandomOrderer gen')
 
-    updateSelected _ v _ _ = v
+    minUpdateSelected _ v _ _ = v
 
 mkRandomOrderer :: Int -> RandomOrderer
 mkRandomOrderer = RandomOrderer . mkStdGen
@@ -977,7 +977,6 @@ runReducer' :: (Reducer r rv t, Halter h hv t, Orderer or sov b t)
             -> Bindings
             -> M.Map b [ExState rv hv sov t] 
             -> IO (Processed (ExState rv hv sov t), Bindings)
--- <<<<<<< HEAD
 runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_val = h_val, order_val = o_val }) b xs = do
     hc <- stopRed hal h_val ps s
     case () of
@@ -1045,61 +1044,6 @@ runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_
                     [] -> runReducerList red' hal ord pr xs b' 
         where
             ps = processedToState pr
--- =======
--- runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_val = h_val, order_val = o_val }) b xs
---     | hc == Accept =
---         let
---             pr' = pr {accepted = rs:accepted pr}
---             jrs = minState ord pr' xs
---         in
---         case jrs of
---             Just (rs', xs') -> do
---                 switchState red hal ord pr' rs' b xs'
---                 -- runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
---             Nothing -> return (pr', b)
---     | hc == Discard =
---         let
---             pr' = pr {discarded = rs:discarded pr}
---             jrs = minState ord pr' xs
---         in
---         case jrs of
---             Just (rs', xs') ->
---                 switchState red hal ord pr' rs' b xs'
---                 -- runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
---             Nothing -> return (pr', b)
---     | hc == Switch =
---         let
---             k = orderStates ord (order_val rs') (state rs)
---             rs' = rs { order_val = updateSelected ord (order_val rs) ps (state rs) }
-
---             Just (rs'', xs') = minState ord pr (M.insertWith (++) k [rs'] xs)
---         in
---         switchState red hal ord pr rs'' b xs'
---         -- if not $ discardOnStart hal (halter_val rs''') ps (state rs''')
---         --     then runReducer' red hal ord pr rs''' b xs'
---         --     else runReducerList red hal ord (pr {discarded = rs''':discarded pr}) xs' b
---     | otherwise = do
---         (_, reduceds, b', red') <- redRules red r_val s b
---         let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
-
---         let r_vals = updateWithAll red reduceds' ++ error "List returned by updateWithAll is too short."
---             new_states = map fst reduceds'
-        
---             mod_info = map (\(s', r_val') ->
---                                 rs { state = s'
---                                    , reducer_val = r_val'
---                                    , halter_val = stepHalter hal h_val ps new_states s'
---                                    , order_val = stepOrderer ord o_val ps new_states s'}) $ zip new_states r_vals
-        
---         case mod_info of
---             (s_h:ss_tail) -> do
---                 let xs' = foldr (\s' -> M.insertWith (++) (orderStates ord (order_val s') (state s')) [s']) xs ss_tail
---                 runReducer' red' hal ord pr s_h b' xs'
---             [] -> runReducerList red' hal ord pr xs b' 
---     where
---         hc = stopRed hal h_val ps s
---         ps = processedToState pr
--- >>>>>>> development
 
 switchState :: (Reducer r rv t, Halter h hv t, Orderer or sov b t)
             => r
@@ -1129,15 +1073,6 @@ runReducerList :: (Reducer r rv t, Halter h hv t, Orderer or sov b t)
                -> Bindings
                -> IO (Processed (ExState rv hv sov t), Bindings)
 runReducerList red hal ord pr m binds =
--- <<<<<<< HEAD
-    -- case minState m of
-    --     Just (rs, m') ->
-    --         let
-    --             ps = processedToState pr
-    --             rs' = rs { halter_val = updatePerStateHalt hal (halter_val rs) ps (state rs) }
-    --         in
-    --         runReducer' red hal ord pr rs' binds m'
--- =======
     case minState ord pr m of
         Just (rs, m') ->
             let
@@ -1145,7 +1080,6 @@ runReducerList red hal ord pr m binds =
                 rs' = rs { halter_val = updatePerStateHalt hal (halter_val rs) ps (state rs) }
             in
             runReducer' red hal ord pr rs' binds m'
--- >>>>>>> development
         Nothing -> return (pr, binds)
 
 -- To be used when we are possibly switching states 
@@ -1175,8 +1109,9 @@ minState :: (Orderer or sov b t)
          -> Maybe ((ExState rv hv sov t), M.Map b [ExState rv hv sov t])
 minState ord pr m =
     case getState ord ps m of
-      Just ((k, x:xs), _) -> Just (x, M.insert k xs m)
-      Just ((_, []), m') -> minState ord pr m'
+      Just (k, x:[]) -> Just (x, M.delete k m)
+      Just (k, x:xs) -> Just (x, M.insert k xs m)
+      Just (k, []) -> minState ord pr $ M.delete k m
       Nothing -> Nothing
       where
           ps = processedToState pr

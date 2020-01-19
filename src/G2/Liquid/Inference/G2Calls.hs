@@ -57,11 +57,12 @@ runLHInferenceCore entry m lrs ghci infconfig config = do
                , ls_bindings = bindings
                , ls_id = ifi
                , ls_counterfactual_name = cfn
+               , ls_counterfactual_funcs = cf_funcs
                , ls_memconfig = pres_names } <- processLiquidReadyStateWithCall lrs ghci entry m config mempty
     SomeSolver solver <- initSolver config
     let simplifier = ADTSimplifier arbValue
 
-    (red, hal, ord) <- inferenceReducerHalterOrderer infconfig config solver simplifier entry m cfn final_st
+    (red, hal, ord) <- inferenceReducerHalterOrderer infconfig config solver simplifier entry m cfn cf_funcs final_st
     (exec_res, final_bindings) <- runLHG2 config red hal ord solver simplifier pres_names final_st bindings
 
     close solver
@@ -76,9 +77,10 @@ inferenceReducerHalterOrderer :: (Solver solver, Simplifier simplifier)
                               -> T.Text
                               -> Maybe T.Text
                               -> Name
+                              -> HS.HashSet Name
                               -> State LHTracker
                               -> IO (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
-inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modname cfn st = do
+inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modname cfn cf_funcs st = do
     let
         ng = mkNameGen ()
 
@@ -106,6 +108,7 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
                   -- :<~> searched_below
                   :<~> lh_max_outputs
                   :<~> SwitchEveryNHalter (switch_after config)
+                  :<~> LHLimitSameAbstractedHalter 10
                   :<~> AcceptIfViolatedHalter
                   :<~> timer_halter)
         , SomeOrderer (ToOrderer $ IncrAfterN 1000 ADTHeightOrderer))
@@ -121,6 +124,7 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
               -- :<~> searched_below
               :<~> lh_max_outputs
               :<~> SwitchEveryNHalter (switch_after config)
+              :<~> LHLimitSameAbstractedHalter 10
               :<~> AcceptIfViolatedHalter
               :<~> timer_halter)
         , SomeOrderer (ToOrderer $ IncrAfterN 1000 ADTHeightOrderer))
