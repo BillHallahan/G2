@@ -56,12 +56,10 @@ data ZipperTree a b = ZipperTree { zipper :: Zipper a -- ^ Zipper on a tree of a
                                  , reset_merging_func :: a -> a }
 
 -- Data Structures for logging
--- ZipperTree contains a zipper to a tree that constantly grows and shrinks as objects are worked on or merged,the TreeLog below 
--- contains a tree that only grows, comprising every single Obj ever worked on
-data ForestLog a = ForestLog { trees :: [TreeLog a]
-                             , current :: TreeLog a }
-
-newtype TreeLog a = TreeLog { nodes :: M.Map Int (Obj a)} -- map from idx of Obj to Obj
+-- Whereas ZipperTree contains a zipper to a tree that constantly grows and shrinks as Objs are worked on or merged, the TreeLog below
+-- keeps a log of every single Obj ever worked on
+data TreeLog a = TreeLog { nodes :: M.Map Int (Obj a) -- map from idx of Obj to Obj
+                         , max_level :: Int }
 
 createObj :: a -> Int -> Int -> [Int] -> [Int] -> Maybe Int -> Maybe [Int] -> Obj a
 createObj val i lvl par chil pre suc = Obj { value = val, idx = i, level = lvl, parents = par, children = chil
@@ -90,19 +88,18 @@ initZipper s e workFn mergeFn resetMergFn logWorkFn =
 
 evalZipper :: ZipperTree a b -> IO (b)
 evalZipper zipTree = do
-    (res, logF) <- evalZipper' zipTree forestLog
-    outputLog logF
+    (res, logT) <- evalZipper' zipTree treeLog
+    outputLog logT
     return res
     where
-        forestLog = initForestLog
-        evalZipper' zipT logF = do
+        treeLog = initTreeLog
+        evalZipper' zipT logT = do
             (zipT', newNodes, continue) <- step zipT
-            -- mapM_ (outputVal (log_work_func zipT') "test" (env zipT')) newNodes
-            let logF' = logVal logF newNodes
+            mapM_ (outputVal (log_work_func zipT') "test" (env zipT')) newNodes
+            let logT' = logVal logT newNodes
             case continue of
-                False -> do -- (putStrLn $ DM.showTreeWith (\k x -> show (k, idx x)) True False (nodes . current $ logF'))
-                            return (env zipT', logF')
-                True -> evalZipper' zipT' logF'
+                False -> return (env zipT', logT')
+                True -> evalZipper' zipT' logT'
 
 step :: ZipperTree a b -> IO (ZipperTree a b, [Obj a], Bool)
 step zipTree@(ZipperTree { zipper = zipr, env = e, curr_idx = i, work_func = workFn, merge_func = mergeFn
@@ -156,8 +153,9 @@ step zipTree@(ZipperTree { zipper = zipr, env = e, curr_idx = i, work_func = wor
         if allReadyToMerge siblings count
             then do
                 let (mergedStates, e') = mergeObjsZipper mergeFn (x:(map (value . treeVal) siblings)) e
+                    prnts = prevIdx:(map (idx . treeVal) siblings)
                     (i', objs) = mapAccumL (\newIdx a
-                        -> (newIdx + 1, createObj a newIdx (prevLvl + 1) [prevIdx] [] Nothing Nothing)) i mergedStates
+                        -> (newIdx + 1, createObj a newIdx (prevLvl + 1) prnts [] Nothing Nothing)) i mergedStates
                     leaves = map (\ob-> Leaf ob count) objs
                     zipr' = replaceParent zipr leaves
                 return (zipTree { zipper = zipr', env = e', curr_idx = i' }, objs, True)
@@ -284,27 +282,26 @@ mergeObjsAllZipper' mergeFn x1 checked (x2:xs) e =
         (Nothing, e') -> mergeObjsAllZipper' mergeFn x1 (x2:checked) xs e'
 mergeObjsAllZipper' _ x1 checked [] e = (x1, checked, e)
 
-initForestLog :: ForestLog a
-initForestLog = ForestLog { trees = [], current = initTreeLog }
-
 initTreeLog :: TreeLog a
-initTreeLog = TreeLog { nodes = M.empty }
+initTreeLog = TreeLog { nodes = M.empty, max_level = 0 }
 
 -- print obj
 outputVal :: (a -> b -> String) -> String -> b -> Obj a -> IO ()
-outputVal logWorkFn dir e (Obj { idx = i, value = v }) = do
-    let dir' = dir ++ "/"
-    createDirectoryIfMissing True dir'
+outputVal logWorkFn dir e (Obj { idx = i, value = v, parents = ps })
+    | _:_ <- ps = do -- print only if node is result of a case split or merge
+        let dir' = dir ++ "/"
+        createDirectoryIfMissing True dir'
 
-    let fn = dir' ++ "state" ++ (show i) ++ ".txt"
-    let write = logWorkFn v e
-    writeFile fn write
+        let fn = dir' ++ "state" ++ (show i) ++ ".txt"
+        let write = logWorkFn v e
+        writeFile fn write
 
-    putStrLn fn
+        putStrLn fn
+    | otherwise = return ()
 
 -- build tree from new states created as evalZipper proceeds
-logVal:: ForestLog a -> [Obj a] -> ForestLog a
-logVal fl@(ForestLog { current = curr@(TreeLog { nodes = _nodes }) }) objs =
+logVal:: TreeLog a -> [Obj a] -> TreeLog a
+logVal log@(TreeLog { nodes = _nodes, max_level = maxLvl }) objs =
     let _nodes' = foldr (\obj@(Obj { idx = i, parents = ps, children = chldrn, predecessor = pre, successor = suc }) n ->
                         -- add Obj to map
                     let n' = M.insert i obj n
@@ -323,7 +320,8 @@ logVal fl@(ForestLog { current = curr@(TreeLog { nodes = _nodes }) }) objs =
                                             -> M.adjust (\o@(Obj {predecessor = _pre}) -> o {predecessor = Just i}) succIdx _n4) n4 _suc
                             Nothing -> n4
                     in n5) _nodes objs
-    in fl {current = curr { nodes = _nodes' }}
+        maxLvl' = maximum $ maxLvl:(map level objs)
+    in log { nodes = _nodes', max_level = maxLvl' }
 
 data Grid = Grid { canvas :: A.Array Int Char -- 2d grid represented as single array, with element (i,j) at index i*width + j
                  , width :: Int -- width of grid
@@ -333,14 +331,14 @@ data Grid = Grid { canvas :: A.Array Int Char -- 2d grid represented as single a
                  , maxWidth :: Int -- number of digits of largest idx
                  , drawn :: S.Set Int } -- list of indices already drawn
 
-outputLog :: ForestLog a -> IO ()
-outputLog (ForestLog { current = curr@(TreeLog {nodes = _nodes}) }) = do
+outputLog :: TreeLog a -> IO ()
+outputLog log@(TreeLog {nodes = _nodes, max_level = maxLvl }) = do
     let cHeight = (maybe 0 fst (M.lookupMax _nodes)) * 2
-        cWidth = (3 + numDigits cHeight) * 40 -- width if all indices were written horizontally, with space in between
+        cWidth = (3 + numDigits cHeight) * (maxLvl + 1) -- max width of single column * number of columns
         c = createCanvas cHeight cWidth -- can possibly trim size by getting max level to make it more efficient in the future
         grid = Grid { canvas = c, width = cWidth, height = cHeight, depths = M.empty, locations = M.empty, drawn = S.empty
                     , maxWidth = 3 + numDigits cHeight }
-        grid' = drawTree curr grid 1 -- very first node, '0', is not in tree
+        grid' = drawTree log grid 1 -- very first node, '0', is not in tree
     printGrid grid'
 
 drawTree :: TreeLog a -> Grid -> Int -> Grid
@@ -357,35 +355,44 @@ drawTree treeLog@(TreeLog { nodes = _nodes }) grid i
 
 drawNode :: TreeLog a -> Grid -> Obj a -> Grid
 drawNode (TreeLog { nodes = _nodes }) grid@(Grid {canvas = c, width = w, depths = d, drawn = prevDrawn, locations = locs
-        , maxWidth = maxW}) o@(Obj {idx = i, level = l, parents = ps})
+        , maxWidth = maxW}) Obj {idx = i, level = l, parents = ps}
+    | True <- S.member i prevDrawn
+    , (_:_:_) <- ps = -- if `o` is a merged state (>1 parent), need to draw line from newly drawn parent(s) to `o`
+        let currDepth = fromJust $ M.lookup i locs -- depth of drawn Obj
+            currCol = (1 + (l * maxW)) -- column idx of drawnObj
+            c' = foldr (\parent _c -> if S.member parent prevDrawn -- redraw line even if line might have prev been drawn
+                then let parentDepth = fromJust (M.lookup parent locs)
+                         parentLvl = level $ fromJust (M.lookup parent _nodes)
+                         parentCol = (1 + ((parentLvl+1) * maxW)) - 3 -- draw from end of parent idx string on canvas
+                    in drawConnectingLine w _c parentDepth parentCol currDepth currCol
+                else _c) c ps
+        in grid {canvas = c'}
     | True <- S.member i prevDrawn = grid
     | otherwise =
-        let lDepth = fromMaybe 0 (M.lookup l d) -- get and update depth at new level
-            parentLvl = case ps of
+        let parentLvl = case ps of
                 p:_ -> maybe l (\obj -> level obj) (M.lookup p _nodes)
                 _ -> l
             parentDepth = case ps of
                 p:_ -> fromMaybe 0 (M.lookup p locs)
                 _ -> 0 -- ignore if no parent
-            lDepth' = max (parentDepth + 1) (if parentLvl < l
-                then (lDepth + 2)  -- keep blank in row above to separate prev seq
-                else (lDepth + 1)) -- no need for blank row since parent is predecessor
-            d' = foldr (\lvl -> M.insertWith (\oldDepth depth -> max depth oldDepth) lvl lDepth') d [0..l]
-            locs' = M.insert i lDepth' locs
+            currDepth = fromMaybe 0 (M.lookup l d) -- get and update depth at new level
+            currDepth' = max (parentDepth + 1) (if parentLvl < l
+                then (currDepth + 2)  -- keep blank in row above to separate prev seq
+                else (currDepth + 1)) -- no need for blank row since parent is predecessor
+            d' = foldr (\lvl -> M.insertWith (\oldDepth depth -> max depth oldDepth) lvl currDepth') d [0..l]
+            locs' = M.insert i currDepth' locs
 
-            posJ = 1 + (l * maxW)
-            posI = lDepth'
-            c' = writeStrToCanvas w (posI, posJ) (show i) c
+            parentCol = 1 + ((parentLvl+1) * maxW) - 3-- start drawing line from after parent idx
+            currCol = 1 + (l * maxW)
+            c' = writeStrToCanvas w (currDepth', currCol) (show i) c
             prevDrawn' = S.insert i prevDrawn
 
-            -- draw line linking nodes from parentDepth to posI, in col posJ - 2, only if parentDepth > 0 (i.e. exists parent)
-            -- and if parentLvl < l
+            -- draw line linking parent and child node, only if parentDepth > 0 (i.e. exists parent) and if parentLvl < l
             c'' = if parentDepth > 0 && parentLvl < l
-                then drawConnectingLine w c' parentDepth posI (posJ - 2)
+                then drawConnectingLine w c' parentDepth parentCol currDepth' currCol
                 else c'
 
-        in {- trace ("i: " ++ (show i) ++ " children: " ++ show (children o)) $-} grid { canvas = c'', depths = d',
-            drawn = prevDrawn', locations = locs' }
+        in grid { canvas = c'', depths = d',drawn = prevDrawn', locations = locs' }
 
 -- Create 2d grid of specified size with all spaces
 createCanvas :: Int -> Int -> A.Array Int Char
@@ -401,12 +408,13 @@ writeStrToCanvas wdth (i,j) str c = AS.runSTArray $ do
     return c'
 
 -- Draw a vertical line from `start` to `end` in column `col`, and two horizontal lines at either ends of vertical line
-drawConnectingLine :: Int -> A.Array Int Char -> Int -> Int -> Int -> A.Array Int Char
-drawConnectingLine wdth c start end col = AS.runSTArray $ do
+drawConnectingLine :: Int -> A.Array Int Char -> Int -> Int -> Int -> Int -> A.Array Int Char
+drawConnectingLine wdth c startRow startCol endRow endCol = AS.runSTArray $ do
     c' <- AS.thaw c
-    AS.writeArray c' (((start-1) * wdth) + col-1) '-'
-    AS.writeArray c' (((end-1) * wdth) + col+1) '-'
-    mapM_ (\row -> AS.writeArray c' (((row-1) * wdth) + col) '|') [start..end]
+    mapM_ (\col -> AS.writeArray c' (((startRow-1) * wdth) + col) '-') [startCol..(endCol-3)] -- horizontal line 1
+    AS.writeArray c' (((endRow-1) * wdth) + endCol-1) '-' -- horizontal line 2
+    let (lo, hi) = (min startRow endRow, max startRow endRow)
+    mapM_ (\row -> AS.writeArray c' (((row-1) * wdth) + (endCol-2)) '|') [lo..hi]
     return c'
 
 printGrid :: Grid -> IO ()
