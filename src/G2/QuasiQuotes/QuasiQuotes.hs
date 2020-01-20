@@ -386,8 +386,8 @@ executeAndSolveStates' b s = do
             -- (res, _) <- runG2Post red hal' PickLeastUsedOrderer solver s b
             -- (res, _) <- runG2Post (red :<~ Logger "qq") hal' ((IncrAfterN 2000 SymbolicADTOrderer)
                                           -- :<-> BucketSizeOrderer 6) solver s b
-            (res, _) <- runG2Post (red) hal' ((IncrAfterN 2000 ADTHeightOrderer)
-                                          :<-> BucketSizeOrderer 6) solver simplifier s b
+                ord = ToOrderer (IncrAfterN 2000 ADTHeightOrderer :<-> BucketSizeOrderer 6)
+            (res, _) <- runG2Post (red) hal' ord solver simplifier s b
             -- (res, _) <- runG2Post (red) hal' (BucketSizeOrderer 3) solver s b
 
             case res of
