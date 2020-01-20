@@ -40,7 +40,9 @@ import qualified Language.Fixpoint.Types as LH
 import Control.Exception
 import Data.Coerce
 import Data.List
+import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
@@ -146,7 +148,7 @@ generateGrammarsAndConstraints sorts meas_ex arg_tys ret_ty fcs@(fc:_) =
                             ret_sort_var = SortedVar "r" (typeToSort sorts rt)
                             sort_vars = arg_sort_vars ++ [ret_sort_var]
                             
-                            gram = grammar sort_vars sorts
+                            gram = grammar arg_sort_vars ret_sort_var sorts
                         in
                         SynthFun n sort_vars boolSort (Just gram))
                     . filter (relTy . snd) 
@@ -181,9 +183,11 @@ safeModDecl =
 -- Grammar
 -------------------------------
 
-grammar :: [SortedVar] -> TypesToSorts -> GrammarDef
-grammar sorted_vars sorts =
+grammar :: [SortedVar] -> SortedVar -> TypesToSorts -> GrammarDef
+grammar arg_sort_vars ret_sorted_var sorts =
     let
+        sorted_vars = arg_sort_vars ++ [ret_sorted_var]
+
         sorts' = filterToSorts (map (\(SortedVar _ s) -> sortSymb s) sorted_vars) sorts
 
         gramNames = zip (map (\i -> "G" ++ show i) ([0..] :: [Integer])) (allSortNames sorts')
@@ -197,17 +201,19 @@ grammar sorted_vars sorts =
                 (intRuleList ++ addSelectors sortsToGN intSort sorts')
 
         const_int = GroupedRuleList "IConst" intSort [GConstant intSort]
+    
+        grm = GrammarDef
+                ([ SortedVar "B" boolSort
+                 , SortedVar "I" intSort
+                 , SortedVar "IConst" intSort ]
+                 ++ map (uncurry SortedVar) grams)
+                ([ brl
+                 , irl
+                 , const_int
+                 ]
+                 ++ map (uncurry dtGroupRuleList) grams)
     in
-    GrammarDef
-        ([ SortedVar "B" boolSort
-         , SortedVar "I" intSort
-         , SortedVar "IConst" intSort ]
-         ++ map (uncurry SortedVar) grams)
-        ([ brl
-         , irl
-         , const_int
-         ]
-         ++ map (uncurry dtGroupRuleList) grams) 
+    forceVarInGrammar ret_sorted_var grm
     where
         sortSymb (IdentSort (ISymb s)) = s
         sortSymb _ = error "grammar: sortSymb"
@@ -536,6 +542,147 @@ addSelector gn s (SortedVar ident vs)
 filterToSorts :: [Symbol] -> TypesToSorts -> TypesToSorts
 filterToSorts xs (TypesToSorts sorts) =
     TypesToSorts $ filter (\(_, s) -> any (sort_name s ==) xs) sorts
+
+-------------------------------
+-- Enforcing return value use
+-------------------------------
+
+-- Adjusts a grammar to force using a given GTerm
+
+forceVarInGrammar :: SortedVar -> GrammarDef -> GrammarDef
+forceVarInGrammar var (GrammarDef sv grls) =
+    let
+        prod_srt = mapMaybe (\grl@(GroupedRuleList grl_symb srt' _) ->
+                            if canProduceVar var grl
+                                then Just grl_symb
+                                else Nothing ) grls
+
+        reach = gramSymbReachableFrom prod_srt grls
+
+        sv_reach = concatMap (grammarDefSortedVars reach) sv
+    in
+    GrammarDef sv_reach $ forceVarInGRLList var reach grls
+
+forceVarInGRLList :: SortedVar -> [Symbol] -> [GroupedRuleList] -> [GroupedRuleList]
+forceVarInGRLList var reach grls =
+    let
+        fv_map = HM.fromList $ map (\n -> (toBf n, toBf $ forcedVarSymb n)) reach
+
+    in
+    concatMap (forceVarInGRL var reach fv_map) grls
+    where
+        toBf = BfIdentifier . ISymb
+
+forceVarInGRL :: SortedVar -> [Symbol] -> HM.HashMap BfTerm BfTerm -> GroupedRuleList -> [GroupedRuleList]
+forceVarInGRL (SortedVar sv_symb sv_srt) reach fv_map grl@(GroupedRuleList grl_symb grl_srt gtrms)
+    | grl_symb `elem` reach
+    , sv_srt == grl_srt =
+        let
+            bf_var = BfIdentifier (ISymb sv_symb)
+            fv_gtrms' = GBfTerm bf_var:elimVariable fv_gtrms
+        in
+        [GroupedRuleList fv_symb grl_srt fv_gtrms', grl]
+    | grl_symb `elem` reach = [GroupedRuleList fv_symb grl_srt fv_gtrms, grl]
+    | otherwise = [grl]
+    where
+        fv_symb = forcedVarSymb grl_symb
+        fv_gtrms = substOnceGTerms fv_map gtrms
+
+
+forcedVarSymb :: Symbol -> Symbol
+forcedVarSymb = ("fv_" ++)
+
+elimVariable :: [GTerm] -> [GTerm]
+elimVariable = filter (\t -> case t of
+                            GVariable _ -> False
+                            _ -> True)
+
+grammarDefSortedVars :: [Symbol] -> SortedVar -> [SortedVar]
+grammarDefSortedVars symbs sv@(SortedVar n srt)
+    | n `elem` symbs = [SortedVar (forcedVarSymb n) srt, sv]
+    | otherwise = [sv]
+
+-- Can a GroupedRuleList produce a given variable?
+
+canProduceVar :: SortedVar -> GroupedRuleList -> Bool
+canProduceVar var@(SortedVar symb sv_srt) (GroupedRuleList _ grl_srt gtrms)
+    | sv_srt == grl_srt = any (canProduceVarGTerm var) gtrms
+    | otherwise = False
+
+canProduceVarGTerm :: SortedVar -> GTerm -> Bool
+canProduceVarGTerm (SortedVar _ sv_srt) (GVariable gv_srt) = sv_srt == gv_srt
+canProduceVarGTerm (SortedVar s _) (GBfTerm (BfIdentifier (ISymb is))) = s == is
+canProduceVarGTerm _ (GConstant _) = False
+
+-- Reachability checks
+
+gramSymbReachableFrom :: [Symbol] -> [GroupedRuleList] -> [Symbol]
+gramSymbReachableFrom = gramSymbReachableFrom' HS.empty
+
+gramSymbReachableFrom' :: HS.HashSet Symbol -> [Symbol] -> [GroupedRuleList] -> [Symbol]
+gramSymbReachableFrom' searched [] _ = HS.toList searched
+gramSymbReachableFrom' searched (x:xs) grls
+    | x `HS.member` searched = gramSymbReachableFrom' searched xs grls
+    | otherwise =
+        let
+            contains_x = map (\(GroupedRuleList s _ _) -> s)
+                       $ filter (containsSymbol x) grls
+        in
+        gramSymbReachableFrom' (HS.insert x searched) (contains_x ++ xs) grls
+
+containsSymbol :: Symbol -> GroupedRuleList -> Bool
+containsSymbol symb (GroupedRuleList _ _ gtrms) = any (containsSymbolGTerm symb) gtrms
+
+containsSymbolGTerm :: Symbol -> GTerm -> Bool
+containsSymbolGTerm symb (GBfTerm bf) = containsSymbolBfTerm symb bf
+containsSymbolGTerm _ _ = False
+
+containsSymbolBfTerm :: Symbol -> BfTerm -> Bool
+containsSymbolBfTerm symb (BfIdentifier ident) = containsSymbolIdent symb ident
+containsSymbolBfTerm symb (BfIdentifierBfs ident bfs) =
+    containsSymbolIdent symb ident || any (containsSymbolBfTerm symb) bfs
+containsSymbolBfTerm _ (BfLiteral _) = False
+
+containsSymbolIdent :: Symbol -> Identifier -> Bool
+containsSymbolIdent symb (ISymb symb') = symb == symb'
+containsSymbolIdent symb _ = False
+
+-- Substitution functions
+
+substOnceGRL :: HM.HashMap BfTerm BfTerm -> GroupedRuleList -> GroupedRuleList
+substOnceGRL m (GroupedRuleList symb srt gtrms) =
+    GroupedRuleList symb srt $ substOnceGTerms m gtrms
+
+substOnceGTerms :: HM.HashMap BfTerm BfTerm -> [GTerm] -> [GTerm]
+substOnceGTerms m = concatMap (substOnceGTerm m)
+
+substOnceGTerm :: HM.HashMap BfTerm BfTerm -> GTerm -> [GTerm]
+substOnceGTerm m (GBfTerm bf) = map GBfTerm $ substOnceBfTerm m bf
+substOnceGTerm _ gt = [gt]
+
+substOnceBfTerm :: HM.HashMap BfTerm BfTerm -> BfTerm -> [BfTerm]
+substOnceBfTerm m (BfIdentifierBfs c bfs) = map (BfIdentifierBfs c) $ substsOnces m bfs
+substOnceBfTerm _ bf = [bf]
+
+substOnceTerm :: HM.HashMap Term Term -> Term -> [Term]
+substOnceTerm m (TermCall c ts) = map (TermCall c) $ substsOnces m ts
+substOnceTerm _ t = [t]
+
+-- | Given:
+--      * A mapping of list element to be replaced, to new elements
+--      * A list, xs
+-- returns a list of new lists.  Each new list is xs, but with exactly one
+-- occurence of an old element replaced by the corresponding new element.
+substsOnces :: (Eq a, Hashable a) => HM.HashMap a a -> [a] -> [[a]]
+substsOnces m = substsOnces' m []
+
+substsOnces' :: (Eq a, Hashable a) => HM.HashMap a a -> [a] -> [a] -> [[a]]
+substsOnces' m rv [] = []
+substsOnces' m rv (x:xs)
+    | Just new <- HM.lookup x m = (reverse rv ++ new:xs):rst
+    | otherwise = rst
+        where
+            rst = substsOnces' m (x:rv) xs
 
 -------------------------------
 -- Converting to refinement

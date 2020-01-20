@@ -32,6 +32,7 @@ data List a = Emp
     size ((:+:) x xs) = 1 + size xs
   @-}
 
+{-@ invariant {v:List a | 0 <= size v} @-}
 
 {-@ length :: xs : List a -> Int @-}
 length            :: List a -> Int
