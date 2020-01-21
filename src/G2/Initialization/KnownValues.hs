@@ -91,6 +91,8 @@ initKnownValues eenv tenv tc =
     , notFunc = exprWithStrName eenv "not"
 
     , errorFunc = exprWithStrName eenv "error"
+    , errorEmptyListFunc = exprWithStrName eenv "errorEmptyList"
+    , errorWithoutStackTraceFunc = exprWithStrName eenv "errorWithoutStackTrace"
     , patErrorFunc = exprWithStrName eenv "patError"
     }
 

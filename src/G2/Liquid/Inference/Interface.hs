@@ -48,9 +48,6 @@ inference infconfig config proj fp lhlibs = do
 
         lrs = createStateForInference simp_s g2config' ghci
 
-    -- Trying to figure out what this stuff is...
-    mapM (\g@(GI { spec = s })-> print $ gsDicts s ) ghci
-
     inference' infconfig' g2config' lhconfig' ghci (fst exg2) lrs emptyGS emptyFC 
 
 inference' :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState

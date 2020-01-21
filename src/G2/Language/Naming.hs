@@ -577,6 +577,8 @@ instance Named KnownValues where
             , notFunc = notF
 
             , errorFunc = errF
+            , errorEmptyListFunc = errEmpListF
+            , errorWithoutStackTraceFunc = errWOST
             , patErrorFunc = patE
             }) =
             [dI, dF, dD, dI2, dcCh, tI, tI2, tF, tD, tCh, tB, dcT, dcF
@@ -589,7 +591,7 @@ instance Named KnownValues where
             , toRatioF, fromRationalF
             , geF, gtF, ltF, leF, seT, seF
             , andF, orF, notF
-            , errF, patE]
+            , errF, errEmpListF, errWOST, patE]
 
     rename old new (KnownValues {
                      dcInt = dI
@@ -657,6 +659,8 @@ instance Named KnownValues where
                    , notFunc = notF
 
                    , errorFunc = errF
+                   , errorEmptyListFunc = errEmpListF
+                   , errorWithoutStackTraceFunc = errWOST
                    , patErrorFunc = patE
                    }) =
                     (KnownValues {
@@ -725,6 +729,8 @@ instance Named KnownValues where
                         , notFunc = rename old new notF
 
                         , errorFunc = rename old new errF
+                        , errorEmptyListFunc = rename old new errEmpListF
+                        , errorWithoutStackTraceFunc = rename old new errWOST
                         , patErrorFunc = rename old new patE
                         })
 

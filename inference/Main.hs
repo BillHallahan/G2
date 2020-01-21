@@ -3,6 +3,7 @@ module Main (main) where
 
 import G2.Config as G2
 import G2.Interface
+import G2.Liquid.Interface
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.Interface
 import G2.Liquid.Inference.QualifGen

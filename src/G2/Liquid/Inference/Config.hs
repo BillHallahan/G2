@@ -39,12 +39,12 @@ adjustConfig main_mod (SimpleState { expr_env = eenv }) config infconfig =
         ns_mm = map (\(Name n m _ _) -> (n, m))
               . E.keys $ E.filter (not . tyVarRetTy) eenv
 
-        ns_nmm = map (\(Name n m _ _) -> (n, m))
-               . filter (\(Name _ m _ _) -> m /= main_mod)
-               $ E.keys eenv
+        ns_not_main = map (\(Name n m _ _) -> (n, m))
+                    . filter (\(Name _ m _ _) -> m /= main_mod)
+                    $ E.keys eenv
     
         config' = config { counterfactual = Counterfactual . CFOnly $ S.fromList ns_mm
-                         , block_errors_in = S.empty }
+                         , block_errors_in = S.fromList ns_not_main }
 
         infconfig' = infconfig { modules = S.singleton main_mod 
                                , refinable_funcs = S.fromList ns_mm }

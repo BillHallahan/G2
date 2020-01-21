@@ -46,6 +46,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , mapArgs
                         , mkLams
                         , elimAsserts
+                        , elimAssumes
                         , assertsToAssumes
                         , leadingLamUsesIds
                         , leadingLamIds
@@ -304,6 +305,14 @@ elimAsserts = modifyASTs elimAsserts'
 elimAsserts' :: Expr -> Expr
 elimAsserts' (Assert _ _ e) = e
 elimAsserts' e = e
+
+-- | Remove all @Assume@s from the given `Expr`
+elimAssumes :: ASTContainer m Expr => m -> m
+elimAssumes = modifyASTs elimAssumes'
+
+elimAssumes' :: Expr -> Expr
+elimAssumes' (Assume _ _ e) = e
+elimAssumes' e = e
 
 assertsToAssumes :: ASTContainer m Expr => m -> m
 assertsToAssumes = modifyASTs assertsToAssumes'

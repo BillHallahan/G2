@@ -76,7 +76,7 @@ addErrorAssumes' ns (Name n m _ _) e = do
 
 addErrorAssumes'' :: KnownValues -> Expr -> LHStateM Expr
 addErrorAssumes'' kv v@(Var (Id n _))
-    | KV.errorFunc kv == n = do
-        tre <- trace ("HERE n = " ++ show n) mkTrueE
-        return $ Assume Nothing tre v
+    | KV.isErrorFunc kv n = do
+        flse <- mkFalseE
+        return $ Assume Nothing flse v
 addErrorAssumes'' kv e = modifyChildrenM (addErrorAssumes'' kv) e

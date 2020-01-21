@@ -80,5 +80,13 @@ data KnownValues = KnownValues {
                  , notFunc :: Name
 
                  , errorFunc :: Name
+                 , errorWithoutStackTraceFunc :: Name
+                 , errorEmptyListFunc :: Name
                  , patErrorFunc :: Name
                  } deriving (Show, Eq, Read, Typeable, Data)
+
+isErrorFunc :: KnownValues -> Name -> Bool
+isErrorFunc kv n =    n == errorFunc kv
+                   || n == errorEmptyListFunc kv    
+                   || n == errorWithoutStackTraceFunc kv
+                   || n == patErrorFunc kv
