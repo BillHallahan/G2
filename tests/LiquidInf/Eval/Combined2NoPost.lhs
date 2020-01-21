@@ -278,6 +278,11 @@ The following is a super simplified implementation of
 using the [Lists](List.lhs) and `Data.Map`.
 
 \begin{code}
+{-@ mapReduce :: (Ord k) => (a -> List (k, v))
+                     -> (v -> v -> v)
+                     -> List a
+                     -> M.Map k v @-}
+
 mapReduce :: (Ord k) => (a -> List (k, v))
                      -> (v -> v -> v)
                      -> List a
@@ -317,6 +322,7 @@ Step 2: Group By Key
 {-@ group :: (Ord k) => List (k, v) -> M.Map k (List v) @-}
 group     = foldr addKV  M.empty
 
+{-@ addKV :: Ord k => (k, b) -> M.Map k (List b) -> M.Map k (List b) @-}
 addKV (k,v) m = M.insert k vs' m
   where
     vs'       = add v (M.findWithDefault empty k m)
