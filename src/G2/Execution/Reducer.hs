@@ -9,6 +9,8 @@
 module G2.Execution.Reducer ( Reducer (..)
                             , Halter (..)
                             , Orderer (..)
+                            , MinOrderer (..)
+                            , ToOrderer (..)
 
                             , Processed (..)
                             , mapProcessed
@@ -180,6 +182,33 @@ class Ord b => Orderer or sov b t | or -> sov, or -> b where
     -- | Run on the state at each step, to update it's sov field
     stepOrderer :: or -> sov -> Processed (State t) -> [State t] -> State t -> sov 
     stepOrderer _ sov _ _ _ = sov
+
+    getState :: forall s . or -> Processed (State t) -> M.Map b s -> Maybe ((b, s), M.Map b s)
+    getState _ _ = M.minViewWithKey
+
+class Ord b => MinOrderer or sov b t | or -> sov, or -> b where
+    -- | Initializing the per state ordering value 
+    minInitPerStateOrder :: or -> State t -> sov
+
+    -- | Assigns each state some value of an ordered type, and then proceeds with execution on the
+    -- state assigned the minimal value
+    minOrderStates :: or -> sov -> State t -> b
+
+    -- | Run on the selected state, to update it's sov field
+    minUpdateSelected :: or -> sov -> Processed (State t) -> State t -> sov
+
+    -- | Run on the state at each step, to update it's sov field
+    minStepOrderer :: or -> sov -> Processed (State t) -> [State t] -> State t -> sov 
+    minStepOrderer _ sov _ _ _ = sov
+
+newtype ToOrderer min_ord = ToOrderer min_ord
+
+instance (MinOrderer min_ord sov b t, Ord b) => Orderer (ToOrderer min_ord) sov b t where
+    initPerStateOrder (ToOrderer min_ord) = minInitPerStateOrder min_ord
+    orderStates (ToOrderer min_ord) = minOrderStates min_ord
+    updateSelected (ToOrderer min_ord) = minUpdateSelected min_ord
+    stepOrderer (ToOrderer min_ord) = minStepOrderer min_ord
+    getState _ _ = M.minViewWithKey
 
 data SomeReducer t where
     SomeReducer :: forall r rv t . Reducer r rv t => r -> SomeReducer t
@@ -637,43 +666,42 @@ instance Halter VarLookupLimit Int t where
 
 
 -- Orderer things
+
+-- | Does not respect getState, but simply uses the default Ord instance
 data OCombiner o1 o2 = o1 :<-> o2 deriving (Eq, Show, Read)
 
-instance (Orderer or1 sov1 b1 t, Orderer or2 sov2 b2 t)
-      => Orderer (OCombiner or1 or2) (C sov1 sov2) (b1, b2) t where
+instance (MinOrderer or1 sov1 b1 t, MinOrderer or2 sov2 b2 t)
+      => MinOrderer (OCombiner or1 or2) (C sov1 sov2) (b1, b2) t where
   
     -- | Initializing the per state ordering value 
-    -- initPerStateOrder :: or -> State t -> sov
-    initPerStateOrder (or1 :<-> or2) s =
+    minInitPerStateOrder (or1 :<-> or2) s =
       let
-          sov1 = initPerStateOrder or1 s
-          sov2 = initPerStateOrder or2 s
+          sov1 = minInitPerStateOrder or1 s
+          sov2 = minInitPerStateOrder or2 s
       in
       C sov1 sov2
 
     -- | Assigns each state some value of an ordered type, and then proceeds with execution on the
     -- state assigned the minimal value
-    -- orderStates :: or -> sov -> State t -> b
-    orderStates (or1 :<-> or2) (C sov1 sov2) s =
+    minOrderStates (or1 :<-> or2) (C sov1 sov2) s =
       let
-          sov1' = orderStates or1 sov1 s
-          sov2' = orderStates or2 sov2 s
+          sov1' = minOrderStates or1 sov1 s
+          sov2' = minOrderStates or2 sov2 s
       in
       (sov1', sov2')
 
     -- | Run on the selected state, to update it's sov field
-    -- updateSelected :: or -> sov -> Processed (State t) -> State t -> sov
-    updateSelected (or1 :<-> or2) (C sov1 sov2) proc s = 
+    minUpdateSelected (or1 :<-> or2) (C sov1 sov2) proc s = 
       let
-          sov1' = updateSelected or1 sov1 proc s
-          sov2' = updateSelected or2 sov2 proc s
+          sov1' = minUpdateSelected or1 sov1 proc s
+          sov2' = minUpdateSelected or2 sov2 proc s
       in
       C sov1' sov2'
 
-    stepOrderer (or1 :<-> or2) (C sov1 sov2) proc xs s =
+    minStepOrderer (or1 :<-> or2) (C sov1 sov2) proc xs s =
         let
-            sov1' = stepOrderer or1 sov1 proc xs s
-            sov2' = stepOrderer or2 sov2 proc xs s
+            sov1' = minStepOrderer or1 sov1 proc xs s
+            sov2' = minStepOrderer or2 sov2 proc xs s
         in
         C sov1' sov2'
 
@@ -696,12 +724,12 @@ instance Orderer PickLeastUsedOrderer Int Int t where
 -- | Floors and does bucket size
 data BucketSizeOrderer = BucketSizeOrderer Int
 
-instance Orderer BucketSizeOrderer Int Int t where
-    initPerStateOrder _ _ = 0
+instance MinOrderer BucketSizeOrderer Int Int t where
+    minInitPerStateOrder _ _ = 0
 
-    orderStates (BucketSizeOrderer b) v _ = floor (fromIntegral v / fromIntegral b :: Float)
+    minOrderStates (BucketSizeOrderer b) v _ = floor (fromIntegral v / fromIntegral b :: Float)
 
-    updateSelected _ v _ _ = v + 1
+    minUpdateSelected _ v _ _ = v + 1
 
 -- | Order by the number of PCs
 data CaseCountOrderer = CaseCountOrderer
@@ -732,11 +760,11 @@ instance Orderer SymbolicADTOrderer (HS.HashSet Name) Int t where
 -- Orders by the largest (in terms of height) (previously) symbolic ADT
 data ADTHeightOrderer = ADTHeightOrderer
 
-instance Orderer ADTHeightOrderer (HS.HashSet Name) Int t where
-    initPerStateOrder _ = HS.map idName . symbolic_ids
-    orderStates _ v s = maximum . HS.toList $ HS.map (flip adtHeight s) v
+instance MinOrderer ADTHeightOrderer (HS.HashSet Name) Int t where
+    minInitPerStateOrder _ = HS.map idName . symbolic_ids
+    minOrderStates _ v s = maximum . HS.toList $ HS.map (flip adtHeight s) v
 
-    updateSelected _ v _ _ = v
+    minUpdateSelected _ v _ _ = v
 
     -- stepOrderer _ v _ _ s =
     --     v `HS.union` (HS.fromList . map idName . symbolic_ids $ s)
@@ -767,19 +795,19 @@ data IncrAfterNTr sov = IncrAfterNTr { steps_since_change :: Int
                                      , incr_by :: Int
                                      , underlying :: sov }
 
-instance (Eq sov, Enum b, Orderer ord sov b t) => Orderer (IncrAfterN ord) (IncrAfterNTr sov) b t where
-    initPerStateOrder (IncrAfterN _ ord) s =
+instance (Eq sov, Enum b, MinOrderer ord sov b t) => MinOrderer (IncrAfterN ord) (IncrAfterNTr sov) b t where
+    minInitPerStateOrder (IncrAfterN _ ord) s =
         IncrAfterNTr { steps_since_change = 0
                      , incr_by = 0
-                     , underlying = initPerStateOrder ord s }
-    orderStates (IncrAfterN _ ord) sov s =
+                     , underlying = minInitPerStateOrder ord s }
+    minOrderStates (IncrAfterN _ ord) sov s =
         let
-            b = orderStates ord (underlying sov) s
+            b = minOrderStates ord (underlying sov) s
         in
         succNTimes (incr_by sov) b
-    updateSelected (IncrAfterN _ ord) sov pr s =
-        sov { underlying = updateSelected ord (underlying sov) pr s }
-    stepOrderer (IncrAfterN ma ord) sov pr xs s
+    minUpdateSelected (IncrAfterN _ ord) sov pr s =
+        sov { underlying = minUpdateSelected ord (underlying sov) pr s }
+    minStepOrderer (IncrAfterN ma ord) sov pr xs s
         | steps_since_change sov >= ma =
             sov' { incr_by = incr_by sov' + 1
                  , steps_since_change = 0 }
@@ -789,7 +817,7 @@ instance (Eq sov, Enum b, Orderer ord sov b t) => Orderer (IncrAfterN ord) (Incr
             sov' { steps_since_change = steps_since_change sov' + 1}
         where
             under = underlying sov
-            under' = stepOrderer ord under pr xs s
+            under' = minStepOrderer ord under pr xs s
             sov' = sov { underlying = under' }
 
 
@@ -827,7 +855,7 @@ runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_
     | hc == Accept =
         let
             pr' = pr {accepted = rs:accepted pr}
-            jrs = minState xs
+            jrs = minState ord pr' xs
         in
         case jrs of
             Just (rs', xs') -> do
@@ -837,7 +865,7 @@ runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_
     | hc == Discard =
         let
             pr' = pr {discarded = rs:discarded pr}
-            jrs = minState xs
+            jrs = minState ord pr' xs
         in
         case jrs of
             Just (rs', xs') ->
@@ -849,7 +877,7 @@ runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_
             k = orderStates ord (order_val rs') (state rs)
             rs' = rs { order_val = updateSelected ord (order_val rs) ps (state rs) }
 
-            Just (rs'', xs') = minState (M.insertWith (++) k [rs'] xs)
+            Just (rs'', xs') = minState ord pr (M.insertWith (++) k [rs'] xs)
         in
         switchState red hal ord pr rs'' b xs'
         -- if not $ discardOnStart hal (halter_val rs''') ps (state rs''')
@@ -905,7 +933,7 @@ runReducerList :: (Reducer r rv t, Halter h hv t, Orderer or sov b t)
                -> Bindings
                -> IO (Processed (ExState rv hv sov t), Bindings)
 runReducerList red hal ord pr m binds =
-    case minState m of
+    case minState ord pr m of
         Just (x, m') -> runReducer' red hal ord pr x binds m'
         Nothing -> return (pr, binds)
 
@@ -919,7 +947,7 @@ runReducerListSwitching :: (Reducer r rv t, Halter h hv t, Orderer or sov b t)
                         -> Bindings
                         -> IO (Processed (ExState rv hv sov t), Bindings)
 runReducerListSwitching red hal ord pr m binds =
-    case minState m of
+    case minState ord pr m of
         Just (x, m') -> switchState red hal ord pr x binds m'
         Nothing -> return (pr, binds)
 
@@ -929,12 +957,19 @@ processedToState (Processed {accepted = app, discarded = dis}) =
 
 -- Uses the Orderer to determine which state to continue execution on.
 -- Returns that State, and a list of the rest of the states 
-minState :: Ord b => M.Map b [ExState rv hv sov t] -> Maybe ((ExState rv hv sov t), M.Map b [ExState rv hv sov t])
-minState m =
-    case M.minViewWithKey m of
+minState :: (Orderer or sov b t)
+         => or
+         -> Processed (ExState rv hv sov t)
+         -> M.Map b [ExState rv hv sov t]
+         -> Maybe ((ExState rv hv sov t), M.Map b [ExState rv hv sov t])
+minState ord pr m =
+    case getState ord ps m of
       Just ((k, x:xs), _) -> Just (x, M.insert k xs m)
-      Just ((_, []), m') -> minState m'
+      Just ((_, []), m') -> minState ord pr m'
       Nothing -> Nothing
+      where
+          ps = processedToState pr
+
 
 --------------------------------------------------------------------------------------------------------------------------------------
 

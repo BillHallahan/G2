@@ -335,64 +335,65 @@ outputLog :: TreeLog a -> IO ()
 outputLog log@(TreeLog {nodes = _nodes, max_level = maxLvl }) = do
     let cHeight = (maybe 0 fst (M.lookupMax _nodes)) * 2
         cWidth = (3 + numDigits cHeight) * (maxLvl + 1) -- max width of single column * number of columns
-        c = createCanvas cHeight cWidth -- can possibly trim size by getting max level to make it more efficient in the future
+        c = createCanvas cHeight cWidth
         grid = Grid { canvas = c, width = cWidth, height = cHeight, depths = M.empty, locations = M.empty, drawn = S.empty
                     , maxWidth = 3 + numDigits cHeight }
-        grid' = drawTree log grid 1 -- very first node, '0', is not in tree
+        grid' = drawTree log grid 1 Nothing -- very first node, '0', is not in tree
     printGrid grid'
 
-drawTree :: TreeLog a -> Grid -> Int -> Grid
-drawTree treeLog@(TreeLog { nodes = _nodes }) grid i
+drawTree :: TreeLog a -> Grid -> Int -> Maybe Int -> Grid
+drawTree treeLog@(TreeLog { nodes = _nodes }) grid@(Grid { drawn = prevDrawn }) i maybePrev
     | Just n <- M.lookup i _nodes =
-        let grid' = drawNode treeLog grid n
-            successors = successor n
+        let grid' = drawNodeLine treeLog grid n maybePrev
             -- consecutively draw the subtrees from each successor onto the same grid
-            grid'' = maybe grid' (foldr (\suc _grid -> drawTree treeLog _grid suc) grid') successors
+            grid'' = maybe grid' (foldr (\suc _grid -> drawTree treeLog _grid suc (Just i)) grid') (successor n)
             -- consecutively draw subtrees from each child
-            grid''' = foldr (\child _grid -> drawTree treeLog _grid child) grid'' (children n)
+            grid''' = foldr (\child _grid -> if S.member child prevDrawn
+                then drawLine treeLog _grid i child -- if child is already drawn (i.e. case of merged node), only draw connecting line
+                else drawTree treeLog _grid child (Just i)) grid'' (children n)
         in grid'''
     | otherwise = grid
 
-drawNode :: TreeLog a -> Grid -> Obj a -> Grid
-drawNode (TreeLog { nodes = _nodes }) grid@(Grid {canvas = c, width = w, depths = d, drawn = prevDrawn, locations = locs
-        , maxWidth = maxW}) Obj {idx = i, level = l, parents = ps}
-    | True <- S.member i prevDrawn
-    , (_:_:_) <- ps = -- if `o` is a merged state (>1 parent), need to draw line from newly drawn parent(s) to `o`
-        let currDepth = fromJust $ M.lookup i locs -- depth of drawn Obj
-            currCol = (1 + (l * maxW)) -- column idx of drawnObj
-            c' = foldr (\parent _c -> if S.member parent prevDrawn -- redraw line even if line might have prev been drawn
-                then let parentDepth = fromJust (M.lookup parent locs)
-                         parentLvl = level $ fromJust (M.lookup parent _nodes)
-                         parentCol = (1 + ((parentLvl+1) * maxW)) - 3 -- draw from end of parent idx string on canvas
-                    in drawConnectingLine w _c parentDepth parentCol currDepth currCol
-                else _c) c ps
-        in grid {canvas = c'}
-    | True <- S.member i prevDrawn = grid
-    | otherwise =
-        let parentLvl = case ps of
-                p:_ -> maybe l (\obj -> level obj) (M.lookup p _nodes)
-                _ -> l
-            parentDepth = case ps of
-                p:_ -> fromMaybe 0 (M.lookup p locs)
-                _ -> 0 -- ignore if no parent
-            currDepth = fromMaybe 0 (M.lookup l d) -- get and update depth at new level
-            currDepth' = max (parentDepth + 1) (if parentLvl < l
-                then (currDepth + 2)  -- keep blank in row above to separate prev seq
-                else (currDepth + 1)) -- no need for blank row since parent is predecessor
-            d' = foldr (\lvl -> M.insertWith (\oldDepth depth -> max depth oldDepth) lvl currDepth') d [0..l]
-            locs' = M.insert i currDepth' locs
+-- draw line between pre-existing `from` and `to` nodes
+drawLine :: TreeLog a -> Grid -> Int -> Int -> Grid
+drawLine (TreeLog { nodes = _nodes }) grid@(Grid {canvas = c, width = w, locations = locs, maxWidth = maxW}) from to =
+    let (Obj { idx = i, level = l }) = fromJust $ M.lookup to _nodes
+        toDepth = fromJust $ M.lookup i locs -- depth of drawn Obj
+        toCol = (1 + (l * maxW)) -- column idx of drawnObj
+        fromDepth = fromJust $ M.lookup from locs
+        fromLvl = level $ fromJust (M.lookup from _nodes)
+        fromCol = (1 + ((fromLvl+1) * maxW)) - 3 -- draw from end of parent idx string on canvas
+        c' = drawConnectingLine w c fromDepth fromCol toDepth toCol
+    in grid {canvas = c'}
+ 
+-- draw node and if `maybePrev` is (Just _), then line to node as well
+drawNodeLine :: TreeLog a -> Grid -> Obj a -> Maybe Int -> Grid
+drawNodeLine (TreeLog { nodes = _nodes }) grid@(Grid {canvas = c, width = w, depths = d, drawn = prevDrawn, locations = locs
+        , maxWidth = maxW}) Obj {idx = i, level = l} maybePrev =
+    let parentLvl = case maybePrev of
+            (Just p) -> maybe l (\obj -> level obj) (M.lookup p _nodes)
+            _ -> l
+        parentDepth = case maybePrev of
+            (Just p) -> fromMaybe 0 (M.lookup p locs)
+            _ -> 0 -- ignore if no parent
+        parentCol = 1 + ((parentLvl+1) * maxW) - 3-- start drawing line from after parent idx
 
-            parentCol = 1 + ((parentLvl+1) * maxW) - 3-- start drawing line from after parent idx
-            currCol = 1 + (l * maxW)
-            c' = writeStrToCanvas w (currDepth', currCol) (show i) c
-            prevDrawn' = S.insert i prevDrawn
+        currDepth = fromMaybe 0 (M.lookup l d) -- get and update depth at new level
+        currDepth' = max (parentDepth + 1) (if parentLvl < l
+            then (currDepth + 2)  -- keep blank in row above to separate prev seq
+            else (currDepth + 1)) -- no need for blank row since parent is predecessor
+        currCol = 1 + (l * maxW)
 
-            -- draw line linking parent and child node, only if parentDepth > 0 (i.e. exists parent) and if parentLvl < l
-            c'' = if parentDepth > 0 && parentLvl < l
-                then drawConnectingLine w c' parentDepth parentCol currDepth' currCol
-                else c'
+        d' = foldr (\lvl -> M.insertWith (\oldDepth depth -> max depth oldDepth) lvl currDepth') d [0..l]
+        locs' = M.insert i currDepth' locs
+        prevDrawn' = S.insert i prevDrawn
 
-        in grid { canvas = c'', depths = d',drawn = prevDrawn', locations = locs' }
+        c' = writeStrToCanvas w (currDepth', currCol) (show i) c
+        -- draw line linking parent and child node, only if parentDepth > 0 (i.e. exists parent) and if parentLvl < l
+        c'' = if parentDepth > 0 && parentLvl < l
+            then drawConnectingLine w c' parentDepth parentCol currDepth' currCol
+            else c'
+    in grid { canvas = c'', depths = d',drawn = prevDrawn', locations = locs' }
 
 -- Create 2d grid of specified size with all spaces
 createCanvas :: Int -> Int -> A.Array Int Char
@@ -411,7 +412,8 @@ writeStrToCanvas wdth (i,j) str c = AS.runSTArray $ do
 drawConnectingLine :: Int -> A.Array Int Char -> Int -> Int -> Int -> Int -> A.Array Int Char
 drawConnectingLine wdth c startRow startCol endRow endCol = AS.runSTArray $ do
     c' <- AS.thaw c
-    mapM_ (\col -> AS.writeArray c' (((startRow-1) * wdth) + col) '-') [startCol..(endCol-3)] -- horizontal line 1
+    let offset = (startRow - 1) * wdth
+    mapM_ (\col -> AS.writeArray c' (offset + col) '-') [startCol..(endCol-3)] -- horizontal line 1
     AS.writeArray c' (((endRow-1) * wdth) + endCol-1) '-' -- horizontal line 2
     let (lo, hi) = (min startRow endRow, max startRow endRow)
     mapM_ (\row -> AS.writeArray c' (((row-1) * wdth) + (endCol-2)) '|') [lo..hi]
