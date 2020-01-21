@@ -34,11 +34,8 @@ import Data.Monoid
 -- The result of a call to checkAbstracted'.  Either:
 -- (1) the function does need to be abstract, and we get the actual result of executing the function call. 
 -- (2) the function does not need to be abstract
--- (3) the function calls error, and is in a library
 data AbstractedRes = AbstractRes Abstracted Model
                    | NotAbstractRes
-                   | LibraryCallsError
-                   deriving (Eq, Show, Read)
 
 toAbstracted :: AbstractedRes -> Maybe Abstracted
 toAbstracted (AbstractRes a _) = Just a
@@ -49,17 +46,14 @@ toModel (AbstractRes _ m) = Just m
 toModel _ = Nothing
 
 -- | Checks if abstracted functions actually had to be abstracted.
-checkAbstracted :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Config -> Bindings -> ExecRes LHTracker -> IO (Maybe (ExecRes [Abstracted]))
+checkAbstracted :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Config -> Bindings -> ExecRes LHTracker -> IO (ExecRes [Abstracted])
 checkAbstracted solver simplifier config bindings er@(ExecRes{ final_state = s@State { track = lht }}) = do
     let check = checkAbstracted' solver simplifier (sharing config) s bindings
     abstractedR <- mapM check (abstract_calls lht)
-    case all (/= LibraryCallsError) abstractedR of
-        True -> do
-            let abstracted' = mapMaybe toAbstracted $ abstractedR
-                models = mapMaybe toModel $ abstractedR
+    let abstracted' = mapMaybe toAbstracted $ abstractedR
+        models = mapMaybe toModel $ abstractedR
 
-            return . Just $ er { final_state = s {track = abstracted', model = foldr HM.union (model s) models }}
-        False -> return Nothing
+    return $ er { final_state = s {track = abstracted', model = foldr HM.union (model s) models }}
 
 checkAbstracted' :: (Solver solver, Simplifier simplifier)
                  => solver
@@ -81,7 +75,7 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
         -- tell if an assertion was violated.
         -- If an assertion is violated, it means that the function did not need to be abstracted,
         -- but does need to be in `assert_ids` .
-        let s' = pickHead . modelToExprEnv $
+        let s' = elimAssumes . pickHead . modelToExprEnv $
                    s { curr_expr = CurrExpr Evaluate strict_call }
 
         (er, _) <- runG2WithSomes 
@@ -101,7 +95,6 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
                                                      , real = abs_fc { returns = ce } }
                                         ) m
                         False -> return NotAbstractRes
-            [] -> return LibraryCallsError
             _ -> error $ "checkAbstracted': Bad return from runG2WithSomes"
     | otherwise = error $ "checkAbstracted': Bad lookup in runG2WithSomes"
 
@@ -166,7 +159,7 @@ reduceFCExpr share reducer solver simplifier s bindings e
             [er'] -> do
                 let (CurrExpr _ ce) = curr_expr . final_state $ er'
                 return (bindings { name_gen = name_gen bindings' }, ce)
-            _ -> error "reduceAbstracted: Bad reduction"
+            _ -> error $ "reduceAbstracted: Bad reduction"
     | otherwise = return (bindings, e) 
 
 mapAccumM :: (Monad m, MonadPlus p) => (acc -> x -> m (acc, y)) -> acc -> [x] -> m (acc, p y)

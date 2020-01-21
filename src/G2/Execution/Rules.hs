@@ -479,7 +479,10 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
     
 -- | Given the Type of the matched Expr, looks for Type in the TypeEnv, and returns Expr level representation of the Type
 mexprTyToExpr :: Type -> TypeEnv -> [Expr]
-mexprTyToExpr mexpr_t tenv 
+mexprTyToExpr mexpr_t = reverse . mexprTyToExpr' mexpr_t
+
+mexprTyToExpr' :: Type -> TypeEnv -> [Expr]
+mexprTyToExpr' mexpr_t tenv 
     -- special case for NewTyCon, involves looking up tyVars and binding them to concrete types specified by mexpr_t
     | Just (algDataTy, bindings) <- getAlgDataTy mexpr_t tenv     
     , (isNewTyCon algDataTy) = dconTyToExpr (data_con algDataTy) bindings
