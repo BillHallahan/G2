@@ -103,8 +103,7 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
                   Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
                   Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn))
         , SomeHalter
-                (MaxOutputsHalter (maxOutputs config)
-                  :<~> LHAbsHalter entry mb_modname (expr_env st)
+                (LHAbsHalter entry mb_modname (expr_env st)
                   -- :<~> searched_below
                   :<~> lh_max_outputs
                   :<~> SwitchEveryNHalter (switch_after config)
@@ -119,7 +118,6 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
                   Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn))
         , SomeHalter
             (DiscardIfAcceptedTag state_name
-              :<~> MaxOutputsHalter (maxOutputs config)
               :<~> LHAbsHalter entry mb_modname (expr_env st)
               -- :<~> searched_below
               :<~> lh_max_outputs

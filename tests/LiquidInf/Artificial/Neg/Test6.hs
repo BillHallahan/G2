@@ -19,6 +19,6 @@ data R  = Emp | D
 
 data Assocs k a = Assocs a
 
-{-@ addKV :: Assocs Int R -> {xs:R | 0 < size xs} @-}
+{-@ f :: Assocs Int R -> {xs:R | 0 < size xs} @-}
 f :: Assocs Int R -> R
 f (Assocs m) = m
