@@ -34,6 +34,8 @@ import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 
+import Control.Exception
+
 import Debug.Trace
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
@@ -356,8 +358,11 @@ evalCase s@(State { expr_env = eenv
             
         lsts_cs = liftSymLitAlt s mexpr bind lalts
         def_sts = liftSymDefAlt s mexpr bind alts
+
+        alt_res = dsts_cs ++ lsts_cs ++ def_sts
       in
-      (RuleEvalCaseSym, dsts_cs ++ lsts_cs ++ def_sts, ng')
+      assert (length alt_res == length dalts + length lalts + length defs)
+      (RuleEvalCaseSym, alt_res, ng')
 
   -- Case evaluation also uses the stack in graph reduction based evaluation
   -- semantics. The case's binding variable and alts are pushed onto the stack

@@ -10,7 +10,10 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 
 import Data.List
+import Data.Maybe
 import qualified Data.Text as T
+
+import Debug.Trace
 
 mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> Id
            -> TypeClasses -> NameGen -> ExprEnv -> Walkers
@@ -113,7 +116,7 @@ instantitateTypes tc kv ts =
         tv' = map (\(i, ts'') -> (i, pickForTyVar kv ts'')) tcSat
         tvt = map (\(i, t) -> (TyVar i, t)) tv'
         -- Dictionary arguments
-        vi = concatMap (uncurry (satisfyingTC tc ts')) tv'
+        vi = mapMaybe (instantiateTCDict tc tv') ts'
 
         ex = map (Type . snd) tv' ++ vi
         tss = filter (not . isTypeClass tc) $ foldr (uncurry replaceASTs) ts' tvt
@@ -126,6 +129,12 @@ pickForTyVar kv ts
     | Just t <- find ((==) (tyInt kv)) ts = t
     | t:_ <- ts = t
     | otherwise = error "No type found in pickForTyVar"
+
+
+instantiateTCDict :: TypeClasses -> [(Id, Type)] -> Type -> Maybe Expr
+instantiateTCDict tc it (TyApp (TyCon n _) (TyVar i)) =
+    return . Var =<< lookupTCDict tc n =<< lookup i it
+instantiateTCDict _ _ _ = Nothing
 
 typeNamedId :: ArgType -> Id
 typeNamedId (NamedType i) = i

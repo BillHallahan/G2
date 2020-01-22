@@ -20,6 +20,8 @@ import G2.Translation
 
 import G2.Liquid.Interface
 
+import Control.Exception
+
 main :: IO ()
 main = do
   as <- getArgs

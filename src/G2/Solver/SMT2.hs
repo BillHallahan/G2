@@ -103,7 +103,7 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
         else do
             return (r, Nothing, Nothing)
 
-    assert _ = function1 "assert"
+    assertSolver _ = function1 "assert"
         
     varDecl _ n s = "(declare-const " ++ n ++ " " ++ s ++ ")"
     
@@ -228,7 +228,7 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
         else do
             return (r, Nothing, Nothing)
 
-    assert _ = function1 "assert"
+    assertSolver _ = function1 "assert"
         
     varDecl _ n s = "(declare-const " ++ n ++ " " ++ s ++ ")"
     

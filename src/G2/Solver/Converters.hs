@@ -48,7 +48,7 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     checkSatGetModel :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result, Maybe SMTModel)
     checkSatGetModelGetExpr :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> CurrExpr -> IO (Result, Maybe SMTModel, Maybe Expr)
 
-    assert :: con -> ast -> out
+    assertSolver :: con -> ast -> out
     varDecl :: con -> SMTName -> ast -> out
     setLogic :: con -> Logic -> out
 
@@ -441,7 +441,7 @@ typeToSMT t = error $ "Unsupported type in typeToSMT: " ++ show t
 toSolver :: SMTConverter con ast out io => con -> [SMTHeader] -> out
 toSolver con [] = empty con
 toSolver con (Assert ast:xs) = 
-    merge con (assert con $ toSolverAST con ast) (toSolver con xs)
+    merge con (assertSolver con $ toSolverAST con ast) (toSolver con xs)
 toSolver con (VarDecl n s:xs) = merge con (toSolverVarDecl con n s) (toSolver con xs)
 toSolver con (SetLogic lgc:xs) = merge con (toSolverSetLogic con lgc) (toSolver con xs)
 

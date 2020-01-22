@@ -113,8 +113,13 @@ convertMeasure bt (M {name = n, sort = srt, eqns = eq}) = do
     cb <- freshIdN (head stArgs)
     
     alts <- mapMaybeM (convertDefs stArgs stRet (M.fromList as_t) bt) eq
+    fls <- mkFalseE
+    let defTy = case alts of
+                    (a:_) -> typeOf a
+                    _ -> TyUnknown
+        defAlt = Alt Default $ Assume Nothing fls (Prim Undefined defTy)
 
-    let e = mkLams as' (Lam TermL lam_i $ Case (Var lam_i) cb alts) 
+    let e = mkLams as' (Lam TermL lam_i $ Case (Var lam_i) cb (defAlt:alts)) 
     
     case st of -- [1]
         Just _ -> return $ Just (n', e)
