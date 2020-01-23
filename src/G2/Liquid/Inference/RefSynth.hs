@@ -205,17 +205,21 @@ grammar arg_sort_vars ret_sorted_var sorts =
                 (doubleRuleList ++ addSelectors sortsToGN doubleSort sorts')
 
         const_int = GroupedRuleList "IConst" intSort [GConstant intSort]
+
+        const_double = GroupedRuleList "DConst" doubleSort [GConstant doubleSort]
     
         grm = GrammarDef
                 ([ SortedVar "B" boolSort
                  , SortedVar "I" intSort
                  , SortedVar "IConst" intSort
-                 , SortedVar "D" doubleSort ]
+                 , SortedVar "D" doubleSort
+                 , SortedVar "DConst" doubleSort ]
                  ++ map (uncurry SortedVar) grams)
                 ([ brl
                  , irl
                  , const_int
                  , drl
+                 , const_double
                  ]
                  ++ map (uncurry dtGroupRuleList) grams)
     in
@@ -229,6 +233,7 @@ intRuleList =
     [ GVariable intSort
     -- , GConstant intSort
     , GBfTerm $ BfIdentifierBfs (ISymb "+") [intBf, intBf]
+    , GBfTerm $ BfIdentifierBfs (ISymb "+") [intBf, BfIdentifier (ISymb "IConst")]
     , GBfTerm $ BfIdentifierBfs (ISymb "-") [intBf, intBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "*") [intBf, intBf]
     , GBfTerm $ BfIdentifierBfs (ISymb safeModSymb) [intBf, BfIdentifier (ISymb "IConst")]
@@ -240,6 +245,7 @@ doubleRuleList =
     [ GVariable doubleSort
     -- , GConstant intSort
     , GBfTerm $ BfIdentifierBfs (ISymb "+") [doubleBf, doubleBf]
+    , GBfTerm $ BfIdentifierBfs (ISymb "+") [doubleBf, BfIdentifier (ISymb "DConst")]
     , GBfTerm $ BfIdentifierBfs (ISymb "-") [doubleBf, doubleBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "*") [doubleBf, doubleBf]
     ]
