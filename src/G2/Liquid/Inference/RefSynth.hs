@@ -45,6 +45,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Ratio
 import qualified Data.Text as T
 import Data.Tuple
 import Data.Tuple.Extra
@@ -200,16 +201,21 @@ grammar arg_sort_vars ret_sorted_var sorts =
         irl = GroupedRuleList "I" intSort
                 (intRuleList ++ addSelectors sortsToGN intSort sorts')
 
+        drl = GroupedRuleList "D" doubleSort
+                (doubleRuleList ++ addSelectors sortsToGN doubleSort sorts')
+
         const_int = GroupedRuleList "IConst" intSort [GConstant intSort]
     
         grm = GrammarDef
                 ([ SortedVar "B" boolSort
                  , SortedVar "I" intSort
-                 , SortedVar "IConst" intSort ]
+                 , SortedVar "IConst" intSort
+                 , SortedVar "D" doubleSort ]
                  ++ map (uncurry SortedVar) grams)
                 ([ brl
                  , irl
                  , const_int
+                 , drl
                  ]
                  ++ map (uncurry dtGroupRuleList) grams)
     in
@@ -229,13 +235,29 @@ intRuleList =
     ]
     ++ [GBfTerm . BfLiteral . LitNum $ x | x <- [0..0]]
 
+doubleRuleList :: [GTerm]
+doubleRuleList =
+    [ GVariable doubleSort
+    -- , GConstant intSort
+    , GBfTerm $ BfIdentifierBfs (ISymb "+") [doubleBf, doubleBf]
+    , GBfTerm $ BfIdentifierBfs (ISymb "-") [doubleBf, doubleBf]
+    , GBfTerm $ BfIdentifierBfs (ISymb "*") [doubleBf, doubleBf]
+    ]
+    ++ [GBfTerm . BfLiteral . LitNum $ x | x <- [0..0]]
+
 boolRuleList :: [GTerm]
 boolRuleList =
     [ GVariable boolSort
     , GConstant boolSort
+    
     , GBfTerm $ BfIdentifierBfs (ISymb "=") [intBf, intBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "<") [intBf, intBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "<=") [intBf, intBf]
+
+    , GBfTerm $ BfIdentifierBfs (ISymb "=") [doubleBf, doubleBf]
+    , GBfTerm $ BfIdentifierBfs (ISymb "<") [doubleBf, doubleBf]
+    , GBfTerm $ BfIdentifierBfs (ISymb "<=") [doubleBf, doubleBf]
+
     , GBfTerm $ BfIdentifierBfs (ISymb "=>") [boolBf, boolBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "and") [boolBf, boolBf]
     -- , GBfTerm $ BfIdentifierBfs (ISymb "or") [boolBf, boolBf]
@@ -257,11 +279,17 @@ dtGroupRuleList symb srt = GroupedRuleList symb srt [GVariable srt]
 intBf :: BfTerm
 intBf = BfIdentifier (ISymb "I")
 
+doubleBf :: BfTerm
+doubleBf = BfIdentifier (ISymb "D")
+
 boolBf :: BfTerm
 boolBf = BfIdentifier (ISymb "B")
 
 intSort :: Sort
 intSort = IdentSort (ISymb "Int")
+
+doubleSort :: Sort
+doubleSort = IdentSort (ISymb "Real")
 
 boolSort :: Sort
 boolSort = IdentSort (ISymb "Bool")
@@ -384,13 +412,17 @@ exprToTerm _ _ (TyCon (Name "Bool" _ _ _) _) (Data (DataCon (Name n _ _ _) _))
     | "True" <- n = TermLit $ LitBool True
     | "False" <- n =TermLit $ LitBool False
 exprToTerm _ _ (TyCon (Name n _ _ _) _) (App _ (Lit l))
-    | n == "Int" || n == "Float" = litToTerm l
+    |  n == "Int"
+    || n == "Float"
+    || n == "Double" = litToTerm l
 exprToTerm _ _ _ (Lit l) = litToTerm l
 exprToTerm sorts meas_ex t e = exprToDTTerm sorts meas_ex t e
 exprToTerm _ _ _ e = error $ "exprToTerm: Unhandled Expr " ++ show e
 
 litToTerm :: G2.Lit -> Term
 litToTerm (LitInt i) = TermLit (LitNum i)
+litToTerm (LitDouble d) = TermCall (ISymb "/") [ TermLit . LitNum $ numerator d
+                                               , TermLit . LitNum $ denominator d]
 litToTerm _ = error "litToTerm: Unhandled Lit"
 
 exprToDTTerm :: TypesToSorts -> MeasureExs -> Type -> G2.Expr -> Term
@@ -421,6 +453,7 @@ termConstraintToConstraint (NegT ts) = Constraint $ TermCall (ISymb "not") [Term
 typeToSort :: TypesToSorts -> Type -> Sort
 typeToSort _ (TyCon (Name n _ _ _) _) 
     | n == "Int" = intSort
+    | n == "Double" = doubleSort
     | n == "Bool" = boolSort
 typeToSort sm t
     | Just si <- lookupSort t sm = IdentSort (ISymb $ sort_name si)
@@ -468,10 +501,12 @@ typesToSort meas meas_ex ty_c =
         ts_applic_meas = zip dt_ts meas_ids'
     in
     typesToSort' ts_applic_meas
-    where
-        isPrimTy (TyCon (Name "Int" _ _ _) _) = True
-        isPrimTy (TyCon (Name "Bool" _ _ _) _) = True
-        isPrimTy _ = False
+    
+isPrimTy :: Type -> Bool    
+isPrimTy (TyCon (Name "Int" _ _ _) _) = True
+isPrimTy (TyCon (Name "Double" _ _ _) _) = True
+isPrimTy (TyCon (Name "Bool" _ _ _) _) = True
+isPrimTy _ = False
 
 typesToSort' :: [(Type, [Id])] -> TypesToSorts
 typesToSort' ts =
@@ -516,10 +551,7 @@ filterNonPrimMeasure :: [[Id]] -> [[Id]]
 filterNonPrimMeasure = map (filter isPrimMeasure)
 
 isPrimMeasure :: Id -> Bool
-isPrimMeasure (Id _ t)
-    | TyCon (Name "Int" _ _ _) _ <- t = True
-    | TyCon (Name "Bool" _ _ _) _ <- t = True
-    | otherwise = False
+isPrimMeasure = isPrimTy . typeOf
 
 allSorts :: TypesToSorts -> [Sort]
 allSorts = map (IdentSort . ISymb) . allSortNames

@@ -36,24 +36,24 @@ subModel (State { expr_env = eenv
                                 Just e -> Just e
                                 Nothing -> Nothing) inputNames
     in
-    filterTC tc $ subVar m eenv tc (is, cexpr, ais')
+    subVar m eenv tc (is, cexpr, ais')
 
 subVarFuncCall :: Model -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall
 subVarFuncCall em eenv tc fc@(FuncCall {arguments = ars}) =
     subVar em eenv tc $ fc {arguments = filter (not . isTC tc) ars}
 
 subVar :: (ASTContainer m Expr) => Model -> ExprEnv -> TypeClasses -> m -> m
-subVar em eenv tc = modifyContainedASTs (subVar' em eenv tc []) . filterTC tc
+subVar em eenv tc = modifyContainedASTs (subVar' em eenv tc [])
 
 subVar' :: Model -> ExprEnv -> TypeClasses -> [Id] -> Expr -> Expr
 subVar' em eenv tc is v@(Var i@(Id n _))
     | i `notElem` is
     , Just e <- HM.lookup n em =
-        subVar' em eenv tc (i:is) $ filterTC tc e
+        subVar' em eenv tc (i:is) e
     | i `notElem` is
     , Just e <- E.lookup n eenv
     , (isExprValueForm eenv e && notLam e) || isApp e || isVar e =
-        subVar' em eenv tc (i:is) $ filterTC tc e
+        subVar' em eenv tc (i:is) e
     | otherwise = v
 subVar' em eenv tc is e = modifyChildren (subVar' em eenv tc is) e
 
@@ -68,21 +68,6 @@ isApp _ = False
 isVar :: Expr -> Bool
 isVar (Var _) = True
 isVar _ = False
-
-filterTC :: ASTContainer m Expr => TypeClasses -> m -> m
-filterTC tc = modifyASTs (filterTC' tc)
-
-filterTC' :: TypeClasses -> Expr -> Expr
-filterTC' tc a@(App e e') =
-    case tcCenter tc $ typeOf e' of
-        True -> filterTC' tc e 
-        False -> a
-filterTC' _ e = e
-
-tcCenter :: TypeClasses -> Type -> Bool
-tcCenter tc (TyCon n _) = isTypeClassNamed n tc
-tcCenter tc (TyFun t _) = tcCenter tc t
-tcCenter _ _ = False
 
 isTC :: TypeClasses -> Expr -> Bool
 isTC tc (Var (Id _ (TyCon n _))) = isTypeClassNamed n tc

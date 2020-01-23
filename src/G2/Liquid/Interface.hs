@@ -387,9 +387,13 @@ runLHG2 config red hal ord solver simplifier pres_names final_st bindings = do
                   _ -> minimum $ map (\(ExecRes {final_state = s}) -> abstractCallsNum s) ret
     let ret' = filter (\(ExecRes {final_state = s}) -> mi == (abstractCallsNum s)) ret
 
+    putStrLn "before reduceCalls"
+
     (bindings', ret'') <- mapAccumM (reduceCalls solver simplifier config) final_bindings ret'
+    putStrLn "reducedCalls"
     ret''' <- mapM (checkAbstracted solver simplifier config bindings') ret''
-    
+    putStrLn "checkAbstracted"
+
     let exec_res = 
           map (\(ExecRes { final_state = s
                          , conc_args = es
