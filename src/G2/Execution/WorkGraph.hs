@@ -23,13 +23,13 @@ data WorkGraph a b = WorkGraph { wPlan :: WorkPlan -- ^ Sequence of indices that
                                , curr_idx :: Int
                                , max_idx :: Int -- ^ Used to ensure any new index generated is fresh
                                , context :: b -- ^ Any additional value that needs to maintain state between calls to merge_func or work_func
-                               , logger :: Logger a } -- ^ Outputs String representation of Work if needed for debugging
+                               , logger :: Logger a b } -- ^ Outputs String representation of Work if needed for debugging
 
 initGraph :: a -> b
           -> (a -> b -> IO ([a], b, Status))
           -> (a -> a -> b -> (Maybe a, b))
           -> (a -> a)
-          -> (a -> String)
+          -> (a -> b -> String)
           -> WorkGraph a b
 initGraph fstWork ctxt workFn mergeFn resetSaturatedFn logWorkFn =
     let workMap = HM.singleton 0 (S.singleton (WorkObj fstWork [0]), S.empty, S.empty)
@@ -62,7 +62,7 @@ work' wGraph@(WorkGraph {
     , curr_idx = idx
     , context = ctxt
     , logger = l }) (WorkObj a mergeStck) accepted = do
-    -- l' <- outputLog l a
+    -- l' <- outputLog l a ctxt
     (as, ctxt', status) <- workFunc a ctxt
     let wGraph' = wGraph { context = ctxt', logger = l }
         objs' = map (\x -> WorkObj x mergeStck) as
@@ -217,9 +217,9 @@ mergeObjsAll' mergeFn x1@(WorkObj x1S ms1) unmerged (x2@(WorkObj x2S _) S.:<| xs
 mergeObjsAll' _ x1 unmerged S.Empty ctxt = (x1, unmerged, ctxt)
 
 -- Prints string representation of work and increments a count when outputLog is called
-data Logger a = Logger (a -> String) Int
+data Logger a b = Logger (a -> b -> String) Int
 
-outputLog :: Logger a -> a -> IO (Logger a)
-outputLog (Logger logFn i) a = do
-    print $ "Num: " ++ show i ++ (logFn a)
+outputLog :: Logger a b -> a -> b -> IO (Logger a b)
+outputLog (Logger logFn i) a b = do
+    print $ "Num: " ++ show i ++ (logFn a b)
     return (Logger logFn (i + 1))

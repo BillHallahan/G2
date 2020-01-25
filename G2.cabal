@@ -112,6 +112,7 @@ library
                        , G2.Execution.MergingHelpers
                        , G2.Execution.WorkGraph
                        , G2.Execution.Zipper
+                       , G2.Execution.LogZipper
 
                        , G2.Interface.Interface
                        , G2.Interface.OutputTypes
@@ -162,6 +163,7 @@ library
                        , liquidhaskell >= 0.8.2.2 && <= 8.6.2
                        , liquid-fixpoint >= 0.7.0.7 && < 0.9
                        , MissingH >= 1.4.0.0 && < 1.5
+                       , matrix == 0.3.6.1
                        , mtl >= 2.2 && < 2.3
                        , reducers >= 3.12 && < 3.13
                        , regex-compat >= 0.95 && < 0.96
