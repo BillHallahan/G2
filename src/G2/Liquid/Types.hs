@@ -57,6 +57,8 @@ module G2.Liquid.Types ( LHOutput (..)
                        , lhFromIntegerM
                        , lhToIntegerM
 
+                       , lhFromRationalM
+
                        , lhToRatioFuncM
                        
                        , lhNumTCM
@@ -465,11 +467,6 @@ lhFromIntegerM = do
     n <- liftTCValues lhFromInteger
     return . L.Id n =<< numT 
 
-lhToRatioFuncM :: LHStateM L.Id
-lhToRatioFuncM = do
-    n <- liftTCValues lhToRatioFunc
-    return . L.Id n =<< numT 
-
 numT :: LHStateM L.Type
 numT = do
     a <- freshIdN L.TYPE
@@ -485,6 +482,31 @@ numT = do
                         (L.TyFun
                             integerT
                             tva
+                        )
+                    )
+
+lhToRatioFuncM :: LHStateM L.Id
+lhToRatioFuncM = do
+    n <- liftTCValues lhToRatioFunc
+    return . L.Id n =<< ratioFuncT 
+
+ratioFuncT :: LHStateM L.Type
+ratioFuncT = do
+    a <- freshIdN L.TYPE
+    let tva = L.TyVar a
+    integral <- return . KV.integralTC =<< knownValues
+    integerT <- tyIntegerT
+
+    let integral' = L.TyCon integral L.TYPE
+
+    return $ L.TyForAll (L.NamedTyBndr a) 
+                    (L.TyFun
+                        integral'
+                        (L.TyFun
+                            tva
+                            (L.TyFun
+                              tva
+                              L.TyUnknown)
                         )
                     )
 
@@ -510,6 +532,31 @@ integralT = do
                             integerT
                         )
                     )
+
+
+lhFromRationalM :: LHStateM L.Id
+lhFromRationalM = do
+    n <- liftTCValues lhFromRational
+    return . L.Id n =<< fractionalT
+
+fractionalT :: LHStateM L.Type
+fractionalT = do
+    a <- freshIdN L.TYPE
+    let tva = L.TyVar a
+    fractional <- return . KV.fractionalTC =<< knownValues
+    rationalT <- tyRationalT
+
+    let fractional' = L.TyCon fractional L.TYPE
+
+    return $ L.TyForAll (L.NamedTyBndr a) 
+                    (L.TyFun
+                        fractional'
+                        (L.TyFun
+                            rationalT
+                            tva
+                        )
+                    )
+
 lhNumOrdM :: LHStateM L.Id
 lhNumOrdM = do
     num <- lhNumTCM

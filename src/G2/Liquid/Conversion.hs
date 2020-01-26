@@ -486,7 +486,7 @@ correctTypes m bt mt re re' = do
 
     may_ratio_e <- maybeRatioFromInteger m e
     may_ratio_e' <- maybeRatioFromInteger m e'
-    fromRationalF <- return . mkFromRationalExpr =<< knownValues
+    fromRationalF <- lhFromRationalM
 
     maybe_nfiDict <- maybeNumFromIntegral m t
     maybe_nfiDict' <- maybeNumFromIntegral m t'
@@ -509,10 +509,10 @@ correctTypes m bt mt re re' = do
        , Just iDict' <- may_iDict' -> return (e, mkApp [Var tIntgr, Type t', iDict', e'])
 
        | Just ratio_e <- may_ratio_e
-       , Just fDict' <- may_fDict' -> return (mkApp [fromRationalF, Type t', fDict', ratio_e], e')
+       , Just fDict' <- may_fDict' -> return (mkApp [Var fromRationalF, Type t', fDict', ratio_e], e')
 
        | Just fDict <- may_fDict
-       , Just ratio_e' <- may_ratio_e' -> return (e', mkApp [fromRationalF, Type t, fDict, ratio_e'])
+       , Just ratio_e' <- may_ratio_e' -> return (e', mkApp [Var fromRationalF, Type t, fDict, ratio_e'])
 
        | Just iDict <- may_iDict
        , Just nDict' <- may_nDict' ->

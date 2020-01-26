@@ -30,6 +30,8 @@ data TCValues = TCValues { lhTC :: Name
                          , lhFromInteger :: Name
                          , lhToInteger :: Name
 
+                         , lhFromRational :: Name
+
                          , lhToRatioFunc :: Name
 
                          , lhNumOrd :: Name
@@ -61,9 +63,12 @@ instance Named TCValues where
                 , lhFromInteger tcv
 
                 , lhToInteger tcv
-                , lhNumOrd tcv
+
+                , lhFromRational tcv
 
                 , lhToRatioFunc tcv
+
+                , lhNumOrd tcv
 
                 , lhAnd tcv
                 , lhOr tcv
@@ -91,6 +96,8 @@ instance Named TCValues where
                                   
                                   , lhFromInteger = rename old new $ lhFromInteger tcv
                                   , lhToInteger = rename old new $ lhToInteger tcv
+
+                                  , lhFromRational = rename old new $ lhFromRational tcv
                                   
                                   , lhToRatioFunc = rename old new $ lhToRatioFunc tcv
 

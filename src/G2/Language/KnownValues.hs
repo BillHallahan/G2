@@ -29,6 +29,8 @@ data KnownValues = KnownValues {
                  , dcTrue :: Name
                  , dcFalse :: Name
 
+                 , tyRational :: Name
+
                  , tyList :: Name
                  , dcCons :: Name
                  , dcEmpty :: Name

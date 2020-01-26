@@ -42,6 +42,8 @@ initKnownValues eenv tenv tc =
     , dcTrue = dcWithStrName tenv "Bool" "True"
     , dcFalse = dcWithStrName tenv "Bool" "False"
 
+    , tyRational = typeWithStrName tenv "Rational"
+
     , tyList = typeWithStrName tenv "[]"
     , dcCons = dcWithStrName tenv "[]" ":"
     , dcEmpty = dcWithStrName tenv "[]" "[]"

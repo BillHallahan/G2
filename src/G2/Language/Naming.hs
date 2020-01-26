@@ -528,6 +528,8 @@ instance Named KnownValues where
             , dcTrue = dcT
             , dcFalse = dcF
 
+            , tyRational = tR
+
             , tyList = tList
             , dcCons = tCons
             , dcEmpty = tEmp
@@ -581,7 +583,7 @@ instance Named KnownValues where
             , errorWithoutStackTraceFunc = errWOST
             , patErrorFunc = patE
             }) =
-            [dI, dF, dD, dI2, dcCh, tI, tI2, tF, tD, tCh, tB, dcT, dcF
+            [dI, dF, dD, dI2, dcCh, tI, tI2, tF, tD, tCh, tB, dcT, dcF, tR
             , tList, tCons, tEmp
             , tMaybe, dJust, dNothing
             , eqT, numT, ordT, integralT, realT, fractionalT
@@ -609,6 +611,8 @@ instance Named KnownValues where
                    , tyBool = tB
                    , dcTrue = dcT
                    , dcFalse = dcF
+
+                   , tyRational = tR
 
                    , tyList = tList
                    , dcCons = tCons
@@ -679,6 +683,8 @@ instance Named KnownValues where
                         , tyBool = rename old new tB
                         , dcTrue = rename old new dcT
                         , dcFalse = rename old new dcF
+
+                        , tyRational = rename old new tR
                         
                         , tyList = rename old new tList
                         , dcCons = rename old new tCons

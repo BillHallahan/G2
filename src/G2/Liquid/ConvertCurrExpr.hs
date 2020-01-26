@@ -89,7 +89,9 @@ replaceVarWithName' _ _ e = e
 -- Furthermore, we have to be careful to not move bindings from Lambdas/other Let's
 -- out of scope.
 letLiftFuncs :: Expr -> LHStateM Expr
-letLiftFuncs = modifyAppTopE letLiftFuncs'
+letLiftFuncs e = do
+    e' <- modifyAppTopE letLiftFuncs' e
+    return $ e'
 
 letLiftFuncs' :: Expr -> LHStateM Expr
 letLiftFuncs' e
