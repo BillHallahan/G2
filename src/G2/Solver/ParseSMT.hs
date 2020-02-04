@@ -7,6 +7,7 @@ import G2.Solver.Language
 import Data.Char
 import Data.Ratio
 import Numeric
+import qualified Text.Builder as B
 
 import Text.Parsec (Parsec)
 import Text.ParserCombinators.Parsec

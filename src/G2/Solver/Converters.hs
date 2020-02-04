@@ -21,10 +21,10 @@ module G2.Solver.Converters
     , checkModel
     , SMTConverter (..) ) where
 
-import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid
+import qualified Data.Set as S
 import qualified Data.Text as T
 
 import G2.Language hiding (Assert, vars)
@@ -45,10 +45,11 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
 
     checkSat :: con -> io -> out -> IO Result
     checkSatGetModel :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result, Maybe SMTModel)
-    checkSatGetModelGetExpr :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> CurrExpr -> IO (Result, Maybe SMTModel, Maybe Expr)
+    checkSatGetModelGetExpr :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> CurrExpr
+                            -> IO (Result, Maybe SMTModel, Maybe Expr)
 
     assert :: con -> ast -> out
-    varDecl :: con -> SMTName -> ast -> out
+    varDecl :: con -> SMTNameBldr -> ast -> out
     setLogic :: con -> Logic -> out
 
     (.>=) :: con -> ast -> ast -> ast
@@ -98,8 +99,6 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
 -- | Checks if the path constraints are satisfiable
 checkConstraints :: SMTConverter con ast out io => con -> PathConds -> IO Result
 checkConstraints con pc = do
-    -- Hash, THEN remove the casts... going the other way around results in a lot of re-hashing,
-    -- when the names change
     let pc' = unsafeElimCast $ PC.toList pc
 
     let headers = toSMTHeaders pc'
@@ -142,7 +141,6 @@ getModelVal avf con s b (Id n _) pc = do
 checkNumericConstraints :: SMTConverter con ast out io => con -> PathConds -> IO (Maybe Model)
 checkNumericConstraints con pc = do
     let pc' = PC.toList pc
-        
         headers = toSMTHeaders pc'
         formula = toSolver con headers
 
@@ -168,7 +166,7 @@ toSMTHeaders = addSetLogic . toSMTHeaders'
 
 toSMTHeaders' :: [PathCond] -> [SMTHeader]
 toSMTHeaders' pc  = 
-    nub (pcVarDecls pc)
+    (pcVarDecls pc)
     ++
     (pathConsToSMTHeaders pc)
 
@@ -400,17 +398,22 @@ altToSMT (LitDouble d) _ = VDouble d
 altToSMT (LitChar c) _ = VChar c
 altToSMT am _ = error $ "Unhandled " ++ show am
 
-createVarDecls :: [(Name, Sort)] -> [SMTHeader]
-createVarDecls [] = []
-createVarDecls ((n,SortChar):xs) =
+createUniqVarDecls :: [(Name, Sort)] -> [SMTHeader]
+createUniqVarDecls xs =
+    let xs' = S.toList $ S.fromList xs
+    in createUniqVarDecls' xs'
+
+createUniqVarDecls' :: [(Name, Sort)] -> [SMTHeader]
+createUniqVarDecls' [] = []
+createUniqVarDecls' ((n,SortChar):xs) =
     let
         lenAssert = Assert $ StrLen (V (nameToStr n) SortChar) := VInt 1
     in
-    VarDecl (nameToStr n) SortChar:lenAssert:createVarDecls xs
-createVarDecls ((n,s):xs) = VarDecl (nameToStr n) s:createVarDecls xs
+    VarDecl (nameToBuilder n) SortChar:lenAssert:createUniqVarDecls' xs
+createUniqVarDecls' ((n,s):xs) = VarDecl (nameToBuilder n) s:createUniqVarDecls' xs
 
 pcVarDecls :: [PathCond] -> [SMTHeader]
-pcVarDecls = createVarDecls . pcVars
+pcVarDecls = createUniqVarDecls . pcVars
 
 -- Get's all variable required for a list of `PathCond`
 pcVars :: [PathCond] -> [(Name, Sort)]
@@ -486,7 +489,7 @@ toSolverAST con (VBool b) = bool con b
 toSolverAST con (V n s) = varName con n s
 toSolverAST _ ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
 
-toSolverVarDecl :: SMTConverter con ast out io => con -> SMTName -> Sort -> out
+toSolverVarDecl :: SMTConverter con ast out io => con -> SMTNameBldr -> Sort -> out
 toSolverVarDecl con n s = varDecl con n (sortName con s)
 
 sortName :: SMTConverter con ast out io => con -> Sort -> ast
