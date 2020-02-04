@@ -13,13 +13,21 @@ import G2.Language.AST
 import G2.Language.Naming
 import G2.Language.Syntax
 import G2.Language.Typing
+import Data.Monoid as M
+
+containsCast :: ASTContainer m Expr => m -> M.Any
+containsCast = evalASTs isCast
+
+isCast :: Expr -> M.Any
+isCast (Cast _ _) = Any True
+isCast _ = Any False
 
 -- | Removes all casts from the expression.  Makes no guarantees about the type
 -- correctness of the resulting expression.  In particular, the expression
 -- is likely to not actually type correctly if it contains variables that
 -- are mapped in the Expression Environment
 unsafeElimCast :: ASTContainer m Expr => m -> m
-unsafeElimCast = modifyContainedASTs unsafeElimOuterCast
+unsafeElimCast e = if (getAny $ containsCast e) then modifyContainedASTs unsafeElimOuterCast e else e
 
 unsafeElimOuterCast :: Expr -> Expr
 unsafeElimOuterCast (Cast e (t1 :~ t2)) = unsafeElimOuterCast $ replaceASTs t1 t2 e

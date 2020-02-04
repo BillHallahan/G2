@@ -1017,7 +1017,6 @@ minState ord pr m =
       where
           ps = processedToState pr
 
-
 --------------------------------------------------------------------------------------------------------------------------------------
 
 runReducerMerge :: (Show t, Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
