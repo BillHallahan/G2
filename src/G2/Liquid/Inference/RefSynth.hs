@@ -362,8 +362,30 @@ generateConstraints sorts meas_ex poly_names arg_tys ret_ty fcs =
         cons = map (termConstraints sorts meas_ex poly_names arg_tys ret_ty) fcs
         cons' = filterPosAndNegConstraints cons
         cons'' = map termConstraintToConstraint cons'
+
+        exists = existentialConstraints sorts meas_ex poly_names arg_tys ret_ty
     in
-    cons''
+    exists ++ cons''
+
+-- | Prevents any refinements from being set to "False" (or equivalent, i.e. 0 < 0)
+existentialConstraints :: TypesToSorts -> MeasureExs -> RefNamePolyBound -> [Type] -> Type -> [Cmd]
+existentialConstraints sorts meas_ex poly_names arg_tys ret_ty =
+    let
+        rt_bound = extractTypePolyBound ret_ty
+        ns_rt = zipPB rt_bound poly_names
+    in
+    mapMaybe (fmap Constraint . uncurry (existentialTerms sorts meas_ex arg_tys)) $ extractValues ns_rt
+
+
+existentialTerms :: TypesToSorts -> MeasureExs -> [Type] -> Type -> String -> Maybe Term
+existentialTerms _ _ _ (TyVar _) _ = Nothing
+existentialTerms sorts meas_ex arg_tys ret_ty fn =
+    let
+        ar_vs = map (\(i, t) -> ("arg" ++ show i, typeToSort sorts t)) $ zip [0..] arg_tys
+        srt_v = ("e_ret", typeToSort sorts ret_ty)
+    in
+    Just . TermExists (map (uncurry SortedVar) $ srt_v:ar_vs)
+        $ TermCall (ISymb fn) (map (TermIdent . ISymb . fst) ar_vs ++ [TermIdent (ISymb "e_ret")])
 
 termConstraints :: TypesToSorts -> MeasureExs -> RefNamePolyBound -> [Type] -> Type -> FuncConstraint -> TermConstraint
 termConstraints sorts meas_ex poly_names arg_tys ret_ty (Pos fc) =
@@ -391,7 +413,7 @@ funcCallTerm sorts meas_ex poly_names arg_tys ret_ty fc@(FuncCall { arguments = 
     mapMaybe (\(r, rt, n) -> funcCallTerm' sorts meas_ex arg_tys ars r rt n) $ ns_r_bound' -- r
     where
         expand1 :: ([a], b, c) -> [(ValOrExistential a, b, c)]
-        expand1 ([], b, c) = [(Existential, b, c) ]
+        expand1 ([], b, c) = [(Existential, b, c)]
         expand1 (as, b, c) = map (\a -> (Val a, b, c)) as 
 
 funcCallTerm' :: TypesToSorts -> MeasureExs -> [Type] -> [G2.Expr] -> ValOrExistential G2.Expr -> Type -> String -> Maybe Term
