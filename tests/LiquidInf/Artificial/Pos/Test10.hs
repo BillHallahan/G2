@@ -1,4 +1,4 @@
-module Double where
+module Double () where
 
 {-@ f :: x:Double -> { y:Double | y > x } @-}
 f :: Double -> Double

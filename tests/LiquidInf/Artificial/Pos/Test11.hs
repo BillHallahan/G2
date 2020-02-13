@@ -4,7 +4,7 @@
 
 {-# LANGUAGE DeriveGeneric #-}
 
-module Combined where
+module Combined () where
 
 data R = R
 data Assocs = Assocs R

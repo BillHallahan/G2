@@ -1,6 +1,6 @@
 {-@ LIQUID "--no-termination" @-}
 
-module PosList where
+module PosList () where
 
 data List a = Emp
             | (:+:) a (List a)

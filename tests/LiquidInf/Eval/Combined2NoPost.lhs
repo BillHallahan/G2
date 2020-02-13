@@ -322,7 +322,7 @@ Step 2: Group By Key
 {-@ group :: (Ord k) => List (k, v) -> M.Map k (List v) @-}
 group     = foldr addKV  M.empty
 
-{-@ addKV :: Ord k => (k, b) -> M.Map k (List b) -> M.Map k (List b) @-}
+{-@ addKV :: Ord k => (k, b) -> M.Map k (ListNE b) -> M.Map k (ListNE b) @-}
 addKV (k,v) m = M.insert k vs' m
   where
     vs'       = add v (M.findWithDefault empty k m)

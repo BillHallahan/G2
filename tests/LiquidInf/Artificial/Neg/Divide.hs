@@ -1,4 +1,4 @@
-module Divide where
+module Divide () where
 
 {-@ divide :: Int -> Double @-}
 divide :: Int -> Double

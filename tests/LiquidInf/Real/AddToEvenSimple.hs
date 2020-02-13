@@ -1,4 +1,4 @@
-module AddToEvenSimple where
+module AddToEvenSimple () where
 
 import Prelude hiding (zipWith)
 

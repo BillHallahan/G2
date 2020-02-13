@@ -2,9 +2,7 @@
 {-@ LIQUID "--no-termination" @-}
 {-@ LIQUID "--prune-unsorted" @-}
 
-module List ( List
-            , zipWith
-            ) where
+module List () where
 
 import Prelude hiding (length, replicate, foldr, foldr1, map, concat, zipWith)
 

@@ -2,7 +2,7 @@
 {-@ LIQUID "--no-termination" @-}
 {-@ LIQUID "--prune-unsorted" @-}
 
-module Test11 where
+module Test11 () where
 
 import qualified Data.Map as M
 

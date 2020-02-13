@@ -2,7 +2,7 @@
 {-@ LIQUID "--no-termination" @-}
 {-@ LIQUID "--prune-unsorted" @-}
 
-module Combined  where
+module Combined () where
 
 import Prelude hiding (length, replicate, foldr, foldr1, map, concat, zipWith, repeat)
 

@@ -4,7 +4,7 @@
 
 {-# LANGUAGE MagicHash #-}
 
-module Divide where
+module Divide () where
 
 import GHC.Exts
 

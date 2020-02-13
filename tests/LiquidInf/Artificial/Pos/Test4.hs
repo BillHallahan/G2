@@ -2,7 +2,7 @@
 {-@ LIQUID "--no-termination" @-}
 {-@ LIQUID "--prune-unsorted" @-}
 
-module Combined where
+module Combined () where
 
 {-@ f :: {v:Int | v == 0} @-}
 f :: Int

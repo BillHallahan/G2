@@ -4,7 +4,7 @@
 
 {-# LANGUAGE DeriveGeneric #-}
 
-module Combined where
+module Combined () where
 
 import qualified Data.Map as M
 
