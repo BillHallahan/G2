@@ -41,4 +41,5 @@ replicate n x
   | n == 0    = empty
   | otherwise = x :+: replicate (n - 1) x
 
+{-@ prop_replicate :: Nat -> a -> TRUE @-}
 prop_replicate n x = lAssert (n == length (replicate n x))
