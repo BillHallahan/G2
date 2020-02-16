@@ -30,12 +30,10 @@ data List = Emp
 
 {-@ invariant {v:List | 0 <= size v} @-}
 
-{-@ length :: xs : List -> Int @-}
 length            :: List -> Int
 length Emp        = 0
 length (x :+: xs) = 1 + length xs
 
-{-@ zipWith :: (Int -> Int) -> xa : List -> List @-}
 zipWith _ _               = Emp
 
 {-@ prop_zipWith :: List -> TRUE @-}

@@ -10,12 +10,10 @@ data List a = Emp
 filterAndSum :: List Int -> Int
 filterAndSum xs = sumList (filterPos xs)
 
-{-@ sumList :: List { x:Int | x >= 0 } -> Int @-}
 sumList :: List Int -> Int
 sumList Emp = 0
 sumList (x :+: xs) = x + sumList xs
 
-{-@ filterPos :: List Int -> List Int @-}
 filterPos :: List Int -> List Int
 filterPos Emp = Emp
 filterPos (x :+: xs)

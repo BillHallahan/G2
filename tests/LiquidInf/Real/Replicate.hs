@@ -31,18 +31,14 @@ data List a = Emp
 
 {-@ invariant {v:List a | 0 <= size v} @-}
 
-{-@ length :: xs : List a -> Int @-}
 length            :: List a -> Int
 length Emp        = 0
 length (x :+: xs) = 1 + length xs
 
-{-@ empty :: List a @-}
 empty = Emp
 
-{-@ replicate :: n : Nat -> a -> List a @-}
 replicate n x
   | n == 0    = empty
   | otherwise = x :+: replicate (n - 1) x
 
-{-@ prop_replicate :: Nat -> a -> TRUE @-}
 prop_replicate n x = lAssert (n == length (replicate n x))

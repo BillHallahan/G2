@@ -30,12 +30,10 @@ data List a = Emp
 
 {-@ invariant {v:List a | 0 <= size v} @-}
 
-{-@ length :: xs : List a -> Int @-}
 length            :: List a -> Int
 length Emp        = 0
 length (x :+: xs) = 1 + length xs
 
-{-@ zipWith :: (a -> b -> c) -> xa : List a -> { xb : List b | size xa = size xb } -> List c @-}
 zipWith _ Emp Emp               = Emp
 zipWith f (x :+: xs) (y :+: ys) = f x y :+: zipWith f xs ys
 zipWith f _          _          = die  "Bad call to zipWith"

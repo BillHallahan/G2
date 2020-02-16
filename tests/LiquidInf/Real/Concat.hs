@@ -27,7 +27,6 @@ concat Emp = Emp
 concat (xs :+: Emp) = xs
 concat (xs :+: (ys :+: xss)) = concat ((append xs ys) :+: xss)
 
-{-@ append :: List a -> List a -> List a @-}
 append :: List a -> List a -> List a
 append xs Emp = xs
 append Emp ys = ys

@@ -28,35 +28,29 @@ sumsize (x :+: xs) = size x + sumsize xs
 concatFilterPosNeg :: List (List Int) -> (List Int, List Int)
 concatFilterPosNeg xs = (concatFilterPos xs, concatFilterNeg xs)
 
-{-@ concatFilterNeg :: xs:List (List Int) -> List Int @-}
 concatFilterNeg :: List (List Int) -> List Int
 concatFilterNeg xs = filterNeg (concat xs)
 
-{-@ concatFilterPos :: xs:List (List Int) -> List Int @-}
 concatFilterPos :: List (List Int) -> List Int
 concatFilterPos xs = filterPos (concat xs)
 
-{-@ filterNeg :: List Int -> List Int @-}
 filterNeg :: List Int -> List Int
 filterNeg Nil = Nil
 filterNeg (x :+: xs)
     | x < 0 = x :+: filterNeg xs
     | otherwise = filterNeg xs
 
-{-@ filterPos :: List Int -> List Int @-}
 filterPos :: List Int -> List Int
 filterPos Nil = Nil
 filterPos (x :+: xs)
     | x > 0 = x :+: filterPos xs
     | otherwise = filterPos xs
 
-{-@ concat :: List (List a) -> List a @-}
 concat :: List (List a) -> List a
 concat Nil = Nil
 concat (xs :+: Nil) = xs
 concat (xs :+: (ys :+: xss)) = concat ((append xs ys) :+: xss)
 
-{-@ append :: List a -> List a -> List a @-}
 append :: List a -> List a -> List a
 append xs Nil = xs
 append Nil ys = ys
