@@ -152,4 +152,6 @@ pprintMany xs = vcat [ F.pprint x $+$ text " " | x <- xs ]
 solveCs :: Config -> FilePath -> CGInfo -> GhcInfo -> IO (F.Result (Integer, Cinfo))
 solveCs cfg tgt cgi info = do
   finfo <- cgInfoFInfo info cgi
-  solve (fixConfig tgt cfg) finfo
+  -- We only want qualifiers we have found with G2 Inference, so we have to force the correct set here
+  let finfo' = finfo { F.quals = gsQualifiers . spec $ info }
+  solve (fixConfig tgt cfg) finfo'
