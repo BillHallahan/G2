@@ -95,6 +95,7 @@ library
                        , G2.Liquid.Measures
                        , G2.Liquid.MkLHVals
                        , G2.Liquid.Simplify
+                       , G2.Liquid.Sorts
                        , G2.Liquid.SpecialAsserts
                        , G2.Liquid.TCGen
                        , G2.Liquid.TCValues

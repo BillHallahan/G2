@@ -1,7 +1,7 @@
 {-@ LIQUID "--no-termination" @-}
 
 module PosList () where
-
+	
 data List a = Emp
             | (:+:) a (List a)
               deriving (Eq, Ord, Show)

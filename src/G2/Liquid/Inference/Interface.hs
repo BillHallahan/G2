@@ -21,14 +21,20 @@ import G2.Liquid.Types
 import G2.Translation
 
 import Language.Haskell.Liquid.Types as LH
+import Language.Fixpoint.Types (Qualifier)
 
 import Control.Monad
 import Data.Either
 import qualified Data.HashSet as S
 import Data.List
+import Data.Monoid
 import qualified Data.Text as T
 
 import Language.Haskell.Liquid.Types
+import Language.Haskell.Liquid.Types.RefType
+
+import Name (nameOccName, occNameString)
+import Var (varName, varType)
 
 inference :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO (Either [CounterExample] GeneratedSpecs)
 inference infconfig config proj fp lhlibs = do
@@ -36,6 +42,8 @@ inference infconfig config proj fp lhlibs = do
     lhconfig <- lhConfig proj lhlibs
     let lhconfig' = lhconfig { pruneUnsorted = True }
     ghci <- ghcInfos Nothing lhconfig' fp
+
+    mapM (print . gsQualifiers . spec) ghci
 
     -- Initialize G2
     let g2config = config { mode = Liquid
@@ -94,9 +102,11 @@ inference' infconfig g2config lhconfig ghci m_modname lrs gs fc = do
                     putStrLn "Before genMeasureExs"
                     meas_ex <- genMeasureExs lrs merged_ghci g2config fc'
                     putStrLn "After genMeasureExs"
-                    gs' <- foldM (synthesize infconfig ghci lrs meas_ex fc') gs new_fc_funcs
+                    ghci' <- foldM (synthesize infconfig lrs meas_ex fc') ghci new_fc_funcs
+                    -- gs' <- foldM (synthesize infconfig ghci lrs meas_ex fc') gs new_fc_funcs
                     
-                    inference' infconfig g2config lhconfig ghci m_modname lrs gs' fc'
+                    inference' infconfig g2config lhconfig ghci' m_modname lrs gs fc'
+                    -- inference' infconfig g2config lhconfig ghci m_modname lrs gs' fc'
 
 createStateForInference :: SimpleState -> G2.Config -> [GhcInfo] -> LiquidReadyState
 createStateForInference simp_s config ghci =
@@ -137,15 +147,18 @@ genMeasureExs lrs ghci g2config fcs =
     in
     evalMeasures lrs ghci g2config es
 
-synthesize :: InferenceConfig -> [GhcInfo] -> LiquidReadyState -> MeasureExs -> FuncConstraints -> GeneratedSpecs -> Name -> IO GeneratedSpecs
-synthesize infconfig ghci lrs meas_ex fc gs n = do
+synthesize :: InferenceConfig -> LiquidReadyState -> MeasureExs -> FuncConstraints -> [GhcInfo] -> Name -> IO [GhcInfo] -- IO GeneratedSpecs
+synthesize infconfig lrs meas_ex fc ghci n@(Name n' _ _ _) = do
     let eenv = expr_env . state $ lr_state lrs
         tc = type_classes . state $ lr_state lrs
 
         fc_of_n = lookupFC n fc
-        spec = case findFuncSpec ghci n of
-                Just spec' -> spec'
-                Nothing -> error $ "synthesize: No spec found for " ++ show n
+        func_spec = case find (\v -> (T.pack . occNameString . nameOccName $ varName v) == n') $ concatMap defVars ghci of
+                        Just v -> ofType (varType v)
+                        Nothing -> error $ "synthesize: No spec found for " ++ show n
+        -- func_spec = case findFuncSpec ghci n of
+        --         Just spec' -> spec'
+        --         Nothing -> error $ "synthesize: No spec found for " ++ show n
         e = case E.occLookup (nameOcc n) (nameModule n) eenv of
                 Just e' -> e'
                 Nothing -> error $ "synthesize: No expr found"
@@ -153,15 +166,19 @@ synthesize infconfig ghci lrs meas_ex fc gs n = do
         meas = lrsMeasures ghci lrs
 
     print $ "Synthesize spec for " ++ show n
-    new_spec <- refSynth infconfig spec e tc meas meas_ex fc_of_n (measureSymbols ghci)
+    new_spec <- refSynth infconfig func_spec e tc meas meas_ex fc_of_n (measureSymbols ghci) (foldr (<>) mempty $ map (gsTcEmbeds . spec) ghci)
 
     case new_spec of
         Just new_spec' -> do
-            putStrLn $ "spec = " ++ show spec
+            putStrLn $ "func_spec = " ++ show func_spec
             putStrLn $ "new_spec = " ++ show new_spec'
 
-            return $ insertGS n new_spec' gs
-        Nothing -> return gs
+            return $ map (addQualifiers new_spec') ghci -- return $ insertGS n new_spec' gs
+        Nothing -> return ghci
+
+addQualifiers :: [Qualifier] -> GhcInfo -> GhcInfo
+addQualifiers quals ghci@(GI { spec = sp@(SP { gsQualifiers = quals' })}) =
+    ghci { spec = sp { gsQualifiers = quals ++ quals' }}
 
 -- | Converts counterexamples into constraints that the refinements must allow for, or rule out.
 cexsToFuncConstraints :: LiquidReadyState -> [GhcInfo] -> InferenceConfig -> G2.Config -> CounterExample -> IO (Either CounterExample [FuncConstraint])

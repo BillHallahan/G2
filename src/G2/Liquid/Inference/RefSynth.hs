@@ -23,6 +23,7 @@ import G2.Language.TypeClasses
 import G2.Language.Typing
 import G2.Liquid.Conversion
 import G2.Liquid.Helpers
+import qualified G2.Liquid.Sorts as LH
 import G2.Liquid.Types
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.FuncConstraint
@@ -34,6 +35,8 @@ import Sygus.ParseSygus
 import Sygus.Print
 import Sygus.Syntax as Sy
 import Language.Haskell.Liquid.Types as LH
+import Language.Haskell.Liquid.Types.RefType
+import Language.Fixpoint.Types.Constraints
 import Language.Fixpoint.Types.Refinements as LH
 import qualified Language.Fixpoint.Types as LH
 
@@ -54,10 +57,12 @@ import System.IO
 import System.IO.Temp
 import qualified System.Process as P
 
+import TyCon
+
 import Debug.Trace
 
-refSynth :: InferenceConfig -> SpecType -> G2.Expr -> TypeClasses -> Measures -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> IO (Maybe (PolyBound LH.Expr))
-refSynth infconfig spc e tc meas meas_ex fc meas_sym = do
+refSynth :: InferenceConfig -> SpecType -> G2.Expr -> TypeClasses -> Measures -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> LH.TCEmb TyCon -> IO (Maybe [Qualifier])
+refSynth infconfig spc e tc meas meas_ex fc meas_sym tycons = do
         putStrLn "refSynth"
         let (call, f_num, rp_ns) = sygusCall e tc meas meas_ex fc
         let sygus = printSygus call
@@ -72,11 +77,11 @@ refSynth infconfig spc e tc meas meas_ex fc meas_sym = do
                 return Nothing
                 -- error "refSynth: Bad call to CVC4"
             Right smt_st -> do
-                let lh_st = refToLHExpr spc rp_ns smt_st meas_sym
+                let lh_quals = refToQualifiers spc rp_ns smt_st meas_sym tycons
 
-                print smt_st
+                print lh_quals
 
-                return $ Just lh_st
+                return $ Just lh_quals
 
 -------------------------------
 -- Constructing Sygus Formula
@@ -752,13 +757,36 @@ stripUnsat :: String -> String
 stripUnsat ('u':'n':'s':'a':'t':xs) = xs
 stripUnsat xs = xs
 
+refToQualifiers :: SpecType -> RefNamePolyBound -> [Cmd] -> MeasureSymbols -> LH.TCEmb TyCon -> [Qualifier]
+refToQualifiers st rp_ns cmds meas_sym tycons =
+    let
+        termsPB = defineFunsPB cmds rp_ns
+        (lh_e, ars, ret) = refToLHExpr' st termsPB meas_sym
+    in
+    map (uncurry (refToQualifier tycons ars)) . extractValues $ zipPB ret lh_e
+
+refToQualifier :: LH.TCEmb TyCon -> [(LH.Symbol, SpecType)] -> (LH.Symbol, SpecType) -> LH.Expr -> Qualifier
+refToQualifier tycons ars ret e =
+    Q { qName = "G2"
+      , qParams = map (mkParam tycons) (ret:ars)
+      , qBody = e
+      , qPos = LH.dummyPos "G2" }
+
+mkParam :: LH.TCEmb TyCon -> (LH.Symbol, SpecType) -> (LH.Symbol, LH.Sort)
+mkParam tycons (symb, st) = (symb, funcHead $ rTypeSort tycons st)
+    where
+        funcHead (LH.FFunc h _) = h
+        funcHead s = s
+
 refToLHExpr :: SpecType -> RefNamePolyBound -> [Cmd] -> MeasureSymbols -> PolyBound LH.Expr
 refToLHExpr st rp_ns cmds meas_sym =
     let
         termsPB = defineFunsPB cmds rp_ns
         -- termsPB' = shiftPB termsPB
+    
+        (lh_e, _, _) = refToLHExpr' st termsPB meas_sym
     in
-    refToLHExpr' st termsPB meas_sym
+    lh_e
 
 defineFunsPB :: [Cmd] -> RefNamePolyBound -> PolyBound ([SortedVar], Term)
 defineFunsPB cmds = mapPB (defineFunsPB' cmds)
@@ -801,13 +829,16 @@ shiftPB' (PolyBound svt@(sv, t) svts) =
     in
     PolyBound (sv_new, t_new) (shift_new ++ leave)
 
-refToLHExpr' :: SpecType -> PolyBound ([SortedVar], Term) -> MeasureSymbols -> PolyBound LH.Expr
+refToLHExpr' :: SpecType -> PolyBound ([SortedVar], Term) -> MeasureSymbols -> (PolyBound LH.Expr, [(LH.Symbol, SpecType)], PolyBound (LH.Symbol, SpecType))
 refToLHExpr' st pb_sv_t meas_sym =
     let
-        (ars, ret) =  specTypeSymbols st
+        (ars_st, ret_st) =  specTypeAlsoSymbols st
+        ars = map fst ars_st
+        ret = mapPB fst ret_st
+
         pb_sv_t_ret = mapPB (\((sv, t), r) -> (sv, t, r)) $ zipPB pb_sv_t ret
     in
-    mapPB (uncurry3 (refToLHExpr'' meas_sym ars )) pb_sv_t_ret
+    (mapPB (uncurry3 (refToLHExpr'' meas_sym ars )) pb_sv_t_ret, ars_st, ret_st)
 
 refToLHExpr'' :: MeasureSymbols -> [LH.Symbol] -> [SortedVar] -> Term -> LH.Symbol -> LH.Expr
 refToLHExpr'' meas_sym symbs ars trm ret =
@@ -880,24 +911,51 @@ litToLHConstant (LitNum n) = ECon (I n)
 litToLHConstant (LitBool b) = if b then PTrue else PFalse
 litToLHConstant l = error $ "litToLHConstant: Unhandled literal " ++ show l
 
+-------------------
+
+specTypeAlsoSymbols :: SpecType -> ([(LH.Symbol, SpecType)], PolyBound (LH.Symbol, SpecType))
+specTypeAlsoSymbols st =
+    let
+        (sts, pb_st) = specTypePieces st
+
+        ars = map (\(s, i) -> (LH.symbol ("x" ++ show i), s)) $ zip sts ([0..] :: [Int])
+        r = mapPB (\s -> (specTypeSymbol s, s)) pb_st
+    in
+    (ars , r)
+
 specTypeSymbols :: SpecType -> ([LH.Symbol], PolyBound LH.Symbol)
-specTypeSymbols st = specTypeSymbols' [] st
+specTypeSymbols st =
+    let
+        (sts, pb_st) = specTypePieces st
+    in
+    (map specTypeSymbol sts, mapPB specTypeSymbol pb_st)
 
-specTypeSymbols' :: [LH.Symbol] -> SpecType -> ([LH.Symbol], PolyBound LH.Symbol)
-specTypeSymbols' symbs (RFun { rt_bind = b, rt_in = i, rt_out = out }) =
+specTypeSymbol :: SpecType -> LH.Symbol
+specTypeSymbol (RFun { rt_bind = b }) = b
+specTypeSymbol (RApp { rt_reft = ref }) = reftSymbol $ ur_reft ref
+specTypeSymbol (RVar { rt_reft = ref }) = reftSymbol $ ur_reft ref
+specTypeSymbol _ = error $ "specTypeSymbol: SpecType not handled"
+
+specTypePieces :: SpecType -> ([SpecType], PolyBound SpecType)
+specTypePieces st = specTypePieces' [] st
+
+specTypePieces' :: [SpecType] -> SpecType -> ([SpecType], PolyBound SpecType)
+specTypePieces' sts rfun@(RFun { rt_in = i, rt_out = out }) =
     case i of
-        RVar {} -> specTypeSymbols' symbs out
-        RFun {} -> specTypeSymbols' symbs out
-        _ -> specTypeSymbols' (b:symbs) out
-specTypeSymbols' symbs rapp@(RApp {}) = (reverse symbs, specTypeRAppSymbs rapp)
-specTypeSymbols' _ (RVar {}) = error "specTypeSymbols': passed RVar"
-specTypeSymbols' symbs (RAllT { rt_ty = out }) = specTypeSymbols' symbs out
+        RVar {} -> specTypePieces' sts out
+        RFun {} -> specTypePieces' sts out
+        _ -> specTypePieces' (rfun:sts) out
+specTypePieces' sts rapp@(RApp {}) = (reverse sts, specTypeRAppPieces rapp)
+specTypePieces' _ (RVar {}) = error "specTypePieces': passed RVar"
+specTypePieces' sts (RAllT { rt_ty = out }) = specTypePieces' sts out
 
-specTypeRAppSymbs :: SpecType -> PolyBound LH.Symbol
-specTypeRAppSymbs (RApp { rt_reft = ref, rt_args = ars }) =
-    PolyBound (reftSymbol $ ur_reft ref) $ map specTypeRAppSymbs ars
-specTypeRAppSymbs (RVar { rt_var = v, rt_reft = ref }) = trace ("v = " ++ show v) PolyBound (reftSymbol $ ur_reft ref) []
-specTypeRAppSymbs r = error $ "specTypeRAppSymbs: Unexpected SpecType" ++ "\n" ++ show r
+specTypeRAppPieces :: SpecType -> PolyBound SpecType
+specTypeRAppPieces rapp@(RApp { rt_reft = ref, rt_args = ars }) =
+    PolyBound rapp $ map specTypeRAppPieces ars
+specTypeRAppPieces rvar@(RVar {}) = PolyBound rvar []
+specTypeRAppPieces r = error $ "specTypeRAppPieces: Unexpected SpecType" ++ "\n" ++ show r
+
+-------------------
 
 reftSymbol :: Reft -> LH.Symbol
 reftSymbol = fst . unpackReft

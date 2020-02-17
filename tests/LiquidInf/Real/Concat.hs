@@ -1,10 +1,13 @@
 {-@ LIQUID "--prune-unsorted" @-}
+{-@ LIQUID "--no-termination" @-}
 
 -- {-@ include <include/Concat.hquals> @-}
 
 module Concat (size, sumsize) where
 
 import Prelude hiding (concat)
+
+-- {-@ qualif SumSizes(rs:Concat.List a, xs:Concat.List a, ys:Concat.List a) : Concat.size xs + Concat.size ys == Concat.size rs@-}
 
 data List a = a :+: List a
             | Emp
