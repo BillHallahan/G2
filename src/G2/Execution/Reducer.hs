@@ -328,11 +328,11 @@ SomeReducer r1 <~| SomeReducer r2 = SomeReducer (r1 :<~| r2)
 
 data StdRed solver simplifier = StdRed Sharing Merging solver simplifier
 
-instance (Solver solver, Simplifier simplifier) => Reducer (StdRed solver simplifier) () t where
+instance (TrSolver solver, Simplifier simplifier) => Reducer (StdRed solver simplifier) () t where
     initReducer _ _ = ()
 
-    redRules stdr@(StdRed share mergeStates solver simplifier) _ s b = do
-        (r, s', b') <- stdReduce share mergeStates solver simplifier s b
+    redRules (StdRed share mergeStates solver simplifier) _ s b = do
+        (r, s', b', solver') <- stdReduce share mergeStates solver simplifier s b
         let res = case r of
                     RuleHitMergePt -> MergePoint
                     RuleEvalCaseSym -> Split
@@ -340,7 +340,7 @@ instance (Solver solver, Simplifier simplifier) => Reducer (StdRed solver simpli
                     RuleIdentity -> Finished
                     _ -> InProgress
 
-        return (res, s', b', stdr)
+        return (res, s', b', StdRed share mergeStates solver' simplifier)
 
 -- | Removes and reduces the values in a State's non_red_path_conds field. 
 data NonRedPCRed = NonRedPCRed
@@ -877,7 +877,8 @@ succNTimes x b
 --------
 
 -- | Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
-runReducer :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) => r -> h -> or -> State t -> Bindings -> IO (Processed (State t), Bindings)
+runReducer :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) => r -> h -> or -> State t -> Bindings
+            -> IO (Processed (State t), Bindings)
 runReducer red hal ord s b = do
     let pr = Processed {accepted = [], discarded = []}
     let s' = ExState { state = s

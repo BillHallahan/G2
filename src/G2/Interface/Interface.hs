@@ -65,8 +65,6 @@ import qualified Data.Text as T
 
 import System.Timeout
 
-import G2.Lib.Printers
-
 type AssumeFunc = T.Text
 type AssertFunc = T.Text
 type ReachFunc = T.Text
@@ -198,7 +196,8 @@ initCheckReaches s@(State { expr_env = eenv
                           , known_values = kv }) m_mod reaches =
     s {expr_env = checkReaches eenv kv reaches m_mod }
 
-initRedHaltOrd :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Config -> (SomeReducer (), SomeHalter (), SomeOrderer ())
+initRedHaltOrd :: (TrSolver solver, Simplifier simplifier) => solver -> simplifier -> Config 
+                -> (SomeReducer (), SomeHalter (), SomeOrderer ())
 initRedHaltOrd solver simplifier config =
     let
         share = sharing config
@@ -230,16 +229,17 @@ initRedHaltOrd solver simplifier config =
                  :<~> AcceptHalter)
              , SomeOrderer $ PickLeastUsedOrderer)
 
-initSolver :: Config -> IO SomeSolver
+initSolver :: Config -> IO SomeTrSolver
 initSolver = initSolver' arbValue
 
-initSolverInfinite :: Config -> IO SomeSolver
+initSolverInfinite :: Config -> IO SomeTrSolver
 initSolverInfinite con = initSolver' arbValueInfinite con
 
-initSolver' :: ArbValueFunc -> Config -> IO SomeSolver
+initSolver' :: ArbValueFunc -> Config -> IO SomeTrSolver
 initSolver' avf config = do
     SomeSMTSolver con <- getSMTAV avf config
-    return $ SomeSolver (GroupRelated avf (UndefinedHigherOrder :?> con))
+    return $ SomeTrSolver (AssumePCSolver avf (Cache (HM.empty)) (UndefinedHigherOrder :?> con))
+    -- return $ SomeSolver (GroupRelated avf (UndefinedHigherOrder :?> con))
 
 mkExprEnv :: [(Id, Expr)] -> E.ExprEnv
 mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e))
@@ -295,13 +295,12 @@ runG2FromFile proj src libs m_assume m_assert m_reach def_assert f config = do
 runG2WithConfig :: State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
 runG2WithConfig state config bindings = do
     let mergeStates = stateMerging config
-    SomeSolver solver <- initSolver config
+    SomeTrSolver solver <- initSolver config
     let simplifier = IdSimplifier -- :<< EliminateAssumePCs
 
     (in_out, bindings') <- case initRedHaltOrd solver simplifier config of
-                (red, hal, ord) ->
-                    runG2WithSomes red hal ord solver simplifier mergeStates [] state bindings
-    close solver
+                (red, hal, ord) -> runG2WithSomes red hal ord solver simplifier mergeStates [] state bindings
+    closeTr solver
 
     return (in_out, bindings')
 
@@ -310,7 +309,7 @@ runG2WithSomes :: ( Named t
                   , Show t
                   , ASTContainer t Expr
                   , ASTContainer t Type
-                  , Solver solver
+                  , TrSolver solver
                   , Simplifier simplifier)
                => (SomeReducer t)
                -> (SomeHalter t)
@@ -344,7 +343,7 @@ runG2Post :: ( Named t
              , Reducer r rv t
              , Halter h hv t
              , Orderer or sov b t
-             , Solver solver
+             , TrSolver solver
              , Simplifier simplifier) => r -> h -> or ->
              solver -> simplifier -> State t -> Bindings -> Merging -> IO ([ExecRes t], Bindings)
 runG2Post red hal ord solver simplifier is bindings mergeStates = do
@@ -371,12 +370,12 @@ runG2ThroughExecution red hal ord simplifier mergeStates pns is bindings = do
 runG2Solving :: ( Named t
                 , ASTContainer t Expr
                 , ASTContainer t Type
-                , Solver solver
+                , TrSolver solver
                 , Simplifier simplifier) =>
                 solver -> simplifier -> Bindings -> State t -> IO (Maybe (ExecRes t))
 runG2Solving solver simplifier bindings s@(State { known_values = kv })
     | true_assert s = do
-        (_, m) <- solve solver s bindings (S.toList $ symbolic_ids s) (path_conds s)
+        (_, m, _) <- solveTr solver s bindings (S.toList $ symbolic_ids s) (path_conds s)
         case m of
             Just m' -> do
                 let m'' = reverseSimplification simplifier s bindings m'
@@ -412,7 +411,7 @@ runG2 :: ( Named t
          , Reducer r rv t
          , Halter h hv t
          , Orderer or sov b t
-         , Solver solver
+         , TrSolver solver
          , Simplifier simplifier) => r -> h -> or ->
          solver -> simplifier -> Merging -> [Name] -> State t -> Bindings -> IO ([ExecRes t], Bindings)
 runG2 red hal ord solver simplifier mergeStates pns is bindings = do

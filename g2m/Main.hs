@@ -10,7 +10,7 @@ import Data.Maybe
 
 main :: IO ()
 main = do
-    mergeEffectiveTests
+    mergeSlowdownTests
 
 mergeEffectiveTests :: IO ()
 mergeEffectiveTests = do
@@ -59,8 +59,8 @@ mergeEffectiveTests = do
 
 -- mergeSlowdownTests :: IO ()
 -- mergeSlowdownTests = do
-    -- timeIOActionPrint "sumEvensTestSlow" $ [g2| \(x :: Int) -> ?(xs :: [Int]) | sumEvensSlow xs x |] 3
-    -- timeIOActionPrint "sumEvensTestSlowSM" $ [g2M| \(x :: Int) -> ?(xs :: [Int]) | sumEvensSlow xs x |] 3
+    -- timeIOActionPrint "sumEvensTestSlow" $ [g2| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTestSlow xs x |] 3
+    -- timeIOActionPrint "sumEvensTestSlowSM" $ [g2M| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTestSlow xs x |] 3
 
     -- timeIOActionPrint "compress" $ [g2| \(ys :: [Int]) -> ?(xs :: [Int]) | compressTest xs ys |] [1,2,3]
     -- timeIOActionPrint "compressSM" $ [g2M| \(ys :: [Int]) -> ?(xs :: [Int]) | compressTest xs ys |] [1,2,3]
@@ -68,8 +68,8 @@ mergeEffectiveTests = do
     -- timeIOActionPrint "compress2" $ [g2| \(a :: Int) -> ?(xs :: [Int]) ?(ys :: [Int]) | compressTest2 a xs ys |] 1
     -- timeIOActionPrint "compress2SM" $ [g2M| \(a :: Int) -> ?(xs :: [Int]) ?(ys :: [Int]) | compressTest2 a xs ys |] 1
 
-    -- timeIOActionPrint "compress3" $ [g2| \(a :: Int) -> ?(xs :: [Int]) | compressTest3 a xs |] 11
-    -- timeIOActionPrint "compress3SM" $ [g2M| \(a :: Int) -> ?(xs :: [Int]) | compressTest3 a xs |] 11
+    -- timeIOActionPrint "compress3" $ [g2| \(a :: Int) -> ?(xs :: [Int]) | compressTest3 a xs |] 10
+    -- timeIOActionPrint "compress3SM" $ [g2M| \(a :: Int) -> ?(xs :: [Int]) | compressTest3 a xs |] 10
 
     -- timeIOActionPrint "runLengthEncode" $ [g2| \(a :: Int) -> ?(xs :: [Int]) | runLengthEncodeTest a xs |] 4
     -- timeIOActionPrint "runLengthEncodeSM" $ [g2M| \(a :: Int) -> ?(xs :: [Int]) | runLengthEncodeTest a xs |] 4

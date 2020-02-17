@@ -137,6 +137,7 @@ library
                        , G2.Solver.Language
                        , G2.Solver.ParseSMT
                        , G2.Solver.SMT2
+                       , G2.Solver.AssumePCSolver
 
                        , G2.Translation.Haskell
                        , G2.Translation.HaskellCheck

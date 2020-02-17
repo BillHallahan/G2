@@ -111,7 +111,7 @@ runLHCore entry (mb_modname, exg2) ghci_cg config = do
                                                        , last_var = Nothing
                                                        , annotations = annm} }
 
-    SomeSolver solver <- initSolver config
+    SomeTrSolver solver <- initSolver config
     let simplifier = IdSimplifier
 
     -- We replace certain function name lists in the final State with names
@@ -182,7 +182,7 @@ runLHCore entry (mb_modname, exg2) ghci_cg config = do
     -- mapM (\(s, _, _, _) -> putStrLn . pprExecStateStr $ s) states
     -- mapM (\(_, es, e, ais) -> do print es; print e; print ais) states
 
-    close solver
+    closeTr solver
 
     return ((exec_res, final_bindings), ifi)
 

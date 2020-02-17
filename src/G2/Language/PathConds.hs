@@ -6,7 +6,7 @@
 
 module G2.Language.PathConds ( PathConds(..)
                              , PathCond (..)
-                             , HashedPathCond
+                             , HashedPathCond(..)
                              , Constraint
                              , Assertion
                              , mkAssumePC
@@ -18,10 +18,12 @@ module G2.Language.PathConds ( PathConds(..)
                              , map
                              , mapHashedPCs
                              , map'
+                             , mapHashedPCs'
                              , filter
                              , alter
                              , alterHashed
                              , insert
+                             , insertHashed
                              , null
                              , number
                              , relevant
@@ -75,6 +77,10 @@ import qualified Prelude as P (map)
 newtype PathConds = PathConds (M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name))
                     deriving (Show, Eq, Read, Typeable, Data)
 
+instance Hashable PathConds where
+    hashWithSalt s (PathConds m) = M.foldl (\h (pcHashSet,_) -> h `hashWithSalt` (hash pcHashSet)) s m
+    hash (PathConds m) = M.foldl (\h (pcHashSet,_) -> h `hashWithSalt` (hash pcHashSet)) (1 :: Int) m
+
 -- | Path conditions represent logical constraints on our current execution
 -- path. We can have path constraints enforced due to case/alt branching, due
 -- to assertion / assumptions made, or some externally coded factors.
@@ -116,6 +122,9 @@ mapHashedPCs f = fromHashedList . L.map f . toHashedList
 
 map' :: (PathCond -> a) -> PathConds -> [a]
 map' f = L.map f . toList
+
+mapHashedPCs' :: (HashedPathCond -> a) -> PathConds -> [a]
+mapHashedPCs' f = L.map f . toHashedList
 
 filter :: (PathCond -> Bool) -> PathConds -> PathConds
 filter f = fromHashedList 

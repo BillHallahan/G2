@@ -238,7 +238,7 @@ runExecutionQ mergestates s b config = do
   runIO $ do
     let (s', b') = addAssume s b
 
-    SomeSolver solver <- initSolverInfinite config
+    SomeTrSolver solver <- initSolverInfinite config
     let simplifier = IdSimplifier
     case qqRedHaltOrd config solver simplifier mergestates of
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
@@ -276,7 +276,8 @@ moduleName = "THTemp"
 functionName :: String
 functionName = "g2Expr"
 
-qqRedHaltOrd :: (Solver solver, Simplifier simplifier) => Config -> solver -> simplifier -> Merging -> (SomeReducer (), SomeHalter (), SomeOrderer ())
+qqRedHaltOrd :: (TrSolver solver, Simplifier simplifier) => Config -> solver -> simplifier -> Merging 
+            -> (SomeReducer (), SomeHalter (), SomeOrderer ())
 qqRedHaltOrd config solver simplifier mergeStates =
     let
         share = sharing config
@@ -395,7 +396,7 @@ executeAndSolveStates mergeStates s b = do
 executeAndSolveStates' :: Merging -> Bindings -> State () -> IO (Maybe (ExecRes ()))
 executeAndSolveStates' mergeStates b s = do
     config <- qqConfig
-    SomeSolver solver <- initSolverInfinite config
+    SomeTrSolver solver <- initSolverInfinite config
     let simplifier = IdSimplifier
     case qqRedHaltOrd config solver simplifier mergeStates of
         (SomeReducer red, SomeHalter hal, _) -> do
@@ -425,14 +426,14 @@ solveStates' :: ( Named t
                 , ASTContainer t G2.Type) => Bindings -> [State t] -> IO (Maybe (ExecRes t))
 solveStates' b xs = do
     config <- qqConfig
-    SomeSolver solver <- initSolverInfinite config
+    SomeTrSolver solver <- initSolverInfinite config
     let simplifier = IdSimplifier
     solveStates'' solver simplifier b xs
 
 solveStates'' :: ( Named t
                  , ASTContainer t Expr
                  , ASTContainer t G2.Type
-                 , Solver solver
+                 , TrSolver solver
                  , Simplifier simplifier) => solver -> simplifier -> Bindings -> [State t] -> IO (Maybe (ExecRes t))
 solveStates'' _ _ _ [] =return Nothing
 solveStates'' sol simplifier b (s:xs) = do

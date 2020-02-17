@@ -23,81 +23,85 @@ import G2.Execution.StateMerging
 import G2.Execution.RuleTypes
 import qualified G2.Execution.MergingHelpers as SM
 import G2.Language
+import G2.Language.Monad.Support
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as S
 import G2.Solver hiding (Assert)
 
-import Control.Monad.Extra
 import Data.Maybe
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import qualified Data.Map as M
 
-stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> Merging -> solver -> simplifier -> State t -> Bindings 
-          -> IO (Rule, [(State t, ())], Bindings)
+stdReduce :: (TrSolver solver, Simplifier simplifier) => Sharing -> Merging -> solver -> simplifier -> State t -> Bindings
+          -> IO (Rule, [(State t, ())], Bindings, solver)
 stdReduce sharing merging solver simplifier s b@(Bindings {name_gen = ng}) = do
-    (r, s', ng') <- stdReduce' sharing merging solver simplifier s ng
+    (r, s', ng', solver') <- stdReduce' sharing merging solver simplifier s ng
     let s'' = map (\ss -> ss { rules = r:rules ss }) s'
-    return (r, zip s'' (repeat ()), b { name_gen = ng'})
+    return (r, zip s'' (repeat ()), b { name_gen = ng'}, solver')
 
-stdReduce' :: (Solver solver, Simplifier simplifier) => Sharing -> Merging -> solver -> simplifier -> State t -> NameGen -> IO (Rule, [State t], NameGen)
+stdReduce' :: (TrSolver solver, Simplifier simplifier) => Sharing -> Merging -> solver -> simplifier -> State t -> NameGen
+            -> IO (Rule, [State t], NameGen, solver)
 stdReduce' share mergeStates solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }) ng
     | Var i  <- ce
-    , share == Sharing = return $ evalVarSharing s ng i
+    , share == Sharing = return $ returnWithSolver (evalVarSharing s ng i) solver
     | Var i <- ce
-    , share == NoSharing = return $ evalVarNoSharing s ng i
-    | App e1 e2 <- ce = return $ evalApp s ng e1 e2
-    | Let b e <- ce = return $ evalLet s ng b e
+    , share == NoSharing = return $ returnWithSolver (evalVarNoSharing s ng i) solver
+    | App e1 e2 <- ce = return $ returnWithSolver (evalApp s ng e1 e2) solver
+    | Let b e <- ce = return $ returnWithSolver (evalLet s ng b e) solver
     | Case e i a <- ce = do
         let (r, xs, ng') = evalCase mergeStates s ng e i a
-        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
-        return (r, xs', ng')
-    | Cast e c <- ce = return $ evalCast s ng e c
-    | Tick t e <- ce = return $ evalTick s ng t e
-    | NonDet es <- ce = return $ evalNonDet s ng es
-    | SymGen t <- ce = return $ evalSymGen s ng t
-    | Assume fc e1 e2 <- ce = return $ evalAssume s ng fc e1 e2
-    | Assert fc e1 e2 <- ce = return $ evalAssert s ng fc e1 e2
-    | otherwise = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
+        (solver', xs') <- mapMAccumB (\sol newSt -> reduceNewPC sol simplifier newSt) solver xs
+        return (r, catMaybes xs', ng', solver')
+    | Cast e c <- ce = return $ returnWithSolver (evalCast s ng e c) solver
+    | Tick t e <- ce = return $ returnWithSolver (evalTick s ng t e) solver
+    | NonDet es <- ce = return $ returnWithSolver (evalNonDet s ng es) solver
+    | SymGen t <- ce = return $ returnWithSolver (evalSymGen s ng t) solver
+    | Assume fc e1 e2 <- ce = return $ returnWithSolver (evalAssume s ng fc e1 e2) solver
+    | Assert fc e1 e2 <- ce = return $ returnWithSolver (evalAssert s ng fc e1 e2) solver
+    | otherwise = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng, solver)
 stdReduce' _ _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
                                  , exec_stack = stck }) ng
     | Prim Error _ <- ce
     , Just (AssertFrame is _, stck') <- S.pop stck =
         return (RuleError, [s { exec_stack = stck'
                               , true_assert = True
-                              , assert_ids = is }], ng)
+                              , assert_ids = is }], ng, solver)
     | Prim Error _ <- ce
-    , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], ng)
+    , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], ng, solver)
     | Just (MergePtFrame i, stck') <- frstck = do
         let c' = M.alter (\count -> case count of
                 Just x -> Just $ x - 1
                 Nothing -> Nothing) i (cases s)
-        return (RuleHitMergePt, [s {exec_stack = stck', cases = c', ready_to_merge = True}], ng)
-    | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
-    | Lam u i e <- ce = return $ retLam s ng u i e
-    | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ng ce e stck'
-    | Just rs <- retReplaceSymbFunc s ng ce = return rs
-    | Just (CaseFrame i a, stck') <- frstck = return $ retCaseFrame s ng ce i a stck'
-    | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ng ce c stck'
+        return (RuleHitMergePt, [s {exec_stack = stck', cases = c', ready_to_merge = True}], ng, solver)
+    | Just (UpdateFrame n, stck') <- frstck = return $ returnWithSolver (retUpdateFrame s ng n stck') solver
+    | Lam u i e <- ce = return $ returnWithSolver (retLam s ng u i e) solver
+    | Just (ApplyFrame e, stck') <- S.pop stck = return $ returnWithSolver (retApplyFrame s ng ce e stck') solver
+    | Just rs <- retReplaceSymbFunc s ng ce = return $ returnWithSolver rs solver
+    | Just (CaseFrame i a, stck') <- frstck = return $ returnWithSolver (retCaseFrame s ng ce i a stck') solver
+    | Just (CastFrame c, stck') <- frstck = return $ returnWithSolver (retCastFrame s ng ce c stck') solver
     | Just (AssumeFrame e, stck') <- frstck = do
         let (r, xs, ng') = retAssumeFrame s ng ce e stck'
-        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
-        return (r, xs', ng')
+        (solver', xs') <- mapMAccumB (\sol newSt -> reduceNewPC sol simplifier newSt) solver xs
+        return (r, catMaybes xs', ng', solver')
     | Just (AssertFrame ais e, stck') <- frstck = do
         let (r, xs, ng') = retAssertFrame s ng ce ais e stck'
-        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
-        return (r, xs', ng')
+        (solver', xs') <- mapMAccumB (\sol newSt -> reduceNewPC sol simplifier newSt) solver xs
+        return (r, catMaybes xs', ng', solver')
     | Just (CurrExprFrame e, stck') <- frstck = do
         let (r, xs) = retCurrExpr s ce e stck'
-        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
-        return (r, xs', ng)
-    | Nothing <- frstck = return (RuleIdentity, [s], ng)
+        (solver', xs') <- mapMAccumB (\sol newSt -> reduceNewPC sol simplifier newSt) solver xs
+        return (r, catMaybes xs', ng, solver')
+    | Nothing <- frstck = return (RuleIdentity, [s], ng, solver)
     | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show (S.pop stck)
         where
             frstck = S.pop stck
+
+returnWithSolver :: (Rule, [State t], NameGen) -> solver -> (Rule, [State t], NameGen, solver)
+returnWithSolver (r, xs, ng) solver = (r, xs, ng, solver)
 
 data NewPC t = NewPC { state :: State t
                      , new_pcs :: [PathCond]
@@ -106,7 +110,7 @@ data NewPC t = NewPC { state :: State t
 newPCEmpty :: State t -> NewPC t
 newPCEmpty s = NewPC { state = s, new_pcs = [], concretized = []}
 
-reduceNewPC :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> NewPC t -> IO (Maybe (State t))
+reduceNewPC :: (TrSolver solver, Simplifier simplifier) => solver -> simplifier -> NewPC t -> IO (solver, Maybe (State t))
 reduceNewPC solver simplifier
             (NewPC { state = s@(State { path_conds = spc })
                    , new_pcs = pc
@@ -131,13 +135,13 @@ reduceNewPC solver simplifier
                 [] -> PC.fromList pc''
                 _ -> PC.scc ns new_pc'
 
-        res <- check solver s' rel_pc
+        (res,solver') <- checkTr solver s' rel_pc
 
         if res == SAT then
-            return $ Just s''
+            return $ (solver', Just s'')
         else
-            return Nothing
-    | otherwise = return $ Just s
+            return (solver', Nothing)
+    | otherwise = return $ (solver, Just s)
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
@@ -382,7 +386,7 @@ evalCase mergeStates s@(State { expr_env = eenv
             (Prim _ _):_ -> createExtConds s ng expr bind dalts
             (Lit _):_ -> ([], ng)
             (Data _):_ -> ([], ng)
-            _ -> error $ "unmatched expr" ++ show (unApp $ unsafeElimOuterCast mexpr)
+            _ -> error $ "unmatched expr" ++ show (mexpr) ++ "\n " ++ show (alts) -- show (unApp $ unsafeElimOuterCast mexpr)
             
         lsts_cs = liftSymLitAlt s mexpr bind lalts
         (def_sts, ng'') = liftSymDefAlt s ng' mexpr bind alts
