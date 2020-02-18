@@ -12,6 +12,7 @@ module G2.Liquid.Inference.PolyRef ( PolyBound (.. )
                                    , uniqueIds
                                    , mapPB
                                    , zipPB
+                                   , zipWithMaybePB
                                    , zip3PB) where
 
 import G2.Language
@@ -150,6 +151,23 @@ mapPB f (PolyBound v ps) = PolyBound (f v) (map (mapPB f) ps)
 
 zipPB :: PolyBound a -> PolyBound b -> PolyBound (a, b)
 zipPB (PolyBound a pba) (PolyBound b pbb) = PolyBound (a, b) (zipWith zipPB pba pbb)
+
+zipWithMaybePB :: (Maybe a -> Maybe b -> c) -> PolyBound a -> PolyBound b -> PolyBound c
+zipWithMaybePB f pba pbb = zipWithMaybePB' f (mapPB Just pba) (mapPB Just pbb)
+
+zipWithMaybePB' :: (Maybe a -> Maybe b -> c) -> PolyBound (Maybe a) -> PolyBound (Maybe b) -> PolyBound c
+zipWithMaybePB' f (PolyBound a pba) (PolyBound b pbb) =
+    let
+        c = f a b
+
+        rep_nt = repeat (PolyBound Nothing [])
+
+        pbc = takeWhile (\(x, y) -> isJust (top x) || isJust (top y))
+                $ zip (pba ++ rep_nt) (pbb ++ rep_nt)
+    in
+    PolyBound c $ map (uncurry (zipWithMaybePB' f)) pbc
+    where
+        top (PolyBound v _) = v
 
 zip3PB :: PolyBound a -> PolyBound b -> PolyBound c -> PolyBound (a, b, c)
 zip3PB (PolyBound a pba) (PolyBound b pbb) (PolyBound c pbc) =

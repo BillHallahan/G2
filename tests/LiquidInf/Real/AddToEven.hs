@@ -10,10 +10,8 @@ import Prelude hiding (zipWith)
 f :: Int -> Int
 f x = x + g x
 
--- Without the below refinement type for g, this file can not be verified
 g :: Int -> Int
 g x = h x
 
--- Without the below refinement type for h, this file can not be verified
 h :: Int -> Int
 h x = 4 * x

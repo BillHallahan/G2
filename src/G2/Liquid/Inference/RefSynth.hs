@@ -61,7 +61,8 @@ import TyCon
 
 import Debug.Trace
 
-refSynth :: InferenceConfig -> SpecType -> G2.Expr -> TypeClasses -> Measures -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> LH.TCEmb TyCon -> IO (Maybe [Qualifier])
+refSynth :: InferenceConfig -> SpecType -> G2.Expr -> TypeClasses -> Measures
+         -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> LH.TCEmb TyCon -> IO (Maybe (PolyBound LH.Expr, [Qualifier]))
 refSynth infconfig spc e tc meas meas_ex fc meas_sym tycons = do
         putStrLn "refSynth"
         let (call, f_num, rp_ns) = sygusCall e tc meas meas_ex fc
@@ -77,11 +78,12 @@ refSynth infconfig spc e tc meas meas_ex fc meas_sym tycons = do
                 return Nothing
                 -- error "refSynth: Bad call to CVC4"
             Right smt_st -> do
-                let lh_quals = refToQualifiers spc rp_ns smt_st meas_sym tycons
+                let lh_st = refToLHExpr spc rp_ns smt_st meas_sym
+                    lh_quals = refToQualifiers spc rp_ns smt_st meas_sym tycons
 
                 print lh_quals
 
-                return $ Just lh_quals
+                return $ Just (lh_st, lh_quals)
 
 -------------------------------
 -- Constructing Sygus Formula
@@ -761,7 +763,7 @@ refToQualifiers :: SpecType -> RefNamePolyBound -> [Cmd] -> MeasureSymbols -> LH
 refToQualifiers st rp_ns cmds meas_sym tycons =
     let
         termsPB = defineFunsPB cmds rp_ns
-        (lh_e, ars, ret) = refToLHExpr' st termsPB meas_sym
+        (lh_e, ars, ret) = refToLHExpr' (\s i -> LH.symbol ("x" ++ show i)) st termsPB meas_sym
     in
     map (uncurry (refToQualifier tycons ars)) . extractValues $ zipPB ret lh_e
 
@@ -784,7 +786,7 @@ refToLHExpr st rp_ns cmds meas_sym =
         termsPB = defineFunsPB cmds rp_ns
         -- termsPB' = shiftPB termsPB
     
-        (lh_e, _, _) = refToLHExpr' st termsPB meas_sym
+        (lh_e, _, _) = refToLHExpr' (const . specTypeSymbol) st termsPB meas_sym
     in
     lh_e
 
@@ -829,16 +831,23 @@ shiftPB' (PolyBound svt@(sv, t) svts) =
     in
     PolyBound (sv_new, t_new) (shift_new ++ leave)
 
-refToLHExpr' :: SpecType -> PolyBound ([SortedVar], Term) -> MeasureSymbols -> (PolyBound LH.Expr, [(LH.Symbol, SpecType)], PolyBound (LH.Symbol, SpecType))
-refToLHExpr' st pb_sv_t meas_sym =
+refToLHExpr' :: (SpecType -> Int -> LH.Symbol) -- ^ Map to argument names
+             -> SpecType
+             -> PolyBound ([SortedVar], Term) 
+             -> MeasureSymbols
+             -> (PolyBound LH.Expr, [(LH.Symbol, SpecType)], PolyBound (LH.Symbol, SpecType))
+refToLHExpr' f_args st pb_sv_t meas_sym =
     let
-        (ars_st, ret_st) =  specTypeAlsoSymbols st
-        ars = map fst ars_st
-        ret = mapPB fst ret_st
+        (ars_st, ret_st) = specTypePieces st
+        ars_symb_st = map (\(s, i) -> (f_args s i, s)) $ zip ars_st [0..]
+        ret_symb_st = mapPB (\s -> (specTypeSymbol s, s))  ret_st
+
+        ars = map fst ars_symb_st
+        ret = mapPB fst ret_symb_st
 
         pb_sv_t_ret = mapPB (\((sv, t), r) -> (sv, t, r)) $ zipPB pb_sv_t ret
     in
-    (mapPB (uncurry3 (refToLHExpr'' meas_sym ars )) pb_sv_t_ret, ars_st, ret_st)
+    (mapPB (uncurry3 (refToLHExpr'' meas_sym ars )) pb_sv_t_ret, ars_symb_st, ret_symb_st)
 
 refToLHExpr'' :: MeasureSymbols -> [LH.Symbol] -> [SortedVar] -> Term -> LH.Symbol -> LH.Expr
 refToLHExpr'' meas_sym symbs ars trm ret =
@@ -912,16 +921,6 @@ litToLHConstant (LitBool b) = if b then PTrue else PFalse
 litToLHConstant l = error $ "litToLHConstant: Unhandled literal " ++ show l
 
 -------------------
-
-specTypeAlsoSymbols :: SpecType -> ([(LH.Symbol, SpecType)], PolyBound (LH.Symbol, SpecType))
-specTypeAlsoSymbols st =
-    let
-        (sts, pb_st) = specTypePieces st
-
-        ars = map (\(s, i) -> (LH.symbol ("x" ++ show i), s)) $ zip sts ([0..] :: [Int])
-        r = mapPB (\s -> (specTypeSymbol s, s)) pb_st
-    in
-    (ars , r)
 
 specTypeSymbols :: SpecType -> ([LH.Symbol], PolyBound LH.Symbol)
 specTypeSymbols st =
