@@ -387,7 +387,7 @@ pprPathCondStr' (ExtCond am b) = acc_strs
     am_str = show am
     b_str = show b
     acc_strs = [am_str, b_str]
-pprPathCondStr' (AssumePC i num pc) = [show i] ++ [show num] ++ pprPathCondStr' (PC.unhashedPC pc)
+pprPathCondStr' (AssumePC i num pc) = ["Ass " ++ show i ++ " = "] ++ [show num] ++ pprPathCondStr' (PC.unhashedPC pc)
 
 pprCleanedNamesStr :: CleanedNames -> String
 pprCleanedNamesStr = injNewLine . map show . HM.toList

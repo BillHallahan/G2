@@ -50,46 +50,30 @@ checkRelSet :: TrSolver a => Cache -> a -> State t -> PathConds -> IO (Result, C
 checkRelSet cache sol s pc = do
     case checkCache cache pc of
         (Just res) -> return (res, cache, sol)
-        _ -> if (not $ anyAssumePC pc)
+        _ -> if (not $ PC.existsAssumePC pc)
             then do
                 (res, sol') <- checkTr sol s pc
                 let cache' = addToCache cache pc res
                 return (res, cache', sol')
             else do
-                let pcSetsByInt = genPCSetsByInt pc -- list of sets of PathCond-s grouped by Int in the AssumePC they appear in
-                    nonAssumePCs = genNonAssumePCs pc
+                let pcSetsByInt = genPCSetsByInt s pc -- list of sets of PathCond-s grouped by Int in the AssumePC they appear in
+                    nonAssumePCs = PC.genNonAssumePCs pc
                 (res, cache', sol') <- checkSetsByInt cache sol s nonAssumePCs pcSetsByInt
                 let cache'' = addToCache cache' pc res
                 return (res, cache'', sol')
 
 -- splits all AssumePCs in `pc` by Int in `AssumePC Id Int pc`, where Id == `i`, and lifts the pc out of the AssumePC
-genPCSetsByInt :: PathConds -> [PathConds]
-genPCSetsByInt pc =
+genPCSetsByInt :: State t -> PathConds -> [PathConds]
+genPCSetsByInt (State { known_values = kv }) pc =
     -- get list of unique Ints from the AssumePCs, assume all top level AssumePCs have same Id
-    let uniqueAssumes = nub $ filter (\a -> a >= 0) $ PC.map' getAssumeInt pc
-    in map (\i -> PC.fromHashedList $ map removeAssumes $ filterByInt (PC.toHashedList pc) i) uniqueAssumes -- seems terribly inefficient, to redesign
-
--- | Returns integer if PC is AssumePC, else -1
-getAssumeInt :: PathCond -> Integer
-getAssumeInt (AssumePC _ num _) = num
-getAssumeInt _ = -1
-
--- | Filters all AssumePCs with a different assumed Int value, and all non-AssumePCs
-filterByInt :: [PC.HashedPathCond] -> Integer -> [PC.HashedPathCond]
-filterByInt pc e = filter (otherAssumePCs e) pc
-
-otherAssumePCs :: Integer -> PC.HashedPathCond -> Bool
-otherAssumePCs i (PC.HashedPC (AssumePC _ num _) _) = i == num
-otherAssumePCs _ _ = False
-
--- | Lift PathCond out of any top-level AssumePC
-removeAssumes :: PC.HashedPathCond -> PC.HashedPathCond
-removeAssumes (PC.HashedPC (AssumePC _ _ pc) _) = pc
-removeAssumes pc = pc
-
--- returns all non-AssumePCs in `pc`
-genNonAssumePCs :: PathConds -> [PC.HashedPathCond]
-genNonAssumePCs pc = filter (not . isHashedAssumePC) $ PC.toHashedList pc
+    let uniqueAssumes = nub $ filter (\a -> a >= 0) $ PC.map' PC.getAssumeInt pc
+    -- seems terribly inefficient, to redesign
+    in map (\i ->
+        let hashedPCs = PC.filterByInt (PC.toHashedList pc) i
+            assumePCId = PC.getAssumeId $ PC.unhashedPC (head hashedPCs)
+            hashedPCs' = map PC.removeAssumes hashedPCs
+            newPC = PC.hashedPC $ ExtCond (mkEqIntExpr kv (Var assumePCId) i) True
+        in PC.fromHashedList (newPC:hashedPCs')) uniqueAssumes
 
 checkSetsByInt :: TrSolver a => Cache -> a -> State t -> [PC.HashedPathCond] -> [PathConds] -> IO (Result, Cache, a)
 checkSetsByInt cache sol s nonAssumePCs (pcSetByInt:pcs) = do
@@ -140,54 +124,7 @@ checkTr (AssumePCSolver avf cache) s pc =
             break
     add (pc, res) to cache
     return (cache, res)
-
--- perhaps only do group related once, then use an auxiliary function
--- Helper Functions
-
--- | Split into sets based on Id in (AssumePC Id _ _), for PathConds not of the form Assume PC, add to all sets
-splitPCsId ::PathConds -> [PathConds]
-splitPCsId pc =
-    let
-        assumePCs = PC.filter isAssumePC pc
-        uniqueAssumes = nub $ PC.map getAssumeIds assumePCs -- get list of unique Ids from the AssumePCs
-        -- filters unrelated pcs and adds the (Id, Int) pair from an AssumePC as an extCond, to constrain checking/solving for the id
-        f = (\i -> (filterById pc i))
-    in
-    fmap f uniqueAssumes
-
--- | For each PathCond in [PathConds], extracts the inner pc if PathCond is of form (AssumePC _ _ pc)
-extractPCs :: [PathConds] -> [PathConds]
-extractPCs (pc:pcs) = PC.fromList (PC.map extractPC pc) : extractPCs pcs
-extractPCs [] = []
-
-extractPC :: PathCond -> PathCond
-extractPC (AssumePC _ _ pc) = pc
-extractPC pc = pc
-
-getAssumeIdInt :: PathCond -> (Id, Integer)
-getAssumeIdInt (AssumePC i num _) = (i, num)
-getAssumeIdInt _ = error "Pathcond is not of the form (AssumePC _ _)."
-
--- returns 'Id' of the top level AssumePCs in `pc`
-getTopAssPCId :: PathConds -> Id
-getTopAssPCId pc = getAssumeIds $ fromJust $ find isAssumePC (PC.toList pc)
-
-getAssumeIds :: PathCond -> Id
-getAssumeIds (AssumePC i _ _) = i
-getAssumeIds _ = error "Pathcond is not of the form (AssumePC _ _)."
-
 -}
-
-isHashedAssumePC :: PC.HashedPathCond -> Bool
-isHashedAssumePC (PC.HashedPC (AssumePC _ _ _) _) = True
-isHashedAssumePC (PC.HashedPC _ _) = False
-
-isAssumePC :: PathCond -> Bool
-isAssumePC (AssumePC _ _ _) = True
-isAssumePC _ = False
-
-anyAssumePC :: PathConds -> Bool
-anyAssumePC pc = any isAssumePC $ PC.toList pc
 
 -- Identical to GroupRelated solver --
 solveRelated :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model, a)
@@ -196,12 +133,12 @@ solveRelated avf sol s b is pc = do
 
 solveRelated' :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> Model -> [Id] -> [PathConds] -> IO (Result, Maybe Model, a)
 solveRelated' avf sol s b m is [] =
-    let 
+    let
         is' = filter (\i -> idName i `M.notMember` m) is
 
         (_, nv) = mapAccumL
             (\av_ (Id n t) ->
-                let 
+                let
                     (av_', v) = avf t (type_env s) av_
                     in
                     (v, (n, av_'))

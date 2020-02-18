@@ -32,6 +32,8 @@ module G2.Language.PathConds ( PathConds(..)
                              , pcNames
                              , varIdsInPC
                              , varNamesInPC
+                             , getAssumeInt
+                             , getAssumeId
                              , toList
                              , toHashedList
                              , toHashSet
@@ -43,7 +45,12 @@ module G2.Language.PathConds ( PathConds(..)
                              , hashedPC
                              , unhashedPC
                              , mapHashedPC
-                             , hashedAssumePC) where
+                             , hashedAssumePC
+                             
+                             , filterByInt
+                             , removeAssumes
+                             , genNonAssumePCs
+                             , existsAssumePC) where
 
 import G2.Language.AST
 import G2.Language.Ids
@@ -221,6 +228,16 @@ varIdsInPC :: PathCond -> [Id]
 varIdsInPC (AltCond _ e _) = varIds e
 varIdsInPC (ExtCond e _) = varIds e
 varIdsInPC (AssumePC i _ pc) = i:varIdsInPC (unhashedPC pc)
+
+-- | Returns integer if PC is AssumePC, else -1
+getAssumeInt :: PathCond -> Integer
+getAssumeInt (AssumePC _ num _) = num
+getAssumeInt _ = -1
+
+-- | Returns id in PC if PC is AssumePC
+getAssumeId :: PathCond -> Id
+getAssumeId (AssumePC i _ _) = i
+getAssumeId _ = error "PathCond is not an AssumePC"
 
 varNamesInPC :: PathCond -> [Name]
 varNamesInPC = P.map idName . varIdsInPC
@@ -436,3 +453,35 @@ hashAssumePCFromHash :: Id
                      -> Int -- ^ The hash of the contained PathCond
                      -> Int
 hashAssumePCFromHash i n h = (4 :: Int) `hashWithSalt` i `hashWithSalt` n `hashWithSalt` h
+
+-- More specialized functions
+
+-- | Filters all AssumePCs with a different assumed Int value, and all non-AssumePCs
+filterByInt :: [HashedPathCond] -> Integer -> [HashedPathCond]
+filterByInt pc e = L.filter (otherAssumePCs e) pc
+
+otherAssumePCs :: Integer -> HashedPathCond -> Bool
+otherAssumePCs i (HashedPC (AssumePC _ num _) _) = i == num
+otherAssumePCs _ _ = False
+
+-- | Lift PathCond out of any top-level AssumePC
+removeAssumes :: HashedPathCond -> HashedPathCond
+removeAssumes (HashedPC (AssumePC _ _ pc) _) = pc
+removeAssumes pc = pc
+
+-- | Returns all non-AssumePCs in `pc`
+genNonAssumePCs :: PathConds -> [HashedPathCond]
+genNonAssumePCs pc = L.filter (not . isHashedAssumePC) $ toHashedList pc
+
+isHashedAssumePC :: HashedPathCond -> Bool
+isHashedAssumePC (HashedPC (AssumePC _ _ _) _) = True
+isHashedAssumePC (HashedPC _ _) = False
+
+isAssumePC :: PathCond -> Bool
+isAssumePC (AssumePC _ _ _) = True
+isAssumePC _ = False
+
+existsAssumePC :: PathConds -> Bool
+existsAssumePC pc = any isAssumePC $ toList pc
+
+
