@@ -23,51 +23,51 @@ data AssumePCSolver a = AssumePCSolver ArbValueFunc Cache a
 
 instance Solver solver => TrSolver (AssumePCSolver solver) where
     checkTr (AssumePCSolver avf cache sol) s pc = do
-        (r, cache', sol') <- checkTr' cache (Tr sol) s pc
-        return (r, AssumePCSolver avf cache' (unTr sol'))
+        (r, cache') <- checkTr' cache sol s pc
+        return (r, AssumePCSolver avf cache' sol)
     solveTr (AssumePCSolver avf cache sol) s b is pc = do
-        (r, m, sol') <- solveRelated avf (Tr sol) s b is pc
-        return (r, m, AssumePCSolver avf cache (unTr sol'))
+        (r, m) <- solveRelated avf sol s b is pc
+        return (r, m, AssumePCSolver avf cache sol)
     closeTr (AssumePCSolver _ _ s) = close s
 
-checkTr' :: TrSolver a => Cache -> a -> State t -> PathConds -> IO (Result, Cache, a)
+checkTr' :: Solver a => Cache -> a -> State t -> PathConds -> IO (Result, Cache)
 checkTr' cache sol s pc = do
     let sets = PC.relatedSets (known_values s) pc -- All (AssumePCs i _ _) with same i will be grouped into same set
-    (res, cache', sol') <- checkRelSets cache sol s sets
+    (res, cache') <- checkRelSets cache sol s sets
     let cache'' = addToCache cache' pc res
-    return (res, cache'', sol')
+    return (res, cache'')
 
 -- Check each related set in turn for satisfiability. If any set results in UNSAT, terminate
-checkRelSets :: TrSolver a => Cache -> a -> State t -> [PathConds] -> IO (Result, Cache, a)
+checkRelSets :: Solver a => Cache -> a -> State t -> [PathConds] -> IO (Result, Cache)
 checkRelSets cache sol s (pc:pcs) = do
-    (res, cache', sol') <- checkRelSet cache sol s pc
+    (res, cache') <- checkRelSet cache sol s pc
     case res of
-        SAT -> checkRelSets cache' sol' s pcs
-        _ -> return (res, cache', sol')
-checkRelSets cache sol _ [] = return (SAT, cache, sol)
+        SAT -> checkRelSets cache' sol s pcs
+        _ -> return (res, cache')
+checkRelSets cache _ _ [] = return (SAT, cache)
 
-checkRelSet :: TrSolver a => Cache -> a -> State t -> PathConds -> IO (Result, Cache, a)
+checkRelSet :: Solver a => Cache -> a -> State t -> PathConds -> IO (Result, Cache)
 checkRelSet cache sol s pc = do
     case checkCache cache pc of
-        (Just res) -> return (res, cache, sol)
+        (Just res) -> return (res, cache)
         _ -> if (not $ PC.existsAssumePC pc)
             then do
-                (res, sol') <- checkTr sol s pc
+                res <- check sol s pc
                 let cache' = addToCache cache pc res
-                return (res, cache', sol')
+                return (res, cache')
             else do
                 let pcSetsByInt = genPCSetsByInt s pc -- list of sets of PathCond-s grouped by Int in the AssumePC they appear in
                     nonAssumePCs = PC.genNonAssumePCs pc
-                (res, cache', sol') <- checkSetsByInt cache sol s nonAssumePCs pcSetsByInt
+                (res, cache') <- checkSetsByInt cache sol s nonAssumePCs pcSetsByInt
                 let cache'' = addToCache cache' pc res
-                return (res, cache'', sol')
+                return (res, cache'')
 
 -- splits all AssumePCs in `pc` by Int in `AssumePC Id Int pc`, where Id == `i`, and lifts the pc out of the AssumePC
 genPCSetsByInt :: State t -> PathConds -> [PathConds]
 genPCSetsByInt (State { known_values = kv }) pc =
     -- get list of unique Ints from the AssumePCs, assume all top level AssumePCs have same Id
     let uniqueAssumes = nub $ filter (\a -> a >= 0) $ PC.map' PC.getAssumeInt pc
-    -- seems terribly inefficient, to redesign
+    -- terribly inefficient, to redesign
     in map (\i ->
         let hashedPCs = PC.filterByInt (PC.toHashedList pc) i
             assumePCId = PC.getAssumeId $ PC.unhashedPC (head hashedPCs)
@@ -75,20 +75,21 @@ genPCSetsByInt (State { known_values = kv }) pc =
             newPC = PC.hashedPC $ ExtCond (mkEqIntExpr kv (Var assumePCId) i) True
         in PC.fromHashedList (newPC:hashedPCs')) uniqueAssumes
 
-checkSetsByInt :: TrSolver a => Cache -> a -> State t -> [PC.HashedPathCond] -> [PathConds] -> IO (Result, Cache, a)
+-- Check each set in turn for satisfiability. If any set results in SAT, return
+checkSetsByInt :: Solver a => Cache -> a -> State t -> [PC.HashedPathCond] -> [PathConds] -> IO (Result, Cache)
 checkSetsByInt cache sol s nonAssumePCs (pcSetByInt:pcs) = do
-    (res, cache', sol') <- checkSetByInt cache sol s nonAssumePCs pcSetByInt
+    (res, cache') <- checkSetByInt cache sol s nonAssumePCs pcSetByInt
     case res of
-        SAT -> return (res, cache', sol')
-        _ -> checkSetsByInt cache' sol' s nonAssumePCs pcs
-checkSetsByInt cache sol _ _ [] = return (UNSAT, cache, sol)
+        SAT -> return (res, cache')
+        _ -> checkSetsByInt cache' sol s nonAssumePCs pcs
+checkSetsByInt cache _ _ _ [] = return (UNSAT, cache)
 
-checkSetByInt :: TrSolver a => Cache -> a -> State t -> [PC.HashedPathCond] -> PathConds -> IO (Result, Cache, a)
+checkSetByInt :: Solver a => Cache -> a -> State t -> [PC.HashedPathCond] -> PathConds -> IO (Result, Cache)
 checkSetByInt cache sol s nonAssumePCs pcSetByInt = do
     case checkCache cache pcSetByInt of
         (Just res) -> case res of
-            UNSAT -> return (res, cache, sol)
-            Unknown _ -> return (res, cache, sol)
+            UNSAT -> return (res, cache)
+            Unknown _ -> return (res, cache)
             _ -> do
                 let augmentedSet = foldl (\pcSet pc -> PC.insertHashed pc pcSet) pcSetByInt nonAssumePCs
                 checkTr' cache sol s augmentedSet
@@ -96,43 +97,13 @@ checkSetByInt cache sol s nonAssumePCs pcSetByInt = do
             let augmentedSet = foldl (\pcSet pc -> PC.insertHashed pc pcSet) pcSetByInt nonAssumePCs
             checkTr' cache sol s augmentedSet
 
-
-{-
-checkTr (AssumePCSolver avf cache) s pc =
-    sets = groupRelated pc
-    res = unsat
-    for each set in sets:
-        if set in cache:
-            res = cache[set]
-        else if !containsAssumePC:
-            res = solve(set)
-            add (set,res) to cache
-        else:
-            res2 = unsat
-            for each value i of N: -- where 'N' is the id name in (AssumePC id int pc)
-                if set[N_i] in cache: -- set of pathconds that contain N_i
-                    res2 = cache[set[N_i]]
-                    if res2 == unsat:
-                        continue
-                smallSet = set[N_i] + set[null]
-                res2, cache = checkTr cache s smallset
-                if res2 == sat:
-                    break
-            res = res2
-            add (set,res) to cache
-        if res == unsat:
-            break
-    add (pc, res) to cache
-    return (cache, res)
--}
-
 -- Identical to GroupRelated solver --
-solveRelated :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model, a)
+solveRelated :: Solver a => ArbValueFunc -> a -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model)
 solveRelated avf sol s b is pc = do
     solveRelated' avf sol s b M.empty is $ PC.relatedSets (known_values s) pc
 
-solveRelated' :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> Model -> [Id] -> [PathConds] -> IO (Result, Maybe Model, a)
-solveRelated' avf sol s b m is [] =
+solveRelated' :: Solver a => ArbValueFunc -> a -> State t -> Bindings -> Model -> [Id] -> [PathConds] -> IO (Result, Maybe Model)
+solveRelated' avf _ s b m is [] =
     let
         is' = filter (\i -> idName i `M.notMember` m) is
 
@@ -146,12 +117,11 @@ solveRelated' avf sol s b m is [] =
 
         m' = foldr (\(n, v) -> M.insert n v) m nv
     in
-    return (SAT, Just m', sol)
+    return (SAT, Just m')
 solveRelated' avf sol s b m is (p:ps) = do
     let is' = concat $ PC.map' PC.varIdsInPC p
     let is'' = ids p
-    rm <- solveTr sol s b is' p
+    rm <- solve sol s b is' p
     case rm of
-        (SAT, Just m', sol') -> solveRelated' avf sol' s b (M.union m m') (is ++ is'') ps
+        (SAT, Just m') -> solveRelated' avf sol s b (M.union m m') (is ++ is'') ps
         rm' -> return rm'
-
