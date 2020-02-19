@@ -19,6 +19,5 @@ data D a = Emp
 f :: Int
 f = g (R 0)
 
-{-@ g :: (Ord k) => D k -> Int @-}
 g :: (Ord k) => D k -> Int
 g _ = 1

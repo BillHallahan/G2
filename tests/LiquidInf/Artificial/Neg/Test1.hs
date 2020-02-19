@@ -18,5 +18,4 @@ g :: (a -> b -> b) -> b -> D a -> b
 g _  b Emp = b
 g op b (R x) = x `op` b
 
-{-@ h :: Ord k => k -> M.Map k (D v) -> M.Map k (D v) @-}
 h k m = M.insert k (R 1) m

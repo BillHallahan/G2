@@ -18,7 +18,6 @@ g = Assocs (i $ i R)
 i :: R -> R
 i x = x
 
-{-@ a :: Int @-}
 a :: Int
 a = 1
 

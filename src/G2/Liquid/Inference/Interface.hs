@@ -70,7 +70,7 @@ inference' :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.
 inference' infconfig g2config lhconfig ghci m_modname lrs gs fc = do
     print gs
 
-    let merged_verify_ghci = addQualifiersToGhcInfos gs $ addSpecsToGhcInfos ghci gs
+    let merged_verify_ghci = addQualifiersToGhcInfos gs $ addAssumedSpecsToGhcInfos ghci gs
         merged_se_ghci = addSpecsToGhcInfos ghci (switchAssumesToAsserts gs)
 
     mapM_ (\ghci -> do
@@ -88,7 +88,7 @@ inference' infconfig g2config lhconfig ghci m_modname lrs gs fc = do
     case res of
         Safe 
             | nullAssumeGS gs -> return $ Right gs
-            | otherwise ->  error "Non-nullAssumeGS" -- inference' infconfig g2config lhconfig ghci m_modname lrs (deleteAllAssumes gs) fc
+            | otherwise -> inference' infconfig g2config lhconfig ghci m_modname lrs (switchAssumesToAsserts gs) fc
         Crash ci err -> error $ "Crash\n" ++ show ci ++ "\n" ++ err
         Unsafe bad -> do
             -- Generate constraints

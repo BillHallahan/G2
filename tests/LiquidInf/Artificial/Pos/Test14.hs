@@ -32,10 +32,8 @@ data List a = Emp
 f :: (Ord k) => List (k,v) -> M.Map k (List v)
 f xs = g xs
 
-{-@ g :: (Ord k) => List (k, v) -> M.Map k (List v) @-}
 g :: (Ord k) => List (k, v) -> M.Map k (List v)
 g (x :+: xs) = h x M.empty
 g Emp = M.empty
 
-{-@ h :: Ord k => (k, b) -> M.Map k (List b) -> M.Map k (List b) @-}
 h (k,v) m = M.insert k (v :+: Emp) m

@@ -30,11 +30,9 @@ f cs = kvsm
     kvs   = R (g cs)
     kvsm  = h kvs
 
-{-@ g :: [{v:Int | v == 1 }] -> Int @-}
 g :: [Int] -> Int
 g xs = minimumBy (\_ _ -> EQ) xs
 
-{-@ h :: List Int -> List Int @-}
 h :: List Int -> List Int
 h Emp = Emp
 h (R _) = R 1

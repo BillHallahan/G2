@@ -8,7 +8,6 @@ module Divide () where
 
 import GHC.Exts
 
-{-@ f :: Double -> Double @-}
 f :: Double -> Double
 f x = g x
 

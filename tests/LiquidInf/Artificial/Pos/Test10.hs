@@ -4,13 +4,11 @@ module Double () where
 f :: Double -> Double
 f x = g (a x)
 
-{-@ g :: Double -> Double @-}
 g :: Double -> Double
 g x
     | x >= 0 = x + 1
     | otherwise = x - 1
 
-{-@ a :: x:Double -> Double @-}
 a :: Double -> Double
 a x
     | x >= 0 = x

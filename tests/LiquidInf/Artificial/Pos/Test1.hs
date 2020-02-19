@@ -24,6 +24,5 @@ f = g x
 g :: M (M Int) -> Int
 g _ = 0
 
-{-@ x :: M (M Int) @-}
 x    :: M (M Int)
 x = Emp

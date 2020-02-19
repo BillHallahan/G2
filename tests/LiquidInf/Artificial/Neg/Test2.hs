@@ -26,7 +26,6 @@ type Point   = List Int
 
 {-@ type PointN N = ListN Int N @-}
 
-{-@ m :: (a -> b) -> xa : List a -> List b @-}
 m :: (a -> b) -> List a -> List b
 m f Emp = Emp
 m f (R x) = R (f x)
@@ -39,7 +38,6 @@ f op b (R x) = x `op` b
 k :: List Point -> [Int] -> M.Map Int Int
 k ps cs = r cs ps
 
-{-@ r ::  [Int] -> List (List Int) -> M.Map Int Int @-}
 r :: [Int] -> List (List Int) -> M.Map Int Int
 r cs xs = kvm
   where
@@ -47,6 +45,5 @@ r cs xs = kvm
     kvsm  = f (\k _ -> a k) M.empty kvs
     kvm   = M.map (\_ -> 0) kvsm
 
-{-@ a :: Int -> M.Map Int (List Int) @-}
 a :: Int -> M.Map Int (List Int)
 a k = M.insert k (R 1) M.empty

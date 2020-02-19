@@ -1,13 +1,18 @@
 module G2.Liquid.Inference.GeneratedSpecs ( GeneratedSpecs
                                           , emptyGS
+
                                           , nullAssumeGS
+
                                           , insertAssumeGS
                                           , insertQualifier
                                           , switchAssumesToAsserts
+
                                           , addSpecsToGhcInfos
+                                          , addAssumedSpecsToGhcInfos
                                           , addQualifiersToGhcInfos
                                           , deleteAssert
                                           , deleteAllAssumes
+                                          , deleteAllAsserts
 
                                           , genSpec
                                           , insertMissingAssertSpec ) where
@@ -66,6 +71,9 @@ deleteAssert n gs@(GeneratedSpecs { assert_specs = as }) =
 
 deleteAllAssumes :: GeneratedSpecs -> GeneratedSpecs
 deleteAllAssumes gs = gs { assume_specs = M.empty }
+
+deleteAllAsserts :: GeneratedSpecs -> GeneratedSpecs
+deleteAllAsserts gs = gs { assert_specs = M.empty }
 
 modifyGsTySigs :: (Var -> SpecType -> SpecType) -> GhcInfo -> GhcInfo
 modifyGsTySigs f gi@(GI { spec = si@(SP { gsTySigs = tySigs }) }) =

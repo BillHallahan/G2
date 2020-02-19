@@ -21,6 +21,5 @@ data D a = Emp
 f :: D (D Int) -> Int
 f xs = g xs
 
-{-@ g  :: D a -> Int @-}
 g :: D a -> Int
 g xs = 1

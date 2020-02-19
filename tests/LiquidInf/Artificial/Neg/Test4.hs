@@ -20,7 +20,6 @@ data D a = Emp | R a deriving (Eq, Ord, Show)
 
 {-@ type DN a N  = {v:D a | size v = N} @-}
 
-{-@ mapR :: (a -> b) -> xa : D a -> D b @-}
 mapR :: (a -> b) -> D a -> D b
 mapR f Emp = Emp
 mapR f (R x) = R (f x)
@@ -32,7 +31,6 @@ type Point   = D Int
 f   :: Int -> D Point -> M.Map Int Int
 f k ps = g (\_ -> (-1, 1)) ps
 
-{-@ g :: (Ord k) => (D Int -> (k, v)) -> D (D Int) -> M.Map k v @-}
 g :: (Ord k) => (D Int -> (k, v)) -> D (D Int) -> M.Map k v
 g fm xs = kvm
   where
@@ -40,13 +38,11 @@ g fm xs = kvm
     kvsm  = app insertR M.empty kvs
     kvm   = M.map outR kvsm
 
-{-@ insertR :: Ord k => (k, v) -> M.Map k (D v) -> M.Map k (D v) @-}
 insertR (k,v) m = M.insert k (R v) m
 
 app :: (a -> b -> b) -> b -> D a -> b
 app _  b Emp = b
 app op b (R x) = x `op` b
 
-{-@ outR :: { xs : D a | size xs > 0 } -> a @-}
 outR (R x) = x
 outR Emp = die "Cannot call outR with empty D"

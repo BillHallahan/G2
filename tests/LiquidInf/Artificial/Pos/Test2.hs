@@ -21,7 +21,6 @@ data List a = Emp
 
 {-@ type List0 a = {v:List a | size v = 0} @-}
 
-{-@ empty :: List a @-}
 empty     :: List a
 empty = Emp
 

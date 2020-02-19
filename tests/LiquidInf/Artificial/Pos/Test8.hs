@@ -18,8 +18,5 @@ g :: (a -> b -> b) -> b -> D a -> b
 g _  b Emp = b
 g op b (R x) = x `op` b
 
-{-@ h :: { x:Int | 0 <= x}
-	  -> M.Map { x:Int | 0 <= x} (D Int)
-	  -> M.Map Int (D Int) @-}
 h :: Int -> M.Map Int (D Int) -> M.Map Int (D Int)
 h k m = M.insert k (R 1) m

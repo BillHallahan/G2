@@ -13,6 +13,5 @@ import Data.List (minimumBy)
 c :: [Int] -> Int
 c m = g m
 
-{-@ g :: [{v:Int | 0 <= v }] -> Int @-}
 g :: [Int] -> Int
 g m = minimumBy (\_ _ -> LT) $ m
