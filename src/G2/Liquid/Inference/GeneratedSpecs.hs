@@ -6,19 +6,30 @@ module G2.Liquid.Inference.GeneratedSpecs ( GeneratedSpecs
                                           , switchAssumesToAsserts
                                           , addSpecsToGhcInfos
                                           , addQualifiersToGhcInfos
-                                          , deleteAssert ) where
+                                          , deleteAssert
+                                          , deleteAllAssumes
+
+                                          , genSpec
+                                          , insertMissingAssertSpec ) where
 
 import qualified G2.Language as G2
 import G2.Liquid.Helpers
 import G2.Liquid.Inference.PolyRef
 
+import Language.Haskell.Liquid.Constraint.Init
 import Language.Haskell.Liquid.Types
+import Language.Haskell.Liquid.Types.Fresh
 import Language.Fixpoint.Types.Refinements
+import Language.Haskell.Liquid.Types.RefType
 import Language.Fixpoint.Types
 
+import qualified Control.Monad.State as S
 import Data.Coerce
+import Data.List
+import qualified Data.Text as T
 import qualified Data.Map as M
 
+import Name (nameOccName, occNameString)
 import Var
 
 import Debug.Trace
@@ -53,6 +64,9 @@ deleteAssert :: G2.Name -> GeneratedSpecs -> GeneratedSpecs
 deleteAssert n gs@(GeneratedSpecs { assert_specs = as }) =
     gs { assert_specs = M.delete n as }
 
+deleteAllAssumes :: GeneratedSpecs -> GeneratedSpecs
+deleteAllAssumes gs = gs { assume_specs = M.empty }
+
 modifyGsTySigs :: (Var -> SpecType -> SpecType) -> GhcInfo -> GhcInfo
 modifyGsTySigs f gi@(GI { spec = si@(SP { gsTySigs = tySigs }) }) =
     gi { spec = si { gsTySigs = map (\(v, lst) -> (v, fmap (f v) lst)) tySigs }}
@@ -68,17 +82,17 @@ addAssertedSpecsToGhcInfos :: [GhcInfo] -> GeneratedSpecs -> [GhcInfo]
 addAssertedSpecsToGhcInfos ghcis = foldr (uncurry addAssertedSpecToGhcInfos) ghcis . M.toList . assert_specs
 
 addAssertedSpecToGhcInfos :: G2.Name -> PolyBound Expr -> [GhcInfo] -> [GhcInfo]
-addAssertedSpecToGhcInfos v e = map (addAssertedSpecToGhcInfo v e)
+addAssertedSpecToGhcInfos v e = map (addAssertedSpecToGhcInfo v e) . insertMissingAssertSpec v
 
 addAssertedSpecToGhcInfo :: G2.Name -> PolyBound Expr -> GhcInfo -> GhcInfo
 addAssertedSpecToGhcInfo n e =
     modifyGsTySigs (\v st -> if varEqName v n then addPost e st else st)
 
 addAssumedSpecsToGhcInfos :: [GhcInfo] -> GeneratedSpecs -> [GhcInfo]
-addAssumedSpecsToGhcInfos ghcis = foldr (uncurry addAssumedSpecToGhcInfos) ghcis . M.toList . assert_specs
+addAssumedSpecsToGhcInfos ghcis = foldr (uncurry addAssumedSpecToGhcInfos) ghcis . M.toList . assume_specs
 
 addAssumedSpecToGhcInfos :: G2.Name -> PolyBound Expr -> [GhcInfo] -> [GhcInfo]
-addAssumedSpecToGhcInfos v e = map (addAssumedSpecToGhcInfo v e)
+addAssumedSpecToGhcInfos v e = map (addAssumedSpecToGhcInfo v e) . insertMissingAssumeSpec v
 
 addAssumedSpecToGhcInfo :: G2.Name -> PolyBound Expr -> GhcInfo -> GhcInfo
 addAssumedSpecToGhcInfo n e =
@@ -112,3 +126,62 @@ addPost _ st = error $ "addPost: Unhandled SpecType " ++ show st
 
 zeroOutUnq :: G2.Name -> G2.Name
 zeroOutUnq (G2.Name n m _ l) = G2.Name n m 0 l
+
+-- | If the given variable does not have a specification, create it in the appropriate place
+insertMissingAssumeSpec :: G2.Name -> [GhcInfo] -> [GhcInfo]
+insertMissingAssumeSpec (G2.Name n _ _ _) = map create 
+    where
+        create ghci@(GI { spec = spc } ) =
+            let
+                defs = defVars ghci
+                has_spec = map fst . gsAsmSigs $ spec ghci
+                def_no_spec = filter (`notElem` has_spec) defs
+
+                def_v = find (\v -> (T.pack . occNameString . nameOccName $ varName v) == n) def_no_spec
+            in
+            case def_v of
+                Just v ->
+                    let
+                        new_spec = dummyLoc $ genSpec' ghci v
+                    in
+                    ghci { spec = spc { gsAsmSigs = (v, new_spec):gsAsmSigs spc } }
+                Nothing -> ghci
+
+
+insertMissingAssertSpec :: G2.Name -> [GhcInfo] -> [GhcInfo]
+insertMissingAssertSpec (G2.Name n _ _ _) = map create 
+    where
+        create ghci@(GI { spec = spc } ) =
+            let
+                defs = defVars ghci
+                has_spec = map fst . gsTySigs $ spec ghci
+                def_no_spec = filter (`notElem` has_spec) defs
+
+                def_v = find (\v -> (T.pack . occNameString . nameOccName $ varName v) == n) def_no_spec
+            in
+            case def_v of
+                Just v ->
+                    let
+                        new_spec = dummyLoc $ genSpec' ghci v
+                    in
+                    ghci { spec = spc { gsTySigs = (v, new_spec):gsTySigs spc } }
+                Nothing -> ghci
+
+genSpec :: [GhcInfo] -> G2.Name -> Maybe SpecType
+genSpec ghcis (G2.Name n _ _ _) = foldr mappend Nothing $ map gen ghcis
+    where
+        gen ghci =
+            let
+                defs = defVars ghci
+                def_v = find (\v -> (T.pack . occNameString . nameOccName $ varName v) == n) defs
+
+                specs = gsTySigs (spec ghci)
+            in
+            case def_v of
+                Just v
+                    | Just (_, s) <- find ((==) v . fst) specs -> Just (val s)
+                _ -> fmap (genSpec' ghci) def_v
+
+genSpec' :: GhcInfo -> Var -> SpecType
+genSpec' ghci v =
+    S.evalState (refreshTy (ofType $ varType v)) $ initCGI (getConfig ghci) ghci

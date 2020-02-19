@@ -34,8 +34,7 @@ import Language.Haskell.Liquid.Types
 import Language.Haskell.Liquid.Types.RefType
 import qualified Language.Fixpoint.Types.Config as FP
 
-import Name (nameOccName, occNameString)
-import Var (varName, varType)
+import Var (Var, varName, varType)
 
 inference :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO (Either [CounterExample] GeneratedSpecs)
 inference infconfig config proj fp lhlibs = do
@@ -71,13 +70,25 @@ inference' :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.
 inference' infconfig g2config lhconfig ghci m_modname lrs gs fc = do
     print gs
 
-    let merged_ghci = addSpecsToGhcInfos ghci gs
-    mapM_ (print . gsTySigs . spec) merged_ghci
+    let merged_verify_ghci = addQualifiersToGhcInfos gs $ addSpecsToGhcInfos ghci gs
+        merged_se_ghci = addSpecsToGhcInfos ghci (switchAssumesToAsserts gs)
 
-    res <- verify lhconfig merged_ghci
+    mapM_ (\ghci -> do
+            putStrLn "Assumes:"
+            print . gsAsmSigs . spec $ ghci
+            putStrLn "Asserts:"
+            print . gsTySigs . spec $ ghci) merged_verify_ghci
+
+    mapM_ (\ghci -> do
+            putStrLn "All Asserts:"
+            print . gsTySigs . spec $ ghci) merged_se_ghci
+
+    res <- verify lhconfig merged_verify_ghci
 
     case res of
-        Safe -> return $ Right gs
+        Safe 
+            | nullAssumeGS gs -> return $ Right gs
+            | otherwise ->  error "Non-nullAssumeGS" -- inference' infconfig g2config lhconfig ghci m_modname lrs (deleteAllAssumes gs) fc
         Crash ci err -> error $ "Crash\n" ++ show ci ++ "\n" ++ err
         Unsafe bad -> do
             -- Generate constraints
@@ -85,7 +96,7 @@ inference' infconfig g2config lhconfig ghci m_modname lrs gs fc = do
 
             putStrLn $ "bad' = " ++ show bad'
 
-            res <- mapM (genNewConstraints merged_ghci m_modname lrs infconfig g2config) bad'
+            res <- mapM (genNewConstraints merged_se_ghci m_modname lrs infconfig g2config) bad'
 
             putStrLn $ "res"
             printCE $ concat res
@@ -108,12 +119,12 @@ inference' infconfig g2config lhconfig ghci m_modname lrs gs fc = do
                     -- putStrLn $ "fc' = " ++ show fc'
                     putStrLn $ "new_fc_funcs = " ++ show new_fc_funcs
                     putStrLn "Before genMeasureExs"
-                    meas_ex <- genMeasureExs lrs merged_ghci g2config fc'
+                    meas_ex <- genMeasureExs lrs merged_se_ghci g2config fc'
                     putStrLn "After genMeasureExs"
                     -- ghci' <- foldM (synthesize infconfig lrs meas_ex fc') ghci new_fc_funcs
-                    gs' <- foldM (synthesize infconfig ghci lrs meas_ex fc') gs new_fc_funcs
+                    (ghci', gs') <- foldM (uncurry (synthesize infconfig lrs meas_ex fc')) (ghci, gs) new_fc_funcs
                     
-                    inference' infconfig g2config lhconfig ghci m_modname lrs gs' fc'
+                    inference' infconfig g2config lhconfig ghci' m_modname lrs gs' fc'
 
 createStateForInference :: SimpleState -> G2.Config -> [GhcInfo] -> LiquidReadyState
 createStateForInference simp_s config ghci =
@@ -154,15 +165,16 @@ genMeasureExs lrs ghci g2config fcs =
     in
     evalMeasures lrs ghci g2config es
 
-synthesize :: InferenceConfig -> [GhcInfo] -> LiquidReadyState -> MeasureExs -> FuncConstraints -> GeneratedSpecs -> Name -> IO GeneratedSpecs
-synthesize infconfig ghci lrs meas_ex fc gs n = do
+synthesize :: InferenceConfig -> LiquidReadyState -> MeasureExs -> FuncConstraints -> [GhcInfo] -> GeneratedSpecs -> Name -> IO ([GhcInfo], GeneratedSpecs)
+synthesize infconfig lrs meas_ex fc ghci gs n@(Name n' _ _ _) = do
     let eenv = expr_env . state $ lr_state lrs
         tc = type_classes . state $ lr_state lrs
 
         fc_of_n = lookupFC n fc
-        fspec = case findFuncSpec ghci n of
+        ghci' = insertMissingAssertSpec n ghci
+        fspec = case genSpec ghci n of
                 Just spec' -> spec'
-                Nothing -> error $ "synthesize: No spec found for " ++ show n
+                _ -> error $ "synthesize: No spec found for " ++ show n
         e = case E.occLookup (nameOcc n) (nameModule n) eenv of
                 Just e' -> e'
                 Nothing -> error $ "synthesize: No expr found"
@@ -177,9 +189,10 @@ synthesize infconfig ghci lrs meas_ex fc gs n = do
         Just (new_spec, new_qual) -> do
             putStrLn $ "fspec = " ++ show fspec
             putStrLn $ "new_spec = " ++ show new_spec
+            let gs' = insertAssumeGS n new_spec gs
 
-            return $ insertAssumeGS n new_spec gs
-        Nothing -> return gs
+            return $ (ghci, foldr insertQualifier gs' new_qual)
+        Nothing -> return (ghci, gs)
 
 -- | Converts counterexamples into constraints that the refinements must allow for, or rule out.
 cexsToFuncConstraints :: LiquidReadyState -> [GhcInfo] -> InferenceConfig -> G2.Config -> CounterExample -> IO (Either CounterExample [FuncConstraint])

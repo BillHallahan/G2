@@ -23,7 +23,6 @@ import G2.Language.TypeClasses
 import G2.Language.Typing
 import G2.Liquid.Conversion
 import G2.Liquid.Helpers
-import qualified G2.Liquid.Sorts as LH
 import G2.Liquid.Types
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.FuncConstraint
@@ -763,7 +762,7 @@ refToQualifiers :: SpecType -> RefNamePolyBound -> [Cmd] -> MeasureSymbols -> LH
 refToQualifiers st rp_ns cmds meas_sym tycons =
     let
         termsPB = defineFunsPB cmds rp_ns
-        (lh_e, ars, ret) = refToLHExpr' (\s i -> LH.symbol ("x" ++ show i)) st termsPB meas_sym
+        (lh_e, ars, ret) = refToLHExpr' st termsPB meas_sym
     in
     map (uncurry (refToQualifier tycons ars)) . extractValues $ zipPB ret lh_e
 
@@ -786,7 +785,7 @@ refToLHExpr st rp_ns cmds meas_sym =
         termsPB = defineFunsPB cmds rp_ns
         -- termsPB' = shiftPB termsPB
     
-        (lh_e, _, _) = refToLHExpr' (const . specTypeSymbol) st termsPB meas_sym
+        (lh_e, _, _) = refToLHExpr' st termsPB meas_sym
     in
     lh_e
 
@@ -831,15 +830,14 @@ shiftPB' (PolyBound svt@(sv, t) svts) =
     in
     PolyBound (sv_new, t_new) (shift_new ++ leave)
 
-refToLHExpr' :: (SpecType -> Int -> LH.Symbol) -- ^ Map to argument names
-             -> SpecType
+refToLHExpr' :: SpecType
              -> PolyBound ([SortedVar], Term) 
              -> MeasureSymbols
              -> (PolyBound LH.Expr, [(LH.Symbol, SpecType)], PolyBound (LH.Symbol, SpecType))
-refToLHExpr' f_args st pb_sv_t meas_sym =
+refToLHExpr' st pb_sv_t meas_sym =
     let
         (ars_st, ret_st) = specTypePieces st
-        ars_symb_st = map (\(s, i) -> (f_args s i, s)) $ zip ars_st [0..]
+        ars_symb_st = map (\(s, i) -> (specTypeSymbol s, s)) $ zip ars_st [0..]
         ret_symb_st = mapPB (\s -> (specTypeSymbol s, s))  ret_st
 
         ars = map fst ars_symb_st

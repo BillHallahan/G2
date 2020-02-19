@@ -39,6 +39,7 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
+import Control.Exception
 import Data.Monoid
 import G2.Language.KnownValues
 
@@ -151,7 +152,8 @@ checkBadTy' _ _ = Any False
 -------------------------------
 -- Does a given (counter)example violate a specification?
 -- This allows us to check if a found counterexample violates a user-provided specifications,
--- or a synthesized specification
+-- or a synthesized specification.
+-- Returns True if the original Assertions are True (i.e. not violated)
 checkCounterexample :: LiquidReadyState -> [GhcInfo] -> Config -> FuncCall -> IO Bool
 checkCounterexample lrs ghci config cex@(FuncCall { funcName = Name n m _ _ }) = do
     let config' = config { counterfactual = NotCounterfactual }
@@ -169,22 +171,30 @@ checkCounterexample lrs ghci config cex@(FuncCall { funcName = Name n m _ _ }) =
     return $ any (currExprIsTrue . final_state) fsl
 
 checkCounterexample' :: FuncCall -> State t -> State t
-checkCounterexample' fc@(FuncCall { funcName = n }) s@(State { expr_env = eenv })
+checkCounterexample' fc@(FuncCall { funcName = n }) s@(State { expr_env = eenv, known_values = kv })
     | Just e <- E.lookup n eenv =
     let
-        e' = toJustSpec fc (leadingLamIds e) (inLams e)
+        e' = toJustSpec kv fc (leadingLamIds e) (inLams e)
     in
     s { curr_expr = CurrExpr Evaluate e'
       , true_assert = True }
     | otherwise = error $ "checkCounterexample': Name not found " ++ show n
 
-toJustSpec :: FuncCall -> [Id] -> Expr -> Expr
-toJustSpec (FuncCall { arguments = ars, returns = ret }) is (Let [(b, _)] (Assert _ e _)) =
+toJustSpec :: KnownValues -> FuncCall -> [Id] -> Expr -> Expr
+toJustSpec _ (FuncCall { arguments = ars, returns = ret }) is (Let [(b, _)] (Assert _ e _)) =
     let
         rep = (Var b, ret):zip (map Var is) ars  
     in
     foldr (uncurry replaceASTs) e rep
-toJustSpec _ _ _ = error "toJustSpec: ill-formed state"
+toJustSpec kv _ _ e = assert (not $ hasAssert e) mkTrue kv
+
+hasAssert :: Expr -> Bool
+hasAssert = getAny . evalASTs hasAssert'
+
+hasAssert' :: Expr -> Any
+hasAssert' (Assert _ _ _) = Any True
+hasAssert' _ = Any False
+
 
 currExprIsTrue :: State t -> Bool
 currExprIsTrue (State { curr_expr = CurrExpr _ (Data (DataCon (Name dcn _ _ _) _))}) = dcn == "True"
