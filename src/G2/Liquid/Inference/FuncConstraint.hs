@@ -3,8 +3,8 @@
 module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
                                           , FuncConstraints
                                           , emptyFC
-                                          , insertPostFC
-                                          , lookupPostFC
+                                          , insertFC
+                                          , lookupFC
                                           , allFC
                                           , unionFC
                                           , unionsFC
@@ -13,45 +13,41 @@ module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
 import G2.Language.AST
 import G2.Language.Syntax
 
+import Data.Coerce
 import qualified Data.Map as M
 
-data FuncConstraints =
-    FuncConstraints { pre :: M.Map Name [FuncConstraint] -- ^ Use to refine the precondition
-                    , post :: M.Map Name [FuncConstraint] -- ^ Use to refine the postcondition 
-                    } deriving (Eq, Show, Read)
+newtype FuncConstraints = FuncConstraints (M.Map Name [FuncConstraint])
+                     deriving (Eq, Show, Read)
 
 data FuncConstraint = Pos { constraint :: FuncCall }
                     | Neg { constraint :: FuncCall }
                     deriving (Eq, Show, Read)
 
 emptyFC :: FuncConstraints
-emptyFC = FuncConstraints M.empty M.empty
+emptyFC = FuncConstraints M.empty
 
-insertPostFC :: FuncConstraint -> FuncConstraints -> FuncConstraints
-insertPostFC fc fcs@(FuncConstraints { post = p }) =
-    fcs { post = M.insertWith (++) (zeroOutUnq . funcName . constraint $ fc) [fc] p }
+insertFC :: FuncConstraint -> FuncConstraints -> FuncConstraints
+insertFC fc  =
+    coerce (M.insertWith (++) (zeroOutUnq . funcName . constraint $ fc) [fc])
 
-lookupPostFC :: Name -> FuncConstraints -> [FuncConstraint]
-lookupPostFC n = M.findWithDefault [] (zeroOutUnq n) . post
+lookupFC :: Name -> FuncConstraints -> [FuncConstraint]
+lookupFC n = M.findWithDefault [] (zeroOutUnq n) . coerce
 
 zeroOutUnq :: Name -> Name
 zeroOutUnq (Name n m _ l) = Name n m 0 l
 
 allFC :: FuncConstraints -> [FuncConstraint]
-allFC fc = concat $ M.elems (pre fc) ++ M.elems (post fc)
+allFC = concat . M.elems . coerce
 
 unionFC :: FuncConstraints -> FuncConstraints -> FuncConstraints
-unionFC fc1 fc2 =
-    FuncConstraints { pre = pre fc1 `M.union` pre fc2
-                    , post = post fc1 `M.union` post fc2 }
+unionFC (FuncConstraints fc1) (FuncConstraints fc2) =
+    coerce $ M.unionWith (++) fc1 fc2
 
 unionsFC :: [FuncConstraints] -> FuncConstraints
 unionsFC = foldr unionFC emptyFC
 
 filterFC :: (FuncConstraint -> Bool) -> FuncConstraints -> FuncConstraints
-filterFC p fc =
-    FuncConstraints { pre = M.map (filter p) (pre fc)
-                    , post = M.map (filter p) (post fc) }
+filterFC p = coerce (M.map (filter p))
 
 instance ASTContainer FuncConstraint Expr where
     containedASTs = containedASTs . constraint

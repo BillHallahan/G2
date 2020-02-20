@@ -113,9 +113,9 @@ refineUnsafe infconfig g2config lhconfig ghci m_modname lrs gs fc = do
                 Left ce -> return . Left $ ce
                 Right new_fc' -> do
                     let new_fc_funcs = filter (\(Name _ m _ _) -> m `S.member` (modules infconfig))
-                                     . nub $ map (funcName . constraint) new_fc'
+                                     . nub . map (funcName . constraint) $ allFC new_fc'
 
-                        fc' = foldr insertPostFC fc new_fc'
+                        fc' = unionFC fc new_fc'
 
                     putStrLn $ "new_fc_funcs = " ++ show new_fc_funcs
 
@@ -126,9 +126,9 @@ refineUnsafe infconfig g2config lhconfig ghci m_modname lrs gs fc = do
                     meas_ex <- genMeasureExs lrs merged_se_ghci g2config fc'
                     putStrLn "After genMeasureExs"
                     -- ghci' <- foldM (synthesize infconfig lrs meas_ex fc') ghci new_fc_funcs
-                    (ghci', gs') <- foldM (uncurry (synthesize infconfig lrs meas_ex fc')) (ghci, gs) new_fc_funcs
+                    gs' <- foldM (synthesize infconfig ghci lrs meas_ex fc') gs new_fc_funcs
                     
-                    inference' infconfig g2config lhconfig ghci' m_modname lrs gs' fc'
+                    inference' infconfig g2config lhconfig ghci m_modname lrs gs' fc'
         _ -> error "refineUnsafe: result other than Unsafe"
 
 createStateForInference :: SimpleState -> G2.Config -> [GhcInfo] -> LiquidReadyState
@@ -150,12 +150,12 @@ genNewConstraints ghci m lrs infconfig g2config n = do
     ((exec_res, _), i) <- runLHInferenceCore n m lrs ghci infconfig g2config
     return $ map (lhStateToCE i) exec_res
 
-checkNewConstraints :: [GhcInfo] -> LiquidReadyState -> InferenceConfig ->  G2.Config -> [CounterExample] -> IO (Either [CounterExample] [FuncConstraint])
+checkNewConstraints :: [GhcInfo] -> LiquidReadyState -> InferenceConfig ->  G2.Config -> [CounterExample] -> IO (Either [CounterExample] FuncConstraints)
 checkNewConstraints ghci lrs infconfig g2config cexs = do
     res <- mapM (cexsToFuncConstraints lrs ghci infconfig g2config) cexs
     case lefts res of
         res'@(_:_) -> return . Left $ res'
-        _ -> return . Right . filterErrors . concat . rights $ res
+        _ -> return . Right . filterErrors . unionsFC . rights $ res
 
 genMeasureExs :: LiquidReadyState -> [GhcInfo] -> G2.Config -> FuncConstraints -> IO MeasureExs
 genMeasureExs lrs ghci g2config fcs =
@@ -163,19 +163,19 @@ genMeasureExs lrs ghci g2config fcs =
         es = concatMap (\fc ->
                     let
                         cons = constraint fc
-                        ex_poly = concat $ concatMap extractValues $ extractExprPolyBound (returns cons)
+                        ex_poly = concat . concatMap extractValues . concatMap extractExprPolyBound $ returns cons:arguments cons
                     in
                     returns cons:arguments cons ++ ex_poly
                 ) (allFC fcs)
     in
     evalMeasures lrs ghci g2config es
 
-synthesize :: InferenceConfig -> LiquidReadyState -> MeasureExs -> FuncConstraints -> [GhcInfo] -> GeneratedSpecs -> Name -> IO ([GhcInfo], GeneratedSpecs)
-synthesize infconfig lrs meas_ex fc ghci gs n@(Name n' _ _ _) = do
+synthesize :: InferenceConfig -> [GhcInfo] -> LiquidReadyState -> MeasureExs -> FuncConstraints -> GeneratedSpecs -> Name -> IO GeneratedSpecs
+synthesize infconfig ghci lrs meas_ex fc gs n@(Name n' _ _ _) = do
     let eenv = expr_env . state $ lr_state lrs
         tc = type_classes . state $ lr_state lrs
 
-        fc_of_n = lookupPostFC n fc
+        fc_of_n = lookupFC n fc
         ghci' = insertMissingAssertSpec n ghci
         fspec = case genSpec ghci n of
                 Just spec' -> spec'
@@ -196,39 +196,42 @@ synthesize infconfig lrs meas_ex fc ghci gs n@(Name n' _ _ _) = do
             putStrLn $ "new_spec = " ++ show new_spec
             let gs' = insertAssumeGS n new_spec gs
 
-            return $ (ghci, foldr insertQualifier gs' new_qual)
-        Nothing -> return (ghci, gs)
+            return $ foldr insertQualifier gs' new_qual
+        Nothing -> return gs
 
 -- | Converts counterexamples into constraints that the refinements must allow for, or rule out.
-cexsToFuncConstraints :: LiquidReadyState -> [GhcInfo] -> InferenceConfig -> G2.Config -> CounterExample -> IO (Either CounterExample [FuncConstraint])
+cexsToFuncConstraints :: LiquidReadyState -> [GhcInfo] -> InferenceConfig -> G2.Config -> CounterExample -> IO (Either CounterExample FuncConstraints)
 cexsToFuncConstraints _ _ infconfig _ (DirectCounter dfc fcs@(_:_))
     | not . null $ fcs' =
-        return . Right $ map (Pos . real) fcs ++ map (Neg . abstract) fcs'
-    | otherwise = return . Right $ [] -- [Pos dfc]
+        return . Right . insertsFC $ map (Pos . real) fcs ++ map (Neg . abstract) fcs'
+    | otherwise = return . Right $ emptyFC -- [Pos dfc]
     where
         fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 cexsToFuncConstraints _ _ infconfig _ (CallsCounter dfc _ fcs@(_:_))
     | not . null $ fcs' =
-        return . Right $ map (Pos . real) fcs ++ map (Neg . abstract) fcs'
-    | otherwise = return $ Right [] -- error $ "cexsToFuncConstraints" ++ show (map abstractedMod fcs) -- return . Right $ [Pos dfc] 
+        return . Right . insertsFC $ map (Pos . real) fcs ++ map (Neg . abstract) fcs'
+    | otherwise = return $ Right emptyFC -- error $ "cexsToFuncConstraints" ++ show (map abstractedMod fcs) -- return . Right $ [Pos dfc] 
     where
         fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 cexsToFuncConstraints lrs ghci _ g2config cex@(DirectCounter fc []) = do
     v_cex <- checkCounterexample lrs ghci g2config fc
     case v_cex of
-        True -> return . Right $ [Pos fc]
+        True -> return . Right . insertsFC $ [Pos fc]
         False -> return . Left $ cex
 cexsToFuncConstraints lrs ghci _ g2config cex@(CallsCounter _ fc []) = do
     v_cex <- checkCounterexample lrs ghci g2config fc
     case v_cex of
-        True -> return . Right $ [Pos fc]
+        True -> return . Right . insertsFC $ [Pos fc]
         False -> return . Left $ cex
+
+insertsFC :: [FuncConstraint] -> FuncConstraints
+insertsFC = foldr insertFC emptyFC
 
 abstractedMod :: Abstracted -> Maybe T.Text
 abstractedMod = nameModule . funcName . abstract
 
-filterErrors :: [FuncConstraint] -> [FuncConstraint]
-filterErrors = filter filterErrors'
+filterErrors :: FuncConstraints -> FuncConstraints
+filterErrors = filterFC filterErrors'
 
 filterErrors' :: FuncConstraint -> Bool
 filterErrors' fc =
