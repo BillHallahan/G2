@@ -6,7 +6,7 @@
 
 module G2.Language.PathConds ( PathConds(..)
                              , PathCond (..)
-                             , HashedPathCond(..)
+                             , HashedPathCond
                              , Constraint
                              , Assertion
                              , mkAssumePC
@@ -136,6 +136,11 @@ mapHashedPCs' f = L.map f . toHashedList
 filter :: (PathCond -> Bool) -> PathConds -> PathConds
 filter f = fromHashedList 
          . L.filter (f . unhashedPC)
+         . toHashedList
+
+filterHashed :: (HashedPathCond -> Bool) -> PathConds -> PathConds
+filterHashed f = fromHashedList
+         . L.filter f
          . toHashedList
 
 alter :: (PathCond -> Maybe PathCond) -> PathConds -> PathConds
@@ -470,8 +475,8 @@ removeAssumes (HashedPC (AssumePC _ _ pc) _) = pc
 removeAssumes pc = pc
 
 -- | Returns all non-AssumePCs in `pc`
-genNonAssumePCs :: PathConds -> [HashedPathCond]
-genNonAssumePCs pc = L.filter (not . isHashedAssumePC) $ toHashedList pc
+genNonAssumePCs :: PathConds -> PathConds
+genNonAssumePCs = filterHashed (not . isHashedAssumePC)
 
 isHashedAssumePC :: HashedPathCond -> Bool
 isHashedAssumePC (HashedPC (AssumePC _ _ _) _) = True

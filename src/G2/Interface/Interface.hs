@@ -238,7 +238,7 @@ initSolverInfinite con = initSolver' arbValueInfinite con
 initSolver' :: ArbValueFunc -> Config -> IO SomeTrSolver
 initSolver' avf config = do
     SomeSMTSolver con <- getSMTAV avf config
-    return $ SomeTrSolver (AssumePCSolver avf (Cache (HM.empty)) (UndefinedHigherOrder :?> con))
+    return $ SomeTrSolver (GroupRelated avf (AssumePCSolver avf (Cache (HM.empty)) (UndefinedHigherOrder :?> con)))
     -- return $ SomeSolver (GroupRelated avf (UndefinedHigherOrder :?> con))
 
 mkExprEnv :: [(Id, Expr)] -> E.ExprEnv
