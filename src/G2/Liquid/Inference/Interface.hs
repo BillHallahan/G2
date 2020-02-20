@@ -70,26 +70,30 @@ inference' :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.
 inference' infconfig g2config lhconfig ghci m_modname lrs gs fc = do
     print gs
 
-    let merged_verify_ghci = addQualifiersToGhcInfos gs $ addAssumedSpecsToGhcInfos ghci gs
-        merged_se_ghci = addSpecsToGhcInfos ghci (switchAssumesToAsserts gs)
+    let merged_verify_with_quals_ghci = addQualifiersToGhcInfos gs ghci
 
-    mapM_ (\ghci -> do
-            putStrLn "Assumes:"
-            print . gsAsmSigs . spec $ ghci
-            putStrLn "Asserts:"
-            print . gsTySigs . spec $ ghci) merged_verify_ghci
+    res_quals <- verify lhconfig merged_verify_with_quals_ghci
+
+    case res_quals of
+        Safe 
+            | nullAssumeGS gs -> return $ Right gs
+            | otherwise -> inference' infconfig g2config lhconfig ghci m_modname lrs (switchAssumesToAsserts gs) fc
+        Crash ci err -> error $ "Crash\n" ++ show ci ++ "\n" ++ err
+        Unsafe _ -> refineUnsafe infconfig g2config lhconfig ghci m_modname lrs gs fc
+
+refineUnsafe :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
+             -> GeneratedSpecs -> FuncConstraints -> IO (Either [CounterExample] GeneratedSpecs)
+refineUnsafe infconfig g2config lhconfig ghci m_modname lrs gs fc = do
+    let merged_verify_with_asserts_ghci = addQualifiersToGhcInfos gs $ addSpecsToGhcInfos ghci gs
+        merged_se_ghci = addSpecsToGhcInfos ghci (switchAssumesToAsserts gs)
 
     mapM_ (\ghci -> do
             putStrLn "All Asserts:"
             print . gsTySigs . spec $ ghci) merged_se_ghci
 
-    res <- verify lhconfig merged_verify_ghci
-
-    case res of
-        Safe 
-            | nullAssumeGS gs -> return $ Right gs
-            | otherwise -> inference' infconfig g2config lhconfig ghci m_modname lrs (switchAssumesToAsserts gs) fc
-        Crash ci err -> error $ "Crash\n" ++ show ci ++ "\n" ++ err
+    res_asserts <- verify lhconfig merged_verify_with_asserts_ghci
+    
+    case res_asserts of
         Unsafe bad -> do
             -- Generate constraints
             let bad' = nub $ map nameOcc bad
@@ -111,7 +115,7 @@ inference' infconfig g2config lhconfig ghci m_modname lrs gs fc = do
                     let new_fc_funcs = filter (\(Name _ m _ _) -> m `S.member` (modules infconfig))
                                      . nub $ map (funcName . constraint) new_fc'
 
-                        fc' = foldr insertFC fc new_fc'
+                        fc' = foldr insertPostFC fc new_fc'
 
                     putStrLn $ "new_fc_funcs = " ++ show new_fc_funcs
 
@@ -125,6 +129,7 @@ inference' infconfig g2config lhconfig ghci m_modname lrs gs fc = do
                     (ghci', gs') <- foldM (uncurry (synthesize infconfig lrs meas_ex fc')) (ghci, gs) new_fc_funcs
                     
                     inference' infconfig g2config lhconfig ghci' m_modname lrs gs' fc'
+        _ -> error "refineUnsafe: result other than Unsafe"
 
 createStateForInference :: SimpleState -> G2.Config -> [GhcInfo] -> LiquidReadyState
 createStateForInference simp_s config ghci =
@@ -170,7 +175,7 @@ synthesize infconfig lrs meas_ex fc ghci gs n@(Name n' _ _ _) = do
     let eenv = expr_env . state $ lr_state lrs
         tc = type_classes . state $ lr_state lrs
 
-        fc_of_n = lookupFC n fc
+        fc_of_n = lookupPostFC n fc
         ghci' = insertMissingAssertSpec n ghci
         fspec = case genSpec ghci n of
                 Just spec' -> spec'
