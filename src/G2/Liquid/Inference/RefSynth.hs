@@ -390,12 +390,12 @@ relTy _ = True
 -------------------------------
 
 -- | Constraints expresessed as "anded" terms
-data TermConstraint = PosT { term_cons :: [Term] }
-                    | NegT { term_cons :: [Term] }
+data TermConstraint = PosT { ret_terms :: [Term] }
+                    | NegT { ret_terms :: [Term] }
                     deriving (Show, Read)
 
 modifyTC :: ([Term] -> [Term]) -> TermConstraint -> TermConstraint
-modifyTC f tc = tc { term_cons = f (term_cons tc) }
+modifyTC f tc = tc { ret_terms = f (ret_terms tc) }
 
 -- | Convert constraints.  Measures cause us to lose information about the data, so after
 -- conversion we can have a constraint both postively and negatively.  We know that the postive
@@ -510,11 +510,11 @@ exprToDTTerm sorts meas_ex t e =
 filterPosAndNegConstraints :: [TermConstraint] -> [TermConstraint]
 filterPosAndNegConstraints ts =
     let
-        tre = concatMap term_cons $ filter isPosT ts
+        tre = concatMap ret_terms $ filter isPosT ts
     in
-    filter (not . null . term_cons)
+    filter (not . null . ret_terms)
         $ map (\t -> if isPosT t then t else modifyTC (filter (not . flip elem tre)) t) ts
-    -- filter (\t -> isPosT t || all (\t' -> term_cons t /= term_cons t') tre ) ts
+    -- filter (\t -> isPosT t || all (\t' -> ret_terms t /= ret_terms t') tre ) ts
     where
         isPosT (PosT _) = True
         isPosT (NegT _) = False
