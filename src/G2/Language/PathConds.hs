@@ -124,6 +124,7 @@ fromHashedList = coerce . foldr insertHashed empty
 map :: (PathCond -> PathCond) -> PathConds -> PathConds
 map f = fromList . L.map f . toList
 
+-- Any 'f' needs to ensure HashSet of names is also updated
 mapHashedPCs :: (HashedPathCond -> HashedPathCond) -> PathConds -> PathConds
 mapHashedPCs f = fromHashedList . L.map f . toHashedList
 
@@ -146,6 +147,7 @@ filterHashed f = fromHashedList
 alter :: (PathCond -> Maybe PathCond) -> PathConds -> PathConds
 alter f = fromList . mapMaybe f . toList
 
+-- Any 'f' needs to ensure HashSet of names is also updated
 alterHashed :: (HashedPathCond -> Maybe HashedPathCond) -> PathConds -> PathConds
 alterHashed f = fromHashedList . mapMaybe f . toHashedList
 
@@ -156,26 +158,27 @@ alterHashed f = fromHashedList . mapMaybe f . toHashedList
 -- returns all PCs anyway) or scc (which forces exploration over all shared names)
 {-# INLINE insert #-}
 insert :: PathCond -> PathConds -> PathConds
-insert pc = insert' varNamesInPC (hashedPC pc)
+insert pc = insert' (hashedPC pc)
 
 insertHashed :: HashedPathCond -> PathConds -> PathConds
-insertHashed = insert' varNamesInPC
+insertHashed = insert'
 
-insert' :: (PathCond -> [Name]) -> HashedPathCond -> PathConds -> PathConds
-insert' f p (PathConds pcs) =
+insert' :: HashedPathCond -> PathConds -> PathConds
+insert' p (PathConds pcs) =
     let
-        ns = f (unhashedPC p)
+        ns = hashedPCNames p
 
-        (hd, insertAt) = case ns of
-            [] -> (Nothing, [Nothing])
-            (h:_) -> (Just h, P.map Just ns)
+        (hd, insertAt) = case (HS.null ns) of
+            True -> (Nothing, [Nothing])
+            False -> let nsList@(h:_) = (HS.toList ns)
+                     in (Just h, P.map Just nsList)
     in
     PathConds $ M.adjust (\(p', ns') -> (HS.insert p p', ns')) hd
-              $ foldr (M.alter (insert'' ns)) pcs insertAt
+              $ foldr (\n -> M.alter (insert'' ns) n) pcs insertAt
 
-insert'' :: [Name] -> Maybe (HS.HashSet HashedPathCond, HS.HashSet Name) -> Maybe (HS.HashSet HashedPathCond, HS.HashSet Name)
-insert'' ns Nothing = Just (HS.empty, HS.fromList ns)
-insert'' ns (Just (p', ns')) = Just (p', HS.union (HS.fromList ns) ns')
+insert'' :: HS.HashSet Name -> Maybe (HS.HashSet HashedPathCond, HS.HashSet Name) -> Maybe (HS.HashSet HashedPathCond, HS.HashSet Name)
+insert'' ns Nothing = Just (HS.empty, ns)
+insert'' ns (Just (p', ns')) = Just (p', HS.union ns ns')
 
 {-# INLINE number #-}
 number :: PathConds -> Int
@@ -306,7 +309,8 @@ mergeWithAssumePCs i (PathConds pc1) (PathConds pc2) =
     in
     PathConds . adjustNothing (idName i) $ M.insert (Just $ idName i) (HS.empty, ns) merged
 
-mergeOnlyIn :: Id -> Integer -> Maybe Name -> (HS.HashSet HashedPathCond, HS.HashSet Name) -> (HS.HashSet Name, (HS.HashSet HashedPathCond, HS.HashSet Name))
+mergeOnlyIn :: Id -> Integer -> Maybe Name -> (HS.HashSet HashedPathCond, HS.HashSet Name)
+            -> (HS.HashSet Name, (HS.HashSet HashedPathCond, HS.HashSet Name))
 mergeOnlyIn i n _ (hpc, hn) =
     let
         hn' = if not (HS.null hpc) then HS.insert (idName i) hn else hn
@@ -407,24 +411,27 @@ instance Ided PathCond where
     ids (ExtCond e _) = ids e
     ids (AssumePC i _ pc) = ids i ++ ids pc
 
-data HashedPathCond = HashedPC PathCond {-# UNPACK #-} !Int
+data HashedPathCond = HashedPC PathCond (HS.HashSet Name) {-# UNPACK #-} !Int
               deriving (Show, Read, Typeable, Data)
 
 hashedPC :: PathCond -> HashedPathCond
-hashedPC pc = HashedPC pc (hash pc)
+hashedPC pc = HashedPC pc (HS.fromList (varNamesInPC pc)) (hash pc)
 
 unhashedPC :: HashedPathCond -> PathCond
-unhashedPC (HashedPC pc _) = pc
+unhashedPC (HashedPC pc _ _) = pc
 
 mapHashedPC :: (PathCond -> PathCond) -> HashedPathCond -> HashedPathCond
-mapHashedPC f (HashedPC pc _) = hashedPC (f pc)
+mapHashedPC f (HashedPC pc _ _) = hashedPC (f pc)
+
+hashedPCNames :: HashedPathCond -> HS.HashSet Name
+hashedPCNames (HashedPC _ ns _) = ns
 
 instance Eq HashedPathCond where
-    HashedPC pc h == HashedPC pc' h' = if h /= h' then False else pc == pc'
+    HashedPC pc _ h == HashedPC pc' _ h' = if h /= h' then False else pc == pc'
 
 instance Hashable HashedPathCond where
-    hashWithSalt s (HashedPC _ h) = s `hashWithSalt` h
-    hash (HashedPC _ h) = h
+    hashWithSalt s (HashedPC _ _ h) = s `hashWithSalt` h
+    hash (HashedPC _ _ h) = h
 
 instance ASTContainer HashedPathCond Expr where
     containedASTs = containedASTs . unhashedPC
@@ -442,12 +449,11 @@ instance Named HashedPathCond where
 instance Ided HashedPathCond where
   ids = ids . unhashedPC
 
-
 mkAssumePC :: Id -> Integer -> PathCond -> PathCond
 mkAssumePC i n pc = AssumePC i n (hashedPC pc)
 
 hashedAssumePC :: Id -> Integer -> HashedPathCond -> HashedPathCond
-hashedAssumePC i n hpc@(HashedPC _ h) = HashedPC (AssumePC i n hpc) (hashAssumePCFromHash i n h)
+hashedAssumePC i n hpc@(HashedPC _ ns h) = HashedPC (AssumePC i n hpc) (HS.insert (idName i) ns) (hashAssumePCFromHash i n h)
 
 -- | Helper functions to compute the hash of an AssumePC in various ways
 hashAssumePC :: Id -> Integer -> HashedPathCond -> Int
@@ -466,12 +472,12 @@ filterByInt :: [HashedPathCond] -> Integer -> [HashedPathCond]
 filterByInt pc e = L.filter (otherAssumePCs e) pc
 
 otherAssumePCs :: Integer -> HashedPathCond -> Bool
-otherAssumePCs i (HashedPC (AssumePC _ num _) _) = i == num
+otherAssumePCs i (HashedPC (AssumePC _ num _) _ _) = i == num
 otherAssumePCs _ _ = False
 
 -- | Lift PathCond out of any top-level AssumePC
 removeAssumes :: HashedPathCond -> HashedPathCond
-removeAssumes (HashedPC (AssumePC _ _ pc) _) = pc
+removeAssumes (HashedPC (AssumePC _ _ pc) _ _) = pc
 removeAssumes pc = pc
 
 -- | Returns all non-AssumePCs in `pc`
@@ -479,8 +485,8 @@ genNonAssumePCs :: PathConds -> PathConds
 genNonAssumePCs = filterHashed (not . isHashedAssumePC)
 
 isHashedAssumePC :: HashedPathCond -> Bool
-isHashedAssumePC (HashedPC (AssumePC _ _ _) _) = True
-isHashedAssumePC (HashedPC _ _) = False
+isHashedAssumePC (HashedPC (AssumePC _ _ _) _ _) = True
+isHashedAssumePC (HashedPC _ _ _) = False
 
 isAssumePC :: PathCond -> Bool
 isAssumePC (AssumePC _ _ _) = True

@@ -18,7 +18,7 @@ mergeEffectiveTests = do
     -- timeIOActionPrint "compress4SM" $ [g2M| \(a :: Int) -> ?(xs :: [Int]) | compressTest4 a xs |] 2
 
     -- timeIOActionPrint "subseqOfTest" $ [g2| \(a :: [Int]) -> ?(b :: [Int]) | subseqOfTest a b |] [1,2,1,3]
-    timeIOActionPrint "subseqOfTestSM" $ [g2M| \(a :: [Int]) -> ?(b :: [Int]) | subseqOfTest a b |] [1,2,1,3]
+    -- timeIOActionPrint "subseqOfTestSM" $ [g2M| \(a :: [Int]) -> ?(b :: [Int]) | subseqOfTest a b |] [1,2,1,3]
 
     -- timeIOActionPrint "sumEvensTest" $ [g2| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] 5
     -- timeIOActionPrint "sumEvensTestSM" $ [g2M| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] 5
@@ -33,7 +33,7 @@ mergeEffectiveTests = do
     -- timeIOActionPrint "foldrTest2SM" $ [g2M| \(z :: Int) -> ?(xs :: [Maybe Int]) ?(ys :: [Maybe Int]) | foldrTest2 z xs ys |] 0
 
     -- timeIOActionPrint "divideTest" $ [g2| \(a :: Int) -> ?(b :: Int) ?(c :: Int) ?(d :: Int) | divideTest c d a b |] 5
-    -- timeIOActionPrint "divideTestSM" $ [g2M| \(a :: Int) -> ?(b :: Int) ?(c :: Int) ?(d :: Int) | divideTest c d a b |] 5
+    timeIOActionPrint "divideTestSM" $ [g2M| \(a :: Int) -> ?(b :: Int) ?(c :: Int) ?(d :: Int) | divideTest c d a b |] 5
 
     -- timeIOActionPrint "LuhnFormula" $ [g2| \(a :: Int) -> ?(idn :: [Int]) | validateLuhn a idn |] 15
     -- timeIOActionPrint "LuhnFormulaSM" $ [g2M| \(a :: Int) -> ?(idn :: [Int]) | validateLuhn a idn |] 15
