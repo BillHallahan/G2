@@ -140,29 +140,53 @@ applicableMeasure t e =
 generateGrammarsAndConstraints :: TypesToSorts -> MeasureExs -> [Type] -> Type -> [FuncConstraint] -> ([Cmd], [Cmd], RefNamePolyBound)
 generateGrammarsAndConstraints sorts meas_ex arg_tys ret_ty fcs@(fc:_) =
     let
-        poly_bd = extractExprPolyBoundWithRoot (returns $ constraint fc)
-        poly_ref_names = mapPB (\i -> "refinement_" ++ show i) $ uniqueIds poly_bd
-        rt_bound = extractTypePolyBound ret_ty
-        ns_rt = zipPB poly_ref_names rt_bound
+        ref_names = refinementNames fc
 
-        varN = map (\i -> "x" ++ show i) ([0..] :: [Integer])
-        arg_sort_vars = map (uncurry SortedVar) . zip varN
-                        . map (typeToSort sorts) . filter (not . isLHDict) $ arg_tys
-        -- ret_sort_var = SortedVar "r" (typeToSort sorts ret_ty)
-
-        gram_cmds = map (\(n, rt) ->
-                        let
-                            ret_sort_var = SortedVar "r" (typeToSort sorts rt)
-                            sort_vars = arg_sort_vars ++ [ret_sort_var]
-                            
-                            gram = grammar arg_sort_vars ret_sort_var sorts
-                        in
-                        SynthFun n sort_vars boolSort (Just gram))
-                    . filter (relTy . snd) 
-                    $ extractValues ns_rt
-        cons = generateConstraints sorts meas_ex poly_ref_names arg_tys ret_ty fcs
+        gram_cmds = generateGrammars sorts ref_names meas_ex arg_tys ret_ty
+        cons = generateConstraints sorts meas_ex ref_names arg_tys ret_ty fcs
     in
-    (gram_cmds, cons, poly_ref_names)
+    (gram_cmds, cons, ref_names)
+
+refinementNames :: FuncConstraint -> RefNamePolyBound
+refinementNames fc =
+    let
+        poly_bd = extractExprPolyBoundWithRoot (returns $ constraint fc)
+    in
+    mapPB (\i -> "refinement_" ++ show i) $ uniqueIds poly_bd
+
+generateGrammars :: TypesToSorts -> RefNamePolyBound -> MeasureExs -> [Type] -> Type -> [Cmd]
+generateGrammars sorts ref_names meas_ex arg_tys ret_ty =
+    let
+        rt_bound = extractTypePolyBound ret_ty
+        ns_rt = zipPB ref_names rt_bound
+    in
+    map (uncurry (generateSynthFun sorts arg_tys))
+        . filter (relTy . snd) 
+        $ extractValues ns_rt
+
+generateSynthFun :: TypesToSorts 
+                 -> [Type] -- ^ Argument types
+                 -> String -- ^ Name of function to synthesize
+                 -> Type -- ^ Return type
+                 -> Cmd
+generateSynthFun sorts arg_tys n rt =
+    let
+        param_vars = generateParams sorts arg_tys
+
+        ret_sort_var = SortedVar "r" (typeToSort sorts rt)
+        sort_vars = param_vars ++ [ret_sort_var]
+        
+        gram = grammar param_vars ret_sort_var sorts
+    in
+    SynthFun n sort_vars boolSort (Just gram)
+
+generateParams :: TypesToSorts -> [Type] -> [SortedVar]
+generateParams sorts arg_tys =
+    let
+        varN = map (\i -> "x" ++ show i) ([0..] :: [Integer])
+    in
+    map (uncurry SortedVar) . zip varN
+        . map (typeToSort sorts) . filter (not . isLHDict) $ arg_tys
     where
         isLHDict e
             | (TyCon (Name n _ _ _) _):_ <- unTyApp e = n == "lh"
