@@ -140,19 +140,34 @@ applicableMeasure t e =
 generateGrammarsAndConstraints :: TypesToSorts -> MeasureExs -> [Type] -> Type -> [FuncConstraint] -> ([Cmd], [Cmd], RefNamePolyBound)
 generateGrammarsAndConstraints sorts meas_ex arg_tys ret_ty fcs@(fc:_) =
     let
-        ref_names = refinementNames fc
+        ret_ref_names = refinementNames "ret" (returns $ constraint fc)
+        ret_gram_cmds = generateGrammars sorts ret_ref_names meas_ex arg_tys ret_ty
 
-        gram_cmds = generateGrammars sorts ref_names meas_ex arg_tys ret_ty
-        cons = generateConstraints sorts meas_ex ref_names arg_tys ret_ty fcs
+        arg_names_grams = generateParamRefGrammars fc sorts meas_ex arg_tys
+        (arg_names, arg_grams_cmds) = unzip arg_names_grams
+
+        cons = generateConstraints sorts meas_ex ret_ref_names arg_tys ret_ty fcs
     in
-    (gram_cmds, cons, ref_names)
+    (ret_gram_cmds, cons, ret_ref_names)
 
-refinementNames :: FuncConstraint -> RefNamePolyBound
-refinementNames fc =
+refinementNames :: String -> G2.Expr -> RefNamePolyBound
+refinementNames prefix e =
     let
-        poly_bd = extractExprPolyBoundWithRoot (returns $ constraint fc)
+        poly_bd = extractExprPolyBoundWithRoot e
     in
-    mapPB (\i -> "refinement_" ++ show i) $ uniqueIds poly_bd
+    mapPB (\i -> prefix ++ "_refinement_" ++ show i) $ uniqueIds poly_bd
+
+generateParamRefGrammars :: FuncConstraint -> TypesToSorts -> MeasureExs -> [Type] -> [(RefNamePolyBound, [Cmd])]
+generateParamRefGrammars fc sorts meas_ex arg_tys =
+    map (\(i, as@((_, a):_)) ->
+            let
+                as_tys = map fst as
+
+                arg_ref_names = refinementNames ("args_" ++ show i) a
+                arg_gram_cmds = generateGrammars sorts arg_ref_names meas_ex (init as_tys) (last as_tys)
+            in
+            (arg_ref_names, arg_gram_cmds))
+        (zip [0..] . map (zip arg_tys) . filter (not . null) . inits . arguments $ constraint fc)
 
 generateGrammars :: TypesToSorts -> RefNamePolyBound -> MeasureExs -> [Type] -> Type -> [Cmd]
 generateGrammars sorts ref_names meas_ex arg_tys ret_ty =
@@ -433,7 +448,7 @@ termConstraints sorts meas_ex poly_names arg_tys ret_ty (Neg fc) =
 data ValOrExistential v = Val v | Existential
 
 funcCallTerm :: TypesToSorts -> MeasureExs -> RefNamePolyBound ->  [Type] -> Type -> FuncCall -> [Term]
-funcCallTerm sorts meas_ex poly_names arg_tys ret_ty fc@(FuncCall { arguments = ars, returns = r}) =
+funcCallTerm sorts meas_ex poly_names arg_tys ret_ty (FuncCall { arguments = ars, returns = r}) =
     let
         r_bound = extractExprPolyBoundWithRoot r
         rt_bound = extractTypePolyBound ret_ty
