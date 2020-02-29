@@ -86,16 +86,26 @@ elimSimpleDTsTerms :: M.HashMap Symbol (Symbol, [SortedVar]) -> Term -> Term
 elimSimpleDTsTerms _ t@(TermIdent _) = t
 elimSimpleDTsTerms _ t@(TermLit _) = t
 elimSimpleDTsTerms simple_srts t@(TermCall i ts) =
-    TermCall i . map (elimSimpleDTsTerms simple_srts) $ concatMap (elimSimpleDTsList simple_srts) ts
+    swapToIdent . TermCall i $ concatMap (elimSimpleDTsList simple_srts) ts
+elimSimpleDTsTerms simple_srts (TermExists sv t) =
+    TermExists sv $ elimSimpleDTsTerms simple_srts t
 elimSimpleDTsTerms _ t = error $ "elimSimpleDTsTerms: Unhandled term " ++ show t
 
 elimSimpleDTsList :: M.HashMap Symbol (Symbol, [SortedVar]) -> Term -> [Term]
-elimSimpleDTsList _ t@(TermIdent _) = [t]
+elimSimpleDTsList simple_srts t@(TermIdent (ISymb s))
+    | s `S.member` getSimpleDTs simple_srts = []
+    | otherwise = [t]
 elimSimpleDTsList _ t@(TermLit _) = [t]
 elimSimpleDTsList simple_srts t@(TermCall (ISymb s) ts)
     | s `S.member` getSimpleDTs simple_srts = ts
-    | otherwise = [t]
+    | otherwise = [swapToIdent . TermCall (ISymb s) $ concatMap (elimSimpleDTsList simple_srts) ts]
+elimSimpleDTsList simple_srts (TermExists sv t) =
+    [TermExists sv $ elimSimpleDTsTerms simple_srts t]
 elimSimpleDTsList _ t = error $ "elimSimpleDTsList: Unhandled term " ++ show t
+
+swapToIdent :: Term -> Term
+swapToIdent (TermCall i []) = TermIdent i
+swapToIdent t = t
 
 adjustSimpleInGrammar :: M.HashMap Symbol (Symbol, [SortedVar]) -> Symbol -> EliminatedSimple -> GrammarDef -> GrammarDef
 adjustSimpleInGrammar simple_srts fn es (GrammarDef sv grl) =
@@ -104,7 +114,6 @@ adjustSimpleInGrammar simple_srts fn es (GrammarDef sv grl) =
 
 simpleGrammarDecls :: M.HashMap Symbol (Symbol, [SortedVar]) -> SortedVar -> Bool
 simpleGrammarDecls simple_srts (SortedVar _ (IdentSort (ISymb s))) = s `M.member` simple_srts
-
 
 simpleProdGRL :: M.HashMap Symbol (Symbol, [SortedVar]) -> GroupedRuleList -> Bool
 simpleProdGRL simple_srts (GroupedRuleList _ (IdentSort (ISymb s)) _) = s `M.member` simple_srts
