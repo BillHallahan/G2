@@ -28,6 +28,7 @@ import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.FuncConstraint
 import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.PolyRef
+import G2.Liquid.Inference.SimplifySygus
 
 import Sygus.LexSygus
 import Sygus.ParseSygus
@@ -61,15 +62,16 @@ import TyCon
 import Debug.Trace
 
 refSynth :: InferenceConfig -> SpecType -> G2.Expr -> TypeClasses -> Measures
-         -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> LH.TCEmb TyCon -> IO (Maybe (PolyBound LH.Expr, [Qualifier]))
+         -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> LH.TCEmb TyCon -> IO (Maybe ([PolyBound LH.Expr], [Qualifier]))
 refSynth infconfig spc e tc meas meas_ex fc meas_sym tycons = do
         putStrLn "refSynth"
-        let (call, f_num, rp_ns) = sygusCall e tc meas meas_ex fc
-        let sygus = printSygus call
+        let (call, f_num, arg_pb, ret_pb) = sygusCall e tc meas meas_ex fc
+            (es, simp_call) = elimSimpleDTs call
+        let sygus = printSygus simp_call
         putStrLn . T.unpack $ sygus
 
-        -- res <- runCVC4 (T.unpack sygus)
-        res <- runCVC4StreamSolutions infconfig f_num (T.unpack sygus)
+        res <- runCVC4 infconfig (T.unpack sygus)
+        -- res <- runCVC4StreamSolutions infconfig f_num (T.unpack sygus)
 
         case res of
             Left _ -> do
@@ -77,9 +79,14 @@ refSynth infconfig spc e tc meas meas_ex fc meas_sym tycons = do
                 return Nothing
                 -- error "refSynth: Bad call to CVC4"
             Right smt_st -> do
-                let lh_st = refToLHExpr spc rp_ns smt_st meas_sym
-                    lh_quals = refToQualifiers spc rp_ns smt_st meas_sym tycons
+                let smt_st' = restoreSimpleDTs es smt_st
 
+                putStrLn . T.unpack $ printSygus smt_st'
+
+                let lh_st = refToLHExpr spc arg_pb ret_pb smt_st' meas_sym
+                    lh_quals = refToQualifiers spc arg_pb ret_pb smt_st' meas_sym tycons
+
+                print lh_st
                 print lh_quals
 
                 return $ Just (lh_st, lh_quals)
@@ -88,7 +95,7 @@ refSynth infconfig spc e tc meas meas_ex fc meas_sym tycons = do
 -- Constructing Sygus Formula
 -------------------------------
 
-sygusCall :: G2.Expr -> TypeClasses -> Measures -> MeasureExs -> [FuncConstraint] -> ([Cmd], Int, RefNamePolyBound)
+sygusCall :: G2.Expr -> TypeClasses -> Measures -> MeasureExs -> [FuncConstraint] -> ([Cmd], Int, [RefNamePolyBound], RefNamePolyBound)
 sygusCall e tc meas meas_ex fcs@(_:_) =
     let
         -- Figure out what measures we need to/can consider
@@ -103,7 +110,7 @@ sygusCall e tc meas meas_ex fcs@(_:_) =
 
         declare_dts = sortsToDeclareDTs sorts
 
-        (grams, cons, rp_ns) = generateGrammarsAndConstraints sorts meas_ex rel_arg_ty_c ret_ty_c rel_fcs
+        (grams, cons, arg_pb, ret_pb) = generateGrammarsAndConstraints sorts meas_ex rel_arg_ty_c ret_ty_c rel_fcs
 
         call = [ SmtCmd (SetLogic "ALL")]
                ++
@@ -117,7 +124,7 @@ sygusCall e tc meas meas_ex fcs@(_:_) =
                ++
                [ CheckSynth ]
     in
-    (call, length grams, rp_ns)
+    (call, length grams, arg_pb, ret_pb)
 sygusCall _ _ _ _ _ = error "sygusCall: empty list"
 
 applicableMeasures :: Measures -> Type -> [Name]
@@ -137,18 +144,18 @@ applicableMeasure t e =
             | TyCon (Name n _ _ _) _ <- tyAppCenter ty = n /= "lh"
             | otherwise = False
 
-generateGrammarsAndConstraints :: TypesToSorts -> MeasureExs -> [Type] -> Type -> [FuncConstraint] -> ([Cmd], [Cmd], RefNamePolyBound)
+generateGrammarsAndConstraints :: TypesToSorts -> MeasureExs -> [Type] -> Type -> [FuncConstraint] -> ([Cmd], [Cmd], [RefNamePolyBound], RefNamePolyBound)
 generateGrammarsAndConstraints sorts meas_ex arg_tys ret_ty fcs@(fc:_) =
     let
-        ret_ref_names = refinementNames "ret" (returns $ constraint fc)
-        ret_gram_cmds = generateGrammars sorts ret_ref_names meas_ex arg_tys ret_ty
+        ret_names = refinementNames "ret" (returns $ constraint fc)
+        ret_gram_cmds = generateGrammars extGrammar sorts ret_names meas_ex arg_tys ret_ty
 
         arg_names_grams = generateParamRefGrammars fc sorts meas_ex arg_tys
         (arg_names, arg_grams_cmds) = unzip arg_names_grams
 
-        cons = generateConstraints sorts meas_ex ret_ref_names arg_tys ret_ty fcs
+        cons = generateConstraints sorts meas_ex arg_names ret_names arg_tys ret_ty fcs
     in
-    (ret_gram_cmds, cons, ret_ref_names)
+    (concat arg_grams_cmds ++ ret_gram_cmds, cons, arg_names, ret_names)
 
 refinementNames :: String -> G2.Expr -> RefNamePolyBound
 refinementNames prefix e =
@@ -164,34 +171,35 @@ generateParamRefGrammars fc sorts meas_ex arg_tys =
                 as_tys = map fst as
 
                 arg_ref_names = refinementNames ("args_" ++ show i) a
-                arg_gram_cmds = generateGrammars sorts arg_ref_names meas_ex (init as_tys) (last as_tys)
+                arg_gram_cmds = generateGrammars regGrammar sorts arg_ref_names meas_ex (init as_tys) (last as_tys)
             in
             (arg_ref_names, arg_gram_cmds))
         (zip [0..] . map (zip arg_tys) . filter (not . null) . inits . arguments $ constraint fc)
 
-generateGrammars :: TypesToSorts -> RefNamePolyBound -> MeasureExs -> [Type] -> Type -> [Cmd]
-generateGrammars sorts ref_names meas_ex arg_tys ret_ty =
+generateGrammars :: GrammarGen -> TypesToSorts -> RefNamePolyBound -> MeasureExs -> [Type] -> Type -> [Cmd]
+generateGrammars g sorts ref_names meas_ex arg_tys ret_ty =
     let
         rt_bound = extractTypePolyBound ret_ty
         ns_rt = zipPB ref_names rt_bound
     in
-    map (uncurry (generateSynthFun sorts arg_tys))
+    map (uncurry (generateSynthFun g sorts arg_tys))
         . filter (relTy . snd) 
         $ extractValues ns_rt
 
-generateSynthFun :: TypesToSorts 
+generateSynthFun :: GrammarGen
+                 -> TypesToSorts 
                  -> [Type] -- ^ Argument types
                  -> String -- ^ Name of function to synthesize
                  -> Type -- ^ Return type
                  -> Cmd
-generateSynthFun sorts arg_tys n rt =
+generateSynthFun g sorts arg_tys n rt =
     let
         param_vars = generateParams sorts arg_tys
 
         ret_sort_var = SortedVar "r" (typeToSort sorts rt)
         sort_vars = param_vars ++ [ret_sort_var]
         
-        gram = grammar param_vars ret_sort_var sorts
+        gram = g param_vars ret_sort_var sorts
     in
     SynthFun n sort_vars boolSort (Just gram)
 
@@ -229,8 +237,18 @@ safeModDecl =
 -- Grammar
 -------------------------------
 
-grammar :: [SortedVar] -> SortedVar -> TypesToSorts -> GrammarDef
-grammar arg_sort_vars ret_sorted_var sorts =
+type GrammarGen = [SortedVar] -> SortedVar -> TypesToSorts -> GrammarDef
+
+regGrammar :: GrammarGen
+regGrammar = grammar intRuleList doubleRuleList
+
+extGrammar :: GrammarGen
+extGrammar = grammar extIntRuleList extDoubleRuleList
+
+grammar :: [GTerm] -- Int Rules
+        -> [GTerm] -- Double Rules
+        -> GrammarGen
+grammar intRules doubleRules arg_sort_vars ret_sorted_var sorts =
     let
         sorted_vars = arg_sort_vars ++ [ret_sorted_var]
 
@@ -244,10 +262,10 @@ grammar arg_sort_vars ret_sorted_var sorts =
                 (boolRuleList ++ addSelectors sortsToGN boolSort sorts')
 
         irl = GroupedRuleList "I" intSort
-                (intRuleList ++ addSelectors sortsToGN intSort sorts')
+                (intRules ++ addSelectors sortsToGN intSort sorts')
 
         drl = GroupedRuleList "D" doubleSort
-                (doubleRuleList ++ addSelectors sortsToGN doubleSort sorts')
+                (doubleRules ++ addSelectors sortsToGN doubleSort sorts')
 
         const_int = GroupedRuleList "IConst" intSort [GConstant intSort]
 
@@ -273,34 +291,44 @@ grammar arg_sort_vars ret_sorted_var sorts =
         sortSymb (IdentSort (ISymb s)) = s
         sortSymb _ = error "grammar: sortSymb"
 
+extIntRuleList :: [GTerm]
+extIntRuleList = intRuleList ++ 
+    [ GBfTerm $ BfIdentifierBfs (ISymb "*") [intBf, intBf]
+    , GBfTerm $ BfIdentifierBfs (ISymb safeModSymb) [intBf, BfIdentifier (ISymb "IConst")]
+    ]
+
 intRuleList :: [GTerm]
 intRuleList =
     [ GVariable intSort
-    -- , GConstant intSort
+    , GConstant intSort
     , GBfTerm $ BfIdentifierBfs (ISymb "+") [intBf, intBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "+") [intBf, BfIdentifier (ISymb "IConst")]
     , GBfTerm $ BfIdentifierBfs (ISymb "-") [intBf, intBf]
-    , GBfTerm $ BfIdentifierBfs (ISymb "*") [intBf, intBf]
-    , GBfTerm $ BfIdentifierBfs (ISymb safeModSymb) [intBf, BfIdentifier (ISymb "IConst")]
     ]
-    ++ [GBfTerm . BfLiteral . LitNum $ x | x <- [0..0]]
+    -- ++ [GBfTerm . BfLiteral . LitNum $ x | x <- [0..0]]
+
+extDoubleRuleList :: [GTerm]
+extDoubleRuleList = doubleRuleList ++ [GBfTerm $ BfIdentifierBfs (ISymb "*") [doubleBf, doubleBf]]
 
 doubleRuleList :: [GTerm]
 doubleRuleList =
     [ GVariable doubleSort
-    -- , GConstant intSort
+    , GConstant doubleSort
     , GBfTerm $ BfIdentifierBfs (ISymb "+") [doubleBf, doubleBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "+") [doubleBf, BfIdentifier (ISymb "DConst")]
     , GBfTerm $ BfIdentifierBfs (ISymb "-") [doubleBf, doubleBf]
-    , GBfTerm $ BfIdentifierBfs (ISymb "*") [doubleBf, doubleBf]
     ]
-    ++ [GBfTerm . BfLiteral . LitNum $ x | x <- [0..0]]
+    -- ++ [GBfTerm . BfLiteral . LitNum $ x | x <- [0..0]]
 
 boolRuleList :: [GTerm]
 boolRuleList =
     [ GVariable boolSort
-    , GConstant boolSort
-    
+
+    -- (GConstant boolSort) is significantly slower than just enumerating the bools
+    -- , GConstant boolSort
+    , GBfTerm $ BfLiteral (LitBool True)
+    , GBfTerm $ BfLiteral (LitBool False)
+
     , GBfTerm $ BfIdentifierBfs (ISymb "=") [intBf, intBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "<") [intBf, intBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "<=") [intBf, intBf]
@@ -390,27 +418,29 @@ relTy _ = True
 -------------------------------
 
 -- | Constraints expresessed as "anded" terms
-data TermConstraint = PosT { ret_terms :: [Term] }
-                    | NegT { ret_terms :: [Term] }
+data TermConstraint = TC { pos_term :: Bool, tc_violated :: Violated, param_terms :: [Term], ret_terms :: [Term] }
                     deriving (Show, Read)
 
-modifyTC :: ([Term] -> [Term]) -> TermConstraint -> TermConstraint
-modifyTC f tc = tc { ret_terms = f (ret_terms tc) }
+modifyParamTC :: ([Term] -> [Term]) -> TermConstraint -> TermConstraint
+modifyParamTC f tc = tc { param_terms = f (param_terms tc) }
+
+modifyRetTC :: ([Term] -> [Term]) -> TermConstraint -> TermConstraint
+modifyRetTC f tc = tc { ret_terms = f (ret_terms tc) }
 
 -- | Convert constraints.  Measures cause us to lose information about the data, so after
 -- conversion we can have a constraint both postively and negatively.  We know that the postive
 -- constraint corresponds to an actual execution, so we keep that one, adnd drop the negative constraint.
 
-generateConstraints :: TypesToSorts -> MeasureExs -> RefNamePolyBound -> [Type] -> Type -> [FuncConstraint] -> [Cmd]
-generateConstraints sorts meas_ex poly_names arg_tys ret_ty fcs = 
+generateConstraints :: TypesToSorts -> MeasureExs -> [RefNamePolyBound] -> RefNamePolyBound -> [Type] -> Type -> [FuncConstraint] -> [Cmd]
+generateConstraints sorts meas_ex arg_poly_names ret_poly_names arg_tys ret_ty fcs = 
     let
-        cons = map (termConstraints sorts meas_ex poly_names arg_tys ret_ty) fcs
+        cons = map (termConstraints sorts meas_ex arg_poly_names ret_poly_names arg_tys ret_ty) fcs
         cons' = filterPosAndNegConstraints cons
         cons'' = map termConstraintToConstraint cons'
 
-        exists = existentialConstraints sorts meas_ex poly_names arg_tys ret_ty
+        exists = existentialConstraints sorts meas_ex ret_poly_names arg_tys ret_ty
     in
-    exists ++ cons''
+    {- exists ++ -} cons''
 
 -- | Prevents any refinements from being set to "False" (or equivalent, i.e. 0 < 0)
 existentialConstraints :: TypesToSorts -> MeasureExs -> RefNamePolyBound -> [Type] -> Type -> [Cmd]
@@ -432,11 +462,17 @@ existentialTerms sorts meas_ex arg_tys ret_ty fn =
     Just . TermExists (map (uncurry SortedVar) $ srt_v:ar_vs)
         $ TermCall (ISymb fn) (map (TermIdent . ISymb . fst) ar_vs ++ [TermIdent (ISymb "e_ret")])
 
-termConstraints :: TypesToSorts -> MeasureExs -> RefNamePolyBound -> [Type] -> Type -> FuncConstraint -> TermConstraint
-termConstraints sorts meas_ex poly_names arg_tys ret_ty (Pos fc) =
-    PosT $ funcCallTerm sorts meas_ex poly_names arg_tys ret_ty fc
-termConstraints sorts meas_ex poly_names arg_tys ret_ty (Neg fc) =
-    NegT $ funcCallTerm sorts meas_ex poly_names arg_tys ret_ty fc
+termConstraints :: TypesToSorts -> MeasureExs -> [RefNamePolyBound] -> RefNamePolyBound -> [Type] -> Type -> FuncConstraint -> TermConstraint
+termConstraints sorts meas_ex arg_poly_names ret_poly_names arg_tys ret_ty (Pos v fc) =
+    TC { pos_term = True
+       , tc_violated = v
+       , param_terms = funcParamTerms sorts meas_ex arg_poly_names arg_tys (arguments fc)
+       , ret_terms = funcCallTerm sorts meas_ex ret_poly_names arg_tys ret_ty (arguments fc) (returns fc) }
+termConstraints sorts meas_ex arg_poly_names ret_poly_names arg_tys ret_ty (Neg v fc) =
+    TC { pos_term = False
+       , tc_violated = v
+       , param_terms = funcParamTerms sorts meas_ex arg_poly_names arg_tys (arguments fc)
+       , ret_terms = funcCallTerm sorts meas_ex ret_poly_names arg_tys ret_ty (arguments fc) (returns fc) }
 
 -- When polymorphic arguments are instantiated with values, we use those as
 -- arguments for the polymorphic refinement functions.  However, even when they
@@ -447,8 +483,19 @@ termConstraints sorts meas_ex poly_names arg_tys ret_ty (Neg fc) =
 
 data ValOrExistential v = Val v | Existential
 
-funcCallTerm :: TypesToSorts -> MeasureExs -> RefNamePolyBound ->  [Type] -> Type -> FuncCall -> [Term]
-funcCallTerm sorts meas_ex poly_names arg_tys ret_ty (FuncCall { arguments = ars, returns = r}) =
+funcParamTerms :: TypesToSorts -> MeasureExs -> [RefNamePolyBound] -> [Type] -> [G2.Expr] -> [Term]
+funcParamTerms sorts meas_ex poly_names arg_tys ars =
+    let
+        inits_arg_tys = filter (not . null) $ inits arg_tys
+        init_ars = filter (not . null) $ inits ars
+    in
+    concatMap (\(pn, at, as) ->
+                funcCallTerm sorts meas_ex pn (init at) (last at) (init as) (last as)
+              )
+              $ zip3 poly_names inits_arg_tys init_ars
+
+funcCallTerm :: TypesToSorts -> MeasureExs -> RefNamePolyBound ->  [Type] -> Type -> [G2.Expr] -> G2.Expr -> [Term]
+funcCallTerm sorts meas_ex poly_names arg_tys ret_ty ars r =
     let
         r_bound = extractExprPolyBoundWithRoot r
         rt_bound = extractTypePolyBound ret_ty
@@ -513,15 +560,23 @@ filterPosAndNegConstraints ts =
         tre = concatMap ret_terms $ filter isPosT ts
     in
     filter (not . null . ret_terms)
-        $ map (\t -> if isPosT t then t else modifyTC (filter (not . flip elem tre)) t) ts
+        $ map (\t -> if isPosT t then t else modifyRetTC (filter (not . flip elem tre)) t) ts
     -- filter (\t -> isPosT t || all (\t' -> ret_terms t /= ret_terms t') tre ) ts
     where
-        isPosT (PosT _) = True
-        isPosT (NegT _) = False
+        isPosT (TC p _ _ _) = p
 
 termConstraintToConstraint :: TermConstraint -> Cmd
-termConstraintToConstraint (PosT ts) = Constraint $ TermCall (ISymb "and") ts
-termConstraintToConstraint (NegT ts) = Constraint $ TermCall (ISymb "not") [TermCall (ISymb "and") ts]
+termConstraintToConstraint (TC p v param_ts ret_ts) =
+    let
+        param_tc = case param_ts of
+                    [] -> TermLit (LitBool True)
+                    _ -> TermCall (ISymb "and") param_ts
+        ret_tc = TermCall (ISymb "and") ret_ts
+        tc = TermCall (ISymb $ if v == Post then "=>" else "and") [param_tc, ret_tc]
+    in
+    case p of
+        True -> Constraint tc
+        False -> Constraint $ TermCall (ISymb "not") [tc]
 
 typeToSort :: TypesToSorts -> Type -> Sort
 typeToSort _ (TyCon (Name n _ _ _) _) 
@@ -797,18 +852,23 @@ stripUnsat :: String -> String
 stripUnsat ('u':'n':'s':'a':'t':xs) = xs
 stripUnsat xs = xs
 
-refToQualifiers :: SpecType -> RefNamePolyBound -> [Cmd] -> MeasureSymbols -> LH.TCEmb TyCon -> [Qualifier]
-refToQualifiers st rp_ns cmds meas_sym tycons =
+refToQualifiers :: SpecType -> [RefNamePolyBound] -> RefNamePolyBound -> [Cmd] -> MeasureSymbols -> LH.TCEmb TyCon -> [Qualifier]
+refToQualifiers st arg_pb ret_pb cmds meas_sym tycons =
     let
-        termsPB = defineFunsPB cmds rp_ns
-        (lh_e, ars, ret) = refToLHExpr' st termsPB meas_sym
+        arg_termsPB = map (defineFunsPB cmds) arg_pb
+        ret_termsPB = defineFunsPB cmds ret_pb
+        
+        (lh_e, params) = refToLHExpr' st arg_termsPB ret_termsPB meas_sym
     in
-    map (uncurry (refToQualifier tycons ars)) . extractValues $ zipPB ret lh_e
+    trace ("lh_e = " ++ show lh_e ++ "\nparams = " ++ show params)
+    concatMap (\(p, e) ->  map (refToQualifier tycons p) e)
+        $ zip (filter (not . null) $ inits params) (map extractValues lh_e)
+    -- map (uncurry (refToQualifier tycons ars)) . extractValues $ zipPB ret lh_e
 
-refToQualifier :: LH.TCEmb TyCon -> [(LH.Symbol, SpecType)] -> (LH.Symbol, SpecType) -> LH.Expr -> Qualifier
-refToQualifier tycons ars ret e =
+refToQualifier :: LH.TCEmb TyCon -> [(LH.Symbol, SpecType)] -> LH.Expr -> Qualifier
+refToQualifier tycons params e =
     Q { qName = "G2"
-      , qParams = map (mkParam tycons) (ret:ars)
+      , qParams = map (mkParam tycons) (last params:init params)
       , qBody = e
       , qPos = LH.dummyPos "G2" }
 
@@ -818,13 +878,13 @@ mkParam tycons (symb, st) = (symb, funcHead $ rTypeSort tycons st)
         funcHead (LH.FFunc h _) = h
         funcHead s = s
 
-refToLHExpr :: SpecType -> RefNamePolyBound -> [Cmd] -> MeasureSymbols -> PolyBound LH.Expr
-refToLHExpr st rp_ns cmds meas_sym =
+refToLHExpr :: SpecType -> [RefNamePolyBound] -> RefNamePolyBound -> [Cmd] -> MeasureSymbols -> [PolyBound LH.Expr]
+refToLHExpr st arg_pb ret_pb cmds meas_sym =
     let
-        termsPB = defineFunsPB cmds rp_ns
-        -- termsPB' = shiftPB termsPB
+        arg_termsPB = map (defineFunsPB cmds) arg_pb
+        ret_termsPB = defineFunsPB cmds ret_pb
     
-        (lh_e, _, _) = refToLHExpr' st termsPB meas_sym
+        (lh_e, _) = refToLHExpr' st arg_termsPB ret_termsPB meas_sym
     in
     lh_e
 
@@ -870,24 +930,27 @@ shiftPB' (PolyBound svt@(sv, t) svts) =
     PolyBound (sv_new, t_new) (shift_new ++ leave)
 
 refToLHExpr' :: SpecType
-             -> PolyBound ([SortedVar], Term) 
+             -> [PolyBound ([SortedVar], Term)] -- ^ Arguments
+             -> PolyBound ([SortedVar], Term)  -- ^ Returns
              -> MeasureSymbols
-             -> (PolyBound LH.Expr, [(LH.Symbol, SpecType)], PolyBound (LH.Symbol, SpecType))
-refToLHExpr' st pb_sv_t meas_sym =
+             -> ([PolyBound LH.Expr], [(LH.Symbol, SpecType)])
+refToLHExpr' st pb_args pb_ret meas_sym =
     let
-        (ars_st, ret_st) = specTypePieces st
-        ars_symb_st = map (\(s, i) -> (specTypeSymbol s, s)) $ zip ars_st [0..]
-        ret_symb_st = mapPB (\s -> (specTypeSymbol s, s))  ret_st
+        pieces = specTypePieces st
 
-        ars = map fst ars_symb_st
-        ret = mapPB fst ret_symb_st
+        symbs = map specTypeSymbol pieces
+        rapps = map specTypeRAppPieces pieces
 
-        pb_sv_t_ret = mapPB (\((sv, t), r) -> (sv, t, r)) $ zipPB pb_sv_t ret
+        pb_all = pb_args ++ [pb_ret]
+        symbs_init = filter (not . null) $ inits symbs
+
+        pb_expr = map (\(s, pb) -> mapPB (uncurry (refToLHExpr'' meas_sym s)) pb)
+                                                            $ zip symbs_init pb_all
     in
-    (mapPB (uncurry3 (refToLHExpr'' meas_sym ars )) pb_sv_t_ret, ars_symb_st, ret_symb_st)
+    (pb_expr, zip symbs pieces)
 
-refToLHExpr'' :: MeasureSymbols -> [LH.Symbol] -> [SortedVar] -> Term -> LH.Symbol -> LH.Expr
-refToLHExpr'' meas_sym symbs ars trm ret =
+refToLHExpr'' :: MeasureSymbols -> [LH.Symbol] -> [SortedVar] -> Term -> LH.Expr
+refToLHExpr'' meas_sym symbs ars trm =
     let
         ars' = map (\(SortedVar sym _) -> sym) ars
 
@@ -896,10 +959,11 @@ refToLHExpr'' meas_sym symbs ars trm ret =
         -- gather the bindings for the typeclasses with specTypeSymbols.
         -- Fortunately, the typeclasses are always the first arguments in the list,
         -- so we can simply take the correct number of arguments from the end of the list.
-        last_symbs = reverse . take (length ars - 1) $ reverse symbs
+        last_symbs = reverse . take (length ars) $ reverse symbs
 
-        symbsArgs = M.fromList $ zip ars' (last_symbs ++ [ret])
+        symbsArgs = M.fromList $ zip ars' last_symbs
     in
+    trace ("symbsArgs = " ++ show symbsArgs)
     termToLHExpr meas_sym symbsArgs trm
 
 termToLHExpr :: MeasureSymbols -> M.Map Sy.Symbol LH.Symbol -> Term -> LH.Expr
@@ -959,29 +1023,22 @@ litToLHConstant l = error $ "litToLHConstant: Unhandled literal " ++ show l
 
 -------------------
 
-specTypeSymbols :: SpecType -> ([LH.Symbol], PolyBound LH.Symbol)
-specTypeSymbols st =
-    let
-        (sts, pb_st) = specTypePieces st
-    in
-    (map specTypeSymbol sts, mapPB specTypeSymbol pb_st)
-
 specTypeSymbol :: SpecType -> LH.Symbol
 specTypeSymbol (RFun { rt_bind = b }) = b
 specTypeSymbol (RApp { rt_reft = ref }) = reftSymbol $ ur_reft ref
 specTypeSymbol (RVar { rt_reft = ref }) = reftSymbol $ ur_reft ref
 specTypeSymbol _ = error $ "specTypeSymbol: SpecType not handled"
 
-specTypePieces :: SpecType -> ([SpecType], PolyBound SpecType)
+specTypePieces :: SpecType -> [SpecType]
 specTypePieces st = specTypePieces' [] st
 
-specTypePieces' :: [SpecType] -> SpecType -> ([SpecType], PolyBound SpecType)
+specTypePieces' :: [SpecType] -> SpecType -> [SpecType]
 specTypePieces' sts rfun@(RFun { rt_in = i, rt_out = out }) =
     case i of
         RVar {} -> specTypePieces' sts out
         RFun {} -> specTypePieces' sts out
         _ -> specTypePieces' (rfun:sts) out
-specTypePieces' sts rapp@(RApp {}) = (reverse sts, specTypeRAppPieces rapp)
+specTypePieces' sts rapp@(RApp {}) = reverse (rapp:sts)
 specTypePieces' _ (RVar {}) = error "specTypePieces': passed RVar"
 specTypePieces' sts (RAllT { rt_ty = out }) = specTypePieces' sts out
 
@@ -1026,8 +1083,8 @@ vbSymbols (VarBinding s t) = s:termSymbols t
 -- Calling SyGuS
 -------------------------------
 
-runCVC4 :: String -> IO (Either SomeException String)
-runCVC4 sygus =
+runCVC4 :: InferenceConfig -> String -> IO (Either SomeException [Cmd])
+runCVC4 infconfig sygus =
     try (
         withSystemTempFile ("cvc4_input.sy")
         (\fp h -> do
@@ -1040,7 +1097,11 @@ runCVC4 sygus =
                     Just c -> c          -- Mac
                     Nothing -> "timeout" -- Linux
 
-            P.readProcess toCommand (["10", "cvc4", fp, "--lang=sygus2"]) "")
+            sol <- P.readProcess toCommand ([show (timeout_sygus infconfig), "cvc4", fp, "--lang=sygus2"]) ""
+
+            let sol' = case stripPrefix "unsat" sol of { Just s -> s; Nothing -> error "runCVC4: non-unsat result" }
+
+            return . parse . lexSygus $ sol')
         )
 
 runCVC4StreamSolutions :: InferenceConfig -> Int -> String -> IO (Either SomeException [Cmd])

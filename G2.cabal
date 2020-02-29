@@ -106,6 +106,7 @@ library
                        , G2.Liquid.Inference.Interface
                        , G2.Liquid.Inference.PolyRef
                        , G2.Liquid.Inference.RefSynth
+                       , G2.Liquid.Inference.SimplifySygus
                        , G2.Liquid.Inference.Verify
                        , G2.Liquid.Inference.GeneratedSpecs
                        , G2.Liquid.Inference.QualifGen

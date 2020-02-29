@@ -70,7 +70,7 @@ inference' :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.
 inference' infconfig g2config lhconfig ghci m_modname lrs gs fc = do
     print gs
 
-    let merged_verify_with_quals_ghci = addQualifiersToGhcInfos gs ghci
+    let merged_verify_with_quals_ghci = addQualifiersToGhcInfos gs $ addAssumedSpecsToGhcInfos ghci gs
 
     res_quals <- verify lhconfig merged_verify_with_quals_ghci
 
@@ -129,7 +129,8 @@ refineUnsafe infconfig g2config lhconfig ghci m_modname lrs gs fc = do
                     gs' <- foldM (synthesize infconfig ghci lrs meas_ex fc') gs new_fc_funcs
                     
                     inference' infconfig g2config lhconfig ghci m_modname lrs gs' fc'
-        _ -> error "refineUnsafe: result other than Unsafe"
+        _ -> error $ "refineUnsafe: result other than Unsafe: "
+                        ++ case res_asserts of {Safe -> "Safe"; Crash _ _-> "Crash"; Unsafe _ -> "Unsafe"}
 
 createStateForInference :: SimpleState -> G2.Config -> [GhcInfo] -> LiquidReadyState
 createStateForInference simp_s config ghci =
@@ -203,25 +204,25 @@ synthesize infconfig ghci lrs meas_ex fc gs n@(Name n' _ _ _) = do
 cexsToFuncConstraints :: LiquidReadyState -> [GhcInfo] -> InferenceConfig -> G2.Config -> CounterExample -> IO (Either CounterExample FuncConstraints)
 cexsToFuncConstraints _ _ infconfig _ (DirectCounter dfc fcs@(_:_))
     | not . null $ fcs' =
-        return . Right . insertsFC $ map (Pos . real) fcs ++ map (Neg . abstract) fcs'
-    | otherwise = return . Right $ emptyFC -- [Pos dfc]
+        return . Right . insertsFC $ map (Pos Post . real) fcs ++ map (Neg Post . abstract) fcs'
+    | otherwise = return . Right $ error "cexsToFuncConstraints: unhandled 1" -- [Pos dfc]
     where
         fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 cexsToFuncConstraints _ _ infconfig _ (CallsCounter dfc _ fcs@(_:_))
     | not . null $ fcs' =
-        return . Right . insertsFC $ map (Pos . real) fcs ++ map (Neg . abstract) fcs'
-    | otherwise = return $ Right emptyFC -- error $ "cexsToFuncConstraints" ++ show (map abstractedMod fcs) -- return . Right $ [Pos dfc] 
+        return . Right . insertsFC $ map (Pos Post . real) fcs ++ map (Neg Post . abstract) fcs'
+    | otherwise = return . Right $ error "cexsToFuncConstraints: unhandled 2" -- error $ "cexsToFuncConstraints" ++ show (map abstractedMod fcs) -- return . Right $ [Pos dfc] 
     where
         fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 cexsToFuncConstraints lrs ghci _ g2config cex@(DirectCounter fc []) = do
     v_cex <- checkCounterexample lrs ghci g2config fc
     case v_cex of
-        True -> return . Right . insertsFC $ [Pos fc]
+        True -> return . Right . insertsFC $ [Pos Post fc]
         False -> return . Left $ cex
 cexsToFuncConstraints lrs ghci _ g2config cex@(CallsCounter _ fc []) = do
     v_cex <- checkCounterexample lrs ghci g2config fc
     case v_cex of
-        True -> return . Right . insertsFC $ [Pos fc]
+        True -> return . Right . insertsFC $ [Pos Pre fc]
         False -> return . Left $ cex
 
 insertsFC :: [FuncConstraint] -> FuncConstraints
