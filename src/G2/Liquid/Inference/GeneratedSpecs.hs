@@ -7,6 +7,8 @@ module G2.Liquid.Inference.GeneratedSpecs ( GeneratedSpecs
                                           , insertQualifier
                                           , switchAssumesToAsserts
 
+                                          , filterAssertsKey
+
                                           , addSpecsToGhcInfos
                                           , addAssumedSpecsToGhcInfos
                                           , addQualifiersToGhcInfos
@@ -67,6 +69,9 @@ switchAssumesToAsserts gs =
                 (assert_specs gs) (assume_specs gs)
        , assume_specs = M.empty }
 
+filterAssertsKey :: (G2.Name -> Bool) -> GeneratedSpecs -> GeneratedSpecs
+filterAssertsKey p gs = gs { assert_specs = M.filterWithKey (\n _ -> p n) $ assert_specs gs}
+
 deleteAssert :: G2.Name -> GeneratedSpecs -> GeneratedSpecs
 deleteAssert n gs@(GeneratedSpecs { assert_specs = as }) =
     gs { assert_specs = M.delete n as }
@@ -116,8 +121,9 @@ addQualifiersToGhcInfo gs ghci@(GI { spec = sp@(SP { gsQualifiers = quals' })}) 
     ghci { spec = sp { gsQualifiers = qualifiers gs ++ quals' }}
 
 addToSpecType :: [PolyBound Expr] -> SpecType -> SpecType
-addToSpecType (e:es) rfun@(RFun { rt_in = i, rt_out = out }) =
-    rfun { rt_in = addToSpecType [e] i, rt_out = addToSpecType es out }
+addToSpecType ees@(e:es) rfun@(RFun { rt_in = i, rt_out = out })
+    | not $ isFunTy i = rfun { rt_in = addToSpecType [e] i, rt_out = addToSpecType es out }
+    | otherwise = rfun {rt_out = addToSpecType ees out }
 addToSpecType es rall@(RAllT { rt_ty = out }) =
     rall { rt_ty = addToSpecType es out }
 addToSpecType [PolyBound e ps]

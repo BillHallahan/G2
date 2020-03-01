@@ -59,8 +59,6 @@ import qualified System.Process as P
 
 import TyCon
 
-import Debug.Trace
-
 refSynth :: InferenceConfig -> SpecType -> G2.Expr -> TypeClasses -> Measures
          -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> LH.TCEmb TyCon -> IO (Maybe ([PolyBound LH.Expr], [Qualifier]))
 refSynth infconfig spc e tc meas meas_ex fc meas_sym tycons = do
@@ -258,38 +256,68 @@ grammar intRules doubleRules arg_sort_vars ret_sorted_var sorts =
         grams = map (\(g, s_symb) -> (g, IdentSort . ISymb $ s_symb)) gramNames
         sortsToGN = HM.fromList $ map swap gramNames
 
-        brl = GroupedRuleList "B" boolSort
-                (boolRuleList ++ addSelectors sortsToGN boolSort sorts')
-
         irl = GroupedRuleList "I" intSort
                 (intRules ++ addSelectors sortsToGN intSort sorts')
 
-        drl = GroupedRuleList "D" doubleSort
-                (doubleRules ++ addSelectors sortsToGN doubleSort sorts')
-
         const_int = GroupedRuleList "IConst" intSort [GConstant intSort]
-
-        const_double = GroupedRuleList "DConst" doubleSort [GConstant doubleSort]
     
+        (bool_double, decl_double, grl_double) =
+            adjustTypeUsage sorted_vars
+                            doubleSort
+                            boolDoubleArgRuleList 
+                            [SortedVar "D" doubleSort, SortedVar "DConst" doubleSort]
+                            [ ("D", doubleRules, addSelectors sortsToGN doubleSort sorts')
+                            , ("DConst", [GConstant doubleSort], []) ]
+
+        brl = GroupedRuleList "B" boolSort
+                (boolDefRuleList ++ boolIntArgRuleList ++ bool_double
+                                ++ addSelectors sortsToGN boolSort sorts')
+
         grm = GrammarDef
                 ([ SortedVar "B" boolSort
                  , SortedVar "I" intSort
-                 , SortedVar "IConst" intSort
-                 , SortedVar "D" doubleSort
-                 , SortedVar "DConst" doubleSort ]
+                 , SortedVar "IConst" intSort ]
+                 ++ decl_double
                  ++ map (uncurry SortedVar) grams)
                 ([ brl
                  , irl
                  , const_int
-                 , drl
-                 , const_double
                  ]
+                 ++ grl_double
                  ++ map (uncurry dtGroupRuleList) grams)
     in
     forceVarInGrammar ret_sorted_var grm
     where
         sortSymb (IdentSort (ISymb s)) = s
         sortSymb _ = error "grammar: sortSymb"
+
+-- | Including doubles/ints in the grammar increases CVC4s runtime, and is not
+-- needed if there are no variables of the given type, or selectors that return
+-- the given type.  This function  checks if any variables/selectors exists,
+-- and either returns the needed grammar elements if they do, or returns
+-- empty lists if they do not.
+adjustTypeUsage :: [SortedVar] -- ^ The function parameters
+                -> Sort -- ^ The type under consideration
+                -> [GTerm] -- ^ A set of terminals relating the given type to Bool
+                -> [SortedVar] -- ^ Declarations for the terminals for the given type
+                -> [(Symbol, [GTerm], [GTerm])] -- ^ The symbols, set(s) of default
+                                                -- terminals, and sets of selector terminals
+                                                -- for the given type
+                -> ( [GTerm] -- ^ The set of terminals to add to add to Bool
+                   , [SortedVar] -- ^ Declarations for the terminals for the
+                                 -- given type to add to the grammar
+                   , [GroupedRuleList] -- ^ The GRL(s) to add to the grammar
+                   )
+adjustTypeUsage params srt bool_trms decls type_trms =
+    let
+        param_typs = filter (\(SortedVar _ s) -> s == srt) params
+        sels = concatMap (\(_, _, sel) -> sel) type_trms
+
+        type_grl = map (\(s, def, sel) -> GroupedRuleList s srt (def ++ sel)) type_trms
+    in
+    if param_typs /= [] || sels /= []
+        then (bool_trms, decls, type_grl)
+        else ([], [], [])
 
 extIntRuleList :: [GTerm]
 extIntRuleList = intRuleList ++ 
@@ -321,26 +349,34 @@ doubleRuleList =
     -- ++ [GBfTerm . BfLiteral . LitNum $ x | x <- [0..0]]
 
 boolRuleList :: [GTerm]
-boolRuleList =
+boolRuleList = boolDefRuleList ++ boolIntArgRuleList ++ boolDoubleArgRuleList
+
+boolDefRuleList :: [GTerm]
+boolDefRuleList =
     [ GVariable boolSort
 
     -- (GConstant boolSort) is significantly slower than just enumerating the bools
     -- , GConstant boolSort
     , GBfTerm $ BfLiteral (LitBool True)
     , GBfTerm $ BfLiteral (LitBool False)
-
-    , GBfTerm $ BfIdentifierBfs (ISymb "=") [intBf, intBf]
-    , GBfTerm $ BfIdentifierBfs (ISymb "<") [intBf, intBf]
-    , GBfTerm $ BfIdentifierBfs (ISymb "<=") [intBf, intBf]
-
-    , GBfTerm $ BfIdentifierBfs (ISymb "=") [doubleBf, doubleBf]
-    , GBfTerm $ BfIdentifierBfs (ISymb "<") [doubleBf, doubleBf]
-    , GBfTerm $ BfIdentifierBfs (ISymb "<=") [doubleBf, doubleBf]
-
     , GBfTerm $ BfIdentifierBfs (ISymb "=>") [boolBf, boolBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "and") [boolBf, boolBf]
     -- , GBfTerm $ BfIdentifierBfs (ISymb "or") [boolBf, boolBf]
     -- , GBfTerm $ BfIdentifierBfs (ISymb "not") [boolBf]
+    ]
+
+boolIntArgRuleList :: [GTerm]
+boolIntArgRuleList =
+    [ GBfTerm $ BfIdentifierBfs (ISymb "=") [intBf, intBf]
+    , GBfTerm $ BfIdentifierBfs (ISymb "<") [intBf, intBf]
+    , GBfTerm $ BfIdentifierBfs (ISymb "<=") [intBf, intBf]
+    ]
+
+boolDoubleArgRuleList :: [GTerm]
+boolDoubleArgRuleList =
+    [ GBfTerm $ BfIdentifierBfs (ISymb "=") [doubleBf, doubleBf]
+    , GBfTerm $ BfIdentifierBfs (ISymb "<") [doubleBf, doubleBf]
+    , GBfTerm $ BfIdentifierBfs (ISymb "<=") [doubleBf, doubleBf]
     ]
 
 elimHigherOrderArgs :: FuncConstraint -> FuncConstraint
@@ -860,7 +896,6 @@ refToQualifiers st arg_pb ret_pb cmds meas_sym tycons =
         
         (lh_e, params) = refToLHExpr' st arg_termsPB ret_termsPB meas_sym
     in
-    trace ("lh_e = " ++ show lh_e ++ "\nparams = " ++ show params)
     concatMap (\(p, e) ->  map (refToQualifier tycons p) e)
         $ zip (filter (not . null) $ inits params) (map extractValues lh_e)
     -- map (uncurry (refToQualifier tycons ars)) . extractValues $ zipPB ret lh_e
@@ -963,7 +998,6 @@ refToLHExpr'' meas_sym symbs ars trm =
 
         symbsArgs = M.fromList $ zip ars' last_symbs
     in
-    trace ("symbsArgs = " ++ show symbsArgs)
     termToLHExpr meas_sym symbsArgs trm
 
 termToLHExpr :: MeasureSymbols -> M.Map Sy.Symbol LH.Symbol -> Term -> LH.Expr

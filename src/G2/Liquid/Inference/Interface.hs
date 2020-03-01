@@ -68,7 +68,7 @@ inference infconfig config proj fp lhlibs = do
 inference' :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
            -> GeneratedSpecs -> FuncConstraints -> IO (Either [CounterExample] GeneratedSpecs)
 inference' infconfig g2config lhconfig ghci m_modname lrs gs fc = do
-    print gs
+    putStrLn $ "\ngenerated specs = " ++ show gs ++ "\n"
 
     let merged_verify_with_quals_ghci = addQualifiersToGhcInfos gs $ addAssumedSpecsToGhcInfos ghci gs
 
@@ -117,6 +117,8 @@ refineUnsafe infconfig g2config lhconfig ghci m_modname lrs gs fc = do
 
                         fc' = unionFC fc new_fc'
 
+                    let gs' = filterAssertsKey (\n -> n `elem` map constraining (allFC fc')) gs
+
                     putStrLn $ "new_fc_funcs = " ++ show new_fc_funcs
 
                     -- Synthesize
@@ -126,9 +128,9 @@ refineUnsafe infconfig g2config lhconfig ghci m_modname lrs gs fc = do
                     meas_ex <- genMeasureExs lrs merged_se_ghci g2config fc'
                     putStrLn "After genMeasureExs"
                     -- ghci' <- foldM (synthesize infconfig lrs meas_ex fc') ghci new_fc_funcs
-                    gs' <- foldM (synthesize infconfig ghci lrs meas_ex fc') gs new_fc_funcs
+                    gs'' <- foldM (synthesize infconfig ghci lrs meas_ex fc') gs' new_fc_funcs
                     
-                    inference' infconfig g2config lhconfig ghci m_modname lrs gs' fc'
+                    inference' infconfig g2config lhconfig ghci m_modname lrs gs'' fc'
         _ -> error $ "refineUnsafe: result other than Unsafe: "
                         ++ case res_asserts of {Safe -> "Safe"; Crash _ _-> "Crash"; Unsafe _ -> "Unsafe"}
 

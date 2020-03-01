@@ -9,7 +9,9 @@ module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
                                           , allFC
                                           , unionFC
                                           , unionsFC
-                                          , filterFC ) where
+                                          , filterFC
+
+                                          , constraining ) where
 
 import G2.Language.AST
 import G2.Language.Syntax
@@ -53,6 +55,9 @@ unionsFC = foldr unionFC emptyFC
 
 filterFC :: (FuncConstraint -> Bool) -> FuncConstraints -> FuncConstraints
 filterFC p = coerce (M.map (filter p))
+
+constraining :: FuncConstraint -> Name
+constraining = funcName . constraint
 
 instance ASTContainer FuncConstraint Expr where
     containedASTs = containedASTs . constraint
