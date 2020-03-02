@@ -39,6 +39,7 @@ import Language.Haskell.Liquid.Types.RefType
 import Language.Fixpoint.Types.Constraints
 import Language.Fixpoint.Types.Refinements as LH
 import qualified Language.Fixpoint.Types as LH
+import qualified Language.Fixpoint.Types as LHF
 
 import Control.Exception
 import Data.Coerce
@@ -1043,6 +1044,10 @@ termToLHExpr meas_sym@(MeasureSymbols meas_sym') m_args (TermCall (ISymb v) ts)
     , [t1, t2] <- ts = EBin LH.Minus (termToLHExpr meas_sym m_args t1) (termToLHExpr meas_sym m_args t2)
     | "*" <- v
     , [t1, t2] <- ts = EBin LH.Times (termToLHExpr meas_sym m_args t1) (termToLHExpr meas_sym m_args t2)
+    | "/" <- v
+    , [t1, t2] <- ts
+    , Just n1 <- getInteger t1
+    , Just n2 <- getInteger t2 = ECon . LHF.R $ fromRational (n1 % n2)
     | "mod" <- v
     , [t1, t2] <- ts = EBin LH.Mod (termToLHExpr meas_sym m_args t1) (termToLHExpr meas_sym m_args t2)
     -- Special handling for safe-mod.  We enforce via the grammar that the denominator is an Integer
@@ -1070,6 +1075,11 @@ termToLHExpr meas_sym@(MeasureSymbols meas_sym') m_args (TermCall (ISymb v) ts)
 termToLHExpr meas_sym@(MeasureSymbols meas_sym') m_args (TermCall (ISymb v) ts) =
     error $ "v = " ++ show (maybe_StrToName v) ++ "\nmeas_syms' = " ++ show (map symbolName meas_sym')
 termToLHExpr (_) _ t = error $ "termToLHExpr meas_sym m_args: unhandled " ++ show t
+
+getInteger :: Term -> Maybe Integer
+getInteger (TermLit (LitNum n)) = Just n
+getInteger (TermCall (ISymb "-") [TermLit (LitNum n)]) = Just  (- n)
+getInteger _ = Nothing
 
 zeroName :: Name -> Name
 zeroName (Name n m _ l) = Name n m 0 l
