@@ -14,19 +14,20 @@ import Debug.Trace
 
 mkLHVals :: State t
          -> S.HashSet Name
+         -> [Name]
          -> NameGen
-         -> (ExprEnv, KnownValues, TypeClasses, S.HashSet Name, NameGen)
+         -> (ExprEnv, KnownValues, TypeClasses, S.HashSet Name, [Name], NameGen)
 mkLHVals (State { expr_env = eenv
                 , type_env = tenv
                 , known_values = kv
-                , type_classes = tc }) inst ng =
+                , type_classes = tc }) inst exported ng =
     let
         renme = E.keys eenv
-        ((meenv, mkv, mtc, minst), ng') = doRenames renme ng (eenv, kv, tc, inst)
+        ((meenv, mkv, mtc, minst, mexported), ng') = doRenames renme ng (eenv, kv, tc, inst, exported)
 
         (newMod, meenv', ng'') = symGenIfZero (modFunc mkv) meenv tenv mkv mtc ng'
     in
-    (meenv', mkv { modFunc = newMod } , mtc, minst, ng'')
+    (meenv', mkv { modFunc = newMod } , mtc, minst, mexported, ng'')
 
 symGenIfZero :: Name -> ExprEnv -> TypeEnv -> KnownValues -> TypeClasses -> NameGen -> (Name, ExprEnv, NameGen)
 symGenIfZero n eenv tenv kv tc ng =

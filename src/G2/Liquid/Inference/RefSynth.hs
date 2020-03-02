@@ -59,6 +59,8 @@ import qualified System.Process as P
 
 import TyCon
 
+import Debug.Trace
+
 refSynth :: InferenceConfig -> SpecType -> G2.Expr -> TypeClasses -> Measures
          -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> LH.TCEmb TyCon -> IO (Maybe ([PolyBound LH.Expr], [Qualifier]))
 refSynth infconfig spc e tc meas meas_ex fc meas_sym tycons = do
@@ -153,6 +155,7 @@ generateGrammarsAndConstraints sorts meas_ex arg_tys ret_ty fcs@(fc:_) =
 
         cons = generateConstraints sorts meas_ex arg_names ret_names arg_tys ret_ty fcs
     in
+    trace ("length fcs = " ++ show (length fcs) ++ "\nlength cons = " ++ show (length cons)) 
     (concat arg_grams_cmds ++ ret_gram_cmds, cons, arg_names, ret_names)
 
 refinementNames :: String -> G2.Expr -> RefNamePolyBound
@@ -476,6 +479,7 @@ generateConstraints sorts meas_ex arg_poly_names ret_poly_names arg_tys ret_ty f
 
         exists = existentialConstraints sorts meas_ex ret_poly_names arg_tys ret_ty
     in
+    trace ("length cons = " ++ show (length cons) ++ "\nlength cons' = " ++ show (length cons'))
     {- exists ++ -} cons''
 
 -- | Prevents any refinements from being set to "False" (or equivalent, i.e. 0 < 0)
@@ -595,7 +599,7 @@ filterPosAndNegConstraints ts =
     let
         tre = concatMap ret_terms $ filter isPosT ts
     in
-    filter (not . null . ret_terms)
+    filter (\t -> (not . null $ ret_terms t) || tc_violated t == Pre)
         $ map (\t -> if isPosT t then t else modifyRetTC (filter (not . flip elem tre)) t) ts
     -- filter (\t -> isPosT t || all (\t' -> ret_terms t /= ret_terms t') tre ) ts
     where
@@ -607,7 +611,9 @@ termConstraintToConstraint (TC p v param_ts ret_ts) =
         param_tc = case param_ts of
                     [] -> TermLit (LitBool True)
                     _ -> TermCall (ISymb "and") param_ts
-        ret_tc = TermCall (ISymb "and") ret_ts
+        ret_tc = case ret_ts of
+                    [] -> TermLit (LitBool True) 
+                    _ -> TermCall (ISymb "and") ret_ts
         tc = TermCall (ISymb $ if v == Post then "=>" else "and") [param_tc, ret_tc]
     in
     case p of
@@ -900,10 +906,15 @@ refToQualifiers st arg_pb ret_pb cmds meas_sym tycons =
         $ zip (filter (not . null) $ inits params) (map extractValues lh_e)
     -- map (uncurry (refToQualifier tycons ars)) . extractValues $ zipPB ret lh_e
 
-refToQualifier :: LH.TCEmb TyCon -> [(LH.Symbol, SpecType)] -> LH.Expr -> Qualifier
+refToQualifier :: LH.TCEmb TyCon -> [SpecType] -> LH.Expr -> Qualifier
 refToQualifier tycons params e =
+    let
+        params' = mapInitLast (\st -> (specTypeSymbol st, st))
+                              (\st -> (specTypeNestedSymbol st, st))
+                              params
+    in
     Q { qName = "G2"
-      , qParams = map (mkParam tycons) (last params:init params)
+      , qParams = map (mkParam tycons) (last params':init params')
       , qBody = e
       , qPos = LH.dummyPos "G2" }
 
@@ -968,21 +979,30 @@ refToLHExpr' :: SpecType
              -> [PolyBound ([SortedVar], Term)] -- ^ Arguments
              -> PolyBound ([SortedVar], Term)  -- ^ Returns
              -> MeasureSymbols
-             -> ([PolyBound LH.Expr], [(LH.Symbol, SpecType)])
+             -> ([PolyBound LH.Expr], [SpecType])
 refToLHExpr' st pb_args pb_ret meas_sym =
     let
         pieces = specTypePieces st
 
         symbs = map specTypeSymbol pieces
-        rapps = map specTypeRAppPieces pieces
 
         pb_all = pb_args ++ [pb_ret]
-        symbs_init = filter (not . null) $ inits symbs
+        -- symbs_init = filter (not . null) $ inits symbs
+        pieces_init = filter (not . null) $ inits pieces
 
-        pb_expr = map (\(s, pb) -> mapPB (uncurry (refToLHExpr'' meas_sym s)) pb)
-                                                            $ zip symbs_init pb_all
+        pb_expr = map (\(ps, pb) ->
+                        mapPB (uncurry
+                                    (refToLHExpr'' meas_sym (mapInitLast specTypeSymbol specTypeNestedSymbol ps))
+                              ) pb
+                      ) $ zip pieces_init pb_all
     in
-    (pb_expr, zip symbs pieces)
+    (pb_expr, pieces)
+
+-- | Applies f1 to all but the last element of the list, and f2 to the last element
+mapInitLast :: (a -> b) -> (a -> b) -> [a] -> [b]
+mapInitLast _ _ [] = []
+mapInitLast _ f2 [x] = [f2 x]
+mapInitLast f1 f2 (x:xs) = f1 x:mapInitLast f1 f2 xs
 
 refToLHExpr'' :: MeasureSymbols -> [LH.Symbol] -> [SortedVar] -> Term -> LH.Expr
 refToLHExpr'' meas_sym symbs ars trm =
@@ -1057,6 +1077,10 @@ litToLHConstant l = error $ "litToLHConstant: Unhandled literal " ++ show l
 
 -------------------
 
+specTypeNestedSymbol :: SpecType -> LH.Symbol
+specTypeNestedSymbol (RFun { rt_in = i }) = specTypeNestedSymbol i
+specTypeNestedSymbol st = specTypeSymbol st
+
 specTypeSymbol :: SpecType -> LH.Symbol
 specTypeSymbol (RFun { rt_bind = b }) = b
 specTypeSymbol (RApp { rt_reft = ref }) = reftSymbol $ ur_reft ref
@@ -1073,7 +1097,7 @@ specTypePieces' sts rfun@(RFun { rt_in = i, rt_out = out }) =
         RFun {} -> specTypePieces' sts out
         _ -> specTypePieces' (rfun:sts) out
 specTypePieces' sts rapp@(RApp {}) = reverse (rapp:sts)
-specTypePieces' _ (RVar {}) = error "specTypePieces': passed RVar"
+specTypePieces' sts rvar@(RVar {}) = reverse (rvar:sts)
 specTypePieces' sts (RAllT { rt_ty = out }) = specTypePieces' sts out
 
 specTypeRAppPieces :: SpecType -> PolyBound SpecType

@@ -5,6 +5,7 @@
 module G2.Liquid.Interface ( LiquidData (..)
                            , LiquidReadyState
                            , lr_state
+                           , lr_binding
                            , lrsMeasures
                            , Abstracted (..)
                            , findCounterExamples
@@ -253,10 +254,10 @@ createLiquidReadyState s@(State {expr_env = eenv}) bindings ghci ph_tyvars confi
     let
         np_ng = name_gen bindings
 
-        (meenv, mkv, mtc, minst, ng') = mkLHVals s (higher_order_inst bindings) np_ng 
+        (meenv, mkv, mtc, minst, mexported, ng') = mkLHVals s (higher_order_inst bindings) (exported_funcs bindings) np_ng 
 
         s' = s { track = [] }
-        bindings' = bindings { name_gen = ng' }
+        bindings' = bindings { exported_funcs = mexported ++ exported_funcs bindings, name_gen = ng' }
 
         (lh_state, lh_bindings) = createLHState meenv mkv s' bindings'
 

@@ -4,6 +4,7 @@ module G2.Liquid.Inference.GeneratedSpecs ( GeneratedSpecs
                                           , nullAssumeGS
 
                                           , insertAssumeGS
+                                          , insertAssertGS
                                           , insertQualifier
                                           , switchAssumesToAsserts
 
@@ -54,6 +55,10 @@ nullAssumeGS = M.null . assume_specs
 insertAssumeGS :: G2.Name -> [PolyBound Expr] -> GeneratedSpecs -> GeneratedSpecs
 insertAssumeGS n e gs =
     gs { assume_specs = M.insert (zeroOutUnq n) e (assume_specs gs) }
+
+insertAssertGS :: G2.Name -> [PolyBound Expr] -> GeneratedSpecs -> GeneratedSpecs
+insertAssertGS n e gs =
+    gs { assert_specs = M.insert (zeroOutUnq n) e (assert_specs gs) }
 
 insertQualifier :: Qualifier -> GeneratedSpecs -> GeneratedSpecs
 insertQualifier qual gs@(GeneratedSpecs { qualifiers = quals }) =

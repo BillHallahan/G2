@@ -9,7 +9,7 @@ import G2.Language.Support
 import G2.Language.Syntax
 import G2.Liquid.AddTyVars
 import G2.Liquid.Inference.Config
-import G2.Liquid.Inference.FuncConstraint
+import G2.Liquid.Inference.FuncConstraint as FC
 import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.PolyRef
 import G2.Liquid.Helpers
@@ -21,7 +21,7 @@ import G2.Liquid.Types
 import G2.Translation
 
 import Language.Haskell.Liquid.Types as LH
-import Language.Fixpoint.Types (Qualifier)
+import Language.Fixpoint.Types hiding (Safe, Unsafe, Crash)
 
 import Control.Monad
 import Data.Either
@@ -70,7 +70,10 @@ inference' :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.
 inference' infconfig g2config lhconfig ghci m_modname lrs gs fc = do
     putStrLn $ "\ngenerated specs = " ++ show gs ++ "\n"
 
-    let merged_verify_with_quals_ghci = addQualifiersToGhcInfos gs $ addAssumedSpecsToGhcInfos ghci gs
+    let merged_verify_with_quals_ghci = addQualifiersToGhcInfos gs $ addSpecsToGhcInfos ghci gs
+
+    putStrLn $ "gsTySigs ghci_here = " ++ show (map (gsTySigs . spec) merged_verify_with_quals_ghci)
+    putStrLn $ "gsAsmSigs ghci_here = " ++ show (map (gsAsmSigs . spec) merged_verify_with_quals_ghci)
 
     res_quals <- verify lhconfig merged_verify_with_quals_ghci
 
@@ -79,7 +82,7 @@ inference' infconfig g2config lhconfig ghci m_modname lrs gs fc = do
             | nullAssumeGS gs -> return $ Right gs
             | otherwise -> inference' infconfig g2config lhconfig ghci m_modname lrs (switchAssumesToAsserts gs) fc
         Crash ci err -> error $ "Crash\n" ++ show ci ++ "\n" ++ err
-        Unsafe _ -> refineUnsafe infconfig g2config lhconfig ghci m_modname lrs gs fc
+        Unsafe x -> do putStrLn ("x = " ++ show x); refineUnsafe infconfig g2config lhconfig ghci m_modname lrs gs fc
 
 refineUnsafe :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
              -> GeneratedSpecs -> FuncConstraints -> IO (Either [CounterExample] GeneratedSpecs)
@@ -197,23 +200,30 @@ synthesize infconfig ghci lrs meas_ex fc gs n@(Name n' _ _ _) = do
         Just (new_spec, new_qual) -> do
             putStrLn $ "fspec = " ++ show fspec
             putStrLn $ "new_spec = " ++ show new_spec
-            let gs' = insertAssumeGS n new_spec gs
+
+            -- We ASSUME postconditions, and ASSERT preconditions.  This ensures
+            -- that our precondition is satisified by the caller, and the postcondition
+            -- is strong enough to allow verifying the caller
+            let gs' = insertAssertGS n (pre new_spec) $ insertAssumeGS n (post new_spec) gs
 
             return $ foldr insertQualifier gs' new_qual
         Nothing -> return gs
+    where
+        pre xs = init xs ++ [PolyBound PTrue []]
+        post xs = replicate (length $ init xs) (PolyBound PTrue []) ++ [last xs]
 
 -- | Converts counterexamples into constraints that the refinements must allow for, or rule out.
 cexsToFuncConstraints :: LiquidReadyState -> [GhcInfo] -> InferenceConfig -> G2.Config -> CounterExample -> IO (Either CounterExample FuncConstraints)
 cexsToFuncConstraints _ _ infconfig _ (DirectCounter dfc fcs@(_:_))
     | not . null $ fcs' =
         return . Right . insertsFC $ map (Pos Post . real) fcs ++ map (Neg Post . abstract) fcs'
-    | otherwise = return . Right $ error "cexsToFuncConstraints: unhandled 1" -- [Pos dfc]
+    | otherwise = return . Right $ error "cexsToFuncConstraints: unhandled 1"
     where
         fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 cexsToFuncConstraints _ _ infconfig _ (CallsCounter dfc _ fcs@(_:_))
     | not . null $ fcs' =
         return . Right . insertsFC $ map (Pos Post . real) fcs ++ map (Neg Post . abstract) fcs'
-    | otherwise = return . Right $ error "cexsToFuncConstraints: unhandled 2" -- error $ "cexsToFuncConstraints" ++ show (map abstractedMod fcs) -- return . Right $ [Pos dfc] 
+    | otherwise = return . Right $ error "cexsToFuncConstraints: unhandled 2"
     where
         fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 cexsToFuncConstraints lrs ghci _ g2config cex@(DirectCounter fc []) = do
@@ -221,11 +231,13 @@ cexsToFuncConstraints lrs ghci _ g2config cex@(DirectCounter fc []) = do
     case v_cex of
         True -> return . Right . insertsFC $ [Pos Post fc]
         False -> return . Left $ cex
-cexsToFuncConstraints lrs ghci _ g2config cex@(CallsCounter _ fc []) = do
-    v_cex <- checkCounterexample lrs ghci g2config fc
+cexsToFuncConstraints lrs ghci _ g2config cex@(CallsCounter callee_fc called_fc []) = do
+    v_cex <- checkCounterexample lrs ghci g2config called_fc
     case v_cex of
-        True -> return . Right . insertsFC $ [Pos Pre fc]
-        False -> return . Left $ cex
+        True -> return . Right . insertsFC $ [Pos Pre called_fc]
+        False -> case funcName callee_fc `elem` exported_funcs (lr_binding lrs) of
+                    True -> return . Left $ cex
+                    False -> return . Right . insertsFC $ [Neg Pre callee_fc]
 
 insertsFC :: [FuncConstraint] -> FuncConstraints
 insertsFC = foldr insertFC emptyFC
@@ -244,7 +256,7 @@ filterErrors' fc =
         as = not . any isError $ arguments c
         r = not . isError . returns $ c
     in
-    as && r
+    as && (r || FC.violated fc == Pre)
     where
         isError (Prim Error _) = True
         isError _ = False

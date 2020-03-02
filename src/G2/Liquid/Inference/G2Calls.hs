@@ -234,7 +234,7 @@ evalMeasures lrs ghci config es = do
         (final_s, final_b) = markAndSweepPreserving pres_names s' bindings
 
     SomeSolver solver <- initSolver config
-    meas_res <- mapM (evalMeasures' final_s final_b solver config' meas tcv) es
+    meas_res <- mapM (evalMeasures' final_s final_b solver config' meas tcv) $ filter (not . isError) es
     close solver
 
     return $ foldr (HM.unionWith (++)) HM.empty meas_res
@@ -248,6 +248,9 @@ evalMeasures lrs ghci config es = do
                 eenv_meas_names = E.keys eenv
             in
             foldr HS.insert hs eenv_meas_names
+    
+        isError (Prim Error _) = True
+        isError _ = False
 
 evalMeasures' :: ( ASTContainer t Expr
                  , ASTContainer t Type
