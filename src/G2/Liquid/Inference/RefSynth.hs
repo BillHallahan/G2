@@ -65,6 +65,7 @@ refSynth :: InferenceConfig -> SpecType -> G2.Expr -> TypeClasses -> Measures
          -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> LH.TCEmb TyCon -> IO (Maybe ([PolyBound LH.Expr], [Qualifier]))
 refSynth infconfig spc e tc meas meas_ex fc meas_sym tycons = do
         putStrLn "refSynth"
+        print fc
         let (call, f_num, arg_pb, ret_pb) = sygusCall e tc meas meas_ex fc
             (es, simp_call) = elimSimpleDTs call
         let sygus = printSygus simp_call
@@ -507,12 +508,12 @@ termConstraints sorts meas_ex arg_poly_names ret_poly_names arg_tys ret_ty (Pos 
     TC { pos_term = True
        , tc_violated = v
        , param_terms = funcParamTerms sorts meas_ex arg_poly_names arg_tys (arguments fc)
-       , ret_terms = funcCallTerm sorts meas_ex ret_poly_names arg_tys ret_ty (arguments fc) (returns fc) }
+       , ret_terms = funcCallRetTerm sorts meas_ex ret_poly_names arg_tys ret_ty (arguments fc) (returns fc) }
 termConstraints sorts meas_ex arg_poly_names ret_poly_names arg_tys ret_ty (Neg v fc) =
     TC { pos_term = False
        , tc_violated = v
        , param_terms = funcParamTerms sorts meas_ex arg_poly_names arg_tys (arguments fc)
-       , ret_terms = funcCallTerm sorts meas_ex ret_poly_names arg_tys ret_ty (arguments fc) (returns fc) }
+       , ret_terms = funcCallRetTerm sorts meas_ex ret_poly_names arg_tys ret_ty (arguments fc) (returns fc) }
 
 -- When polymorphic arguments are instantiated with values, we use those as
 -- arguments for the polymorphic refinement functions.  However, even when they
@@ -533,6 +534,10 @@ funcParamTerms sorts meas_ex poly_names arg_tys ars =
                 funcCallTerm sorts meas_ex pn (init at) (last at) (init as) (last as)
               )
               $ zip3 poly_names inits_arg_tys init_ars
+
+funcCallRetTerm :: TypesToSorts -> MeasureExs -> RefNamePolyBound ->  [Type] -> Type -> [G2.Expr] -> G2.Expr -> [Term]
+funcCallRetTerm _ _ _ _ _ _ (Prim Error _) = [TermLit $ LitBool True]
+funcCallRetTerm sorts meas_ex poly_names arg_tys ret_ty ars r = funcCallTerm sorts meas_ex poly_names arg_tys ret_ty ars r
 
 funcCallTerm :: TypesToSorts -> MeasureExs -> RefNamePolyBound ->  [Type] -> Type -> [G2.Expr] -> G2.Expr -> [Term]
 funcCallTerm sorts meas_ex poly_names arg_tys ret_ty ars r =
@@ -565,7 +570,6 @@ funcCallTerm' sorts meas_ex arg_tys ars r ret_ty fn
     | otherwise = Nothing
     where
         trm_ars = map (uncurry (exprToTerm sorts meas_ex)) (zip arg_tys ars)
-
 
 exprToTerm :: TypesToSorts -> MeasureExs -> Type -> G2.Expr -> Term
 exprToTerm _ _ (TyCon (Name "Bool" _ _ _) _) (Data (DataCon (Name n _ _ _) _))
