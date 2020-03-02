@@ -214,7 +214,8 @@ initStateFromSimpleState s useAssert mkCurr argTys config =
     , input_names = map idName is
     , higher_order_inst = S.fromList $ IT.exports s
     , rewrite_rules = IT.rewrite_rules s
-    , name_gen = ng''})
+    , name_gen = ng''
+    , exported_funcs = IT.exports s })
 
 mkArgTys :: Expr -> MkArgTypes
 mkArgTys e simp_s =

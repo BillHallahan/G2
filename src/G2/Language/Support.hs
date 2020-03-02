@@ -65,6 +65,7 @@ data Bindings = Bindings { deepseq_walkers :: Walkers
                          , input_names :: [Name]
                          , rewrite_rules :: ![RewriteRule]
                          , name_gen :: NameGen
+                         , exported_funcs :: [Name]
                          } deriving (Show, Eq, Read, Typeable, Data)
 
 -- | The `InputIds` are a list of the variable names passed as input to the
@@ -274,6 +275,7 @@ instance Named Bindings where
             ++ names (cleaned_names b)
             ++ names (higher_order_inst b)
             ++ names (input_names b)
+            ++ names (exported_funcs b)
 
     rename old new b =
         Bindings { fixed_inputs = rename old new (fixed_inputs b)
@@ -284,6 +286,7 @@ instance Named Bindings where
                  , input_names = rename old new (input_names b)
                  , rewrite_rules = rename old new (rewrite_rules b)
                  , name_gen = name_gen b
+                 , exported_funcs = rename old new (exported_funcs b)
                  }
 
     renames hm b =
@@ -295,6 +298,7 @@ instance Named Bindings where
                , input_names = renames hm (input_names b)
                , rewrite_rules = renames hm (rewrite_rules b)
                , name_gen = name_gen b
+               , exported_funcs = renames hm (exported_funcs b)
                }
 
 instance ASTContainer Bindings Expr where
