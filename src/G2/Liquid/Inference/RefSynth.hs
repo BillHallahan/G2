@@ -459,7 +459,7 @@ relTy _ = True
 -------------------------------
 
 -- | Constraints expresessed as "anded" terms
-data TermConstraint = TC { pos_term :: Bool, tc_violated :: Violated, param_terms :: [Term], ret_terms :: [Term] }
+data TermConstraint = TC { pos_term :: Bool, tc_violated :: Violated, param_ret_connector :: Symbol, param_terms :: [Term], ret_terms :: [Term] }
                     deriving (Show, Read)
 
 modifyParamTC :: ([Term] -> [Term]) -> TermConstraint -> TermConstraint
@@ -505,12 +505,16 @@ existentialTerms sorts meas_ex arg_tys ret_ty fn =
         $ TermCall (ISymb fn) (map (TermIdent . ISymb . fst) ar_vs ++ [TermIdent (ISymb "e_ret")])
 
 termConstraints :: TypesToSorts -> MeasureExs -> [RefNamePolyBound] -> RefNamePolyBound -> [Type] -> Type -> FuncConstraint -> TermConstraint
-termConstraints sorts meas_ex arg_poly_names ret_poly_names arg_tys ret_ty (FC p v fc) =
+termConstraints sorts meas_ex arg_poly_names ret_poly_names arg_tys ret_ty (FC { polarity = p
+                                                                               , violated = v
+                                                                               , gen_spec_pres = gsp
+                                                                               , constraint = fc }) =
     TC { pos_term = p == Pos
        , tc_violated = v
+       , param_ret_connector = if gsp then "and" else "=>"
        , param_terms = funcParamTerms sorts meas_ex arg_poly_names arg_tys (arguments fc)
        , ret_terms = funcCallRetTerm sorts meas_ex ret_poly_names arg_tys ret_ty (arguments fc) (returns fc) }
-       
+
 -- When polymorphic arguments are instantiated with values, we use those as
 -- arguments for the polymorphic refinement functions.  However, even when they
 -- do not have values, we still want to enforce that (for some value) the polymorphic
@@ -597,16 +601,13 @@ exprToDTTerm sorts meas_ex t e =
 filterPosAndNegConstraints :: [TermConstraint] -> [TermConstraint]
 filterPosAndNegConstraints ts =
     let
-        tre = concatMap ret_terms $ filter isPosT ts
+        tre = concatMap ret_terms $ filter pos_term ts
     in
     filter (\t -> (not . null $ ret_terms t) || tc_violated t == Pre)
-        $ map (\t -> if isPosT t then t else modifyRetTC (filter (not . flip elem tre)) t) ts
-    -- filter (\t -> isPosT t || all (\t' -> ret_terms t /= ret_terms t') tre ) ts
-    where
-        isPosT (TC p _ _ _) = p
+        $ map (\t -> if pos_term t then t else modifyRetTC (filter (not . flip elem tre)) t) ts
 
 termConstraintToConstraint :: TermConstraint -> Cmd
-termConstraintToConstraint (TC p v param_ts ret_ts) =
+termConstraintToConstraint (TC p v pr_con param_ts ret_ts) =
     let
         param_tc = case param_ts of
                     [] -> TermLit (LitBool True)
@@ -614,11 +615,12 @@ termConstraintToConstraint (TC p v param_ts ret_ts) =
         ret_tc = case ret_ts of
                     [] -> TermLit (LitBool True) 
                     _ -> TermCall (ISymb "and") ret_ts
-        tc = TermCall (ISymb $ if v == Post then "=>" else "and") [param_tc, ret_tc]
+        ret_tc' = case p of
+                    True -> ret_tc
+                    False -> TermCall (ISymb "not") [ret_tc]
+        tc = TermCall (ISymb pr_con) [param_tc, ret_tc']
     in
-    case p of
-        True -> Constraint tc
-        False -> Constraint $ TermCall (ISymb "not") [tc]
+    Constraint tc
 
 typeToSort :: TypesToSorts -> Type -> Sort
 typeToSort _ (TyCon (Name n _ _ _) _) 

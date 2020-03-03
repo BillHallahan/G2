@@ -2,7 +2,7 @@ module G2.Liquid.Inference.Interface (inference) where
 
 import G2.Config.Config as G2
 import G2.Execution.Memory
-import G2.Interface
+import G2.Interface hiding (violated)
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Naming
 import G2.Language.Support
@@ -98,39 +98,48 @@ refineUnsafe infconfig g2config lhconfig ghci m_modname lrs gs fc = do
     
     case res_asserts of
         Unsafe bad -> do
-            -- Generate constraints
             let bad' = nub $ map nameOcc bad
 
             putStrLn $ "bad' = " ++ show bad'
 
+            -- Generate new constraints for the functions that LH reports as having an error
             res <- mapM (genNewConstraints merged_se_ghci m_modname lrs infconfig g2config) bad'
 
             putStrLn $ "res"
             printCE $ concat res
 
             putStrLn "Before checkNewConstraints"
+            -- Either converts counterexamples to FuncConstraints, or returns them as errors to
+            -- show to the user.
             new_fc <- checkNewConstraints ghci lrs infconfig g2config (concat res)
+
             putStrLn $ "After checkNewConstraints" ++ "\nlength res = " ++ show (length (concat res))
                             ++ "\nlength new_fc = " ++ show (length new_fc)
             case new_fc of
                 Left ce -> return . Left $ ce
                 Right new_fc' -> do
+                    -- Only consider functions in the modules that we have access to.
                     let new_fc_funcs = filter (\(Name _ m _ _) -> m `S.member` (modules infconfig))
                                      . nub . map (funcName . constraint) $ allFC new_fc'
 
-                        fc' = unionFC fc new_fc'
+                        -- Adjust all old constraints gen_spec_pres, if the generated_by is changed by a new constraint
+                        old_fc = mapFC (\f -> f { gen_spec_pres =
+                                                        if generated_by f `elem` new_fc_funcs
+                                                            then False
+                                                            else gen_spec_pres f } ) fc
 
+                        fc' = unionFC old_fc new_fc'
+
+                    -- Only check new assertions
                     let gs' = filterAssertsKey (\n -> n `elem` map constraining (allFC fc')) gs
 
                     putStrLn $ "new_fc_funcs = " ++ show new_fc_funcs
 
                     -- Synthesize
-                    -- putStrLn $ "fc' = " ++ show fc'
                     putStrLn $ "new_fc_funcs = " ++ show new_fc_funcs
                     putStrLn "Before genMeasureExs"
                     meas_ex <- genMeasureExs lrs merged_se_ghci g2config fc'
                     putStrLn "After genMeasureExs"
-                    -- ghci' <- foldM (synthesize infconfig lrs meas_ex fc') ghci new_fc_funcs
                     gs'' <- foldM (synthesize infconfig ghci lrs meas_ex fc') gs' new_fc_funcs
                     
                     inference' infconfig g2config lhconfig ghci m_modname lrs gs'' fc'
@@ -216,28 +225,55 @@ synthesize infconfig ghci lrs meas_ex fc gs n@(Name n' _ _ _) = do
 cexsToFuncConstraints :: LiquidReadyState -> [GhcInfo] -> InferenceConfig -> G2.Config -> CounterExample -> IO (Either CounterExample FuncConstraints)
 cexsToFuncConstraints _ _ infconfig _ (DirectCounter dfc fcs@(_:_))
     | not . null $ fcs' =
-        return . Right . insertsFC $ map (FC Pos Post . real) fcs ++ map (FC Neg Post . abstract) fcs'
+        let
+            mkFC pol fc = FC { polarity = pol
+                             , violated = Post
+                             , generated_by = funcName dfc
+                             , gen_spec_pres = funcName dfc /= funcName fc
+                             , constraint = fc}
+        in
+        return . Right . insertsFC $ map (mkFC Pos . real) fcs ++ map (mkFC Neg . abstract) fcs'
     | otherwise = return . Right $ error "cexsToFuncConstraints: unhandled 1"
     where
         fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 cexsToFuncConstraints _ _ infconfig _ (CallsCounter dfc _ fcs@(_:_))
     | not . null $ fcs' =
-        return . Right . insertsFC $ map (FC Pos Post . real) fcs ++ map (FC Neg Post . abstract) fcs'
+        let
+            mkFC pol fc = FC { polarity = pol
+                             , violated = Post
+                             , generated_by = funcName dfc
+                             , gen_spec_pres = funcName dfc /= funcName fc
+                             , constraint = fc}
+        in
+        return . Right . insertsFC $ map (mkFC Pos . real) fcs ++ map (mkFC Neg . abstract) fcs'
     | otherwise = return . Right $ error "cexsToFuncConstraints: unhandled 2"
     where
         fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 cexsToFuncConstraints lrs ghci _ g2config cex@(DirectCounter fc []) = do
     v_cex <- checkCounterexample lrs ghci g2config fc
     case v_cex of
-        True -> return . Right . insertsFC $ [FC Pos Post fc]
+        True ->
+            return . Right . insertsFC $ [FC { polarity = Pos
+                                             , violated = Post
+                                             , generated_by = funcName fc
+                                             , gen_spec_pres = False
+                                             , constraint = fc} ]
         False -> return . Left $ cex
 cexsToFuncConstraints lrs ghci _ g2config cex@(CallsCounter callee_fc called_fc []) = do
     v_cex <- checkCounterexample lrs ghci g2config called_fc
     case v_cex of
-        True -> return . Right . insertsFC $ [FC Pos Pre called_fc]
+        True -> return . Right . insertsFC $ [FC { polarity = Pos
+                                                 , violated = Pre
+                                                 , generated_by = funcName callee_fc
+                                                 , gen_spec_pres = funcName callee_fc /= funcName called_fc
+                                                 , constraint = called_fc } ]
         False -> case funcName callee_fc `elem` exported_funcs (lr_binding lrs) of
                     True -> return . Left $ cex
-                    False -> return . Right . insertsFC $ [FC Neg Pre callee_fc]
+                    False -> return . Right . insertsFC $ [FC { polarity = Neg
+                                                              , violated = Pre
+                                                              , generated_by = funcName callee_fc
+                                                              , gen_spec_pres = False 
+                                                              , constraint = callee_fc } ]
 
 insertsFC :: [FuncConstraint] -> FuncConstraints
 insertsFC = foldr insertFC emptyFC

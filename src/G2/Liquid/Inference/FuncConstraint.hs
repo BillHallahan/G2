@@ -10,6 +10,7 @@ module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
                                           , allFC
                                           , unionFC
                                           , unionsFC
+                                          , mapFC
                                           , filterFC
 
                                           , constraining ) where
@@ -27,10 +28,13 @@ data Polarity = Pos | Neg deriving (Eq, Show, Read)
 
 data Violated = Pre | Post deriving (Eq, Show, Read)
 
-data FuncConstraint = FC { polarity :: Polarity
-                         , violated :: Violated
-                         , constraint :: FuncCall }
-                         deriving (Eq, Show, Read)
+data FuncConstraint =
+    FC { polarity :: Polarity
+       , violated :: Violated
+       , generated_by :: Name -- ^ Which function generated the given constraint?
+       , gen_spec_pres :: Bool -- ^ True iff generated_by's spec has not changed since the FC was created
+       , constraint :: FuncCall }
+       deriving (Eq, Show, Read)
 
 emptyFC :: FuncConstraints
 emptyFC = FuncConstraints M.empty
@@ -55,6 +59,9 @@ unionFC (FuncConstraints fc1) (FuncConstraints fc2) =
 unionsFC :: [FuncConstraints] -> FuncConstraints
 unionsFC = foldr unionFC emptyFC
 
+mapFC :: (FuncConstraint -> FuncConstraint) -> FuncConstraints -> FuncConstraints
+mapFC f = coerce (M.map (map f))
+
 filterFC :: (FuncConstraint -> Bool) -> FuncConstraints -> FuncConstraints
 filterFC p = coerce (M.map (filter p))
 
@@ -64,4 +71,4 @@ constraining = funcName . constraint
 instance ASTContainer FuncConstraint Expr where
     containedASTs = containedASTs . constraint
 
-    modifyContainedASTs f (FC p v c) = FC p v $ modifyContainedASTs f c
+    modifyContainedASTs f (FC p v g gp c) = FC p v g gp $ modifyContainedASTs f c
