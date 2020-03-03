@@ -1,6 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
+                                          , Polarity (..)
                                           , Violated (..)
                                           , FuncConstraints
                                           , emptyFC
@@ -22,13 +23,14 @@ import qualified Data.Map as M
 newtype FuncConstraints = FuncConstraints (M.Map Name [FuncConstraint])
                      deriving (Eq, Show, Read)
 
+data Polarity = Pos | Neg deriving (Eq, Show, Read)
+
 data Violated = Pre | Post deriving (Eq, Show, Read)
 
-data FuncConstraint = Pos { violated :: Violated
-                          , constraint :: FuncCall }
-                    | Neg { violated :: Violated
-                          , constraint :: FuncCall }
-                    deriving (Eq, Show, Read)
+data FuncConstraint = FC { polarity :: Polarity
+                         , violated :: Violated
+                         , constraint :: FuncCall }
+                         deriving (Eq, Show, Read)
 
 emptyFC :: FuncConstraints
 emptyFC = FuncConstraints M.empty
@@ -62,5 +64,4 @@ constraining = funcName . constraint
 instance ASTContainer FuncConstraint Expr where
     containedASTs = containedASTs . constraint
 
-    modifyContainedASTs f (Pos v c) = Pos v $ modifyContainedASTs f c
-    modifyContainedASTs f (Neg v c) = Neg v $ modifyContainedASTs f c
+    modifyContainedASTs f (FC p v c) = FC p v $ modifyContainedASTs f c

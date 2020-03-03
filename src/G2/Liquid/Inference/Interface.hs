@@ -216,28 +216,28 @@ synthesize infconfig ghci lrs meas_ex fc gs n@(Name n' _ _ _) = do
 cexsToFuncConstraints :: LiquidReadyState -> [GhcInfo] -> InferenceConfig -> G2.Config -> CounterExample -> IO (Either CounterExample FuncConstraints)
 cexsToFuncConstraints _ _ infconfig _ (DirectCounter dfc fcs@(_:_))
     | not . null $ fcs' =
-        return . Right . insertsFC $ map (Pos Post . real) fcs ++ map (Neg Post . abstract) fcs'
+        return . Right . insertsFC $ map (FC Pos Post . real) fcs ++ map (FC Neg Post . abstract) fcs'
     | otherwise = return . Right $ error "cexsToFuncConstraints: unhandled 1"
     where
         fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 cexsToFuncConstraints _ _ infconfig _ (CallsCounter dfc _ fcs@(_:_))
     | not . null $ fcs' =
-        return . Right . insertsFC $ map (Pos Post . real) fcs ++ map (Neg Post . abstract) fcs'
+        return . Right . insertsFC $ map (FC Pos Post . real) fcs ++ map (FC Neg Post . abstract) fcs'
     | otherwise = return . Right $ error "cexsToFuncConstraints: unhandled 2"
     where
         fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 cexsToFuncConstraints lrs ghci _ g2config cex@(DirectCounter fc []) = do
     v_cex <- checkCounterexample lrs ghci g2config fc
     case v_cex of
-        True -> return . Right . insertsFC $ [Pos Post fc]
+        True -> return . Right . insertsFC $ [FC Pos Post fc]
         False -> return . Left $ cex
 cexsToFuncConstraints lrs ghci _ g2config cex@(CallsCounter callee_fc called_fc []) = do
     v_cex <- checkCounterexample lrs ghci g2config called_fc
     case v_cex of
-        True -> return . Right . insertsFC $ [Pos Pre called_fc]
+        True -> return . Right . insertsFC $ [FC Pos Pre called_fc]
         False -> case funcName callee_fc `elem` exported_funcs (lr_binding lrs) of
                     True -> return . Left $ cex
-                    False -> return . Right . insertsFC $ [Neg Pre callee_fc]
+                    False -> return . Right . insertsFC $ [FC Neg Pre callee_fc]
 
 insertsFC :: [FuncConstraint] -> FuncConstraints
 insertsFC = foldr insertFC emptyFC

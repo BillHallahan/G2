@@ -505,17 +505,12 @@ existentialTerms sorts meas_ex arg_tys ret_ty fn =
         $ TermCall (ISymb fn) (map (TermIdent . ISymb . fst) ar_vs ++ [TermIdent (ISymb "e_ret")])
 
 termConstraints :: TypesToSorts -> MeasureExs -> [RefNamePolyBound] -> RefNamePolyBound -> [Type] -> Type -> FuncConstraint -> TermConstraint
-termConstraints sorts meas_ex arg_poly_names ret_poly_names arg_tys ret_ty (Pos v fc) =
-    TC { pos_term = True
+termConstraints sorts meas_ex arg_poly_names ret_poly_names arg_tys ret_ty (FC p v fc) =
+    TC { pos_term = p == Pos
        , tc_violated = v
        , param_terms = funcParamTerms sorts meas_ex arg_poly_names arg_tys (arguments fc)
        , ret_terms = funcCallRetTerm sorts meas_ex ret_poly_names arg_tys ret_ty (arguments fc) (returns fc) }
-termConstraints sorts meas_ex arg_poly_names ret_poly_names arg_tys ret_ty (Neg v fc) =
-    TC { pos_term = False
-       , tc_violated = v
-       , param_terms = funcParamTerms sorts meas_ex arg_poly_names arg_tys (arguments fc)
-       , ret_terms = funcCallRetTerm sorts meas_ex ret_poly_names arg_tys ret_ty (arguments fc) (returns fc) }
-
+       
 -- When polymorphic arguments are instantiated with values, we use those as
 -- arguments for the polymorphic refinement functions.  However, even when they
 -- do not have values, we still want to enforce that (for some value) the polymorphic
