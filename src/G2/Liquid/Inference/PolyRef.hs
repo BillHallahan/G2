@@ -8,10 +8,12 @@ module G2.Liquid.Inference.PolyRef ( PolyBound (.. )
                                    , extractExprPolyBound
                                    , extractTypePolyBound
 
+                                   , headValue
                                    , extractValues
                                    , uniqueIds
                                    , mapPB
                                    , zipPB
+                                   , zipWithPB
                                    , zipWithMaybePB
                                    , zip3PB) where
 
@@ -133,6 +135,9 @@ extractTypePolyBound t =
 -- Generic PolyBound functions
 -------------------------------
 
+headValue :: PolyBound v -> v
+headValue (PolyBound v _) = v
+
 extractValues :: PolyBound v -> [v]
 extractValues (PolyBound v ps) = v:concatMap extractValues ps
 
@@ -151,6 +156,9 @@ mapPB f (PolyBound v ps) = PolyBound (f v) (map (mapPB f) ps)
 
 zipPB :: PolyBound a -> PolyBound b -> PolyBound (a, b)
 zipPB (PolyBound a pba) (PolyBound b pbb) = PolyBound (a, b) (zipWith zipPB pba pbb)
+
+zipWithPB :: (a -> b -> c) -> PolyBound a -> PolyBound b -> PolyBound c
+zipWithPB f (PolyBound a pba) (PolyBound b pbb) = PolyBound (f a b) (zipWith (zipWithPB f) pba pbb)
 
 zipWithMaybePB :: (Maybe a -> Maybe b -> c) -> PolyBound a -> PolyBound b -> PolyBound c
 zipWithMaybePB f pba pbb = zipWithMaybePB' f (mapPB Just pba) (mapPB Just pbb)

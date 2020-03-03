@@ -905,21 +905,14 @@ refToQualifiers st arg_pb ret_pb cmds meas_sym tycons =
         arg_termsPB = map (defineFunsPB cmds) arg_pb
         ret_termsPB = defineFunsPB cmds ret_pb
         
-        (lh_e, params) = refToLHExpr' st arg_termsPB ret_termsPB meas_sym
+        lh_e = refToLHExpr' st arg_termsPB ret_termsPB meas_sym
     in
-    concatMap (\(p, e) ->  map (refToQualifier tycons p) e)
-        $ zip (filter (not . null) $ inits params) (map extractValues lh_e)
-    -- map (uncurry (refToQualifier tycons ars)) . extractValues $ zipPB ret lh_e
+    map (uncurry (refToQualifier tycons)) (concatMap extractValues lh_e)
 
-refToQualifier :: LH.TCEmb TyCon -> [SpecType] -> LH.Expr -> Qualifier
+refToQualifier :: LH.TCEmb TyCon -> [(LH.Symbol, SpecType)] -> LH.Expr -> Qualifier
 refToQualifier tycons params e =
-    let
-        params' = mapInitLast (\st -> (specTypeSymbol st, st))
-                              (\st -> (specTypeNestedSymbol st, st))
-                              params
-    in
     Q { qName = "G2"
-      , qParams = map (mkParam tycons) (last params':init params')
+      , qParams = map (mkParam tycons) (last params:init params)
       , qBody = e
       , qPos = LH.dummyPos "G2" }
 
@@ -935,9 +928,9 @@ refToLHExpr st arg_pb ret_pb cmds meas_sym =
         arg_termsPB = map (defineFunsPB cmds) arg_pb
         ret_termsPB = defineFunsPB cmds ret_pb
     
-        (lh_e, _) = refToLHExpr' st arg_termsPB ret_termsPB meas_sym
+        lh_e = refToLHExpr' st arg_termsPB ret_termsPB meas_sym
     in
-    lh_e
+    map (mapPB snd) lh_e
 
 defineFunsPB :: [Cmd] -> RefNamePolyBound -> PolyBound ([SortedVar], Term)
 defineFunsPB cmds = mapPB (defineFunsPB' cmds)
@@ -984,33 +977,37 @@ refToLHExpr' :: SpecType
              -> [PolyBound ([SortedVar], Term)] -- ^ Arguments
              -> PolyBound ([SortedVar], Term)  -- ^ Returns
              -> MeasureSymbols
-             -> ([PolyBound LH.Expr], [SpecType])
-refToLHExpr' st pb_args pb_ret meas_sym =
+             -> [PolyBound ([(LH.Symbol, SpecType)], LH.Expr)]
+refToLHExpr' st sygus_args sygus_ret meas_sym =
     let
         pieces = specTypePieces st
 
         symbs = map specTypeSymbol pieces
 
-        pb_all = pb_args ++ [pb_ret]
-        -- symbs_init = filter (not . null) $ inits symbs
-        pieces_init = filter (not . null) $ inits pieces
+        sygus_all = sygus_args ++ [sygus_ret]
+        sygus_all_inits = filter (not . null) $ inits sygus_all
+        pieces_inits = filter (not . null) $ inits pieces
 
-        pb_expr = map (\(ps, pb) ->
-                        mapPB (uncurry
-                                    (refToLHExpr'' meas_sym (mapInitLast specTypeSymbol specTypeNestedSymbol ps))
-                              ) pb
-                      ) $ zip pieces_init pb_all
+        pb_expr = map (uncurry (refToLHExpr'' meas_sym)) $ zip sygus_all_inits pieces_inits
     in
-    (pb_expr, pieces)
+    pb_expr
 
--- | Applies f1 to all but the last element of the list, and f2 to the last element
-mapInitLast :: (a -> b) -> (a -> b) -> [a] -> [b]
-mapInitLast _ _ [] = []
-mapInitLast _ f2 [x] = [f2 x]
-mapInitLast f1 f2 (x:xs) = f1 x:mapInitLast f1 f2 xs
 
-refToLHExpr'' :: MeasureSymbols -> [LH.Symbol] -> [SortedVar] -> Term -> LH.Expr
-refToLHExpr'' meas_sym symbs ars trm =
+refToLHExpr'' :: MeasureSymbols -> [PolyBound ([SortedVar], Term)] -> [SpecType] -> PolyBound ([(LH.Symbol, SpecType)], LH.Expr)
+refToLHExpr'' meas_sym sygus_in st =
+    let
+        sygus_args = map headValue $ init sygus_in
+        sygus_ret = last sygus_in
+
+        st_args = map (\st -> (specTypeSymbol st, st)) $ init st
+        st_ret = last st
+
+        st_ret_pb = specTypeRAppPiecesInFunc st_ret
+    in
+    mapPB (\(st, (sv, t)) -> refToLHExpr''' meas_sym (st_args ++ [(specTypeSymbol st, st)]) sv t) $ zipPB st_ret_pb sygus_ret
+
+refToLHExpr''' :: MeasureSymbols -> [(LH.Symbol, SpecType)] -> [SortedVar] -> Term -> ([(LH.Symbol, SpecType)], LH.Expr)
+refToLHExpr''' meas_sym symbs_st ars trm =
     let
         ars' = map (\(SortedVar sym _) -> sym) ars
 
@@ -1019,11 +1016,11 @@ refToLHExpr'' meas_sym symbs ars trm =
         -- gather the bindings for the typeclasses with specTypeSymbols.
         -- Fortunately, the typeclasses are always the first arguments in the list,
         -- so we can simply take the correct number of arguments from the end of the list.
-        last_symbs = reverse . take (length ars) $ reverse symbs
+        last_symbs = map fst . reverse . take (length ars) $ reverse symbs_st
 
         symbsArgs = M.fromList $ zip ars' last_symbs
     in
-    termToLHExpr meas_sym symbsArgs trm
+    (symbs_st, termToLHExpr meas_sym symbsArgs trm)
 
 termToLHExpr :: MeasureSymbols -> M.Map Sy.Symbol LH.Symbol -> Term -> LH.Expr
 termToLHExpr _ m_args (TermIdent (ISymb v)) =
@@ -1097,7 +1094,7 @@ specTypeNestedSymbol st = specTypeSymbol st
 
 specTypeSymbol :: SpecType -> LH.Symbol
 specTypeSymbol (RFun { rt_bind = b }) = b
-specTypeSymbol (RApp { rt_reft = ref }) = reftSymbol $ ur_reft ref
+specTypeSymbol rapp@(RApp { rt_reft = ref }) = reftSymbol $ ur_reft ref
 specTypeSymbol (RVar { rt_reft = ref }) = reftSymbol $ ur_reft ref
 specTypeSymbol _ = error $ "specTypeSymbol: SpecType not handled"
 
@@ -1113,6 +1110,10 @@ specTypePieces' sts rfun@(RFun { rt_in = i, rt_out = out }) =
 specTypePieces' sts rapp@(RApp {}) = reverse (rapp:sts)
 specTypePieces' sts rvar@(RVar {}) = reverse (rvar:sts)
 specTypePieces' sts (RAllT { rt_ty = out }) = specTypePieces' sts out
+
+specTypeRAppPiecesInFunc :: SpecType -> PolyBound SpecType
+specTypeRAppPiecesInFunc (RFun {rt_in = i}) = specTypeRAppPiecesInFunc i
+specTypeRAppPiecesInFunc st = specTypeRAppPieces st
 
 specTypeRAppPieces :: SpecType -> PolyBound SpecType
 specTypeRAppPieces rapp@(RApp { rt_reft = ref, rt_args = ars }) =
