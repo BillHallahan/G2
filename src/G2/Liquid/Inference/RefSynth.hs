@@ -148,7 +148,7 @@ applicableMeasure t e =
 generateGrammarsAndConstraints :: TypesToSorts -> MeasureExs -> [Type] -> Type -> [FuncConstraint] -> ([Cmd], [Cmd], [RefNamePolyBound], RefNamePolyBound)
 generateGrammarsAndConstraints sorts meas_ex arg_tys ret_ty fcs@(fc:_) =
     let
-        ret_names = refinementNames "ret" (returns $ constraint fc)
+        ret_names = refinementNames "ret" (typeOf . returns $ constraint fc)
         ret_gram_cmds = generateGrammars extGrammar sorts ret_names meas_ex arg_tys ret_ty
 
         arg_names_grams = generateParamRefGrammars fc sorts meas_ex arg_tys
@@ -159,21 +159,31 @@ generateGrammarsAndConstraints sorts meas_ex arg_tys ret_ty fcs@(fc:_) =
     trace ("length fcs = " ++ show (length fcs) ++ "\nlength cons = " ++ show (length cons)) 
     (concat arg_grams_cmds ++ ret_gram_cmds, cons, arg_names, ret_names)
 
-refinementNames :: String -> G2.Expr -> RefNamePolyBound
-refinementNames prefix e =
+refinementNames :: String -> G2.Type -> RefNamePolyBound
+refinementNames prefix t =
     let
-        poly_bd = extractExprPolyBoundWithRoot e
+        poly_bd = extractTypePolyBound t
     in
+    trace ("\nt = " ++ show t ++ "\npoly_bd = " ++ show poly_bd ++ "\n")
     mapPB (\i -> prefix ++ "_refinement_" ++ show i) $ uniqueIds poly_bd
+
+-- refinementNames :: String -> G2.Expr -> RefNamePolyBound
+-- refinementNames prefix e =
+--     let
+--         poly_bd = extractExprPolyBoundWithRoot e
+--     in
+--     mapPB (\i -> prefix ++ "_refinement_" ++ show i) $ uniqueIds poly_bd
 
 generateParamRefGrammars :: FuncConstraint -> TypesToSorts -> MeasureExs -> [Type] -> [(RefNamePolyBound, [Cmd])]
 generateParamRefGrammars fc sorts meas_ex arg_tys =
+    trace ("arg_tys = " ++ show arg_tys)
     map (\(i, as@((_, a):_)) ->
             let
-                as_tys = map fst as
+                arg_tys = map fst $ init as
+                ret_ty = fst $ last as
 
-                arg_ref_names = refinementNames ("args_" ++ show i) a
-                arg_gram_cmds = generateGrammars regGrammar sorts arg_ref_names meas_ex (init as_tys) (last as_tys)
+                arg_ref_names = refinementNames ("args_" ++ show i) ret_ty -- a
+                arg_gram_cmds = generateGrammars regGrammar sorts arg_ref_names meas_ex arg_tys ret_ty
             in
             (arg_ref_names, arg_gram_cmds))
         (zip [0..] . map (zip arg_tys) . filter (not . null) . inits . arguments $ constraint fc)
