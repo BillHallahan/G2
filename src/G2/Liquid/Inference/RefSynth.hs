@@ -117,7 +117,8 @@ sygusCall e tc meas meas_ex fcs@(_:_) =
                ++
                declare_dts
                ++
-               [safeModDecl]
+               [ safeModDecl
+               , clampIntDecl 5 ]
                ++
                grams
                ++
@@ -245,6 +246,30 @@ safeModDecl =
                 , TermCall (ISymb "+") [TermLit (LitNum 1), TermCall (ISymb "abs") [TermIdent (ISymb "y")]]
                 ]
 
+-- We define a function clamp, which forces (Constant sort) to fall only in a fixed range
+clampIntSymb :: Symbol
+clampIntSymb = clampSymb "int"
+
+clampSymb :: Symbol -> Symbol
+clampSymb = (++) "clamp-"
+
+clampIntDecl :: Integer -> Cmd
+clampIntDecl = clampDecl clampIntSymb intSort
+
+clampDecl :: Symbol -> Sort -> Integer -> Cmd
+clampDecl fn srt mx =
+    SmtCmd
+        . DefineFun fn [SortedVar "x" srt] srt
+        $ TermCall (ISymb "ite")
+            [ TermCall (ISymb "<") [TermLit $ LitNum mx, TermIdent (ISymb "x")]
+            , TermLit $ LitNum mx
+            , TermCall (ISymb "ite")
+                [ TermCall (ISymb "<") [TermIdent (ISymb "x"), TermLit $ LitNum 0]
+                , TermLit $ LitNum 0
+                , TermIdent (ISymb "x")
+                ]
+            ]
+
 -------------------------------
 -- Grammar
 -------------------------------
@@ -273,6 +298,8 @@ grammar intRules doubleRules arg_sort_vars ret_sorted_var sorts =
         irl = GroupedRuleList "I" intSort
                 (intRules ++ addSelectors sortsToGN intSort sorts')
 
+        clamp_int = GroupedRuleList "IClamp" intSort [GBfTerm $ BfIdentifierBfs (ISymb clampIntSymb) [BfIdentifier (ISymb "IConst")]]
+
         const_int = GroupedRuleList "IConst" intSort [GConstant intSort]
     
         (bool_double, decl_double, grl_double) =
@@ -290,11 +317,13 @@ grammar intRules doubleRules arg_sort_vars ret_sorted_var sorts =
         grm = GrammarDef
                 ([ SortedVar "B" boolSort
                  , SortedVar "I" intSort
+                 , SortedVar "IClamp" intSort
                  , SortedVar "IConst" intSort ]
                  ++ decl_double
                  ++ map (uncurry SortedVar) grams)
                 ([ brl
                  , irl
+                 , clamp_int
                  , const_int
                  ]
                  ++ grl_double
@@ -342,7 +371,7 @@ extIntRuleList = intRuleList ++
 intRuleList :: [GTerm]
 intRuleList =
     [ GVariable intSort
-    , GConstant intSort
+    , GBfTerm $ BfIdentifier (ISymb "IClamp") -- , GConstant intSort
     , GBfTerm $ BfIdentifierBfs (ISymb "+") [intBf, intBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "+") [intBf, BfIdentifier (ISymb "IConst")]
     , GBfTerm $ BfIdentifierBfs (ISymb "-") [intBf, intBf]
@@ -828,6 +857,7 @@ canProduceVar var@(SortedVar symb sv_srt) (GroupedRuleList _ grl_srt gtrms)
 canProduceVarGTerm :: SortedVar -> GTerm -> Bool
 canProduceVarGTerm (SortedVar _ sv_srt) (GVariable gv_srt) = sv_srt == gv_srt
 canProduceVarGTerm (SortedVar s _) (GBfTerm (BfIdentifier (ISymb is))) = s == is
+canProduceVarGTerm s (GBfTerm (BfIdentifierBfs _ bfs)) = any (canProduceVarGTerm s) $ map GBfTerm bfs
 canProduceVarGTerm _ (GConstant _) = False
 
 -- Reachability checks
