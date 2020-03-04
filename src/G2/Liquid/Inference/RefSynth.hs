@@ -66,7 +66,6 @@ refSynth :: InferenceConfig -> SpecType -> G2.Expr -> TypeClasses -> Measures
          -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> LH.TCEmb TyCon -> IO (Maybe ([PolyBound LH.Expr], [Qualifier]))
 refSynth infconfig spc e tc meas meas_ex fc meas_sym tycons = do
         putStrLn "refSynth"
-        print fc
         let (call, f_num, arg_pb, ret_pb) = sygusCall e tc meas meas_ex fc
             (es, simp_call) = elimSimpleDTs call
         let sygus = printSygus simp_call
@@ -601,10 +600,13 @@ exprToDTTerm sorts meas_ex t e =
 filterPosAndNegConstraints :: [TermConstraint] -> [TermConstraint]
 filterPosAndNegConstraints ts =
     let
-        tre = concatMap ret_terms $ filter pos_term ts
+        tre = concatMap ret_terms $ filter isForcedRet ts
     in
-    filter (\t -> (not . null $ ret_terms t) || tc_violated t == Pre)
-        $ map (\t -> if pos_term t then t else modifyRetTC (filter (not . flip elem tre)) t) ts
+    filter (\t -> (not . null $ ret_terms t) || param_ret_connector t == "=>" || tc_violated t == Pre)
+        $ map (\t -> if pos_term t || param_ret_connector t == "=>" then t else modifyRetTC (filter (not . flip elem tre)) t) ts
+    where
+        -- Does ths post-condition HAVE to hold?
+        isForcedRet t = pos_term t && param_ret_connector t == "and"
 
 termConstraintToConstraint :: TermConstraint -> Cmd
 termConstraintToConstraint (TC p v pr_con param_ts ret_ts) =

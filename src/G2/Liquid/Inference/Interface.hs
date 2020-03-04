@@ -113,14 +113,12 @@ refineUnsafe infconfig g2config lhconfig ghci m_modname lrs gs fc = do
             -- show to the user.
             new_fc <- checkNewConstraints ghci lrs infconfig g2config (concat res)
 
-            putStrLn $ "After checkNewConstraints" ++ "\nlength res = " ++ show (length (concat res))
-                            ++ "\nlength new_fc = " ++ show (length new_fc)
             case new_fc of
                 Left ce -> return . Left $ ce
                 Right new_fc' -> do
                     -- Only consider functions in the modules that we have access to.
                     let new_fc_funcs = filter (\(Name _ m _ _) -> m `S.member` (modules infconfig))
-                                     . nub . map (funcName . constraint) $ allFC new_fc'
+                                     . nubBy (\n1 n2 -> nameOcc n1 == nameOcc n2) . map (funcName . constraint) $ allFC new_fc'
 
                         -- Adjust all old constraints gen_spec_pres, if the generated_by is changed by a new constraint
                         old_fc = mapFC (\f -> f { gen_spec_pres =
@@ -132,8 +130,6 @@ refineUnsafe infconfig g2config lhconfig ghci m_modname lrs gs fc = do
 
                     -- Only check new assertions
                     let gs' = filterAssertsKey (\n -> n `elem` map constraining (allFC fc')) gs
-
-                    putStrLn $ "new_fc_funcs = " ++ show new_fc_funcs
 
                     -- Synthesize
                     putStrLn $ "new_fc_funcs = " ++ show new_fc_funcs
@@ -229,7 +225,7 @@ cexsToFuncConstraints _ _ infconfig _ (DirectCounter dfc fcs@(_:_))
             mkFC pol fc = FC { polarity = pol
                              , violated = Post
                              , generated_by = funcName dfc
-                             , gen_spec_pres = funcName dfc /= funcName fc
+                             , gen_spec_pres = nameOcc (funcName dfc) /= nameOcc (funcName fc)
                              , constraint = fc}
         in
         return . Right . insertsFC $ map (mkFC Pos . real) fcs ++ map (mkFC Neg . abstract) fcs'
@@ -242,7 +238,7 @@ cexsToFuncConstraints _ _ infconfig _ (CallsCounter dfc _ fcs@(_:_))
             mkFC pol fc = FC { polarity = pol
                              , violated = Post
                              , generated_by = funcName dfc
-                             , gen_spec_pres = funcName dfc /= funcName fc
+                             , gen_spec_pres = nameOcc (funcName dfc) /= nameOcc (funcName fc)
                              , constraint = fc}
         in
         return . Right . insertsFC $ map (mkFC Pos . real) fcs ++ map (mkFC Neg . abstract) fcs'
@@ -265,7 +261,7 @@ cexsToFuncConstraints lrs ghci _ g2config cex@(CallsCounter callee_fc called_fc 
         True -> return . Right . insertsFC $ [FC { polarity = Pos
                                                  , violated = Pre
                                                  , generated_by = funcName callee_fc
-                                                 , gen_spec_pres = funcName callee_fc /= funcName called_fc
+                                                 , gen_spec_pres = nameOcc (funcName callee_fc) /= nameOcc (funcName called_fc)
                                                  , constraint = called_fc } ]
         False -> case funcName callee_fc `elem` exported_funcs (lr_binding lrs) of
                     True -> return . Left $ cex
