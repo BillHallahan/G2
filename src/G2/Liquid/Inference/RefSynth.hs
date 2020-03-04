@@ -481,7 +481,7 @@ generateRelTypes tc e =
                  $ argumentTypes ty_e
         ret_ty_c = returnType ty_e
 
-        ex_ty_c = tail $ unTyApp ret_ty_c
+        ex_ty_c = concatMap unTyApp $ ret_ty_c:arg_ty_c
     in
     (arg_ty_c, ret_ty_c, ex_ty_c)
 
