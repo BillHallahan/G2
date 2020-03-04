@@ -36,7 +36,10 @@ mkInferenceConfig as =
 adjustConfig :: Maybe T.Text -> SimpleState -> Config -> InferenceConfig -> (Config, InferenceConfig)
 adjustConfig main_mod (SimpleState { expr_env = eenv }) config infconfig =
     let
+        ref = refinable main_mod eenv
+
         ns_mm = map (\(Name n m _ _) -> (n, m))
+              . filter (\(Name n m _ _) -> (n, m) `elem` ref)
               . E.keys $ E.filter (not . tyVarRetTy) eenv
 
         ns_not_main = map (\(Name n m _ _) -> (n, m))

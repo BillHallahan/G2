@@ -12,6 +12,8 @@ import qualified Data.HashMap.Lazy as M
 import Data.Maybe
 import qualified Data.Set as S
 
+import Debug.Trace
+
 -- | Maps a tuple of a (1) function name and (2) function param to selector calls and variables
 -- with ADTs sorts
 data EliminatedSimple = EliminatedSimple { func_args :: M.HashMap Symbol [SortedVar]
@@ -87,8 +89,18 @@ elimSimpleDTsTerms _ t@(TermIdent _) = t
 elimSimpleDTsTerms _ t@(TermLit _) = t
 elimSimpleDTsTerms simple_srts t@(TermCall i ts) =
     swapToIdent . TermCall i $ concatMap (elimSimpleDTsList simple_srts) ts
-elimSimpleDTsTerms simple_srts (TermExists sv t) =
-    TermExists sv $ elimSimpleDTsTerms simple_srts t
+elimSimpleDTsTerms simple_srts (TermExists sv@[SortedVar _ (IdentSort (ISymb srt))] t)
+    | Just (dt, as) <- M.lookup srt simple_srts =
+        case as of
+            [] ->
+                let
+                    es = insertArgsES "e_ret" [] emptyES
+                in
+                elimExistentials es t'
+            _ -> error $ "dt = " ++ dt ++ " has as = " ++ show as
+    | otherwise = TermExists sv t'
+    where
+        t' = elimSimpleDTsTerms simple_srts t
 elimSimpleDTsTerms _ t = error $ "elimSimpleDTsTerms: Unhandled term " ++ show t
 
 elimSimpleDTsList :: M.HashMap Symbol (Symbol, [SortedVar]) -> Term -> [Term]
@@ -99,9 +111,26 @@ elimSimpleDTsList _ t@(TermLit _) = [t]
 elimSimpleDTsList simple_srts t@(TermCall (ISymb s) ts)
     | s `S.member` getSimpleDTs simple_srts = ts
     | otherwise = [swapToIdent . TermCall (ISymb s) $ concatMap (elimSimpleDTsList simple_srts) ts]
-elimSimpleDTsList simple_srts (TermExists sv t) =
-    [TermExists sv $ elimSimpleDTsTerms simple_srts t]
+elimSimpleDTsList simple_srts te@(TermExists _ _) = [elimSimpleDTsTerms simple_srts te]
 elimSimpleDTsList _ t = error $ "elimSimpleDTsList: Unhandled term " ++ show t
+
+elimExistentials :: EliminatedSimple -> Term -> Term
+elimExistentials es t@(TermIdent _) = t
+elimExistentials es t@(TermLit _) = t
+elimExistentials es t@(TermCall i ts) =
+    swapToIdent . TermCall i $ concatMap (elimExistentialsList es) ts
+elimExistentials _ t = error $ "elimExistentials: Unhandled term " ++ show t
+
+elimExistentialsList :: EliminatedSimple -> Term -> [Term]
+elimExistentialsList es t@(TermIdent (ISymb s)) =
+    case lookupArgsES s es of
+        Just as -> map (\(SortedVar i _) -> TermIdent $ ISymb i) as
+        Nothing -> [t]
+elimExistentialsList _ t@(TermLit _) = [t]
+elimExistentialsList es t@(TermCall i@(ISymb s) ts)
+    | Just s' <- lookupArgsES s es = ts
+    | otherwise = [swapToIdent . TermCall i $ map (elimExistentials es) ts]
+elimExistentialsList _ t = error $ "elimExistentialsList: Unhandled term " ++ show t
 
 swapToIdent :: Term -> Term
 swapToIdent (TermCall i []) = TermIdent i
@@ -127,6 +156,9 @@ adjustSimpleInGTerms fn es (GBfTerm (BfIdentifierBfs (ISymb s) _))
     | Just v <- selectorToVar fn s es = GBfTerm $ BfIdentifier (ISymb v)
 adjustSimpleInGTerms _ _ gt = gt
 
+-- Maps Sorts with single data constructors to
+--  (1) the data constructor name
+--  (2) the data constructor arguments.
 getSimpleSorts :: [Cmd] -> M.HashMap Symbol (Symbol, [SortedVar])
 getSimpleSorts =
     M.fromList

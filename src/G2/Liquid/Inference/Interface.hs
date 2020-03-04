@@ -242,7 +242,7 @@ cexsToFuncConstraints _ _ infconfig _ (CallsCounter dfc _ fcs@(_:_))
                              , constraint = fc}
         in
         return . Right . insertsFC $ map (mkFC Pos . real) fcs ++ map (mkFC Neg . abstract) fcs'
-    | otherwise = return . Right $ error "cexsToFuncConstraints: unhandled 2"
+    | otherwise = return . Right $ error "cexsToFuncConstraints: Should be unreachable! Non-refinable function abstracted!"
     where
         fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 cexsToFuncConstraints lrs ghci _ g2config cex@(DirectCounter fc []) = do
