@@ -170,12 +170,10 @@ zipWithMaybePB' f (PolyBound a pba) (PolyBound b pbb) =
 
         rep_nt = repeat (PolyBound Nothing [])
 
-        pbc = takeWhile (\(x, y) -> isJust (top x) || isJust (top y))
+        pbc = takeWhile (\(x, y) -> isJust (headValue x) || isJust (headValue y))
                 $ zip (pba ++ rep_nt) (pbb ++ rep_nt)
     in
     PolyBound c $ map (uncurry (zipWithMaybePB' f)) pbc
-    where
-        top (PolyBound v _) = v
 
 zip3PB :: PolyBound a -> PolyBound b -> PolyBound c -> PolyBound (a, b, c)
 zip3PB (PolyBound a pba) (PolyBound b pbb) (PolyBound c pbc) =

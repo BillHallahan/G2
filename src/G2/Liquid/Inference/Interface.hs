@@ -187,7 +187,6 @@ synthesize infconfig ghci lrs meas_ex fc gs n@(Name n' _ _ _) = do
         tc = type_classes . state $ lr_state lrs
 
         fc_of_n = lookupFC n fc
-        ghci' = insertMissingAssertSpec n ghci
         fspec = case genSpec ghci n of
                 Just spec' -> spec'
                 _ -> error $ "synthesize: No spec found for " ++ show n
