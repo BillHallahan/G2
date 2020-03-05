@@ -97,7 +97,12 @@ elimSimpleDTsTerms simple_srts (TermExists sv@[SortedVar _ (IdentSort (ISymb srt
                     es = insertArgsES "e_ret" [] emptyES
                 in
                 elimExistentials es t'
-            _ -> error $ "dt = " ++ dt ++ " has as = " ++ show as
+            _ ->
+                let
+                    new_as = map (\(SortedVar s srt) -> SortedVar ("new__" ++ s) srt) as
+                    es = insertArgsES "e_ret" new_as emptyES
+                in
+                TermExists new_as $ elimExistentials es t'
     | otherwise = TermExists sv t'
     where
         t' = elimSimpleDTsTerms simple_srts t
