@@ -89,24 +89,29 @@ elimSimpleDTsTerms _ t@(TermIdent _) = t
 elimSimpleDTsTerms _ t@(TermLit _) = t
 elimSimpleDTsTerms simple_srts t@(TermCall i ts) =
     swapToIdent . TermCall i $ concatMap (elimSimpleDTsList simple_srts) ts
-elimSimpleDTsTerms simple_srts (TermExists sv@[SortedVar _ (IdentSort (ISymb srt))] t)
-    | Just (dt, as) <- M.lookup srt simple_srts =
-        case as of
-            [] ->
-                let
-                    es = insertArgsES "e_ret" [] emptyES
-                in
-                elimExistentials es t'
-            _ ->
-                let
-                    new_as = map (\(SortedVar s srt) -> SortedVar ("new__" ++ s) srt) as
-                    es = insertArgsES "e_ret" new_as emptyES
-                in
-                TermExists new_as $ elimExistentials es t'
-    | otherwise = TermExists sv t'
+elimSimpleDTsTerms simple_srts (TermExists sv t) =
+    let
+        (es, out_as) = mapAccumL
+                            (\els (SortedVar n srt) ->
+                                            case M.lookup (sortSymb srt) simple_srts of
+                                                Just (dt, as) ->
+                                                    let
+                                                        new_as = map (\(SortedVar s srt) -> SortedVar ("new__" ++ s) srt) as
+                                                        els' = insertArgsES n new_as els
+                                                    in
+                                                    (els', new_as)
+                                                Nothing -> (els, [SortedVar n srt])) emptyES sv
+    in
+    case concat out_as of
+        [] -> elimExistentials es t'
+        out_as' -> TermExists out_as' $ elimExistentials es t'
     where
         t' = elimSimpleDTsTerms simple_srts t
 elimSimpleDTsTerms _ t = error $ "elimSimpleDTsTerms: Unhandled term " ++ show t
+
+sortSymb :: Sort -> Symbol
+sortSymb (IdentSort (ISymb symb)) = symb
+sortSymb (IdentSortSort (ISymb symb) _) = symb
 
 elimSimpleDTsList :: M.HashMap Symbol (Symbol, [SortedVar]) -> Term -> [Term]
 elimSimpleDTsList simple_srts t@(TermIdent (ISymb s))

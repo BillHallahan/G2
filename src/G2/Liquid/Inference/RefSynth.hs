@@ -517,10 +517,12 @@ generateConstraints sorts meas_ex arg_poly_names ret_poly_names arg_tys ret_ty f
         cons' = filterPosAndNegConstraints cons
         cons'' = map termConstraintToConstraint cons'
 
-        exists = existentialConstraints sorts meas_ex ret_poly_names arg_tys ret_ty
+        exists_args = concatMap (\(pn, ars) -> existentialConstraints sorts meas_ex pn (init ars) (last ars)) 
+                    $ zip arg_poly_names (filter (not . null) $ inits arg_tys)
+        exists_ret = existentialConstraints sorts meas_ex ret_poly_names arg_tys ret_ty
     in
     trace ("length cons = " ++ show (length cons) ++ "\nlength cons' = " ++ show (length cons'))
-    {- exists ++ -} cons''
+    {- exists_args ++ exists_ret ++ -} cons''
 
 -- | Prevents any refinements from being set to "False" (or equivalent, i.e. 0 < 0)
 existentialConstraints :: TypesToSorts -> MeasureExs -> RefNamePolyBound -> [Type] -> Type -> [Cmd]
@@ -536,7 +538,7 @@ existentialTerms :: TypesToSorts -> MeasureExs -> [Type] -> Type -> String -> Ma
 existentialTerms _ _ _ (TyVar _) _ = Nothing
 existentialTerms sorts meas_ex arg_tys ret_ty fn =
     let
-        ar_vs = map (\(i, t) -> ("arg" ++ show i, typeToSort sorts t)) $ zip [0..] arg_tys
+        ar_vs = map (\(i, t) -> ("arg" ++ show i, typeToSort sorts t)) $ zip [0..] (arg_tys)
         srt_v = ("e_ret", typeToSort sorts ret_ty)
     in
     Just . TermExists (map (uncurry SortedVar) $ srt_v:ar_vs)
