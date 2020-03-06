@@ -8,6 +8,8 @@ Lists
 {-@ LIQUID "--no-termination" @-}
 {-@ LIQUID "--prune-unsorted" @-}
 
+-- {-@ include <include/ListQualif.hquals> @-}
+
 -- CHECKBINDER prop_size
 -- CHECKBINDER empty
 -- CHECKBINDER add
@@ -21,19 +23,10 @@ Lists
 
 {-# LANGUAGE DeriveGeneric #-}
 
-module List ( List
-            , empty
-            , add
-            , singleton
-            , map
-            , replicate
-            , foldr
-            , foldr1
-            , zipWith
-            , concat
-            ) where
+module ListQualif ( List ) where
 
 import Prelude hiding (length, replicate, foldr, foldr1, map, concat, zipWith)
+import qualified Data.Map as M
 
 infixr 9 :+:
 
@@ -102,7 +95,6 @@ and then, lists whose size equals that of *another* list `Xs`:
 Write down a *refined* type for `length`:
 
 \begin{code}
-{-@ length :: xs : List a -> Int @-}
 length            :: List a -> Int
 length Emp        = 0
 length (x :+: xs) = 1 + length xs
@@ -115,16 +107,16 @@ such that the following type checks:
 {-@ prop_size :: TRUE @-}
 prop_size  = lAssert (length l3 == 3)
 
-{-@ l3 :: { xs:List Int | size xs == 3 } @-}
+{-@ l3 :: ListN Int 3 @-}
 l3     = 3 :+: l2
 
-{-@ l2 :: { xs:List Int | size xs == 2 } @-}
+{-@ l2 :: ListN Int 2 @-}
 l2     = 2 :+: l1
 
-{-@ l1 :: { xs:List Int | size xs == 1 } @-}
+{-@ l1 :: ListN Int 1 @-}
 l1     = 1 :+: l0
 
-{-@ l0 :: { xs:List Int | size xs == 0 } @-}
+{-@ l0 :: ListN Int 0 @-}
 l0     = Emp :: List Int
 \end{code}
 
@@ -136,13 +128,10 @@ Fill in the implementations of the following functions so that
 LiquidHaskell verifies respect the given type signatures:
 
 \begin{code}
-{-@ empty :: List a @-}
 empty = Emp
 
-{-@ add :: a -> xs:List a -> List a @-}
 add x xs = x :+: xs
 
-{-@ singleton :: a -> List a @-}
 singleton x = x :+: empty
 \end{code}
 
@@ -154,7 +143,6 @@ for `replicate n x` which should return a `List` `n` copies of
 the value `x`:
 
 \begin{code}
-{-@ replicate :: n : Nat -> a -> List a @-}
 replicate n x
   | n == 0    = empty
   | otherwise = x :+: replicate (n - 1) x
@@ -174,7 +162,6 @@ Fix the specification for `map` such that the assertion in `prop_map`
 is verified by LH. (This will require you to first complete part (a) above.)
 
 \begin{code}
-{-@ map :: (a -> b) -> xa : List a -> List b @-}
 map f Emp        = Emp
 map f (x :+: xs) = f x :+: map f xs
 
@@ -189,7 +176,6 @@ Fix the specification for `foldr1` so that the call to `die` is
 verified by LH:
 
 \begin{code}
-{-@ foldr1 :: (a -> a -> a) -> { xs : List a | size xs > 0 } -> a @-}
 foldr1 op (x :+: xs) = foldr op x xs
 foldr1 op Emp        = die "Cannot call foldr1 with empty list"
 
@@ -207,7 +193,6 @@ Fix the specification of `zipWith` so that LH verifies:
 + The assert inside `prop_zipwith`.
 
 \begin{code}
-{-@ zipWith :: (a -> b -> c) -> xa : List a -> { xb : List b | size xa = size xb } -> List c @-}
 zipWith _ Emp Emp               = Emp
 zipWith f (x :+: xs) (y :+: ys) = f x y :+: zipWith f xs ys
 zipWith f _          _          = die  "Bad call to zipWith"
@@ -234,21 +219,93 @@ or specification (types, measures) that you need.
   @-}
     
 
-{-@ concat :: x:List (List a) -> v:List a @-}
 concat Emp = Emp
 concat (xs :+: Emp) = xs
 concat (xs :+: (ys :+: xss)) = concat ((append xs ys) :+: xss)
 
-{-@ append :: x:List a -> y:List a -> z:List a @-}
 append :: List a -> List a -> List a
 append xs Emp = xs
 append Emp ys = ys
 append (x :+: xs) ys = x :+: append xs ys
 
+{-@ prop_concat :: TRUE @-}
 prop_concat = lAssert (length (concat xss) == 6)
   where
     xss     = l0 :+: l1 :+: l2 :+: l3 :+: Emp
+
+{-@ prop_concat2 :: TRUE @-}
 prop_concat2 = lAssert (length (concat yss) == 0)
   where
     yss     = l0 :+: l0 :+: l0 :+: Emp
 \end{code}
+
+========================================
+Map-Reduce
+========================================
+
+<div class="hidden">
+\begin{code}
+
+expand   :: (a -> List (k, v)) -> List a -> List (k, v)
+group    :: (Ord k) => List (k, v) -> M.Map k (List v)
+collapse :: (v -> v -> v) -> M.Map k (List v) -> M.Map k v
+\end{code}
+</div>
+
+The following is a super simplified implementation of
+[Map-Reduce](http://en.wikipedia.org/wiki/MapReduce)
+using the [Lists](List.lhs) and `Data.Map`.
+
+\begin{code}
+mapReduce :: (Ord k) => (a -> List (k, v))
+                     -> (v -> v -> v)
+                     -> List a
+                     -> M.Map k v
+
+mapReduce fm fr xs = kvm
+  where
+    kvs   = expand      fm xs     -- step 1
+    kvsm  = group       kvs       -- step 2
+    kvm   = collapse fr kvsm      -- step 3
+\end{code}
+
+**The Problem** If you solved `foldr1` then you should
+get a single type error below, in the call to `foldr1`
+in `collapse`. Fix the error by **modifying the
+refinement type specifications** only (do not modify any code).
+
+**Note:** This problem requires you to have solved the
+`foldr1` problem from [List.lhs](List.lhs); otherwise
+no points.
+
+Next, we briefly describe and show each step of the
+`mapReduce` function.
+
+Step 1: Map Elements into Key-Value Lists
+-----------------------------------------
+
+\begin{code}
+expand f xs = concat (map f xs)
+\end{code}
+
+Step 2: Group By Key
+--------------------
+
+\begin{code}
+group     = foldr addKV  M.empty
+
+addKV (k,v) m = M.insert k vs' m
+  where
+    vs'       = add v (M.findWithDefault empty k m)
+\end{code}
+
+Step 3: Reduce Each Key to Single Value
+---------------------------------------
+
+\begin{code}
+collapse f = M.map (foldr1 f)
+
+toList :: M.Map k v -> List (k, v)
+toList = M.foldrWithKey (\k v acc -> add (k, v) acc) empty
+\end{code}
+

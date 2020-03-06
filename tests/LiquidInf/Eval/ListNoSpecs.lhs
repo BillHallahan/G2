@@ -106,12 +106,16 @@ such that the following type checks:
 {-@ prop_size :: TRUE @-}
 prop_size  = lAssert (length l3 == 3)
 
+{-@ l3 :: ListN Int 3 @-}
 l3     = 3 :+: l2
 
+{-@ l2 :: ListN Int 2 @-}
 l2     = 2 :+: l1
 
+{-@ l1 :: ListN Int 1 @-}
 l1     = 1 :+: l0
 
+{-@ l0 :: ListN Int 0 @-}
 l0     = Emp :: List Int
 \end{code}
 
@@ -138,7 +142,6 @@ for `replicate n x` which should return a `List` `n` copies of
 the value `x`:
 
 \begin{code}
-{-@ replicate :: n : Nat -> a -> {xs:List a | size xs == n} @-}
 replicate n x
   | n == 0    = empty
   | otherwise = x :+: replicate (n - 1) x
@@ -172,7 +175,6 @@ Fix the specification for `foldr1` so that the call to `die` is
 verified by LH:
 
 \begin{code}
-{-@ foldr1 :: (a -> a -> a) -> { xs : List a | size xs > 0 } -> a @-}
 foldr1 op (x :+: xs) = foldr op x xs
 foldr1 op Emp        = die "Cannot call foldr1 with empty list"
 
@@ -190,7 +192,6 @@ Fix the specification of `zipWith` so that LH verifies:
 + The assert inside `prop_zipwith`.
 
 \begin{code}
-{-@ zipWith :: (a -> b -> c) -> xa : List a -> { xb : List b | size xa = size xb } -> { zs:List c | size xa == size zs } @-}
 zipWith _ Emp Emp               = Emp
 zipWith f (x :+: xs) (y :+: ys) = f x y :+: zipWith f xs ys
 zipWith f _          _          = die  "Bad call to zipWith"
@@ -226,9 +227,12 @@ append xs Emp = xs
 append Emp ys = ys
 append (x :+: xs) ys = x :+: append xs ys
 
+{-@ prop_concat :: TRUE @-}
 prop_concat = lAssert (length (concat xss) == 6)
   where
     xss     = l0 :+: l1 :+: l2 :+: l3 :+: Emp
+
+{-@ prop_concat2 :: TRUE @-}
 prop_concat2 = lAssert (length (concat yss) == 0)
   where
     yss     = l0 :+: l0 :+: l0 :+: Emp
