@@ -2,7 +2,7 @@
 {-@ LIQUID "--no-termination" @-}
 {-@ LIQUID "--prune-unsorted" @-}
 
-module Combined () where
+module Combined (f) where
 
 infixr 9 :+:
 
