@@ -13,9 +13,7 @@ infixr 9 :+:
 {-@ die :: {v:String | false} -> a @-}
 die str = error ("Oops, I died!" ++ str)
 
-data List = Emp
-            | (:+:) Double List
-              deriving (Eq, Ord, Show)
+data List = Emp | (:+:) Double List
 
 {-@ measure size      :: List -> Int
     size (Emp)        = 0
@@ -33,7 +31,7 @@ foldr b (x :+: xs) = x + foldr b xs
 {-@ zip   :: xs:List -> { ys:List | size xs == size ys} -> List @-}
 zip   :: List -> List -> List
 zip Emp Emp               = Emp
-zip (x :+: xs) (y :+: ys) = x :+: zip xs ys
+zip (x :+: xs) (y :+: ys) = x :+: Emp
 zip _          _          = die  "Bad call to zipWith"
 
 {-@ type IntK K = {v:Int | 0 <= v && v < K} @-}

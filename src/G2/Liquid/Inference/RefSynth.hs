@@ -157,7 +157,6 @@ generateGrammarsAndConstraints sorts meas_ex arg_tys ret_ty fcs@(fc:_) =
 
         cons = generateConstraints sorts meas_ex arg_names ret_names arg_tys ret_ty fcs
     in
-    trace ("length fcs = " ++ show (length fcs) ++ "\nlength cons = " ++ show (length cons)) 
     (concat arg_grams_cmds ++ ret_gram_cmds, cons, arg_names, ret_names)
 
 refinementNames :: String -> G2.Type -> RefNamePolyBound
@@ -165,19 +164,10 @@ refinementNames prefix t =
     let
         poly_bd = extractTypePolyBound t
     in
-    trace ("\nt = " ++ show t ++ "\npoly_bd = " ++ show poly_bd ++ "\n")
     mapPB (\i -> prefix ++ "_refinement_" ++ show i) $ uniqueIds poly_bd
-
--- refinementNames :: String -> G2.Expr -> RefNamePolyBound
--- refinementNames prefix e =
---     let
---         poly_bd = extractExprPolyBoundWithRoot e
---     in
---     mapPB (\i -> prefix ++ "_refinement_" ++ show i) $ uniqueIds poly_bd
 
 generateParamRefGrammars :: FuncConstraint -> TypesToSorts -> MeasureExs -> [Type] -> [(RefNamePolyBound, [Cmd])]
 generateParamRefGrammars fc sorts meas_ex arg_tys =
-    trace ("arg_tys = " ++ show arg_tys)
     map (\(i, as@((_, a):_)) ->
             let
                 arg_tys = map fst $ init as
@@ -521,7 +511,6 @@ generateConstraints sorts meas_ex arg_poly_names ret_poly_names arg_tys ret_ty f
                     $ zip arg_poly_names (filter (not . null) $ inits arg_tys)
         exists_ret = existentialConstraints sorts meas_ex ret_poly_names arg_tys ret_ty
     in
-    trace ("length cons = " ++ show (length cons) ++ "\nlength cons' = " ++ show (length cons'))
     {- exists_args ++ exists_ret ++ -} cons''
 
 -- | Prevents any refinements from being set to "False" (or equivalent, i.e. 0 < 0)
