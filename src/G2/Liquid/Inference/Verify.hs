@@ -153,5 +153,5 @@ solveCs :: Config -> FilePath -> CGInfo -> GhcInfo -> IO (F.Result (Integer, Cin
 solveCs cfg tgt cgi info = do
   finfo <- cgInfoFInfo info cgi
   -- We only want qualifiers we have found with G2 Inference, so we have to force the correct set here
-  let finfo' = finfo { F.quals = gsQualifiers . spec $ info }
+  let finfo' = finfo { F.quals = (gsQualifiers . spec $ info) ++ F.quals finfo }
   solve (fixConfig tgt cfg) finfo'
