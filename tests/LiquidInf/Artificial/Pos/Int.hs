@@ -1,3 +1,5 @@
+-- cmd_line = (--no-keep_quals)
+
 {-@ LIQUID "--maxparams=0"  @-}
 {-@ LIQUID "--eliminate=all" @-}
 module Int (usesF) where

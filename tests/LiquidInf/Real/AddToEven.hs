@@ -1,3 +1,5 @@
+-- cmd_line = (--no-keep_quals)
+
 module AddToEven () where
 
 import Prelude hiding (zipWith)

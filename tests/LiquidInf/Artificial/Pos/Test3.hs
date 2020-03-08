@@ -1,3 +1,5 @@
+-- cmd_line = (--no-keep_quals)
+
 module Combined () where
 
 import Prelude hiding (foldr, map, zipWith, repeat)

@@ -3,6 +3,7 @@
 module G2.Liquid.Inference.Verify (VerifyResult (..), verify, ghcInfos, lhConfig) where
 
 import qualified G2.Language.Syntax as G2
+import G2.Liquid.Inference.Config
 import G2.Translation.Haskell
 
 import Data.Maybe
@@ -39,17 +40,17 @@ data VerifyResult = Safe
                   | Crash [(Integer, Cinfo)] String
                   | Unsafe [G2.Name]
 
-verify :: Config ->  [GhcInfo] -> IO VerifyResult
-verify cfg ghci = do
-    r <- verify' cfg ghci
+verify :: InferenceConfig -> Config ->  [GhcInfo] -> IO VerifyResult
+verify infconfig cfg ghci = do
+    r <- verify' infconfig cfg ghci
     case F.resStatus r of
         F.Safe -> return Safe
         F.Crash ci err -> return $ Crash ci err
         F.Unsafe bad -> return . Unsafe . map (mkName . V.varName) . catMaybes $ map (ci_var . snd) bad
 
 
-verify' :: Config ->  [GhcInfo] -> IO (F.Result (Integer, Cinfo))
-verify' cfg ghci = checkMany cfg mempty ghci
+verify' :: InferenceConfig -> Config ->  [GhcInfo] -> IO (F.Result (Integer, Cinfo))
+verify' infconfig cfg ghci = checkMany infconfig cfg mempty ghci
 
 ghcInfos :: Maybe HscEnv -> Config -> [FilePath] -> IO [GhcInfo]
 ghcInfos me cfg fp = do
@@ -66,17 +67,17 @@ lhConfig  proj lhlibs = do
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
 -- Copied from LiquidHaskell (because checkMany not exported)
-checkMany :: Config -> F.Result (Integer, Cinfo) -> [GhcInfo] -> IO (F.Result (Integer, Cinfo))
-checkMany cfg d (g:gs) = do
-  d' <- checkOne cfg g
-  checkMany cfg (d `mappend` d') gs
+checkMany :: InferenceConfig -> Config -> F.Result (Integer, Cinfo) -> [GhcInfo] -> IO (F.Result (Integer, Cinfo))
+checkMany infconfig cfg d (g:gs) = do
+  d' <- checkOne infconfig cfg g
+  checkMany infconfig cfg (d `mappend` d') gs
 
-checkMany _   d [] =
+checkMany _ _  d [] =
   return d
 
-checkOne :: Config -> GhcInfo -> IO (F.Result (Integer, Cinfo))
-checkOne cfg g = do
-  z <- actOrDie $ liquidOne g
+checkOne :: InferenceConfig -> Config -> GhcInfo -> IO (F.Result (Integer, Cinfo))
+checkOne infconfig cfg g = do
+  z <- actOrDie $ liquidOne infconfig g
   case z of
     Left  e -> undefined
     Right r -> return r
@@ -93,13 +94,13 @@ actOrDie act =
 handle :: (Result a) => a -> IO (Either ErrorResult b)
 handle = return . Left . result
 
-liquidOne :: GhcInfo -> IO (F.Result (Integer, Cinfo))
-liquidOne info = do
+liquidOne :: InferenceConfig -> GhcInfo -> IO (F.Result (Integer, Cinfo))
+liquidOne infconfig info = do
   let cfg   = getConfig info
   let tgt   = target info
   let cbs' = cbs info
   edcs <- newPrune      cfg cbs' tgt info
-  liquidQueries cfg      tgt info edcs
+  liquidQueries infconfig cfg      tgt info edcs
 
 newPrune :: Config -> [CoreBind] -> FilePath -> GhcInfo -> IO (Either [CoreBind] [DC.DiffCheck])
 newPrune cfg cbs tgt info
@@ -115,18 +116,18 @@ maybeEither :: a -> Maybe b -> Either a [b]
 maybeEither d Nothing  = Left d
 maybeEither _ (Just x) = Right [x]
 
-liquidQueries :: Config -> FilePath -> GhcInfo -> Either [CoreBind] [DC.DiffCheck] -> IO (F.Result (Integer, Cinfo))
-liquidQueries cfg tgt info (Left cbs')
-  = liquidQuery cfg tgt info (Left cbs')
-liquidQueries cfg tgt info (Right dcs)
-  = mconcat <$> mapM (liquidQuery cfg tgt info . Right) dcs
+liquidQueries :: InferenceConfig -> Config -> FilePath -> GhcInfo -> Either [CoreBind] [DC.DiffCheck] -> IO (F.Result (Integer, Cinfo))
+liquidQueries infconfig cfg tgt info (Left cbs')
+  = liquidQuery infconfig cfg tgt info (Left cbs')
+liquidQueries infconfig cfg tgt info (Right dcs)
+  = mconcat <$> mapM (liquidQuery infconfig cfg tgt info . Right) dcs
 
-liquidQuery   :: Config -> FilePath -> GhcInfo -> Either [CoreBind] DC.DiffCheck -> IO (F.Result (Integer, Cinfo))
-liquidQuery cfg tgt info edc = do
+liquidQuery   :: InferenceConfig -> Config -> FilePath -> GhcInfo -> Either [CoreBind] DC.DiffCheck -> IO (F.Result (Integer, Cinfo))
+liquidQuery infconfig cfg tgt info edc = do
   when False (dumpCs cgi)
   -- whenLoud $ mapM_ putStrLn [ "****************** CGInfo ********************"
                             -- , render (pprint cgi)                            ]
-  timedAction names $ solveCs cfg tgt cgi info'
+  timedAction names $ solveCs infconfig cfg tgt cgi info'
   where
     cgi    = {-# SCC "generateConstraints" #-} generateConstraints $! info' {cbs = cbs''}
     cbs''  = either id              DC.newBinds                        edc
@@ -149,9 +150,9 @@ pprintMany xs = vcat [ F.pprint x $+$ text " " | x <- xs ]
 -- instance Show Cinfo where
 --   show = show . F.toFix
 
-solveCs :: Config -> FilePath -> CGInfo -> GhcInfo -> IO (F.Result (Integer, Cinfo))
-solveCs cfg tgt cgi info = do
+solveCs :: InferenceConfig -> Config -> FilePath -> CGInfo -> GhcInfo -> IO (F.Result (Integer, Cinfo))
+solveCs infconfig cfg tgt cgi info = do
   finfo <- cgInfoFInfo info cgi
   -- We only want qualifiers we have found with G2 Inference, so we have to force the correct set here
-  let finfo' = finfo { F.quals = (gsQualifiers . spec $ info) ++ F.quals finfo }
+  let finfo' = finfo { F.quals = (gsQualifiers . spec $ info) ++ if keep_quals infconfig then F.quals finfo else [] }
   solve (fixConfig tgt cfg) finfo'

@@ -2,6 +2,7 @@
 # Tests G2's LiquidHaskell type Inference on all files in the ../LiquidInf directory
 
 import os
+import re
 import subprocess
 import time
 
@@ -23,8 +24,21 @@ def run_infer(file):
 
 def call_infer_process(file):    
     try:
-        res = subprocess.run(["gtimeout", "180", "cabal", "run", "Inference", file
-                             , "--", "--timeout-sygus", "45"], capture_output = True);
+        code_file = open(file, "r");
+        code = code_file.read();
+        code_file.close();
+
+        args_re = re.search("--\s*cmd_line\s*=\s*\(([^)]*)\)\s*", code);
+
+        extra_args = [];
+        if args_re and args_re.group(1):
+            extra_args = [args_re.group(1)];
+
+        args = ["gtimeout", "180", "cabal", "run", "Inference", file
+               , "--", "--timeout-sygus", "45"]
+
+        res = subprocess.run(args + extra_args
+                            , capture_output = True);
         return res.stdout;
     except subprocess.TimeoutExpired:
         res.terminate()

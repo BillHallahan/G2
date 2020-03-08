@@ -42,6 +42,7 @@ checkQualifs f config = do
     
     finfo <- parseFInfo ["qualif.hquals"]
 
+    let infconfig = mkInferenceConfig []
     lhconfig <- quals finfo `deepseq` lhConfig [] []
     let lhconfig' = lhconfig { pruneUnsorted = True }
     ghcis <- ghcInfos Nothing lhconfig' [f]
@@ -53,7 +54,7 @@ checkQualifs f config = do
                         ghci { spec = spc' }) ghcis
 
     start <- getCurrentTime
-    res <- doTimeout 360 $ verify lhconfig' ghcis'
+    res <- doTimeout 360 $ verify infconfig lhconfig' ghcis'
     stop <- getCurrentTime
 
     case res of -- print $ quals finfo

@@ -178,7 +178,8 @@ checkCounterexample' fc@(FuncCall { funcName = n }) s@(State { expr_env = eenv, 
     in
     s { curr_expr = CurrExpr Evaluate e'
       , true_assert = True }
-    | otherwise = error $ "checkCounterexample': Name not found " ++ show n
+    | otherwise = error $ "checkCounterexample': Name not found " ++ show n ++ "\n similar in eenv = "
+                                      ++ show (E.keys $ E.filterWithKey (\(Name on _ _ _) _ -> on == nameOcc n ) eenv)
 
 toJustSpec :: KnownValues -> FuncCall -> [Id] -> Expr -> Expr
 toJustSpec _ (FuncCall { arguments = ars, returns = ret }) is (Let [(b, _)] (Assert _ e _)) =

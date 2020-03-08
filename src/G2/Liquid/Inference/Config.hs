@@ -12,15 +12,23 @@ import G2.Language ( ExprEnv
                    , Type (..)
                    , returnType)
 import qualified G2.Language.ExprEnv as E
+import G2.Liquid.Conversion
+import G2.Translation.Haskell
+
+import Language.Haskell.Liquid.Types (GhcInfo (..), GhcSpec (..))
+import Var as V
 
 import qualified Data.HashSet as S
 import qualified Data.Map as M
 import qualified Data.Text as T
 import Data.Time.Clock
 
-data InferenceConfig = InferenceConfig { modules :: S.HashSet (Maybe T.Text)
+data InferenceConfig = InferenceConfig { keep_quals :: Bool
+
+                                       , modules :: S.HashSet (Maybe T.Text)
                                        , max_ce :: Int
 
+                                       , pre_refined :: S.HashSet  (T.Text, Maybe T.Text)
                                        , refinable_funcs :: S.HashSet (T.Text, Maybe T.Text)
                                        
                                        , timeout_se :: NominalDiffTime
@@ -28,17 +36,24 @@ data InferenceConfig = InferenceConfig { modules :: S.HashSet (Maybe T.Text)
 
 mkInferenceConfig :: [String] -> InferenceConfig
 mkInferenceConfig as =
-    InferenceConfig { modules = S.empty
+    InferenceConfig { keep_quals = boolArg "keep-quals" as M.empty On
+                    , modules = S.empty
                     , max_ce = strArg "max-ce" as M.empty read 25
                     , timeout_se = strArg "timeout-se" as M.empty (fromInteger . read) 10
                     , timeout_sygus = strArg "timeout-sygus" as M.empty (fromInteger . read) 10 }
 
-adjustConfig :: Maybe T.Text -> SimpleState -> Config -> InferenceConfig -> (Config, InferenceConfig)
-adjustConfig main_mod (SimpleState { expr_env = eenv }) config infconfig =
+adjustConfig :: Maybe T.Text -> SimpleState -> Config -> InferenceConfig -> [GhcInfo]-> (Config, InferenceConfig)
+adjustConfig main_mod (SimpleState { expr_env = eenv }) config infconfig ghci =
     let
         ref = refinable main_mod eenv
 
+        pre = S.fromList
+            . map (\(Name n m _ _) -> (n, m))
+            . map (mkName . V.varName . fst)
+            $ concatMap (gsTySigs . spec) ghci
+
         ns_mm = map (\(Name n m _ _) -> (n, m))
+              . filter (\(Name n m _ _) -> not $ (n, m) `S.member` pre)
               . filter (\(Name n m _ _) -> (n, m) `elem` ref)
               . E.keys $ E.filter (not . tyVarRetTy) eenv
 
@@ -49,7 +64,8 @@ adjustConfig main_mod (SimpleState { expr_env = eenv }) config infconfig =
         config' = config { counterfactual = Counterfactual . CFOnly $ S.fromList ns_mm
                          , block_errors_in = S.fromList ns_not_main }
 
-        infconfig' = infconfig { modules = S.singleton main_mod 
+        infconfig' = infconfig { modules = S.singleton main_mod
+                               , pre_refined = pre
                                , refinable_funcs = S.fromList ns_mm }
     in
     (config', infconfig')

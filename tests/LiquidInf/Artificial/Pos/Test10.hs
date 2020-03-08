@@ -1,3 +1,5 @@
+-- cmd_line = (--no-keep_quals)
+
 module Double () where
 
 {-@ f :: x:Double -> { y:Double | y > x } @-}
