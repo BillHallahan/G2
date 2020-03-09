@@ -363,7 +363,6 @@ intRuleList =
     [ GVariable intSort
     , GBfTerm $ BfIdentifier (ISymb "IClamp") -- , GConstant intSort
     , GBfTerm $ BfIdentifierBfs (ISymb "+") [intBf, intBf]
-    , GBfTerm $ BfIdentifierBfs (ISymb "+") [intBf, BfIdentifier (ISymb "IConst")]
     , GBfTerm $ BfIdentifierBfs (ISymb "-") [intBf, intBf]
     ]
     -- ++ [GBfTerm . BfLiteral . LitNum $ x | x <- [0..0]]
@@ -376,7 +375,6 @@ doubleRuleList =
     [ GVariable doubleSort
     , GConstant doubleSort
     , GBfTerm $ BfIdentifierBfs (ISymb "+") [doubleBf, doubleBf]
-    , GBfTerm $ BfIdentifierBfs (ISymb "+") [doubleBf, BfIdentifier (ISymb "DConst")]
     , GBfTerm $ BfIdentifierBfs (ISymb "-") [doubleBf, doubleBf]
     ]
     -- ++ [GBfTerm . BfLiteral . LitNum $ x | x <- [0..0]]
@@ -1012,15 +1010,25 @@ refToLHExpr' st sygus_args sygus_ret meas_sym =
     let
         pieces = specTypePieces st
 
-        symbs = map specTypeSymbol pieces
+        -- This is a bit of a dirty hack.  The relArgs function drops typeclasses,
+        -- so that we don't have to deal with them in the SyGuS solver.  But we still
+        -- gather the bindings for the typeclasses with specTypeSymbols.
+        -- Fortunately, the typeclasses are always the first arguments in the list,
+        -- so we can simply take the correct number of arguments from the end of the list.
+        -- Then, we fill up the front of the returned PolyBound list with true
+        rel_pieces_len = length sygus_args + 1
+        tc_num = length pieces - rel_pieces_len
+        tc_pb_exprs = map (\st -> PolyBound ([(specTypeSymbol st, st)], PTrue) []) $ take tc_num pieces
+        last_pieces = reverse . take rel_pieces_len $ reverse pieces
 
         sygus_all = sygus_args ++ [sygus_ret]
         sygus_all_inits = filter (not . null) $ inits sygus_all
-        pieces_inits = filter (not . null) $ inits pieces
+        pieces_inits = filter (not . null) $ inits last_pieces
 
         pb_expr = map (uncurry (refToLHExpr'' meas_sym)) $ zip sygus_all_inits pieces_inits
     in
-    pb_expr
+    trace ("last_pieces = " ++ show last_pieces ++ "\npb_expr = " ++ show pb_expr)
+    tc_pb_exprs ++ pb_expr
 
 
 refToLHExpr'' :: MeasureSymbols -> [PolyBound ([SortedVar], Term)] -> [SpecType] -> PolyBound ([(LH.Symbol, SpecType)], LH.Expr)
@@ -1041,14 +1049,9 @@ refToLHExpr''' meas_sym symbs_st ars trm =
     let
         ars' = map (\(SortedVar sym _) -> sym) ars
 
-        -- This is a bit of a dirty hack.  The relArgs function drops typeclasses,
-        -- so that we don't have to deal with them in the SyGuS solver.  But we still
-        -- gather the bindings for the typeclasses with specTypeSymbols.
-        -- Fortunately, the typeclasses are always the first arguments in the list,
-        -- so we can simply take the correct number of arguments from the end of the list.
-        last_symbs = map fst . reverse . take (length ars) $ reverse symbs_st
+        symbs = map fst symbs_st
 
-        symbsArgs = M.fromList $ zip ars' last_symbs
+        symbsArgs = M.fromList $ zip ars' symbs
     in
     (symbs_st, termToLHExpr meas_sym symbsArgs trm)
 

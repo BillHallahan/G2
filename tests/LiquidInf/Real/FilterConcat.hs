@@ -1,4 +1,4 @@
--- cmd_line = (--no-keep_quals)
+-- cmd_line = (--no-keep-quals)
 
 {-@ LIQUID "--prune-unsorted" @-}
 {-@ LIQUID "--no-termination" @-}

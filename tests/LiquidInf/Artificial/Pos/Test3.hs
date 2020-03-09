@@ -1,4 +1,4 @@
--- cmd_line = (--no-keep_quals)
+-- cmd_line = (--no-keep-quals)
 
 module Combined () where
 

@@ -35,7 +35,7 @@ def call_infer_process(file):
             extra_args = [args_re.group(1)];
 
         args = ["gtimeout", "180", "cabal", "run", "Inference", file
-               , "--", "--timeout-sygus", "45"]
+               , "--", "--timeout-sygus", "30"]
 
         res = subprocess.run(args + extra_args
                             , capture_output = True);
