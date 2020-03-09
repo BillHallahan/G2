@@ -57,7 +57,8 @@ elimSimpleDTs cmds =
     let
         simple_srts = getSimpleSorts cmds
     in
-    mapAccumL (elimSimpleDTs' simple_srts) emptyES cmds
+    mapAccumL (elimSimpleDTs' simple_srts) emptyES
+        $ filter (not . droppableDTDecl simple_srts) cmds
 
 elimSimpleDTs' :: M.HashMap Symbol (Symbol, [SortedVar]) -> EliminatedSimple -> Cmd -> (EliminatedSimple, Cmd)
 elimSimpleDTs' simple_srts es (Constraint t) = (es, Constraint $ elimSimpleDTsTerms simple_srts t)
@@ -165,6 +166,14 @@ adjustSimpleInGTerms :: Symbol -> EliminatedSimple -> GTerm -> GTerm
 adjustSimpleInGTerms fn es (GBfTerm (BfIdentifierBfs (ISymb s) _))
     | Just v <- selectorToVar fn s es = GBfTerm $ BfIdentifier (ISymb v)
 adjustSimpleInGTerms _ _ gt = gt
+
+
+-----------------------------------------
+droppableDTDecl :: M.HashMap Symbol (Symbol, [SortedVar]) -> Cmd -> Bool
+droppableDTDecl simple_srts (SmtCmd (DeclareDatatype symb _)) = symb `M.member` simple_srts
+droppableDTDecl _ _ = False
+
+-----------------------------------------
 
 -- Maps Sorts with single data constructors to
 --  (1) the data constructor name
