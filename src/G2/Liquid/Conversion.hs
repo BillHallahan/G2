@@ -512,7 +512,7 @@ correctTypes m bt mt re re' = do
        , Just fDict' <- may_fDict' -> return (mkApp [Var fromRationalF, Type t', fDict', ratio_e], e')
 
        | Just fDict <- may_fDict
-       , Just ratio_e' <- may_ratio_e' -> return (e', mkApp [Var fromRationalF, Type t, fDict, ratio_e'])
+       , Just ratio_e' <- may_ratio_e' -> return (e, mkApp [Var fromRationalF, Type t, fDict, ratio_e'])
 
        | Just iDict <- may_iDict
        , Just nDict' <- may_nDict' ->

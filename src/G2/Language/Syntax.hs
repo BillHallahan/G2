@@ -178,6 +178,7 @@ data Primitive = Ge
                | SqRt
                | IntToFloat
                | IntToDouble
+               | RationalToDouble
                | FromInteger
                | ToInteger
                | ToInt

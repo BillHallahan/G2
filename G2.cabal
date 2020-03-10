@@ -198,6 +198,7 @@ library
 
   default-language:    Haskell2010
   ghc-options:         -Wall
+                       -fno-ignore-asserts
                        -- -ddump-rule-rewrites
                        -- -ddump-splices
                        -- -fprof-auto
