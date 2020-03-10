@@ -21,10 +21,9 @@ data List = Emp
 
 {-@ type ListN N = {v:List | size v = N} @-}
 
-{-@ f :: ListN 1 -> ListN 1 @-}
-f :: List -> List
-f = appG
+{-@ f :: x:Double -> { r:Double | r == x } @-}
+f :: Double -> Double
+f = g
 
-appG :: List -> List
-appG Emp = Emp
-appG (R x) = R (x / 1)
+g :: Double -> Double
+g x = x / 1
