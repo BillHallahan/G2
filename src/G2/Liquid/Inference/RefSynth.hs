@@ -1027,7 +1027,6 @@ refToLHExpr' st sygus_args sygus_ret meas_sym =
 
         pb_expr = map (uncurry (refToLHExpr'' meas_sym)) $ zip sygus_all_inits pieces_inits
     in
-    trace ("last_pieces = " ++ show last_pieces ++ "\npb_expr = " ++ show pb_expr)
     tc_pb_exprs ++ pb_expr
 
 

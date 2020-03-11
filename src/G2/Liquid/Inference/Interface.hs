@@ -68,12 +68,7 @@ inference infconfig config proj fp lhlibs = do
 inference' :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
            -> GeneratedSpecs -> FuncConstraints -> IO (Either [CounterExample] GeneratedSpecs)
 inference' infconfig g2config lhconfig ghci m_modname lrs gs fc = do
-    putStrLn $ "\ngenerated specs = " ++ show gs ++ "\n"
-
     let merged_verify_with_quals_ghci = addQualifiersToGhcInfos gs $ addSpecsToGhcInfos ghci gs
-
-    putStrLn $ "gsTySigs ghci_here = " ++ show (map (gsTySigs . spec) merged_verify_with_quals_ghci)
-    putStrLn $ "gsAsmSigs ghci_here = " ++ show (map (gsAsmSigs . spec) merged_verify_with_quals_ghci)
 
     res_quals <- verify infconfig lhconfig merged_verify_with_quals_ghci
 
@@ -89,10 +84,6 @@ refineUnsafe :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe 
 refineUnsafe infconfig g2config lhconfig ghci m_modname lrs gs fc = do
     let merged_verify_with_asserts_ghci = addQualifiersToGhcInfos gs $ addSpecsToGhcInfos ghci gs
         merged_se_ghci = addSpecsToGhcInfos ghci (switchAssumesToAsserts gs)
-
-    mapM_ (\ghci -> do
-            putStrLn "All Asserts:"
-            print . gsTySigs . spec $ ghci) merged_se_ghci
 
     res_asserts <- verify infconfig lhconfig merged_verify_with_asserts_ghci
     
@@ -132,7 +123,6 @@ refineUnsafe infconfig g2config lhconfig ghci m_modname lrs gs fc = do
                     let gs' = filterAssertsKey (\n -> n `elem` map constraining (allFC fc')) gs
 
                     -- Synthesize
-                    putStrLn $ "new_fc_funcs = " ++ show new_fc_funcs
                     putStrLn "Before genMeasureExs"
                     meas_ex <- genMeasureExs lrs merged_se_ghci g2config fc'
                     putStrLn "After genMeasureExs"
@@ -203,8 +193,7 @@ synthesize infconfig ghci lrs meas_ex fc gs n@(Name n' _ _ _) = do
 
     case spec_qual of
         Just (new_spec, new_qual) -> do
-            putStrLn $ "fspec = " ++ show fspec
-            putStrLn $ "new_spec = " ++ show new_spec
+            putStrLn $ "new_qual = " ++ show new_qual
 
             -- We ASSUME postconditions, and ASSERT preconditions.  This ensures
             -- that our precondition is satisified by the caller, and the postcondition
@@ -225,7 +214,7 @@ cexsToFuncConstraints _ _ infconfig _ (DirectCounter dfc fcs@(_:_))
             mkFC pol fc = FC { polarity = pol
                              , violated = Post
                              , generated_by = funcName dfc
-                             , gen_spec_pres = nameOcc (funcName dfc) /= nameOcc (funcName fc)
+                             , gen_spec_pres = notSameFunc dfc fc
                              , constraint = fc}
         in
         return . Right . insertsFC $ map (mkFC Pos . real) fcs ++ map (mkFC Neg . abstract) fcs'
@@ -238,7 +227,7 @@ cexsToFuncConstraints _ _ infconfig _ (CallsCounter dfc _ fcs@(_:_))
             mkFC pol fc = FC { polarity = pol
                              , violated = Post
                              , generated_by = funcName dfc
-                             , gen_spec_pres = nameOcc (funcName dfc) /= nameOcc (funcName fc)
+                             , gen_spec_pres = notSameFunc dfc fc
                              , constraint = fc}
         in
         return . Right . insertsFC $ map (mkFC Pos . real) fcs ++ map (mkFC Neg . abstract) fcs'
@@ -276,8 +265,11 @@ cexsToFuncConstraints lrs ghci infconfig _ cex@(CallsCounter caller_fc called_fc
         (_, _ ) -> return . Right . insertsFC $ [FC { polarity = Pos
                                                     , violated = Pre
                                                     , generated_by = funcName caller_fc
-                                                    , gen_spec_pres = nameOcc (funcName caller_fc) /= nameOcc (funcName called_fc)
+                                                    , gen_spec_pres = notSameFunc caller_fc called_fc
                                                     , constraint = called_fc } ]
+
+notSameFunc :: FuncCall -> FuncCall -> Bool
+notSameFunc fc1 fc2 = nameOcc (funcName fc1) /= nameOcc (funcName fc2)
 
 insertsFC :: [FuncConstraint] -> FuncConstraints
 insertsFC = foldr insertFC emptyFC
