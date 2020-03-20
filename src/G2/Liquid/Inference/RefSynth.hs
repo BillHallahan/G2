@@ -18,15 +18,18 @@ module G2.Liquid.Inference.RefSynth ( refSynth
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Naming
+import G2.Language.Support
 import G2.Language.Syntax as G2
 import G2.Language.TypeClasses
 import G2.Language.Typing
 import G2.Liquid.Conversion
 import G2.Liquid.Helpers
+import G2.Liquid.Interface
 import G2.Liquid.Types
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.FuncConstraint
 import G2.Liquid.Inference.G2Calls
+import G2.Liquid.Inference.GeneratedSpecs
 import G2.Liquid.Inference.PolyRef
 import G2.Liquid.Inference.SimplifySygus
 
@@ -42,6 +45,7 @@ import qualified Language.Fixpoint.Types as LH
 import qualified Language.Fixpoint.Types as LHF
 
 import Control.Exception
+import qualified Control.Monad.State as S
 import Data.Coerce
 import Data.List
 import Data.Hashable
@@ -49,6 +53,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Monoid
 import Data.Ratio
 import qualified Data.Text as T
 import Data.Tuple
@@ -59,12 +64,33 @@ import System.IO.Temp
 import qualified System.Process as P
 
 import TyCon
+import qualified Var as V
 
 import Debug.Trace
 
-refSynth :: InferenceConfig -> SpecType -> G2.Expr -> TypeClasses -> Measures
+refSynth :: InferenceConfig -> [GhcInfo] -> LiquidReadyState -> MeasureExs
+         -> FuncConstraints -> Name -> IO (Maybe ([PolyBound LH.Expr], [Qualifier]))
+refSynth infconfig ghci lrs meas_ex fc n@(Name n' _ _ _) = do
+    let eenv = expr_env . state $ lr_state lrs
+        tc = type_classes . state $ lr_state lrs
+
+        fc_of_n = lookupFC n fc
+        fspec = case genSpec ghci n of
+                Just spec' -> spec'
+                _ -> error $ "synthesize: No spec found for " ++ show n
+        e = case E.occLookup (nameOcc n) (nameModule n) eenv of
+                Just e' -> e'
+                Nothing -> error $ "synthesize: No expr found"
+
+        meas = lrsMeasures ghci lrs
+
+    print $ "Synthesize spec for " ++ show n
+    let tcemb = foldr (<>) mempty $ map (gsTcEmbeds . spec) ghci
+    refSynth' infconfig fspec e tc meas meas_ex fc_of_n (measureSymbols ghci) tcemb
+
+refSynth' :: InferenceConfig -> SpecType -> G2.Expr -> TypeClasses -> Measures
          -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> LH.TCEmb TyCon -> IO (Maybe ([PolyBound LH.Expr], [Qualifier]))
-refSynth infconfig spc e tc meas meas_ex fc meas_sym tycons = do
+refSynth' infconfig spc e tc meas meas_ex fc meas_sym tycons = do
         putStrLn "refSynth"
         let (call, f_num, arg_pb, ret_pb) = sygusCall e tc meas meas_ex fc
             (es, simp_call) = elimSimpleDTs call
@@ -118,7 +144,8 @@ sygusCall e tc meas meas_ex fcs@(_:_) =
                declare_dts
                ++
                [ safeModDecl
-               , clampIntDecl 5 ]
+               , clampIntDecl 5
+               , clampDoubleDecl 5 ]
                ++
                grams
                ++
@@ -240,11 +267,17 @@ safeModDecl =
 clampIntSymb :: Symbol
 clampIntSymb = clampSymb "int"
 
-clampSymb :: Symbol -> Symbol
-clampSymb = (++) "clamp-"
-
 clampIntDecl :: Integer -> Cmd
 clampIntDecl = clampDecl clampIntSymb intSort
+
+clampDoubleSymb :: Symbol
+clampDoubleSymb = clampSymb "double"
+
+clampDoubleDecl :: Integer -> Cmd
+clampDoubleDecl = clampDecl clampDoubleSymb doubleSort
+
+clampSymb :: Symbol -> Symbol
+clampSymb = (++) "clamp-"
 
 clampDecl :: Symbol -> Sort -> Integer -> Cmd
 clampDecl fn srt mx =
@@ -296,8 +329,9 @@ grammar intRules doubleRules arg_sort_vars ret_sorted_var sorts =
             adjustTypeUsage sorted_vars
                             doubleSort
                             boolDoubleArgRuleList 
-                            [SortedVar "D" doubleSort, SortedVar "DConst" doubleSort]
+                            [SortedVar "D" doubleSort, SortedVar "DClamp" doubleSort, SortedVar "DConst" doubleSort]
                             [ ("D", doubleRules, addSelectors sortsToGN doubleSort sorts')
+                            , ("DClamp", [GBfTerm $ BfIdentifierBfs (ISymb clampDoubleSymb) [BfIdentifier (ISymb "DConst")]], [])
                             , ("DConst", [GConstant doubleSort], []) ]
 
         brl = GroupedRuleList "B" boolSort
@@ -373,7 +407,7 @@ extDoubleRuleList = doubleRuleList ++ [GBfTerm $ BfIdentifierBfs (ISymb "*") [do
 doubleRuleList :: [GTerm]
 doubleRuleList =
     [ GVariable doubleSort
-    , GConstant doubleSort
+    , GBfTerm $ BfIdentifier (ISymb "DClamp") -- GConstant doubleSort
     , GBfTerm $ BfIdentifierBfs (ISymb "+") [doubleBf, doubleBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "-") [doubleBf, doubleBf]
     ]

@@ -5,14 +5,19 @@ module G2.Liquid.Inference.GeneratedSpecs ( GeneratedSpecs
 
                                           , insertAssumeGS
                                           , insertAssertGS
+                                          , insertNewSpec
                                           , insertQualifier
                                           , switchAssumesToAsserts
+
+                                          , lookupAssertGS
 
                                           , filterAssertsKey
 
                                           , addSpecsToGhcInfos
                                           , addAssumedSpecsToGhcInfos
                                           , addQualifiersToGhcInfos
+                                          
+                                          ,deleteAssume
                                           , deleteAssert
                                           , deleteAllAssumes
                                           , deleteAllAsserts
@@ -64,6 +69,13 @@ insertQualifier :: Qualifier -> GeneratedSpecs -> GeneratedSpecs
 insertQualifier qual gs@(GeneratedSpecs { qualifiers = quals }) =
     gs { qualifiers = qual:quals }
 
+insertNewSpec :: G2.Name -> [PolyBound Expr] -> GeneratedSpecs -> GeneratedSpecs
+insertNewSpec n new_spec =
+    insertAssertGS n (pre new_spec) . insertAssumeGS n (post new_spec)
+    where
+        pre xs = init xs ++ [PolyBound PTrue []]
+        post xs = replicate (length $ init xs) (PolyBound PTrue []) ++ [last xs]
+
 switchAssumesToAsserts :: GeneratedSpecs -> GeneratedSpecs
 switchAssumesToAsserts gs =
     gs { assert_specs =
@@ -74,12 +86,19 @@ switchAssumesToAsserts gs =
                 (assert_specs gs) (assume_specs gs)
        , assume_specs = M.empty }
 
+lookupAssertGS :: G2.Name -> GeneratedSpecs -> Maybe [PolyBound Expr]
+lookupAssertGS n = M.lookup (zeroOutUnq n) . assert_specs
+
 filterAssertsKey :: (G2.Name -> Bool) -> GeneratedSpecs -> GeneratedSpecs
 filterAssertsKey p gs = gs { assert_specs = M.filterWithKey (\n _ -> p n) $ assert_specs gs}
 
+deleteAssume :: G2.Name -> GeneratedSpecs -> GeneratedSpecs
+deleteAssume n gs@(GeneratedSpecs { assume_specs = as }) =
+    gs { assume_specs = M.delete (zeroOutUnq n) as }
+
 deleteAssert :: G2.Name -> GeneratedSpecs -> GeneratedSpecs
 deleteAssert n gs@(GeneratedSpecs { assert_specs = as }) =
-    gs { assert_specs = M.delete n as }
+    gs { assert_specs = M.delete (zeroOutUnq n) as }
 
 deleteAllAssumes :: GeneratedSpecs -> GeneratedSpecs
 deleteAllAssumes gs = gs { assume_specs = M.empty }

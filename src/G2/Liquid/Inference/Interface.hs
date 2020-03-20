@@ -3,6 +3,7 @@ module G2.Liquid.Inference.Interface (inference) where
 import G2.Config.Config as G2
 import G2.Execution.Memory
 import G2.Interface hiding (violated)
+import G2.Language.CallGraph
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Naming
 import G2.Language.Support
@@ -27,6 +28,7 @@ import Control.Monad
 import Data.Either
 import qualified Data.HashSet as S
 import Data.List
+import Data.Maybe
 import Data.Monoid
 import qualified Data.Text as T
 
@@ -35,6 +37,10 @@ import Language.Haskell.Liquid.Types.RefType
 import qualified Language.Fixpoint.Types.Config as FP
 
 import Var (Var, varName, varType)
+
+import Debug.Trace
+
+type WorkingUp = S.HashSet T.Text
 
 inference :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO (Either [CounterExample] GeneratedSpecs)
 inference infconfig config proj fp lhlibs = do
@@ -63,11 +69,15 @@ inference infconfig config proj fp lhlibs = do
 
         lrs = createStateForInference simp_s g2config' ghci
 
-    inference' infconfig' g2config' lhconfig' ghci (fst exg2) lrs emptyGS emptyFC 
+        cg = getCallGraph . expr_env . state . lr_state $ lrs
+
+    inference' infconfig' g2config' lhconfig' ghci (fst exg2) lrs cg S.empty emptyGS emptyFC 
 
 inference' :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
-           -> GeneratedSpecs -> FuncConstraints -> IO (Either [CounterExample] GeneratedSpecs)
-inference' infconfig g2config lhconfig ghci m_modname lrs gs fc = do
+           -> CallGraph -> WorkingUp -> GeneratedSpecs -> FuncConstraints -> IO (Either [CounterExample] GeneratedSpecs)
+inference' infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc = do
+    print gs
+
     let merged_verify_with_quals_ghci = addQualifiersToGhcInfos gs $ addSpecsToGhcInfos ghci gs
 
     res_quals <- verify infconfig lhconfig merged_verify_with_quals_ghci
@@ -75,13 +85,13 @@ inference' infconfig g2config lhconfig ghci m_modname lrs gs fc = do
     case res_quals of
         Safe 
             | nullAssumeGS gs -> return $ Right gs
-            | otherwise -> inference' infconfig g2config lhconfig ghci m_modname lrs (switchAssumesToAsserts gs) fc
+            | otherwise -> inference' infconfig g2config lhconfig ghci m_modname lrs cg wu (switchAssumesToAsserts gs) fc
         Crash ci err -> error $ "Crash\n" ++ show ci ++ "\n" ++ err
-        Unsafe x -> do putStrLn ("x = " ++ show x); refineUnsafe infconfig g2config lhconfig ghci m_modname lrs gs fc
+        Unsafe x -> do putStrLn ("x = " ++ show x); refineUnsafe infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc
 
 refineUnsafe :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
-             -> GeneratedSpecs -> FuncConstraints -> IO (Either [CounterExample] GeneratedSpecs)
-refineUnsafe infconfig g2config lhconfig ghci m_modname lrs gs fc = do
+             -> CallGraph -> WorkingUp -> GeneratedSpecs -> FuncConstraints -> IO (Either [CounterExample] GeneratedSpecs)
+refineUnsafe infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc = do
     let merged_verify_with_asserts_ghci = addQualifiersToGhcInfos gs $ addSpecsToGhcInfos ghci gs
         merged_se_ghci = addSpecsToGhcInfos ghci (switchAssumesToAsserts gs)
 
@@ -100,9 +110,12 @@ refineUnsafe infconfig g2config lhconfig ghci m_modname lrs gs fc = do
             printCE $ concat res
 
             putStrLn "Before checkNewConstraints"
+
+            let res' = concat res
             -- Either converts counterexamples to FuncConstraints, or returns them as errors to
             -- show to the user.
-            new_fc <- checkNewConstraints ghci lrs infconfig g2config (concat res)
+            new_fc <- checkNewConstraints ghci lrs infconfig g2config wu res'
+            let wu' = foldr (adjustWorkingUp infconfig) wu res'
 
             case new_fc of
                 Left ce -> return . Left $ ce
@@ -110,25 +123,31 @@ refineUnsafe infconfig g2config lhconfig ghci m_modname lrs gs fc = do
                     -- Only consider functions in the modules that we have access to.
                     let new_fc_funcs = filter (\(Name _ m _ _) -> m `S.member` (modules infconfig))
                                      . nubBy (\n1 n2 -> nameOcc n1 == nameOcc n2) . map (funcName . constraint) $ allFC new_fc'
+                    let fc' = unionFC fc new_fc'
 
-                        -- Adjust all old constraints gen_spec_pres, if the generated_by is changed by a new constraint
-                        old_fc = mapFC (\f -> f { gen_spec_pres =
-                                                        if generated_by f `elem` new_fc_funcs
-                                                            then False
-                                                            else gen_spec_pres f } ) fc
+                    case madeWrongGuesses res' of
+                        [] -> do
 
-                        fc' = unionFC old_fc new_fc'
+                            -- Only check new assertions
+                            let gs' = filterAssertsKey (\n -> n `elem` map constraining (allFC fc')) gs
 
-                    -- Only check new assertions
-                    let gs' = filterAssertsKey (\n -> n `elem` map constraining (allFC fc')) gs
+                            -- Synthesize
+                            putStrLn "Before genMeasureExs"
+                            meas_ex <- genMeasureExs lrs merged_se_ghci g2config fc'
+                            putStrLn "After genMeasureExs"
+                            gs'' <- foldM (synthesize infconfig ghci lrs meas_ex fc') gs' new_fc_funcs
+                            
+                            inference' infconfig g2config lhconfig ghci m_modname lrs cg wu' gs'' fc'
+                        wrong -> do
+                            let fc'' = correctWrongGuessesInFC wrong fc'
+                                gs' = correctWrongGuessesInGS wrong cg gs
 
-                    -- Synthesize
-                    putStrLn "Before genMeasureExs"
-                    meas_ex <- genMeasureExs lrs merged_se_ghci g2config fc'
-                    putStrLn "After genMeasureExs"
-                    gs'' <- foldM (synthesize infconfig ghci lrs meas_ex fc') gs' new_fc_funcs
-                    
-                    inference' infconfig g2config lhconfig ghci m_modname lrs gs'' fc'
+                            meas_ex <- genMeasureExs lrs merged_se_ghci g2config fc'
+                            putStrLn "After genMeasureExs"
+                            gs'' <- foldM (synthesize infconfig ghci lrs meas_ex fc') gs' new_fc_funcs
+
+                            inference' infconfig g2config lhconfig ghci m_modname lrs cg wu' gs'' fc''
+
         _ -> error $ "refineUnsafe: result other than Unsafe: "
                         ++ case res_asserts of {Safe -> "Safe"; Crash _ _-> "Crash"; Unsafe _ -> "Unsafe"}
 
@@ -152,9 +171,9 @@ genNewConstraints ghci m lrs infconfig g2config n = do
     ((exec_res, _), i) <- runLHInferenceCore n m lrs ghci infconfig g2config
     return $ map (lhStateToCE i) exec_res
 
-checkNewConstraints :: [GhcInfo] -> LiquidReadyState -> InferenceConfig ->  G2.Config -> [CounterExample] -> IO (Either [CounterExample] FuncConstraints)
-checkNewConstraints ghci lrs infconfig g2config cexs = do
-    res <- mapM (cexsToFuncConstraints lrs ghci infconfig g2config) cexs
+checkNewConstraints :: [GhcInfo] -> LiquidReadyState -> InferenceConfig ->  G2.Config -> WorkingUp -> [CounterExample] -> IO (Either [CounterExample] FuncConstraints)
+checkNewConstraints ghci lrs infconfig g2config wu cexs = do
+    let res = map (cexsToFuncConstraints lrs ghci infconfig g2config wu) cexs
     case lefts res of
         res'@(_:_) -> return . Left $ res'
         _ -> return . Right . filterErrors . unionsFC . rights $ res
@@ -173,23 +192,8 @@ genMeasureExs lrs ghci g2config fcs =
     evalMeasures lrs ghci g2config es
 
 synthesize :: InferenceConfig -> [GhcInfo] -> LiquidReadyState -> MeasureExs -> FuncConstraints -> GeneratedSpecs -> Name -> IO GeneratedSpecs
-synthesize infconfig ghci lrs meas_ex fc gs n@(Name n' _ _ _) = do
-    let eenv = expr_env . state $ lr_state lrs
-        tc = type_classes . state $ lr_state lrs
-
-        fc_of_n = lookupFC n fc
-        fspec = case genSpec ghci n of
-                Just spec' -> spec'
-                _ -> error $ "synthesize: No spec found for " ++ show n
-        e = case E.occLookup (nameOcc n) (nameModule n) eenv of
-                Just e' -> e'
-                Nothing -> error $ "synthesize: No expr found"
-
-        meas = lrsMeasures ghci lrs
-
-    print $ "Synthesize spec for " ++ show n
-    let tcemb = foldr (<>) mempty $ map (gsTcEmbeds . spec) ghci
-    spec_qual <- refSynth infconfig fspec e tc meas meas_ex fc_of_n (measureSymbols ghci) tcemb
+synthesize infconfig ghci lrs meas_ex fc gs n = do
+    spec_qual <- refSynth infconfig ghci lrs meas_ex fc n
 
     case spec_qual of
         Just (new_spec, new_qual) -> do
@@ -198,78 +202,118 @@ synthesize infconfig ghci lrs meas_ex fc gs n@(Name n' _ _ _) = do
             -- We ASSUME postconditions, and ASSERT preconditions.  This ensures
             -- that our precondition is satisified by the caller, and the postcondition
             -- is strong enough to allow verifying the caller
-            let gs' = insertAssertGS n (pre new_spec) $ insertAssumeGS n (post new_spec) gs
+            let gs' = insertNewSpec n new_spec gs
+
+            return $ foldr insertQualifier gs' new_qual
+        Nothing -> return gs
+
+synthesizePre :: InferenceConfig -> [GhcInfo] -> LiquidReadyState -> MeasureExs -> FuncConstraints -> GeneratedSpecs -> Name -> IO GeneratedSpecs
+synthesizePre infconfig ghci lrs meas_ex fc gs n = do
+    spec_qual <- refSynth infconfig ghci lrs meas_ex fc n
+
+    case spec_qual of
+        Just (new_spec, new_qual) -> do
+            putStrLn $ "new_qual = " ++ show new_qual
+
+            let gs' = insertAssertGS n (pre new_spec) gs
 
             return $ foldr insertQualifier gs' new_qual
         Nothing -> return gs
     where
         pre xs = init xs ++ [PolyBound PTrue []]
-        post xs = replicate (length $ init xs) (PolyBound PTrue []) ++ [last xs]
 
 -- | Converts counterexamples into constraints that the refinements must allow for, or rule out.
-cexsToFuncConstraints :: LiquidReadyState -> [GhcInfo] -> InferenceConfig -> G2.Config -> CounterExample -> IO (Either CounterExample FuncConstraints)
-cexsToFuncConstraints _ _ infconfig _ (DirectCounter dfc fcs@(_:_))
+cexsToFuncConstraints :: LiquidReadyState -> [GhcInfo] -> InferenceConfig -> G2.Config -> WorkingUp -> CounterExample -> Either CounterExample FuncConstraints
+cexsToFuncConstraints _ _ infconfig _ _ (DirectCounter dfc fcs@(_:_))
     | not . null $ fcs' =
         let
             mkFC pol fc = FC { polarity = pol
                              , violated = Post
                              , generated_by = funcName dfc
-                             , gen_spec_pres = notSameFunc dfc fc
+                             , gen_spec_pres = notSameFunc dfc fc && notRetError fc
                              , constraint = fc}
         in
-        return . Right . insertsFC $ map (mkFC Pos . real) fcs ++ map (mkFC Neg . abstract) fcs'
-    | otherwise = return . Right $ error "cexsToFuncConstraints: unhandled 1"
+        Right . insertsFC $ map (mkFC Pos . real) fcs ++ map (mkFC Neg . abstract) fcs'
+    | otherwise = Right $ error "cexsToFuncConstraints: unhandled 1"
     where
         fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
-cexsToFuncConstraints _ _ infconfig _ (CallsCounter dfc _ fcs@(_:_))
+cexsToFuncConstraints _ _ infconfig _ _ (CallsCounter dfc _ fcs@(_:_))
     | not . null $ fcs' =
         let
             mkFC pol fc = FC { polarity = pol
                              , violated = Post
                              , generated_by = funcName dfc
-                             , gen_spec_pres = notSameFunc dfc fc
+                             , gen_spec_pres = notSameFunc dfc fc && notRetError fc
                              , constraint = fc}
         in
-        return . Right . insertsFC $ map (mkFC Pos . real) fcs ++ map (mkFC Neg . abstract) fcs'
-    | otherwise = return . Right $ error "cexsToFuncConstraints: Should be unreachable! Non-refinable function abstracted!"
+        Right . insertsFC $ map (mkFC Pos . real) fcs ++ map (mkFC Neg . abstract) fcs'
+    | otherwise = Right $ error "cexsToFuncConstraints: Should be unreachable! Non-refinable function abstracted!"
     where
         fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
-cexsToFuncConstraints lrs ghci infconfig _ cex@(DirectCounter fc []) = do
-    -- v_cex <- checkCounterexample lrs ghci g2config fc
+cexsToFuncConstraints lrs ghci infconfig _ _ cex@(DirectCounter fc []) = do
     let Name n m _ _ = funcName fc
     case (n, m) `S.member` pre_refined infconfig of
         False ->
-            return . Right . insertsFC $ [FC { polarity = Pos
-                                             , violated = Post
-                                             , generated_by = funcName fc
-                                             , gen_spec_pres = False
-                                             , constraint = fc} ]
-        True -> return . Left $ cex
-cexsToFuncConstraints lrs ghci infconfig _ cex@(CallsCounter caller_fc called_fc []) = do
-    -- v_cex <- checkCounterexample lrs ghci g2config called_fc
-    let Name caller_n caller_m _ _ = funcName caller_fc
-        Name called_n called_m _ _ = funcName called_fc
-        
-        caller_pr = (caller_n, caller_m) `S.member` pre_refined infconfig
-        called_pr = (called_n, called_m) `S.member` pre_refined infconfig
+            Right . insertsFC $ [FC { polarity = Pos
+                                    , violated = Post
+                                    , generated_by = funcName fc
+                                    , gen_spec_pres = False
+                                    , constraint = fc} ]
+        True -> Left $ cex
+cexsToFuncConstraints lrs ghci infconfig _ wu cex@(CallsCounter caller_fc called_fc []) = do
+    let caller_pr = isPreRefined (funcName caller_fc) infconfig
+        called_pr = isPreRefined (funcName called_fc) infconfig
 
     case (caller_pr, called_pr) of
-        (True, True) -> return . Left $ cex
-        (False, True) -> return . Right . insertsFC $ [FC { polarity = Neg
-                                                          , violated = Pre
-                                                          , generated_by = funcName caller_fc
-                                                          , gen_spec_pres = False 
-                                                          , constraint = caller_fc } ]
-        -- Our assumption is that the caller is correct and the called is wrong, since we are walking "down" the call graph,
-        -- while assuming the call graph specs above us are correct
-        (_, _ ) -> return . Right . insertsFC $ [FC { polarity = Pos
-                                                    , violated = Pre
-                                                    , generated_by = funcName caller_fc
-                                                    , gen_spec_pres = notSameFunc caller_fc called_fc
-                                                    , constraint = called_fc } ]
+        (True, True) -> Left $ cex
+        (False, True) ->  Right . insertsFC $ [FC { polarity = Neg
+                                                  , violated = Pre
+                                                  , generated_by = funcName caller_fc
+                                                  , gen_spec_pres = False 
+                                                  , constraint = caller_fc } ]
+        (True, False) -> Right . insertsFC $ [FC { polarity = Pos
+                                                 , violated = Pre
+                                                 , generated_by = funcName caller_fc
+                                                 , gen_spec_pres = notSameFunc caller_fc called_fc && notRetError called_fc
+                                                 , constraint = called_fc } ]
+        (False, False)
+            | nameOcc (funcName called_fc) `S.member` wu -> 
+                           Right . insertsFC $ [FC { polarity = Neg
+                                                   , violated = Pre
+                                                   , generated_by = funcName caller_fc
+                                                   , gen_spec_pres = False 
+                                                   , constraint = caller_fc } ]
+            | otherwise -> Right . insertsFC $ [FC { polarity = Pos
+                                                   , violated = Pre
+                                                   , generated_by = funcName caller_fc
+                                                   , gen_spec_pres = notSameFunc caller_fc called_fc && notRetError called_fc
+                                                   , constraint = called_fc } ]
+
+adjustWorkingUp :: InferenceConfig -> CounterExample -> WorkingUp -> WorkingUp
+adjustWorkingUp infconfig (CallsCounter caller_fc called_fc []) wu =
+    let 
+        caller_pr = isPreRefined (funcName caller_fc) infconfig
+        called_pr = isPreRefined (funcName called_fc) infconfig
+    in
+    case (caller_pr, called_pr) of
+        (True, False) -> S.empty -- wu -- TODO
+        (False, False)
+            | nameOcc (funcName called_fc) `S.member` wu ->
+                    S.insert (nameOcc $ funcName called_fc) wu
+            | otherwise -> S.insert (nameOcc $ funcName called_fc) wu
+        _ -> wu 
+adjustWorkingUp _ _ wu = wu
+
+isPreRefined :: Name -> InferenceConfig -> Bool
+isPreRefined (Name n m _ _) infconfig = (n, m) `S.member` pre_refined infconfig
 
 notSameFunc :: FuncCall -> FuncCall -> Bool
 notSameFunc fc1 fc2 = nameOcc (funcName fc1) /= nameOcc (funcName fc2)
+
+notRetError :: FuncCall -> Bool
+notRetError (FuncCall { returns = Prim Error _ }) = False
+notRetError _ = True
+
 
 insertsFC :: [FuncConstraint] -> FuncConstraints
 insertsFC = foldr insertFC emptyFC
@@ -293,3 +337,33 @@ filterErrors' fc =
         isError (Prim Error _) = True
         isError _ = False
 
+-- | Checks if we found an incorrect specification higher in the tree,
+-- and if so indicates which function(s) were incorrectly guessed
+madeWrongGuesses :: [CounterExample] -> [Name]
+madeWrongGuesses = mapMaybe madeWrongGuess
+
+madeWrongGuess :: CounterExample -> Maybe Name
+madeWrongGuess (DirectCounter f []) = Just $ funcName f
+madeWrongGuess (CallsCounter caller_f _ []) = Just $ funcName caller_f
+madeWrongGuess _ = Nothing
+
+-- Go back and try to reverify all functions that call the passed function
+correctWrongGuessesInFC :: [Name] -> FuncConstraints -> FuncConstraints
+correctWrongGuessesInFC ns = mapFC (\fc -> if funcName (constraint fc) `elem` ns
+                                                            then fc { gen_spec_pres = False}
+                                                            else fc)
+
+
+correctWrongGuessesInGS :: [Name] -> CallGraph -> GeneratedSpecs -> GeneratedSpecs
+correctWrongGuessesInGS ns cg gs =
+    foldr (\n -> correctWrongGuessInGS n cg) gs $ nub ns
+
+correctWrongGuessInGS :: Name -> CallGraph -> GeneratedSpecs -> GeneratedSpecs
+correctWrongGuessInGS n g gs =
+    trace ("wrong guess = " ++ show n)
+    deleteAssert n . deleteAssume n
+        $ foldr (\n -> moveAssertToSpec) gs $ calledBy n g
+    where
+        moveAssertToSpec
+            | Just s <- lookupAssertGS n gs = insertNewSpec n s
+            | otherwise = id

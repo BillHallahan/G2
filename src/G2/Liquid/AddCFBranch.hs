@@ -3,14 +3,18 @@
 
 module G2.Liquid.AddCFBranch ( CounterfactualName
                              , addCounterfactualBranch
-                             , onlyCounterfactual) where
+                             , onlyCounterfactual
+                             , elimNonTop ) where
 
 import G2.Config.Config
 import G2.Language
+import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad
 import G2.Liquid.Types
 
 import qualified Data.HashSet as S
+
+import Debug.Trace
 
 type CounterfactualName = Name
 
@@ -90,3 +94,10 @@ onlyCounterfactual = modifyASTs onlyCounterfactual'
 onlyCounterfactual' :: Expr -> Expr
 onlyCounterfactual' (NonDet [_, e]) = e
 onlyCounterfactual' e = e
+
+-- | Eliminate all Asserts, except for the functions with names in the HashSet
+elimNonTop :: S.HashSet Name -> State t -> State t
+elimNonTop hs s@(State { expr_env = eenv }) = trace ("hs = " ++ show hs) s { expr_env = E.mapWithKey (elimNonTop' hs) eenv }
+
+elimNonTop' :: S.HashSet Name -> Name -> Expr -> Expr
+elimNonTop' hs n e = if n `S.member` hs then e else elimAsserts e

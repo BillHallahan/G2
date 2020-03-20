@@ -64,6 +64,7 @@ data Config = Config {
 
     -- LiquidHaskell options
     , counterfactual :: Counterfactual -- ^ Which functions should be able to generate abstract counterexamples
+    , only_top :: Bool -- ^ Only try to find counterexamples in the very first function definition, or directly called functions?
     , block_errors_in :: (S.HashSet (T.Text, Maybe T.Text)) -- ^ Prevents calls from errors occuring in the indicated functions
     , reduce_abs :: Bool
     , add_tyvars :: Bool
@@ -106,6 +107,7 @@ mkConfig homedir as m = Config {
 
     , counterfactual = boolArg' "counterfactual" as m
                         (Counterfactual CFAll) (Counterfactual CFAll) NotCounterfactual
+    , only_top = boolArg "only-top" as m Off
     , block_errors_in = S.empty
     , reduce_abs = boolArg "reduce-abs" as m On
     , add_tyvars = boolArg "add-tyvars" as m Off

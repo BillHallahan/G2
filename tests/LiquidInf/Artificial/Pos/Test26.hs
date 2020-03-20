@@ -72,9 +72,10 @@ centroid n p sz = map (\x -> x `divide` sz) p
 {-@ kmeans1 :: k:Nat -> n:Nat ->
                List (PointN n) -> CenteringKN k n -> CenteringKN k n @-}
 kmeans1   :: Int -> Int -> List Point -> Centering -> Centering
-kmeans1 k n ps cs = normalize newClusters
+kmeans1 k n ps cs = normalize n newClusters
   where
-    normalize     :: M.Map a (Int, Point) -> M.Map a Point
-    normalize     = M.map (\(sz, p) -> centroid n p sz)
     newClusters   = mapReduce fm ps
     fm p          = (nearest k n cs p, (1 :: Int, p))
+
+normalize :: Int -> M.Map a (Int, Point) -> M.Map a Point
+normalize n = M.map (\(sz, p) -> centroid n p sz)

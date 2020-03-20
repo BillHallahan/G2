@@ -14,7 +14,10 @@ import Control.Monad.Extra
 import qualified Data.Map as M
 import Data.Maybe
 
-convertCurrExpr :: Id -> Bindings -> LHStateM [Name]
+import Debug.Trace
+
+-- | Returns (1) the Id of the new main function and (2) the functions that need counterfactual variants
+convertCurrExpr :: Id -> Bindings -> LHStateM (Id, [Name])
 convertCurrExpr ifi bindings = do
     ifi' <- modifyInputExpr ifi
     addCurrExprAssumption ifi bindings
@@ -33,7 +36,7 @@ convertCurrExpr ifi bindings = do
 --      it'll only be computed once.  This is NOT just for efficiency.
 --      Since the choice is nondeterministic, this is the only way to ensure that
 --      we don't make two different choices, and get two different values.
-modifyInputExpr :: Id -> LHStateM [Name]
+modifyInputExpr :: Id -> LHStateM (Id, [Name])
 modifyInputExpr i@(Id n _) = do
     (CurrExpr er ce) <- currExpr
 
@@ -45,8 +48,8 @@ modifyInputExpr i@(Id n _) = do
             let ce' = replaceVarWithName (idName i) (Var newI) ce
 
             putCurrExpr (CurrExpr er ce')
-            return ns
-        Nothing -> return []
+            return (newI, ns)
+        Nothing -> return (error "Name not found", [])
 
 -- Actually does the work of modify the function for modifyInputExpr
 -- Inserts the new function in the ExprEnv, and returns the Id

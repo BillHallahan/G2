@@ -62,6 +62,7 @@ adjustConfig main_mod (SimpleState { expr_env = eenv }) config infconfig ghci =
                     $ E.keys eenv
     
         config' = config { counterfactual = Counterfactual . CFOnly $ S.fromList ns_mm
+                         , only_top = True
                          , block_errors_in = S.fromList ns_not_main }
 
         infconfig' = infconfig { modules = S.singleton main_mod
