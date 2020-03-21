@@ -229,8 +229,7 @@ cexsToFuncConstraints _ _ infconfig _ _ (DirectCounter dfc fcs@(_:_))
         let
             mkFC pol fc = FC { polarity = pol
                              , violated = Post
-                             , generated_by = funcName dfc
-                             , gen_spec_pres = notSameFunc dfc fc && notRetError fc
+                             , bool_rel = getBoolRel dfc fc
                              , constraint = fc}
         in
         Right . insertsFC $ map (mkFC Pos . real) fcs ++ map (mkFC Neg . abstract) fcs'
@@ -242,8 +241,7 @@ cexsToFuncConstraints _ _ infconfig _ _ (CallsCounter dfc _ fcs@(_:_))
         let
             mkFC pol fc = FC { polarity = pol
                              , violated = Post
-                             , generated_by = funcName dfc
-                             , gen_spec_pres = notSameFunc dfc fc && notRetError fc
+                             , bool_rel = getBoolRel dfc fc
                              , constraint = fc}
         in
         Right . insertsFC $ map (mkFC Pos . real) fcs ++ map (mkFC Neg . abstract) fcs'
@@ -256,8 +254,7 @@ cexsToFuncConstraints lrs ghci infconfig _ _ cex@(DirectCounter fc []) = do
         False ->
             Right . insertsFC $ [FC { polarity = Pos
                                     , violated = Post
-                                    , generated_by = funcName fc
-                                    , gen_spec_pres = False
+                                    , bool_rel = BRImplies
                                     , constraint = fc} ]
         True -> Left $ cex
 cexsToFuncConstraints lrs ghci infconfig _ wu cex@(CallsCounter caller_fc called_fc []) = do
@@ -268,25 +265,21 @@ cexsToFuncConstraints lrs ghci infconfig _ wu cex@(CallsCounter caller_fc called
         (True, True) -> Left $ cex
         (False, True) ->  Right . insertsFC $ [FC { polarity = Neg
                                                   , violated = Pre
-                                                  , generated_by = funcName caller_fc
-                                                  , gen_spec_pres = False 
+                                                  , bool_rel = BRImplies 
                                                   , constraint = caller_fc } ]
         (True, False) -> Right . insertsFC $ [FC { polarity = Pos
                                                  , violated = Pre
-                                                 , generated_by = funcName caller_fc
-                                                 , gen_spec_pres = notSameFunc caller_fc called_fc && notRetError called_fc
+                                                 , bool_rel = getBoolRel caller_fc called_fc
                                                  , constraint = called_fc } ]
         (False, False)
             | nameOcc (funcName called_fc) `S.member` wu -> 
                            Right . insertsFC $ [FC { polarity = Neg
                                                    , violated = Pre
-                                                   , generated_by = funcName caller_fc
-                                                   , gen_spec_pres = False 
+                                                   , bool_rel = BRImplies 
                                                    , constraint = caller_fc } ]
             | otherwise -> Right . insertsFC $ [FC { polarity = Pos
                                                    , violated = Pre
-                                                   , generated_by = funcName caller_fc
-                                                   , gen_spec_pres = notSameFunc caller_fc called_fc && notRetError called_fc
+                                                   , bool_rel = getBoolRel caller_fc called_fc
                                                    , constraint = called_fc } ]
 
 adjustWorkingUp :: InferenceConfig -> CounterExample -> WorkingUp -> WorkingUp
@@ -307,13 +300,16 @@ adjustWorkingUp _ _ wu = wu
 isPreRefined :: Name -> InferenceConfig -> Bool
 isPreRefined (Name n m _ _) infconfig = (n, m) `S.member` pre_refined infconfig
 
+getBoolRel :: FuncCall -> FuncCall -> BoolRel
+getBoolRel fc1 fc2 =
+    if notSameFunc fc1 fc2 && notRetError fc2 then BRAnd else BRImplies
+
 notSameFunc :: FuncCall -> FuncCall -> Bool
 notSameFunc fc1 fc2 = nameOcc (funcName fc1) /= nameOcc (funcName fc2)
 
 notRetError :: FuncCall -> Bool
 notRetError (FuncCall { returns = Prim Error _ }) = False
 notRetError _ = True
-
 
 insertsFC :: [FuncConstraint] -> FuncConstraints
 insertsFC = foldr insertFC emptyFC
@@ -349,9 +345,10 @@ madeWrongGuess _ = Nothing
 
 -- Go back and try to reverify all functions that call the passed function
 correctWrongGuessesInFC :: [Name] -> FuncConstraints -> FuncConstraints
-correctWrongGuessesInFC ns = mapFC (\fc -> if funcName (constraint fc) `elem` ns
-                                                            then fc { gen_spec_pres = False}
-                                                            else fc)
+correctWrongGuessesInFC ns =
+    mapFC (\fc -> if funcName (constraint fc) `elem` ns
+                    then fc { bool_rel = BRImplies}
+                    else fc)
 
 
 correctWrongGuessesInGS :: [Name] -> CallGraph -> GeneratedSpecs -> GeneratedSpecs

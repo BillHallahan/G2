@@ -568,11 +568,11 @@ existentialTerms sorts meas_ex arg_tys ret_ty fn =
 termConstraints :: TypesToSorts -> MeasureExs -> [RefNamePolyBound] -> RefNamePolyBound -> [Type] -> Type -> FuncConstraint -> TermConstraint
 termConstraints sorts meas_ex arg_poly_names ret_poly_names arg_tys ret_ty (FC { polarity = p
                                                                                , violated = v
-                                                                               , gen_spec_pres = gsp
+                                                                               , bool_rel = br
                                                                                , constraint = fc }) =
     TC { pos_term = p == Pos
        , tc_violated = v
-       , param_ret_connector = if gsp then "and" else "=>"
+       , param_ret_connector = if br == BRAnd then "and" else "=>"
        , param_terms = funcParamTerms sorts meas_ex arg_poly_names arg_tys (arguments fc)
        , ret_terms = funcCallRetTerm sorts meas_ex ret_poly_names arg_tys ret_ty (arguments fc) (returns fc) }
 
