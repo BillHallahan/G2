@@ -1,5 +1,6 @@
 module G2.Liquid.SpecialAsserts ( addSpecialAsserts
                                 , addTrueAsserts
+                                , addTrueAssertsAll
                                 , addErrorAssumes) where
 
 import G2.Config
@@ -35,9 +36,9 @@ addSpecialAsserts = do
 -- excluding certain functions (namely dicts) that we never want to abstract
 -- Furthermore, expands all Lambdas as much as possible, so that we get all the arguments
 -- for the assertion. 
-addTrueAsserts :: Id -> LHStateM ()
-addTrueAsserts i = do
-    ns <- return . maybe [] varNames =<< lookupE (idName i)
+addTrueAsserts :: ExState s m => Name -> m ()
+addTrueAsserts n = do
+    ns <- return . maybe [] varNames =<< lookupE n
     tc <- return . tcDicts =<< typeClasses
     
     let tc' = map idName tc
@@ -45,24 +46,30 @@ addTrueAsserts i = do
     
     mapWithKeyME (addTrueAsserts' ns')
 
-addTrueAsserts' :: [Name] -> Name -> Expr -> LHStateM Expr
+addTrueAsserts' :: ExState s m => [Name] -> Name -> Expr -> m Expr
 addTrueAsserts' ns n e
-    | n `elem` ns =
-        insertInLamsE (\is e' ->
-                    case e' of
-                        Let [(_, _)] (Assert _ _ _) -> return e'
-                        _ -> do
-                            true <- mkTrueE
-                            r <- freshIdN (typeOf e')
-
-                            let fc = FuncCall { funcName = n
-                                              , arguments = map Var is
-                                              , returns = (Var r)}
-                                e'' = Let [(r, e')] $ Assert (Just fc) true (Var r)
-
-                            return e''
-                    ) =<< etaExpandToE (numArgs e) e
+    | n `elem` ns = addTrueAssert'' n e
     | otherwise = return e
+
+addTrueAssert'' :: ExState s m => Name -> Expr -> m Expr 
+addTrueAssert'' n e = do
+    insertInLamsE (\is e' ->
+                case e' of
+                    Let [(_, _)] (Assert _ _ _) -> return e'
+                    _ -> do
+                        true <- mkTrueE
+                        r <- freshIdN (typeOf e')
+
+                        let fc = FuncCall { funcName = n
+                                          , arguments = map Var is
+                                          , returns = (Var r)}
+                            e'' = Let [(r, e')] $ Assert (Just fc) true (Var r)
+
+                        return e''
+                ) =<< etaExpandToE (numArgs e) e
+
+addTrueAssertsAll :: ExState s m => m ()
+addTrueAssertsAll = mapWithKeyME (addTrueAssert'')
 
 -- | Blocks calling error in the functions specified in the block_errors_in in
 -- the Config, by wrapping the errors in Assume False

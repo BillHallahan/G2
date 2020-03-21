@@ -4,8 +4,10 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 module G2.Liquid.Inference.G2Calls ( MeasureExs
+                                   , gatherAllowedCalls
                                    , runLHInferenceCore
                                    , checkCounterexample
                                    , evalMeasures) where
@@ -17,11 +19,14 @@ import qualified G2.Initialization.Types as IT
 import G2.Interface
 import G2.Language
 import qualified G2.Language.ExprEnv as E
+import G2.Language.Monad
 import G2.Liquid.Inference.Config
 import G2.Liquid.Conversion
+import G2.Liquid.G2Calls
 import G2.Liquid.Helpers
 import G2.Liquid.Interface
 import G2.Liquid.LHReducers
+import G2.Liquid.SpecialAsserts
 import G2.Liquid.TCValues
 import G2.Liquid.Types
 import G2.Solver hiding (Assert)
@@ -42,6 +47,120 @@ import qualified Data.Text as T
 import Control.Exception
 import Data.Monoid
 import G2.Language.KnownValues
+
+import Debug.Trace
+
+-------------------------------------
+-- Generating Allowed Inputs/Outputs
+-------------------------------------
+
+-- By symbolically executing from user-specified functions, and gathering
+-- all called functions, we can get functions calls that MUST be allowed by
+-- the specifications
+
+gatherAllowedCalls :: T.Text
+                   -> Maybe T.Text
+                   -> LiquidReadyState
+                   -> [GhcInfo]
+                   -> InferenceConfig
+                   -> Config
+                   -> IO [FuncCall]
+gatherAllowedCalls entry m lrs ghci infconfig config = do
+    let config' = config { only_top = False }
+
+    LiquidData { ls_state = s
+               , ls_bindings = bindings
+               , ls_memconfig = pres_names } <-
+                    processLiquidReadyStateWithCall lrs ghci entry m config' mempty
+
+    let (s', bindings') = execStateM addTrueAssertsAll s bindings
+
+    SomeSolver solver <- initSolver config'
+    let simplifier = ADTSimplifier arbValue
+        s'' = repCFBranch (known_values s') $
+               s' { true_assert = True
+                  , track = [] :: [FuncCall] }
+
+    (red, hal, ord) <- gatherReducerHalterOrderer infconfig config' solver simplifier entry m s''
+    (exec_res, bindings'') <- runG2WithSomes red hal ord solver simplifier pres_names s'' bindings'
+
+    putStrLn $ "length exec_res = " ++ show (length exec_res)
+
+    let called = concatMap (\er ->
+                              let fs = final_state er in
+                              map (fs,) $ track fs) exec_res
+
+        fc_red = SomeReducer (StdRed (sharing config') solver simplifier)
+
+    (bindings''', red_calls) <- mapAccumM 
+                                (\b (fs, fc) -> reduceFuncCall (sharing config') 
+                                                               fc_red
+                                                               solver
+                                                               simplifier
+                                                               fs b fc)
+                                bindings''
+                                called
+
+    close solver
+
+    return red_calls
+
+repCFBranch :: ASTContainer t Expr => KnownValues -> t -> t
+repCFBranch kv = modifyASTs (repCFBranch' kv)
+
+repCFBranch' :: KnownValues -> Expr -> Expr
+repCFBranch' kv nd@(NonDet (e:_))
+    | Let b (Assert fc ae1 ae2) <- e = Let b $ Assume fc ae1 ae2
+    | otherwise = nd
+repCFBranch' kv (Let b (Assert fc ae1 ae2)) = Let b $ Assume fc ae1 ae2
+repCFBranch' _ e = e
+
+gatherReducerHalterOrderer :: (Solver solver, Simplifier simplifier)
+                           => InferenceConfig
+                           -> Config
+                           -> solver
+                           -> simplifier
+                           -> T.Text
+                           -> Maybe T.Text
+                           -> State [FuncCall]
+                           -> IO (SomeReducer [FuncCall], SomeHalter [FuncCall], SomeOrderer [FuncCall])
+gatherReducerHalterOrderer infconfig config solver simplifier entry mb_modname st = do
+    let
+        ng = mkNameGen ()
+
+        share = sharing config
+
+        state_name = Name "state" Nothing 0 Nothing
+    
+    timer_halter <- timerHalter (timeout_se infconfig)
+
+    return
+        (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng)
+            <~| (case logStates config of
+                  Just fp -> SomeReducer (StdRed share solver simplifier :<~ Gatherer :<~ Logger fp)
+                  Nothing -> SomeReducer (StdRed share solver simplifier :<~ Gatherer))
+        , SomeHalter
+            (DiscardIfAcceptedTag state_name
+              -- :<~> searched_below
+              :<~> SwitchEveryNHalter (switch_after config)
+              :<~> SWHNFHalter
+              :<~> timer_halter)
+        , SomeOrderer (ToOrderer $ IncrAfterN 1000 ADTHeightOrderer))
+
+data GathererReducer = Gatherer
+
+instance Reducer GathererReducer () [FuncCall] where
+    initReducer _ _ = ()
+
+    redRules gr _ s@(State { curr_expr = CurrExpr Evaluate (e@(Assume (Just fc) _ _))
+                           , track = tr
+                           }) b =
+        let
+          s' = s { curr_expr = CurrExpr Evaluate e
+                 , track = fc:tr}
+        in
+        return (Finished, [(s', ())], b, gr) 
+    redRules gr _ s b = return (Finished, [(s, ())], b, gr)
 
 -------------------------------
 -- Generating Counterexamples

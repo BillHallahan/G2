@@ -87,6 +87,8 @@ import Data.Time.Clock
 import System.Directory
 import System.Random
 
+import Debug.Trace
+
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
 -- and to reorder states
@@ -745,7 +747,7 @@ instance Halter TimerHalter () t where
             let diff = diffUTCTime curr it
 
             if diff > ms
-                then return Discard
+                then trace ("discarding!" ++ show curr) return Discard
                 else return Continue
         | otherwise = return Continue
 

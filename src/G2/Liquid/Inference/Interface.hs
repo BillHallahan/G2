@@ -71,7 +71,25 @@ inference infconfig config proj fp lhlibs = do
 
         cg = getCallGraph . expr_env . state . lr_state $ lrs
 
+    -- calls <- getGoodCalls infconfig' g2config' lhconfig' ghci (fst exg2) lrs
+
+    -- print $ map funcName calls
+    -- putStrLn $ "length calls = " ++ show (length calls)
+
     inference' infconfig' g2config' lhconfig' ghci (fst exg2) lrs cg S.empty emptyGS emptyFC 
+
+getGoodCalls :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> IO [FuncCall]
+getGoodCalls infconfig config lhconfig ghci m_mod lrs = do
+    let es = map (\(Name n m _ _) -> (n, m)) . E.keys . expr_env . state $ lr_state lrs
+        
+        cs = map (mkName . varName) $ concatMap (map fst . gsTySigs . spec) ghci
+        cs' = filter (\(Name n m _ _) -> (n, m) `elem` es && m == m_mod) cs
+
+        cs'' = map nameOcc cs'
+
+    putStrLn $ "cs'' = " ++ show cs''
+    return . concat
+        =<< mapM (\c -> gatherAllowedCalls c m_mod lrs ghci infconfig config) cs''
 
 inference' :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
            -> CallGraph -> WorkingUp -> GeneratedSpecs -> FuncConstraints -> IO (Either [CounterExample] GeneratedSpecs)
@@ -229,6 +247,7 @@ cexsToFuncConstraints _ _ infconfig _ _ (DirectCounter dfc fcs@(_:_))
         let
             mkFC pol fc = FC { polarity = pol
                              , violated = Post
+                             , generated_by = [funcName dfc]
                              , bool_rel = getBoolRel dfc fc
                              , constraint = fc}
         in
@@ -236,11 +255,12 @@ cexsToFuncConstraints _ _ infconfig _ _ (DirectCounter dfc fcs@(_:_))
     | otherwise = Right $ error "cexsToFuncConstraints: unhandled 1"
     where
         fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
-cexsToFuncConstraints _ _ infconfig _ _ (CallsCounter dfc _ fcs@(_:_))
+cexsToFuncConstraints _ _ infconfig _ _ (CallsCounter dfc cfc fcs@(_:_))
     | not . null $ fcs' =
         let
             mkFC pol fc = FC { polarity = pol
                              , violated = Post
+                             , generated_by = [funcName dfc, funcName cfc]
                              , bool_rel = getBoolRel dfc fc
                              , constraint = fc}
         in
@@ -254,6 +274,7 @@ cexsToFuncConstraints lrs ghci infconfig _ _ cex@(DirectCounter fc []) = do
         False ->
             Right . insertsFC $ [FC { polarity = Pos
                                     , violated = Post
+                                    , generated_by = [funcName fc]
                                     , bool_rel = BRImplies
                                     , constraint = fc} ]
         True -> Left $ cex
@@ -265,20 +286,24 @@ cexsToFuncConstraints lrs ghci infconfig _ wu cex@(CallsCounter caller_fc called
         (True, True) -> Left $ cex
         (False, True) ->  Right . insertsFC $ [FC { polarity = Neg
                                                   , violated = Pre
+                                                  , generated_by = [funcName caller_fc, funcName called_fc]
                                                   , bool_rel = BRImplies 
                                                   , constraint = caller_fc } ]
         (True, False) -> Right . insertsFC $ [FC { polarity = Pos
                                                  , violated = Pre
+                                                 , generated_by = [funcName caller_fc, funcName called_fc]
                                                  , bool_rel = getBoolRel caller_fc called_fc
                                                  , constraint = called_fc } ]
         (False, False)
             | nameOcc (funcName called_fc) `S.member` wu -> 
                            Right . insertsFC $ [FC { polarity = Neg
                                                    , violated = Pre
+                                                   , generated_by = [funcName caller_fc, funcName called_fc]
                                                    , bool_rel = BRImplies 
                                                    , constraint = caller_fc } ]
             | otherwise -> Right . insertsFC $ [FC { polarity = Pos
                                                    , violated = Pre
+                                                   , generated_by = [funcName caller_fc, funcName called_fc]
                                                    , bool_rel = getBoolRel caller_fc called_fc
                                                    , constraint = called_fc } ]
 

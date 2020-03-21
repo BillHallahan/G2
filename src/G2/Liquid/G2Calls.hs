@@ -3,6 +3,7 @@
 
 module G2.Liquid.G2Calls ( checkAbstracted
                          , reduceCalls
+                         , reduceFuncCall
                          , mapAccumM) where
 
 import G2.Config
@@ -129,7 +130,12 @@ reduceAbstracted solver simplifier share bindings
 
     return (bindings', er { final_state = s { track = lht { abstract_calls = fcs' } }})
 
-reduceFuncCall :: (Solver solver, Simplifier simp) => Sharing -> SomeReducer LHTracker -> solver -> simp -> State LHTracker -> Bindings -> FuncCall -> IO (Bindings, FuncCall)
+reduceFuncCall :: ( Solver solver
+                  , Simplifier simp
+                  , ASTContainer t Expr
+                  , ASTContainer t Type
+                  , Named t)
+               => Sharing -> SomeReducer t -> solver -> simp -> State t -> Bindings -> FuncCall -> IO (Bindings, FuncCall)
 reduceFuncCall share red solver simplifier s bindings fc@(FuncCall { arguments = ars, returns = r }) = do
     -- (bindings', red_ars) <- mapAccumM (reduceFCExpr share (red <~ SomeReducer (Logger "arg")) solver simplifier s) bindings ars
     -- (bindings'', red_r) <- reduceFCExpr share (red <~ SomeReducer (Logger "ret")) solver simplifier s bindings' r
@@ -138,7 +144,12 @@ reduceFuncCall share red solver simplifier s bindings fc@(FuncCall { arguments =
 
     return (bindings'', fc { arguments = red_ars, returns = red_r })
 
-reduceFCExpr :: (Solver solver, Simplifier simp) => Sharing -> SomeReducer LHTracker -> solver -> simp -> State LHTracker -> Bindings -> Expr -> IO (Bindings, Expr)
+reduceFCExpr :: ( Solver solver
+                , Simplifier simp
+                , ASTContainer t Expr
+                , ASTContainer t Type
+                , Named t)
+             => Sharing -> SomeReducer t -> solver -> simp -> State t -> Bindings -> Expr -> IO (Bindings, Expr)
 reduceFCExpr share reducer solver simplifier s bindings e 
     | not . isTypeClass (type_classes s) $ (typeOf e)
     , ds <- deepseq_walkers bindings
