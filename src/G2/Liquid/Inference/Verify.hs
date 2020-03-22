@@ -1,10 +1,16 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module G2.Liquid.Inference.Verify (VerifyResult (..), verifyVarToName, verify, ghcInfos, lhConfig) where
+module G2.Liquid.Inference.Verify ( VerifyResult (..)
+                                  , verifyVarToName
+                                  , tryHardToVerify
+                                  , verify
+                                  , ghcInfos
+                                  , lhConfig) where
 
 import qualified G2.Language.Syntax as G2
 import G2.Liquid.Helpers
 import G2.Liquid.Inference.Config
+import G2.Liquid.Inference.GeneratedSpecs
 import G2.Translation.Haskell
 
 import Data.Maybe
@@ -45,6 +51,28 @@ verifyVarToName :: VerifyResult V.Var -> VerifyResult G2.Name
 verifyVarToName Safe = Safe
 verifyVarToName (Crash ic s) = Crash ic s
 verifyVarToName (Unsafe v) = Unsafe (map varToName v)
+
+tryHardToVerify :: InferenceConfig
+                -> Config
+                -> [GhcInfo]
+                -> GeneratedSpecs
+                -> IO (Either [G2.Name] GeneratedSpecs)
+tryHardToVerify infconfig lhconfig ghci gs = do
+    let merged_ghci = addSpecsToGhcInfos ghci gs
+    res <- return . verifyVarToName =<< verify infconfig lhconfig merged_ghci
+    case res of
+        Unsafe x -> do
+            let f_gs = filterOutSpecs x gs
+                f_merged_ghci = addSpecsToGhcInfos ghci f_gs
+
+            filtered_res <- return . verifyVarToName =<<
+                                        verify infconfig lhconfig f_merged_ghci
+            case filtered_res of
+                Unsafe x -> return $ Left x
+                Safe -> return $ Right f_gs
+                Crash ci err -> error $ "Crash\n" ++ show ci ++ "\n" ++ err
+        Safe -> return $ Right gs
+        Crash ci err -> error $ "Crash\n" ++ show ci ++ "\n" ++ err
 
 verify :: InferenceConfig -> Config ->  [GhcInfo] -> IO (VerifyResult V.Var)
 verify infconfig cfg ghci = do
