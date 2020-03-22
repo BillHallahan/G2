@@ -7,11 +7,13 @@ module G2.Liquid.Helpers ( MeasureSymbols (..)
                          , findFuncSpec
                          , measureSpecs
                          , measureSymbols
+                         , varToName
                          , varEqName
                          , namesEq
                          , fillLHDictArgs ) where
 
 import G2.Language as G2
+import G2.Translation.Haskell
 
 import qualified Language.Haskell.Liquid.GHC.Interface as LHI
 import Language.Fixpoint.Types.Names
@@ -62,6 +64,9 @@ findFuncSpec ghci g2_n =
     case find (\(n, _) -> namesEq n g2_n) fs' of
         Just st -> Just . val . snd $ st
         Nothing -> Nothing
+
+varToName :: V.Var -> G2.Name
+varToName = mkName . V.varName
 
 varEqName :: V.Var -> G2.Name -> Bool
 varEqName v = namesEq (V.varName v)

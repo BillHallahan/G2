@@ -12,6 +12,7 @@ module G2.Liquid.Inference.GeneratedSpecs ( GeneratedSpecs
                                           , lookupAssertGS
 
                                           , filterAssertsKey
+                                          , filterOutSpecs
 
                                           , addSpecsToGhcInfos
                                           , addAssumedSpecsToGhcInfos
@@ -88,6 +89,15 @@ switchAssumesToAsserts gs =
 
 lookupAssertGS :: G2.Name -> GeneratedSpecs -> Maybe [PolyBound Expr]
 lookupAssertGS n = M.lookup (zeroOutUnq n) . assert_specs
+
+filterOutSpecs :: [G2.Name] -> GeneratedSpecs -> GeneratedSpecs
+filterOutSpecs ns gs =
+    let
+        ns' = map zeroOutUnq ns
+        fil = M.filterWithKey (\n _ -> n `notElem` ns')
+    in
+    gs { assert_specs = fil $ assert_specs gs
+       , assume_specs = fil $ assume_specs gs }
 
 filterAssertsKey :: (G2.Name -> Bool) -> GeneratedSpecs -> GeneratedSpecs
 filterAssertsKey p gs = gs { assert_specs = M.filterWithKey (\n _ -> p n) $ assert_specs gs}

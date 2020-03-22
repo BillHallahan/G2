@@ -1,8 +1,9 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module G2.Liquid.Inference.Verify (VerifyResult (..), verify, ghcInfos, lhConfig) where
+module G2.Liquid.Inference.Verify (VerifyResult (..), verifyVarToName, verify, ghcInfos, lhConfig) where
 
 import qualified G2.Language.Syntax as G2
+import G2.Liquid.Helpers
 import G2.Liquid.Inference.Config
 import G2.Translation.Haskell
 
@@ -36,17 +37,22 @@ import Language.Haskell.Liquid.Liquid ()
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
 
-data VerifyResult = Safe
-                  | Crash [(Integer, Cinfo)] String
-                  | Unsafe [G2.Name]
+data VerifyResult v = Safe
+                    | Crash [(Integer, Cinfo)] String
+                    | Unsafe [v]
 
-verify :: InferenceConfig -> Config ->  [GhcInfo] -> IO VerifyResult
+verifyVarToName :: VerifyResult V.Var -> VerifyResult G2.Name
+verifyVarToName Safe = Safe
+verifyVarToName (Crash ic s) = Crash ic s
+verifyVarToName (Unsafe v) = Unsafe (map varToName v)
+
+verify :: InferenceConfig -> Config ->  [GhcInfo] -> IO (VerifyResult V.Var)
 verify infconfig cfg ghci = do
     r <- verify' infconfig cfg ghci
     case F.resStatus r of
         F.Safe -> return Safe
         F.Crash ci err -> return $ Crash ci err
-        F.Unsafe bad -> return . Unsafe . map (mkName . V.varName) . catMaybes $ map (ci_var . snd) bad
+        F.Unsafe bad -> return . Unsafe . catMaybes $ map (ci_var . snd) bad
 
 
 verify' :: InferenceConfig -> Config ->  [GhcInfo] -> IO (F.Result (Integer, Cinfo))

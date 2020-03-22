@@ -6,9 +6,10 @@ module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
                                           , BoolRel (..)
                                           , FuncConstraints
                                           , emptyFC
+                                          , nullFC
                                           , insertFC
                                           , lookupFC
-                                          , allFC
+                                          , toListFC
                                           , unionFC
                                           , unionsFC
                                           , mapFC
@@ -42,6 +43,9 @@ data FuncConstraint =
 emptyFC :: FuncConstraints
 emptyFC = FuncConstraints M.empty
 
+nullFC :: FuncConstraints -> Bool
+nullFC = null . toListFC
+
 insertFC :: FuncConstraint -> FuncConstraints -> FuncConstraints
 insertFC fc  =
     coerce (M.insertWith (++) (zeroOutUnq . funcName . constraint $ fc) [fc])
@@ -52,8 +56,8 @@ lookupFC n = M.findWithDefault [] (zeroOutUnq n) . coerce
 zeroOutUnq :: Name -> Name
 zeroOutUnq (Name n m _ l) = Name n m 0 l
 
-allFC :: FuncConstraints -> [FuncConstraint]
-allFC = concat . M.elems . coerce
+toListFC :: FuncConstraints -> [FuncConstraint]
+toListFC = concat . M.elems . coerce
 
 unionFC :: FuncConstraints -> FuncConstraints -> FuncConstraints
 unionFC (FuncConstraints fc1) (FuncConstraints fc2) =
