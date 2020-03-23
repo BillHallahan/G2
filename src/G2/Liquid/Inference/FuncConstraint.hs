@@ -3,6 +3,7 @@
 module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
                                           , Polarity (..)
                                           , Violated (..)
+                                          , Modification (..)
                                           , BoolRel (..)
                                           , FuncConstraints
                                           , emptyFC
@@ -13,6 +14,7 @@ module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
                                           , unionFC
                                           , unionsFC
                                           , mapFC
+                                          , mapMaybeFC
                                           , filterFC
 
                                           , constraining ) where
@@ -22,6 +24,7 @@ import G2.Language.Syntax
 
 import Data.Coerce
 import qualified Data.Map as M
+import Data.Maybe
 
 newtype FuncConstraints = FuncConstraints (M.Map Name [FuncConstraint])
                      deriving (Eq, Show, Read)
@@ -30,12 +33,20 @@ data Polarity = Pos | Neg deriving (Eq, Show, Read)
 
 data Violated = Pre | Post deriving (Eq, Show, Read)
 
+data Modification =
+      SwitchImplies [Name] -- ^ Change the boolean relation to Implies if the
+                           -- spec of any function in the list changes
+    | Delete [Name] -- ^ Delete the constraint if the spec of any function in
+                    -- the list changes
+    | None -- ^ The constraint should not be modified
+    deriving (Eq, Show, Read)
+
 data BoolRel = BRImplies | BRAnd deriving (Eq, Show, Read)
 
 data FuncConstraint =
     FC { polarity :: Polarity
        , violated :: Violated
-       , generated_by :: [Name] -- ^ Which function generated the given constraint?
+       , modification :: Modification
        , bool_rel :: BoolRel -- ^ True iff generated_by's spec has not changed since the FC was created
        , constraint :: FuncCall }
        deriving (Eq, Show, Read)
@@ -68,6 +79,9 @@ unionsFC = foldr unionFC emptyFC
 
 mapFC :: (FuncConstraint -> FuncConstraint) -> FuncConstraints -> FuncConstraints
 mapFC f = coerce (M.map (map f))
+
+mapMaybeFC :: (FuncConstraint -> Maybe FuncConstraint) -> FuncConstraints -> FuncConstraints
+mapMaybeFC f = coerce (M.map (mapMaybe f))
 
 filterFC :: (FuncConstraint -> Bool) -> FuncConstraints -> FuncConstraints
 filterFC p = coerce (M.map (filter p))
