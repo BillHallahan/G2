@@ -2,7 +2,9 @@
 
 module G2.Liquid.Inference.SimplifySygus ( EliminatedSimple
                                          , elimSimpleDTs
-                                         , restoreSimpleDTs ) where
+                                         , restoreSimpleDTs 
+
+                                         , elimRedundantAnds) where
 
 import Sygus.Syntax
 
@@ -229,3 +231,20 @@ restoreSimpleDTsTerm _ _ (TermLet _ _ ) = error "restoreSimpleDTsTerm: Term not 
 restoreSimpleDTsTerm _ _ t = t
 
 -----------------------------------------
+-- Rewrites to remove redundant Ands
+
+elimRedundantAnds :: [Cmd] -> [Cmd]
+elimRedundantAnds = map elimRedundantAnds'
+
+elimRedundantAnds' :: Cmd -> Cmd
+elimRedundantAnds' (Constraint t) = Constraint $ elimRedAndsTerm t
+elimRedundantAnds' cmd = cmd
+
+elimRedAndsTerm :: Term -> Term
+elimRedAndsTerm (TermCall (ISymb "and") ts) =
+    TermCall (ISymb "and") $ concatMap inlineAnds ts
+elimRedAndsTerm t = t
+
+inlineAnds :: Term -> [Term]
+inlineAnds (TermCall (ISymb "and") ts) = concatMap inlineAnds ts
+inlineAnds t = [t]
