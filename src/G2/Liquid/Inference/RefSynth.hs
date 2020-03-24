@@ -536,7 +536,7 @@ generateConstraints :: TypesToSorts -> MeasureExs -> [RefNamePolyBound] -> RefNa
 generateConstraints sorts meas_ex arg_poly_names ret_poly_names arg_tys ret_ty fcs = 
     let
         cons = map (termConstraints sorts meas_ex arg_poly_names ret_poly_names arg_tys ret_ty) fcs
-        cons' = filterPosAndNegConstraints cons
+        cons' = cons -- filterPosAndNegConstraints cons
         cons'' = map termConstraintToConstraint cons'
 
         exists_args = concatMap (\(pn, ars) -> existentialConstraints sorts meas_ex pn (init ars) (last ars)) 
