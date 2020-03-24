@@ -95,7 +95,6 @@ inference' infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc rising_fc 
 
     print synth_gs
 
-
     res <- tryHardToVerify infconfig lhconfig ghci synth_gs
 
     case res of
@@ -107,15 +106,37 @@ inference' infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc rising_fc 
                 in
                 inference' infconfig g2config lhconfig ghci' m_modname lrs cg wu new_gs' fc rising_fc []
         Left bad -> do
-            let wu' = wu -- adjustWorkingUp infconfig cg bad wu
-            ref <- refineUnsafe infconfig g2config lhconfig ghci m_modname lrs cg wu' synth_gs fc rising_fc bad
+            ref <- refineUnsafe infconfig g2config lhconfig ghci m_modname lrs cg wu synth_gs fc rising_fc bad
+            
             case ref of
-                FCs new_fc new_wu ->
-                    conflictingFCs infconfig g2config lhconfig ghci m_modname lrs cg new_wu synth_gs fc new_fc
-                _ -> return ref
+                Left cex -> return $ CEx cex
+                Right (new_fc, wu')  -> do
+                    putStrLn "New FuncConstraints"
+                    let pre_solved = alreadySpecified ghci new_fc
+                    case nullFC pre_solved of
+                        False -> do
+                            putStrLn "returning FuncConstraints"
+                            return $ FCs (unionFC pre_solved rising_fc) wu'
+                        True -> do
+                            let rel_funcs = relFuncs infconfig new_fc
+                                fc' = adjustOldFC fc new_fc
+                                merged_fc = unionFC (unionFC fc' new_fc) rising_fc
+                            
+                            lev <- inference' infconfig g2config lhconfig ghci m_modname lrs cg wu' gs merged_fc emptyFC rel_funcs
+
+                            case lev of
+                                FCs new_fc wu' ->
+                                    inference' infconfig g2config lhconfig ghci m_modname lrs cg wu' gs fc (unionFC new_fc rising_fc) try_to_synth
+                                _ -> return lev
+
+            -- case ref of
+            --     FCs new_fc new_wu ->
+            --         conflictingFCs infconfig g2config lhconfig ghci m_modname lrs cg new_wu synth_gs fc new_fc
+            --     _ -> return ref
 
 refineUnsafe :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
-             -> CallGraph -> WorkingUp -> GeneratedSpecs -> FuncConstraints -> RisingFuncConstraints -> [Name] -> IO InferenceRes
+             -> CallGraph -> WorkingUp -> GeneratedSpecs -> FuncConstraints
+             -> RisingFuncConstraints -> [Name] -> IO (Either [CounterExample] (FuncConstraints, WorkingUp))
 refineUnsafe infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc rising_fc bad = do
     putStrLn $ "refineUnsafe " ++ show bad
     print wu
@@ -134,23 +155,23 @@ refineUnsafe infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc rising_f
     new_fc <- checkNewConstraints ghci lrs infconfig g2config wu res'
 
     case new_fc of
-        Left cex -> return $ CEx cex
+        Left cex -> return $ Left cex
         Right new_fc' -> do
             -- Check if we already have specs for any of the functions
-            let pre_solved = alreadySpecified ghci new_fc'
-                wu' = adjustWorkingUp infconfig res' wu
+            let wu' = adjustWorkingUp infconfig res' wu
 
-            case nullFC pre_solved of
-                False -> do
-                    putStrLn $ "already solved " ++ show (map (funcName . constraint) $ toListFC new_fc')
-                    return $ FCs (unionFC pre_solved rising_fc) wu'
-                True -> do
-                    -- Only consider functions in the modules that we have access to.
-                    let rel_funcs = relFuncs infconfig new_fc'
-                        fc' = adjustOldFC fc new_fc'
-                        merged_fc = unionFC (unionFC fc' new_fc') rising_fc
+            return $ Right (new_fc', wu')
+            -- case nullFC pre_solved of
+            --     False -> do
+            --         putStrLn $ "already solved " ++ show (map (funcName . constraint) $ toListFC new_fc')
+            --         return $ FCs (unionFC pre_solved rising_fc) wu'
+            --     True -> do
+            --         -- Only consider functions in the modules that we have access to.
+            --         let rel_funcs = relFuncs infconfig new_fc'
+            --             fc' = adjustOldFC fc new_fc'
+            --             merged_fc = unionFC (unionFC fc' new_fc') rising_fc
                     
-                    inference' infconfig g2config lhconfig ghci m_modname lrs cg wu' gs merged_fc emptyFC rel_funcs
+            --         inference' infconfig g2config lhconfig ghci m_modname lrs cg wu' gs merged_fc emptyFC rel_funcs
                     
 conflictingFCs :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
                -> CallGraph -> WorkingUp -> GeneratedSpecs -> FuncConstraints -> RisingFuncConstraints -> IO InferenceRes
@@ -168,7 +189,7 @@ conflictingFCs infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc rising
 
                 all_f_rising_fc = map (funcName . constraint) $ toListFC rising_fc
             in
-            inference' infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc' rising_fc all_f_rising_fc
+            undefined -- inference' infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc' rising_fc all_f_rising_fc
 
 adjustOldFC :: FuncConstraints -- ^ Old FuncConstraints
             -> FuncConstraints -- ^ New FuncConstraints
