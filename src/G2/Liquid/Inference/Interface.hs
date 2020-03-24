@@ -70,7 +70,7 @@ inference infconfig config proj fp lhlibs = do
 
         cg = getCallGraph . expr_env . state . lr_state $ lrs
 
-    inf <- inference' infconfig' g2config' lhconfig' ghci (fst exg2) lrs cg workingUp emptyGS emptyFC emptyFC
+    inf <- inference' infconfig' g2config' lhconfig' ghci (fst exg2) lrs cg workingUp emptyGS emptyFC emptyFC []
     case inf of
         CEx cex -> return $ Left cex
         GS gs -> return $ Right gs
@@ -87,28 +87,31 @@ data InferenceRes = CEx [CounterExample]
 type RisingFuncConstraints = FuncConstraints
 
 inference' :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
-           -> CallGraph -> WorkingUp -> GeneratedSpecs -> FuncConstraints -> RisingFuncConstraints -> IO InferenceRes
-inference' infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc rising_fc = do
+           -> CallGraph -> WorkingUp -> GeneratedSpecs -> FuncConstraints -> RisingFuncConstraints -> [Name] -> IO InferenceRes
+inference' infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc rising_fc try_to_synth = do
     putStrLn "inference'"
-    print wu
-    print gs
+    
+    synth_gs <- synthesize infconfig g2config ghci lrs gs (unionFC fc rising_fc) try_to_synth
 
-    res <- tryHardToVerify infconfig lhconfig ghci gs
+    print synth_gs
+
+
+    res <- tryHardToVerify infconfig lhconfig ghci synth_gs
 
     case res of
         Right new_gs
             | nullAssumeGS gs -> return $ GS new_gs
             | otherwise ->
-                let gs' = switchAssumesToAsserts gs
-                    ghci' = addSpecsToGhcInfos ghci gs'
+                let synth_gs' = switchAssumesToAsserts synth_gs
+                    ghci' = addSpecsToGhcInfos ghci synth_gs'
                 in
-                inference' infconfig g2config lhconfig ghci' m_modname lrs cg wu gs' fc rising_fc
+                inference' infconfig g2config lhconfig ghci' m_modname lrs cg wu synth_gs' fc rising_fc []
         Left bad -> do
             let wu' = wu -- adjustWorkingUp infconfig cg bad wu
-            ref <- refineUnsafe infconfig g2config lhconfig ghci m_modname lrs cg wu' gs fc rising_fc bad
+            ref <- refineUnsafe infconfig g2config lhconfig ghci m_modname lrs cg wu' synth_gs fc rising_fc bad
             case ref of
                 FCs new_fc new_wu ->
-                    conflictingFCs infconfig g2config lhconfig ghci m_modname lrs cg new_wu gs fc new_fc
+                    conflictingFCs infconfig g2config lhconfig ghci m_modname lrs cg new_wu synth_gs fc new_fc
                 _ -> return ref
 
 refineUnsafe :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
@@ -136,7 +139,6 @@ refineUnsafe infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc rising_f
             -- Check if we already have specs for any of the functions
             let pre_solved = alreadySpecified ghci new_fc'
                 wu' = adjustWorkingUp infconfig res' wu
-            putStrLn $ "HERE " ++ show wu'
 
             case nullFC pre_solved of
                 False -> do
@@ -145,116 +147,44 @@ refineUnsafe infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc rising_f
                 True -> do
                     -- Only consider functions in the modules that we have access to.
                     let rel_funcs = relFuncs infconfig new_fc'
-                        fc' = unionFC (unionFC fc new_fc') rising_fc
-
-                    gs' <- synthesize infconfig g2config ghci lrs gs fc' rel_funcs
+                        fc' = adjustOldFC fc new_fc'
+                        merged_fc = unionFC (unionFC fc' new_fc') rising_fc
                     
-                    inference' infconfig g2config lhconfig ghci m_modname lrs cg wu' gs' fc' emptyFC
+                    inference' infconfig g2config lhconfig ghci m_modname lrs cg wu' gs merged_fc emptyFC rel_funcs
                     
 conflictingFCs :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
                -> CallGraph -> WorkingUp -> GeneratedSpecs -> FuncConstraints -> RisingFuncConstraints -> IO InferenceRes
 conflictingFCs infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc rising_fc = do
-    let f_rising_fc = alreadySpecified ghci rising_fc
     putStrLn "conflictingFCs"
-    putStrLn $ "names new_fc = " ++ show (map (funcName . constraint) $ toListFC rising_fc)
-    putStrLn $ "length rising_fc = " ++ show (length $ toListFC rising_fc)
-    putStrLn $ "names f_rising_fc = " ++ show (map (funcName . constraint) $ toListFC f_rising_fc)
-    print wu
-    case nullFC f_rising_fc of
+    let as_f_rising_fc = alreadySpecified ghci rising_fc
+    case nullFC as_f_rising_fc of
         False -> return $ FCs rising_fc wu
         True ->
             let
                 constrained = map (funcName . constraint) $ toListFC rising_fc
-                fc' = mapMaybeFC
-                                (\c -> case modification c of
-                                            SwitchImplies ns
-                                                | ns `intersect` constrained /= [] ->
-                                                    Just $ c { bool_rel = BRImplies }
-                                            Delete ns
-                                                | ns `intersect` constrained /= [] -> Nothing
-                                            _ -> Just c) fc
+                fc' = adjustOldFC fc rising_fc
 
                 merged_fc = unionFC fc' rising_fc
+
+                all_f_rising_fc = map (funcName . constraint) $ toListFC rising_fc
             in
-            inference' infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc' rising_fc
+            inference' infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc' rising_fc all_f_rising_fc
 
--- inference' :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
---            -> CallGraph -> WorkingUp -> GeneratedSpecs -> FuncConstraints -> IO (Either [CounterExample] GeneratedSpecs)
--- inference' infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc = do
---     print gs
-
---     let merged_verify_with_quals_ghci = addQualifiersToGhcInfos gs $ addSpecsToGhcInfos ghci gs
-
---     res_quals <- verify infconfig lhconfig merged_verify_with_quals_ghci
-
---     case res_quals of
---         Safe 
---             | nullAssumeGS gs -> return $ Right gs
---             | otherwise -> inference' infconfig g2config lhconfig ghci m_modname lrs cg wu (switchAssumesToAsserts gs) fc
---         Crash ci err -> error $ "Crash\n" ++ show ci ++ "\n" ++ err
---         Unsafe x -> do putStrLn ("x = " ++ show x); refineUnsafe infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc
-
--- refineUnsafe :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
---              -> CallGraph -> WorkingUp -> GeneratedSpecs -> FuncConstraints -> IO (Either [CounterExample] GeneratedSpecs)
--- refineUnsafe infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc = do
---     let merged_verify_with_asserts_ghci = addQualifiersToGhcInfos gs $ addSpecsToGhcInfos ghci gs
---         merged_se_ghci = addSpecsToGhcInfos ghci (switchAssumesToAsserts gs)
-
---     res_asserts <- verify infconfig lhconfig merged_verify_with_asserts_ghci
-    
---     case res_asserts of
---         Unsafe bad -> do
---             let bad' = nub $ map nameOcc bad
-
---             putStrLn $ "bad' = " ++ show bad'
-
---             -- Generate new constraints for the functions that LH reports as having an error
---             res <- mapM (genNewConstraints merged_se_ghci m_modname lrs infconfig g2config) bad'
-
---             putStrLn $ "res"
---             printCE $ concat res
-
---             putStrLn "Before checkNewConstraints"
-
---             let res' = concat res
---             -- Either converts counterexamples to FuncConstraints, or returns them as errors to
---             -- show to the user.
---             new_fc <- checkNewConstraints ghci lrs infconfig g2config wu res'
---             let wu' = foldr (adjustWorkingUp infconfig) wu res'
-
---             case new_fc of
---                 Left ce -> return . Left $ ce
---                 Right new_fc' -> do
---                     -- Only consider functions in the modules that we have access to.
---                     let new_fc_funcs = filter (\(Name _ m _ _) -> m `S.member` (modules infconfig))
---                                      . nubBy (\n1 n2 -> nameOcc n1 == nameOcc n2) . map (funcName . constraint) $ allFC new_fc'
---                     let fc' = unionFC fc new_fc'
-
---                     case madeWrongGuesses res' of
---                         [] -> do
-
---                             -- Only check new assertions
---                             let gs' = filterAssertsKey (\n -> n `elem` map constraining (allFC fc')) gs
-
---                             -- Synthesize
---                             putStrLn "Before genMeasureExs"
---                             meas_ex <- genMeasureExs lrs merged_se_ghci g2config fc'
---                             putStrLn "After genMeasureExs"
---                             gs'' <- foldM (synthesize infconfig ghci lrs meas_ex fc') gs' new_fc_funcs
-                            
---                             inference' infconfig g2config lhconfig ghci m_modname lrs cg wu' gs'' fc'
---                         wrong -> do
---                             let fc'' = correctWrongGuessesInFC wrong fc'
---                                 gs' = correctWrongGuessesInGS wrong cg gs
-
---                             meas_ex <- genMeasureExs lrs merged_se_ghci g2config fc'
---                             putStrLn "After genMeasureExs"
---                             gs'' <- foldM (synthesize infconfig ghci lrs meas_ex fc') gs' new_fc_funcs
-
---                             inference' infconfig g2config lhconfig ghci m_modname lrs cg wu' gs'' fc''
-
---         _ -> error $ "refineUnsafe: result other than Unsafe: "
---                         ++ case res_asserts of {Safe -> "Safe"; Crash _ _-> "Crash"; Unsafe _ -> "Unsafe"}
+adjustOldFC :: FuncConstraints -- ^ Old FuncConstraints
+            -> FuncConstraints -- ^ New FuncConstraints
+            -> FuncConstraints
+adjustOldFC old_fc new_fc =
+    let
+        constrained = map (funcName . constraint) $ toListFC new_fc
+    in
+    mapMaybeFC
+        (\c -> case modification c of
+                    SwitchImplies ns
+                        | ns `intersect` constrained /= [] ->
+                            Just $ c { bool_rel = BRImplies }
+                    Delete ns
+                        | ns `intersect` constrained /= [] -> Nothing
+                    _ -> Just c) old_fc
 
 createStateForInference :: SimpleState -> G2.Config -> [GhcInfo] -> LiquidReadyState
 createStateForInference simp_s config ghci =
@@ -307,7 +237,7 @@ synthesize infconfig g2config ghci lrs gs fc for_funcs = do
     putStrLn "Before genMeasureExs"
     meas_ex <- genMeasureExs lrs ghci g2config fc
     putStrLn "After genMeasureExs"
-    foldM (synthesize' infconfig ghci lrs meas_ex fc) gs for_funcs
+    foldM (synthesize' infconfig ghci lrs meas_ex fc) gs $ nub for_funcs
 
 synthesize' :: InferenceConfig -> [GhcInfo] -> LiquidReadyState -> MeasureExs -> FuncConstraints -> GeneratedSpecs -> Name -> IO GeneratedSpecs
 synthesize' infconfig ghci lrs meas_ex fc gs n = do
@@ -382,7 +312,7 @@ cexsToFuncConstraints lrs ghci infconfig _ _ cex@(DirectCounter fc []) = do
             Right . insertsFC $ [FC { polarity = if notRetError fc then Pos else Neg
                                     , violated = Post
                                     , modification = SwitchImplies [funcName fc]
-                                    , bool_rel = if notRetError fc then BRAnd else BRImplies
+                                    , bool_rel = BRImplies
                                     , constraint = fc} ]
         True -> Left $ cex
 cexsToFuncConstraints lrs ghci infconfig _ wu cex@(CallsCounter caller_fc called_fc []) = do
