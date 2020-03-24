@@ -100,12 +100,12 @@ inference' infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc rising_fc 
 
     case res of
         Right new_gs
-            | nullAssumeGS gs -> return $ GS new_gs
+            | nullAssumeGS synth_gs -> return $ GS new_gs
             | otherwise ->
-                let synth_gs' = switchAssumesToAsserts synth_gs
-                    ghci' = addSpecsToGhcInfos ghci synth_gs'
+                let new_gs' = switchAssumesToAsserts new_gs
+                    ghci' = addSpecsToGhcInfos ghci new_gs'
                 in
-                inference' infconfig g2config lhconfig ghci' m_modname lrs cg wu synth_gs' fc rising_fc []
+                inference' infconfig g2config lhconfig ghci' m_modname lrs cg wu new_gs' fc rising_fc []
         Left bad -> do
             let wu' = wu -- adjustWorkingUp infconfig cg bad wu
             ref <- refineUnsafe infconfig g2config lhconfig ghci m_modname lrs cg wu' synth_gs fc rising_fc bad
