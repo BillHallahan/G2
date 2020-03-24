@@ -89,8 +89,10 @@ type RisingFuncConstraints = FuncConstraints
 inference' :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
            -> CallGraph -> WorkingUp -> GeneratedSpecs -> FuncConstraints -> RisingFuncConstraints -> [Name] -> IO InferenceRes
 inference' infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc rising_fc try_to_synth = do
-    putStrLn "inference'"
-    
+    putStrLn "---\ninference'"
+    putStrLn $ "fc = " ++ printFCs fc
+    putStrLn $ "rising_fc = " ++ printFCs rising_fc
+
     synth_gs <- synthesize infconfig g2config ghci lrs gs (unionFC fc rising_fc) try_to_synth
 
     print synth_gs
@@ -111,23 +113,39 @@ inference' infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc rising_fc 
             case ref of
                 Left cex -> return $ CEx cex
                 Right (new_fc, wu')  -> do
-                    putStrLn "New FuncConstraints"
+                    putStrLn "---\nNew FuncConstraints"
+                    putStrLn $ "new_fc = " ++ printFCs new_fc
                     let pre_solved = alreadySpecified ghci new_fc
                     case nullFC pre_solved of
                         False -> do
-                            putStrLn "returning FuncConstraints"
-                            return $ FCs (unionFC pre_solved rising_fc) wu'
+                            putStrLn "---\nreturning FuncConstraints"
+                            putStrLn $ "pre_solved = " ++ printFCs pre_solved
+                            putStrLn $ "rising_fc = " ++ printFCs rising_fc
+                            let merged_fc = unionFC pre_solved rising_fc
+                                merged_fc' = adjustOldFC merged_fc pre_solved
+                            return $ FCs merged_fc' wu'
                         True -> do
                             let rel_funcs = relFuncs infconfig new_fc
-                                fc' = adjustOldFC fc new_fc
+                                fc' = adjustOldFC fc new_fc -- (unionFC rising_fc new_fc)
                                 merged_fc = unionFC (unionFC fc' new_fc) rising_fc
+
+                            putStrLn "---\nTrue Branch"
+                            putStrLn $ "fc' = " ++ printFCs fc'
+                            putStrLn $ "rising_fc = " ++ printFCs rising_fc
                             
                             lev <- inference' infconfig g2config lhconfig ghci m_modname lrs cg wu' gs merged_fc emptyFC rel_funcs
 
                             case lev of
-                                FCs new_fc wu' ->
-                                    inference' infconfig g2config lhconfig ghci m_modname lrs cg wu' gs fc (unionFC new_fc rising_fc) try_to_synth
-                                _ -> return lev
+                                FCs new_new_fc wu' -> do
+                                    putStrLn "---\nMoving up"
+                                    putStrLn $ "fc = " ++ printFCs fc
+                                    putStrLn $ "fc' = " ++ printFCs fc'
+                                    putStrLn $ "rising_fc = " ++ printFCs rising_fc
+                                    putStrLn $ "new_new_fc = " ++ printFCs new_new_fc
+                                    inference' infconfig g2config lhconfig ghci m_modname lrs cg wu' gs fc (unionFC new_new_fc rising_fc) try_to_synth
+                                _ -> do
+                                    putStrLn "---\nReturn lev"
+                                    return lev
 
             -- case ref of
             --     FCs new_fc new_wu ->
@@ -266,8 +284,6 @@ synthesize' infconfig ghci lrs meas_ex fc gs n = do
 
     case spec_qual of
         Just (new_spec, new_qual) -> do
-            putStrLn $ "new_qual = " ++ show new_qual
-
             -- We ASSUME postconditions, and ASSERT preconditions.  This ensures
             -- that our precondition is satisified by the caller, and the postcondition
             -- is strong enough to allow verifying the caller
@@ -282,8 +298,6 @@ synthesizePre infconfig ghci lrs meas_ex fc gs n = do
 
     case spec_qual of
         Just (new_spec, new_qual) -> do
-            putStrLn $ "new_qual = " ++ show new_qual
-
             -- When we are trying to find a precondition to prevent some bad call,
             -- we want to avoid asserting the precondition, as this will cause us
             -- to move on before we are ready

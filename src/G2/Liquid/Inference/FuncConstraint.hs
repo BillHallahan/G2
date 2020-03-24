@@ -17,12 +17,17 @@ module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
                                           , mapMaybeFC
                                           , filterFC
 
-                                          , constraining ) where
+                                          , constraining
+
+                                          , printFCs ) where
 
 import G2.Language.AST
+import G2.Language.Naming
 import G2.Language.Syntax
+import G2.Lib.Printers
 
 import Data.Coerce
+import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
@@ -89,6 +94,28 @@ filterFC p = coerce (M.map (filter p))
 constraining :: FuncConstraint -> Name
 constraining = funcName . constraint
 
+printFCs :: FuncConstraints -> String
+printFCs = intercalate "\n" . map printFC . toListFC
+
+printFC :: FuncConstraint -> String
+printFC fc@(FC { constraint = c}) =
+    let
+      f = funcName c
+      cl = mkExprHaskell . foldl (\a a' -> App a a') (Var (Id f TyUnknown)) $ arguments c
+
+      r = mkExprHaskell $ returns c
+      r' = case polarity fc of
+              Pos -> r
+              Neg -> "NOT " ++ r
+
+      md = case modification fc of
+                    SwitchImplies ns -> "switch on " ++ show (map nameOcc ns)
+                    Delete ns -> "delete on " ++ show (map nameOcc ns)
+                    None -> ""
+    in
+    case bool_rel fc of
+        BRAnd -> cl ++ " AND " ++ r' ++ " " ++ md
+        BRImplies -> cl ++ " => " ++ r' ++ " " ++ md
 instance ASTContainer FuncConstraint Expr where
     containedASTs = containedASTs . constraint
 
