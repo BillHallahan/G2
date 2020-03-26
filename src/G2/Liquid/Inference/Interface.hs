@@ -146,8 +146,14 @@ inference' level infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc risi
                                     putStrLn $ "fc' =\n" ++ printFCs fc'
                                     putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
                                     putStrLn $ "new_new_fc =\n" ++ printFCs new_new_fc
+                                    let
+                                        -- If we have new FuncConstraints, we need to resynthesize,
+                                        -- but otherwise we can just keep the exisiting specifications
+                                        cons_on = map (funcName . constraint) $ toListFC new_new_fc
+                                        usable_gs = filterOutSpecs cons_on synth_gs
+                                    
                                     if nullFC (alreadySpecified ghci new_new_fc)
-                                        then inference' level infconfig g2config lhconfig ghci m_modname lrs cg wu' gs fc (unionFC new_new_fc rising_fc) []
+                                        then inference' level infconfig g2config lhconfig ghci m_modname lrs cg wu' usable_gs fc (unionFC new_new_fc rising_fc) []
                                         else return lev
                                 _ -> do
                                     putStrLn "---\nReturn lev"
