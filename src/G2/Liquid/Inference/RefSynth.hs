@@ -389,7 +389,7 @@ adjustTypeUsage params srt bool_trms decls type_trms =
 extIntRuleList :: [GTerm]
 extIntRuleList = intRuleList ++ 
     [ GBfTerm $ BfIdentifierBfs (ISymb "*") [intBf, intBf]
-    , GBfTerm $ BfIdentifierBfs (ISymb safeModSymb) [intBf, BfIdentifier (ISymb "IConst")]
+    , GBfTerm $ BfIdentifierBfs (ISymb safeModSymb) [intBf, intConstBf]
     ]
 
 intRuleList :: [GTerm]
@@ -459,8 +459,14 @@ dtGroupRuleList symb srt = GroupedRuleList symb srt [GVariable srt]
 intBf :: BfTerm
 intBf = BfIdentifier (ISymb "I")
 
+intConstBf :: BfTerm
+intConstBf = BfIdentifier (ISymb "IConst")
+
 doubleBf :: BfTerm
 doubleBf = BfIdentifier (ISymb "D")
+
+doubleConstBf :: BfTerm
+doubleConstBf = BfIdentifier (ISymb "DConst")
 
 boolBf :: BfTerm
 boolBf = BfIdentifier (ISymb "B")

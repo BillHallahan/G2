@@ -195,6 +195,9 @@ refineUnsafe infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc rising_f
     print wu
     let merged_se_ghci = addSpecsToGhcInfos ghci (switchAssumesToAsserts gs)
 
+    putStrLn "gsTySigs"
+    mapM_ (print . gsTySigs . spec) merged_se_ghci
+
     let bad' = nub $ map nameOcc bad
 
     res <- mapM (genNewConstraints merged_se_ghci m_modname lrs infconfig g2config) bad'

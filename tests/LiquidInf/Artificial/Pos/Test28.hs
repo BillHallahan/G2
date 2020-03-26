@@ -9,9 +9,6 @@ import Data.List (minimumBy)
 
 infixr 9 :+:
 
-{-@ die :: {v:String | false} -> a @-}
-die str = error ("Oops, I died!" ++ str)
-
 data List a = Emp
             | (:+:) a (List a)
               deriving (Eq, Ord, Show)
@@ -26,16 +23,17 @@ map       :: (a -> b) -> List a -> List b
 map f Emp        = Emp
 map f (x :+: xs) = f x :+: map f xs
 
+{-@ divide :: Double -> { x:Int | x /= 0 } -> Double @-}
 divide :: Double -> Int -> Double
-divide n 0 = die "oops divide by zero"
+divide n 0 = error "divide by zero"
 divide n d = n
 
 type Point   = List Double
 {-@ type PointN n = {v:List Double | size v = n} @-}
 
-centroid :: Int -> Point -> Int -> Point
-centroid _ p sz = map (\x -> x `divide` sz) p
+centroid :: Point -> Int -> Point
+centroid p sz = map (\x -> x `divide` sz) p
 
-{-@ normalize :: n:Int -> { x:Int | x /= 0} -> PointN n -> PointN n @-}
-normalize :: Int -> Int -> Point -> Point
-normalize n sz p = centroid n p sz
+{-@ normalize :: { x:Int | x /= 0} -> v:List Double -> { w:List Double | size v == size w} @-}
+normalize :: Int -> Point -> Point
+normalize sz p = centroid p sz

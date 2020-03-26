@@ -53,6 +53,8 @@ verifyVarToName Safe = Safe
 verifyVarToName (Crash ic s) = Crash ic s
 verifyVarToName (Unsafe v) = Unsafe (map varToName v)
 
+-- Tries to verify the given assertions, and if that fails, removes
+-- any synthesized assertions/assumptions on the failing functions.
 tryHardToVerify :: InferenceConfig
                 -> Config
                 -> [GhcInfo]
@@ -69,7 +71,7 @@ tryHardToVerify infconfig lhconfig ghci gs = do
             filtered_res <- return . verifyVarToName =<<
                                         verify infconfig lhconfig f_merged_ghci
             case filtered_res of
-                Unsafe x -> return $ Left x
+                Unsafe _ -> return $ Left x
                 Safe -> return $ Right f_gs
                 Crash ci err -> error $ "Crash\n" ++ show ci ++ "\n" ++ err
         Safe -> return $ Right gs
