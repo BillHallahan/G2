@@ -66,7 +66,7 @@ checkQualifs f config = do
 
 callInference :: String -> InferenceConfig -> G2.Config -> IO ()
 callInference f infconfig config = do
-    gs <- inference infconfig config [] [f] []
+    gs <- inferenceCheck infconfig config [] [f] []
     case gs of
         Left gs' -> do
             putStrLn "Counterexample"

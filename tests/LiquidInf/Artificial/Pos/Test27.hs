@@ -36,6 +36,6 @@ type Point   = List Double
 centroid :: Point -> Int -> Point
 centroid p sz = map (\x -> x `divide` sz) p
 
-{-@ normalize :: Int -> PointN -> PointN @-}
+{-@ normalize :: { x:Int | x /= 0} -> PointN -> PointN @-}
 normalize :: Int -> Point -> Point
 normalize sz p = centroid p sz

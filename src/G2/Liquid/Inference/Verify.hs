@@ -3,6 +3,7 @@
 module G2.Liquid.Inference.Verify ( VerifyResult (..)
                                   , verifyVarToName
                                   , tryHardToVerify
+                                  , checkGSCorrect
                                   , verify
                                   , ghcInfos
                                   , lhConfig) where
@@ -73,6 +74,14 @@ tryHardToVerify infconfig lhconfig ghci gs = do
                 Crash ci err -> error $ "Crash\n" ++ show ci ++ "\n" ++ err
         Safe -> return $ Right gs
         Crash ci err -> error $ "Crash\n" ++ show ci ++ "\n" ++ err
+
+-- | Confirm that we have actually found exactly the needed specs
+checkGSCorrect :: InferenceConfig -> Config -> [GhcInfo] -> GeneratedSpecs -> IO (VerifyResult V.Var)
+checkGSCorrect infconfig lhconfig ghci gs
+    | nullAssumeGS gs = do
+        let merged_ghci = addSpecsToGhcInfos ghci gs
+        verify infconfig lhconfig merged_ghci
+    | otherwise = error "Non-null assumes."
 
 verify :: InferenceConfig -> Config ->  [GhcInfo] -> IO (VerifyResult V.Var)
 verify infconfig cfg ghci = do
