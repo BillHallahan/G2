@@ -154,7 +154,7 @@ inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu gs fc ris
                 inferenceL (level + 1) infconfig g2config lhconfig ghci' m_modname lrs nls' wu new_gs' fc rising_fc []
             | otherwise -> return $ GS new_gs
         Left bad -> do
-            ref <- refineUnsafe infconfig g2config lhconfig ghci m_modname lrs wu synth_gs fc rising_fc bad
+            ref <- refineUnsafe infconfig g2config ghci m_modname lrs wu synth_gs bad
             
             case ref of
                 Left cex -> return $ CEx cex
@@ -201,10 +201,10 @@ inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu gs fc ris
                                     putStrLn "---\nReturn lev"
                                     return lev
 
-refineUnsafe :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
-             -> WorkingUp -> GeneratedSpecs -> FuncConstraints
-             -> RisingFuncConstraints -> [Name] -> IO (Either [CounterExample] (FuncConstraints, WorkingUp))
-refineUnsafe infconfig g2config lhconfig ghci m_modname lrs wu gs fc rising_fc bad = do
+refineUnsafe :: InferenceConfig -> G2.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
+             -> WorkingUp -> GeneratedSpecs
+             -> [Name] -> IO (Either [CounterExample] (FuncConstraints, WorkingUp))
+refineUnsafe infconfig g2config ghci m_modname lrs wu gs bad = do
     putStrLn $ "refineUnsafe " ++ show bad
     print wu
     let merged_se_ghci = addSpecsToGhcInfos ghci (switchAssumesToAsserts gs)
