@@ -1,7 +1,8 @@
 module G2.Liquid.SpecialAsserts ( addSpecialAsserts
                                 , addTrueAsserts
                                 , addTrueAssertsAll
-                                , addErrorAssumes) where
+                                , addErrorAssumes
+                                , addErrorSymGens) where
 
 import G2.Config
 import G2.Language
@@ -87,3 +88,20 @@ addErrorAssumes'' kv v@(Var (Id n _))
         flse <- mkFalseE
         return $ Assume Nothing flse v
 addErrorAssumes'' kv e = modifyChildrenM (addErrorAssumes'' kv) e
+
+
+-- | Blocks calling error in the functions specified in the block_errors_in in
+-- the Config, by replacing the errors with a SymGen
+addErrorSymGens :: Config -> LHStateM ()
+addErrorSymGens config = mapWithKeyME (addErrorSymGens' (block_errors_in config))
+
+addErrorSymGens' :: S.HashSet (T.Text, Maybe T.Text) -> Name -> Expr -> LHStateM Expr
+addErrorSymGens' ns (Name n m _ _) e = do
+    kv <- knownValues
+    if (n, m) `S.member` ns then addErrorSymGens'' kv (returnType e) e else return e
+
+addErrorSymGens'' :: KnownValues -> Type -> Expr -> LHStateM Expr
+addErrorSymGens'' kv t v@(Var (Id n _))
+    | KV.isErrorFunc kv n = do
+        return $ SymGen t
+addErrorSymGens'' kv t e = modifyChildrenM (addErrorSymGens'' kv t) e

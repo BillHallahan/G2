@@ -77,7 +77,19 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
 
         lrs = createStateForInference simp_s g2config' ghci
 
-        nls = nameLevels . getCallGraph . expr_env . state . lr_state $ lrs
+        eenv = expr_env . state . lr_state $ lrs
+
+        asserts_on = map (\(Name n m _ _) -> (n, m)) 
+                   . map varToName
+                   $ concatMap (map fst . gsTySigs . spec) ghci
+        asserts_on' = filter (\(Name n m _ _) -> (n, m) `elem` asserts_on ) $ E.keys eenv
+
+        nls = filter (not . null)
+            . map (filter (\(Name _ m _ _) -> m == fst exg2)) 
+            . nameLevels asserts_on'
+            . getCallGraph $ eenv
+
+    putStrLn $ "nls = " ++ show nls
 
     inf <- inferenceL 0 infconfig' g2config' lhconfig ghci (fst exg2) lrs nls workingUp emptyGS emptyFC emptyFC []
     case inf of
@@ -120,22 +132,27 @@ inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu gs fc ris
     putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
     putStrLn $ "gs =\n" ++ show gs
     putStrLn $ "in ghci specs = " ++ show (concatMap (map fst) $ map (gsTySigs . spec) ghci)
+    putStrLn $ "nls = " ++ show nls
 
     synth_gs <- synthesize infconfig g2config ghci lrs gs (unionFC fc rising_fc) try_to_synth
 
     print synth_gs
 
-    res <- tryHardToVerify infconfig lhconfig ghci synth_gs
+    let ignore = case nls of
+                    (_:nls') -> concat nls'
+                    [] -> []
+
+    res <- tryHardToVerifyIgnoring infconfig lhconfig ghci synth_gs ignore
 
     case res of
         Right new_gs
-            | nullAssumeGS synth_gs -> return $ GS new_gs
-            | (_:nls') <- nls ->
+            | (_:nls') <- nls -> do
+                putStrLn "---\nFound good GS"
                 let new_gs' = switchAssumesToAsserts new_gs
                     ghci' = addSpecsToGhcInfos ghci new_gs'
-                in
+                
                 inferenceL (level + 1) infconfig g2config lhconfig ghci' m_modname lrs nls' wu new_gs' fc rising_fc []
-            | otherwise -> error "inferenceL: No lower level"
+            | otherwise -> return $ GS new_gs
         Left bad -> do
             ref <- refineUnsafe infconfig g2config lhconfig ghci m_modname lrs wu synth_gs fc rising_fc bad
             
@@ -199,6 +216,7 @@ refineUnsafe infconfig g2config lhconfig ghci m_modname lrs wu gs fc rising_fc b
 
     res <- mapM (genNewConstraints merged_se_ghci m_modname lrs infconfig g2config) bad'
 
+    putStrLn $ "length res = " ++ show (length res)
     putStrLn $ "res"
     printCE $ concat res
     let res' = concat res
@@ -316,14 +334,8 @@ synthesizePre infconfig ghci lrs meas_ex fc gs n = do
 cexsToFuncConstraints :: LiquidReadyState -> [GhcInfo] -> InferenceConfig -> G2.Config -> WorkingUp -> CounterExample -> Either CounterExample FuncConstraints
 cexsToFuncConstraints _ _ infconfig _ _ (DirectCounter dfc fcs@(_:_))
     | not . null $ fcs' =
-        let
-            mkFC pol md fc = FC { polarity = if notRetError fc then pol else Neg
-                                , violated = Post
-                                , modification = md
-                                , bool_rel = if notRetError fc then BRAnd else BRImplies
-                                , constraint = fc}
-        in
-        Right . insertsFC $ map (mkFC Pos imp . real) fcs' ++ map (mkFC Neg del . abstract) fcs'
+        Right . insertsFC $ map (mkRealFCFromAbstracted imp) fcs'
+                            ++ mapMaybe (mkAbstractFCFromAbstracted del) fcs'
     | otherwise = Right $ error "cexsToFuncConstraints: unhandled 1"
     where
         fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
@@ -332,14 +344,8 @@ cexsToFuncConstraints _ _ infconfig _ _ (DirectCounter dfc fcs@(_:_))
         del = Delete [funcName dfc]
 cexsToFuncConstraints _ _ infconfig _ _ (CallsCounter dfc cfc fcs@(_:_))
     | not . null $ fcs' =
-        let
-            mkFC pol md fc = FC { polarity = if notRetError fc then pol else Neg
-                                , violated = Post
-                                , modification = md
-                                , bool_rel = if notRetError fc then BRAnd else BRImplies
-                                , constraint = fc}
-        in
-        Right . insertsFC $ map (mkFC Pos imp . real) fcs' ++ map (mkFC Neg del . abstract) fcs'
+        Right . insertsFC $ map (mkRealFCFromAbstracted imp) fcs'
+                            ++ mapMaybe (mkAbstractFCFromAbstracted del) fcs'
     | otherwise = Right $ error "cexsToFuncConstraints: Should be unreachable! Non-refinable function abstracted!"
     where
         fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
@@ -384,6 +390,33 @@ cexsToFuncConstraints lrs ghci infconfig _ wu cex@(CallsCounter caller_fc called
                                                    , modification = SwitchImplies [funcName caller_fc]
                                                    , bool_rel = if notRetError called_fc then BRAnd else BRImplies
                                                    , constraint = called_fc } ]
+
+mkRealFCFromAbstracted :: Modification -> Abstracted -> FuncConstraint
+mkRealFCFromAbstracted md ce =
+    let
+        fc = real ce
+    in
+    FC { polarity = if notRetError fc then Pos else Neg
+       , violated = Post
+       , modification = md
+       , bool_rel = if notRetError fc then BRAnd else BRImplies
+       , constraint = fc } 
+
+-- | If the real fc returns an error, we know that our precondition has to be
+-- strengthened to block the input.
+-- Thus, creating an abstract counterexample would be (at best) redundant.
+mkAbstractFCFromAbstracted :: Modification -> Abstracted -> Maybe FuncConstraint
+mkAbstractFCFromAbstracted md ce
+    | notRetError $ real ce =
+        let
+            fc = abstract ce
+        in
+        Just $ FC { polarity = Neg
+                  , violated = Post
+                  , modification = md
+                  , bool_rel = BRAnd
+                  , constraint = fc } 
+    | otherwise = Nothing
 
 isPreRefined :: Name -> [GhcInfo] -> Bool
 isPreRefined (Name n m _ _) ghci =
@@ -504,7 +537,7 @@ filterErrors' fc =
         as = not . any isError $ arguments c
         r = not . isError . returns $ c
     in
-    as && (r || FC.violated fc == Pre)
+    as -- && (r || FC.violated fc == Pre)
     where
         isError (Prim Error _) = True
         isError _ = False

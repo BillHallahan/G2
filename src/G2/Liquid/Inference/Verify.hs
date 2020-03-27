@@ -2,7 +2,7 @@
 
 module G2.Liquid.Inference.Verify ( VerifyResult (..)
                                   , verifyVarToName
-                                  , tryHardToVerify
+                                  , tryHardToVerifyIgnoring
                                   , checkGSCorrect
                                   , verify
                                   , ghcInfos
@@ -53,14 +53,16 @@ verifyVarToName Safe = Safe
 verifyVarToName (Crash ic s) = Crash ic s
 verifyVarToName (Unsafe v) = Unsafe (map varToName v)
 
--- Tries to verify the given assertions, and if that fails, removes
--- any synthesized assertions/assumptions on the failing functions.
-tryHardToVerify :: InferenceConfig
-                -> Config
-                -> [GhcInfo]
-                -> GeneratedSpecs
-                -> IO (Either [G2.Name] GeneratedSpecs)
-tryHardToVerify infconfig lhconfig ghci gs = do
+-- Tries to verify the assertions, specifically for the set of functions,
+-- that we care about. If that fails, removes any synthesized
+-- assertions/assumptions on the failing functions.
+tryHardToVerifyIgnoring :: InferenceConfig
+                        -> Config
+                        -> [GhcInfo]
+                        -> GeneratedSpecs
+                        -> [G2.Name]
+                        -> IO (Either [G2.Name] GeneratedSpecs)
+tryHardToVerifyIgnoring infconfig lhconfig ghci gs ignore = do
     let merged_ghci = addSpecsToGhcInfos ghci gs
 
     putStrLn "---\nVerify"
@@ -72,18 +74,24 @@ tryHardToVerify infconfig lhconfig ghci gs = do
 
     res <- return . verifyVarToName =<< verify infconfig lhconfig merged_ghci
     case res of
-        Unsafe x -> do
-            let f_gs = filterOutSpecs x gs
+        Unsafe ns
+          | f_ns <- filterIgnoring ns
+          , f_ns /= [] -> do
+            let f_gs = filterOutSpecs f_ns gs
                 f_merged_ghci = addSpecsToGhcInfos ghci f_gs
 
             filtered_res <- return . verifyVarToName =<<
                                         verify infconfig lhconfig f_merged_ghci
             case filtered_res of
-                Unsafe _ -> return $ Left x
+                Unsafe _ -> return $ Left f_ns
                 Safe -> return $ Right f_gs
                 Crash ci err -> error $ "Crash\n" ++ show ci ++ "\n" ++ err
+          | otherwise -> return $ Right gs
         Safe -> return $ Right gs
         Crash ci err -> error $ "Crash\n" ++ show ci ++ "\n" ++ err
+    where
+        ignore' = map (\(G2.Name n m _ _) -> (n, m)) ignore
+        filterIgnoring = filter (\(G2.Name n m _ _) -> (n, m) `notElem` ignore')
 
 -- | Confirm that we have actually found exactly the needed specs
 checkGSCorrect :: InferenceConfig -> Config -> [GhcInfo] -> GeneratedSpecs -> IO (VerifyResult V.Var)

@@ -10,7 +10,7 @@ import G2.Language.Syntax
 
 import Data.Graph
 import qualified Data.HashMap.Lazy as M
-
+import Data.Maybe
 
 data CallGraph = CallGraph { graph :: Graph
                            , nfv :: Vertex -> ((), Name, [Name])
@@ -42,16 +42,17 @@ calledBy n g = map fst
              . map (\(v1, v2) -> (nodeName g v1, nodeName g v2)) $ edges (graph g)
 
 -- | Returns:
--- (1) a list of list of names, where the first list contains functions called
--- by no other functions, and the nth list, n > 2, includes functions called by
+-- (1) a list of list of names, where the first list contains functions
+-- passed in, and the nth list, n > 2, includes functions called by
 -- functions in the (n - 1)th list.
-nameLevels :: CallGraph -> [[Name]]
-nameLevels (CallGraph { graph = g, nfv = f }) =
-    nameLevels' . map (mapTree (f'. f)) $ dff g
+nameLevels :: [Name] -> CallGraph -> [[Name]]
+nameLevels start (CallGraph { graph = g, nfv = f, vert = v }) =
+    nameLevels' . map (mapTree (f'. f)) $ dfs g (mapMaybe v start)
     where
         f' (_, n, _) = n
 
 nameLevels' :: Forest Name -> [[Name]]
+nameLevels' [] = []
 nameLevels' frst = map nodeName frst:nameLevels' (concatMap nodeNested frst)
     where
         nodeName (Node n _) = n
