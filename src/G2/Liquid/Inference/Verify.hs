@@ -62,6 +62,14 @@ tryHardToVerify :: InferenceConfig
                 -> IO (Either [G2.Name] GeneratedSpecs)
 tryHardToVerify infconfig lhconfig ghci gs = do
     let merged_ghci = addSpecsToGhcInfos ghci gs
+
+    putStrLn "---\nVerify"
+    putStrLn "gsAsmSigs"
+    mapM_ (print . gsAsmSigs . spec) merged_ghci
+    putStrLn "gsTySigs"
+    mapM_ (print . gsTySigs . spec) merged_ghci
+    putStrLn "---\nEnd Verify"
+
     res <- return . verifyVarToName =<< verify infconfig lhconfig merged_ghci
     case res of
         Unsafe x -> do

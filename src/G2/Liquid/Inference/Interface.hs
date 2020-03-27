@@ -77,9 +77,9 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
 
         lrs = createStateForInference simp_s g2config' ghci
 
-        cg = getCallGraph . expr_env . state . lr_state $ lrs
+        nls = nameLevels . getCallGraph . expr_env . state . lr_state $ lrs
 
-    inf <- inferenceL 0 infconfig' g2config' lhconfig ghci (fst exg2) lrs cg workingUp emptyGS emptyFC emptyFC []
+    inf <- inferenceL 0 infconfig' g2config' lhconfig ghci (fst exg2) lrs nls workingUp emptyGS emptyFC emptyFC []
     case inf of
         CEx cex -> return $ Left cex
         GS gs -> return $ Right gs
@@ -110,10 +110,11 @@ data InferenceRes = CEx [CounterExample]
 type RisingFuncConstraints = FuncConstraints
 
 type Level = Int
+type NameLevels = [[Name]]
 
 inferenceL :: Level -> InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
-           -> CallGraph -> WorkingUp -> GeneratedSpecs -> FuncConstraints -> RisingFuncConstraints -> [Name] -> IO InferenceRes
-inferenceL level infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc rising_fc try_to_synth = do
+           -> NameLevels -> WorkingUp -> GeneratedSpecs -> FuncConstraints -> RisingFuncConstraints -> [Name] -> IO InferenceRes
+inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu gs fc rising_fc try_to_synth = do
     putStrLn $ "---\ninference' level " ++ show level
     putStrLn $ "fc =\n" ++ printFCs fc
     putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
@@ -129,13 +130,14 @@ inferenceL level infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc risi
     case res of
         Right new_gs
             | nullAssumeGS synth_gs -> return $ GS new_gs
-            | otherwise ->
+            | (_:nls') <- nls ->
                 let new_gs' = switchAssumesToAsserts new_gs
                     ghci' = addSpecsToGhcInfos ghci new_gs'
                 in
-                inferenceL (level + 1) infconfig g2config lhconfig ghci' m_modname lrs cg wu new_gs' fc rising_fc []
+                inferenceL (level + 1) infconfig g2config lhconfig ghci' m_modname lrs nls' wu new_gs' fc rising_fc []
+            | otherwise -> error "inferenceL: No lower level"
         Left bad -> do
-            ref <- refineUnsafe infconfig g2config lhconfig ghci m_modname lrs cg wu synth_gs fc rising_fc bad
+            ref <- refineUnsafe infconfig g2config lhconfig ghci m_modname lrs wu synth_gs fc rising_fc bad
             
             case ref of
                 Left cex -> return $ CEx cex
@@ -160,7 +162,7 @@ inferenceL level infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc risi
                             putStrLn $ "fc' =\n" ++ printFCs fc'
                             putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
                             
-                            lev <- inferenceL level infconfig g2config lhconfig ghci m_modname lrs cg wu' synth_gs merged_fc emptyFC rel_funcs
+                            lev <- inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu' synth_gs merged_fc emptyFC rel_funcs
 
                             case lev of
                                 FCs new_new_fc wu' -> do
@@ -176,21 +178,16 @@ inferenceL level infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc risi
                                         usable_gs = filterOutSpecs cons_on synth_gs
                                     
                                     if nullFC (alreadySpecified ghci new_new_fc)
-                                        then inferenceL level infconfig g2config lhconfig ghci m_modname lrs cg wu' usable_gs fc (unionFC new_new_fc rising_fc) []
+                                        then inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu' usable_gs fc (unionFC new_new_fc rising_fc) []
                                         else return lev
                                 _ -> do
                                     putStrLn "---\nReturn lev"
                                     return lev
 
-            -- case ref of
-            --     FCs new_fc new_wu ->
-            --         conflictingFCs infconfig g2config lhconfig ghci m_modname lrs cg new_wu synth_gs fc new_fc
-            --     _ -> return ref
-
 refineUnsafe :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
-             -> CallGraph -> WorkingUp -> GeneratedSpecs -> FuncConstraints
+             -> WorkingUp -> GeneratedSpecs -> FuncConstraints
              -> RisingFuncConstraints -> [Name] -> IO (Either [CounterExample] (FuncConstraints, WorkingUp))
-refineUnsafe infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc rising_fc bad = do
+refineUnsafe infconfig g2config lhconfig ghci m_modname lrs wu gs fc rising_fc bad = do
     putStrLn $ "refineUnsafe " ++ show bad
     print wu
     let merged_se_ghci = addSpecsToGhcInfos ghci (switchAssumesToAsserts gs)
@@ -217,36 +214,7 @@ refineUnsafe infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc rising_f
             let wu' = adjustWorkingUp infconfig res' wu
 
             return $ Right (new_fc', wu')
-            -- case nullFC pre_solved of
-            --     False -> do
-            --         putStrLn $ "already solved " ++ show (map (funcName . constraint) $ toListFC new_fc')
-            --         return $ FCs (unionFC pre_solved rising_fc) wu'
-            --     True -> do
-            --         -- Only consider functions in the modules that we have access to.
-            --         let rel_funcs = relFuncs infconfig new_fc'
-            --             fc' = adjustOldFC fc new_fc'
-            --             merged_fc = unionFC (unionFC fc' new_fc') rising_fc
                     
-            --         inference' infconfig g2config lhconfig ghci m_modname lrs cg wu' gs merged_fc emptyFC rel_funcs
-                    
-conflictingFCs :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
-               -> CallGraph -> WorkingUp -> GeneratedSpecs -> FuncConstraints -> RisingFuncConstraints -> IO InferenceRes
-conflictingFCs infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc rising_fc = do
-    putStrLn "conflictingFCs"
-    let as_f_rising_fc = alreadySpecified ghci rising_fc
-    case nullFC as_f_rising_fc of
-        False -> return $ FCs rising_fc wu
-        True ->
-            let
-                constrained = map (funcName . constraint) $ toListFC rising_fc
-                fc' = adjustOldFC fc rising_fc
-
-                merged_fc = unionFC fc' rising_fc
-
-                all_f_rising_fc = map (funcName . constraint) $ toListFC rising_fc
-            in
-            undefined -- inference' infconfig g2config lhconfig ghci m_modname lrs cg wu gs fc' rising_fc all_f_rising_fc
-
 adjustOldFC :: FuncConstraints -- ^ Old FuncConstraints
             -> FuncConstraints -- ^ New FuncConstraints
             -> FuncConstraints
