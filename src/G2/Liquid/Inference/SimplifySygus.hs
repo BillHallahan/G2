@@ -4,7 +4,8 @@ module G2.Liquid.Inference.SimplifySygus ( EliminatedSimple
                                          , elimSimpleDTs
                                          , restoreSimpleDTs 
 
-                                         , elimRedundantAnds) where
+                                         , elimRedundantAnds
+                                         , splitAnds) where
 
 import Sygus.Syntax
 
@@ -248,3 +249,23 @@ elimRedAndsTerm t = t
 inlineAnds :: Term -> [Term]
 inlineAnds (TermCall (ISymb "and") ts) = concatMap inlineAnds ts
 inlineAnds t = [t]
+
+-----------------------------------------
+-- Split up anded terms into separate constraints
+
+splitAnds :: [Cmd] -> [Cmd]
+splitAnds = concatMap splitAnds'
+
+splitAnds' :: Cmd -> [Cmd]
+splitAnds' (Constraint t) = splitAndsTerm t
+splitAnds' cmd = [cmd]
+
+splitAndsTerm :: Term -> [Cmd]
+splitAndsTerm (TermCall (ISymb "and") ts) = map Constraint ts
+splitAndsTerm t = [Constraint t]
+
+
+
+
+
+
