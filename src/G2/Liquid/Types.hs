@@ -105,24 +105,27 @@ newtype AnnotMap =
 
 -- Abstracted values
 data Abstracted = Abstracted { abstract :: L.FuncCall
-                             , real :: L.FuncCall }
+                             , real :: L.FuncCall
+                             , hits_lib_err_in_real :: Bool }
                              deriving (Eq, Show, Read)
 
 mapAbstractedFCs :: (L.FuncCall -> L.FuncCall) ->  Abstracted -> Abstracted
-mapAbstractedFCs f (Abstracted { abstract = a, real = r }) =
-    Abstracted { abstract = f a, real = f r }
+mapAbstractedFCs f (Abstracted { abstract = a, real = r, hits_lib_err_in_real = err }) =
+    Abstracted { abstract = f a, real = f r, hits_lib_err_in_real = err }
 
 instance L.ASTContainer Abstracted L.Expr where
     containedASTs ab = L.containedASTs (abstract ab) ++ L.containedASTs (real ab)
-    modifyContainedASTs f (Abstracted { abstract = a, real = r }) =
+    modifyContainedASTs f (Abstracted { abstract = a, real = r, hits_lib_err_in_real = err }) =
         Abstracted { abstract = L.modifyContainedASTs f a
-                   , real = L.modifyContainedASTs f r}
+                   , real = L.modifyContainedASTs f r
+                   , hits_lib_err_in_real = err}
 
 instance L.ASTContainer Abstracted L.Type where
     containedASTs ab = L.containedASTs (abstract ab) ++ L.containedASTs (real ab)
-    modifyContainedASTs f (Abstracted { abstract = a, real = r }) =
+    modifyContainedASTs f (Abstracted { abstract = a, real = r, hits_lib_err_in_real = err }) =
         Abstracted { abstract = L.modifyContainedASTs f a
-                   , real = L.modifyContainedASTs f r}
+                   , real = L.modifyContainedASTs f r
+                   , hits_lib_err_in_real = err }
 
 -- [LHState]
 -- measures is an extra expression environment, used to build Assertions.

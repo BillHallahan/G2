@@ -334,7 +334,7 @@ synthesizePre infconfig ghci lrs meas_ex fc gs n = do
 cexsToFuncConstraints :: LiquidReadyState -> [GhcInfo] -> InferenceConfig -> G2.Config -> WorkingUp -> CounterExample -> Either CounterExample FuncConstraints
 cexsToFuncConstraints _ _ infconfig _ _ (DirectCounter dfc fcs@(_:_))
     | not . null $ fcs' =
-        Right . insertsFC $ map (mkRealFCFromAbstracted imp) fcs'
+        Right . insertsFC $ mapMaybe (mkRealFCFromAbstracted imp) fcs'
                             ++ mapMaybe (mkAbstractFCFromAbstracted del) fcs'
     | otherwise = Right $ error "cexsToFuncConstraints: unhandled 1"
     where
@@ -344,7 +344,7 @@ cexsToFuncConstraints _ _ infconfig _ _ (DirectCounter dfc fcs@(_:_))
         del = Delete [funcName dfc]
 cexsToFuncConstraints _ _ infconfig _ _ (CallsCounter dfc cfc fcs@(_:_))
     | not . null $ fcs' =
-        Right . insertsFC $ map (mkRealFCFromAbstracted imp) fcs'
+        Right . insertsFC $ mapMaybe (mkRealFCFromAbstracted imp) fcs'
                             ++ mapMaybe (mkAbstractFCFromAbstracted del) fcs'
     | otherwise = Right $ error "cexsToFuncConstraints: Should be unreachable! Non-refinable function abstracted!"
     where
@@ -391,23 +391,25 @@ cexsToFuncConstraints lrs ghci infconfig _ wu cex@(CallsCounter caller_fc called
                                                    , bool_rel = if notRetError called_fc then BRAnd else BRImplies
                                                    , constraint = called_fc } ]
 
-mkRealFCFromAbstracted :: Modification -> Abstracted -> FuncConstraint
-mkRealFCFromAbstracted md ce =
-    let
-        fc = real ce
-    in
-    FC { polarity = if notRetError fc then Pos else Neg
-       , violated = Post
-       , modification = md
-       , bool_rel = if notRetError fc then BRAnd else BRImplies
-       , constraint = fc } 
+mkRealFCFromAbstracted :: Modification -> Abstracted -> Maybe FuncConstraint
+mkRealFCFromAbstracted md ce
+    | not $ hits_lib_err_in_real ce =
+        let
+            fc = real ce
+        in
+        Just $ FC { polarity = if notRetError fc then Pos else Neg
+                  , violated = Post
+                  , modification = md
+                  , bool_rel = if notRetError fc then BRAnd else BRImplies
+                  , constraint = fc }
+    | otherwise = Nothing 
 
 -- | If the real fc returns an error, we know that our precondition has to be
 -- strengthened to block the input.
 -- Thus, creating an abstract counterexample would be (at best) redundant.
 mkAbstractFCFromAbstracted :: Modification -> Abstracted -> Maybe FuncConstraint
 mkAbstractFCFromAbstracted md ce
-    | notRetError $ real ce =
+    | notRetError (real ce) || hits_lib_err_in_real ce =
         let
             fc = abstract ce
         in

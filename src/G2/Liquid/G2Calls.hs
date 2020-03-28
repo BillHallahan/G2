@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Liquid.G2Calls ( checkAbstracted
@@ -13,6 +14,7 @@ import G2.Language as G2
 import qualified G2.Language.ExprEnv as E
 import G2.Liquid.Helpers
 import G2.Liquid.LHReducers
+import G2.Liquid.SpecialAsserts
 import G2.Liquid.Types
 import G2.Solver
 
@@ -76,11 +78,14 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
         -- tell if an assertion was violated.
         -- If an assertion is violated, it means that the function did not need to be abstracted,
         -- but does need to be in `assert_ids` .
-        let s' = elimAssumes . pickHead . modelToExprEnv $
-                   s { curr_expr = CurrExpr Evaluate strict_call }
+        -- We eliminate all assumes, except those blocking calls to library functions.
+        -- See [BlockErrors] in G2.Liquid.SpecialAsserts
+        let s' = elimAssumesExcept . pickHead . modelToExprEnv $
+                   s { curr_expr = CurrExpr Evaluate strict_call
+                     , track = False }
 
         (er, _) <- runG2WithSomes 
-                        (SomeReducer (StdRed share solver simplifier))
+                        (SomeReducer (StdRed share solver simplifier :<~ HitsLibError))
                         (SomeHalter SWHNFHalter)
                         (SomeOrderer NextOrderer)
                         solver simplifier emptyMemConfig s' bindings
@@ -88,16 +93,40 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
         case er of
             [ExecRes
                 {
-                    final_state = (State { curr_expr = CurrExpr _ ce, model = m})
+                    final_state = (State { curr_expr = CurrExpr _ ce, model = m, track = t})
                 }] -> case not $ ce `eqUpToTypes` r of
                         True ->
                             return $ AbstractRes 
                                         ( Abstracted { abstract = abs_fc
-                                                     , real = abs_fc { returns = ce } }
+                                                     , real = abs_fc { returns = ce }
+                                                     , hits_lib_err_in_real = t }
                                         ) m
                         False -> return NotAbstractRes
             _ -> error $ "checkAbstracted': Bad return from runG2WithSomes"
     | otherwise = error $ "checkAbstracted': Bad lookup in runG2WithSomes"
+
+data HitsLibError = HitsLibError
+
+instance Reducer HitsLibError () Bool where
+    initReducer _ _ = ()
+    redRules r _ s@(State { curr_expr = CurrExpr _ ce }) b =
+        case ce of
+            Tick t _ 
+              | t == assumeErrorTickish ->
+                  return (NoProgress, [(s { track = True }, ())], b, r)
+            _ -> return (NoProgress, [(s, ())], b, r)
+
+-- | Remove all @Assume@s from the given `Expr`, unless they have a particular @Tick@
+elimAssumesExcept :: ASTContainer m Expr => m -> m
+elimAssumesExcept = modifyASTs elimAssumesExcept'
+
+elimAssumesExcept' :: Expr -> Expr
+elimAssumesExcept' (Assume _ (Tick t _) e)
+    | t == assumeErrorTickish = Tick t e
+    | otherwise = e
+elimAssumesExcept' (Assume _ _ e) = e
+elimAssumesExcept' e = e
+
 
 -------------------------------
 -- Reduce Calls

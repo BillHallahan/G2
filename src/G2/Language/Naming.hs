@@ -809,6 +809,12 @@ instance (Named a, Named b, Named c, Named d, Named e) => Named (a, b, c, d, e) 
     rename old new (a, b, c, d, e) = (rename old new a, rename old new b, rename old new c, rename old new d, rename old new e)
     renames hm (a, b, c, d, e) = (renames hm a, renames hm b, renames hm c, renames hm d, renames hm e)
 
+instance Named Bool where
+    {-# INLINE names #-}
+    names _ = []
+    {-# INLINE rename #-}
+    rename _ _ = id
+
 instance Named Int where
     {-# INLINE names #-}
     names _ = []
