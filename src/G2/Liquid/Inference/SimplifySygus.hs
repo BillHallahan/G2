@@ -5,7 +5,8 @@ module G2.Liquid.Inference.SimplifySygus ( EliminatedSimple
                                          , restoreSimpleDTs 
 
                                          , elimRedundantAnds
-                                         , splitAnds) where
+                                         , splitAnds
+                                         , simplifyImpliesLHS) where
 
 import Sygus.Syntax
 
@@ -264,8 +265,36 @@ splitAndsTerm :: Term -> [Cmd]
 splitAndsTerm (TermCall (ISymb "and") ts) = map Constraint ts
 splitAndsTerm t = [Constraint t]
 
+-----------------------------------------
+-- Simplify by eliminatng any functions from the LHS of an implies that must be true
 
+simplifyImpliesLHS :: [Cmd] -> [Cmd]
+simplifyImpliesLHS cmd =
+    let
+        true_trms = mapMaybe getTrueTerm cmd
+    in
+    map (simplifyImpliesLHS' true_trms) cmd
 
+simplifyImpliesLHS' :: [Term] -> Cmd -> Cmd
+simplifyImpliesLHS' ts (Constraint t) = Constraint $ simplifyImpliesLHSTerm ts t
+simplifyImpliesLHS' _ cmd = cmd
 
+simplifyImpliesLHSTerm :: [Term] -> Term -> Term
+simplifyImpliesLHSTerm ts (TermCall (ISymb "=>") [lhs, rhs]) =
+    case simplifyImpliesLHSTerm' ts lhs of
+        Just lhs' -> TermCall (ISymb "=>") [lhs', rhs]
+        Nothing -> rhs
+simplifyImpliesLHSTerm _ t = t
+
+simplifyImpliesLHSTerm' :: [Term] -> Term -> Maybe Term
+simplifyImpliesLHSTerm' ts (TermCall (ISymb "and") and_ts) =
+    case mapMaybe (simplifyImpliesLHSTerm' ts) and_ts of
+        [] -> Just . TermLit $ LitBool True
+        and_ts' -> Just $ TermCall (ISymb "and") and_ts'
+simplifyImpliesLHSTerm' ts t = if t `elem` ts then Nothing else Just t
+
+getTrueTerm :: Cmd -> Maybe Term
+getTrueTerm (Constraint t) = Just t
+getTrueTerm _ = Nothing
 
 

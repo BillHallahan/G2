@@ -93,7 +93,7 @@ refSynth' :: InferenceConfig -> SpecType -> G2.Expr -> TypeClasses -> Measures
 refSynth' infconfig spc e tc meas meas_ex fc meas_sym tycons = do
         putStrLn "refSynth"
         let (call, f_num, arg_pb, ret_pb) = sygusCall e tc meas meas_ex fc
-            (es, simp_call) = elimSimpleDTs . splitAnds . elimRedundantAnds $ call
+            (es, simp_call) = elimSimpleDTs . nub . simplifyImpliesLHS . splitAnds . elimRedundantAnds $ call
         let sygus = printSygus simp_call
         putStrLn . T.unpack $ sygus
 

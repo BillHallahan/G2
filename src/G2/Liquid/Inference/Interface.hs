@@ -416,7 +416,7 @@ mkAbstractFCFromAbstracted md ce
         Just $ FC { polarity = Neg
                   , violated = Post
                   , modification = md
-                  , bool_rel = BRAnd
+                  , bool_rel = BRImplies
                   , constraint = fc } 
     | otherwise = Nothing
 
