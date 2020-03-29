@@ -1,4 +1,5 @@
 -- cmd_line = (--no-keep-quals)
+-- timeout = 300
 
 {-@ LIQUID "--prune-unsorted" @-}
 {-@ LIQUID "--no-termination" @-}

@@ -427,7 +427,7 @@ boolDefRuleList =
     , GBfTerm $ BfIdentifierBfs (ISymb "=>") [boolBf, boolBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "and") [boolBf, boolBf]
     -- , GBfTerm $ BfIdentifierBfs (ISymb "or") [boolBf, boolBf]
-    -- , GBfTerm $ BfIdentifierBfs (ISymb "not") [boolBf]
+    , GBfTerm $ BfIdentifierBfs (ISymb "not") [boolBf]
     ]
 
 boolIntArgRuleList :: [GTerm]
