@@ -106,6 +106,7 @@ library
                        , G2.Liquid.Inference.G2Calls
                        , G2.Liquid.Inference.Interface
                        , G2.Liquid.Inference.PolyRef
+                       , G2.Liquid.Inference.Sygus.UnsatCoreElim
                        , G2.Liquid.Inference.Sygus
                        , G2.Liquid.Inference.Sygus.RefSynth
                        , G2.Liquid.Inference.Sygus.SimplifySygus

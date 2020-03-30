@@ -32,6 +32,7 @@ import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.GeneratedSpecs
 import G2.Liquid.Inference.PolyRef
 import G2.Liquid.Inference.Sygus.SimplifySygus
+import G2.Liquid.Inference.Sygus.UnsatCoreElim
 
 import Sygus.LexSygus
 import Sygus.ParseSygus
@@ -94,7 +95,9 @@ refSynth' infconfig spc e tc meas meas_ex fc meas_sym tycons = do
         putStrLn "refSynth"
         let (call, f_num, arg_pb, ret_pb) = sygusCall e tc meas meas_ex fc
             (es, simp_call) = elimSimpleDTs . nub . simplifyImpliesLHS . splitAnds . elimRedundantAnds $ call
-        let sygus = printSygus simp_call
+            no_unsat_call = unsatCoreElim simp_call
+
+        let sygus = printSygus no_unsat_call
         putStrLn . T.unpack $ sygus
 
         res <- runCVC4 infconfig (T.unpack sygus)
