@@ -46,6 +46,7 @@ import qualified Language.Fixpoint.Types as LH
 import qualified Language.Fixpoint.Types as LHF
 
 import Control.Exception
+import Control.Monad.IO.Class
 import qualified Control.Monad.State as S
 import Data.Coerce
 import Data.List
@@ -69,9 +70,9 @@ import qualified Var as V
 
 import Debug.Trace
 
-refSynth :: InferenceConfig -> [GhcInfo] -> LiquidReadyState -> MeasureExs
-         -> FuncConstraints -> Name -> IO (Maybe ([PolyBound LH.Expr], [Qualifier]))
-refSynth infconfig ghci lrs meas_ex fc n@(Name n' _ _ _) = do
+refSynth :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> MeasureExs
+         -> FuncConstraints -> Name -> m (Maybe ([PolyBound LH.Expr], [Qualifier]))
+refSynth ghci lrs meas_ex fc n@(Name n' _ _ _) = do
     let eenv = expr_env . state $ lr_state lrs
         tc = type_classes . state $ lr_state lrs
 
@@ -85,41 +86,43 @@ refSynth infconfig ghci lrs meas_ex fc n@(Name n' _ _ _) = do
 
         meas = lrsMeasures ghci lrs
 
-    print $ "Synthesize spec for " ++ show n
+    liftIO . print $ "Synthesize spec for " ++ show n
     let tcemb = foldr (<>) mempty $ map (gsTcEmbeds . spec) ghci
-    refSynth' infconfig fspec e tc meas meas_ex fc_of_n (measureSymbols ghci) tcemb
+    refSynth' fspec e tc meas meas_ex fc_of_n (measureSymbols ghci) tcemb
 
-refSynth' :: InferenceConfig -> SpecType -> G2.Expr -> TypeClasses -> Measures
-         -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> LH.TCEmb TyCon -> IO (Maybe ([PolyBound LH.Expr], [Qualifier]))
-refSynth' infconfig spc e tc meas meas_ex fc meas_sym tycons = do
-        putStrLn "refSynth"
-        let (call, f_num, arg_pb, ret_pb) = sygusCall e tc meas meas_ex fc
-            (es, simp_call) = elimSimpleDTs . nub . simplifyImpliesLHS . splitAnds . elimRedundantAnds $ call
-            no_unsat_call = unsatCoreElim simp_call
+refSynth' :: (InfConfigM m, MonadIO m) => SpecType -> G2.Expr -> TypeClasses -> Measures
+         -> MeasureExs -> [FuncConstraint] -> MeasureSymbols -> LH.TCEmb TyCon -> m (Maybe ([PolyBound LH.Expr], [Qualifier]))
+refSynth' spc e tc meas meas_ex fc meas_sym tycons = do
+        infconfig <- infConfigM
+        liftIO $ do
+            putStrLn "refSynth"
+            let (call, f_num, arg_pb, ret_pb) = sygusCall e tc meas meas_ex fc
+                (es, simp_call) = elimSimpleDTs . nub . simplifyImpliesLHS . splitAnds . elimRedundantAnds $ call
+                no_unsat_call = unsatCoreElim simp_call
 
-        let sygus = printSygus no_unsat_call
-        putStrLn . T.unpack $ sygus
+            let sygus = printSygus no_unsat_call
+            putStrLn . T.unpack $ sygus
 
-        res <- runCVC4 infconfig (T.unpack sygus)
-        -- res <- runCVC4StreamSolutions infconfig f_num (T.unpack sygus)
+            res <- runCVC4 infconfig (T.unpack sygus)
+            -- res <- runCVC4StreamSolutions infconfig f_num (T.unpack sygus)
 
-        case res of
-            Left _ -> do
-                putStrLn "Timeout"
-                return Nothing
-                -- error "refSynth: Bad call to CVC4"
-            Right smt_st -> do
-                let smt_st' = restoreSimpleDTs es smt_st
+            case res of
+                Left _ -> do
+                    putStrLn "Timeout"
+                    return Nothing
+                    -- error "refSynth: Bad call to CVC4"
+                Right smt_st -> do
+                    let smt_st' = restoreSimpleDTs es smt_st
 
-                putStrLn . T.unpack $ printSygus smt_st'
+                    putStrLn . T.unpack $ printSygus smt_st'
 
-                let lh_st = refToLHExpr spc arg_pb ret_pb smt_st' meas_sym
-                    lh_quals = refToQualifiers spc arg_pb ret_pb smt_st' meas_sym tycons
+                    let lh_st = refToLHExpr spc arg_pb ret_pb smt_st' meas_sym
+                        lh_quals = refToQualifiers spc arg_pb ret_pb smt_st' meas_sym tycons
 
-                print lh_st
-                print lh_quals
+                    print lh_st
+                    print lh_quals
 
-                return $ Just (lh_st, lh_quals)
+                    return $ Just (lh_st, lh_quals)
 
 -------------------------------
 -- Constructing Sygus Formula

@@ -43,7 +43,7 @@ checkQualifs f config = do
     finfo <- parseFInfo ["qualif.hquals"]
 
     let infconfig = mkInferenceConfig []
-    lhconfig <- quals finfo `deepseq` lhConfig [] []
+    lhconfig <- quals finfo `deepseq` defLHConfig [] []
     let lhconfig' = lhconfig { pruneUnsorted = True }
     ghcis <- ghcInfos Nothing lhconfig' [f]
     let ghcis' = map (\ghci ->

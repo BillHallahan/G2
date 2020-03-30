@@ -6,7 +6,7 @@ module G2.Liquid.Inference.Verify ( VerifyResult (..)
                                   , checkGSCorrect
                                   , verify
                                   , ghcInfos
-                                  , lhConfig) where
+                                  , defLHConfig) where
 
 import qualified G2.Language.Syntax as G2
 import G2.Liquid.Helpers
@@ -24,6 +24,7 @@ import qualified Var as V
 ---------------------------------------------------------------------------
 -- Copied from LiquidHaskell (because checkMany not exported)
 import Control.Monad (when)
+import Control.Monad.IO.Class 
 import qualified Control.Exception as Ex
 import HscTypes (SourceError)
 import Language.Haskell.Liquid.UX.Tidy
@@ -56,45 +57,47 @@ verifyVarToName (Unsafe v) = Unsafe (map varToName v)
 -- Tries to verify the assertions, specifically for the set of functions,
 -- that we care about. If that fails, removes any synthesized
 -- assertions/assumptions on the failing functions.
-tryHardToVerifyIgnoring :: InferenceConfig
-                        -> Config
-                        -> [GhcInfo]
+tryHardToVerifyIgnoring :: (InfConfigM m, MonadIO m)
+                        => [GhcInfo]
                         -> GeneratedSpecs
                         -> GeneratedSpecs
                         -> [G2.Name]
-                        -> IO (Either [G2.Name] GeneratedSpecs)
-tryHardToVerifyIgnoring infconfig lhconfig ghci gs lower_gs ignore = do
-    let both_gs = unionDroppingGS gs lower_gs
-    let merged_ghci = addSpecsToGhcInfos ghci both_gs
+                        -> m (Either [G2.Name] GeneratedSpecs)
+tryHardToVerifyIgnoring ghci gs lower_gs ignore = do
+    lhconfig <- lhConfigM
+    infconfig <- infConfigM
+    liftIO $ do
+        let both_gs = unionDroppingGS gs lower_gs
+        let merged_ghci = addSpecsToGhcInfos ghci both_gs
 
-    putStrLn "---\nVerify"
-    putStrLn "gsAsmSigs"
-    mapM_ (print . gsAsmSigs . spec) merged_ghci
-    putStrLn "gsTySigs"
-    mapM_ (print . gsTySigs . spec) merged_ghci
-    putStrLn "---\nEnd Verify"
+        putStrLn "---\nVerify"
+        putStrLn "gsAsmSigs"
+        mapM_ (print . gsAsmSigs . spec) merged_ghci
+        putStrLn "gsTySigs"
+        mapM_ (print . gsTySigs . spec) merged_ghci
+        putStrLn "---\nEnd Verify"
 
-    res <- return . verifyVarToName =<< verify infconfig lhconfig merged_ghci
-    case res of
-        Unsafe ns
-          | f_ns <- filterIgnoring ns
-          , f_ns /= [] -> do
-            let f_gs = filterOutSpecs f_ns gs
-                f_both_gs = filterOutSpecs f_ns both_gs
-                f_merged_ghci = addSpecsToGhcInfos ghci f_both_gs
+        res <- return . verifyVarToName =<< verify infconfig lhconfig merged_ghci
+        case res of
+            Unsafe ns
+              | f_ns <- filterIgnoring ns
+              , f_ns /= [] -> do
+                let f_gs = filterOutSpecs f_ns gs
+                    f_both_gs = filterOutSpecs f_ns both_gs
+                    f_merged_ghci = addSpecsToGhcInfos ghci f_both_gs
 
-            filtered_res <- return . verifyVarToName =<<
-                                        verify infconfig lhconfig f_merged_ghci
-            case filtered_res of
-                Unsafe _ -> return $ Left f_ns
-                Safe -> return $ Right f_gs
-                Crash ci err -> error $ "Crash\n" ++ show ci ++ "\n" ++ err
-          | otherwise -> return $ Right gs
-        Safe -> return $ Right gs
-        Crash ci err -> error $ "Crash\n" ++ show ci ++ "\n" ++ err
-    where
-        ignore' = map (\(G2.Name n m _ _) -> (n, m)) ignore
-        filterIgnoring = filter (\(G2.Name n m _ _) -> (n, m) `notElem` ignore')
+                filtered_res <- return . verifyVarToName =<<
+                                            verify infconfig lhconfig f_merged_ghci
+                case filtered_res of
+                    Unsafe _ -> return $ Left f_ns
+                    Safe -> return $ Right f_gs
+                    Crash ci err -> error $ "Crash\n" ++ show ci ++ "\n" ++ err
+              | otherwise -> return $ Right gs
+            Safe -> return $ Right gs
+            Crash ci err -> error $ "Crash\n" ++ show ci ++ "\n" ++ err
+        where
+            ignore' = map (\(G2.Name n m _ _) -> (n, m)) ignore
+            filterIgnoring = filter (\(G2.Name n m _ _) -> (n, m) `notElem` ignore')
 
 -- | Confirm that we have actually found exactly the needed specs
 checkGSCorrect :: InferenceConfig -> Config -> [GhcInfo] -> GeneratedSpecs -> IO (VerifyResult V.Var)
@@ -121,8 +124,8 @@ ghcInfos me cfg fp = do
     (ghci, _) <- getGhcInfos me cfg fp
     return ghci
 
-lhConfig :: [FilePath] -> [FilePath] -> IO Config
-lhConfig  proj lhlibs = do
+defLHConfig :: [FilePath] -> [FilePath] -> IO Config
+defLHConfig  proj lhlibs = do
     config <- getOpts []
     return config { idirs = idirs config ++ proj ++ lhlibs
                   , files = files config ++ lhlibs

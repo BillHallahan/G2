@@ -1,6 +1,14 @@
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Liquid.Inference.Config ( InferenceConfig (..)
+module G2.Liquid.Inference.Config ( InfConfigM (..)
+                                  , InferenceConfig (..)
+                                  , Configs (..)
+                                  , InfConfig (..)
+                                  , runConfigs
+
                                   , mkInferenceConfig
                                   , adjustConfig) where
 
@@ -16,12 +24,43 @@ import G2.Liquid.Conversion
 import G2.Translation.Haskell
 
 import Language.Haskell.Liquid.Types (GhcInfo (..), GhcSpec (..))
+import qualified Language.Haskell.Liquid.Types as LH
 import Var as V
 
+import Control.Monad.Reader
 import qualified Data.HashSet as S
 import qualified Data.Map as M
 import qualified Data.Text as T
 import Data.Time.Clock
+
+data Configs = Configs { g2_config :: Config
+                       , lh_config :: LH.Config
+                       , inf_config :: InferenceConfig }
+
+class InfConfig c where
+    g2Config :: c -> Config
+    lhConfig :: c -> LH.Config
+    infConfig :: c -> InferenceConfig
+
+class Monad m => InfConfigM m where
+    g2ConfigM :: m Config
+    lhConfigM :: m LH.Config
+    infConfigM :: m InferenceConfig
+
+instance InfConfig Configs where
+    g2Config = g2_config
+    lhConfig = lh_config
+    infConfig = inf_config
+
+instance InfConfig env => InfConfig (ReaderT env m a) where
+    g2Config = return . g2Config =<< ask
+    lhConfig = return . lhConfig =<< ask
+    infConfig = return . infConfig =<< ask
+
+instance (Monad m, InfConfig env) => InfConfigM (ReaderT env m) where 
+    g2ConfigM = return . g2Config =<< ask 
+    lhConfigM = return . lhConfig =<< ask 
+    infConfigM = return . infConfig =<< ask 
 
 data InferenceConfig = InferenceConfig { keep_quals :: Bool
 
@@ -33,6 +72,9 @@ data InferenceConfig = InferenceConfig { keep_quals :: Bool
                                        
                                        , timeout_se :: NominalDiffTime
                                        , timeout_sygus :: NominalDiffTime }
+
+runConfigs :: InfConfig env => ReaderT env m a -> env -> m a
+runConfigs = runReaderT
 
 mkInferenceConfig :: [String] -> InferenceConfig
 mkInferenceConfig as =
