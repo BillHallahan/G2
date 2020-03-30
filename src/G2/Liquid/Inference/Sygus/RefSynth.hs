@@ -147,8 +147,8 @@ sygusCall e tc meas meas_ex fcs@(_:_) =
                declare_dts
                ++
                [ safeModDecl
-               , clampIntDecl 5
-               , clampDoubleDecl 5 ]
+               , clampIntDecl clampUpper
+               , clampDoubleDecl clampUpper ]
                ++
                grams
                ++
@@ -295,6 +295,9 @@ clampDecl fn srt mx =
                 , TermIdent (ISymb "x")
                 ]
             ]
+
+clampUpper :: Num a => a
+clampUpper = 5
 
 -------------------------------
 -- Grammar
@@ -1107,6 +1110,13 @@ termToLHExpr meas_sym@(MeasureSymbols meas_sym') m_args (TermCall (ISymb v) ts)
     -- Measures
     | Just meas <- find (\meas' -> Just (symbolName meas') == fmap zeroName (maybe_StrToName v)) meas_sym' =
         foldl' EApp (EVar meas) $ map (termToLHExpr meas_sym m_args) ts
+    -- Clamped numbers
+    | clampIntSymb == v
+    , [t1] <- ts = error "clamped-int"
+    | clampDoubleSymb == v
+    , [TermCall (ISymb "/") [TermLit l1, TermLit l2]] <- ts = clampedDouble l1 l2
+    | clampDoubleSymb == v
+    , [TermLit l] <- ts = clampedDouble l (LitNum 1)
     -- EBin
     | "+" <- v
     , [t1, t2] <- ts = EBin LH.Plus (termToLHExpr meas_sym m_args t1) (termToLHExpr meas_sym m_args t2)
@@ -1145,7 +1155,7 @@ termToLHExpr meas_sym@(MeasureSymbols meas_sym') m_args (TermCall (ISymb v) ts)
     , [t1, t2] <- ts = PAtom LH.Le (termToLHExpr meas_sym m_args t1) (termToLHExpr meas_sym m_args t2)
     -- More PAtom...
 termToLHExpr meas_sym@(MeasureSymbols meas_sym') m_args (TermCall (ISymb v) ts) =
-    error $ "v = " ++ show (maybe_StrToName v) ++ "\nmeas_syms' = " ++ show (map symbolName meas_sym')
+    error $ "v = " ++ show v ++ "\nts = " ++ show ts ++ "\nmaybe_StrToName v = " ++ show (maybe_StrToName v) ++ "\nmeas_syms' = " ++ show (map symbolName meas_sym')
 termToLHExpr (_) _ t = error $ "termToLHExpr meas_sym m_args: unhandled " ++ show t
 
 getInteger :: Term -> Maybe Integer
@@ -1160,6 +1170,15 @@ litToLHConstant :: Sy.Lit -> LH.Expr
 litToLHConstant (LitNum n) = ECon (I n)
 litToLHConstant (LitBool b) = if b then PTrue else PFalse
 litToLHConstant l = error $ "litToLHConstant: Unhandled literal " ++ show l
+
+clampedDouble :: Sy.Lit -> Sy.Lit -> LH.Expr
+clampedDouble (LitNum d1) (LitNum d2)
+    | n < 0 = ECon (LHF.R 0)
+    | n > clampUpper = ECon (LHF.R clampUpper)
+    | otherwise = ECon (LHF.R n)
+    where
+        n = fromInteger d1 / fromInteger d2
+clampedDouble _ _ = error $ "clampedDouble: Unhandled literals"
 
 -------------------
 
