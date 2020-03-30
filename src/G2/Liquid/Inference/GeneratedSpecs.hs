@@ -3,6 +3,8 @@ module G2.Liquid.Inference.GeneratedSpecs ( GeneratedSpecs
 
                                           , nullAssumeGS
 
+                                          , unionDroppingGS
+                                          
                                           , insertAssumeGS
                                           , insertAssertGS
                                           , insertNewSpec
@@ -86,6 +88,13 @@ switchAssumesToAsserts gs =
                 )
                 (assert_specs gs) (assume_specs gs)
        , assume_specs = M.empty }
+
+-- | Merges two GeneratedSpecs, favoring constraints in the first generated specs
+unionDroppingGS :: GeneratedSpecs -> GeneratedSpecs -> GeneratedSpecs
+unionDroppingGS gs1 gs2 =
+    GeneratedSpecs { assert_specs = M.union (assert_specs gs1) (assert_specs gs2)
+                   , assume_specs = M.union (assume_specs gs1) (assume_specs gs2)
+                   , qualifiers = qualifiers gs1 ++ qualifiers gs2}
 
 lookupAssertGS :: G2.Name -> GeneratedSpecs -> Maybe [PolyBound Expr]
 lookupAssertGS n = M.lookup (zeroOutUnq n) . assert_specs

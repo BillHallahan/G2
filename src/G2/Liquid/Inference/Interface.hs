@@ -91,11 +91,11 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
 
     putStrLn $ "nls = " ++ show nls
 
-    inf <- inferenceL 0 infconfig' g2config' lhconfig ghci (fst exg2) lrs nls workingUp emptyGS emptyFC emptyFC []
+    inf <- inferenceL 0 infconfig' g2config' lhconfig ghci (fst exg2) lrs nls workingUp emptyGS emptyGS emptyFC emptyFC []
     case inf of
         CEx cex -> return $ Left cex
         GS gs -> return $ Right gs
-        FCs _ _ -> error "inference: Unhandled Func Constraints"
+        FCs _ _ _ -> error "inference: Unhandled Func Constraints"
 
 getGHCI :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO ([GhcInfo], LH.Config)
 getGHCI infconfig config proj fp lhlibs = do
@@ -112,7 +112,7 @@ getGHCI infconfig config proj fp lhlibs = do
     return (ghci, lhconfig)
 
 data InferenceRes = CEx [CounterExample]
-                  | FCs FuncConstraints WorkingUp
+                  | FCs FuncConstraints WorkingUp LowerGeneratedSpecs
                   | GS GeneratedSpecs
                   deriving (Show)
 
@@ -121,18 +121,25 @@ data InferenceRes = CEx [CounterExample]
 -- FuncConstraints as RisignFuncConstraints
 type RisingFuncConstraints = FuncConstraints
 
+type LowerGeneratedSpecs = GeneratedSpecs
+
 type Level = Int
 type NameLevels = [[Name]]
 
 inferenceL :: Level -> InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
-           -> NameLevels -> WorkingUp -> GeneratedSpecs -> FuncConstraints -> RisingFuncConstraints -> [Name] -> IO InferenceRes
-inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu gs fc rising_fc try_to_synth = do
+           -> NameLevels -> WorkingUp -> GeneratedSpecs -> LowerGeneratedSpecs -> FuncConstraints -> RisingFuncConstraints -> [Name] -> IO InferenceRes
+inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu gs lower_gs fc rising_fc try_to_synth = do
     putStrLn $ "---\ninference' level " ++ show level
+    putStrLn $ "at_level = " ++ show (case nls of (h:_) -> Just h; _ -> Nothing)
     putStrLn $ "fc =\n" ++ printFCs fc
     putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
     putStrLn $ "gs =\n" ++ show gs
     putStrLn $ "in ghci specs = " ++ show (concatMap (map fst) $ map (gsTySigs . spec) ghci)
     putStrLn $ "nls = " ++ show nls
+
+    let new_lower_gs = case nls of
+                            (ls:_) -> filterOutSpecs ls lower_gs
+                            _ -> lower_gs
 
     synth_gs <- synthesize infconfig g2config ghci lrs gs (unionFC fc rising_fc) try_to_synth
 
@@ -142,7 +149,7 @@ inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu gs fc ris
                     (_:nls') -> concat nls'
                     [] -> []
 
-    res <- tryHardToVerifyIgnoring infconfig lhconfig ghci synth_gs ignore
+    res <- tryHardToVerifyIgnoring infconfig lhconfig ghci synth_gs new_lower_gs ignore
 
     case res of
         Right new_gs
@@ -151,10 +158,10 @@ inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu gs fc ris
                 let new_gs' = switchAssumesToAsserts new_gs
                     ghci' = addSpecsToGhcInfos ghci new_gs'
                 
-                inferenceL (level + 1) infconfig g2config lhconfig ghci' m_modname lrs nls' wu new_gs' fc rising_fc []
+                inferenceL (level + 1) infconfig g2config lhconfig ghci' m_modname lrs nls' wu new_gs' new_lower_gs fc rising_fc []
             | otherwise -> return $ GS new_gs
         Left bad -> do
-            ref <- refineUnsafe infconfig g2config ghci m_modname lrs wu synth_gs bad
+            ref <- refineUnsafe infconfig g2config ghci m_modname lrs wu (unionDroppingGS synth_gs new_lower_gs) bad
             
             case ref of
                 Left cex -> return $ CEx cex
@@ -169,7 +176,7 @@ inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu gs fc ris
                             putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
                             let merged_fc = unionFC pre_solved rising_fc
                                 merged_fc' = adjustOldFC merged_fc pre_solved
-                            return $ FCs merged_fc' wu'
+                            return $ FCs merged_fc' wu' synth_gs
                         True -> do
                             let rel_funcs = relFuncs infconfig new_fc
                                 fc' = adjustOldFC fc new_fc -- (unionFC rising_fc new_fc)
@@ -179,10 +186,10 @@ inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu gs fc ris
                             putStrLn $ "fc' =\n" ++ printFCs fc'
                             putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
                             
-                            lev <- inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu' synth_gs merged_fc emptyFC rel_funcs
+                            lev <- inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu' synth_gs new_lower_gs merged_fc emptyFC rel_funcs
 
                             case lev of
-                                FCs new_new_fc wu' -> do
+                                FCs new_new_fc wu' new_lower_gs' -> do
                                     putStrLn "---\nMoving up"
                                     putStrLn $ "fc =\n" ++ printFCs fc
                                     putStrLn $ "fc' =\n" ++ printFCs fc'
@@ -195,7 +202,7 @@ inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu gs fc ris
                                         usable_gs = filterOutSpecs cons_on synth_gs
                                     
                                     if nullFC (alreadySpecified ghci new_new_fc)
-                                        then inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu' usable_gs fc (unionFC new_new_fc rising_fc) []
+                                        then inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu' usable_gs new_lower_gs' fc (unionFC new_new_fc rising_fc) []
                                         else return lev
                                 _ -> do
                                     putStrLn "---\nReturn lev"

@@ -60,10 +60,12 @@ tryHardToVerifyIgnoring :: InferenceConfig
                         -> Config
                         -> [GhcInfo]
                         -> GeneratedSpecs
+                        -> GeneratedSpecs
                         -> [G2.Name]
                         -> IO (Either [G2.Name] GeneratedSpecs)
-tryHardToVerifyIgnoring infconfig lhconfig ghci gs ignore = do
-    let merged_ghci = addSpecsToGhcInfos ghci gs
+tryHardToVerifyIgnoring infconfig lhconfig ghci gs lower_gs ignore = do
+    let both_gs = unionDroppingGS gs lower_gs
+    let merged_ghci = addSpecsToGhcInfos ghci both_gs
 
     putStrLn "---\nVerify"
     putStrLn "gsAsmSigs"
@@ -78,7 +80,8 @@ tryHardToVerifyIgnoring infconfig lhconfig ghci gs ignore = do
           | f_ns <- filterIgnoring ns
           , f_ns /= [] -> do
             let f_gs = filterOutSpecs f_ns gs
-                f_merged_ghci = addSpecsToGhcInfos ghci f_gs
+                f_both_gs = filterOutSpecs f_ns both_gs
+                f_merged_ghci = addSpecsToGhcInfos ghci f_both_gs
 
             filtered_res <- return . verifyVarToName =<<
                                         verify infconfig lhconfig f_merged_ghci
