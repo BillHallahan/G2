@@ -1112,7 +1112,7 @@ termToLHExpr meas_sym@(MeasureSymbols meas_sym') m_args (TermCall (ISymb v) ts)
         foldl' EApp (EVar meas) $ map (termToLHExpr meas_sym m_args) ts
     -- Clamped numbers
     | clampIntSymb == v
-    , [t1] <- ts = error "clamped-int"
+    , [TermLit l] <- ts = clampedInt l
     | clampDoubleSymb == v
     , [TermCall (ISymb "/") [TermLit l1, TermLit l2]] <- ts = clampedDouble l1 l2
     | clampDoubleSymb == v
@@ -1170,6 +1170,13 @@ litToLHConstant :: Sy.Lit -> LH.Expr
 litToLHConstant (LitNum n) = ECon (I n)
 litToLHConstant (LitBool b) = if b then PTrue else PFalse
 litToLHConstant l = error $ "litToLHConstant: Unhandled literal " ++ show l
+
+clampedInt :: Sy.Lit -> LH.Expr
+clampedInt (LitNum n)
+    | n < 0 = ECon (LHF.I 0)
+    | n > clampUpper = ECon (LHF.I clampUpper)
+    | otherwise = ECon (LHF.I n)
+clampedInt _ = error $ "clampedInt: Unhandled literals"
 
 clampedDouble :: Sy.Lit -> Sy.Lit -> LH.Expr
 clampedDouble (LitNum d1) (LitNum d2)
