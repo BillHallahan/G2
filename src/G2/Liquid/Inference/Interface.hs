@@ -131,9 +131,10 @@ inferenceL :: Level -> InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] ->
 inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu gs lower_gs fc rising_fc try_to_synth = do
     putStrLn $ "---\ninference' level " ++ show level
     putStrLn $ "at_level = " ++ show (case nls of (h:_) -> Just h; _ -> Nothing)
-    putStrLn $ "fc =\n" ++ printFCs fc
-    putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
-    putStrLn $ "gs =\n" ++ show gs
+    putStrLn $ "working up = " ++ show wu
+    -- putStrLn $ "fc =\n" ++ printFCs fc
+    -- putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
+    -- putStrLn $ "gs =\n" ++ show gs
     putStrLn $ "in ghci specs = " ++ show (concatMap (map fst) $ map (gsTySigs . spec) ghci)
     putStrLn $ "nls = " ++ show nls
 
@@ -142,8 +143,6 @@ inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu gs lower_
                             _ -> lower_gs
 
     synth_gs <- synthesize infconfig g2config ghci lrs gs (unionFC fc rising_fc) try_to_synth
-
-    print synth_gs
 
     let ignore = case nls of
                     (_:nls') -> concat nls'
@@ -171,9 +170,9 @@ inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu gs lower_
                     let pre_solved = alreadySpecified ghci new_fc
                     case nullFC pre_solved of
                         False -> do
-                            putStrLn "---\nreturning FuncConstraints"
-                            putStrLn $ "pre_solved =\n" ++ printFCs pre_solved
-                            putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
+                            putStrLn $ "---\nreturning FuncConstraints from level " ++ show level
+                            -- putStrLn $ "pre_solved =\n" ++ printFCs pre_solved
+                            -- putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
                             let merged_fc = unionFC pre_solved rising_fc
                                 merged_fc' = adjustOldFC merged_fc pre_solved
                             return $ FCs merged_fc' wu' synth_gs
@@ -183,16 +182,17 @@ inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu gs lower_
                                 merged_fc = unionFC (unionFC fc' new_fc) rising_fc
 
                             putStrLn "---\nTrue Branch"
-                            putStrLn $ "fc' =\n" ++ printFCs fc'
-                            putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
+                            -- putStrLn $ "fc' =\n" ++ printFCs fc'
+                            -- putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
                             
                             lev <- inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu' synth_gs new_lower_gs merged_fc emptyFC rel_funcs
 
                             case lev of
                                 FCs new_new_fc wu' new_lower_gs' -> do
-                                    putStrLn "---\nMoving up"
-                                    putStrLn $ "fc =\n" ++ printFCs fc
-                                    putStrLn $ "fc' =\n" ++ printFCs fc'
+                                    putStrLn $ "---\nMoving up to level " ++ show level 
+                                    -- putStrLn $ "fc =\n" ++ printFCs fc
+                                    -- putStrLn $ "fc' =\n" ++ printFCs fc'
+                                    putStrLn $ "in ghci specs = " ++ show (concatMap (map fst) $ map (gsTySigs . spec) ghci)
                                     putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
                                     putStrLn $ "new_new_fc =\n" ++ printFCs new_new_fc
                                     let
@@ -201,6 +201,7 @@ inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu gs lower_
                                         cons_on = map (funcName . constraint) $ toListFC new_new_fc
                                         usable_gs = filterOutSpecs cons_on synth_gs
                                     
+
                                     if nullFC (alreadySpecified ghci new_new_fc)
                                         then inferenceL level infconfig g2config lhconfig ghci m_modname lrs nls wu' usable_gs new_lower_gs' fc (unionFC new_new_fc rising_fc) []
                                         else return lev
@@ -387,11 +388,16 @@ cexsToFuncConstraints lrs ghci infconfig _ wu cex@(CallsCounter caller_fc called
                                                  , constraint = called_fc } ]
         (False, False)
             | funcName called_fc `memberWU` wu -> 
-                           Right . insertsFC $ [FC { polarity = Neg
-                                                   , violated = Pre
-                                                   , modification = Delete [funcName caller_fc]
-                                                   , bool_rel = BRImplies
-                                                   , constraint = caller_fc } ]
+                           Right . insertsFC $ [ FC { polarity = Neg
+                                                    , violated = Pre
+                                                    , modification = Delete [funcName caller_fc]
+                                                    , bool_rel = BRImplies
+                                                    , constraint = caller_fc {returns = Prim Error TyBottom} }
+                                               ,  FC { polarity = Pos
+                                                    , violated = Pre
+                                                    , modification = None
+                                                    , bool_rel = BRImplies
+                                                    , constraint = caller_fc }  ]
             | otherwise -> Right . insertsFC $ [FC { polarity = if notRetError called_fc then Pos else Neg
                                                    , violated = Pre
                                                    , modification = SwitchImplies [funcName caller_fc]
