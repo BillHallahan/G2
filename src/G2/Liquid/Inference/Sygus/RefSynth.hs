@@ -1,19 +1,19 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Liquid.Inference.RefSynth ( refSynth
+module G2.Liquid.Inference.Sygus.RefSynth ( refSynth
                                     
-                                    , grammar
-                                    , intRuleList
-                                    , boolRuleList
+                                          , grammar
+                                          , intRuleList
+                                          , boolRuleList
 
-                                    , intSort
-                                    , boolSort
+                                          , intSort
+                                          , boolSort
 
-                                    , termToLHExpr
+                                          , termToLHExpr
 
-                                    , runCVC4
-                                    , runCVC4Stream ) where
+                                          , runCVC4
+                                          , runCVC4Stream ) where
 
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
@@ -31,7 +31,7 @@ import G2.Liquid.Inference.FuncConstraint
 import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.GeneratedSpecs
 import G2.Liquid.Inference.PolyRef
-import G2.Liquid.Inference.SimplifySygus
+import G2.Liquid.Inference.Sygus.SimplifySygus
 
 import Sygus.LexSygus
 import Sygus.ParseSygus

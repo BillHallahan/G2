@@ -1,12 +1,12 @@
 {-# LANGUAGE LambdaCase #-}
 
-module G2.Liquid.Inference.SimplifySygus ( EliminatedSimple
-                                         , elimSimpleDTs
-                                         , restoreSimpleDTs 
+module G2.Liquid.Inference.Sygus.SimplifySygus ( EliminatedSimple
+                                               , elimSimpleDTs
+                                               , restoreSimpleDTs 
 
-                                         , elimRedundantAnds
-                                         , splitAnds
-                                         , simplifyImpliesLHS) where
+                                               , elimRedundantAnds
+                                               , splitAnds
+                                               , simplifyImpliesLHS) where
 
 import Sygus.Syntax
 

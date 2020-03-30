@@ -4,7 +4,7 @@
 module G2.Liquid.Inference.QualifGen (qualifGen) where
 
 import G2.Language.Naming
-import G2.Liquid.Inference.RefSynth
+import G2.Liquid.Inference.Sygus
 import G2.Liquid.Helpers
 
 import Sygus.LexSygus

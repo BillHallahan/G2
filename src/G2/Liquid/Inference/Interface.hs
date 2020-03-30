@@ -15,7 +15,7 @@ import G2.Liquid.Inference.FuncConstraint as FC
 import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.PolyRef
 import G2.Liquid.Helpers
-import G2.Liquid.Inference.RefSynth
+import G2.Liquid.Inference.Sygus
 import G2.Liquid.Inference.GeneratedSpecs
 import G2.Liquid.Inference.Verify
 import G2.Liquid.Inference.WorkingUp
