@@ -1117,9 +1117,9 @@ termToLHExpr meas_sym@(MeasureSymbols meas_sym') m_args (TermCall (ISymb v) ts)
     | clampIntSymb == v
     , [TermLit l] <- ts = clampedInt l
     | clampDoubleSymb == v
-    , [TermCall (ISymb "/") [TermLit l1, TermLit l2]] <- ts = clampedDouble l1 l2
+    , [TermCall (ISymb "/") [t1, t2]] <- ts = clampedDouble t1 t2
     | clampDoubleSymb == v
-    , [TermLit l] <- ts = clampedDouble l (LitNum 1)
+    , [t] <- ts = clampedDouble t (TermLit $ LitNum 1)
     -- EBin
     | "+" <- v
     , [t1, t2] <- ts = EBin LH.Plus (termToLHExpr meas_sym m_args t1) (termToLHExpr meas_sym m_args t2)
@@ -1181,14 +1181,21 @@ clampedInt (LitNum n)
     | otherwise = ECon (LHF.I n)
 clampedInt _ = error $ "clampedInt: Unhandled literals"
 
-clampedDouble :: Sy.Lit -> Sy.Lit -> LH.Expr
-clampedDouble (LitNum d1) (LitNum d2)
+clampedDouble :: Term -> Term -> LH.Expr
+clampedDouble t1 t2
     | n < 0 = ECon (LHF.R 0)
     | n > clampUpper = ECon (LHF.R clampUpper)
     | otherwise = ECon (LHF.R n)
     where
+        d1 = termToInteger t1
+        d2 = termToInteger t2
+
         n = fromInteger d1 / fromInteger d2
 clampedDouble _ _ = error $ "clampedDouble: Unhandled literals"
+
+termToInteger :: Term -> Integer
+termToInteger (TermLit (LitNum d)) = d
+termToInteger (TermCall (ISymb "-") [t]) = - (termToInteger t)
 
 -------------------
 

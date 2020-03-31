@@ -9,6 +9,7 @@ import Prelude hiding (head)
 {-@ die :: {v:String | false} -> a @-}
 die = error
 
+{-@ usesHead :: Int @-}
 usesHead :: Int
 usesHead = head [1, 2, 3]
 

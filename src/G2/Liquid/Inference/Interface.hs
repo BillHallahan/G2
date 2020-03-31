@@ -93,7 +93,7 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
     putStrLn $ "nls = " ++ show nls
 
     let configs = Configs { g2_config = g2config', lh_config = lhconfig, inf_config = infconfig'}
-    let infL = inferenceL 0 ghci (fst exg2) lrs nls workingUp emptyGS emptyGS emptyFC emptyFC []
+    let infL = inferenceL 0 ghci (fst exg2) lrs nls WorkDown emptyGS emptyGS emptyFC emptyFC []
 
     inf <- runConfigs infL configs
     case inf of
@@ -116,9 +116,11 @@ getGHCI infconfig config proj fp lhlibs = do
     return (ghci, lhconfig)
 
 data InferenceRes = CEx [CounterExample]
-                  | FCs FuncConstraints WorkingUp LowerGeneratedSpecs
+                  | FCs FuncConstraints WorkingDir LowerGeneratedSpecs
                   | GS GeneratedSpecs
                   deriving (Show)
+
+data WorkingDir = WorkDown | WorkUp deriving (Eq, Show, Read)
 
 -- When we try to synthesize a specification for a function that we have already found a specification for,
 -- we have to return to when we originally synthesized that specification.  We pass the newly aquired
@@ -131,20 +133,24 @@ type Level = Int
 type NameLevels = [[Name]]
 
 inferenceL :: (InfConfigM m, MonadIO m) =>  Level -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
-           -> NameLevels -> WorkingUp -> GeneratedSpecs -> LowerGeneratedSpecs -> FuncConstraints -> RisingFuncConstraints -> [Name] -> m InferenceRes
-inferenceL level ghci m_modname lrs nls wu gs lower_gs fc rising_fc try_to_synth = do
+           -> NameLevels -> WorkingDir -> GeneratedSpecs -> LowerGeneratedSpecs -> FuncConstraints -> RisingFuncConstraints -> [Name] -> m InferenceRes
+inferenceL level ghci m_modname lrs nls wd gs lower_gs fc rising_fc try_to_synth = do
     liftIO $ putStrLn $ "---\ninference' level " ++ show level
     liftIO . putStrLn $ "at_level = " ++ show (case nls of (h:_) -> Just h; _ -> Nothing)
-    liftIO . putStrLn $ "working up = " ++ show wu
-    -- putStrLn $ "fc =\n" ++ printFCs fc
-    -- putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
-    -- putStrLn $ "gs =\n" ++ show gs
+    liftIO . putStrLn $ "working dir = " ++ show wd
+    liftIO . putStrLn $ "try_to_synth = "  ++ show try_to_synth
+    liftIO . putStrLn $ "fc =\n" ++ printFCs fc
+    liftIO . putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
+    liftIO . putStrLn $ "gs =\n" ++ show gs
     liftIO . putStrLn $ "in ghci specs = " ++ show (concatMap (map fst) $ map (gsTySigs . spec) ghci)
     liftIO . putStrLn $ "nls = " ++ show nls
 
-    let new_lower_gs = case nls of
-                            (ls:_) -> filterOutSpecs ls lower_gs
-                            _ -> lower_gs
+    let (ls1, ls2, ls_rest) = case nls of
+                        (ls1':ls2':ls_rest') -> (ls1', ls2', ls_rest')
+                        (ls1':[]) -> (ls1', [], [])
+                        _ -> ([], [], [])
+
+    let new_lower_gs = filterOutSpecs ls1 lower_gs
 
     synth_gs <- synthesize ghci lrs gs (unionFC fc rising_fc) try_to_synth
 
@@ -161,64 +167,89 @@ inferenceL level ghci m_modname lrs nls wu gs lower_gs fc rising_fc try_to_synth
                 let new_gs' = switchAssumesToAsserts new_gs
                     ghci' = addSpecsToGhcInfos ghci new_gs'
                 
-                inferenceL (level + 1) ghci' m_modname lrs nls' wu new_gs' new_lower_gs fc rising_fc []
+                raiseFCs level ghci m_modname lrs nls wd gs fc rising_fc
+                    =<< inferenceL (level + 1) ghci' m_modname lrs nls' wd new_gs' new_lower_gs fc rising_fc []
             | otherwise -> return $ GS new_gs
         Left bad -> do
-            ref <- refineUnsafe ghci m_modname lrs wu (unionDroppingGS synth_gs new_lower_gs) bad
+            ref <- refineUnsafe ghci m_modname lrs wd (unionDroppingGS synth_gs new_lower_gs) bad
             
             case ref of
                 Left cex -> return $ CEx cex
-                Right (new_fc, wu')  -> do
+                Right (new_fc, wd')  -> do
                     liftIO $ putStrLn "---\nNew FuncConstraints"
                     liftIO . putStrLn $ "new_fc =\n" ++ printFCs new_fc
-                    let pre_solved = alreadySpecified ghci new_fc
+                    let pre_solved = notAppropFCs (ls2 ++ concat ls_rest) new_fc-- alreadySpecified ghci new_fc
                     case nullFC pre_solved of
                         False -> do
                             liftIO . putStrLn $ "---\nreturning FuncConstraints from level " ++ show level
                             -- putStrLn $ "pre_solved =\n" ++ printFCs pre_solved
                             -- putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
-                            let merged_fc = unionFC pre_solved rising_fc
+                            let merged_fc = unionFC (unionFC fc pre_solved) rising_fc
                                 merged_fc' = adjustOldFC merged_fc pre_solved
-                            return $ FCs merged_fc' wu' synth_gs
+                            return $ FCs merged_fc' wd' synth_gs
                         True -> do
-                            rel_funcs <- relFuncs new_fc
                             let fc' = adjustOldFC fc new_fc -- (unionFC rising_fc new_fc)
                                 merged_fc = unionFC (unionFC fc' new_fc) rising_fc
 
                             liftIO $ putStrLn "---\nTrue Branch"
                             -- putStrLn $ "fc' =\n" ++ printFCs fc'
                             -- putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
+                            let immed_rel_new = appropFCs ls2 new_fc
+                            rel_funcs <- relFuncs immed_rel_new
                             
-                            lev <- inferenceL level ghci m_modname lrs nls wu' synth_gs new_lower_gs merged_fc emptyFC rel_funcs
+                            raiseFCs level ghci m_modname lrs nls wd' synth_gs merged_fc emptyFC
+                                =<<  inferenceL level ghci m_modname lrs nls wd' synth_gs new_lower_gs merged_fc emptyFC rel_funcs
 
-                            case lev of
-                                FCs new_new_fc wu' new_lower_gs' -> do
-                                    liftIO . putStrLn $ "---\nMoving up to level " ++ show level 
-                                    -- putStrLn $ "fc =\n" ++ printFCs fc
-                                    -- putStrLn $ "fc' =\n" ++ printFCs fc'
-                                    liftIO . putStrLn $ "in ghci specs = " ++ show (concatMap (map fst) $ map (gsTySigs . spec) ghci)
-                                    liftIO . putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
-                                    liftIO . putStrLn $ "new_new_fc =\n" ++ printFCs new_new_fc
-                                    let
-                                        -- If we have new FuncConstraints, we need to resynthesize,
-                                        -- but otherwise we can just keep the exisiting specifications
-                                        cons_on = map (funcName . constraint) $ toListFC new_new_fc
-                                        usable_gs = filterOutSpecs cons_on synth_gs
-                                    
+raiseFCs :: (InfConfigM m, MonadIO m) =>  Level -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
+         -> NameLevels -> WorkingDir -> GeneratedSpecs -> FuncConstraints -> RisingFuncConstraints -> InferenceRes -> m InferenceRes
+raiseFCs level ghci m_modname lrs nls wd gs fc rising_fc lev@(FCs new_new_fc _ new_lower_gs') = do
+    liftIO . putStrLn $ "---\nMoving up to level " ++ show level 
+    liftIO . putStrLn $ "fc =\n" ++ printFCs fc
+    liftIO . putStrLn $ "in ghci specs = " ++ show (concatMap (map fst) $ map (gsTySigs . spec) ghci)
+    liftIO . putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
+    liftIO . putStrLn $ "new_new_fc =\n" ++ printFCs new_new_fc
+    let
+        (ls2, ls_rest) = case nls of
+                            (_:ls2':ls_rest') -> (ls2', ls_rest')
+                            _ -> ([], [])
+        -- If we have new FuncConstraints, we need to resynthesize,
+        -- but otherwise we can just keep the exisiting specifications
+        cons_on = map (funcName . constraint) $ toListFC new_new_fc
+        usable_gs = filterOutSpecs cons_on gs              
 
-                                    if nullFC (alreadySpecified ghci new_new_fc)
-                                        then inferenceL level ghci m_modname lrs nls wu' usable_gs new_lower_gs' fc (unionFC new_new_fc rising_fc) []
-                                        else return lev
-                                _ -> do
-                                    liftIO $ putStrLn "---\nReturn lev"
-                                    return lev
+    liftIO $ print ls2                  
+
+    if nullFC (notAppropFCs (ls2 ++ concat ls_rest) new_new_fc)-- (alreadySpecified ghci new_new_fc)
+        then inferenceL level ghci m_modname lrs nls wd usable_gs new_lower_gs' fc (unionFC new_new_fc rising_fc) cons_on
+        else return lev
+raiseFCs _ _ _ _ _ _ _ _ _ lev = do
+    liftIO $ putStrLn "---\nReturn lev"
+    return lev
+
+appropFCs :: [Name] -> FuncConstraints -> FuncConstraints
+appropFCs potential =
+    let
+        nm_potential = map nameMod potential
+    in
+    filterFC (flip elem nm_potential . nameMod . funcName . constraint)
+    where
+        nameMod (Name n m _ _) = (n, m)
+
+notAppropFCs :: [Name] -> FuncConstraints -> FuncConstraints
+notAppropFCs potential =
+    let
+        nm_potential = map nameMod potential
+    in
+    filterFC (flip notElem nm_potential . nameMod . funcName . constraint)
+    where
+        nameMod (Name n m _ _) = (n, m)
 
 refineUnsafe :: (InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState
-             -> WorkingUp -> GeneratedSpecs
-             -> [Name] -> m (Either [CounterExample] (FuncConstraints, WorkingUp))
-refineUnsafe ghci m_modname lrs wu gs bad = do
+             -> WorkingDir -> GeneratedSpecs
+             -> [Name] -> m (Either [CounterExample] (FuncConstraints, WorkingDir))
+refineUnsafe ghci m_modname lrs wd gs bad = do
     liftIO . putStrLn $ "refineUnsafe " ++ show bad
-    liftIO $ print wu
+    liftIO $ print wd
     let merged_se_ghci = addSpecsToGhcInfos ghci (switchAssumesToAsserts gs)
 
     liftIO $ putStrLn "gsTySigs"
@@ -233,17 +264,17 @@ refineUnsafe ghci m_modname lrs wu gs bad = do
     liftIO . printCE $ concat res
     let res' = concat res
 
+    -- Check if we already have specs for any of the functions
+    wd' <- adjustWorkingUp res' wd
+
     -- Either converts counterexamples to FuncConstraints, or returns them as errors to
     -- show to the user.
-    new_fc <- checkNewConstraints ghci lrs wu res'
+    new_fc <- checkNewConstraints ghci lrs wd' res'
 
     case new_fc of
         Left cex -> return $ Left cex
         Right new_fc' -> do
-            -- Check if we already have specs for any of the functions
-            wu' <- adjustWorkingUp res' wu
-
-            return $ Right (new_fc', wu')
+            return $ Right (new_fc', wd')
                     
 adjustOldFC :: FuncConstraints -- ^ Old FuncConstraints
             -> FuncConstraints -- ^ New FuncConstraints
@@ -281,7 +312,7 @@ genNewConstraints ghci m lrs n = do
     ((exec_res, _), i) <- runLHInferenceCore n m lrs ghci
     return $ map (lhStateToCE i) exec_res
 
-checkNewConstraints :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> WorkingUp -> [CounterExample] -> m (Either [CounterExample] FuncConstraints)
+checkNewConstraints :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> WorkingDir -> [CounterExample] -> m (Either [CounterExample] FuncConstraints)
 checkNewConstraints ghci lrs wd cexs = do
     g2config <- g2ConfigM
     infconfig <- infConfigM
@@ -345,7 +376,7 @@ synthesizePre ghci lrs meas_ex fc gs n = do
         Nothing -> return gs
 
 -- | Converts counterexamples into constraints that the refinements must allow for, or rule out.
-cexsToFuncConstraints :: InfConfigM m => LiquidReadyState -> [GhcInfo] -> WorkingUp -> CounterExample -> m (Either CounterExample FuncConstraints)
+cexsToFuncConstraints :: InfConfigM m => LiquidReadyState -> [GhcInfo] -> WorkingDir -> CounterExample -> m (Either CounterExample FuncConstraints)
 cexsToFuncConstraints _ _ _ (DirectCounter dfc fcs@(_:_)) = do
     infconfig <- infConfigM
     let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
@@ -380,7 +411,7 @@ cexsToFuncConstraints lrs ghci _ cex@(DirectCounter fc []) = do
                                     , bool_rel = BRImplies
                                     , constraint = fc} ]
         True -> return . Left $ cex
-cexsToFuncConstraints lrs ghci wu cex@(CallsCounter caller_fc called_fc []) = do
+cexsToFuncConstraints lrs ghci wd cex@(CallsCounter caller_fc called_fc []) = do
     caller_pr <- hasUserSpec (funcName caller_fc)
     called_pr <- hasUserSpec (funcName called_fc)
 
@@ -399,7 +430,7 @@ cexsToFuncConstraints lrs ghci wu cex@(CallsCounter caller_fc called_fc []) = do
                                                  , bool_rel = if notRetError called_fc then BRAnd else BRImplies
                                                  , constraint = called_fc } ]
         (False, False)
-            | funcName called_fc `memberWU` wu -> 
+            | wd == WorkUp -> 
                            return . Right . insertsFC $
                                                     [ FC { polarity = Neg
                                                     , violated = Pre
@@ -459,17 +490,39 @@ hasUserSpec (Name n m _ _) = do
     infconfig <- infConfigM
     return $ (n, m) `S.member` pre_refined infconfig
 
-adjustWorkingUp :: InfConfigM m => [CounterExample] -> WorkingUp -> m WorkingUp
-adjustWorkingUp cexs wu = do
-    wu' <- foldM (addWorkingUp) wu cexs
+adjustWorkingUp :: InfConfigM m => [CounterExample] -> WorkingDir -> m WorkingDir
+adjustWorkingUp cexs wd = do
     let
-        call_in_wu = filter (\x -> case getDirectCalled x of
-                                        Just n -> memberWU n wu'
-                                        Nothing -> False) cexs
-        callers = mapMaybe getDirectCaller call_in_wu
-        called = mapMaybe getDirectCalled call_in_wu
+        callers = mapMaybe getDirectCaller cexs
+        called = mapMaybe getDirectCalled cexs
+
+    caller_pr <- anyM hasUserSpec callers
+    called_pr <- anyM hasUserSpec called
     
-    return $ foldr deleteWU (foldr insertWU wu' callers) called
+    case (caller_pr, called_pr) of
+        (True, False) -> return WorkDown
+        (False, True) -> return WorkUp
+        (_, _) -> return wd
+
+anyM :: (Monad m) => (a -> m Bool) -> [a] -> m Bool
+anyM _ []       = return False
+anyM p (x:xs)   = do
+        q <- p x
+        if q
+                then return True
+                else anyM p xs
+
+-- adjustWorkingUp :: InfConfigM m => [CounterExample] -> WorkingUp -> m WorkingUp
+-- adjustWorkingUp cexs wu = do
+--     wu' <- foldM (addWorkingUp) wu cexs
+--     let
+--         call_in_wu = filter (\x -> case getDirectCalled x of
+--                                         Just n -> memberWU n wu'
+--                                         Nothing -> False) cexs
+--         callers = mapMaybe getDirectCaller call_in_wu
+--         called = mapMaybe getDirectCalled call_in_wu
+    
+--     return $ foldr deleteWU (foldr insertWU wu' callers) called
 
 addWorkingUp :: InfConfigM m => WorkingUp -> CounterExample -> m WorkingUp
 addWorkingUp wu (CallsCounter caller_fc called_fc []) = do
