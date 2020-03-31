@@ -83,17 +83,21 @@ tryHardToVerifyIgnoring ghci gs lower_gs ignore = do
               | f_ns <- filterIgnoring ns
               , f_ns /= [] -> do
                 let f_gs = filterOutSpecs f_ns gs
-                    f_both_gs = filterOutSpecs f_ns both_gs
+                    f_both_gs = filterOutAssertSpecs f_ns both_gs
                     f_merged_ghci = addSpecsToGhcInfos ghci f_both_gs
 
                 filtered_res <- return . verifyVarToName =<<
                                             verify infconfig lhconfig f_merged_ghci
                 case filtered_res of
                     Unsafe _ -> return $ Left f_ns
-                    Safe -> return $ Right f_gs
+                    Safe -> do
+                          liftIO . putStrLn $ "Safe 2 after " ++ show ns 
+                          return $ Right f_gs
                     Crash ci err -> error $ "Crash\n" ++ show ci ++ "\n" ++ err
               | otherwise -> return $ Right gs
-            Safe -> return $ Right gs
+            Safe -> do
+                liftIO $ putStrLn "Safe 1"
+                return $ Right gs
             Crash ci err -> error $ "Crash\n" ++ show ci ++ "\n" ++ err
         where
             ignore' = map (\(G2.Name n m _ _) -> (n, m)) ignore

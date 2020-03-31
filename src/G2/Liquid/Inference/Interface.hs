@@ -99,7 +99,7 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
     case inf of
         CEx cex -> return $ Left cex
         GS gs -> return $ Right gs
-        FCs _ _ _ -> error "inference: Unhandled Func Constraints"
+        FCs _ _ _ _ -> error "inference: Unhandled Func Constraints"
 
 getGHCI :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO ([GhcInfo], LH.Config)
 getGHCI infconfig config proj fp lhlibs = do
@@ -116,7 +116,7 @@ getGHCI infconfig config proj fp lhlibs = do
     return (ghci, lhconfig)
 
 data InferenceRes = CEx [CounterExample]
-                  | FCs FuncConstraints WorkingDir LowerGeneratedSpecs
+                  | FCs FuncConstraints RisingFuncConstraints WorkingDir LowerGeneratedSpecs
                   | GS GeneratedSpecs
                   deriving (Show)
 
@@ -142,6 +142,7 @@ inferenceL level ghci m_modname lrs nls wd gs lower_gs fc rising_fc try_to_synth
     liftIO . putStrLn $ "fc =\n" ++ printFCs fc
     liftIO . putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
     liftIO . putStrLn $ "gs =\n" ++ show gs
+    liftIO . putStrLn $ "lower_gs =\n" ++ show lower_gs
     liftIO . putStrLn $ "in ghci specs = " ++ show (concatMap (map fst) $ map (gsTySigs . spec) ghci)
     liftIO . putStrLn $ "nls = " ++ show nls
 
@@ -158,7 +159,7 @@ inferenceL level ghci m_modname lrs nls wd gs lower_gs fc rising_fc try_to_synth
                     (_:nls') -> concat nls'
                     [] -> []
 
-    res <- tryHardToVerifyIgnoring ghci synth_gs new_lower_gs ignore
+    res <- tryHardToVerifyIgnoring ghci (switchAssumesToAsserts synth_gs) (switchAssumesToAsserts new_lower_gs) ignore
 
     case res of
         Right new_gs
@@ -167,8 +168,8 @@ inferenceL level ghci m_modname lrs nls wd gs lower_gs fc rising_fc try_to_synth
                 let new_gs' = switchAssumesToAsserts new_gs
                     ghci' = addSpecsToGhcInfos ghci new_gs'
                 
-                raiseFCs level ghci m_modname lrs nls wd gs fc rising_fc
-                    =<< inferenceL (level + 1) ghci' m_modname lrs nls' wd new_gs' new_lower_gs fc rising_fc []
+                raiseFCs level ghci m_modname lrs nls wd new_gs fc rising_fc
+                    =<< inferenceL (level + 1) ghci' m_modname lrs nls' WorkDown new_gs' new_lower_gs fc rising_fc []
             | otherwise -> return $ GS new_gs
         Left bad -> do
             ref <- refineUnsafe ghci m_modname lrs wd (unionDroppingGS synth_gs new_lower_gs) bad
@@ -184,9 +185,10 @@ inferenceL level ghci m_modname lrs nls wd gs lower_gs fc rising_fc try_to_synth
                             liftIO . putStrLn $ "---\nreturning FuncConstraints from level " ++ show level
                             -- putStrLn $ "pre_solved =\n" ++ printFCs pre_solved
                             -- putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
-                            let merged_fc = unionFC (unionFC fc pre_solved) rising_fc
-                                merged_fc' = adjustOldFC merged_fc pre_solved
-                            return $ FCs merged_fc' wd' synth_gs
+                            let merged_pre_fc = unionFC pre_solved rising_fc
+                                merged_pre_fc' = adjustOldFC merged_pre_fc pre_solved
+                                fc' = adjustOldFC fc pre_solved
+                            return $ FCs fc' merged_pre_fc' wd' (unionDroppingGS synth_gs new_lower_gs)
                         True -> do
                             let fc' = adjustOldFC fc new_fc -- (unionFC rising_fc new_fc)
                                 merged_fc = unionFC (unionFC fc' new_fc) rising_fc
@@ -202,25 +204,30 @@ inferenceL level ghci m_modname lrs nls wd gs lower_gs fc rising_fc try_to_synth
 
 raiseFCs :: (InfConfigM m, MonadIO m) =>  Level -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
          -> NameLevels -> WorkingDir -> GeneratedSpecs -> FuncConstraints -> RisingFuncConstraints -> InferenceRes -> m InferenceRes
-raiseFCs level ghci m_modname lrs nls wd gs fc rising_fc lev@(FCs new_new_fc _ new_lower_gs') = do
+raiseFCs level ghci m_modname lrs nls wd gs fc rising_fc lev@(FCs fc' new_fc _ new_lower_gs') = do
     liftIO . putStrLn $ "---\nMoving up to level " ++ show level 
     liftIO . putStrLn $ "fc =\n" ++ printFCs fc
     liftIO . putStrLn $ "in ghci specs = " ++ show (concatMap (map fst) $ map (gsTySigs . spec) ghci)
     liftIO . putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
-    liftIO . putStrLn $ "new_new_fc =\n" ++ printFCs new_new_fc
+    liftIO . putStrLn $ "new_fc =\n" ++ printFCs new_fc
     let
         (ls2, ls_rest) = case nls of
                             (_:ls2':ls_rest') -> (ls2', ls_rest')
                             _ -> ([], [])
+
         -- If we have new FuncConstraints, we need to resynthesize,
         -- but otherwise we can just keep the exisiting specifications
-        cons_on = map (funcName . constraint) $ toListFC new_new_fc
-        usable_gs = filterOutSpecs cons_on gs              
+        -- cons_on = map (funcName . constraint) $ toListFC new_fc
+        immed_rel_new = appropFCs ls2 new_fc
+    rel_funcs <- relFuncs immed_rel_new
+
+    let usable_gs = filterOutSpecs (concat ls_rest) gs              
+
 
     liftIO $ print ls2                  
 
-    if nullFC (notAppropFCs (ls2 ++ concat ls_rest) new_new_fc)-- (alreadySpecified ghci new_new_fc)
-        then inferenceL level ghci m_modname lrs nls wd usable_gs new_lower_gs' fc (unionFC new_new_fc rising_fc) cons_on
+    if nullFC (notAppropFCs (ls2 ++ concat ls_rest) new_fc)-- (alreadySpecified ghci new_fc)
+        then inferenceL level ghci m_modname lrs nls WorkUp usable_gs new_lower_gs' fc' (unionFC new_fc rising_fc) rel_funcs -- cons_on
         else return lev
 raiseFCs _ _ _ _ _ _ _ _ _ lev = do
     liftIO $ putStrLn "---\nReturn lev"
@@ -437,7 +444,7 @@ cexsToFuncConstraints lrs ghci wd cex@(CallsCounter caller_fc called_fc []) = do
                                                     , modification = Delete [funcName caller_fc]
                                                     , bool_rel = BRImplies
                                                     , constraint = caller_fc {returns = Prim Error TyBottom} }
-                                                    , FC { polarity = Pos
+                                                    , FC { polarity = if notRetError caller_fc then Pos else Neg
                                                          , violated = Pre
                                                          , modification = None
                                                          , bool_rel = BRImplies
@@ -496,13 +503,18 @@ adjustWorkingUp cexs wd = do
         callers = mapMaybe getDirectCaller cexs
         called = mapMaybe getDirectCalled cexs
 
-    caller_pr <- anyM hasUserSpec callers
-    called_pr <- anyM hasUserSpec called
+    caller_pr <- anyM (hasUserSpec . funcName) callers
+    called_pr <- anyM (hasUserSpec . funcName) called
     
     case (caller_pr, called_pr) of
         (True, False) -> return WorkDown
         (False, True) -> return WorkUp
-        (_, _) -> return wd
+        (_, _)
+            | any (isError . returns ) called -> return WorkUp
+            | otherwise -> return wd
+    where
+        isError (Prim Error _) = True
+        isError _ = False
 
 anyM :: (Monad m) => (a -> m Bool) -> [a] -> m Bool
 anyM _ []       = return False
@@ -534,12 +546,12 @@ addWorkingUp wu (CallsCounter caller_fc called_fc []) = do
         _ -> return wu
 addWorkingUp wu _ = return wu
 
-getDirectCaller :: CounterExample -> Maybe Name
-getDirectCaller (CallsCounter f _ []) = Just $ funcName f
+getDirectCaller :: CounterExample -> Maybe FuncCall
+getDirectCaller (CallsCounter f _ []) = Just f
 getDirectCaller _ = Nothing
 
-getDirectCalled :: CounterExample -> Maybe Name
-getDirectCalled (CallsCounter _ f []) = Just $ funcName f
+getDirectCalled :: CounterExample -> Maybe FuncCall
+getDirectCalled (CallsCounter _ f []) = Just f
 getDirectCalled _ = Nothing
 
 -- If g is in WorkingUp, but not in the list of names, remove g from WorkingUp,

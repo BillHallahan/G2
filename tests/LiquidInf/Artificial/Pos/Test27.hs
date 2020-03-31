@@ -27,7 +27,7 @@ map f Emp        = Emp
 map f (x :+: xs) = f x :+: map f xs
 
 divide :: Double -> Int -> Double
-divide n 0 = die "oops divide by zero"
+divide n 0 = die ""
 divide n d = n
 
 type Point   = List Double
