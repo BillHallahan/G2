@@ -400,7 +400,8 @@ cexsToFuncConstraints _ _ _ (CallsCounter dfc cfc fcs@(_:_)) = do
     let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
     if not . null $ fcs' 
         then return . Right . insertsFC
-                            $ mapMaybe (mkRealFCFromAbstracted imp) fcs'
+                            $ maybeToList (mkRealFCFromAbstracted imp cfc)
+                                    ++ mapMaybe (mkRealFCFromAbstracted imp) fcs'
                                     ++ mapMaybe (mkAbstractFCFromAbstracted del) fcs'
         else error "cexsToFuncConstraints: Should be unreachable! Non-refinable function abstracted!"
     where

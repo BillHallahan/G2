@@ -664,14 +664,19 @@ lhStateToCE i (ExecRes { final_state = s@State { track = t }
     | Just c <-  abs_vi' = CallsCounter initCall c (abs_calls t)
     where
         initCall = FuncCall (idName i) inArg ex
-        abs_vi' = if initCall `sameFuncCall` fmap abstract (abs_violated t)
+        abs_vi' = if sameFuncCall (type_classes s) initCall (fmap abstract $ abs_violated t)
                         then Nothing
                         else abs_violated t
 
-sameFuncCall :: FuncCall -> Maybe FuncCall -> Bool
-sameFuncCall _ Nothing = False
-sameFuncCall (FuncCall {funcName = f1, arguments = fa1}) 
-             (Just (FuncCall {funcName = f2, arguments = fa2})) = f1 == f2 && fa1 == fa2
+sameFuncCall :: TypeClasses -> FuncCall -> Maybe FuncCall -> Bool
+sameFuncCall _ _ Nothing = False
+sameFuncCall tc (FuncCall {funcName = f1, arguments = fa1}) 
+             (Just (FuncCall {funcName = f2, arguments = fa2})) =
+                let
+                    fa1' = filter (not . isTypeClass tc . typeOf) fa1
+                    fa2' = filter (not . isTypeClass tc . typeOf) fa2
+                in
+                f1 == f2 && all (uncurry eqUpToTypes) (zip fa1' fa2')
 
 sameFuncNameArgs :: FuncInfo -> Maybe FuncInfo -> Bool
 sameFuncNameArgs _ Nothing = False
