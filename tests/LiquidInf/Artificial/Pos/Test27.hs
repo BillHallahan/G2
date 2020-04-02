@@ -2,6 +2,8 @@
 {-@ LIQUID "--no-termination" @-}
 {-@ LIQUID "--prune-unsorted" @-}
 
+-- timeout-sygus = 50
+
 module ListQualif ( List ) where
 
 import Prelude hiding (map)

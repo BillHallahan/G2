@@ -39,8 +39,13 @@ def call_infer_process(file):
         if timeout_re and timeout_re.group(1):
             timeout = timeout_re.group(1);
 
+        timeout_sygus = "30"
+        timeout_sygus_re = re.search("--\s*timeout-sygus\s*=\s*([0-9]*)\s*", code);
+        if timeout_sygus_re and timeout_sygus_re.group(1):
+            timeout_sygus = timeout_sygus_re.group(1);
+
         args = ["gtimeout", timeout, "cabal", "run", "Inference", file
-               , "--", "--timeout-sygus", "30"]
+               , "--", "--timeout-sygus", timeout_sygus]
 
         res = subprocess.run(args + extra_args
                             , capture_output = True);

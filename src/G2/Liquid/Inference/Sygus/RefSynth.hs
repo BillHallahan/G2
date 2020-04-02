@@ -395,6 +395,8 @@ adjustTypeUsage params srt bool_trms decls type_trms =
         then (bool_trms, decls, type_grl)
         else ([], [], [])
 
+-- For some reason, CVC4 seems better at handling * when both sides are intBf,
+-- instead of one side being intConstBf
 extIntRuleList :: [GTerm]
 extIntRuleList = intRuleList ++ 
     [ GBfTerm $ BfIdentifierBfs (ISymb "*") [intBf, intBf]
@@ -411,7 +413,7 @@ intRuleList =
     -- ++ [GBfTerm . BfLiteral . LitNum $ x | x <- [0..0]]
 
 extDoubleRuleList :: [GTerm]
-extDoubleRuleList = doubleRuleList ++ [GBfTerm $ BfIdentifierBfs (ISymb "*") [doubleBf, doubleBf]]
+extDoubleRuleList = doubleRuleList ++ [GBfTerm $ BfIdentifierBfs (ISymb "*") [doubleConstBf, doubleBf]]
 
 doubleRuleList :: [GTerm]
 doubleRuleList =
