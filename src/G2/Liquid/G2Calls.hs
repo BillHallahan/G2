@@ -28,6 +28,7 @@ import Data.Maybe
 
 import Data.Monoid
 
+import Debug.Trace
 -------------------------------
 -- Check Abstracted
 -------------------------------
@@ -49,14 +50,26 @@ toModel (AbstractRes _ m) = Just m
 toModel _ = Nothing
 
 -- | Checks if abstracted functions actually had to be abstracted.
-checkAbstracted :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Config -> Bindings -> ExecRes LHTracker -> IO (ExecRes [Abstracted])
+checkAbstracted :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Config -> Bindings -> ExecRes LHTracker -> IO (ExecRes AbstractedInfo)
 checkAbstracted solver simplifier config bindings er@(ExecRes{ final_state = s@State { track = lht }}) = do
+    -- Get `Abstracted`s for the abstracted functions 
     let check = checkAbstracted' solver simplifier (sharing config) s bindings
     abstractedR <- mapM check (abstract_calls lht)
     let abstracted' = mapMaybe toAbstracted $ abstractedR
         models = mapMaybe toModel $ abstractedR
 
-    return $ er { final_state = s {track = abstracted', model = foldr HM.union (model s) models }}
+    -- Get an `Astracted for the violated function (if it exists)
+    abs_viol <- case trace ("violated = " ++ show (violated er)) violated er of
+                  Just v -> return . Just =<<
+                              getAbstracted solver simplifier (sharing config) s bindings v
+                  Nothing -> return Nothing
+    let viol_model = maybeToList $ fmap snd abs_viol
+        abs_info = AbstractedInfo { abs_violated = fmap fst abs_viol
+                                  , abs_calls = abstracted' }
+
+    return $ er { final_state = s { track = abs_info
+                                  , model = foldr HM.union (model s) (viol_model ++ models) }
+                }
 
 checkAbstracted' :: (Solver solver, Simplifier simplifier)
                  => solver
@@ -104,6 +117,43 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
                         False -> return NotAbstractRes
             _ -> error $ "checkAbstracted': Bad return from runG2WithSomes"
     | otherwise = error $ "checkAbstracted': Bad lookup in runG2WithSomes"
+
+getAbstracted :: (Solver solver, Simplifier simplifier)
+              => solver
+              -> simplifier
+              -> Sharing 
+              -> State LHTracker
+              -> Bindings
+              -> FuncCall
+              -> IO (Abstracted, Model)
+getAbstracted solver simplifier share s bindings abs_fc@(FuncCall { funcName = n, arguments = ars, returns = r })
+    | Just e <- E.lookup n $ expr_env s = do
+        let 
+            e' = mkApp $ Var (Id n (typeOf e)):ars
+
+            ds = deepseq_walkers bindings
+            strict_call = maybe e' (fillLHDictArgs ds) $ mkStrict_maybe ds e'
+
+        let s' = elimAsserts . elimAssumes . pickHead . modelToExprEnv $
+                   s { curr_expr = CurrExpr Evaluate strict_call }
+
+        (er, _) <- runG2WithSomes 
+                        (SomeReducer (StdRed share solver simplifier))
+                        (SomeHalter SWHNFHalter)
+                        (SomeOrderer NextOrderer)
+                        solver simplifier emptyMemConfig s' bindings
+
+        case er of
+            [ExecRes
+                {
+                    final_state = (State { curr_expr = CurrExpr _ ce, model = m})
+                }] -> return $ ( Abstracted { abstract = abs_fc
+                                            , real = abs_fc { returns = ce }
+                                            , hits_lib_err_in_real = False }
+                                , m)
+            _ -> error $ "checkAbstracted': Bad return from runG2WithSomes"
+    | otherwise = error $ "getAbstracted: Bad lookup in runG2WithSomes"
+
 
 data HitsLibError = HitsLibError
 

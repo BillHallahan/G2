@@ -97,7 +97,7 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: [FilePath] -> [FilePath] -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (([ExecRes [Abstracted]], Bindings), Lang.Id)
+findCounterExamples :: [FilePath] -> [FilePath] -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (([ExecRes AbstractedInfo], Bindings), Lang.Id)
 findCounterExamples proj fp entry libs lhlibs config = do
     let config' = config { mode = Liquid }
 
@@ -116,7 +116,7 @@ findCounterExamples proj fp entry libs lhlibs config = do
 runLHCore :: T.Text -> (Maybe T.Text, ExtractedG2)
                     -> [GhcInfo]
                     -> Config
-                    -> IO (([ExecRes [Abstracted]], Bindings), Lang.Id)
+                    -> IO (([ExecRes AbstractedInfo], Bindings), Lang.Id)
 runLHCore entry (mb_modname, exg2) ghci config = do
     LiquidData { ls_state = final_st
                , ls_bindings = bindings
@@ -313,8 +313,8 @@ extractWithoutSpecs lrs@(LiquidReadyState { lr_state = s
         pres_names' = addSearchNames (names annm) pres_names
 
     let track_state = lh_s' {track = LHTracker { abstract_calls = []
-                                            , last_var = Nothing
-                                            , annotations = annm} }
+                                               , last_var = Nothing
+                                               , annotations = annm} }
 
     -- We replace certain function name lists in the final State with names
     -- mapping into the measures from the LHState.  These functions do not
@@ -383,7 +383,7 @@ runLHG2 :: (Solver solver, Simplifier simplifier)
         -> MemConfig
         -> State LHTracker
         -> Bindings
-        -> IO ([ExecRes [Abstracted]], Bindings)
+        -> IO ([ExecRes AbstractedInfo], Bindings)
 runLHG2 config red hal ord solver simplifier pres_names final_st bindings = do
     let only_abs_st = final_st
     (ret, final_bindings) <- runG2WithSomes red hal ord solver simplifier pres_names only_abs_st bindings
@@ -404,7 +404,7 @@ runLHG2 config red hal ord solver simplifier pres_names final_st bindings = do
                          , violated = ais}) ->
                 (ExecRes { final_state =
                               s {track = 
-                                    map (mapAbstractedFCs (subVarFuncCall (model s) (expr_env s) (type_classes s)))
+                                    mapAbstractedInfoFCs (subVarFuncCall (model s) (expr_env s) (type_classes s))
                                     $ track s
                                 }
                          , conc_args = es
@@ -641,7 +641,7 @@ counterExampleToLHReturn (DirectCounter fc abstr) =
 counterExampleToLHReturn (CallsCounter fc viol_fc abstr) =
     let
         called = funcCallToFuncInfo (T.pack . mkExprHaskell) $ fc
-        viol_called = funcCallToFuncInfo (T.pack . mkExprHaskell) $ viol_fc
+        viol_called = funcCallToFuncInfo (T.pack . mkExprHaskell) . abstract $ viol_fc
         abstr' = map (funcCallToFuncInfo (T.pack . mkExprHaskell) . abstract) abstr
     in
     LHReturn { calledFunc = called
@@ -656,16 +656,17 @@ funcCallToFuncInfo t (FuncCall { funcName = f, arguments = inArg, returns = ret 
     in
     FuncInfo {func = nameOcc f, funcArgs = funcCall, funcReturn = funcOut}
 
-lhStateToCE :: Lang.Id -> ExecRes [Abstracted] -> CounterExample
-lhStateToCE i (ExecRes { final_state = s
+lhStateToCE :: Lang.Id -> ExecRes AbstractedInfo -> CounterExample
+lhStateToCE i (ExecRes { final_state = s@State { track = t }
                        , conc_args = inArg
-                       , conc_out = ex
-                       , violated = vi})
-    | Nothing <- vi' = DirectCounter initCall (track s)
-    | Just c <- vi' = CallsCounter initCall c (track s)
+                       , conc_out = ex})
+    | Nothing <- abs_vi' = DirectCounter initCall (abs_calls t)
+    | Just c <-  abs_vi' = CallsCounter initCall c (abs_calls t)
     where
         initCall = FuncCall (idName i) inArg ex
-        vi' = if initCall `sameFuncCall` vi then Nothing else vi
+        abs_vi' = if initCall `sameFuncCall` fmap abstract (abs_violated t)
+                        then Nothing
+                        else abs_violated t
 
 sameFuncCall :: FuncCall -> Maybe FuncCall -> Bool
 sameFuncCall _ Nothing = False

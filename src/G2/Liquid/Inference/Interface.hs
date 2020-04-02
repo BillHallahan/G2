@@ -404,8 +404,8 @@ cexsToFuncConstraints _ _ _ (CallsCounter dfc cfc fcs@(_:_)) = do
                                     ++ mapMaybe (mkAbstractFCFromAbstracted del) fcs'
         else error "cexsToFuncConstraints: Should be unreachable! Non-refinable function abstracted!"
     where
-        imp = SwitchImplies [funcName dfc, funcName cfc]
-        del = Delete [funcName dfc, funcName cfc]
+        imp = SwitchImplies [funcName dfc, funcName $ abstract cfc]
+        del = Delete [funcName dfc, funcName $ abstract cfc]
 cexsToFuncConstraints lrs ghci _ cex@(DirectCounter fc []) = do
     let Name n m _ _ = funcName fc
     infconfig <- infConfigM
@@ -420,7 +420,7 @@ cexsToFuncConstraints lrs ghci _ cex@(DirectCounter fc []) = do
         True -> return . Left $ cex
 cexsToFuncConstraints lrs ghci wd cex@(CallsCounter caller_fc called_fc []) = do
     caller_pr <- hasUserSpec (funcName caller_fc)
-    called_pr <- hasUserSpec (funcName called_fc)
+    called_pr <- hasUserSpec (funcName $ real called_fc)
 
     case (caller_pr, called_pr) of
         (True, True) -> return .  Left $ cex
@@ -431,11 +431,11 @@ cexsToFuncConstraints lrs ghci wd cex@(CallsCounter caller_fc called_fc []) = do
                                                   , bool_rel = BRImplies 
                                                   , constraint = caller_fc } ]
         (True, False) -> return . Right . insertsFC $
-                                                 [FC { polarity = if notRetError called_fc then Pos else Neg
+                                                 [FC { polarity = if notRetError (real called_fc) then Pos else Neg
                                                  , violated = Pre
                                                  , modification = None -- [funcName caller_fc]
-                                                 , bool_rel = if notRetError called_fc then BRAnd else BRImplies
-                                                 , constraint = called_fc } ]
+                                                 , bool_rel = if notRetError (real called_fc) then BRAnd else BRImplies
+                                                 , constraint = real called_fc } ]
         (False, False)
             | wd == WorkUp -> 
                            return . Right . insertsFC $
@@ -450,11 +450,11 @@ cexsToFuncConstraints lrs ghci wd cex@(CallsCounter caller_fc called_fc []) = do
                                                          , bool_rel = BRImplies
                                                          , constraint = caller_fc }  ]
             | otherwise -> return . Right . insertsFC $
-                                                   [FC { polarity = if notRetError called_fc then Pos else Neg
+                                                   [FC { polarity = if notRetError (real called_fc) then Pos else Neg
                                                        , violated = Pre
                                                        , modification = SwitchImplies [funcName caller_fc]
-                                                       , bool_rel = if notRetError called_fc then BRAnd else BRImplies
-                                                       , constraint = called_fc } ]
+                                                       , bool_rel = if notRetError (real called_fc) then BRAnd else BRImplies
+                                                       , constraint = real called_fc } ]
 
 mkRealFCFromAbstracted :: Modification -> Abstracted -> Maybe FuncConstraint
 mkRealFCFromAbstracted md ce
@@ -539,7 +539,7 @@ anyM p (x:xs)   = do
 addWorkingUp :: InfConfigM m => WorkingUp -> CounterExample -> m WorkingUp
 addWorkingUp wu (CallsCounter caller_fc called_fc []) = do
     caller_pr <- hasUserSpec (funcName caller_fc)
-    called_pr <- hasUserSpec (funcName called_fc)
+    called_pr <- hasUserSpec (funcName $ abstract called_fc)
 
     case (caller_pr, called_pr) of
         (False, True) -> return $ insertWU (funcName caller_fc) wu
@@ -551,7 +551,7 @@ getDirectCaller (CallsCounter f _ []) = Just f
 getDirectCaller _ = Nothing
 
 getDirectCalled :: CounterExample -> Maybe FuncCall
-getDirectCalled (CallsCounter _ f []) = Just f
+getDirectCalled (CallsCounter _ f []) = Just (abstract f)
 getDirectCalled _ = Nothing
 
 -- If g is in WorkingUp, but not in the list of names, remove g from WorkingUp,

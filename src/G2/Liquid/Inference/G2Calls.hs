@@ -171,7 +171,7 @@ runLHInferenceCore :: (InfConfigM m, MonadIO m)
                    -> Maybe T.Text
                    -> LiquidReadyState
                    -> [GhcInfo]
-                   -> m (([ExecRes [Abstracted]], Bindings), Id)
+                   -> m (([ExecRes AbstractedInfo], Bindings), Id)
 runLHInferenceCore entry m lrs ghci = do
     g2config <- g2ConfigM
     infconfig <- infConfigM

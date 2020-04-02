@@ -10,8 +10,10 @@ module G2.Liquid.Types ( LHOutput (..)
                        , ExState (..)
                        , AnnotMap (..)
                        , Abstracted (..)
+                       , AbstractedInfo (..)
 
                        , mapAbstractedFCs
+                       , mapAbstractedInfoFCs
                        , consLHState
                        , deconsLHState
                        , measuresM
@@ -92,7 +94,9 @@ data LHOutput = LHOutput { ghcI :: GhcInfo
                          , solution :: FixSolution }
 
 data CounterExample = DirectCounter L.FuncCall [Abstracted]
-                    | CallsCounter L.FuncCall L.FuncCall [Abstracted]
+                    | CallsCounter L.FuncCall -- ^ The caller, abstracted result
+                                   Abstracted -- ^ The callee
+                                   [Abstracted]
                     deriving (Eq, Show, Read)
 
 type Measures = L.ExprEnv
@@ -109,9 +113,17 @@ data Abstracted = Abstracted { abstract :: L.FuncCall
                              , hits_lib_err_in_real :: Bool }
                              deriving (Eq, Show, Read)
 
+data AbstractedInfo = AbstractedInfo { abs_violated :: Maybe Abstracted
+                                     , abs_calls :: [Abstracted] }
+
 mapAbstractedFCs :: (L.FuncCall -> L.FuncCall) ->  Abstracted -> Abstracted
 mapAbstractedFCs f (Abstracted { abstract = a, real = r, hits_lib_err_in_real = err }) =
     Abstracted { abstract = f a, real = f r, hits_lib_err_in_real = err }
+
+mapAbstractedInfoFCs :: (L.FuncCall -> L.FuncCall) ->  AbstractedInfo -> AbstractedInfo
+mapAbstractedInfoFCs f (AbstractedInfo { abs_violated = av, abs_calls = ac }) =
+    AbstractedInfo { abs_violated = fmap (mapAbstractedFCs f) av
+                   , abs_calls = map (mapAbstractedFCs f) ac }
 
 instance L.ASTContainer Abstracted L.Expr where
     containedASTs ab = L.containedASTs (abstract ab) ++ L.containedASTs (real ab)
