@@ -182,7 +182,7 @@ addToSpecType es rall@(RAllT { rt_ty = out }) =
 addToSpecType [PolyBound e ps]
         rapp@(RApp { rt_reft = u@(MkUReft { ur_reft = Reft (ur_s, ur_e) }), rt_args = ars }) =
     let
-        rt_reft' = u { ur_reft = Reft (ur_s, PAnd [ur_e, e])}
+        rt_reft' = u { ur_reft = Reft (ur_s, e)} -- PAnd [ur_e, e])}
         
         -- The PolyBound will be missing refinements if there are nested
         -- polymorphic arguments that are never instantiated.  For instance,
