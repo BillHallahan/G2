@@ -80,7 +80,7 @@ mkInferenceConfig :: [String] -> InferenceConfig
 mkInferenceConfig as =
     InferenceConfig { keep_quals = boolArg "keep-quals" as M.empty On
                     , modules = S.empty
-                    , max_ce = strArg "max-ce" as M.empty read 15
+                    , max_ce = strArg "max-ce" as M.empty read 5
                     , timeout_se = strArg "timeout-se" as M.empty (fromInteger . read) 10
                     , timeout_sygus = strArg "timeout-sygus" as M.empty (fromInteger . read) 10 }
 

@@ -8,6 +8,7 @@ module G2.Liquid.Interface ( LiquidData (..)
                            , lr_binding
                            , lrsMeasures
                            , Abstracted (..)
+                           , AbstractedInfo (..)
                            , findCounterExamples
                            , runLHG2
                            , runLHCore
@@ -566,7 +567,7 @@ pprint (v, r) = do
     putStrLn $ show i
     putStrLn $ show doc
 
-printLHOut :: Lang.Id -> [ExecRes [Abstracted]] -> IO ()
+printLHOut :: Lang.Id -> [ExecRes AbstractedInfo] -> IO ()
 printLHOut entry =
     mapM_ (\s -> do printParsedLHOut s; putStrLn "") . map (parseLHOut entry)
 
@@ -613,7 +614,7 @@ printFuncInfo :: FuncInfo -> IO ()
 printFuncInfo (FuncInfo {funcArgs = call, funcReturn = output}) =
     TI.putStrLn $ call `T.append` " = " `T.append` output
 
-parseLHOut :: Lang.Id -> ExecRes [Abstracted] -> LHReturn
+parseLHOut :: Lang.Id -> ExecRes AbstractedInfo -> LHReturn
 parseLHOut entry (ExecRes { final_state = s
                           , conc_args = inArg
                           , conc_out = ex
@@ -623,7 +624,7 @@ parseLHOut entry (ExecRes { final_state = s
              $ FuncCall { funcName = idName entry, arguments = inArg, returns = ex}
       viFunc = fmap (parseLHFuncTuple s) ais
 
-      abstr = map (parseLHFuncTuple s) . map abstract $ track s
+      abstr = map (parseLHFuncTuple s) . map abstract . abs_calls $ track s
   in
   LHReturn { calledFunc = called
            , violating = if called `sameFuncNameArgs` viFunc then Nothing else viFunc

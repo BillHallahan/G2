@@ -6,7 +6,11 @@ module G2.Liquid.Inference.Sygus.SimplifySygus ( EliminatedSimple
 
                                                , elimRedundantAnds
                                                , splitAnds
-                                               , simplifyImpliesLHS) where
+                                               , simplifyImpliesLHS
+
+                                               , EliminatedTrivTrue
+                                               , simplifyToTrue
+                                               , restoreSimplifiedToTrue) where
 
 import Sygus.Syntax
 
@@ -297,4 +301,56 @@ getTrueTerm :: Cmd -> Maybe Term
 getTrueTerm (Constraint t) = Just t
 getTrueTerm _ = Nothing
 
+-----------------------------------------
+-- Identify functions that can simply be rewritten to true, use `restoreSimplifiedToTrue`
+-- to ensure all functions still appear in the returned solution
 
+newtype EliminatedTrivTrue = EliminatedTrivTrue [Cmd]
+
+simplifyToTrue :: [Cmd] -> (EliminatedTrivTrue, [Cmd])
+simplifyToTrue cmds =
+    let
+        synth_funs = mapMaybe getSynthFuns cmds
+        may_need_false = concatMap mayNeedToBeFalse cmds
+
+        synth_set_true = filter (\(n, _, _) -> n `notElem` may_need_false) synth_funs
+        synth_set_true' = map (\(n, _, _) -> n) synth_set_true
+
+        -- Set up EliminatedTrivTrue
+        tre = TermLit (LitBool True)
+        triv_def = map (\(n, ar, r) -> SmtCmd $ DefineFun n ar r tre) synth_set_true
+    in
+    (EliminatedTrivTrue triv_def, filter (not . mustBeTrue synth_set_true') cmds)
+
+getSynthFuns :: Cmd -> Maybe (Symbol, [SortedVar], Sort)
+getSynthFuns (SynthFun n ars ret _) = Just (n, ars, ret)
+getSynthFuns _ = Nothing
+
+mayNeedToBeFalse :: Cmd -> [Symbol]
+mayNeedToBeFalse (Constraint t) = mayNeedToBeFalseTerm t
+mayNeedToBeFalse _ = []
+
+mustBeTrue :: [Symbol] -> Cmd -> Bool
+mustBeTrue symbs (SynthFun n _ _ _) = n `elem` symbs
+mustBeTrue symbs (Constraint (TermIdent (ISymb s))) = s `elem` symbs
+mustBeTrue symbs (Constraint (TermCall (ISymb s) _)) = s `elem` symbs
+mustBeTrue _ _ = False
+
+-- If a function is called directly in a constraint, it must be true, but if
+-- it is nested in an implies or a not, it may need to be false
+mayNeedToBeFalseTerm :: Term -> [Symbol]
+mayNeedToBeFalseTerm (TermIdent _) = []
+mayNeedToBeFalseTerm (TermLit _) = []
+mayNeedToBeFalseTerm (TermCall _ ts) = concatMap mayNeedToBeFalseTerm' ts
+mayNeedToBeFalseTerm (TermExists _ t) = mayNeedToBeFalseTerm' t -- Could this just be (mayNeedToBeFalseTerm t)?
+mayNeedToBeFalseTerm _ = error "mayNeedToBeFalseTerm: unhandled term" 
+
+mayNeedToBeFalseTerm' :: Term -> [Symbol]
+mayNeedToBeFalseTerm' (TermIdent (ISymb s)) = [s]
+mayNeedToBeFalseTerm' (TermLit _) = []
+mayNeedToBeFalseTerm' (TermCall (ISymb s) ts) = s:concatMap mayNeedToBeFalseTerm' ts
+mayNeedToBeFalseTerm' (TermExists _ t) = mayNeedToBeFalseTerm' t
+mayNeedToBeFalseTerm' _ = error "mayNeedToBeFalseTerm': unhandled term" 
+
+restoreSimplifiedToTrue :: EliminatedTrivTrue -> [Cmd] -> [Cmd]
+restoreSimplifiedToTrue (EliminatedTrivTrue el_cmds) = (++) el_cmds

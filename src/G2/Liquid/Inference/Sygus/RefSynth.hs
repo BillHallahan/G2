@@ -97,8 +97,9 @@ refSynth' spc e tc meas meas_ex fc meas_sym tycons = do
         liftIO $ do
             putStrLn "refSynth"
             let (call, f_num, arg_pb, ret_pb) = sygusCall e tc meas meas_ex fc
-                (es, simp_call) = elimSimpleDTs . nub . simplifyImpliesLHS . splitAnds . elimRedundantAnds $ call
-                no_unsat_call = unsatCoreElim simp_call
+                s_call = nub . simplifyImpliesLHS . splitAnds . elimRedundantAnds $ call
+                (es_dt, s_call2) = elimSimpleDTs s_call
+                no_unsat_call = unsatCoreElim s_call2
 
             let sygus = printSygus no_unsat_call
             putStrLn . T.unpack $ sygus
@@ -112,7 +113,7 @@ refSynth' spc e tc meas meas_ex fc meas_sym tycons = do
                     return Nothing
                     -- error "refSynth: Bad call to CVC4"
                 Right smt_st -> do
-                    let smt_st' = restoreSimpleDTs es smt_st
+                    let smt_st' = restoreSimpleDTs es_dt  smt_st
 
                     putStrLn . T.unpack $ printSygus smt_st'
 
