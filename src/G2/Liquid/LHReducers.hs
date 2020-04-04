@@ -10,6 +10,7 @@ module G2.Liquid.LHReducers ( LHRed (..)
                             , LHLimitByAcceptedOrderer
                             , LHAbsHalter (..)
                             , LHMaxOutputsHalter (..)
+                            , LHMaxOutputsButTryHalter (..)
                             , LHLimitSameAbstractedHalter (..)
                             , SearchedBelowHalter (..)
                             , LHLeastAbstracted (..)
@@ -239,6 +240,31 @@ instance Halter LHMaxOutputsHalter Int LHTracker where
         where
             min_abs = minAbstractCalls acc
             acc' = filter (\s -> abstractCallsNum s == min_abs) acc
+
+    stepHalter _ hv _ _ _ = hv
+
+data LHMaxOutputsButTryHalter =
+    LHMaxOutputsButTryHalter { max_out :: Int -- ^ The maximal number of states to output
+                             , try_at_least :: Int -- ^ The number of states with less abstracted
+                                                   -- functions to consider, before giving up
+                             }
+
+instance Halter LHMaxOutputsButTryHalter () LHTracker where
+    initHalt _ _ = ()
+
+    updatePerStateHalt _ hv _ _ = hv
+
+    stopRed _ _ _ _ = return Continue
+
+    discardOnStart (LHMaxOutputsButTryHalter m tal) _
+                   (Processed { accepted = acc, discarded = dis }) s =
+        length acc' >= m 
+            && ( abstractCallsNum s >= m || length dis' >= tal || min_abs == 0 )
+        where
+            min_abs = minAbstractCalls acc
+            acc' = filter (\s -> abstractCallsNum s == min_abs) acc
+
+            dis' = filter (\s -> abstractCallsNum s < min_abs) dis
 
     stepHalter _ hv _ _ _ = hv
 
