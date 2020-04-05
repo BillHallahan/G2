@@ -435,7 +435,7 @@ boolDefRuleList =
     -- (GConstant boolSort) is significantly slower than just enumerating the bools
     -- , GConstant boolSort
     , GBfTerm $ BfLiteral (LitBool True)
-    , GBfTerm $ BfLiteral (LitBool False)
+    -- , GBfTerm $ BfLiteral (LitBool False)
     , GBfTerm $ BfIdentifierBfs (ISymb "=>") [boolBf, boolBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "and") [boolBf, boolBf]
     -- , GBfTerm $ BfIdentifierBfs (ISymb "or") [boolBf, boolBf]
