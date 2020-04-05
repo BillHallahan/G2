@@ -80,20 +80,21 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
 
         eenv = expr_env . state . lr_state $ lrs
 
-        asserts_on = map (\(Name n m _ _) -> (n, m)) 
-                   . map varToName
-                   $ concatMap (map fst . gsTySigs . spec) ghci
-        asserts_on' = filter (\(Name n m _ _) -> (n, m) `elem` asserts_on ) $ E.keys eenv
+        -- asserts_on = map (\(Name n m _ _) -> (n, m)) 
+        --            . map varToName
+        --            $ concatMap (map fst . gsTySigs . spec) ghci
+        -- asserts_on' = filter (\(Name n m _ _) -> (n, m) `elem` asserts_on ) $ E.keys eenv
 
         nls = filter (not . null)
             . map (filter (\(Name _ m _ _) -> m == fst exg2)) 
-            . nameLevels asserts_on'
+            . nameLevels
             . getCallGraph $ eenv
 
+    putStrLn $ "cg = " ++ show (filter (\(Name _ m _ _) -> m == fst exg2) . functions $ getCallGraph eenv)
     putStrLn $ "nls = " ++ show nls
 
     let configs = Configs { g2_config = g2config', lh_config = lhconfig, inf_config = infconfig'}
-    let infL = inferenceL 0 ghci (fst exg2) lrs nls WorkDown emptyGS emptyGS emptyFC emptyFC []
+    let infL = inferenceL 0 ghci (fst exg2) lrs ([]:nls) WorkDown emptyGS emptyGS emptyFC emptyFC []
 
     inf <- runConfigs infL configs
     case inf of
@@ -183,7 +184,7 @@ inferenceL level ghci m_modname lrs nls wd gs lower_gs fc rising_fc try_to_synth
                     case nullFC pre_solved of
                         False -> do
                             liftIO . putStrLn $ "---\nreturning FuncConstraints from level " ++ show level
-                            -- putStrLn $ "pre_solved =\n" ++ printFCs pre_solved
+                            liftIO . putStrLn $ "pre_solved =\n" ++ printFCs pre_solved
                             -- putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
                             let merged_pre_fc = unionFC new_fc rising_fc
                                 merged_pre_fc' = adjustOldFC merged_pre_fc new_fc

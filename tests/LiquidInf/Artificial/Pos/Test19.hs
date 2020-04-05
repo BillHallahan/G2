@@ -1,5 +1,3 @@
--- cmd_line = (--no-keep-quals)
-
 {-@ LIQUID "--short-names" @-}
 {-@ LIQUID "--no-termination" @-}
 {-@ LIQUID "--prune-unsorted" @-}

@@ -1,5 +1,6 @@
 module G2.Language.CallGraph ( CallGraph
                              , getCallGraph
+                             , functions
                              , calls
                              , calledBy
                              , nameLevels ) where
@@ -30,6 +31,14 @@ getCallGraph eenv =
     in
     CallGraph g nfv' vert'
 
+functions :: CallGraph -> [Name]
+functions cg = map (\(_, n, _) -> n) . map (nfv cg) . vertices $ graph cg
+
+callsList :: CallGraph -> [(Name, Name)]
+callsList cg = map (\(v1, v2) -> (mid $ nfv cg v1, mid $ nfv cg v2)) . edges $ graph cg
+    where
+        mid (_, m, _) = m
+
 nodeName :: CallGraph -> Vertex -> Name
 nodeName g v = (\(_, n, _) -> n) $ nfv g v
 
@@ -43,20 +52,44 @@ calledBy n g = map fst
 
 -- | Returns:
 -- (1) a list of list of names, where the first list contains functions
--- passed in, and the nth list, n > 2, includes functions called by
--- functions in the (n - 1)th list.
-nameLevels :: [Name] -> CallGraph -> [[Name]]
-nameLevels start (CallGraph { graph = g, nfv = f, vert = v }) =
-    nameLevels' . map (mapTree (f'. f)) $ dfs g (mapMaybe v start)
-    where
-        f' (_, n, _) = n
+-- that are not called by any functions (except themselves), and the nth list, n > 2,
+-- includes functions called by functions in the (n - 1)th list.
+nameLevels :: CallGraph -> [[Name]]
+nameLevels cg =
+    let
+        fs = functions cg
+        eds = callsList cg
 
-nameLevels' :: Forest Name -> [[Name]]
-nameLevels' [] = []
-nameLevels' frst = map nodeName frst:nameLevels' (concatMap nodeNested frst)
-    where
-        nodeName (Node n _) = n
-        nodeNested (Node _ ns) = ns
+        callers = map fst eds
+        called_by_others = mapMaybe (\(n1, n2) -> if n1 /= n2 then Just n2 else Nothing) eds
+
+        only_caller = filter (`notElem` called_by_others) callers
+    in
+    only_caller:nameLevels' only_caller (removeEdgesTo only_caller eds)
+
+nameLevels' :: [Name] -> [(Name, Name)] -> [[Name]]
+nameLevels' [] _ = []
+nameLevels' callers eds =
+    let
+        called = map snd $ filter (\(n1, _) -> n1 `elem` callers) eds
+    in
+    called:nameLevels' called (removeEdgesTo called eds)
+
+removeEdgesTo :: [Name] -> [(Name, Name)] -> [(Name, Name)]
+removeEdgesTo ns = filter (\(_, n2) -> n2 `notElem` ns)
+
+-- nameLevels :: [Name] -> CallGraph -> [[Name]]
+-- nameLevels start (CallGraph { graph = g, nfv = f, vert = v }) =
+--     nameLevels' . map (mapTree (f'. f)) $ dfs g (mapMaybe v start)
+--     where
+--         f' (_, n, _) = n
+
+-- nameLevels' :: Forest Name -> [[Name]]
+-- nameLevels' [] = []
+-- nameLevels' frst = map nodeName frst:nameLevels' (concatMap nodeNested frst)
+--     where
+--         nodeName (Node n _) = n
+--         nodeNested (Node _ ns) = ns
 
 ------------------------------------------
 -- Helper functions
