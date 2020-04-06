@@ -1,23 +1,39 @@
--- cmd_line = (--no-keep-quals)
+{-@ LIQUID "--short-names" @-}
+{-@ LIQUID "--no-termination" @-}
+{-@ LIQUID "--prune-unsorted" @-}
 
-module Combined () where
+module ListQualif ( List ) where
 
-import Prelude hiding (foldr, map, zipWith, repeat)
+import Prelude hiding (map)
+import Data.List (minimumBy)
 
-data List a = D a
+infixr 9 :+:
 
-{-@ measure size :: List a -> Int
-    size (D x) = 1
-  @-}
+data List a = Emp
+            | (:+:) a (List a)
+              deriving (Eq, Ord, Show)
+
+{-@ measure size      :: List a -> Int
+    size (Emp)        = 0
+    size ((:+:) x xs) = 1 + size xs @-}
 
 {-@ invariant {v:List a | 0 <= size v} @-}
 
-map :: (a -> b) -> List a -> List b
-map f (D x) = D (f x)
+map       :: (a -> b) -> List a -> List b
+map f Emp        = Emp
+map f (x :+: xs) = f x :+: map f xs
 
-mapReduce :: List Int -> List Int
-mapReduce xs = map (\_ -> 1) xs
+{-@ divide :: Double -> { x:Int | x /= 0 } -> Double @-}
+divide :: Double -> Int -> Double
+divide n 0 = error "divide by zero"
+divide n d = n
 
-{-@ f :: List Int -> List {v:Int | 0 <= v } @-}
-f :: List Int -> List Int
-f ps = mapReduce ps
+type Point   = List Double
+{-@ type PointN n = {v:List Double | size v = n} @-}
+
+centroid :: Point -> Int -> Point
+centroid p sz = map (\x -> x `divide` sz) p
+
+{-@ normalize :: { x:Int | x /= 0} -> v:List Double -> { w:List Double | size v == size w} @-}
+normalize :: Int -> Point -> Point
+normalize sz p = centroid p sz

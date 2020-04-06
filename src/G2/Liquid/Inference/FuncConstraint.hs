@@ -19,6 +19,7 @@ module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
 
                                           , constraining
 
+                                          , printFC
                                           , printFCs ) where
 
 import G2.Language.AST
