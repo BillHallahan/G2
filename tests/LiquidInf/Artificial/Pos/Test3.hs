@@ -42,7 +42,7 @@ nearest x = fst $ minimumBy (\_ _ -> LT) (M.toList x)
 {-@ f :: k:Nat -> n:Nat -> List (PointN n) ->
          M.Map {v:Int | 0 <= v } Int -> M.Map {v:Int | 0 <= v } Int @-}
 f :: Int -> Int -> List Point -> M.Map Int Int -> M.Map Int Int
-f k n ps cs = M.map (\p -> p) newClusters
+f k n ps cs = newClusters
   where
     newClusters = mapReduce fm ps
     fm p = (nearest cs, 1)

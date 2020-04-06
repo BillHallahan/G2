@@ -245,7 +245,7 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
               -- :<~> searched_below
               :<~> lh_max_outputs
               :<~> SwitchEveryNHalter (switch_after config)
-              :<~> LHLimitSameAbstractedHalter 10
+              :<~> LHLimitSameAbstractedHalter 3
               :<~> AcceptIfViolatedHalter
               :<~> timer_halter)
         , SomeOrderer (ToOrderer $ IncrAfterN 1000 ADTHeightOrderer))

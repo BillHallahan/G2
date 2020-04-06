@@ -359,8 +359,11 @@ grammar intRules doubleRules arg_sort_vars ret_sorted_var@(SortedVar _ (IdentSor
                             , ("DClamp", [GBfTerm $ BfIdentifierBfs (ISymb clampDoubleSymb) [BfIdentifier (ISymb "DConst")]], [])
                             , ("DConst", [GConstant doubleSort], []) ]
 
+        bool_rl = boolTrueRuleList ++ if not (null bool_int) || not (null bool_double)
+                                        then boolOpRuleList
+                                        else []
         brl = GroupedRuleList "B" boolSort
-                (boolDefRuleList ++ bool_int ++ bool_double
+                (bool_rl ++ bool_int ++ bool_double
                                 ++ addSelectors sortsToGN boolSort sorts')
 
         grm = GrammarDef
@@ -440,12 +443,20 @@ boolRuleList = boolDefRuleList ++ boolIntArgRuleList ++ boolDoubleArgRuleList
 
 boolDefRuleList :: [GTerm]
 boolDefRuleList =
-    [ GVariable boolSort
+    boolTrueRuleList ++ boolOpRuleList
 
+boolTrueRuleList :: [GTerm]
+boolTrueRuleList =
+    [
     -- (GConstant boolSort) is significantly slower than just enumerating the bools
     -- , GConstant boolSort
-    , GBfTerm $ BfLiteral (LitBool True)
-    -- , GBfTerm $ BfLiteral (LitBool False)
+      GBfTerm $ BfLiteral (LitBool True)
+    ]
+
+boolOpRuleList :: [GTerm]
+boolOpRuleList =
+    [ GVariable boolSort
+
     , GBfTerm $ BfIdentifierBfs (ISymb "=>") [boolBf, boolBf]
     , GBfTerm $ BfIdentifierBfs (ISymb "and") [boolBf, boolBf]
     -- , GBfTerm $ BfIdentifierBfs (ISymb "or") [boolBf, boolBf]
