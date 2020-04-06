@@ -10,7 +10,9 @@ module G2.Liquid.Inference.Sygus.SimplifySygus ( EliminatedSimple
 
                                                , EliminatedTrivTrue
                                                , simplifyToTrue
-                                               , restoreSimplifiedToTrue) where
+                                               , restoreSimplifiedToTrue
+
+                                               , elimNegatedExistential) where
 
 import Sygus.Syntax
 
@@ -354,3 +356,31 @@ mayNeedToBeFalseTerm' _ = error "mayNeedToBeFalseTerm': unhandled term"
 
 restoreSimplifiedToTrue :: EliminatedTrivTrue -> [Cmd] -> [Cmd]
 restoreSimplifiedToTrue (EliminatedTrivTrue el_cmds) = (++) el_cmds
+
+
+-----------------------------------------
+-- Elimiantes negated existentials.  This simplification actually does NOT keep exactly the same problem.
+-- However, in practice, we never benefit from negated existentials when synthesizing a refinement type.
+
+elimNegatedExistential :: [Cmd] -> [Cmd]
+elimNegatedExistential = map elimNegatedExistential'
+
+elimNegatedExistential' :: Cmd -> Cmd
+elimNegatedExistential' (Constraint t) = Constraint $ elimNegatedExistentialTerm t
+elimNegatedExistential' cmd = cmd
+
+elimNegatedExistentialTerm :: Term -> Term
+elimNegatedExistentialTerm (TermCall (ISymb "not") [t]) =
+    case elimNegatedExistentialTerm' t of
+        Nothing -> TermLit (LitBool True)
+        Just t' -> TermCall (ISymb "not") [t']
+elimNegatedExistentialTerm (TermCall i ts) = TermCall i $ map elimNegatedExistentialTerm ts
+elimNegatedExistentialTerm t = t
+
+elimNegatedExistentialTerm' :: Term -> Maybe Term
+elimNegatedExistentialTerm' (TermExists _ _) = Nothing
+elimNegatedExistentialTerm' (TermCall (ISymb "and") ts) = 
+    case mapMaybe elimNegatedExistentialTerm' ts of
+        [] -> Just $ TermLit (LitBool True)
+        ts' -> Just $ TermCall (ISymb "and") ts'
+elimNegatedExistentialTerm' t = Just t

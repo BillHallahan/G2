@@ -97,7 +97,11 @@ refSynth' spc e tc meas meas_ex fc meas_sym tycons = do
         liftIO $ do
             putStrLn "refSynth"
             let (call, f_num, arg_pb, ret_pb) = sygusCall e tc meas meas_ex fc
-                s_call = nub . simplifyImpliesLHS . splitAnds . elimRedundantAnds $ call
+                s_call = nub
+                       . elimNegatedExistential
+                       . simplifyImpliesLHS
+                       . splitAnds
+                       . elimRedundantAnds $ call
                 (es_dt, s_call2) = elimSimpleDTs s_call
                 no_unsat_call = unsatCoreElim s_call2
 
@@ -318,9 +322,11 @@ extGrammar = grammar extIntRuleList extDoubleRuleList
 grammar :: [GTerm] -- Int Rules
         -> [GTerm] -- Double Rules
         -> GrammarGen
-grammar intRules doubleRules arg_sort_vars ret_sorted_var sorts =
+grammar intRules doubleRules arg_sort_vars ret_sorted_var@(SortedVar _ (IdentSort (ISymb ret_srt_symb))) sorts =
     let
         sorted_vars = arg_sort_vars ++ [ret_sorted_var]
+
+        rel_to_ret = maybe [ret_sorted_var] meas_names $ lookupSortInfoBySort ret_srt_symb sorts
 
         sorts' = filterToSorts (map (\(SortedVar _ s) -> sortSymb s) sorted_vars) sorts
 
@@ -335,8 +341,17 @@ grammar intRules doubleRules arg_sort_vars ret_sorted_var sorts =
 
         const_int = GroupedRuleList "IConst" intSort [GConstant intSort]
     
+        (bool_int, decl_int, grl_int) =
+            adjustTypeUsage rel_to_ret
+                            intSort
+                            boolIntArgRuleList 
+                            [SortedVar "I" intSort, SortedVar "IClamp" intSort, SortedVar "IConst" intSort]
+                            [ ("I", intRules, addSelectors sortsToGN intSort sorts')
+                            , ("IClamp", [GBfTerm $ BfIdentifierBfs (ISymb clampIntSymb) [BfIdentifier (ISymb "IConst")]], [])
+                            , ("IConst", [GConstant intSort], []) ]
+
         (bool_double, decl_double, grl_double) =
-            adjustTypeUsage sorted_vars
+            adjustTypeUsage rel_to_ret
                             doubleSort
                             boolDoubleArgRuleList 
                             [SortedVar "D" doubleSort, SortedVar "DClamp" doubleSort, SortedVar "DConst" doubleSort]
@@ -345,21 +360,16 @@ grammar intRules doubleRules arg_sort_vars ret_sorted_var sorts =
                             , ("DConst", [GConstant doubleSort], []) ]
 
         brl = GroupedRuleList "B" boolSort
-                (boolDefRuleList ++ boolIntArgRuleList ++ bool_double
+                (boolDefRuleList ++ bool_int ++ bool_double
                                 ++ addSelectors sortsToGN boolSort sorts')
 
         grm = GrammarDef
-                ([ SortedVar "B" boolSort
-                 , SortedVar "I" intSort
-                 , SortedVar "IClamp" intSort
-                 , SortedVar "IConst" intSort ]
+                ([ SortedVar "B" boolSort ]
+                 ++ decl_int
                  ++ decl_double
                  ++ map (uncurry SortedVar) grams)
-                ([ brl
-                 , irl
-                 , clamp_int
-                 , const_int
-                 ]
+                ([ brl ]
+                 ++ grl_int
                  ++ grl_double
                  ++ map (uncurry dtGroupRuleList) grams)
     in
@@ -392,7 +402,7 @@ adjustTypeUsage params srt bool_trms decls type_trms =
 
         type_grl = map (\(s, def, sel) -> GroupedRuleList s srt (def ++ sel)) type_trms
     in
-    if param_typs /= [] || sels /= []
+    if param_typs /= [] -- || sels /= []
         then (bool_trms, decls, type_grl)
         else ([], [], [])
 
@@ -794,6 +804,9 @@ lookupSort t (TypesToSorts sorts) =
 
      -- = fmap (snd) . find (\(t', _) -> PresType t .:: t') . types_to_sorts
 
+lookupSortInfoBySort :: Symbol -> TypesToSorts -> Maybe SortInfo
+lookupSortInfoBySort symb (TypesToSorts ts) = find (\s -> symb == sort_name s) $ map snd ts
+
 sortsToDeclareDTs :: TypesToSorts -> [Cmd]
 sortsToDeclareDTs = map (sortToDeclareDT) . map snd . types_to_sorts
 
@@ -850,8 +863,7 @@ forceVarInGrammar var params (GrammarDef sv grls) =
 
         sv_reach = concatMap (grammarDefSortedVars reach) sv
     in
-    let x = GrammarDef sv_reach . elimEmptyGRL $ forceVarInGRLList var reach grls in
-    trace ("in = " ++ T.unpack (printSygus (GrammarDef sv grls)) ++ "\nx = " ++ T.unpack (printSygus x)) x
+    GrammarDef sv_reach . elimEmptyGRL $ forceVarInGRLList var reach grls
 
 forceVarInGRLList :: SortedVar -> [Symbol] -> [GroupedRuleList] -> [GroupedRuleList]
 forceVarInGRLList var reach grls =
@@ -869,8 +881,8 @@ forceVarInGRL (SortedVar sv_symb sv_srt) reach fv_map grl@(GroupedRuleList grl_s
         let
             bf_var = BfIdentifier (ISymb sv_symb)
             fv_gtrms' = if sv_srt == grl_srt
-                                then GBfTerm bf_var:elimVariable fv_gtrms
-                                else elimVariable fv_gtrms
+                                then GBfTerm bf_var:(filter (not . isClamp) $ elimVariable fv_gtrms)
+                                else filter (not . isClamp) $ elimVariable fv_gtrms
         in
         [GroupedRuleList fv_symb grl_srt fv_gtrms', grl]
     | otherwise = [grl]
@@ -886,6 +898,11 @@ elimVariable :: [GTerm] -> [GTerm]
 elimVariable = filter (\t -> case t of
                             GVariable _ -> False
                             _ -> True)
+
+isClamp :: GTerm -> Bool
+isClamp (GBfTerm (BfIdentifier (ISymb "IClamp"))) = True
+isClamp (GBfTerm (BfIdentifier (ISymb "DClamp"))) = True
+isClamp _ = False
 
 -----------------------------------------------------
 
@@ -979,12 +996,29 @@ substOnceGTerm m (GBfTerm bf) = map GBfTerm $ substOnceBfTerm m bf
 substOnceGTerm _ gt = [gt]
 
 substOnceBfTerm :: HM.HashMap BfTerm BfTerm -> BfTerm -> [BfTerm]
-substOnceBfTerm m (BfIdentifierBfs c bfs) = map (BfIdentifierBfs c) $ substsOnces m bfs
+substOnceBfTerm m (BfIdentifierBfs c bfs) = elimRedundant . map (BfIdentifierBfs c) $ substsOnces m bfs
 substOnceBfTerm _ bf = [bf]
 
 substOnceTerm :: HM.HashMap Term Term -> Term -> [Term]
 substOnceTerm m (TermCall c ts) = map (TermCall c) $ substsOnces m ts
 substOnceTerm _ t = [t]
+
+elimRedundant :: [BfTerm] -> [BfTerm]
+elimRedundant (b@(BfIdentifierBfs (ISymb s) [b1, b2]):xs) =
+    let
+        xs' = if isCommutative s
+                then delete (BfIdentifierBfs (ISymb s) [b2, b1]) xs
+                else xs
+    in
+    b:elimRedundant xs'
+elimRedundant (x:xs) = x:elimRedundant xs
+elimRedundant [] = []
+
+isCommutative :: Symbol -> Bool
+isCommutative "and" = True
+isCommutative "=" = True
+isCommutative "+" = True
+isCommutative _ = False
 
 -- | Given:
 --      * A mapping of list element to be replaced, to new elements
