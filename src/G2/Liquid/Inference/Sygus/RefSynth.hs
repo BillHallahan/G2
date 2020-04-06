@@ -363,7 +363,7 @@ grammar intRules doubleRules arg_sort_vars ret_sorted_var sorts =
                  ++ grl_double
                  ++ map (uncurry dtGroupRuleList) grams)
     in
-    forceVarInGrammar ret_sorted_var grm
+    forceVarInGrammar ret_sorted_var arg_sort_vars grm
     where
         sortSymb (IdentSort (ISymb s)) = s
         sortSymb _ = error "grammar: sortSymb"
@@ -835,11 +835,14 @@ filterToSorts xs (TypesToSorts sorts) =
 
 -- Adjusts a grammar to force using a given GTerm
 
-forceVarInGrammar :: SortedVar -> GrammarDef -> GrammarDef
-forceVarInGrammar var (GrammarDef sv grls) =
+forceVarInGrammar :: SortedVar -- ^ The variable to force
+                  -> [SortedVar]  -- ^ All other variables
+                  -> GrammarDef
+                  -> GrammarDef
+forceVarInGrammar var params (GrammarDef sv grls) =
     let
         prod_srt = mapMaybe (\grl@(GroupedRuleList grl_symb srt' _) ->
-                            if canProduceVar var grl
+                            if any (flip canProduceVar grl) (var:params)
                                 then Just grl_symb
                                 else Nothing ) grls
 
@@ -847,7 +850,8 @@ forceVarInGrammar var (GrammarDef sv grls) =
 
         sv_reach = concatMap (grammarDefSortedVars reach) sv
     in
-    GrammarDef sv_reach $ forceVarInGRLList var reach grls
+    let x = GrammarDef sv_reach . elimEmptyGRL $ forceVarInGRLList var reach grls in
+    trace ("in = " ++ T.unpack (printSygus (GrammarDef sv grls)) ++ "\nx = " ++ T.unpack (printSygus x)) x
 
 forceVarInGRLList :: SortedVar -> [Symbol] -> [GroupedRuleList] -> [GroupedRuleList]
 forceVarInGRLList var reach grls =
@@ -861,14 +865,14 @@ forceVarInGRLList var reach grls =
 
 forceVarInGRL :: SortedVar -> [Symbol] -> HM.HashMap BfTerm BfTerm -> GroupedRuleList -> [GroupedRuleList]
 forceVarInGRL (SortedVar sv_symb sv_srt) reach fv_map grl@(GroupedRuleList grl_symb grl_srt gtrms)
-    | grl_symb `elem` reach
-    , sv_srt == grl_srt =
+    | grl_symb `elem` reach =
         let
             bf_var = BfIdentifier (ISymb sv_symb)
-            fv_gtrms' = GBfTerm bf_var:elimVariable fv_gtrms
+            fv_gtrms' = if sv_srt == grl_srt
+                                then GBfTerm bf_var:elimVariable fv_gtrms
+                                else elimVariable fv_gtrms
         in
         [GroupedRuleList fv_symb grl_srt fv_gtrms', grl]
-    | grl_symb `elem` reach = [GroupedRuleList fv_symb grl_srt fv_gtrms, grl]
     | otherwise = [grl]
     where
         fv_symb = forcedVarSymb grl_symb
@@ -882,6 +886,33 @@ elimVariable :: [GTerm] -> [GTerm]
 elimVariable = filter (\t -> case t of
                             GVariable _ -> False
                             _ -> True)
+
+-----------------------------------------------------
+
+elimEmptyGRL :: [GroupedRuleList] -> [GroupedRuleList]
+elimEmptyGRL grl =
+    let
+        emp_grl = map (\(GroupedRuleList n _ _) -> n)
+                $ filter (\(GroupedRuleList _ _ r) -> null r) grl
+
+    in
+    filter (\(GroupedRuleList _ _ r) -> not $ null r) $ map (elimRules emp_grl) grl
+
+elimRules :: [Symbol] -> GroupedRuleList -> GroupedRuleList
+elimRules grls (GroupedRuleList symb srt r) =
+    GroupedRuleList symb srt $ filter (elimRules' grls) r
+
+elimRules' :: [Symbol] -> GTerm -> Bool
+elimRules' _ (GConstant _) = True
+elimRules' _ (GVariable _) = True
+elimRules' grls (GBfTerm bft) = elimRulesBfT grls bft
+
+elimRulesBfT :: [Symbol] -> BfTerm -> Bool
+elimRulesBfT grls (BfIdentifier (ISymb i)) = i `notElem` grls
+elimRulesBfT _ (BfLiteral _) = True
+elimRulesBfT grls (BfIdentifierBfs _ bfs) = all (elimRulesBfT grls) bfs
+
+-----------------------------------------------------
 
 grammarDefSortedVars :: [Symbol] -> SortedVar -> [SortedVar]
 grammarDefSortedVars symbs sv@(SortedVar n srt)
