@@ -1,9 +1,14 @@
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Liquid.Inference.Config ( InfConfigM (..)
+module G2.Liquid.Inference.Config (
+                                    Progress (..)
+                                  , Progresser (..)
+                                  , ProgresserM (..)
+                                  , newProgress
+                                  , runProgresser
+
+                                  , InfConfigM (..)
                                   , InferenceConfig (..)
                                   , Configs (..)
                                   , InfConfig (..)
@@ -28,10 +33,52 @@ import qualified Language.Haskell.Liquid.Types as LH
 import Var as V
 
 import Control.Monad.Reader
+import Control.Monad.State.Lazy
 import qualified Data.HashSet as S
 import qualified Data.Map as M
 import qualified Data.Text as T
 import Data.Time.Clock
+
+-------------------------------
+-- Progresser
+-------------------------------
+
+data Progress = Progress { ex_max_ce :: M.Map (T.Text, Maybe T.Text) Int -- ^ Gives an extra budget for maximum ce number from a given function
+                         }
+
+newProgress :: Progress
+newProgress = Progress { ex_max_ce = M.empty }
+
+class Progresser p where
+    extraMaxCEx :: (T.Text, Maybe T.Text) -> p -> Int
+    incrMaxCEx :: (T.Text, Maybe T.Text) -> p -> p
+
+instance Progresser Progress where
+    extraMaxCEx n (Progress { ex_max_ce = m }) =
+        M.findWithDefault 0 n m
+    incrMaxCEx n p@(Progress { ex_max_ce = m }) =
+        Progress { ex_max_ce = M.alter (\v -> case v of
+                                                Nothing -> Just 0
+                                                Just v' -> Just $ v' + 2) n m }
+
+class Monad m => ProgresserM m where
+    extraMaxCExM :: (T.Text, Maybe T.Text) -> m Int
+    incrMaxCExM :: (T.Text, Maybe T.Text) -> m ()
+
+instance (Monad m, Progresser p) => ProgresserM (StateT p m) where
+    extraMaxCExM n = gets (extraMaxCEx n)
+    incrMaxCExM n = modify' (incrMaxCEx n)
+
+instance ProgresserM m => ProgresserM (ReaderT env m) where
+    extraMaxCExM n = lift (extraMaxCExM n)
+    incrMaxCExM n = lift (incrMaxCExM n)
+
+runProgresser :: (Monad m, Progresser p) => StateT p m a -> p -> m a
+runProgresser = evalStateT
+
+-------------------------------
+-- Configurations
+-------------------------------
 
 data Configs = Configs { g2_config :: Config
                        , lh_config :: LH.Config
@@ -61,6 +108,12 @@ instance (Monad m, InfConfig env) => InfConfigM (ReaderT env m) where
     g2ConfigM = return . g2Config =<< ask 
     lhConfigM = return . lhConfig =<< ask 
     infConfigM = return . infConfig =<< ask 
+
+instance InfConfigM m => InfConfigM (StateT env m) where
+    g2ConfigM = lift g2ConfigM
+    lhConfigM = lift lhConfigM
+    infConfigM = lift infConfigM
+
 
 data InferenceConfig = InferenceConfig { keep_quals :: Bool
 
@@ -127,3 +180,4 @@ tyVarRetTy e =
     case returnType e of
         TyVar _ -> True
         _ -> False
+

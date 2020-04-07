@@ -6,6 +6,7 @@
 module G2.Language.Naming
     ( nameOcc
     , nameModule
+    , nameTuple
     , nameLoc
     , NameGen
     , Named (names, rename, renames)
@@ -64,6 +65,9 @@ nameOcc (Name occ _ _ _) = occ
 
 nameModule :: Name -> Maybe T.Text
 nameModule (Name _ mb _ _) = mb
+
+nameTuple :: Name -> (T.Text, Maybe T.Text)
+nameTuple n = (nameOcc n, nameModule n)
 
 nameLoc :: Name -> Maybe Span
 nameLoc (Name _ _ _ s) = s

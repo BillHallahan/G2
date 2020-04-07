@@ -94,9 +94,11 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
     putStrLn $ "nls = " ++ show nls
 
     let configs = Configs { g2_config = g2config', lh_config = lhconfig, inf_config = infconfig'}
-    let infL = inferenceL 0 ghci (fst exg2) lrs ([]:nls) WorkDown emptyGS emptyGS emptyFC emptyFC []
+        prog = newProgress
 
-    inf <- runConfigs infL configs
+        infL = inferenceL 0 ghci (fst exg2) lrs ([]:nls) WorkDown emptyGS emptyGS emptyFC emptyFC []
+
+    inf <-  runConfigs (runProgresser infL prog) configs
     case inf of
         CEx cex -> return $ Left cex
         GS gs -> return $ Right gs
@@ -133,7 +135,7 @@ type LowerGeneratedSpecs = GeneratedSpecs
 type Level = Int
 type NameLevels = [[Name]]
 
-inferenceL :: (InfConfigM m, MonadIO m) =>  Level -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
+inferenceL :: (ProgresserM m, InfConfigM m, MonadIO m) =>  Level -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
            -> NameLevels -> WorkingDir -> GeneratedSpecs -> LowerGeneratedSpecs -> FuncConstraints -> RisingFuncConstraints -> [Name] -> m InferenceRes
 inferenceL level ghci m_modname lrs nls wd gs lower_gs fc rising_fc try_to_synth = do
     liftIO $ putStrLn $ "---\ninference' level " ++ show level
@@ -156,6 +158,9 @@ inferenceL level ghci m_modname lrs nls wd gs lower_gs fc rising_fc try_to_synth
 
     synth_gs <- synthesize ghci lrs gs (unionFC fc rising_fc) try_to_synth
 
+    let gs' = switchAssumesToAsserts gs
+        synth_gs' = switchAssumesToAsserts synth_gs
+
     let ignore = case nls of
                     (_:nls') -> concat nls'
                     [] -> []
@@ -174,7 +179,13 @@ inferenceL level ghci m_modname lrs nls wd gs lower_gs fc rising_fc try_to_synth
             | otherwise -> return $ GS new_gs
         Left bad -> do
             ref <- refineUnsafe ghci m_modname lrs wd (unionDroppingGS synth_gs new_lower_gs) bad
-            
+
+            -- If we got repeated assertions, increase the search depth
+            case any (\n -> lookupAssertGS n gs' == lookupAssertGS n synth_gs') try_to_synth of
+                True -> mapM_ (incrMaxCExM . nameTuple) bad
+                False -> return ()
+
+
             case ref of
                 Left cex -> return $ CEx cex
                 Right (new_fc, wd')  -> do
@@ -203,7 +214,7 @@ inferenceL level ghci m_modname lrs nls wd gs lower_gs fc rising_fc try_to_synth
                             raiseFCs level ghci m_modname lrs nls wd' synth_gs merged_fc emptyFC
                                 =<<  inferenceL level ghci m_modname lrs nls wd' synth_gs new_lower_gs merged_fc emptyFC rel_funcs
 
-raiseFCs :: (InfConfigM m, MonadIO m) =>  Level -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
+raiseFCs :: (ProgresserM m, InfConfigM m, MonadIO m) =>  Level -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
          -> NameLevels -> WorkingDir -> GeneratedSpecs -> FuncConstraints -> RisingFuncConstraints -> InferenceRes -> m InferenceRes
 raiseFCs level ghci m_modname lrs nls wd gs fc rising_fc lev@(FCs fc' new_fc _ new_lower_gs') = do
     liftIO . putStrLn $ "---\nMoving up to level " ++ show level 
@@ -252,7 +263,7 @@ notAppropFCs potential =
     where
         nameMod (Name n m _ _) = (n, m)
 
-refineUnsafe :: (InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState
+refineUnsafe :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState
              -> WorkingDir -> GeneratedSpecs
              -> [Name] -> m (Either [CounterExample] (FuncConstraints, WorkingDir))
 refineUnsafe ghci m_modname lrs wd gs bad = do
@@ -314,7 +325,7 @@ createStateForInference simp_s config ghci =
     createLiquidReadyState s b ghci ph_tyvars config
 
 
-genNewConstraints :: (InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> T.Text -> m [CounterExample]
+genNewConstraints :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> T.Text -> m [CounterExample]
 genNewConstraints ghci m lrs n = do
     liftIO . putStrLn $ "Generating constraints for " ++ T.unpack n
     ((exec_res, _), i) <- runLHInferenceCore n m lrs ghci

@@ -13,6 +13,7 @@ module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
                                           , toListFC
                                           , unionFC
                                           , unionsFC
+                                          , differenceFC
                                           , mapFC
                                           , mapMaybeFC
                                           , filterFC
@@ -82,6 +83,10 @@ unionFC (FuncConstraints fc1) (FuncConstraints fc2) =
 
 unionsFC :: [FuncConstraints] -> FuncConstraints
 unionsFC = foldr unionFC emptyFC
+
+differenceFC :: FuncConstraints -> FuncConstraints -> FuncConstraints
+differenceFC (FuncConstraints fc1) (FuncConstraints fc2) =
+    FuncConstraints $ M.difference fc1 fc2
 
 mapFC :: (FuncConstraint -> FuncConstraint) -> FuncConstraints -> FuncConstraints
 mapFC f = coerce (M.map (map f))

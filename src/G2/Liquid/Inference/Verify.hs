@@ -107,7 +107,7 @@ tryHardToVerifyIgnoring ghci gs lower_gs ignore = do
 checkGSCorrect :: InferenceConfig -> Config -> [GhcInfo] -> GeneratedSpecs -> IO (VerifyResult V.Var)
 checkGSCorrect infconfig lhconfig ghci gs
     | nullAssumeGS gs = do
-        let merged_ghci = addSpecsToGhcInfos ghci gs
+        let merged_ghci = addSpecsToGhcInfos ghci $ switchAssumesToAsserts gs
         verify infconfig lhconfig merged_ghci
     | otherwise = error "Non-null assumes."
 

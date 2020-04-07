@@ -166,7 +166,7 @@ instance Reducer GathererReducer () [FuncCall] where
 -------------------------------
 -- Generating Counterexamples
 -------------------------------
-runLHInferenceCore :: (InfConfigM m, MonadIO m)
+runLHInferenceCore :: (ProgresserM m, InfConfigM m, MonadIO m)
                    => T.Text
                    -> Maybe T.Text
                    -> LiquidReadyState
@@ -175,24 +175,24 @@ runLHInferenceCore :: (InfConfigM m, MonadIO m)
 runLHInferenceCore entry m lrs ghci = do
     g2config <- g2ConfigM
     infconfig <- infConfigM
-    liftIO $ do
-        LiquidData { ls_state = final_st
-                   , ls_bindings = bindings
-                   , ls_id = ifi
-                   , ls_counterfactual_name = cfn
-                   , ls_counterfactual_funcs = cf_funcs
-                   , ls_memconfig = pres_names } <- processLiquidReadyStateWithCall lrs ghci entry m g2config mempty
-        SomeSolver solver <- initSolver g2config
-        let simplifier = ADTSimplifier arbValue
 
-        (red, hal, ord) <- inferenceReducerHalterOrderer infconfig g2config solver simplifier entry m cfn cf_funcs final_st
-        (exec_res, final_bindings) <- runLHG2 g2config red hal ord solver simplifier pres_names final_st bindings
+    LiquidData { ls_state = final_st
+               , ls_bindings = bindings
+               , ls_id = ifi
+               , ls_counterfactual_name = cfn
+               , ls_counterfactual_funcs = cf_funcs
+               , ls_memconfig = pres_names } <- liftIO $ processLiquidReadyStateWithCall lrs ghci entry m g2config mempty
+    SomeSolver solver <- liftIO $ initSolver g2config
+    let simplifier = ADTSimplifier arbValue
 
-        close solver
+    (red, hal, ord) <- inferenceReducerHalterOrderer infconfig g2config solver simplifier entry m cfn cf_funcs final_st
+    (exec_res, final_bindings) <- liftIO $ runLHG2 g2config red hal ord solver simplifier pres_names final_st bindings
 
-        return ((exec_res, final_bindings), ifi)
+    liftIO $ close solver
 
-inferenceReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
+    return ((exec_res, final_bindings), ifi)
+
+inferenceReducerHalterOrderer :: (ProgresserM m, MonadIO m, Solver solver, Simplifier simplifier)
                               => InferenceConfig
                               -> Config
                               -> solver
@@ -204,6 +204,8 @@ inferenceReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifie
                               -> State LHTracker
                               -> m (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
 inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modname cfn cf_funcs st = do
+    extra_ce <- extraMaxCExM (entry, mb_modname)
+
     let
         ng = mkNameGen ()
 
@@ -215,8 +217,10 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
         -- searched_below = SearchedBelowHalter { found_at_least = 3
         --                                      , discarded_at_least = 6
         --                                      , discarded_at_most = 15 }
+        ce_num = max_ce infconfig + extra_ce
+        lh_max_outputs = LHMaxOutputsHalter ce_num
 
-        lh_max_outputs = LHMaxOutputsHalter $ max_ce infconfig
+    liftIO $ putStrLn $ "ce num for " ++ T.unpack entry ++ " is " ++ show ce_num
     
     timer_halter <- liftIO $ timerHalter (timeout_se infconfig)
 
