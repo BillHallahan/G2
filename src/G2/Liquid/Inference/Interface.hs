@@ -80,11 +80,6 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
 
         eenv = expr_env . state . lr_state $ lrs
 
-        -- asserts_on = map (\(Name n m _ _) -> (n, m)) 
-        --            . map varToName
-        --            $ concatMap (map fst . gsTySigs . spec) ghci
-        -- asserts_on' = filter (\(Name n m _ _) -> (n, m) `elem` asserts_on ) $ E.keys eenv
-
         nls = filter (not . null)
             . map (filter (\(Name _ m _ _) -> m == fst exg2)) 
             . nameLevels
@@ -102,7 +97,7 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
     case inf of
         CEx cex -> return $ Left cex
         GS gs -> return $ Right gs
-        FCs _ _ _ _ -> error "inference: Unhandled Func Constraints"
+        FCs _ _ _ -> error "inference: Unhandled Func Constraints"
 
 getGHCI :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO ([GhcInfo], LH.Config)
 getGHCI infconfig config proj fp lhlibs = do
@@ -119,7 +114,7 @@ getGHCI infconfig config proj fp lhlibs = do
     return (ghci, lhconfig)
 
 data InferenceRes = CEx [CounterExample]
-                  | FCs FuncConstraints RisingFuncConstraints WorkingDir LowerGeneratedSpecs
+                  | FCs FuncConstraints RisingFuncConstraints LowerGeneratedSpecs
                   | GS GeneratedSpecs
                   deriving (Show)
 
@@ -158,30 +153,26 @@ inferenceL level ghci m_modname lrs nls wd gs lower_gs fc rising_fc try_to_synth
 
     synth_gs <- synthesize ghci lrs gs (unionFC fc rising_fc) try_to_synth
 
-    let gs' = switchAssumesToAsserts gs
-        synth_gs' = switchAssumesToAsserts synth_gs
-
     let ignore = case nls of
                     (_:nls') -> concat nls'
                     [] -> []
 
-    res <- tryHardToVerifyIgnoring ghci (switchAssumesToAsserts synth_gs) (switchAssumesToAsserts new_lower_gs) ignore
+    res <- tryHardToVerifyIgnoring ghci synth_gs new_lower_gs ignore
 
     case res of
         Right new_gs
             | (_:nls') <- nls -> do
                 liftIO $ putStrLn "---\nFound good GS"
-                let new_gs' = switchAssumesToAsserts new_gs
-                    ghci' = addSpecsToGhcInfos ghci new_gs'
+                let ghci' = addSpecsToGhcInfos ghci new_gs
                 
                 raiseFCs level ghci m_modname lrs nls wd new_gs fc rising_fc
-                    =<< inferenceL (level + 1) ghci' m_modname lrs nls' WorkDown new_gs' new_lower_gs fc rising_fc []
+                    =<< inferenceL (level + 1) ghci' m_modname lrs nls' WorkDown new_gs new_lower_gs fc rising_fc []
             | otherwise -> return $ GS new_gs
         Left bad -> do
             ref <- refineUnsafe ghci m_modname lrs wd (unionDroppingGS synth_gs new_lower_gs) bad
 
             -- If we got repeated assertions, increase the search depth
-            case any (\n -> lookupAssertGS n gs' == lookupAssertGS n synth_gs') try_to_synth of
+            case any (\n -> lookupAssertGS n gs == lookupAssertGS n synth_gs) try_to_synth of
                 True -> mapM_ (incrMaxCExM . nameTuple) bad
                 False -> return ()
 
@@ -191,23 +182,22 @@ inferenceL level ghci m_modname lrs nls wd gs lower_gs fc rising_fc try_to_synth
                 Right (new_fc, wd')  -> do
                     liftIO $ putStrLn "---\nNew FuncConstraints"
                     liftIO . putStrLn $ "new_fc =\n" ++ printFCs new_fc
-                    let pre_solved = notAppropFCs (ls2 ++ concat ls_rest) new_fc-- alreadySpecified ghci new_fc
+                    let pre_solved = notAppropFCs (ls2 ++ concat ls_rest) new_fc
                     case nullFC pre_solved of
                         False -> do
                             liftIO . putStrLn $ "---\nreturning FuncConstraints from level " ++ show level
                             liftIO . putStrLn $ "pre_solved =\n" ++ printFCs pre_solved
-                            -- putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
+
                             let merged_pre_fc = unionFC new_fc rising_fc
                                 merged_pre_fc' = adjustOldFC merged_pre_fc new_fc
                                 fc' = adjustOldFC fc pre_solved
-                            return $ FCs fc' merged_pre_fc' wd' (unionDroppingGS synth_gs new_lower_gs)
+                            return $ FCs fc' merged_pre_fc' (unionDroppingGS synth_gs new_lower_gs)
                         True -> do
-                            let fc' = adjustOldFC fc new_fc -- (unionFC rising_fc new_fc)
+                            let fc' = adjustOldFC fc new_fc
                                 merged_fc = unionFC (unionFC fc' new_fc) rising_fc
 
                             liftIO $ putStrLn "---\nTrue Branch"
-                            -- putStrLn $ "fc' =\n" ++ printFCs fc'
-                            -- putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
+
                             let immed_rel_new = appropFCs ls2 new_fc
                             rel_funcs <- relFuncs immed_rel_new
                             
@@ -216,7 +206,7 @@ inferenceL level ghci m_modname lrs nls wd gs lower_gs fc rising_fc try_to_synth
 
 raiseFCs :: (ProgresserM m, InfConfigM m, MonadIO m) =>  Level -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
          -> NameLevels -> WorkingDir -> GeneratedSpecs -> FuncConstraints -> RisingFuncConstraints -> InferenceRes -> m InferenceRes
-raiseFCs level ghci m_modname lrs nls wd gs fc rising_fc lev@(FCs fc' new_fc _ new_lower_gs') = do
+raiseFCs level ghci m_modname lrs nls wd gs fc rising_fc lev@(FCs fc' new_fc new_lower_gs') = do
     liftIO . putStrLn $ "---\nMoving up to level " ++ show level 
     liftIO . putStrLn $ "fc =\n" ++ printFCs fc
     liftIO . putStrLn $ "in ghci specs = " ++ show (concatMap (map fst) $ map (gsTySigs . spec) ghci)
@@ -269,7 +259,7 @@ refineUnsafe :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T
 refineUnsafe ghci m_modname lrs wd gs bad = do
     liftIO . putStrLn $ "refineUnsafe " ++ show bad
     liftIO $ print wd
-    let merged_se_ghci = addSpecsToGhcInfos ghci (switchAssumesToAsserts gs)
+    let merged_se_ghci = addSpecsToGhcInfos ghci gs
 
     liftIO $ putStrLn "gsTySigs"
     liftIO $ mapM_ (print . gsTySigs . spec) merged_se_ghci
@@ -375,7 +365,7 @@ synthesize' ghci lrs meas_ex fc gs n = do
             -- We ASSUME postconditions, and ASSERT preconditions.  This ensures
             -- that our precondition is satisified by the caller, and the postcondition
             -- is strong enough to allow verifying the caller
-            let gs' = insertNewSpec n new_spec gs
+            let gs' = insertAssertGS n new_spec gs
 
             return $ foldr insertQualifier gs' new_qual
         Nothing -> return gs
