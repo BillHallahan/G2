@@ -60,15 +60,13 @@ verifyVarToName (Unsafe v) = Unsafe (map varToName v)
 tryHardToVerifyIgnoring :: (InfConfigM m, MonadIO m)
                         => [GhcInfo]
                         -> GeneratedSpecs
-                        -> GeneratedSpecs
                         -> [G2.Name]
                         -> m (Either [G2.Name] GeneratedSpecs)
-tryHardToVerifyIgnoring ghci gs lower_gs ignore = do
+tryHardToVerifyIgnoring ghci gs ignore = do
     lhconfig <- lhConfigM
     infconfig <- infConfigM
     liftIO $ do
-        let both_gs = unionDroppingGS gs lower_gs
-        let merged_ghci = addSpecsToGhcInfos ghci both_gs
+        let merged_ghci = addSpecsToGhcInfos ghci gs
 
         putStrLn "---\nVerify"
         putStrLn "gsAsmSigs"
@@ -83,7 +81,7 @@ tryHardToVerifyIgnoring ghci gs lower_gs ignore = do
               | f_ns <- filterIgnoring ns
               , f_ns /= [] -> do
                 let f_gs = filterOutSpecs f_ns gs
-                    f_both_gs = filterOutAssertSpecs f_ns both_gs
+                    f_both_gs = filterOutAssertSpecs f_ns gs
                     f_merged_ghci = addSpecsToGhcInfos ghci f_both_gs
 
                 filtered_res <- return . verifyVarToName =<<

@@ -91,7 +91,7 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
     let configs = Configs { g2_config = g2config', lh_config = lhconfig, inf_config = infconfig'}
         prog = newProgress
 
-        infL = inferenceL 0 ghci (fst exg2) lrs ([]:nls) WorkDown emptyGS emptyGS emptyFC emptyFC []
+        infL = inferenceL 0 ghci (fst exg2) lrs ([]:nls) WorkDown emptyGS emptyFC emptyFC []
 
     inf <-  runConfigs (runProgresser infL prog) configs
     case inf of
@@ -114,7 +114,7 @@ getGHCI infconfig config proj fp lhlibs = do
     return (ghci, lhconfig)
 
 data InferenceRes = CEx [CounterExample]
-                  | FCs FuncConstraints RisingFuncConstraints LowerGeneratedSpecs
+                  | FCs FuncConstraints RisingFuncConstraints GeneratedSpecs
                   | GS GeneratedSpecs
                   deriving (Show)
 
@@ -125,14 +125,12 @@ data WorkingDir = WorkDown | WorkUp deriving (Eq, Show, Read)
 -- FuncConstraints as RisignFuncConstraints
 type RisingFuncConstraints = FuncConstraints
 
-type LowerGeneratedSpecs = GeneratedSpecs
-
 type Level = Int
 type NameLevels = [[Name]]
 
 inferenceL :: (ProgresserM m, InfConfigM m, MonadIO m) =>  Level -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
-           -> NameLevels -> WorkingDir -> GeneratedSpecs -> LowerGeneratedSpecs -> FuncConstraints -> RisingFuncConstraints -> [Name] -> m InferenceRes
-inferenceL level ghci m_modname lrs nls wd gs lower_gs fc rising_fc try_to_synth = do
+           -> NameLevels -> WorkingDir -> GeneratedSpecs -> FuncConstraints -> RisingFuncConstraints -> [Name] -> m InferenceRes
+inferenceL level ghci m_modname lrs nls wd gs fc rising_fc try_to_synth = do
     liftIO $ putStrLn $ "---\ninference' level " ++ show level
     liftIO . putStrLn $ "at_level = " ++ show (case nls of (h:_) -> Just h; _ -> Nothing)
     liftIO . putStrLn $ "working dir = " ++ show wd
@@ -140,7 +138,6 @@ inferenceL level ghci m_modname lrs nls wd gs lower_gs fc rising_fc try_to_synth
     liftIO . putStrLn $ "fc =\n" ++ printFCs fc
     liftIO . putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
     liftIO . putStrLn $ "gs =\n" ++ show gs
-    liftIO . putStrLn $ "lower_gs =\n" ++ show lower_gs
     liftIO . putStrLn $ "in ghci specs = " ++ show (concatMap (map fst) $ map (gsTySigs . spec) ghci)
     liftIO . putStrLn $ "nls = " ++ show nls
 
@@ -149,15 +146,13 @@ inferenceL level ghci m_modname lrs nls wd gs lower_gs fc rising_fc try_to_synth
                         (ls1':[]) -> (ls1', [], [])
                         _ -> ([], [], [])
 
-    let new_lower_gs = gs -- filterOutSpecs ls1 gs -- lower_gs
-
-    synth_gs <- synthesize ghci lrs new_lower_gs (unionFC fc rising_fc) try_to_synth
+    synth_gs <- synthesize ghci lrs gs (unionFC fc rising_fc) try_to_synth
 
     let ignore = case nls of
                     (_:nls') -> concat nls'
                     [] -> []
 
-    res <- tryHardToVerifyIgnoring ghci synth_gs emptyGS {- new_lower_gs -} ignore
+    res <- tryHardToVerifyIgnoring ghci synth_gs ignore
 
     case res of
         Right new_gs
@@ -166,10 +161,10 @@ inferenceL level ghci m_modname lrs nls wd gs lower_gs fc rising_fc try_to_synth
                 let ghci' = addSpecsToGhcInfos ghci new_gs
                 
                 raiseFCs level ghci m_modname lrs nls wd new_gs fc rising_fc
-                    =<< inferenceL (level + 1) ghci' m_modname lrs nls' WorkDown new_gs emptyGS {- new_lower_gs -} fc rising_fc []
+                    =<< inferenceL (level + 1) ghci' m_modname lrs nls' WorkDown new_gs fc rising_fc []
             | otherwise -> return $ GS new_gs
         Left bad -> do
-            ref <- refineUnsafe ghci m_modname lrs wd (unionDroppingGS synth_gs emptyGS {- new_lower_gs -}) bad
+            ref <- refineUnsafe ghci m_modname lrs wd synth_gs bad
 
             -- If we got repeated assertions, increase the search depth
             case any (\n -> lookupAssertGS n gs == lookupAssertGS n synth_gs) try_to_synth of
@@ -191,7 +186,7 @@ inferenceL level ghci m_modname lrs nls wd gs lower_gs fc rising_fc try_to_synth
                             let merged_pre_fc = unionFC new_fc rising_fc
                                 merged_pre_fc' = adjustOldFC merged_pre_fc new_fc
                                 fc' = adjustOldFC fc pre_solved
-                            return $ FCs fc' merged_pre_fc' (unionDroppingGS synth_gs emptyGS {- new_lower_gs -})
+                            return $ FCs fc' merged_pre_fc' synth_gs
                         True -> do
                             let fc' = adjustOldFC fc new_fc
                                 merged_fc = unionFC (unionFC fc' new_fc) rising_fc
@@ -202,7 +197,7 @@ inferenceL level ghci m_modname lrs nls wd gs lower_gs fc rising_fc try_to_synth
                             rel_funcs <- relFuncs immed_rel_new
                             
                             raiseFCs level ghci m_modname lrs nls wd' synth_gs merged_fc emptyFC
-                                =<<  inferenceL level ghci m_modname lrs nls wd' synth_gs emptyGS {- new_lower_gs -} merged_fc emptyFC rel_funcs
+                                =<<  inferenceL level ghci m_modname lrs nls wd' synth_gs merged_fc emptyFC rel_funcs
 
 raiseFCs :: (ProgresserM m, InfConfigM m, MonadIO m) =>  Level -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
          -> NameLevels -> WorkingDir -> GeneratedSpecs -> FuncConstraints -> RisingFuncConstraints -> InferenceRes -> m InferenceRes
@@ -223,13 +218,11 @@ raiseFCs level ghci m_modname lrs nls wd gs fc rising_fc lev@(FCs fc' new_fc new
         immed_rel_new = appropFCs ls2 new_fc
     rel_funcs <- relFuncs immed_rel_new
 
-    let usable_gs = gs -- filterOutSpecs (concat ls_rest) gs              
-
 
     liftIO $ print ls2                  
 
-    if nullFC (notAppropFCs (ls2 ++ concat ls_rest) new_fc)-- (alreadySpecified ghci new_fc)
-        then inferenceL level ghci m_modname lrs nls WorkUp (unionDroppingGS new_lower_gs' gs) emptyGS fc' (unionFC new_fc rising_fc) rel_funcs -- cons_on
+    if nullFC (notAppropFCs (ls2 ++ concat ls_rest) new_fc)
+        then inferenceL level ghci m_modname lrs nls WorkUp (unionDroppingGS new_lower_gs' gs) fc' (unionFC new_fc rising_fc) rel_funcs -- cons_on
         else return lev
 raiseFCs _ _ _ _ _ _ _ _ _ lev = do
     liftIO $ putStrLn "---\nReturn lev"
