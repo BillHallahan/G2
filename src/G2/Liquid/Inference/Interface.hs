@@ -164,10 +164,11 @@ inferenceL level ghci m_modname lrs nls wd gs fc rising_fc try_to_synth = do
                             liftIO . putStrLn $ "---\nreturning FuncConstraints from level " ++ show level
                             liftIO . putStrLn $ "pre_solved =\n" ++ printFCs pre_solved
 
-                            let merged_pre_fc = unionFC new_fc rising_fc
-                                merged_pre_fc' = adjustOldFC merged_pre_fc new_fc
+                            let new_fc' = adjustOldFC new_fc pre_solved
+                                rising_fc' = adjustOldFC rising_fc pre_solved
+                                merged_fc = unionFC new_fc' rising_fc'
                                 fc' = adjustOldFC fc pre_solved
-                            return $ FCs fc' merged_pre_fc' synth_gs
+                            return $ FCs fc' merged_fc synth_gs
                         True -> do
                             let fc' = adjustOldFC fc new_fc
                                 merged_fc = unionFC (unionFC fc' new_fc) rising_fc
