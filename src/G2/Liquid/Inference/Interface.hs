@@ -91,7 +91,7 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
     let configs = Configs { g2_config = g2config', lh_config = lhconfig, inf_config = infconfig'}
         prog = newProgress
 
-        infL = inferenceL 0 ghci (fst exg2) lrs ([]:nls) WorkDown emptyGS emptyFC emptyFC []
+        infL = inferenceL 0 ghci (fst exg2) lrs nls WorkDown emptyGS emptyFC emptyFC []
 
     inf <-  runConfigs (runProgresser infL prog) configs
     case inf of
@@ -141,16 +141,13 @@ inferenceL level ghci m_modname lrs nls wd gs fc rising_fc try_to_synth = do
     liftIO . putStrLn $ "in ghci specs = " ++ show (concatMap (map fst) $ map (gsTySigs . spec) ghci)
     liftIO . putStrLn $ "nls = " ++ show nls
 
-    let (ls1, ls2, ls_rest) = case nls of
-                        (ls1':ls2':ls_rest') -> (ls1', ls2', ls_rest')
-                        (ls1':[]) -> (ls1', [], [])
-                        _ -> ([], [], [])
+    let (ls1, ls_rest) = case nls of
+                        (ls1':ls_rest') -> (ls1', ls_rest')
+                        [] -> ([], [])
 
     synth_gs <- synthesize ghci lrs gs (unionFC fc rising_fc) try_to_synth
 
-    let ignore = case nls of
-                    (_:nls') -> concat nls'
-                    [] -> []
+    let ignore = concat nls
 
     res <- tryHardToVerifyIgnoring ghci synth_gs ignore
 
@@ -177,7 +174,7 @@ inferenceL level ghci m_modname lrs nls wd gs fc rising_fc try_to_synth = do
                 Right (new_fc, wd')  -> do
                     liftIO $ putStrLn "---\nNew FuncConstraints"
                     liftIO . putStrLn $ "new_fc =\n" ++ printFCs new_fc
-                    let pre_solved = notAppropFCs (ls2 ++ concat ls_rest) new_fc
+                    let pre_solved = notAppropFCs (concat nls) new_fc
                     case nullFC pre_solved of
                         False -> do
                             liftIO . putStrLn $ "---\nreturning FuncConstraints from level " ++ show level
@@ -193,7 +190,7 @@ inferenceL level ghci m_modname lrs nls wd gs fc rising_fc try_to_synth = do
 
                             liftIO $ putStrLn "---\nTrue Branch"
 
-                            let immed_rel_new = appropFCs ls2 new_fc
+                            let immed_rel_new = appropFCs ls1 new_fc
                             rel_funcs <- relFuncs immed_rel_new
                             
                             raiseFCs level ghci m_modname lrs nls wd' synth_gs merged_fc emptyFC
@@ -208,20 +205,19 @@ raiseFCs level ghci m_modname lrs nls wd gs fc rising_fc lev@(FCs fc' new_fc new
     liftIO . putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
     liftIO . putStrLn $ "new_fc =\n" ++ printFCs new_fc
     let
-        (ls2, ls_rest) = case nls of
-                            (_:ls2':ls_rest') -> (ls2', ls_rest')
+        (ls1, ls_rest) = case nls of
+                            (ls1':ls_rest') -> (ls1', ls_rest')
                             _ -> ([], [])
 
         -- If we have new FuncConstraints, we need to resynthesize,
         -- but otherwise we can just keep the exisiting specifications
         -- cons_on = map (funcName . constraint) $ toListFC new_fc
-        immed_rel_new = appropFCs ls2 new_fc
+        immed_rel_new = appropFCs ls1 new_fc
     rel_funcs <- relFuncs immed_rel_new
 
+    liftIO $ print ls1   
 
-    liftIO $ print ls2                  
-
-    if nullFC (notAppropFCs (ls2 ++ concat ls_rest) new_fc)
+    if nullFC (notAppropFCs (concat nls) new_fc)
         then inferenceL level ghci m_modname lrs nls WorkUp (unionDroppingGS new_lower_gs' gs) fc' (unionFC new_fc rising_fc) rel_funcs -- cons_on
         else return lev
 raiseFCs _ _ _ _ _ _ _ _ _ lev = do
