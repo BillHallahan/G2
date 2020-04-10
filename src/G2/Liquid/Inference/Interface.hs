@@ -2,10 +2,8 @@ module G2.Liquid.Inference.Interface ( inferenceCheck
                                      , inference) where
 
 import G2.Config.Config as G2
-import G2.Execution.Memory
 import G2.Interface hiding (violated)
 import G2.Language.CallGraph
-import qualified G2.Language.ExprEnv as E
 import G2.Language.Naming
 import G2.Language.Support
 import G2.Language.Syntax
@@ -14,17 +12,14 @@ import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.FuncConstraint as FC
 import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.PolyRef
-import G2.Liquid.Helpers
 import G2.Liquid.Inference.Sygus
 import G2.Liquid.Inference.GeneratedSpecs
 import G2.Liquid.Inference.Verify
-import G2.Liquid.Inference.WorkingUp
 import G2.Liquid.Interface
 import G2.Liquid.Types
 import G2.Translation
 
 import Language.Haskell.Liquid.Types as LH
-import Language.Fixpoint.Types hiding (Safe, Unsafe, Crash)
 
 import Control.Monad
 import Control.Monad.IO.Class 
@@ -32,16 +27,9 @@ import Data.Either
 import qualified Data.HashSet as S
 import Data.List
 import Data.Maybe
-import Data.Monoid
 import qualified Data.Text as T
 
-import Language.Haskell.Liquid.Types
-import Language.Haskell.Liquid.Types.RefType
 import qualified Language.Fixpoint.Types.Config as FP
-
-import Var (Var, varName, varType)
-
-import Debug.Trace
 
 -- Run inference, with an extra, final check of correctness at the end.
 -- Assuming inference is working correctly, this check should neve fail.
@@ -141,10 +129,6 @@ inferenceL level ghci m_modname lrs nls wd gs fc rising_fc try_to_synth = do
     liftIO . putStrLn $ "in ghci specs = " ++ show (concatMap (map fst) $ map (gsTySigs . spec) ghci)
     liftIO . putStrLn $ "nls = " ++ show nls
 
-    let (ls1, ls_rest) = case nls of
-                        (ls1':ls_rest') -> (ls1', ls_rest')
-                        [] -> ([], [])
-
     synth_gs <- synthesize ghci lrs gs (unionFC fc rising_fc) try_to_synth
 
     let ignore = concat nls
@@ -190,7 +174,9 @@ inferenceL level ghci m_modname lrs nls wd gs fc rising_fc try_to_synth = do
 
                             liftIO $ putStrLn "---\nTrue Branch"
 
-                            let immed_rel_new = appropFCs ls1 new_fc
+                            let immed_rel_new = case nls of
+                                                    (nl:_) -> appropFCs nl new_fc
+                                                    _ -> emptyFC
                             rel_funcs <- relFuncs immed_rel_new
                             
                             raiseFCs level ghci m_modname lrs nls wd' synth_gs merged_fc emptyFC
@@ -205,20 +191,16 @@ raiseFCs level ghci m_modname lrs nls wd gs fc rising_fc lev@(FCs fc' new_fc new
     liftIO . putStrLn $ "rising_fc =\n" ++ printFCs rising_fc
     liftIO . putStrLn $ "new_fc =\n" ++ printFCs new_fc
     let
-        (ls1, ls_rest) = case nls of
-                            (ls1':ls_rest') -> (ls1', ls_rest')
-                            _ -> ([], [])
-
         -- If we have new FuncConstraints, we need to resynthesize,
         -- but otherwise we can just keep the exisiting specifications
         -- cons_on = map (funcName . constraint) $ toListFC new_fc
-        immed_rel_new = appropFCs ls1 new_fc
+        immed_rel_new = case nls of
+                            (nl:_) -> appropFCs nl new_fc
+                            _ -> emptyFC
     rel_funcs <- relFuncs immed_rel_new
 
-    liftIO $ print ls1   
-
     if nullFC (notAppropFCs (concat nls) new_fc)
-        then inferenceL level ghci m_modname lrs nls WorkUp (unionDroppingGS new_lower_gs' gs) fc' (unionFC new_fc rising_fc) rel_funcs -- cons_on
+        then inferenceL level ghci m_modname lrs nls WorkUp (unionDroppingGS new_lower_gs' gs) fc' (unionFC new_fc rising_fc) rel_funcs
         else return lev
 raiseFCs _ _ _ _ _ _ _ _ _ lev = do
     liftIO $ putStrLn "---\nReturn lev"
@@ -263,7 +245,7 @@ refineUnsafe ghci m_modname lrs wd gs bad = do
     let res' = concat res
 
     -- Check if we already have specs for any of the functions
-    wd' <- adjustWorkingUp res' wd
+    wd' <- adjustWorkingDir res' wd
 
     -- Either converts counterexamples to FuncConstraints, or returns them as errors to
     -- show to the user.
@@ -319,9 +301,6 @@ checkNewConstraints ghci lrs wd cexs = do
         res'@(_:_) -> return . Left $ res'
         _ -> return . Right . filterErrors . unionsFC . rights $ res
 
-alreadySpecified :: [GhcInfo] -> FuncConstraints -> FuncConstraints
-alreadySpecified ghci = filterFC (flip isPreRefined ghci . funcName . constraint)
-
 genMeasureExs :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] -> FuncConstraints -> m MeasureExs
 genMeasureExs lrs ghci fcs =
     let
@@ -355,20 +334,6 @@ synthesize' ghci lrs meas_ex fc gs n = do
             -- that our precondition is satisified by the caller, and the postcondition
             -- is strong enough to allow verifying the caller
             let gs' = insertAssertGS n new_spec gs
-
-            return $ foldr insertQualifier gs' new_qual
-        Nothing -> return gs
-
-synthesizePre :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> MeasureExs -> FuncConstraints -> GeneratedSpecs -> Name -> m GeneratedSpecs
-synthesizePre ghci lrs meas_ex fc gs n = do
-    spec_qual <- refSynth ghci lrs meas_ex fc n
-
-    case spec_qual of
-        Just (new_spec, new_qual) -> do
-            -- When we are trying to find a precondition to prevent some bad call,
-            -- we want to avoid asserting the precondition, as this will cause us
-            -- to move on before we are ready
-            let gs' = insertAssumeGS n new_spec gs
 
             return $ foldr insertQualifier gs' new_qual
         Nothing -> return gs
@@ -477,20 +442,13 @@ mkAbstractFCFromAbstracted md ce
                   , constraint = fc } 
     | otherwise = Nothing
 
-isPreRefined :: Name -> [GhcInfo] -> Bool
-isPreRefined (Name n m _ _) ghci =
-    let
-        pre_r = map (varToName . fst) . concatMap (gsTySigs . spec) $ ghci
-    in
-    any (\(Name n' m' _ _) -> n == n' && m == m' ) pre_r
-
 hasUserSpec :: InfConfigM m => Name -> m Bool
 hasUserSpec (Name n m _ _) = do
     infconfig <- infConfigM
     return $ (n, m) `S.member` pre_refined infconfig
 
-adjustWorkingUp :: InfConfigM m => [CounterExample] -> WorkingDir -> m WorkingDir
-adjustWorkingUp cexs wd = do
+adjustWorkingDir :: InfConfigM m => [CounterExample] -> WorkingDir -> m WorkingDir
+adjustWorkingDir cexs wd = do
     let
         callers = mapMaybe getDirectCaller cexs
         called = mapMaybe getDirectCalled cexs
@@ -513,30 +471,8 @@ anyM _ []       = return False
 anyM p (x:xs)   = do
         q <- p x
         if q
-                then return True
-                else anyM p xs
-
--- adjustWorkingUp :: InfConfigM m => [CounterExample] -> WorkingUp -> m WorkingUp
--- adjustWorkingUp cexs wu = do
---     wu' <- foldM (addWorkingUp) wu cexs
---     let
---         call_in_wu = filter (\x -> case getDirectCalled x of
---                                         Just n -> memberWU n wu'
---                                         Nothing -> False) cexs
---         callers = mapMaybe getDirectCaller call_in_wu
---         called = mapMaybe getDirectCalled call_in_wu
-    
---     return $ foldr deleteWU (foldr insertWU wu' callers) called
-
-addWorkingUp :: InfConfigM m => WorkingUp -> CounterExample -> m WorkingUp
-addWorkingUp wu (CallsCounter caller_fc called_fc []) = do
-    caller_pr <- hasUserSpec (funcName caller_fc)
-    called_pr <- hasUserSpec (funcName $ abstract called_fc)
-
-    case (caller_pr, called_pr) of
-        (False, True) -> return $ insertWU (funcName caller_fc) wu
-        _ -> return wu
-addWorkingUp wu _ = return wu
+            then return True
+            else anyM p xs
 
 getDirectCaller :: CounterExample -> Maybe FuncCall
 getDirectCaller (CallsCounter f _ []) = Just f
@@ -545,62 +481,6 @@ getDirectCaller _ = Nothing
 getDirectCalled :: CounterExample -> Maybe FuncCall
 getDirectCalled (CallsCounter _ f []) = Just (abstract f)
 getDirectCalled _ = Nothing
-
--- If g is in WorkingUp, but not in the list of names, remove g from WorkingUp,
--- but add all functions that call g that are in the list of names.
--- adjustWorkingUp :: InferenceConfig -> CallGraph -> [Name] -> WorkingUp -> WorkingUp
--- adjustWorkingUp infconfig cg ns wu =
---     let
---         ns' = map zeroOut ns
-
---         diff = S.toList (allMembers wu) \\ ns'
-
---         cb = concatMap (flip calledBy cg) diff
---     in
---     trace ("diff = " ++ show ) 
---     foldr insertWU (foldr deleteWU wu diff) cb
---     where
---         zeroOut (Name n m _ l) = Name n m 0 l
-
--- adjustWorkingUp ::  InferenceConfig -> CounterExample -> WorkingUp -> WorkingUp
--- adjustWorkingUp infconfig (CallsCounter caller_fc called_fc []) wd =
---     let 
---         caller_pr = hasUserSpec (funcName caller_fc) infconfig
---         called_pr = hasUserSpec (funcName called_fc) infconfig
---     in
---     case (caller_pr, called_pr) of
---         (True, False) -> wd
---         (False, False)
---             | (funcName called_fc) `memberWorkUp` wd ->
---                     insertQueueWorkUp (funcName called_fc) wd
---             | otherwise -> insertQueueWorkUp (funcName called_fc) wd
---         _ -> wd 
--- adjustWorkingUp _ _ wd = wd
-
--- adjustWorkingUp :: InferenceConfig -> CounterExample -> WorkingUp -> WorkingUp
--- adjustWorkingUp infconfig (CallsCounter caller_fc called_fc []) wu =
---     let 
---         caller_pr = isPreRefined (funcName caller_fc) infconfig
---         called_pr = isPreRefined (funcName called_fc) infconfig
---     in
---     case (caller_pr, called_pr) of
---         (True, False) -> S.empty -- wu -- TODO
---         (False, False)
---             | nameOcc (funcName called_fc) `S.member` wu ->
---                     S.insert (nameOcc $ funcName called_fc) wu
---             | otherwise -> S.insert (nameOcc $ funcName called_fc) wu
---         _ -> wu 
--- adjustWorkingUp _ _ wu = wu
-
--- isPreRefined :: Name -> InferenceConfig -> Bool
--- isPreRefined (Name n m _ _) infconfig = (n, m) `S.member` pre_refined infconfig
-
-getBoolRel :: FuncCall -> FuncCall -> BoolRel
-getBoolRel fc1 fc2 =
-    if notSameFunc fc1 fc2 && notRetError fc2 then BRAnd else BRImplies
-
-notSameFunc :: FuncCall -> FuncCall -> Bool
-notSameFunc fc1 fc2 = nameOcc (funcName fc1) /= nameOcc (funcName fc2)
 
 notRetError :: FuncCall -> Bool
 notRetError (FuncCall { returns = Prim Error _ }) = False
@@ -621,9 +501,8 @@ filterErrors' fc =
         c = constraint fc
 
         as = not . any isError $ arguments c
-        r = not . isError . returns $ c
     in
-    as -- && (r || FC.violated fc == Pre)
+    as
     where
         isError (Prim Error _) = True
         isError _ = False
@@ -637,52 +516,3 @@ relFuncs fc = do
        . nubBy (\n1 n2 -> nameOcc n1 == nameOcc n2)
        . map (funcName . constraint)
        . toListFC $ fc
-
--- -- | Checks if we found an incorrect specification higher in the tree,
--- -- and if so indicates which function(s) were incorrectly guessed
--- madeWrongGuesses :: [CounterExample] -> [Name]
--- madeWrongGuesses = mapMaybe madeWrongGuess
-
--- madeWrongGuess :: CounterExample -> Maybe Name
--- madeWrongGuess (DirectCounter f []) = Just $ funcName f
--- madeWrongGuess (CallsCounter caller_f _ []) = Just $ funcName caller_f
--- madeWrongGuess _ = Nothing
-
--- -- Go back and try to reverify all functions that call the passed function
--- correctWrongGuessesInFC :: [Name] -> FuncConstraints -> FuncConstraints
--- correctWrongGuessesInFC ns =
---     mapFC (\fc -> if funcName (constraint fc) `elem` ns
---                     then fc { bool_rel = BRImplies}
---                     else fc)
-
-
--- correctWrongGuessesInGS :: [Name] -> CallGraph -> GeneratedSpecs -> GeneratedSpecs
--- correctWrongGuessesInGS ns cg gs =
---     foldr (\n -> correctWrongGuessInGS n cg) gs $ nub ns
-
--- correctWrongGuessInGS :: Name -> CallGraph -> GeneratedSpecs -> GeneratedSpecs
--- correctWrongGuessInGS n g gs =
---     trace ("wrong guess = " ++ show n)
---     deleteAssert n . deleteAssume n
---         $ foldr (\n -> moveAssertToSpec) gs $ calledBy n g
---     where
---         moveAssertToSpec
---             | Just s <- lookupAssertGS n gs = insertNewSpec n s
---             | otherwise = id
-
-
--------
-
-getGoodCalls :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> IO [FuncCall]
-getGoodCalls infconfig config lhconfig ghci m_mod lrs = do
-    let es = map (\(Name n m _ _) -> (n, m)) . E.keys . expr_env . state $ lr_state lrs
-        
-        cs = map (mkName . varName) $ concatMap (map fst . gsTySigs . spec) ghci
-        cs' = filter (\(Name n m _ _) -> (n, m) `elem` es && m == m_mod) cs
-
-        cs'' = map nameOcc cs'
-
-    putStrLn $ "cs'' = " ++ show cs''
-    return . concat
-        =<< mapM (\c -> gatherAllowedCalls c m_mod lrs ghci infconfig config) cs''
-
