@@ -171,13 +171,9 @@ inferenceL level ghci m_modname lrs nls wd gs fc try_to_synth = do
 
                             liftIO $ putStrLn "---\nTrue Branch"
 
-                            let immed_rel_new = case nls of
-                                                    (nl:_) -> appropFCs nl new_fc
-                                                    _ -> emptyFC
-                            rel_funcs <- relFuncs immed_rel_new
+                            rel_funcs <- relFuncs nls new_fc
                             
-                            raiseFCs level ghci m_modname lrs nls wd'
-                                =<<  inferenceL level ghci m_modname lrs nls wd' synth_gs merged_fc rel_funcs
+                            inferenceL level ghci m_modname lrs nls wd' synth_gs merged_fc rel_funcs
 
 raiseFCs :: (ProgresserM m, InfConfigM m, MonadIO m) =>  Level -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
          -> NameLevels -> WorkingDir -> InferenceRes -> m InferenceRes
@@ -189,10 +185,7 @@ raiseFCs level ghci m_modname lrs nls wd lev@(FCs fc new_fc new_gs) = do
         -- If we have new FuncConstraints, we need to resynthesize,
         -- but otherwise we can just keep the exisiting specifications
         -- cons_on = map (funcName . constraint) $ toListFC new_fc
-        immed_rel_new = case nls of
-                            (nl:_) -> appropFCs nl new_fc
-                            _ -> emptyFC
-    rel_funcs <- relFuncs immed_rel_new
+    rel_funcs <- relFuncs nls new_fc
 
     if nullFC (notAppropFCs (concat nls) new_fc)
         then inferenceL level ghci m_modname lrs nls WorkUp new_gs (unionFC fc new_fc) rel_funcs
@@ -200,24 +193,6 @@ raiseFCs level ghci m_modname lrs nls wd lev@(FCs fc new_fc new_gs) = do
 raiseFCs _ _ _ _ _ _ lev = do
     liftIO $ putStrLn "---\nReturn lev"
     return lev
-
-appropFCs :: [Name] -> FuncConstraints -> FuncConstraints
-appropFCs potential =
-    let
-        nm_potential = map nameMod potential
-    in
-    filterFC (flip elem nm_potential . nameMod . funcName . constraint)
-    where
-        nameMod (Name n m _ _) = (n, m)
-
-notAppropFCs :: [Name] -> FuncConstraints -> FuncConstraints
-notAppropFCs potential =
-    let
-        nm_potential = map nameMod potential
-    in
-    filterFC (flip notElem nm_potential . nameMod . funcName . constraint)
-    where
-        nameMod (Name n m _ _) = (n, m)
 
 refineUnsafe :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState
              -> WorkingDir -> GeneratedSpecs
@@ -250,7 +225,7 @@ refineUnsafe ghci m_modname lrs wd gs bad = do
         Left cex -> return $ Left cex
         Right new_fc' -> do
             return $ Right (new_fc', wd')
-                    
+              
 adjustOldFC :: FuncConstraints -- ^ Old FuncConstraints
             -> FuncConstraints -- ^ New FuncConstraints
             -> FuncConstraints
@@ -266,6 +241,20 @@ adjustOldFC old_fc new_fc =
                     Delete ns
                         | ns `intersect` constrained /= [] -> Nothing
                     _ -> Just c) old_fc
+
+appropFCs :: [Name] -> FuncConstraints -> FuncConstraints
+appropFCs potential =
+    let
+        nm_potential = map nameTuple potential
+    in
+    filterFC (flip elem nm_potential . nameTuple . funcName . constraint)
+
+notAppropFCs :: [Name] -> FuncConstraints -> FuncConstraints
+notAppropFCs potential =
+    let
+        nm_potential = map nameTuple potential
+    in
+    filterFC (flip notElem nm_potential . nameTuple . funcName . constraint)
 
 createStateForInference :: SimpleState -> G2.Config -> [GhcInfo] -> LiquidReadyState
 createStateForInference simp_s config ghci =
@@ -437,11 +426,6 @@ mkAbstractFCFromAbstracted md ce
                   , constraint = fc } 
     | otherwise = Nothing
 
-hasUserSpec :: InfConfigM m => Name -> m Bool
-hasUserSpec (Name n m _ _) = do
-    infconfig <- infConfigM
-    return $ (n, m) `S.member` pre_refined infconfig
-
 adjustWorkingDir :: InfConfigM m => [CounterExample] -> WorkingDir -> m WorkingDir
 adjustWorkingDir cexs wd = do
     let
@@ -460,6 +444,11 @@ adjustWorkingDir cexs wd = do
     where
         isError (Prim Error _) = True
         isError _ = False
+
+hasUserSpec :: InfConfigM m => Name -> m Bool
+hasUserSpec (Name n m _ _) = do
+    infconfig <- infConfigM
+    return $ (n, m) `S.member` pre_refined infconfig
 
 anyM :: (Monad m) => (a -> m Bool) -> [a] -> m Bool
 anyM _ []       = return False
@@ -503,11 +492,15 @@ filterErrors' fc =
         isError _ = False
 
 
-relFuncs :: InfConfigM m => FuncConstraints -> m [Name]
-relFuncs fc = do
+relFuncs :: InfConfigM m => NameLevels -> FuncConstraints -> m [Name]
+relFuncs nls fc = do
+    let immed_rel_fc = case nls of
+                            (nl:_) -> appropFCs nl fc
+                            _ -> emptyFC
+
     infconfig <- infConfigM
     return 
        . filter (\(Name _ m _ _) -> m `S.member` (modules infconfig))
        . nubBy (\n1 n2 -> nameOcc n1 == nameOcc n2)
        . map (funcName . constraint)
-       . toListFC $ fc
+       . toListFC $ immed_rel_fc
