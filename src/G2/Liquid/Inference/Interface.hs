@@ -128,11 +128,9 @@ inferenceL level ghci m_modname lrs nls wd gs fc try_to_synth = do
     liftIO . putStrLn $ "in ghci specs = " ++ show (concatMap (map fst) $ map (gsTySigs . spec) ghci)
     liftIO . putStrLn $ "nls = " ++ show nls
 
-    synth_gs <- synthesize ghci lrs gs fc try_to_synth
-
     let ignore = concat nls
 
-    res <- tryHardToVerifyIgnoring ghci synth_gs ignore
+    res <- tryHardToVerifyIgnoring ghci gs ignore
 
     case res of
         Right new_gs
@@ -144,12 +142,12 @@ inferenceL level ghci m_modname lrs nls wd gs fc try_to_synth = do
                     =<< inferenceL (level + 1) ghci' m_modname lrs nls' WorkDown new_gs fc []
             | otherwise -> return $ GS new_gs
         Left bad -> do
-            ref <- refineUnsafe ghci m_modname lrs wd synth_gs bad
+            ref <- refineUnsafe ghci m_modname lrs wd gs bad
 
             -- If we got repeated assertions, increase the search depth
-            case any (\n -> lookupAssertGS n gs == lookupAssertGS n synth_gs) try_to_synth of
-                True -> mapM_ (incrMaxCExM . nameTuple) bad
-                False -> return ()
+            -- case any (\n -> lookupAssertGS n gs == lookupAssertGS n synth_gs) try_to_synth of
+            --     True -> mapM_ (incrMaxCExM . nameTuple) bad
+            --     False -> return ()
 
             case ref of
                 Left cex -> return $ CEx cex
@@ -164,7 +162,7 @@ inferenceL level ghci m_modname lrs nls wd gs fc try_to_synth = do
 
                             let new_fc' = adjustOldFC new_fc pre_solved
                                 fc' = adjustOldFC fc pre_solved
-                            return $ FCs fc' new_fc' synth_gs
+                            return $ FCs fc' new_fc' gs
                         True -> do
                             let fc' = adjustOldFC fc new_fc
                                 merged_fc = unionFC fc' new_fc
@@ -172,12 +170,15 @@ inferenceL level ghci m_modname lrs nls wd gs fc try_to_synth = do
                             liftIO $ putStrLn "---\nTrue Branch"
 
                             rel_funcs <- relFuncs nls new_fc
+
+                            synth_gs <- synthesize ghci lrs gs merged_fc rel_funcs
+                            increaseProgressing new_fc gs synth_gs rel_funcs
                             
                             inferenceL level ghci m_modname lrs nls wd' synth_gs merged_fc rel_funcs
 
 raiseFCs :: (ProgresserM m, InfConfigM m, MonadIO m) =>  Level -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
          -> NameLevels -> InferenceRes -> m InferenceRes
-raiseFCs level ghci m_modname lrs nls lev@(FCs fc new_fc new_gs) = do
+raiseFCs level ghci m_modname lrs nls lev@(FCs fc new_fc gs) = do
     liftIO . putStrLn $ "---\nMoving up to level " ++ show level 
     liftIO . putStrLn $ "in ghci specs = " ++ show (concatMap (map fst) $ map (gsTySigs . spec) ghci)
     liftIO . putStrLn $ "new_fc =\n" ++ printFCs new_fc
@@ -188,7 +189,11 @@ raiseFCs level ghci m_modname lrs nls lev@(FCs fc new_fc new_gs) = do
     rel_funcs <- relFuncs nls new_fc
 
     if nullFC (notAppropFCs (concat nls) new_fc)
-        then inferenceL level ghci m_modname lrs nls WorkUp new_gs (unionFC fc new_fc) rel_funcs
+        then do
+            let merge_fc = unionFC fc new_fc
+            synth_gs <- synthesize ghci lrs gs merge_fc rel_funcs
+            increaseProgressing new_fc gs synth_gs rel_funcs
+            inferenceL level ghci m_modname lrs nls WorkUp synth_gs merge_fc rel_funcs
         else return lev
 raiseFCs _ _ _ _ _ lev = do
     liftIO $ putStrLn "---\nReturn lev"
@@ -298,6 +303,13 @@ genMeasureExs lrs ghci fcs =
     in
     evalMeasures lrs ghci es
 
+increaseProgressing :: ProgresserM m => FuncConstraints -> GeneratedSpecs -> GeneratedSpecs -> [Name] -> m ()
+increaseProgressing fc gs synth_gs synthed = do
+    -- If we got repeated assertions, increase the search depth
+    case any (\n -> lookupAssertGS n gs == lookupAssertGS n synth_gs) synthed of
+        True -> mapM_ (incrMaxCExM . nameTuple) (map generated_by $ toListFC fc)
+        False -> return ()
+
 
 synthesize :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState
             -> GeneratedSpecs -> FuncConstraints -> [Name] -> m GeneratedSpecs
@@ -329,8 +341,8 @@ cexsToFuncConstraints _ _ _ (DirectCounter dfc fcs@(_:_)) = do
     let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
     if not . null $ fcs'
         then return . Right . insertsFC
-                            $ mapMaybe (mkRealFCFromAbstracted imp) fcs'
-                                       ++ mapMaybe (mkAbstractFCFromAbstracted del) fcs'
+                            $ mapMaybe (mkRealFCFromAbstracted imp (funcName dfc)) fcs'
+                                       ++ mapMaybe (mkAbstractFCFromAbstracted del (funcName dfc)) fcs'
         else error "cexsToFuncConstraints: unhandled 1"
     where
         imp _ = SwitchImplies [funcName dfc]
@@ -340,9 +352,9 @@ cexsToFuncConstraints _ _ _ (CallsCounter dfc cfc fcs@(_:_)) = do
     let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
     if not . null $ fcs' 
         then return . Right . insertsFC
-                            $ maybeToList (mkRealFCFromAbstracted imp cfc)
-                                    ++ mapMaybe (mkRealFCFromAbstracted imp) fcs'
-                                    ++ mapMaybe (mkAbstractFCFromAbstracted del) fcs'
+                            $ maybeToList (mkRealFCFromAbstracted imp (funcName dfc) cfc)
+                                    ++ mapMaybe (mkRealFCFromAbstracted imp (funcName dfc)) fcs'
+                                    ++ mapMaybe (mkAbstractFCFromAbstracted del (funcName dfc)) fcs'
         else error "cexsToFuncConstraints: Should be unreachable! Non-refinable function abstracted!"
     where
         imp n = SwitchImplies [funcName dfc, funcName $ abstract cfc, n]
@@ -354,6 +366,7 @@ cexsToFuncConstraints lrs ghci _ cex@(DirectCounter fc []) = do
         False ->
             return . Right . insertsFC $
                                 [FC { polarity = if notRetError fc then Pos else Neg
+                                    , generated_by = funcName fc
                                     , violated = Post
                                     , modification = SwitchImplies [funcName fc]
                                     , bool_rel = BRImplies
@@ -367,43 +380,49 @@ cexsToFuncConstraints lrs ghci wd cex@(CallsCounter caller_fc called_fc []) = do
         (True, True) -> return .  Left $ cex
         (False, True) ->  return . Right . insertsFC $
                                                   [FC { polarity = Neg
-                                                  , violated = Pre
-                                                  , modification = None -- [funcName called_fc]
-                                                  , bool_rel = BRImplies 
-                                                  , constraint = caller_fc } ]
+                                                      , generated_by = funcName caller_fc
+                                                      , violated = Pre
+                                                      , modification = None -- [funcName called_fc]
+                                                      , bool_rel = BRImplies 
+                                                      , constraint = caller_fc } ]
         (True, False) -> return . Right . insertsFC $
                                                  [FC { polarity = if notRetError (real called_fc) then Pos else Neg
-                                                 , violated = Pre
-                                                 , modification = None -- [funcName caller_fc]
-                                                 , bool_rel = if notRetError (real called_fc) then BRAnd else BRImplies
-                                                 , constraint = real called_fc } ]
+                                                     , generated_by = funcName caller_fc
+                                                     , violated = Pre
+                                                     , modification = None -- [funcName caller_fc]
+                                                     , bool_rel = if notRetError (real called_fc) then BRAnd else BRImplies
+                                                     , constraint = real called_fc } ]
         (False, False)
             | wd == WorkUp -> 
                            return . Right . insertsFC $
                                                     [ FC { polarity = Neg
-                                                    , violated = Pre
-                                                    , modification = Delete [funcName caller_fc]
-                                                    , bool_rel = BRImplies
-                                                    , constraint = caller_fc {returns = Prim Error TyBottom} }
-                                                    , FC { polarity = if notRetError caller_fc then Pos else Neg
+                                                         , generated_by = funcName caller_fc
                                                          , violated = Pre
-                                                         , modification = None
+                                                         , modification = Delete [funcName caller_fc]
                                                          , bool_rel = BRImplies
-                                                         , constraint = caller_fc }  ]
+                                                         , constraint = caller_fc {returns = Prim Error TyBottom} }
+                                                         , FC { polarity = if notRetError caller_fc then Pos else Neg
+                                                              , generated_by = funcName caller_fc
+                                                              , violated = Pre
+                                                              , modification = None
+                                                              , bool_rel = BRImplies
+                                                              , constraint = caller_fc }  ]
             | otherwise -> return . Right . insertsFC $
                                                    [FC { polarity = if notRetError (real called_fc) then Pos else Neg
+                                                       , generated_by = funcName caller_fc
                                                        , violated = Pre
                                                        , modification = SwitchImplies [funcName caller_fc]
                                                        , bool_rel = if notRetError (real called_fc) then BRAnd else BRImplies
                                                        , constraint = real called_fc } ]
 
-mkRealFCFromAbstracted :: (Name -> Modification) -> Abstracted -> Maybe FuncConstraint
-mkRealFCFromAbstracted md ce
+mkRealFCFromAbstracted :: (Name -> Modification) -> Name -> Abstracted -> Maybe FuncConstraint
+mkRealFCFromAbstracted md gb ce
     | not $ hits_lib_err_in_real ce =
         let
             fc = real ce
         in
         Just $ FC { polarity = if notRetError fc then Pos else Neg
+                  , generated_by = gb
                   , violated = Post
                   , modification = md (funcName fc)
                   , bool_rel = if notRetError fc then BRAnd else BRImplies
@@ -413,13 +432,14 @@ mkRealFCFromAbstracted md ce
 -- | If the real fc returns an error, we know that our precondition has to be
 -- strengthened to block the input.
 -- Thus, creating an abstract counterexample would be (at best) redundant.
-mkAbstractFCFromAbstracted :: (Name -> Modification) -> Abstracted -> Maybe FuncConstraint
-mkAbstractFCFromAbstracted md ce
+mkAbstractFCFromAbstracted :: (Name -> Modification) -> Name -> Abstracted -> Maybe FuncConstraint
+mkAbstractFCFromAbstracted md gb ce
     | notRetError (real ce) || hits_lib_err_in_real ce =
         let
             fc = abstract ce
         in
         Just $ FC { polarity = Neg
+                  , generated_by = gb
                   , violated = Post
                   , modification = md (funcName fc)
                   , bool_rel = BRImplies

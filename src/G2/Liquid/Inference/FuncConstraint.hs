@@ -52,6 +52,7 @@ data BoolRel = BRImplies | BRAnd deriving (Eq, Show, Read)
 
 data FuncConstraint =
     FC { polarity :: Polarity
+       , generated_by :: Name
        , violated :: Violated
        , modification :: Modification
        , bool_rel :: BoolRel -- ^ True iff generated_by's spec has not changed since the FC was created
@@ -125,4 +126,4 @@ printFC fc@(FC { constraint = c}) =
 instance ASTContainer FuncConstraint Expr where
     containedASTs = containedASTs . constraint
 
-    modifyContainedASTs f (FC p v g gp c) = FC p v g gp $ modifyContainedASTs f c
+    modifyContainedASTs f (FC p gb v g gp c) = FC p gb v g gp $ modifyContainedASTs f c
