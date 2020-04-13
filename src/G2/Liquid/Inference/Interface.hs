@@ -140,7 +140,7 @@ inferenceL level ghci m_modname lrs nls wd gs fc try_to_synth = do
                 liftIO $ putStrLn "---\nFound good GS"
                 let ghci' = addSpecsToGhcInfos ghci new_gs
                 
-                raiseFCs level ghci m_modname lrs nls wd
+                raiseFCs level ghci m_modname lrs nls
                     =<< inferenceL (level + 1) ghci' m_modname lrs nls' WorkDown new_gs fc []
             | otherwise -> return $ GS new_gs
         Left bad -> do
@@ -176,8 +176,8 @@ inferenceL level ghci m_modname lrs nls wd gs fc try_to_synth = do
                             inferenceL level ghci m_modname lrs nls wd' synth_gs merged_fc rel_funcs
 
 raiseFCs :: (ProgresserM m, InfConfigM m, MonadIO m) =>  Level -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
-         -> NameLevels -> WorkingDir -> InferenceRes -> m InferenceRes
-raiseFCs level ghci m_modname lrs nls wd lev@(FCs fc new_fc new_gs) = do
+         -> NameLevels -> InferenceRes -> m InferenceRes
+raiseFCs level ghci m_modname lrs nls lev@(FCs fc new_fc new_gs) = do
     liftIO . putStrLn $ "---\nMoving up to level " ++ show level 
     liftIO . putStrLn $ "in ghci specs = " ++ show (concatMap (map fst) $ map (gsTySigs . spec) ghci)
     liftIO . putStrLn $ "new_fc =\n" ++ printFCs new_fc
@@ -190,7 +190,7 @@ raiseFCs level ghci m_modname lrs nls wd lev@(FCs fc new_fc new_gs) = do
     if nullFC (notAppropFCs (concat nls) new_fc)
         then inferenceL level ghci m_modname lrs nls WorkUp new_gs (unionFC fc new_fc) rel_funcs
         else return lev
-raiseFCs _ _ _ _ _ _ lev = do
+raiseFCs _ _ _ _ _ lev = do
     liftIO $ putStrLn "---\nReturn lev"
     return lev
 
