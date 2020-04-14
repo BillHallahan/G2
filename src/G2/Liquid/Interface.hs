@@ -261,7 +261,7 @@ createLiquidReadyState s@(State {expr_env = eenv}) bindings ghci ph_tyvars confi
         s' = s { track = [] }
         bindings' = bindings { exported_funcs = mexported ++ exported_funcs bindings, name_gen = ng' }
 
-        (lh_state, lh_bindings) = createLHState meenv mkv s' bindings'
+        (lh_state, lh_bindings) = createLHState meenv mkv mtc s' bindings'
 
         (data_state, data_bindings) = execLHStateM (initializeLHData ghci ph_tyvars config) lh_state lh_bindings
     in

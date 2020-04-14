@@ -16,6 +16,7 @@ import G2.Language
 import G2.Language.Monad
 import G2.Liquid.Types
 
+import Debug.Trace
 
 -- | Adds an extra field to the Num dict, which contains the Ord
 -- dict for the corresponding type.  Updates all other code accordingly.
@@ -24,13 +25,17 @@ import G2.Liquid.Types
 addOrdToNum :: LHStateM ()
 addOrdToNum = do
     tc <- typeClasses
+    lh_tc <- lhRenamedTCM
     num <- numTCM
 
     -- Rewrite dictionary declaration
     let tcd = lookupTCDicts num tc
-    case tcd of
-        Just tcd' -> mapM_ (uncurry addOrdToNumDictDec) tcd'
-        Nothing -> return ()
+        lh_tcd = lookupTCDicts num lh_tc
+    case (tcd, lh_tcd) of
+        (Just tcd', Just lh_tcd') -> do
+            mapM_ (uncurry (addOrdToNumDictDec lookupE insertE)) tcd'
+            mapM_ (uncurry (addOrdToNumDictDec lookupMeasureM insertMeasureM)) lh_tcd'
+        _ -> return ()
 
     -- Rewrite case statements
     mapME addOrdToNumCase
@@ -46,11 +51,15 @@ addOrdToNum = do
     -- Create a function to extract the Ord Dict
     ordDictFunc
 
-addOrdToNumDictDec :: Type -> Id -> LHStateM ()
-addOrdToNumDictDec t (Id n _) = do
+addOrdToNumDictDec :: (Name -> LHStateM (Maybe Expr))
+                   -> (Name -> Expr -> LHStateM ())
+                   -> Type
+                   -> Id
+                   -> LHStateM ()
+addOrdToNumDictDec lookup insert t (Id n _) = do
     ord <- ordTCM
 
-    me <- lookupE n
+    me <- lookup n
 
     case me of
         Just e -> do
@@ -59,7 +68,7 @@ addOrdToNumDictDec t (Id n _) = do
 
             e' <- insertInLamsE (\_ e'' -> return (App e'' ordD')) e
 
-            insertE n e'
+            insert n e'
         Nothing -> return ()
 
 addOrdToNumCase :: Expr -> LHStateM Expr

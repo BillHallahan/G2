@@ -240,6 +240,7 @@ liquidTests = return . testGroup "Liquid" =<< sequence
 
     , checkLiquid "tests/Liquid/HigherOrder2.hs" "f" 2000 2 [Exactly 0]
     , checkLiquid "tests/Liquid/HigherOrder2.hs" "h" 2000 2 [AtLeast 1]
+    , checkLiquid "tests/Liquid/HigherOrder3.hs" "m" 600 2 [AtLeast 1]
 
     , checkLiquid "tests/Liquid/Ordering.hs" "oneOrOther" 1000 2 [Exactly 0]
 
@@ -336,7 +337,7 @@ testFileTests = return . testGroup "TestFiles" =<< sequence
         [RExists defunc1Add1, RExists defunc1Multiply2, RExists defuncB, AtLeast 3]
     , checkExpr "tests/TestFiles/Defunc1.hs" 400 "x" 2 [AtLeast 1]
     , checkExpr "tests/TestFiles/Defunc1.hs" 600 "mapYInt" 3 [AtLeast 1]
-    , checkExpr "tests/TestFiles/Defunc1.hs" 600 "makeMoney" 3 [AtLeast 3]
+    , checkExpr "tests/TestFiles/Defunc1.hs" 600 "makeMoney" 3 [AtLeast 2]
     , checkExpr "tests/TestFiles/Defunc1.hs" 1600 "compZZ" 4 [AtLeast 2, RForAll (\[_, _, _, x] -> getBoolB x not)]
     , checkExpr "tests/TestFiles/Defunc1.hs" 1600 "compZZ2" 4 [AtLeast 2, RForAll (\[_, _, _, x] -> getBoolB x not)]
 

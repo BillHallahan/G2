@@ -19,6 +19,8 @@ import Data.List
 import qualified Data.HashSet as S
 import qualified Data.Map as M
 
+import Debug.Trace
+
 type PreservingFunc = forall t . State t -> Bindings -> S.HashSet Name -> S.HashSet Name
 
 data MemConfig = MemConfig { search_names :: [Name]
@@ -82,8 +84,8 @@ markAndSweepPreserving' mc (state@State { expr_env = eenv
     dsw' = M.filterWithKey (\n _ -> isActive n) dsw
 
     higher_ord_eenv = E.filterWithKey (\n _ -> n `S.member` inst) eenv
-    higher_ord = map PresType $ nubBy (.::.) $ argTypesTEnv tenv ++ E.higherOrderExprs higher_ord_eenv
-    higher_ord_rel = E.keys $ E.filter (\e -> any (.:: typeOf e) higher_ord) higher_ord_eenv
+    higher_ord = nubBy (.::.) $ argTypesTEnv tenv ++ E.higherOrderExprs higher_ord_eenv
+    higher_ord_rel = E.keys $ E.filter (\e -> any (e .::) higher_ord) higher_ord_eenv
 
 activeNames :: TypeEnv -> ExprEnv -> S.HashSet Name -> [Name] -> S.HashSet Name
 activeNames _ _ explored [] = explored

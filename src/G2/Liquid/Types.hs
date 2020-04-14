@@ -17,6 +17,7 @@ module G2.Liquid.Types ( LHOutput (..)
                        , consLHState
                        , deconsLHState
                        , measuresM
+                       , lhRenamedTCM
                        , assumptionsM
                        , annotsM
                        , runLHStateM
@@ -156,15 +157,17 @@ instance L.ASTContainer Abstracted L.Type where
 -- LiquidHaskell ASTs
 data LHState = LHState { state :: L.State [L.FuncCall]
                        , measures :: Measures
+                       , lh_tcs :: L.TypeClasses
                        , tcvalues :: TCValues
                        , assumptions :: Assumptions
                        , annots :: AnnotMap
                        } deriving (Eq, Show, Read)
 
-consLHState :: L.State [L.FuncCall] -> Measures -> TCValues -> LHState
-consLHState s meas tcv =
+consLHState :: L.State [L.FuncCall] -> Measures -> L.TypeClasses -> TCValues -> LHState
+consLHState s meas tc tcv =
     LHState { state = s
             , measures = meas
+            , lh_tcs = tc
             , tcvalues = tcv
             , assumptions = M.empty
             , annots = AM HM.empty }
@@ -178,6 +181,11 @@ measuresM :: LHStateM Measures
 measuresM = do
     (lh_s, _) <- SM.get
     return $ measures lh_s
+
+lhRenamedTCM :: LHStateM L.TypeClasses
+lhRenamedTCM = do
+    (lh_s, _) <- SM.get
+    return $ lh_tcs lh_s
 
 assumptionsM :: LHStateM Assumptions
 assumptionsM = do
