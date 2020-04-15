@@ -116,6 +116,7 @@ primDefs' b = [ ("==#", Prim Eq $ tyIntIntBool b)
               , ("patError", Prim Error TyBottom)
               , ("succError", Prim Error TyBottom)
               , ("toEnumError", Prim Error TyBottom)
+              , ("ratioZeroDenominatorError", Prim Error TyBottom)
               , ("undefined", Prim Error TyBottom)]
 
 tyIntInt :: Type

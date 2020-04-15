@@ -846,7 +846,12 @@ retReplaceSymbFunc s@(State { expr_env = eenv
                , symbolic_ids = new_sym_id:symbolic_ids s
                , non_red_path_conds = non_red_path_conds s ++ [nrpc_e] }]
             , ng')
-    | otherwise = Nothing
+    | otherwise = 
+      let
+        t = typeOf ce
+      in
+      -- trace ("eq_tc = " ++ show (concreteSatStructEq kv tc t))
+      Nothing
 
 isApplyFrame :: Frame -> Bool
 isApplyFrame (ApplyFrame _) = True

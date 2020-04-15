@@ -2,8 +2,10 @@ module G2.Liquid.Inference.Interface ( inferenceCheck
                                      , inference) where
 
 import G2.Config.Config as G2
+import qualified G2.Initialization.Types as IT
 import G2.Interface hiding (violated)
 import G2.Language.CallGraph
+import qualified G2.Language.ExprEnv as E
 import G2.Language.Naming
 import G2.Language.Support
 import G2.Language.Syntax
@@ -269,7 +271,7 @@ createStateForInference simp_s config ghci =
                                 else (simp_s, Nothing)
         (s, b) = initStateFromSimpleState simp_s' True 
                     (\_ ng _ _ _ _ -> (Prim Undefined TyBottom, [], [], ng))
-                    (\_ -> [])
+                    (E.higherOrderExprs . IT.expr_env)
                     config
     in
     createLiquidReadyState s b ghci ph_tyvars config

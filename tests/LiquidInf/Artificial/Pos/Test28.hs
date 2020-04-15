@@ -1,7 +1,7 @@
 {-@ LIQUID "--no-termination" @-}
 {-@ LIQUID "--prune-unsorted" @-}
 
-module ListQualif ( List, mapReduce ) where
+module ListQualif ( List, mapReduce, f1, f2 ) where
 
 import Prelude hiding (length, replicate, foldr, foldr1, map, concat, zipWith, repeat)
 import qualified Data.Map as M
@@ -67,6 +67,15 @@ mapReduce fm fr xs = kvm
 
 expand   :: (a -> List (k, v)) -> List a -> List (k, v)
 expand f xs = concat (map f xs)
+
+f1 :: Int -> List (Int, Int)
+f1 x = (x, x) :+: Emp
+
+f2 :: Int -> List (Int, Int)
+f2 x = (x, x) :+: (x, x) :+: Emp
+
+f3 :: Int -> List (Int, Int)
+f3 _ = Emp
 
 group    :: (Ord k) => List (k, v) -> M.Map k (List v)
 group     = foldr addKV  M.empty
