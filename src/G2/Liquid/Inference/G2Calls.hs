@@ -273,8 +273,10 @@ swapForSG is e@(Var i)
                               AnonType t -> (TermL, Id (Name "x" Nothing 0 Nothing) t))
                $ spArgumentTypes i
             r = returnType i
+
+            sg_i = Id (Name "sym_gen" Nothing 0 Nothing) r
         in
-        mkLams as (SymGen r)
+        Let [(sg_i, SymGen r)] $ mkLams as (Var sg_i)
     | otherwise = e
 swapForSG _ e = e
 
