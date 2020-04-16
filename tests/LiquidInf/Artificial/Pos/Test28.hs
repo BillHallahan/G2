@@ -1,7 +1,7 @@
 {-@ LIQUID "--no-termination" @-}
 {-@ LIQUID "--prune-unsorted" @-}
 
-module ListQualif ( List, mapReduce, f1, f2 ) where
+module ListQualif ( List, mapReduce, f1, f2, f3 ) where
 
 import Prelude hiding (length, replicate, foldr, foldr1, map, concat, zipWith, repeat)
 import qualified Data.Map as M

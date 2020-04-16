@@ -24,6 +24,7 @@ import G2.Translation
 import Language.Haskell.Liquid.Types as LH
 
 import Control.Monad
+import Control.Monad.Extra
 import Control.Monad.IO.Class 
 import Data.Either
 import qualified Data.HashSet as S
@@ -341,10 +342,12 @@ cexsToFuncConstraints :: InfConfigM m => LiquidReadyState -> [GhcInfo] -> Workin
 cexsToFuncConstraints _ _ _ (DirectCounter dfc fcs@(_:_)) = do
     infconfig <- infConfigM
     let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
+
+    real_cons <- mapMaybeM (mkRealFCFromAbstracted imp (funcName dfc)) fcs'
+    abs_cons <- mapMaybeM (mkAbstractFCFromAbstracted del (funcName dfc)) fcs'
+
     if not . null $ fcs'
-        then return . Right . insertsFC
-                            $ mapMaybe (mkRealFCFromAbstracted imp (funcName dfc)) fcs'
-                                       ++ mapMaybe (mkAbstractFCFromAbstracted del (funcName dfc)) fcs'
+        then return . Right . insertsFC $ real_cons ++ abs_cons
         else error "cexsToFuncConstraints: unhandled 1"
     where
         imp _ = SwitchImplies [funcName dfc]
@@ -352,11 +355,14 @@ cexsToFuncConstraints _ _ _ (DirectCounter dfc fcs@(_:_)) = do
 cexsToFuncConstraints _ _ _ (CallsCounter dfc cfc fcs@(_:_)) = do
     infconfig <- infConfigM
     let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
+
+    callee_cons <- mkRealFCFromAbstracted imp (funcName dfc) cfc
+    real_cons <- mapMaybeM (mkRealFCFromAbstracted imp (funcName dfc)) fcs'
+    abs_cons <- mapMaybeM (mkAbstractFCFromAbstracted del (funcName dfc)) fcs'
+
     if not . null $ fcs' 
         then return . Right . insertsFC
-                            $ maybeToList (mkRealFCFromAbstracted imp (funcName dfc) cfc)
-                                    ++ mapMaybe (mkRealFCFromAbstracted imp (funcName dfc)) fcs'
-                                    ++ mapMaybe (mkAbstractFCFromAbstracted del (funcName dfc)) fcs'
+                            $ maybeToList callee_cons ++ real_cons ++ abs_cons
         else error "cexsToFuncConstraints: Should be unreachable! Non-refinable function abstracted!"
     where
         imp n = SwitchImplies [funcName dfc, funcName $ abstract cfc, n]
@@ -417,36 +423,44 @@ cexsToFuncConstraints lrs ghci wd cex@(CallsCounter caller_fc called_fc []) = do
                                                        , bool_rel = if notRetError (real called_fc) then BRAnd else BRImplies
                                                        , constraint = real called_fc } ]
 
-mkRealFCFromAbstracted :: (Name -> Modification) -> Name -> Abstracted -> Maybe FuncConstraint
-mkRealFCFromAbstracted md gb ce
-    | not $ hits_lib_err_in_real ce =
-        let
-            fc = real ce
-        in
-        Just $ FC { polarity = if notRetError fc then Pos else Neg
-                  , generated_by = gb
-                  , violated = Post
-                  , modification = md (funcName fc)
-                  , bool_rel = if notRetError fc then BRAnd else BRImplies
-                  , constraint = fc }
-    | otherwise = Nothing 
+mkRealFCFromAbstracted :: InfConfigM m => (Name -> Modification) -> Name -> Abstracted -> m (Maybe FuncConstraint)
+mkRealFCFromAbstracted md gb ce = do
+    let fc = real ce
+    user_def <- hasUserSpec $ funcName fc
+
+    if not (hits_lib_err_in_real ce) && not user_def
+        then
+            let
+                fc = real ce
+            in
+            return . Just $ FC { polarity = if notRetError fc then Pos else Neg
+                               , generated_by = gb
+                               , violated = Post
+                               , modification = md (funcName fc)
+                               , bool_rel = if notRetError fc then BRAnd else BRImplies
+                               , constraint = fc }
+        else return Nothing 
 
 -- | If the real fc returns an error, we know that our precondition has to be
 -- strengthened to block the input.
 -- Thus, creating an abstract counterexample would be (at best) redundant.
-mkAbstractFCFromAbstracted :: (Name -> Modification) -> Name -> Abstracted -> Maybe FuncConstraint
-mkAbstractFCFromAbstracted md gb ce
-    | notRetError (real ce) || hits_lib_err_in_real ce =
-        let
-            fc = abstract ce
-        in
-        Just $ FC { polarity = Neg
-                  , generated_by = gb
-                  , violated = Post
-                  , modification = md (funcName fc)
-                  , bool_rel = BRImplies
-                  , constraint = fc } 
-    | otherwise = Nothing
+mkAbstractFCFromAbstracted :: InfConfigM m => (Name -> Modification) -> Name -> Abstracted -> m (Maybe FuncConstraint)
+mkAbstractFCFromAbstracted md gb ce = do
+    let fc = abstract ce
+    user_def <- hasUserSpec $ funcName fc
+
+    if (notRetError (real ce) || hits_lib_err_in_real ce) && not user_def
+        then
+            let
+                fc = abstract ce
+            in
+            return . Just $ FC { polarity = Neg
+                               , generated_by = gb
+                               , violated = Post
+                               , modification = md (funcName fc)
+                               , bool_rel = BRImplies
+                               , constraint = fc } 
+        else return Nothing
 
 adjustWorkingDir :: InfConfigM m => [CounterExample] -> WorkingDir -> m WorkingDir
 adjustWorkingDir cexs wd = do
@@ -471,14 +485,6 @@ hasUserSpec :: InfConfigM m => Name -> m Bool
 hasUserSpec (Name n m _ _) = do
     infconfig <- infConfigM
     return $ (n, m) `S.member` pre_refined infconfig
-
-anyM :: (Monad m) => (a -> m Bool) -> [a] -> m Bool
-anyM _ []       = return False
-anyM p (x:xs)   = do
-        q <- p x
-        if q
-            then return True
-            else anyM p xs
 
 getDirectCaller :: CounterExample -> Maybe FuncCall
 getDirectCaller (CallsCounter f _ []) = Just f

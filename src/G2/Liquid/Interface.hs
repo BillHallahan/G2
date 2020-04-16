@@ -450,7 +450,7 @@ lhReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
         (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng)
             <~| (case logStates config of
                   Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
-                  Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn)) -- :<~ LimLogger 0 0 [2] "expand"))
+                  Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn)) -- :<~ LimLogger 0 700 [2, 1, 2, 2, 1, 1, 1] "aMapReduce"))
         , SomeHalter
             (DiscardIfAcceptedTag state_name
               :<~> MaxOutputsHalter (maxOutputs config)

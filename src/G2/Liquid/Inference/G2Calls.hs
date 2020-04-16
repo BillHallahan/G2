@@ -184,9 +184,10 @@ runLHInferenceCore entry m lrs ghci = do
                , ls_memconfig = pres_names } <- liftIO $ processLiquidReadyStateWithCall lrs ghci entry m g2config mempty
     SomeSolver solver <- liftIO $ initSolver g2config
     let simplifier = ADTSimplifier arbValue
+        final_st' = swapHigherOrdForSymGen bindings final_st
 
-    (red, hal, ord) <- inferenceReducerHalterOrderer infconfig g2config solver simplifier entry m cfn cf_funcs final_st
-    (exec_res, final_bindings) <- liftIO $ runLHG2 g2config red hal ord solver simplifier pres_names final_st bindings
+    (red, hal, ord) <- inferenceReducerHalterOrderer infconfig g2config solver simplifier entry m cfn cf_funcs final_st'
+    (exec_res, final_bindings) <- liftIO $ runLHG2 g2config red hal ord solver simplifier pres_names final_st' bindings
 
     liftIO $ close solver
 
@@ -253,6 +254,29 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
               :<~> AcceptIfViolatedHalter
               :<~> timer_halter)
         , SomeOrderer (ToOrderer $ IncrAfterN 1000 ADTHeightOrderer))
+
+swapHigherOrdForSymGen :: Bindings -> State t -> State t
+swapHigherOrdForSymGen b s@(State { curr_expr = CurrExpr er e }) =
+    let
+        is = filter (isTyFun . typeOf) $ inputIds s b
+
+        e' = modify (swapForSG is) e
+    in
+    trace ("e' = " ++ show e') s { curr_expr = CurrExpr er e' }
+
+swapForSG :: [Id] -> Expr -> Expr
+swapForSG is e@(Var i)
+    | i `elem` is =
+        let
+            as = map (\at -> case at of
+                              NamedType i' -> (TypeL, i')
+                              AnonType t -> (TermL, Id (Name "x" Nothing 0 Nothing) t))
+               $ spArgumentTypes i
+            r = returnType i
+        in
+        mkLams as (SymGen r)
+    | otherwise = e
+swapForSG _ e = e
 
 abstractedWeight :: Processed (State LHTracker) -> State LHTracker -> Int -> Int
 abstractedWeight pr s v =

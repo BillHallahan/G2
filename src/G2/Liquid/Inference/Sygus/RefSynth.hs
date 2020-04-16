@@ -958,7 +958,9 @@ canProduceVarGTerm :: SortedVar -> GTerm -> Bool
 canProduceVarGTerm (SortedVar _ sv_srt) (GVariable gv_srt) = sv_srt == gv_srt
 canProduceVarGTerm (SortedVar s _) (GBfTerm (BfIdentifier (ISymb is))) = s == is
 canProduceVarGTerm s (GBfTerm (BfIdentifierBfs _ bfs)) = any (canProduceVarGTerm s) $ map GBfTerm bfs
+canProduceVarGTerm _ (GBfTerm (BfLiteral _)) = False
 canProduceVarGTerm _ (GConstant _) = False
+canProduceVarGTerm _ t = error $ "Unhandled term" ++ show t
 
 -- Reachability checks
 
