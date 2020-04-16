@@ -135,6 +135,8 @@ inferenceL level ghci m_modname lrs nls wd gs fc try_to_synth = do
 
     res <- tryHardToVerifyIgnoring ghci gs ignore
 
+    liftIO $ putStrLn "After res"
+
     case res of
         Right new_gs
             | (_:nls') <- nls -> do
@@ -430,9 +432,6 @@ mkRealFCFromAbstracted md gb ce = do
 
     if not (hits_lib_err_in_real ce) && not user_def
         then
-            let
-                fc = real ce
-            in
             return . Just $ FC { polarity = if notRetError fc then Pos else Neg
                                , generated_by = gb
                                , violated = Post
@@ -451,9 +450,6 @@ mkAbstractFCFromAbstracted md gb ce = do
 
     if (notRetError (real ce) || hits_lib_err_in_real ce) && not user_def
         then
-            let
-                fc = abstract ce
-            in
             return . Just $ FC { polarity = Neg
                                , generated_by = gb
                                , violated = Post

@@ -262,7 +262,7 @@ swapHigherOrdForSymGen b s@(State { curr_expr = CurrExpr er e }) =
 
         e' = modify (swapForSG is) e
     in
-    trace ("e' = " ++ show e') s { curr_expr = CurrExpr er e' }
+    s { curr_expr = CurrExpr er e' }
 
 swapForSG :: [Id] -> Expr -> Expr
 swapForSG is e@(Var i)

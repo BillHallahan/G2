@@ -97,7 +97,7 @@ onlyCounterfactual' e = e
 
 -- | Eliminate all Asserts, except for the functions with names in the HashSet
 elimNonTop :: S.HashSet Name -> State t -> State t
-elimNonTop hs s@(State { expr_env = eenv }) = trace ("hs = " ++ show hs) s { expr_env = E.mapWithKey (elimNonTop' hs) eenv }
+elimNonTop hs s@(State { expr_env = eenv }) = s { expr_env = E.mapWithKey (elimNonTop' hs) eenv }
 
 elimNonTop' :: S.HashSet Name -> Name -> Expr -> Expr
 elimNonTop' hs n e = if n `S.member` hs then e else elimAsserts e

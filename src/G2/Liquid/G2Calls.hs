@@ -59,7 +59,7 @@ checkAbstracted solver simplifier config bindings er@(ExecRes{ final_state = s@S
         models = mapMaybe toModel $ abstractedR
 
     -- Get an `Astracted for the violated function (if it exists)
-    abs_viol <- case trace ("violated = " ++ show (violated er)) violated er of
+    abs_viol <- case violated er of
                   Just v -> return . Just =<<
                               getAbstracted solver simplifier (sharing config) s bindings v
                   Nothing -> return Nothing
@@ -93,7 +93,10 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
         -- but does need to be in `assert_ids` .
         -- We eliminate all assumes, except those blocking calls to library functions.
         -- See [BlockErrors] in G2.Liquid.SpecialAsserts
-        let s' = elimAssumesExcept . pickHead . modelToExprEnv $
+        let s' = elimAssumesExcept
+              . pickHead
+              . elimSymGens (arb_value_gen bindings)
+              . modelToExprEnv $
                    s { curr_expr = CurrExpr Evaluate strict_call
                      , track = False }
 
@@ -134,7 +137,11 @@ getAbstracted solver simplifier share s bindings abs_fc@(FuncCall { funcName = n
             ds = deepseq_walkers bindings
             strict_call = maybe e' (fillLHDictArgs ds) $ mkStrict_maybe ds e'
 
-        let s' = elimAsserts . elimAssumes . pickHead . modelToExprEnv $
+        let s' = elimAsserts
+              . elimAssumes
+              . pickHead
+              . elimSymGens (arb_value_gen bindings)
+              . modelToExprEnv $
                    s { curr_expr = CurrExpr Evaluate strict_call }
 
         (er, _) <- runG2WithSomes 
@@ -236,7 +243,11 @@ reduceFCExpr share reducer solver simplifier s bindings e
         let 
             e' = fillLHDictArgs ds strict_e
 
-        let s' = elimAssumes . elimAsserts . pickHead . modelToExprEnv $
+        let s' = elimAssumes
+               . elimAsserts
+               . pickHead
+               . elimSymGens (arb_value_gen bindings)
+               . modelToExprEnv $
                    s { curr_expr = CurrExpr Evaluate e'}
 
         (er, bindings') <- runG2WithSomes 
@@ -262,6 +273,27 @@ mapAccumM f z (x:xs) = do
 modelToExprEnv :: State t -> State t
 modelToExprEnv s = s { expr_env = model s `E.union'` expr_env s
                      , model = HM.empty }
+
+elimSymGens :: ArbValueGen -> State t -> State t
+elimSymGens arb s = s { expr_env = E.map esg $ expr_env s }
+  where
+    -- Rewriting the whole ExprEnv is slow, so we only
+    -- rewrite an Expr if needed.
+    esg e = 
+        if hasSymGen e
+            then modify (elimSymGens' (type_env s) arb) e
+            else e
+
+elimSymGens' :: TypeEnv -> ArbValueGen -> Expr -> Expr
+elimSymGens' tenv arb (SymGen t) = fst $ arbValue t tenv arb
+elimSymGens' _ _ e = e
+
+hasSymGen :: Expr -> Bool
+hasSymGen = getAny . eval hasSymGen'
+
+hasSymGen' :: Expr -> Any
+hasSymGen' (SymGen _) = Any True
+hasSymGen' _ = Any False
 
 -------------------------------
 -- Generic
