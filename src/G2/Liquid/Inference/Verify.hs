@@ -80,9 +80,9 @@ tryHardToVerifyIgnoring ghci gs ignore = do
             Unsafe ns
               | f_ns <- filterIgnoring ns
               , f_ns /= [] -> do
-                let f_gs = filterOutSpecs f_ns gs
-                    f_both_gs = filterOutAssertSpecs f_ns gs
-                    f_merged_ghci = addSpecsToGhcInfos ghci f_both_gs
+                putStrLn $ "filtered = " ++ show ns
+                let f_gs = filterOutAssertSpecs f_ns gs
+                    f_merged_ghci = addSpecsToGhcInfos ghci f_gs
 
                 filtered_res <- return . verifyVarToName =<<
                                             verify infconfig lhconfig f_merged_ghci

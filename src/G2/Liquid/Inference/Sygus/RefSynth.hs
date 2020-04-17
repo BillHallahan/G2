@@ -98,6 +98,7 @@ refSynth' spc e tc meas meas_ex fc meas_sym tycons = do
             putStrLn "refSynth"
             let (call, f_num, arg_pb, ret_pb) = sygusCall e tc meas meas_ex fc
                 s_call = nub
+                       . simplifyNegatedAnds
                        . elimNegatedExistential
                        . simplifyImpliesLHS
                        . splitAnds
@@ -513,6 +514,10 @@ doubleSort = IdentSort (ISymb "Real")
 boolSort :: Sort
 boolSort = IdentSort (ISymb "Bool")
 
+
+charSort :: Sort
+charSort = IdentSort (ISymb "String")
+
 relArgs :: TypeClasses -> [Type] -> FuncConstraint -> FuncConstraint
 relArgs tc ts fc =
     let
@@ -678,7 +683,8 @@ exprToTerm _ _ (TyCon (Name "Bool" _ _ _) _) (Data (DataCon (Name n _ _ _) _))
 exprToTerm _ _ (TyCon (Name n _ _ _) _) (App _ (Lit l))
     |  n == "Int"
     || n == "Float"
-    || n == "Double" = litToTerm l
+    || n == "Double"
+    || n == "Char" = litToTerm l
 exprToTerm _ _ _ (Lit l) = litToTerm l
 exprToTerm sorts meas_ex t e = exprToDTTerm sorts meas_ex t e
 exprToTerm _ _ _ e = error $ "exprToTerm: Unhandled Expr " ++ show e
@@ -687,6 +693,7 @@ litToTerm :: G2.Lit -> Term
 litToTerm (LitInt i) = TermLit (LitNum i)
 litToTerm (LitDouble d) = TermCall (ISymb "/") [ TermLit . LitNum $ numerator d
                                                , TermLit . LitNum $ denominator d]
+litToTerm (LitChar c) = TermLit (LitStr [c])
 litToTerm _ = error "litToTerm: Unhandled Lit"
 
 exprToDTTerm :: TypesToSorts -> MeasureExs -> Type -> G2.Expr -> Term
@@ -730,6 +737,7 @@ typeToSort _ (TyCon (Name n _ _ _) _)
     | n == "Int" = intSort
     | n == "Double" = doubleSort
     | n == "Bool" = boolSort
+    | n == "Char" = charSort
 typeToSort sm t
     | Just si <- lookupSort t sm = IdentSort (ISymb $ sort_name si)
 typeToSort sm t = error $ "Unknown Type\n" ++ show t ++ "\nsm = " ++ show sm

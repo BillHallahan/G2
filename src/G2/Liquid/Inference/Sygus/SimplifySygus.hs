@@ -7,6 +7,7 @@ module G2.Liquid.Inference.Sygus.SimplifySygus ( EliminatedSimple
                                                , elimRedundantAnds
                                                , splitAnds
                                                , simplifyImpliesLHS
+                                               , simplifyNegatedAnds
 
                                                , EliminatedTrivTrue
                                                , simplifyToTrue
@@ -302,6 +303,35 @@ simplifyImpliesLHSTerm' ts t = if t `elem` ts then Nothing else Just t
 getTrueTerm :: Cmd -> Maybe Term
 getTrueTerm (Constraint t) = Just t
 getTrueTerm _ = Nothing
+
+-----------------------------------------
+-- Simplify by eliminatng any functions from a not-ed and that must be true
+
+simplifyNegatedAnds :: [Cmd] -> [Cmd]
+simplifyNegatedAnds cmd =
+    let
+        true_trms = mapMaybe getTrueTerm cmd
+    in
+    map (simplifyNegatedAnds' true_trms) cmd
+
+simplifyNegatedAnds' :: [Term] -> Cmd -> Cmd
+simplifyNegatedAnds' ts (Constraint t) = Constraint $ simplifyNegatedAndsTerms ts t
+simplifyNegatedAnds' _ cmd = cmd
+
+simplifyNegatedAndsTerms :: [Term] -> Term -> Term
+simplifyNegatedAndsTerms ts (TermCall (ISymb "not") [t]) =
+    TermCall (ISymb "not") $ [simplifyNegatedAndsInNot ts t]
+simplifyNegatedAndsTerms ts tc@(TermCall (ISymb "=>") [t, t'])
+    | t == TermLit (LitBool True) = simplifyNegatedAndsTerms ts t'
+    | otherwise = tc
+simplifyNegatedAndsTerms _ t = t
+
+simplifyNegatedAndsInNot :: [Term] -> Term -> Term
+simplifyNegatedAndsInNot ts (TermCall (ISymb "and") ts') =
+    case filter (`notElem` ts) ts' of
+        [] -> TermLit (LitBool True)
+        new_ts -> TermCall (ISymb "and") new_ts
+simplifyNegatedAndsInNot _ t = t
 
 -----------------------------------------
 -- Identify functions that can simply be rewritten to true, use `restoreSimplifiedToTrue`

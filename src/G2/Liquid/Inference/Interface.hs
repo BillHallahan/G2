@@ -367,8 +367,10 @@ cexsToFuncConstraints _ _ _ (CallsCounter dfc cfc fcs@(_:_)) = do
                             $ maybeToList callee_cons ++ real_cons ++ abs_cons
         else error "cexsToFuncConstraints: Should be unreachable! Non-refinable function abstracted!"
     where
-        imp n = SwitchImplies [funcName dfc, funcName $ abstract cfc, n]
-        del n = Delete [funcName dfc, funcName $ abstract cfc, n]
+        imp n = SwitchImplies $ funcName dfc:delete n ns
+        del _ = Delete $ [funcName dfc, funcName $ abstract cfc] ++ ns
+
+        ns = nub $ map (funcName . abstract) fcs
 cexsToFuncConstraints lrs ghci _ cex@(DirectCounter fc []) = do
     let Name n m _ _ = funcName fc
     infconfig <- infConfigM
