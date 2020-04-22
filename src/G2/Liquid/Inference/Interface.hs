@@ -410,7 +410,7 @@ cexsToFuncConstraints lrs ghci wd cex@(CallsCounter caller_fc called_fc []) = do
                                                     [ FC { polarity = Neg
                                                          , generated_by = funcName caller_fc
                                                          , violated = Pre
-                                                         , modification = Delete [funcName caller_fc]
+                                                         , modification = Delete [funcName $ real called_fc]
                                                          , bool_rel = BRImplies
                                                          , constraint = caller_fc {returns = Prim Error TyBottom} }
                                                          , FC { polarity = if notRetError caller_fc then Pos else Neg
