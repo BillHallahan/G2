@@ -394,7 +394,7 @@ evalMeasures lrs ghci es = do
 
         return $ foldr (HM.unionWith (++)) HM.empty meas_res
     where
-        meas_names = map (val . name) $ measureSpecs ghci
+        meas_names = map (val . msName) $ measureSpecs ghci
         meas_nameOcc = map (\(Name n md _ _) -> (n, md)) $ map symbolName meas_names
 
         presMeasureNames s _ hs =

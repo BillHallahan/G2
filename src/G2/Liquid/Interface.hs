@@ -340,7 +340,7 @@ extractWithoutSpecs lrs@(LiquidReadyState { lr_state = s
 lrsMeasures :: [GhcInfo] -> LiquidReadyState -> Measures
 lrsMeasures ghci lrs = 
     let
-        meas_names = map (val . name) $ measureSpecs ghci
+        meas_names = map (val . msName) $ measureSpecs ghci
         meas_nameOcc = map (\(Name n md _ _) -> (n, md)) $ map symbolName meas_names
 
         real_meas = E.filterWithKey (\(Name n md i _) _ -> 

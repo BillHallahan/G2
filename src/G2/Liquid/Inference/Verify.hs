@@ -76,6 +76,7 @@ tryHardToVerifyIgnoring ghci gs ignore = do
         putStrLn "---\nEnd Verify"
 
         res <- return . verifyVarToName =<< verify infconfig lhconfig merged_ghci
+        putStrLn "res"
         case res of
             Unsafe ns
               | f_ns <- filterIgnoring ns
@@ -92,7 +93,9 @@ tryHardToVerifyIgnoring ghci gs ignore = do
                           liftIO . putStrLn $ "Safe 2 after " ++ show ns 
                           return $ Right f_gs
                     Crash ci err -> error $ "Crash\n" ++ show ci ++ "\n" ++ err
-              | otherwise -> return $ Right gs
+              | otherwise -> do
+                putStrLn $ "safe ignoring ns = " ++ show ns
+                return $ Right gs
             Safe -> do
                 liftIO $ putStrLn "Safe 1"
                 return $ Right gs
@@ -115,7 +118,10 @@ verify infconfig cfg ghci = do
     case F.resStatus r of
         F.Safe -> return Safe
         F.Crash ci err -> return $ Crash ci err
-        F.Unsafe bad -> return . Unsafe . catMaybes $ map (ci_var . snd) bad
+        F.Unsafe bad -> do
+          putStrLn $ "bad var = " ++ show (map (ci_var . snd) bad)
+          putStrLn $ "bad loc = " ++ show (map (ci_loc . snd) bad)
+          return . Unsafe . catMaybes $ map (ci_var . snd) bad
 
 
 verify' :: InferenceConfig -> Config ->  [GhcInfo] -> IO (F.Result (Integer, Cinfo))

@@ -99,6 +99,7 @@ refSynth' spc e tc meas meas_ex fc meas_sym tycons = do
             let (call, f_num, arg_pb, ret_pb) = sygusCall e tc meas meas_ex fc
                 s_call = nub
                        . simplifyNegatedAnds
+                       . simplifyImpliesExistentials
                        . elimNegatedExistential
                        . simplifyImpliesLHS
                        . splitAnds
@@ -327,7 +328,10 @@ grammar intRules doubleRules arg_sort_vars ret_sorted_var@(SortedVar _ (IdentSor
     let
         sorted_vars = arg_sort_vars ++ [ret_sorted_var]
 
-        rel_to_ret = maybe [ret_sorted_var] meas_names $ lookupSortInfoBySort ret_srt_symb sorts
+        rel_to_ret =
+            case ret_srt_symb of
+                "Bool" -> arg_sort_vars
+                _ -> maybe [ret_sorted_var] meas_names $ lookupSortInfoBySort ret_srt_symb sorts
 
         sorts' = filterToSorts (map (\(SortedVar _ s) -> sortSymb s) sorted_vars) sorts
 
@@ -881,8 +885,10 @@ forceVarInGrammar var params (GrammarDef sv grls) =
         reach = gramSymbReachableFrom prod_srt grls
 
         sv_reach = concatMap (grammarDefSortedVars reach) sv
+
+        (sv_final, grl_final) = elimNonTermGRL var (forceVarInGRLList var reach grls) sv_reach
     in
-    GrammarDef sv_reach . elimEmptyGRL $ forceVarInGRLList var reach grls
+    GrammarDef sv_final grl_final
 
 forceVarInGRLList :: SortedVar -> [Symbol] -> [GroupedRuleList] -> [GroupedRuleList]
 forceVarInGRLList var reach grls =
@@ -925,14 +931,53 @@ isClamp _ = False
 
 -----------------------------------------------------
 
-elimEmptyGRL :: [GroupedRuleList] -> [GroupedRuleList]
-elimEmptyGRL grl =
+elimNonTermGRL :: SortedVar -> [GroupedRuleList] -> [SortedVar] -> ([SortedVar], [GroupedRuleList])
+elimNonTermGRL (SortedVar sv_n _) grls sv =
     let
-        emp_grl = map (\(GroupedRuleList n _ _) -> n)
-                $ filter (\(GroupedRuleList _ _ r) -> null r) grl
+        has_term = hasTermFix (HS.singleton sv_n) grls
 
+        sv' = filter (\(SortedVar n _) -> n `elem` has_term) sv
+        grls' = map (elimRules has_term)
+              $ filter (\(GroupedRuleList n _ _) -> n `elem` has_term) grls
     in
-    filter (\(GroupedRuleList _ _ r) -> not $ null r) $ map (elimRules emp_grl) grl
+    trace "-----"
+    (sv', grls')
+
+hasTermFix :: HS.HashSet Symbol -> [GroupedRuleList] -> [Symbol]
+hasTermFix ht grl =
+    let
+        ht' = HS.fromList
+            . map (\(GroupedRuleList n _ _) -> n)
+            $ filter (hasTermGRL ht) grl
+
+
+        ht_all = HS.union ht ht'
+    in
+    if ht == ht_all then HS.toList ht_all else hasTermFix ht_all grl
+
+hasTermGRL :: HS.HashSet Symbol -> GroupedRuleList -> Bool
+hasTermGRL ht (GroupedRuleList n _ r) = n `HS.member` ht || any (hasTermGTerm ht) r
+
+hasTermGTerm :: HS.HashSet Symbol -> GTerm -> Bool
+hasTermGTerm _ (GConstant _) = True
+hasTermGTerm _ (GVariable _) = True
+hasTermGTerm ht (GBfTerm bft) = hasTermBfTerm ht bft
+
+hasTermBfTerm :: HS.HashSet Symbol -> BfTerm -> Bool
+hasTermBfTerm ht (BfIdentifier (ISymb i)) = i `HS.member` ht
+hasTermBfTerm _ (BfLiteral _) = True
+hasTermBfTerm ht (BfIdentifierBfs _ bfs) = all (hasTermBfTerm ht) bfs
+
+-----------------------------------------------------
+
+-- elimEmptyGRL :: [GroupedRuleList] -> [GroupedRuleList]
+-- elimEmptyGRL grl =
+--     let
+--         emp_grl = map (\(GroupedRuleList n _ _) -> n)
+--                 $ filter (\(GroupedRuleList _ _ r) -> null r) grl
+
+--     in
+--     filter (\(GroupedRuleList _ _ r) -> not $ null r) $ map (elimRules emp_grl) grl
 
 elimRules :: [Symbol] -> GroupedRuleList -> GroupedRuleList
 elimRules grls (GroupedRuleList symb srt r) =
@@ -944,7 +989,7 @@ elimRules' _ (GVariable _) = True
 elimRules' grls (GBfTerm bft) = elimRulesBfT grls bft
 
 elimRulesBfT :: [Symbol] -> BfTerm -> Bool
-elimRulesBfT grls (BfIdentifier (ISymb i)) = i `notElem` grls
+elimRulesBfT grls (BfIdentifier (ISymb i)) = i `elem` grls
 elimRulesBfT _ (BfLiteral _) = True
 elimRulesBfT grls (BfIdentifierBfs _ bfs) = all (elimRulesBfT grls) bfs
 
@@ -1082,8 +1127,9 @@ refToQualifier tycons params e =
       , qBody = e
       , qPos = LH.dummyPos "G2" }
 
-mkParam :: LH.TCEmb TyCon -> (LH.Symbol, SpecType) -> (LH.Symbol, LH.Sort)
-mkParam tycons (symb, st) = (symb, funcHead $ rTypeSort tycons st)
+mkParam :: LH.TCEmb TyCon -> (LH.Symbol, SpecType) -> QualParam
+mkParam tycons (symb, st) =
+    QP { qpSym = symb, qpPat = PatNone, qpSort = funcHead $ rTypeSort tycons st }
     where
         funcHead (LH.FFunc h _) = h
         funcHead s = s

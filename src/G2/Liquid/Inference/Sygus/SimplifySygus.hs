@@ -13,7 +13,8 @@ module G2.Liquid.Inference.Sygus.SimplifySygus ( EliminatedSimple
                                                , simplifyToTrue
                                                , restoreSimplifiedToTrue
 
-                                               , elimNegatedExistential) where
+                                               , elimNegatedExistential
+                                               , simplifyImpliesExistentials) where
 
 import Sygus.Syntax
 
@@ -414,3 +415,29 @@ elimNegatedExistentialTerm' (TermCall (ISymb "and") ts) =
         [] -> Just $ TermLit (LitBool True)
         ts' -> Just $ TermCall (ISymb "and") ts'
 elimNegatedExistentialTerm' t = Just t
+
+-----------------------------------------
+-- Simplify by eliminatng any existentials from an implies that must be true.
+-- This simplification actually does NOT keep exactly the same problem.
+-- However, in practice, we never benefit from negated existentials on the LHS of an implies.
+
+simplifyImpliesExistentials :: [Cmd] -> [Cmd]
+simplifyImpliesExistentials cmd =
+    map simplifyImpliesExistentials' cmd
+
+simplifyImpliesExistentials' :: Cmd -> Cmd
+simplifyImpliesExistentials' (Constraint t) = Constraint $ simplifyImpliesExistentialsTerm t
+simplifyImpliesExistentials' cmd = cmd
+
+simplifyImpliesExistentialsTerm :: Term -> Term
+simplifyImpliesExistentialsTerm (TermCall (ISymb "=>") [lhs, rhs]) =
+    TermCall (ISymb "=>") [simplifyImpliesExistentialsTerm' lhs, rhs]
+simplifyImpliesExistentialsTerm t = t
+
+simplifyImpliesExistentialsTerm' :: Term -> Term
+simplifyImpliesExistentialsTerm' (TermCall (ISymb "and") and_ts) =
+    case map simplifyImpliesExistentialsTerm' and_ts of
+        [] ->  TermLit $ LitBool True
+        and_ts' -> TermCall (ISymb "and") and_ts'
+simplifyImpliesExistentialsTerm' (TermExists _ _) = TermLit $ LitBool True
+simplifyImpliesExistentialsTerm' t = t

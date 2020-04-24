@@ -219,7 +219,6 @@ or specification (types, measures) that you need.
     sizeXs ((:+:) xs xss)   = size xs + sizeXs xss
   @-}
     
-
 concat Emp = Emp
 concat (xs :+: Emp) = xs
 concat (xs :+: (ys :+: xss)) = concat ((append xs ys) :+: xss)
