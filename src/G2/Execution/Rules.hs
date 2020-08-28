@@ -634,6 +634,9 @@ liftSymDefAltPCs kv mexpr (DataAlt dc _) = -- Only DataAlts would be True/False
 liftSymDefAltPCs _ mexpr (LitAlt lit) = Just $ AltCond lit mexpr False
 liftSymDefAltPCs _ _ Default = Nothing
 
+maxDepth :: Int
+maxDepth = 4
+
 -- Insert MergePtFrame into stack and increment count of unmerged cases at the case specified by `i`
 addMergePt :: Id -> NewPC t -> NewPC t
 addMergePt i p@(NewPC {state = s@(State { exec_stack = stk, cases = c, depth_exceeded = b })}) =
@@ -642,7 +645,7 @@ addMergePt i p@(NewPC {state = s@(State { exec_stack = stk, cases = c, depth_exc
             Just x -> x
             Nothing -> 0
         count' = count + 1
-        b' = if (count' > 4) then True else b
+        b' = if (count' > maxDepth) then True else b
         c' = M.insert i count' c
     in p { state = s { exec_stack = stk', cases = c', depth_exceeded = b' } }
 
@@ -652,7 +655,7 @@ hitMaxDepth s@(State { cases = c, depth_exceeded = b }) i =
             Just x -> x
             Nothing -> 0
         count' = count + 1
-        b' = (count' > 4) || b
+        b' = (count' > maxDepth) || b
     in (b', s { depth_exceeded = b'})
 
 -----------------------------------------------------------------------------

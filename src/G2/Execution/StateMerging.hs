@@ -86,7 +86,7 @@ mergeState :: (Eq t, Named t, Simplifier simplifier) => NameGen -> simplifier ->
 mergeState ngen simplifier s1 s2 =
     if isMergeable s1 s2
         then 
-            let (newId, ngen') = freshId TyLitInt ngen
+            let (newId, ngen') = freshMergeId TyLitInt ngen
                 ctxt = emptyContext s1 s2 ngen' newId
                 (ctxt', curr_expr') = mergeCurrExpr ctxt
                 (ctxt'', eenv') = mergeExprEnv ctxt'
@@ -190,7 +190,7 @@ mergeVars ctxt@(Context {s1_ = s1, s2_ = s2, renamed1_ = renamed1, renamed2_ = r
     , not $ elem (idName i2) (HM.elems renamed2)
     , HS.member i1 (symbolic_ids s1)
     , HS.member i2 (symbolic_ids s2) =
-        let (newSymId, ng') = freshId (idType i1) ng
+        let (newSymId, ng') = freshMergeId (idType i1) ng
             s1' = replaceVar s1 i1 newSymId 
             s2' = replaceVar s2 i2 newSymId
             ctxt' = ctxt { ng_ = ng', s1_ = s1', s2_ = s2', renamed1_ = HM.insert (idName i1) (idName newSymId) renamed1
@@ -214,7 +214,7 @@ symToCase ctxt@(Context { s1_ = s1, s2_ = s2, ng_ = ng, newPCs_ = newPCs }) (Var
     let s = if first then s1 else s2
         (adt, bi) = fromJust $ getCastedAlgDataTy (idType i) (type_env s)
         dcs = dataConsFromADT adt
-        (newId, ng') = freshId TyLitInt ng
+        (newId, ng') = freshMergeId TyLitInt ng
 
         ((s', ng''), dcs') = L.mapAccumL (concretizeSym bi Nothing) (s, ng') dcs
 
@@ -277,7 +277,7 @@ mergeInlinedExpr ctxt@(Context { newId_ = newId }) e1 e2
 -- | Combines 2 Lits `l1` and `l2` into a single new Symbolic Variable and adds new Path Constraints
 mergeLits :: Context t -> Lit -> Lit -> (Context t, Expr)
 mergeLits ctxt@(Context {newId_ = newId, newSyms_ = newSyms, newPCs_ = newPCs, ng_ = ng}) l1 l2 =
-    let (newSymId, ng') = freshId (typeOf l1) ng
+    let (newSymId, ng') = freshMergeId (typeOf l1) ng
         newSyms' = HS.insert newSymId newSyms
         pc1 = PC.mkAssumePC newId 1 (AltCond l1 (Var newSymId) True)
         pc2 = PC.mkAssumePC newId 2 (AltCond l2 (Var newSymId) True)
@@ -286,7 +286,7 @@ mergeLits ctxt@(Context {newId_ = newId, newSyms_ = newSyms, newPCs_ = newPCs, n
 -- | Combines a lit `l` and variable `i` into a single new Symbolic Variable and adds new Path Constraints
 mergeVarLit :: Context t -> Id -> Lit -> Bool -> (Context t, Expr)
 mergeVarLit ctxt@(Context {s1_ = s1, newId_ = newId, newSyms_ = newSyms, newPCs_ = newPCs, ng_ = ng}) i l first =
-    let (newSymId, ng') = freshId (typeOf l) ng
+    let (newSymId, ng') = freshMergeId (typeOf l) ng
         newSyms' = HS.insert newSymId newSyms
         pc1 = AltCond l (Var newSymId) True
         pc2 = ExtCond (mkEqPrimExpr (typeOf i) (known_values s1) (Var i) (Var newSymId)) True
@@ -322,7 +322,7 @@ mergeCase' ctxt@(Context { s1_ = s1@(State {known_values = kv}), s2_ = s2, ng_ =
 
         newSyms = newSyms_ ctxt'
         ng' = ng_ ctxt'
-        (newSymId, ng'') = freshId TyLitInt ng'
+        (newSymId, ng'') = freshMergeId TyLitInt ng'
         newSyms' = HS.insert newSymId newSyms
 
         mergedExprs = map fst merged
@@ -499,7 +499,7 @@ mergeEnvObj newId eenv1 eenv2 (changedSyms1, changedSyms2, ngen) (eObj1, eObj2)
 mergeSymbExprObjs :: NameGen -> HM.HashMap Id Id -> HM.HashMap Id Id -> Id -> Id -> Expr -> Bool
                   -> ((HM.HashMap Id Id, HM.HashMap Id Id, NameGen), E.EnvObj)
 mergeSymbExprObjs ngen changedSyms1 changedSyms2 newId i@(Id _ t) e first =
-        let (newSymId, ngen') = freshId t ngen
+        let (newSymId, ngen') = freshMergeId t ngen
         -- Bool @`first` signifies which state the Id/Expr belongs to. Needed to ensure they are enclosed under the right `Assume` in the Case Exprs
         in case first of
             True ->
@@ -537,8 +537,8 @@ mergeTwoRedirObjs ngen changedSyms1 changedSyms2 newId eenv1 eenv2 n1 n2 =
 mergeTwoSymbObjs :: NameGen -> HM.HashMap Id Id -> HM.HashMap Id Id -> Id -> Id -> Id
                  -> ((HM.HashMap Id Id, HM.HashMap Id Id, NameGen), E.EnvObj)
 mergeTwoSymbObjs ngen changedSyms1 changedSyms2 newId i1@(Id _ t1) i2@(Id _ t2) =
-        let (newSymId1, ngen') = freshId t1 ngen
-            (newSymId2, ngen'') = freshId t2 ngen'
+        let (newSymId1, ngen') = freshMergeId t1 ngen
+            (newSymId2, ngen'') = freshMergeId t2 ngen'
             changedSyms1' = HM.insert i1 newSymId1 changedSyms1
             changedSyms2' = HM.insert i2 newSymId2 changedSyms2
             mergedExprObj = E.ExprObj (mergeExpr newId (Var newSymId1) (Var newSymId2))
@@ -615,3 +615,6 @@ subIdNamesPCs pcs changedSyms =
 -- | Return PathCond restricting value of `newId` to [lower, upper]
 restrictSymVal :: KnownValues -> Integer -> Integer -> Id -> PathCond
 restrictSymVal kv lower upper newId = ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newId) lower) (mkLeIntExpr kv (Var newId) upper)) True
+
+freshMergeId :: Type -> NameGen -> (Id, NameGen)
+freshMergeId = freshSeededId (Name "m" Nothing 0 Nothing)

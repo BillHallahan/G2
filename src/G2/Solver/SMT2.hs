@@ -56,10 +56,9 @@ instance SMTConverter Z3 Builder Builder (Handle, Handle, ProcessHandle) where
     merge _ = mappend
 
     checkSat _ (h_in, h_out, _) formulaBldr = do
-        -- putStrLn "checkSat"
-        -- putStrLn formula
-        
+        -- putStrLn "checkSat"        
         let formula = run formulaBldr
+        -- TIO.putStrLn formula
         setUpFormulaZ3 h_in formula
         r <- checkSat' h_in h_out
 

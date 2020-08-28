@@ -14,7 +14,7 @@ main = do
 
 mergeEffectiveTests :: IO ()
 mergeEffectiveTests = do
-    timeIOActionPrint "compress4" $ [g2| \(a :: Int) -> ?(xs :: [Int]) | compressTest4 a xs |] 2
+    -- timeIOActionPrint "compress4" $ [g2| \(a :: Int) -> ?(xs :: [Int]) | compressTest4 a xs |] 2
     timeIOActionPrint "compress4SM" $ [g2M| \(a :: Int) -> ?(xs :: [Int]) | compressTest4 a xs |] 2
 
     -- timeIOActionPrint "subseqOfTest" $ [g2| \(a :: [Int]) -> ?(b :: [Int]) | subseqOfTest a b |] [1,2,1,3]
