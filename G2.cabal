@@ -17,6 +17,10 @@ build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       1.24
 
+Flag newLH
+  Description:   Assume we have a new version of LH
+  Default:       False
+
 source-repository head
     type:       git
     location:   https://github.com/BillHallahan/G2.git
@@ -187,11 +191,14 @@ library
                        -- -fprof-auto
                        -- -fexternal-interpreter -opti+RTS -opti-p
   other-extensions:    CPP
+  if flag(newLH)
+    cpp-options: -DNEW_LH
+
   hs-source-dirs:      src
 
 executable G2
   -- other-modules:   
-  -- other-extensions:    
+  -- other-extensions:
   build-depends:         g2
                        , base >= 4.8 && < 5
                        , containers
