@@ -29,6 +29,9 @@ library
   exposed-modules:       
                          G2.Config
 
+                       , G2.Data.UnionFind
+                       , G2.Data.UFMap
+
                        , G2.Execution
                        , G2.Execution.Interface
                        , G2.Execution.Memory

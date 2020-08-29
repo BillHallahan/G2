@@ -34,7 +34,7 @@ module G2.Language.PathConds ( PathConds(..)
                              , toHashedList
                              , toHashSet
                              , union
-                             , intersection
+                             -- , intersection
                              , difference
                              , mergeWithAssumePCs
 
