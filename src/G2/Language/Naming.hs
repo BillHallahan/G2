@@ -44,6 +44,7 @@ module G2.Language.Naming
     , mapNG
     ) where
 
+import qualified G2.Data.UFMap as UF
 import G2.Language.AST
 import G2.Language.KnownValues
 import G2.Language.Syntax
@@ -732,6 +733,12 @@ instance Named T.Text where
     names _ = []
     {-# INLINE rename #-}
     rename _ _ = id
+
+instance (Named k, Named v, Eq k, Hashable k) => Named (UF.UFMap k v) where
+    names = names . UF.toList
+    rename old new = UF.fromList . rename old new . UF.toList
+    renames hm = UF.fromList . renames hm . UF.toList
+
 
 freshSeededString :: T.Text -> NameGen -> (Name, NameGen)
 freshSeededString t = freshSeededName (Name t Nothing 0 Nothing)

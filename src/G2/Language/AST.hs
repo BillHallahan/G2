@@ -26,6 +26,7 @@ module G2.Language.AST
     , replaceASTs
     ) where
 
+import qualified G2.Data.UFMap as UF
 import G2.Language.Syntax
 import G2.Language.AlgDataTy
 
@@ -457,6 +458,9 @@ instance ASTContainer AlgDataTy DataCon where
     modifyContainedASTs f (NewTyCon ns dc rt) = NewTyCon ns (modifyContainedASTs f dc) rt
     modifyContainedASTs _ st@(TypeSynonym _ _) = st
 
+instance (ASTContainer k t, ASTContainer v t, Eq k, Hashable k) => ASTContainer (UF.UFMap k v) t where
+    containedASTs = containedASTs . UF.toList
+    modifyContainedASTs f = UF.fromList . modifyContainedASTs f . UF.toList
 
 -- ====== --
 -- AST Helper functions
