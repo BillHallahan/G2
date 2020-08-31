@@ -12,6 +12,8 @@ module G2.Data.UFMap ( UFMap
 
                      , unionWith
 
+                     , map
+
                      , null
                      , keys
                      , elems) where
@@ -27,6 +29,10 @@ import Data.Maybe
 import Prelude hiding (lookup, null, map)
 import qualified Prelude as P
 
+import Text.Read
+import qualified Text.Read.Lex as L
+import GHC.Read
+
 data UFMap k v = UFMap { joined :: UF.UnionFind k
                        , store :: M.HashMap k v }
                        deriving (Typeable, Data)
@@ -39,8 +45,8 @@ toList uf =
     let
         uf_l = UF.toList $ joined uf
 
-        all = concat uf_l
-        not_acc = P.map (:[]) $ keys uf L.\\ all
+        c_uf_l = concat uf_l
+        not_acc = P.map (:[]) $ keys uf L.\\ c_uf_l
     in
     P.map (\l -> (l, uf ! head l)) $ uf_l ++ not_acc
 
@@ -120,3 +126,11 @@ elems = M.elems . store
 instance (Eq k, Hashable k, Show k, Show v) => Show (UFMap k v) where
     {-# NOINLINE show #-}
     show uf = "fromList " ++ show (toList uf) 
+
+
+instance (Eq k, Hashable k, Read k, Read v) => Read (UFMap k v) where
+    readPrec = parens $
+                    do expectP (L.Ident "fromList")
+                       x <- step readListPrec
+                       return (fromList x)
+    readListPrec = readListPrecDefault 
