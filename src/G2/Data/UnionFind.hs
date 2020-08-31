@@ -10,6 +10,7 @@ module G2.Data.UnionFind ( UnionFind
                          , empty
                          , fromList
                          , toList
+                         , toSet
                          , union
                          , unionOfUFs
                          , find) where
@@ -41,12 +42,15 @@ fromList :: (Eq k, Hashable k) => [[k]] -> UnionFind k
 fromList = foldr unions empty
 
 toList :: (Eq k, Hashable k) => UnionFind k -> [[k]]
-toList uf =
+toList = map S.toList . S.toList . toSet
+
+toSet :: (Eq k, Hashable k) => UnionFind k -> S.HashSet (S.HashSet k)
+toSet uf =
     let
         par = unsafePerformIO $ readIORef (parent uf)
         m = foldr (\k -> M.insertWith S.union (find k uf) $ S.singleton k) M.empty (M.keys par)
     in
-    map (\(k, v) -> S.toList $ S.insert k v) $ M.toList m
+    S.fromList . map (\(k, v) -> S.insert k v) $ M.toList m
 
 {-# NOINLINE union #-}
 union :: (Eq k, Hashable k) => k -> k -> UnionFind k -> UnionFind k
@@ -110,6 +114,9 @@ findAux i f =
                 f'' = M.insert i r f'
             in
             (r, f'')
+
+instance (Eq k, Hashable k) => Eq (UnionFind k) where
+    x == y = toSet x == toSet y 
 
 instance (Eq k, Hashable k, Show k) => Show (UnionFind k) where
     {-# NOINLINE show #-}

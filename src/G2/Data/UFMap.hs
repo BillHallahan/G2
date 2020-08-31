@@ -23,6 +23,7 @@ import qualified G2.Data.UnionFind as UF
 import Data.Data (Data (..), Typeable)
 import Data.Hashable
 import qualified Data.HashMap.Lazy as M
+import qualified Data.HashSet as S
 import qualified Data.List as L
 import Data.Maybe
 
@@ -49,6 +50,9 @@ toList uf =
         not_acc = P.map (:[]) $ keys uf L.\\ c_uf_l
     in
     P.map (\l -> (l, uf ! head l)) $ uf_l ++ not_acc
+
+toSet :: (Eq k, Eq v, Hashable k, Hashable v) => UFMap k v -> S.HashSet (S.HashSet k, v)
+toSet = S.fromList . P.map (\(ks, v) -> (S.fromList ks, v)) . toList
 
 fromList :: (Eq k, Hashable k) => [([k], v)] -> UFMap k v
 fromList xs =
@@ -80,10 +84,6 @@ join k1 k2 f ufm@(UFMap uf m) =
             (Just v1', _) -> M.insert r v1' m'
             (_, Just v2') -> M.insert r v2' m'
             _ -> m
-
--- | Lifts find from the UnionFind
-find :: (Eq k, Hashable k) => k -> UFMap k v -> k
-find k = UF.find k . joined
 
 lookup :: (Eq k, Hashable k) => k -> UFMap k v -> Maybe v
 lookup k (UFMap uf m) = M.lookup (UF.find k uf) m
@@ -123,8 +123,10 @@ keys = M.keys . store
 elems :: UFMap k v -> [v]
 elems = M.elems . store
 
+instance (Eq k, Eq v, Hashable k, Hashable v) => Eq (UFMap k v) where
+    x == y = toSet x == toSet y
+
 instance (Eq k, Hashable k, Show k, Show v) => Show (UFMap k v) where
-    {-# NOINLINE show #-}
     show uf = "fromList " ++ show (toList uf) 
 
 
