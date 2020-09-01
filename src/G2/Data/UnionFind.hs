@@ -114,7 +114,7 @@ findAux i f =
                 f'' = M.insert i r f'
             in
             (r, f'')
-
+            
 instance (Eq k, Hashable k) => Eq (UnionFind k) where
     x == y = toSet x == toSet y 
 

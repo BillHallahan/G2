@@ -37,26 +37,30 @@ import qualified Data.Text as T
 -- | The State is passed around in G2. It can be utilized to
 -- perform defunctionalization, execution, and SMT solving.
 -- The t parameter can be used to track extra information during the execution.
-data State t = State { expr_env :: E.ExprEnv
-                     , type_env :: TypeEnv
-                     , curr_expr :: CurrExpr
-                     , path_conds :: PathConds -- ^ Path conditions, in SWHNF
-                     , non_red_path_conds :: [Expr] -- ^ Path conditions that still need further reduction
-                     , true_assert :: Bool -- ^ Have we violated an assertion?
-                     , assert_ids :: Maybe FuncCall
-                     , type_classes :: TypeClasses
-                     , symbolic_ids :: SymbolicIds
-                     , exec_stack :: Stack Frame
-                     , model :: Model
-                     , known_values :: KnownValues
-                     , cases :: M.Map Id Int -- ^ Record number of pending merges for each Case Expr
-                     , depth_exceeded :: Bool -- ^ Do we have more pending merges for any Case Expr than the limit?
-                     , ready_to_merge :: Bool
-                     , rules :: ![Rule]
-                     , num_steps :: !Int -- Invariant: The length of the rules list
-                     , tags :: S.HashSet Name -- ^ Allows attaching tags to a State, to identify it later
-                     , track :: t
-                     } deriving (Show, Eq, Read, Typeable, Data)
+type State t = GenState PathConds t
+
+-- | We almost exclusively use the State type alias.  This type exists only so that
+-- we can use it in the quasiquoter.  See [PC_EXP] in G2.QuasiQuotes.QuasiQuotes.
+data GenState pc t = State { expr_env :: E.ExprEnv
+                           , type_env :: TypeEnv
+                           , curr_expr :: CurrExpr
+                           , path_conds :: pc -- ^ Path conditions
+                           , non_red_path_conds :: [Expr] -- ^ Path conditions that still need further reduction
+                           , true_assert :: Bool -- ^ Have we violated an assertion?
+                           , assert_ids :: Maybe FuncCall
+                           , type_classes :: TypeClasses
+                           , symbolic_ids :: SymbolicIds
+                           , exec_stack :: Stack Frame
+                           , model :: Model
+                           , known_values :: KnownValues
+                           , cases :: M.Map Id Int -- ^ Record number of pending merges for each Case Expr
+                           , depth_exceeded :: Bool -- ^ Do we have more pending merges for any Case Expr than the limit?
+                           , ready_to_merge :: Bool
+                           , rules :: ![Rule]
+                           , num_steps :: !Int -- Invariant: The length of the rules list
+                           , tags :: S.HashSet Name -- ^ Allows attaching tags to a State, to identify it later
+                           , track :: t
+                           } deriving (Show, Eq, Read, Typeable, Data)
 
 data Bindings = Bindings { deepseq_walkers :: Walkers
                          , fixed_inputs :: [Expr]

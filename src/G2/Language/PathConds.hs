@@ -4,14 +4,14 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module G2.Language.PathConds ( PathConds(..)
+module G2.Language.PathConds ( PathConds
                              , PathCond (..)
                              , HashedPathCond
                              , Constraint
                              , Assertion
                              , mkAssumePC
 
-                             , toMap
+                             , toUFMap
                              , empty
                              , fromList
                              , fromHashedList
@@ -24,10 +24,8 @@ module G2.Language.PathConds ( PathConds(..)
                              , insert
                              , null
                              , number
-                             , relevant
                              , relatedSets
                              , scc
-                             , pcNames
                              , varIdsInPC
                              , varNamesInPC
                              , toList
@@ -35,7 +33,7 @@ module G2.Language.PathConds ( PathConds(..)
                              , toHashSet
                              , union
                              -- , intersection
-                             , difference
+                             -- , difference
                              , mergeWithAssumePCs
 
                              , hashedPC
@@ -43,6 +41,7 @@ module G2.Language.PathConds ( PathConds(..)
                              , mapHashedPC
                              , hashedAssumePC) where
 
+import qualified G2.Data.UFMap as UF
 import G2.Language.AST
 import G2.Language.Ids
 import qualified G2.Language.KnownValues as KV
@@ -61,18 +60,10 @@ import Data.Maybe
 import Prelude hiding (map, filter, null)
 import qualified Prelude as P (map)
 
--- In the implementation:
--- Each name (Just n) maps to some (but not neccessarily all) of the PathCond's that
--- contain n, and a list of all names that appear in some PathCond alongside
--- the name n
--- PathConds that contain no names are stored in Nothing
---
--- You can visualize this as a graph, with Names and Nothing as Nodes.
--- Edges exist in a PathConds pcs netween a name n, and any names in
--- snd $ M.lookup n (toMap pcs)
-
--- | You can visualize a PathConds as [PathCond] (accessible via toList)
-newtype PathConds = PathConds (M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name))
+-- | Conceptually, the path constraints are a graph, with (Maybe Name)'s Nodes.
+-- Edges exist between any names that are in the same path constraint.
+-- Strongly connected components in the graph must be checked and solved together.
+newtype PathConds = PathConds (UF.UFMap (Maybe Name) (HS.HashSet HashedPathCond))
                     deriving (Show, Eq, Read, Typeable, Data)
 
 -- | Path conditions represent logical constraints on our current execution
@@ -93,14 +84,14 @@ instance Hashable PathCond where
     hash (ExtCond e b) = (2 :: Int) `hashWithSalt` e `hashWithSalt` b
     hash (AssumePC i n pc) = hashAssumePC i n pc
 
-{-# INLINE toMap #-}
-toMap :: PathConds -> M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name)
-toMap = coerce
+{-# INLINE toUFMap #-}
+toUFMap :: PathConds -> UF.UFMap (Maybe Name) (HS.HashSet HashedPathCond)
+toUFMap = coerce
 
 {-# INLINE empty #-}
 -- | Constructs an empty `PathConds`.
 empty :: PathConds
-empty = PathConds M.empty
+empty = PathConds UF.empty
 
 fromList :: [PathCond] -> PathConds
 fromList = coerce . foldr insert empty
@@ -135,26 +126,42 @@ alterHashed f = fromHashedList . mapMaybe f . toHashedList
 -- returns all PCs anyway) or scc (which forces exploration over all shared names)
 {-# INLINE insert #-}
 insert :: PathCond -> PathConds -> PathConds
-insert pc = insert' varNamesInPC (hashedPC pc)
+insert pc = insertHashed (hashedPC pc)
 
 insertHashed :: HashedPathCond -> PathConds -> PathConds
-insertHashed = insert' varNamesInPC
-
-insert' :: (PathCond -> [Name]) -> HashedPathCond -> PathConds -> PathConds
-insert' f p (PathConds pcs) =
+insertHashed pc (PathConds pcs) =
     let
-        ns = f (unhashedPC p)
-
-        (hd, insertAt) = case ns of
-            [] -> (Nothing, [Nothing])
-            (h:_) -> (Just h, P.map Just ns)
+        sing_pc = HS.singleton pc
     in
-    PathConds $ M.adjust (\(p', ns') -> (HS.insert p p', ns')) hd
-              $ foldr (M.alter (insert'' ns)) pcs insertAt
+    case varNamesInPC (unhashedPC pc) of
+        [] -> PathConds $ UF.insertWith HS.union Nothing sing_pc pcs
+        vs@(v:_) ->
+            let
+                ins_pcs = UF.insertWith HS.union (Just v) sing_pc pcs
+            in
+            PathConds $ UF.joinAll (HS.union) (P.map Just vs) ins_pcs
 
-insert'' :: [Name] -> Maybe (HS.HashSet HashedPathCond, HS.HashSet Name) -> Maybe (HS.HashSet HashedPathCond, HS.HashSet Name)
-insert'' ns Nothing = Just (HS.empty, HS.fromList ns)
-insert'' ns (Just (p', ns')) = Just (p', HS.union (HS.fromList ns) ns')
+-- insert :: PathCond -> PathConds -> PathConds
+-- insert pc = insert' varNamesInPC (hashedPC pc)
+
+-- insertHashed :: HashedPathCond -> PathConds -> PathConds
+-- insertHashed = insert' varNamesInPC
+
+-- insert' :: (PathCond -> [Name]) -> HashedPathCond -> PathConds -> PathConds
+-- insert' f p (PathConds pcs) =
+--     let
+--         ns = f (unhashedPC p)
+
+--         (hd, insertAt) = case ns of
+--             [] -> (Nothing, [Nothing])
+--             (h:_) -> (Just h, P.map Just ns)
+--     in
+--     PathConds $ M.adjust (\(p', ns') -> (HS.insert p p', ns')) hd
+--               $ foldr (M.alter (insert'' ns)) pcs insertAt
+
+-- insert'' :: [Name] -> Maybe (HS.HashSet HashedPathCond, HS.HashSet Name) -> Maybe (HS.HashSet HashedPathCond, HS.HashSet Name)
+-- insert'' ns Nothing = Just (HS.empty, HS.fromList ns)
+-- insert'' ns (Just (p', ns')) = Just (p', HS.union (HS.fromList ns) ns')
 
 {-# INLINE number #-}
 number :: PathConds -> Int
@@ -162,43 +169,37 @@ number = length . toList
 
 {-# INLINE null #-}
 null :: PathConds -> Bool
-null = M.null . toMap
-
--- | Filters a PathConds to only those PathCond's that potentially impact the
--- given PathCond's satisfiability (i.e. they are somehow linked by variable names)
-relevant :: [PathCond] -> PathConds -> PathConds
-relevant pc pcs =
-    case concatMap varNamesInPC pc of
-        [] -> fromList pc
-        rel -> scc rel pcs
+null = UF.null . toUFMap
 
 -- Returns a list of PathConds, where the union of the output PathConds
 -- is the input PathConds, and the PathCond are seperated into there SCCs
-relatedSets :: KV.KnownValues -> PathConds -> [PathConds]
-relatedSets kv pc@(PathConds pcm) = 
-    let
-        epc = case M.lookup Nothing pcm of
-                Just v -> PathConds $ M.singleton Nothing v
-                Nothing -> PathConds M.empty
+relatedSets :: PathConds -> [PathConds]
+relatedSets = P.map (\ksv -> PathConds $ UF.fromList [ksv]) . UF.toList . toUFMap
+-- relatedSets :: KV.KnownValues -> PathConds -> [PathConds]
+-- relatedSets kv pc@(PathConds pcm) = 
+--     let
+--         epc = case M.lookup Nothing pcm of
+--                 Just v -> PathConds $ M.singleton Nothing v
+--                 Nothing -> PathConds M.empty
 
-        ns = catMaybes $ M.keys pcm
-    in
-    if null epc then relatedSets' kv pc ns else epc:relatedSets' kv pc ns
+--         ns = catMaybes $ M.keys pcm
+--     in
+--     if null epc then relatedSets' kv pc ns else epc:relatedSets' kv pc ns
 
-relatedSets' :: KV.KnownValues -> PathConds -> [Name] -> [PathConds]
-relatedSets' kv pc ns =
-    case ns of
-      k:_ ->
-          let
-              s = scc [k] pc
-              ns' = concat $ map' varNamesInPC s
-          in
-          s:relatedSets' kv pc (ns L.\\ (k:ns'))
-      [] ->  []
+-- relatedSets' :: KV.KnownValues -> PathConds -> [Name] -> [PathConds]
+-- relatedSets' kv pc ns =
+--     case ns of
+--       k:_ ->
+--           let
+--               s = scc [k] pc
+--               ns' = concat $ map' varNamesInPC s
+--           in
+--           s:relatedSets' kv pc (ns L.\\ (k:ns'))
+--       [] ->  []
 
 -- | Returns list of Names of all the nodes in the PathConds
-pcNames :: PathConds -> [Name]
-pcNames pc = catMaybes . M.keys $ toMap pc
+-- pcNames :: PathConds -> [Name]
+-- pcNames pc = catMaybes . M.keys $ toMap pc
 
 varIdsInPC :: PathCond -> [Id]
 -- [AltCond]
@@ -216,111 +217,115 @@ varIdsInPC (AssumePC i _ pc) = i:varIdsInPC (unhashedPC pc)
 varNamesInPC :: PathCond -> [Name]
 varNamesInPC = P.map idName . varIdsInPC
 
-{-# INLINE scc #-}
+-- {-# INLINE scc #-}
 scc :: [Name] -> PathConds -> PathConds
-scc ns (PathConds pc) = PathConds $ scc' ns pc M.empty
+scc ns (PathConds pcs) =
+    fromHashedList . HS.toList . HS.unions . catMaybes $ P.map (flip UF.lookup pcs . Just) ns
+-- scc :: [Name] -> PathConds -> PathConds
+-- scc ns (PathConds pc) = PathConds $ scc' ns pc M.empty
 
-scc' :: [Name]
-     -> (M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name))
-     -> (M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name))
-     -> (M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name))
-scc' [] _ pc = pc
-scc' (n:ns) pc newpc =
-    -- Check if we already inserted the name information
-    case M.lookup (Just n) newpc of
-        Just _ -> scc' ns pc newpc
-        Nothing ->
-            -- If we didn't, lookup info to insert,
-            -- and add names to the list of names to search
-            case M.lookup (Just n) pc of
-                Just pcn@(_, ns') -> scc' (ns ++ (HS.toList ns')) pc (M.insert (Just n) pcn newpc)
-                Nothing -> scc' ns pc newpc
+-- scc' :: [Name]
+--      -> (M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name))
+--      -> (M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name))
+--      -> (M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name))
+-- scc' [] _ pc = pc
+-- scc' (n:ns) pc newpc =
+--     -- Check if we already inserted the name information
+--     case M.lookup (Just n) newpc of
+--         Just _ -> scc' ns pc newpc
+--         Nothing ->
+--             -- If we didn't, lookup info to insert,
+--             -- and add names to the list of names to search
+--             case M.lookup (Just n) pc of
+--                 Just pcn@(_, ns') -> scc' (ns ++ (HS.toList ns')) pc (M.insert (Just n) pcn newpc)
+--                 Nothing -> scc' ns pc newpc
 
 {-# INLINE toList #-}
 toList :: PathConds -> [PathCond]
-toList = P.map unhashedPC . concatMap (HS.toList . fst) . M.elems . toMap
+toList = P.map unhashedPC . toHashedList
 
 {-# INLINE toHashedList #-}
 toHashedList ::  PathConds -> [HashedPathCond]
-toHashedList = concatMap (HS.toList . fst) . M.elems . toMap
+toHashedList = HS.toList . toHashSet
 
 {-# INLINE toHashSet #-}
 toHashSet :: PathConds -> HS.HashSet HashedPathCond
-toHashSet = HS.unions . P.map fst . M.elems . toMap
+toHashSet = HS.unions . UF.elems . toUFMap
 
 union :: PathConds -> PathConds -> PathConds
-union (PathConds pc1) (PathConds pc2) = PathConds $ M.unionWith union' pc1 pc2
-    where
-        union' (hpc1, hn1) (hpc2, hn2) = (HS.union hpc1 hpc2, HS.union hn1 hn2)
+union (PathConds pc1) (PathConds pc2) = PathConds $ UF.unionWith HS.union pc1 pc2
 
-intersection :: PathConds -> PathConds -> PathConds
-intersection (PathConds pc1) (PathConds pc2) = PathConds $ M.intersectionWith inter pc1 pc2
-    where
-        inter (hpc1, hn1) (hpc2, hn2) = (HS.intersection hpc1 hpc2, HS.intersection hn1 hn2)
+-- intersection :: PathConds -> PathConds -> PathConds
+-- intersection (PathConds pc1) (PathConds pc2) = PathConds $ M.intersectionWith inter pc1 pc2
+--     where
+--         inter (hpc1, hn1) (hpc2, hn2) = (HS.intersection hpc1 hpc2, HS.intersection hn1 hn2)
 
-difference :: PathConds -> PathConds -> PathConds
-difference (PathConds pc1) (PathConds pc2) =
-    PathConds $ M.differenceWith diff pc1 pc2
-        where
-            diff (hpc1, hn1) (hpc2, hn2) = Just (HS.difference hpc1 hpc2, HS.difference hn1 hn2)
+-- difference :: PathConds -> PathConds -> PathConds
+-- difference (PathConds pc1) (PathConds pc2) =
+--     PathConds $ M.differenceWith diff pc1 pc2
+--         where
+--             diff (hpc1, hn1) (hpc2, hn2) = Just (HS.difference hpc1 hpc2, HS.difference hn1 hn2)
 
 mergeWithAssumePCs :: Id -> PathConds -> PathConds -> PathConds
-mergeWithAssumePCs i (PathConds pc1) (PathConds pc2) = 
-    let
-        (ns, merged) = mergeA 
-                          (traverseMissing $ mergeOnlyIn i 1) 
-                          (traverseMissing $ mergeOnlyIn i 2) 
-                          (zipWithAMatched $ mergeMatched i)
-                          pc1 pc2
-    in
-    PathConds . adjustNothing (idName i) $ M.insert (Just $ idName i) (HS.empty, ns) merged
+mergeWithAssumePCs i (PathConds pc1) (PathConds pc2) = undefined
 
-mergeOnlyIn :: Id -> Integer -> Maybe Name -> (HS.HashSet HashedPathCond, HS.HashSet Name) -> (HS.HashSet Name, (HS.HashSet HashedPathCond, HS.HashSet Name))
-mergeOnlyIn i n _ (hpc, hn) =
-    let
-        hn' = if not (HS.null hpc) then HS.insert (idName i) hn else hn
-    in
-    ( if not (HS.null hpc) then hn' else HS.empty
-    , ( HS.map (hashedAssumePC i n) hpc
-      , hn')
-    )
+-- mergeWithAssumePCs :: Id -> PathConds -> PathConds -> PathConds
+-- mergeWithAssumePCs i (PathConds pc1) (PathConds pc2) = 
+--     let
+--         (ns, merged) = mergeA 
+--                           (traverseMissing $ mergeOnlyIn i 1) 
+--                           (traverseMissing $ mergeOnlyIn i 2) 
+--                           (zipWithAMatched $ mergeMatched i)
+--                           pc1 pc2
+--     in
+--     PathConds . adjustNothing (idName i) $ M.insert (Just $ idName i) (HS.empty, ns) merged
 
-mergeMatched :: Id
-             -> Maybe Name
-             -> (HS.HashSet HashedPathCond, HS.HashSet Name)
-             -> (HS.HashSet HashedPathCond, HS.HashSet Name)
-             -> (HS.HashSet Name, (HS.HashSet HashedPathCond, HS.HashSet Name))
-mergeMatched i _ (hpc1, hn1) (hpc2, hn2) =
-    let
-        both = HS.intersection hpc1 hpc2
-        onlyIn1 = HS.map (hashedAssumePC i 1) $ HS.difference hpc1 hpc2
-        onlyIn2 = HS.map (hashedAssumePC i 2) $ HS.difference hpc2 hpc1
+-- mergeOnlyIn :: Id -> Integer -> Maybe Name -> (HS.HashSet HashedPathCond, HS.HashSet Name) -> (HS.HashSet Name, (HS.HashSet HashedPathCond, HS.HashSet Name))
+-- mergeOnlyIn i n _ (hpc, hn) =
+--     let
+--         hn' = if not (HS.null hpc) then HS.insert (idName i) hn else hn
+--     in
+--     ( if not (HS.null hpc) then hn' else HS.empty
+--     , ( HS.map (hashedAssumePC i n) hpc
+--       , hn')
+--     )
 
-        union_hn = HS.union hn1 hn2
+-- mergeMatched :: Id
+--              -> Maybe Name
+--              -> (HS.HashSet HashedPathCond, HS.HashSet Name)
+--              -> (HS.HashSet HashedPathCond, HS.HashSet Name)
+--              -> (HS.HashSet Name, (HS.HashSet HashedPathCond, HS.HashSet Name))
+-- mergeMatched i _ (hpc1, hn1) (hpc2, hn2) =
+--     let
+--         both = HS.intersection hpc1 hpc2
+--         onlyIn1 = HS.map (hashedAssumePC i 1) $ HS.difference hpc1 hpc2
+--         onlyIn2 = HS.map (hashedAssumePC i 2) $ HS.difference hpc2 hpc1
 
-        hn = if not (HS.null onlyIn1) || not (HS.null onlyIn2)
-                then HS.insert (idName i) union_hn
-                else union_hn
-    in
-    ( HS.union (HS.fromList $ names onlyIn1) (HS.fromList $ names onlyIn2)
-    , ( HS.union both (HS.union onlyIn1 onlyIn2)
-      , hn)
-    )
+--         union_hn = HS.union hn1 hn2
 
-adjustNothing :: Name -> M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name) -> M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name)
-adjustNothing n hs
-    | Just v <- M.lookup Nothing hs = M.delete Nothing $ M.insert (Just n) v hs
-    | otherwise = hs
+--         hn = if not (HS.null onlyIn1) || not (HS.null onlyIn2)
+--                 then HS.insert (idName i) union_hn
+--                 else union_hn
+--     in
+--     ( HS.union (HS.fromList $ names onlyIn1) (HS.fromList $ names onlyIn2)
+--     , ( HS.union both (HS.union onlyIn1 onlyIn2)
+--       , hn)
+--     )
+
+-- adjustNothing :: Name -> M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name) -> M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name)
+-- adjustNothing n hs
+--     | Just v <- M.lookup Nothing hs = M.delete Nothing $ M.insert (Just n) v hs
+--     | otherwise = hs
 
 instance ASTContainer PathConds Expr where
-    containedASTs = containedASTs . toMap
+    containedASTs = containedASTs . toUFMap
     
-    modifyContainedASTs f = coerce . modifyContainedASTs f . toMap
+    modifyContainedASTs f = fromList . modifyContainedASTs f . toList
 
 instance ASTContainer PathConds Type where
-    containedASTs = containedASTs . toMap
+    containedASTs = containedASTs . toUFMap
 
-    modifyContainedASTs f = coerce . modifyContainedASTs f . toMap
+    modifyContainedASTs f = fromList . modifyContainedASTs f . toList
 
 instance ASTContainer PathCond Expr where
     containedASTs (ExtCond e _ )   = [e]
@@ -345,15 +350,11 @@ instance ASTContainer PathCond Type where
     modifyContainedASTs f (AssumePC i num pc) = AssumePC (modifyContainedASTs f i) num (modifyContainedASTs f pc)
 
 instance Named PathConds where
-    names (PathConds pc) = (catMaybes $ M.keys pc) ++ concatMap (\(p, n) -> names p ++ (HS.toList n)) pc
+    names = names . UF.toList . toUFMap
 
-    rename old new (PathConds pc) =
-        PathConds . M.mapKeys (\k -> if k == (Just old) then (Just new) else k)
-                  $ rename old new pc
+    rename old new = fromList . rename old new . toList
 
-    renames hm (PathConds pc) =
-        PathConds . M.mapKeys (renames hm)
-                  $ renames hm pc
+    renames hm = fromList . renames hm . toList
 
 instance Named PathCond where
     names (AltCond _ e _) = names e
@@ -369,7 +370,7 @@ instance Named PathCond where
     renames hm (AssumePC i num pc) = AssumePC (renames hm i) num (renames hm pc)
 
 instance Ided PathConds where
-    ids = ids . toMap
+    ids = ids . toUFMap
 
 instance Ided PathCond where
     ids (AltCond _ e _) = ids e

@@ -3,10 +3,13 @@
 
 module G2.Language.Ids where
 
+import qualified G2.Data.UnionFind as UF
+import qualified G2.Data.UFMap as UFM
 import G2.Language.Syntax
 import G2.Language.AST
 
 import qualified Data.Map as M
+import Data.Hashable
 import qualified Data.HashSet as HS
 
 class Ided a where
@@ -79,3 +82,9 @@ instance (Ided a, Ided b) => Ided (a, b) where
 
 instance (Ided a, Ided b, Ided c) => Ided (a, b, c) where
     ids (a, b, c) = ids a ++ ids b ++ ids c
+
+instance (Eq k, Hashable k, Ided k) => Ided (UF.UnionFind k) where
+    ids = ids . UF.toList
+
+instance (Eq k, Hashable k, Ided k, Ided v) => Ided (UFM.UFMap k v) where
+    ids = ids . UFM.toList

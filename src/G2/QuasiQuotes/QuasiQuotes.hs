@@ -16,6 +16,7 @@ import G2.Execution.Reducer
 import G2.Initialization.MkCurrExpr
 import G2.Interface
 import G2.Language as G2
+import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Typing as Ty
 import G2.Solver
 import G2.Translation.Cabal.Cabal
@@ -310,9 +311,15 @@ type CleanedNamesName = TH.Name
 -- This avoids having to do that
 moveOutTypeEnvState :: Data t => TypeEnvName -> State t -> Q Exp
 moveOutTypeEnvState tenv_name s = do
-    let s' = s { type_env = M.empty }
+    let s' = s { type_env = M.empty, path_conds = () }
         s_exp = liftDataT s'
-    [| $(s_exp) { type_env = $(varE tenv_name) } |]
+
+        -- [PC_EXP]
+        -- The PathConds implementation uses a UFMap, which uses a UnionFind, which uses and IORef.
+        -- IORefs cannot be directly used by Template Haskell.
+        -- Thus, we instead build a list of the PCs, and at runtime we rebuild the UFMap.
+        pc_exp = liftDataT . PC.toList $ path_conds s
+    [| $(s_exp) { type_env = $(varE tenv_name), path_conds = PC.fromList $(pc_exp) } |]
 
 -- Returns an Q Exp represeting a [(Name, Expr)] list
 regVarBindings :: [TH.Name] -> TypeEnvName -> CleanedNamesName -> InputIds -> Bindings -> Q Exp
