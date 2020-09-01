@@ -124,7 +124,8 @@ mergeCurrExpr ctxt@(Context { s1_ = (State {curr_expr = ce1}), s2_ = (State {cur
     , evalOrRet1 == evalOrRet2 =
         let (ctxt', e1', e2') = inlineExpr ctxt HS.empty HS.empty e1 e2
             (ctxt'', ce) = mergeInlinedExpr ctxt' e1' e2'
-        in (ctxt'', CurrExpr evalOrRet1 ce)
+        in
+        (ctxt'', CurrExpr evalOrRet1 ce)
     | otherwise = error "The curr_expr(s) have an invalid form and cannot be merged."
 
 -- | Either (i) Inline var with value from ExprEnv (if any)
@@ -427,11 +428,16 @@ implies' kv clause e b =
 -- | Merges 2 Exprs without inlining Vars from the expr_env or combining symbolic variables
 -- Given 2 Exprs equivalent to "D e_1, e_2, ..., e_n" and "D e_1', e_2',..., e_n' ", returns a merged Expr equivalent to
 -- "D (Case x of 1 -> e_1, 2 -> e_1') (Case x of 1 -> e_2, 2 -> e_2') ...."
+
 mergeExpr :: Id -> Expr -> Expr -> Expr
-mergeExpr newId (App e1 e2) (App e1' e2') = App (mergeExpr newId e1 e1') (mergeExpr newId e2 e2')
-mergeExpr newId e1 e1' = if (e1 == e1')
-    then e1
-    else createCaseExpr newId [e1, e1']
+mergeExpr newId a1@(App e1 e2) a2@(App e1' e2') =
+    if typeOf e1 .::. typeOf e1' && typeOf e2 .::. typeOf e2'
+        then App (mergeExpr newId e1 e1') (mergeExpr newId e2 e2')
+        else createCaseExpr newId [a1, a2]
+mergeExpr newId e1 e2 =
+    if (e1 == e2)
+        then e1
+        else createCaseExpr newId [e1, e2]
 
 createCaseExpr :: Id -> [Expr] -> Expr
 createCaseExpr _ [e] = e

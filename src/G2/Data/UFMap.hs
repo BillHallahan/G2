@@ -71,23 +71,26 @@ fromList xs =
           m xs
 
 -- | Joins two keys, regardless of whether they are present in the map.
+-- If the keys are already joined, the map is not changed
 join :: (Eq k, Hashable k) => (v -> v -> v) -> k -> k -> UFMap k v -> UFMap k v
-join f k1 k2 ufm@(UFMap uf m) =
-    let
-        v1 = lookup k1 ufm
-        v2 = lookup k2 ufm
+join f k1 k2 ufm@(UFMap uf m)
+    | UF.find k1 uf == UF.find k2 uf = ufm
+    | otherwise =
+        let
+            v1 = lookup k1 ufm
+            v2 = lookup k2 ufm
 
-        uf' = UF.union k1 k2 uf
-        r = UF.find k1 uf'
+            uf' = UF.union k1 k2 uf
+            r = UF.find k1 uf'
 
-        m' = M.delete k1 . M.delete k2 $ m
-    in
-    UFMap uf'
-        $ case (v1, v2) of
-            (Just v1', Just v2') -> M.insert r (f v1' v2') m'
-            (Just v1', _) -> M.insert r v1' m'
-            (_, Just v2') -> M.insert r v2' m'
-            _ -> m
+            m' = M.delete k1 . M.delete k2 $ m
+        in
+        UFMap uf'
+            $ case (v1, v2) of
+                (Just v1', Just v2') -> M.insert r (f v1' v2') m'
+                (Just v1', _) -> M.insert r v1' m'
+                (_, Just v2') -> M.insert r v2' m'
+                _ -> m
 
 joinAll :: (Eq k, Hashable k) => (v -> v -> v) -> [k] -> UFMap k v -> UFMap k v
 joinAll _ [] uf = uf
