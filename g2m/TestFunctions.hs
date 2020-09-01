@@ -26,6 +26,9 @@ compressTest3 a xs = (compress xs == [1,2,3]) && (length xs > a)
 compressTest4 :: Int -> [Int] -> Bool
 compressTest4 a xs = (length (compress xs) == a) && (length xs > a + 8)
 
+compressTest4_2 :: Int -> [Int] -> Bool
+compressTest4_2 a xs = length (compress xs) == a
+
 filter' :: (a -> Bool) -> [a] -> [a]
 filter' pred [] = []
 filter' pred (x:xs)

@@ -14,6 +14,7 @@ module G2.Data.UFMap ( UFMap
                      , alter
 
                      , unionWith
+                     , merge
 
                      , map
 
@@ -36,8 +37,6 @@ import qualified Prelude as P
 import Text.Read
 import qualified Text.Read.Lex as L
 import GHC.Read
-
-import Debug.Trace
 
 data UFMap k v = UFMap { joined :: UF.UnionFind k
                        , store :: M.HashMap k v }

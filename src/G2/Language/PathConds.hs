@@ -267,7 +267,17 @@ union (PathConds pc1) (PathConds pc2) = PathConds $ UF.unionWith HS.union pc1 pc
 --             diff (hpc1, hn1) (hpc2, hn2) = Just (HS.difference hpc1 hpc2, HS.difference hn1 hn2)
 
 mergeWithAssumePCs :: Id -> PathConds -> PathConds -> PathConds
-mergeWithAssumePCs i (PathConds pc1) (PathConds pc2) = undefined
+mergeWithAssumePCs i (PathConds pc1) (PathConds pc2) =
+    let
+        mrg = UF.merge
+                    (mergeMatched i)
+                    (mergeOnlyIn i 1)
+                    (mergeOnlyIn i 2)
+                    HS.union
+                    HS.union
+                    pc1 pc2
+    in
+    PathConds $ adjustNothing (idName i) mrg
 
 -- mergeWithAssumePCs :: Id -> PathConds -> PathConds -> PathConds
 -- mergeWithAssumePCs i (PathConds pc1) (PathConds pc2) = 
@@ -280,6 +290,9 @@ mergeWithAssumePCs i (PathConds pc1) (PathConds pc2) = undefined
 --     in
 --     PathConds . adjustNothing (idName i) $ M.insert (Just $ idName i) (HS.empty, ns) merged
 
+mergeOnlyIn :: Id -> Integer -> HS.HashSet HashedPathCond -> HS.HashSet HashedPathCond
+mergeOnlyIn i n hpc = HS.map (hashedAssumePC i n) hpc
+
 -- mergeOnlyIn :: Id -> Integer -> Maybe Name -> (HS.HashSet HashedPathCond, HS.HashSet Name) -> (HS.HashSet Name, (HS.HashSet HashedPathCond, HS.HashSet Name))
 -- mergeOnlyIn i n _ (hpc, hn) =
 --     let
@@ -289,6 +302,18 @@ mergeWithAssumePCs i (PathConds pc1) (PathConds pc2) = undefined
 --     , ( HS.map (hashedAssumePC i n) hpc
 --       , hn')
 --     )
+
+mergeMatched :: Id
+             -> HS.HashSet HashedPathCond
+             -> HS.HashSet HashedPathCond
+             -> HS.HashSet HashedPathCond
+mergeMatched i hpc1 hpc2 =
+    let
+        both = HS.intersection hpc1 hpc2
+        onlyIn1 = HS.map (hashedAssumePC i 1) $ HS.difference hpc1 hpc2
+        onlyIn2 = HS.map (hashedAssumePC i 2) $ HS.difference hpc2 hpc1
+    in
+    HS.union both (HS.union onlyIn1 onlyIn2)
 
 -- mergeMatched :: Id
 --              -> Maybe Name
@@ -311,6 +336,13 @@ mergeWithAssumePCs i (PathConds pc1) (PathConds pc2) = undefined
 --     , ( HS.union both (HS.union onlyIn1 onlyIn2)
 --       , hn)
 --     )
+
+adjustNothing :: Name
+              -> UF.UFMap (Maybe Name) (HS.HashSet HashedPathCond)
+              -> UF.UFMap (Maybe Name) (HS.HashSet HashedPathCond)
+adjustNothing n hs
+    | Just v <- UF.lookup Nothing hs = UF.insert Nothing HS.empty $ UF.insert (Just n) v hs
+    | otherwise = hs
 
 -- adjustNothing :: Name -> M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name) -> M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name)
 -- adjustNothing n hs
