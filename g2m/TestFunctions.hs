@@ -44,6 +44,41 @@ sumEvensTestSlow xs x = length xs > x * 2 && sumEvens xs == 2
 sumEvensTest :: [Int] -> Int -> Bool
 sumEvensTest xs x =  sumEvens xs == 2 && length xs > x * 2
 
+
+
+--------------------------------
+-- sum2 :: [Int] -> Int
+-- sum2 (x:xs) = sum2 xs
+-- sum2 [] = 2
+
+-- filter2' :: [Int] -> [Int]
+-- filter2' [] = []
+-- filter2' (x:xs)
+--     | x < 10 = x : filter2' xs
+--     | otherwise = filter2' xs
+
+-- length2 :: [Int] -> Int
+-- length2 [] = 0
+-- length2 (_:xs) = 1 + length xs
+
+-- sumEvensSimpleTest :: [Int] -> Int -> Bool
+-- sumEvensSimpleTest xs x =  sum2 (filter2' xs) == 2 && length2 xs > x
+
+filter2' :: [Int] -> Int
+filter2' [] = 2
+filter2' (x:xs)
+    | x > 10 = 1 + filter2' xs
+    | otherwise = filter2' xs
+
+length2 :: [Int] -> Int
+length2 [] = 0
+length2 (_:xs) = 1 + length xs
+
+sumEvensSimpleTest :: [Int] -> Int -> Bool
+sumEvensSimpleTest xs x = filter2' xs == 2 && length2 xs > x
+
+--------------------------------
+
 isSubsequenceOf' :: (Eq a) => [a] -> [a] -> Bool
 isSubsequenceOf' [] _ = True
 isSubsequenceOf' _ [] = False

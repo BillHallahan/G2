@@ -32,6 +32,7 @@ import CaseTest
 import Expr
 import Typing
 import MergeStateUnitTests
+import UFMapTests
 
 import InputOutputTest
 import Reqs
@@ -55,13 +56,14 @@ main = do
 tests :: IO TestTree
 tests = return . testGroup "Tests"
     =<< sequence [
-        sampleTests
+          sampleTests
         , liquidTests
         , testFileTests
         , baseTests
         , primTests
         , exprTests
         , typingTests
+        , return ufMapQuickcheck
         -- mergeStateUnitTests
         ]
 

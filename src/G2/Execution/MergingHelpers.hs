@@ -44,7 +44,7 @@ replaceCaseExpr s@(State {model = m, type_classes = tc}) (Case e i alts@(Alt (Li
                     -- introduced from merging had an implication added by another merge,
                     -- and that implication was not satisfied by the model.
                     -- In this situation, we do not need to replace the case expression
-                _ -> error "replaceCaseExpr: No bound value"
+                _ -> error $ "replaceCaseExpr: No bound value\ne = " ++ show e ++ "\nlit = " ++ show lit ++ "\nalts = " ++ show alts
         _ -> error $ "Unable to find Lit value for e. Got: " ++ show val
 replaceCaseExpr _ e = e
 

@@ -262,7 +262,7 @@ pprExecStateStr ex_state b = injNewLine acc_strs
     names_str = pprExecNamesStr (name_gen b)
     in_names_str = show (input_names b)
     symb_ids_str = pprSymbolicIdsStr (symbolic_ids ex_state)
-    paths_str = pprPathsStr (PC.toList $ path_conds ex_state)
+    paths_str = pprPathsStr (PC.toUFList $ path_conds ex_state)
     non_red_paths_str = injNewLine (map show $ non_red_path_conds ex_state)
     tc_str = pprTCStr (type_classes ex_state)
     walkers_str = show (deepseq_walkers b)
@@ -357,10 +357,13 @@ pprExecCodeStr code = show code
 pprExecNamesStr :: NameGen -> String
 pprExecNamesStr _ = ""
 
-pprPathsStr :: [PathCond] -> String
+pprPathsStr :: [([Maybe Name], HS.HashSet PC.HashedPathCond)] -> String
 pprPathsStr paths = injNewLine cond_strs
   where
-    cond_strs = map pprPathCondStr paths
+    cond_strs =
+      map (\(ns, pc) -> "------------------------------\n"
+                        ++ show ns
+                        ++ "\n" ++ injNewLine (map (show . PC.unhashedPC) (HS.toList pc))) paths
 
 pprTCStr :: TypeClasses -> String
 pprTCStr tc = injNewLine cond_strs
@@ -372,22 +375,22 @@ pprSymbolicIdsStr i = injNewLine id_strs
   where
     id_strs = map show $ HS.toList i
 
-pprPathCondStr :: PathCond -> String
-pprPathCondStr pc = injTuple (pprPathCondStr' pc)
+-- pprPathCondStr :: PathCond -> String
+-- pprPathCondStr pc = injTuple (pprPathCondStr' pc)
 
-pprPathCondStr' :: PathCond -> [String]
-pprPathCondStr' (AltCond am expr b) = acc_strs
-  where
-    am_str = show am
-    expr_str = show expr
-    b_str = show b
-    acc_strs = [am_str, expr_str, b_str]
-pprPathCondStr' (ExtCond am b) = acc_strs
-  where
-    am_str = show am
-    b_str = show b
-    acc_strs = [am_str, b_str]
-pprPathCondStr' (AssumePC i num pc) = [show i] ++ [show num] ++ pprPathCondStr' (PC.unhashedPC pc)
+-- pprPathCondStr' :: PathCond -> [String]
+-- pprPathCondStr' (AltCond am expr b) = acc_strs
+--   where
+--     am_str = show am
+--     expr_str = show expr
+--     b_str = show b
+--     acc_strs = [am_str, expr_str, b_str]
+-- pprPathCondStr' (ExtCond am b) = acc_strs
+--   where
+--     am_str = show am
+--     b_str = show b
+--     acc_strs = [am_str, b_str]
+-- pprPathCondStr' (AssumePC i num pc) = [show i] ++ [show num] ++ pprPathCondStr' (PC.unhashedPC pc)
 
 pprCleanedNamesStr :: CleanedNames -> String
 pprCleanedNamesStr = injNewLine . map show . HM.toList

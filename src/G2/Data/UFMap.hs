@@ -5,6 +5,8 @@ module G2.Data.UFMap ( UFMap
                      , empty
                      , toList
                      , fromList
+                     , toSet
+                     , fromSet
                      , join
                      , joinAll
                      , lookup
@@ -24,6 +26,8 @@ module G2.Data.UFMap ( UFMap
 
 import qualified G2.Data.UnionFind as UF
 
+import qualified Control.Monad as Mon
+
 import Data.Data (Data (..), Typeable)
 import Data.Hashable
 import qualified Data.HashMap.Lazy as M
@@ -37,6 +41,8 @@ import qualified Prelude as P
 import Text.Read
 import qualified Text.Read.Lex as L
 import GHC.Read
+
+import Test.Tasty.QuickCheck
 
 data UFMap k v = UFMap { joined :: UF.UnionFind k
                        , store :: M.HashMap k v }
@@ -69,6 +75,9 @@ fromList xs =
                     [] -> m'
                     (k:_) -> foldr (\k' -> join (\_ _ -> v) k k') m' ks)
           m xs
+
+fromSet :: (Eq k, Hashable k) => S.HashSet (S.HashSet k, v) -> UFMap k v
+fromSet = fromList . P.map (\(ks, v) -> (S.toList ks, v)) . S.toList
 
 -- | Joins two keys, regardless of whether they are present in the map.
 -- If the keys are already joined, the map is not changed
@@ -194,3 +203,15 @@ instance (Eq k, Hashable k, Read k, Read v) => Read (UFMap k v) where
                        x <- step readListPrec
                        return (fromList x)
     readListPrec = readListPrecDefault 
+
+instance (Arbitrary k, Arbitrary v, Eq k, Hashable k) => Arbitrary (UFMap k v) where
+    arbitrary = do       
+        ufsz <- arbitrary
+        jnum <- arbitrary
+        ks <- Mon.replicateM ufsz arbitrary
+        vs <- Mon.replicateM ufsz arbitrary
+        js <- Mon.replicateM jnum arbitrary
+
+        let uf = foldr (uncurry insert) empty (zip ks vs)
+
+        return $ foldr (uncurry (join const)) uf js

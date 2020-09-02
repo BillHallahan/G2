@@ -12,6 +12,7 @@ module G2.Language.PathConds ( PathConds
                              , mkAssumePC
 
                              , toUFMap
+                             , toUFList
                              , empty
                              , fromList
                              , fromHashedList
@@ -87,6 +88,9 @@ instance Hashable PathCond where
 {-# INLINE toUFMap #-}
 toUFMap :: PathConds -> UF.UFMap (Maybe Name) (HS.HashSet HashedPathCond)
 toUFMap = coerce
+
+toUFList :: PathConds -> [([Maybe Name], HS.HashSet HashedPathCond)]
+toUFList = UF.toList . toUFMap
 
 {-# INLINE empty #-}
 -- | Constructs an empty `PathConds`.
