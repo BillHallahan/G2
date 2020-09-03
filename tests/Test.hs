@@ -57,15 +57,14 @@ main = do
 tests :: IO TestTree
 tests = return . testGroup "Tests"
     =<< sequence [
-        --   sampleTests
-        -- , liquidTests
-        -- , testFileTests
-        -- , baseTests
-        -- , primTests
-        -- , exprTests
-        -- , typingTests
-        -- , 
-        return ufMapQuickcheck
+          sampleTests
+        , liquidTests
+        , testFileTests
+        , baseTests
+        , primTests
+        , exprTests
+        , typingTests
+        , return ufMapQuickcheck
         , return unionFindQuickcheck
         -- mergeStateUnitTests
         ]

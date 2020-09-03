@@ -90,7 +90,7 @@ toUFMap :: PathConds -> UF.UFMap (Maybe Name) (HS.HashSet HashedPathCond)
 toUFMap = coerce
 
 toUFList :: PathConds -> [([Maybe Name], HS.HashSet HashedPathCond)]
-toUFList = UF.toList . toUFMap
+toUFList = mapMaybe (\(ns, pc) -> case pc of Just pc' -> Just (ns, pc'); Nothing -> Nothing) . UF.toList . toUFMap
 
 {-# INLINE empty #-}
 -- | Constructs an empty `PathConds`.
@@ -277,6 +277,7 @@ mergeWithAssumePCs i (PathConds pc1) (PathConds pc2) =
                     (mergeMatched i)
                     (mergeOnlyIn i 1)
                     (mergeOnlyIn i 2)
+                    HS.union
                     HS.union
                     HS.union
                     pc1 pc2

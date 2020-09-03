@@ -4,6 +4,7 @@ import G2.Data.UFMap
 
 import Data.Hashable
 import qualified Data.List as L
+import Data.Maybe as M
 
 import Test.Tasty
 import Test.Tasty.QuickCheck
@@ -24,9 +25,10 @@ ufMapQuickcheck =
         , testProperty "if two keys are joined in the first map, they are joined after merging that map" prop_merge_preserves_joins1
         , testProperty "if two keys are joined in the second map, they are joined after merging that map" prop_merge_preserves_joins2
         , testProperty "if a key is present in two maps being merged, in will be present in the merge" prop_merge_preserves_values
+        , testProperty "if a key is present in two maps being merged, in will be present in the merge (less thorough, but simpler)" prop_merge_preserves_values_simple
         ]
 
-prop_from_hs_to_hs :: [([Integer], Integer)] -> Property
+prop_from_hs_to_hs :: [([Integer], Maybe Integer)] -> Property
 prop_from_hs_to_hs xs =
     let
         xs_tails = L.init $ L.tails xs
@@ -39,8 +41,10 @@ prop_from_hs_to_hs xs =
     ==>
     property (hs == toSet (fromSet hs))
 
-toHS :: (Hashable k, Eq k, Hashable v, Eq v) => [([k], v)] -> S.HashSet (S.HashSet k, v)
-toHS = S.fromList . P.map (\(ks, v) -> (S.fromList ks, v))
+toHS :: (Hashable k, Eq k, Hashable v, Eq v) => [([k], Maybe v)] -> S.HashSet (S.HashSet k, Maybe v)
+toHS = S.fromList . mapMaybe (\(ks, v) -> if isJust v
+                                                then Just (S.fromList ks, v)
+                                                else Nothing )
 
 prop_insert_forces_in_list :: Integer -> Integer -> UFMap Integer Integer -> Property
 prop_insert_forces_in_list k v ufm =
@@ -48,7 +52,10 @@ prop_insert_forces_in_list k v ufm =
         ufm' = insert k v ufm
         lst = toList ufm'
     in
-    property (any (\(ks, v') -> k `elem` ks && v == v') lst)
+    property (any (\(ks, v') -> k `elem` ks
+                            && case v' of
+                                    Just v'' -> v == v''
+                                    Nothing -> False) lst)
 
 join_makes_lookup_match :: Fun (Integer, Integer) Integer -> Integer -> Integer -> UFMap Integer Integer -> Property
 join_makes_lookup_match (Fn2 f) x y ufm =
@@ -75,14 +82,15 @@ prop_merge_preserves_joins1 :: Integer
                             -> Fun (Integer, Integer) (Integer, [(Integer, Integer)])
                             -> Fun (Integer, Integer) Integer
                             -> Fun (Integer, Integer) Integer
+                            -> Fun (Integer, Integer) Integer
                             -> UFMap Integer Integer
                             -> UFMap Integer Integer
                             -> Property
-prop_merge_preserves_joins1 x y (Fn2 jf) (Fn3 fb) (Fn2 f1) (Fn2 f2) (Fn2 fj1) (Fn2 fj2) ufm1 ufm2 =
+prop_merge_preserves_joins1 x y (Fn2 jf) (Fn3 fb) (Fn2 f1) (Fn2 f2) (Fn2 fj1) (Fn2 fj2) (Fn2 j) ufm1 ufm2 =
     let
         ufm1' = join jf x y ufm1
     
-        m_ufm = mergeJoiningWithKey fb f1 f2 fj1 fj2 ufm1' ufm2
+        m_ufm = mergeJoiningWithKey fb f1 f2 fj1 fj2 j ufm1' ufm2
     in
     property (lookup x m_ufm == lookup y m_ufm)
 
@@ -94,14 +102,15 @@ prop_merge_preserves_joins2 :: Integer
                             -> Fun (Integer, Integer) (Integer, [(Integer, Integer)])
                             -> Fun (Integer, Integer) Integer
                             -> Fun (Integer, Integer) Integer
+                            -> Fun (Integer, Integer) Integer
                             -> UFMap Integer Integer
                             -> UFMap Integer Integer
                             -> Property
-prop_merge_preserves_joins2 x y (Fn2 jf) (Fn3 fb) (Fn2 f1) (Fn2 f2) (Fn2 fj1) (Fn2 fj2) ufm1 ufm2 =
+prop_merge_preserves_joins2 x y (Fn2 jf) (Fn3 fb) (Fn2 f1) (Fn2 f2) (Fn2 fj1) (Fn2 fj2) (Fn2 j) ufm1 ufm2 =
     let
         ufm2' = join jf x y ufm2
     
-        m_ufm = mergeJoiningWithKey fb f1 f2 fj1 fj2 ufm1 ufm2'
+        m_ufm = mergeJoiningWithKey fb f1 f2 fj1 fj2 j ufm1 ufm2'
     in
     property (lookup x m_ufm == lookup y m_ufm)
 
@@ -111,12 +120,26 @@ prop_merge_preserves_values :: Integer
                             -> Fun (Integer, Integer) (Integer, [(Integer, Integer)])
                             -> Fun (Integer, Integer) Integer
                             -> Fun (Integer, Integer) Integer
+                            -> Fun (Integer, Integer) Integer
                             -> UFMap Integer Integer
                             -> UFMap Integer Integer
                             -> Property
-prop_merge_preserves_values x (Fn3 fb) (Fn2 f1) (Fn2 f2) (Fn2 fj1) (Fn2 fj2) ufm1 ufm2 =
+prop_merge_preserves_values x (Fn3 fb) (Fn2 f1) (Fn2 f2) (Fn2 fj1) (Fn2 fj2) (Fn2 j) ufm1 ufm2 =
     let
-        m_ufm = mergeJoiningWithKey fb f1 f2 fj1 fj2 ufm1 ufm2
+        m_ufm = mergeJoiningWithKey fb f1 f2 fj1 fj2 j ufm1 ufm2
+    in
+    isJust (lookup x ufm1) || isJust (lookup x ufm2)
+    ==>
+    property (isJust (lookup x m_ufm))
+
+prop_merge_preserves_values_simple :: Integer
+                                   -> Fun (Integer, Integer) (Integer, [(Integer, Integer)])
+                                   -> UFMap Integer Integer
+                                   -> UFMap Integer Integer
+                                   -> Property
+prop_merge_preserves_values_simple x (Fn2 f2) ufm1 ufm2 =
+    let
+        m_ufm = mergeJoiningWithKey (\_ x y -> (x + y, [])) (\_ x -> (x, [])) f2 (+) (+) (+) ufm1 ufm2
     in
     isJust (lookup x ufm1) || isJust (lookup x ufm2)
     ==>
