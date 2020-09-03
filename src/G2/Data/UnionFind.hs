@@ -27,6 +27,8 @@ import Text.Read
 import qualified Text.Read.Lex as L
 import GHC.Read
 
+import Test.Tasty.QuickCheck
+
 data UnionFind k = UF { rank :: M.HashMap k Int
                       , parent :: IORef (M.HashMap k k) }
                       deriving (Typeable, Data)
@@ -129,6 +131,13 @@ instance (Eq k, Hashable k, Read k) => Read (UnionFind k) where
                        return (fromList x)
     readListPrec = readListPrecDefault 
 
+instance (Arbitrary k, Eq k, Hashable k) => Arbitrary (UnionFind k) where
+    arbitrary = do       
+        ks <- arbitrary
+
+        return $ fromList ks
+
+    shrink = map fromList . shrink . toList
 
 -- Hack for compilation
 instance Typeable a => Data (IORef a) where

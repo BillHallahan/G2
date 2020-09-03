@@ -16,7 +16,7 @@ module G2.Data.UFMap ( UFMap
                      , alter
 
                      , unionWith
-                     , merge
+                     , mergeJoiningWithKey
 
                      , map
 
@@ -136,16 +136,17 @@ unionWith f (UFMap uf1 m1) (UFMap uf2 m2) =
     in
     M.foldrWithKey (insertWith f) ufm1' m2 
 
-merge :: (Eq k, Hashable k)
-      => (v1 -> v2 -> v) -- ^ How to merge values that are joined from both maps
-      -> (v1 -> v) -- ^ How to merge values of keys only in the first map
-      -> (v2 -> v) -- ^ How to merge values of keys only in the second map
-      -> (v1 -> v1 -> v1) -- ^ How to merge values that are joined within the first map
-      -> (v2 -> v2 -> v2) -- ^ How to merge values that are joined within the second map
-      -> UFMap k v1
-      -> UFMap k v2
-      -> UFMap k v
-merge fb f1 f2 fj1 fj2 ufm1@(UFMap uf1 m1) ufm2@(UFMap uf2 m2) =
+-- One key (from the joined set of keys) is given
+mergeJoiningWithKey :: (Eq k, Hashable k)
+                    => (k -> v1 -> v2 -> (v, [(k, k)])) -- ^ How to merge values that are joined from both maps
+                    -> (k -> v1 -> (v, [(k, k)])) -- ^ How to merge values of keys only in the first map
+                    -> (k -> v2 -> (v, [(k, k)])) -- ^ How to merge values of keys only in the second map
+                    -> (v1 -> v1 -> v1) -- ^ How to merge values that are joined within the first map
+                    -> (v2 -> v2 -> v2) -- ^ How to merge values that are joined within the second map
+                    -> UFMap k v1
+                    -> UFMap k v2
+                    -> UFMap k v
+mergeJoiningWithKey fb f1 f2 fj1 fj2 ufm1@(UFMap uf1 m1) ufm2@(UFMap uf2 m2) =
     let
         j_uf = UF.unionOfUFs uf1 uf2
 
@@ -155,7 +156,7 @@ merge fb f1 f2 fj1 fj2 ufm1@(UFMap uf1 m1) ufm2@(UFMap uf2 m2) =
                             case M.lookup uf_k m of
                                 Nothing -> M.insert uf_k (Just v, Nothing) m
                                 Just (Nothing, _) -> M.insert uf_k (Just v, Nothing) m
-                                Just (Just v1, v2) -> M.insert uf_k (Just $ fj1 v v1, Nothing) m
+                                Just (Just v1, v2) -> M.insert uf_k (Just $ fj1 v v1, v2) m
                      ) M.empty (M.toList m1)
         j_m2 = foldr (\(k, v) m ->
                             let uf_k = UF.find k j_uf in
@@ -164,12 +165,17 @@ merge fb f1 f2 fj1 fj2 ufm1@(UFMap uf1 m1) ufm2@(UFMap uf2 m2) =
                                 Just (v1, Nothing) -> M.insert uf_k (v1, Just v) m
                                 Just (v1, Just v2) -> M.insert uf_k (v1, Just $ fj2 v v2) j_m1
                      ) j_m1 (M.toList m2)
+
+        j_m = M.mapWithKey (\k (v1, v2) -> case (v1, v2) of
+                                            (Just v1', Just v2') -> fb k v1' v2'
+                                            (Just v1', Nothing) -> f1 k v1'
+                                            (Nothing, Just v2') -> f2 k v2'
+                                            _ -> error "merge: impossible state!") j_m2
+
+        ks = concat .  M.elems $ M.map snd j_m
+        j_uf' = foldr (uncurry UF.union) j_uf ks
     in
-    UFMap j_uf $ M.map (\(v1, v2) -> case (v1, v2) of
-                                        (Just v1', Just v2') -> fb v1' v2'
-                                        (Just v1', Nothing) -> f1 v1'
-                                        (Nothing, Just v2') -> f2 v2'
-                                        _ -> error "merge: impossible state!") j_m2
+    UFMap j_uf' $ M.map fst j_m
 
 map :: (v1 -> v2) -> UFMap k v1 -> UFMap k v2
 map f uf = uf { store = M.map f $ store uf }
@@ -215,3 +221,5 @@ instance (Arbitrary k, Arbitrary v, Eq k, Hashable k) => Arbitrary (UFMap k v) w
         let uf = foldr (uncurry insert) empty (zip ks vs)
 
         return $ foldr (uncurry (join const)) uf js
+
+    shrink = P.map fromList . shrink . toList

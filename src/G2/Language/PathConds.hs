@@ -273,7 +273,7 @@ union (PathConds pc1) (PathConds pc2) = PathConds $ UF.unionWith HS.union pc1 pc
 mergeWithAssumePCs :: Id -> PathConds -> PathConds -> PathConds
 mergeWithAssumePCs i (PathConds pc1) (PathConds pc2) =
     let
-        mrg = UF.merge
+        mrg = UF.mergeJoiningWithKey
                     (mergeMatched i)
                     (mergeOnlyIn i 1)
                     (mergeOnlyIn i 2)
@@ -294,8 +294,12 @@ mergeWithAssumePCs i (PathConds pc1) (PathConds pc2) =
 --     in
 --     PathConds . adjustNothing (idName i) $ M.insert (Just $ idName i) (HS.empty, ns) merged
 
-mergeOnlyIn :: Id -> Integer -> HS.HashSet HashedPathCond -> HS.HashSet HashedPathCond
-mergeOnlyIn i n hpc = HS.map (hashedAssumePC i n) hpc
+mergeOnlyIn :: Id -> Integer -> Maybe Name -> HS.HashSet HashedPathCond -> (HS.HashSet HashedPathCond, [(Maybe Name, Maybe Name)])
+mergeOnlyIn i n k hpc =
+    let
+        n_hpc = HS.map (hashedAssumePC i n) hpc
+    in
+    (n_hpc, if not (HS.null n_hpc) then [(Just $ idName i, k)] else [])
 
 -- mergeOnlyIn :: Id -> Integer -> Maybe Name -> (HS.HashSet HashedPathCond, HS.HashSet Name) -> (HS.HashSet Name, (HS.HashSet HashedPathCond, HS.HashSet Name))
 -- mergeOnlyIn i n _ (hpc, hn) =
@@ -308,16 +312,22 @@ mergeOnlyIn i n hpc = HS.map (hashedAssumePC i n) hpc
 --     )
 
 mergeMatched :: Id
+             -> Maybe Name
              -> HS.HashSet HashedPathCond
              -> HS.HashSet HashedPathCond
-             -> HS.HashSet HashedPathCond
-mergeMatched i hpc1 hpc2 =
+             -> (HS.HashSet HashedPathCond, [(Maybe Name, Maybe Name)])
+mergeMatched i k hpc1 hpc2 =
     let
         both = HS.intersection hpc1 hpc2
         onlyIn1 = HS.map (hashedAssumePC i 1) $ HS.difference hpc1 hpc2
         onlyIn2 = HS.map (hashedAssumePC i 2) $ HS.difference hpc2 hpc1
+
+        hpc = HS.union both (HS.union onlyIn1 onlyIn2)
+        ks = if not (HS.null onlyIn1) || not (HS.null onlyIn2)
+                    then [(Just $ idName i, k)]
+                    else []
     in
-    HS.union both (HS.union onlyIn1 onlyIn2)
+    (hpc, ks)
 
 -- mergeMatched :: Id
 --              -> Maybe Name

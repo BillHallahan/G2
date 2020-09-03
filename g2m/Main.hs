@@ -10,7 +10,14 @@ import Data.Maybe
 
 main :: IO ()
 main = do
-    mergeEffectiveTests
+    debugging
+    -- mergeEffectiveTests
+
+debugging :: IO ()
+debugging = do
+    timeIOActionPrint "sumEvensTestSM" $ [g2M| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest2 xs x |] 5
+    return ()
+
 
 mergeEffectiveTests :: IO ()
 mergeEffectiveTests = do
@@ -20,9 +27,6 @@ mergeEffectiveTests = do
 
     -- timeIOActionPrint "subseqOfTest" $ [g2| \(a :: [Int]) -> ?(b :: [Int]) | subseqOfTest a b |] [1,2,1,3]
     -- timeIOActionPrint "subseqOfTestSM" $ [g2M| \(a :: [Int]) -> ?(b :: [Int]) | subseqOfTest a b |] [1,2,1,3]
-
-    -- timeIOActionPrint "sumEvensSimpleTest" $ [g2| \(x :: Int) -> ?(xs :: [Int]) | sumEvensSimpleTest xs x |] 5
-    timeIOActionPrint "sumEvensSimpleTestSM" $ [g2M| \(x :: Int) -> ?(xs :: [Int]) | sumEvensSimpleTest xs x |] 5
 
     -- timeIOActionPrint "sumEvensTest" $ [g2| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] 5
     -- timeIOActionPrint "sumEvensTestSM" $ [g2M| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] 5
@@ -44,6 +48,7 @@ mergeEffectiveTests = do
 
     -- timeIOActionPrint "replGetTest" $ [g2| \(i :: Int) -> ?(j :: Int) ?(k :: Int) | replGetTest i j k |] 3
     -- timeIOActionPrint "replGetTestSM" $ [g2M| \(i :: Int) -> ?(j :: Int) ?(k :: Int) | replGetTest i j k |] 3
+    return ()
 
 -- sampleTests :: IO ()
 -- sampleTests = do
