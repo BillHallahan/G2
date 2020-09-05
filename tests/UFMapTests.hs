@@ -26,6 +26,7 @@ ufMapQuickcheck =
         , testProperty "if two keys are joined in the second map, they are joined after merging that map" prop_merge_preserves_joins2
         , testProperty "if a key is present in two maps being merged, in will be present in the merge" prop_merge_preserves_values
         , testProperty "if a key is present in two maps being merged, in will be present in the merge (less thorough, but simpler)" prop_merge_preserves_values_simple
+        , testProperty "merge function is applied to all values from original map" prop_merge_merges_values
         ]
 
 prop_from_hs_to_hs :: [([Integer], Maybe Integer)] -> Property
@@ -144,3 +145,35 @@ prop_merge_preserves_values_simple x (Fn2 f2) ufm1 ufm2 =
     isJust (lookup x ufm1) || isJust (lookup x ufm2)
     ==>
     property (isJust (lookup x m_ufm))
+
+prop_merge_merges_values :: Integer
+                         -> UFMap Integer (S.HashSet Integer)
+                         -> UFMap Integer (S.HashSet Integer)
+                         -> Property
+prop_merge_merges_values x ufm1 ufm2 = 
+    let
+        m_ufm = mergeJoiningWithKey (\_ x y -> (S.union x y, []))
+                                    (\_ x -> (x, []))
+                                    (\_ x -> (x, []))
+                                    S.union
+                                    S.union
+                                    S.union
+                                    ufm1 ufm2
+        s1 = case lookup x ufm1 of
+                    Just s -> s
+                    Nothing -> S.empty 
+        s2 = case lookup x ufm2 of
+                    Just s -> s
+                    Nothing -> S.empty
+    in
+    not (S.null s1) || not (S.null s2)
+    ==>
+    property (s1 `isSubsetOf` (m_ufm ! x) && s2 `isSubsetOf` (m_ufm ! x))
+
+isSubsetOf :: (Eq a, Hashable a) => S.HashSet a -> S.HashSet a -> Bool
+isSubsetOf xs ys = all (\x -> x `S.member` ys) $ S.toList xs
+
+instance (Hashable a, Eq a, Arbitrary a) => Arbitrary (S.HashSet a) where
+    arbitrary = return . S.fromList =<< arbitrary
+    shrink = P.map S.fromList . shrink . S.toList
+

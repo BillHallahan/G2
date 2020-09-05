@@ -356,7 +356,7 @@ adjustNothing :: Name
               -> UF.UFMap (Maybe Name) (HS.HashSet HashedPathCond)
               -> UF.UFMap (Maybe Name) (HS.HashSet HashedPathCond)
 adjustNothing n hs
-    | Just v <- UF.lookup Nothing hs = UF.insert Nothing HS.empty $ UF.insert (Just n) v hs
+    | Just v <- UF.lookup Nothing hs = UF.insert Nothing HS.empty $ UF.insertWith (HS.union) (Just n) v hs
     | otherwise = hs
 
 -- adjustNothing :: Name -> M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name) -> M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name)

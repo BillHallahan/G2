@@ -10,6 +10,7 @@ module G2.Data.UFMap ( UFMap
                      , join
                      , joinAll
                      , lookup
+                     , (!)
                      , insert
                      , insertWith
                      , adjust
@@ -43,8 +44,6 @@ import qualified Text.Read.Lex as L
 import GHC.Read
 
 import Test.Tasty.QuickCheck
-
-import Debug.Trace
 
 data UFMap k v = UFMap { joined :: UF.UnionFind k
                        , store :: M.HashMap k v }
