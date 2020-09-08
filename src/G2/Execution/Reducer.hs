@@ -63,8 +63,8 @@ module G2.Execution.Reducer ( Reducer (..)
 import G2.Config.Config
 import qualified G2.Language.ExprEnv as E
 import G2.Execution.Rules
-import qualified G2.Execution.WorkGraph as WG
-import G2.Execution.Zipper
+import G2.Execution.Zipper hiding (Status (..))
+import qualified G2.Execution.Zipper as Z
 import G2.Language
 import qualified G2.Language.Monad as MD
 import qualified G2.Language.Stack as Stck
@@ -1025,10 +1025,10 @@ runReducerMerge :: (Show t, Eq t, Named t, Reducer r rv t, Halter h hv t, Simpli
 runReducerMerge red hal simplifier s b = do
     let pr = Processed {accepted = [], discarded = []}
         s' = ExState {state = s, halter_val = initHalt hal s, reducer_val = initReducer red s, order_val = Nothing}
-        -- workGraph = WG.initGraph s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStates resetSaturated logState
+        -- workGraph = ZinitGraph s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStates resetSaturated logState
         zipper = initZipper s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStates resetMergingZipper -- logState
 
-    -- (_, (_, _, _, b', pr')) <- WG.work workGraph
+    -- (_, (_, _, _, b', pr')) <- Zwork workGraph
     (_, _, _, b', pr') <- evalZipper zipper
     let res = mapProcessed state pr'
     return (res, b')
@@ -1037,14 +1037,14 @@ runReducerMerge red hal simplifier s b = do
 runReducerMerge' :: (Show t, Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
                  => ExState rv hv sov t
                  -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
-                 -> IO ([(ExState rv hv sov t)], (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)), WG.Status)
+                 -> IO ([(ExState rv hv sov t)], (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)), Z.Status)
 runReducerMerge' exS (red, hal, simplifier, bdg, pr) = do
     let rs@(ExState {state = s, halter_val = h_val, reducer_val = r_val}) = exS
         ps = processedToState pr -- need to deal with processed
         hc = stopRed hal h_val ps s
     case hc of
-        Accept -> return ([rs], (red, hal, simplifier, bdg, pr {accepted = rs:accepted pr}), WG.Accept)
-        Discard -> return ([rs], (red, hal, simplifier, bdg, pr {discarded = rs:discarded pr}), WG.Discard)
+        Accept -> return ([rs], (red, hal, simplifier, bdg, pr {accepted = rs:accepted pr}), Z.Accept)
+        Discard -> return ([rs], (red, hal, simplifier, bdg, pr {discarded = rs:discarded pr}), Z.Discard)
         _ -> do
             (reducerRes, reduceds, bdg', red') <- redRules red r_val s bdg
             let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
@@ -1054,7 +1054,11 @@ runReducerMerge' exS (red, hal, simplifier, bdg, pr) = do
                                                       , reducer_val = r_val'
                                                       , halter_val = stepHalter hal h_val ps new_states s'})
                                                       $ zip new_states r_vals
-            let status = case reducerRes of MergePoint -> WG.Mergeable; MaxDepth -> WG.WorkSaturated; Split -> WG.Split; _ -> WG.WorkNeeded
+            let status = case reducerRes of
+                                MergePoint -> Z.Mergeable
+                                MaxDepth -> Z.WorkSaturated
+                                Split -> Z.Split
+                                _ -> Z.WorkNeeded
             return (reduceds'', (red', hal, simplifier, bdg', pr), status)
 
 -- | Reset counts of all unmerged Case Expressions to 0

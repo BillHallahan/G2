@@ -1,9 +1,8 @@
 module G2.Execution.Zipper ( initZipper
                            , evalZipper 
                            , Counter
-                           , Tree(..)) where
-
-import qualified G2.Execution.WorkGraph as WG
+                           , Tree(..)
+                           , Status(..)) where
 
 ------------
 -- Execution is represented by a multiway tree. Initially it is just a `Root` that contains the initial state(s). In each function call, any `Leaf`
@@ -14,6 +13,8 @@ import qualified G2.Execution.WorkGraph as WG
 --      (iii) if during reduction a `mergePtFrame` is encountered on the exec_stack, the node is replaced with a `ReadyToMerge` node
 -- A `ReadyToMerge` node may also be picked, in which case it is merged with its siblings if possible, else any sibling that is a `Leaf` node is
 -- picked for reduction next.
+
+data Status = WorkNeeded | WorkSaturated | Split | Mergeable | Accept | Discard
 
 type Counter = Int
 data Tree a = CaseSplit [Tree a] -- Node corresponding to point at which execution branches into potentially mergeable states
@@ -29,13 +30,13 @@ type Zipper a = (Tree a, Cxt a)
 
 data ZipperTree a b = ZipperTree { zipper :: Zipper a -- ^ Zipper on a tree of a-s
                                  , env :: b -- ^ Values that might be needed for reduction
-                                 , work_func :: a -> b -> IO ([a], b, WG.Status) -- ^ Function to perform work on an object
+                                 , work_func :: a -> b -> IO ([a], b, Status) -- ^ Function to perform work on an object
                                  , merge_func :: a -> a -> b -> (Maybe a, b) -- ^ Func to merge objects at specified idx
                                  , reset_merging_func :: a -> a }
 
 -- | Creates a Zipper of a Tree with just one node
 initZipper :: a -> b
-           -> (a -> b -> IO ([a], b, WG.Status))
+           -> (a -> b -> IO ([a], b, Status))
            -> (a -> a -> b -> (Maybe a, b))
            -> (a -> a)
            -> ZipperTree a b
@@ -60,30 +61,30 @@ evalZipper zipTree@(ZipperTree { zipper = zipr, env = e, work_func = workFn, mer
     | Leaf x count <- fst zipr = do
         (as, e', status) <- workFn x e        
         case status of
-            WG.Accept -> do
+            Accept -> do
                 let zipr' = deleteNode zipr -- set zipper to sibling, or a sibling of any of its parents, remove this from children of parent
                 evalZipper (zipTree { zipper = zipr', env = e' })
-            WG.Discard -> do
+            Discard -> do
                 let zipr' = deleteNode zipr
                 evalZipper (zipTree { zipper = zipr', env = e' })
-            WG.Mergeable -> do
+            Mergeable -> do
                 let tree' = ReadyToMerge (head as) (count - 1) -- redRules only returns 1 state when status is Mergeable
                     zipr' = (tree', snd zipr)
                 evalZipper (zipTree { zipper = zipr', env = e' })
-            WG.WorkSaturated -> do
+            WorkSaturated -> do
                 -- do not add reduced states to current tree. Instead add to list of states in root.
                 -- prevents tree from growing to deep. We do not attempt to merge these states
                 let reduceds = map resetMergFn as -- remove any merge pts
                     zipr' = floatReducedsToRoot zipr reduceds
                     zipr'' = deleteNode zipr'
                 evalZipper (zipTree { zipper = zipr'', env = e' })
-            WG.Split -> do
+            Split -> do
                 let leaves = map (\a -> Leaf a (count + 1)) as
                     tree' = CaseSplit leaves
                     zipr' = (tree', snd zipr) -- replace node with CaseSplit node and leaves as children
                     zipr'' = pickChild zipr'
                 evalZipper (zipTree { zipper = zipr'', env = e' })
-            WG.WorkNeeded -> do
+            WorkNeeded -> do
                 let leaves = map (\a -> Leaf a count) as 
                     zipr' = replaceNode zipr leaves -- replace node with leaves
                 evalZipper (zipTree { zipper = zipr', env = e' })

@@ -15,6 +15,8 @@ main = do
 
 debugging :: IO ()
 debugging = do
+    -- timeIOActionPrint "compress4 Bad" $ [g2| \(a :: Int) -> ?(xs :: [Int]) | compressTest4_2 a xs |] 2
+    -- timeIOActionPrint "compress4SM Bad" $ [g2M| \(a :: Int) -> ?(xs :: [Int]) | compressTest4_2 a xs |] 2
     return ()
 
 
@@ -22,7 +24,6 @@ mergeEffectiveTests :: IO ()
 mergeEffectiveTests = do
     -- timeIOActionPrint "compress4" $ [g2| \(a :: Int) -> ?(xs :: [Int]) | compressTest4 a xs |] 2
     -- timeIOActionPrint "compress4SM" $ [g2M| \(a :: Int) -> ?(xs :: [Int]) | compressTest4 a xs |] 2
-    -- timeIOActionPrint "compress4SM Bad" $ [g2M| \(a :: Int) -> ?(xs :: [Int]) | compressTest4_2 a xs |] 2
 
     timeIOActionPrint "subseqOfTest" $ [g2| \(a :: [Int]) -> ?(b :: [Int]) | subseqOfTest a b |] [1,2,1,3]
     timeIOActionPrint "subseqOfTestSM" $ [g2M| \(a :: [Int]) -> ?(b :: [Int]) | subseqOfTest a b |] [1,2,1,3]
