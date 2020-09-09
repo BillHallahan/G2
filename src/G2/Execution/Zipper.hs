@@ -239,7 +239,7 @@ deleteNode tz@(_, (Cxt (c:[]))) =
         siblings = getSiblings tz
     in
     case parent of
-        Just (CaseSplit st) -> trace ("delete node 1") (CaseSplit st, Cxt [])
+        Just (CaseSplit st) -> (CaseSplit st, Cxt [])
         _ -> error "No other Tree can be a parent"
 deleteNode tz@(_, (Cxt (_:cs))) =
     let
@@ -253,7 +253,7 @@ deleteNode tz@(_, (Cxt (_:cs))) =
                     let
                         j_par' = CaseSplit siblings
                     in
-                    trace ("delete node 2") (l, Cxt $ (j_par', ls):cs)
+                    (l, Cxt $ (j_par', ls):cs)
                 [] -> deleteNode (j_par, Cxt cs)
         _ -> error "No other Tree can be a parent"
 
