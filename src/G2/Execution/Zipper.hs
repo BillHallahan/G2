@@ -20,7 +20,6 @@ type Counter = Int
 data Tree a = CaseSplit [Tree a] -- Node corresponding to point at which execution branches into potentially mergeable states
             | Leaf a Counter
             | ReadyToMerge a Counter -- 'a's can be merged if they are all ReadyToMerge nodes with same parent and Counter
-            | Root [a] -- list of a's to process
 
 -- List of (Parent, [sibling]) pairs that represents path from a Node to the Root. Enables traversal from the node to the rest of the tree
 -- See: https://wiki.haskell.org/Zipper
@@ -40,7 +39,7 @@ initZipper :: a -> b
            -> (a -> a)
            -> ZipperTree a b
 initZipper s e workFn mergeFn resetMergFn =
-    let root = Root [s]
+    let root = CaseSplit [Leaf s 0]
         zipr = (root, Cxt [])
     in ZipperTree { zipper = zipr
                   , env = e
@@ -54,11 +53,11 @@ evalZipper zipTree@(ZipperTree { zipper = zipr
                               , work_func = workFn
                               , merge_func = mergeFn
                               , reset_merging_func = resetMergFn })
-    | Root s <- fst zipr = case s of
+    | CaseSplit s <- fst zipr = case s of
         [] -> return e
         (x:xs) -> do
-            let leaf = Leaf x 0
-                root' = Root xs
+            let leaf = x
+                root' = CaseSplit xs
                 zipr' = (leaf, Cxt [(root', [])])
             evalZipper (zipTree { zipper = zipr' })
     | Leaf x count <- fst zipr = do
@@ -117,37 +116,49 @@ treeVal (Leaf val _) = val
 treeVal _ = error "Tree has no value"
 
 getSiblings :: Zipper a -> [Tree a]
-getSiblings (_, context) = case context of
-    Cxt (x:_) -> snd x
-    _ -> []
+getSiblings (_, context) =
+    case context of
+        Cxt (x:_) -> snd x
+        _ -> []
 
 getParent :: Zipper a -> Tree a
-getParent (_, context) = case context of
-    Cxt (x:_) -> fst x
-    _ -> error "No parent in this Cxt"
+getParent (_, context) =
+    case context of
+        Cxt (x:_) -> fst x
+        _ -> error "No parent in this Cxt"
 
 -- | Add the reduceds to the list of states to be processed in the root of the treeZipper tz
 floatReducedsToRoot :: Zipper a -> [a] -> Zipper a
-floatReducedsToRoot tz@(t, (Cxt context)) reduceds =
+floatReducedsToRoot tz@(t, (Cxt (c:[]))) reduceds =
     let parent = getParent tz
         siblings = getSiblings tz
     in case parent of
-        Root st -> let parent' = Root (st ++ reduceds)
-                      in (t, Cxt $ (parent', siblings):(drop 1 context))
-        _ -> let parentZipper = (parent, Cxt (drop 1 context))
+        CaseSplit st -> let parent' = CaseSplit (st ++ map (flip Leaf 0) reduceds)
+                      in (t, Cxt $ (parent', siblings):[])
+        _ -> error "not supported"
+
+floatReducedsToRoot tz@(t, (Cxt (_:cs))) reduceds =
+    let parent = getParent tz
+        siblings = getSiblings tz
+    in case parent of
+        _ -> let parentZipper = (parent, Cxt cs)
                  (parent', Cxt context') = floatReducedsToRoot parentZipper reduceds
              in (t, Cxt $ (parent', siblings):context')
 
 -- | Replace current node with new leaves (if parent is CaseSplit), and focus on a new leaf, if any. If parent is root, add to list
 replaceNode :: Zipper a -> [Tree a] -> Zipper a
-replaceNode tz@(_, (Cxt context)) leaves =
+replaceNode tz@(_, (Cxt  (c:[]))) leaves =
     let parent = getParent tz
         siblings = getSiblings tz
     in case parent of
-        Root st -> let newSt = (map treeVal leaves)
-                     in (Root (newSt ++ st), Cxt [])
+        CaseSplit st -> (CaseSplit (leaves ++ st), Cxt [])
+        _ -> error "No other tree can be parent"
+replaceNode tz@(_, (Cxt (_:cs))) leaves =
+    let parent = getParent tz
+        siblings = getSiblings tz
+    in case parent of
         CaseSplit _ -> let parent' = CaseSplit (leaves ++ siblings)
-                        in pickChild (parent', Cxt (drop 1 context))
+                        in pickChild (parent', Cxt cs)
         _ -> error "No other tree can be parent"
 
 -- | Replace parent with new leaves (if parent of parent is CaseSplit). If parent of parent is Root, add to list
@@ -160,11 +171,16 @@ replaceParent tz@(_, (Cxt context)) leaves =
 -- | Remove current tree from parent's list of children, and progressively move up, pruning any parent that has 0 children. 
 -- Set zipper to focus on sibling (if any)
 deleteNode :: Zipper a -> Zipper a
+deleteNode tz@(_, (Cxt (c:[]))) =
+    let parent = getParent tz
+        siblings = getSiblings tz
+    in case parent of
+        CaseSplit st -> (CaseSplit st, Cxt [])
+        _ -> error "No other Tree can be a parent"
 deleteNode tz@(_, (Cxt context)) =
     let parent = getParent tz
         siblings = getSiblings tz
     in case parent of
-        Root st -> (Root st, Cxt [])
         CaseSplit _ -> case siblings of
             l:ls -> (l, Cxt $ (parent, ls):(drop 1 context))
             [] -> deleteNode (parent, Cxt (drop 1 context))
