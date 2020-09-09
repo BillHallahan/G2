@@ -36,8 +36,6 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import qualified Data.Map as M
 
-import Debug.Trace
-
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> Merging -> solver -> simplifier -> State t -> Bindings 
           -> IO (Rule, [(State t, ())], Bindings)
 stdReduce sharing merging solver simplifier s b@(Bindings {name_gen = ng}) = do
@@ -650,7 +648,6 @@ addMergePt i p@(NewPC {state = s@(State { exec_stack = stk, cases = c, depth_exc
         b' = if (count' > maxDepth) then True else b
         c' = M.insert i count' c
     in 
-    trace ("addMergePt i = " ++ show i ++ "\tcount' = " ++ show count')
     p { state = s { exec_stack = stk', cases = c', depth_exceeded = b' } }
 
 hitMaxDepth :: State t -> Id -> (Bool, State t)
