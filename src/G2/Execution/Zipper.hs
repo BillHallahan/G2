@@ -88,14 +88,15 @@ evalZipper zipTree@(ZipperTree { zipper = zipr
                 let reduceds = map resetMergFn as -- remove any merge pts
                     zipr' = floatReducedsToRoot zipr reduceds
                     zipr'' = deleteNode zipr'
-                assertConsistent "Leaf WorkSaturated" zipr'
+                assertConsistent "Leaf WorkSaturated 1" zipr'
+                assertConsistent "Leaf WorkSaturated 2" zipr''
                 evalZipper (zipTree { zipper = zipr'', env = e' })
             Split -> do
                 let leaves = map (\a -> Leaf a (count + 1)) as
                     tree' = CaseSplit leaves
                     zipr' = (tree', snd zipr) -- replace node with CaseSplit node and leaves as children
                     zipr'' = pickChild zipr'
-                assertConsistent "Leaf Split" zipr'
+                assertConsistent "Leaf Split" zipr''
                 evalZipper (zipTree { zipper = zipr'', env = e' })
             WorkNeeded -> do
                 let leaves = map (\a -> Leaf a count) as 
@@ -149,12 +150,22 @@ getChildren z =
         ReadyToMerge _ _ -> []
 
 assertConsistent :: String -> Zipper a -> IO ()
-assertConsistent s z = return ()
+assertConsistent s z
+    = return ()
     -- | Just par <- getParent z =
-    --     case length (getChildren par) == length (getSiblings z) + 1 of
+    --     let
+    --         num_children = length (getChildren par)
+    --         num_siblings = length (getSiblings z)
+    --     in
+    --     case num_children == num_siblings + 1 of
     --         True -> return ()
     --         False -> error $ "inconsistent zipper at " ++ s
-    -- | otherwise = return ()
+    --                             ++ "\nnum_par_children = " ++ show num_children
+    --                             ++ "\nnum_siblings = " ++ show num_siblings
+    -- | otherwise =
+    --     case length (getSiblings z) == 0 of
+    --         True -> return ()
+    --         False -> error $ "siblings at root at " ++ s
 
 -- | Add the reduceds to the list of states to be processed in the root of the treeZipper tz
 floatReducedsToRoot :: Zipper a -> [a] -> Zipper a
@@ -228,7 +239,7 @@ deleteNode tz@(_, (Cxt (c:[]))) =
         siblings = getSiblings tz
     in
     case parent of
-        Just (CaseSplit st) -> (CaseSplit st, Cxt [])
+        Just (CaseSplit st) -> trace ("delete node 1") (CaseSplit st, Cxt [])
         _ -> error "No other Tree can be a parent"
 deleteNode tz@(_, (Cxt (_:cs))) =
     let
@@ -236,9 +247,14 @@ deleteNode tz@(_, (Cxt (_:cs))) =
         siblings = getSiblings tz
     in
     case parent of
-        Just j_par@(CaseSplit _) -> case siblings of
-            l:ls -> (l, Cxt $ (j_par, ls):cs)
-            [] -> deleteNode (j_par, Cxt cs)
+        Just j_par@(CaseSplit _) ->
+            case siblings of
+                l:ls ->
+                    let
+                        j_par' = CaseSplit siblings
+                    in
+                    trace ("delete node 2") (l, Cxt $ (j_par', ls):cs)
+                [] -> deleteNode (j_par, Cxt cs)
         _ -> error "No other Tree can be a parent"
 
 pickChild :: Zipper a -> Zipper a
