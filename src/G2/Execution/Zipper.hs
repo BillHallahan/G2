@@ -4,6 +4,8 @@ module G2.Execution.Zipper ( initZipper
                            , Tree
                            , Status(..)) where
 
+import Debug.Trace
+
 ------------
 -- Execution is represented by a multiway tree. Initially it is just a `Root` that contains the initial state(s). In each function call, any `Leaf`
 -- node (or a state from the `Root`) is picked and reduced, following which either:
@@ -53,25 +55,32 @@ evalZipper zipTree@(ZipperTree { zipper = zipr
                               , work_func = workFn
                               , merge_func = mergeFn
                               , reset_merging_func = resetMergFn })
-    | CaseSplit s <- fst zipr = case s of
-        [] -> return e
-        (x:xs) -> do
-            let leaf = x
-                root' = CaseSplit xs
-                zipr' = (leaf, Cxt [(root', [])])
-            evalZipper (zipTree { zipper = zipr' })
+    | CaseSplit s <- fst zipr = do
+        case s of
+            [] -> return e
+            (x:xs) -> do
+                assertConsistent "CaseSplit 1" zipr
+                let leaf = x
+                    root' = CaseSplit xs
+                    zipr' = (leaf, Cxt [(root', xs)])
+                assertConsistent "CaseSplit 2" zipr'
+                evalZipper (zipTree { zipper = zipr' })
     | Leaf x count <- fst zipr = do
+        assertConsistent "Leaf" zipr
         (as, e', status) <- workFn x e        
         case status of
             Accept -> do
                 let zipr' = deleteNode zipr -- set zipper to sibling, or a sibling of any of its parents, remove this from children of parent
+                assertConsistent "Leaf Accept" zipr'
                 evalZipper (zipTree { zipper = zipr', env = e' })
             Discard -> do
                 let zipr' = deleteNode zipr
+                assertConsistent "Leaf Discard" zipr'
                 evalZipper (zipTree { zipper = zipr', env = e' })
             Mergeable -> do
                 let tree' = ReadyToMerge (head as) (count - 1) -- redRules only returns 1 state when status is Mergeable
                     zipr' = (tree', snd zipr)
+                assertConsistent "Leaf Mergeable" zipr'
                 evalZipper (zipTree { zipper = zipr', env = e' })
             WorkSaturated -> do
                 -- do not add reduced states to current tree. Instead add to list of states in root.
@@ -79,16 +88,19 @@ evalZipper zipTree@(ZipperTree { zipper = zipr
                 let reduceds = map resetMergFn as -- remove any merge pts
                     zipr' = floatReducedsToRoot zipr reduceds
                     zipr'' = deleteNode zipr'
+                assertConsistent "Leaf WorkSaturated" zipr'
                 evalZipper (zipTree { zipper = zipr'', env = e' })
             Split -> do
                 let leaves = map (\a -> Leaf a (count + 1)) as
                     tree' = CaseSplit leaves
                     zipr' = (tree', snd zipr) -- replace node with CaseSplit node and leaves as children
                     zipr'' = pickChild zipr'
+                assertConsistent "Leaf Split" zipr'
                 evalZipper (zipTree { zipper = zipr'', env = e' })
             WorkNeeded -> do
                 let leaves = map (\a -> Leaf a count) as 
                     zipr' = replaceNode zipr leaves -- replace node with leaves
+                assertConsistent "Leaf WorkNeeded" zipr'
                 evalZipper (zipTree { zipper = zipr', env = e' })
     | ReadyToMerge x count <- fst zipr = do
         let siblings = getSiblings zipr
@@ -97,10 +109,12 @@ evalZipper zipTree@(ZipperTree { zipper = zipr
                 (mergedStates, e') <- mergeObjsZipper mergeFn (x:(map treeVal siblings)) e
                 let leaves = map (\a -> Leaf a count) mergedStates
                     zipr' = replaceParent zipr leaves
+                assertConsistent "ReadyToMerge" zipr'
                 evalZipper (zipTree { zipper = zipr', env = e' })
-            else
+            else do
                 let zipr' = pickSibling zipr
-                in evalZipper (zipTree { zipper = zipr', env = e })
+                assertConsistent "ReadyToMerge" zipr'
+                evalZipper (zipTree { zipper = zipr', env = e })
     | otherwise = error "Should not reach this case"
 
 allReadyToMerge :: [Tree a] -> Counter -> Bool
@@ -121,90 +135,137 @@ getSiblings (_, context) =
         Cxt (x:_) -> snd x
         _ -> []
 
-getParent :: Zipper a -> Tree a
+getParent :: Zipper a -> Maybe (Tree a)
 getParent (_, context) =
     case context of
-        Cxt (x:_) -> fst x
-        _ -> error "No parent in this Cxt"
+        Cxt (x:_) -> Just (fst x)
+        _ -> Nothing
+
+getChildren :: Tree a -> [Tree a]
+getChildren z =
+    case z of
+        CaseSplit st -> st
+        Leaf _ _ -> []
+        ReadyToMerge _ _ -> []
+
+assertConsistent :: String -> Zipper a -> IO ()
+assertConsistent s z = return ()
+    -- | Just par <- getParent z =
+    --     case length (getChildren par) == length (getSiblings z) + 1 of
+    --         True -> return ()
+    --         False -> error $ "inconsistent zipper at " ++ s
+    -- | otherwise = return ()
 
 -- | Add the reduceds to the list of states to be processed in the root of the treeZipper tz
 floatReducedsToRoot :: Zipper a -> [a] -> Zipper a
 floatReducedsToRoot tz@(t, (Cxt (c:[]))) reduceds =
-    let parent = getParent tz
+    let
+        parent = getParent tz
         siblings = getSiblings tz
-    in case parent of
-        CaseSplit st -> let parent' = CaseSplit (st ++ map (flip Leaf 0) reduceds)
-                      in (t, Cxt $ (parent', siblings):[])
+    in
+    case parent of
+        Just (CaseSplit st) ->
+            let
+                parent' = CaseSplit (st ++ map (flip Leaf 0) reduceds)
+            in
+            (t, Cxt $ (parent', siblings):[])
         _ -> error "not supported"
-
 floatReducedsToRoot tz@(t, (Cxt (_:cs))) reduceds =
-    let parent = getParent tz
+    let
+        parent = getParent tz
         siblings = getSiblings tz
-    in case parent of
-        _ -> let parentZipper = (parent, Cxt cs)
-                 (parent', Cxt context') = floatReducedsToRoot parentZipper reduceds
-             in (t, Cxt $ (parent', siblings):context')
+    in
+    case parent of
+        (Just j_par) ->
+            let
+                parentZipper = (j_par, Cxt cs)
+                (parent', Cxt context') = floatReducedsToRoot parentZipper reduceds
+            in
+            (t, Cxt $ (parent', siblings):context')
 
 -- | Replace current node with new leaves (if parent is CaseSplit), and focus on a new leaf, if any. If parent is root, add to list
 replaceNode :: Zipper a -> [Tree a] -> Zipper a
 replaceNode tz@(_, (Cxt  (c:[]))) leaves =
-    let parent = getParent tz
+    let
+        parent = getParent tz
         siblings = getSiblings tz
-    in case parent of
-        CaseSplit st -> (CaseSplit (leaves ++ st), Cxt [])
+    in
+    case parent of
+        Just (CaseSplit st) -> (CaseSplit (leaves ++ st), Cxt [])
         _ -> error "No other tree can be parent"
 replaceNode tz@(_, (Cxt (_:cs))) leaves =
-    let parent = getParent tz
+    let
+        parent = getParent tz
         siblings = getSiblings tz
-    in case parent of
-        CaseSplit _ -> let parent' = CaseSplit (leaves ++ siblings)
-                        in pickChild (parent', Cxt cs)
+    in
+    case parent of
+        Just (CaseSplit st) ->
+            let
+                parent' = CaseSplit (leaves ++ siblings)
+            in
+            pickChild (parent', Cxt cs)
         _ -> error "No other tree can be parent"
 
 -- | Replace parent with new leaves (if parent of parent is CaseSplit). If parent of parent is Root, add to list
 replaceParent :: Zipper a -> [Tree a] -> Zipper a
 replaceParent tz@(_, (Cxt context)) leaves =
-    let parent = getParent tz
-        zipper' = (parent, Cxt (drop 1 context)) -- losing information about current siblings, if any
-    in replaceNode zipper' leaves
+    let
+        parent = getParent tz
+    in
+    case parent of
+        Just j_par ->
+            let
+                zipper' = (j_par, Cxt (drop 1 context)) -- losing information about current siblings, if any
+            in
+            replaceNode zipper' leaves
 
 -- | Remove current tree from parent's list of children, and progressively move up, pruning any parent that has 0 children. 
 -- Set zipper to focus on sibling (if any)
 deleteNode :: Zipper a -> Zipper a
 deleteNode tz@(_, (Cxt (c:[]))) =
-    let parent = getParent tz
+    let
+        parent = getParent tz
         siblings = getSiblings tz
-    in case parent of
-        CaseSplit st -> (CaseSplit st, Cxt [])
+    in
+    case parent of
+        Just (CaseSplit st) -> (CaseSplit st, Cxt [])
         _ -> error "No other Tree can be a parent"
-deleteNode tz@(_, (Cxt context)) =
-    let parent = getParent tz
+deleteNode tz@(_, (Cxt (_:cs))) =
+    let
+        parent = getParent tz
         siblings = getSiblings tz
-    in case parent of
-        CaseSplit _ -> case siblings of
-            l:ls -> (l, Cxt $ (parent, ls):(drop 1 context))
-            [] -> deleteNode (parent, Cxt (drop 1 context))
+    in
+    case parent of
+        Just j_par@(CaseSplit _) -> case siblings of
+            l:ls -> (l, Cxt $ (j_par, ls):cs)
+            [] -> deleteNode (j_par, Cxt cs)
         _ -> error "No other Tree can be a parent"
 
 pickChild :: Zipper a -> Zipper a
 pickChild tz@(t, (Cxt context))
-    | CaseSplit leaves <- t = case leaves of
-        l:ls -> (l, Cxt $ (t, ls):context)
-        [] -> deleteNode tz
+    | CaseSplit leaves <- t =
+        case leaves of
+            l:ls -> (l, Cxt $ (t, ls):context)
+            [] -> deleteNode tz
     | otherwise = error "No children to choose from"
 
 -- | Pick a sibling that is not ReadyToMerge, if any
 pickSibling :: Zipper a -> Zipper a
-pickSibling tz@(t, (Cxt context)) =
-    let siblings = getSiblings tz
+pickSibling tz@(t, (Cxt (_:cs))) =
+    let
+        siblings = getSiblings tz
         parent = getParent tz
         (siblings', sibling) = pickSibling' [] siblings
-    in (sibling, Cxt $ (parent, t:siblings'):(drop 1 context))
+    in
+    case parent of
+        Just j_par -> (sibling, Cxt $ (j_par, t:siblings'):cs)
+        Nothing -> error "pickSibling:No siblings"
 
 pickSibling' :: [Tree a] -> [Tree a] -> ([Tree a],Tree a)
-pickSibling' seen (x:xs) = case x of
-    (Leaf _ _) -> (seen++xs, x)
-    _ -> pickSibling' (x:seen) xs
+pickSibling' seen (x:xs) =
+    case x of
+        (Leaf _ _) -> (seen ++ xs, x)
+        _ -> pickSibling' (x:seen) xs
 pickSibling' _ [] = error "pickSibling must be called with at least one Tree that is a leaf"
 
 -- Iterates through list and attempts to merge adjacent objects if possible. Does not consider all possible combinations
