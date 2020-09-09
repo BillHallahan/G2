@@ -140,8 +140,10 @@ class Reducer r rv t | r -> rv where
     -- Errors if the returned list is too short.
     {-# INLINE updateWithAll #-}
     updateWithAll :: r -> [(State t, rv)] -> [rv]
-    updateWithAll _ = map snd 
+    updateWithAll _ = map snd
 
+    onMerge :: r -> State t -> State t -> rv -> rv -> IO ()
+    onMerge _ _ _ _ _ = return ()
 
 -- | Determines when to stop evaluating a state
 -- The type parameter h is used to disambiguate between different producers.
@@ -282,6 +284,16 @@ instance (Reducer r1 rv1 t, Reducer r2 rv2 t) => Reducer (RCombiner r1 r2) (RC r
     updateWithAll (r1 :<~ r2) = updateWithAllRC r1 r2
     updateWithAll (r1 :<~? r2) = updateWithAllRC r1 r2
     updateWithAll (r1 :<~| r2) = updateWithAllRC r1 r2
+
+    onMerge (r1 :<~ r2) s s' (RC rv1 rv2) (RC rv1' rv2') = do
+        onMerge r1 s s' rv1 rv1'
+        onMerge r2 s s' rv2 rv2'
+    onMerge (r1 :<~? r2) s s' (RC rv1 rv2) (RC rv1' rv2') = do
+        onMerge r1 s s' rv1 rv1'
+        onMerge r2 s s' rv2 rv2'
+    onMerge (r1 :<~| r2) s s' (RC rv1 rv2) (RC rv1' rv2') = do
+        onMerge r1 s s' rv1 rv1'
+        onMerge r2 s s' rv2 rv2'
 
 {-# INLINE updateWithAllRC #-}
 updateWithAllRC :: (Reducer r1 rv1 t, Reducer r2 rv2 t) => r1 -> r2 -> [(State t, RC rv1 rv2)] -> [RC rv1 rv2]
@@ -436,6 +448,8 @@ instance Reducer Logger [Int] t where
     updateWithAll _ [(_, l)] = [l]
     updateWithAll _ ss = map (\(l, i) -> l ++ [i]) $ zip (map snd ss) [1..]
 
+    onMerge (Logger ll) s1 s2 lt1 lt2 = outputMerge ll lt1 lt2 s1 s2
+
 -- | A Reducer to producer limited logging output.
 data LimLogger =
     LimLogger { every_n :: Int -- Output a state every n steps
@@ -465,6 +479,8 @@ instance Show t => Reducer LimLogger LLTracker t where
     updateWithAll _ ss =
         map (\(llt, i) -> llt { ll_offset = ll_offset llt ++ [i] }) $ zip (map snd ss) [1..]
 
+    onMerge ll s1 s2 lt1 lt2 = outputMerge (lim_output_path ll) (ll_offset lt1) (ll_offset lt2) s1 s2
+
 data PredicateLogger = PredicateLogger { pred :: forall t . State t -> Bindings -> Bool
                                        , pred_output_path :: String }
 
@@ -482,15 +498,30 @@ instance Show t => Reducer PredicateLogger [Int] t where
     updateWithAll _ ss = map (\(l, i) -> l ++ [i]) $ zip (map snd ss) [1..]
 
 outputState :: String -> [Int] -> State t -> Bindings -> (State t -> Bindings -> String) -> IO ()
-outputState fdn is s b printer = do
-    let dir = fdn ++ "/" ++ foldl' (\str i -> str ++ show i ++ "/") "" is
-    createDirectoryIfMissing True dir
-
-    let fn = dir ++ "state" ++ show (length $ rules s) ++ ".txt"
+outputState dn is s b printer = do
+    fn <- getFile dn is "state" s
     let write = printer s b
     writeFile fn write
 
     putStrLn fn
+
+outputMerge :: String -> [Int] -> [Int] -> State t -> State t -> IO ()
+outputMerge dn is1 is2 s1 s2 = do
+    fn1 <- getFile dn is1 "state_merge" s1
+    fn2 <- getFile dn is2 "state_merge" s2
+
+    let msg = "Merging\n" ++ fn1 ++ "\n" ++ fn2
+
+    writeFile fn1 msg
+    writeFile fn2 msg
+    putStrLn $ fn1 ++ " and " ++ fn2
+
+getFile :: String -> [Int] -> String -> State t -> IO String
+getFile dn is n s = do
+    let dir = dn ++ "/" ++ foldl' (\str i -> str ++ show i ++ "/") "" is
+    createDirectoryIfMissing True dir
+    let fn = dir ++ n ++ show (length $ rules s) ++ ".txt"
+    return fn
 
 -- | Allows executing multiple halters.
 -- If the halters disagree, prioritizes the order:
@@ -1069,13 +1100,17 @@ resetSaturated rs@(ExState {state = s}) =
 
 -- | Merge Func for WorkGraph and Tree Zipper. Attempts to merge 2 states
 mergeStates :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
-            => (ExState rv hv sov t) -> (ExState rv hv sov t) -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
-            -> (Maybe (ExState rv hv sov t), (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)))
-mergeStates ex1 ex2 (r, h, smplfr, b, pr) =
+            => (ExState rv hv sov t)
+            -> (ExState rv hv sov t)
+            -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
+            -> IO (Maybe (ExState rv hv sov t), (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)))
+mergeStates ex1 ex2 (r, h, smplfr, b, pr) = do
     let res = mergeState (name_gen b) smplfr (state ex1) (state ex2)
-    in case res of
-        (ng', Just s') -> (Just ex1 {state = s'}, (r, h, smplfr, b {name_gen = ng'}, pr)) -- todo: which reducer_val and halter_val to keep
-        (ng', Nothing) -> (Nothing, (r, h, smplfr, b {name_gen = ng'}, pr))
+    case res of
+        (ng', Just s') -> do
+            onMerge r (state ex1) (state ex2) (reducer_val ex1) (reducer_val ex2)
+            return (Just ex1 {state = s'}, (r, h, smplfr, b {name_gen = ng'}, pr)) -- todo: which reducer_val and halter_val to keep
+        (ng', Nothing) -> return (Nothing, (r, h, smplfr, b {name_gen = ng'}, pr))
 
 -- | Function for Logging State
 logState :: Show t => ExState rv hv sov t -> (r,h,s,Bindings,p) -> String

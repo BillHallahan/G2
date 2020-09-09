@@ -1,7 +1,7 @@
 module G2.Execution.Zipper ( initZipper
                            , evalZipper 
                            , Counter
-                           , Tree(..)
+                           , Tree
                            , Status(..)) where
 
 ------------
@@ -31,13 +31,13 @@ type Zipper a = (Tree a, Cxt a)
 data ZipperTree a b = ZipperTree { zipper :: Zipper a -- ^ Zipper on a tree of a-s
                                  , env :: b -- ^ Values that might be needed for reduction
                                  , work_func :: a -> b -> IO ([a], b, Status) -- ^ Function to perform work on an object
-                                 , merge_func :: a -> a -> b -> (Maybe a, b) -- ^ Func to merge objects at specified idx
+                                 , merge_func :: a -> a -> b -> IO (Maybe a, b) -- ^ Func to merge objects at specified idx
                                  , reset_merging_func :: a -> a }
 
 -- | Creates a Zipper of a Tree with just one node
 initZipper :: a -> b
            -> (a -> b -> IO ([a], b, Status))
-           -> (a -> a -> b -> (Maybe a, b))
+           -> (a -> a -> b -> IO (Maybe a, b))
            -> (a -> a)
            -> ZipperTree a b
 initZipper s e workFn mergeFn resetMergFn =
@@ -50,7 +50,11 @@ initZipper s e workFn mergeFn resetMergFn =
                   , reset_merging_func = resetMergFn }
 
 evalZipper :: ZipperTree a b -> IO (b)
-evalZipper zipTree@(ZipperTree { zipper = zipr, env = e, work_func = workFn, merge_func = mergeFn, reset_merging_func = resetMergFn })
+evalZipper zipTree@(ZipperTree { zipper = zipr
+                              , env = e
+                              , work_func = workFn
+                              , merge_func = mergeFn
+                              , reset_merging_func = resetMergFn })
     | Root s _ <- fst zipr = case s of
         [] -> return e
         (x:xs) -> do
@@ -72,6 +76,7 @@ evalZipper zipTree@(ZipperTree { zipper = zipr, env = e, work_func = workFn, mer
                     zipr' = (tree', snd zipr)
                 evalZipper (zipTree { zipper = zipr', env = e' })
             WorkSaturated -> do
+                putStrLn "Work saturated"
                 -- do not add reduced states to current tree. Instead add to list of states in root.
                 -- prevents tree from growing to deep. We do not attempt to merge these states
                 let reduceds = map resetMergFn as -- remove any merge pts
@@ -89,13 +94,16 @@ evalZipper zipTree@(ZipperTree { zipper = zipr, env = e, work_func = workFn, mer
                     zipr' = replaceNode zipr leaves -- replace node with leaves
                 evalZipper (zipTree { zipper = zipr', env = e' })
     | ReadyToMerge x count <- fst zipr = do
+        putStrLn "ReadyToMerge"
         let siblings = getSiblings zipr
+        putStrLn $ "length all = " ++ show (length siblings + 1) 
         if allReadyToMerge siblings count
-            then
-                let (mergedStates, e') = mergeObjsZipper mergeFn (x:(map treeVal siblings)) e
-                    leaves = map (\a -> Leaf a count) mergedStates
+            then do
+                (mergedStates, e') <- mergeObjsZipper mergeFn (x:(map treeVal siblings)) e
+                let leaves = map (\a -> Leaf a count) mergedStates
                     zipr' = replaceParent zipr leaves
-                in evalZipper (zipTree { zipper = zipr', env = e' })
+                putStrLn $ "length mergedStates = " ++ show (length mergedStates)
+                evalZipper (zipTree { zipper = zipr', env = e' })
             else
                 let zipr' = pickSibling zipr
                 in evalZipper (zipTree { zipper = zipr', env = e })
@@ -190,31 +198,31 @@ pickSibling' _ [] = error "pickSibling must be called with at least one Tree tha
 
 -- Iterates through list and attempts to merge adjacent objects if possible. Does not consider all possible combinations
 -- because number of successful merges only seem to increase marginally in such a case
-mergeObjsZipper :: (a -> a -> b -> (Maybe a, b))
-                  -> [a] -> b
-                  -> ([a], b)
-mergeObjsZipper mergeFn (x1:x2:xs) e =
-    case mergeFn x1 x2 e of
+mergeObjsZipper :: (a -> a -> b -> IO (Maybe a, b)) -> [a] -> b -> IO ([a], b)
+mergeObjsZipper mergeFn (x1:x2:xs) e = do
+    mrg <- mergeFn x1 x2 e
+    case mrg of
         (Just exS, e') -> mergeObjsZipper mergeFn (exS:xs) e'
-        (Nothing, e') -> let (merged, e'') = mergeObjsZipper mergeFn (x2:xs) e'
-                         in (x1:merged, e'')
-mergeObjsZipper _ ls e = (ls, e)
+        (Nothing, e') -> do
+            (merged, e'') <- mergeObjsZipper mergeFn (x2:xs) e'
+            return (x1:merged, e'')
+mergeObjsZipper _ ls e = return (ls, e)
 
 -- | Similar to mergeObjsZipper, but considers all possible combinations when merging objects
-mergeObjsAllZipper :: (a -> a -> b -> (Maybe a, b))
-                     -> [a] -> b
-                     -> ([a], b)
-mergeObjsAllZipper mergeFn (x:xs) e =
-    let (done, rest, e') = mergeObjsAllZipper' mergeFn x [] xs e
-        (mergedStates, e'') = mergeObjsAllZipper mergeFn rest e'
-    in (done:mergedStates, e'')
-mergeObjsAllZipper _ [] e = ([], e)
+-- mergeObjsAllZipper :: (a -> a -> b -> (Maybe a, b))
+--                      -> [a] -> b
+--                      -> ([a], b)
+-- mergeObjsAllZipper mergeFn (x:xs) e =
+--     let (done, rest, e') = mergeObjsAllZipper' mergeFn x [] xs e
+--         (mergedStates, e'') = mergeObjsAllZipper mergeFn rest e'
+--     in (done:mergedStates, e'')
+-- mergeObjsAllZipper _ [] e = ([], e)
 
-mergeObjsAllZipper' :: (a -> a -> b -> (Maybe a, b))
-                      -> a -> [a] -> [a] -> b
-                      -> (a, [a], b)
-mergeObjsAllZipper' mergeFn x1 checked (x2:xs) e =
-    case mergeFn x1 x2 e of
-        (Just exS, e') -> mergeObjsAllZipper' mergeFn exS checked xs e'
-        (Nothing, e') -> mergeObjsAllZipper' mergeFn x1 (x2:checked) xs e'
-mergeObjsAllZipper' _ x1 checked [] e = (x1, checked, e)
+-- mergeObjsAllZipper' :: (a -> a -> b -> (Maybe a, b))
+--                       -> a -> [a] -> [a] -> b
+--                       -> (a, [a], b)
+-- mergeObjsAllZipper' mergeFn x1 checked (x2:xs) e =
+--     case mergeFn x1 x2 e of
+--         (Just exS, e') -> mergeObjsAllZipper' mergeFn exS checked xs e'
+--         (Nothing, e') -> mergeObjsAllZipper' mergeFn x1 (x2:checked) xs e'
+-- mergeObjsAllZipper' _ x1 checked [] e = (x1, checked, e)
