@@ -4,7 +4,7 @@ module G2.Execution.Zipper ( initZipper
                            , Tree
                            , Status(..)) where
 
-import Debug.Trace
+import Data.List
 
 ------------
 -- Execution is represented by a multiway tree. Initially it is just a `Root` that contains the initial state(s). In each function call, any `Leaf`
@@ -34,6 +34,18 @@ data ZipperTree a b = ZipperTree { zipper :: Zipper a -- ^ Zipper on a tree of a
                                  , merge_func :: a -> a -> b -> IO (Maybe a, b) -- ^ Func to merge objects at specified idx
                                  , reset_merging_func :: a -> a }
 
+treeString :: Tree a -> String
+treeString (CaseSplit ts) = "CaseSplit [" ++ intercalate ", " (map treeString ts) ++ "]"
+treeString (Leaf _ _) = "Leaf"
+treeString (ReadyToMerge _ _) = "ReadyToMerge"
+
+cxtString :: Cxt a -> String
+cxtString (Cxt ts) =
+    "Cxt [" ++ intercalate ", " (map (\(t, ts') -> "(" ++ treeString t ++ ", [" ++ intercalate "," (map treeString ts') ++ "])") ts) ++ "]"
+
+zipperString :: Zipper a -> String
+zipperString (t, cxt) = "(" ++ treeString t ++ ", " ++ cxtString cxt ++ ")"
+
 -- | Creates a Zipper of a Tree with just one node
 initZipper :: a -> b
            -> (a -> b -> IO ([a], b, Status))
@@ -56,12 +68,12 @@ evalZipper zipTree@(ZipperTree { zipper = zipr
                               , merge_func = mergeFn
                               , reset_merging_func = resetMergFn })
     | CaseSplit s <- fst zipr = do
+        assertConsistent "CaseSplit 1" zipr
         case s of
             [] -> return e
             (x:xs) -> do
-                assertConsistent "CaseSplit 1" zipr
                 let leaf = x
-                    root' = CaseSplit xs
+                    root' = CaseSplit s
                     zipr' = (leaf, Cxt [(root', xs)])
                 assertConsistent "CaseSplit 2" zipr'
                 evalZipper (zipTree { zipper = zipr' })
@@ -130,6 +142,7 @@ treeVal (ReadyToMerge val _) = val
 treeVal (Leaf val _) = val
 treeVal _ = error "Tree has no value"
 
+
 getSiblings :: Zipper a -> [Tree a]
 getSiblings (_, context) =
     case context of
@@ -151,21 +164,23 @@ getChildren z =
 
 assertConsistent :: String -> Zipper a -> IO ()
 assertConsistent s z
-    = return ()
-    -- | Just par <- getParent z =
-    --     let
-    --         num_children = length (getChildren par)
-    --         num_siblings = length (getSiblings z)
-    --     in
-    --     case num_children == num_siblings + 1 of
-    --         True -> return ()
-    --         False -> error $ "inconsistent zipper at " ++ s
-    --                             ++ "\nnum_par_children = " ++ show num_children
-    --                             ++ "\nnum_siblings = " ++ show num_siblings
-    -- | otherwise =
-    --     case length (getSiblings z) == 0 of
-    --         True -> return ()
-    --         False -> error $ "siblings at root at " ++ s
+    | Just par <- getParent z =
+        let
+            children = getChildren par
+            siblings = getSiblings z
+
+            num_children = length children
+            num_siblings = length siblings
+        in
+        case num_children == num_siblings + 1 of
+            True -> return ()
+            False -> error $ "inconsistent zipper at " ++ s
+                                ++ "\nnum_par_children = " ++ show num_children
+                                ++ "\nnum_siblings = " ++ show num_siblings
+    | otherwise =
+        case length (getSiblings z) == 0 of
+            True -> return ()
+            False -> error $ "siblings at root at " ++ s
 
 -- | Add the reduceds to the list of states to be processed in the root of the treeZipper tz
 floatReducedsToRoot :: Zipper a -> [a] -> Zipper a
@@ -177,9 +192,11 @@ floatReducedsToRoot tz@(t, (Cxt (c:[]))) reduceds =
     case parent of
         Just (CaseSplit st) ->
             let
-                parent' = CaseSplit (st ++ map (flip Leaf 0) reduceds)
+                new_leaves = map (flip Leaf 0) reduceds
+                siblings' = siblings ++ new_leaves
+                parent' = CaseSplit $ st  ++ new_leaves
             in
-            (t, Cxt $ (parent', siblings):[])
+            (t, Cxt $ (parent', siblings'):[])
         _ -> error "not supported"
 floatReducedsToRoot tz@(t, (Cxt (_:cs))) reduceds =
     let
@@ -196,14 +213,6 @@ floatReducedsToRoot tz@(t, (Cxt (_:cs))) reduceds =
 
 -- | Replace current node with new leaves (if parent is CaseSplit), and focus on a new leaf, if any. If parent is root, add to list
 replaceNode :: Zipper a -> [Tree a] -> Zipper a
-replaceNode tz@(_, (Cxt  (c:[]))) leaves =
-    let
-        parent = getParent tz
-        siblings = getSiblings tz
-    in
-    case parent of
-        Just (CaseSplit st) -> (CaseSplit (leaves ++ st), Cxt [])
-        _ -> error "No other tree can be parent"
 replaceNode tz@(_, (Cxt (_:cs))) leaves =
     let
         parent = getParent tz
@@ -233,13 +242,13 @@ replaceParent tz@(_, (Cxt context)) leaves =
 -- | Remove current tree from parent's list of children, and progressively move up, pruning any parent that has 0 children. 
 -- Set zipper to focus on sibling (if any)
 deleteNode :: Zipper a -> Zipper a
-deleteNode tz@(_, (Cxt (c:[]))) =
+deleteNode tz@(_, (Cxt ([_]))) =
     let
         parent = getParent tz
         siblings = getSiblings tz
     in
     case parent of
-        Just (CaseSplit st) -> (CaseSplit st, Cxt [])
+        Just (CaseSplit st) -> (CaseSplit siblings, Cxt [])
         _ -> error "No other Tree can be a parent"
 deleteNode tz@(_, (Cxt (_:cs))) =
     let
@@ -247,13 +256,14 @@ deleteNode tz@(_, (Cxt (_:cs))) =
         siblings = getSiblings tz
     in
     case parent of
-        Just j_par@(CaseSplit _) ->
+        Just j_par@(CaseSplit st) ->
             case siblings of
                 l:ls ->
                     let
                         j_par' = CaseSplit siblings
                     in
                     (l, Cxt $ (j_par', ls):cs)
+                -- [_] -> (CaseSplit st, Cxt [])
                 [] -> deleteNode (j_par, Cxt cs)
         _ -> error "No other Tree can be a parent"
 
