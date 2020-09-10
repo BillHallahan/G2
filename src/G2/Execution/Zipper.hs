@@ -25,7 +25,7 @@ data Tree a = CaseSplit [Tree a] -- Node corresponding to point at which executi
 
 -- List of (Parent, [sibling]) pairs that represents path from a Node to the Root. Enables traversal from the node to the rest of the tree
 -- See: https://wiki.haskell.org/Zipper
-newtype Cxt a = Cxt [(Tree a, [Tree a])]
+newtype Cxt a = Cxt [[Tree a]]
 type Zipper a = (Tree a, Cxt a)
 
 data ZipperTree a b = ZipperTree { zipper :: Zipper a -- ^ Zipper on a tree of a-s
@@ -41,7 +41,7 @@ treeString (ReadyToMerge _ _) = "ReadyToMerge"
 
 cxtString :: Cxt a -> String
 cxtString (Cxt ts) =
-    "Cxt [" ++ intercalate ", " (map (\(t, ts') -> "(" ++ treeString t ++ ", [" ++ intercalate "," (map treeString ts') ++ "])") ts) ++ "]"
+    "Cxt [" ++ intercalate ", " (map (\ts' -> "[" ++ intercalate "," (map treeString ts') ++ "]") ts) ++ "]"
 
 zipperString :: Zipper a -> String
 zipperString (t, cxt) = "(" ++ treeString t ++ ", " ++ cxtString cxt ++ ")"
@@ -73,8 +73,7 @@ evalZipper zipTree@(ZipperTree { zipper = zipr
             [] -> return e
             (x:xs) -> do
                 let leaf = x
-                    root' = CaseSplit s
-                    zipr' = (leaf, Cxt [(root', xs)])
+                    zipr' = (leaf, Cxt [xs])
                 assertConsistent "CaseSplit 2" zipr'
                 evalZipper (zipTree { zipper = zipr' })
     | Leaf x count <- fst zipr = do
@@ -146,13 +145,13 @@ treeVal _ = error "Tree has no value"
 getSiblings :: Zipper a -> [Tree a]
 getSiblings (_, context) =
     case context of
-        Cxt (x:_) -> snd x
+        Cxt (x:_) -> x
         _ -> []
 
 getParent :: Zipper a -> Maybe (Tree a)
-getParent (_, context) =
+getParent (t, context) =
     case context of
-        Cxt (x:_) -> Just (fst x)
+        Cxt (x:_) -> Just . CaseSplit $ t:x
         _ -> Nothing
 
 getChildren :: Tree a -> [Tree a]
@@ -196,7 +195,7 @@ floatReducedsToRoot tz@(t, (Cxt (c:[]))) reduceds =
                 siblings' = siblings ++ new_leaves
                 parent' = CaseSplit $ st  ++ new_leaves
             in
-            (t, Cxt $ (parent', siblings'):[])
+            (t, Cxt $ siblings':[])
         _ -> error "not supported"
 floatReducedsToRoot tz@(t, (Cxt (_:cs))) reduceds =
     let
@@ -209,7 +208,7 @@ floatReducedsToRoot tz@(t, (Cxt (_:cs))) reduceds =
                 parentZipper = (j_par, Cxt cs)
                 (parent', Cxt context') = floatReducedsToRoot parentZipper reduceds
             in
-            (t, Cxt $ (parent', siblings):context')
+            (t, Cxt $ siblings:context')
 
 -- | Replace current node with new leaves (if parent is CaseSplit), and focus on a new leaf, if any. If parent is root, add to list
 replaceNode :: Zipper a -> [Tree a] -> Zipper a
@@ -262,7 +261,7 @@ deleteNode tz@(_, (Cxt (_:cs))) =
                     let
                         j_par' = CaseSplit siblings
                     in
-                    (l, Cxt $ (j_par', ls):cs)
+                    (l, Cxt $ ls:cs)
                 -- [_] -> (CaseSplit st, Cxt [])
                 [] -> deleteNode (j_par, Cxt cs)
         _ -> error "No other Tree can be a parent"
@@ -271,7 +270,7 @@ pickChild :: Zipper a -> Zipper a
 pickChild tz@(t, (Cxt context))
     | CaseSplit leaves <- t =
         case leaves of
-            l:ls -> (l, Cxt $ (t, ls):context)
+            l:ls -> (l, Cxt $ ls:context)
             [] -> deleteNode tz
     | otherwise = error "No children to choose from"
 
@@ -284,7 +283,7 @@ pickSibling tz@(t, (Cxt (_:cs))) =
         (siblings', sibling) = pickSibling' [] siblings
     in
     case parent of
-        Just j_par -> (sibling, Cxt $ (j_par, t:siblings'):cs)
+        Just j_par -> (sibling, Cxt $ (t:siblings'):cs)
         Nothing -> error "pickSibling:No siblings"
 
 pickSibling' :: [Tree a] -> [Tree a] -> ([Tree a],Tree a)
@@ -305,22 +304,3 @@ mergeObjsZipper mergeFn (x1:x2:xs) e = do
             (merged, e'') <- mergeObjsZipper mergeFn (x2:xs) e'
             return (x1:merged, e'')
 mergeObjsZipper _ ls e = return (ls, e)
-
--- | Similar to mergeObjsZipper, but considers all possible combinations when merging objects
--- mergeObjsAllZipper :: (a -> a -> b -> (Maybe a, b))
---                      -> [a] -> b
---                      -> ([a], b)
--- mergeObjsAllZipper mergeFn (x:xs) e =
---     let (done, rest, e') = mergeObjsAllZipper' mergeFn x [] xs e
---         (mergedStates, e'') = mergeObjsAllZipper mergeFn rest e'
---     in (done:mergedStates, e'')
--- mergeObjsAllZipper _ [] e = ([], e)
-
--- mergeObjsAllZipper' :: (a -> a -> b -> (Maybe a, b))
---                       -> a -> [a] -> [a] -> b
---                       -> (a, [a], b)
--- mergeObjsAllZipper' mergeFn x1 checked (x2:xs) e =
---     case mergeFn x1 x2 e of
---         (Just exS, e') -> mergeObjsAllZipper' mergeFn exS checked xs e'
---         (Nothing, e') -> mergeObjsAllZipper' mergeFn x1 (x2:checked) xs e'
--- mergeObjsAllZipper' _ x1 checked [] e = (x1, checked, e)
