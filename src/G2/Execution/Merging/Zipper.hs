@@ -1,8 +1,8 @@
-module G2.Execution.Zipper ( initZipper
-                           , evalZipper 
-                           , Counter
-                           , Tree
-                           , Status(..)) where
+module G2.Execution.Merging.Zipper ( initZipper
+                                   , evalZipper 
+                                   , Counter
+                                   , Tree
+                                   , Status(..)) where
 
 import Data.List
 

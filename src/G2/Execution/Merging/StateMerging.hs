@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Execution.StateMerging
+module G2.Execution.Merging.StateMerging
   ( mergeState
   , mergeCurrExpr
   , mergeExpr

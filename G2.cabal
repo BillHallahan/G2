@@ -40,7 +40,7 @@ library
                        , G2.Execution.Reducer
                        , G2.Execution.Rules
                        , G2.Execution.RuleTypes
-                       , G2.Execution.StateMerging
+                       , G2.Execution.Merging.StateMerging
 
                        , G2.Initialization.Interface
                        , G2.Initialization.DeepSeqWalks
@@ -116,8 +116,8 @@ library
                        , G2.Config.Interface
                        , G2.Config.ParseConfig
 
-                       , G2.Execution.MergingHelpers
-                       , G2.Execution.Zipper
+                       , G2.Execution.Merging.MergingHelpers
+                       , G2.Execution.Merging.Zipper
 
                        , G2.Interface.Interface
                        , G2.Interface.OutputTypes

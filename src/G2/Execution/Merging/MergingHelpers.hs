@@ -1,4 +1,4 @@
-module G2.Execution.MergingHelpers
+module G2.Execution.Merging.MergingHelpers
   ( createEqExpr
   , createEqExprInt
   , getAssumption
@@ -11,7 +11,7 @@ module G2.Execution.MergingHelpers
   ) where
 
 import G2.Language
-import G2.Execution.StateMerging
+import G2.Execution.Merging.StateMerging
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 

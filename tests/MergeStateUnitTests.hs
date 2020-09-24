@@ -9,7 +9,7 @@ import G2.Interface
 import G2.Language as G2
 import G2.Translation
 import G2.Initialization.MkCurrExpr
-import G2.Execution.StateMerging as SM
+import G2.Execution.Merging.StateMerging as SM
 import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.ExprEnv as EE
 import qualified G2.Language.PathConds as PC

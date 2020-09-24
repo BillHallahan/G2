@@ -63,14 +63,14 @@ module G2.Execution.Reducer ( Reducer (..)
 import G2.Config.Config
 import qualified G2.Language.ExprEnv as E
 import G2.Execution.Rules
-import G2.Execution.Zipper hiding (Status (..))
-import qualified G2.Execution.Zipper as Z
+import G2.Execution.Merging.Zipper hiding (Status (..))
+import qualified G2.Execution.Merging.Zipper as Z
 import G2.Language
 import qualified G2.Language.Monad as MD
 import qualified G2.Language.Stack as Stck
 import G2.Solver
 import G2.Lib.Printers
-import G2.Execution.StateMerging
+import G2.Execution.Merging.StateMerging
 
 import Data.Foldable
 import qualified Data.HashSet as HS

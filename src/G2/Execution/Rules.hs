@@ -19,9 +19,9 @@ module G2.Execution.Rules ( module G2.Execution.RuleTypes
 import G2.Config.Config
 import G2.Execution.NormalForms
 import G2.Execution.PrimitiveEval
-import G2.Execution.StateMerging
+import G2.Execution.Merging.StateMerging
 import G2.Execution.RuleTypes
-import qualified G2.Execution.MergingHelpers as SM
+import qualified G2.Execution.Merging.MergingHelpers as SM
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.KnownValues as KV
