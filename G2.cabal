@@ -41,6 +41,7 @@ library
                        , G2.Execution.Rules
                        , G2.Execution.RuleTypes
                        , G2.Execution.Merging.StateMerging
+                       , G2.Execution.Merging.MergeGraph
 
                        , G2.Initialization.Interface
                        , G2.Initialization.DeepSeqWalks
@@ -195,7 +196,7 @@ library
   default-language:    Haskell2010
   ghc-options:         -Wall
                        -- -ddump-splices
-                       -- -fprof-auto
+                       -fprof-auto
                        -- -fexternal-interpreter -opti+RTS -opti-p
   other-extensions:    CPP
   if flag(newLH)
@@ -250,7 +251,7 @@ executable G2M
   default-language:    Haskell2010
   ghc-options:         -Wall
                        -- -ddump-splices
-                       -- -fprof-auto "-with-rtsopts=-p"
+                       -fprof-auto "-with-rtsopts=-p"
   hs-source-dirs:      g2m
   main-is:             Main.hs
   other-modules:       

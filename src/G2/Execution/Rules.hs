@@ -361,8 +361,8 @@ evalCase mergeStates s@(State { expr_env = eenv
                            , curr_expr = CurrExpr Evaluate mexpr
                            , exec_stack = S.push frame stck }], ng)
 
-  | (True, s') <- hitMaxDepth s bind
-  , Merging <- mergeStates = (RuleMaxDepth, [newPCEmpty s'], ng)
+  -- | (True, s') <- hitMaxDepth s bind
+  -- , Merging <- mergeStates = (RuleMaxDepth, [newPCEmpty s'], ng)
 
   -- If we are pointing to something in expr value form, that is not addressed
   -- by some previous case, we handle it by branching on every `Alt`, and adding

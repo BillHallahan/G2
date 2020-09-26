@@ -54,6 +54,15 @@ isSubsequenceOf' a@(x:a') (y:b)
 subseqOfTest :: [Int] -> [Int] -> Bool
 subseqOfTest a b = (isSubsequenceOf' a b) && (length b > 8)
 
+isSubsequenceOf2' :: (Eq a) => [a] -> [a] -> Bool
+isSubsequenceOf2' a@(x:a') (y:b)
+    | x == y    = isSubsequenceOf2' a' b
+    | otherwise = isSubsequenceOf2' a b
+isSubsequenceOf2' _ _ = True
+
+subseqOfTest2 :: [Int] -> [Int] -> Bool
+subseqOfTest2 a b = (isSubsequenceOf2' a b) && (length b > 3)
+
 foldrSimple :: (a -> b -> b) -> b -> [a] -> b
 foldrSimple f z [] = z
 foldrSimple f z (x:xs) = f x (foldrSimple f z xs)
