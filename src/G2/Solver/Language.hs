@@ -38,8 +38,8 @@ data SMTAST = (:>=) SMTAST SMTAST
             | (:<) SMTAST SMTAST
             | (:<=) SMTAST SMTAST
 
-            | (:&&) SMTAST SMTAST
-            | (:||) SMTAST SMTAST
+            | SmtAnd [SMTAST]
+            | SmtOr [SMTAST]
             | (:!) SMTAST
             | (:=>) SMTAST SMTAST
             | (:<=>) SMTAST SMTAST
@@ -91,8 +91,8 @@ instance AST SMTAST where
     children (x :< y) = [x, y]
     children (x :<= y) = [x, y]
 
-    children (x :&& y) = [x, y]
-    children (x :|| y) = [x, y]
+    children (SmtAnd xs) = xs
+    children (SmtOr xs) = xs
     children ((:!) x) = [x]
     children (x :=> y) = [x, y]
     children (x :<=> y) = [x, y]
@@ -115,8 +115,8 @@ instance AST SMTAST where
     modifyChildren f (x :< y) = f x :< f y
     modifyChildren f (x :<= y) = f x :<= f y
 
-    modifyChildren f (x :&& y) = f x :&& f y
-    modifyChildren f (x :|| y) = f x :|| f y
+    modifyChildren f (SmtAnd xs) = SmtAnd (map f xs)
+    modifyChildren f (SmtOr xs) = SmtOr (map f xs)
     modifyChildren f ((:!) x) = (:!) (f x)
     modifyChildren f (x :=> y) = f x :=> f y
 

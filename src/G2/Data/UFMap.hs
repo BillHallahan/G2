@@ -7,6 +7,7 @@ module G2.Data.UFMap ( UFMap
                      , fromList
                      , toSet
                      , fromSet
+                     , toSimpleMap
                      , join
                      , joinAll
                      , lookup
@@ -15,6 +16,8 @@ module G2.Data.UFMap ( UFMap
                      , insertWith
                      , adjust
                      , alter
+                     , clear
+                     , filterWithKey
 
                      , unionWith
                      , mergeJoiningWithKey
@@ -82,6 +85,9 @@ fromList xs =
 fromSet :: (Eq k, Hashable k) => S.HashSet (S.HashSet k, Maybe v) -> UFMap k v
 fromSet = fromList . P.map (\(ks, v) -> (S.toList ks, v)) . S.toList
 
+toSimpleMap :: UFMap k v -> M.HashMap k v
+toSimpleMap = store
+
 -- | Joins two keys, regardless of whether they are present in the map.
 -- If the keys are already joined, the map is not changed
 join :: (Eq k, Hashable k) => (v -> v -> v) -> k -> k -> UFMap k v -> UFMap k v
@@ -132,6 +138,13 @@ adjust f k (UFMap uf m) = UFMap uf $ M.adjust f (UF.find k uf) m
 
 alter :: (Eq k, Hashable k) => (Maybe v -> Maybe v) -> k -> UFMap k v -> UFMap k v
 alter f k (UFMap uf m) = UFMap uf $ M.alter f (UF.find k uf) m
+
+-- | Preserves the joined keys, but deletes all contained elements
+clear :: UFMap k v -> UFMap k v
+clear (UFMap uf _) = UFMap uf M.empty
+
+filterWithKey :: (k -> v -> Bool) -> UFMap k v -> UFMap k v
+filterWithKey p (UFMap uf m) = UFMap uf $ M.filterWithKey p m
 
 unionWith :: (Eq k, Hashable k) => (v -> v -> v) -> UFMap k v -> UFMap k v -> UFMap k v
 unionWith f (UFMap uf1 m1) (UFMap uf2 m2) =

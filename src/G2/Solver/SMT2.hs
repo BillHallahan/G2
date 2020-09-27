@@ -24,6 +24,7 @@ import G2.Solver.Converters --It would be nice to not import this...
 
 import qualified Data.Map as M
 import Data.Ratio
+import Data.Semigroup
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 import Text.Builder hiding (null)
@@ -56,7 +57,7 @@ instance SMTConverter Z3 Builder Builder (Handle, Handle, ProcessHandle) where
     merge _ = mappend
 
     checkSat _ (h_in, h_out, _) formulaBldr = do
-        -- putStrLn "checkSat"        
+        -- putStrLn "checkSat"
         let formula = run formulaBldr
         -- TIO.putStrLn formula
         setUpFormulaZ3 h_in formula
@@ -133,8 +134,8 @@ instance SMTConverter Z3 Builder Builder (Handle, Handle, ProcessHandle) where
     (.<=) _ = function2 "<="
     (.<) _ = function2 "<"
 
-    (.&&) _ = function2 "and"
-    (.||) _ = function2 "or"
+    smtAnd _ = functionList "and"
+    smtOr _ = functionList "or"
     (.!) _ = function1 "not"
     (.=>) _ = function2 "=>"
     (.<=>) _ = function2 "="
@@ -260,8 +261,8 @@ instance SMTConverter CVC4 Builder Builder (Handle, Handle, ProcessHandle) where
     (.<=) _ = function2 "<="
     (.<) _ = function2 "<"
 
-    (.&&) _ = function2 "and"
-    (.||) _ = function2 "or"
+    smtAnd _ = functionList "and"
+    smtOr _ = functionList "or"
     (.!) _ = function1 "not"
     (.=>) _ = function2 "=>"
     (.<=>) _ = function2 "="
@@ -306,13 +307,13 @@ functionList :: Builder -> [Builder] -> Builder
 functionList f xs = mconcat ["(", f, " ", (intercalate (text " ") xs),")"]
 
 function1 :: Builder -> Builder -> Builder
-function1 f a = mconcat ["(", f, " ", a, ")"]
+function1 f a = "(" <> f <> " " <> a <> ")"
 
 function2 :: Builder -> Builder -> Builder -> Builder
-function2 f a b = mconcat ["(", f, " ", a, " ", b, ")"]
+function2 f a b = "(" <> f <> " " <> a <> " " <> b <> ")"
 
 function3 :: Builder -> Builder -> Builder -> Builder -> Builder
-function3 f a b c = mconcat ["(", f, " ", a, " ", b, " ", c, ")"]
+function3 f a b c = "(" <> f <> " " <> a <> " " <> b <> " " <> c <> ")"
 
 -- | getProcessHandles
 -- Ideally, this function should be called only once, and the same Handles should be used

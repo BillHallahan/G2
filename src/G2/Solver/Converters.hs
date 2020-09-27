@@ -59,8 +59,8 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     (.<) :: con -> ast -> ast -> ast
     (.<=) :: con -> ast -> ast -> ast
 
-    (.&&) :: con -> ast -> ast -> ast
-    (.||) :: con -> ast -> ast -> ast
+    smtAnd :: con -> [ast] -> ast
+    smtOr :: con -> [ast] -> ast
     (.!) :: con -> ast -> ast
     (.=>) :: con -> ast -> ast -> ast
     (.<=>) :: con -> ast -> ast -> ast
@@ -279,8 +279,8 @@ isNIRA' s = All $ getAll (isNIA' s) || getAll (isNRA' s)
 
 isCore' :: SMTAST -> All
 isCore' (_ := _) = All True
-isCore' (_ :&& _) = All True
-isCore' (_ :|| _) = All True
+isCore' (SmtAnd _) = All True
+isCore' (SmtOr _) = All True
 isCore' ((:!) _) = All True
 isCore' (_ :=> _) = All True
 isCore' (_ :<=> _) = All True
@@ -336,8 +336,8 @@ exprToSMT (NonDet es) =
     case es of
         [] -> error $ "exprToSMT: invalid NonDet Expr: " ++ show es
         [x] -> exprToSMT x
-        [x1,x2] -> exprToSMT x1 :|| exprToSMT x2
-        (x:xs) -> exprToSMT x :|| exprToSMT (NonDet xs)
+        [x1,x2] -> SmtOr [exprToSMT x1, exprToSMT x2]
+        (x:xs) -> SmtOr [exprToSMT x, exprToSMT (NonDet xs)]
 exprToSMT (Assume _ e1 e2) = exprToSMT e1 :=> exprToSMT e2
 exprToSMT a@(App _ _) =
     let
@@ -373,8 +373,8 @@ funcToSMT1Prim IntToDouble e = ItoR (exprToSMT e)
 funcToSMT1Prim err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 
 funcToSMT2Prim :: Primitive -> Expr -> Expr -> SMTAST
-funcToSMT2Prim And a1 a2 = exprToSMT a1 :&& exprToSMT a2
-funcToSMT2Prim Or a1 a2 = exprToSMT a1 :|| exprToSMT a2
+funcToSMT2Prim And a1 a2 = SmtAnd [exprToSMT a1, exprToSMT a2]
+funcToSMT2Prim Or a1 a2 = SmtOr [exprToSMT a1, exprToSMT a2]
 funcToSMT2Prim Implies a1 a2 = exprToSMT a1 :=> exprToSMT a2
 funcToSMT2Prim Iff a1 a2 = exprToSMT a1 :<=> exprToSMT a2
 funcToSMT2Prim Ge a1 a2 = exprToSMT a1 :>= exprToSMT a2
@@ -461,8 +461,8 @@ toSolverAST con (x :/= y) = (./=) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :< y) = (.<) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :<= y) = (.<=) con (toSolverAST con x) (toSolverAST con y)
 
-toSolverAST con (x :&& y) = (.&&) con (toSolverAST con x) (toSolverAST con y)
-toSolverAST con (x :|| y) =  (.||) con (toSolverAST con x) (toSolverAST con y)
+toSolverAST con (SmtAnd xs) = smtAnd con $ map (toSolverAST con) xs
+toSolverAST con (SmtOr xs) =  smtOr con $ map (toSolverAST con) xs
 toSolverAST con ((:!) x) = (.!) con $ toSolverAST con x
 toSolverAST con (x :=> y) = (.=>) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :<=> y) = (.<=>) con (toSolverAST con x) (toSolverAST con y)

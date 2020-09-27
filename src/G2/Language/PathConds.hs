@@ -54,6 +54,7 @@ import Data.Data (Data, Typeable)
 import GHC.Generics (Generic)
 import Data.Hashable
 import qualified Data.HashSet as HS
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Map.Merge.Lazy
@@ -178,7 +179,12 @@ null = UF.null . toUFMap
 -- Returns a list of PathConds, where the union of the output PathConds
 -- is the input PathConds, and the PathCond are seperated into there SCCs
 relatedSets :: PathConds -> [PathConds]
-relatedSets = P.map (\ksv -> PathConds $ UF.fromList [ksv]) . UF.toList . toUFMap
+relatedSets (PathConds ufm) =
+    let
+        c_ufm = UF.clear ufm
+    in
+    P.map (\(k, v) -> PathConds $ UF.insert k v c_ufm) $ HM.toList (UF.toSimpleMap ufm) 
+-- P.map (\ksv -> PathConds $ UF.fromList [ksv]) . UF.toList . toUFMap
 -- relatedSets :: KV.KnownValues -> PathConds -> [PathConds]
 -- relatedSets kv pc@(PathConds pcm) = 
 --     let
@@ -224,7 +230,10 @@ varNamesInPC = P.map idName . varIdsInPC
 -- {-# INLINE scc #-}
 scc :: [Name] -> PathConds -> PathConds
 scc ns (PathConds pcs) =
-    fromHashedList . HS.toList . HS.unions . catMaybes $ P.map (flip UF.lookup pcs . Just) ns
+    PathConds $ UF.filterWithKey (\k _ -> case k of
+                                            Just k' -> k' `L.elem` ns
+                                            Nothing -> False) pcs
+    -- fromHashedList . HS.toList . HS.unions . catMaybes $ P.map (flip UF.lookup pcs . Just) ns
 -- scc :: [Name] -> PathConds -> PathConds
 -- scc ns (PathConds pc) = PathConds $ scc' ns pc M.empty
 
