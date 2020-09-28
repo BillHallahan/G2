@@ -615,8 +615,10 @@ mergePathConds simplifier ctxt@(Context { s1_ = s1@(State { path_conds = pc1, kn
 -- occurrences of the old symbolic Ids' Names in the PathConds with the Name of the corresponding new Id. This assumes Old and New Id have the same type
 subIdNamesPCs :: PathConds -> HM.HashMap Id Id -> PathConds
 subIdNamesPCs pcs changedSyms =
-    let changedSymsNames = HM.foldrWithKey (\k v hm -> HM.insert (idName k) (idName v) hm) HM.empty changedSyms
-    in renames changedSymsNames pcs
+    let
+      changedSymsNames = HM.foldrWithKey (\k v hm -> HM.insert (idName k) (idName v) hm) HM.empty changedSyms
+    in
+    renames changedSymsNames pcs
 
 -- | Return PathCond restricting value of `newId` to [lower, upper]
 restrictSymVal :: KnownValues -> Integer -> Integer -> Id -> PathCond

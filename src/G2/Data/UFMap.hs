@@ -12,6 +12,7 @@ module G2.Data.UFMap ( UFMap
                      , joinAll
                      , lookup
                      , (!)
+                     , find
                      , insert
                      , insertWith
                      , adjust
@@ -126,6 +127,9 @@ lookupWithRep k (UFMap uf m) =
 uf ! k = case lookup k uf of
                 Just v -> v
                 Nothing -> error "!: key not found"
+
+find :: (Eq k, Hashable k) => k -> UFMap k v -> k
+find k = UF.find k . joined
 
 insert :: (Eq k, Hashable k) => k -> v -> UFMap k v -> UFMap k v
 insert k v (UFMap uf m) = UFMap uf $ M.insert (UF.find k uf) v m

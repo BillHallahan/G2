@@ -406,11 +406,27 @@ instance ASTContainer PathCond Type where
     modifyContainedASTs f (AssumePC i num pc) = AssumePC (modifyContainedASTs f i) num (modifyContainedASTs f pc)
 
 instance Named PathConds where
+    -- In rename and renames, we loopup and rename individual keys, to avoid rehashing everything in the PathConds
+
     names = names . UF.toList . toUFMap
 
-    rename old new = fromList . rename old new . toList
+    rename old new (PathConds pcs) =
+        let
+            pcs' = UF.join HS.union (Just old) (Just new) pcs
+        in
+        case UF.lookup (Just old) pcs' of
+            Just pc -> PathConds $ UF.insert (Just new) (rename old new pc) pcs'
+            Nothing -> PathConds pcs'
 
-    renames hm = fromList . renames hm . toList
+    renames hm (PathConds pcs) =
+        let
+            rep_ns = L.foldr (\k -> HS.insert (UF.find (Just k) pcs)) HS.empty $ HM.keys hm
+            pcs' = L.foldr (\(k1, k2) -> UF.join HS.union (Just k1) (Just k2)) pcs $ HM.toList hm
+        in
+        PathConds $ L.foldr (\k pcs_ -> 
+                                case UF.lookup k pcs_ of
+                                    Just pc -> UF.insert k (renames hm pc) pcs_
+                                    Nothing -> pcs_) pcs' rep_ns
 
 instance Named PathCond where
     names (AltCond _ e _) = names e
