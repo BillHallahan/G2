@@ -235,11 +235,18 @@ difference :: ExprEnv -> ExprEnv -> ExprEnv
 difference (ExprEnv eenv) (ExprEnv eenv') = ExprEnv (M.difference eenv eenv')
 
 -- | Intersection with a combining function that threads an accumulating argument
-intersectionAccum :: (a -> (EnvObj, EnvObj) -> (a, EnvObj)) -> a -> ExprEnv -> ExprEnv -> (a, ExprEnv)
-intersectionAccum f a (ExprEnv eenv) (ExprEnv eenv') =
+intersectionAccum :: (NameGen -> a -> (EnvObj, EnvObj) -> (a, EnvObj, NameGen)) -> NameGen -> a -> ExprEnv -> ExprEnv -> (a, ExprEnv, NameGen)
+intersectionAccum f ng a (ExprEnv eenv) (ExprEnv eenv') =
     let zippedEnvs = M.intersectionWith (\v1 v2 -> (v1,v2)) eenv eenv'
-        (a', eenv'') = M.mapAccum f a zippedEnvs
-    in (a', ExprEnv eenv'')
+        ((ng', a'), eenv'') = M.mapAccum (\(ng, a) e -> let (a', e', ng') = f ng a e in
+                                                            case e' of
+                                                                ExprObj Nothing e'' ->
+                                                                    let
+                                                                        (cr, ng'') = freshSeededName clName ng'
+                                                                    in
+                                                                    ((ng'', a'), ExprObj (Just (CL cr)) e'')
+                                                                _ -> ((ng', a'), e')) (ng, a) zippedEnvs
+    in (a', ExprEnv eenv'', ng')
 
 -- | Map a function over all `Expr` in the `ExprEnv`.
 -- Will not replace symbolic variables with non-symbolic values,
@@ -359,10 +366,13 @@ assignCLs init_ng = (\(x, y) -> (y, x))
                   . L.mapAccumR (\ng (n, e) -> case e of
                                                 ExprObj Nothing e' ->
                                                     let
-                                                        (cr, ng') = freshSeededName (Name "cl" Nothing 0 Nothing) ng
+                                                        (cr, ng') = freshSeededName clName ng
                                                     in
                                                     (ng', (n, ExprObj (Just (CL cr)) e'))
                                                 _ -> (ng, (n, e))) init_ng . toList
+
+clName :: Name
+clName = Name "cl" Nothing 0 Nothing
 
 numOfCLs :: ExprEnv -> Int
 numOfCLs = L.sum . L.map (clTo1 . snd) . toList
