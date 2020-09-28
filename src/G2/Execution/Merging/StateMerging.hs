@@ -29,6 +29,8 @@ import qualified Data.List as L
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 
+import Debug.Trace
+
 isMergeable :: Eq t => State t -> State t -> Bool
 isMergeable s1 s2 = 
     (exec_stack s1 == exec_stack s2)
@@ -479,19 +481,19 @@ mergeExprEnv ctxt@(Context {s1_ = (State {expr_env = eenv1}), s2_ = (State {expr
 mergeEnvObj :: Id -> E.ExprEnv -> E.ExprEnv -> (HM.HashMap Id Id, HM.HashMap Id Id, NameGen) -> (E.EnvObj, E.EnvObj)
             -> ((HM.HashMap Id Id, HM.HashMap Id Id, NameGen), E.EnvObj)
 mergeEnvObj newId eenv1 eenv2 (changedSyms1, changedSyms2, ngen) (eObj1, eObj2)
-    | eObj1 == eObj2 = ((changedSyms1, changedSyms2, ngen), eObj1)
+    | E.EqFast eObj1 == E.EqFast eObj2 = ((changedSyms1, changedSyms2, ngen), eObj1)
     -- Following cases deal with unequal EnvObjs
-    | (E.ExprObj e1) <- eObj1
-    , (E.ExprObj e2) <- eObj2 = ((changedSyms1, changedSyms2, ngen), E.ExprObj (mergeExpr newId e1 e2))
+    | (E.ExprObj _ e1) <- eObj1
+    , (E.ExprObj _ e2) <- eObj2 = ((changedSyms1, changedSyms2, ngen), E.ExprObj Nothing (mergeExpr newId e1 e2))
     -- Replace the Id in the SymbObj with a new Symbolic Id and merge with the expr from the ExprObj in a Case expr
     | (E.SymbObj i) <- eObj1
-    , (E.ExprObj e2) <- eObj2 = mergeSymbExprObjs ngen changedSyms1 changedSyms2 newId i e2 True
-    | (E.ExprObj e1) <- eObj1
+    , (E.ExprObj _ e2) <- eObj2 = mergeSymbExprObjs ngen changedSyms1 changedSyms2 newId i e2 True
+    | (E.ExprObj _ e1) <- eObj1
     , (E.SymbObj i) <- eObj2 = mergeSymbExprObjs ngen changedSyms1 changedSyms2 newId i e1 False
     -- Lookup RedirObj and create a Case Expr combining the lookup result with the expr from the ExprObj
     | (E.RedirObj n) <- eObj1
-    , (E.ExprObj e2) <- eObj2 = mergeRedirExprObjs ngen changedSyms1 changedSyms2 newId eenv1 n e2 True
-    | (E.ExprObj e1) <- eObj1
+    , (E.ExprObj _ e2) <- eObj2 = mergeRedirExprObjs ngen changedSyms1 changedSyms2 newId eenv1 n e2 True
+    | (E.ExprObj _ e1) <- eObj1
     , (E.RedirObj n) <- eObj2 = mergeRedirExprObjs ngen changedSyms1 changedSyms2 newId eenv2 n e1 False
     | (E.RedirObj n1) <- eObj1
     , (E.RedirObj n2) <- eObj2 = mergeTwoRedirObjs ngen changedSyms1 changedSyms2 newId eenv1 eenv2 n1 n2
@@ -510,11 +512,11 @@ mergeSymbExprObjs ngen changedSyms1 changedSyms2 newId i@(Id _ t) e first =
         in case first of
             True ->
                 let changedSyms1' = HM.insert i newSymId changedSyms1
-                    mergedExprObj = E.ExprObj (mergeExpr newId (Var newSymId) e)
+                    mergedExprObj = E.ExprObj Nothing (mergeExpr newId (Var newSymId) e)
                 in ((changedSyms1', changedSyms2, ngen'), mergedExprObj)
             False ->
                 let changedSyms2' = HM.insert i newSymId changedSyms2
-                    mergedExprObj = E.ExprObj (mergeExpr newId e (Var newSymId))
+                    mergedExprObj = E.ExprObj Nothing (mergeExpr newId e (Var newSymId))
                 in ((changedSyms1, changedSyms2', ngen'), mergedExprObj)
 
 mergeRedirExprObjs :: NameGen -> HM.HashMap Id Id -> HM.HashMap Id Id -> Id -> E.ExprEnv -> Name -> Expr -> Bool
@@ -524,8 +526,8 @@ mergeRedirExprObjs ngen changedSyms1 changedSyms2 newId eenv n e first =
                 Just x -> x
                 Nothing -> error $ "Could not find EnvObj with name: " ++ (show n)
             mergedEObj = case first of
-                True -> E.ExprObj (mergeExpr newId e2 e)
-                False -> E.ExprObj (mergeExpr newId e e2)
+                True -> E.ExprObj Nothing (mergeExpr newId e2 e)
+                False -> E.ExprObj Nothing (mergeExpr newId e e2)
         in ((changedSyms1, changedSyms2, ngen), mergedEObj)
 
 mergeTwoRedirObjs :: NameGen -> HM.HashMap Id Id -> HM.HashMap Id Id -> Id -> E.ExprEnv -> E.ExprEnv -> Name -> Name
@@ -537,7 +539,7 @@ mergeTwoRedirObjs ngen changedSyms1 changedSyms2 newId eenv1 eenv2 n1 n2 =
             e2 = case (E.lookup n2 eenv2) of
                 (Just x) -> x
                 Nothing -> error $ "Could not find EnvObj with name: " ++ (show n2)
-            mergedExprObj = E.ExprObj (mergeExpr newId e1 e2)
+            mergedExprObj = E.ExprObj Nothing (mergeExpr newId e1 e2)
         in ((changedSyms1, changedSyms2, ngen), mergedExprObj)
 
 mergeTwoSymbObjs :: NameGen -> HM.HashMap Id Id -> HM.HashMap Id Id -> Id -> Id -> Id
@@ -547,7 +549,7 @@ mergeTwoSymbObjs ngen changedSyms1 changedSyms2 newId i1@(Id _ t1) i2@(Id _ t2) 
             (newSymId2, ngen'') = freshMergeId t2 ngen'
             changedSyms1' = HM.insert i1 newSymId1 changedSyms1
             changedSyms2' = HM.insert i2 newSymId2 changedSyms2
-            mergedExprObj = E.ExprObj (mergeExpr newId (Var newSymId1) (Var newSymId2))
+            mergedExprObj = E.ExprObj Nothing (mergeExpr newId (Var newSymId1) (Var newSymId2))
         in ((changedSyms1', changedSyms2', ngen''), mergedExprObj)
 
 updatePCs :: Context t -> HM.HashMap Id Id -> HM.HashMap Id Id -> Context t

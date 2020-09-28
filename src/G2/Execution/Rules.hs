@@ -187,11 +187,14 @@ evalApp s@(State { expr_env = eenv
     | (App (Prim BindFunc _) v) <- e1
     , Var i1 <- findSym v
     , v2 <- e2 =
+        let
+            (eenv', ng') = E.insertWithCL ng (idName i1) v2 eenv
+        in
         ( RuleBind
-        , [s { expr_env = E.insert (idName i1) v2 eenv
+        , [s { expr_env = eenv'
              , symbolic_ids = HS.delete i1 syms
              , curr_expr = CurrExpr Return (mkTrue kv) }]
-        , ng)
+        , ng')
     | isExprValueForm eenv (App e1 e2) =
         ( RuleReturnAppSWHNF
         , [s { curr_expr = CurrExpr Return (App e1 e2) }]
@@ -290,11 +293,11 @@ evalLet s@(State { expr_env = eenv })
         e' = renames (HM.fromList $ zip olds news) e
         binds_rhs' = renames (HM.fromList $ zip olds news) binds_rhs
 
-        eenv' = E.insertExprs (zip news binds_rhs') eenv
+        (eenv', ng'') = E.insertExprsWithCL ng' (zip news binds_rhs') eenv
     in
     (RuleEvalLet news, [s { expr_env = eenv'
                           , curr_expr = CurrExpr Evaluate e'}]
-                     , ng')
+                     , ng'')
 
 -- | Handle the Case forms of Evaluate.
 evalCase :: Merging -> State t -> NameGen -> Expr -> Id -> [Alt] -> (Rule, [NewPC t], NameGen)
@@ -472,7 +475,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
                  -- not violate any path constraints from default cases. 
                  , new_pcs = []
                  , concretized = [mexpr_id]
-                 }, ngen')
+                 }, ngen'')
   where
     -- Make sure that the parameters do not conflict in their symbolic reps.
     olds = map idName params
@@ -511,7 +514,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
     syms' = HS.union (HS.fromList newparams) (HS.delete mexpr_id syms)
 
     -- concretizes the mexpr to have same form as the DataCon specified
-    eenv'' = E.insert mexpr_n dcon''' eenv' 
+    (eenv'', ngen'') = E.insertWithCL ngen' mexpr_n dcon''' eenv' 
 
     -- Now do a round of rename for binding the cvar.
     binds = [(cvar, (Var mexpr_id))]
@@ -607,10 +610,10 @@ liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
             newSymConstraint = restrictSymVal (known_values s') 1 (toInteger $ length dcs'') newId
 
             syms' = HS.delete i' $ HS.insert newId (symbolic_ids s')
-            eenv' = E.insert (idName i') mexpr' (expr_env s')
+            (eenv', ng''') = E.insertWithCL ng'' (idName i') mexpr' (expr_env s')
             s'' = s' {curr_expr = CurrExpr Evaluate aexpr', symbolic_ids = syms', expr_env = eenv'}
         in
-        ([NewPC { state = s'', new_pcs = [newSymConstraint], concretized = [] }], ng'')
+        ([NewPC { state = s'', new_pcs = [newSymConstraint], concretized = [] }], ng''')
     | otherwise = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
 
 liftSymDefAlt'' :: State t -> Expr -> Expr -> Id -> [Alt] -> [NewPC t]
@@ -854,10 +857,13 @@ retUpdateFrame s@(State { expr_env = eenv
             , exec_stack = stck }]
        , ng)
     | otherwise =
+        let
+            (eenv', ng') = E.insertWithCL ng un e eenv
+        in
         ( RuleReturnEUpdateNonVar un
-        , [s { expr_env = E.insert un e eenv
+        , [s { expr_env = eenv'
              , exec_stack = stck }]
-        , ng)
+        , ng')
 
 retApplyFrame :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> (Rule, [State t], NameGen)
 retApplyFrame s@(State { expr_env = eenv }) ng e1 e2 stck'
@@ -946,12 +952,12 @@ concretizeExprToBool' s@(State {expr_env = eenv
                         , true_assert = assertVal}
                , new_pcs = []
                , concretized = [] }
-        , ngen)
+        , ngen')
     where
         mexpr_n = idName mexpr_id
 
         -- concretize the mexpr to the DataCon specified
-        eenv' = E.insert mexpr_n (Data dcon) eenv
+        (eenv', ngen') = E.insertWithCL ngen mexpr_n (Data dcon) eenv
         syms' = HS.delete mexpr_id syms
 
         assertVal = if (dconName == (KV.dcTrue kv))
@@ -978,7 +984,7 @@ addPathConds s e1 ais e2 stck =
 -- seed values for the names.
 liftBinds :: [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, [Name])
-liftBinds binds eenv expr ngen = (eenv', expr', ngen', news)
+liftBinds binds eenv expr ngen = (eenv', expr', ngen'', news)
   where
     (bindsLHS, bindsRHS) = unzip binds
 
@@ -989,7 +995,7 @@ liftBinds binds eenv expr ngen = (eenv', expr', ngen', news)
 
     binds' = zip bindsLHS' bindsRHS
 
-    eenv' = E.insertExprs (zip news (map snd binds')) eenv
+    (eenv', ngen'') = E.insertExprsWithCL ngen' (zip news (map snd binds')) eenv
 
 -- If the expression is a symbolic higher order function application, replaces
 -- it with a symbolic variable of the correct type.
