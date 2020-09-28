@@ -53,7 +53,12 @@ module G2.Language.ExprEnv
     , toExprList
     , fromExprList
     , assignCLs
-    , numOfCLs
+    , giveEnvObjCL
+    , mergeAEnvObj
+    , M.WhenMissing
+    , M.WhenMatched
+    , M.preserveMissing
+    , M.zipWithAMatched
     ) where
 
 import G2.Language.AST
@@ -71,6 +76,7 @@ import Data.Coerce
 import Data.Data (Data, Typeable)
 import qualified Data.List as L
 import qualified Data.Map as M
+import qualified Data.Map.Merge.Lazy as M
 import Data.Maybe
 import qualified Data.Text as T
 
@@ -359,6 +365,16 @@ getIdFromName eenv name =
         Just (Var i) -> Just i       
         _ -> Nothing
 
+{-# INLINE mergeAEnvObj #-}
+mergeAEnvObj :: Applicative f
+             => M.WhenMissing f Name EnvObj EnvObj
+             -> M.WhenMissing f Name EnvObj EnvObj
+             -> M.WhenMatched f Name EnvObj EnvObj EnvObj
+             -> ExprEnv
+             -> ExprEnv
+             -> f ExprEnv
+mergeAEnvObj wm1 wm2 wm3 (ExprEnv eenv1) (ExprEnv eenv2) = fmap ExprEnv $ M.mergeA wm1 wm2 wm3 eenv1 eenv2
+
 -- Give a CL to every ExprObj that does not already have one.
 assignCLs :: NameGen -> ExprEnv -> (ExprEnv, NameGen)
 assignCLs init_ng = (\(x, y) -> (y, x))
@@ -371,14 +387,16 @@ assignCLs init_ng = (\(x, y) -> (y, x))
                                                     (ng', (n, ExprObj (Just (CL cr)) e'))
                                                 _ -> (ng, (n, e))) init_ng . toList
 
+giveEnvObjCL :: NameGen -> EnvObj -> (EnvObj, NameGen)
+giveEnvObjCL ng (ExprObj Nothing e) =
+    let
+        (cr, ng') = freshSeededName clName ng
+    in
+    (ExprObj (Just (CL cr)) e, ng')
+giveEnvObjCL ng e = (e, ng)
+
 clName :: Name
 clName = Name "cl" Nothing 0 Nothing
-
-numOfCLs :: ExprEnv -> Int
-numOfCLs = L.sum . L.map (clTo1 . snd) . toList
-    where
-        clTo1 (ExprObj (Just _) _) = 1
-        clTo1 _ = 0
 
 -- Symbolic objects will be returned by calls to eval functions, however
 -- calling AST modify functions on the expressions in an ExprEnv will have
