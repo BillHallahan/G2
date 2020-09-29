@@ -477,13 +477,11 @@ mergeExprEnv ctxt@(Context {s1_ = (State {expr_env = eenv1}), s2_ = (State {expr
                               eenv2) (HM.empty, HM.empty, ngen) -- E.intersectionAccum (mergeEnvObj newId eenv1 eenv2) ngen (HM.empty, HM.empty) eenv1 eenv2
         newSyms' = (HM.elems changedSyms1) ++ (HM.elems changedSyms2) ++ (HS.toList newSyms)
         mergedEnvs' = foldr (\i@(Id n _) m -> E.insertSymbolic n i m) mergedEnvs newSyms'
-        -- This is a bit tricky!  We are relying on the fact that E.union is left-biased, so we get the merged definitions (when they exist)
-        eenv' = mergedEnvs' -- `E.union` eenv1 `E.union` eenv2
         ctxt' = ctxt {ng_ = ngen'}
         -- rename any old Syms in PathConds in each state to their new Names, based on list of pairs in changedSyms1_ and changedSyms2_
         ctxt'' = updatePCs ctxt' changedSyms1 changedSyms2
         ctxt''' = updateSymbolicIds ctxt'' changedSyms1 changedSyms2
-    in (ctxt''', eenv')
+    in (ctxt''', mergedEnvs')
 
 mergeEnvObj :: Id -> E.ExprEnv -> E.ExprEnv -> Name -> E.EnvObj -> E.EnvObj
             -> S.State (HM.HashMap Id Id, HM.HashMap Id Id, NameGen) E.EnvObj
