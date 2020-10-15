@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -30,6 +31,8 @@ module G2.Execution.Reducer ( Reducer (..)
                             , Logger (..)
                             , LimLogger (..)
                             , PredicateLogger (..)
+                            , mkCountAllSteps
+                            , CountMerges (..)
 
                             , (<~)
                             , (<~?)
@@ -143,8 +146,11 @@ class Reducer r rv t | r -> rv where
     updateWithAll :: r -> [(State t, rv)] -> [rv]
     updateWithAll _ = map snd
 
-    onMerge :: r -> State t -> State t -> rv -> rv -> IO ()
-    onMerge _ _ _ _ _ = return ()
+    onAccept :: r -> State t -> rv -> IO ()
+    onAccept _ _ _ = return ()
+
+    onMerge :: r -> State t -> State t -> rv -> rv -> IO rv
+    onMerge _ _ _ rc _ = return rc
 
 -- | Determines when to stop evaluating a state
 -- The type parameter h is used to disambiguate between different producers.
@@ -286,15 +292,28 @@ instance (Reducer r1 rv1 t, Reducer r2 rv2 t) => Reducer (RCombiner r1 r2) (RC r
     updateWithAll (r1 :<~? r2) = updateWithAllRC r1 r2
     updateWithAll (r1 :<~| r2) = updateWithAllRC r1 r2
 
+    onAccept (r1 :<~ r2) s (RC rv1 rv2) = do
+        onAccept r1 s rv1
+        onAccept r2 s rv2
+    onAccept (r1 :<~? r2) s (RC rv1 rv2) = do
+        onAccept r1 s rv1
+        onAccept r2 s rv2
+    onAccept (r1 :<~| r2) s (RC rv1 rv2) = do
+        onAccept r1 s rv1
+        onAccept r2 s rv2
+
     onMerge (r1 :<~ r2) s s' (RC rv1 rv2) (RC rv1' rv2') = do
-        onMerge r1 s s' rv1 rv1'
-        onMerge r2 s s' rv2 rv2'
+        f_rv1 <- onMerge r1 s s' rv1 rv1'
+        f_rv2 <- onMerge r2 s s' rv2 rv2'
+        return $ RC f_rv1 f_rv2
     onMerge (r1 :<~? r2) s s' (RC rv1 rv2) (RC rv1' rv2') = do
-        onMerge r1 s s' rv1 rv1'
-        onMerge r2 s s' rv2 rv2'
+        f_rv1 <- onMerge r1 s s' rv1 rv1'
+        f_rv2 <- onMerge r2 s s' rv2 rv2'
+        return $ RC f_rv1 f_rv2
     onMerge (r1 :<~| r2) s s' (RC rv1 rv2) (RC rv1' rv2') = do
-        onMerge r1 s s' rv1 rv1'
-        onMerge r2 s s' rv2 rv2'
+        f_rv1 <- onMerge r1 s s' rv1 rv1'
+        f_rv2 <- onMerge r2 s s' rv2 rv2'
+        return $ RC f_rv1 f_rv2
 
 {-# INLINE updateWithAllRC #-}
 updateWithAllRC :: (Reducer r1 rv1 t, Reducer r2 rv2 t) => r1 -> r2 -> [(State t, RC rv1 rv2)] -> [RC rv1 rv2]
@@ -449,7 +468,9 @@ instance Reducer Logger [Int] t where
     updateWithAll _ [(_, l)] = [l]
     updateWithAll _ ss = map (\(l, i) -> l ++ [i]) $ zip (map snd ss) [1..]
 
-    onMerge (Logger ll) s1 s2 lt1 lt2 = outputMerge ll lt1 lt2 s1 s2
+    onMerge (Logger ll) s1 s2 lt1 lt2 = do
+        outputMerge ll lt1 lt2 s1 s2
+        return lt1
 
 -- | A Reducer to producer limited logging output.
 data LimLogger =
@@ -480,7 +501,9 @@ instance Show t => Reducer LimLogger LLTracker t where
     updateWithAll _ ss =
         map (\(llt, i) -> llt { ll_offset = ll_offset llt ++ [i] }) $ zip (map snd ss) [1..]
 
-    onMerge ll s1 s2 lt1 lt2 = outputMerge (lim_output_path ll) (ll_offset lt1) (ll_offset lt2) s1 s2
+    onMerge ll s1 s2 lt1 lt2 = do
+        outputMerge (lim_output_path ll) (ll_offset lt1) (ll_offset lt2) s1 s2
+        return lt1
 
 data PredicateLogger = PredicateLogger { pred :: forall t . State t -> Bindings -> Bool
                                        , pred_output_path :: String }
@@ -523,6 +546,34 @@ getFile dn is n s = do
     createDirectoryIfMissing True dir
     let fn = dir ++ n ++ show (length $ rules s) ++ ".txt"
     return fn
+
+mkCountAllSteps :: CountAllSteps
+mkCountAllSteps = CountAllSteps 0
+
+data CountAllSteps = CountAllSteps !Int
+
+instance Reducer CountAllSteps () t where
+    initReducer _ _ = ()
+
+    redRules (CountAllSteps x) _ s b =
+        return (NoProgress, [(s, ())], b, CountAllSteps $ x + 1)
+
+    onAccept (CountAllSteps x) _ _ =
+        putStrLn $ "Accepted after " ++ show x ++ " steps"
+
+data CountMerges = CountMerges
+
+instance Reducer CountMerges Int t where
+    initReducer _ _ = 0
+
+    redRules cm rv s b =
+        return (NoProgress, [(s, rv)], b, cm)
+
+    onAccept _ _ x =
+        putStrLn $ "Accepted after merging " ++ show x ++ " times"
+
+    onMerge _ _ _ x y = do
+        return $ x + y + 1
 
 -- | Allows executing multiple halters.
 -- If the halters disagree, prioritizes the order:
@@ -938,6 +989,7 @@ runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_
         in
         case jrs of
             Just (rs', xs') -> do
+                onAccept red (state rs) r_val
                 switchState red hal ord pr' rs' b xs'
                 -- runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
             Nothing -> return (pr', b)
@@ -1076,7 +1128,9 @@ runReducerMerge' exS (red, hal, simplifier, bdg, pr) = do
         ps = processedToState pr -- need to deal with processed
         hc = stopRed hal h_val ps s
     case hc of
-        Accept -> return ([rs], (red, hal, simplifier, bdg, pr {accepted = rs:accepted pr}), MG.Accept)
+        Accept -> do
+            onAccept red s r_val
+            return ([rs], (red, hal, simplifier, bdg, pr {accepted = rs:accepted pr}), MG.Accept)
         Discard -> return ([rs], (red, hal, simplifier, bdg, pr {discarded = rs:discarded pr}), MG.Discard)
         Switch -> return ([rs], (red, hal, simplifier, bdg, pr), MG.Switch)
         _ -> do
@@ -1158,8 +1212,10 @@ mergeStates ex1 ex2 (r, h, smplfr, b, pr) = do
     let res = mergeState (name_gen b) smplfr (state ex1) (state ex2)
     case res of
         (ng', Just s') -> do
-            onMerge r (state ex1) (state ex2) (reducer_val ex1) (reducer_val ex2)
-            return (Just ex1 {state = s'}, (r, h, smplfr, b {name_gen = ng'}, pr)) -- todo: which reducer_val and halter_val to keep
+            f_rv <- onMerge r (state ex1) (state ex2) (reducer_val ex1) (reducer_val ex2)
+            return (Just ex1 { state = s'
+                             , reducer_val = f_rv }
+                   , (r, h, smplfr, b {name_gen = ng'}, pr)) -- todo: which reducer_val and halter_val to keep
         (ng', Nothing) -> return (Nothing, (r, h, smplfr, b {name_gen = ng'}, pr))
 
 switchStates :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
