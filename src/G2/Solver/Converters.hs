@@ -15,10 +15,12 @@ module G2.Solver.Converters
     , exprToSMT --WOULD BE NICE NOT TO EXPORT THIS
     , typeToSMT --WOULD BE NICE NOT TO EXPORT THIS
     , toSolverAST --WOULD BE NICE NOT TO EXPORT THIS
+    , sortName
     , smtastToExpr
     , modelAsExpr
+    , checkConstraintsPC
+    , checkModelPC
     , checkConstraints
-    , checkModel
     , SMTConverter (..) ) where
 
 import Data.List
@@ -45,10 +47,11 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     merge :: con -> out -> out -> out
 
     checkSat :: con -> io -> out -> IO Result
-    checkSatGetModel :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result, Maybe SMTModel)
+    checkSatGetModel :: con -> io -> out -> [(SMTName, Sort)] -> IO (Result, Maybe SMTModel)
     checkSatGetModelGetExpr :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> CurrExpr -> IO (Result, Maybe SMTModel, Maybe Expr)
 
     assertSolver :: con -> ast -> out
+    defineFun :: con -> SMTName -> [(SMTName, Sort)] -> Sort -> SMTAST -> out 
     varDecl :: con -> SMTName -> ast -> out
     setLogic :: con -> Logic -> out
 
@@ -97,8 +100,8 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     varName :: con -> SMTName -> Sort -> ast
 
 -- | Checks if the path constraints are satisfiable
-checkConstraints :: SMTConverter con ast out io => con -> PathConds -> IO Result
-checkConstraints con pc = do
+checkConstraintsPC :: SMTConverter con ast out io => con -> PathConds -> IO Result
+checkConstraintsPC con pc = do
     let pc' = unsafeElimCast pc
 
     let headers = toSMTHeaders pc'
@@ -107,8 +110,8 @@ checkConstraints con pc = do
     checkSat con (getIO con) formula
 
 -- | Checks if the constraints are satisfiable, and returns a model if they are
-checkModel :: SMTConverter con ast out io => ArbValueFunc -> con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model)
-checkModel avf con s b is pc = return . fmap liftCasts =<< checkModel' avf con s b is pc
+checkModelPC :: SMTConverter con ast out io => ArbValueFunc -> con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model)
+checkModelPC avf con s b is pc = return . fmap liftCasts =<< checkModel' avf con s b is pc
 
 -- | We split based on whether we are evaluating a ADT or a literal.
 -- ADTs can be solved using our efficient addADTs, while literals require
@@ -135,18 +138,21 @@ getModelVal avf con s b (Id n _) pc = do
                     in
                     return (Just $ HM.singleton n' e, av) 
                 False -> do
-                    m <- checkNumericConstraints con pc
+                    m <- checkNumericConstraintsPC con pc
                     return (m, arb_value_gen b)
 
-checkNumericConstraints :: SMTConverter con ast out io => con -> PathConds -> IO (Maybe Model)
-checkNumericConstraints con pc = do
+checkNumericConstraintsPC :: SMTConverter con ast out io => con -> PathConds -> IO (Maybe Model)
+checkNumericConstraintsPC con pc = do
     let headers = toSMTHeaders pc
-    let formula = toSolver con headers
-
     let vs = map (\(n', srt) -> (nameToStr n', srt)) . pcVars $ PC.toList pc
 
+    checkConstraints con headers vs
+
+checkConstraints :: SMTConverter con ast out io => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Maybe Model)
+checkConstraints con headers vs = do
     let io = getIO con
-    (_, m) <- checkSatGetModel con io formula headers vs
+    let formula = toSolver con headers
+    (_, m) <- checkSatGetModel con io formula vs
 
     let m' = fmap modelAsExpr m
 
@@ -182,13 +188,15 @@ addSetLogic xs =
         nia = isNIA xs
         nra = isNRA xs
         nira = isNIRA xs
+        uflia = isUFLIA xs
 
         sl = if lia then SetLogic QF_LIA else
              if lra then SetLogic QF_LRA else
              if lira then SetLogic QF_LIRA else
              if nia then SetLogic QF_NIA else
              if nra then SetLogic QF_NRA else 
-             if nira then SetLogic QF_NIRA else SetLogic ALL
+             if nira then SetLogic QF_NIRA else
+             if uflia then SetLogic QF_UFLIA else SetLogic ALL
     in
     sl:xs
 
@@ -280,6 +288,13 @@ isNIRA' :: SMTAST -> All
 isNIRA' (ItoR _) = All True
 isNIRA' s = All $ getAll (isNIA' s) || getAll (isNRA' s)
 
+isUFLIA :: (ASTContainer m SMTAST) => m -> Bool
+isUFLIA = getAll . evalASTs isUFLIA'
+
+isUFLIA' :: SMTAST -> All
+isUFLIA' (UF _ xs) = mconcat $ map isUFLIA' xs
+isUFLIA' s = isLIA' s
+
 isCore' :: SMTAST -> All
 isCore' (_ := _) = All True
 isCore' (_ :&& _) = All True
@@ -287,6 +302,7 @@ isCore' (_ :|| _) = All True
 isCore' ((:!) _) = All True
 isCore' (_ :=> _) = All True
 isCore' (_ :<=> _) = All True
+isCore' (Func _ _) = All True
 isCore' (VBool _) = All True
 isCore' (V _ s) = All $ isCoreSort s
 isCore' _ = All False
@@ -443,6 +459,8 @@ toSolver :: SMTConverter con ast out io => con -> [SMTHeader] -> out
 toSolver con [] = empty con
 toSolver con (Assert ast:xs) = 
     merge con (assertSolver con $ toSolverAST con ast) (toSolver con xs)
+toSolver con (DefineFun f ars ret body:xs) =
+    merge con (defineFun con f ars ret body) (toSolver con xs)
 toSolver con (VarDecl n s:xs) = merge con (toSolverVarDecl con n s) (toSolver con xs)
 toSolver con (SetLogic lgc:xs) = merge con (toSolverSetLogic con lgc) (toSolver con xs)
 

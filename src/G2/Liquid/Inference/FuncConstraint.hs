@@ -1,27 +1,24 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 
 module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
-                                          , Polarity (..)
-                                          , Violated (..)
-                                          , Modification (..)
-                                          , BoolRel (..)
+                                          , SpecPart (..)
+                                          -- , Polarity (..)
+                                          -- , Violated (..)
+                                          -- , Modification (..)
+                                          -- , BoolRel (..)
                                           , FuncConstraints
                                           , emptyFC
+                                          , fromSingletonFC
                                           , nullFC
                                           , insertFC
                                           , lookupFC
                                           , toListFC
                                           , unionFC
                                           , unionsFC
-                                          , differenceFC
                                           , mapFC
                                           , mapMaybeFC
                                           , filterFC
-
-                                          , constraining
-
-                                          , printFC
-                                          , printFCs ) where
+                                          , allCalls) where
 
 import G2.Language.AST
 import G2.Language.Naming
@@ -36,38 +33,31 @@ import Data.Maybe
 newtype FuncConstraints = FuncConstraints (M.Map Name [FuncConstraint])
                      deriving (Eq, Show, Read)
 
-data Polarity = Pos | Neg deriving (Eq, Show, Read)
+data SpecPart = All | Pre | Post deriving (Eq, Show, Read)
 
-data Violated = Pre | Post deriving (Eq, Show, Read)
-
-data Modification =
-      SwitchImplies [Name] -- ^ Change the boolean relation to Implies if the
-                           -- spec of any function in the list changes
-    | Delete [Name] -- ^ Delete the constraint if the spec of any function in
-                    -- the list changes
-    | None -- ^ The constraint should not be modified
-    deriving (Eq, Show, Read)
-
-data BoolRel = BRImplies | BRAnd deriving (Eq, Show, Read)
-
-data FuncConstraint =
-    FC { polarity :: Polarity
-       , generated_by :: Name
-       , violated :: Violated
-       , modification :: Modification
-       , bool_rel :: BoolRel -- ^ True iff generated_by's spec has not changed since the FC was created
-       , constraint :: FuncCall }
-       deriving (Eq, Show, Read)
+data FuncConstraint = Call SpecPart FuncCall
+                    | AndFC [FuncConstraint]
+                    | OrFC [FuncConstraint]
+                    | ImpliesFC FuncConstraint FuncConstraint
+                    | NotFC FuncConstraint
+                    deriving (Eq, Show, Read)
 
 emptyFC :: FuncConstraints
 emptyFC = FuncConstraints M.empty
+
+fromSingletonFC :: FuncConstraint -> FuncConstraints
+fromSingletonFC = flip insertFC emptyFC
 
 nullFC :: FuncConstraints -> Bool
 nullFC = null . toListFC
 
 insertFC :: FuncConstraint -> FuncConstraints -> FuncConstraints
-insertFC fc  =
-    coerce (M.insertWith (++) (zeroOutUnq . funcName . constraint $ fc) [fc])
+insertFC fc (FuncConstraints fcs) =
+    let
+        ns = map zeroOutUnq $ allCallNames fc
+    in
+    FuncConstraints $ foldr (\n -> M.insertWith (++) n [fc]) fcs ns
+    -- coerce (M.insertWith (++) (zeroOutUnq . funcName . constraint $ fc) [fc])
 
 lookupFC :: Name -> FuncConstraints -> [FuncConstraint]
 lookupFC n = M.findWithDefault [] (zeroOutUnq n) . coerce
@@ -85,10 +75,6 @@ unionFC (FuncConstraints fc1) (FuncConstraints fc2) =
 unionsFC :: [FuncConstraints] -> FuncConstraints
 unionsFC = foldr unionFC emptyFC
 
-differenceFC :: FuncConstraints -> FuncConstraints -> FuncConstraints
-differenceFC (FuncConstraints fc1) (FuncConstraints fc2) =
-    FuncConstraints $ M.difference fc1 fc2
-
 mapFC :: (FuncConstraint -> FuncConstraint) -> FuncConstraints -> FuncConstraints
 mapFC f = coerce (M.map (map f))
 
@@ -98,32 +84,25 @@ mapMaybeFC f = coerce (M.map (mapMaybe f))
 filterFC :: (FuncConstraint -> Bool) -> FuncConstraints -> FuncConstraints
 filterFC p = coerce (M.map (filter p))
 
-constraining :: FuncConstraint -> Name
-constraining = funcName . constraint
+allCallNames :: FuncConstraint -> [Name]
+allCallNames = map funcName . allCalls
 
-printFCs :: FuncConstraints -> String
-printFCs = intercalate "\n" . map printFC . toListFC
+allCalls :: FuncConstraint -> [FuncCall]
+allCalls (Call _ fc) = [fc]
+allCalls (AndFC fcs) = concatMap allCalls fcs
+allCalls (OrFC fcs) = concatMap allCalls fcs
+allCalls (ImpliesFC fc1 fc2) = allCalls fc1 ++ allCalls fc2
+allCalls (NotFC fc) = allCalls fc
 
-printFC :: FuncConstraint -> String
-printFC fc@(FC { constraint = c}) =
-    let
-      f = funcName c
-      cl = mkExprHaskell . foldl (\a a' -> App a a') (Var (Id f TyUnknown)) $ arguments c
-
-      r = mkExprHaskell $ returns c
-      r' = case polarity fc of
-              Pos -> r
-              Neg -> "NOT " ++ r
-
-      md = case modification fc of
-                    SwitchImplies ns -> "switch on " ++ show (map nameOcc ns)
-                    Delete ns -> "delete on " ++ show (map nameOcc ns)
-                    None -> ""
-    in
-    case bool_rel fc of
-        BRAnd -> cl ++ " AND " ++ r' ++ " " ++ md
-        BRImplies -> cl ++ " => " ++ r' ++ " " ++ md
 instance ASTContainer FuncConstraint Expr where
-    containedASTs = containedASTs . constraint
+    containedASTs (Call sp fc) = containedASTs fc
+    containedASTs (AndFC fcs) = containedASTs fcs
+    containedASTs (OrFC fcs) = containedASTs fcs
+    containedASTs (ImpliesFC fc1 fc2) = containedASTs fc1 ++ containedASTs fc2
+    containedASTs (NotFC fc) = containedASTs fc
 
-    modifyContainedASTs f (FC p gb v g gp c) = FC p gb v g gp $ modifyContainedASTs f c
+    modifyContainedASTs f (Call sp fc) = Call sp $ modifyContainedASTs f fc
+    modifyContainedASTs f (AndFC fcs) = AndFC (modifyContainedASTs f fcs)
+    modifyContainedASTs f (OrFC fcs) = OrFC (modifyContainedASTs f fcs)
+    modifyContainedASTs f (ImpliesFC fc1 fc2) = ImpliesFC (modifyContainedASTs f fc1) (modifyContainedASTs f fc2)
+    modifyContainedASTs f (NotFC fc) = NotFC (modifyContainedASTs f fc)

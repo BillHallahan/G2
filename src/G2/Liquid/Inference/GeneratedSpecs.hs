@@ -21,7 +21,7 @@ module G2.Liquid.Inference.GeneratedSpecs ( GeneratedSpecs
                                           , addAssumedSpecsToGhcInfos
                                           , addQualifiersToGhcInfos
                                           
-                                          ,deleteAssume
+                                          , deleteAssume
                                           , deleteAssert
                                           , deleteAllAssumes
                                           , deleteAllAsserts

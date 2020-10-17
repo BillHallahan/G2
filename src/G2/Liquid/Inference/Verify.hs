@@ -6,7 +6,8 @@ module G2.Liquid.Inference.Verify ( VerifyResult (..)
                                   , checkGSCorrect
                                   , verify
                                   , ghcInfos
-                                  , defLHConfig) where
+                                  , defLHConfig
+                                  , tryToVerify) where
 
 import qualified G2.Language.Syntax as G2
 import G2.Liquid.Helpers
@@ -103,6 +104,13 @@ tryHardToVerifyIgnoring ghci gs ignore = do
         where
             ignore' = map (\(G2.Name n m _ _) -> (n, m)) ignore
             filterIgnoring = filter (\(G2.Name n m _ _) -> (n, m) `notElem` ignore')
+
+tryToVerify :: (InfConfigM m, MonadIO m) => [GhcInfo] -> m (VerifyResult G2.Name)
+tryToVerify ghci = do
+    lhconfig <- lhConfigM
+    infconfig <- infConfigM
+
+    return . verifyVarToName =<< liftIO (verify infconfig lhconfig ghci)
 
 -- | Confirm that we have actually found exactly the needed specs
 checkGSCorrect :: InferenceConfig -> Config -> [GhcInfo] -> GeneratedSpecs -> IO (VerifyResult V.Var)

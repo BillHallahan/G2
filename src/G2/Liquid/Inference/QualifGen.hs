@@ -40,8 +40,8 @@ data QualifConfig = QualifConfig { max_vars :: Int
                                  , measures :: [QMeasure] }
 
 qualifGen :: FilePath -> IO ()
-qualifGen qualif_fp = do
-    let qc = QualifConfig 
+qualifGen qualif_fp = undefined -- do
+{-    let qc = QualifConfig 
                 { max_vars = 3
                 , max_size = 5
                 , datatypes = [ QDataType { dt_smt_name = "List"
@@ -257,3 +257,4 @@ sortString _ _ = error "sortString: Unexpected sort"
 
 listSort :: Sort
 listSort = IdentSort (ISymb "List")
+-}

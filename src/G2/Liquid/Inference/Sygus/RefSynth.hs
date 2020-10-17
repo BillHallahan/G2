@@ -3,17 +3,18 @@
 
 module G2.Liquid.Inference.Sygus.RefSynth ( refSynth
                                     
-                                          , grammar
-                                          , intRuleList
-                                          , boolRuleList
+                                          -- , grammar
+                                          -- , intRuleList
+                                          -- , boolRuleList
 
-                                          , intSort
-                                          , boolSort
+                                          -- , intSort
+                                          -- , boolSort
 
-                                          , termToLHExpr
+                                          -- , termToLHExpr
 
-                                          , runCVC4
-                                          , runCVC4Stream ) where
+                                          -- , runCVC4
+                                          -- , runCVC4Stream
+                                          ) where
 
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
@@ -72,7 +73,8 @@ import Debug.Trace
 
 refSynth :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> MeasureExs
          -> FuncConstraints -> Name -> m (Maybe ([PolyBound LH.Expr], [Qualifier]))
-refSynth ghci lrs meas_ex fc n@(Name n' _ _ _) = do
+refSynth ghci lrs meas_ex fc n@(Name n' _ _ _) = undefined -- do
+{-
     let eenv = expr_env . state $ lr_state lrs
         tc = type_classes . state $ lr_state lrs
 
@@ -1526,3 +1528,4 @@ timeOutCommand = do
     case cmdMacOS of
         Just c -> return c
         Nothing -> return "timeout"
+-}

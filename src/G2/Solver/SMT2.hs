@@ -38,13 +38,13 @@ data SomeSMTSolver where
                    . SMTConverter con ast out io => con -> SomeSMTSolver
 
 instance Solver Z3 where
-    check solver _ pc = checkConstraints solver pc
-    solve con@(Z3 avf _) = checkModel avf con
+    check solver _ pc = checkConstraintsPC solver pc
+    solve con@(Z3 avf _) = checkModelPC avf con
     close = closeIO
 
 instance Solver CVC4 where
-    check solver _ pc = checkConstraints solver pc
-    solve con@(CVC4 avf _) = checkModel avf con
+    check solver _ pc = checkConstraintsPC solver pc
+    solve con@(CVC4 avf _) = checkModelPC avf con
     close = closeIO
 
 instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
@@ -65,10 +65,10 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
 
         return r
 
-    checkSatGetModel _ (h_in, h_out, _) formula _ vs = do
+    checkSatGetModel _ (h_in, h_out, _) formula vs = do
         setUpFormulaZ3 h_in formula
-        -- putStrLn "\n\n checkSatGetModel"
-        -- putStrLn formula
+        putStrLn "\n\n checkSatGetModel"
+        putStrLn formula
         r <- checkSat' h_in h_out
         -- putStrLn $ "r =  " ++ show r
         if r == SAT then do
@@ -104,7 +104,12 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
             return (r, Nothing, Nothing)
 
     assertSolver _ = function1 "assert"
-        
+
+    defineFun con fn ars ret body =
+        "(define-fun " ++ fn ++ " ("
+            ++ intercalate " " (map (\(n, s) -> "(" ++ n ++ " " ++ sortName con s ++ ")") ars) ++ ")"
+            ++ " (" ++ sortName con ret ++ ") " ++ toSolverAST con body ++ ")"
+
     varDecl _ n s = "(declare-const " ++ n ++ " " ++ s ++ ")"
     
     setLogic _ lgc =
@@ -116,6 +121,7 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
                 QF_NIA -> "QF_NIA"
                 QF_NRA -> "QF_NRA"
                 QF_NIRA -> "QF_NIRA"
+                QF_UFLIA -> "QF_UFLIA"
                 _ -> "ALL"
         in
         case lgc of
@@ -190,7 +196,7 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
 
         return r
 
-    checkSatGetModel _ (h_in, h_out, _) formula _ vs = do
+    checkSatGetModel _ (h_in, h_out, _) formula vs = do
         setUpFormulaCVC4 h_in formula
         -- putStrLn "\n\n checkSatGetModel"
         -- putStrLn formula
@@ -241,6 +247,7 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
                 QF_NIA -> "QF_NIA"
                 QF_NRA -> "QF_NRA"
                 QF_NIRA -> "QF_NIRA"
+                QF_UFLIA -> "QF_UFLIA"
                 _ -> "ALL"
         in
         case lgc of

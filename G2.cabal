@@ -109,6 +109,7 @@ library
                        , G2.Liquid.Inference.Sygus.UnsatCoreElim
                        , G2.Liquid.Inference.Sygus
                        , G2.Liquid.Inference.Sygus.RefSynth
+                       , G2.Liquid.Inference.Sygus.LiaSynth
                        , G2.Liquid.Inference.Sygus.SimplifySygus
                        , G2.Liquid.Inference.Verify
                        , G2.Liquid.Inference.GeneratedSpecs

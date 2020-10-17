@@ -16,16 +16,23 @@ import qualified Data.Map as M
 
 type SMTName = String
 
--- | These define the two kinds of top level calls we give to the SMT solver.
--- An assertion says the given SMTAST is true
--- A sort decl declares a new sort.
+-- | These define the kinds of top level calls we give to the SMT solver.
 data SMTHeader = Assert SMTAST
+               | DefineFun SMTName [(SMTName, Sort)] Sort SMTAST
                | VarDecl SMTName Sort
                | SetLogic Logic
                deriving (Show, Eq)
 
 -- | Various logics supported by (some) SMT solvers 
-data Logic = ALL | QF_LIA | QF_LRA | QF_NIA | QF_NRA | QF_LIRA | QF_NIRA deriving (Show, Eq)
+data Logic = ALL
+           | QF_LIA
+           | QF_LRA
+           | QF_NIA
+           | QF_NRA
+           | QF_LIRA
+           | QF_NIRA
+           | QF_UFLIA           
+           deriving (Show, Eq)
 
 -- | These correspond to first order logic, arithmetic operators, and variables, as supported by an SMT Solver
 -- Its use should be confined to interactions with G2.SMT.* 
@@ -51,6 +58,9 @@ data SMTAST = (:>=) SMTAST SMTAST
             | Modulo SMTAST SMTAST
             | Neg SMTAST -- ^ Unary negation
 
+            | UF SMTName [SMTAST] -- ^ Uninterpreted function
+            | Func SMTName [SMTAST] -- ^ Interpreted function
+
             | StrLen SMTAST
 
             | Ite SMTAST SMTAST SMTAST
@@ -73,7 +83,28 @@ data Sort = SortInt
           | SortDouble
           | SortChar
           | SortBool
+          | SortFunc [Sort] Sort
           deriving (Show, Eq)
+
+(.&&.) :: SMTAST -> SMTAST -> SMTAST
+(VBool True) .&&. x = x
+x .&&. (VBool True) = x
+(VBool False) .&&. _ = VBool False
+_ .&&. (VBool False) = VBool False
+x .&&. y = x :&& y
+
+(.||.) :: SMTAST -> SMTAST -> SMTAST
+(VBool True) .||. _ = VBool False
+_ .||. (VBool True) = VBool False
+(VBool False) .||. x = x
+x .||. (VBool False) = x
+x .||. y = x :|| y
+
+mkSMTAnd :: [SMTAST] -> SMTAST
+mkSMTAnd = foldr (.&&.) (VBool True)
+
+mkSMTOr :: [SMTAST] -> SMTAST
+mkSMTOr = foldr (.||.) (VBool False)
 
 isSat :: Result -> Bool
 isSat SAT = True
