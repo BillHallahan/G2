@@ -12,7 +12,7 @@ import G2.Liquid.Inference.FuncConstraint
 import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.GeneratedSpecs
 
-import G2.Solver
+import G2.Solver as Solver
 
 import Control.Monad.IO.Class 
 
@@ -59,7 +59,7 @@ liaSynth' :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
 liaSynth' con ns_aty_rty fc = do
     let si = foldr (\(n, (at, rt)) -> M.insert n (buildSI n at rt)) M.empty ns_aty_rty
     let si' = liaSynthOfSize 2 si
-    synth con si'
+    synth con si' fc
 
 liaSynthOfSize :: Int -> M.Map Name SpecInfo -> M.Map Name SpecInfo
 liaSynthOfSize sz m_si =
@@ -83,17 +83,46 @@ liaSynthOfSize sz m_si =
                 | k <- [0..sz] ]
             | j <- [0..sz] ]
 
-synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io) => con -> M.Map Name SpecInfo -> m SynthRes
-synth con m_si = do
-    let all_precoeffs = concat . concat . concatMap s_precoeffs $ M.elems m_si
-        all_postcoeffs = concat . concat . concatMap s_postcoeffs $ M.elems m_si
-    liftIO $ print m_si
-    let var_decl_hdrs = map (flip VarDecl SortInt) $ all_precoeffs ++ all_postcoeffs
-        def_funs = concatMap defineLIAFuns $ M.elems m_si
+constraintsToSMT :: M.Map Name SpecInfo ->FuncConstraints -> [SMTHeader]
+constraintsToSMT si =  map Solver.Assert . map (constraintToSMT si) . toListFC
 
-        hdrs = var_decl_hdrs ++ def_funs
+constraintToSMT :: M.Map Name SpecInfo -> FuncConstraint -> SMTAST
+constraintToSMT si (Call All fc) =
+    case M.lookup (funcName fc) si of
+        Just si' ->
+            let
+                pre = Func (s_prename si') $ map exprToSMT (arguments fc ++ [returns fc])
+                post = Func (s_postname si') $ map exprToSMT (arguments fc ++ [returns fc])
+            in
+            pre :=> post
+        Nothing -> error "constraintToSMT: specification not found"
+constraintToSMT si (Call Pre fc) =
+    case M.lookup (funcName fc) si of
+        Just si' -> Func (s_prename si') $ map exprToSMT (arguments fc ++ [returns fc])
+        Nothing -> error "constraintToSMT: specification not found"
+constraintToSMT si (Call Post fc) =
+    case M.lookup (funcName fc) si of
+        Just si' -> Func (s_postname si') $ map exprToSMT (arguments fc ++ [returns fc])
+        Nothing -> error "constraintToSMT: specification not found"
+constraintToSMT si (AndFC fs) = mkSMTAnd $ map (constraintToSMT si) fs
+constraintToSMT si (OrFC fs) = mkSMTOr $ map (constraintToSMT si) fs
+constraintToSMT si (ImpliesFC fc1 fc2) = constraintToSMT si fc1 :=> constraintToSMT si fc2
+constraintToSMT si (NotFC fc) = Neg (constraintToSMT si fc)
+
+synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
+      => con -> M.Map Name SpecInfo -> FuncConstraints -> m SynthRes
+synth con si fc = do
+    let all_precoeffs = concat . concat . concatMap s_precoeffs $ M.elems si
+        all_postcoeffs = concat . concat . concatMap s_postcoeffs $ M.elems si
+        all_coeffs = all_precoeffs ++ all_postcoeffs
+    liftIO $ print si
+    let var_decl_hdrs = map (flip VarDecl SortInt) all_coeffs
+        def_funs = concatMap defineLIAFuns $ M.elems si
+        fc_smt = constraintsToSMT si fc
+
+        hdrs = var_decl_hdrs ++ def_funs ++ fc_smt
     liftIO $ print hdrs
-    liftIO $ print =<< checkConstraints con hdrs []
+    liftIO $ print =<< checkConstraints con hdrs (zip all_coeffs (repeat SortInt))
     undefined
 
 --------------------------------------------------

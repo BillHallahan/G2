@@ -146,18 +146,17 @@ checkNumericConstraintsPC con pc = do
     let headers = toSMTHeaders pc
     let vs = map (\(n', srt) -> (nameToStr n', srt)) . pcVars $ PC.toList pc
 
-    checkConstraints con headers vs
+    m <- checkConstraints con headers vs
+    return $ fmap modelAsExpr m
 
-checkConstraints :: SMTConverter con ast out io => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Maybe Model)
+checkConstraints :: SMTConverter con ast out io => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Maybe SMTModel)
 checkConstraints con headers vs = do
     let io = getIO con
     let formula = toSolver con headers
     (_, m) <- checkSatGetModel con io formula vs
 
-    let m' = fmap modelAsExpr m
-
-    case m' of
-        Just m'' -> return $ Just m''
+    case m of
+        Just m' -> return $ Just m'
         Nothing -> return Nothing
 
 -- | Here we convert from a State, to an SMTHeader.  This SMTHeader can later
@@ -521,7 +520,7 @@ smtastToExpr (VDouble d) = (Lit $ LitDouble d)
 smtastToExpr (VBool b) =
     Data (DataCon (Name (T.pack $ show b) Nothing 0 Nothing) (TyCon (Name "Bool" Nothing 0 Nothing) TYPE))
 smtastToExpr (VChar c) = Lit $ LitChar c
-smtastToExpr (V n s) = Var $ Id (strToName n) (sortToType s)
+smtastToExpr (V n s) = Var $ Id (certainStrToName n) (sortToType s)
 smtastToExpr _ = error "Conversion of this SMTAST to an Expr not supported."
 
 -- | Converts a `Sort` to an `Type`.
@@ -535,3 +534,9 @@ sortToType (SortBool) = TyCon (Name "Bool" Nothing 0 Nothing) TYPE
 -- | Coverts an `SMTModel` to a `Model`.
 modelAsExpr :: SMTModel -> Model
 modelAsExpr = HM.fromList . M.toList . M.mapKeys strToName . M.map smtastToExpr
+
+certainStrToName :: String -> Name
+certainStrToName s =
+    case maybe_StrToName s of
+        Just n -> n
+        Nothing -> Name (T.pack s) Nothing 0 Nothing
