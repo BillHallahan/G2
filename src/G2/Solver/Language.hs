@@ -19,6 +19,7 @@ type SMTName = String
 -- | These define the kinds of top level calls we give to the SMT solver.
 data SMTHeader = Assert SMTAST
                | DefineFun SMTName [(SMTName, Sort)] Sort SMTAST
+               | DeclareFun SMTName [Sort] Sort
                | VarDecl SMTName Sort
                | SetLogic Logic
                deriving (Show, Eq)
@@ -58,7 +59,6 @@ data SMTAST = (:>=) SMTAST SMTAST
             | Modulo SMTAST SMTAST
             | Neg SMTAST -- ^ Unary negation
 
-            | UF SMTName [SMTAST] -- ^ Uninterpreted function
             | Func SMTName [SMTAST] -- ^ Interpreted function
 
             | StrLen SMTAST

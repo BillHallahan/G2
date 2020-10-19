@@ -52,6 +52,7 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
 
     assertSolver :: con -> ast -> out
     defineFun :: con -> SMTName -> [(SMTName, Sort)] -> Sort -> SMTAST -> out 
+    declareFun :: con -> SMTName -> [Sort] -> Sort -> out 
     varDecl :: con -> SMTName -> ast -> out
     setLogic :: con -> Logic -> out
 
@@ -76,6 +77,9 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     smtModulo :: con -> ast -> ast -> ast
     smtSqrt :: con -> ast -> ast
     neg :: con -> ast -> ast
+
+    smtFunc :: con -> SMTName -> [ast] -> ast
+
     strLen :: con -> ast -> ast
     itor :: con -> ast -> ast
 
@@ -152,7 +156,9 @@ checkNumericConstraintsPC con pc = do
 checkConstraints :: SMTConverter con ast out io => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Maybe SMTModel)
 checkConstraints con headers vs = do
     let io = getIO con
+    putStrLn "HERE"
     let formula = toSolver con headers
+    putStrLn "HERE 2"
     (_, m) <- checkSatGetModel con io formula vs
 
     case m of
@@ -291,7 +297,7 @@ isUFLIA :: (ASTContainer m SMTAST) => m -> Bool
 isUFLIA = getAll . evalASTs isUFLIA'
 
 isUFLIA' :: SMTAST -> All
-isUFLIA' (UF _ xs) = mconcat $ map isUFLIA' xs
+isUFLIA' (Func _ xs) = mconcat $ map isUFLIA' xs
 isUFLIA' s = isLIA' s
 
 isCore' :: SMTAST -> All
@@ -460,6 +466,8 @@ toSolver con (Assert ast:xs) =
     merge con (assertSolver con $ toSolverAST con ast) (toSolver con xs)
 toSolver con (DefineFun f ars ret body:xs) =
     merge con (defineFun con f ars ret body) (toSolver con xs)
+toSolver con (DeclareFun f ars ret:xs) =
+    merge con (declareFun con f ars ret) (toSolver con xs)
 toSolver con (VarDecl n s:xs) = merge con (toSolverVarDecl con n s) (toSolver con xs)
 toSolver con (SetLogic lgc:xs) = merge con (toSolverSetLogic con lgc) (toSolver con xs)
 
@@ -485,6 +493,9 @@ toSolverAST con (x `QuotSMT` y) = smtQuot con (toSolverAST con x) (toSolverAST c
 toSolverAST con (x `Modulo` y) = smtModulo con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (SqrtSMT x) = smtSqrt con $ toSolverAST con x
 toSolverAST con (Neg x) = neg con $ toSolverAST con x
+
+toSolverAST con (Func n xs) = smtFunc con n $ map (toSolverAST con) xs
+
 toSolverAST con (StrLen x) = strLen con $ toSolverAST con x
 toSolverAST con (ItoR x) = itor con $ toSolverAST con x
 

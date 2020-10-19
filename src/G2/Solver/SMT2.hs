@@ -76,8 +76,8 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
             -- putStrLn "======"
             -- putStrLn (show mdl)
             let m = parseModel mdl
-            -- putStrLn $ "m = " ++ show m
-            -- putStrLn "======"
+            putStrLn $ "m = " ++ show m
+            putStrLn "======"
             return (r, Just m)
         else do
             return (r, Nothing)
@@ -109,6 +109,11 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
         "(define-fun " ++ fn ++ " ("
             ++ intercalate " " (map (\(n, s) -> "(" ++ n ++ " " ++ sortName con s ++ ")") ars) ++ ")"
             ++ " (" ++ sortName con ret ++ ") " ++ toSolverAST con body ++ ")"
+
+    declareFun con fn ars ret =
+        "(declare-fun " ++ fn ++ " ("
+            ++ intercalate " " (map (sortName con) ars) ++ ")"
+            ++ " (" ++ sortName con ret ++ "))"
 
     varDecl _ n s = "(declare-const " ++ n ++ " " ++ s ++ ")"
     
@@ -147,8 +152,11 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
     (./) _ = function2 "/"
     smtQuot _ = function2 "div"
     smtModulo _ = function2 "mod"
-    smtSqrt _ x = "(^ " ++ x ++ " 0.5)" 
+    smtSqrt _ x = "(^ " ++ x ++ " 0.5)"
     neg _ = function1 "-"
+
+    smtFunc _ n xs = "(" ++ n ++ " " ++ intercalate " " xs ++  ")"
+
     strLen _ = function1 "str.len"
 
     itor _ = function1 "to_real"

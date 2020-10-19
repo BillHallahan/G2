@@ -517,7 +517,7 @@ abstractedMod :: Abstracted -> Maybe T.Text
 abstractedMod = nameModule . funcName . abstract
 
 filterErrors :: FuncConstraints -> FuncConstraints
-filterErrors = filterFC filterErrors'
+filterErrors = id -- filterFC filterErrors'
 
 filterErrors' :: FuncConstraint -> Bool
 filterErrors' fc = undefined

@@ -18,6 +18,7 @@ module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
                                           , mapFC
                                           , mapMaybeFC
                                           , filterFC
+                                          , allCallNames
                                           , allCalls) where
 
 import G2.Language.AST
