@@ -73,11 +73,6 @@ liaSynth con ghci lrs evals meas_exs fc ns_synth = do
                                         Nothing -> error $ "synthesize: No expr found") non_ns
         non_ts = map (generateRelTypes tc) non_es
 
-    liftIO $ putStrLn $ "ns = " ++ show ns
-    liftIO $ putStrLn $ "non_ns = " ++ show non_ns
-    liftIO $ putStrLn $ "es = " ++ show es
-    liftIO $ putStrLn $ "ts = " ++ show ts
-
     si <- liaSynth' con ghci (zip ns ts) ((zip non_ns non_ts)) fc
 
     synth con evals si fc

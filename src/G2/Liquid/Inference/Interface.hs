@@ -86,7 +86,7 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
         prog = newProgress
 
     SomeSMTSolver smt <- getSMT g2config'
-    let infL = inferenceL smt ghci (fst exg2) lrs nls emptyGS emptyFC
+    let infL = inferenceL smt ghci (fst exg2) lrs nls emptyEvals emptyGS emptyFC
 
     inf <- runConfigs (runProgresser infL prog) configs
     case inf of
@@ -123,15 +123,15 @@ type NameLevels = [[Name]]
 
 inferenceL :: (ProgresserM m, InfConfigM m, MonadIO m, SMTConverter con ast out io)
            => con -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
-           -> NameLevels -> GeneratedSpecs -> FuncConstraints -> m InferenceRes
-inferenceL con ghci m_modname lrs nls gs fc = do
+           -> NameLevels -> Evals -> GeneratedSpecs -> FuncConstraints -> m InferenceRes
+inferenceL con ghci m_modname lrs nls evals gs fc = do
     let (fs, sf) = case nls of
                         (fs_:sf_:_) -> (fs_, sf_)
                         ([fs_])-> (fs_, [])
                         [] -> ([], [])
 
     let curr_ghci = addSpecsToGhcInfos ghci gs
-    synth_gs <- synthesize con curr_ghci lrs gs fc sf
+    (evals', synth_gs) <- synthesize con curr_ghci lrs evals gs fc sf
 
     case synth_gs of
         SynthEnv envN -> do
@@ -147,16 +147,16 @@ inferenceL con ghci m_modname lrs nls gs fc = do
                 Safe ->
                     case nls of
                         (_:nls') -> do
-                            inf_res <- inferenceL con ghci m_modname lrs nls' gs' fc
+                            inf_res <- inferenceL con ghci m_modname lrs nls' emptyEvals gs' fc
                             case inf_res of
-                                Raise fc' -> inferenceL con ghci m_modname lrs nls gs fc'
+                                Raise fc' -> inferenceL con ghci m_modname lrs nls evals' gs fc'
                                 _ -> return inf_res
                         [] -> return $ Env gs'
                 Unsafe bad -> do
                     ref <- refineUnsafe ghci m_modname lrs gs' fs
                     case ref of
                         Left cex -> return $ CEx cex
-                        Right fc' -> inferenceL con ghci m_modname lrs nls gs (unionFC fc fc')
+                        Right fc' -> inferenceL con ghci m_modname lrs nls evals' gs (unionFC fc fc')
                 Crash _ _ -> error "inferenceL: LiquidHaskell crashed"
         SynthFail fc' -> return $ Raise (unionFC fc fc')
 
@@ -336,18 +336,18 @@ increaseProgressing fc gs synth_gs synthed = undefined {- do
 -}
 
 synthesize :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
-           => con -> [GhcInfo] -> LiquidReadyState
-           -> GeneratedSpecs -> FuncConstraints -> [Name] -> m SynthRes
-synthesize con ghci lrs gs fc for_funcs = do
+           => con -> [GhcInfo] -> LiquidReadyState -> Evals
+           -> GeneratedSpecs -> FuncConstraints -> [Name] -> m (Evals, SynthRes)
+synthesize con ghci lrs evals gs fc for_funcs = do
     liftIO $ putStrLn "Before genMeasureExs"
     meas_ex <- genMeasureExs lrs ghci fc
     liftIO $ putStrLn "After genMeasureExs"
     liftIO $ putStrLn "Before check func calls"
-    evals' <- preEvals emptyEvals lrs ghci . concatMap allCalls $ toListFC fc
+    evals' <- preEvals evals lrs ghci . concatMap allCalls $ toListFC fc
     liftIO $ putStrLn "After pre"
     evals'' <- postEvals evals' lrs ghci . concatMap allCalls $ toListFC fc
     liftIO $ putStrLn "After check func calls"
-    liaSynth con ghci lrs evals'' meas_ex fc for_funcs
+    return . (evals'',) =<< liaSynth con ghci lrs evals'' meas_ex fc for_funcs
 
 -- | Converts counterexamples into constraints that block the current specification set
 cexsToBlockingFC :: InfConfigM m => LiquidReadyState -> [GhcInfo] -> CounterExample -> m (Either CounterExample FuncConstraint)
