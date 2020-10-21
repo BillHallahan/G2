@@ -141,7 +141,7 @@ inferenceL con ghci m_modname lrs nls evals gs fc = do
                 putStrLn "inferenceL"
                 mapM (print . gsTySigs . spec) ghci
 
-            res <- tryToVerify ghci'
+            res <- tryToVerifyOnly ghci' fs
             
             case res of
                 Safe ->
@@ -153,7 +153,7 @@ inferenceL con ghci m_modname lrs nls evals gs fc = do
                                 _ -> return inf_res
                         [] -> return $ Env gs'
                 Unsafe bad -> do
-                    ref <- refineUnsafe ghci m_modname lrs gs' fs
+                    ref <- refineUnsafe ghci m_modname lrs gs' bad
                     case ref of
                         Left cex -> return $ CEx cex
                         Right fc' -> inferenceL con ghci m_modname lrs nls evals' gs (unionFC fc fc')

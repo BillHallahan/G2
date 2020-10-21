@@ -2,7 +2,7 @@
 
 module G2.Liquid.Inference.Verify ( VerifyResult (..)
                                   , verifyVarToName
-                                  , tryHardToVerifyIgnoring
+                                  , tryToVerifyOnly
                                   , checkGSCorrect
                                   , verify
                                   , ghcInfos
@@ -104,6 +104,19 @@ tryHardToVerifyIgnoring ghci gs ignore = do
         where
             ignore' = map (\(G2.Name n m _ _) -> (n, m)) ignore
             filterIgnoring = filter (\(G2.Name n m _ _) -> (n, m) `notElem` ignore')
+
+tryToVerifyOnly :: (InfConfigM m, MonadIO m) => [GhcInfo] -> [G2.Name] -> m (VerifyResult G2.Name)
+tryToVerifyOnly ghci ns = do
+    res <- tryToVerify ghci
+    case res of
+        Safe -> return Safe
+        Unsafe unsafe ->
+            case filter (\n -> toOccMod n `elem` ns_nm) unsafe of
+                [] -> return Safe
+                unsafe' -> return $ Unsafe unsafe
+    where
+        ns_nm = map toOccMod ns
+        toOccMod (G2.Name n m _ _) = (n, m)
 
 tryToVerify :: (InfConfigM m, MonadIO m) => [GhcInfo] -> m (VerifyResult G2.Name)
 tryToVerify ghci = do
