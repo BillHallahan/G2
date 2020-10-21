@@ -1,3 +1,5 @@
+{-# LANGUAGE TupleSections #-}
+
 module G2.Liquid.Inference.Interface ( inferenceCheck
                                      , inference) where
 
@@ -151,7 +153,7 @@ inferenceL con ghci m_modname lrs nls gs fc = do
                                 _ -> return inf_res
                         [] -> return $ Env gs'
                 Unsafe bad -> do
-                    ref <- refineUnsafe ghci m_modname lrs gs' bad
+                    ref <- refineUnsafe ghci m_modname lrs gs' fs
                     case ref of
                         Left cex -> return $ CEx cex
                         Right fc' -> inferenceL con ghci m_modname lrs nls gs (unionFC fc fc')
@@ -231,6 +233,8 @@ refineUnsafe ghci m_modname lrs gs bad = do
 
     res <- mapM (genNewConstraints merged_se_ghci m_modname lrs) bad'
 
+    -- liftIO . putStrLn $ "res = " ++ show res
+
     let res' = concat res
 
     -- Either converts counterexamples to FuncConstraints, or returns them as errors to
@@ -240,6 +244,7 @@ refineUnsafe ghci m_modname lrs gs bad = do
     case new_fc of
         Left cex -> return $ Left cex
         Right new_fc' -> do
+            liftIO . putStrLn $ "new_fc' = " ++ show new_fc'
             return $ Right new_fc'
 
 {-
@@ -302,10 +307,11 @@ checkNewConstraints :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyStat
 checkNewConstraints ghci lrs cexs = do
     g2config <- g2ConfigM
     infconfig <- infConfigM
-    res <- mapM (cexsToFuncConstraints lrs ghci) cexs
+    res <- mapM (cexsToBlockingFC lrs ghci) cexs
+    res2 <- return . concat =<< mapM cexsToExtraFC cexs
     case lefts res of
         res'@(_:_) -> return . Left $ res'
-        _ -> return . Right . filterErrors . unionsFC . map fromSingletonFC . rights $ res
+        _ -> return . Right . filterErrors . unionsFC . map fromSingletonFC $ (rights res) ++ res2
 
 genMeasureExs :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] -> FuncConstraints -> m MeasureExs
 genMeasureExs lrs ghci fcs =
@@ -337,16 +343,15 @@ synthesize con ghci lrs gs fc for_funcs = do
     meas_ex <- genMeasureExs lrs ghci fc
     liftIO $ putStrLn "After genMeasureExs"
     liftIO $ putStrLn "Before check func calls"
-    pre <- preEvals lrs ghci . concatMap allCalls $ toListFC fc
+    evals' <- preEvals emptyEvals lrs ghci . concatMap allCalls $ toListFC fc
     liftIO $ putStrLn "After pre"
-    post <- postEvals lrs ghci . concatMap allCalls $ toListFC fc
+    evals'' <- postEvals evals' lrs ghci . concatMap allCalls $ toListFC fc
     liftIO $ putStrLn "After check func calls"
-    liaSynth con ghci lrs pre post meas_ex fc for_funcs
+    liaSynth con ghci lrs evals'' meas_ex fc for_funcs
 
-
--- | Converts counterexamples into constraints that the refinements must allow for, or rule out.
-cexsToFuncConstraints :: InfConfigM m => LiquidReadyState -> [GhcInfo] -> CounterExample -> m (Either CounterExample FuncConstraint)
-cexsToFuncConstraints _ _ (DirectCounter dfc fcs@(_:_)) = do
+-- | Converts counterexamples into constraints that block the current specification set
+cexsToBlockingFC :: InfConfigM m => LiquidReadyState -> [GhcInfo] -> CounterExample -> m (Either CounterExample FuncConstraint)
+cexsToBlockingFC _ _ (DirectCounter dfc fcs@(_:_)) = do
     infconfig <- infConfigM
     let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 
@@ -356,8 +361,8 @@ cexsToFuncConstraints _ _ (DirectCounter dfc fcs@(_:_)) = do
 
     if not . null $ fcs'
         then return . Right $ ImpliesFC lhs rhs
-        else error "cexsToFuncConstraints: Unhandled"
-cexsToFuncConstraints _ _ (CallsCounter dfc cfc fcs@(_:_)) = do
+        else error "cexsToBlockingFC: Unhandled"
+cexsToBlockingFC _ _ (CallsCounter dfc cfc fcs@(_:_)) = do
     infconfig <- infConfigM
     let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 
@@ -367,20 +372,44 @@ cexsToFuncConstraints _ _ (CallsCounter dfc cfc fcs@(_:_)) = do
 
     if not . null $ fcs' 
         then return . Right $ ImpliesFC lhs rhs
-        else error "cexsToFuncConstraints: Should be unreachable! Non-refinable function abstracted!"    
-cexsToFuncConstraints _ _ cex@(DirectCounter dfc []) = do
+        else error "cexsToBlockingFC: Should be unreachable! Non-refinable function abstracted!"    
+cexsToBlockingFC _ _ cex@(DirectCounter dfc []) = do
     pre_ref <- hasUserSpec (funcName dfc)
 
     case pre_ref of
         False -> return . Right $ Call All dfc 
         True -> return . Left $ cex
-cexsToFuncConstraints _ _ cex@(CallsCounter dfc cfc []) = do
+cexsToBlockingFC _ _ cex@(CallsCounter dfc cfc []) = do
     caller_pr <- hasUserSpec (funcName dfc)
     called_pr <- hasUserSpec (funcName $ real cfc)
 
     case (caller_pr, called_pr) of
         (True, True) -> return . Left $ cex
         _ -> return . Right $  ImpliesFC (Call Pre dfc) (Call Pre (abstract cfc))
+
+-- Function constraints that don't block the current specification set, but which must be true
+-- (i.e. the actual input and output for abstracted functions)
+cexsToExtraFC :: InfConfigM m => CounterExample -> m [FuncConstraint]
+cexsToExtraFC (DirectCounter _ fcs@(_:_)) = do
+    infconfig <- infConfigM
+    let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
+    return $ map (\(Abstracted { real = fc }) -> ImpliesFC (Call Pre fc) (Call Post fc)) fcs'
+cexsToExtraFC (CallsCounter _ cfc fcs@(_:_)) = do
+    infconfig <- infConfigM
+    let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
+
+    let abs = map (\(Abstracted { real = fc }) -> ImpliesFC (Call Pre fc) (Call Post fc)) fcs'
+        clls = Call All $ real cfc
+
+    return $ clls:abs
+cexsToExtraFC (DirectCounter fc []) = return $ [Call All fc]
+cexsToExtraFC (CallsCounter dfc cfc []) =
+    let
+        call_all_dfc = Call All dfc
+        call_all_cfc = Call All (real cfc)
+        imp_fc = ImpliesFC (Call Pre dfc) (Call Pre $ real cfc)
+    in
+    return $ [call_all_dfc, call_all_cfc, imp_fc]
 
 {-
 cexsToFuncConstraints :: InfConfigM m => LiquidReadyState -> [GhcInfo] -> WorkingDir -> CounterExample -> m (Either CounterExample FuncConstraints)

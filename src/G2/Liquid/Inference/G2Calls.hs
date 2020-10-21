@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -10,10 +11,12 @@ module G2.Liquid.Inference.G2Calls ( MeasureExs
                                    , PreEvals
                                    , PostEvals
                                    , FuncCallEvals
+                                   , Evals (..)
                                    , gatherAllowedCalls
                                    , runLHInferenceCore
                                    , checkFuncCall
                                    , checkCounterexample
+                                   , emptyEvals
                                    , preEvals
                                    , postEvals
                                    , evalMeasures) where
@@ -51,6 +54,7 @@ import Data.Maybe
 import qualified Data.Text as T
 
 import Control.Monad
+import qualified Control.Monad.State.Lazy as S
 import Control.Exception
 import Control.Monad.IO.Class
 import Data.Monoid
@@ -371,22 +375,32 @@ type PreEvals = FuncCallEvals
 type PostEvals = FuncCallEvals
 type FuncCallEvals = HM.HashMap FuncCall Bool
 
-preEvals :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] -> [FuncCall] -> m PreEvals
-preEvals lrs ghci fcs =
-    foldM (\hm fc -> if fc `HM.member` hm
+data Evals = Evals { pre_evals :: PreEvals
+                   , post_evals :: PostEvals }
+
+emptyEvals :: Evals
+emptyEvals = Evals { pre_evals = HM.empty, post_evals = HM.empty }
+
+preEvals :: (InfConfigM m, MonadIO m) => Evals -> LiquidReadyState -> [GhcInfo] -> [FuncCall] -> m Evals
+preEvals evals@(Evals { pre_evals = pre }) lrs ghci fcs = do
+    pre' <- foldM (\hm fc ->
+                        if fc `HM.member` hm
                           then return hm
                           else do
                             pr <- checkPre lrs ghci fc
-                            return (HM.insert fc pr hm)) HM.empty fcs
+                            return (HM.insert fc pr hm)) pre fcs
+    return $ evals { pre_evals = pre' }
     -- return . HM.fromList =<< mapM (\fc -> return . (fc,) =<< checkPre lrs ghci fc) fcs
 
-postEvals :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] -> [FuncCall] -> m PostEvals
-postEvals lrs ghci fcs =
-    foldM (\hm fc -> if fc `HM.member` hm
+postEvals :: (InfConfigM m, MonadIO m) => Evals -> LiquidReadyState -> [GhcInfo] -> [FuncCall] -> m Evals
+postEvals evals@(Evals { post_evals = post }) lrs ghci fcs = do
+    post' <- foldM (\hm fc ->
+                        if fc `HM.member` hm
                           then return hm
                           else do
                             pr <- checkPost lrs ghci fc
-                            return (HM.insert fc pr hm)) HM.empty fcs
+                            return (HM.insert fc pr hm)) post fcs
+    return $ evals { post_evals = post' }
 
 checkPre :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] -> FuncCall -> m Bool
 checkPre = checkPreOrPost (zeroOutKeys . ls_assumptions) arguments

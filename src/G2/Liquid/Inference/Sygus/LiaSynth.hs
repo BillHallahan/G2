@@ -33,7 +33,8 @@ import qualified Data.Text as T
 data SynthRes = SynthEnv GeneratedSpecs | SynthFail FuncConstraints
 
 -- Internal Types
-data SpecInfo = SI { s_prename :: SMTName
+data SpecInfo = SI { s_max_coeff :: Integer
+                   , s_prename :: SMTName
                    , s_postname :: SMTName
                    , s_args :: [SpecArg]
                    , s_ret :: SpecArg
@@ -50,9 +51,9 @@ data SpecArg = SpecArg { lh_symb :: LH.Symbol
 data Status = Synth | Known deriving (Eq, Show)
 
 liaSynth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
-         => con -> [GhcInfo] -> LiquidReadyState -> PreEvals -> PostEvals -> MeasureExs
+         => con -> [GhcInfo] -> LiquidReadyState -> Evals -> MeasureExs
          -> FuncConstraints -> [Name] -> m SynthRes
-liaSynth con ghci lrs pre_ev post_ev meas_exs fc ns_synth = do
+liaSynth con ghci lrs evals meas_exs fc ns_synth = do
     -- Compensate for zeroed out names in FuncConstraints
     let ns = map (\(Name n m _ l) -> Name n m 0 l) ns_synth
 
@@ -79,7 +80,7 @@ liaSynth con ghci lrs pre_ev post_ev meas_exs fc ns_synth = do
 
     si <- liaSynth' con ghci (zip ns ts) ((zip non_ns non_ts)) fc
 
-    synth con pre_ev post_ev si fc
+    synth con evals si fc
 
 -- addKnownSpecs :: [GhcInfo] -> ExprEnv -> M.Map Name SpecInfo -> FuncConstraints -> M.Map Name SpecInfo
 -- addKnownSpecs ghci si =
@@ -97,7 +98,7 @@ liaSynth' con ghci ns_aty_rty non_ns_aty_rty fc = do
 
     return si''
 
-liaSynthOfSize :: Int -> M.Map Name SpecInfo -> M.Map Name SpecInfo
+liaSynthOfSize :: Integer -> M.Map Name SpecInfo -> M.Map Name SpecInfo
 liaSynthOfSize sz m_si =
     let
         m_si' =
@@ -106,7 +107,8 @@ liaSynthOfSize sz m_si =
                             pre_c = list_i_j (s_prename si) $ length (s_args si)
                             post_c = list_i_j (s_postname si) $ length (s_args si) + 1
                         in
-                        si { s_precoeffs = pre_c
+                        si { s_max_coeff = 5 * sz
+                           , s_precoeffs = pre_c
                            , s_postcoeffs = post_c }) m_si
     in
     m_si'
@@ -150,15 +152,15 @@ adjustArgs (App _ l@(Lit _)) = l
 adjustArgs e = e
 
 -- computing F_{Fixed}, i.e. what is the value of known specifications at known points 
-envToSMT :: PreEvals -> PostEvals -> M.Map Name SpecInfo -> FuncConstraints -> [SMTHeader]
-envToSMT pre_ev post_ev si =
+envToSMT :: Evals -> M.Map Name SpecInfo -> FuncConstraints -> [SMTHeader]
+envToSMT evals si =
      map Solver.Assert
-   . concatMap (envToSMT' pre_ev post_ev si)
+   . concatMap (envToSMT' evals si)
    . concatMap allCalls
    . toListFC
 
-envToSMT' :: PreEvals -> PostEvals -> M.Map Name SpecInfo -> FuncCall -> [SMTAST]
-envToSMT' pre_ev post_ev m_si fc@(FuncCall { funcName = f, arguments = as, returns = r }) =
+envToSMT' :: Evals -> M.Map Name SpecInfo -> FuncCall -> [SMTAST]
+envToSMT' (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(FuncCall { funcName = f, arguments = as, returns = r }) =
     case M.lookup f m_si of
         Just si
             | s_status si == Known ->
@@ -181,9 +183,22 @@ envToSMT' pre_ev post_ev m_si fc@(FuncCall { funcName = f, arguments = as, retur
             | otherwise -> []
         Nothing -> error "envToSMT': function not found"
 
+maxCoeffConstraints :: M.Map Name SpecInfo -> [SMTHeader]
+maxCoeffConstraints =
+      map Solver.Assert
+    . concatMap
+        (\si ->
+            let
+                cffs = concat . concat $ s_precoeffs si ++ s_postcoeffs si
+            in
+            if s_status si == Synth
+                then map (\c -> (Neg (VInt (s_max_coeff si)) :<= V c SortInt)
+                                    :&& (V c SortInt :<= VInt (s_max_coeff si))) cffs
+                else []) . M.elems
+
 synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
-      => con -> PreEvals -> PostEvals -> M.Map Name SpecInfo -> FuncConstraints -> m SynthRes
-synth con pre_ev post_ev m_si fc = do
+      => con -> Evals -> M.Map Name SpecInfo -> FuncConstraints -> m SynthRes
+synth con evals m_si fc = do
     let all_precoeffs = getCoeffs s_precoeffs $ M.elems m_si
         all_postcoeffs = getCoeffs s_postcoeffs $ M.elems m_si
         all_coeffs = all_precoeffs ++ all_postcoeffs
@@ -191,12 +206,13 @@ synth con pre_ev post_ev m_si fc = do
     let var_decl_hdrs = map (flip VarDecl SortInt) all_coeffs
         def_funs = concatMap defineLIAFuns $ M.elems m_si
         fc_smt = constraintsToSMT m_si fc
-        env_smt = envToSMT pre_ev post_ev m_si fc
+        env_smt = envToSMT evals m_si fc
+        max_coeffs = maxCoeffConstraints m_si
 
-        hdrs = var_decl_hdrs ++ def_funs ++ fc_smt ++ env_smt
-    liftIO . putStrLn $ "hdrs = " ++ show hdrs
+        hdrs = var_decl_hdrs ++ def_funs ++ fc_smt ++ env_smt ++ max_coeffs
+    -- liftIO . putStrLn $ "hdrs = " ++ show hdrs
     mdl <- liftIO $ checkConstraints con hdrs (zip all_coeffs (repeat SortInt))
-    liftIO . putStrLn $ "mdl = " ++ show mdl
+    -- liftIO . putStrLn $ "mdl = " ++ show mdl
     case mdl of
         Just mdl' -> do
             let lh_spec = M.map (\si -> buildLIA_LH si mdl') . M.filter (\si -> s_status si == Synth) $ m_si
