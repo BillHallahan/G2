@@ -11,6 +11,8 @@ module G2.Liquid.Types ( LHOutput (..)
                        , AnnotMap (..)
                        , Abstracted (..)
                        , AbstractedInfo (..)
+                       , Assumptions
+                       , Posts
 
                        , mapAbstractedFCs
                        , mapAbstractedInfoFCs
@@ -19,6 +21,7 @@ module G2.Liquid.Types ( LHOutput (..)
                        , measuresM
                        , lhRenamedTCM
                        , assumptionsM
+                       , postsM
                        , annotsM
                        , runLHStateM
                        , evalLHStateM
@@ -31,6 +34,9 @@ module G2.Liquid.Types ( LHOutput (..)
                        , lookupAssumptionM
                        , insertAssumptionM
                        , mapAssumptionsM
+                       , lookupPostM
+                       , insertPostM
+                       , mapPostM
                        , lookupAnnotM
                        , insertAnnotM
                        , mapAnnotsExpr
@@ -103,6 +109,7 @@ data CounterExample = DirectCounter L.FuncCall [Abstracted]
 type Measures = L.ExprEnv
 
 type Assumptions = M.Map L.Name L.Expr
+type Posts = M.Map L.Name L.Expr
 
 newtype AnnotMap =
     AM { unAnnotMap :: HM.HashMap L.Span [(Maybe T.Text, L.Expr)] }
@@ -160,6 +167,7 @@ data LHState = LHState { state :: L.State [L.FuncCall]
                        , lh_tcs :: L.TypeClasses
                        , tcvalues :: TCValues
                        , assumptions :: Assumptions
+                       , posts :: Posts
                        , annots :: AnnotMap
                        } deriving (Eq, Show, Read)
 
@@ -170,6 +178,7 @@ consLHState s meas tc tcv =
             , lh_tcs = tc
             , tcvalues = tcv
             , assumptions = M.empty
+            , posts = M.empty
             , annots = AM HM.empty }
 
 deconsLHState :: LHState -> L.State [L.FuncCall]
@@ -191,6 +200,11 @@ assumptionsM :: LHStateM Assumptions
 assumptionsM = do
     (lh_s, _) <- SM.get
     return $ assumptions lh_s
+
+postsM :: LHStateM Posts
+postsM = do
+    (lh_s, _) <- SM.get
+    return $ posts lh_s
 
 annotsM :: LHStateM AnnotMap
 annotsM = do
@@ -338,6 +352,22 @@ mapAssumptionsM f = do
     (s@(LHState { assumptions = assumpt }), b) <- SM.get
     assumpt' <- mapM f assumpt
     SM.put $ (s { assumptions = assumpt' },b)
+
+lookupPostM :: L.Name -> LHStateM (Maybe L.Expr)
+lookupPostM n = liftLHState (M.lookup n . posts)
+
+insertPostM :: L.Name -> L.Expr -> LHStateM ()
+insertPostM n e = do
+    (lh_s, b) <- SM.get
+    let pst = posts lh_s
+    let pst' = M.insert n e pst
+    SM.put $ (lh_s {posts = pst'}, b)
+
+mapPostM :: (L.Expr -> LHStateM L.Expr) -> LHStateM ()
+mapPostM f = do
+    (s@(LHState { posts = pst }), b) <- SM.get
+    pst' <- mapM f pst
+    SM.put $ (s { posts = pst' },b)
 
 insertAnnotM :: L.Span -> Maybe T.Text -> L.Expr -> LHStateM ()
 insertAnnotM spn t e = do

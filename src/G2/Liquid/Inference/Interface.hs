@@ -128,12 +128,17 @@ inferenceL con ghci m_modname lrs nls gs fc = do
                         ([fs_])-> (fs_, [])
                         [] -> ([], [])
 
-    synth_gs <- synthesize con ghci lrs gs fc sf
+    let curr_ghci = addSpecsToGhcInfos ghci gs
+    synth_gs <- synthesize con curr_ghci lrs gs fc sf
 
     case synth_gs of
         SynthEnv envN -> do
             let gs' = unionDroppingGS gs envN
                 ghci' = addSpecsToGhcInfos ghci gs'
+            liftIO $ do
+                putStrLn "inferenceL"
+                mapM (print . gsTySigs . spec) ghci
+
             res <- tryToVerify ghci'
             
             case res of
@@ -331,7 +336,12 @@ synthesize con ghci lrs gs fc for_funcs = do
     liftIO $ putStrLn "Before genMeasureExs"
     meas_ex <- genMeasureExs lrs ghci fc
     liftIO $ putStrLn "After genMeasureExs"
-    liaSynth con ghci lrs meas_ex fc for_funcs
+    liftIO $ putStrLn "Before check func calls"
+    pre <- preEvals lrs ghci . concatMap allCalls $ toListFC fc
+    liftIO $ putStrLn "After pre"
+    post <- postEvals lrs ghci . concatMap allCalls $ toListFC fc
+    liftIO $ putStrLn "After check func calls"
+    liaSynth con ghci lrs pre post meas_ex fc for_funcs
 
 
 -- | Converts counterexamples into constraints that the refinements must allow for, or rule out.
@@ -364,13 +374,14 @@ cexsToFuncConstraints _ _ cex@(DirectCounter dfc []) = do
     case pre_ref of
         False -> return . Right $ Call All dfc 
         True -> return . Left $ cex
-cexToFuncConstraints _ _ cex@(CallsCounter dfc cfc []) = do
+cexsToFuncConstraints _ _ cex@(CallsCounter dfc cfc []) = do
     caller_pr <- hasUserSpec (funcName dfc)
     called_pr <- hasUserSpec (funcName $ real cfc)
 
     case (caller_pr, called_pr) of
         (True, True) -> return . Left $ cex
         _ -> return . Right $  ImpliesFC (Call Pre dfc) (Call Pre (abstract cfc))
+
 {-
 cexsToFuncConstraints :: InfConfigM m => LiquidReadyState -> [GhcInfo] -> WorkingDir -> CounterExample -> m (Either CounterExample FuncConstraints)
 cexsToFuncConstraints _ _ _ (DirectCounter dfc fcs@(_:_)) = do

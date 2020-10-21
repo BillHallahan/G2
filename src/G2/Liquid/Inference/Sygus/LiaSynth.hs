@@ -25,6 +25,7 @@ import qualified Language.Fixpoint.Types as LH
 import qualified Language.Fixpoint.Types as LHF
 
 import Data.Coerce
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import qualified Data.Map as M
 import qualified Data.Text as T
@@ -49,9 +50,12 @@ data SpecArg = SpecArg { lh_symb :: LH.Symbol
 data Status = Synth | Known deriving (Eq, Show)
 
 liaSynth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
-         => con -> [GhcInfo] -> LiquidReadyState -> MeasureExs
+         => con -> [GhcInfo] -> LiquidReadyState -> PreEvals -> PostEvals -> MeasureExs
          -> FuncConstraints -> [Name] -> m SynthRes
-liaSynth con ghci lrs meas_exs fc ns = do
+liaSynth con ghci lrs pre_ev post_ev meas_exs fc ns_synth = do
+    -- Compensate for zeroed out names in FuncConstraints
+    let ns = map (\(Name n m _ l) -> Name n m 0 l) ns_synth
+
     -- Figure out the type of each of the functions we need to synthesize
     let eenv = expr_env . state $ lr_state lrs
         tc = type_classes . state $ lr_state lrs
@@ -69,10 +73,13 @@ liaSynth con ghci lrs meas_exs fc ns = do
         non_ts = map (generateRelTypes tc) non_es
 
     liftIO $ putStrLn $ "ns = " ++ show ns
+    liftIO $ putStrLn $ "non_ns = " ++ show non_ns
     liftIO $ putStrLn $ "es = " ++ show es
     liftIO $ putStrLn $ "ts = " ++ show ts
 
-    liaSynth' con ghci (zip ns ts) ((zip non_ns non_ts)) fc
+    si <- liaSynth' con ghci (zip ns ts) ((zip non_ns non_ts)) fc
+
+    synth con pre_ev post_ev si fc
 
 -- addKnownSpecs :: [GhcInfo] -> ExprEnv -> M.Map Name SpecInfo -> FuncConstraints -> M.Map Name SpecInfo
 -- addKnownSpecs ghci si =
@@ -82,13 +89,13 @@ liaSynth con ghci lrs meas_exs fc ns = do
 
 
 liaSynth' :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
-          => con -> [GhcInfo] -> [(Name, ([Type], Type))] -> [(Name, ([Type], Type))] -> FuncConstraints -> m SynthRes
+          => con -> [GhcInfo] -> [(Name, ([Type], Type))] -> [(Name, ([Type], Type))] -> FuncConstraints -> m (M.Map Name SpecInfo)
 liaSynth' con ghci ns_aty_rty non_ns_aty_rty fc = do
     let si = foldr (\(n, (at, rt)) -> M.insert n (buildSI Synth ghci n at rt)) M.empty ns_aty_rty
         si' = foldr (\(n, (at, rt)) -> M.insert n (buildSI Known ghci n at rt)) si non_ns_aty_rty
-        si'' = liaSynthOfSize 2 si'
+        si'' = liaSynthOfSize 1 si'
 
-    synth con si'' fc
+    return si''
 
 liaSynthOfSize :: Int -> M.Map Name SpecInfo -> M.Map Name SpecInfo
 liaSynthOfSize sz m_si =
@@ -109,8 +116,8 @@ liaSynthOfSize sz m_si =
                 [ 
                     [ s ++ "_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
                     | a <- [0..ars]]
-                | k <- [0..sz] ]
-            | j <- [0..sz] ]
+                | k <- [1..sz] ]
+            | j <- [1..sz] ]
 
 constraintsToSMT :: M.Map Name SpecInfo ->FuncConstraints -> [SMTHeader]
 constraintsToSMT si =  map Solver.Assert . map (constraintToSMT si) . toListFC
@@ -142,9 +149,41 @@ adjustArgs :: G2.Expr -> G2.Expr
 adjustArgs (App _ l@(Lit _)) = l
 adjustArgs e = e
 
+-- computing F_{Fixed}, i.e. what is the value of known specifications at known points 
+envToSMT :: PreEvals -> PostEvals -> M.Map Name SpecInfo -> FuncConstraints -> [SMTHeader]
+envToSMT pre_ev post_ev si =
+     map Solver.Assert
+   . concatMap (envToSMT' pre_ev post_ev si)
+   . concatMap allCalls
+   . toListFC
+
+envToSMT' :: PreEvals -> PostEvals -> M.Map Name SpecInfo -> FuncCall -> [SMTAST]
+envToSMT' pre_ev post_ev m_si fc@(FuncCall { funcName = f, arguments = as, returns = r }) =
+    case M.lookup f m_si of
+        Just si
+            | s_status si == Known ->
+            let
+                smt_as = map (exprToSMT . adjustArgs) as
+                smt_r = exprToSMT $ adjustArgs r
+
+                pre_res = case HM.lookup fc pre_ev of
+                            Just b -> b
+                            Nothing -> error "envToSMT': pre not found"
+
+                post_res = case HM.lookup fc post_ev of
+                            Just b -> b
+                            Nothing -> error "envToSMT': post not found"
+
+                pre = (if pre_res then id else (:!)) $ Func (s_prename si) smt_as
+                post = (if post_res then id else (:!)) $ Func (s_postname si) (smt_as ++ [smt_r])
+            in
+            [pre, post]
+            | otherwise -> []
+        Nothing -> error "envToSMT': function not found"
+
 synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
-      => con -> M.Map Name SpecInfo -> FuncConstraints -> m SynthRes
-synth con m_si fc = do
+      => con -> PreEvals -> PostEvals -> M.Map Name SpecInfo -> FuncConstraints -> m SynthRes
+synth con pre_ev post_ev m_si fc = do
     let all_precoeffs = getCoeffs s_precoeffs $ M.elems m_si
         all_postcoeffs = getCoeffs s_postcoeffs $ M.elems m_si
         all_coeffs = all_precoeffs ++ all_postcoeffs
@@ -152,14 +191,15 @@ synth con m_si fc = do
     let var_decl_hdrs = map (flip VarDecl SortInt) all_coeffs
         def_funs = concatMap defineLIAFuns $ M.elems m_si
         fc_smt = constraintsToSMT m_si fc
+        env_smt = envToSMT pre_ev post_ev m_si fc
 
-        hdrs = var_decl_hdrs ++ def_funs ++ fc_smt
+        hdrs = var_decl_hdrs ++ def_funs ++ fc_smt ++ env_smt
     liftIO . putStrLn $ "hdrs = " ++ show hdrs
     mdl <- liftIO $ checkConstraints con hdrs (zip all_coeffs (repeat SortInt))
     liftIO . putStrLn $ "mdl = " ++ show mdl
     case mdl of
         Just mdl' -> do
-            let lh_spec = M.map (\si -> buildLIA_LH si mdl') m_si
+            let lh_spec = M.map (\si -> buildLIA_LH si mdl') . M.filter (\si -> s_status si == Synth) $ m_si
             liftIO $ print lh_spec
             let gs' = M.foldrWithKey insertAssertGS emptyGS
                     $ M.map (map (flip PolyBound [])) lh_spec
@@ -269,7 +309,7 @@ buildSI stat ghci f aty rty =
        , s_precoeffs = []
        , s_postcoeffs = []
        , s_status = stat }
-
+    
 argsAndRetFromFSpec :: [SpecArg] -> [Type] -> Type -> SpecType -> ([SpecArg], SpecArg)
 argsAndRetFromFSpec ars (_:ts) rty (RAllT { rt_ty = out }) = argsAndRetFromFSpec ars ts rty out
 argsAndRetFromFSpec ars (t:ts) rty (RFun { rt_bind = b, rt_in = i, rt_out = out}) =

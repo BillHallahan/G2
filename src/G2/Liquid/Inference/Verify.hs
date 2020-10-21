@@ -110,6 +110,10 @@ tryToVerify ghci = do
     lhconfig <- lhConfigM
     infconfig <- infConfigM
 
+    liftIO $ do
+      putStrLn "tryToVerify"
+      mapM (print . gsTySigs . spec) ghci
+
     return . verifyVarToName =<< liftIO (verify infconfig lhconfig ghci)
 
 -- | Confirm that we have actually found exactly the needed specs

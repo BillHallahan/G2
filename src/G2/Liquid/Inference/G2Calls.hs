@@ -7,9 +7,15 @@
 {-# LANGUAGE TupleSections #-}
 
 module G2.Liquid.Inference.G2Calls ( MeasureExs
+                                   , PreEvals
+                                   , PostEvals
+                                   , FuncCallEvals
                                    , gatherAllowedCalls
                                    , runLHInferenceCore
+                                   , checkFuncCall
                                    , checkCounterexample
+                                   , preEvals
+                                   , postEvals
                                    , evalMeasures) where
 
 import G2.Config
@@ -44,6 +50,7 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
+import Control.Monad
 import Control.Exception
 import Control.Monad.IO.Class
 import Data.Monoid
@@ -302,10 +309,14 @@ checkBadTy' _ _ = Any False
 -------------------------------
 -- Checking Counterexamples
 -------------------------------
--- Does a given (counter)example violate a specification?
+
+-- Does a given FuncCall (counterexample) violate a specification?
 -- This allows us to check if a found counterexample violates a user-provided specifications,
 -- or a synthesized specification.
 -- Returns True if the original Assertions are True (i.e. not violated)
+checkFuncCall :: LiquidReadyState -> [GhcInfo] -> Config -> FuncCall -> IO Bool
+checkFuncCall = checkCounterexample
+
 checkCounterexample :: LiquidReadyState -> [GhcInfo] -> Config -> FuncCall -> IO Bool
 checkCounterexample lrs ghci config cex@(FuncCall { funcName = Name n m _ _ }) = do
     let config' = config { counterfactual = NotCounterfactual }
@@ -353,6 +364,78 @@ currExprIsTrue :: State t -> Bool
 currExprIsTrue (State { curr_expr = CurrExpr _ (Data (DataCon (Name dcn _ _ _) _))}) = dcn == "True"
 currExprIsTrue _ = False
 
+-------------------------------
+-- Checking Pre and Post Conditions
+-------------------------------
+type PreEvals = FuncCallEvals
+type PostEvals = FuncCallEvals
+type FuncCallEvals = HM.HashMap FuncCall Bool
+
+preEvals :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] -> [FuncCall] -> m PreEvals
+preEvals lrs ghci fcs =
+    foldM (\hm fc -> if fc `HM.member` hm
+                          then return hm
+                          else do
+                            pr <- checkPre lrs ghci fc
+                            return (HM.insert fc pr hm)) HM.empty fcs
+    -- return . HM.fromList =<< mapM (\fc -> return . (fc,) =<< checkPre lrs ghci fc) fcs
+
+postEvals :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] -> [FuncCall] -> m PostEvals
+postEvals lrs ghci fcs =
+    foldM (\hm fc -> if fc `HM.member` hm
+                          then return hm
+                          else do
+                            pr <- checkPost lrs ghci fc
+                            return (HM.insert fc pr hm)) HM.empty fcs
+
+checkPre :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] -> FuncCall -> m Bool
+checkPre = checkPreOrPost (zeroOutKeys . ls_assumptions) arguments
+
+checkPost :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] ->FuncCall -> m Bool
+checkPost = checkPreOrPost (zeroOutKeys . ls_posts) (\fc -> arguments fc ++ [returns fc])
+
+zeroOutKeys :: M.Map Name v -> M.Map Name v
+zeroOutKeys = M.mapKeys (\(Name n m _ l) -> Name n m 0 l)
+
+checkPreOrPost :: (InfConfigM m, MonadIO m)
+               => (LiquidData -> M.Map Name Expr) -> (FuncCall -> [Expr]) -> LiquidReadyState -> [GhcInfo] -> FuncCall -> m Bool
+checkPreOrPost extract ars lrs ghci cex@(FuncCall { funcName = Name n m _ _ }) = do
+    config <- g2ConfigM
+    let config' = config { counterfactual = NotCounterfactual }
+    -- We use the same function to instantiate this state as in runLHInferenceCore, so all the names line up
+    ld@(LiquidData
+          { ls_state = s
+          , ls_bindings = bindings }) <- liftIO $ processLiquidReadyStateWithCall lrs ghci n m config' mempty
+
+    case checkFromMap ars (extract ld) cex s of
+        Just s' -> do
+            SomeSolver solver <- liftIO $ initSolver config
+            (fsl, _) <- liftIO $ genericG2Call config' solver s' bindings
+            liftIO $ close solver
+
+            -- liftIO $ do
+            --   print n
+            --   print . curr_expr $ s'
+            --   mapM_ (print . curr_expr . final_state) fsl
+
+            -- We may return multiple states if any of the specifications contained a SymGen
+            return $ any (currExprIsTrue . final_state) fsl
+        -- If there is no explicit specification, the specification is implicitly True
+        Nothing -> return True
+
+checkFromMap :: (FuncCall -> [Expr]) -> M.Map Name Expr -> FuncCall -> State t -> Maybe (State t)
+checkFromMap ars specs fc@(FuncCall { funcName = n }) s@(State { expr_env = eenv, known_values = kv }) =
+    let
+        e = M.lookup n specs
+    in
+    case e of
+        Just e' ->
+            let
+                e'' = mkApp $ e':ars fc
+            in
+            Just $ s { curr_expr = CurrExpr Evaluate e''
+                     , true_assert = True }
+        Nothing -> Nothing
 
 -------------------------------
 -- Eval Measures

@@ -228,6 +228,8 @@ data LiquidData = LiquidData { ls_state :: State LHTracker
                              , ls_counterfactual_name :: CounterfactualName
                              , ls_counterfactual_funcs :: S.HashSet Name
                              , ls_measures :: Measures
+                             , ls_assumptions :: Assumptions
+                             , ls_posts :: Posts
                              , ls_tcv :: TCValues
                              , ls_memconfig :: MemConfig }
 
@@ -334,6 +336,8 @@ extractWithoutSpecs lrs@(LiquidReadyState { lr_state = s
                         , ls_counterfactual_name = error "No counterfactual name"
                         , ls_counterfactual_funcs = error "No counterfactual funcs"
                         , ls_measures = real_meas
+                        , ls_assumptions = assumptions lh_s
+                        , ls_posts = posts lh_s
                         , ls_tcv = tcv
                         , ls_memconfig = pres_names' `mappend` memconfig }
 

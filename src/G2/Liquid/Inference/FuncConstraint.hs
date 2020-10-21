@@ -27,6 +27,7 @@ import G2.Language.Syntax
 import G2.Lib.Printers
 
 import Data.Coerce
+import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
@@ -55,9 +56,11 @@ nullFC = null . toListFC
 insertFC :: FuncConstraint -> FuncConstraints -> FuncConstraints
 insertFC fc (FuncConstraints fcs) =
     let
-        ns = map zeroOutUnq $ allCallNames fc
+        ns = allCallNames fc
+        ns' = map zeroOutUnq ns
+        fc' = renames (HM.fromList $ zip ns ns') fc
     in
-    FuncConstraints $ foldr (\n -> M.insertWith (++) n [fc]) fcs ns
+    FuncConstraints $ foldr (\n -> M.insertWith (++) n [fc']) fcs ns'
     -- coerce (M.insertWith (++) (zeroOutUnq . funcName . constraint $ fc) [fc])
 
 lookupFC :: Name -> FuncConstraints -> [FuncConstraint]
@@ -107,3 +110,22 @@ instance ASTContainer FuncConstraint Expr where
     modifyContainedASTs f (OrFC fcs) = OrFC (modifyContainedASTs f fcs)
     modifyContainedASTs f (ImpliesFC fc1 fc2) = ImpliesFC (modifyContainedASTs f fc1) (modifyContainedASTs f fc2)
     modifyContainedASTs f (NotFC fc) = NotFC (modifyContainedASTs f fc)
+
+instance Named FuncConstraint where
+    names (Call _ fc) = names fc
+    names (AndFC fcs) = names fcs
+    names (OrFC fcs) = names fcs
+    names (ImpliesFC fc1 fc2) = names fc1 ++ names fc2
+    names (NotFC fc) = names fc
+
+    rename old new (Call sp fc) = Call sp (rename old new fc)
+    rename old new (AndFC fcs) = AndFC (rename old new fcs)
+    rename old new (OrFC fcs) = OrFC (rename old new fcs)
+    rename old new (ImpliesFC fc1 fc2) = ImpliesFC (rename old new fc1) (rename old new fc2)
+    rename old new (NotFC fc) = NotFC (rename old new fc)
+
+    renames hm (Call sp fc) = Call sp (renames hm fc)
+    renames hm (AndFC fcs) = AndFC (renames hm fcs)
+    renames hm (OrFC fcs) = OrFC (renames hm fcs)
+    renames hm (ImpliesFC fc1 fc2) = ImpliesFC (renames hm fc1) (renames hm fc2)
+    renames hm (NotFC fc) = NotFC (renames hm fc)

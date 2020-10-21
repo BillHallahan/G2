@@ -5,6 +5,7 @@
 module G2.Liquid.Conversion ( LHDictMap
                             , DictMaps (..)
                             , BoundTypes
+                            , CheckPre (..)
                             , mergeLHSpecState
                             , convertSpecType
                             , dictMapFromIds
@@ -111,6 +112,9 @@ mergeLHSpecState' v lst = do
 
                     assumpt <- createAssumption (val lst) e
                     insertAssumptionM n' assumpt
+
+                    post <- createPost (val lst) e
+                    insertPostM n' post
                 False -> return ()
         Nothing -> return ()
 
@@ -166,6 +170,24 @@ createAssumption st e = do
 
     return . foldr (uncurry Lam) assume $ zip lu is
 
+createPost :: SpecType -> Expr -> LHStateM Expr
+createPost st e = do
+    lh <- lhTCM
+
+    -- Create new bindings to use in the Ref. Type
+    let argT = spArgumentTypes e
+    is <- mapM argsFromArgT argT
+    let lu = map argTypeToLamUse argT
+
+    r <- freshIdN (returnType e)
+    let is' = filter (not . isTC lh . typeOf) is
+    dm@(DictMaps {lh_dicts = lhm}) <- dictMapFromIds is
+
+    pst <- convertPostSpecType dm (M.map typeOf lhm) is' r st
+
+    return . foldr (uncurry Lam) pst $ zip (lu ++ [TermL]) (is ++ [r])
+
+
 
 dictMapFromIds :: [Id] -> LHStateM DictMaps
 dictMapFromIds is = do
@@ -196,21 +218,28 @@ argsFromArgT :: ArgType -> LHStateM Id
 argsFromArgT (AnonType t) = freshIdN t
 argsFromArgT (NamedType i) = return i
 
+-- | Should we translate the precondition in convertSpecType?
+data CheckPre = CheckPre | CheckOnlyPost deriving Eq
+
 convertAssumeSpecType :: DictMaps -> BoundTypes -> [Id] -> SpecType -> LHStateM Expr
 convertAssumeSpecType m bt is st = do
-    convertSpecType m bt is Nothing st
+    convertSpecType CheckPre m bt is Nothing st
 
 convertAssertSpecType :: DictMaps -> BoundTypes -> [Id] -> Id -> SpecType -> LHStateM Expr
 convertAssertSpecType m bt is r st = do
-    convertSpecType m bt is (Just r) st
+    convertSpecType CheckPre m bt is (Just r) st
+
+convertPostSpecType :: DictMaps -> BoundTypes -> [Id] -> Id -> SpecType -> LHStateM Expr
+convertPostSpecType m bt is r st =
+    convertSpecType CheckOnlyPost m bt is (Just r) st
 
 -- | See also: convertAssumeSpecType, convertAssertSpecType
 -- We can Maybe pass an Id for the value returned by the function
 -- If we do, our Expr includes the Refinement on the return value,
 -- otherwise it does not.  This allows us to use this same function to
 -- translate both for assumptions and assertions
-convertSpecType :: DictMaps -> BoundTypes -> [Id] -> Maybe Id -> SpecType -> LHStateM Expr
-convertSpecType m bt _ r (RVar {rt_var = (RTV v), rt_reft = ref})
+convertSpecType :: CheckPre -> DictMaps -> BoundTypes -> [Id] -> Maybe Id -> SpecType -> LHStateM Expr
+convertSpecType cp m bt _ r (RVar {rt_var = (RTV v), rt_reft = ref})
     | Just r' <- r = do
         let symb = reftSymbol $ ur_reft ref
         let i = mkIdUnsafe v
@@ -223,32 +252,35 @@ convertSpecType m bt _ r (RVar {rt_var = (RTV v), rt_reft = ref})
 
         return $ App (Lam TermL symbId re) (Var r')
     | otherwise = mkTrueE
-convertSpecType m bt (i:is) r (RFun {rt_bind = b, rt_in = fin, rt_out = fout }) = do
+convertSpecType cp m bt (i:is) r (RFun {rt_bind = b, rt_in = fin, rt_out = fout }) = do
     t <- unsafeSpecTypeToType fin
     let i' = convertSymbolT b t
 
     let bt' = M.insert (idName i') t bt
 
-    e <- convertSpecType m bt' is r fout
+    e <- convertSpecType cp m bt' is r fout
+
 
     case hasFuncType i of
         True -> return $ App (Lam TermL i' e) (Var i)
         False -> do
-            e' <- convertSpecType m bt' [] (Just i') fin
+            e' <- convertSpecType cp m bt' [] (Just i') fin
             an <- lhAndE
-            let e'' = App (App an e) e'
+            let e'' = if cp == CheckPre
+                            then App (App an e) e'
+                            else e
             
             return $ App (Lam TermL i' e'') (Var i)
-convertSpecType m bt (i:is) r (RAllT {rt_tvbind = RTVar (RTV v) _, rt_ty = rty}) = do
+convertSpecType cp m bt (i:is) r (RAllT {rt_tvbind = RTVar (RTV v) _, rt_ty = rty}) = do
     let i' = mkIdUnsafe v
 
 
     let m' = copyIds (idName i) (idName i') m
     let bt' = M.insert (idName i') (typeOf i) bt
 
-    e <- convertSpecType m' bt' is r rty
+    e <- convertSpecType cp m' bt' is r rty
     return $ App (Lam TypeL i' e) (Var i)
-convertSpecType m bt _ r (RApp {rt_tycon = c, rt_reft = ref, rt_args = as})
+convertSpecType cp m bt _ r (RApp {rt_tycon = c, rt_reft = ref, rt_args = as})
     | Just r' <- r = do
         let symb = reftSymbol $ ur_reft ref
         ty <- return . maybe (error "Error in convertSpecType") id =<< rTyConType c as
@@ -256,33 +288,33 @@ convertSpecType m bt _ r (RApp {rt_tycon = c, rt_reft = ref, rt_args = as})
 
         let bt' = M.insert (idName i) ty bt
 
-        argsPred <- polyPredFunc as ty m bt' r'
+        argsPred <- polyPredFunc cp as ty m bt' r'
         re <- convertLHExpr m bt' Nothing (reftExpr $ ur_reft ref)
 
         an <- lhAndE
 
         return $ App (App an (App (Lam TermL i re) (Var r'))) argsPred
     | otherwise = mkTrueE
-convertSpecType _ _ _ _ (RAppTy { }) = mkTrueE
+convertSpecType _ _ _ _ _ (RAppTy { }) = mkTrueE
     -- | Just  <- r = mkTrueE
         -- t <- unsafeSpecTypeToType st
         -- argsPred <- polyPredFunc2 [res] t m bt r'
         -- return argsPred
     -- | otherwise = mkTrueE
-convertSpecType _ _ _ _ st@(RFun {}) = error $ "RFun " ++ show st
-convertSpecType _ _ _ _ st@(RAllT {}) = error $ "RAllT " ++ show st
-convertSpecType _ _ _ _ st@(RAllP {}) = error $ "RAllP " ++ show st
-convertSpecType _ _ _ _ st@(RAllS {}) = error $ "RAllS " ++ show st
-convertSpecType _ _ _ _ st@(RAllE {}) = error $ "RAllE " ++ show st
-convertSpecType _ _ _ _ st@(REx {}) = error $ "REx " ++ show st
-convertSpecType _ _ _ _ st@(RExprArg {}) = error $ "RExprArg " ++ show st
-convertSpecType _ _ _ _ st@(RRTy {}) = error $ "RRTy " ++ show st
-convertSpecType _ _ _ _ st = error $ "Bad st = " ++ show st
+convertSpecType _ _ _ _ _ st@(RFun {}) = error $ "RFun " ++ show st
+convertSpecType _ _ _ _ _ st@(RAllT {}) = error $ "RAllT " ++ show st
+convertSpecType _ _ _ _ _ st@(RAllP {}) = error $ "RAllP " ++ show st
+convertSpecType _ _ _ _ _ st@(RAllS {}) = error $ "RAllS " ++ show st
+convertSpecType _ _ _ _ _ st@(RAllE {}) = error $ "RAllE " ++ show st
+convertSpecType _ _ _ _ _ st@(REx {}) = error $ "REx " ++ show st
+convertSpecType _ _ _ _ _ st@(RExprArg {}) = error $ "RExprArg " ++ show st
+convertSpecType _ _ _ _ _ st@(RRTy {}) = error $ "RRTy " ++ show st
+convertSpecType _ _ _ _ _ st = error $ "Bad st = " ++ show st
 
-polyPredFunc :: [SpecType] -> Type -> DictMaps -> BoundTypes -> Id -> LHStateM Expr
-polyPredFunc as ty m bt b = do
+polyPredFunc :: CheckPre -> [SpecType] -> Type -> DictMaps -> BoundTypes -> Id -> LHStateM Expr
+polyPredFunc cp as ty m bt b = do
     dict <- lhTCDict m ty
-    as' <- mapM (polyPredLam m bt) as
+    as' <- mapM (polyPredLam cp m bt) as
 
     bool <- tyBoolT
 
@@ -294,8 +326,8 @@ polyPredFunc as ty m bt b = do
     
     return $ mkApp $ Var (Id lhPP t):ar1:ars
 
-polyPredLam :: DictMaps -> BoundTypes -> SpecType -> LHStateM Expr
-polyPredLam m bt rapp  = do
+polyPredLam :: CheckPre -> DictMaps -> BoundTypes -> SpecType -> LHStateM Expr
+polyPredLam cp m bt rapp  = do
     t <- unsafeSpecTypeToType rapp
 
     let argT = spArgumentTypes $ PresType t
@@ -303,7 +335,7 @@ polyPredLam m bt rapp  = do
 
     i <- freshIdN . returnType $ PresType t
     
-    st <- convertSpecType m bt is (Just i) rapp
+    st <- convertSpecType cp m bt is (Just i) rapp
     return $ Lam TermL i st
 
 convertLHExpr :: DictMaps -> BoundTypes -> Maybe Type -> Ref.Expr -> LHStateM Expr
