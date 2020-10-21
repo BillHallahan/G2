@@ -43,7 +43,7 @@ data SpecInfo = SI { s_max_coeff :: Integer
                    , s_status :: Status }
                    deriving (Show)
 
-data SpecArg = SpecArg { lh_symb :: LH.Symbol
+data SpecArg = SpecArg { lh_rep :: LH.Expr
                        , smt_var :: SMTName
                        , smt_sort :: Sort}
                deriving (Show)
@@ -263,7 +263,7 @@ buildLIA_LH si mv =
     where
         detVar v 
             | Just (VInt c) <- M.lookup v mv = ECon (I c)
-            | Just sa <- L.find (\sa_ -> v == smt_var sa_) (s_ret si:s_args si) = EVar (lh_symb sa)
+            | Just sa <- L.find (\sa_ -> v == smt_var sa_) (s_ret si:s_args si) = lh_rep sa
             | otherwise = error "detVar: variable not found"
 
         eTimes (ECon (I 0)) _ = ECon (I 0)
@@ -302,7 +302,6 @@ buildLIA plus mult geq mk_and mk_or vint cint all_coeffs args =
             in
             sm `geq` cint 0
         toLinInEqs [] = error "buildLIA: unhandled empty coefficient list" 
---------------------------------------------------
 
 buildSI :: Status -> [GhcInfo] ->  Name -> [Type] -> Type -> SpecInfo
 buildSI stat ghci f aty rty =
@@ -325,7 +324,7 @@ argsAndRetFromFSpec :: [SpecArg] -> [Type] -> Type -> SpecType -> ([SpecArg], Sp
 argsAndRetFromFSpec ars (_:ts) rty (RAllT { rt_ty = out }) = argsAndRetFromFSpec ars ts rty out
 argsAndRetFromFSpec ars (t:ts) rty (RFun { rt_bind = b, rt_in = i, rt_out = out}) =
     let
-        sa = SpecArg { lh_symb = b
+        sa = SpecArg { lh_rep = EVar b
                      , smt_var = undefined
                      , smt_sort = typeToSort t} 
     in
@@ -334,14 +333,14 @@ argsAndRetFromFSpec ars (t:ts) rty (RFun { rt_bind = b, rt_in = i, rt_out = out}
         _ -> argsAndRetFromFSpec (sa:ars) ts rty out
 argsAndRetFromFSpec ars _ rty (RApp { rt_reft = ref}) =
     let
-        sa = SpecArg { lh_symb = reftSymbol $ ur_reft ref
+        sa = SpecArg { lh_rep = EVar . reftSymbol $ ur_reft ref
                      , smt_var = undefined
                      , smt_sort = typeToSort rty} 
     in
     (reverse ars, sa)
 argsAndRetFromFSpec ars _ rty (RVar { rt_reft = ref}) =
     let
-        sa = SpecArg { lh_symb = reftSymbol $ ur_reft ref
+        sa = SpecArg { lh_rep = EVar . reftSymbol $ ur_reft ref
                      , smt_var = undefined
                      , smt_sort = typeToSort rty } 
     in
