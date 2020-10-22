@@ -174,6 +174,7 @@ addQualifiersToGhcInfo gs ghci@(GI { spec = sp@(SP { gsQualifiers = quals' })}) 
     ghci { spec = sp { gsQualifiers = qualifiers gs ++ quals' }}
 
 addToSpecType :: [PolyBound Expr] -> SpecType -> SpecType
+addToSpecType _ rvar@(RVar {}) = rvar
 addToSpecType ees@(e:es) rfun@(RFun { rt_in = i, rt_out = out })
     | not (isFunTy i) && not (isRVar i) = rfun { rt_in = addToSpecType [e] i, rt_out = addToSpecType es out }
     | otherwise = rfun {rt_out = addToSpecType ees out }
@@ -191,7 +192,6 @@ addToSpecType [PolyBound e ps]
         ars' = map (uncurry addToSpecType) $ zip (map (:[]) ps') ars
     in
     rapp { rt_reft = rt_reft', rt_args = ars' }
-addToSpecType _ rvar@(RVar {}) = rvar
 addToSpecType [] st = st
 addToSpecType _ st = error $ "addToSpecType: Unhandled SpecType " ++ show st
 
