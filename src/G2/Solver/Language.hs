@@ -12,6 +12,7 @@ module G2.Solver.Language
 import G2.Language.AST
 import G2.Solver.Solver
 
+import qualified Data.HashSet as HS
 import qualified Data.Map as M
 
 type SMTName = String
@@ -75,6 +76,8 @@ data SMTAST = (:>=) SMTAST SMTAST
             | V SMTName Sort
 
             | ItoR SMTAST -- ^ Integer to real conversion
+
+            | Named SMTAST SMTName -- ^ Name a piece of the SMTAST, allowing it to be returned in unsat cores
             deriving (Show, Eq)
 
 -- | Every `SMTAST` has a `Sort`
@@ -111,6 +114,7 @@ isSat SAT = True
 isSat _ = False
 
 type SMTModel = M.Map SMTName SMTAST
+type UnsatCore = HS.HashSet SMTName
 
 instance AST SMTAST where
     children (x :>= y) = [x, y]

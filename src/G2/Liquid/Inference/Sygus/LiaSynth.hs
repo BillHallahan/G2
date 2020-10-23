@@ -187,12 +187,14 @@ adjustLits e = e
 envToSMT :: MeasureExs -> Evals -> M.Map Name SpecInfo -> FuncConstraints -> [SMTHeader]
 envToSMT meas_ex evals si =
      map Solver.Assert
-   . concatMap (envToSMT' meas_ex evals si)
+   . concatMap (uncurry (envToSMT' meas_ex evals si))
+   . flip zip ["f" ++ show i | i <-[1..]]
+   . L.nub
    . concatMap allCalls
    . toListFC
 
-envToSMT' :: MeasureExs -> Evals -> M.Map Name SpecInfo -> FuncCall -> [SMTAST]
-envToSMT' meas_ex (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(FuncCall { funcName = f, arguments = as, returns = r }) =
+envToSMT' :: MeasureExs -> Evals -> M.Map Name SpecInfo -> FuncCall -> SMTName -> [SMTAST]
+envToSMT' meas_ex (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(FuncCall { funcName = f, arguments = as, returns = r }) uc_n =
     case M.lookup f m_si of
         Just si
             | s_status si == Known ->
@@ -211,7 +213,7 @@ envToSMT' meas_ex (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(Fu
                 pre = (if pre_res then id else (:!)) $ Func (s_full_pre si) smt_as
                 post = (if post_res then id else (:!)) $ Func (sf_name $ s_post si) (smt_as ++ smt_r)
             in
-            [pre, post]
+            [Named pre ("pre_" ++ uc_n), Named post ("post_" ++ uc_n)]
             | otherwise -> []
         Nothing -> error "envToSMT': function not found"
 
@@ -257,17 +259,17 @@ synth con meas_ex evals m_si fc = do
 
         hdrs = var_decl_hdrs ++ def_funs ++ link_pre ++ fc_smt ++ env_smt ++ max_coeffs
     -- liftIO . putStrLn $ "hdrs = " ++ show hdrs
-    mdl <- liftIO $ checkConstraints con hdrs (zip all_coeffs (repeat SortInt))
+    mdl <- liftIO $ constraintsToModelOrUnsatCore con hdrs (zip all_coeffs (repeat SortInt))
     -- liftIO . putStrLn $ "mdl = " ++ show mdl
     case mdl of
-        Just mdl' -> do
+        Right mdl' -> do
             let lh_spec = M.map (\si -> buildLIA_LH si mdl') . M.filter (\si -> s_status si == Synth) $ m_si
             liftIO $ print lh_spec
             let gs' = M.foldrWithKey insertAssertGS emptyGS
                     $ M.map (map (flip PolyBound [])) lh_spec
             liftIO $ print gs'
             return (SynthEnv gs')
-        Nothing -> undefined
+        Left uc -> undefined
     where
         getCoeffs f = concat . concat . concatMap f . filter (\si -> s_status si == Synth)
 

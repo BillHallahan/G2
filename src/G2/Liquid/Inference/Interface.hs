@@ -147,9 +147,12 @@ inferenceL con ghci m_modname lrs nls evals gs fc = do
                 Safe ->
                     case nls of
                         (_:nls') -> do
+                            liftIO $ putStrLn "Down a level!"
                             inf_res <- inferenceL con ghci m_modname lrs nls' emptyEvals gs' fc
                             case inf_res of
-                                Raise fc' -> inferenceL con ghci m_modname lrs nls evals' gs fc'
+                                Raise fc' -> do
+                                    liftIO $ putStrLn "Up a level!"
+                                    inferenceL con ghci m_modname lrs nls evals' gs fc'
                                 _ -> return inf_res
                         [] -> return $ Env gs'
                 Unsafe bad -> do

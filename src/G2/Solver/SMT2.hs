@@ -25,6 +25,7 @@ import G2.Solver.Converters --It would be nice to not import this...
 import Control.Exception.Base (evaluate)
 import Data.List
 import Data.List.Utils (countElem)
+import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Ratio
 import System.IO
@@ -81,6 +82,26 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
             return (r, Just m)
         else do
             return (r, Nothing)
+
+    checkSatGetModelOrUnsatCore con hvals@(h_in, h_out, _) formula vs = do
+        let formula' = "(set-option :produce-unsat-cores true)\n" ++ formula
+        putStrLn "\n\n checkSatGetModelOrUnsatCore"
+        putStrLn formula'
+        setUpFormulaZ3 h_in formula'
+        r <- checkSat' h_in h_out
+        putStrLn $ "r =  " ++ show r
+        if r == SAT then do
+            mdl <- getModelZ3 h_in h_out vs
+            -- putStrLn "======"
+            -- putStrLn (show mdl)
+            let m = parseModel mdl
+            putStrLn $ "m = " ++ show m
+            putStrLn "======"
+            return (Right m)
+        else do
+            uc <- getUnsatCoreZ3 h_in h_out
+            return (Left $ HS.fromList uc)
+
 
     checkSatGetModelGetExpr con (h_in, h_out, _) formula _ vs eenv (CurrExpr _ e) = do
         setUpFormulaZ3 h_in formula
@@ -186,6 +207,8 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
         else
             n
     varName _ n _ = n
+
+    named _ ast n = "(! " ++ ast ++ " :named " ++ n ++ ")"
 
 instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
     getIO (CVC4 _ hhp) = hhp
@@ -429,6 +452,14 @@ getModelZ3 h_in h_out ns = do
             _ <- evaluate (length out) --Forces reading/avoids problems caused by laziness
 
             return . (:) (n, out, s) =<< getModel' nss
+
+getUnsatCoreZ3 :: Handle -> Handle -> IO [SMTName]
+getUnsatCoreZ3 h_in h_out = do
+    hPutStr h_in "(get-unsat-core)\n"
+    r <- hWaitForInput h_out (-1)
+    out <- hGetLine h_out 
+    putStrLn $ "unsat-core = " ++ out
+    return undefined
 
 getModelCVC4 :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
 getModelCVC4 h_in h_out ns = do

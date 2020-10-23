@@ -21,10 +21,12 @@ module G2.Solver.Converters
     , checkConstraintsPC
     , checkModelPC
     , checkConstraints
+    , constraintsToModelOrUnsatCore
     , SMTConverter (..) ) where
 
 import Data.List
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid
@@ -48,6 +50,7 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
 
     checkSat :: con -> io -> out -> IO Result
     checkSatGetModel :: con -> io -> out -> [(SMTName, Sort)] -> IO (Result, Maybe SMTModel)
+    checkSatGetModelOrUnsatCore :: con -> io -> out -> [(SMTName, Sort)] -> IO (Either UnsatCore SMTModel)
     checkSatGetModelGetExpr :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> CurrExpr -> IO (Result, Maybe SMTModel, Maybe Expr)
 
     assertSolver :: con -> ast -> out
@@ -102,6 +105,9 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     sortBool :: con -> ast
 
     varName :: con -> SMTName -> Sort -> ast
+
+    -- unsat cores
+    named :: con -> ast -> SMTName -> ast
 
 -- | Checks if the path constraints are satisfiable
 checkConstraintsPC :: SMTConverter con ast out io => con -> PathConds -> IO Result
@@ -164,6 +170,14 @@ checkConstraints con headers vs = do
     case m of
         Just m' -> return $ Just m'
         Nothing -> return Nothing
+
+constraintsToModelOrUnsatCore :: SMTConverter con ast out io => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Either UnsatCore SMTModel)
+constraintsToModelOrUnsatCore con headers vs = do
+    let io = getIO con
+    putStrLn "HERE"
+    let formula = toSolver con headers
+    putStrLn "HERE 2"
+    checkSatGetModelOrUnsatCore con io formula vs
 
 -- | Here we convert from a State, to an SMTHeader.  This SMTHeader can later
 -- be given to an SMT solver by using toSolver.
@@ -508,6 +522,9 @@ toSolverAST con (VDouble i) = double con i
 toSolverAST con (VChar c) = char con c
 toSolverAST con (VBool b) = bool con b
 toSolverAST con (V n s) = varName con n s
+
+toSolverAST con (Named x n) = named con (toSolverAST con x) n
+
 toSolverAST _ ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
 
 toSolverVarDecl :: SMTConverter con ast out io => con -> SMTName -> Sort -> out
