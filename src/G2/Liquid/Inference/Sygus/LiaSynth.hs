@@ -42,9 +42,16 @@ type CNF = [Clause]
 
 -- Internal Types
 data SpecInfo = SI { s_max_coeff :: Integer
+                   
+                   -- A function that is the conjunction of the individual argument precondition functions
                    , s_full_pre :: SMTName 
-                   , s_pre :: SpecFunc
+                   , s_full_args :: [SpecArg]
+
+                   -- Functions that capture the pre and post condition.
+                   -- We have one precondition function per argument
+                   , s_pre :: [SpecFunc]
                    , s_post :: SpecFunc
+
                    , s_status :: Status }
                    deriving (Show)
 
@@ -112,13 +119,15 @@ liaSynthOfSize sz m_si =
     let
         m_si' =
             M.map (\si -> 
-                        let
-                            pre_c = list_i_j (sf_name $ s_pre si) $ length (sf_args $ s_pre si)
-                            post_c = list_i_j (sf_name $ s_post si) $ length (sf_args $ s_post si)
-                        in
-                        si { s_pre = (s_pre si) { sf_coeffs = pre_c }
-                           , s_post = (s_post si) { sf_coeffs = post_c }
-                           , s_max_coeff = 5 * sz }) m_si
+                    let
+                        s_pre' = map (\psi ->
+                                        psi { sf_coeffs = list_i_j (sf_name psi) $ length (sf_args psi) }
+                                     ) (s_pre si)
+                        post_c = list_i_j (sf_name $ s_post si) $ length (sf_args $ s_post si)
+                    in
+                    si { s_pre = s_pre' -- (s_pre si) { sf_coeffs = pre_c }
+                       , s_post = (s_post si) { sf_coeffs = post_c }
+                       , s_max_coeff = 5 * sz }) m_si
     in
     m_si'
     where
@@ -207,7 +216,7 @@ maxCoeffConstraints =
     . concatMap
         (\si ->
             let
-                cffs = concat . concat $ sf_coeffs (s_pre si) ++ sf_coeffs (s_post si)
+                cffs = concat . concat $ allPreCoeffs si ++ sf_coeffs (s_post si)
             in
             if s_status si == Synth
                 then map (\c -> (Neg (VInt (s_max_coeff si)) :<= V c SortInt)
@@ -218,14 +227,19 @@ linkPreFuncs :: M.Map Name SpecInfo -> [SMTHeader]
 linkPreFuncs =
     map (\si ->
         let
-            ars = zip (map smt_var . sf_args $ s_pre si) (repeat SortInt)
+            ars = zip (map smt_var $ s_full_args si) (repeat SortInt)
+            body = foldr (\psi e ->
+                            let
+                                p_ars = zip (map smt_var $ sf_args psi) (repeat SortInt) 
+                            in
+                            Func (sf_name psi) (map (uncurry V) p_ars) :&& e) (VBool True) (s_pre si)
         in
-        DefineFun (s_full_pre si) ars SortBool (Func (sf_name $ s_pre si) $ map (uncurry V) ars)) . M.elems
+        DefineFun (s_full_pre si) ars SortBool body) . M.elems
 
 synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
       => con -> MeasureExs -> Evals -> M.Map Name SpecInfo -> FuncConstraints -> m SynthRes
 synth con meas_ex evals m_si fc = do
-    let all_precoeffs = getCoeffs (sf_coeffs . s_pre) $ M.elems m_si
+    let all_precoeffs = getCoeffs allPreCoeffs $ M.elems m_si
         all_postcoeffs = getCoeffs (sf_coeffs . s_post) $ M.elems m_si
         all_coeffs = all_precoeffs ++ all_postcoeffs
     liftIO $ print m_si
@@ -255,18 +269,9 @@ synth con meas_ex evals m_si fc = do
 
 defineLIAFuns :: SpecInfo -> [SMTHeader]
 defineLIAFuns si =
-    let
-        pre_ars_nm = map smt_var (sf_args $ s_pre si)
-        pre_ars = zip pre_ars_nm (repeat SortInt)
-
-        post_ars_nm = map smt_var (sf_args $ s_post si)
-        post_ars = zip post_ars_nm (repeat SortInt)
-    in
     if s_status si == Synth
-        then [ synthLIAFuncSF (s_pre si)
-             , synthLIAFuncSF (s_post si) ]
-        else [ declareLIAFuncSF (s_pre si)
-             , declareLIAFuncSF (s_post si) ]
+        then synthLIAFuncSF (s_post si):map synthLIAFuncSF (s_pre si)
+        else declareLIAFuncSF (s_post si):map declareLIAFuncSF (s_pre si)
 
 synthLIAFuncSF :: SpecFunc -> SMTHeader
 synthLIAFuncSF sf = 
@@ -303,14 +308,14 @@ buildLIA_LH :: SpecInfo -> SMTModel -> [LHF.Expr]
 buildLIA_LH si mv =
     let
         build = buildLIA ePlus eTimes bGeq PAnd POr detVar (ECon . I) -- todo: Probably want to replace PAnd with id to group?
-        pre = build (sf_coeffs (s_pre si)) (map smt_var (sf_args $ s_pre si))
+        pre = map (\psi -> build (sf_coeffs psi) (map smt_var (sf_args psi))) (s_pre si)
         post = build (sf_coeffs (s_post si)) (map smt_var (sf_args $ s_post si))
     in
-    [pre, post]
+    pre ++ [post]
     where
         detVar v 
             | Just (VInt c) <- M.lookup v mv = ECon (I c)
-            | Just sa <- L.find (\sa_ -> v == smt_var sa_) (sf_args (s_pre si) ++ sf_args (s_post si)) = lh_rep sa
+            | Just sa <- L.find (\sa_ -> v == smt_var sa_) (allPreSpecArgs si ++ sf_args (s_post si)) = lh_rep sa
             | otherwise = error "detVar: variable not found"
 
         eTimes (ECon (I 0)) _ = ECon (I 0)
@@ -364,9 +369,10 @@ buildSI meas stat ghci f aty rty =
         ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show i }) $ zip ret [1..]
     in
     SI { s_full_pre = smt_f ++ "_pre"
-       , s_pre = SpecFunc { sf_name = smt_f ++ "_piece_pre"
-                          , sf_args = arg_ns
-                          , sf_coeffs = [] }
+       , s_full_args = arg_ns
+       , s_pre = [SpecFunc { sf_name = smt_f ++ "_piece_pre"
+                           , sf_args = arg_ns
+                           , sf_coeffs = [] }]
        , s_post = SpecFunc { sf_name = smt_f ++ "_post"
                            , sf_args = arg_ns ++ ret_ns
                            , sf_coeffs = [] }
@@ -468,3 +474,10 @@ applicableMeasure t e =
         notLH ty
             | TyCon (Name n _ _ _) _ <- tyAppCenter ty = n /= "lh"
             | otherwise = False
+
+-- Helpers
+allPreCoeffs :: SpecInfo -> CNF
+allPreCoeffs = concatMap sf_coeffs . s_pre
+
+allPreSpecArgs :: SpecInfo -> [SpecArg]
+allPreSpecArgs = concatMap sf_args . s_pre
