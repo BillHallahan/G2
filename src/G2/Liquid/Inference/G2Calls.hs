@@ -16,9 +16,13 @@ module G2.Liquid.Inference.G2Calls ( MeasureExs
                                    , runLHInferenceCore
                                    , checkFuncCall
                                    , checkCounterexample
+                                   
                                    , emptyEvals
                                    , preEvals
                                    , postEvals
+                                   , checkPre
+                                   , checkPost
+
                                    , evalMeasures) where
 
 import G2.Config
@@ -409,7 +413,10 @@ checkPost :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] ->FuncCa
 checkPost = checkPreOrPost (zeroOutKeys . ls_posts) (\fc -> arguments fc ++ [returns fc])
 
 zeroOutKeys :: M.Map Name v -> M.Map Name v
-zeroOutKeys = M.mapKeys (\(Name n m _ l) -> Name n m 0 l)
+zeroOutKeys = M.mapKeys zeroOutName
+
+zeroOutName :: Name -> Name
+zeroOutName (Name n m _ l) = Name n m 0 l
 
 checkPreOrPost :: (InfConfigM m, MonadIO m)
                => (LiquidData -> M.Map Name Expr) -> (FuncCall -> [Expr]) -> LiquidReadyState -> [GhcInfo] -> FuncCall -> m Bool
@@ -440,7 +447,7 @@ checkPreOrPost extract ars lrs ghci cex@(FuncCall { funcName = Name n m _ _ }) =
 checkFromMap :: (FuncCall -> [Expr]) -> M.Map Name Expr -> FuncCall -> State t -> Maybe (State t)
 checkFromMap ars specs fc@(FuncCall { funcName = n }) s@(State { expr_env = eenv, known_values = kv }) =
     let
-        e = M.lookup n specs
+        e = M.lookup (zeroOutName n) specs
     in
     case e of
         Just e' ->

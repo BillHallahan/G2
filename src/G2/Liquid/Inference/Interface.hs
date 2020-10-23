@@ -233,7 +233,7 @@ refineUnsafe ghci m_modname lrs gs bad = do
 
     res <- mapM (genNewConstraints merged_se_ghci m_modname lrs) bad'
 
-    -- liftIO . putStrLn $ "res = " ++ show res
+    liftIO . putStrLn $ "res = " ++ show res
 
     let res' = concat res
 
@@ -350,7 +350,7 @@ synthesize con ghci lrs evals gs fc for_funcs = do
     return . (evals'',) =<< liaSynth con ghci lrs evals'' meas_ex fc for_funcs
 
 -- | Converts counterexamples into constraints that block the current specification set
-cexsToBlockingFC :: InfConfigM m => LiquidReadyState -> [GhcInfo] -> CounterExample -> m (Either CounterExample FuncConstraint)
+cexsToBlockingFC :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] -> CounterExample -> m (Either CounterExample FuncConstraint)
 cexsToBlockingFC _ _ (DirectCounter dfc fcs@(_:_)) = do
     infconfig <- infConfigM
     let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
@@ -373,18 +373,23 @@ cexsToBlockingFC _ _ (CallsCounter dfc cfc fcs@(_:_)) = do
     if not . null $ fcs' 
         then return . Right $ ImpliesFC lhs rhs
         else error "cexsToBlockingFC: Should be unreachable! Non-refinable function abstracted!"    
-cexsToBlockingFC _ _ cex@(DirectCounter dfc []) = do
-    pre_ref <- hasUserSpec (funcName dfc)
+cexsToBlockingFC lrs ghci cex@(DirectCounter dfc []) = do
+    -- pre_ref <- hasUserSpec (funcName dfc)
+    post_ref <- checkPost lrs ghci dfc
 
-    case pre_ref of
-        False -> return . Right $ Call All dfc 
-        True -> return . Left $ cex
-cexsToBlockingFC _ _ cex@(CallsCounter dfc cfc []) = do
-    caller_pr <- hasUserSpec (funcName dfc)
-    called_pr <- hasUserSpec (funcName $ real cfc)
+    case post_ref of
+        True -> return . Right $ Call All dfc 
+        False -> return . Left $ cex
+cexsToBlockingFC lrs ghci cex@(CallsCounter dfc cfc []) = do
+    -- caller_pr <- hasUserSpec (funcName dfc)
+    -- called_pr <- hasUserSpec (funcName $ real cfc)
+    liftIO . putStrLn $ "About to check pre"
+    called_pr <- checkPre lrs ghci (real cfc)
 
-    case (caller_pr, called_pr) of
-        (True, True) -> return . Left $ cex
+    liftIO . putStrLn $ "called_pr = " ++ show called_pr
+
+    case called_pr of
+        False -> return . Left $ cex
         _ -> return . Right $  ImpliesFC (Call Pre dfc) (Call Pre (abstract cfc))
 
 -- Function constraints that don't block the current specification set, but which must be true

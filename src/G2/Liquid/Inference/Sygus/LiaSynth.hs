@@ -157,7 +157,6 @@ constraintToSMT meas_ex si (Call All fc) =
 constraintToSMT meas_ex si (Call Pre fc) =
     case M.lookup (funcName fc) si of
         Just si' ->
-            trace ("s_full_pre si' = " ++ show (s_full_pre si') ++ "\narguments fc = " ++ show (arguments fc))
             Func (s_full_pre si') . map exprToSMT . concatMap (adjustArgs meas_ex) $ arguments fc
         Nothing -> error $ "constraintToSMT: specification not found" ++ show fc
 constraintToSMT meas_ex si (Call Post fc) =
