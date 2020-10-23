@@ -155,6 +155,7 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
     smtSqrt _ x = "(^ " ++ x ++ " 0.5)"
     neg _ = function1 "-"
 
+    smtFunc _ n [] = n
     smtFunc _ n xs = "(" ++ n ++ " " ++ intercalate " " xs ++  ")"
 
     strLen _ = function1 "str.len"

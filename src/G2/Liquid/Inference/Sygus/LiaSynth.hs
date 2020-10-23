@@ -34,6 +34,8 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
+import Debug.Trace
+
 data SynthRes = SynthEnv GeneratedSpecs | SynthFail FuncConstraints
 
 type Coeffs = [SMTName]
@@ -154,7 +156,9 @@ constraintToSMT meas_ex si (Call All fc) =
         Nothing -> error "constraintToSMT: specification not found"
 constraintToSMT meas_ex si (Call Pre fc) =
     case M.lookup (funcName fc) si of
-        Just si' -> Func (s_full_pre si') . map exprToSMT . concatMap (adjustArgs meas_ex) $ arguments fc
+        Just si' ->
+            trace ("s_full_pre si' = " ++ show (s_full_pre si') ++ "\narguments fc = " ++ show (arguments fc))
+            Func (s_full_pre si') . map exprToSMT . concatMap (adjustArgs meas_ex) $ arguments fc
         Nothing -> error $ "constraintToSMT: specification not found" ++ show fc
 constraintToSMT meas_ex si (Call Post fc) =
     case M.lookup (funcName fc) si of
@@ -171,7 +175,7 @@ adjustArgs meas_ex = map adjustLits . substMeasures meas_ex
 substMeasures :: MeasureExs -> G2.Expr -> [G2.Expr]
 substMeasures meas_ex e =
     case HM.lookup e meas_ex of
-        Just es -> map snd es
+        Just es -> trace ("meas = " ++ show es) map snd es
         Nothing -> [e]
 
 adjustLits :: G2.Expr -> G2.Expr
@@ -230,7 +234,7 @@ linkPreFuncs =
             ars = zip (map smt_var $ s_full_args si) (repeat SortInt)
             body = foldr (\psi e ->
                             let
-                                p_ars = zip (map smt_var $ sf_args psi) (repeat SortInt) 
+                                p_ars = take (length $ sf_args psi) ars -- zip (map smt_var $ sf_args psi) (repeat SortInt) 
                             in
                             Func (sf_name psi) (map (uncurry V) p_ars) :&& e) (VBool True) (s_pre si)
         in
@@ -370,9 +374,12 @@ buildSI meas stat ghci f aty rty =
     in
     SI { s_full_pre = smt_f ++ "_pre"
        , s_full_args = arg_ns
-       , s_pre = [SpecFunc { sf_name = smt_f ++ "_piece_pre"
-                           , sf_args = arg_ns
-                           , sf_coeffs = [] }]
+       , s_pre = map (\(ars', i) ->
+                            SpecFunc { sf_name = smt_f ++ "_pre_" ++ show i ++ "_"
+                                     , sf_args = map (\(a, j) -> a { smt_var = "x_" ++ show j}) $ zip ars' [1..]
+                                     , sf_coeffs = [] 
+                                     }
+                     ) $ zip ars [1..]
        , s_post = SpecFunc { sf_name = smt_f ++ "_post"
                            , sf_args = arg_ns ++ ret_ns
                            , sf_coeffs = [] }
