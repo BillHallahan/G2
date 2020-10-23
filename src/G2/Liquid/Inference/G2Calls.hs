@@ -467,7 +467,7 @@ checkFromMap ars specs fc@(FuncCall { funcName = n }) s@(State { expr_env = eenv
 
 -- instance Hashable e => Hashable (GMeasureEx e)
 
-type MeasureExs = HM.HashMap Expr [(Name, Expr)]
+type MeasureExs = HM.HashMap Expr (HM.HashMap Name Expr)
 
 evalMeasures :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] -> [Expr] -> m MeasureExs
 evalMeasures lrs ghci es = do
@@ -489,7 +489,7 @@ evalMeasures lrs ghci es = do
         meas_res <- mapM (evalMeasures' final_s final_b solver config' meas tcv) $ filter (not . isError) es
         close solver
 
-        return $ foldr (HM.unionWith (++)) HM.empty meas_res
+        return $ foldr (HM.unionWith HM.union) HM.empty meas_res
     where
         meas_names = map (val . msName) $ measureSpecs ghci
         meas_nameOcc = map (\(Name n md _ _) -> (n, md)) $ map symbolName meas_names
@@ -519,11 +519,11 @@ evalMeasures' s bindings solver config meas tcv e =  do
                 let 
                     CurrExpr _ e_out = curr_expr . final_state $ er'
                 in
-                return (e_in, [(n, e_out)])
-            [] -> return (e_in, [(n, Prim Undefined TyBottom)])
+                return (e_in, HM.singleton n e_out)
+            [] -> return (e_in, HM.singleton n (Prim Undefined TyBottom))
             _ -> error "evalMeasures': Bad G2 Call") m_sts
 
-    return $ foldr (uncurry (HM.insertWith (++))) HM.empty  m_sts'
+    return $ foldr (uncurry (HM.insertWith HM.union)) HM.empty m_sts'
 
 evalMeasures'' :: State t -> Bindings -> Measures -> TCValues -> Expr -> [(Name, Expr, State t)]
 evalMeasures'' s b m tcv e =

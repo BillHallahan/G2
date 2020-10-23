@@ -175,7 +175,9 @@ adjustArgs meas_ex = map adjustLits . substMeasures meas_ex
 substMeasures :: MeasureExs -> G2.Expr -> [G2.Expr]
 substMeasures meas_ex e =
     case HM.lookup e meas_ex of
-        Just es -> trace ("meas = " ++ show es) map snd es
+        Just es ->
+            -- Sort to make sure we get the same order consistently
+            map snd . L.sortBy (\(n1, _) (n2, _) -> compare n1 n2) $ HM.toList es
         Nothing -> [e]
 
 adjustLits :: G2.Expr -> G2.Expr
@@ -419,6 +421,7 @@ mkSpecArg ghci meas symb t =
         Nothing ->
             let
                 app_meas = applicableMeasures meas t
+                app_meas' = L.sortBy (\(n1, _) (n2, _) -> compare n1 n2) app_meas
             in
             mapMaybe
                 (\(mn, mt) ->
@@ -428,7 +431,7 @@ mkSpecArg ghci meas symb t =
                             in
                             SpecArg { lh_rep = EApp (EVar lh_mn) (EVar symb)
                                     , smt_var = undefined
-                                    , smt_sort = srt'}) $ typeToSort mt) app_meas
+                                    , smt_sort = srt'}) $ typeToSort mt) app_meas'
 
 
 
