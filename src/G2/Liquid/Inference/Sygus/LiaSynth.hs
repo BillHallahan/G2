@@ -42,6 +42,7 @@ type CNF = [Clause]
 
 -- Internal Types
 data SpecInfo = SI { s_max_coeff :: Integer
+                   , s_full_pre :: SMTName 
                    , s_pre :: SpecFunc
                    , s_post :: SpecFunc
                    , s_status :: Status }
@@ -137,14 +138,14 @@ constraintToSMT meas_ex si (Call All fc) =
     case M.lookup (funcName fc) si of
         Just si' ->
             let
-                pre = Func (sf_name $ s_pre si') . map exprToSMT . concatMap (adjustArgs meas_ex) $ arguments fc
+                pre = Func (s_full_pre si') . map exprToSMT . concatMap (adjustArgs meas_ex) $ arguments fc
                 post = Func (sf_name $ s_post si') . map exprToSMT . concatMap (adjustArgs meas_ex) $ arguments fc ++ [returns fc]
             in
             pre :=> post
         Nothing -> error "constraintToSMT: specification not found"
 constraintToSMT meas_ex si (Call Pre fc) =
     case M.lookup (funcName fc) si of
-        Just si' -> Func (sf_name $ s_pre si') . map exprToSMT . concatMap (adjustArgs meas_ex) $ arguments fc
+        Just si' -> Func (s_full_pre si') . map exprToSMT . concatMap (adjustArgs meas_ex) $ arguments fc
         Nothing -> error $ "constraintToSMT: specification not found" ++ show fc
 constraintToSMT meas_ex si (Call Post fc) =
     case M.lookup (funcName fc) si of
@@ -193,7 +194,7 @@ envToSMT' meas_ex (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(Fu
                             Just b -> b
                             Nothing -> error "envToSMT': post not found"
 
-                pre = (if pre_res then id else (:!)) $ Func (sf_name $ s_pre si) smt_as
+                pre = (if pre_res then id else (:!)) $ Func (s_full_pre si) smt_as
                 post = (if post_res then id else (:!)) $ Func (sf_name $ s_post si) (smt_as ++ smt_r)
             in
             [pre, post]
@@ -213,6 +214,14 @@ maxCoeffConstraints =
                                     :&& (V c SortInt :<= VInt (s_max_coeff si))) cffs
                 else []) . M.elems
 
+linkPreFuncs :: M.Map Name SpecInfo -> [SMTHeader]
+linkPreFuncs =
+    map (\si ->
+        let
+            ars = zip (map smt_var . sf_args $ s_pre si) (repeat SortInt)
+        in
+        DefineFun (s_full_pre si) ars SortBool (Func (sf_name $ s_pre si) $ map (uncurry V) ars)) . M.elems
+
 synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
       => con -> MeasureExs -> Evals -> M.Map Name SpecInfo -> FuncConstraints -> m SynthRes
 synth con meas_ex evals m_si fc = do
@@ -222,11 +231,12 @@ synth con meas_ex evals m_si fc = do
     liftIO $ print m_si
     let var_decl_hdrs = map (flip VarDecl SortInt) all_coeffs
         def_funs = concatMap defineLIAFuns $ M.elems m_si
+        link_pre = linkPreFuncs m_si
         fc_smt = constraintsToSMT meas_ex m_si fc
         env_smt = envToSMT meas_ex evals m_si fc
         max_coeffs = maxCoeffConstraints m_si
 
-        hdrs = var_decl_hdrs ++ def_funs ++ fc_smt ++ env_smt ++ max_coeffs
+        hdrs = var_decl_hdrs ++ def_funs ++ link_pre ++ fc_smt ++ env_smt ++ max_coeffs
     -- liftIO . putStrLn $ "hdrs = " ++ show hdrs
     mdl <- liftIO $ checkConstraints con hdrs (zip all_coeffs (repeat SortInt))
     -- liftIO . putStrLn $ "mdl = " ++ show mdl
@@ -249,14 +259,29 @@ defineLIAFuns si =
         pre_ars_nm = map smt_var (sf_args $ s_pre si)
         pre_ars = zip pre_ars_nm (repeat SortInt)
 
-        post_ars_nm = map smt_var (sf_args $ s_post si) -- pre_ars_nm ++ map smt_var (s_ret si)
+        post_ars_nm = map smt_var (sf_args $ s_post si)
         post_ars = zip post_ars_nm (repeat SortInt)
     in
     if s_status si == Synth
-        then [ DefineFun (sf_name $ s_pre si) pre_ars SortBool (buildLIA_SMT (sf_coeffs (s_pre si)) pre_ars_nm)
-             , DefineFun (sf_name $ s_post si) post_ars SortBool (buildLIA_SMT (sf_coeffs (s_post si)) post_ars_nm)]
-        else [ DeclareFun (sf_name $ s_pre si) (map snd pre_ars) SortBool
-             , DeclareFun (sf_name $ s_post si) (map snd post_ars) SortBool]
+        then [ synthLIAFuncSF (s_pre si)
+             , synthLIAFuncSF (s_post si) ]
+        else [ declareLIAFuncSF (s_pre si)
+             , declareLIAFuncSF (s_post si) ]
+
+synthLIAFuncSF :: SpecFunc -> SMTHeader
+synthLIAFuncSF sf = 
+    let
+        ars_nm = map smt_var (sf_args sf)
+        ars = zip ars_nm (repeat SortInt)
+    in
+    DefineFun (sf_name sf) ars SortBool (buildLIA_SMT (sf_coeffs sf) ars_nm)
+
+declareLIAFuncSF :: SpecFunc -> SMTHeader
+declareLIAFuncSF sf =
+    let
+        ars = map (const SortInt) (sf_args sf)
+    in
+    DeclareFun (sf_name sf) (ars) SortBool
 
 --------------------------------------------------
 -- Building LIA formulas, both for SMT and LH
@@ -338,7 +363,8 @@ buildSI meas stat ghci f aty rty =
         arg_ns = map (\(a, i) -> a { smt_var = "x_" ++ show i } ) $ zip (concat ars) [1..]
         ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show i }) $ zip ret [1..]
     in
-    SI { s_pre = SpecFunc { sf_name = smt_f ++ "_pre"
+    SI { s_full_pre = smt_f ++ "_pre"
+       , s_pre = SpecFunc { sf_name = smt_f ++ "_piece_pre"
                           , sf_args = arg_ns
                           , sf_coeffs = [] }
        , s_post = SpecFunc { sf_name = smt_f ++ "_post"
