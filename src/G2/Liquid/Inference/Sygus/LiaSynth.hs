@@ -45,22 +45,55 @@ type CNF = [Clause]
 -- Internal Types
 data SpecInfo = SI { s_max_coeff :: Integer
                    
-                   -- A function that is the conjunction of the individual argument precondition functions
-                   , s_full_pre :: SMTName 
-                   , s_full_args :: [SpecArg]
+                   -- A function that is defined as the conjunction the known and synthesized functions.
+                   , s_pre :: FixedSpec
+                   , s_post :: FixedSpec
+
+                   -- A function that is used to record the value of the function at known points,
+                   -- i.e. points that occur in the FuncConstraints
+                   , s_known_pre :: FixedSpec
+                   , s_known_post :: FixedSpec
 
                    -- Functions that capture the pre and post condition.
                    -- We have one precondition function per argument
-                   , s_pre :: [SpecFunc]
-                   , s_post :: SpecFunc
+                   , s_syn_pre :: [SynthSpec]
+                   , s_syn_post :: SynthSpec
 
                    , s_status :: Status }
                    deriving (Show)
 
-data SpecFunc = SpecFunc { sf_name :: SMTName
-                         , sf_args :: [SpecArg]
-                         , sf_coeffs :: CNF }
-                         deriving (Show)
+s_pre_name :: SpecInfo -> SMTName
+s_pre_name = fs_name . s_pre
+
+s_pre_args :: SpecInfo -> [SpecArg]
+s_pre_args = fs_args . s_pre
+
+s_post_name :: SpecInfo -> SMTName
+s_post_name = fs_name . s_post
+
+s_post_args :: SpecInfo -> [SpecArg]
+s_post_args = fs_args . s_post
+
+s_known_pre_name :: SpecInfo -> SMTName
+s_known_pre_name = fs_name . s_known_pre
+
+s_known_pre_args :: SpecInfo -> [SpecArg]
+s_known_pre_args = fs_args . s_known_pre
+
+s_known_post_name :: SpecInfo -> SMTName
+s_known_post_name = fs_name . s_known_post
+
+s_known_post_args :: SpecInfo -> [SpecArg]
+s_known_post_args = fs_args . s_known_post
+
+data FixedSpec = FixedSpec { fs_name :: SMTName
+                           , fs_args :: [SpecArg] }
+                           deriving (Show)
+
+data SynthSpec = SynthSpec { sy_name :: SMTName
+                           , sy_args :: [SpecArg]
+                           , sy_coeffs :: CNF }
+                           deriving (Show)
 
 data SpecArg = SpecArg { lh_rep :: LH.Expr
                        , smt_var :: SMTName
@@ -122,13 +155,13 @@ liaSynthOfSize sz m_si =
         m_si' =
             M.map (\si -> 
                     let
-                        s_pre' = map (\psi ->
-                                        psi { sf_coeffs = list_i_j (sf_name psi) $ length (sf_args psi) }
-                                     ) (s_pre si)
-                        post_c = list_i_j (sf_name $ s_post si) $ length (sf_args $ s_post si)
+                        s_syn_pre' = map (\psi ->
+                                        psi { sy_coeffs = list_i_j (sy_name psi) $ length (sy_args psi) }
+                                     ) (s_syn_pre si)
+                        post_c = list_i_j (sy_name $ s_syn_post si) $ length (sy_args $ s_syn_post si)
                     in
-                    si { s_pre = s_pre' -- (s_pre si) { sf_coeffs = pre_c }
-                       , s_post = (s_post si) { sf_coeffs = post_c }
+                    si { s_syn_pre = s_syn_pre' -- (s_syn_pre si) { sy_coeffs = pre_c }
+                       , s_syn_post = (s_syn_post si) { sy_coeffs = post_c }
                        , s_max_coeff = 5 * sz }) m_si
     in
     m_si'
@@ -149,19 +182,19 @@ constraintToSMT meas_ex si (Call All fc) =
     case M.lookup (funcName fc) si of
         Just si' ->
             let
-                pre = Func (s_full_pre si') . map exprToSMT . concatMap (adjustArgs meas_ex) $ arguments fc
-                post = Func (sf_name $ s_post si') . map exprToSMT . concatMap (adjustArgs meas_ex) $ arguments fc ++ [returns fc]
+                pre = Func (s_pre_name si') . map exprToSMT . concatMap (adjustArgs meas_ex) $ arguments fc
+                post = Func (s_post_name si') . map exprToSMT . concatMap (adjustArgs meas_ex) $ arguments fc ++ [returns fc]
             in
             pre :=> post
         Nothing -> error "constraintToSMT: specification not found"
 constraintToSMT meas_ex si (Call Pre fc) =
     case M.lookup (funcName fc) si of
         Just si' ->
-            Func (s_full_pre si') . map exprToSMT . concatMap (adjustArgs meas_ex) $ arguments fc
+            Func (s_pre_name si') . map exprToSMT . concatMap (adjustArgs meas_ex) $ arguments fc
         Nothing -> error $ "constraintToSMT: specification not found" ++ show fc
 constraintToSMT meas_ex si (Call Post fc) =
     case M.lookup (funcName fc) si of
-        Just si' -> Func (sf_name $ s_post si') . map exprToSMT . concatMap (adjustArgs meas_ex) $ arguments fc ++ [returns fc]
+        Just si' -> Func (s_post_name si') . map exprToSMT . concatMap (adjustArgs meas_ex) $ arguments fc ++ [returns fc]
         Nothing -> error "constraintToSMT: specification not found"
 constraintToSMT meas_ex si (AndFC fs) = mkSMTAnd $ map (constraintToSMT meas_ex si) fs
 constraintToSMT meas_ex si (OrFC fs) = mkSMTOr $ map (constraintToSMT meas_ex si) fs
@@ -173,11 +206,14 @@ adjustArgs meas_ex = map adjustLits . substMeasures meas_ex
 
 substMeasures :: MeasureExs -> G2.Expr -> [G2.Expr]
 substMeasures meas_ex e =
-    case HM.lookup e meas_ex of
-        Just es ->
-            -- Sort to make sure we get the same order consistently
-            map snd . L.sortBy (\(n1, _) (n2, _) -> compare n1 n2) $ HM.toList es
-        Nothing -> [e]
+    case typeToSort (typeOf e) of
+        Just _ -> [e]
+        Nothing ->
+            case HM.lookup e meas_ex of
+                Just es ->
+                    -- Sort to make sure we get the same order consistently
+                    map snd . L.sortBy (\(n1, _) (n2, _) -> compare n1 n2) $ HM.toList es
+                Nothing -> []
 
 adjustLits :: G2.Expr -> G2.Expr
 adjustLits (App _ l@(Lit _)) = l
@@ -210,8 +246,8 @@ envToSMT' meas_ex (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(Fu
                             Just b -> b
                             Nothing -> error "envToSMT': post not found"
 
-                pre = (if pre_res then id else (:!)) $ Func (s_full_pre si) smt_as
-                post = (if post_res then id else (:!)) $ Func (sf_name $ s_post si) (smt_as ++ smt_r)
+                pre = (if pre_res then id else (:!)) $ Func (s_known_pre_name si) smt_as
+                post = (if post_res then id else (:!)) $ Func (s_known_post_name si) (smt_as ++ smt_r)
             in
             [Named pre ("pre_" ++ uc_n), Named post ("post_" ++ uc_n)]
             | otherwise -> []
@@ -223,7 +259,7 @@ maxCoeffConstraints =
     . concatMap
         (\si ->
             let
-                cffs = concat . concat $ allPreCoeffs si ++ sf_coeffs (s_post si)
+                cffs = concat . concat $ allPreCoeffs si ++ sy_coeffs (s_syn_post si)
             in
             if s_status si == Synth
                 then map (\c -> (Neg (VInt (s_max_coeff si)) :<= V c SortInt)
@@ -231,33 +267,53 @@ maxCoeffConstraints =
                 else []) . M.elems
 
 linkPreFuncs :: M.Map Name SpecInfo -> [SMTHeader]
-linkPreFuncs =
-    map (\si ->
-        let
-            ars = zip (map smt_var $ s_full_args si) (repeat SortInt)
-            body = foldr (\psi e ->
+linkPreFuncs = map linkPreFunc . M.elems
+
+linkPreFunc :: SpecInfo -> SMTHeader
+linkPreFunc si =
+    let
+        ars = zip (map smt_var $ s_pre_args si) (repeat SortInt)
+
+        sy_body = foldr (\psi e ->
                             let
-                                p_ars = take (length $ sf_args psi) ars -- zip (map smt_var $ sf_args psi) (repeat SortInt) 
+                                p_ars = take (length $ sy_args psi) ars
                             in
-                            Func (sf_name psi) (map (uncurry V) p_ars) :&& e) (VBool True) (s_pre si)
-        in
-        DefineFun (s_full_pre si) ars SortBool body) . M.elems
+                            Func (sy_name psi) (map (uncurry V) p_ars) :&& e) (VBool True) (s_syn_pre si)
+        fixed_body = Func (s_known_pre_name si) (map (uncurry V) ars)
+        body = fixed_body :&& sy_body
+    in
+    DefineFun (s_pre_name si) ars SortBool body
+
+linkPostFuncs :: M.Map Name SpecInfo -> [SMTHeader]
+linkPostFuncs = map linkPostFunc . M.elems
+
+linkPostFunc :: SpecInfo -> SMTHeader
+linkPostFunc si = 
+    let
+        ars = zip (map smt_var $ s_post_args si) (repeat SortInt)
+
+        sy_body = Func (sy_name $ s_syn_post si) (map (uncurry V) ars)
+        fixed_body = Func (s_known_post_name si) (map (uncurry V) ars)
+        body = fixed_body :&& sy_body
+    in
+    DefineFun (s_post_name si) ars SortBool body
 
 synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
       => con -> MeasureExs -> Evals -> M.Map Name SpecInfo -> FuncConstraints -> m SynthRes
 synth con meas_ex evals m_si fc = do
     let all_precoeffs = getCoeffs allPreCoeffs $ M.elems m_si
-        all_postcoeffs = getCoeffs (sf_coeffs . s_post) $ M.elems m_si
+        all_postcoeffs = getCoeffs (sy_coeffs . s_syn_post) $ M.elems m_si
         all_coeffs = all_precoeffs ++ all_postcoeffs
     liftIO $ print m_si
     let var_decl_hdrs = map (flip VarDecl SortInt) all_coeffs
         def_funs = concatMap defineLIAFuns $ M.elems m_si
         link_pre = linkPreFuncs m_si
+        link_post = linkPostFuncs m_si
         fc_smt = constraintsToSMT meas_ex m_si fc
         env_smt = envToSMT meas_ex evals m_si fc
         max_coeffs = maxCoeffConstraints m_si
 
-        hdrs = var_decl_hdrs ++ def_funs ++ link_pre ++ fc_smt ++ env_smt ++ max_coeffs
+        hdrs = var_decl_hdrs ++ def_funs ++ link_pre ++ link_post ++ fc_smt ++ env_smt ++ max_coeffs
     -- liftIO . putStrLn $ "hdrs = " ++ show hdrs
     mdl <- liftIO $ constraintsToModelOrUnsatCore con hdrs (zip all_coeffs (repeat SortInt))
     -- liftIO . putStrLn $ "mdl = " ++ show mdl
@@ -277,23 +333,37 @@ synth con meas_ex evals m_si fc = do
 defineLIAFuns :: SpecInfo -> [SMTHeader]
 defineLIAFuns si =
     if s_status si == Synth
-        then synthLIAFuncSF (s_post si):map synthLIAFuncSF (s_pre si)
-        else declareLIAFuncSF (s_post si):map declareLIAFuncSF (s_pre si)
+        then 
+             defineFixedLIAFuncSF (s_known_pre si)
+            :defineFixedLIAFuncSF (s_known_post si)
+            :defineSynthLIAFuncSF (s_syn_post si)
+            :map defineSynthLIAFuncSF (s_syn_pre si)
+        else defineFixedLIAFuncSF (s_known_pre si)
+            :defineFixedLIAFuncSF (s_known_post si)
+            :declareSynthLIAFuncSF (s_syn_post si)
+            :map declareSynthLIAFuncSF (s_syn_pre si)
 
-synthLIAFuncSF :: SpecFunc -> SMTHeader
-synthLIAFuncSF sf = 
+defineFixedLIAFuncSF :: FixedSpec -> SMTHeader
+defineFixedLIAFuncSF fs =
     let
-        ars_nm = map smt_var (sf_args sf)
+        ars = map (const SortInt) (fs_args fs)
+    in
+    DeclareFun (fs_name fs) ars SortBool
+
+defineSynthLIAFuncSF :: SynthSpec -> SMTHeader
+defineSynthLIAFuncSF sf = 
+    let
+        ars_nm = map smt_var (sy_args sf)
         ars = zip ars_nm (repeat SortInt)
     in
-    DefineFun (sf_name sf) ars SortBool (buildLIA_SMT (sf_coeffs sf) ars_nm)
+    DefineFun (sy_name sf) ars SortBool (buildLIA_SMT (sy_coeffs sf) ars_nm)
 
-declareLIAFuncSF :: SpecFunc -> SMTHeader
-declareLIAFuncSF sf =
+declareSynthLIAFuncSF :: SynthSpec -> SMTHeader
+declareSynthLIAFuncSF sf =
     let
-        ars = map (const SortInt) (sf_args sf)
+        ars = map (const SortInt) (sy_args sf)
     in
-    DeclareFun (sf_name sf) (ars) SortBool
+    DeclareFun (sy_name sf) (ars) SortBool
 
 --------------------------------------------------
 -- Building LIA formulas, both for SMT and LH
@@ -315,14 +385,14 @@ buildLIA_LH :: SpecInfo -> SMTModel -> [LHF.Expr]
 buildLIA_LH si mv =
     let
         build = buildLIA ePlus eTimes bGeq PAnd POr detVar (ECon . I) -- todo: Probably want to replace PAnd with id to group?
-        pre = map (\psi -> build (sf_coeffs psi) (map smt_var (sf_args psi))) (s_pre si)
-        post = build (sf_coeffs (s_post si)) (map smt_var (sf_args $ s_post si))
+        pre = map (\psi -> build (sy_coeffs psi) (map smt_var (sy_args psi))) (s_syn_pre si)
+        post = build (sy_coeffs (s_syn_post si)) (map smt_var (sy_args $ s_syn_post si))
     in
     pre ++ [post]
     where
         detVar v 
             | Just (VInt c) <- M.lookup v mv = ECon (I c)
-            | Just sa <- L.find (\sa_ -> v == smt_var sa_) (allPreSpecArgs si ++ sf_args (s_post si)) = lh_rep sa
+            | Just sa <- L.find (\sa_ -> v == smt_var sa_) (allPreSpecArgs si ++ sy_args (s_syn_post si)) = lh_rep sa
             | otherwise = error "detVar: variable not found"
 
         eTimes (ECon (I 0)) _ = ECon (I 0)
@@ -375,17 +445,23 @@ buildSI meas stat ghci f aty rty =
         arg_ns = map (\(a, i) -> a { smt_var = "x_" ++ show i } ) $ zip (concat ars) [1..]
         ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show i }) $ zip ret [1..]
     in
-    SI { s_full_pre = smt_f ++ "_pre"
-       , s_full_args = arg_ns
-       , s_pre = map (\(ars', i) ->
-                            SpecFunc { sf_name = smt_f ++ "_pre_" ++ show i ++ "_"
-                                     , sf_args = map (\(a, j) -> a { smt_var = "x_" ++ show j}) $ zip ars' [1..]
-                                     , sf_coeffs = [] 
-                                     }
+    SI { s_pre = FixedSpec { fs_name = smt_f ++ "_pre"
+                           , fs_args = arg_ns }
+       , s_post = FixedSpec { fs_name = smt_f ++ "_post"
+                            , fs_args = arg_ns ++ ret_ns }
+       , s_known_pre = FixedSpec { fs_name = smt_f ++ "_known_pre"
+                                 , fs_args = arg_ns }
+       , s_known_post = FixedSpec { fs_name = smt_f ++ "_known_post"
+                                  , fs_args = arg_ns ++ ret_ns }
+       , s_syn_pre = map (\(ars', i) ->
+                            SynthSpec { sy_name = smt_f ++ "_synth_pre_" ++ show i
+                                      , sy_args = map (\(a, j) -> a { smt_var = "x_" ++ show j}) $ zip ars' [1..]
+                                      , sy_coeffs = [] 
+                                      }
                      ) $ zip ars [1..]
-       , s_post = SpecFunc { sf_name = smt_f ++ "_post"
-                           , sf_args = arg_ns ++ ret_ns
-                           , sf_coeffs = [] }
+       , s_syn_post = SynthSpec { sy_name = smt_f ++ "_synth_post"
+                                , sy_args = arg_ns ++ ret_ns
+                                , sy_coeffs = [] }
        , s_status = stat }
 
 argsAndRetFromFSpec :: [GhcInfo] -> Measures -> [[SpecArg]] -> [Type] -> Type -> SpecType -> ([[SpecArg]], [SpecArg])
@@ -488,7 +564,7 @@ applicableMeasure t e =
 
 -- Helpers
 allPreCoeffs :: SpecInfo -> CNF
-allPreCoeffs = concatMap sf_coeffs . s_pre
+allPreCoeffs = concatMap sy_coeffs . s_syn_pre
 
 allPreSpecArgs :: SpecInfo -> [SpecArg]
-allPreSpecArgs = concatMap sf_args . s_pre
+allPreSpecArgs = concatMap sy_args . s_syn_pre

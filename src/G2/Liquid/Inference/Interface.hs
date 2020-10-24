@@ -65,9 +65,9 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
     let g2config = config { mode = Liquid
                           , steps = 2000 }
         transConfig = simplTranslationConfig { simpl = False }
-    exg2@(main_mod, _) <- translateLoaded proj fp lhlibs transConfig g2config
+    (main_mod, exg2) <- translateLoaded proj fp lhlibs transConfig g2config
 
-    let simp_s = initSimpleState (snd exg2)
+    let simp_s = initSimpleState exg2
         (g2config', infconfig') = adjustConfig main_mod simp_s g2config infconfig ghci
 
         lrs = createStateForInference simp_s g2config' ghci
@@ -75,18 +75,18 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
         eenv = expr_env . state . lr_state $ lrs
 
         nls = filter (not . null)
-            . map (filter (\(Name _ m _ _) -> m == fst exg2)) 
+            . map (filter (\(Name _ m _ _) -> m == main_mod)) 
             . nameLevels
             . getCallGraph $ eenv
 
-    putStrLn $ "cg = " ++ show (filter (\(Name _ m _ _) -> m == fst exg2) . functions $ getCallGraph eenv)
+    putStrLn $ "cg = " ++ show (filter (\(Name _ m _ _) -> m == main_mod) . functions $ getCallGraph eenv)
     putStrLn $ "nls = " ++ show nls
 
     let configs = Configs { g2_config = g2config', lh_config = lhconfig, inf_config = infconfig'}
         prog = newProgress
 
     SomeSMTSolver smt <- getSMT g2config'
-    let infL = inferenceL smt ghci (fst exg2) lrs nls emptyEvals emptyGS emptyFC
+    let infL = inferenceL smt ghci main_mod lrs nls emptyEvals emptyGS emptyFC
 
     inf <- runConfigs (runProgresser infL prog) configs
     case inf of
@@ -387,7 +387,9 @@ cexsToBlockingFC lrs ghci cex@(CallsCounter dfc cfc []) = do
     -- caller_pr <- hasUserSpec (funcName dfc)
     -- called_pr <- hasUserSpec (funcName $ real cfc)
     liftIO . putStrLn $ "About to check pre"
-    called_pr <- checkPre lrs ghci (real cfc)
+    called_pr <- if isExported lrs (funcName (real cfc))
+                        then checkPre lrs ghci (real cfc)
+                        else return True
 
     liftIO . putStrLn $ "called_pr = " ++ show called_pr
 
@@ -418,6 +420,9 @@ cexsToExtraFC (CallsCounter dfc cfc []) =
         imp_fc = ImpliesFC (Call Pre dfc) (Call Pre $ real cfc)
     in
     return $ [call_all_dfc, call_all_cfc, imp_fc]
+
+isExported :: LiquidReadyState -> Name -> Bool
+isExported lrs n = n `elem` exported_funcs (lr_binding lrs)
 
 {-
 cexsToFuncConstraints :: InfConfigM m => LiquidReadyState -> [GhcInfo] -> WorkingDir -> CounterExample -> m (Either CounterExample FuncConstraints)
