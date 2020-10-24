@@ -280,7 +280,9 @@ linkPreFunc si =
                             in
                             Func (sy_name psi) (map (uncurry V) p_ars) :&& e) (VBool True) (s_syn_pre si)
         fixed_body = Func (s_known_pre_name si) (map (uncurry V) ars)
-        body = fixed_body :&& sy_body
+        body = case s_status si of
+                Synth -> fixed_body :&& sy_body
+                Known -> fixed_body
     in
     DefineFun (s_pre_name si) ars SortBool body
 
@@ -294,7 +296,9 @@ linkPostFunc si =
 
         sy_body = Func (sy_name $ s_syn_post si) (map (uncurry V) ars)
         fixed_body = Func (s_known_post_name si) (map (uncurry V) ars)
-        body = fixed_body :&& sy_body
+        body = case s_status si of
+                Synth -> fixed_body :&& sy_body
+                Known -> fixed_body
     in
     DefineFun (s_post_name si) ars SortBool body
 
@@ -332,16 +336,14 @@ synth con meas_ex evals m_si fc = do
 
 defineLIAFuns :: SpecInfo -> [SMTHeader]
 defineLIAFuns si =
-    if s_status si == Synth
+    (if s_status si == Synth
         then 
-             defineFixedLIAFuncSF (s_known_pre si)
-            :defineFixedLIAFuncSF (s_known_post si)
-            :defineSynthLIAFuncSF (s_syn_post si)
+             defineSynthLIAFuncSF (s_syn_post si)
             :map defineSynthLIAFuncSF (s_syn_pre si)
-        else defineFixedLIAFuncSF (s_known_pre si)
-            :defineFixedLIAFuncSF (s_known_post si)
-            :declareSynthLIAFuncSF (s_syn_post si)
-            :map declareSynthLIAFuncSF (s_syn_pre si)
+        else [])
+    ++
+    [ defineFixedLIAFuncSF (s_known_pre si)
+    , defineFixedLIAFuncSF (s_known_post si)]
 
 defineFixedLIAFuncSF :: FixedSpec -> SMTHeader
 defineFixedLIAFuncSF fs =
