@@ -125,11 +125,11 @@ liaSynth con ghci lrs evals meas_ex fc ns_synth = do
                                         Nothing -> error $ "synthesize: No expr found") non_ns
         non_ts = map (generateRelTypes tc) non_es
 
-    si <- liaSynth' con ghci lrs (zip ns ts) ((zip non_ns non_ts)) meas_ex fc
+    let si = buildSpecInfo con ghci lrs (zip ns ts) ((zip non_ns non_ts)) meas_ex fc
 
-    liftIO . putStrLn $ "si = " ++ show si
+    -- liftIO . putStrLn $ "si = " ++ show si
 
-    synth con meas_ex evals si fc
+    synth con meas_ex evals si fc 1
 
 -- addKnownSpecs :: [GhcInfo] -> ExprEnv -> M.Map Name SpecInfo -> FuncConstraints -> M.Map Name SpecInfo
 -- addKnownSpecs ghci si =
@@ -138,16 +138,16 @@ liaSynth con ghci lrs evals meas_ex fc ns_synth = do
 --                             else M.insert n (buildSI ghci n  ) si') si . allCallNames fc
 
 
-liaSynth' :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
-          => con -> [GhcInfo] -> LiquidReadyState -> [(Name, ([Type], Type))] -> [(Name, ([Type], Type))] -> MeasureExs -> FuncConstraints -> m (M.Map Name SpecInfo)
-liaSynth' con ghci lrs ns_aty_rty non_ns_aty_rty meas_exs fc = do
-    let meas = lrsMeasures ghci lrs
+buildSpecInfo :: con -> [GhcInfo] -> LiquidReadyState -> [(Name, ([Type], Type))] -> [(Name, ([Type], Type))]
+              -> MeasureExs -> FuncConstraints -> M.Map Name SpecInfo
+buildSpecInfo con ghci lrs ns_aty_rty non_ns_aty_rty meas_exs fc =
+    let 
+        meas = lrsMeasures ghci lrs
 
-    let si = foldr (\(n, (at, rt)) -> M.insert n (buildSI meas Synth ghci n at rt)) M.empty ns_aty_rty
+        si = foldr (\(n, (at, rt)) -> M.insert n (buildSI meas Synth ghci n at rt)) M.empty ns_aty_rty
         si' = foldr (\(n, (at, rt)) -> M.insert n (buildSI meas Known ghci n at rt)) si non_ns_aty_rty
-        si'' = liaSynthOfSize 1 si'
-
-    return si''
+    in
+    si'
 
 liaSynthOfSize :: Integer -> M.Map Name SpecInfo -> M.Map Name SpecInfo
 liaSynthOfSize sz m_si =
@@ -173,6 +173,39 @@ liaSynthOfSize sz m_si =
                     | a <- [0..ars]]
                 | k <- [1..sz] ]
             | j <- [1..sz] ]
+
+type Size = Integer
+
+synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
+      => con -> MeasureExs -> Evals -> M.Map Name SpecInfo -> FuncConstraints -> Size -> m SynthRes
+synth con meas_ex evals si fc sz = do
+    let si' = liaSynthOfSize sz si
+    res <- synth' con meas_ex evals si' fc
+    case res of
+        SynthEnv _ -> return res
+        SynthFail _ -> synth con meas_ex evals si fc (sz + 1)
+
+synth' :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
+      => con -> MeasureExs -> Evals -> M.Map Name SpecInfo -> FuncConstraints -> m SynthRes
+synth' con meas_ex evals m_si fc = do
+    let all_coeffs = getCoeffs m_si
+    liftIO $ print m_si
+    let cons = nonMaxCoeffConstraints meas_ex evals m_si fc
+        max_coeffs_cons = maxCoeffConstraints m_si
+
+        hdrs = cons ++ max_coeffs_cons
+
+    mdl <- liftIO $ constraintsToModelOrUnsatCore con hdrs (zip all_coeffs (repeat SortInt))
+
+    case mdl of
+        Right mdl' -> do
+            let lh_spec = M.map (\si -> buildLIA_LH si mdl') . M.filter (\si -> s_status si == Synth) $ m_si
+            liftIO $ print lh_spec
+            let gs' = M.foldrWithKey insertAssertGS emptyGS
+                    $ M.map (map (flip PolyBound [])) lh_spec
+            liftIO $ print gs'
+            return (SynthEnv gs')
+        Left uc -> return (SynthFail undefined)
 
 constraintsToSMT :: MeasureExs -> M.Map Name SpecInfo ->FuncConstraints -> [SMTHeader]
 constraintsToSMT meas_ex si =  map Solver.Assert . map (constraintToSMT meas_ex si) . toListFC
@@ -300,36 +333,29 @@ linkPostFunc si =
     in
     DefineFun (s_post_name si) ars SortBool body
 
-synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
-      => con -> MeasureExs -> Evals -> M.Map Name SpecInfo -> FuncConstraints -> m SynthRes
-synth con meas_ex evals m_si fc = do
-    let all_precoeffs = getCoeffs allPreCoeffs $ M.elems m_si
-        all_postcoeffs = getCoeffs (sy_coeffs . s_syn_post) $ M.elems m_si
-        all_coeffs = all_precoeffs ++ all_postcoeffs
-    liftIO $ print m_si
-    let var_decl_hdrs = map (flip VarDecl SortInt) all_coeffs
+nonMaxCoeffConstraints :: MeasureExs -> Evals -> M.Map Name SpecInfo -> FuncConstraints -> [SMTHeader]
+nonMaxCoeffConstraints meas_ex evals m_si fc =
+    let
+        all_coeffs = getCoeffs m_si
+
+        var_decl_hdrs = map (flip VarDecl SortInt) all_coeffs
         def_funs = concatMap defineLIAFuns $ M.elems m_si
         link_pre = linkPreFuncs m_si
         link_post = linkPostFuncs m_si
         fc_smt = constraintsToSMT meas_ex m_si fc
         env_smt = envToSMT meas_ex evals m_si fc
-        max_coeffs = maxCoeffConstraints m_si
+    in
+    var_decl_hdrs ++ def_funs ++ link_pre ++ link_post ++ fc_smt ++ env_smt
 
-        hdrs = var_decl_hdrs ++ def_funs ++ link_pre ++ link_post ++ fc_smt ++ env_smt ++ max_coeffs
-    -- liftIO . putStrLn $ "hdrs = " ++ show hdrs
-    mdl <- liftIO $ constraintsToModelOrUnsatCore con hdrs (zip all_coeffs (repeat SortInt))
-    -- liftIO . putStrLn $ "mdl = " ++ show mdl
-    case mdl of
-        Right mdl' -> do
-            let lh_spec = M.map (\si -> buildLIA_LH si mdl') . M.filter (\si -> s_status si == Synth) $ m_si
-            liftIO $ print lh_spec
-            let gs' = M.foldrWithKey insertAssertGS emptyGS
-                    $ M.map (map (flip PolyBound [])) lh_spec
-            liftIO $ print gs'
-            return (SynthEnv gs')
-        Left uc -> undefined
+getCoeffs :: M.Map Name SpecInfo -> [SMTName]
+getCoeffs m_si =
+    let
+        all_precoeffs = gc allPreCoeffs $ M.elems m_si
+        all_postcoeffs = gc (sy_coeffs . s_syn_post) $ M.elems m_si
+    in
+    all_precoeffs ++ all_postcoeffs
     where
-        getCoeffs f = concat . concat . concatMap f . filter (\si -> s_status si == Synth)
+    gc f = concat . concat . concatMap f . filter (\si -> s_status si == Synth)
 
 
 defineLIAFuns :: SpecInfo -> [SMTHeader]
