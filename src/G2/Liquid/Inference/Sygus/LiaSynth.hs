@@ -466,7 +466,9 @@ buildSI meas stat ghci f aty rty =
         fspec = case genSpec ghci f of
                 Just spec' -> spec'
                 _ -> error $ "synthesize: No spec found for " ++ show f
-        (ars, ret) = argsAndRetFromFSpec ghci meas [] aty rty fspec
+        (ars, ret_pb) = argsAndRetFromSpec ghci meas [] aty rty fspec
+
+        ret = headValue ret_pb
 
         arg_ns = map (\(a, i) -> a { smt_var = "x_" ++ show i } ) $ zip (concat ars) [1..]
         ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show i }) $ zip ret [1..]
@@ -485,31 +487,42 @@ buildSI meas stat ghci f aty rty =
                                       , sy_coeffs = [] 
                                       }
                      ) $ zip ars [1..]
-       , s_syn_post = SynthSpec { sy_name = smt_f ++ "_synth_post"
-                                , sy_args = arg_ns ++ ret_ns
-                                , sy_coeffs = [] }
+       , s_syn_post = headValue $ mkSynSpecPB (smt_f ++ "_synth_post") arg_ns ret_pb
+       -- , s_syn_post = SynthSpec { sy_name = smt_f ++ "_synth_post"
+       --                          , sy_args = arg_ns ++ ret_ns
+       --                          , sy_coeffs = [] }
        , s_status = stat }
 
-argsAndRetFromFSpec :: [GhcInfo] -> Measures -> [[SpecArg]] -> [Type] -> Type -> SpecType -> ([[SpecArg]], [SpecArg])
-argsAndRetFromFSpec ghci meas ars (_:ts) rty (RAllT { rt_ty = out }) =
-    argsAndRetFromFSpec ghci meas ars ts rty out
-argsAndRetFromFSpec ghci meas ars (t:ts) rty (RFun { rt_bind = b, rt_in = i, rt_out = out}) =
+argsAndRetFromSpec :: [GhcInfo] -> Measures -> [[SpecArg]] -> [Type] -> Type -> SpecType -> ([[SpecArg]], PolyBound [SpecArg])
+argsAndRetFromSpec ghci meas ars (_:ts) rty (RAllT { rt_ty = out }) =
+    argsAndRetFromSpec ghci meas ars ts rty out
+argsAndRetFromSpec ghci meas ars (t:ts) rty (RFun { rt_bind = b, rt_in = i, rt_out = out}) =
     let
         sa = mkSpecArg ghci meas b t
     in
     case i of
-        RFun {} -> argsAndRetFromFSpec ghci meas ars ts rty out
-        _ -> argsAndRetFromFSpec ghci meas (sa:ars) ts rty out
-argsAndRetFromFSpec ghci meas ars _ rty (RApp { rt_reft = ref}) =
+        RFun {} -> argsAndRetFromSpec ghci meas ars ts rty out
+        _ -> argsAndRetFromSpec ghci meas (sa:ars) ts rty out
+argsAndRetFromSpec ghci meas ars _ rty rapp@(RApp { rt_reft = ref}) =
     let
-        sa = mkSpecArg ghci meas (reftSymbol $ ur_reft ref) rty
+        sa = mkSpecArgPB ghci meas rty rapp
     in
     (reverse ars, sa)
-argsAndRetFromFSpec ghci meas ars _ rty (RVar { rt_reft = ref}) =
+argsAndRetFromSpec ghci meas ars _ rty rvar@(RVar { rt_reft = ref}) =
     let
-        sa = mkSpecArg ghci meas (reftSymbol $ ur_reft ref) rty
+        sa = mkSpecArgPB ghci meas rty rvar
     in
     (reverse ars, sa)
+
+mkSpecArgPB :: [GhcInfo] -> Measures -> Type -> SpecType -> PolyBound [SpecArg]
+mkSpecArgPB ghci meas t st =
+    let
+        t_pb = extractTypePolyBound t
+
+        st_pb = specTypePB st
+        sy_pb = mapPB specTypeSymbol st_pb
+    in
+    mapPB (uncurry (mkSpecArg ghci meas)) $ zipPB sy_pb t_pb
 
 mkSpecArg :: [GhcInfo] -> Measures -> LH.Symbol -> Type -> [SpecArg]
 mkSpecArg ghci meas symb t =
@@ -537,12 +550,48 @@ mkSpecArg ghci meas symb t =
                                     , smt_sort = srt'}) $ typeToSort mt) app_meas'
 
 
+mkSynSpecPB :: String -> [SpecArg] -> PolyBound [SpecArg] -> PolyBound SynthSpec
+mkSynSpecPB smt_f arg_ns pb_sa =
+    mapPB (\(ui, sa) ->
+            let
+                ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show ui ++ "_" ++ show i }) $ zip sa [1..]
+            in
+            SynthSpec { sy_name = smt_f ++ show ui
+                      , sy_args = arg_ns ++ ret_ns
+                      , sy_coeffs = [] }
+        )
+        $ zipPB (uniqueIds pb_sa) pb_sa
+
+-- ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show i }) $ zip ret [1..]
+       -- , s_syn_post = SynthSpec { sy_name = smt_f ++ "_synth_post"
+       --                          , sy_args = arg_ns ++ ret_ns
+       --                          , sy_coeffs = [] }
+
+
+----------------------------------------------------------------------------
+-- Manipulate SpecTypes
+----------------------------------------------------------------------------
+
+specTypeSymbol :: SpecType -> LH.Symbol
+specTypeSymbol (RFun { rt_bind = b }) = b
+specTypeSymbol rapp@(RApp { rt_reft = ref }) = reftSymbol $ ur_reft ref
+specTypeSymbol (RVar { rt_reft = ref }) = reftSymbol $ ur_reft ref
+specTypeSymbol _ = error $ "specTypeSymbol: SpecType not handled"
+
+specTypePB :: SpecType -> PolyBound SpecType
+specTypePB rapp@(RApp { rt_reft = ref, rt_args = ars }) =
+    PolyBound rapp $ map specTypePB ars
+specTypePB rvar@(RVar {}) = PolyBound rvar []
+specTypePB r = error $ "specTypePB: Unexpected SpecType" ++ "\n" ++ show r
+
 
 reftSymbol :: Reft -> LH.Symbol
 reftSymbol = fst . unpackReft
 
 unpackReft :: Reft -> (LH.Symbol, LH.Expr) 
 unpackReft = coerce
+
+----------------------------------------------------------------------------
 
 generateRelTypes :: TypeClasses -> G2.Expr -> ([Type], Type)
 generateRelTypes tc e =
