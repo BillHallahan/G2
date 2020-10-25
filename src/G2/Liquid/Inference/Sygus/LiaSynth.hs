@@ -232,8 +232,7 @@ envToSMT meas_ex evals si =
 envToSMT' :: MeasureExs -> Evals -> M.Map Name SpecInfo -> FuncCall -> SMTName -> [SMTAST]
 envToSMT' meas_ex (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(FuncCall { funcName = f, arguments = as, returns = r }) uc_n =
     case M.lookup f m_si of
-        Just si
-            | s_status si == Known ->
+        Just si ->
             let
                 smt_as = map exprToSMT $ concatMap (adjustArgs meas_ex) as
                 smt_r = map exprToSMT $ (adjustArgs meas_ex) r
@@ -250,7 +249,6 @@ envToSMT' meas_ex (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(Fu
                 post = (if post_res then id else (:!)) $ Func (s_known_post_name si) (smt_as ++ smt_r)
             in
             [Named pre ("pre_" ++ uc_n), Named post ("post_" ++ uc_n)]
-            | otherwise -> []
         Nothing -> error "envToSMT': function not found"
 
 maxCoeffConstraints :: M.Map Name SpecInfo -> [SMTHeader]

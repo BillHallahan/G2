@@ -53,7 +53,7 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
     closeIO (Z3 _ (h_in, _, _)) = hPutStr h_in "(exit)"
 
     empty _ = ""  
-    merge _ = (++)
+    merge _ x y = x ++ "\n" ++ y
 
     checkSat _ (h_in, h_out, _) formula = do
         -- putStrLn "checkSat"
