@@ -92,8 +92,8 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
         putStrLn $ "r =  " ++ show r
         if r == SAT then do
             mdl <- getModelZ3 h_in h_out vs
-            -- putStrLn "======"
-            -- putStrLn (show mdl)
+            putStrLn "======"
+            putStrLn (show mdl)
             let m = parseModel mdl
             putStrLn $ "m = " ++ show m
             putStrLn "======"

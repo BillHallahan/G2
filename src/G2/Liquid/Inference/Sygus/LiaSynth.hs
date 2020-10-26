@@ -53,7 +53,7 @@ data SpecInfo = SI { s_max_coeff :: Integer
 
                    -- Functions that capture the pre and post condition.
                    -- We have one precondition function per argument
-                   , s_syn_pre :: [SynthSpec]
+                   , s_syn_pre :: [PolyBound SynthSpec]
                    , s_syn_post :: PolyBound SynthSpec
 
                    , s_status :: Status }
@@ -141,8 +141,10 @@ liaSynthOfSize sz m_si =
             M.map (\si -> 
                     let
                         s_syn_pre' =
-                            map (\psi ->
-                                    psi { sy_coeffs = list_i_j (sy_name psi) $ length (sy_args psi) }
+                            map (mapPB
+                                    (\psi ->
+                                        psi { sy_coeffs = list_i_j (sy_name psi) $ length (sy_args psi) }
+                                    )
                                  ) (s_syn_pre si)
                         s_syn_post' =
                             mapPB (\psi -> 
@@ -201,16 +203,18 @@ mkPreCall meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars })
     | Just si <-  M.lookup n m_si
     , Just (ev_i, _) <- HM.lookup fc (pre_evals evals) =
         let
-            smt_ars = map exprToSMT $ concatMap (adjustArgs meas_ex) ars
-
-            sy_body = foldr (\psi e ->
+            pre_and_ars = zipWith zipPB (s_syn_pre si) (map extractExprPolyBoundWithRoot ars)
+            sy_body = foldr (\(psi, as) e ->
                                 let
-                                    p_ars = take (length $ sy_args psi) smt_ars
+                                    smt_ars = map (map exprToSMT) $ map (adjustArgs meas_ex) as
+
+                                    func_calls = map (Func (sy_name psi)) smt_ars
                                 in
-                                Func (sy_name psi) p_ars :&& e) (VBool True) (s_syn_pre si)
+                                foldr (:&&) e func_calls) (VBool True)
+                            (concatMap extractValues pre_and_ars)
             fixed_body = Func (s_known_pre_name si) [VInt ev_i]
         in
-        case s_status si of
+        case trace ("sy_body = " ++ show sy_body) s_status si of
                 Synth -> fixed_body :&& sy_body
                 Known -> fixed_body
     | otherwise = error "mkPreCall: specification not found"
@@ -361,7 +365,7 @@ defineLIAFuns si =
     (if s_status si == Synth
         then 
                map defineSynthLIAFuncSF (extractValues $ s_syn_post si)
-            ++ map defineSynthLIAFuncSF (s_syn_pre si)
+            ++ map defineSynthLIAFuncSF (concatMap extractValues $ s_syn_pre si)
         else [])
     ++
     [ defineFixedLIAFuncSF (s_known_pre si)
@@ -406,10 +410,10 @@ buildLIA_LH :: SpecInfo -> SMTModel -> [PolyBound LHF.Expr]
 buildLIA_LH si mv =
     let
         build = buildLIA ePlus eTimes bGeq PAnd POr detVar (ECon . I) -- todo: Probably want to replace PAnd with id to group?
-        pre = map (\psi -> build (sy_coeffs psi) (map smt_var (sy_args psi))) (s_syn_pre si)
+        pre = map (mapPB (\psi -> build (sy_coeffs psi) (map smt_var (sy_args psi)))) $ s_syn_pre si
         post = mapPB (\psi -> build (sy_coeffs psi) (map smt_var (sy_args psi))) $ s_syn_post si
     in
-    map (flip PolyBound []) pre ++ [post]
+    pre ++ [post]
     where
         detVar v 
             | Just (VInt c) <- M.lookup v mv = ECon (I c)
@@ -476,12 +480,19 @@ buildSI meas stat ghci f aty rty =
                                  , fs_args = arg_ns }
        , s_known_post = FixedSpec { fs_name = smt_f ++ "_known_post"
                                   , fs_args = arg_ns ++ ret_ns }
-       , s_syn_pre = map (\(ars', i) ->
-                            SynthSpec { sy_name = smt_f ++ "_synth_pre_" ++ show i
-                                      , sy_args = map (\(a, j) -> a { smt_var = "x_" ++ show j}) $ zip ars' [1..]
-                                      , sy_coeffs = [] 
-                                      }
-                     ) $ zip ars [1..]
+       , s_syn_pre = map (\(as, i) -> 
+                            mapPB (\(a, j) ->
+                                    SynthSpec { sy_name = smt_f ++ "_synth_pre_" ++ show i ++ "_" ++ show j
+                                              , sy_args = map (\(a, k) -> a { smt_var = "x_" ++ show k}) $ zip a [1..]
+                                              , sy_coeffs = []}
+                                  )
+                            $ zipPB as (uniqueIds as)) $ zip ars_pb [1..]
+       -- , s_syn_pre = map (\(ars', i) ->
+       --                      SynthSpec { sy_name = smt_f ++ "_synth_pre_" ++ show i
+       --                                , sy_args = map (\(a, j) -> a { smt_var = "x_" ++ show j}) $ zip ars' [1..]
+       --                                , sy_coeffs = [] 
+       --                                }
+       --               ) $ zip ars [1..]
        , s_syn_post = mkSynSpecPB (smt_f ++ "_synth_post_") arg_ns ret_pb
        , s_status = stat }
 
@@ -641,10 +652,10 @@ applicableMeasure t e =
 
 -- Helpers
 allPreCoeffs :: SpecInfo -> CNF
-allPreCoeffs = concatMap sy_coeffs . s_syn_pre
+allPreCoeffs = concatMap sy_coeffs . concatMap extractValues . s_syn_pre
 
 allPreSpecArgs :: SpecInfo -> [SpecArg]
-allPreSpecArgs = concatMap sy_args . s_syn_pre
+allPreSpecArgs = concatMap sy_args . concatMap extractValues . s_syn_pre
 
 allPostCoeffs :: SpecInfo -> CNF
 allPostCoeffs = concatMap sy_coeffs . extractValues . s_syn_post
