@@ -319,7 +319,7 @@ maxCoeffConstraints =
     . concatMap
         (\si ->
             let
-                cffs = concat . concat $ allPreCoeffs si ++ concatMap sy_coeffs (extractValues $ s_syn_post si)
+                cffs = concat . concat $ allPreCoeffs si ++ allPostCoeffs si
             in
             if s_status si == Synth
                 then map (\c -> (Neg (VInt (s_max_coeff si)) :<= V c SortInt)
@@ -342,7 +342,7 @@ getCoeffs :: M.Map Name SpecInfo -> [SMTName]
 getCoeffs m_si =
     let
         all_precoeffs = gc allPreCoeffs $ M.elems m_si
-        all_postcoeffs = gc (concatMap sy_coeffs . extractValues . s_syn_post) $ M.elems m_si
+        all_postcoeffs = gc allPostCoeffs $ M.elems m_si
     in
     all_precoeffs ++ all_postcoeffs
     where
@@ -428,7 +428,7 @@ buildLIA_LH si mv =
             | x == y = PTrue
             | otherwise = PAtom LH.Ge x y
 
-        all_args = allPreSpecArgs si ++ concatMap sy_args (extractValues (s_syn_post si))
+        all_args = allPreSpecArgs si ++ allPostSpecArgs si
 
 
 buildLIA :: Plus a
@@ -633,3 +633,9 @@ allPreCoeffs = concatMap sy_coeffs . s_syn_pre
 
 allPreSpecArgs :: SpecInfo -> [SpecArg]
 allPreSpecArgs = concatMap sy_args . s_syn_pre
+
+allPostCoeffs :: SpecInfo -> CNF
+allPostCoeffs = concatMap sy_coeffs . extractValues . s_syn_post
+
+allPostSpecArgs :: SpecInfo -> [SpecArg]
+allPostSpecArgs = concatMap sy_args . extractValues . s_syn_post
