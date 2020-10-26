@@ -104,7 +104,7 @@ def count_files(all_files):
 
     return num_files
 
-def main():
+def orig():
     (safe_real, num_real) = test_pos_folder("tests/LiquidInf/Real");
     (safe_art, num_art) = test_pos_folder("tests/LiquidInf/Artificial/Pos");
 
@@ -113,6 +113,16 @@ def main():
     print(str(safe_real + safe_art) + "/" + str(num_real + num_art) + " Safe");
 
     print(str(ce_art) + "/" + str(num_ce_art) + " Counterexamples");
+
+def main():
+    # (safe_real, num_real) = test_pos_folder("tests/LiquidInf/Real");
+    (safe_art, num_art) = test_pos_folder("tests/LiquidInf/Art_LIA/Pos");
+
+    (ce_art, num_ce_art) = test_neg_folder("tests/LiquidInf/Art_LIA/Neg");
+
+    # print(str(safe_real + safe_art) + "/" + str(num_real + num_art) + " Safe");
+
+    # print(str(ce_art) + "/" + str(num_ce_art) + " Counterexamples");
 
 
 if __name__ == "__main__":

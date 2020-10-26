@@ -463,9 +463,11 @@ buildSI meas stat ghci f aty rty =
         fspec = case genSpec ghci f of
                 Just spec' -> spec'
                 _ -> error $ "synthesize: No spec found for " ++ show f
-        (ars, ret_pb) = argsAndRetFromSpec ghci meas [] aty rty fspec
+        (ars_pb, ret_pb) = argsAndRetFromSpec ghci meas [] aty rty fspec
 
         ret = headValue ret_pb
+
+        ars = map headValue ars_pb
 
         arg_ns = map (\(a, i) -> a { smt_var = "x_" ++ show i } ) $ zip (concat ars) [1..]
         ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show i }) $ zip ret [1..]
@@ -483,12 +485,12 @@ buildSI meas stat ghci f aty rty =
        , s_syn_post = mkSynSpecPB (smt_f ++ "_synth_post_") arg_ns ret_pb
        , s_status = stat }
 
-argsAndRetFromSpec :: [GhcInfo] -> Measures -> [[SpecArg]] -> [Type] -> Type -> SpecType -> ([[SpecArg]], PolyBound [SpecArg])
+argsAndRetFromSpec :: [GhcInfo] -> Measures -> [PolyBound [SpecArg]] -> [Type] -> Type -> SpecType -> ([PolyBound [SpecArg]], PolyBound [SpecArg])
 argsAndRetFromSpec ghci meas ars (_:ts) rty (RAllT { rt_ty = out }) =
     argsAndRetFromSpec ghci meas ars ts rty out
-argsAndRetFromSpec ghci meas ars (t:ts) rty (RFun { rt_bind = b, rt_in = i, rt_out = out}) =
+argsAndRetFromSpec ghci meas ars (t:ts) rty rfun@(RFun { rt_bind = b, rt_in = i, rt_out = out}) =
     let
-        sa = mkSpecArg ghci meas b t
+        sa = mkSpecArgPB ghci meas t rfun
     in
     case i of
         RFun {} -> argsAndRetFromSpec ghci meas ars ts rty out
@@ -509,8 +511,7 @@ mkSpecArgPB ghci meas t st =
     let
         t_pb = extractTypePolyBound t
 
-        st_pb = specTypePB st
-        sy_pb = mapPB specTypeSymbol st_pb
+        sy_pb = specTypeSymbolPB st
     in
     mapPB (uncurry (mkSpecArg ghci meas)) $ zipPB sy_pb t_pb
 
@@ -568,7 +569,18 @@ specTypeSymbol rapp@(RApp { rt_reft = ref }) = reftSymbol $ ur_reft ref
 specTypeSymbol (RVar { rt_reft = ref }) = reftSymbol $ ur_reft ref
 specTypeSymbol _ = error $ "specTypeSymbol: SpecType not handled"
 
+specTypeSymbolPB :: SpecType -> PolyBound LH.Symbol
+specTypeSymbolPB rfun@(RFun { rt_bind = b, rt_in = i, rt_out = out}) =
+    case specTypeSymbolPB i of
+        PolyBound _ ps -> PolyBound b ps
+specTypeSymbolPB (RApp { rt_reft = ref, rt_args = ars }) =
+    PolyBound (reftSymbol $ ur_reft ref) $ map specTypeSymbolPB ars
+specTypeSymbolPB (RVar {rt_reft = ref}) = PolyBound (reftSymbol $ ur_reft ref) []
+specTypeSymbolPB r = error $ "specTypePB: Unexpected SpecType" ++ "\n" ++ show r
+
+
 specTypePB :: SpecType -> PolyBound SpecType
+specTypePB rfun@(RFun { rt_bind = b, rt_in = i, rt_out = out}) = specTypePB i
 specTypePB rapp@(RApp { rt_reft = ref, rt_args = ars }) =
     PolyBound rapp $ map specTypePB ars
 specTypePB rvar@(RVar {}) = PolyBound rvar []
