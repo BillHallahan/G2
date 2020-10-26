@@ -148,7 +148,7 @@ adjustConfig main_mod (SimpleState { expr_env = eenv }) config infconfig ghci =
             $ concatMap (gsTySigs . spec) ghci
 
         ns_mm = map (\(Name n m _ _) -> (n, m))
-              . filter (\(Name n m _ _) -> not $ (n, m) `S.member` pre)
+              -- . filter (\(Name n m _ _) -> not $ (n, m) `S.member` pre)
               . filter (\(Name n m _ _) -> (n, m) `elem` ref)
               . E.keys $ E.filter (not . tyVarRetTy) eenv
 

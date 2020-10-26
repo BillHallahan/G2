@@ -54,7 +54,7 @@ data SpecInfo = SI { s_max_coeff :: Integer
                    -- Functions that capture the pre and post condition.
                    -- We have one precondition function per argument
                    , s_syn_pre :: [SynthSpec]
-                   , s_syn_post :: SynthSpec
+                   , s_syn_post :: PolyBound SynthSpec
 
                    , s_status :: Status }
                    deriving (Show)
@@ -140,13 +140,17 @@ liaSynthOfSize sz m_si =
         m_si' =
             M.map (\si -> 
                     let
-                        s_syn_pre' = map (\psi ->
+                        s_syn_pre' =
+                            map (\psi ->
+                                    psi { sy_coeffs = list_i_j (sy_name psi) $ length (sy_args psi) }
+                                 ) (s_syn_pre si)
+                        s_syn_post' =
+                            mapPB (\psi -> 
                                         psi { sy_coeffs = list_i_j (sy_name psi) $ length (sy_args psi) }
-                                     ) (s_syn_pre si)
-                        post_c = list_i_j (sy_name $ s_syn_post si) $ length (sy_args $ s_syn_post si)
+                                  ) (s_syn_post si)
                     in
                     si { s_syn_pre = s_syn_pre' -- (s_syn_pre si) { sy_coeffs = pre_c }
-                       , s_syn_post = (s_syn_post si) { sy_coeffs = post_c }
+                       , s_syn_post = s_syn_post' -- (s_syn_post si) { sy_coeffs = post_c }
                        , s_max_coeff = 5 * sz }) m_si
     in
     m_si'
@@ -187,8 +191,7 @@ synth' con meas_ex evals m_si fc = do
         Right mdl' -> do
             let lh_spec = M.map (\si -> buildLIA_LH si mdl') . M.filter (\si -> s_status si == Synth) $ m_si
             liftIO $ print lh_spec
-            let gs' = M.foldrWithKey insertAssertGS emptyGS
-                    $ M.map (map (flip PolyBound [])) lh_spec
+            let gs' = M.foldrWithKey insertAssertGS emptyGS lh_spec
             liftIO $ print gs'
             return (SynthEnv gs')
         Left uc -> return (SynthFail undefined)
@@ -217,9 +220,18 @@ mkPostCall meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars, retu
     | Just si <-  M.lookup n m_si
     , Just (ev_i, _) <- HM.lookup fc (post_evals evals) =
         let
-            smt_ars = map exprToSMT . concatMap (adjustArgs meas_ex) $ ars ++ [r]
+            smt_ars = map exprToSMT . concatMap (adjustArgs meas_ex) $ ars -- map exprToSMT . concatMap (adjustArgs meas_ex) $ ars ++ [r]
+            smt_ret = extractExprPolyBoundWithRoot r
 
-            sy_body = Func (sy_name $ s_syn_post si) smt_ars
+            sy_body = foldr (.&&.) (VBool True)
+                    . concatMap
+                        (\(syn_p, r) ->
+                            let
+                                smt_r = map (map exprToSMT) . map (adjustArgs meas_ex) $ r
+                            in
+                            map (\smt_r' -> Func (sy_name syn_p) $ smt_ars ++ smt_r') smt_r)
+                    . extractValues 
+                    $ zipPB (s_syn_post si) smt_ret-- Func (sy_name $ s_syn_post si) smt_ars
             fixed_body = Func (s_known_post_name si) [VInt ev_i]
         in
         case s_status si of
@@ -307,7 +319,7 @@ maxCoeffConstraints =
     . concatMap
         (\si ->
             let
-                cffs = concat . concat $ allPreCoeffs si ++ sy_coeffs (s_syn_post si)
+                cffs = concat . concat $ allPreCoeffs si ++ concatMap sy_coeffs (extractValues $ s_syn_post si)
             in
             if s_status si == Synth
                 then map (\c -> (Neg (VInt (s_max_coeff si)) :<= V c SortInt)
@@ -330,11 +342,11 @@ getCoeffs :: M.Map Name SpecInfo -> [SMTName]
 getCoeffs m_si =
     let
         all_precoeffs = gc allPreCoeffs $ M.elems m_si
-        all_postcoeffs = gc (sy_coeffs . s_syn_post) $ M.elems m_si
+        all_postcoeffs = gc (concatMap sy_coeffs . extractValues . s_syn_post) $ M.elems m_si
     in
     all_precoeffs ++ all_postcoeffs
     where
-    gc f = concat . concat . concatMap f . filter (\si -> s_status si == Synth)
+        gc f = concat . concat . concatMap f . filter (\si -> s_status si == Synth)
 
 -- We assign a unique id to each function call, and use these as the arguments
 -- to the known functions, rather than somehow using the arguments directly.
@@ -348,8 +360,8 @@ defineLIAFuns :: SpecInfo -> [SMTHeader]
 defineLIAFuns si =
     (if s_status si == Synth
         then 
-             defineSynthLIAFuncSF (s_syn_post si)
-            :map defineSynthLIAFuncSF (s_syn_pre si)
+               map defineSynthLIAFuncSF (extractValues $ s_syn_post si)
+            ++ map defineSynthLIAFuncSF (s_syn_pre si)
         else [])
     ++
     [ defineFixedLIAFuncSF (s_known_pre si)
@@ -390,18 +402,18 @@ buildLIA_SMT = buildLIA (:+) (:*) (:>=) mkSMTAnd mkSMTOr (flip V SortInt) VInt
 
 -- Get a list of all LIA formulas.  We must then assign these to the "correct" refinement type,
 -- i.e. the refinement type that is closest to the left, while still having all relevant variables bound.
-buildLIA_LH :: SpecInfo -> SMTModel -> [LHF.Expr]
+buildLIA_LH :: SpecInfo -> SMTModel -> [PolyBound LHF.Expr]
 buildLIA_LH si mv =
     let
         build = buildLIA ePlus eTimes bGeq PAnd POr detVar (ECon . I) -- todo: Probably want to replace PAnd with id to group?
         pre = map (\psi -> build (sy_coeffs psi) (map smt_var (sy_args psi))) (s_syn_pre si)
-        post = build (sy_coeffs (s_syn_post si)) (map smt_var (sy_args $ s_syn_post si))
+        post = mapPB (\psi -> build (sy_coeffs psi) (map smt_var (sy_args psi))) $ s_syn_post si
     in
-    pre ++ [post]
+    map (flip PolyBound []) pre ++ [post]
     where
         detVar v 
             | Just (VInt c) <- M.lookup v mv = ECon (I c)
-            | Just sa <- L.find (\sa_ -> v == smt_var sa_) (allPreSpecArgs si ++ sy_args (s_syn_post si)) = lh_rep sa
+            | Just sa <- L.find (\sa_ -> v == smt_var sa_) all_args = lh_rep sa
             | otherwise = error "detVar: variable not found"
 
         eTimes (ECon (I 0)) _ = ECon (I 0)
@@ -415,6 +427,8 @@ buildLIA_LH si mv =
         bGeq x y
             | x == y = PTrue
             | otherwise = PAtom LH.Ge x y
+
+        all_args = allPreSpecArgs si ++ concatMap sy_args (extractValues (s_syn_post si))
 
 
 buildLIA :: Plus a
@@ -466,10 +480,7 @@ buildSI meas stat ghci f aty rty =
                                       , sy_coeffs = [] 
                                       }
                      ) $ zip ars [1..]
-       , s_syn_post = headValue $ mkSynSpecPB (smt_f ++ "_synth_post_") arg_ns ret_pb
-       -- , s_syn_post = SynthSpec { sy_name = smt_f ++ "_synth_post"
-       --                          , sy_args = arg_ns ++ ret_ns
-       --                          , sy_coeffs = [] }
+       , s_syn_post = mkSynSpecPB (smt_f ++ "_synth_post_") arg_ns ret_pb
        , s_status = stat }
 
 argsAndRetFromSpec :: [GhcInfo] -> Measures -> [[SpecArg]] -> [Type] -> Type -> SpecType -> ([[SpecArg]], PolyBound [SpecArg])
