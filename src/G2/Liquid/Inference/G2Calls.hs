@@ -22,6 +22,9 @@ module G2.Liquid.Inference.G2Calls ( MeasureExs
                                    , postEvals
                                    , checkPre
                                    , checkPost
+                                   , mapEvals
+                                   , traverseEvals
+                                   , mapAccumLEvals
 
                                    , evalMeasures) where
 
@@ -53,6 +56,7 @@ import Data.Data (Data, Typeable)
 import Data.Hashable
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
+import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
@@ -375,17 +379,17 @@ currExprIsTrue _ = False
 -------------------------------
 -- Checking Pre and Post Conditions
 -------------------------------
-type PreEvals = FuncCallEvals
-type PostEvals = FuncCallEvals
-type FuncCallEvals = HM.HashMap FuncCall Bool
+type PreEvals b = FuncCallEvals b
+type PostEvals b = FuncCallEvals b
+type FuncCallEvals b = HM.HashMap FuncCall b
 
-data Evals = Evals { pre_evals :: PreEvals
-                   , post_evals :: PostEvals }
+data Evals b = Evals { pre_evals :: PreEvals b
+                     , post_evals :: PostEvals b }
 
-emptyEvals :: Evals
+emptyEvals :: Evals b
 emptyEvals = Evals { pre_evals = HM.empty, post_evals = HM.empty }
 
-preEvals :: (InfConfigM m, MonadIO m) => Evals -> LiquidReadyState -> [GhcInfo] -> [FuncCall] -> m Evals
+preEvals :: (InfConfigM m, MonadIO m) => Evals Bool -> LiquidReadyState -> [GhcInfo] -> [FuncCall] -> m (Evals Bool)
 preEvals evals@(Evals { pre_evals = pre }) lrs ghci fcs = do
     pre' <- foldM (\hm fc ->
                         if fc `HM.member` hm
@@ -396,7 +400,7 @@ preEvals evals@(Evals { pre_evals = pre }) lrs ghci fcs = do
     return $ evals { pre_evals = pre' }
     -- return . HM.fromList =<< mapM (\fc -> return . (fc,) =<< checkPre lrs ghci fc) fcs
 
-postEvals :: (InfConfigM m, MonadIO m) => Evals -> LiquidReadyState -> [GhcInfo] -> [FuncCall] -> m Evals
+postEvals :: (InfConfigM m, MonadIO m) => Evals Bool -> LiquidReadyState -> [GhcInfo] -> [FuncCall] -> m (Evals Bool)
 postEvals evals@(Evals { post_evals = post }) lrs ghci fcs = do
     post' <- foldM (\hm fc ->
                         if fc `HM.member` hm
@@ -457,6 +461,22 @@ checkFromMap ars specs fc@(FuncCall { funcName = n }) s@(State { expr_env = eenv
             Just $ s { curr_expr = CurrExpr Evaluate e''
                      , true_assert = True }
         Nothing -> Nothing
+
+mapEvals :: (a -> b) -> Evals a -> Evals b
+mapEvals f (Evals { pre_evals = pre, post_evals = post }) =
+    Evals { pre_evals = HM.map f pre, post_evals = HM.map f post }
+
+traverseEvals :: Applicative f => (v1 -> f v2) -> Evals v1 -> f (Evals v2)
+traverseEvals f (Evals { pre_evals = pre, post_evals = post }) =
+    Evals <$> HM.traverseWithKey (const f) pre <*> HM.traverseWithKey (const f) post
+
+mapAccumLEvals :: (a -> b -> (a, c)) -> a -> Evals b -> (a, Evals c)
+mapAccumLEvals f init ev =
+    let
+        (init', pre') = mapAccumL f init (pre_evals ev) 
+        (init'', post') = mapAccumL f init' (post_evals ev) 
+    in
+    (init'', ev { pre_evals = pre', post_evals = post' })
 
 -------------------------------
 -- Eval Measures

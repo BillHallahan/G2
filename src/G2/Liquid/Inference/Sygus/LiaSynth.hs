@@ -32,6 +32,7 @@ import qualified Data.HashSet as HS
 import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Monoid (Sum (..))
 import qualified Data.Text as T
 
 import Debug.Trace
@@ -45,10 +46,6 @@ type CNF = [Clause]
 -- Internal Types
 data SpecInfo = SI { s_max_coeff :: Integer
                    
-                   -- A function that is defined as the conjunction the known and synthesized functions.
-                   , s_pre :: FixedSpec
-                   , s_post :: FixedSpec
-
                    -- A function that is used to record the value of the function at known points,
                    -- i.e. points that occur in the FuncConstraints
                    , s_known_pre :: FixedSpec
@@ -61,18 +58,6 @@ data SpecInfo = SI { s_max_coeff :: Integer
 
                    , s_status :: Status }
                    deriving (Show)
-
-s_pre_name :: SpecInfo -> SMTName
-s_pre_name = fs_name . s_pre
-
-s_pre_args :: SpecInfo -> [SpecArg]
-s_pre_args = fs_args . s_pre
-
-s_post_name :: SpecInfo -> SMTName
-s_post_name = fs_name . s_post
-
-s_post_args :: SpecInfo -> [SpecArg]
-s_post_args = fs_args . s_post
 
 s_known_pre_name :: SpecInfo -> SMTName
 s_known_pre_name = fs_name . s_known_pre
@@ -103,7 +88,7 @@ data SpecArg = SpecArg { lh_rep :: LH.Expr
 data Status = Synth | Known deriving (Eq, Show)
 
 liaSynth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
-         => con -> [GhcInfo] -> LiquidReadyState -> Evals -> MeasureExs
+         => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
          -> FuncConstraints -> [Name] -> m SynthRes
 liaSynth con ghci lrs evals meas_ex fc ns_synth = do
     -- Compensate for zeroed out names in FuncConstraints
@@ -177,7 +162,7 @@ liaSynthOfSize sz m_si =
 type Size = Integer
 
 synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
-      => con -> MeasureExs -> Evals -> M.Map Name SpecInfo -> FuncConstraints -> Size -> m SynthRes
+      => con -> MeasureExs -> Evals Bool -> M.Map Name SpecInfo -> FuncConstraints -> Size -> m SynthRes
 synth con meas_ex evals si fc sz = do
     let si' = liaSynthOfSize sz si
     res <- synth' con meas_ex evals si' fc
@@ -186,11 +171,12 @@ synth con meas_ex evals si fc sz = do
         SynthFail _ -> synth con meas_ex evals si fc (sz + 1)
 
 synth' :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
-      => con -> MeasureExs -> Evals -> M.Map Name SpecInfo -> FuncConstraints -> m SynthRes
+      => con -> MeasureExs -> Evals Bool -> M.Map Name SpecInfo -> FuncConstraints -> m SynthRes
 synth' con meas_ex evals m_si fc = do
     let all_coeffs = getCoeffs m_si
     liftIO $ print m_si
-    let cons = nonMaxCoeffConstraints meas_ex evals m_si fc
+    let evals' = assignIds evals
+        cons = nonMaxCoeffConstraints meas_ex evals' m_si fc
         max_coeffs_cons = maxCoeffConstraints m_si
 
         hdrs = cons ++ max_coeffs_cons
@@ -207,32 +193,66 @@ synth' con meas_ex evals m_si fc = do
             return (SynthEnv gs')
         Left uc -> return (SynthFail undefined)
 
-constraintsToSMT :: MeasureExs -> M.Map Name SpecInfo ->FuncConstraints -> [SMTHeader]
-constraintsToSMT meas_ex si =  map Solver.Assert . map (constraintToSMT meas_ex si) . toListFC
+mkPreCall :: MeasureExs -> Evals (Integer, Bool) -> M.Map Name SpecInfo -> FuncCall -> SMTAST
+mkPreCall meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars })
+    | Just si <-  M.lookup n m_si
+    , Just (ev_i, _) <- HM.lookup fc (pre_evals evals) =
+        let
+            smt_ars = map exprToSMT $ concatMap (adjustArgs meas_ex) ars
 
-constraintToSMT :: MeasureExs -> M.Map Name SpecInfo -> FuncConstraint -> SMTAST
-constraintToSMT meas_ex si (Call All fc) =
+            sy_body = foldr (\psi e ->
+                                let
+                                    p_ars = take (length $ sy_args psi) smt_ars
+                                in
+                                Func (sy_name psi) p_ars :&& e) (VBool True) (s_syn_pre si)
+            fixed_body = Func (s_known_pre_name si) [VInt ev_i]
+        in
+        case s_status si of
+                Synth -> fixed_body :&& sy_body
+                Known -> fixed_body
+    | otherwise = error "mkPreCall: specification not found"
+
+mkPostCall :: MeasureExs -> Evals (Integer, Bool) -> M.Map Name SpecInfo -> FuncCall -> SMTAST
+mkPostCall meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars, returns = r })
+    | Just si <-  M.lookup n m_si
+    , Just (ev_i, _) <- HM.lookup fc (post_evals evals) =
+        let
+            smt_ars = map exprToSMT . concatMap (adjustArgs meas_ex) $ ars ++ [r]
+
+            sy_body = Func (sy_name $ s_syn_post si) smt_ars
+            fixed_body = Func (s_known_post_name si) [VInt ev_i]
+        in
+        case s_status si of
+                Synth -> fixed_body :&& sy_body
+                Known -> fixed_body
+    | otherwise = error "mkPostCall: specification not found"
+
+constraintsToSMT :: MeasureExs -> Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncConstraints -> [SMTHeader]
+constraintsToSMT meas_ex evals si =  map Solver.Assert . map (constraintToSMT meas_ex evals si) . toListFC
+
+constraintToSMT :: MeasureExs -> Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncConstraint -> SMTAST
+constraintToSMT meas_ex evals si (Call All fc) =
     case M.lookup (funcName fc) si of
         Just si' ->
             let
-                pre = Func (s_pre_name si') . map exprToSMT . concatMap (adjustArgs meas_ex) $ arguments fc
-                post = Func (s_post_name si') . map exprToSMT . concatMap (adjustArgs meas_ex) $ arguments fc ++ [returns fc]
+                pre = mkPreCall meas_ex evals si fc
+                post = mkPostCall meas_ex evals si fc
             in
             pre :=> post
         Nothing -> error "constraintToSMT: specification not found"
-constraintToSMT meas_ex si (Call Pre fc) =
+constraintToSMT meas_ex evals si (Call Pre fc) =
     case M.lookup (funcName fc) si of
         Just si' ->
-            Func (s_pre_name si') . map exprToSMT . concatMap (adjustArgs meas_ex) $ arguments fc
+            mkPreCall meas_ex evals si fc
         Nothing -> error $ "constraintToSMT: specification not found" ++ show fc
-constraintToSMT meas_ex si (Call Post fc) =
+constraintToSMT meas_ex evals si (Call Post fc) =
     case M.lookup (funcName fc) si of
-        Just si' -> Func (s_post_name si') . map exprToSMT . concatMap (adjustArgs meas_ex) $ arguments fc ++ [returns fc]
+        Just si' -> mkPostCall meas_ex evals si fc
         Nothing -> error "constraintToSMT: specification not found"
-constraintToSMT meas_ex si (AndFC fs) = mkSMTAnd $ map (constraintToSMT meas_ex si) fs
-constraintToSMT meas_ex si (OrFC fs) = mkSMTOr $ map (constraintToSMT meas_ex si) fs
-constraintToSMT meas_ex si (ImpliesFC fc1 fc2) = constraintToSMT meas_ex si fc1 :=> constraintToSMT meas_ex si fc2
-constraintToSMT meas_ex si (NotFC fc) = (:!) (constraintToSMT meas_ex si fc)
+constraintToSMT meas_ex evals si (AndFC fs) = mkSMTAnd $ map (constraintToSMT meas_ex evals si) fs
+constraintToSMT meas_ex evals si (OrFC fs) = mkSMTOr $ map (constraintToSMT meas_ex evals si) fs
+constraintToSMT meas_ex evals si (ImpliesFC fc1 fc2) = constraintToSMT meas_ex evals si fc1 :=> constraintToSMT meas_ex evals si fc2
+constraintToSMT meas_ex evals si (NotFC fc) = (:!) (constraintToSMT meas_ex evals si fc)
 
 adjustArgs :: MeasureExs -> G2.Expr -> [G2.Expr]
 adjustArgs meas_ex = map adjustLits . substMeasures meas_ex
@@ -253,7 +273,7 @@ adjustLits (App _ l@(Lit _)) = l
 adjustLits e = e
 
 -- computing F_{Fixed}, i.e. what is the value of known specifications at known points 
-envToSMT :: MeasureExs -> Evals -> M.Map Name SpecInfo -> FuncConstraints -> [SMTHeader]
+envToSMT :: MeasureExs -> Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncConstraints -> [SMTHeader]
 envToSMT meas_ex evals si =
      map Solver.Assert
    . concatMap (uncurry (envToSMT' meas_ex evals si))
@@ -262,24 +282,21 @@ envToSMT meas_ex evals si =
    . concatMap allCalls
    . toListFC
 
-envToSMT' :: MeasureExs -> Evals -> M.Map Name SpecInfo -> FuncCall -> SMTName -> [SMTAST]
-envToSMT' meas_ex (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(FuncCall { funcName = f, arguments = as, returns = r }) uc_n =
+envToSMT' :: MeasureExs -> Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncCall -> SMTName -> [SMTAST]
+envToSMT' meas_ex (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(FuncCall { funcName = f }) uc_n =
     case M.lookup f m_si of
         Just si ->
             let
-                smt_as = map exprToSMT $ concatMap (adjustArgs meas_ex) as
-                smt_r = map exprToSMT $ (adjustArgs meas_ex) r
+                (pre_i, pre_res) = case HM.lookup fc pre_ev of
+                                        Just b -> b
+                                        Nothing -> error "envToSMT': pre not found"
 
-                pre_res = case HM.lookup fc pre_ev of
-                            Just b -> b
-                            Nothing -> error "envToSMT': pre not found"
+                (post_i, post_res) = case HM.lookup fc post_ev of
+                                        Just b -> b
+                                        Nothing -> error "envToSMT': post not found"
 
-                post_res = case HM.lookup fc post_ev of
-                            Just b -> b
-                            Nothing -> error "envToSMT': post not found"
-
-                pre = (if pre_res then id else (:!)) $ Func (s_known_pre_name si) smt_as
-                post = (if post_res then id else (:!)) $ Func (s_known_post_name si) (smt_as ++ smt_r)
+                pre = (if pre_res then id else (:!)) $ Func (s_known_pre_name si) [VInt pre_i]
+                post = (if post_res then id else (:!)) $ Func (s_known_post_name si) [VInt post_i]
             in
             [Named pre ("pre_" ++ uc_n), Named post ("post_" ++ uc_n)]
         Nothing -> error "envToSMT': function not found"
@@ -297,55 +314,17 @@ maxCoeffConstraints =
                                     :&& (V c SortInt :<= VInt (s_max_coeff si))) cffs
                 else []) . M.elems
 
-linkPreFuncs :: M.Map Name SpecInfo -> [SMTHeader]
-linkPreFuncs = map linkPreFunc . M.elems
-
-linkPreFunc :: SpecInfo -> SMTHeader
-linkPreFunc si =
-    let
-        ars = zip (map smt_var $ s_pre_args si) (repeat SortInt)
-
-        sy_body = foldr (\psi e ->
-                            let
-                                p_ars = take (length $ sy_args psi) ars
-                            in
-                            Func (sy_name psi) (map (uncurry V) p_ars) :&& e) (VBool True) (s_syn_pre si)
-        fixed_body = Func (s_known_pre_name si) (map (uncurry V) ars)
-        body = case s_status si of
-                Synth -> fixed_body :&& sy_body
-                Known -> fixed_body
-    in
-    DefineFun (s_pre_name si) ars SortBool body
-
-linkPostFuncs :: M.Map Name SpecInfo -> [SMTHeader]
-linkPostFuncs = map linkPostFunc . M.elems
-
-linkPostFunc :: SpecInfo -> SMTHeader
-linkPostFunc si = 
-    let
-        ars = zip (map smt_var $ s_post_args si) (repeat SortInt)
-
-        sy_body = Func (sy_name $ s_syn_post si) (map (uncurry V) ars)
-        fixed_body = Func (s_known_post_name si) (map (uncurry V) ars)
-        body = case s_status si of
-                Synth -> fixed_body :&& sy_body
-                Known -> fixed_body
-    in
-    DefineFun (s_post_name si) ars SortBool body
-
-nonMaxCoeffConstraints :: MeasureExs -> Evals -> M.Map Name SpecInfo -> FuncConstraints -> [SMTHeader]
+nonMaxCoeffConstraints :: MeasureExs -> Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncConstraints -> [SMTHeader]
 nonMaxCoeffConstraints meas_ex evals m_si fc =
     let
         all_coeffs = getCoeffs m_si
 
         var_decl_hdrs = map (flip VarDecl SortInt) all_coeffs
         def_funs = concatMap defineLIAFuns $ M.elems m_si
-        link_pre = linkPreFuncs m_si
-        link_post = linkPostFuncs m_si
-        fc_smt = constraintsToSMT meas_ex m_si fc
+        fc_smt = constraintsToSMT meas_ex evals m_si fc
         env_smt = envToSMT meas_ex evals m_si fc
     in
-    var_decl_hdrs ++ def_funs ++ link_pre ++ link_post ++ fc_smt ++ env_smt
+    var_decl_hdrs ++ def_funs ++ fc_smt ++ env_smt
 
 getCoeffs :: M.Map Name SpecInfo -> [SMTName]
 getCoeffs m_si =
@@ -357,6 +336,13 @@ getCoeffs m_si =
     where
     gc f = concat . concat . concatMap f . filter (\si -> s_status si == Synth)
 
+-- We assign a unique id to each function call, and use these as the arguments
+-- to the known functions, rather than somehow using the arguments directly.
+-- This means we can get away with needing only a single known function
+-- for the pre, and a single known function for the post, as opposed
+-- to needing individual known functions/function calls for polymorphic refinements.
+assignIds :: Evals Bool -> Evals (Integer, Bool)
+assignIds = snd . mapAccumLEvals (\i b -> (i + 1, (i, b))) 0
 
 defineLIAFuns :: SpecInfo -> [SMTHeader]
 defineLIAFuns si =
@@ -371,10 +357,7 @@ defineLIAFuns si =
 
 defineFixedLIAFuncSF :: FixedSpec -> SMTHeader
 defineFixedLIAFuncSF fs =
-    let
-        ars = map (const SortInt) (fs_args fs)
-    in
-    DeclareFun (fs_name fs) ars SortBool
+    DeclareFun (fs_name fs) [SortInt] SortBool
 
 defineSynthLIAFuncSF :: SynthSpec -> SMTHeader
 defineSynthLIAFuncSF sf = 
@@ -473,11 +456,7 @@ buildSI meas stat ghci f aty rty =
         arg_ns = map (\(a, i) -> a { smt_var = "x_" ++ show i } ) $ zip (concat ars) [1..]
         ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show i }) $ zip ret [1..]
     in
-    SI { s_pre = FixedSpec { fs_name = smt_f ++ "_pre"
-                           , fs_args = arg_ns }
-       , s_post = FixedSpec { fs_name = smt_f ++ "_post"
-                            , fs_args = arg_ns ++ ret_ns }
-       , s_known_pre = FixedSpec { fs_name = smt_f ++ "_known_pre"
+    SI { s_known_pre = FixedSpec { fs_name = smt_f ++ "_known_pre"
                                  , fs_args = arg_ns }
        , s_known_post = FixedSpec { fs_name = smt_f ++ "_known_post"
                                   , fs_args = arg_ns ++ ret_ns }
@@ -487,7 +466,7 @@ buildSI meas stat ghci f aty rty =
                                       , sy_coeffs = [] 
                                       }
                      ) $ zip ars [1..]
-       , s_syn_post = headValue $ mkSynSpecPB (smt_f ++ "_synth_post") arg_ns ret_pb
+       , s_syn_post = headValue $ mkSynSpecPB (smt_f ++ "_synth_post_") arg_ns ret_pb
        -- , s_syn_post = SynthSpec { sy_name = smt_f ++ "_synth_post"
        --                          , sy_args = arg_ns ++ ret_ns
        --                          , sy_coeffs = [] }

@@ -123,7 +123,7 @@ type NameLevels = [[Name]]
 
 inferenceL :: (ProgresserM m, InfConfigM m, MonadIO m, SMTConverter con ast out io)
            => con -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
-           -> NameLevels -> Evals -> GeneratedSpecs -> FuncConstraints -> m InferenceRes
+           -> NameLevels -> Evals Bool -> GeneratedSpecs -> FuncConstraints -> m InferenceRes
 inferenceL con ghci m_modname lrs nls evals gs fc = do
     let (fs, sf) = case nls of
                         (fs_:sf_:_) -> (fs_, sf_)
@@ -339,8 +339,8 @@ increaseProgressing fc gs synth_gs synthed = undefined {- do
 -}
 
 synthesize :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
-           => con -> [GhcInfo] -> LiquidReadyState -> Evals
-           -> GeneratedSpecs -> FuncConstraints -> [Name] -> m (Evals, SynthRes)
+           => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool
+           -> GeneratedSpecs -> FuncConstraints -> [Name] -> m (Evals Bool, SynthRes)
 synthesize con ghci lrs evals gs fc for_funcs = do
     liftIO $ putStrLn "Before genMeasureExs"
     meas_ex <- genMeasureExs lrs ghci fc
