@@ -70,9 +70,9 @@ stdReduce' _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
         return (RuleError, [s { exec_stack = stck'
                               , true_assert = True
                               , assert_ids = is }], ng)
+    | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
     | Prim Error _ <- ce
     , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], ng)
-    | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
     | Lam u i e <- ce = return $ retLam s ng u i e
     | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ng ce e stck'
     | Just rs <- retReplaceSymbFunc s ng ce = return rs

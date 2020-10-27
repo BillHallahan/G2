@@ -531,7 +531,7 @@ buildSI meas stat ghci f aty rty =
        , s_status = stat }
 
 argsAndRetFromSpec :: [GhcInfo] -> Measures -> [PolyBound [SpecArg]] -> [Type] -> Type -> SpecType -> ([PolyBound [SpecArg]], PolyBound [SpecArg])
-argsAndRetFromSpec ghci meas ars (_:ts) rty (RAllT { rt_ty = out }) =
+argsAndRetFromSpec ghci meas ars ts rty (RAllT { rt_ty = out }) =
     argsAndRetFromSpec ghci meas ars ts rty out
 argsAndRetFromSpec ghci meas ars (t:ts) rty rfun@(RFun { rt_bind = b, rt_in = i, rt_out = out}) =
     let
@@ -550,6 +550,7 @@ argsAndRetFromSpec ghci meas ars _ rty rvar@(RVar { rt_reft = ref}) =
         sa = mkSpecArgPB ghci meas rty rvar
     in
     (reverse ars, sa)
+argsAndRetFromSpec _ _ _ _ _ st = error $ "argsAndRetFromSpec: unhandled SpecType " ++ show st
 
 mkSpecArgPB :: [GhcInfo] -> Measures -> Type -> SpecType -> PolyBound [SpecArg]
 mkSpecArgPB ghci meas t st =
