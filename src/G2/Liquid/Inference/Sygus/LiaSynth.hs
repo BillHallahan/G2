@@ -114,7 +114,11 @@ liaSynth con ghci lrs evals meas_ex fc ns_synth = do
 
     -- liftIO . putStrLn $ "si = " ++ show si
 
-    synth con meas_ex evals si fc 1
+    realizable <- checkUnrealizable con meas_ex evals si fc
+
+    case realizable of
+        SynthEnv _ -> synth con meas_ex evals si fc 1
+        SynthFail interp -> undefined
 
 -- addKnownSpecs :: [GhcInfo] -> ExprEnv -> M.Map Name SpecInfo -> FuncConstraints -> M.Map Name SpecInfo
 -- addKnownSpecs ghci si =
@@ -171,21 +175,27 @@ synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
       => con -> MeasureExs -> Evals Bool -> M.Map Name SpecInfo -> FuncConstraints -> Size -> m SynthRes
 synth con meas_ex evals si fc sz = do
     let si' = liaSynthOfSize sz si
-    res <- synth' con meas_ex evals si' fc
+        max_coeffs_cons = maxCoeffConstraints si'
+    res <- synth' con meas_ex evals si' fc max_coeffs_cons
     case res of
         SynthEnv _ -> return res
         SynthFail _ -> synth con meas_ex evals si fc (sz + 1)
 
+checkUnrealizable :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
+                  => con -> MeasureExs -> Evals Bool -> M.Map Name SpecInfo -> FuncConstraints -> m SynthRes
+checkUnrealizable con meas_ex evals si fc = do
+    let num_calls = HS.size . HS.fromList $ allCallsFC fc
+        si' = liaSynthOfSize (toInteger num_calls) si
+    synth' con meas_ex evals si' fc []
+    
 synth' :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
-      => con -> MeasureExs -> Evals Bool -> M.Map Name SpecInfo -> FuncConstraints -> m SynthRes
-synth' con meas_ex evals m_si fc = do
+      => con -> MeasureExs -> Evals Bool -> M.Map Name SpecInfo -> FuncConstraints -> [SMTHeader] -> m SynthRes
+synth' con meas_ex evals m_si fc headers = do
     let all_coeffs = getCoeffs m_si
     liftIO $ print m_si
     let evals' = assignIds evals
         cons = nonMaxCoeffConstraints meas_ex evals' m_si fc
-        max_coeffs_cons = maxCoeffConstraints m_si
-
-        hdrs = cons ++ max_coeffs_cons
+        hdrs = cons ++ headers
 
     mdl <- liftIO $ constraintsToModelOrUnsatCore con hdrs (zip all_coeffs (repeat SortInt))
 

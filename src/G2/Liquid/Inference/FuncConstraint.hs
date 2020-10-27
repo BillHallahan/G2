@@ -19,7 +19,8 @@ module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
                                           , mapMaybeFC
                                           , filterFC
                                           , allCallNames
-                                          , allCalls) where
+                                          , allCalls
+                                          , allCallsFC) where
 
 import G2.Language.AST
 import G2.Language.Naming
@@ -97,6 +98,9 @@ allCalls (AndFC fcs) = concatMap allCalls fcs
 allCalls (OrFC fcs) = concatMap allCalls fcs
 allCalls (ImpliesFC fc1 fc2) = allCalls fc1 ++ allCalls fc2
 allCalls (NotFC fc) = allCalls fc
+
+allCallsFC :: FuncConstraints -> [FuncCall]
+allCallsFC = concatMap allCalls . toListFC
 
 instance ASTContainer FuncConstraint Expr where
     containedASTs (Call sp fc) = containedASTs fc
