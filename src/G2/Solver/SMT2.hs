@@ -459,7 +459,8 @@ getUnsatCoreZ3 h_in h_out = do
     r <- hWaitForInput h_out (-1)
     out <- hGetLine h_out 
     putStrLn $ "unsat-core = " ++ out
-    return undefined
+    let out' = tail . init $ out -- drop opening and closing parens
+    return $ words out' 
 
 getModelCVC4 :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
 getModelCVC4 h_in h_out ns = do

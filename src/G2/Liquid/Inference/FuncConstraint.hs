@@ -9,6 +9,7 @@ module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
                                           , FuncConstraints
                                           , emptyFC
                                           , fromSingletonFC
+                                          , fromListFC
                                           , nullFC
                                           , insertFC
                                           , lookupFC
@@ -50,6 +51,9 @@ emptyFC = FuncConstraints M.empty
 
 fromSingletonFC :: FuncConstraint -> FuncConstraints
 fromSingletonFC = flip insertFC emptyFC
+
+fromListFC :: [FuncConstraint] -> FuncConstraints
+fromListFC = foldr insertFC emptyFC
 
 nullFC :: FuncConstraints -> Bool
 nullFC = null . toListFC
