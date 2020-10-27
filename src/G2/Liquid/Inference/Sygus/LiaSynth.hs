@@ -214,31 +214,32 @@ synth' con meas_ex evals m_si fc headers = do
 
 mkPreCall :: MeasureExs -> Evals (Integer, Bool) -> M.Map Name SpecInfo -> FuncCall -> SMTAST
 mkPreCall meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars })
-    | Just si <-  M.lookup n m_si
+    | Just si <- M.lookup n m_si
     , Just (ev_i, _) <- HM.lookup fc (pre_evals evals) =
         let
-            pre_and_ars = zipWith zipPB (s_syn_pre si) (map extractExprPolyBoundWithRoot ars)
+            pre_and_ars = zipWith zipPB (s_syn_pre si) (map extractExprPolyBoundWithRoot $ filterArgs ars)
             sy_body = foldr (\(psi, as) e ->
                                 let
                                     smt_ars = map (map exprToSMT) $ map (adjustArgs meas_ex) as
 
                                     func_calls = map (Func (sy_name psi)) smt_ars
                                 in
+                                -- trace ("sy_name psi = " ++ show (sy_name psi) ++ "\nas = " ++ show as ++ "\nsmt_ars = " ++ show smt_ars)
                                 foldr (:&&) e func_calls) (VBool True)
                             (concatMap extractValues pre_and_ars)
             fixed_body = Func (s_known_pre_name si) [VInt ev_i]
         in
-        case trace ("sy_body = " ++ show sy_body) s_status si of
+        case s_status si of
                 Synth -> fixed_body :&& sy_body
                 Known -> fixed_body
     | otherwise = error "mkPreCall: specification not found"
 
 mkPostCall :: MeasureExs -> Evals (Integer, Bool) -> M.Map Name SpecInfo -> FuncCall -> SMTAST
 mkPostCall meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars, returns = r })
-    | Just si <-  M.lookup n m_si
+    | Just si <- M.lookup n m_si
     , Just (ev_i, _) <- HM.lookup fc (post_evals evals) =
         let
-            smt_ars = map exprToSMT . concatMap (adjustArgs meas_ex) $ ars -- map exprToSMT . concatMap (adjustArgs meas_ex) $ ars ++ [r]
+            smt_ars = map exprToSMT . concatMap (adjustArgs meas_ex) . filterArgs $ ars -- map exprToSMT . concatMap (adjustArgs meas_ex) $ ars ++ [r]
             smt_ret = extractExprPolyBoundWithRoot r
 
             sy_body = foldr (.&&.) (VBool True)
@@ -294,13 +295,28 @@ substMeasures meas_ex e =
         Nothing ->
             case HM.lookup e meas_ex of
                 Just es ->
+                    let
+                        es' = filter (isJust . typeToSort . returnType . snd) $ HM.toList es
+                    in
+                    -- trace ("meas_ex es' = " ++ show es')
                     -- Sort to make sure we get the same order consistently
-                    map snd . L.sortBy (\(n1, _) (n2, _) -> compare n1 n2) $ HM.toList es
+                    map snd $ L.sortBy (\(n1, _) (n2, _) -> compare n1 n2) es'
                 Nothing -> []
 
 adjustLits :: G2.Expr -> G2.Expr
 adjustLits (App _ l@(Lit _)) = l
 adjustLits e = e
+
+filterArgs :: [G2.Expr] -> [G2.Expr]
+filterArgs = filter (not . isLHDict) . filter (not . isType)
+    where
+        isType (Type _) = True
+        isType _ = False
+
+        isLHDict e
+            | (TyCon (Name n _ _ _) _):_ <- unTyApp (typeOf e) = n == "lh"
+            | otherwise = False
+
 
 -- computing F_{Fixed}, i.e. what is the value of known specifications at known points 
 envToSMT :: MeasureExs -> Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncConstraints
