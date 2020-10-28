@@ -31,6 +31,7 @@ import Control.Monad.Extra
 import Control.Monad.IO.Class 
 import Data.Either
 import qualified Data.HashSet as S
+import qualified Data.HashMap.Lazy as HM
 import Data.List
 import Data.Maybe
 import qualified Data.Text as T
@@ -86,13 +87,13 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
         prog = newProgress
 
     SomeSMTSolver smt <- getSMT g2config'
-    let infL = inferenceL smt ghci main_mod lrs nls emptyEvals emptyGS emptyFC
+    let infL = inferenceL smt ghci main_mod lrs nls emptyEvals HM.empty emptyGS emptyFC
 
     inf <- runConfigs (runProgresser infL prog) configs
     case inf of
         CEx cex -> return $ Left cex
         Env gs -> return $ Right gs
-        Raise _ -> error "inference: Unhandled Func Constraints"
+        Raise _ _ -> error "inference: Unhandled Func Constraints"
 
 getGHCI :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO ([GhcInfo], LH.Config)
 getGHCI infconfig config proj fp lhlibs = do
@@ -110,7 +111,7 @@ getGHCI infconfig config proj fp lhlibs = do
 
 data InferenceRes = CEx [CounterExample]
                   | Env GeneratedSpecs
-                  | Raise FuncConstraints
+                  | Raise MeasureExs FuncConstraints
                   deriving (Show)
 
 -- When we try to synthesize a specification for a function that we have already found a specification for,
@@ -123,15 +124,15 @@ type NameLevels = [[Name]]
 
 inferenceL :: (ProgresserM m, InfConfigM m, MonadIO m, SMTConverter con ast out io)
            => con -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
-           -> NameLevels -> Evals Bool -> GeneratedSpecs -> FuncConstraints -> m InferenceRes
-inferenceL con ghci m_modname lrs nls evals gs fc = do
+           -> NameLevels -> Evals Bool -> MeasureExs -> GeneratedSpecs -> FuncConstraints -> m InferenceRes
+inferenceL con ghci m_modname lrs nls evals meas_ex gs fc = do
     let (fs, sf) = case nls of
                         (fs_:sf_:_) -> (fs_, sf_)
                         ([fs_])-> (fs_, [])
                         [] -> ([], [])
 
     let curr_ghci = addSpecsToGhcInfos ghci gs
-    (evals', synth_gs) <- synthesize con curr_ghci lrs evals gs fc sf
+    (evals', synth_gs) <- synthesize con curr_ghci lrs evals meas_ex gs fc sf
 
     case synth_gs of
         SynthEnv envN -> do
@@ -150,20 +151,22 @@ inferenceL con ghci m_modname lrs nls evals gs fc = do
                     case nls of
                         (_:nls') -> do
                             liftIO $ putStrLn "Down a level!"
-                            inf_res <- inferenceL con ghci m_modname lrs nls' emptyEvals gs' fc
+                            inf_res <- inferenceL con ghci m_modname lrs nls' emptyEvals meas_ex gs' fc
                             case inf_res of
-                                Raise fc' -> do
+                                Raise r_meas_ex r_fc -> do
                                     liftIO $ putStrLn "Up a level!"
-                                    inferenceL con ghci m_modname lrs nls evals' gs fc'
+                                    inferenceL con ghci m_modname lrs nls evals' r_meas_ex gs r_fc
                                 _ -> return inf_res
                         [] -> return $ Env gs'
                 Unsafe bad -> do
                     ref <- refineUnsafe ghci m_modname lrs gs' bad
                     case ref of
                         Left cex -> return $ CEx cex
-                        Right fc' -> inferenceL con ghci m_modname lrs nls evals' gs (unionFC fc fc')
+                        Right fc' -> do
+                            meas_ex' <- updateMeasureExs meas_ex lrs ghci fc'
+                            inferenceL con ghci m_modname lrs nls evals' meas_ex' gs (unionFC fc fc')
                 Crash _ _ -> error "inferenceL: LiquidHaskell crashed"
-        SynthFail fc' -> return $ Raise (unionFC fc fc')
+        SynthFail fc' -> return $ Raise meas_ex (unionFC fc fc')
 
 
 {-    let ignore = concat nls
@@ -318,8 +321,8 @@ checkNewConstraints ghci lrs cexs = do
         res'@(_:_) -> return . Left $ res'
         _ -> return . Right . filterErrors . unionsFC . map fromSingletonFC $ (rights res) ++ res2
 
-genMeasureExs :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] -> FuncConstraints -> m MeasureExs
-genMeasureExs lrs ghci fcs =
+updateMeasureExs :: (InfConfigM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> FuncConstraints -> m MeasureExs
+updateMeasureExs meas_ex lrs ghci fcs =
     let
         es = concatMap (\fc ->
                     let
@@ -330,7 +333,7 @@ genMeasureExs lrs ghci fcs =
                     vls ++ ex_poly
                 ) (toListFC fcs)
     in
-    evalMeasures lrs ghci es
+    evalMeasures meas_ex lrs ghci es
 
 increaseProgressing :: ProgresserM m => FuncConstraints -> GeneratedSpecs -> GeneratedSpecs -> [Name] -> m ()
 increaseProgressing fc gs synth_gs synthed = undefined {- do
@@ -341,11 +344,10 @@ increaseProgressing fc gs synth_gs synthed = undefined {- do
 -}
 
 synthesize :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
-           => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool
+           => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
            -> GeneratedSpecs -> FuncConstraints -> [Name] -> m (Evals Bool, SynthRes)
-synthesize con ghci lrs evals gs fc for_funcs = do
+synthesize con ghci lrs evals meas_ex gs fc for_funcs = do
     liftIO $ putStrLn "Before genMeasureExs"
-    meas_ex <- genMeasureExs lrs ghci fc
     liftIO $ putStrLn "After genMeasureExs"
     liftIO $ putStrLn "Before check func calls"
     evals' <- preEvals evals lrs ghci . concatMap allCalls $ toListFC fc

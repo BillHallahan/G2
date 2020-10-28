@@ -496,8 +496,8 @@ mapAccumLEvals f init ev =
 
 type MeasureExs = HM.HashMap Expr (HM.HashMap Name Expr)
 
-evalMeasures :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] -> [Expr] -> m MeasureExs
-evalMeasures lrs ghci es = do
+evalMeasures :: (InfConfigM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> [Expr] -> m MeasureExs
+evalMeasures init_measex lrs ghci es = do
     config <- g2ConfigM
     liftIO $ do
         let config' = config { counterfactual = NotCounterfactual }
@@ -516,7 +516,7 @@ evalMeasures lrs ghci es = do
         meas_res <- mapM (evalMeasures' final_s final_b solver config' meas tcv) $ filter (not . isError) es
         close solver
 
-        return $ foldr (HM.unionWith HM.union) HM.empty meas_res
+        return $ foldr (HM.unionWith HM.union) init_measex meas_res
     where
         meas_names = map (val . msName) $ measureSpecs ghci
         meas_nameOcc = map (\(Name n md _ _) -> (n, md)) $ map symbolName meas_names

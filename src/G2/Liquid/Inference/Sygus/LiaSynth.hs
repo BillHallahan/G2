@@ -157,7 +157,7 @@ liaSynthOfSize sz m_si =
                     in
                     si { s_syn_pre = s_syn_pre' -- (s_syn_pre si) { sy_coeffs = pre_c }
                        , s_syn_post = s_syn_post' -- (s_syn_post si) { sy_coeffs = post_c }
-                       , s_max_coeff = 5 * sz }) m_si
+                       , s_max_coeff = 2 * sz }) m_si
     in
     m_si'
     where
