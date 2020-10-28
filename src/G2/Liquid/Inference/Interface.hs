@@ -132,7 +132,8 @@ inferenceL con ghci m_modname lrs nls evals meas_ex gs fc = do
                         [] -> ([], [])
 
     let curr_ghci = addSpecsToGhcInfos ghci gs
-    (evals', synth_gs) <- synthesize con curr_ghci lrs evals meas_ex gs fc sf
+    evals' <- updateEvals curr_ghci lrs fc evals
+    synth_gs <- synthesize con curr_ghci lrs evals' meas_ex gs fc sf
 
     case synth_gs of
         SynthEnv envN -> do
@@ -163,7 +164,9 @@ inferenceL con ghci m_modname lrs nls evals meas_ex gs fc = do
                     case ref of
                         Left cex -> return $ CEx cex
                         Right fc' -> do
+                            liftIO $ putStrLn "Before genMeasureExs"
                             meas_ex' <- updateMeasureExs meas_ex lrs ghci fc'
+                            liftIO $ putStrLn "After genMeasureExs"
                             inferenceL con ghci m_modname lrs nls evals' meas_ex' gs (unionFC fc fc')
                 Crash _ _ -> error "inferenceL: LiquidHaskell crashed"
         SynthFail fc' -> return $ Raise meas_ex (unionFC fc fc')
@@ -345,16 +348,21 @@ increaseProgressing fc gs synth_gs synthed = undefined {- do
 
 synthesize :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
            => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
-           -> GeneratedSpecs -> FuncConstraints -> [Name] -> m (Evals Bool, SynthRes)
-synthesize con ghci lrs evals meas_ex gs fc for_funcs = do
-    liftIO $ putStrLn "Before genMeasureExs"
-    liftIO $ putStrLn "After genMeasureExs"
+           -> GeneratedSpecs -> FuncConstraints -> [Name] -> m SynthRes
+synthesize con ghci lrs evals meas_ex gs fc for_funcs =
+    liaSynth con ghci lrs evals meas_ex fc for_funcs
+
+updateEvals :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> FuncConstraints -> Evals Bool -> m (Evals Bool)
+updateEvals ghci lrs fc evals = do
+    let cs = allCallsFC fc
+
     liftIO $ putStrLn "Before check func calls"
-    evals' <- preEvals evals lrs ghci . concatMap allCalls $ toListFC fc
+    evals' <- preEvals evals lrs ghci cs
     liftIO $ putStrLn "After pre"
-    evals'' <- postEvals evals' lrs ghci . concatMap allCalls $ toListFC fc
+    evals'' <- postEvals evals' lrs ghci cs
     liftIO $ putStrLn "After check func calls"
-    return . (evals'',) =<< liaSynth con ghci lrs evals'' meas_ex fc for_funcs
+
+    return evals''
 
 -- | Converts counterexamples into constraints that block the current specification set
 cexsToBlockingFC :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] -> CounterExample -> m (Either CounterExample FuncConstraint)
