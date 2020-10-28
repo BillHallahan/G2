@@ -542,13 +542,27 @@ buildSI meas stat ghci f aty rty =
                                  , fs_args = arg_ns }
        , s_known_post = FixedSpec { fs_name = smt_f ++ "_known_post"
                                   , fs_args = arg_ns ++ ret_ns }
-       , s_syn_pre = map (\(as, i) -> 
-                            mapPB (\(a, j) ->
-                                    SynthSpec { sy_name = smt_f ++ "_synth_pre_" ++ show i ++ "_" ++ show j
-                                              , sy_args = map (\(a, k) -> a { smt_var = "x_" ++ show k}) $ zip a [1..]
-                                              , sy_coeffs = []}
-                                  )
-                            $ zipPB as (uniqueIds as)) $ zip ars_pb [1..]
+       , s_syn_pre = map (\(ars_pb, i) ->
+                                let
+                                    ars = concatMap fst (init ars_pb)
+                                    r_pb = snd (last ars_pb)
+                                in
+                                mapPB (\(r, j) ->
+                                        let
+                                            ars_r = ars ++ r
+                                        in
+                                        SynthSpec { sy_name = smt_f ++ "_synth_pre_" ++ show i ++ "_" ++ show j
+                                                  , sy_args = map (\(a, k) -> a { smt_var = "x_" ++ show k}) $ zip ars_r [1..]
+                                                  , sy_coeffs = []}
+                                      )  $ zipPB r_pb (uniqueIds r_pb)
+                         ) $ zip (filter (not . null) $ L.inits outer_ars_pb) [1..]
+       -- , s_syn_pre = map (\(as, i) -> 
+       --                      mapPB (\(a, j) ->
+       --                              SynthSpec { sy_name = smt_f ++ "_synth_pre_" ++ show i ++ "_" ++ show j
+       --                                        , sy_args = map (\(a, k) -> a { smt_var = "x_" ++ show k}) $ zip a [1..]
+       --                                        , sy_coeffs = []}
+       --                            )
+       --                      $ zipPB as (uniqueIds as)) $ zip ars_pb [1..]
        -- , s_syn_pre = map (\(ars', i) ->
        --                      SynthSpec { sy_name = smt_f ++ "_synth_pre_" ++ show i
        --                                , sy_args = map (\(a, j) -> a { smt_var = "x_" ++ show j}) $ zip ars' [1..]
