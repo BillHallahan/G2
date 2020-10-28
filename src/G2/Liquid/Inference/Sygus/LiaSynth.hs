@@ -507,7 +507,7 @@ buildLIA_SMT = buildLIA (:+) (:*) (:>=) mkSMTAnd mkSMTOr (flip V SortInt) VInt
 buildLIA_LH :: SpecInfo -> SMTModel -> [PolyBound LHF.Expr]
 buildLIA_LH si mv =
     let
-        build ars = buildLIA ePlus eTimes bGeq PAnd POr (detVar ars) (ECon . I) -- todo: Probably want to replace PAnd with id to group?
+        build ars = buildLIA ePlus eTimes bGeq pAnd pOr (detVar ars) (ECon . I) -- todo: Probably want to replace PAnd with id to group?
         pre = map (mapPB (\psi -> build (sy_args psi) (sy_coeffs psi) (map smt_var (sy_args psi)))) $ s_syn_pre si
         post = mapPB (\psi -> build post_ars (sy_coeffs psi) (map smt_var (sy_args psi))) $ s_syn_post si
     in
@@ -526,6 +526,19 @@ buildLIA_LH si mv =
         ePlus x (ECon (I 0)) = x
         ePlus x y = EBin LH.Plus x y
 
+        pAnd xs =
+            case any (== PFalse) xs of
+                True -> PFalse
+                False -> PAnd $ filter (/= PTrue) xs
+
+        pOr xs =
+            case any (== PTrue) xs of
+                True -> PTrue
+                False -> POr $ filter (/= PFalse) xs
+
+
+        bGeq (ECon (I x)) (ECon (I y)) =
+            if x >= y then PTrue else PFalse
         bGeq x y
             | x == y = PTrue
             | otherwise = PAtom LH.Ge x y
