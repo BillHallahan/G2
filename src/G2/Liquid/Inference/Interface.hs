@@ -139,7 +139,9 @@ inferenceL con ghci m_modname lrs nls evals gs fc = do
                 ghci' = addSpecsToGhcInfos ghci gs'
             liftIO $ do
                 putStrLn "inferenceL"
-                mapM (print . gsTySigs . spec) ghci
+
+                putStrLn $ "init gs' = " ++ show gs'
+                mapM (print . gsTySigs . spec) ghci'
 
             res <- tryToVerifyOnly ghci' fs
             
@@ -376,26 +378,41 @@ cexsToBlockingFC _ _ (CallsCounter dfc cfc fcs@(_:_)) = do
     if not . null $ fcs' 
         then return . Right $ ImpliesFC lhs rhs
         else error "cexsToBlockingFC: Should be unreachable! Non-refinable function abstracted!"    
-cexsToBlockingFC lrs ghci cex@(DirectCounter dfc []) = do
-    -- pre_ref <- hasUserSpec (funcName dfc)
-    post_ref <- checkPost lrs ghci dfc
-
-    case post_ref of
-        True -> return . Right $ Call All dfc 
-        False -> return . Left $ cex
-cexsToBlockingFC lrs ghci cex@(CallsCounter dfc cfc []) = do
-    -- caller_pr <- hasUserSpec (funcName dfc)
-    -- called_pr <- hasUserSpec (funcName $ real cfc)
-    liftIO . putStrLn $ "About to check pre"
-    called_pr <- if isExported lrs (funcName (real cfc))
-                        then checkPre lrs ghci (real cfc)
+cexsToBlockingFC lrs ghci cex@(DirectCounter dfc [])
+    | isError (returns dfc) = do
+        case isExported lrs (funcName dfc) of
+            True -> return . Left $ cex
+            False -> return . Right . NotFC $ Call Pre dfc
+    | otherwise = do
+        -- pre_ref <- hasUserSpec (funcName dfc)
+        post_ref <- if isExported lrs (funcName dfc)
+                        then checkPost lrs ghci dfc
                         else return True
 
-    liftIO . putStrLn $ "called_pr = " ++ show called_pr
+        case post_ref of
+            True -> return $ Right (Call All dfc)
+            False -> return . Left $ cex
+cexsToBlockingFC lrs ghci cex@(CallsCounter dfc cfc [])
+    | any isError (arguments (abstract cfc)) = do
+        called_pr <- if isExported lrs (funcName (real cfc))
+                            then checkPre lrs ghci (real cfc)
+                            else return True
+        case called_pr of
+            False -> return . Left $ cex
+            True -> return . Right $ NotFC (Call Pre dfc)
+    | otherwise = do
+        -- caller_pr <- hasUserSpec (funcName dfc)
+        -- called_pr <- hasUserSpec (funcName $ real cfc)
+        liftIO . putStrLn $ "About to check pre"
+        called_pr <- if isExported lrs (funcName (real cfc))
+                            then checkPre lrs ghci (real cfc)
+                            else return True
 
-    case called_pr of
-        False -> return . Left $ cex
-        _ -> return . Right $  ImpliesFC (Call Pre dfc) (Call Pre (abstract cfc))
+        liftIO . putStrLn $ "called_pr = " ++ show called_pr
+
+        case called_pr of
+            False -> return . Left $ cex
+            _ -> return . Right $  ImpliesFC (Call Pre dfc) (Call Pre (abstract cfc))
 
 -- Function constraints that don't block the current specification set, but which must be true
 -- (i.e. the actual input and output for abstracted functions)
@@ -412,14 +429,18 @@ cexsToExtraFC (CallsCounter _ cfc fcs@(_:_)) = do
         clls = Call All $ real cfc
 
     return $ clls:abs
-cexsToExtraFC (DirectCounter fc []) = return $ [Call All fc]
-cexsToExtraFC (CallsCounter dfc cfc []) =
-    let
-        call_all_dfc = Call All dfc
-        call_all_cfc = Call All (real cfc)
-        imp_fc = ImpliesFC (Call Pre dfc) (Call Pre $ real cfc)
-    in
-    return $ [call_all_dfc, call_all_cfc, imp_fc]
+cexsToExtraFC (DirectCounter fc []) = return []
+cexsToExtraFC (CallsCounter dfc cfc [])
+    | isError (returns dfc) = return []
+    | isError (returns (real cfc)) = return []
+    | any isError (arguments (real cfc)) = return []
+    | otherwise =
+        let
+            call_all_dfc = Call All dfc
+            call_all_cfc = Call All (real cfc)
+            imp_fc = ImpliesFC (Call Pre dfc) (Call Pre $ real cfc)
+        in
+        return $ [call_all_dfc, call_all_cfc, imp_fc]
 
 isExported :: LiquidReadyState -> Name -> Bool
 isExported lrs n = n `elem` exported_funcs (lr_binding lrs)
@@ -585,6 +606,11 @@ filterErrors' fc = undefined
         isError (Prim Error _) = True
         isError _ = False
 -}
+
+isError :: Expr -> Bool
+isError (Prim Error _) = True
+isError (Prim Undefined _) = True
+isError _ = False
 
 relFuncs :: InfConfigM m => NameLevels -> FuncConstraints -> m [Name]
 relFuncs nls fc = undefined {- do

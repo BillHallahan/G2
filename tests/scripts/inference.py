@@ -71,6 +71,7 @@ def test_pos_folder(folder):
             elif check_safe == "Timeout":
                 print("\tTimeout")
             else:
+                print("check_safe =" + repr(check_safe) + "|")
                 print("\tUnsafe")
 
     return (safe_num, num_files)
