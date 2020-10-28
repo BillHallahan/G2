@@ -7,7 +7,7 @@
 module Combined (appF) where
 
 appF :: Int
-appF = f 1 2
+appF = f 1 1
 
 f :: Int -> Int -> Int
 f x y = if x == y then 1 else die ""

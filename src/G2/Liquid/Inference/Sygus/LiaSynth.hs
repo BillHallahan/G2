@@ -212,6 +212,21 @@ synth' con eenv meas_ex evals m_si fc headers = do
             in
             return (SynthFail fc_uc)
 
+       -- , s_syn_pre = map (\(ars_pb, i) ->
+       --                          let
+       --                              ars = concatMap fst (init ars_pb)
+       --                              r_pb = snd (last ars_pb)
+       --                          in
+       --                          mapPB (\(r, j) ->
+       --                                  let
+       --                                      ars_r = ars ++ r
+       --                                  in
+       --                                  SynthSpec { sy_name = smt_f ++ "_synth_pre_" ++ show i ++ "_" ++ show j
+       --                                            , sy_args = map (\(a, k) -> a { smt_var = "x_" ++ show k}) $ zip ars_r [1..]
+       --                                            , sy_coeffs = []}
+       --                                )  $ zipPB r_pb (uniqueIds r_pb)
+       --                   ) $ zip (filter (not . null) $ L.inits outer_ars_pb) [1..]
+
 mkPreCall :: ExprEnv -> MeasureExs -> Evals (Integer, Bool) -> M.Map Name SpecInfo -> FuncCall -> SMTAST
 mkPreCall eenv meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars })
     | Just si <- M.lookup n m_si
@@ -220,18 +235,41 @@ mkPreCall eenv meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars }
         let
             func_ts = argumentTypes func_e
 
-            e_t_pb = map (\(e, t) -> zipPB (extractExprPolyBoundWithRoot e) (extractTypePolyBound t))
-                   $ filter (validArgForSMT . fst) (zip ars func_ts)
-            pre_and_ars = zipWith zipPB (s_syn_pre si) e_t_pb
+            v_ars = filter (validArgForSMT . snd) (zip func_ts ars)
 
-            sy_body = foldr (\(psi, (as, t)) e ->
+            sy_body_p =
+                concatMap (\(si_pb, ts_es) ->
                                 let
-                                    smt_ars = map (map exprToSMT) . map (adjustArgs meas_ex t) $ filter validArgForSMT as
+                                    t_ars = init ts_es
+                                    smt_ars = concatMap (map exprToSMT) $ map (uncurry (adjustArgs meas_ex)) t_ars
 
-                                    func_calls = map (Func (sy_name psi)) smt_ars
+                                    (l_rt, l_re) = last ts_es
+                                    re_pb = extractExprPolyBoundWithRoot l_re
+                                    rt_pb = extractTypePolyBound l_rt
+                                    si_re_rt_pb = zip3PB si_pb re_pb rt_pb
                                 in
-                                foldr (:&&) e func_calls) (VBool True)
-                            (concatMap extractValues pre_and_ars)
+                                concatMap
+                                    (\(psi, re, rt) ->
+                                        let
+                                            smt_r = map (map exprToSMT) $ map (adjustArgs meas_ex rt) re
+                                        in
+                                        map (\r -> Func (sy_name psi) $ smt_ars ++ r) smt_r
+                                      ) $ extractValues si_re_rt_pb
+                          ) . zip (s_syn_pre si) . filter (not . null) $ L.inits v_ars
+
+            sy_body = foldr (.&&.) (VBool True) sy_body_p
+            -- e_t_pb = map (\(e, t) -> zipPB (extractExprPolyBoundWithRoot e) (extractTypePolyBound t))
+            --        $ filter (validArgForSMT . fst) (zip ars func_ts)
+            -- pre_and_ars = zipWith zipPB (s_syn_pre si) e_t_pb
+
+            -- sy_body = foldr (\(psi, (as, t)) e ->
+            --                     let
+            --                         smt_ars = map (map exprToSMT) . map (adjustArgs meas_ex t) $ filter validArgForSMT as
+
+            --                         func_calls = map (Func (sy_name psi)) smt_ars
+            --                     in
+            --                     foldr (:&&) e func_calls) (VBool True)
+            --                 (concatMap extractValues pre_and_ars)
             fixed_body = Func (s_known_pre_name si) [VInt ev_i]
         in
         case s_status si of
@@ -470,7 +508,7 @@ buildLIA_LH :: SpecInfo -> SMTModel -> [PolyBound LHF.Expr]
 buildLIA_LH si mv =
     let
         build ars = buildLIA ePlus eTimes bGeq PAnd POr (detVar ars) (ECon . I) -- todo: Probably want to replace PAnd with id to group?
-        pre = map (mapPB (\psi -> build all_args (sy_coeffs psi) (map smt_var (sy_args psi)))) $ s_syn_pre si
+        pre = map (mapPB (\psi -> build (sy_args psi) (sy_coeffs psi) (map smt_var (sy_args psi)))) $ s_syn_pre si
         post = mapPB (\psi -> build post_ars (sy_coeffs psi) (map smt_var (sy_args psi))) $ s_syn_post si
     in
     pre ++ [post]
@@ -493,7 +531,6 @@ buildLIA_LH si mv =
             | otherwise = PAtom LH.Ge x y
 
         post_ars = allPostSpecArgs si
-        all_args = allPreSpecArgs si ++ post_ars
 
 buildLIA :: Plus a
          -> Mult a
@@ -556,19 +593,6 @@ buildSI meas stat ghci f aty rty =
                                                   , sy_coeffs = []}
                                       )  $ zipPB r_pb (uniqueIds r_pb)
                          ) $ zip (filter (not . null) $ L.inits outer_ars_pb) [1..]
-       -- , s_syn_pre = map (\(as, i) -> 
-       --                      mapPB (\(a, j) ->
-       --                              SynthSpec { sy_name = smt_f ++ "_synth_pre_" ++ show i ++ "_" ++ show j
-       --                                        , sy_args = map (\(a, k) -> a { smt_var = "x_" ++ show k}) $ zip a [1..]
-       --                                        , sy_coeffs = []}
-       --                            )
-       --                      $ zipPB as (uniqueIds as)) $ zip ars_pb [1..]
-       -- , s_syn_pre = map (\(ars', i) ->
-       --                      SynthSpec { sy_name = smt_f ++ "_synth_pre_" ++ show i
-       --                                , sy_args = map (\(a, j) -> a { smt_var = "x_" ++ show j}) $ zip ars' [1..]
-       --                                , sy_coeffs = [] 
-       --                                }
-       --               ) $ zip ars [1..]
        , s_syn_post = mkSynSpecPB (smt_f ++ "_synth_post_") arg_ns ret_pb
        , s_status = stat }
 
