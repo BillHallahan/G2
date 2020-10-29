@@ -230,7 +230,7 @@ synth' con eenv meas_ex evals m_si fc headers = do
 mkPreCall :: ExprEnv -> MeasureExs -> Evals (Integer, Bool) -> M.Map Name SpecInfo -> FuncCall -> SMTAST
 mkPreCall eenv meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars })
     | Just si <- M.lookup n m_si
-    , Just (ev_i, _) <- HM.lookup fc (pre_evals evals)
+    , Just (ev_i, _) <- lookupEvals fc (pre_evals evals)
     , Just (_, func_e) <- E.lookupNameMod (nameOcc n) (nameModule n) eenv =
         let
             func_ts = argumentTypes func_e
@@ -280,7 +280,7 @@ mkPreCall eenv meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars }
 mkPostCall :: ExprEnv -> MeasureExs -> Evals (Integer, Bool) -> M.Map Name SpecInfo -> FuncCall -> SMTAST
 mkPostCall eenv meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars, returns = r })
     | Just si <- M.lookup n m_si
-    , Just (ev_i, _) <- HM.lookup fc (post_evals evals)
+    , Just (ev_i, _) <- lookupEvals fc (post_evals evals)
     , Just (_, func_e) <- E.lookupNameMod (nameOcc n) (nameModule n) eenv =
         let
             func_ts = argumentTypes func_e
@@ -390,11 +390,11 @@ envToSMT' meas_ex (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(Fu
     case M.lookup f m_si of
         Just si ->
             let
-                (pre_i, pre_res) = case HM.lookup fc pre_ev of
+                (pre_i, pre_res) = case lookupEvals fc pre_ev of
                                         Just b -> b
                                         Nothing -> error "envToSMT': pre not found"
 
-                (post_i, post_res) = case HM.lookup fc post_ev of
+                (post_i, post_res) = case lookupEvals fc post_ev of
                                         Just b -> b
                                         Nothing -> error "envToSMT': post not found"
 

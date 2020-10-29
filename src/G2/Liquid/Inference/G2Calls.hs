@@ -22,9 +22,10 @@ module G2.Liquid.Inference.G2Calls ( MeasureExs
                                    , postEvals
                                    , checkPre
                                    , checkPost
+                                   , lookupEvals
                                    , mapEvals
-                                   , traverseEvals
                                    , mapAccumLEvals
+                                   , deleteEvalsForFunc
 
                                    , evalMeasures) where
 
@@ -254,7 +255,7 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
                   -- :<~> searched_below
                   :<~> lh_max_outputs
                   :<~> SwitchEveryNHalter (switch_after config)
-                  :<~> LHLimitSameAbstractedHalter 3
+                  :<~> LHLimitSameAbstractedHalter 5
                   :<~> AcceptIfViolatedHalter
                   :<~> timer_halter)
         , SomeOrderer (ToOrderer $ IncrAfterN 1000 ADTHeightOrderer))
@@ -381,10 +382,11 @@ currExprIsTrue _ = False
 -------------------------------
 type PreEvals b = FuncCallEvals b
 type PostEvals b = FuncCallEvals b
-type FuncCallEvals b = HM.HashMap FuncCall b
+type FuncCallEvals b = HM.HashMap Name (HM.HashMap FuncCall b)
 
 data Evals b = Evals { pre_evals :: PreEvals b
                      , post_evals :: PostEvals b }
+                     deriving Show
 
 emptyEvals :: Evals b
 emptyEvals = Evals { pre_evals = HM.empty, post_evals = HM.empty }
@@ -392,22 +394,30 @@ emptyEvals = Evals { pre_evals = HM.empty, post_evals = HM.empty }
 preEvals :: (InfConfigM m, MonadIO m) => Evals Bool -> LiquidReadyState -> [GhcInfo] -> [FuncCall] -> m (Evals Bool)
 preEvals evals@(Evals { pre_evals = pre }) lrs ghci fcs = do
     pre' <- foldM (\hm fc ->
-                        if fc `HM.member` hm
+                        let
+                          n = zeroOutName $ funcName fc
+                          n_hm = maybe HM.empty id (HM.lookup n hm)
+                        in
+                        if fc `HM.member` n_hm
                           then return hm
                           else do
                             pr <- checkPre lrs ghci fc
-                            return (HM.insert fc pr hm)) pre fcs
+                            return $ HM.insert n (HM.insert fc pr n_hm) hm) pre fcs
     return $ evals { pre_evals = pre' }
     -- return . HM.fromList =<< mapM (\fc -> return . (fc,) =<< checkPre lrs ghci fc) fcs
 
 postEvals :: (InfConfigM m, MonadIO m) => Evals Bool -> LiquidReadyState -> [GhcInfo] -> [FuncCall] -> m (Evals Bool)
 postEvals evals@(Evals { post_evals = post }) lrs ghci fcs = do
     post' <- foldM (\hm fc ->
-                        if fc `HM.member` hm
+                        let
+                          n =  zeroOutName $ funcName fc
+                          n_hm = maybe HM.empty id (HM.lookup n hm)
+                        in
+                        if fc `HM.member` n_hm
                           then return hm
                           else do
                             pr <- checkPost lrs ghci fc
-                            return (HM.insert fc pr hm)) post fcs
+                            return $ HM.insert n (HM.insert fc pr n_hm) hm) post fcs
     return $ evals { post_evals = post' }
 
 checkPre :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] -> FuncCall -> m Bool
@@ -462,21 +472,26 @@ checkFromMap ars specs fc@(FuncCall { funcName = n }) s@(State { expr_env = eenv
                      , true_assert = True }
         Nothing -> Nothing
 
+lookupEvals :: FuncCall -> FuncCallEvals a -> Maybe a
+lookupEvals fc@(FuncCall { funcName = n }) fce =
+    HM.lookup fc =<< HM.lookup (zeroOutName n) fce
+
 mapEvals :: (a -> b) -> Evals a -> Evals b
 mapEvals f (Evals { pre_evals = pre, post_evals = post }) =
-    Evals { pre_evals = HM.map f pre, post_evals = HM.map f post }
-
-traverseEvals :: Applicative f => (v1 -> f v2) -> Evals v1 -> f (Evals v2)
-traverseEvals f (Evals { pre_evals = pre, post_evals = post }) =
-    Evals <$> HM.traverseWithKey (const f) pre <*> HM.traverseWithKey (const f) post
+    Evals { pre_evals = HM.map (HM.map f) pre, post_evals = HM.map (HM.map f) post }
 
 mapAccumLEvals :: (a -> b -> (a, c)) -> a -> Evals b -> (a, Evals c)
 mapAccumLEvals f init ev =
     let
-        (init', pre') = mapAccumL f init (pre_evals ev) 
-        (init'', post') = mapAccumL f init' (post_evals ev) 
+        (init', pre') = mapAccumL (mapAccumL f) init (pre_evals ev) 
+        (init'', post') = mapAccumL (mapAccumL f) init' (post_evals ev) 
     in
     (init'', ev { pre_evals = pre', post_evals = post' })
+
+deleteEvalsForFunc :: Name -> Evals a -> Evals a
+deleteEvalsForFunc n (Evals { pre_evals = pre_ev, post_evals = post_ev }) =
+    Evals { pre_evals = HM.delete (zeroOutName n) pre_ev
+          , post_evals = HM.delete (zeroOutName n) post_ev }
 
 -------------------------------
 -- Eval Measures
