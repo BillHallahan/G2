@@ -88,7 +88,7 @@ symGenIfZero' e eenv tenv kv tc ng =
                         )
                     )
         zero = App (mkDCInteger kv tenv) (Lit (LitInt 0))
-        zero_con = mkApp [mkFromInteger eenv, type_expr, num_dict, zero]
+        zero_con = mkApp [mkFromInteger kv eenv, type_expr, num_dict, zero]
         eq = mkApp [ Var (Id (eqFunc kv) TyUnknown)
                    , type_expr
                    , eq_dict

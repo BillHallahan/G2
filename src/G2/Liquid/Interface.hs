@@ -525,25 +525,25 @@ reqNames (State { expr_env = eenv
                 , type_classes = tc
                 , known_values = kv}) =
     let ns = Lang.names
-                   [ mkGe eenv
-                   , mkGt eenv
-                   , mkEq eenv
-                   , mkNeq eenv
-                   , mkLt eenv
-                   , mkLe eenv
-                   , mkAnd eenv
-                   , mkOr eenv
-                   , mkNot eenv
-                   , mkPlus eenv
-                   , mkMinus eenv
-                   , mkMult eenv
-                   -- , mkDiv eenv
-                   , mkMod eenv
-                   , mkNegate eenv
+                   [ mkGe kv eenv
+                   , mkGt kv eenv
+                   , mkEq kv eenv
+                   , mkNeq kv eenv
+                   , mkLt kv eenv
+                   , mkLe kv eenv
+                   , mkAnd kv eenv
+                   , mkOr kv eenv
+                   , mkNot kv eenv
+                   , mkPlus kv eenv
+                   , mkMinus kv eenv
+                   , mkMult kv eenv
+                   -- , mkDiv kv eenv
+                   , mkMod kv eenv
+                   , mkNegate kv eenv
                    , mkImplies eenv
                    , mkIff eenv
-                   , mkFromInteger eenv
-                   -- , mkToInteger eenv
+                   , mkFromInteger kv eenv
+                   -- , mkToInteger kv eenv
 
                    , mkJust kv tenv
                    , mkNothing kv tenv

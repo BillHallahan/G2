@@ -396,22 +396,24 @@ mapAnnotsExpr f = do
 andM :: LHStateM L.Expr
 andM = do
     m <- measuresM
-    return (L.mkAnd m)
+    n <- lhAndM
+    return (m E.! n)
 
 -- | orM
 -- The version of 'or' in the measures
 orM :: LHStateM L.Expr
 orM = do
     m <- measuresM
-    return (L.mkOr m)
+    n <- lhOrM
+    return (m E.! n)
 
 -- | notM
 -- The version of 'not' in the measures
 notM :: LHStateM L.Expr
 notM = do
     m <- measuresM
-    return (L.mkNot m)
-
+    n <- lhNotM
+    return (m E.! n)
 -- | iffM
 -- The version of 'iff' in the measures
 iffM :: LHStateM L.Expr
@@ -450,6 +452,15 @@ lhGtM = liftTCValues lhGt
 
 lhGeM :: LHStateM L.Name
 lhGeM = liftTCValues lhGe
+
+lhAndM :: LHStateM L.Name
+lhAndM = liftTCValues lhAnd
+
+lhOrM :: LHStateM L.Name
+lhOrM = liftTCValues lhOr
+
+lhNotM :: LHStateM L.Name
+lhNotM = liftTCValues lhNot
 
 binT :: LHStateM L.Type
 binT = do

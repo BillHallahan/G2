@@ -44,6 +44,7 @@ module G2.Language.ExprEnv
     , toList
     , toExprList
     , fromExprList
+    , toHashMap
     ) where
 
 import G2.Language.AST
@@ -81,8 +82,16 @@ data EnvObj = ExprObj Expr
 newtype ExprEnv = ExprEnv (M.HashMap Name EnvObj)
                   deriving (Show, Eq, Read, Typeable, Data)
 
+{-# INLINE unwrapExprEnv #-}
 unwrapExprEnv :: ExprEnv -> M.HashMap Name EnvObj
 unwrapExprEnv = coerce
+
+toHashMap :: ExprEnv -> M.HashMap Name Expr
+toHashMap eenv =
+    M.map(\e -> case e of
+                    ExprObj e' -> e'
+                    RedirObj n' -> eenv ! n'
+                    SymbObj i -> Var i) . unwrapExprEnv $ eenv
 
 -- | Constructs an empty `ExprEnv`
 empty :: ExprEnv

@@ -1,6 +1,33 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Language.Primitives where
+module G2.Language.Primitives ( primStr
+                              , strToPrim
+                              , mkGe
+                              , mkGt
+                              , mkEq
+                              , mkNeq
+                              , mkLt
+                              , mkLe
+                              , mkAnd
+                              , mkOr
+                              , mkNot
+                              , mkPlus
+                              , mkMinus
+                              , mkMult
+                              , mkDiv
+                              , mkMod
+                              , mkNegate
+                              , mkImplies
+                              , mkIff
+                              , mkFromInteger
+                              , mkToInteger
+                              , mkEqPrimInt
+                              , mkEqPrimFloat
+                              , mkEqPrimDouble
+                              , mkEqPrimChar
+                              , mkAndPrim
+                              , mkGePrimInt
+                              , mkLePrimInt) where
 
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues as KV
@@ -114,53 +141,53 @@ mkPrim p eenv = case (inClasses, inNum, inPrelude, inClasses2, inBase2, inReal) 
         inBase2 = E.occLookup (primStr p) (Just "GHC.Base2") eenv
         inReal = E.occLookup (primStr p) (Just "GHC.Real") eenv
 
-mkGe :: E.ExprEnv -> Expr
-mkGe = mkPrim Ge
+mkGe :: KnownValues -> E.ExprEnv -> Expr
+mkGe kv eenv = eenv E.! (geFunc kv)
 
-mkGt :: E.ExprEnv -> Expr
-mkGt = mkPrim Gt
+mkGt :: KnownValues -> E.ExprEnv -> Expr
+mkGt kv eenv = eenv E.! (gtFunc kv)
 
-mkEq :: E.ExprEnv -> Expr
-mkEq = mkPrim Eq
+mkEq :: KnownValues -> E.ExprEnv -> Expr
+mkEq kv eenv = eenv E.! (eqFunc kv)
 
 mkEq' :: KnownValues -> Expr
 mkEq' kv = Var (Id (eqFunc kv) TyBottom)
 
-mkNeq :: E.ExprEnv -> Expr
-mkNeq = mkPrim Neq
+mkNeq :: KnownValues -> E.ExprEnv -> Expr
+mkNeq kv eenv = eenv E.! (neqFunc kv)
 
-mkLt :: E.ExprEnv -> Expr
-mkLt = mkPrim Lt
+mkLt :: KnownValues -> E.ExprEnv -> Expr
+mkLt kv eenv = eenv E.! (ltFunc kv)
 
-mkLe :: E.ExprEnv -> Expr
-mkLe = mkPrim Le
+mkLe :: KnownValues -> E.ExprEnv -> Expr
+mkLe kv eenv = eenv E.! (leFunc kv)
 
-mkAnd :: E.ExprEnv -> Expr
-mkAnd = mkPrim And
+mkAnd :: KnownValues -> E.ExprEnv -> Expr
+mkAnd kv eenv = eenv E.! (andFunc kv)
 
-mkOr :: E.ExprEnv -> Expr
-mkOr = mkPrim Or
+mkOr :: KnownValues -> E.ExprEnv -> Expr
+mkOr kv eenv = eenv E.! (orFunc kv)
 
-mkNot :: E.ExprEnv -> Expr
-mkNot = mkPrim Not
+mkNot :: KnownValues -> E.ExprEnv -> Expr
+mkNot kv eenv = eenv E.! (notFunc kv)
 
-mkPlus :: E.ExprEnv -> Expr
-mkPlus = mkPrim Plus
+mkPlus :: KnownValues -> E.ExprEnv -> Expr
+mkPlus kv eenv = eenv E.!  (plusFunc kv)
 
-mkMinus :: E.ExprEnv -> Expr
-mkMinus = mkPrim Minus
+mkMinus :: KnownValues -> E.ExprEnv -> Expr
+mkMinus kv eenv = eenv E.! (minusFunc kv)
 
-mkMult :: E.ExprEnv -> Expr
-mkMult = mkPrim Mult
+mkMult :: KnownValues -> E.ExprEnv -> Expr
+mkMult kv eenv = eenv E.! (timesFunc kv)
 
-mkDiv :: E.ExprEnv -> Expr
-mkDiv = mkPrim Div
+mkDiv :: KnownValues -> E.ExprEnv -> Expr
+mkDiv kv eenv = eenv E.! (divFunc kv)
 
-mkMod :: E.ExprEnv -> Expr
-mkMod = mkPrim Mod
+mkMod :: KnownValues -> E.ExprEnv -> Expr
+mkMod kv eenv = eenv E.! (modFunc kv)
 
-mkNegate :: E.ExprEnv -> Expr
-mkNegate = mkPrim Negate
+mkNegate :: KnownValues -> E.ExprEnv -> Expr
+mkNegate kv eenv = eenv E.! (negateFunc kv)
 
 mkImplies :: E.ExprEnv -> Expr
 mkImplies = mkPrim Implies
@@ -168,11 +195,11 @@ mkImplies = mkPrim Implies
 mkIff :: E.ExprEnv -> Expr
 mkIff = mkPrim Iff
 
-mkFromInteger :: E.ExprEnv -> Expr
-mkFromInteger = mkPrim FromInteger
+mkFromInteger :: KnownValues -> E.ExprEnv -> Expr
+mkFromInteger kv eenv = eenv E.! (fromIntegerFunc kv)
 
-mkToInteger :: E.ExprEnv -> Expr
-mkToInteger = mkPrim ToInteger
+mkToInteger :: KnownValues -> E.ExprEnv -> Expr
+mkToInteger kv eenv = eenv E.! (toIntegerFunc kv)
 
 -- Primitives on primitive types
 mkEqPrimType :: Type -> KnownValues -> Expr

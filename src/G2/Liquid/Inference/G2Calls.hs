@@ -245,19 +245,20 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
     
     timer_halter <- liftIO $ timerHalter (timeout_se infconfig)
 
+    let halter =      LHAbsHalter entry mb_modname (expr_env st)
+                 :<~> lh_max_outputs
+                 :<~> SwitchEveryNHalter (switch_after config)
+                 :<~> LHLimitSameAbstractedHalter 5
+                 -- :<~> SWHNFHalter
+                 :<~> AcceptIfViolatedHalter
+                 :<~> timer_halter -- OnlyIf (\pr _ -> any true_assert (accepted pr)) timer_halter
+
     return $ if higherOrderSolver config == AllFuncs then 
         ( SomeReducer NonRedPCRed
             <~| (case logStates config of
                   Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
                   Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn))
-        , SomeHalter
-                (LHAbsHalter entry mb_modname (expr_env st)
-                  -- :<~> searched_below
-                  :<~> lh_max_outputs
-                  :<~> SwitchEveryNHalter (switch_after config)
-                  :<~> LHLimitSameAbstractedHalter 5
-                  :<~> AcceptIfViolatedHalter
-                  :<~> timer_halter)
+        , SomeHalter halter
         , SomeOrderer (ToOrderer $ IncrAfterN 1000 ADTHeightOrderer))
     else
         (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng)
@@ -265,14 +266,7 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
                   Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
                   Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn))
         , SomeHalter
-            (DiscardIfAcceptedTag state_name
-              :<~> LHAbsHalter entry mb_modname (expr_env st)
-              -- :<~> searched_below
-              :<~> lh_max_outputs
-              :<~> SwitchEveryNHalter (switch_after config)
-              :<~> LHLimitSameAbstractedHalter 5
-              :<~> AcceptIfViolatedHalter
-              :<~> timer_halter)
+            (DiscardIfAcceptedTag state_name :<~> halter)
         , SomeOrderer (ToOrderer $ IncrAfterN 1000 ADTHeightOrderer))
 
 swapHigherOrdForSymGen :: Bindings -> State t -> State t

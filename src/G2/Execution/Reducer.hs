@@ -50,6 +50,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , BranchAdjVarLookupLimit (..)
                             , TimerHalter
                             , timerHalter
+                            , OnlyIf (..)
 
                             -- Orderers
                             , OCombiner (..)
@@ -750,6 +751,37 @@ instance Halter TimerHalter () t where
         | otherwise = return Continue
 
     stepHalter _ _ _ _ _ = ()
+
+-- | Runs the halter only if some predicate held on the processed and current state,
+-- when the current state was switched to.
+-- Otherwise, just allows execution to continue 
+data OnlyIf h = OnlyIf { run_only_if :: forall t . Processed (State t) -> State t -> Bool
+                       , below :: h }
+
+data OnlyIfHV hv = OnlyIfHV { pred_holds :: Bool, below_hv :: hv }
+
+instance Halter h hv t => Halter (OnlyIf h) (OnlyIfHV hv) t where
+    initHalt h s = OnlyIfHV (run_only_if h (Processed [] []) s) $ initHalt (below h) s
+    updatePerStateHalt h (OnlyIfHV holds hv) pr s =
+        let
+            holds' = run_only_if h pr s
+            hv' = updatePerStateHalt (below h) hv pr s
+        in
+        OnlyIfHV holds' hv'
+    
+    discardOnStart h (OnlyIfHV holds hv) pr s
+        | holds = discardOnStart (below h) hv pr s
+        | otherwise = False
+    
+    stopRed h (OnlyIfHV holds hv) pr s
+        | holds = stopRed (below h) hv pr s
+        | otherwise = return Continue
+
+    stepHalter h (OnlyIfHV holds hv) pr xs s =
+        let
+            hv' = stepHalter (below h) hv pr xs s
+        in
+        OnlyIfHV holds hv'
 
 -- Orderer things
 
