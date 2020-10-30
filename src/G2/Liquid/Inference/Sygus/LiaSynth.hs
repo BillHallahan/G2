@@ -567,11 +567,11 @@ buildLIA plus mult geq mk_and mk_or vint cint all_coeffs args =
     where
         toLinInEqs (c:cs) =
             let
-                sm = foldr plus (vint c)
+                sm = foldr plus (cint 0)
                    . map (uncurry mult)
                    $ zip (map vint cs) (map vint args)
             in
-            sm `geq` cint 0
+            sm `geq` vint c
         toLinInEqs [] = error "buildLIA: unhandled empty coefficient list" 
 
 buildSI :: Measures -> Status -> [GhcInfo] ->  Name -> [Type] -> Type -> SpecInfo
