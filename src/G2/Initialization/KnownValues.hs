@@ -85,6 +85,9 @@ initKnownValues eenv tenv tc =
     , ltFunc = exprWithStrName eenv "<"
     , leFunc = exprWithStrName eenv "<="
 
+    , impliesFunc = exprWithStrName eenv "implies"
+    , iffFunc = exprWithStrName eenv "iff"
+
     , structEqTC = Name "NotDefinedYet" Nothing 0 Nothing
     , structEqFunc = Name "NotDefinedYet" Nothing 0 Nothing
 

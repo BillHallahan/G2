@@ -80,10 +80,10 @@ mkNegateE :: ExState s m => m Expr
 mkNegateE = appKVEEnv negateFunc
 
 mkImpliesE :: ExState s m => m Expr
-mkImpliesE = appExpr mkImplies
+mkImpliesE = appKVEEnv impliesFunc
 
 mkIffE :: ExState s m => m Expr
-mkIffE = appExpr mkIff
+mkIffE = appKVEEnv iffFunc
 
 mkFromIntegerE :: ExState s m => m Expr
 mkFromIntegerE = appKVEEnv fromIntegerFunc

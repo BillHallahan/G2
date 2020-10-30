@@ -540,8 +540,8 @@ reqNames (State { expr_env = eenv
                    -- , mkDiv kv eenv
                    , mkMod kv eenv
                    , mkNegate kv eenv
-                   , mkImplies eenv
-                   , mkIff eenv
+                   , mkImplies kv eenv
+                   , mkIff kv eenv
                    , mkFromInteger kv eenv
                    -- , mkToInteger kv eenv
 

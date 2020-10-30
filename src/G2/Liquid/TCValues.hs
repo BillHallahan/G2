@@ -40,6 +40,9 @@ data TCValues = TCValues { lhTC :: Name
                          , lhOr :: Name
                          , lhNot :: Name
 
+                         , lhImplies :: Name
+                         , lhIff :: Name
+
                          , lhPP :: Name } deriving (Eq, Show, Read)
 
 instance Named TCValues where
@@ -74,6 +77,9 @@ instance Named TCValues where
                 , lhOr tcv
                 , lhNot tcv
 
+                , lhImplies tcv
+                , lhIff tcv
+
                 , lhPP tcv]
 
     rename old new tcv = TCValues { lhTC = rename old new $ lhTC tcv
@@ -106,5 +112,8 @@ instance Named TCValues where
                                   , lhAnd = rename old new $ lhAnd tcv
                                   , lhOr = rename old new $ lhOr tcv
                                   , lhNot = rename old new $ lhNot tcv
+
+                                  , lhImplies = rename old new $ lhImplies tcv
+                                  , lhIff = rename old new $ lhIff tcv
 
                                   , lhPP = rename old new $ lhPP tcv }

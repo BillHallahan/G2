@@ -74,6 +74,9 @@ data KnownValues = KnownValues {
                  , ltFunc :: Name
                  , leFunc :: Name
 
+                 , impliesFunc :: Name
+                 , iffFunc :: Name
+
                  , structEqTC :: Name
                  , structEqFunc :: Name
 

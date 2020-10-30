@@ -72,6 +72,9 @@ createTCValues kv = do
                         , lhOr = KV.orFunc kv
                         , lhNot = KV.notFunc kv
 
+                        , lhImplies = KV.impliesFunc kv
+                        , lhIff = KV.iffFunc kv
+
                         , lhPP = lhPPN })
 
     return tcv

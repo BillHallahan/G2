@@ -91,56 +91,6 @@ strToPrim "implies" = Just Implies
 strToPrim "iff" = Just Iff
 strToPrim _ = Nothing
 
-findPrim :: Primitive -> [(Name, Type)] -> (Name, Type)
-findPrim prim [] = error $ "findPrim: not found: " ++ (T.unpack $ primStr prim)
-findPrim prim (p@(Name occ _ _ _, _):ps) =
-    if primStr prim == occ then p else findPrim prim ps
-
-mkRawPrim :: [(Name, Type)] -> Name -> Expr
-mkRawPrim primtys name@(Name occ _ _ _) = 
-        case prim of
-            Just _ -> foldr (Lam TypeL) cases ids
-            Nothing -> Prim Undefined TyBottom
-  where
-    prim = strToPrim occ
-
-    ty = snd . head $ filter (\p -> name == fst p) primtys
-    (forall_ids, ty') = splitTyForAlls ty
-    fun_tys = splitTyFuns ty'
-
-    tys = (map typeOf forall_ids) ++ fun_tys
-
-    ids = map (\(i, t) -> Id (Name "a" Nothing i Nothing) t) $ zip [1..] (init tys)
-    binds = map (\(i, t) -> Id (Name "b" Nothing i Nothing) t) $ zip [1..] (init tys)
-
-    varIds = map Var ids
-    varBinds = map Var binds
-
-    apps = foldl' App (Prim (case prim of
-                                    Just p -> p
-                                    Nothing -> error $ "PRIM = " ++ show prim) ty) varBinds
-
-    cases = foldr (\(i, b) e -> Case i b [Alt Default e]) apps (zip varIds binds)
-
--- | Primitive lookup helpers
-
-mkPrim :: Primitive -> E.ExprEnv -> Expr
-mkPrim p eenv = case (inClasses, inNum, inPrelude, inClasses2, inBase2, inReal) of
-    (Just e, _, _, _, _, _) -> e
-    (_, Just e, _, _, _, _) -> e
-    (_, _, Just e, _, _, _) -> e
-    (_, _, _, Just e, _, _) -> e
-    (_, _, _, _, Just e, _) -> e
-    (_, _, _, _, _, Just e) -> e
-    _ -> error $ "Unrecognized prim " ++ show p ++ " " ++ show (primStr p)
-    where
-        inClasses = E.occLookup (primStr p) (Just "GHC.Classes") eenv
-        inNum = E.occLookup (primStr p) (Just "GHC.Num") eenv
-        inPrelude = E.occLookup (primStr p) (Just "Prelude") eenv
-        inClasses2 = E.occLookup (primStr p) (Just "GHC.Classes2") eenv
-        inBase2 = E.occLookup (primStr p) (Just "GHC.Base2") eenv
-        inReal = E.occLookup (primStr p) (Just "GHC.Real") eenv
-
 mkGe :: KnownValues -> E.ExprEnv -> Expr
 mkGe kv eenv = eenv E.! (geFunc kv)
 
@@ -189,11 +139,11 @@ mkMod kv eenv = eenv E.! (modFunc kv)
 mkNegate :: KnownValues -> E.ExprEnv -> Expr
 mkNegate kv eenv = eenv E.! (negateFunc kv)
 
-mkImplies :: E.ExprEnv -> Expr
-mkImplies = mkPrim Implies
+mkImplies :: KnownValues -> E.ExprEnv -> Expr
+mkImplies kv eenv = eenv E.! (impliesFunc kv)
 
-mkIff :: E.ExprEnv -> Expr
-mkIff = mkPrim Iff
+mkIff :: KnownValues -> E.ExprEnv -> Expr
+mkIff kv eenv = eenv E.! (iffFunc kv)
 
 mkFromInteger :: KnownValues -> E.ExprEnv -> Expr
 mkFromInteger kv eenv = eenv E.! (fromIntegerFunc kv)

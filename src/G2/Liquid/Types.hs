@@ -414,12 +414,14 @@ notM = do
     m <- measuresM
     n <- lhNotM
     return (m E.! n)
+
 -- | iffM
 -- The version of 'iff' in the measures
 iffM :: LHStateM L.Expr
 iffM = do
     m <- measuresM
-    return (L.mkIff m)
+    n <- lhIffM
+    return (m E.! n)
 
 liftTCValues :: (TCValues -> a) -> LHStateM a
 liftTCValues f = do
@@ -461,6 +463,9 @@ lhOrM = liftTCValues lhOr
 
 lhNotM :: LHStateM L.Name
 lhNotM = liftTCValues lhNot
+
+lhIffM :: LHStateM L.Name
+lhIffM = liftTCValues lhIff
 
 binT :: LHStateM L.Type
 binT = do
