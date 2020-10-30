@@ -397,7 +397,7 @@ cexsToBlockingFC lrs ghci cex@(DirectCounter dfc [])
     | otherwise = do
         -- pre_ref <- hasUserSpec (funcName dfc)
         post_ref <- if isExported lrs (funcName dfc)
-                        then checkPost lrs ghci dfc
+                        then checkPost ghci lrs dfc
                         else return True
 
         case post_ref of
@@ -406,7 +406,7 @@ cexsToBlockingFC lrs ghci cex@(DirectCounter dfc [])
 cexsToBlockingFC lrs ghci cex@(CallsCounter dfc cfc [])
     | any isError (arguments (abstract cfc)) = do
         called_pr <- if isExported lrs (funcName (real cfc))
-                            then checkPre lrs ghci (real cfc)
+                            then checkPre ghci lrs (real cfc)
                             else return True
         case called_pr of
             False -> return . Left $ cex
@@ -416,7 +416,7 @@ cexsToBlockingFC lrs ghci cex@(CallsCounter dfc cfc [])
         -- called_pr <- hasUserSpec (funcName $ real cfc)
         liftIO . putStrLn $ "About to check pre"
         called_pr <- if isExported lrs (funcName (real cfc))
-                            then checkPre lrs ghci (real cfc)
+                            then checkPre ghci lrs (real cfc)
                             else return True
 
         liftIO . putStrLn $ "called_pr = " ++ show called_pr

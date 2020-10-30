@@ -10,7 +10,7 @@
 module G2.Liquid.Inference.G2Calls ( MeasureExs
                                    , PreEvals
                                    , PostEvals
-                                   , FuncCallEvals
+                                   , FCEvals
                                    , Evals (..)
                                    , gatherAllowedCalls
                                    , runLHInferenceCore
@@ -374,9 +374,9 @@ currExprIsTrue _ = False
 -------------------------------
 -- Checking Pre and Post Conditions
 -------------------------------
-type PreEvals b = FuncCallEvals b
-type PostEvals b = FuncCallEvals b
-type FuncCallEvals b = HM.HashMap Name (HM.HashMap FuncCall b)
+type PreEvals b = FCEvals b
+type PostEvals b = FCEvals b
+type FCEvals b = HM.HashMap Name (HM.HashMap FuncCall b)
 
 data Evals b = Evals { pre_evals :: PreEvals b
                      , post_evals :: PostEvals b }
@@ -387,38 +387,55 @@ emptyEvals = Evals { pre_evals = HM.empty, post_evals = HM.empty }
 
 preEvals :: (InfConfigM m, MonadIO m) => Evals Bool -> LiquidReadyState -> [GhcInfo] -> [FuncCall] -> m (Evals Bool)
 preEvals evals@(Evals { pre_evals = pre }) lrs ghci fcs = do
-    pre' <- foldM (\hm fc ->
-                        let
-                          n = zeroOutName $ funcName fc
-                          n_hm = maybe HM.empty id (HM.lookup n hm)
-                        in
-                        if fc `HM.member` n_hm
-                          then return hm
-                          else do
-                            pr <- checkPre lrs ghci fc
-                            return $ HM.insert n (HM.insert fc pr n_hm) hm) pre fcs
+    (pre', _) <- foldM (uncurry (runEvals checkPre' ghci lrs)) (pre, HM.empty) fcs
     return $ evals { pre_evals = pre' }
     -- return . HM.fromList =<< mapM (\fc -> return . (fc,) =<< checkPre lrs ghci fc) fcs
 
 postEvals :: (InfConfigM m, MonadIO m) => Evals Bool -> LiquidReadyState -> [GhcInfo] -> [FuncCall] -> m (Evals Bool)
 postEvals evals@(Evals { post_evals = post }) lrs ghci fcs = do
-    post' <- foldM (\hm fc ->
-                        let
-                          n =  zeroOutName $ funcName fc
-                          n_hm = maybe HM.empty id (HM.lookup n hm)
-                        in
-                        if fc `HM.member` n_hm
-                          then return hm
-                          else do
-                            pr <- checkPost lrs ghci fc
-                            return $ HM.insert n (HM.insert fc pr n_hm) hm) post fcs
+    (post', _) <- foldM (uncurry (runEvals checkPost' ghci lrs)) (post, HM.empty) fcs
     return $ evals { post_evals = post' }
 
-checkPre :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] -> FuncCall -> m Bool
-checkPre = checkPreOrPost (zeroOutKeys . ls_assumptions) arguments
+runEvals :: (InfConfigM m, MonadIO m) =>
+            ([GhcInfo] -> LiquidData -> FuncCall -> m Bool)
+         -> [GhcInfo]
+         -> LiquidReadyState
+         -> FCEvals Bool
+         -> HM.HashMap (T.Text, Maybe T.Text) LiquidData
+         -> FuncCall
+         -> m (FCEvals Bool, HM.HashMap (T.Text, Maybe T.Text) LiquidData)
+runEvals f ghci lrs hm ld_m fc =
+    let
+      n = zeroOutName $ funcName fc
+      n_hm = maybe HM.empty id (HM.lookup n hm)
+    in
+    if fc `HM.member` n_hm
+      then return (hm, ld_m)
+      else do
+        let nt = nameTuple (funcName fc)
+        (ld, ld_m') <- case HM.lookup nt ld_m of
+                            Just ld' -> return (ld', ld_m)
+                            Nothing -> do
+                                ld' <- checkPreOrPostLD ghci lrs fc
+                                return (ld', HM.insert nt ld' ld_m)
+        pr <- f ghci ld fc
+        return $ (HM.insert n (HM.insert fc pr n_hm) hm, ld_m')
 
-checkPost :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] ->FuncCall -> m Bool
-checkPost = checkPreOrPost (zeroOutKeys . ls_posts) (\fc -> arguments fc ++ [returns fc])
+checkPre :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> FuncCall -> m Bool
+checkPre ghci lrs fc = do
+    ld <- checkPreOrPostLD ghci lrs fc
+    checkPre' ghci ld fc
+
+checkPre' :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidData -> FuncCall -> m Bool
+checkPre' = checkPreOrPost' (zeroOutKeys . ls_assumptions) arguments
+
+checkPost :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> FuncCall -> m Bool
+checkPost ghci lrs fc = do
+    ld <- checkPreOrPostLD ghci lrs fc
+    checkPost' ghci ld fc
+
+checkPost' :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidData -> FuncCall -> m Bool
+checkPost' = checkPreOrPost' (zeroOutKeys . ls_posts) (\fc -> arguments fc ++ [returns fc])
 
 zeroOutKeys :: M.Map Name v -> M.Map Name v
 zeroOutKeys = M.mapKeys zeroOutName
@@ -426,20 +443,24 @@ zeroOutKeys = M.mapKeys zeroOutName
 zeroOutName :: Name -> Name
 zeroOutName (Name n m _ l) = Name n m 0 l
 
-checkPreOrPost :: (InfConfigM m, MonadIO m)
-               => (LiquidData -> M.Map Name Expr) -> (FuncCall -> [Expr]) -> LiquidReadyState -> [GhcInfo] -> FuncCall -> m Bool
-checkPreOrPost extract ars lrs ghci cex@(FuncCall { funcName = Name n m _ _ }) = do
+checkPreOrPostLD :: (InfConfigM m, MonadIO m)
+                 => [GhcInfo] -> LiquidReadyState -> FuncCall -> m LiquidData
+checkPreOrPostLD lrs ghci cex@(FuncCall { funcName = Name n m _ _ }) = do
     config <- g2ConfigM
     let config' = config { counterfactual = NotCounterfactual }
     -- We use the same function to instantiate this state as in runLHInferenceCore, so all the names line up
-    ld@(LiquidData
-          { ls_state = s
-          , ls_bindings = bindings }) <- liftIO $ processLiquidReadyStateWithCall lrs ghci n m config' mempty
+    liftIO $ processLiquidReadyStateWithCall ghci lrs n m config' mempty
 
+checkPreOrPost' :: (InfConfigM m, MonadIO m)
+               => (LiquidData -> M.Map Name Expr) -> (FuncCall -> [Expr]) -> [GhcInfo] -> LiquidData -> FuncCall -> m Bool
+checkPreOrPost' extract ars ghci ld@(LiquidData { ls_state = s, ls_bindings = bindings }) cex@(FuncCall { funcName = Name n m _ _ }) = do
+    config <- g2ConfigM
+
+    -- We use the same function to instantiate this state as in runLHInferenceCore, so all the names line up
     case checkFromMap ars (extract ld) cex s of
         Just s' -> do
             SomeSolver solver <- liftIO $ initSolver config
-            (fsl, _) <- liftIO $ genericG2Call config' solver s' bindings
+            (fsl, _) <- liftIO $ genericG2Call config solver s' bindings
             liftIO $ close solver
 
             -- liftIO $ do
@@ -466,7 +487,7 @@ checkFromMap ars specs fc@(FuncCall { funcName = n }) s@(State { expr_env = eenv
                      , true_assert = True }
         Nothing -> Nothing
 
-lookupEvals :: FuncCall -> FuncCallEvals a -> Maybe a
+lookupEvals :: FuncCall -> FCEvals a -> Maybe a
 lookupEvals fc@(FuncCall { funcName = n }) fce =
     HM.lookup fc =<< HM.lookup (zeroOutName n) fce
 
