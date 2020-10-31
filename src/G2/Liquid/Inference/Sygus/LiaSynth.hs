@@ -238,7 +238,9 @@ mkPreCall eenv meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars }
         let
             func_ts = argumentTypes func_e
 
-            v_ars = filter (validArgForSMT . snd) (zip func_ts ars)
+            v_ars = filter (validArgForSMT . snd)
+                  . filter (\(t, _) -> not (isTyFun t) && not (isTyVar t))
+                  $ zip func_ts ars
 
             sy_body_p =
                 concatMap (\(si_pb, ts_es) ->
@@ -288,7 +290,10 @@ mkPostCall eenv meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars,
         let
             func_ts = argumentTypes func_e
 
-            smt_ars = map exprToSMT . concatMap (uncurry (adjustArgs meas_ex)) . filter (validArgForSMT . snd) $ zip func_ts ars -- map exprToSMT . concatMap (adjustArgs meas_ex) $ ars ++ [r]
+            smt_ars = map exprToSMT
+                    . concatMap (uncurry (adjustArgs meas_ex))
+                    . filter (\(t, _) -> not (isTyFun t) && not (isTyVar t))
+                    . filter (validArgForSMT . snd) $ zip func_ts ars -- map exprToSMT . concatMap (adjustArgs meas_ex) $ ars ++ [r]
             smt_ret = extractExprPolyBoundWithRoot r
             smt_ret_ty = extractTypePolyBound (returnType func_e)
 

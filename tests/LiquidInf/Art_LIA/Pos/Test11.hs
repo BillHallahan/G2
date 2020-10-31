@@ -11,6 +11,5 @@ f :: (Int -> Int) -> Int -> Int
 f = g
 
 g :: (Int -> Int) -> Int -> Int
-g _ 0 = 0
 g _ x = x
 
