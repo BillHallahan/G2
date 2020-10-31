@@ -621,6 +621,7 @@ argsAndRetFromSpec ghci meas ars (t:ts) rty rfun@(RFun { rt_bind = b, rt_in = i,
         (Just out_symb, sa) = mkSpecArgPB ghci meas t rfun
     in
     case i of
+        RVar {} -> argsAndRetFromSpec ghci meas ars ts rty out
         RFun {} -> argsAndRetFromSpec ghci meas ars ts rty out
         _ -> argsAndRetFromSpec ghci meas ((out_symb, sa):ars) ts rty out
 argsAndRetFromSpec ghci meas ars _ rty rapp@(RApp { rt_reft = ref}) =
