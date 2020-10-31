@@ -397,10 +397,13 @@ runLHG2 config red hal ord solver simplifier pres_names final_st bindings = do
     let mi = case length ret of
                   0 -> 0
                   _ -> minimum $ map (\(ExecRes {final_state = s}) -> abstractCallsNum s) ret
-    let ret' = filter (\(ExecRes {final_state = s}) -> mi == (abstractCallsNum s)) ret
+    let ret' = map (\er -> if fmap funcName (violated er) == Just initiallyCalledFuncName
+                                  then er { violated = Nothing }
+                                  else er) ret
+    let ret'' = filter (\(ExecRes {final_state = s}) -> mi == (abstractCallsNum s)) ret'
 
-    (bindings', ret'') <- mapAccumM (reduceCalls solver simplifier config) final_bindings ret'
-    ret''' <- mapM (checkAbstracted solver simplifier config bindings') ret''
+    (bindings', ret''') <- mapAccumM (reduceCalls solver simplifier config) final_bindings ret''
+    ret'''' <- mapM (checkAbstracted solver simplifier config bindings') ret'''
 
 
     let exec_res = 
@@ -415,7 +418,7 @@ runLHG2 config red hal ord solver simplifier pres_names final_st bindings = do
                                 }
                          , conc_args = es
                          , conc_out = e
-                         , violated = ais})) ret'''
+                         , violated = ais})) ret''''
 
     return (exec_res, final_bindings)
 
@@ -632,7 +635,7 @@ parseLHOut entry (ExecRes { final_state = s
       abstr = map (parseLHFuncTuple s) . map abstract . abs_calls $ track s
   in
   LHReturn { calledFunc = called
-           , violating = if called `sameFuncNameArgs` viFunc then Nothing else viFunc
+           , violating = viFunc
            , abstracted = abstr}
 
 counterExampleToLHReturn :: CounterExample -> LHReturn
@@ -666,27 +669,10 @@ lhStateToCE :: Lang.Id -> ExecRes AbstractedInfo -> CounterExample
 lhStateToCE i (ExecRes { final_state = s@State { track = t }
                        , conc_args = inArg
                        , conc_out = ex})
-    | Nothing <- abs_vi' = DirectCounter initCall (abs_calls t)
-    | Just c <-  abs_vi' = CallsCounter initCall c (abs_calls t)
+    | Nothing <- abs_violated t = DirectCounter initCall (abs_calls t)
+    | Just c <-  abs_violated t = CallsCounter initCall c (abs_calls t)
     where
         initCall = FuncCall (idName i) inArg ex
-        abs_vi' = if sameFuncCall (type_classes s) initCall (fmap abstract $ abs_violated t)
-                        then Nothing
-                        else abs_violated t
-
-sameFuncCall :: TypeClasses -> FuncCall -> Maybe FuncCall -> Bool
-sameFuncCall _ _ Nothing = False
-sameFuncCall tc (FuncCall {funcName = f1, arguments = fa1}) 
-             (Just (FuncCall {funcName = f2, arguments = fa2})) =
-                let
-                    fa1' = filter (not . isTypeClass tc . typeOf) fa1
-                    fa2' = filter (not . isTypeClass tc . typeOf) fa2
-                in
-                f1 == f2 && all (uncurry eqUpToTypes) (zip fa1' fa2')
-
-sameFuncNameArgs :: FuncInfo -> Maybe FuncInfo -> Bool
-sameFuncNameArgs _ Nothing = False
-sameFuncNameArgs (FuncInfo {func = f1, funcArgs = fa1}) (Just (FuncInfo {func = f2, funcArgs = fa2})) = f1 == f2 && fa1 == fa2
 
 parseLHFuncTuple :: State t -> FuncCall -> FuncInfo
 parseLHFuncTuple s (FuncCall {funcName = n, arguments = ars, returns = out}) =

@@ -1,7 +1,9 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
-module G2.Liquid.ConvertCurrExpr (convertCurrExpr) where
+module G2.Liquid.ConvertCurrExpr ( convertCurrExpr
+                                 , initiallyCalledFuncName) where
 
 import G2.Language
 import G2.Language.Monad
@@ -56,7 +58,8 @@ modifyInputExpr i@(Id n _) = do
 modifyInputExpr' :: Id -> Expr -> LHStateM (Id, [Name])
 modifyInputExpr' i e = do
     (e', ns) <- rebindFuncs e
-    e''' <- letLiftFuncs e'
+    e'' <- letLiftFuncs e'
+    let e''' = replaceLocalAssertName e''
 
     newI <- freshSeededIdN (idName i) (typeOf i)
     insertE (idName newI) e'''
@@ -77,6 +80,17 @@ rebindFuncs e = do
         rewriteAssertName :: Name -> Expr -> Expr
         rewriteAssertName n (Assert (Just fc) e1 e2) = Assert (Just $ fc {funcName = n}) e1 e2
         rewriteAssertName n e1 = modifyChildren (rewriteAssertName n) e1
+
+replaceLocalAssertName :: Expr -> Expr
+replaceLocalAssertName =
+    modifyASTs
+    (\e -> case e of
+                Assert (Just fc) e1 e2 ->
+                    Assert (Just $ fc { funcName = initiallyCalledFuncName}) e1 e2
+                _ -> e)
+
+initiallyCalledFuncName :: Name
+initiallyCalledFuncName = Name "INITIALLY_CALLED_FUNC" Nothing 0 Nothing
 
 replaceVarWithName :: Name -> Expr -> Expr -> Expr
 replaceVarWithName n new = modify (replaceVarWithName' n new)
