@@ -252,9 +252,12 @@ append xs Emp = xs
 append Emp ys = ys
 append (x :+: xs) ys = x :+: append xs ys
 
+{-@ prop_concat :: TRUE @-}
 prop_concat = lAssert (length (concat xss) == 6)
   where
     xss     = l0 :+: l1 :+: l2 :+: l3 :+: Emp
+
+{-@ prop_concat2 :: TRUE @-}
 prop_concat2 = lAssert (length (concat yss) == 0)
   where
     yss     = l0 :+: l0 :+: l0 :+: Emp
