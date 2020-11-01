@@ -117,10 +117,12 @@ liaSynth con ghci lrs evals meas_ex fc ns_synth = do
 
     liftIO . putStrLn $ "si = " ++ show si
 
-    realizable <- checkUnrealizable con eenv' tc meas_ex evals si fc
+    let meas = lrsMeasures ghci lrs
+
+    realizable <- checkUnrealizable con eenv' tc meas meas_ex evals si fc
 
     case realizable of
-        SynthEnv _ -> synth con eenv' tc meas_ex evals si fc 1
+        SynthEnv _ -> synth con eenv' tc meas meas_ex evals si fc 1
         SynthFail _ -> return realizable
 
 -- addKnownSpecs :: [GhcInfo] -> ExprEnv -> M.Map Name SpecInfo -> FuncConstraints -> M.Map Name SpecInfo
@@ -175,29 +177,29 @@ liaSynthOfSize sz m_si =
 type Size = Integer
 
 synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
-      => con -> NMExprEnv -> TypeClasses -> MeasureExs -> Evals Bool -> M.Map Name SpecInfo -> FuncConstraints -> Size -> m SynthRes
-synth con eenv tc meas_ex evals si fc sz = do
+      => con -> NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals Bool -> M.Map Name SpecInfo -> FuncConstraints -> Size -> m SynthRes
+synth con eenv tc meas meas_ex evals si fc sz = do
     let si' = liaSynthOfSize sz si
         max_coeffs_cons = maxCoeffConstraints si'
-    res <- synth' con eenv tc meas_ex evals si' fc max_coeffs_cons
+    res <- synth' con eenv tc meas meas_ex evals si' fc max_coeffs_cons
     case res of
         SynthEnv _ -> return res
-        SynthFail _ -> synth con eenv tc meas_ex evals si fc (sz + 1)
+        SynthFail _ -> synth con eenv tc meas meas_ex evals si fc (sz + 1)
 
 checkUnrealizable :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
-                  => con -> NMExprEnv -> TypeClasses -> MeasureExs -> Evals Bool -> M.Map Name SpecInfo -> FuncConstraints -> m SynthRes
-checkUnrealizable con eenv tc meas_ex evals si fc = do
+                  => con -> NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals Bool -> M.Map Name SpecInfo -> FuncConstraints -> m SynthRes
+checkUnrealizable con eenv tc meas meas_ex evals si fc = do
     let num_calls = HS.size . HS.fromList $ allCallsFC fc
         si' = liaSynthOfSize (toInteger num_calls) si
-    synth' con eenv tc meas_ex evals si' fc []
+    synth' con eenv tc meas meas_ex evals si' fc []
     
 synth' :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
-      => con -> NMExprEnv -> TypeClasses -> MeasureExs -> Evals Bool -> M.Map Name SpecInfo -> FuncConstraints -> [SMTHeader] -> m SynthRes
-synth' con eenv tc meas_ex evals m_si fc headers = do
+      => con -> NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals Bool -> M.Map Name SpecInfo -> FuncConstraints -> [SMTHeader] -> m SynthRes
+synth' con eenv tc meas meas_ex evals m_si fc headers = do
     let all_coeffs = getCoeffs m_si
     liftIO $ print m_si
     let evals' = assignIds evals
-        (cons, nm_fc_map) = nonMaxCoeffConstraints eenv tc meas_ex evals' m_si fc
+        (cons, nm_fc_map) = nonMaxCoeffConstraints eenv tc meas meas_ex evals' m_si fc
         hdrs = cons ++ headers
 
     mdl <- liftIO $ constraintsToModelOrUnsatCore con hdrs (zip all_coeffs (repeat SortInt))
@@ -230,8 +232,8 @@ synth' con eenv tc meas_ex evals m_si fc headers = do
        --                                )  $ zipPB r_pb (uniqueIds r_pb)
        --                   ) $ zip (filter (not . null) $ L.inits outer_ars_pb) [1..]
 
-mkPreCall :: NMExprEnv -> TypeClasses -> MeasureExs -> Evals (Integer, Bool) -> M.Map Name SpecInfo -> FuncCall -> SMTAST
-mkPreCall eenv tc meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars })
+mkPreCall :: NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals (Integer, Bool) -> M.Map Name SpecInfo -> FuncCall -> SMTAST
+mkPreCall eenv tc meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars })
     | Just si <- M.lookup n m_si
     , Just (ev_i, _) <- lookupEvals fc (pre_evals evals)
     , Just func_e <- HM.lookup (nameOcc n, nameModule n) eenv =
@@ -247,7 +249,7 @@ mkPreCall eenv tc meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ar
                 concatMap (\(si_pb, ts_es) ->
                                 let
                                     t_ars = init ts_es
-                                    smt_ars = concatMap (map exprToSMT) $ map (uncurry (adjustArgs meas_ex)) t_ars
+                                    smt_ars = concatMap (map exprToSMT) $ map (uncurry (adjustArgs meas meas_ex)) t_ars
 
                                     (l_rt, l_re) = last ts_es
                                     re_pb = extractExprPolyBoundWithRoot l_re
@@ -257,7 +259,7 @@ mkPreCall eenv tc meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ar
                                 concatMap
                                     (\(psi, re, rt) ->
                                         let
-                                            smt_r = map (map exprToSMT) $ map (adjustArgs meas_ex rt) re
+                                            smt_r = map (map exprToSMT) $ map (adjustArgs meas meas_ex rt) re
                                         in
                                         map (\r -> Func (sy_name psi) $ smt_ars ++ r) smt_r
                                       ) $ extractValues si_re_rt_pb
@@ -283,8 +285,8 @@ mkPreCall eenv tc meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ar
                 Known -> fixed_body
     | otherwise = error "mkPreCall: specification not found"
 
-mkPostCall :: NMExprEnv -> MeasureExs -> Evals (Integer, Bool) -> M.Map Name SpecInfo -> FuncCall -> SMTAST
-mkPostCall eenv meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars, returns = r })
+mkPostCall :: NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals (Integer, Bool) -> M.Map Name SpecInfo -> FuncCall -> SMTAST
+mkPostCall eenv tc meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars, returns = r })
     | Just si <- M.lookup n m_si
     , Just (ev_i, _) <- lookupEvals fc (post_evals evals)
     , Just func_e <- HM.lookup (nameOcc n, nameModule n) eenv =
@@ -292,8 +294,9 @@ mkPostCall eenv meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars,
             func_ts = argumentTypes func_e
 
             smt_ars = map exprToSMT
-                    . concatMap (uncurry (adjustArgs meas_ex))
+                    . concatMap (uncurry (adjustArgs meas meas_ex))
                     . filter (\(t, _) -> not (isTyFun t) && not (isTyVar t))
+                    . filter (not . isTypeClass tc . fst)
                     . filter (validArgForSMT . snd) $ zip func_ts ars -- map exprToSMT . concatMap (adjustArgs meas_ex) $ ars ++ [r]
             smt_ret = extractExprPolyBoundWithRoot r
             smt_ret_ty = extractTypePolyBound (returnType func_e)
@@ -302,7 +305,8 @@ mkPostCall eenv meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars,
                     . concatMap
                         (\(syn_p, r, rt) ->
                             let
-                                smt_r = map (map exprToSMT) . map (adjustArgs meas_ex rt) $ r
+                                adj_r = map (adjustArgs meas meas_ex rt) $ r
+                                smt_r = map (map exprToSMT) adj_r
                             in
                             map (\smt_r' -> Func (sy_name syn_p) $ smt_ars ++ smt_r') smt_r)
                     . extractValues 
@@ -314,49 +318,50 @@ mkPostCall eenv meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars,
                 Known -> fixed_body
     | otherwise = error "mkPostCall: specification not found"
 
-constraintsToSMT :: NMExprEnv -> TypeClasses -> MeasureExs -> Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncConstraints -> [SMTHeader]
-constraintsToSMT eenv tc meas_ex evals si =
-    map Solver.Assert . map (constraintToSMT eenv tc meas_ex evals si) . toListFC
+constraintsToSMT :: NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncConstraints -> [SMTHeader]
+constraintsToSMT eenv tc meas meas_ex evals si =
+    map Solver.Assert . map (constraintToSMT eenv tc meas meas_ex evals si) . toListFC
 
-constraintToSMT :: NMExprEnv -> TypeClasses -> MeasureExs -> Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncConstraint -> SMTAST
-constraintToSMT eenv tc meas_ex evals si (Call All fc) =
+constraintToSMT :: NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncConstraint -> SMTAST
+constraintToSMT eenv tc meas meas_ex evals si (Call All fc) =
     case M.lookup (funcName fc) si of
         Just si' ->
             let
-                pre = mkPreCall eenv tc meas_ex evals si fc
-                post = mkPostCall eenv meas_ex evals si fc
+                pre = mkPreCall eenv tc meas meas_ex evals si fc
+                post = mkPostCall eenv tc meas meas_ex evals si fc
             in
             pre :=> post
         Nothing -> error "constraintToSMT: specification not found"
-constraintToSMT eenv tc meas_ex evals si (Call Pre fc) =
+constraintToSMT eenv tc meas meas_ex evals si (Call Pre fc) =
     case M.lookup (funcName fc) si of
         Just si' ->
-            mkPreCall eenv tc meas_ex evals si fc
+            mkPreCall eenv tc meas meas_ex evals si fc
         Nothing -> error $ "constraintToSMT: specification not found" ++ show fc
-constraintToSMT eenv tc meas_ex evals si (Call Post fc) =
+constraintToSMT eenv tc meas meas_ex evals si (Call Post fc) =
     case M.lookup (funcName fc) si of
-        Just si' -> mkPostCall eenv meas_ex evals si fc
+        Just si' -> mkPostCall eenv tc meas meas_ex evals si fc
         Nothing -> error "constraintToSMT: specification not found"
-constraintToSMT eenv tc meas_ex evals si (AndFC fs) = mkSMTAnd $ map (constraintToSMT eenv tc meas_ex evals si) fs
-constraintToSMT eenv tc meas_ex evals si (OrFC fs) = mkSMTOr $ map (constraintToSMT eenv tc meas_ex evals si) fs
-constraintToSMT eenv tc meas_ex evals si (ImpliesFC fc1 fc2) =
-    constraintToSMT eenv tc meas_ex evals si fc1 :=> constraintToSMT eenv tc meas_ex evals si fc2
-constraintToSMT eenv tc meas_ex evals si (NotFC fc) = (:!) (constraintToSMT eenv tc meas_ex evals si fc)
+constraintToSMT eenv tc meas meas_ex evals si (AndFC fs) = mkSMTAnd $ map (constraintToSMT eenv tc meas meas_ex evals si) fs
+constraintToSMT eenv tc meas meas_ex evals si (OrFC fs) = mkSMTOr $ map (constraintToSMT eenv tc meas meas_ex evals si) fs
+constraintToSMT eenv tc meas meas_ex evals si (ImpliesFC fc1 fc2) =
+    constraintToSMT eenv tc meas meas_ex evals si fc1 :=> constraintToSMT eenv tc meas meas_ex evals si fc2
+constraintToSMT eenv tc meas meas_ex evals si (NotFC fc) = (:!) (constraintToSMT eenv tc meas meas_ex evals si fc)
 
-adjustArgs :: MeasureExs -> Type -> G2.Expr -> [G2.Expr]
-adjustArgs meas_ex t = map adjustLits . substMeasures meas_ex t
+adjustArgs :: Measures -> MeasureExs -> Type -> G2.Expr -> [G2.Expr]
+adjustArgs meas meas_ex t = map adjustLits . substMeasures meas meas_ex t
 
-substMeasures :: MeasureExs -> Type -> G2.Expr -> [G2.Expr]
-substMeasures meas_ex t e =
+substMeasures :: Measures -> MeasureExs -> Type -> G2.Expr -> [G2.Expr]
+substMeasures meas meas_ex t e =
     case typeToSort t of
         Just _ -> [e]
         Nothing ->
             case HM.lookup e meas_ex of
                 Just es ->
                     let
-                        es' = filter (isJust . typeToSort . returnType . snd) $ HM.toList es
+                        es' = filter (isJust . typeToSort . returnType
+                                     . fromJust . flip E.lookup meas . fst)
+                            . filter (isJust . typeToSort . returnType . snd) $ HM.toList es
                     in
-                    -- trace ("meas_ex es' = " ++ show es')
                     -- Sort to make sure we get the same order consistently
                     map snd $ L.sortBy (\(n1, _) (n2, _) -> compare n1 n2) es'
                 Nothing -> []
@@ -437,15 +442,15 @@ maxCoeffConstraints =
                                     :&& (V c SortInt :<= VInt (s_max_coeff si))) cffs
                 else []) . M.elems
 
-nonMaxCoeffConstraints :: NMExprEnv -> TypeClasses -> MeasureExs -> Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncConstraints
+nonMaxCoeffConstraints :: NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncConstraints
                        -> ([SMTHeader], HM.HashMap SMTName FuncConstraint)
-nonMaxCoeffConstraints eenv tc meas_ex evals m_si fc =
+nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc =
     let
         all_coeffs = getCoeffs m_si
 
         var_decl_hdrs = map (flip VarDecl SortInt) all_coeffs
         def_funs = concatMap defineLIAFuns $ M.elems m_si
-        fc_smt = constraintsToSMT eenv tc meas_ex evals m_si fc
+        fc_smt = constraintsToSMT eenv tc meas meas_ex evals m_si fc
         (env_smt, nm_fc) = envToSMT meas_ex evals m_si fc
     in
     (var_decl_hdrs ++ def_funs ++ fc_smt ++ env_smt, nm_fc)
@@ -597,6 +602,7 @@ buildSI tc meas stat ghci f aty rty =
         arg_ns = map (\(a, i) -> a { smt_var = "x_" ++ show i } ) $ zip (concat outer_ars) [1..]
         ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show i }) $ zip ret [1..]
     in
+    trace ("smt_f = " ++ show smt_f ++ "\nouter_ars_pb = " ++ show outer_ars_pb ++ "\nret_pb = " ++ show ret_pb ++ "\n-----")
     SI { s_max_coeff = 0
        , s_known_pre = FixedSpec { fs_name = smt_f ++ "_known_pre"
                                  , fs_args = arg_ns }
@@ -630,7 +636,7 @@ argsAndRetFromSpec tc ghci meas ars (t:ts) rty rfun@(RFun { rt_bind = b, rt_in =
         RVar {} -> argsAndRetFromSpec tc ghci meas ars ts rty out
         RFun {} -> argsAndRetFromSpec tc ghci meas ars ts rty out
         _
-            -- | isTypeClass tc t ->  argsAndRetFromSpec tc ghci meas ars ts rty out
+            | isTypeClass tc t ->  argsAndRetFromSpec tc ghci meas ars ts rty out
             | otherwise -> argsAndRetFromSpec tc ghci meas ((out_symb, sa):ars) ts rty out
 argsAndRetFromSpec _ ghci meas ars _ rty rapp@(RApp { rt_reft = ref}) =
     let
@@ -653,10 +659,17 @@ mkSpecArgPB ghci meas t st =
         sy_pb = specTypeSymbolPB st
         in_sy_pb = mapPB inner sy_pb
 
+        t_sy_pb = filterPB (\(PolyBound (_, t) _) -> not (isTyVar t) && not (isTyFun t))
+                $ zipPB in_sy_pb t_pb
+        t_sy_pb' = case t_sy_pb of
+                    Just pb -> pb
+                    Nothing -> PolyBound (inner $ headValue sy_pb, t) []
+
         out_symb = outer $ headValue sy_pb
         out_spec_arg = fmap (\os -> mkSpecArg ghci meas os t) out_symb
     in
-    (out_spec_arg, mapPB (uncurry (mkSpecArg ghci meas)) $ zipPB in_sy_pb t_pb)
+    trace ("t_sy_pb = " ++ show t_sy_pb)
+    (out_spec_arg, mapPB (uncurry (mkSpecArg ghci meas)) t_sy_pb')
 
 mkSpecArg :: [GhcInfo] -> Measures -> LH.Symbol -> Type -> [SpecArg]
 mkSpecArg ghci meas symb t =
@@ -666,7 +679,7 @@ mkSpecArg ghci meas symb t =
     case srt of
         Just srt' ->
             [SpecArg { lh_rep = EVar symb
-                     , smt_var = undefined
+                     , smt_var = "tbd"
                      , smt_sort = srt' }]
         Nothing ->
             let
@@ -680,7 +693,7 @@ mkSpecArg ghci meas symb t =
                                 lh_mn = getLHMeasureName ghci mn
                             in
                             SpecArg { lh_rep = EApp (EVar lh_mn) (EVar symb)
-                                    , smt_var = undefined
+                                    , smt_var = "tbd"
                                     , smt_sort = srt'}) $ typeToSort mt) app_meas'
 
 

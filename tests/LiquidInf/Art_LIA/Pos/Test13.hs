@@ -22,5 +22,5 @@ f :: C a -> C (a, a)
 f E = E
 f (C x) = C (x, x)
 
-{-@ prop_zipWith :: Num a => C a -> {v:Bool | v} @-}
-prop_zipWith xs = isC xs == isC (f xs)
+{-@ prop_f :: Num a => C a -> {v:Bool | v} @-}
+prop_f xs = isC xs == isC (f xs)
