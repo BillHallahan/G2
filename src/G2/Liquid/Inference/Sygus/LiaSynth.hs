@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 module G2.Liquid.Inference.Sygus.LiaSynth ( SynthRes (..)
                                           , liaSynth) where
@@ -39,8 +40,9 @@ import Debug.Trace
 
 data SynthRes = SynthEnv GeneratedSpecs | SynthFail FuncConstraints
 
+type Active = SMTName
 type Coeffs = [SMTName]
-type Clause = [Coeffs] 
+type Clause = [(Active, Coeffs)] 
 type CNF = [Clause]
 
 -- Internal Types
@@ -169,8 +171,11 @@ liaSynthOfSize sz m_si =
         list_i_j s ars =
             [ 
                 [ 
-                    [ s ++ "_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
-                    | a <- [0..ars]]
+                    (s ++ "_use_c_" ++ show j ++ "_t_" ++ show k
+                    , 
+                        [ s ++ "_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
+                        | a <- [0..ars]]
+                    )
                 | k <- [1..sz] ]
             | j <- [1..sz] ]
 
@@ -202,7 +207,7 @@ synth' con eenv tc meas meas_ex evals m_si fc headers = do
         (cons, nm_fc_map) = nonMaxCoeffConstraints eenv tc meas meas_ex evals' m_si fc
         hdrs = cons ++ headers
 
-    mdl <- liftIO $ constraintsToModelOrUnsatCore con hdrs (zip all_coeffs (repeat SortInt))
+    mdl <- liftIO $ constraintsToModelOrUnsatCore con hdrs all_coeffs
 
     case mdl of
         Right mdl' -> do
@@ -435,7 +440,7 @@ maxCoeffConstraints =
     . concatMap
         (\si ->
             let
-                cffs = concat . concat $ allPreCoeffs si ++ allPostCoeffs si
+                cffs = concatMap snd . concat $ allPreCoeffs si ++ allPostCoeffs si
             in
             if s_status si == Synth
                 then map (\c -> (Neg (VInt (s_max_coeff si)) :<= V c SortInt)
@@ -448,22 +453,28 @@ nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc =
     let
         all_coeffs = getCoeffs m_si
 
-        var_decl_hdrs = map (flip VarDecl SortInt) all_coeffs
+        var_decl_hdrs = map (uncurry VarDecl) all_coeffs
         def_funs = concatMap defineLIAFuns $ M.elems m_si
         fc_smt = constraintsToSMT eenv tc meas meas_ex evals m_si fc
         (env_smt, nm_fc) = envToSMT meas_ex evals m_si fc
     in
     (var_decl_hdrs ++ def_funs ++ fc_smt ++ env_smt, nm_fc)
 
-getCoeffs :: M.Map Name SpecInfo -> [SMTName]
+getCoeffs :: M.Map Name SpecInfo -> [(SMTName, Sort)]
 getCoeffs m_si =
     let
-        all_precoeffs = gc allPreCoeffs $ M.elems m_si
-        all_postcoeffs = gc allPostCoeffs $ M.elems m_si
+        all_precoeffs = coeff_names allPreCoeffs $ M.elems m_si
+        all_postcoeffs = coeff_names allPostCoeffs $ M.elems m_si
+
+        all_preuses = use_names allPreCoeffs $ M.elems m_si
+        all_postuses = use_names allPostCoeffs $ M.elems m_si
     in
-    all_precoeffs ++ all_postcoeffs
+    map (,SortInt) (all_precoeffs ++ all_postcoeffs)
+    ++
+    map (,SortBool) (all_preuses ++ all_postuses)
     where
-        gc f = concat . concat . concatMap f . filter (\si -> s_status si == Synth)
+        coeff_names f = concatMap snd . concat . concatMap f . filter (\si -> s_status si == Synth)
+        use_names f = map fst . concat . concatMap f . filter (\si -> s_status si == Synth)
 
 -- We assign a unique id to each function call, and use these as the arguments
 -- to the known functions, rather than somehow using the arguments directly.
@@ -513,25 +524,30 @@ type And b c = [b] -> c
 type Or b = [b] -> b
 type VInt a = SMTName -> a
 type CInt a = Integer -> a
+type VBool b = SMTName -> b
 
-buildLIA_SMT :: [[[SMTName]]] -> [SMTName] -> SMTAST
-buildLIA_SMT = buildLIA (:+) (:*) (:>=) mkSMTAnd mkSMTOr (flip V SortInt) VInt
+buildLIA_SMT :: CNF -> [SMTName] -> SMTAST
+buildLIA_SMT = buildLIA (:+) (:*) (:>=) mkSMTAnd mkSMTOr (flip V SortInt) VInt (flip V SortBool)
 
 -- Get a list of all LIA formulas.  We must then assign these to the "correct" refinement type,
 -- i.e. the refinement type that is closest to the left, while still having all relevant variables bound.
 buildLIA_LH :: SpecInfo -> SMTModel -> [PolyBound LHF.Expr]
 buildLIA_LH si mv =
     let
-        build ars = buildLIA ePlus eTimes bGeq pAnd pOr (detVar ars) (ECon . I) -- todo: Probably want to replace PAnd with id to group?
+        build ars = buildLIA ePlus eTimes bGeq pAnd pOr (detVarInt ars) (ECon . I) (detVarBool ars)
         pre = map (mapPB (\psi -> build (sy_args psi) (sy_coeffs psi) (map smt_var (sy_args psi)))) $ s_syn_pre si
         post = mapPB (\psi -> build post_ars (sy_coeffs psi) (map smt_var (sy_args psi))) $ s_syn_post si
     in
     pre ++ [post]
     where
-        detVar ars v 
+        detVarInt ars v 
             | Just (VInt c) <- M.lookup v mv = ECon (I c)
             | Just sa <- L.find (\sa_ -> v == smt_var sa_) ars = lh_rep sa
-            | otherwise = error "detVar: variable not found"
+            | otherwise = error "detVarInt: variable not found"
+
+        detVarBool ars v 
+            | Just (VBool b) <- M.lookup v mv = if b then PTrue else PFalse
+            | otherwise = error "detVarBool: variable not found"
 
         eTimes (ECon (I 0)) _ = ECon (I 0)
         eTimes _ (ECon (I 0)) = ECon (I 0)
@@ -567,23 +583,24 @@ buildLIA :: Plus a
          -> Or b
          -> VInt a
          -> CInt a
-         -> [[[SMTName]]]
+         -> VBool b
+         -> CNF
          -> [SMTName]
          -> c
-buildLIA plus mult geq mk_and mk_or vint cint all_coeffs args =
+buildLIA plus mult geq mk_and mk_or vint cint vbool all_coeffs args =
     let
         lin_ineqs = map (map toLinInEqs) all_coeffs
     in
     mk_and . map mk_or $ lin_ineqs
     where
-        toLinInEqs (c:cs) =
+        toLinInEqs (u, c:cs) =
             let
                 sm = foldr plus (cint 0)
                    . map (uncurry mult)
                    $ zip (map vint cs) (map vint args)
             in
-            sm `geq` vint c
-        toLinInEqs [] = error "buildLIA: unhandled empty coefficient list" 
+            mk_or [vbool u, sm `geq` vint c]
+        toLinInEqs (_, []) = error "buildLIA: unhandled empty coefficient list" 
 
 buildSI :: TypeClasses -> Measures -> Status -> [GhcInfo] ->  Name -> [Type] -> Type -> SpecInfo
 buildSI tc meas stat ghci f aty rty =
