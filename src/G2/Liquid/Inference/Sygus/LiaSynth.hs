@@ -42,8 +42,8 @@ data SynthRes = SynthEnv GeneratedSpecs | SynthFail FuncConstraints
 
 type Active = SMTName
 type Coeffs = [SMTName]
-type Clause = [(Active, Coeffs)] 
-type CNF = [Clause]
+type Clause = [Coeffs] 
+type CNF = [(Active, Clause)]
 
 -- Internal Types
 data SpecInfo = SI { s_max_coeff :: Integer
@@ -174,13 +174,14 @@ liaSynthOfSize sz m_si =
     where
         list_i_j s ars =
             [ 
-                [ 
-                    (s ++ "_use_c_" ++ show j ++ "_t_" ++ show k
-                    , 
+                (s ++ "_use_c_" ++ show j
+                ,  [ 
+                    
                         [ s ++ "_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
                         | a <- [0..ars]]
-                    )
-                | k <- [1..sz] ]
+                    
+                   | k <- [1..sz]]
+                )
             | j <- [1..sz] ]
 
 type Size = Integer
@@ -444,7 +445,7 @@ maxCoeffConstraints =
     . concatMap
         (\si ->
             let
-                cffs = concatMap snd . concat $ allPreCoeffs si ++ allPostCoeffs si
+                cffs = concat . concatMap snd $ allPreCoeffs si ++ allPostCoeffs si
             in
             if s_status si == Synth
                 then map (\c -> (Neg (VInt (s_max_coeff si)) :<= V c SortInt)
@@ -477,8 +478,8 @@ getCoeffs m_si =
     ++
     map (,SortBool) (all_preuses ++ all_postuses)
     where
-        coeff_names f = concatMap snd . concat . concatMap f . filter (\si -> s_status si == Synth)
-        use_names f = map fst . concat . concatMap f . filter (\si -> s_status si == Synth)
+        coeff_names f = concat . concatMap snd . concatMap f . filter (\si -> s_status si == Synth)
+        use_names f = map fst . concatMap f . filter (\si -> s_status si == Synth)
 
 -- We assign a unique id to each function call, and use these as the arguments
 -- to the known functions, rather than somehow using the arguments directly.
@@ -524,7 +525,7 @@ declareSynthLIAFuncSF sf =
 type Plus a = a ->  a -> a
 type Mult a = a ->  a -> a
 type GEq a b = a -> a -> b
-type And b c = [b] -> c
+type And b = [b] -> b
 type Or b = [b] -> b
 type VInt a = SMTName -> a
 type CInt a = Integer -> a
@@ -583,28 +584,28 @@ buildLIA_LH si mv =
 buildLIA :: Plus a
          -> Mult a
          -> GEq a b
-         -> And b c
+         -> And b
          -> Or b
          -> VInt a
          -> CInt a
          -> VBool b
          -> CNF
          -> [SMTName]
-         -> c
+         -> b
 buildLIA plus mult geq mk_and mk_or vint cint vbool all_coeffs args =
     let
-        lin_ineqs = map (map toLinInEqs) all_coeffs
+        lin_ineqs = map (\(u, cs) -> vbool u:map toLinInEqs cs) all_coeffs
     in
     mk_and . map mk_or $ lin_ineqs
     where
-        toLinInEqs (u, c:cs) =
+        toLinInEqs (c:cs) =
             let
                 sm = foldr plus (cint 0)
                    . map (uncurry mult)
                    $ zip (map vint cs) (map vint args)
             in
-            mk_or [vbool u, sm `geq` vint c]
-        toLinInEqs (_, []) = error "buildLIA: unhandled empty coefficient list" 
+            sm `geq` vint c
+        toLinInEqs [] = error "buildLIA: unhandled empty coefficient list" 
 
 buildSI :: TypeClasses -> Measures -> Status -> [GhcInfo] ->  Name -> [Type] -> Type -> SpecInfo
 buildSI tc meas stat ghci f aty rty =
