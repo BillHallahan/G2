@@ -31,6 +31,8 @@ import DefuncTest
 import CaseTest
 import Expr
 import Typing
+import UnionFindTests
+import UFMapTests
 
 import InputOutputTest
 import Reqs
@@ -61,6 +63,8 @@ tests = return . testGroup "Tests"
         , primTests
         , exprTests
         , typingTests
+        , return ufMapQuickcheck
+        , return unionFindQuickcheck
         ]
 
 timeout :: Timeout
@@ -739,6 +743,20 @@ checkAbsLiquidWithConfig fp entry i config reqList = do
         $ assertBool ("Liquid test for file " ++ fp ++ 
                       " with function " ++ entry ++ " failed.\n" ++ show r) ch
 
+-- For mergeState unit tests
+checkFn :: Either String Bool -> String -> IO TestTree
+checkFn f testName = do
+    let res = f
+    case res of
+       Left e -> return . testCase testName $ assertFailure e
+       Right _ -> return . testCase testName $ return ()
+
+checkFnIO :: IO (Either String Bool) -> String -> IO TestTree
+checkFnIO f testName = do
+    res <- f
+    case res of
+        Left e -> return . testCase testName $ assertFailure e
+        Right _ -> return . testCase testName $ return ()
 
 findCounterExamples' :: FilePath
                      -> T.Text
