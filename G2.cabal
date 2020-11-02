@@ -17,6 +17,10 @@ build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       1.24
 
+Flag newLH
+  Description:   Assume we have a new version of LH
+  Default:       False
+
 source-repository head
     type:       git
     location:   https://github.com/BillHallahan/G2.git
@@ -24,6 +28,9 @@ source-repository head
 library
   exposed-modules:       
                          G2.Config
+
+                       , G2.Data.UFMap
+                       , G2.Data.UnionFind
 
                        , G2.Execution
                        , G2.Execution.Interface
@@ -186,9 +193,11 @@ library
                        , pretty >= 1.1 && < 1.2
                        , process >=1 && < 1.7
                        , split >= 0.2.3 && < 0.2.4
+                       , tasty-quickcheck >= 0.10.1.1 && < 0.11
                        , template-haskell >= 2.12.0.0 && <= 2.14.0.0
                        , temporary-rc >= 1.2 && < 1.3
                        , text >= 1.2.3.1 && <= 1.2.4.0
+                       , text-builder >= 0.6.6.1
                        , time >= 1.6 && <= 1.9.3
                        , unordered-containers >= 0.2 && < 0.3
 
@@ -208,11 +217,14 @@ library
                        -- -fprof-auto
                        -- -fexternal-interpreter
   other-extensions:    CPP
+  if flag(newLH)
+    cpp-options: -DNEW_LH
+
   hs-source-dirs:      src
 
 executable G2
   -- other-modules:   
-  -- other-extensions:    
+  -- other-extensions:
   build-depends:         g2
                        , base >= 4.8 && < 5
                        , containers
@@ -278,6 +290,7 @@ test-suite test
                        , tagged
                        , tasty >= 1.0
                        , tasty-hunit >= 0.10
+                       , tasty-quickcheck
                        , text
                        , time >= 1.6
                        , unordered-containers
@@ -294,6 +307,8 @@ test-suite test
                        , Reqs
                        , TestUtils
                        , Typing
+                       , UFMapTests
+                       , UnionFindTests
   ghc-options:         -Wall
                        -- -fprof-auto "-with-rtsopts=-p"
                        -threaded

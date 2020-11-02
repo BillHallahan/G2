@@ -34,6 +34,7 @@ import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid (Sum (..))
 import qualified Data.Text as T
+import qualified Text.Builder as TB
 
 import Debug.Trace
 
@@ -448,7 +449,7 @@ nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc =
     let
         all_coeffs = getCoeffs m_si
 
-        var_decl_hdrs = map (flip VarDecl SortInt) all_coeffs
+        var_decl_hdrs = map (flip VarDecl SortInt . TB.text . T.pack) all_coeffs
         def_funs = concatMap defineLIAFuns $ M.elems m_si
         fc_smt = constraintsToSMT eenv tc meas meas_ex evals m_si fc
         (env_smt, nm_fc) = envToSMT meas_ex evals m_si fc

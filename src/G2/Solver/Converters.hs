@@ -30,6 +30,7 @@ import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid
+import qualified Data.Set as S
 import qualified Data.Text as T
 
 import G2.Language hiding (Assert, vars)
@@ -51,12 +52,14 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     checkSat :: con -> io -> out -> IO Result
     checkSatGetModel :: con -> io -> out -> [(SMTName, Sort)] -> IO (Result, Maybe SMTModel)
     checkSatGetModelOrUnsatCore :: con -> io -> out -> [(SMTName, Sort)] -> IO (Either UnsatCore SMTModel)
-    checkSatGetModelGetExpr :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> CurrExpr -> IO (Result, Maybe SMTModel, Maybe Expr)
+    checkSatGetModelGetExpr :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> CurrExpr
+                            -> IO (Result, Maybe SMTModel, Maybe Expr)
 
     assertSolver :: con -> ast -> out
     defineFun :: con -> SMTName -> [(SMTName, Sort)] -> Sort -> SMTAST -> out 
     declareFun :: con -> SMTName -> [Sort] -> Sort -> out 
-    varDecl :: con -> SMTName -> ast -> out
+    varDecl :: con -> SMTNameBldr -> ast -> out
+
     setLogic :: con -> Logic -> out
 
     (.>=) :: con -> ast -> ast -> ast
@@ -109,12 +112,11 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     -- unsat cores
     named :: con -> ast -> SMTName -> ast
 
--- | Checks if the path constraints are satisfiable
 checkConstraintsPC :: SMTConverter con ast out io => con -> PathConds -> IO Result
 checkConstraintsPC con pc = do
     let pc' = unsafeElimCast pc
 
-    let headers = toSMTHeaders pc'
+    let headers = toSMTHeaders $ PC.toList pc'
     let formula = toSolver con headers
 
     checkSat con (getIO con) formula
@@ -153,7 +155,7 @@ getModelVal avf con s b (Id n _) pc = do
 
 checkNumericConstraintsPC :: SMTConverter con ast out io => con -> PathConds -> IO (Maybe Model)
 checkNumericConstraintsPC con pc = do
-    let headers = toSMTHeaders pc
+    let headers = toSMTHeaders $ PC.toList pc
     let vs = map (\(n', srt) -> (nameToStr n', srt)) . pcVars $ PC.toList pc
 
     m <- checkConstraints con headers vs
@@ -185,17 +187,14 @@ constraintsToModelOrUnsatCore con headers vs = do
 -- we need only consider the types and path constraints of that state.
 -- We can also pass in some other Expr Container to instantiate names from, which is
 -- important if you wish to later be able to scrape variables from those Expr's
-toSMTHeaders :: PathConds -> [SMTHeader]
+toSMTHeaders :: [PathCond] -> [SMTHeader]
 toSMTHeaders = addSetLogic . toSMTHeaders'
 
-toSMTHeaders' :: PathConds -> [SMTHeader]
+toSMTHeaders' :: [PathCond] -> [SMTHeader]
 toSMTHeaders' pc  = 
-    let
-        pc' = PC.toList pc
-    in
-    nub (pcVarDecls pc')
+    (pcVarDecls pc)
     ++
-    (pathConsToSMTHeaders pc')
+    (pathConsToSMTHeaders pc)
 
 -- |  Determines an appropriate SetLogic command, and adds it to the headers
 addSetLogic :: [SMTHeader] -> [SMTHeader]
@@ -434,17 +433,22 @@ altToSMT (LitDouble d) _ = VDouble d
 altToSMT (LitChar c) _ = VChar c
 altToSMT am _ = error $ "Unhandled " ++ show am
 
-createVarDecls :: [(Name, Sort)] -> [SMTHeader]
-createVarDecls [] = []
-createVarDecls ((n,SortChar):xs) =
+createUniqVarDecls :: [(Name, Sort)] -> [SMTHeader]
+createUniqVarDecls xs =
+    let xs' = S.toList $ S.fromList xs
+    in createUniqVarDecls' xs'
+
+createUniqVarDecls' :: [(Name, Sort)] -> [SMTHeader]
+createUniqVarDecls' [] = []
+createUniqVarDecls' ((n,SortChar):xs) =
     let
         lenAssert = Assert $ StrLen (V (nameToStr n) SortChar) := VInt 1
     in
-    VarDecl (nameToStr n) SortChar:lenAssert:createVarDecls xs
-createVarDecls ((n,s):xs) = VarDecl (nameToStr n) s:createVarDecls xs
+    VarDecl (nameToBuilder n) SortChar:lenAssert:createUniqVarDecls' xs
+createUniqVarDecls' ((n,s):xs) = VarDecl (nameToBuilder n) s:createUniqVarDecls' xs
 
 pcVarDecls :: [PathCond] -> [SMTHeader]
-pcVarDecls = createVarDecls . pcVars
+pcVarDecls = createUniqVarDecls . pcVars
 
 -- Get's all variable required for a list of `PathCond` 
 pcVars :: [PathCond] -> [(Name, Sort)]
@@ -527,7 +531,7 @@ toSolverAST con (Named x n) = named con (toSolverAST con x) n
 
 toSolverAST _ ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
 
-toSolverVarDecl :: SMTConverter con ast out io => con -> SMTName -> Sort -> out
+toSolverVarDecl :: SMTConverter con ast out io => con -> SMTNameBldr -> Sort -> out
 toSolverVarDecl con n s = varDecl con n (sortName con s)
 
 sortName :: SMTConverter con ast out io => con -> Sort -> ast

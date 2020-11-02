@@ -14,16 +14,18 @@ import G2.Solver.Solver
 
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
+import Text.Builder
 
+type SMTNameBldr = Builder
 type SMTName = String
 
 -- | These define the kinds of top level calls we give to the SMT solver.
 data SMTHeader = Assert SMTAST
                | DefineFun SMTName [(SMTName, Sort)] Sort SMTAST
                | DeclareFun SMTName [Sort] Sort
-               | VarDecl SMTName Sort
+               | VarDecl SMTNameBldr Sort
                | SetLogic Logic
-               deriving (Show, Eq)
+               deriving (Show)
 
 -- | Various logics supported by (some) SMT solvers 
 data Logic = ALL
@@ -87,7 +89,7 @@ data Sort = SortInt
           | SortChar
           | SortBool
           | SortFunc [Sort] Sort
-          deriving (Show, Eq)
+          deriving (Show, Eq, Ord)
 
 (.&&.) :: SMTAST -> SMTAST -> SMTAST
 (VBool True) .&&. x = x

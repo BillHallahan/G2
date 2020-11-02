@@ -28,6 +28,8 @@ import Data.List.Utils (countElem)
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Ratio
+import qualified Data.Text as T
+import qualified Text.Builder as TB
 import System.IO
 import System.Process
 
@@ -136,7 +138,7 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
             ++ intercalate " " (map (sortName con) ars) ++ ")"
             ++ " (" ++ sortName con ret ++ "))"
 
-    varDecl _ n s = "(declare-const " ++ n ++ " " ++ s ++ ")"
+    varDecl _ n s = "(declare-const " ++ (T.unpack (TB.run n)) ++ " " ++ s ++ ")"
     
     setLogic _ lgc =
         let 
@@ -268,7 +270,7 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
 
     assertSolver _ = function1 "assert"
         
-    varDecl _ n s = "(declare-const " ++ n ++ " " ++ s ++ ")"
+    varDecl _ n s = "(declare-const " ++ (T.unpack (TB.run n)) ++ " " ++ s ++ ")"
     
     setLogic _ lgc =
         let 
