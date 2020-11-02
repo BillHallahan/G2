@@ -527,7 +527,7 @@ deleteEvalsForFunc n (Evals { pre_evals = pre_ev, post_evals = post_ev }) =
 type MeasureExs = HM.HashMap Expr (HM.HashMap Name Expr)
 
 evalMeasures :: (InfConfigM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> [Expr] -> m MeasureExs
-evalMeasures init_measex lrs ghci es = do
+evalMeasures init_meas lrs ghci es = do
     config <- g2ConfigM
     liftIO $ do
         let config' = config { counterfactual = NotCounterfactual }
@@ -543,10 +543,10 @@ evalMeasures init_measex lrs ghci es = do
             (final_s, final_b) = markAndSweepPreserving pres_names s' bindings
 
         SomeSolver solver <- initSolver config
-        meas_res <- mapM (evalMeasures' final_s final_b solver config' meas tcv) $ filter (not . isError) es
+        meas_res <- foldM (evalMeasures' final_s final_b solver config' meas tcv) init_meas $ filter (not . isError) es
         close solver
 
-        return $ foldr (HM.unionWith HM.union) init_measex meas_res
+        return meas_res
     where
         meas_names = map (val . msName) $ measureSpecs ghci
         meas_nameOcc = map (\(Name n md _ _) -> (n, md)) $ map symbolName meas_names
@@ -565,22 +565,23 @@ evalMeasures' :: ( ASTContainer t Expr
                  , ASTContainer t Type
                  , Named t
                  , Solver solver
-                 , Show t) => State t -> Bindings -> solver -> Config -> Measures -> TCValues -> Expr -> IO MeasureExs
-evalMeasures' s bindings solver config meas tcv e =  do
+                 , Show t) => State t -> Bindings -> solver -> Config -> Measures -> TCValues -> MeasureExs -> Expr -> IO MeasureExs
+evalMeasures' s bindings solver config meas tcv init_meas e =  do
     let m_sts = evalMeasures'' s bindings meas tcv e
 
-    m_sts' <- mapM (\(n, e_in, s_meas) -> do
-        (er, _) <- genericG2Call config solver s_meas bindings
-        case er of
-            [er'] -> 
-                let 
-                    CurrExpr _ e_out = curr_expr . final_state $ er'
-                in
-                return (e_in, HM.singleton n e_out)
-            [] -> return (e_in, HM.singleton n (Prim Undefined TyBottom))
-            _ -> error "evalMeasures': Bad G2 Call") m_sts
-
-    return $ foldr (uncurry (HM.insertWith HM.union)) HM.empty m_sts'
+    foldM (\meas_exs (n, e_in, s_meas) -> do
+        case HM.lookup n =<< HM.lookup e_in meas_exs of
+            Just _ -> return meas_exs
+            Nothing -> do
+                (er, _) <- genericG2Call config solver s_meas bindings
+                case er of
+                    [er'] -> 
+                        let 
+                            CurrExpr _ e_out = curr_expr . final_state $ er'
+                        in
+                        return $ HM.insertWith HM.union e_in (HM.singleton n e_out) meas_exs
+                    [] -> return $ HM.insertWith HM.union e_in (HM.singleton n (Prim Undefined TyBottom)) meas_exs
+                    _ -> error "evalMeasures': Bad G2 Call") init_meas m_sts
 
 evalMeasures'' :: State t -> Bindings -> Measures -> TCValues -> Expr -> [(Name, Expr, State t)]
 evalMeasures'' s b m tcv e =
