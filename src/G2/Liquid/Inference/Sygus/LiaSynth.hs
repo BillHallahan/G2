@@ -439,6 +439,24 @@ envToSMT' meas_ex (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(Fu
             , (Named post post_name, (post_name, post_real))]
         Nothing -> error "envToSMT': function not found"
 
+mapUseAndCoeffs :: M.Map Name SpecInfo -> [SMTHeader]
+mapUseAndCoeffs = concatMap mapUseAndCoeffs' . concatMap allSynthSpecs . filter (\s -> s_status s == Synth ) . M.elems
+
+mapUseAndCoeffs' :: SynthSpec -> [SMTHeader]
+mapUseAndCoeffs' (SynthSpec { sy_coeffs = coeffs, sy_in_args = ars }) =
+    let
+        sz_ars = length ars
+    in
+    concatMap (\(u, cfs) -> map (limCoeffs sz_ars u) cfs) coeffs
+
+limCoeffs :: Int -> SMTName -> [SMTName] -> SMTHeader
+limCoeffs sz_ars u ars =
+    let
+        -- Add 1 to the number of arguments to account for the constant
+        ret_ars = drop (sz_ars + 1) ars
+    in
+    Solver.Assert (((:!) $ V u SortBool) :=> mkSMTOr (map (\ra -> V ra SortInt :/= VInt 0) ret_ars))
+
 maxCoeffConstraints :: M.Map Name SpecInfo -> [SMTHeader]
 maxCoeffConstraints =
       map Solver.Assert
@@ -462,8 +480,9 @@ nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc =
         def_funs = concatMap defineLIAFuns $ M.elems m_si
         fc_smt = constraintsToSMT eenv tc meas meas_ex evals m_si fc
         (env_smt, nm_fc) = envToSMT meas_ex evals m_si fc
+        use_coeff_smt = mapUseAndCoeffs m_si
     in
-    (var_decl_hdrs ++ def_funs ++ fc_smt ++ env_smt, nm_fc)
+    (var_decl_hdrs ++ def_funs ++ fc_smt ++ env_smt ++ use_coeff_smt, nm_fc)
 
 getCoeffs :: M.Map Name SpecInfo -> [(SMTName, Sort)]
 getCoeffs m_si =
@@ -824,6 +843,15 @@ applicableMeasure t e =
             | otherwise = False
 
 -- Helpers
+allSynthSpecs :: SpecInfo -> [SynthSpec]
+allSynthSpecs s = allPreSynthSpecs s ++ allPostSynthSpecs s
+
+allPreSynthSpecs :: SpecInfo -> [SynthSpec]
+allPreSynthSpecs = concatMap extractValues . s_syn_pre
+
+allPostSynthSpecs :: SpecInfo -> [SynthSpec]
+allPostSynthSpecs = extractValues . s_syn_post
+
 allPreCoeffs :: SpecInfo -> CNF
 allPreCoeffs = concatMap sy_coeffs . concatMap extractValues . s_syn_pre
 
