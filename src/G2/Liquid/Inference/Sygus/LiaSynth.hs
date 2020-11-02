@@ -78,9 +78,13 @@ data FixedSpec = FixedSpec { fs_name :: SMTName
                            deriving (Show)
 
 data SynthSpec = SynthSpec { sy_name :: SMTName
-                           , sy_args :: [SpecArg]
+                           , sy_in_args :: [SpecArg] -- ^ The SpecArgs that correspond to specification contexts to the left
+                           , sy_ret_args :: [SpecArg] -- ^ The SpecArgs that correspond to the rightmost specification context
                            , sy_coeffs :: CNF }
                            deriving (Show)
+
+sy_args :: SynthSpec -> [SpecArg]
+sy_args s = sy_in_args s ++ sy_ret_args s
 
 data SpecArg = SpecArg { lh_rep :: LH.Expr
                        , smt_var :: SMTName
@@ -631,11 +635,9 @@ buildSI tc meas stat ghci f aty rty =
                                     r_pb = snd (last ars_pb)
                                 in
                                 mapPB (\(r, j) ->
-                                        let
-                                            ars_r = ars ++ r
-                                        in
                                         SynthSpec { sy_name = smt_f ++ "_synth_pre_" ++ show i ++ "_" ++ show j
-                                                  , sy_args = map (\(a, k) -> a { smt_var = "x_" ++ show k}) $ zip ars_r [1..]
+                                                  , sy_in_args = map (\(a, k) -> a { smt_var = "x_" ++ show k}) $ zip ars [1..]
+                                                  , sy_ret_args = map (\(a, k) -> a { smt_var = "x_r_" ++ show k}) $ zip r [1..]
                                                   , sy_coeffs = []}
                                       )  $ zipPB r_pb (uniqueIds r_pb)
                          ) $ zip (filter (not . null) $ L.inits outer_ars_pb) [1..]
@@ -721,7 +723,8 @@ mkSynSpecPB smt_f arg_ns pb_sa =
                 ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show ui ++ "_" ++ show i }) $ zip sa [1..]
             in
             SynthSpec { sy_name = smt_f ++ show ui
-                      , sy_args = arg_ns ++ ret_ns
+                      , sy_in_args = arg_ns
+                      , sy_ret_args = ret_ns
                       , sy_coeffs = [] }
         )
         $ zipPB (uniqueIds pb_sa) pb_sa
