@@ -119,6 +119,11 @@ instance ASTContainer FuncConstraint Expr where
     modifyContainedASTs f (ImpliesFC fc1 fc2) = ImpliesFC (modifyContainedASTs f fc1) (modifyContainedASTs f fc2)
     modifyContainedASTs f (NotFC fc) = NotFC (modifyContainedASTs f fc)
 
+instance Named FuncConstraints where
+    names (FuncConstraints fc) = names fc
+    rename old new (FuncConstraints fc) = FuncConstraints (rename old new fc)
+    renames hm (FuncConstraints fc) = FuncConstraints (renames hm fc)
+
 instance Named FuncConstraint where
     names (Call _ fc) = names fc
     names (AndFC fcs) = names fcs

@@ -123,8 +123,16 @@ type Level = Int
 type NameLevels = [[Name]]
 
 inferenceL :: (ProgresserM m, InfConfigM m, MonadIO m, SMTConverter con ast out io)
-           => con -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
-           -> NameLevels -> Evals Bool -> MeasureExs -> GeneratedSpecs -> FuncConstraints -> m InferenceRes
+           => con
+           -> [GhcInfo]
+           -> Maybe T.Text
+           -> LiquidReadyState
+           -> NameLevels
+           -> Evals Bool
+           -> MeasureExs
+           -> GeneratedSpecs
+           -> FuncConstraints
+           -> m InferenceRes
 inferenceL con ghci m_modname lrs nls evals meas_ex gs fc = do
     let (fs, sf) = case nls of
                         (fs_:sf_:_) -> (fs_, sf_)
