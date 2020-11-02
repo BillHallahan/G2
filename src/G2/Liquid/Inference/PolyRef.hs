@@ -1,3 +1,6 @@
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveTraversable#-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
 
@@ -33,7 +36,7 @@ type TypePolyBound = PolyBound Type
 -- | The subexpressions of an expression corresponding to the polymorphic
 -- arguments.  If a polymorphic argument is instantiated with a polymorphic
 -- type, these are nested recursively.
-data PolyBound v = PolyBound v [PolyBound v] deriving (Eq, Read, Show)
+data PolyBound v = PolyBound v [PolyBound v] deriving (Eq, Read, Show, Functor, Foldable, Traversable)
 
 -------------------------------
 -- ExprPolyBound

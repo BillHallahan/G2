@@ -141,7 +141,7 @@ inferenceL con ghci m_modname lrs nls evals meas_ex gs fc = do
                 ghci' = addSpecsToGhcInfos ghci gs'
             liftIO $ do
                 putStrLn "inferenceL"
-
+                putStrLn $ "fs = " ++ show fs
                 putStrLn $ "init gs' = " ++ show gs'
                 mapM (print . gsTySigs . spec) ghci'
 

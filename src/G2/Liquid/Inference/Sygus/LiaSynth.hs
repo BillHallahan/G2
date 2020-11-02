@@ -199,7 +199,7 @@ synth' con eenv tc meas meas_ex evals m_si fc headers = do
     let all_coeffs = getCoeffs m_si
     liftIO $ print m_si
     let evals' = assignIds evals
-        (cons, nm_fc_map) = nonMaxCoeffConstraints eenv tc meas meas_ex evals' m_si fc
+        (cons, nm_fc_map) = trace ("evals' = " ++ show evals') nonMaxCoeffConstraints eenv tc meas meas_ex evals' m_si fc
         hdrs = cons ++ headers
 
     mdl <- liftIO $ constraintsToModelOrUnsatCore con hdrs (zip all_coeffs (repeat SortInt))
@@ -517,12 +517,24 @@ type CInt a = Integer -> a
 buildLIA_SMT :: [[[SMTName]]] -> [SMTName] -> SMTAST
 buildLIA_SMT = buildLIA (:+) (:*) (:>=) mkSMTAnd mkSMTOr (flip V SortInt) VInt
 
--- Get a list of all LIA formulas.  We must then assign these to the "correct" refinement type,
--- i.e. the refinement type that is closest to the left, while still having all relevant variables bound.
+-- Get a list of all LIA formulas.  We raise these as high in a PolyBound as possible,
+-- because checking leaves is more expensive.  Also, checking leaves only happens if those
+-- leaves exists, i.e. consider a refinement on the elements of a list [{x:a | p x}],
+-- p is only checked in the nonempty case.
 buildLIA_LH :: SpecInfo -> SMTModel -> [PolyBound LHF.Expr]
-buildLIA_LH si mv =
+buildLIA_LH si mv = map (mapPB pAnd) . map (uncurry raiseSpecs) . zip synth_specs $  buildLIA_LH' si mv
+    where
+        synth_specs = s_syn_pre si ++ [s_syn_post si]
+
+        pAnd xs =
+            case any (== PFalse) xs of
+                True -> PFalse
+                False -> PAnd $ filter (/= PTrue) xs
+
+buildLIA_LH' :: SpecInfo -> SMTModel -> [PolyBound [LH.Expr]]
+buildLIA_LH' si mv =
     let
-        build ars = buildLIA ePlus eTimes bGeq pAnd pOr (detVar ars) (ECon . I) -- todo: Probably want to replace PAnd with id to group?
+        build ars = buildLIA ePlus eTimes bGeq id pOr (detVar ars) (ECon . I)
         pre = map (mapPB (\psi -> build (sy_args psi) (sy_coeffs psi) (map smt_var (sy_args psi)))) $ s_syn_pre si
         post = mapPB (\psi -> build post_ars (sy_coeffs psi) (map smt_var (sy_args psi))) $ s_syn_post si
     in
@@ -541,11 +553,6 @@ buildLIA_LH si mv =
         ePlus x (ECon (I 0)) = x
         ePlus x y = EBin LH.Plus x y
 
-        pAnd xs =
-            case any (== PFalse) xs of
-                True -> PFalse
-                False -> PAnd $ filter (/= PTrue) xs
-
         pOr xs =
             case any (== PTrue) xs of
                 True -> PTrue
@@ -559,6 +566,36 @@ buildLIA_LH si mv =
             | otherwise = PAtom LH.Ge x y
 
         post_ars = allPostSpecArgs si
+
+raiseSpecs :: PolyBound SynthSpec -> PolyBound [LH.Expr] -> PolyBound [LH.Expr]
+raiseSpecs sy_sp pb =
+    let
+        symb_pb = mapPB (HS.unions . map (argsInExpr . lh_rep) . sy_args) sy_sp
+        symb_es = map (\e -> (argsInExpr e, e)) . concat $ extractValues pb
+    in
+    snd $ L.mapAccumL
+            (\se spb ->
+                let
+                    se' = map (\(xs, e_) -> (HS.difference xs spb, e_)) se
+                    (se_here, se_cont) = L.partition (HS.null . fst) se'
+                    e = map snd se_here
+                in
+                (se_cont, e))
+            symb_es symb_pb
+
+argsInExpr :: LH.Expr -> HS.HashSet LH.Symbol
+argsInExpr (EVar symb) = HS.singleton symb
+argsInExpr (ECon _) = HS.empty
+argsInExpr (EApp _ x) =
+    -- The left hand side of an EApp is a measure.
+    -- Since we are only looking for arguments, we do not collect it
+    argsInExpr x
+argsInExpr (EBin _ x y) = HS.union (argsInExpr x) (argsInExpr y)
+argsInExpr (PAtom _ x y) = HS.union (argsInExpr x) (argsInExpr y)
+argsInExpr (PAnd xs) = HS.unions (map argsInExpr xs)
+argsInExpr (POr xs) = HS.unions (map argsInExpr xs)
+argsInExpr e = error $ "argsInExpr: unhandled symbol " ++ show e
+
 
 buildLIA :: Plus a
          -> Mult a
@@ -668,7 +705,6 @@ mkSpecArgPB ghci meas t st =
         out_symb = outer $ headValue sy_pb
         out_spec_arg = fmap (\os -> mkSpecArg ghci meas os t) out_symb
     in
-    trace ("t_sy_pb = " ++ show t_sy_pb)
     (out_spec_arg, mapPB (uncurry (mkSpecArg ghci meas)) t_sy_pb')
 
 mkSpecArg :: [GhcInfo] -> Measures -> LH.Symbol -> Type -> [SpecArg]
