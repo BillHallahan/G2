@@ -87,8 +87,8 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
 
     checkSatGetModelOrUnsatCore con hvals@(h_in, h_out, _) formula vs = do
         let formula' = "(set-option :produce-unsat-cores true)\n" ++ formula
-        -- putStrLn "\n\n checkSatGetModelOrUnsatCore"
-        -- putStrLn formula'
+        putStrLn "\n\n checkSatGetModelOrUnsatCore"
+        putStrLn formula'
         setUpFormulaZ3 h_in formula'
         r <- checkSat' h_in h_out
         -- putStrLn $ "r =  " ++ show r
