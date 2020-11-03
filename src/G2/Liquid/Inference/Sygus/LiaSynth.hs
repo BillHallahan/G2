@@ -45,7 +45,7 @@ import Debug.Trace
 data SynthRes = SynthEnv GeneratedSpecs | SynthFail FuncConstraints
 
 type Coeffs = (SMTName, [SMTName])
-type Clause = [Coeffs] 
+type Clause = (SMTName, [Coeffs]) 
 type CNF = [Clause]
 
 -- Internal Types
@@ -184,14 +184,18 @@ liaSynthOfSize sz m_si =
     where
         list_i_j s ars =
             [ 
-                [ 
-                    (
-                      s ++ "_act_" ++ show j ++ "_t" ++ show k
-                    ,  
-                      [ s ++ "_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
-                      | a <- [0..ars]]
-                    )
-                | k <- [1..sz] ]
+                (
+                    s ++ "_c_act_" ++ show j
+                ,
+                    [ 
+                        (
+                          s ++ "_f_act_" ++ show j ++ "_t" ++ show k
+                        ,  
+                          [ s ++ "_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
+                          | a <- [0..ars]]
+                        )
+                    | k <- [1..sz] ]
+                )
             | j <- [1..sz] ]
 
 type Size = Integer
@@ -200,7 +204,7 @@ synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
       => con -> NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals Bool -> M.Map Name SpecInfo -> MaxSize -> FuncConstraints -> Size -> m SynthRes
 synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc sz = do
     let si' = liaSynthOfSize sz si
-        zero_coeff_hdrs = [] -- softAssertZero si'
+        zero_coeff_hdrs = softFuncActAssertZero si' ++ softClauseActAssertZero si'
         max_coeffs_cons = maxCoeffConstraints si'
     res <- synthForUnsatCore con eenv tc meas meas_ex evals si' fc (zero_coeff_hdrs ++ max_coeffs_cons)
     case res of
@@ -450,8 +454,14 @@ envToSMT' meas_ex (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(Fu
             , (Named post post_name, (post_name, post_real))]
         Nothing -> error "envToSMT': function not found"
 
-softAssertZero :: M.Map Name SpecInfo -> [SMTHeader]
-softAssertZero = map (\n -> AssertSoft (V n SortInt := VInt 0)) . getCoeffs
+softCoeffAssertZero :: M.Map Name SpecInfo -> [SMTHeader]
+softCoeffAssertZero = map (\n -> AssertSoft (V n SortInt := VInt 0)) . getCoeffs
+
+softFuncActAssertZero :: M.Map Name SpecInfo -> [SMTHeader]
+softFuncActAssertZero = map (\n -> AssertSoft ((:!) $ V n SortBool)) . getFuncActs
+
+softClauseActAssertZero :: M.Map Name SpecInfo -> [SMTHeader]
+softClauseActAssertZero = map (\n -> AssertSoft (V n SortBool)) . getClauseActs
 
 maxCoeffConstraints :: M.Map Name SpecInfo -> [SMTHeader]
 maxCoeffConstraints =
@@ -459,7 +469,7 @@ maxCoeffConstraints =
     . concatMap
         (\si ->
             let
-                cffs = concatMap snd . concat $ allPreCoeffs si ++ allPostCoeffs si
+                cffs = concatMap snd . concatMap snd $ allPreCoeffs si ++ allPostCoeffs si
             in
             if s_status si == Synth
                 then map (\c -> (Neg (VInt (s_max_coeff si)) :<= V c SortInt)
@@ -489,13 +499,22 @@ getCoeffs :: M.Map Name SpecInfo -> [SMTName]
 getCoeffs m_si =
     gc allCoeffs . filter (\s -> s_status s == Synth)  $ M.elems m_si
     where
-        gc f = concatMap snd . concat . concatMap f . filter (\si -> s_status si == Synth)
+        gc f = concatMap snd . concatMap snd . concatMap f . filter (\si -> s_status si == Synth)
 
 getActs :: M.Map Name SpecInfo -> [SMTName]
-getActs m_si =
+getActs si = getClauseActs si ++ getFuncActs si
+
+getClauseActs :: M.Map Name SpecInfo -> [SMTName]
+getClauseActs m_si =
     gc allCoeffs . filter (\s -> s_status s == Synth)  $ M.elems m_si
     where
-        gc f = map fst . concat . concatMap f . filter (\si -> s_status si == Synth)
+        gc f = map fst . concatMap f . filter (\si -> s_status si == Synth)
+
+getFuncActs :: M.Map Name SpecInfo -> [SMTName]
+getFuncActs m_si =
+    gc allCoeffs . filter (\s -> s_status s == Synth)  $ M.elems m_si
+    where
+        gc f = map fst . concatMap snd . concatMap f . filter (\si -> s_status si == Synth)
 
 -- We assign a unique id to each function call, and use these as the arguments
 -- to the known functions, rather than somehow using the arguments directly.
@@ -549,8 +568,8 @@ type VInt a = SMTName -> a
 type CInt a = Integer -> a
 type VBool b = SMTName -> b
 
-buildLIA_SMT :: [[(SMTName, [SMTName])]] -> SMTName -> [SMTName] -> SMTAST
-buildLIA_SMT = buildLIA (:+) (:*) (:=) (:>=) Ite mkSMTAnd mkSMTOr (flip V SortInt) VInt (flip V SortBool)
+buildLIA_SMT :: [(SMTName, [(SMTName, [SMTName])])] -> SMTName -> [SMTName] -> SMTAST
+buildLIA_SMT = buildLIA (:+) (:*) (:=) (:>=) Ite mkSMTAnd mkSMTAnd mkSMTOr (flip V SortInt) VInt (flip V SortBool)
 
 -- Get a list of all LIA formulas.  We raise these as high in a PolyBound as possible,
 -- because checking leaves is more expensive.  Also, checking leaves only happens if those
@@ -569,7 +588,7 @@ buildLIA_LH si mv = map (mapPB pAnd) . map (uncurry raiseSpecs) . zip synth_spec
 buildLIA_LH' :: SpecInfo -> SMTModel -> [PolyBound [LH.Expr]]
 buildLIA_LH' si mv =
     let
-        build ars = buildLIA ePlus eTimes bEq bGeq eIte id pOr (detVar ars) (ECon . I) (detBool ars)
+        build ars = buildLIA ePlus eTimes bEq bGeq eIte id pAnd pOr (detVar ars) (ECon . I) (detBool ars)
         pre = map (mapPB (\psi -> build (sy_args psi) (sy_coeffs psi) (sy_eq_or_geq psi) (map smt_var (sy_args psi)))) $ s_syn_pre si
         post = mapPB (\psi -> build post_ars (sy_coeffs psi) (sy_eq_or_geq psi) (map smt_var (sy_args psi))) $ s_syn_post si
     in
@@ -595,6 +614,11 @@ buildLIA_LH' si mv =
         eIte PTrue x _ = x
         eIte PFalse _ y = y
         eIte b x y = error "eIte: Should never have non-concrete bool"
+
+        pAnd xs =
+            case any (== PFalse) xs of
+                True -> PFalse
+                False -> PAnd $ filter (/= PTrue) xs
 
         pOr xs =
             case any (== PTrue) xs of
@@ -651,19 +675,20 @@ buildLIA :: Plus a
          -> GEq a b
          -> Ite b b 
          -> And b c
+         -> And b b
          -> Or b
          -> VInt a
          -> CInt a
          -> VBool b
-         -> [[(SMTName, [SMTName])]]
+         -> [(SMTName, [(SMTName, [SMTName])])]
          -> SMTName
          -> [SMTName]
          -> c
-buildLIA plus mult eq geq ite mk_and mk_or vint cint vbool all_coeffs eq_or_geq args =
+buildLIA plus mult eq geq ite mk_and_sp mk_and mk_or vint cint vbool all_coeffs eq_or_geq args =
     let
-        lin_ineqs = map (map toLinInEqs) all_coeffs
+        lin_ineqs = map (\(cl_act, cl) -> vbool cl_act:map toLinInEqs cl) all_coeffs
     in
-    mk_and . map mk_or $ lin_ineqs
+    mk_and_sp . map mk_or $ lin_ineqs
     where
         toLinInEqs (act, c:cs) =
             let
@@ -671,7 +696,7 @@ buildLIA plus mult eq geq ite mk_and mk_or vint cint vbool all_coeffs eq_or_geq 
                    . map (uncurry mult)
                    $ zip (map vint cs) (map vint args)
             in
-            sm `geq` vint c -- mk_or [vbool act, {- ite (vbool eq_or_geq) (sm `eq` vint c) -} (sm `geq` vint c)]
+            mk_and [vbool act, sm `geq` vint c] -- mk_or [vbool act, {- ite (vbool eq_or_geq) (sm `eq` vint c) -} (sm `geq` vint c)]
         toLinInEqs (_, []) = error "buildLIA: unhandled empty coefficient list" 
 
 buildSI :: TypeClasses -> Measures -> Status -> [GhcInfo] ->  Name -> [Type] -> Type -> SpecInfo
