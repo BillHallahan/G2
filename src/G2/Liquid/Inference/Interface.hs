@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TupleSections #-}
 
 module G2.Liquid.Inference.Interface ( inferenceCheck
@@ -427,39 +428,44 @@ cexsToBlockingFC _ _ (CallsCounter dfc cfc fcs@(_:_)) = do
         else error "cexsToBlockingFC: Should be unreachable! Non-refinable function abstracted!"    
 cexsToBlockingFC lrs ghci cex@(DirectCounter dfc [])
     | isError (returns dfc) = do
-        case isExported lrs (funcName dfc) of
-            True -> return . Left $ cex
-            False -> return . Right . NotFC $ Call Pre dfc
-    | otherwise = do
-        -- pre_ref <- hasUserSpec (funcName dfc)
-        post_ref <- if isExported lrs (funcName dfc)
-                        then checkPost ghci lrs dfc
-                        else return True
-
+        if isExported lrs (funcName dfc)
+            then return . Left $ cex
+            else return . Right . NotFC $ Call Pre dfc
+    | isExported lrs (funcName dfc) = do
+        post_ref <- checkPost ghci lrs dfc
         case post_ref of
             True -> return $ Right (Call All dfc)
             False -> return . Left $ cex
+    | otherwise = return $ Right (Call All dfc)
 cexsToBlockingFC lrs ghci cex@(CallsCounter dfc cfc [])
     | any isError (arguments (abstract cfc)) = do
-        called_pr <- if isExported lrs (funcName (real cfc))
-                            then checkPre ghci lrs (real cfc)
-                            else return True
-        case called_pr of
-            False -> return . Left $ cex
-            True -> return . Right $ NotFC (Call Pre dfc)
+        if
+            | isExported lrs (funcName dfc)
+            , isExported lrs (funcName (real cfc)) -> do
+                called_pr <- checkPre ghci lrs (real cfc) -- TODO: Shouldn't be changing this?
+                case called_pr of
+                    True -> return . Right $ NotFC (Call Pre dfc)
+                    False -> return . Left $ cex
+            | isExported lrs (funcName dfc) -> do
+                called_pr <- checkPre ghci lrs (real cfc)
+                case called_pr of
+                    True -> return . Right $ NotFC (Call Pre dfc)
+                    False -> return . Left $ cex
+            | otherwise -> return . Right $ NotFC (Call Pre dfc)
     | otherwise = do
-        -- caller_pr <- hasUserSpec (funcName dfc)
-        -- called_pr <- hasUserSpec (funcName $ real cfc)
-        liftIO . putStrLn $ "About to check pre"
-        called_pr <- if isExported lrs (funcName (real cfc))
-                            then checkPre ghci lrs (real cfc)
-                            else return True
-
-        liftIO . putStrLn $ "called_pr = " ++ show called_pr
-
-        case called_pr of
-            False -> return . Left $ cex
-            _ -> return . Right $  ImpliesFC (Call Pre dfc) (Call Pre (abstract cfc))
+        if
+            | isExported lrs (funcName dfc)
+            , isExported lrs (funcName (real cfc)) -> do
+                called_pr <- checkPre ghci lrs (real cfc) -- TODO: Shouldn't be changing this?
+                case called_pr of
+                    True -> return . Right $ ImpliesFC (Call Pre dfc) (Call Pre (abstract cfc))
+                    False -> return . Left $ cex
+            | isExported lrs (funcName dfc) -> do
+                called_pr <- checkPre ghci lrs (real cfc)
+                case called_pr of
+                    True -> return . Right $ ImpliesFC (Call Pre dfc) (Call Pre (abstract cfc))
+                    False -> return . Left $ cex
+            | otherwise -> return . Right $ ImpliesFC (Call Pre dfc) (Call Pre (abstract cfc))
 
 -- Function constraints that don't block the current specification set, but which must be true
 -- (i.e. the actual input and output for abstracted functions)
