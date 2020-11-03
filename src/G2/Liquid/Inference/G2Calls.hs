@@ -248,7 +248,7 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
     let halter =      LHAbsHalter entry mb_modname (expr_env st)
                  :<~> lh_max_outputs
                  :<~> SwitchEveryNHalter (switch_after config)
-                 :<~> LHLimitSameAbstractedHalter 5
+                 -- :<~> LHLimitSameAbstractedHalter 5
                  -- :<~> SWHNFHalter
                  :<~> AcceptIfViolatedHalter
                  :<~> timer_halter
