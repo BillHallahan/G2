@@ -127,6 +127,7 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
             return (r, Nothing, Nothing)
 
     assertSolver _ = function1 "assert"
+    assertSoftSolver _ = function1 "assert-soft"
 
     defineFun con fn ars ret body =
         "(define-fun " ++ fn ++ " ("

@@ -21,6 +21,7 @@ type SMTName = String
 
 -- | These define the kinds of top level calls we give to the SMT solver.
 data SMTHeader = Assert SMTAST
+               | AssertSoft SMTAST
                | DefineFun SMTName [(SMTName, Sort)] Sort SMTAST
                | DeclareFun SMTName [Sort] Sort
                | VarDecl SMTNameBldr Sort
