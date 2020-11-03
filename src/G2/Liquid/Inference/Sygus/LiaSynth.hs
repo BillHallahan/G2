@@ -1,7 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Liquid.Inference.Sygus.LiaSynth ( SynthRes (..)
-                                          , liaSynth) where
+                                          , liaSynth
+
+                                          , MaxSize
+                                          , initMaxSize
+                                          , incrMaxSize) where
 
 import G2.Language as G2
 import qualified G2.Language.ExprEnv as E
@@ -91,10 +95,19 @@ data Status = Synth | Known deriving (Eq, Show)
 
 type NMExprEnv = HM.HashMap (T.Text, Maybe T.Text) G2.Expr
 
+newtype MaxSize = MaxSize Integer
+
+initMaxSize :: MaxSize
+initMaxSize = MaxSize 1
+
+incrMaxSize :: MaxSize -> MaxSize
+incrMaxSize (MaxSize sz) = MaxSize (sz + 1)
+
 liaSynth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
          => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
+         -> MaxSize
          -> FuncConstraints -> [Name] -> m SynthRes
-liaSynth con ghci lrs evals meas_ex fc ns_synth = do
+liaSynth con ghci lrs evals meas_ex max_sz fc ns_synth = do
     -- Compensate for zeroed out names in FuncConstraints
     let ns = map (\(Name n m _ l) -> Name n m 0 l) ns_synth
 
@@ -121,7 +134,7 @@ liaSynth con ghci lrs evals meas_ex fc ns_synth = do
 
     let meas = lrsMeasures ghci lrs
 
-    realizable <- checkUnrealizable con eenv' tc meas meas_ex evals si fc
+    realizable <- checkUnrealizable con eenv' tc meas meas_ex evals si max_sz fc
 
     case realizable of
         SynthEnv _ -> synth con eenv' tc meas meas_ex evals si fc 1
@@ -189,10 +202,10 @@ synth con eenv tc meas meas_ex evals si fc sz = do
         SynthFail _ -> synth con eenv tc meas meas_ex evals si fc (sz + 1)
 
 checkUnrealizable :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
-                  => con -> NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals Bool -> M.Map Name SpecInfo -> FuncConstraints -> m SynthRes
-checkUnrealizable con eenv tc meas meas_ex evals si fc = do
-    let num_calls = HS.size . HS.fromList $ allCallsFC fc
-        si' = liaSynthOfSize (toInteger num_calls) si
+                  => con -> NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals Bool
+                  -> M.Map Name SpecInfo -> MaxSize -> FuncConstraints -> m SynthRes
+checkUnrealizable con eenv tc meas meas_ex evals si (MaxSize max_sz) fc = do
+    let si' = liaSynthOfSize max_sz si
     synth' con eenv tc meas meas_ex evals si' fc []
     
 synth' :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)

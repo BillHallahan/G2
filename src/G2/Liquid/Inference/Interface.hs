@@ -58,7 +58,14 @@ inference infconfig config proj fp lhlibs = do
     (ghci, lhconfig) <- getGHCI infconfig config proj fp lhlibs
     inference' infconfig config lhconfig ghci proj fp lhlibs
 
-inference' :: InferenceConfig -> G2.Config -> LH.Config -> [GhcInfo] -> [FilePath] -> [FilePath] -> [FilePath] -> IO (Either [CounterExample] GeneratedSpecs)
+inference' :: InferenceConfig
+           -> G2.Config
+           -> LH.Config
+           -> [GhcInfo]
+           -> [FilePath]
+           -> [FilePath]
+           -> [FilePath]
+           -> IO (Either [CounterExample] GeneratedSpecs)
 inference' infconfig config lhconfig ghci proj fp lhlibs = do
     mapM (print . gsQualifiers . spec) ghci
 
@@ -87,13 +94,9 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
         prog = newProgress
 
     SomeSMTSolver smt <- getSMT g2config'
-    let infL = inferenceL smt ghci main_mod lrs nls emptyEvals HM.empty emptyGS emptyFC
+    let infL = iterativeInference smt ghci main_mod lrs nls HM.empty initMaxSize emptyGS emptyFC
 
-    inf <- runConfigs (runProgresser infL prog) configs
-    case inf of
-        CEx cex -> return $ Left cex
-        Env gs -> return $ Right gs
-        Raise _ _ -> error "inference: Unhandled Func Constraints"
+    runConfigs (runProgresser infL prog) configs
 
 getGHCI :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO ([GhcInfo], LH.Config)
 getGHCI infconfig config proj fp lhlibs = do
@@ -111,7 +114,7 @@ getGHCI infconfig config proj fp lhlibs = do
 
 data InferenceRes = CEx [CounterExample]
                   | Env GeneratedSpecs
-                  | Raise MeasureExs FuncConstraints
+                  | Raise MeasureExs FuncConstraints MaxSizeConstraints
                   deriving (Show)
 
 -- When we try to synthesize a specification for a function that we have already found a specification for,
@@ -122,6 +125,27 @@ type RisingFuncConstraints = FuncConstraints
 type Level = Int
 type NameLevels = [[Name]]
 
+type MaxSizeConstraints = FuncConstraints
+
+iterativeInference :: (ProgresserM m, InfConfigM m, MonadIO m, SMTConverter con ast out io)
+                   => con
+                   -> [GhcInfo]
+                   -> Maybe T.Text
+                   -> LiquidReadyState
+                   -> NameLevels
+                   -> MeasureExs
+                   -> MaxSize
+                   -> GeneratedSpecs
+                   -> FuncConstraints
+                   -> m (Either [CounterExample] GeneratedSpecs)
+iterativeInference con ghci m_modname lrs nls meas_ex max_sz gs fc = do
+    res <- inferenceL con ghci m_modname lrs nls emptyEvals meas_ex max_sz gs fc emptyFC
+    case res of
+        CEx cex -> return $ Left cex
+        Env gs -> return $ Right gs
+        Raise r_meas_ex r_fc _ -> iterativeInference con ghci m_modname lrs nls r_meas_ex (incrMaxSize max_sz) gs r_fc
+
+
 inferenceL :: (ProgresserM m, InfConfigM m, MonadIO m, SMTConverter con ast out io)
            => con
            -> [GhcInfo]
@@ -130,10 +154,12 @@ inferenceL :: (ProgresserM m, InfConfigM m, MonadIO m, SMTConverter con ast out 
            -> NameLevels
            -> Evals Bool
            -> MeasureExs
+           -> MaxSize
            -> GeneratedSpecs
            -> FuncConstraints
+           -> MaxSizeConstraints
            -> m InferenceRes
-inferenceL con ghci m_modname lrs nls evals meas_ex gs fc = do
+inferenceL con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc = do
     let (fs, sf) = case nls of
                         (fs_:sf_:_) -> (fs_, sf_)
                         ([fs_])-> (fs_, [])
@@ -141,7 +167,7 @@ inferenceL con ghci m_modname lrs nls evals meas_ex gs fc = do
 
     let curr_ghci = addSpecsToGhcInfos ghci gs
     evals' <- updateEvals curr_ghci lrs fc evals
-    synth_gs <- synthesize con curr_ghci lrs evals' meas_ex gs fc sf
+    synth_gs <- synthesize con curr_ghci lrs evals' meas_ex max_sz fc sf
 
     case synth_gs of
         SynthEnv envN -> do
@@ -160,11 +186,11 @@ inferenceL con ghci m_modname lrs nls evals meas_ex gs fc = do
                     case nls of
                         (_:nls') -> do
                             liftIO $ putStrLn "Down a level!"
-                            inf_res <- inferenceL con ghci m_modname lrs nls' emptyEvals meas_ex gs' fc
+                            inf_res <- inferenceL con ghci m_modname lrs nls' emptyEvals meas_ex max_sz gs' fc max_fc
                             case inf_res of
-                                Raise r_meas_ex r_fc -> do
+                                Raise r_meas_ex r_fc r_max_fc -> do
                                     liftIO $ putStrLn "Up a level!"
-                                    inferenceL con ghci m_modname lrs nls evals' r_meas_ex gs r_fc
+                                    inferenceL con ghci m_modname lrs nls evals' r_meas_ex max_sz gs r_fc r_max_fc
                                 _ -> return inf_res
                         [] -> return $ Env gs'
                 Unsafe bad -> do
@@ -175,9 +201,9 @@ inferenceL con ghci m_modname lrs nls evals meas_ex gs fc = do
                             liftIO $ putStrLn "Before genMeasureExs"
                             meas_ex' <- updateMeasureExs meas_ex lrs ghci fc'
                             liftIO $ putStrLn "After genMeasureExs"
-                            inferenceL con ghci m_modname lrs nls evals' meas_ex' gs (unionFC fc fc')
+                            inferenceL con ghci m_modname lrs nls evals' meas_ex' max_sz gs (unionFC fc fc') max_fc
                 Crash _ _ -> error "inferenceL: LiquidHaskell crashed"
-        SynthFail fc' -> return $ Raise meas_ex (unionFC fc fc')
+        SynthFail fc' -> return $ Raise meas_ex fc (unionFC max_fc fc')
 
 
 {-    let ignore = concat nls
@@ -357,9 +383,9 @@ increaseProgressing fc gs synth_gs synthed = undefined {- do
 
 synthesize :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
            => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
-           -> GeneratedSpecs -> FuncConstraints -> [Name] -> m SynthRes
-synthesize con ghci lrs evals meas_ex gs fc for_funcs =
-    liaSynth con ghci lrs evals meas_ex fc for_funcs
+           -> MaxSize -> FuncConstraints -> [Name] -> m SynthRes
+synthesize con ghci lrs evals meas_ex max_sz fc for_funcs =
+    liaSynth con ghci lrs evals meas_ex max_sz fc for_funcs
 
 updateEvals :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> FuncConstraints -> Evals Bool -> m (Evals Bool)
 updateEvals ghci lrs fc evals = do
