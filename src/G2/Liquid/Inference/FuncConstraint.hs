@@ -1,4 +1,5 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
                                           , SpecPart (..)
@@ -21,7 +22,10 @@ module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
                                           , filterFC
                                           , allCallNames
                                           , allCalls
-                                          , allCallsFC) where
+                                          , allCallsFC
+
+                                          , printFCs
+                                          , printFC) where
 
 import G2.Language.AST
 import G2.Language.Naming
@@ -33,6 +37,7 @@ import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Monoid hiding (All)
 
 newtype FuncConstraints = FuncConstraints (M.Map Name [FuncConstraint])
                      deriving (Eq, Show, Read)
@@ -108,6 +113,30 @@ allCallsFC = concatMap allCalls . toListFC
 
 allCallsByName :: FuncConstraints -> [FuncCall]
 allCallsByName = concatMap allCalls . toListFC
+
+printFCs :: FuncConstraints -> String
+printFCs fcs = intercalate "\n" (map printFC $ toListFC fcs)
+
+printFC :: FuncConstraint -> String
+printFC (Call sp (FuncCall { funcName = Name f _ _ _, arguments = ars, returns = r})) =
+    let
+        call_str fn = mkExprHaskell . foldl (\a a' -> App a a') (Var (Id fn TyUnknown)) $ ars
+        r_str = mkExprHaskell r
+    in
+    case sp of
+        Pre -> "(" ++ call_str (Name (f <> "_pre") Nothing 0 Nothing) ++ ")"
+        Post -> "(" ++ call_str (Name (f <> "_post") Nothing 0 Nothing) ++ " " ++ r_str ++ ")"
+        All -> "(" ++ call_str (Name f Nothing 0 Nothing) ++ " " ++ r_str ++ ")"
+printFC (AndFC fcs) =
+    case fcs of
+        (f:fcs') -> foldr (\fc fcs'' -> fcs'' ++ " && " ++ printFC fc) (printFC f) fcs'
+        [] -> "True"
+printFC (OrFC fcs) =
+    case fcs of
+        (f:fcs') -> foldr (\fc fcs'' -> fcs'' ++ " || " ++ printFC fc) (printFC f) fcs'
+        [] -> "False"
+printFC (ImpliesFC fc1 fc2) = printFC fc1 ++ " => " ++ printFC fc2 
+printFC (NotFC fc) = "not " ++ printFC fc
 
 instance ASTContainer FuncConstraint Expr where
     containedASTs (Call sp fc) = containedASTs fc

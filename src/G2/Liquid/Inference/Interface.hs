@@ -281,7 +281,9 @@ refineUnsafe ghci m_modname lrs gs bad = do
 
     res <- mapM (genNewConstraints merged_se_ghci m_modname lrs) bad'
 
-    liftIO . putStrLn $ "res = " ++ show res
+    liftIO $ do
+        putStrLn $ "res = "
+        printCE $ concat res
 
     let res' = concat res
 
@@ -292,7 +294,7 @@ refineUnsafe ghci m_modname lrs gs bad = do
     case new_fc of
         Left cex -> return $ Left cex
         Right new_fc' -> do
-            liftIO . putStrLn $ "new_fc' = " ++ show new_fc'
+            liftIO . putStrLn $ "new_fc' = " ++ printFCs new_fc'
             return $ Right new_fc'
 
 {-
@@ -360,7 +362,7 @@ checkNewConstraints ghci lrs cexs = do
     res2 <- return . concat =<< mapM cexsToExtraFC cexs
     case lefts res of
         res'@(_:_) -> return . Left $ res'
-        _ -> return . Right . filterErrors . unionsFC . map fromSingletonFC $ (rights res) ++ res2
+        _ -> return . Right . unionsFC . map fromSingletonFC $ (rights res) ++ res2
 
 updateMeasureExs :: (InfConfigM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> FuncConstraints -> m MeasureExs
 updateMeasureExs meas_ex lrs ghci fcs =
