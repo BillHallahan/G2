@@ -251,7 +251,8 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
                  :<~> LHLimitSameAbstractedHalter 5
                  -- :<~> SWHNFHalter
                  :<~> AcceptIfViolatedHalter
-                 :<~> timer_halter -- OnlyIf (\pr _ -> any true_assert (accepted pr)) timer_halter
+                 :<~> timer_halter
+                 -- :<~> OnlyIf (\pr _ -> any true_assert (accepted pr)) timer_halter
 
     return $ if higherOrderSolver config == AllFuncs then 
         ( SomeReducer NonRedPCRed

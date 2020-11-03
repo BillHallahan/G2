@@ -44,7 +44,7 @@ import Debug.Trace
 
 data SynthRes = SynthEnv GeneratedSpecs | SynthFail FuncConstraints
 
-type Coeffs = [SMTName]
+type Coeffs = (SMTName, [SMTName])
 type Clause = [Coeffs] 
 type CNF = [Clause]
 
@@ -185,8 +185,12 @@ liaSynthOfSize sz m_si =
         list_i_j s ars =
             [ 
                 [ 
-                    [ s ++ "_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
-                    | a <- [0..ars]]
+                    (
+                      s ++ "_act_" ++ show j ++ "_t" ++ show k
+                    ,  
+                      [ s ++ "_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
+                      | a <- [0..ars]]
+                    )
                 | k <- [1..sz] ]
             | j <- [1..sz] ]
 
@@ -237,9 +241,10 @@ namesForModel :: M.Map Name SpecInfo -> [(SMTName, Sort)]
 namesForModel m_si =
     let
         all_coeffs = zip (getCoeffs m_si) (repeat SortInt)
+        all_acts = zip (getActs m_si) (repeat SortInt)
         all_eq_or_geq = zip (map sy_eq_or_geq . concatMap allSynthSpec $ M.elems m_si) (repeat SortBool)
     in
-    all_coeffs ++ all_eq_or_geq
+    all_coeffs ++ all_acts ++ all_eq_or_geq
 
 modelToGS :: M.Map Name SpecInfo -> SMTModel -> GeneratedSpecs
 modelToGS m_si mdl =
@@ -454,7 +459,7 @@ maxCoeffConstraints =
     . concatMap
         (\si ->
             let
-                cffs = concat . concat $ allPreCoeffs si ++ allPostCoeffs si
+                cffs = concatMap snd . concat $ allPreCoeffs si ++ allPostCoeffs si
             in
             if s_status si == Synth
                 then map (\c -> (Neg (VInt (s_max_coeff si)) :<= V c SortInt)
@@ -467,8 +472,10 @@ nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc =
     let
         evals' = assignIds evals
         
+        all_acts = getActs m_si
         all_coeffs = getCoeffs m_si
 
+        var_act_hdrs = map (flip VarDecl SortBool . TB.text . T.pack) all_acts
         var_int_hdrs = map (flip VarDecl SortInt . TB.text . T.pack) all_coeffs
         var_bool_hdrs = map (flip VarDecl SortBool . TB.text . T.pack . sy_eq_or_geq) . concatMap allSynthSpec $ M.elems m_si
 
@@ -476,17 +483,19 @@ nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc =
         fc_smt = constraintsToSMT eenv tc meas meas_ex evals' m_si fc
         (env_smt, nm_fc) = envToSMT meas_ex evals' m_si fc
     in
-    (var_int_hdrs ++ var_bool_hdrs ++ def_funs ++ fc_smt ++ env_smt, nm_fc)
+    (var_act_hdrs ++ var_int_hdrs ++ var_bool_hdrs ++ def_funs ++ fc_smt ++ env_smt, nm_fc)
 
 getCoeffs :: M.Map Name SpecInfo -> [SMTName]
 getCoeffs m_si =
-    let
-        all_precoeffs = gc allPreCoeffs . filter (\s -> s_status s == Synth) $ M.elems m_si
-        all_postcoeffs = gc allPostCoeffs . filter (\s -> s_status s == Synth)  $ M.elems m_si
-    in
-    all_precoeffs ++ all_postcoeffs
+    gc allCoeffs . filter (\s -> s_status s == Synth)  $ M.elems m_si
     where
-        gc f = concat . concat . concatMap f . filter (\si -> s_status si == Synth)
+        gc f = concatMap snd . concat . concatMap f . filter (\si -> s_status si == Synth)
+
+getActs :: M.Map Name SpecInfo -> [SMTName]
+getActs m_si =
+    gc allCoeffs . filter (\s -> s_status s == Synth)  $ M.elems m_si
+    where
+        gc f = map fst . concat . concatMap f . filter (\si -> s_status si == Synth)
 
 -- We assign a unique id to each function call, and use these as the arguments
 -- to the known functions, rather than somehow using the arguments directly.
@@ -540,7 +549,7 @@ type VInt a = SMTName -> a
 type CInt a = Integer -> a
 type VBool b = SMTName -> b
 
-buildLIA_SMT :: [[[SMTName]]] -> SMTName -> [SMTName] -> SMTAST
+buildLIA_SMT :: [[(SMTName, [SMTName])]] -> SMTName -> [SMTName] -> SMTAST
 buildLIA_SMT = buildLIA (:+) (:*) (:=) (:>=) Ite mkSMTAnd mkSMTOr (flip V SortInt) VInt (flip V SortBool)
 
 -- Get a list of all LIA formulas.  We raise these as high in a PolyBound as possible,
@@ -646,7 +655,7 @@ buildLIA :: Plus a
          -> VInt a
          -> CInt a
          -> VBool b
-         -> [[[SMTName]]]
+         -> [[(SMTName, [SMTName])]]
          -> SMTName
          -> [SMTName]
          -> c
@@ -656,15 +665,14 @@ buildLIA plus mult eq geq ite mk_and mk_or vint cint vbool all_coeffs eq_or_geq 
     in
     mk_and . map mk_or $ lin_ineqs
     where
-        toLinInEqs (c:cs) =
+        toLinInEqs (act, c:cs) =
             let
                 sm = foldr plus (cint 0)
                    . map (uncurry mult)
                    $ zip (map vint cs) (map vint args)
             in
-            -- ite (vbool eq_or_geq) (sm `eq` vint c)
-            (sm `geq` vint c)
-        toLinInEqs [] = error "buildLIA: unhandled empty coefficient list" 
+            sm `geq` vint c -- mk_or [vbool act, {- ite (vbool eq_or_geq) (sm `eq` vint c) -} (sm `geq` vint c)]
+        toLinInEqs (_, []) = error "buildLIA: unhandled empty coefficient list" 
 
 buildSI :: TypeClasses -> Measures -> Status -> [GhcInfo] ->  Name -> [Type] -> Type -> SpecInfo
 buildSI tc meas stat ghci f aty rty =
@@ -893,6 +901,9 @@ allPreSynthSpec = concatMap extractValues . s_syn_pre
 
 allPostSynthSpec :: SpecInfo -> [SynthSpec]
 allPostSynthSpec = extractValues . s_syn_post
+
+allCoeffs :: SpecInfo -> CNF
+allCoeffs si = allPreCoeffs si ++ allPostCoeffs si
 
 allPreCoeffs :: SpecInfo -> CNF
 allPreCoeffs = concatMap sy_coeffs . allPreSynthSpec
