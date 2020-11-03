@@ -196,9 +196,9 @@ synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
       => con -> NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals Bool -> M.Map Name SpecInfo -> MaxSize -> FuncConstraints -> Size -> m SynthRes
 synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc sz = do
     let si' = liaSynthOfSize sz si
-        zero_coeff_hdrs = [] -- softAssertZero m_si
+        zero_coeff_hdrs = [] -- softAssertZero si'
         max_coeffs_cons = maxCoeffConstraints si'
-    res <- synth' con eenv tc meas meas_ex evals si' fc (zero_coeff_hdrs ++ max_coeffs_cons)
+    res <- synthForUnsatCore con eenv tc meas meas_ex evals si' fc (zero_coeff_hdrs ++ max_coeffs_cons)
     case res of
         SynthEnv _ -> return res
         SynthFail _
@@ -210,25 +210,21 @@ checkUnrealizable :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
                   -> M.Map Name SpecInfo -> MaxSize -> FuncConstraints -> m SynthRes
 checkUnrealizable con eenv tc meas meas_ex evals si (MaxSize max_sz) fc = do
     let si' = liaSynthOfSize max_sz si
-    synth' con eenv tc meas meas_ex evals si' fc []
+    synthForUnsatCore con eenv tc meas meas_ex evals si' fc []
     
-synth' :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
-      => con -> NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals Bool -> M.Map Name SpecInfo -> FuncConstraints -> [SMTHeader] -> m SynthRes
-synth' con eenv tc meas meas_ex evals m_si fc headers = do
-    let all_coeffs = zip (getCoeffs m_si) (repeat SortInt)
-        all_eq_or_geq = zip (map sy_eq_or_geq . concatMap allSynthSpec $ M.elems m_si) (repeat SortBool)
+synthForUnsatCore :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
+                  => con -> NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals Bool -> M.Map Name SpecInfo -> FuncConstraints -> [SMTHeader] -> m SynthRes
+synthForUnsatCore con eenv tc meas meas_ex evals m_si fc headers = do
+    let n_for_m = namesForModel m_si
     liftIO $ print m_si
-    let evals' = assignIds evals
-        (cons, nm_fc_map) = nonMaxCoeffConstraints eenv tc meas meas_ex evals' m_si fc
+    let (cons, nm_fc_map) = nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc
         hdrs = cons ++ headers
 
-    mdl <- liftIO $ constraintsToModelOrUnsatCore con hdrs (all_coeffs ++ all_eq_or_geq)
+    mdl <- liftIO $ constraintsToModelOrUnsatCore con hdrs n_for_m
 
     case mdl of
         Right mdl' -> do
-            let lh_spec = M.map (\si -> buildLIA_LH si mdl') . M.filter (\si -> s_status si == Synth) $ m_si
-            liftIO $ print lh_spec
-            let gs' = M.foldrWithKey insertAssertGS emptyGS lh_spec
+            let gs' = modelToGS m_si mdl'
             liftIO $ print gs'
             return (SynthEnv gs')
         Left uc ->
@@ -236,6 +232,21 @@ synth' con eenv tc meas meas_ex evals m_si fc headers = do
                 fc_uc = fromSingletonFC . NotFC . AndFC . map (nm_fc_map HM.!) $ HS.toList uc
             in
             return (SynthFail fc_uc)
+
+namesForModel :: M.Map Name SpecInfo -> [(SMTName, Sort)]
+namesForModel m_si =
+    let
+        all_coeffs = zip (getCoeffs m_si) (repeat SortInt)
+        all_eq_or_geq = zip (map sy_eq_or_geq . concatMap allSynthSpec $ M.elems m_si) (repeat SortBool)
+    in
+    all_coeffs ++ all_eq_or_geq
+
+modelToGS :: M.Map Name SpecInfo -> SMTModel -> GeneratedSpecs
+modelToGS m_si mdl =
+  let
+      lh_spec = M.map (\si -> buildLIA_LH si mdl) . M.filter (\si -> s_status si == Synth) $ m_si
+  in
+  M.foldrWithKey insertAssertGS emptyGS lh_spec
 
 mkPreCall :: NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals (Integer, Bool) -> M.Map Name SpecInfo -> FuncCall -> SMTAST
 mkPreCall eenv tc meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars })
@@ -435,7 +446,7 @@ envToSMT' meas_ex (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(Fu
         Nothing -> error "envToSMT': function not found"
 
 softAssertZero :: M.Map Name SpecInfo -> [SMTHeader]
-softAssertZero = map (\n -> AssertSoft (V n SortInt:/= VInt 0)) . getCoeffs
+softAssertZero = map (\n -> AssertSoft (V n SortInt := VInt 0)) . getCoeffs
 
 maxCoeffConstraints :: M.Map Name SpecInfo -> [SMTHeader]
 maxCoeffConstraints =
@@ -450,18 +461,20 @@ maxCoeffConstraints =
                                     :&& (V c SortInt :<= VInt (s_max_coeff si))) cffs
                 else []) . M.elems
 
-nonMaxCoeffConstraints :: NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncConstraints
+nonMaxCoeffConstraints :: NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals Bool  -> M.Map Name SpecInfo -> FuncConstraints
                        -> ([SMTHeader], HM.HashMap SMTName FuncConstraint)
 nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc =
     let
+        evals' = assignIds evals
+        
         all_coeffs = getCoeffs m_si
 
         var_int_hdrs = map (flip VarDecl SortInt . TB.text . T.pack) all_coeffs
         var_bool_hdrs = map (flip VarDecl SortBool . TB.text . T.pack . sy_eq_or_geq) . concatMap allSynthSpec $ M.elems m_si
 
         def_funs = concatMap defineLIAFuns $ M.elems m_si
-        fc_smt = constraintsToSMT eenv tc meas meas_ex evals m_si fc
-        (env_smt, nm_fc) = envToSMT meas_ex evals m_si fc
+        fc_smt = constraintsToSMT eenv tc meas meas_ex evals' m_si fc
+        (env_smt, nm_fc) = envToSMT meas_ex evals' m_si fc
     in
     (var_int_hdrs ++ var_bool_hdrs ++ def_funs ++ fc_smt ++ env_smt, nm_fc)
 
