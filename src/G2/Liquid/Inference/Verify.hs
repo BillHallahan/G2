@@ -57,6 +57,7 @@ import qualified Language.Haskell.Liquid.UX.DiffCheck as DC
 data VerifyResult v = Safe
                     | Crash [(Integer, Cinfo)] String
                     | Unsafe [v]
+                    deriving Show
 
 verifyVarToName :: VerifyResult V.Var -> VerifyResult G2.Name
 verifyVarToName Safe = Safe

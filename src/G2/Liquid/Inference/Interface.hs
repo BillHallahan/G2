@@ -82,10 +82,10 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
 
         eenv = expr_env . state . lr_state $ lrs
 
+        cg = getCallGraph $ eenv
         nls = filter (not . null)
-            . map (filter (\(Name _ m _ _) -> m == main_mod)) 
-            . nameLevels
-            . getCallGraph $ eenv
+             . map (filter (\(Name _ m _ _) -> m == main_mod))
+             $ nameLevels cg 
 
     putStrLn $ "cg = " ++ show (filter (\(Name _ m _ _) -> m == main_mod) . functions $ getCallGraph eenv)
     putStrLn $ "nls = " ++ show nls
@@ -180,6 +180,8 @@ inferenceL con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc = do
                 mapM (print . gsTySigs . spec) ghci'
 
             res <- tryToVerifyOnly ghci' fs
+
+            liftIO . putStrLn $ "res = " ++ show res
             
             case res of
                 Safe ->

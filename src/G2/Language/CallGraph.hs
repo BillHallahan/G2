@@ -13,6 +13,8 @@ import Data.Graph
 import qualified Data.HashMap.Lazy as M
 import Data.Maybe
 
+import Debug.Trace
+
 data CallGraph = CallGraph { graph :: Graph
                            , nfv :: Vertex -> ((), Name, [Name])
                            , vert :: Name -> Maybe Vertex}
@@ -60,7 +62,7 @@ nameLevels cg =
         fs = functions cg
         eds = callsList cg
 
-        callers = map fst eds
+        callers = fs
         called_by_others = mapMaybe (\(n1, n2) -> if n1 /= n2 then Just n2 else Nothing) eds
 
         only_caller = filter (`notElem` called_by_others) callers
