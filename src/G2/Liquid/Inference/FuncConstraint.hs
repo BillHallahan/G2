@@ -106,6 +106,9 @@ allCalls (NotFC fc) = allCalls fc
 allCallsFC :: FuncConstraints -> [FuncCall]
 allCallsFC = concatMap allCalls . toListFC
 
+allCallsByName :: FuncConstraints -> [FuncCall]
+allCallsByName = concatMap allCalls . toListFC
+
 instance ASTContainer FuncConstraint Expr where
     containedASTs (Call sp fc) = containedASTs fc
     containedASTs (AndFC fcs) = containedASTs fcs

@@ -70,8 +70,8 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
 
     checkSatGetModel _ (h_in, h_out, _) formula vs = do
         setUpFormulaZ3 h_in formula
-        putStrLn "\n\n checkSatGetModel"
-        putStrLn formula
+        -- putStrLn "\n\n checkSatGetModel"
+        -- putStrLn formula
         r <- checkSat' h_in h_out
         -- putStrLn $ "r =  " ++ show r
         if r == SAT then do
@@ -79,23 +79,23 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
             -- putStrLn "======"
             -- putStrLn (show mdl)
             let m = parseModel mdl
-            putStrLn $ "m = " ++ show m
-            putStrLn "======"
+            -- putStrLn $ "m = " ++ show m
+            -- putStrLn "======"
             return (r, Just m)
         else do
             return (r, Nothing)
 
     checkSatGetModelOrUnsatCore con hvals@(h_in, h_out, _) formula vs = do
         let formula' = "(set-option :produce-unsat-cores true)\n" ++ formula
-        putStrLn "\n\n checkSatGetModelOrUnsatCore"
-        putStrLn formula'
+        -- putStrLn "\n\n checkSatGetModelOrUnsatCore"
+        -- putStrLn formula'
         setUpFormulaZ3 h_in formula'
         r <- checkSat' h_in h_out
-        putStrLn $ "r =  " ++ show r
+        -- putStrLn $ "r =  " ++ show r
         if r == SAT then do
             mdl <- getModelZ3 h_in h_out vs
             putStrLn "======"
-            putStrLn (show mdl)
+            -- putStrLn (show mdl)
             let m = parseModel mdl
             putStrLn $ "m = " ++ show m
             putStrLn "======"

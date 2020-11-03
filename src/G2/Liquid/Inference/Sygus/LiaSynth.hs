@@ -77,6 +77,7 @@ data FixedSpec = FixedSpec { fs_name :: SMTName
                            deriving (Show)
 
 data SynthSpec = SynthSpec { sy_name :: SMTName
+                           , sy_eq_or_geq :: SMTName
                            , sy_args :: [SpecArg]
                            , sy_coeffs :: CNF }
                            deriving (Show)
@@ -197,13 +198,14 @@ checkUnrealizable con eenv tc meas meas_ex evals si fc = do
 synth' :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
       => con -> NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals Bool -> M.Map Name SpecInfo -> FuncConstraints -> [SMTHeader] -> m SynthRes
 synth' con eenv tc meas meas_ex evals m_si fc headers = do
-    let all_coeffs = getCoeffs m_si
+    let all_coeffs = zip (getCoeffs m_si) (repeat SortInt)
+        all_eq_or_geq = zip (map sy_eq_or_geq . concatMap allSynthSpec $ M.elems m_si) (repeat SortBool)
     liftIO $ print m_si
     let evals' = assignIds evals
-        (cons, nm_fc_map) = trace ("evals' = " ++ show evals') nonMaxCoeffConstraints eenv tc meas meas_ex evals' m_si fc
+        (cons, nm_fc_map) = nonMaxCoeffConstraints eenv tc meas meas_ex evals' m_si fc
         hdrs = cons ++ headers
 
-    mdl <- liftIO $ constraintsToModelOrUnsatCore con hdrs (zip all_coeffs (repeat SortInt))
+    mdl <- liftIO $ constraintsToModelOrUnsatCore con hdrs (all_coeffs ++ all_eq_or_geq)
 
     case mdl of
         Right mdl' -> do
@@ -217,21 +219,6 @@ synth' con eenv tc meas meas_ex evals m_si fc headers = do
                 fc_uc = fromSingletonFC . NotFC . AndFC . map (nm_fc_map HM.!) $ HS.toList uc
             in
             return (SynthFail fc_uc)
-
-       -- , s_syn_pre = map (\(ars_pb, i) ->
-       --                          let
-       --                              ars = concatMap fst (init ars_pb)
-       --                              r_pb = snd (last ars_pb)
-       --                          in
-       --                          mapPB (\(r, j) ->
-       --                                  let
-       --                                      ars_r = ars ++ r
-       --                                  in
-       --                                  SynthSpec { sy_name = smt_f ++ "_synth_pre_" ++ show i ++ "_" ++ show j
-       --                                            , sy_args = map (\(a, k) -> a { smt_var = "x_" ++ show k}) $ zip ars_r [1..]
-       --                                            , sy_coeffs = []}
-       --                                )  $ zipPB r_pb (uniqueIds r_pb)
-       --                   ) $ zip (filter (not . null) $ L.inits outer_ars_pb) [1..]
 
 mkPreCall :: NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals (Integer, Bool) -> M.Map Name SpecInfo -> FuncCall -> SMTAST
 mkPreCall eenv tc meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars })
@@ -449,12 +436,13 @@ nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc =
     let
         all_coeffs = getCoeffs m_si
 
-        var_decl_hdrs = map (flip VarDecl SortInt . TB.text . T.pack) all_coeffs
+        var_int_hdrs = map (flip VarDecl SortInt . TB.text . T.pack) all_coeffs
+        var_bool_hdrs = map (flip VarDecl SortBool . TB.text . T.pack . sy_eq_or_geq) . concatMap allSynthSpec $ M.elems m_si
         def_funs = concatMap defineLIAFuns $ M.elems m_si
         fc_smt = constraintsToSMT eenv tc meas meas_ex evals m_si fc
         (env_smt, nm_fc) = envToSMT meas_ex evals m_si fc
     in
-    (var_decl_hdrs ++ def_funs ++ fc_smt ++ env_smt, nm_fc)
+    (var_int_hdrs ++ var_bool_hdrs ++ def_funs ++ fc_smt ++ env_smt, nm_fc)
 
 getCoeffs :: M.Map Name SpecInfo -> [SMTName]
 getCoeffs m_si =
@@ -495,7 +483,7 @@ defineSynthLIAFuncSF sf =
         ars_nm = map smt_var (sy_args sf)
         ars = zip ars_nm (repeat SortInt)
     in
-    DefineFun (sy_name sf) ars SortBool (buildLIA_SMT (sy_coeffs sf) ars_nm)
+    DefineFun (sy_name sf) ars SortBool (buildLIA_SMT (sy_coeffs sf) (sy_eq_or_geq sf) ars_nm)
 
 declareSynthLIAFuncSF :: SynthSpec -> SMTHeader
 declareSynthLIAFuncSF sf =
@@ -509,14 +497,17 @@ declareSynthLIAFuncSF sf =
 
 type Plus a = a ->  a -> a
 type Mult a = a ->  a -> a
+type EqF a b = a -> a -> b
 type GEq a b = a -> a -> b
+type Ite b a = b -> a -> a -> a
 type And b c = [b] -> c
 type Or b = [b] -> b
 type VInt a = SMTName -> a
 type CInt a = Integer -> a
+type VBool b = SMTName -> b
 
-buildLIA_SMT :: [[[SMTName]]] -> [SMTName] -> SMTAST
-buildLIA_SMT = buildLIA (:+) (:*) (:>=) mkSMTAnd mkSMTOr (flip V SortInt) VInt
+buildLIA_SMT :: [[[SMTName]]] -> SMTName -> [SMTName] -> SMTAST
+buildLIA_SMT = buildLIA (:+) (:*) (:=) (:>=) Ite mkSMTAnd mkSMTOr (flip V SortInt) VInt (flip V SortBool)
 
 -- Get a list of all LIA formulas.  We raise these as high in a PolyBound as possible,
 -- because checking leaves is more expensive.  Also, checking leaves only happens if those
@@ -535,9 +526,9 @@ buildLIA_LH si mv = map (mapPB pAnd) . map (uncurry raiseSpecs) . zip synth_spec
 buildLIA_LH' :: SpecInfo -> SMTModel -> [PolyBound [LH.Expr]]
 buildLIA_LH' si mv =
     let
-        build ars = buildLIA ePlus eTimes bGeq id pOr (detVar ars) (ECon . I)
-        pre = map (mapPB (\psi -> build (sy_args psi) (sy_coeffs psi) (map smt_var (sy_args psi)))) $ s_syn_pre si
-        post = mapPB (\psi -> build post_ars (sy_coeffs psi) (map smt_var (sy_args psi))) $ s_syn_post si
+        build ars = buildLIA ePlus eTimes bEq bGeq eIte id pOr (detVar ars) (ECon . I) (detBool ars)
+        pre = map (mapPB (\psi -> build (sy_args psi) (sy_coeffs psi) (sy_eq_or_geq psi) (map smt_var (sy_args psi)))) $ s_syn_pre si
+        post = mapPB (\psi -> build post_ars (sy_coeffs psi) (sy_eq_or_geq psi) (map smt_var (sy_args psi))) $ s_syn_post si
     in
     pre ++ [post]
     where
@@ -545,6 +536,10 @@ buildLIA_LH' si mv =
             | Just (VInt c) <- M.lookup v mv = ECon (I c)
             | Just sa <- L.find (\sa_ -> v == smt_var sa_) ars = lh_rep sa
             | otherwise = error "detVar: variable not found"
+
+        detBool ars v
+            | Just (VBool b) <- M.lookup v mv = if b then PTrue else PFalse
+            | otherwise = error "detBool: variable not found"
 
         eTimes (ECon (I 0)) _ = ECon (I 0)
         eTimes _ (ECon (I 0)) = ECon (I 0)
@@ -554,11 +549,20 @@ buildLIA_LH' si mv =
         ePlus x (ECon (I 0)) = x
         ePlus x y = EBin LH.Plus x y
 
+        eIte PTrue x _ = x
+        eIte PFalse _ y = y
+        eIte b x y = error "eIte: Should never have non-concrete bool"
+
         pOr xs =
             case any (== PTrue) xs of
                 True -> PTrue
                 False -> POr $ filter (/= PFalse) xs
 
+        bEq (ECon (I x)) (ECon (I y)) =
+            if x == y then PTrue else PFalse
+        bEq x y
+            | x == y = PTrue
+            | otherwise = PAtom LH.Ge x y
 
         bGeq (ECon (I x)) (ECon (I y)) =
             if x >= y then PTrue else PFalse
@@ -600,15 +604,19 @@ argsInExpr e = error $ "argsInExpr: unhandled symbol " ++ show e
 
 buildLIA :: Plus a
          -> Mult a
+         -> EqF a b
          -> GEq a b
+         -> Ite b b 
          -> And b c
          -> Or b
          -> VInt a
          -> CInt a
+         -> VBool b
          -> [[[SMTName]]]
+         -> SMTName
          -> [SMTName]
          -> c
-buildLIA plus mult geq mk_and mk_or vint cint all_coeffs args =
+buildLIA plus mult eq geq ite mk_and mk_or vint cint vbool all_coeffs eq_or_geq args =
     let
         lin_ineqs = map (map toLinInEqs) all_coeffs
     in
@@ -620,7 +628,8 @@ buildLIA plus mult geq mk_and mk_or vint cint all_coeffs args =
                    . map (uncurry mult)
                    $ zip (map vint cs) (map vint args)
             in
-            sm `geq` vint c
+            -- ite (vbool eq_or_geq) (sm `eq` vint c)
+            (sm `geq` vint c)
         toLinInEqs [] = error "buildLIA: unhandled empty coefficient list" 
 
 buildSI :: TypeClasses -> Measures -> Status -> [GhcInfo] ->  Name -> [Type] -> Type -> SpecInfo
@@ -657,6 +666,7 @@ buildSI tc meas stat ghci f aty rty =
                                         in
                                         SynthSpec { sy_name = smt_f ++ "_synth_pre_" ++ show i ++ "_" ++ show j
                                                   , sy_args = map (\(a, k) -> a { smt_var = "x_" ++ show k}) $ zip ars_r [1..]
+                                                  , sy_eq_or_geq = smt_f ++ "_eq_or_geq_" ++ show i ++ "_" ++ show j
                                                   , sy_coeffs = []}
                                       )  $ zipPB r_pb (uniqueIds r_pb)
                          ) $ zip (filter (not . null) $ L.inits outer_ars_pb) [1..]
@@ -742,6 +752,7 @@ mkSynSpecPB smt_f arg_ns pb_sa =
             in
             SynthSpec { sy_name = smt_f ++ show ui
                       , sy_args = arg_ns ++ ret_ns
+                      , sy_eq_or_geq = smt_f ++ "_eq_or_geq" ++ show ui
                       , sy_coeffs = [] }
         )
         $ zipPB (uniqueIds pb_sa) pb_sa
@@ -840,14 +851,23 @@ applicableMeasure t e =
             | otherwise = False
 
 -- Helpers
+allSynthSpec :: SpecInfo -> [SynthSpec]
+allSynthSpec si = allPreSynthSpec si ++ allPostSynthSpec si
+
+allPreSynthSpec :: SpecInfo -> [SynthSpec]
+allPreSynthSpec = concatMap extractValues . s_syn_pre
+
+allPostSynthSpec :: SpecInfo -> [SynthSpec]
+allPostSynthSpec = extractValues . s_syn_post
+
 allPreCoeffs :: SpecInfo -> CNF
-allPreCoeffs = concatMap sy_coeffs . concatMap extractValues . s_syn_pre
+allPreCoeffs = concatMap sy_coeffs . allPreSynthSpec
 
 allPreSpecArgs :: SpecInfo -> [SpecArg]
-allPreSpecArgs = concatMap sy_args . concatMap extractValues . s_syn_pre
+allPreSpecArgs = concatMap sy_args . allPreSynthSpec
 
 allPostCoeffs :: SpecInfo -> CNF
-allPostCoeffs = concatMap sy_coeffs . extractValues . s_syn_post
+allPostCoeffs = concatMap sy_coeffs . allPostSynthSpec
 
 allPostSpecArgs :: SpecInfo -> [SpecArg]
-allPostSpecArgs = concatMap sy_args . extractValues . s_syn_post
+allPostSpecArgs = concatMap sy_args . allPostSynthSpec
