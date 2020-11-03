@@ -52,7 +52,10 @@ instance Solver CVC4 where
 
 instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
     getIO (Z3 _ hhp) = hhp
-    closeIO (Z3 _ (h_in, _, _)) = hPutStr h_in "(exit)"
+    closeIO (Z3 _ (h_in, h_out, ph)) = do
+        hPutStr h_in "(exit)"
+        hClose h_in
+        hClose h_out
 
     empty _ = ""  
     merge _ x y = x ++ "\n" ++ y
@@ -215,7 +218,10 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
 
 instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
     getIO (CVC4 _ hhp) = hhp
-    closeIO (CVC4 _ (h_in, _, _)) = hPutStr h_in "(exit)"
+    closeIO (CVC4 _ (h_in, h_out, ph)) = do
+        hPutStr h_in "(exit)"
+        hClose h_in
+        hClose h_out
 
     empty _ = ""  
     merge _ = (++)
