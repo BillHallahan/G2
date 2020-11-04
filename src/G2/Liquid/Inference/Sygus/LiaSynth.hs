@@ -629,7 +629,7 @@ buildLIA_LH' si mv =
             if x == y then PTrue else PFalse
         bEq x y
             | x == y = PTrue
-            | otherwise = PAtom LH.Ge x y
+            | otherwise = PAtom LH.Eq x y
 
         bGeq (ECon (I x)) (ECon (I y)) =
             if x >= y then PTrue else PFalse
@@ -696,7 +696,7 @@ buildLIA plus mult eq geq ite mk_and_sp mk_and mk_or vint cint vbool all_coeffs 
                    . map (uncurry mult)
                    $ zip (map vint cs) (map vint args)
             in
-            mk_and [vbool act, sm `geq` vint c] -- mk_or [vbool act, {- ite (vbool eq_or_geq) (sm `eq` vint c) -} (sm `geq` vint c)]
+            mk_and [vbool act, ite (vbool eq_or_geq) (sm `eq` vint c) (sm `geq` vint c)] -- mk_or [vbool act, {- ite (vbool eq_or_geq) (sm `eq` vint c) -} (sm `geq` vint c)]
         toLinInEqs (_, []) = error "buildLIA: unhandled empty coefficient list" 
 
 buildSI :: TypeClasses -> Measures -> Status -> [GhcInfo] ->  Name -> [Type] -> Type -> SpecInfo
