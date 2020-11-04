@@ -311,38 +311,32 @@ mkPreCall eenv tc meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments
                   $ zip func_ts ars
 
             sy_body_p =
-                concatMap (\(si_pb, ts_es) ->
-                                let
-                                    t_ars = init ts_es
-                                    smt_ars = concatMap (map exprToSMT) $ map (uncurry (adjustArgs meas meas_ex)) t_ars
+                concatMap
+                    (\(si_pb, ts_es) ->
+                        let
+                            t_ars = init ts_es
+                            smt_ars = concatMap (map exprToSMT) $ map (uncurry (adjustArgs meas meas_ex)) t_ars
 
-                                    (l_rt, l_re) = last ts_es
-                                    re_pb = extractExprPolyBoundWithRoot l_re
-                                    rt_pb = extractTypePolyBound l_rt
-                                    si_re_rt_pb = zip3PB si_pb re_pb rt_pb
+                            (l_rt, l_re) = last ts_es
+                            re_pb = extractExprPolyBoundWithRoot l_re
+                            rt_pb = extractTypePolyBound l_rt
+
+
+                            re_rt_pb = filterPBByType snd $ zipPB re_pb rt_pb
+                            si_re_rt_pb = case re_rt_pb of
+                                              Just re_rt_pb -> zipWithPB (\x (y, z) -> (x, y, z)) si_pb re_rt_pb
+                                              Nothing -> error "mkPreCall: impossible, the polybound should have already been filtered"
+                        in
+                        concatMap
+                            (\(psi, re, rt) ->
+                                let
+                                    smt_r = map (map exprToSMT) $ map (adjustArgs meas meas_ex rt) re
                                 in
-                                concatMap
-                                    (\(psi, re, rt) ->
-                                        let
-                                            smt_r = map (map exprToSMT) $ map (adjustArgs meas meas_ex rt) re
-                                        in
-                                        map (\r -> Func (sy_name psi) $ smt_ars ++ r) smt_r
-                                      ) $ extractValues si_re_rt_pb
-                          ) . zip (s_syn_pre si) . filter (not . null) $ L.inits v_ars
+                                map (\r -> Func (sy_name psi) $ smt_ars ++ r) smt_r
+                              ) $ extractValues si_re_rt_pb
+                  ) . zip (s_syn_pre si) . filter (not . null) $ L.inits v_ars
 
             sy_body = foldr (.&&.) (VBool True) sy_body_p
-            -- e_t_pb = map (\(e, t) -> zipPB (extractExprPolyBoundWithRoot e) (extractTypePolyBound t))
-            --        $ filter (validArgForSMT . fst) (zip ars func_ts)
-            -- pre_and_ars = zipWith zipPB (s_syn_pre si) e_t_pb
-
-            -- sy_body = foldr (\(psi, (as, t)) e ->
-            --                     let
-            --                         smt_ars = map (map exprToSMT) . map (adjustArgs meas_ex t) $ filter validArgForSMT as
-
-            --                         func_calls = map (Func (sy_name psi)) smt_ars
-            --                     in
-            --                     foldr (:&&) e func_calls) (VBool True)
-            --                 (concatMap extractValues pre_and_ars)
             fixed_body = Func (s_known_pre_name si) [VInt ev_i]
             to_be_body = Func (s_to_be_pre_name si) [VInt ev_i]
         in
@@ -364,9 +358,13 @@ mkPostCall eenv tc meas meas_ex evals m_si fc@(FuncCall { funcName = n, argument
                     . concatMap (uncurry (adjustArgs meas meas_ex))
                     . filter (\(t, _) -> not (isTyFun t) && not (isTyVar t))
                     . filter (not . isTypeClass tc . fst)
-                    . filter (validArgForSMT . snd) $ zip func_ts ars -- map exprToSMT . concatMap (adjustArgs meas_ex) $ ars ++ [r]
+                    . filter (validArgForSMT . snd) $ zip func_ts ars
+            
             smt_ret = extractExprPolyBoundWithRoot r
             smt_ret_ty = extractTypePolyBound (returnType func_e)
+            smt_ret_e_ty = case filterPBByType snd $ zipPB smt_ret smt_ret_ty of
+                              Just smt_ret_e_ty' -> smt_ret_e_ty'
+                              Nothing -> PolyBound ([], headValue smt_ret_ty) []
 
             sy_body = foldr (.&&.) (VBool True)
                     . concatMap
@@ -377,7 +375,7 @@ mkPostCall eenv tc meas meas_ex evals m_si fc@(FuncCall { funcName = n, argument
                             in
                             map (\smt_r' -> Func (sy_name syn_p) $ smt_ars ++ smt_r') smt_r)
                     . extractValues 
-                    $ zip3PB (s_syn_post si) smt_ret smt_ret_ty -- Func (sy_name $ s_syn_post si) smt_ars
+                    $ zipWithPB (\x (y, z) -> (x, y, z)) (s_syn_post si) smt_ret_e_ty
             fixed_body = Func (s_known_post_name si) [VInt ev_i]
             to_be_body = Func (s_to_be_post_name si) [VInt ev_i]
         in
@@ -846,8 +844,7 @@ mkSpecArgPB ghci meas t st =
         sy_pb = specTypeSymbolPB st
         in_sy_pb = mapPB inner sy_pb
 
-        t_sy_pb = filterPB (\(PolyBound (_, t) _) -> not (isTyVar t) && not (isTyFun t))
-                $ zipPB in_sy_pb t_pb
+        t_sy_pb = filterPBByType snd $ zipPB in_sy_pb t_pb
         t_sy_pb' = case t_sy_pb of
                     Just pb -> pb
                     Nothing -> PolyBound (inner $ headValue sy_pb, t) []
@@ -856,6 +853,7 @@ mkSpecArgPB ghci meas t st =
         out_spec_arg = fmap (\os -> mkSpecArg ghci meas os t) out_symb
     in
     (out_spec_arg, mapPB (uncurry (mkSpecArg ghci meas)) t_sy_pb')
+
 
 mkSpecArg :: [GhcInfo] -> Measures -> LH.Symbol -> Type -> [SpecArg]
 mkSpecArg ghci meas symb t =
@@ -896,6 +894,13 @@ mkSynSpecPB smt_f arg_ns pb_sa =
                       , sy_coeffs = [] }
         )
         $ zipPB (uniqueIds pb_sa) pb_sa
+
+filterPBByType :: (v -> Type) -> PolyBound v -> Maybe (PolyBound v)
+filterPBByType f = filterPB (\(PolyBound v _) ->
+                                let
+                                    t = f v
+                                in
+                                not (isTyVar t) && not (isTyFun t))
 
 -- ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show i }) $ zip ret [1..]
        -- , s_syn_post = SynthSpec { sy_name = smt_f ++ "_synth_post"
