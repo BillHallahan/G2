@@ -168,7 +168,7 @@ inferenceL con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc = do
 
     let curr_ghci = addSpecsToGhcInfos ghci gs
     evals' <- updateEvals curr_ghci lrs fc evals
-    synth_gs <- synthesize con curr_ghci lrs evals' meas_ex max_sz fc (concat below_sf) sf
+    synth_gs <- synthesize con curr_ghci lrs evals' meas_ex max_sz (unionFC max_fc fc) (concat below_sf) sf
 
     case synth_gs of
         SynthEnv envN -> do
