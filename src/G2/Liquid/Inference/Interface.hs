@@ -161,14 +161,14 @@ inferenceL :: (ProgresserM m, InfConfigM m, MonadIO m, SMTConverter con ast out 
            -> MaxSizeConstraints
            -> m InferenceRes
 inferenceL con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc = do
-    let (fs, sf) = case nls of
-                        (fs_:sf_:_) -> (fs_, sf_)
-                        ([fs_])-> (fs_, [])
-                        [] -> ([], [])
+    let (fs, sf, below_sf) = case nls of
+                        (fs_:sf_:be) -> (fs_, sf_, be)
+                        ([fs_])-> (fs_, [], [])
+                        [] -> ([], [], [])
 
     let curr_ghci = addSpecsToGhcInfos ghci gs
     evals' <- updateEvals curr_ghci lrs fc evals
-    synth_gs <- synthesize con curr_ghci lrs evals' meas_ex max_sz fc sf
+    synth_gs <- synthesize con curr_ghci lrs evals' meas_ex max_sz fc (concat below_sf) sf
 
     case synth_gs of
         SynthEnv envN -> do
@@ -388,9 +388,9 @@ increaseProgressing fc gs synth_gs synthed = undefined {- do
 
 synthesize :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
            => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
-           -> MaxSize -> FuncConstraints -> [Name] -> m SynthRes
-synthesize con ghci lrs evals meas_ex max_sz fc for_funcs =
-    liaSynth con ghci lrs evals meas_ex max_sz fc for_funcs
+           -> MaxSize -> FuncConstraints -> [Name] -> [Name] -> m SynthRes
+synthesize con ghci lrs evals meas_ex max_sz fc to_be for_funcs =
+    liaSynth con ghci lrs evals meas_ex max_sz fc to_be for_funcs
 
 updateEvals :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> FuncConstraints -> Evals Bool -> m (Evals Bool)
 updateEvals ghci lrs fc evals = do

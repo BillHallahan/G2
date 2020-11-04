@@ -56,6 +56,10 @@ data SpecInfo = SI { s_max_coeff :: Integer
                    , s_known_pre :: FixedSpec
                    , s_known_post :: FixedSpec
 
+                   -- A function specification that must be synthesized in the future, at a lower level
+                   , s_to_be_pre :: ToBeSpec 
+                   , s_to_be_post :: ToBeSpec 
+
                    -- Functions that capture the pre and post condition.
                    -- We have one precondition function per argument
                    , s_syn_pre :: [PolyBound SynthSpec]
@@ -76,9 +80,19 @@ s_known_post_name = fs_name . s_known_post
 s_known_post_args :: SpecInfo -> [SpecArg]
 s_known_post_args = fs_args . s_known_post
 
+s_to_be_pre_name :: SpecInfo -> SMTName
+s_to_be_pre_name = tb_name . s_to_be_pre
+
+s_to_be_post_name :: SpecInfo -> SMTName
+s_to_be_post_name = tb_name . s_to_be_post
+
 data FixedSpec = FixedSpec { fs_name :: SMTName
                            , fs_args :: [SpecArg] }
                            deriving (Show)
+
+data ToBeSpec = ToBeSpec { tb_name :: SMTName
+                         , tb_args :: [SpecArg] }
+                         deriving (Show)
 
 data SynthSpec = SynthSpec { sy_name :: SMTName
                            , sy_op_branch1 :: SMTName
@@ -92,11 +106,20 @@ data SpecArg = SpecArg { lh_rep :: LH.Expr
                        , smt_sort :: Sort}
                        deriving (Show)
 
-data Status = Synth | Known deriving (Eq, Show)
+data Status = Synth -- ^ A specification should be synthesized
+            | ToBeSynthed -- ^ The specification will be synthesized at some lower level
+            | Known -- ^ The specification is completely fixed
+            deriving (Eq, Show)
 
 type NMExprEnv = HM.HashMap (T.Text, Maybe T.Text) G2.Expr
 
 newtype MaxSize = MaxSize Integer
+
+-- A list of functions that still must have specifications synthesized at a lower level
+type ToBeNames = [Name]
+
+-- A list of functions to synthesize a the current level
+type ToSynthNames = [Name]
 
 initMaxSize :: MaxSize
 initMaxSize = MaxSize 1
@@ -107,8 +130,9 @@ incrMaxSize (MaxSize sz) = MaxSize (sz + 1)
 liaSynth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
          => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
          -> MaxSize
-         -> FuncConstraints -> [Name] -> m SynthRes
-liaSynth con ghci lrs evals meas_ex max_sz fc ns_synth = do
+         -> FuncConstraints
+         -> ToBeNames -> ToSynthNames -> m SynthRes
+liaSynth con ghci lrs evals meas_ex max_sz fc to_be_ns ns_synth = do
     -- Compensate for zeroed out names in FuncConstraints
     let ns = map (\(Name n m _ l) -> Name n m 0 l) ns_synth
 
@@ -129,13 +153,26 @@ liaSynth con ghci lrs evals meas_ex max_sz fc ns_synth = do
                                         Nothing -> error $ "synthesize: No expr found") non_ns
         non_ts = map generateRelTypes non_es
 
-    let si = buildSpecInfo con tc ghci lrs (zip ns ts) ((zip non_ns non_ts)) meas_ex fc
+    -- Form tuples of:
+    -- (1) Func Names
+    -- (2) Function Argument Types
+    -- (3) Function Known Types
+    -- to be used in forming SpecInfo's
+    let ns_aty_rty = zip ns ts
+
+        other_aty_rty = zip non_ns non_ts
+        to_be_ns' = map zeroOutName to_be_ns
+        (to_be_ns_aty_rty, known_ns_aty_rty) = L.partition (\(n, _) -> n `elem` to_be_ns') other_aty_rty
+
+    let si = buildSpecInfo con tc ghci lrs ns_aty_rty to_be_ns_aty_rty known_ns_aty_rty meas_ex fc
 
     liftIO . putStrLn $ "si = " ++ show si
 
     let meas = lrsMeasures ghci lrs
 
     synth con eenv' tc meas meas_ex evals si max_sz fc 1
+    where
+      zeroOutName (Name n m _ l) = Name n m 0 l
     -- realizable <- checkUnrealizable con eenv' tc meas meas_ex evals si max_sz fc
 
     -- case realizable of
@@ -149,16 +186,18 @@ liaSynth con ghci lrs evals meas_ex max_sz fc ns_synth = do
 --                             else M.insert n (buildSI ghci n  ) si') si . allCallNames fc
 
 
-buildSpecInfo :: con -> TypeClasses -> [GhcInfo] -> LiquidReadyState -> [(Name, ([Type], Type))] -> [(Name, ([Type], Type))]
+buildSpecInfo :: con -> TypeClasses -> [GhcInfo] -> LiquidReadyState
+              -> [(Name, ([Type], Type))] -> [(Name, ([Type], Type))] -> [(Name, ([Type], Type))]
               -> MeasureExs -> FuncConstraints -> M.Map Name SpecInfo
-buildSpecInfo con tc ghci lrs ns_aty_rty non_ns_aty_rty meas_exs fc =
+buildSpecInfo con tc ghci lrs ns_aty_rty to_be_ns_aty_rty known_ns_aty_rty meas_exs fc =
     let 
         meas = lrsMeasures ghci lrs
 
         si = foldr (\(n, (at, rt)) -> M.insert n (buildSI tc meas Synth ghci n at rt)) M.empty ns_aty_rty
-        si' = foldr (\(n, (at, rt)) -> M.insert n (buildSI tc meas Known ghci n at rt)) si non_ns_aty_rty
+        si' = foldr (\(n, (at, rt)) -> M.insert n (buildSI tc meas ToBeSynthed ghci n at rt)) si to_be_ns_aty_rty
+        si'' = foldr (\(n, (at, rt)) -> M.insert n (buildSI tc meas Known ghci n at rt)) si' known_ns_aty_rty
     in
-    si'
+    si''
 
 liaSynthOfSize :: Integer -> M.Map Name SpecInfo -> M.Map Name SpecInfo
 liaSynthOfSize sz m_si =
@@ -305,9 +344,11 @@ mkPreCall eenv tc meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments
             --                     foldr (:&&) e func_calls) (VBool True)
             --                 (concatMap extractValues pre_and_ars)
             fixed_body = Func (s_known_pre_name si) [VInt ev_i]
+            to_be_body = Func (s_to_be_pre_name si) [VInt ev_i]
         in
         case s_status si of
                 Synth -> fixed_body :&& sy_body
+                ToBeSynthed -> fixed_body :&& to_be_body
                 Known -> fixed_body
     | otherwise = error "mkPreCall: specification not found"
 
@@ -338,9 +379,11 @@ mkPostCall eenv tc meas meas_ex evals m_si fc@(FuncCall { funcName = n, argument
                     . extractValues 
                     $ zip3PB (s_syn_post si) smt_ret smt_ret_ty -- Func (sy_name $ s_syn_post si) smt_ars
             fixed_body = Func (s_known_post_name si) [VInt ev_i]
+            to_be_body = Func (s_to_be_post_name si) [VInt ev_i]
         in
         case s_status si of
                 Synth -> fixed_body :&& sy_body
+                ToBeSynthed -> fixed_body :&& to_be_body
                 Known -> fixed_body
     | otherwise = error "mkPostCall: specification not found"
 
@@ -537,11 +580,17 @@ defineLIAFuns si =
         else [])
     ++
     [ defineFixedLIAFuncSF (s_known_pre si)
-    , defineFixedLIAFuncSF (s_known_post si)]
+    , defineFixedLIAFuncSF (s_known_post si)
+    , defineToBeFuncSF (s_to_be_pre si)
+    , defineToBeFuncSF (s_to_be_post si)]
 
 defineFixedLIAFuncSF :: FixedSpec -> SMTHeader
 defineFixedLIAFuncSF fs =
     DeclareFun (fs_name fs) [SortInt] SortBool
+
+defineToBeFuncSF :: ToBeSpec -> SMTHeader
+defineToBeFuncSF tb =
+    DeclareFun (tb_name tb) [SortInt] SortBool
 
 defineSynthLIAFuncSF :: SynthSpec -> SMTHeader
 defineSynthLIAFuncSF sf = 
@@ -740,6 +789,10 @@ buildSI tc meas stat ghci f aty rty =
                                  , fs_args = arg_ns }
        , s_known_post = FixedSpec { fs_name = smt_f ++ "_known_post"
                                   , fs_args = arg_ns ++ ret_ns }
+       , s_to_be_pre = ToBeSpec { tb_name = smt_f ++ "_to_be_pre"
+                                , tb_args = arg_ns }
+       , s_to_be_post = ToBeSpec { tb_name = smt_f ++ "_to_be_post"
+                                 , tb_args = arg_ns ++ ret_ns }
        , s_syn_pre = map (\(ars_pb, i) ->
                                 let
                                     ars = concatMap fst (init ars_pb)
