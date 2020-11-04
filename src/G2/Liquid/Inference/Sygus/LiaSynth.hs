@@ -81,7 +81,8 @@ data FixedSpec = FixedSpec { fs_name :: SMTName
                            deriving (Show)
 
 data SynthSpec = SynthSpec { sy_name :: SMTName
-                           , sy_eq_or_geq :: SMTName
+                           , sy_op_branch1 :: SMTName
+                           , sy_op_branch2 :: SMTName
                            , sy_args :: [SpecArg]
                            , sy_coeffs :: CNF }
                            deriving (Show)
@@ -246,9 +247,9 @@ namesForModel m_si =
     let
         all_coeffs = zip (getCoeffs m_si) (repeat SortInt)
         all_acts = zip (getActs m_si) (repeat SortInt)
-        all_eq_or_geq = zip (map sy_eq_or_geq . concatMap allSynthSpec $ M.elems m_si) (repeat SortBool)
+        all_op_branch = zip (concatMap (\sy -> [sy_op_branch1 sy, sy_op_branch2 sy]) . concatMap allSynthSpec $ M.elems m_si) (repeat SortBool)
     in
-    all_coeffs ++ all_acts ++ all_eq_or_geq
+    all_coeffs ++ all_acts ++ all_op_branch
 
 modelToGS :: M.Map Name SpecInfo -> SMTModel -> GeneratedSpecs
 modelToGS m_si mdl =
@@ -487,13 +488,16 @@ nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc =
 
         var_act_hdrs = map (flip VarDecl SortBool . TB.text . T.pack) all_acts
         var_int_hdrs = map (flip VarDecl SortInt . TB.text . T.pack) all_coeffs
-        var_bool_hdrs = map (flip VarDecl SortBool . TB.text . T.pack . sy_eq_or_geq) . concatMap allSynthSpec $ M.elems m_si
+        var_op1_hdrs = map (flip VarDecl SortBool . TB.text . T.pack . sy_op_branch1)
+                     . concatMap allSynthSpec $ M.elems m_si
+        var_op2_hdrs = map (flip VarDecl SortBool . TB.text . T.pack . sy_op_branch2)
+                     . concatMap allSynthSpec $ M.elems m_si
 
         def_funs = concatMap defineLIAFuns $ M.elems m_si
         fc_smt = constraintsToSMT eenv tc meas meas_ex evals' m_si fc
         (env_smt, nm_fc) = envToSMT meas_ex evals' m_si fc
     in
-    (var_act_hdrs ++ var_int_hdrs ++ var_bool_hdrs ++ def_funs ++ fc_smt ++ env_smt, nm_fc)
+    (var_act_hdrs ++ var_int_hdrs ++ var_op1_hdrs ++ var_op2_hdrs ++ def_funs ++ fc_smt ++ env_smt, nm_fc)
 
 getCoeffs :: M.Map Name SpecInfo -> [SMTName]
 getCoeffs m_si =
@@ -545,7 +549,7 @@ defineSynthLIAFuncSF sf =
         ars_nm = map smt_var (sy_args sf)
         ars = zip ars_nm (repeat SortInt)
     in
-    DefineFun (sy_name sf) ars SortBool (buildLIA_SMT (sy_coeffs sf) (sy_eq_or_geq sf) ars_nm)
+    DefineFun (sy_name sf) ars SortBool (buildLIA_SMT (sy_coeffs sf) (sy_op_branch1 sf) (sy_op_branch2 sf) ars_nm)
 
 declareSynthLIAFuncSF :: SynthSpec -> SMTHeader
 declareSynthLIAFuncSF sf =
@@ -560,6 +564,7 @@ declareSynthLIAFuncSF sf =
 type Plus a = a ->  a -> a
 type Mult a = a ->  a -> a
 type EqF a b = a -> a -> b
+type Gt a b = a -> a -> b
 type GEq a b = a -> a -> b
 type Ite b a = b -> a -> a -> a
 type And b c = [b] -> c
@@ -568,8 +573,8 @@ type VInt a = SMTName -> a
 type CInt a = Integer -> a
 type VBool b = SMTName -> b
 
-buildLIA_SMT :: [(SMTName, [(SMTName, [SMTName])])] -> SMTName -> [SMTName] -> SMTAST
-buildLIA_SMT = buildLIA (:+) (:*) (:=) (:>=) Ite mkSMTAnd mkSMTAnd mkSMTOr (flip V SortInt) VInt (flip V SortBool)
+buildLIA_SMT :: [(SMTName, [(SMTName, [SMTName])])] -> SMTName -> SMTName -> [SMTName] -> SMTAST
+buildLIA_SMT = buildLIA (:+) (:*) (:=) (:>) (:>=) Ite mkSMTAnd mkSMTAnd mkSMTOr (flip V SortInt) VInt (flip V SortBool)
 
 -- Get a list of all LIA formulas.  We raise these as high in a PolyBound as possible,
 -- because checking leaves is more expensive.  Also, checking leaves only happens if those
@@ -588,9 +593,9 @@ buildLIA_LH si mv = map (mapPB pAnd) . map (uncurry raiseSpecs) . zip synth_spec
 buildLIA_LH' :: SpecInfo -> SMTModel -> [PolyBound [LH.Expr]]
 buildLIA_LH' si mv =
     let
-        build ars = buildLIA ePlus eTimes bEq bGeq eIte id pAnd pOr (detVar ars) (ECon . I) (detBool ars)
-        pre = map (mapPB (\psi -> build (sy_args psi) (sy_coeffs psi) (sy_eq_or_geq psi) (map smt_var (sy_args psi)))) $ s_syn_pre si
-        post = mapPB (\psi -> build post_ars (sy_coeffs psi) (sy_eq_or_geq psi) (map smt_var (sy_args psi))) $ s_syn_post si
+        build ars = buildLIA ePlus eTimes bEq bGt bGeq eIte id pAnd pOr (detVar ars) (ECon . I) (detBool ars)
+        pre = map (mapPB (\psi -> build (sy_args psi) (sy_coeffs psi) (sy_op_branch1 psi) (sy_op_branch2 psi) (map smt_var (sy_args psi)))) $ s_syn_pre si
+        post = mapPB (\psi -> build post_ars (sy_coeffs psi) (sy_op_branch1 psi) (sy_op_branch2 psi) (map smt_var (sy_args psi))) $ s_syn_post si
     in
     pre ++ [post]
     where
@@ -630,6 +635,12 @@ buildLIA_LH' si mv =
         bEq x y
             | x == y = PTrue
             | otherwise = PAtom LH.Eq x y
+
+        bGt (ECon (I x)) (ECon (I y)) =
+            if x > y then PTrue else PFalse
+        bGt x y
+            | x == y = PFalse
+            | otherwise = PAtom LH.Gt x y
 
         bGeq (ECon (I x)) (ECon (I y)) =
             if x >= y then PTrue else PFalse
@@ -672,6 +683,7 @@ argsInExpr e = error $ "argsInExpr: unhandled symbol " ++ show e
 buildLIA :: Plus a
          -> Mult a
          -> EqF a b
+         -> Gt a b
          -> GEq a b
          -> Ite b b 
          -> And b c
@@ -682,9 +694,10 @@ buildLIA :: Plus a
          -> VBool b
          -> [(SMTName, [(SMTName, [SMTName])])]
          -> SMTName
+         -> SMTName
          -> [SMTName]
          -> c
-buildLIA plus mult eq geq ite mk_and_sp mk_and mk_or vint cint vbool all_coeffs eq_or_geq args =
+buildLIA plus mult eq gt geq ite mk_and_sp mk_and mk_or vint cint vbool all_coeffs op_br1 op_br2 args =
     let
         lin_ineqs = map (\(cl_act, cl) -> vbool cl_act:map toLinInEqs cl) all_coeffs
     in
@@ -696,7 +709,12 @@ buildLIA plus mult eq geq ite mk_and_sp mk_and mk_or vint cint vbool all_coeffs 
                    . map (uncurry mult)
                    $ zip (map vint cs) (map vint args)
             in
-            mk_and [vbool act, ite (vbool eq_or_geq) (sm `eq` vint c) (sm `geq` vint c)] -- mk_or [vbool act, {- ite (vbool eq_or_geq) (sm `eq` vint c) -} (sm `geq` vint c)]
+            mk_and [vbool act, ite (vbool op_br1)
+                                  (sm `eq` vint c)
+                                  (ite (vbool op_br2) (sm `gt` vint c)
+                                               (sm `geq` vint c)
+                                  )
+                   ] -- mk_or [vbool act, {- ite (vbool eq_or_geq) (sm `eq` vint c) -} (sm `geq` vint c)]
         toLinInEqs (_, []) = error "buildLIA: unhandled empty coefficient list" 
 
 buildSI :: TypeClasses -> Measures -> Status -> [GhcInfo] ->  Name -> [Type] -> Type -> SpecInfo
@@ -733,7 +751,8 @@ buildSI tc meas stat ghci f aty rty =
                                         in
                                         SynthSpec { sy_name = smt_f ++ "_synth_pre_" ++ show i ++ "_" ++ show j
                                                   , sy_args = map (\(a, k) -> a { smt_var = "x_" ++ show k}) $ zip ars_r [1..]
-                                                  , sy_eq_or_geq = smt_f ++ "_eq_or_geq_" ++ show i ++ "_" ++ show j
+                                                  , sy_op_branch1 = smt_f ++ "_op1_" ++ show i ++ "_" ++ show j
+                                                  , sy_op_branch2 = smt_f ++ "_op2_" ++ show i ++ "_" ++ show j
                                                   , sy_coeffs = []}
                                       )  $ zipPB r_pb (uniqueIds r_pb)
                          ) $ zip (filter (not . null) $ L.inits outer_ars_pb) [1..]
@@ -819,7 +838,8 @@ mkSynSpecPB smt_f arg_ns pb_sa =
             in
             SynthSpec { sy_name = smt_f ++ show ui
                       , sy_args = arg_ns ++ ret_ns
-                      , sy_eq_or_geq = smt_f ++ "_eq_or_geq" ++ show ui
+                      , sy_op_branch1 = smt_f ++ "_op1_" ++ show ui
+                      , sy_op_branch2 = smt_f ++ "_op2_" ++ show ui
                       , sy_coeffs = [] }
         )
         $ zipPB (uniqueIds pb_sa) pb_sa
