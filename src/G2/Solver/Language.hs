@@ -186,3 +186,10 @@ instance ASTContainer SMTAST Sort where
     modifyContainedASTs f (V n s) = V n (modify f s)
     modifyContainedASTs f x = modify (modifyContainedASTs f) x
 
+sortOf :: SMTAST -> Sort
+sortOf (VInt _) = SortInt
+sortOf (VFloat _) = SortFloat
+sortOf (VDouble _) = SortDouble
+sortOf (VChar _) = SortChar 
+sortOf (VBool _) = SortBool
+sortOf _ = error "sortOf: Unhandled SMTAST"

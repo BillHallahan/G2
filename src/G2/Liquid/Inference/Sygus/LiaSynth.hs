@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Liquid.Inference.Sygus.LiaSynth ( SynthRes (..)
+                                          , Size
                                           , liaSynth
 
                                           , MaxSize
@@ -42,7 +43,11 @@ import qualified Text.Builder as TB
 
 import Debug.Trace
 
-data SynthRes = SynthEnv GeneratedSpecs | SynthFail FuncConstraints
+data SynthRes = SynthEnv
+                  GeneratedSpecs -- ^ The synthesized specifications
+                  Size -- ^ The size that the synthesizer succeeded at
+                  SMTModel -- ^ An SMTModel corresponding to the new specifications
+              | SynthFail FuncConstraints
 
 type Coeffs = (SMTName, [SMTName])
 type Clause = (SMTName, [Coeffs]) 
@@ -114,6 +119,7 @@ data Status = Synth -- ^ A specification should be synthesized
 type NMExprEnv = HM.HashMap (T.Text, Maybe T.Text) G2.Expr
 
 newtype MaxSize = MaxSize Integer
+type Size = Integer
 
 -- A list of functions that still must have specifications synthesized at a lower level
 type ToBeNames = [Name]
@@ -131,8 +137,9 @@ liaSynth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
          => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
          -> MaxSize
          -> FuncConstraints
+         -> HM.HashMap Size [SMTModel] -- ^ SMT Models to block being returned by the synthesizer at various sizes
          -> ToBeNames -> ToSynthNames -> m SynthRes
-liaSynth con ghci lrs evals meas_ex max_sz fc to_be_ns ns_synth = do
+liaSynth con ghci lrs evals meas_ex max_sz fc mdls to_be_ns ns_synth = do
     -- Compensate for zeroed out names in FuncConstraints
     let ns = map (\(Name n m _ l) -> Name n m 0 l) ns_synth
 
@@ -170,21 +177,9 @@ liaSynth con ghci lrs evals meas_ex max_sz fc to_be_ns ns_synth = do
 
     let meas = lrsMeasures ghci lrs
 
-    synth con eenv' tc meas meas_ex evals si max_sz fc 1
+    synth con eenv' tc meas meas_ex evals si max_sz fc mdls 1
     where
       zeroOutName (Name n m _ l) = Name n m 0 l
-    -- realizable <- checkUnrealizable con eenv' tc meas meas_ex evals si max_sz fc
-
-    -- case realizable of
-    --     SynthEnv _ -> synth con eenv' tc meas meas_ex evals si fc 1
-    --     SynthFail _ -> return realizable
-
--- addKnownSpecs :: [GhcInfo] -> ExprEnv -> M.Map Name SpecInfo -> FuncConstraints -> M.Map Name SpecInfo
--- addKnownSpecs ghci si =
---     M.foldr (\n si' -> if n `M.member` si'
---                             then si'
---                             else M.insert n (buildSI ghci n  ) si') si . allCallNames fc
-
 
 buildSpecInfo :: con -> TypeClasses -> [GhcInfo] -> LiquidReadyState
               -> [(Name, ([Type], Type))] -> [(Name, ([Type], Type))] -> [(Name, ([Type], Type))]
@@ -238,31 +233,35 @@ liaSynthOfSize sz m_si =
                 )
             | j <- [1..sz] ]
 
-type Size = Integer
-
 synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
-      => con -> NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals Bool -> M.Map Name SpecInfo -> MaxSize -> FuncConstraints -> Size -> m SynthRes
-synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc sz = do
+      => con
+      -> NMExprEnv
+      -> TypeClasses
+      -> Measures
+      -> MeasureExs
+      -> Evals Bool
+      -> M.Map Name SpecInfo
+      -> MaxSize
+      -> FuncConstraints
+      -> HM.HashMap Size [SMTModel]
+      -> Size
+      -> m SynthRes
+synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc mdls sz = do
     let si' = liaSynthOfSize sz si
         zero_coeff_hdrs = softFuncActAssertZero si' ++ softClauseActAssertZero si'
         max_coeffs_cons = maxCoeffConstraints si'
-    res <- synthForUnsatCore con eenv tc meas meas_ex evals si' fc (zero_coeff_hdrs ++ max_coeffs_cons)
-    case res of
-        SynthEnv _ -> return res
-        SynthFail _
-          | sz < max_sz -> synth con eenv tc meas meas_ex evals si ms fc (sz + 1)
-          | otherwise -> return res
+        block_mdls = map blockModel $ HM.lookupDefault [] sz mdls
 
-checkUnrealizable :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
-                  => con -> NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals Bool
-                  -> M.Map Name SpecInfo -> MaxSize -> FuncConstraints -> m SynthRes
-checkUnrealizable con eenv tc meas meas_ex evals si (MaxSize max_sz) fc = do
-    let si' = liaSynthOfSize max_sz si
-    synthForUnsatCore con eenv tc meas meas_ex evals si' fc []
+    res <- synth' con eenv tc meas meas_ex evals si' fc (zero_coeff_hdrs ++ max_coeffs_cons ++ block_mdls) sz
+    case res of
+        SynthEnv _ _ _ -> return res
+        SynthFail _
+          | sz < max_sz -> synth con eenv tc meas meas_ex evals si ms fc mdls (sz + 1)
+          | otherwise -> return res
     
-synthForUnsatCore :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
-                  => con -> NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals Bool -> M.Map Name SpecInfo -> FuncConstraints -> [SMTHeader] -> m SynthRes
-synthForUnsatCore con eenv tc meas meas_ex evals m_si fc headers = do
+synth' :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
+                  => con -> NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals Bool -> M.Map Name SpecInfo -> FuncConstraints -> [SMTHeader] -> Size -> m SynthRes
+synth' con eenv tc meas meas_ex evals m_si fc headers sz = do
     let n_for_m = namesForModel m_si
     liftIO $ print m_si
     let (cons, nm_fc_map) = nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc
@@ -274,7 +273,7 @@ synthForUnsatCore con eenv tc meas meas_ex evals m_si fc headers = do
         Right mdl' -> do
             let gs' = modelToGS m_si mdl'
             liftIO $ print gs'
-            return (SynthEnv gs')
+            return (SynthEnv gs' sz mdl')
         Left uc ->
             let
                 fc_uc = fromSingletonFC . NotFC . AndFC . map (nm_fc_map HM.!) $ HS.toList uc
@@ -296,6 +295,11 @@ modelToGS m_si mdl =
       lh_spec = M.map (\si -> buildLIA_LH si mdl) . M.filter (\si -> s_status si == Synth) $ m_si
   in
   M.foldrWithKey insertAssertGS emptyGS lh_spec
+
+-- | Generates an Assert that, when added to a formula with the relevant variables,
+-- blocks it from returning the model
+blockModel :: SMTModel -> SMTHeader
+blockModel = Solver.Assert . (:!) . foldr (.&&.) (VBool True) . map (\(n, v) -> V n (sortOf v) := v) . M.toList
 
 mkPreCall :: NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals (Integer, Bool) -> M.Map Name SpecInfo -> FuncCall -> SMTAST
 mkPreCall eenv tc meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars })
