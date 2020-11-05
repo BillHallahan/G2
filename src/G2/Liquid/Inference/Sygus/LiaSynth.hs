@@ -49,7 +49,9 @@ data SynthRes = SynthEnv
                   SMTModel -- ^ An SMTModel corresponding to the new specifications
               | SynthFail FuncConstraints
 
-data Coeffs = Coeffs { coeffs_active :: SMTName
+data Coeffs = Coeffs { c_active :: SMTName
+                     , c_op_branch1 :: SMTName
+                     , c_op_branch2 :: SMTName
                      , coeffs :: [SMTName] }
                      deriving Show
 type Clause = (SMTName, [Coeffs]) 
@@ -102,8 +104,6 @@ data ToBeSpec = ToBeSpec { tb_name :: SMTName
                          deriving (Show)
 
 data SynthSpec = SynthSpec { sy_name :: SMTName
-                           , sy_op_branch1 :: SMTName
-                           , sy_op_branch2 :: SMTName
                            , sy_args :: [SpecArg]
                            , sy_coeffs :: CNF }
                            deriving (Show)
@@ -226,10 +226,10 @@ liaSynthOfSize sz m_si =
                 ,
                     [ Coeffs
                         {
-                          coeffs_active = s ++ "_f_act_" ++ show j ++ "_t" ++ show k
-                        
-                        ,  
-                          coeffs = 
+                          c_active = s ++ "_f_act_" ++ show j ++ "_t_" ++ show k
+                        , c_op_branch1 = s ++ "_op1_" ++ show j ++ "_t_" ++ show k
+                        , c_op_branch2 = s ++ "_op2_" ++ show j ++ "_t_" ++ show k
+                        , coeffs = 
                             [ s ++ "_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
                             | a <- [0..ars]]
                         }
@@ -306,7 +306,7 @@ siNamesForModel si =
     let
         all_coeffs = zip (siGetCoeffs si) (repeat SortInt)
         all_acts = zip (siGetActs si) (repeat SortInt)
-        all_op_branch = zip (concatMap (\sy -> [sy_op_branch1 sy, sy_op_branch2 sy]) . allSynthSpec $ si) (repeat SortBool)
+        all_op_branch = zip (siGetOpBranches si) (repeat SortBool)
     in
     all_coeffs ++ all_acts ++ all_op_branch
 
@@ -552,13 +552,13 @@ limitEquivModels m_si =
         clauses = concatMap allCNFs a_si
         cl_imp_coeff = concatMap
                           (\(cl_act, coeffs) ->
-                            map (\(Coeffs c_act _) -> V cl_act SortBool :=> ((:!) $ V c_act SortBool)) coeffs
+                            map (\(Coeffs c_act _ _ _) -> V cl_act SortBool :=> ((:!) $ V c_act SortBool)) coeffs
                           ) clauses 
 
         -- (2)
         coeffs = concatMap snd clauses
         coeff_act_imp_zero = concatMap
-                                 (\(Coeffs c_act cs) ->
+                                 (\(Coeffs c_act _ _ cs) ->
                                       map (\c -> ((:!) $ V c_act SortBool) :=> (V c SortInt := VInt 0)) cs
                                  ) coeffs
     in
@@ -598,13 +598,11 @@ nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc =
         
         all_acts = getActs m_si
         all_coeffs = getCoeffs m_si
+        get_ops = getOpBranches m_si
 
         var_act_hdrs = map (flip VarDecl SortBool . TB.text . T.pack) all_acts
         var_int_hdrs = map (flip VarDecl SortInt . TB.text . T.pack) all_coeffs
-        var_op1_hdrs = map (flip VarDecl SortBool . TB.text . T.pack . sy_op_branch1)
-                     . concatMap allSynthSpec $ M.elems m_si
-        var_op2_hdrs = map (flip VarDecl SortBool . TB.text . T.pack . sy_op_branch2)
-                     . concatMap allSynthSpec $ M.elems m_si
+        var_op_hdrs = map (flip VarDecl SortBool . TB.text . T.pack) get_ops
 
         def_funs = concatMap defineLIAFuns $ M.elems m_si
         fc_smt = constraintsToSMT eenv tc meas meas_ex evals' m_si fc
@@ -612,7 +610,7 @@ nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc =
 
         lim_equiv_smt = limitEquivModels m_si
     in
-    (var_act_hdrs ++ var_int_hdrs ++ var_op1_hdrs ++ var_op2_hdrs ++ def_funs ++ fc_smt ++ env_smt ++ lim_equiv_smt, nm_fc)
+    (var_act_hdrs ++ var_int_hdrs ++ var_op_hdrs ++ def_funs ++ fc_smt ++ env_smt ++ lim_equiv_smt, nm_fc)
 
 getCoeffs :: M.Map Name SpecInfo -> [SMTName]
 getCoeffs = concatMap siGetCoeffs . M.elems
@@ -620,6 +618,15 @@ getCoeffs = concatMap siGetCoeffs . M.elems
 siGetCoeffs :: SpecInfo -> [SMTName]
 siGetCoeffs si
     | s_status si == Synth = concatMap coeffs . concatMap snd $ allCNFs si
+    | otherwise = []
+
+getOpBranches:: M.Map Name SpecInfo -> [SMTName]
+getOpBranches = concatMap siGetOpBranches . M.elems
+
+siGetOpBranches :: SpecInfo -> [SMTName]
+siGetOpBranches si
+    | s_status si == Synth =
+        concatMap (\c -> [c_op_branch1 c, c_op_branch2 c]) . concatMap snd $ allCNFs si
     | otherwise = []
 
 getActs :: M.Map Name SpecInfo -> [SMTName]
@@ -643,7 +650,7 @@ getFuncActs m_si =
 
 siGetFuncActs :: SpecInfo -> [SMTName]
 siGetFuncActs si
-    | s_status si == Synth = map coeffs_active . concatMap snd $ allCNFs si
+    | s_status si == Synth = map c_active . concatMap snd $ allCNFs si
     | otherwise = []
 
 -- We assign a unique id to each function call, and use these as the arguments
@@ -681,7 +688,7 @@ defineSynthLIAFuncSF sf =
         ars_nm = map smt_var (sy_args sf)
         ars = zip ars_nm (repeat SortInt)
     in
-    DefineFun (sy_name sf) ars SortBool (buildLIA_SMT (sy_coeffs sf) (sy_op_branch1 sf) (sy_op_branch2 sf) ars_nm)
+    DefineFun (sy_name sf) ars SortBool (buildLIA_SMT (sy_coeffs sf) ars_nm)
 
 declareSynthLIAFuncSF :: SynthSpec -> SMTHeader
 declareSynthLIAFuncSF sf =
@@ -706,7 +713,7 @@ type VInt a = SMTName -> a
 type CInt a = Integer -> a
 type VBool b = SMTName -> b
 
-buildLIA_SMT :: [(SMTName, [Coeffs])] -> SMTName -> SMTName -> [SMTName] -> SMTAST
+buildLIA_SMT :: [(SMTName, [Coeffs])] -> [SMTName] -> SMTAST
 buildLIA_SMT = buildLIA (:+) (:*) (:=) (:>) (:>=) Ite mkSMTAnd mkSMTAnd mkSMTOr (flip V SortInt) VInt (flip V SortBool)
 
 -- Get a list of all LIA formulas.  We raise these as high in a PolyBound as possible,
@@ -727,8 +734,8 @@ buildLIA_LH' :: SpecInfo -> SMTModel -> [PolyBound [LH.Expr]]
 buildLIA_LH' si mv =
     let
         build ars = buildLIA ePlus eTimes bEq bGt bGeq eIte id pAnd pOr (detVar ars) (ECon . I) (detBool ars)
-        pre = map (mapPB (\psi -> build (sy_args psi) (sy_coeffs psi) (sy_op_branch1 psi) (sy_op_branch2 psi) (map smt_var (sy_args psi)))) $ s_syn_pre si
-        post = mapPB (\psi -> build post_ars (sy_coeffs psi) (sy_op_branch1 psi) (sy_op_branch2 psi) (map smt_var (sy_args psi))) $ s_syn_post si
+        pre = map (mapPB (\psi -> build (sy_args psi) (sy_coeffs psi) (map smt_var (sy_args psi)))) $ s_syn_pre si
+        post = mapPB (\psi -> build post_ars (sy_coeffs psi) (map smt_var (sy_args psi))) $ s_syn_post si
     in
     pre ++ [post]
     where
@@ -826,17 +833,18 @@ buildLIA :: Plus a
          -> CInt a
          -> VBool b
          -> [(SMTName, [Coeffs])]
-         -> SMTName
-         -> SMTName
          -> [SMTName]
          -> c
-buildLIA plus mult eq gt geq ite mk_and_sp mk_and mk_or vint cint vbool all_coeffs op_br1 op_br2 args =
+buildLIA plus mult eq gt geq ite mk_and_sp mk_and mk_or vint cint vbool all_coeffs args =
     let
         lin_ineqs = map (\(cl_act, cl) -> vbool cl_act:map toLinInEqs cl) all_coeffs
     in
     mk_and_sp . map mk_or $ lin_ineqs
     where
-        toLinInEqs (Coeffs { coeffs_active = act, coeffs = c:cs }) =
+        toLinInEqs (Coeffs { c_active = act
+                           , c_op_branch1 = op_br1
+                           , c_op_branch2 = op_br2
+                           , coeffs = c:cs }) =
             let
                 sm = foldr plus (cint 0)
                    . map (uncurry mult)
@@ -892,8 +900,6 @@ buildSI tc meas stat ghci f aty rty =
                                         in
                                         SynthSpec { sy_name = smt_f ++ "_synth_pre_" ++ show i ++ "_" ++ show j
                                                   , sy_args = map (\(a, k) -> a { smt_var = "x_" ++ show k}) $ zip ars_r [1..]
-                                                  , sy_op_branch1 = smt_f ++ "_op1_" ++ show i ++ "_" ++ show j
-                                                  , sy_op_branch2 = smt_f ++ "_op2_" ++ show i ++ "_" ++ show j
                                                   , sy_coeffs = []}
                                       )  $ zipPB r_pb (uniqueIds r_pb)
                          ) $ zip (filter (not . null) $ L.inits outer_ars_pb) [1..]
@@ -979,8 +985,6 @@ mkSynSpecPB smt_f arg_ns pb_sa =
             in
             SynthSpec { sy_name = smt_f ++ show ui
                       , sy_args = arg_ns ++ ret_ns
-                      , sy_op_branch1 = smt_f ++ "_op1_" ++ show ui
-                      , sy_op_branch2 = smt_f ++ "_op2_" ++ show ui
                       , sy_coeffs = [] }
         )
         $ zipPB (uniqueIds pb_sa) pb_sa
