@@ -529,6 +529,35 @@ envToSMT' meas_ex (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(Fu
             , (Named post post_name, (post_name, post_real))]
         Nothing -> error "envToSMT': function not found"
 
+-- | If the formula level active booleans are set to false, we force all the
+-- coefficients in the formula to be 0, since the formula is now irrelevant.
+-- Similarly, if the clause level boolean is set to true, we force all the
+-- formula level active booleans to be false, since the formulas are
+-- irrelevant.
+-- This is important, because as a fallback when counterexamples are not
+-- blocking bad solutions, we instead negate SMT models.  So we want as
+-- few different, but ultimately equivalent, models as possible.
+actsForceZeroCoeffs :: M.Map Name SpecInfo -> [SMTHeader]
+actsForceZeroCoeffs m_si =
+    let
+        clauses = concatMap allCNFs . filter (\si -> s_status si == Synth) $ M.elems m_si
+        cl_imp_coeff = concatMap
+                          (\(cl_act, coeffs) ->
+                            map (\(coeffs_act, _) -> V cl_act SortBool :=> ((:!) $ V coeffs_act SortBool)) coeffs
+                          ) clauses 
+
+        coeffs = concatMap snd clauses
+        coeff_act_imp_zero = concatMap
+                                 (\(c_act, cs) ->
+                                      map (\c -> ((:!) $ V c_act SortBool) :=> (V c SortInt := VInt 0)) cs
+                                 ) coeffs
+    in
+    map Solver.Assert $ cl_imp_coeff ++ coeff_act_imp_zero
+
+-- type Coeffs = (SMTName, [SMTName])
+-- type Clause = (SMTName, [Coeffs]) 
+-- type CNF = [Clause]
+
 softCoeffAssertZero :: M.Map Name SpecInfo -> [SMTHeader]
 softCoeffAssertZero = map (\n -> AssertSoft (V n SortInt := VInt 0)) . getCoeffs
 
@@ -570,15 +599,17 @@ nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc =
         def_funs = concatMap defineLIAFuns $ M.elems m_si
         fc_smt = constraintsToSMT eenv tc meas meas_ex evals' m_si fc
         (env_smt, nm_fc) = envToSMT meas_ex evals' m_si fc
+
+        acts_force_smt = actsForceZeroCoeffs m_si
     in
-    (var_act_hdrs ++ var_int_hdrs ++ var_op1_hdrs ++ var_op2_hdrs ++ def_funs ++ fc_smt ++ env_smt, nm_fc)
+    (var_act_hdrs ++ var_int_hdrs ++ var_op1_hdrs ++ var_op2_hdrs ++ def_funs ++ fc_smt ++ env_smt ++ acts_force_smt, nm_fc)
 
 getCoeffs :: M.Map Name SpecInfo -> [SMTName]
 getCoeffs = concatMap siGetCoeffs . M.elems
 
 siGetCoeffs :: SpecInfo -> [SMTName]
 siGetCoeffs si
-    | s_status si == Synth = concatMap snd . concatMap snd $ allCoeffs si
+    | s_status si == Synth = concatMap snd . concatMap snd $ allCNFs si
     | otherwise = []
 
 getActs :: M.Map Name SpecInfo -> [SMTName]
@@ -593,7 +624,7 @@ getClauseActs m_si =
 
 siGetClauseActs :: SpecInfo -> [SMTName]
 siGetClauseActs si
-    | s_status si == Synth = map fst $ allCoeffs si
+    | s_status si == Synth = map fst $ allCNFs si
     | otherwise = []
 
 getFuncActs :: M.Map Name SpecInfo -> [SMTName]
@@ -602,7 +633,7 @@ getFuncActs m_si =
 
 siGetFuncActs :: SpecInfo -> [SMTName]
 siGetFuncActs si
-    | s_status si == Synth = map fst . concatMap snd $ allCoeffs si
+    | s_status si == Synth = map fst . concatMap snd $ allCNFs si
     | otherwise = []
 
 -- We assign a unique id to each function call, and use these as the arguments
@@ -1054,8 +1085,8 @@ allPreSynthSpec = concatMap extractValues . s_syn_pre
 allPostSynthSpec :: SpecInfo -> [SynthSpec]
 allPostSynthSpec = extractValues . s_syn_post
 
-allCoeffs :: SpecInfo -> CNF
-allCoeffs si = allPreCoeffs si ++ allPostCoeffs si
+allCNFs :: SpecInfo -> CNF
+allCNFs si = allPreCoeffs si ++ allPostCoeffs si
 
 allPreCoeffs :: SpecInfo -> CNF
 allPreCoeffs = concatMap sy_coeffs . allPreSynthSpec
