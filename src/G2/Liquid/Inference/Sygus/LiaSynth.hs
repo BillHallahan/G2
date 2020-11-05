@@ -49,7 +49,9 @@ data SynthRes = SynthEnv
                   SMTModel -- ^ An SMTModel corresponding to the new specifications
               | SynthFail FuncConstraints
 
-type Coeffs = (SMTName, [SMTName])
+data Coeffs = Coeffs { coeffs_active :: SMTName
+                     , coeffs :: [SMTName] }
+                     deriving Show
 type Clause = (SMTName, [Coeffs]) 
 type CNF = [Clause]
 
@@ -222,13 +224,15 @@ liaSynthOfSize sz m_si =
                 (
                     s ++ "_c_act_" ++ show j
                 ,
-                    [ 
-                        (
-                          s ++ "_f_act_" ++ show j ++ "_t" ++ show k
+                    [ Coeffs
+                        {
+                          coeffs_active = s ++ "_f_act_" ++ show j ++ "_t" ++ show k
+                        
                         ,  
-                          [ s ++ "_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
-                          | a <- [0..ars]]
-                        )
+                          coeffs = 
+                            [ s ++ "_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
+                            | a <- [0..ars]]
+                        }
                     | k <- [1..sz] ]
                 )
             | j <- [1..sz] ]
@@ -529,26 +533,32 @@ envToSMT' meas_ex (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(Fu
             , (Named post post_name, (post_name, post_real))]
         Nothing -> error "envToSMT': function not found"
 
--- | If the formula level active booleans are set to false, we force all the
--- coefficients in the formula to be 0, since the formula is now irrelevant.
--- Similarly, if the clause level boolean is set to true, we force all the
--- formula level active booleans to be false, since the formulas are
--- irrelevant.
+-- This function aims to limit the number of different models that can be produced
+-- that result in equivalent specifications. 
 -- This is important, because as a fallback when counterexamples are not
 -- blocking bad solutions, we instead negate SMT models.  So we want as
 -- few different, but ultimately equivalent, models as possible.
-actsForceZeroCoeffs :: M.Map Name SpecInfo -> [SMTHeader]
-actsForceZeroCoeffs m_si =
+-- In particualar:
+-- (1) If the formula level active booleans are set to false, we force all the
+-- coefficients in the formula to be 0, since the formula is now irrelevant.
+-- (2) Similarly, if the clause level boolean is set to true, we force all the
+-- formula level active booleans to be false, since the formulas are
+-- irrelevant.
+limitEquivModels :: M.Map Name SpecInfo -> [SMTHeader]
+limitEquivModels m_si =
     let
-        clauses = concatMap allCNFs . filter (\si -> s_status si == Synth) $ M.elems m_si
+        a_si = filter (\si -> s_status si == Synth) $ M.elems m_si
+        -- (1)
+        clauses = concatMap allCNFs a_si
         cl_imp_coeff = concatMap
                           (\(cl_act, coeffs) ->
-                            map (\(coeffs_act, _) -> V cl_act SortBool :=> ((:!) $ V coeffs_act SortBool)) coeffs
+                            map (\(Coeffs c_act _) -> V cl_act SortBool :=> ((:!) $ V c_act SortBool)) coeffs
                           ) clauses 
 
+        -- (2)
         coeffs = concatMap snd clauses
         coeff_act_imp_zero = concatMap
-                                 (\(c_act, cs) ->
+                                 (\(Coeffs c_act cs) ->
                                       map (\c -> ((:!) $ V c_act SortBool) :=> (V c SortInt := VInt 0)) cs
                                  ) coeffs
     in
@@ -573,7 +583,7 @@ maxCoeffConstraints =
     . concatMap
         (\si ->
             let
-                cffs = concatMap snd . concatMap snd $ allPreCoeffs si ++ allPostCoeffs si
+                cffs = concatMap coeffs . concatMap snd $ allPreCoeffs si ++ allPostCoeffs si
             in
             if s_status si == Synth
                 then map (\c -> (Neg (VInt (s_max_coeff si)) :<= V c SortInt)
@@ -600,16 +610,16 @@ nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc =
         fc_smt = constraintsToSMT eenv tc meas meas_ex evals' m_si fc
         (env_smt, nm_fc) = envToSMT meas_ex evals' m_si fc
 
-        acts_force_smt = actsForceZeroCoeffs m_si
+        lim_equiv_smt = limitEquivModels m_si
     in
-    (var_act_hdrs ++ var_int_hdrs ++ var_op1_hdrs ++ var_op2_hdrs ++ def_funs ++ fc_smt ++ env_smt ++ acts_force_smt, nm_fc)
+    (var_act_hdrs ++ var_int_hdrs ++ var_op1_hdrs ++ var_op2_hdrs ++ def_funs ++ fc_smt ++ env_smt ++ lim_equiv_smt, nm_fc)
 
 getCoeffs :: M.Map Name SpecInfo -> [SMTName]
 getCoeffs = concatMap siGetCoeffs . M.elems
 
 siGetCoeffs :: SpecInfo -> [SMTName]
 siGetCoeffs si
-    | s_status si == Synth = concatMap snd . concatMap snd $ allCNFs si
+    | s_status si == Synth = concatMap coeffs . concatMap snd $ allCNFs si
     | otherwise = []
 
 getActs :: M.Map Name SpecInfo -> [SMTName]
@@ -633,7 +643,7 @@ getFuncActs m_si =
 
 siGetFuncActs :: SpecInfo -> [SMTName]
 siGetFuncActs si
-    | s_status si == Synth = map fst . concatMap snd $ allCNFs si
+    | s_status si == Synth = map coeffs_active . concatMap snd $ allCNFs si
     | otherwise = []
 
 -- We assign a unique id to each function call, and use these as the arguments
@@ -696,7 +706,7 @@ type VInt a = SMTName -> a
 type CInt a = Integer -> a
 type VBool b = SMTName -> b
 
-buildLIA_SMT :: [(SMTName, [(SMTName, [SMTName])])] -> SMTName -> SMTName -> [SMTName] -> SMTAST
+buildLIA_SMT :: [(SMTName, [Coeffs])] -> SMTName -> SMTName -> [SMTName] -> SMTAST
 buildLIA_SMT = buildLIA (:+) (:*) (:=) (:>) (:>=) Ite mkSMTAnd mkSMTAnd mkSMTOr (flip V SortInt) VInt (flip V SortBool)
 
 -- Get a list of all LIA formulas.  We raise these as high in a PolyBound as possible,
@@ -815,7 +825,7 @@ buildLIA :: Plus a
          -> VInt a
          -> CInt a
          -> VBool b
-         -> [(SMTName, [(SMTName, [SMTName])])]
+         -> [(SMTName, [Coeffs])]
          -> SMTName
          -> SMTName
          -> [SMTName]
@@ -826,7 +836,7 @@ buildLIA plus mult eq gt geq ite mk_and_sp mk_and mk_or vint cint vbool all_coef
     in
     mk_and_sp . map mk_or $ lin_ineqs
     where
-        toLinInEqs (act, c:cs) =
+        toLinInEqs (Coeffs { coeffs_active = act, coeffs = c:cs }) =
             let
                 sm = foldr plus (cint 0)
                    . map (uncurry mult)
@@ -838,7 +848,7 @@ buildLIA plus mult eq gt geq ite mk_and_sp mk_and mk_or vint cint vbool all_coef
                                                (sm `geq` vint c)
                                   )
                    ] -- mk_or [vbool act, {- ite (vbool eq_or_geq) (sm `eq` vint c) -} (sm `geq` vint c)]
-        toLinInEqs (_, []) = error "buildLIA: unhandled empty coefficient list" 
+        toLinInEqs (Coeffs { coeffs = [] }) = error "buildLIA: unhandled empty coefficient list" 
 
 ------------------------------------
 -- Building SpecInfos
