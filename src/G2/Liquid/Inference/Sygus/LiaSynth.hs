@@ -137,7 +137,7 @@ liaSynth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
          => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
          -> MaxSize
          -> FuncConstraints
-         -> HM.HashMap Size [SMTModel] -- ^ SMT Models to block being returned by the synthesizer at various sizes
+         -> HM.HashMap Size [([Name], SMTModel)] -- ^ SMT Models to block being returned by the synthesizer at various sizes
          -> ToBeNames -> ToSynthNames -> m SynthRes
 liaSynth con ghci lrs evals meas_ex max_sz fc mdls to_be_ns ns_synth = do
     -- Compensate for zeroed out names in FuncConstraints
@@ -243,14 +243,14 @@ synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
       -> M.Map Name SpecInfo
       -> MaxSize
       -> FuncConstraints
-      -> HM.HashMap Size [SMTModel]
+      -> HM.HashMap Size [([Name], SMTModel)]
       -> Size
       -> m SynthRes
 synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc mdls sz = do
     let si' = liaSynthOfSize sz si
         zero_coeff_hdrs = softFuncActAssertZero si' ++ softClauseActAssertZero si'
         max_coeffs_cons = maxCoeffConstraints si'
-        block_mdls = map blockModel $ HM.lookupDefault [] sz mdls
+        block_mdls = map blockModel . map (uncurry (filterModelToRel si')) $ HM.lookupDefault [] sz mdls
 
     res <- synth' con eenv tc meas meas_ex evals si' fc (zero_coeff_hdrs ++ max_coeffs_cons ++ block_mdls) sz
     case res of
@@ -260,7 +260,17 @@ synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc mdls sz = do
           | otherwise -> return res
     
 synth' :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
-                  => con -> NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals Bool -> M.Map Name SpecInfo -> FuncConstraints -> [SMTHeader] -> Size -> m SynthRes
+       => con
+       -> NMExprEnv
+       -> TypeClasses
+       -> Measures
+       -> MeasureExs
+       -> Evals Bool
+       -> M.Map Name SpecInfo
+       -> FuncConstraints
+       -> [SMTHeader]
+       -> Size
+       -> m SynthRes
 synth' con eenv tc meas meas_ex evals m_si fc headers sz = do
     let n_for_m = namesForModel m_si
     liftIO $ print m_si
@@ -280,12 +290,19 @@ synth' con eenv tc meas meas_ex evals m_si fc headers sz = do
             in
             return (SynthFail fc_uc)
 
+------------------------------------
+-- Handling Models
+------------------------------------
+
 namesForModel :: M.Map Name SpecInfo -> [(SMTName, Sort)]
-namesForModel m_si =
+namesForModel = concat . map siNamesForModel . M.elems
+
+siNamesForModel :: SpecInfo -> [(SMTName, Sort)]
+siNamesForModel si =
     let
-        all_coeffs = zip (getCoeffs m_si) (repeat SortInt)
-        all_acts = zip (getActs m_si) (repeat SortInt)
-        all_op_branch = zip (concatMap (\sy -> [sy_op_branch1 sy, sy_op_branch2 sy]) . concatMap allSynthSpec $ M.elems m_si) (repeat SortBool)
+        all_coeffs = zip (siGetCoeffs si) (repeat SortInt)
+        all_acts = zip (siGetActs si) (repeat SortInt)
+        all_op_branch = zip (concatMap (\sy -> [sy_op_branch1 sy, sy_op_branch2 sy]) . allSynthSpec $ si) (repeat SortBool)
     in
     all_coeffs ++ all_acts ++ all_op_branch
 
@@ -300,6 +317,18 @@ modelToGS m_si mdl =
 -- blocks it from returning the model
 blockModel :: SMTModel -> SMTHeader
 blockModel = Solver.Assert . (:!) . foldr (.&&.) (VBool True) . map (\(n, v) -> V n (sortOf v) := v) . M.toList
+
+-- | Filters a model to only those variable bindings relevant to the functions listed in the name bindings
+filterModelToRel :: M.Map Name SpecInfo -> [Name] -> SMTModel -> SMTModel
+filterModelToRel m_si ns mdl =
+    let
+        vs = map fst . concatMap siNamesForModel $ mapMaybe (flip M.lookup m_si) ns
+    in
+    M.filterWithKey (\n _ -> n `elem` vs) mdl
+
+------------------------------------
+-- Building SMT Formulas
+------------------------------------
 
 mkPreCall :: NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals (Integer, Bool) -> M.Map Name SpecInfo -> FuncCall -> SMTAST
 mkPreCall eenv tc meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars })
@@ -542,29 +571,39 @@ nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc =
         fc_smt = constraintsToSMT eenv tc meas meas_ex evals' m_si fc
         (env_smt, nm_fc) = envToSMT meas_ex evals' m_si fc
     in
-    trace ("evals' = " ++ show evals')
     (var_act_hdrs ++ var_int_hdrs ++ var_op1_hdrs ++ var_op2_hdrs ++ def_funs ++ fc_smt ++ env_smt, nm_fc)
 
 getCoeffs :: M.Map Name SpecInfo -> [SMTName]
-getCoeffs m_si =
-    gc allCoeffs . filter (\s -> s_status s == Synth)  $ M.elems m_si
-    where
-        gc f = concatMap snd . concatMap snd . concatMap f . filter (\si -> s_status si == Synth)
+getCoeffs = concatMap siGetCoeffs . M.elems
+
+siGetCoeffs :: SpecInfo -> [SMTName]
+siGetCoeffs si
+    | s_status si == Synth = concatMap snd . concatMap snd $ allCoeffs si
+    | otherwise = []
 
 getActs :: M.Map Name SpecInfo -> [SMTName]
 getActs si = getClauseActs si ++ getFuncActs si
 
+siGetActs :: SpecInfo -> [SMTName]
+siGetActs si = siGetClauseActs si ++ siGetFuncActs si
+
 getClauseActs :: M.Map Name SpecInfo -> [SMTName]
 getClauseActs m_si =
-    gc allCoeffs . filter (\s -> s_status s == Synth)  $ M.elems m_si
-    where
-        gc f = map fst . concatMap f . filter (\si -> s_status si == Synth)
+    concatMap siGetClauseActs $ M.elems m_si
+
+siGetClauseActs :: SpecInfo -> [SMTName]
+siGetClauseActs si
+    | s_status si == Synth = map fst $ allCoeffs si
+    | otherwise = []
 
 getFuncActs :: M.Map Name SpecInfo -> [SMTName]
 getFuncActs m_si =
-    gc allCoeffs . filter (\s -> s_status s == Synth)  $ M.elems m_si
-    where
-        gc f = map fst . concatMap snd . concatMap f . filter (\si -> s_status si == Synth)
+    concatMap siGetFuncActs $ M.elems m_si
+
+siGetFuncActs :: SpecInfo -> [SMTName]
+siGetFuncActs si
+    | s_status si == Synth = map fst . concatMap snd $ allCoeffs si
+    | otherwise = []
 
 -- We assign a unique id to each function call, and use these as the arguments
 -- to the known functions, rather than somehow using the arguments directly.
@@ -610,8 +649,9 @@ declareSynthLIAFuncSF sf =
     in
     DeclareFun (sy_name sf) (ars) SortBool
 
---------------------------------------------------
--- Building LIA formulas, both for SMT and LH
+------------------------------------
+-- Building LIA Formulas
+------------------------------------
 
 type Plus a = a ->  a -> a
 type Mult a = a ->  a -> a
@@ -768,6 +808,10 @@ buildLIA plus mult eq gt geq ite mk_and_sp mk_and mk_or vint cint vbool all_coef
                                   )
                    ] -- mk_or [vbool act, {- ite (vbool eq_or_geq) (sm `eq` vint c) -} (sm `geq` vint c)]
         toLinInEqs (_, []) = error "buildLIA: unhandled empty coefficient list" 
+
+------------------------------------
+-- Building SpecInfos
+------------------------------------
 
 buildSI :: TypeClasses -> Measures -> Status -> [GhcInfo] ->  Name -> [Type] -> Type -> SpecInfo
 buildSI tc meas stat ghci f aty rty =
