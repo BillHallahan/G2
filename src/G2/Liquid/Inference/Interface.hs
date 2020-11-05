@@ -115,7 +115,7 @@ getGHCI infconfig config proj fp lhlibs = do
 
 data InferenceRes = CEx [CounterExample]
                   | Env GeneratedSpecs
-                  | Raise MeasureExs FuncConstraints MaxSizeConstraints
+                  | Raise MeasureExs FuncConstraints MaxSizeConstraints Bool
                   deriving (Show)
 
 -- When we try to synthesize a specification for a function that we have already found a specification for,
@@ -144,7 +144,7 @@ iterativeInference con ghci m_modname lrs nls meas_ex max_sz gs fc = do
     case res of
         CEx cex -> return $ Left cex
         Env gs -> return $ Right gs
-        Raise r_meas_ex r_fc _ -> iterativeInference con ghci m_modname lrs nls r_meas_ex (incrMaxSize max_sz) gs r_fc
+        Raise r_meas_ex r_fc _ _ -> iterativeInference con ghci m_modname lrs nls r_meas_ex (incrMaxSize max_sz) gs r_fc
 
 
 inferenceL :: (ProgresserM m, InfConfigM m, MonadIO m, SMTConverter con ast out io)
@@ -191,83 +191,26 @@ inferenceL con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc = do
                             liftIO $ putStrLn "Down a level!"
                             inf_res <- inferenceL con ghci m_modname lrs nls' emptyEvals meas_ex max_sz gs' fc max_fc
                             case inf_res of
-                                Raise r_meas_ex r_fc r_max_fc -> do
+                                Raise r_meas_ex r_fc r_max_fc has_new -> do
                                     liftIO $ putStrLn "Up a level!"
-                                    inferenceL con ghci m_modname lrs nls evals' r_meas_ex max_sz gs r_fc r_max_fc
+                                    case has_new of
+                                        True -> inferenceL con ghci m_modname lrs nls evals' r_meas_ex max_sz gs r_fc r_max_fc
+                                        False -> error "InferenceL: unhandled case of no new FC 1"
                                 _ -> return inf_res
                         [] -> return $ Env gs'
                 Unsafe bad -> do
                     ref <- refineUnsafe ghci m_modname lrs gs' bad
                     case ref of
                         Left cex -> return $ CEx cex
-                        Right fc' -> do
-                            liftIO $ putStrLn "Before genMeasureExs"
-                            meas_ex' <- updateMeasureExs meas_ex lrs ghci fc'
-                            liftIO $ putStrLn "After genMeasureExs"
-                            inferenceL con ghci m_modname lrs nls evals' meas_ex' max_sz gs (unionFC fc fc') max_fc
+                        Right fc' 
+                            | hasNewFC fc' fc -> do
+                                liftIO $ putStrLn "Before genMeasureExs"
+                                meas_ex' <- updateMeasureExs meas_ex lrs ghci fc'
+                                liftIO $ putStrLn "After genMeasureExs"
+                                inferenceL con ghci m_modname lrs nls evals' meas_ex' max_sz gs (unionFC fc fc') max_fc
+                            | otherwise -> error "InferenceL: unhandled case of no new FC 2"
                 Crash _ _ -> error "inferenceL: LiquidHaskell crashed"
-        SynthFail fc' -> return $ Raise meas_ex fc (unionFC max_fc fc')
-
-
-{-    let ignore = concat nls
-
-    res <- tryHardToVerifyIgnoring ghci gs ignore
-
-
-    case res of
-        Right new_gs
-            | (_:nls') <- nls -> do
-                let ghci' = addSpecsToGhcInfos ghci new_gs
-                
-                raiseFCs level ghci m_modname lrs nls
-                    =<< inferenceL (level + 1) ghci' m_modname lrs nls' WorkDown new_gs fc []
-            | otherwise -> return $ GS new_gs
-        Left bad -> do
-            ref <- refineUnsafe ghci m_modname lrs wd gs bad
-
-            -- If we got repeated assertions, increase the search depth
-            -- case any (\n -> lookupAssertGS n gs == lookupAssertGS n synth_gs) try_to_synth of
-            --     True -> mapM_ (incrMaxCExM . nameTuple) bad
-            --     False -> return ()
-
-            case ref of
-                Left cex -> return $ CEx cex
-                Right (new_fc, wd')  -> do
-                    let pre_solved = notAppropFCs (concat nls) new_fc
-                    case nullFC pre_solved of
-                        False -> do
-
-                            return $ FCs fc new_fc gs
-                        True -> do
-                            let merged_fc = unionFC fc new_fc
-
-                            rel_funcs <- relFuncs nls new_fc
-
-                            synth_gs <- synthesize ghci lrs gs merged_fc rel_funcs
-                            increaseProgressing new_fc gs synth_gs rel_funcs
-                            
-                            inferenceL level ghci m_modname lrs nls wd' synth_gs merged_fc rel_funcs
-
-
-raiseFCs :: (ProgresserM m, InfConfigM m, MonadIO m) =>  Level -> [GhcInfo] -> Maybe T.Text -> LiquidReadyState
-         -> NameLevels -> InferenceRes -> m InferenceRes
-raiseFCs level ghci m_modname lrs nls lev@(FCs fc new_fc gs) = do
-    let
-        -- If we have new FuncConstraints, we need to resynthesize,
-        -- but otherwise we can just keep the exisiting specifications
-        -- cons_on = map (funcName . constraint) $ toListFC new_fc
-    rel_funcs <- relFuncs nls new_fc
-
-    if nullFC (notAppropFCs (concat nls) new_fc)
-        then do
-            let merge_fc = unionFC fc new_fc
-            synth_gs <- synthesize ghci lrs gs merge_fc rel_funcs
-            increaseProgressing new_fc gs synth_gs rel_funcs
-            inferenceL level ghci m_modname lrs nls WorkUp synth_gs merge_fc rel_funcs
-        else return lev
-raiseFCs _ _ _ _ _ lev = do
-    return lev
--}
+        SynthFail sf_fc -> return $ Raise meas_ex fc (unionFC max_fc sf_fc) (hasNewFC sf_fc max_fc)
 
 refineUnsafe :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState
              -> GeneratedSpecs
@@ -296,42 +239,6 @@ refineUnsafe ghci m_modname lrs gs bad = do
         Right new_fc' -> do
             liftIO . putStrLn $ "new_fc' = " ++ printFCs new_fc'
             return $ Right new_fc'
-
-{-
-adjustOldFC :: FuncConstraints -- ^ Old FuncConstraints
-            -> FuncConstraints -- ^ New FuncConstraints
-            -> FuncConstraints
-adjustOldFC old_fc new_fc =
-    let
-        constrained = map (funcName . constraint) $ toListFC new_fc
-    in
-    mapMaybeFC
-        (\c -> case modification c of
-                    SwitchImplies ns
-                        | ns `intersect` constrained /= [] ->
-                            Just $ c { bool_rel = BRImplies }
-                    Delete ns
-                        | ns `intersect` constrained /= [] -> Nothing
-                    _ -> Just c) old_fc
--}
-
-appropFCs :: [Name] -> FuncConstraints -> FuncConstraints
-appropFCs potential = undefined
-{-
-    let
-        nm_potential = map nameTuple potential
-    in
-    filterFC (flip elem nm_potential . nameTuple . funcName . constraint)
--}
-
-notAppropFCs :: [Name] -> FuncConstraints -> FuncConstraints
-notAppropFCs potential = undefined
-{-
-    let
-        nm_potential = map nameTuple potential
-    in
-    filterFC (flip notElem nm_potential . nameTuple . funcName . constraint)
--}
 
 createStateForInference :: SimpleState -> G2.Config -> [GhcInfo] -> LiquidReadyState
 createStateForInference simp_s config ghci =
@@ -378,14 +285,6 @@ updateMeasureExs meas_ex lrs ghci fcs =
     in
     evalMeasures meas_ex lrs ghci es
 
-increaseProgressing :: ProgresserM m => FuncConstraints -> GeneratedSpecs -> GeneratedSpecs -> [Name] -> m ()
-increaseProgressing fc gs synth_gs synthed = undefined {- do
-    -- If we got repeated assertions, increase the search depth
-    case any (\n -> lookupAssertGS n gs == lookupAssertGS n synth_gs) synthed of
-        True -> mapM_ (incrMaxCExM . nameTuple) (map generated_by $ toListFC fc)
-        False -> return ()
--}
-
 synthesize :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
            => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
            -> MaxSize -> FuncConstraints -> [Name] -> [Name] -> m SynthRes
@@ -403,6 +302,9 @@ updateEvals ghci lrs fc evals = do
     liftIO $ putStrLn "After check func calls"
 
     return evals''
+
+hasNewFC :: FuncConstraints -> FuncConstraints -> Bool
+hasNewFC fc1 = not . nullFC . differenceFC fc1
 
 -- | Converts counterexamples into constraints that block the current specification set
 cexsToBlockingFC :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] -> CounterExample -> m (Either CounterExample FuncConstraint)
@@ -500,128 +402,6 @@ cexsToExtraFC (CallsCounter dfc cfc [])
 isExported :: LiquidReadyState -> Name -> Bool
 isExported lrs n = n `elem` exported_funcs (lr_binding lrs)
 
-{-
-cexsToFuncConstraints :: InfConfigM m => LiquidReadyState -> [GhcInfo] -> WorkingDir -> CounterExample -> m (Either CounterExample FuncConstraints)
-cexsToFuncConstraints _ _ _ (DirectCounter dfc fcs@(_:_)) = do
-    infconfig <- infConfigM
-    let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
-
-    real_cons <- mapMaybeM (mkRealFCFromAbstracted imp (funcName dfc)) fcs'
-    abs_cons <- mapMaybeM (mkAbstractFCFromAbstracted del (funcName dfc)) fcs'
-
-    if not . null $ fcs'
-        then return . Right . insertsFC $ real_cons ++ abs_cons
-        else error "cexsToFuncConstraints: unhandled 1"
-    where
-        imp _ = SwitchImplies [funcName dfc]
-        del _ = Delete [funcName dfc]
-cexsToFuncConstraints _ _ _ (CallsCounter dfc cfc fcs@(_:_)) = do
-    infconfig <- infConfigM
-    let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
-
-    callee_cons <- mkRealFCFromAbstracted imp (funcName dfc) cfc
-    real_cons <- mapMaybeM (mkRealFCFromAbstracted imp (funcName dfc)) fcs'
-    abs_cons <- mapMaybeM (mkAbstractFCFromAbstracted del (funcName dfc)) fcs'
-
-    if not . null $ fcs' 
-        then return . Right . insertsFC
-                            $ maybeToList callee_cons ++ real_cons ++ abs_cons
-        else error "cexsToFuncConstraints: Should be unreachable! Non-refinable function abstracted!"
-    where
-        imp n = SwitchImplies $ funcName dfc:delete n ns
-        del _ = Delete $ [funcName dfc, funcName $ abstract cfc] ++ ns
-
-        ns = nub $ map (funcName . abstract) fcs
-cexsToFuncConstraints lrs ghci _ cex@(DirectCounter fc []) = do
-    let Name n m _ _ = funcName fc
-    infconfig <- infConfigM
-    case (n, m) `S.member` pre_refined infconfig of
-        False ->
-            return . Right . insertsFC $
-                                [FC { polarity = if notRetError fc then Pos else Neg
-                                    , generated_by = funcName fc
-                                    , violated = Post
-                                    , modification = SwitchImplies [funcName fc]
-                                    , bool_rel = BRImplies
-                                    , constraint = fc} ]
-        True -> return . Left $ cex
-cexsToFuncConstraints lrs ghci wd cex@(CallsCounter caller_fc called_fc []) = do
-    caller_pr <- hasUserSpec (funcName caller_fc)
-    called_pr <- hasUserSpec (funcName $ real called_fc)
-
-    case (caller_pr, called_pr) of
-        (True, True) -> return .  Left $ cex
-        (False, True) ->  return . Right . insertsFC $
-                                                  [FC { polarity = Neg
-                                                      , generated_by = funcName caller_fc
-                                                      , violated = Pre
-                                                      , modification = None -- [funcName called_fc]
-                                                      , bool_rel = BRImplies 
-                                                      , constraint = caller_fc } ]
-        (True, False) -> return . Right . insertsFC $
-                                                 [FC { polarity = if notRetError (real called_fc) then Pos else Neg
-                                                     , generated_by = funcName caller_fc
-                                                     , violated = Pre
-                                                     , modification = None -- [funcName caller_fc]
-                                                     , bool_rel = if notRetError (real called_fc) then BRAnd else BRImplies
-                                                     , constraint = real called_fc } ]
-        (False, False)
-            | wd == WorkUp -> 
-                           return . Right . insertsFC $
-                                                    [ FC { polarity = Neg
-                                                         , generated_by = funcName caller_fc
-                                                         , violated = Pre
-                                                         , modification = Delete [funcName $ real called_fc]
-                                                         , bool_rel = BRImplies
-                                                         , constraint = caller_fc {returns = Prim Error TyBottom} }
-                                                         , FC { polarity = if notRetError caller_fc then Pos else Neg
-                                                              , generated_by = funcName caller_fc
-                                                              , violated = Pre
-                                                              , modification = None
-                                                              , bool_rel = BRImplies
-                                                              , constraint = caller_fc }  ]
-            | otherwise -> return . Right . insertsFC $
-                                                   [FC { polarity = if notRetError (real called_fc) then Pos else Neg
-                                                       , generated_by = funcName caller_fc
-                                                       , violated = Pre
-                                                       , modification = SwitchImplies [funcName caller_fc]
-                                                       , bool_rel = if notRetError (real called_fc) then BRAnd else BRImplies
-                                                       , constraint = real called_fc } ]
-
-mkRealFCFromAbstracted :: InfConfigM m => (Name -> Modification) -> Name -> Abstracted -> m (Maybe FuncConstraint)
-mkRealFCFromAbstracted md gb ce = do
-    let fc = real ce
-    user_def <- hasUserSpec $ funcName fc
-
-    if not (hits_lib_err_in_real ce) && not user_def
-        then
-            return . Just $ FC { polarity = if notRetError fc then Pos else Neg
-                               , generated_by = gb
-                               , violated = Post
-                               , modification = md (funcName fc)
-                               , bool_rel = if notRetError fc then BRAnd else BRImplies
-                               , constraint = fc }
-        else return Nothing 
-
--- | If the real fc returns an error, we know that our precondition has to be
--- strengthened to block the input.
--- Thus, creating an abstract counterexample would be (at best) redundant.
-mkAbstractFCFromAbstracted :: InfConfigM m => (Name -> Modification) -> Name -> Abstracted -> m (Maybe FuncConstraint)
-mkAbstractFCFromAbstracted md gb ce = do
-    let fc = abstract ce
-    user_def <- hasUserSpec $ funcName fc
-
-    if (notRetError (real ce) || hits_lib_err_in_real ce) && not user_def
-        then
-            return . Just $ FC { polarity = Neg
-                               , generated_by = gb
-                               , violated = Post
-                               , modification = md (funcName fc)
-                               , bool_rel = BRImplies
-                               , constraint = fc } 
-        else return Nothing
--}
-
 hasUserSpec :: InfConfigM m => Name -> m Bool
 hasUserSpec (Name n m _ _) = do
     infconfig <- infConfigM
@@ -645,38 +425,8 @@ insertsFC = foldr insertFC emptyFC
 abstractedMod :: Abstracted -> Maybe T.Text
 abstractedMod = nameModule . funcName . abstract
 
-filterErrors :: FuncConstraints -> FuncConstraints
-filterErrors = id -- filterFC filterErrors'
-
-filterErrors' :: FuncConstraint -> Bool
-filterErrors' fc = undefined
-{-
-    let
-        c = constraint fc
-
-        as = not . any isError $ arguments c
-    in
-    as
-    where
-        isError (Prim Error _) = True
-        isError _ = False
--}
 
 isError :: Expr -> Bool
 isError (Prim Error _) = True
 isError (Prim Undefined _) = True
 isError _ = False
-
-relFuncs :: InfConfigM m => NameLevels -> FuncConstraints -> m [Name]
-relFuncs nls fc = undefined {- do
-    let immed_rel_fc = case nls of
-                            (nl:_) -> appropFCs nl fc
-                            _ -> emptyFC
-
-    infconfig <- infConfigM
-    return 
-       . filter (\(Name _ m _ _) -> m `S.member` (modules infconfig))
-       . nubBy (\n1 n2 -> nameOcc n1 == nameOcc n2)
-       . map (funcName . constraint)
-       . toListFC $ immed_rel_fc 
--}
