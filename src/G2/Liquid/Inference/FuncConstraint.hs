@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -18,8 +19,8 @@ module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
                                           , unionFC
                                           , unionsFC
                                           , mapFC
-                                          , mapMaybeFC
                                           , filterFC
+                                          , differenceFC
                                           , allCallNames
                                           , allCalls
                                           , allCallsFC
@@ -33,23 +34,29 @@ import G2.Language.Syntax
 import G2.Lib.Printers
 
 import Data.Coerce
+import GHC.Generics (Generic)
+import Data.Hashable
+import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid hiding (All)
 
-newtype FuncConstraints = FuncConstraints (M.Map Name [FuncConstraint])
+newtype FuncConstraints = FuncConstraints (M.Map Name (HS.HashSet FuncConstraint))
                      deriving (Eq, Show, Read)
 
-data SpecPart = All | Pre | Post deriving (Eq, Show, Read)
+data SpecPart = All | Pre | Post deriving (Eq, Show, Read, Generic)
 
 data FuncConstraint = Call SpecPart FuncCall
                     | AndFC [FuncConstraint]
                     | OrFC [FuncConstraint]
                     | ImpliesFC FuncConstraint FuncConstraint
                     | NotFC FuncConstraint
-                    deriving (Eq, Show, Read)
+                    deriving (Eq, Show, Read, Generic)
+
+instance Hashable SpecPart
+instance Hashable FuncConstraint
 
 emptyFC :: FuncConstraints
 emptyFC = FuncConstraints M.empty
@@ -69,34 +76,43 @@ insertFC fc (FuncConstraints fcs) =
         ns = allCallNames fc
         ns' = map zeroOutUnq ns
         fc' = renames (HM.fromList $ zip ns ns') fc
+        hs_fc = HS.singleton fc'
     in
-    FuncConstraints $ foldr (\n -> M.insertWith (++) n [fc']) fcs ns'
+    FuncConstraints $ foldr (\n -> M.insertWith HS.union n hs_fc) fcs ns'
     -- coerce (M.insertWith (++) (zeroOutUnq . funcName . constraint $ fc) [fc])
 
 lookupFC :: Name -> FuncConstraints -> [FuncConstraint]
-lookupFC n = M.findWithDefault [] (zeroOutUnq n) . coerce
+lookupFC n = HS.toList . M.findWithDefault HS.empty (zeroOutUnq n) . coerce
 
 zeroOutUnq :: Name -> Name
 zeroOutUnq (Name n m _ l) = Name n m 0 l
 
 toListFC :: FuncConstraints -> [FuncConstraint]
-toListFC = concat . M.elems . coerce
+toListFC = HS.toList . HS.unions . M.elems . coerce
 
 unionFC :: FuncConstraints -> FuncConstraints -> FuncConstraints
 unionFC (FuncConstraints fc1) (FuncConstraints fc2) =
-    coerce $ M.unionWith (++) fc1 fc2
+    coerce $ M.unionWith HS.union fc1 fc2
 
 unionsFC :: [FuncConstraints] -> FuncConstraints
 unionsFC = foldr unionFC emptyFC
 
 mapFC :: (FuncConstraint -> FuncConstraint) -> FuncConstraints -> FuncConstraints
-mapFC f = coerce (M.map (map f))
-
-mapMaybeFC :: (FuncConstraint -> Maybe FuncConstraint) -> FuncConstraints -> FuncConstraints
-mapMaybeFC f = coerce (M.map (mapMaybe f))
+mapFC f = coerce (M.map (HS.map f))
 
 filterFC :: (FuncConstraint -> Bool) -> FuncConstraints -> FuncConstraints
-filterFC p = coerce (M.map (filter p))
+filterFC p = coerce (M.map (HS.filter p))
+
+differenceFC :: FuncConstraints -> FuncConstraints -> FuncConstraints
+differenceFC (FuncConstraints fc1) (FuncConstraints fc2) =
+    FuncConstraints $ M.differenceWith
+                        (\v1 v2 ->  let
+                                      d = HS.difference v1 v2
+                                    in
+                                    case HS.null d of
+                                        True -> Nothing
+                                        False -> Just d)
+                      fc1 fc2
 
 allCallNames :: FuncConstraint -> [Name]
 allCallNames = map funcName . allCalls
