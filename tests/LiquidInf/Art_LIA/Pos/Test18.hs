@@ -14,7 +14,7 @@ data C a =  C
 f   :: Int -> C (C a) -> Maybe Int
 f k = g (h k)
 
-g :: Int -> C a -> Maybe Int
+g :: v -> C a -> Maybe v
 g _ _ = Nothing
 
 h :: Int -> Int
