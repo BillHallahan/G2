@@ -34,7 +34,7 @@ def call_infer_process(file):
         if args_re and args_re.group(1):
             extra_args = [args_re.group(1)];
 
-        timeout = "140"
+        timeout = "40"
         timeout_re = re.search("--\s*timeout\s*=\s*([0-9]*)\s*", code);
         if timeout_re and timeout_re.group(1):
             timeout = timeout_re.group(1);

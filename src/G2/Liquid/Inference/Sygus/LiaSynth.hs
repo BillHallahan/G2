@@ -477,12 +477,16 @@ substMeasures meas meas_ex t e =
             case HM.lookup e meas_ex of
                 Just es ->
                     let
+                        -- Get a list of all measure/output pairs with usable types
                         es' = filter (isJust . typeToSort . returnType
                                      . fromJust . flip E.lookup meas . fst)
                             . filter (isJust . typeToSort . returnType . snd) $ HM.toList es
+                        -- Make sure that es's type is specific enough to be used with the measure
+                        app_meas = applicableMeasures meas t
+                        es'' = filter (\(n, _) -> n `E.member` app_meas) es'
                     in
                     -- Sort to make sure we get the same order consistently
-                    map snd $ L.sortBy (\(n1, _) (n2, _) -> compare n1 n2) es'
+                    map snd $ L.sortBy (\(n1, _) (n2, _) -> compare n1 n2) es''
                 Nothing -> []
 
 adjustLits :: G2.Expr -> G2.Expr
@@ -976,7 +980,7 @@ mkSpecArg ghci meas symb t =
                      , smt_sort = srt' }]
         Nothing ->
             let
-                app_meas = applicableMeasures meas t
+                app_meas = applicableMeasuresType meas t
                 app_meas' = L.sortBy (\(n1, _) (n2, _) -> compare n1 n2) app_meas
             in
             mapMaybe
@@ -1085,9 +1089,12 @@ getLHMeasureName ghci (Name n m _ l) =
         Just meas -> meas
         Nothing -> error "getLHMeasureName: unhandled measure"
 
-applicableMeasures :: Measures -> Type -> [(Name, Type)]
-applicableMeasures meas t =
-    HM.toList . E.map' returnType $ E.filter (applicableMeasure t) meas 
+applicableMeasuresType :: Measures -> Type -> [(Name, Type)]
+applicableMeasuresType meas =
+    HM.toList . E.map' returnType . applicableMeasures meas
+
+applicableMeasures :: Measures -> Type -> Measures
+applicableMeasures meas t = E.filter (applicableMeasure t) meas 
 
 applicableMeasure :: Type -> G2.Expr -> Bool
 applicableMeasure t e =
