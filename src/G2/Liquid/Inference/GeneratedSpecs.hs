@@ -189,11 +189,20 @@ addToSpecType [PolyBound e ps]
         -- polymorphic arguments that are never instantiated.  For instance,
         -- if the type is [[Int]], and we only have values of [] :: [[Int]]
         ps' = ps ++ repeat (PolyBound PTrue [])
-        ars' = map (uncurry addToSpecType) $ zip (map (:[]) ps') ars
+        ars' = map (uncurry addToSpecType) $ zipSpecTypes (map (:[]) ps') ars
     in
     rapp { rt_reft = rt_reft', rt_args = ars' }
 addToSpecType [] st = st
 addToSpecType _ st = error $ "addToSpecType: Unhandled SpecType " ++ show st
+
+zipSpecTypes :: [[PolyBound Expr]] -> [SpecType] -> [([PolyBound Expr], SpecType)]
+zipSpecTypes [] _ = []
+zipSpecTypes _ [] = []
+zipSpecTypes epbs (rfun@(RFun {}):sts) =
+    ([PolyBound PTrue []], rfun):zipSpecTypes epbs sts
+zipSpecTypes epbs (rvar@(RVar {}):sts) =
+    ([PolyBound PTrue []], rvar):zipSpecTypes epbs sts
+zipSpecTypes (epb:epbs) (st:sts) = (epb, st):zipSpecTypes epbs sts
 
 zeroOutUnq :: G2.Name -> G2.Name
 zeroOutUnq (G2.Name n m _ l) = G2.Name n m 0 l
