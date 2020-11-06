@@ -197,7 +197,7 @@ zipSpecTypes epbs (rfun@(RFun {}):sts) =
 zipSpecTypes epbs (rvar@(RVar {}):sts) =
     ([PolyBound PTrue []], rvar):zipSpecTypes epbs sts
 zipSpecTypes (epb:epbs) (st@(RApp {}):sts) = (epb, st):zipSpecTypes epbs sts
-zipSpecTypes _ _ = error "zipSpecTypes: Unhandled case"
+zipSpecTypes es st = error $ "zipSpecTypes: Unhandled case\n" ++ show es ++ "\n" ++ show st
 
 zeroOutUnq :: G2.Name -> G2.Name
 zeroOutUnq (G2.Name n m _ l) = G2.Name n m 0 l

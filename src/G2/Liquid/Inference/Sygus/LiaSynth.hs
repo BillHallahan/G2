@@ -361,7 +361,6 @@ mkPreCall eenv tc meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments
 
             v_ars = filter (validArgForSMT . snd)
                   . filter (\(t, _) -> not (isTyFun t) && not (isTyVar t))
-                  . filter (not . isTypeClass tc . fst)
                   $ zip func_ts ars
 
             sy_body_p =
@@ -411,7 +410,6 @@ mkPostCall eenv tc meas meas_ex evals m_si fc@(FuncCall { funcName = n, argument
             smt_ars = map exprToSMT
                     . concatMap (uncurry (adjustArgs meas meas_ex))
                     . filter (\(t, _) -> not (isTyFun t) && not (isTyVar t))
-                    . filter (not . isTypeClass tc . fst)
                     . filter (validArgForSMT . snd) $ zip func_ts ars
             
             smt_ret = extractExprPolyBoundWithRoot r
@@ -933,9 +931,7 @@ argsAndRetFromSpec tc ghci meas ars (t:ts) rty rfun@(RFun { rt_bind = b, rt_in =
     case i of
         RVar {} -> argsAndRetFromSpec tc ghci meas ars ts rty out
         RFun {} -> argsAndRetFromSpec tc ghci meas ars ts rty out
-        _
-            | isTypeClass tc t ->  argsAndRetFromSpec tc ghci meas ars ts rty out
-            | otherwise -> argsAndRetFromSpec tc ghci meas ((out_symb, sa):ars) ts rty out
+        _ -> argsAndRetFromSpec tc ghci meas ((out_symb, sa):ars) ts rty out
 argsAndRetFromSpec _ ghci meas ars _ rty rapp@(RApp { rt_reft = ref}) =
     let
         (_, sa) = mkSpecArgPB ghci meas rty rapp
