@@ -43,35 +43,31 @@ import Data.Time.Clock
 -- Progresser
 -------------------------------
 
-data Progress = Progress { ex_max_ce :: M.Map (T.Text, Maybe T.Text) Int -- ^ Gives an extra budget for maximum ce number from a given function
+data Progress = Progress { ex_max_ce :: Int -- ^ Gives an extra budget for maximum ce number
                          }
 
 newProgress :: Progress
-newProgress = Progress { ex_max_ce = M.empty }
+newProgress = Progress { ex_max_ce = 0 }
 
 class Progresser p where
-    extraMaxCEx :: (T.Text, Maybe T.Text) -> p -> Int
-    incrMaxCEx :: (T.Text, Maybe T.Text) -> p -> p
+    extraMaxCEx ::  p -> Int
+    incrMaxCEx :: p -> p
 
 instance Progresser Progress where
-    extraMaxCEx n (Progress { ex_max_ce = m }) =
-        M.findWithDefault 0 n m
-    incrMaxCEx n p@(Progress { ex_max_ce = m }) =
-        Progress { ex_max_ce = M.alter (\v -> case v of
-                                                Nothing -> Just 0
-                                                Just v' -> Just $ v' + 2) n m }
+    extraMaxCEx (Progress { ex_max_ce = m }) = m
+    incrMaxCEx p@(Progress { ex_max_ce = m }) = Progress { ex_max_ce = m + 2 }
 
 class Monad m => ProgresserM m where
-    extraMaxCExM :: (T.Text, Maybe T.Text) -> m Int
-    incrMaxCExM :: (T.Text, Maybe T.Text) -> m ()
+    extraMaxCExM :: m Int
+    incrMaxCExM :: m ()
 
 instance (Monad m, Progresser p) => ProgresserM (StateT p m) where
-    extraMaxCExM n = gets (extraMaxCEx n)
-    incrMaxCExM n = modify' (incrMaxCEx n)
+    extraMaxCExM = gets extraMaxCEx
+    incrMaxCExM = modify' incrMaxCEx
 
 instance ProgresserM m => ProgresserM (ReaderT env m) where
-    extraMaxCExM n = lift (extraMaxCExM n)
-    incrMaxCExM n = lift (incrMaxCExM n)
+    extraMaxCExM = lift extraMaxCExM
+    incrMaxCExM = lift incrMaxCExM
 
 runProgresser :: (Monad m, Progresser p) => StateT p m a -> p -> m a
 runProgresser = evalStateT

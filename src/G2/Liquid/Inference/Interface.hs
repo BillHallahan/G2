@@ -195,6 +195,7 @@ inferenceL con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc mdls = d
                     case nls of
                         (_:nls') -> do
                             liftIO $ putStrLn "Down a level!"
+                            incrMaxCExM
                             inf_res <- inferenceL con ghci m_modname lrs nls' emptyEvals meas_ex max_sz gs' fc max_fc HM.empty
                             case inf_res of
                                 Raise r_meas_ex r_fc r_max_fc has_new -> do
@@ -206,6 +207,7 @@ inferenceL con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc mdls = d
                                                             ns = map funcName $ allCallsFC repeated_fc
                                                         in
                                                         HM.insertWith (++) sz [(ns, smt_mdl)] mdls
+                                    incrMaxCExM
                                     inferenceL con ghci m_modname lrs nls evals' r_meas_ex max_sz gs r_fc r_max_fc mdls'
                                 _ -> return inf_res
                         [] -> return $ Env gs'
@@ -224,6 +226,7 @@ inferenceL con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc mdls = d
                                                     ns = map funcName $ allCallsFC repeated_fc
                                                 in
                                                 HM.insertWith (++) sz [(ns, smt_mdl)] mdls
+                            incrMaxCExM
                             inferenceL con ghci m_modname lrs nls evals' meas_ex' max_sz gs (unionFC fc fc') max_fc mdls'
                 Crash _ _ -> error "inferenceL: LiquidHaskell crashed"
         SynthFail sf_fc -> return $ Raise meas_ex fc (unionFC max_fc sf_fc) (hasNewFC sf_fc max_fc)
