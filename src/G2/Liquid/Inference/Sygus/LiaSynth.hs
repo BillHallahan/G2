@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Liquid.Inference.Sygus.LiaSynth ( SynthRes (..)
@@ -326,9 +327,25 @@ blockModel = Solver.Assert . (:!) . foldr (.&&.) (VBool True) . map (\(n, v) -> 
 filterModelToRel :: M.Map Name SpecInfo -> [Name] -> SMTModel -> SMTModel
 filterModelToRel m_si ns mdl =
     let
-        vs = map fst . concatMap siNamesForModel $ mapMaybe (flip M.lookup m_si) ns
+        si = mapMaybe (flip M.lookup m_si) ns
+        vs = map fst $ concatMap siNamesForModel si
     in
-    M.filterWithKey (\n _ -> n `elem` vs) mdl
+    flip (foldr furtherFilterRel) si $ M.filterWithKey (\n _ -> n `elem` vs) mdl
+
+furtherFilterRel :: SpecInfo -> SMTModel -> SMTModel
+furtherFilterRel si mdl =
+    let
+        clauses = allCNFs si
+        coeffs = concatMap snd clauses
+    in
+    -- If we are not using a clause, we don't care about c_op_branch1 and c_op_branch2
+    -- If we are using a clause but c_op_branch1 is true, we don't care about c_op_branch2
+    foldr (\(Coeffs c_act op_br1 op_br2 _) mdl_ -> if
+              | M.lookup c_act mdl == Just (VBool False) ->
+                  M.delete op_br2 $ M.delete op_br1 mdl_
+              | M.lookup op_br1 mdl == Just (VBool True) ->
+                  M.delete op_br2 mdl_
+              | otherwise -> mdl) mdl coeffs
 
 ------------------------------------
 -- Building SMT Formulas
