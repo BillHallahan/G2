@@ -25,10 +25,10 @@ append xs [] = xs
 append [] ys = ys
 append (x:xs) ys = x:append xs ys
 
-{-@ prop_concat :: [a] -> [a] -> [a] -> { v:Bool | v } @-}
-prop_concat :: [a] -> [a] -> [a] -> Bool
-prop_concat xs ys zs =
+{-@ prop_concat :: [a] -> [a] -> { v:Bool | v } @-}
+prop_concat :: [a] -> [a] -> Bool
+prop_concat xs ys =
     let
-        xss = [xs, ys, zs]
+        xss = [xs, ys]
     in
-    size (concat xss) == size xs + size ys + size zs
+    size (concat xss) == size xs + size ys
