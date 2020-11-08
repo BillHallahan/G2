@@ -184,7 +184,6 @@ inferenceL con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc mdls = d
                 putStrLn "inferenceL"
                 putStrLn $ "fs = " ++ show fs
                 putStrLn $ "init gs' = " ++ show gs'
-                mapM (print . gsTySigs . spec) ghci'
 
             res <- tryToVerifyOnly ghci' fs
 
@@ -196,7 +195,8 @@ inferenceL con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc mdls = d
                         (_:nls') -> do
                             liftIO $ putStrLn "Down a level!"
                             incrMaxCExM
-                            inf_res <- inferenceL con ghci m_modname lrs nls' emptyEvals meas_ex max_sz gs' fc max_fc HM.empty
+                            let evals'' = foldr deleteEvalsForFunc evals' sf
+                            inf_res <- inferenceL con ghci m_modname lrs nls' evals'' meas_ex max_sz gs' fc max_fc HM.empty
                             case inf_res of
                                 Raise r_meas_ex r_fc r_max_fc has_new -> do
                                     liftIO $ putStrLn "Up a level!"
