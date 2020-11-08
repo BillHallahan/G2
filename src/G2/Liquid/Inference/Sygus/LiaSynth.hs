@@ -330,10 +330,40 @@ filterModelToRel m_si ns mdl =
         si = mapMaybe (flip M.lookup m_si) ns
         vs = map fst $ concatMap siNamesForModel si
     in
-    flip (foldr furtherFilterRel) si $ M.filterWithKey (\n _ -> n `elem` vs) mdl
+      flip (foldr filterClauseActiveBooleans) si
+    . flip (foldr filterCoeffActiveBooleans) si
+    . flip (foldr filterRelOpBranch) si
+    $ M.filterWithKey (\n _ -> n `elem` vs) mdl
 
-furtherFilterRel :: SpecInfo -> SMTModel -> SMTModel
-furtherFilterRel si mdl =
+-- If the clause level boolean is set to true, we remove all the
+-- formula level active booleans, since the formulas are
+-- irrelevant.
+filterClauseActiveBooleans :: SpecInfo -> SMTModel -> SMTModel
+filterClauseActiveBooleans si mdl =
+    let
+        clauses = allCNFs si
+    in
+    foldr (\(cl_act, cfs) mdl_ -> if
+              | M.lookup cl_act mdl_ == Just (VBool True) ->
+                  foldr (\c -> M.delete (c_active c)) mdl_ cfs
+              | otherwise -> mdl_) mdl clauses
+
+-- If the formula level active booleans are set to false, we remove all the
+-- coefficients in the formula, since the formula is now irrelevant.
+filterCoeffActiveBooleans :: SpecInfo -> SMTModel -> SMTModel
+filterCoeffActiveBooleans si mdl =
+    let
+        clauses = allCNFs si
+        coeffs = concatMap snd clauses
+    in
+    foldr (\(Coeffs c_act _ _ coeffs) mdl_ -> if
+              | M.lookup c_act mdl_ == Just (VBool False) ->
+                foldr M.delete mdl_ coeffs
+              | otherwise -> mdl_) mdl coeffs
+
+
+filterRelOpBranch :: SpecInfo -> SMTModel -> SMTModel
+filterRelOpBranch si mdl =
     let
         clauses = allCNFs si
         coeffs = concatMap snd clauses
@@ -582,10 +612,6 @@ limitEquivModels m_si =
                                  ) coeffs
     in
     map Solver.Assert $ cl_imp_coeff ++ coeff_act_imp_zero
-
--- type Coeffs = (SMTName, [SMTName])
--- type Clause = (SMTName, [Coeffs]) 
--- type CNF = [Clause]
 
 softCoeffAssertZero :: M.Map Name SpecInfo -> [SMTHeader]
 softCoeffAssertZero = map (\n -> AssertSoft (V n SortInt := VInt 0)) . getCoeffs

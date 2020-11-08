@@ -2,7 +2,7 @@
 {-@ LIQUID "--no-termination" @-}
 {-@ LIQUID "--prune-unsorted" @-}
 
-module Concat where
+module Append where
 
 import Prelude hiding (length, concat)
 
@@ -14,7 +14,6 @@ size (x:xs) = 1 + size xs
 {-@ invariant {v:[a] | 0 <= size v} @-}
 {-@ invariant {v:[a] | len v == size v} @-}
 
-{-@ append :: xs:[a] -> ys:[a] -> { zs:[a] | size xs == size zs } @-}
 append :: [a] -> [a] -> [a]
 append xs [] = xs
 append [] ys = ys
