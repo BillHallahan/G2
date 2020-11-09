@@ -392,28 +392,32 @@ hasNewFC fc1 fc2
 
 -- | Converts counterexamples into constraints that block the current specification set
 cexsToBlockingFC :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] -> CounterExample -> m (Either CounterExample FuncConstraint)
-cexsToBlockingFC _ _ (DirectCounter dfc fcs@(_:_)) = do
-    infconfig <- infConfigM
-    let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
+cexsToBlockingFC _ _ (DirectCounter dfc fcs@(_:_))
+    | (_:_, no_err_fcs) <- partition (hasArgError . abstract) fcs = undefined
+    | otherwise = do
+        infconfig <- infConfigM
+        let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 
-    let lhs = AndFC [Call Pre dfc, NotFC (Call Post dfc)]
-        rhs = OrFC $ map (\(Abstracted { abstract = fc }) -> 
-                            ImpliesFC (Call Pre fc) (NotFC (Call Post fc))) fcs'
+        let lhs = AndFC [Call Pre dfc, NotFC (Call Post dfc)]
+            rhs = OrFC $ map (\(Abstracted { abstract = fc }) -> 
+                                ImpliesFC (Call Pre fc) (NotFC (Call Post fc))) fcs'
 
-    if not . null $ fcs'
-        then return . Right $ ImpliesFC lhs rhs
-        else error "cexsToBlockingFC: Unhandled"
-cexsToBlockingFC _ _ (CallsCounter dfc cfc fcs@(_:_)) = do
-    infconfig <- infConfigM
-    let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
+        if not . null $ fcs'
+            then return . Right $ ImpliesFC lhs rhs
+            else error "cexsToBlockingFC: Unhandled"
+cexsToBlockingFC _ _ (CallsCounter dfc cfc fcs@(_:_))
+    | (_:_, no_err_fcs) <- partition (hasArgError . abstract) fcs = undefined
+    | otherwise = do
+        infconfig <- infConfigM
+        let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 
-    let lhs = AndFC [Call Pre dfc, NotFC (Call Pre (abstract cfc))]
-        rhs = OrFC $ map (\(Abstracted { abstract = fc }) -> 
-                            ImpliesFC (Call Pre fc) (NotFC (Call Post fc))) fcs'
+        let lhs = AndFC [Call Pre dfc, NotFC (Call Pre (abstract cfc))]
+            rhs = OrFC $ map (\(Abstracted { abstract = fc }) -> 
+                                ImpliesFC (Call Pre fc) (NotFC (Call Post fc))) fcs'
 
-    if not . null $ fcs' 
-        then return . Right $ ImpliesFC lhs rhs
-        else error "cexsToBlockingFC: Should be unreachable! Non-refinable function abstracted!"    
+        if not . null $ fcs' 
+            then return . Right $ ImpliesFC lhs rhs
+            else error "cexsToBlockingFC: Should be unreachable! Non-refinable function abstracted!"    
 cexsToBlockingFC lrs ghci cex@(DirectCounter dfc [])
     | isError (returns dfc) = do
         if isExported lrs (funcName dfc)
@@ -509,15 +513,8 @@ insertsFC = foldr insertFC emptyFC
 abstractedMod :: Abstracted -> Maybe T.Text
 abstractedMod = nameModule . funcName . abstract
 
-filterErrors :: [FuncConstraint] -> [FuncConstraint]
-filterErrors = filter (not . hasError)
-
-hasError :: FuncConstraint -> Bool
-hasError fc = 
-    let
-        calls = allCalls fc
-    in
-    any isError (concatMap arguments calls) || any isError (map returns calls)
+hasArgError :: FuncCall -> Bool
+hasArgError = any isError . arguments
 
 isError :: Expr -> Bool
 isError (Prim Error _) = True
