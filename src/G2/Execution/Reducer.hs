@@ -169,6 +169,10 @@ class Halter h hv t | h -> hv where
     -- | Takes a state, and updates it's halter record field
     stepHalter :: h -> hv -> Processed (State t) -> [State t] -> State t -> hv
 
+    {-# INLINE updateHalterWithAll #-}
+    updateHalterWithAll :: h -> [(State t, hv)] -> [hv]
+    updateHalterWithAll _ = map snd 
+
 -- | Picks an order to evaluate the states, to allow prioritizing some over others 
 -- The type parameter or is used to disambiguate between different producers.
 -- To create a new reducer, define some new type, and use it as or.
@@ -555,6 +559,17 @@ instance (Halter h1 hv1 t, Halter h2 hv2 t) => Halter (HCombiner h1 h2) (C hv1 h
         in
         C hv1' hv2'
 
+    updateHalterWithAll (h1 :<~> h2) shv =
+        let
+            shv1 = map (\(s, C hv1 _) -> (s, hv1)) shv
+            shv2 = map (\(s, C _ hv2) -> (s, hv2)) shv
+
+            shv1' = updateHalterWithAll h1 shv1
+            shv2' = updateHalterWithAll h2 shv2
+        in
+        map (uncurry C) $ zip shv1' shv2'
+
+
 data  SWHNFHalter = SWHNFHalter
 
 instance Halter SWHNFHalter () t where
@@ -616,6 +631,14 @@ instance Halter SwitchEveryNHalter Int t where
     updatePerStateHalt (SwitchEveryNHalter sw) _ _ _ = sw
     stopRed _ i pr _ = return $ if i <= 0 then Switch else Continue
     stepHalter _ i _ _ _ = i - 1
+
+    updateHalterWithAll _ [] = []
+    updateHalterWithAll _ xs@((_, c):_) =
+        let
+            len = length xs
+            c' = c `quot` len
+        in
+        replicate len c'
 
 -- | Switches execution every n steps, where n is divided every time
 -- a case split happens, by the number of states.
@@ -1048,14 +1071,18 @@ runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_
                 (_, reduceds, b', red') <- redRules red r_val s b
                 let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
 
-                let r_vals = updateWithAll red reduceds' ++ error "List returned by updateWithAll is too short."
+                    r_vals = updateWithAll red reduceds' ++ error "List returned by updateWithAll is too short."
+                    
+                    reduceds_h_vals = map (\(r, _) -> (r, h_val)) reduceds'
+                    h_vals = updateHalterWithAll hal reduceds_h_vals ++ error "List returned by updateWithAll is too short."
+
                     new_states = map fst reduceds'
                 
-                    mod_info = map (\(s', r_val') ->
+                    mod_info = map (\(s', r_val', h_val') ->
                                         rs { state = s'
                                            , reducer_val = r_val'
-                                           , halter_val = stepHalter hal h_val ps new_states s'
-                                           , order_val = stepOrderer ord o_val ps new_states s'}) $ zip new_states r_vals
+                                           , halter_val = stepHalter hal h_val' ps new_states s'
+                                           , order_val = stepOrderer ord o_val ps new_states s'}) $ zip3 new_states r_vals h_vals
 
 
                     
