@@ -44,30 +44,47 @@ import Data.Time.Clock
 -------------------------------
 
 data Progress = Progress { ex_max_ce :: Int -- ^ Gives an extra budget for maximum ce number
+                         , ex_max_depth :: Int -- ^ Gives an extra budget for the depth limit
                          }
 
 newProgress :: Progress
-newProgress = Progress { ex_max_ce = 0 }
+newProgress = Progress { ex_max_ce = 0 
+                       , ex_max_depth = 0  }
 
 class Progresser p where
     extraMaxCEx ::  p -> Int
     incrMaxCEx :: p -> p
 
+    extraMaxDepth ::  p -> Int
+    incrMaxDepth :: p -> p
+
 instance Progresser Progress where
     extraMaxCEx (Progress { ex_max_ce = m }) = m
     incrMaxCEx p@(Progress { ex_max_ce = m }) = Progress { ex_max_ce = m + 2 }
+
+    extraMaxDepth (Progress { ex_max_depth = m }) = m
+    incrMaxDepth p@(Progress { ex_max_depth = m }) = Progress { ex_max_depth = m + 200 }
 
 class Monad m => ProgresserM m where
     extraMaxCExM :: m Int
     incrMaxCExM :: m ()
 
+    extraMaxDepthM :: m Int
+    incrMaxDepthM :: m ()
+
 instance (Monad m, Progresser p) => ProgresserM (StateT p m) where
     extraMaxCExM = gets extraMaxCEx
     incrMaxCExM = modify' incrMaxCEx
 
+    extraMaxDepthM = gets extraMaxDepth
+    incrMaxDepthM = modify' incrMaxDepth
+
 instance ProgresserM m => ProgresserM (ReaderT env m) where
     extraMaxCExM = lift extraMaxCExM
     incrMaxCExM = lift incrMaxCExM
+
+    extraMaxDepthM = lift extraMaxDepthM
+    incrMaxDepthM = lift incrMaxDepthM
 
 runProgresser :: (Monad m, Progresser p) => StateT p m a -> p -> m a
 runProgresser = evalStateT

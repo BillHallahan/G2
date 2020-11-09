@@ -1,7 +1,7 @@
 {-@ LIQUID "--no-termination" @-}
 {-@ LIQUID "--maxparams=3"    @-}
 
-module LazyQueue (Q, size, qsize, size) where
+module LazyQueue (Q, t, size, qsize, size) where
 
 {-@ die :: {v:String | false} -> a @-}
 die x = error x

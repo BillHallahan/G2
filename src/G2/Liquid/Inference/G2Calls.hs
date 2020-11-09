@@ -14,6 +14,7 @@ module G2.Liquid.Inference.G2Calls ( MeasureExs
                                    , Evals (..)
                                    , gatherAllowedCalls
                                    , runLHInferenceCore
+                                   , runLHCExSearch
                                    , checkFuncCall
                                    , checkCounterexample
                                    
@@ -254,14 +255,7 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
                  :<~> timer_halter
                  -- :<~> OnlyIf (\pr _ -> any true_assert (accepted pr)) timer_halter
 
-    return $ if higherOrderSolver config == AllFuncs then 
-        ( SomeReducer NonRedPCRed
-            <~| (case logStates config of
-                  Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
-                  Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn))
-        , SomeHalter halter
-        , SomeOrderer (ToOrderer $ IncrAfterN 1000 ADTHeightOrderer))
-    else
+    return $
         (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng)
             <~| (case logStates config of
                   Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
@@ -269,6 +263,81 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
         , SomeHalter
             (DiscardIfAcceptedTag state_name :<~> halter)
         , SomeOrderer (ToOrderer $ IncrAfterN 1000 ADTHeightOrderer))
+
+runLHCExSearch :: (ProgresserM m, InfConfigM m, MonadIO m)
+               => T.Text
+               -> Maybe T.Text
+               -> LiquidReadyState
+               -> [GhcInfo]
+               -> m (([ExecRes AbstractedInfo], Bindings), Id)
+runLHCExSearch entry m lrs ghci = do
+    g2config <- g2ConfigM
+    infconfig <- infConfigM
+
+    let g2config' = g2config { counterfactual = NotCounterfactual }
+
+    LiquidData { ls_state = final_st
+               , ls_bindings = bindings
+               , ls_id = ifi
+               , ls_counterfactual_name = cfn
+               , ls_counterfactual_funcs = cf_funcs
+               , ls_memconfig = pres_names } <- liftIO $ processLiquidReadyStateWithCall lrs ghci entry m g2config' mempty
+    SomeSolver solver <- liftIO $ initSolver g2config'
+    let simplifier = ADTSimplifier arbValue
+        final_st' = swapHigherOrdForSymGen bindings final_st
+
+    (red, hal, ord) <- realCExReducerHalterOrderer infconfig g2config' solver simplifier cfn cf_funcs final_st'
+    (exec_res, final_bindings) <- liftIO $ runLHG2 g2config' red hal ord solver simplifier pres_names final_st' bindings
+
+    liftIO $ close solver
+
+    return ((exec_res, final_bindings), ifi)
+
+realCExReducerHalterOrderer :: (ProgresserM m, MonadIO m, Solver solver, Simplifier simplifier)
+                            => InferenceConfig
+                            -> Config
+                            -> solver
+                            -> simplifier
+                            -> Name
+                            -> HS.HashSet Name
+                            -> State LHTracker
+                            -> m (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
+realCExReducerHalterOrderer infconfig config solver simplifier  cfn cf_funcs st = do
+    extra_ce <- extraMaxCExM
+    extra_depth <- extraMaxDepthM
+
+    let
+        ng = mkNameGen ()
+
+        share = sharing config
+
+        (limHalt, limOrd) = limitByAccepted (cut_off config)
+        state_name = Name "state" Nothing 0 Nothing
+
+        -- searched_below = SearchedBelowHalter { found_at_least = 3
+        --                                      , discarded_at_least = 6
+        --                                      , discarded_at_most = 15 }
+        ce_num = max_ce infconfig + extra_ce
+        lh_max_outputs = LHMaxOutputsHalter ce_num
+    
+    timer_halter <- liftIO $ timerHalter (timeout_se infconfig)
+
+    let halter =      lh_max_outputs
+                 :<~> SwitchEveryNHalter (switch_after config)
+                 :<~> ZeroHalter (0 + extra_depth)
+                 :<~> AcceptIfViolatedHalter
+                 :<~> timer_halter
+                 -- :<~> OnlyIf (\pr _ -> any true_assert (accepted pr)) timer_halter
+
+    return $
+        (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng)
+            <~| (case logStates config of
+                  Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
+                  Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn))
+        , SomeHalter
+            (DiscardIfAcceptedTag state_name :<~> halter)
+        , SomeOrderer (ToOrderer $ IncrAfterN 1000 ADTHeightOrderer))
+
 
 swapHigherOrdForSymGen :: Bindings -> State t -> State t
 swapHigherOrdForSymGen b s@(State { curr_expr = CurrExpr er e }) =

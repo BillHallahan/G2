@@ -1,4 +1,5 @@
 {-# LANGUAGE MultiWayIf #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
 module G2.Liquid.Inference.Interface ( inferenceCheck
@@ -8,10 +9,12 @@ import G2.Config.Config as G2
 import qualified G2.Initialization.Types as IT
 import G2.Interface hiding (violated)
 import G2.Language.CallGraph
+import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Naming
 import G2.Language.Support
 import G2.Language.Syntax
+import G2.Language.Typing
 import G2.Liquid.AddTyVars
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.FuncConstraint as FC
@@ -30,6 +33,7 @@ import Language.Haskell.Liquid.Types as LH
 import Control.Monad
 import Control.Monad.Extra
 import Control.Monad.IO.Class 
+import qualified Data.Map as M
 import Data.Either
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as HM
@@ -38,6 +42,8 @@ import Data.Maybe
 import qualified Data.Text as T
 
 import qualified Language.Fixpoint.Types.Config as FP
+
+import Debug.Trace
 
 -- Run inference, with an extra, final check of correctness at the end.
 -- Assuming inference is working correctly, this check should neve fail.
@@ -144,7 +150,8 @@ iterativeInference con ghci m_modname lrs nls meas_ex max_sz gs fc = do
     case res of
         CEx cex -> return $ Left cex
         Env gs -> return $ Right gs
-        Raise r_meas_ex r_fc _ _ -> iterativeInference con ghci m_modname lrs nls r_meas_ex (incrMaxSize max_sz) gs r_fc
+        Raise r_meas_ex r_fc _ _ -> do
+          iterativeInference con ghci m_modname lrs nls r_meas_ex (incrMaxSize max_sz) gs r_fc
 
 
 inferenceL :: (ProgresserM m, InfConfigM m, MonadIO m, SMTConverter con ast out io)
@@ -259,6 +266,48 @@ refineUnsafe ghci m_modname lrs gs bad = do
             liftIO . putStrLn $ "new_fc' = " ++ printFCs new_fc'
             return $ Right new_fc'
 
+genNewConstraints :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> T.Text -> m [CounterExample]
+genNewConstraints ghci m lrs n = do
+    liftIO . putStrLn $ "Generating constraints for " ++ T.unpack n
+    ((exec_res, _), i) <- runLHInferenceCore n m lrs ghci
+    let exec_res' = filter (true_assert . final_state) exec_res
+    return $ map (lhStateToCE i) exec_res'
+
+getCEx :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState
+             -> GeneratedSpecs
+             -> [Name] -> m (Either [CounterExample] FuncConstraints)
+getCEx ghci m_modname lrs gs bad = do
+    let merged_se_ghci = addSpecsToGhcInfos ghci gs
+
+    liftIO $ mapM_ (print . gsTySigs . spec) merged_se_ghci
+
+    let bad' = nub $ map nameOcc bad
+
+    res <- mapM (checkForCEx merged_se_ghci m_modname lrs) bad'
+
+    liftIO $ do
+        putStrLn $ "res = "
+        printCE $ concat res
+
+    let res' = concat res
+
+    -- Either converts counterexamples to FuncConstraints, or returns them as errors to
+    -- show to the user.
+    new_fc <- checkNewConstraints ghci lrs res'
+
+    case new_fc of
+        Left cex -> return $ Left cex
+        Right new_fc' -> do
+            liftIO . putStrLn $ "new_fc' = " ++ printFCs new_fc'
+            return $ Right new_fc'
+
+checkForCEx :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> T.Text -> m [CounterExample]
+checkForCEx ghci m lrs n = do
+    liftIO . putStrLn $ "Checking CEx for " ++ T.unpack n
+    ((exec_res, _), i) <- runLHCExSearch n m lrs ghci
+    let exec_res' = filter (true_assert . final_state) exec_res
+    return $ map (lhStateToCE i) exec_res'
+
 createStateForInference :: SimpleState -> G2.Config -> [GhcInfo] -> LiquidReadyState
 createStateForInference simp_s config ghci =
     let
@@ -272,13 +321,6 @@ createStateForInference simp_s config ghci =
     in
     createLiquidReadyState s b ghci ph_tyvars config
 
-
-genNewConstraints :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> T.Text -> m [CounterExample]
-genNewConstraints ghci m lrs n = do
-    liftIO . putStrLn $ "Generating constraints for " ++ T.unpack n
-    ((exec_res, _), i) <- runLHInferenceCore n m lrs ghci
-    let exec_res' = filter (true_assert . final_state) exec_res
-    return $ map (lhStateToCE i) exec_res'
 
 checkNewConstraints :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> [CounterExample] -> m (Either [CounterExample] FuncConstraints)
 checkNewConstraints ghci lrs cexs = do
