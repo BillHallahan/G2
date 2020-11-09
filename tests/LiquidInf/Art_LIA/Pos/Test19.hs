@@ -30,10 +30,9 @@ qsize (Q { front = f, back = b}) = size f + size b
 
 data X = X
 
-{-@ t :: n:{ Int | n >= 0 } -> { q:Q X | qsize q >= n } -> { q2:Q X | qsize q2 <= qsize q } @-}
-t :: Int -> Q X -> Q X
-t 0 q = Q [] []
-t n  (Q f b) = c (tl f)
+{-@ t :: { q:Q X | qsize q > 0 } -> { q2:Q X | qsize q2 <= qsize q } @-}
+t :: Q X -> Q X
+t (Q f b) = c (tl f)
 
 c :: [a] -> Q a
 c f = Q f []
