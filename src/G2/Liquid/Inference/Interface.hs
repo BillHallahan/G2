@@ -151,7 +151,23 @@ iterativeInference con ghci m_modname lrs nls meas_ex max_sz gs fc = do
         CEx cex -> return $ Left cex
         Env gs -> return $ Right gs
         Raise r_meas_ex r_fc _ _ -> do
-          iterativeInference con ghci m_modname lrs nls r_meas_ex (incrMaxSize max_sz) gs r_fc
+            incrMaxDepthM
+            -- We might be missing some internal GHC types from our deep_seq walkers
+            -- We filter them out to avoid an error
+            let eenv = expr_env . state $ lr_state lrs
+                check = filter (\n -> 
+                                  case E.lookup n eenv of
+                                      Just e -> isJust $ 
+                                              mkStrict_maybe 
+                                              (deepseq_walkers $ lr_binding lrs) 
+                                              (Var (Id (Name "" Nothing 0 Nothing) (returnType e)))
+                                      Nothing -> False) (head nls)
+            liftIO . putStrLn $ "head nls =  " ++ show (head nls)
+            liftIO . putStrLn $ "iterativeInference check =  " ++ show check
+            ref <- getCEx ghci m_modname lrs gs check
+            case ref of
+                Left cex -> return $ Left cex
+                Right fc' -> iterativeInference con ghci m_modname lrs nls r_meas_ex (incrMaxSize max_sz) gs (unionFC fc' r_fc)
 
 
 inferenceL :: (ProgresserM m, InfConfigM m, MonadIO m, SMTConverter con ast out io)
@@ -493,6 +509,15 @@ insertsFC = foldr insertFC emptyFC
 abstractedMod :: Abstracted -> Maybe T.Text
 abstractedMod = nameModule . funcName . abstract
 
+filterErrors :: [FuncConstraint] -> [FuncConstraint]
+filterErrors = filter (not . hasError)
+
+hasError :: FuncConstraint -> Bool
+hasError fc = 
+    let
+        calls = allCalls fc
+    in
+    any isError (concatMap arguments calls) || any isError (map returns calls)
 
 isError :: Expr -> Bool
 isError (Prim Error _) = True

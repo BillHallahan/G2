@@ -306,6 +306,8 @@ realCExReducerHalterOrderer infconfig config solver simplifier  cfn cf_funcs st 
     extra_ce <- extraMaxCExM
     extra_depth <- extraMaxDepthM
 
+    liftIO . putStrLn $ "extra_depth = " ++ show extra_depth
+
     let
         ng = mkNameGen ()
 

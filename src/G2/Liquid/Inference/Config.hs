@@ -60,10 +60,10 @@ class Progresser p where
 
 instance Progresser Progress where
     extraMaxCEx (Progress { ex_max_ce = m }) = m
-    incrMaxCEx p@(Progress { ex_max_ce = m }) = Progress { ex_max_ce = m + 2 }
+    incrMaxCEx p@(Progress { ex_max_ce = m }) = p { ex_max_ce = m + 2 }
 
     extraMaxDepth (Progress { ex_max_depth = m }) = m
-    incrMaxDepth p@(Progress { ex_max_depth = m }) = Progress { ex_max_depth = m + 200 }
+    incrMaxDepth p@(Progress { ex_max_depth = m }) = p { ex_max_depth = m + 200 }
 
 class Monad m => ProgresserM m where
     extraMaxCExM :: m Int
