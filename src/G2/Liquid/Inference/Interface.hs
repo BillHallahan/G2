@@ -217,20 +217,13 @@ inferenceL con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc mdls = d
                     case nls of
                         (_:nls') -> do
                             liftIO $ putStrLn "Down a level!"
-                            incrMaxCExM
                             let evals'' = foldr deleteEvalsForFunc evals' sf
                             inf_res <- inferenceL con ghci m_modname lrs nls' evals'' meas_ex max_sz gs' fc max_fc HM.empty
                             case inf_res of
                                 Raise r_meas_ex r_fc r_max_fc has_new -> do
                                     liftIO $ putStrLn "Up a level!"
-                                    let mdls' = case has_new of
-                                                    NewFC -> mdls
-                                                    NoNewFC repeated_fc ->
-                                                        let
-                                                            ns = map funcName $ allCallsFC repeated_fc
-                                                        in
-                                                        HM.insertWith (++) sz [(ns, smt_mdl)] mdls
-                                    incrMaxCExM
+                                    
+                                    mdls' <- adjModelAndMaxCEx has_new sz smt_mdl mdls
                                     inferenceL con ghci m_modname lrs nls evals' r_meas_ex max_sz gs r_fc r_max_fc mdls'
                                 _ -> return inf_res
                         [] -> return $ Env gs'
@@ -242,14 +235,8 @@ inferenceL con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc mdls = d
                             liftIO $ putStrLn "Before genMeasureExs"
                             meas_ex' <- updateMeasureExs meas_ex lrs ghci fc'
                             liftIO $ putStrLn "After genMeasureExs"
-                            let mdls' = case hasNewFC fc' fc of
-                                            NewFC -> mdls
-                                            NoNewFC repeated_fc ->
-                                                let
-                                                    ns = map funcName $ allCallsFC repeated_fc
-                                                in
-                                                HM.insertWith (++) sz [(ns, smt_mdl)] mdls
-                            incrMaxCExM
+
+                            mdls' <- adjModelAndMaxCEx (hasNewFC fc' fc) sz smt_mdl mdls
                             inferenceL con ghci m_modname lrs nls evals' meas_ex' max_sz gs (unionFC fc fc') max_fc mdls'
                 Crash _ _ -> error "inferenceL: LiquidHaskell crashed"
         SynthFail sf_fc -> return $ Raise meas_ex fc (unionFC max_fc sf_fc) (hasNewFC sf_fc max_fc)
@@ -281,6 +268,16 @@ refineUnsafe ghci m_modname lrs gs bad = do
         Right new_fc' -> do
             liftIO . putStrLn $ "new_fc' = " ++ printFCs new_fc'
             return $ Right new_fc'
+
+adjModelAndMaxCEx :: ProgresserM m => NewFC -> Size -> SMTModel -> HM.HashMap Size [([Name], SMTModel)] -> m (HM.HashMap Size [([Name], SMTModel)])
+adjModelAndMaxCEx has_new sz smt_mdl mdls = do
+      case has_new of
+            NewFC -> return mdls
+            NoNewFC repeated_fc -> do
+                let ns = map funcName $ allCallsFC repeated_fc
+                    mdls' = HM.insertWith (++) sz [(ns, smt_mdl)] mdls                                      
+                incrMaxCExM
+                return mdls'
 
 genNewConstraints :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> T.Text -> m [CounterExample]
 genNewConstraints ghci m lrs n = do
