@@ -466,12 +466,12 @@ cexsToExtraFC :: InfConfigM m => CounterExample -> m [FuncConstraint]
 cexsToExtraFC (DirectCounter _ fcs@(_:_)) = do
     infconfig <- infConfigM
     let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
-    return $ map (\(Abstracted { real = fc }) -> ImpliesFC (Call Pre fc) (Call Post fc)) fcs'
+    return $ mapMaybe realToMaybeFC fcs'
 cexsToExtraFC (CallsCounter _ cfc fcs@(_:_)) = do
     infconfig <- infConfigM
     let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 
-    let abs = map (\(Abstracted { real = fc }) -> ImpliesFC (Call Pre fc) (Call Post fc)) fcs'
+    let abs = mapMaybe realToMaybeFC fcs'
         clls = Call All $ real cfc
 
     return $ clls:abs
@@ -487,6 +487,11 @@ cexsToExtraFC (CallsCounter dfc cfc [])
             imp_fc = ImpliesFC (Call Pre dfc) (Call Pre $ real cfc)
         in
         return $ [call_all_dfc, call_all_cfc, imp_fc]
+
+realToMaybeFC :: Abstracted -> Maybe FuncConstraint
+realToMaybeFC a@(Abstracted { real = fc }) 
+    | hits_lib_err_in_real a = Nothing
+    | otherwise = Just $ ImpliesFC (Call Pre fc) (Call Post fc)
 
 isExported :: LiquidReadyState -> Name -> Bool
 isExported lrs n = n `elem` exported_funcs (lr_binding lrs)
