@@ -273,11 +273,15 @@ adjModelAndMaxCEx :: ProgresserM m => NewFC -> Size -> SMTModel -> HM.HashMap Si
 adjModelAndMaxCEx has_new sz smt_mdl mdls = do
       case has_new of
             NewFC -> return mdls
-            NoNewFC repeated_fc -> do
-                let ns = map funcName $ allCallsFC repeated_fc
-                    mdls' = HM.insertWith (++) sz [(ns, smt_mdl)] mdls                                      
-                incrMaxCExM
-                return mdls'
+            NoNewFC repeated_fc
+                | not $ nullFC repeated_fc -> do
+                    let ns = map funcName $ allCallsFC repeated_fc
+                        mdls' = HM.insertWith (++) sz [(ns, smt_mdl)] mdls                                      
+                    incrMaxCExM
+                    return mdls'
+                | otherwise -> do
+                    incrMaxCExM
+                    return mdls
 
 genNewConstraints :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> T.Text -> m [CounterExample]
 genNewConstraints ghci m lrs n = do
