@@ -303,7 +303,7 @@ getCEx ghci m_modname lrs gs bad = do
     res <- mapM (checkForCEx merged_se_ghci m_modname lrs) bad'
 
     liftIO $ do
-        putStrLn $ "res = "
+        putStrLn $ "getCEx res = "
         printCE $ concat res
 
     let res' = concat res

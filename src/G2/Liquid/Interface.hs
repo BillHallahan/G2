@@ -286,6 +286,8 @@ processLiquidReadyState lrs@(LiquidReadyState { lr_state = lh_state
                                               , lr_known_values = mkv
                                               , lr_type_classes = mtc
                                               , lr_higher_ord_insts = minst}) ifi ghci config memconfig = do
+    putStrLn $ "processLiquidReadyState ghci ="
+    mapM_ (print . gsTySigs . spec) ghci
     let ((cfn, mc, cff), (merged_state, bindings')) = runLHStateM (initializeLHSpecs (counterfactual config) ghci ifi lh_bindings) lh_state lh_bindings
         lrs' = lrs { lr_state = merged_state, lr_binding = bindings'}
 

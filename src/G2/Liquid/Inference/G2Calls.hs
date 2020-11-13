@@ -274,7 +274,8 @@ runLHCExSearch entry m lrs ghci = do
     g2config <- g2ConfigM
     infconfig <- infConfigM
 
-    let g2config' = g2config { counterfactual = NotCounterfactual }
+    let g2config' = g2config { counterfactual = NotCounterfactual
+                             , only_top = False}
 
     LiquidData { ls_state = final_st
                , ls_bindings = bindings
