@@ -16,6 +16,8 @@ module G2.Liquid.LHReducers ( LHRed (..)
                             , LHLeastAbstracted (..)
                             , LHTracker (..)
 
+                            , lhTimerHalter
+
                             , abstractCallsNum
                             , minAbstractCalls
 
@@ -41,6 +43,7 @@ import Data.Monoid
 import Data.Ord
 import Data.Semigroup
 import qualified Data.Text as T
+import Data.Time.Clock
 
 import Debug.Trace
 
@@ -99,7 +102,10 @@ data LHTracker = LHTracker { abstract_calls :: [FuncCall]
                            , annotations :: AnnotMap } deriving (Eq, Show)
 
 minAbstractCalls :: [State LHTracker] -> Int
-minAbstractCalls xs = minimum $ 10000000000:fmap abstractCallsNum xs
+minAbstractCalls xs =
+    minimum $ 10000000000:mapMaybe (\s -> case true_assert s of
+                                            True -> Just $ abstractCallsNum s
+                                            False -> Nothing ) xs
 
 abstractCallsNum :: State LHTracker -> Int
 abstractCallsNum = length . abstract_calls . track
@@ -217,7 +223,10 @@ instance Halter LHAbsHalter Int LHTracker where
         in
         initialTrack eenv fe
 
-    updatePerStateHalt _ ii (Processed {accepted = acc}) _ = minimum $ ii:map (length . abstract_calls . track) acc
+    updatePerStateHalt _ ii (Processed {accepted = acc}) _ =
+        minimum $ ii:mapMaybe (\s -> case true_assert s of
+                                        True -> Just . length . abstract_calls . track $ s
+                                        False -> Nothing) acc
 
     stopRed _ hv pr s =
         return $ if length (abstract_calls $ track s) > hv
@@ -325,6 +334,31 @@ instance Halter SearchedBelowHalter SBInfo LHTracker where
             min_abs = minAbstractCalls acc
             
     stepHalter _ hv _ _ _ = hv
+
+data LHTimerHalter = LHTimerHalter { lh_init_time :: UTCTime, lh_max_seconds :: NominalDiffTime }
+
+lhTimerHalter :: NominalDiffTime -> IO LHTimerHalter
+lhTimerHalter ms = do
+    curr <- getCurrentTime
+    return LHTimerHalter { lh_init_time = curr, lh_max_seconds = ms }
+
+instance Halter LHTimerHalter () t where
+    initHalt _ _ = ()
+    updatePerStateHalt _ _ _ _ = ()
+
+    stopRed tr@(LHTimerHalter { lh_init_time = it
+                              , lh_max_seconds = ms })
+            _ (Processed { accepted = acc }) s
+        | any true_assert acc = do
+            curr <- getCurrentTime
+            let diff = diffUTCTime curr it
+
+            if diff > ms
+                then return Discard
+                else return Continue
+        | otherwise = return Continue
+
+    stepHalter _ _ _ _ _ = ()
 
 -- | Tries to consider the same number of states with each abstracted functions
 data LHLeastAbstracted ord = LHLeastAbstracted (S.HashSet Name) ord
