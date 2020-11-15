@@ -101,7 +101,7 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
                       , track = False }
 
         (er, _) <- runG2WithSomes 
-                        (SomeReducer (StdRed share solver simplifier  :<~ RedArbErrors))
+                        (SomeReducer (StdRed share solver simplifier :<~ RedArbErrors))
                         (SomeHalter SWHNFHalter)
                         (SomeOrderer NextOrderer)
                         solver simplifier emptyMemConfig s' bindings
@@ -118,6 +118,12 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
                                                      , hits_lib_err_in_real = t }
                                         ) m
                         False -> return NotAbstractRes
+            [] -> -- ^ We hit an error in a library function
+                return $ AbstractRes 
+                          ( Abstracted { abstract = abs_fc
+                                       , real = abs_fc { returns = Prim Error TyUnknown }
+                                       , hits_lib_err_in_real = True }
+                          ) (model s)
             _ -> error $ "checkAbstracted': Bad return from runG2WithSomes"
     | otherwise = error $ "checkAbstracted': Bad lookup in runG2WithSomes"
 
@@ -178,8 +184,8 @@ elimAssumesExcept :: ASTContainer m Expr => m -> m
 elimAssumesExcept = modifyASTs elimAssumesExcept'
 
 elimAssumesExcept' :: Expr -> Expr
-elimAssumesExcept' (Assume _ (Tick t _) e)
-    | t == assumeErrorTickish = Tick t e
+elimAssumesExcept' a@(Assume _ (Tick t _) e)
+    | t == assumeErrorTickish = a
     | otherwise = e
 elimAssumesExcept' (Assume _ _ e) = e
 elimAssumesExcept' e = e
