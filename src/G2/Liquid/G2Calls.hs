@@ -94,14 +94,14 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
         -- We eliminate all assumes, except those blocking calls to library functions.
         -- See [BlockErrors] in G2.Liquid.SpecialAsserts
         let s' = elimAssumesExcept
-              . pickHead
-              . elimSymGens (arb_value_gen bindings)
-              . modelToExprEnv $
-                   s { curr_expr = CurrExpr Evaluate strict_call
-                     , track = False }
+               . pickHead
+               . elimSymGens (arb_value_gen bindings)
+               . modelToExprEnv $
+                    s { curr_expr = CurrExpr Evaluate strict_call
+                      , track = False }
 
         (er, _) <- runG2WithSomes 
-                        (SomeReducer (StdRed share solver simplifier :<~ HitsLibError))
+                        (SomeReducer (StdRed share solver simplifier  :<~ RedArbErrors))
                         (SomeHalter SWHNFHalter)
                         (SomeOrderer NextOrderer)
                         solver simplifier emptyMemConfig s' bindings
@@ -145,7 +145,7 @@ getAbstracted solver simplifier share s bindings abs_fc@(FuncCall { funcName = n
                    s { curr_expr = CurrExpr Evaluate strict_call }
 
         (er, _) <- runG2WithSomes 
-                        (SomeReducer (StdRed share solver simplifier))
+                        (SomeReducer (StdRed share solver simplifier :<~| RedArbErrors))
                         (SomeHalter SWHNFHalter)
                         (SomeOrderer NextOrderer)
                         solver simplifier emptyMemConfig s' bindings
@@ -199,7 +199,7 @@ reduceCalls solver simplifier config bindings er = do
 
 reduceViolated :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Sharing -> Bindings -> ExecRes LHTracker -> IO (Bindings, ExecRes LHTracker)
 reduceViolated solver simplifier share bindings er@(ExecRes { final_state = s, violated = Just v }) = do
-    let red = SomeReducer (StdRed share solver simplifier)
+    let red = SomeReducer (StdRed share solver simplifier :<~| RedArbErrors)
     (bindings', v') <- reduceFuncCall share red solver simplifier s bindings v
     -- putStrLn $ "v = " ++ show v
     -- putStrLn $ "v' = " ++ show v'
@@ -209,7 +209,7 @@ reduceViolated _ _ _ b er = return (b, er)
 reduceAbstracted :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Sharing -> Bindings -> ExecRes LHTracker -> IO (Bindings, ExecRes LHTracker)
 reduceAbstracted solver simplifier share bindings
                 er@(ExecRes { final_state = (s@State { track = lht}) }) = do
-    let red = SomeReducer (StdRed share solver simplifier)
+    let red = SomeReducer (StdRed share solver simplifier :<~| RedArbErrors)
         fcs = abstract_calls lht
 
     (bindings', fcs') <- mapAccumM (reduceFuncCall share red solver simplifier s) bindings fcs

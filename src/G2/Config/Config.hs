@@ -4,6 +4,7 @@ module G2.Config.Config ( Mode (..)
                         , CFModules (..)
                         , SMTSolver (..)
                         , HigherOrderSolver (..)
+                        , BlockErrorsMethod (..)
                         , IncludePath
                         , Config (..)
                         , BoolDef (..)
@@ -36,6 +37,9 @@ data SMTSolver = ConZ3 | ConCVC4 deriving (Eq, Show, Read)
 data HigherOrderSolver = AllFuncs
                        | SingleFunc deriving (Eq, Show, Read)
 
+data BlockErrorsMethod = ArbBlock
+                       | AssumeBlock deriving (Eq, Show, Read)
+
 type IncludePath = FilePath
 
 data Config = Config {
@@ -66,6 +70,7 @@ data Config = Config {
     , counterfactual :: Counterfactual -- ^ Which functions should be able to generate abstract counterexamples
     , only_top :: Bool -- ^ Only try to find counterexamples in the very first function definition, or directly called functions?
     , block_errors_in :: (S.HashSet (T.Text, Maybe T.Text)) -- ^ Prevents calls from errors occuring in the indicated functions
+    , block_errors_method :: BlockErrorsMethod -- ^ Should errors be blocked with an Assume or with an arbitrarily inserted value
     , reduce_abs :: Bool
     , add_tyvars :: Bool
 }
@@ -109,6 +114,7 @@ mkConfig homedir as m = Config {
                         (Counterfactual CFAll) (Counterfactual CFAll) NotCounterfactual
     , only_top = boolArg "only-top" as m Off
     , block_errors_in = S.empty
+    , block_errors_method = ArbBlock
     , reduce_abs = boolArg "reduce-abs" as m On
     , add_tyvars = boolArg "add-tyvars" as m Off
 }

@@ -5,6 +5,8 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module G2.Liquid.LHReducers ( LHRed (..)
+                            , RedArbErrors (..)
+
                             , LHLimitByAcceptedOrderer (..)
                             , LHLimitByAcceptedHalter
                             , LHLimitByAcceptedOrderer
@@ -32,6 +34,7 @@ import G2.Language
 import qualified G2.Language.Stack as Stck
 import qualified G2.Language.ExprEnv as E
 import G2.Liquid.Annotations
+import G2.Liquid.SpecialAsserts
 
 import Data.Foldable
 import qualified Data.HashMap.Lazy as HM
@@ -146,6 +149,20 @@ instance Reducer LHRed () LHTracker where
                 return $ ( InProgress
                          , zip s' (repeat ()), b, lhr)
             Nothing -> return (Finished, [(s, ())], b, lhr)
+
+data RedArbErrors = RedArbErrors
+
+instance Reducer RedArbErrors () t where
+    initReducer _ _ = ()
+
+    redRules r _ s@(State { curr_expr = CurrExpr er (Tick tick (Let [(_, Type t)] _)) }) b 
+        | tick == arbErrorTickish =
+            let
+                (arb, _) = arbValue t (type_env s) (arb_value_gen b)
+            in
+            trace ("arb = " ++ show arb)
+            return (InProgress, [(s { curr_expr = CurrExpr er arb }, ())], b, r)
+    redRules r _ s b = return (Finished, [(s, ())], b, r)
 
 limitByAccepted :: Int -> (LHLimitByAcceptedHalter, LHLimitByAcceptedOrderer)
 limitByAccepted i = (LHLimitByAcceptedHalter i, LHLimitByAcceptedOrderer)

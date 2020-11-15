@@ -4,6 +4,7 @@ module G2.Liquid.SpecialAsserts ( addSpecialAsserts
                                 , addTrueAsserts
                                 , addTrueAssertsAll
                                 , addErrorAssumes
+                                , arbErrorTickish
                                 , assumeErrorTickish) where
 
 import G2.Config
@@ -78,19 +79,38 @@ addTrueAssertsAll = mapWithKeyME (addTrueAssert'')
 -- | Blocks calling error in the functions specified in the block_errors_in in
 -- the Config, by wrapping the errors in Assume False.
 addErrorAssumes :: Config -> LHStateM ()
-addErrorAssumes config = mapWithKeyME (addErrorAssumes' (block_errors_in config))
+addErrorAssumes config = mapWithKeyME (addErrorAssumes' (block_errors_method config) (block_errors_in config))
 
-addErrorAssumes' :: S.HashSet (T.Text, Maybe T.Text) -> Name -> Expr -> LHStateM Expr
-addErrorAssumes' ns (Name n m _ _) e = do
+addErrorAssumes' :: BlockErrorsMethod -> S.HashSet (T.Text, Maybe T.Text) -> Name -> Expr -> LHStateM Expr
+addErrorAssumes' be ns name@(Name n m _ _) e = do
     kv <- knownValues
-    if (n, m) `S.member` ns then addErrorAssumes'' kv e else return e
+    if (n, m) `S.member` ns then addErrorAssumes'' be kv (typeOf e) e else return e
 
-addErrorAssumes'' :: KnownValues -> Expr -> LHStateM Expr
-addErrorAssumes'' kv v@(Var (Id n _))
-    | KV.isErrorFunc kv n = do
+addErrorAssumes'' :: BlockErrorsMethod -> KnownValues -> Type -> Expr -> LHStateM Expr
+addErrorAssumes'' be kv _ v@(Var (Id n t))
+    | KV.isErrorFunc kv n 
+    , be == AssumeBlock = do
         flse <- mkFalseE
         return $ Assume Nothing (Tick assumeErrorTickish flse) v
-addErrorAssumes'' kv e = modifyChildrenM (addErrorAssumes'' kv) e
+    | KV.isErrorFunc kv n
+    , be == ArbBlock = do
+        d <- freshSeededStringN "d"
+        let ast = spArgumentTypes $ PresType t
+            rt = returnType $ PresType t
+
+            lam_it = map (\as -> case as of
+                                    AnonType t -> (TermL, Id d t)
+                                    NamedType i -> (TypeL, i)) ast
+        n <- trace ("ast = " ++ show ast ++ "\nrt = " ++ show rt) freshSeededStringN "t"
+        return . mkLams lam_it
+               . Tick arbErrorTickish
+               $ Let [(Id n TYPE, Type rt)] v
+addErrorAssumes'' be kv (TyForAll _ t) (Lam u i e) = return . Lam u i =<< modifyChildrenM (addErrorAssumes'' be kv t) e
+addErrorAssumes'' be kv (TyFun _ t) (Lam u i e) = return . Lam u i =<< modifyChildrenM (addErrorAssumes'' be kv t) e
+addErrorAssumes'' be kv t e = modifyChildrenM (addErrorAssumes'' be kv t) e
+
+arbErrorTickish :: Tickish
+arbErrorTickish = NamedLoc (Name "arb_error" Nothing 0 Nothing)
 
 assumeErrorTickish :: Tickish
 assumeErrorTickish = NamedLoc (Name "library_error" Nothing 0 Nothing)

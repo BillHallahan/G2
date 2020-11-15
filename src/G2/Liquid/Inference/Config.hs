@@ -165,7 +165,8 @@ adjustConfig main_mod (SimpleState { expr_env = eenv }) config infconfig ghci =
               . filter (\(Name n m _ _) -> (n, m) `elem` ref)
               . E.keys $ E.filter (not . tyVarRetTy) eenv
 
-        ns_not_main = map (\(Name n m _ _) -> (n, m))
+        ns_not_main = filter (\(n, _) -> n == "foldr1")
+                    . map (\(Name n m _ _) -> (n, m))
                     . filter (\(Name _ m _ _) -> m /= main_mod)
                     $ E.keys eenv
     
