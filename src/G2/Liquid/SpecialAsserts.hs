@@ -102,7 +102,11 @@ addErrorAssumes'' be kv _ v@(Var (Id n t))
                                     AnonType t -> (TermL, Id d t)
                                     NamedType i -> (TypeL, i)) ast
         n <- trace ("ast = " ++ show ast ++ "\nrt = " ++ show rt) freshSeededStringN "t"
+ 
+        flse <- mkFalseE
+
         return . mkLams lam_it
+               . Assume Nothing (Tick assumeErrorTickish flse) 
                . Tick arbErrorTickish
                $ Let [(Id n TYPE, Type rt)] v
 addErrorAssumes'' be kv (TyForAll _ t) (Lam u i e) = return . Lam u i =<< modifyChildrenM (addErrorAssumes'' be kv t) e
