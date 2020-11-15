@@ -182,7 +182,7 @@ inferenceL :: (ProgresserM m, InfConfigM m, MonadIO m, SMTConverter con ast out 
            -> GeneratedSpecs
            -> FuncConstraints
            -> MaxSizeConstraints
-           -> HM.HashMap Size [([Name], SMTModel)]
+           -> HM.HashMap Size [(ModelNames, SMTModel)]
            -> m InferenceRes
 inferenceL con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc mdls = do
     let (fs, sf, below_sf) = case nls of
@@ -269,19 +269,21 @@ refineUnsafe ghci m_modname lrs gs bad = do
             liftIO . putStrLn $ "new_fc' = " ++ printFCs new_fc'
             return $ Right new_fc'
 
-adjModelAndMaxCEx :: ProgresserM m => NewFC -> Size -> SMTModel -> HM.HashMap Size [([Name], SMTModel)] -> m (HM.HashMap Size [([Name], SMTModel)])
+adjModelAndMaxCEx :: ProgresserM m => NewFC -> Size -> SMTModel
+                  -> HM.HashMap Size [(ModelNames, SMTModel)] -> m (HM.HashMap Size [(ModelNames, SMTModel)])
 adjModelAndMaxCEx has_new sz smt_mdl mdls = do
       case has_new of
             NewFC -> return mdls
             NoNewFC repeated_fc
                 | not $ nullFC repeated_fc -> do
                     let ns = map funcName $ allCallsFC repeated_fc
-                        mdls' = HM.insertWith (++) sz [(ns, smt_mdl)] mdls                                      
+                        mdls' = HM.insertWith (++) sz [(MNOnly ns, smt_mdl)] mdls                                      
                     incrMaxCExM
                     return mdls'
                 | otherwise -> do
+                    let mdls' = HM.insertWith (++) sz [(MNAll, smt_mdl)] mdls
                     incrMaxCExM
-                    return mdls
+                    return mdls'
 
 genNewConstraints :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> T.Text -> m [CounterExample]
 genNewConstraints ghci m lrs n = do
@@ -365,7 +367,7 @@ updateMeasureExs meas_ex lrs ghci fcs =
 
 synthesize :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
            => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
-           -> MaxSize -> FuncConstraints -> HM.HashMap Size [([Name], SMTModel)] -> [Name] -> [Name] -> m SynthRes
+           -> MaxSize -> FuncConstraints -> HM.HashMap Size [(ModelNames, SMTModel)] -> [Name] -> [Name] -> m SynthRes
 synthesize con ghci lrs evals meas_ex max_sz fc mdls to_be for_funcs =
     liaSynth con ghci lrs evals meas_ex max_sz fc mdls to_be for_funcs
 

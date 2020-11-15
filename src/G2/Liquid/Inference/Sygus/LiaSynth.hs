@@ -3,6 +3,7 @@
 
 module G2.Liquid.Inference.Sygus.LiaSynth ( SynthRes (..)
                                           , Size
+                                          , ModelNames (..)
                                           , liaSynth
 
                                           , MaxSize
@@ -55,6 +56,7 @@ data Coeffs = Coeffs { c_active :: SMTName
                      , c_op_branch2 :: SMTName
                      , coeffs :: [SMTName] }
                      deriving Show
+
 type Clause = (SMTName, [Coeffs]) 
 type CNF = [Clause]
 
@@ -130,6 +132,9 @@ type ToBeNames = [Name]
 -- A list of functions to synthesize a the current level
 type ToSynthNames = [Name]
 
+data ModelNames = MNAll | MNOnly [Name]
+                  deriving (Eq, Show, Read)
+
 initMaxSize :: MaxSize
 initMaxSize = MaxSize 1
 
@@ -140,7 +145,7 @@ liaSynth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
          => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
          -> MaxSize
          -> FuncConstraints
-         -> HM.HashMap Size [([Name], SMTModel)] -- ^ SMT Models to block being returned by the synthesizer at various sizes
+         -> HM.HashMap Size [(ModelNames, SMTModel)] -- ^ SMT Models to block being returned by the synthesizer at various sizes
          -> ToBeNames -> ToSynthNames -> m SynthRes
 liaSynth con ghci lrs evals meas_ex max_sz fc mdls to_be_ns ns_synth = do
     -- Compensate for zeroed out names in FuncConstraints
@@ -248,7 +253,7 @@ synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
       -> M.Map Name SpecInfo
       -> MaxSize
       -> FuncConstraints
-      -> HM.HashMap Size [([Name], SMTModel)]
+      -> HM.HashMap Size [(ModelNames, SMTModel)]
       -> Size
       -> m SynthRes
 synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc mdls sz = do
@@ -324,10 +329,12 @@ blockModel :: SMTModel -> SMTHeader
 blockModel = Solver.Assert . (:!) . foldr (.&&.) (VBool True) . map (\(n, v) -> V n (sortOf v) := v) . M.toList
 
 -- | Filters a model to only those variable bindings relevant to the functions listed in the name bindings
-filterModelToRel :: M.Map Name SpecInfo -> [Name] -> SMTModel -> SMTModel
+filterModelToRel :: M.Map Name SpecInfo -> ModelNames -> SMTModel -> SMTModel
 filterModelToRel m_si ns mdl =
     let
-        si = mapMaybe (flip M.lookup m_si) ns
+        si = case ns of
+                MNOnly ns' -> mapMaybe (flip M.lookup m_si) ns'
+                MNAll  -> M.elems m_si
         vs = map fst $ concatMap siNamesForModel si
     in
       flip (foldr filterClauseActiveBooleans) si
@@ -839,17 +846,21 @@ raiseSpecs :: PolyBound SynthSpec -> PolyBound [LH.Expr] -> PolyBound [LH.Expr]
 raiseSpecs sy_sp pb =
     let
         symb_pb = mapPB (HS.unions . map (argsInExpr . lh_rep) . sy_args) sy_sp
-        symb_es = map (\e -> (argsInExpr e, e)) . concat $ extractValues pb
+        symb_es = filter (not . HS.null . fst) . map (\e -> (argsInExpr e, e)) . concat $ extractValues pb
+
+        null_pb = mapPB (filter (HS.null . argsInExpr)) pb
+    
+        r = snd $ L.mapAccumL
+                (\se spb ->
+                    let
+                        se' = map (\(xs, e_) -> (HS.difference xs spb, e_)) se
+                        (se_here, se_cont) = L.partition (HS.null . fst) se'
+                        e = map snd se_here
+                    in
+                    (se_cont, e))
+                symb_es symb_pb
     in
-    snd $ L.mapAccumL
-            (\se spb ->
-                let
-                    se' = map (\(xs, e_) -> (HS.difference xs spb, e_)) se
-                    (se_here, se_cont) = L.partition (HS.null . fst) se'
-                    e = map snd se_here
-                in
-                (se_cont, e))
-            symb_es symb_pb
+    zipWithPB (++) null_pb r 
 
 argsInExpr :: LH.Expr -> HS.HashSet LH.Symbol
 argsInExpr (EVar symb) = HS.singleton symb

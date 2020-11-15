@@ -88,6 +88,8 @@ import Data.Time.Clock
 import System.Directory
 import System.Random
 
+import Debug.Trace
+
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
 -- and to reorder states
@@ -903,11 +905,15 @@ data ADTHeightOrderer = ADTHeightOrderer
 
 instance MinOrderer ADTHeightOrderer (S.HashSet Name) Int t where
     minInitPerStateOrder _ = S.fromList . map idName . symbolic_ids
-    minOrderStates ord v _ s = (maximum $ (-1):(S.toList $ S.map (flip adtHeight s) v), ord)
+    minOrderStates ord v _ s =
+        let
+            m = maximum $ (-1):(S.toList $ S.map (flip adtHeight s) v)
+        in
+        (m, ord)
     minUpdateSelected _ v _ _ = v
 
-    -- stepOrderer _ v _ _ s =
-    --     v `S.union` (S.fromList . map idName . symbolic_ids $ s)
+    minStepOrderer _ v _ _ s =
+        v `S.union` (S.fromList . map idName . symbolic_ids $ s)
 
 adtHeight :: Name -> State t -> Int
 adtHeight n s@(State { expr_env = eenv })
