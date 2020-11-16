@@ -482,9 +482,11 @@ cexsToExtraFC (CallsCounter _ cfc fcs@(_:_)) = do
     let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 
     let abs = mapMaybe realToMaybeFC fcs'
-        clls = Call All $ real cfc
+        clls = if not . isError . returns . real $ cfc
+                  then [Call All $ real cfc]
+                  else []
 
-    return $ clls:abs
+    return $ clls ++ abs
 cexsToExtraFC (DirectCounter fc []) = return []
 cexsToExtraFC (CallsCounter dfc cfc [])
     | isError (returns dfc) = return []

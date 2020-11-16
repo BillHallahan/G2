@@ -118,12 +118,12 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
                                                      , hits_lib_err_in_real = t }
                                         ) m
                         False -> return NotAbstractRes
-            [] -> -- ^ We hit an error in a library function
-                return $ AbstractRes 
-                          ( Abstracted { abstract = abs_fc
-                                       , real = abs_fc { returns = Prim Error TyUnknown }
-                                       , hits_lib_err_in_real = True }
-                          ) (model s)
+            [] -> do undefined -- ^ We hit an error in a library function
+                     return $ AbstractRes 
+                              ( Abstracted { abstract = abs_fc
+                                           , real = abs_fc { returns = Prim Error TyUnknown }
+                                           , hits_lib_err_in_real = True }
+                              ) (model s)
             _ -> error $ "checkAbstracted': Bad return from runG2WithSomes"
     | otherwise = error $ "checkAbstracted': Bad lookup in runG2WithSomes"
 

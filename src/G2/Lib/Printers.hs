@@ -73,12 +73,12 @@ mkExprHaskell ex = mkExprHaskell' ex 0
         mkExprHaskell' (Lam _ ids e) i = "(\\" ++ mkIdHaskell ids ++ " -> " ++ mkExprHaskell' e i ++ ")"
 
         mkExprHaskell' a@(App ea@(App e1 e2) e3) i
-            | Data (DataCon n _) <- appCenter a
-            , isTuple n = printTuple a
+            -- | Data (DataCon n _) <- appCenter a
+            -- , isTuple n = printTuple a
 
-            | Data (DataCon n1 _) <- e1
-            , nameOcc n1 == ":" =
-                if isLitChar e2 then printString a else printList a
+            -- | Data (DataCon n1 _) <- e1
+            -- , nameOcc n1 == ":" =
+            --     if isLitChar e2 then printString a else printList a
 
             | isInfixable e1 =
                 let

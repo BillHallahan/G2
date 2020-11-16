@@ -860,6 +860,7 @@ raiseSpecs sy_sp pb =
                     (se_cont, e))
                 symb_es symb_pb
     in
+    trace ("sy_name sy_sb = " ++ show (sy_name (headValue sy_sp)) ++ "\npb = " ++ show pb ++ "\nr = " ++ show r)
     zipWithPB (++) null_pb r 
 
 argsInExpr :: LH.Expr -> HS.HashSet LH.Symbol

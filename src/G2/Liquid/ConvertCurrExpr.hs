@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
@@ -22,6 +23,7 @@ import Debug.Trace
 convertCurrExpr :: Id -> Bindings -> LHStateM (Id, [Name])
 convertCurrExpr ifi bindings = do
     ifi' <- modifyInputExpr ifi
+    mapME letLiftHigherOrder
     addCurrExprAssumption ifi bindings
     return ifi'
 
@@ -108,7 +110,7 @@ replaceVarWithName' _ _ e = e
 letLiftFuncs :: Expr -> LHStateM Expr
 letLiftFuncs e = do
     e' <- modifyAppTopE letLiftFuncs' e
-    return $ e'
+    return $ flattenLets e'
 
 letLiftFuncs' :: Expr -> LHStateM Expr
 letLiftFuncs' e
@@ -119,6 +121,54 @@ letLiftFuncs' e
 
         return . Let (zip is ars) . mkApp $ c:map Var is
     | otherwise = return e
+
+letLiftHigherOrder :: Expr -> LHStateM Expr
+letLiftHigherOrder e = return . shiftLetsOutOfApps =<< insertInLamsE letLiftHigherOrder' e
+
+letLiftHigherOrder' :: [Id] -> Expr -> LHStateM Expr
+letLiftHigherOrder' is e@(App _ _)
+    | Var i@(Id n t) <- appCenter e
+    , i `elem` is = do
+        ni <- freshIdN (typeOf e)
+        e' <- modifyAppRHSE (letLiftHigherOrder' is) e
+        return $ Let [(ni, e')] (Var ni)
+letLiftHigherOrder' is e@(Lam _ _ _) = insertInLamsE (\is' -> letLiftHigherOrder' (is ++ is')) e
+letLiftHigherOrder' is e = modifyChildrenM (letLiftHigherOrder' is) e
+
+isFunc :: Type -> Bool
+isFunc (TyFun _ _) = True
+isFunc (TyForAll _ _) = True
+isFunc _ = False
+
+shiftLetsOutOfApps :: Expr -> Expr
+shiftLetsOutOfApps e@(App _ _) =
+    case shiftLetsOutOfApps' e of
+        Let b e' -> Let b . modifyBottomApp shiftLetsOutOfApps $ e'
+        e' -> modifyBottomApp shiftLetsOutOfApps $ e'
+shiftLetsOutOfApps e = modifyChildren shiftLetsOutOfApps e
+
+shiftLetsOutOfApps' :: Expr -> Expr
+shiftLetsOutOfApps' a@(App _ _) =
+    let
+        b = getLetsInApp a
+    in
+    case b of
+        [] -> a
+        _ -> Let b $ elimLetsInApp a
+
+getLetsInApp :: Expr -> Binds
+getLetsInApp (Let b e) = b ++ getLetsInApp e
+getLetsInApp (App e e') = getLetsInApp e ++ getLetsInApp e'
+getLetsInApp _ = []
+
+elimLetsInApp :: Expr -> Expr
+elimLetsInApp (Let b e) = elimLetsInApp e
+elimLetsInApp (App e e') = App (elimLetsInApp e) (elimLetsInApp e')
+elimLetsInApp e = e
+
+modifyBottomApp :: (Expr -> Expr) -> Expr -> Expr
+modifyBottomApp f (App e e') = App (modifyBottomApp f e) (modifyBottomApp f e')
+modifyBottomApp f e = f e
 
 -- We add an assumption about the inputs to the current expression
 -- This prevents us from finding a violation of the output refinement type
@@ -148,6 +198,20 @@ addCurrExprAssumption ifi (Bindings {fixed_inputs = fi}) = do
             putCurrExpr (CurrExpr er ce')
         Nothing -> return ()
 
+flattenLets :: ASTContainer m Expr => m -> m
+flattenLets = modifyASTs flattenLet
+
+flattenLet :: Expr -> Expr
+flattenLet l@(Let be e) =
+    case findElem (isLet . snd) be of
+        Just ((bi, Let ibe ie), be') -> flattenLet $ Let (ibe ++ (bi, ie):be') e
+        _ -> l
+flattenLet e = e
+
+isLet :: Expr -> Bool
+isLet (Let _ _) = True
+isLet _ = False
+
 isType :: Expr -> Bool
 isType (Type _) = True
 isType _ = False
@@ -155,3 +219,11 @@ isType _ = False
 typeType :: Expr -> Maybe Type
 typeType (Type t) = Just t
 typeType _ = Nothing
+
+findElem :: (a -> Bool) -> [a] -> Maybe (a, [a])
+findElem p = find' id
+    where
+      find' _ []         = Nothing
+      find' pre (x : xs)
+          | p x          = Just (x, pre xs)
+          | otherwise    = find' (pre . (x:)) xs

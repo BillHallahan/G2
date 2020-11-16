@@ -2,19 +2,20 @@
 {-# LANGUAGE TupleSections #-}
 
 module G2.Language.Monad.Expr ( mkDCTrueM
-                                        , mkDCFalseM
-                                        , mkDCIntE
-                                        , mkDCIntegerE
-                                        , mkDCFloatE
-                                        , mkDCDoubleE
-                                        , mkTrueE
-                                        , mkFalseE
-                                        , mkConsE
-                                        , mkEmptyE
-                                        , modifyAppTopE
-                                        , modifyLamTopE
-                                        , insertInLamsE
-                                        , etaExpandToE ) where
+                              , mkDCFalseM
+                              , mkDCIntE
+                              , mkDCIntegerE
+                              , mkDCFloatE
+                              , mkDCDoubleE
+                              , mkTrueE
+                              , mkFalseE
+                              , mkConsE
+                              , mkEmptyE
+                              , modifyAppTopE
+                              , modifyLamTopE
+                              , modifyAppRHSE
+                              , insertInLamsE
+                              , etaExpandToE ) where
 
 import G2.Language.Expr
 import G2.Language.Syntax
