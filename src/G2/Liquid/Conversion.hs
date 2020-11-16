@@ -557,6 +557,8 @@ correctTypes m bt mt re re' = do
        | otherwise -> error $ "correctTypes: Unhandled case"
                                 ++ "\ne = " ++ show e
                                 ++ "\ne' = " ++ show e'
+                                ++ "\nt = " ++ show t
+                                ++ "\nt' = " ++ show t'
                                 ++ "\nm = " ++ show m
 
 maybeRatioFromInteger :: DictMaps -> Expr -> LHStateM (Maybe Expr)

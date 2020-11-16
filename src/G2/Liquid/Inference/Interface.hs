@@ -257,7 +257,7 @@ refineUnsafe ghci m_modname lrs gs bad = do
         putStrLn $ "res = "
         printCE $ concat res
 
-    let res' = concat res
+    let res' = filter (not . hasAbstractedArgError) . concat $ res
 
     -- Either converts counterexamples to FuncConstraints, or returns them as errors to
     -- show to the user.
@@ -290,7 +290,7 @@ genNewConstraints ghci m lrs n = do
     liftIO . putStrLn $ "Generating constraints for " ++ T.unpack n
     ((exec_res, _), i) <- runLHInferenceCore n m lrs ghci
     let exec_res' = filter (true_assert . final_state) exec_res
-    return . filter (not . hasAbstractedArgError) $ map (lhStateToCE i) exec_res'
+    return $ map (lhStateToCE i) exec_res'
 
 getCEx :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState
              -> GeneratedSpecs
@@ -397,13 +397,21 @@ hasNewFC fc1 fc2
 cexsToBlockingFC :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] -> CounterExample -> m (Either CounterExample FuncConstraint)
 cexsToBlockingFC _ _ (DirectCounter dfc fcs@(_:_))
     | (_:_, no_err_fcs) <- partition (hasArgError . abstract) fcs = undefined
+    | isError (returns dfc) = do
+        infconfig <- infConfigM
+        let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
+
+        let rhs = OrFC $ map (\(Abstracted { abstract = fc }) -> 
+                        ImpliesFC (Call Pre fc) (NotFC (Call Post fc))) fcs'
+
+        return . Right $ ImpliesFC (Call Pre dfc) rhs
     | otherwise = do
         infconfig <- infConfigM
         let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 
         let lhs = AndFC [Call Pre dfc, NotFC (Call Post dfc)]
             rhs = OrFC $ map (\(Abstracted { abstract = fc }) -> 
-                                ImpliesFC (Call Pre fc) (NotFC (Call Post fc))) fcs'
+                        ImpliesFC (Call Pre fc) (NotFC (Call Post fc))) fcs'
 
         if not . null $ fcs'
             then return . Right $ ImpliesFC lhs rhs
