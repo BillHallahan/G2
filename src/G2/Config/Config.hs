@@ -114,7 +114,7 @@ mkConfig homedir as m = Config {
                         (Counterfactual CFAll) (Counterfactual CFAll) NotCounterfactual
     , only_top = boolArg "only-top" as m Off
     , block_errors_in = S.empty
-    , block_errors_method = ArbBlock
+    , block_errors_method = AssumeBlock
     , reduce_abs = boolArg "reduce-abs" as m On
     , add_tyvars = boolArg "add-tyvars" as m Off
 }

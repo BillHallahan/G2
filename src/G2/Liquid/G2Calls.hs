@@ -101,7 +101,7 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
                       , track = False }
 
         (er, _) <- runG2WithSomes 
-                        (SomeReducer (StdRed share solver simplifier :<~ RedArbErrors))
+                        (SomeReducer (StdRed share solver simplifier :<~ HitsLibError))
                         (SomeHalter SWHNFHalter)
                         (SomeOrderer NextOrderer)
                         solver simplifier emptyMemConfig s' bindings
@@ -148,10 +148,10 @@ getAbstracted solver simplifier share s bindings abs_fc@(FuncCall { funcName = n
               . pickHead
               . elimSymGens (arb_value_gen bindings)
               . modelToExprEnv $
-                   s { curr_expr = CurrExpr Evaluate strict_call }
+                   s { curr_expr = CurrExpr Evaluate strict_call}
 
         (er, _) <- runG2WithSomes 
-                        (SomeReducer (StdRed share solver simplifier :<~| RedArbErrors))
+                        (SomeReducer (StdRed share solver simplifier))
                         (SomeHalter SWHNFHalter)
                         (SomeOrderer NextOrderer)
                         solver simplifier emptyMemConfig s' bindings
@@ -185,7 +185,7 @@ elimAssumesExcept = modifyASTs elimAssumesExcept'
 
 elimAssumesExcept' :: Expr -> Expr
 elimAssumesExcept' a@(Assume _ (Tick t _) e)
-    | t == assumeErrorTickish = a
+    | t == assumeErrorTickish = Tick t e
     | otherwise = e
 elimAssumesExcept' (Assume _ _ e) = e
 elimAssumesExcept' e = e

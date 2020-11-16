@@ -290,7 +290,7 @@ genNewConstraints ghci m lrs n = do
     liftIO . putStrLn $ "Generating constraints for " ++ T.unpack n
     ((exec_res, _), i) <- runLHInferenceCore n m lrs ghci
     let exec_res' = filter (true_assert . final_state) exec_res
-    return $ map (lhStateToCE i) exec_res'
+    return . filter (not . hasAbstractedArgError) $ map (lhStateToCE i) exec_res'
 
 getCEx :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState
              -> GeneratedSpecs
@@ -520,6 +520,10 @@ insertsFC = foldr insertFC emptyFC
 
 abstractedMod :: Abstracted -> Maybe T.Text
 abstractedMod = nameModule . funcName . abstract
+
+hasAbstractedArgError :: CounterExample -> Bool
+hasAbstractedArgError (DirectCounter _ abs) = any (hasArgError . real) abs
+hasAbstractedArgError (CallsCounter _ _ abs) = any (hasArgError . real) abs
 
 hasArgError :: FuncCall -> Bool
 hasArgError = any isError . arguments
