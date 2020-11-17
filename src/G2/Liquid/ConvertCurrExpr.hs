@@ -21,9 +21,9 @@ import Debug.Trace
 
 -- | Returns (1) the Id of the new main function and (2) the functions that need counterfactual variants
 convertCurrExpr :: Id -> Bindings -> LHStateM (Id, [Name])
-convertCurrExpr ifi@(Id (Name _ m _ _) _) bindings = do
+convertCurrExpr ifi bindings = do
     ifi' <- modifyInputExpr ifi
-    mapWithKeyME (\(Name _ m' _ _) e -> if m == m' then letLiftHigherOrder e else return e)
+    mapWithKeyME (\(Name _ m _ _) e -> if isJust m then letLiftHigherOrder e else return e)
     addCurrExprAssumption ifi bindings
     return ifi'
 
