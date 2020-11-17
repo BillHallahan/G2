@@ -381,9 +381,10 @@ evalCase s@(State { expr_env = eenv
 -- | Remove everything from an [Expr] that are actually Types.
 removeTypes :: [Expr] -> E.ExprEnv -> [Expr]
 removeTypes ((Type _):es) eenv = removeTypes es eenv
-removeTypes ((Var (Id n ty)):es) eenv = case E.lookup n eenv of
-    Just (Type _) -> removeTypes es eenv
-    _ -> (Var (Id n ty)) : removeTypes es eenv
+removeTypes (v@(Var _):es) eenv = case repeatedLookup eenv v of
+    (Type _) -> removeTypes es eenv
+    -- Just v@(Var (Id n' _)) -> removeTypes (v:es) eenv 
+    _ -> v : removeTypes es eenv
 removeTypes (e:es) eenv = e : removeTypes es eenv
 removeTypes [] _ = []
 

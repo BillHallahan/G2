@@ -21,9 +21,9 @@ import Debug.Trace
 
 -- | Returns (1) the Id of the new main function and (2) the functions that need counterfactual variants
 convertCurrExpr :: Id -> Bindings -> LHStateM (Id, [Name])
-convertCurrExpr ifi bindings = do
+convertCurrExpr ifi@(Id (Name _ m _ _) _) bindings = do
     ifi' <- modifyInputExpr ifi
-    mapME letLiftHigherOrder
+    mapWithKeyME (\(Name _ m' _ _) e -> if m == m' then letLiftHigherOrder e else return e)
     addCurrExprAssumption ifi bindings
     return ifi'
 
@@ -122,6 +122,8 @@ letLiftFuncs' e
         return . Let (zip is ars) . mkApp $ c:map Var is
     | otherwise = return e
 
+
+-- | Tries to be more selective then liftLetFuncs, doesn't really work yet...
 letLiftHigherOrder :: Expr -> LHStateM Expr
 letLiftHigherOrder e = return . shiftLetsOutOfApps =<< insertInLamsE letLiftHigherOrder' e
 
@@ -132,6 +134,13 @@ letLiftHigherOrder' is e@(App _ _)
         ni <- freshIdN (typeOf e)
         e' <- modifyAppRHSE (letLiftHigherOrder' is) e
         return $ Let [(ni, e')] (Var ni)
+    | d@(Data _) <- appCenter e = do
+        let ars = passedArgs e
+        is <- freshIdsN $ map typeOf ars
+
+        ars' <- mapM (letLiftHigherOrder' is) ars
+
+        return . Let (zip is ars') . mkApp $ d:map Var is
 letLiftHigherOrder' is e@(Lam _ _ _) = insertInLamsE (\is' -> letLiftHigherOrder' (is ++ is')) e
 letLiftHigherOrder' is e = modifyChildrenM (letLiftHigherOrder' is) e
 
