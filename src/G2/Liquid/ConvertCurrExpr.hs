@@ -125,7 +125,7 @@ letLiftFuncs' e
 
 -- | Tries to be more selective then liftLetFuncs, doesn't really work yet...
 letLiftHigherOrder :: Expr -> LHStateM Expr
-letLiftHigherOrder e = return . shiftLetsOutOfApps =<< insertInLamsE letLiftHigherOrder' e
+letLiftHigherOrder e = return . flattenLets . shiftLetsOutOfApps =<< insertInLamsE letLiftHigherOrder' e
 
 letLiftHigherOrder' :: [Id] -> Expr -> LHStateM Expr
 letLiftHigherOrder' is e@(App _ _)
