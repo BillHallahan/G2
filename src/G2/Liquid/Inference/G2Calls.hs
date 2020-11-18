@@ -88,14 +88,14 @@ gatherAllowedCalls :: T.Text
                    -> Config
                    -> IO [FuncCall]
 gatherAllowedCalls entry m lrs ghci infconfig config = do
-    let config' = config { only_top = False }
+    let config' = config -- { only_top = False }
 
     LiquidData { ls_state = s
                , ls_bindings = bindings
                , ls_memconfig = pres_names } <-
                     processLiquidReadyStateWithCall lrs ghci entry m config' mempty
 
-    let (s', bindings') = execStateM addTrueAssertsAll s bindings
+    let (s', bindings') = (s, bindings) -- execStateM addTrueAssertsAll s bindings
 
     SomeSolver solver <- initSolver config'
     let simplifier = ADTSimplifier arbValue
@@ -154,7 +154,7 @@ gatherReducerHalterOrderer infconfig config solver simplifier entry mb_modname s
 
         state_name = Name "state" Nothing 0 Nothing
     
-    timer_halter <- timerHalter (timeout_se infconfig)
+    timer_halter <- timerHalter (timeout_se infconfig * 3)
 
     return
         (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng)
@@ -167,7 +167,7 @@ gatherReducerHalterOrderer infconfig config solver simplifier entry mb_modname s
               :<~> SwitchEveryNHalter (switch_after config)
               :<~> SWHNFHalter
               :<~> timer_halter)
-        , SomeOrderer (ToOrderer $ IncrAfterN 1000 ADTHeightOrderer))
+        , SomeOrderer (ToOrderer $ IncrAfterN 2000 ADTHeightOrderer))
 
 data GathererReducer = Gatherer
 
@@ -250,8 +250,8 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
                  :<~> lh_max_outputs
                  :<~> SwitchEveryNHalter (switch_after config)
                  -- :<~> LHLimitSameAbstractedHalter 5
-                 -- :<~> SWHNFHalter
-                 :<~> AcceptIfViolatedHalter
+                 :<~> SWHNFHalter
+                 -- :<~> AcceptIfViolatedHalter
                  :<~> timer_halter
                  -- :<~> OnlyIf (\pr _ -> any true_assert (accepted pr)) timer_halter
 

@@ -44,6 +44,7 @@ import qualified Data.Text as T
 import qualified Language.Fixpoint.Types.Config as FP
 
 import Debug.Trace
+import G2.Lib.Printers
 
 -- Run inference, with an extra, final check of correctness at the end.
 -- Assuming inference is working correctly, this check should neve fail.
@@ -256,8 +257,6 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc mdls = d
                 putStrLn $ "init gs' = " ++ show gs'
 
             res <- tryToVerifyOnly ghci' fs
-
-            liftIO . putStrLn $ "res = " ++ show res
             
             case res of
                 Safe -> return $ (Env gs' meas_ex sz smt_mdl, evals')
@@ -285,13 +284,15 @@ refineUnsafe ghci m_modname lrs gs bad = do
 
     let bad' = nub $ map nameOcc bad
 
-    res <- mapM (genNewConstraints merged_se_ghci m_modname lrs) bad'
+    res_no_viol <- mapM (genNewConstraints merged_se_ghci m_modname lrs) bad'
+    let res = concatMap fst res_no_viol
+        no_viol = [] -- concatMap snd res_no_viol
 
     liftIO $ do
         putStrLn $ "res = "
-        printCE $ concat res
+        printCE res
 
-    let res' = filter (not . hasAbstractedArgError) . concat $ res
+    let res' = filter (not . hasAbstractedArgError) res
 
     -- Either converts counterexamples to FuncConstraints, or returns them as errors to
     -- show to the user.
@@ -301,30 +302,32 @@ refineUnsafe ghci m_modname lrs gs bad = do
         Left cex -> return $ Left cex
         Right new_fc' -> do
             liftIO . putStrLn $ "new_fc' = " ++ printFCs new_fc'
-            return $ Right new_fc'
+            return .  Right $ foldr insertFC new_fc' no_viol
 
-adjModelAndMaxCEx :: ProgresserM m => NewFC -> Size -> SMTModel
+adjModelAndMaxCEx :: (MonadIO m, ProgresserM m) => NewFC -> Size -> SMTModel
                   -> HM.HashMap Size [(ModelNames, SMTModel)] -> m (HM.HashMap Size [(ModelNames, SMTModel)])
 adjModelAndMaxCEx has_new sz smt_mdl mdls = do
       case has_new of
             NewFC -> return mdls
             NoNewFC repeated_fc
                 | not $ nullFC repeated_fc -> do
+                    liftIO . putStrLn $ "adjModel repeated_fc = " ++ show repeated_fc
                     let ns = map funcName $ allCallsFC repeated_fc
                         mdls' = HM.insertWith (++) sz [(MNOnly ns, smt_mdl)] mdls                                      
                     incrMaxCExM
                     return mdls'
                 | otherwise -> do
+                    liftIO $ putStrLn "adjModel no repeated_fc"
                     let mdls' = HM.insertWith (++) sz [(MNAll, smt_mdl)] mdls
                     incrMaxCExM
                     return mdls'
 
-genNewConstraints :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> T.Text -> m [CounterExample]
+genNewConstraints :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> T.Text -> m ([CounterExample], [FuncConstraint])
 genNewConstraints ghci m lrs n = do
     liftIO . putStrLn $ "Generating constraints for " ++ T.unpack n
     ((exec_res, _), i) <- runLHInferenceCore n m lrs ghci
-    let exec_res' = filter (true_assert . final_state) exec_res
-    return $ map (lhStateToCE i) exec_res'
+    let (exec_res', no_viol) = partition (true_assert . final_state) exec_res
+    return $ (map (lhStateToCE i) exec_res', map (lhStateToFC i) $ filter (null . abs_calls . track . final_state) no_viol)
 
 getCEx :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState
              -> GeneratedSpecs
@@ -508,12 +511,14 @@ cexsToBlockingFC lrs ghci cex@(CallsCounter dfc cfc [])
 -- Function constraints that don't block the current specification set, but which must be true
 -- (i.e. the actual input and output for abstracted functions)
 cexsToExtraFC :: InfConfigM m => CounterExample -> m [FuncConstraint]
-cexsToExtraFC (DirectCounter _ fcs@(_:_)) = do
+cexsToExtraFC (DirectCounter dfc fcs@(_:_)) = do
     infconfig <- infConfigM
-    let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
-    return $ mapMaybe realToMaybeFC fcs'
-cexsToExtraFC (CallsCounter _ cfc fcs@(_:_)) = do
+    let some_pre = ImpliesFC (Call Pre dfc) $  OrFC (map (\fc -> Call Pre (real fc)) fcs)
+        fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
+    return $ some_pre:mapMaybe realToMaybeFC fcs'
+cexsToExtraFC (CallsCounter dfc cfc fcs@(_:_)) = do
     infconfig <- infConfigM
+    let some_pre = ImpliesFC (Call Pre dfc) $  OrFC (map (\fc -> Call Pre (real fc)) fcs)
     let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 
     let abs = mapMaybe realToMaybeFC fcs'
@@ -521,7 +526,7 @@ cexsToExtraFC (CallsCounter _ cfc fcs@(_:_)) = do
                   then [Call All $ real cfc]
                   else []
 
-    return $ clls ++ abs
+    return $ some_pre:clls ++ abs
 cexsToExtraFC (DirectCounter fc []) = return []
 cexsToExtraFC (CallsCounter dfc cfc [])
     | isError (returns dfc) = return []
@@ -559,6 +564,11 @@ getDirectCalled _ = Nothing
 notRetError :: FuncCall -> Bool
 notRetError (FuncCall { returns = Prim Error _ }) = False
 notRetError _ = True
+
+lhStateToFC :: Id -> ExecRes AbstractedInfo -> FuncConstraint
+lhStateToFC i (ExecRes { final_state = s@State { track = t }
+                       , conc_args = inArg
+                       , conc_out = ex}) = Call All (FuncCall (idName i) inArg ex)
 
 insertsFC :: [FuncConstraint] -> FuncConstraints
 insertsFC = foldr insertFC emptyFC

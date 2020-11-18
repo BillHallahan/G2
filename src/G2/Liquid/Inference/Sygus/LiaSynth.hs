@@ -240,9 +240,9 @@ liaSynthOfSize sz m_si =
                             [ s ++ "_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
                             | a <- [0..ars]]
                         }
-                    | k <- [1..sz] ]
+                    | k <- [1] {- [1..sz] -} ] -- Ors
                 )
-            | j <- [1..sz] ]
+            | j <-  [1..sz] ] -- Ands
 
 synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
       => con
@@ -259,7 +259,9 @@ synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
       -> m SynthRes
 synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc mdls sz = do
     let si' = liaSynthOfSize sz si
+        -- zero_coeff_hdrs = softCoeffAssertZero si' ++ softFuncActAssertZero si' ++ softClauseActAssertZero si'
         zero_coeff_hdrs = softFuncActAssertZero si' ++ softClauseActAssertZero si'
+        -- zero_coeff_hdrs = softCoeffAssertZero si' -- softFuncActAssertZero si' ++ softClauseActAssertZero si'
         max_coeffs_cons = maxCoeffConstraints si'
         block_mdls = map blockModel . map (uncurry (filterModelToRel si')) $ HM.lookupDefault [] sz mdls
 
@@ -590,6 +592,21 @@ envToSMT' meas_ex (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(Fu
             , (Named post post_name, (post_name, post_real))]
         Nothing -> error "envToSMT': function not found"
 
+mkRetNonZero :: M.Map Name SpecInfo -> [SMTHeader]
+mkRetNonZero = concatMap mkRetNonZero' . filter (\si -> s_status si == Synth) . M.elems
+
+mkRetNonZero' :: SpecInfo -> [SMTHeader]
+mkRetNonZero' si =
+    let
+        cs = concatMap snd $ allCNFs si
+    in
+    map (\c ->
+            let
+                act = c_active c
+                r = last (coeffs c)
+            in
+            Solver.Assert (V act SortBool :=> (V r SortInt :/= VInt 0))) cs
+
 -- This function aims to limit the number of different models that can be produced
 -- that result in equivalent specifications. 
 -- This is important, because as a fallback when counterexamples are not
@@ -661,9 +678,11 @@ nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc =
         fc_smt = constraintsToSMT eenv tc meas meas_ex evals' m_si fc
         (env_smt, nm_fc) = envToSMT meas_ex evals' m_si fc
 
+        ret_is_non_zero = mkRetNonZero m_si
+
         lim_equiv_smt = limitEquivModels m_si
     in
-    (var_act_hdrs ++ var_int_hdrs ++ var_op_hdrs ++ def_funs ++ fc_smt ++ env_smt ++ lim_equiv_smt, nm_fc)
+    (var_act_hdrs ++ var_int_hdrs ++ var_op_hdrs ++ def_funs ++ fc_smt ++ env_smt ++ ret_is_non_zero ++ lim_equiv_smt, nm_fc)
 
 
 getCoeffs :: M.Map Name SpecInfo -> [SMTName]

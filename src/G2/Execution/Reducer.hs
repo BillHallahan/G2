@@ -48,7 +48,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , RecursiveCutOff (..)
                             , VarLookupLimit (..)
                             , BranchAdjVarLookupLimit (..)
-                            , TimerHalter
+                            , TimerHalter (if_time_out)
                             , timerHalter
                             , OnlyIf (..)
 
@@ -754,24 +754,24 @@ instance Halter VarLookupLimit Int t where
     stepHalter _ lim _ _ (State { curr_expr = CurrExpr Evaluate (Var _) }) = lim - 1
     stepHalter _ lim _ _ _ = lim
 
-data TimerHalter = TimerHalter { init_time :: UTCTime, max_seconds :: NominalDiffTime }
+data TimerHalter = TimerHalter { init_time :: UTCTime, max_seconds :: NominalDiffTime, if_time_out :: HaltC }
 
 timerHalter :: NominalDiffTime -> IO TimerHalter
 timerHalter ms = do
     curr <- getCurrentTime
-    return TimerHalter { init_time = curr, max_seconds = ms }
+    return TimerHalter { init_time = curr, max_seconds = ms, if_time_out = Discard }
 
 instance Halter TimerHalter () t where
     initHalt _ _ = ()
     updatePerStateHalt _ _ _ _ = ()
 
-    stopRed tr@(TimerHalter { init_time = it, max_seconds = ms }) _ (Processed { accepted = acc }) s
+    stopRed tr@(TimerHalter { init_time = it, max_seconds = ms, if_time_out = def }) _ (Processed { accepted = acc }) s
         | length acc >= 1= do
             curr <- getCurrentTime
             let diff = diffUTCTime curr it
 
             if diff > ms
-                then return Discard
+                then return def
                 else return Continue
         | otherwise = return Continue
 
