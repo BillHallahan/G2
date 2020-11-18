@@ -53,6 +53,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , insertInLams
                         , maybeInsertInLams
                         , inLams
+                        , flattenLets
                         , replaceASTs
                         , args
                         , passedArgs
@@ -349,6 +350,28 @@ leadingLamUsesIds _ = []
 leadingLamIds :: Expr -> [Id]
 leadingLamIds (Lam _ i e) = i:leadingLamIds e
 leadingLamIds _ = []
+
+flattenLets :: ASTContainer m Expr => m -> m
+flattenLets = modifyASTs flattenLet
+
+flattenLet :: Expr -> Expr
+flattenLet l@(Let be e) =
+    case findElem (isLet . snd) be of
+        Just ((bi, Let ibe ie), be') -> flattenLet $ Let (ibe ++ (bi, ie):be') e
+        _ -> l
+flattenLet e = e
+
+isLet :: Expr -> Bool
+isLet (Let _ _) = True
+isLet _ = False
+
+findElem :: (a -> Bool) -> [a] -> Maybe (a, [a])
+findElem p = find' id
+    where
+      find' _ []         = Nothing
+      find' pre (x : xs)
+          | p x          = Just (x, pre xs)
+          | otherwise    = find' (pre . (x:)) xs
 
 -- | Returns all Ids from Lam's at the top of the Expr
 args :: Expr -> [Id]

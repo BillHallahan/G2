@@ -521,6 +521,8 @@ initializeLHSpecs counter ghcInfos ifi bindings = do
                         return . (,ns) =<< addCounterfactualBranch cf_mods ns
                     NotCounterfactual -> return (Name "" Nothing 0 Nothing, [])
 
+    mapME (return . flattenLets)
+
     return (cfn, main_call, S.fromList ns')
 
 reqNames :: State t -> MemConfig

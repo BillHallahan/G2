@@ -125,7 +125,7 @@ letLiftFuncs' e
 
 -- | Tries to be more selective then liftLetFuncs, doesn't really work yet...
 letLiftHigherOrder :: Expr -> LHStateM Expr
-letLiftHigherOrder e = return . flattenLets . shiftLetsOutOfApps =<< insertInLamsE letLiftHigherOrder' e
+letLiftHigherOrder e = return . shiftLetsOutOfApps =<< insertInLamsE letLiftHigherOrder' e
 
 letLiftHigherOrder' :: [Id] -> Expr -> LHStateM Expr
 letLiftHigherOrder' is e@(App _ _)
@@ -207,20 +207,6 @@ addCurrExprAssumption ifi (Bindings {fixed_inputs = fi}) = do
             putCurrExpr (CurrExpr er ce')
         Nothing -> return ()
 
-flattenLets :: ASTContainer m Expr => m -> m
-flattenLets = modifyASTs flattenLet
-
-flattenLet :: Expr -> Expr
-flattenLet l@(Let be e) =
-    case findElem (isLet . snd) be of
-        Just ((bi, Let ibe ie), be') -> flattenLet $ Let (ibe ++ (bi, ie):be') e
-        _ -> l
-flattenLet e = e
-
-isLet :: Expr -> Bool
-isLet (Let _ _) = True
-isLet _ = False
-
 isType :: Expr -> Bool
 isType (Type _) = True
 isType _ = False
@@ -228,11 +214,3 @@ isType _ = False
 typeType :: Expr -> Maybe Type
 typeType (Type t) = Just t
 typeType _ = Nothing
-
-findElem :: (a -> Bool) -> [a] -> Maybe (a, [a])
-findElem p = find' id
-    where
-      find' _ []         = Nothing
-      find' pre (x : xs)
-          | p x          = Just (x, pre xs)
-          | otherwise    = find' (pre . (x:)) xs
