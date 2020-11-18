@@ -208,7 +208,7 @@ runLHInferenceCore entry m lrs ghci = do
         final_st' = swapHigherOrdForSymGen bindings final_st
 
     (red, hal, ord) <- inferenceReducerHalterOrderer infconfig g2config solver simplifier entry m cfn cf_funcs final_st'
-    (exec_res, final_bindings) <- liftIO $ runLHG2 g2config red hal ord solver simplifier pres_names final_st' bindings
+    (exec_res, final_bindings) <- liftIO $ runLHG2 g2config red hal ord solver simplifier pres_names ifi final_st' bindings
 
     liftIO $ close solver
 
@@ -258,8 +258,8 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
     return $
         (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng)
             <~| (case logStates config of
-                  Just fp -> SomeReducer (StdRed share solver simplifier :<~| RedArbErrors :<~| LHRed cfn :<~ Logger fp)
-                  Nothing -> SomeReducer (StdRed share solver simplifier :<~| RedArbErrors :<~| LHRed cfn))
+                  Just fp -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~ Logger fp)
+                  Nothing -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn))
         , SomeHalter
             (DiscardIfAcceptedTag state_name :<~> halter)
         , SomeOrderer (ToOrderer $ IncrAfterN 1000 ADTHeightOrderer))
@@ -288,7 +288,7 @@ runLHCExSearch entry m lrs ghci = do
         final_st' = swapHigherOrdForSymGen bindings final_st
 
     (red, hal, ord) <- realCExReducerHalterOrderer infconfig g2config' solver simplifier cfn cf_funcs final_st'
-    (exec_res, final_bindings) <- liftIO $ runLHG2 g2config' red hal ord solver simplifier pres_names final_st' bindings
+    (exec_res, final_bindings) <- liftIO $ runLHG2 g2config' red hal ord solver simplifier pres_names ifi final_st' bindings
 
     liftIO $ close solver
 

@@ -130,7 +130,7 @@ runLHCore entry (mb_modname, exg2) ghci config = do
     let simplifier = ADTSimplifier arbValue
 
     let (red, hal, ord) = lhReducerHalterOrderer config solver simplifier entry mb_modname cfn final_st
-    (exec_res, final_bindings) <- runLHG2 config red hal ord solver simplifier pres_names final_st bindings
+    (exec_res, final_bindings) <- runLHG2 config red hal ord solver simplifier pres_names ifi final_st bindings
 
     close solver
 
@@ -296,6 +296,7 @@ processLiquidReadyState lrs@(LiquidReadyState { lr_state = lh_state
                   else ls_state lhs
 
     return $ lhs { ls_state = lh_s
+                 , ls_id = mc
                  , ls_counterfactual_name = cfn
                  , ls_counterfactual_funcs = cff }
 
@@ -317,7 +318,8 @@ extractWithoutSpecs lrs@(LiquidReadyState { lr_state = s
 
     let track_state = lh_s' {track = LHTracker { abstract_calls = []
                                                , last_var = Nothing
-                                               , annotations = annm} }
+                                               , annotations = annm
+                                               , all_calls = [] } }
 
     -- We replace certain function name lists in the final State with names
     -- mapping into the measures from the LHState.  These functions do not
@@ -386,10 +388,11 @@ runLHG2 :: (Solver solver, Simplifier simplifier)
         -> solver
         -> simplifier
         -> MemConfig
+        -> Lang.Id
         -> State LHTracker
         -> Bindings
         -> IO ([ExecRes AbstractedInfo], Bindings)
-runLHG2 config red hal ord solver simplifier pres_names final_st bindings = do
+runLHG2 config red hal ord solver simplifier pres_names init_id final_st bindings = do
     let only_abs_st = final_st
     (ret, final_bindings) <- runG2WithSomes red hal ord solver simplifier pres_names only_abs_st bindings
 
@@ -405,7 +408,7 @@ runLHG2 config red hal ord solver simplifier pres_names final_st bindings = do
     let ret'' = filter (\(ExecRes {final_state = s}) -> mi == (abstractCallsNum s)) ret'
 
     (bindings', ret''') <- mapAccumM (reduceCalls solver simplifier config) final_bindings ret''
-    ret'''' <- mapM (checkAbstracted solver simplifier config bindings') ret'''
+    ret'''' <- mapM (checkAbstracted solver simplifier config init_id bindings') ret'''
 
     let exec_res = 
           map (\(ExecRes { final_state = s
@@ -644,7 +647,7 @@ parseLHOut entry (ExecRes { final_state = s
 counterExampleToLHReturn :: CounterExample -> LHReturn
 counterExampleToLHReturn (DirectCounter fc abstr) =
     let
-        called = funcCallToFuncInfo (T.pack . mkExprHaskell) $ fc
+        called = funcCallToFuncInfo (T.pack . mkExprHaskell) . abstract $ fc
         abstr' = map (funcCallToFuncInfo (T.pack . mkExprHaskell) . abstract) abstr
     in
     LHReturn { calledFunc = called
@@ -652,7 +655,7 @@ counterExampleToLHReturn (DirectCounter fc abstr) =
              , abstracted = abstr'}
 counterExampleToLHReturn (CallsCounter fc viol_fc abstr) =
     let
-        called = funcCallToFuncInfo (T.pack . mkExprHaskell) $ fc
+        called = funcCallToFuncInfo (T.pack . mkExprHaskell) . abstract $ fc
         viol_called = funcCallToFuncInfo (T.pack . mkExprHaskell) . abstract $ viol_fc
         abstr' = map (funcCallToFuncInfo (T.pack . mkExprHaskell) . abstract) abstr
     in
@@ -672,10 +675,8 @@ lhStateToCE :: Lang.Id -> ExecRes AbstractedInfo -> CounterExample
 lhStateToCE i (ExecRes { final_state = s@State { track = t }
                        , conc_args = inArg
                        , conc_out = ex})
-    | Nothing <- abs_violated t = DirectCounter initCall (abs_calls t)
-    | Just c <-  abs_violated t = CallsCounter initCall c (abs_calls t)
-    where
-        initCall = FuncCall (idName i) inArg ex
+    | Nothing <- abs_violated t = DirectCounter (init_call t) (abs_calls t)
+    | Just c <-  abs_violated t = CallsCounter (init_call t) c (abs_calls t)
 
 parseLHFuncTuple :: State t -> FuncCall -> FuncInfo
 parseLHFuncTuple s (FuncCall {funcName = n, arguments = ars, returns = out}) =

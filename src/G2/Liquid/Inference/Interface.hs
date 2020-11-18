@@ -16,6 +16,7 @@ import G2.Language.Support
 import G2.Language.Syntax
 import G2.Language.Typing
 import G2.Liquid.AddTyVars
+import G2.Liquid.ConvertCurrExpr
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.FuncConstraint as FC
 import G2.Liquid.Inference.G2Calls
@@ -286,7 +287,7 @@ refineUnsafe ghci m_modname lrs gs bad = do
 
     res_no_viol <- mapM (genNewConstraints merged_se_ghci m_modname lrs) bad'
     let res = concatMap fst res_no_viol
-        no_viol = [] -- concatMap snd res_no_viol
+        no_viol = concatMap snd res_no_viol
 
     liftIO $ do
         putStrLn $ "res = "
@@ -327,7 +328,31 @@ genNewConstraints ghci m lrs n = do
     liftIO . putStrLn $ "Generating constraints for " ++ T.unpack n
     ((exec_res, _), i) <- runLHInferenceCore n m lrs ghci
     let (exec_res', no_viol) = partition (true_assert . final_state) exec_res
-    return $ (map (lhStateToCE i) exec_res', map (lhStateToFC i) $ filter (null . abs_calls . track . final_state) no_viol)
+        
+        allCCons = noAbsStatesToCons i $ exec_res' ++ no_viol
+        -- preCons = concatMap (\s ->
+        --                           let
+        --                             pre_s = lhStateToPreFC i s
+        --                             clls = filter (\fc -> nameModule (funcName fc) == m) 
+        --                                  . map (switchName (idName i))
+        --                                  . ai_all_calls
+        --                                  . track
+        --                                  $ final_state s
+        --                           in
+        --                           map (ImpliesFC pre_s . Call Pre) clls) no_abs
+        -- callsCons = map (Call All)
+        --           . filter (\fc -> nameModule (funcName fc) == m) 
+        --           . map (switchName (idName i))
+        --           . concatMap (ai_all_calls . track . final_state)
+        --           $ no_abs
+        -- allCCons = preCons -- ++ callsCons
+
+    liftIO $ do
+        -- let no_abs = filter (null . abs_calls . track . final_state) $ exec_res' ++ no_viol
+        putStrLn $ "allCCons = "
+        mapM (putStrLn . printFC) allCCons
+
+    return $ (map (lhStateToCE i) exec_res', allCCons)
 
 getCEx :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState
              -> GeneratedSpecs
@@ -435,19 +460,19 @@ hasNewFC fc1 fc2
 cexsToBlockingFC :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] -> CounterExample -> m (Either CounterExample FuncConstraint)
 cexsToBlockingFC _ _ (DirectCounter dfc fcs@(_:_))
     | (_:_, no_err_fcs) <- partition (hasArgError . abstract) fcs = undefined
-    | isError (returns dfc) = do
+    | isError (returns (abstract dfc)) = do
         infconfig <- infConfigM
         let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 
         let rhs = OrFC $ map (\(Abstracted { abstract = fc }) -> 
                         ImpliesFC (Call Pre fc) (NotFC (Call Post fc))) fcs'
 
-        return . Right $ ImpliesFC (Call Pre dfc) rhs
+        return . Right $ ImpliesFC (Call Pre (abstract dfc)) rhs
     | otherwise = do
         infconfig <- infConfigM
         let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 
-        let lhs = AndFC [Call Pre dfc, NotFC (Call Post dfc)]
+        let lhs = AndFC [Call Pre (abstract dfc), NotFC (Call Post (abstract dfc))]
             rhs = OrFC $ map (\(Abstracted { abstract = fc }) -> 
                         ImpliesFC (Call Pre fc) (NotFC (Call Post fc))) fcs'
 
@@ -460,7 +485,7 @@ cexsToBlockingFC _ _ (CallsCounter dfc cfc fcs@(_:_))
         infconfig <- infConfigM
         let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 
-        let lhs = AndFC [Call Pre dfc, NotFC (Call Pre (abstract cfc))]
+        let lhs = AndFC [Call Pre (abstract dfc), NotFC (Call Pre (abstract cfc))]
             rhs = OrFC $ map (\(Abstracted { abstract = fc }) -> 
                                 ImpliesFC (Call Pre fc) (NotFC (Call Post fc))) fcs'
 
@@ -468,57 +493,57 @@ cexsToBlockingFC _ _ (CallsCounter dfc cfc fcs@(_:_))
             then return . Right $ ImpliesFC lhs rhs
             else error "cexsToBlockingFC: Should be unreachable! Non-refinable function abstracted!"    
 cexsToBlockingFC lrs ghci cex@(DirectCounter dfc [])
-    | isError (returns dfc) = do
-        if isExported lrs (funcName dfc)
+    | isError (returns (real dfc)) = do
+        if isExported lrs (funcName (real dfc))
             then return . Left $ cex
-            else return . Right . NotFC $ Call Pre dfc
-    | isExported lrs (funcName dfc) = do
-        post_ref <- checkPost ghci lrs dfc
+            else return . Right . NotFC $ Call Pre (real dfc)
+    | isExported lrs (funcName (real dfc)) = do
+        post_ref <- checkPost ghci lrs (real dfc)
         case post_ref of
-            True -> return $ Right (Call All dfc)
+            True -> return $ Right (Call All (real dfc))
             False -> return . Left $ cex
-    | otherwise = return $ Right (Call All dfc)
+    | otherwise = return $ Right (Call All (real dfc))
 cexsToBlockingFC lrs ghci cex@(CallsCounter dfc cfc [])
     | any isError (arguments (abstract cfc)) = do
         if
-            | isExported lrs (funcName dfc)
+            | isExported lrs (funcName (real dfc))
             , isExported lrs (funcName (real cfc)) -> do
                 called_pr <- checkPre ghci lrs (real cfc) -- TODO: Shouldn't be changing this?
                 case called_pr of
-                    True -> return . Right $ NotFC (Call Pre dfc)
+                    True -> return . Right $ NotFC (Call Pre (real dfc))
                     False -> return . Left $ cex
-            | isExported lrs (funcName dfc) -> do
+            | isExported lrs (funcName (real dfc)) -> do
                 called_pr <- checkPre ghci lrs (real cfc)
                 case called_pr of
-                    True -> return . Right $ NotFC (Call Pre dfc)
+                    True -> return . Right $ NotFC (Call Pre (real dfc))
                     False -> return . Left $ cex
-            | otherwise -> return . Right $ NotFC (Call Pre dfc)
+            | otherwise -> return . Right $ NotFC (Call Pre (real dfc))
     | otherwise = do
         if
-            | isExported lrs (funcName dfc)
+            | isExported lrs (funcName (real dfc))
             , isExported lrs (funcName (real cfc)) -> do
                 called_pr <- checkPre ghci lrs (real cfc) -- TODO: Shouldn't be changing this?
                 case called_pr of
-                    True -> return . Right $ ImpliesFC (Call Pre dfc) (Call Pre (abstract cfc))
+                    True -> return . Right $ ImpliesFC (Call Pre (real dfc)) (Call Pre (real cfc))
                     False -> return . Left $ cex
-            | isExported lrs (funcName dfc) -> do
+            | isExported lrs (funcName (real dfc)) -> do
                 called_pr <- checkPre ghci lrs (real cfc)
                 case called_pr of
-                    True -> return . Right $ ImpliesFC (Call Pre dfc) (Call Pre (abstract cfc))
+                    True -> return . Right $ ImpliesFC (Call Pre (real dfc)) (Call Pre (real cfc))
                     False -> return . Left $ cex
-            | otherwise -> return . Right $ ImpliesFC (Call Pre dfc) (Call Pre (abstract cfc))
+            | otherwise -> return . Right $ ImpliesFC (Call Pre (real dfc)) (Call Pre (real cfc))
 
 -- Function constraints that don't block the current specification set, but which must be true
 -- (i.e. the actual input and output for abstracted functions)
 cexsToExtraFC :: InfConfigM m => CounterExample -> m [FuncConstraint]
 cexsToExtraFC (DirectCounter dfc fcs@(_:_)) = do
     infconfig <- infConfigM
-    let some_pre = ImpliesFC (Call Pre dfc) $  OrFC (map (\fc -> Call Pre (real fc)) fcs)
+    let some_pre = ImpliesFC (Call Pre $ real dfc) $  OrFC (map (\fc -> Call Pre (real fc)) fcs)
         fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
     return $ some_pre:mapMaybe realToMaybeFC fcs'
 cexsToExtraFC (CallsCounter dfc cfc fcs@(_:_)) = do
     infconfig <- infConfigM
-    let some_pre = ImpliesFC (Call Pre dfc) $  OrFC (map (\fc -> Call Pre (real fc)) fcs)
+    let some_pre = ImpliesFC (Call Pre $ real dfc) $  OrFC (map (\fc -> Call Pre (real fc)) fcs)
     let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 
     let abs = mapMaybe realToMaybeFC fcs'
@@ -529,16 +554,46 @@ cexsToExtraFC (CallsCounter dfc cfc fcs@(_:_)) = do
     return $ some_pre:clls ++ abs
 cexsToExtraFC (DirectCounter fc []) = return []
 cexsToExtraFC (CallsCounter dfc cfc [])
-    | isError (returns dfc) = return []
+    | isError (returns (real dfc)) = return []
     | isError (returns (real cfc)) = return []
     | any isError (arguments (real cfc)) = return []
     | otherwise =
         let
-            call_all_dfc = Call All dfc
+            call_all_dfc = Call All (real dfc)
             call_all_cfc = Call All (real cfc)
-            imp_fc = ImpliesFC (Call Pre dfc) (Call Pre $ real cfc)
+            imp_fc = ImpliesFC (Call Pre $ real dfc) (Call Pre $ real cfc)
         in
         return $ [call_all_dfc, call_all_cfc, imp_fc]
+
+noAbsStatesToCons :: Id -> [ExecRes AbstractedInfo] -> [FuncConstraint]
+noAbsStatesToCons i = concatMap (noAbsStatesToCons' i) . filter (null . abs_calls . track . final_state)
+
+noAbsStatesToCons' :: Id -> ExecRes AbstractedInfo -> [FuncConstraint]
+noAbsStatesToCons' i@(Id (Name _ m _ _) _) s =
+    let
+        pre_s = lhStateToPreFC i s
+        clls = filter (\fc -> nameModule (funcName fc) == m) 
+             . map (switchName (idName i))
+             . ai_all_calls
+             . track
+             $ final_state s
+
+        preCons = map (ImpliesFC pre_s . Call Pre) clls
+        callsCons = map (\fc -> case isError (returns fc) of
+                                  True -> NotFC (Call Pre fc)
+                                  False -> Call All fc)
+                  . filter (\fc -> nameModule (funcName fc) == m) 
+                  . map (switchName (idName i))
+                  . ai_all_calls
+                  . track
+                  $ final_state s
+    in
+    preCons ++ callsCons
+
+switchName :: Name -> FuncCall -> FuncCall
+switchName n fc = if funcName fc == initiallyCalledFuncName then fc { funcName = n } else fc
+
+--------------------------------------------------------------------
 
 realToMaybeFC :: Abstracted -> Maybe FuncConstraint
 realToMaybeFC a@(Abstracted { real = fc }) 
@@ -553,14 +608,6 @@ hasUserSpec (Name n m _ _) = do
     infconfig <- infConfigM
     return $ (n, m) `S.member` pre_refined infconfig
 
-getDirectCaller :: CounterExample -> Maybe FuncCall
-getDirectCaller (CallsCounter f _ []) = Just f
-getDirectCaller _ = Nothing
-
-getDirectCalled :: CounterExample -> Maybe FuncCall
-getDirectCalled (CallsCounter _ f []) = Just (abstract f)
-getDirectCalled _ = Nothing
-
 notRetError :: FuncCall -> Bool
 notRetError (FuncCall { returns = Prim Error _ }) = False
 notRetError _ = True
@@ -569,6 +616,11 @@ lhStateToFC :: Id -> ExecRes AbstractedInfo -> FuncConstraint
 lhStateToFC i (ExecRes { final_state = s@State { track = t }
                        , conc_args = inArg
                        , conc_out = ex}) = Call All (FuncCall (idName i) inArg ex)
+
+lhStateToPreFC :: Id -> ExecRes AbstractedInfo -> FuncConstraint
+lhStateToPreFC i (ExecRes { final_state = s@State { track = t }
+                       , conc_args = inArg
+                       , conc_out = ex}) = Call Pre (FuncCall (idName i) inArg ex)
 
 insertsFC :: [FuncConstraint] -> FuncConstraints
 insertsFC = foldr insertFC emptyFC

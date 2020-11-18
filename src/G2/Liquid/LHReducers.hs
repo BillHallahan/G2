@@ -5,6 +5,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module G2.Liquid.LHReducers ( LHRed (..)
+                            , AllCallsRed (..)
                             , RedArbErrors (..)
 
                             , LHLimitByAcceptedOrderer (..)
@@ -102,7 +103,9 @@ initialTrack _ _ = 0
 
 data LHTracker = LHTracker { abstract_calls :: [FuncCall]
                            , last_var :: Maybe Name
-                           , annotations :: AnnotMap } deriving (Eq, Show)
+                           , annotations :: AnnotMap
+
+                           , all_calls :: [FuncCall]} deriving (Eq, Show)
 
 minAbstractCalls :: [State LHTracker] -> Int
 minAbstractCalls xs =
@@ -114,29 +117,36 @@ abstractCallsNum :: State LHTracker -> Int
 abstractCallsNum = length . abstract_calls . track
 
 instance Named LHTracker where
-    names (LHTracker {abstract_calls = abs_c, last_var = n, annotations = anns}) = 
-        names abs_c ++ names n ++ names anns
+    names (LHTracker {abstract_calls = abs_c, last_var = n, annotations = anns, all_calls = ac}) = 
+        names abs_c ++ names n ++ names anns ++ names ac
     
-    rename old new (LHTracker {abstract_calls = abs_c, last_var = n, annotations = anns}) =
+    rename old new (LHTracker {abstract_calls = abs_c, last_var = n, annotations = anns, all_calls = ac}) =
         LHTracker { abstract_calls = rename old new abs_c
                   , last_var = rename old new n
-                  , annotations = rename old new anns }
+                  , annotations = rename old new anns
+                  , all_calls = rename old new ac }
     
-    renames hm (LHTracker {abstract_calls = abs_c, last_var = n, annotations = anns}) =
+    renames hm (LHTracker {abstract_calls = abs_c, last_var = n, annotations = anns, all_calls = ac}) =
         LHTracker { abstract_calls = renames hm abs_c
                   , last_var = renames hm n
-                  , annotations = renames hm anns }
+                  , annotations = renames hm anns
+                  , all_calls = renames hm ac }
 
 instance ASTContainer LHTracker Expr where
-    containedASTs (LHTracker {abstract_calls = abs_c, annotations = anns}) =
-        containedASTs abs_c ++ containedASTs anns
-    modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = anns}) =
-        lht {abstract_calls = modifyContainedASTs f abs_c, annotations = modifyContainedASTs f anns}
+    containedASTs (LHTracker {abstract_calls = abs_c, annotations = anns, all_calls = ac}) =
+        containedASTs abs_c ++ containedASTs anns ++ containedASTs ac
+    modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = anns, all_calls = ac}) =
+        lht { abstract_calls = modifyContainedASTs f abs_c
+            , annotations = modifyContainedASTs f anns
+            , all_calls = modifyContainedASTs f ac}
 
 instance ASTContainer LHTracker Type where
-    containedASTs (LHTracker {abstract_calls = abs_c, annotations = anns}) = containedASTs abs_c ++ containedASTs anns
-    modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = anns}) =
-        lht {abstract_calls = modifyContainedASTs f abs_c, annotations = modifyContainedASTs f anns}
+    containedASTs (LHTracker {abstract_calls = abs_c, annotations = anns, all_calls = ac}) =
+        containedASTs abs_c ++ containedASTs anns ++ containedASTs ac
+    modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = anns, all_calls = ac}) =
+        lht {abstract_calls = modifyContainedASTs f abs_c
+            , annotations = modifyContainedASTs f anns
+            , all_calls = modifyContainedASTs f ac }
 
 data LHRed = LHRed Name
 
@@ -149,6 +159,18 @@ instance Reducer LHRed () LHTracker where
                 return $ ( InProgress
                          , zip s' (repeat ()), b, lhr)
             Nothing -> return (Finished, [(s, ())], b, lhr)
+
+data AllCallsRed  = AllCallsRed
+
+instance Reducer AllCallsRed () LHTracker where
+    initReducer _ _ = ()
+
+    redRules lhr _ s@(State { curr_expr = CurrExpr Evaluate (Assert (Just fc) _ _) }) b =
+        let
+            lht = (track s) { all_calls = fc:all_calls (track s) }
+        in
+        return $ (Finished, [(s { track = lht } , ())], b, lhr)
+    redRules lhr _ s b = return $ (Finished, [(s, ())], b, lhr)
 
 data RedArbErrors = RedArbErrors
 

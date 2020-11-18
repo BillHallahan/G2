@@ -100,8 +100,8 @@ data LHOutput = LHOutput { ghcI :: GhcInfo
                          , cgI :: CGInfo
                          , solution :: FixSolution }
 
-data CounterExample = DirectCounter L.FuncCall [Abstracted]
-                    | CallsCounter L.FuncCall -- ^ The caller, abstracted result
+data CounterExample = DirectCounter Abstracted [Abstracted]
+                    | CallsCounter Abstracted -- ^ The caller, abstracted result
                                    Abstracted -- ^ The callee
                                    [Abstracted]
                     deriving (Eq, Show, Read)
@@ -121,17 +121,21 @@ data Abstracted = Abstracted { abstract :: L.FuncCall
                              , hits_lib_err_in_real :: Bool }
                              deriving (Eq, Show, Read)
 
-data AbstractedInfo = AbstractedInfo { abs_violated :: Maybe Abstracted
-                                     , abs_calls :: [Abstracted] }
+data AbstractedInfo = AbstractedInfo { init_call :: Abstracted
+                                     , abs_violated :: Maybe Abstracted
+                                     , abs_calls :: [Abstracted]
+                                     , ai_all_calls :: [L.FuncCall] }
 
 mapAbstractedFCs :: (L.FuncCall -> L.FuncCall) ->  Abstracted -> Abstracted
 mapAbstractedFCs f (Abstracted { abstract = a, real = r, hits_lib_err_in_real = err }) =
     Abstracted { abstract = f a, real = f r, hits_lib_err_in_real = err }
 
 mapAbstractedInfoFCs :: (L.FuncCall -> L.FuncCall) ->  AbstractedInfo -> AbstractedInfo
-mapAbstractedInfoFCs f (AbstractedInfo { abs_violated = av, abs_calls = ac }) =
-    AbstractedInfo { abs_violated = fmap (mapAbstractedFCs f) av
-                   , abs_calls = map (mapAbstractedFCs f) ac }
+mapAbstractedInfoFCs f (AbstractedInfo { init_call = ic, abs_violated = av, abs_calls = ac, ai_all_calls= allc}) =
+    AbstractedInfo { init_call = mapAbstractedFCs f ic
+                   , abs_violated = fmap (mapAbstractedFCs f) av
+                   , abs_calls = map (mapAbstractedFCs f) ac
+                   , ai_all_calls = map f allc }
 
 instance L.ASTContainer Abstracted L.Expr where
     containedASTs ab = L.containedASTs (abstract ab) ++ L.containedASTs (real ab)
