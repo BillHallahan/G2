@@ -54,6 +54,7 @@ module G2.Language.Typing
     , splitTyFuns
     , retypeSelective
     , retype
+    , retypeOutsideTyForAll
     , mapInTyForAlls
     , inTyForAlls
     , numTypeArgs
@@ -274,6 +275,14 @@ retype key new e = modifyContainedASTs (retype' key new) $ e
 retype' :: Id -> Type -> Type -> Type
 retype' key new (TyVar test) = if key == test then new else TyVar test
 retype' key new ty = modifyChildren (retype' key new) ty
+
+retypeOutsideTyForAll :: (ASTContainer m Type, Show m) => Id -> Type -> m -> m
+retypeOutsideTyForAll key new e = modifyContainedASTs (retypeOutsideTyForAll' key new) $ e
+
+retypeOutsideTyForAll' :: Id -> Type -> Type -> Type
+retypeOutsideTyForAll' _ _ t@(TyForAll _ _) = t
+retypeOutsideTyForAll' key new (TyVar test) = if key == test then new else TyVar test
+retypeOutsideTyForAll' key new ty = modifyChildren (retypeOutsideTyForAll' key new) ty
 
 tyVarRename :: (ASTContainer t Type) => M.Map Name Type -> t -> t
 tyVarRename m = modifyASTs (tyVarRename' m)

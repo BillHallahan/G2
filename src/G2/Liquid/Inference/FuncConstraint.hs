@@ -151,8 +151,8 @@ printFC (OrFC fcs) =
     case fcs of
         (f:fcs') -> foldr (\fc fcs'' -> fcs'' ++ " || " ++ printFC fc) (printFC f) fcs'
         [] -> "False"
-printFC (ImpliesFC fc1 fc2) = printFC fc1 ++ " => " ++ printFC fc2 
-printFC (NotFC fc) = "not " ++ printFC fc
+printFC (ImpliesFC fc1 fc2) = "(" ++ printFC fc1 ++ ") => (" ++ printFC fc2 ++ ")"
+printFC (NotFC fc) = "not (" ++ printFC fc ++ ")"
 
 instance ASTContainer FuncConstraint Expr where
     containedASTs (Call sp fc) = containedASTs fc

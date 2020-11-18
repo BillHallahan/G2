@@ -44,6 +44,7 @@ import qualified Data.Text as T
 import qualified Text.Builder as TB
 
 import Debug.Trace
+import G2.Lib.Printers
 
 data SynthRes = SynthEnv
                   GeneratedSpecs -- ^ The synthesized specifications
@@ -663,6 +664,7 @@ nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc =
         lim_equiv_smt = limitEquivModels m_si
     in
     (var_act_hdrs ++ var_int_hdrs ++ var_op_hdrs ++ def_funs ++ fc_smt ++ env_smt ++ lim_equiv_smt, nm_fc)
+
 
 getCoeffs :: M.Map Name SpecInfo -> [SMTName]
 getCoeffs = concatMap siGetCoeffs . M.elems

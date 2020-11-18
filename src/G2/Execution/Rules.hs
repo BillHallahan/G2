@@ -238,7 +238,7 @@ retLam s@(State { expr_env = eenv
         case traceType eenv tf of
         Just t ->
             let
-                e' = retype i t e
+                e' = retypeOutsideTyForAll i t e
 
                 (eenv', e'', ng', news) = liftBind i (Type t) eenv e' ng
             in
