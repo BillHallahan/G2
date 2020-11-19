@@ -169,21 +169,6 @@ gatherReducerHalterOrderer infconfig config solver simplifier entry mb_modname s
               :<~> timer_halter)
         , SomeOrderer (ToOrderer $ IncrAfterN 2000 ADTHeightOrderer))
 
-data GathererReducer = Gatherer
-
-instance Reducer GathererReducer () [FuncCall] where
-    initReducer _ _ = ()
-
-    redRules gr _ s@(State { curr_expr = CurrExpr Evaluate (e@(Assume (Just fc) _ _))
-                           , track = tr
-                           }) b =
-        let
-          s' = s { curr_expr = CurrExpr Evaluate e
-                 , track = fc:tr}
-        in
-        return (Finished, [(s', ())], b, gr) 
-    redRules gr _ s b = return (Finished, [(s, ())], b, gr)
-
 -------------------------------
 -- Generating Counterexamples
 -------------------------------
@@ -532,6 +517,9 @@ checkPreOrPost' extract ars ghci ld@(LiquidData { ls_state = s, ls_bindings = bi
     -- We use the same function to instantiate this state as in runLHInferenceCore, so all the names line up
     case checkFromMap ars (extract ld) cex s of
         Just s' -> do
+            liftIO $ do
+                print $ cex
+                print $ curr_expr s'
             SomeSolver solver <- liftIO $ initSolver config
             (fsl, _) <- liftIO $ genericG2Call config solver s' bindings
             liftIO $ close solver

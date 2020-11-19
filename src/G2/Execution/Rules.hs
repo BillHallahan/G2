@@ -247,7 +247,7 @@ retLam s@(State { expr_env = eenv
                  , curr_expr = CurrExpr Evaluate e''
                  , exec_stack = stck' }]
             , ng')
-        Nothing -> error "retLam: Bad type"
+        Nothing -> error $ "retLam: Bad type\ni = " ++ show i ++ "\nstck = " ++ show (S.pop stck) 
     | TermL <- u
     , Just (ApplyFrame ae, stck') <- S.pop stck =
         let

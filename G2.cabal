@@ -214,7 +214,7 @@ library
                        -fno-ignore-asserts
                        -- -ddump-rule-rewrites
                        -- -ddump-splices
-                       -fprof-auto
+                       -- -fprof-auto
                        -- -fexternal-interpreter
   other-extensions:    CPP
   if flag(newLH)
@@ -251,7 +251,7 @@ executable Inference
                        , time
   default-language:    Haskell2010
   ghc-options:         -threaded -Wall
-                       -fprof-auto "-with-rtsopts=-p"
+                       -- -fprof-auto "-with-rtsopts=-p"
   hs-source-dirs:      inference
   main-is:             Main.hs
 

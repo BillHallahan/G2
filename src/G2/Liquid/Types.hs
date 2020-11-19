@@ -118,7 +118,8 @@ newtype AnnotMap =
 -- Abstracted values
 data Abstracted = Abstracted { abstract :: L.FuncCall
                              , real :: L.FuncCall
-                             , hits_lib_err_in_real :: Bool }
+                             , hits_lib_err_in_real :: Bool
+                             , func_calls_in_real :: [L.FuncCall] }
                              deriving (Eq, Show, Read)
 
 data AbstractedInfo = AbstractedInfo { init_call :: Abstracted
@@ -127,8 +128,14 @@ data AbstractedInfo = AbstractedInfo { init_call :: Abstracted
                                      , ai_all_calls :: [L.FuncCall] }
 
 mapAbstractedFCs :: (L.FuncCall -> L.FuncCall) ->  Abstracted -> Abstracted
-mapAbstractedFCs f (Abstracted { abstract = a, real = r, hits_lib_err_in_real = err }) =
-    Abstracted { abstract = f a, real = f r, hits_lib_err_in_real = err }
+mapAbstractedFCs f (Abstracted { abstract = a
+                               , real = r
+                               , hits_lib_err_in_real = err
+                               , func_calls_in_real = fcr }) =
+    Abstracted { abstract = f a
+               , real = f r
+               , hits_lib_err_in_real = err
+               , func_calls_in_real = map f fcr}
 
 mapAbstractedInfoFCs :: (L.FuncCall -> L.FuncCall) ->  AbstractedInfo -> AbstractedInfo
 mapAbstractedInfoFCs f (AbstractedInfo { init_call = ic, abs_violated = av, abs_calls = ac, ai_all_calls= allc}) =

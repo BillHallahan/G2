@@ -330,23 +330,6 @@ genNewConstraints ghci m lrs n = do
     let (exec_res', no_viol) = partition (true_assert . final_state) exec_res
         
         allCCons = noAbsStatesToCons i $ exec_res' ++ no_viol
-        -- preCons = concatMap (\s ->
-        --                           let
-        --                             pre_s = lhStateToPreFC i s
-        --                             clls = filter (\fc -> nameModule (funcName fc) == m) 
-        --                                  . map (switchName (idName i))
-        --                                  . ai_all_calls
-        --                                  . track
-        --                                  $ final_state s
-        --                           in
-        --                           map (ImpliesFC pre_s . Call Pre) clls) no_abs
-        -- callsCons = map (Call All)
-        --           . filter (\fc -> nameModule (funcName fc) == m) 
-        --           . map (switchName (idName i))
-        --           . concatMap (ai_all_calls . track . final_state)
-        --           $ no_abs
-        -- allCCons = preCons -- ++ callsCons
-
     liftIO $ do
         -- let no_abs = filter (null . abs_calls . track . final_state) $ exec_res' ++ no_viol
         putStrLn $ "allCCons = "
@@ -566,7 +549,7 @@ cexsToExtraFC (CallsCounter dfc cfc [])
         return $ [call_all_dfc, call_all_cfc, imp_fc]
 
 noAbsStatesToCons :: Id -> [ExecRes AbstractedInfo] -> [FuncConstraint]
-noAbsStatesToCons i = concatMap (noAbsStatesToCons' i) . filter (null . abs_calls . track . final_state)
+noAbsStatesToCons i = concatMap (noAbsStatesToCons' i) -- . filter (null . abs_calls . track . final_state)
 
 noAbsStatesToCons' :: Id -> ExecRes AbstractedInfo -> [FuncConstraint]
 noAbsStatesToCons' i@(Id (Name _ m _ _) _) s =
@@ -574,7 +557,8 @@ noAbsStatesToCons' i@(Id (Name _ m _ _) _) s =
         pre_s = lhStateToPreFC i s
         clls = filter (\fc -> nameModule (funcName fc) == m) 
              . map (switchName (idName i))
-             . ai_all_calls
+             . func_calls_in_real
+             . init_call
              . track
              $ final_state s
 
@@ -584,7 +568,8 @@ noAbsStatesToCons' i@(Id (Name _ m _ _) _) s =
                                   False -> Call All fc)
                   . filter (\fc -> nameModule (funcName fc) == m) 
                   . map (switchName (idName i))
-                  . ai_all_calls
+                  . func_calls_in_real
+                  . init_call
                   . track
                   $ final_state s
     in

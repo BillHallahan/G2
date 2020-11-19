@@ -14,6 +14,8 @@ import Data.List
 import Data.Maybe
 import Data.Tuple
 
+import Debug.Trace
+
 class Simplifier simplifier where
     -- | Simplifies a PC, by converting it to a form that is easier for the Solver's to handle
     simplifyPC :: forall t . simplifier -> State t -> PathCond -> (State t, [PathCond])
@@ -42,10 +44,10 @@ toNum _ s@(State {adt_int_maps = adtIntMaps
                       , type_env = tenv}) p
     | p' <- unsafeElimCast p
     , (ConsCond (DataCon dcN _) (Var (Id n t)) bool) <- p' =
-        let ogTyp = fromJust . pcVarType $ p
+        let ogTyp = fromJustSimplifier "ogTy" . pcVarType $ p
             -- Store type it is cast to (if any), else original type
             isMember = HM.member n smplfd
-            pcCastTyp = fromJust . pcVarType $ p'
+            pcCastTyp = fromJustSimplifier "pcCastTyp" . pcVarType $ p'
             smplfd' = HM.insert n (ogTyp, pcCastTyp) smplfd
 
             -- Convert `dc` to an Int by looking it up in the respective `dcNumMap`. If not in `dcNumMap`, lookup the corresponding AlgDataTy
@@ -81,13 +83,15 @@ fromNum' eenv tenv adtIntMaps smplfd avf b n val
         let num = case val of
                 (Lit (LitInt x)) -> x
                 _ -> error $ "Model should only return LitInts for non-primitive type"
-            dcNumMap = fromJust $ HM.lookup tCast adtIntMaps
-            dc = Data $ fromJust $ lookupDC num dcNumMap
+            dcNumMap = case HM.lookup tCast adtIntMaps of
+                            Just n -> n
+                            Nothing -> error $ "fromNum': tCast = " ++ show tCast ++ "\nadtIntMaps = " ++ show adtIntMaps 
+            dc = Data $ fromJustSimplifier "dc" $ lookupDC num dcNumMap
 
             dc' = if tCast /= t
                 then simplifyCasts . (castReturnType t) $ dc -- Apply the cast type back
                 else dc
-            (_, bi) = fromJust $ getCastedAlgDataTy tCast tenv
+            (_, bi) = fromJustSimplifier "bi" $ getCastedAlgDataTy tCast tenv
             ts2 = map snd bi
 
             -- We map names over the arguments of a DataCon, to make sure we have the correct number of undefined's.
@@ -138,7 +142,9 @@ insertFlipped k m val = HM.insert k val m
 constrainDCVals :: KnownValues -> HM.HashMap Type DCNum -> (Type, Id) -> PathCond
 constrainDCVals kv m (t, new) =
     let lower = 0
-        dcNumMap = fromJust $ HM.lookup t m
+        dcNumMap = case HM.lookup t m of
+                        Just n -> n
+                        Nothing -> error $ "constrainDCVals: t = " ++ show t ++ "\nm = " ++ show m 
         upper = upperB dcNumMap
     in ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var new) lower) (mkLeIntExpr kv (Var new) upper)) True
 
@@ -164,3 +170,7 @@ replaceReturnType (TyForAll b t) r = TyForAll b $ replaceReturnType t r
 replaceReturnType (TyFun t1 t2@(TyFun _ _)) r = TyFun t1 $ replaceReturnType t2 r
 replaceReturnType (TyFun t _) r = TyFun t r
 replaceReturnType _ r = r
+
+fromJustSimplifier :: String -> Maybe a -> a
+fromJustSimplifier s (Just x) = x
+fromJustSimplifier s Nothing = error $ "fromJustSimplifier " ++ s
