@@ -794,7 +794,7 @@ buildLIA_SMT = buildLIA (:+) (:*) (:=) (:>) (:>=) Ite mkSMTAnd mkSMTAnd mkSMTOr 
 -- leaves exists, i.e. consider a refinement on the elements of a list [{x:a | p x}],
 -- p is only checked in the nonempty case.
 buildLIA_LH :: SpecInfo -> SMTModel -> [PolyBound LHF.Expr]
-buildLIA_LH si mv = map (mapPB pAnd) . map (uncurry raiseSpecs) . zip synth_specs $  buildLIA_LH' si mv
+buildLIA_LH si mv = map (mapPB pAnd) {- . map (uncurry raiseSpecs) . zip synth_specs -} $  buildLIA_LH' si mv
     where
         synth_specs = s_syn_pre si ++ [s_syn_post si]
 

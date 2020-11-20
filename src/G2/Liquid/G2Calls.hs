@@ -158,16 +158,16 @@ getAbstracted solver simplifier share s bindings abs_fc@(FuncCall { funcName = n
             strict_call = maybe e' (fillLHDictArgs ds) $ mkStrict_maybe ds e'
 
         let s' = mkAssertsTrue (known_values s)
-               . elimAssumes
+               . elimAssumesExcept
                . pickHead
                . elimSymGens (arb_value_gen bindings)
                . modelToExprEnv $
                     s { curr_expr = CurrExpr Evaluate strict_call
-                      , track = [] :: [FuncCall]}
+                      , track = ([] :: [FuncCall], False)}
 
         let pres = HS.fromList $ names s' ++ names bindings
         (er, bindings') <- runG2WithSomes 
-                              (SomeReducer (StdRed share solver simplifier :<~ Gatherer))
+                              (SomeReducer (StdRed share solver simplifier :<~ HitsLibErrorGatherer))
                               (SomeHalter SWHNFHalter)
                               (SomeOrderer NextOrderer)
                               solver simplifier
@@ -177,13 +177,13 @@ getAbstracted solver simplifier share s bindings abs_fc@(FuncCall { funcName = n
         case er of
             [ExecRes
                 {
-                    final_state = fs@(State { curr_expr = CurrExpr _ ce, track = gfc, model = m})
+                    final_state = fs@(State { curr_expr = CurrExpr _ ce, track = (gfc, hle), model = m})
                 }] -> do
                   let fs' = modelToExprEnv fs
                   (bindings'', gfc') <- reduceFuncCallMaybeList solver simplifier share bindings' fs' gfc
                   return $ ( Abstracted { abstract = abs_fc
                                         , real = abs_fc { returns = ce }
-                                        , hits_lib_err_in_real = False
+                                        , hits_lib_err_in_real = hle
                                         , func_calls_in_real = gfc' }
                                 , m)
             _ -> error $ "checkAbstracted': Bad return from runG2WithSomes"
@@ -222,6 +222,35 @@ instance Reducer GathererReducer () [FuncCall] where
         in
         return (Finished, [(s', ())], b, gr) 
     redRules gr _ s b = return (Finished, [(s, ())], b, gr)
+
+data HitsLibErrorGathererReducer = HitsLibErrorGatherer
+
+instance Reducer HitsLibErrorGathererReducer () ([FuncCall], Bool) where
+    initReducer _ _ = ()
+
+    redRules gr _ s@(State { curr_expr = CurrExpr Evaluate (e@(Assume (Just fc) _ _))
+                           , track = (tr, hle)
+                           }) b =
+        let
+          s' = s { curr_expr = CurrExpr Evaluate e
+                 , track = (fc:tr, hle)}
+        in
+        return (Finished, [(s', ())], b, gr) 
+    redRules gr _ s@(State { curr_expr = CurrExpr Evaluate (e@(G2.Assert (Just fc) _ _))
+                           , track = (tr, hle)
+                           }) b =
+        let
+          s' = s { curr_expr = CurrExpr Evaluate e
+                 , track = (fc:tr, hle)}
+        in
+        return (Finished, [(s', ())], b, gr) 
+    redRules r _ s@(State { curr_expr = CurrExpr _ ce, track = (glc, _) }) b =
+        case ce of
+            Tick t _ 
+              | t == assumeErrorTickish ->
+                  return (NoProgress, [(s { track = (glc, True) }, ())], b, r)
+            _ -> return (NoProgress, [(s, ())], b, r)
+
 
 -- | Remove all @Assume@s from the given `Expr`, unless they have a particular @Tick@
 elimAssumesExcept :: ASTContainer m Expr => m -> m
@@ -322,7 +351,8 @@ reduceFCExpr share reducer solver simplifier s bindings e
         let 
             e' = fillLHDictArgs ds strict_e
 
-        let s' = elimAsserts
+        let s' = elimAssumes
+               . elimAsserts
                . pickHead
                . elimSymGens (arb_value_gen bindings)
                . modelToExprEnv $

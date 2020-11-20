@@ -507,21 +507,21 @@ correctTypes m bt mt re re' = do
     let retT = returnType e
     let retT' = returnType e'
 
-    may_nDict <- maybeNumDict m t
-    may_nDict' <- maybeNumDict m t'
+    may_nDict <- maybeNumDict m retT
+    may_nDict' <- maybeNumDict m retT'
 
-    may_iDict <- maybeIntegralDict m t
-    may_iDict' <- maybeIntegralDict m t'
+    may_iDict <- maybeIntegralDict m retT
+    may_iDict' <- maybeIntegralDict m retT'
 
-    may_fDict <- maybeFractionalDict m t
-    may_fDict' <- maybeFractionalDict m t'
+    may_fDict <- maybeFractionalDict m retT
+    may_fDict' <- maybeFractionalDict m retT'
 
     may_ratio_e <- maybeRatioFromInteger m e
     may_ratio_e' <- maybeRatioFromInteger m e'
     fromRationalF <- lhFromRationalM
 
-    maybe_nfiDict <- maybeNumFromIntegral m t
-    maybe_nfiDict' <- maybeNumFromIntegral m t'
+    maybe_nfiDict <- maybeNumFromIntegral m retT
+    maybe_nfiDict' <- maybeNumFromIntegral m retT'
 
     if | t == t' -> return (e, e')
        | retT /= tyI
@@ -559,6 +559,8 @@ correctTypes m bt mt re re' = do
                                 ++ "\ne' = " ++ show e'
                                 ++ "\nt = " ++ show t
                                 ++ "\nt' = " ++ show t'
+                                ++ "\nretT = " ++ show retT
+                                ++ "\nretT' = " ++ show retT'
                                 ++ "\nm = " ++ show m
 
 maybeRatioFromInteger :: DictMaps -> Expr -> LHStateM (Maybe Expr)

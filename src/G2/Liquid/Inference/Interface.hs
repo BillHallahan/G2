@@ -552,28 +552,26 @@ noAbsStatesToCons :: Id -> [ExecRes AbstractedInfo] -> [FuncConstraint]
 noAbsStatesToCons i = concatMap (noAbsStatesToCons' i) -- . filter (null . abs_calls . track . final_state)
 
 noAbsStatesToCons' :: Id -> ExecRes AbstractedInfo -> [FuncConstraint]
-noAbsStatesToCons' i@(Id (Name _ m _ _) _) s =
+noAbsStatesToCons' i@(Id (Name _ m _ _) _) er =
     let
-        pre_s = lhStateToPreFC i s
+        pre_s = lhStateToPreFC i er
         clls = filter (\fc -> nameModule (funcName fc) == m) 
              . map (switchName (idName i))
+             . filter (not . hasArgError)
              . func_calls_in_real
              . init_call
              . track
-             $ final_state s
+             $ final_state er
 
         preCons = map (ImpliesFC pre_s . Call Pre) clls
         callsCons = map (\fc -> case isError (returns fc) of
                                   True -> NotFC (Call Pre fc)
-                                  False -> Call All fc)
-                  . filter (\fc -> nameModule (funcName fc) == m) 
-                  . map (switchName (idName i))
-                  . func_calls_in_real
-                  . init_call
-                  . track
-                  $ final_state s
+                                  False -> Call All fc) clls
+        callsCons' = if hits_lib_err_in_real (init_call . track . final_state $ er)
+                                    then []
+                                    else callsCons
     in
-    preCons ++ callsCons
+    preCons ++ callsCons'
 
 switchName :: Name -> FuncCall -> FuncCall
 switchName n fc = if funcName fc == initiallyCalledFuncName then fc { funcName = n } else fc

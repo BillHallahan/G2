@@ -517,9 +517,6 @@ checkPreOrPost' extract ars ghci ld@(LiquidData { ls_state = s, ls_bindings = bi
     -- We use the same function to instantiate this state as in runLHInferenceCore, so all the names line up
     case checkFromMap ars (extract ld) cex s of
         Just s' -> do
-            liftIO $ do
-                print $ cex
-                print $ curr_expr s'
             SomeSolver solver <- liftIO $ initSolver config
             (fsl, _) <- liftIO $ genericG2Call config solver s' bindings
             liftIO $ close solver
