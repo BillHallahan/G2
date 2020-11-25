@@ -145,7 +145,6 @@ initStateFromSimpleState s useAssert f m_mod mkCurr config =
     , model = M.empty
     , known_values = kv'
     , cases = M.empty
-    , depth_exceeded = False
     , ready_to_merge = False
     , rules = []
     , num_steps = 0

@@ -21,7 +21,7 @@ module G2.Execution.Merging.StateMerging
 import G2.Language
 import G2.Execution.NormalForms
 import G2.Solver.Simplifier
-import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.ExprEnv as E 
 import qualified G2.Language.PathConds as PC
 
 import qualified Control.Monad.State.Lazy as S
@@ -113,7 +113,6 @@ mergeState ngen simplifier s1 s2 =
                              , model = model s1'
                              , known_values = known_values s1'
                              , cases = cases s1' -- both should be equal
-                             , depth_exceeded = depth_exceeded s1'
                              , ready_to_merge = ready_to_merge s1'
                              , rules = rules s1'
                              , num_steps = num_steps s1'

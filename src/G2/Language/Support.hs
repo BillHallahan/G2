@@ -54,7 +54,6 @@ data GenState pc t = State { expr_env :: E.ExprEnv
                            , model :: Model
                            , known_values :: KnownValues
                            , cases :: M.Map Id Int -- ^ Record number of pending merges for each Case Expr
-                           , depth_exceeded :: Bool -- ^ Do we have more pending merges for any Case Expr than the limit?
                            , ready_to_merge :: Bool
                            , rules :: ![Rule]
                            , num_steps :: !Int -- Invariant: The length of the rules list
@@ -153,7 +152,6 @@ renameState old new_seed s b =
              , model = model s
              , known_values = rename old new (known_values s)
              , cases = rename old new (cases s)
-             , depth_exceeded = depth_exceeded s
              , ready_to_merge = ready_to_merge s
              , rules = rules s
              , num_steps = num_steps s
@@ -191,7 +189,6 @@ instance Named t => Named (State t) where
                , model = rename old new (model s)
                , known_values = rename old new (known_values s)
                , cases = M.mapKeys (\k@(Id n t) -> if n == old then (Id new t) else k) (cases s)
-               , depth_exceeded = depth_exceeded s
                , ready_to_merge = ready_to_merge s
                , rules = rules s
                , num_steps = num_steps s
@@ -214,7 +211,6 @@ instance Named t => Named (State t) where
                , model = renames hm (model s)
                , known_values = renames hm (known_values s)
                , cases = M.mapKeys (renames hm) (cases s)
-               , depth_exceeded = depth_exceeded s
                , ready_to_merge = ready_to_merge s
                , rules = rules s
                , num_steps = num_steps s

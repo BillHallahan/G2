@@ -28,8 +28,14 @@ mergeEffectiveTests = do
     -- timeIOActionPrint "subseqOfTest" $ [g2| \(a :: [Int]) -> ?(b :: [Int]) | subseqOfTest a b |] [1,2,1,3]
     -- timeIOActionPrint "subseqOfTestSM" $ [g2M| \(a :: [Int]) -> ?(b :: [Int]) | subseqOfTest a b |] [1,2,1,3]
 
-    timeIOActionPrint "subseqOfTest" $ [g2| \(a :: [Int]) -> ?(b :: [Int]) | subseqOfTest2 a b |] [1,2,1]
-    timeIOActionPrint "subseqOfTestSM" $ [g2M| \(a :: [Int]) -> ?(b :: [Int]) | subseqOfTest2 a b |] [1,2,1]
+    -- timeIOActionPrint "subseqOfTest" $ [g2| \(a :: [Int]) -> ?(b :: [Int]) | subseqOfTest2 a b |] [1,2]
+    -- timeIOActionPrint "subseqOfTestSM" $ [g2M| \(a :: [Int]) -> ?(b :: [Int]) | subseqOfTest2 a b |] [1,2]
+
+    -- timeIOActionPrint "lengthTest" $ [g2| \(a :: [Int]) -> ?(b :: [Int]) | lengthTest2 a b |] [1,2]
+    timeIOActionPrint "lengthTestSM" $ [g2M| \(a :: [Int]) -> ?(b :: [Int]) | lengthTest2 a b |] [1,2]
+
+    -- timeIOActionPrint "subseqOfTestC" $ [g2| \(a :: C Int) -> ?(b :: C Int) | subseqOfTest3 a b |] (C 1) 
+    -- timeIOActionPrint "subseqOfTestC_SM" $ [g2M| \(a :: C Int) -> ?(b :: C Int) | subseqOfTest3 a b |] (C 1)
 
     -- timeIOActionPrint "sumEvensTest" $ [g2| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] 5
     -- timeIOActionPrint "sumEvensTestSM" $ [g2M| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] 5

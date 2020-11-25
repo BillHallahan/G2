@@ -56,12 +56,30 @@ subseqOfTest a b = (isSubsequenceOf' a b) && (length b > 8)
 
 isSubsequenceOf2' :: (Eq a) => [a] -> [a] -> Bool
 isSubsequenceOf2' a@(x:a') (y:b)
-    | x == y    = isSubsequenceOf2' a' b
-    | otherwise = isSubsequenceOf2' a b
-isSubsequenceOf2' _ _ = True
+    | x == y    = True
+isSubsequenceOf2' _ _ = False
 
 subseqOfTest2 :: [Int] -> [Int] -> Bool
-subseqOfTest2 a b = (isSubsequenceOf2' a b) && (length b > 3)
+subseqOfTest2 a b = (isSubsequenceOf2' a b) && (length b > 1)
+
+lengthTest2 :: [Int] -> [Int] -> Bool
+lengthTest2 a b = length b >= 1
+
+data C a = C a | E deriving Show
+
+$(derivingG2Rep ''C)
+
+isSubsequenceOf3' :: (Eq a) => C a -> C a -> Bool
+isSubsequenceOf3' a@(C x) (C y)
+    | x == y    = True
+isSubsequenceOf3' _ _ = False
+
+lengthC :: C a -> Int
+lengthC (C _) = 1
+lengthC E = 0
+
+subseqOfTest3 :: C Int -> C Int -> Bool
+subseqOfTest3 a b = (isSubsequenceOf3' a b) && (lengthC b == 1)
 
 foldrSimple :: (a -> b -> b) -> b -> [a] -> b
 foldrSimple f z [] = z

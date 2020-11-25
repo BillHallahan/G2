@@ -290,7 +290,7 @@ qqRedHaltOrd config solver simplifier mergeStates =
         (NonRedPCRed :<~| TaggerRed state_name tr_ng)
             <~| (case logSt of
                     Just fp -> SomeReducer (StdRed share mergeStates solver simplifier :<~ Logger fp)
-                    Nothing -> SomeReducer (StdRed share mergeStates solver simplifier))
+                    Nothing -> SomeReducer (StdRed share mergeStates solver simplifier :<~ Logger "a_merge"))
     , SomeHalter
         (DiscardIfAcceptedTag state_name 
         :<~> AcceptHalter)

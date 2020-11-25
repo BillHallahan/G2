@@ -24,7 +24,7 @@ data Rule = RuleEvalVal
           | RuleEvalCaseData [Name]
           | RuleEvalCaseLit
           | RuleEvalCaseDefault
-          | RuleEvalCaseSym
+          | RuleEvalCaseSym Id
           | RuleEvalCasePrim
           | RuleEvalCaseNonVal
 

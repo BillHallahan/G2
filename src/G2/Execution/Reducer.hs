@@ -367,12 +367,17 @@ instance (Solver solver, Simplifier simplifier) => Reducer (StdRed solver simpli
         (r, s', b') <- stdReduce share mergeStates solver simplifier s b
         let res = case r of
                     RuleHitMergePt -> MergePoint
-                    RuleEvalCaseSym -> Split
+                    RuleEvalCaseSym i
+                        | M.findWithDefault 0 i (cases s) >= maxDepth -> MaxDepth
+                        | otherwise -> Split
                     RuleMaxDepth -> MaxDepth
                     RuleIdentity -> Finished
                     _ -> InProgress
 
         return (res, s', b', stdr)
+
+maxDepth :: Int
+maxDepth = 4
 
 -- | Removes and reduces the values in a State's non_red_path_conds field. 
 data NonRedPCRed = NonRedPCRed
@@ -573,6 +578,7 @@ instance Reducer CountMerges Int t where
         putStrLn $ "Accepted after merging " ++ show x ++ " times"
 
     onMerge _ _ _ x y = do
+        print $ x + y + 1
         return $ x + y + 1
 
 -- | Allows executing multiple halters.
@@ -793,7 +799,6 @@ instance Halter VarLookupLimit Int t where
 
     stepHalter _ lim _ _ (State { curr_expr = CurrExpr Evaluate (Var _) }) = lim - 1
     stepHalter _ lim _ _ _ = lim
-
 
 -- Orderer things
 
@@ -1123,16 +1128,16 @@ runReducerMerge' :: (Show t, Eq t, Named t, Reducer r rv t, Halter h hv t, Simpl
                  => ExState rv hv sov t
                  -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
                  -> IO ([(ExState rv hv sov t)], (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)), MG.Status Name)
-runReducerMerge' exS (red, hal, simplifier, bdg, pr) = do
-    let rs@(ExState {state = s, halter_val = h_val, reducer_val = r_val}) = exS
-        ps = processedToState pr -- need to deal with processed
+runReducerMerge' rs@(ExState {state = s, halter_val = h_val, reducer_val = r_val})
+                 (red, hal, simplifier, bdg, pr) = do
+    let ps = processedToState pr -- need to deal with processed
         hc = stopRed hal h_val ps s
     case hc of
         Accept -> do
             onAccept red s r_val
             return ([rs], (red, hal, simplifier, bdg, pr {accepted = rs:accepted pr}), MG.Accept)
         Discard -> return ([rs], (red, hal, simplifier, bdg, pr {discarded = rs:discarded pr}), MG.Discard)
-        Switch -> return ([rs], (red, hal, simplifier, bdg, pr), MG.Switch)
+        -- Switch -> return ([rs], (red, hal, simplifier, bdg, pr), MG.Switch)
         _ -> do
             (reducerRes, reduceds, bdg', red') <- redRules red r_val s bdg
             let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
@@ -1145,7 +1150,7 @@ runReducerMerge' exS (red, hal, simplifier, bdg, pr) = do
             let status = case reducerRes of
                                 MergePoint-> MG.Merge (topMerge s)
                                 MaxDepth -> MG.Switch
-                                -- Split -> MG.Split
+                                Split -> MG.Split (topMerge (fst (head reduceds')))
                                 _ -> MG.KeepWorking
             return (reduceds'', (red', hal, simplifier, bdg', pr), status)
 
@@ -1154,53 +1159,53 @@ topMerge s = case Stck.pop (exec_stack s) of
                 Just (MergePtFrame (Id n _), _) -> n
                 _ -> error "topMerge: Bad frame in stack."
 
-runReducerMerge2 :: (Show t, Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
-                 => r -> h -> simplifier -> State t -> Bindings
-                 -> IO (Processed (State t), Bindings)
-runReducerMerge2 red hal simplifier s b = do
-    let pr = Processed {accepted = [], discarded = []}
-        s' = ExState {state = s, halter_val = initHalt hal s, reducer_val = initReducer red s, order_val = Nothing}
-        -- workGraph = ZinitGraph s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStates resetSaturated logState
-        zipper = initZipper s' (red, hal, simplifier, b, pr) runReducerMerge2' mergeStates resetMergingZipper -- logState
+-- runReducerMerge2 :: (Show t, Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
+--                  => r -> h -> simplifier -> State t -> Bindings
+--                  -> IO (Processed (State t), Bindings)
+-- runReducerMerge2 red hal simplifier s b = do
+--     let pr = Processed {accepted = [], discarded = []}
+--         s' = ExState {state = s, halter_val = initHalt hal s, reducer_val = initReducer red s, order_val = Nothing}
+--         -- workGraph = ZinitGraph s' (red, hal, simplifier, b, pr) runReducerMerge' mergeStates resetSaturated logState
+--         zipper = initZipper s' (red, hal, simplifier, b, pr) runReducerMerge2' mergeStates resetMergingZipper -- logState
 
-    -- (_, (_, _, _, b', pr')) <- Zwork workGraph
-    (_, _, _, b', pr') <- evalZipper zipper
-    let res = mapProcessed state pr'
-    return (res, b')
+--     -- (_, (_, _, _, b', pr')) <- Zwork workGraph
+--     (_, _, _, b', pr') <- evalZipper zipper
+--     let res = mapProcessed state pr'
+--     return (res, b')
 
--- | work_func for both WorkGraph and ZipperTree. Reduces the ExState `exS` and returns the reduceds along with the appropriate Status
-runReducerMerge2' :: (Show t, Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
-                 => ExState rv hv sov t
-                 -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
-                 -> IO ([(ExState rv hv sov t)], (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)), Z.Status)
-runReducerMerge2' exS (red, hal, simplifier, bdg, pr) = do
-    let rs@(ExState {state = s, halter_val = h_val, reducer_val = r_val}) = exS
-        ps = processedToState pr -- need to deal with processed
-        hc = stopRed hal h_val ps s
-    case hc of
-        Accept -> return ([rs], (red, hal, simplifier, bdg, pr {accepted = rs:accepted pr}), Z.Accept)
-        Discard -> return ([rs], (red, hal, simplifier, bdg, pr {discarded = rs:discarded pr}), Z.Discard)
-        _ -> do
-            (reducerRes, reduceds, bdg', red') <- redRules red r_val s bdg
-            let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
-            let r_vals = updateWithAll red reduceds' ++ error "List returned by updateWithAll is too short.."
-            let new_states = map fst reduceds'
-            let reduceds'' = map (\(s', r_val') -> rs { state = s'
-                                                      , reducer_val = r_val'
-                                                      , halter_val = stepHalter hal h_val ps new_states s'})
-                                                      $ zip new_states r_vals
-            let status = case reducerRes of
-                                MergePoint -> Z.Mergeable
-                                MaxDepth -> Z.WorkSaturated
-                                Split -> Z.Split
-                                _ -> Z.WorkNeeded
-            return (reduceds'', (red', hal, simplifier, bdg', pr), status)
+-- -- | work_func for both WorkGraph and ZipperTree. Reduces the ExState `exS` and returns the reduceds along with the appropriate Status
+-- runReducerMerge2' :: (Show t, Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
+--                  => ExState rv hv sov t
+--                  -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
+--                  -> IO ([(ExState rv hv sov t)], (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)), Z.Status)
+-- runReducerMerge2' exS (red, hal, simplifier, bdg, pr) = do
+--     let rs@(ExState {state = s, halter_val = h_val, reducer_val = r_val}) = exS
+--         ps = processedToState pr -- need to deal with processed
+--         hc = stopRed hal h_val ps s
+--     case hc of
+--         Accept -> return ([rs], (red, hal, simplifier, bdg, pr {accepted = rs:accepted pr}), Z.Accept)
+--         Discard -> return ([rs], (red, hal, simplifier, bdg, pr {discarded = rs:discarded pr}), Z.Discard)
+--         _ -> do
+--             (reducerRes, reduceds, bdg', red') <- redRules red r_val s bdg
+--             let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
+--             let r_vals = updateWithAll red reduceds' ++ error "List returned by updateWithAll is too short.."
+--             let new_states = map fst reduceds'
+--             let reduceds'' = map (\(s', r_val') -> rs { state = s'
+--                                                       , reducer_val = r_val'
+--                                                       , halter_val = stepHalter hal h_val ps new_states s'})
+--                                                       $ zip new_states r_vals
+--             let status = case reducerRes of
+--                                 MergePoint -> Z.Mergeable
+--                                 MaxDepth -> Z.WorkSaturated
+--                                 Split -> Z.Split
+--                                 _ -> Z.WorkNeeded
+--             return (reduceds'', (red', hal, simplifier, bdg', pr), status)
 
--- | Reset counts of all unmerged Case Expressions to 0
-resetSaturated :: (ExState rv hv sov t) -> (ExState rv hv sov t)
-resetSaturated rs@(ExState {state = s}) =
-    let s' = s {cases = M.empty, depth_exceeded = False}
-    in rs {state = s'}
+-- -- | Reset counts of all unmerged Case Expressions to 0
+-- resetSaturated :: (ExState rv hv sov t) -> (ExState rv hv sov t)
+-- resetSaturated rs@(ExState {state = s}) =
+--     let s' = s {cases = M.empty, depth_exceeded = False}
+--     in rs {state = s'}
 
 -- | Merge Func for WorkGraph and Tree Zipper. Attempts to merge 2 states
 mergeStates :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
@@ -1231,22 +1236,22 @@ switchStates ex_s b@(_, hal, _, _, pr) =
         then Just (ex_s', b)
         else Nothing
 
--- | Function for Logging State
-logState :: Show t => ExState rv hv sov t -> (r,h,s,Bindings,p) -> String
-logState (ExState { state = s }) (_,_,_,b,_) = pprExecStateStr s b
+-- -- | Function for Logging State
+-- logState :: Show t => ExState rv hv sov t -> (r,h,s,Bindings,p) -> String
+-- logState (ExState { state = s }) (_,_,_,b,_) = pprExecStateStr s b
 
--- | Remove any MergePtFrame-s in the exec_stack of the ExState. Called when we float states to Root when tree grows too deep
-resetMergingZipper :: (ExState rv hv sov t) -> (ExState rv hv sov t)
-resetMergingZipper rs@(ExState {state = s}) =
-    let st = exec_stack s
-        st' = delMergePtFrames st
-        s' = s {exec_stack = st', cases = M.empty, depth_exceeded = False}
-    in rs {state = s'}
+-- -- | Remove any MergePtFrame-s in the exec_stack of the ExState. Called when we float states to Root when tree grows too deep
+-- resetMergingZipper :: (ExState rv hv sov t) -> (ExState rv hv sov t)
+-- resetMergingZipper rs@(ExState {state = s}) =
+--     let st = exec_stack s
+--         st' = delMergePtFrames st
+--         s' = s {exec_stack = st', cases = M.empty, depth_exceeded = False}
+--     in rs {state = s'}
 
-delMergePtFrames :: Stck.Stack Frame -> Stck.Stack Frame
-delMergePtFrames st =
-    let xs = Stck.toList st
-        xs' = filter (\fr -> case fr of
-                                MergePtFrame _ -> False
-                                _ -> True) xs
-    in Stck.fromList xs'
+-- delMergePtFrames :: Stck.Stack Frame -> Stck.Stack Frame
+-- delMergePtFrames st =
+--     let xs = Stck.toList st
+--         xs' = filter (\fr -> case fr of
+--                                 MergePtFrame _ -> False
+--                                 _ -> True) xs
+--     in Stck.fromList xs'

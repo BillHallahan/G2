@@ -12,11 +12,11 @@ import Data.Data
 import Data.Hashable
 import qualified Data.HashMap.Strict as M
 import Data.Maybe
-import qualified Data.Sequence as S
+import qualified Data.Sequence as Seq
 
 import GHC.Generics (Generic)
 
-data Status k = Accept | Discard | Switch | KeepWorking | Merge k deriving Show
+data Status k = Accept | Discard | Switch | KeepWorking | Split k | Merge k deriving Show
 
 data AtMerge k = AtMerge k | NotAtMerge deriving (Eq, Show, Generic, Typeable)
 
@@ -24,7 +24,7 @@ instance Hashable k => Hashable (AtMerge k)
 
 newtype MergeGraph k v = MergeGraph (M.HashMap (AtMerge k) [v])
 
-type WorkOrder k = S.Seq (AtMerge k)
+type WorkOrder k = Seq.Seq (AtMerge k)
 
 work :: (Eq k, Hashable k, Show k)
      => (s -> b -> IO ([s], b, Status k)) -- ^ Work function
@@ -34,7 +34,7 @@ work :: (Eq k, Hashable k, Show k)
      -> b
      -> IO ([s], b)
 work _ _ _ [] b = return ([], b)
-work work_fn merge_fn switch_fn (ix:ixs) ib = go (MergeGraph M.empty) S.empty [] ix ixs ib
+work work_fn merge_fn switch_fn (ix:ixs) ib = go (MergeGraph M.empty) Seq.empty [] ix ixs ib
     where
         go wg ord acc x xs b = do
             (ev_xs, b', status) <- work_fn x b
@@ -51,6 +51,13 @@ work work_fn merge_fn switch_fn (ix:ixs) ib = go (MergeGraph M.empty) S.empty []
                         (wg', ord') = switch wg ord NotAtMerge ev_xs
                     in
                     pickNew wg' ord' acc xs b'
+                Split k ->
+                    let
+                        ord' = AtMerge k Seq.:<| ord -- ord Seq.:|> AtMerge k
+                    in
+                    case ev_xs ++ xs of
+                        x':xs' -> go wg ord' acc x' xs' b'
+                        [] -> error "Reducer returned empty list"
                 Merge k ->
                     let
                         (wg', ord') = switch wg ord (AtMerge k) ev_xs
@@ -60,7 +67,8 @@ work work_fn merge_fn switch_fn (ix:ixs) ib = go (MergeGraph M.empty) S.empty []
         switch wg ord am_k xs =
             let
                 (prev, wg') = addToNodeLookup am_k xs wg
-                ord' = if isJust prev then ord else (ord S.:|> am_k)
+                ord' = if am_k == NotAtMerge then ord Seq.:|> am_k else ord
+                -- ord' = if isJust prev then ord else (ord Seq.:|> am_k)
             in
             (wg', ord')
 
@@ -68,10 +76,11 @@ work work_fn merge_fn switch_fn (ix:ixs) ib = go (MergeGraph M.empty) S.empty []
             case switch_fn x b of
                 Just (x', b') -> go wg ord acc x' xs b'
                 Nothing -> pickNew wg ord acc xs b
-        pickNew wg ord acc [] b =
+        pickNew wg ord acc [] b = do
+            putStrLn $ "pick new " ++ show ord
             case ord of
-                S.Empty -> return (acc, b)
-                k S.:<| ord'
+                Seq.Empty -> return (acc, b)
+                k Seq.:<| ord'
                     | Just xs <- lookup k wg -> do
                         (m_xs, b') <- case k of 
                                         NotAtMerge -> return (xs, b)

@@ -364,9 +364,6 @@ evalCase mergeStates s@(State { expr_env = eenv
                            , curr_expr = CurrExpr Evaluate mexpr
                            , exec_stack = S.push frame stck }], ng)
 
-  -- | (True, s') <- hitMaxDepth s bind
-  -- , Merging <- mergeStates = (RuleMaxDepth, [newPCEmpty s'], ng)
-
   -- If we are pointing to something in expr value form, that is not addressed
   -- by some previous case, we handle it by branching on every `Alt`, and adding
   -- path constraints.
@@ -392,7 +389,7 @@ evalCase mergeStates s@(State { expr_env = eenv
         newPCs = dsts_cs ++ lsts_cs ++ def_sts
         newPCs' = map (addMergePt bind) newPCs
       in
-      (RuleEvalCaseSym, newPCs', ng'')
+      (RuleEvalCaseSym bind, newPCs', ng'')
 
   | isSMNF eenv mexpr
   , Merging <- mergeStates =
@@ -411,7 +408,7 @@ evalCase mergeStates s@(State { expr_env = eenv
 
         newPCs = def_sts ++ dsts_cs
         newPCs' = map (addMergePt bind) newPCs
-    in (RuleEvalCaseSym, newPCs', ng'') -- TODO: new rule
+    in (RuleEvalCaseSym bind, newPCs', ng'') -- TODO: new rule
 
   | otherwise = error $ "reduceCase: bad case passed in\n" ++ show mexpr ++ "\n" ++ show alts
 
@@ -637,30 +634,14 @@ liftSymDefAltPCs kv mexpr (DataAlt dc _) = -- Only DataAlts would be True/False
 liftSymDefAltPCs _ mexpr (LitAlt lit) = Just $ AltCond lit mexpr False
 liftSymDefAltPCs _ _ Default = Nothing
 
-maxDepth :: Int
-maxDepth = 4
-
 -- Insert MergePtFrame into stack and increment count of unmerged cases at the case specified by `i`
 addMergePt :: Id -> NewPC t -> NewPC t
-addMergePt i p@(NewPC {state = s@(State { exec_stack = stk, cases = c, depth_exceeded = b })}) =
+addMergePt i p@(NewPC {state = s@(State { exec_stack = stk, cases = c })}) =
     let stk' = S.push (MergePtFrame i) stk
-        count = case (M.lookup i c) of
-            Just x -> x
-            Nothing -> 0
-        count' = count + 1
-        b' = if (count' > maxDepth) then True else b
-        c' = M.insert i count' c
+        count = M.findWithDefault 0 i c + 1
+        c' = M.insert i count c
     in 
-    p { state = s { exec_stack = stk', cases = c', depth_exceeded = b' } }
-
-hitMaxDepth :: State t -> Id -> (Bool, State t)
-hitMaxDepth s@(State { cases = c, depth_exceeded = b }) i =
-    let count = case (M.lookup i c) of
-            Just x -> x
-            Nothing -> 0
-        count' = count + 1
-        b' = (count' > maxDepth) || b
-    in (b', s { depth_exceeded = b'})
+    p { state = s { exec_stack = stk', cases = c' } }
 
 -----------------------------------------------------------------------------
 --  Helper functions to deal with Case Expr in Symbolic Merged Normal Form --
