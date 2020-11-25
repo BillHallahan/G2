@@ -122,7 +122,7 @@ getGHCI infconfig config proj fp lhlibs = do
     return (ghci, lhconfig)
 
 data InferenceRes = CEx [CounterExample]
-                  | Env GeneratedSpecs MeasureExs Size SMTModel
+                  | Env GeneratedSpecs FuncConstraints MaxSizeConstraints MeasureExs Size SMTModel
                   | Raise MeasureExs FuncConstraints MaxSizeConstraints NewFC
                   deriving (Show)
 
@@ -151,7 +151,7 @@ iterativeInference con ghci m_modname lrs nls meas_ex max_sz gs fc = do
     res <- inferenceL con ghci m_modname lrs nls emptyEvals meas_ex max_sz gs fc emptyFC HM.empty
     case res of
         CEx cex -> return $ Left cex
-        Env gs _ _ _ -> return $ Right gs
+        Env gs _ _ _ _ _ -> return $ Right gs
         Raise r_meas_ex r_fc _ _ -> do
             incrMaxDepthM
             -- We might be missing some internal GHC types from our deep_seq walkers
@@ -203,13 +203,13 @@ inferenceL con ghci m_modname lrs nls evals meas_ex max_sz senv fc max_fc mdls =
         putStrLn "-------"
 
     case resAtL of
-        Env senv' meas_ex' sz smt_mdl -> 
+        Env senv' n_fc n_mfc meas_ex' sz smt_mdl -> 
             case nls of
                 [] -> return resAtL
                 (_:nls') -> do
                     liftIO $ putStrLn "Down a level!"
                     let evals'' = foldr deleteEvalsForFunc evals' sf
-                    inf_res <- inferenceL con ghci m_modname lrs nls' evals'' meas_ex' max_sz senv' fc max_fc HM.empty
+                    inf_res <- inferenceL con ghci m_modname lrs nls' evals'' meas_ex' max_sz senv' (unionFC fc n_fc) (unionFC max_fc n_mfc) HM.empty
                     case inf_res of
                         Raise r_meas_ex r_fc r_max_fc has_new -> do
                             liftIO $ putStrLn "Up a level!"
@@ -260,7 +260,7 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc mdls = d
             res <- tryToVerifyOnly ghci' fs
             
             case res of
-                Safe -> return $ (Env gs' meas_ex sz smt_mdl, evals')
+                Safe -> return $ (Env gs' fc max_fc meas_ex sz smt_mdl, evals')
                 Unsafe bad -> do
                     ref <- refineUnsafe ghci m_modname lrs gs' bad
                     case ref of
