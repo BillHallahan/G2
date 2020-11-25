@@ -235,16 +235,16 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
                  :<~> lh_max_outputs
                  :<~> SwitchEveryNHalter (switch_after config)
                  -- :<~> LHLimitSameAbstractedHalter 5
-                 -- :<~> SWHNFHalter
-                 :<~> AcceptIfViolatedHalter
+                 :<~> SWHNFHalter
+                 -- :<~> AcceptIfViolatedHalter
                  :<~> timer_halter
                  -- :<~> OnlyIf (\pr _ -> any true_assert (accepted pr)) timer_halter
 
     return $
         (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng)
             <~| (case logStates config of
-                  Just fp -> SomeReducer (StdRed share solver simplifier {- :<~ AllCallsRed -} :<~| RedArbErrors :<~| LHRed cfn :<~ Logger fp)
-                  Nothing -> SomeReducer (StdRed share solver simplifier {- :<~ AllCallsRed -} :<~| RedArbErrors :<~| LHRed cfn))
+                  Just fp -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~ Logger fp)
+                  Nothing -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn))
         , SomeHalter
             (DiscardIfAcceptedTag state_name :<~> halter)
         , SomeOrderer (ToOrderer $ IncrAfterN 1000 ADTHeightOrderer))
