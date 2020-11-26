@@ -259,8 +259,8 @@ synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
       -> m SynthRes
 synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc mdls sz = do
     let si' = liaSynthOfSize sz si
-        -- zero_coeff_hdrs = softCoeffAssertZero si' ++ softFuncActAssertZero si' ++ softClauseActAssertZero si'
-        zero_coeff_hdrs = softFuncActAssertZero si' ++ softClauseActAssertZero si'
+        zero_coeff_hdrs = softCoeffAssertZero si' -- ++ softFuncActAssertZero si' ++ softClauseActAssertZero si'
+        -- zero_coeff_hdrs = softFuncActAssertZero si' ++ softClauseActAssertZero si'
         -- zero_coeff_hdrs = softCoeffAssertZero si' -- softFuncActAssertZero si' ++ softClauseActAssertZero si'
         max_coeffs_cons = maxCoeffConstraints si'
         block_mdls = map blockModel . map (uncurry (filterModelToRel si')) $ HM.lookupDefault [] sz mdls

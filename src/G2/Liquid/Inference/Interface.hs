@@ -511,10 +511,14 @@ cexsToBlockingFC lrs ghci cex@(CallsCounter dfc cfc [])
                     False -> return . Left $ cex
             | isExported lrs (funcName (real dfc)) -> do
                 called_pr <- checkPre ghci lrs (real cfc)
+                liftIO . putStrLn $ "called_pr = " ++ show called_pr
                 case called_pr of
                     True -> return . Right $ ImpliesFC (Call Pre (real dfc)) (Call Pre (real cfc))
                     False -> return . Left $ cex
-            | otherwise -> return . Right $ ImpliesFC (Call Pre (real dfc)) (Call Pre (real cfc))
+            | otherwise -> do
+                liftIO . putStrLn $ "funcName (real dfc) = " ++ show (funcName (real dfc))
+                                      ++ "\nexported = " ++ show (exported_funcs (lr_binding lrs)) 
+                return . Right $ ImpliesFC (Call Pre (real dfc)) (Call Pre (real cfc))
 
 -- Function constraints that don't block the current specification set, but which must be true
 -- (i.e. the actual input and output for abstracted functions)
@@ -584,7 +588,8 @@ realToMaybeFC a@(Abstracted { real = fc })
     | otherwise = Just $ ImpliesFC (Call Pre fc) (Call Post fc)
 
 isExported :: LiquidReadyState -> Name -> Bool
-isExported lrs n = n `elem` exported_funcs (lr_binding lrs)
+isExported lrs (Name n m _ _) =
+    (n, m) `elem` map (\(Name n' m' _ _) -> (n', m')) (exported_funcs (lr_binding lrs))
 
 hasUserSpec :: InfConfigM m => Name -> m Bool
 hasUserSpec (Name n m _ _) = do
