@@ -109,8 +109,12 @@ data ToBeSpec = ToBeSpec { tb_name :: SMTName
 
 data SynthSpec = SynthSpec { sy_name :: SMTName
                            , sy_args :: [SpecArg]
+                           , sy_rets :: [SpecArg]
                            , sy_coeffs :: CNF }
                            deriving (Show)
+
+sy_args_and_ret :: SynthSpec -> [SpecArg]
+sy_args_and_ret si = sy_args si ++ sy_rets si
 
 data SpecArg = SpecArg { lh_rep :: LH.Expr
                        , smt_var :: SMTName
@@ -212,12 +216,12 @@ liaSynthOfSize sz m_si =
                         s_syn_pre' =
                             map (mapPB
                                     (\psi ->
-                                        psi { sy_coeffs = list_i_j (sy_name psi) $ length (sy_args psi) }
+                                        psi { sy_coeffs = list_i_j (sy_name psi) $ length (sy_args_and_ret psi) }
                                     )
                                  ) (s_syn_pre si)
                         s_syn_post' =
                             mapPB (\psi -> 
-                                        psi { sy_coeffs = list_i_j (sy_name psi) $ length (sy_args psi) }
+                                        psi { sy_coeffs = list_i_j (sy_name psi) $ length (sy_args_and_ret psi) }
                                   ) (s_syn_post si)
                     in
                     si { s_syn_pre = s_syn_pre' -- (s_syn_pre si) { sy_coeffs = pre_c }
@@ -598,14 +602,29 @@ mkRetNonZero = concatMap mkRetNonZero' . filter (\si -> s_status si == Synth) . 
 mkRetNonZero' :: SpecInfo -> [SMTHeader]
 mkRetNonZero' si =
     let
-        cs = concatMap snd $ allCNFs si
+        sy_sps = allSynthSpec si
     in
-    map (\c ->
-            let
-                act = c_active c
-                r = last (coeffs c)
-            in
-            Solver.Assert (V act SortBool :=> (V r SortInt :/= VInt 0))) cs
+    concatMap (\sys ->
+              let
+                  c_sa = length $ sy_args sys
+                  cffs = sy_coeffs sys
+              in
+              map
+                  (\(act, cff) ->
+                          Solver.Assert (V act SortBool :=> mkSMTOr (map (\c -> mkCoeffRetNonZero c_sa c) cff))
+                  ) cffs
+              ) sy_sps
+
+mkCoeffRetNonZero :: Int -> Coeffs -> SMTAST
+mkCoeffRetNonZero c_sa cffs =
+    let
+        act = c_active cffs
+        ret_cffs = drop c_sa . tail $ coeffs cffs
+    in
+    case null ret_cffs of
+        True -> VBool True
+        False -> 
+            V act SortBool :&& mkSMTOr (map (\r -> V r SortInt :/= VInt 0) ret_cffs)
 
 -- This function aims to limit the number of different models that can be produced
 -- that result in equivalent specifications. 
@@ -758,7 +777,7 @@ defineToBeFuncSF tb =
 defineSynthLIAFuncSF :: SynthSpec -> SMTHeader
 defineSynthLIAFuncSF sf = 
     let
-        ars_nm = map smt_var (sy_args sf)
+        ars_nm = map smt_var (sy_args_and_ret sf)
         ars = zip ars_nm (repeat SortInt)
     in
     DefineFun (sy_name sf) ars SortBool (buildLIA_SMT (sy_coeffs sf) ars_nm)
@@ -766,7 +785,7 @@ defineSynthLIAFuncSF sf =
 declareSynthLIAFuncSF :: SynthSpec -> SMTHeader
 declareSynthLIAFuncSF sf =
     let
-        ars = map (const SortInt) (sy_args sf)
+        ars = map (const SortInt) (sy_args_and_ret sf)
     in
     DeclareFun (sy_name sf) (ars) SortBool
 
@@ -807,8 +826,8 @@ buildLIA_LH' :: SpecInfo -> SMTModel -> [PolyBound [LH.Expr]]
 buildLIA_LH' si mv =
     let
         build ars = buildLIA ePlus eTimes bEq bGt bGeq eIte id pAnd pOr (detVar ars) (ECon . I) (detBool ars)
-        pre = map (mapPB (\psi -> build (sy_args psi) (sy_coeffs psi) (map smt_var (sy_args psi)))) $ s_syn_pre si
-        post = mapPB (\psi -> build post_ars (sy_coeffs psi) (map smt_var (sy_args psi))) $ s_syn_post si
+        pre = map (mapPB (\psi -> build (sy_args_and_ret psi) (sy_coeffs psi) (map smt_var (sy_args_and_ret psi)))) $ s_syn_pre si
+        post = mapPB (\psi -> build post_ars (sy_coeffs psi) (map smt_var (sy_args_and_ret psi))) $ s_syn_post si
     in
     pre ++ [post]
     where
@@ -866,7 +885,7 @@ buildLIA_LH' si mv =
 raiseSpecs :: PolyBound SynthSpec -> PolyBound [LH.Expr] -> PolyBound [LH.Expr]
 raiseSpecs sy_sp pb =
     let
-        symb_pb = mapPB (HS.unions . map (argsInExpr . lh_rep) . sy_args) sy_sp
+        symb_pb = mapPB (HS.unions . map (argsInExpr . lh_rep) . sy_args_and_ret) sy_sp
         symb_es = filter (not . HS.null . fst) . map (\e -> (argsInExpr e, e)) . concat $ extractValues pb
 
         null_pb = mapPB (filter (HS.null . argsInExpr)) pb
@@ -972,12 +991,10 @@ buildSI tc meas stat ghci f aty rty =
                                     ars = concatMap fst (init ars_pb)
                                     r_pb = snd (last ars_pb)
                                 in
-                                mapPB (\(r, j) ->
-                                        let
-                                            ars_r = ars ++ r
-                                        in
+                                mapPB (\(rets, j) ->
                                         SynthSpec { sy_name = smt_f ++ "_synth_pre_" ++ show i ++ "_" ++ show j
-                                                  , sy_args = map (\(a, k) -> a { smt_var = "x_" ++ show k}) $ zip ars_r [1..]
+                                                  , sy_args = map (\(a, k) -> a { smt_var = "x_" ++ show k}) $ zip ars [1..]
+                                                  , sy_rets = map (\(r, k) -> r { smt_var = "x_r_" ++ show k}) $ zip rets [1..]
                                                   , sy_coeffs = []}
                                       )  $ zipPB r_pb (uniqueIds r_pb)
                          ) $ zip (filter (not . null) $ L.inits outer_ars_pb) [1..]
@@ -1060,7 +1077,8 @@ mkSynSpecPB smt_f arg_ns pb_sa =
                 ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show ui ++ "_" ++ show i }) $ zip sa [1..]
             in
             SynthSpec { sy_name = smt_f ++ show ui
-                      , sy_args = arg_ns ++ ret_ns
+                      , sy_args = arg_ns
+                      , sy_rets = ret_ns
                       , sy_coeffs = [] }
         )
         $ zipPB (uniqueIds pb_sa) pb_sa
@@ -1074,7 +1092,7 @@ filterPBByType f = filterPB (\(PolyBound v _) ->
 
 -- ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show i }) $ zip ret [1..]
        -- , s_syn_post = SynthSpec { sy_name = smt_f ++ "_synth_post"
-       --                          , sy_args = arg_ns ++ ret_ns
+       --                          , sy_args_and_ret = arg_ns ++ ret_ns
        --                          , sy_coeffs = [] }
 
 
@@ -1185,10 +1203,10 @@ allPreCoeffs :: SpecInfo -> CNF
 allPreCoeffs = concatMap sy_coeffs . allPreSynthSpec
 
 allPreSpecArgs :: SpecInfo -> [SpecArg]
-allPreSpecArgs = concatMap sy_args . allPreSynthSpec
+allPreSpecArgs = concatMap sy_args_and_ret . allPreSynthSpec
 
 allPostCoeffs :: SpecInfo -> CNF
 allPostCoeffs = concatMap sy_coeffs . allPostSynthSpec
 
 allPostSpecArgs :: SpecInfo -> [SpecArg]
-allPostSpecArgs = concatMap sy_args . allPostSynthSpec
+allPostSpecArgs = concatMap sy_args_and_ret . allPostSynthSpec
