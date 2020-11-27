@@ -55,8 +55,13 @@ data SynthRes = SynthEnv
 data Coeffs = Coeffs { c_active :: SMTName
                      , c_op_branch1 :: SMTName
                      , c_op_branch2 :: SMTName
-                     , coeffs :: [SMTName] }
+                     , b0 :: SMTName
+                     , ars_coeffs :: [SMTName]
+                     , rets_coeffs :: [SMTName] }
                      deriving Show
+
+coeffs :: Coeffs -> [SMTName]
+coeffs cf = b0 cf:ars_coeffs cf ++ rets_coeffs cf
 
 type Clause = (SMTName, [Coeffs]) 
 type CNF = [Clause]
@@ -216,12 +221,12 @@ liaSynthOfSize sz m_si =
                         s_syn_pre' =
                             map (mapPB
                                     (\psi ->
-                                        psi { sy_coeffs = list_i_j (sy_name psi) $ length (sy_args_and_ret psi) }
+                                        psi { sy_coeffs = list_i_j (sy_name psi) (length $ sy_args psi) (length $ sy_rets psi) }
                                     )
                                  ) (s_syn_pre si)
                         s_syn_post' =
                             mapPB (\psi -> 
-                                        psi { sy_coeffs = list_i_j (sy_name psi) $ length (sy_args_and_ret psi) }
+                                        psi { sy_coeffs = list_i_j (sy_name psi) (length $ sy_args psi) (length $ sy_rets psi) }
                                   ) (s_syn_post si)
                     in
                     si { s_syn_pre = s_syn_pre' -- (s_syn_pre si) { sy_coeffs = pre_c }
@@ -230,7 +235,7 @@ liaSynthOfSize sz m_si =
     in
     m_si'
     where
-        list_i_j s ars =
+        list_i_j s ars rets =
             [ 
                 (
                     s ++ "_c_act_" ++ show j
@@ -240,9 +245,13 @@ liaSynthOfSize sz m_si =
                           c_active = s ++ "_f_act_" ++ show j ++ "_t_" ++ show k
                         , c_op_branch1 = s ++ "_op1_" ++ show j ++ "_t_" ++ show k
                         , c_op_branch2 = s ++ "_op2_" ++ show j ++ "_t_" ++ show k
-                        , coeffs = 
-                            [ s ++ "_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
-                            | a <- [0..ars]]
+                        , b0 = s ++ "_b_" ++ show j ++ "_t_" ++ show k
+                        , ars_coeffs = 
+                            [ s ++ "_a_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
+                            | a <- [1..ars]]
+                        , rets_coeffs = 
+                            [ s ++ "_r_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
+                            | a <- [1..rets]]
                         }
                     | k <- [1] {- [1..sz] -} ] -- Ors
                 )
@@ -368,12 +377,12 @@ filterCoeffActiveBooleans :: SpecInfo -> SMTModel -> SMTModel
 filterCoeffActiveBooleans si mdl =
     let
         clauses = allCNFs si
-        coeffs = concatMap snd clauses
+        cffs = concatMap snd clauses
     in
-    foldr (\(Coeffs c_act _ _ coeffs) mdl_ -> if
-              | M.lookup c_act mdl_ == Just (VBool False) ->
-                foldr M.delete mdl_ coeffs
-              | otherwise -> mdl_) mdl coeffs
+    foldr (\cf mdl_ -> if
+              | M.lookup (c_active cf) mdl_ == Just (VBool False) ->
+                foldr M.delete mdl_ (coeffs cf)
+              | otherwise -> mdl_) mdl cffs
 
 
 filterRelOpBranch :: SpecInfo -> SMTModel -> SMTModel
@@ -384,7 +393,7 @@ filterRelOpBranch si mdl =
     in
     -- If we are not using a clause, we don't care about c_op_branch1 and c_op_branch2
     -- If we are using a clause but c_op_branch1 is true, we don't care about c_op_branch2
-    foldr (\(Coeffs c_act op_br1 op_br2 _) mdl_ -> if
+    foldr (\(Coeffs c_act op_br1 op_br2 _ _ _) mdl_ -> if
               | M.lookup c_act mdl == Just (VBool False) ->
                   M.delete op_br2 $ M.delete op_br1 mdl_
               | M.lookup op_br1 mdl == Just (VBool True) ->
@@ -606,20 +615,19 @@ mkRetNonZero' si =
     in
     concatMap (\sys ->
               let
-                  c_sa = length $ sy_args sys
                   cffs = sy_coeffs sys
               in
               map
                   (\(act, cff) ->
-                          Solver.Assert (V act SortBool :=> mkSMTOr (map (\c -> mkCoeffRetNonZero c_sa c) cff))
+                          Solver.Assert (V act SortBool :=> mkSMTOr (map (\c -> mkCoeffRetNonZero c) cff))
                   ) cffs
               ) sy_sps
 
-mkCoeffRetNonZero :: Int -> Coeffs -> SMTAST
-mkCoeffRetNonZero c_sa cffs =
+mkCoeffRetNonZero :: Coeffs -> SMTAST
+mkCoeffRetNonZero cffs =
     let
         act = c_active cffs
-        ret_cffs = drop c_sa . tail $ coeffs cffs
+        ret_cffs = rets_coeffs cffs
     in
     case null ret_cffs of
         True -> VBool True
@@ -644,16 +652,16 @@ limitEquivModels m_si =
         -- (1)
         clauses = concatMap allCNFs a_si
         cl_imp_coeff = concatMap
-                          (\(cl_act, coeffs) ->
-                            map (\(Coeffs c_act _ _ _) -> V cl_act SortBool :=> ((:!) $ V c_act SortBool)) coeffs
+                          (\(cl_act, cffs) ->
+                            map (\cf -> V cl_act SortBool :=> ((:!) $ V (c_active cf) SortBool)) cffs
                           ) clauses 
 
         -- (2)
-        coeffs = concatMap snd clauses
+        cffs = concatMap snd clauses
         coeff_act_imp_zero = concatMap
-                                 (\(Coeffs c_act _ _ cs) ->
-                                      map (\c -> ((:!) $ V c_act SortBool) :=> (V c SortInt := VInt 0)) cs
-                                 ) coeffs
+                                 (\cf ->
+                                      map (\c -> ((:!) $ V (c_active cf) SortBool) :=> (V c SortInt := VInt 0)) (coeffs cf)
+                                 ) cffs
     in
     map Solver.Assert $ cl_imp_coeff ++ coeff_act_imp_zero
 
@@ -945,19 +953,20 @@ buildLIA plus mult eq gt geq ite mk_and_sp mk_and mk_or vint cint vbool all_coef
         toLinInEqs (Coeffs { c_active = act
                            , c_op_branch1 = op_br1
                            , c_op_branch2 = op_br2
-                           , coeffs = c:cs }) =
+                           , b0 = b
+                           , ars_coeffs = acs
+                           , rets_coeffs =  rcs }) =
             let
                 sm = foldr plus (cint 0)
                    . map (uncurry mult)
-                   $ zip (map vint cs) (map vint args)
+                   $ zip (map vint $ acs ++ rcs) (map vint args)
             in
             mk_and [vbool act, ite (vbool op_br1)
-                                  (sm `eq` vint c)
-                                  (ite (vbool op_br2) (sm `gt` vint c)
-                                               (sm `geq` vint c)
+                                  (sm `eq` vint b)
+                                  (ite (vbool op_br2) (sm `gt` vint b)
+                                               (sm `geq` vint b)
                                   )
-                   ] -- mk_or [vbool act, {- ite (vbool eq_or_geq) (sm `eq` vint c) -} (sm `geq` vint c)]
-        toLinInEqs (Coeffs { coeffs = [] }) = error "buildLIA: unhandled empty coefficient list" 
+                   ]
 
 ------------------------------------
 -- Building SpecInfos
