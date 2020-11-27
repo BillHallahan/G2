@@ -619,7 +619,7 @@ mkRetNonZero' si =
               in
               map
                   (\(act, cff) ->
-                          Solver.Assert (V act SortBool :=> mkSMTOr (map (\c -> mkCoeffRetNonZero c) cff))
+                          Solver.Assert (((:!) $ V act SortBool) :=> mkSMTOr (map (\c -> mkCoeffRetNonZero c) cff))
                   ) cffs
               ) sy_sps
 
@@ -632,7 +632,7 @@ mkCoeffRetNonZero cffs =
     case null ret_cffs of
         True -> VBool True
         False -> 
-            V act SortBool :&& mkSMTOr (map (\r -> V r SortInt :/= VInt 0) ret_cffs)
+            V act SortBool :=> mkSMTOr (map (\r -> V r SortInt :/= VInt 0) ret_cffs)
 
 -- This function aims to limit the number of different models that can be produced
 -- that result in equivalent specifications. 

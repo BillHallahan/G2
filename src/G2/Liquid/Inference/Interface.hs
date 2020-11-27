@@ -511,13 +511,10 @@ cexsToBlockingFC lrs ghci cex@(CallsCounter dfc cfc [])
                     False -> return . Left $ cex
             | isExported lrs (funcName (real dfc)) -> do
                 called_pr <- checkPre ghci lrs (real cfc)
-                liftIO . putStrLn $ "called_pr = " ++ show called_pr
                 case called_pr of
                     True -> return . Right $ ImpliesFC (Call Pre (real dfc)) (Call Pre (real cfc))
                     False -> return . Left $ cex
             | otherwise -> do
-                liftIO . putStrLn $ "funcName (real dfc) = " ++ show (funcName (real dfc))
-                                      ++ "\nexported = " ++ show (exported_funcs (lr_binding lrs)) 
                 return . Right $ ImpliesFC (Call Pre (real dfc)) (Call Pre (real cfc))
 
 -- Function constraints that don't block the current specification set, but which must be true
