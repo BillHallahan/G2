@@ -102,6 +102,7 @@ library
                        , G2.Liquid.LHReducers
                        , G2.Liquid.Measures
                        , G2.Liquid.MkLHVals
+                       , G2.Liquid.RemoveRedundantAsserts
                        , G2.Liquid.Simplify
                        , G2.Liquid.SpecialAsserts
                        , G2.Liquid.TCGen
