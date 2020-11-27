@@ -842,6 +842,10 @@ buildLIA_LH' si mv =
 
         eTimes (ECon (I 0)) _ = ECon (I 0)
         eTimes _ (ECon (I 0)) = ECon (I 0)
+        eTimes (ECon (I 1)) x = x
+        eTimes x (ECon (I 1)) = x
+        eTimes (ECon (I (-1))) x = ENeg x
+        eTimes x (ECon (I (-1))) = ENeg x
         eTimes x y = EBin LH.Times x y
 
         ePlus (ECon (I 0)) x = x
