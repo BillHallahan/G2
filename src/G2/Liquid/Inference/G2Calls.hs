@@ -229,7 +229,8 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
 
     liftIO $ putStrLn $ "ce num for " ++ T.unpack entry ++ " is " ++ show ce_num
     
-    timer_halter <- liftIO $ lhTimerHalter (timeout_se infconfig)
+    timer_halter <- liftIO $ timerHalter (timeout_se infconfig * 2)
+    lh_timer_halter <- liftIO $ lhTimerHalter (timeout_se infconfig)
 
     let halter =      LHAbsHalter entry mb_modname (expr_env st)
                  :<~> lh_max_outputs
@@ -238,6 +239,7 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
                  :<~> SWHNFHalter
                  -- :<~> AcceptIfViolatedHalter
                  :<~> timer_halter
+                 :<~> lh_timer_halter
                  -- :<~> OnlyIf (\pr _ -> any true_assert (accepted pr)) timer_halter
 
     return $

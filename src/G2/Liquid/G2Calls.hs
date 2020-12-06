@@ -419,9 +419,13 @@ reduceFCExprMaybe share reducer solver simplifier s bindings e
     | otherwise = return $ Just (bindings, redVar (expr_env s) e) 
 
 redVar :: E.ExprEnv -> Expr -> Expr
-redVar eenv (Var (Id n _))
+redVar eenv e@(Var (Id n t))
     | Just e <- E.lookup n eenv = redVar eenv e
-    | otherwise = error "redVar: variable not found"
+    -- We fill in fake LH dict variable for reduction, so they don't exist in the ExprEnv,
+    -- but we don't want them to error
+    | TyCon (Name tn _ _ _) _ <- t
+    , tn == "lh" = e
+    | otherwise = error $ "redVar: variable not found"
 redVar _ e = e
 
 mapAccumM :: (Monad m, MonadPlus p) => (acc -> x -> m (acc, y)) -> acc -> [x] -> m (acc, p y)
