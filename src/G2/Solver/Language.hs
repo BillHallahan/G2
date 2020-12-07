@@ -26,6 +26,7 @@ data SMTHeader = Assert SMTAST
                | DeclareFun SMTName [Sort] Sort
                | VarDecl SMTNameBldr Sort
                | SetLogic Logic
+               | Comment String
                deriving (Show)
 
 -- | Various logics supported by (some) SMT solvers 

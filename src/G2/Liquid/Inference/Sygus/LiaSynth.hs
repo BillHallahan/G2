@@ -278,7 +278,14 @@ synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc mdls sz = do
         max_coeffs_cons = maxCoeffConstraints si'
         block_mdls = map blockModel . map (uncurry (filterModelToRel si')) $ HM.lookupDefault [] sz mdls
 
-    res <- synth' con eenv tc meas meas_ex evals si' fc (zero_coeff_hdrs ++ max_coeffs_cons ++ block_mdls) sz
+        ex_assrts =    [Comment "favor making coefficients 0"]
+                    ++ zero_coeff_hdrs
+                    ++ [Comment "enforce maximal and minimal values for coefficients"]
+                    ++ max_coeffs_cons
+                    ++ [Comment "block spurious models"]
+                    ++ block_mdls
+
+    res <- synth' con eenv tc meas meas_ex evals si' fc ex_assrts sz
     case res of
         SynthEnv _ _ _ -> return res
         SynthFail _
@@ -709,7 +716,19 @@ nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc =
 
         lim_equiv_smt = limitEquivModels m_si
     in
-    (var_act_hdrs ++ var_int_hdrs ++ var_op_hdrs ++ def_funs ++ fc_smt ++ env_smt ++ ret_is_non_zero ++ lim_equiv_smt, nm_fc)
+    (    var_act_hdrs
+      ++ var_int_hdrs
+      ++ var_op_hdrs
+      ++ def_funs
+      ++ [Comment "encode specification constraints"]
+      ++ fc_smt
+      ++ [Comment "encode the environment"]
+      ++ env_smt 
+      ++ [Comment "force return values to be nonzero"]
+      ++ ret_is_non_zero 
+      ++ [Comment "block equivalent formulas"]
+      ++ lim_equiv_smt
+    , nm_fc)
 
 
 getCoeffs :: M.Map Name SpecInfo -> [SMTName]

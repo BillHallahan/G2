@@ -63,6 +63,8 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
 
     setLogic :: con -> Logic -> out
 
+    comment :: con -> String -> out
+
     (.>=) :: con -> ast -> ast -> ast
     (.>) :: con -> ast -> ast -> ast
     (.=) :: con -> ast -> ast -> ast
@@ -491,6 +493,7 @@ toSolver con (DeclareFun f ars ret:xs) =
     merge con (declareFun con f ars ret) (toSolver con xs)
 toSolver con (VarDecl n s:xs) = merge con (toSolverVarDecl con n s) (toSolver con xs)
 toSolver con (SetLogic lgc:xs) = merge con (toSolverSetLogic con lgc) (toSolver con xs)
+toSolver con (Comment c:xs) = merge con (comment con c) (toSolver con xs)
 
 toSolverAST :: SMTConverter con ast out io => con -> SMTAST -> ast
 toSolverAST con (x :>= y) = (.>=) con (toSolverAST con x) (toSolverAST con y)

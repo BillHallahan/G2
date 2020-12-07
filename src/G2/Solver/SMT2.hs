@@ -160,6 +160,8 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
             ALL -> ""
             _ -> "(set-logic " ++ s ++ ")"
 
+    comment _ s = "; " ++ s
+
     (.>=) _ = function2 ">="
     (.>) _ = function2 ">"
     (.=) _ = function2 "="
@@ -215,6 +217,7 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
     varName _ n _ = n
 
     named _ ast n = "(! " ++ ast ++ " :named " ++ n ++ ")"
+
 
 instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
     getIO (CVC4 _ hhp) = hhp
