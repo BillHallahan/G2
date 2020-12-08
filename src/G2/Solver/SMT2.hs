@@ -103,9 +103,11 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
             putStrLn $ "m = " ++ show m
             putStrLn "======"
             return (Right m)
-        else do
+        else if r == UNSAT then do
             uc <- getUnsatCoreZ3 h_in h_out
             return (Left $ HS.fromList uc)
+        else
+            error "checkSatGetModelOrUnsatCore: unhandled case"
 
 
     checkSatGetModelGetExpr con (h_in, h_out, _) formula _ vs eenv (CurrExpr _ e) = do
