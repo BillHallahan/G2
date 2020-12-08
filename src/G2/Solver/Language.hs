@@ -101,8 +101,8 @@ _ .&&. (VBool False) = VBool False
 x .&&. y = x :&& y
 
 (.||.) :: SMTAST -> SMTAST -> SMTAST
-(VBool True) .||. _ = VBool False
-_ .||. (VBool True) = VBool False
+(VBool True) .||. _ = VBool True
+_ .||. (VBool True) = VBool True
 (VBool False) .||. x = x
 x .||. (VBool False) = x
 x .||. y = x :|| y

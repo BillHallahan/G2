@@ -468,11 +468,11 @@ buildLIA_SMT_fromModel mdl = buildLIA (:+) (:*) (:=) (:>) (:>=) Ite mkSMTAnd mkS
     where
         vint n
             | Just v <- M.lookup n mdl = v
-            | otherwise = VInt 0
+            | otherwise = V n SortInt
 
         vbool n
             | Just v <- M.lookup n mdl = v
-            | otherwise = VBool False
+            | otherwise = V n SortBool
 
 
 blockVars :: String -> SpecInfo -> ([PolyBound [SMTName]], PolyBound [SMTName])
