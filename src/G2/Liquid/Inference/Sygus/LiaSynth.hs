@@ -497,7 +497,7 @@ mkEqualityAST (avs, rvs) si nsi =
                                   let
                                       smt_vs = map (flip V SortInt) vs'
                                   in
-                                  Func (sy_name s_sp') smt_vs :/= Func (sy_name ns_sp') smt_vs
+                                  Func (sy_name s_sp') smt_vs := Func (sy_name ns_sp') smt_vs
                           ) $ zip3PB vs s_sp ns_sp
                 )
             $ zip3 avs (s_syn_pre si) (s_syn_pre nsi)
@@ -510,7 +510,7 @@ mkEqualityAST (avs, rvs) si nsi =
                         let
                             smt_vs = map (flip V SortInt) vs
                         in
-                        Func (sy_name s_sp) smt_vs :/= Func (sy_name ns_sp) smt_vs
+                        Func (sy_name s_sp) smt_vs := Func (sy_name ns_sp) smt_vs
                 ) $ zip3PB rvs (s_syn_post si) (s_syn_post nsi)
 
         post_eq' = extractValues post_eq
