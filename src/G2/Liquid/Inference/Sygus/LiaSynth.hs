@@ -276,7 +276,10 @@ synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc mdls sz = do
         -- zero_coeff_hdrs = softFuncActAssertZero si' ++ softClauseActAssertZero si'
         -- zero_coeff_hdrs = softCoeffAssertZero si' -- softFuncActAssertZero si' ++ softClauseActAssertZero si'
         max_coeffs_cons = maxCoeffConstraints si'
-        block_mdls = map blockModel . map (uncurry (filterModelToRel si')) $ HM.lookupDefault [] sz mdls
+        
+        rel_mdls = map (uncurry (filterModelToRel si')) $ HM.lookupDefault [] sz mdls
+        block_mdls = map blockModelDirectly rel_mdls
+        fun_block_mdls = concatMap (uncurry (blockModelWithFuns si')) $ zip (map show [0..]) rel_mdls
 
         ex_assrts =    [Comment "favor making coefficients 0"]
                     ++ zero_coeff_hdrs
@@ -284,6 +287,7 @@ synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc mdls sz = do
                     ++ max_coeffs_cons
                     ++ [Comment "block spurious models"]
                     ++ block_mdls
+                    ++ fun_block_mdls
 
     res <- synth' con eenv tc meas meas_ex evals si' fc ex_assrts sz
     case res of
@@ -348,8 +352,8 @@ modelToGS m_si mdl =
 
 -- | Generates an Assert that, when added to a formula with the relevant variables,
 -- blocks it from returning the model
-blockModel :: SMTModel -> SMTHeader
-blockModel = Solver.Assert . (:!) . foldr (.&&.) (VBool True) . map (\(n, v) -> V n (sortOf v) := v) . M.toList
+blockModelDirectly :: SMTModel -> SMTHeader
+blockModelDirectly = Solver.Assert . (:!) . foldr (.&&.) (VBool True) . map (\(n, v) -> V n (sortOf v) := v) . M.toList
 
 -- | Filters a model to only those variable bindings relevant to the functions listed in the name bindings
 filterModelToRel :: M.Map Name SpecInfo -> ModelNames -> SMTModel -> SMTModel
@@ -406,6 +410,112 @@ filterRelOpBranch si mdl =
               | M.lookup op_br1 mdl == Just (VBool True) ->
                   M.delete op_br2 mdl_
               | otherwise -> mdl) mdl coeffs
+
+blockModelWithFuns :: M.Map Name SpecInfo -> String -> SMTModel -> [SMTHeader]
+blockModelWithFuns si s mdl =
+    let
+        e_si = M.elems $ M.filter (\si' -> s_status si' == Synth) si
+
+        vars = map (uncurry blockVars) $ zip (map (\i -> s ++ "_" ++ show i) [0..]) e_si
+
+        var_defs = map (flip VarDecl SortInt . TB.text . T.pack)
+                 . concat
+                 . concatMap extractValues
+                 . (\(x, y) -> concat x ++ y)
+                 $ unzip vars
+
+        si_nsi =   map (\(i, si') -> (si', renameByAdding i si'))
+                 . zip (map (\i -> s ++ "_" ++ show i) [0..])
+                 $ e_si
+
+        fun_defs = concatMap (defineModelLIAFuns mdl . snd) si_nsi
+
+        eqs = map (\(vs, (si', nsi')) -> mkEqualityAST vs si' nsi') $ zip vars si_nsi
+
+        neq = [Solver.Assert . (:!) $ mkSMTAnd eqs]
+    
+    in
+    var_defs ++ fun_defs ++ neq
+
+
+-- Building function defintions
+defineModelLIAFuns :: SMTModel -> SpecInfo -> [SMTHeader]
+defineModelLIAFuns mdl si =
+    if s_status si == Synth
+        then 
+               map (defineModelLIAFuncSF mdl) (extractValues $ s_syn_post si)
+            ++ map (defineModelLIAFuncSF mdl) (concatMap extractValues $ s_syn_pre si)
+        else []
+
+defineModelLIAFuncSF :: SMTModel -> SynthSpec -> SMTHeader
+defineModelLIAFuncSF mdl sf = 
+    let
+        ars_nm = map smt_var (sy_args_and_ret sf)
+        ars = zip ars_nm (repeat SortInt)
+    in
+    DefineFun (sy_name sf) ars SortBool (buildLIA_SMT_fromModel mdl (sy_coeffs sf) ars_nm)
+
+renameByAdding :: String -> SpecInfo -> SpecInfo
+renameByAdding i si =
+    si { s_syn_pre = map (mapPB rn) $ s_syn_pre si
+       , s_syn_post = mapPB rn $ s_syn_post si
+       }
+    where
+        rn s = s { sy_name = sy_name s ++ "_MDL_" ++ i }
+
+buildLIA_SMT_fromModel :: SMTModel -> [(SMTName, [Coeffs])] -> [SMTName] -> SMTAST
+buildLIA_SMT_fromModel mdl = buildLIA (:+) (:*) (:=) (:>) (:>=) Ite mkSMTAnd mkSMTAnd mkSMTOr vint VInt vbool
+    where
+        vint n
+            | Just v <- M.lookup n mdl = v
+            | otherwise = VInt 0
+
+        vbool n
+            | Just v <- M.lookup n mdl = v
+            | otherwise = VBool False
+
+
+blockVars :: String -> SpecInfo -> ([PolyBound [SMTName]], PolyBound [SMTName])
+blockVars str si = ( map (uncurry mk_blk_vars) . zip (map show [0..]) $ s_syn_pre si
+                   , mk_blk_vars "r" $ s_syn_post si)
+    where
+        mk_blk_vars i sy_s = mapPB (\(j, s) -> 
+                                          map (\k -> "x_MDL_" ++ str ++ "_" ++ i ++ "_" ++ show j ++ "_" ++ show k)
+                                        . map fst
+                                        . zip [0..]
+                                        $ sy_args_and_ret s
+                                 )
+                         $ zipPB (uniqueIds sy_s) sy_s
+
+mkEqualityAST :: ([PolyBound [SMTName]], PolyBound [SMTName]) -> SpecInfo -> SpecInfo -> SMTAST
+mkEqualityAST (avs, rvs) si nsi =
+    let
+        pre_eq =
+            map (\(vs, s_sp, ns_sp) -> 
+                        mapPB 
+                          (\(vs', s_sp', ns_sp') -> 
+                                  let
+                                      smt_vs = map (flip V SortInt) vs'
+                                  in
+                                  Func (sy_name s_sp') smt_vs :/= Func (sy_name ns_sp') smt_vs
+                          ) $ zip3PB vs s_sp ns_sp
+                )
+            $ zip3 avs (s_syn_pre si) (s_syn_pre nsi)
+
+        pre_eq' = concatMap extractValues pre_eq
+
+        post_eq =
+            mapPB 
+                (\(vs, s_sp, ns_sp) -> 
+                        let
+                            smt_vs = map (flip V SortInt) vs
+                        in
+                        Func (sy_name s_sp) smt_vs :/= Func (sy_name ns_sp) smt_vs
+                ) $ zip3PB rvs (s_syn_post si) (s_syn_post nsi)
+
+        post_eq' = extractValues post_eq
+    in
+    mkSMTAnd (post_eq' ++ pre_eq')
 
 ------------------------------------
 -- Building SMT Formulas
