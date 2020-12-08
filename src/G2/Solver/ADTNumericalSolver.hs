@@ -29,7 +29,7 @@ adtNumericalSolInfinite = ADTNumericalSolver arbValueInfinite
 instance Solver solver => Solver (ADTNumericalSolver solver) where
     check (ADTNumericalSolver _ sol) s pc = return . fst =<< checkConsistency (Tr sol) s pc
     solve (ADTNumericalSolver avf sol) s b is pc =
-        return . (\(r, m, _) -> (r, m)) =<< solve' avf (Tr sol) s b is pc
+        return . (\(r, _) -> r) =<< solve' avf (Tr sol) s b is pc
     close (ADTNumericalSolver _ s) = close s
 
 instance TrSolver solver => TrSolver (ADTNumericalSolver solver) where
@@ -37,20 +37,20 @@ instance TrSolver solver => TrSolver (ADTNumericalSolver solver) where
         (r, sol') <- checkConsistency sol s pc
         return (r, ADTNumericalSolver avf sol')
     solveTr (ADTNumericalSolver avf sol) s b is pc = do
-        (r, m, sol') <- solve' avf sol s b is pc
-        return (r, m, ADTNumericalSolver avf sol')
+        (r, sol') <- solve' avf sol s b is pc
+        return (r, ADTNumericalSolver avf sol')
     closeTr (ADTNumericalSolver _ s) = closeTr s
 
-checkConsistency :: TrSolver solver => solver -> State t -> PathConds -> IO (Result, solver)
+checkConsistency :: TrSolver solver => solver -> State t -> PathConds -> IO (Result () (), solver)
 checkConsistency solver s@(State {known_values = kv, simplified = smplfd, adt_int_maps = adtIntMaps, expr_env = eenv}) pc
-    | PC.null pc = return (SAT, solver)
+    | PC.null pc = return (SAT (), solver)
     | otherwise = do
         let ns = PC.pcNames pc
             eenvPCs = mapMaybe (addEEnvVals kv eenv smplfd adtIntMaps) ns
             pc' = foldr PC.insert pc $ eenvPCs
         checkTr solver s pc'
 
-solve' :: TrSolver solver => ArbValueFunc -> solver -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model, solver)
+solve' :: TrSolver solver => ArbValueFunc -> solver -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model (), solver)
 solve' avf sol s@(State {known_values = kv, simplified = smplfd, adt_int_maps = adtIntMaps, type_env = tenv, expr_env = eenv}) b is pc = do
     -- Split into Ids that need to be solved further by solvers, and Ids representing ADTs with no related PathConds
     let (rest, pcIds) = partition (f smplfd) is
@@ -61,9 +61,9 @@ solve' avf sol s@(State {known_values = kv, simplified = smplfd, adt_int_maps = 
         pc' = foldr PC.insert pc $ eenvPCs
     rm <- solveTr sol s b pcIdsPrim pc'
     case rm of
-        (SAT, Just m, sol') -> do
+        (SAT m, sol') -> do
             let (_, restM) = mapAccumL (genArbValue avf tenv eenv) b rest
-            return (SAT, Just $ HM.union (HM.fromList restM) m, sol')
+            return (SAT $ HM.union (HM.fromList restM) m, sol')
         _ -> return rm
 
 -- If `n` is a member of smplfd, it means a PathCond containing `n` must have been added to PathConds earlier

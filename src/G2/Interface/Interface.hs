@@ -447,13 +447,13 @@ runG2Solving :: ( Named t
                 solver -> simplifier -> Bindings -> State t -> IO (Maybe (ExecRes t))
 runG2Solving solver simplifier bindings s@(State { known_values = kv })
     | true_assert s = do
-        (_, m) <- solve solver s bindings (symbolic_ids s) (path_conds s)
+        r <- solve solver s bindings (symbolic_ids s) (path_conds s)
 
-        case m of
-            Just m' -> do
-                let m'' = reverseSimplification simplifier s bindings m'
+        case r of
+            SAT m -> do
+                let m' = reverseSimplification simplifier s bindings m
 
-                let s' = s { model = m'' }
+                let s' = s { model = m' }
 
                 let (es, e, ais) = subModel s' bindings
                     sm = ExecRes { final_state = s'
@@ -469,7 +469,8 @@ runG2Solving solver simplifier bindings s@(State { known_values = kv })
                                    , violated = evalPrims kv (violated sm')}
                 
                 return $ Just sm''
-            Nothing -> return Nothing
+            UNSAT _ -> return Nothing
+            Unknown _ -> return Nothing
 
     | otherwise = return Nothing
 

@@ -317,15 +317,16 @@ synth' con eenv tc meas meas_ex evals m_si fc headers sz = do
     mdl <- liftIO $ constraintsToModelOrUnsatCore con hdrs n_for_m
 
     case mdl of
-        Right mdl' -> do
+        SAT mdl' -> do
             let gs' = modelToGS m_si mdl'
             liftIO $ print gs'
             return (SynthEnv gs' sz mdl')
-        Left uc ->
+        UNSAT uc ->
             let
                 fc_uc = fromSingletonFC . NotFC . AndFC . map (nm_fc_map HM.!) $ HS.toList uc
             in
             return (SynthFail fc_uc)
+        Unknown _ -> error "synth': Unknown"
 
 ------------------------------------
 -- Handling Models

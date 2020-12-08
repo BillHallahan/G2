@@ -41,10 +41,10 @@ instance Solver ADTSolver where
 -- | Attempts to detemine if the given PathConds are consistent.
 -- Returns Just True if they are, Just False if they are not,
 -- and Nothing if it can't decide.
-checkConsistency :: KnownValues -> ExprEnv -> TypeEnv -> PathConds -> Result
+checkConsistency :: KnownValues -> ExprEnv -> TypeEnv -> PathConds -> Result () ()
 checkConsistency kv eenv tenv pc =
     maybe (Unknown "Non-ADT path constraints")
-          (\me -> if not (Pre.null me) then SAT else UNSAT)
+          (\me -> if not (Pre.null me) then SAT () else UNSAT ())
           $ findConsistent kv eenv tenv pc
 
 -- | Attempts to find expressions (Data d) or (Coercion (Data d), (t1 :~ t2)) consistent with the given path
@@ -110,33 +110,33 @@ findConsistent''' dcs ((ConsCond  dc _ False):pc) =
 findConsistent''' dcs [] = Just dcs
 findConsistent''' _ _ = Nothing
 
-solveADTs :: ArbValueFunc -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model)
+solveADTs :: ArbValueFunc -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model ())
 solveADTs avf s@(State { expr_env = eenv, model = m }) b [Id n t] pc
     | not $ E.isSymbolic n eenv
-    , Just e <- E.lookup n eenv = return (SAT, Just . liftCasts $ HM.insert n e m )
+    , Just e <- E.lookup n eenv = return (SAT . liftCasts $ HM.insert n e m )
     -- We can't use the ADT solver when we have a Boolean, because the RHS of the
     -- DataAlt might be a primitive.
     | TyCon tn k <- tyAppCenter t
     , ts <- tyAppArgs t
     , t /= tyBool (known_values s)  =
     do
-        let (r, s', _) = addADTs avf n tn ts k s b pc
+        let (r, _) = addADTs avf n tn ts k s b pc
 
         case r of
-            SAT -> return (r, Just . liftCasts $ model s')
-            r' -> return (r', Nothing)
-solveADTs _ _ _ _ _ = return (Unknown "Unhandled path constraints in ADTSolver", Nothing)
+            SAT m -> return (SAT $ liftCasts m)
+            r' -> return r'
+solveADTs _ _ _ _ _ = return $ Unknown "Unhandled path constraints in ADTSolver"
 
 -- | Determines an ADT based on the path conds.  The path conds form a witness.
 -- In particular, refer to findConsistent in Solver/ADTSolver.hs
-addADTs :: ArbValueFunc -> Name -> Name -> [Type] -> Kind -> State t -> Bindings -> PathConds -> (Result, State t, Bindings)
+addADTs :: ArbValueFunc -> Name -> Name -> [Type] -> Kind -> State t -> Bindings -> PathConds -> (Result Model (), Bindings)
 addADTs avf n tn ts k s b pc
     | PC.null pc =
         let
             (bse, av) = avf (mkTyApp (TyCon tn k:ts)) (type_env s) (arb_value_gen b)
             m' = HM.singleton n bse
         in
-        (SAT, (s {model = HM.union m' (model s)}), (b {arb_value_gen = av}))
+        (SAT (HM.union m' (model s)), (b {arb_value_gen = av}))
     | Just (dcs@(fdc:_), bi) <- findConsistent' (known_values s) (expr_env s) (type_env s) pc =
     let        
         eenv = expr_env s
@@ -159,9 +159,9 @@ addADTs avf n tn ts k s b pc
         m = HM.insert n dc (model s)
     in
     case not . Pre.null $ dcs of
-        True -> (SAT, s { model = HM.union m (model s) }, b { arb_value_gen = av })
-        False -> (UNSAT, s, b)
-    | otherwise = (UNSAT, s, b)
+        True -> (SAT (HM.union m (model s)), b { arb_value_gen = av })
+        False -> (UNSAT (), b)
+    | otherwise = (UNSAT (), b)
 
 -- Various helper functions
 

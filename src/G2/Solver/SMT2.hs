@@ -77,16 +77,17 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
         -- putStrLn formula
         r <- checkSat' h_in h_out
         -- putStrLn $ "r =  " ++ show r
-        if r == SAT then do
-            mdl <- getModelZ3 h_in h_out vs
-            -- putStrLn "======"
-            -- putStrLn (show mdl)
-            let m = parseModel mdl
-            -- putStrLn $ "m = " ++ show m
-            -- putStrLn "======"
-            return (r, Just m)
-        else do
-            return (r, Nothing)
+        case r of
+            SAT () -> do
+                mdl <- getModelZ3 h_in h_out vs
+                -- putStrLn "======"
+                -- putStrLn (show mdl)
+                let m = parseModel mdl
+                -- putStrLn $ "m = " ++ show m
+                -- putStrLn "======"
+                return $ SAT m
+            UNSAT () -> return $ UNSAT ()
+            Unknown s -> return $ Unknown s
 
     checkSatGetModelOrUnsatCore con hvals@(h_in, h_out, _) formula vs = do
         let formula' = "(set-option :produce-unsat-cores true)\n" ++ formula
@@ -95,20 +96,19 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
         setUpFormulaZ3 h_in formula'
         r <- checkSat' h_in h_out
         -- putStrLn $ "r =  " ++ show r
-        if r == SAT then do
+        if r == SAT () then do
             mdl <- getModelZ3 h_in h_out vs
             putStrLn "======"
             -- putStrLn (show mdl)
             let m = parseModel mdl
             putStrLn $ "m = " ++ show m
             putStrLn "======"
-            return (Right m)
-        else if r == UNSAT then do
+            return (SAT m)
+        else if r == UNSAT () then do
             uc <- getUnsatCoreZ3 h_in h_out
-            return (Left $ HS.fromList uc)
+            return (UNSAT $ HS.fromList uc)
         else
-            error "checkSatGetModelOrUnsatCore: unhandled case"
-
+            return (Unknown "")
 
     checkSatGetModelGetExpr con (h_in, h_out, _) formula _ vs eenv (CurrExpr _ e) = do
         setUpFormulaZ3 h_in formula
@@ -116,20 +116,21 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
         -- putStrLn formula
         r <- checkSat' h_in h_out
         -- putStrLn $ "r =  " ++ show r
-        if r == SAT then do
-            mdl <- getModelZ3 h_in h_out vs
-            -- putStrLn "======"
-            -- putStrLn formula
-            -- putStrLn ""
-            -- putStrLn (show mdl)
-            -- putStrLn "======"
-            let m = parseModel mdl
+        case r of
+            SAT () -> do
+                mdl <- getModelZ3 h_in h_out vs
+                -- putStrLn "======"
+                -- putStrLn formula
+                -- putStrLn ""
+                -- putStrLn (show mdl)
+                -- putStrLn "======"
+                let m = parseModel mdl
 
-            expr <- solveExpr h_in h_out con eenv e
-            -- putStrLn (show expr)
-            return (r, Just m, Just expr)
-        else do
-            return (r, Nothing, Nothing)
+                expr <- solveExpr h_in h_out con eenv e
+                -- putStrLn (show expr)
+                return (SAT m, Just expr)
+            UNSAT () -> return (UNSAT (), Nothing)
+            Unknown s -> return (Unknown s, Nothing)
 
     assertSolver _ = function1 "assert"
     assertSoftSolver _ = function1 "assert-soft"
@@ -248,16 +249,17 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
         -- putStrLn formula
         r <- checkSat' h_in h_out
         -- putStrLn $ "r =  " ++ show r
-        if r == SAT then do
-            mdl <- getModelCVC4 h_in h_out vs
-            -- putStrLn "======"
-            -- putStrLn (show mdl)
-            let m = parseModel mdl
-            -- putStrLn $ "m = " ++ show m
-            -- putStrLn "======"
-            return (r, Just m)
-        else do
-            return (r, Nothing)
+        case r of
+            SAT _ -> do
+                mdl <- getModelCVC4 h_in h_out vs
+                -- putStrLn "======"
+                -- putStrLn (show mdl)
+                let m = parseModel mdl
+                -- putStrLn $ "m = " ++ show m
+                -- putStrLn "======"
+                return (SAT m)
+            UNSAT _ ->  return $ UNSAT ()
+            Unknown s -> return $ Unknown s
 
     checkSatGetModelGetExpr con (h_in, h_out, _) formula _ vs eenv (CurrExpr _ e) = do
         setUpFormulaCVC4 h_in formula
@@ -265,20 +267,21 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
         -- putStrLn formula
         r <- checkSat' h_in h_out
         -- putStrLn $ "r =  " ++ show r
-        if r == SAT then do
-            mdl <- getModelCVC4 h_in h_out vs
-            -- putStrLn "======"
-            -- putStrLn formula
-            -- putStrLn ""
-            -- putStrLn (show mdl)
-            -- putStrLn "======"
-            let m = parseModel mdl
+        case r of
+            SAT _ -> do
+                mdl <- getModelCVC4 h_in h_out vs
+                -- putStrLn "======"
+                -- putStrLn formula
+                -- putStrLn ""
+                -- putStrLn (show mdl)
+                -- putStrLn "======"
+                let m = parseModel mdl
 
-            expr <- solveExpr h_in h_out con eenv e
-            -- putStrLn (show expr)
-            return (r, Just m, Just expr)
-        else do
-            return (r, Nothing, Nothing)
+                expr <- solveExpr h_in h_out con eenv e
+                -- putStrLn (show expr)
+                return (SAT m, Just expr)
+            UNSAT _ -> return (UNSAT (), Nothing)
+            Unknown s -> return (Unknown s, Nothing)
 
     assertSolver _ = function1 "assert"
         
@@ -422,7 +425,7 @@ setUpFormulaCVC4 h_in form = do
     hPutStr h_in form
 
 -- Checks if a formula, previously written by setUp formula, is SAT
-checkSat' :: Handle -> Handle -> IO Result
+checkSat' :: Handle -> Handle -> IO (Result () ())
 checkSat' h_in h_out = do
     hPutStr h_in "(check-sat)\n"
 
@@ -433,9 +436,9 @@ checkSat' h_in h_out = do
         _ <- evaluate (length out)
 
         if out == "sat" then
-            return SAT
+            return $ SAT ()
         else if out == "unsat" then
-            return UNSAT
+            return $ UNSAT ()
         else
             return (Unknown out)
     else do

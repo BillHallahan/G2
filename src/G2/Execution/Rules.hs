@@ -126,7 +126,7 @@ reduceNewPC solver simplifier
 
         res <- check solver s' rel_pc
 
-        if res == SAT then
+        if res == SAT () then
             return $ Just s''
         else
             return Nothing

@@ -113,8 +113,8 @@ mkSMTAnd = foldr (.&&.) (VBool True)
 mkSMTOr :: [SMTAST] -> SMTAST
 mkSMTOr = foldr (.||.) (VBool False)
 
-isSat :: Result -> Bool
-isSat SAT = True
+isSat :: Result m u -> Bool
+isSat (SAT _) = True
 isSat _ = False
 
 type SMTModel = M.Map SMTName SMTAST
