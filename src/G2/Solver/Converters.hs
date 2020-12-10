@@ -21,6 +21,7 @@ module G2.Solver.Converters
     , checkConstraintsPC
     , checkModelPC
     , checkConstraints
+    , solveConstraints
     , constraintsToModelOrUnsatCore
     , SMTConverter (..) ) where
 
@@ -120,6 +121,10 @@ checkConstraintsPC con pc = do
     let pc' = unsafeElimCast pc
 
     let headers = toSMTHeaders $ PC.toList pc'
+    checkConstraints con headers
+
+checkConstraints :: SMTConverter con ast out io => con -> [SMTHeader] -> IO (Result () ())
+checkConstraints con headers = do
     let formula = toSolver con headers
 
     checkSat con (getIO con) formula
@@ -153,19 +158,19 @@ getModelVal avf con s b (Id n _) pc = do
                     in
                     return (Just $ HM.singleton n' e, av) 
                 False -> do
-                    m <- checkNumericConstraintsPC con pc
+                    m <- solveNumericConstraintsPC con pc
                     return (m, arb_value_gen b)
 
-checkNumericConstraintsPC :: SMTConverter con ast out io => con -> PathConds -> IO (Maybe Model)
-checkNumericConstraintsPC con pc = do
+solveNumericConstraintsPC :: SMTConverter con ast out io => con -> PathConds -> IO (Maybe Model)
+solveNumericConstraintsPC con pc = do
     let headers = toSMTHeaders $ PC.toList pc
     let vs = map (\(n', srt) -> (nameToStr n', srt)) . pcVars $ PC.toList pc
 
-    m <- checkConstraints con headers vs
+    m <- solveConstraints con headers vs
     return $ fmap modelAsExpr m
 
-checkConstraints :: SMTConverter con ast out io => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Maybe SMTModel)
-checkConstraints con headers vs = do
+solveConstraints :: SMTConverter con ast out io => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Maybe SMTModel)
+solveConstraints con headers vs = do
     let io = getIO con
     putStrLn "HERE"
     let formula = toSolver con headers

@@ -271,14 +271,15 @@ synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
       -> HM.HashMap Size [(ModelNames, SMTModel)]
       -> Size
       -> m SynthRes
-synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc mdls sz = do
+synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc m_mdls sz = do
     let si' = liaSynthOfSize sz si
         zero_coeff_hdrs = softCoeffAssertZero si' -- ++ softFuncActAssertZero si' ++ softClauseActAssertZero si'
         -- zero_coeff_hdrs = softFuncActAssertZero si' ++ softClauseActAssertZero si'
         -- zero_coeff_hdrs = softCoeffAssertZero si' -- softFuncActAssertZero si' ++ softClauseActAssertZero si'
         max_coeffs_cons = maxCoeffConstraints si'
         
-        rel_mdls = map (uncurry (filterModelToRel si')) $ HM.lookupDefault [] sz mdls
+        mdls = HM.lookupDefault [] sz m_mdls
+        rel_mdls = map (uncurry (filterModelToRel si')) mdls
         block_mdls = map blockModelDirectly rel_mdls
         fun_block_mdls = concatMap (uncurry (blockModelWithFuns si')) $ zip (map show [0..]) rel_mdls
 
@@ -293,10 +294,16 @@ synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc mdls sz = do
 
     res <- synth' con eenv tc meas meas_ex evals si' fc ex_assrts drop_if_unknown sz
     case res of
-        SynthEnv _ _ _ -> return res
+        SynthEnv _ _ n_mdl -> do
+            new  <- checkModelIsNewFunc con si' n_mdl (map snd mdls)
+            case new of
+                True -> return res
+                False -> do
+                    let mdls' = HM.insertWith (++) sz [(MNAll, n_mdl)] m_mdls
+                    synth con eenv tc meas meas_ex evals si ms fc mdls' sz
         SynthFail _
-          | sz < max_sz -> synth con eenv tc meas meas_ex evals si ms fc mdls (sz + 1)
-          | otherwise -> return res
+            | sz < max_sz -> synth con eenv tc meas meas_ex evals si ms fc m_mdls (sz + 1)
+            | otherwise -> return res
     
 synth' :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
        => con
@@ -430,12 +437,7 @@ blockModelWithFuns si s mdl =
         e_si = M.elems $ M.filter (\si' -> s_status si' == Synth) si
 
         vars = map (uncurry blockVars) $ zip (map (\i -> s ++ "_" ++ show i) [0..]) e_si
-
-        var_defs = map (flip VarDecl SortInt . TB.text . T.pack)
-                 . concat
-                 . concatMap extractValues
-                 . (\(x, y) -> concat x ++ y)
-                 $ unzip vars
+        var_defs = concatMap varDefs vars
 
         si_nsi =   map (\(i, si') -> (si', renameByAdding i si'))
                  . zip (map (\i -> s ++ "_" ++ show i) [0..])
@@ -449,6 +451,50 @@ blockModelWithFuns si s mdl =
     
     in
     var_defs ++ fun_defs ++ neq
+
+-- | Checks that the first model and each model in the list have at least
+-- one point that they classifies differently,
+-- i.e. for each model in the list, there must be at least one point that is
+-- classified as true by that model, but false by the first model (or vice versa.)
+-- As opposed to `blockModelWithFuns`, which enforced this as a constraint when
+-- synthesizing the new specification, this function acts as a check on a newly
+-- synthesized specification.
+-- This avoids the need for non linear arithmetic, but allows us to quickly
+-- reject newly synthesized specifications that are identical to some previous
+-- specifications.
+checkModelIsNewFunc :: (MonadIO m, SMTConverter con ast out io) => con -> M.Map Name SpecInfo -> SMTModel -> [SMTModel] -> m Bool
+checkModelIsNewFunc _ si mdl [] = return True
+checkModelIsNewFunc con si mdl (mdl':mdls) = do
+    b' <- checkModelIsNewFunc' con si mdl mdl'
+    case b' of
+        True -> checkModelIsNewFunc con si mdl mdls
+        False -> return False
+
+checkModelIsNewFunc' :: (MonadIO m, SMTConverter con ast out io) => con -> M.Map Name SpecInfo -> SMTModel -> SMTModel -> m Bool
+checkModelIsNewFunc' con si mdl1 mdl2 = do
+    let e_si = M.elems $ M.filter (\si' -> s_status si' == Synth) si
+
+        vars = map (uncurry blockVars) $ zip (map (\i -> "_c_" ++ show i) [0..]) e_si
+        var_defs = concatMap varDefs vars
+
+        si_nsi = map (\(i, si') -> (si', renameByAdding i si'))
+               . zip (map (\i -> "_c_" ++ show i) [0..])
+               $ e_si
+
+        fun_defs1 = concatMap (defineModelLIAFuns mdl1 . fst) si_nsi
+        fun_defs2 = concatMap (defineModelLIAFuns mdl2 . snd) si_nsi
+
+        eqs = map (\(vs, (si', nsi')) -> mkEqualityAST vs si' nsi') $ zip vars si_nsi
+
+        neq = [Solver.Assert . (:!) $ mkSMTAnd eqs]
+    
+        hdrs = var_defs ++ fun_defs1 ++ fun_defs2 ++ neq
+
+    r <- liftIO $ checkConstraints con hdrs
+    case r of
+        SAT _ -> return True
+        UNSAT _ -> return False
+        Unknown _ -> error "checkModelIsNewFunc': unknown result"
 
 defineModelLIAFuns :: SMTModel -> SpecInfo -> [SMTHeader]
 defineModelLIAFuns mdl si =
@@ -485,7 +531,6 @@ buildLIA_SMT_fromModel mdl = buildLIA (:+) (:*) (:=) (:>) (:>=) Ite mkSMTAnd mkS
             | Just v <- M.lookup n mdl = v
             | otherwise = V n SortBool
 
-
 blockVars :: String -> SpecInfo -> ([PolyBound [SMTName]], PolyBound [SMTName])
 blockVars str si = ( map (uncurry mk_blk_vars) . zip (map show [0..]) $ s_syn_pre si
                    , mk_blk_vars "r" $ s_syn_post si)
@@ -497,6 +542,12 @@ blockVars str si = ( map (uncurry mk_blk_vars) . zip (map show [0..]) $ s_syn_pr
                                         $ sy_args_and_ret s
                                  )
                          $ zipPB (uniqueIds sy_s) sy_s
+
+varDefs :: ([PolyBound [SMTName]], PolyBound [SMTName]) -> [SMTHeader]
+varDefs = map (flip VarDecl SortInt . TB.text . T.pack)
+        . concat
+        . concatMap extractValues
+        . (\(x, y) -> y:x)
 
 mkEqualityAST :: ([PolyBound [SMTName]], PolyBound [SMTName]) -> SpecInfo -> SpecInfo -> SMTAST
 mkEqualityAST (avs, rvs) si nsi =
