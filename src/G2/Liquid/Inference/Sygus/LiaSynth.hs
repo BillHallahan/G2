@@ -287,9 +287,10 @@ synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc mdls sz = do
                     ++ max_coeffs_cons
                     ++ [Comment "block spurious models"]
                     ++ block_mdls
-                    ++ fun_block_mdls
 
-    res <- synth' con eenv tc meas meas_ex evals si' fc ex_assrts sz
+        drop_if_unknown = [Comment "stronger blocking of spurious models"] ++ fun_block_mdls
+
+    res <- synth' con eenv tc meas meas_ex evals si' fc ex_assrts drop_if_unknown sz
     case res of
         SynthEnv _ _ _ -> return res
         SynthFail _
@@ -306,13 +307,16 @@ synth' :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
        -> M.Map Name SpecInfo
        -> FuncConstraints
        -> [SMTHeader]
+       -> [SMTHeader]
        -> Size
        -> m SynthRes
-synth' con eenv tc meas meas_ex evals m_si fc headers sz = do
+synth' con eenv tc meas meas_ex evals m_si fc headers drop_if_unknown sz = do
     let n_for_m = namesForModel m_si
     liftIO $ print m_si
     let (cons, nm_fc_map) = nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc
-        hdrs = cons ++ headers
+        hdrs = cons ++ headers ++ drop_if_unknown
+
+    liftIO $ if not (null drop_if_unknown) then putStrLn "non empty drop_if_unknown" else return ()
 
     mdl <- liftIO $ constraintsToModelOrUnsatCore con hdrs n_for_m
 
@@ -326,7 +330,9 @@ synth' con eenv tc meas meas_ex evals m_si fc headers sz = do
                 fc_uc = fromSingletonFC . NotFC . AndFC . map (nm_fc_map HM.!) $ HS.toList uc
             in
             return (SynthFail fc_uc)
-        Unknown _ -> error "synth': Unknown"
+        Unknown _
+            | not (null drop_if_unknown) -> error "synth': drop if unknown"
+            | otherwise -> error "synth': Unknown"
 
 ------------------------------------
 -- Handling Models
@@ -412,6 +418,11 @@ filterRelOpBranch si mdl =
                   M.delete op_br2 mdl_
               | otherwise -> mdl) mdl coeffs
 
+-- | Create specification definitions corresponding to previously rejected models,
+-- and add assertions that the new synthesized specification definition must
+-- have a different output than the old specifications at at least one point.
+-- Because this requires a symbolic point being input into the synthesized function
+-- (with symbolic coefficients) this requires (undecidable) non linear arithmetic.
 blockModelWithFuns :: M.Map Name SpecInfo -> String -> SMTModel -> [SMTHeader]
 blockModelWithFuns si s mdl =
     let
@@ -438,8 +449,6 @@ blockModelWithFuns si s mdl =
     in
     var_defs ++ fun_defs ++ neq
 
-
--- Building function defintions
 defineModelLIAFuns :: SMTModel -> SpecInfo -> [SMTHeader]
 defineModelLIAFuns mdl si =
     if s_status si == Synth

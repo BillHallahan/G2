@@ -124,6 +124,7 @@ tryToVerifyOnly ghci ns = do
                 [] -> return Safe
                 unsafe' -> do
                   return $ Unsafe unsafe'
+        x -> error (show x)
     where
         ns_nm = map toOccMod ns
         toOccMod (G2.Name n m _ _) = (n, m)
