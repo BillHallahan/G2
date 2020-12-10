@@ -31,6 +31,7 @@ library
 
                        , G2.Data.UFMap
                        , G2.Data.UnionFind
+                       , G2.Data.Utils
 
                        , G2.Execution
                        , G2.Execution.Interface

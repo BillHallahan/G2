@@ -10,6 +10,7 @@ module G2.Liquid.Inference.Sygus.LiaSynth ( SynthRes (..)
                                           , initMaxSize
                                           , incrMaxSize) where
 
+import G2.Data.Utils
 import G2.Language as G2
 import qualified G2.Language.ExprEnv as E
 import G2.Liquid.Conversion
@@ -501,31 +502,24 @@ mkEqualityAST :: ([PolyBound [SMTName]], PolyBound [SMTName]) -> SpecInfo -> Spe
 mkEqualityAST (avs, rvs) si nsi =
     let
         pre_eq =
-            map (\(vs, s_sp, ns_sp) -> 
-                        mapPB 
-                          (\(vs', s_sp', ns_sp') -> 
-                                  let
-                                      smt_vs = map (flip V SortInt) vs'
-                                  in
-                                  Func (sy_name s_sp') smt_vs := Func (sy_name ns_sp') smt_vs
-                          ) $ zip3PB vs s_sp ns_sp
-                )
+            map (mapPB (uncurry3 mkFuncEq) . uncurry3 zip3PB)
             $ zip3 avs (s_syn_pre si) (s_syn_pre nsi)
 
         pre_eq' = concatMap extractValues pre_eq
 
         post_eq =
-            mapPB 
-                (\(vs, s_sp, ns_sp) -> 
-                        let
-                            smt_vs = map (flip V SortInt) vs
-                        in
-                        Func (sy_name s_sp) smt_vs := Func (sy_name ns_sp) smt_vs
-                ) $ zip3PB rvs (s_syn_post si) (s_syn_post nsi)
+            mapPB (uncurry3 mkFuncEq) $ zip3PB rvs (s_syn_post si) (s_syn_post nsi)
 
         post_eq' = extractValues post_eq
     in
     mkSMTAnd (post_eq' ++ pre_eq')
+
+mkFuncEq :: [SMTName] -> SynthSpec -> SynthSpec -> SMTAST
+mkFuncEq vs s_sp ns_sp = 
+    let
+        smt_vs = map (flip V SortInt) vs
+    in
+    Func (sy_name s_sp) smt_vs := Func (sy_name ns_sp) smt_vs
 
 ------------------------------------
 -- Building SMT Formulas
