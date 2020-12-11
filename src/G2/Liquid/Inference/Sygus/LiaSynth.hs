@@ -291,7 +291,7 @@ synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc m_mdls sz = do
                     ++ [Comment "block spurious models"]
                     ++ block_mdls
 
-        drop_if_unknown = [] -- [Comment "stronger blocking of spurious models"] ++ fun_block_mdls
+        drop_if_unknown = [Comment "stronger blocking of spurious models"] ++ fun_block_mdls
 
     res <- synth' con eenv tc meas meas_ex evals si' fc ex_assrts drop_if_unknown m_mdls sz
     case res of
@@ -341,7 +341,8 @@ synth' con eenv tc meas meas_ex evals m_si fc headers drop_if_unknown m_mdls sz 
             in
             return (SynthFail fc_uc)
         Unknown _
-            | not (null drop_if_unknown) -> error "synth': drop if unknown"
+            | not (null drop_if_unknown) ->
+                synth' con eenv tc meas meas_ex evals m_si fc headers [] m_mdls sz
             | otherwise -> error "synth': Unknown"
 
 ------------------------------------
