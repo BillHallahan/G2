@@ -296,11 +296,11 @@ synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc m_mdls sz = do
     res <- synth' con eenv tc meas meas_ex evals si' fc ex_assrts drop_if_unknown m_mdls sz
     case res of
         SynthEnv _ _ n_mdl _ -> do
-            new  <- checkModelIsNewFunc con si' n_mdl (map snd mdls)
+            new  <- checkModelIsNewFunc con si' n_mdl mdls
             case new of
-                True -> return res
-                False -> do
-                    let mdls' = HM.insertWith (++) sz [(MNAll, n_mdl)] m_mdls
+                Nothing -> return res
+                Just mn -> do
+                    let mdls' = HM.insertWith (++) sz [(mn, n_mdl)] m_mdls
                     synth con eenv tc meas meas_ex evals si ms fc mdls' sz
         SynthFail _
             | sz < max_sz -> synth con eenv tc meas meas_ex evals si ms fc m_mdls (sz + 1)
@@ -464,13 +464,13 @@ blockModelWithFuns si s mdl =
 -- This avoids the need for non linear arithmetic, but allows us to quickly
 -- reject newly synthesized specifications that are identical to some previous
 -- specifications.
-checkModelIsNewFunc :: (MonadIO m, SMTConverter con ast out io) => con -> M.Map Name SpecInfo -> SMTModel -> [SMTModel] -> m Bool
-checkModelIsNewFunc _ si mdl [] = return True
-checkModelIsNewFunc con si mdl (mdl':mdls) = do
+checkModelIsNewFunc :: (MonadIO m, SMTConverter con ast out io) => con -> M.Map Name SpecInfo -> SMTModel -> [(ModelNames, SMTModel)] -> m (Maybe ModelNames)
+checkModelIsNewFunc _ si mdl [] = return Nothing
+checkModelIsNewFunc con si mdl ((mdl_nm, mdl'):mdls) = do
     b' <- checkModelIsNewFunc' con si mdl mdl'
     case b' of
         True -> checkModelIsNewFunc con si mdl mdls
-        False -> return False
+        False -> return (Just mdl_nm)
 
 checkModelIsNewFunc' :: (MonadIO m, SMTConverter con ast out io) => con -> M.Map Name SpecInfo -> SMTModel -> SMTModel -> m Bool
 checkModelIsNewFunc' con si mdl1 mdl2 = do
