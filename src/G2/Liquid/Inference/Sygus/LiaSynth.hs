@@ -51,6 +51,7 @@ data SynthRes = SynthEnv
                   GeneratedSpecs -- ^ The synthesized specifications
                   Size -- ^ The size that the synthesizer succeeded at
                   SMTModel -- ^ An SMTModel corresponding to the new specifications
+                  (HM.HashMap Size [(ModelNames, SMTModel)]) -- ^ SMTModels that should be blocked in the future
               | SynthFail FuncConstraints
 
 data Coeffs = Coeffs { c_active :: SMTName
@@ -290,11 +291,11 @@ synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc m_mdls sz = do
                     ++ [Comment "block spurious models"]
                     ++ block_mdls
 
-        drop_if_unknown = [Comment "stronger blocking of spurious models"] ++ fun_block_mdls
+        drop_if_unknown = [] -- [Comment "stronger blocking of spurious models"] ++ fun_block_mdls
 
-    res <- synth' con eenv tc meas meas_ex evals si' fc ex_assrts drop_if_unknown sz
+    res <- synth' con eenv tc meas meas_ex evals si' fc ex_assrts drop_if_unknown m_mdls sz
     case res of
-        SynthEnv _ _ n_mdl -> do
+        SynthEnv _ _ n_mdl _ -> do
             new  <- checkModelIsNewFunc con si' n_mdl (map snd mdls)
             case new of
                 True -> return res
@@ -316,9 +317,10 @@ synth' :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
        -> FuncConstraints
        -> [SMTHeader]
        -> [SMTHeader]
+       -> HM.HashMap Size [(ModelNames, SMTModel)]
        -> Size
        -> m SynthRes
-synth' con eenv tc meas meas_ex evals m_si fc headers drop_if_unknown sz = do
+synth' con eenv tc meas meas_ex evals m_si fc headers drop_if_unknown m_mdls sz = do
     let n_for_m = namesForModel m_si
     liftIO $ print m_si
     let (cons, nm_fc_map) = nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc
@@ -332,7 +334,7 @@ synth' con eenv tc meas meas_ex evals m_si fc headers drop_if_unknown sz = do
         SAT mdl' -> do
             let gs' = modelToGS m_si mdl'
             liftIO $ print gs'
-            return (SynthEnv gs' sz mdl')
+            return (SynthEnv gs' sz mdl' m_mdls)
         UNSAT uc ->
             let
                 fc_uc = fromSingletonFC . NotFC . AndFC . map (nm_fc_map HM.!) $ HS.toList uc

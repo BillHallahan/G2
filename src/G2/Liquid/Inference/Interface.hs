@@ -249,7 +249,7 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc mdls = d
         putStrLn "-------"
 
     case synth_gs of
-        SynthEnv envN sz smt_mdl -> do
+        SynthEnv envN sz smt_mdl mdls' -> do
             let gs' = unionDroppingGS gs envN
                 ghci' = addSpecsToGhcInfos ghci gs'
             liftIO $ do
@@ -270,8 +270,8 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc mdls = d
                             meas_ex' <- updateMeasureExs meas_ex lrs ghci fc'
                             liftIO $ putStrLn "After genMeasureExs"
 
-                            mdls' <- adjModelAndMaxCEx (hasNewFC fc' fc) sz smt_mdl mdls
-                            inferenceB con ghci m_modname lrs nls evals' meas_ex' max_sz gs (unionFC fc fc') max_fc mdls'
+                            mdls'' <- adjModelAndMaxCEx (hasNewFC fc' fc) sz smt_mdl mdls'
+                            inferenceB con ghci m_modname lrs nls evals' meas_ex' max_sz gs (unionFC fc fc') max_fc mdls''
                 Crash _ _ -> error "inferenceB: LiquidHaskell crashed"
         SynthFail sf_fc -> return $ (Raise meas_ex fc (unionFC max_fc sf_fc) (hasNewFC sf_fc max_fc), evals')
 
