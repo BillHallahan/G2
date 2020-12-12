@@ -265,19 +265,20 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc mdls = d
                     ref <- refineUnsafe ghci m_modname lrs gs' bad
                     case ref of
                         Left cex -> return $ (CEx cex, evals')
-                        Right fc' -> do
+                        Right (viol_fc, no_viol_fc) -> do
+                            let fc' = unionFC viol_fc no_viol_fc
                             liftIO $ putStrLn "Before genMeasureExs"
                             meas_ex' <- updateMeasureExs meas_ex lrs ghci fc'
                             liftIO $ putStrLn "After genMeasureExs"
 
-                            mdls'' <- adjModelAndMaxCEx (hasNewFC fc' fc) sz smt_mdl mdls'
+                            mdls'' <- adjModelAndMaxCEx (hasNewFC viol_fc fc) sz smt_mdl mdls'
                             inferenceB con ghci m_modname lrs nls evals' meas_ex' max_sz gs (unionFC fc fc') max_fc mdls''
                 Crash _ _ -> error "inferenceB: LiquidHaskell crashed"
         SynthFail sf_fc -> return $ (Raise meas_ex fc (unionFC max_fc sf_fc) (hasNewFC sf_fc max_fc), evals')
 
 refineUnsafe :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState
              -> GeneratedSpecs
-             -> [Name] -> m (Either [CounterExample] FuncConstraints)
+             -> [Name] -> m (Either [CounterExample] (FuncConstraints, FuncConstraints))
 refineUnsafe ghci m_modname lrs gs bad = do
     let merged_se_ghci = addSpecsToGhcInfos ghci gs
 
@@ -303,7 +304,7 @@ refineUnsafe ghci m_modname lrs gs bad = do
         Left cex -> return $ Left cex
         Right new_fc' -> do
             liftIO . putStrLn $ "new_fc' = " ++ printFCs new_fc'
-            return .  Right $ foldr insertFC new_fc' no_viol
+            return $ Right (new_fc', fromListFC no_viol)
 
 adjModelAndMaxCEx :: (MonadIO m, ProgresserM m) => NewFC -> Size -> SMTModel
                   -> HM.HashMap Size [(ModelNames, SMTModel)] -> m (HM.HashMap Size [(ModelNames, SMTModel)])
