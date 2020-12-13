@@ -8,7 +8,12 @@ module G2.Liquid.Inference.Sygus.LiaSynth ( SynthRes (..)
 
                                           , MaxSize
                                           , initMaxSize
-                                          , incrMaxSize) where
+                                          , incrMaxSize
+
+                                          , BlockedModels
+                                          , emptyBlockedModels
+                                          , insertBlockedModel
+                                          , blockedHashMap) where
 
 import G2.Data.Utils
 import G2.Language as G2
@@ -51,7 +56,7 @@ data SynthRes = SynthEnv
                   GeneratedSpecs -- ^ The synthesized specifications
                   Size -- ^ The size that the synthesizer succeeded at
                   SMTModel -- ^ An SMTModel corresponding to the new specifications
-                  (HM.HashMap Size [(ModelNames, SMTModel)]) -- ^ SMTModels that should be blocked in the future
+                  BlockedModels -- ^ SMTModels that should be blocked in the future
               | SynthFail FuncConstraints
 
 data Coeffs = Coeffs { c_active :: SMTName
@@ -144,9 +149,6 @@ type ToBeNames = [Name]
 -- A list of functions to synthesize a the current level
 type ToSynthNames = [Name]
 
-data ModelNames = MNAll | MNOnly [Name]
-                  deriving (Eq, Show, Read)
-
 initMaxSize :: MaxSize
 initMaxSize = MaxSize 1
 
@@ -157,9 +159,9 @@ liaSynth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
          => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
          -> MaxSize
          -> FuncConstraints
-         -> HM.HashMap Size [(ModelNames, SMTModel)] -- ^ SMT Models to block being returned by the synthesizer at various sizes
+         -> BlockedModels -- ^ SMT Models to block being returned by the synthesizer at various sizes
          -> ToBeNames -> ToSynthNames -> m SynthRes
-liaSynth con ghci lrs evals meas_ex max_sz fc mdls to_be_ns ns_synth = do
+liaSynth con ghci lrs evals meas_ex max_sz fc blk_mdls to_be_ns ns_synth = do
     -- Compensate for zeroed out names in FuncConstraints
     let ns = map (\(Name n m _ l) -> Name n m 0 l) ns_synth
 
@@ -197,7 +199,7 @@ liaSynth con ghci lrs evals meas_ex max_sz fc mdls to_be_ns ns_synth = do
 
     let meas = lrsMeasures ghci lrs
 
-    synth con eenv' tc meas meas_ex evals si max_sz fc mdls 1
+    synth con eenv' tc meas meas_ex evals si max_sz fc blk_mdls 1
     where
       zeroOutName (Name n m _ l) = Name n m 0 l
 
@@ -269,17 +271,17 @@ synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
       -> M.Map Name SpecInfo
       -> MaxSize
       -> FuncConstraints
-      -> HM.HashMap Size [(ModelNames, SMTModel)]
+      -> BlockedModels
       -> Size
       -> m SynthRes
-synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc m_mdls sz = do
+synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc blk_mdls sz = do
     let si' = liaSynthOfSize sz si
         zero_coeff_hdrs = softCoeffAssertZero si' -- ++ softFuncActAssertZero si' ++ softClauseActAssertZero si'
         -- zero_coeff_hdrs = softFuncActAssertZero si' ++ softClauseActAssertZero si'
         -- zero_coeff_hdrs = softCoeffAssertZero si' -- softFuncActAssertZero si' ++ softClauseActAssertZero si'
         max_coeffs_cons = maxCoeffConstraints si'
         
-        mdls = HM.lookupDefault [] sz m_mdls
+        mdls = lookupBlockedModels sz blk_mdls
         rel_mdls = map (uncurry (filterModelToRel si')) mdls
         block_mdls = map blockModelDirectly rel_mdls
         fun_block_mdls = concatMap (uncurry (blockModelWithFuns si')) $ zip (map show [0..]) rel_mdls
@@ -293,17 +295,19 @@ synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc m_mdls sz = do
 
         drop_if_unknown = [Comment "stronger blocking of spurious models"] ++ fun_block_mdls
 
-    res <- synth' con eenv tc meas meas_ex evals si' fc ex_assrts drop_if_unknown m_mdls sz
+    res <- synth' con eenv tc meas meas_ex evals si' fc ex_assrts drop_if_unknown blk_mdls sz
     case res of
         SynthEnv _ _ n_mdl _ -> do
-            new  <- checkModelIsNewFunc con si' n_mdl mdls
+            let non_equiv_mdls = lookupNonEquivBlockedModels sz blk_mdls
+            new  <- checkModelIsNewFunc con si' n_mdl non_equiv_mdls
             case new of
                 Nothing -> return res
-                Just mn -> do
-                    let mdls' = HM.insertWith (++) sz [(mn, n_mdl)] m_mdls
+                Just (_, eq_mdl) -> do
+                    let mn = determineRelFuncs si' n_mdl eq_mdl
+                        mdls' = insertEquivBlockedModel sz (MNOnly mn) n_mdl blk_mdls
                     synth con eenv tc meas meas_ex evals si ms fc mdls' sz
         SynthFail _
-            | sz < max_sz -> synth con eenv tc meas meas_ex evals si ms fc m_mdls (sz + 1)
+            | sz < max_sz -> synth con eenv tc meas meas_ex evals si ms fc blk_mdls (sz + 1)
             | otherwise -> return res
     
 synth' :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
@@ -317,10 +321,10 @@ synth' :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
        -> FuncConstraints
        -> [SMTHeader]
        -> [SMTHeader]
-       -> HM.HashMap Size [(ModelNames, SMTModel)]
+       -> BlockedModels
        -> Size
        -> m SynthRes
-synth' con eenv tc meas meas_ex evals m_si fc headers drop_if_unknown m_mdls sz = do
+synth' con eenv tc meas meas_ex evals m_si fc headers drop_if_unknown blk_mdls sz = do
     let n_for_m = namesForModel m_si
     liftIO $ print m_si
     let (cons, nm_fc_map) = nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc
@@ -334,7 +338,7 @@ synth' con eenv tc meas meas_ex evals m_si fc headers drop_if_unknown m_mdls sz 
         SAT mdl' -> do
             let gs' = modelToGS m_si mdl'
             liftIO $ print gs'
-            return (SynthEnv gs' sz mdl' m_mdls)
+            return (SynthEnv gs' sz mdl' blk_mdls)
         UNSAT uc ->
             let
                 fc_uc = fromSingletonFC . NotFC . AndFC . map (nm_fc_map HM.!) $ HS.toList uc
@@ -342,12 +346,46 @@ synth' con eenv tc meas meas_ex evals m_si fc headers drop_if_unknown m_mdls sz 
             return (SynthFail fc_uc)
         Unknown _
             | not (null drop_if_unknown) ->
-                synth' con eenv tc meas meas_ex evals m_si fc headers [] m_mdls sz
+                synth' con eenv tc meas meas_ex evals m_si fc headers [] blk_mdls sz
             | otherwise -> error "synth': Unknown"
 
 ------------------------------------
 -- Handling Models
 ------------------------------------
+
+----------------------------------------------------------------------------
+-- Blocking Models directly
+data BlockedModels = Block { blocked :: HM.HashMap Size [(ModelNames, SMTModel)]
+                           , blocked_equiv :: HM.HashMap Size [(ModelNames, SMTModel)] -- ^ Models that should be blocked, and represent the same specification as a model in `blocked`
+                           }
+
+data ModelNames = MNAll | MNOnly [Name]
+                  deriving (Eq, Show, Read)
+
+emptyBlockedModels :: BlockedModels
+emptyBlockedModels = Block HM.empty HM.empty
+
+insertBlockedModel :: Size -> ModelNames -> SMTModel -> BlockedModels -> BlockedModels
+insertBlockedModel sz mdl_nms mdl blk_mdls =
+    blk_mdls { blocked = HM.insertWith (++) sz [(mdl_nms, mdl)] (blocked blk_mdls) }
+
+insertEquivBlockedModel :: Size -> ModelNames -> SMTModel -> BlockedModels -> BlockedModels
+insertEquivBlockedModel sz mdl_nms mdl blk_mdls =
+    blk_mdls { blocked_equiv = HM.insertWith (++) sz [(mdl_nms, mdl)] (blocked_equiv blk_mdls) }
+
+lookupBlockedModels :: Size -> BlockedModels -> [(ModelNames, SMTModel)]
+lookupBlockedModels sz blk_mdls =
+    HM.lookupDefault [] sz (blocked blk_mdls) ++ HM.lookupDefault [] sz (blocked_equiv blk_mdls)
+
+lookupNonEquivBlockedModels :: Size -> BlockedModels -> [(ModelNames, SMTModel)]
+lookupNonEquivBlockedModels sz blk_mdls =
+    HM.lookupDefault [] sz (blocked blk_mdls)
+
+blockedHashMap :: BlockedModels -> HM.HashMap Size [(ModelNames, SMTModel)]
+blockedHashMap blk_mdls = HM.unionWith (++) (blocked blk_mdls) (blocked_equiv blk_mdls)
+
+----------------------------------------------------------------------------
+-- Blocking Models building/manipulation
 
 namesForModel :: M.Map Name SpecInfo -> [(SMTName, Sort)]
 namesForModel = concat . map siNamesForModel . M.elems
@@ -455,6 +493,9 @@ blockModelWithFuns si s mdl =
     in
     var_defs ++ fun_defs ++ neq
 
+----------------------------------------------------------------------------
+-- Blocking Models via checking after the fact
+
 -- | Checks that the first model and each model in the list have at least
 -- one point that they classifies differently,
 -- i.e. for each model in the list, there must be at least one point that is
@@ -465,13 +506,20 @@ blockModelWithFuns si s mdl =
 -- This avoids the need for non linear arithmetic, but allows us to quickly
 -- reject newly synthesized specifications that are identical to some previous
 -- specifications.
-checkModelIsNewFunc :: (MonadIO m, SMTConverter con ast out io) => con -> M.Map Name SpecInfo -> SMTModel -> [(ModelNames, SMTModel)] -> m (Maybe ModelNames)
+checkModelIsNewFunc :: (MonadIO m, SMTConverter con ast out io) => con -> M.Map Name SpecInfo -> SMTModel -> [(ModelNames, SMTModel)] -> m (Maybe (ModelNames, SMTModel))
 checkModelIsNewFunc _ si mdl [] = return Nothing
 checkModelIsNewFunc con si mdl ((mdl_nm, mdl'):mdls) = do
     b' <- checkModelIsNewFunc' con si mdl mdl'
     case b' of
         True -> checkModelIsNewFunc con si mdl mdls
-        False -> return (Just mdl_nm)
+        False -> do
+            liftIO $ do
+                putStrLn "Equiv!"
+                print mdl_nm
+                print mdl
+                print mdl'
+                putStrLn $ "diff = " ++ show (M.toList mdl' L.\\ M.toList mdl)
+            return (Just (mdl_nm, mdl'))
 
 checkModelIsNewFunc' :: (MonadIO m, SMTConverter con ast out io) => con -> M.Map Name SpecInfo -> SMTModel -> SMTModel -> m Bool
 checkModelIsNewFunc' con si mdl1 mdl2 = do
@@ -574,6 +622,20 @@ mkFuncEq vs s_sp ns_sp =
         smt_vs = map (flip V SortInt) vs
     in
     Func (sy_name s_sp) smt_vs := Func (sy_name ns_sp) smt_vs
+
+-- Determines which function specs have been assigned different values in the two models.
+determineRelFuncs :: M.Map Name SpecInfo -> SMTModel -> SMTModel -> [Name]
+determineRelFuncs m_si mdl1 mdl2 =
+    let
+        diff = M.keys 
+             $ M.differenceWith (\v1 v2 -> case v1 == v2 of
+                                                True -> Nothing
+                                                False -> Just v1) mdl1 mdl2
+    in
+      M.keys
+    $ M.filter 
+        (\si -> any (\n -> n `elem` diff) . map fst $ siNamesForModel si)
+        m_si
 
 ------------------------------------
 -- Building SMT Formulas

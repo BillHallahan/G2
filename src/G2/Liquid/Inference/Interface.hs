@@ -148,7 +148,7 @@ iterativeInference :: (ProgresserM m, InfConfigM m, MonadIO m, SMTConverter con 
                    -> FuncConstraints
                    -> m (Either [CounterExample] GeneratedSpecs)
 iterativeInference con ghci m_modname lrs nls meas_ex max_sz gs fc = do
-    res <- inferenceL con ghci m_modname lrs nls emptyEvals meas_ex max_sz gs fc emptyFC HM.empty
+    res <- inferenceL con ghci m_modname lrs nls emptyEvals meas_ex max_sz gs fc emptyFC emptyBlockedModels
     case res of
         CEx cex -> return $ Left cex
         Env gs _ _ _ _ _ -> return $ Right gs
@@ -184,22 +184,19 @@ inferenceL :: (ProgresserM m, InfConfigM m, MonadIO m, SMTConverter con ast out 
            -> GeneratedSpecs
            -> FuncConstraints
            -> MaxSizeConstraints
-           -> HM.HashMap Size [(ModelNames, SMTModel)]
+           -> BlockedModels
            -> m InferenceRes
-inferenceL con ghci m_modname lrs nls evals meas_ex max_sz senv fc max_fc mdls = do
+inferenceL con ghci m_modname lrs nls evals meas_ex max_sz senv fc max_fc blk_mdls = do
     let (fs, sf, below_sf) = case nls of
                         (fs_:sf_:be) -> (fs_, sf_, be)
                         ([fs_])-> (fs_, [], [])
                         [] -> ([], [], [])
 
-    (resAtL, evals') <- inferenceB con ghci m_modname lrs nls evals meas_ex max_sz senv fc max_fc mdls
-    -- let curr_ghci = addSpecsToGhcInfos ghci gs
-    -- evals' <- updateEvals curr_ghci lrs fc evals
-    -- synth_gs <- synthesize con curr_ghci lrs evals' meas_ex max_sz (unionFC max_fc fc) mdls (concat below_sf) sf
+    (resAtL, evals') <- inferenceB con ghci m_modname lrs nls evals meas_ex max_sz senv fc max_fc blk_mdls
 
     liftIO $ do
         putStrLn "-------"
-        putStrLn $ "lengths = " ++ show (HM.map (length . nub) mdls)
+        putStrLn $ "lengths = " ++ show (HM.map (length . nub) (blockedHashMap blk_mdls))
         putStrLn "-------"
 
     case resAtL of
@@ -209,13 +206,13 @@ inferenceL con ghci m_modname lrs nls evals meas_ex max_sz senv fc max_fc mdls =
                 (_:nls') -> do
                     liftIO $ putStrLn "Down a level!"
                     let evals'' = foldr deleteEvalsForFunc evals' sf
-                    inf_res <- inferenceL con ghci m_modname lrs nls' evals'' meas_ex' max_sz senv' (unionFC fc n_fc) (unionFC max_fc n_mfc) HM.empty
+                    inf_res <- inferenceL con ghci m_modname lrs nls' evals'' meas_ex' max_sz senv' (unionFC fc n_fc) (unionFC max_fc n_mfc) emptyBlockedModels
                     case inf_res of
                         Raise r_meas_ex r_fc r_max_fc has_new -> do
                             liftIO $ putStrLn "Up a level!"
                             
-                            mdls' <- adjModelAndMaxCEx has_new sz smt_mdl mdls
-                            inferenceL con ghci m_modname lrs nls evals' r_meas_ex max_sz senv r_fc r_max_fc mdls'
+                            blk_mdls' <- adjModelAndMaxCEx has_new sz smt_mdl blk_mdls
+                            inferenceL con ghci m_modname lrs nls evals' r_meas_ex max_sz senv r_fc r_max_fc blk_mdls'
                         _ -> return inf_res
         _ -> return resAtL
 
@@ -231,9 +228,9 @@ inferenceB :: (ProgresserM m, InfConfigM m, MonadIO m, SMTConverter con ast out 
            -> GeneratedSpecs
            -> FuncConstraints
            -> MaxSizeConstraints
-           -> HM.HashMap Size [(ModelNames, SMTModel)]
+           -> BlockedModels
            -> m (InferenceRes, Evals Bool)
-inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc mdls = do
+inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls = do
     let (fs, sf, below_sf) = case nls of
                         (fs_:sf_:be) -> (fs_, sf_, be)
                         ([fs_])-> (fs_, [], [])
@@ -241,15 +238,15 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc mdls = d
 
     let curr_ghci = addSpecsToGhcInfos ghci gs
     evals' <- updateEvals curr_ghci lrs fc evals
-    synth_gs <- synthesize con curr_ghci lrs evals' meas_ex max_sz (unionFC max_fc fc) mdls (concat below_sf) sf
+    synth_gs <- synthesize con curr_ghci lrs evals' meas_ex max_sz (unionFC max_fc fc) blk_mdls (concat below_sf) sf
 
     liftIO $ do
         putStrLn "-------"
-        putStrLn $ "lengths = " ++ show (HM.map (length . nub) mdls)
+        putStrLn $ "lengths = " ++ show (HM.map (length . nub) (blockedHashMap blk_mdls))
         putStrLn "-------"
 
     case synth_gs of
-        SynthEnv envN sz smt_mdl mdls' -> do
+        SynthEnv envN sz smt_mdl blk_mdls' -> do
             let gs' = unionDroppingGS gs envN
                 ghci' = addSpecsToGhcInfos ghci gs'
             liftIO $ do
@@ -271,8 +268,8 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc mdls = d
                             meas_ex' <- updateMeasureExs meas_ex lrs ghci fc'
                             liftIO $ putStrLn "After genMeasureExs"
 
-                            mdls'' <- adjModelAndMaxCEx (hasNewFC viol_fc fc) sz smt_mdl mdls'
-                            inferenceB con ghci m_modname lrs nls evals' meas_ex' max_sz gs (unionFC fc fc') max_fc mdls''
+                            blk_mdls'' <- adjModelAndMaxCEx (hasNewFC viol_fc fc) sz smt_mdl blk_mdls'
+                            inferenceB con ghci m_modname lrs nls evals' meas_ex' max_sz gs (unionFC fc fc') max_fc blk_mdls''
                 Crash _ _ -> error "inferenceB: LiquidHaskell crashed"
         SynthFail sf_fc -> return $ (Raise meas_ex fc (unionFC max_fc sf_fc) (hasNewFC sf_fc max_fc), evals')
 
@@ -307,22 +304,22 @@ refineUnsafe ghci m_modname lrs gs bad = do
             return $ Right (new_fc', fromListFC no_viol)
 
 adjModelAndMaxCEx :: (MonadIO m, ProgresserM m) => NewFC -> Size -> SMTModel
-                  -> HM.HashMap Size [(ModelNames, SMTModel)] -> m (HM.HashMap Size [(ModelNames, SMTModel)])
-adjModelAndMaxCEx has_new sz smt_mdl mdls = do
+                  -> BlockedModels -> m BlockedModels
+adjModelAndMaxCEx has_new sz smt_mdl blk_mdls = do
       case has_new of
-            NewFC -> return mdls
+            NewFC -> return blk_mdls
             NoNewFC repeated_fc
                 | not $ nullFC repeated_fc -> do
                     liftIO . putStrLn $ "adjModel repeated_fc = " ++ show repeated_fc
                     let ns = map funcName $ allCallsFC repeated_fc
-                        mdls' = HM.insertWith (++) sz [(MNOnly ns, smt_mdl)] mdls                                      
+                        blk_mdls' = insertBlockedModel sz (MNOnly ns) smt_mdl blk_mdls                                      
                     incrMaxCExM
-                    return mdls'
+                    return blk_mdls'
                 | otherwise -> do
                     liftIO $ putStrLn "adjModel no repeated_fc"
-                    let mdls' = HM.insertWith (++) sz [(MNAll, smt_mdl)] mdls
+                    let blk_mdls' = insertBlockedModel sz MNAll smt_mdl blk_mdls
                     incrMaxCExM
-                    return mdls'
+                    return blk_mdls'
 
 genNewConstraints :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> T.Text -> m ([CounterExample], [FuncConstraint])
 genNewConstraints ghci m lrs n = do
@@ -413,10 +410,10 @@ updateMeasureExs meas_ex lrs ghci fcs =
 
 synthesize :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
            => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
-           -> MaxSize -> FuncConstraints -> HM.HashMap Size [(ModelNames, SMTModel)] -> [Name] -> [Name] -> m SynthRes
-synthesize con ghci lrs evals meas_ex max_sz fc mdls to_be for_funcs = do
+           -> MaxSize -> FuncConstraints -> BlockedModels -> [Name] -> [Name] -> m SynthRes
+synthesize con ghci lrs evals meas_ex max_sz fc blk_mdls to_be for_funcs = do
     liftIO . putStrLn $ "all fc = " ++ printFCs fc
-    liaSynth con ghci lrs evals meas_ex max_sz fc mdls to_be for_funcs
+    liaSynth con ghci lrs evals meas_ex max_sz fc blk_mdls to_be for_funcs
 
 updateEvals :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> FuncConstraints -> Evals Bool -> m (Evals Bool)
 updateEvals ghci lrs fc evals = do
