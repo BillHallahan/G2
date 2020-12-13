@@ -304,7 +304,7 @@ synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc blk_mdls sz = do
                 Nothing -> return res
                 Just (_, eq_mdl) -> do
                     let mn = determineRelFuncs si' n_mdl eq_mdl
-                        mdls' = insertEquivBlockedModel sz (MNOnly mn) n_mdl blk_mdls
+                        mdls' = foldr (\n -> insertEquivBlockedModel sz (MNOnly [n]) n_mdl) blk_mdls mn
                     synth con eenv tc meas meas_ex evals si ms fc mdls' sz
         SynthFail _
             | sz < max_sz -> synth con eenv tc meas meas_ex evals si ms fc blk_mdls (sz + 1)
