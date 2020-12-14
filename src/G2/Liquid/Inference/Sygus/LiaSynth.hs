@@ -303,8 +303,8 @@ synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc blk_mdls sz = do
             case new of
                 Nothing -> return res
                 Just (_, eq_mdl) -> do
-                    let mn = determineRelFuncs si' n_mdl eq_mdl
-                        mdls' = foldr (\n -> insertEquivBlockedModel sz (MNOnly [n]) n_mdl) blk_mdls mn
+                    let mn = determineRelSynthSpecs si' n_mdl eq_mdl
+                        mdls' = foldr (\n -> insertEquivBlockedModel sz (MNOnlySMTNames [n]) n_mdl) blk_mdls mn
                     synth con eenv tc meas meas_ex evals si ms fc mdls' sz
         SynthFail _
             | sz < max_sz -> synth con eenv tc meas meas_ex evals si ms fc blk_mdls (sz + 1)
@@ -359,7 +359,7 @@ data BlockedModels = Block { blocked :: HM.HashMap Size [(ModelNames, SMTModel)]
                            , blocked_equiv :: HM.HashMap Size [(ModelNames, SMTModel)] -- ^ Models that should be blocked, and represent the same specification as a model in `blocked`
                            }
 
-data ModelNames = MNAll | MNOnly [Name]
+data ModelNames = MNAll | MNOnly [Name] | MNOnlySMTNames [SMTName]
                   deriving (Eq, Show, Read)
 
 emptyBlockedModels :: BlockedModels
@@ -423,6 +423,9 @@ filterModelToRel m_si ns mdl =
         sys = case ns of
                 MNAll  -> concatMap allSynthSpec $ M.elems m_si
                 MNOnly ns' -> concatMap allSynthSpec $ mapMaybe (flip M.lookup m_si) ns'
+                MNOnlySMTNames ns' -> filter (\sys -> sy_name sys `elem` ns')
+                                    . concatMap allSynthSpec
+                                    $ M.elems m_si
         vs = map fst $ concatMap sySpecNamesForModel sys
     in
       flip (foldr filterClauseActiveBooleans) sys
@@ -641,6 +644,21 @@ determineRelFuncs m_si mdl1 mdl2 =
     $ M.filter 
         (\si -> any (\n -> n `elem` diff) . map fst $ siNamesForModel si)
         m_si
+
+-- Determines which SynthSpecs have been assigned different values in the two models.
+determineRelSynthSpecs :: M.Map Name SpecInfo -> SMTModel -> SMTModel -> [SMTName]
+determineRelSynthSpecs m_si mdl1 mdl2 =
+    let
+        diff = M.keys 
+             $ M.differenceWith (\v1 v2 -> case v1 == v2 of
+                                                True -> Nothing
+                                                False -> Just v1) mdl1 mdl2
+    in
+      map sy_name
+    . filter 
+        (\sys -> any (\n -> n `elem` diff) . map fst $ sySpecNamesForModel sys)
+    . concatMap allSynthSpec 
+    $ M.elems m_si
 
 ------------------------------------
 -- Building SMT Formulas
