@@ -293,7 +293,7 @@ synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc blk_mdls sz = do
                     ++ [Comment "block spurious models"]
                     ++ block_mdls
 
-        drop_if_unknown = [Comment "stronger blocking of spurious models"] ++ fun_block_mdls
+        drop_if_unknown = [] -- [Comment "stronger blocking of spurious models"] ++ fun_block_mdls
 
     res <- synth' con eenv tc meas meas_ex evals si' fc ex_assrts drop_if_unknown blk_mdls sz
     case res of
@@ -391,11 +391,16 @@ namesForModel :: M.Map Name SpecInfo -> [(SMTName, Sort)]
 namesForModel = concat . map siNamesForModel . M.elems
 
 siNamesForModel :: SpecInfo -> [(SMTName, Sort)]
-siNamesForModel si =
+siNamesForModel si
+    | s_status si == Synth = concatMap sySpecNamesForModel $ allSynthSpec si
+    | otherwise = []
+
+sySpecNamesForModel :: SynthSpec -> [(SMTName, Sort)]
+sySpecNamesForModel sys =
     let
-        all_coeffs = zip (siGetCoeffs si) (repeat SortInt)
-        all_acts = zip (siGetActs si) (repeat SortInt)
-        all_op_branch = zip (siGetOpBranches si) (repeat SortBool)
+        all_coeffs = zip (sySpecGetCoeffs sys) (repeat SortInt)
+        all_acts = zip (sySpecGetActs sys) (repeat SortInt)
+        all_op_branch = zip (sySpecGetOpBranches sys) (repeat SortBool)
     in
     all_coeffs ++ all_acts ++ all_op_branch
 
@@ -415,23 +420,23 @@ blockModelDirectly = Solver.Assert . (:!) . foldr (.&&.) (VBool True) . map (\(n
 filterModelToRel :: M.Map Name SpecInfo -> ModelNames -> SMTModel -> SMTModel
 filterModelToRel m_si ns mdl =
     let
-        si = case ns of
-                MNOnly ns' -> mapMaybe (flip M.lookup m_si) ns'
-                MNAll  -> M.elems m_si
-        vs = map fst $ concatMap siNamesForModel si
+        sys = case ns of
+                MNAll  -> concatMap allSynthSpec $ M.elems m_si
+                MNOnly ns' -> concatMap allSynthSpec $ mapMaybe (flip M.lookup m_si) ns'
+        vs = map fst $ concatMap sySpecNamesForModel sys
     in
-      flip (foldr filterClauseActiveBooleans) si
-    . flip (foldr filterCoeffActiveBooleans) si
-    . flip (foldr filterRelOpBranch) si
+      flip (foldr filterClauseActiveBooleans) sys
+    . flip (foldr filterCoeffActiveBooleans) sys
+    . flip (foldr filterRelOpBranch) sys
     $ M.filterWithKey (\n _ -> n `elem` vs) mdl
 
 -- If the clause level boolean is set to true, we remove all the
 -- formula level active booleans, since the formulas are
 -- irrelevant.
-filterClauseActiveBooleans :: SpecInfo -> SMTModel -> SMTModel
+filterClauseActiveBooleans :: SynthSpec -> SMTModel -> SMTModel
 filterClauseActiveBooleans si mdl =
     let
-        clauses = allCNFs si
+        clauses = sy_coeffs si
     in
     foldr (\(cl_act, cfs) mdl_ -> if
               | M.lookup cl_act mdl_ == Just (VBool True) ->
@@ -440,10 +445,10 @@ filterClauseActiveBooleans si mdl =
 
 -- If the formula level active booleans are set to false, we remove all the
 -- coefficients in the formula, since the formula is now irrelevant.
-filterCoeffActiveBooleans :: SpecInfo -> SMTModel -> SMTModel
+filterCoeffActiveBooleans :: SynthSpec -> SMTModel -> SMTModel
 filterCoeffActiveBooleans si mdl =
     let
-        clauses = allCNFs si
+        clauses = sy_coeffs si
         cffs = concatMap snd clauses
     in
     foldr (\cf mdl_ -> if
@@ -452,10 +457,10 @@ filterCoeffActiveBooleans si mdl =
               | otherwise -> mdl_) mdl cffs
 
 
-filterRelOpBranch :: SpecInfo -> SMTModel -> SMTModel
+filterRelOpBranch :: SynthSpec -> SMTModel -> SMTModel
 filterRelOpBranch si mdl =
     let
-        clauses = allCNFs si
+        clauses = sy_coeffs si
         coeffs = concatMap snd clauses
     in
     -- If we are not using a clause, we don't care about c_op_branch1 and c_op_branch2
@@ -960,14 +965,20 @@ nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc =
       ++ lim_equiv_smt
     , nm_fc)
 
+---
 
 getCoeffs :: M.Map Name SpecInfo -> [SMTName]
 getCoeffs = concatMap siGetCoeffs . M.elems
 
+sySpecGetCoeffs :: SynthSpec -> [SMTName]
+sySpecGetCoeffs = concatMap coeffs . concatMap snd . sy_coeffs
+
 siGetCoeffs :: SpecInfo -> [SMTName]
 siGetCoeffs si
-    | s_status si == Synth = concatMap coeffs . concatMap snd $ allCNFs si
+    | s_status si == Synth = concatMap sySpecGetCoeffs $ allSynthSpec si
     | otherwise = []
+
+---
 
 getOpBranches:: M.Map Name SpecInfo -> [SMTName]
 getOpBranches = concatMap siGetOpBranches . M.elems
@@ -975,8 +986,22 @@ getOpBranches = concatMap siGetOpBranches . M.elems
 siGetOpBranches :: SpecInfo -> [SMTName]
 siGetOpBranches si
     | s_status si == Synth =
-        concatMap (\c -> [c_op_branch1 c, c_op_branch2 c]) . concatMap snd $ allCNFs si
+        concatMap sySpecGetOpBranches $ allSynthSpec si
     | otherwise = []
+
+sySpecGetOpBranches :: SynthSpec -> [SMTName]
+sySpecGetOpBranches = concatMap (\c -> [c_op_branch1 c, c_op_branch2 c]) . concatMap snd . sy_coeffs
+
+---
+
+sySpecGetActs :: SynthSpec -> [SMTName]
+sySpecGetActs sys = sySpecGetClauseActs sys ++ sySpecGetFuncActs sys
+
+sySpecGetClauseActs :: SynthSpec -> [SMTName]
+sySpecGetClauseActs = map fst . sy_coeffs
+
+sySpecGetFuncActs :: SynthSpec -> [SMTName]
+sySpecGetFuncActs = map c_active . concatMap snd . sy_coeffs
 
 getActs :: M.Map Name SpecInfo -> [SMTName]
 getActs si = getClauseActs si ++ getFuncActs si
@@ -1448,7 +1473,7 @@ applicableMeasure t e =
             | TyCon (Name n _ _ _) _ <- tyAppCenter ty = n /= "lh"
             | otherwise = False
 
--- Helpers
+-- Helpers for SynthInfo
 allSynthSpec :: SpecInfo -> [SynthSpec]
 allSynthSpec si = allPreSynthSpec si ++ allPostSynthSpec si
 
