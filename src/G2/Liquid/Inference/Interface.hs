@@ -288,8 +288,13 @@ refineUnsafe ghci m_modname lrs gs bad = do
         no_viol = concatMap snd res_no_viol
 
     liftIO $ do
+        putStrLn "--- Generated Counterexamples and Constraints ---"
         putStrLn $ "res = "
         printCE res
+
+        putStrLn $ "no_viol = "
+        mapM (putStrLn . printFC) no_viol
+
 
     let res' = filter (not . hasAbstractedArgError) res
 
@@ -314,11 +319,13 @@ adjModelAndMaxCEx has_new sz smt_mdl blk_mdls = do
                     let ns = map funcName $ allCallsFC repeated_fc
                         blk_mdls' = insertBlockedModel sz (MNOnly ns) smt_mdl blk_mdls                                      
                     incrMaxCExM
+                    incrMaxTimeM
                     return blk_mdls'
                 | otherwise -> do
                     liftIO $ putStrLn "adjModel no repeated_fc"
                     let blk_mdls' = insertBlockedModel sz MNAll smt_mdl blk_mdls
                     incrMaxCExM
+                    incrMaxTimeM
                     return blk_mdls'
 
 genNewConstraints :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> T.Text -> m ([CounterExample], [FuncConstraint])
@@ -328,10 +335,6 @@ genNewConstraints ghci m lrs n = do
     let (exec_res', no_viol) = partition (true_assert . final_state) exec_res
         
         allCCons = noAbsStatesToCons i $ exec_res' ++ no_viol
-    liftIO $ do
-        -- let no_abs = filter (null . abs_calls . track . final_state) $ exec_res' ++ no_viol
-        putStrLn $ "allCCons = "
-        mapM (putStrLn . printFC) allCCons
 
     return $ (map (lhStateToCE i) exec_res', allCCons)
 

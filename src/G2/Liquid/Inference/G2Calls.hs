@@ -212,6 +212,7 @@ inferenceReducerHalterOrderer :: (ProgresserM m, MonadIO m, Solver solver, Simpl
                               -> m (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
 inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modname cfn cf_funcs st = do
     extra_ce <- extraMaxCExM
+    extra_time <- extraMaxTimeM
 
     let
         ng = mkNameGen ()
@@ -227,10 +228,13 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
         ce_num = max_ce infconfig + extra_ce
         lh_max_outputs = LHMaxOutputsHalter ce_num
 
+        timeout = timeout_se infconfig + extra_time
+
     liftIO $ putStrLn $ "ce num for " ++ T.unpack entry ++ " is " ++ show ce_num
+    liftIO $ putStrLn $ "timeout for " ++ T.unpack entry ++ " is " ++ show timeout
     
-    timer_halter <- liftIO $ timerHalter (timeout_se infconfig * 2)
-    lh_timer_halter <- liftIO $ lhTimerHalter (timeout_se infconfig)
+    timer_halter <- liftIO $ timerHalter (timeout * 2)
+    lh_timer_halter <- liftIO $ lhTimerHalter timeout
 
     let halter =      LHAbsHalter entry mb_modname (expr_env st)
                  :<~> lh_max_outputs

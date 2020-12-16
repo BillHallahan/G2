@@ -97,6 +97,7 @@ mkExprHaskell ex = mkExprHaskell' ex 0
                                         ++ intercalate "\n" (map (mkAltHaskell (i + 2)) ae)
         mkExprHaskell' (Type _) _ = ""
         mkExprHaskell' (Cast e (_ :~ t)) i = "((coerce " ++ mkExprHaskell' e i ++ ") :: " ++ mkTypeHaskell t ++ ")"
+        mkExprHaskell' (Let _ e) i = "let { ... } in " ++ mkExprHaskell' e i
         mkExprHaskell' e _ = "e = " ++ show e ++ " NOT SUPPORTED"
 
         mkAltHaskell :: Int -> Alt -> String
