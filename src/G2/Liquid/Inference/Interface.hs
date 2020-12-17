@@ -169,7 +169,9 @@ iterativeInference con ghci m_modname lrs nls meas_ex max_sz gs fc = do
             ref <- getCEx ghci m_modname lrs gs check
             case ref of
                 Left cex -> return $ Left cex
-                Right fc' -> iterativeInference con ghci m_modname lrs nls r_meas_ex (incrMaxSize max_sz) gs (unionFC fc' r_fc)
+                Right fc' -> do
+                    r_meas_ex' <- updateMeasureExs r_meas_ex lrs ghci fc'
+                    iterativeInference con ghci m_modname lrs nls r_meas_ex' (incrMaxSize max_sz) gs (unionFC fc' r_fc)
 
 
 inferenceL :: (ProgresserM m, InfConfigM m, MonadIO m, SMTConverter con ast out io)

@@ -12,6 +12,7 @@ module G2.Language.Typing
     , tyDouble
     , tyFloat
     , tyBool
+    , tyChar
     , tyRational
     , tyList
     , tyMaybe
@@ -86,6 +87,9 @@ tyFloat kv = TyCon (KV.tyFloat kv) (tyTYPE kv)
 
 tyBool :: KV.KnownValues -> Type
 tyBool kv = TyCon (KV.tyBool kv) (tyTYPE kv)
+
+tyChar :: KV.KnownValues -> Type
+tyChar kv = TyCon (KV.tyChar kv) (tyTYPE kv)
 
 tyRational :: KV.KnownValues -> Type
 tyRational kv = TyCon (KV.tyRational kv) (tyTYPE kv)

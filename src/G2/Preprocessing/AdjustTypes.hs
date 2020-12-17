@@ -42,8 +42,8 @@ unpackString' :: TypeEnv -> KnownValues -> Expr -> Expr
 unpackString' tenv kv (App (Var (Id (Name "unpackCString#" _ _ _) _)) e) = unpackString' tenv kv e
 unpackString' tenv kv (Lit (LitString s)) = 
     let
-        cns = mkCons kv tenv
-        em = mkEmpty kv tenv
+        cns = App (mkCons kv tenv) (Type (tyChar kv))
+        em = App (mkEmpty kv tenv) (Type (tyChar kv))
 
         char = mkDCChar kv tenv
     in

@@ -477,7 +477,10 @@ getUnsatCoreZ3 h_in h_out = do
     out <- hGetLine h_out 
     putStrLn $ "unsat-core = " ++ out
     let out' = tail . init $ out -- drop opening and closing parens
-    return $ words out' 
+
+    case words out' of
+        "error":_ -> error "getUnsatCoreZ3: Error producing unsat core"
+        w -> return w
 
 getModelCVC4 :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
 getModelCVC4 h_in h_out ns = do
