@@ -213,7 +213,7 @@ inferenceL con ghci m_modname lrs nls evals meas_ex max_sz senv fc max_fc blk_md
                         Raise r_meas_ex r_fc r_max_fc has_new -> do
                             liftIO $ putStrLn "Up a level!"
                             
-                            blk_mdls' <- adjModelAndMaxCEx has_new sz smt_mdl blk_mdls
+                            blk_mdls' <- adjModelUnsatCore has_new sz smt_mdl blk_mdls
                             inferenceL con ghci m_modname lrs nls evals' r_meas_ex max_sz senv r_fc r_max_fc blk_mdls'
                         _ -> return inf_res
         _ -> return resAtL
@@ -270,7 +270,7 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
                             meas_ex' <- updateMeasureExs meas_ex lrs ghci fc'
                             liftIO $ putStrLn "After genMeasureExs"
 
-                            blk_mdls'' <- adjModelAndMaxCEx (hasNewFC viol_fc fc) sz smt_mdl blk_mdls'
+                            blk_mdls'' <- adjModel (hasNewFC viol_fc fc) sz smt_mdl blk_mdls'
                             inferenceB con ghci m_modname lrs nls evals' meas_ex' max_sz gs (unionFC fc fc') max_fc blk_mdls''
                 Crash _ _ -> error "inferenceB: LiquidHaskell crashed"
         SynthFail sf_fc -> return $ (Raise meas_ex fc (unionFC max_fc sf_fc) (hasNewFC sf_fc max_fc), evals')
@@ -310,22 +310,27 @@ refineUnsafe ghci m_modname lrs gs bad = do
             liftIO . putStrLn $ "new_fc' = " ++ printFCs new_fc'
             return $ Right (new_fc', fromListFC no_viol)
 
-adjModelAndMaxCEx :: (MonadIO m, ProgresserM m) => NewFC -> Size -> SMTModel
+adjModel :: (MonadIO m, ProgresserM m) => NewFC -> Size -> SMTModel
                   -> BlockedModels -> m BlockedModels
-adjModelAndMaxCEx has_new sz smt_mdl blk_mdls = do
+adjModel has_new sz smt_mdl blk_mdls = do
       case has_new of
             NewFC -> return blk_mdls
-            NoNewFC repeated_fc
-                | not $ nullFC repeated_fc -> do
-                    liftIO . putStrLn $ "adjModel repeated_fc = " ++ show repeated_fc
-                    let ns = map funcName $ allCallsFC repeated_fc
-                        blk_mdls' = insertBlockedModel sz (MNOnly ns) smt_mdl blk_mdls                                      
+            NoNewFC repeated_fc -> do
+                    liftIO $ putStrLn "adjModel no repeated_fc"
+                    let blk_mdls' = insertBlockedModel sz MNAll smt_mdl blk_mdls
                     incrMaxCExM
                     incrMaxTimeM
                     return blk_mdls'
-                | otherwise -> do
-                    liftIO $ putStrLn "adjModel no repeated_fc"
-                    let blk_mdls' = insertBlockedModel sz MNAll smt_mdl blk_mdls
+
+adjModelUnsatCore :: (MonadIO m, ProgresserM m) => NewFC -> Size -> SMTModel
+                  -> BlockedModels -> m BlockedModels
+adjModelUnsatCore has_new sz smt_mdl blk_mdls = do
+      case has_new of
+            NewFC -> return blk_mdls
+            NoNewFC repeated_fc -> do
+                    liftIO . putStrLn $ "adjModel repeated_fc = " ++ show repeated_fc
+                    let ns = map funcName $ allCallsFC repeated_fc
+                        blk_mdls' = insertBlockedModel sz (MNOnly ns) smt_mdl blk_mdls                                      
                     incrMaxCExM
                     incrMaxTimeM
                     return blk_mdls'
