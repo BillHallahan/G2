@@ -284,7 +284,10 @@ synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc blk_mdls sz = do
         mdls = lookupBlockedModels sz blk_mdls
         rel_mdls = map (uncurry (filterModelToRel si')) mdls
         block_mdls = map blockModelDirectly rel_mdls
-        fun_block_mdls = concatMap (uncurry (blockModelWithFuns si')) $ zip (map show [0..]) rel_mdls
+
+        non_equiv_mdls = lookupNonEquivBlockedModels sz blk_mdls
+        rel_non_equiv_mdls = map (uncurry (filterModelToRel si')) non_equiv_mdls
+        fun_block_mdls = concatMap (uncurry (blockModelWithFuns si')) $ zip (map show [0..]) rel_non_equiv_mdls
 
         ex_assrts =    [Comment "favor making coefficients 0"]
                     ++ zero_coeff_hdrs
@@ -298,7 +301,6 @@ synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc blk_mdls sz = do
     res <- synth' con eenv tc meas meas_ex evals si' fc ex_assrts drop_if_unknown blk_mdls sz
     case res of
         SynthEnv _ _ n_mdl _ -> do
-            let non_equiv_mdls = lookupNonEquivBlockedModels sz blk_mdls
             new  <- checkModelIsNewFunc con si' n_mdl non_equiv_mdls
             case new of
                 Nothing -> return res
@@ -479,7 +481,7 @@ filterRelOpBranch si mdl =
 -- and add assertions that the new synthesized specification definition must
 -- have a different output than the old specifications at at least one point.
 -- Because this requires a symbolic point being input into the synthesized function
--- (with symbolic coefficients) this requires (undecidable) non linear arithmetic.
+-- (with symbolic coefficients) this requires (undecidable) non linear arithmetic (NIA).
 blockModelWithFuns :: M.Map Name SpecInfo -> String -> SMTModel -> [SMTHeader]
 blockModelWithFuns si s mdl =
     let
