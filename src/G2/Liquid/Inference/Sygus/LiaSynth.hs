@@ -305,8 +305,14 @@ synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc blk_mdls sz = do
             case new of
                 Nothing -> return res
                 Just (_, eq_mdl) -> do
-                    let mn = determineRelSynthSpecs si' n_mdl eq_mdl
+                    let sys = concatMap allSynthSpec $ M.elems si'
+                        rel_n_mdl = filterIrrelByConstruction sys n_mdl
+                        rel_eq_mdl = filterIrrelByConstruction sys eq_mdl
+
+                        mn = determineRelSynthSpecs si' rel_n_mdl rel_eq_mdl
                         mdls' = foldr (\n -> insertEquivBlockedModel sz (MNOnlySMTNames [n]) n_mdl) blk_mdls mn
+
+                    liftIO . putStrLn $ "mn = " ++ show mn
                     synth con eenv tc meas meas_ex evals si ms fc mdls' sz
         SynthFail _
             | sz < max_sz -> synth con eenv tc meas meas_ex evals si ms fc blk_mdls (sz + 1)
@@ -430,10 +436,16 @@ filterModelToRel m_si ns mdl =
                                     $ M.elems m_si
         vs = map fst $ concatMap sySpecNamesForModel sys
     in
-      flip (foldr filterClauseActiveBooleans) sys
-    . flip (foldr filterCoeffActiveBooleans) sys
-    . flip (foldr filterRelOpBranch) sys
-    $ M.filterWithKey (\n _ -> n `elem` vs) mdl
+    filterIrrelByConstruction sys $ M.filterWithKey (\n _ -> n `elem` vs) mdl
+
+filterIrrelByConstruction :: Foldable f => f SynthSpec -> SMTModel -> SMTModel
+filterIrrelByConstruction = flip (foldr filterIrrelByConstruction')
+
+filterIrrelByConstruction' :: SynthSpec -> SMTModel -> SMTModel
+filterIrrelByConstruction' sys = 
+      filterClauseActiveBooleans sys
+    . filterCoeffActiveBooleans sys
+    . filterRelOpBranch sys
 
 -- If the clause level boolean is set to true, we remove all the
 -- formula level active booleans, since the formulas are
@@ -528,7 +540,8 @@ checkModelIsNewFunc con si mdl ((mdl_nm, mdl'):mdls) = do
                 print mdl_nm
                 print mdl
                 print mdl'
-                putStrLn $ "diff = " ++ show (M.toList mdl' L.\\ M.toList mdl)
+                putStrLn $ "diff 1 = " ++ show (M.toList mdl' L.\\ M.toList mdl)
+                putStrLn $ "diff 2 = " ++ show (M.toList mdl L.\\ M.toList mdl')
             return (Just (mdl_nm, mdl'))
 
 checkModelIsNewFunc' :: (MonadIO m, SMTConverter con ast out io) => con -> M.Map Name SpecInfo -> SMTModel -> SMTModel -> m Bool
