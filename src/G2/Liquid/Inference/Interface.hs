@@ -213,8 +213,7 @@ inferenceL con ghci m_modname lrs nls evals meas_ex max_sz senv fc max_fc blk_md
                         Raise r_meas_ex r_fc r_max_fc has_new -> do
                             liftIO $ putStrLn "Up a level!"
                             
-                            blk_mdls' <- adjModelUnsatCore has_new sz smt_mdl blk_mdls
-                            inferenceL con ghci m_modname lrs nls evals' r_meas_ex max_sz senv r_fc r_max_fc blk_mdls'
+                            inferenceL con ghci m_modname lrs nls evals' r_meas_ex max_sz senv r_fc r_max_fc blk_mdls
                         _ -> return inf_res
         _ -> return resAtL
 

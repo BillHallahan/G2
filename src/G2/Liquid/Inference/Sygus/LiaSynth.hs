@@ -875,9 +875,15 @@ envToSMT' meas_ex (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(Fu
 
                 pre_name = "pre_" ++ uc_n
                 post_name = "post_" ++ uc_n
+
+                -- In the case that we get an unsat core, we are only interested in knowing which specifications
+                -- that have already been chosen must be changed.  Thus, we only name those pieeces of the environment.
+                named = case s_status si of
+                            Known -> Named
+                            _ -> \x _ -> x
             in
-            [ (Named pre pre_name, (pre_name, pre_real))
-            , (Named post post_name, (post_name, post_real))]
+            [ (named pre pre_name, (pre_name, pre_real))
+            , (named post post_name, (post_name, post_real))]
         Nothing -> error "envToSMT': function not found"
 
 mkRetNonZero :: M.Map Name SpecInfo -> [SMTHeader]
