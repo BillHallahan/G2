@@ -984,6 +984,7 @@ nonMaxCoeffConstraints eenv tc meas meas_ex evals m_si fc =
 
         lim_equiv_smt = limitEquivModels m_si
     in
+    trace ("evals = " ++ printEvals show evals')
     (    var_act_hdrs
       ++ var_int_hdrs
       ++ var_op_hdrs

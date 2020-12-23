@@ -273,7 +273,9 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
                             blk_mdls'' <- adjModel (hasNewFC viol_fc fc) sz smt_mdl blk_mdls'
                             inferenceB con ghci m_modname lrs nls evals' meas_ex' max_sz gs (unionFC fc fc') max_fc blk_mdls''
                 Crash _ _ -> error "inferenceB: LiquidHaskell crashed"
-        SynthFail sf_fc -> return $ (Raise meas_ex fc (unionFC max_fc sf_fc) (hasNewFC sf_fc max_fc), evals')
+        SynthFail sf_fc -> do
+            liftIO . putStrLn $ "synthfail fc = " ++ (printFCs sf_fc)
+            return $ (Raise meas_ex fc (unionFC max_fc sf_fc) (hasNewFC sf_fc max_fc), evals')
 
 refineUnsafe :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState
              -> GeneratedSpecs
@@ -316,7 +318,7 @@ adjModel has_new sz smt_mdl blk_mdls = do
       case has_new of
             NewFC -> return blk_mdls
             NoNewFC repeated_fc -> do
-                    liftIO $ putStrLn "adjModel no repeated_fc"
+                    liftIO $ putStrLn "adjModel repeated_fc"
                     let blk_mdls' = insertBlockedModel sz MNAll smt_mdl blk_mdls
                     incrMaxCExM
                     incrMaxTimeM
@@ -328,7 +330,7 @@ adjModelUnsatCore has_new sz smt_mdl blk_mdls = do
       case has_new of
             NewFC -> return blk_mdls
             NoNewFC repeated_fc -> do
-                    liftIO . putStrLn $ "adjModel repeated_fc = " ++ show repeated_fc
+                    liftIO . putStrLn $ "adjModel unsat core repeated_fc = " ++ show repeated_fc
                     let ns = map funcName $ allCallsFC repeated_fc
                         blk_mdls' = insertBlockedModel sz (MNOnly ns) smt_mdl blk_mdls                                      
                     incrMaxCExM

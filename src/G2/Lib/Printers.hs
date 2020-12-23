@@ -9,7 +9,8 @@ module G2.Lib.Printers ( mkCleanExprHaskell
                        , ppPathConds
                        , ppPathCond
                        , pprExecStateStr
-                       , pprExecEEnvStr) where
+                       , pprExecEEnvStr
+                       , printFuncCall) where
 
 import G2.Execution.Memory
 import G2.Language.Expr
@@ -378,3 +379,10 @@ pprPathCondStr (ConsCond d expr b) = injTuple acc_strs
 pprCleanedNamesStr :: CleanedNames -> String
 pprCleanedNamesStr = injNewLine . map show . HM.toList
 
+printFuncCall :: FuncCall -> String
+printFuncCall (FuncCall { funcName = Name f _ _ _, arguments = ars, returns = r}) =
+    let
+        call_str fn = mkExprHaskell . foldl (\a a' -> App a a') (Var (Id fn TyUnknown)) $ ars
+        r_str = mkExprHaskell r
+    in
+    "(" ++ call_str (Name f Nothing 0 Nothing) ++ " " ++ r_str ++ ")"

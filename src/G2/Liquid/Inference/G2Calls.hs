@@ -27,6 +27,7 @@ module G2.Liquid.Inference.G2Calls ( MeasureExs
                                    , mapEvals
                                    , mapAccumLEvals
                                    , deleteEvalsForFunc
+                                   , printEvals
 
                                    , evalMeasures) where
 
@@ -38,6 +39,7 @@ import G2.Interface
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad
+import G2.Lib.Printers
 import G2.Liquid.Inference.Config
 import G2.Liquid.Conversion
 import G2.Liquid.G2Calls
@@ -571,6 +573,18 @@ deleteEvalsForFunc :: Name -> Evals a -> Evals a
 deleteEvalsForFunc n (Evals { pre_evals = pre_ev, post_evals = post_ev }) =
     Evals { pre_evals = HM.delete (zeroOutName n) pre_ev
           , post_evals = HM.delete (zeroOutName n) post_ev }
+
+printEvals :: (a -> String) -> Evals a -> String
+printEvals f (Evals { pre_evals = pre, post_evals = post }) =
+    "Evals {\npre_evals = " ++ printEvals' f pre ++ "\npost_evals = " ++ printEvals' f post ++ "\n}"
+
+printEvals' :: (a -> String) -> FCEvals a -> String
+printEvals' f =
+      intercalate "\n"
+    . map (\(fc, v) -> printFuncCall fc ++ " -> " ++ f v)
+    . HM.toList
+    . HM.unions
+    . HM.elems
 
 -------------------------------
 -- Eval Measures
