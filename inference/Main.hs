@@ -5,6 +5,7 @@ import G2.Config as G2
 import G2.Interface
 import G2.Liquid.Interface
 import G2.Liquid.Inference.Config
+import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.Interface
 import G2.Liquid.Inference.QualifGen
 import G2.Liquid.Inference.Verify
@@ -15,6 +16,8 @@ import Language.Fixpoint.Types.Constraints
 import Language.Haskell.Liquid.Types as LH
 
 import Control.DeepSeq
+import qualified Data.Map as M
+import qualified Data.Text as T
 import Data.Time.Clock
 import System.Environment
 
@@ -28,13 +31,20 @@ main = do
     config <- G2.getConfig as
     let infconfig = mkInferenceConfig as
 
-    case as of
-        (f:_) -> do
-            if "--qualif" `elem` as
-                then checkQualifs f config
-                else callInference f infconfig config
-        _ -> error "No path given"
+        func = strArg "liquid-func" as M.empty Just Nothing
 
+    case as of
+        (f:_) -> 
+            case func of
+                Nothing -> do
+                            if "--qualif" `elem` as
+                                then checkQualifs f config
+                                else callInference f infconfig config
+                Just func -> do
+                    ((in_out, _), entry) <- runLHInferenceAll infconfig config (T.pack func) [] [f] []
+                    printLHOut entry in_out
+                    return ()
+        _ -> error "No path given"
 
 checkQualifs :: String -> G2.Config -> IO ()
 checkQualifs f config = do

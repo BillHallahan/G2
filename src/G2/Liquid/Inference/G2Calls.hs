@@ -12,7 +12,11 @@ module G2.Liquid.Inference.G2Calls ( MeasureExs
                                    , PostEvals
                                    , FCEvals
                                    , Evals (..)
+
                                    , gatherAllowedCalls
+
+                                   , runLHInferenceAll
+
                                    , runLHInferenceCore
                                    , runLHCExSearch
                                    , checkFuncCall
@@ -49,6 +53,7 @@ import G2.Liquid.LHReducers
 import G2.Liquid.SpecialAsserts
 import G2.Liquid.TCValues
 import G2.Liquid.Types
+import G2.Liquid.Inference.Initalization
 import G2.Solver hiding (Assert)
 import G2.Translation
 
@@ -171,6 +176,37 @@ gatherReducerHalterOrderer infconfig config solver simplifier entry mb_modname s
               :<~> timer_halter)
         , SomeOrderer (ToOrderer $ IncrAfterN 2000 ADTHeightOrderer))
 
+-------------------------------
+-- Direct Counterexamples Calls
+-------------------------------
+-- This does all the work to take LH source code and run symbolic execution on the named function.
+-- In the inference algorithm itself, we don't want to use this, since if we did we would be
+-- needlessly repeatedly reading and compiling the code.  But it's to have an "end-to-end"
+-- function to just running the symbolic execution, for debugging.
+
+runLHInferenceAll :: MonadIO m
+                  => InferenceConfig
+                  -> Config
+                  -> T.Text
+                  -> [FilePath]
+                  -> [FilePath]
+                  -> [FilePath]
+                  -> m (([ExecRes AbstractedInfo], Bindings), Id)
+runLHInferenceAll infconfig config func proj fp lhlibs = do
+    -- Initialize LiquidHaskell
+    (ghci, lhconfig) <- liftIO $ getGHCI infconfig config proj fp lhlibs
+
+    let g2config = config { mode = Liquid
+                          , steps = 2000 }
+        transConfig = simplTranslationConfig { simpl = False }
+    (main_mod, exg2) <- liftIO $ translateLoaded proj fp lhlibs transConfig g2config
+
+    let (lrs, g2config', infconfig') = initStateAndConfig exg2 main_mod g2config infconfig ghci
+
+    let configs = Configs { g2_config = g2config', lh_config = lhconfig, inf_config = infconfig'}
+
+    runConfigs (runProgresser (runLHInferenceCore func main_mod lrs ghci) newProgress) configs
+ 
 -------------------------------
 -- Generating Counterexamples
 -------------------------------

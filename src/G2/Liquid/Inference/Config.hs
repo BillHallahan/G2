@@ -167,7 +167,7 @@ mkInferenceConfig as =
                     , timeout_se = strArg "timeout-se" as M.empty (fromInteger . read) 10
                     , timeout_sygus = strArg "timeout-sygus" as M.empty (fromInteger . read) 10 }
 
-adjustConfig :: Maybe T.Text -> SimpleState -> Config -> InferenceConfig -> [GhcInfo]-> (Config, InferenceConfig)
+adjustConfig :: Maybe T.Text -> SimpleState -> Config -> InferenceConfig -> [GhcInfo] -> (Config, InferenceConfig)
 adjustConfig main_mod (SimpleState { expr_env = eenv }) config infconfig ghci =
     let
         ref = refinable main_mod eenv
