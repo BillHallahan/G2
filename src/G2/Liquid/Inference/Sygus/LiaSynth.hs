@@ -250,9 +250,17 @@ liaSynthOfSize sz m_si =
                         , c_op_branch1 = s ++ "_op1_" ++ show j ++ "_t_" ++ show k
                         , c_op_branch2 = s ++ "_op2_" ++ show j ++ "_t_" ++ show k
                         , b0 = s ++ "_b_" ++ show j ++ "_t_" ++ show k
-                        , ars_coeffs = 
-                            [ s ++ "_a_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
-                            | a <- [1..ars]]
+                        
+                        -- We only want solutions that have one or more return values with a
+                        -- non-zero coefficient.  Thus, if we have no return values, we
+                        -- don't need to consider any arguments
+                        , ars_coeffs =
+                            if rets >= 1
+                                then
+                                    [ s ++ "_a_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
+                                    | a <- [1..ars]]
+                                else
+                                    []
                         , rets_coeffs = 
                             [ s ++ "_r_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
                             | a <- [1..rets]]
