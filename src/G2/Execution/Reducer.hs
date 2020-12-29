@@ -900,16 +900,19 @@ instance Orderer SymbolicADTOrderer (S.HashSet Name) Int t where
     stepOrderer _ v _ _ s =
         v `S.union` (S.fromList . map idName . symbolic_ids $ s)
 
--- Orders by the largest (in terms of height) (previously) symbolic ADT
-data ADTHeightOrderer = ADTHeightOrderer
+-- Orders by the size (in terms of height) of (previously) symbolic ADT.
+-- In particular, aims to first execute those states with a height closest to
+-- the specified height.
+data ADTHeightOrderer = ADTHeightOrderer Int
 
 instance MinOrderer ADTHeightOrderer (S.HashSet Name) Int t where
     minInitPerStateOrder _ = S.fromList . map idName . symbolic_ids
-    minOrderStates ord v _ s =
+    minOrderStates ord@(ADTHeightOrderer pref_height) v _ s =
         let
             m = maximum $ (-1):(S.toList $ S.map (flip adtHeight s) v)
+            h = abs (pref_height - m)
         in
-        (m, ord)
+        (h, ord)
     minUpdateSelected _ v _ _ = v
 
     minStepOrderer _ v _ _ s =
