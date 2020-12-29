@@ -139,9 +139,11 @@ class Reducer r rv t | r -> rv where
     -- | Takes a State, and performs the appropriate Reduction Rule
     redRules :: r -> rv -> State t -> Bindings -> IO (ReducerRes, [(State t, rv)], Bindings, r) 
     
-    -- | Gives an opportunity to update with all States and Reducer Val's,
+    -- | After a reducer returns multiple states,
+    -- gives an opportunity to update with all States and Reducer Val's,
     -- output by all Reducer's, visible
     -- Errors if the returned list is too short.
+    -- If only one state is returned by all reducers, updateWithAll does not run.
     {-# INLINE updateWithAll #-}
     updateWithAll :: r -> [(State t, rv)] -> [rv]
     updateWithAll _ = map snd 
@@ -272,6 +274,7 @@ instance (Reducer r1 rv1 t, Reducer r2 rv2 t) => Reducer (RCombiner r1 r2) (RC r
                 return (rr1, ss, b'', r1' :<~| r2')
             _ -> return (rr2, zip s' (map (uncurry RC) (zip (repeat rv1) rv2')), b', r1 :<~| r2')
 
+    {-# INLINE updateWithAll #-}
     updateWithAll (r1 :<~ r2) = updateWithAllRC r1 r2
     updateWithAll (r1 :<~? r2) = updateWithAllRC r1 r2
     updateWithAll (r1 :<~| r2) = updateWithAllRC r1 r2
@@ -905,9 +908,18 @@ instance Orderer SymbolicADTOrderer (S.HashSet Name) Int t where
 -- the specified height.
 data ADTHeightOrderer = ADTHeightOrderer Int
 
-instance MinOrderer ADTHeightOrderer (S.HashSet Name) Int t where
-    minInitPerStateOrder _ = S.fromList . map idName . symbolic_ids
-    minOrderStates ord@(ADTHeightOrderer pref_height) v _ s =
+-- Normally, each state tracks the names of currently symbolic variables,
+-- but here we want all variables that were ever symbolic.
+-- To track this, we use a HashSet.
+-- The tracked bool is to speed up adjusting this hashset- if it is set to false,
+-- we do not update the hashset.  If it is set to true,
+-- after the next step the hashset will be updated, and the bool will be set
+-- back to false.
+-- This avoids repeated operations on the hashset after rules that we know
+-- will not add symbolic variables.
+instance MinOrderer ADTHeightOrderer (S.HashSet Name, Bool) Int t where
+    minInitPerStateOrder _ s = (S.fromList . map idName . symbolic_ids $ s, False)
+    minOrderStates ord@(ADTHeightOrderer pref_height) (v, _) _ s =
         let
             m = maximum $ (-1):(S.toList $ S.map (flip adtHeight s) v)
             h = abs (pref_height - m)
@@ -915,8 +927,12 @@ instance MinOrderer ADTHeightOrderer (S.HashSet Name) Int t where
         (h, ord)
     minUpdateSelected _ v _ _ = v
 
+    minStepOrderer _ (v, _) _ _
+                  (State { curr_expr = CurrExpr _ (SymGen _) }) = (v, True)
+    minStepOrderer _ (v, True) _ _ s =
+        (v `S.union` (S.fromList . map idName . symbolic_ids $ s), False)
     minStepOrderer _ v _ _ s =
-        v `S.union` (S.fromList . map idName . symbolic_ids $ s)
+        v
 
 adtHeight :: Name -> State t -> Int
 adtHeight n s@(State { expr_env = eenv })
@@ -1080,8 +1096,10 @@ runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_
                 (_, reduceds, b', red') <- redRules red r_val s b
                 let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
 
-                    r_vals = updateWithAll red reduceds' ++ error "List returned by updateWithAll is too short."
-                    
+                    r_vals = if length reduceds' > 1
+                                then updateWithAll red reduceds' ++ error "List returned by updateWithAll is too short."
+                                else map snd reduceds
+
                     reduceds_h_vals = map (\(r, _) -> (r, h_val)) reduceds'
                     h_vals = updateHalterWithAll hal reduceds_h_vals ++ error "List returned by updateWithAll is too short."
 
