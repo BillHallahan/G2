@@ -374,21 +374,24 @@ instance Halter SearchedBelowHalter SBInfo LHTracker where
             
     stepHalter _ hv _ _ _ = hv
 
-data LHTimerHalter = LHTimerHalter { lh_init_time :: UTCTime, lh_max_seconds :: NominalDiffTime }
+data LHTimerHalter = LHTimerHalter { lh_init_time :: UTCTime
+                                   , lh_max_seconds :: NominalDiffTime
+                                   , lh_check_every :: Int }
 
 lhTimerHalter :: NominalDiffTime -> IO LHTimerHalter
 lhTimerHalter ms = do
     curr <- getCurrentTime
-    return LHTimerHalter { lh_init_time = curr, lh_max_seconds = ms }
+    return LHTimerHalter { lh_init_time = curr, lh_max_seconds = ms, lh_check_every = 10 }
 
-instance Halter LHTimerHalter () t where
-    initHalt _ _ = ()
-    updatePerStateHalt _ _ _ _ = ()
+instance Halter LHTimerHalter Int t where
+    initHalt _ _ = 0
+    updatePerStateHalt _ _ _ _ = 0
 
     stopRed tr@(LHTimerHalter { lh_init_time = it
                               , lh_max_seconds = ms })
-            _ (Processed { accepted = acc }) s
-        | any true_assert acc = do
+            v (Processed { accepted = acc }) s
+        | v == 0
+        , any true_assert acc = do
             curr <- getCurrentTime
             let diff = diffUTCTime curr it
 
@@ -397,7 +400,9 @@ instance Halter LHTimerHalter () t where
                 else return Continue
         | otherwise = return Continue
 
-    stepHalter _ _ _ _ _ = ()
+    stepHalter (LHTimerHalter { lh_check_every = ce }) v _ _ _
+        | v >= ce = 0
+        | otherwise = v + 1
 
 -- | Tries to consider the same number of states with each abstracted functions
 data LHLeastAbstracted ord = LHLeastAbstracted (S.HashSet Name) ord
