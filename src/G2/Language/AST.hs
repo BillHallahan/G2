@@ -93,6 +93,7 @@ modifyFixMonoid f = go f mempty
 
 -- | Recursively runs the given function on each node, top down. Uses mappend
 -- to combine the results after evaluation of the entire tree.
+{-# INLINE eval #-}
 eval :: (AST t, Monoid a) => (t -> a) -> t -> a
 eval f t = go t
     where
@@ -113,6 +114,7 @@ evalMonoid f = go f mempty
 
 -- | Evaluates all children of the given AST node with the given monoid,
 -- and `mconcat`s the results
+{-# INLINE evalChildren #-}
 evalChildren :: (AST t, Monoid a) => (t -> a) -> t -> a
 evalChildren f = mconcat . map f . children
 
@@ -168,8 +170,8 @@ instance AST Expr where
     children (Tick _ e) = [e]
     children (NonDet es) = es
     children (SymGen _) = []
-    children (Assume is e e') = containedASTs is ++ [e, e']
-    children (Assert is e e') = containedASTs is ++ [e, e']
+    children (Assume _ e e') = [e, e']
+    children (Assert _ e e') = [e, e']
 
     modifyChildren f (App fx ax) = App (f fx) (f ax)
     modifyChildren f (Lam u b e) = Lam u b (f e)
