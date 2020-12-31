@@ -327,7 +327,8 @@ evalCase s@(State { expr_env = eenv
   -- We hit a DEFAULT instead.
   -- We perform the cvar binding and proceed with the alt
   -- expression.
-  | (Data _):_ <- unApp $ unsafeElimOuterCast mexpr
+  | e:_ <- unApp $ unsafeElimOuterCast mexpr
+  , isData e || isLit e
   , (Alt _ expr):_ <- matchDefaultAlts alts =
       let 
           binds = [(bind, mexpr)]
@@ -700,10 +701,18 @@ retAssumeFrame s@(State {known_values = kv
         dalt = case (getDataCon tenv (KV.tyBool kv) (KV.dcTrue kv)) of
             Just dc -> [dc]
             _ -> []
-        -- If Assume is just a Var, concretize the Expr to a True Bool DataCon. Else add an ExtCond
+        -- Special handling in case we just have a concrete DataCon, or a lone Var
         (newPCs, ng') = case unApp $ unsafeElimOuterCast e1 of
+            [Data (DataCon dcn _)]
+                | dcn == KV.dcFalse kv -> ([], ng)
+                | dcn == KV.dcTrue kv ->
+                    ( [NewPC { state = s { curr_expr = CurrExpr Evaluate e2
+                                         , exec_stack = stck }
+                             , new_pcs = []
+                             , concretized = [] }]
+                    , ng)
             (Var i@(Id _ _)):_ -> concretizeExprToBool s ng i dalt e2 stck
-            _ -> addExtCond s ng e1 e2 True stck
+            _ -> addExtCond s ng e1 e2 stck
     in
     (RuleReturnCAssume, newPCs, ng')
 
@@ -716,8 +725,23 @@ retAssertFrame s@(State {known_values = kv
         dalts = case getDataCons (KV.tyBool kv) tenv of
             Just dcs -> dcs
             _ -> []
-        -- If Assert is just a Var, concretize the Expr to a True or False Bool DataCon, else add an ExtCond
+        -- Special handling in case we just have a concrete DataCon, or a lone Var
         (newPCs, ng') = case unApp $ unsafeElimOuterCast e1 of
+            [Data (DataCon dcn _)]
+                | dcn == KV.dcFalse kv ->
+                    ( [NewPC { state = s { curr_expr = CurrExpr Evaluate e2
+                                         , exec_stack = stck
+                                         , true_assert = True
+                                         , assert_ids = ais } 
+                             , new_pcs = []
+                             , concretized = [] }]
+                    , ng)
+                | dcn == KV.dcTrue kv ->
+                    ( [NewPC { state = s { curr_expr = CurrExpr Evaluate e2
+                                         , exec_stack = stck }
+                             , new_pcs = []
+                             , concretized = [] }]
+                    , ng)
             (Var i@(Id _ _)):_ -> concretizeExprToBool s ng i dalts e2 stck
             _ -> addExtConds s ng e1 ais e2 stck
             
@@ -756,11 +780,11 @@ concretizeExprToBool' s@(State {expr_env = eenv
                         then False
                         else True
 
-addExtCond :: State t -> NameGen -> Expr -> Expr -> Bool -> S.Stack Frame -> ([NewPC t], NameGen)
-addExtCond s ng e1 e2 boolVal stck = 
+addExtCond :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> ([NewPC t], NameGen)
+addExtCond s ng e1 e2 stck = 
     ([NewPC { state = s { curr_expr = CurrExpr Evaluate e2
                          , exec_stack = stck}
-             , new_pcs = [ExtCond e1 boolVal]
+             , new_pcs = [ExtCond e1 True]
              , concretized = [] }], ng)
 
 addExtConds :: State t -> NameGen -> Expr -> Maybe (FuncCall) -> Expr -> S.Stack Frame -> ([NewPC t], NameGen)

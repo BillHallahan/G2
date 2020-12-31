@@ -33,6 +33,9 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , mkRealExtractOrd
                         , mkOrdExtractEq
 
+                        , isData
+                        , isLit
+
                         , replaceVar
                         , getFuncCalls
                         , getFuncCallsRHS
@@ -204,6 +207,14 @@ mkRealExtractOrd kv = Var $ Id (KV.realExtractOrd kv) TyUnknown
 
 mkOrdExtractEq :: KnownValues -> Expr
 mkOrdExtractEq kv = Var $ Id (KV.ordExtractEq kv) TyUnknown
+
+isData :: Expr -> Bool
+isData (Data _) = True
+isData _ = False
+
+isLit :: Expr -> Bool
+isLit (Lit _) = True
+isLit _ = False
 
 replaceVar :: ASTContainer m Expr => Name -> Expr -> m -> m
 replaceVar n e = modifyASTs (replaceVar' n e)
