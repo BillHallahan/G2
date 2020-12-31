@@ -267,7 +267,7 @@ convertSpecType cp m bt (i:is) r (RFun {rt_bind = b, rt_in = fin, rt_out = fout 
             e' <- convertSpecType cp m bt' [] (Just i') fin
             an <- lhAndE
             let e'' = if cp == CheckPre
-                            then App (App an e) e'
+                            then App (App an e') e
                             else e
             
             return $ App (Lam TermL i' e'') (Var i)
