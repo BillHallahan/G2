@@ -30,6 +30,7 @@ import GetNthTest
 import DefuncTest
 import CaseTest
 import Expr
+import Simplifications
 import Typing
 import UnionFindTests
 import UFMapTests
@@ -63,6 +64,7 @@ tests = return . testGroup "Tests"
         , primTests
         , exprTests
         , typingTests
+        , return simplificationTests
         , return ufMapQuickcheck
         , return unionFindQuickcheck
         ]

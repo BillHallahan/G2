@@ -80,6 +80,7 @@ library
                        , G2.Language.Naming
                        , G2.Language.PathConds
                        , G2.Language.Primitives
+                       , G2.Language.Simplification
                        , G2.Language.Stack
                        , G2.Language.Support
                        , G2.Language.Syntax
@@ -310,6 +311,7 @@ test-suite test
                        , InputOutputTest
                        , PeanoTest
                        , Reqs
+                       , Simplifications
                        , TestUtils
                        , Typing
                        , UFMapTests
