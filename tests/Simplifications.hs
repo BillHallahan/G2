@@ -13,6 +13,7 @@ simplificationTests =
     testGroup "Simplifications" [
           testCase "AppLamSimplification" (assertBool "Substituting two variables" simplifyAppLambdasTest1)
         , testCase "AppLamSimplification" (assertBool "Substituting two variables" simplifyAppLambdasTest2)
+        , testCase "AppLamSimplification" (assertBool "Substituting a tyvar" simplifyTyVar1)
         ]
 
 
@@ -35,6 +36,22 @@ simplifyAppLambdasTest2 =
         e = App le (Var id3)
     in
     simplifyAppLambdas e == Var id3
+
+simplifyTyVar1 :: Bool
+simplifyTyVar1 =
+    let
+        tyvar_id1 = Id (Name "tv_1" Nothing 0 Nothing) TYPE
+        tyvar_id2 = Id (Name "tv_2" Nothing 0 Nothing) TYPE
+
+        v_n = Name "v" Nothing 0 Nothing
+        v_id1 = Id v_n (TyVar tyvar_id1)
+        v_id2 = Id v_n (TyVar tyvar_id2)
+
+        le = Lam TypeL tyvar_id1 (Var v_id1)
+        e = App le (Var tyvar_id2)
+    in
+    simplifyAppLambdas e == Var v_id2
+
 
 id1 :: Id
 id1 = Id (Name "a" Nothing 0 Nothing) TyUnknown

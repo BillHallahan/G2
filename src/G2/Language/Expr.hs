@@ -217,12 +217,13 @@ isLit (Lit _) = True
 isLit _ = False
 
 replaceVar :: ASTContainer m Expr => Name -> Expr -> m -> m
-replaceVar n e = modifyASTs (replaceVar' n e)
+replaceVar n e = modifyContainedASTs (replaceVar' n e)
 
 replaceVar' :: Name -> Expr -> Expr -> Expr
 replaceVar' n e v@(Var (Id n' _)) =
     if n == n' then e else v
-replaceVar' _ _ e = e
+replaceVar' n e le@(Lam _ (Id n' _) _) | n == n' = le
+replaceVar' n e e' = modifyChildren (replaceVar' n e) e'
 
 getFuncCalls :: ASTContainer m Expr => m -> [Expr]
 getFuncCalls = evalContainedASTs getFuncCalls'

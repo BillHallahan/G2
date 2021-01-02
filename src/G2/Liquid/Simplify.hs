@@ -3,6 +3,7 @@
 module G2.Liquid.Simplify ( simplify ) where
 
 import G2.Language
+import qualified G2.Language.Simplification as GSimp
 import G2.Language.Monad
 import G2.Liquid.Types
 
@@ -14,6 +15,7 @@ simplify = do
     mapCurrExpr simplifyExpr
     mapAssumptionsM simplifyExpr
     mapAnnotsExpr simplifyExpr
+    mapE GSimp.simplifyExprs
 
 simplifyExprEnv :: LHStateM ()
 simplifyExprEnv = mapME simplifyExpr
