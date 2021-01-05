@@ -14,6 +14,8 @@ module G2.Liquid.Types ( LHOutput (..)
                        , Assumptions
                        , Posts
 
+                       , tcValuesM
+
                        , mapAbstractedFCs
                        , mapAbstractedInfoFCs
                        , consLHState
@@ -40,6 +42,7 @@ module G2.Liquid.Types ( LHOutput (..)
                        , lookupAnnotM
                        , insertAnnotM
                        , mapAnnotsExpr
+                       , lookupRenamedTCDict
                        , andM
                        , orM
                        , notM
@@ -89,6 +92,7 @@ import qualified G2.Language as L
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.KnownValues as KV
 import G2.Language.Monad
+import G2.Language.TypeClasses
 
 import G2.Liquid.TCValues
 
@@ -402,6 +406,11 @@ mapAnnotsExpr f = do
     annots' <- modifyContainedASTsM f (annots lh_s)
     SM.put $ (lh_s {annots = annots'}, b)
 
+lookupRenamedTCDict :: L.Name -> L.Type -> LHStateM (Maybe L.Id)
+lookupRenamedTCDict n t = do
+    tc <- lhRenamedTCM
+    return $ lookupTCDict tc n t
+
 -- | andM
 -- The version of 'and' in the measures
 andM :: LHStateM L.Expr
@@ -433,6 +442,9 @@ iffM = do
     m <- measuresM
     n <- lhIffM
     return (m E.! n)
+
+tcValuesM :: LHStateM TCValues
+tcValuesM = liftTCValues id
 
 liftTCValues :: (TCValues -> a) -> LHStateM a
 liftTCValues f = do

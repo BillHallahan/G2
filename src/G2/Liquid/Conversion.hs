@@ -192,7 +192,7 @@ createPost st e = do
 dictMapFromIds :: [Id] -> LHStateM DictMaps
 dictMapFromIds is = do
     lh <- lhTCM
-    num <- numTCM
+    num <- lhNumTCM
     int <- return . KV.integralTC =<< knownValues
     frac <- return . KV.fractionalTC =<< knownValues
     ord <- ordTCM
@@ -375,7 +375,7 @@ convertLHExpr m bt t (ENeg e) = do
     let t' = typeOf e'
 
     neg <- lhNegateM
-    num <- numTCM
+    num <- lhNumTCM
     a <- freshIdN TYPE
     let tva = TyVar a
     let negate' = Var $ Id neg 
@@ -467,7 +467,7 @@ convertBop Ref.RDiv = convertBop' lhDivM
 
 convertBop' :: LHStateM Name -> LHStateM Expr
 convertBop' f = do
-    num <- numTCM
+    num <- lhNumTCM
     n <- f
     a <- freshIdN TYPE
     let tva = TyVar a
@@ -768,7 +768,7 @@ lhTCDict' m t = do
 
 maybeNumDict :: DictMaps -> Type -> LHStateM (Maybe Expr)
 maybeNumDict m t = do
-    num <- numTCM
+    num <- lhNumTCM
     typeClassInstTC (num_dicts m) num t
 
 numDict :: DictMaps -> Type -> LHStateM Expr

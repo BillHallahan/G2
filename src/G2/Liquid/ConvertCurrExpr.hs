@@ -61,7 +61,7 @@ modifyInputExpr' :: Id -> Expr -> LHStateM (Id, [Name])
 modifyInputExpr' i e = do
     (e', ns) <- rebindFuncs e
     e'' <- letLiftFuncs e'
-    let e''' = replaceLocalAssertName e''
+    e''' <- replaceLocalAssert i e''
 
     newI <- freshSeededIdN (idName i) (typeOf i)
     insertE (idName newI) e'''
@@ -83,13 +83,21 @@ rebindFuncs e = do
         rewriteAssertName n (Assert (Just fc) e1 e2) = Assert (Just $ fc {funcName = n}) e1 e2
         rewriteAssertName n e1 = modifyChildren (rewriteAssertName n) e1
 
-replaceLocalAssertName :: Expr -> Expr
-replaceLocalAssertName =
-    modifyASTs
-    (\e -> case e of
-                Assert (Just fc) e1 e2 ->
-                    Assert (Just $ fc { funcName = initiallyCalledFuncName}) e1 e2
-                _ -> e)
+-- | We are assuming the precondiiton holds, so we only have to check the postcondition!
+-- We also replace the name of the assert so we can recognize it as the inital call later.
+replaceLocalAssert :: Id -> Expr -> LHStateM Expr
+replaceLocalAssert (Id n _) ce = do
+    n_assert <- lookupPostM n
+    return $ modifyASTs
+        (\e -> case e of
+                    Assert (Just fc) e1 e2 ->
+                        let ars = arguments fc ++ [returns fc]
+                            assrt = case n_assert of
+                                        Just a -> mkApp (a:ars)
+                                        Nothing -> e1
+                        in 
+                        Assert (Just $ fc { funcName = initiallyCalledFuncName}) assrt e2
+                    _ -> e) ce
 
 initiallyCalledFuncName :: Name
 initiallyCalledFuncName = Name "INITIALLY_CALLED_FUNC" Nothing 0 Nothing

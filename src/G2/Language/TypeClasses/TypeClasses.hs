@@ -205,7 +205,7 @@ instance ASTContainer Class Type where
                                     , superclasses = modifyContainedASTs f $ superclasses c}
 
 instance Named TypeClasses where
-    names = names . (coerce :: TypeClasses -> TCType)
+    names (TypeClasses tc) = M.keys tc ++ names tc
     rename old new (TypeClasses m) =
         coerce $ M.mapKeys (rename old new) $ rename old new m
     renames hm (TypeClasses m) =

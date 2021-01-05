@@ -223,6 +223,13 @@ replaceVar' :: Name -> Expr -> Expr -> Expr
 replaceVar' n e v@(Var (Id n' _)) =
     if n == n' then e else v
 replaceVar' n e le@(Lam _ (Id n' _) _) | n == n' = le
+replaceVar' n e (Case b i@(Id n' _) as) | n == n' = Case (replaceVar n e b) i as
+replaceVar' n e (Case b i as) = Case (replaceVar' n e b) i (map repAlt as)
+    where
+        repAlt a@(Alt (DataAlt _ is) e')
+            | n `elem` map idName is = a
+        repAlt a = modifyContainedASTs (replaceVar' n e) a
+replaceVar' n e le@(Let b e') | n `elem` map (idName . fst) b = le
 replaceVar' n e e' = modifyChildren (replaceVar' n e) e'
 
 getFuncCalls :: ASTContainer m Expr => m -> [Expr]

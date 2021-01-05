@@ -3,13 +3,15 @@ module G2.Language.CallGraph ( CallGraph
                              , functions
                              , calls
                              , calledBy
-                             , nameLevels ) where
+                             , nameLevels
+                             , reachable ) where
 
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Naming
 import G2.Language.Syntax
 
-import Data.Graph
+import Data.Graph hiding (reachable)
+import qualified Data.Graph as G
 import qualified Data.HashMap.Lazy as M
 import Data.Maybe
 
@@ -44,6 +46,7 @@ callsList cg = map (\(v1, v2) -> (mid $ nfv cg v1, mid $ nfv cg v2)) . edges $ g
 nodeName :: CallGraph -> Vertex -> Name
 nodeName g v = (\(_, n, _) -> n) $ nfv g v
 
+-- | Functions directly called by the named function
 calls :: Name -> CallGraph -> Maybe [Name]
 calls n g = fmap (\(_, _, ns) -> ns) . fmap (nfv g) $ vert g n
 
@@ -51,6 +54,11 @@ calledBy :: Name -> CallGraph -> [Name]
 calledBy n g = map fst
              . filter ((==) n . snd)
              . map (\(v1, v2) -> (nodeName g v1, nodeName g v2)) $ edges (graph g)
+
+-- Functions directly and indirectly called by the named function
+reachable :: Name -> CallGraph -> [Name]
+reachable n g =
+    map ((\(_, x, _) -> x) . nfv g) . maybe [] (G.reachable $ graph g) $ vert g n
 
 -- | Returns:
 -- (1) a list of list of names, where the first list contains functions
