@@ -14,7 +14,8 @@ module G2.Solver.Solver ( Solver (..)
                         , groupRelatedFinite
                         , groupRelatedInfinite
                         , CombineSolvers (..)
-                        , UndefinedHigherOrder (..)) where
+                        , UndefinedHigherOrder (..)
+                        , UnknownSolver (..)) where
 
 import G2.Language
 import qualified G2.Language.PathConds as PC
@@ -234,3 +235,13 @@ instance (ASTContainer m e, ASTContainer u e) => ASTContainer (Result m u) e whe
     modifyContainedASTs f (UNSAT u) = UNSAT (modifyContainedASTs f u)
     modifyContainedASTs _ u@(Unknown _) = u
 
+-- A solver that returns unknown on all but the most trivial (empty) PCs
+data UnknownSolver = UnknownSolver
+
+instance Solver UnknownSolver where
+    check _ _ pc
+        | PC.null pc = return (SAT ())
+        | otherwise = return (Unknown "unknown")
+    solve _ _ _ _ pc
+        | PC.null pc = return (SAT HM.empty)
+        | otherwise = return (Unknown "unknown")

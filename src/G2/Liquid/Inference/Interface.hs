@@ -240,21 +240,41 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
                 putStrLn $ "fs = " ++ show fs
                 putStrLn $ "init gs' = " ++ show gs'
 
-            res <- tryToVerifyOnly ghci' fs
+            res <- tryToVerify ghci'
+            let res' = filterToLevel fs res
             
-            case res of
+            case res' of
                 Safe -> return $ (Env gs' fc max_fc meas_ex sz smt_mdl, evals')
                 Unsafe bad -> do
                     ref <- refineUnsafe ghci m_modname lrs gs' bad
                     case ref of
                         Left cex -> return $ (CEx cex, evals')
                         Right (viol_fc, no_viol_fc) -> do
-                            let fc' = unionFC viol_fc no_viol_fc
+                            (below_fc, blk_mdls'') <- case hasNewFC viol_fc fc of
+                                              has_new@(NoNewFC _) -> do
+                                                  case filterToLevel sf res of
+                                                      Unsafe bad_sf -> do
+                                                          liftIO $ putStrLn "About to run second run of CEx generation"
+                                                          ref_sf <- withConfigs noCounterfactual $ refineUnsafe ghci m_modname lrs gs' bad_sf
+                                                          case ref_sf of
+                                                              Left cex -> error "TODO"
+                                                              Right (viol_fc_sf, no_viol_fc_sf) ->
+                                                                  case hasNewFC viol_fc_sf fc of
+                                                                      NoNewFC _ -> do
+                                                                          new_blk_mdls <- adjModel has_new sz smt_mdl blk_mdls'
+                                                                          return (viol_fc_sf `unionFC` no_viol_fc_sf, new_blk_mdls)                                                
+                                                                      NewFC -> return (viol_fc_sf `unionFC` no_viol_fc_sf, blk_mdls')
+                                                      Safe -> do
+                                                          new_blk_mdls <- adjModel has_new sz smt_mdl blk_mdls'
+                                                          return (emptyFC, new_blk_mdls)
+                                                      Crash _ _ -> error "inferenceB: LiquidHaskell crashed"
+                                              NewFC -> return (emptyFC, blk_mdls')
+
+                            let fc' = viol_fc `unionFC` no_viol_fc `unionFC` below_fc
                             liftIO $ putStrLn "Before genMeasureExs"
                             meas_ex' <- updateMeasureExs meas_ex lrs ghci fc'
                             liftIO $ putStrLn "After genMeasureExs"
 
-                            blk_mdls'' <- adjModel (hasNewFC viol_fc fc) sz smt_mdl blk_mdls'
                             inferenceB con ghci m_modname lrs nls evals' meas_ex' max_sz gs (unionFC fc fc') max_fc blk_mdls''
                 Crash _ _ -> error "inferenceB: LiquidHaskell crashed"
         SynthFail sf_fc -> do
@@ -301,7 +321,7 @@ adjModel :: (MonadIO m, ProgresserM m) => NewFC -> Size -> SMTModel
 adjModel has_new sz smt_mdl blk_mdls = do
       case has_new of
             NewFC -> return blk_mdls
-            NoNewFC repeated_fc -> do
+            NoNewFC _ -> do
                     liftIO $ putStrLn "adjModel repeated_fc"
                     let blk_mdls' = insertBlockedModel sz MNAll smt_mdl blk_mdls
                     incrMaxCExM
@@ -320,6 +340,20 @@ adjModelUnsatCore has_new sz smt_mdl blk_mdls = do
                     incrMaxCExM
                     incrMaxTimeM
                     return blk_mdls'
+
+filterToLevel ::  [Name] -> VerifyResult Name -> VerifyResult Name
+filterToLevel ns (Unsafe unsafe) = 
+    case filter (\n -> toOccMod n `elem` ns_nm) unsafe of
+        [] -> Safe
+        unsafe' -> do
+          Unsafe unsafe'
+    where
+        ns_nm = map toOccMod ns
+        toOccMod (Name n m _ _) = (n, m)
+filterToLevel _ vr = vr
+
+noCounterfactual :: Configs -> Configs
+noCounterfactual cons@(Configs { g2_config = g2_c }) = cons { g2_config = g2_c { counterfactual = NotCounterfactual } }
 
 genNewConstraints :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> T.Text -> m ([CounterExample], [FuncConstraint])
 genNewConstraints ghci m lrs n = do
