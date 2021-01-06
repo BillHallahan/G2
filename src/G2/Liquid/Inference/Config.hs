@@ -146,16 +146,19 @@ instance InfConfigM m => InfConfigM (StateT env m) where
     infConfigM = lift infConfigM
 
 
-data InferenceConfig = InferenceConfig { keep_quals :: Bool
+data InferenceConfig =
+    InferenceConfig { keep_quals :: Bool
 
-                                       , modules :: S.HashSet (Maybe T.Text)
-                                       , max_ce :: Int
+                    , modules :: S.HashSet (Maybe T.Text)
+                    , max_ce :: Int
 
-                                       , pre_refined :: S.HashSet  (T.Text, Maybe T.Text)
-                                       , refinable_funcs :: S.HashSet (T.Text, Maybe T.Text)
-                                       
-                                       , timeout_se :: NominalDiffTime
-                                       , timeout_sygus :: NominalDiffTime }
+                    , pre_refined :: S.HashSet  (T.Text, Maybe T.Text)
+                    , refinable_funcs :: S.HashSet (T.Text, Maybe T.Text)
+
+                    , restrict_coeffs :: Bool -- ^ If true, only allow coefficients in the range of -1 <= c <= 1
+                   
+                    , timeout_se :: NominalDiffTime
+                    , timeout_sygus :: NominalDiffTime }
 
 runConfigs :: InfConfig env => ReaderT env m a -> env -> m a
 runConfigs = runReaderT
@@ -165,6 +168,7 @@ mkInferenceConfig as =
     InferenceConfig { keep_quals = boolArg "keep-quals" as M.empty On
                     , modules = S.empty
                     , max_ce = strArg "max-ce" as M.empty read 10
+                    , restrict_coeffs = boolArg "restrict-coeffs" as M.empty Off
                     , timeout_se = strArg "timeout-se" as M.empty (fromInteger . read) 10
                     , timeout_sygus = strArg "timeout-sygus" as M.empty (fromInteger . read) 10 }
 
@@ -180,8 +184,8 @@ adjustConfig main_mod (SimpleState { expr_env = eenv }) config infconfig ghci =
 
         ns_mm = map (\(Name n m _ _) -> (n, m))
               -- . filter (\(Name n m _ _) -> not $ (n, m) `S.member` pre)
-              -- . filter (\(Name n _ _ _) -> n `notElem` [ "mapReduce", "singleton", "concat", "append"
-              --                                          , "map", "replicate", "empty", "zipWith", "add"])
+              . filter (\(Name n _ _ _) -> n `notElem` [ "mapReduce", "singleton", "concat", "append"
+                                                       , "map", "replicate", "empty", "zipWith", "add"])
               . filter (\(Name n m _ _) -> (n, m) `elem` ref)
               . E.keys $ E.filter (not . tyVarRetTy) eenv
 

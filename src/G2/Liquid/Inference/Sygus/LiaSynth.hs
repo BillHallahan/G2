@@ -216,10 +216,10 @@ buildSpecInfo con tc ghci lrs ns_aty_rty to_be_ns_aty_rty known_ns_aty_rty meas_
     in
     si''
 
-liaSynthOfSize :: Integer -> M.Map Name SpecInfo -> M.Map Name SpecInfo
-liaSynthOfSize sz m_si =
-    let
-        m_si' =
+liaSynthOfSize :: InfConfigM m => Integer -> M.Map Name SpecInfo -> m (M.Map Name SpecInfo)
+liaSynthOfSize sz m_si = do
+    inf_c <- infConfigM
+    let m_si' =
             M.map (\si -> 
                     let
                         s_syn_pre' =
@@ -235,9 +235,8 @@ liaSynthOfSize sz m_si =
                     in
                     si { s_syn_pre = s_syn_pre' -- (s_syn_pre si) { sy_coeffs = pre_c }
                        , s_syn_post = s_syn_post' -- (s_syn_post si) { sy_coeffs = post_c }
-                       , s_max_coeff = {- 2 * sz -} 1}) m_si
-    in
-    m_si'
+                       , s_max_coeff = if restrict_coeffs inf_c then 1 else 2 * sz }) m_si
+    return m_si'
     where
         list_i_j s ars rets =
             [ 
@@ -283,8 +282,8 @@ synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
       -> Size
       -> m SynthRes
 synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc blk_mdls sz = do
-    let si' = liaSynthOfSize sz si
-        zero_coeff_hdrs = softCoeffAssertZero si' -- ++ softFuncActAssertZero si' ++ softClauseActAssertZero si'
+    si' <- liaSynthOfSize sz si
+    let zero_coeff_hdrs = softCoeffAssertZero si' -- ++ softFuncActAssertZero si' ++ softClauseActAssertZero si'
         -- zero_coeff_hdrs = softFuncActAssertZero si' ++ softClauseActAssertZero si'
         -- zero_coeff_hdrs = softCoeffAssertZero si' -- softFuncActAssertZero si' ++ softClauseActAssertZero si'
         max_coeffs_cons = maxCoeffConstraints si'
