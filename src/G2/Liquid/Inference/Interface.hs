@@ -579,9 +579,12 @@ noAbsStatesToCons' i@(Id (Name _ m _ _) _) er =
              $ final_state er
 
         preCons = map (ImpliesFC pre_s . Call Pre) clls
-        callsCons = map (\fc -> case isError (returns fc) of
-                                  True -> NotFC (Call Pre fc)
-                                  False -> Call All fc) clls
+        -- A function may return error because it was passed an erroring higher order function.
+        -- In this case, it would be incorrect to add a constraint that the function itself calls error.
+        -- Thus, we simply get rid of constraints that call error. 
+        callsCons = mapMaybe (\fc -> case isError (returns fc) of
+                                      True -> Nothing -- NotFC (Call Pre fc)
+                                      False -> Just (Call All fc)) clls
         callsCons' = if hits_lib_err_in_real (init_call . track . final_state $ er)
                                     then []
                                     else callsCons
