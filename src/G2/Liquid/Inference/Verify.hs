@@ -339,6 +339,6 @@ solveCs infconfig cfg tgt cgi info names = do
   return fres
 
 
-e2u :: Config -> F.FixSolution -> Error -> UserError
-e2u cfg s = fmap F.pprint . tidyError cfg s
+-- e2u :: Config -> F.FixSolution -> Error -> UserError
+-- e2u cfg s = fmap F.pprint . tidyError cfg s
 
