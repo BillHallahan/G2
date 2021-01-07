@@ -238,6 +238,7 @@ liquidOne infconfig info = do
   edcs <- newPrune      cfg cbs' tgt info
   liquidQueries infconfig cfg      tgt info edcs
 
+#if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
 newPrune :: Config -> [CoreBind] -> FilePath -> GhcInfo -> IO (Either [CoreBind] [DC.DiffCheck])
 newPrune cfg cbs tgt info
   | not (null vs) = return . Right $ [DC.thin cbs sp vs]
@@ -248,9 +249,17 @@ newPrune cfg cbs tgt info
     ignores       = gsIgnoreVars sp 
     vs            = gsTgtVars    sp
     sp            = spec       info
-
-#if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
 #else
+newPrune :: Config -> [CoreBind] -> FilePath -> GhcInfo -> IO (Either [CoreBind] [DC.DiffCheck])
+newPrune cfg cbs tgt info
+  | not (null vs) = return . Right $ [DC.thin cbs sp vs]
+  | timeBinds cfg = return . Right $ [DC.thin cbs sp [v] | v <- exportedVars info ]
+  | diffcheck cfg = maybeEither cbs <$> DC.slice tgt cbs sp
+  | otherwise     = return  (Left cbs)
+  where
+    vs            = gsTgtVars sp
+    sp            = spec    info
+
 ignoreCoreBinds :: [V.Var] -> [CoreBind] -> [CoreBind]
 ignoreCoreBinds vs cbs 
   | null vs         = cbs 
@@ -287,8 +296,7 @@ liquidQuery infconfig cfg tgt info edc = do
 #else
 liquidQuery infconfig cfg tgt info edc = do
   when False (dumpCs cgi)
-  out <- timedAction names $ solveCs infconfig cfg tgt cgi info' names
-  return $  mconcat [oldOut, tout, out]
+  timedAction names $ solveCs infconfig cfg tgt cgi info' names
 #endif
   where
     cgi    = {-# SCC "generateConstraints" #-} generateConstraints $! info' {cbs = cbs''}
