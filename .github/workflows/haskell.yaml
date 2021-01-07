@@ -34,7 +34,7 @@ jobs:
       run: |
         cabal update
         cabal configure --enable-tests
-        cabal install  --only-dependencies
+        cabal install
         cabal build
     - name: Build
       run: cabal build
