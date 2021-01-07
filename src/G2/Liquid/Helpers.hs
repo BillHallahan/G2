@@ -7,6 +7,7 @@ module G2.Liquid.Helpers ( MeasureSymbols (..)
                          , findFuncSpec
                          , measureSpecs
                          , measureSymbols
+                         , measureNames
                          , varToName
                          , varEqName
                          , namesEq
@@ -89,10 +90,13 @@ measureSpecs = concatMap (gsMeasures . spec)
 newtype MeasureSymbols = MeasureSymbols { symbols :: [Symbol] }
 
 measureSymbols :: [GhcInfo] -> MeasureSymbols
+measureSymbols = MeasureSymbols . measureNames
+
+measureNames :: [GhcInfo] -> [Symbol]
 #if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
-measureSymbols = MeasureSymbols . map (val . msName) . measureSpecs
+measureNames = map (val . msName) . measureSpecs
 #else
-measureSymbols = MeasureSymbols . map (val . name) . measureSpecs
+measureNames = map (val . name) . measureSpecs
 #endif
 
 -- The walk function takes lhDict arguments that are not correctly accounted for by mkStrict.
