@@ -89,7 +89,11 @@ measureSpecs = concatMap (gsMeasures . spec)
 newtype MeasureSymbols = MeasureSymbols { symbols :: [Symbol] }
 
 measureSymbols :: [GhcInfo] -> MeasureSymbols
+#if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
 measureSymbols = MeasureSymbols . map (val . msName) . measureSpecs
+#else
+measureSymbols = MeasureSymbols . map (val . name) . measureSpecs
+#endif
 
 -- The walk function takes lhDict arguments that are not correctly accounted for by mkStrict.
 -- The arguments are not actually used, so, here, we fill them in with undefined. 
