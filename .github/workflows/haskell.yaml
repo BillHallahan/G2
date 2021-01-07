@@ -2,18 +2,9 @@ name: G2
 
 on:
   push:
-    branches: [ master, development ]
+    branches: [ master, development, github_actions ]
   pull_request:
-    branches: [ master, development ]
-
-run:
-  - gcc -v
-
-  # Installing Z3
-  - bash install_z3.sh
-
-  # Getting base library
-  - bash base_setup.sh
+    branches: [ master, development, github_actions ]
 
 jobs:
   build:
@@ -45,5 +36,5 @@ jobs:
         cabal build --only-dependencies --enable-tests --enable-benchmarks
     - name: Build
       run: cabal build --enable-tests --enable-benchmarks all
-    - name: Run tests
-      run: cabal test
+    # - name: Run tests
+      # run: cabal test
