@@ -251,7 +251,7 @@ newPrune cfg cbs tgt info
 
 #if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
 #else
-ignoreCoreBinds :: [Var] -> [CoreBind] -> [CoreBind]
+ignoreCoreBinds :: [V.Var] -> [CoreBind] -> [CoreBind]
 ignoreCoreBinds vs cbs 
   | null vs         = cbs 
   | otherwise       = concatMap go cbs
