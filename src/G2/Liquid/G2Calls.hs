@@ -419,14 +419,19 @@ reduceFCExprMaybe share reducer solver simplifier s bindings e
     | otherwise = return $ Just (bindings, redVar (expr_env s) e) 
 
 redVar :: E.ExprEnv -> Expr -> Expr
-redVar eenv e@(Var (Id n t))
-    | Just e <- E.lookup n eenv = redVar eenv e
+redVar = redVar' HS.empty
+
+-- We use the hashset to track names we've seen, and make sure we don't loop forever on the same variable
+redVar' :: HS.HashSet Name -> E.ExprEnv -> Expr -> Expr
+redVar' rep eenv v@(Var (Id n t))
+    | n `HS.member` rep = v
+    | Just e <- E.lookup n eenv = redVar' (HS.insert n rep) eenv e
     -- We fill in fake LH dict variable for reduction, so they don't exist in the ExprEnv,
     -- but we don't want them to error
     | TyCon (Name tn _ _ _) _ <- t
-    , tn == "lh" = e
+    , tn == "lh" = v
     | otherwise = error $ "redVar: variable not found"
-redVar _ e = e
+redVar' _ _ e = e
 
 mapAccumM :: (Monad m, MonadPlus p) => (acc -> x -> m (acc, y)) -> acc -> [x] -> m (acc, p y)
 mapAccumM _ z [] = return (z, mzero)

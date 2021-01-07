@@ -172,9 +172,7 @@ solveNumericConstraintsPC con pc = do
 solveConstraints :: SMTConverter con ast out io => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Maybe SMTModel)
 solveConstraints con headers vs = do
     let io = getIO con
-    putStrLn "HERE"
     let formula = toSolver con headers
-    putStrLn "HERE 2"
     r <- checkSatGetModel con io formula vs
 
     case r of
@@ -184,9 +182,7 @@ solveConstraints con headers vs = do
 constraintsToModelOrUnsatCore :: SMTConverter con ast out io => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore)
 constraintsToModelOrUnsatCore con headers vs = do
     let io = getIO con
-    putStrLn "HERE"
     let formula = toSolver con headers
-    putStrLn "HERE 2"
     checkSatGetModelOrUnsatCore con io formula vs
 
 -- | Here we convert from a State, to an SMTHeader.  This SMTHeader can later

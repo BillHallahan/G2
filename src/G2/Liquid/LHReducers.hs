@@ -269,8 +269,7 @@ instance Halter LHAbsHalter Int LHTracker where
 
     stopRed _ hv pr s =
         return $ if length (abstract_calls $ track s) > hv
-            then trace ("accepted " ++ show (length (accepted pr)) ++ " discarded "
-                            ++ show (length (discarded pr)) ++ " discarded no abs " ++ show (length (filter (\s -> abstractCallsNum s == 0) $ discarded pr))) Discard
+            then Discard
             else Continue
 
     stepHalter _ hv _ _ _ = hv
