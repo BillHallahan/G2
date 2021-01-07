@@ -155,7 +155,7 @@ stringExpr = do
 
 stringExpr' :: Parser Char
 stringExpr' = do
-    try parseHex <|> choice (alphaNum:char '\\':map char ident)
+    try parseHex <|> choice (alphaNum:char '\\':char ' ':map char ident)
 
 parseHex :: Parser Char
 parseHex = do
