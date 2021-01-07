@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE CPP #-}
 
 module G2.Liquid.Inference.Verify ( VerifyResult (..)
                                   , verifyVarToName
@@ -39,8 +40,13 @@ import Language.Fixpoint.Solver
 import qualified Language.Fixpoint.Types as F
 import qualified Language.Fixpoint.Types.Errors as F (FixResult (..))
 import CoreSyn
+
+#if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
 import qualified Language.Haskell.Liquid.Termination.Structural as ST
-import           Language.Haskell.Liquid.GHC.Misc (showCBs, ignoreCoreBinds) -- howPpr)
+import           Language.Haskell.Liquid.GHC.Misc (showCBs, ignoreCoreBinds)
+#else
+import           Language.Haskell.Liquid.GHC.Misc (showCBs)
+#endif
 
 -- For Show instance of Cinfo
 import Language.Haskell.Liquid.Liquid ()
@@ -243,6 +249,20 @@ newPrune cfg cbs tgt info
     vs            = gsTgtVars    sp
     sp            = spec       info
 
+#if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
+#else
+ignoreCoreBinds :: [Var] -> [CoreBind] -> [CoreBind]
+ignoreCoreBinds vs cbs 
+  | null vs         = cbs 
+  | otherwise       = concatMap go cbs
+  where
+    go :: CoreBind -> [CoreBind]
+    go b@(NonRec x _) 
+      | x `elem` vs = [] 
+      | otherwise   = [b] 
+    go (Rec xes)    = [Rec (filter ((`notElem` vs) . fst) xes)]
+#endif
+
 -- topLevelBinders :: GhcSpec -> [Var]
 -- topLevelBinders = map fst . tySigs
 
@@ -261,9 +281,13 @@ liquidQuery infconfig cfg tgt info edc = do
   when False (dumpCs cgi)
   -- whenLoud $ mapM_ putStrLn [ "****************** CGInfo ********************"
                             -- , render (pprint cgi)                            ]
+  #if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
   let tout = ST.terminationCheck (info' {cbs = cbs''})
   timedAction names $ solveCs infconfig cfg tgt cgi info' names
-  -- return $  mconcat [oldOut, tout, out]
+  #else
+  out <- timedAction names $ solveCs infconfig cfg tgt cgi info' names
+  return $  mconcat [oldOut, tout, out]
+  #endif
   where
     cgi    = {-# SCC "generateConstraints" #-} generateConstraints $! info' {cbs = cbs''}
     cbs''  = either id              DC.newBinds                        edc
