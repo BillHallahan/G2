@@ -33,9 +33,8 @@ jobs:
     - name: Install Z3
       uses: pavpanchekha/setup-z3@1.2.2
    
-    -name: Getting custom base
-      run: |
-        bash base_setup.sh
+    - name: Getting custom base
+      run: bash base_setup.sh
 
     - name: Install dependencies
       run: |
