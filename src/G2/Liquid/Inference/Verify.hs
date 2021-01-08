@@ -238,6 +238,7 @@ liquidOne infconfig info = do
   edcs <- newPrune      cfg cbs' tgt info
   liquidQueries infconfig cfg      tgt info edcs
 
+#if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
 newPrune :: Config -> [CoreBind] -> FilePath -> GhcInfo -> IO (Either [CoreBind] [DC.DiffCheck])
 newPrune cfg cbs tgt info
   | not (null vs) = return . Right $ [DC.thin cbs sp vs]
@@ -248,10 +249,18 @@ newPrune cfg cbs tgt info
     ignores       = gsIgnoreVars sp 
     vs            = gsTgtVars    sp
     sp            = spec       info
-
-#if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
 #else
-ignoreCoreBinds :: [Var] -> [CoreBind] -> [CoreBind]
+newPrune :: Config -> [CoreBind] -> FilePath -> GhcInfo -> IO (Either [CoreBind] [DC.DiffCheck])
+newPrune cfg cbs tgt info
+  | not (null vs) = return . Right $ [DC.thin cbs sp vs]
+  | timeBinds cfg = return . Right $ [DC.thin cbs sp [v] | v <- exportedVars info ]
+  | diffcheck cfg = maybeEither cbs <$> DC.slice tgt cbs sp
+  | otherwise     = return  (Left cbs)
+  where
+    vs            = gsTgtVars sp
+    sp            = spec    info
+
+ignoreCoreBinds :: [V.Var] -> [CoreBind] -> [CoreBind]
 ignoreCoreBinds vs cbs 
   | null vs         = cbs 
   | otherwise       = concatMap go cbs
@@ -277,17 +286,18 @@ liquidQueries infconfig cfg tgt info (Right dcs)
   = mconcat <$> mapM (liquidQuery infconfig cfg tgt info . Right) dcs
 
 liquidQuery   :: InferenceConfig -> Config -> FilePath -> GhcInfo -> Either [CoreBind] DC.DiffCheck -> IO (F.Result (Integer, Cinfo))
+#if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
 liquidQuery infconfig cfg tgt info edc = do
   when False (dumpCs cgi)
   -- whenLoud $ mapM_ putStrLn [ "****************** CGInfo ********************"
                             -- , render (pprint cgi)                            ]
-  #if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
   let tout = ST.terminationCheck (info' {cbs = cbs''})
   timedAction names $ solveCs infconfig cfg tgt cgi info' names
-  #else
-  out <- timedAction names $ solveCs infconfig cfg tgt cgi info' names
-  return $  mconcat [oldOut, tout, out]
-  #endif
+#else
+liquidQuery infconfig cfg tgt info edc = do
+  when False (dumpCs cgi)
+  timedAction names $ solveCs infconfig cfg tgt cgi info' names
+#endif
   where
     cgi    = {-# SCC "generateConstraints" #-} generateConstraints $! info' {cbs = cbs''}
     cbs''  = either id              DC.newBinds                        edc
@@ -329,6 +339,6 @@ solveCs infconfig cfg tgt cgi info names = do
   return fres
 
 
-e2u :: Config -> F.FixSolution -> Error -> UserError
-e2u cfg s = fmap F.pprint . tidyError cfg s
+-- e2u :: Config -> F.FixSolution -> Error -> UserError
+-- e2u cfg s = fmap F.pprint . tidyError cfg s
 

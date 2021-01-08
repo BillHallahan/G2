@@ -1,0 +1,47 @@
+name: G2
+
+on:
+  push:
+    branches: [ master, development, github_actions ]
+  pull_request:
+    branches: [ master, development, github_actions ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-haskell@v1
+      with:
+        ghc-version: '8.2.2'
+        cabal-version: '2.0.0.1'
+
+    - name: Cache
+      uses: actions/cache@v1
+      env:
+        cache-name: cache-cabal
+      with:
+        path: ~/.cabal
+        key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.cabal') }}-${{ hashFiles('**/cabal.project') }}
+        restore-keys: |
+          ${{ runner.os }}-build-${{ env.cache-name }}-
+          ${{ runner.os }}-build-
+          ${{ runner.os }}-
+
+    - name: Install Z3
+      uses: pavpanchekha/setup-z3@1.2.2
+
+    - name: Install dependencies
+      run: |
+        # Getting base library
+        bash base_setup.sh
+
+        cabal update
+        cabal install
+        cabal build
+    - name: Build
+      run: cabal build
+    # - name: Run tests
+      # run: cabal test
