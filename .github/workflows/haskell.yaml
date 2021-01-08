@@ -39,6 +39,7 @@ jobs:
     - name: Install dependencies
       run: |
         cabal update
+        cabal configure --enable-tests
         cabal install
         cabal build
     - name: Build
