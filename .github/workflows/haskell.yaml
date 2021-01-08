@@ -30,14 +30,13 @@ jobs:
           ${{ runner.os }}-build-
           ${{ runner.os }}-
 
+    - name: Install Z3
+      uses: pavpanchekha/setup-z3@1.2.2
+
     - name: Install dependencies
       run: |
-        # Installing Z3
-        - bash install_z3.sh
-
         # Getting base library
         - bash base_setup.sh
-
 
         cabal update
         cabal install
