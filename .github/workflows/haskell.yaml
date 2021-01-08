@@ -32,6 +32,13 @@ jobs:
 
     - name: Install dependencies
       run: |
+        # Installing Z3
+        - bash install_z3.sh
+
+        # Getting base library
+        - bash base_setup.sh
+
+
         cabal update
         cabal install
         cabal build
