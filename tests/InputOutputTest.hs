@@ -19,19 +19,21 @@ import G2.Translation
 import Reqs
 import TestUtils
 
-checkInputOutput :: FilePath -> String -> String -> Int -> Int -> [Reqs String] ->  IO TestTree
+checkInputOutput :: FilePath -> String -> String -> Int -> Int -> [Reqs String] ->  TestTree
 checkInputOutput src md entry stps i req = checkInputOutputWithConfig [src] md entry i req (mkConfigTest {steps = stps})
 
-checkInputOutputWithConfig :: [FilePath] -> String -> String -> Int -> [Reqs String] -> Config -> IO TestTree
+checkInputOutputWithConfig :: [FilePath] -> String -> String -> Int -> [Reqs String] -> Config -> TestTree
 checkInputOutputWithConfig src md entry i req config = do
-    r <- doTimeout (timeLimit config) $ checkInputOutput' src md entry i req config
+    testCase (show src) (do
+      r <- doTimeout (timeLimit config) $ checkInputOutput' src md entry i req config
 
-    let (b, e) = case r of
-            Nothing -> (False, "\nTimeout")
-            Just (Left e') -> (False, "\n" ++ show e')
-            Just (Right (b', _)) -> (b', "")
+      let (b, e) = case r of
+              Nothing -> (False, "\nTimeout")
+              Just (Left e') -> (False, "\n" ++ show e')
+              Just (Right (b', _)) -> (b', "")
 
-    return . testCase (show src) $ assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ "." ++ e) b 
+      assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ "." ++ e) b 
+      )
 
 checkInputOutput' :: [FilePath] 
                   -> String 
