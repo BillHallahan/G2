@@ -58,7 +58,7 @@ tests :: IO TestTree
 tests = return . testGroup "Tests"
     =<< sequence [
           sampleTests
-        , liquidTests
+        -- , liquidTests
         , testFileTests
         , baseTests
         , primTests
