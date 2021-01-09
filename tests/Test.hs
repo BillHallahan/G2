@@ -653,7 +653,8 @@ checkExprReaches :: String
                  -> [Reqs ([Expr] -> Bool)]
                  -> IO TestTree
 checkExprReaches src stps m_assume m_assert m_reaches entry i reqList = do
-    checkExprWithConfig src m_assume m_assert m_reaches entry i (mkConfigTest {steps = stps}) reqList
+    config <- mkConfigTestIO
+    checkExprWithConfig src m_assume m_assert m_reaches entry i (config {steps = stps}) reqList
 
 checkExprWithConfig :: String
                     -> Maybe String
