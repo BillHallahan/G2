@@ -33,10 +33,11 @@ mkConfigTest = (mkConfig "/whatever/" [] M.empty)
                              , "./base-4.9.1.0/Prelude.hs" ]
                     , extraDefaultMods = [] }
 
-mkConfigTestWithMap :: Config
-mkConfigTestWithMap =
-    mkConfigTest { baseInclude = baseInclude mkConfigTest ++ ["./base-4.9.1.0/Data/Internal/"]
-                 , base = base mkConfigTest ++ ["./base-4.9.1.0/Data/Internal/Map.hs"] }
+mkConfigTestWithMapIO :: IO Config
+mkConfigTestWithMapIO = do
+    config <- mkConfigTestIO
+    homedir <- getHomeDirectory
+    return $ config { base = base config ++ baseExtra homedir }
 
 
 eqIgT :: Expr -> Expr -> Bool

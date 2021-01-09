@@ -224,7 +224,7 @@ liquidTests = return . testGroup "Liquid" =<< sequence
     , checkLiquid "tests/Liquid/ConcatList.hs" "concat3" 800 3 [AtLeast 2]
     , checkLiquid "tests/Liquid/ConcatList.hs" "concat5" 1600 3 [AtLeast 1]
 
-    , checkLiquidWithConfig "tests/Liquid/Tests/Group3.lhs" "f" 1 (mkConfigTestWithMap {steps = 2200}) [AtLeast 1]
+    , checkLiquidWithMap "tests/Liquid/Tests/Group3.lhs" "f" 2200 1 [AtLeast 1]
 
     , checkLiquid "tests/Liquid/Nonused.hs" "g" 2000 1 [AtLeast 1]
 
@@ -255,8 +255,8 @@ liquidTests = return . testGroup "Liquid" =<< sequence
     , checkLiquid "tests/Liquid/PropSize.hs" "prop_size" 2000 1 [AtLeast 1]
     , checkLiquid "tests/Liquid/PropSize2.hs" "prop_size" 2000 1 [AtLeast 1]
 
-    , checkLiquidWithConfig "tests/Liquid/WhereFuncs.lhs" "f" 3 (mkConfigTestWithMap {steps = 1000}) [Exactly 0]
-    , checkLiquidWithConfig "tests/Liquid/WhereFuncs.lhs" "g" 3 (mkConfigTestWithMap {steps = 1000}) [Exactly 0]
+    , checkLiquidWithMap "tests/Liquid/WhereFuncs.lhs" "f" 1000 3 [Exactly 0]
+    , checkLiquidWithMap "tests/Liquid/WhereFuncs.lhs" "g" 1000 3 [Exactly 0]
 
     , checkLiquid "tests/Liquid/PropConcat.lhs" "prop_concat" 1000 1 [AtLeast 1]
 
@@ -371,9 +371,7 @@ testFileTests = return . testGroup "TestFiles" =<< sequence
     , checkExpr "tests/TestFiles/TypeClass/TypeClass2.hs" 400 "f" 2 [RExists (\[x, y] -> x == y), Exactly 1]
     , checkExpr "tests/TestFiles/TypeClass/TypeClass3.hs" 400 "f" 2
         [RExists (\[x, y] -> getIntB x $ \x' -> getIntB y $ \y' -> x' + 8 == y'), Exactly 1]
-    , checkExprWithConfig "tests/TestFiles/TypeClass/TypeClass4.hs" Nothing Nothing Nothing "f" 1
-        (mkConfigTestWithMap {steps = 1000}) 
-        [AtLeast 1]
+    , checkExprWithMap "tests/TestFiles/TypeClass/TypeClass4.hs" 1000 Nothing Nothing Nothing "f" 1 [AtLeast 1]
 
     , checkExprAssumeAssert "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeJ") Nothing "extractJ" 2 
         [RForAll (\[x, ly@(App _ (Lit (LitInt y)))] -> appNthArgIs x (ly ==) 2 && y > 100), Exactly 1]
@@ -580,7 +578,7 @@ todoTests = return . testGroup "To Do" =<< sequence
         , RForAll (\[i] r [(FuncCall { funcName = Name n _ _ _, returns = r' }) ]
                         -> n == "g" && isInt i (\i' -> i' `mod` 2 == 0) && r == r' )]
     , checkLiquid "tests/Liquid/ListTests.lhs" "concat" 1000 2 [AtLeast 3]
-    , checkLiquidWithConfig "tests/Liquid/MapReduceTest.lhs" "mapReduce" 2 (mkConfigTestWithMap {steps = 1500})
+    , checkLiquidWithMap "tests/Liquid/MapReduceTest.lhs" "mapReduce" 1500 2
         [Exactly 0]
     , checkLiquid "tests/Liquid/NearestTest.lhs" "nearest" 1500 1 [Exactly 1]
 
@@ -656,6 +654,19 @@ checkExprReaches src stps m_assume m_assert m_reaches entry i reqList = do
     config <- mkConfigTestIO
     checkExprWithConfig src m_assume m_assert m_reaches entry i (config {steps = stps}) reqList
 
+checkExprWithMap :: String
+                 -> Int
+                 -> Maybe String
+                 -> Maybe String
+                 -> Maybe String
+                 -> String
+                 -> Int
+                 -> [Reqs ([Expr] -> Bool)]
+                 -> IO TestTree
+checkExprWithMap src stps m_assume m_assert m_reaches entry i reqList = do
+    config <- mkConfigTestWithMapIO
+    checkExprWithConfig src m_assume m_assert m_reaches entry i (config {steps = stps}) reqList
+
 checkExprWithConfig :: String
                     -> Maybe String
                     -> Maybe String
@@ -713,15 +724,24 @@ testFileWithConfig src m_assume m_assert m_reaches entry config = do
     return $ map (\(ExecRes { conc_args = i, conc_out = o}) -> (i, o)) states 
 
 checkLiquidWithNoCutOff :: FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
-checkLiquidWithNoCutOff fp entry stps i reqList =
-    checkLiquidWithConfig fp entry i (mkConfigTest {steps = stps, cut_off = stps}) reqList
+checkLiquidWithNoCutOff fp entry stps i reqList = do
+    config <- mkConfigTestIO
+    checkLiquidWithConfig fp entry i (config {steps = stps, cut_off = stps}) reqList
 
 checkLiquid :: FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
-checkLiquid fp entry stps i reqList = checkLiquidWithConfig  fp entry i (mkConfigTest {steps = stps}) reqList
+checkLiquid fp entry stps i reqList = do
+    config <- mkConfigTestIO
+    checkLiquidWithConfig  fp entry i (config {steps = stps}) reqList
 
 checkLiquidWithCutOff :: FilePath -> String -> Int -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
-checkLiquidWithCutOff fp entry stps co i reqList =
-    checkLiquidWithConfig fp entry i (mkConfigTest {steps = stps, cut_off = co}) reqList
+checkLiquidWithCutOff fp entry stps co i reqList = do
+    config <- mkConfigTestIO
+    checkLiquidWithConfig fp entry i (config {steps = stps, cut_off = co}) reqList
+
+checkLiquidWithMap :: FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
+checkLiquidWithMap fp entry stps i reqList = do
+    config <- mkConfigTestWithMapIO
+    checkLiquidWithConfig fp entry i (config {steps = stps}) reqList
 
 checkLiquidWithConfig :: FilePath -> String -> Int -> Config -> [Reqs ([Expr] -> Bool)] -> IO TestTree
 checkLiquidWithConfig fp entry i config reqList = do
@@ -740,7 +760,9 @@ checkLiquidWithConfig fp entry i config reqList = do
                       " with function " ++ entry ++ " failed.\n" ++ show r) ch
 
 checkAbsLiquid :: FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Expr -> [FuncCall] -> Bool)] -> IO TestTree
-checkAbsLiquid fp entry stps i reqList = checkAbsLiquidWithConfig fp entry i (mkConfigTest {steps = stps}) reqList
+checkAbsLiquid fp entry stps i reqList = do
+    config <- mkConfigTestIO
+    checkAbsLiquidWithConfig fp entry i (config {steps = stps}) reqList
 
 checkAbsLiquidWithConfig :: FilePath
                          -> String

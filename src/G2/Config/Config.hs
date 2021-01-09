@@ -13,7 +13,8 @@ module G2.Config.Config ( Mode (..)
                         , boolArg
 
                         , baseDef
-                        , baseSimple) where
+                        , baseSimple
+                        , baseExtra) where
 
 
 import Data.Char
@@ -133,14 +134,20 @@ baseDef :: FilePath -> [FilePath]
 baseDef root =
     baseSimple root
     ++
-    [ root ++ "/.g2/base-4.9.1.0/Control/Monad.hs"
-    , root ++ "/.g2/base-4.9.1.0/Data/Internal/Map.hs"
-    ]
+    baseExtra root
 
 baseSimple :: FilePath -> [FilePath]
 baseSimple root =
     [ root ++ "/.g2/base-4.9.1.0/Control/Exception/Base.hs"
     , root ++ "/.g2/base-4.9.1.0/Prelude.hs" ]
+
+baseExtra :: FilePath -> [FilePath]
+baseExtra root =
+    baseSimple root
+    ++
+    [ root ++ "/.g2/base-4.9.1.0/Control/Monad.hs"
+    , root ++ "/.g2/base-4.9.1.0/Data/Internal/Map.hs"
+    ]
 
 extraDefaultIncludePaths :: FilePath -> [FilePath]
 extraDefaultIncludePaths root =
