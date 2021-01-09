@@ -10,7 +10,10 @@ module G2.Config.Config ( Mode (..)
                         , BoolDef (..)
                         , mkConfig
                         , strArg
-                        , boolArg) where
+                        , boolArg
+
+                        , baseDef
+                        , baseSimple) where
 
 
 import Data.Char
@@ -122,18 +125,22 @@ mkConfig homedir as m = Config {
 baseIncludeDef :: FilePath -> [FilePath]
 baseIncludeDef root =
     [ root ++ "/.g2/base-4.9.1.0/Control/Exception/"
-    , root ++  "/.g2/base-4.9.1.0/"
     , root ++ "/.g2/base-4.9.1.0/"
     , root ++ "/.g2/base-4.9.1.0/Data/Internal/"
     ]
 
 baseDef :: FilePath -> [FilePath]
 baseDef root =
-    [ root ++ "/.g2/base-4.9.1.0/Control/Exception/Base.hs"
-    , root ++ "/.g2/base-4.9.1.0/Prelude.hs"
-    , root ++ "/.g2/base-4.9.1.0/Control/Monad.hs"
+    baseSimple root
+    ++
+    [ root ++ "/.g2/base-4.9.1.0/Control/Monad.hs"
     , root ++ "/.g2/base-4.9.1.0/Data/Internal/Map.hs"
     ]
+
+baseSimple :: FilePath -> [FilePath]
+baseSimple root =
+    [ root ++ "/.g2/base-4.9.1.0/Control/Exception/Base.hs"
+    , root ++ "/.g2/base-4.9.1.0/Prelude.hs" ]
 
 extraDefaultIncludePaths :: FilePath -> [FilePath]
 extraDefaultIncludePaths root =

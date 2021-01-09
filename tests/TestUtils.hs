@@ -18,10 +18,9 @@ mkConfigTestIO = do
         (mkConfig homedir [] M.empty)
             { higherOrderSolver = AllFuncs
             , timeLimit = 75
-            , baseInclude = [ "./base-4.9.1.0/Control/Exception/"
-                            , "./base-4.9.1.0/" ]
-            , base = [ "./base-4.9.1.0/Control/Exception/Base.hs"
-                     , "./base-4.9.1.0/Prelude.hs" ]
+            -- , baseInclude = [ "./base-4.9.1.0/Control/Exception/"
+            --                 , "./base-4.9.1.0/" ]
+            , base = baseSimple homedir
             , extraDefaultMods = [] }
 
 mkConfigTest :: Config
