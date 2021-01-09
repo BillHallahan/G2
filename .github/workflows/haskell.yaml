@@ -40,7 +40,7 @@ jobs:
       run: |
         cabal update
         cabal configure --enable-tests
-        cabal install --only-dependencies
+        cabal install --enable-tests --only-dependencies
         cabal build
     - name: Build
       run: cabal build
