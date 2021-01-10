@@ -287,14 +287,15 @@ test-suite test
   build-depends:         g2
                        , base >= 4.8 && < 5
                        , containers
+                       , directory
                        , filepath
                        , ghc-paths
                        , ghc
                        , hashable
                        , hpc
                        , tagged
-                       , tasty >= 1.0
-                       , tasty-hunit >= 0.10
+                       , tasty >= 1.0 && < 2.0
+                       , tasty-hunit >= 0.10 && < 0.10.0.3
                        , tasty-quickcheck
                        , text
                        , time >= 1.6

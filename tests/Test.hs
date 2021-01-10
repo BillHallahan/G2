@@ -52,29 +52,28 @@ main = do
                 [ Option (Proxy :: Proxy ToDo) ] 
                 (\_ _ -> Just (\_ -> return (\_ -> return False)))
             ])
-        =<< if todo then todoTests else tests
+        (if todo then todoTests else tests)
 
-tests :: IO TestTree
-tests = return . testGroup "Tests"
-    =<< sequence [
-          sampleTests
+tests :: TestTree
+tests = testGroup "Tests"
+        [ sampleTests
         , liquidTests
         , testFileTests
         , baseTests
         , primTests
         , exprTests
         , typingTests
-        , return simplificationTests
-        , return ufMapQuickcheck
-        , return unionFindQuickcheck
+        , simplificationTests
+        , ufMapQuickcheck
+        , unionFindQuickcheck
         ]
 
 timeout :: Timeout
 timeout = mkTimeout 1
 
 -- Test based on examples that are also good for demos
-sampleTests :: IO TestTree
-sampleTests = return . testGroup "Samples" =<< sequence
+sampleTests :: TestTree
+sampleTests = testGroup "Samples"
     [
       checkExprAssert "tests/Samples/Peano.hs" 900 (Just "equalsFour") "add" 3 
         [RForAll $ not . peano_4_out, AtLeast 10]
@@ -156,8 +155,8 @@ sampleTests = return . testGroup "Samples" =<< sequence
     , checkExpr "tests/Samples/FoldlUsesPoly.hs" 400 "switchP" 6 [AtLeast 1]
     ]
 
-liquidTests :: IO TestTree
-liquidTests = return . testGroup "Liquid" =<< sequence 
+liquidTests :: TestTree
+liquidTests = testGroup "Liquid" 
     [
       checkLiquid "tests/Liquid/SimpleMath.hs" "abs2" 2000 2
         [RForAll (\[x, y] -> isDouble x ((==) 0) && isDouble y ((==) 0)), Exactly 1]
@@ -224,7 +223,7 @@ liquidTests = return . testGroup "Liquid" =<< sequence
     , checkLiquid "tests/Liquid/ConcatList.hs" "concat3" 800 3 [AtLeast 2]
     , checkLiquid "tests/Liquid/ConcatList.hs" "concat5" 1600 3 [AtLeast 1]
 
-    , checkLiquidWithConfig "tests/Liquid/Tests/Group3.lhs" "f" 1 (mkConfigTestWithMap {steps = 2200}) [AtLeast 1]
+    , checkLiquidWithMap "tests/Liquid/Tests/Group3.lhs" "f" 2200 1 [AtLeast 1]
 
     , checkLiquid "tests/Liquid/Nonused.hs" "g" 2000 1 [AtLeast 1]
 
@@ -255,8 +254,8 @@ liquidTests = return . testGroup "Liquid" =<< sequence
     , checkLiquid "tests/Liquid/PropSize.hs" "prop_size" 2000 1 [AtLeast 1]
     , checkLiquid "tests/Liquid/PropSize2.hs" "prop_size" 2000 1 [AtLeast 1]
 
-    , checkLiquidWithConfig "tests/Liquid/WhereFuncs.lhs" "f" 3 (mkConfigTestWithMap {steps = 1000}) [Exactly 0]
-    , checkLiquidWithConfig "tests/Liquid/WhereFuncs.lhs" "g" 3 (mkConfigTestWithMap {steps = 1000}) [Exactly 0]
+    , checkLiquidWithMap "tests/Liquid/WhereFuncs.lhs" "f" 1000 3 [Exactly 0]
+    , checkLiquidWithMap "tests/Liquid/WhereFuncs.lhs" "g" 1000 3 [Exactly 0]
 
     , checkLiquid "tests/Liquid/PropConcat.lhs" "prop_concat" 1000 1 [AtLeast 1]
 
@@ -314,15 +313,19 @@ liquidTests = return . testGroup "Liquid" =<< sequence
         [ AtLeast 1
         , RForAll (\_ _ [ _ ]  -> True)]
 
-    , checkLiquidWithConfig "tests/Liquid/NestedLength.hs" "nested" 2 (mkConfigTest {add_tyvars = True}) [AtLeast 1]
-    , checkLiquidWithConfig "tests/Liquid/AddTyVars.hs" "f" 3 (mkConfigTest {add_tyvars = True, steps = 400}) [AtLeast 1]
-    , checkLiquidWithConfig "tests/Liquid/AddTyVars.hs" "g" 3 (mkConfigTest {add_tyvars = True, steps = 400}) [AtLeast 1]
-    , checkLiquidWithConfig "tests/Liquid/AddTyVars.hs" "h" 3 (mkConfigTest {add_tyvars = True, steps = 400}) [AtLeast 1]
+    , checkLiquidWithConfig "tests/Liquid/NestedLength.hs" "nested" 2 [AtLeast 1]
+                            (do config <- mkConfigTestIO; return $ config {add_tyvars = True})
+    , checkLiquidWithConfig "tests/Liquid/AddTyVars.hs" "f" 3 [AtLeast 1]
+                            (do config <- mkConfigTestIO; return $ config {add_tyvars = True, steps = 400}) 
+    , checkLiquidWithConfig "tests/Liquid/AddTyVars.hs" "g" 3 [AtLeast 1]
+                            (do config <- mkConfigTestIO; return $ config {add_tyvars = True, steps = 400}) 
+    , checkLiquidWithConfig "tests/Liquid/AddTyVars.hs" "h" 3[AtLeast 1]
+                            (do config <- mkConfigTestIO; return $ config {add_tyvars = True, steps = 400}) 
     ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
-testFileTests :: IO TestTree
-testFileTests = return . testGroup "TestFiles" =<< sequence
+testFileTests :: TestTree
+testFileTests = testGroup "TestFiles"
     [
       checkExpr "tests/TestFiles/IfTest.hs" 400 "f" 3
         [ RForAll (\[App _ (Lit (LitInt x)), App _ (Lit (LitInt y)), App _ (Lit (LitInt r))] -> 
@@ -371,9 +374,7 @@ testFileTests = return . testGroup "TestFiles" =<< sequence
     , checkExpr "tests/TestFiles/TypeClass/TypeClass2.hs" 400 "f" 2 [RExists (\[x, y] -> x == y), Exactly 1]
     , checkExpr "tests/TestFiles/TypeClass/TypeClass3.hs" 400 "f" 2
         [RExists (\[x, y] -> getIntB x $ \x' -> getIntB y $ \y' -> x' + 8 == y'), Exactly 1]
-    , checkExprWithConfig "tests/TestFiles/TypeClass/TypeClass4.hs" Nothing Nothing Nothing "f" 1
-        (mkConfigTestWithMap {steps = 1000}) 
-        [AtLeast 1]
+    , checkExprWithMap "tests/TestFiles/TypeClass/TypeClass4.hs" 1000 Nothing Nothing Nothing "f" 1 [AtLeast 1]
 
     , checkExprAssumeAssert "tests/TestFiles/TypeClass/HKTypeClass1.hs" 400 (Just "largeJ") Nothing "extractJ" 2 
         [RForAll (\[x, ly@(App _ (Lit (LitInt y)))] -> appNthArgIs x (ly ==) 2 && y > 100), Exactly 1]
@@ -522,8 +523,8 @@ testFileTests = return . testGroup "TestFiles" =<< sequence
     
     ]
 
-baseTests :: IO TestTree
-baseTests = return . testGroup "Base" =<< sequence
+baseTests ::  TestTree
+baseTests = testGroup "Base"
     [
       checkInputOutput "tests/Samples/Peano.hs" "Peano" "add" 400 3 [AtLeast 4]
     , checkInputOutput "tests/BaseTests/ListTests.hs" "ListTests" "test" 1000 2 [AtLeast 1]
@@ -539,8 +540,8 @@ baseTests = return . testGroup "Base" =<< sequence
     , checkInputOutput "tests/BaseTests/Other.hs" "Other" "check4VeryEasy2" 600 1 [AtLeast 1]
     ]
 
-primTests :: IO TestTree
-primTests = return . testGroup "Prims" =<< sequence
+primTests :: TestTree
+primTests = testGroup "Prims"
     [
       checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "quotI1" 1000 3 [AtLeast 4]
     , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "quotI2" 1000 3 [AtLeast 4]
@@ -558,8 +559,8 @@ primTests = return . testGroup "Prims" =<< sequence
 -- To Do Tests
 --------------
 
-todoTests :: IO TestTree
-todoTests = return . testGroup "To Do" =<< sequence
+todoTests :: TestTree
+todoTests = testGroup "To Do"
     [
       checkLiquid "tests/Liquid/TyApps.hs" "goodGet" 1000 4 [Exactly 0]
     , checkLiquid "tests/Liquid/TyApps.hs" "getPosInt" 1000 4
@@ -580,7 +581,7 @@ todoTests = return . testGroup "To Do" =<< sequence
         , RForAll (\[i] r [(FuncCall { funcName = Name n _ _ _, returns = r' }) ]
                         -> n == "g" && isInt i (\i' -> i' `mod` 2 == 0) && r == r' )]
     , checkLiquid "tests/Liquid/ListTests.lhs" "concat" 1000 2 [AtLeast 3]
-    , checkLiquidWithConfig "tests/Liquid/MapReduceTest.lhs" "mapReduce" 2 (mkConfigTestWithMap {steps = 1500})
+    , checkLiquidWithMap "tests/Liquid/MapReduceTest.lhs" "mapReduce" 1500 2
         [Exactly 0]
     , checkLiquid "tests/Liquid/NearestTest.lhs" "nearest" 1500 1 [Exactly 1]
 
@@ -620,15 +621,15 @@ instance IsOption ToDo where
 -- Generic helpers for tests
 ----------------------------
 
-checkExpr :: String -> Int -> String -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
+checkExpr :: String -> Int -> String -> Int -> [Reqs ([Expr] -> Bool)] -> TestTree
 checkExpr src stps entry i reqList =
     checkExprReaches src stps Nothing Nothing Nothing entry i reqList
 
-checkExprAssume :: String -> Int -> Maybe String -> String -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
+checkExprAssume :: String -> Int -> Maybe String -> String -> Int -> [Reqs ([Expr] -> Bool)] -> TestTree
 checkExprAssume src stps m_assume entry i reqList =
     checkExprReaches src stps m_assume Nothing Nothing entry i reqList
 
-checkExprAssert :: String -> Int -> Maybe String -> String -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
+checkExprAssert :: String -> Int -> Maybe String -> String -> Int -> [Reqs ([Expr] -> Bool)] -> TestTree
 checkExprAssert src stps m_assert entry i reqList =
     checkExprReaches src stps Nothing m_assert Nothing entry i reqList
 
@@ -639,7 +640,7 @@ checkExprAssumeAssert :: String
                       -> String
                       -> Int
                       -> [Reqs ([Expr] -> Bool)]
-                      -> IO TestTree
+                      -> TestTree
 checkExprAssumeAssert src stps m_assume m_assert entry i reqList =
     checkExprReaches src stps m_assume m_assert Nothing entry i reqList
 
@@ -651,9 +652,27 @@ checkExprReaches :: String
                  -> String
                  -> Int
                  -> [Reqs ([Expr] -> Bool)]
-                 -> IO TestTree
+                 -> TestTree
 checkExprReaches src stps m_assume m_assert m_reaches entry i reqList = do
-    checkExprWithConfig src m_assume m_assert m_reaches entry i (mkConfigTest {steps = stps}) reqList
+    checkExprWithConfig src m_assume m_assert m_reaches entry i reqList
+            (do
+                config <- mkConfigTestIO
+                return $ config {steps = stps})
+
+checkExprWithMap :: String
+                 -> Int
+                 -> Maybe String
+                 -> Maybe String
+                 -> Maybe String
+                 -> String
+                 -> Int
+                 -> [Reqs ([Expr] -> Bool)]
+                 -> TestTree
+checkExprWithMap src stps m_assume m_assert m_reaches entry i reqList = do
+    checkExprWithConfig src m_assume m_assert m_reaches entry i reqList
+            (do
+                config <- mkConfigTestWithMapIO
+                return $ config {steps = stps})
 
 checkExprWithConfig :: String
                     -> Maybe String
@@ -661,21 +680,29 @@ checkExprWithConfig :: String
                     -> Maybe String
                     -> String
                     -> Int
-                    -> Config
                     -> [Reqs ([Expr] -> Bool)]
-                    -> IO TestTree
-checkExprWithConfig src m_assume m_assert m_reaches entry i config reqList = do
-    res <- testFile src m_assume m_assert m_reaches entry config
-    
-    let ch = case res of
-                Left _ -> False
-                Right exprs -> checkExprGen (map (\(inp, out) -> inp ++ [out]) exprs) i reqList
+                    -> IO Config
+                    -> TestTree
+checkExprWithConfig src m_assume m_assert m_reaches entry i reqList config_f = do
+    testCase src (do
+        config <- config_f
+        res <- testFile src m_assume m_assert m_reaches entry config
+        
+        let ch = case res of
+                    Left _ -> False
+                    Right exprs -> checkExprGen (map (\(inp, out) -> inp ++ [out]) exprs) i reqList
+        assertBool ("Assume/Assert for file " ++ src
+                                    ++ " with functions [" ++ (fromMaybe "" m_assume) ++ "] "
+                                    ++ "[" ++ (fromMaybe "" m_assert) ++ "] "
+                                    ++  entry ++ " failed.\n")
+                   ch
+        )
 
-    return . testCase src
-        $ assertBool ("Assume/Assert for file " ++ src ++ 
-                      " with functions [" ++ (fromMaybe "" m_assume) ++ "] " ++
-                                      "[" ++ (fromMaybe "" m_assert) ++ "] " ++
-                                              entry ++ " failed.\n") ch
+    -- return . testCase src
+    --     $ assertBool ("Assume/Assert for file " ++ src ++ 
+    --                   " with functions [" ++ (fromMaybe "" m_assume) ++ "] " ++
+    --                                   "[" ++ (fromMaybe "" m_assert) ++ "] " ++
+    --                                           entry ++ " failed.\n") ch
  
 testFile :: String
          -> Maybe String
@@ -711,64 +738,84 @@ testFileWithConfig src m_assume m_assert m_reaches entry config = do
     let (states, _) = maybe (error "Timeout") fst r
     return $ map (\(ExecRes { conc_args = i, conc_out = o}) -> (i, o)) states 
 
-checkLiquidWithNoCutOff :: FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
-checkLiquidWithNoCutOff fp entry stps i reqList =
-    checkLiquidWithConfig fp entry i (mkConfigTest {steps = stps, cut_off = stps}) reqList
+checkLiquidWithNoCutOff :: FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> TestTree
+checkLiquidWithNoCutOff fp entry stps i reqList = do
+    checkLiquidWithConfig fp entry i reqList
+        (do config <- mkConfigTestIO
+            return $ config {steps = stps, cut_off = stps})
 
-checkLiquid :: FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
-checkLiquid fp entry stps i reqList = checkLiquidWithConfig  fp entry i (mkConfigTest {steps = stps}) reqList
+checkLiquid :: FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> TestTree
+checkLiquid fp entry stps i reqList = do
+    checkLiquidWithConfig  fp entry i reqList
+        (do config <- mkConfigTestIO
+            return $ config {steps = stps})
 
-checkLiquidWithCutOff :: FilePath -> String -> Int -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> IO TestTree
-checkLiquidWithCutOff fp entry stps co i reqList =
-    checkLiquidWithConfig fp entry i (mkConfigTest {steps = stps, cut_off = co}) reqList
+checkLiquidWithCutOff :: FilePath -> String -> Int -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> TestTree
+checkLiquidWithCutOff fp entry stps co i reqList = do
+    checkLiquidWithConfig fp entry i reqList
+        (do config <- mkConfigTestIO
+            return $ config {steps = stps, cut_off = co})
 
-checkLiquidWithConfig :: FilePath -> String -> Int -> Config -> [Reqs ([Expr] -> Bool)] -> IO TestTree
-checkLiquidWithConfig fp entry i config reqList = do
-    res <- findCounterExamples' fp (T.pack entry) [] [] config
+checkLiquidWithMap :: FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> TestTree
+checkLiquidWithMap fp entry stps i reqList = do
+    checkLiquidWithConfig fp entry i reqList
+        (do config <- mkConfigTestWithMapIO
+            return $ config {steps = stps} )
 
-    let (ch, r) = case res of
-                Nothing -> (False, Right ())
-                Just (Left e) -> (False, Left e)
-                Just (Right exprs) -> (checkExprGen
-                                        (map (\(ExecRes { conc_args = inp, conc_out = out})
-                                                -> inp ++ [out]) exprs
-                                        ) i reqList, Right ())
+checkLiquidWithConfig :: FilePath -> String -> Int -> [Reqs ([Expr] -> Bool)] -> IO Config -> TestTree
+checkLiquidWithConfig fp entry i reqList config_f = 
+    testCase fp (do
+        config <- config_f
+        res <- findCounterExamples' fp (T.pack entry) [] [] config
 
-    return . testCase fp
-        $ assertBool ("Liquid test for file " ++ fp ++ 
-                      " with function " ++ entry ++ " failed.\n" ++ show r) ch
+        let (ch, r) = case res of
+                    Nothing -> (False, Right ())
+                    Just (Left e) -> (False, Left e)
+                    Just (Right exprs) -> (checkExprGen
+                                            (map (\(ExecRes { conc_args = inp, conc_out = out})
+                                                    -> inp ++ [out]) exprs
+                                            ) i reqList, Right ())
 
-checkAbsLiquid :: FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Expr -> [FuncCall] -> Bool)] -> IO TestTree
-checkAbsLiquid fp entry stps i reqList = checkAbsLiquidWithConfig fp entry i (mkConfigTest {steps = stps}) reqList
+        assertBool ("Liquid test for file " ++ fp ++ 
+                    " with function " ++ entry ++ " failed.\n" ++ show r) ch
+        )
+
+checkAbsLiquid :: FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Expr -> [FuncCall] -> Bool)] -> TestTree
+checkAbsLiquid fp entry stps i reqList = do
+    checkAbsLiquidWithConfig fp entry i reqList
+        (do config <- mkConfigTestIO
+            return $ config {steps = stps} )
 
 checkAbsLiquidWithConfig :: FilePath
                          -> String
                          -> Int
-                         -> Config
                          -> [Reqs ([Expr]
                          -> Expr
                          -> [FuncCall]
                          -> Bool)]
-                         -> IO TestTree
-checkAbsLiquidWithConfig fp entry i config reqList = do
-    res <- findCounterExamples' fp (T.pack entry) [] [] config
+                         -> IO Config
+                         -> TestTree
+checkAbsLiquidWithConfig fp entry i reqList config_f = do
+    testCase fp (do
+        config <- config_f
+        res <- findCounterExamples' fp (T.pack entry) [] [] config
 
-    let (ch, r) = case res of
-                Nothing -> (False, Right [])
-                Just (Left e) -> (False, Left e)
-                Just (Right exprs) ->
-                    let
-                        te = checkAbsLHExprGen
-                                (map (\(ExecRes { final_state = s, conc_args = inp, conc_out = out})
-                                        -> (s, inp, out)
-                                     ) exprs
-                                ) i reqList
-                    in
-                    (null te, Right te)
+        let (ch, r) = case res of
+                    Nothing -> (False, Right [])
+                    Just (Left e) -> (False, Left e)
+                    Just (Right exprs) ->
+                        let
+                            te = checkAbsLHExprGen
+                                    (map (\(ExecRes { final_state = s, conc_args = inp, conc_out = out})
+                                            -> (s, inp, out)
+                                         ) exprs
+                                    ) i reqList
+                        in
+                        (null te, Right te)
 
-    return . testCase fp
-        $ assertBool ("Liquid test for file " ++ fp ++ 
-                      " with function " ++ entry ++ " failed.\n" ++ show r) ch
+        assertBool ("Liquid test for file " ++ fp ++ 
+                    " with function " ++ entry ++ " failed.\n" ++ show r) ch
+        )
 
 -- For mergeState unit tests
 checkFn :: Either String Bool -> String -> IO TestTree

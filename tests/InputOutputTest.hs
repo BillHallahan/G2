@@ -19,19 +19,24 @@ import G2.Translation
 import Reqs
 import TestUtils
 
-checkInputOutput :: FilePath -> String -> String -> Int -> Int -> [Reqs String] ->  IO TestTree
-checkInputOutput src md entry stps i req = checkInputOutputWithConfig [src] md entry i req (mkConfigTest {steps = stps})
+checkInputOutput :: FilePath -> String -> String -> Int -> Int -> [Reqs String] ->  TestTree
+checkInputOutput src md entry stps i req = checkInputOutputWithConfig [src] md entry i req 
+                                              (do config <- mkConfigTestIO
+                                                  return $ config {steps = stps})
 
-checkInputOutputWithConfig :: [FilePath] -> String -> String -> Int -> [Reqs String] -> Config -> IO TestTree
-checkInputOutputWithConfig src md entry i req config = do
-    r <- doTimeout (timeLimit config) $ checkInputOutput' src md entry i req config
+checkInputOutputWithConfig :: [FilePath] -> String -> String -> Int -> [Reqs String] -> IO Config -> TestTree
+checkInputOutputWithConfig src md entry i req config_f = do
+    testCase (show src) (do
+      config <- config_f
+      r <- doTimeout (timeLimit config) $ checkInputOutput' src md entry i req config
 
-    let (b, e) = case r of
-            Nothing -> (False, "\nTimeout")
-            Just (Left e') -> (False, "\n" ++ show e')
-            Just (Right (b', _)) -> (b', "")
+      let (b, e) = case r of
+              Nothing -> (False, "\nTimeout")
+              Just (Left e') -> (False, "\n" ++ show e')
+              Just (Right (b', _)) -> (b', "")
 
-    return . testCase (show src) $ assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ "." ++ e) b 
+      assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ "." ++ e) b 
+      )
 
 checkInputOutput' :: [FilePath] 
                   -> String 
@@ -68,10 +73,13 @@ checkInputOutput'' src md entry i req config = do
 ------------
 
 checkInputOutputLH :: [FilePath] -> [FilePath] -> String -> String -> Int -> Int -> [Reqs String] ->  IO TestTree
-checkInputOutputLH proj src md entry stps i req = checkInputOutputLHWithConfig proj src md entry i req (mkConfigTest {steps = stps})
+checkInputOutputLH proj src md entry stps i req = checkInputOutputLHWithConfig proj src md entry i req
+                                                      (do config <- mkConfigTestIO
+                                                          return $ config {steps = stps})
 
-checkInputOutputLHWithConfig :: [FilePath] -> [FilePath] -> String -> String -> Int -> [Reqs String] -> Config -> IO TestTree
-checkInputOutputLHWithConfig proj src md entry i req config = do
+checkInputOutputLHWithConfig :: [FilePath] -> [FilePath] -> String -> String -> Int -> [Reqs String] -> IO Config -> IO TestTree
+checkInputOutputLHWithConfig proj src md entry i req config_f = do
+    config <- config_f
     r <- doTimeout (timeLimit config) $ checkInputOutputLH' proj src md entry i req config
 
     let b = case r of

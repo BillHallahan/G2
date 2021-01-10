@@ -6,23 +6,28 @@ import qualified Data.Map as M
 import Data.Monoid
 import qualified Data.Text as T
 
+import System.Directory
+
 import G2.Config
 import G2.Language
 
-mkConfigTest :: Config
-mkConfigTest = (mkConfig "/whatever/" [] M.empty)
-                    { higherOrderSolver = AllFuncs
-                    , timeLimit = 50
-                    , baseInclude = [ "./base-4.9.1.0/Control/Exception/"
-                                    , "./base-4.9.1.0/" ]
-                    , base = [ "./base-4.9.1.0/Control/Exception/Base.hs"
-                             , "./base-4.9.1.0/Prelude.hs" ]
-                    , extraDefaultMods = [] }
+mkConfigTestIO :: IO Config
+mkConfigTestIO = do
+    homedir <- getHomeDirectory
+    return $
+        (mkConfig homedir [] M.empty)
+            { higherOrderSolver = AllFuncs
+            , timeLimit = 75
+            -- , baseInclude = [ "./base-4.9.1.0/Control/Exception/"
+            --                 , "./base-4.9.1.0/" ]
+            , base = baseSimple homedir
+            , extraDefaultMods = [] }
 
-mkConfigTestWithMap :: Config
-mkConfigTestWithMap =
-    mkConfigTest { baseInclude = baseInclude mkConfigTest ++ ["./base-4.9.1.0/Data/Internal/"]
-                 , base = base mkConfigTest ++ ["./base-4.9.1.0/Data/Internal/Map.hs"] }
+mkConfigTestWithMapIO :: IO Config
+mkConfigTestWithMapIO = do
+    config <- mkConfigTestIO
+    homedir <- getHomeDirectory
+    return $ config { base = base config ++ baseExtra homedir }
 
 
 eqIgT :: Expr -> Expr -> Bool
