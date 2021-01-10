@@ -313,10 +313,14 @@ liquidTests = testGroup "Liquid"
         [ AtLeast 1
         , RForAll (\_ _ [ _ ]  -> True)]
 
-    , checkLiquidWithConfig "tests/Liquid/NestedLength.hs" "nested" 2 [AtLeast 1] (return $ mkConfigTest {add_tyvars = True})
-    , checkLiquidWithConfig "tests/Liquid/AddTyVars.hs" "f" 3 [AtLeast 1] (return $ mkConfigTest {add_tyvars = True, steps = 400})
-    , checkLiquidWithConfig "tests/Liquid/AddTyVars.hs" "g" 3 [AtLeast 1] (return $ mkConfigTest {add_tyvars = True, steps = 400})
-    , checkLiquidWithConfig "tests/Liquid/AddTyVars.hs" "h" 3[AtLeast 1] (return $ mkConfigTest {add_tyvars = True, steps = 400}) 
+    , checkLiquidWithConfig "tests/Liquid/NestedLength.hs" "nested" 2 [AtLeast 1]
+                            (do config <- mkConfigTestIO; return $ config {add_tyvars = True})
+    , checkLiquidWithConfig "tests/Liquid/AddTyVars.hs" "f" 3 [AtLeast 1]
+                            (do config <- mkConfigTestIO; return $ config {add_tyvars = True, steps = 400}) 
+    , checkLiquidWithConfig "tests/Liquid/AddTyVars.hs" "g" 3 [AtLeast 1]
+                            (do config <- mkConfigTestIO; return $ config {add_tyvars = True, steps = 400}) 
+    , checkLiquidWithConfig "tests/Liquid/AddTyVars.hs" "h" 3[AtLeast 1]
+                            (do config <- mkConfigTestIO; return $ config {add_tyvars = True, steps = 400}) 
     ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that

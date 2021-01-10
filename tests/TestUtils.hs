@@ -23,16 +23,6 @@ mkConfigTestIO = do
             , base = baseSimple homedir
             , extraDefaultMods = [] }
 
-mkConfigTest :: Config
-mkConfigTest = (mkConfig "/whatever/" [] M.empty)
-                    { higherOrderSolver = AllFuncs
-                    , timeLimit = 75
-                    , baseInclude = [ "./base-4.9.1.0/Control/Exception/"
-                                    , "./base-4.9.1.0/" ]
-                    , base = [ "./base-4.9.1.0/Control/Exception/Base.hs"
-                             , "./base-4.9.1.0/Prelude.hs" ]
-                    , extraDefaultMods = [] }
-
 mkConfigTestWithMapIO :: IO Config
 mkConfigTestWithMapIO = do
     config <- mkConfigTestIO
