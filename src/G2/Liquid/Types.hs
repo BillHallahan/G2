@@ -13,6 +13,7 @@ module G2.Liquid.Types ( LHOutput (..)
                        , AbstractedInfo (..)
                        , Assumptions
                        , Posts
+                       , TyVarBags
 
                        , tcValuesM
 
@@ -25,6 +26,7 @@ module G2.Liquid.Types ( LHOutput (..)
                        , assumptionsM
                        , postsM
                        , annotsM
+                       , tyVarBagsM
                        , runLHStateM
                        , evalLHStateM
                        , execLHStateM
@@ -43,6 +45,10 @@ module G2.Liquid.Types ( LHOutput (..)
                        , insertAnnotM
                        , mapAnnotsExpr
                        , lookupRenamedTCDict
+                       , insertTyVarBags
+                       , lookupTyVarBags
+                       , setTyVarBags
+
                        , andM
                        , orM
                        , notM
@@ -162,6 +168,9 @@ instance L.ASTContainer Abstracted L.Type where
                    , real = L.modifyContainedASTs f r
                    , hits_lib_err_in_real = err }
 
+-- | See G2.Liquid.TyVarBags
+type TyVarBags = M.Map L.Name [L.Id]
+
 -- [LHState]
 -- measures is an extra expression environment, used to build Assertions.
 -- This distinction between functions for code, and functions for asserts is important because
@@ -184,6 +193,7 @@ data LHState = LHState { state :: L.State [L.FuncCall]
                        , assumptions :: Assumptions
                        , posts :: Posts
                        , annots :: AnnotMap
+                       , tyvar_bags :: TyVarBags
                        } deriving (Eq, Show, Read)
 
 consLHState :: L.State [L.FuncCall] -> Measures -> L.TypeClasses -> TCValues -> LHState
@@ -194,7 +204,8 @@ consLHState s meas tc tcv =
             , tcvalues = tcv
             , assumptions = M.empty
             , posts = M.empty
-            , annots = AM HM.empty }
+            , annots = AM HM.empty
+            , tyvar_bags = M.empty }
 
 deconsLHState :: LHState -> L.State [L.FuncCall]
 deconsLHState (LHState { state = s
@@ -225,6 +236,12 @@ annotsM :: LHStateM AnnotMap
 annotsM = do
     (lh_s, _) <- SM.get
     return $ annots lh_s
+
+tyVarBagsM :: LHStateM TyVarBags
+tyVarBagsM = do
+    (lh_s, _) <- SM.get
+    return $ tyvar_bags lh_s
+
 
 newtype LHStateM a = LHStateM { unSM :: (SM.State (LHState, L.Bindings) a) } deriving (Applicative, Functor, Monad)
 
@@ -410,6 +427,22 @@ lookupRenamedTCDict :: L.Name -> L.Type -> LHStateM (Maybe L.Id)
 lookupRenamedTCDict n t = do
     tc <- lhRenamedTCM
     return $ lookupTCDict tc n t
+
+insertTyVarBags :: L.Name -> [L.Id] -> LHStateM ()
+insertTyVarBags n is = do
+    (lh_s, b) <- SM.get
+    let tyvar_bags' = M.insert n is (tyvar_bags lh_s)
+    SM.put $ (lh_s {tyvar_bags = tyvar_bags'}, b)
+
+lookupTyVarBags :: L.Name -> LHStateM (Maybe [L.Id])
+lookupTyVarBags n = do
+    (lh_s, b) <- SM.get
+    return $ M.lookup n (tyvar_bags lh_s)
+
+setTyVarBags :: M.Map L.Name [L.Id] -> LHStateM ()
+setTyVarBags m = do
+    (lh_s, b) <- SM.get
+    SM.put (lh_s {tyvar_bags = m}, b)
 
 -- | andM
 -- The version of 'and' in the measures
