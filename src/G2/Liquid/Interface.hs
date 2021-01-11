@@ -62,7 +62,6 @@ import G2.Liquid.SpecialAsserts
 import G2.Liquid.TCGen
 import G2.Liquid.TCValues
 import G2.Liquid.Types
-import G2.Liquid.TyVarBags
 import G2.Solver hiding (solve)
 
 import G2.Lib.Printers
@@ -484,7 +483,6 @@ initializeLHData :: [GhcInfo] -> Maybe PhantomTyVars -> Config -> LHStateM ()
 initializeLHData ghcInfos m_ph_tyvars config = do
     addLHTC
     addOrdToNum
-    createBagFuncs
 
     addErrorAssumes config
 

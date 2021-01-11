@@ -11,6 +11,7 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad
 import G2.Liquid.Types
+import G2.Liquid.TyVarBags
 
 import qualified Data.HashSet as S
 
@@ -32,11 +33,15 @@ type CounterfactualName = Name
 --     This is essentially abstracting away the function definition, leaving
 --     only the information that LH also knows (that is, the information in the
 --     refinment type.)
-addCounterfactualBranch :: CFModules -> [Name] -> LHStateM CounterfactualName
+addCounterfactualBranch :: CFModules
+                        -> [Name] -- ^ Which functions to consider abstracting
+                        -> LHStateM CounterfactualName
 addCounterfactualBranch cf_mod ns = do
     let ns' = case cf_mod of
                 CFAll -> ns
                 CFOnly mods -> filter (\(Name n m _ _) -> (n, m) `S.member` mods) ns
+
+    createBagFuncs . concat =<< mapM argumentNames ns'
 
     cfn <- freshSeededStringN "cf"
     mapWithKeyME (addCounterfactualBranch' cfn ns')
@@ -84,6 +89,17 @@ tyBindings' _ [] = id
 tyBindings' ns (NamedType i:ts) = Lam TypeL i . tyBindings' ns ts
 tyBindings' (n:ns) (AnonType t:ts) = Lam TermL (Id n t) . tyBindings' ns ts
 tyBindings' [] _ = error "Name list exhausted in tyBindings'"
+
+argumentNames :: ExState s m => Name -> m [Name]
+argumentNames n = do
+    e <- lookupE n
+    case e of
+        Just e' -> return . concatMap tyConNames $ anonArgumentTypes e'
+        Nothing -> return []
+
+tyConNames :: Type -> [Name]
+tyConNames (TyCon n t) = n:tyConNames t 
+tyConNames t = evalChildren tyConNames t
 
 -- | Eliminates the real branch of the non-deterministic choices, leaving only
 -- the abstract branch.  Assumes all non-determinisitic choices are for

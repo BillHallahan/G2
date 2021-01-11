@@ -17,11 +17,13 @@ import qualified Data.Text as T
 
 type FuncNames = M.Map Name [Id]
 
-createBagFuncs :: LHStateM ()
-createBagFuncs = do
+createBagFuncs :: [Name] -- ^ Which types do we need bag functions for?
+               -> LHStateM ()
+createBagFuncs ns = do
     tenv <- typeEnv
-    func_names <- assignBagFuncNames tenv
-    bf <- mapM (uncurry (createBagFunc func_names)) (M.toList tenv)
+    let tenv' = M.filterWithKey (\n _ -> n `elem` ns) tenv
+    func_names <- assignBagFuncNames tenv'
+    bf <- mapM (uncurry (createBagFunc func_names)) (M.toList tenv')
     setTyVarBags (M.fromList bf)
 
 -- | Creates a mapping of type names to bag creation function names 
