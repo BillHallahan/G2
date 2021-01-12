@@ -558,6 +558,8 @@ reqNames (State { expr_env = eenv
                    , mkJust kv tenv
                    , mkNothing kv tenv
 
+                   , mkUnit kv tenv
+
                    , mkIntegralExtactReal kv
                    , mkRealExtractNum kv 
                    ]

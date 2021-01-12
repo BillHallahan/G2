@@ -11,6 +11,7 @@ module G2.Language.Monad.Expr ( mkDCTrueM
                               , mkFalseE
                               , mkConsE
                               , mkEmptyE
+                              , mkUnitE
                               , modifyAppTopE
                               , modifyLamTopE
                               , modifyAppRHSE
@@ -64,6 +65,9 @@ mkConsE = appKVTEnv mkCons
 
 mkEmptyE :: ExState s m => m Expr
 mkEmptyE = appKVTEnv mkEmpty
+
+mkUnitE :: ExState s m => m Expr
+mkUnitE = appKVTEnv mkUnit
 
 modifyAppTopE :: (Monad m, ASTContainerM c Expr) => (Expr -> m Expr) -> c -> m c
 modifyAppTopE f = modifyContainedASTsM (modifyAppTopE' f)

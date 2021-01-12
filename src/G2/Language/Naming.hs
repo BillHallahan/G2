@@ -556,6 +556,9 @@ instance Named KnownValues where
             , dcJust = dJust
             , dcNothing = dNothing
 
+            , tyUnit = tUnit
+            , dcUnit = dUnit
+
             , eqTC = eqT
             , numTC = numT
             , ordTC = ordT
@@ -607,6 +610,7 @@ instance Named KnownValues where
             [dI, dF, dD, dI2, dcCh, tI, tI2, tF, tD, tCh, tB, dcT, dcF, tR
             , tList, tCons, tEmp
             , tMaybe, dJust, dNothing
+            , tUnit, dUnit
             , eqT, numT, ordT, integralT, realT, fractionalT
             , integralEReal, realENum, realEOrd, ordEEq
             , eqF, neqF, plF, minusF, tmsF, divF, negF, modF
@@ -643,6 +647,9 @@ instance Named KnownValues where
                    , tyMaybe = tMaybe
                    , dcJust = dJust
                    , dcNothing = dNothing
+
+                   , tyUnit = tUnit
+                   , dcUnit = dUnit
 
                    , eqTC = eqT
                    , numTC = numT
@@ -718,6 +725,9 @@ instance Named KnownValues where
                         , tyMaybe = rename old new tMaybe
                         , dcJust = rename old new dJust
                         , dcNothing = rename old new dNothing
+
+                        , tyUnit = rename old new tUnit
+                        , dcUnit = rename old new dUnit
 
                         , eqTC = rename old new eqT
                         , numTC = rename old new numT

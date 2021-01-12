@@ -42,6 +42,7 @@ addCounterfactualBranch cf_mod ns = do
                 CFOnly mods -> filter (\(Name n m _ _) -> (n, m) `S.member` mods) ns
 
     createBagFuncs . concat =<< mapM argumentNames ns'
+    createInstFuncs . concat =<< mapM returnNames ns'
 
     cfn <- freshSeededStringN "cf"
     mapWithKeyME (addCounterfactualBranch' cfn ns')
@@ -95,6 +96,13 @@ argumentNames n = do
     e <- lookupE n
     case e of
         Just e' -> return . concatMap tyConNames $ anonArgumentTypes e'
+        Nothing -> return []
+
+returnNames :: ExState s m => Name -> m [Name]
+returnNames n = do
+    e <- lookupE n
+    case e of
+        Just e' -> return . tyConNames $ returnType e'
         Nothing -> return []
 
 tyConNames :: Type -> [Name]

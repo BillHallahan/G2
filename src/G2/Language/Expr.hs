@@ -20,6 +20,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , mkEmpty
                         , mkJust
                         , mkNothing
+                        , mkUnit
 
                         , mkIdentity
                         , mkEqIntExpr
@@ -166,6 +167,9 @@ mkJust kv tenv = Data . fromJust $ getDataCon tenv (KV.tyMaybe kv) (KV.dcJust kv
 
 mkNothing :: KnownValues -> TypeEnv -> Expr
 mkNothing kv tenv = Data . fromJust $ getDataCon tenv (KV.tyMaybe kv) (KV.dcNothing kv)
+
+mkUnit :: KnownValues -> TypeEnv -> Expr
+mkUnit kv tenv = Data . fromJust $ getDataCon tenv (KV.tyUnit kv) (KV.dcUnit kv)
 
 mkIdentity :: Type -> Expr
 mkIdentity t =

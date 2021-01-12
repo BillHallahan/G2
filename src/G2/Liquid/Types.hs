@@ -14,6 +14,7 @@ module G2.Liquid.Types ( LHOutput (..)
                        , Assumptions
                        , Posts
                        , TyVarBags
+                       , InstFuncs
 
                        , tcValuesM
 
@@ -48,6 +49,9 @@ module G2.Liquid.Types ( LHOutput (..)
                        , insertTyVarBags
                        , lookupTyVarBags
                        , setTyVarBags
+                       , insertInstFuncs
+                       , lookupInstFuncs
+                       , setInstFuncs
 
                        , andM
                        , orM
@@ -170,6 +174,7 @@ instance L.ASTContainer Abstracted L.Type where
 
 -- | See G2.Liquid.TyVarBags
 type TyVarBags = M.Map L.Name [L.Id]
+type InstFuncs = M.Map L.Name L.Id
 
 -- [LHState]
 -- measures is an extra expression environment, used to build Assertions.
@@ -194,6 +199,7 @@ data LHState = LHState { state :: L.State [L.FuncCall]
                        , posts :: Posts
                        , annots :: AnnotMap
                        , tyvar_bags :: TyVarBags
+                       , inst_funcs :: InstFuncs
                        } deriving (Eq, Show, Read)
 
 consLHState :: L.State [L.FuncCall] -> Measures -> L.TypeClasses -> TCValues -> LHState
@@ -205,7 +211,8 @@ consLHState s meas tc tcv =
             , assumptions = M.empty
             , posts = M.empty
             , annots = AM HM.empty
-            , tyvar_bags = M.empty }
+            , tyvar_bags = M.empty
+            , inst_funcs = M.empty }
 
 deconsLHState :: LHState -> L.State [L.FuncCall]
 deconsLHState (LHState { state = s
@@ -443,6 +450,22 @@ setTyVarBags :: M.Map L.Name [L.Id] -> LHStateM ()
 setTyVarBags m = do
     (lh_s, b) <- SM.get
     SM.put (lh_s {tyvar_bags = m}, b)
+
+insertInstFuncs :: L.Name -> L.Id -> LHStateM ()
+insertInstFuncs n i = do
+    (lh_s, b) <- SM.get
+    let inst_funcs' = M.insert n i (inst_funcs lh_s)
+    SM.put $ (lh_s {inst_funcs = inst_funcs'}, b)
+
+lookupInstFuncs :: L.Name -> LHStateM (Maybe L.Id)
+lookupInstFuncs n = do
+    (lh_s, b) <- SM.get
+    return $ M.lookup n (inst_funcs lh_s)
+
+setInstFuncs :: M.Map L.Name L.Id -> LHStateM ()
+setInstFuncs m = do
+    (lh_s, b) <- SM.get
+    SM.put (lh_s {inst_funcs = m}, b)
 
 -- | andM
 -- The version of 'and' in the measures

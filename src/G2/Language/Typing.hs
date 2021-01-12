@@ -16,6 +16,7 @@ module G2.Language.Typing
     , tyRational
     , tyList
     , tyMaybe
+    , tyUnit
     , mkTyApp
     , mkTyFun
     , tyAppCenter
@@ -99,6 +100,9 @@ tyList kv = TyCon (KV.tyList kv) (TyFun TYPE TYPE)
 
 tyMaybe :: KV.KnownValues -> Type
 tyMaybe kv = TyCon (KV.tyMaybe kv) (TyFun TYPE TYPE)
+
+tyUnit :: KV.KnownValues -> Type
+tyUnit kv = TyCon (KV.tyUnit kv) (TyFun TYPE TYPE)
 
 tyTYPE :: KV.KnownValues -> Type
 tyTYPE _ = TYPE

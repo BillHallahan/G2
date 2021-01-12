@@ -39,6 +39,9 @@ data KnownValues = KnownValues {
                  , dcJust :: Name
                  , dcNothing :: Name
 
+                 , tyUnit :: Name
+                 , dcUnit :: Name
+
                  -- Typeclasses
                  , eqTC :: Name
                  , numTC :: Name
