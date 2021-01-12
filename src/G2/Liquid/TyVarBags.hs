@@ -8,7 +8,12 @@
 module G2.Liquid.TyVarBags ( TyVarBags
                            , InstFuncs
                            , createBagFuncs
-                           , createInstFuncs) where
+                           , createInstFuncs
+
+                           , extractTyVarCall
+                           , instTyVarCall
+
+                           , wrapUnitLam) where
 
 import G2.Language
 import G2.Language.Monad
@@ -16,6 +21,8 @@ import G2.Liquid.Types
 
 import qualified Data.Map.Lazy as M
 import qualified Data.Text as T
+
+import Debug.Trace
 
 createBagFuncs :: [Name] -- ^ Which types do we need bag functions for?
                -> LHStateM ()
@@ -95,7 +102,12 @@ createBagFuncCaseAlt func_names tyvar_id dc = do
     let at = anonArgumentTypes dc
     is <- freshIdsN at
     es <- mapM (extractTyVarCall func_names tyvar_id . Var) is
-    return $ Alt (DataAlt dc is) (NonDet es)
+    case null es of
+        True -> do 
+            flse <- mkFalseE
+            return $ Alt (DataAlt dc is) 
+                         (Assume Nothing flse (Prim Undefined (TyVar tyvar_id)))
+        False -> return $ Alt (DataAlt dc is) (NonDet es)
 
 -- | Creates an extractTyVarBag function call to get all TyVars i out of an
 -- expression e. 
@@ -115,6 +127,13 @@ extractTyVarCall func_names i e
     where
         t = typeOf e
 
+-- | Turns an expression `e` into `\() -> e`
+wrapUnitLam :: ExState s m => Expr -> m Expr
+wrapUnitLam e = do
+    tUnit <- tyUnitT
+    lb <- freshIdN tUnit
+    return $ Lam TermL lb e
+
 -- | Creates functions to, for each type (T a_1 ... a_n), create a nondeterministic value.
 -- Each a_1 ... a_n has an associated function, allowing the caller to decide how to instantiate
 -- these values. 
@@ -125,7 +144,7 @@ createInstFuncs ns = do
     let tenv' = M.filterWithKey (\n _ -> n `elem` ns) tenv
     func_names <- assignInstFuncNames tenv'
     bf <- mapM (uncurry (createInstFunc func_names)) (M.toList tenv')
-    return () -- undefined (M.fromList bf)
+    setInstFuncs (M.fromList bf)
 
 -- | Creates a mapping of type names to instantatiation function names 
 assignInstFuncNames :: ExState s m => TypeEnv -> m InstFuncs
@@ -173,7 +192,11 @@ createInstFunc' func_names is_fs (DataTyCon { bound_ids = bi
 createInstFunc' _ _ _ = error "createInstFunc': unhandled datatype"
 
 -- | Creates an instTyVarCall function call to create an expression of type t with appropriate TyVars
-instTyVarCall :: ExState s m => InstFuncs -> [(Id, Id)] -> Type -> m Expr
+instTyVarCall :: ExState s m =>
+                 InstFuncs
+              -> [(Id, Id)] -- ^ Mapping of TyVar Ids to Functions to create those TyVars
+              -> Type
+              -> m Expr
 instTyVarCall func_names is_fs t 
     | TyVar i <- t
     , Just f <- lookup i is_fs = do
@@ -181,7 +204,7 @@ instTyVarCall func_names is_fs t
         return (App (Var f) dUnit)
     | TyCon n tc_t:ts <- unTyApp t
     , Just fn <- M.lookup n func_names = do
-        let tyc_is = leadingTyForAllBindings tc_t
+        let tyc_is = anonArgumentTypes (PresType tc_t)
             ty_ts = take (length tyc_is) ts
 
             ty_ars = map Type ty_ts

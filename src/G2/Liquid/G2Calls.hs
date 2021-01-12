@@ -480,5 +480,7 @@ pickHead :: (ASTContainer m Expr) => m -> m
 pickHead = modifyASTs pickHead'
 
 pickHead' :: Expr -> Expr
-pickHead' (NonDet xs) = head xs
+pickHead' (NonDet xs)
+    | x:_ <- xs = x
+    | otherwise = error "pickHead: empty NonDet"
 pickHead' e = e

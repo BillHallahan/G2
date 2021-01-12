@@ -55,27 +55,51 @@ addCounterfactualBranch' cfn ns n =
 addCounterfactualBranch'' :: CounterfactualName -> Expr -> LHStateM Expr
 addCounterfactualBranch'' cfn
     orig_e@(Let 
-        [(b, _)]
-        (Assert (Just (FuncCall { funcName = fn, arguments = ars })) a _)) = do
-    let t = returnType orig_e
-        sg = SymGen t
+            [(b, _)]
+            (Assert (Just (FuncCall { funcName = fn, arguments = ars, returns = r })) a _)) = do
+        sg <- cfRetValue ars rt
 
-    -- Create lambdas, to gobble up any ApplyFrames left on the stack
-    lams <- tyBindings orig_e
+        -- Create lambdas, to gobble up any ApplyFrames left on the stack
+        lams <- tyBindings orig_e
 
-    -- If the type of b is not the same as e's type, we have no assumption,
-    -- so we get a new b.  Otherwise, we just keep our current b,
-    -- in case it is used in the assertion
-    b' <- if typeOf b == t then return b else freshIdN t
+        -- If the type of b is not the same as e's type, we have no assumption,
+        -- so we get a new b.  Otherwise, we just keep our current b,
+        -- in case it is used in the assertion
+        b' <- if typeOf b == rt then return b else freshIdN rt
 
-    let fc = FuncCall { funcName = fn, arguments = ars', returns = (Var b')}
-        e' = lams $ Let [(b', sg)] $ Tick (NamedLoc cfn) $ Assume (Just fc) a (Var b')
-        -- We add the Id's from the newly created Lambdas to the arguments list
-        lamI = map Var $ leadingLamIds e'
-        ars' = ars ++ lamI
+        let fc = FuncCall { funcName = fn, arguments = ars', returns = (Var b')}
+            e' = lams $ Let [(b', sg)] $ Tick (NamedLoc cfn) $ Assume (Just fc) a (Var b')
+            -- We add the Id's from the newly created Lambdas to the arguments list
+            lamI = map Var $ leadingLamIds e'
+            ars' = ars ++ lamI
 
-    return $ NonDet [orig_e, e']
+        return $ NonDet [orig_e, e']
+        where
+            rt = typeOf r
 addCounterfactualBranch'' cfn e = modifyChildrenM (addCounterfactualBranch'' cfn) e
+
+cfRetValue :: [Expr] -- ^ Arguments
+           -> Type -- ^ Type of return value
+           -> LHStateM Expr
+cfRetValue ars rt
+    | tvs <- tyVarIds rt
+    , not (null tvs)  = do
+        ty_bags <- getTyVarBags
+        ex_ty_clls <- mapM 
+                        (\tv -> wrapUnitLam
+                              . NonDet 
+                              =<< mapM (extractTyVarCall ty_bags tv) ars) tvs
+
+        ex_vrs <- freshIdsN (map typeOf ex_ty_clls)
+        let ex_let_bnds = zip ex_vrs ex_ty_clls
+            ex_tvs_to_vrs = zip tvs ex_vrs
+
+        inst_funcs <- getInstFuncs
+        inst_ret <- instTyVarCall inst_funcs ex_tvs_to_vrs rt
+        
+        return $ Let ex_let_bnds inst_ret
+    | otherwise = do 
+        return (SymGen rt)
 
 -- Creates Lambda bindings to saturate the type of the given Typed thing,
 -- and a list of the bindings so they can be used elsewhere

@@ -41,6 +41,7 @@ module G2.Language.Typing
     , tyVarNames
     , hasTyFuns
     , isPolyFunc
+    , isPolyType
     , numArgs
     , ArgType (..)
     , argumentTypes
@@ -420,6 +421,11 @@ isPolyFunc = isPolyFunc' . typeOf
 isPolyFunc' :: Type -> Bool
 isPolyFunc' (TyForAll _ _) = True
 isPolyFunc' _ = False
+
+
+-- | Checks if the given type is polymorphic
+isPolyType :: Typed t => t -> Bool
+isPolyType = not . null . tyVars . typeOf
 
 -- tyVars
 -- Returns a list of all tyVars

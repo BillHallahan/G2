@@ -49,9 +49,11 @@ module G2.Liquid.Types ( LHOutput (..)
                        , insertTyVarBags
                        , lookupTyVarBags
                        , setTyVarBags
+                       , getTyVarBags
                        , insertInstFuncs
                        , lookupInstFuncs
                        , setInstFuncs
+                       , getInstFuncs
 
                        , andM
                        , orM
@@ -446,10 +448,13 @@ lookupTyVarBags n = do
     (lh_s, b) <- SM.get
     return $ M.lookup n (tyvar_bags lh_s)
 
-setTyVarBags :: M.Map L.Name [L.Id] -> LHStateM ()
+setTyVarBags :: TyVarBags -> LHStateM ()
 setTyVarBags m = do
     (lh_s, b) <- SM.get
     SM.put (lh_s {tyvar_bags = m}, b)
+
+getTyVarBags :: LHStateM TyVarBags
+getTyVarBags = return . tyvar_bags . fst =<< SM.get
 
 insertInstFuncs :: L.Name -> L.Id -> LHStateM ()
 insertInstFuncs n i = do
@@ -466,6 +471,9 @@ setInstFuncs :: M.Map L.Name L.Id -> LHStateM ()
 setInstFuncs m = do
     (lh_s, b) <- SM.get
     SM.put (lh_s {inst_funcs = m}, b)
+
+getInstFuncs :: LHStateM InstFuncs
+getInstFuncs = return . inst_funcs . fst =<< SM.get
 
 -- | andM
 -- The version of 'and' in the measures
