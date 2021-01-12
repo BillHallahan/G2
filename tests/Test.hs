@@ -324,7 +324,9 @@ liquidTests = testGroup "Liquid"
 
     , checkLiquid "tests/Liquid/Polymorphism/Poly1.hs" "f" 1000 1 [Exactly 0]
     , checkLiquid "tests/Liquid/Polymorphism/Poly2.hs" "f" 600 1 [Exactly 0]
-    , checkAbsLiquid "tests/Liquid/Polymorphism/Poly3.hs" "f" 600 1 [AtLeast 4]
+    , checkAbsLiquid "tests/Liquid/Polymorphism/Poly3.hs" "f" 800 1
+        [ AtLeast 4
+        , RForAll (\_ _ [ FuncCall { funcName = Name n _ _ _} ]  -> n == "fil")]
     , checkLiquid "tests/Liquid/Polymorphism/Poly4.hs" "f" 600 1 [Exactly 0]
     ]
 
