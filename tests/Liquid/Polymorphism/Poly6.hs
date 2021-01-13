@@ -15,13 +15,11 @@ data List a = Emp | C a
 f :: List Int -> Bool
 f xs =
     let
-        l1 = len xs
-        l2 = len (g xs)
+        l2 = case g xs of Emp -> 0; _ -> 1
     in
-    case l1 of
-        0 -> case l2 of { 0 -> True; _ -> False}
-        1 -> case l2 of { 1 -> True; _ -> False}
-        _ -> False
+    case xs of
+        Emp -> case l2 of { 0 -> True; _ -> False}
+        C _ -> case l2 of { 1 -> True; _ -> False}
 
 {-@ len :: xs:List a -> { r:Int | size xs == r } @-}
 len :: List a -> Int
