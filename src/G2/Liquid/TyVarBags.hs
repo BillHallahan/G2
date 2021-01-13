@@ -22,8 +22,6 @@ import G2.Liquid.Types
 import qualified Data.Map.Lazy as M
 import qualified Data.Text as T
 
-import Debug.Trace
-
 createBagFuncs :: [Name] -- ^ Which types do we need bag functions for?
                -> LHStateM ()
 createBagFuncs ns = do
@@ -117,7 +115,7 @@ extractTyVarCall func_names i e
     , i == i' = return e
     | TyCon n tc_t:ts <- unTyApp t
     , Just fn <- M.lookup n func_names = do
-        let is = leadingTyForAllBindings tc_t
+        let is = anonArgumentTypes (PresType tc_t)
             ty_ars = map Type $ take (length is) ts
         
         return . NonDet $ map (\f -> App (mkApp (Var f:ty_ars)) e) fn

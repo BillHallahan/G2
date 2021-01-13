@@ -60,7 +60,7 @@ toNum _ s@(State {adt_int_maps = adtIntMaps
                         num = maybe Nothing (lookupInt dcN) maybeDCNumMap
                         adtIntMaps' = maybe adtIntMaps (insertFlipped rt adtIntMaps) maybeDCNumMap
                     in
-                    trace ("rt = " ++ show rt ++ "\nmaybeDCNumMap = " ++ show maybeDCNumMap) (adtIntMaps', num)
+                    (adtIntMaps', num)
         in case maybeNum of
             Just num ->
                 let numericalPC = ExtCond (mkEqIntExpr kv (Var (Id n TyLitInt)) (toInteger num)) bool
