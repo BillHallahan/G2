@@ -11,6 +11,7 @@ module G2.Liquid.TyVarBags ( TyVarBags
                            , createInstFuncs
 
                            , extractTyVarCall
+                           , wrapExtractCalls
                            , instTyVarCall
 
                            , wrapUnitLam) where
@@ -95,7 +96,8 @@ createBagFuncCase func_names adt_i tyvar_id bi (NewTyCon { bound_ids = adt_bi
                                                          , rep_type = rt }) = do
     let rt' = foldr (uncurry retype) rt $ zip adt_bi (map TyVar bi)
         cst = Cast (Var adt_i) (typeOf adt_i :~ rt')
-    extractTyVarCall func_names tyvar_id cst
+    clls <- extractTyVarCall func_names tyvar_id cst
+    wrapExtractCalls tyvar_id clls
 createBagFuncCase _ _ _ _ (TypeSynonym {}) =
     error "creatBagFuncCase: TypeSynonyms unsupported"
 
@@ -103,7 +105,7 @@ createBagFuncCaseAlt :: ExState s m => TyVarBags -> Id -> DataCon -> m Alt
 createBagFuncCaseAlt func_names tyvar_id dc = do
     let at = anonArgumentTypes dc
     is <- freshIdsN at
-    es <- mapM (extractTyVarCall func_names tyvar_id . Var) is
+    es <- return . concat =<< mapM (extractTyVarCall func_names tyvar_id . Var) is
     case null es of
         True -> do 
             flse <- mkFalseE
@@ -111,19 +113,10 @@ createBagFuncCaseAlt func_names tyvar_id dc = do
                          (Assume Nothing flse (Prim Undefined (TyVar tyvar_id)))
         False -> return $ Alt (DataAlt dc is) (NonDet es)
 
--- | Creates an extractTyVarBag function call to get all TyVars i out of an
+-- | Creates a set of expressions to get all TyVars i out of an
 -- expression e. 
-extractTyVarCall :: ExState s m => TyVarBags -> Id -> Expr -> m Expr
-extractTyVarCall func_names i e = do
-    clls <- extractTyVarCall' func_names i e
-    case null clls of
-        True -> do
-            flse <- mkFalseE
-            return $ Assume Nothing flse (Prim Undefined (TyVar i))
-        False -> return $ NonDet clls
-
-extractTyVarCall' :: ExState s m => TyVarBags -> Id -> Expr -> m [Expr]
-extractTyVarCall' func_names i e 
+extractTyVarCall :: ExState s m => TyVarBags -> Id -> Expr -> m [Expr]
+extractTyVarCall func_names i e 
     | TyVar i' <- t
     , i == i' = return [e]
     | TyCon n tc_t:ts <- unTyApp t
@@ -131,11 +124,20 @@ extractTyVarCall' func_names i e
         let is = anonArgumentTypes (PresType tc_t)
             ty_ars = map Type $ take (length is) ts
             nds = map (\f -> App (mkApp (Var f:ty_ars)) e) fn
-        nds' <- mapM (extractTyVarCall' func_names i) nds
+        nds' <- mapM (extractTyVarCall func_names i) nds
         return (concat nds')
     | otherwise = return []
     where
         t = typeOf e
+
+wrapExtractCalls :: ExState s m => Id -> [Expr] -> m Expr
+wrapExtractCalls i clls = do
+    case null clls of
+        True -> do
+            flse <- mkFalseE
+            return $ Assume Nothing flse (Prim Undefined (TyVar i))
+        False -> return $ NonDet clls
+
 
 -- | Turns an expression `e` into `\() -> e`
 wrapUnitLam :: ExState s m => Expr -> m Expr

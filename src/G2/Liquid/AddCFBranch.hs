@@ -86,9 +86,9 @@ cfRetValue ars rt
     , not (null tvs)  = do
         ty_bags <- getTyVarBags
         ex_ty_clls <- mapM 
-                        (\tv -> return
-                              . NonDet
+                        (\tv -> wrapExtractCalls tv
                               . filter nullNonDet
+                              . concat
                               =<< mapM (extractTyVarCall ty_bags tv) ars) tvs
 
         ex_vrs <- freshIdsN (map typeOf ex_ty_clls)
