@@ -22,6 +22,8 @@ import G2.Liquid.Types
 import qualified Data.Map.Lazy as M
 import qualified Data.Text as T
 
+import Debug.Trace
+
 createBagFuncs :: [Name] -- ^ Which types do we need bag functions for?
                -> LHStateM ()
 createBagFuncs ns = do
@@ -37,13 +39,15 @@ assignBagFuncNames tenv =
     return . M.fromList
         =<< mapM
             (\(n@(Name n' m _ _), adt) -> do
-                let bi = bound_ids adt
+                let dc = head (dataCon adt)
+                    bi = bound_ids adt
                     mkName i = Name (n' `T.append` "_create_bag_" `T.append` (T.pack . show $ i)) m 0 Nothing
 
                 fn <- mapM
                         (\(i, tbi) -> do
                             n_fn <- freshSeededNameN (mkName i)
-                            let t = foldr (\ntb -> TyForAll (NamedTyBndr ntb)) (TyVar tbi) bi
+                            let t = foldr (\ntb -> TyForAll (NamedTyBndr ntb))
+                                    (TyFun (returnType dc) (TyVar tbi)) bi
                             return $ Id n_fn t)
                         $ zip [0 :: Int ..] bi
                 return (n, fn)
@@ -117,8 +121,9 @@ extractTyVarCall func_names i e
     , Just fn <- M.lookup n func_names = do
         let is = anonArgumentTypes (PresType tc_t)
             ty_ars = map Type $ take (length is) ts
-        
-        return . NonDet $ map (\f -> App (mkApp (Var f:ty_ars)) e) fn
+            nds = map (\f -> App (mkApp (Var f:ty_ars)) e) fn
+        nds' <- mapM (extractTyVarCall func_names i) nds
+        return (NonDet nds')
     | otherwise = do 
         flse <- mkFalseE
         return $ Assume Nothing flse (Prim Undefined (TyVar i))
@@ -179,13 +184,14 @@ createInstFunc' :: InstFuncs -> [(Id, Id)] -> AlgDataTy -> LHStateM Expr
 createInstFunc' func_names is_fs (DataTyCon { bound_ids = bi
                                             , data_cons = dcs }) = do
     dUnit <- mkUnitE
+    tUnit <- tyUnitT
     dc' <- mapM (\dc -> do
-            let apped_dc = foldr App (Data dc) (map (Type . TyVar . fst) is_fs)
+            let apped_dc = mkApp (Data dc:map (Type . TyVar . fst) is_fs)
                 ars_ty = anonArgumentTypes dc
             ars <- mapM (instTyVarCall func_names is_fs) ars_ty
-            bnds <- mapM freshIdN ars_ty
-            let vrs = map Var bnds
-            return $ Let (zip bnds ars) (foldr App apped_dc vrs)) dcs
+            bnds <- mapM freshIdN $ map (TyFun tUnit) ars_ty
+            let vrs = map (\b -> App (Var b) dUnit) bnds
+            return $ Let (zip bnds ars) (mkApp $ apped_dc:vrs)) dcs
     return (NonDet dc')
 createInstFunc' _ _ _ = error "createInstFunc': unhandled datatype"
 

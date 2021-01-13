@@ -396,8 +396,6 @@ runLHG2 config red hal ord solver simplifier pres_names init_id final_st binding
     let only_abs_st = final_st
     (ret, final_bindings) <- runG2WithSomes red hal ord solver simplifier pres_names only_abs_st bindings
 
-    mapM (putStrLn . mkExprHaskell . (\(CurrExpr _ e) -> e) . curr_expr . final_state) ret
-
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of
                   0 -> 0
