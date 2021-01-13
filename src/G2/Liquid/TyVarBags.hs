@@ -114,7 +114,13 @@ createBagFuncCaseAlt func_names tyvar_id dc = do
 -- | Creates an extractTyVarBag function call to get all TyVars i out of an
 -- expression e. 
 extractTyVarCall :: ExState s m => TyVarBags -> Id -> Expr -> m Expr
-extractTyVarCall func_names i e = return . NonDet =<< extractTyVarCall' func_names i e
+extractTyVarCall func_names i e = do
+    clls <- extractTyVarCall' func_names i e
+    case null clls of
+        True -> do
+            flse <- mkFalseE
+            return $ Assume Nothing flse (Prim Undefined (TyVar i))
+        False -> return $ NonDet clls
 
 extractTyVarCall' :: ExState s m => TyVarBags -> Id -> Expr -> m [Expr]
 extractTyVarCall' func_names i e 
