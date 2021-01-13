@@ -95,10 +95,12 @@ cfRetValue ars rt
         let ex_let_bnds = zip ex_vrs ex_ty_clls
             ex_tvs_to_vrs = zip tvs ex_vrs
 
+        dUnit <- mkUnitE
+
         inst_funcs <- getInstFuncs
         inst_ret <- instTyVarCall inst_funcs ex_tvs_to_vrs rt
         
-        return $ Let ex_let_bnds inst_ret
+        return $ Let ex_let_bnds (App inst_ret dUnit)
     | otherwise = do 
         return (SymGen rt)
 

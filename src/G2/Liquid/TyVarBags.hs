@@ -225,7 +225,10 @@ instTyVarCall func_names is_fs t
         let_ids <- freshIdsN $ map typeOf func_ars
         let bnds = zip let_ids func_ars
 
-        return . Let bnds . mkApp $ Var fn:ty_ars ++ map Var let_ids
+        tUnit <- tyUnitT
+        ui <- freshIdN tUnit
+
+        return . Lam TermL ui . Let bnds . mkApp $ Var fn:ty_ars ++ map Var let_ids
     | otherwise = do
         let tfa = leadingTyForAllBindings $ PresType t
             tfa_is = zipWith (\i1 (i2, _) -> (i1, TyVar i2)) tfa is_fs
