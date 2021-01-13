@@ -86,8 +86,9 @@ cfRetValue ars rt
     , not (null tvs)  = do
         ty_bags <- getTyVarBags
         ex_ty_clls <- mapM 
-                        (\tv -> wrapUnitLam
-                              . NonDet 
+                        (\tv -> return
+                              . NonDet
+                              . filter nullNonDet
                               =<< mapM (extractTyVarCall ty_bags tv) ars) tvs
 
         ex_vrs <- freshIdsN (map typeOf ex_ty_clls)
@@ -100,6 +101,10 @@ cfRetValue ars rt
         return $ Let ex_let_bnds inst_ret
     | otherwise = do 
         return (SymGen rt)
+
+nullNonDet :: Expr -> Bool
+nullNonDet (NonDet []) = False
+nullNonDet _ = True
 
 -- Creates Lambda bindings to saturate the type of the given Typed thing,
 -- and a list of the bindings so they can be used elsewhere

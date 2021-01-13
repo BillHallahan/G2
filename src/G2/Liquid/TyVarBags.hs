@@ -114,19 +114,20 @@ createBagFuncCaseAlt func_names tyvar_id dc = do
 -- | Creates an extractTyVarBag function call to get all TyVars i out of an
 -- expression e. 
 extractTyVarCall :: ExState s m => TyVarBags -> Id -> Expr -> m Expr
-extractTyVarCall func_names i e 
+extractTyVarCall func_names i e = return . NonDet =<< extractTyVarCall' func_names i e
+
+extractTyVarCall' :: ExState s m => TyVarBags -> Id -> Expr -> m [Expr]
+extractTyVarCall' func_names i e 
     | TyVar i' <- t
-    , i == i' = return e
+    , i == i' = return [e]
     | TyCon n tc_t:ts <- unTyApp t
     , Just fn <- M.lookup n func_names = do
         let is = anonArgumentTypes (PresType tc_t)
             ty_ars = map Type $ take (length is) ts
             nds = map (\f -> App (mkApp (Var f:ty_ars)) e) fn
-        nds' <- mapM (extractTyVarCall func_names i) nds
-        return (NonDet nds')
-    | otherwise = do 
-        flse <- mkFalseE
-        return $ Assume Nothing flse (Prim Undefined (TyVar i))
+        nds' <- mapM (extractTyVarCall' func_names i) nds
+        return (concat nds')
+    | otherwise = return []
     where
         t = typeOf e
 
@@ -188,10 +189,14 @@ createInstFunc' func_names is_fs (DataTyCon { bound_ids = bi
     dc' <- mapM (\dc -> do
             let apped_dc = mkApp (Data dc:map (Type . TyVar . fst) is_fs)
                 ars_ty = anonArgumentTypes dc
-            ars <- mapM (instTyVarCall func_names is_fs) ars_ty
-            bnds <- mapM freshIdN $ map (TyFun tUnit) ars_ty
-            let vrs = map (\b -> App (Var b) dUnit) bnds
-            return $ Let (zip bnds ars) (mkApp $ apped_dc:vrs)) dcs
+
+                is_fs' = zipWith (\i (_, f) -> (i, f)) (leadingTyForAllBindings dc) is_fs
+
+            ars <- mapM (instTyVarCall func_names is_fs') ars_ty
+            let ars' = map (\a -> App a dUnit) ars
+            bnds <- mapM freshIdN ars_ty
+            let vrs = map Var bnds
+            return $ Let (zip bnds ars') (mkApp $ apped_dc:vrs)) dcs
     return (NonDet dc')
 createInstFunc' _ _ _ = error "createInstFunc': unhandled datatype"
 
@@ -204,8 +209,9 @@ instTyVarCall :: ExState s m =>
 instTyVarCall func_names is_fs t 
     | TyVar i <- t
     , Just f <- lookup i is_fs = do
-        dUnit <- mkUnitE
-        return (App (Var f) dUnit)
+        tUnit <- tyUnitT
+        ui <- freshIdN tUnit
+        return $ Lam TermL ui (Var f)
     | TyCon n tc_t:ts <- unTyApp t
     , Just fn <- M.lookup n func_names = do
         let tyc_is = anonArgumentTypes (PresType tc_t)
@@ -216,13 +222,15 @@ instTyVarCall func_names is_fs t
                                     TyVar i
                                         | Just i' <- lookup i is_fs -> return (Var i')
                                     _ -> instTyVarCall func_names is_fs t') ty_ts
+        let_ids <- freshIdsN $ map typeOf func_ars
+        let bnds = zip let_ids func_ars
 
-        return . mkApp $ Var fn:ty_ars ++ func_ars
-    | otherwise =
-        let
-            tfa = leadingTyForAllBindings $ PresType t
+        return . Let bnds . mkApp $ Var fn:ty_ars ++ map Var let_ids
+    | otherwise = do
+        let tfa = leadingTyForAllBindings $ PresType t
             tfa_is = zipWith (\i1 (i2, _) -> (i1, TyVar i2)) tfa is_fs
 
             rt = foldr (uncurry retype) (returnType $ PresType t) tfa_is
-        in
-        return (SymGen rt)
+        tUnit <- tyUnitT
+        ui <- freshIdN tUnit
+        return $ Lam TermL ui (SymGen rt)
