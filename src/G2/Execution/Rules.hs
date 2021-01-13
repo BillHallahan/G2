@@ -111,7 +111,7 @@ reduceNewPC solver simplifier
             (NewPC { state = s@(State { path_conds = spc })
                    , new_pcs = pc
                    , concretized = concIds })
-    | not (null pc) = do
+    | not (null pc) || not (null concIds) = do
         let (s', pc') = L.mapAccumL (simplifyPC simplifier) s pc
             pc'' = concat pc'
 
