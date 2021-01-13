@@ -208,10 +208,17 @@ instTyVarCall func_names is_fs t
             ty_ts = take (length tyc_is) ts
 
             ty_ars = map Type ty_ts
-            func_ars = map (\t' -> case t' of
+        func_ars <- mapM (\t' -> case t' of
                                     TyVar i
-                                        | Just i' <- lookup i is_fs -> Var i'
-                                    _ -> SymGen t) ty_ts
+                                        | Just i' <- lookup i is_fs -> return (Var i')
+                                    _ -> instTyVarCall func_names is_fs t') ty_ts
 
         return . mkApp $ Var fn:ty_ars ++ func_ars
-    | otherwise = return (SymGen t)
+    | otherwise =
+        let
+            tfa = leadingTyForAllBindings $ PresType t
+            tfa_is = zipWith (\i1 (i2, _) -> (i1, TyVar i2)) tfa is_fs
+
+            rt = foldr (uncurry retype) (returnType $ PresType t) tfa_is
+        in
+        return (SymGen rt)

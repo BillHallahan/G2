@@ -44,7 +44,8 @@ toNum _ s@(State {adt_int_maps = adtIntMaps
                       , type_env = tenv}) p
     | p' <- unsafeElimCast p
     , (ConsCond (DataCon dcN _) (Var (Id n t)) bool) <- p' =
-        let ogTyp = fromJustSimplifier "ogTy" . pcVarType $ p
+        let rt = returnType (PresType t)
+            ogTyp = fromJustSimplifier "ogTy" . pcVarType $ p
             -- Store type it is cast to (if any), else original type
             isMember = HM.member n smplfd
             pcCastTyp = fromJustSimplifier "pcCastTyp" . pcVarType $ p'
@@ -52,22 +53,23 @@ toNum _ s@(State {adt_int_maps = adtIntMaps
 
             -- Convert `dc` to an Int by looking it up in the respective `dcNumMap`. If not in `dcNumMap`, lookup the corresponding AlgDataTy
             -- , establish a mapping between its DataCons and Ints, and add to `adtTIntMaps`, before returning the respective Int.
-            (adtIntMaps'', maybeNum) = case (HM.lookup t adtIntMaps) of
+            (adtIntMaps'', maybeNum) = case HM.lookup rt adtIntMaps of
                 Just dcNumMap -> (adtIntMaps, lookupInt dcN dcNumMap)
                 Nothing ->
-                    let maybeDCNumMap = mkDCNumMap tenv t
+                    let maybeDCNumMap = mkDCNumMap tenv rt
                         num = maybe Nothing (lookupInt dcN) maybeDCNumMap
-                        adtIntMaps' = maybe adtIntMaps (insertFlipped t adtIntMaps) maybeDCNumMap
-                    in (adtIntMaps', num)
+                        adtIntMaps' = maybe adtIntMaps (insertFlipped rt adtIntMaps) maybeDCNumMap
+                    in
+                    trace ("rt = " ++ show rt ++ "\nmaybeDCNumMap = " ++ show maybeDCNumMap) (adtIntMaps', num)
         in case maybeNum of
             Just num ->
                 let numericalPC = ExtCond (mkEqIntExpr kv (Var (Id n TyLitInt)) (toInteger num)) bool
                 -- Add constraint representing upper and lower bound values for Id in PathCond, depending on the range for its type
                     numBoundPC = case isMember of
                         True -> [] -- Name was already part of map, which means PC representing bounds must have been added already
-                        False -> (constrainDCVals kv adtIntMaps'') <$> [(t, Id n TyLitInt)] -- Keep same name to map back to old Id if needed
+                        False -> (constrainDCVals kv adtIntMaps'') <$> [(rt, Id n TyLitInt)] -- Keep same name to map back to old Id if needed
                 in (s {adt_int_maps = adtIntMaps'', simplified = smplfd'}, numericalPC:numBoundPC)
-            Nothing -> error $ "Could not simplify ConsCond. " ++ (show p)
+            Nothing -> error $ "Could not simplify ConsCond. " ++ (show p) ++ "\nadtIntMaps = " ++ show adtIntMaps
     | otherwise = (s, [p])
 
 fromNum :: ADTSimplifier -> State t -> Bindings -> Model -> Model
