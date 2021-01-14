@@ -275,7 +275,7 @@ liquidTests = testGroup "Liquid"
     , checkLiquid "tests/Liquid/ListTests.lhs" "prop_map" 1500 3 [AtLeast 3]
     , checkLiquid "tests/Liquid/ListTests.lhs" "prop_concat_1" 1500 1 [AtLeast 1]
     , checkAbsLiquid "tests/Liquid/ListTests2.lhs" "prop_map" 2000 4
-        [ AtLeast 3
+        [ AtLeast 2
         , RForAll (\[_, _, f, _] _ [(FuncCall { funcName = Name n _ _ _, arguments = [_, _, _, _, f', _] }) ] -> 
                     n == "map" && f == f') ]
     , checkAbsLiquid "tests/Liquid/ListTests2.lhs" "prop_size" 2000 0
@@ -321,6 +321,19 @@ liquidTests = testGroup "Liquid"
                             (do config <- mkConfigTestIO; return $ config {add_tyvars = True, steps = 400}) 
     , checkLiquidWithConfig "tests/Liquid/AddTyVars.hs" "h" 3[AtLeast 1]
                             (do config <- mkConfigTestIO; return $ config {add_tyvars = True, steps = 400}) 
+
+    , checkLiquid "tests/Liquid/Polymorphism/Poly1.hs" "f" 1000 1 [Exactly 0]
+    , checkLiquid "tests/Liquid/Polymorphism/Poly2.hs" "f" 600 1 [Exactly 0]
+    , checkAbsLiquid "tests/Liquid/Polymorphism/Poly3.hs" "f" 800 1
+        [ AtLeast 4
+        , RForAll (\_ _ [ FuncCall { funcName = Name n _ _ _} ]  -> n == "fil")]
+    , checkLiquid "tests/Liquid/Polymorphism/Poly4.hs" "f" 600 1 [Exactly 0]
+    , checkAbsLiquid "tests/Liquid/Polymorphism/Poly5.hs" "call" 600 1 [AtLeast 1]
+    , checkAbsLiquid "tests/Liquid/Polymorphism/Poly6.hs" "f" 1000 1
+        [ AtLeast 1
+        , RForAll (\_ _ [ FuncCall { returns = r } ] ->
+                    case r of { Prim Undefined _-> False; _ -> True})
+        ]
     ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that

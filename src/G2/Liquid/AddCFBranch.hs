@@ -11,6 +11,7 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad
 import G2.Liquid.Types
+import G2.Liquid.TyVarBags
 
 import qualified Data.HashSet as S
 
@@ -32,11 +33,16 @@ type CounterfactualName = Name
 --     This is essentially abstracting away the function definition, leaving
 --     only the information that LH also knows (that is, the information in the
 --     refinment type.)
-addCounterfactualBranch :: CFModules -> [Name] -> LHStateM CounterfactualName
+addCounterfactualBranch :: CFModules
+                        -> [Name] -- ^ Which functions to consider abstracting
+                        -> LHStateM CounterfactualName
 addCounterfactualBranch cf_mod ns = do
     let ns' = case cf_mod of
                 CFAll -> ns
                 CFOnly mods -> filter (\(Name n m _ _) -> (n, m) `S.member` mods) ns
+
+    createBagFuncs . concat =<< mapM argumentNames ns'
+    createInstFuncs . concat =<< mapM returnNames ns'
 
     cfn <- freshSeededStringN "cf"
     mapWithKeyME (addCounterfactualBranch' cfn ns')
@@ -49,27 +55,58 @@ addCounterfactualBranch' cfn ns n =
 addCounterfactualBranch'' :: CounterfactualName -> Expr -> LHStateM Expr
 addCounterfactualBranch'' cfn
     orig_e@(Let 
-        [(b, _)]
-        (Assert (Just (FuncCall { funcName = fn, arguments = ars })) a _)) = do
-    let t = returnType orig_e
-        sg = SymGen t
+            [(b, _)]
+            (Assert (Just (FuncCall { funcName = fn, arguments = ars, returns = r })) a _)) = do
+        sg <- cfRetValue ars rt
 
-    -- Create lambdas, to gobble up any ApplyFrames left on the stack
-    lams <- tyBindings orig_e
+        -- Create lambdas, to gobble up any ApplyFrames left on the stack
+        lams <- tyBindings orig_e
 
-    -- If the type of b is not the same as e's type, we have no assumption,
-    -- so we get a new b.  Otherwise, we just keep our current b,
-    -- in case it is used in the assertion
-    b' <- if typeOf b == t then return b else freshIdN t
+        -- If the type of b is not the same as e's type, we have no assumption,
+        -- so we get a new b.  Otherwise, we just keep our current b,
+        -- in case it is used in the assertion
+        b' <- if typeOf b == rt then return b else freshIdN rt
 
-    let fc = FuncCall { funcName = fn, arguments = ars', returns = (Var b')}
-        e' = lams $ Let [(b', sg)] $ Tick (NamedLoc cfn) $ Assume (Just fc) a (Var b')
-        -- We add the Id's from the newly created Lambdas to the arguments list
-        lamI = map Var $ leadingLamIds e'
-        ars' = ars ++ lamI
+        let fc = FuncCall { funcName = fn, arguments = ars', returns = (Var b')}
+            e' = lams $ Let [(b', sg)] $ Tick (NamedLoc cfn) $ Assume (Just fc) a (Var b')
+            -- We add the Id's from the newly created Lambdas to the arguments list
+            lamI = map Var $ leadingLamIds e'
+            ars' = ars ++ lamI
 
-    return $ NonDet [orig_e, e']
+        return $ NonDet [orig_e, e']
+        where
+            rt = typeOf r
 addCounterfactualBranch'' cfn e = modifyChildrenM (addCounterfactualBranch'' cfn) e
+
+cfRetValue :: [Expr] -- ^ Arguments
+           -> Type -- ^ Type of return value
+           -> LHStateM Expr
+cfRetValue ars rt
+    | tvs <- tyVarIds rt
+    , not (null tvs)  = do
+        ty_bags <- getTyVarBags
+        ex_ty_clls <- mapM 
+                        (\tv -> wrapExtractCalls tv
+                              . filter nullNonDet
+                              . concat
+                              =<< mapM (extractTyVarCall ty_bags tv) ars) tvs
+
+        ex_vrs <- freshIdsN (map typeOf ex_ty_clls)
+        let ex_let_bnds = zip ex_vrs ex_ty_clls
+            ex_tvs_to_vrs = zip tvs ex_vrs
+
+        dUnit <- mkUnitE
+
+        inst_funcs <- getInstFuncs
+        inst_ret <- instTyVarCall inst_funcs ex_tvs_to_vrs rt
+        
+        return $ Let ex_let_bnds (App inst_ret dUnit)
+    | otherwise = do 
+        return (SymGen rt)
+
+nullNonDet :: Expr -> Bool
+nullNonDet (NonDet []) = False
+nullNonDet _ = True
 
 -- Creates Lambda bindings to saturate the type of the given Typed thing,
 -- and a list of the bindings so they can be used elsewhere
@@ -84,6 +121,24 @@ tyBindings' _ [] = id
 tyBindings' ns (NamedType i:ts) = Lam TypeL i . tyBindings' ns ts
 tyBindings' (n:ns) (AnonType t:ts) = Lam TermL (Id n t) . tyBindings' ns ts
 tyBindings' [] _ = error "Name list exhausted in tyBindings'"
+
+argumentNames :: ExState s m => Name -> m [Name]
+argumentNames n = do
+    e <- lookupE n
+    case e of
+        Just e' -> return . concatMap tyConNames $ anonArgumentTypes e'
+        Nothing -> return []
+
+returnNames :: ExState s m => Name -> m [Name]
+returnNames n = do
+    e <- lookupE n
+    case e of
+        Just e' -> return . tyConNames $ returnType e'
+        Nothing -> return []
+
+tyConNames :: Type -> [Name]
+tyConNames (TyCon n t) = n:tyConNames t 
+tyConNames t = evalChildren tyConNames t
 
 -- | Eliminates the real branch of the non-deterministic choices, leaving only
 -- the abstract branch.  Assumes all non-determinisitic choices are for

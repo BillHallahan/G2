@@ -3,7 +3,8 @@ module G2.Language.Monad.Typing ( tyIntT
                                           , tyDoubleT
                                           , tyFloatT
                                           , tyBoolT
-                                          , tyRationalT ) where
+                                          , tyRationalT
+                                          , tyUnitT ) where
 
 import G2.Language.Syntax
 import G2.Language.Support
@@ -34,3 +35,6 @@ tyBoolT = appKV tyBool
 
 tyRationalT :: ExState s m => m Type
 tyRationalT = appKV tyRational
+
+tyUnitT :: ExState s m => m Type
+tyUnitT = appKV tyUnit

@@ -358,7 +358,7 @@ instance Reducer NonRedPCRed () t where
                               , symbolic_ids = si
                               , model = m })
                       b@(Bindings { higher_order_inst = inst }) = do
-        let stck' = Stck.push (CurrExprFrame cexpr) stck
+        let stck' = Stck.push (CurrExprFrame AddPC cexpr) stck
 
         let cexpr' = CurrExpr Evaluate nr
 

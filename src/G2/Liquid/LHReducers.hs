@@ -7,7 +7,9 @@
 module G2.Liquid.LHReducers ( LHRed (..)
                             , AllCallsRed (..)
                             , RedArbErrors (..)
+                            , NonRedAbstractReturns (..)
 
+                            , LHAcceptIfViolatedHalter (..)
                             , LHLimitByAcceptedOrderer (..)
                             , LHLimitByAcceptedHalter
                             , LHLimitByAcceptedOrderer
@@ -29,18 +31,21 @@ module G2.Liquid.LHReducers ( LHRed (..)
 
                             , limitByAccepted) where
 
+import G2.Execution.NormalForms
 import G2.Execution.Reducer
 import G2.Execution.Rules
 import G2.Language
 import qualified G2.Language.Stack as Stck
 import qualified G2.Language.ExprEnv as E
 import G2.Liquid.Annotations
+import G2.Liquid.Helpers
 import G2.Liquid.SpecialAsserts
 
 import Data.Foldable
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
 import Data.List
+import Data.List.Extra
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid
@@ -50,6 +55,7 @@ import qualified Data.Text as T
 import Data.Time.Clock
 
 import Debug.Trace
+import G2.Lib.Printers
 
 -- lhReduce
 -- When reducing for LH, we change the rule for evaluating Var f.
@@ -442,3 +448,58 @@ instance (Orderer ord sov b LHTracker, Show b) => Orderer (LHLeastAbstracted ord
                 | Just (b, s) <- getState ord pr $ M.mapKeys snd m' ->
                    Just ((n, b), s)
             _ -> Nothing
+
+-- | Reduces any non-SWHNF values being returned by an abstracted function
+data NonRedAbstractReturns = NonRedAbstractReturns
+
+instance Reducer NonRedAbstractReturns () LHTracker where
+    initReducer _ _ = ()
+
+    redRules nrpr _  s@(State { expr_env = eenv
+                              , curr_expr = cexpr
+                              , exec_stack = stck
+                              , track = LHTracker { abstract_calls = afs }
+                              , symbolic_ids = si
+                              , model = m
+                              , true_assert = True })
+                      b@(Bindings { deepseq_walkers = ds})
+        | Just af <- firstJust (absRetToRed eenv ds) afs = do
+            let stck' = Stck.push (CurrExprFrame NoAction cexpr) stck
+                cexpr' = CurrExpr Evaluate af
+
+            let s' = s { curr_expr = cexpr'
+                       , exec_stack = stck'
+                       }
+
+            return (InProgress, [(s', ())], b, nrpr)
+        | otherwise = do
+            return (Finished, [(s, ())], b, nrpr)
+    redRules nrpr _ s b = return (Finished, [(s, ())], b, nrpr)
+
+absRetToRed :: ExprEnv -> Walkers -> FuncCall -> Maybe Expr
+absRetToRed eenv ds(FuncCall { returns = r })
+    | not . normalForm eenv $ r
+    , Just strict_e <- mkStrict_maybe ds r =
+        Just $ fillLHDictArgs ds strict_e 
+    | otherwise = Nothing
+
+-- | Accepts a state when it is in SWHNF, true_assert is true,
+-- and all abstracted functions have reduced returns.
+-- Discards it if in SWHNF and true_assert is false
+data LHAcceptIfViolatedHalter = LHAcceptIfViolatedHalter
+
+instance Halter LHAcceptIfViolatedHalter () LHTracker where
+    initHalt _ _ = ()
+    updatePerStateHalt _ _ _ _ = ()
+    stopRed _ _ _ s =
+        let
+            eenv = expr_env s
+            abs_calls = abstract_calls (track s)
+        in
+        case isExecValueForm s && all (normalForm eenv . returns) abs_calls of
+            True 
+                | true_assert s -> return Accept
+                | otherwise -> return Discard
+            False -> return Continue
+    stepHalter _ _ _ _ _ = ()
+

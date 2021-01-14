@@ -65,13 +65,13 @@ stdReduce' share solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }
     | otherwise = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
 stdReduce' _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
                                  , exec_stack = stck }) ng
-    | Prim Error _ <- ce
+    | isError ce
     , Just (AssertFrame is _, stck') <- S.pop stck =
         return (RuleError, [s { exec_stack = stck'
                               , true_assert = True
                               , assert_ids = is }], ng)
     | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
-    | Prim Error _ <- ce
+    | isError ce
     , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], ng)
     | Lam u i e <- ce = return $ retLam s ng u i e
     | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ng ce e stck'
@@ -86,14 +86,18 @@ stdReduce' _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
         let (r, xs, ng') = retAssertFrame s ng ce ais e stck'
         xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
         return (r, xs', ng')
-    | Just (CurrExprFrame e, stck') <- frstck = do
-        let (r, xs) = retCurrExpr s ce e stck'
+    | Just (CurrExprFrame act e, stck') <- frstck = do
+        let (r, xs) = retCurrExpr s ce act e stck'
         xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
         return (r, xs', ng)
     | Nothing <- frstck = return (RuleIdentity, [s], ng)
     | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show (S.pop stck)
         where
             frstck = S.pop stck
+
+            isError (Prim Error _) = True
+            isError (Prim Undefined _) = True
+            isError _ = False
 
 data NewPC t = NewPC { state :: State t
                      , new_pcs :: [PathCond]
@@ -107,7 +111,7 @@ reduceNewPC solver simplifier
             (NewPC { state = s@(State { path_conds = spc })
                    , new_pcs = pc
                    , concretized = concIds })
-    | not (null pc) = do
+    | not (null pc) || not (null concIds) = do
         let (s', pc') = L.mapAccumL (simplifyPC simplifier) s pc
             pc'' = concat pc'
 
@@ -684,12 +688,18 @@ retCastFrame s ng e c stck =
          , exec_stack = stck}]
     , ng)
 
-retCurrExpr :: State t -> Expr -> CurrExpr -> S.Stack Frame -> (Rule, [NewPC t])
-retCurrExpr s e1 e2 stck = 
+retCurrExpr :: State t -> Expr -> CEAction -> CurrExpr -> S.Stack Frame -> (Rule, [NewPC t])
+retCurrExpr s e1 AddPC e2 stck = 
     ( RuleReturnCurrExprFr
     , [NewPC { state = s { curr_expr = e2
                          , exec_stack = stck}
              , new_pcs = [ExtCond e1 True]
+             , concretized = []}] )
+retCurrExpr s e1 NoAction e2 stck = 
+    ( RuleReturnCurrExprFr
+    , [NewPC { state = s { curr_expr = e2
+                         , exec_stack = stck}
+             , new_pcs = []
              , concretized = []}] )
 
 retAssumeFrame :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> (Rule, [NewPC t], NameGen)

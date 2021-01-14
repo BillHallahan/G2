@@ -13,6 +13,8 @@ module G2.Liquid.Types ( LHOutput (..)
                        , AbstractedInfo (..)
                        , Assumptions
                        , Posts
+                       , TyVarBags
+                       , InstFuncs
 
                        , tcValuesM
 
@@ -25,6 +27,7 @@ module G2.Liquid.Types ( LHOutput (..)
                        , assumptionsM
                        , postsM
                        , annotsM
+                       , tyVarBagsM
                        , runLHStateM
                        , evalLHStateM
                        , execLHStateM
@@ -43,6 +46,15 @@ module G2.Liquid.Types ( LHOutput (..)
                        , insertAnnotM
                        , mapAnnotsExpr
                        , lookupRenamedTCDict
+                       , insertTyVarBags
+                       , lookupTyVarBags
+                       , setTyVarBags
+                       , getTyVarBags
+                       , insertInstFuncs
+                       , lookupInstFuncs
+                       , setInstFuncs
+                       , getInstFuncs
+
                        , andM
                        , orM
                        , notM
@@ -162,6 +174,10 @@ instance L.ASTContainer Abstracted L.Type where
                    , real = L.modifyContainedASTs f r
                    , hits_lib_err_in_real = err }
 
+-- | See G2.Liquid.TyVarBags
+type TyVarBags = M.Map L.Name [L.Id]
+type InstFuncs = M.Map L.Name L.Id
+
 -- [LHState]
 -- measures is an extra expression environment, used to build Assertions.
 -- This distinction between functions for code, and functions for asserts is important because
@@ -184,6 +200,8 @@ data LHState = LHState { state :: L.State [L.FuncCall]
                        , assumptions :: Assumptions
                        , posts :: Posts
                        , annots :: AnnotMap
+                       , tyvar_bags :: TyVarBags
+                       , inst_funcs :: InstFuncs
                        } deriving (Eq, Show, Read)
 
 consLHState :: L.State [L.FuncCall] -> Measures -> L.TypeClasses -> TCValues -> LHState
@@ -194,7 +212,9 @@ consLHState s meas tc tcv =
             , tcvalues = tcv
             , assumptions = M.empty
             , posts = M.empty
-            , annots = AM HM.empty }
+            , annots = AM HM.empty
+            , tyvar_bags = M.empty
+            , inst_funcs = M.empty }
 
 deconsLHState :: LHState -> L.State [L.FuncCall]
 deconsLHState (LHState { state = s
@@ -225,6 +245,12 @@ annotsM :: LHStateM AnnotMap
 annotsM = do
     (lh_s, _) <- SM.get
     return $ annots lh_s
+
+tyVarBagsM :: LHStateM TyVarBags
+tyVarBagsM = do
+    (lh_s, _) <- SM.get
+    return $ tyvar_bags lh_s
+
 
 newtype LHStateM a = LHStateM { unSM :: (SM.State (LHState, L.Bindings) a) } deriving (Applicative, Functor, Monad)
 
@@ -410,6 +436,44 @@ lookupRenamedTCDict :: L.Name -> L.Type -> LHStateM (Maybe L.Id)
 lookupRenamedTCDict n t = do
     tc <- lhRenamedTCM
     return $ lookupTCDict tc n t
+
+insertTyVarBags :: L.Name -> [L.Id] -> LHStateM ()
+insertTyVarBags n is = do
+    (lh_s, b) <- SM.get
+    let tyvar_bags' = M.insert n is (tyvar_bags lh_s)
+    SM.put $ (lh_s {tyvar_bags = tyvar_bags'}, b)
+
+lookupTyVarBags :: L.Name -> LHStateM (Maybe [L.Id])
+lookupTyVarBags n = do
+    (lh_s, b) <- SM.get
+    return $ M.lookup n (tyvar_bags lh_s)
+
+setTyVarBags :: TyVarBags -> LHStateM ()
+setTyVarBags m = do
+    (lh_s, b) <- SM.get
+    SM.put (lh_s {tyvar_bags = m}, b)
+
+getTyVarBags :: LHStateM TyVarBags
+getTyVarBags = return . tyvar_bags . fst =<< SM.get
+
+insertInstFuncs :: L.Name -> L.Id -> LHStateM ()
+insertInstFuncs n i = do
+    (lh_s, b) <- SM.get
+    let inst_funcs' = M.insert n i (inst_funcs lh_s)
+    SM.put $ (lh_s {inst_funcs = inst_funcs'}, b)
+
+lookupInstFuncs :: L.Name -> LHStateM (Maybe L.Id)
+lookupInstFuncs n = do
+    (lh_s, b) <- SM.get
+    return $ M.lookup n (inst_funcs lh_s)
+
+setInstFuncs :: M.Map L.Name L.Id -> LHStateM ()
+setInstFuncs m = do
+    (lh_s, b) <- SM.get
+    SM.put (lh_s {inst_funcs = m}, b)
+
+getInstFuncs :: LHStateM InstFuncs
+getInstFuncs = return . inst_funcs . fst =<< SM.get
 
 -- | andM
 -- The version of 'and' in the measures

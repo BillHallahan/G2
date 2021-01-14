@@ -52,6 +52,9 @@ initKnownValues eenv tenv tc =
     , dcJust = dcWithStrName tenv "Maybe" "Just"
     , dcNothing = dcWithStrName tenv "Maybe" "Nothing"
 
+    , tyUnit = typeWithStrName tenv "()"
+    , dcUnit = dcWithStrName tenv "()" "()"
+
     , eqTC = eqT
     , numTC = numT
     , ordTC = ordT

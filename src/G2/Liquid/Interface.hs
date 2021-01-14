@@ -396,8 +396,6 @@ runLHG2 config red hal ord solver simplifier pres_names init_id final_st binding
     let only_abs_st = final_st
     (ret, final_bindings) <- runG2WithSomes red hal ord solver simplifier pres_names only_abs_st bindings
 
-    mapM (putStrLn . mkExprHaskell . (\(CurrExpr _ e) -> e) . curr_expr . final_state) ret
-
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length ret of
                   0 -> 0
@@ -444,9 +442,12 @@ lhReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
 
         (limHalt, limOrd) = limitByAccepted (cut_off config)
         state_name = Name "state" Nothing 0 Nothing
+
+        abs_ret_name = Name "abs_ret" Nothing 0 Nothing
     in
     if higherOrderSolver config == AllFuncs then
         ( SomeReducer NonRedPCRed
+            <~| (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng ))
             <~| (case logStates config of
                   Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
                   Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn))
@@ -456,21 +457,23 @@ lhReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
                   :<~> LHAbsHalter entry mb_modname (expr_env st)
                   :<~> limHalt
                   :<~> SwitchEveryNHalter (switch_after config)
-                  :<~> AcceptIfViolatedHalter)
+                  :<~> LHAcceptIfViolatedHalter)
         , SomeOrderer limOrd)
     else
         (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng)
+            <~| (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng ))
             <~| (case logStates config of
                   Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
                   Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn)) -- :<~ LimLogger 0 700 [2, 1, 2, 2, 1, 1, 1] "aMapReduce"))
         , SomeHalter
             (DiscardIfAcceptedTag state_name
+              :<~> DiscardIfAcceptedTag abs_ret_name
               :<~> MaxOutputsHalter (maxOutputs config)
               :<~> ZeroHalter (steps config)
               :<~> LHAbsHalter entry mb_modname (expr_env st)
               :<~> limHalt
               :<~> SwitchEveryNHalter (switch_after config)
-              :<~> AcceptIfViolatedHalter)
+              :<~> LHAcceptIfViolatedHalter)
         , SomeOrderer limOrd)
 
 
@@ -557,6 +560,8 @@ reqNames (State { expr_env = eenv
 
                    , mkJust kv tenv
                    , mkNothing kv tenv
+
+                   , mkUnit kv tenv
 
                    , mkIntegralExtactReal kv
                    , mkRealExtractNum kv 
