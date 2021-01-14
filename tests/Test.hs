@@ -329,7 +329,7 @@ liquidTests = testGroup "Liquid"
         , RForAll (\_ _ [ FuncCall { funcName = Name n _ _ _} ]  -> n == "fil")]
     , checkLiquid "tests/Liquid/Polymorphism/Poly4.hs" "f" 600 1 [Exactly 0]
     , checkAbsLiquid "tests/Liquid/Polymorphism/Poly5.hs" "call" 600 1 [AtLeast 1]
-    , checkAbsLiquid "tests/Liquid/Polymorphism/Poly6.hs" "f" 1000 0
+    , checkAbsLiquid "tests/Liquid/Polymorphism/Poly6.hs" "f" 1000 1
         [ AtLeast 1
         , RForAll (\_ _ [ FuncCall { returns = r } ] ->
                     case r of { Prim Undefined _-> False; _ -> True})
