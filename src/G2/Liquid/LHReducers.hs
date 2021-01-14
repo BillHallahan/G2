@@ -10,6 +10,7 @@ module G2.Liquid.LHReducers ( LHRed (..)
                             , NonRedAbstractReturns (..)
 
                             , LHAcceptIfViolatedHalter (..)
+                            , LHSWHNFHalter (..)
                             , LHLimitByAcceptedOrderer (..)
                             , LHLimitByAcceptedHalter
                             , LHLimitByAcceptedOrderer
@@ -502,4 +503,20 @@ instance Halter LHAcceptIfViolatedHalter () LHTracker where
                 | otherwise -> return Discard
             False -> return Continue
     stepHalter _ _ _ _ _ = ()
+
+data LHSWHNFHalter = LHSWHNFHalter
+
+instance Halter LHSWHNFHalter () LHTracker where
+    initHalt _ _ = ()
+    updatePerStateHalt _ _ _ _ = ()
+    stopRed _ _ _ s =
+        let
+            eenv = expr_env s
+            abs_calls = abstract_calls (track s)
+        in
+        case isExecValueForm s  && all (normalForm eenv . returns) abs_calls of
+            True -> return Accept
+            False -> return Continue
+    stepHalter _ _ _ _ _ = ()
+
 
