@@ -275,7 +275,7 @@ liquidTests = testGroup "Liquid"
     , checkLiquid "tests/Liquid/ListTests.lhs" "prop_map" 1500 3 [AtLeast 3]
     , checkLiquid "tests/Liquid/ListTests.lhs" "prop_concat_1" 1500 1 [AtLeast 1]
     , checkAbsLiquid "tests/Liquid/ListTests2.lhs" "prop_map" 2000 4
-        [ AtLeast 3
+        [ AtLeast 2
         , RForAll (\[_, _, f, _] _ [(FuncCall { funcName = Name n _ _ _, arguments = [_, _, _, _, f', _] }) ] -> 
                     n == "map" && f == f') ]
     , checkAbsLiquid "tests/Liquid/ListTests2.lhs" "prop_size" 2000 0
