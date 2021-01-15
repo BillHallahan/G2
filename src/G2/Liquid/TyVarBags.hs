@@ -229,7 +229,10 @@ instTyVarCall func_names is_fs t
         func_ars <- mapM (\t' -> case t' of
                                     TyVar i
                                         | Just i' <- lookup i is_fs -> return (Var i')
-                                    _ -> instTyVarCall func_names is_fs t') ty_ts
+                                    _ -> do
+                                        cll <- instTyVarCall func_names is_fs t'
+                                        dUnit <- mkUnitE
+                                        return $ App cll dUnit) ty_ts
         let_ids <- freshIdsN $ map typeOf func_ars
         let bnds = zip let_ids func_ars
 
