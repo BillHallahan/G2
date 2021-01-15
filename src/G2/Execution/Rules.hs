@@ -73,10 +73,10 @@ stdReduce' _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
     | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
     | isError ce
     , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], ng)
-    | Lam u i e <- ce = return $ retLam s ng u i e
-    | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ng ce e stck'
     | Just rs <- retReplaceSymbFunc s ng ce = return rs
     | Just (CaseFrame i a, stck') <- frstck = return $ retCaseFrame s ng ce i a stck'
+    | Lam u i e <- ce = return $ retLam s ng u i e
+    | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ng ce e stck'
     | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ng ce c stck'
     | Just (AssumeFrame e, stck') <- frstck = do
         let (r, xs, ng') = retAssumeFrame s ng ce e stck'
@@ -332,7 +332,7 @@ evalCase s@(State { expr_env = eenv
   -- We perform the cvar binding and proceed with the alt
   -- expression.
   | e:_ <- unApp $ unsafeElimOuterCast mexpr
-  , isData e || isLit e
+  , isData e || isLit e || isLam e
   , (Alt _ expr):_ <- matchDefaultAlts alts =
       let 
           binds = [(bind, mexpr)]
