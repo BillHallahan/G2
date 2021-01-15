@@ -1,8 +1,11 @@
 module Poly8 where
 
-{-@ prop :: (Int -> Int) -> { r:Int | r == 0 } @-}
-prop :: (Int -> Int) -> Int
-prop = higher_order
+{-@ prop :: { r:Int | r == 0 } @-}
+prop :: Int
+prop = higher_order func
 
 higher_order :: (Int -> a) -> a
 higher_order f = f 0
+
+func :: Int -> Int
+func _ = 0 

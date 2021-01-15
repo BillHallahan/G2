@@ -74,13 +74,12 @@ createBagFunc func_names tn adt
         mapM_ (uncurry (createBagFunc' func_names tn adt)) $ zip fs (bound_ids adt)
     | otherwise = error "createBagFunc: type not found"
 
-createBagFunc' :: ExState s m =>
-                  TyVarBags
+createBagFunc' :: TyVarBags
                -> Name
                -> AlgDataTy
                -> Id -- ^ The Id of the function to create
                -> Id -- ^ The Id of the TyVar to extract
-               -> m ()
+               -> LHStateM ()
 createBagFunc' func_names tn adt fn tyvar_id = do
     bi <- freshIdsN $ map (const TYPE) (bound_ids adt)
     adt_i <- freshIdN $ mkFullAppedTyCon tn (map TyVar bi) TYPE
@@ -92,13 +91,12 @@ createBagFunc' func_names tn adt fn tyvar_id = do
 
 -- | Examines the passed `Id` adt_i, which is the ADT to extract the tyvar tyvar_id from,
 -- and constructs an expression to actually nondeterministically extract a tyvar_id.
-createBagFuncCase :: ExState s m => 
-                     TyVarBags
+createBagFuncCase :: TyVarBags
                   -> Id
                   -> Id
                   -> [Id]
                   -> AlgDataTy
-                  -> m Expr
+                  -> LHStateM Expr
 createBagFuncCase func_names adt_i tyvar_id _ (DataTyCon { data_cons = dc }) = do
     bindee <- freshIdN (typeOf adt_i)
     alts <- mapM (createBagFuncCaseAlt func_names tyvar_id) dc
@@ -108,16 +106,16 @@ createBagFuncCase func_names adt_i tyvar_id bi (NewTyCon { bound_ids = adt_bi
                                                          , rep_type = rt }) = do
     let rt' = foldr (uncurry retype) rt $ zip adt_bi (map TyVar bi)
         cst = Cast (Var adt_i) (typeOf adt_i :~ rt')
-    clls <- extractTyVarCall func_names undefined tyvar_id cst
+    clls <- extractTyVarCall func_names todo_emp tyvar_id cst
     wrapExtractCalls tyvar_id clls
 createBagFuncCase _ _ _ _ (TypeSynonym {}) =
     error "creatBagFuncCase: TypeSynonyms unsupported"
 
-createBagFuncCaseAlt :: ExState s m => TyVarBags -> Id -> DataCon -> m Alt
+createBagFuncCaseAlt :: TyVarBags -> Id -> DataCon -> LHStateM Alt
 createBagFuncCaseAlt func_names tyvar_id dc = do
     let at = anonArgumentTypes dc
     is <- freshIdsN at
-    es <- return . concat =<< mapM (extractTyVarCall func_names undefined tyvar_id . Var) is
+    es <- return . concat =<< mapM (extractTyVarCall func_names todo_emp tyvar_id . Var) is
     case null es of
         True -> do 
             flse <- mkFalseE
@@ -125,15 +123,17 @@ createBagFuncCaseAlt func_names tyvar_id dc = do
                          (Assume Nothing flse (Prim Undefined (TyVar tyvar_id)))
         False -> return $ Alt (DataAlt dc is) (NonDet es)
 
+todo_emp :: [a]
+todo_emp = []
+
 -- | Creates a set of expressions to get all TyVars i out of an
 -- expression e. 
-extractTyVarCall :: ExState s m => 
-                    TyVarBags
+extractTyVarCall :: TyVarBags
                  -> [(Id, Id)]  -- ^ Mapping of TyVar Ids to Functions to create those TyVars
                  -> Id 
                  -> Expr 
-                 -> m [Expr]
-extractTyVarCall func_names inst_funcs i e 
+                 -> LHStateM [Expr]
+extractTyVarCall func_names is_fs i e 
     | TyVar i' <- t
     , i == i' = return [e]
     | TyCon n tc_t:ts <- unTyApp t
@@ -141,17 +141,20 @@ extractTyVarCall func_names inst_funcs i e
         let is = anonArgumentTypes (PresType tc_t)
             ty_ars = map Type $ take (length is) ts
             nds = map (\f -> App (mkApp (Var f:ty_ars)) e) fn
-        nds' <- mapM (extractTyVarCall func_names undefined i) nds
+        nds' <- mapM (extractTyVarCall func_names is_fs i) nds
         return (concat nds')
     | TyFun _ _ <- t = do
         let is_ars = leadingTyForAllBindings $ PresType t
-            ars = anonArgumentTypes $ PresType t
+            ars_ty = anonArgumentTypes $ PresType t
             tvs = tyVarIds . returnType $ PresType t
 
-            call_f = mkApp $ e:map SymGen ars
+        inst_funcs <- getInstFuncs
+        inst_ars <- mapM (instTyVarCall inst_funcs is_fs) ars_ty
+        dUnit <- mkUnitE 
+        let call_f = mkApp $ e:map (\a -> App a dUnit) inst_ars
 
-        e <- if i `elem` tvs then extractTyVarCall func_names inst_funcs i call_f else return []
-        trace (show e) return e
+        e <- if i `elem` tvs then extractTyVarCall func_names is_fs i call_f else return []
+        return e
     | otherwise = return []
     where
         t = typeOf e

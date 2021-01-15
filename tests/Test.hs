@@ -335,7 +335,9 @@ liquidTests = testGroup "Liquid"
                     case r of { Prim Undefined _-> False; _ -> True})
         ]
     , checkAbsLiquid "tests/Liquid/Polymorphism/Poly7.hs" "prop_f" 2000 1 [AtLeast 1]
-    , checkAbsLiquid "tests/Liquid/Polymorphism/Poly8.hs" "prop" 2000 1 [AtLeast 1]
+    , checkAbsLiquid "tests/Liquid/Polymorphism/Poly8.hs" "prop" 2000 0
+        [ AtLeast 1
+        , RForAll (\_ _ [ FuncCall { funcName = Name n _ _ _ } ] -> n == "func")]
     ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
