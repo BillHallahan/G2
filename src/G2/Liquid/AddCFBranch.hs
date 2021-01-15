@@ -41,8 +41,10 @@ addCounterfactualBranch cf_mod ns = do
                 CFAll -> ns
                 CFOnly mods -> filter (\(Name n m _ _) -> (n, m) `S.member` mods) ns
 
-    createBagFuncs . concat =<< mapM argumentNames ns'
-    createInstFuncs . concat =<< mapM returnNames ns'
+    bag_func_ns <- return . concat =<< mapM argumentNames ns'
+    inst_func_ns <- return . concat =<< mapM returnNames ns'
+
+    createBagAndInstFuncs bag_func_ns inst_func_ns
 
     cfn <- freshSeededStringN "cf"
     mapWithKeyME (addCounterfactualBranch' cfn ns')
@@ -85,15 +87,17 @@ cfRetValue ars rt
     | tvs <- tyVarIds rt
     , not (null tvs)  = do
         ty_bags <- getTyVarBags
+
+        ex_vrs <- freshIdsN (map TyVar tvs)
+        let ex_tvs_to_vrs = zip tvs ex_vrs
+
         ex_ty_clls <- mapM 
                         (\tv -> wrapExtractCalls tv
                               . filter nullNonDet
                               . concat
-                              =<< mapM (extractTyVarCall ty_bags tv) ars) tvs
+                              =<< mapM (extractTyVarCall ty_bags ex_tvs_to_vrs tv) ars) tvs
 
-        ex_vrs <- freshIdsN (map typeOf ex_ty_clls)
         let ex_let_bnds = zip ex_vrs ex_ty_clls
-            ex_tvs_to_vrs = zip tvs ex_vrs
 
         dUnit <- mkUnitE
 

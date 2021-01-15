@@ -286,8 +286,8 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
                  -- :<~> OnlyIf (\pr _ -> any true_assert (accepted pr)) timer_halter
 
     return $
-        (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng)
-            <~| (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng ))
+        (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng)
+            <~| (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng))
             <~| (case logStates config of
                   Just fp -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~ Logger fp)
                   Nothing -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn))
@@ -365,8 +365,8 @@ realCExReducerHalterOrderer infconfig config solver simplifier  cfn cf_funcs st 
                  -- :<~> OnlyIf (\pr _ -> any true_assert (accepted pr)) timer_halter
 
     return $
-        (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng)
-            <~| (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng ))
+        (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng)
+            <~| (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng))
             <~| (case logStates config of
                   Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
                   Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn))

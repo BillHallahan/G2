@@ -335,6 +335,7 @@ liquidTests = testGroup "Liquid"
                     case r of { Prim Undefined _-> False; _ -> True})
         ]
     , checkAbsLiquid "tests/Liquid/Polymorphism/Poly7.hs" "prop_f" 2000 1 [AtLeast 1]
+    , checkAbsLiquid "tests/Liquid/Polymorphism/Poly8.hs" "prop" 2000 1 [AtLeast 1]
     ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
