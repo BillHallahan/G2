@@ -11,3 +11,6 @@ higher_order (C _ f) = f 0
 
 func :: C Int
 func = C 0 (\_ -> 0) 
+
+t :: Int -> Int
+t _ = 1

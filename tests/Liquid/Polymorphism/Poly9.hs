@@ -10,4 +10,7 @@ higher_order :: C a -> a
 higher_order (C f) = f 0
 
 func :: C Int
-func = C (\_ -> 0) 
+func = C (\_ -> 0)
+
+t :: Int -> Int
+t _ = 1
