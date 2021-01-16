@@ -25,6 +25,8 @@ module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
                                           , allCalls
                                           , allCallsFC
 
+                                          , zeroOutUnq
+
                                           , printFCs
                                           , printFC) where
 

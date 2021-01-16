@@ -241,7 +241,7 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
                 putStrLn $ "init gs' = " ++ show gs'
 
             res <- tryToVerify ghci'
-            let res' = filterToLevel fs res
+            let res' = filterNamesTo fs res
             
             case res' of
                 Safe -> return $ (Env gs' fc max_fc meas_ex sz smt_mdl, evals')
@@ -252,7 +252,8 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
                         Right (viol_fc, no_viol_fc) -> do
                             (below_fc, blk_mdls'') <- case hasNewFC viol_fc fc of
                                               has_new@(NoNewFC _) -> do
-                                                  case filterToLevel sf res of
+                                                  let called_by_res' = concatMap (calledByFunc lrs) bad
+                                                  case filterNamesTo called_by_res' $ filterNamesTo sf res of
                                                       Unsafe bad_sf -> do
                                                           liftIO $ putStrLn "About to run second run of CEx generation"
                                                           ref_sf <- withConfigs noCounterfactual $ refineUnsafe ghci m_modname lrs gs' bad_sf
@@ -261,11 +262,11 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
                                                               Right (viol_fc_sf, no_viol_fc_sf) ->
                                                                   case hasNewFC viol_fc_sf fc of
                                                                       NoNewFC _ -> do
-                                                                          new_blk_mdls <- adjModel has_new sz smt_mdl blk_mdls'
+                                                                          new_blk_mdls <- adjModel lrs bad has_new sz smt_mdl blk_mdls'
                                                                           return (viol_fc_sf `unionFC` no_viol_fc_sf, new_blk_mdls)                                                
                                                                       NewFC -> return (viol_fc_sf `unionFC` no_viol_fc_sf, blk_mdls')
                                                       Safe -> do
-                                                          new_blk_mdls <- adjModel has_new sz smt_mdl blk_mdls'
+                                                          new_blk_mdls <- adjModel lrs bad has_new sz smt_mdl blk_mdls'
                                                           return (emptyFC, new_blk_mdls)
                                                       Crash _ _ -> error "inferenceB: LiquidHaskell crashed"
                                               NewFC -> return (emptyFC, blk_mdls')
@@ -316,33 +317,48 @@ refineUnsafe ghci m_modname lrs gs bad = do
             liftIO . putStrLn $ "new_fc' = " ++ printFCs new_fc'
             return $ Right (new_fc', fromListFC no_viol)
 
-adjModel :: (MonadIO m, ProgresserM m) => NewFC -> Size -> SMTModel
-                  -> BlockedModels -> m BlockedModels
-adjModel has_new sz smt_mdl blk_mdls = do
+adjModel :: (MonadIO m, ProgresserM m) => 
+            LiquidReadyState
+         -> [Name]
+         -> NewFC
+         -> Size
+         -> SMTModel
+         -> BlockedModels
+         -> m BlockedModels
+adjModel lrs bad_funcs has_new sz smt_mdl blk_mdls = do
       case has_new of
-            NewFC -> return blk_mdls
-            NoNewFC _ -> do
-                    liftIO $ putStrLn "adjModel repeated_fc"
-                    let blk_mdls' = insertBlockedModel sz MNAll smt_mdl blk_mdls
-                    incrMaxCExM
-                    incrMaxTimeM
-                    return blk_mdls'
+          NewFC -> return blk_mdls
+          NoNewFC _ -> do
+              liftIO $ putStrLn "adjModel repeated_fc"
+              let blk_mdls' =
+                      foldr
+                          (\n -> 
+                              let
+                                  clls = calledByFunc lrs n
+                              in
+                              trace ("n:clls = " ++ show (n:clls))
+                              insertBlockedModel sz (MNOnly (n:clls)) smt_mdl)
+                          blk_mdls
+                          bad_funcs
 
-adjModelUnsatCore :: (MonadIO m, ProgresserM m) => NewFC -> Size -> SMTModel
-                  -> BlockedModels -> m BlockedModels
-adjModelUnsatCore has_new sz smt_mdl blk_mdls = do
-      case has_new of
-            NewFC -> return blk_mdls
-            NoNewFC repeated_fc -> do
-                    liftIO . putStrLn $ "adjModel unsat core repeated_fc = " ++ show repeated_fc
-                    let ns = map funcName $ allCallsFC repeated_fc
-                        blk_mdls' = insertBlockedModel sz (MNOnly ns) smt_mdl blk_mdls                                      
-                    incrMaxCExM
-                    incrMaxTimeM
-                    return blk_mdls'
+              incrMaxCExM
+              incrMaxTimeM
+              return blk_mdls'
 
-filterToLevel ::  [Name] -> VerifyResult Name -> VerifyResult Name
-filterToLevel ns (Unsafe unsafe) = 
+calledByFunc :: LiquidReadyState -> Name -> [Name]
+calledByFunc lrs n = 
+    let
+        eenv = expr_env . state $ lr_state lrs
+    in
+    map zeroOutUnq
+        . filter (isJust . flip E.lookup eenv)
+        . maybe [] id
+        . fmap varNames
+        . fmap snd
+        $ E.lookupNameMod (nameOcc n) (nameModule n) eenv
+
+filterNamesTo ::  [Name] -> VerifyResult Name -> VerifyResult Name
+filterNamesTo ns (Unsafe unsafe) = 
     case filter (\n -> toOccMod n `elem` ns_nm) unsafe of
         [] -> Safe
         unsafe' -> do
@@ -350,7 +366,7 @@ filterToLevel ns (Unsafe unsafe) =
     where
         ns_nm = map toOccMod ns
         toOccMod (Name n m _ _) = (n, m)
-filterToLevel _ vr = vr
+filterNamesTo _ vr = vr
 
 noCounterfactual :: Configs -> Configs
 noCounterfactual cons@(Configs { g2_config = g2_c }) = cons { g2_config = g2_c { counterfactual = NotCounterfactual } }

@@ -259,6 +259,7 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
 
         (limHalt, limOrd) = limitByAccepted (cut_off config)
         state_name = Name "state" Nothing 0 Nothing
+        abs_ret_name = Name "abs_ret" Nothing 0 Nothing
 
         -- searched_below = SearchedBelowHalter { found_at_least = 3
         --                                      , discarded_at_least = 6
@@ -278,14 +279,15 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
                  :<~> lh_max_outputs
                  :<~> SwitchEveryNHalter (switch_after config)
                  -- :<~> LHLimitSameAbstractedHalter 5
-                 :<~> SWHNFHalter
-                 -- :<~> AcceptIfViolatedHalter
+                 :<~> LHSWHNFHalter
+                 -- :<~> LHAcceptIfViolatedHalter
                  :<~> timer_halter
                  :<~> lh_timer_halter
                  -- :<~> OnlyIf (\pr _ -> any true_assert (accepted pr)) timer_halter
 
     return $
-        (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng)
+        (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng)
+            <~| (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng))
             <~| (case logStates config of
                   Just fp -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~ Logger fp)
                   Nothing -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn))
@@ -345,6 +347,7 @@ realCExReducerHalterOrderer infconfig config solver simplifier  cfn cf_funcs st 
 
         (limHalt, limOrd) = limitByAccepted (cut_off config)
         state_name = Name "state" Nothing 0 Nothing
+        abs_ret_name = Name "abs_ret" Nothing 0 Nothing
 
         -- searched_below = SearchedBelowHalter { found_at_least = 3
         --                                      , discarded_at_least = 6
@@ -357,12 +360,13 @@ realCExReducerHalterOrderer infconfig config solver simplifier  cfn cf_funcs st 
     let halter =      lh_max_outputs
                  :<~> SwitchEveryNHalter (switch_after config)
                  :<~> ZeroHalter (0 + extra_depth)
-                 :<~> AcceptIfViolatedHalter
+                 :<~> LHAcceptIfViolatedHalter
                  :<~> timer_halter
                  -- :<~> OnlyIf (\pr _ -> any true_assert (accepted pr)) timer_halter
 
     return $
-        (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng)
+        (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng)
+            <~| (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng))
             <~| (case logStates config of
                   Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
                   Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn))
