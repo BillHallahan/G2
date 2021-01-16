@@ -241,7 +241,7 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
                 putStrLn $ "init gs' = " ++ show gs'
 
             res <- tryToVerify ghci'
-            let res' = filterToLevel fs res
+            let res' = filterNamesTo fs res
             
             case res' of
                 Safe -> return $ (Env gs' fc max_fc meas_ex sz smt_mdl, evals')
@@ -252,7 +252,8 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
                         Right (viol_fc, no_viol_fc) -> do
                             (below_fc, blk_mdls'') <- case hasNewFC viol_fc fc of
                                               has_new@(NoNewFC _) -> do
-                                                  case filterToLevel sf res of
+                                                  let called_by_res' = concatMap (calledByFunc lrs) bad
+                                                  case filterNamesTo called_by_res' $ filterNamesTo sf res of
                                                       Unsafe bad_sf -> do
                                                           liftIO $ putStrLn "About to run second run of CEx generation"
                                                           ref_sf <- withConfigs noCounterfactual $ refineUnsafe ghci m_modname lrs gs' bad_sf
@@ -329,19 +330,11 @@ adjModel lrs bad_funcs has_new sz smt_mdl blk_mdls = do
           NewFC -> return blk_mdls
           NoNewFC _ -> do
               liftIO $ putStrLn "adjModel repeated_fc"
-              let eenv = expr_env . state $ lr_state lrs
-
-                  called_by n = map zeroOutUnq
-                              . filter (isJust . flip E.lookup eenv)
-                              . maybe [] id
-                              . fmap varNames
-                              . fmap snd
-                              $ E.lookupNameMod (nameOcc n) (nameModule n) eenv
-                  blk_mdls' =
+              let blk_mdls' =
                       foldr
                           (\n -> 
                               let
-                                  clls = called_by n
+                                  clls = calledByFunc lrs n
                               in
                               trace ("n:clls = " ++ show (n:clls))
                               insertBlockedModel sz (MNOnly (n:clls)) smt_mdl)
@@ -352,8 +345,20 @@ adjModel lrs bad_funcs has_new sz smt_mdl blk_mdls = do
               incrMaxTimeM
               return blk_mdls'
 
-filterToLevel ::  [Name] -> VerifyResult Name -> VerifyResult Name
-filterToLevel ns (Unsafe unsafe) = 
+calledByFunc :: LiquidReadyState -> Name -> [Name]
+calledByFunc lrs n = 
+    let
+        eenv = expr_env . state $ lr_state lrs
+    in
+    map zeroOutUnq
+        . filter (isJust . flip E.lookup eenv)
+        . maybe [] id
+        . fmap varNames
+        . fmap snd
+        $ E.lookupNameMod (nameOcc n) (nameModule n) eenv
+
+filterNamesTo ::  [Name] -> VerifyResult Name -> VerifyResult Name
+filterNamesTo ns (Unsafe unsafe) = 
     case filter (\n -> toOccMod n `elem` ns_nm) unsafe of
         [] -> Safe
         unsafe' -> do
@@ -361,7 +366,7 @@ filterToLevel ns (Unsafe unsafe) =
     where
         ns_nm = map toOccMod ns
         toOccMod (Name n m _ _) = (n, m)
-filterToLevel _ vr = vr
+filterNamesTo _ vr = vr
 
 noCounterfactual :: Configs -> Configs
 noCounterfactual cons@(Configs { g2_config = g2_c }) = cons { g2_config = g2_c { counterfactual = NotCounterfactual } }
