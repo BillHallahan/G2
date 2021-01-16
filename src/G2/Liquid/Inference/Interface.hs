@@ -261,11 +261,11 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
                                                               Right (viol_fc_sf, no_viol_fc_sf) ->
                                                                   case hasNewFC viol_fc_sf fc of
                                                                       NoNewFC _ -> do
-                                                                          new_blk_mdls <- adjModel has_new sz smt_mdl blk_mdls'
+                                                                          new_blk_mdls <- adjModel lrs bad has_new sz smt_mdl blk_mdls'
                                                                           return (viol_fc_sf `unionFC` no_viol_fc_sf, new_blk_mdls)                                                
                                                                       NewFC -> return (viol_fc_sf `unionFC` no_viol_fc_sf, blk_mdls')
                                                       Safe -> do
-                                                          new_blk_mdls <- adjModel has_new sz smt_mdl blk_mdls'
+                                                          new_blk_mdls <- adjModel lrs bad has_new sz smt_mdl blk_mdls'
                                                           return (emptyFC, new_blk_mdls)
                                                       Crash _ _ -> error "inferenceB: LiquidHaskell crashed"
                                               NewFC -> return (emptyFC, blk_mdls')
@@ -316,30 +316,41 @@ refineUnsafe ghci m_modname lrs gs bad = do
             liftIO . putStrLn $ "new_fc' = " ++ printFCs new_fc'
             return $ Right (new_fc', fromListFC no_viol)
 
-adjModel :: (MonadIO m, ProgresserM m) => NewFC -> Size -> SMTModel
-                  -> BlockedModels -> m BlockedModels
-adjModel has_new sz smt_mdl blk_mdls = do
+adjModel :: (MonadIO m, ProgresserM m) => 
+            LiquidReadyState
+         -> [Name]
+         -> NewFC
+         -> Size
+         -> SMTModel
+         -> BlockedModels
+         -> m BlockedModels
+adjModel lrs bad_funcs has_new sz smt_mdl blk_mdls = do
       case has_new of
-            NewFC -> return blk_mdls
-            NoNewFC _ -> do
-                    liftIO $ putStrLn "adjModel repeated_fc"
-                    let blk_mdls' = insertBlockedModel sz MNAll smt_mdl blk_mdls
-                    incrMaxCExM
-                    incrMaxTimeM
-                    return blk_mdls'
+          NewFC -> return blk_mdls
+          NoNewFC _ -> do
+              liftIO $ putStrLn "adjModel repeated_fc"
+              let eenv = expr_env . state $ lr_state lrs
 
-adjModelUnsatCore :: (MonadIO m, ProgresserM m) => NewFC -> Size -> SMTModel
-                  -> BlockedModels -> m BlockedModels
-adjModelUnsatCore has_new sz smt_mdl blk_mdls = do
-      case has_new of
-            NewFC -> return blk_mdls
-            NoNewFC repeated_fc -> do
-                    liftIO . putStrLn $ "adjModel unsat core repeated_fc = " ++ show repeated_fc
-                    let ns = map funcName $ allCallsFC repeated_fc
-                        blk_mdls' = insertBlockedModel sz (MNOnly ns) smt_mdl blk_mdls                                      
-                    incrMaxCExM
-                    incrMaxTimeM
-                    return blk_mdls'
+                  called_by n = map zeroOutUnq
+                              . filter (isJust . flip E.lookup eenv)
+                              . maybe [] id
+                              . fmap varNames
+                              . fmap snd
+                              $ E.lookupNameMod (nameOcc n) (nameModule n) eenv
+                  blk_mdls' =
+                      foldr
+                          (\n -> 
+                              let
+                                  clls = called_by n
+                              in
+                              trace ("n:clls = " ++ show (n:clls))
+                              insertBlockedModel sz (MNOnly (n:clls)) smt_mdl)
+                          blk_mdls
+                          bad_funcs
+
+              incrMaxCExM
+              incrMaxTimeM
+              return blk_mdls'
 
 filterToLevel ::  [Name] -> VerifyResult Name -> VerifyResult Name
 filterToLevel ns (Unsafe unsafe) = 
