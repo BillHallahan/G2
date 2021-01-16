@@ -107,8 +107,8 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
     runConfigs (runProgresser infL prog) configs
 
 data InferenceRes = CEx [CounterExample]
-                  | Env GeneratedSpecs FuncConstraints MaxSizeConstraints MeasureExs Size SMTModel
-                  | Raise MeasureExs FuncConstraints MaxSizeConstraints NewFC
+                  | Env GeneratedSpecs FuncConstraints MaxSizeConstraints MeasureExs
+                  | Raise MeasureExs FuncConstraints MaxSizeConstraints
                   deriving (Show)
 
 -- When we try to synthesize a specification for a function that we have already found a specification for,
@@ -136,8 +136,8 @@ iterativeInference con ghci m_modname lrs nls meas_ex max_sz gs fc = do
     res <- inferenceL con ghci m_modname lrs nls emptyEvals meas_ex max_sz gs fc emptyFC emptyBlockedModels
     case res of
         CEx cex -> return $ Left cex
-        Env gs _ _ _ _ _ -> return $ Right gs
-        Raise r_meas_ex r_fc _ _ -> do
+        Env gs _ _ _ -> return $ Right gs
+        Raise r_meas_ex r_fc _ -> do
             incrMaxDepthM
             -- We might be missing some internal GHC types from our deep_seq walkers
             -- We filter them out to avoid an error
@@ -187,7 +187,7 @@ inferenceL con ghci m_modname lrs nls evals meas_ex max_sz senv fc max_fc blk_md
         putStrLn "-------"
 
     case resAtL of
-        Env senv' n_fc n_mfc meas_ex' sz smt_mdl -> 
+        Env senv' n_fc n_mfc meas_ex' -> 
             case nls of
                 [] -> return resAtL
                 (_:nls') -> do
@@ -195,7 +195,7 @@ inferenceL con ghci m_modname lrs nls evals meas_ex max_sz senv fc max_fc blk_md
                     let evals'' = foldr deleteEvalsForFunc evals' sf
                     inf_res <- inferenceL con ghci m_modname lrs nls' evals'' meas_ex' max_sz senv' (unionFC fc n_fc) (unionFC max_fc n_mfc) emptyBlockedModels
                     case inf_res of
-                        Raise r_meas_ex r_fc r_max_fc has_new -> do
+                        Raise r_meas_ex r_fc r_max_fc -> do
                             liftIO $ putStrLn "Up a level!"
                             
                             inferenceL con ghci m_modname lrs nls evals' r_meas_ex max_sz senv r_fc r_max_fc blk_mdls
@@ -244,29 +244,29 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
             let res' = filterNamesTo fs res
             
             case res' of
-                Safe -> return $ (Env gs' fc max_fc meas_ex sz smt_mdl, evals')
+                Safe -> return $ (Env gs' fc max_fc meas_ex, evals')
                 Unsafe bad -> do
-                    ref <- refineUnsafe ghci m_modname lrs gs' bad
+                    ref <- refineUnsafe ghci m_modname lrs gs' blk_mdls' bad
                     case ref of
                         Left cex -> return $ (CEx cex, evals')
-                        Right (viol_fc, no_viol_fc) -> do
+                        Right (viol_fc, no_viol_fc, _) -> do
                             (below_fc, blk_mdls'') <- case hasNewFC viol_fc fc of
-                                              has_new@(NoNewFC _) -> do
-                                                  let called_by_res' = concatMap (calledByFunc lrs) bad
-                                                  case filterNamesTo called_by_res' $ filterNamesTo sf res of
+                                              NoNewFC -> do
+                                                  let called_by_res = concatMap (calledByFunc lrs) bad
+                                                  case filterNamesTo called_by_res $ filterNamesTo sf res of
                                                       Unsafe bad_sf -> do
                                                           liftIO $ putStrLn "About to run second run of CEx generation"
-                                                          ref_sf <- withConfigs noCounterfactual $ refineUnsafe ghci m_modname lrs gs' bad_sf
+                                                          ref_sf <- withConfigs noCounterfactual $ refineUnsafe ghci m_modname lrs gs' blk_mdls' bad_sf
                                                           case ref_sf of
                                                               Left cex -> error "TODO"
-                                                              Right (viol_fc_sf, no_viol_fc_sf) ->
+                                                              Right (viol_fc_sf, no_viol_fc_sf, _) ->
                                                                   case hasNewFC viol_fc_sf fc of
-                                                                      NoNewFC _ -> do
-                                                                          new_blk_mdls <- adjModel lrs bad has_new sz smt_mdl blk_mdls'
+                                                                      NoNewFC -> do
+                                                                          new_blk_mdls <- adjModel lrs called_by_res sz smt_mdl blk_mdls'
                                                                           return (viol_fc_sf `unionFC` no_viol_fc_sf, new_blk_mdls)                                                
                                                                       NewFC -> return (viol_fc_sf `unionFC` no_viol_fc_sf, blk_mdls')
                                                       Safe -> do
-                                                          new_blk_mdls <- adjModel lrs bad has_new sz smt_mdl blk_mdls'
+                                                          new_blk_mdls <- adjModel lrs called_by_res sz smt_mdl blk_mdls'
                                                           return (emptyFC, new_blk_mdls)
                                                       Crash _ _ -> error "inferenceB: LiquidHaskell crashed"
                                               NewFC -> return (emptyFC, blk_mdls')
@@ -280,28 +280,41 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
                 Crash _ _ -> error "inferenceB: LiquidHaskell crashed"
         SynthFail sf_fc -> do
             liftIO . putStrLn $ "synthfail fc = " ++ (printFCs sf_fc)
-            return $ (Raise meas_ex fc (unionFC max_fc sf_fc) (hasNewFC sf_fc max_fc), evals')
+            return $ (Raise meas_ex fc (unionFC max_fc sf_fc), evals')
 
-refineUnsafe :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState
+refineUnsafe :: (ProgresserM m, InfConfigM m, MonadIO m) => 
+                [GhcInfo]
+             -> Maybe T.Text
+             -> LiquidReadyState
              -> GeneratedSpecs
-             -> [Name] -> m (Either [CounterExample] (FuncConstraints, FuncConstraints))
-refineUnsafe ghci m_modname lrs gs bad = do
+             -> BlockedModels
+             -> [Name] -> m (Either [CounterExample] (FuncConstraints, FuncConstraints, BlockedModels))
+refineUnsafe ghci m_modname lrs gs blk_mdls bad = do
+    res <- mapM (refineUnsafe' ghci m_modname lrs gs) bad
+
+    case fmap unzip $ partitionEithers res of
+        (cex@(_:_), _) -> return . Left $ concat cex
+        ([], (new_fcs, no_viol_fcs)) -> return . Right $ (unionsFC new_fcs, unionsFC no_viol_fcs, blk_mdls)
+
+refineUnsafe' :: (ProgresserM m, InfConfigM m, MonadIO m) => 
+                [GhcInfo]
+             -> Maybe T.Text
+             -> LiquidReadyState
+             -> GeneratedSpecs
+             -> Name -> m (Either [CounterExample] (FuncConstraints, FuncConstraints))
+refineUnsafe' ghci m_modname lrs gs bad = do
     let merged_se_ghci = addSpecsToGhcInfos ghci gs
 
     liftIO $ mapM_ (print . gsTySigs . spec) merged_se_ghci
 
-    let bad' = nub $ map nameOcc bad
-
-    res_no_viol <- mapM (genNewConstraints merged_se_ghci m_modname lrs) bad'
-    let res = concatMap fst res_no_viol
-        no_viol = concatMap snd res_no_viol
+    (res, no_viol) <- genNewConstraints merged_se_ghci m_modname lrs (nameOcc bad)
 
     liftIO $ do
-        putStrLn "--- Generated Counterexamples and Constraints ---"
-        putStrLn $ "res = "
+        putStrLn $ "--- Generated Counterexamples and Constraints for " ++ show bad ++ " ---"
+        putStrLn "res = "
         printCE res
 
-        putStrLn $ "no_viol = "
+        putStrLn "no_viol = "
         mapM (putStrLn . printFC) no_viol
 
 
@@ -320,30 +333,26 @@ refineUnsafe ghci m_modname lrs gs bad = do
 adjModel :: (MonadIO m, ProgresserM m) => 
             LiquidReadyState
          -> [Name]
-         -> NewFC
          -> Size
          -> SMTModel
          -> BlockedModels
          -> m BlockedModels
-adjModel lrs bad_funcs has_new sz smt_mdl blk_mdls = do
-      case has_new of
-          NewFC -> return blk_mdls
-          NoNewFC _ -> do
-              liftIO $ putStrLn "adjModel repeated_fc"
-              let blk_mdls' =
-                      foldr
-                          (\n -> 
-                              let
-                                  clls = calledByFunc lrs n
-                              in
-                              trace ("n:clls = " ++ show (n:clls))
-                              insertBlockedModel sz (MNOnly (n:clls)) smt_mdl)
-                          blk_mdls
-                          bad_funcs
+adjModel lrs bad_funcs sz smt_mdl blk_mdls = do
+    liftIO $ putStrLn "adjModel repeated_fc"
+    let blk_mdls' =
+            foldr
+                (\n -> 
+                    let
+                        clls = calledByFunc lrs n
+                    in
+                    trace ("n:clls = " ++ show (n:clls))
+                    insertBlockedModel sz (MNOnly (n:clls)) smt_mdl)
+                blk_mdls
+                bad_funcs
 
-              incrMaxCExM
-              incrMaxTimeM
-              return blk_mdls'
+    incrMaxCExM
+    incrMaxTimeM
+    return blk_mdls'
 
 calledByFunc :: LiquidReadyState -> Name -> [Name]
 calledByFunc lrs n = 
@@ -460,14 +469,13 @@ updateEvals ghci lrs fc evals = do
     return evals''
 
 
-data NewFC = NewFC
-           | NoNewFC FuncConstraints -- ^ The contained set of FuncConstraints is not new
+data NewFC = NewFC | NoNewFC
            deriving Show
 
 hasNewFC :: FuncConstraints -> FuncConstraints -> NewFC
 hasNewFC fc1 fc2
     | not . nullFC $ differenceFC fc1 fc2 = NewFC
-    | otherwise = NoNewFC fc1
+    | otherwise = NoNewFC
 
 -- | Converts counterexamples into constraints that block the current specification set
 cexsToBlockingFC :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] -> CounterExample -> m (Either CounterExample FuncConstraint)
