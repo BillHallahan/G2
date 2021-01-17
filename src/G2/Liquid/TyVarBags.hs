@@ -153,8 +153,8 @@ extractTyVarCall func_names is_fs i e
         dUnit <- mkUnitE 
         let call_f = mkApp $ e:map (\a -> App a dUnit) inst_ars
 
-        e <- if i `elem` tvs then extractTyVarCall func_names is_fs i call_f else return []
-        return e
+        cll <- if i `elem` tvs then extractTyVarCall func_names is_fs i call_f else return []
+        return cll
     | otherwise = return []
     where
         t = typeOf e
@@ -245,6 +245,12 @@ instTyVarCall func_names is_fs t
         tUnit <- tyUnitT
         ui <- freshIdN tUnit
         return $ Lam TermL ui (Var f)
+    | TyVar i <- t = do
+        tUnit <- tyUnitT
+        ui <- freshIdN tUnit
+        flse <- mkFalseE
+        return . Assume Nothing flse . Prim Undefined $ TyFun tUnit (TyVar i)
+
     | TyCon n tc_t:ts <- unTyApp t
     , Just fn <- M.lookup n func_names = do
         let tyc_is = anonArgumentTypes (PresType tc_t)
