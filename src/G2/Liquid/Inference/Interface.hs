@@ -246,29 +246,17 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
             case res' of
                 Safe -> return $ (Env gs' fc max_fc meas_ex, evals')
                 Unsafe bad -> do
-                    ref <- refineUnsafe ghci m_modname lrs gs' blk_mdls' bad
+                    ref <- tryToGen (nub bad) (emptyFC, emptyFC) unionFC unionFC
+                            [ refineUnsafe ghci m_modname lrs gs'
+                            , searchBelowLevel ghci m_modname lrs res sf gs' ]
                     case ref of
                         Left cex -> return $ (CEx cex, evals')
-                        Right (viol_fc, no_viol_fc, _) -> do
+                        Right (viol_fc, no_viol_fc) -> do
                             (below_fc, blk_mdls'') <- case hasNewFC viol_fc fc of
                                               NoNewFC -> do
                                                   let called_by_res = concatMap (calledByFunc lrs) bad
-                                                  case filterNamesTo called_by_res $ filterNamesTo sf res of
-                                                      Unsafe bad_sf -> do
-                                                          liftIO $ putStrLn "About to run second run of CEx generation"
-                                                          ref_sf <- withConfigs noCounterfactual $ refineUnsafe ghci m_modname lrs gs' blk_mdls' bad_sf
-                                                          case ref_sf of
-                                                              Left cex -> error "TODO"
-                                                              Right (viol_fc_sf, no_viol_fc_sf, _) ->
-                                                                  case hasNewFC viol_fc_sf fc of
-                                                                      NoNewFC -> do
-                                                                          new_blk_mdls <- adjModel lrs called_by_res sz smt_mdl blk_mdls'
-                                                                          return (viol_fc_sf `unionFC` no_viol_fc_sf, new_blk_mdls)                                                
-                                                                      NewFC -> return (viol_fc_sf `unionFC` no_viol_fc_sf, blk_mdls')
-                                                      Safe -> do
-                                                          new_blk_mdls <- adjModel lrs called_by_res sz smt_mdl blk_mdls'
-                                                          return (emptyFC, new_blk_mdls)
-                                                      Crash _ _ -> error "inferenceB: LiquidHaskell crashed"
+                                                  new_blk_mdls <- adjModel lrs called_by_res sz smt_mdl blk_mdls'
+                                                  return (emptyFC, new_blk_mdls)                                                
                                               NewFC -> return (emptyFC, blk_mdls')
 
                             let fc' = viol_fc `unionFC` no_viol_fc `unionFC` below_fc
@@ -282,27 +270,68 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
             liftIO . putStrLn $ "synthfail fc = " ++ (printFCs sf_fc)
             return $ (Raise meas_ex fc (unionFC max_fc sf_fc), evals')
 
+tryToGen :: Monad m =>
+            [n] -- ^ A list of values to produce results for
+         -> (r, ex) -- ^ A default result, in case none of the strategies work, or we are passed an empty [n]
+         -> (r -> r -> r) -- ^ Some way of combining results
+         -> (ex -> ex -> ex) -- ^ Some way of joining extra results
+         -> [n -> m (Either err (Maybe r, ex))] -- ^ A list of strategies, in order, to try and produce a result
+         -> m (Either err (r, ex))
+tryToGen [] def _ _ _ = return $ Right def
+tryToGen (n:ns) def join_r join_ex fs = do
+    gen1 <- tryToGen' n def join_ex fs
+    case gen1 of
+        Left err -> return $ Left err
+        Right (r1, ex1) -> do
+            gen2 <- tryToGen ns def join_r join_ex fs
+            case gen2 of
+                Left err -> return $ Left err
+                Right (r2, ex2) -> return $ Right (r1 `join_r` r2, ex1 `join_ex` ex2) 
+
+tryToGen' :: Monad m =>
+             n
+          -> (r, ex)
+          -> (ex -> ex -> ex)
+          -> [n -> m (Either err (Maybe r, ex))]
+          -> m (Either err (r, ex))
+tryToGen' _ def _ [] = return $ Right (def)
+tryToGen' n def join_ex (f:fs) = do
+    gen1 <- f n
+    case gen1 of
+        Left err -> return $ Left err
+        Right (Just r, ex) -> return $ Right (r, ex)
+        Right (Nothing, ex1) -> do
+            gen2 <- tryToGen' n def join_ex fs
+            case gen2 of
+                Left err -> return $ Left err
+                Right (r, ex2) -> return $ Right (r, ex1 `join_ex` ex2)
+
+refineUnsafeAll :: (ProgresserM m, InfConfigM m, MonadIO m) => 
+                    [GhcInfo]
+                -> Maybe T.Text
+                -> LiquidReadyState
+                -> GeneratedSpecs
+                -> [Name]
+                -> m (Either [CounterExample] (Maybe FuncConstraints, FuncConstraints))
+refineUnsafeAll ghci m_modname lrs gs bad = do
+    res <- mapM (refineUnsafe ghci m_modname lrs gs) bad
+
+    case fmap unzip $ partitionEithers res of
+        (cex@(_:_), _) -> return . Left $ concat cex
+        ([], (new_fcs, no_viol_fcs)) -> 
+            let
+                new_fcs' = unionsFC (catMaybes new_fcs)
+            in
+            return . Right $ (if nullFC new_fcs' then Nothing else Just new_fcs', unionsFC no_viol_fcs)
+
 refineUnsafe :: (ProgresserM m, InfConfigM m, MonadIO m) => 
                 [GhcInfo]
              -> Maybe T.Text
              -> LiquidReadyState
              -> GeneratedSpecs
-             -> BlockedModels
-             -> [Name] -> m (Either [CounterExample] (FuncConstraints, FuncConstraints, BlockedModels))
-refineUnsafe ghci m_modname lrs gs blk_mdls bad = do
-    res <- mapM (refineUnsafe' ghci m_modname lrs gs) bad
-
-    case fmap unzip $ partitionEithers res of
-        (cex@(_:_), _) -> return . Left $ concat cex
-        ([], (new_fcs, no_viol_fcs)) -> return . Right $ (unionsFC new_fcs, unionsFC no_viol_fcs, blk_mdls)
-
-refineUnsafe' :: (ProgresserM m, InfConfigM m, MonadIO m) => 
-                [GhcInfo]
-             -> Maybe T.Text
-             -> LiquidReadyState
-             -> GeneratedSpecs
-             -> Name -> m (Either [CounterExample] (FuncConstraints, FuncConstraints))
-refineUnsafe' ghci m_modname lrs gs bad = do
+             -> Name
+             -> m (Either [CounterExample] (Maybe FuncConstraints, FuncConstraints))
+refineUnsafe ghci m_modname lrs gs bad = do
     let merged_se_ghci = addSpecsToGhcInfos ghci gs
 
     liftIO $ mapM_ (print . gsTySigs . spec) merged_se_ghci
@@ -328,7 +357,29 @@ refineUnsafe' ghci m_modname lrs gs bad = do
         Left cex -> return $ Left cex
         Right new_fc' -> do
             liftIO . putStrLn $ "new_fc' = " ++ printFCs new_fc'
-            return $ Right (new_fc', fromListFC no_viol)
+            return $ Right (if nullFC new_fc' then Nothing else Just new_fc', fromListFC no_viol)
+
+searchBelowLevel :: (ProgresserM m, InfConfigM m, MonadIO m) =>
+                    [GhcInfo]
+                 -> Maybe T.Text
+                 -> LiquidReadyState
+                 -> VerifyResult Name
+                 -> [Name]
+                 -> GeneratedSpecs
+                 -> Name
+                 -> m (Either [CounterExample] (Maybe FuncConstraints, FuncConstraints))
+searchBelowLevel ghci m_modname lrs verify_res lev_below gs bad = do
+    let called_by_res = calledByFunc lrs bad
+    case filterNamesTo called_by_res $ filterNamesTo lev_below verify_res of
+        Unsafe bad_sf -> do
+            liftIO $ putStrLn "About to run second run of CEx generation"
+            ref_sf <- withConfigs noCounterfactual $ refineUnsafeAll ghci m_modname lrs gs bad_sf
+            case ref_sf of
+                Left cex -> return ref_sf
+                Right (viol_fc_sf, no_viol_fc_sf) ->
+                    return $ Right (viol_fc_sf, no_viol_fc_sf)
+        Safe -> return $ Right (Nothing, emptyFC)
+        Crash _ _ -> error "inferenceB: LiquidHaskell crashed"
 
 adjModel :: (MonadIO m, ProgresserM m) => 
             LiquidReadyState
