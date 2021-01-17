@@ -346,7 +346,7 @@ liquidTests = testGroup "Liquid"
     , checkAbsLiquid "tests/Liquid/Polymorphism/Poly11.hs" "call" 700 1
         [ AtLeast 1
         , RForAll (\_ _ [ FuncCall { funcName = Name n _ _ _ } ] -> n == "higher")]
-    , checkAbsLiquid "tests/Liquid/Polymorphism/Poly12.hs" "call" 2000 1
+    , checkAbsLiquid "tests/Liquid/Polymorphism/Poly12.hs" "prop" 3000 1
         [ AtLeast 1
         , RForAll (\_ _ [ FuncCall { funcName = Name n _ _ _ } ] -> n == "map")]
     ]

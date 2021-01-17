@@ -11,9 +11,7 @@ module G2.Liquid.TyVarBags ( TyVarBags
 
                            , extractTyVarCall
                            , wrapExtractCalls
-                           , instTyVarCall
-
-                           , wrapUnitLam) where
+                           , instTyVarCall) where
 
 import G2.Language
 import G2.Language.Monad
@@ -149,9 +147,8 @@ extractTyVarCall func_names is_fs i e
             tvs = tyVarIds . returnType $ PresType t
 
         inst_funcs <- getInstFuncs
-        inst_ars <- mapM (instTyVarCall inst_funcs is_fs) ars_ty
-        dUnit <- mkUnitE 
-        let call_f = mkApp $ e:map (\a -> App a dUnit) inst_ars
+        inst_ars <- mapM (instTyVarCall' inst_funcs is_fs) ars_ty
+        let call_f = mkApp $ e:inst_ars
 
         cll <- if i `elem` tvs then extractTyVarCall func_names is_fs i call_f else return []
         return cll
@@ -166,14 +163,6 @@ wrapExtractCalls i clls = do
             flse <- mkFalseE
             return $ Assume Nothing flse (Prim Undefined (TyVar i))
         False -> return $ NonDet clls
-
-
--- | Turns an expression `e` into `\() -> e`
-wrapUnitLam :: ExState s m => Expr -> m Expr
-wrapUnitLam e = do
-    tUnit <- tyUnitT
-    lb <- freshIdN tUnit
-    return $ Lam TermL lb e
 
 -- | Creates functions to, for each type (T a_1 ... a_n), create a nondeterministic value.
 -- Each a_1 ... a_n has an associated function, allowing the caller to decide how to instantiate
@@ -192,11 +181,10 @@ assignInstFuncNames tenv =
             (\(tn@(Name n m _ _), adt) -> do
                 let bi = bound_ids adt
                 fn <- freshSeededNameN (Name (n `T.append` "_inst_") m 0 Nothing)
-                tUnit <- tyUnitT
 
                 let adt_i = mkFullAppedTyCon tn (map TyVar bi) TYPE
                 let t = foldr (\ntb -> TyForAll (NamedTyBndr ntb)) 
-                            (foldr (\i -> TyFun (TyFun tUnit (TyVar i))) adt_i bi) bi
+                            (foldr (\i -> TyFun (TyVar i)) adt_i bi) bi
 
                 return (tn, Id fn t)
             )(M.toList tenv)
@@ -205,8 +193,7 @@ createInstFunc :: InstFuncs -> Name -> AlgDataTy -> LHStateM ()
 createInstFunc func_names tn adt
     | Just fn <- M.lookup tn func_names = do
         bi <- freshIdsN $ map (const TYPE) (bound_ids adt)
-        tUnit <- tyUnitT
-        inst_funcs <- freshIdsN $ map (\i -> TyFun tUnit (TyVar i)) bi
+        inst_funcs <- freshIdsN $ map TyVar bi
 
         cse <- createInstFunc' func_names (zip bi inst_funcs) adt
         let e = mkLams (map (TypeL,) bi) $ mkLams (map (TermL,) inst_funcs) cse
@@ -217,19 +204,16 @@ createInstFunc func_names tn adt
 createInstFunc' :: InstFuncs -> [(Id, Id)] -> AlgDataTy -> LHStateM Expr
 createInstFunc' func_names is_fs (DataTyCon { bound_ids = bi
                                             , data_cons = dcs }) = do
-    dUnit <- mkUnitE
-    tUnit <- tyUnitT
     dc' <- mapM (\dc -> do
             let apped_dc = mkApp (Data dc:map (Type . TyVar . fst) is_fs)
                 ars_ty = anonArgumentTypes dc
 
                 is_fs' = zipWith (\i (_, f) -> (i, f)) (leadingTyForAllBindings dc) is_fs
 
-            ars <- mapM (instTyVarCall func_names is_fs') ars_ty
-            let ars' = map (\a -> App a dUnit) ars
+            ars <- mapM (instTyVarCall' func_names is_fs') ars_ty
             bnds <- mapM freshIdN ars_ty
             let vrs = map Var bnds
-            return $ Let (zip bnds ars') (mkApp $ apped_dc:vrs)) dcs
+            return $ Let (zip bnds ars) (mkApp $ apped_dc:vrs)) dcs
     return (NonDet dc')
 createInstFunc' _ _ _ = error "createInstFunc': unhandled datatype"
 
@@ -239,17 +223,24 @@ instTyVarCall :: ExState s m =>
               -> [(Id, Id)] -- ^ Mapping of TyVar Ids to Functions to create those TyVars
               -> Type
               -> m Expr
-instTyVarCall func_names is_fs t 
+instTyVarCall func_names is_fs t = do
+    tUnit <- tyUnitT
+    ui <- freshIdN tUnit
+    cll <- instTyVarCall' func_names is_fs t 
+    return $ Lam TermL ui cll
+
+instTyVarCall' :: ExState s m =>
+                 InstFuncs
+              -> [(Id, Id)] -- ^ Mapping of TyVar Ids to Functions to create those TyVars
+              -> Type
+              -> m Expr
+instTyVarCall' func_names is_fs t 
     | TyVar i <- t
     , Just f <- lookup i is_fs = do
-        tUnit <- tyUnitT
-        ui <- freshIdN tUnit
-        return $ Lam TermL ui (Var f)
+        return $ Var f
     | TyVar i <- t = do
-        tUnit <- tyUnitT
-        ui <- freshIdN tUnit
         flse <- mkFalseE
-        return . Assume Nothing flse . Prim Undefined $ TyFun tUnit (TyVar i)
+        return . Assume Nothing flse . Prim Undefined $ TyVar i
 
     | TyCon n tc_t:ts <- unTyApp t
     , Just fn <- M.lookup n func_names = do
@@ -261,21 +252,15 @@ instTyVarCall func_names is_fs t
                                     TyVar i
                                         | Just i' <- lookup i is_fs -> return (Var i')
                                     _ -> do
-                                        cll <- instTyVarCall func_names is_fs t'
-                                        dUnit <- mkUnitE
-                                        return $ App cll dUnit) ty_ts
+                                        cll <- instTyVarCall' func_names is_fs t'
+                                        return cll) ty_ts
         let_ids <- freshIdsN $ map typeOf func_ars
         let bnds = zip let_ids func_ars
 
-        tUnit <- tyUnitT
-        ui <- freshIdN tUnit
-
-        return . Lam TermL ui . Let bnds . mkApp $ Var fn:ty_ars ++ map Var let_ids
+        return . Let bnds . mkApp $ Var fn:ty_ars ++ map Var let_ids
     | otherwise = do
         let tfa = leadingTyForAllBindings $ PresType t
             tfa_is = zipWith (\i1 (i2, _) -> (i1, TyVar i2)) tfa is_fs
 
             rt = foldr (uncurry retype) (returnType $ PresType t) tfa_is
-        tUnit <- tyUnitT
-        ui <- freshIdN tUnit
-        return $ Lam TermL ui (SymGen rt)
+        return $ SymGen rt
