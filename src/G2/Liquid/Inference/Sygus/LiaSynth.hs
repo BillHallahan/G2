@@ -373,6 +373,7 @@ synth' con eenv tc meas meas_ex evals m_si fc headers drop_if_unknown blk_mdls s
 data BlockedModels = Block { blocked :: HM.HashMap Size [(ModelNames, SMTModel)]
                            , blocked_equiv :: HM.HashMap Size [(ModelNames, SMTModel)] -- ^ Models that should be blocked, and represent the same specification as a model in `blocked`
                            }
+                     deriving (Show)
 
 data ModelNames = MNAll | MNOnly [Name] | MNOnlySMTNames [SMTName]
                   deriving (Eq, Show, Read)

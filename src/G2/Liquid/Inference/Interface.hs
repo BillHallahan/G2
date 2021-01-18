@@ -255,7 +255,7 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
                             (below_fc, blk_mdls'') <- case hasNewFC viol_fc fc of
                                               NoNewFC -> do
                                                   let called_by_res = concatMap (calledByFunc lrs) bad
-                                                  new_blk_mdls <- adjModel lrs called_by_res sz smt_mdl blk_mdls'
+                                                  new_blk_mdls <- adjModel lrs bad sz smt_mdl blk_mdls'
                                                   return (emptyFC, new_blk_mdls)                                                
                                               NewFC -> return (emptyFC, blk_mdls')
 
@@ -396,10 +396,11 @@ adjModel lrs bad_funcs sz smt_mdl blk_mdls = do
                     let
                         clls = calledByFunc lrs n
                     in
-                    trace ("n:clls = " ++ show (n:clls))
                     insertBlockedModel sz (MNOnly (n:clls)) smt_mdl)
                 blk_mdls
                 bad_funcs
+
+    liftIO . putStrLn $ "blocked models = " ++ show blk_mdls'
 
     incrMaxCExM
     incrMaxTimeM
