@@ -17,6 +17,7 @@ import G2.Language
 import G2.Language.Monad
 import G2.Liquid.Types
 
+import qualified Data.HashSet as S
 import qualified Data.Map.Lazy as M
 import qualified Data.Text as T
 
@@ -29,16 +30,29 @@ createBagAndInstFuncs :: [Name] -- ^ Which types do we need bag functions for?
 createBagAndInstFuncs bag_func_ns inst_func_ns = do
     tenv <- typeEnv
     
-    let bag_tenv = M.filterWithKey (\n _ -> n `elem` bag_func_ns) tenv
+    let bag_func_ns' = relNames tenv S.empty bag_func_ns
+        bag_tenv = M.filterWithKey (\n _ -> n `S.member` bag_func_ns') tenv
     bag_names <- assignBagFuncNames bag_tenv
     setTyVarBags bag_names
 
-    let inst_tenv = M.filterWithKey (\n _ -> n `elem` inst_func_ns) tenv
+    let inst_func_ns' = relNames tenv S.empty inst_func_ns
+        inst_tenv = M.filterWithKey (\n _ -> n `S.member` inst_func_ns') tenv
     inst_names <- assignInstFuncNames inst_tenv
     setInstFuncs inst_names
 
     createBagFuncs bag_names bag_tenv
     createInstFuncs inst_names inst_tenv
+
+relNames :: TypeEnv -> S.HashSet Name -> [Name] -> S.HashSet Name
+relNames _ rel [] = rel
+relNames tenv rel (n:ns) =
+    if S.member n rel
+      then relNames tenv rel ns
+      else relNames tenv (S.insert n rel) ns'
+  where
+    ns' = case M.lookup n tenv of
+        Nothing -> ns
+        Just r -> names r ++ ns
 
 createBagFuncs :: TyVarBags -- ^ Which types do we need bag functions for?
                -> TypeEnv

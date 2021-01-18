@@ -105,7 +105,7 @@ cfRetValue ars rt
         inst_funcs <- getInstFuncs
         inst_ret <- instTyVarCall inst_funcs ex_tvs_to_vrs rt
         
-        trace ("all_tvs = " ++ show all_tvs ++ "\ninst_ret = " ++ show inst_ret ++ "\n-------") return $ Let ex_let_bnds (App inst_ret dUnit)
+        return $ Let ex_let_bnds (App inst_ret dUnit)
     | otherwise = do 
         return (SymGen rt)
 
