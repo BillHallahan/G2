@@ -86,16 +86,17 @@ cfRetValue :: [Expr] -- ^ Arguments
 cfRetValue ars rt
     | tvs <- tyVarIds rt
     , not (null tvs)  = do
+        let all_tvs = tvs ++ tyVarIds ars
         ty_bags <- getTyVarBags
 
-        ex_vrs <- freshIdsN (map TyVar tvs)
-        let ex_tvs_to_vrs = zip tvs ex_vrs
+        ex_vrs <- freshIdsN (map TyVar all_tvs)
+        let ex_tvs_to_vrs = zip all_tvs ex_vrs
 
         ex_ty_clls <- mapM 
                         (\tv -> wrapExtractCalls tv
                               . filter nullNonDet
                               . concat
-                              =<< mapM (extractTyVarCall ty_bags ex_tvs_to_vrs tv) ars) tvs
+                              =<< mapM (extractTyVarCall ty_bags ex_tvs_to_vrs tv) ars) all_tvs
 
         let ex_let_bnds = zip ex_vrs ex_ty_clls
 
@@ -104,7 +105,7 @@ cfRetValue ars rt
         inst_funcs <- getInstFuncs
         inst_ret <- instTyVarCall inst_funcs ex_tvs_to_vrs rt
         
-        return $ Let ex_let_bnds (App inst_ret dUnit)
+        trace ("all_tvs = " ++ show all_tvs ++ "\ninst_ret = " ++ show inst_ret ++ "\n-------") return $ Let ex_let_bnds (App inst_ret dUnit)
     | otherwise = do 
         return (SymGen rt)
 
