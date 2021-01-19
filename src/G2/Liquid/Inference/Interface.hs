@@ -314,7 +314,7 @@ refineUnsafeAll :: (ProgresserM m, InfConfigM m, MonadIO m) =>
                 -> [Name]
                 -> m (Either [CounterExample] (Maybe FuncConstraints, FuncConstraints))
 refineUnsafeAll ghci m_modname lrs gs bad = do
-    res <- mapM (refineUnsafe ghci m_modname lrs gs) bad
+    res <- mapM (refineUnsafe ghci m_modname lrs gs) (nub bad)
 
     case fmap unzip $ partitionEithers res of
         (cex@(_:_), _) -> return . Left $ concat cex
