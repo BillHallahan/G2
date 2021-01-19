@@ -1488,7 +1488,7 @@ generateRelTypes e =
 typeToSort :: Type -> Maybe Sort
 typeToSort (TyCon (Name n _ _ _) _) 
     | n == "Int"  = Just SortInt
-    | n == "Double"  = Just SortDouble
+    -- | n == "Double"  = Just SortDouble
 typeToSort _ = Nothing
 
 getLHMeasureName :: [GhcInfo] -> Name -> LH.Symbol
