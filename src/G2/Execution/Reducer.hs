@@ -922,7 +922,9 @@ instance Orderer SymbolicADTOrderer (S.HashSet Name) Int t where
 -- Orders by the size (in terms of height) of (previously) symbolic ADT.
 -- In particular, aims to first execute those states with a height closest to
 -- the specified height.
-data ADTHeightOrderer = ADTHeightOrderer Int
+data ADTHeightOrderer = ADTHeightOrderer
+                            Int -- ^ What height should we prioritize?
+                            (Maybe Name) -- ^ If we see a tick with the specified Name, add it to the set
 
 -- Normally, each state tracks the names of currently symbolic variables,
 -- but here we want all variables that were ever symbolic.
@@ -935,7 +937,7 @@ data ADTHeightOrderer = ADTHeightOrderer Int
 -- will not add symbolic variables.
 instance MinOrderer ADTHeightOrderer (S.HashSet Name, Bool) Int t where
     minInitPerStateOrder _ s = (S.fromList . map idName . symbolic_ids $ s, False)
-    minOrderStates ord@(ADTHeightOrderer pref_height) (v, _) _ s =
+    minOrderStates ord@(ADTHeightOrderer pref_height _) (v, _) _ s =
         let
             m = maximum $ (-1):(S.toList $ S.map (flip adtHeight s) v)
             h = abs (pref_height - m)
@@ -947,6 +949,10 @@ instance MinOrderer ADTHeightOrderer (S.HashSet Name, Bool) Int t where
                   (State { curr_expr = CurrExpr _ (SymGen _) }) = (v, True)
     minStepOrderer _ (v, True) _ _ s =
         (v `S.union` (S.fromList . map idName . symbolic_ids $ s), False)
+    minStepOrderer (ADTHeightOrderer _ (Just n)) (v, _) _ _ 
+                   s@(State { curr_expr = CurrExpr _ (Tick (NamedLoc n') (Var _)) }) 
+            | n == n' =
+                (v `S.union` (S.fromList . map idName . symbolic_ids $ s), False)
     minStepOrderer _ v _ _ s =
         v
 

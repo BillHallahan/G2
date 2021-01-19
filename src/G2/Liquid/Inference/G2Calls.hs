@@ -45,6 +45,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad
 import G2.Lib.Printers
 import G2.Liquid.Inference.Config
+import G2.Liquid.AddCFBranch
 import G2.Liquid.Conversion
 import G2.Liquid.G2Calls
 import G2.Liquid.Helpers
@@ -174,7 +175,7 @@ gatherReducerHalterOrderer infconfig config solver simplifier entry mb_modname s
               :<~> SwitchEveryNHalter (switch_after config)
               :<~> SWHNFHalter
               :<~> timer_halter)
-        , SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTHeightOrderer 0)))
+        , SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTHeightOrderer 0 Nothing)))
 
 -------------------------------
 -- Direct Counterexamples Calls
@@ -293,7 +294,7 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
                   Nothing -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn))
         , SomeHalter
             (DiscardIfAcceptedTag state_name :<~> halter)
-        , SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTHeightOrderer 0)))
+        , SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTHeightOrderer 0 (Just instFuncTickName))))
 
 runLHCExSearch :: (ProgresserM m, InfConfigM m, MonadIO m)
                => T.Text
@@ -372,7 +373,7 @@ realCExReducerHalterOrderer infconfig config solver simplifier  cfn cf_funcs st 
                   Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn))
         , SomeHalter
             (DiscardIfAcceptedTag state_name :<~> halter)
-        , SomeOrderer (ToOrderer $ IncrAfterN 1000 (ADTHeightOrderer 0)))
+        , SomeOrderer (ToOrderer $ IncrAfterN 1000 (ADTHeightOrderer 0 Nothing)))
 
 
 swapHigherOrdForSymGen :: Bindings -> State t -> State t
