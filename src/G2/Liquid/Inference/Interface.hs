@@ -403,7 +403,7 @@ adjModel lrs bad_funcs sz smt_mdl blk_mdls = do
     liftIO . putStrLn $ "blocked models = " ++ show blk_mdls'
 
     incrMaxCExM
-    incrMaxTimeM
+    mapM (\(Name n m _ _) -> incrMaxTimeM (n, m)) bad_funcs
     return blk_mdls'
 
 calledByFunc :: LiquidReadyState -> Name -> [Name]

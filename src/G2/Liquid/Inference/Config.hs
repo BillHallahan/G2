@@ -44,15 +44,16 @@ import Data.Time.Clock
 -- Progresser
 -------------------------------
 
-data Progress = Progress { ex_max_ce :: Int -- ^ Gives an extra budget for maximum ce number
-                         , ex_max_depth :: Int -- ^ Gives an extra budget for the depth limit
-                         , ex_max_time :: NominalDiffTime -- ^ Gives an extra max bufget for time
-                         }
+data Progress =
+    Progress { ex_max_ce :: Int -- ^ Gives an extra budget for maximum ce number
+             , ex_max_depth :: Int -- ^ Gives an extra budget for the depth limit
+             , ex_max_time :: M.Map (T.Text, Maybe T.Text) NominalDiffTime -- ^ Gives an extra max bufget for time
+             }
 
 newProgress :: Progress
 newProgress = Progress { ex_max_ce = 0 
                        , ex_max_depth = 0
-                       , ex_max_time = 0 }
+                       , ex_max_time = M.empty }
 
 class Progresser p where
     extraMaxCEx ::  p -> Int
@@ -61,8 +62,8 @@ class Progresser p where
     extraMaxDepth ::  p -> Int
     incrMaxDepth :: p -> p
 
-    extraMaxTime ::  p -> NominalDiffTime
-    incrMaxTime :: p -> p
+    extraMaxTime :: (T.Text, Maybe T.Text) -> p -> NominalDiffTime
+    incrMaxTime :: (T.Text, Maybe T.Text) -> p -> p
 
 instance Progresser Progress where
     extraMaxCEx (Progress { ex_max_ce = m }) = m
@@ -71,8 +72,9 @@ instance Progresser Progress where
     extraMaxDepth (Progress { ex_max_depth = m }) = m
     incrMaxDepth p@(Progress { ex_max_depth = m }) = p { ex_max_depth = m + 200 }
 
-    extraMaxTime (Progress { ex_max_time = m }) = m
-    incrMaxTime p@(Progress { ex_max_time = m }) = p { ex_max_time = m + 4 }
+    extraMaxTime n (Progress { ex_max_time = m }) = M.findWithDefault 0 n m
+    incrMaxTime n p@(Progress { ex_max_time = m }) =
+        p { ex_max_time = M.insertWith (+) n 4 m }
 
 class Monad m => ProgresserM m where
     extraMaxCExM :: m Int
@@ -81,8 +83,8 @@ class Monad m => ProgresserM m where
     extraMaxDepthM :: m Int
     incrMaxDepthM :: m ()
 
-    extraMaxTimeM :: m NominalDiffTime
-    incrMaxTimeM :: m ()
+    extraMaxTimeM :: (T.Text, Maybe T.Text) -> m NominalDiffTime
+    incrMaxTimeM :: (T.Text, Maybe T.Text) -> m ()
 
 instance (Monad m, Progresser p) => ProgresserM (StateT p m) where
     extraMaxCExM = gets extraMaxCEx
@@ -91,8 +93,8 @@ instance (Monad m, Progresser p) => ProgresserM (StateT p m) where
     extraMaxDepthM = gets extraMaxDepth
     incrMaxDepthM = modify' incrMaxDepth
 
-    extraMaxTimeM = gets extraMaxTime
-    incrMaxTimeM = modify' incrMaxTime
+    extraMaxTimeM n = gets (extraMaxTime n)
+    incrMaxTimeM n = modify' (incrMaxTime n)
 
 instance ProgresserM m => ProgresserM (ReaderT env m) where
     extraMaxCExM = lift extraMaxCExM
@@ -101,8 +103,8 @@ instance ProgresserM m => ProgresserM (ReaderT env m) where
     extraMaxDepthM = lift extraMaxDepthM
     incrMaxDepthM = lift incrMaxDepthM
 
-    extraMaxTimeM = lift extraMaxTimeM
-    incrMaxTimeM = lift incrMaxTimeM
+    extraMaxTimeM n = lift (extraMaxTimeM n)
+    incrMaxTimeM n = lift (incrMaxTimeM n)
 
 runProgresser :: (Monad m, Progresser p) => StateT p m a -> p -> m a
 runProgresser = evalStateT
@@ -167,9 +169,9 @@ mkInferenceConfig :: [String] -> InferenceConfig
 mkInferenceConfig as =
     InferenceConfig { keep_quals = boolArg "keep-quals" as M.empty On
                     , modules = S.empty
-                    , max_ce = strArg "max-ce" as M.empty read 10
+                    , max_ce = strArg "max-ce" as M.empty read 5
                     , restrict_coeffs = boolArg "restrict-coeffs" as M.empty Off
-                    , timeout_se = strArg "timeout-se" as M.empty (fromInteger . read) 10
+                    , timeout_se = strArg "timeout-se" as M.empty (fromInteger . read) 5
                     , timeout_sygus = strArg "timeout-sygus" as M.empty (fromInteger . read) 10 }
 
 adjustConfig :: Maybe T.Text -> SimpleState -> Config -> InferenceConfig -> [GhcInfo] -> (Config, InferenceConfig)

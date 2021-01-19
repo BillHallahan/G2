@@ -250,7 +250,7 @@ inferenceReducerHalterOrderer :: (ProgresserM m, MonadIO m, Solver solver, Simpl
                               -> m (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
 inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modname cfn cf_funcs st = do
     extra_ce <- extraMaxCExM
-    extra_time <- extraMaxTimeM
+    extra_time <- extraMaxTimeM (entry, mb_modname)
 
     let
         ng = mkNameGen ()
