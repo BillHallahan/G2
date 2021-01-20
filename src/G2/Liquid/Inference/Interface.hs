@@ -6,6 +6,7 @@ module G2.Liquid.Inference.Interface ( inferenceCheck
                                      , inference) where
 
 import G2.Config.Config as G2
+import G2.Data.Timer
 import qualified G2.Initialization.Types as IT
 import G2.Interface hiding (violated)
 import G2.Language.CallGraph
@@ -20,13 +21,15 @@ import G2.Liquid.ConvertCurrExpr
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.FuncConstraint as FC
 import G2.Liquid.Inference.G2Calls
+import G2.Liquid.Inference.InfStack
 import G2.Liquid.Inference.Initalization
 import G2.Liquid.Inference.PolyRef
 import G2.Liquid.Inference.Sygus
 import G2.Liquid.Inference.GeneratedSpecs
 import G2.Liquid.Inference.Verify
 import G2.Liquid.Interface
-import G2.Liquid.Types
+import G2.Liquid.Types hiding (state)
+import qualified G2.Liquid.Types as G2LH
 import G2.Solver
 import G2.Translation
 
@@ -35,6 +38,8 @@ import Language.Haskell.Liquid.Types as LH
 import Control.Monad
 import Control.Monad.Extra
 import Control.Monad.IO.Class 
+import Control.Monad.Reader
+import Control.Monad.State.Lazy
 import qualified Data.Map as M
 import Data.Either
 import qualified Data.HashSet as S
@@ -53,7 +58,8 @@ import G2.Lib.Printers
 inferenceCheck :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO (Either [CounterExample] GeneratedSpecs)
 inferenceCheck infconfig config proj fp lhlibs = do
     (ghci, lhconfig) <- getGHCI infconfig config proj fp lhlibs
-    res <- inference' infconfig config lhconfig ghci proj fp lhlibs
+    (res, timer) <- inference' infconfig config lhconfig ghci proj fp lhlibs
+    print . logToSecs . sumLog . getLog $ timer
     case res of
         Right gs -> do
             check_res <- checkGSCorrect infconfig lhconfig ghci gs
@@ -66,7 +72,9 @@ inference :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePa
 inference infconfig config proj fp lhlibs = do
     -- Initialize LiquidHaskell
     (ghci, lhconfig) <- getGHCI infconfig config proj fp lhlibs
-    inference' infconfig config lhconfig ghci proj fp lhlibs
+    (res, timer) <- inference' infconfig config lhconfig ghci proj fp lhlibs
+    print . logToSecs . sumLog . getLog $ timer
+    return res
 
 inference' :: InferenceConfig
            -> G2.Config
@@ -75,7 +83,7 @@ inference' :: InferenceConfig
            -> [FilePath]
            -> [FilePath]
            -> [FilePath]
-           -> IO (Either [CounterExample] GeneratedSpecs)
+           -> IO (Either [CounterExample] GeneratedSpecs, Timer Event)
 inference' infconfig config lhconfig ghci proj fp lhlibs = do
     mapM (print . gsQualifiers . spec) ghci
 
@@ -88,7 +96,7 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
     let (lrs, g2config', infconfig') = initStateAndConfig exg2 main_mod g2config infconfig ghci
 
 
-        eenv = expr_env . state . lr_state $ lrs
+        eenv = expr_env . G2LH.state . lr_state $ lrs
 
         cg = getCallGraph $ eenv
         nls = filter (not . null)
@@ -104,7 +112,8 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
     SomeSMTSolver smt <- getSMT g2config'
     let infL = iterativeInference smt ghci main_mod lrs nls HM.empty initMaxSize emptyGS emptyFC
 
-    runConfigs (runProgresser infL prog) configs
+    timer <- newTimer
+    runProgresser (runConfigs ( runTimer infL timer) configs) prog
 
 data InferenceRes = CEx [CounterExample]
                   | Env GeneratedSpecs FuncConstraints MaxSizeConstraints MeasureExs
@@ -121,7 +130,7 @@ type NameLevels = [[Name]]
 
 type MaxSizeConstraints = FuncConstraints
 
-iterativeInference :: (ProgresserM m, InfConfigM m, MonadIO m, SMTConverter con ast out io)
+iterativeInference :: (MonadIO m, SMTConverter con ast out io)
                    => con
                    -> [GhcInfo]
                    -> Maybe T.Text
@@ -131,17 +140,17 @@ iterativeInference :: (ProgresserM m, InfConfigM m, MonadIO m, SMTConverter con 
                    -> MaxSize
                    -> GeneratedSpecs
                    -> FuncConstraints
-                   -> m (Either [CounterExample] GeneratedSpecs)
+                   -> InfStack m (Either [CounterExample] GeneratedSpecs)
 iterativeInference con ghci m_modname lrs nls meas_ex max_sz gs fc = do
     res <- inferenceL con ghci m_modname lrs nls emptyEvals meas_ex max_sz gs fc emptyFC emptyBlockedModels
     case res of
         CEx cex -> return $ Left cex
         Env gs _ _ _ -> return $ Right gs
         Raise r_meas_ex r_fc _ -> do
-            incrMaxDepthM
+            lift incrMaxDepthM
             -- We might be missing some internal GHC types from our deep_seq walkers
             -- We filter them out to avoid an error
-            let eenv = expr_env . state $ lr_state lrs
+            let eenv = expr_env . G2LH.state $ lr_state lrs
                 check = filter (\n -> 
                                   case E.lookup n eenv of
                                       Just e -> isJust $ 
@@ -151,15 +160,20 @@ iterativeInference con ghci m_modname lrs nls meas_ex max_sz gs fc = do
                                       Nothing -> False) (head nls)
             liftIO . putStrLn $ "head nls =  " ++ show (head nls)
             liftIO . putStrLn $ "iterativeInference check =  " ++ show check
+
+            logEventStartM CExSE
             ref <- getCEx ghci m_modname lrs gs check
+            logEventEndM
             case ref of
                 Left cex -> return $ Left cex
                 Right fc' -> do
+                    logEventStartM UpdateMeasures
                     r_meas_ex' <- updateMeasureExs r_meas_ex lrs ghci fc'
+                    logEventEndM
                     iterativeInference con ghci m_modname lrs nls r_meas_ex' (incrMaxSize max_sz) gs (unionFC fc' r_fc)
 
 
-inferenceL :: (ProgresserM m, InfConfigM m, MonadIO m, SMTConverter con ast out io)
+inferenceL :: (MonadIO m, SMTConverter con ast out io)
            => con
            -> [GhcInfo]
            -> Maybe T.Text
@@ -172,7 +186,7 @@ inferenceL :: (ProgresserM m, InfConfigM m, MonadIO m, SMTConverter con ast out 
            -> FuncConstraints
            -> MaxSizeConstraints
            -> BlockedModels
-           -> m InferenceRes
+           -> InfStack m InferenceRes
 inferenceL con ghci m_modname lrs nls evals meas_ex max_sz senv fc max_fc blk_mdls = do
     let (fs, sf, below_sf) = case nls of
                         (fs_:sf_:be) -> (fs_, sf_, be)
@@ -202,7 +216,7 @@ inferenceL con ghci m_modname lrs nls evals meas_ex max_sz senv fc max_fc blk_md
                         _ -> return inf_res
         _ -> return resAtL
 
-inferenceB :: (ProgresserM m, InfConfigM m, MonadIO m, SMTConverter con ast out io)
+inferenceB :: (MonadIO m, SMTConverter con ast out io)
            => con
            -> [GhcInfo]
            -> Maybe T.Text
@@ -215,7 +229,7 @@ inferenceB :: (ProgresserM m, InfConfigM m, MonadIO m, SMTConverter con ast out 
            -> FuncConstraints
            -> MaxSizeConstraints
            -> BlockedModels
-           -> m (InferenceRes, Evals Bool)
+           -> InfStack m (InferenceRes, Evals Bool)
 inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls = do
     let (fs, sf, below_sf) = case nls of
                         (fs_:sf_:be) -> (fs_, sf_, be)
@@ -223,8 +237,12 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
                         [] -> ([], [], [])
 
     let curr_ghci = addSpecsToGhcInfos ghci gs
+    logEventStartM UpdateEvals
     evals' <- updateEvals curr_ghci lrs fc evals
+    logEventEndM
+    logEventStartM Synth
     synth_gs <- synthesize con curr_ghci lrs evals' meas_ex max_sz (unionFC max_fc fc) blk_mdls (concat below_sf) sf
+    logEventEndM
 
     liftIO $ do
         putStrLn "-------"
@@ -240,18 +258,22 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
                 putStrLn $ "fs = " ++ show fs
                 putStrLn $ "init gs' = " ++ show gs'
 
+            logEventStartM Verify
             res <- tryToVerify ghci'
+            logEventEndM
             let res' = filterNamesTo fs res
             
             case res' of
                 Safe -> return $ (Env gs' fc max_fc meas_ex, evals')
                 Unsafe bad -> do
+                    logEventStartM InfSE
                     ref <- tryToGen (nub bad) ((emptyFC, emptyBlockedModels), emptyFC)
                               (\(fc1, bm1) (fc2, bm2) -> (fc1 `unionFC` fc2, bm1 `unionBlockedModels` bm2))
                               unionFC
                               [ refineUnsafe ghci m_modname lrs gs'
                               , searchBelowLevel ghci m_modname lrs res sf gs'
                               , adjModel lrs sz smt_mdl]
+                    logEventEndM
 
                     case ref of
                         Left cex -> return $ (CEx cex, evals')
@@ -259,7 +281,9 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
                             let fc' = viol_fc `unionFC` no_viol_fc
                                 blk_mdls'' = blk_mdls' `unionBlockedModels` new_blk_mdls
                             liftIO $ putStrLn "Before genMeasureExs"
+                            logEventStartM UpdateMeasures
                             meas_ex' <- updateMeasureExs meas_ex lrs ghci fc'
+                            logEventEndM
                             liftIO $ putStrLn "After genMeasureExs"
 
                             inferenceB con ghci m_modname lrs nls evals' meas_ex' max_sz gs (unionFC fc fc') max_fc blk_mdls''
@@ -305,13 +329,13 @@ tryToGen' n def join_ex (f:fs) = do
                 Left err -> return $ Left err
                 Right (r, ex2) -> return $ Right (r, ex1 `join_ex` ex2)
 
-refineUnsafeAll :: (ProgresserM m, InfConfigM m, MonadIO m) => 
+refineUnsafeAll :: MonadIO m => 
                     [GhcInfo]
                 -> Maybe T.Text
                 -> LiquidReadyState
                 -> GeneratedSpecs
                 -> [Name]
-                -> m (Either [CounterExample] (Maybe FuncConstraints, FuncConstraints))
+                -> InfStack m (Either [CounterExample] (Maybe FuncConstraints, FuncConstraints))
 refineUnsafeAll ghci m_modname lrs gs bad = do
     res <- mapM (refineUnsafe ghci m_modname lrs gs) (nub bad)
 
@@ -323,13 +347,13 @@ refineUnsafeAll ghci m_modname lrs gs bad = do
             in
             return . Right $ (if nullFC new_fcs' then Nothing else Just new_fcs', unionsFC no_viol_fcs)
 
-refineUnsafe :: (ProgresserM m, InfConfigM m, MonadIO m) => 
+refineUnsafe :: MonadIO m => 
                 [GhcInfo]
              -> Maybe T.Text
              -> LiquidReadyState
              -> GeneratedSpecs
              -> Name
-             -> m (Either [CounterExample] (Maybe (FuncConstraints, BlockedModels), FuncConstraints))
+             -> InfStack m (Either [CounterExample] (Maybe (FuncConstraints, BlockedModels), FuncConstraints))
 refineUnsafe ghci m_modname lrs gs bad = do
     let merged_se_ghci = addSpecsToGhcInfos ghci gs
 
@@ -360,7 +384,7 @@ refineUnsafe ghci m_modname lrs gs bad = do
                                     then Nothing
                                     else Just (new_fc', emptyBlockedModels), fromListFC no_viol)
 
-searchBelowLevel :: (ProgresserM m, InfConfigM m, MonadIO m) =>
+searchBelowLevel :: MonadIO m =>
                     [GhcInfo]
                  -> Maybe T.Text
                  -> LiquidReadyState
@@ -368,7 +392,7 @@ searchBelowLevel :: (ProgresserM m, InfConfigM m, MonadIO m) =>
                  -> [Name]
                  -> GeneratedSpecs
                  -> Name
-                 -> m (Either [CounterExample] (Maybe (FuncConstraints, BlockedModels), FuncConstraints))
+                 -> InfStack m (Either [CounterExample] (Maybe (FuncConstraints, BlockedModels), FuncConstraints))
 searchBelowLevel ghci m_modname lrs verify_res lev_below gs bad = do
     let called_by_res = calledByFunc lrs bad
     case filterNamesTo called_by_res $ filterNamesTo lev_below verify_res of
@@ -382,12 +406,12 @@ searchBelowLevel ghci m_modname lrs verify_res lev_below gs bad = do
         Safe -> return $ Right (Nothing, emptyFC)
         Crash _ _ -> error "inferenceB: LiquidHaskell crashed"
 
-adjModel :: (MonadIO m, ProgresserM m) => 
+adjModel :: MonadIO m => 
             LiquidReadyState
          -> Size
          -> SMTModel
          -> Name
-         -> m (Either a (Maybe (FuncConstraints, BlockedModels), FuncConstraints))
+         -> InfStack m (Either a (Maybe (FuncConstraints, BlockedModels), FuncConstraints))
 adjModel lrs sz smt_mdl bad@(Name n m _ _) = do
     liftIO $ putStrLn "adjModel repeated_fc"
     let clls = calledByFunc lrs bad
@@ -395,14 +419,14 @@ adjModel lrs sz smt_mdl bad@(Name n m _ _) = do
 
     liftIO . putStrLn $ "blocked models = " ++ show blk_mdls'
 
-    incrMaxCExM (n, m)
-    incrMaxTimeM (n, m)
+    lift $ incrMaxCExM (n, m)
+    lift $ incrMaxTimeM (n, m)
     return . Right $ (Just (emptyFC, blk_mdls'), emptyFC)
 
 calledByFunc :: LiquidReadyState -> Name -> [Name]
 calledByFunc lrs n = 
     let
-        eenv = expr_env . state $ lr_state lrs
+        eenv = expr_env . G2LH.state $ lr_state lrs
     in
     map zeroOutUnq
         . filter (isJust . flip E.lookup eenv)
@@ -425,7 +449,12 @@ filterNamesTo _ vr = vr
 noCounterfactual :: Configs -> Configs
 noCounterfactual cons@(Configs { g2_config = g2_c }) = cons { g2_config = g2_c { counterfactual = NotCounterfactual } }
 
-genNewConstraints :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> T.Text -> m ([CounterExample], [FuncConstraint])
+genNewConstraints :: MonadIO m => 
+                     [GhcInfo]
+                  -> Maybe T.Text
+                  -> LiquidReadyState
+                  -> T.Text
+                  -> InfStack m ([CounterExample], [FuncConstraint])
 genNewConstraints ghci m lrs n = do
     liftIO . putStrLn $ "Generating constraints for " ++ T.unpack n
     ((exec_res, _), i) <- runLHInferenceCore n m lrs ghci
@@ -435,9 +464,13 @@ genNewConstraints ghci m lrs n = do
 
     return $ (map (lhStateToCE i) exec_res', allCCons)
 
-getCEx :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState
-             -> GeneratedSpecs
-             -> [Name] -> m (Either [CounterExample] FuncConstraints)
+getCEx :: MonadIO m =>
+          [GhcInfo]
+       -> Maybe T.Text
+       -> LiquidReadyState
+       -> GeneratedSpecs
+       -> [Name]
+       -> InfStack m (Either [CounterExample] FuncConstraints)
 getCEx ghci m_modname lrs gs bad = do
     let merged_se_ghci = addSpecsToGhcInfos ghci gs
 
@@ -463,7 +496,12 @@ getCEx ghci m_modname lrs gs bad = do
             liftIO . putStrLn $ "new_fc' = " ++ printFCs new_fc'
             return $ Right new_fc'
 
-checkForCEx :: (ProgresserM m, InfConfigM m, MonadIO m) => [GhcInfo] -> Maybe T.Text -> LiquidReadyState -> T.Text -> m [CounterExample]
+checkForCEx :: MonadIO m =>
+               [GhcInfo]
+            -> Maybe T.Text
+            -> LiquidReadyState
+            -> T.Text
+            -> InfStack m [CounterExample]
 checkForCEx ghci m lrs n = do
     liftIO . putStrLn $ "Checking CEx for " ++ T.unpack n
     ((exec_res, _), i) <- runLHCExSearch n m lrs ghci

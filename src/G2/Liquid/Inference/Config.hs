@@ -15,8 +15,7 @@ module G2.Liquid.Inference.Config (
                                   , runConfigs
 
                                   , mkInferenceConfig
-                                  , adjustConfig
-                                  , withConfigs ) where
+                                  , adjustConfig ) where
 
 import G2.Config.Config
 import G2.Initialization.Types
@@ -207,21 +206,6 @@ adjustConfig main_mod (SimpleState { expr_env = eenv }) config infconfig ghci =
                                , refinable_funcs = S.fromList ns_mm }
     in
     (config', infconfig')
-
-withConfigs :: InfConfigM m => (Configs -> Configs) -> ReaderT Configs m a -> m a
-withConfigs f m = do
-    cons <- getConfigs
-    let cons' = f cons
-    runConfigs m cons'
-
-getConfigs :: InfConfigM m => m Configs
-getConfigs = do
-  g2_c <- g2ConfigM
-  lh_c <- lhConfigM
-  inf_c <- infConfigM
-  return $ Configs { g2_config = g2_c
-                   , lh_config = lh_c
-                   , inf_config = inf_c }
 
 refinable :: Maybe T.Text -> ExprEnv -> [(T.Text, Maybe T.Text)]
 refinable main_mod eenv = 
