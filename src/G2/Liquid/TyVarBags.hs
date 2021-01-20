@@ -110,9 +110,11 @@ createBagFuncCase :: TyVarBags
                   -> [Id]
                   -> AlgDataTy
                   -> LHStateM Expr
-createBagFuncCase func_names adt_i tyvar_id _ (DataTyCon { data_cons = dc }) = do
+createBagFuncCase func_names adt_i tyvar_id bi (DataTyCon { bound_ids = adt_bi
+                                                          , data_cons = dc }) = do
     bindee <- freshIdN (typeOf adt_i)
-    alts <- mapM (createBagFuncCaseAlt func_names tyvar_id) dc
+    let ty_map = zip adt_bi (map TyVar bi)
+    alts <- mapM (createBagFuncCaseAlt func_names tyvar_id ty_map) dc
 
     return $ Case (Var adt_i) bindee alts
 createBagFuncCase func_names adt_i tyvar_id bi (NewTyCon { bound_ids = adt_bi
@@ -124,17 +126,18 @@ createBagFuncCase func_names adt_i tyvar_id bi (NewTyCon { bound_ids = adt_bi
 createBagFuncCase _ _ _ _ (TypeSynonym {}) =
     error "creatBagFuncCase: TypeSynonyms unsupported"
 
-createBagFuncCaseAlt :: TyVarBags -> Id -> DataCon -> LHStateM Alt
-createBagFuncCaseAlt func_names tyvar_id dc = do
+createBagFuncCaseAlt :: TyVarBags -> Id -> [(Id, Type)] -> DataCon -> LHStateM Alt
+createBagFuncCaseAlt func_names tyvar_id ty_map dc = do
     let at = anonArgumentTypes dc
     is <- freshIdsN at
+    let is' = foldr (uncurry retype) is ty_map
     es <- return . concat =<< mapM (extractTyVarCall func_names todo_emp tyvar_id . Var) is
     case null es of
         True -> do 
             flse <- mkFalseE
-            return $ Alt (DataAlt dc is) 
+            return $ Alt (DataAlt dc is') 
                          (Assume Nothing flse (Prim Undefined (TyVar tyvar_id)))
-        False -> return $ Alt (DataAlt dc is) (NonDet es)
+        False -> return $ Alt (DataAlt dc is') (NonDet es)
 
 todo_emp :: [a]
 todo_emp = []

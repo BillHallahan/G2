@@ -467,7 +467,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
     newparams = map (uncurry Id) $ zip news (map typeOf params)
     dConArgs = (map (Var) newparams)
     -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
-    mexpr_t = (\(Id _ t) -> t) (mexpr_id)
+    mexpr_t = typeOf mexpr_id
     exprs = [dcon'] ++ (mexprTyToExpr mexpr_t tenv) ++ dConArgs
 
     -- Apply list of types (if present) and DataCon children to DataCon
