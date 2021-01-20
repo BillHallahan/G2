@@ -249,7 +249,7 @@ inferenceReducerHalterOrderer :: (ProgresserM m, MonadIO m, Solver solver, Simpl
                               -> State LHTracker
                               -> m (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
 inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modname cfn cf_funcs st = do
-    extra_ce <- extraMaxCExM
+    extra_ce <- extraMaxCExM (entry, mb_modname)
     extra_time <- extraMaxTimeM (entry, mb_modname)
 
     let
@@ -318,7 +318,7 @@ runLHCExSearch entry m lrs ghci = do
     let simplifier = ADTSimplifier arbValue
         final_st' = swapHigherOrdForSymGen bindings final_st
 
-    (red, hal, ord) <- realCExReducerHalterOrderer infconfig g2config' solver simplifier cfn cf_funcs final_st'
+    (red, hal, ord) <- realCExReducerHalterOrderer infconfig g2config' entry m solver simplifier cfn cf_funcs final_st'
     (exec_res, final_bindings) <- liftIO $ runLHG2 g2config' red hal ord solver simplifier pres_names ifi final_st' bindings
 
     liftIO $ close solver
@@ -328,14 +328,16 @@ runLHCExSearch entry m lrs ghci = do
 realCExReducerHalterOrderer :: (ProgresserM m, MonadIO m, Solver solver, Simplifier simplifier)
                             => InferenceConfig
                             -> Config
+                            -> T.Text
+                            -> Maybe T.Text
                             -> solver
                             -> simplifier
                             -> Name
                             -> HS.HashSet Name
                             -> State LHTracker
                             -> m (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
-realCExReducerHalterOrderer infconfig config solver simplifier  cfn cf_funcs st = do
-    extra_ce <- extraMaxCExM
+realCExReducerHalterOrderer infconfig config entry modname solver simplifier  cfn cf_funcs st = do
+    extra_ce <- extraMaxCExM (entry, modname)
     extra_depth <- extraMaxDepthM
 
     liftIO . putStrLn $ "extra_depth = " ++ show extra_depth

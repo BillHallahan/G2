@@ -496,9 +496,11 @@ instance Halter LHAcceptIfViolatedHalter () LHTracker where
             eenv = expr_env s
             abs_calls = abstract_calls (track s)
         in
-        case isExecValueForm s && all (normalForm eenv . returns) abs_calls of
+        case isExecValueForm s of
             True 
-                | true_assert s -> return Accept
+                | true_assert s
+                , all (normalForm eenv . returns) abs_calls -> return Accept
+                | true_assert s -> return Continue
                 | otherwise -> return Discard
             False -> return Continue
     stepHalter _ _ _ _ _ = ()

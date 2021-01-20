@@ -45,19 +45,19 @@ import Data.Time.Clock
 -------------------------------
 
 data Progress =
-    Progress { ex_max_ce :: Int -- ^ Gives an extra budget for maximum ce number
+    Progress { ex_max_ce :: M.Map (T.Text, Maybe T.Text) Int -- ^ Gives an extra budget for maximum ce number
              , ex_max_depth :: Int -- ^ Gives an extra budget for the depth limit
              , ex_max_time :: M.Map (T.Text, Maybe T.Text) NominalDiffTime -- ^ Gives an extra max bufget for time
              }
 
 newProgress :: Progress
-newProgress = Progress { ex_max_ce = 0 
+newProgress = Progress { ex_max_ce = M.empty
                        , ex_max_depth = 0
                        , ex_max_time = M.empty }
 
 class Progresser p where
-    extraMaxCEx ::  p -> Int
-    incrMaxCEx :: p -> p
+    extraMaxCEx ::  (T.Text, Maybe T.Text) -> p -> Int
+    incrMaxCEx :: (T.Text, Maybe T.Text) -> p -> p
 
     extraMaxDepth ::  p -> Int
     incrMaxDepth :: p -> p
@@ -66,8 +66,9 @@ class Progresser p where
     incrMaxTime :: (T.Text, Maybe T.Text) -> p -> p
 
 instance Progresser Progress where
-    extraMaxCEx (Progress { ex_max_ce = m }) = m
-    incrMaxCEx p@(Progress { ex_max_ce = m }) = p { ex_max_ce = m + 2 }
+    extraMaxCEx n (Progress { ex_max_ce = m }) = M.findWithDefault 0 n m
+    incrMaxCEx n p@(Progress { ex_max_ce = m }) =
+        p { ex_max_ce = M.insertWith (+) n 2 m }
 
     extraMaxDepth (Progress { ex_max_depth = m }) = m
     incrMaxDepth p@(Progress { ex_max_depth = m }) = p { ex_max_depth = m + 200 }
@@ -77,8 +78,8 @@ instance Progresser Progress where
         p { ex_max_time = M.insertWith (+) n 4 m }
 
 class Monad m => ProgresserM m where
-    extraMaxCExM :: m Int
-    incrMaxCExM :: m ()
+    extraMaxCExM :: (T.Text, Maybe T.Text) -> m Int
+    incrMaxCExM :: (T.Text, Maybe T.Text) -> m ()
 
     extraMaxDepthM :: m Int
     incrMaxDepthM :: m ()
@@ -87,8 +88,8 @@ class Monad m => ProgresserM m where
     incrMaxTimeM :: (T.Text, Maybe T.Text) -> m ()
 
 instance (Monad m, Progresser p) => ProgresserM (StateT p m) where
-    extraMaxCExM = gets extraMaxCEx
-    incrMaxCExM = modify' incrMaxCEx
+    extraMaxCExM n = gets (extraMaxCEx n)
+    incrMaxCExM n = modify' (incrMaxCEx n)
 
     extraMaxDepthM = gets extraMaxDepth
     incrMaxDepthM = modify' incrMaxDepth
@@ -97,8 +98,8 @@ instance (Monad m, Progresser p) => ProgresserM (StateT p m) where
     incrMaxTimeM n = modify' (incrMaxTime n)
 
 instance ProgresserM m => ProgresserM (ReaderT env m) where
-    extraMaxCExM = lift extraMaxCExM
-    incrMaxCExM = lift incrMaxCExM
+    extraMaxCExM n = lift (extraMaxCExM n)
+    incrMaxCExM n = lift (incrMaxCExM n)
 
     extraMaxDepthM = lift extraMaxDepthM
     incrMaxDepthM = lift incrMaxDepthM
