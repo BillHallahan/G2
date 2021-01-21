@@ -950,9 +950,9 @@ instance MinOrderer ADTHeightOrderer (S.HashSet Name, Bool) Int t where
     minStepOrderer _ (v, True) _ _ s =
         (v `S.union` (S.fromList . map idName . symbolic_ids $ s), False)
     minStepOrderer (ADTHeightOrderer _ (Just n)) (v, _) _ _ 
-                   s@(State { curr_expr = CurrExpr _ (Tick (NamedLoc n') (Var _)) }) 
+                   s@(State { curr_expr = CurrExpr _ (Tick (NamedLoc n') (Var (Id vn _))) }) 
             | n == n' =
-                (v `S.union` (S.fromList . map idName . symbolic_ids $ s), False)
+                (S.insert vn v, False)
     minStepOrderer _ v _ _ s =
         v
 
