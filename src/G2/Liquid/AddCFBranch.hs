@@ -4,7 +4,8 @@
 module G2.Liquid.AddCFBranch ( CounterfactualName
                              , addCounterfactualBranch
                              , onlyCounterfactual
-                             , elimNonTop ) where
+                             , elimNonTop
+                             , instFuncTickName ) where
 
 import G2.Config.Config
 import G2.Language
@@ -104,14 +105,19 @@ cfRetValue ars rt
 
         inst_funcs <- getInstFuncs
         inst_ret <- instTyVarCall inst_funcs ex_tvs_to_vrs rt
+        let inst_ret_call = App inst_ret dUnit
+        ir_bndr <- freshIdN (typeOf inst_ret_call)
         
-        return $ Let ex_let_bnds (App inst_ret dUnit)
+        return . Let ((ir_bndr, inst_ret_call):ex_let_bnds) $ Tick (NamedLoc instFuncTickName) (Var ir_bndr)
     | otherwise = do 
         return (SymGen rt)
 
 nullNonDet :: Expr -> Bool
 nullNonDet (NonDet []) = False
 nullNonDet _ = True
+
+instFuncTickName :: Name
+instFuncTickName = Name "INST_FUNC_TICK" Nothing 0 Nothing
 
 -- Creates Lambda bindings to saturate the type of the given Typed thing,
 -- and a list of the bindings so they can be used elsewhere
