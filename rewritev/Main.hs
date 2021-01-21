@@ -18,8 +18,11 @@ import G2.Language
 import G2.Translation
 
 import G2.Liquid.Interface
+import G2.Equiv.InitRewrite
 
 import Control.Exception
+
+import Data.List
 
 {-
 import G2.Config as G2
@@ -54,7 +57,7 @@ main :: IO ()
 main = do
     as <- getArgs
     -- config <- G2.getConfig as
-    print $ "Yes"
+    -- print $ "Yes"
 
     let m_liquid_file = mkLiquid as
     let m_liquid_func = mkLiquidFunc as
@@ -111,9 +114,34 @@ runWithArgs as = do
   let m_mapsrc = mkMapSrc tail_args
 
   let tentry = T.pack entry
+  -- let tentry = (\_ ng _ _ _ _ -> (Prim Undefined TyBottom, [], [], ng))
+
+  config <- getConfig as
 
   let libs = maybeToList m_mapsrc
+  (init_state, bindings) <- initialStateNoStartFunc [proj] [src] libs
+                            (TranslationConfig {simpl = True, load_rewrite_rules = True}) config
+  -- (exec_res, bindings') <- runG2WithConfig init_state config bindings
 
+  -- let exprs = map (curr_expr . final_state) exec_res
+  -- mapM_ print exprs
+  -- mapM_ print (rewrite_rules bindings)
+  -- mapM_ (print . curr_expr . initWithRHS init_state) (rewrite_rules bindings)
+  let rule = find (\r -> tentry == ru_name r) (rewrite_rules bindings)
+  let rule' = case rule of
+              Just r -> r
+              Nothing -> error "not found"
+  -- print . curr_expr . initWithRHS init_state $ rule'
+  let rewrite_state = initWithRHS init_state $ rule'
+
+  print $ ru_rhs rule'
+  print $ ru_bndrs rule'
+  
+  (exec_res, bindings') <- runG2WithConfig rewrite_state config bindings
+  printFuncCalls config (Id (Name tentry Nothing 0 Nothing) TyUnknown)
+                 bindings' exec_res
+
+  {-
   config <- getConfig as
   _ <- doTimeout (timeLimit config) $ do
     ((in_out, b), entry_f@(Id (Name _ mb_modname _ _) _)) <-
@@ -131,6 +159,7 @@ runWithArgs as = do
         False -> return ()
 
     printFuncCalls config entry_f b in_out
+  -}
 
   return ()
 

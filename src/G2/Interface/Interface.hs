@@ -24,6 +24,7 @@ module G2.Interface.Interface ( MkCurrExpr
                               
                               , initialStateFromFileSimple
                               , initialStateFromFile
+                              , initialStateNoStartFunc
 
                               , runG2FromFile
                               , runG2WithConfig
@@ -325,6 +326,24 @@ initialStateFromFileSimple :: [FilePath]
                    -> IO (State (), Id, Bindings)
 initialStateFromFileSimple proj src libs f mkCurr argTys config =
     initialStateFromFile proj src libs Nothing False f mkCurr argTys simplTranslationConfig config
+
+initialStateNoStartFunc :: [FilePath]
+                     -> [FilePath]
+                     -> [FilePath]
+                     -> TranslationConfig
+                     -> Config
+                     -> IO (State (), Bindings)
+initialStateNoStartFunc proj src libs transConfig config = do
+    (mb_modname, exg2) <- translateLoaded proj src libs transConfig config
+
+    let simp_state = initSimpleState exg2
+
+        (init_s, bindings) = initStateFromSimpleState simp_state False
+                                 (\_ ng _ _ _ _ -> (Prim Undefined TyBottom, [], [], ng))
+                                 (E.higherOrderExprs . IT.expr_env)
+                                 config
+
+    return (init_s, bindings)
 
 initialStateFromFile :: [FilePath]
                      -> [FilePath]
