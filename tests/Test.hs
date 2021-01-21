@@ -352,6 +352,11 @@ liquidTests = testGroup "Liquid"
     , checkAbsLiquid "tests/Liquid/Polymorphism/Poly13.hs" "call" 1000 0
         [ AtLeast 1
         , RForAll (\_ _ [ FuncCall { funcName = Name n _ _ _ } ] -> n == "f")]
+    , checkAbsLiquid "tests/Liquid/Polymorphism/Poly14.hs" "initCall" 1000 0 [ AtLeast 1]
+    , checkAbsLiquid "tests/Liquid/Polymorphism/Poly15.hs" "call" 1000 0 [ AtLeast 1]
+    , checkAbsLiquid "tests/Liquid/Polymorphism/Poly16.hs" "call" 1000 2 
+        [ AtLeast 1
+        , RForAll (\ _ _ [ FuncCall { arguments = [_, _, a] } ] -> case a of Prim _ _ -> False; _ -> True )]
     ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that

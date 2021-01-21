@@ -13,7 +13,8 @@ module G2.Liquid.Inference.Sygus.LiaSynth ( SynthRes (..)
                                           , BlockedModels
                                           , emptyBlockedModels
                                           , insertBlockedModel
-                                          , blockedHashMap) where
+                                          , blockedHashMap
+                                          , unionBlockedModels) where
 
 import G2.Data.Utils
 import G2.Language as G2
@@ -283,7 +284,7 @@ synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
       -> m SynthRes
 synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc blk_mdls sz = do
     si' <- liaSynthOfSize sz si
-    let zero_coeff_hdrs = softCoeffAssertZero si' -- ++ softFuncActAssertZero si' ++ softClauseActAssertZero si'
+    let zero_coeff_hdrs = softCoeffAssertZero si' ++ softClauseActAssertZero si' -- ++ softFuncActAssertZero si'
         -- zero_coeff_hdrs = softFuncActAssertZero si' ++ softClauseActAssertZero si'
         -- zero_coeff_hdrs = softCoeffAssertZero si' -- softFuncActAssertZero si' ++ softClauseActAssertZero si'
         max_coeffs_cons = maxCoeffConstraints si'
@@ -399,6 +400,11 @@ lookupNonEquivBlockedModels sz blk_mdls =
 
 blockedHashMap :: BlockedModels -> HM.HashMap Size [(ModelNames, SMTModel)]
 blockedHashMap blk_mdls = HM.unionWith (++) (blocked blk_mdls) (blocked_equiv blk_mdls)
+
+unionBlockedModels :: BlockedModels -> BlockedModels -> BlockedModels
+unionBlockedModels bm1 bm2 =
+    Block { blocked = HM.unionWith (++) (blocked bm1) (blocked bm2)
+          , blocked_equiv = HM.unionWith (++) (blocked_equiv bm1) (blocked_equiv bm2) }
 
 ----------------------------------------------------------------------------
 -- Blocking Models building/manipulation

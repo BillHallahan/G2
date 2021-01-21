@@ -189,7 +189,6 @@ instance Reducer RedArbErrors () t where
             let
                 (arb, _) = arbValue t (type_env s) (arb_value_gen b)
             in
-            trace ("arb = " ++ show arb)
             return (InProgress, [(s { curr_expr = CurrExpr er arb }, ())], b, r)
     redRules r _ s b = return (Finished, [(s, ())], b, r)
 
@@ -478,7 +477,7 @@ instance Reducer NonRedAbstractReturns () LHTracker where
     redRules nrpr _ s b = return (Finished, [(s, ())], b, nrpr)
 
 absRetToRed :: ExprEnv -> Walkers -> FuncCall -> Maybe Expr
-absRetToRed eenv ds(FuncCall { returns = r })
+absRetToRed eenv ds (FuncCall { returns = r })
     | not . normalForm eenv $ r
     , Just strict_e <- mkStrict_maybe ds r =
         Just $ fillLHDictArgs ds strict_e 
@@ -497,9 +496,11 @@ instance Halter LHAcceptIfViolatedHalter () LHTracker where
             eenv = expr_env s
             abs_calls = abstract_calls (track s)
         in
-        case isExecValueForm s && all (normalForm eenv . returns) abs_calls of
+        case isExecValueForm s of
             True 
-                | true_assert s -> return Accept
+                | true_assert s
+                , all (normalForm eenv . returns) abs_calls -> return Accept
+                | true_assert s -> return Continue
                 | otherwise -> return Discard
             False -> return Continue
     stepHalter _ _ _ _ _ = ()

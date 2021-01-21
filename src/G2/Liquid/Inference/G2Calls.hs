@@ -54,6 +54,7 @@ import G2.Liquid.LHReducers
 import G2.Liquid.SpecialAsserts
 import G2.Liquid.TCValues
 import G2.Liquid.Types
+import G2.Liquid.Inference.InfStack
 import G2.Liquid.Inference.Initalization
 import G2.Solver hiding (Assert)
 import G2.Translation
@@ -206,17 +207,17 @@ runLHInferenceAll infconfig config func proj fp lhlibs = do
 
     let configs = Configs { g2_config = g2config', lh_config = lhconfig, inf_config = infconfig'}
 
-    runConfigs (runProgresser (runLHInferenceCore func main_mod lrs ghci) newProgress) configs
- 
+    execInfStack configs newProgress (runLHInferenceCore func main_mod lrs ghci)
+
 -------------------------------
 -- Generating Counterexamples
 -------------------------------
-runLHInferenceCore :: (ProgresserM m, InfConfigM m, MonadIO m)
+runLHInferenceCore :: MonadIO m
                    => T.Text
                    -> Maybe T.Text
                    -> LiquidReadyState
                    -> [GhcInfo]
-                   -> m (([ExecRes AbstractedInfo], Bindings), Id)
+                   -> InfStack m (([ExecRes AbstractedInfo], Bindings), Id)
 runLHInferenceCore entry m lrs ghci = do
     g2config <- g2ConfigM
     infconfig <- infConfigM
@@ -238,7 +239,7 @@ runLHInferenceCore entry m lrs ghci = do
 
     return ((exec_res, final_bindings), ifi)
 
-inferenceReducerHalterOrderer :: (ProgresserM m, MonadIO m, Solver solver, Simplifier simplifier)
+inferenceReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
                               => InferenceConfig
                               -> Config
                               -> solver
@@ -248,10 +249,10 @@ inferenceReducerHalterOrderer :: (ProgresserM m, MonadIO m, Solver solver, Simpl
                               -> Name
                               -> HS.HashSet Name
                               -> State LHTracker
-                              -> m (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
+                              -> InfStack m (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
 inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modname cfn cf_funcs st = do
-    extra_ce <- extraMaxCExM
-    extra_time <- extraMaxTimeM (entry, mb_modname)
+    extra_ce <- S.lift $ extraMaxCExM (entry, mb_modname)
+    extra_time <- S.lift $ extraMaxTimeM (entry, mb_modname)
 
     let
         ng = mkNameGen ()
@@ -296,12 +297,12 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
             (DiscardIfAcceptedTag state_name :<~> halter)
         , SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTHeightOrderer 0 (Just instFuncTickName))))
 
-runLHCExSearch :: (ProgresserM m, InfConfigM m, MonadIO m)
+runLHCExSearch :: MonadIO m
                => T.Text
                -> Maybe T.Text
                -> LiquidReadyState
                -> [GhcInfo]
-               -> m (([ExecRes AbstractedInfo], Bindings), Id)
+               -> InfStack m (([ExecRes AbstractedInfo], Bindings), Id)
 runLHCExSearch entry m lrs ghci = do
     g2config <- g2ConfigM
     infconfig <- infConfigM
@@ -319,25 +320,27 @@ runLHCExSearch entry m lrs ghci = do
     let simplifier = ADTSimplifier arbValue
         final_st' = swapHigherOrdForSymGen bindings final_st
 
-    (red, hal, ord) <- realCExReducerHalterOrderer infconfig g2config' solver simplifier cfn cf_funcs final_st'
+    (red, hal, ord) <- realCExReducerHalterOrderer infconfig g2config' entry m solver simplifier cfn cf_funcs final_st'
     (exec_res, final_bindings) <- liftIO $ runLHG2 g2config' red hal ord solver simplifier pres_names ifi final_st' bindings
 
     liftIO $ close solver
 
     return ((exec_res, final_bindings), ifi)
 
-realCExReducerHalterOrderer :: (ProgresserM m, MonadIO m, Solver solver, Simplifier simplifier)
+realCExReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
                             => InferenceConfig
                             -> Config
+                            -> T.Text
+                            -> Maybe T.Text
                             -> solver
                             -> simplifier
                             -> Name
                             -> HS.HashSet Name
                             -> State LHTracker
-                            -> m (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
-realCExReducerHalterOrderer infconfig config solver simplifier  cfn cf_funcs st = do
-    extra_ce <- extraMaxCExM
-    extra_depth <- extraMaxDepthM
+                            -> InfStack m (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
+realCExReducerHalterOrderer infconfig config entry modname solver simplifier  cfn cf_funcs st = do
+    extra_ce <- S.lift $ extraMaxCExM (entry, modname)
+    extra_depth <- S.lift $ extraMaxDepthM
 
     liftIO . putStrLn $ "extra_depth = " ++ show extra_depth
 

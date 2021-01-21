@@ -17,6 +17,7 @@ import G2.Language
 import G2.Language.Monad
 import G2.Liquid.Types
 
+import Control.Monad
 import qualified Data.HashSet as S
 import qualified Data.Map.Lazy as M
 import qualified Data.Text as T
@@ -109,9 +110,11 @@ createBagFuncCase :: TyVarBags
                   -> [Id]
                   -> AlgDataTy
                   -> LHStateM Expr
-createBagFuncCase func_names adt_i tyvar_id _ (DataTyCon { data_cons = dc }) = do
+createBagFuncCase func_names adt_i tyvar_id bi (DataTyCon { bound_ids = adt_bi
+                                                          , data_cons = dc }) = do
     bindee <- freshIdN (typeOf adt_i)
-    alts <- mapM (createBagFuncCaseAlt func_names tyvar_id) dc
+    let ty_map = zip adt_bi (map TyVar bi)
+    alts <- mapM (createBagFuncCaseAlt func_names tyvar_id ty_map) dc
 
     return $ Case (Var adt_i) bindee alts
 createBagFuncCase func_names adt_i tyvar_id bi (NewTyCon { bound_ids = adt_bi
@@ -123,17 +126,18 @@ createBagFuncCase func_names adt_i tyvar_id bi (NewTyCon { bound_ids = adt_bi
 createBagFuncCase _ _ _ _ (TypeSynonym {}) =
     error "creatBagFuncCase: TypeSynonyms unsupported"
 
-createBagFuncCaseAlt :: TyVarBags -> Id -> DataCon -> LHStateM Alt
-createBagFuncCaseAlt func_names tyvar_id dc = do
+createBagFuncCaseAlt :: TyVarBags -> Id -> [(Id, Type)] -> DataCon -> LHStateM Alt
+createBagFuncCaseAlt func_names tyvar_id ty_map dc = do
     let at = anonArgumentTypes dc
     is <- freshIdsN at
+    let is' = foldr (uncurry retype) is ty_map
     es <- return . concat =<< mapM (extractTyVarCall func_names todo_emp tyvar_id . Var) is
     case null es of
         True -> do 
             flse <- mkFalseE
-            return $ Alt (DataAlt dc is) 
+            return $ Alt (DataAlt dc is') 
                          (Assume Nothing flse (Prim Undefined (TyVar tyvar_id)))
-        False -> return $ Alt (DataAlt dc is) (NonDet es)
+        False -> return $ Alt (DataAlt dc is') (NonDet es)
 
 todo_emp :: [a]
 todo_emp = []
@@ -227,7 +231,10 @@ createInstFunc' func_names is_fs (DataTyCon { bound_ids = bi
             ars <- mapM (instTyVarCall' func_names is_fs') ars_ty
             bnds <- mapM freshIdN ars_ty
             let vrs = map Var bnds
-            return $ Let (zip bnds ars) (mkApp $ apped_dc:vrs)) dcs
+
+            let e = mkApp $ apped_dc:vrs
+            e' <- foldM wrapPrimsInCase e vrs
+            return $ Let (zip bnds ars) e') dcs
     return (NonDet dc')
 createInstFunc' _ _ _ = error "createInstFunc': unhandled datatype"
 
@@ -278,3 +285,17 @@ instTyVarCall' func_names is_fs t
 
             rt = foldr (uncurry retype) (returnType $ PresType t) tfa_is
         return $ SymGen rt
+
+-- | Primitive operation function calls do not force evaluation of the
+-- underlying primitive value- the assumption is that this is already a literal
+-- or a symbolic value.  Thus, if we have a SymGen being passed to a primitive
+-- operation, our rules will not know how to handle it.
+-- Thus, we wrap SymGen's of primitive types in case statements.
+wrapPrimsInCase :: ExState s m => Expr -> Expr -> m Expr
+wrapPrimsInCase e e'
+    | isPrimType t = do
+        i <- freshIdN t
+        return $ Case e' i [Alt Default e]
+    | otherwise = return e
+    where
+        t = typeOf e'
