@@ -29,6 +29,7 @@ library
   exposed-modules:       
                          G2.Config
 
+                       , G2.Data.Timer
                        , G2.Data.UFMap
                        , G2.Data.UnionFind
                        , G2.Data.Utils
@@ -114,6 +115,7 @@ library
                        , G2.Liquid.Inference.Config
                        , G2.Liquid.Inference.FuncConstraint
                        , G2.Liquid.Inference.G2Calls
+                       , G2.Liquid.Inference.InfStack
                        , G2.Liquid.Inference.Initalization
                        , G2.Liquid.Inference.Interface
                        , G2.Liquid.Inference.PolyRef
