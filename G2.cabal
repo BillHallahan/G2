@@ -284,6 +284,25 @@ executable QuasiQuote
                        , RegEx.RegEx
                        , RegEx.Test
 
+-- TODO copied mostly from Inference
+-- TODO changed to be more like G2
+executable Verification
+  -- other-modules:   
+  -- other-extensions:
+  build-depends:         g2
+                       , base >= 4.8 && < 5
+                       , containers
+                       , filepath >= 1.4 && <= 1.5
+                       , ghc
+                       , hpc >= 0.6.0.0 && < 0.6.1
+                       , text
+                       , unordered-containers >= 0.2 && < 0.3
+  default-language:    Haskell2010
+  ghc-options:         -threaded -Wall
+                       -- -fprof-auto "-with-rtsopts=-p"
+  hs-source-dirs:      verification
+  main-is:             Main.hs
+
 test-suite test
   build-depends:         g2
                        , base >= 4.8 && < 5

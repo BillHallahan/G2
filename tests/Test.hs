@@ -764,6 +764,7 @@ testFileWithConfig src m_assume m_assert m_reaches entry config = do
                 (fmap T.pack m_reaches)
                 (isJust m_assert || isJust m_reaches)
                 (T.pack entry)
+                simplTranslationConfig
                 config
 
     let (states, _) = maybe (error "Timeout") fst r
