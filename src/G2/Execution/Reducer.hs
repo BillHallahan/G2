@@ -61,6 +61,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , SymbolicADTOrderer (..)
                             , ADTHeightOrderer (..)
                             , IncrAfterN (..)
+                            , QuotTrueAssert (..)
                             , RandomOrderer (..)
                             , mkRandomOrderer
                             , getRandomOrderer
@@ -1053,6 +1054,19 @@ succNTimes :: Enum b => Int -> b -> b
 succNTimes x b
     | x <= 0 = b
     | otherwise = succNTimes (x - 1) (succ b)
+
+-- Wraps an existing orderer, and divides its value by 2 if true_assert is true
+data QuotTrueAssert ord = QuotTrueAssert ord
+
+instance (Integral b, MinOrderer ord sov b t) => MinOrderer (QuotTrueAssert ord) sov b t where
+    minInitPerStateOrder (QuotTrueAssert ord) = minInitPerStateOrder ord
+    minOrderStates (QuotTrueAssert ord) sov pr s =
+        let
+            (b, ord') = minOrderStates ord sov pr s
+        in
+        (if true_assert s then b `quot` 2 else b, QuotTrueAssert ord')
+    minUpdateSelected (QuotTrueAssert ord) = minUpdateSelected ord
+    minStepOrderer (QuotTrueAssert ord) = minStepOrderer ord 
 
 --------
 --------

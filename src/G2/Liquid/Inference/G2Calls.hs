@@ -295,7 +295,7 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
                   Nothing -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn))
         , SomeHalter
             (DiscardIfAcceptedTag state_name :<~> halter)
-        , SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTHeightOrderer 0 (Just instFuncTickName))))
+        , SomeOrderer (ToOrderer $ IncrAfterN 2000 (QuotTrueAssert (ADTHeightOrderer 0 (Just instFuncTickName)))))
 
 runLHCExSearch :: MonadIO m
                => T.Text
