@@ -1,5 +1,4 @@
 module G2.Liquid.Inference.InfStack ( InfStack
-                                    , Event (..)
                                     , runInfStack
                                     , execInfStack
                                     
@@ -9,7 +8,10 @@ module G2.Liquid.Inference.InfStack ( InfStack
                                     , logEventEndM
                                     , getLogM
 
-                                    , withConfigs ) where
+                                    , withConfigs
+
+                                    , Event (..)
+                                    , mapEvent ) where
 
 import G2.Data.Timer
 import G2.Language
@@ -21,17 +23,25 @@ import Control.Monad.State.Lazy
 import qualified Data.Text as T
 import System.CPUTime
 
-data Event = CExSE
-           | InfSE
-           | Verify
-           | Synth
-           | UpdateMeasures
-           | UpdateEvals
-           deriving (Eq, Read, Show)
+data Event n = CExSE
+             | InfSE n
+             | Verify
+             | Synth
+             | UpdateMeasures
+             | UpdateEvals
+             deriving (Eq, Read, Show)
 
-type InfStack m = StateT (Timer Event) (ReaderT Configs (StateT Progress m))
+mapEvent :: (a -> b) ->  Event a -> Event b
+mapEvent _ CExSE = CExSE
+mapEvent f (InfSE n) = InfSE (f n)
+mapEvent _ Verify = Verify
+mapEvent _ Synth = Synth
+mapEvent _ UpdateMeasures = UpdateMeasures
+mapEvent _ UpdateEvals = UpdateEvals
 
-runInfStack :: MonadIO m => Configs -> Progress -> InfStack m a -> m (a, Timer Event)
+type InfStack m = StateT (Timer (Event Name)) (ReaderT Configs (StateT Progress m))
+
+runInfStack :: MonadIO m => Configs -> Progress -> InfStack m a -> m (a, Timer (Event Name))
 runInfStack configs prog m = do
     timer <- liftIO $ newTimer
     runProgresser (runConfigs (runTimer m timer) configs) prog

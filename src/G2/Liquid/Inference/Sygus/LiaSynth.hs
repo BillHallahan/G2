@@ -284,7 +284,7 @@ synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
       -> m SynthRes
 synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc blk_mdls sz = do
     si' <- liaSynthOfSize sz si
-    let zero_coeff_hdrs = softCoeffAssertZero si' -- ++ softFuncActAssertZero si' ++ softClauseActAssertZero si'
+    let zero_coeff_hdrs = softCoeffAssertZero si' ++ softClauseActAssertZero si' -- ++ softFuncActAssertZero si'
         -- zero_coeff_hdrs = softFuncActAssertZero si' ++ softClauseActAssertZero si'
         -- zero_coeff_hdrs = softCoeffAssertZero si' -- softFuncActAssertZero si' ++ softClauseActAssertZero si'
         max_coeffs_cons = maxCoeffConstraints si'

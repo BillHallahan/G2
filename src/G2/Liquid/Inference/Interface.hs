@@ -40,6 +40,7 @@ import Control.Monad.Extra
 import Control.Monad.IO.Class 
 import Control.Monad.Reader
 import Control.Monad.State.Lazy
+import Data.Coerce
 import qualified Data.Map as M
 import Data.Either
 import qualified Data.HashSet as S
@@ -59,7 +60,8 @@ inferenceCheck :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [F
 inferenceCheck infconfig config proj fp lhlibs = do
     (ghci, lhconfig) <- getGHCI infconfig config proj fp lhlibs
     (res, timer) <- inference' infconfig config lhconfig ghci proj fp lhlibs
-    print . logToSecs . sumLog . getLog $ timer
+    print . logToSecs . orderLogBySpeed . sumLog . mapLabels (mapEvent (nameOcc)) . getLog $ timer
+    print . logToSecs . orderLogBySpeed . sumLog . mapLabels (mapEvent (const ())) . getLog $ timer
     case res of
         Right gs -> do
             check_res <- checkGSCorrect infconfig lhconfig ghci gs
@@ -83,7 +85,7 @@ inference' :: InferenceConfig
            -> [FilePath]
            -> [FilePath]
            -> [FilePath]
-           -> IO (Either [CounterExample] GeneratedSpecs, Timer Event)
+           -> IO (Either [CounterExample] GeneratedSpecs, Timer (Event Name))
 inference' infconfig config lhconfig ghci proj fp lhlibs = do
     mapM (print . gsQualifiers . spec) ghci
 
@@ -266,14 +268,16 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
             case res' of
                 Safe -> return $ (Env gs' fc max_fc meas_ex, evals')
                 Unsafe bad -> do
-                    logEventStartM InfSE
                     ref <- tryToGen (nub bad) ((emptyFC, emptyBlockedModels), emptyFC)
                               (\(fc1, bm1) (fc2, bm2) -> (fc1 `unionFC` fc2, bm1 `unionBlockedModels` bm2))
                               unionFC
-                              [ refineUnsafe ghci m_modname lrs gs'
+                              [ (\n -> do
+                                    logEventStartM (InfSE n)
+                                    return $ Right (Nothing, emptyFC))
+                              , refineUnsafe ghci m_modname lrs gs'
                               , searchBelowLevel ghci m_modname lrs res sf gs'
                               , adjModel lrs sz smt_mdl]
-                    logEventEndM
+                              logEventEndM
 
                     case ref of
                         Left cex -> return $ (CEx cex, evals')
@@ -299,14 +303,16 @@ tryToGen :: Monad m =>
          -> (r -> r -> r) -- ^ Some way of combining results
          -> (ex -> ex -> ex) -- ^ Some way of joining extra results
          -> [n -> m (Either err (Maybe r, ex))] -- ^ A list of strategies, in order, to try and produce a result
+         -> m () -- ^ A monadic action to run after each n is processed
          -> m (Either err (r, ex))
-tryToGen [] def _ _ _ = return $ Right def
-tryToGen (n:ns) def join_r join_ex fs = do
+tryToGen [] def _ _ _ _= return $ Right def
+tryToGen (n:ns) def join_r join_ex fs final_m = do
     gen1 <- tryToGen' n def join_ex fs
+    final_m
     case gen1 of
         Left err -> return $ Left err
         Right (r1, ex1) -> do
-            gen2 <- tryToGen ns def join_r join_ex fs
+            gen2 <- tryToGen ns def join_r join_ex fs final_m
             case gen2 of
                 Left err -> return $ Left err
                 Right (r2, ex2) -> return $ Right (r1 `join_r` r2, ex1 `join_ex` ex2) 

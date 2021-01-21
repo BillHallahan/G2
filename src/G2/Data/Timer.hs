@@ -12,12 +12,15 @@ module G2.Data.Timer ( Timer
                      , logEventEndM
                      , getLogM
 
+                     , orderLogBySpeed
                      , sumLog
+                     , mapLabels
                      , logToSecs ) where
 
 import Control.Monad.IO.Class 
 import Control.Monad.Reader
 import Control.Monad.State.Lazy
+import Data.Ord
 import Data.List
 import qualified Data.Text as T
 import System.CPUTime
@@ -40,8 +43,9 @@ logEventStart label timer = do
     return $ logEventStart' label curr timer
 
 logEventStart' :: label -> Integer -> Timer label -> Timer label
-logEventStart' label curr timer =
+logEventStart' label curr timer@( Timer { for_next = Nothing }) =
     timer { for_next = Just (label, curr) } 
+logEventStart' _ _ _ = error "Timer started before ending"
 
 logEventEnd :: Timer label -> IO (Timer label)
 logEventEnd timer = do
@@ -74,6 +78,8 @@ getLogM :: Monad m => StateT (Timer label) m (TimerLog label)
 getLogM = gets getLog
 
 -- Working with the generated logs
+orderLogBySpeed :: TimerLog label -> TimerLog label
+orderLogBySpeed = reverse . sortBy (comparing snd)
 
 sumLog :: Eq label => TimerLog label -> TimerLog label
 sumLog tl =
@@ -84,5 +90,8 @@ sumLog tl =
     in
     zip labs grped
 
+mapLabels :: (label1 -> label2) -> TimerLog label1 -> TimerLog label2
+mapLabels f = map (\(l, i) -> (f l, i))
+
 logToSecs :: TimerLog label -> [(label, Double)]
-logToSecs = map (\(l, s) -> (l, fromInteger s / (10 ^ 12)))
+logToSecs = map (\(l, s) -> (l, fromInteger s / (10 ^ 12 :: Double)))
