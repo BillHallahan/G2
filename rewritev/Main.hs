@@ -132,14 +132,19 @@ runWithArgs as = do
               Just r -> r
               Nothing -> error "not found"
   -- print . curr_expr . initWithRHS init_state $ rule'
-  let rewrite_state = initWithRHS init_state $ rule'
+  let rewrite_state_r = initWithRHS init_state $ rule'
 
   print $ ru_rhs rule'
   print $ ru_bndrs rule'
   
-  (exec_res, bindings') <- runG2WithConfig rewrite_state config bindings
+  (exec_res, bindings') <- runG2WithConfig rewrite_state_r config bindings
   printFuncCalls config (Id (Name tentry Nothing 0 Nothing) TyUnknown)
                  bindings' exec_res
+
+  let rewrite_state_l = initWithLHS init_state $ rule'
+  (exec_res_l, bindings_l) <- runG2WithConfig rewrite_state_l config bindings
+  printFuncCalls config (Id (Name tentry Nothing 0 Nothing) TyUnknown)
+                 bindings_l exec_res_l
 
   {-
   config <- getConfig as
