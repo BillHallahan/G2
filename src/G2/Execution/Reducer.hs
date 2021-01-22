@@ -60,7 +60,9 @@ module G2.Execution.Reducer ( Reducer (..)
                             , CaseCountOrderer (..)
                             , SymbolicADTOrderer (..)
                             , ADTHeightOrderer (..)
+                            , ADTSizeOrderer (..)
                             , IncrAfterN (..)
+                            , QuotTrueAssert (..)
                             , RandomOrderer (..)
                             , mkRandomOrderer
                             , getRandomOrderer
@@ -922,7 +924,9 @@ instance Orderer SymbolicADTOrderer (S.HashSet Name) Int t where
 -- Orders by the size (in terms of height) of (previously) symbolic ADT.
 -- In particular, aims to first execute those states with a height closest to
 -- the specified height.
-data ADTHeightOrderer = ADTHeightOrderer Int
+data ADTHeightOrderer = ADTHeightOrderer
+                            Int -- ^ What height should we prioritize?
+                            (Maybe Name) -- ^ If we see a tick with the specified Name, add it to the set
 
 -- Normally, each state tracks the names of currently symbolic variables,
 -- but here we want all variables that were ever symbolic.
@@ -935,7 +939,7 @@ data ADTHeightOrderer = ADTHeightOrderer Int
 -- will not add symbolic variables.
 instance MinOrderer ADTHeightOrderer (S.HashSet Name, Bool) Int t where
     minInitPerStateOrder _ s = (S.fromList . map idName . symbolic_ids $ s, False)
-    minOrderStates ord@(ADTHeightOrderer pref_height) (v, _) _ s =
+    minOrderStates ord@(ADTHeightOrderer pref_height _) (v, _) _ s =
         let
             m = maximum $ (-1):(S.toList $ S.map (flip adtHeight s) v)
             h = abs (pref_height - m)
@@ -947,6 +951,10 @@ instance MinOrderer ADTHeightOrderer (S.HashSet Name, Bool) Int t where
                   (State { curr_expr = CurrExpr _ (SymGen _) }) = (v, True)
     minStepOrderer _ (v, True) _ _ s =
         (v `S.union` (S.fromList . map idName . symbolic_ids $ s), False)
+    minStepOrderer (ADTHeightOrderer _ (Just n)) (v, _) _ _ 
+                   s@(State { curr_expr = CurrExpr _ (Tick (NamedLoc n') (Var (Id vn _))) }) 
+            | n == n' =
+                (S.insert vn v, False)
     minStepOrderer _ v _ _ s =
         v
 
@@ -966,6 +974,61 @@ adtHeight' e s =
     in
     maximum $ 0:map (\e' -> case e' of
                         Var (Id n _) -> adtHeight n s
+                        _ -> 0) es
+
+-- Orders by the combined size of (previously) symbolic ADT.
+-- In particular, aims to first execute those states with a combined ADT size closest to
+-- the specified zize.
+data ADTSizeOrderer = ADTSizeOrderer
+                            Int -- ^ What size should we prioritize?
+                            (Maybe Name) -- ^ If we see a tick with the specified Name, add it to the set
+
+-- Normally, each state tracks the names of currently symbolic variables,
+-- but here we want all variables that were ever symbolic.
+-- To track this, we use a HashSet.
+-- The tracked bool is to speed up adjusting this hashset- if it is set to false,
+-- we do not update the hashset.  If it is set to true,
+-- after the next step the hashset will be updated, and the bool will be set
+-- back to false.
+-- This avoids repeated operations on the hashset after rules that we know
+-- will not add symbolic variables.
+instance MinOrderer ADTSizeOrderer (S.HashSet Name, Bool) Int t where
+    minInitPerStateOrder _ s = (S.fromList . map idName . symbolic_ids $ s, False)
+    minOrderStates ord@(ADTSizeOrderer pref_height _) (v, _) _ s =
+        let
+            m = sum (S.toList $ S.map (flip adtSize s) v)
+            h = abs (pref_height - m)
+        in
+        (h, ord)
+    minUpdateSelected _ v _ _ = v
+
+    minStepOrderer _ (v, _) _ _
+                  (State { curr_expr = CurrExpr _ (SymGen _) }) = (v, True)
+    minStepOrderer _ (v, True) _ _ s =
+        (v `S.union` (S.fromList . map idName . symbolic_ids $ s), False)
+    minStepOrderer (ADTSizeOrderer _ (Just n)) (v, _) _ _ 
+                   s@(State { curr_expr = CurrExpr _ (Tick (NamedLoc n') (Var (Id vn _))) }) 
+            | n == n' =
+                (S.insert vn v, False)
+    minStepOrderer _ v _ _ s =
+        v
+
+adtSize :: Name -> State t -> Int
+adtSize n s@(State { expr_env = eenv })
+    | Just (E.Sym _) <- v = 0
+    | Just (E.Conc e) <- v =
+        1 + adtSize' e s
+    | otherwise = 0
+    where
+        v = E.lookupConcOrSym n eenv
+
+adtSize' :: Expr -> State t -> Int
+adtSize' e s =
+    let
+        _:es = unApp e 
+    in
+    sum $ 0:map (\e' -> case e' of
+                        Var (Id n _) -> adtSize n s
                         _ -> 0) es
 
 data RandomOrderer = RandomOrderer StdGen
@@ -1047,6 +1110,19 @@ succNTimes :: Enum b => Int -> b -> b
 succNTimes x b
     | x <= 0 = b
     | otherwise = succNTimes (x - 1) (succ b)
+
+-- Wraps an existing orderer, and divides its value by 2 if true_assert is true
+data QuotTrueAssert ord = QuotTrueAssert ord
+
+instance (Integral b, MinOrderer ord sov b t) => MinOrderer (QuotTrueAssert ord) sov b t where
+    minInitPerStateOrder (QuotTrueAssert ord) = minInitPerStateOrder ord
+    minOrderStates (QuotTrueAssert ord) sov pr s =
+        let
+            (b, ord') = minOrderStates ord sov pr s
+        in
+        (if true_assert s then b `quot` 2 else b, QuotTrueAssert ord')
+    minUpdateSelected (QuotTrueAssert ord) = minUpdateSelected ord
+    minStepOrderer (QuotTrueAssert ord) = minStepOrderer ord 
 
 --------
 --------
