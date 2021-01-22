@@ -176,7 +176,7 @@ gatherReducerHalterOrderer infconfig config solver simplifier entry mb_modname s
               :<~> SwitchEveryNHalter (switch_after config)
               :<~> SWHNFHalter
               :<~> timer_halter)
-        , SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTHeightOrderer 0 Nothing)))
+        , SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTSizeOrderer 0 Nothing)))
 
 -------------------------------
 -- Direct Counterexamples Calls
@@ -295,7 +295,7 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
                   Nothing -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn))
         , SomeHalter
             (DiscardIfAcceptedTag state_name :<~> halter)
-        , SomeOrderer (ToOrderer $ IncrAfterN 2000 (QuotTrueAssert (ADTHeightOrderer 0 (Just instFuncTickName)))))
+        , SomeOrderer (ToOrderer $ IncrAfterN 2000 (QuotTrueAssert (ADTSizeOrderer 0 (Just instFuncTickName)))))
 
 runLHCExSearch :: MonadIO m
                => T.Text
@@ -376,7 +376,7 @@ realCExReducerHalterOrderer infconfig config entry modname solver simplifier  cf
                   Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn))
         , SomeHalter
             (DiscardIfAcceptedTag state_name :<~> halter)
-        , SomeOrderer (ToOrderer $ IncrAfterN 1000 (ADTHeightOrderer 0 Nothing)))
+        , SomeOrderer (ToOrderer $ IncrAfterN 1000 (ADTSizeOrderer 0 Nothing)))
 
 
 swapHigherOrdForSymGen :: Bindings -> State t -> State t
