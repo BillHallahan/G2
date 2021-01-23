@@ -2,18 +2,28 @@
 -- value of type a_i from a type of the form T a_1 ... a_n.  If there are no
 -- values with type a_i, the function calls `Assume False`.
 
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
 module G2.Liquid.TyVarBags ( TyVarBags
                            , InstFuncs
+                           , ExistentialInstRed (..)
                            , createBagAndInstFuncs
 
                            , extractTyVarCall
                            , wrapExtractCalls
-                           , instTyVarCall) where
+                           , instTyVarCall
 
+                           , existentialInstId
+                           , putExistentialInstInExprEnv
+                           , putSymbolicExistentialInstInExprEnv
+                           , addTicksToDeepSeqCases) where
+
+import G2.Execution.Reducer
 import G2.Language
+import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad
 import G2.Liquid.Types
 
@@ -178,8 +188,8 @@ wrapExtractCalls :: ExState s m => Id -> [Expr] -> m Expr
 wrapExtractCalls i clls = do
     case null clls of
         True -> do
-            flse <- mkFalseE
-            return $ Assume Nothing flse (Prim Undefined (TyVar i))
+            -- flse <- mkFalseE
+            return (Var existentialInstId) -- $ Assume Nothing flse (Prim Undefined (TyVar i))
         False -> return $ NonDet clls
 
 -- | Creates functions to, for each type (T a_1 ... a_n), create a nondeterministic value.
@@ -299,3 +309,87 @@ wrapPrimsInCase e e'
     | otherwise = return e
     where
         t = typeOf e'
+
+----------------------------------------
+-- Existential Inst
+
+-- Suppose a function returns a value with a polymorphic type, without taking
+-- any of those types as arguments.  This is common with functions that return
+-- the "empty" case of data structures, such as Data.Map.empty.
+-- In this case, we instantiate with an "existential" value,
+-- that basically says some value may exist, but we do not know specifically what it is
+
+existentialInstId :: Id
+existentialInstId = Id (Name "EXISTENTIAL_INST_NAME" Nothing 0 Nothing) TyUnknown
+
+postSeqExistentialInstId :: Id
+postSeqExistentialInstId = Id (Name "POST_SEQ_EXISTENTIAL_INST_NAME" Nothing 0 Nothing) TyUnknown
+
+
+-- | Place this in a Tick in the first Alt of a Case, to treat the case normally,
+-- even if the existential Id is in the bindee
+existentialCaseName :: Name
+existentialCaseName = Name "EXISTENTIAL_CASE_NAME" Nothing 0 Nothing
+
+putExistentialInstInExprEnv :: State t -> State t
+putExistentialInstInExprEnv s@(State { expr_env = eenv }) =
+    s { expr_env = E.insert
+                        (idName existentialInstId)
+                        (Var existentialInstId)
+                        eenv }
+
+putSymbolicExistentialInstInExprEnv :: State t -> State t
+putSymbolicExistentialInstInExprEnv s@(State { expr_env = eenv }) =
+    s { expr_env = E.insertSymbolic
+                        (idName existentialInstId)
+                        existentialInstId
+                        eenv
+      }
+
+data ExistentialInstRed = ExistentialInstRed
+
+instance Reducer ExistentialInstRed () t where
+    initReducer _ _ = ()
+
+    redRules r rv s@(State { expr_env = eenv
+                           , curr_expr = CurrExpr Evaluate e }) b
+        | Var i <- e
+        , i == existentialInstId =
+            let
+                s' = s { expr_env = E.insert (idName i) (Var i) eenv
+                       , curr_expr = CurrExpr Return e }
+            in
+            return (InProgress, [(s', rv)], b, r)
+        | Case (Var i) bnd ([Alt _ (Tick (NamedLoc n) e)]) <- e
+        , i == existentialInstId
+        , n == existentialCaseName =
+            let
+                eenv' = E.insert (idName bnd) (Var postSeqExistentialInstId) eenv
+            in 
+            return ( InProgress
+                   , [(s { expr_env = eenv'
+                         , curr_expr = CurrExpr Evaluate e }, rv)]
+                   , b
+                   , r)
+        | Case (Var i) _ _ <- e
+        , i == existentialInstId =
+            let
+                s' = s { curr_expr = CurrExpr Return (Var i) }
+            in
+            return (InProgress, [(s', rv)], b, r)
+    redRules r rv s b = return (NoProgress, [(s, rv)], b, r)
+
+addTicksToDeepSeqCases :: Walkers -> State t -> State t
+addTicksToDeepSeqCases w s@(State { expr_env = eenv }) =
+    s { expr_env = foldr addTicksToDeepSeqCases' eenv (map idName $ M.elems w)}
+
+addTicksToDeepSeqCases' :: Name -> ExprEnv -> ExprEnv
+addTicksToDeepSeqCases' n eenv =
+    case E.lookup n eenv of
+        Just e -> E.insert n (modify addTicksToDeepSeqCases'' e) eenv
+        Nothing -> eenv
+
+addTicksToDeepSeqCases'' :: Expr -> Expr
+addTicksToDeepSeqCases'' (Case e i (Alt am ae:as)) =
+    Case e i $ Alt am (Tick (NamedLoc existentialCaseName) ae):as
+addTicksToDeepSeqCases'' e = e

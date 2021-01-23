@@ -18,6 +18,7 @@ import G2.Liquid.Helpers
 import G2.Liquid.LHReducers
 import G2.Liquid.SpecialAsserts
 import G2.Liquid.Types
+import G2.Liquid.TyVarBags
 import G2.Solver
 
 import G2.Lib.Printers

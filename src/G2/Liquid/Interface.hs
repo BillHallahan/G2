@@ -62,6 +62,7 @@ import G2.Liquid.SpecialAsserts
 import G2.Liquid.TCGen
 import G2.Liquid.TCValues
 import G2.Liquid.Types
+import G2.Liquid.TyVarBags
 import G2.Solver hiding (solve)
 
 import G2.Lib.Printers
@@ -393,16 +394,17 @@ runLHG2 :: (Solver solver, Simplifier simplifier)
         -> Bindings
         -> IO ([ExecRes AbstractedInfo], Bindings)
 runLHG2 config red hal ord solver simplifier pres_names init_id final_st bindings = do
-    let only_abs_st = final_st
+    let only_abs_st = addTicksToDeepSeqCases (deepseq_walkers bindings) final_st
     (ret, final_bindings) <- runG2WithSomes red hal ord solver simplifier pres_names only_abs_st bindings
+    let n_ret = map (\er -> er { final_state = putSymbolicExistentialInstInExprEnv (final_state er) }) ret
 
     -- We filter the returned states to only those with the minimal number of abstracted functions
-    let mi = case length ret of
+    let mi = case length n_ret of
                   0 -> 0
-                  _ -> minimum $ map (\(ExecRes {final_state = s}) -> abstractCallsNum s) ret
+                  _ -> minimum $ map (\(ExecRes {final_state = s}) -> abstractCallsNum s) n_ret
     let ret' = map (\er -> if fmap funcName (violated er) == Just initiallyCalledFuncName
                                   then er { violated = Nothing }
-                                  else er) ret
+                                  else er) n_ret
     let ret'' = filter (\(ExecRes {final_state = s}) -> mi == (abstractCallsNum s)) ret'
 
     (bindings', ret''') <- mapAccumM (reduceCalls solver simplifier config) final_bindings ret''
@@ -449,8 +451,8 @@ lhReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
         ( SomeReducer NonRedPCRed
             <~| (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng ))
             <~| (case logStates config of
-                  Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
-                  Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn))
+                  Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed :<~ Logger fp)
+                  Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed))
         , SomeHalter
                 (MaxOutputsHalter (maxOutputs config)
                   :<~> ZeroHalter (steps config)
@@ -463,8 +465,8 @@ lhReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
         (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng)
             <~| (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng))
             <~| (case logStates config of
-                  Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~ Logger fp)
-                  Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn)) -- :<~ LimLogger 0 700 [2, 1, 2, 2, 1, 1, 1] "aMapReduce"))
+                  Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed :<~ Logger fp)
+                  Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed)) -- :<~ LimLogger 0 700 [2, 1, 2, 2, 1, 1, 1] "aMapReduce"))
         , SomeHalter
             (DiscardIfAcceptedTag state_name
               :<~> DiscardIfAcceptedTag abs_ret_name
