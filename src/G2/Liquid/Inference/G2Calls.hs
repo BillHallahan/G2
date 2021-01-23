@@ -54,6 +54,7 @@ import G2.Liquid.LHReducers
 import G2.Liquid.SpecialAsserts
 import G2.Liquid.TCValues
 import G2.Liquid.Types
+import G2.Liquid.TyVarBags
 import G2.Liquid.Inference.InfStack
 import G2.Liquid.Inference.Initalization
 import G2.Solver hiding (Assert)
@@ -291,8 +292,8 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
         (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng)
             <~| (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng))
             <~| (case logStates config of
-                  Just fp -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~ Logger fp)
-                  Nothing -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn))
+                  Just fp -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~? ExistentialInstRed :<~ Logger fp)
+                  Nothing -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~? ExistentialInstRed))
         , SomeHalter
             (DiscardIfAcceptedTag state_name :<~> halter)
         , SomeOrderer (ToOrderer $ IncrAfterN 2000 (QuotTrueAssert (ADTSizeOrderer 0 (Just instFuncTickName)))))

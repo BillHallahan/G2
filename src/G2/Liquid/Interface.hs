@@ -397,6 +397,7 @@ runLHG2 config red hal ord solver simplifier pres_names init_id final_st binding
     let only_abs_st = addTicksToDeepSeqCases (deepseq_walkers bindings) final_st
     (ret, final_bindings) <- runG2WithSomes red hal ord solver simplifier pres_names only_abs_st bindings
     let n_ret = map (\er -> er { final_state = putSymbolicExistentialInstInExprEnv (final_state er) }) ret
+    putStrLn "ret"
 
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length n_ret of

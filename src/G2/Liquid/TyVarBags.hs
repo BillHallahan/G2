@@ -356,7 +356,7 @@ instance Reducer ExistentialInstRed () t where
         | Var i <- e
         , i == existentialInstId =
             let
-                s' = s { expr_env = E.insert (idName i) (Var i) eenv
+                s' = s { expr_env = E.insertSymbolic (idName i) i eenv
                        , curr_expr = CurrExpr Return e }
             in
             return (InProgress, [(s', rv)], b, r)
@@ -364,7 +364,7 @@ instance Reducer ExistentialInstRed () t where
         , i == existentialInstId
         , n == existentialCaseName =
             let
-                eenv' = E.insert (idName bnd) (Var postSeqExistentialInstId) eenv
+                eenv' = E.insertSymbolic (idName bnd) postSeqExistentialInstId eenv
             in 
             return ( InProgress
                    , [(s { expr_env = eenv'
