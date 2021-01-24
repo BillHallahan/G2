@@ -25,6 +25,7 @@ import G2.Execution.Reducer
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad
+import qualified G2.Language.Stack as Stck
 import G2.Liquid.Types
 
 import Control.Monad
@@ -352,7 +353,8 @@ instance Reducer ExistentialInstRed () t where
     initReducer _ _ = ()
 
     redRules r rv s@(State { expr_env = eenv
-                           , curr_expr = CurrExpr Evaluate e }) b
+                           , curr_expr = CurrExpr Evaluate e })
+                  b@(Bindings { name_gen = ng })
         | Var i <- e
         , i == existentialInstId =
             let
@@ -360,6 +362,23 @@ instance Reducer ExistentialInstRed () t where
                        , curr_expr = CurrExpr Return e }
             in
             return (InProgress, [(s', rv)], b, r)
+        | Case (Var i) bnd ([Alt (DataAlt _ params) (Tick (NamedLoc n) e)]) <- e
+        , i == existentialInstId
+        , n == existentialCaseName =
+            let
+                (n_bnd, ng') = freshSeededName (idName bnd) ng
+                (n_params, ng'') = freshSeededNames (map idName params) ng
+
+                eenv' = E.insertSymbolic n_bnd postSeqExistentialInstId eenv
+                eenv'' = foldr (\n -> E.insert n (Var existentialInstId)) eenv' n_params
+
+                n_e = rename (idName bnd) n_bnd $ foldr (uncurry rename) e (zip (map idName params) n_params)
+            in 
+            return ( InProgress
+                   , [(s { expr_env = eenv''
+                         , curr_expr = CurrExpr Evaluate n_e }, rv)]
+                   , b { name_gen = ng'' }
+                   , r)
         | Case (Var i) bnd ([Alt _ (Tick (NamedLoc n) e)]) <- e
         , i == existentialInstId
         , n == existentialCaseName =
@@ -377,6 +396,18 @@ instance Reducer ExistentialInstRed () t where
                 s' = s { curr_expr = CurrExpr Return (Var i) }
             in
             return (InProgress, [(s', rv)], b, r)
+    redRules r rv s@(State { expr_env = eenv
+                           , curr_expr = CurrExpr Return e
+                           , exec_stack = stck }) b
+
+        | Just (AssumeFrame _, stck') <- Stck.pop stck
+        , Var i <- e
+        , i == existentialInstId =
+            return (InProgress, [(s { exec_stack = stck' }, rv)], b, r)
+        | Just (AssertFrame _ _, stck') <- Stck.pop stck
+        , Var i <- e
+        , i == existentialInstId =
+            return (InProgress, [(s { exec_stack = stck' }, rv)], b, r)
     redRules r rv s b = return (NoProgress, [(s, rv)], b, r)
 
 addTicksToDeepSeqCases :: Walkers -> State t -> State t
