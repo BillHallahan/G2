@@ -307,7 +307,7 @@ liquidTests = testGroup "Liquid"
 
     , checkLiquid "tests/Liquid/CorrectDict.hs" "f" 2000 2 [AtLeast 1]
 
-    , checkAbsLiquid "tests/Liquid/ZipWith3.hs" "prop_zipWith" 600 1 [ AtLeast 3]
+    , checkAbsLiquid "tests/Liquid/ZipWith3.hs" "prop_zipWith" 400 1 [ AtLeast 3]
 
     , checkAbsLiquid "tests/Liquid/Length.hs" "prop_size" 1000 0
         [ AtLeast 1
