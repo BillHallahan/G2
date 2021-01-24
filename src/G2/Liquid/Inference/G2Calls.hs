@@ -125,11 +125,13 @@ gatherAllowedCalls entry m lrs ghci infconfig config = do
         fc_red = SomeReducer (StdRed (sharing config') solver simplifier)
 
     (bindings''', red_calls) <- mapAccumM 
-                                (\b (fs, fc) -> reduceFuncCall (sharing config') 
-                                                               fc_red
-                                                               solver
-                                                               simplifier
-                                                               fs b fc)
+                                (\b (fs, fc) -> do
+                                    (_, b', rfc) <- reduceFuncCall (sharing config') 
+                                                                       fc_red
+                                                                       solver
+                                                                       simplifier
+                                                                       fs b fc
+                                    return (b', rfc))
                                 bindings''
                                 called
 
@@ -237,6 +239,8 @@ runLHInferenceCore entry m lrs ghci = do
     (exec_res, final_bindings) <- liftIO $ runLHG2 g2config red hal ord solver simplifier pres_names ifi final_st' bindings
 
     liftIO $ close solver
+
+    liftIO $ putStrLn "end runLHInferenceCore"
 
     return ((exec_res, final_bindings), ifi)
 

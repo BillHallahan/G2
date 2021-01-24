@@ -88,6 +88,8 @@ import G2.Language.KnownValues
 import Debug.Trace
 import G2.Language.Monad
 
+import Data.Maybe
+
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
                          , abstracted :: [FuncInfo] } deriving (Eq, Show)
@@ -397,7 +399,6 @@ runLHG2 config red hal ord solver simplifier pres_names init_id final_st binding
     let only_abs_st = addTicksToDeepSeqCases (deepseq_walkers bindings) final_st
     (ret, final_bindings) <- runG2WithSomes red hal ord solver simplifier pres_names only_abs_st bindings
     let n_ret = map (\er -> er { final_state = putSymbolicExistentialInstInExprEnv (final_state er) }) ret
-    putStrLn "ret"
 
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length n_ret of
@@ -407,6 +408,7 @@ runLHG2 config red hal ord solver simplifier pres_names init_id final_st binding
                                   then er { violated = Nothing }
                                   else er) n_ret
     let ret'' = filter (\(ExecRes {final_state = s}) -> mi == (abstractCallsNum s)) ret'
+
 
     (bindings', ret''') <- mapAccumM (reduceCalls solver simplifier config) final_bindings ret''
     ret'''' <- mapM (checkAbstracted solver simplifier config init_id bindings') ret'''
@@ -467,7 +469,7 @@ lhReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
             <~| (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng))
             <~| (case logStates config of
                   Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed :<~ Logger fp)
-                  Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed)) -- :<~ LimLogger 0 700 [2, 1, 2, 2, 1, 1, 1] "aMapReduce"))
+                  Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed))
         , SomeHalter
             (DiscardIfAcceptedTag state_name
               :<~> DiscardIfAcceptedTag abs_ret_name
