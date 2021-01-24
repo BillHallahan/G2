@@ -72,7 +72,7 @@ checkAbstracted solver simplifier config init_id bindings er@(ExecRes{ final_sta
 
     -- Get an `Abstracted` for the violated function (if it exists)
     (bindings', viol_er) <- reduceViolated solver simplifier (sharing config) bindings er
-    abs_viol <- case violated er of
+    abs_viol <- case violated viol_er of
                   Just v -> return . Just =<<
                               getAbstracted solver simplifier (sharing config) (final_state viol_er) bindings v
                   Nothing -> return Nothing
