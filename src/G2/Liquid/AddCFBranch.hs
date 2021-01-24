@@ -5,7 +5,9 @@ module G2.Liquid.AddCFBranch ( CounterfactualName
                              , addCounterfactualBranch
                              , onlyCounterfactual
                              , elimNonTop
-                             , instFuncTickName ) where
+
+                             , instFuncTickName
+                             , existentialInstId ) where
 
 import G2.Config.Config
 import G2.Language
@@ -15,6 +17,7 @@ import G2.Liquid.Types
 import G2.Liquid.TyVarBags
 
 import qualified Data.HashSet as S
+import Data.List
 
 import Debug.Trace
 
@@ -97,7 +100,7 @@ cfRetValue ars rt
                         (\tv -> wrapExtractCalls tv
                               . filter nullNonDet
                               . concat
-                              =<< mapM (extractTyVarCall ty_bags ex_tvs_to_vrs tv) ars) all_tvs
+                              =<< mapM (extractTyVarCall ty_bags ex_tvs_to_vrs tv) ars) (nub all_tvs)
 
         let ex_let_bnds = zip ex_vrs ex_ty_clls
 

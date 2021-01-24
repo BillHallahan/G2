@@ -307,7 +307,7 @@ liquidTests = testGroup "Liquid"
 
     , checkLiquid "tests/Liquid/CorrectDict.hs" "f" 2000 2 [AtLeast 1]
 
-    , checkAbsLiquid "tests/Liquid/ZipWith3.hs" "prop_zipWith" 600 1 [ AtLeast 3]
+    , checkAbsLiquid "tests/Liquid/ZipWith3.hs" "prop_zipWith" 400 1 [ AtLeast 3]
 
     , checkAbsLiquid "tests/Liquid/Length.hs" "prop_size" 1000 0
         [ AtLeast 1
@@ -357,6 +357,8 @@ liquidTests = testGroup "Liquid"
     , checkAbsLiquid "tests/Liquid/Polymorphism/Poly16.hs" "call" 1000 2 
         [ AtLeast 1
         , RForAll (\ _ _ [ FuncCall { arguments = [_, _, a] } ] -> case a of Prim _ _ -> False; _ -> True )]
+    , checkAbsLiquid "tests/Liquid/Polymorphism/Poly17.hs" "empty2" 1000 1 [ AtLeast 1]
+    , checkAbsLiquid "tests/Liquid/Polymorphism/Poly18.hs" "f" 500 1 [ AtLeast 1]
     ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that

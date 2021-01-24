@@ -54,6 +54,7 @@ import G2.Liquid.LHReducers
 import G2.Liquid.SpecialAsserts
 import G2.Liquid.TCValues
 import G2.Liquid.Types
+import G2.Liquid.TyVarBags
 import G2.Liquid.Inference.InfStack
 import G2.Liquid.Inference.Initalization
 import G2.Solver hiding (Assert)
@@ -124,11 +125,13 @@ gatherAllowedCalls entry m lrs ghci infconfig config = do
         fc_red = SomeReducer (StdRed (sharing config') solver simplifier)
 
     (bindings''', red_calls) <- mapAccumM 
-                                (\b (fs, fc) -> reduceFuncCall (sharing config') 
-                                                               fc_red
-                                                               solver
-                                                               simplifier
-                                                               fs b fc)
+                                (\b (fs, fc) -> do
+                                    (_, b', rfc) <- reduceFuncCall (sharing config') 
+                                                                       fc_red
+                                                                       solver
+                                                                       simplifier
+                                                                       fs b fc
+                                    return (b', rfc))
                                 bindings''
                                 called
 
@@ -237,6 +240,8 @@ runLHInferenceCore entry m lrs ghci = do
 
     liftIO $ close solver
 
+    liftIO $ putStrLn "end runLHInferenceCore"
+
     return ((exec_res, final_bindings), ifi)
 
 inferenceReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
@@ -291,8 +296,8 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
         (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng)
             <~| (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng))
             <~| (case logStates config of
-                  Just fp -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~ Logger fp)
-                  Nothing -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn))
+                  Just fp -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~? ExistentialInstRed :<~ Logger fp)
+                  Nothing -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~? ExistentialInstRed))
         , SomeHalter
             (DiscardIfAcceptedTag state_name :<~> halter)
         , SomeOrderer (ToOrderer $ IncrAfterN 2000 (QuotTrueAssert (ADTSizeOrderer 0 (Just instFuncTickName)))))
