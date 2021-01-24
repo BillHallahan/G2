@@ -71,9 +71,10 @@ checkAbstracted solver simplifier config init_id bindings er@(ExecRes{ final_sta
     let init_model = snd abs_init
 
     -- Get an `Abstracted` for the violated function (if it exists)
+    (bindings', viol_er) <- reduceViolated solver simplifier (sharing config) bindings er
     abs_viol <- case violated er of
                   Just v -> return . Just =<<
-                              getAbstracted solver simplifier (sharing config) s bindings v
+                              getAbstracted solver simplifier (sharing config) (final_state viol_er) bindings v
                   Nothing -> return Nothing
     let viol_model = maybeToList $ fmap snd abs_viol
         abs_info = AbstractedInfo { init_call = fst abs_init
@@ -81,9 +82,9 @@ checkAbstracted solver simplifier config init_id bindings er@(ExecRes{ final_sta
                                   , abs_calls = abstracted'
                                   , ai_all_calls = all_calls lht }
 
-    return $ er { final_state = s { track = abs_info
-                                  , model = foldr HM.union (model s) (init_model:viol_model ++ models) }
-                }
+    return $ viol_er { final_state = s { track = abs_info
+                                       , model = foldr HM.union (model s) (init_model:viol_model ++ models) }
+                     }
 
 checkAbstracted' :: (Solver solver, Simplifier simplifier)
                  => solver
@@ -275,11 +276,10 @@ elimAssumesExcept' e = e
 
 reduceCalls :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Config -> Bindings -> ExecRes LHTracker -> IO (Bindings, ExecRes LHTracker)
 reduceCalls solver simplifier config bindings er = do
-    (bindings', er') <- reduceViolated solver simplifier (sharing config) bindings er
-    (bindings'', er'') <- reduceAbstracted solver simplifier (sharing config) bindings' er'
-    (bindings''', er''') <- reduceAllCalls solver simplifier (sharing config) bindings'' er''
+    (bindings', er') <- reduceAbstracted solver simplifier (sharing config) bindings er
+    (bindings'', er'') <- reduceAllCalls solver simplifier (sharing config) bindings' er'
 
-    return (bindings''', er''')
+    return (bindings'', er'')
 
 reduceViolated :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Sharing -> Bindings -> ExecRes LHTracker -> IO (Bindings, ExecRes LHTracker)
 reduceViolated solver simplifier share bindings er@(ExecRes { final_state = s, violated = Just v }) = do
