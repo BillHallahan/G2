@@ -133,7 +133,9 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
             Unknown s -> return (Unknown s, Nothing)
 
     assertSolver _ = function1 "assert"
-    assertSoftSolver _ = function1 "assert-soft"
+
+    assertSoftSolver _ ast Nothing = function1 "assert-soft" ast
+    assertSoftSolver _ ast (Just lab) ="(assert-soft " ++ ast ++ " :id " ++ T.unpack lab ++ ")"
 
     defineFun con fn ars ret body =
         "(define-fun " ++ fn ++ " ("

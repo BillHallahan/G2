@@ -15,13 +15,14 @@ import G2.Solver.Solver
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Text.Builder
+import qualified Data.Text as T
 
 type SMTNameBldr = Builder
 type SMTName = String
 
 -- | These define the kinds of top level calls we give to the SMT solver.
 data SMTHeader = Assert SMTAST
-               | AssertSoft SMTAST
+               | AssertSoft SMTAST (Maybe T.Text)
                | DefineFun SMTName [(SMTName, Sort)] Sort SMTAST
                | DeclareFun SMTName [Sort] Sort
                | VarDecl SMTNameBldr Sort

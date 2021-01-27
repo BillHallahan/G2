@@ -288,7 +288,8 @@ synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc blk_mdls sz = do
         -- zero_coeff_hdrs = softFuncActAssertZero si' ++ softClauseActAssertZero si'
         -- zero_coeff_hdrs = softCoeffAssertZero si' -- softFuncActAssertZero si' ++ softClauseActAssertZero si'
         max_coeffs_cons = maxCoeffConstraints si'
-        
+        soft_coeff_cons = softCoeffConstraints si'
+
         mdls = lookupBlockedModels sz blk_mdls
         rel_mdls = map (uncurry (filterModelToRel si')) mdls
         block_mdls = map blockModelDirectly rel_mdls
@@ -301,6 +302,8 @@ synth con eenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc blk_mdls sz = do
                     ++ zero_coeff_hdrs
                     ++ [Comment "enforce maximal and minimal values for coefficients"]
                     ++ max_coeffs_cons
+                    ++ [Comment "favor coefficients being -1, 0, or 1"]
+                    ++ soft_coeff_cons
                     ++ [Comment "block spurious models"]
                     ++ block_mdls
 
@@ -961,25 +964,31 @@ limitEquivModels m_si =
     map Solver.Assert $ cl_imp_coeff ++ coeff_act_imp_zero
 
 softCoeffAssertZero :: M.Map Name SpecInfo -> [SMTHeader]
-softCoeffAssertZero = map (\n -> AssertSoft (V n SortInt := VInt 0)) . getCoeffs
+softCoeffAssertZero = map (\n -> AssertSoft (V n SortInt := VInt 0) (Just "minimal_size")) . getCoeffs
 
 softFuncActAssertZero :: M.Map Name SpecInfo -> [SMTHeader]
-softFuncActAssertZero = map (\n -> AssertSoft ((:!) $ V n SortBool)) . getFuncActs
+softFuncActAssertZero = map (\n -> AssertSoft ((:!) $ V n SortBool) (Just "minimal_size")) . getFuncActs
 
 softClauseActAssertZero :: M.Map Name SpecInfo -> [SMTHeader]
-softClauseActAssertZero = map (\n -> AssertSoft (V n SortBool)) . getClauseActs
+softClauseActAssertZero = map (\n -> AssertSoft (V n SortBool) (Just "minimal_size")) . getClauseActs
 
 maxCoeffConstraints :: M.Map Name SpecInfo -> [SMTHeader]
-maxCoeffConstraints =
-      map Solver.Assert
+maxCoeffConstraints = maxCoeffConstraints' Solver.Assert s_max_coeff
+
+softCoeffConstraints :: M.Map Name SpecInfo -> [SMTHeader]
+softCoeffConstraints = maxCoeffConstraints' (flip Solver.AssertSoft (Just "coeff")) (const 1)
+
+maxCoeffConstraints' :: (SMTAST -> SMTHeader) -> (SpecInfo -> Integer) -> M.Map Name SpecInfo -> [SMTHeader]
+maxCoeffConstraints' to_header max_c =
+      map to_header
     . concatMap
         (\si ->
             let
                 cffs = concatMap coeffs . concatMap snd $ allPreCoeffs si ++ allPostCoeffs si
             in
             if s_status si == Synth
-                then map (\c -> (Neg (VInt (s_max_coeff si)) :<= V c SortInt)
-                                    :&& (V c SortInt :<= VInt (s_max_coeff si))) cffs
+                then map (\c -> (Neg (VInt (max_c si)) :<= V c SortInt)
+                                    :&& (V c SortInt :<= VInt (max_c si))) cffs
                 else []) . M.elems
 
 nonMaxCoeffConstraints :: NMExprEnv -> TypeClasses -> Measures -> MeasureExs -> Evals Bool  -> M.Map Name SpecInfo -> FuncConstraints
