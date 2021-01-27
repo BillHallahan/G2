@@ -591,6 +591,18 @@ cexsToBlockingFC _ _ (DirectCounter dfc fcs@(_:_))
             else error "cexsToBlockingFC: Unhandled"
 cexsToBlockingFC _ _ (CallsCounter dfc cfc fcs@(_:_))
     | (_:_, no_err_fcs) <- partition (hasArgError . abstract) fcs = undefined
+    | isError (returns (abstract cfc)) = do
+        infconfig <- infConfigM
+        let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
+
+        let lhs = Call Pre (abstract dfc)
+            rhs = OrFC $ map (\(Abstracted { abstract = fc }) -> 
+                                ImpliesFC (Call Pre fc) (NotFC (Call Post fc))) fcs'
+
+        if not . null $ fcs' 
+            then return . Right $ ImpliesFC lhs rhs
+            else error "cexsToBlockingFC: Should be unreachable! Non-refinable function abstracted!"    
+
     | otherwise = do
         infconfig <- infConfigM
         let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
@@ -657,12 +669,13 @@ cexsToExtraFC (CallsCounter dfc cfc fcs@(_:_)) = do
     let some_pre = ImpliesFC (Call Pre $ real dfc) $  OrFC (map (\fc -> Call Pre (real fc)) fcs)
     let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 
-    let abs = mapMaybe realToMaybeFC fcs'
+    let pre_real = maybeToList $ realToMaybeFC cfc
+        abs = mapMaybe realToMaybeFC fcs'
         clls = if not . isError . returns . real $ cfc
                   then [Call All $ real cfc]
                   else []
 
-    return $ some_pre:clls ++ abs
+    return $ some_pre:clls ++ pre_real ++ abs
 cexsToExtraFC (DirectCounter fc []) = return []
 cexsToExtraFC (CallsCounter dfc cfc [])
     | isError (returns (real dfc)) = return []
@@ -712,6 +725,7 @@ switchName n fc = if funcName fc == initiallyCalledFuncName then fc { funcName =
 realToMaybeFC :: Abstracted -> Maybe FuncConstraint
 realToMaybeFC a@(Abstracted { real = fc }) 
     | hits_lib_err_in_real a = Nothing
+    | isError (returns fc) = Just $ NotFC (Call Pre fc)
     | otherwise = Just $ ImpliesFC (Call Pre fc) (Call Post fc)
 
 isExported :: LiquidReadyState -> Name -> Bool
