@@ -365,13 +365,12 @@ reduceFCExpr share reducer solver simplifier s bindings e
                . modelToExprEnv $
                    s { curr_expr = CurrExpr Evaluate e'}
 
-        let pres = HS.fromList $ names s' ++ names bindings
         (er, bindings') <- runG2WithSomes 
                               reducer
                               (SomeHalter SWHNFHalter)
                               (SomeOrderer NextOrderer)
                               solver simplifier
-                              (emptyMemConfig { pres_func = \_ _ _ -> pres })
+                              emptyMemConfig
                               s' bindings
         case er of
             [er'] -> do
