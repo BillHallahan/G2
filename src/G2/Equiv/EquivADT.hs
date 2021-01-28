@@ -57,16 +57,36 @@ idPairing :: State t -> State t -> (Id, Id) -> Maybe (HS.HashSet (Name, Name))
 idPairing s1 s2 (i1, i2) =
   findEquivVars s1 s2 (Var i1) (Var i2)
 
--- TODO returns Nothing if and only if findEquivVars does
+-- TODO returns Nothing if findEquivVars does
+-- TODO does it need to be if and only if?
+-- actually, it could return as non-null all the time
+-- the output only needs to be meaningful when findEquivVars is non-null
 -- for the Just case, it returns a set of proof obligations
 -- the returned pairs need to be shown to be equivalent
+-- TODO does this need an extra argument to be an accumulator?
 exprPairing :: State t ->
                State t ->
                Expr ->
                Expr ->
-               Maybe (HS.HashSet (Expr, Expr))
+               HS.HashSet (Expr, Expr)
 exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 =
-  Nothing
+  case (e1, e2) of
+    -- TODO don't need all these cases
+    (Data _, _) -> HS.empty
+    (_, Data _) -> HS.empty
+    (Lit _, _) -> HS.empty
+    (_, Lit _) -> HS.empty
+    (Var i, _) | E.isSymbolic i -> error "symbolic"
+               | Just e <- E.lookup (idName i) h1 -> exprPairing s1 s2 e e2
+               | otherwise -> HS.empty
+    (_, Var i) | E.isSymbolic i -> error "symbolic"
+               | Just e <- E.lookup (idName i) h2 -> exprPairing s1 s2 e1 e
+               | otherwise -> HS.empty
+    (Prim _ _, Prim _ _) -> HS.insert (e1, e2) HS.empty
+    -- TODO does this need to come before the Var case?
+    (App _ _, _) -> HS.insert (e1, e2) HS.empty
+    (_, App _ _) -> HS.insert (e1, e2) HS.empty
+    _ -> HS.empty
 
 matchAll :: [(Id, Id)] ->
             (State t, State t) ->
