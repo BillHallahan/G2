@@ -6,7 +6,7 @@ import re
 import subprocess
 import time
 
-def run_infer(file, timeout):
+def run_infer(file, name, timeout):
     start_time = time.monotonic();
     res = call_infer_process(file, timeout);
     end_time = time.monotonic();
@@ -14,6 +14,9 @@ def run_infer(file, timeout):
 
     try:
         check_safe = res.splitlines()[-2].decode('utf-8');
+        f = open("logs/" + name + ".txt", "w")
+        f.write(res.decode("utf-8") );
+        f.close();
     except IndexError:
         if res == "Timeout":
             check_safe = "Timeout";
@@ -61,7 +64,7 @@ def test_pos_folder(folder, timeout):
         if file.endswith(".lhs") or file.endswith(".hs"):
             print(file);
 
-            (check_safe, elapsed) = run_infer(os.path.join(folder, file), timeout);
+            (check_safe, elapsed) = run_infer(os.path.join(folder, file), file, timeout);
 
             if check_safe == "Safe":
                 print("\tSafe - " + str(elapsed) + "s");
@@ -83,7 +86,7 @@ def test_neg_folder(folder, timeout):
         if file.endswith(".lhs") or file.endswith(".hs"):
             print(file);
 
-            (check_safe, elapsed) = run_infer(os.path.join(folder, file), timeout);
+            (check_safe, elapsed) = run_infer(os.path.join(folder, file), file, timeout);
 
             if check_safe == "Counterexample":
                 print("\tCounterexample - " + str(elapsed) + "s");
@@ -104,6 +107,11 @@ def count_files(all_files):
     return num_files
 
 def main():
+    try:
+        os.mkdir("logs");
+    except:
+        pass;
+
     (safe_hw, num_hw) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Book_Inv", "180");
     print(str(safe_hw) + "/" + str(num_hw) + " Safe");
 
