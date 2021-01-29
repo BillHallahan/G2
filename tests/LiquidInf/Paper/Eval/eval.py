@@ -112,13 +112,13 @@ def main():
     except:
         pass;
 
-    (safe_hw, num_hw) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Book_Inv", "180");
+    (safe_hw, num_hw) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Book_Inv", "240");
     print(str(safe_hw) + "/" + str(num_hw) + " Safe");
 
-    (safe_hw, num_hw) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_HW", "180");
+    (safe_hw, num_hw) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_HW", "240");
     print(str(safe_hw) + "/" + str(num_hw) + " Safe");
 
-    (safe_inv, num_inv) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Invented", "180");
+    (safe_inv, num_inv) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Invented", "240");
     print(str(safe_inv) + "/" + str(num_inv) + " Safe");
 
     (safe_kmeans, num_kmeans) = test_pos_folder("tests/LiquidInf/Paper/Eval", "900");
