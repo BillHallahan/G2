@@ -26,10 +26,19 @@ def run_infer(file, name, timeout):
             check_safe = "Timeout";
         else:
             check_safe = "";
+    elapsed = adj_time(check_safe, elapsed)
 
-    return (check_safe, elapsed, funcs, depth);
+    # run the test without extra fc
+    no_fc_start_time = time.monotonic();
+    no_fc_res = call_infer_process(file, timeout, ["--no-use-extra-fc"]);
+    no_fc_end_time = time.monotonic();
+    no_fc_elapsed = no_fc_end_time - no_fc_start_time;
+    no_fc_check_safe = res.splitlines()[-2].decode('utf-8');
+    no_fc_elapsed = adj_time(no_fc_check_safe, no_fc_elapsed)
 
-def call_infer_process(file, timeout):    
+    return (check_safe, elapsed, funcs, depth, no_fc_elapsed);
+
+def call_infer_process(file, timeout, passed_args = []):    
     try:
         code_file = open(file, "r");
         code = code_file.read();
@@ -53,7 +62,7 @@ def call_infer_process(file, timeout):
         args = ["gtimeout", timeout, "cabal", "run", "Inference", file
                , "--", "--timeout-sygus", timeout_sygus]
 
-        res = subprocess.run(args + extra_args, capture_output = True);
+        res = subprocess.run(args + extra_args + passed_args, capture_output = True);
         return res.stdout;
     except subprocess.TimeoutExpired:
         res.terminate()
@@ -67,6 +76,12 @@ def get_counts(file):
     funcs = res.stdout.splitlines()[-1].decode('utf-8');
     return (funcs, depth);
 
+def adj_time(check_safe, time):
+    if check_safe == "Safe":
+        return time;
+    else:
+        return None;
+
 def test_pos_folder(folder, timeout):
     all_files = os.listdir(folder);
     num_files = count_files(all_files);
@@ -78,12 +93,10 @@ def test_pos_folder(folder, timeout):
         if file.endswith(".lhs") or file.endswith(".hs"):
             print(file);
 
-            (check_safe, elapsed, funcs, depth) = run_infer(os.path.join(folder, file), file, timeout);
+            (check_safe, elapsed, funcs, depth, no_fc_elapsed) = run_infer(os.path.join(folder, file), file, timeout);
 
-            time = None;
             if check_safe == "Safe":
                 print("\tSafe - " + str(elapsed) + "s");
-                time = elapsed;
                 safe_num += 1
             elif check_safe == "Timeout":
                 print("\tTimeout")
@@ -91,7 +104,7 @@ def test_pos_folder(folder, timeout):
                 # print("check_safe =" + repr(check_safe) + "|")
                 print("\tUnsafe")
 
-            log.append((file, time, funcs, depth))
+            log.append((file, elapsed, funcs, depth, no_fc_elapsed))
 
     return (log, safe_num, num_files)
 
@@ -104,7 +117,7 @@ def test_neg_folder(folder, timeout):
         if file.endswith(".lhs") or file.endswith(".hs"):
             print(file);
 
-            (check_safe, elapsed, _, _) = run_infer(os.path.join(folder, file), file, timeout);
+            (check_safe, elapsed, _, _, _) = run_infer(os.path.join(folder, file), file, timeout);
 
             if check_safe == "Counterexample":
                 print("\tCounterexample - " + str(elapsed) + "s");
@@ -125,18 +138,23 @@ def count_files(all_files):
     return num_files
 
 def create_table(log):
-    print("\\begin{tabular}{| l | r | r | r |}");
+    print("\\begin{tabular}{| l | r | r | r | r |}");
     print("\\hline");
-    print("File & Functions & Levels & Time \\\\ \\hline");
+    print("File & Functions & Levels & Time & Time (no extra constraints) \\\\ \\hline");
 
-    for (file, time, funcs, depth) in log:
+    for (file, elapsed, funcs, depth, no_fc_time) in log:
         file_clean = file.replace("_", "\\_")
-        if time is not None:
-            p_time = "{:.1f}".format(time);
+        if elapsed is not None:
+            p_time = "{:.1f}".format(elapsed);
         else:
             p_time = "timeout"
 
-        print(file  + " & " + funcs + " & " + depth + " & " +  p_time + "\\\\ \\hline");
+        if no_fc_time is not None:
+            p_no_fc_time = "{:.1f}".format(no_fc_time);
+        else:
+            p_no_fc_time = "timeout"
+
+        print(file_clean  + " & " + funcs + " & " + depth + " & " +  p_time + " & " + p_no_fc_time + "\\\\ \\hline");
 
     print("\\end{tabular}");
 
@@ -155,10 +173,10 @@ def main():
     (log_inv, safe_inv, num_inv) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Invented", "240");
     print(str(safe_inv) + "/" + str(num_inv) + " Safe");
 
-    # (log_kmeans, safe_kmeans, num_kmeans) = test_pos_folder("tests/LiquidInf/Paper/Eval", "900");
-    # print(str(safe_kmeans) + "/" + str(num_kmeans) + " Safe");
+    (log_kmeans, safe_kmeans, num_kmeans) = test_pos_folder("tests/LiquidInf/Paper/Eval", "900");
+    print(str(safe_kmeans) + "/" + str(num_kmeans) + " Safe");
 
-    log = log_book + log_hw + log_inv # + log_kmeans
+    log = log_book + log_hw + log_inv + log_kmeans
 
     create_table(log)
 

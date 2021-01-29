@@ -479,10 +479,12 @@ genNewConstraints :: MonadIO m =>
                   -> InfStack m ([CounterExample], [FuncConstraint])
 genNewConstraints ghci m lrs n = do
     liftIO . putStrLn $ "Generating constraints for " ++ T.unpack n
+    infconfig <- infConfigM
+
     ((exec_res, _), i) <- runLHInferenceCore n m lrs ghci
     let (exec_res', no_viol) = partition (true_assert . final_state) exec_res
         
-        allCCons = noAbsStatesToCons i $ exec_res' ++ no_viol
+        allCCons = noAbsStatesToCons i $ exec_res' ++ if use_extra_fcs infconfig then no_viol else []
 
     return $ (map (lhStateToCE i) exec_res', allCCons)
 
@@ -538,7 +540,7 @@ checkNewConstraints ghci lrs cexs = do
     res2 <- return . concat =<< mapM cexsToExtraFC cexs
     case lefts res of
         res'@(_:_) -> return . Left $ res'
-        _ -> return . Right . unionsFC . map fromSingletonFC $ (rights res) ++ res2
+        _ -> return . Right . unionsFC . map fromSingletonFC $ (rights res) ++ if use_extra_fcs infconfig then res2 else []
 
 updateMeasureExs :: (InfConfigM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> FuncConstraints -> m MeasureExs
 updateMeasureExs meas_ex lrs ghci fcs =
