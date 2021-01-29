@@ -6,6 +6,7 @@ import G2.Interface
 import G2.Liquid.Interface
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.G2Calls
+import G2.Liquid.Inference.Initalization
 import G2.Liquid.Inference.Interface
 import G2.Liquid.Inference.QualifGen
 import G2.Liquid.Inference.Verify
@@ -39,7 +40,9 @@ main = do
                 Nothing -> do
                             if "--qualif" `elem` as
                                 then checkQualifs f config
-                                else callInference f infconfig config
+                                else if "--count" `elem` as
+                                    then checkFuncNums f infconfig config
+                                    else callInference f infconfig config
                 Just func -> do
                     ((in_out, _), entry) <- runLHInferenceAll infconfig config (T.pack func) [] [f] []
                     printLHOut entry in_out
@@ -84,3 +87,16 @@ callInference f infconfig config = do
         Right gs' -> do
             putStrLn "Safe"
             print gs'
+
+checkFuncNums :: String -> InferenceConfig -> G2.Config -> IO ()
+checkFuncNums f infconfig config = do
+    (ghci, lhconfig) <- getGHCI infconfig config [] [f] []
+    (lrs, _, _, main_mod)  <- getInitState [] [f] [] ghci infconfig config
+    let nls = getNameLevels main_mod lrs
+
+    print nls
+
+    print $ length nls
+    print $ length (concat nls) - 1
+
+    return ()

@@ -7,6 +7,10 @@ import subprocess
 import time
 
 def run_infer(file, name, timeout):
+    # get info about the file
+    (funcs, depth) = get_counts(file)
+
+    # actual run the test
     start_time = time.monotonic();
     res = call_infer_process(file, timeout);
     end_time = time.monotonic();
@@ -23,7 +27,7 @@ def run_infer(file, name, timeout):
         else:
             check_safe = "";
 
-    return (check_safe, elapsed);
+    return (check_safe, elapsed, funcs, depth);
 
 def call_infer_process(file, timeout):    
     try:
@@ -55,19 +59,31 @@ def call_infer_process(file, timeout):
         res.terminate()
         return "Timeout"
 
+def get_counts(file):
+    args = ["cabal", "run", "Inference", file, "--", "--count"]
+
+    res = subprocess.run(args, capture_output = True);
+    depth = res.stdout.splitlines()[-2].decode('utf-8');
+    funcs = res.stdout.splitlines()[-1].decode('utf-8');
+    return (funcs, depth);
+
 def test_pos_folder(folder, timeout):
     all_files = os.listdir(folder);
     num_files = count_files(all_files);
     safe_num = 0;
 
+    log = []
+
     for file in all_files:
         if file.endswith(".lhs") or file.endswith(".hs"):
             print(file);
 
-            (check_safe, elapsed) = run_infer(os.path.join(folder, file), file, timeout);
+            (check_safe, elapsed, funcs, depth) = run_infer(os.path.join(folder, file), file, timeout);
 
+            time = None;
             if check_safe == "Safe":
                 print("\tSafe - " + str(elapsed) + "s");
+                time = elapsed;
                 safe_num += 1
             elif check_safe == "Timeout":
                 print("\tTimeout")
@@ -75,7 +91,9 @@ def test_pos_folder(folder, timeout):
                 # print("check_safe =" + repr(check_safe) + "|")
                 print("\tUnsafe")
 
-    return (safe_num, num_files)
+            log.append((file, time, funcs, depth))
+
+    return (log, safe_num, num_files)
 
 def test_neg_folder(folder, timeout):
     all_files = os.listdir(folder);
@@ -86,7 +104,7 @@ def test_neg_folder(folder, timeout):
         if file.endswith(".lhs") or file.endswith(".hs"):
             print(file);
 
-            (check_safe, elapsed) = run_infer(os.path.join(folder, file), file, timeout);
+            (check_safe, elapsed, _, _) = run_infer(os.path.join(folder, file), file, timeout);
 
             if check_safe == "Counterexample":
                 print("\tCounterexample - " + str(elapsed) + "s");
@@ -106,23 +124,43 @@ def count_files(all_files):
 
     return num_files
 
+def create_table(log):
+    print("\\begin{tabular}{| l | r | r | r |}");
+    print("\\hline");
+    print("File & Functions & Levels & Time \\\\ \\hline");
+
+    for (file, time, funcs, depth) in log:
+        file_clean = file.replace("_", "\\_")
+        if time is not None:
+            p_time = "{:.1f}".format(time);
+        else:
+            p_time = "timeout"
+
+        print(file  + " & " + funcs + " & " + depth + " & " +  p_time + "\\\\ \\hline");
+
+    print("\\end{tabular}");
+
 def main():
     try:
         os.mkdir("logs");
     except:
         pass;
 
-    (safe_hw, num_hw) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Book_Inv", "240");
+    (log_book, safe_book, num_book) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Book_Inv", "240");
+    print(str(safe_book) + "/" + str(num_book) + " Safe");
+
+    (log_hw, safe_hw, num_hw) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_HW", "240");
     print(str(safe_hw) + "/" + str(num_hw) + " Safe");
 
-    (safe_hw, num_hw) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_HW", "240");
-    print(str(safe_hw) + "/" + str(num_hw) + " Safe");
-
-    (safe_inv, num_inv) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Invented", "240");
+    (log_inv, safe_inv, num_inv) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Invented", "240");
     print(str(safe_inv) + "/" + str(num_inv) + " Safe");
 
-    (safe_kmeans, num_kmeans) = test_pos_folder("tests/LiquidInf/Paper/Eval", "900");
-    print(str(safe_kmeans) + "/" + str(num_kmeans) + " Safe");
+    # (log_kmeans, safe_kmeans, num_kmeans) = test_pos_folder("tests/LiquidInf/Paper/Eval", "900");
+    # print(str(safe_kmeans) + "/" + str(num_kmeans) + " Safe");
+
+    log = log_book + log_hw + log_inv # + log_kmeans
+
+    create_table(log)
 
 if __name__ == "__main__":
     main()

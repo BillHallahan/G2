@@ -3,7 +3,9 @@
 {-# LANGUAGE TupleSections #-}
 
 module G2.Liquid.Inference.Interface ( inferenceCheck
-                                     , inference) where
+                                     , inference
+                                     , getInitState
+                                     , getNameLevels ) where
 
 import G2.Config.Config as G2
 import G2.Data.Timer
@@ -60,8 +62,6 @@ inferenceCheck :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [F
 inferenceCheck infconfig config proj fp lhlibs = do
     (ghci, lhconfig) <- getGHCI infconfig config proj fp lhlibs
     (res, timer) <- inference' infconfig config lhconfig ghci proj fp lhlibs
-    print . logToSecs . orderLogBySpeed . sumLog . mapLabels (mapEvent (nameOcc)) . getLog $ timer
-    print . logToSecs . orderLogBySpeed . sumLog . mapLabels (mapEvent (const ())) . getLog $ timer
     case res of
         Right gs -> do
             check_res <- checkGSCorrect infconfig lhconfig ghci gs
@@ -89,23 +89,9 @@ inference' :: InferenceConfig
 inference' infconfig config lhconfig ghci proj fp lhlibs = do
     mapM (print . gsQualifiers . spec) ghci
 
-    -- Initialize G2
-    let g2config = config { mode = Liquid
-                          , steps = 2000 }
-        transConfig = simplTranslationConfig { simpl = False }
-    (main_mod, exg2) <- translateLoaded proj fp lhlibs transConfig g2config
+    (lrs, g2config', infconfig', main_mod) <- getInitState proj fp lhlibs ghci infconfig config
+    let nls = getNameLevels main_mod lrs
 
-    let (lrs, g2config', infconfig') = initStateAndConfig exg2 main_mod g2config infconfig ghci
-
-
-        eenv = expr_env . G2LH.state . lr_state $ lrs
-
-        cg = getCallGraph $ eenv
-        nls = filter (not . null)
-             . map (filter (\(Name _ m _ _) -> m == main_mod))
-             $ nameLevels cg 
-
-    putStrLn $ "cg = " ++ show (filter (\(Name _ m _ _) -> m == main_mod) . functions $ getCallGraph eenv)
     putStrLn $ "nls = " ++ show nls
 
     let configs = Configs { g2_config = g2config', lh_config = lhconfig, inf_config = infconfig'}
@@ -115,7 +101,37 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
     let infL = iterativeInference smt ghci main_mod lrs nls HM.empty initMaxSize emptyGS emptyFC
 
     timer <- newTimer
-    runProgresser (runConfigs ( runTimer infL timer) configs) prog
+    (res, f_timer) <- runProgresser (runConfigs ( runTimer infL timer) configs) prog
+
+    print . logToSecs . orderLogBySpeed . sumLog . mapLabels (mapEvent (nameOcc)) . getLog $ f_timer
+    print . logToSecs . orderLogBySpeed . sumLog . mapLabels (mapEvent (const ())) . getLog $ f_timer
+    return (res, f_timer)
+
+getInitState :: [FilePath]
+             -> [FilePath]
+             -> [FilePath]
+             -> [GhcInfo]
+             -> InferenceConfig
+             -> G2.Config
+             -> IO (LiquidReadyState, G2.Config, InferenceConfig, Maybe T.Text)
+getInitState proj fp lhlibs ghci infconfig config = do
+    let g2config = config { mode = Liquid
+                          , steps = 2000 }
+        transConfig = simplTranslationConfig { simpl = False }
+    (main_mod, exg2) <- translateLoaded proj fp lhlibs transConfig g2config
+
+    let (lrs, g2config', infconfig') = initStateAndConfig exg2 main_mod g2config infconfig ghci
+    return (lrs, g2config', infconfig', main_mod)
+
+getNameLevels :: Maybe T.Text -> LiquidReadyState -> NameLevels
+getNameLevels main_mod =
+    filter (not . null)
+       . map nub
+       . map (filter (\(Name _ m _ _) -> m == main_mod))
+       . nameLevels
+       . getCallGraph
+       . expr_env . G2LH.state . lr_state
+
 
 data InferenceRes = CEx [CounterExample]
                   | Env GeneratedSpecs FuncConstraints MaxSizeConstraints MeasureExs
