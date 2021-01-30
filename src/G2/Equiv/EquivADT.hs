@@ -101,16 +101,18 @@ exprPairing :: State t ->
                Maybe HS.HashSet (Expr, Expr)
 exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs =
   case (e1, e2) of
-    (Data d1, Data d2) | d1 == d2 -> Just pairs
-                       | otherwise -> Nothing
-    (Data _, _) -> Nothing
-    (_, Data _) -> Nothing
     (Var i, _) | E.isSymbolic i -> Just (HS.insert (e1, e2) pairs)
                | Just e <- E.lookup (idName i) h1 -> exprPairing s1 s2 e e2 pairs
                | otherwise -> Nothing
     (_, Var i) | E.isSymbolic i -> Just (HS.insert (e1, e2) pairs)
                | Just e <- E.lookup (idName i) h2 -> exprPairing s1 s2 e1 e pairs
                | otherwise -> Nothing
+    (App _ _, _) -> Just (HS.insert (e1, e2) pairs)
+    (_, App _ _) -> Just (HS.insert (e1, e2) pairs)
+    (Data d1, Data d2) | d1 == d2 -> Just pairs
+                       | otherwise -> Nothing
+    (Data _, _) -> Nothing
+    (_, Data _) -> Nothing
     (Lit l1, Lit l2) | l1 == l2 -> Just pairs
                      | otherwise -> Nothing
     (Lit _, _) -> Nothing
@@ -118,8 +120,6 @@ exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs =
     (Prim _ _, Prim _ _) -> Just (HS.insert (e1, e2) pairs)
     (Prim _ _, _) -> Nothing
     (_, Prim _ _) -> Nothing
-    (App _ _, _) -> Just (HS.insert (e1, e2) pairs)
-    (_, App _ _) -> Just (HS.insert (e1, e2) pairs)
     -- TODO is this sufficient for the Lam case?
     (Lam _ _ _, Lam _ _ _) -> Just (HS.insert (e1, e2) pairs)
     (Lam _ _ _, _) -> Nothing
