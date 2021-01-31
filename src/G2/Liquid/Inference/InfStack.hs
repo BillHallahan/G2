@@ -11,14 +11,19 @@ module G2.Liquid.Inference.InfStack ( InfStack
                                     , withConfigs
 
                                     , Event (..)
-                                    , mapEvent ) where
+                                    , mapEvent
+
+                                    , Counters (..)
+                                    , incrLoopCountLog
+                                    , incrSearchBelowLog
+                                    , incrNegatedModelLog ) where
 
 import G2.Data.Timer
 import G2.Language
 import G2.Liquid.Inference.Config
 
 import Control.Monad.Reader
-import Control.Monad.State.Lazy
+import Control.Monad.State.Lazy as S
 
 import qualified Data.Text as T
 import System.CPUTime
@@ -39,15 +44,20 @@ mapEvent _ Synth = Synth
 mapEvent _ UpdateMeasures = UpdateMeasures
 mapEvent _ UpdateEvals = UpdateEvals
 
-type InfStack m = StateT (Timer (Event Name)) (ReaderT Configs (StateT Progress m))
+data Counters = Counters { loop_count :: Int
+                         , searched_below :: Int
+                         , negated_models :: Int }
 
-runInfStack :: MonadIO m => Configs -> Progress -> InfStack m a -> m (a, Timer (Event Name))
+type InfStack m =  StateT (Timer (Event Name)) (StateT Counters (ReaderT Configs (StateT Progress m)))
+
+runInfStack :: MonadIO m => Configs -> Progress -> InfStack m a -> m (a, Timer (Event Name), Counters)
 runInfStack configs prog m = do
     timer <- liftIO $ newTimer
-    runProgresser (runConfigs (runTimer m timer) configs) prog
+    ((a, tm), loops) <- runProgresser (runConfigs (runStateT (runTimer m timer) newCounter) configs)prog
+    return (a, tm, loops)
 
 execInfStack :: MonadIO m => Configs -> Progress -> InfStack m a -> m a
-execInfStack configs prog s = return . fst =<< runInfStack configs prog s 
+execInfStack configs prog s = return . (\(x, _, _) -> x) =<< runInfStack configs prog s 
 
 infLiftIO :: MonadIO m => IO a -> InfStack m a
 infLiftIO = lift . lift . liftIO
@@ -59,7 +69,7 @@ withConfigs :: Monad m =>
             -> InfStack m a
             -> InfStack m a
 withConfigs f m = do
-    mapStateT (withReaderT f) m
+    mapStateT (mapStateT (withReaderT f)) m
 
 getConfigs :: InfConfigM m => m Configs
 getConfigs = do
@@ -69,3 +79,20 @@ getConfigs = do
   return $ Configs { g2_config = g2_c
                    , lh_config = lh_c
                    , inf_config = inf_c }
+
+-- Counters
+newCounter :: Counters
+newCounter = Counters { loop_count = 0, searched_below = 0, negated_models = 0 }
+
+incrLoopCountLog :: Monad m => InfStack m ()
+incrLoopCountLog =
+    lift $ S.modify (\c@(Counters { loop_count = i }) -> c { loop_count = i + 1 })
+
+incrSearchBelowLog :: Monad m => InfStack m ()
+incrSearchBelowLog =
+    lift $ S.modify (\c@(Counters { searched_below = i }) -> c { searched_below = i + 1 })
+
+incrNegatedModelLog :: Monad m => InfStack m ()
+incrNegatedModelLog =
+    lift $ S.modify (\c@(Counters { negated_models = i }) -> c { negated_models = i + 1 })
+

@@ -61,7 +61,10 @@ import G2.Lib.Printers
 inferenceCheck :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO (Either [CounterExample] GeneratedSpecs)
 inferenceCheck infconfig config proj fp lhlibs = do
     (ghci, lhconfig) <- getGHCI infconfig config proj fp lhlibs
-    (res, timer) <- inference' infconfig config lhconfig ghci proj fp lhlibs
+    (res, timer, loops) <- inference' infconfig config lhconfig ghci proj fp lhlibs
+    print $ loop_count loops
+    print $ searched_below loops
+    print $ negated_models loops
     case res of
         Right gs -> do
             check_res <- checkGSCorrect infconfig lhconfig ghci gs
@@ -74,7 +77,7 @@ inference :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePa
 inference infconfig config proj fp lhlibs = do
     -- Initialize LiquidHaskell
     (ghci, lhconfig) <- getGHCI infconfig config proj fp lhlibs
-    (res, timer) <- inference' infconfig config lhconfig ghci proj fp lhlibs
+    (res, timer, loops) <- inference' infconfig config lhconfig ghci proj fp lhlibs
     print . logToSecs . sumLog . getLog $ timer
     return res
 
@@ -85,7 +88,7 @@ inference' :: InferenceConfig
            -> [FilePath]
            -> [FilePath]
            -> [FilePath]
-           -> IO (Either [CounterExample] GeneratedSpecs, Timer (Event Name))
+           -> IO (Either [CounterExample] GeneratedSpecs, Timer (Event Name), Counters)
 inference' infconfig config lhconfig ghci proj fp lhlibs = do
     mapM (print . gsQualifiers . spec) ghci
 
@@ -101,11 +104,11 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
     let infL = iterativeInference smt ghci main_mod lrs nls HM.empty initMaxSize emptyGS emptyFC
 
     timer <- newTimer
-    (res, f_timer) <- runProgresser (runConfigs ( runTimer infL timer) configs) prog
+    (res, f_timer, loops) <- runInfStack configs prog infL -- runProgresser (runConfigs (runTimer infL timer) configs) prog
 
     print . logToSecs . orderLogBySpeed . sumLog . mapLabels (mapEvent (nameOcc)) . getLog $ f_timer
     print . logToSecs . orderLogBySpeed . sumLog . mapLabels (mapEvent (const ())) . getLog $ f_timer
-    return (res, f_timer)
+    return (res, f_timer, loops)
 
 getInitState :: [FilePath]
              -> [FilePath]
@@ -165,7 +168,7 @@ iterativeInference con ghci m_modname lrs nls meas_ex max_sz gs fc = do
         CEx cex -> return $ Left cex
         Env gs _ _ _ -> return $ Right gs
         Raise r_meas_ex r_fc _ -> do
-            lift incrMaxDepthM
+            lift . lift $ incrMaxDepthM
             -- We might be missing some internal GHC types from our deep_seq walkers
             -- We filter them out to avoid an error
             let eenv = expr_env . G2LH.state $ lr_state lrs
@@ -249,6 +252,7 @@ inferenceB :: (MonadIO m, SMTConverter con ast out io)
            -> BlockedModels
            -> InfStack m (InferenceRes, Evals Bool)
 inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls = do
+    incrLoopCountLog
     let (fs, sf, below_sf) = case nls of
                         (fs_:sf_:be) -> (fs_, sf_, be)
                         ([fs_])-> (fs_, [], [])
@@ -416,6 +420,7 @@ searchBelowLevel :: MonadIO m =>
                  -> Name
                  -> InfStack m (Either [CounterExample] (Maybe (FuncConstraints, BlockedModels), FuncConstraints))
 searchBelowLevel ghci m_modname lrs verify_res lev_below gs bad = do
+    incrSearchBelowLog
     let called_by_res = calledByFunc lrs bad
     case filterNamesTo called_by_res $ filterNamesTo lev_below verify_res of
         Unsafe bad_sf -> do
@@ -435,14 +440,15 @@ adjModel :: MonadIO m =>
          -> Name
          -> InfStack m (Either a (Maybe (FuncConstraints, BlockedModels), FuncConstraints))
 adjModel lrs sz smt_mdl bad@(Name n m _ _) = do
+    incrNegatedModelLog
     liftIO $ putStrLn "adjModel repeated_fc"
     let clls = calledByFunc lrs bad
         blk_mdls' = insertBlockedModel sz (MNOnly (bad:clls)) smt_mdl emptyBlockedModels
 
     liftIO . putStrLn $ "blocked models = " ++ show blk_mdls'
 
-    lift $ incrMaxCExM (n, m)
-    lift $ incrMaxTimeM (n, m)
+    lift . lift $ incrMaxCExM (n, m)
+    lift . lift $ incrMaxTimeM (n, m)
     return . Right $ (Just (emptyFC, blk_mdls'), emptyFC)
 
 calledByFunc :: LiquidReadyState -> Name -> [Name]

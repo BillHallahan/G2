@@ -17,7 +17,19 @@ def run_infer(file, name, timeout):
     elapsed = end_time - start_time;
 
     try:
-        check_safe = res.splitlines()[-2].decode('utf-8');
+        check_safe = res.splitlines()[-2].decode('utf-8')
+        if check_safe == "Safe":
+            negated_model = res.splitlines()[-3].decode('utf-8')
+            searched_below = res.splitlines()[-4].decode('utf-8')
+            loop_count = res.splitlines()[-5].decode('utf-8')
+
+            counts = { "negated_model": negated_model
+                     , "searched_below" : searched_below
+                     , "loop_count" : loop_count }
+        else:
+            counts = { "negated_model": None
+                     , "searched_below" : None
+                     , "loop_count" : None }
         f = open("logs/" + name + ".txt", "w")
         f.write(res.decode("utf-8") );
         f.close();
@@ -30,13 +42,26 @@ def run_infer(file, name, timeout):
 
     # run the test without extra fc
     no_fc_start_time = time.monotonic();
-    no_fc_res = call_infer_process(file, timeout, ["--no-use-extra-fc"]);
+    no_fc_res = call_infer_process(file, timeout, ["--no-use-extra-fc"])
     no_fc_end_time = time.monotonic();
     no_fc_elapsed = no_fc_end_time - no_fc_start_time;
-    no_fc_check_safe = res.splitlines()[-2].decode('utf-8');
+    no_fc_check_safe = no_fc_res.splitlines()[-2].decode('utf-8');
+    if no_fc_check_safe == "Safe":
+        no_fc_negated_model = no_fc_res.splitlines()[-3].decode('utf-8')
+        no_fc_searched_below = no_fc_res.splitlines()[-4].decode('utf-8')
+        no_fc_loop_count = no_fc_res.splitlines()[-5].decode('utf-8')
+        no_fc_counts = { "negated_model": no_fc_negated_model
+                       , "searched_below" : no_fc_searched_below
+                       , "loop_count" : no_fc_loop_count }
+
+    else:
+        no_fc_counts = { "negated_model": None
+                       , "searched_below" : None
+                       , "loop_count" : None }
     no_fc_elapsed = adj_time(no_fc_check_safe, no_fc_elapsed)
 
-    return (check_safe, elapsed, funcs, depth, no_fc_elapsed);
+    return (check_safe, elapsed, funcs, depth, counts
+                      , no_fc_elapsed, no_fc_counts);
 
 def call_infer_process(file, timeout, passed_args = []):    
     try:
@@ -93,7 +118,8 @@ def test_pos_folder(folder, timeout):
         if file.endswith(".lhs") or file.endswith(".hs"):
             print(file);
 
-            (check_safe, elapsed, funcs, depth, no_fc_elapsed) = run_infer(os.path.join(folder, file), file, timeout);
+            (check_safe, elapsed, funcs, depth, counts
+                       , no_fc_elapsed, no_fc_counts) = run_infer(os.path.join(folder, file), file, timeout);
 
             if check_safe == "Safe":
                 print("\tSafe - " + str(elapsed) + "s");
@@ -104,7 +130,8 @@ def test_pos_folder(folder, timeout):
                 # print("check_safe =" + repr(check_safe) + "|")
                 print("\tUnsafe")
 
-            log.append((file, elapsed, funcs, depth, no_fc_elapsed))
+            log.append((file, elapsed, funcs, depth, counts
+                            , no_fc_elapsed, no_fc_counts))
 
     return (log, safe_num, num_files)
 
@@ -117,7 +144,7 @@ def test_neg_folder(folder, timeout):
         if file.endswith(".lhs") or file.endswith(".hs"):
             print(file);
 
-            (check_safe, elapsed, _, _, _) = run_infer(os.path.join(folder, file), file, timeout);
+            (check_safe, elapsed, _, _, _, _, _) = run_infer(os.path.join(folder, file), file, timeout);
 
             if check_safe == "Counterexample":
                 print("\tCounterexample - " + str(elapsed) + "s");
@@ -138,31 +165,59 @@ def count_files(all_files):
     return num_files
 
 def create_table(log):
-    print("\\begin{tabular}{| l | r | r | r | r |}");
+    print("\\begin{tabular}{| l | c | c | c |>{\\columncolor[gray]{0.8}} c | c |>{\\columncolor[gray]{0.8}} c | c |>{\\columncolor[gray]{0.8}} c | c |>{\\columncolor[gray]{0.8}} c |}");
     print("\\hline");
-    print("File & Functions & Levels & Time & Time (no extra constraints) \\\\ \\hline");
+    print("  \multicolumn{3}{|c|}{}       & \\multicolumn{2}{|c|}{} & \\multicolumn{2}{|c|}{} & \\multicolumn{2}{|c|}{\# Level} & \\multicolumn{2}{|c|}{\# Negated} \\\\");
+    print("  \multicolumn{3}{|c|}{}       & \\multicolumn{2}{|c|}{Time (s)} & \\multicolumn{2}{|c|}{\# Loop} & \\multicolumn{2}{|c|}{Decensions} & \\multicolumn{2}{|c|}{Models} \\\\ \\hline");
+    print("File & Functions & Levels & EC & No EC                   & EC & No EC                    & EC & No EC                                 & EC & No EC \\\\ \\hline");
 
-    for (file, elapsed, funcs, depth, no_fc_time) in log:
+    for (file, elapsed, funcs, depth, counts
+             , no_fc_time, no_fc_counts) in log:
         file_clean = file.replace("_", "\\_")
         if elapsed is not None:
             p_time = "{:.1f}".format(elapsed);
         else:
             p_time = "timeout"
 
+        p_loop_count = val_or_NA(counts["loop_count"])
+        p_searched_below = val_or_NA(counts["searched_below"])
+        p_negated_model = val_or_NA(counts["negated_model"])
+
         if no_fc_time is not None:
             p_no_fc_time = "{:.1f}".format(no_fc_time);
         else:
             p_no_fc_time = "timeout"
 
-        print(file_clean  + " & " + funcs + " & " + depth + " & " +  p_time + " & " + p_no_fc_time + "\\\\ \\hline");
+        p_no_fc_loop_count = val_or_NA(no_fc_counts["loop_count"])
+        p_no_fc_searched_below = val_or_NA(no_fc_counts["searched_below"])
+        p_no_fc_negated_model = val_or_NA(no_fc_counts["negated_model"])
+
+        print(file_clean  + " & " + funcs + " & " + depth + " & "
+                                  + p_time + " & " + p_no_fc_time + " & "
+                                  + p_loop_count + " & " + p_no_fc_loop_count + " & "
+                                  + p_searched_below + " & " + p_no_fc_searched_below + " & "
+                                  + p_negated_model + " & " + p_no_fc_negated_model
+                                  + "\\\\ \\hline");
 
     print("\\end{tabular}");
+
+def val_or_NA(val):
+    if val is not None:
+        return val
+    else:
+        return "N/A"
 
 def main():
     try:
         os.mkdir("logs");
     except:
         pass;
+
+    # (log_test, safe_test, num_test) = test_pos_folder("tests/LiquidInf/Paper/Eval/Test", "240");
+    # print(str(safe_test) + "/" + str(num_test) + " Safe");
+    
+    # log = log_test
+
 
     (log_book, safe_book, num_book) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Book_Inv", "240");
     print(str(safe_book) + "/" + str(num_book) + " Safe");

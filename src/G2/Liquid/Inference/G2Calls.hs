@@ -256,8 +256,8 @@ inferenceReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifie
                               -> State LHTracker
                               -> InfStack m (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
 inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modname cfn cf_funcs st = do
-    extra_ce <- S.lift $ extraMaxCExM (entry, mb_modname)
-    extra_time <- S.lift $ extraMaxTimeM (entry, mb_modname)
+    extra_ce <- S.lift . S.lift $ extraMaxCExM (entry, mb_modname)
+    extra_time <- S.lift . S.lift $ extraMaxTimeM (entry, mb_modname)
 
     let
         ng = mkNameGen ()
@@ -344,8 +344,8 @@ realCExReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
                             -> State LHTracker
                             -> InfStack m (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
 realCExReducerHalterOrderer infconfig config entry modname solver simplifier  cfn cf_funcs st = do
-    extra_ce <- S.lift $ extraMaxCExM (entry, modname)
-    extra_depth <- S.lift $ extraMaxDepthM
+    extra_ce <- S.lift . S.lift $ extraMaxCExM (entry, modname)
+    extra_depth <- S.lift . S.lift $ extraMaxDepthM
 
     liftIO . putStrLn $ "extra_depth = " ++ show extra_depth
 
