@@ -137,14 +137,18 @@ runWithArgs as = do
   print $ ru_rhs rule'
   print $ ru_bndrs rule'
   
+  print "right-hand side start\n"
   (exec_res, bindings') <- runG2WithConfig rewrite_state_r config bindings
   printFuncCalls config (Id (Name tentry Nothing 0 Nothing) TyUnknown)
                  bindings' exec_res
+  print "right-hand side end\n"
 
   let rewrite_state_l = initWithLHS init_state $ rule'
+  print "left-hand side start\n"
   (exec_res_l, bindings_l) <- runG2WithConfig rewrite_state_l config bindings
   printFuncCalls config (Id (Name tentry Nothing 0 Nothing) TyUnknown)
                  bindings_l exec_res_l
+  print "left-hand side end\n"
 
   {-
   config <- getConfig as
