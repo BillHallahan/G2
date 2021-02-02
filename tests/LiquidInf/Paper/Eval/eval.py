@@ -41,24 +41,24 @@ def run_infer(file, name, timeout):
     elapsed = adj_time(check_safe, elapsed)
 
     # run the test without extra fc
-    no_fc_start_time = time.perf_counter();
-    no_fc_res = call_infer_process(file, timeout, ["--no-use-extra-fc"])
-    no_fc_end_time = time.perf_counter();
-    no_fc_elapsed = no_fc_end_time - no_fc_start_time;
-    no_fc_check_safe = no_fc_res.splitlines()[-2].decode('utf-8');
-    if no_fc_check_safe == "Safe":
-        no_fc_negated_model = no_fc_res.splitlines()[-3].decode('utf-8')
-        no_fc_searched_below = no_fc_res.splitlines()[-4].decode('utf-8')
-        no_fc_loop_count = no_fc_res.splitlines()[-5].decode('utf-8')
-        no_fc_counts = { "negated_model": no_fc_negated_model
-                       , "searched_below" : no_fc_searched_below
-                       , "loop_count" : no_fc_loop_count }
+    # no_fc_start_time = time.perf_counter();
+    # no_fc_res = call_infer_process(file, timeout, ["--no-use-extra-fc"])
+    # no_fc_end_time = time.perf_counter();
+    # no_fc_elapsed = no_fc_end_time - no_fc_start_time;
+    # no_fc_check_safe = no_fc_res.splitlines()[-2].decode('utf-8');
+    # if no_fc_check_safe == "Safe":
+    #     no_fc_negated_model = no_fc_res.splitlines()[-3].decode('utf-8')
+    #     no_fc_searched_below = no_fc_res.splitlines()[-4].decode('utf-8')
+    #     no_fc_loop_count = no_fc_res.splitlines()[-5].decode('utf-8')
+    #     no_fc_counts = { "negated_model": no_fc_negated_model
+    #                    , "searched_below" : no_fc_searched_below
+    #                    , "loop_count" : no_fc_loop_count }
 
-    else:
-        no_fc_counts = { "negated_model": None
-                       , "searched_below" : None
-                       , "loop_count" : None }
-    no_fc_elapsed = adj_time(no_fc_check_safe, no_fc_elapsed)
+    # else:
+    no_fc_counts = { "negated_model": None
+                   , "searched_below" : None
+                   , "loop_count" : None }
+    no_fc_elapsed = None # adj_time(no_fc_check_safe, no_fc_elapsed)
 
     return (check_safe, elapsed, funcs, depth, counts
                       , no_fc_elapsed, no_fc_counts);
@@ -84,7 +84,7 @@ def call_infer_process(file, timeout, passed_args = []):
         if timeout_sygus_re and timeout_sygus_re.group(1):
             timeout_sygus = timeout_sygus_re.group(1);
 
-        args = ["gtimeout", timeout, "cabal", "run", "Inference", file
+        args = ["gtimeout", timeout, "dist/build/Inference/Inference", file # ["gtimeout", timeout, "cabal", "run", "Inference", file
                , "--", "--timeout-sygus", timeout_sygus]
 
         res = subprocess.run(args + extra_args + passed_args, capture_output = True);
@@ -202,11 +202,9 @@ def create_table(log):
     print("\\end{tabular}");
 
 def create_simple_table(log):
-    print("\\begin{tabular}{| l | c | c | c |>{\\columncolor[gray]{0.8}} c | c |>{\\columncolor[gray]{0.8}} c | c |>{\\columncolor[gray]{0.8}} c | c |>{\\columncolor[gray]{0.8}} c |}");
+    print("\\begin{tabular}{| l | c | c | c | c | c | c |}");
     print("\\hline");
-    print("  \multicolumn{3}{|c|}{}       & \\multicolumn{2}{|c|}{} & \\multicolumn{2}{|c|}{} & \\multicolumn{2}{|c|}{\# Level} & \\multicolumn{2}{|c|}{\# Negated} \\\\");
-    print("  \multicolumn{3}{|c|}{}       & \\multicolumn{2}{|c|}{Time (s)} & \\multicolumn{2}{|c|}{\# Loop} & \\multicolumn{2}{|c|}{Decensions} & \\multicolumn{2}{|c|}{Models} \\\\ \\hline");
-    print("File & Functions & Levels & EC & No EC                   & EC & No EC                    & EC & No EC                                 & EC & No EC \\\\ \\hline");
+    print("File & Functions & Levels & Time & \# Loops & \# Level Decensions & \# Negated Models \\\\ \\hline");
 
     for (file, elapsed, funcs, depth, counts
              , no_fc_time, no_fc_counts) in log:
@@ -230,10 +228,10 @@ def create_simple_table(log):
         p_no_fc_negated_model = val_or_NA(no_fc_counts["negated_model"])
 
         print(file_clean  + " & " + funcs + " & " + depth + " & "
-                                  + p_time + " & " + p_no_fc_time + " & "
-                                  + p_loop_count + " & " + p_no_fc_loop_count + " & "
-                                  + p_searched_below + " & " + p_no_fc_searched_below + " & "
-                                  + p_negated_model + " & " + p_no_fc_negated_model
+                                  + p_time + " & " # + p_no_fc_time + " & "
+                                  + p_loop_count + " & " # + p_no_fc_loop_count + " & "
+                                  + p_searched_below + " & " # + p_no_fc_searched_below + " & "
+                                  + p_negated_model # + " & " + p_no_fc_negated_model
                                   + "\\\\ \\hline");
 
     print("\\end{tabular}");
@@ -271,6 +269,7 @@ def main():
     log = log_book + log_hw + log_inv + log_kmeans
 
     create_table(log)
+    create_simple_table(log)
 
 if __name__ == "__main__":
     main()
