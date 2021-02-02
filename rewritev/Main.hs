@@ -19,45 +19,15 @@ import G2.Translation
 
 import G2.Liquid.Interface
 import G2.Equiv.InitRewrite
+import G2.Equiv.EquivADT
 
 import Control.Exception
 
 import Data.List
 
-{-
-import G2.Config as G2
-import G2.Interface
-import G2.Liquid.Interface
-import G2.Liquid.Inference.Config
-import G2.Liquid.Inference.G2Calls
-import G2.Liquid.Inference.Interface
-import G2.Liquid.Inference.QualifGen
-import G2.Liquid.Inference.Verify
-import G2.Liquid.Types
-
--- TODO
---import G2.Translation.Interface
-
-import Language.Fixpoint.Solver
-import Language.Fixpoint.Types.Constraints
--- import Language.Haskell.Liquid.Types as LH
-
-import Control.DeepSeq
-import qualified Data.Map as M
-import qualified Data.Text as T
-import Data.Time.Clock
-import System.Environment
-
-import G2.Language
-
-import Language.Haskell.Liquid.GHC.Interface
--}
-
 main :: IO ()
 main = do
     as <- getArgs
-    -- config <- G2.getConfig as
-    -- print $ "Yes"
 
     let m_liquid_file = mkLiquid as
     let m_liquid_func = mkLiquidFunc as
@@ -72,24 +42,6 @@ main = do
             runSingleLHFun proj lhfile lhfun libs lhlibs as
         _ -> do
             runWithArgs as
-    {-
-    let infconfig = mkInferenceConfig as
-
-        func = strArg "liquid-func" as M.empty Just Nothing
-
-    case as of
-        (f:_) -> 
-            case func of
-                Nothing -> do
-                            if "--qualif" `elem` as
-                                then checkQualifs f config
-                                else callInference f infconfig config
-                Just func -> do
-                    ((in_out, _), entry) <- runLHInferenceAll infconfig config (T.pack func) [] [f] []
-                    printLHOut entry in_out
-                    return ()
-        _ -> error "No path given"
-    -}
 
 runSingleLHFun :: FilePath -> FilePath -> String -> [FilePath] -> [FilePath] -> [String] -> IO ()
 runSingleLHFun proj lhfile lhfun libs lhlibs ars = do
@@ -150,25 +102,11 @@ runWithArgs as = do
                  bindings_l exec_res_l
   print "left-hand side end\n"
 
-  {-
-  config <- getConfig as
-  _ <- doTimeout (timeLimit config) $ do
-    ((in_out, b), entry_f@(Id (Name _ mb_modname _ _) _)) <-
-        runG2FromFile [proj] [src] libs (fmap T.pack m_assume)
-                  (fmap T.pack m_assert) (fmap T.pack m_reaches) 
-                  (isJust m_assert || isJust m_reaches || m_retsTrue) 
-                  tentry (TranslationConfig {simpl = True, load_rewrite_rules = True}) config
-
-    case validate config of
-        True -> do
-            r <- validateStates [proj] [src] (T.unpack $ fromJust mb_modname) entry [] [Opt_Hpc] in_out
-            if r then putStrLn "Validated" else putStrLn "There was an error during validation."
-
-            -- runHPC src (T.unpack $ fromJust mb_modname) entry in_out
-        False -> return ()
-
-    printFuncCalls config entry_f b in_out
-  -}
+  SomeSolver solver <- initSolver config
+  let expr_r = curr_expr rewrite_state_r
+  let expr_l = curr_expr rewrite_state_l
+  let maybePO = proofObligations rewrite_state_l rewrite_state_r expr_l expr_r
+  print maybePO
 
   return ()
 
@@ -222,44 +160,3 @@ mkMapSrc a = strArg "mapsrc" a M.empty Just Nothing
 
 mkLiquidLibs :: [String] -> Maybe String
 mkLiquidLibs a = strArg "liquid-libs" a M.empty Just Nothing
-
-{-
-checkQualifs :: String -> G2.Config -> IO ()
-checkQualifs f config = do
-    qualifGen "qualif.hquals" 
-    
-    finfo <- parseFInfo ["qualif.hquals"]
-
-    let infconfig = mkInferenceConfig []
-    lhconfig <- quals finfo `deepseq` defLHConfig [] []
-    let lhconfig' = lhconfig { pruneUnsorted = True }
-    ghcis <- ghcInfos Nothing lhconfig' [f]
-    let ghcis' = map (\ghci ->
-                        let
-                            spc = spec ghci
-                            spc' = spc { gsQualifiers = gsQualifiers spc ++ quals finfo }
-                        in
-                        ghci { spec = spc' }) ghcis
-
-    start <- getCurrentTime
-    res <- doTimeout 360 $ verify infconfig lhconfig' ghcis'
-    stop <- getCurrentTime
-
-    case res of -- print $ quals finfo
-        Just Safe -> do
-            putStrLn "Safe"
-            print (stop `diffUTCTime` start)
-        Just _ -> putStrLn "Unsafe"
-        Nothing -> putStrLn "Timeout"
-
-callInference :: String -> InferenceConfig -> G2.Config -> IO ()
-callInference f infconfig config = do
-    gs <- inferenceCheck infconfig config [] [f] []
-    case gs of
-        Left gs' -> do
-            putStrLn "Counterexample"
-            print gs'
-        Right gs' -> do
-            putStrLn "Safe"
-            print gs'
--}

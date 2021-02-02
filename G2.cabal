@@ -35,6 +35,7 @@ library
                        , G2.Data.Utils
 
                        , G2.Equiv.InitRewrite
+                       , G2.Equiv.EquivADT
 
                        , G2.Execution
                        , G2.Execution.Interface
