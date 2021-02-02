@@ -11,9 +11,9 @@ def run_infer(file, name, timeout):
     (funcs, depth) = get_counts(file)
 
     # actual run the test
-    start_time = time.monotonic();
+    start_time = time.perf_counter();
     res = call_infer_process(file, timeout);
-    end_time = time.monotonic();
+    end_time = time.perf_counter();
     elapsed = end_time - start_time;
 
     try:
@@ -41,9 +41,9 @@ def run_infer(file, name, timeout):
     elapsed = adj_time(check_safe, elapsed)
 
     # run the test without extra fc
-    no_fc_start_time = time.monotonic();
+    no_fc_start_time = time.perf_counter();
     no_fc_res = call_infer_process(file, timeout, ["--no-use-extra-fc"])
-    no_fc_end_time = time.monotonic();
+    no_fc_end_time = time.perf_counter();
     no_fc_elapsed = no_fc_end_time - no_fc_start_time;
     no_fc_check_safe = no_fc_res.splitlines()[-2].decode('utf-8');
     if no_fc_check_safe == "Safe":
@@ -165,6 +165,43 @@ def count_files(all_files):
     return num_files
 
 def create_table(log):
+    print("\\begin{tabular}{| l | c | c | c |>{\\columncolor[gray]{0.8}} c | c |>{\\columncolor[gray]{0.8}} c | c |>{\\columncolor[gray]{0.8}} c | c |>{\\columncolor[gray]{0.8}} c |}");
+    print("\\hline");
+    print("  \multicolumn{3}{|c|}{}       & \\multicolumn{2}{|c|}{} & \\multicolumn{2}{|c|}{} & \\multicolumn{2}{|c|}{\# Level} & \\multicolumn{2}{|c|}{\# Negated} \\\\");
+    print("  \multicolumn{3}{|c|}{}       & \\multicolumn{2}{|c|}{Time (s)} & \\multicolumn{2}{|c|}{\# Loop} & \\multicolumn{2}{|c|}{Decensions} & \\multicolumn{2}{|c|}{Models} \\\\ \\hline");
+    print("File & Functions & Levels & EC & No EC                   & EC & No EC                    & EC & No EC                                 & EC & No EC \\\\ \\hline");
+
+    for (file, elapsed, funcs, depth, counts
+             , no_fc_time, no_fc_counts) in log:
+        file_clean = file.replace("_", "\\_")
+        if elapsed is not None:
+            p_time = "{:.1f}".format(elapsed);
+        else:
+            p_time = "timeout"
+
+        p_loop_count = val_or_NA(counts["loop_count"])
+        p_searched_below = val_or_NA(counts["searched_below"])
+        p_negated_model = val_or_NA(counts["negated_model"])
+
+        if no_fc_time is not None:
+            p_no_fc_time = "{:.1f}".format(no_fc_time);
+        else:
+            p_no_fc_time = "timeout"
+
+        p_no_fc_loop_count = val_or_NA(no_fc_counts["loop_count"])
+        p_no_fc_searched_below = val_or_NA(no_fc_counts["searched_below"])
+        p_no_fc_negated_model = val_or_NA(no_fc_counts["negated_model"])
+
+        print(file_clean  + " & " + funcs + " & " + depth + " & "
+                                  + p_time + " & " + p_no_fc_time + " & "
+                                  + p_loop_count + " & " + p_no_fc_loop_count + " & "
+                                  + p_searched_below + " & " + p_no_fc_searched_below + " & "
+                                  + p_negated_model + " & " + p_no_fc_negated_model
+                                  + "\\\\ \\hline");
+
+    print("\\end{tabular}");
+
+def create_simple_table(log):
     print("\\begin{tabular}{| l | c | c | c |>{\\columncolor[gray]{0.8}} c | c |>{\\columncolor[gray]{0.8}} c | c |>{\\columncolor[gray]{0.8}} c | c |>{\\columncolor[gray]{0.8}} c |}");
     print("\\hline");
     print("  \multicolumn{3}{|c|}{}       & \\multicolumn{2}{|c|}{} & \\multicolumn{2}{|c|}{} & \\multicolumn{2}{|c|}{\# Level} & \\multicolumn{2}{|c|}{\# Negated} \\\\");
