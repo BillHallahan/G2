@@ -767,7 +767,7 @@ genericG2Call config solver s bindings = do
     fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier))
                            (SomeHalter SWHNFHalter)
                            (SomeOrderer NextOrderer)
-                           solver simplifier emptyMemConfig s bindings
+                           solver simplifier PreserveAllMC s bindings
 
     return fslb
 
@@ -783,6 +783,6 @@ genericG2CallLogging config solver s bindings log = do
     fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier :<~ Logger log))
                            (SomeHalter SWHNFHalter)
                            (SomeOrderer NextOrderer)
-                           solver simplifier emptyMemConfig s bindings
+                           solver simplifier PreserveAllMC s bindings
 
     return fslb

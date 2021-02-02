@@ -25,6 +25,7 @@ type PreservingFunc = forall t . State t -> Bindings -> S.HashSet Name -> S.Hash
 
 data MemConfig = MemConfig { search_names :: [Name]
                            , pres_func :: PreservingFunc }
+               | PreserveAllMC
 
 instance Monoid MemConfig where
     mempty = MemConfig { search_names = [], pres_func = \ _ _ -> id }
@@ -33,6 +34,7 @@ instance Monoid MemConfig where
             (MemConfig { search_names = sn2, pres_func = pf2 }) =
                 MemConfig { search_names = sn1 ++ sn2
                           , pres_func = \s b hs -> pf1 s b hs `S.union` pf2 s b hs}
+    mappend _ _ = PreserveAllMC
 
 emptyMemConfig :: MemConfig
 emptyMemConfig = MemConfig { search_names = [], pres_func = \_ _ a -> a }
@@ -41,7 +43,8 @@ markAndSweep :: State t -> Bindings -> (State t, Bindings)
 markAndSweep s = markAndSweepPreserving emptyMemConfig s
 
 addSearchNames :: [Name] -> MemConfig -> MemConfig
-addSearchNames ns mc@(MemConfig { search_names = ns' }) = mc { search_names = ns ++ ns'}
+addSearchNames ns mc@(MemConfig { search_names = ns' }) = mc { search_names = ns ++ ns' }
+addSearchNames _ PreserveAllMC = PreserveAllMC
 
 markAndSweepIgnoringKnownValues :: State t -> Bindings -> (State t, Bindings)
 markAndSweepIgnoringKnownValues = markAndSweepPreserving' emptyMemConfig
@@ -51,6 +54,7 @@ markAndSweepPreserving mc s =
     markAndSweepPreserving' (names (known_values s) `addSearchNames` mc) s
 
 markAndSweepPreserving' :: MemConfig -> State t -> Bindings -> (State t, Bindings)
+markAndSweepPreserving' PreserveAllMC s b = (s, b)
 markAndSweepPreserving' mc (state@State { expr_env = eenv
                                         , type_env = tenv
                                         , curr_expr = cexpr

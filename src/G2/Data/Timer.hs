@@ -93,5 +93,5 @@ sumLog tl =
 mapLabels :: (label1 -> label2) -> TimerLog label1 -> TimerLog label2
 mapLabels f = map (\(l, i) -> (f l, i))
 
-logToSecs :: TimerLog label -> [(label, Integer)]
-logToSecs = map (\(l, s) -> (l, toNanoSecs s))
+logToSecs :: TimerLog label -> [(label, Double)]
+logToSecs = map (\(l, s) -> (l, fromInteger (toNanoSecs s) / (10 ^ 9 :: Double))) 
