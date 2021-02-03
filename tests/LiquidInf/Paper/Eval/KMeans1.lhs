@@ -395,13 +395,13 @@ When you are done, you should get the following behavior:
 \begin{code}
 -- >>> test_nearest
 -- 1
-test_nearest = nearest 3 2 (M.fromList [(0, p0), (1, p1), (2, p2)]) p
-  where
-    p, p0, p1, p2 :: Point
-    p0 = add 0.0 (add 0.0 empty)
-    p1 = add 3.0 (add 0.0 empty)
-    p2 = add 0.0 (add 3.0 empty)
-    p  = add 2.9 (add 1.1 empty)
+-- test_nearest = nearest 3 2 (M.fromList [(0, p0), (1, p1), (2, p2)]) p
+--   where
+--     p, p0, p1, p2 :: Point
+--     p0 = add 0.0 (add 0.0 empty)
+--     p1 = add 3.0 (add 0.0 empty)
+--     p2 = add 0.0 (add 3.0 empty)
+--     p  = add 2.9 (add 1.1 empty)
 \end{code}
 
 (c) Reduce Clusters

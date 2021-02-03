@@ -63,6 +63,7 @@ inferenceCheck infconfig config proj fp lhlibs = do
     (ghci, lhconfig) <- getGHCI infconfig config proj fp lhlibs
     (res, timer, loops) <- inference' infconfig config lhconfig ghci proj fp lhlibs
     print $ loop_count loops
+    print . sum . HM.elems $ loop_count loops
     print $ searched_below loops
     print $ negated_models loops
     case res of
@@ -104,11 +105,13 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
     let infL = iterativeInference smt ghci main_mod lrs nls HM.empty initMaxSize emptyGS emptyFC
 
     timer <- newTimer
-    (res, f_timer, loops) <- runInfStack configs prog infL -- runProgresser (runConfigs (runTimer infL timer) configs) prog
+    (res, ev_timer, lvl_timer, loops) <- runInfStack configs prog infL -- runProgresser (runConfigs (runTimer infL timer) configs) prog
 
-    print . logToSecs . orderLogBySpeed . sumLog . mapLabels (mapEvent (nameOcc)) . getLog $ f_timer
-    print . logToSecs . orderLogBySpeed . sumLog . mapLabels (mapEvent (const ())) . getLog $ f_timer
-    return (res, f_timer, loops)
+    print . logToSecs . orderLogBySpeed . sumLog . getLog $ lvl_timer
+
+    print . logToSecs . orderLogBySpeed . sumLog . mapLabels (mapEvent (nameOcc)) . getLog $ ev_timer
+    print . logToSecs . orderLogBySpeed . sumLog . mapLabels (mapEvent (const ())) . getLog $ ev_timer
+    return (res, ev_timer, loops)
 
 getInitState :: [FilePath]
              -> [FilePath]
@@ -168,7 +171,7 @@ iterativeInference con ghci m_modname lrs nls meas_ex max_sz gs fc = do
         CEx cex -> return $ Left cex
         Env gs _ _ _ -> return $ Right gs
         Raise r_meas_ex r_fc _ -> do
-            lift . lift $ incrMaxDepthM
+            incrMaxDepthI
             -- We might be missing some internal GHC types from our deep_seq walkers
             -- We filter them out to avoid an error
             let eenv = expr_env . G2LH.state $ lr_state lrs
@@ -214,7 +217,9 @@ inferenceL con ghci m_modname lrs nls evals meas_ex max_sz senv fc max_fc blk_md
                         ([fs_])-> (fs_, [], [])
                         [] -> ([], [], [])
 
+    startLevelTimer (case nls of fs:_ -> fs; [] -> [])
     (resAtL, evals') <- inferenceB con ghci m_modname lrs nls evals meas_ex max_sz senv fc max_fc blk_mdls
+    endLevelTimer
 
     liftIO $ do
         putStrLn "-------"
@@ -252,11 +257,12 @@ inferenceB :: (MonadIO m, SMTConverter con ast out io)
            -> BlockedModels
            -> InfStack m (InferenceRes, Evals Bool)
 inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls = do
-    incrLoopCountLog
     let (fs, sf, below_sf) = case nls of
                         (fs_:sf_:be) -> (fs_, sf_, be)
                         ([fs_])-> (fs_, [], [])
                         [] -> ([], [], [])
+
+    incrLoopCountLog fs
 
     let curr_ghci = addSpecsToGhcInfos ghci gs
     logEventStartM UpdateEvals
@@ -447,8 +453,8 @@ adjModel lrs sz smt_mdl bad@(Name n m _ _) = do
 
     liftIO . putStrLn $ "blocked models = " ++ show blk_mdls'
 
-    lift . lift $ incrMaxCExM (n, m)
-    lift . lift $ incrMaxTimeM (n, m)
+    incrMaxCExI (n, m)
+    incrMaxTimeI (n, m)
     return . Right $ (Just (emptyFC, blk_mdls'), emptyFC)
 
 calledByFunc :: LiquidReadyState -> Name -> [Name]
