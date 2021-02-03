@@ -33,12 +33,12 @@ def run_infer(file, name, timeout):
     no_lev_dec_counts = empty_counts()
     no_lev_dec_elapsed = None
     if counts["searched_below"] is not None and int(counts["searched_below"]) > 0:
-        (_, _, no_lev_dec_counts, no_lev_dec_elapsed) = call_with_timing(file, timeout, ["--no-level-dec-fc"])
+        (_, _, no_lev_dec_counts, no_lev_dec_elapsed) = call_with_timing(file, timeout, ["--no-level-dec"])
 
     no_n_mdl_counts = empty_counts()
     no_n_mdl_elapsed = None
     if counts["negated_model"] is not None and int(counts["negated_model"]) > 0:
-        (_, _, no_n_mdl_counts, no_n_mdl_elapsed) = call_with_timing(file, timeout, ["--use-negated-models"])
+        (_, _, no_n_mdl_counts, no_n_mdl_elapsed) = call_with_timing(file, timeout, ["--no-use-negated-models"])
 
     return (check_safe, elapsed, funcs, depth, counts
                       , no_fc_elapsed, no_fc_counts
