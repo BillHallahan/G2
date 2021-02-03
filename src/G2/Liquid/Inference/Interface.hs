@@ -303,7 +303,7 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
                                     return $ Right (Nothing, emptyFC))
                               , refineUnsafe ghci m_modname lrs gs'
                               , if use_level_dec inf_config then searchBelowLevel ghci m_modname lrs res sf gs' else genEmp
-                              , if use_negated_models inf_config then adjModel lrs sz smt_mdl else genEmp ]
+                              , if use_negated_models inf_config then adjModel lrs sz smt_mdl else incrCExAndTime ]
                               logEventEndM
 
                     case ref of
