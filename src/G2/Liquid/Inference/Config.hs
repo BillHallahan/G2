@@ -167,6 +167,8 @@ data InferenceConfig =
 
                     , use_extra_fcs :: Bool -- ^ If true, generate as many constraints as possible, if false, generate
                                             -- only those that are essential to block bad specifications 
+                    , use_level_dec :: Bool
+                    , use_negated_models :: Bool
                    
                     , timeout_se :: NominalDiffTime
                     , timeout_sygus :: NominalDiffTime }
@@ -181,6 +183,8 @@ mkInferenceConfig as =
                     , max_ce = strArg "max-ce" as M.empty read 5
                     , restrict_coeffs = boolArg "restrict-coeffs" as M.empty Off
                     , use_extra_fcs = boolArg "use-extra-fc" as M.empty On
+                    , use_level_dec = boolArg "use-level-dec" as M.empty On
+                    , use_negated_models = boolArg "use-negated-models" as M.empty On
                     , timeout_se = strArg "timeout-se" as M.empty (fromInteger . read) 5
                     , timeout_sygus = strArg "timeout-sygus" as M.empty (fromInteger . read) 10 }
 

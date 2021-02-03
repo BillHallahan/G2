@@ -294,6 +294,7 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
             case res' of
                 Safe -> return $ (Env gs' fc max_fc meas_ex, evals')
                 Unsafe bad -> do
+                    inf_config <- infConfigM
                     ref <- tryToGen (nub bad) ((emptyFC, emptyBlockedModels), emptyFC)
                               (\(fc1, bm1) (fc2, bm2) -> (fc1 `unionFC` fc2, bm1 `unionBlockedModels` bm2))
                               unionFC
@@ -301,8 +302,8 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
                                     logEventStartM (InfSE n)
                                     return $ Right (Nothing, emptyFC))
                               , refineUnsafe ghci m_modname lrs gs'
-                              , searchBelowLevel ghci m_modname lrs res sf gs'
-                              , adjModel lrs sz smt_mdl]
+                              , if use_level_dec inf_config then searchBelowLevel ghci m_modname lrs res sf gs' else genEmp
+                              , if use_negated_models inf_config then adjModel lrs sz smt_mdl else genEmp ]
                               logEventEndM
 
                     case ref of
@@ -360,6 +361,9 @@ tryToGen' n def join_ex (f:fs) = do
             case gen2 of
                 Left err -> return $ Left err
                 Right (r, ex2) -> return $ Right (r, ex1 `join_ex` ex2)
+
+genEmp :: Monad m => Name -> InfStack m (Either [CounterExample] (Maybe a, FuncConstraints))
+genEmp _ = return $ Right (Nothing, emptyFC)
 
 refineUnsafeAll :: MonadIO m => 
                     [GhcInfo]
@@ -445,17 +449,22 @@ adjModel :: MonadIO m =>
          -> SMTModel
          -> Name
          -> InfStack m (Either a (Maybe (FuncConstraints, BlockedModels), FuncConstraints))
-adjModel lrs sz smt_mdl bad@(Name n m _ _) = do
+adjModel lrs sz smt_mdl n = do
     incrNegatedModelLog
     liftIO $ putStrLn "adjModel repeated_fc"
-    let clls = calledByFunc lrs bad
-        blk_mdls' = insertBlockedModel sz (MNOnly (bad:clls)) smt_mdl emptyBlockedModels
+    let clls = calledByFunc lrs n
+        blk_mdls' = insertBlockedModel sz (MNOnly (n:clls)) smt_mdl emptyBlockedModels
 
     liftIO . putStrLn $ "blocked models = " ++ show blk_mdls'
 
+    _ <- incrCExAndTime n
+    return . Right $ (Just (emptyFC, blk_mdls'), emptyFC)
+
+incrCExAndTime :: Monad m => Name -> InfStack m (Either a (Maybe b, FuncConstraints))
+incrCExAndTime (Name n m _ _) = do
     incrMaxCExI (n, m)
     incrMaxTimeI (n, m)
-    return . Right $ (Just (emptyFC, blk_mdls'), emptyFC)
+    return $ Right (Nothing, emptyFC) 
 
 calledByFunc :: LiquidReadyState -> Name -> [Name]
 calledByFunc lrs n = 
