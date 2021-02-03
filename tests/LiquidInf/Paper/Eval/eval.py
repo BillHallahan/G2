@@ -204,8 +204,8 @@ def create_table(log):
 def create_simple_table(log):
     print("\\begin{tabular}{| l | c | c | c | c | c | c |}");
     print("\\hline");
-    print("File & Functions & Levels & Time & \# Loops & \# Level & \# Negated \\\\ \\hline");
-    print("File & Functions & Levels & Time & \# Loops & Decensions & Models \\\\ \\hline");
+    print(" &  &  &  & & \# Level & \# Negated \\\\ \\hline");
+    print("File & Functions & Levels & Time (s) & \# Loops & Decensions & Models \\\\ \\hline");
 
     for (file, elapsed, funcs, depth, counts
              , no_fc_time, no_fc_counts) in log:
