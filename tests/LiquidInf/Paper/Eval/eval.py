@@ -33,7 +33,7 @@ def run_infer(file, name, timeout):
     no_lev_dec_counts = empty_counts()
     no_lev_dec_elapsed = None
     if counts["searched_below"] is not None and int(counts["searched_below"]) > 0:
-        (_, _, no_lev_dec_counts, no_lev_dec_elapsed) = call_with_timing(file, timeout, ["--no-level-dec"])
+        (_, _, no_lev_dec_counts, no_lev_dec_elapsed) = call_with_timing(file, timeout, ["--no-use-level-dec"])
 
     no_n_mdl_counts = empty_counts()
     no_n_mdl_elapsed = None
