@@ -16,6 +16,6 @@ maybeForce Nothing = 0
   #-}
 
 {-# RULES
-"maybeForceZero" forall k . maybeForce (Just 0) = maybeForce Nothing
-"badNegation" forall a b . negation a = negation b
+"maybeForceZero" maybeForce (Just 0) = maybeForce Nothing
+"badNegation" forall a . negation a = negation $ negation a
   #-}

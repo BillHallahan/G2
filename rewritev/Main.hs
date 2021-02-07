@@ -25,6 +25,13 @@ import Control.Exception
 
 import Data.List
 
+-- TODO new import for solver
+import qualified G2.Solver as S
+import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.PathConds as P
+-- TODO lazy vs. strict
+import qualified Data.HashSet as HS
+
 main :: IO ()
 main = do
     as <- getArgs
@@ -102,11 +109,27 @@ runWithArgs as = do
                  bindings_l exec_res_l
   print "left-hand side end\n"
 
-  SomeSolver solver <- initSolver config
-  let expr_r = curr_expr rewrite_state_r
-  let expr_l = curr_expr rewrite_state_l
+  S.SomeSolver solver <- initSolver config
+  let CurrExpr _ expr_r = curr_expr rewrite_state_r
+  let CurrExpr _ expr_l = curr_expr rewrite_state_l
   let maybePO = proofObligations rewrite_state_l rewrite_state_r expr_l expr_r
+  -- TODO remove print statement
+  -- TODO use toList on the HashSet to get the contents
+  -- TODO take one of the starting states
+  -- union of the expression environments of both
+  -- TODO also need path conds union
   print maybePO
+  res <- case maybePO of
+           Nothing -> error "TODO expressions not equivalent"
+           Just po -> let unionEnv = E.union (expr_env rewrite_state_l)
+                                             (expr_env rewrite_state_r)
+                          rightPC = P.toList $ path_conds rewrite_state_r
+                          unionPC = foldr P.insert (path_conds rewrite_state_l) rightPC
+                          poList = map extWrap $ HS.toList po
+                          allPC = foldr P.insert unionPC poList
+                          newState = rewrite_state_l { expr_env = unionEnv, path_conds = allPC }
+                      in
+                      S.check solver newState allPC
 
   return ()
 
@@ -124,6 +147,11 @@ printFuncCalls config entry b =
         ppStatePiece (printPathCons config) "path_cons" $ ppPathConds s
 
         putStrLn $ funcCall ++ " = " ++ funcOut)
+
+extWrap :: (Expr, Expr) -> PathCond
+extWrap (e1, e2) =
+    -- TODO what type for the equality?
+    ExtCond (App (App (Prim Eq TyUnknown) e1) e2) True
 
 ppStatePiece :: Bool -> String -> String -> IO ()
 ppStatePiece b n res =

@@ -47,8 +47,9 @@ exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs =
     (App _ _, App _ _) | (Data d1):l1 <- unApp e1
                        , (Data d2):l2 <- unApp e2
                        , d1 == d2 -> let ep = uncurry (exprPairing s1 s2)
+                                         ep' hs p = ep p hs
                                          l = zip l1 l2
-                                     in foldM ep pairs l
+                                     in foldM ep' pairs l
     (App _ _, _) -> Just (HS.insert (e1, e2) pairs)
     (_, App _ _) -> Just (HS.insert (e1, e2) pairs)
     (Data d1, Data d2) | d1 == d2 -> Just pairs
