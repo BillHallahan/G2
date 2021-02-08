@@ -97,9 +97,9 @@ runWithArgs as = do
   print $ ru_bndrs rule'
   
   print "right-hand side start\n"
-  (exec_res, bindings') <- runG2WithConfig rewrite_state_r config bindings
+  (exec_res_r, bindings') <- runG2WithConfig rewrite_state_r config bindings
   printFuncCalls config (Id (Name tentry Nothing 0 Nothing) TyUnknown)
-                 bindings' exec_res
+                 bindings' exec_res_r
   print "right-hand side end\n"
 
   let rewrite_state_l = initWithLHS init_state $ rule'
@@ -109,29 +109,69 @@ runWithArgs as = do
                  bindings_l exec_res_l
   print "left-hand side end\n"
 
+  let pairs_l = symbolic_ids rewrite_state_l
+  let pairs_r = symbolic_ids rewrite_state_r
+  let final_states_l = map final_state exec_res_l
+  let final_states_r = map final_state exec_res_r
+  let pairings = statePairing final_states_l final_states_r $ zip pairs_l pairs_r
+
   S.SomeSolver solver <- initSolver config
+  res <- mapM (checkObligations solver) pairings
+  {-
   let CurrExpr _ expr_r = curr_expr rewrite_state_r
   let CurrExpr _ expr_l = curr_expr rewrite_state_l
   let maybePO = proofObligations rewrite_state_l rewrite_state_r expr_l expr_r
+  -}
   -- TODO remove print statement
   -- TODO use toList on the HashSet to get the contents
   -- TODO take one of the starting states
   -- union of the expression environments of both
   -- TODO also need path conds union
-  print maybePO
+  -- print maybePO
+  {-
   res <- case maybePO of
            Nothing -> error "TODO expressions not equivalent"
-           Just po -> let unionEnv = E.union (expr_env rewrite_state_l)
-                                             (expr_env rewrite_state_r)
-                          rightPC = P.toList $ path_conds rewrite_state_r
-                          unionPC = foldr P.insert (path_conds rewrite_state_l) rightPC
-                          poList = map extWrap $ HS.toList po
-                          allPC = foldr P.insert unionPC poList
-                          newState = rewrite_state_l { expr_env = unionEnv, path_conds = allPC }
+           Just po -> let allPC = foldr P.insert P.empty poList
                       in
-                      S.check solver newState allPC
-
+                      applySolver solver extraPC rewrite_state_l rewrite_state_r
+  -}
+  print res
   return ()
+
+checkObligations :: S.Solver solver =>
+                    solver ->
+                    (State t, State t, HS.HashSet (Expr, Expr)) ->
+                    IO (S.Result () ())
+checkObligations solver (s1, s2, assumptions) =
+    let CurrExpr _ e1 = curr_expr s1
+        CurrExpr _ e2 = curr_expr s2
+        maybePO = proofObligations s1 s2 e1 e2
+    in
+    case maybePO of
+        Nothing -> error "TODO expressions not equivalent"
+        Just po -> let maybeAllPO = obligationWrap po
+                       assumptionPC = HS.toList $ HS.map assumptionWrap assumptions
+                       newPC = foldr P.insert P.empty (assumptionPC)
+                   in
+                   case maybeAllPO of
+                       Nothing -> applySolver solver newPC s1 s2
+                       Just allPO -> applySolver solver (P.insert allPO newPC) s1 s2
+
+applySolver :: S.Solver solver =>
+               solver ->
+               PathConds ->
+               State t ->
+               State t ->
+               IO (S.Result () ())
+applySolver solver extraPC s1 s2 =
+    let unionEnv = E.union (expr_env s1) (expr_env s2)
+        rightPC = P.toList $ path_conds s2
+        unionPC = foldr P.insert (path_conds s1) rightPC
+        -- pcList = map extWrap $ HS.toList extraPC
+        allPC = foldr P.insert unionPC (P.toList extraPC)
+        newState = s1 { expr_env = unionEnv, path_conds = allPC }
+    in
+    S.check solver newState allPC
 
 printFuncCalls :: Config -> Id -> Bindings -> [ExecRes t] -> IO ()
 printFuncCalls config entry b =
@@ -148,10 +188,21 @@ printFuncCalls config entry b =
 
         putStrLn $ funcCall ++ " = " ++ funcOut)
 
-extWrap :: (Expr, Expr) -> PathCond
-extWrap (e1, e2) =
+assumptionWrap :: (Expr, Expr) -> PathCond
+assumptionWrap (e1, e2) =
     -- TODO what type for the equality?
     ExtCond (App (App (Prim Eq TyUnknown) e1) e2) True
+
+obligationWrap :: HS.HashSet (Expr, Expr) -> Maybe PathCond
+obligationWrap obligations =
+    let obligation_list = HS.toList obligations
+        eq_list = map (\(e1, e2) -> App (App (Prim Eq TyUnknown) e1) e2) obligation_list
+        -- TODO type issue again
+        conj = foldr1 (\o1 o2 -> App (App (Prim And TyUnknown) o1) o2) eq_list
+    in
+    if null eq_list
+    then Nothing
+    else Just $ ExtCond (App (Prim Not TyUnknown) conj) True
 
 ppStatePiece :: Bool -> String -> String -> IO ()
 ppStatePiece b n res =

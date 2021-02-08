@@ -1,4 +1,4 @@
-module G2.Equiv.EquivADT (proofObligations) where
+module G2.Equiv.EquivADT (proofObligations, assumptions, statePairing) where
 
 import Data.List
 import G2.Language
@@ -21,6 +21,14 @@ proofObligations :: State t ->
 -- check concretizations for each of them
 proofObligations s1 s2 e1 e2 =
   -- TODO need anything else from the state, or just ExprEnv?
+  exprPairing s1 s2 e1 e2 HS.empty
+
+assumptions :: State t ->
+               State t ->
+               Expr ->
+               Expr ->
+               Maybe (HS.HashSet (Expr, Expr))
+assumptions s1 s2 e1 e2 =
   exprPairing s1 s2 e1 e2 HS.empty
 
 idPairing :: State t -> State t -> (Id, Id) -> Maybe (HS.HashSet (Expr, Expr))

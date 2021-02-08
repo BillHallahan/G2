@@ -85,7 +85,9 @@ genArbValue avf tenv eenv b (Id n t)
 -- Add any constraints from the ExprEnv
 addEEnvVals :: KnownValues -> ExprEnv -> HM.HashMap Name (Type, Type) -> ADTIntMaps -> Name -> Maybe PathCond
 addEEnvVals kv eenv smplfd adtIntMaps n =
-    let (_, newTyp) = fromJust $ HM.lookup n smplfd
+    let (_, newTyp) = case HM.lookup n smplfd of
+                        Nothing -> error "Nothing"
+                        Just x -> x
     in case E.lookup n eenv of
         Just e
             | Data (DataCon dcN _):_ <- unApp e
