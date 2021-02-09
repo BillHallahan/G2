@@ -97,18 +97,10 @@ findConsistent'' kv tenv eenv pc =
                         _ -> dc
                 
 
-                cons' = fmap (map Data) $ findConsistent''' dc' pc
+                cons' = map Data dc'
             in
-            maybe Nothing (Just . (, bi)) cons'
+            Just (cons', bi)
         _ -> Nothing
-
-findConsistent''' :: [DataCon] -> [PathCond] -> Maybe [DataCon]
-findConsistent''' dcs ((ConsCond dc _ True):pc) =
-    findConsistent''' (filter ((==) (dcName dc) . dcName) dcs) pc
-findConsistent''' dcs ((ConsCond  dc _ False):pc) =
-    findConsistent''' (filter ((/=) (dcName dc) . dcName) dcs) pc
-findConsistent''' dcs [] = Just dcs
-findConsistent''' _ _ = Nothing
 
 solveADTs :: ArbValueFunc -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model ())
 solveADTs avf s@(State { expr_env = eenv, model = m }) b [Id n t] pc
@@ -171,13 +163,10 @@ isExtCond _ = False
 
 pcVarType :: TypeEnv -> [PathCond] -> Maybe Type
 pcVarType tenv (AltCond _ (Var (Id _ t)) _:pc) = pcVarType' t tenv pc
-pcVarType tenv (ConsCond _ (Var (Id _ t)) _:pc) = pcVarType' t tenv pc
 pcVarType _ _ = Nothing
 
 pcVarType' :: Type -> TypeEnv -> [PathCond] -> Maybe Type
 pcVarType' t tenv (AltCond _ (Var (Id _ t')) _:pc) =
-    if t == t' then pcVarType' t tenv pc else Nothing
-pcVarType' t tenv (ConsCond _ (Var (Id _ t')) _:pc) =
     if t == t' then pcVarType' t tenv pc else Nothing
 pcVarType' n _ [] = Just n
 pcVarType' _ _ _ = Nothing
@@ -185,7 +174,6 @@ pcVarType' _ _ _ = Nothing
 pcInCastType :: TypeEnv -> PathCond -> Type
 pcInCastType _ (AltCond _ e _) = typeInCasts e
 pcInCastType _ (ExtCond e _) = typeInCasts e
-pcInCastType _ (ConsCond _ e _) = typeInCasts e
 
 castReturnType :: Type -> Expr -> Expr
 castReturnType t e =

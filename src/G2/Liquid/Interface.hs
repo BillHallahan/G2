@@ -130,7 +130,7 @@ runLHCore entry (mb_modname, exg2) ghci config = do
                , ls_memconfig = pres_names } <- liquidStateWithCall entry (mb_modname, exg2) ghci config mempty
 
     SomeSolver solver <- initSolver config
-    let simplifier = ADTSimplifier arbValue
+    let simplifier = IdSimplifier
 
     let (red, hal, ord) = lhReducerHalterOrderer config solver simplifier entry mb_modname cfn final_st
     (exec_res, final_bindings) <- runLHG2 config red hal ord solver simplifier pres_names ifi final_st bindings

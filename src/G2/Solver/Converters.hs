@@ -350,17 +350,6 @@ pathConsToSMT (ExtCond e b) =
         exprSMT = exprToSMT e
     in
     Just $ if b then exprSMT else (:!) exprSMT
-pathConsToSMT (ConsCond (DataCon (Name "True" _ _ _) _) e b) =
-    let
-        exprSMT = exprToSMT e
-    in
-    Just $ if b then exprSMT else (:!) exprSMT
-pathConsToSMT (ConsCond (DataCon (Name "False" _ _ _) _) e b) =
-    let
-        exprSMT = exprToSMT e
-    in
-    Just $ if b then  (:!) $ exprSMT else exprSMT
-pathConsToSMT (ConsCond (DataCon _ _) _ _) = error "Non-bool DataCon in pathConsToSMT"
 
 exprToSMT :: Expr -> SMTAST
 exprToSMT (Var (Id n t)) = V (nameToStr n) (typeToSMT t)
