@@ -246,12 +246,6 @@ ppPathCond s (ExtCond e b) =
         es = mkUnsugaredExprHaskell s e
     in
     if b then es else "not (" ++ es ++ ")"
-ppPathCond s (ConsCond dc e b) =
-    let
-        dcs = mkDataConHaskell dc
-        es = mkUnsugaredExprHaskell s e
-    in
-    if b then es ++ " is " ++ dcs else es ++ " is not " ++ dcs
 
 injNewLine :: [String] -> String
 injNewLine strs = intercalate "\n" strs
@@ -369,12 +363,6 @@ pprPathCondStr (ExtCond am b) = injTuple acc_strs
     am_str = show am
     b_str = show b
     acc_strs = [am_str, b_str]
-pprPathCondStr (ConsCond d expr b) = injTuple acc_strs
-  where
-    d_str = show d
-    expr_str = show expr
-    b_str = show b
-    acc_strs = [d_str, expr_str, b_str]
 
 pprCleanedNamesStr :: CleanedNames -> String
 pprCleanedNamesStr = injNewLine . map show . HM.toList

@@ -108,7 +108,7 @@ gatherAllowedCalls entry m lrs ghci infconfig config = do
     let (s', bindings') = (s, bindings) -- execStateM addTrueAssertsAll s bindings
 
     SomeSolver solver <- initSolver config'
-    let simplifier = ADTSimplifier arbValue
+    let simplifier = IdSimplifier
         s'' = repCFBranch (known_values s') $
                s' { true_assert = True
                   , track = [] :: [FuncCall] }
@@ -232,7 +232,7 @@ runLHInferenceCore entry m lrs ghci = do
                , ls_counterfactual_funcs = cf_funcs
                , ls_memconfig = pres_names } <- liftIO $ processLiquidReadyStateWithCall lrs ghci entry m g2config mempty
     SomeSolver solver <- liftIO $ initSolver g2config
-    let simplifier = ADTSimplifier arbValue
+    let simplifier = IdSimplifier
         final_st' = swapHigherOrdForSymGen bindings final_st
 
     (red, hal, ord) <- inferenceReducerHalterOrderer infconfig g2config solver simplifier entry m cfn cf_funcs final_st'
@@ -322,7 +322,7 @@ runLHCExSearch entry m lrs ghci = do
                , ls_counterfactual_funcs = cf_funcs
                , ls_memconfig = pres_names } <- liftIO $ processLiquidReadyStateWithCall lrs ghci entry m g2config' mempty
     SomeSolver solver <- liftIO $ initSolver g2config'
-    let simplifier = ADTSimplifier arbValue
+    let simplifier = IdSimplifier
         final_st' = swapHigherOrdForSymGen bindings final_st
 
     (red, hal, ord) <- realCExReducerHalterOrderer infconfig g2config' entry m solver simplifier cfn cf_funcs final_st'
@@ -761,7 +761,7 @@ genericG2Call :: ( ASTContainer t Expr
                  , Named t
                  , Solver solver) => Config -> solver -> State t -> Bindings -> IO ([ExecRes t], Bindings)
 genericG2Call config solver s bindings = do
-    let simplifier = ADTSimplifier arbValue
+    let simplifier = IdSimplifier
         share = sharing config
 
     fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier))
@@ -777,7 +777,7 @@ genericG2CallLogging :: ( ASTContainer t Expr
                         , Show t
                         , Solver solver) => Config -> solver -> State t -> Bindings -> String -> IO ([ExecRes t], Bindings)
 genericG2CallLogging config solver s bindings log = do
-    let simplifier = ADTSimplifier arbValue
+    let simplifier = IdSimplifier
         share = sharing config
 
     fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier :<~ Logger log))

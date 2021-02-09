@@ -15,6 +15,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Solver.Converters
 import G2.Solver.Solver
 
+import qualified Data.List as L
 import Data.Maybe (mapMaybe)
 import qualified Data.HashMap.Lazy as HM
 
@@ -52,9 +53,15 @@ subVar' em eenv tc is v@(Var i@(Id n _))
         subVar' em eenv tc (i:is) e
     | i `notElem` is
     , Just e <- E.lookup n eenv
-    , (isExprValueForm eenv e && notLam e) || isApp e || isVar e =
+    , (isExprValueForm eenv e && notLam e) || isApp e || isVar e || isLitCase e =
         subVar' em eenv tc (i:is) e
     | otherwise = v
+subVar' mdl eenv tc is cse@(Case e _ as) =
+    case subVar' mdl eenv tc is e of
+        Lit l
+            | Just (Alt _ ae) <- L.find (\(Alt (LitAlt l') _) -> l == l') as ->
+                subVar' mdl eenv tc is ae
+        _ -> cse
 subVar' em eenv tc is e = modifyChildren (subVar' em eenv tc is) e
 
 notLam :: Expr -> Bool
@@ -68,6 +75,10 @@ isApp _ = False
 isVar :: Expr -> Bool
 isVar (Var _) = True
 isVar _ = False
+
+isLitCase :: Expr -> Bool
+isLitCase (Case e _ _) = isPrimType (typeOf e)
+isLitCase _ = False
 
 isTC :: TypeClasses -> Expr -> Bool
 isTC tc (Var (Id _ (TyCon n _))) = isTypeClassNamed n tc
