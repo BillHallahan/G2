@@ -362,12 +362,12 @@ evalCase s@(State { expr_env = eenv
             _ -> error $ "unmatched expr" ++ show (unApp $ unsafeElimOuterCast mexpr)
             
         lsts_cs = liftSymLitAlt s mexpr bind lalts
-        def_sts = liftSymDefAlt s mexpr bind alts
+        (def_sts, ng'') = liftSymDefAlt s ng' mexpr bind alts
 
         alt_res = dsts_cs ++ lsts_cs ++ def_sts
       in
       assert (length alt_res == length dalts + length lalts + length defs)
-      (RuleEvalCaseSym, alt_res, ng')
+      (RuleEvalCaseSym, alt_res, ng'')
 
   -- Case evaluation also uses the stack in graph reduction based evaluation
   -- semantics. The case's binding variable and alts are pushed onto the stack
@@ -520,7 +520,7 @@ createExtCond s ngen mexpr cvar (dcon, _, aexpr) =
   where
     -- Get the Bool value specified by the matching DataCon
     -- Throws an error if dcon is not a Bool Data Constructor
-    boolValue = getBoolFromDataCon s dcon
+    boolValue = getBoolFromDataCon (known_values s) dcon
     cond = ExtCond mexpr boolValue
 
     -- Now do a round of rename for binding the cvar.
@@ -528,8 +528,8 @@ createExtCond s ngen mexpr cvar (dcon, _, aexpr) =
     aexpr' = liftCaseBinds binds aexpr
     res = s {curr_expr = CurrExpr Evaluate aexpr'}
 
-getBoolFromDataCon :: State t -> DataCon -> Bool
-getBoolFromDataCon (State {known_values = kv}) dcon
+getBoolFromDataCon :: KnownValues -> DataCon -> Bool
+getBoolFromDataCon kv dcon
     | (DataCon dconName dconType) <- dcon
     , dconType == (tyBool kv)
     , dconName == (KV.dcTrue kv) = True
@@ -553,19 +553,60 @@ liftSymLitAlt' s mexpr cvar (lit, aexpr) =
     aexpr' = liftCaseBinds binds aexpr
     res = s { curr_expr = CurrExpr Evaluate aexpr' }
 
-liftSymDefAlt :: State t -> Expr ->  Id -> [Alt] -> [NewPC t]
-liftSymDefAlt s mexpr cvar as =
-    let
-        aexpr = defAltExpr as
-    in
-    case aexpr of
-        Just aexpr' -> liftSymDefAlt' s mexpr aexpr' cvar as
-        _ -> []
+----------------------------------------------------
+-- Default Alternatives
 
-liftSymDefAlt' :: State t -> Expr -> Expr -> Id -> [Alt] -> [NewPC t]
-liftSymDefAlt' s mexpr aexpr cvar as =
+liftSymDefAlt :: State t -> NameGen -> Expr ->  Id -> [Alt] -> ([NewPC t], NameGen)
+liftSymDefAlt s ng mexpr cvar as =
     let
-        conds = mapMaybe (liftSymDefAltPCs mexpr) (map altMatch as)
+        match = defAltExpr as
+    in
+    case match of
+        Just aexpr -> liftSymDefAlt' s ng mexpr aexpr cvar as -- (liftSymDefAlt'' s mexpr aexpr cvar as, ng)
+        _ -> ([], ng)
+
+-- | Concretize Symbolic variable to Case Expr on its possible Data Constructors
+liftSymDefAlt' :: State t -> NameGen -> Expr -> Expr -> Id -> [Alt] -> ([NewPC t], NameGen)
+liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
+    | (Var i):_ <- unApp $ unsafeElimOuterCast mexpr
+    , isADT (typeOf i)
+    , (Var i'):_ <- unApp $ exprInCasts mexpr = -- Id with original Type
+        let (adt, bi) = fromJust $ getCastedAlgDataTy (typeOf i) tenv
+            maybeC = case mexpr of
+                (Cast _ c) -> Just c
+                _ -> Nothing
+            dcs = dataCon adt
+            badDCs = mapMaybe (\alt -> case alt of
+                (Alt (DataAlt dc _) _) -> Just dc
+                _ -> Nothing) alts
+            dcs' = dcs L.\\ badDCs
+
+            (newId, ng') = freshId TyLitInt ng
+
+            ((s', ng''), dcs'') = L.mapAccumL (concretizeSym bi maybeC) (s, ng') dcs'
+
+            mexpr' = createCaseExpr newId dcs''
+            binds = [(cvar, mexpr')]
+            aexpr' = liftCaseBinds binds aexpr
+
+            -- add PC restricting range of values for newSymId
+            newSymConstraint = restrictSymVal (known_values s') 1 (toInteger $ length dcs'') newId
+
+            syms' = L.delete i' $ newId:symbolic_ids s'
+            eenv' = E.insert (idName i') mexpr' (expr_env s')
+            s'' = s' { curr_expr = CurrExpr Evaluate aexpr'
+                     , symbolic_ids = syms'
+                     , expr_env = eenv'}
+        in
+        ([NewPC { state = s'', new_pcs = [newSymConstraint], concretized = [] }], ng'')
+    | Prim _ _:_ <- unApp mexpr = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
+    | isPrimType (typeOf mexpr) = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
+    | otherwise = error $ "liftSymDefAlt': unhandled Expr" ++ "\n" ++ show mexpr
+
+liftSymDefAlt'' :: State t -> Expr -> Expr -> Id -> [Alt] -> [NewPC t]
+liftSymDefAlt'' s mexpr aexpr cvar as =
+    let
+        conds = mapMaybe (liftSymDefAltPCs (known_values s) mexpr) (map altMatch as)
 
         binds = [(cvar, mexpr)]
         aexpr' = liftCaseBinds binds aexpr
@@ -574,15 +615,57 @@ liftSymDefAlt' s mexpr aexpr cvar as =
            , new_pcs = conds
            , concretized = [] }]
 
+liftSymDefAltPCs :: KnownValues -> Expr -> AltMatch -> Maybe PathCond
+liftSymDefAltPCs kv mexpr (DataAlt dc _) = -- Only DataAlts would be True/False
+    let boolVal = getBoolFromDataCon kv dc
+    in case boolVal of
+        True -> Just $ ExtCond mexpr False
+        False -> Just $ ExtCond mexpr True
+liftSymDefAltPCs _ mexpr (LitAlt lit) = Just $ AltCond lit mexpr False
+liftSymDefAltPCs _ _ Default = Nothing
+
 defAltExpr :: [Alt] -> Maybe Expr
 defAltExpr [] = Nothing
 defAltExpr (Alt Default e:_) = Just e
 defAltExpr (_:xs) = defAltExpr xs
 
-liftSymDefAltPCs :: Expr -> AltMatch -> Maybe PathCond
-liftSymDefAltPCs mexpr (DataAlt dc _) = Just $ ConsCond dc mexpr False
-liftSymDefAltPCs mexpr (LitAlt lit) = Just $ AltCond lit mexpr False
-liftSymDefAltPCs _ Default = Nothing
+-- | Creates and applies new symbolic variables for arguments of Data Constructor
+concretizeSym :: [(Id, Type)] -> Maybe Coercion -> (State t, NameGen) -> DataCon -> ((State t, NameGen), Expr)
+concretizeSym bi maybeC (s, ng) dc@(DataCon n ts) =
+    let dc' = Data dc
+        ts' = anonArgumentTypes $ PresType ts
+        ts'' = foldr (\(i, t) e -> retype i t e) ts' bi
+        (ns, ng') = freshNames (length ts'') ng
+        newParams = map (\(n', t) -> Id n' t) (zip ns ts'')
+        ts2 = map snd bi
+        dc'' = mkApp $ dc' : (map Type ts2) ++ (map Var newParams)
+        dc''' = case maybeC of
+            (Just (t1 :~ t2)) -> Cast dc'' (t2 :~ t1)
+            Nothing -> dc''
+        eenv = foldr (uncurry E.insertSymbolic) (expr_env s)
+             $ zip (map idName newParams) newParams
+        syms = symbolic_ids s ++ newParams
+    in ((s {expr_env = eenv, symbolic_ids = syms} , ng'), dc''')
+
+createCaseExpr :: Id -> [Expr] -> Expr
+createCaseExpr _ [e] = e
+createCaseExpr newId es@(_:_) =
+    let
+        -- We assume that PathCond restricting newId's range is added elsewhere
+        (_, alts) = bindExprToNum (\num e -> Alt (LitAlt (LitInt num)) e) es
+    in Case (Var newId) newId alts
+createCaseExpr _ [] = error "No exprs"
+
+bindExprToNum :: (Integer -> a -> b) -> [a] -> (Integer, [b])
+bindExprToNum f es = L.mapAccumL (\num e -> (num + 1, f num e)) 1 es
+
+
+-- | Return PathCond restricting value of `newId` to [lower, upper]
+restrictSymVal :: KnownValues -> Integer -> Integer -> Id -> PathCond
+restrictSymVal kv lower upper newId =
+  ExtCond (mkAndExpr kv (mkGeIntExpr kv (Var newId) lower) (mkLeIntExpr kv (Var newId) upper)) True
+
+----------------------------------------------------
 
 evalCast :: State t -> NameGen -> Expr -> Coercion -> (Rule, [State t], NameGen)
 evalCast s@(State { exec_stack = stck }) 

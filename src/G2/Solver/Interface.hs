@@ -15,6 +15,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Solver.Converters
 import G2.Solver.Solver
 
+import qualified Data.List as L
 import Data.Maybe (mapMaybe)
 import qualified Data.HashMap.Lazy as HM
 
@@ -55,6 +56,12 @@ subVar' em eenv tc is v@(Var i@(Id n _))
     , (isExprValueForm eenv e && notLam e) || isApp e || isVar e =
         subVar' em eenv tc (i:is) e
     | otherwise = v
+subVar' mdl eenv tc is cse@(Case e _ as) =
+    case subVar' mdl eenv tc is e of
+        Lit l
+            | Just (Alt _ ae) <- L.find (\(Alt (LitAlt l') _) -> l == l') as ->
+                subVar' mdl eenv tc is ae
+        _ -> error "subVar': Non-lit case statement"
 subVar' em eenv tc is e = modifyChildren (subVar' em eenv tc is) e
 
 notLam :: Expr -> Bool
