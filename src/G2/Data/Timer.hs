@@ -23,13 +23,13 @@ import Control.Monad.State.Lazy
 import Data.Ord
 import Data.List
 import qualified Data.Text as T
-import System.CPUTime
+import System.Clock
 
-type TimerLog label = [(label, Integer)]
+type TimerLog label = [(label, TimeSpec)]
 
 data Timer label =
     Timer { timer_log :: TimerLog label -- ^ Labelled events with time measurements (in picoseconds)
-          , for_next :: Maybe (label, Integer) -- ^ What is the next label, and when did we start timing?
+          , for_next :: Maybe (label, TimeSpec) -- ^ What is the next label, and when did we start timing?
           }
 
 newTimer :: IO (Timer label)
@@ -39,20 +39,20 @@ newTimer = do
 
 logEventStart :: label -> Timer label -> IO (Timer label)
 logEventStart label timer = do
-    curr <- getCPUTime
+    curr <- getTime Realtime
     return $ logEventStart' label curr timer
 
-logEventStart' :: label -> Integer -> Timer label -> Timer label
+logEventStart' :: label -> TimeSpec -> Timer label -> Timer label
 logEventStart' label curr timer@( Timer { for_next = Nothing }) =
     timer { for_next = Just (label, curr) } 
 logEventStart' _ _ _ = error "Timer started before ending"
 
 logEventEnd :: Timer label -> IO (Timer label)
 logEventEnd timer = do
-    curr <- getCPUTime
+    curr <- getTime Realtime
     return $ logEventEnd' curr timer
 
-logEventEnd' :: Integer -> Timer label -> Timer label
+logEventEnd' :: TimeSpec -> Timer label -> Timer label
 logEventEnd' curr (Timer { timer_log = lg, for_next = Just (label, lst) }) =
     Timer { timer_log = (label, curr - lst):lg
           , for_next = Nothing }
@@ -66,12 +66,12 @@ runTimer = runStateT
 
 logEventStartM :: MonadIO m => label -> StateT (Timer label) m ()
 logEventStartM n = do
-    curr <- liftIO $ getCPUTime
+    curr <- liftIO $ getTime Realtime
     modify' (logEventStart' n curr)
 
 logEventEndM :: MonadIO m => StateT (Timer label) m ()
 logEventEndM = do
-    curr <- liftIO $ getCPUTime
+    curr <- liftIO $ getTime Realtime
     modify' (logEventEnd' curr)
 
 getLogM :: Monad m => StateT (Timer label) m (TimerLog label)
@@ -94,4 +94,4 @@ mapLabels :: (label1 -> label2) -> TimerLog label1 -> TimerLog label2
 mapLabels f = map (\(l, i) -> (f l, i))
 
 logToSecs :: TimerLog label -> [(label, Double)]
-logToSecs = map (\(l, s) -> (l, fromInteger s / (10 ^ 12 :: Double)))
+logToSecs = map (\(l, s) -> (l, fromInteger (toNanoSecs s) / (10 ^ 9 :: Double))) 

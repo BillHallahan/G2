@@ -57,7 +57,7 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
                             -> IO (Result SMTModel (), Maybe Expr)
 
     assertSolver :: con -> ast -> out
-    assertSoftSolver :: con -> ast -> out
+    assertSoftSolver :: con -> ast -> Maybe T.Text -> out
     defineFun :: con -> SMTName -> [(SMTName, Sort)] -> Sort -> SMTAST -> out 
     declareFun :: con -> SMTName -> [Sort] -> Sort -> out 
     varDecl :: con -> SMTNameBldr -> ast -> out
@@ -486,8 +486,8 @@ toSolver :: SMTConverter con ast out io => con -> [SMTHeader] -> out
 toSolver con [] = empty con
 toSolver con (Assert ast:xs) = 
     merge con (assertSolver con $ toSolverAST con ast) (toSolver con xs)
-toSolver con (AssertSoft ast:xs) = 
-    merge con (assertSoftSolver con $ toSolverAST con ast) (toSolver con xs)
+toSolver con (AssertSoft ast lab:xs) = 
+    merge con (assertSoftSolver con (toSolverAST con ast) lab) (toSolver con xs)
 toSolver con (DefineFun f ars ret body:xs) =
     merge con (defineFun con f ars ret body) (toSolver con xs)
 toSolver con (DeclareFun f ars ret:xs) =

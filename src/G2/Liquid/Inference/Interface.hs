@@ -3,7 +3,9 @@
 {-# LANGUAGE TupleSections #-}
 
 module G2.Liquid.Inference.Interface ( inferenceCheck
-                                     , inference) where
+                                     , inference
+                                     , getInitState
+                                     , getNameLevels ) where
 
 import G2.Config.Config as G2
 import G2.Data.Timer
@@ -59,9 +61,11 @@ import G2.Lib.Printers
 inferenceCheck :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO (Either [CounterExample] GeneratedSpecs)
 inferenceCheck infconfig config proj fp lhlibs = do
     (ghci, lhconfig) <- getGHCI infconfig config proj fp lhlibs
-    (res, timer) <- inference' infconfig config lhconfig ghci proj fp lhlibs
-    print . logToSecs . orderLogBySpeed . sumLog . mapLabels (mapEvent (nameOcc)) . getLog $ timer
-    print . logToSecs . orderLogBySpeed . sumLog . mapLabels (mapEvent (const ())) . getLog $ timer
+    (res, timer, loops) <- inference' infconfig config lhconfig ghci proj fp lhlibs
+    print $ loop_count loops
+    print . sum . HM.elems $ loop_count loops
+    print $ searched_below loops
+    print $ negated_models loops
     case res of
         Right gs -> do
             check_res <- checkGSCorrect infconfig lhconfig ghci gs
@@ -74,7 +78,7 @@ inference :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePa
 inference infconfig config proj fp lhlibs = do
     -- Initialize LiquidHaskell
     (ghci, lhconfig) <- getGHCI infconfig config proj fp lhlibs
-    (res, timer) <- inference' infconfig config lhconfig ghci proj fp lhlibs
+    (res, timer, loops) <- inference' infconfig config lhconfig ghci proj fp lhlibs
     print . logToSecs . sumLog . getLog $ timer
     return res
 
@@ -85,27 +89,13 @@ inference' :: InferenceConfig
            -> [FilePath]
            -> [FilePath]
            -> [FilePath]
-           -> IO (Either [CounterExample] GeneratedSpecs, Timer (Event Name))
+           -> IO (Either [CounterExample] GeneratedSpecs, Timer (Event Name), Counters)
 inference' infconfig config lhconfig ghci proj fp lhlibs = do
     mapM (print . gsQualifiers . spec) ghci
 
-    -- Initialize G2
-    let g2config = config { mode = Liquid
-                          , steps = 2000 }
-        transConfig = simplTranslationConfig { simpl = False }
-    (main_mod, exg2) <- translateLoaded proj fp lhlibs transConfig g2config
+    (lrs, g2config', infconfig', main_mod) <- getInitState proj fp lhlibs ghci infconfig config
+    let nls = getNameLevels main_mod lrs
 
-    let (lrs, g2config', infconfig') = initStateAndConfig exg2 main_mod g2config infconfig ghci
-
-
-        eenv = expr_env . G2LH.state . lr_state $ lrs
-
-        cg = getCallGraph $ eenv
-        nls = filter (not . null)
-             . map (filter (\(Name _ m _ _) -> m == main_mod))
-             $ nameLevels cg 
-
-    putStrLn $ "cg = " ++ show (filter (\(Name _ m _ _) -> m == main_mod) . functions $ getCallGraph eenv)
     putStrLn $ "nls = " ++ show nls
 
     let configs = Configs { g2_config = g2config', lh_config = lhconfig, inf_config = infconfig'}
@@ -115,7 +105,39 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
     let infL = iterativeInference smt ghci main_mod lrs nls HM.empty initMaxSize emptyGS emptyFC
 
     timer <- newTimer
-    runProgresser (runConfigs ( runTimer infL timer) configs) prog
+    (res, ev_timer, lvl_timer, loops) <- runInfStack configs prog infL -- runProgresser (runConfigs (runTimer infL timer) configs) prog
+
+    print . logToSecs . orderLogBySpeed . sumLog . getLog $ lvl_timer
+
+    print . logToSecs . orderLogBySpeed . sumLog . mapLabels (mapEvent (nameOcc)) . getLog $ ev_timer
+    print . logToSecs . orderLogBySpeed . sumLog . mapLabels (mapEvent (const ())) . getLog $ ev_timer
+    return (res, ev_timer, loops)
+
+getInitState :: [FilePath]
+             -> [FilePath]
+             -> [FilePath]
+             -> [GhcInfo]
+             -> InferenceConfig
+             -> G2.Config
+             -> IO (LiquidReadyState, G2.Config, InferenceConfig, Maybe T.Text)
+getInitState proj fp lhlibs ghci infconfig config = do
+    let g2config = config { mode = Liquid
+                          , steps = 2000 }
+        transConfig = simplTranslationConfig { simpl = False }
+    (main_mod, exg2) <- translateLoaded proj fp lhlibs transConfig g2config
+
+    let (lrs, g2config', infconfig') = initStateAndConfig exg2 main_mod g2config infconfig ghci
+    return (lrs, g2config', infconfig', main_mod)
+
+getNameLevels :: Maybe T.Text -> LiquidReadyState -> NameLevels
+getNameLevels main_mod =
+    filter (not . null)
+       . map nub
+       . map (filter (\(Name _ m _ _) -> m == main_mod))
+       . nameLevels
+       . getCallGraph
+       . expr_env . G2LH.state . lr_state
+
 
 data InferenceRes = CEx [CounterExample]
                   | Env GeneratedSpecs FuncConstraints MaxSizeConstraints MeasureExs
@@ -149,7 +171,7 @@ iterativeInference con ghci m_modname lrs nls meas_ex max_sz gs fc = do
         CEx cex -> return $ Left cex
         Env gs _ _ _ -> return $ Right gs
         Raise r_meas_ex r_fc _ -> do
-            lift incrMaxDepthM
+            incrMaxDepthI
             -- We might be missing some internal GHC types from our deep_seq walkers
             -- We filter them out to avoid an error
             let eenv = expr_env . G2LH.state $ lr_state lrs
@@ -195,7 +217,9 @@ inferenceL con ghci m_modname lrs nls evals meas_ex max_sz senv fc max_fc blk_md
                         ([fs_])-> (fs_, [], [])
                         [] -> ([], [], [])
 
+    startLevelTimer (case nls of fs:_ -> fs; [] -> [])
     (resAtL, evals') <- inferenceB con ghci m_modname lrs nls evals meas_ex max_sz senv fc max_fc blk_mdls
+    endLevelTimer
 
     liftIO $ do
         putStrLn "-------"
@@ -238,6 +262,8 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
                         ([fs_])-> (fs_, [], [])
                         [] -> ([], [], [])
 
+    incrLoopCountLog fs
+
     let curr_ghci = addSpecsToGhcInfos ghci gs
     logEventStartM UpdateEvals
     evals' <- updateEvals curr_ghci lrs fc evals
@@ -268,6 +294,7 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
             case res' of
                 Safe -> return $ (Env gs' fc max_fc meas_ex, evals')
                 Unsafe bad -> do
+                    inf_config <- infConfigM
                     ref <- tryToGen (nub bad) ((emptyFC, emptyBlockedModels), emptyFC)
                               (\(fc1, bm1) (fc2, bm2) -> (fc1 `unionFC` fc2, bm1 `unionBlockedModels` bm2))
                               unionFC
@@ -275,8 +302,8 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
                                     logEventStartM (InfSE n)
                                     return $ Right (Nothing, emptyFC))
                               , refineUnsafe ghci m_modname lrs gs'
-                              , searchBelowLevel ghci m_modname lrs res sf gs'
-                              , adjModel lrs sz smt_mdl]
+                              , if use_level_dec inf_config then searchBelowLevel ghci m_modname lrs res sf gs' else genEmp
+                              , if use_negated_models inf_config then adjModel lrs sz smt_mdl else incrCExAndTime ]
                               logEventEndM
 
                     case ref of
@@ -334,6 +361,9 @@ tryToGen' n def join_ex (f:fs) = do
             case gen2 of
                 Left err -> return $ Left err
                 Right (r, ex2) -> return $ Right (r, ex1 `join_ex` ex2)
+
+genEmp :: Monad m => Name -> InfStack m (Either [CounterExample] (Maybe a, FuncConstraints))
+genEmp _ = return $ Right (Nothing, emptyFC)
 
 refineUnsafeAll :: MonadIO m => 
                     [GhcInfo]
@@ -400,6 +430,7 @@ searchBelowLevel :: MonadIO m =>
                  -> Name
                  -> InfStack m (Either [CounterExample] (Maybe (FuncConstraints, BlockedModels), FuncConstraints))
 searchBelowLevel ghci m_modname lrs verify_res lev_below gs bad = do
+    incrSearchBelowLog
     let called_by_res = calledByFunc lrs bad
     case filterNamesTo called_by_res $ filterNamesTo lev_below verify_res of
         Unsafe bad_sf -> do
@@ -418,16 +449,22 @@ adjModel :: MonadIO m =>
          -> SMTModel
          -> Name
          -> InfStack m (Either a (Maybe (FuncConstraints, BlockedModels), FuncConstraints))
-adjModel lrs sz smt_mdl bad@(Name n m _ _) = do
+adjModel lrs sz smt_mdl n = do
+    incrNegatedModelLog
     liftIO $ putStrLn "adjModel repeated_fc"
-    let clls = calledByFunc lrs bad
-        blk_mdls' = insertBlockedModel sz (MNOnly (bad:clls)) smt_mdl emptyBlockedModels
+    let clls = calledByFunc lrs n
+        blk_mdls' = insertBlockedModel sz (MNOnly (n:clls)) smt_mdl emptyBlockedModels
 
     liftIO . putStrLn $ "blocked models = " ++ show blk_mdls'
 
-    lift $ incrMaxCExM (n, m)
-    lift $ incrMaxTimeM (n, m)
+    _ <- incrCExAndTime n
     return . Right $ (Just (emptyFC, blk_mdls'), emptyFC)
+
+incrCExAndTime :: Monad m => Name -> InfStack m (Either a (Maybe b, FuncConstraints))
+incrCExAndTime (Name n m _ _) = do
+    incrMaxCExI (n, m)
+    incrMaxTimeI (n, m)
+    return $ Right (Nothing, emptyFC) 
 
 calledByFunc :: LiquidReadyState -> Name -> [Name]
 calledByFunc lrs n = 
@@ -463,10 +500,12 @@ genNewConstraints :: MonadIO m =>
                   -> InfStack m ([CounterExample], [FuncConstraint])
 genNewConstraints ghci m lrs n = do
     liftIO . putStrLn $ "Generating constraints for " ++ T.unpack n
+    infconfig <- infConfigM
+
     ((exec_res, _), i) <- runLHInferenceCore n m lrs ghci
     let (exec_res', no_viol) = partition (true_assert . final_state) exec_res
         
-        allCCons = noAbsStatesToCons i $ exec_res' ++ no_viol
+        allCCons = noAbsStatesToCons i $ exec_res' ++ if use_extra_fcs infconfig then no_viol else []
 
     return $ (map (lhStateToCE i) exec_res', allCCons)
 
@@ -522,7 +561,7 @@ checkNewConstraints ghci lrs cexs = do
     res2 <- return . concat =<< mapM cexsToExtraFC cexs
     case lefts res of
         res'@(_:_) -> return . Left $ res'
-        _ -> return . Right . unionsFC . map fromSingletonFC $ (rights res) ++ res2
+        _ -> return . Right . unionsFC . map fromSingletonFC $ (rights res) ++ if use_extra_fcs infconfig then res2 else []
 
 updateMeasureExs :: (InfConfigM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> FuncConstraints -> m MeasureExs
 updateMeasureExs meas_ex lrs ghci fcs =
@@ -591,6 +630,18 @@ cexsToBlockingFC _ _ (DirectCounter dfc fcs@(_:_))
             else error "cexsToBlockingFC: Unhandled"
 cexsToBlockingFC _ _ (CallsCounter dfc cfc fcs@(_:_))
     | (_:_, no_err_fcs) <- partition (hasArgError . abstract) fcs = undefined
+    | isError (returns (abstract cfc)) = do
+        infconfig <- infConfigM
+        let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
+
+        let lhs = Call Pre (abstract dfc)
+            rhs = OrFC $ map (\(Abstracted { abstract = fc }) -> 
+                                ImpliesFC (Call Pre fc) (NotFC (Call Post fc))) fcs'
+
+        if not . null $ fcs' 
+            then return . Right $ ImpliesFC lhs rhs
+            else error "cexsToBlockingFC: Should be unreachable! Non-refinable function abstracted!"    
+
     | otherwise = do
         infconfig <- infConfigM
         let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
@@ -657,12 +708,13 @@ cexsToExtraFC (CallsCounter dfc cfc fcs@(_:_)) = do
     let some_pre = ImpliesFC (Call Pre $ real dfc) $  OrFC (map (\fc -> Call Pre (real fc)) fcs)
     let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 
-    let abs = mapMaybe realToMaybeFC fcs'
+    let pre_real = maybeToList $ realToMaybeFC cfc
+        abs = mapMaybe realToMaybeFC fcs'
         clls = if not . isError . returns . real $ cfc
                   then [Call All $ real cfc]
                   else []
 
-    return $ some_pre:clls ++ abs
+    return $ some_pre:clls ++ pre_real ++ abs
 cexsToExtraFC (DirectCounter fc []) = return []
 cexsToExtraFC (CallsCounter dfc cfc [])
     | isError (returns (real dfc)) = return []
@@ -712,6 +764,7 @@ switchName n fc = if funcName fc == initiallyCalledFuncName then fc { funcName =
 realToMaybeFC :: Abstracted -> Maybe FuncConstraint
 realToMaybeFC a@(Abstracted { real = fc }) 
     | hits_lib_err_in_real a = Nothing
+    | isError (returns fc) = Just $ NotFC (Call Pre fc)
     | otherwise = Just $ ImpliesFC (Call Pre fc) (Call Post fc)
 
 isExported :: LiquidReadyState -> Name -> Bool

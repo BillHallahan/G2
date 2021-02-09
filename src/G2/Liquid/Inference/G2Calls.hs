@@ -54,6 +54,7 @@ import G2.Liquid.LHReducers
 import G2.Liquid.SpecialAsserts
 import G2.Liquid.TCValues
 import G2.Liquid.Types
+import G2.Liquid.TyVarBags
 import G2.Liquid.Inference.InfStack
 import G2.Liquid.Inference.Initalization
 import G2.Solver hiding (Assert)
@@ -124,11 +125,13 @@ gatherAllowedCalls entry m lrs ghci infconfig config = do
         fc_red = SomeReducer (StdRed (sharing config') solver simplifier)
 
     (bindings''', red_calls) <- mapAccumM 
-                                (\b (fs, fc) -> reduceFuncCall (sharing config') 
-                                                               fc_red
-                                                               solver
-                                                               simplifier
-                                                               fs b fc)
+                                (\b (fs, fc) -> do
+                                    (_, b', rfc) <- reduceFuncCall (sharing config') 
+                                                                       fc_red
+                                                                       solver
+                                                                       simplifier
+                                                                       fs b fc
+                                    return (b', rfc))
                                 bindings''
                                 called
 
@@ -237,6 +240,8 @@ runLHInferenceCore entry m lrs ghci = do
 
     liftIO $ close solver
 
+    liftIO $ putStrLn "end runLHInferenceCore"
+
     return ((exec_res, final_bindings), ifi)
 
 inferenceReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
@@ -251,8 +256,8 @@ inferenceReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifie
                               -> State LHTracker
                               -> InfStack m (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
 inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modname cfn cf_funcs st = do
-    extra_ce <- S.lift $ extraMaxCExM (entry, mb_modname)
-    extra_time <- S.lift $ extraMaxTimeM (entry, mb_modname)
+    extra_ce <- extraMaxCExI (entry, mb_modname)
+    extra_time <- extraMaxTimeI (entry, mb_modname)
 
     let
         ng = mkNameGen ()
@@ -291,8 +296,8 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
         (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng)
             <~| (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng))
             <~| (case logStates config of
-                  Just fp -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~ Logger fp)
-                  Nothing -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn))
+                  Just fp -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~? ExistentialInstRed :<~ Logger fp)
+                  Nothing -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~? ExistentialInstRed))
         , SomeHalter
             (DiscardIfAcceptedTag state_name :<~> halter)
         , SomeOrderer (ToOrderer $ IncrAfterN 2000 (QuotTrueAssert (ADTSizeOrderer 0 (Just instFuncTickName)))))
@@ -339,8 +344,8 @@ realCExReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
                             -> State LHTracker
                             -> InfStack m (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
 realCExReducerHalterOrderer infconfig config entry modname solver simplifier  cfn cf_funcs st = do
-    extra_ce <- S.lift $ extraMaxCExM (entry, modname)
-    extra_depth <- S.lift $ extraMaxDepthM
+    extra_ce <- extraMaxCExI (entry, modname)
+    extra_depth <- extraMaxDepthI
 
     liftIO . putStrLn $ "extra_depth = " ++ show extra_depth
 
@@ -762,7 +767,7 @@ genericG2Call config solver s bindings = do
     fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier))
                            (SomeHalter SWHNFHalter)
                            (SomeOrderer NextOrderer)
-                           solver simplifier emptyMemConfig s bindings
+                           solver simplifier PreserveAllMC s bindings
 
     return fslb
 
@@ -778,6 +783,6 @@ genericG2CallLogging config solver s bindings log = do
     fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier :<~ Logger log))
                            (SomeHalter SWHNFHalter)
                            (SomeOrderer NextOrderer)
-                           solver simplifier emptyMemConfig s bindings
+                           solver simplifier PreserveAllMC s bindings
 
     return fslb

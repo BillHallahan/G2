@@ -12,6 +12,7 @@ import G2.Translation
 import G2.Liquid.AddTyVars
 import G2.Liquid.ConvertCurrExpr
 import G2.Liquid.Interface
+import G2.Liquid.Types
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.Verify
 
@@ -28,8 +29,11 @@ initStateAndConfig exg2 main_mod g2config infconfig ghci =
         (g2config', infconfig') = adjustConfig main_mod simp_s g2config infconfig ghci
 
         lrs = createStateForInference simp_s g2config' ghci
+
+        lh_s = lr_state lrs
+        g2config'' = adjustConfigPostLH main_mod (measures lh_s) (tcvalues lh_s) (state lh_s) ghci g2config'
     in
-    (lrs, g2config', infconfig')
+    (lrs, g2config'', infconfig')
 
 createStateForInference :: SimpleState -> G2.Config -> [GhcInfo] -> LiquidReadyState
 createStateForInference simp_s config ghci =

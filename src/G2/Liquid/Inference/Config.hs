@@ -15,17 +15,23 @@ module G2.Liquid.Inference.Config (
                                   , runConfigs
 
                                   , mkInferenceConfig
-                                  , adjustConfig ) where
+                                  , adjustConfig
+                                  , adjustConfigPostLH ) where
 
 import G2.Config.Config
 import G2.Initialization.Types
 import G2.Language ( ExprEnv
                    , Expr
                    , Name (..)
-                   , Type (..)
-                   , returnType)
+                   , Type (..))
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.Support as S
+import G2.Language.Typing
 import G2.Liquid.Conversion
+import G2.Liquid.Helpers
+import G2.Liquid.TCValues
+import G2.Liquid.Types
+import G2.Liquid.Inference.PolyRef
 import G2.Translation.Haskell
 
 import Language.Haskell.Liquid.Types (GhcInfo (..), GhcSpec (..))
@@ -158,6 +164,11 @@ data InferenceConfig =
                     , refinable_funcs :: S.HashSet (T.Text, Maybe T.Text)
 
                     , restrict_coeffs :: Bool -- ^ If true, only allow coefficients in the range of -1 <= c <= 1
+
+                    , use_extra_fcs :: Bool -- ^ If true, generate as many constraints as possible, if false, generate
+                                            -- only those that are essential to block bad specifications 
+                    , use_level_dec :: Bool
+                    , use_negated_models :: Bool
                    
                     , timeout_se :: NominalDiffTime
                     , timeout_sygus :: NominalDiffTime }
@@ -171,50 +182,99 @@ mkInferenceConfig as =
                     , modules = S.empty
                     , max_ce = strArg "max-ce" as M.empty read 5
                     , restrict_coeffs = boolArg "restrict-coeffs" as M.empty Off
+                    , use_extra_fcs = boolArg "use-extra-fc" as M.empty On
+                    , use_level_dec = boolArg "use-level-dec" as M.empty On
+                    , use_negated_models = boolArg "use-negated-models" as M.empty On
                     , timeout_se = strArg "timeout-se" as M.empty (fromInteger . read) 5
                     , timeout_sygus = strArg "timeout-sygus" as M.empty (fromInteger . read) 10 }
 
 adjustConfig :: Maybe T.Text -> SimpleState -> Config -> InferenceConfig -> [GhcInfo] -> (Config, InferenceConfig)
 adjustConfig main_mod (SimpleState { expr_env = eenv }) config infconfig ghci =
     let
-        ref = refinable main_mod eenv
+        -- ref = refinable main_mod meas tcv eenv
 
         pre = S.fromList
             . map (\(Name n m _ _) -> (n, m))
             . map (mkName . V.varName . fst)
             $ concatMap (gsTySigs . spec) ghci
 
-        ns_mm = map (\(Name n m _ _) -> (n, m))
-              -- . filter (\(Name n m _ _) -> not $ (n, m) `S.member` pre)
-              . filter (\(Name n _ _ _) -> n `notElem` [ "mapReduce" ])
-              -- . filter (\(Name n _ _ _) -> n `notElem` [ "mapReduce", "singleton", "concat", "append"
-              --                                          , "map", "replicate", "empty", "zipWith", "add"])
-              . filter (\(Name n m _ _) -> (n, m) `elem` ref)
-              . E.keys $ E.filter (not . tyVarRetTy) eenv
+        -- ns_mm = map (\(Name n m _ _) -> (n, m))
+        --       -- . filter (\(Name n m _ _) -> not $ (n, m) `S.member` pre)
+        --       -- . filter (\(Name n _ _ _) -> n `notElem` [ "mapReduce" ])
+        --       -- . filter (\(Name n _ _ _) -> n `notElem` [ "mapReduce", "singleton", "concat", "append"
+        --       --                                          , "map", "replicate", "empty", "zipWith", "add"])
+        --       . filter (\(Name n m _ _) -> (n, m) `elem` ref)
+        --       . E.keys
+        --       . E.filter (not . tyVarNoMeas meas tcv)
+        --       $ E.filter (not . tyVarRetTy) eenv
 
         ns_not_main = filter (\(n, _) -> n == "foldr1")
                     . map (\(Name n m _ _) -> (n, m))
                     . filter (\(Name _ m _ _) -> m /= main_mod)
                     $ E.keys eenv
     
-        config' = config { counterfactual = Counterfactual . CFOnly $ S.fromList ns_mm
-                         , only_top = True
+        config' = config { only_top = True
                          , block_errors_in = S.fromList ns_not_main }
 
         infconfig' = infconfig { modules = S.singleton main_mod
-                               , pre_refined = pre
-                               , refinable_funcs = S.fromList ns_mm }
+                               , pre_refined = pre }
     in
     (config', infconfig')
 
-refinable :: Maybe T.Text -> ExprEnv -> [(T.Text, Maybe T.Text)]
-refinable main_mod eenv = 
+adjustConfigPostLH :: Maybe T.Text -> Measures -> TCValues -> S.State t -> [GhcInfo] -> Config -> Config
+adjustConfigPostLH main_mod meas tcv (S.State { S.expr_env = eenv, S.known_values = kv }) ghci config =
     let
-        ns_mm = filter (\(Name _ m _ _) -> m == main_mod)
-              . E.keys $ E.filter (not . tyVarRetTy) eenv
+        ref = refinable main_mod meas tcv ghci kv eenv
+        
+        ns_mm = map (\(Name n m _ _) -> (n, m))
+              -- . filter (\(Name n m _ _) -> not $ (n, m) `S.member` pre)
+              -- . filter (\(Name n _ _ _) -> n `notElem` [ "mapReduce" ])
+              -- . filter (\(Name n _ _ _) -> n `notElem` [ "mapReduce", "singleton", "concat", "append"
+              --                                          , "map", "replicate", "empty", "zipWith", "add"])
+              . filter (\(Name n m _ _) -> (n, m) `elem` ref)
+              $ E.keys eenv
+              -- . E.filter (not . tyVarNoMeas meas tcv)
+              -- $ E.filter (not . tyVarRetTy) eenv
+
+    in
+    config { counterfactual = Counterfactual . CFOnly $ S.fromList ns_mm }
+
+refinable :: Maybe T.Text -> Measures -> TCValues -> [GhcInfo] -> S.KnownValues -> ExprEnv -> [(T.Text, Maybe T.Text)]
+refinable main_mod meas tcv ghci kv eenv = 
+    let
+        ns_mm = E.keys
+              . E.filter (\e -> not (tyVarNoMeas meas tcv ghci e) || isPrimRetTy kv e)
+              . E.filter (not . tyVarRetTy)
+              $ E.filterWithKey (\(Name _ m _ _) _ -> m == main_mod) eenv
         ns_mm' = map (\(Name n m _ _) -> (n, m)) ns_mm
     in
     ns_mm'
+
+isPrimRetTy :: S.KnownValues -> Expr -> Bool
+isPrimRetTy kv e =
+    let
+        rel_t = extractValues . extractTypePolyBound $ returnType e
+    in
+    any (\t -> t == tyInt kv) rel_t
+
+tyVarNoMeas :: Measures -> TCValues -> [GhcInfo] -> Expr -> Bool
+tyVarNoMeas meas tcv ghci e =
+    let
+        rel_t = extractValues . extractTypePolyBound $ returnType e
+        rel_meas = E.filter (\e -> 
+                            case filter notLH . argumentTypes . PresType . inTyForAlls $ typeOf e of
+                                  [t] -> any (\t' -> fst $ t' `specializes` t) rel_t
+                                  _ -> False ) meas'
+    in
+    E.null rel_meas
+    where
+        meas_names = measureNames ghci
+        meas_nameOcc = map (\(Name n md _ _) -> (n, md)) $ map symbolName meas_names
+        meas' = E.filterWithKey (\(Name n m _ _) _ -> (n, m) `elem` meas_nameOcc) meas
+
+        notLH t
+            | TyCon n _ <- tyAppCenter t = n /= lhTC tcv
+            | otherwise = False
 
 tyVarRetTy :: Expr -> Bool
 tyVarRetTy e =
