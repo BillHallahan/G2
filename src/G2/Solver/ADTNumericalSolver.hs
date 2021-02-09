@@ -42,54 +42,11 @@ instance TrSolver solver => TrSolver (ADTNumericalSolver solver) where
     closeTr (ADTNumericalSolver _ s) = closeTr s
 
 checkConsistency :: TrSolver solver => solver -> State t -> PathConds -> IO (Result () (), solver)
-checkConsistency solver s@(State {known_values = kv, simplified = smplfd, adt_int_maps = adtIntMaps, expr_env = eenv}) pc
+checkConsistency solver s@(State {known_values = kv, expr_env = eenv}) pc
     | PC.null pc = return (SAT (), solver)
     | otherwise = do
-        let ns = PC.pcNames pc
-            eenvPCs = mapMaybe (addEEnvVals kv eenv smplfd adtIntMaps) ns
-            pc' = foldr PC.insert pc $ eenvPCs
-        checkTr solver s pc'
+        checkTr solver s pc
 
 solve' :: TrSolver solver => ArbValueFunc -> solver -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model (), solver)
-solve' avf sol s@(State {known_values = kv, simplified = smplfd, adt_int_maps = adtIntMaps, type_env = tenv, expr_env = eenv}) b is pc = do
-    -- Split into Ids that need to be solved further by solvers, and Ids representing ADTs with no related PathConds
-    let (rest, pcIds) = partition (f smplfd) is
-        pcIdsPrim = map (\i@(Id n t) -> if (isADT t) then (Id n TyLitInt) else i) pcIds
-        -- Get constraints from ExprEnv
-        ns = PC.pcNames pc
-        eenvPCs = mapMaybe (addEEnvVals kv eenv smplfd adtIntMaps) ns
-        pc' = foldr PC.insert pc $ eenvPCs
-    rm <- solveTr sol s b pcIdsPrim pc'
-    case rm of
-        (SAT m, sol') -> do
-            let (_, restM) = mapAccumL (genArbValue avf tenv eenv) b rest
-            return (SAT $ HM.union (HM.fromList restM) m, sol')
-        _ -> return rm
-
--- If `n` is a member of smplfd, it means a PathCond containing `n` must have been added to PathConds earlier
-f :: HM.HashMap Name (Type, Type) -> Id -> Bool
-f smplfd (Id n t) = ((not $ HM.member n smplfd) && (isADT $ t))
-
--- Generate arbitrary value or lookup Name in ExprEnv
-genArbValue :: ArbValueFunc -> TypeEnv -> ExprEnv -> Bindings -> Id -> (Bindings, (Name, Expr))
-genArbValue avf tenv eenv b (Id n t)
-    | not $ E.isSymbolic n eenv
-    , Just e <- E.lookup n eenv = (b, (n, e))
-    | TyCon tn k <- tyAppCenter t
-    , ts <- tyAppArgs t =
-        let
-            (bse, av) = avf (mkTyApp (TyCon tn k:ts)) tenv (arb_value_gen b)
-        in (b {arb_value_gen = av}, (n, bse))
-    | otherwise = error $ "Unsolved Name of type: " ++ (show t)
-
--- Add any constraints from the ExprEnv
-addEEnvVals :: KnownValues -> ExprEnv -> HM.HashMap Name (Type, Type) -> ADTIntMaps -> Name -> Maybe PathCond
-addEEnvVals kv eenv smplfd adtIntMaps n =
-    let (_, newTyp) = fromJust $ HM.lookup n smplfd
-    in case E.lookup n eenv of
-        Just e
-            | Data (DataCon dcN _):_ <- unApp e
-            , Just dcNumMap <- HM.lookup newTyp adtIntMaps
-            , Just num <- lookupInt dcN dcNumMap ->
-                Just $ ExtCond (mkEqIntExpr kv (Var (Id n TyLitInt)) (toInteger num)) True
-        _ -> Nothing
+solve' avf sol s@(State {known_values = kv, type_env = tenv, expr_env = eenv}) b is pc = do
+    solveTr sol s b is pc
