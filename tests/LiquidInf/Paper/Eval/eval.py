@@ -21,6 +21,9 @@ def run_infer(file, name, timeout):
     f.write(res.decode("utf-8") );
     f.close();
 
+    # MAKES EVERYTHING AFTER THIS TIMEOUT QUICKLY
+    timeout = "1";
+
     # run the test without extra fc
     # no_fc_start_time = time.perf_counter();
     # no_fc_res = call_infer_process(file, timeout, ["--no-use-extra-fc"])
