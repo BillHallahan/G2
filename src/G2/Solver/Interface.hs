@@ -61,7 +61,7 @@ subVar' mdl eenv tc is cse@(Case e _ as) =
         Lit l
             | Just (Alt _ ae) <- L.find (\(Alt (LitAlt l') _) -> l == l') as ->
                 subVar' mdl eenv tc is ae
-        _ -> error "subVar': Non-lit case statement"
+        _ -> cse
 subVar' em eenv tc is e = modifyChildren (subVar' em eenv tc is) e
 
 notLam :: Expr -> Bool
