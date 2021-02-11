@@ -64,12 +64,12 @@ stdReduce' share mergeStates solver simplifier s@(State { curr_expr = CurrExpr E
     | otherwise = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
 stdReduce' _ _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
                                  , exec_stack = stck }) ng
-    | Prim Error _ <- ce
+    | isError ce
     , Just (AssertFrame is _, stck') <- S.pop stck =
         return (RuleError, [s { exec_stack = stck'
                               , true_assert = True
                               , assert_ids = is }], ng)
-    | Prim Error _ <- ce
+    | isError ce
     , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], ng)
     | Just (MergePtFrame i, stck') <- frstck = do
         let c' = M.alter (\count -> case count of
@@ -77,10 +77,10 @@ stdReduce' _ _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
                 Nothing -> Nothing) i (cases s)
         return (RuleHitMergePt, [s {exec_stack = stck', cases = c', ready_to_merge = True}], ng)
     | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
-    | Lam u i e <- ce = return $ retLam s ng u i e
-    | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ng ce e stck'
     | Just rs <- retReplaceSymbFunc s ng ce = return rs
     | Just (CaseFrame i a, stck') <- frstck = return $ retCaseFrame s ng ce i a stck'
+    | Lam u i e <- ce = return $ retLam s ng u i e
+    | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ng ce e stck'
     | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ng ce c stck'
     | Just (AssumeFrame e, stck') <- frstck = do
         let (r, xs, ng') = retAssumeFrame s ng ce e stck'
@@ -90,14 +90,18 @@ stdReduce' _ _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
         let (r, xs, ng') = retAssertFrame s ng ce ais e stck'
         xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
         return (r, xs', ng')
-    | Just (CurrExprFrame e, stck') <- frstck = do
-        let (r, xs) = retCurrExpr s ce e stck'
+    | Just (CurrExprFrame act e, stck') <- frstck = do
+        let (r, xs) = retCurrExpr s ce act e stck'
         xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
         return (r, xs', ng)
     | Nothing <- frstck = return (RuleIdentity, [s], ng)
     | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show (S.pop stck)
         where
             frstck = S.pop stck
+
+            isError (Prim Error _) = True
+            isError (Prim Undefined _) = True
+            isError _ = False
 
 data NewPC t = NewPC { state :: State t
                      , new_pcs :: [PathCond]
@@ -111,7 +115,7 @@ reduceNewPC solver simplifier
             (NewPC { state = s@(State { path_conds = spc })
                    , new_pcs = pc
                    , concretized = concIds })
-    | not (null pc) = do
+    | not (null pc) || not (null concIds) = do
         let (s', pc') = L.mapAccumL (simplifyPC simplifier) s pc
             pc'' = concat pc'
 
@@ -133,7 +137,7 @@ reduceNewPC solver simplifier
 
         res <- check solver s' rel_pc
 
-        if res == SAT then
+        if res == SAT () then
             return $ Just s''
         else
             return Nothing
@@ -195,6 +199,8 @@ evalApp s@(State { expr_env = eenv
              , symbolic_ids = HS.delete i1 syms
              , curr_expr = CurrExpr Return (mkTrue kv) }]
         , ng')
+
+    | ac@(Prim Error _) <- appCenter e1 = (RuleError, [s { curr_expr = CurrExpr Return ac }], ng)
     | isExprValueForm eenv (App e1 e2) =
         ( RuleReturnAppSWHNF
         , [s { curr_expr = CurrExpr Return (App e1 e2) }]
@@ -252,24 +258,22 @@ retLam s@(State { expr_env = eenv
         case traceType eenv tf of
         Just t ->
             let
-                e' = retype i t e
+                e' = retypeOutsideTyForAll i t e
 
-                binds = [(i, Type t)]
-                (eenv', e'', ng', news) = liftBinds binds eenv e' ng
+                (eenv', e'', ng', news) = liftBind i (Type t) eenv e' ng
             in
-            ( RuleReturnEApplyLamType news
+            ( RuleReturnEApplyLamType [news]
             , [s { expr_env = eenv'
                  , curr_expr = CurrExpr Evaluate e''
                  , exec_stack = stck' }]
             , ng')
-        Nothing -> error "retLam: Bad type"
+        Nothing -> error $ "retLam: Bad type\ni = " ++ show i ++ "\nstck = " ++ show (S.pop stck) 
     | TermL <- u
     , Just (ApplyFrame ae, stck') <- S.pop stck =
         let
-            binds = [(i, ae)]
-            (eenv', e', ng', news) = liftBinds binds eenv e ng
+            (eenv', e', ng', news) = liftBind i ae eenv e ng
         in
-        ( RuleReturnEApplyLamExpr news
+        ( RuleReturnEApplyLamExpr [news]
         , [s { expr_env = eenv'
              , curr_expr = CurrExpr Evaluate e'
              , exec_stack = stck' }]
@@ -343,7 +347,8 @@ evalCase mergeStates s@(State { expr_env = eenv
   -- We hit a DEFAULT instead.
   -- We perform the cvar binding and proceed with the alt
   -- expression.
-  | (Data _):_ <- unApp $ unsafeElimOuterCast mexpr
+  | e:_ <- unApp $ unsafeElimOuterCast mexpr
+  , isData e || isLit e || isLam e
   , (Alt _ expr):_ <- matchDefaultAlts alts =
       let 
           binds = [(bind, mexpr)]
@@ -410,14 +415,27 @@ evalCase mergeStates s@(State { expr_env = eenv
         newPCs' = map (addMergePt bind) newPCs
     in (RuleEvalCaseSym bind, newPCs', ng'') -- TODO: new rule
 
+  -- Case evaluation also uses the stack in graph reduction based evaluation
+  -- semantics. The case's binding variable and alts are pushed onto the stack
+  -- as a `CaseFrame` along with their appropriate `ExecExprEnv`. However this
+  -- is only done when the matching expression is NOT in value form. Value
+  -- forms should be handled by other RuleEvalCase* rules.
+  | not (isExprValueForm eenv mexpr) =
+      let frame = CaseFrame bind alts
+      in ( RuleEvalCaseNonVal
+         , [newPCEmpty $ s { expr_env = eenv
+                           , curr_expr = CurrExpr Evaluate mexpr
+                           , exec_stack = S.push frame stck }], ng)
+
   | otherwise = error $ "reduceCase: bad case passed in\n" ++ show mexpr ++ "\n" ++ show alts
 
 -- | Remove everything from an [Expr] that are actually Types.
 removeTypes :: [Expr] -> E.ExprEnv -> [Expr]
 removeTypes ((Type _):es) eenv = removeTypes es eenv
-removeTypes ((Var (Id n ty)):es) eenv = case E.lookup n eenv of
-    Just (Type _) -> removeTypes es eenv
-    _ -> (Var (Id n ty)) : removeTypes es eenv
+removeTypes (v@(Var _):es) eenv = case repeatedLookup eenv v of
+    (Type _) -> removeTypes es eenv
+    -- Just v@(Var (Id n' _)) -> removeTypes (v:es) eenv 
+    _ -> v : removeTypes es eenv
 removeTypes (e:es) eenv = e : removeTypes es eenv
 removeTypes [] _ = []
 
@@ -436,7 +454,7 @@ matchLitAlts lit alts = [a | a @ (Alt (LitAlt alit) _) <- alts, lit == alit]
 
 liftCaseBinds :: [(Id, Expr)] -> Expr -> Expr
 liftCaseBinds [] expr = expr
-liftCaseBinds ((b, e):xs) expr = liftCaseBinds xs $ replaceASTs (Var b) e expr
+liftCaseBinds ((b, e):xs) expr = liftCaseBinds xs $ replaceVar (idName b) e expr
 
 -- | `DataCon` `Alt`s.
 dataAlts :: [Alt] -> [(DataCon, [Id], Expr)]
@@ -497,7 +515,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
     newparams = map (uncurry Id) $ zip news (map typeOf params)
     dConArgs = (map (Var) newparams)
     -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
-    mexpr_t = (\(Id _ t) -> t) (mexpr_id)
+    mexpr_t = typeOf mexpr_id
     exprs = [dcon'] ++ (mexprTyToExpr mexpr_t tenv) ++ dConArgs
 
     -- Apply list of types (if present) and DataCon children to DataCon
@@ -520,7 +538,10 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
     
 -- | Given the Type of the matched Expr, looks for Type in the TypeEnv, and returns Expr level representation of the Type
 mexprTyToExpr :: Type -> TypeEnv -> [Expr]
-mexprTyToExpr mexpr_t tenv 
+mexprTyToExpr mexpr_t = reverse . mexprTyToExpr' mexpr_t
+
+mexprTyToExpr' :: Type -> TypeEnv -> [Expr]
+mexprTyToExpr' mexpr_t tenv 
     -- special case for NewTyCon, involves looking up tyVars and binding them to concrete types specified by mexpr_t
     | Just (algDataTy, bindings) <- getAlgDataTy mexpr_t tenv     
     , (isNewTyCon algDataTy) = dconTyToExpr (data_con algDataTy) bindings
@@ -547,13 +568,23 @@ createExtCond s ngen mexpr cvar (dcon, _, aexpr) =
   where
     -- Get the Bool value specified by the matching DataCon
     -- Throws an error if dcon is not a Bool Data Constructor
-    boolValue = getBoolFromDataCon (known_values s) (Data dcon)
+    boolValue = getBoolFromDataCon (known_values s) dcon
     cond = ExtCond mexpr boolValue
 
     -- Now do a round of rename for binding the cvar.
     binds = [(cvar, mexpr)]
     aexpr' = liftCaseBinds binds aexpr
     res = s {curr_expr = CurrExpr Evaluate aexpr'}
+
+getBoolFromDataCon :: KnownValues -> DataCon -> Bool
+getBoolFromDataCon kv dcon
+    | (DataCon dconName dconType) <- dcon
+    , dconType == (tyBool kv)
+    , dconName == (KV.dcTrue kv) = True
+    | (DataCon dconName dconType) <- dcon
+    , dconType == (tyBool kv)
+    , dconName == (KV.dcFalse kv) = False
+    | otherwise = error $ "getBoolFromDataCon: invalid DataCon passed in\n" ++ show dcon ++ "\n"
 
 liftSymLitAlt :: State t -> Expr -> Id -> [(Lit, Expr)] -> [NewPC t]
 liftSymLitAlt s mexpr cvar = map (liftSymLitAlt' s mexpr cvar)
@@ -570,26 +601,29 @@ liftSymLitAlt' s mexpr cvar (lit, aexpr) =
     aexpr' = liftCaseBinds binds aexpr
     res = s { curr_expr = CurrExpr Evaluate aexpr' }
 
+----------------------------------------------------
+-- Default Alternatives
+
 liftSymDefAlt :: State t -> NameGen -> Expr ->  Id -> [Alt] -> ([NewPC t], NameGen)
 liftSymDefAlt s ng mexpr cvar as =
     let
-        match = L.find (\alt -> case alt of (Alt Default _) -> True; _ -> False) as
+        match = defAltExpr as
     in
     case match of
-        Just (Alt Default aexpr) -> liftSymDefAlt' s ng mexpr aexpr cvar as -- (liftSymDefAlt'' s mexpr aexpr cvar as, ng)
+        Just aexpr -> liftSymDefAlt' s ng mexpr aexpr cvar as
         _ -> ([], ng)
 
 -- | Concretize Symbolic variable to Case Expr on its possible Data Constructors
 liftSymDefAlt' :: State t -> NameGen -> Expr -> Expr -> Id -> [Alt] -> ([NewPC t], NameGen)
 liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
     | (Var i):_ <- unApp $ unsafeElimOuterCast mexpr
-    , isADT (idType i)
+    , isADT (typeOf i)
     , (Var i'):_ <- unApp $ exprInCasts mexpr = -- Id with original Type
-        let (adt, bi) = fromJust $ getCastedAlgDataTy (idType i) tenv
+        let (adt, bi) = fromJust $ getCastedAlgDataTy (typeOf i) tenv
             maybeC = case mexpr of
                 (Cast _ c) -> Just c
                 _ -> Nothing
-            dcs = dataConsFromADT adt
+            dcs = dataCon adt
             badDCs = mapMaybe (\alt -> case alt of
                 (Alt (DataAlt dc _) _) -> Just dc
                 _ -> Nothing) alts
@@ -605,13 +639,16 @@ liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
 
             -- add PC restricting range of values for newSymId
             newSymConstraint = restrictSymVal (known_values s') 1 (toInteger $ length dcs'') newId
-
             syms' = HS.delete i' $ HS.insert newId (symbolic_ids s')
-            (eenv', ng''') = E.insertWithCL ng'' (idName i') mexpr' (expr_env s')
-            s'' = s' {curr_expr = CurrExpr Evaluate aexpr', symbolic_ids = syms', expr_env = eenv'}
+            eenv' = E.insert (idName i') mexpr' (expr_env s')
+            s'' = s' { curr_expr = CurrExpr Evaluate aexpr'
+                     , symbolic_ids = syms'
+                     , expr_env = eenv'}
         in
-        ([NewPC { state = s'', new_pcs = [newSymConstraint], concretized = [] }], ng''')
-    | otherwise = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
+        ([NewPC { state = s'', new_pcs = [newSymConstraint], concretized = [] }], ng'')
+    | Prim _ _:_ <- unApp mexpr = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
+    | isPrimType (typeOf mexpr) = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
+    | otherwise = error $ "liftSymDefAlt': unhandled Expr" ++ "\n" ++ show mexpr
 
 liftSymDefAlt'' :: State t -> Expr -> Expr -> Id -> [Alt] -> [NewPC t]
 liftSymDefAlt'' s mexpr aexpr cvar as =
@@ -627,7 +664,7 @@ liftSymDefAlt'' s mexpr aexpr cvar as =
 
 liftSymDefAltPCs :: KnownValues -> Expr -> AltMatch -> Maybe PathCond
 liftSymDefAltPCs kv mexpr (DataAlt dc _) = -- Only DataAlts would be True/False
-    let boolVal = getBoolFromDataCon kv (Data dc)
+    let boolVal = getBoolFromDataCon kv dc
     in case boolVal of
         True -> Just $ ExtCond mexpr False
         False -> Just $ ExtCond mexpr True
@@ -765,6 +802,13 @@ handleDefMatches _ ng _ _ = (ng, [])
 
 --------------------------------------------------------------------------------------
 
+defAltExpr :: [Alt] -> Maybe Expr
+defAltExpr [] = Nothing
+defAltExpr (Alt Default e:_) = Just e
+defAltExpr (_:xs) = defAltExpr xs
+
+----------------------------------------------------
+
 evalCast :: State t -> NameGen -> Expr -> Coercion -> (Rule, [State t], NameGen)
 evalCast s@(State { exec_stack = stck }) 
          ng e c
@@ -872,12 +916,18 @@ retCastFrame s ng e c stck =
          , exec_stack = stck}]
     , ng)
 
-retCurrExpr :: State t -> Expr -> CurrExpr -> S.Stack Frame -> (Rule, [NewPC t])
-retCurrExpr s e1 e2 stck = 
+retCurrExpr :: State t -> Expr -> CEAction -> CurrExpr -> S.Stack Frame -> (Rule, [NewPC t])
+retCurrExpr s e1 AddPC e2 stck = 
     ( RuleReturnCurrExprFr
     , [NewPC { state = s { curr_expr = e2
                          , exec_stack = stck}
              , new_pcs = [ExtCond e1 True]
+             , concretized = []}] )
+retCurrExpr s e1 NoAction e2 stck = 
+    ( RuleReturnCurrExprFr
+    , [NewPC { state = s { curr_expr = e2
+                         , exec_stack = stck}
+             , new_pcs = []
              , concretized = []}] )
 
 retAssumeFrame :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> (Rule, [NewPC t], NameGen)
@@ -889,8 +939,16 @@ retAssumeFrame s@(State {known_values = kv
         dalt = case (getDataCon tenv (KV.tyBool kv) (KV.dcTrue kv)) of
             Just dc -> [dc]
             _ -> []
-        -- If Assume is just a Var, concretize the Expr to a True Bool DataCon. Else add an ExtCond
+        -- Special handling in case we just have a concrete DataCon, or a lone Var
         (newPCs, ng') = case unApp $ unsafeElimOuterCast e1 of
+            [Data (DataCon dcn _)]
+                | dcn == KV.dcFalse kv -> ([], ng)
+                | dcn == KV.dcTrue kv ->
+                    ( [NewPC { state = s { curr_expr = CurrExpr Evaluate e2
+                                         , exec_stack = stck }
+                             , new_pcs = []
+                             , concretized = [] }]
+                    , ng)
             (Var i@(Id _ _)):_ -> concretizeExprToBool s ng i dalt e2 stck
             _ -> ([addPathCond s e1 e2 True stck], ng)
     in
@@ -905,8 +963,23 @@ retAssertFrame s@(State {known_values = kv
         dalts = case getDataCons (KV.tyBool kv) tenv of
             Just dcs -> dcs
             _ -> []
-        -- If Assert is just a Var, concretize the Expr to a True or False Bool DataCon, else add an ExtCond
+        -- Special handling in case we just have a concrete DataCon, or a lone Var
         (newPCs, ng') = case unApp $ unsafeElimOuterCast e1 of
+            [Data (DataCon dcn _)]
+                | dcn == KV.dcFalse kv ->
+                    ( [NewPC { state = s { curr_expr = CurrExpr Evaluate e2
+                                         , exec_stack = stck
+                                         , true_assert = True
+                                         , assert_ids = ais } 
+                             , new_pcs = []
+                             , concretized = [] }]
+                    , ng)
+                | dcn == KV.dcTrue kv ->
+                    ( [NewPC { state = s { curr_expr = CurrExpr Evaluate e2
+                                         , exec_stack = stck }
+                             , new_pcs = []
+                             , concretized = [] }]
+                    , ng)
             (Var i@(Id _ _)):_ -> concretizeExprToBool s ng i dalts e2 stck
             _ -> (addPathConds s e1 ais e2 stck, ng)
             
@@ -965,7 +1038,7 @@ addPathConds s e1 ais e2 stck =
 -- seed values for the names.
 liftBinds :: [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, [Name])
-liftBinds binds eenv expr ngen = (eenv', expr', ngen'', news)
+liftBinds binds eenv expr ngen = (eenv', expr', ngen', news)
   where
     (bindsLHS, bindsRHS) = unzip binds
 
@@ -977,6 +1050,17 @@ liftBinds binds eenv expr ngen = (eenv', expr', ngen'', news)
     binds' = zip bindsLHS' bindsRHS
 
     (eenv', ngen'') = E.insertExprsWithCL ngen' (zip news (map snd binds')) eenv
+
+liftBind :: Id -> Expr -> E.ExprEnv -> Expr -> NameGen ->
+             (E.ExprEnv, Expr, NameGen, Name)
+liftBind bindsLHS bindsRHS eenv expr ngen = (eenv', expr', ngen', new)
+  where
+    old = idName bindsLHS
+    (new, ngen') = freshSeededName old ngen
+
+    expr' = renameExpr old new expr
+
+    eenv' = E.insert new bindsRHS eenv
 
 -- If the expression is a symbolic higher order function application, replaces
 -- it with a symbolic variable of the correct type.
@@ -1015,7 +1099,12 @@ retReplaceSymbFunc s@(State { expr_env = eenv
                , symbolic_ids = HS.insert new_sym_id $ symbolic_ids s
                , non_red_path_conds = non_red_path_conds s ++ [nrpc_e] }]
             , ng')
-    | otherwise = Nothing
+    | otherwise = 
+      let
+        t = typeOf ce
+      in
+      -- trace ("eq_tc = " ++ show (concreteSatStructEq kv tc t))
+      Nothing
 
 isApplyFrame :: Frame -> Bool
 isApplyFrame (ApplyFrame _) = True

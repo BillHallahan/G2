@@ -187,7 +187,7 @@ mergeVars ctxt@(Context {s1_ = s1, s2_ = s2, renamed1_ = renamed1, renamed2_ = r
     , not $ E.member (idName i2) (expr_env s1)
     , HS.member i1 (symbolic_ids s1)
     , HS.member i2 (symbolic_ids s2) =
-        let s2' = replaceVar s2 i2 i1
+        let s2' = mergeReplaceVar s2 i2 i1
         in (ctxt {s2_ = s2'}, Var i1, Var i1)
     | idType i1 == idType i2
     , not $ elem (idName i1) (HM.elems renamed1) -- check if symbolic var is a var that is a result of some previous renaming when merging the Expr
@@ -195,16 +195,16 @@ mergeVars ctxt@(Context {s1_ = s1, s2_ = s2, renamed1_ = renamed1, renamed2_ = r
     , HS.member i1 (symbolic_ids s1)
     , HS.member i2 (symbolic_ids s2) =
         let (newSymId, ng') = freshMergeId (idType i1) ng
-            s1' = replaceVar s1 i1 newSymId 
-            s2' = replaceVar s2 i2 newSymId
+            s1' = mergeReplaceVar s1 i1 newSymId 
+            s2' = mergeReplaceVar s2 i2 newSymId
             ctxt' = ctxt { ng_ = ng', s1_ = s1', s2_ = s2', renamed1_ = HM.insert (idName i1) (idName newSymId) renamed1
                          , renamed2_ = HM.insert (idName i2) (idName newSymId) renamed2 }
         in (ctxt', Var newSymId, Var newSymId)
     | otherwise = (ctxt, Var i1, Var i2)
 mergeVars _ e1 e2 = error $ "Non-Var Exprs. " ++ (show e1) ++ "\n" ++ (show e2)
 
-replaceVar :: Named t => State t -> Id -> Id -> State t
-replaceVar s@(State {known_values = kv, path_conds = pc, symbolic_ids = syms, expr_env = eenv}) old new = if isPrimType (idType old)
+mergeReplaceVar :: Named t => State t -> Id -> Id -> State t
+mergeReplaceVar s@(State {known_values = kv, path_conds = pc, symbolic_ids = syms, expr_env = eenv}) old new = if isPrimType (idType old)
     then s { path_conds = PC.insert (ExtCond (mkEqPrimExpr (idType old) kv (Var new) (Var old)) True) pc
            , symbolic_ids = HS.insert new syms
            , expr_env = E.insertSymbolic (idName new) new eenv}
@@ -473,7 +473,7 @@ mergeExprEnv ctxt@(Context {s1_ = (State {expr_env = eenv1}), s2_ = (State {expr
                               E.preserveMissing
                               (E.zipWithAMatched (mergeEnvObj newId eenv1 eenv2)) 
                               eenv1 
-                              eenv2) (HM.empty, HM.empty, ngen) -- E.intersectionAccum (mergeEnvObj newId eenv1 eenv2) ngen (HM.empty, HM.empty) eenv1 eenv2
+                              eenv2) (HM.empty, HM.empty, ngen)
         newSyms' = (HM.elems changedSyms1) ++ (HM.elems changedSyms2) ++ (HS.toList newSyms)
         mergedEnvs' = foldr (\i@(Id n _) m -> E.insertSymbolic n i m) mergedEnvs newSyms'
         ctxt' = ctxt {ng_ = ngen'}

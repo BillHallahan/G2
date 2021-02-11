@@ -369,7 +369,7 @@ createInitState src entry config = do
     let proj = takeDirectory src
     (mb_modname, exg2) <- translateLoaded [proj] [src] [] simplTranslationConfig config
 
-    let (init_state, _ , _) = initState exg2 False (T.pack entry) mb_modname (mkCurrExpr Nothing Nothing) config
+    let (init_state, _) = initStateWithCall exg2 False (T.pack entry) mb_modname (mkCurrExpr Nothing Nothing) mkArgTys config
     return (init_state)
 
 createTestState :: KnownValues -> TypeEnv -> CurrExpr -> EE.ExprEnv -> PathConds -> State ()
@@ -384,7 +384,7 @@ createTestState kv tenv currExpr eenv pc = State {
     , type_classes = TC.initTypeClasses []
     , symbolic_ids = HS.empty
     , exec_stack = Stack.empty
-    , model = M.empty
+    , model = HM.empty
     , known_values = kv
     , rules = []
     , num_steps = 0
@@ -403,7 +403,7 @@ createTestBindings = Bindings {
     , arb_value_gen = arbValueInit
     , cleaned_names = HM.empty
     , input_names = []
-    , higher_order_inst = []
+    , higher_order_inst = HS.empty
     , rewrite_rules = []
     , name_gen = mkNameGen [ty1N, ty2N, (Name "A" Nothing 17 Nothing), (Name "B" Nothing 18 Nothing), (Name "X" Nothing 0 Nothing)
         , (Name "Y" Nothing 0 Nothing), (Name "Bool" Nothing 0 Nothing), (Name "" Nothing 0 Nothing), (Name "C" Nothing 24 Nothing)

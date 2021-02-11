@@ -20,6 +20,7 @@ module G2.Language.TypeEnv
   , getDataCon
   , dataConsFromADT
   , getDataConNoType
+  , getTypeNameMod
   , getDataConNameMod
   , getDataConNameMod'
   , dataConArgs
@@ -146,6 +147,9 @@ getDataCon tenv adt dc =
 
 getDataConNoType :: TypeEnv -> Name -> Maybe DataCon
 getDataConNoType tenv n = find (\dc -> dcName dc == n) . concatMap dataCon $ M.elems tenv
+
+getTypeNameMod :: TypeEnv -> Name -> Maybe Name
+getTypeNameMod tenv (Name n m _ _) = find (\(Name n' m' _ _) -> n == n' && m == m') $ M.keys tenv
 
 getDataConNameMod :: TypeEnv -> Name -> Name -> Maybe DataCon
 getDataConNameMod tenv (Name n m _ _) dc =

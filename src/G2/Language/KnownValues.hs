@@ -29,14 +29,32 @@ data KnownValues = KnownValues {
                  , dcTrue :: Name
                  , dcFalse :: Name
 
+                 , tyRational :: Name
+
                  , tyList :: Name
                  , dcCons :: Name
                  , dcEmpty :: Name
 
+                 , tyMaybe :: Name
+                 , dcJust :: Name
+                 , dcNothing :: Name
+
+                 , tyUnit :: Name
+                 , dcUnit :: Name
+
+                 -- Typeclasses
                  , eqTC :: Name
                  , numTC :: Name
                  , ordTC :: Name
                  , integralTC :: Name
+                 , realTC :: Name
+                 , fractionalTC :: Name
+
+                 -- Typeclass superclass extractors
+                 , integralExtactReal :: Name
+                 , realExtractNum :: Name
+                 , realExtractOrd :: Name
+                 , ordExtractEq :: Name
 
                  , eqFunc :: Name
                  , neqFunc :: Name
@@ -51,16 +69,32 @@ data KnownValues = KnownValues {
                  , fromIntegerFunc :: Name
                  , toIntegerFunc :: Name
 
+                 , toRatioFunc :: Name
+                 , fromRationalFunc :: Name
+
                  , geFunc :: Name
                  , gtFunc :: Name
                  , ltFunc :: Name
                  , leFunc :: Name
+
+                 , impliesFunc :: Name
+                 , iffFunc :: Name
 
                  , structEqTC :: Name
                  , structEqFunc :: Name
 
                  , andFunc :: Name
                  , orFunc :: Name
+                 , notFunc :: Name
 
+                 , errorFunc :: Name
+                 , errorWithoutStackTraceFunc :: Name
+                 , errorEmptyListFunc :: Name
                  , patErrorFunc :: Name
                  } deriving (Show, Eq, Read, Typeable, Data)
+
+isErrorFunc :: KnownValues -> Name -> Bool
+isErrorFunc kv n =    n == errorFunc kv
+                   || n == errorEmptyListFunc kv    
+                   || n == errorWithoutStackTraceFunc kv
+                   || n == patErrorFunc kv

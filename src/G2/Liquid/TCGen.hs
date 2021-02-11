@@ -16,12 +16,12 @@ import qualified Data.Text as T
 -- | Creates an LHState.  This involves building a TCValue, and
 -- creating the new LH TC which checks equality, and has a function to
 -- check refinements of polymorphic types
-createLHState :: Measures -> KnownValues -> State [FuncCall] -> Bindings -> (LHState, Bindings)
-createLHState meenv mkv s b =
+createLHState :: Measures -> KnownValues -> TypeClasses -> State [FuncCall] -> Bindings -> (LHState, Bindings)
+createLHState meenv mkv mtc s b =
     let
         (tcv, (s', b')) = runStateM (createTCValues mkv) s b
 
-        lh_s = consLHState s' meenv tcv
+        lh_s = consLHState s' meenv mtc tcv
     in
     execLHStateM (do
                     createLHTCFuncs
@@ -61,10 +61,19 @@ createTCValues kv = do
                         , lhMod = KV.modFunc kv
                         , lhFromInteger = KV.fromIntegerFunc kv
                         , lhToInteger = KV.toIntegerFunc kv
+
+                        , lhFromRational = KV.fromRationalFunc kv
+
+                        , lhToRatioFunc = KV.toRatioFunc kv
+
                         , lhNumOrd = lhNuOr
 
                         , lhAnd = KV.andFunc kv
                         , lhOr = KV.orFunc kv
+                        , lhNot = KV.notFunc kv
+
+                        , lhImplies = KV.impliesFunc kv
+                        , lhIff = KV.iffFunc kv
 
                         , lhPP = lhPPN })
 
@@ -90,7 +99,7 @@ createLHTCFuncs = do
     tc <- typeClasses
     tcn <- lhTCM
     tci <- freshIdN TYPE
-    let tc' = insertClass tcn (Class { insts = lhtc, typ_ids = [tci] }) tc
+    let tc' = insertClass tcn (Class { insts = lhtc, typ_ids = [tci], superclasses = [] }) tc
     putTypeClasses tc'
 
     -- Now, we do the work of actually generating all the code/functions for the typeclass
@@ -289,8 +298,8 @@ eqLHFuncCall ldm i1 i2
         i <- freshIdN TYPE
         b <- tyBoolT
 
-        let lhv = App (Var $ Id lhe (TyForAll (NamedTyBndr i) (TyFun (TyVar i) (TyFun (TyVar i) b)))) (Type t)
         lhd <- lhTCDict' ldm t
+        let lhv = App (Var $ Id lhe (TyForAll (NamedTyBndr i) (TyFun (typeOf lhd) (TyFun (TyVar i) (TyFun (TyVar i) b))))) (Type t)
 
         return $ foldl' App (App lhv lhd) [Var i1, Var i2]
 
@@ -302,7 +311,7 @@ eqLHFuncCall ldm i1 i2
 
         lhd <- lhTCDict' ldm t
 
-        let lhv = App (Var (Id lhe (TyForAll (NamedTyBndr i) (TyFun (TyVar i) (TyFun (TyVar i) b))))) (Type t)
+        let lhv = App (Var (Id lhe (TyForAll (NamedTyBndr i) (TyFun (typeOf lhd) (TyFun (TyVar i) (TyFun (TyVar i) b)))))) (Type t)
         return $ App (App (App lhv lhd) (Var i1)) (Var i2)
 
     | TyFun _ _ <- t = mkTrueE
@@ -382,6 +391,7 @@ createOrdFunc pr n adt = do
 mkOrdCases :: Primitive -> KnownValues -> Id -> Id -> Name -> AlgDataTy -> LHStateM Expr
 mkOrdCases pr kv i1 i2 n (DataTyCon { data_cons = [dc]})
     | n == KV.tyInt kv = mkPrimOrdCases pr TyLitInt i1 i2 dc
+    | n == KV.tyInteger kv = mkPrimOrdCases pr TyLitInt i1 i2 dc
     | n == KV.tyFloat kv = mkPrimOrdCases pr TyLitFloat i1 i2 dc
     | n == KV.tyDouble kv = mkPrimOrdCases pr TyLitDouble i1 i2 dc
     | otherwise = mkTrueE

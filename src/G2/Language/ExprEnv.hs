@@ -31,13 +31,12 @@ module G2.Language.ExprEnv
     , union
     , unions
     , difference
-    , intersectionAccum
+    , union'
     , (!)
     , map
     , map'
     , mapWithKey
     , mapWithKey'
-    , mapKeys
     , mapM
     , mapWithKeyM
     , filter
@@ -49,6 +48,7 @@ module G2.Language.ExprEnv
     , symbolicKeys
     , elems
     , higherOrderExprs
+    , redirsToExprs
     , toList
     , toExprList
     , fromExprList
@@ -75,8 +75,8 @@ import qualified Prelude as Pre
 import Data.Coerce
 import Data.Data (Data, Typeable)
 import qualified Data.List as L
-import qualified Data.Map as M
 import qualified Data.Map.Merge.Lazy as M
+import qualified Data.Map.Lazy as M
 import Data.Maybe
 import qualified Data.Text as T
 
@@ -116,11 +116,12 @@ instance Eq EqFast where
 newtype ExprEnv = ExprEnv (M.Map Name EnvObj)
                   deriving (Show, Eq, Read, Typeable, Data)
 
+{-# INLINE unwrapExprEnv #-}
 unwrapExprEnv :: ExprEnv -> M.Map Name EnvObj
 unwrapExprEnv = coerce
 
 wrapExprEnv :: M.Map Name EnvObj -> ExprEnv
-wrapExprEnv = ExprEnv
+wrapExprEnv = ExprEnv 
 
 -- | Constructs an empty `ExprEnv`
 empty :: ExprEnv
@@ -240,19 +241,8 @@ unions eenvs = foldl union empty eenvs
 difference :: ExprEnv -> ExprEnv -> ExprEnv
 difference (ExprEnv eenv) (ExprEnv eenv') = ExprEnv (M.difference eenv eenv')
 
--- | Intersection with a combining function that threads an accumulating argument
-intersectionAccum :: (NameGen -> a -> (EnvObj, EnvObj) -> (a, EnvObj, NameGen)) -> NameGen -> a -> ExprEnv -> ExprEnv -> (a, ExprEnv, NameGen)
-intersectionAccum f ng a (ExprEnv eenv) (ExprEnv eenv') =
-    let zippedEnvs = M.intersectionWith (\v1 v2 -> (v1,v2)) eenv eenv'
-        ((ng', a'), eenv'') = M.mapAccum (\(ng, a) e -> let (a', e', ng') = f ng a e in
-                                                            case e' of
-                                                                ExprObj Nothing e'' ->
-                                                                    let
-                                                                        (cr, ng'') = freshSeededName clName ng'
-                                                                    in
-                                                                    ((ng'', a'), ExprObj (Just (CL cr)) e'')
-                                                                _ -> ((ng', a'), e')) (ng, a) zippedEnvs
-    in (a', ExprEnv eenv'', ng')
+union' :: M.Map Name Expr -> ExprEnv -> ExprEnv
+union' m (ExprEnv eenv) = ExprEnv (M.map (ExprObj Nothing) m `M.union` eenv)
 
 -- | Map a function over all `Expr` in the `ExprEnv`.
 -- Will not replace symbolic variables with non-symbolic values,
@@ -280,9 +270,6 @@ mapWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
 
 mapWithKey' :: (Name -> Expr -> a) -> ExprEnv -> M.Map Name a
 mapWithKey' f = M.mapWithKey f . toExprMap
-
-mapKeys :: (Name -> Name) -> ExprEnv -> ExprEnv
-mapKeys f = coerce . M.mapKeys f . unwrapExprEnv
 
 mapM :: Monad m => (Expr -> m Expr) -> ExprEnv -> m ExprEnv
 mapM f eenv = return . ExprEnv =<< Pre.mapM f' (unwrapExprEnv eenv)
@@ -340,6 +327,13 @@ elems = exprObjs . M.elems . unwrapExprEnv
 higherOrderExprs :: ExprEnv -> [Type]
 higherOrderExprs = concatMap (higherOrderFuncs) . elems
 
+-- | Converts all RedirObjs in ExprObjs.  Useful for certain kinds of analysis
+redirsToExprs :: ExprEnv -> ExprEnv
+redirsToExprs eenv = coerce . M.map rToE . coerce $ eenv
+    where
+        rToE (RedirObj n) = ExprObj Nothing . Var . Id n . typeOf $ eenv ! n
+        rToE e = e
+
 toList :: ExprEnv -> [(Name, EnvObj)]
 toList = M.toList . unwrapExprEnv
 
@@ -373,7 +367,8 @@ mergeAEnvObj :: Applicative f
              -> ExprEnv
              -> ExprEnv
              -> f ExprEnv
-mergeAEnvObj wm1 wm2 wm3 (ExprEnv eenv1) (ExprEnv eenv2) = fmap ExprEnv $ M.mergeA wm1 wm2 wm3 eenv1 eenv2
+mergeAEnvObj wm1 wm2 wm3 (ExprEnv eenv1) (ExprEnv eenv2) =
+    fmap ExprEnv $ M.mergeA wm1 wm2 wm3 eenv1 eenv2
 
 -- Give a CL to every ExprObj that does not already have one.
 assignCLs :: NameGen -> ExprEnv -> (ExprEnv, NameGen)
@@ -436,14 +431,16 @@ instance Named ExprEnv where
 
     rename old new =
         ExprEnv 
-        . M.mapKeys (\k -> if k == old then new else k)
+        . M.fromList
         . rename old new
+        . M.toList
         . unwrapExprEnv
 
     renames hm =
         ExprEnv
-        . M.mapKeys (renames hm)
+        . M.fromList
         . renames hm
+        . M.toList
         . unwrapExprEnv
 
 instance Named EnvObj where

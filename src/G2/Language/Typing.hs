@@ -12,6 +12,11 @@ module G2.Language.Typing
     , tyDouble
     , tyFloat
     , tyBool
+    , tyChar
+    , tyRational
+    , tyList
+    , tyMaybe
+    , tyUnit
     , mkTyApp
     , mkTyFun
     , tyAppCenter
@@ -22,6 +27,7 @@ module G2.Language.Typing
     , (.::)
     , (.::.)
     , specializes
+    , specializes'
     , hasFuncType
     , appendType
     , higherOrderFuncs
@@ -35,6 +41,7 @@ module G2.Language.Typing
     , tyVarNames
     , hasTyFuns
     , isPolyFunc
+    , isPolyType
     , numArgs
     , ArgType (..)
     , argumentTypes
@@ -48,7 +55,9 @@ module G2.Language.Typing
     , polyIds
     , splitTyForAlls
     , splitTyFuns
+    , retypeSelective
     , retype
+    , retypeOutsideTyForAll
     , mapInTyForAlls
     , inTyForAlls
     , numTypeArgs
@@ -81,6 +90,21 @@ tyFloat kv = TyCon (KV.tyFloat kv) (tyTYPE kv)
 
 tyBool :: KV.KnownValues -> Type
 tyBool kv = TyCon (KV.tyBool kv) (tyTYPE kv)
+
+tyChar :: KV.KnownValues -> Type
+tyChar kv = TyCon (KV.tyChar kv) (tyTYPE kv)
+
+tyRational :: KV.KnownValues -> Type
+tyRational kv = TyCon (KV.tyRational kv) (tyTYPE kv)
+
+tyList :: KV.KnownValues -> Type
+tyList kv = TyCon (KV.tyList kv) (TyFun TYPE TYPE)
+
+tyMaybe :: KV.KnownValues -> Type
+tyMaybe kv = TyCon (KV.tyMaybe kv) (TyFun TYPE TYPE)
+
+tyUnit :: KV.KnownValues -> Type
+tyUnit kv = TyCon (KV.tyUnit kv) (TyFun TYPE TYPE)
 
 tyTYPE :: KV.KnownValues -> Type
 tyTYPE _ = TYPE
@@ -208,6 +232,8 @@ appTypeOf m (TyVar (Id n _)) es =
     case M.lookup n m of
         Just t -> appTypeOf m t es
         Nothing -> error ("appTypeOf: Unknown TyVar")
+appTypeOf _ TyBottom _ = TyBottom
+appTypeOf _ TyUnknown _ = TyUnknown
 appTypeOf _ t es = error ("appTypeOf\n" ++ show t ++ "\n" ++ show es ++ "\n\n")
 
 instance Typed Type where
@@ -239,6 +265,17 @@ newtype PresType = PresType Type deriving (Show, Read)
 instance Typed PresType where
     typeOf' _ (PresType t) = t
 
+-- | Retypes Types in Vars, Type Expr's, Coercions, and Casts
+retypeSelective :: (ASTContainer m Expr, Show m) => Id -> Type -> m -> m
+retypeSelective key new e = modifyASTs (retypeSelective' key new) $ e
+
+retypeSelective' :: Id -> Type -> Expr -> Expr
+retypeSelective' i t (Var v) = Var (retype i t v)
+retypeSelective' i t (Type t') = Type (retype' i t t')
+retypeSelective' i t (Cast e c) = Cast e (retype i t c)
+retypeSelective' i t (Coercion c) = Coercion (retype i t c)
+retypeSelective' _ _ e = e
+
 -- | Retyping
 -- We look to see if the type we potentially replace has a TyVar whose Id is a
 -- match on the target key that we want to replace.
@@ -247,11 +284,15 @@ retype key new e = modifyContainedASTs (retype' key new) $ e
 
 retype' :: Id -> Type -> Type -> Type
 retype' key new (TyVar test) = if key == test then new else TyVar test
-retype' key new (TyForAll (NamedTyBndr nid) ty) =
-  if key == nid
-    then modifyChildren (retype' key new) ty
-    else TyForAll (NamedTyBndr nid) (modifyChildren (retype' key new) ty)
 retype' key new ty = modifyChildren (retype' key new) ty
+
+retypeOutsideTyForAll :: (ASTContainer m Type, Show m) => Id -> Type -> m -> m
+retypeOutsideTyForAll key new e = modifyContainedASTs (retypeOutsideTyForAll' key new) $ e
+
+retypeOutsideTyForAll' :: Id -> Type -> Type -> Type
+retypeOutsideTyForAll' _ _ t@(TyForAll _ _) = t
+retypeOutsideTyForAll' key new (TyVar test) = if key == test then new else TyVar test
+retypeOutsideTyForAll' key new ty = modifyChildren (retypeOutsideTyForAll' key new) ty
 
 tyVarRename :: (ASTContainer t Type) => M.Map Name Type -> t -> t
 tyVarRename m = modifyASTs (tyVarRename' m)
@@ -263,7 +304,7 @@ tyVarRename' _ t = t
 -- | Returns if the first type given is a specialization of the second,
 -- i.e. if given t1, t2, returns true iff t1 :: t2
 (.::) :: Typed t => t -> Type -> Bool
-t1 .:: t2 = fst $ specializes M.empty (typeOf t1) t2
+t1 .:: t2 = fst $ specializes (typeOf t1) t2
 {-# INLINE (.::) #-}
 
 -- | Checks if the first type is equivalent to the second type.
@@ -272,57 +313,60 @@ t1 .:: t2 = fst $ specializes M.empty (typeOf t1) t2
 t1 .::. t2 = PresType t1 .:: t2 && PresType t2 .:: t1
 {-# INLINE (.::.) #-}
 
-specializes :: M.Map Name Type -> Type -> Type -> (Bool, M.Map Name Type)
-specializes m _ TYPE = (True, m)
-specializes m t (TyVar (Id n _)) =
+specializes :: Type -> Type -> (Bool, M.Map Name Type)
+specializes = specializes' M.empty
+
+specializes' :: M.Map Name Type -> Type -> Type -> (Bool, M.Map Name Type)
+specializes' m _ TYPE = (True, m)
+specializes' m t (TyVar (Id n _)) =
     case M.lookup n m of
         Just (TyVar _) -> (True, m)
-        Just t' -> specializes m t t'
+        Just t' -> specializes' m t t'
         Nothing -> (True, M.insert n t m)
-specializes m (TyFun t1 t2) (TyFun t1' t2') =
+specializes' m (TyFun t1 t2) (TyFun t1' t2') =
     let
-        (b1, m') = specializes m t1 t1'
-        (b2, m'') = specializes m' t2 t2'
+        (b1, m') = specializes' m t1 t1'
+        (b2, m'') = specializes' m' t2 t2'
     in
     (b1 && b2, m'')
-specializes m (TyApp t1 t2) (TyApp t1' t2') =
+specializes' m (TyApp t1 t2) (TyApp t1' t2') =
     let
-        (b1, m') = specializes m t1 t1'
-        (b2, m'') = specializes m' t2 t2'
+        (b1, m') = specializes' m t1 t1'
+        (b2, m'') = specializes' m' t2 t2'
     in
     (b1 && b2, m'')
-specializes m (TyCon n _) (TyCon n' _) = (n == n', m)
-specializes m (TyFun t1 t2) (TyForAll (AnonTyBndr t1') t2') =
+specializes' m (TyCon n _) (TyCon n' _) = (n == n', m)
+specializes' m (TyFun t1 t2) (TyForAll (AnonTyBndr t1') t2') =
   let
-      (b1, m') = specializes m t1 t1'
-      (b2, m'') = specializes m' t2 t2'
+      (b1, m') = specializes' m t1 t1'
+      (b2, m'') = specializes' m' t2 t2'
   in (b1 && b2, m'')
-specializes m (TyFun t1 t2) (TyForAll (NamedTyBndr _) t2') =
-  specializes m (TyFun t1 t2) t2'
-specializes m (TyForAll (AnonTyBndr t1) t2) (TyFun t1' t2') =
+specializes' m (TyFun t1 t2) (TyForAll (NamedTyBndr _) t2') =
+  specializes' m (TyFun t1 t2) t2'
+specializes' m (TyForAll (AnonTyBndr t1) t2) (TyFun t1' t2') =
   let
-      (b1, m') = specializes m t1 t1'
-      (b2, m'') = specializes m' t2 t2'
+      (b1, m') = specializes' m t1 t1'
+      (b2, m'') = specializes' m' t2 t2'
   in (b1 && b2, m'')
-specializes m (TyForAll (AnonTyBndr t1) t2) (TyForAll (AnonTyBndr t1') t2') =
+specializes' m (TyForAll (AnonTyBndr t1) t2) (TyForAll (AnonTyBndr t1') t2') =
   let
-      (b1, m') = specializes m t1 t1'
-      (b2, m'') = specializes m' t2 t2'
+      (b1, m') = specializes' m t1 t1'
+      (b2, m'') = specializes' m' t2 t2'
   in (b1 && b2, m'')
-specializes m (TyForAll (AnonTyBndr t1) t2) (TyForAll (NamedTyBndr _) t2') =
-  specializes m (TyForAll (AnonTyBndr t1) t2) t2'
-specializes m (TyForAll (NamedTyBndr (Id _ t1)) t2) (TyForAll (NamedTyBndr (Id _ t1')) t2') =
+specializes' m (TyForAll (AnonTyBndr t1) t2) (TyForAll (NamedTyBndr _) t2') =
+  specializes' m (TyForAll (AnonTyBndr t1) t2) t2'
+specializes' m (TyForAll (NamedTyBndr (Id _ t1)) t2) (TyForAll (NamedTyBndr (Id _ t1')) t2') =
   let
-      (b1, m') = specializes m t1 t1'
-      (b2, m'') = specializes m' t2 t2'
+      (b1, m') = specializes' m t1 t1'
+      (b2, m'') = specializes' m' t2 t2'
   in (b1 && b2, m'')
-specializes m t (TyForAll _ t') =
-  specializes m t t'
-specializes m TyUnknown _ = (True, m)
-specializes m _ TyUnknown = (True, m)
-specializes m TyBottom _ = (True, m)
-specializes m _ TyBottom = (False, m)
-specializes m t1 t2 = (t1 == t2, m)
+specializes' m t (TyForAll _ t') =
+  specializes' m t t'
+specializes' m TyUnknown _ = (True, m)
+specializes' m _ TyUnknown = (True, m)
+specializes' m TyBottom _ = (True, m)
+specializes' m _ TyBottom = (False, m)
+specializes' m t1 t2 = (t1 == t2, m)
 
 hasFuncType :: (Typed t) => t -> Bool
 hasFuncType t =
@@ -379,6 +423,11 @@ isPolyFunc' :: Type -> Bool
 isPolyFunc' (TyForAll _ _) = True
 isPolyFunc' _ = False
 
+
+-- | Checks if the given type is polymorphic
+isPolyType :: Typed t => t -> Bool
+isPolyType = not . null . tyVars . typeOf
+
 -- tyVars
 -- Returns a list of all tyVars
 tyVars :: ASTContainer m Type => m -> [Type]
@@ -420,7 +469,7 @@ hasTyBottom' _ = Any False
 numArgs :: Typed t => t -> Int
 numArgs = length . argumentTypes
 
-data ArgType = AnonType Type | NamedType Id
+data ArgType = AnonType Type | NamedType Id deriving (Show, Read)
 
 -- | Gives the types of the arguments of the functions
 argumentTypes :: Typed t => t -> [Type]
@@ -560,4 +609,3 @@ isPrimType TyLitDouble = True
 isPrimType TyLitChar = True
 isPrimType TyLitString = True
 isPrimType _ = False
-

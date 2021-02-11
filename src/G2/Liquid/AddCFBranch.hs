@@ -1,10 +1,27 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Liquid.AddCFBranch (addCounterfactualBranch) where
+module G2.Liquid.AddCFBranch ( CounterfactualName
+                             , addCounterfactualBranch
+                             , onlyCounterfactual
+                             , elimNonTop
 
+                             , instFuncTickName
+                             , existentialInstId ) where
+
+import G2.Config.Config
 import G2.Language
+import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad
 import G2.Liquid.Types
+import G2.Liquid.TyVarBags
+
+import qualified Data.HashSet as S
+import Data.List
+
+import Debug.Trace
+
+type CounterfactualName = Name
 
 -- Enables finding abstract counterexamples, by adding counterfactual branches
 -- with two states.
@@ -20,40 +37,90 @@ import G2.Liquid.Types
 --     This is essentially abstracting away the function definition, leaving
 --     only the information that LH also knows (that is, the information in the
 --     refinment type.)
-addCounterfactualBranch :: [Name] -> LHStateM Name
-addCounterfactualBranch ns = do
+addCounterfactualBranch :: CFModules
+                        -> [Name] -- ^ Which functions to consider abstracting
+                        -> LHStateM CounterfactualName
+addCounterfactualBranch cf_mod ns = do
+    let ns' = case cf_mod of
+                CFAll -> ns
+                CFOnly mods -> filter (\(Name n m _ _) -> (n, m) `S.member` mods) ns
+
+    bag_func_ns <- return . concat =<< mapM argumentNames ns'
+    inst_func_ns <- return . concat =<< mapM returnNames ns'
+
+    createBagAndInstFuncs bag_func_ns inst_func_ns
+
     cfn <- freshSeededStringN "cf"
-    mapWithKeyME (addCounterfactualBranch' cfn ns)
+    mapWithKeyME (addCounterfactualBranch' cfn ns')
     return cfn
 
-addCounterfactualBranch' :: Name -> [Name]-> Name -> Expr -> LHStateM Expr
+addCounterfactualBranch' :: CounterfactualName -> [Name] -> Name -> Expr -> LHStateM Expr
 addCounterfactualBranch' cfn ns n =
     if n `elem` ns then insertInLamsE (\_ -> addCounterfactualBranch'' cfn) else return
 
-addCounterfactualBranch'' :: Name -> Expr -> LHStateM Expr
+addCounterfactualBranch'' :: CounterfactualName -> Expr -> LHStateM Expr
 addCounterfactualBranch'' cfn
     orig_e@(Let 
-        [(b, _)]
-        (Assert (Just (FuncCall { funcName = fn, arguments = ars })) a _)) = do
-    let t = returnType orig_e
-        sg = SymGen t
+            [(b, _)]
+            (Assert (Just (FuncCall { funcName = fn, arguments = ars, returns = r })) a _)) = do
+        sg <- cfRetValue ars rt
 
-    -- Create lambdas, to gobble up any ApplyFrames left on the stack
-    lams <- tyBindings orig_e
+        -- Create lambdas, to gobble up any ApplyFrames left on the stack
+        lams <- tyBindings orig_e
 
-    -- If the type of b is not the same as e's type, we have no assumption,
-    -- so we get a new b.  Otherwise, we just keep our current b,
-    -- in case it is used in the assertion
-    b' <- if typeOf b == t then return b else freshIdN t
+        -- If the type of b is not the same as e's type, we have no assumption,
+        -- so we get a new b.  Otherwise, we just keep our current b,
+        -- in case it is used in the assertion
+        b' <- if typeOf b == rt then return b else freshIdN rt
 
-    let fc = FuncCall { funcName = fn, arguments = ars', returns = (Var b')}
-        e' = lams $ Let [(b', sg)] $ Tick (NamedLoc cfn) $ Assume (Just fc) a (Var b')
-        -- We add the Id's from the newly created Lambdas to the arguments list
-        lamI = map Var $ leadingLamIds e'
-        ars' = ars ++ lamI
+        let fc = FuncCall { funcName = fn, arguments = ars', returns = (Var b')}
+            e' = lams $ Let [(b', sg)] $ Tick (NamedLoc cfn) $ Assume (Just fc) a (Var b')
+            -- We add the Id's from the newly created Lambdas to the arguments list
+            lamI = map Var $ leadingLamIds e'
+            ars' = ars ++ lamI
 
-    return $ NonDet [orig_e, e']
+        return $ NonDet [orig_e, e']
+        where
+            rt = typeOf r
 addCounterfactualBranch'' cfn e = modifyChildrenM (addCounterfactualBranch'' cfn) e
+
+cfRetValue :: [Expr] -- ^ Arguments
+           -> Type -- ^ Type of return value
+           -> LHStateM Expr
+cfRetValue ars rt
+    | tvs <- tyVarIds rt
+    , not (null tvs)  = do
+        let all_tvs = tvs ++ tyVarIds ars
+        ty_bags <- getTyVarBags
+
+        ex_vrs <- freshIdsN (map TyVar all_tvs)
+        let ex_tvs_to_vrs = zip all_tvs ex_vrs
+
+        ex_ty_clls <- mapM 
+                        (\tv -> wrapExtractCalls tv
+                              . filter nullNonDet
+                              . concat
+                              =<< mapM (extractTyVarCall ty_bags ex_tvs_to_vrs tv) ars) (nub all_tvs)
+
+        let ex_let_bnds = zip ex_vrs ex_ty_clls
+
+        dUnit <- mkUnitE
+
+        inst_funcs <- getInstFuncs
+        inst_ret <- instTyVarCall inst_funcs ex_tvs_to_vrs rt
+        let inst_ret_call = App inst_ret dUnit
+        ir_bndr <- freshIdN (typeOf inst_ret_call)
+        
+        return . Let ((ir_bndr, inst_ret_call):ex_let_bnds) $ Tick (NamedLoc instFuncTickName) (Var ir_bndr)
+    | otherwise = do 
+        return (SymGen rt)
+
+nullNonDet :: Expr -> Bool
+nullNonDet (NonDet []) = False
+nullNonDet _ = True
+
+instFuncTickName :: Name
+instFuncTickName = Name "INST_FUNC_TICK" Nothing 0 Nothing
 
 -- Creates Lambda bindings to saturate the type of the given Typed thing,
 -- and a list of the bindings so they can be used elsewhere
@@ -68,3 +135,38 @@ tyBindings' _ [] = id
 tyBindings' ns (NamedType i:ts) = Lam TypeL i . tyBindings' ns ts
 tyBindings' (n:ns) (AnonType t:ts) = Lam TermL (Id n t) . tyBindings' ns ts
 tyBindings' [] _ = error "Name list exhausted in tyBindings'"
+
+argumentNames :: ExState s m => Name -> m [Name]
+argumentNames n = do
+    e <- lookupE n
+    case e of
+        Just e' -> return . concatMap tyConNames $ anonArgumentTypes e'
+        Nothing -> return []
+
+returnNames :: ExState s m => Name -> m [Name]
+returnNames n = do
+    e <- lookupE n
+    case e of
+        Just e' -> return . tyConNames $ returnType e'
+        Nothing -> return []
+
+tyConNames :: Type -> [Name]
+tyConNames (TyCon n t) = n:tyConNames t 
+tyConNames t = evalChildren tyConNames t
+
+-- | Eliminates the real branch of the non-deterministic choices, leaving only
+-- the abstract branch.  Assumes all non-determinisitic choices are for
+-- counterfactual symbolic execution.
+onlyCounterfactual :: ASTContainer m Expr => m -> m
+onlyCounterfactual = modifyASTs onlyCounterfactual'
+
+onlyCounterfactual' :: Expr -> Expr
+onlyCounterfactual' (NonDet [_, e]) = e
+onlyCounterfactual' e = e
+
+-- | Eliminate all Asserts, except for the functions with names in the HashSet
+elimNonTop :: S.HashSet Name -> State t -> State t
+elimNonTop hs s@(State { expr_env = eenv }) = s { expr_env = E.mapWithKey (elimNonTop' hs) eenv }
+
+elimNonTop' :: S.HashSet Name -> Name -> Expr -> Expr
+elimNonTop' hs n e = if n `S.member` hs then e else elimAsserts e

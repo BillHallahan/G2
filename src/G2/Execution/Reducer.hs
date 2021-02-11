@@ -33,13 +33,15 @@ module G2.Execution.Reducer ( Reducer (..)
                             , PredicateLogger (..)
                             , mkCountAllSteps
                             , CountMerges (..)
+                            , OnlyPath (..)
 
                             , (<~)
                             , (<~?)
                             , (<~|)
 
                             -- Halters
-                            , AcceptHalter (..)
+                            , SWHNFHalter (..)
+                            , AcceptIfViolatedHalter (..)
                             , HCombiner (..)
                             , ZeroHalter (..)
                             , DiscardIfAcceptedTag (..)
@@ -49,6 +51,9 @@ module G2.Execution.Reducer ( Reducer (..)
                             , RecursiveCutOff (..)
                             , VarLookupLimit (..)
                             , BranchAdjVarLookupLimit (..)
+                            , TimerHalter (if_time_out)
+                            , timerHalter
+                            , OnlyIf (..)
 
                             -- Orderers
                             , OCombiner (..)
@@ -58,7 +63,15 @@ module G2.Execution.Reducer ( Reducer (..)
                             , CaseCountOrderer (..)
                             , SymbolicADTOrderer (..)
                             , ADTHeightOrderer (..)
+                            , ADTSizeOrderer (..)
                             , IncrAfterN (..)
+                            , QuotTrueAssert (..)
+                            , RandomOrderer (..)
+                            , mkRandomOrderer
+                            , getRandomOrderer
+                            , WeightedRandomOrderer
+                            , mkWeightedRandomOrderer
+                            , getWeightedRandomOrderer
 
                             , runReducer 
                             , runReducerMerge ) where
@@ -82,7 +95,11 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.List as L
+import Data.Time.Clock
 import System.Directory
+import System.Random
+
+import Debug.Trace
 
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
@@ -139,9 +156,11 @@ class Reducer r rv t | r -> rv where
     -- | Takes a State, and performs the appropriate Reduction Rule
     redRules :: r -> rv -> State t -> Bindings -> IO (ReducerRes, [(State t, rv)], Bindings, r) 
     
-    -- | Gives an opportunity to update with all States and Reducer Val's,
+    -- | After a reducer returns multiple states,
+    -- gives an opportunity to update with all States and Reducer Val's,
     -- output by all Reducer's, visible
     -- Errors if the returned list is too short.
+    -- If only one state is returned by all reducers, updateWithAll does not run.
     {-# INLINE updateWithAll #-}
     updateWithAll :: r -> [(State t, rv)] -> [rv]
     updateWithAll _ = map snd
@@ -171,10 +190,19 @@ class Halter h hv t | h -> hv where
     discardOnStart _ _ _ _ = False
 
     -- | Determines whether to continue reduction on the current state
-    stopRed :: h -> hv -> Processed (State t) -> State t -> HaltC
+    stopRed :: h -> hv -> Processed (State t) -> State t -> IO HaltC
 
     -- | Takes a state, and updates it's halter record field
     stepHalter :: h -> hv -> Processed (State t) -> [State t] -> State t -> hv
+
+
+    -- | After multiple states, are returned
+    -- gives an opportunity to update halters with all States and halter values visible.
+    -- Errors if the returned list is too short.
+    -- If only one state is returned, updateHalterWithAll does not run.
+    {-# INLINE updateHalterWithAll #-}
+    updateHalterWithAll :: h -> [(State t, hv)] -> [hv]
+    updateHalterWithAll _ = map snd 
 
 -- | Picks an order to evaluate the states, to allow prioritizing some over others 
 -- The type parameter or is used to disambiguate between different producers.
@@ -185,7 +213,7 @@ class Ord b => Orderer or sov b t | or -> sov, or -> b where
 
     -- | Assigns each state some value of an ordered type, and then proceeds with execution on the
     -- state assigned the minimal value
-    orderStates :: or -> sov -> State t -> b
+    orderStates :: or -> sov -> Processed (State t) -> State t -> (b, or)
 
     -- | Run on the selected state, to update it's sov field
     updateSelected :: or -> sov -> Processed (State t) -> State t -> sov
@@ -194,8 +222,8 @@ class Ord b => Orderer or sov b t | or -> sov, or -> b where
     stepOrderer :: or -> sov -> Processed (State t) -> [State t] -> State t -> sov 
     stepOrderer _ sov _ _ _ = sov
 
-    getState :: forall s . or -> Processed (State t) -> M.Map b s -> Maybe ((b, s), M.Map b s)
-    getState _ _ = M.minViewWithKey
+    getState :: forall s . or -> Processed (State t) -> M.Map b [s] -> Maybe (b, [s])
+    getState _ _ = M.lookupMin
 
 class Ord b => MinOrderer or sov b t | or -> sov, or -> b where
     -- | Initializing the per state ordering value 
@@ -203,7 +231,7 @@ class Ord b => MinOrderer or sov b t | or -> sov, or -> b where
 
     -- | Assigns each state some value of an ordered type, and then proceeds with execution on the
     -- state assigned the minimal value
-    minOrderStates :: or -> sov -> State t -> b
+    minOrderStates :: or -> sov -> Processed (State t) -> State t -> (b, or)
 
     -- | Run on the selected state, to update it's sov field
     minUpdateSelected :: or -> sov -> Processed (State t) -> State t -> sov
@@ -216,10 +244,10 @@ newtype ToOrderer min_ord = ToOrderer min_ord
 
 instance (MinOrderer min_ord sov b t, Ord b) => Orderer (ToOrderer min_ord) sov b t where
     initPerStateOrder (ToOrderer min_ord) = minInitPerStateOrder min_ord
-    orderStates (ToOrderer min_ord) = minOrderStates min_ord
+    orderStates (ToOrderer min_ord) sov pr = fmap ToOrderer . minOrderStates min_ord sov pr
     updateSelected (ToOrderer min_ord) = minUpdateSelected min_ord
     stepOrderer (ToOrderer min_ord) = minStepOrderer min_ord
-    getState _ _ = M.minViewWithKey
+    getState _ _ = M.lookupMin
 
 data SomeReducer t where
     SomeReducer :: forall r rv t . Reducer r rv t => r -> SomeReducer t
@@ -243,24 +271,9 @@ data RCombiner r1 r2 = r1 :<~ r2 -- ^ Apply r2, followed by r1.  Takes the leftm
 data RC a b = RC a b
 
 instance (Reducer r1 rv1 t, Reducer r2 rv2 t) => Reducer (RCombiner r1 r2) (RC rv1 rv2) t where
-    initReducer (r1 :<~ r2) s =
-        let
-            rv1 = initReducer r1 s
-            rv2 = initReducer r2 s
-        in
-        RC rv1 rv2
-    initReducer (r1 :<~? r2) s =
-        let
-            rv1 = initReducer r1 s
-            rv2 = initReducer r2 s
-        in
-        RC rv1 rv2
-    initReducer (r1 :<~| r2) s =
-        let
-            rv1 = initReducer r1 s
-            rv2 = initReducer r2 s
-        in
-        RC rv1 rv2
+    initReducer (r1 :<~ r2) = initReducerGen r1 r2
+    initReducer (r1 :<~? r2) = initReducerGen r1 r2
+    initReducer (r1 :<~| r2) = initReducerGen r1 r2
 
     redRules (r1 :<~ r2) (RC rv1 rv2) s b = do
         (rr2, srv2, b', r2') <- redRules r2 rv2 s b
@@ -288,6 +301,7 @@ instance (Reducer r1 rv1 t, Reducer r2 rv2 t) => Reducer (RCombiner r1 r2) (RC r
                 return (rr1, ss, b'', r1' :<~| r2')
             _ -> return (rr2, zip s' (map (uncurry RC) (zip (repeat rv1) rv2')), b', r1 :<~| r2')
 
+    {-# INLINE updateWithAll #-}
     updateWithAll (r1 :<~ r2) = updateWithAllRC r1 r2
     updateWithAll (r1 :<~? r2) = updateWithAllRC r1 r2
     updateWithAll (r1 :<~| r2) = updateWithAllRC r1 r2
@@ -314,6 +328,14 @@ instance (Reducer r1 rv1 t, Reducer r2 rv2 t) => Reducer (RCombiner r1 r2) (RC r
         f_rv1 <- onMerge r1 s s' rv1 rv1'
         f_rv2 <- onMerge r2 s s' rv2 rv2'
         return $ RC f_rv1 f_rv2
+
+initReducerGen :: (Reducer r1 rv1 t, Reducer r2 rv2 t) => r1 -> r2 -> State t -> RC rv1 rv2
+initReducerGen r1 r2 s =
+    let
+        rv1 = initReducer r1 s
+        rv2 = initReducer r2 s
+    in
+    RC rv1 rv2
 
 {-# INLINE updateWithAllRC #-}
 updateWithAllRC :: (Reducer r1 rv1 t, Reducer r2 rv2 t) => r1 -> r2 -> [(State t, RC rv1 rv2)] -> [RC rv1 rv2]
@@ -392,7 +414,7 @@ instance Reducer NonRedPCRed () t where
                               , symbolic_ids = si
                               , model = m })
                       b@(Bindings { higher_order_inst = inst }) = do
-        let stck' = Stck.push (CurrExprFrame cexpr) stck
+        let stck' = Stck.push (CurrExprFrame AddPC cexpr) stck
 
         let cexpr' = CurrExpr Evaluate nr
 
@@ -413,12 +435,12 @@ instance Reducer NonRedPCRed () t where
 -- Substitutes all possible higher order functions for symbolic higher order functions.
 -- We insert the substituted higher order function directly into the model, because, due
 -- to the VAR-RED rule, the function name will (if the function is called) be lost during execution.
-substHigherOrder :: ExprEnv -> Model -> SymbolicIds -> [Name] -> CurrExpr -> [(ExprEnv, Model, SymbolicIds, CurrExpr)]
+substHigherOrder :: ExprEnv -> Model -> SymbolicIds -> HS.HashSet Name -> CurrExpr -> [(ExprEnv, Model, SymbolicIds, CurrExpr)]
 substHigherOrder eenv m si ns ce =
     let
         is = mapMaybe (\n -> case E.lookup n eenv of
                                 Just e -> Just $ Id n (typeOf e)
-                                Nothing -> Nothing) ns
+                                Nothing -> Nothing) $ HS.toList ns
 
         higherOrd = filter (isTyFun . typeOf) . mapMaybe varId . symbVars eenv $ ce
         higherOrdSub = map (\v -> (v, mapMaybe (genSubstitutable v) is)) higherOrd
@@ -426,7 +448,7 @@ substHigherOrder eenv m si ns ce =
     substHigherOrder' [(eenv, m, si, ce)] higherOrdSub
     where
         genSubstitutable v i
-            | (True, bm) <- specializes M.empty (typeOf v )(typeOf i) =
+            | (True, bm) <- specializes (typeOf v) (typeOf i) =
                 let
                     bnds = map idName $ leadingTyForAllBindings i
                     tys = mapMaybe (\b -> fmap Type $ M.lookup b bm) bnds
@@ -440,7 +462,7 @@ substHigherOrder' eenvsice ((i, es):iss) =
     substHigherOrder'
         (concatMap (\e_rep -> 
                         map (\(eenv, m, si, ce) -> ( E.insert (idName i) e_rep eenv
-                                                   , M.insert (idName i) e_rep m
+                                                   , HM.insert (idName i) e_rep m
                                                    , HS.delete i si
                                                    , replaceASTs (Var i) e_rep ce)
                             ) eenvsice)
@@ -463,7 +485,7 @@ instance Reducer TaggerRed () t where
 -- | A Reducer to producer logging output 
 data Logger = Logger String
 
-instance Reducer Logger [Int] t where
+instance Show t => Reducer Logger [Int] t where
     initReducer _ _ = []
 
     redRules l@(Logger fn) li s b = do
@@ -514,7 +536,7 @@ data PredicateLogger = PredicateLogger { pred :: forall t . State t -> Bindings 
                                        , pred_output_path :: String }
 
 instance Show t => Reducer PredicateLogger [Int] t where
-    initReducer _ _ = []
+    initReducer ll _ = []
 
     redRules pl@(PredicateLogger p out) ll s b
         | p s b = do
@@ -522,9 +544,25 @@ instance Show t => Reducer PredicateLogger [Int] t where
             return (NoProgress, [(s, ll)], b, pl)
         | otherwise =
             return (NoProgress, [(s, ll)], b, pl)
-
+    
     updateWithAll _ [(_, l)] = [l]
     updateWithAll _ ss = map (\(l, i) -> l ++ [i]) $ zip (map snd ss) [1..]
+
+
+-- | A Reducer to block states not on a given path 
+data OnlyPath = OnlyPath [Int] -- ^ The path to accept
+
+instance Reducer OnlyPath [Int] t where
+    initReducer _ _ = []
+
+    redRules ll@(OnlyPath down) off s b
+        | down `L.isPrefixOf` off || off `L.isPrefixOf` down =
+            return (NoProgress, [(s, off)], b, ll)
+        | otherwise = return (Finished, [], b, ll)
+    
+    updateWithAll _ [(_, l)] = [l]
+    updateWithAll _ ss = map (\(llt, i) -> llt ++ [i]) $ zip (map snd ss) [1..]
+
 
 outputState :: String -> [Int] -> State t -> Bindings -> (State t -> Bindings -> String) -> IO ()
 outputState dn is s b printer = do
@@ -626,12 +664,11 @@ instance (Halter h1 hv1 t, Halter h2 hv2 t) => Halter (HCombiner h1 h2) (C hv1 h
         in
         b1 || b2
 
-    stopRed (h1 :<~> h2) (C hv1 hv2) proc s =
-        let
-            hc1 = stopRed h1 hv1 proc s
-            hc2 = stopRed h2 hv2 proc s
-        in
-        min hc1 hc2
+    stopRed (h1 :<~> h2) (C hv1 hv2) proc s = do
+        hc1 <- stopRed h1 hv1 proc s
+        hc2 <- stopRed h2 hv2 proc s
+
+        return $ min hc1 hc2
 
     stepHalter (h1 :<~> h2) (C hv1 hv2) proc xs s =
         let
@@ -640,16 +677,41 @@ instance (Halter h1 hv1 t, Halter h2 hv2 t) => Halter (HCombiner h1 h2) (C hv1 h
         in
         C hv1' hv2'
 
--- | Accepts a state when it is in ExecNormalForm
-data AcceptHalter = AcceptHalter
+    updateHalterWithAll (h1 :<~> h2) shv =
+        let
+            shv1 = map (\(s, C hv1 _) -> (s, hv1)) shv
+            shv2 = map (\(s, C _ hv2) -> (s, hv2)) shv
 
-instance Halter AcceptHalter () t where
+            shv1' = updateHalterWithAll h1 shv1
+            shv2' = updateHalterWithAll h2 shv2
+        in
+        map (uncurry C) $ zip shv1' shv2'
+
+
+data  SWHNFHalter = SWHNFHalter
+
+instance Halter SWHNFHalter () t where
     initHalt _ _ = ()
     updatePerStateHalt _ _ _ _ = ()
     stopRed _ _ _ s =
-        case isExecValueForm s && true_assert s of
-            True -> Accept
-            False -> Continue
+        case isExecValueForm s of
+            True -> return Accept
+            False -> return Continue
+    stepHalter _ _ _ _ _ = ()
+
+-- | Accepts a state when it is in SWHNF and true_assert is true
+-- Discards it if in SWHNF and true_assert is false
+data AcceptIfViolatedHalter = AcceptIfViolatedHalter
+
+instance Halter AcceptIfViolatedHalter () t where
+    initHalt _ _ = ()
+    updatePerStateHalt _ _ _ _ = ()
+    stopRed _ _ _ s =
+        case isExecValueForm s of
+            True 
+                | true_assert s -> return Accept
+                | otherwise -> return Discard
+            False -> return Continue
     stepHalter _ _ _ _ _ = ()
 
 -- | Allows execution to continue until the step counter hits 0, then discards the state
@@ -664,9 +726,9 @@ instance Halter ZeroHalter Int t where
 halterSub1 :: Halter h Int t => h -> Int -> Processed (State t) -> [State t] -> State t -> Int
 halterSub1 _ h _ _ _ = h - 1
 
-halterIsZero :: Halter h Int t => h -> Int -> Processed (State t) -> State t -> HaltC
-halterIsZero _ 0 _ _ = Discard
-halterIsZero _ _ _ _ = Continue
+halterIsZero :: Halter h Int t => h -> Int -> Processed (State t) -> State t -> IO HaltC
+halterIsZero _ 0 _ _ = return Discard
+halterIsZero _ _ _ _ = return Continue
 
 data MaxOutputsHalter = MaxOutputsHalter (Maybe Int)
 
@@ -675,8 +737,8 @@ instance Halter MaxOutputsHalter (Maybe Int) t where
     updatePerStateHalt _ hv _ _ = hv
     stopRed _ m (Processed {accepted = acc}) _ =
         case m of
-            Just m' -> if length acc >= m' then Discard else Continue
-            _ -> Continue
+            Just m' -> return $ if length acc >= m' then Discard else Continue
+            _ -> return Continue
     stepHalter _ hv _ _ _ = hv
 
 -- | Switch execution every n steps
@@ -685,8 +747,16 @@ data SwitchEveryNHalter = SwitchEveryNHalter Int
 instance Halter SwitchEveryNHalter Int t where
     initHalt (SwitchEveryNHalter sw) _ = sw
     updatePerStateHalt (SwitchEveryNHalter sw) _ _ _ = sw
-    stopRed _ i _ _ = if i <= 0 then Switch else Continue
+    stopRed _ i pr _ = return $ if i <= 0 then Switch else Continue
     stepHalter _ i _ _ _ = i - 1
+
+    updateHalterWithAll _ [] = []
+    updateHalterWithAll _ xs@((_, c):_) =
+        let
+            len = length xs
+            c' = c `quot` len
+        in
+        replicate len c'
 
 -- | Switches execution every n steps, where n is divided every time
 -- a case split happens, by the number of states.
@@ -705,7 +775,7 @@ instance Halter BranchAdjSwitchEveryNHalter SwitchingPerState t where
     updatePerStateHalt _ sps@(SwitchingPerState { switch_at = sw }) _ _ =
         sps { counter = sw }
     stopRed _ (SwitchingPerState { counter = i }) _ _ =
-        if i <= 0 then Switch else Continue
+        return $ if i <= 0 then Switch else Continue
     stepHalter (BranchAdjSwitchEveryNHalter { switch_min = mi })
                sps@(SwitchingPerState { switch_at = sa, counter = i }) _ xs _ =
         let
@@ -723,7 +793,7 @@ instance Halter BranchAdjVarLookupLimit SwitchingPerState t where
     updatePerStateHalt _ sps@(SwitchingPerState { switch_at = sw }) _ _ =
         sps { counter = sw }
     stopRed _ (SwitchingPerState { counter = i }) _ _ =
-        if i <= 0 then Switch else Continue
+        return $ if i <= 0 then Switch else Continue
 
     stepHalter (BranchAdjVarLookupLimit { var_switch_min = mi })
                sps@(SwitchingPerState { switch_at = sa, counter = i }) _ xs
@@ -746,10 +816,10 @@ instance Halter RecursiveCutOff (HM.HashMap SpannedName Int) t where
     stopRed (RecursiveCutOff co) hv _ (State { curr_expr = CurrExpr _ (Var (Id n _)) }) =
         case HM.lookup (SpannedName n) hv of
             Just i
-                | i > co -> Discard
-                | otherwise -> Continue
-            Nothing -> Continue
-    stopRed _ _ _ _ = Continue
+                | i > co -> return Discard
+                | otherwise -> return Continue
+            Nothing -> return Continue
+    stopRed _ _ _ _ = return Continue
 
     stepHalter _ hv _ _ s@(State { curr_expr = CurrExpr _ (Var (Id n _)) })
         | not $ E.isSymbolic n (expr_env s) =
@@ -783,7 +853,7 @@ instance Halter DiscardIfAcceptedTag (HS.HashSet Name) t where
         HS.filter (\(Name n' m' _ _) -> n == n' && m == m') matchCurrState
 
     stopRed _ ns _ _ =
-        if not (HS.null ns) then Discard else Continue
+        return $ if not (HS.null ns) then Discard else Continue
 
     stepHalter _ hv _ _ _ = hv
 
@@ -795,10 +865,75 @@ data VarLookupLimit = VarLookupLimit Int
 instance Halter VarLookupLimit Int t where
     initHalt (VarLookupLimit lim) _ = lim
     updatePerStateHalt (VarLookupLimit lim) _ _ _ = lim
-    stopRed _ lim _ _ = if lim <= 0 then Switch else Continue
+    stopRed _ lim _ _ = return $ if lim <= 0 then Switch else Continue
 
     stepHalter _ lim _ _ (State { curr_expr = CurrExpr Evaluate (Var _) }) = lim - 1
     stepHalter _ lim _ _ _ = lim
+
+data TimerHalter = TimerHalter { init_time :: UTCTime
+                               , max_seconds :: NominalDiffTime
+                               , if_time_out :: HaltC
+                               , check_every :: Int -- ^ How many execution steps to wait before time checks?
+                               }
+
+timerHalter :: NominalDiffTime -> IO TimerHalter
+timerHalter ms = do
+    curr <- getCurrentTime
+    return TimerHalter { init_time = curr, max_seconds = ms, if_time_out = Discard, check_every = 10 }
+
+instance Halter TimerHalter Int t where
+    initHalt _ _ = 0
+    updatePerStateHalt _ _ _ _ = 0
+
+    stopRed tr@(TimerHalter { init_time = it
+                            , max_seconds = ms
+                            , if_time_out = def })
+            v (Processed { accepted = acc }) s
+        | v == 0
+        , not (null acc) = do
+            curr <- getCurrentTime
+            let diff = diffUTCTime curr it
+
+            if diff > ms
+                then return def
+                else return Continue
+        | otherwise = return Continue
+
+    stepHalter (TimerHalter { check_every = ce }) v _ _ _
+        | v >= ce = 0
+        | otherwise = v + 1
+
+
+-- | Runs the halter only if some predicate held on the processed and current state,
+-- when the current state was switched to.
+-- Otherwise, just allows execution to continue 
+data OnlyIf h = OnlyIf { run_only_if :: forall t . Processed (State t) -> State t -> Bool
+                       , below :: h }
+
+data OnlyIfHV hv = OnlyIfHV { pred_holds :: Bool, below_hv :: hv }
+
+instance Halter h hv t => Halter (OnlyIf h) (OnlyIfHV hv) t where
+    initHalt h s = OnlyIfHV (run_only_if h (Processed [] []) s) $ initHalt (below h) s
+    updatePerStateHalt h (OnlyIfHV holds hv) pr s =
+        let
+            holds' = run_only_if h pr s
+            hv' = updatePerStateHalt (below h) hv pr s
+        in
+        OnlyIfHV holds' hv'
+    
+    discardOnStart h (OnlyIfHV holds hv) pr s
+        | holds = discardOnStart (below h) hv pr s
+        | otherwise = False
+    
+    stopRed h (OnlyIfHV holds hv) pr s
+        | holds = stopRed (below h) hv pr s
+        | otherwise = return Continue
+
+    stepHalter h (OnlyIfHV holds hv) pr xs s =
+        let
+            hv' = stepHalter (below h) hv pr xs s
+        in
+        OnlyIfHV holds hv'
 
 -- Orderer things
 
@@ -818,12 +953,12 @@ instance (MinOrderer or1 sov1 b1 t, MinOrderer or2 sov2 b2 t)
 
     -- | Assigns each state some value of an ordered type, and then proceeds with execution on the
     -- state assigned the minimal value
-    minOrderStates (or1 :<-> or2) (C sov1 sov2) s =
+    minOrderStates (or1 :<-> or2) (C sov1 sov2) pr s =
       let
-          sov1' = minOrderStates or1 sov1 s
-          sov2' = minOrderStates or2 sov2 s
+          (sov1', or1') = minOrderStates or1 sov1 pr s
+          (sov2', or2') = minOrderStates or2 sov2 pr s
       in
-      (sov1', sov2')
+      ((sov1', sov2'), or1' :<-> or2')
 
     -- | Run on the selected state, to update it's sov field
     minUpdateSelected (or1 :<-> or2) (C sov1 sov2) proc s = 
@@ -845,7 +980,7 @@ data NextOrderer = NextOrderer
 
 instance Orderer NextOrderer () Int t where
     initPerStateOrder _ _ = ()
-    orderStates _ _ _ = 0
+    orderStates or _ _ _ = (0, or)
     updateSelected _ v _ _ = v
 
 -- | Continue execution on the state that has been picked the least in the past. 
@@ -853,7 +988,7 @@ data PickLeastUsedOrderer = PickLeastUsedOrderer
 
 instance Orderer PickLeastUsedOrderer Int Int t where
     initPerStateOrder _ _ = 0
-    orderStates _ v _ = v
+    orderStates or v _ _ = (v, or)
     updateSelected _ v _ _ = v + 1
 
 -- | Floors and does bucket size
@@ -862,7 +997,7 @@ data BucketSizeOrderer = BucketSizeOrderer Int
 instance MinOrderer BucketSizeOrderer Int Int t where
     minInitPerStateOrder _ _ = 0
 
-    minOrderStates (BucketSizeOrderer b) v _ = floor (fromIntegral v / fromIntegral b :: Float)
+    minOrderStates ord@(BucketSizeOrderer b) v _ _ = (floor (fromIntegral v / fromIntegral b :: Float), ord)
 
     minUpdateSelected _ v _ _ = v + 1
 
@@ -872,7 +1007,7 @@ data CaseCountOrderer = CaseCountOrderer
 instance Orderer CaseCountOrderer Int Int t where
     initPerStateOrder _ _ = 0
 
-    orderStates _ v _ = v
+    orderStates or v _ _ = (v, or)
 
     updateSelected _ v _ _ = v
 
@@ -885,24 +1020,48 @@ data SymbolicADTOrderer = SymbolicADTOrderer
 
 instance Orderer SymbolicADTOrderer (HS.HashSet Name) Int t where
     initPerStateOrder _ = HS.map idName . symbolic_ids
-    orderStates _ v _ = HS.size v
+    orderStates ord v _ _ = (HS.size v, ord)
 
     updateSelected _ v _ _ = v
 
     stepOrderer _ v _ _ s =
         v `HS.union` (HS.map idName $ symbolic_ids s)
 
--- Orders by the largest (in terms of height) (previously) symbolic ADT
+-- Orders by the size (in terms of height) of (previously) symbolic ADT.
+-- In particular, aims to first execute those states with a height closest to
+-- the specified height.
 data ADTHeightOrderer = ADTHeightOrderer
+                            Int -- ^ What height should we prioritize?
+                            (Maybe Name) -- ^ If we see a tick with the specified Name, add it to the set
 
-instance MinOrderer ADTHeightOrderer (HS.HashSet Name) Int t where
-    minInitPerStateOrder _ = HS.map idName . symbolic_ids
-    minOrderStates _ v s = maximum . HS.toList $ HS.map (flip adtHeight s) v
-
+-- Normally, each state tracks the names of currently symbolic variables,
+-- but here we want all variables that were ever symbolic.
+-- To track this, we use a HashSet.
+-- The tracked bool is to speed up adjusting this hashset- if it is set to false,
+-- we do not update the hashset.  If it is set to true,
+-- after the next step the hashset will be updated, and the bool will be set
+-- back to false.
+-- This avoids repeated operations on the hashset after rules that we know
+-- will not add symbolic variables.
+instance MinOrderer ADTHeightOrderer (HS.HashSet Name, Bool) Int t where
+    minInitPerStateOrder _ s = (HS.map idName . symbolic_ids $ s, False)
+    minOrderStates ord@(ADTHeightOrderer pref_height _) (v, _) _ s =
+        let
+            m = maximum $ (-1):(HS.toList $ HS.map (flip adtHeight s) v)
+            h = abs (pref_height - m)
+        in
+        (h, ord)
     minUpdateSelected _ v _ _ = v
 
-    -- stepOrderer _ v _ _ s =
-    --     v `HS.union` (HS.fromList . map idName . symbolic_ids $ s)
+    minStepOrderer _ (v, _) _ _
+                  (State { curr_expr = CurrExpr _ (SymGen _) }) = (v, True)
+    minStepOrderer _ (v, True) _ _ s =
+        (v `HS.union` (HS.map idName . symbolic_ids $ s), False)
+    minStepOrderer (ADTHeightOrderer _ (Just n)) (v, _) _ _ 
+                   s@(State { curr_expr = CurrExpr _ (Tick (NamedLoc n') (Var (Id vn _))) }) 
+            | n == n' =
+                (HS.insert vn v, False)
+    minStepOrderer _ v _ _ s =  v
 
 adtHeight :: Name -> State t -> Int
 adtHeight n s@(State { expr_env = eenv })
@@ -918,9 +1077,105 @@ adtHeight' e s =
     let
         _:es = unApp e 
     in
-    maximum $ map (\e' -> case e' of
+    maximum $ 0:map (\e' -> case e' of
                         Var (Id n _) -> adtHeight n s
                         _ -> 0) es
+
+-- Orders by the combined size of (previously) symbolic ADT.
+-- In particular, aims to first execute those states with a combined ADT size closest to
+-- the specified zize.
+data ADTSizeOrderer = ADTSizeOrderer
+                            Int -- ^ What size should we prioritize?
+                            (Maybe Name) -- ^ If we see a tick with the specified Name, add it to the set
+
+-- Normally, each state tracks the names of currently symbolic variables,
+-- but here we want all variables that were ever symbolic.
+-- To track this, we use a HashSet.
+-- The tracked bool is to speed up adjusting this hashset- if it is set to false,
+-- we do not update the hashset.  If it is set to true,
+-- after the next step the hashset will be updated, and the bool will be set
+-- back to false.
+-- This avoids repeated operations on the hashset after rules that we know
+-- will not add symbolic variables.
+instance MinOrderer ADTSizeOrderer (HS.HashSet Name, Bool) Int t where
+    minInitPerStateOrder _ s = (HS.map idName . symbolic_ids $ s, False)
+    minOrderStates ord@(ADTSizeOrderer pref_height _) (v, _) _ s =
+        let
+            m = sum (HS.toList $ HS.map (flip adtSize s) v)
+            h = abs (pref_height - m)
+        in
+        (h, ord)
+    minUpdateSelected _ v _ _ = v
+
+    minStepOrderer _ (v, _) _ _
+                  (State { curr_expr = CurrExpr _ (SymGen _) }) = (v, True)
+    minStepOrderer _ (v, True) _ _ s =
+        (v `HS.union` (HS.map idName . symbolic_ids $ s), False)
+    minStepOrderer (ADTSizeOrderer _ (Just n)) (v, _) _ _ 
+                   s@(State { curr_expr = CurrExpr _ (Tick (NamedLoc n') (Var (Id vn _))) }) 
+            | n == n' =
+                (HS.insert vn v, False)
+    minStepOrderer _ v _ _ s =
+        v
+
+adtSize :: Name -> State t -> Int
+adtSize n s@(State { expr_env = eenv })
+    | Just (E.Sym _) <- v = 0
+    | Just (E.Conc e) <- v =
+        1 + adtSize' e s
+    | otherwise = 0
+    where
+        v = E.lookupConcOrSym n eenv
+
+adtSize' :: Expr -> State t -> Int
+adtSize' e s =
+    let
+        _:es = unApp e 
+    in
+    sum $ 0:map (\e' -> case e' of
+                        Var (Id n _) -> adtSize n s
+                        _ -> 0) es
+
+data RandomOrderer = RandomOrderer StdGen
+
+instance MinOrderer RandomOrderer () Int t where
+    minInitPerStateOrder _ _ = ()
+
+    minOrderStates (RandomOrderer gen) _ _ _ =
+        let
+            (v, gen') = randomR (0, 1000) gen
+        in
+        (v, RandomOrderer gen')
+
+    minUpdateSelected _ v _ _ = v
+
+mkRandomOrderer :: Int -> RandomOrderer
+mkRandomOrderer = RandomOrderer . mkStdGen
+
+getRandomOrderer :: IO RandomOrderer
+getRandomOrderer = return . RandomOrderer =<< getStdGen
+
+type WeightFunction t = Processed (State t) -> State t -> Int -> Int
+
+data WeightedRandomOrderer t =
+    WeightedRandomOrderer (WeightFunction t) StdGen
+
+instance Orderer (WeightedRandomOrderer t) () Int t where
+    initPerStateOrder _ _ = ()
+
+    orderStates (WeightedRandomOrderer f gen) _ pr s =
+        let
+            (v, gen') = randomR (0, 1000) gen
+        in
+        (f pr s v, WeightedRandomOrderer f gen')
+
+    updateSelected _ v _ _ = v
+
+mkWeightedRandomOrderer :: WeightFunction t -> Int -> WeightedRandomOrderer t
+mkWeightedRandomOrderer f = WeightedRandomOrderer f . mkStdGen
+
+getWeightedRandomOrderer :: WeightFunction t -> IO (WeightedRandomOrderer t)
+getWeightedRandomOrderer f = return . WeightedRandomOrderer f =<< getStdGen
 
 -- Wraps an existing Orderer, and increases it's value by 1, every time
 -- it doesn't change after N steps 
@@ -935,11 +1190,11 @@ instance (Eq sov, Enum b, MinOrderer ord sov b t) => MinOrderer (IncrAfterN ord)
         IncrAfterNTr { steps_since_change = 0
                      , incr_by = 0
                      , underlying = minInitPerStateOrder ord s }
-    minOrderStates (IncrAfterN _ ord) sov s =
+    minOrderStates (IncrAfterN n ord) sov pr s =
         let
-            b = minOrderStates ord (underlying sov) s
+            (b, ord') = minOrderStates ord (underlying sov) pr s
         in
-        succNTimes (incr_by sov) b
+        (succNTimes (incr_by sov) b, IncrAfterN n ord')
     minUpdateSelected (IncrAfterN _ ord) sov pr s =
         sov { underlying = minUpdateSelected ord (underlying sov) pr s }
     minStepOrderer (IncrAfterN ma ord) sov pr xs s
@@ -961,6 +1216,19 @@ succNTimes x b
     | x <= 0 = b
     | otherwise = succNTimes (x - 1) (succ b)
 
+-- Wraps an existing orderer, and divides its value by 2 if true_assert is true
+data QuotTrueAssert ord = QuotTrueAssert ord
+
+instance (Integral b, MinOrderer ord sov b t) => MinOrderer (QuotTrueAssert ord) sov b t where
+    minInitPerStateOrder (QuotTrueAssert ord) = minInitPerStateOrder ord
+    minOrderStates (QuotTrueAssert ord) sov pr s =
+        let
+            (b, ord') = minOrderStates ord sov pr s
+        in
+        (if true_assert s then b `quot` 2 else b, QuotTrueAssert ord')
+    minUpdateSelected (QuotTrueAssert ord) = minUpdateSelected ord
+    minStepOrderer (QuotTrueAssert ord) = minStepOrderer ord 
+
 --------
 --------
 
@@ -974,103 +1242,124 @@ runReducer red hal ord s b = do
                     , order_val = initPerStateOrder ord s }
 
     (states, b') <- runReducer' red hal ord pr s' b M.empty
-    let states' = mapProcessed state states
-    return (states', b')
+    return (states, b')
 
 runReducer' :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) 
             => r 
             -> h 
             -> or 
-            -> Processed (ExState rv hv sov t) 
+            -> Processed (State t) 
             -> ExState rv hv sov t 
             -> Bindings
             -> M.Map b [ExState rv hv sov t] 
-            -> IO (Processed (ExState rv hv sov t), Bindings)
-runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_val = h_val, order_val = o_val }) b xs
-    | hc == Accept =
-        let
-            pr' = pr {accepted = rs:accepted pr}
-            jrs = minState ord pr' xs
-        in
-        case jrs of
-            Just (rs', xs') -> do
-                onAccept red (state rs) r_val
-                switchState red hal ord pr' rs' b xs'
-                -- runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
-            Nothing -> return (pr', b)
-    | hc == Discard =
-        let
-            pr' = pr {discarded = rs:discarded pr}
-            jrs = minState ord pr' xs
-        in
-        case jrs of
-            Just (rs', xs') ->
-                switchState red hal ord pr' rs' b xs'
-                -- runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
-            Nothing -> return (pr', b)
-    | hc == Switch =
-        let
-            k = orderStates ord (order_val rs') (state rs)
-            rs' = rs { order_val = updateSelected ord (order_val rs) ps (state rs) }
+            -> IO (Processed (State t), Bindings)
+runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_val = h_val, order_val = o_val }) b xs = do
+    hc <- stopRed hal h_val pr s
+    case () of
+        ()
+            | hc == Accept ->
+                let
+                    pr' = pr {accepted = state rs:accepted pr}
+                    jrs = minState ord pr' xs
+                in
+                case jrs of
+                    Just (rs', xs') -> do
+                        switchState red hal ord pr' rs' b xs'
+                        -- runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
+                    Nothing -> return (pr', b)
+            | hc == Discard ->
+                let
+                    pr' = pr {discarded = state rs:discarded pr}
+                    jrs = minState ord pr' xs
+                in
+                case jrs of
+                    Just (rs', xs') ->
+                        switchState red hal ord pr' rs' b xs'
+                        -- runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
+                    Nothing -> return (pr', b)
+            | hc == Switch ->
+                let
+                    (k, ord') = orderStates ord (order_val rs') pr (state rs)
+                    rs' = rs { order_val = updateSelected ord (order_val rs) pr (state rs) }
 
-            Just (rs'', xs') = minState ord pr (M.insertWith (++) k [rs'] xs)
-        in
-        switchState red hal ord pr rs'' b xs'
-        -- if not $ discardOnStart hal (halter_val rs''') ps (state rs''')
-        --     then runReducer' red hal ord pr rs''' b xs'
-        --     else runReducerList red hal ord (pr {discarded = rs''':discarded pr}) xs' b
-    | otherwise = do
-        (_, reduceds, b', red') <- redRules red r_val s b
-        let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
+                    Just (rs'', xs') = minState ord pr (M.insertWith (++) k [rs'] xs)
+                in
+                switchState red hal ord' pr rs'' b xs'
+                -- if not $ discardOnStart hal (halter_val rs''') pr (state rs''')
+                --     then runReducer' red hal ord pr rs''' b xs'
+                --     else runReducerList red hal ord (pr {discarded = rs''':discarded pr}) xs' b
+            | otherwise -> do
+                (_, reduceds, b', red') <- redRules red r_val s b
+                let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
 
-        let r_vals = updateWithAll red reduceds' ++ error "List returned by updateWithAll is too short."
-            new_states = map fst reduceds'
-        
-            mod_info = map (\(s', r_val') ->
-                                rs { state = s'
-                                   , reducer_val = r_val'
-                                   , halter_val = stepHalter hal h_val ps new_states s'
-                                   , order_val = stepOrderer ord o_val ps new_states s'}) $ zip new_states r_vals
-        
-        case mod_info of
-            (s_h:ss_tail) -> do
-                let xs' = foldr (\s' -> M.insertWith (++) (orderStates ord (order_val s') (state s')) [s']) xs ss_tail
-                runReducer' red' hal ord pr s_h b' xs'
-            [] -> runReducerList red' hal ord pr xs b' 
-    where
-        hc = stopRed hal h_val ps s
-        ps = processedToState pr
+                    r_vals = if length reduceds' > 1
+                                then updateWithAll red reduceds' ++ error "List returned by updateWithAll is too short."
+                                else map snd reduceds
+
+                    reduceds_h_vals = map (\(r, _) -> (r, h_val)) reduceds'
+                    h_vals = if length reduceds' > 1
+                                then updateHalterWithAll hal reduceds_h_vals ++ error "List returned by updateWithAll is too short."
+                                else repeat h_val
+
+                    new_states = map fst reduceds'
+                
+                    mod_info = map (\(s', r_val', h_val') ->
+                                        rs { state = s'
+                                           , reducer_val = r_val'
+                                           , halter_val = stepHalter hal h_val' pr new_states s'
+                                           , order_val = stepOrderer ord o_val pr new_states s'}) $ zip3 new_states r_vals h_vals
+
+
+                    
+
+                case mod_info of
+                    (s_h:ss_tail) -> do
+                        let 
+                            (ord', b_ss_tail) =
+                                L.mapAccumR (\e_ord s' ->
+                                    let
+                                        (n_b, n_ord) = orderStates e_ord (order_val s') pr (state s')
+                                    in
+                                    (n_ord, (n_b, s'))) ord ss_tail
+
+                            xs' = foldr (\(or_b, s') -> M.insertWith (++) or_b [s']) xs b_ss_tail
+
+                        runReducer' red' hal ord' pr s_h b' xs'
+                    [] -> runReducerList red' hal ord pr xs b' 
 
 switchState :: (Reducer r rv t, Halter h hv t, Orderer or sov b t)
             => r
             -> h
             -> or
-            -> Processed (ExState rv hv sov t) 
+            -> Processed (State t) 
             -> ExState rv hv sov t 
             -> Bindings
             -> M.Map b [ExState rv hv sov t] 
-            -> IO (Processed (ExState rv hv sov t), Bindings)
+            -> IO (Processed (State t), Bindings)
 switchState red hal ord  pr rs b xs
-    | not $ discardOnStart hal (halter_val rs') ps (state rs') =
+    | not $ discardOnStart hal (halter_val rs') pr (state rs') =
         runReducer' red hal ord pr rs' b xs
     | otherwise =
-        runReducerListSwitching red hal ord (pr {discarded = rs':discarded pr}) xs b
+        runReducerListSwitching red hal ord (pr {discarded = state rs':discarded pr}) xs b
     where
-        ps = processedToState pr
-        rs' = rs { halter_val = updatePerStateHalt hal (halter_val rs) ps (state rs) }
+        rs' = rs { halter_val = updatePerStateHalt hal (halter_val rs) pr (state rs) }
 
 -- To be used when we we need to select a state without switching 
 runReducerList :: (Reducer r rv t, Halter h hv t, Orderer or sov b t) 
                => r 
                -> h 
                -> or 
-               -> Processed (ExState rv hv sov t)
+               -> Processed (State t)
                -> M.Map b [ExState rv hv sov t]
                -> Bindings
-               -> IO (Processed (ExState rv hv sov t), Bindings)
+               -> IO (Processed (State t), Bindings)
 runReducerList red hal ord pr m binds =
     case minState ord pr m of
-        Just (x, m') -> runReducer' red hal ord pr x binds m'
+        Just (rs, m') ->
+            let
+                rs' = rs { halter_val = updatePerStateHalt hal (halter_val rs) pr (state rs) }
+            in
+            runReducer' red hal ord pr rs' binds m'
         Nothing -> return (pr, binds)
 
 -- To be used when we are possibly switching states 
@@ -1078,10 +1367,10 @@ runReducerListSwitching :: (Reducer r rv t, Halter h hv t, Orderer or sov b t)
                         => r 
                         -> h 
                         -> or 
-                        -> Processed (ExState rv hv sov t)
+                        -> Processed (State t)
                         -> M.Map b [ExState rv hv sov t]
                         -> Bindings
-                        -> IO (Processed (ExState rv hv sov t), Bindings)
+                        -> IO (Processed (State t), Bindings)
 runReducerListSwitching red hal ord pr m binds =
     case minState ord pr m of
         Just (x, m') -> switchState red hal ord pr x binds m'
@@ -1095,20 +1384,19 @@ processedToState (Processed {accepted = app, discarded = dis}) =
 -- Returns that State, and a list of the rest of the states 
 minState :: (Orderer or sov b t)
          => or
-         -> Processed (ExState rv hv sov t)
+         -> Processed (State t)
          -> M.Map b [ExState rv hv sov t]
          -> Maybe ((ExState rv hv sov t), M.Map b [ExState rv hv sov t])
 minState ord pr m =
-    case getState ord ps m of
-      Just ((k, x:xs), _) -> Just (x, M.insert k xs m)
-      Just ((_, []), m') -> minState ord pr m'
+    case getState ord pr m of
+      Just (k, x:[]) -> Just (x, M.delete k m)
+      Just (k, x:xs) -> Just (x, M.insert k xs m)
+      Just (k, []) -> minState ord pr $ M.delete k m
       Nothing -> Nothing
-      where
-          ps = processedToState pr
 
 --------------------------------------------------------------------------------------------------------------------------------------
 
-runReducerMerge :: (Show t, Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
+runReducerMerge :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
                  => r -> h -> simplifier -> State t -> Bindings
                  -> IO (Processed (State t), Bindings)
 runReducerMerge red hal simplifier s b = do
@@ -1124,14 +1412,14 @@ runReducerMerge red hal simplifier s b = do
     return (res, b')
 
 -- | work_func for both WorkGraph and ZipperTree. Reduces the ExState `exS` and returns the reduceds along with the appropriate Status
-runReducerMerge' :: (Show t, Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
+runReducerMerge' :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
                  => ExState rv hv sov t
                  -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
                  -> IO ([(ExState rv hv sov t)], (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)), MG.Status Name)
 runReducerMerge' rs@(ExState {state = s, halter_val = h_val, reducer_val = r_val})
                  (red, hal, simplifier, bdg, pr) = do
     let ps = processedToState pr -- need to deal with processed
-        hc = stopRed hal h_val ps s
+    hc <- stopRed hal h_val ps s
     case hc of
         Accept -> do
             onAccept red s r_val

@@ -17,6 +17,7 @@ import qualified G2.Language.PathConds as PC
 
 import qualified Data.Map as M
 import qualified Data.List as L
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 
 -- | Removes any Case-s in the expr_env and curr_expr by selecting one choice each time
@@ -55,7 +56,7 @@ subExpr m tc = modifyContainedASTs (subExpr' m tc [])
 subExpr' :: Model -> TypeClasses -> [Id] -> Expr -> Expr
 subExpr' m tc is v@(Var i@(Id n _))
     | i `notElem` is
-    , Just e <- M.lookup n m =
+    , Just e <- HM.lookup n m =
         subExpr' m tc (i:is) e
     | otherwise = v
 subExpr' m tc is e = modifyChildren (subExpr' m tc is) e

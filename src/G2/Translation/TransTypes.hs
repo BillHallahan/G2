@@ -28,7 +28,8 @@ simplTranslationConfig :: TranslationConfig
 simplTranslationConfig = TranslationConfig { simpl = True, load_rewrite_rules = False }
 
 data ModGutsClosure = ModGutsClosure
-  { mgcc_mod_name :: Maybe String
+  { mgcc_filepath :: FilePath
+  , mgcc_mod_name :: Maybe String
   , mgcc_binds :: [CoreBind]
   , mgcc_tycons :: [TyCon]
   , mgcc_breaks :: Maybe ModBreaks
@@ -48,7 +49,8 @@ data ModDetailsClosure = ModDetailsClosure
   }
 
 data CgGutsClosure = CgGutsClosure
-  { cgcc_mod_name :: Maybe String
+  { cgcc_filepath :: String
+  , cgcc_mod_name :: Maybe String
   , cgcc_binds :: [CoreBind]
   , cgcc_breaks :: Maybe ModBreaks
   , cgcc_tycons :: [TyCon]
@@ -59,7 +61,8 @@ data CgGutsClosure = CgGutsClosure
 emptyModGutsClosure :: ModGutsClosure
 emptyModGutsClosure =
   ModGutsClosure
-    { mgcc_mod_name = Nothing
+    { mgcc_filepath = ""
+    , mgcc_mod_name = Nothing
     , mgcc_binds = []
     , mgcc_tycons = []
     , mgcc_breaks = Nothing
@@ -82,7 +85,8 @@ emptyModDetailsClosure =
 emptyCgGutsClosure :: CgGutsClosure
 emptyCgGutsClosure =
   CgGutsClosure
-    { cgcc_mod_name = Nothing
+    { cgcc_filepath = ""
+    , cgcc_mod_name = Nothing
     , cgcc_binds = []
     , cgcc_breaks = Nothing
     , cgcc_tycons = []
@@ -91,10 +95,10 @@ emptyCgGutsClosure =
 
 
 data ExtractedG2 = ExtractedG2
-  { exg2_mod_names :: [T.Text]
+  { exg2_mod_names :: [(FilePath, T.Text)]
   , exg2_binds :: [(G2.Id, G2.Expr)]
   , exg2_tycons :: [G2.ProgramType]
-  , exg2_classes :: [(G2.Name, G2.Id, [G2.Id])]
+  , exg2_classes :: [(G2.Name, G2.Id, [G2.Id], [(G2.Type, G2.Id)])]
   , exg2_exports :: [ExportedName]
   , exg2_deps :: [T.Text]
   , exg2_rules :: ![G2.RewriteRule]

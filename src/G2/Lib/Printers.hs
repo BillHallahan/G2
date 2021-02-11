@@ -11,7 +11,9 @@ module G2.Lib.Printers ( mkCleanExprHaskell
                        , ppPathCond
                        , pprExecStateStr
                        , pprExecStateCoreStr
-                       , pprExecEEnvStr) where
+                       , pprExecEEnvStr
+                       , pprExecEEnvStr
+                       , printFuncCall) where
 
 import G2.Execution.Memory
 import G2.Language.Expr
@@ -59,6 +61,9 @@ mkCleanExprHaskell' kv tc e
     , t <- typeOf e''
     , isTypeClass tc t = e'
 
+    | (App e' e'') <- e
+    , isTypeClass tc (returnType e'') = e'
+
     | App e' (Type _) <- e = e'
 
     | otherwise = e
@@ -70,7 +75,7 @@ mkExprHaskell ex = mkExprHaskell' ex 0
         mkExprHaskell' (Var ids) _ = mkIdHaskell ids
         mkExprHaskell' (Lit c) _ = mkLitHaskell c
         mkExprHaskell' (Prim p _) _ = mkPrimHaskell p
-        mkExprHaskell' (Lam _ ids e) i = "\\" ++ mkIdHaskell ids ++ " -> " ++ mkExprHaskell' e i
+        mkExprHaskell' (Lam _ ids e) i = "(\\" ++ mkIdHaskell ids ++ " -> " ++ mkExprHaskell' e i ++ ")"
 
         mkExprHaskell' a@(App ea@(App e1 e2) e3) i
             | Data (DataCon n _) <- appCenter a
@@ -97,6 +102,7 @@ mkExprHaskell ex = mkExprHaskell' ex 0
                                         ++ intercalate "\n" (map (mkAltHaskell (i + 2)) ae)
         mkExprHaskell' (Type _) _ = ""
         mkExprHaskell' (Cast e (_ :~ t)) i = "((coerce " ++ mkExprHaskell' e i ++ ") :: " ++ mkTypeHaskell t ++ ")"
+        mkExprHaskell' (Let _ e) i = "let { ... } in " ++ mkExprHaskell' e i
         mkExprHaskell' e _ = "e = " ++ show e ++ " NOT SUPPORTED"
 
         mkAltHaskell :: Int -> Alt -> String
@@ -192,6 +198,7 @@ mkPrimHaskell Negate = "-"
 mkPrimHaskell SqRt = "sqrt"
 mkPrimHaskell IntToFloat = "fromIntegral"
 mkPrimHaskell IntToDouble = "fromIntegral"
+mkPrimHaskell RationalToDouble = "fromRational"
 mkPrimHaskell FromInteger = "fromInteger"
 mkPrimHaskell ToInteger = "toInteger"
 mkPrimHaskell ToInt = "toInt"
@@ -252,7 +259,7 @@ injTuple :: [String] -> String
 injTuple strs = "(" ++ (intercalate "," strs) ++ ")"
 
 -- | More raw version of state dumps.
-pprExecStateStr :: State t -> Bindings -> String
+pprExecStateStr :: Show t => State t -> Bindings -> String
 pprExecStateStr ex_state b = injNewLine acc_strs
   where
     eenv_str = pprExecEEnvStr (expr_env ex_state)
@@ -269,6 +276,7 @@ pprExecStateStr ex_state b = injNewLine acc_strs
     cleaned_str = pprCleanedNamesStr (cleaned_names b)
     model_str = pprModelStr (model ex_state)
     rules_str = intercalate "\n" $ map show (zip ([0..] :: [Integer]) $ rules ex_state)
+    track_str = show (track ex_state)
     acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
                , "----- [Code] ----------------------"
                , code_str
@@ -300,6 +308,8 @@ pprExecStateStr ex_state b = injNewLine acc_strs
                , cleaned_str
                , "----- [Model] -------------------"
                , model_str
+               , "----- [Track] -------------------"
+               , track_str
                , "----- [Rules] -------------------"
                , rules_str
                , "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
@@ -341,7 +351,7 @@ pprTEnvStr tenv = injNewLine kv_strs
 pprModelStr :: Model -> String
 pprModelStr m = injNewLine kv_strs
   where
-    kv_strs = map show $ M.toList m
+    kv_strs = map show $ HM.toList m
 
 pprExecStackStr :: Stack Frame -> String
 pprExecStackStr stk = injNewLine frame_strs
@@ -391,7 +401,31 @@ pprSymbolicIdsStr i = injNewLine id_strs
 --     b_str = show b
 --     acc_strs = [am_str, b_str]
 -- pprPathCondStr' (AssumePC i num pc) = [show i] ++ [show num] ++ pprPathCondStr' (PC.unhashedPC pc)
+pprInputIdsStr :: InputIds -> String
+pprInputIdsStr i = injNewLine id_strs
+  where
+    id_strs = map show i
+
+pprPathCondStr :: PathCond -> String
+pprPathCondStr (AltCond am expr b) = injTuple acc_strs
+  where
+    am_str = show am
+    expr_str = show expr
+    b_str = show b
+    acc_strs = [am_str, expr_str, b_str]
+pprPathCondStr (ExtCond am b) = injTuple acc_strs
+  where
+    am_str = show am
+    b_str = show b
+    acc_strs = [am_str, b_str]
 
 pprCleanedNamesStr :: CleanedNames -> String
 pprCleanedNamesStr = injNewLine . map show . HM.toList
 
+printFuncCall :: FuncCall -> String
+printFuncCall (FuncCall { funcName = Name f _ _ _, arguments = ars, returns = r}) =
+    let
+        call_str fn = mkExprHaskell . foldl (\a a' -> App a a') (Var (Id fn TyUnknown)) $ ars
+        r_str = mkExprHaskell r
+    in
+    "(" ++ call_str (Name f Nothing 0 Nothing) ++ " " ++ r_str ++ ")"

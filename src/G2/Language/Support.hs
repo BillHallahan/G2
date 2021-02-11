@@ -20,7 +20,7 @@ import G2.Language.AST
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
 import G2.Language.Naming
-import G2.Language.Stack
+import G2.Language.Stack hiding (filter)
 import G2.Language.Syntax
 import G2.Language.TypeClasses
 import G2.Language.TypeEnv
@@ -65,10 +65,11 @@ data Bindings = Bindings { deepseq_walkers :: Walkers
                          , fixed_inputs :: [Expr]
                          , arb_value_gen :: ArbValueGen 
                          , cleaned_names :: CleanedNames
-                         , higher_order_inst :: [Name] -- ^ Functions to try instantiating higher order functions with
+                         , higher_order_inst :: S.HashSet Name -- ^ Functions to try instantiating higher order functions with
                          , input_names :: [Name]
                          , rewrite_rules :: ![RewriteRule]
                          , name_gen :: NameGen
+                         , exported_funcs :: [Name]
                          } deriving (Show, Eq, Read, Typeable, Data)
 
 -- | The `InputIds` are a list of the variable names passed as input to the
@@ -120,18 +121,23 @@ data Frame = CaseFrame Id [Alt]
            | ApplyFrame Expr
            | UpdateFrame Name
            | CastFrame Coercion
-           | CurrExprFrame CurrExpr
+           | CurrExprFrame CEAction CurrExpr
            | AssumeFrame Expr
            | AssertFrame (Maybe FuncCall) Expr
            | MergePtFrame Id -- case Id corresponding to the Merge Point
            deriving (Show, Eq, Read, Typeable, Data)
 
+-- | What to do with the current expression when a @CurrExprFrame@ reaches the
+-- top of the stack and it is time to replace the `curr_expr`.
+data CEAction = AddPC | NoAction
+                deriving (Show, Eq, Read, Typeable, Data)
+
 -- | A model is a mapping of symbolic variable names to `Expr`@s@,
 -- typically produced by a solver. 
-type Model = M.Map Name Expr
+type Model = HM.HashMap Name Expr
 
 isEmpty :: Model -> Bool
-isEmpty m = M.null m
+isEmpty m = HM.null m
 
 -- | Replaces all of the names old in state with a name seeded by new_seed
 renameState :: Named t => Name -> Name -> State t -> Bindings -> (State t, Bindings)
@@ -265,6 +271,7 @@ instance Named Bindings where
             ++ names (cleaned_names b)
             ++ names (higher_order_inst b)
             ++ names (input_names b)
+            ++ names (exported_funcs b)
 
     rename old new b =
         Bindings { fixed_inputs = rename old new (fixed_inputs b)
@@ -275,6 +282,7 @@ instance Named Bindings where
                  , input_names = rename old new (input_names b)
                  , rewrite_rules = rename old new (rewrite_rules b)
                  , name_gen = name_gen b
+                 , exported_funcs = rename old new (exported_funcs b)
                  }
 
     renames hm b =
@@ -286,6 +294,7 @@ instance Named Bindings where
                , input_names = renames hm (input_names b)
                , rewrite_rules = renames hm (rewrite_rules b)
                , name_gen = name_gen b
+               , exported_funcs = renames hm (exported_funcs b)
                }
 
 instance ASTContainer Bindings Expr where
@@ -311,14 +320,14 @@ instance ASTContainer CurrExpr Type where
 instance ASTContainer Frame Expr where
     containedASTs (CaseFrame _ a) = containedASTs a
     containedASTs (ApplyFrame e) = [e]
-    containedASTs (CurrExprFrame e) = containedASTs e
+    containedASTs (CurrExprFrame _ e) = containedASTs e
     containedASTs (AssumeFrame e) = [e]
     containedASTs (AssertFrame _ e) = [e]
     containedASTs _ = []
 
     modifyContainedASTs f (CaseFrame i a) = CaseFrame i (modifyContainedASTs f a)
     modifyContainedASTs f (ApplyFrame e) = ApplyFrame (f e)
-    modifyContainedASTs f (CurrExprFrame e) = CurrExprFrame (modifyContainedASTs f e)
+    modifyContainedASTs f (CurrExprFrame act e) = CurrExprFrame act (modifyContainedASTs f e)
     modifyContainedASTs f (AssumeFrame e) = AssumeFrame (f e)
     modifyContainedASTs f (AssertFrame is e) = AssertFrame is (f e)
     modifyContainedASTs _ fr = fr
@@ -326,7 +335,7 @@ instance ASTContainer Frame Expr where
 instance ASTContainer Frame Type where
     containedASTs (CaseFrame i a) = containedASTs i ++ containedASTs a
     containedASTs (ApplyFrame e) = containedASTs e
-    containedASTs (CurrExprFrame e) = containedASTs e
+    containedASTs (CurrExprFrame _ e) = containedASTs e
     containedASTs (AssumeFrame e) = containedASTs e
     containedASTs (AssertFrame _ e) = containedASTs e
     containedASTs _ = []
@@ -334,7 +343,7 @@ instance ASTContainer Frame Type where
     modifyContainedASTs f (CaseFrame i a) =
         CaseFrame (modifyContainedASTs f i) (modifyContainedASTs f a)
     modifyContainedASTs f (ApplyFrame e) = ApplyFrame (modifyContainedASTs f e)
-    modifyContainedASTs f (CurrExprFrame e) = CurrExprFrame (modifyContainedASTs f e)
+    modifyContainedASTs f (CurrExprFrame act e) = CurrExprFrame act (modifyContainedASTs f e)
     modifyContainedASTs f (AssumeFrame e) = AssumeFrame (modifyContainedASTs f e)
     modifyContainedASTs f (AssertFrame is e) = AssertFrame (modifyContainedASTs f is) (modifyContainedASTs f e)
     modifyContainedASTs _ fr = fr
@@ -349,7 +358,7 @@ instance Named Frame where
     names (ApplyFrame e) = names e
     names (UpdateFrame n) = [n]
     names (CastFrame c) = names c
-    names (CurrExprFrame e) = names e
+    names (CurrExprFrame _ e) = names e
     names (AssumeFrame e) = names e
     names (AssertFrame is e) = names is ++ names e
     names (MergePtFrame i) = names i
@@ -358,7 +367,7 @@ instance Named Frame where
     rename old new (ApplyFrame e) = ApplyFrame (rename old new e)
     rename old new (UpdateFrame n) = UpdateFrame (rename old new n)
     rename old new (CastFrame c) = CastFrame (rename old new c)
-    rename old new (CurrExprFrame e) = CurrExprFrame (rename old new e)
+    rename old new (CurrExprFrame act e) = CurrExprFrame act (rename old new e)
     rename old new (AssumeFrame e) = AssumeFrame (rename old new e)
     rename old new (AssertFrame is e) = AssertFrame (rename old new is) (rename old new e)
     rename old new (MergePtFrame i) = MergePtFrame (rename old new i)
@@ -367,7 +376,7 @@ instance Named Frame where
     renames hm (ApplyFrame e) = ApplyFrame (renames hm e)
     renames hm (UpdateFrame n) = UpdateFrame (renames hm n)
     renames hm (CastFrame c) = CastFrame (renames hm c)
-    renames hm (CurrExprFrame e) = CurrExprFrame (renames hm e)
+    renames hm (CurrExprFrame act e) = CurrExprFrame act (renames hm e)
     renames hm (AssumeFrame e) = AssumeFrame (renames hm e)
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
     renames hm (MergePtFrame i) = MergePtFrame (renames hm i)

@@ -7,6 +7,7 @@ module G2.Language.Monad.Support ( StateM
                                  , ExState (..)
                                  , FullState (..)
                                  , runStateM
+                                 , execStateM
                                  , readRecord
                                  , withNG
                                  , mapCurrExpr
@@ -80,6 +81,9 @@ instance FullState (State t, Bindings) (StateM t) where
 
 runStateM :: StateM t a -> State t -> Bindings -> (a, (State t, Bindings))
 runStateM (StateM s) s' b = SM.runState s (s', b)
+
+execStateM :: StateM t a -> State t -> Bindings -> (State t, Bindings)
+execStateM s = (\lh_s b -> snd (runStateM s lh_s b))
 
 readRecord :: SM.MonadState s m => (s -> r) -> m r
 readRecord f = return . f =<< SM.get

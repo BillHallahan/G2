@@ -10,7 +10,10 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 
 import Data.List
+import Data.Maybe
 import qualified Data.Text as T
+
+import Debug.Trace
 
 mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> Id
            -> TypeClasses -> NameGen -> ExprEnv -> Walkers
@@ -25,7 +28,9 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv walkers kv c
 
                 (var_ids, is, ng') = mkInputs ng typs'
                 
-                var_ex = Var f
+                -- We refind the type of f, because type synonyms get replaced during the initializaton,
+                -- after we first got the type of f.
+                var_ex = Var (Id (idName f) (typeOf ex))
                 app_ex = foldl' App var_ex $ typsE ++ var_ids
 
                 -- strict_app_ex = app_ex
@@ -82,7 +87,7 @@ findFunc s m_mod eenv =
         [] -> Right $ "No functions with name " ++ (T.unpack s)
         [(n, e)] -> Left (Id n (typeOf e) , e)
         pairs -> case m_mod of
-            Nothing -> Right $ "Multiple functions with same name. " ++
+            Nothing -> Right $ "Multiple functions with same name. " ++ show s ++ " " ++ show m_mod ++
                                "Wrap the target function in a module so we can try again!"
             Just m -> case filter (\(n, _) -> nameModule n == Just m) pairs of
                 [(n, e)] -> Left (Id n (typeOf e), e)
@@ -111,7 +116,7 @@ instantitateTypes tc kv ts =
         tv' = map (\(i, ts'') -> (i, pickForTyVar kv ts'')) tcSat
         tvt = map (\(i, t) -> (TyVar i, t)) tv'
         -- Dictionary arguments
-        vi = concatMap (uncurry (satisfyingTC tc ts')) tv'
+        vi = mapMaybe (instantiateTCDict tc tv') ts'
 
         ex = map (Type . snd) tv' ++ vi
         tss = filter (not . isTypeClass tc) $ foldr (uncurry replaceASTs) ts' tvt
@@ -124,6 +129,12 @@ pickForTyVar kv ts
     | Just t <- find ((==) (tyInt kv)) ts = t
     | t:_ <- ts = t
     | otherwise = error "No type found in pickForTyVar"
+
+
+instantiateTCDict :: TypeClasses -> [(Id, Type)] -> Type -> Maybe Expr
+instantiateTCDict tc it (TyApp (TyCon n _) (TyVar i)) =
+    return . Var =<< lookupTCDict tc n =<< lookup i it
+instantiateTCDict _ _ _ = Nothing
 
 typeNamedId :: ArgType -> Id
 typeNamedId (NamedType i) = i

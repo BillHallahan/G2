@@ -10,9 +10,10 @@ module G2.Language.Stack
     , pop
     , popN
     , toList
-    , fromList) where
+    , fromList
+    , filter) where
 
-import Prelude hiding (null)
+import Prelude hiding (null, filter)
 import Data.Data (Data, Typeable)
 import qualified Data.List as L
 
@@ -50,6 +51,9 @@ popN s n = case pop s of
         in
         (x:xs, s'')
     Nothing -> ([], s)
+
+filter :: (a -> Bool) -> Stack a -> Stack a
+filter p (Stack stck) = Stack (L.filter p stck)
 
 -- | Convert a `Stack` to a list.
 toList :: Stack a -> [a]

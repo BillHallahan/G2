@@ -5,6 +5,7 @@ import qualified G2.Language.Stack as S
 import qualified G2.Language.ExprEnv as E
 
 import qualified Data.List as L
+import qualified Data.HashSet as HS
 
 -- | If something is in "value form", then it is essentially ready to be
 -- returned and popped off the heap. This will be the SSTG equivalent of having
@@ -61,3 +62,26 @@ isSMNF eenv e = isExprValueForm eenv e
 isLitAlt :: Alt -> Bool
 isLitAlt (Alt (LitAlt _) _) = True
 isLitAlt _ = False
+
+normalForm :: E.ExprEnv -> Expr -> Bool
+normalForm = normalForm' HS.empty
+
+normalForm' :: HS.HashSet Name -> E.ExprEnv -> Expr -> Bool
+normalForm' looked eenv (Var (Id n _))
+    | n `HS.member` looked = True
+    | Just e <- E.lookup n eenv = normalForm' (HS.insert n looked) eenv e
+    | otherwise = E.isSymbolic n eenv
+normalForm' looked eenv (App f a) = case unApp (App f a) of
+    (Prim _ _:xs) -> all (normalForm' looked eenv) xs
+    (Data _:xs) -> all (normalForm' looked eenv) xs
+    ((Var _):_) -> False
+    _ -> False
+normalForm' _ _ (Let _ _) = False
+normalForm' _ _ (Case _ _ _) = False
+normalForm' looked eenv (Cast e (t :~ _)) = not (hasFuncType t) && normalForm' looked eenv e
+normalForm' _ _ (Tick _ _) = False
+normalForm' _ _ (NonDet _) = False
+normalForm' _ _ (SymGen _) = False
+normalForm' _ _ (Assume _ _ _) = False
+normalForm' _ _ (Assert _ _ _) = False
+normalForm' _ _ _ = True

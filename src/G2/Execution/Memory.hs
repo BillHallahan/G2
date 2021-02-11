@@ -1,5 +1,10 @@
+{-# LANGUAGE RankNTypes #-}
+
 module G2.Execution.Memory 
-  ( markAndSweep
+  ( MemConfig (..)
+  , emptyMemConfig
+  , addSearchNames
+  , markAndSweep
   , markAndSweepIgnoringKnownValues
   , markAndSweepPreserving
   ) where
@@ -14,18 +19,43 @@ import Data.List
 import qualified Data.HashSet as S
 import qualified Data.Map as M
 
+import Debug.Trace
+
+type PreservingFunc = forall t . State t -> Bindings -> S.HashSet Name -> S.HashSet Name
+
+data MemConfig = MemConfig { search_names :: [Name]
+                           , pres_func :: PreservingFunc }
+               | PreserveAllMC
+
+instance Monoid MemConfig where
+    mempty = MemConfig { search_names = [], pres_func = \ _ _ -> id }
+
+    mappend (MemConfig { search_names = sn1, pres_func = pf1 })
+            (MemConfig { search_names = sn2, pres_func = pf2 }) =
+                MemConfig { search_names = sn1 ++ sn2
+                          , pres_func = \s b hs -> pf1 s b hs `S.union` pf2 s b hs}
+    mappend _ _ = PreserveAllMC
+
+emptyMemConfig :: MemConfig
+emptyMemConfig = MemConfig { search_names = [], pres_func = \_ _ a -> a }
 
 markAndSweep :: State t -> Bindings -> (State t, Bindings)
-markAndSweep s = markAndSweepPreserving [] s
+markAndSweep s = markAndSweepPreserving emptyMemConfig s
+
+addSearchNames :: [Name] -> MemConfig -> MemConfig
+addSearchNames ns mc@(MemConfig { search_names = ns' }) = mc { search_names = ns ++ ns' }
+addSearchNames _ PreserveAllMC = PreserveAllMC
 
 markAndSweepIgnoringKnownValues :: State t -> Bindings -> (State t, Bindings)
-markAndSweepIgnoringKnownValues = markAndSweepPreserving' []
+markAndSweepIgnoringKnownValues = markAndSweepPreserving' emptyMemConfig
 
-markAndSweepPreserving :: [Name] -> State t -> Bindings -> (State t, Bindings)
-markAndSweepPreserving ns s = markAndSweepPreserving' (ns ++ names (known_values s)) s
+markAndSweepPreserving :: MemConfig -> State t -> Bindings -> (State t, Bindings)
+markAndSweepPreserving mc s =
+    markAndSweepPreserving' (names (known_values s) `addSearchNames` mc) s
 
-markAndSweepPreserving' :: [Name] -> State t -> Bindings -> (State t, Bindings)
-markAndSweepPreserving' ns (state@State { expr_env = eenv
+markAndSweepPreserving' :: MemConfig -> State t -> Bindings -> (State t, Bindings)
+markAndSweepPreserving' PreserveAllMC s b = (s, b)
+markAndSweepPreserving' mc (state@State { expr_env = eenv
                                         , type_env = tenv
                                         , curr_expr = cexpr
                                         , path_conds = pc
@@ -40,24 +70,26 @@ markAndSweepPreserving' ns (state@State { expr_env = eenv
                    }
     bindings' = bindings { deepseq_walkers = dsw'}
 
-    active = activeNames tenv eenv S.empty $ names cexpr ++
-                                                   names es ++
-                                                   names pc ++
-                                                   names iids ++
-                                                   higher_ord_rel ++
-                                                   ns
+    active = activeNames tenv (E.redirsToExprs eenv) S.empty $ names cexpr ++
+                                                               names es ++
+                                                               names pc ++
+                                                               names iids ++
+                                                               higher_ord_rel ++
+                                                               search_names mc
+
+    active' = S.union (pres_func mc state bindings active) active
 
     isActive :: Name -> Bool
-    isActive = (flip S.member) active
+    isActive = (flip S.member) active'
 
     eenv' = E.filterWithKey (\n _ -> isActive n) eenv
     tenv' = M.filterWithKey (\n _ -> isActive n) tenv
 
     dsw' = M.filterWithKey (\n _ -> isActive n) dsw
 
-    higher_ord_eenv = E.filterWithKey (\n _ -> n `elem` inst) eenv
-    higher_ord = map PresType $ nubBy (.::.) $ argTypesTEnv tenv ++ E.higherOrderExprs higher_ord_eenv
-    higher_ord_rel = E.keys $ E.filter (\e -> any (.:: typeOf e) higher_ord) higher_ord_eenv
+    higher_ord_eenv = E.filterWithKey (\n _ -> n `S.member` inst) eenv
+    higher_ord = nubBy (.::.) $ argTypesTEnv tenv ++ E.higherOrderExprs higher_ord_eenv
+    higher_ord_rel = E.keys $ E.filter (\e -> any (e .::) higher_ord) higher_ord_eenv
 
 activeNames :: TypeEnv -> ExprEnv -> S.HashSet Name -> [Name] -> S.HashSet Name
 activeNames _ _ explored [] = explored

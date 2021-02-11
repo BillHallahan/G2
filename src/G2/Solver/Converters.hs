@@ -15,12 +15,19 @@ module G2.Solver.Converters
     , exprToSMT --WOULD BE NICE NOT TO EXPORT THIS
     , typeToSMT --WOULD BE NICE NOT TO EXPORT THIS
     , toSolverAST --WOULD BE NICE NOT TO EXPORT THIS
+    , sortName
     , smtastToExpr
     , modelAsExpr
+    , checkConstraintsPC
+    , checkModelPC
     , checkConstraints
-    , checkModel
+    , solveConstraints
+    , constraintsToModelOrUnsatCore
     , SMTConverter (..) ) where
 
+import Data.List
+import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid
@@ -43,14 +50,21 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     empty :: con -> out
     merge :: con -> out -> out -> out
 
-    checkSat :: con -> io -> out -> IO Result
-    checkSatGetModel :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result, Maybe SMTModel)
+    checkSat :: con -> io -> out -> IO (Result () ())
+    checkSatGetModel :: con -> io -> out -> [(SMTName, Sort)] -> IO (Result SMTModel ())
+    checkSatGetModelOrUnsatCore :: con -> io -> out -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore)
     checkSatGetModelGetExpr :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> CurrExpr
-                            -> IO (Result, Maybe SMTModel, Maybe Expr)
+                            -> IO (Result SMTModel (), Maybe Expr)
 
-    assert :: con -> ast -> out
+    assertSolver :: con -> ast -> out
+    assertSoftSolver :: con -> ast -> Maybe T.Text -> out
+    defineFun :: con -> SMTName -> [(SMTName, Sort)] -> Sort -> SMTAST -> out 
+    declareFun :: con -> SMTName -> [Sort] -> Sort -> out 
     varDecl :: con -> SMTNameBldr -> ast -> out
+
     setLogic :: con -> Logic -> out
+
+    comment :: con -> String -> out
 
     (.>=) :: con -> ast -> ast -> ast
     (.>) :: con -> ast -> ast -> ast
@@ -73,6 +87,9 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     smtModulo :: con -> ast -> ast -> ast
     smtSqrt :: con -> ast -> ast
     neg :: con -> ast -> ast
+
+    smtFunc :: con -> SMTName -> [ast] -> ast
+
     strLen :: con -> ast -> ast
     itor :: con -> ast -> ast
 
@@ -96,33 +113,39 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
 
     varName :: con -> SMTName -> Sort -> ast
 
--- | Checks if the path constraints are satisfiable
-checkConstraints :: SMTConverter con ast out io => con -> PathConds -> IO Result
-checkConstraints con pc = do
-    let pc' = unsafeElimCast $ PC.toList pc
+    -- unsat cores
+    named :: con -> ast -> SMTName -> ast
 
-    let headers = toSMTHeaders pc'
+checkConstraintsPC :: SMTConverter con ast out io => con -> PathConds -> IO (Result () ())
+checkConstraintsPC con pc = do
+    let pc' = unsafeElimCast pc
+
+    let headers = toSMTHeaders $ PC.toList pc'
+    checkConstraints con headers
+
+checkConstraints :: SMTConverter con ast out io => con -> [SMTHeader] -> IO (Result () ())
+checkConstraints con headers = do
     let formula = toSolver con headers
 
     checkSat con (getIO con) formula
 
 -- | Checks if the constraints are satisfiable, and returns a model if they are
-checkModel :: SMTConverter con ast out io => ArbValueFunc -> con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model)
-checkModel avf con s b is pc = return . fmap liftCasts =<< checkModel' avf con s b is pc
+checkModelPC :: SMTConverter con ast out io => ArbValueFunc -> con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model ())
+checkModelPC avf con s b is pc = return . liftCasts =<< checkModel' avf con s b is pc
 
 -- | We split based on whether we are evaluating a ADT or a literal.
 -- ADTs can be solved using our efficient addADTs, while literals require
 -- calling an SMT solver.
-checkModel' :: SMTConverter con ast out io => ArbValueFunc -> con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result, Maybe Model)
+checkModel' :: SMTConverter con ast out io => ArbValueFunc -> con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model ())
 checkModel' _ _ s _ [] _ = do
-    return (SAT, Just $ model s)
+    return (SAT $ model s)
 checkModel' avf con s b (i:is) pc
-    | (idName i) `M.member` (model s) = checkModel' avf con s b is pc
+    | (idName i) `HM.member` (model s) = checkModel' avf con s b is pc
     | otherwise =  do
         (m, av) <- getModelVal avf con s b i pc
         case m of
-            Just m' -> checkModel' avf con (s {model = M.union m' (model s)}) (b {arb_value_gen = av}) is pc
-            Nothing -> return (UNSAT, Nothing)
+            Just m' -> checkModel' avf con (s {model = HM.union m' (model s)}) (b {arb_value_gen = av}) is pc
+            Nothing -> return $ UNSAT ()
 
 getModelVal :: SMTConverter con ast out io => ArbValueFunc -> con -> State t -> Bindings -> Id -> PathConds -> IO (Maybe Model, ArbValueGen)
 getModelVal avf con s b (Id n _) pc = do
@@ -133,27 +156,34 @@ getModelVal avf con s b (Id n _) pc = do
                     let
                         (e, av) = avf t (type_env s) (arb_value_gen b)
                     in
-                    return (Just $ M.singleton n' e, av) 
+                    return (Just $ HM.singleton n' e, av) 
                 False -> do
-                    m <- checkNumericConstraints con pc
+                    m <- solveNumericConstraintsPC con pc
                     return (m, arb_value_gen b)
 
-checkNumericConstraints :: SMTConverter con ast out io => con -> PathConds -> IO (Maybe Model)
-checkNumericConstraints con pc = do
-    let pc' = PC.toList pc
-        headers = toSMTHeaders pc'
-        formula = toSolver con headers
+solveNumericConstraintsPC :: SMTConverter con ast out io => con -> PathConds -> IO (Maybe Model)
+solveNumericConstraintsPC con pc = do
+    let headers = toSMTHeaders $ PC.toList pc
+    let vs = map (\(n', srt) -> (nameToStr n', srt)) . pcVars $ PC.toList pc
 
-    let vs = map (\(n', srt) -> (nameToStr n', srt)) . pcVars $ pc'
+    m <- solveConstraints con headers vs
+    return $ fmap modelAsExpr m
 
+solveConstraints :: SMTConverter con ast out io => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Maybe SMTModel)
+solveConstraints con headers vs = do
     let io = getIO con
-    (_, m) <- checkSatGetModel con io formula headers vs
+    let formula = toSolver con headers
+    r <- checkSatGetModel con io formula vs
 
-    let m' = fmap modelAsExpr m
+    case r of
+        SAT m' -> return $ Just m'
+        _ -> return Nothing
 
-    case m' of
-        Just m'' -> return $ Just m''
-        Nothing -> return Nothing
+constraintsToModelOrUnsatCore :: SMTConverter con ast out io => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore)
+constraintsToModelOrUnsatCore con headers vs = do
+    let io = getIO con
+    let formula = toSolver con headers
+    checkSatGetModelOrUnsatCore con io formula vs
 
 -- | Here we convert from a State, to an SMTHeader.  This SMTHeader can later
 -- be given to an SMT solver by using toSolver.
@@ -180,13 +210,15 @@ addSetLogic xs =
         nia = isNIA xs
         nra = isNRA xs
         nira = isNIRA xs
+        uflia = isUFLIA xs
 
         sl = if lia then SetLogic QF_LIA else
              if lra then SetLogic QF_LRA else
              if lira then SetLogic QF_LIRA else
              if nia then SetLogic QF_NIA else
              if nra then SetLogic QF_NRA else 
-             if nira then SetLogic QF_NIRA else SetLogic ALL
+             if nira then SetLogic QF_NIRA else
+             if uflia then SetLogic QF_UFLIA else SetLogic ALL
     in
     sl:xs
 
@@ -196,6 +228,7 @@ isNIA = getAll . evalASTs isNIA'
 isNIA' :: SMTAST -> All
 isNIA' (_ :* _) = All True
 isNIA' (_ :/ _) = All True
+isNIA' (_ `Modulo` _) = All True
 isNIA' s = isLIA' s
 
 isLIA :: (ASTContainer m SMTAST) => m -> Bool
@@ -277,6 +310,13 @@ isNIRA' :: SMTAST -> All
 isNIRA' (ItoR _) = All True
 isNIRA' s = All $ getAll (isNIA' s) || getAll (isNRA' s)
 
+isUFLIA :: (ASTContainer m SMTAST) => m -> Bool
+isUFLIA = getAll . evalASTs isUFLIA'
+
+isUFLIA' :: SMTAST -> All
+isUFLIA' (Func _ xs) = mconcat $ map isUFLIA' xs
+isUFLIA' s = isLIA' s
+
 isCore' :: SMTAST -> All
 isCore' (_ := _) = All True
 isCore' (SmtAnd _) = All True
@@ -284,6 +324,7 @@ isCore' (SmtOr _) = All True
 isCore' ((:!) _) = All True
 isCore' (_ :=> _) = All True
 isCore' (_ :<=> _) = All True
+isCore' (Func _ _) = All True
 isCore' (VBool _) = All True
 isCore' (V _ s) = All $ isCoreSort s
 isCore' _ = All False
@@ -390,6 +431,7 @@ funcToSMT2Prim Div a1 a2 = exprToSMT a1 :/ exprToSMT a2
 funcToSMT2Prim Quot a1 a2 = exprToSMT a1 `QuotSMT` exprToSMT a2
 funcToSMT2Prim Mod a1 a2 = exprToSMT a1 `Modulo` exprToSMT a2
 funcToSMT2Prim Rem a1 a2 = exprToSMT a1 :- ((exprToSMT a1 `QuotSMT` exprToSMT a2) :* exprToSMT a2) -- TODO: more efficient encoding?
+funcToSMT2Prim RationalToDouble a1 a2  = exprToSMT a1 :/ exprToSMT a2
 funcToSMT2Prim op lhs rhs = error $ "funcToSMT2Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
 
 altToSMT :: Lit -> Expr -> SMTAST
@@ -450,9 +492,16 @@ typeToSMT t = error $ "Unsupported type in typeToSMT: " ++ show t
 toSolver :: SMTConverter con ast out io => con -> [SMTHeader] -> out
 toSolver con [] = empty con
 toSolver con (Assert ast:xs) = 
-    merge con (assert con $ toSolverAST con ast) (toSolver con xs)
+    merge con (assertSolver con $ toSolverAST con ast) (toSolver con xs)
+toSolver con (AssertSoft ast lab:xs) = 
+    merge con (assertSoftSolver con (toSolverAST con ast) lab) (toSolver con xs)
+toSolver con (DefineFun f ars ret body:xs) =
+    merge con (defineFun con f ars ret body) (toSolver con xs)
+toSolver con (DeclareFun f ars ret:xs) =
+    merge con (declareFun con f ars ret) (toSolver con xs)
 toSolver con (VarDecl n s:xs) = merge con (toSolverVarDecl con n s) (toSolver con xs)
 toSolver con (SetLogic lgc:xs) = merge con (toSolverSetLogic con lgc) (toSolver con xs)
+toSolver con (Comment c:xs) = merge con (comment con c) (toSolver con xs)
 
 toSolverAST :: SMTConverter con ast out io => con -> SMTAST -> ast
 toSolverAST con (x :>= y) = (.>=) con (toSolverAST con x) (toSolverAST con y)
@@ -476,6 +525,9 @@ toSolverAST con (x `QuotSMT` y) = smtQuot con (toSolverAST con x) (toSolverAST c
 toSolverAST con (x `Modulo` y) = smtModulo con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (SqrtSMT x) = smtSqrt con $ toSolverAST con x
 toSolverAST con (Neg x) = neg con $ toSolverAST con x
+
+toSolverAST con (Func n xs) = smtFunc con n $ map (toSolverAST con) xs
+
 toSolverAST con (StrLen x) = strLen con $ toSolverAST con x
 toSolverAST con (ItoR x) = itor con $ toSolverAST con x
 
@@ -488,6 +540,9 @@ toSolverAST con (VDouble i) = double con i
 toSolverAST con (VChar c) = char con c
 toSolverAST con (VBool b) = bool con b
 toSolverAST con (V n s) = varName con n s
+
+toSolverAST con (Named x n) = named con (toSolverAST con x) n
+
 toSolverAST _ ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
 
 toSolverVarDecl :: SMTConverter con ast out io => con -> SMTNameBldr -> Sort -> out
@@ -511,7 +566,7 @@ smtastToExpr (VDouble d) = (Lit $ LitDouble d)
 smtastToExpr (VBool b) =
     Data (DataCon (Name (T.pack $ show b) Nothing 0 Nothing) (TyCon (Name "Bool" Nothing 0 Nothing) TYPE))
 smtastToExpr (VChar c) = Lit $ LitChar c
-smtastToExpr (V n s) = Var $ Id (strToName n) (sortToType s)
+smtastToExpr (V n s) = Var $ Id (certainStrToName n) (sortToType s)
 smtastToExpr _ = error "Conversion of this SMTAST to an Expr not supported."
 
 -- | Converts a `Sort` to an `Type`.
@@ -524,4 +579,10 @@ sortToType (SortBool) = TyCon (Name "Bool" Nothing 0 Nothing) TYPE
 
 -- | Coverts an `SMTModel` to a `Model`.
 modelAsExpr :: SMTModel -> Model
-modelAsExpr = M.mapKeys strToName . M.map smtastToExpr
+modelAsExpr = HM.fromList . M.toList . M.mapKeys strToName . M.map smtastToExpr
+
+certainStrToName :: String -> Name
+certainStrToName s =
+    case maybe_StrToName s of
+        Just n -> n
+        Nothing -> Name (T.pack s) Nothing 0 Nothing

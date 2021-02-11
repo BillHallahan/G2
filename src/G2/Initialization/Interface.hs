@@ -9,11 +9,14 @@ import G2.Initialization.InitVarLocs
 import G2.Initialization.StructuralEq
 import G2.Initialization.Types as IT
 
-runInitialization :: IT.SimpleState -> [Type] -> (IT.SimpleState, Walkers)
-runInitialization s@(IT.SimpleState { IT.expr_env = eenv
-                                 , IT.type_env = tenv
-                                 , IT.name_gen = ng
-                                 , IT.type_classes = tc }) ts =
+runInitialization1 :: IT.SimpleState -> IT.SimpleState
+runInitialization1 = elimTicks . initVarLocs
+
+runInitialization2 :: IT.SimpleState -> [Type] -> (IT.SimpleState, Walkers)
+runInitialization2 s@(IT.SimpleState { IT.expr_env = eenv
+                                     , IT.type_env = tenv
+                                     , IT.name_gen = ng
+                                     , IT.type_classes = tc }) ts =
     let
         eenv2 = elimTypeSyms tenv eenv
         tenv2 = elimTypeSymsTEnv tenv
@@ -26,6 +29,5 @@ runInitialization s@(IT.SimpleState { IT.expr_env = eenv
                , IT.type_classes = tc2 }
 
         s'' = execSimpleStateM (createStructEqFuncs ts) s'
-        s''' = elimTicks . initVarLocs $ s''
     in
-    (s''', ds_walkers)
+    (s'', ds_walkers)

@@ -31,6 +31,7 @@ import G2.QuasiQuotes.Parser
 import qualified Control.Concurrent.Lock as Lock
 
 import Data.Data
+import qualified Data.HashSet as HS
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
@@ -101,8 +102,9 @@ parseHaskellConfigQ config str = do
 
     -- Get names for the lambdas for the regular inputs
     exG2 <- parseHaskellQ' qext
-    let (init_s, _, init_b) = initState' exG2 (T.pack functionName) (Just $ T.pack moduleName)
-                                        (mkCurrExpr Nothing Nothing) config
+    config <- runIO qqConfig
+    let (init_s, init_b) = initStateWithCall' exG2 (T.pack functionName) (Just $ T.pack moduleName)
+                                        (mkCurrExpr Nothing Nothing) (mkArgTys) config
 
     runIO $ releaseIORefLock
 
@@ -243,7 +245,7 @@ runExecutionQ mergestates s b config = do
     let simplifier = IdSimplifier
     case qqRedHaltOrd config solver simplifier mergestates of
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
-            let (s'', b'') = runG2Pre [] s' b'
+            let (s'', b'') = runG2Pre emptyMemConfig s' b'
                 hal' = hal :<~> ZeroHalter 20 :<~> LemmingsHalter
             (xs, b''') <- runExecutionToProcessed red hal' ord simplifier mergestates s'' b''
 
@@ -265,7 +267,7 @@ instance Halter LemmingsHalter () t where
     initHalt _ _ = ()
     updatePerStateHalt _ _ _ _ = ()
     discardOnStart _ _ pr _ = not . null . discarded $ pr
-    stopRed _ _ _ _ = Continue
+    stopRed _ _ _ _ = return Continue
     stepHalter _ _ _ _ _ = ()
 
 fileName :: String
@@ -290,10 +292,10 @@ qqRedHaltOrd config solver simplifier mergeStates =
         (NonRedPCRed :<~| TaggerRed state_name tr_ng)
             <~| (case logSt of
                     Just fp -> SomeReducer (StdRed share mergeStates solver simplifier :<~ Logger fp)
-                    Nothing -> SomeReducer (StdRed share mergeStates solver simplifier :<~ Logger "a_merge"))
+                    Nothing -> SomeReducer (StdRed share mergeStates solver simplifier))
     , SomeHalter
         (DiscardIfAcceptedTag state_name 
-        :<~> AcceptHalter)
+        :<~> AcceptIfViolatedHalter)
     , SomeOrderer NextOrderer)
 
 addAssume :: State t -> Bindings -> (State t, Bindings)
@@ -362,7 +364,7 @@ elimUnusedCompleted :: Named t => [State t] -> Bindings -> ([State t], Bindings)
 elimUnusedCompleted xs b =
     let
         b' = b { deepseq_walkers = M.empty
-               , higher_order_inst = [] }
+               , higher_order_inst = HS.empty }
 
         xs' = map (\s -> s { type_classes = initTypeClasses []
                            , rules = [] }) xs
@@ -374,7 +376,7 @@ elimUnusedNonCompleted :: Named t => State t -> Bindings -> (State t, Bindings)
 elimUnusedNonCompleted s b =
     let
         b' = b { deepseq_walkers = M.empty
-               , higher_order_inst = [] }
+               , higher_order_inst = HS.empty }
         s' = s { type_classes = initTypeClasses []
                , rules = [] }
     in
@@ -390,8 +392,8 @@ instance Halter ErrorHalter () t where
     initHalt _ _ = ()
     updatePerStateHalt _ _ _ _ = ()
 
-    stopRed _ _ _ (State { curr_expr = CurrExpr _ (G2.Prim Error _)}) = Discard
-    stopRed _ _ _ _ = Continue
+    stopRed _ _ _ (State { curr_expr = CurrExpr _ (G2.Prim Error _)}) = return Discard
+    stopRed _ _ _ _ = return Continue
 
     stepHalter _ _ _ _ _ = ()
 
@@ -414,7 +416,7 @@ executeAndSolveStates' mergeStates b s = do
             -- (res, _) <- runG2Post red hal' PickLeastUsedOrderer solver s b
             -- (res, _) <- runG2Post (red :<~ Logger "qq") hal' ((IncrAfterN 2000 SymbolicADTOrderer)
                                           -- :<-> BucketSizeOrderer 6) solver s b
-                ord = ToOrderer (IncrAfterN 2000 ADTHeightOrderer :<-> BucketSizeOrderer 6)
+                ord = ToOrderer (IncrAfterN 2000 (ADTHeightOrderer 0 Nothing) :<-> BucketSizeOrderer 6)
             (res, _) <- runG2Post (red :<~ mkCountAllSteps :<~ CountMerges) hal' ord solver simplifier s b mergeStates
             -- (res, _) <- runG2Post (red) hal' (BucketSizeOrderer 3) solver s b
 
@@ -441,7 +443,7 @@ solveStates'' :: ( Named t
                  , ASTContainer t G2.Type
                  , Solver solver
                  , Simplifier simplifier) => solver -> simplifier -> Bindings -> [State t] -> IO (Maybe (ExecRes t))
-solveStates'' _ _ _ [] =return Nothing
+solveStates'' _ _ _ [] = return Nothing
 solveStates'' sol simplifier b (s:xs) = do
     m_ex_res <- runG2Solving sol simplifier b s
     case m_ex_res of
@@ -469,5 +471,5 @@ toSymbArgsTuple in_ids cleaned tenv_name = do
 qqConfig :: IO Config
 qqConfig = do
   homedir <- getHomeDirectory
-  -- return $ mkConfig homedir ["--log-states", "../Debugging Output/g2q/sumEvensFullSM"] M.empty
-  return $ mkConfig homedir [] M.empty
+  let config = mkConfig homedir [] M.empty
+  return $ config { extraDefaultMods = [homedir ++ "/.g2/G2Stubs/src/G2/QuasiQuotes/G2Rep.hs"] }

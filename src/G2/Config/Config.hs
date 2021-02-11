@@ -4,22 +4,33 @@
 module G2.Config.Config ( Mode (..)
                         , Sharing (..)
                         , Merging (..)
+                        , Counterfactual (..)
+                        , CFModules (..)
                         , SMTSolver (..)
                         , HigherOrderSolver (..)
+                        , BlockErrorsMethod (..)
                         , IncludePath
                         , Config (..)
                         , BoolDef (..)
                         , mkConfig
                         , strArg
-                        , boolArg) where
+                        , boolArg
+
+                        , baseDef
+                        , baseSimple
+                        , baseExtra) where
 
 
 import Data.Char
 import Data.Data
+import qualified Data.HashSet as S
 import Data.List
 import qualified Data.Map as M
+import qualified Data.Text as T
 
 import System.Directory
+
+import G2.Language.Syntax
 
 data Mode = Regular | Liquid deriving (Eq, Show, Read)
 
@@ -28,10 +39,17 @@ data Sharing = Sharing | NoSharing deriving (Eq, Show, Read)
 
 data Merging = Merging | NoMerging deriving (Eq, Show, Read, Data)
 
+data Counterfactual = Counterfactual CFModules | NotCounterfactual deriving (Eq, Show, Read)
+
+data CFModules = CFAll | CFOnly (S.HashSet (T.Text, Maybe T.Text)) deriving (Eq, Show, Read)
+
 data SMTSolver = ConZ3 | ConCVC4 deriving (Eq, Show, Read)
 
 data HigherOrderSolver = AllFuncs
                        | SingleFunc deriving (Eq, Show, Read)
+
+data BlockErrorsMethod = ArbBlock
+                       | AssumeBlock deriving (Eq, Show, Read)
 
 type IncludePath = FilePath
 
@@ -59,6 +77,14 @@ data Config = Config {
     , timeLimit :: Int -- ^ Seconds
     , validate :: Bool -- ^ If True, HPC is run on G2's output, to measure code coverage.  TODO: Currently doesn't work
     -- , baseLibs :: [BaseLib]
+
+    -- LiquidHaskell options
+    , counterfactual :: Counterfactual -- ^ Which functions should be able to generate abstract counterexamples
+    , only_top :: Bool -- ^ Only try to find counterexamples in the very first function definition, or directly called functions?
+    , block_errors_in :: (S.HashSet (T.Text, Maybe T.Text)) -- ^ Prevents calls from errors occuring in the indicated functions
+    , block_errors_method :: BlockErrorsMethod -- ^ Should errors be blocked with an Assume or with an arbitrarily inserted value
+    , reduce_abs :: Bool
+    , add_tyvars :: Bool
 }
 
 -- mkConfigDef :: Config
@@ -79,6 +105,7 @@ mkConfig homedir as m = Config {
     , extraDefaultMods = extraDefaultPaths (strArg "extra-base" as m id homedir)
     , logStates = strArg "log-states" as m Just Nothing
     , sharing = boolArg' "sharing" as m Sharing Sharing NoSharing
+
     , maxOutputs = strArg "max-outputs" as m (Just . read) Nothing
     , printCurrExpr = boolArg "print-ce" as m Off
     , printExprEnv = boolArg "print-eenv" as m Off
@@ -95,21 +122,39 @@ mkConfig homedir as m = Config {
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off
     -- , baseLibs = [BasePrelude, BaseException]
+
+    , counterfactual = boolArg' "counterfactual" as m
+                        (Counterfactual CFAll) (Counterfactual CFAll) NotCounterfactual
+    , only_top = boolArg "only-top" as m Off
+    , block_errors_in = S.empty
+    , block_errors_method = AssumeBlock
+    , reduce_abs = boolArg "reduce-abs" as m On
+    , add_tyvars = boolArg "add-tyvars" as m Off
 }
 
 baseIncludeDef :: FilePath -> [FilePath]
 baseIncludeDef root =
     [ root ++ "/.g2/base-4.9.1.0/Control/Exception/"
-    , root ++  "/.g2/base-4.9.1.0/"
     , root ++ "/.g2/base-4.9.1.0/"
     , root ++ "/.g2/base-4.9.1.0/Data/Internal/"
     ]
 
 baseDef :: FilePath -> [FilePath]
 baseDef root =
+    baseSimple root
+    ++
+    baseExtra root
+
+baseSimple :: FilePath -> [FilePath]
+baseSimple root =
     [ root ++ "/.g2/base-4.9.1.0/Control/Exception/Base.hs"
-    , root ++ "/.g2/base-4.9.1.0/Prelude.hs"
-    , root ++ "/.g2/base-4.9.1.0/Control/Monad.hs"
+    , root ++ "/.g2/base-4.9.1.0/Prelude.hs" ]
+
+baseExtra :: FilePath -> [FilePath]
+baseExtra root =
+    baseSimple root
+    ++
+    [ root ++ "/.g2/base-4.9.1.0/Control/Monad.hs"
     , root ++ "/.g2/base-4.9.1.0/Data/Internal/Map.hs"
     ]
 
@@ -119,7 +164,7 @@ extraDefaultIncludePaths root =
 
 extraDefaultPaths :: FilePath -> [FilePath]
 extraDefaultPaths root =
-    [ root ++ "/.g2/G2Stubs/src/G2/QuasiQuotes/G2Rep.hs" ] 
+    [ ] 
 
 smtSolverArg :: String -> SMTSolver
 smtSolverArg = smtSolverArg' . map toLower

@@ -2,19 +2,21 @@
 {-# LANGUAGE TupleSections #-}
 
 module G2.Language.Monad.Expr ( mkDCTrueM
-                                        , mkDCFalseM
-                                        , mkDCIntE
-                                        , mkDCIntegerE
-                                        , mkDCFloatE
-                                        , mkDCDoubleE
-                                        , mkTrueE
-                                        , mkFalseE
-                                        , mkConsE
-                                        , mkEmptyE
-                                        , modifyAppTopE
-                                        , modifyLamTopE
-                                        , insertInLamsE
-                                        , etaExpandToE ) where
+                              , mkDCFalseM
+                              , mkDCIntE
+                              , mkDCIntegerE
+                              , mkDCFloatE
+                              , mkDCDoubleE
+                              , mkTrueE
+                              , mkFalseE
+                              , mkConsE
+                              , mkEmptyE
+                              , mkUnitE
+                              , modifyAppTopE
+                              , modifyLamTopE
+                              , modifyAppRHSE
+                              , insertInLamsE
+                              , etaExpandToE ) where
 
 import G2.Language.Expr
 import G2.Language.Syntax
@@ -63,6 +65,9 @@ mkConsE = appKVTEnv mkCons
 
 mkEmptyE :: ExState s m => m Expr
 mkEmptyE = appKVTEnv mkEmpty
+
+mkUnitE :: ExState s m => m Expr
+mkUnitE = appKVTEnv mkUnit
 
 modifyAppTopE :: (Monad m, ASTContainerM c Expr) => (Expr -> m Expr) -> c -> m c
 modifyAppTopE f = modifyContainedASTsM (modifyAppTopE' f)

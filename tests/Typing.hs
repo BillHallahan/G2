@@ -9,11 +9,8 @@ import G2.Language
 import Test.Tasty
 import Test.Tasty.HUnit
 
-typingTests :: IO TestTree
-typingTests = return typingTests'
-
-typingTests' :: TestTree
-typingTests' =
+typingTests :: TestTree
+typingTests =
     testGroup "Typing"
     [
       testCase "Function application" $ assertBool "Function application failed" test1

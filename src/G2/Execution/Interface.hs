@@ -14,7 +14,7 @@ import G2.Language.Naming
 import G2.Solver.Simplifier
 
 {-# INLINE runExecutionToProcessed #-}
-runExecutionToProcessed :: (Show t, Named t, Eq t, Reducer r rv t, Halter h hv t, Orderer or sov b t, Simplifier simplifier) 
+runExecutionToProcessed :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Orderer or sov b t, Simplifier simplifier) 
                         => r -> h -> or -> simplifier -> Merging -> State t -> Bindings 
                         -> IO (Processed (State t), Bindings)
 runExecutionToProcessed red hal ord simplifier mergeStates s b =
@@ -23,7 +23,7 @@ runExecutionToProcessed red hal ord simplifier mergeStates s b =
         NoMerging -> runReducer red hal ord s b
 
 {-# INLINE runExecution #-}
-runExecution :: (Eq t, Show t, Named t, Reducer r rv t, Halter h hv t, Orderer or sov b t, Simplifier simplifier)
+runExecution :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Orderer or sov b t, Simplifier simplifier)
                 => r -> h -> or -> simplifier -> Merging -> State t -> Bindings -> IO ([State t], Bindings)
 runExecution red hal ord simplifier mergeStates s b = do
     (pr, b') <- runExecutionToProcessed red hal ord simplifier mergeStates s b

@@ -3,60 +3,95 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 module G2.Liquid.Types ( LHOutput (..)
-                                 , Measures
-                                 , LHState (..)
-                                 , LHStateM (..)
-                                 , ExState (..)
-                                 , AnnotMap (..)
-                                 , consLHState
-                                 , deconsLHState
-                                 , measuresM
-                                 , assumptionsM
-                                 , annotsM
-                                 , runLHStateM
-                                 , evalLHStateM
-                                 , execLHStateM
-                                 , lookupMeasure
-                                 , lookupMeasureM
-                                 , insertMeasureM
-                                 , mapMeasuresM
-                                 , lookupAssumptionM
-                                 , insertAssumptionM
-                                 , mapAssumptionsM
-                                 , lookupAnnotM
-                                 , insertAnnotM
-                                 , mapAnnotsExpr
-                                 , andM
-                                 , orM
-                                 , notM
-                                 , iffM
-                                 , lhTCM
-                                 , lhOrdTCM
-                                 , lhEqM
-                                 , lhNeM
-                                 , lhLtM
-                                 , lhLeM
-                                 , lhGtM
-                                 , lhGeM
-                                 , lhLtE
-                                 , lhLeE
-                                 , lhGtE
-                                 , lhGeE
+                       , CounterExample (..)
+                       , Measures
+                       , LHState (..)
+                       , LHStateM (..)
+                       , ExState (..)
+                       , AnnotMap (..)
+                       , Abstracted (..)
+                       , AbstractedInfo (..)
+                       , Assumptions
+                       , Posts
+                       , TyVarBags
+                       , InstFuncs
 
-                                 , lhPlusM
-                                 , lhMinusM
-                                 , lhTimesM
-                                 , lhDivM
-                                 , lhNegateM
-                                 , lhModM
-                                 , lhFromIntegerM
-                                 , lhToIntegerM
-                                 , lhNumOrdM
+                       , tcValuesM
 
-                                 , lhAndE
-                                 , lhOrE
-                                 
-                                 , lhPPM ) where
+                       , mapAbstractedFCs
+                       , mapAbstractedInfoFCs
+                       , consLHState
+                       , deconsLHState
+                       , measuresM
+                       , lhRenamedTCM
+                       , assumptionsM
+                       , postsM
+                       , annotsM
+                       , tyVarBagsM
+                       , runLHStateM
+                       , evalLHStateM
+                       , execLHStateM
+                       , lookupMeasure
+                       , lookupMeasureM
+                       , insertMeasureM
+                       , mapMeasuresM
+                       , putMeasuresM
+                       , lookupAssumptionM
+                       , insertAssumptionM
+                       , mapAssumptionsM
+                       , lookupPostM
+                       , insertPostM
+                       , mapPostM
+                       , lookupAnnotM
+                       , insertAnnotM
+                       , mapAnnotsExpr
+                       , lookupRenamedTCDict
+                       , insertTyVarBags
+                       , lookupTyVarBags
+                       , setTyVarBags
+                       , getTyVarBags
+                       , insertInstFuncs
+                       , lookupInstFuncs
+                       , setInstFuncs
+                       , getInstFuncs
+
+                       , andM
+                       , orM
+                       , notM
+                       , iffM
+                       , lhTCM
+                       , lhOrdTCM
+                       , lhEqM
+                       , lhNeM
+                       , lhLtM
+                       , lhLeM
+                       , lhGtM
+                       , lhGeM
+                       , lhLtE
+                       , lhLeE
+                       , lhGtE
+                       , lhGeE
+
+                       , lhPlusM
+                       , lhMinusM
+                       , lhTimesM
+                       , lhDivM
+                       , lhNegateM
+                       , lhModM
+                       , lhFromIntegerM
+                       , lhToIntegerM
+
+                       , lhFromRationalM
+
+                       , lhToRatioFuncM
+                       
+                       , lhNumTCM
+                       , lhNumOrdM
+
+                       , lhAndE
+                       , lhOrE
+                       
+                       , lhPPM ) where
 
 import Data.Coerce
 import qualified Data.HashMap.Lazy as HM
@@ -69,6 +104,7 @@ import qualified G2.Language as L
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.KnownValues as KV
 import G2.Language.Monad
+import G2.Language.TypeClasses
 
 import G2.Liquid.TCValues
 
@@ -80,13 +116,67 @@ data LHOutput = LHOutput { ghcI :: GhcInfo
                          , cgI :: CGInfo
                          , solution :: FixSolution }
 
+data CounterExample = DirectCounter Abstracted [Abstracted]
+                    | CallsCounter Abstracted -- ^ The caller, abstracted result
+                                   Abstracted -- ^ The callee
+                                   [Abstracted]
+                    deriving (Eq, Show, Read)
+
 type Measures = L.ExprEnv
 
 type Assumptions = M.Map L.Name L.Expr
+type Posts = M.Map L.Name L.Expr
 
 newtype AnnotMap =
     AM { unAnnotMap :: HM.HashMap L.Span [(Maybe T.Text, L.Expr)] }
     deriving (Eq, Show, Read)
+
+-- Abstracted values
+data Abstracted = Abstracted { abstract :: L.FuncCall
+                             , real :: L.FuncCall
+                             , hits_lib_err_in_real :: Bool
+                             , func_calls_in_real :: [L.FuncCall] }
+                             deriving (Eq, Show, Read)
+
+data AbstractedInfo = AbstractedInfo { init_call :: Abstracted
+                                     , abs_violated :: Maybe Abstracted
+                                     , abs_calls :: [Abstracted]
+                                     , ai_all_calls :: [L.FuncCall] }
+
+mapAbstractedFCs :: (L.FuncCall -> L.FuncCall) ->  Abstracted -> Abstracted
+mapAbstractedFCs f (Abstracted { abstract = a
+                               , real = r
+                               , hits_lib_err_in_real = err
+                               , func_calls_in_real = fcr }) =
+    Abstracted { abstract = f a
+               , real = f r
+               , hits_lib_err_in_real = err
+               , func_calls_in_real = map f fcr}
+
+mapAbstractedInfoFCs :: (L.FuncCall -> L.FuncCall) ->  AbstractedInfo -> AbstractedInfo
+mapAbstractedInfoFCs f (AbstractedInfo { init_call = ic, abs_violated = av, abs_calls = ac, ai_all_calls= allc}) =
+    AbstractedInfo { init_call = mapAbstractedFCs f ic
+                   , abs_violated = fmap (mapAbstractedFCs f) av
+                   , abs_calls = map (mapAbstractedFCs f) ac
+                   , ai_all_calls = map f allc }
+
+instance L.ASTContainer Abstracted L.Expr where
+    containedASTs ab = L.containedASTs (abstract ab) ++ L.containedASTs (real ab)
+    modifyContainedASTs f (Abstracted { abstract = a, real = r, hits_lib_err_in_real = err }) =
+        Abstracted { abstract = L.modifyContainedASTs f a
+                   , real = L.modifyContainedASTs f r
+                   , hits_lib_err_in_real = err}
+
+instance L.ASTContainer Abstracted L.Type where
+    containedASTs ab = L.containedASTs (abstract ab) ++ L.containedASTs (real ab)
+    modifyContainedASTs f (Abstracted { abstract = a, real = r, hits_lib_err_in_real = err }) =
+        Abstracted { abstract = L.modifyContainedASTs f a
+                   , real = L.modifyContainedASTs f r
+                   , hits_lib_err_in_real = err }
+
+-- | See G2.Liquid.TyVarBags
+type TyVarBags = M.Map L.Name [L.Id]
+type InstFuncs = M.Map L.Name L.Id
 
 -- [LHState]
 -- measures is an extra expression environment, used to build Assertions.
@@ -105,18 +195,26 @@ newtype AnnotMap =
 -- LiquidHaskell ASTs
 data LHState = LHState { state :: L.State [L.FuncCall]
                        , measures :: Measures
+                       , lh_tcs :: L.TypeClasses
                        , tcvalues :: TCValues
                        , assumptions :: Assumptions
+                       , posts :: Posts
                        , annots :: AnnotMap
+                       , tyvar_bags :: TyVarBags
+                       , inst_funcs :: InstFuncs
                        } deriving (Eq, Show, Read)
 
-consLHState :: L.State [L.FuncCall] -> Measures -> TCValues -> LHState
-consLHState s meas tcv =
+consLHState :: L.State [L.FuncCall] -> Measures -> L.TypeClasses -> TCValues -> LHState
+consLHState s meas tc tcv =
     LHState { state = s
             , measures = meas
+            , lh_tcs = tc
             , tcvalues = tcv
             , assumptions = M.empty
-            , annots = AM HM.empty }
+            , posts = M.empty
+            , annots = AM HM.empty
+            , tyvar_bags = M.empty
+            , inst_funcs = M.empty }
 
 deconsLHState :: LHState -> L.State [L.FuncCall]
 deconsLHState (LHState { state = s
@@ -128,15 +226,31 @@ measuresM = do
     (lh_s, _) <- SM.get
     return $ measures lh_s
 
+lhRenamedTCM :: LHStateM L.TypeClasses
+lhRenamedTCM = do
+    (lh_s, _) <- SM.get
+    return $ lh_tcs lh_s
+
 assumptionsM :: LHStateM Assumptions
 assumptionsM = do
     (lh_s, _) <- SM.get
     return $ assumptions lh_s
 
+postsM :: LHStateM Posts
+postsM = do
+    (lh_s, _) <- SM.get
+    return $ posts lh_s
+
 annotsM :: LHStateM AnnotMap
 annotsM = do
     (lh_s, _) <- SM.get
     return $ annots lh_s
+
+tyVarBagsM :: LHStateM TyVarBags
+tyVarBagsM = do
+    (lh_s, _) <- SM.get
+    return $ tyvar_bags lh_s
+
 
 newtype LHStateM a = LHStateM { unSM :: (SM.State (LHState, L.Bindings) a) } deriving (Applicative, Functor, Monad)
 
@@ -259,6 +373,11 @@ mapMeasuresM f = do
     meas' <- E.mapM f meas
     SM.put $ (s { measures = meas' }, b)
 
+putMeasuresM :: Measures -> LHStateM ()
+putMeasuresM meas = do
+    (s, b) <- SM.get
+    SM.put $ (s { measures = meas }, b)
+
 lookupAssumptionM :: L.Name -> LHStateM (Maybe L.Expr)
 lookupAssumptionM n = liftLHState (M.lookup n . assumptions)
 
@@ -274,6 +393,22 @@ mapAssumptionsM f = do
     (s@(LHState { assumptions = assumpt }), b) <- SM.get
     assumpt' <- mapM f assumpt
     SM.put $ (s { assumptions = assumpt' },b)
+
+lookupPostM :: L.Name -> LHStateM (Maybe L.Expr)
+lookupPostM n = liftLHState (M.lookup n . posts)
+
+insertPostM :: L.Name -> L.Expr -> LHStateM ()
+insertPostM n e = do
+    (lh_s, b) <- SM.get
+    let pst = posts lh_s
+    let pst' = M.insert n e pst
+    SM.put $ (lh_s {posts = pst'}, b)
+
+mapPostM :: (L.Expr -> LHStateM L.Expr) -> LHStateM ()
+mapPostM f = do
+    (s@(LHState { posts = pst }), b) <- SM.get
+    pst' <- mapM f pst
+    SM.put $ (s { posts = pst' },b)
 
 insertAnnotM :: L.Span -> Maybe T.Text -> L.Expr -> LHStateM ()
 insertAnnotM spn t e = do
@@ -297,33 +432,83 @@ mapAnnotsExpr f = do
     annots' <- modifyContainedASTsM f (annots lh_s)
     SM.put $ (lh_s {annots = annots'}, b)
 
+lookupRenamedTCDict :: L.Name -> L.Type -> LHStateM (Maybe L.Id)
+lookupRenamedTCDict n t = do
+    tc <- lhRenamedTCM
+    return $ lookupTCDict tc n t
+
+insertTyVarBags :: L.Name -> [L.Id] -> LHStateM ()
+insertTyVarBags n is = do
+    (lh_s, b) <- SM.get
+    let tyvar_bags' = M.insert n is (tyvar_bags lh_s)
+    SM.put $ (lh_s {tyvar_bags = tyvar_bags'}, b)
+
+lookupTyVarBags :: L.Name -> LHStateM (Maybe [L.Id])
+lookupTyVarBags n = do
+    (lh_s, b) <- SM.get
+    return $ M.lookup n (tyvar_bags lh_s)
+
+setTyVarBags :: TyVarBags -> LHStateM ()
+setTyVarBags m = do
+    (lh_s, b) <- SM.get
+    SM.put (lh_s {tyvar_bags = m}, b)
+
+getTyVarBags :: LHStateM TyVarBags
+getTyVarBags = return . tyvar_bags . fst =<< SM.get
+
+insertInstFuncs :: L.Name -> L.Id -> LHStateM ()
+insertInstFuncs n i = do
+    (lh_s, b) <- SM.get
+    let inst_funcs' = M.insert n i (inst_funcs lh_s)
+    SM.put $ (lh_s {inst_funcs = inst_funcs'}, b)
+
+lookupInstFuncs :: L.Name -> LHStateM (Maybe L.Id)
+lookupInstFuncs n = do
+    (lh_s, b) <- SM.get
+    return $ M.lookup n (inst_funcs lh_s)
+
+setInstFuncs :: M.Map L.Name L.Id -> LHStateM ()
+setInstFuncs m = do
+    (lh_s, b) <- SM.get
+    SM.put (lh_s {inst_funcs = m}, b)
+
+getInstFuncs :: LHStateM InstFuncs
+getInstFuncs = return . inst_funcs . fst =<< SM.get
+
 -- | andM
 -- The version of 'and' in the measures
 andM :: LHStateM L.Expr
 andM = do
     m <- measuresM
-    return (L.mkAnd m)
+    n <- lhAndM
+    return (m E.! n)
 
 -- | orM
 -- The version of 'or' in the measures
 orM :: LHStateM L.Expr
 orM = do
     m <- measuresM
-    return (L.mkOr m)
+    n <- lhOrM
+    return (m E.! n)
 
 -- | notM
 -- The version of 'not' in the measures
 notM :: LHStateM L.Expr
 notM = do
     m <- measuresM
-    return (L.mkNot m)
+    n <- lhNotM
+    return (m E.! n)
 
 -- | iffM
 -- The version of 'iff' in the measures
 iffM :: LHStateM L.Expr
 iffM = do
     m <- measuresM
-    return (L.mkIff m)
+    n <- lhIffM
+    return (m E.! n)
+
+tcValuesM :: LHStateM TCValues
+tcValuesM = liftTCValues id
 
 liftTCValues :: (TCValues -> a) -> LHStateM a
 liftTCValues f = do
@@ -356,6 +541,18 @@ lhGtM = liftTCValues lhGt
 
 lhGeM :: LHStateM L.Name
 lhGeM = liftTCValues lhGe
+
+lhAndM :: LHStateM L.Name
+lhAndM = liftTCValues lhAnd
+
+lhOrM :: LHStateM L.Name
+lhOrM = liftTCValues lhOr
+
+lhNotM :: LHStateM L.Name
+lhNotM = liftTCValues lhNot
+
+lhIffM :: LHStateM L.Name
+lhIffM = liftTCValues lhIff
 
 binT :: LHStateM L.Type
 binT = do
@@ -444,6 +641,31 @@ numT = do
                         )
                     )
 
+lhToRatioFuncM :: LHStateM L.Id
+lhToRatioFuncM = do
+    n <- liftTCValues lhToRatioFunc
+    return . L.Id n =<< ratioFuncT 
+
+ratioFuncT :: LHStateM L.Type
+ratioFuncT = do
+    a <- freshIdN L.TYPE
+    let tva = L.TyVar a
+    integral <- return . KV.integralTC =<< knownValues
+    integerT <- tyIntegerT
+
+    let integral' = L.TyCon integral L.TYPE
+
+    return $ L.TyForAll (L.NamedTyBndr a) 
+                    (L.TyFun
+                        integral'
+                        (L.TyFun
+                            tva
+                            (L.TyFun
+                              tva
+                              L.TyUnknown)
+                        )
+                    )
+
 lhToIntegerM :: LHStateM L.Id
 lhToIntegerM = do
     n <- liftTCValues lhToInteger
@@ -466,6 +688,31 @@ integralT = do
                             integerT
                         )
                     )
+
+
+lhFromRationalM :: LHStateM L.Id
+lhFromRationalM = do
+    n <- liftTCValues lhFromRational
+    return . L.Id n =<< fractionalT
+
+fractionalT :: LHStateM L.Type
+fractionalT = do
+    a <- freshIdN L.TYPE
+    let tva = L.TyVar a
+    fractional <- return . KV.fractionalTC =<< knownValues
+    rationalT <- tyRationalT
+
+    let fractional' = L.TyCon fractional L.TYPE
+
+    return $ L.TyForAll (L.NamedTyBndr a) 
+                    (L.TyFun
+                        fractional'
+                        (L.TyFun
+                            rationalT
+                            tva
+                        )
+                    )
+
 lhNumOrdM :: LHStateM L.Id
 lhNumOrdM = do
     num <- lhNumTCM

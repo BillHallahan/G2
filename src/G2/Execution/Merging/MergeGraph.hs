@@ -26,7 +26,7 @@ newtype MergeGraph k v = MergeGraph (M.HashMap (AtMerge k) [v])
 
 type WorkOrder k = Seq.Seq (AtMerge k)
 
-work :: (Eq k, Hashable k, Show k)
+work :: (Eq k, Hashable k)
      => (s -> b -> IO ([s], b, Status k)) -- ^ Work function
      -> (s -> s -> b -> IO (Maybe s, b)) -- ^ Merge function
      -> (s -> b -> Maybe (s, b)) -- ^ Switched to function
@@ -77,7 +77,6 @@ work work_fn merge_fn switch_fn (ix:ixs) ib = go (MergeGraph M.empty) Seq.empty 
                 Just (x', b') -> go wg ord acc x' xs b'
                 Nothing -> pickNew wg ord acc xs b
         pickNew wg ord acc [] b = do
-            putStrLn $ "pick new " ++ show ord
             case ord of
                 Seq.Empty -> return (acc, b)
                 k Seq.:<| ord'

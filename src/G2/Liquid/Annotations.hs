@@ -69,7 +69,7 @@ valToExpr' locM spn@(Span {start = stloc}) (n, ast) = do
             let ai = leadingLamUsesIds e'
             dm <- dictMapFromIds (map snd ai)
 
-            ce <- convertSpecType dm M.empty (map snd ai) (Just i) ast
+            ce <- convertSpecType CheckPre dm M.empty (map snd ai) (Just i) ast
             let ce' = addIds ce (ai ++ [(TermL, i)])
 
             insertAnnotM spn n ce'
