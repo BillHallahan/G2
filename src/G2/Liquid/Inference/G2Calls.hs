@@ -99,7 +99,7 @@ gatherAllowedCalls :: T.Text
                    -> IO [FuncCall]
 gatherAllowedCalls entry m lrs ghci infconfig config = do
     let config' = config -- { only_top = False }
-        merge = mergeState config
+        merge = stateMerging config
 
     LiquidData { ls_state = s
                , ls_bindings = bindings
@@ -163,7 +163,7 @@ gatherReducerHalterOrderer infconfig config solver simplifier entry mb_modname s
     let
         ng = mkNameGen ()
 
-        merge = mergeState config
+        merge = stateMerging config
         share = sharing config
 
         state_name = Name "state" Nothing 0 Nothing
@@ -264,7 +264,7 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
     let
         ng = mkNameGen ()
 
-        merge = mergeState config
+        merge = stateMerging config
         share = sharing config
 
         (limHalt, limOrd) = limitByAccepted (cut_off config)
@@ -355,7 +355,7 @@ realCExReducerHalterOrderer infconfig config entry modname solver simplifier  cf
     let
         ng = mkNameGen ()
 
-        merge = mergeState config
+        merge = stateMerging config
         share = sharing config
 
         (limHalt, limOrd) = limitByAccepted (cut_off config)
@@ -767,7 +767,7 @@ genericG2Call :: ( ASTContainer t Expr
                  , Solver solver) => Config -> solver -> State t -> Bindings -> IO ([ExecRes t], Bindings)
 genericG2Call config solver s bindings = do
     let simplifier = IdSimplifier
-        merge = mergeState config
+        merge = stateMerging config
         share = sharing config
 
     fslb <- runG2WithSomes (SomeReducer (StdRed share merge solver simplifier))
@@ -784,7 +784,7 @@ genericG2CallLogging :: ( ASTContainer t Expr
                         , Solver solver) => Config -> solver -> State t -> Bindings -> String -> IO ([ExecRes t], Bindings)
 genericG2CallLogging config solver s bindings log = do
     let simplifier = IdSimplifier
-        merge = mergeState config
+        merge = stateMerging config
         share = sharing config
 
     fslb <- runG2WithSomes (SomeReducer (StdRed share merge solver simplifier :<~ Logger log))
