@@ -99,6 +99,7 @@ gatherAllowedCalls :: T.Text
                    -> IO [FuncCall]
 gatherAllowedCalls entry m lrs ghci infconfig config = do
     let config' = config -- { only_top = False }
+        merge = mergeState config
 
     LiquidData { ls_state = s
                , ls_bindings = bindings
@@ -114,7 +115,7 @@ gatherAllowedCalls entry m lrs ghci infconfig config = do
                   , track = [] :: [FuncCall] }
 
     (red, hal, ord) <- gatherReducerHalterOrderer infconfig config' solver simplifier entry m s''
-    (exec_res, bindings'') <- runG2WithSomes red hal ord solver simplifier undefined pres_names s'' bindings'
+    (exec_res, bindings'') <- runG2WithSomes red hal ord solver simplifier merge pres_names s'' bindings'
 
     putStrLn $ "length exec_res = " ++ show (length exec_res)
 
@@ -122,7 +123,7 @@ gatherAllowedCalls entry m lrs ghci infconfig config = do
                               let fs = final_state er in
                               map (fs,) $ track fs) exec_res
 
-        fc_red = SomeReducer (StdRed (sharing config') undefined solver simplifier)
+        fc_red = SomeReducer (StdRed (sharing config') merge solver simplifier)
 
     (bindings''', red_calls) <- mapAccumM 
                                 (\b (fs, fc) -> do
@@ -162,6 +163,7 @@ gatherReducerHalterOrderer infconfig config solver simplifier entry mb_modname s
     let
         ng = mkNameGen ()
 
+        merge = mergeState config
         share = sharing config
 
         state_name = Name "state" Nothing 0 Nothing
@@ -171,8 +173,8 @@ gatherReducerHalterOrderer infconfig config solver simplifier entry mb_modname s
     return
         (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng)
             <~| (case logStates config of
-                  Just fp -> SomeReducer (StdRed share undefined solver simplifier :<~ Gatherer :<~ Logger fp)
-                  Nothing -> SomeReducer (StdRed share undefined solver simplifier :<~ Gatherer))
+                  Just fp -> SomeReducer (StdRed share merge solver simplifier :<~ Gatherer :<~ Logger fp)
+                  Nothing -> SomeReducer (StdRed share merge solver simplifier :<~ Gatherer))
         , SomeHalter
             (DiscardIfAcceptedTag state_name
               -- :<~> searched_below
@@ -262,6 +264,7 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
     let
         ng = mkNameGen ()
 
+        merge = mergeState config
         share = sharing config
 
         (limHalt, limOrd) = limitByAccepted (cut_off config)
@@ -296,8 +299,8 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
         (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng)
             <~| (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng))
             <~| (case logStates config of
-                  Just fp -> SomeReducer (StdRed share undefined solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~? ExistentialInstRed :<~ Logger fp)
-                  Nothing -> SomeReducer (StdRed share undefined solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~? ExistentialInstRed))
+                  Just fp -> SomeReducer (StdRed share merge solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~? ExistentialInstRed :<~ Logger fp)
+                  Nothing -> SomeReducer (StdRed share merge solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~? ExistentialInstRed))
         , SomeHalter
             (DiscardIfAcceptedTag state_name :<~> halter)
         , SomeOrderer (ToOrderer $ IncrAfterN 2000 (QuotTrueAssert (ADTSizeOrderer 0 (Just instFuncTickName)))))
@@ -352,6 +355,7 @@ realCExReducerHalterOrderer infconfig config entry modname solver simplifier  cf
     let
         ng = mkNameGen ()
 
+        merge = mergeState config
         share = sharing config
 
         (limHalt, limOrd) = limitByAccepted (cut_off config)
@@ -377,8 +381,8 @@ realCExReducerHalterOrderer infconfig config entry modname solver simplifier  cf
         (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng)
             <~| (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng))
             <~| (case logStates config of
-                  Just fp -> SomeReducer (StdRed share undefined solver simplifier :<~| LHRed cfn :<~ Logger fp)
-                  Nothing -> SomeReducer (StdRed share undefined solver simplifier :<~| LHRed cfn))
+                  Just fp -> SomeReducer (StdRed share merge solver simplifier :<~| LHRed cfn :<~ Logger fp)
+                  Nothing -> SomeReducer (StdRed share merge solver simplifier :<~| LHRed cfn))
         , SomeHalter
             (DiscardIfAcceptedTag state_name :<~> halter)
         , SomeOrderer (ToOrderer $ IncrAfterN 1000 (ADTSizeOrderer 0 Nothing)))
@@ -763,12 +767,13 @@ genericG2Call :: ( ASTContainer t Expr
                  , Solver solver) => Config -> solver -> State t -> Bindings -> IO ([ExecRes t], Bindings)
 genericG2Call config solver s bindings = do
     let simplifier = IdSimplifier
+        merge = mergeState config
         share = sharing config
 
-    fslb <- runG2WithSomes (SomeReducer (StdRed share undefined solver simplifier))
+    fslb <- runG2WithSomes (SomeReducer (StdRed share merge solver simplifier))
                            (SomeHalter SWHNFHalter)
                            (SomeOrderer NextOrderer)
-                           solver simplifier undefined PreserveAllMC s bindings
+                           solver simplifier merge PreserveAllMC s bindings
 
     return fslb
 
@@ -779,11 +784,12 @@ genericG2CallLogging :: ( ASTContainer t Expr
                         , Solver solver) => Config -> solver -> State t -> Bindings -> String -> IO ([ExecRes t], Bindings)
 genericG2CallLogging config solver s bindings log = do
     let simplifier = IdSimplifier
+        merge = mergeState config
         share = sharing config
 
-    fslb <- runG2WithSomes (SomeReducer (StdRed share undefined solver simplifier :<~ Logger log))
+    fslb <- runG2WithSomes (SomeReducer (StdRed share merge solver simplifier :<~ Logger log))
                            (SomeHalter SWHNFHalter)
                            (SomeOrderer NextOrderer)
-                           solver simplifier undefined PreserveAllMC s bindings
+                           solver simplifier merge PreserveAllMC s bindings
 
     return fslb
