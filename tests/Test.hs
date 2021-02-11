@@ -67,8 +67,6 @@ tests = testGroup "Tests"
         , ufMapQuickcheck
         , unionFindQuickcheck
         , simplificationTests
-        , ufMapQuickcheck
-        , unionFindQuickcheck
         ]
 
 timeout :: Timeout

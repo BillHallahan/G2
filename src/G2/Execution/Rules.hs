@@ -145,10 +145,9 @@ reduceNewPC solver simplifier
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
-                        , exec_stack = stck
-                        , symbolic_ids = symbs })
+                        , exec_stack = stck })
                ng i
-    | i `elem` symbs =
+    | E.isSymbolic (idName i) eenv =
         (RuleEvalVal, [s { curr_expr = CurrExpr Return (Var i)}], ng)
     -- If the target in our environment is already a value form, we do not
     -- need to push additional redirects for updating later on.
