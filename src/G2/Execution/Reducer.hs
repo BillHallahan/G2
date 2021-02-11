@@ -1406,6 +1406,7 @@ runReducerMerge red hal simplifier s b = do
                      , reducer_val = initReducer red s
                      , order_val = () }
 
+    putStrLn "runReducerMerge"
     (_, (_, _, _, b', pr')) <- MG.work runReducerMerge' mergeStates switchStates [s'] (red, hal, simplifier, b, pr)
 
     let res = mapProcessed state pr'

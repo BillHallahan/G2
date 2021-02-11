@@ -51,12 +51,10 @@ isExecValueFormDisNonRedPC s = isExecValueForm $ s {non_red_path_conds = []}
 -- Expr is in Symbolic Merged Normal Form if it is in SWHNF, or if it is a Case Expr on a LitInt and all the Alt Exprs
 -- are unique concrete Data Constructors
 isSMNF :: E.ExprEnv -> Expr -> Bool
-isSMNF _ (Case (Var (Id _ t)) _ a)
+isSMNF _ (Case (Var (Id _ t)) _ as)
     | TyLitInt <- t
-    , all isLitAlt a
-    , aexprTypes <- map (\(Alt (LitAlt _) aexpr) -> typeOf aexpr) a
-    , all isADT aexprTypes
-    , (length . L.nub $ map (\ty -> tyAppCenter ty) aexprTypes) == 1 = True
+    , all isLitAlt as
+    , all isADT $ map (\(Alt _ aexpr) -> aexpr) as = True
 isSMNF eenv e = isExprValueForm eenv e
 
 isLitAlt :: Alt -> Bool

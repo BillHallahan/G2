@@ -75,6 +75,7 @@ stdReduce' _ _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
         let c' = M.alter (\count -> case count of
                 Just x -> Just $ x - 1
                 Nothing -> Nothing) i (cases s)
+        putStrLn $ "ready to merge " ++ show i
         return (RuleHitMergePt, [s {exec_stack = stck', cases = c', ready_to_merge = True}], ng)
     | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
     | Just rs <- retReplaceSymbFunc s ng ce = return rs
@@ -391,9 +392,11 @@ evalCase mergeStates s@(State { expr_env = eenv
         lsts_cs = liftSymLitAlt s mexpr bind lalts
         (def_sts, ng'') = liftSymDefAlt s ng' mexpr bind alts
         newPCs = dsts_cs ++ lsts_cs ++ def_sts
-        newPCs' = map (addMergePt bind) newPCs
+
+        (merge_id, ng''') = freshId (typeOf bind) ng''
+        newPCs' = map (addMergePt merge_id) newPCs
       in
-      (RuleEvalCaseSym bind, newPCs', ng'')
+      (RuleEvalCaseSym bind, newPCs', ng''')
 
   | isSMNF eenv mexpr
   , Merging <- mergeStates =
@@ -411,8 +414,10 @@ evalCase mergeStates s@(State { expr_env = eenv
         (ng'', def_sts) = handleDefMatches s ng' defMatches bind
 
         newPCs = def_sts ++ dsts_cs
-        newPCs' = map (addMergePt bind) newPCs
-    in (RuleEvalCaseSym bind, newPCs', ng'') -- TODO: new rule
+
+        (merge_id, ng''') = freshId (typeOf bind) ng''
+        newPCs' = map (addMergePt merge_id) newPCs
+    in (RuleEvalCaseSym bind, newPCs', ng''') -- TODO: new rule
 
   -- Case evaluation also uses the stack in graph reduction based evaluation
   -- semantics. The case's binding variable and alts are pushed onto the stack
@@ -616,7 +621,7 @@ liftSymDefAlt s ng mexpr cvar as =
 liftSymDefAlt' :: State t -> NameGen -> Expr -> Expr -> Id -> [Alt] -> ([NewPC t], NameGen)
 liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
     | (Var i):_ <- unApp $ unsafeElimOuterCast mexpr
-    , isADT (typeOf i)
+    , isADTType (typeOf i)
     , (Var i'):_ <- unApp $ exprInCasts mexpr = -- Id with original Type
         let (adt, bi) = fromJust $ getCastedAlgDataTy (typeOf i) tenv
             maybeC = case mexpr of

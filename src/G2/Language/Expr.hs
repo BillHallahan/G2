@@ -45,6 +45,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , isData
                         , isLit
                         , isLam
+                        , isADT
 
                         , replaceVar
                         , getFuncCalls
@@ -256,6 +257,11 @@ isLit _ = False
 isLam :: Expr -> Bool
 isLam (Lam _ _ _) = True
 isLam _ = False
+
+isADT :: Expr -> Bool
+isADT e
+    | Data _:_ <- unApp e = True
+    | otherwise = False
 
 replaceVar :: ASTContainer m Expr => Name -> Expr -> m -> m
 replaceVar n e = modifyContainedASTs (replaceVar' n e)
