@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -28,8 +29,10 @@ import G2.Language.Typing
 import G2.Language.PathConds hiding (map, filter)
 import G2.Execution.RuleTypes
 
+import GHC.Generics (Generic)
 import Data.Data (Data, Typeable)
 import qualified Data.Map as M
+import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
 import qualified Data.Text as T
@@ -70,6 +73,7 @@ data Bindings = Bindings { deepseq_walkers :: Walkers
                          , rewrite_rules :: ![RewriteRule]
                          , name_gen :: NameGen
                          , exported_funcs :: [Name]
+                         , last_merge_point :: MergePoint
                          } deriving (Show, Eq, Read, Typeable, Data)
 
 -- | The `InputIds` are a list of the variable names passed as input to the
@@ -124,8 +128,15 @@ data Frame = CaseFrame Id [Alt]
            | CurrExprFrame CEAction CurrExpr
            | AssumeFrame Expr
            | AssertFrame (Maybe FuncCall) Expr
-           | MergePtFrame Id -- case Id corresponding to the Merge Point
+           | MergePtFrame MergePoint
            deriving (Show, Eq, Read, Typeable, Data)
+
+newtype MergePoint = MP Integer deriving (Show, Read, Eq, Ord, Generic, Typeable, Data)
+
+instance Hashable MergePoint
+
+freshMergePoint :: MergePoint -> MergePoint
+freshMergePoint (MP mp) = MP (mp + 1)
 
 -- | What to do with the current expression when a @CurrExprFrame@ reaches the
 -- top of the stack and it is time to replace the `curr_expr`.
@@ -361,7 +372,7 @@ instance Named Frame where
     names (CurrExprFrame _ e) = names e
     names (AssumeFrame e) = names e
     names (AssertFrame is e) = names is ++ names e
-    names (MergePtFrame i) = names i
+    names (MergePtFrame i) = []
 
     rename old new (CaseFrame i a) = CaseFrame (rename old new i) (rename old new a)
     rename old new (ApplyFrame e) = ApplyFrame (rename old new e)
@@ -370,7 +381,7 @@ instance Named Frame where
     rename old new (CurrExprFrame act e) = CurrExprFrame act (rename old new e)
     rename old new (AssumeFrame e) = AssumeFrame (rename old new e)
     rename old new (AssertFrame is e) = AssertFrame (rename old new is) (rename old new e)
-    rename old new (MergePtFrame i) = MergePtFrame (rename old new i)
+    rename old new (MergePtFrame i) = MergePtFrame i
 
     renames hm (CaseFrame i a) = CaseFrame (renames hm i) (renames hm a)
     renames hm (ApplyFrame e) = ApplyFrame (renames hm e)
@@ -379,4 +390,4 @@ instance Named Frame where
     renames hm (CurrExprFrame act e) = CurrExprFrame act (renames hm e)
     renames hm (AssumeFrame e) = AssumeFrame (renames hm e)
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
-    renames hm (MergePtFrame i) = MergePtFrame (renames hm i)
+    renames hm (MergePtFrame i) = MergePtFrame i

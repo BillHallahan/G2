@@ -18,7 +18,6 @@ runExecutionToProcessed :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Ordere
                         => r -> h -> or -> simplifier -> Merging -> State t -> Bindings 
                         -> IO (Processed (State t), Bindings)
 runExecutionToProcessed red hal ord simplifier mergeStates s b = do
-    putStrLn $ "runExecutionToProcessed = " ++ show mergeStates
     case mergeStates of
         Merging -> runReducerMerge red hal simplifier s b
         NoMerging -> runReducer red hal ord s b

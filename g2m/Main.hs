@@ -31,20 +31,20 @@ mergeEffectiveTests = do
     -- timeIOActionPrint "subseqOfTest" $ [g2| \(a :: [Int]) -> ?(b :: [Int]) | subseqOfTest2 a b |] [1,2]
     -- timeIOActionPrint "subseqOfTestSM" $ [g2M| \(a :: [Int]) -> ?(b :: [Int]) | subseqOfTest2 a b |] [1,2]
 
-    -- timeIOActionPrint "lengthTest" $ [g2| \(a :: [Int]) -> ?(b :: [Int]) | lengthTest2 a b |] [1,2]
+    timeIOActionPrint "lengthTest" $ [g2| \(a :: [Int]) -> ?(b :: [Int]) | lengthTest2 a b |] [1,2]
     timeIOActionPrint "lengthTestSM" $ [g2M| \(a :: [Int]) -> ?(b :: [Int]) | lengthTest2 a b |] [1,2]
 
-    -- timeIOActionPrint "subseqOfTestC" $ [g2| \(a :: C Int) -> ?(b :: C Int) | subseqOfTest3 a b |] (C 1) 
-    -- timeIOActionPrint "subseqOfTestC_SM" $ [g2M| \(a :: C Int) -> ?(b :: C Int) | subseqOfTest3 a b |] (C 1)
+    timeIOActionPrint "subseqOfTestC" $ [g2| \(a :: C Int) -> ?(b :: C Int) | subseqOfTest3 a b |] (C 1) 
+    timeIOActionPrint "subseqOfTestC_SM" $ [g2M| \(a :: C Int) -> ?(b :: C Int) | subseqOfTest3 a b |] (C 1)
 
-    -- timeIOActionPrint "sumEvensTest" $ [g2| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] 5
-    -- timeIOActionPrint "sumEvensTestSM" $ [g2M| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] 5
+    timeIOActionPrint "sumEvensTest" $ [g2| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] 5
+    timeIOActionPrint "sumEvensTestSM" $ [g2M| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] 5
 
-    -- timeIOActionPrint "sumEvensTest" $ [g2| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] 1
-    -- timeIOActionPrint "sumEvensTestSM" $ [g2M| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] 1
+    timeIOActionPrint "sumEvensTest" $ [g2| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] 1
+    timeIOActionPrint "sumEvensTestSM" $ [g2M| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] 1
 
-    -- timeIOActionPrint "foldrTest" $ [g2| \(z :: Int) -> ?(xs :: [Maybe Int]) | foldrTest z xs |] 0
-    -- timeIOActionPrint "foldrTestSM" $ [g2M| \(z :: Int) -> ?(xs :: [Maybe Int]) | foldrTest z xs |] 0
+    timeIOActionPrint "foldrTest" $ [g2| \(z :: Int) -> ?(xs :: [Maybe Int]) | foldrTest z xs |] 0
+    timeIOActionPrint "foldrTestSM" $ [g2M| \(z :: Int) -> ?(xs :: [Maybe Int]) | foldrTest z xs |] 0
 
     -- timeIOActionPrint "foldrTest2" $ [g2| \(z :: Int) -> ?(xs :: [Maybe Int]) ?(ys :: [Maybe Int]) | foldrTest2 z xs ys |] 0
     -- timeIOActionPrint "foldrTest2SM" $ [g2M| \(z :: Int) -> ?(xs :: [Maybe Int]) ?(ys :: [Maybe Int]) | foldrTest2 z xs ys |] 0

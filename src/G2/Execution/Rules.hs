@@ -38,64 +38,62 @@ import qualified Data.Map as M
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> Merging -> solver -> simplifier -> State t -> Bindings 
           -> IO (Rule, [(State t, ())], Bindings)
-stdReduce sharing merging solver simplifier s b@(Bindings {name_gen = ng}) = do
-    (r, s', ng') <- stdReduce' sharing merging solver simplifier s ng
+stdReduce sharing merging solver simplifier s b@(Bindings { name_gen = ng, last_merge_point = mp }) = do
+    (r, s', ng', mp') <- stdReduce' sharing merging solver simplifier s ng mp
     let s'' = map (\ss -> ss { rules = r:rules ss }) s'
-    return (r, zip s'' (repeat ()), b { name_gen = ng'})
+    return (r, zip s'' (repeat ()), b { name_gen = ng', last_merge_point = mp' })
 
-stdReduce' :: (Solver solver, Simplifier simplifier) => Sharing -> Merging -> solver -> simplifier -> State t -> NameGen -> IO (Rule, [State t], NameGen)
-stdReduce' share mergeStates solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }) ng
+stdReduce' :: (Solver solver, Simplifier simplifier) => Sharing -> Merging -> solver -> simplifier -> State t -> NameGen -> MergePoint -> IO (Rule, [State t], NameGen, MergePoint)
+stdReduce' share mergeStates solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }) ng mp
     | Var i  <- ce
-    , share == Sharing = return $ evalVarSharing s ng i
+    , share == Sharing = returnWithMP $ evalVarSharing s ng i
     | Var i <- ce
-    , share == NoSharing = return $ evalVarNoSharing s ng i
-    | App e1 e2 <- ce = return $ evalApp s ng e1 e2
-    | Let b e <- ce = return $ evalLet s ng b e
+    , share == NoSharing = returnWithMP $ evalVarNoSharing s ng i
+    | App e1 e2 <- ce = returnWithMP $ evalApp s ng e1 e2
+    | Let b e <- ce = returnWithMP $ evalLet s ng b e
     | Case e i a <- ce = do
-        let (r, xs, ng') = evalCase mergeStates s ng e i a
+        let (r, xs, ng', mp') = evalCase mergeStates s ng mp e i a
         xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
-        return (r, xs', ng')
-    | Cast e c <- ce = return $ evalCast s ng e c
-    | Tick t e <- ce = return $ evalTick s ng t e
-    | NonDet es <- ce = return $ evalNonDet s ng es
-    | SymGen t <- ce = return $ evalSymGen s ng t
-    | Assume fc e1 e2 <- ce = return $ evalAssume s ng fc e1 e2
-    | Assert fc e1 e2 <- ce = return $ evalAssert s ng fc e1 e2
-    | otherwise = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
+        return (r, xs', ng', mp')
+    | Cast e c <- ce = returnWithMP $ evalCast s ng e c
+    | Tick t e <- ce = returnWithMP $ evalTick s ng t e
+    | NonDet es <- ce = returnWithMP $ evalNonDet s ng es
+    | SymGen t <- ce = returnWithMP $ evalSymGen s ng t
+    | Assume fc e1 e2 <- ce = returnWithMP $ evalAssume s ng fc e1 e2
+    | Assert fc e1 e2 <- ce = returnWithMP $ evalAssert s ng fc e1 e2
+    | otherwise = returnWithMP (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
+        where
+            returnWithMP (r_, s_, ng_) = return (r_, s_, ng_, mp)
 stdReduce' _ _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
-                                 , exec_stack = stck }) ng
+                                 , exec_stack = stck }) ng mp
     | isError ce
     , Just (AssertFrame is _, stck') <- S.pop stck =
-        return (RuleError, [s { exec_stack = stck'
+        returnWithMP (RuleError, [s { exec_stack = stck'
                               , true_assert = True
                               , assert_ids = is }], ng)
     | isError ce
-    , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], ng)
+    , Just (_, stck') <- S.pop stck = returnWithMP (RuleError, [s { exec_stack = stck' }], ng)
     | Just (MergePtFrame i, stck') <- frstck = do
-        let c' = M.alter (\count -> case count of
-                Just x -> Just $ x - 1
-                Nothing -> Nothing) i (cases s)
-        putStrLn $ "ready to merge " ++ show i
-        return (RuleHitMergePt, [s {exec_stack = stck', cases = c', ready_to_merge = True}], ng)
-    | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
-    | Just rs <- retReplaceSymbFunc s ng ce = return rs
-    | Just (CaseFrame i a, stck') <- frstck = return $ retCaseFrame s ng ce i a stck'
-    | Lam u i e <- ce = return $ retLam s ng u i e
-    | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ng ce e stck'
-    | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ng ce c stck'
+        returnWithMP (RuleHitMergePt, [s {exec_stack = stck', ready_to_merge = True}], ng)
+    | Just (UpdateFrame n, stck') <- frstck = returnWithMP $ retUpdateFrame s ng n stck'
+    | Just rs <- retReplaceSymbFunc s ng ce = returnWithMP rs
+    | Just (CaseFrame i a, stck') <- frstck = returnWithMP $ retCaseFrame s ng ce i a stck'
+    | Lam u i e <- ce = returnWithMP $ retLam s ng u i e
+    | Just (ApplyFrame e, stck') <- S.pop stck = returnWithMP $ retApplyFrame s ng ce e stck'
+    | Just (CastFrame c, stck') <- frstck = returnWithMP $ retCastFrame s ng ce c stck'
     | Just (AssumeFrame e, stck') <- frstck = do
         let (r, xs, ng') = retAssumeFrame s ng ce e stck'
         xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
-        return (r, xs', ng')
+        returnWithMP (r, xs', ng')
     | Just (AssertFrame ais e, stck') <- frstck = do
         let (r, xs, ng') = retAssertFrame s ng ce ais e stck'
         xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
-        return (r, xs', ng')
+        returnWithMP (r, xs', ng')
     | Just (CurrExprFrame act e, stck') <- frstck = do
         let (r, xs) = retCurrExpr s ce act e stck'
         xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
-        return (r, xs', ng)
-    | Nothing <- frstck = return (RuleIdentity, [s], ng)
+        returnWithMP (r, xs', ng)
+    | Nothing <- frstck = returnWithMP (RuleIdentity, [s], ng)
     | otherwise = error $ "stdReduce': Unknown Expr" ++ show ce ++ show (S.pop stck)
         where
             frstck = S.pop stck
@@ -103,6 +101,8 @@ stdReduce' _ _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
             isError (Prim Error _) = True
             isError (Prim Undefined _) = True
             isError _ = False
+
+            returnWithMP (r_, s_, ng_) = return (r_, s_, ng_, mp)
 
 data NewPC t = NewPC { state :: State t
                      , new_pcs :: [PathCond]
@@ -304,10 +304,10 @@ evalLet s@(State { expr_env = eenv })
                      , ng'')
 
 -- | Handle the Case forms of Evaluate.
-evalCase :: Merging -> State t -> NameGen -> Expr -> Id -> [Alt] -> (Rule, [NewPC t], NameGen)
+evalCase :: Merging -> State t -> NameGen -> MergePoint -> Expr -> Id -> [Alt] -> (Rule, [NewPC t], NameGen, MergePoint)
 evalCase mergeStates s@(State { expr_env = eenv
                        , exec_stack = stck })
-         ng mexpr bind alts
+         ng mp mexpr bind alts
   -- Is the current expression able to match with a literal based `Alt`? If
   -- so, we do the cvar binding, and proceed with evaluation of the body.
   | (Lit lit) <- unsafeElimOuterCast mexpr
@@ -317,7 +317,7 @@ evalCase mergeStates s@(State { expr_env = eenv
           expr' = liftCaseBinds binds expr
       in ( RuleEvalCaseLit
          , [newPCEmpty $ s { expr_env = eenv
-                           , curr_expr = CurrExpr Evaluate expr' }], ng)
+                           , curr_expr = CurrExpr Evaluate expr' }], ng, mp)
 
   -- Is the current expression able to match a data consturctor based `Alt`?
   -- If so, then we bind all the parameters to the appropriate arguments and
@@ -341,7 +341,8 @@ evalCase mergeStates s@(State { expr_env = eenv
          ( RuleEvalCaseData news
          , [newPCEmpty $ s { expr_env = eenv'
                            , curr_expr = CurrExpr Evaluate expr''}] 
-         , ng')
+         , ng'
+         , mp)
 
   -- We are not able to match any constructor but don't have a symbolic variable?
   -- We hit a DEFAULT instead.
@@ -355,7 +356,7 @@ evalCase mergeStates s@(State { expr_env = eenv
           expr' = liftCaseBinds binds expr
       in ( RuleEvalCaseDefault
          , [newPCEmpty $ s { expr_env = eenv
-                           , curr_expr = CurrExpr Evaluate expr' }], ng)
+                           , curr_expr = CurrExpr Evaluate expr' }], ng, mp)
 
   -- Case evaluation also uses the stack in graph reduction based evaluation
   -- semantics. The case's binding variable and alts are pushed onto the stack
@@ -367,7 +368,7 @@ evalCase mergeStates s@(State { expr_env = eenv
       in ( RuleEvalCaseNonVal
          , [newPCEmpty $ s { expr_env = eenv
                            , curr_expr = CurrExpr Evaluate mexpr
-                           , exec_stack = S.push frame stck }], ng)
+                           , exec_stack = S.push frame stck }], ng, mp)
 
   -- If we are pointing to something in expr value form, that is not addressed
   -- by some previous case, we handle it by branching on every `Alt`, and adding
@@ -393,10 +394,10 @@ evalCase mergeStates s@(State { expr_env = eenv
         (def_sts, ng'') = liftSymDefAlt s ng' mexpr bind alts
         newPCs = dsts_cs ++ lsts_cs ++ def_sts
 
-        (merge_id, ng''') = freshId (typeOf bind) ng''
-        newPCs' = map (addMergePt merge_id) newPCs
+        mp' = freshMergePoint mp
+        newPCs' = map (addMergePt mp') newPCs
       in
-      (RuleEvalCaseSym bind, newPCs', ng''')
+      (RuleEvalCaseSym bind, newPCs', ng'', mp')
 
   | isSMNF eenv mexpr
   , Merging <- mergeStates =
@@ -415,9 +416,9 @@ evalCase mergeStates s@(State { expr_env = eenv
 
         newPCs = def_sts ++ dsts_cs
 
-        (merge_id, ng''') = freshId (typeOf bind) ng''
-        newPCs' = map (addMergePt merge_id) newPCs
-    in (RuleEvalCaseSym bind, newPCs', ng''') -- TODO: new rule
+        mp' = freshMergePoint mp
+        newPCs' = map (addMergePt mp') newPCs
+    in (RuleEvalCaseSym bind, newPCs', ng'', mp') -- TODO: new rule
 
   -- Case evaluation also uses the stack in graph reduction based evaluation
   -- semantics. The case's binding variable and alts are pushed onto the stack
@@ -429,7 +430,7 @@ evalCase mergeStates s@(State { expr_env = eenv
       in ( RuleEvalCaseNonVal
          , [newPCEmpty $ s { expr_env = eenv
                            , curr_expr = CurrExpr Evaluate mexpr
-                           , exec_stack = S.push frame stck }], ng)
+                           , exec_stack = S.push frame stck }], ng, mp)
 
   | otherwise = error $ "reduceCase: bad case passed in\n" ++ show mexpr ++ "\n" ++ show alts
 
@@ -676,13 +677,10 @@ liftSymDefAltPCs _ mexpr (LitAlt lit) = Just $ AltCond lit mexpr False
 liftSymDefAltPCs _ _ Default = Nothing
 
 -- Insert MergePtFrame into stack and increment count of unmerged cases at the case specified by `i`
-addMergePt :: Id -> NewPC t -> NewPC t
-addMergePt i p@(NewPC {state = s@(State { exec_stack = stk, cases = c })}) =
-    let stk' = S.push (MergePtFrame i) stk
-        count = M.findWithDefault 0 i c + 1
-        c' = M.insert i count c
-    in 
-    p { state = s { exec_stack = stk', cases = c' } }
+addMergePt :: MergePoint -> NewPC t -> NewPC t
+addMergePt mp p@(NewPC {state = s@(State { exec_stack = stk })}) =
+    let stk' = S.push (MergePtFrame mp) stk in 
+    p { state = s { exec_stack = stk' } }
 
 -----------------------------------------------------------------------------
 --  Helper functions to deal with Case Expr in Symbolic Merged Normal Form --

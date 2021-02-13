@@ -89,6 +89,7 @@ import G2.Lib.Printers
 import G2.Execution.Merging.StateMerging
 import qualified G2.Execution.Merging.MergeGraph as MG
 
+import Data.Ord
 import Data.Foldable
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
@@ -616,7 +617,6 @@ instance Reducer CountMerges Int t where
         putStrLn $ "Accepted after merging " ++ show x ++ " times"
 
     onMerge _ _ _ x y = do
-        print $ x + y + 1
         return $ x + y + 1
 
 -- | Allows executing multiple halters.
@@ -1407,7 +1407,12 @@ runReducerMerge red hal simplifier s b = do
                      , order_val = () }
 
     putStrLn "runReducerMerge"
-    (_, (_, _, _, b', pr')) <- MG.work runReducerMerge' mergeStates switchStates [s'] (red, hal, simplifier, b, pr)
+    (_, (_, _, _, b', pr')) <- MG.work
+                                        runReducerMerge'
+                                        mergeStates
+                                        switchStates
+                                        (\xs_ b_ -> (maximum (map (\s_ -> (num_steps $ state s_) `quot` 1000) xs_), b_))
+                                        [s'] (red, hal, simplifier, b, pr)
 
     let res = mapProcessed state pr'
     return (res, b')
@@ -1416,7 +1421,7 @@ runReducerMerge red hal simplifier s b = do
 runReducerMerge' :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
                  => ExState rv hv sov t
                  -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
-                 -> IO ([(ExState rv hv sov t)], (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)), MG.Status Name)
+                 -> IO ([(ExState rv hv sov t)], (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)), MG.Status MergePoint)
 runReducerMerge' rs@(ExState {state = s, halter_val = h_val, reducer_val = r_val})
                  (red, hal, simplifier, bdg, pr) = do
     let ps = processedToState pr -- need to deal with processed
@@ -1443,9 +1448,9 @@ runReducerMerge' rs@(ExState {state = s, halter_val = h_val, reducer_val = r_val
                                 _ -> MG.KeepWorking
             return (reduceds'', (red', hal, simplifier, bdg', pr), status)
 
-topMerge :: State t -> Name
+topMerge :: State t -> MergePoint
 topMerge s = case Stck.pop (exec_stack s) of
-                Just (MergePtFrame (Id n _), _) -> n
+                Just (MergePtFrame mp, _) -> mp
                 _ -> error "topMerge: Bad frame in stack."
 
 -- runReducerMerge2 :: (Show t, Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
