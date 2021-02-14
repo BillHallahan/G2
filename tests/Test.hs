@@ -288,6 +288,9 @@ liquidTests = testGroup "Liquid"
 
     , checkLiquid "tests/Liquid/MeasErr.hs" "f" 1500 2 [Exactly 0]
 
+    , checkAbsLiquid "tests/Liquid/PropRep.hs" "prop_rep" 2000 3
+        [ AtLeast 1 ]
+
     , checkAbsLiquid "tests/Liquid/Replicate.hs" "replicate" 2000 3
         [ AtLeast 1
         , RExists (\_ _ [(FuncCall { funcName = Name n _ _ _ }) ] -> n == "foldl") ]

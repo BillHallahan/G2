@@ -11,6 +11,8 @@ module G2.Data.UFMap ( UFMap
                      , join
                      , joinAll
                      , lookup
+                     , lookupWithRep
+                     , lookupRep
                      , (!)
                      , find
                      , insert
@@ -122,6 +124,9 @@ lookupWithRep :: (Eq k, Hashable k) => k -> UFMap k v -> (k, Maybe v)
 lookupWithRep k (UFMap uf m) =
     let r = UF.find k uf in
     (r, M.lookup r m)
+
+lookupRep :: (Eq k, Hashable k) => k -> UFMap k v -> k
+lookupRep k (UFMap uf m) = UF.find k uf
 
 (!) :: (Eq k, Hashable k) => UFMap k v -> k -> v
 uf ! k = case lookup k uf of

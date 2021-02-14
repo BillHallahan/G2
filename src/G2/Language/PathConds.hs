@@ -104,6 +104,9 @@ fromList = coerce . foldr insert empty
 fromHashedList :: [HashedPathCond] -> PathConds
 fromHashedList = coerce . foldr insertHashed empty
 
+fromHashedHashSet :: HS.HashSet HashedPathCond -> PathConds
+fromHashedHashSet = coerce . foldr insertHashed empty
+
 map :: (PathCond -> PathCond) -> PathConds -> PathConds
 map f = fromList . L.map f . toList
 
@@ -230,9 +233,22 @@ varNamesInPC = P.map idName . varIdsInPC
 -- {-# INLINE scc #-}
 scc :: [Name] -> PathConds -> PathConds
 scc ns (PathConds pcs) =
-    PathConds $ UF.filterWithKey (\k _ -> case k of
-                                            Just k' -> k' `L.elem` ns
-                                            Nothing -> False) pcs
+    -- PathConds $ UF.filterWithKey (\k _ -> case k of
+    --                                         Just k' -> k' `L.elem` ns
+    --                                         Nothing -> False) pcs
+    let
+        ns' = P.map (flip UF.lookupRep pcs . Just) ns
+    in
+    PathConds $ UF.filterWithKey (\k _ -> k `L.elem` ns') pcs
+
+    -- fromHashedHashSet . HS.unions $ mapMaybe (flip UF.lookup pcs . Just) ns
+    
+    -- PathConds $ UF.filterWithKey (\k _ -> case k of
+    --                                         Just k' -> k' `L.elem` ns
+    --                                         Nothing -> False) pcs
+
+
+
     -- fromHashedList . HS.toList . HS.unions . catMaybes $ P.map (flip UF.lookup pcs . Just) ns
 -- scc :: [Name] -> PathConds -> PathConds
 -- scc ns (PathConds pc) = PathConds $ scc' ns pc M.empty
