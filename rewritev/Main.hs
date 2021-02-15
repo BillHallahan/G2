@@ -32,6 +32,9 @@ import qualified G2.Language.PathConds as P
 -- TODO lazy vs. strict
 import qualified Data.HashSet as HS
 
+-- TODO import for debugging
+import qualified Debug.Trace as D
+
 main :: IO ()
 main = do
     as <- getArgs
@@ -96,27 +99,29 @@ runWithArgs as = do
   print $ ru_rhs rule'
   print $ ru_bndrs rule'
   
-  print "right-hand side start\n"
+  print "right-hand side start"
   (exec_res_r, bindings') <- runG2WithConfig rewrite_state_r config bindings
   printFuncCalls config (Id (Name tentry Nothing 0 Nothing) TyUnknown)
                  bindings' exec_res_r
-  print "right-hand side end\n"
+  print "right-hand side end"
 
   let rewrite_state_l = initWithLHS init_state $ rule'
-  print "left-hand side start\n"
+  print "left-hand side start"
   (exec_res_l, bindings_l) <- runG2WithConfig rewrite_state_l config bindings
   printFuncCalls config (Id (Name tentry Nothing 0 Nothing) TyUnknown)
                  bindings_l exec_res_l
-  print "left-hand side end\n"
+  print "left-hand side end"
 
   let pairs_l = symbolic_ids rewrite_state_l
   let pairs_r = symbolic_ids rewrite_state_r
   let final_states_l = map final_state exec_res_l
   let final_states_r = map final_state exec_res_r
   let pairings = statePairing final_states_l final_states_r $ zip pairs_l pairs_r
+  print "state pairing finished"
 
   S.SomeSolver solver <- initSolver config
   res <- mapM (checkObligations solver) pairings
+  print "obligations checked"
   {-
   let CurrExpr _ expr_r = curr_expr rewrite_state_r
   let CurrExpr _ expr_l = curr_expr rewrite_state_l
@@ -153,6 +158,8 @@ checkObligations solver (s1, s2, assumptions) =
                        assumptionPC = HS.toList $ HS.map assumptionWrap assumptions
                        newPC = foldr P.insert P.empty (assumptionPC)
                    in
+                   D.trace "created new PathConds" $
+                   D.trace (show newPC) $
                    case maybeAllPO of
                        Nothing -> applySolver solver newPC s1 s2
                        Just allPO -> applySolver solver (P.insert allPO newPC) s1 s2
@@ -171,6 +178,7 @@ applySolver solver extraPC s1 s2 =
         allPC = foldr P.insert unionPC (P.toList extraPC)
         newState = s1 { expr_env = unionEnv, path_conds = allPC }
     in
+    D.trace "ready to check" $
     S.check solver newState allPC
 
 printFuncCalls :: Config -> Id -> Bindings -> [ExecRes t] -> IO ()
