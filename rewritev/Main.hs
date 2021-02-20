@@ -29,6 +29,7 @@ import Data.List
 import qualified G2.Solver as S
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as P
+import qualified G2.Language.Naming as N
 -- TODO lazy vs. strict
 import qualified Data.HashSet as HS
 
@@ -106,10 +107,11 @@ runWithArgs as = do
   print "right-hand side end"
 
   let rewrite_state_l = initWithLHS init_state $ rule'
+  -- TODO can I use the bindings from before in here?
   print "left-hand side start"
-  (exec_res_l, bindings_l) <- runG2WithConfig rewrite_state_l config bindings
+  (exec_res_l, bindings'') <- runG2WithConfig rewrite_state_l config bindings'
   printFuncCalls config (Id (Name tentry Nothing 0 Nothing) TyUnknown)
-                 bindings_l exec_res_l
+                 bindings'' exec_res_l
   print "left-hand side end"
 
   let pairs_l = symbolic_ids rewrite_state_l
@@ -120,7 +122,7 @@ runWithArgs as = do
   print "state pairing finished"
 
   S.SomeSolver solver <- initSolver config
-  res <- mapM (checkObligations solver) pairings
+  res <- mapM (checkObligations solver bindings'') pairings
   print "obligations checked"
   {-
   let CurrExpr _ expr_r = curr_expr rewrite_state_r
@@ -143,14 +145,16 @@ runWithArgs as = do
   print res
   return ()
 
+-- TODO added Bindings argument
 checkObligations :: S.Solver solver =>
                     solver ->
+                    Bindings ->
                     (State t, State t, HS.HashSet (Expr, Expr)) ->
                     IO (S.Result () ())
-checkObligations solver (s1, s2, assumptions) =
+checkObligations solver b (s1, s2, assumptions) =
     let CurrExpr _ e1 = curr_expr s1
         CurrExpr _ e2 = curr_expr s2
-        maybePO = proofObligations s1 s2 e1 e2
+        maybePO = proofObligations s1 s2 e1 e2 b
     in
     case maybePO of
         Nothing -> error "TODO expressions not equivalent"
@@ -195,6 +199,18 @@ printFuncCalls config entry b =
         ppStatePiece (printPathCons config) "path_cons" $ ppPathConds s
 
         putStrLn $ funcCall ++ " = " ++ funcOut)
+
+-- TODO new function for avoiding errors
+-- TODO I need to rework applySolver
+-- I need to preserve Bindings changes between each one?
+-- PathConds finalization happens before I reach that function
+-- TODO go in other file instead?
+caseWrap :: Expr -> N.NameGen -> (Expr, N.NameGen)
+caseWrap e ng =
+    let (matchId, ng') = N.freshId TyUnknown ng
+        c = Case (Var matchId) matchId [Alt Default e]
+    in
+    (c, ng')
 
 assumptionWrap :: (Expr, Expr) -> PathCond
 assumptionWrap (e1, e2) =
