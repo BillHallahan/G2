@@ -129,7 +129,8 @@ statePairing states1 states2 idPairs =
 -- TODO wrap the expressions for proof obligations
 caseWrap :: Expr -> N.NameGen -> (Expr, N.NameGen)
 caseWrap e ng =
-    let (matchId, ng') = N.freshId TyUnknown ng
+    -- TODO TyUnknown causes errors, using TyLitInt now
+    let (matchId, ng') = N.freshId TyLitInt ng
         c = Case (Var matchId) matchId [Alt Default e]
     in
     (c, ng')

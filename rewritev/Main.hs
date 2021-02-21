@@ -95,22 +95,22 @@ runWithArgs as = do
               Just r -> r
               Nothing -> error "not found"
   -- print . curr_expr . initWithRHS init_state $ rule'
-  let rewrite_state_r = initWithRHS init_state $ rule'
+  let (rewrite_state_r, bindings1) = initWithRHS init_state bindings $ rule'
 
   print $ ru_rhs rule'
   print $ ru_bndrs rule'
   
   print "right-hand side start"
-  (exec_res_r, bindings') <- runG2WithConfig rewrite_state_r config bindings
-  printFuncCalls config (Id (Name tentry Nothing 0 Nothing) TyUnknown)
+  (exec_res_r, bindings') <- runG2WithConfig rewrite_state_r config bindings1
+  printFuncCalls config (Id (Name tentry Nothing 0 Nothing) TyLitInt)
                  bindings' exec_res_r
   print "right-hand side end"
 
-  let rewrite_state_l = initWithLHS init_state $ rule'
+  let (rewrite_state_l, bindings2) = initWithLHS init_state bindings' $ rule'
   -- TODO can I use the bindings from before in here?
   print "left-hand side start"
-  (exec_res_l, bindings'') <- runG2WithConfig rewrite_state_l config bindings'
-  printFuncCalls config (Id (Name tentry Nothing 0 Nothing) TyUnknown)
+  (exec_res_l, bindings'') <- runG2WithConfig rewrite_state_l config bindings2
+  printFuncCalls config (Id (Name tentry Nothing 0 Nothing) TyLitInt)
                  bindings'' exec_res_l
   print "left-hand side end"
 
@@ -200,33 +200,22 @@ printFuncCalls config entry b =
 
         putStrLn $ funcCall ++ " = " ++ funcOut)
 
--- TODO new function for avoiding errors
--- TODO I need to rework applySolver
--- I need to preserve Bindings changes between each one?
--- PathConds finalization happens before I reach that function
--- TODO go in other file instead?
-caseWrap :: Expr -> N.NameGen -> (Expr, N.NameGen)
-caseWrap e ng =
-    let (matchId, ng') = N.freshId TyUnknown ng
-        c = Case (Var matchId) matchId [Alt Default e]
-    in
-    (c, ng')
-
+-- TODO switching from TyUnknown to TyLitInt for now
 assumptionWrap :: (Expr, Expr) -> PathCond
 assumptionWrap (e1, e2) =
     -- TODO what type for the equality?
-    ExtCond (App (App (Prim Eq TyUnknown) e1) e2) True
+    ExtCond (App (App (Prim Eq TyLitInt) e1) e2) True
 
 obligationWrap :: HS.HashSet (Expr, Expr) -> Maybe PathCond
 obligationWrap obligations =
     let obligation_list = HS.toList obligations
-        eq_list = map (\(e1, e2) -> App (App (Prim Eq TyUnknown) e1) e2) obligation_list
+        eq_list = map (\(e1, e2) -> App (App (Prim Eq TyLitInt) e1) e2) obligation_list
         -- TODO type issue again
-        conj = foldr1 (\o1 o2 -> App (App (Prim And TyUnknown) o1) o2) eq_list
+        conj = foldr1 (\o1 o2 -> App (App (Prim And TyLitInt) o1) o2) eq_list
     in
     if null eq_list
     then Nothing
-    else Just $ ExtCond (App (Prim Not TyUnknown) conj) True
+    else Just $ ExtCond (App (Prim Not TyLitInt) conj) True
 
 ppStatePiece :: Bool -> String -> String -> IO ()
 ppStatePiece b n res =
