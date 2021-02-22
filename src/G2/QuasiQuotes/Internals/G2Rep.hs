@@ -16,6 +16,7 @@ import G2.Language.Typing
 import Control.Monad
 
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.Map.Lazy as M
 import qualified Data.Text as T
 
 import GHC.Exts
@@ -85,7 +86,8 @@ genG2RepClause' tyConName tvs dcNme fieldTypes = do
                     `appE` litE (integerL $ toInteger $ length fieldTypes)
                     `appE` qqNameToQExp qqTyConName
                     `appE` qqNameToQExp qqName
-                    `appE` (varE 'qqMap `appE` varE cleaned `appE` varE tenv)
+                    `appE` (varE 'qqMap `appE` varE cleaned `appE` [|M.keys $(varE tenv)|])
+                    `appE` (varE 'qqMap `appE` varE cleaned `appE` [|map dcName . concatMap dataCon . M.elems $ $(varE tenv)|])
                     `appE` varE tenv)
 
         tys = map (\tyv -> conE 'Type
@@ -110,9 +112,9 @@ genG2RepClause' tyConName tvs dcNme fieldTypes = do
 -- available when the QuasiQuoter is compiled 
 qqDataConLookupFallBack :: Int -- The number of TyVars
                         -> Int -- The number of arguments
-                        -> QQName -> QQName -> QQMap -> TypeEnv -> DataCon
-qqDataConLookupFallBack tyv_n arg_n qqtn qqdc qqm tenv
-    | Just dc <- qqDataConLookup qqtn qqdc qqm tenv = dc
+                        -> QQName -> QQName -> QQMap -> QQMap -> TypeEnv -> DataCon
+qqDataConLookupFallBack tyv_n arg_n qqtn qqdc type_nm_qqm dc_nm_qqm tenv
+    | Just dc <- qqDataConLookup qqtn qqdc type_nm_qqm dc_nm_qqm tenv = dc
     | otherwise =
         let
             n = G2.Name "unknown" Nothing 0 Nothing

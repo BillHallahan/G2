@@ -58,10 +58,10 @@ qqNameToName0 (QQName n m) = Name n m 0 Nothing
 qqAlgDataTyLookup :: QQName -> QQMap -> TypeEnv -> Maybe AlgDataTy
 qqAlgDataTyLookup qqn qqm tenv = flip M.lookup tenv =<< HM.lookup qqn qqm
 
-qqDataConLookup :: QQName -> QQName -> QQMap -> TypeEnv -> Maybe DataCon
-qqDataConLookup qqtn qqdcn qqm tenv
-    | Just adt <- qqAlgDataTyLookup qqtn qqm tenv
-    , Just dcn <- HM.lookup qqdcn qqm = dataConWithName adt dcn
+qqDataConLookup :: QQName -> QQName -> QQMap -> QQMap -> TypeEnv -> Maybe DataCon
+qqDataConLookup qqtn qqdcn type_nm_qqm dc_nm_qqm tenv
+    | Just adt <- qqAlgDataTyLookup qqtn type_nm_qqm tenv
+    , Just dcn <- HM.lookup qqdcn dc_nm_qqm = dataConWithName adt dcn
     | otherwise = Nothing
 
 toTHType :: CleanedNames -> G2.Type -> Q TH.Type

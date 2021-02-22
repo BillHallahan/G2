@@ -54,6 +54,9 @@ isSubsequenceOf' a@(x:a') (y:b)
 subseqOfTest :: [Int] -> [Int] -> Bool
 subseqOfTest a b = (isSubsequenceOf' a b) && (length b > 8)
 
+subseqOfTest5 :: [Int] -> [Int] -> Bool
+subseqOfTest5 a b = (isSubsequenceOf' a b) && (length b > 3)
+
 isSubsequenceOf2' :: (Eq a) => [a] -> [a] -> Bool
 isSubsequenceOf2' a@(x:a') (y:b)
     | x == y    = True
@@ -80,6 +83,18 @@ lengthC E = 0
 
 subseqOfTest3 :: C Int -> C Int -> Bool
 subseqOfTest3 a b = (isSubsequenceOf3' a b) && (lengthC b == 1)
+
+
+data C2 = C2 Int | E2 deriving Show
+
+$(derivingG2Rep ''C2)
+
+isSubsequenceOf4' :: C2 -> C2 -> Bool
+isSubsequenceOf4' a@(C2 x) _ = True -- x == y
+isSubsequenceOf4' _ _ = False
+
+subseqOfTest4 :: C2 -> C2 -> Bool
+subseqOfTest4 a b = isSubsequenceOf4' a b
 
 foldrSimple :: (a -> b -> b) -> b -> [a] -> b
 foldrSimple f z [] = z

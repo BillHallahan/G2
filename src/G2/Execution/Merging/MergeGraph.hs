@@ -43,6 +43,7 @@ work _ _ _ _ [] b = return ([], b)
 work work_fn merge_fn switch_to_fn order_fn (ix:ixs) ib = go (MergeGraph M.empty) Seq.empty [] ix ixs ib
     where
         go wg m_ord acc x xs b = do
+            -- print (M.map (M.map length) $ merge_graph wg)
             (ev_xs, b', status) <- work_fn x b
 
             case status of

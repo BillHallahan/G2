@@ -1411,7 +1411,7 @@ runReducerMerge red hal simplifier s b = do
                                         runReducerMerge'
                                         mergeStates
                                         switchStates
-                                        (\xs_ b_ -> (maximum (map (\s_ -> (num_steps $ state s_) `quot` 1000) xs_), b_))
+                                        (\xs_ b_ -> (maximum (map (\s_ -> (num_steps $ state s_) `quot` 100) xs_), b_))
                                         [s'] (red, hal, simplifier, b, pr)
 
     let res = mapProcessed state pr'
