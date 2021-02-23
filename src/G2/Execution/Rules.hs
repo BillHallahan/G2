@@ -561,9 +561,9 @@ liftSymDefAlt s ng mexpr cvar as =
     let
         match = defAltExpr as
     in
-    case match of
-        Just aexpr -> liftSymDefAlt' s ng mexpr aexpr cvar as -- (liftSymDefAlt'' s mexpr aexpr cvar as, ng)
-        _ -> ([], ng)
+    case trace ("as = " ++ show as) $ match of
+        Just aexpr -> trace "Just" $ liftSymDefAlt' s ng mexpr aexpr cvar as -- (liftSymDefAlt'' s mexpr aexpr cvar as, ng)
+        _ -> trace "Nothing" $ ([], ng)
 
 -- | Concretize Symbolic variable to Case Expr on its possible Data Constructors
 liftSymDefAlt' :: State t -> NameGen -> Expr -> Expr -> Id -> [Alt] -> ([NewPC t], NameGen)
@@ -598,9 +598,10 @@ liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
                      , symbolic_ids = syms'
                      , expr_env = eenv'}
         in
+        trace ("mexpr = " ++ show mexpr')
         ([NewPC { state = s'', new_pcs = [newSymConstraint], concretized = [] }], ng'')
-    | Prim _ _:_ <- unApp mexpr = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
-    | isPrimType (typeOf mexpr) = (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
+    | Prim _ _:_ <- unApp mexpr = trace "Second case" $ (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
+    | isPrimType (typeOf mexpr) = trace "Third case" $ (liftSymDefAlt'' s mexpr aexpr cvar alts, ng)
     | otherwise = error $ "liftSymDefAlt': unhandled Expr" ++ "\n" ++ show mexpr
 
 liftSymDefAlt'' :: State t -> Expr -> Expr -> Id -> [Alt] -> [NewPC t]

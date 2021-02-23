@@ -55,7 +55,7 @@ initWithLHS s b r =
 caseWrap :: Expr -> N.NameGen -> (Expr, N.NameGen)
 caseWrap e ng =
     -- TODO changed away from TyUnknown
-    let (matchId, ng') = N.freshId TyLitInt ng
-        c = Case (Var matchId) matchId [Alt Default e]
+    let (matchId, ng') = N.freshId (typeOf e) ng
+        c = Case e matchId [Alt Default (Var matchId)]
     in
     (c, ng')

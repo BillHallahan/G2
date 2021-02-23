@@ -99,6 +99,8 @@ runWithArgs as = do
 
   print $ ru_rhs rule'
   print $ ru_bndrs rule'
+
+  -- let config_r = config { logStates = Just "verifier_states" }
   
   print "right-hand side start"
   (exec_res_r, bindings') <- runG2WithConfig rewrite_state_r config bindings1
@@ -204,18 +206,18 @@ printFuncCalls config entry b =
 assumptionWrap :: (Expr, Expr) -> PathCond
 assumptionWrap (e1, e2) =
     -- TODO what type for the equality?
-    ExtCond (App (App (Prim Eq TyLitInt) e1) e2) True
+    ExtCond (App (App (Prim Eq TyUnknown) e1) e2) True
 
 obligationWrap :: HS.HashSet (Expr, Expr) -> Maybe PathCond
 obligationWrap obligations =
     let obligation_list = HS.toList obligations
-        eq_list = map (\(e1, e2) -> App (App (Prim Eq TyLitInt) e1) e2) obligation_list
+        eq_list = map (\(e1, e2) -> App (App (Prim Eq TyUnknown) e1) e2) obligation_list
         -- TODO type issue again
-        conj = foldr1 (\o1 o2 -> App (App (Prim And TyLitInt) o1) o2) eq_list
+        conj = foldr1 (\o1 o2 -> App (App (Prim And TyUnknown) o1) o2) eq_list
     in
     if null eq_list
     then Nothing
-    else Just $ ExtCond (App (Prim Not TyLitInt) conj) True
+    else Just $ ExtCond (App (Prim Not TyUnknown) conj) True
 
 ppStatePiece :: Bool -> String -> String -> IO ()
 ppStatePiece b n res =

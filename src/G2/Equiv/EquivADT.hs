@@ -23,7 +23,7 @@ proofObligations :: State t ->
 -- check concretizations for each of them
 proofObligations s1 s2 e1 e2 b =
   -- TODO need anything else from the state, or just ExprEnv?
-  exprPairingWrapped s1 s2 e1 e2 b
+  exprPairing s1 s2 e1 e2 HS.empty
 
 -- TODO also add wrapping here
 assumptions :: State t ->
@@ -63,11 +63,12 @@ exprPairingWrapped s1 s2 e1 e2 b =
   in
   case ep of
     Nothing -> Nothing
-    Just hs -> let ep_list = HS.toList hs
+    Just hs -> Just hs
+    {-let ep_list = HS.toList hs
                    ng = name_gen b
                    (hs', _) = foldr wrapHelper (HS.empty, ng) ep_list
                in
-               Just hs'
+               Just hs'-}
 
 -- TODO new version
 exprPairing :: State t ->
@@ -130,7 +131,7 @@ statePairing states1 states2 idPairs =
 caseWrap :: Expr -> N.NameGen -> (Expr, N.NameGen)
 caseWrap e ng =
     -- TODO TyUnknown causes errors, using TyLitInt now
-    let (matchId, ng') = N.freshId TyLitInt ng
-        c = Case (Var matchId) matchId [Alt Default e]
+    let (matchId, ng') = N.freshId (typeOf e) ng
+        c = Case e matchId [Alt Default (Var matchId)]
     in
-    (c, ng')
+    (e, ng')
