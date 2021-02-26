@@ -26,6 +26,9 @@ compressTest3 a xs = (compress xs == [1,2,3]) && (length xs > a)
 compressTest4 :: Int -> [Int] -> Bool
 compressTest4 a xs = (length (compress xs) == a) && (length xs > a + 8)
 
+compressTest5 :: Int -> [Int] -> Bool
+compressTest5 a xs = (length (compress xs) == a) && (length xs > a + 5)
+
 compressTest4_2 :: Int -> [Int] -> Bool
 compressTest4_2 a xs = length (compress xs) == a
 
@@ -54,8 +57,17 @@ isSubsequenceOf' a@(x:a') (y:b)
 subseqOfTest :: [Int] -> [Int] -> Bool
 subseqOfTest a b = (isSubsequenceOf' a b) && (length b > 8)
 
+subseqOfTest6 :: [Int] -> [Int] -> Bool
+subseqOfTest6 a b = (isSubsequenceOf' a b) && (length b > 6)
+
 subseqOfTest5 :: [Int] -> [Int] -> Bool
 subseqOfTest5 a b = (isSubsequenceOf' a b) && (length b > 3)
+
+assume :: [Int] -> Bool -> Bool
+assume _ b = b
+
+subseqQQ :: [Int] -> Bool
+subseqQQ = subseqOfTest5 [1,2,1]
 
 isSubsequenceOf2' :: (Eq a) => [a] -> [a] -> Bool
 isSubsequenceOf2' a@(x:a') (y:b)

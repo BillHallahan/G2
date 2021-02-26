@@ -115,7 +115,7 @@ mergeState ngen simplifier s1 s2 =
                              , cases = cases s1' -- both should be equal
                              , ready_to_merge = ready_to_merge s1'
                              , rules = rules s1'
-                             , num_steps = num_steps s1'
+                             , num_steps = max (num_steps s1) (num_steps s2)
                              , track = track s1'
                              , tags = tags s1' }))
         else (ngen, Nothing)

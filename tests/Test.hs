@@ -546,6 +546,9 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutput "tests/TestFiles/Coercions/BadCoerce.hs" "BadCoerce" "f" 400 3 [AtLeast 1]
     , checkExpr "tests/TestFiles/Expr.hs" 400 "leadingLams" 2 [AtLeast 5, RForAll (\[_, y] -> noUndefined y)]
 
+
+    , checkExprAssume "tests/TestFiles/Subseq.hs" 600 (Just "assume") "subseqTest" 2 [AtLeast 1]
+
     , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "con" 300 3 [AtLeast 10]
     , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "eq" 700 3 [AtLeast 10]
     , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "eqGt1" 700 3 [AtLeast 10]

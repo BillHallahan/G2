@@ -20,6 +20,8 @@ data Status k = Accept | Discard | Switch | KeepWorking | Split k | Merge k deri
 
 data AtMerge k = AtMerge k | NotAtMerge deriving (Eq, Ord, Show, Generic, Typeable)
 
+data Mergeable v = Mergeable { merge_val :: v, merge_count :: Int }
+
 instance Hashable k => Hashable (AtMerge k)
 
 -- | We want to work on values v until they hit the same merge point k.
@@ -35,7 +37,7 @@ work :: (Show ord, Show k, Ord ord, Ord k)
      => (s -> b -> IO ([s], b, Status k)) -- ^ Work function
      -> (s -> s -> b -> IO (Maybe s, b)) -- ^ Merge function
      -> (s -> b -> Maybe (s, b)) -- ^ Switched to function
-     -> ([s] -> b -> (ord, b)) -- ^ Ordering function- states with lower orders get processed first
+     -> ([s] -> b -> ord) -- ^ Ordering function- states with lower orders get processed first
      -> [s]
      -> b
      -> IO ([s], b)
@@ -45,28 +47,29 @@ work work_fn merge_fn switch_to_fn order_fn (ix:ixs) ib = go (MergeGraph M.empty
         go wg m_ord acc x xs b = do
             -- print (M.map (M.map length) $ merge_graph wg)
             (ev_xs, b', status) <- work_fn x b
+            if not (null ev_xs) then print (order_fn ev_xs b') else return ()
 
             case status of
                 Accept -> pickNew wg m_ord (ev_xs ++ acc) xs b'
                 Discard -> pickNew wg m_ord acc xs b'
                 KeepWorking
                     | not (null ev_xs)
-                    , (ord, b'') <- order_fn ev_xs b'
+                    , ord <- order_fn ev_xs b'
                     , Just (min_ord, _) <- lookupMinOrd wg
-                    , ord > min_ord ->
-                        let
-                            (wg', m_ord', b''') = switch wg m_ord NotAtMerge ev_xs b''
-                        in
-                        pickNew wg' m_ord' acc xs b'''
+                    , ord > min_ord -> do
+                        putStrLn $ "switch = " ++ show ord
+                        print (M.map (M.map length) $ merge_graph wg)
+                        let (wg', m_ord') = switch wg m_ord NotAtMerge ev_xs b'
+                        pickNew wg' m_ord' acc xs b'
                     | otherwise ->
                         case ev_xs ++ xs of
                             x':xs' -> go wg m_ord acc x' xs' b'
                             [] -> pickNew wg m_ord acc [] b'
                 Switch ->
                     let
-                        (wg', m_ord', b'') = switch wg m_ord NotAtMerge ev_xs b'
+                        (wg', m_ord') = switch wg m_ord NotAtMerge ev_xs b'
                     in
-                    pickNew wg' m_ord' acc xs b''
+                    pickNew wg' m_ord' acc xs b'
                 Split k ->
                     let
                         m_ord' = AtMerge k Seq.:<| m_ord -- m_ord Seq.:|> AtMerge k
@@ -74,37 +77,32 @@ work work_fn merge_fn switch_to_fn order_fn (ix:ixs) ib = go (MergeGraph M.empty
                     case ev_xs ++ xs of
                         x':xs' -> go wg m_ord' acc x' xs' b'
                         [] -> error "Reducer returned empty list"
-                Merge k ->
-                    let
-                        (wg', m_ord', b'') = switch wg m_ord (AtMerge k) ev_xs b'
-                    in
-                    pickNew wg' m_ord' acc xs b''
+                Merge k -> do
+                    putStrLn $ "merge = " ++ show k
+                    print (M.map (M.map length) $ merge_graph wg)
+                    let (wg', m_ord') = switch wg m_ord (AtMerge k) ev_xs b'
+                    pickNew wg' m_ord' acc xs b'
 
-        switch wg m_ord am_k [] b = (wg, m_ord, b)
+        switch wg m_ord am_k [] b = (wg, m_ord)
         switch wg m_ord am_k xs b =
             let
-                (ord, b') = order_fn xs b
+                ord = order_fn xs b
                 (prev, wg') = addToNodeLookup ord am_k xs wg
-                m_ord' = m_ord -- if am_k == NotAtMerge then m_ord Seq.:|> am_k else m_ord
-                -- m_ord' = if isJust prev then m_ord else (m_ord Seq.:|> am_k)
             in
-            (wg', m_ord', b')
+            (wg', m_ord)
 
         pickNew wg m_ord acc (x:xs) b =
             case switch_to_fn x b of
                 Just (x', b') -> go wg m_ord acc x' xs b'
                 Nothing -> pickNew wg m_ord acc xs b
         pickNew wg m_ord acc [] b
-            -- case m_ord of
-                -- Seq.Empty -> return (acc, b)
-                -- k Seq.:<| m_ord'
             | Just (ord, k, xs) <- lookupNext wg = do
                 (m_xs, b') <- case k of 
                                 NotAtMerge -> return (xs, b)
                                 AtMerge _ -> mergeList merge_fn b xs
                 let wg' = delete ord k wg
                 pickNew wg' m_ord acc m_xs b'
-            | otherwise = return (acc, b) -- pickNew wg m_ord acc [] b
+            | otherwise = return (acc, b)
 
 mergeList :: Monad m => (s -> s -> b -> m (Maybe s, b)) -> b -> [s] -> m ([s], b)
 mergeList merge_fn b (x:xs) =

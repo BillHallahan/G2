@@ -1063,23 +1063,30 @@ instance MinOrderer ADTHeightOrderer (HS.HashSet Name, Bool) Int t where
                 (HS.insert vn v, False)
     minStepOrderer _ v _ _ s =  v
 
+maxADTHeight :: HS.HashSet Name -> State t -> Int
+maxADTHeight v s = maximum $ (-1):(HS.toList $ HS.map (flip adtHeight s) v)
+
 adtHeight :: Name -> State t -> Int
 adtHeight n s@(State { expr_env = eenv })
     | Just (E.Sym _) <- v = 0
     | Just (E.Conc e) <- v =
-        1 + adtHeight' e s
+        1 + adtHeight' s e
     | otherwise = 0
     where
         v = E.lookupConcOrSym n eenv
 
-adtHeight' :: Expr -> State t -> Int
-adtHeight' e s =
+adtHeight' :: State t -> Expr -> Int
+adtHeight' s (Var (Id n _)) = adtHeight n s
+adtHeight' s (Case (Var (Id _ TyLitInt)) _ as) =
+    -- We need to search through case statements in SMNF, so that
+    -- the depth is correctly computed when state merging is turned on.
+    maximum $ 0:map (adtHeight' s . altExpr) as
+adtHeight' s e@(App _ _) =
     let
         _:es = unApp e 
     in
-    maximum $ 0:map (\e' -> case e' of
-                        Var (Id n _) -> adtHeight n s
-                        _ -> 0) es
+    maximum $ 0:map (adtHeight' s) es
+adtHeight' _ _ = 0
 
 -- Orders by the combined size of (previously) symbolic ADT.
 -- In particular, aims to first execute those states with a combined ADT size closest to
@@ -1411,7 +1418,11 @@ runReducerMerge red hal simplifier s b = do
                                         runReducerMerge'
                                         mergeStates
                                         switchStates
-                                        (\xs_ b_ -> (maximum (map (\s_ -> (num_steps $ state s_) `quot` 100) xs_), b_))
+                                        (\xs_ b_ -> maximum
+                                                        (map (maxADTHeight (HS.map idName $ symbolic_ids s) . state) xs_)
+                                                    `quot` 2
+                                        )
+                                        -- (\xs_ b_ -> maximum (map (\s_ -> (num_steps $ state s_) `quot` 100) xs_))
                                         [s'] (red, hal, simplifier, b, pr)
 
     let res = mapProcessed state pr'
