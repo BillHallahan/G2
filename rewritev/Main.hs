@@ -124,7 +124,7 @@ runWithArgs as = do
   print "state pairing finished"
 
   S.SomeSolver solver <- initSolver config
-  res <- mapM (checkObligations solver bindings'') pairings
+  res <- mapM (checkObligations solver) pairings
   print "obligations checked"
   {-
   let CurrExpr _ expr_r = curr_expr rewrite_state_r
@@ -150,13 +150,12 @@ runWithArgs as = do
 -- TODO added Bindings argument
 checkObligations :: S.Solver solver =>
                     solver ->
-                    Bindings ->
                     (State t, State t, HS.HashSet (Expr, Expr)) ->
                     IO (S.Result () ())
-checkObligations solver b (s1, s2, assumptions) =
+checkObligations solver (s1, s2, assumptions) =
     let CurrExpr _ e1 = curr_expr s1
         CurrExpr _ e2 = curr_expr s2
-        maybePO = proofObligations s1 s2 e1 e2 b
+        maybePO = proofObligations s1 s2 e1 e2
     in
     case maybePO of
         Nothing -> error "TODO expressions not equivalent"
