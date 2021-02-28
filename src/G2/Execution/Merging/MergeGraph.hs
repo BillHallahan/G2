@@ -47,7 +47,7 @@ work work_fn merge_fn switch_to_fn order_fn (ix:ixs) ib = go (MergeGraph M.empty
         go wg m_ord acc x xs b = do
             -- print (M.map (M.map length) $ merge_graph wg)
             (ev_xs, b', status) <- work_fn x b
-            if not (null ev_xs) then print (order_fn ev_xs b') else return ()
+            -- if not (null ev_xs) then print (order_fn ev_xs b') else return ()
 
             case status of
                 Accept -> pickNew wg m_ord (ev_xs ++ acc) xs b'
@@ -57,8 +57,8 @@ work work_fn merge_fn switch_to_fn order_fn (ix:ixs) ib = go (MergeGraph M.empty
                     , ord <- order_fn ev_xs b'
                     , Just (min_ord, _) <- lookupMinOrd wg
                     , ord > min_ord -> do
-                        putStrLn $ "switch = " ++ show ord
-                        print (M.map (M.map length) $ merge_graph wg)
+                        -- putStrLn $ "switch = " ++ show ord
+                        -- print (M.map (M.map length) $ merge_graph wg)
                         let (wg', m_ord') = switch wg m_ord NotAtMerge ev_xs b'
                         pickNew wg' m_ord' acc xs b'
                     | otherwise ->
@@ -78,8 +78,8 @@ work work_fn merge_fn switch_to_fn order_fn (ix:ixs) ib = go (MergeGraph M.empty
                         x':xs' -> go wg m_ord' acc x' xs' b'
                         [] -> error "Reducer returned empty list"
                 Merge k -> do
-                    putStrLn $ "merge = " ++ show k
-                    print (M.map (M.map length) $ merge_graph wg)
+                    -- putStrLn $ "merge = " ++ show k
+                    -- print (M.map (M.map length) $ merge_graph wg)
                     let (wg', m_ord') = switch wg m_ord (AtMerge k) ev_xs b'
                     pickNew wg' m_ord' acc xs b'
 

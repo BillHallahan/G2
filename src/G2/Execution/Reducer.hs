@@ -568,21 +568,35 @@ instance Reducer OnlyPath [Int] t where
 outputState :: String -> [Int] -> State t -> Bindings -> (State t -> Bindings -> String) -> IO ()
 outputState dn is s b printer = do
     fn <- getFile dn is "state" s
-    let write = printer s b
-    writeFile fn write
 
-    putStrLn fn
+    -- Don't re-output states that  already exist
+    exists <- doesPathExist fn
+
+    if not exists
+        then do
+            let write = printer s b
+            writeFile fn write
+
+            putStrLn fn
+        else return ()
 
 outputMerge :: String -> [Int] -> [Int] -> State t -> State t -> IO ()
 outputMerge dn is1 is2 s1 s2 = do
     fn1 <- getFile dn is1 "state_merge" s1
     fn2 <- getFile dn is2 "state_merge" s2
 
-    let msg = "Merging\n" ++ fn1 ++ "\n" ++ fn2
+    -- Don't re-output states that  already exist
+    exists1 <- doesPathExist fn1
+    exists2 <- doesPathExist fn2
 
-    writeFile fn1 msg
-    writeFile fn2 msg
-    putStrLn $ fn1 ++ " and " ++ fn2
+    if not (exists1 && exists2)
+        then do
+            let msg = "Merging\n" ++ fn1 ++ "\n" ++ fn2
+
+            writeFile fn1 msg
+            writeFile fn2 msg
+            putStrLn $ fn1 ++ " and " ++ fn2
+        else return ()
 
 getFile :: String -> [Int] -> String -> State t -> IO String
 getFile dn is n s = do

@@ -54,6 +54,9 @@ isSubsequenceOf' a@(x:a') (y:b)
     | x == y    = isSubsequenceOf' a' b
     | otherwise = isSubsequenceOf' a b
 
+subseqOfTestP :: Int -> [Int] -> [Int] -> Bool
+subseqOfTestP x a b = (isSubsequenceOf' a b) && (length b > x)
+
 subseqOfTest :: [Int] -> [Int] -> Bool
 subseqOfTest a b = (isSubsequenceOf' a b) && (length b > 8)
 
