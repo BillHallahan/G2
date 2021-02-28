@@ -8,7 +8,6 @@ module G2.Execution.Merging.StateMerging
   , mergeExprEnv
   , mergeEnvObj
   , mergePathConds
-  , mergePathCondsSimple
   , emptyContext
   , Context
   , createCaseExpr
@@ -25,13 +24,10 @@ import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 
 import qualified Control.Monad.State.Lazy as S
-import Data.Functor.Identity
 import Data.Maybe
 import qualified Data.List as L
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
-
-import Debug.Trace
 
 isMergeable :: Eq t => State t -> State t -> Bool
 isMergeable s1 s2 = 
@@ -342,8 +338,9 @@ mergeCase' ctxt@(Context { s1_ = s1@(State {known_values = kv}), s2_ = s2, ng_ =
         ctxt'' = ctxt {newPCs_ = newPCs''' ++ newPCs, newSyms_ = HS.union newSyms' syms, ng_ = ng''}
     in (ctxt'', mergedExpr)
 
--- | Given a list of (Conds, Expr) with the same inner DataCon, merges the Exprs recursively into 1 Expr, along with an associated PathCond
--- formed from the given Conds
+-- | Given a list of (Conds, Expr) with the same inner DataCon, merges the
+-- Exprs recursively into 1 Expr, along with an associated PathCond formed
+-- from the given Conds
 mergeChoices :: Named t => Context t -> [(Conds, Expr)] -> (Context t, (Expr, PathCond))
 mergeChoices ctxt@(Context {s1_ = (State { known_values = kv }) }) [choice] =
     let pc = ExtCond (condsToExpr kv (fst choice)) True
@@ -560,7 +557,7 @@ mergeTwoSymbObjs newId i1@(Id _ t1) i2@(Id _ t2) = do
             changedSyms1' = HM.insert i1 newSymId1 changedSyms1
             changedSyms2' = HM.insert i2 newSymId2 changedSyms2
             mergedExprObj = E.ExprObj Nothing (mergeExpr newId (Var newSymId1) (Var newSymId2))
-        S.put (changedSyms1, changedSyms2', ngen'')
+        S.put (changedSyms1', changedSyms2', ngen'')
         return mergedExprObj
 
 updatePCs :: Context t -> HM.HashMap Id Id -> HM.HashMap Id Id -> Context t
@@ -581,27 +578,6 @@ updateSymbolicIds ctxt@(Context { s1_ = s1@(State {symbolic_ids = syms1}), s2_ =
         newSyms2 = HM.elems changedSyms2
         syms2' = HS.union (HS.fromList newSyms2) $ HS.difference syms2 (HS.fromList oldSyms2)
     in ctxt { s1_ = s1 { symbolic_ids = syms1' }, s2_ = s2 { symbolic_ids = syms2' } }
-
--- | Simpler version of mergePathConds, not very efficient for large numbers of PCs, but suffices for simple cases
-mergePathCondsSimple :: (Simplifier simplifier) => simplifier -> Context t -> (Context t, PathConds)
-mergePathCondsSimple simplifier ctxt@(Context {s1_ = s1@(State {path_conds = pc1, known_values = kv})
-                                              , s2_ = (State {path_conds = pc2})
-                                              , newId_ = newId
-                                              , newPCs_ = newPCs}) =
-    let pc1HS = HS.fromList (PC.toList pc1)
-        pc2HS = HS.fromList (PC.toList pc2)
-        common = HS.toList $ HS.intersection pc1HS pc2HS
-        pc1Only = HS.toList $ HS.difference pc1HS pc2HS
-        pc2Only = HS.toList $ HS.difference pc2HS pc1HS
-        pc1Only' = map (\pc -> PC.mkAssumePC newId 1 pc) pc1Only
-        pc2Only' = map (\pc -> PC.mkAssumePC newId 2 pc) pc2Only
-        mergedPC = PC.fromList common
-        mergedPC' = foldr PC.insert mergedPC (pc1Only' ++ pc2Only')
-        mergedPC'' = PC.insert (ExtCond (mkOrExpr kv (mkEqIntExpr kv (Var newId) 1) (mkEqIntExpr kv (Var newId) 2)) True) mergedPC'
-        (s1', newPCs') = L.mapAccumL (simplifyPC simplifier) s1 newPCs
-        newPCs'' = concat newPCs'
-        mergedPC''' = foldr PC.insert mergedPC'' newPCs''
-    in (ctxt {s1_ = s1'}, mergedPC''')
 
 mergePathConds :: Simplifier simplifier => simplifier -> Context t -> (Context t, PathConds)
 mergePathConds simplifier ctxt@(Context { s1_ = s1@(State { path_conds = pc1, known_values = kv })
