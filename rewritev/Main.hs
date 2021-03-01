@@ -88,8 +88,12 @@ runWithArgs as = do
 
   -- let exprs = map (curr_expr . final_state) exec_res
   -- mapM_ print exprs
-  -- mapM_ print (rewrite_rules bindings)
+  -- mapM_ print (map ru_name $ rewrite_rules bindings)
   -- mapM_ (print . curr_expr . initWithRHS init_state) (rewrite_rules bindings)
+
+  -- TODO can't find rules anymore?
+  -- print $ rewrite_rules bindings
+
   let rule = find (\r -> tentry == ru_name r) (rewrite_rules bindings)
   let rule' = case rule of
               Just r -> r
@@ -109,6 +113,9 @@ runWithArgs as = do
   print "right-hand side end"
 
   let (rewrite_state_l, bindings2) = initWithLHS init_state bindings' $ rule'
+
+  let ng = name_gen bindings2
+  print . fst $ freshSeededName (Name "x" Nothing 0 Nothing) ng
   -- TODO can I use the bindings from before in here?
   print "left-hand side start"
   (exec_res_l, bindings'') <- runG2WithConfig rewrite_state_l config bindings2

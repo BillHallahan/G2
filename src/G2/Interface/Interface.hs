@@ -247,7 +247,7 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
         tenv = mkTypeEnv prog_typ
         tc = initTypeClasses cls
         kv = initKnownValues eenv tenv tc
-        ng = mkNameGen (prog, prog_typ)
+        ng = mkNameGen (prog, prog_typ, rs)
 
         s = IT.SimpleState { IT.expr_env = eenv
                            , IT.type_env = tenv
