@@ -191,6 +191,7 @@ applySolver solver extraPC s1 s2 =
         newState = s1 { expr_env = unionEnv, path_conds = allPC }
     in
     D.trace "ready to check" $
+    D.trace (show allPC) $
     S.check solver newState allPC
 
 printFuncCalls :: Config -> Id -> Bindings -> [ExecRes t] -> IO ()

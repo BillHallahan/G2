@@ -6,10 +6,13 @@ import qualified G2.Language.ExprEnv as E
 -- TODO decide between lazy and strict
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
-import qualified G2.Language.Naming as N
+-- import qualified G2.Language.Naming as N
 
 -- TODO import for foldM
 import Control.Monad
+
+-- TODO import for debugging
+import qualified Debug.Trace as D
 
 -- TODO states include lists of symbolic vars
 proofObligations :: State t ->
@@ -47,10 +50,10 @@ exprPairing :: State t ->
 exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs =
   case (e1, e2) of
     -- TODO needed to add expr_env as input for isSymbolic
-    (Var i, _) | E.isSymbolic (idName i) h1 -> Just (HS.insert (e1, e2) pairs)
+    (Var i, _) | E.isSymbolic (idName i) h1 -> D.trace ("symbolic 1" ++ show i) $ Just (HS.insert (e1, e2) pairs)
                | Just e <- E.lookup (idName i) h1 -> exprPairing s1 s2 e e2 pairs
                | otherwise -> error "unmapped variable"
-    (_, Var i) | E.isSymbolic (idName i) h2 -> Just (HS.insert (e1, e2) pairs)
+    (_, Var i) | E.isSymbolic (idName i) h2 -> D.trace ("symbolic 2" ++ show i) $ Just (HS.insert (e1, e2) pairs)
                | Just e <- E.lookup (idName i) h2 -> exprPairing s1 s2 e1 e pairs
                | otherwise -> error "unmapped variable"
     -- TODO need to modify this case because of compiler errors
@@ -92,4 +95,5 @@ statePairing states1 states2 idPairs =
   let statePairs = [(s1, s2) | s1 <- states1, s2 <- states2]
       maybes = map (matchAll idPairs) statePairs
   in
+  D.trace "pairing generated" $
   [triple | Just triple <- maybes]

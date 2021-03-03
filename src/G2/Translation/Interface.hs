@@ -90,7 +90,7 @@ translateLoaded proj src libs tr_con config = do
       merged_cls = exg2_classes merged_exg2
 
   -- final injection phase
-  let (near_final_prog, final_tys) = primInject $ dataInject merged_prog merged_tys
+  let (near_final_prog, final_tys, final_rules) = primInject $ dataInject (merged_prog, merged_tys, exg2_rules merged_exg2) merged_tys
 
   let final_merged_cls = primInject merged_cls
 
@@ -99,7 +99,8 @@ translateLoaded proj src libs tr_con config = do
   let final_exg2 = merged_exg2 { exg2_binds = concat final_prog
                                , exg2_tycons = final_tys
                                , exg2_classes = final_merged_cls
-                               , exg2_exports = b_exp ++ lib_exp ++ h_exp}
+                               , exg2_exports = b_exp ++ lib_exp ++ h_exp
+                               , exg2_rules = final_rules}
 
   return (mb_modname, final_exg2)
 
@@ -123,7 +124,7 @@ translateLoadedD proj src libs tr_con = do
 
   -- Inject the primitive stuff
   let final_classes = primInject $ exg2_classes almost_g2
-  let (pre_prog, final_tycons) = primInject $ dataInject almost_prog $ exg2_tycons almost_g2
+  let (pre_prog, final_tycons, _) = primInject $ dataInject (almost_prog, exg2_tycons almost_g2, exg2_rules almost_g2) $ exg2_tycons almost_g2
 
   final_prog <- absVarLoc pre_prog
 

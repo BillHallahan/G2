@@ -19,10 +19,10 @@ maxOfInt x y = if x < y then y else x
   #-}
 
 {-# RULES
-"maybeForceZero" forall x . maybeForce (Just x) = maybeForce Nothing
+"maybeForceZero" forall x . maybeForce (Just x) = if x == x then maybeForce Nothing else x
 "badNegation" forall a . negation a = negation $ negation a
   #-}
 
 {-# RULES
-"maxWithSelf" forall x y . maxOfInt x y = x
+"maxWithSelf" forall x y . maxOfInt x y = if x == y then y else x
   #-}
