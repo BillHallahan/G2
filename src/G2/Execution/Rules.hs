@@ -697,7 +697,7 @@ getChoices :: State t -> Expr -> [(Expr, [Condition])]
 getChoices (State {known_values = kv}) e@(Case _ _ _) =
     let choices = getChoices' e -- [(Expr, Cond)]
     in map (\(expr, (i, num)) ->
-            let assum = mkEqIntExpr kv (Var i) num
+            let assum = mkEqExpr kv (Var i) (Lit $ LitInt num)
             in (expr, [assum])) choices
 getChoices  _ e = [(e, [])]
 

@@ -1,15 +1,16 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Execution.Merging.StateMerging
   ( mergeState
-  , mergeCurrExpr
-  , mergeExpr
-  , mergeExprEnv
-  , mergeEnvObj
-  , mergePathConds
-  , emptyContext
-  , Context
+  -- , mergeCurrExpr
+  -- , mergeExpr
+  -- , mergeExprEnv
+  -- , mergeEnvObj
+  -- , mergePathConds
+  -- , emptyContext
+  -- , Context
   , createCaseExpr
   , concretizeSym
   , bindExprToNum
@@ -23,11 +24,14 @@ import G2.Solver.Simplifier
 import qualified G2.Language.ExprEnv as E 
 import qualified G2.Language.PathConds as PC
 
+import Control.Exception
 import qualified Control.Monad.State.Lazy as S
 import Data.Maybe
 import qualified Data.List as L
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
+
+import Debug.Trace
 
 isMergeable :: Eq t => State t -> State t -> Bool
 isMergeable s1 s2 = 
@@ -54,12 +58,14 @@ isMergeableCurrExpr _ _ _ _ = False
 isMergeableExpr :: E.ExprEnv -> E.ExprEnv -> Expr -> Expr -> Bool
 isMergeableExpr eenv1 eenv2 (App e1 _) (App e1' _) = isMergeableExpr eenv1 eenv2 e1 e1'
 isMergeableExpr _ _ (Data dc1) (Data dc2) = dc1 == dc2
-isMergeableExpr eenv1 eenv2 (Var i1) (Var i2)
-    | (Just (E.Sym _)) <- E.lookupConcOrSym (idName i1) eenv1
-    , (Just (E.Sym _)) <- E.lookupConcOrSym (idName i2) eenv2
-    , typeOf i1 == typeOf i2 = True
-isMergeableExpr _ _ _ _ = False
+-- isMergeableExpr eenv1 eenv2 (Var i1) (Var i2)
+--     | (Just (E.Sym _)) <- E.lookupConcOrSym (idName i1) eenv1
+--     , (Just (E.Sym _)) <- E.lookupConcOrSym (idName i2) eenv2
+--     , typeOf i1 == typeOf i2 = True
+isMergeableExpr _ _ _ _ = True
 -- (allowing all exprs in SMNF - i.e. Case Exprs, to be merged yields no performance improvement)
+
+type MergeId = Id
 
 -- | Values that are passed around and updated while merging individual fields in 2 States
 data Context t = Context { renamed1_ :: HM.HashMap Name Name -- Map from old Names in State `s1_` to new Names
@@ -67,7 +73,7 @@ data Context t = Context { renamed1_ :: HM.HashMap Name Name -- Map from old Nam
                          , s1_ :: State t
                          , s2_ :: State t
                          , ng_ :: NameGen
-                         , newId_ :: Id -- `newId` is set to 1 or 2 in an AssumePC/ Case Expr when merging values from `s1_` or `s2_` respectively
+                         , newId_ :: MergeId -- `newId` is set to 1 or 2 in an AssumePC/ Case Expr when merging values from `s1_` or `s2_` respectively
                          , newPCs_ :: [PathCond]
                          , newSyms_ :: SymbolicIds -- Newly added symbolic variables when merging Exprs
                          }
@@ -88,8 +94,11 @@ mergeState ngen simplifier s1 s2 =
         then 
             let (newId, ngen') = freshMergeId TyLitInt ngen
                 ctxt = emptyContext s1 s2 ngen' newId
-                (ctxt', curr_expr') = mergeCurrExpr ctxt
-                (ctxt'', eenv') = mergeExprEnv ctxt'
+                (curr_expr', m_ns, ctxt') = newMergeCurrExprCxt ctxt
+                -- m_ns = HM.empty
+                -- (ctxt', curr_expr') = mergeCurrExpr ctxt
+                (eenv', ctxt'') = newMergeExprEnvCxt ctxt' m_ns
+                -- (ctxt'', eenv') = mergeExprEnv ctxt'
                 (ctxt''', path_conds') = mergePathConds simplifier ctxt''
                 syms' = mergeSymbolicIds ctxt'''
                 s1' = s1_ ctxt'''
@@ -116,6 +125,36 @@ mergeState ngen simplifier s1 s2 =
                              , tags = tags s1' }))
         else (ngen, Nothing)
 
+newMergeCurrExprCxt :: Context t -> (CurrExpr, HM.HashMap (Name, Name) Id, Context t)
+newMergeCurrExprCxt cxt@(Context { s1_ = s1, s2_ = s2, newPCs_ = pc, ng_ = ng, newId_ = m_id }) =
+    let
+        (ce', m_ns, pc', symbs', ng') =
+            newMergeCurrExpr (known_values s1) ng m_id (curr_expr s1) (curr_expr s2)
+
+        eenv1 = foldr (\i -> E.insertSymbolic (idName i) i) (expr_env s1) symbs'
+        eenv2 = foldr (\i -> E.insertSymbolic (idName i) i) (expr_env s2) symbs'
+    in
+    (ce', m_ns, cxt { s1_ = s1 { expr_env = eenv1
+                               , symbolic_ids = HS.union (symbolic_ids s1) symbs' }
+                    , s2_ = s2 { expr_env = eenv2
+                               , symbolic_ids = HS.union (symbolic_ids s2) symbs' }
+                    , newPCs_ = pc ++ pc'
+                    , ng_ = ng' } )
+
+newMergeCurrExpr :: KnownValues
+                 -> NameGen
+                 -> MergeId
+                 -> CurrExpr
+                 -> CurrExpr
+                 -> (CurrExpr, HM.HashMap (Name, Name) Id, [PathCond], SymbolicIds, NameGen)
+newMergeCurrExpr kv ng m_id (CurrExpr er1 e1) (CurrExpr er2 e2)
+    | er1 == er2 =
+        let
+            (m_e, m_ns', pc', symb', ng') = newMergeExpr kv ng m_id HM.empty e1 e2
+        in
+        (CurrExpr er1 m_e, m_ns', pc', symb', ng')
+    | otherwise = error "The curr_expr(s) have an invalid form and cannot be merged."
+
 mergeCurrExpr :: Named t => Context t -> (Context t, CurrExpr)
 mergeCurrExpr ctxt@(Context { s1_ = (State {curr_expr = ce1}), s2_ = (State {curr_expr = ce2}) })
     | (CurrExpr evalOrRet1 e1) <- ce1
@@ -126,6 +165,377 @@ mergeCurrExpr ctxt@(Context { s1_ = (State {curr_expr = ce1}), s2_ = (State {cur
         in
         (ctxt'', CurrExpr evalOrRet1 ce)
     | otherwise = error "The curr_expr(s) have an invalid form and cannot be merged."
+
+
+------------------------------------------------
+-- Merging expressions
+
+type NewSymbolicIds = SymbolicIds
+
+newMergeExprEnvCxt :: Context t -> HM.HashMap (Name, Name) Id -> (ExprEnv, Context t)
+newMergeExprEnvCxt cxt@(Context { s1_ = s1, s2_ = s2, newPCs_ = pc, ng_ = ng, newId_ = m_id }) m_ns =
+    let
+        (eenv', pc', symbs', ng') =
+            newMergeExprEnv (known_values s1) ng m_id m_ns (symbolic_ids s1) (symbolic_ids s2) (expr_env s1) (expr_env s2)
+    in
+    (eenv', cxt { s1_ = s1 { symbolic_ids = symbs'}
+                , s2_ = s2 { symbolic_ids = symbs' }
+                , newPCs_ = pc ++ pc'
+                , ng_ = ng' } )
+
+newMergeExprEnv :: KnownValues
+                -> NameGen
+                -> MergeId
+                -> HM.HashMap (Name, Name) Id
+                -> SymbolicIds
+                -> SymbolicIds
+                -> ExprEnv
+                -> ExprEnv
+                -> (ExprEnv, [PathCond], SymbolicIds, NameGen)
+newMergeExprEnv kv ng m_id m_ns symb1 symb2 eenv1 eenv2 =
+    let 
+        (n_eenv, (m_ns', n_pc, symbs, n_symb, ng')) = 
+            S.runState (E.mergeAEnvObj
+                        E.preserveMissing
+                        E.preserveMissing
+                        (E.zipWithAMatched (newMergeEnvObj kv m_id eenv1 eenv2)) 
+                        eenv1 
+                        eenv2)
+                        (m_ns, [], symb1 `HS.union` symb2, HS.empty, ng)
+
+        n_eenv' = foldr (\i -> E.insertSymbolic (idName i) i) n_eenv n_symb
+
+        (n_eenv'', n_pc', symbs', ng'') = resolveNewVariables kv ng' m_id (HM.union m_ns m_ns') symbs eenv1 eenv2 n_eenv'
+
+        n_eenv''' = foldr (\i -> E.insertSymbolic (idName i) i) n_eenv'' symbs'
+
+    in
+    (n_eenv''', n_pc', symbs', ng'')
+
+newMergeEnvObj :: KnownValues -> Id -> ExprEnv -> ExprEnv -> Name -> E.EnvObj -> E.EnvObj
+               -> S.State (HM.HashMap (Name, Name) Id, [PathCond], SymbolicIds, NewSymbolicIds, NameGen) E.EnvObj
+newMergeEnvObj kv m_id eenv1 eenv2 n eObj1 eObj2
+    | E.EqFast eObj1 == E.EqFast eObj2 = return eObj1
+    | E.ExprObj _ e1 <- eObj1
+    , E.ExprObj _ e2 <- eObj2 = do
+        (m_ns, pc, symb, n_symb, ng) <- S.get
+        let (m_e, m_ns', pc', symb', ng') = newMergeExpr kv ng m_id m_ns e1 e2
+        S.put (HM.union m_ns m_ns', pc', HS.union symb symb', n_symb, ng')
+        return $ E.ExprObj Nothing m_e
+    -- Replace the Id in the SymbObj with a new Symbolic Id and merge with the expr from the ExprObj in a Case expr.
+    -- If the Id is symbolic in one expression and concrete in the other, it must be an ADT.
+    -- ADT Ids never appear in PathConds, so we do not need to worry about updating the PathConds.
+    | (E.SymbObj i) <- eObj1
+    , (E.ExprObj _ e2) <- eObj2 = do
+        (m_ns, pc, symb, n_symb, ng) <- S.get
+        let (fi, ng') = freshId (typeOf i) ng
+        let (e, pc', _, ng'') = newCaseExpr ng' m_id (Var fi) e2
+        S.put (m_ns, pc ++ pc', HS.insert fi $ HS.delete i symb, HS.insert fi n_symb, ng'')
+        return $ E.ExprObj Nothing e
+    | (E.ExprObj _ e1) <- eObj1
+    , (E.SymbObj i) <- eObj2 = do
+        (m_ns, pc, symb, n_symb, ng) <- S.get
+        let (fi, ng') = freshId (typeOf i) ng
+        let (e, pc', _, ng'') = newCaseExpr ng' m_id e1 (Var fi)
+        S.put (m_ns, pc ++ pc', HS.insert fi $ HS.delete i symb, HS.insert fi n_symb, ng'')
+        return $ E.ExprObj Nothing e
+    -- Create a Case Expr combining the lookup Var with the expr from the ExprObj
+    | (E.RedirObj n) <- eObj1
+    , (E.ExprObj _ e2) <- eObj2 = do
+        (m_ns, pc, symb, n_symb, ng) <- S.get
+        let (e, m_ns', pc', symb', ng') = newMergeExpr kv ng m_id m_ns (Var $ nameToId n eenv1) e2
+        S.put (HM.union m_ns m_ns', pc ++ pc', HS.union symb symb', n_symb, ng')
+        return $ E.ExprObj Nothing e
+    | (E.ExprObj _ e1) <- eObj1
+    , (E.RedirObj n) <- eObj2 = do
+        (m_ns, pc, symb, n_symb, ng) <- S.get
+        let (e, m_ns', pc', symb', ng') = newMergeExpr kv ng m_id m_ns e1 (Var $ nameToId n eenv2)
+        S.put (HM.union m_ns m_ns', pc ++ pc', HS.union symb symb', n_symb, ng')
+        return $ E.ExprObj Nothing e
+    | (E.RedirObj n1) <- eObj1
+    , (E.RedirObj n2) <- eObj2 = do
+        (m_ns, pc, symb, n_symb, ng) <- S.get
+        let (e, m_ns', pc', symb', ng') =
+              newMergeExpr kv ng m_id m_ns (Var $ nameToId n1 eenv1) (Var $ nameToId n2 eenv2)
+        S.put (HM.union m_ns m_ns', pc ++ pc', HS.union symb symb', n_symb, ng')
+        return $ E.ExprObj Nothing e
+    | (E.SymbObj i1) <- eObj1
+    , (E.SymbObj i2) <- eObj2
+    , i1 == i2 = return eObj1
+    | otherwise = error $ "Unequal SymbObjs or RedirObjs present in the expr_envs of both states." ++ (show eObj1) ++ " " ++ (show eObj2)
+
+nameToId :: Name -> ExprEnv -> Id
+nameToId n eenv
+    | Just e <- E.lookup n eenv = Id n (typeOf e)
+    | otherwise = error "nameToId: name not found"
+
+-- Takes two expressions to merge.  In addition, takes a map from pairs of
+-- variables names to a single name, which can be substituted in place of
+-- the variables.
+-- Returns the results of merging the expressions, as well as a HashMap of
+-- new name pairs which must be merged.
+newMergeExpr :: KnownValues
+             -> NameGen
+             -> MergeId
+             -> HM.HashMap (Name, Name) Id
+             -> Expr
+             -> Expr
+             -> (Expr, HM.HashMap (Name, Name) Id, [PathCond], HS.HashSet Id, NameGen)
+newMergeExpr _ ng m_id m_ns v@(Var (Id n1 t)) (Var (Id n2 _))
+    | n1 == n2 = (v, HM.empty, [], HS.empty, ng)
+    | Just i <- HM.lookup (n1, n2) m_ns = (Var i, HM.empty, [], HS.empty, ng)
+    | otherwise =
+        let
+            (i, ng') = freshId t ng
+        in
+        (Var i, HM.singleton (n1, n2) i, [], HS.empty, ng')
+-- newMergeExpr kv ng m_id m_ns a1@(App e1 e2) a2@(App e1' e2')
+--     | typeOf e1 .::. typeOf e1' && typeOf e2 .::. typeOf e2' =
+--         let
+--             (n_e1, m_ns1, pc1, symb1, ng') = newMergeExpr kv ng m_id m_ns e1 e1'
+--             (n_e2, m_ns2, pc2, symb2, ng'') = newMergeExpr kv ng' m_id (HM.union m_ns m_ns1) e2 e2'
+--         in
+--         (App n_e1 n_e2, HM.union m_ns1 m_ns2, pc1 ++ pc2, symb1 `HS.union` symb2, ng'')
+newMergeExpr kv ng m_id m_ns e1 e2
+    | d@(Data dc1):es1 <- unApp e1
+    , Data dc2:es2 <- unApp e2 
+    , dc1 == dc2 =
+    let
+        ((m_ns', pc', symbs', ng'), es) =
+            L.mapAccumL
+                (\(m_ns_, pc_, symbs_, ng_) (e1, e2) ->
+                    let
+                        (e, m_ns_', pc_', symbs_', ng_') = newMergeExpr kv ng_ m_id (HM.union m_ns m_ns_) e1 e2
+                    in
+                    ((m_ns_ `HM.union` m_ns_', pc_ ++ pc_', symbs_ `HS.union` symbs_', ng_'), e)
+                )
+                (HM.empty, [], HS.empty, ng) $ zip es1 es2
+    in
+    (mkApp $ d:es, m_ns', pc', symbs', ng')
+    -- newMergeDataCons kv ng m_id m_ns dc1 0 e1 dc2 1 e2
+newMergeExpr kv ng m_id m_ns e1 e2@(Case (Var i2) b2 as2)
+    | Data dc1:_ <- unApp e1
+    , isSMNFCase e2 = newMergeDataConCase kv ng m_id m_ns dc1 0 e1 i2 as2
+newMergeExpr kv ng m_id m_ns e1@(Case (Var i1) b1 as1) e2
+    | Data dc2:_ <- unApp e2
+    , isSMNFCase e1 = newMergeDataConCase kv ng m_id m_ns dc2 1 e2 i1 as1
+newMergeExpr kv ng m_id m_ns e1@(Case (Var i1) b1 as1) e2@(Case (Var i2) b2 as2) 
+    | isSMNFCase e1
+    , isSMNFCase e2 = newMergeCaseExprs kv ng m_id m_ns i1 as1 i2 as2
+newMergeExpr _ ng _ _ ty@(Type t) (Type t') = assert (t == t') (ty, HM.empty, [], HS.empty, ng)
+newMergeExpr _ ng m_id _ e1 e2 = 
+    let
+        (e, pc, i, ng') = newCaseExpr ng m_id e1 e2
+    in
+    (e, HM.empty, pc, HS.singleton i, ng')
+
+newMergeExprs :: KnownValues
+              -> NameGen
+              -> MergeId
+              -> HM.HashMap (Name, Name) Id
+              -> [Expr]
+              -> (Expr, HM.HashMap (Name, Name) Id, [PathCond], HS.HashSet Id, NameGen)
+newMergeExprs kv ng m_id m_ns (e:es) =
+    foldr (\e2 (e1, m_ns_, pc_, symbs_, ng_) ->
+              let
+                  (n_e, n_m_ns, n_pc, n_symbs, n_ng) = newMergeExpr kv ng_ m_id m_ns_ e1 e2
+              in
+              (n_e, n_m_ns, pc_ ++ n_pc, symbs_ `HS.union` n_symbs, n_ng))
+          (e, m_ns, [], HS.empty, ng)
+          es
+newMergeExprs _ _ _ _ _ = error  "newMergeExprs: empty list"
+
+newCaseExpr :: NameGen -> MergeId -> Expr -> Expr -> (Expr, [PathCond], Id, NameGen)
+newCaseExpr ng m_id e1 e2 =
+    let
+        (binder, ng') = freshId TyLitInt ng
+    in
+    (Case (Var m_id) binder [ Alt (LitAlt $ LitInt 0) e1
+                            , Alt (LitAlt $ LitInt 1) e2 ]
+    , mkBounds (Var m_id) 0 1
+    , binder
+    , ng')
+
+mkBounds :: Expr -> Integer -> Integer -> [PathCond]
+mkBounds e l u =
+    let
+        t = TyFun TyLitInt $ TyFun TyLitInt TyLitInt
+    in
+    [ ExtCond (App (App (Prim Le t) (Lit (LitInt l))) e) True
+    , ExtCond (App (App (Prim Le t) e) (Lit (LitInt u))) True]
+
+
+-- newMergeDataCons :: KnownValues
+--                  -> NameGen
+--                  -> MergeId
+--                  -> HM.HashMap (Name, Name) Id
+--                  -> DataCon
+--                  -> Integer -- ^ What integer value is required of the merge id?
+--                  -> Expr
+--                  -> DataCon
+--                  -> Integer -- ^ What integer value is required of the merge id?
+--                  -> Expr
+--                  -> (Expr, HM.HashMap (Name, Name) Id, [PathCond], HS.HashSet Id, NameGen)
+-- newMergeDataCons kv ng m_id m_ns dc1 i1 e1 dc2 i2 e2
+--     | dc1 == dc2 = 
+--     -- let
+--     --     as_info1 = (dc1, m_id, i1, e1)
+--     --     as_info2 = (dc2, m_id, i2, e2)
+--     -- in
+--     -- newMergeIntoCase kv ng m_id m_ns $ trace ("as_info1 = " ++ show as_info1 ++ "\nas_info2 = " ++ show as_info2) [as_info1, as_info2]
+
+newMergeDataConCase :: KnownValues
+                    -> NameGen
+                    -> MergeId
+                    -> HM.HashMap (Name, Name) Id
+                    -> DataCon
+                    -> Integer -- ^ What integer value is required of the merge id?
+                    -> Expr
+                    -> Id -- ^ Case 2 bindee variable id
+                    -> [Alt] -- ^ Case 2 Alts (with constructors in SMNF)
+                    -> (Expr, HM.HashMap (Name, Name) Id, [PathCond], HS.HashSet Id, NameGen)
+newMergeDataConCase kv ng m_id m_ns dc i e bind2 as2 =
+    let
+        as_info1 = (dc, m_id, i, e)
+        as_info2 = map (smnfAltInfo bind2) as2
+    in
+    newMergeIntoCase kv ng m_id m_ns $ as_info1:as_info2
+
+
+newMergeCaseExprs :: KnownValues
+                  -> NameGen
+                  -> MergeId
+                  -> HM.HashMap (Name, Name) Id
+                  -> Id -- ^ Case 1 bindee variable id
+                  -> [Alt] -- ^ Case 1 Alts (with constructors in SMNF)
+                  -> Id -- ^ Case 2 bindee variable id
+                  -> [Alt] -- ^ Case 2 Alts (with constructors in SMNF)
+                  -> (Expr, HM.HashMap (Name, Name) Id, [PathCond], HS.HashSet Id, NameGen)
+newMergeCaseExprs kv ng m_id m_ns bind1 as1 bind2 as2 =
+    let
+        as_info1 = map (smnfAltInfo bind1) as1
+        as_info2 = map (smnfAltInfo bind2) as2
+    in
+    newMergeIntoCase kv ng m_id m_ns $ as_info1 ++ as_info2
+
+newMergeIntoCase :: KnownValues
+                 -> NameGen
+                 -> MergeId
+                 -> HM.HashMap (Name, Name) Id
+                 -> [(DataCon, Id, Integer, Expr)]
+                 -> (Expr, HM.HashMap (Name, Name) Id, [PathCond], HS.HashSet Id, NameGen)
+newMergeIntoCase kv ng m_id m_ns b_as =
+    let
+        -- Group up by common data constructors
+        as_hm = foldr (\(dc, i, l, e) -> HM.insertWith (++) dc [(i, l, e)]) HM.empty $ b_as
+        as_grouped = HM.toList as_hm :: [(DataCon, [(Id, Integer, Expr)])]
+
+        -- Form the new case
+        num_grouped = zip [0..] (map snd as_grouped) :: [(Integer, [(Id, Integer, Expr)])]
+        ((m_ns', pc', symbs', ng'), new_alts) =
+                  L.mapAccumL
+                          (\(m_ns_, pc_, symbs_, ng_) (i, es) ->
+                              let
+                                  (e', m_ns_', pc_', symbs_', ng_') = newMergeExprs kv ng_ m_id (HM.union m_ns m_ns_) (map thd3 es)
+                              in
+                              ((m_ns_', pc_ ++ pc_', symbs_ `HS.union` symbs_', ng_'), Alt (LitAlt $ LitInt i) e')
+                          )
+                          (HM.empty, [], HS.empty, ng) num_grouped
+
+        (new_bndee, ng'') = freshId TyLitInt ng'
+        (new_bnd, ng''') = freshId TyLitInt ng''
+
+        bndee_pc = mkBounds (Var new_bndee) 0 (toInteger $ length num_grouped - 1)
+        link_pc = map (\(i, j_es) -> mkMergeCasePC kv new_bndee i
+                                   $ map (\(bnd_, lit_, _) -> (bnd_, lit_)) j_es)
+                      num_grouped
+    in
+    (Case (Var new_bndee) new_bnd new_alts, m_ns', bndee_pc ++ link_pc ++ pc', HS.insert new_bndee symbs', ng''')
+    where
+      fst3 (x, _, _) = x
+      snd3 (_, x, _) = x
+      thd3 (_, _, x) = x
+
+smnfAltInfo :: Id -> Alt -> (DataCon, Id, Integer, Expr)
+smnfAltInfo i (Alt (LitAlt (LitInt l)) e)
+    | Data dc:_ <- unApp e = (dc, i, l, e)
+smnfAltInfo _ a = error $ "smnfAltInfo: invalid Alt structure" ++ show a
+
+mkMergeCasePC :: KnownValues -> Id -> Integer -> [(Id, Integer)] -> PathCond
+mkMergeCasePC kv bind1 l bls =
+      flip ExtCond True
+    . mkEqExpr kv (mkEqExpr kv (Var bind1) (Lit $ LitInt l)) 
+    $ foldr (mkOrExpr kv)
+            (mkTrue kv)
+            (map (\(b2, jl) -> mkEqExpr kv (Var b2) (Lit (LitInt jl))) bls)
+
+
+resolveNewVariables :: KnownValues
+                    -> NameGen
+                    -> MergeId
+                    -> HM.HashMap (Name, Name) Id
+                    -> SymbolicIds
+                    -> ExprEnv
+                    -> ExprEnv
+                    -> ExprEnv
+                    -> (ExprEnv, [PathCond], SymbolicIds, NameGen)
+resolveNewVariables kv ng m_id m_ns = resolveNewVariables' m_ns [] kv ng m_id m_ns
+
+resolveNewVariables' :: HM.HashMap (Name, Name) Id
+                     -> [PathCond]
+                     -> KnownValues
+                     -> NameGen
+                     -> MergeId
+                     -> HM.HashMap (Name, Name) Id
+                     -> SymbolicIds
+                     -> ExprEnv
+                     -> ExprEnv
+                     -> ExprEnv
+                     -> (ExprEnv, [PathCond], SymbolicIds, NameGen)
+resolveNewVariables' r_m_ns pc kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
+    | HM.null r_m_ns = (n_eenv, pc, symbs, ng)
+    | otherwise =
+        let
+            (n_eenv', m_ns', r_m_ns', pc', symbs', ng') =
+                foldr (\((n1, n2), i) (n_eenv_, m_ns_, r_m_ns_, pc_, symbs_, ng_) ->
+                          let
+                              t = typeOf i
+                              v1 = Var $ Id n1 t
+                              v2 = Var $ Id n2 t
+
+                              (n_eenv_', r_m_ns_', pc_', symbs_', ng_') =
+                                      if | E.isSymbolic n1 eenv1
+                                         , E.isSymbolic n2 eenv2
+                                         , isPrimType t ->
+                                              let
+                                                  (si, ng__) = freshId t ng_
+                                                  pc__ = [ ExtCond (mkEqPrimExpr t kv (Var si) v1) True
+                                                         , ExtCond (mkEqPrimExpr t kv (Var si) v2) True ]
+                                              in
+                                              ( E.insertSymbolic (idName si) si n_eenv_
+                                              , HM.empty
+                                              , pc__
+                                              , HS.singleton si
+                                              , ng__)
+                                          | otherwise ->
+                                                  let
+                                                      (e_, pc__, _, ng__) = newCaseExpr ng_ m_id v1 v2
+                                                  in
+                                                  (E.insert (idName i) e_ n_eenv_, HM.empty, pc__, HS.empty, ng__)
+
+                          in
+                          ( n_eenv_'
+                          , HM.union m_ns_ r_m_ns_'
+                          , r_m_ns_'
+                          , pc_ ++ pc_
+                          , HS.union symbs_ symbs_'
+                          , ng_'))
+                      (n_eenv, m_ns, HM.empty, [], symbs, ng)
+                      (HM.toList r_m_ns)
+        in
+        resolveNewVariables' r_m_ns' (pc ++ pc') kv ng' m_id m_ns' symbs' eenv1 eenv2 n_eenv'
+
+------------------------------------------------
 
 -- | Either (i) Inline var with value from ExprEnv (if any)
 -- , (ii) Renames corresponding Vars in the 2 Exprs to a new, common Var
@@ -408,7 +818,7 @@ commonSubExpr e1 e2 = e1 == e2
 -- Given list of (Id, Int) pairs, creates Expr equivalent to Conjunctive Normal Form of (Id == Int) values
 condsToExpr :: KnownValues -> Conds -> Expr
 condsToExpr kv c =
-    let es = map (\(i, num) -> mkEqIntExpr kv (Var i) num) c
+    let es = map (\(i, num) -> mkEqExpr kv (Var i) (Lit $ LitInt num)) c
     in cnf kv es
 
 -- Given an `ExtCond e b`, and an `Id`, `Int` pair, modifies `e` to (NOT (Id == Int)) OR e
@@ -418,7 +828,7 @@ impliesPC _ _ _ pc = error $ "Can only add clause to ExtCond. Got: " ++ (show pc
 
 -- Given an Expr `e`, and an `Id`, `Int` pair, returns `ExtCond ((NOT (Id == Int)) OR e) True`
 implies :: KnownValues -> Id -> Integer -> Expr -> Bool -> PathCond
-implies kv newId num e b = implies' kv (mkEqIntExpr kv (Var newId) num) e b
+implies kv newId num e b = implies' kv (mkEqExpr kv (Var newId) (Lit $ LitInt num)) e b
 
 implies' :: KnownValues -> Expr -> Expr -> Bool -> PathCond
 implies' kv clause e b =
@@ -586,8 +996,8 @@ mergePathConds simplifier ctxt@(Context { s1_ = s1@(State { path_conds = pc1, kn
                                          , newPCs_ = newPCs}) =
     let        
         res_newId = ExtCond (mkOrExpr kv
-                                (mkEqIntExpr kv (Var newId) 1)
-                                (mkEqIntExpr kv (Var newId) 2)) True
+                                (mkEqExpr kv (Var newId) (Lit $ LitInt 1))
+                                (mkEqExpr kv (Var newId) (Lit $ LitInt 2))) True
 
         merged = PC.mergeWithAssumePCs newId pc1 pc2
 

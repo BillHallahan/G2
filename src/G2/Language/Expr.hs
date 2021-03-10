@@ -23,7 +23,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , mkUnit
 
                         , mkIdentity
-                        , mkEqIntExpr
+                        , mkEqExpr
                         , mkGeIntExpr
                         , mkLeIntExpr
                         , mkAndExpr
@@ -188,9 +188,9 @@ mkIdentity t =
     in
     Lam TermL x (Var x)
 
-mkEqIntExpr :: KnownValues -> Expr -> Integer -> Expr
-mkEqIntExpr kv e num = App (App eq e) (Lit (LitInt num))
-    where eq = mkEqPrimInt kv
+mkEqExpr :: KnownValues -> Expr -> Expr -> Expr
+mkEqExpr kv e1 e2 = App (App eq e1) e2
+    where eq = mkEqPrimType (typeOf e1) kv
 
 mkEqPrimExpr :: Type -> KnownValues -> Expr -> Expr -> Expr
 mkEqPrimExpr t kv e1 e2 = App (App eq e1) e2
