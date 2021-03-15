@@ -48,7 +48,7 @@ exprPairing :: State t ->
                HS.HashSet (Expr, Expr) ->
                Maybe (HS.HashSet (Expr, Expr))
 exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs =
-  case (e1, e2) of
+  case D.trace (show e1) $ D.trace (show e2) $ D.trace "***" $ (e1, e2) of
     -- TODO needed to add expr_env as input for isSymbolic
     (Var i, _) | E.isSymbolic (idName i) h1 -> D.trace ("symbolic 1" ++ show i) $ Just (HS.insert (e1, e2) pairs)
                | Just e <- E.lookup (idName i) h1 -> exprPairing s1 s2 e e2 pairs
@@ -73,6 +73,8 @@ exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs =
                      | otherwise -> Nothing
     (Lam _ _ _, _) -> Just (HS.insert (e1, e2) pairs)
     (_, Lam _ _ _) -> Just (HS.insert (e1, e2) pairs)
+    -- TODO assume for now that all types line up between the two expressions
+    (Type _, Type _) -> Just pairs
     _ -> error "catch-all case"
 
 matchAll :: [(Id, Id)] ->
