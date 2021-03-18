@@ -25,8 +25,6 @@ readyForSolver :: (ExprEnv, ExprEnv) -> (Expr, Expr) -> Bool
 readyForSolver (h1, h2) (e1, e2) =
   exprReadyForSolver h1 e1 && exprReadyForSolver h2 e2
 
--- TODO is the output type correct?
--- Still doesn't line up even with conversion to lists
 runSymExec :: Config ->
               State () ->
               State () ->
@@ -39,6 +37,12 @@ runSymExec config s1 s2 = do
   return (map final_state exec_res1, map final_state exec_res2)
 
 -- build initial hash set in Main before calling
+{-
+Things to do:
+Iterate over every pair of states produced
+Put it into the solver, see if it's equivalent
+If any pair isn't, reject
+-}
 verifyLoop :: S.Solver solver =>
               solver ->
               HS.HashSet (State (), State ()) ->

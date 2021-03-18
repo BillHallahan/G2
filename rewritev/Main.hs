@@ -68,12 +68,6 @@ runWithArgs as = do
 
   proj <- guessProj src
 
-  --Get args
-  let m_assume = mAssume tail_args
-  let m_assert = mAssert tail_args
-  let m_reaches = mReaches tail_args
-  let m_retsTrue = mReturnsTrue tail_args
-
   let m_mapsrc = mkMapSrc tail_args
 
   let tentry = T.pack entry
@@ -133,11 +127,6 @@ runWithArgs as = do
   S.SomeSolver solver <- initSolver config
   res <- mapM (checkObligations solver) pairings
   print "obligations checked"
-  {-
-  let CurrExpr _ expr_r = curr_expr rewrite_state_r
-  let CurrExpr _ expr_l = curr_expr rewrite_state_l
-  let maybePO = proofObligations rewrite_state_l rewrite_state_r expr_l expr_r
-  -}
   -- TODO remove print statement
   -- TODO use toList on the HashSet to get the contents
   -- TODO take one of the starting states
@@ -237,18 +226,6 @@ ppStatePiece b n res =
 
 mIDir :: [String] -> Maybe String
 mIDir a = strArg "idir" a M.empty Just Nothing
-
-mReturnsTrue :: [String] -> Bool
-mReturnsTrue a = boolArg "returns-true" a M.empty Off
-
-mAssume :: [String] -> Maybe String
-mAssume a = strArg "assume" a M.empty Just Nothing
-
-mAssert :: [String] -> Maybe String
-mAssert a = strArg "assert" a M.empty Just Nothing
-
-mReaches :: [String] -> Maybe String
-mReaches a = strArg "reaches" a M.empty Just Nothing
 
 mkLiquid :: [String] -> Maybe String
 mkLiquid a = strArg "liquid" a M.empty Just Nothing
