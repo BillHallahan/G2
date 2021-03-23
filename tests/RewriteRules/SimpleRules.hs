@@ -29,4 +29,5 @@ just n = Just n
 {-# RULES
 "maxWithSelf" forall x y . maxOfInt x y = if x == y then y else x
 "addOneJust" forall n . just (addOne n) = Just (1 + n)
+"justJust" forall n . just n = Just n
   #-}

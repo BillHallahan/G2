@@ -20,6 +20,7 @@ import G2.Translation
 import G2.Liquid.Interface
 import G2.Equiv.InitRewrite
 import G2.Equiv.EquivADT
+import G2.Equiv.Verifier
 
 import Control.Exception
 
@@ -93,26 +94,39 @@ runWithArgs as = do
               Just r -> r
               Nothing -> error "not found"
   -- print . curr_expr . initWithRHS init_state $ rule'
-  let (rewrite_state_r, bindings1) = initWithRHS init_state bindings $ rule'
+  let (rewrite_state_r, bindings_r) = initWithRHS init_state bindings $ rule'
 
-  print $ ru_rhs rule'
-  print $ ru_bndrs rule'
+  -- print $ ru_rhs rule'
+  -- print $ ru_bndrs rule'
 
   -- let config_r = config { logStates = Just "verifier_states" }
   
+  {-
   print "right-hand side start"
-  (exec_res_r, bindings') <- runG2WithConfig rewrite_state_r config bindings1
+  (exec_res_r, bindings') <- runG2WithConfig rewrite_state_r config bindings_r
   printFuncCalls config (Id (Name tentry Nothing 0 Nothing) TyLitInt)
                  bindings' exec_res_r
   print "right-hand side end"
+  -}
 
-  let (rewrite_state_l, bindings2) = initWithLHS init_state bindings' $ rule'
+  let (rewrite_state_l, bindings_l) = initWithLHS init_state bindings $ rule'
 
-  let ng = name_gen bindings2
+  let pairs_l = symbolic_ids rewrite_state_l
+      pairs_r = symbolic_ids rewrite_state_r
+
+  S.SomeSolver solver <- initSolver config
+  res <- verifyLoop solver (zip pairs_l pairs_r)
+         [(rewrite_state_l, rewrite_state_r)]
+         bindings_l bindings_r config
+  print res
+  return ()
+
+  {-
+  let ng = name_gen bindings_l
   print . fst $ freshSeededName (Name "x" Nothing 0 Nothing) ng
   -- TODO can I use the bindings from before in here?
   print "left-hand side start"
-  (exec_res_l, bindings'') <- runG2WithConfig rewrite_state_l config bindings2
+  (exec_res_l, bindings_l') <- runG2WithConfig rewrite_state_l config bindings_l
   printFuncCalls config (Id (Name tentry Nothing 0 Nothing) TyLitInt)
                  bindings'' exec_res_l
   print "left-hand side end"
@@ -142,6 +156,7 @@ runWithArgs as = do
   -}
   print res
   return ()
+  -}
 
 -- TODO added Bindings argument
 checkObligations :: S.Solver solver =>
