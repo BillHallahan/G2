@@ -42,14 +42,14 @@ mergeEffectiveTests = do
     --     [g2M| \(x :: Int) -> ?(b :: [Int])
     --         |  lengthTestP2 b |] 1
     
-    -- timeIOActionPrint "subseqOfTestSM" $
-    --     [g2M| \(x :: Int) (a :: [Int]) -> ?(b :: [Int])
-    --         | isSubsequenceOf' a b && length b > x |] 5 [1,2,1,3]
+    timeIOActionPrint "subseqOfTestSM" $
+        [g2M| \(a :: [Int]) -> ?(b :: [Int])
+            | isSubsequenceOf' a b && length b > 4 |] [1, 2]
 
-    mapM_ (\x -> do
-                print x
-                subseqOfTestCall x
-                subseqOfTestCallM x) [1 .. 10]
+    -- mapM_ (\x -> do
+    --             print x
+    --             subseqOfTestCall x
+    --             subseqOfTestCallM x) [1 .. 10]
 
     -- timeIOActionPrint "subseqOfTest" $ [g2| \(a :: [Int]) -> ?(b :: [Int]) | subseqOfTest2 a b |] [1,2]
     -- timeIOActionPrint "subseqOfTestSM" $ [g2M| \(a :: [Int]) -> ?(b :: [Int]) | subseqOfTest2 a b |] [1,2]
@@ -79,17 +79,17 @@ mergeEffectiveTests = do
     -- timeIOActionPrint "replGetTestSM" $ [g2M| \(i :: Int) -> ?(j :: Int) ?(k :: Int) | replGetTest i j k |] 3
     return ()
 
-subseqOfTestCall :: Int -> IO ()
-subseqOfTestCall x =
-    timeIOActionPrint "subseqOfTest" $
-        [g2| \(x :: Int) (a :: [Int]) -> ?(b :: [Int])
-           | subseqOfTestP x a b |] x [1,2,1,3]
+-- subseqOfTestCall :: Int -> IO ()
+-- subseqOfTestCall x =
+--     timeIOActionPrint "subseqOfTest" $
+--         [g2| \(x :: Int) (a :: [Int]) -> ?(b :: [Int])
+--            | subseqOfTestP x a b |] x [1,2,1,3]
 
-subseqOfTestCallM :: Int -> IO ()
-subseqOfTestCallM x =
-    timeIOActionPrint "subseqOfTestSM" $
-        [g2M| \(x :: Int) (a :: [Int]) -> ?(b :: [Int])
-            | subseqOfTestP x a b |] x [1,2,1,3]
+-- subseqOfTestCallM :: Int -> IO ()
+-- subseqOfTestCallM x =
+--     timeIOActionPrint "subseqOfTestSM" $
+--         [g2M| \(x :: Int) (a :: [Int]) -> ?(b :: [Int])
+--             | subseqOfTestP x a b |] x [1,2,1,3]
 
 -- sampleTests :: IO ()
 -- sampleTests = do

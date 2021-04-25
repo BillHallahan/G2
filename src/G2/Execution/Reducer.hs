@@ -26,6 +26,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             -- Reducers
                             , RCombiner (..)
                             , StdRed (..)
+                            , ConcSymReducer (..)
                             , NonRedPCRed (..)
                             , TaggerRed (..)
                             , Logger (..)
@@ -83,6 +84,7 @@ import G2.Execution.Merging.Zipper hiding (Status (..))
 import qualified G2.Execution.Merging.Zipper as Z
 import G2.Language
 import qualified G2.Language.Monad as MD
+import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stck
 import G2.Solver
 import G2.Lib.Printers
@@ -402,6 +404,80 @@ instance (Solver solver, Simplifier simplifier) => Reducer (StdRed solver simpli
 maxDepth :: Int
 maxDepth = 4
 
+data ConcSymReducer = ConcSymReducer
+
+instance Reducer ConcSymReducer () t where
+    initReducer _ _ = ()
+
+    redRules red _ s@(State { curr_expr = CurrExpr _ (Var i@(Id n t))
+                            , expr_env = eenv
+                            , type_env = tenv
+                            , path_conds = pc
+                            , symbolic_ids = sid })
+                   b@(Bindings { name_gen = ng })
+        | E.isSymbolic n eenv = do
+            let (e, pc', sid', ng') = arbDCCase tenv ng t
+
+                s' = s { curr_expr = CurrExpr Return e
+                       , expr_env =
+                            foldr (\i -> E.insertSymbolic (idName i) i)
+                                  (E.insert n e eenv)
+                                  sid'
+                       , path_conds = foldr PC.insert pc pc'
+                       , symbolic_ids = HS.union sid' $ HS.delete i sid } 
+                b' =  b { name_gen = ng' }
+            return (InProgress, [(s', ())], b', red)
+    redRules red _ s b = return (NoProgress, [(s, ())], b, red)
+
+-- | Build a case expression with one alt for each data constructor of the given type
+-- and symbolic arguments.  Thus, the case expression could evaluate to any value of the
+-- given type.
+arbDCCase :: TypeEnv
+          -> NameGen
+          -> Type
+          -> (Expr, [PathCond], HS.HashSet Id, NameGen)
+arbDCCase tenv ng t
+    | TyCon tn _:ts <- unTyApp t
+    , Just adt <- M.lookup tn tenv =
+        let
+            dcs = dataCon adt
+            (bindee_id, ng') = freshId TyLitInt ng
+
+            bound = boundIds adt
+            bound_ts = zip bound ts
+
+            ty_apped_dcs = map (\dc -> mkApp $ Data dc:map Type ts) dcs
+            ((ng'', symbs), apped_dcs) =
+                        L.mapAccumL
+                            (\(ng_, symbs_) dc ->
+                                let
+                                    anon_ts = anonArgumentTypes dc
+                                    re_anon = foldr (\(i, t) -> retype i t) anon_ts bound_ts
+                                    (ars, ng_') = freshIds re_anon ng_
+                                    symbs_' = foldr HS.insert symbs_ ars
+                                in
+                                ((ng_', symbs_'), mkApp $ dc:map Var ars)
+                            )
+                            (ng', HS.empty)
+                            ty_apped_dcs
+
+            bindee = Var bindee_id
+
+            pc = mkBounds bindee 1 (toInteger $ length dcs)
+
+            e = createCaseExpr bindee_id apped_dcs
+        in
+        (e, pc, HS.insert bindee_id symbs, ng'')
+    | otherwise = error "arbDCCase: type not found"
+
+mkBounds :: Expr -> Integer -> Integer -> [PathCond]
+mkBounds e l u =
+    let
+        t = TyFun TyLitInt $ TyFun TyLitInt TyLitInt
+    in
+    [ ExtCond (App (App (Prim Le t) (Lit (LitInt l))) e) True
+    , ExtCond (App (App (Prim Le t) e) (Lit (LitInt u))) True]
+
 -- | Removes and reduces the values in a State's non_red_path_conds field. 
 data NonRedPCRed = NonRedPCRed
 
@@ -529,9 +605,16 @@ instance Show t => Reducer LimLogger LLTracker t where
     updateWithAll _ ss =
         map (\(llt, i) -> llt { ll_offset = ll_offset llt ++ [i] }) $ zip (map snd ss) [1..]
 
-    onMerge ll s1 s2 lt1 lt2 = do
+    onAccept _ _ ll = putStrLn $ "Accepted on path " ++ show (ll_offset ll)
+
+    onMerge ll@(LimLogger { after_n = aft, down_path = down }) s1 s2
+            lt1@(LLTracker { ll_count = 0, ll_offset = off1 })
+            lt2@(LLTracker { ll_count = 0, ll_offset = off2 })
+         | down `L.isPrefixOf` off1 || off1 `L.isPrefixOf` down || down `L.isPrefixOf` off2 || off2 `L.isPrefixOf` down
+        , length (rules s1) >= aft || length (rules s2) >= aft = do
         outputMerge (lim_output_path ll) (ll_offset lt1) (ll_offset lt2) s1 s2
         return lt1
+    onMerge _ _ _ lt1 _ = return lt1
 
 data PredicateLogger = PredicateLogger { pred :: forall t . State t -> Bindings -> Bool
                                        , pred_output_path :: String }
@@ -1081,26 +1164,23 @@ maxADTHeight :: HS.HashSet Name -> State t -> Int
 maxADTHeight v s = maximum $ (-1):(HS.toList $ HS.map (flip adtHeight s) v)
 
 adtHeight :: Name -> State t -> Int
-adtHeight n s@(State { expr_env = eenv })
-    | Just (E.Sym _) <- v = 0
-    | Just (E.Conc e) <- v =
-        1 + adtHeight' s e
+adtHeight n (State { expr_env = eenv })
+    | Just e <- E.lookup n eenv = adtHeight' 0 eenv e
     | otherwise = 0
-    where
-        v = E.lookupConcOrSym n eenv
 
-adtHeight' :: State t -> Expr -> Int
-adtHeight' s (Var (Id n _)) = adtHeight n s
-adtHeight' s (Case (Var (Id _ TyLitInt)) _ as) =
-    -- We need to search through case statements in SMNF, so that
-    -- the depth is correctly computed when state merging is turned on.
-    maximum $ 0:map (adtHeight' s . altExpr) as
-adtHeight' s e@(App _ _) =
+adtHeight' :: Int -> ExprEnv -> Expr -> Int
+adtHeight' !h eenv (Var (Id n _))
+    | Just (E.Conc e) <- E.lookupConcOrSym n eenv =
+        adtHeight' h eenv e
+    | otherwise = h
+adtHeight' !h eenv (Case (Var (Id _ TyLitInt)) _ as) =
+    maximum $ h:map (adtHeight' h eenv . altExpr) as
+adtHeight' !h eenv e@(App _ _) =
     let
         _:es = unApp e 
     in
-    maximum $ 0:map (adtHeight' s) es
-adtHeight' _ _ = 0
+    maximum $ h:map (adtHeight' (h + 1) eenv) es
+adtHeight' h _ _ = h
 
 -- Orders by the combined size of (previously) symbolic ADT.
 -- In particular, aims to first execute those states with a combined ADT size closest to

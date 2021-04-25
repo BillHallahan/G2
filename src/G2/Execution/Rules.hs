@@ -36,6 +36,8 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import qualified Data.Map as M
 
+import Debug.Trace
+
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> Merging -> solver -> simplifier -> State t -> Bindings 
           -> IO (Rule, [(State t, ())], Bindings)
 stdReduce sharing merging solver simplifier s b@(Bindings { name_gen = ng, last_merge_point = mp }) = do
@@ -358,6 +360,28 @@ evalCase mergeStates s@(State { expr_env = eenv
          , [newPCEmpty $ s { expr_env = eenv
                            , curr_expr = CurrExpr Evaluate expr' }], ng, mp)
 
+  | isSMNF eenv mexpr
+  , Case _ _ _ <- mexpr
+  , Merging <- mergeStates =
+    -- get list of matches w/ respective assumption
+    let choices = getChoices s mexpr
+        dalts = dataAltsSMNF alts
+        defs = defaultAltsSMNF alts
+        -- for each (DataAlt dcon params) match relevant choices that are Apps with a (Data dcon') center
+        (daltMatches, choices') = matchDataAltsSMNF eenv dalts choices
+         -- Match all unmatched Apps with a (Data _) center
+        defMatches = matchDefaults defs choices'
+
+        -- split into multiple states on the various Alts appropriately
+        (ng', dsts_cs) = handleDaltMatches s bind ng daltMatches
+        (ng'', def_sts) = handleDefMatches s ng' defMatches bind
+
+        newPCs = def_sts ++ dsts_cs
+
+        mp' = freshMergePoint mp
+        newPCs' = map (addMergePt mp') newPCs
+    in trace ("isSMNF") (RuleEvalCaseSym bind, newPCs', ng'', mp') -- TODO: new rule
+
   -- Case evaluation also uses the stack in graph reduction based evaluation
   -- semantics. The case's binding variable and alts are pushed onto the stack
   -- as a `CaseFrame` along with their appropriate `ExecExprEnv`. However this
@@ -398,27 +422,6 @@ evalCase mergeStates s@(State { expr_env = eenv
         newPCs' = map (addMergePt mp') newPCs
       in
       (RuleEvalCaseSym bind, newPCs', ng'', mp')
-
-  | isSMNF eenv mexpr
-  , Merging <- mergeStates =
-    -- get list of matches w/ respective assumption
-    let choices = getChoices s mexpr
-        dalts = dataAltsSMNF alts
-        defs = defaultAltsSMNF alts
-        -- for each (DataAlt dcon params) match relevant choices that are Apps with a (Data dcon') center
-        (daltMatches, choices') = matchDataAltsSMNF eenv dalts choices
-         -- Match all unmatched Apps with a (Data _) center
-        defMatches = matchDefaults defs choices'
-
-        -- split into multiple states on the various Alts appropriately
-        (ng', dsts_cs) = handleDaltMatches s bind ng daltMatches
-        (ng'', def_sts) = handleDefMatches s ng' defMatches bind
-
-        newPCs = def_sts ++ dsts_cs
-
-        mp' = freshMergePoint mp
-        newPCs' = map (addMergePt mp') newPCs
-    in (RuleEvalCaseSym bind, newPCs', ng'', mp') -- TODO: new rule
 
   -- Case evaluation also uses the stack in graph reduction based evaluation
   -- semantics. The case's binding variable and alts are pushed onto the stack

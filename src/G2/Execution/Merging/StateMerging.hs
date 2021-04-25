@@ -30,6 +30,7 @@ import Data.Maybe
 import qualified Data.List as L
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
+import qualified Data.Map as M
 
 import Debug.Trace
 
@@ -312,13 +313,12 @@ newMergeExpr kv ng m_id m_ns e1 e2
                 (HM.empty, [], HS.empty, ng) $ zip es1 es2
     in
     (mkApp $ d:es, m_ns', pc', symbs', ng')
-    -- newMergeDataCons kv ng m_id m_ns dc1 0 e1 dc2 1 e2
 newMergeExpr kv ng m_id m_ns e1 e2@(Case (Var i2) b2 as2)
     | Data dc1:_ <- unApp e1
-    , isSMNFCase e2 = newMergeDataConCase kv ng m_id m_ns dc1 0 e1 i2 as2
+    , isSMNFCase e2 = newMergeDataConCase kv ng m_id m_ns dc1 1 e1 i2 as2
 newMergeExpr kv ng m_id m_ns e1@(Case (Var i1) b1 as1) e2
     | Data dc2:_ <- unApp e2
-    , isSMNFCase e1 = newMergeDataConCase kv ng m_id m_ns dc2 1 e2 i1 as1
+    , isSMNFCase e1 = newMergeDataConCase kv ng m_id m_ns dc2 2 e2 i1 as1
 newMergeExpr kv ng m_id m_ns e1@(Case (Var i1) b1 as1) e2@(Case (Var i2) b2 as2) 
     | isSMNFCase e1
     , isSMNFCase e2 = newMergeCaseExprs kv ng m_id m_ns i1 as1 i2 as2
@@ -350,9 +350,9 @@ newCaseExpr ng m_id e1 e2 =
     let
         (binder, ng') = freshId TyLitInt ng
     in
-    (Case (Var m_id) binder [ Alt (LitAlt $ LitInt 0) e1
-                            , Alt (LitAlt $ LitInt 1) e2 ]
-    , mkBounds (Var m_id) 0 1
+    (Case (Var m_id) binder [ Alt (LitAlt $ LitInt 1) e1
+                            , Alt (LitAlt $ LitInt 2) e2 ]
+    , mkBounds (Var m_id) 1 2
     , binder
     , ng')
 
@@ -466,9 +466,8 @@ mkMergeCasePC kv bind1 l bls =
       flip ExtCond True
     . mkEqExpr kv (mkEqExpr kv (Var bind1) (Lit $ LitInt l)) 
     $ foldr (mkOrExpr kv)
-            (mkTrue kv)
+            (mkFalse kv)
             (map (\(b2, jl) -> mkEqExpr kv (Var b2) (Lit (LitInt jl))) bls)
-
 
 resolveNewVariables :: KnownValues
                     -> NameGen
@@ -509,8 +508,8 @@ resolveNewVariables' r_m_ns pc kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
                                          , isPrimType t ->
                                               let
                                                   (si, ng__) = freshId t ng_
-                                                  pc__ = [ ExtCond (mkEqPrimExpr t kv (Var si) v1) True
-                                                         , ExtCond (mkEqPrimExpr t kv (Var si) v2) True ]
+                                                  pc__ = [ PC.mkAssumePC m_id 1 $ ExtCond (mkEqPrimExpr t kv (Var si) v1) True
+                                                         , PC.mkAssumePC m_id 2 $ ExtCond (mkEqPrimExpr t kv (Var si) v2) True ]
                                               in
                                               ( E.insertSymbolic (idName si) si n_eenv_
                                               , HM.empty
