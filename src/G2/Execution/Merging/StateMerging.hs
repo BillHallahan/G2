@@ -212,7 +212,7 @@ newMergeExprEnv kv ng m_id m_ns symb1 symb2 tenv eenv1 eenv2 =
         n_eenv''' = foldr (\i -> E.insertSymbolic (idName i) i) n_eenv'' symbs'
 
     in
-    (n_eenv''', n_pc', symbs', ng'')
+    (n_eenv''', n_pc ++ n_pc', symbs', ng'')
 
 newMergeEnvObj :: KnownValues -> Id -> TypeEnv -> ExprEnv -> ExprEnv -> Name -> E.EnvObj -> E.EnvObj
                -> S.State (HM.HashMap (Name, Name) Id, [PathCond], SymbolicIds, NewSymbolicIds, NameGen) E.EnvObj
@@ -222,7 +222,7 @@ newMergeEnvObj kv m_id tenv eenv1 eenv2 n eObj1 eObj2
     , E.ExprObj _ e2 <- eObj2 = do
         (m_ns, pc, symb, n_symb, ng) <- S.get
         let (m_e, m_ns', pc', symb', ng') = newMergeExpr kv ng m_id m_ns e1 e2
-        S.put (HM.union m_ns m_ns', pc', HS.union symb symb', n_symb, ng')
+        S.put (HM.union m_ns m_ns', pc ++ pc', HS.union symb symb', n_symb, ng')
         return $ E.ExprObj Nothing m_e
     -- Replace the Id in the SymbObj with a new Symbolic Id and merge with the expr from the ExprObj in a Case expr.
     -- If the Id is symbolic in one expression and concrete in the other, it must be an ADT.

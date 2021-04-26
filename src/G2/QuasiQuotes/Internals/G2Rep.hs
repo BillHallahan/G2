@@ -181,7 +181,7 @@ g2UnRepCatchAllClause = do
     expr <- newName "expr"
     let pats = [wildP, varP expr]
 
-    clause pats (normalB [|error $ "Unhandled case in g2UnRep" ++ show $(varE expr) |]) []
+    clause pats (normalB [|error $ "Unhandled case in g2UnRep " ++ show $(varE expr) |]) []
 
 newFieldUnRep :: TH.Name -> (TH.Name, StrictType) -> Q Exp
 newFieldUnRep _ (x, (_, ConT n))
