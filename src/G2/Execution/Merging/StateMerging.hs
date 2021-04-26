@@ -177,7 +177,7 @@ newMergeExprEnvCxt :: Context t -> HM.HashMap (Name, Name) Id -> (ExprEnv, Conte
 newMergeExprEnvCxt cxt@(Context { s1_ = s1, s2_ = s2, newPCs_ = pc, ng_ = ng, newId_ = m_id }) m_ns =
     let
         (eenv', pc', symbs', ng') =
-            newMergeExprEnv (known_values s1) ng m_id m_ns (symbolic_ids s1) (symbolic_ids s2) (expr_env s1) (expr_env s2)
+            newMergeExprEnv (known_values s1) ng m_id m_ns (symbolic_ids s1) (symbolic_ids s2) (type_env s1) (expr_env s1) (expr_env s2)
     in
     (eenv', cxt { s1_ = s1 { symbolic_ids = symbs'}
                 , s2_ = s2 { symbolic_ids = symbs' }
@@ -190,16 +190,17 @@ newMergeExprEnv :: KnownValues
                 -> HM.HashMap (Name, Name) Id
                 -> SymbolicIds
                 -> SymbolicIds
+                -> TypeEnv
                 -> ExprEnv
                 -> ExprEnv
                 -> (ExprEnv, [PathCond], SymbolicIds, NameGen)
-newMergeExprEnv kv ng m_id m_ns symb1 symb2 eenv1 eenv2 =
+newMergeExprEnv kv ng m_id m_ns symb1 symb2 tenv eenv1 eenv2 =
     let 
         (n_eenv, (m_ns', n_pc, symbs, n_symb, ng')) = 
             S.runState (E.mergeAEnvObj
                         E.preserveMissing
                         E.preserveMissing
-                        (E.zipWithAMatched (newMergeEnvObj kv m_id eenv1 eenv2)) 
+                        (E.zipWithAMatched (newMergeEnvObj kv m_id tenv eenv1 eenv2)) 
                         eenv1 
                         eenv2)
                         (m_ns, [], symb1 `HS.union` symb2, HS.empty, ng)
@@ -213,9 +214,9 @@ newMergeExprEnv kv ng m_id m_ns symb1 symb2 eenv1 eenv2 =
     in
     (n_eenv''', n_pc', symbs', ng'')
 
-newMergeEnvObj :: KnownValues -> Id -> ExprEnv -> ExprEnv -> Name -> E.EnvObj -> E.EnvObj
+newMergeEnvObj :: KnownValues -> Id -> TypeEnv -> ExprEnv -> ExprEnv -> Name -> E.EnvObj -> E.EnvObj
                -> S.State (HM.HashMap (Name, Name) Id, [PathCond], SymbolicIds, NewSymbolicIds, NameGen) E.EnvObj
-newMergeEnvObj kv m_id eenv1 eenv2 n eObj1 eObj2
+newMergeEnvObj kv m_id tenv eenv1 eenv2 n eObj1 eObj2
     | E.EqFast eObj1 == E.EqFast eObj2 = return eObj1
     | E.ExprObj _ e1 <- eObj1
     , E.ExprObj _ e2 <- eObj2 = do
@@ -229,16 +230,24 @@ newMergeEnvObj kv m_id eenv1 eenv2 n eObj1 eObj2
     | (E.SymbObj i) <- eObj1
     , (E.ExprObj _ e2) <- eObj2 = do
         (m_ns, pc, symb, n_symb, ng) <- S.get
-        let (fi, ng') = freshId (typeOf i) ng
-        let (e, pc', _, ng'') = newCaseExpr ng' m_id (Var fi) e2
-        S.put (m_ns, pc ++ pc', HS.insert fi $ HS.delete i symb, HS.insert fi n_symb, ng'')
+        let (e_s, pc', f_symb', ng') = arbDCCase tenv ng (typeOf i)
+        let (e, m_ns', pc'', symb', ng'') = newMergeExpr kv ng' m_id m_ns e_s e2
+        S.put ( HM.union m_ns m_ns'
+              , pc ++ pc' ++ pc''
+              , HS.union symb' . HS.union f_symb' $ HS.delete i symb
+              , HS.union symb' $ HS.union f_symb' n_symb
+              , ng'')
         return $ E.ExprObj Nothing e
     | (E.ExprObj _ e1) <- eObj1
     , (E.SymbObj i) <- eObj2 = do
         (m_ns, pc, symb, n_symb, ng) <- S.get
-        let (fi, ng') = freshId (typeOf i) ng
-        let (e, pc', _, ng'') = newCaseExpr ng' m_id e1 (Var fi)
-        S.put (m_ns, pc ++ pc', HS.insert fi $ HS.delete i symb, HS.insert fi n_symb, ng'')
+        let (e_s, pc', f_symb', ng') = arbDCCase tenv ng (typeOf i)
+        let (e, m_ns', pc'', symb', ng'') = newMergeExpr kv ng' m_id m_ns e1 e_s
+        S.put ( HM.union m_ns m_ns'
+              , pc ++ pc' ++ pc''
+              , HS.union symb' . HS.union f_symb' $ HS.delete i symb
+              , HS.union symb' $ HS.union f_symb' n_symb
+              , ng'')
         return $ E.ExprObj Nothing e
     -- Create a Case Expr combining the lookup Var with the expr from the ExprObj
     | (E.RedirObj n) <- eObj1
@@ -264,6 +273,47 @@ newMergeEnvObj kv m_id eenv1 eenv2 n eObj1 eObj2
     , (E.SymbObj i2) <- eObj2
     , i1 == i2 = return eObj1
     | otherwise = error $ "Unequal SymbObjs or RedirObjs present in the expr_envs of both states." ++ (show eObj1) ++ " " ++ (show eObj2)
+
+-- | Build a case expression with one alt for each data constructor of the given type
+-- and symbolic arguments.  Thus, the case expression could evaluate to any value of the
+-- given type.
+arbDCCase :: TypeEnv
+          -> NameGen
+          -> Type
+          -> (Expr, [PathCond], HS.HashSet Id, NameGen)
+arbDCCase tenv ng t
+    | TyCon tn _:ts <- unTyApp t
+    , Just adt <- M.lookup tn tenv =
+        let
+            dcs = dataCon adt
+            (bindee_id, ng') = freshId TyLitInt ng
+
+            bound = boundIds adt
+            bound_ts = zip bound ts
+
+            ty_apped_dcs = map (\dc -> mkApp $ Data dc:map Type ts) dcs
+            ((ng'', symbs), apped_dcs) =
+                        L.mapAccumL
+                            (\(ng_, symbs_) dc ->
+                                let
+                                    anon_ts = anonArgumentTypes dc
+                                    re_anon = foldr (\(i, t) -> retype i t) anon_ts bound_ts
+                                    (ars, ng_') = freshIds re_anon ng_
+                                    symbs_' = foldr HS.insert symbs_ ars
+                                in
+                                ((ng_', symbs_'), mkApp $ dc:map Var ars)
+                            )
+                            (ng', HS.empty)
+                            ty_apped_dcs
+
+            bindee = Var bindee_id
+
+            pc = mkBounds bindee 1 (toInteger $ length dcs)
+
+            e = createCaseExpr bindee_id apped_dcs
+        in
+        (e, pc, HS.insert bindee_id symbs, ng'')
+    | otherwise = error "arbDCCase: type not found"
 
 nameToId :: Name -> ExprEnv -> Id
 nameToId n eenv

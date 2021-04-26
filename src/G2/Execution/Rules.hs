@@ -36,8 +36,6 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import qualified Data.Map as M
 
-import Debug.Trace
-
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> Merging -> solver -> simplifier -> State t -> Bindings 
           -> IO (Rule, [(State t, ())], Bindings)
 stdReduce sharing merging solver simplifier s b@(Bindings { name_gen = ng, last_merge_point = mp }) = do
@@ -380,7 +378,7 @@ evalCase mergeStates s@(State { expr_env = eenv
 
         mp' = freshMergePoint mp
         newPCs' = map (addMergePt mp') newPCs
-    in trace ("isSMNF") (RuleEvalCaseSym bind, newPCs', ng'', mp') -- TODO: new rule
+    in (RuleEvalCaseSym bind, newPCs', ng'', mp') -- TODO: new rule
 
   -- Case evaluation also uses the stack in graph reduction based evaluation
   -- semantics. The case's binding variable and alts are pushed onto the stack
