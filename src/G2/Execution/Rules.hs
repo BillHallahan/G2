@@ -380,18 +380,6 @@ evalCase mergeStates s@(State { expr_env = eenv
         newPCs' = map (addMergePt mp') newPCs
     in (RuleEvalCaseSym bind, newPCs', ng'', mp') -- TODO: new rule
 
-  -- Case evaluation also uses the stack in graph reduction based evaluation
-  -- semantics. The case's binding variable and alts are pushed onto the stack
-  -- as a `CaseFrame` along with their appropriate `ExecExprEnv`. However this
-  -- is only done when the matching expression is NOT in value form. Value
-  -- forms should be handled by other RuleEvalCase* rules.
-  | not (isExprValueForm eenv mexpr) =
-      let frame = CaseFrame bind alts
-      in ( RuleEvalCaseNonVal
-         , [newPCEmpty $ s { expr_env = eenv
-                           , curr_expr = CurrExpr Evaluate mexpr
-                           , exec_stack = S.push frame stck }], ng, mp)
-
   -- If we are pointing to something in expr value form, that is not addressed
   -- by some previous case, we handle it by branching on every `Alt`, and adding
   -- path constraints.

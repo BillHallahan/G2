@@ -44,7 +44,11 @@ mergeEffectiveTests = do
 
     timeIOActionPrint "subseqOfTest" $
         [g2| \(x :: Int) (a :: [Int]) -> ?(b :: [Int])
-           | subseqOfTestP x a b |] x [1,2]    
+           | subseqOfTestP x a b |] 6 [1,2,1]
+
+    timeIOActionPrint "subseqOfTestSM" $
+        [g2M| \(a :: [Int]) -> ?(b :: [Int])
+            | isSubsequenceOf' a b && length b > 6 |] [1,2,1]
 
     -- mapM_ (\x -> do
     --             print x

@@ -222,7 +222,7 @@ newMergeEnvObj kv m_id tenv eenv1 eenv2 n eObj1 eObj2
     , E.ExprObj _ e2 <- eObj2 = do
         (m_ns, pc, symb, n_symb, ng) <- S.get
         let (m_e, m_ns', pc', symb', ng') = newMergeExpr kv ng m_id m_ns e1 e2
-        S.put (HM.union m_ns m_ns', pc ++ pc', HS.union symb symb', n_symb, ng')
+        S.put (HM.union m_ns m_ns', pc ++ pc', HS.union symb symb', HS.union symb' n_symb, ng')
         return $ E.ExprObj Nothing m_e
     -- Replace the Id in the SymbObj with a new Symbolic Id and merge with the expr from the ExprObj in a Case expr.
     -- If the Id is symbolic in one expression and concrete in the other, it must be an ADT.
@@ -388,10 +388,10 @@ newMergeExprs :: KnownValues
 newMergeExprs kv ng m_id m_ns (e:es) =
     foldr (\e2 (e1, m_ns_, pc_, symbs_, ng_) ->
               let
-                  (n_e, n_m_ns, n_pc, n_symbs, n_ng) = newMergeExpr kv ng_ m_id m_ns_ e1 e2
+                  (n_e, n_m_ns, n_pc, n_symbs, n_ng) = newMergeExpr kv ng_ m_id (m_ns `HM.union` m_ns_) e1 e2
               in
-              (n_e, n_m_ns, pc_ ++ n_pc, symbs_ `HS.union` n_symbs, n_ng))
-          (e, m_ns, [], HS.empty, ng)
+              (n_e, m_ns_ `HM.union` n_m_ns, pc_ ++ n_pc, symbs_ `HS.union` n_symbs, n_ng))
+          (e, HM.empty, [], HS.empty, ng)
           es
 newMergeExprs _ _ _ _ _ = error  "newMergeExprs: empty list"
 
@@ -477,25 +477,25 @@ newMergeIntoCase :: KnownValues
 newMergeIntoCase kv ng m_id m_ns b_as =
     let
         -- Group up by common data constructors
-        as_hm = foldr (\(dc, i, l, e) -> HM.insertWith (++) dc [(i, l, e)]) HM.empty $ b_as
-        as_grouped = HM.toList as_hm :: [(DataCon, [(Id, Integer, Expr)])]
+        as_hm = foldr (\(DataCon n _, i, l, e) -> HM.insertWith (++) n [(i, l, e)]) HM.empty $ b_as
+        as_grouped = HM.toList as_hm :: [(Name, [(Id, Integer, Expr)])]
 
         -- Form the new case
-        num_grouped = zip [0..] (map snd as_grouped) :: [(Integer, [(Id, Integer, Expr)])]
+        num_grouped = zip [1..] (map snd as_grouped) :: [(Integer, [(Id, Integer, Expr)])]
         ((m_ns', pc', symbs', ng'), new_alts) =
                   L.mapAccumL
                           (\(m_ns_, pc_, symbs_, ng_) (i, es) ->
                               let
                                   (e', m_ns_', pc_', symbs_', ng_') = newMergeExprs kv ng_ m_id (HM.union m_ns m_ns_) (map thd3 es)
                               in
-                              ((m_ns_', pc_ ++ pc_', symbs_ `HS.union` symbs_', ng_'), Alt (LitAlt $ LitInt i) e')
+                              ((m_ns_' `HM.union` m_ns_, pc_ ++ pc_', symbs_ `HS.union` symbs_', ng_'), Alt (LitAlt $ LitInt i) e')
                           )
                           (HM.empty, [], HS.empty, ng) num_grouped
 
         (new_bndee, ng'') = freshId TyLitInt ng'
         (new_bnd, ng''') = freshId TyLitInt ng''
 
-        bndee_pc = mkBounds (Var new_bndee) 0 (toInteger $ length num_grouped - 1)
+        bndee_pc = mkBounds (Var new_bndee) 1 (toInteger $ length num_grouped)
         link_pc = map (\(i, j_es) -> mkMergeCasePC kv new_bndee i
                                    $ map (\(bnd_, lit_, _) -> (bnd_, lit_)) j_es)
                       num_grouped
