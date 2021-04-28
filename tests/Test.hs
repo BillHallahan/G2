@@ -35,6 +35,11 @@ import Typing
 import UnionFindTests
 import UFMapTests
 
+-- TODO new import
+import RewriteVerify.RewriteVerifyTest
+-- TODO will this cover simplTranslationConfig?
+import G2.Translation
+
 import InputOutputTest
 import Reqs
 import TestUtils
@@ -54,6 +59,7 @@ main = do
             ])
         (if todo then todoTests else tests)
 
+-- TODO add rewrite verify tests
 tests :: TestTree
 tests = testGroup "Tests"
         [ sampleTests
@@ -66,6 +72,7 @@ tests = testGroup "Tests"
         , simplificationTests
         , ufMapQuickcheck
         , unionFindQuickcheck
+        , rewriteVerifyTests
         ]
 
 timeout :: Timeout

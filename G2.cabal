@@ -343,6 +343,7 @@ test-suite test
                        , Typing
                        , UFMapTests
                        , UnionFindTests
+                       , RewriteVerify.RewriteVerifyTest
   ghc-options:         -Wall
                        -- -fprof-auto "-with-rtsopts=-p"
                        -threaded

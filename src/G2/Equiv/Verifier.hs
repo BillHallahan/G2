@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Equiv.Verifier (verifyLoop) where
+module G2.Equiv.Verifier (verifyLoop, runVerifier) where
 
 import G2.Language
 
@@ -15,6 +15,7 @@ import qualified G2.Language.Typing as T
 
 import Data.List
 import Data.Maybe
+import qualified Data.Text as DT
 
 import qualified Data.HashSet as HS
 import qualified G2.Solver as S
@@ -64,9 +65,33 @@ runSymExec config s1 = do
   return (map final_state exec_res1)
 -}
 
+{-
 tupleListFlatten :: [([State ()], [State ()])] -> [(State (), State ())]
 tupleListFlatten [] = []
 tupleListFlatten ((l1, l2) : t) = (zip l1 l2) ++ tupleListFlatten t
+-}
+
+runVerifier :: S.Solver solver =>
+               solver ->
+               String ->
+               State () ->
+               Bindings ->
+               Config ->
+               IO (S.Result () ())
+runVerifier solver entry init_state bindings config = do
+    let tentry = DT.pack entry
+        rule = find (\r -> tentry == ru_name r) (rewrite_rules bindings)
+        rule' = case rule of
+                Just r -> r
+                Nothing -> error "not found"
+    let (rewrite_state_l, bindings_l) = initWithLHS init_state bindings $ rule'
+        (rewrite_state_r, bindings_r) = initWithRHS init_state bindings $ rule'
+    let pairs_l = symbolic_ids rewrite_state_l
+        pairs_r = symbolic_ids rewrite_state_r
+
+    verifyLoop solver (zip pairs_l pairs_r)
+               [(rewrite_state_l, rewrite_state_r)]
+               bindings_l bindings_r config
 
 -- build initial hash set in Main before calling
 {-
