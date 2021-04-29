@@ -18,6 +18,7 @@ module G2.Language.ExprEnv
     , member
     , lookup
     , lookupConcOrSym
+    , lookupEnvObj
     , deepLookup
     , isSymbolic
     , occLookup
@@ -164,6 +165,9 @@ lookupConcOrSym  n (ExprEnv smap) =
         Just (RedirObj redir) -> lookupConcOrSym redir (ExprEnv smap)
         Just (SymbObj i) -> Just $ Sym i
         Nothing -> Nothing
+
+lookupEnvObj :: Name -> ExprEnv -> Maybe EnvObj
+lookupEnvObj n = M.lookup n . unwrapExprEnv
 
 -- | Lookup the `Expr` with the given `Name`.
 -- If the name is bound to a @Var@, recursively searches that @Vars@ name.
