@@ -634,31 +634,26 @@ resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
                                               , pc__
                                               , HS.singleton si
                                               , ng__)
-                                          | E.isSymbolic n1 eenv1
-                                          , E.isSymbolic n2 eenv2
-                                          , not (n1 `E.member` eenv2)
-                                          , not (n2 `E.member` eenv1) ->
-                                              let
-                                                  eenv = E.insert n2 v1 $ E.insert (idName i) v1 n_eenv_
-                                              in
-                                              ( eenv
-                                              , HM.empty
-                                              , []
-                                              , HS.empty
-                                              , ng_)
-                                          | E.isSymbolic n1 eenv1
-                                          , E.isSymbolic n2 eenv2 ->
-                                              let
-                                                  (e1, pc1', f_symb1, ng_') = arbDCCase tenv ng_ t
-                                                  (e2, pc2', f_symb2, ng_'') = arbDCCase tenv ng_' t
-                                                  (e_m, m_ns', pc'', f_symb3, ng_''') =
-                                                      newMergeExpr kv ng_'' m_id (HM.union m_ns_ r_m_ns_) eenv1 eenv2 e1 e2
-                                              in
-                                              ( E.insert n1 e1 . E.insert n2 e2 $ E.insert (idName i) e_m n_eenv_
-                                              , m_ns'
-                                              , pc' ++ pc2' ++ pc''
-                                              , f_symb1 `HS.union` f_symb2 `HS.union` f_symb3
-                                              , ng_''')
+                                          | E.isSymbolic n1 n_eenv_
+                                          , E.isSymbolic n2 n_eenv_ ->
+                                                ( E.insert n2 v1 $ E.insert (idName i) v1 n_eenv_
+                                                , HM.empty
+                                                , []
+                                                , HS.empty -- TODO?
+                                                , ng_)
+                                          -- | E.isSymbolic n1 eenv1
+                                          -- , E.isSymbolic n2 eenv2 ->
+                                          --     let
+                                          --         (e1, pc1', f_symb1, ng_') = arbDCCase tenv ng_ t
+                                          --         (e2, pc2', f_symb2, ng_'') = arbDCCase tenv ng_' t
+                                          --         (e_m, m_ns', pc'', f_symb3, ng_''') =
+                                          --             newMergeExpr kv ng_'' m_id (HM.union m_ns_ r_m_ns_) eenv1 eenv2 e1 e2
+                                          --     in
+                                          --     ( E.insert n1 e1 . E.insert n2 e2 $ E.insert (idName i) e_m n_eenv_
+                                          --     , m_ns'
+                                          --     , pc' ++ pc2' ++ pc''
+                                          --     , f_symb1 `HS.union` f_symb2 `HS.union` f_symb3
+                                          --     , ng_''')
                                           | otherwise ->
                                                   let
                                                       (e_, pc__, _, ng__) = newCaseExpr ng_ m_id v1 v2
