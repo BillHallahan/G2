@@ -416,7 +416,7 @@ executeAndSolveStates' mergeStates b s = do
             -- (res, _) <- runG2Post (red :<~ Logger "qq") hal' ((IncrAfterN 2000 SymbolicADTOrderer)
                                           -- :<-> BucketSizeOrderer 6) solver s b
                 ord = ToOrderer (IncrAfterN 2000 (ADTHeightOrderer 0 Nothing) :<-> BucketSizeOrderer 6)
-            (res, _) <- runG2Post (red :<~ mkCountAllSteps :<~ CountMerges {-:<~ LimLogger 10 700 [] "a_red"-}) hal' ord solver simplifier s b mergeStates
+            (res, _) <- runG2Post (red :<~ mkCountAllSteps :<~ CountMerges {- :<~ LimLogger 0 0 [2,2,2,2,2,2,2,1,2,2,1,2,1,2,2,1,2,1,2,2,2,1,2,1,2,1,1] "a_red" -}) hal' ord solver simplifier s b mergeStates
             -- (res, _) <- runG2Post (red) hal' (BucketSizeOrderer 3) solver s b
 
             case res of
