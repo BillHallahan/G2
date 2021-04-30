@@ -59,17 +59,17 @@ work work_fn merge_fn switch_to_fn order_fn (ix:ixs) ib = go (MergeGraph M.empty
                     , ord > min_ord -> do
                         -- putStrLn $ "switch = " ++ show ord
                         -- print (M.map (M.map length) $ merge_graph wg)
-                        let (wg', m_ord') = switch wg m_ord NotAtMerge ev_xs b'
-                        pickNew wg' m_ord' acc xs b'
+                        let wg' = switch wg NotAtMerge ev_xs b'
+                        pickNew wg' m_ord acc xs b'
                     | otherwise ->
                         case ev_xs ++ xs of
                             x':xs' -> go wg m_ord acc x' xs' b'
                             [] -> pickNew wg m_ord acc [] b'
                 Switch ->
                     let
-                        (wg', m_ord') = switch wg m_ord NotAtMerge ev_xs b'
+                        wg' = switch wg NotAtMerge ev_xs b'
                     in
-                    pickNew wg' m_ord' acc xs b'
+                    pickNew wg' m_ord acc xs b'
                 Split k ->
                     let
                         m_ord' = AtMerge k Seq.:<| m_ord -- m_ord Seq.:|> AtMerge k
@@ -79,17 +79,16 @@ work work_fn merge_fn switch_to_fn order_fn (ix:ixs) ib = go (MergeGraph M.empty
                         [] -> error "Reducer returned empty list"
                 Merge k -> do
                     -- putStrLn $ "merge = " ++ show k
-                    -- print (M.map (M.map length) $ merge_graph wg)
-                    let (wg', m_ord') = switch wg m_ord (AtMerge k) ev_xs b'
-                    pickNew wg' m_ord' acc xs b'
+                    let wg' = switch wg (AtMerge k) ev_xs b'
+                    pickNew wg' m_ord acc xs b'
 
-        switch wg m_ord am_k [] b = (wg, m_ord)
-        switch wg m_ord am_k xs b =
+        switch wg am_k [] b = wg
+        switch wg am_k xs b =
             let
                 ord = order_fn xs b
                 (prev, wg') = addToNodeLookup ord am_k xs wg
             in
-            (wg', m_ord)
+            wg'
 
         pickNew wg m_ord acc (x:xs) b =
             case switch_to_fn x b of
@@ -100,6 +99,8 @@ work work_fn merge_fn switch_to_fn order_fn (ix:ixs) ib = go (MergeGraph M.empty
                 (m_xs, b') <- case k of 
                                 NotAtMerge -> return (xs, b)
                                 AtMerge _ -> mergeList merge_fn b xs
+                -- putStrLn $ "ord xs = " ++ show (order_fn xs b)
+                -- putStrLn $ "ord m_xs = " ++ show (order_fn m_xs b)
                 let wg' = delete ord k wg
                 pickNew wg' m_ord acc m_xs b'
             | otherwise = return (acc, b)

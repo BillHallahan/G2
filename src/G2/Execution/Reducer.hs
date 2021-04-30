@@ -1175,11 +1175,9 @@ adtHeight' !h eenv (Var (Id n _))
     | otherwise = h
 adtHeight' !h eenv (Case (Var (Id _ TyLitInt)) _ as) =
     maximum $ h:map (adtHeight' h eenv . altExpr) as
-adtHeight' !h eenv e@(App _ _) =
-    let
-        _:es = unApp e 
-    in
-    maximum $ h:map (adtHeight' (h + 1) eenv) es
+adtHeight' !h eenv e
+    | Data _:es <- unApp e =
+        maximum $ h:map (adtHeight' (h + 1) eenv) es
 adtHeight' h _ _ = h
 
 -- Orders by the combined size of (previously) symbolic ADT.
@@ -1508,13 +1506,14 @@ runReducerMerge red hal simplifier s b = do
                      , order_val = () }
 
     putStrLn "runReducerMerge"
+    print (HS.map idName $ symbolic_ids s)
     (_, (_, _, _, b', pr')) <- MG.work
                                         runReducerMerge'
                                         mergeStates
                                         switchStates
                                         (\xs_ b_ -> maximum
                                                         (map (maxADTHeight (HS.map idName $ symbolic_ids s) . state) xs_)
-                                                    `quot` 2
+                                                    `quot` 4
                                         )
                                         -- (\xs_ b_ -> maximum (map (\s_ -> (num_steps $ state s_) `quot` 100) xs_))
                                         [s'] (red, hal, simplifier, b, pr)

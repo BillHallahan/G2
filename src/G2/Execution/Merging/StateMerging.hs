@@ -180,6 +180,7 @@ newMergeCurrExpr' :: ExprEnv
                   -> Expr
                   -> Expr
                   -> (Expr, MergedIds, ExprEnv, [PathCond], SymbolicIds, SymbolicIds, NameGen)
+-- newMergeCurrExpr' eenv1 eenv2 tenv kv ng symbs1 symbs2 m_id (Var _) (Var _) = undefined
 newMergeCurrExpr' eenv1 eenv2 tenv kv ng symbs1 symbs2 m_id e1 e2 =
     let
         (eenv, e1', pc1, symbs1', ng') = 
@@ -617,8 +618,10 @@ resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
                 foldr (\((n1, n2), i) (n_eenv_, m_ns_, r_m_ns_, pc_, symbs_, ng_) ->
                           let
                               t = typeOf i
-                              v1 = Var $ Id n1 t
-                              v2 = Var $ Id n2 t
+                              i1 = Id n1 t
+                              i2 = Id n2 t
+                              v1 = Var i1
+                              v2 = Var i2
 
                               (n_eenv_', r_m_ns_', pc_', symbs_', ng_') =
                                       if | E.isSymbolic n1 eenv1
@@ -632,14 +635,15 @@ resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
                                               ( E.insertSymbolic (idName si) si n_eenv_
                                               , HM.empty
                                               , pc__
-                                              , HS.singleton si
+                                              , HS.insert si symbs_
                                               , ng__)
                                           | E.isSymbolic n1 n_eenv_
-                                          , E.isSymbolic n2 n_eenv_ ->
+                                          , E.isSymbolic n2 n_eenv_
+                                          , not (n2 `E.member` eenv1) || not (n1 `E.member` eenv2) ->
                                                 ( E.insert n2 v1 $ E.insert (idName i) v1 n_eenv_
                                                 , HM.empty
                                                 , []
-                                                , HS.empty -- TODO?
+                                                , HS.delete i2 symbs_
                                                 , ng_)
                                           -- | E.isSymbolic n1 eenv1
                                           -- , E.isSymbolic n2 eenv2 ->
@@ -658,14 +662,14 @@ resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
                                                   let
                                                       (e_, pc__, _, ng__) = newCaseExpr ng_ m_id v1 v2
                                                   in
-                                                  (E.insert (idName i) e_ n_eenv_, HM.empty, pc__, HS.empty, ng__)
+                                                  (E.insert (idName i) e_ n_eenv_, HM.empty, pc__, symbs_, ng__)
 
                           in
                           ( n_eenv_'
                           , HM.union m_ns_ r_m_ns_'
                           , HM.union r_m_ns_ r_m_ns_'
                           , pc_ ++ pc_
-                          , HS.union symbs_ symbs_'
+                          , symbs_'
                           , ng_'))
                       (n_eenv, m_ns, HM.empty, [], symbs, ng)
                       (HM.toList r_m_ns)
