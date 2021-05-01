@@ -628,23 +628,37 @@ resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
                                          , E.isSymbolic n2 eenv2
                                          , isPrimType t ->
                                               let
-                                                  (si, ng__) = freshId t ng_
-                                                  pc__ = [ PC.mkAssumePC m_id 1 $ ExtCond (mkEqPrimExpr t kv (Var si) v1) True
-                                                         , PC.mkAssumePC m_id 2 $ ExtCond (mkEqPrimExpr t kv (Var si) v2) True ]
+                                                  pc__ = [ PC.mkAssumePC m_id 1 $ ExtCond (mkEqPrimExpr t kv (Var i) v1) True
+                                                         , PC.mkAssumePC m_id 2 $ ExtCond (mkEqPrimExpr t kv (Var i) v2) True ]
                                               in
-                                              ( E.insertSymbolic (idName si) si n_eenv_
+                                              ( E.insertSymbolic (idName i) i n_eenv_
                                               , HM.empty
                                               , pc__
-                                              , HS.insert si symbs_
-                                              , ng__)
+                                              , HS.insert i symbs_
+                                              , ng_)
                                           | E.isSymbolic n1 n_eenv_
                                           , E.isSymbolic n2 n_eenv_
-                                          , not (n2 `E.member` eenv1) || not (n1 `E.member` eenv2) ->
+                                          , not (n2 `E.member` eenv1) || not (n1 `E.member` eenv2) -> -- TODO: Check this?
                                                 ( E.insert n2 v1 $ E.insert (idName i) v1 n_eenv_
                                                 , HM.empty
                                                 , []
                                                 , HS.delete i2 symbs_
                                                 , ng_)
+                                          -- | Just e1 <- E.lookup n1 n_eenv_
+                                          -- , Just e2 <- E.lookup n2 n_eenv_
+                                          -- , isSMNF n_eenv_ e1
+                                          -- , isSMNF n_eenv_ e2
+                                          -- , not (isVar e1)
+                                          -- , not (isVar e2) ->
+                                          --       let
+                                          --           (e_m, f_m_ns, f_pc, f_symbs, f_ng) =
+                                          --               newMergeExpr kv ng_ m_id (HM.union m_ns_ r_m_ns_) undefined undefined e1 e2
+                                          --       in
+                                          --       ( E.insert (idName i) e_m n_eenv_
+                                          --       , f_m_ns
+                                          --       , f_pc
+                                          --       , HS.union f_symbs symbs_
+                                          --       , f_ng)
                                           -- | E.isSymbolic n1 eenv1
                                           -- , E.isSymbolic n2 eenv2 ->
                                           --     let
@@ -675,7 +689,9 @@ resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
                       (HM.toList r_m_ns)
         in
         resolveNewVariables' r_m_ns' (pc ++ pc') tenv kv ng' m_id m_ns' symbs' eenv1 eenv2 n_eenv'
-
+    where
+        isVar (Var _) = True
+        isVar _ = False
 ------------------------------------------------
 
 -- | Either (i) Inline var with value from ExprEnv (if any)

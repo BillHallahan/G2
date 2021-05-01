@@ -1513,7 +1513,7 @@ runReducerMerge red hal simplifier s b = do
                                         switchStates
                                         (\xs_ b_ -> maximum
                                                         (map (maxADTHeight (HS.map idName $ symbolic_ids s) . state) xs_)
-                                                    `quot` 4
+                                                    `quot` 2
                                         )
                                         -- (\xs_ b_ -> maximum (map (\s_ -> (num_steps $ state s_) `quot` 100) xs_))
                                         [s'] (red, hal, simplifier, b, pr)

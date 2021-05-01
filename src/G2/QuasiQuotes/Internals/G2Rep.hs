@@ -234,7 +234,7 @@ intPrimFromLit :: G2.Expr -> Int#
 intPrimFromLit (Lit (LitInt x)) =
     case fromInteger x of
         I# x' -> x'
-intPrimFromLit _ = error "intPrimFromLit: Unhandled Expr"
+intPrimFromLit e = error $ "intPrimFromLit: Unhandled Expr" ++ show e
 
 floatPrimFromLit :: G2.Expr -> Float#
 floatPrimFromLit (Lit (LitFloat x)) =
