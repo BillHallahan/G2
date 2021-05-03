@@ -483,15 +483,10 @@ newMergeExpr kv ng m_id m_ns eenv1 eenv2 e1 e2
     (mkApp $ d:es, m_ns', pc', symbs', ng')
 newMergeExpr kv ng m_id m_ns eenv1 eenv2 e1 e2@(Case (Var i2) b2 as2)
     | Data dc1:_ <- unApp e1
-    , isSMNFCase e2 = newMergeDataConCase kv ng eenv1 eenv2 m_id m_ns dc1 1 e1 i2 as2
+    , isSMNFCase e2 = newMergeDataConCase kv ng eenv1 eenv2 m_id m_ns dc1 e1 i2 as2
 newMergeExpr kv ng m_id m_ns eenv1 eenv2 e1@(Case (Var i1) b1 as1) e2
     | Data dc2:_ <- unApp e2
-    , isSMNFCase e1 = -- newMergeDataConCase kv ng eenv1 eenv2 m_id m_ns dc2 2 e2 i1 as1
-        let
-            as_info1 = (dc2, m_id, 2, e2)
-            as_info2 = map (smnfAltInfo b1) as1
-        in
-        newMergeIntoCase kv ng eenv1 eenv2 m_id m_ns $ as_info2 ++ [as_info1]
+    , isSMNFCase e1 = newMergeCaseDataCon kv ng eenv1 eenv2 m_id m_ns i1 as1 dc2 e2
 newMergeExpr kv ng m_id m_ns eenv1 eenv2 e1@(Case (Var i1) b1 as1) e2@(Case (Var i2) b2 as2) 
     | isSMNFCase e1
     , isSMNFCase e2 = newMergeCaseExprs kv ng eenv1 eenv2 m_id m_ns i1 as1 i2 as2
@@ -566,17 +561,34 @@ newMergeDataConCase :: KnownValues
                     -> MergeId
                     -> MergedIds
                     -> DataCon
-                    -> Integer -- ^ What integer value is required of the merge id?
                     -> Expr
-                    -> Id -- ^ Case 2 bindee variable id
-                    -> [Alt] -- ^ Case 2 Alts (with constructors in SMNF)
+                    -> Id -- ^ Case bindee variable id
+                    -> [Alt] -- ^ Case Alts (with constructors in SMNF)
                     -> (Expr, MergedIds, [PathCond], HS.HashSet Id, NameGen)
-newMergeDataConCase kv ng eenv1 eenv2 m_id m_ns dc i e bind2 as2 =
+newMergeDataConCase kv ng eenv1 eenv2 m_id m_ns dc e bind2 as2 =
     let
-        as_info1 = (dc, m_id, i, e)
+        as_info1 = (dc, m_id, 1, e)
         as_info2 = map (smnfAltInfo bind2) as2
     in
     newMergeIntoCase kv ng eenv1 eenv2 m_id m_ns $ as_info1:as_info2
+
+newMergeCaseDataCon :: KnownValues
+                    -> NameGen
+                    -> ExprEnv
+                    -> ExprEnv
+                    -> MergeId
+                    -> MergedIds
+                    -> Id -- ^ Case bindee variable id
+                    -> [Alt] -- ^ Case Alts (with constructors in SMNF)
+                    -> DataCon
+                    -> Expr
+                    -> (Expr, MergedIds, [PathCond], HS.HashSet Id, NameGen)
+newMergeCaseDataCon kv ng eenv1 eenv2 m_id m_ns bind1 as1 dc e =
+    let
+        as_info1 = map (smnfAltInfo bind1) as1
+        as_info2 = (dc, m_id, 2, e)
+    in
+    newMergeIntoCase kv ng eenv1 eenv2 m_id m_ns $ as_info1 ++ [as_info2]
 
 
 newMergeCaseExprs :: KnownValues
