@@ -54,6 +54,13 @@ isSubsequenceOf' a@(x:a') (y:b)
     | x == y    = isSubsequenceOf' a' b
     | otherwise = isSubsequenceOf' a b
 
+isSubsequenceOf2' :: (Eq a) => [a] -> [a] -> Bool
+isSubsequenceOf2' [] _ = True
+isSubsequenceOf2' _ [] = False
+isSubsequenceOf2' a@(x:a') (y:b)
+    | x == y    = isSubsequenceOf2' a' b
+    | otherwise = False
+
 isSubsequenceOfInt :: [Int] -> [Int] -> Bool
 isSubsequenceOfInt [] _ = True
 isSubsequenceOfInt _ [] = False
