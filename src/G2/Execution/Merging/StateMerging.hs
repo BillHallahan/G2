@@ -736,6 +736,35 @@ resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
                                                 , f_pc
                                                 , HS.union f_symbs symbs_
                                                 , f_ng)
+                                          | Just (Var (Id n1 _)) <- E.lookup n1 n_eenv_
+                                          , Just e2 <- E.lookup n2 n_eenv_
+                                          , isSMNF n_eenv_ e2
+                                          , E.isSymbolic n1 n_eenv_
+                                          , not (isVar e2) ->
+                                                let
+                                                    (e1, f_pc1, f_symbs1, ng') = arbDCCase tenv ng t
+                                                    (m_e, m_ns, pc, symbs, ng'') = newMergeExpr kv ng' m_id HM.empty undefined undefined e1 e2
+                                                in
+                                                ( E.insert n1 e1 $ E.insert (idName i) m_e n_eenv_
+                                                , m_ns
+                                                , f_pc1 ++ pc
+                                                , f_symbs1 `HS.union` symbs `HS.union` symbs_ 
+                                                , ng'')
+                                          | Just e1 <- E.lookup n1 n_eenv_
+                                          , Just (Var (Id n2 _)) <- E.lookup n2 n_eenv_
+                                          , isSMNF n_eenv_ e1
+                                          , not (isVar e1)
+                                          , E.isSymbolic n2 n_eenv_ ->
+                                                let
+                                                    (e2, f_pc2, f_symbs2, ng') = arbDCCase tenv ng t
+                                                    (m_e, m_ns, pc, symbs, ng'') = newMergeExpr kv ng' m_id HM.empty undefined undefined e1 e2
+                                                in
+                                                ( E.insert n2 e2 $ E.insert (idName i) m_e n_eenv_
+                                                , m_ns
+                                                , f_pc2 ++ pc
+                                                , f_symbs2 `HS.union` symbs `HS.union` symbs_ 
+                                                , ng'')
+
                                           -- | E.isSymbolic n1 eenv1
                                           -- , E.isSymbolic n2 eenv2 ->
                                           --     let
