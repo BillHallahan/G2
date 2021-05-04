@@ -721,21 +721,21 @@ resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
                                                 , []
                                                 , HS.delete i2 symbs_
                                                 , ng_)
-                                          -- | Just ve1@(Var (Id n1 _)) <- E.lookup n1 n_eenv_
-                                          -- , Just ve2@(Var (Id n2 _)) <- E.lookup n2 n_eenv_
-                                          -- , isSMNF n_eenv_ ve1
-                                          -- , isSMNF n_eenv_ ve2 ->
-                                          --     let
-                                          --         (e1, f_pc1, f_symbs1, ng_') = arbDCCase tenv ng_ t
-                                          --         (e2, f_pc2, f_symbs2, ng_'') = arbDCCase tenv ng_' t
+                                          | Just ve1@(Var (Id n1 _)) <- E.lookup n1 n_eenv_
+                                          , Just ve2@(Var (Id n2 _)) <- E.lookup n2 n_eenv_
+                                          , isSMNF n_eenv_ ve1
+                                          , isSMNF n_eenv_ ve2 ->
+                                              let
+                                                  (e1, f_pc1, f_symbs1, ng_') = arbDCCase tenv ng_ t
+                                                  (e2, f_pc2, f_symbs2, ng_'') = arbDCCase tenv ng_' t
 
-                                          --         (m_e, m_ns, m_pc, symbs, ng_''') = newMergeExpr kv ng_'' m_id HM.empty undefined undefined e1 e2
-                                          --     in
-                                          --     ( E.insert n1 e1 $ E.insert n2 e2 $ E.insert (idName i) m_e n_eenv_
-                                          --     , m_ns
-                                          --     , f_pc1 ++ f_pc2 ++ m_pc
-                                          --     , f_symbs1 `HS.union` f_symbs2 `HS.union` symbs_
-                                          --     , ng_''')
+                                                  (m_e, m_ns, m_pc, symbs, ng_''') = newMergeExpr kv ng_'' m_id HM.empty undefined undefined e1 e2
+                                              in
+                                              ( E.insert n1 e1 $ E.insert n2 e2 $ E.insert (idName i) m_e n_eenv_
+                                              , m_ns
+                                              , f_pc1 ++ f_pc2 ++ m_pc
+                                              , f_symbs1 `HS.union` f_symbs2 `HS.union` symbs_
+                                              , ng_''')
                                           | Just e1 <- E.lookup n1 n_eenv_
                                           , Just e2 <- E.lookup n2 n_eenv_
                                           , isSMNF n_eenv_ e1
