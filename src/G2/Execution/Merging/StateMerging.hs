@@ -726,8 +726,15 @@ resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
     | otherwise =
         let
             (n_eenv', m_ns', r_m_ns', pc', symbs', ng') =
-                foldr (\((n1, n2), i) (n_eenv_, m_ns_, r_m_ns_, pc_, symbs_, ng_) ->
+                foldr (\((m_n1, m_n2), i) (n_eenv_, m_ns_, r_m_ns_, pc_, symbs_, ng_) ->
                           let
+                              (n1, eenv_e1) = case E.deepLookupName m_n1 n_eenv_ of
+                                                Just ne -> ne
+                                                Nothing -> error "resolveNewVariables': expression not found"
+                              (n2, eenv_e2) = case E.deepLookupName m_n2 n_eenv_ of
+                                                Just ne -> ne
+                                                Nothing -> error "resolveNewVariables': expression not found"
+
                               t = typeOf i
                               i1 = Id n1 t
                               i2 = Id n2 t
@@ -747,17 +754,24 @@ resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
                                               , pc__
                                               , HS.insert i symbs_
                                               , ng_)
-                                          -- | E.isSymbolic n1 n_eenv_
-                                          -- , E.isSymbolic n2 n_eenv_
-                                          -- , not (n2 `E.member` eenv1)
-                                          -- , not (n1 `E.member` eenv2) -> -- TODO: Check this?
-                                          --       ( E.insert n2 v1 $ E.insert (idName i) v1 n_eenv_
-                                          --       , HM.empty
-                                          --       , []
-                                          --       , HS.delete i2 symbs_
-                                          --       , ng_)
-                                          | Just ve1@(Var (Id n1 _)) <- E.lookup n1 n_eenv_
-                                          , Just ve2@(Var (Id n2 _)) <- E.lookup n2 n_eenv_
+                                          | E.isSymbolic n1 n_eenv_
+                                          , E.isSymbolic n2 n_eenv_
+                                          , not (n1 `E.member` eenv2) ->
+                                                ( E.insert n2 v1 $ E.insert (idName i) v1 n_eenv_
+                                                , HM.empty
+                                                , []
+                                                , HS.delete i2 symbs_
+                                                , ng_)
+                                          | E.isSymbolic n1 n_eenv_
+                                          , E.isSymbolic n2 n_eenv_
+                                          , not (n2 `E.member` eenv1) -> -- TODO: Check this?
+                                                ( E.insert n1 v2 $ E.insert (idName i) v2 n_eenv_
+                                                , HM.empty
+                                                , []
+                                                , HS.delete i1 symbs_
+                                                , ng_)
+                                          | ve1@(Var (Id n1 _)) <- eenv_e1
+                                          , ve2@(Var (Id n2 _)) <- eenv_e2
                                           , isSMNF n_eenv_ ve1
                                           , isSMNF n_eenv_ ve2 ->
                                               let
@@ -771,8 +785,8 @@ resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
                                               , f_pc1 ++ f_pc2 ++ m_pc
                                               , f_symbs1 `HS.union` f_symbs2 `HS.union` symbs_
                                               , ng_''')
-                                          | Just e1 <- E.lookup n1 n_eenv_
-                                          , Just e2 <- E.lookup n2 n_eenv_
+                                          | e1 <- eenv_e1
+                                          , e2 <- eenv_e2
                                           , isSMNF n_eenv_ e1
                                           , isSMNF n_eenv_ e2
                                           , not (isVar e1)
@@ -786,8 +800,8 @@ resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
                                                 , f_pc
                                                 , HS.union f_symbs symbs_
                                                 , f_ng)
-                                          | Just (Var (Id n1 _)) <- E.lookup n1 n_eenv_
-                                          , Just e2 <- E.lookup n2 n_eenv_
+                                          | (Var (Id n1 _)) <- eenv_e1
+                                          , e2 <- eenv_e2
                                           , isSMNF n_eenv_ e2
                                           , E.isSymbolic n1 n_eenv_
                                           , not (isVar e2) ->
@@ -800,8 +814,8 @@ resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
                                                 , f_pc1 ++ pc
                                                 , f_symbs1 `HS.union` symbs `HS.union` symbs_ 
                                                 , ng_'')
-                                          | Just e1 <- E.lookup n1 n_eenv_
-                                          , Just (Var (Id n2 _)) <- E.lookup n2 n_eenv_
+                                          | e1 <- eenv_e1
+                                          , (Var (Id n2 _)) <- eenv_e2
                                           , isSMNF n_eenv_ e1
                                           , not (isVar e1)
                                           , E.isSymbolic n2 n_eenv_ ->

@@ -20,6 +20,7 @@ module G2.Language.ExprEnv
     , lookupConcOrSym
     , lookupEnvObj
     , deepLookup
+    , deepLookupName
     , isSymbolic
     , occLookup
     , lookupNameMod
@@ -173,13 +174,20 @@ lookupEnvObj n = M.lookup n . unwrapExprEnv
 -- If the name is bound to a @Var@, recursively searches that @Vars@ name.
 -- Returns `Nothing` if the `Name` is not in the `ExprEnv`.
 deepLookup :: Name -> ExprEnv -> Maybe Expr
-deepLookup n eenv@(ExprEnv smap) =
+deepLookup n = fmap snd . deepLookupName n
+
+-- | Lookup the `Expr` with the given `Name`.
+-- If the name is bound to a @Var@, recursively searches that @Vars@ name.
+-- Returns Just and the last name searched, if the name is bound in the ExprEnv
+-- Returns `Nothing` if the `Name` is not in the `ExprEnv`.
+deepLookupName :: Name -> ExprEnv -> Maybe (Name, Expr)
+deepLookupName n eenv@(ExprEnv smap) =
     case M.lookup n smap of
         Just (ExprObj _ expr) -> case expr of
-            (Var (Id n' _)) -> deepLookup n' eenv
-            e -> Just e
-        Just (RedirObj redir) -> deepLookup redir eenv
-        Just (SymbObj i) -> Just $ Var i
+            (Var (Id n' _)) -> deepLookupName n' eenv
+            e -> Just (n, e)
+        Just (RedirObj redir) -> deepLookupName redir eenv
+        Just (SymbObj i) -> Just $ (idName i, Var i)
         Nothing -> Nothing
 
 -- | Checks if the given `Name` belongs to a symbolic variable.
