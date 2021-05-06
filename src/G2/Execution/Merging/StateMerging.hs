@@ -178,6 +178,12 @@ newMergeCurrExpr' :: ExprEnv
                   -> Expr
                   -> Expr
                   -> (Expr, MergedIds, ExprEnv, ExprEnv, [PathCond], SymbolicIds, SymbolicIds, NameGen)
+newMergeCurrExpr' eenv1 eenv2 tenv kv ng symbs1 symbs2 m_id e1 e2
+    | isPrimType (typeOf e1) =
+        let
+            (m_e, m_ns, pc, symbs, ng') = newMergeExpr kv ng m_id HM.empty eenv1 eenv2 e1 e2
+        in
+        (m_e, m_ns, eenv1, eenv2, pc, symbs1 `HS.union` symbs, symbs2 `HS.union` symbs, ng')
 newMergeCurrExpr' eenv1 eenv2 tenv kv ng symbs1 symbs2 m_id (Var (Id n1 t)) (Var (Id n2 _)) =
     let
         (e1, f_pc1, f_symbs1, ng') = arbDCCase tenv ng t
@@ -429,7 +435,7 @@ arbDCCase tenv ng t
             e = createCaseExpr bindee_id apped_dcs
         in
         (e, pc, HS.insert bindee_id symbs, ng'')
-    | otherwise = error "arbDCCase: type not found"
+    | otherwise = error $ "arbDCCase: type not found\n" ++ show t
 
 nameToId :: Name -> ExprEnv -> Id
 nameToId n eenv
@@ -450,9 +456,16 @@ newMergeExpr :: KnownValues
              -> Expr
              -> Expr
              -> (Expr, MergedIds, [PathCond], HS.HashSet Id, NameGen)
-newMergeExpr _ ng m_id m_ns eenv1 eenv2 v@(Var (Id n1 t)) (Var (Id n2 _))
-    | n1 == n2 = (v, HM.empty, [], HS.empty, ng)
+newMergeExpr kv ng m_id m_ns eenv1 eenv2 v1@(Var (Id n1 t)) v2@(Var (Id n2 _))
+    | n1 == n2 = (v1, HM.empty, [], HS.empty, ng)
     | Just i <- HM.lookup (n1, n2) m_ns = (Var i, HM.empty, [], HS.empty, ng)
+    | isPrimType t = 
+        let
+            (i, ng') = freshId t ng
+            pc = [ PC.mkAssumePC m_id 1 $ ExtCond (mkEqPrimExpr t kv (Var i) v1) True
+                 , PC.mkAssumePC m_id 2 $ ExtCond (mkEqPrimExpr t kv (Var i) v2) True ]
+        in
+        (Var i , HM.empty, pc, HS.singleton i, ng')
     | otherwise =
         let
             (i, ng') = freshId t ng
@@ -465,6 +478,28 @@ newMergeExpr _ ng m_id m_ns eenv1 eenv2 v@(Var (Id n1 t)) (Var (Id n2 _))
 --             (n_e2, m_ns2, pc2, symb2, ng'') = newMergeExpr kv ng' m_id (HM.union m_ns m_ns1) e2 e2'
 --         in
 --         (App n_e1 n_e2, HM.union m_ns1 m_ns2, pc1 ++ pc2, symb1 `HS.union` symb2, ng'')
+newMergeExpr kv ng m_id m_ns _ _ v1@(Var (Id _ t)) l@(Lit _) =
+    let
+        (i, ng') = freshId t ng
+        pc = [ PC.mkAssumePC m_id 1 $ ExtCond (mkEqPrimExpr t kv (Var i) v1) True
+             , PC.mkAssumePC m_id 2 $ ExtCond (mkEqPrimExpr t kv (Var i) l) True ]
+    in
+    (Var i , HM.empty, pc, HS.singleton i, ng')
+newMergeExpr kv ng m_id m_ns _ _ l@(Lit _) v2@(Var (Id _ t)) =
+    let
+        (i, ng') = freshId t ng
+        pc = [ PC.mkAssumePC m_id 1 $ ExtCond (mkEqPrimExpr t kv (Var i) l) True
+             , PC.mkAssumePC m_id 2 $ ExtCond (mkEqPrimExpr t kv (Var i) v2) True ]
+    in
+    (Var i , HM.empty, pc, HS.singleton i, ng')
+newMergeExpr kv ng m_id m_ns _ _ l1@(Lit _) l2@(Lit _) =
+    let
+        t = typeOf l1
+        (i, ng') = freshId t ng
+        pc = [ PC.mkAssumePC m_id 1 $ ExtCond (mkEqPrimExpr t kv (Var i) l1) True
+             , PC.mkAssumePC m_id 2 $ ExtCond (mkEqPrimExpr t kv (Var i) l2) True ]
+    in
+    (Var i , HM.empty, pc, HS.singleton i, ng')
 newMergeExpr kv ng m_id m_ns eenv1 eenv2 e1 e2
     | d@(Data (DataCon n1 _)):es1 <- unApp e1
     , Data (DataCon n2 _):es2 <- unApp e2 
@@ -712,15 +747,15 @@ resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
                                               , pc__
                                               , HS.insert i symbs_
                                               , ng_)
-                                          | E.isSymbolic n1 n_eenv_
-                                          , E.isSymbolic n2 n_eenv_
-                                          , not (n2 `E.member` eenv1)
-                                          , not (n1 `E.member` eenv2) -> -- TODO: Check this?
-                                                ( E.insert n2 v1 $ E.insert (idName i) v1 n_eenv_
-                                                , HM.empty
-                                                , []
-                                                , HS.delete i2 symbs_
-                                                , ng_)
+                                          -- | E.isSymbolic n1 n_eenv_
+                                          -- , E.isSymbolic n2 n_eenv_
+                                          -- , not (n2 `E.member` eenv1)
+                                          -- , not (n1 `E.member` eenv2) -> -- TODO: Check this?
+                                          --       ( E.insert n2 v1 $ E.insert (idName i) v1 n_eenv_
+                                          --       , HM.empty
+                                          --       , []
+                                          --       , HS.delete i2 symbs_
+                                          --       , ng_)
                                           | Just ve1@(Var (Id n1 _)) <- E.lookup n1 n_eenv_
                                           , Just ve2@(Var (Id n2 _)) <- E.lookup n2 n_eenv_
                                           , isSMNF n_eenv_ ve1
