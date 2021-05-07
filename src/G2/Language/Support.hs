@@ -56,8 +56,6 @@ data GenState pc t = State { expr_env :: E.ExprEnv
                            , exec_stack :: Stack Frame
                            , model :: Model
                            , known_values :: KnownValues
-                           , cases :: M.Map Id Int -- ^ Record number of pending merges for each Case Expr
-                           , ready_to_merge :: Bool
                            , rules :: ![Rule]
                            , num_steps :: !Int -- Invariant: The length of the rules list
                            , tags :: S.HashSet Name -- ^ Allows attaching tags to a State, to identify it later
@@ -168,8 +166,6 @@ renameState old new_seed s b =
              , exec_stack = exec_stack s
              , model = model s
              , known_values = rename old new (known_values s)
-             , cases = rename old new (cases s)
-             , ready_to_merge = ready_to_merge s
              , rules = rules s
              , num_steps = num_steps s
              , track = rename old new (track s)
@@ -187,7 +183,6 @@ instance Named t => Named (State t) where
             ++ names (exec_stack s)
             ++ names (model s)
             ++ names (known_values s)
-            ++ names (cases s)
             ++ names (track s)
 
     rename old new s =
@@ -205,8 +200,6 @@ instance Named t => Named (State t) where
                , exec_stack = rename old new (exec_stack s)
                , model = rename old new (model s)
                , known_values = rename old new (known_values s)
-               , cases = M.mapKeys (\k@(Id n t) -> if n == old then (Id new t) else k) (cases s)
-               , ready_to_merge = ready_to_merge s
                , rules = rules s
                , num_steps = num_steps s
                , track = rename old new (track s)
@@ -227,8 +220,6 @@ instance Named t => Named (State t) where
                , exec_stack = renames hm (exec_stack s)
                , model = renames hm (model s)
                , known_values = renames hm (known_values s)
-               , cases = M.mapKeys (renames hm) (cases s)
-               , ready_to_merge = ready_to_merge s
                , rules = rules s
                , num_steps = num_steps s
                , track = renames hm (track s)
@@ -262,7 +253,6 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                       ((containedASTs . type_classes) s) ++
                       ((containedASTs . symbolic_ids) s) ++
                       ((containedASTs . exec_stack) s) ++
-                      ((containedASTs . cases) s) ++
                       (containedASTs $ track s)
 
     modifyContainedASTs f s = s { type_env  = (modifyContainedASTs f . type_env) s
@@ -273,7 +263,6 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                                 , type_classes = (modifyContainedASTs f . type_classes) s
                                 , symbolic_ids = (modifyContainedASTs f . symbolic_ids) s
                                 , exec_stack = (modifyContainedASTs f . exec_stack) s
-                                , cases = (modifyContainedASTs f . cases) s
                                 , track = modifyContainedASTs f $ track s }
 
 instance Named Bindings where
@@ -294,6 +283,7 @@ instance Named Bindings where
                  , rewrite_rules = rename old new (rewrite_rules b)
                  , name_gen = name_gen b
                  , exported_funcs = rename old new (exported_funcs b)
+                 , last_merge_point = last_merge_point b
                  }
 
     renames hm b =
@@ -306,6 +296,7 @@ instance Named Bindings where
                , rewrite_rules = renames hm (rewrite_rules b)
                , name_gen = name_gen b
                , exported_funcs = renames hm (exported_funcs b)
+               , last_merge_point = last_merge_point b
                }
 
 instance ASTContainer Bindings Expr where

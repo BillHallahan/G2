@@ -74,7 +74,7 @@ stdReduce' _ _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
     | isError ce
     , Just (_, stck') <- S.pop stck = returnWithMP (RuleError, [s { exec_stack = stck' }], ng)
     | Just (MergePtFrame i, stck') <- frstck = do
-        returnWithMP (RuleHitMergePt, [s {exec_stack = stck', ready_to_merge = True}], ng)
+        returnWithMP (RuleHitMergePt, [s {exec_stack = stck'}], ng)
     | Just (UpdateFrame n, stck') <- frstck = returnWithMP $ retUpdateFrame s ng n stck'
     | Just rs <- retReplaceSymbFunc s ng ce = returnWithMP rs
     | Just (CaseFrame i a, stck') <- frstck = returnWithMP $ retCaseFrame s ng ce i a stck'

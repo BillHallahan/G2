@@ -32,7 +32,6 @@ import CaseTest
 import Expr
 import Simplifications
 import Typing
-import MergeStateUnitTests
 import UnionFindTests
 import UFMapTests
 
@@ -547,7 +546,7 @@ testFileTests = testGroup "TestFiles"
     , checkExpr "tests/TestFiles/Expr.hs" 400 "leadingLams" 2 [AtLeast 5, RForAll (\[_, y] -> noUndefined y)]
 
 
-    , checkExprAssume "tests/TestFiles/Subseq.hs" 600 (Just "assume") "subseqTest" 2 [AtLeast 1]
+    , checkExprAssume "tests/TestFiles/Subseq.hs" 1200 (Just "assume") "subseqTest" 2 [AtLeast 1]
 
     , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "con" 300 3 [AtLeast 10]
     , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "eq" 700 3 [AtLeast 10]
@@ -647,14 +646,6 @@ todoTests = testGroup "To Do"
     , checkInputOutput "tests/Prim/Prim3.hs" "Prim3" "float2IntTest" 1000 2 [AtLeast 1]
     , checkInputOutput "tests/Prim/Prim3.hs" "Prim3" "double2IntTest" 1000 2 [AtLeast 1]
     ]
-
--- | Tests for specific functions - mergeExpr, checkRelAssume, solveRelAssume
-mergeStateUnitTests :: IO TestTree
-mergeStateUnitTests =
-    return . testGroup "Unit Tests"
-        =<< sequence [
-               checkFn mergeCurrExprTests "mergeCurrExpr Test"
-            ]
 
 data ToDo = RunMain
           | RunToDo

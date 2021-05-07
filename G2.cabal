@@ -328,7 +328,6 @@ test-suite test
                        , GetNthTest
                        , HigherOrderMathTest
                        , InputOutputTest
-                       , MergeStateUnitTests
                        , PeanoTest
                        , Reqs
                        , Simplifications

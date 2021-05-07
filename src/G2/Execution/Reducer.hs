@@ -392,9 +392,7 @@ instance (Solver solver, Simplifier simplifier) => Reducer (StdRed solver simpli
         (r, s', b') <- stdReduce share mergeStates solver simplifier s b
         let res = case r of
                     RuleHitMergePt -> MergePoint
-                    RuleEvalCaseSym i
-                        | M.findWithDefault 0 i (cases s) >= maxDepth -> MaxDepth
-                        | otherwise -> Split
+                    RuleEvalCaseSym _ -> Split
                     RuleMaxDepth -> MaxDepth
                     RuleIdentity -> Finished
                     _ -> InProgress
@@ -1612,14 +1610,14 @@ mergeStates :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplif
             -> (r, h, simplifier, Bindings, Processed (ExState rv hv sov t))
             -> IO (Maybe (ExState rv hv sov t), (r, h, simplifier, Bindings, Processed (ExState rv hv sov t)))
 mergeStates ex1 ex2 (r, h, smplfr, b, pr) = do
-    let res = mergeState (name_gen b) smplfr (state ex1) (state ex2)
+    let res = mergeState b smplfr (state ex1) (state ex2)
     case res of
-        (ng', Just s') -> do
+        Just (b', s') -> do
             f_rv <- onMerge r (state ex1) (state ex2) (reducer_val ex1) (reducer_val ex2)
             return (Just ex1 { state = s'
                              , reducer_val = f_rv }
-                   , (r, h, smplfr, b {name_gen = ng'}, pr)) -- todo: which reducer_val and halter_val to keep
-        (ng', Nothing) -> return (Nothing, (r, h, smplfr, b {name_gen = ng'}, pr))
+                   , (r, h, smplfr, b', pr)) -- todo: which reducer_val and halter_val to keep
+        Nothing -> return (Nothing, (r, h, smplfr, b, pr))
 
 switchStates :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
             => ExState rv hv sov t
