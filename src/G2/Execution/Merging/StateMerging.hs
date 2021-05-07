@@ -670,6 +670,7 @@ resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
                                               , ng_)
                                           | E.isSymbolic n1 n_eenv_
                                           , E.isSymbolic n2 n_eenv_
+                                          , n1 `E.member` eenv1
                                           , not (n1 `E.member` eenv2) ->
                                                 ( E.insert n2 v1 $ E.insert (idName i) v1 n_eenv_
                                                 , HM.empty
@@ -678,6 +679,7 @@ resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
                                                 , ng_)
                                           | E.isSymbolic n1 n_eenv_
                                           , E.isSymbolic n2 n_eenv_
+                                          , n2 `E.member` eenv2
                                           , not (n2 `E.member` eenv1) -> -- TODO: Check this?
                                                 ( E.insert n1 v2 $ E.insert (idName i) v2 n_eenv_
                                                 , HM.empty
