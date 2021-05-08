@@ -81,32 +81,35 @@ mergeState b@(Bindings { name_gen = ng }) simplifier s1 s2 =
             let (newId, ng') = freshMergeId TyLitInt ng
                 ctxt = emptyContext s1 s2 ng' newId
                 (curr_expr', m_ns, ctxt') = newMergeCurrExprCxt ctxt
-                -- m_ns = HM.empty
-                -- (ctxt', curr_expr') = mergeCurrExpr ctxt
+
                 (eenv', ctxt'') = newMergeExprEnvCxt ctxt' m_ns
-                -- (ctxt'', eenv') = mergeExprEnv ctxt'
+
                 (ctxt''', path_conds') = mergePathConds simplifier ctxt''
+
                 syms' = mergeSymbolicIds ctxt'''
+
                 s1' = s1_ ctxt'''
                 ng'' = ng_ ctxt'''
+
+                m_b = b { name_gen = ng'' }
+                m_s = State { expr_env = eenv'
+                            , type_env = type_env s1'
+                            , curr_expr = curr_expr'
+                            , path_conds = path_conds'
+                            , non_red_path_conds = non_red_path_conds s1'
+                            , true_assert = true_assert s1'
+                            , assert_ids = assert_ids s1'
+                            , type_classes = type_classes s1'
+                            , symbolic_ids = syms'
+                            , exec_stack = exec_stack s1'
+                            , model = model s1'
+                            , known_values = known_values s1'
+                            , rules = rules s1'
+                            , num_steps = max (num_steps s1) (num_steps s2)
+                            , track = track s1'
+                            , tags = tags s1' }
             in
-            Just (b { name_gen = ng'' }
-                 , (State { expr_env = eenv'
-                          , type_env = type_env s1'
-                          , curr_expr = curr_expr'
-                          , path_conds = path_conds'
-                          , non_red_path_conds = non_red_path_conds s1'
-                          , true_assert = true_assert s1'
-                          , assert_ids = assert_ids s1'
-                          , type_classes = type_classes s1'
-                          , symbolic_ids = syms'
-                          , exec_stack = exec_stack s1'
-                          , model = model s1'
-                          , known_values = known_values s1'
-                          , rules = rules s1'
-                          , num_steps = max (num_steps s1) (num_steps s2)
-                          , track = track s1'
-                          , tags = tags s1' }))
+            Just (m_b, m_s)
         else Nothing
 
 newMergeCurrExprCxt :: Context t -> (CurrExpr, MergedIds, Context t)
@@ -797,22 +800,6 @@ concretizeSym bi maybeC (s, ng) dc@(DataCon n ts) =
         eenv = foldr (uncurry E.insertSymbolic) (expr_env s) $ zip (map idName newParams) newParams
         syms = foldr HS.insert (symbolic_ids s) newParams
     in ((s {expr_env = eenv, symbolic_ids = syms} , ng'), dc''')
-
-
-type Conds = [(Id, Integer)]
-
-
-
--- Given list of (Id, Int) pairs, creates Expr equivalent to Conjunctive Normal Form of (Id == Int) values
-condsToExpr :: KnownValues -> Conds -> Expr
-condsToExpr kv c =
-    let es = map (\(i, num) -> mkEqExpr kv (Var i) (Lit $ LitInt num)) c
-    in cnf kv es
-
--- Given an `ExtCond e b`, and an `Id`, `Int` pair, modifies `e` to (NOT (Id == Int)) OR e
-impliesPC :: KnownValues -> Id -> Integer -> PathCond -> PathCond
-impliesPC kv newId num (ExtCond e b) = implies kv newId num e b
-impliesPC _ _ _ pc = error $ "Can only add clause to ExtCond. Got: " ++ (show pc)
 
 -- Given an Expr `e`, and an `Id`, `Int` pair, returns `ExtCond ((NOT (Id == Int)) OR e) True`
 implies :: KnownValues -> Id -> Integer -> Expr -> Bool -> PathCond
