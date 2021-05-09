@@ -37,7 +37,7 @@ work :: (Show ord, Show k, Ord ord, Ord k)
      => (s -> b -> IO ([s], b, Status k)) -- ^ Work function
      -> (s -> s -> b -> IO (Maybe s, b)) -- ^ Merge function
      -> (s -> b -> Maybe (s, b)) -- ^ Switched to function
-     -> ([s] -> b -> ord) -- ^ Ordering function- states with lower orders get processed first
+     -> ([s] -> b -> (ord, [s])) -- ^ Ordering function- states with lower orders get processed first
      -> [s]
      -> b
      -> IO ([s], b)
@@ -54,17 +54,18 @@ work work_fn merge_fn switch_to_fn order_fn (ix:ixs) ib = go (MergeGraph M.empty
                 Discard -> pickNew wg m_ord acc xs b'
                 KeepWorking
                     | not (null ev_xs)
-                    , ord <- order_fn ev_xs b'
                     , Just (min_ord, _) <- lookupMinOrd wg
                     , ord > min_ord -> do
                         -- putStrLn $ "switch = " ++ show ord
                         -- print (M.map (M.map length) $ merge_graph wg)
-                        let wg' = switch wg NotAtMerge ev_xs b'
+                        let wg' = switch wg NotAtMerge ev_xs' b'
                         pickNew wg' m_ord acc xs b'
                     | otherwise ->
-                        case ev_xs ++ xs of
+                        case ev_xs' ++ xs of
                             x':xs' -> go wg m_ord acc x' xs' b'
                             [] -> pickNew wg m_ord acc [] b'
+                    where
+                        (ord, ev_xs') = order_fn ev_xs b'
                 Switch ->
                     let
                         wg' = switch wg NotAtMerge ev_xs b'
@@ -85,8 +86,8 @@ work work_fn merge_fn switch_to_fn order_fn (ix:ixs) ib = go (MergeGraph M.empty
         switch wg am_k [] b = wg
         switch wg am_k xs b =
             let
-                ord = order_fn xs b
-                (prev, wg') = addToNodeLookup ord am_k xs wg
+                (ord, xs') = order_fn xs b
+                (prev, wg') = addToNodeLookup ord am_k xs' wg
             in
             wg'
 

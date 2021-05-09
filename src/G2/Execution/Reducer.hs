@@ -1501,7 +1501,7 @@ runReducerMerge red hal simplifier s b = do
         s' = ExState { state = s
                      , halter_val = initHalt hal s
                      , reducer_val = initReducer red s
-                     , order_val = () }
+                     , order_val = (0, 0) }
 
     putStrLn "runReducerMerge"
     print (HS.map idName $ symbolic_ids s)
@@ -1509,10 +1509,7 @@ runReducerMerge red hal simplifier s b = do
                                         runReducerMerge'
                                         mergeStates
                                         switchStates
-                                        (\xs_ b_ -> maximum
-                                                        (map (maxADTHeight (HS.map idName $ symbolic_ids s) . state) xs_)
-                                                    `quot` 2
-                                        )
+                                        (updateOrdererEvery 10 (adtHeightOrderer (symbolic_ids s)))
                                         -- (\xs_ b_ -> maximum (map (\s_ -> (num_steps $ state s_) `quot` 100) xs_))
                                         [s'] (red, hal, simplifier, b, pr)
 
@@ -1554,6 +1551,28 @@ topMerge :: State t -> MergePoint
 topMerge s = case Stck.pop (exec_stack s) of
                 Just (MergePtFrame mp, _) -> mp
                 _ -> error "topMerge: Bad frame in stack."
+
+adtHeightOrderer :: SymbolicIds -> [ExState rv hv sov t] -> b -> (Int, [ExState rv hv sov t])
+adtHeightOrderer symbs xs _ =
+    let
+        m = maximum (map (maxADTHeight (HS.map idName symbs) . state) xs) `quot` 2
+    in
+    (m, xs)
+
+updateOrdererEvery :: Int -> ([ExState rv hv (Int, Int) t] -> b -> (Int, [ExState rv hv (Int, Int) t]))
+                          ->  [ExState rv hv (Int, Int) t] -> b -> (Int, [ExState rv hv (Int, Int) t])
+updateOrdererEvery n ord_f [] b = (0, [])
+updateOrdererEvery n ord_f ex_s b =
+    let
+        m_up = maximum $ map (fst . order_val) ex_s
+        m_curr = maximum $ map (snd . order_val) ex_s
+
+        (m_next, m_exs_s) = ord_f ex_s b
+    in
+    if m_up > n
+        then
+            (m_next, map (\s -> s { order_val = (0, m_next)}) m_exs_s)
+        else (m_curr, map (\s -> s { order_val = (m_up + 1, m_curr)}) ex_s)
 
 -- runReducerMerge2 :: (Show t, Eq t, Named t, Reducer r rv t, Halter h hv t, Simplifier simplifier)
 --                  => r -> h -> simplifier -> State t -> Bindings
