@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
 
 module G2.Execution.Memory 
@@ -7,6 +8,7 @@ module G2.Execution.Memory
   , markAndSweep
   , markAndSweepIgnoringKnownValues
   , markAndSweepPreserving
+  , markAndSweepExprEnv
   ) where
 
 import G2.Language.Syntax
@@ -87,9 +89,8 @@ markAndSweepPreserving' mc (state@State { expr_env = eenv
 
     dsw' = M.filterWithKey (\n _ -> isActive n) dsw
 
-    higher_ord_eenv = E.filterWithKey (\n _ -> n `S.member` inst) eenv
-    higher_ord = nubBy (.::.) $ argTypesTEnv tenv ++ E.higherOrderExprs higher_ord_eenv
-    higher_ord_rel = E.keys $ E.filter (\e -> any (e .::) higher_ord) higher_ord_eenv
+    higher_ord_rel = higherOrderNames inst tenv eenv
+
 
 activeNames :: TypeEnv -> ExprEnv -> S.HashSet Name -> [Name] -> S.HashSet Name
 activeNames _ _ explored [] = explored
@@ -107,3 +108,57 @@ activeNames tenv eenv explored (n:ns) =
         Just r -> names r
     ns' = tenv_hits ++ eenv_hits ++ ns
 
+higherOrderNames :: S.HashSet Name -> TypeEnv -> ExprEnv -> [Name]
+higherOrderNames inst tenv eenv =
+    let
+        higher_ord_eenv = E.filterWithKey (\n _ -> n `S.member` inst) eenv
+        higher_ord = nubBy (.::.) $ argTypesTEnv tenv ++ E.higherOrderExprs higher_ord_eenv
+        higher_ord_rel = E.keys $ E.filter (\e -> any (e .::) higher_ord) higher_ord_eenv
+    in
+    higher_ord_rel
+
+markAndSweepExprEnv :: MemConfig -> State t -> Bindings -> State t
+markAndSweepExprEnv mc state@(State { expr_env = eenv
+                                    , type_env = tenv
+                                    , curr_expr = cexpr
+                                    , path_conds = pc
+                                    , symbolic_ids = iids
+                                    , exec_stack = es})
+                       (bindings@Bindings { higher_order_inst = inst }) = state { expr_env = eenv' }
+  where
+    active = activeExprNames (E.redirsToExprs eenv) S.empty $ S.toList
+                                                                  (getFuncs cexpr `mappend`
+                                                                   getFuncs es `mappend`
+                                                                   getFuncs pc) ++
+                                                              names iids ++
+                                                              higher_ord_rel ++
+                                                              search_names mc
+
+    active' = S.union (pres_func mc state bindings active) active
+
+    isActive :: Name -> Bool
+    isActive = (flip S.member) active'
+
+    eenv' = E.filterWithKey (\n _ -> isActive n) eenv
+
+    higher_ord_rel = higherOrderNames inst tenv eenv
+
+activeExprNames :: ExprEnv -> S.HashSet Name -> [Name] -> S.HashSet Name
+activeExprNames _ explored [] = explored
+activeExprNames eenv explored (n:ns) =
+    if S.member n explored
+      then activeExprNames eenv explored ns
+      else activeExprNames eenv explored' ns'
+  where
+    explored' = S.insert n explored
+    eenv_hits = case E.lookup n eenv of
+        Nothing -> []
+        Just r -> S.toList $ getFuncs r
+    ns' = eenv_hits ++ ns
+
+getFuncs :: ASTContainer m Expr => m -> S.HashSet Name
+getFuncs = evalASTs getFuncs'
+
+getFuncs' :: Expr -> S.HashSet Name
+getFuncs' (Var (Id n _)) = S.singleton n
+getFuncs' _ = S.empty
