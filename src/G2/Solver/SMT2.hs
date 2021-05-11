@@ -363,6 +363,7 @@ functionList f xs = "(" ++ f ++ " " ++ (intercalate " " xs) ++ ")"
 function1 :: String -> String -> String
 function1 f a = "(" ++ f ++ " " ++ a ++ ")"
 
+{-# INLINE function2 #-}
 function2 :: String -> String -> String -> String
 function2 f a b = "(" ++ f ++ " " ++ a ++ " " ++ b ++ ")"
 
