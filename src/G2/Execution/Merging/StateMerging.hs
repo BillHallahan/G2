@@ -61,7 +61,6 @@ data Context t = Context { s1_ :: State t
                          , ng_ :: NameGen
                          , newId_ :: MergeId -- `newId` is set to 1 or 2 in an AssumePC/ Case Expr when merging values from `s1_` or `s2_` respectively
                          , newPCs_ :: [PathCond]
-                         , newSyms_ :: SymbolicIds -- Newly added symbolic variables when merging Exprs
                          }
 
 type MergedIds = HM.HashMap (Name, Name) Id
@@ -71,8 +70,7 @@ emptyContext s1 s2 ng newId = Context { s1_ = s1
                                       , s2_ = s2
                                       , ng_ = ng
                                       , newId_ = newId
-                                      , newPCs_ = []
-                                      , newSyms_ = HS.empty}
+                                      , newPCs_ = []}
 
 mergeState :: (Eq t, Named t, Simplifier simplifier) => Bindings -> simplifier -> State t -> State t -> Maybe (Bindings, State t)
 mergeState b@(Bindings { name_gen = ng }) simplifier s1 s2 =
@@ -408,13 +406,6 @@ newMergeExpr kv ng m_id m_ns eenv1 eenv2 v1@(Var (Id n1 t)) v2@(Var (Id n2 _))
             (i, ng') = freshId t ng
         in
         (Var i, HM.singleton (n1, n2) i, [], HS.empty, ng')
--- newMergeExpr kv ng m_id m_ns a1@(App e1 e2) a2@(App e1' e2')
---     | typeOf e1 .::. typeOf e1' && typeOf e2 .::. typeOf e2' =
---         let
---             (n_e1, m_ns1, pc1, symb1, ng') = newMergeExpr kv ng m_id m_ns e1 e1'
---             (n_e2, m_ns2, pc2, symb2, ng'') = newMergeExpr kv ng' m_id (HM.union m_ns m_ns1) e2 e2'
---         in
---         (App n_e1 n_e2, HM.union m_ns1 m_ns2, pc1 ++ pc2, symb1 `HS.union` symb2, ng'')
 newMergeExpr kv ng m_id m_ns _ _ v1@(Var (Id _ t)) l@(Lit _) =
     let
         (i, ng') = freshId t ng
@@ -683,27 +674,12 @@ resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
                                           | E.isSymbolic n1 n_eenv_
                                           , E.isSymbolic n2 n_eenv_
                                           , n2 `E.member` eenv2
-                                          , not (n2 `E.member` eenv1) -> -- TODO: Check this?
+                                          , not (n2 `E.member` eenv1) ->
                                                 ( E.insert n1 v2 $ E.insert (idName i) v2 n_eenv_
                                                 , HM.empty
                                                 , []
                                                 , HS.delete i1 symbs_
                                                 , ng_)
-                                          -- | ve1@(Var (Id n1 _)) <- eenv_e1
-                                          -- , ve2@(Var (Id n2 _)) <- eenv_e2
-                                          -- , isSMNF n_eenv_ ve1
-                                          -- , isSMNF n_eenv_ ve2 ->
-                                          --     let
-                                          --         (e1, f_pc1, f_symbs1, ng_') = arbDCCase tenv ng_ t
-                                          --         (e2, f_pc2, f_symbs2, ng_'') = arbDCCase tenv ng_' t
-
-                                          --         (m_e, m_ns, m_pc, symbs, ng_''') = newMergeExpr kv ng_'' m_id HM.empty undefined undefined e1 e2
-                                          --     in
-                                          --     ( E.insert n1 e1 $ E.insert n2 e2 $ E.insert (idName i) m_e n_eenv_
-                                          --     , m_ns
-                                          --     , f_pc1 ++ f_pc2 ++ m_pc
-                                          --     , f_symbs1 `HS.union` f_symbs2 `HS.union` symbs_
-                                          --     , ng_''')
                                           | e1 <- eenv_e1
                                           , e2 <- eenv_e2
                                           , isSMNF n_eenv_ e1
@@ -712,7 +688,7 @@ resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
                                           , not (isVar e2) ->
                                                 let
                                                     (e_m, f_m_ns, f_pc, f_symbs, f_ng) =
-                                                        newMergeExpr kv ng_ m_id (HM.union m_ns_ r_m_ns_) undefined undefined e1 e2
+                                                        newMergeExpr kv ng_ m_id (HM.union m_ns_ r_m_ns_) eenv1 eenv2 e1 e2
                                                 in
                                                 ( E.insert (idName i) e_m n_eenv_
                                                 , f_m_ns
@@ -726,7 +702,7 @@ resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
                                           , not (isVar e2) ->
                                                 let
                                                     (e1, f_pc1, f_symbs1, ng_') = arbDCCase tenv ng_ t
-                                                    (m_e, m_ns, pc, symbs, ng_'') = newMergeExpr kv ng_' m_id HM.empty undefined undefined e1 e2
+                                                    (m_e, m_ns, pc, symbs, ng_'') = newMergeExpr kv ng_' m_id HM.empty eenv1 eenv2 e1 e2
                                                 in
                                                 ( E.insert n1 e1 $ E.insert (idName i) m_e n_eenv_
                                                 , m_ns
@@ -740,27 +716,13 @@ resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
                                           , E.isSymbolic n2 n_eenv_ ->
                                                 let
                                                     (e2, f_pc2, f_symbs2, ng_') = arbDCCase tenv ng_ t
-                                                    (m_e, m_ns, pc, symbs, ng_'') = newMergeExpr kv ng_' m_id HM.empty undefined undefined e1 e2
+                                                    (m_e, m_ns, pc, symbs, ng_'') = newMergeExpr kv ng_' m_id HM.empty eenv1 eenv2 e1 e2
                                                 in
                                                 ( E.insert n2 e2 $ E.insert (idName i) m_e n_eenv_
                                                 , m_ns
                                                 , f_pc2 ++ pc
                                                 , f_symbs2 `HS.union` symbs `HS.union` symbs_ 
                                                 , ng_'')
-
-                                          -- | E.isSymbolic n1 eenv1
-                                          -- , E.isSymbolic n2 eenv2 ->
-                                          --     let
-                                          --         (e1, pc1', f_symb1, ng_') = arbDCCase tenv ng_ t
-                                          --         (e2, pc2', f_symb2, ng_'') = arbDCCase tenv ng_' t
-                                          --         (e_m, m_ns', pc'', f_symb3, ng_''') =
-                                          --             newMergeExpr kv ng_'' m_id (HM.union m_ns_ r_m_ns_) eenv1 eenv2 e1 e2
-                                          --     in
-                                          --     ( E.insert n1 e1 . E.insert n2 e2 $ E.insert (idName i) e_m n_eenv_
-                                          --     , m_ns'
-                                          --     , pc' ++ pc2' ++ pc''
-                                          --     , f_symb1 `HS.union` f_symb2 `HS.union` f_symb3
-                                          --     , ng_''')
                                           | otherwise ->
                                                   let
                                                       (e_, pc__, _, ng__) = newCaseExpr ng_ m_id v1 v2
@@ -825,9 +787,9 @@ bindExprToNum f es = L.mapAccumL (\num e -> (num + 1, f num e)) 1 es
 
 mergeSymbolicIds :: Context t -> SymbolicIds
 mergeSymbolicIds (Context { s1_ = (State {symbolic_ids = syms1}), s2_ = (State {symbolic_ids = syms2})
-                          , newSyms_ = syms3, newId_ = newId}) =
+                          , newId_ = newId}) =
     let
-        syms' = HS.unions [syms1, syms2, syms3]
+        syms' = syms1 `HS.union` syms2
         syms'' = HS.insert newId syms'
     in syms''
 
