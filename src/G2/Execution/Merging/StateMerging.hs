@@ -647,10 +647,10 @@ resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
                           let
                               (n1, eenv_e1) = case E.deepLookupName m_n1 n_eenv_ of
                                                 Just ne -> ne
-                                                Nothing -> error "resolveNewVariables': expression not found"
+                                                Nothing -> error $ "resolveNewVariables': expression for 1 not found\n" ++ show m_n1
                               (n2, eenv_e2) = case E.deepLookupName m_n2 n_eenv_ of
                                                 Just ne -> ne
-                                                Nothing -> error "resolveNewVariables': expression not found"
+                                                Nothing -> error $ "resolveNewVariables': expression for 2 not found\n" ++ show m_n2
 
                               t = typeOf i
                               i1 = Id n1 t
@@ -689,21 +689,21 @@ resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
                                                 , []
                                                 , HS.delete i1 symbs_
                                                 , ng_)
-                                          | ve1@(Var (Id n1 _)) <- eenv_e1
-                                          , ve2@(Var (Id n2 _)) <- eenv_e2
-                                          , isSMNF n_eenv_ ve1
-                                          , isSMNF n_eenv_ ve2 ->
-                                              let
-                                                  (e1, f_pc1, f_symbs1, ng_') = arbDCCase tenv ng_ t
-                                                  (e2, f_pc2, f_symbs2, ng_'') = arbDCCase tenv ng_' t
+                                          -- | ve1@(Var (Id n1 _)) <- eenv_e1
+                                          -- , ve2@(Var (Id n2 _)) <- eenv_e2
+                                          -- , isSMNF n_eenv_ ve1
+                                          -- , isSMNF n_eenv_ ve2 ->
+                                          --     let
+                                          --         (e1, f_pc1, f_symbs1, ng_') = arbDCCase tenv ng_ t
+                                          --         (e2, f_pc2, f_symbs2, ng_'') = arbDCCase tenv ng_' t
 
-                                                  (m_e, m_ns, m_pc, symbs, ng_''') = newMergeExpr kv ng_'' m_id HM.empty undefined undefined e1 e2
-                                              in
-                                              ( E.insert n1 e1 $ E.insert n2 e2 $ E.insert (idName i) m_e n_eenv_
-                                              , m_ns
-                                              , f_pc1 ++ f_pc2 ++ m_pc
-                                              , f_symbs1 `HS.union` f_symbs2 `HS.union` symbs_
-                                              , ng_''')
+                                          --         (m_e, m_ns, m_pc, symbs, ng_''') = newMergeExpr kv ng_'' m_id HM.empty undefined undefined e1 e2
+                                          --     in
+                                          --     ( E.insert n1 e1 $ E.insert n2 e2 $ E.insert (idName i) m_e n_eenv_
+                                          --     , m_ns
+                                          --     , f_pc1 ++ f_pc2 ++ m_pc
+                                          --     , f_symbs1 `HS.union` f_symbs2 `HS.union` symbs_
+                                          --     , ng_''')
                                           | e1 <- eenv_e1
                                           , e2 <- eenv_e2
                                           , isSMNF n_eenv_ e1
@@ -768,7 +768,7 @@ resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
                                                   (E.insert (idName i) e_ n_eenv_, HM.empty, pc__, symbs_, ng__)
 
                           in
-                          ( n_eenv_'
+                          ( foldr (\i -> E.insertSymbolic (idName i) i) n_eenv_' symbs_'
                           , HM.union m_ns_ r_m_ns_'
                           , HM.union r_m_ns_ r_m_ns_'
                           , pc_ ++ pc_'
