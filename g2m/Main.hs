@@ -34,7 +34,11 @@ mergeEffectiveTests = do
     -- mapM_ (\x -> do
     --             print x
     --             compressTestCallM [0..x]) [5, 6]
-    
+
+    -- timeIOActionPrint "subseqOfTestM" $
+    --     [g2M| \(a :: [Int]) -> ?(b :: [Int])
+    --         | isSubsequenceOf' a b |] [1,2]
+
     mapM_ (\x -> do
                 print x
                 compressTestCall [0..x]
