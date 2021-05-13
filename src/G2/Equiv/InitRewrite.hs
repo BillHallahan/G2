@@ -28,7 +28,7 @@ initWithRHS s b r =
 
 initWithLHS :: State t -> Bindings -> RewriteRule -> (State t, Bindings)
 initWithLHS s b r =
-  -- TODO make LHS into a single expr
+  -- make LHS into a single expr
   let fName = ru_head r
       fMaybe = E.lookup fName (expr_env s)
   in
@@ -51,10 +51,8 @@ initWithLHS s b r =
               in
               (s', b')
 
--- TODO perform the wrapping in here instead
 caseWrap :: Expr -> N.NameGen -> (Expr, N.NameGen)
 caseWrap e ng =
-    -- TODO changed away from TyUnknown
     let (matchId, ng') = N.freshId (typeOf e) ng
         c = Case e matchId [Alt Default (Var matchId)]
     in

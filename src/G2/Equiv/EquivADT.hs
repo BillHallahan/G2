@@ -6,9 +6,7 @@ import qualified G2.Language.ExprEnv as E
 -- TODO decide between lazy and strict
 import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
--- import qualified G2.Language.Naming as N
 
--- TODO import for foldM
 import Control.Monad
 
 -- TODO import for debugging
@@ -24,10 +22,8 @@ proofObligations :: State t ->
 -- look up symbolic vars in the ExprEnv
 -- check concretizations for each of them
 proofObligations s1 s2 e1 e2 =
-  -- TODO need anything else from the state, or just ExprEnv?
   exprPairing s1 s2 e1 e2 HS.empty
 
--- TODO also add wrapping here
 assumptions :: State t ->
                State t ->
                Expr ->
@@ -88,7 +84,6 @@ matchAll idPairs (s1, s2) =
   else Just (s1, s2, foldr HS.union HS.empty hashSets)
 
 -- to be paired, states need to match on all Id pairs
--- TODO do we need Name pairs or Expr pairs?  It was Name before
 statePairing :: [State t] ->
                 [State t] ->
                 [(Id, Id)] ->
