@@ -690,13 +690,12 @@ newMergeExpr' kv v1@(Var i1@(Id n1 t)) v2@(Var i2@(Id n2 _)) = do
             insertExprEnv1 n1 v2
             deleteSymbolic1 i1
             return v2
-        | Just e1 <- E.deepLookup n1 eenv1
-        , Just e2 <- E.deepLookup n2 eenv2
+        | Just e1 <- smnfVal eenv1 v1
+        , Just e2 <- smnfVal eenv2 v2
         , Var _ <- e1
         , Var _ <- e2 -> newMergeExpr' kv e1 e2
-        | Just e1 <- E.deepLookup n1 eenv1
-        , Just e2 <- E.deepLookup n2 eenv2
-        , isSMNF eenv2 e2
+        | Just e1 <- smnfVal eenv1 v1
+        , Just e2 <- smnfVal eenv2 v2
         , Var (Id vn1 t) <- e1 -> do
             i <- freshIdM t
             insertNewMergedIds n1 n2 i
@@ -710,9 +709,8 @@ newMergeExpr' kv v1@(Var i1@(Id n1 t)) v2@(Var i2@(Id n2 _)) = do
             insertExprEnv1 (idName i) m_e
             insertExprEnv2 (idName i) m_e
             return (Var i)            
-        | Just e1 <- E.deepLookup n1 eenv1
-        , Just e2 <- E.deepLookup n2 eenv2
-        , isSMNF eenv1 e1
+        | Just e1 <- smnfVal eenv1 v1
+        , Just e2 <- smnfVal eenv2 v2
         , Var (Id vn2 t) <- e2 -> do
             i <- freshIdM t
             insertNewMergedIds n1 n2 i
@@ -726,10 +724,8 @@ newMergeExpr' kv v1@(Var i1@(Id n1 t)) v2@(Var i2@(Id n2 _)) = do
             insertExprEnv1 (idName i) m_e
             insertExprEnv2 (idName i) m_e
             return (Var i)            
-        | Just e1 <- E.deepLookup n1 eenv1
-        , Just e2 <- E.deepLookup n2 eenv2
-        , isSMNF eenv1 e1
-        , isSMNF eenv2 e2 -> do
+        | Just e1 <- smnfVal eenv1 v1
+        , Just e2 <- smnfVal eenv2 v2 -> do
             i <- freshIdM t
             insertNewMergedIds n1 n2 i
             e <- newMergeExpr' kv e1 e2
@@ -772,6 +768,18 @@ newMergeExpr' kv l1@(Lit _) l2@(Lit _) = do
     addPC pc
     return (Var i)
 
+-- newMergeExpr' kv e1@(Var (Id n t)) e2 = do
+--     eenv1 <- exprEnv2
+--     eenv2 <- exprEnv2
+--     if  | E.isSymbolic n eenv1
+--         , isSMNF eenv2 e2 -> undefined
+--         | isSMNF eenv2 e2 -> undefined
+--             -- new_e1 <- arbDCCase1 t
+--             -- insertNewExprEnv n new_e1
+--             -- insertExprEnv1 n new_e1
+--             -- newMergeExpr' kv new_e1 e2
+--         | otherwise -> newCaseExpr' e1 e2
+
 newMergeExpr' kv e1 e2
     | d@(Data (DataCon n1 _)):es1 <- unApp e1
     , Data (DataCon n2 _):es2 <- unApp e2 
@@ -790,6 +798,21 @@ newMergeExpr' kv e1@(Case (Var i1) b1 as1) e2@(Case (Var i2) b2 as2)
     , isSMNFCase e2 = newMergeCaseExprs kv i1 as1 i2 as2
 newMergeExpr' _ ty@(Type t) (Type t') = assert (t == t') return ty
 newMergeExpr' _ e1 e2 = newCaseExpr' e1 e2
+
+-- | Digs through lone Vars to look for a symbolic merged normal form expression.
+-- Will not get stuck in an infinite loop, if there is a self recursive Var, or a
+-- set of mutually recursive Var.
+-- Returns (Just e) if it finds a SMNF e, otherwise Nothing.
+smnfVal :: ExprEnv -> Expr -> Maybe Expr
+smnfVal eenv = go HS.empty
+    where
+        go seen v@(Var (Id n _))
+            | n `HS.member` seen = Nothing
+            | Just (E.SymbObj _) <- E.lookupEnvObj n eenv = Just v
+            | Just (E.ExprObj _ e) <- E.lookupEnvObj n eenv = go seen e
+        go _ e
+            | isSMNF eenv e = Just e
+            | otherwise = Nothing
 
 newMergeExprs' :: KnownValues -> [Expr] -> MergeM t Expr
 newMergeExprs' kv (e:es) = foldM (newMergeExpr' kv) e es
