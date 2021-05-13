@@ -452,7 +452,7 @@ newMergeExprEnv kv ng m_id m_ns symb1 symb2 tenv eenv1 eenv2 m_eenv =
         ng' = ng_ ctxt'
         n_pc = newPCs_ ctxt'
 
-        (n_eenv'', n_pc', symbs', ng'') = (n_eenv', [], symbs, ng') -- resolveNewVariables tenv kv ng' m_id (HM.union m_ns m_ns') symbs ctxt_eenv1 ctxt_eenv2 n_eenv'
+        (n_eenv'', n_pc', symbs', ng'') = (n_eenv', [], symbs, ng')
 
         n_eenv''' = foldr (\i -> E.insertSymbolic (idName i) i) n_eenv'' symbs'
 
@@ -643,22 +643,22 @@ newMergeExpr kv ng m_id m_ns eenv1 eenv2 tenv e1 e2 =
     in
     exprContextToTuple e ctxt'
 
+-- newMergeExpr' :: KnownValues -> Expr -> Expr -> MergeM t Expr
+-- newMergeExpr' kv e1 e2 = do
+--     eenv1 <- exprEnv1
+--     eenv2 <- exprEnv2
+
+--     let e1' = if  | Var (Id n _) <- e1
+--                   , Just e_ <- E.deepLookup n eenv1 -> e_
+--                   | otherwise -> e1
+--     let e2' = if  | Var (Id n _) <- e2
+--                   , Just e_ <- E.deepLookup n eenv2 -> e_
+--                   | otherwise -> e2
+
+--     newMergeExpr'' kv e1 e2
+
 newMergeExpr' :: KnownValues -> Expr -> Expr -> MergeM t Expr
-newMergeExpr' kv e1 e2 = do
-    eenv1 <- exprEnv1
-    eenv2 <- exprEnv2
-
-    let e1' = if  | Var (Id n _) <- e1
-                  , Just e_ <- E.deepLookup n eenv1 -> e_
-                  | otherwise -> e1
-    let e2' = if  | Var (Id n _) <- e2
-                  , Just e_ <- E.deepLookup n eenv2 -> e_
-                  | otherwise -> e2
-
-    newMergeExpr'' kv e1 e2
-
-newMergeExpr'' :: KnownValues -> Expr -> Expr -> MergeM t Expr
-newMergeExpr'' kv v1@(Var i1@(Id n1 t)) v2@(Var i2@(Id n2 _)) = do
+newMergeExpr' kv v1@(Var i1@(Id n1 t)) v2@(Var i2@(Id n2 _)) = do
     m_i <- lookupMergedIds n1 n2
 
     eenv1 <- exprEnv1
@@ -697,19 +697,35 @@ newMergeExpr'' kv v1@(Var i1@(Id n1 t)) v2@(Var i2@(Id n2 _)) = do
         | Just e1 <- E.deepLookup n1 eenv1
         , Just e2 <- E.deepLookup n2 eenv2
         , isSMNF eenv2 e2
-        , Var (Id n1 t) <- e1 -> do
+        , Var (Id vn1 t) <- e1 -> do
+            i <- freshIdM t
+            insertNewMergedIds n1 n2 i
+
             new_e1 <- arbDCCase1 t
-            insertNewExprEnv n1 new_e1
-            insertExprEnv1 n1 new_e1
-            newMergeExpr' kv new_e1 e2
+            insertNewExprEnv vn1 new_e1
+            insertExprEnv1 vn1 new_e1
+
+            m_e <- newMergeExpr' kv new_e1 e2
+            insertNewExprEnv (idName i) m_e
+            insertExprEnv1 (idName i) m_e
+            insertExprEnv2 (idName i) m_e
+            return (Var i)            
         | Just e1 <- E.deepLookup n1 eenv1
         , Just e2 <- E.deepLookup n2 eenv2
         , isSMNF eenv1 e1
-        , Var (Id n2 t) <- e2 -> do
+        , Var (Id vn2 t) <- e2 -> do
+            i <- freshIdM t
+            insertNewMergedIds n1 n2 i
+
             new_e2 <- arbDCCase2 t
-            insertNewExprEnv n2 new_e2
-            insertExprEnv2 n2 new_e2
-            newMergeExpr' kv e1 new_e2
+            insertNewExprEnv vn2 new_e2
+            insertExprEnv2 vn2 new_e2
+
+            m_e <- newMergeExpr' kv e1 new_e2
+            insertNewExprEnv (idName i) m_e
+            insertExprEnv1 (idName i) m_e
+            insertExprEnv2 (idName i) m_e
+            return (Var i)            
         | Just e1 <- E.deepLookup n1 eenv1
         , Just e2 <- E.deepLookup n2 eenv2
         , isSMNF eenv1 e1
@@ -730,7 +746,7 @@ newMergeExpr'' kv v1@(Var i1@(Id n1 t)) v2@(Var i2@(Id n2 _)) = do
             insertExprEnv2 (idName i) e
             return (Var i)
 
-newMergeExpr'' kv v1@(Var (Id _ t)) l@(Lit _) = do
+newMergeExpr' kv v1@(Var (Id _ t)) l@(Lit _) = do
     m_id <- splitId
     i <- freshIdM t
     insertNewSymbolic i
@@ -738,7 +754,7 @@ newMergeExpr'' kv v1@(Var (Id _ t)) l@(Lit _) = do
              , PC.mkAssumePC m_id 2 $ ExtCond (mkEqPrimExpr t kv (Var i) l) True ]
     addPC pc
     return (Var i)
-newMergeExpr'' kv l@(Lit _) v2@(Var (Id _ t)) = do
+newMergeExpr' kv l@(Lit _) v2@(Var (Id _ t)) = do
     m_id <- splitId
     i <- freshIdM t
     insertNewSymbolic i
@@ -746,7 +762,7 @@ newMergeExpr'' kv l@(Lit _) v2@(Var (Id _ t)) = do
              , PC.mkAssumePC m_id 2 $ ExtCond (mkEqPrimExpr t kv (Var i) v2) True ]
     addPC pc
     return (Var i)
-newMergeExpr'' kv l1@(Lit _) l2@(Lit _) = do
+newMergeExpr' kv l1@(Lit _) l2@(Lit _) = do
     m_id <- splitId
     let t = typeOf l1
     i <- freshIdM t
@@ -756,43 +772,28 @@ newMergeExpr'' kv l1@(Lit _) l2@(Lit _) = do
     addPC pc
     return (Var i)
 
-newMergeExpr'' kv e1 e2
+newMergeExpr' kv e1 e2
     | d@(Data (DataCon n1 _)):es1 <- unApp e1
     , Data (DataCon n2 _):es2 <- unApp e2 
     , n1 == n2 = do
         es <- mapM (uncurry (newMergeExpr' kv)) $ zip es1 es2
         return $ mkApp (d:es)
 
-newMergeExpr'' kv e1 e2@(Case (Var i2) b2 as2)
+newMergeExpr' kv e1 e2@(Case (Var i2) b2 as2)
     | Data dc1:_ <- unApp e1
     , isSMNFCase e2 = newMergeDataConCase kv dc1 e1 i2 as2
-newMergeExpr'' kv e1@(Case (Var i1) b1 as1) e2
+newMergeExpr' kv e1@(Case (Var i1) b1 as1) e2
     | Data dc2:_ <- unApp e2
     , isSMNFCase e1 = newMergeCaseDataCon kv i1 as1 dc2 e2
-newMergeExpr'' kv e1@(Case (Var i1) b1 as1) e2@(Case (Var i2) b2 as2) 
+newMergeExpr' kv e1@(Case (Var i1) b1 as1) e2@(Case (Var i2) b2 as2) 
     | isSMNFCase e1
     , isSMNFCase e2 = newMergeCaseExprs kv i1 as1 i2 as2
-newMergeExpr'' _ ty@(Type t) (Type t') = assert (t == t') return ty
-newMergeExpr'' _ e1 e2 = newCaseExpr' e1 e2
-
-isVar :: Expr -> Bool
-isVar (Var _) = True
-isVar _ = False
+newMergeExpr' _ ty@(Type t) (Type t') = assert (t == t') return ty
+newMergeExpr' _ e1 e2 = newCaseExpr' e1 e2
 
 newMergeExprs' :: KnownValues -> [Expr] -> MergeM t Expr
 newMergeExprs' kv (e:es) = foldM (newMergeExpr' kv) e es
 newMergeExprs' _ _ = error  "newMergeExprs: empty list"
-
-newCaseExpr :: NameGen -> MergeId -> Expr -> Expr -> (Expr, [PathCond], Id, NameGen)
-newCaseExpr ng m_id e1 e2 =
-    let
-        (binder, ng') = freshId TyLitInt ng
-    in
-    (Case (Var m_id) binder [ Alt (LitAlt $ LitInt 1) e1
-                            , Alt (LitAlt $ LitInt 2) e2 ]
-    , mkBounds (Var m_id) 1 2
-    , binder
-    , ng')
 
 newCaseExpr' :: Expr -> Expr -> MergeM t Expr
 newCaseExpr' e1 e2 = do
@@ -897,144 +898,6 @@ mkMergeCasePC kv bind1 l bls =
             (mkFalse kv)
             (map (\(b2, jl) -> mkEqExpr kv (Var b2) (Lit (LitInt jl))) bls)
 
-resolveNewVariables :: TypeEnv
-                    -> KnownValues
-                    -> NameGen
-                    -> MergeId
-                    -> MergedIds
-                    -> SymbolicIds
-                    -> ExprEnv
-                    -> ExprEnv
-                    -> ExprEnv
-                    -> (ExprEnv, [PathCond], SymbolicIds, NameGen)
-resolveNewVariables tenv kv ng m_id m_ns = resolveNewVariables' m_ns [] tenv kv ng m_id m_ns
-
-resolveNewVariables' :: MergedIds
-                     -> [PathCond]
-                     -> TypeEnv
-                     -> KnownValues
-                     -> NameGen
-                     -> MergeId
-                     -> MergedIds
-                     -> SymbolicIds
-                     -> ExprEnv
-                     -> ExprEnv
-                     -> ExprEnv
-                     -> (ExprEnv, [PathCond], SymbolicIds, NameGen)
-resolveNewVariables' r_m_ns pc tenv kv ng m_id m_ns symbs eenv1 eenv2 n_eenv
-    | HM.null r_m_ns = (n_eenv, pc, symbs, ng)
-    | otherwise =
-        let
-            (n_eenv', m_ns', r_m_ns', pc', symbs', ng') =
-                foldr (\((m_n1, m_n2), i) (n_eenv_, m_ns_, r_m_ns_, pc_, symbs_, ng_) ->
-                          let
-                              (n1, eenv_e1) = case E.deepLookupName m_n1 n_eenv_ of
-                                                Just ne -> ne
-                                                Nothing -> error $ "resolveNewVariables': expression for 1 not found\n" ++ show m_n1
-                              (n2, eenv_e2) = case E.deepLookupName m_n2 n_eenv_ of
-                                                Just ne -> ne
-                                                Nothing -> error $ "resolveNewVariables': expression for 2 not found\n" ++ show m_n2
-
-                              t = typeOf i
-                              i1 = Id n1 t
-                              i2 = Id n2 t
-                              v1 = Var i1
-                              v2 = Var i2
-
-                              (n_eenv_', r_m_ns_', pc_', symbs_', ng_') =
-                                      if | E.isSymbolic n1 eenv1
-                                         , E.isSymbolic n2 eenv2
-                                         , isPrimType t ->
-                                              let
-                                                  pc__ = [ PC.mkAssumePC m_id 1 $ ExtCond (mkEqPrimExpr t kv (Var i) v1) True
-                                                         , PC.mkAssumePC m_id 2 $ ExtCond (mkEqPrimExpr t kv (Var i) v2) True ]
-                                              in
-                                              ( E.insertSymbolic (idName i) i n_eenv_
-                                              , HM.empty
-                                              , pc__
-                                              , HS.insert i symbs_
-                                              , ng_)
-                                          | E.isSymbolic n1 n_eenv_
-                                          , E.isSymbolic n2 n_eenv_
-                                          , n1 `E.member` eenv1
-                                          , not (n1 `E.member` eenv2) ->
-                                                ( n_eenv_ -- E.insert n2 v1 $ E.insert (idName i) v1 n_eenv_
-                                                , HM.empty
-                                                , []
-                                                , symbs_
-                                                , ng_)
-                                          | E.isSymbolic n1 n_eenv_
-                                          , E.isSymbolic n2 n_eenv_
-                                          , n2 `E.member` eenv2
-                                          , not (n2 `E.member` eenv1) ->
-                                                ( n_eenv_ -- E.insert n1 v2 $ E.insert (idName i) v2 n_eenv_
-                                                , HM.empty
-                                                , []
-                                                , symbs_
-                                                , ng_)
-                                          | e1 <- eenv_e1
-                                          , e2 <- eenv_e2
-                                          , isSMNF n_eenv_ e1
-                                          , isSMNF n_eenv_ e2
-                                          , not (isVar e1)
-                                          , not (isVar e2) ->
-                                                let
-                                                    (e_m, f_m_ns, a_eenv, f_pc, f_symbs, f_ng) =
-                                                        newMergeExpr kv ng_ m_id (HM.union m_ns_ r_m_ns_) eenv1 eenv2 tenv e1 e2
-                                                in
-                                                ( E.insert (idName i) e_m (E.union a_eenv n_eenv_)
-                                                , f_m_ns
-                                                , f_pc
-                                                , HS.union f_symbs symbs_
-                                                , f_ng)
-                                          | (Var (Id n1 _)) <- eenv_e1
-                                          , e2 <- eenv_e2
-                                          , isSMNF n_eenv_ e2
-                                          , E.isSymbolic n1 n_eenv_
-                                          , not (isVar e2) ->
-                                                let
-                                                    (e1, f_pc1, f_symbs1, ng_') = arbDCCase tenv ng_ t
-                                                    (m_e, m_ns, a_eenv, pc, symbs, ng_'') = newMergeExpr kv ng_' m_id HM.empty eenv1 eenv2 tenv e1 e2
-                                                in
-                                                ( E.insert n1 e1 $ E.insert (idName i) m_e (E.union a_eenv n_eenv_)
-                                                , m_ns
-                                                , f_pc1 ++ pc
-                                                , f_symbs1 `HS.union` symbs `HS.union` symbs_ 
-                                                , ng_'')
-                                          | e1 <- eenv_e1
-                                          , (Var (Id n2 _)) <- eenv_e2
-                                          , isSMNF n_eenv_ e1
-                                          , not (isVar e1)
-                                          , E.isSymbolic n2 n_eenv_ ->
-                                                let
-                                                    (e2, f_pc2, f_symbs2, ng_') = arbDCCase tenv ng_ t
-                                                    (m_e, m_ns, a_eenv, pc, symbs, ng_'') = newMergeExpr kv ng_' m_id HM.empty eenv1 eenv2 tenv e1 e2
-                                                in
-                                                ( E.insert n2 e2 $ E.insert (idName i) m_e (E.union a_eenv n_eenv_)
-                                                , m_ns
-                                                , f_pc2 ++ pc
-                                                , f_symbs2 `HS.union` symbs `HS.union` symbs_ 
-                                                , ng_'')
-                                          | otherwise ->
-                                                  let
-                                                      (e_, pc__, _, ng__) = newCaseExpr ng_ m_id v1 v2
-                                                  in
-                                                  (E.insert (idName i) e_ n_eenv_, HM.empty, pc__, symbs_, ng__)
-
-                          in
-                          ( foldr (\i -> E.insertSymbolic (idName i) i) n_eenv_' symbs_'
-                          , HM.union m_ns_ r_m_ns_'
-                          , HM.union r_m_ns_ r_m_ns_'
-                          , pc_ ++ pc_'
-                          , symbs_'
-                          , ng_'))
-                      (n_eenv, m_ns, HM.empty, [], symbs, ng)
-                      (HM.toList r_m_ns)
-        in
-        resolveNewVariables' r_m_ns' (pc ++ pc') tenv kv ng' m_id m_ns' symbs' eenv1 eenv2 n_eenv'
-    where
-        isVar (Var _) = True
-        isVar _ = False
 ------------------------------------------------
 
 
