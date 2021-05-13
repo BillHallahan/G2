@@ -396,68 +396,21 @@ newMergeCurrExpr' eenv1 eenv2 tenv kv ng symbs1 symbs2 m_id e1 e2 =
 type NewSymbolicIds = SymbolicIds
 
 newMergeExprEnvCxt :: Context t -> MergedIds -> (ExprEnv, Context t)
-newMergeExprEnvCxt cxt@(Context { state1_ = s1, state2_ = s2, newExprEnv_ = m_eenv, newPCs_ = pc, ng_ = ng, newId_ = m_id }) m_ns =
-    let
-        (eenv', pc', symbs', ng') =
-            newMergeExprEnv (known_values s1) ng m_id m_ns (symbolic_ids s1) (symbolic_ids s2) (type_env s1) (expr_env s1) (expr_env s2) m_eenv
-    in
-    (eenv', cxt { state1_ = s1 { symbolic_ids = symbs'}
-                , state2_ = s2 { symbolic_ids = symbs' }
-                , newPCs_ = pc ++ pc'
-                , ng_ = ng' } )
+newMergeExprEnvCxt ctxt@(Context { state1_ = s1@(State { known_values = kv }) }) m_ns =
+    runMergeMContext (newMergeExprEnv kv) ctxt
 
-newMergeExprEnv :: KnownValues
-                -> NameGen
-                -> MergeId
-                -> MergedIds
-                -> SymbolicIds
-                -> SymbolicIds
-                -> TypeEnv
-                -> ExprEnv
-                -> ExprEnv
-                -> ExprEnv
-                -> (ExprEnv, [PathCond], SymbolicIds, NameGen)
-newMergeExprEnv kv ng m_id m_ns symb1 symb2 tenv eenv1 eenv2 m_eenv =
-    let 
-        s1 = State { expr_env = eenv1, type_env = tenv, symbolic_ids = symb1, rules = [], num_steps = 0 }
-        s2 = State { expr_env = eenv2, type_env = tenv, symbolic_ids = symb2, rules = [], num_steps = 0 }
-
-        ctxt = Context { state1_ = s1
-                       , state2_ = s2
-                       , mergedIds_ = m_ns
-                       , newMergedIds_ = HM.empty
-                       , newExprEnv_ = m_eenv
-                       , ng_ = ng
-                       , newId_ = m_id
-                       , newPCs_ = []
-                       , newSyms_ = HS.empty
-                       }
-
-        (n_eenv, ctxt') = 
-            runMergeMContext (E.mergeAEnvObj
-                              E.preserveMissing
-                              E.preserveMissing
-                              (E.zipWithAMatched (newMergeEnvObj kv)) 
-                              eenv1 
-                              eenv2)
-                            ctxt
-
-        n_eenv' = foldr (\i -> E.insertSymbolic (idName i) i) n_eenv (newSyms_ ctxt')
-
-        ctxt_eenv = newExprEnv_ ctxt'
-        ctxt_eenv1 = expr_env (state1_ ctxt') 
-        ctxt_eenv2 = expr_env (state2_ ctxt') 
-        m_ns' = newMergedIds_ ctxt'
-        symbs = symbolic_ids (state1_ ctxt') `HS.union` symbolic_ids (state2_ ctxt')
-        ng' = ng_ ctxt'
-        n_pc = newPCs_ ctxt'
-
-        (n_eenv'', n_pc', symbs', ng'') = (n_eenv', [], symbs, ng')
-
-        n_eenv''' = foldr (\i -> E.insertSymbolic (idName i) i) n_eenv'' symbs'
-
-    in
-    (E.union ctxt_eenv n_eenv''', n_pc ++ n_pc', symbs', ng'')
+newMergeExprEnv :: KnownValues -> MergeM t ExprEnv 
+newMergeExprEnv kv = do
+    eenv1 <- exprEnv1
+    eenv2 <- exprEnv2
+    m_eenv <- E.mergeAEnvObj
+                  E.preserveMissing
+                  E.preserveMissing
+                  (E.zipWithAMatched (newMergeEnvObj kv)) 
+                  eenv1 
+                  eenv2
+    n_eenv <- newExprEnv
+    return $ E.union n_eenv m_eenv
 
 newMergeEnvObj :: KnownValues -> Name -> E.EnvObj -> E.EnvObj
                -> MergeM t E.EnvObj
@@ -693,7 +646,8 @@ newMergeExpr' kv v1@(Var i1@(Id n1 t)) v2@(Var i2@(Id n2 _)) = do
         | Just e1 <- smnfVal eenv1 v1
         , Just e2 <- smnfVal eenv2 v2
         , Var _ <- e1
-        , Var _ <- e2 -> newMergeExpr' kv e1 e2
+        , Var _ <- e2 ->
+            newMergeExpr' kv e1 e2
         | Just e1 <- smnfVal eenv1 v1
         , Just e2 <- smnfVal eenv2 v2
         , Var (Id vn1 t) <- e1 -> do
@@ -768,17 +722,34 @@ newMergeExpr' kv l1@(Lit _) l2@(Lit _) = do
     addPC pc
     return (Var i)
 
--- newMergeExpr' kv e1@(Var (Id n t)) e2 = do
---     eenv1 <- exprEnv2
---     eenv2 <- exprEnv2
---     if  | E.isSymbolic n eenv1
---         , isSMNF eenv2 e2 -> undefined
---         | isSMNF eenv2 e2 -> undefined
---             -- new_e1 <- arbDCCase1 t
---             -- insertNewExprEnv n new_e1
---             -- insertExprEnv1 n new_e1
---             -- newMergeExpr' kv new_e1 e2
---         | otherwise -> newCaseExpr' e1 e2
+newMergeExpr' kv v@(Var (Id n t)) e2 = do
+    eenv1 <- exprEnv1
+    eenv2 <- exprEnv2
+    if  | Just e1 <- smnfVal eenv1 v
+        , Var (Id n' _) <- e1
+        , isSMNF eenv2 e2 -> do
+            new_e1 <- arbDCCase1 t
+            insertNewExprEnv n' new_e1
+            insertExprEnv1 n' new_e1
+            newMergeExpr' kv new_e1 e2
+        | Just e1 <- smnfVal eenv1 v
+        , isSMNF eenv2 e2 ->
+            newMergeExpr' kv e1 e2
+        | otherwise -> newCaseExpr' v e2
+newMergeExpr' kv e1 v@(Var (Id n t)) = do
+    eenv1 <- exprEnv1
+    eenv2 <- exprEnv2
+    if  | Just e2 <- smnfVal eenv2 v
+        , Var (Id n' _) <- e2
+        , isSMNF eenv1 e1 -> do
+            new_e2 <- arbDCCase2 t
+            insertNewExprEnv n' new_e2
+            insertExprEnv2 n' new_e2
+            newMergeExpr' kv e1 new_e2
+        | Just e2 <- smnfVal eenv2 v
+        , isSMNF eenv1 e1 ->
+            newMergeExpr' kv e1 e2
+        | otherwise -> newCaseExpr' e1 v
 
 newMergeExpr' kv e1 e2
     | d@(Data (DataCon n1 _)):es1 <- unApp e1
