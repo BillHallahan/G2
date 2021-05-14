@@ -1,18 +1,11 @@
 module G2.Equiv.EquivADT (proofObligations, assumptions, statePairing) where
 
-import Data.List
 import G2.Language
 import qualified G2.Language.ExprEnv as E
--- TODO decide between lazy and strict
-import qualified Data.HashMap.Strict as HM
 import qualified Data.HashSet as HS
 
 import Control.Monad
 
--- TODO import for debugging
-import qualified Debug.Trace as D
-
--- TODO states include lists of symbolic vars
 proofObligations :: State t ->
                     State t ->
                     Expr ->
@@ -36,7 +29,6 @@ idPairing :: State t -> State t -> (Id, Id) -> Maybe (HS.HashSet (Expr, Expr))
 idPairing s1 s2 (i1, i2) =
   assumptions s1 s2 (Var i1) (Var i2)
 
--- TODO new version
 exprPairing :: State t ->
                State t ->
                Expr ->
@@ -44,12 +36,12 @@ exprPairing :: State t ->
                HS.HashSet (Expr, Expr) ->
                Maybe (HS.HashSet (Expr, Expr))
 exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs =
-  case {- D.trace (show e1) $ D.trace (show e2) $ D.trace "***" $ -} (e1, e2) of
+  case (e1, e2) of
     -- TODO needed to add expr_env as input for isSymbolic
-    (Var i, _) | E.isSymbolic (idName i) h1 -> {- D.trace ("symbolic 1" ++ show i) $ -} Just (HS.insert (e1, e2) pairs)
+    (Var i, _) | E.isSymbolic (idName i) h1 -> Just (HS.insert (e1, e2) pairs)
                | Just e <- E.lookup (idName i) h1 -> exprPairing s1 s2 e e2 pairs
                | otherwise -> error "unmapped variable"
-    (_, Var i) | E.isSymbolic (idName i) h2 -> {- D.trace ("symbolic 2" ++ show i) $ -} Just (HS.insert (e1, e2) pairs)
+    (_, Var i) | E.isSymbolic (idName i) h2 -> Just (HS.insert (e1, e2) pairs)
                | Just e <- E.lookup (idName i) h2 -> exprPairing s1 s2 e1 e pairs
                | otherwise -> error "unmapped variable"
     -- TODO need to modify this case because of compiler errors

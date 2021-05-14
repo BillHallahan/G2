@@ -26,16 +26,12 @@ import Control.Exception
 
 import Data.List
 
--- TODO new import for solver
 import qualified G2.Solver as S
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as P
 import qualified G2.Language.Naming as N
 -- TODO lazy vs. strict
 import qualified Data.HashSet as HS
-
--- TODO import for debugging
-import qualified Debug.Trace as D
 
 main :: IO ()
 main = do
@@ -85,7 +81,6 @@ runWithArgs as = do
   print res
   return ()
 
--- TODO added Bindings argument
 checkObligations :: S.Solver solver =>
                     solver ->
                     (State t, State t, HS.HashSet (Expr, Expr)) ->
@@ -101,8 +96,6 @@ checkObligations solver (s1, s2, assumptions) =
                        assumptionPC = HS.toList $ HS.map assumptionWrap assumptions
                        newPC = foldr P.insert P.empty (assumptionPC)
                    in
-                   D.trace "created new PathConds" $
-                   D.trace (show newPC) $
                    case maybeAllPO of
                        Nothing -> applySolver solver newPC s1 s2
                        Just allPO -> applySolver solver (P.insert allPO newPC) s1 s2
@@ -117,15 +110,11 @@ applySolver solver extraPC s1 s2 =
     let unionEnv = E.union (expr_env s1) (expr_env s2)
         rightPC = P.toList $ path_conds s2
         unionPC = foldr P.insert (path_conds s1) rightPC
-        -- pcList = map extWrap $ HS.toList extraPC
         allPC = foldr P.insert unionPC (P.toList extraPC)
         newState = s1 { expr_env = unionEnv, path_conds = allPC }
     in
-    D.trace "ready to check" $
-    D.trace (show allPC) $
     S.check solver newState allPC
 
--- TODO switching from TyUnknown to TyLitInt for now
 assumptionWrap :: (Expr, Expr) -> PathCond
 assumptionWrap (e1, e2) =
     -- TODO what type for the equality?

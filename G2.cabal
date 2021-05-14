@@ -291,8 +291,6 @@ executable QuasiQuote
                        , RegEx.RegEx
                        , RegEx.Test
 
--- TODO copied mostly from Inference
--- TODO changed to be more like G2
 executable RewriteV
   -- other-modules:   
   -- other-extensions:

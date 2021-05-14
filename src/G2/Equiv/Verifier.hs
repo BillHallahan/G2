@@ -4,8 +4,6 @@ module G2.Equiv.Verifier
     ( verifyLoop
     , runVerifier
     , checkRule
-    -- , checkRuleGood
-    -- , checkRuleBad
     ) where
 
 import G2.Language
@@ -41,13 +39,6 @@ exprReadyForSolver h _ = False
 exprPairReadyForSolver :: (ExprEnv, ExprEnv) -> (Expr, Expr) -> Bool
 exprPairReadyForSolver (h1, h2) (e1, e2) =
   exprReadyForSolver h1 e1 && exprReadyForSolver h2 e2
-
-readyForSolver :: (State (), State ()) -> Bool
-readyForSolver (s1, s2) =
-  let CurrExpr _ e1 = curr_expr s1
-      CurrExpr _ e2 = curr_expr s2
-  in
-  exprPairReadyForSolver (expr_env s1, expr_env s2) (e1, e2)
 
 runSymExec :: Config ->
               State () ->
@@ -92,7 +83,6 @@ verifyLoop :: S.Solver solver =>
               Config ->
               IO (S.Result () ())
 verifyLoop solver pairs states b1 b2 config | states /= [] = do
-    -- print $ length states
     (states', (b1', b2')) <- CM.runStateT (mapM (uncurry (runSymExec config)) states) (b1, b2)
     let sp = (\(l1, l2) -> statePairing l1 l2 pairs)
         paired_lists = concatMap sp states'
@@ -107,7 +97,6 @@ verifyLoop solver pairs states b1 b2 config | states /= [] = do
         return $ S.SAT ()
   | otherwise = return $ S.UNSAT ()
 
--- TODO get the obligations in here
 -- the hash set input is for the assumptions
 verifyLoop' :: S.Solver solver =>
                solver ->
@@ -120,11 +109,6 @@ verifyLoop' solver s1 s2 assumption_set = do
       obligation_list = HS.toList obligation_set
       (ready, not_ready) = partition (exprPairReadyForSolver (expr_env s1, expr_env s2)) obligation_list
       ready_hs = HS.fromList ready
-  -- print "---"
-  -- print assumption_set
-  -- print ready
-  -- print not_ready
-  -- print "---"
   res <- checkObligations solver s1 s2 assumption_set ready_hs
   let currExprWrap e = CurrExpr Evaluate e
       currExprInsert s e = s { curr_expr = currExprWrap (caseWrap e) }
@@ -140,7 +124,6 @@ getObligations s1 s2 =
       Nothing -> error "TODO expressions not equivalent"
       Just po -> po
 
--- TODO added Bindings argument
 checkObligations :: S.Solver solver =>
                     solver ->
                     State () ->
@@ -215,31 +198,3 @@ checkRule config init_state bindings rule = do
              bindings_l bindings_r config
   -- UNSAT for good, SAT for bad
   return res
-  {-
-  if good then return (case res of
-                         S.SAT _ -> error "Satisfiable"
-                         S.UNSAT _ -> ()
-                         _ -> error "Failed to Produce a Result")
-  else return (case res of
-                 S.SAT _ -> ()
-                 S.UNSAT _ -> error "Unsatisfiable"
-                 _ -> error "Failed to Produce a Result")
-  -}
-
-{-
-checkRuleGood :: Config ->
-                 State t ->
-                 Bindings ->
-                 RewriteRule ->
-                 IO (S.Result () ())
-checkRuleGood config init_state bindings rule =
-  checkRule config init_state bindings True rule
-
-checkRuleBad :: Config ->
-                State t ->
-                Bindings ->
-                RewriteRule ->
-                IO (S.Result () ())
-checkRuleBad config init_state bindings rule =
-  checkRule config init_state bindings False rule
--}
