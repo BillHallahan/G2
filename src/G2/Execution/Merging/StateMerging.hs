@@ -232,6 +232,7 @@ emptyContext s1 s2 ng newId = Context { state1_ = s1
                                       , ng_ = ng
                                       , mergedIds_ = HM.empty
                                       , newMergedIds_ = HM.empty
+                                      , newExprEnv_ = E.empty
                                       , newId_ = newId
                                       , newPCs_ = []
                                       , newSyms_ = HS.empty }
@@ -275,84 +276,18 @@ mergeState b@(Bindings { name_gen = ng }) simplifier s1 s2 =
         else Nothing
 
 newMergeCurrExprCxt :: Context t -> (CurrExpr, MergedIds, Context t)
-newMergeCurrExprCxt cxt@(Context { state1_ = s1, state2_ = s2, newPCs_ = pc, ng_ = ng, newId_ = m_id }) =
-    let
-        (ce', m_ns, eenv1, eenv2, a_eenv, pc', f_symbs1, f_symbs2, ng') =
-            newMergeCurrExpr (expr_env s1) (expr_env s2) (type_env s1)
-                             (known_values s1)
-                             ng
-                             (symbolic_ids s1) (symbolic_ids s2)
-                              m_id (curr_expr s1) (curr_expr s2)
-
-        eenv1' = foldr (\i -> E.insertSymbolic (idName i) i) eenv1 f_symbs1
-        eenv2' = foldr (\i -> E.insertSymbolic (idName i) i) eenv2 f_symbs2
-    in
-    (ce', m_ns, cxt { state1_ = s1 { expr_env = eenv1'
-                               , symbolic_ids = f_symbs1 `HS.union` symbolic_ids s1 }
-                    , state2_ = s2 { expr_env = eenv2'
-                               , symbolic_ids = f_symbs2 `HS.union` symbolic_ids s2}
-                    , newExprEnv_ = a_eenv
-                    , newPCs_ = pc ++ pc'
-                    , ng_ = ng' } )
-
-newMergeCurrExpr :: ExprEnv
-                 -> ExprEnv
-                 -> TypeEnv
-                 -> KnownValues
-                 -> NameGen
-                 -> SymbolicIds
-                 -> SymbolicIds
-                 -> MergeId
-                 -> CurrExpr
-                 -> CurrExpr
-                 -> (CurrExpr, MergedIds, ExprEnv, ExprEnv, ExprEnv, [PathCond], SymbolicIds, SymbolicIds, NameGen)
-newMergeCurrExpr eenv1 eenv2 tenv kv ng symbs1 symbs2 m_id (CurrExpr er1 e1) (CurrExpr er2 e2)
-    | er1 == er2 =
+newMergeCurrExprCxt ctxt@(Context { state1_ = s1, state2_ = s2, newPCs_ = pc, ng_ = ng, newId_ = m_id }) =
         let
-            (m_e, m_ns', eenv1', eenv2', a_eenv, pc', symb1', symb2', ng') = newMergeCurrExpr' eenv1 eenv2 tenv kv ng symbs1 symbs2 m_id e1 e2
+            CurrExpr er1 e1 = curr_expr s1
+            CurrExpr er2 e2 = curr_expr s2
+
+            (e, ctxt') = runMergeMContext (newMergeCurrExpr' (known_values s1) e1 e2) ctxt
         in
-        (CurrExpr er1 m_e, m_ns', eenv1', eenv2', a_eenv, pc', symb1', symb2', ng')
-    | otherwise = error "The curr_expr(s) have an invalid form and cannot be merged."
+        assert (er1 == er2)
+        (CurrExpr er1 e, newMergedIds_ ctxt', ctxt')
 
-newMergeCurrExpr' :: ExprEnv
-                  -> ExprEnv
-                  -> TypeEnv
-                  -> KnownValues
-                  -> NameGen
-                  -> SymbolicIds
-                  -> SymbolicIds
-                  -> MergeId
-                  -> Expr
-                  -> Expr
-                  -> (Expr, MergedIds, ExprEnv, ExprEnv, ExprEnv, [PathCond], SymbolicIds, SymbolicIds, NameGen)
-newMergeCurrExpr' eenv1 eenv2 tenv kv ng symbs1 symbs2 m_id e1 e2 =
-    let s1 = State { expr_env = eenv1, type_env = tenv, symbolic_ids = HS.empty, rules = [], num_steps = 0 }
-        s2 = State { expr_env = eenv2, type_env = tenv, symbolic_ids = HS.empty, rules = [], num_steps = 0 }
-
-        ctxt = Context { state1_ = s1
-                       , state2_ = s2
-                       , mergedIds_ = HM.empty
-                       , newMergedIds_ = HM.empty
-                       , newExprEnv_ = E.empty
-                       , ng_ = ng
-                       , newId_ = m_id
-                       , newPCs_ = []
-                       , newSyms_ = HS.empty
-                       }
-        (e, ctxt') = runMergeMContext (newMergeCurrExpr1' kv e1 e2) ctxt
-    in
-    ( e
-    , newMergedIds_ ctxt'
-    , expr_env (state1_ ctxt')
-    , expr_env (state2_ ctxt')
-    , newExprEnv_ ctxt'
-    , newPCs_ ctxt'
-    , symbolic_ids (state1_ ctxt') `HS.union` newSyms_ ctxt'
-    , symbolic_ids (state2_ ctxt') `HS.union` newSyms_ ctxt'
-    , ng_ ctxt')
-
-newMergeCurrExpr1' :: KnownValues -> Expr -> Expr -> MergeM t Expr
-newMergeCurrExpr1' kv v1@(Var (Id n1 t)) v2@(Var (Id n2 _))
+newMergeCurrExpr' :: KnownValues -> Expr -> Expr -> MergeM t Expr
+newMergeCurrExpr' kv v1@(Var (Id n1 t)) v2@(Var (Id n2 _))
     | isPrimType t = newMergeExpr' kv v1 v2
     | otherwise = do
         e1 <- arbDCCase1 t
@@ -365,7 +300,7 @@ newMergeCurrExpr1' kv v1@(Var (Id n1 t)) v2@(Var (Id n2 _))
         insertExprEnv2 n2 e2
 
         newMergeExpr' kv e1 e2
-newMergeCurrExpr1' kv e1 e2 = newMergeExpr' kv e1 e2
+newMergeCurrExpr' kv e1 e2 = newMergeExpr' kv e1 e2
 
 ------------------------------------------------
 -- Merging expressions
@@ -374,7 +309,7 @@ type NewSymbolicIds = SymbolicIds
 
 newMergeExprEnvCxt :: Context t -> MergedIds -> (ExprEnv, Context t)
 newMergeExprEnvCxt ctxt@(Context { state1_ = s1@(State { known_values = kv }), newExprEnv_ = n_eenv }) m_ns =
-    runMergeMContext (newMergeExprEnv kv n_eenv) ctxt
+    runMergeMContext (newMergeExprEnv kv n_eenv) (ctxt { mergedIds_ = m_ns })
 
 newMergeExprEnv :: KnownValues -> ExprEnv -> MergeM t ExprEnv 
 newMergeExprEnv kv init_new_expr_env = do
