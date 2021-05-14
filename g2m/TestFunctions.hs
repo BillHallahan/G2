@@ -41,6 +41,9 @@ filter' pred (x:xs)
 sumEvens :: [Int] -> Int
 sumEvens = sum . filter' (\a -> a `mod` 2 == 0)
 
+sumEvens2 :: [Int] -> Int
+sumEvens2 = sum
+
 sumEvensTestSlow :: [Int] -> Int -> Bool
 sumEvensTestSlow xs x = length xs > x * 2 && sumEvens xs == 2
 

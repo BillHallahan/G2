@@ -53,10 +53,10 @@ mergeEffectiveTests = do
                 subseqOfTestCall x
                 subseqOfTestCallM x) [1 .. 10]
 
-    -- mapM_ (\x -> do
-    --             print x
-    --             sumsEvenTestCall x
-    --             sumsEvenTestCallM x) [1 .. 10]
+    mapM_ (\x -> do
+                print x
+                sumsEvenTestCall x
+                sumsEvenTestCallM x) [1 .. 10]
 
     -- timeIOActionPrint "subseqOfTest" $ [g2| \(a :: [Int]) -> ?(b :: [Int]) | subseqOfTest2 a b |] [1,2]
     -- timeIOActionPrint "subseqOfTestSM" $ [g2M| \(a :: [Int]) -> ?(b :: [Int]) | subseqOfTest2 a b |] [1,2]
@@ -109,15 +109,15 @@ subseqOfTestCallM x =
         [g2M| \(x :: Int) (a :: [Int]) -> ?(b :: [Int])
             | subseqOfTestP x a b |] x [1,2,1,3]
 
--- sumsEvenTestCall :: Int -> IO ()
--- sumsEvenTestCall x =
---     timeIOActionPrint "sumEvensTest" $
---         [g2| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] x
+sumsEvenTestCall :: Int -> IO ()
+sumsEvenTestCall x =
+    timeIOActionPrint "sumEvensTest" $
+        [g2| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] x
 
--- sumsEvenTestCallM :: Int -> IO ()
--- sumsEvenTestCallM x =
---     timeIOActionPrint "sumEvensTestM" $
---         [g2M| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] x
+sumsEvenTestCallM :: Int -> IO ()
+sumsEvenTestCallM x =
+    timeIOActionPrint "sumEvensTestM" $
+        [g2M| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] x
 
 -- sampleTests :: IO ()
 -- sampleTests = do

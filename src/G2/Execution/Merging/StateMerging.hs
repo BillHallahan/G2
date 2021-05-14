@@ -587,6 +587,23 @@ newMergeExpr kv l1@(Lit _) l2@(Lit _) = do
     addPC pc
     return (Var i)
 
+newMergeExpr kv e1 e2
+    | Prim _ _:_ <- unApp e1 = do
+        let t = typeOf e1
+        b_id <- freshIdM t
+        insertSymbolic1 b_id
+        let pc = ExtCond (mkEqPrimExpr t kv e1 (Var b_id)) True
+        addPC [pc]
+        newMergeExpr kv (Var b_id) e2
+newMergeExpr kv e1 e2
+    | Prim _ _:_ <- unApp e2 = do
+        let t = typeOf e2
+        b_id <- freshIdM t
+        insertSymbolic2 b_id
+        let pc = ExtCond (mkEqPrimExpr t kv e2 (Var b_id)) True
+        addPC [pc]
+        newMergeExpr kv e1 (Var b_id)
+
 newMergeExpr kv v@(Var (Id n t)) e2 = do
     eenv1 <- exprEnv1
     eenv2 <- exprEnv2
@@ -615,6 +632,11 @@ newMergeExpr kv e1 v@(Var (Id n t)) = do
         , isSMNF eenv1 e1 ->
             newMergeExpr kv e1 e2
         | otherwise -> newCaseExpr' e1 v
+
+newMergeExpr kv (Lam lu1 i1 e1) (Lam lu2 (Id n _) e2) = do
+    let e2' = replaceVar n (Var i1) e2
+    e <- if e1 == e2' then return e1 else newCaseExpr' e1 e2'
+    assert (lu1 == lu2) . return $ Lam lu1 i1 e
 
 newMergeExpr kv e1 e2
     | d@(Data (DataCon n1 _)):es1 <- unApp e1
