@@ -41,7 +41,6 @@ type MergedIds = HM.HashMap (Name, Name) Id
 data Context t = Context { state1_ :: State t
                          , state2_ :: State t
                          , mergedIds_ :: MergedIds
-                         , newMergedIds_ :: MergedIds
                          , newExprEnv_ :: ExprEnv
                          , ng_ :: NameGen
                          , newId_ :: MergeId -- `newId` is set to 1 or 2 in an AssumePC/ Case Expr when merging values from `state1_` or `state2_` respectively
@@ -77,7 +76,7 @@ splitId :: MergeM t Id
 splitId = S.gets newId_
 
 modifyNewMergedIds :: (MergedIds -> MergedIds) -> MergeM t ()
-modifyNewMergedIds f = S.modify (\c -> c { newMergedIds_ = f (newMergedIds_ c) })
+modifyNewMergedIds f = S.modify (\c -> c { mergedIds_ = f (mergedIds_ c) })
 
 insertNewMergedIds :: Name -> Name -> Id -> MergeM t ()
 insertNewMergedIds n1 n2 i = modifyNewMergedIds (HM.insert (n1, n2) i)
@@ -85,8 +84,7 @@ insertNewMergedIds n1 n2 i = modifyNewMergedIds (HM.insert (n1, n2) i)
 lookupMergedIds :: Name -> Name -> MergeM t (Maybe Id)
 lookupMergedIds n1 n2 = do
     m_is <- S.gets mergedIds_
-    new_m_is <- S.gets newMergedIds_
-    return $ HM.lookup (n1, n2) (HM.union m_is new_m_is)
+    return $ HM.lookup (n1, n2) m_is
 
 modifyState1 :: (State t -> State t) -> MergeM t ()
 modifyState1 f = S.modify (\c -> c { state1_ = f (state1_ c) })
@@ -191,11 +189,6 @@ lookupTypeM n = do
     s <- state1
     return (M.lookup n (type_env s))
 
--- TODO: Get rid of this!
-exprContextToTuple :: Expr -> Context t -> (Expr, MergedIds, ExprEnv, [PathCond], HS.HashSet Id, NameGen)
-exprContextToTuple e c =
-    (e, newMergedIds_ c, newExprEnv_ c, newPCs_ c, symbolic_ids (state1_ c) `HS.union` symbolic_ids (state2_ c) `HS.union` (newSyms_ c), ng_ c)
-
 -------------------------------------------------------
 
 isMergeable :: Eq t => State t -> State t -> Bool
@@ -231,7 +224,6 @@ emptyContext s1 s2 ng newId = Context { state1_ = s1
                                       , state2_ = s2
                                       , ng_ = ng
                                       , mergedIds_ = HM.empty
-                                      , newMergedIds_ = HM.empty
                                       , newExprEnv_ = E.empty
                                       , newId_ = newId
                                       , newPCs_ = []
@@ -243,21 +235,25 @@ mergeState b@(Bindings { name_gen = ng }) simplifier s1 s2 =
         then 
             let (newId, ng') = freshMergeId TyLitInt ng
                 ctxt = emptyContext s1 s2 ng' newId
-                (curr_expr', m_ns, ctxt') = newMergeCurrExprCxt ctxt
 
-                (eenv', ctxt'') = newMergeExprEnvCxt ctxt' m_ns
+                ((ce, eenv), ctxt') = runMergeMContext
+                                        (do
+                                            ce_ <- newMergeCurrExpr
+                                            eenv_ <- newMergeExprEnv
+                                            return (ce_, eenv_)
+                                        ) ctxt
 
-                (ctxt''', path_conds') = mergePathConds simplifier ctxt''
+                (ctxt'', path_conds') = mergePathConds simplifier ctxt'
 
-                syms' = mergeSymbolicIds ctxt'''
+                syms' = mergeSymbolicIds ctxt''
 
-                s1' = state1_ ctxt'''
-                ng'' = ng_ ctxt'''
+                s1' = state1_ ctxt''
+                ng'' = ng_ ctxt''
 
                 m_b = b { name_gen = ng'' }
-                m_s = State { expr_env = eenv'
+                m_s = State { expr_env = eenv
                             , type_env = type_env s1'
-                            , curr_expr = curr_expr'
+                            , curr_expr = ce
                             , path_conds = path_conds'
                             , non_red_path_conds = non_red_path_conds s1'
                             , true_assert = true_assert s1'
@@ -275,20 +271,21 @@ mergeState b@(Bindings { name_gen = ng }) simplifier s1 s2 =
             Just (m_b, m_s)
         else Nothing
 
-newMergeCurrExprCxt :: Context t -> (CurrExpr, MergedIds, Context t)
-newMergeCurrExprCxt ctxt@(Context { state1_ = s1, state2_ = s2, newPCs_ = pc, ng_ = ng, newId_ = m_id }) =
-        let
-            CurrExpr er1 e1 = curr_expr s1
+newMergeCurrExpr :: MergeM t CurrExpr
+newMergeCurrExpr = do
+        s1 <- state1
+        s2 <- state2
+
+        let CurrExpr er1 e1 = curr_expr s1
             CurrExpr er2 e2 = curr_expr s2
 
-            (e, ctxt') = runMergeMContext (newMergeCurrExpr' (known_values s1) e1 e2) ctxt
-        in
-        assert (er1 == er2)
-        (CurrExpr er1 e, newMergedIds_ ctxt', ctxt')
+        e <- newMergeCurrExpr' (known_values s1) e1 e2
+        
+        assert (er1 == er2) . return $ CurrExpr er1 e
 
 newMergeCurrExpr' :: KnownValues -> Expr -> Expr -> MergeM t Expr
 newMergeCurrExpr' kv v1@(Var (Id n1 t)) v2@(Var (Id n2 _))
-    | isPrimType t = newMergeExpr' kv v1 v2
+    | isPrimType t = newMergeExpr kv v1 v2
     | otherwise = do
         e1 <- arbDCCase1 t
         e2 <- arbDCCase2 t
@@ -299,20 +296,18 @@ newMergeCurrExpr' kv v1@(Var (Id n1 t)) v2@(Var (Id n2 _))
         insertNewExprEnv n2 e2
         insertExprEnv2 n2 e2
 
-        newMergeExpr' kv e1 e2
-newMergeCurrExpr' kv e1 e2 = newMergeExpr' kv e1 e2
+        newMergeExpr kv e1 e2
+newMergeCurrExpr' kv e1 e2 = newMergeExpr kv e1 e2
 
 ------------------------------------------------
 -- Merging expressions
 
 type NewSymbolicIds = SymbolicIds
 
-newMergeExprEnvCxt :: Context t -> MergedIds -> (ExprEnv, Context t)
-newMergeExprEnvCxt ctxt@(Context { state1_ = s1@(State { known_values = kv }), newExprEnv_ = n_eenv }) m_ns =
-    runMergeMContext (newMergeExprEnv kv n_eenv) (ctxt { mergedIds_ = m_ns })
+newMergeExprEnv :: MergeM t ExprEnv
+newMergeExprEnv = do
+    State { known_values = kv } <- state1
 
-newMergeExprEnv :: KnownValues -> ExprEnv -> MergeM t ExprEnv 
-newMergeExprEnv kv init_new_expr_env = do
     eenv1 <- exprEnv1
     eenv2 <- exprEnv2
     m_eenv <- E.mergeAEnvObj
@@ -322,7 +317,7 @@ newMergeExprEnv kv init_new_expr_env = do
                   eenv1 
                   eenv2
     n_eenv <- newExprEnv
-    return $ E.union n_eenv (E.union init_new_expr_env m_eenv)
+    return $ E.union n_eenv m_eenv
 
 newMergeEnvObj :: KnownValues -> Name -> E.EnvObj -> E.EnvObj
                -> MergeM t E.EnvObj
@@ -330,7 +325,7 @@ newMergeEnvObj kv n eObj1 eObj2
     | E.EqFast eObj1 == E.EqFast eObj2 = return eObj1
     | E.ExprObj _ e1 <- eObj1
     , E.ExprObj _ e2 <- eObj2 = do
-        m_e <- newMergeExpr' kv e1 e2
+        m_e <- newMergeExpr kv e1 e2
         return $ E.ExprObj Nothing m_e
     | (E.SymbObj i) <- eObj1
     , (E.ExprObj _ e2) <- eObj2 = do
@@ -340,7 +335,7 @@ newMergeEnvObj kv n eObj1 eObj2
             Just (E.SymbObj _) -> do
                 e_s <- arbDCCase1 (typeOf i)
                 insertExprEnv1 (idName i) e_s
-                e <- newMergeExpr' kv e_s e2
+                e <- newMergeExpr kv e_s e2
                 deleteSymbolic1 i
                 return $ E.ExprObj Nothing e
             Just obj' -> return obj'
@@ -353,7 +348,7 @@ newMergeEnvObj kv n eObj1 eObj2
             Just (E.SymbObj _) -> do
                 e_s <- arbDCCase2 (typeOf i)
                 insertExprEnv2 (idName i) e_s
-                e <- newMergeExpr' kv e1 e_s
+                e <- newMergeExpr kv e1 e_s
                 deleteSymbolic2 i
                 return $ E.ExprObj Nothing e
             Just obj' -> return obj'
@@ -361,18 +356,18 @@ newMergeEnvObj kv n eObj1 eObj2
     | (E.RedirObj n) <- eObj1
     , (E.ExprObj _ e2) <- eObj2 = do
         i1 <- nameToId1 n
-        e <- newMergeExpr' kv (Var i1) e2
+        e <- newMergeExpr kv (Var i1) e2
         return $ E.ExprObj Nothing e
     | (E.ExprObj _ e1) <- eObj1
     , (E.RedirObj n) <- eObj2 = do
         i2 <- nameToId2 n
-        e <- newMergeExpr' kv e1 (Var i2)
+        e <- newMergeExpr kv e1 (Var i2)
         return $ E.ExprObj Nothing e
     | (E.RedirObj n1) <- eObj1
     , (E.RedirObj n2) <- eObj2 = do
         i1 <- nameToId1 n
         i2 <- nameToId2 n
-        e <- newMergeExpr' kv  (Var i1) (Var i2)
+        e <- newMergeExpr kv  (Var i1) (Var i2)
         return $ E.ExprObj Nothing e
     | (E.SymbObj i1) <- eObj1
     , (E.SymbObj i2) <- eObj2
@@ -480,50 +475,8 @@ nameToId2 n = do
 -- the variables.
 -- Returns the results of merging the expressions, as well as a HashMap of
 -- new name pairs which must be merged.
-newMergeExpr :: KnownValues
-             -> NameGen
-             -> MergeId
-             -> MergedIds
-             -> ExprEnv
-             -> ExprEnv
-             -> TypeEnv
-             -> Expr
-             -> Expr
-             -> (Expr, MergedIds, ExprEnv, [PathCond], HS.HashSet Id, NameGen)
-newMergeExpr kv ng m_id m_ns eenv1 eenv2 tenv e1 e2 =
-    let s1 = State { expr_env = eenv1, type_env = tenv, symbolic_ids = HS.empty, rules = [], num_steps = 0 }
-        s2 = State { expr_env = eenv2, type_env = tenv, symbolic_ids = HS.empty, rules = [], num_steps = 0 }
-
-        ctxt = Context { state1_ = s1
-                       , state2_ = s2
-                       , mergedIds_ = m_ns
-                       , newMergedIds_ = HM.empty
-                       , newExprEnv_ = E.empty
-                       , ng_ = ng
-                       , newId_ = m_id
-                       , newPCs_ = []
-                       , newSyms_ = HS.empty
-                       }
-        (e, ctxt') = runMergeMContext (newMergeExpr' kv e1 e2) ctxt
-    in
-    exprContextToTuple e ctxt'
-
--- newMergeExpr' :: KnownValues -> Expr -> Expr -> MergeM t Expr
--- newMergeExpr' kv e1 e2 = do
---     eenv1 <- exprEnv1
---     eenv2 <- exprEnv2
-
---     let e1' = if  | Var (Id n _) <- e1
---                   , Just e_ <- E.deepLookup n eenv1 -> e_
---                   | otherwise -> e1
---     let e2' = if  | Var (Id n _) <- e2
---                   , Just e_ <- E.deepLookup n eenv2 -> e_
---                   | otherwise -> e2
-
---     newMergeExpr'' kv e1 e2
-
-newMergeExpr' :: KnownValues -> Expr -> Expr -> MergeM t Expr
-newMergeExpr' kv v1@(Var i1@(Id n1 t)) v2@(Var i2@(Id n2 _)) = do
+newMergeExpr :: KnownValues -> Expr -> Expr -> MergeM t Expr
+newMergeExpr kv v1@(Var i1@(Id n1 t)) v2@(Var i2@(Id n2 _)) = do
     m_i <- lookupMergedIds n1 n2
 
     eenv1 <- exprEnv1
@@ -559,7 +512,7 @@ newMergeExpr' kv v1@(Var i1@(Id n1 t)) v2@(Var i2@(Id n2 _)) = do
         , Just e2 <- smnfVal eenv2 v2
         , Var _ <- e1
         , Var _ <- e2 ->
-            newMergeExpr' kv e1 e2
+            newMergeExpr kv e1 e2
         | Just e1 <- smnfVal eenv1 v1
         , Just e2 <- smnfVal eenv2 v2
         , Var (Id vn1 t) <- e1 -> do
@@ -570,7 +523,7 @@ newMergeExpr' kv v1@(Var i1@(Id n1 t)) v2@(Var i2@(Id n2 _)) = do
             insertNewExprEnv vn1 new_e1
             insertExprEnv1 vn1 new_e1
 
-            m_e <- newMergeExpr' kv new_e1 e2
+            m_e <- newMergeExpr kv new_e1 e2
             insertNewExprEnv (idName i) m_e
             insertExprEnv1 (idName i) m_e
             insertExprEnv2 (idName i) m_e
@@ -585,7 +538,7 @@ newMergeExpr' kv v1@(Var i1@(Id n1 t)) v2@(Var i2@(Id n2 _)) = do
             insertNewExprEnv vn2 new_e2
             insertExprEnv2 vn2 new_e2
 
-            m_e <- newMergeExpr' kv e1 new_e2
+            m_e <- newMergeExpr kv e1 new_e2
             insertNewExprEnv (idName i) m_e
             insertExprEnv1 (idName i) m_e
             insertExprEnv2 (idName i) m_e
@@ -594,7 +547,7 @@ newMergeExpr' kv v1@(Var i1@(Id n1 t)) v2@(Var i2@(Id n2 _)) = do
         , Just e2 <- smnfVal eenv2 v2 -> do
             i <- freshIdM t
             insertNewMergedIds n1 n2 i
-            e <- newMergeExpr' kv e1 e2
+            e <- newMergeExpr kv e1 e2
             insertNewExprEnv (idName i) e
             insertExprEnv1 (idName i) e
             insertExprEnv2 (idName i) e
@@ -608,7 +561,7 @@ newMergeExpr' kv v1@(Var i1@(Id n1 t)) v2@(Var i2@(Id n2 _)) = do
             insertExprEnv2 (idName i) e
             return (Var i)
 
-newMergeExpr' kv v1@(Var (Id _ t)) l@(Lit _) = do
+newMergeExpr kv v1@(Var (Id _ t)) l@(Lit _) = do
     m_id <- splitId
     i <- freshIdM t
     insertNewSymbolic i
@@ -616,7 +569,7 @@ newMergeExpr' kv v1@(Var (Id _ t)) l@(Lit _) = do
              , PC.mkAssumePC m_id 2 $ ExtCond (mkEqPrimExpr t kv (Var i) l) True ]
     addPC pc
     return (Var i)
-newMergeExpr' kv l@(Lit _) v2@(Var (Id _ t)) = do
+newMergeExpr kv l@(Lit _) v2@(Var (Id _ t)) = do
     m_id <- splitId
     i <- freshIdM t
     insertNewSymbolic i
@@ -624,7 +577,7 @@ newMergeExpr' kv l@(Lit _) v2@(Var (Id _ t)) = do
              , PC.mkAssumePC m_id 2 $ ExtCond (mkEqPrimExpr t kv (Var i) v2) True ]
     addPC pc
     return (Var i)
-newMergeExpr' kv l1@(Lit _) l2@(Lit _) = do
+newMergeExpr kv l1@(Lit _) l2@(Lit _) = do
     m_id <- splitId
     let t = typeOf l1
     i <- freshIdM t
@@ -634,7 +587,7 @@ newMergeExpr' kv l1@(Lit _) l2@(Lit _) = do
     addPC pc
     return (Var i)
 
-newMergeExpr' kv v@(Var (Id n t)) e2 = do
+newMergeExpr kv v@(Var (Id n t)) e2 = do
     eenv1 <- exprEnv1
     eenv2 <- exprEnv2
     if  | Just e1 <- smnfVal eenv1 v
@@ -643,12 +596,12 @@ newMergeExpr' kv v@(Var (Id n t)) e2 = do
             new_e1 <- arbDCCase1 t
             insertNewExprEnv n' new_e1
             insertExprEnv1 n' new_e1
-            newMergeExpr' kv new_e1 e2
+            newMergeExpr kv new_e1 e2
         | Just e1 <- smnfVal eenv1 v
         , isSMNF eenv2 e2 ->
-            newMergeExpr' kv e1 e2
+            newMergeExpr kv e1 e2
         | otherwise -> newCaseExpr' v e2
-newMergeExpr' kv e1 v@(Var (Id n t)) = do
+newMergeExpr kv e1 v@(Var (Id n t)) = do
     eenv1 <- exprEnv1
     eenv2 <- exprEnv2
     if  | Just e2 <- smnfVal eenv2 v
@@ -657,30 +610,30 @@ newMergeExpr' kv e1 v@(Var (Id n t)) = do
             new_e2 <- arbDCCase2 t
             insertNewExprEnv n' new_e2
             insertExprEnv2 n' new_e2
-            newMergeExpr' kv e1 new_e2
+            newMergeExpr kv e1 new_e2
         | Just e2 <- smnfVal eenv2 v
         , isSMNF eenv1 e1 ->
-            newMergeExpr' kv e1 e2
+            newMergeExpr kv e1 e2
         | otherwise -> newCaseExpr' e1 v
 
-newMergeExpr' kv e1 e2
+newMergeExpr kv e1 e2
     | d@(Data (DataCon n1 _)):es1 <- unApp e1
     , Data (DataCon n2 _):es2 <- unApp e2 
     , n1 == n2 = do
-        es <- mapM (uncurry (newMergeExpr' kv)) $ zip es1 es2
+        es <- mapM (uncurry (newMergeExpr kv)) $ zip es1 es2
         return $ mkApp (d:es)
 
-newMergeExpr' kv e1 e2@(Case (Var i2) b2 as2)
+newMergeExpr kv e1 e2@(Case (Var i2) b2 as2)
     | Data dc1:_ <- unApp e1
     , isSMNFCase e2 = newMergeDataConCase kv dc1 e1 i2 as2
-newMergeExpr' kv e1@(Case (Var i1) b1 as1) e2
+newMergeExpr kv e1@(Case (Var i1) b1 as1) e2
     | Data dc2:_ <- unApp e2
     , isSMNFCase e1 = newMergeCaseDataCon kv i1 as1 dc2 e2
-newMergeExpr' kv e1@(Case (Var i1) b1 as1) e2@(Case (Var i2) b2 as2) 
+newMergeExpr kv e1@(Case (Var i1) b1 as1) e2@(Case (Var i2) b2 as2) 
     | isSMNFCase e1
     , isSMNFCase e2 = newMergeCaseExprs kv i1 as1 i2 as2
-newMergeExpr' _ ty@(Type t) (Type t') = assert (t == t') return ty
-newMergeExpr' _ e1 e2 = newCaseExpr' e1 e2
+newMergeExpr _ ty@(Type t) (Type t') = assert (t == t') return ty
+newMergeExpr _ e1 e2 = newCaseExpr' e1 e2
 
 -- | Digs through lone Vars to look for a symbolic merged normal form expression.
 -- Will not get stuck in an infinite loop, if there is a self recursive Var, or a
@@ -698,7 +651,7 @@ smnfVal eenv = go HS.empty
             | otherwise = Nothing
 
 newMergeExprs' :: KnownValues -> [Expr] -> MergeM t Expr
-newMergeExprs' kv (e:es) = foldM (newMergeExpr' kv) e es
+newMergeExprs' kv (e:es) = foldM (newMergeExpr kv) e es
 newMergeExprs' _ _ = error  "newMergeExprs: empty list"
 
 newCaseExpr' :: Expr -> Expr -> MergeM t Expr
