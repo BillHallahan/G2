@@ -387,13 +387,13 @@ arbDCCase insertSym i@(Id _ t) = do
 
     if  | (PresType t) .:: bool -> do
             let tre@(Data tre_dc) = mkTrue kv
-                flse@(Data flse_dc) = mkTrue kv
+                flse@(Data flse_dc) = mkFalse kv
 
             bindee_id <- freshIdM TyLitInt
             let bindee = Var bindee_id
             let pc = mkBounds bindee 1 2
                 bool_pc = [ PC.mkAssumePC bindee_id 1 $ ExtCond (Var i) True
-                          , PC.mkAssumePC bindee_id 1 $ ExtCond (Var i) False ]
+                          , PC.mkAssumePC bindee_id 2 $ ExtCond (Var i) False ]
                 e = Case bindee bindee_id
                         [ Alt (LitAlt (LitInt 1)) tre
                         , Alt (LitAlt (LitInt 2)) flse]
