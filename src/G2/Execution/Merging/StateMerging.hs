@@ -284,11 +284,11 @@ newMergeCurrExpr = do
         assert (er1 == er2) . return $ CurrExpr er1 e
 
 newMergeCurrExpr' :: KnownValues -> Expr -> Expr -> MergeM t Expr
-newMergeCurrExpr' kv v1@(Var (Id n1 t)) v2@(Var (Id n2 _))
+newMergeCurrExpr' kv v1@(Var vi1@(Id n1 t)) v2@(Var vi2@(Id n2 _))
     | isPrimType t = newMergeExpr kv v1 v2
     | otherwise = do
-        e1 <- arbDCCase1 t
-        e2 <- arbDCCase2 t
+        e1 <- arbDCCase1 vi1
+        e2 <- arbDCCase2 vi2
 
         insertNewExprEnv n1 e1
         insertExprEnv1 n1 e1
@@ -333,7 +333,7 @@ newMergeEnvObj kv n eObj1 eObj2
         obj <- lookupEnvObjExprEnv1 (idName i)
         case obj of
             Just (E.SymbObj _) -> do
-                e_s <- arbDCCase1 (typeOf i)
+                e_s <- arbDCCase1 i
                 insertExprEnv1 (idName i) e_s
                 e <- newMergeExpr kv e_s e2
                 deleteSymbolic1 i
@@ -346,7 +346,7 @@ newMergeEnvObj kv n eObj1 eObj2
         obj <- lookupEnvObjExprEnv2 (idName i)
         case obj of
             Just (E.SymbObj _) -> do
-                e_s <- arbDCCase2 (typeOf i)
+                e_s <- arbDCCase2 i
                 insertExprEnv2 (idName i) e_s
                 e <- newMergeExpr kv e1 e_s
                 deleteSymbolic2 i
@@ -374,87 +374,64 @@ newMergeEnvObj kv n eObj1 eObj2
     , i1 == i2 = return eObj1
     | otherwise = error $ "Unequal SymbObjs or RedirObjs present in the expr_envs of both states." ++ (show eObj1) ++ " " ++ (show eObj2)
 
--- | Build a case expression with one alt for each data constructor of the given type
--- and symbolic arguments.  Thus, the case expression could evaluate to any value of the
--- given type.
-arbDCCase :: TypeEnv
-          -> NameGen
-          -> Type
-          -> (Expr, [PathCond], HS.HashSet Id, NameGen)
-arbDCCase tenv ng t
-    | TyCon tn _:ts <- unTyApp t
-    , Just adt <- M.lookup tn tenv =
-        let
-            dcs = dataCon adt
-            (bindee_id, ng') = freshId TyLitInt ng
+arbDCCase1 :: Id -> MergeM t Expr
+arbDCCase1 = arbDCCase insertSymbolic1
 
-            bound = boundIds adt
-            bound_ts = zip bound ts
+arbDCCase2 :: Id -> MergeM t Expr
+arbDCCase2 = arbDCCase insertSymbolic2
 
-            ty_apped_dcs = map (\dc -> mkApp $ Data dc:map Type ts) dcs
-            ((ng'', symbs), apped_dcs) =
-                        L.mapAccumL
-                            (\(ng_, symbs_) dc ->
-                                let
-                                    anon_ts = anonArgumentTypes dc
-                                    re_anon = foldr (\(i, t) -> retype i t) anon_ts bound_ts
-                                    (ars, ng_') = freshIds re_anon ng_
-                                    symbs_' = foldr HS.insert symbs_ ars
-                                in
-                                ((ng_', symbs_'), mkApp $ dc:map Var ars)
-                            )
-                            (ng', HS.empty)
-                            ty_apped_dcs
+arbDCCase :: (Id -> MergeM t ()) -> Id -> MergeM t Expr
+arbDCCase insertSym i@(Id _ t) = do
+    kv <- return . known_values =<< state1
+    let bool = tyBool kv
 
-            bindee = Var bindee_id
+    if  | (PresType t) .:: bool -> do
+            let tre@(Data tre_dc) = mkTrue kv
+                flse@(Data flse_dc) = mkTrue kv
 
-            pc = mkBounds bindee 1 (toInteger $ length dcs)
+            bindee_id <- freshIdM TyLitInt
+            let bindee = Var bindee_id
+            let pc = mkBounds bindee 1 2
+                bool_pc = [ PC.mkAssumePC bindee_id 1 $ ExtCond (Var i) True
+                          , PC.mkAssumePC bindee_id 1 $ ExtCond (Var i) False ]
+                e = Case bindee bindee_id
+                        [ Alt (LitAlt (LitInt 1)) tre
+                        , Alt (LitAlt (LitInt 2)) flse]
+            insertSym bindee_id
+            addPC (pc ++ bool_pc)
 
-            e = createCaseExpr bindee_id apped_dcs
-        in
-        (e, pc, HS.insert bindee_id symbs, ng'')
-    | otherwise = error $ "arbDCCase: type not found\n" ++ show t
+            return e
 
-arbDCCase1 :: Type -> MergeM t Expr
-arbDCCase1 = arbDCCase' insertSymbolic1
+        | TyCon tn _:ts <- unTyApp t -> do
+            m_adt <- lookupTypeM tn
+            case m_adt of
+                Just adt -> do
+                    let dcs = dataCon adt
+                    bindee_id <- freshIdM TyLitInt
 
-arbDCCase2 :: Type -> MergeM t Expr
-arbDCCase2 = arbDCCase' insertSymbolic2
+                    let bound = boundIds adt
+                        bound_ts = zip bound ts
 
-arbDCCase' :: (Id -> MergeM t ()) -> Type -> MergeM t Expr
-arbDCCase' insertSym t 
-    | TyCon tn _:ts <- unTyApp t = do
-        m_adt <- lookupTypeM tn
-        case m_adt of
-            Just adt -> do
-                let dcs = dataCon adt
-                bindee_id <- freshIdM TyLitInt
+                        ty_apped_dcs = map (\dc -> mkApp $ Data dc:map Type ts) dcs
+                    
+                    apped_dcs <- mapM (\dc -> do
+                                            let anon_ts = anonArgumentTypes dc
+                                                re_anon = foldr (\(i, t) -> retype i t) anon_ts bound_ts
 
-                let bound = boundIds adt
-                    bound_ts = zip bound ts
+                                            ars <- freshIdsM re_anon
+                                            mapM insertSym ars
 
-                    ty_apped_dcs = map (\dc -> mkApp $ Data dc:map Type ts) dcs
-                
-                apped_dcs <- mapM (\dc -> do
-                                        let anon_ts = anonArgumentTypes dc
-                                            re_anon = foldr (\(i, t) -> retype i t) anon_ts bound_ts
+                                            return (mkApp $ dc:map Var ars)) ty_apped_dcs
 
-                                        ars <- freshIdsM re_anon
-                                        mapM insertSym ars
+                    let bindee = Var bindee_id
+                    let pc = mkBounds bindee 1 (toInteger $ length dcs)
+                        e = createCaseExpr bindee_id apped_dcs
+                    insertSym bindee_id
+                    addPC pc
 
-                                        return (mkApp $ dc:map Var ars)) ty_apped_dcs
-
-                let bindee = Var bindee_id
-
-                let pc = mkBounds bindee 1 (toInteger $ length dcs)
-                    e = createCaseExpr bindee_id apped_dcs
-
-                insertSym bindee_id
-                addPC pc
-                
-                return e
-            Nothing -> error $ "arbDCCase: type not found"
-arbDCCase' _ _ = error $ "arbDCCase: type not found"
+                    return e
+                Nothing -> error $ "arbDCCase: type not found"
+arbDCCase _ _ = error $ "arbDCCase: type not found"
 
 nameToId1 :: Name -> MergeM t Id
 nameToId1 n = do
@@ -515,11 +492,11 @@ newMergeExpr kv v1@(Var i1@(Id n1 t)) v2@(Var i2@(Id n2 _)) = do
             newMergeExpr kv e1 e2
         | Just e1 <- smnfVal eenv1 v1
         , Just e2 <- smnfVal eenv2 v2
-        , Var (Id vn1 t) <- e1 -> do
+        , Var vi@(Id vn1 t) <- e1 -> do
             i <- freshIdM t
             insertNewMergedIds n1 n2 i
 
-            new_e1 <- arbDCCase1 t
+            new_e1 <- arbDCCase1 vi
             insertNewExprEnv vn1 new_e1
             insertExprEnv1 vn1 new_e1
 
@@ -530,11 +507,11 @@ newMergeExpr kv v1@(Var i1@(Id n1 t)) v2@(Var i2@(Id n2 _)) = do
             return (Var i)            
         | Just e1 <- smnfVal eenv1 v1
         , Just e2 <- smnfVal eenv2 v2
-        , Var (Id vn2 t) <- e2 -> do
+        , Var vi@(Id vn2 t) <- e2 -> do
             i <- freshIdM t
             insertNewMergedIds n1 n2 i
 
-            new_e2 <- arbDCCase2 t
+            new_e2 <- arbDCCase2 vi
             insertNewExprEnv vn2 new_e2
             insertExprEnv2 vn2 new_e2
 
@@ -608,9 +585,9 @@ newMergeExpr kv v@(Var (Id n t)) e2 = do
     eenv1 <- exprEnv1
     eenv2 <- exprEnv2
     if  | Just e1 <- smnfVal eenv1 v
-        , Var (Id n' _) <- e1
+        , Var vi@(Id n' _) <- e1
         , isSMNF eenv2 e2 -> do
-            new_e1 <- arbDCCase1 t
+            new_e1 <- arbDCCase1 vi
             insertNewExprEnv n' new_e1
             insertExprEnv1 n' new_e1
             newMergeExpr kv new_e1 e2
@@ -622,9 +599,9 @@ newMergeExpr kv e1 v@(Var (Id n t)) = do
     eenv1 <- exprEnv1
     eenv2 <- exprEnv2
     if  | Just e2 <- smnfVal eenv2 v
-        , Var (Id n' _) <- e2
+        , Var vi@(Id n' _) <- e2
         , isSMNF eenv1 e1 -> do
-            new_e2 <- arbDCCase2 t
+            new_e2 <- arbDCCase2 vi
             insertNewExprEnv n' new_e2
             insertExprEnv2 n' new_e2
             newMergeExpr kv e1 new_e2
