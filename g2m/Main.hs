@@ -43,6 +43,7 @@ mergeEffectiveTests = do
     -- timeIOActionPrint "compressM" $
     --     [g2M| \(ys :: [Int]) -> ?(xs :: [Int]) | compress xs == ys |] [0..4]
 
+
     mapM_ (\x -> do
                 print x
                 compressTestCall [0..x]

@@ -431,6 +431,7 @@ arbDCCase insertSym i@(Id _ t) = do
 
                     return e
                 Nothing -> error $ "arbDCCase: type not found"
+        | otherwise -> error $ "arbDCCase: type not found"
 arbDCCase _ _ = error $ "arbDCCase: type not found"
 
 nameToId1 :: Name -> MergeM t Id
@@ -461,7 +462,9 @@ newMergeExpr kv v1@(Var i1@(Id n1 t)) v2@(Var i2@(Id n2 _)) = do
 
     if  | n1 == n2 -> return v1
         | Just i <- m_i -> return (Var i)
-        | isPrimType t -> do
+        | E.isSymbolic n1 eenv1
+        , E.isSymbolic n2 eenv2
+        , isPrimType t -> do
             m_id <- splitId
             i <- freshIdM t
             insertNewSymbolic i
@@ -485,41 +488,6 @@ newMergeExpr kv v1@(Var i1@(Id n1 t)) v2@(Var i2@(Id n2 _)) = do
             insertExprEnv1 n1 v2
             deleteSymbolic1 i1
             return v2
-        | Just e1 <- smnfVal eenv1 v1
-        , Just e2 <- smnfVal eenv2 v2
-        , Var _ <- e1
-        , Var _ <- e2 ->
-            newMergeExpr kv e1 e2
-        | Just e1 <- smnfVal eenv1 v1
-        , Just e2 <- smnfVal eenv2 v2
-        , Var vi@(Id vn1 t) <- e1 -> do
-            i <- freshIdM t
-            insertNewMergedIds n1 n2 i
-
-            new_e1 <- arbDCCase1 vi
-            insertNewExprEnv vn1 new_e1
-            insertExprEnv1 vn1 new_e1
-
-            m_e <- newMergeExpr kv new_e1 e2
-            insertNewExprEnv (idName i) m_e
-            insertExprEnv1 (idName i) m_e
-            insertExprEnv2 (idName i) m_e
-            return (Var i)            
-        | Just e1 <- smnfVal eenv1 v1
-        , Just e2 <- smnfVal eenv2 v2
-        , Var vi@(Id vn2 t) <- e2 -> do
-            i <- freshIdM t
-            insertNewMergedIds n1 n2 i
-
-            new_e2 <- arbDCCase2 vi
-            insertNewExprEnv vn2 new_e2
-            insertExprEnv2 vn2 new_e2
-
-            m_e <- newMergeExpr kv e1 new_e2
-            insertNewExprEnv (idName i) m_e
-            insertExprEnv1 (idName i) m_e
-            insertExprEnv2 (idName i) m_e
-            return (Var i)            
         | Just e1 <- smnfVal eenv1 v1
         , Just e2 <- smnfVal eenv2 v2 -> do
             i <- freshIdM t
