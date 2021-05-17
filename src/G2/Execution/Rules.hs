@@ -17,6 +17,7 @@ module G2.Execution.Rules ( module G2.Execution.RuleTypes
                           , isExecValueForm ) where
 
 import G2.Config.Config
+import G2.Execution.NewPC
 import G2.Execution.NormalForms
 import G2.Execution.PrimitiveEval
 import G2.Execution.Merging.StateMerging
@@ -103,46 +104,6 @@ stdReduce' _ _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
             isError _ = False
 
             returnWithMP (r_, s_, ng_) = return (r_, s_, ng_, mp)
-
-data NewPC t = NewPC { state :: State t
-                     , new_pcs :: [PathCond]
-                     , concretized :: [Id] }
-
-newPCEmpty :: State t -> NewPC t
-newPCEmpty s = NewPC { state = s, new_pcs = [], concretized = []}
-
-reduceNewPC :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> NewPC t -> IO (Maybe (State t))
-reduceNewPC solver simplifier
-            (NewPC { state = s@(State { path_conds = spc })
-                   , new_pcs = pc
-                   , concretized = concIds })
-    | not (null pc) || not (null concIds) = do
-        let (s', pc') = L.mapAccumL (simplifyPC simplifier) s pc
-            pc'' = concat pc'
-
-
-        -- Optimization
-        -- We replace the path_conds with only those that are directly
-        -- affected by the new path constraints
-        -- This allows for more efficient solving, and in some cases may
-        -- change an Unknown into a SAT or UNSAT
-        let new_pc = foldr PC.insert spc $ pc''
-            new_pc' = foldr (simplifyPCs simplifier s') new_pc pc''
-
-            s'' = s' {path_conds = new_pc'}
-
-        let ns = (concatMap PC.varNamesInPC pc) ++ (names concIds)
-            rel_pc = case ns of
-                [] -> PC.fromList pc''
-                _ -> PC.scc ns new_pc'
-
-        res <- check solver s' rel_pc
-
-        if res == SAT () then
-            return $ Just s''
-        else
-            return Nothing
-    | otherwise = return $ Just s
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
@@ -758,12 +719,12 @@ handleDefMatches s@(State {known_values = kv, symbolic_ids = syms, expr_env = ee
     -- Only 1 match, no need to insert Case expr
     | (Alt Default aexpr) <- alt
     , (length matches == 1)
-    , mexpr <- fst $ head matches =
+    , mexpr <- fst $ head' matches =
         let
             binds = [(bind, mexpr)]
             aexpr' = liftCaseBinds binds aexpr
             s' = s {curr_expr = CurrExpr Evaluate aexpr'}
-            assums = snd $ head matches
+            assums = snd $ head' matches
             cond = ExtCond (cnf kv assums) True
         in (ng, [NewPC {state = s', new_pcs = [cond], concretized = []}])
     | (Alt Default aexpr) <- alt =
@@ -790,6 +751,10 @@ handleDefMatches s@(State {known_values = kv, symbolic_ids = syms, expr_env = ee
         in (ng', [NewPC {state = s', new_pcs = newSymBound:newMapping, concretized = []}])
     | otherwise = error $ "Alt is not a Default: " ++ show alt
 handleDefMatches _ ng _ _ = (ng, [])
+
+head' :: [a] -> a
+head' (x:_) = x
+head' [] = error "head'"
 
 --------------------------------------------------------------------------------------
 

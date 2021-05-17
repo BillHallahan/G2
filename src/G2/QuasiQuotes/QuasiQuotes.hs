@@ -12,6 +12,7 @@ module G2.QuasiQuotes.QuasiQuotes ( g2
 import G2.Config
 import G2.Execution.Interface
 import G2.Execution.Memory
+import G2.Execution.Merging.MergeReducer
 import G2.Execution.Reducer
 import G2.Initialization.MkCurrExpr
 import G2.Interface
@@ -416,7 +417,7 @@ executeAndSolveStates' mergeStates b s = do
             -- (res, _) <- runG2Post (red :<~ Logger "qq") hal' ((IncrAfterN 2000 SymbolicADTOrderer)
                                           -- :<-> BucketSizeOrderer 6) solver s b
                 ord = ToOrderer (IncrAfterN 2000 (ADTHeightOrderer 0 Nothing) :<-> BucketSizeOrderer 6)
-            (res, _) <- runG2Post (red :<~ mkCountAllSteps :<~ CountMerges {- :<~ LimLogger 0 0 [2,2,1,2,1,1,2,2] "a_red" -}) hal' ord solver simplifier s b mergeStates
+            (res, _) <- runG2Post (red :<~ (MergeReducer solver simplifier) :<~ mkCountAllSteps :<~ CountMerges {- :<~ LimLogger 0 0 [] "a_red" -}) hal' ord solver simplifier s b mergeStates
             -- (res, _) <- runG2Post (red) hal' (BucketSizeOrderer 3) solver s b
 
             case res of

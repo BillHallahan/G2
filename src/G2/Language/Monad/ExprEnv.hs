@@ -1,6 +1,7 @@
 module G2.Language.Monad.ExprEnv ( memberE
                                            , lookupE
                                            , insertE
+                                           , insertSymbolicE
                                            , mapE
                                            , mapME
                                            , mapWithKeyME ) where
@@ -28,6 +29,12 @@ insertE :: ExState s m => Name -> Expr -> m ()
 insertE n e = do
     eenv <- exprEnv
     let eenv' = E.insert n e eenv
+    putExprEnv eenv'
+
+insertSymbolicE :: ExState s m => Name -> Id -> m ()
+insertSymbolicE n i = do
+    eenv <- exprEnv
+    let eenv' = E.insertSymbolic n i eenv
     putExprEnv eenv'
 
 mapE :: ExState s m => (Expr -> Expr) -> m ()

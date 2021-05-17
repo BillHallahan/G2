@@ -37,13 +37,15 @@ library
                        , G2.Execution
                        , G2.Execution.Interface
                        , G2.Execution.Memory
+                       , G2.Execution.NewPC
                        , G2.Execution.NormalForms
                        , G2.Execution.PrimitiveEval
                        , G2.Execution.Reducer
                        , G2.Execution.Rules
                        , G2.Execution.RuleTypes
-                       , G2.Execution.Merging.StateMerging
                        , G2.Execution.Merging.MergeGraph
+                       , G2.Execution.Merging.MergeReducer
+                       , G2.Execution.Merging.StateMerging
 
                        , G2.Initialization.Interface
                        , G2.Initialization.DeepSeqWalks
@@ -224,7 +226,7 @@ library
                        -fno-ignore-asserts
                        -- -ddump-rule-rewrites
                        -- -ddump-splices
-                       -- -fprof-auto
+                       -fprof-auto
                        -- -fexternal-interpreter
   other-extensions:    CPP
   if flag(newLH)
@@ -297,7 +299,7 @@ executable G2M
   default-language:    Haskell2010
   ghc-options:         -Wall
                        -- -ddump-splices
-                       -- -fprof-auto "-with-rtsopts=-p"
+                       -fprof-auto "-with-rtsopts=-p"
   hs-source-dirs:      g2m
   main-is:             Main.hs
   other-modules:       

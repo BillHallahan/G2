@@ -4,6 +4,7 @@
 
 module G2.Execution.Merging.StateMerging
   ( mergeState
+  , smnfVal
   , createCaseExpr
   , concretizeSym
   , bindExprToNum
@@ -454,152 +455,152 @@ nameToId2 n = do
 -- Returns the results of merging the expressions, as well as a HashMap of
 -- new name pairs which must be merged.
 newMergeExpr :: KnownValues -> Expr -> Expr -> MergeM t Expr
-newMergeExpr kv v1@(Var i1@(Id n1 t)) v2@(Var i2@(Id n2 _)) = do
-    m_i <- lookupMergedIds n1 n2
+-- newMergeExpr kv v1@(Var i1@(Id n1 t)) v2@(Var i2@(Id n2 _)) = do
+--     m_i <- lookupMergedIds n1 n2
 
-    eenv1 <- exprEnv1
-    eenv2 <- exprEnv2
+--     eenv1 <- exprEnv1
+--     eenv2 <- exprEnv2
 
-    if  | n1 == n2 -> return v1
-        | Just i <- m_i -> return (Var i)
-        | E.isSymbolic n1 eenv1
-        , E.isSymbolic n2 eenv2
-        , isPrimType t -> do
-            m_id <- splitId
-            i <- freshIdM t
-            insertNewSymbolic i
-            let pc = [ PC.mkAssumePC m_id 1 $ ExtCond (mkEqPrimExpr t kv (Var i) v1) True
-                     , PC.mkAssumePC m_id 2 $ ExtCond (mkEqPrimExpr t kv (Var i) v2) True ]
-            addPC pc
-            return (Var i)
-        | E.isSymbolic n1 eenv1
-        , E.isSymbolic n2 eenv2
-        , n1 `E.member` eenv1
-        , not (n1 `E.member` eenv2) -> do
-            insertNewExprEnv n2 v1
-            insertExprEnv2 n2 v1
-            deleteSymbolic2 i2
-            return v1
-        | E.isSymbolic n1 eenv1
-        , E.isSymbolic n2 eenv2
-        , n2 `E.member` eenv2
-        , not (n2 `E.member` eenv1) -> do
-            insertNewExprEnv n1 v2
-            insertExprEnv1 n1 v2
-            deleteSymbolic1 i1
-            return v2
-        | Just e1 <- smnfVal eenv1 v1
-        , Just e2 <- smnfVal eenv2 v2 -> do
-            i <- freshIdM t
-            insertNewMergedIds n1 n2 i
-            e <- newMergeExpr kv e1 e2
-            insertNewExprEnv (idName i) e
-            insertExprEnv1 (idName i) e
-            insertExprEnv2 (idName i) e
-            return (Var i)
-        | otherwise -> do
-            i <- freshIdM t
-            insertNewMergedIds n1 n2 i
-            e <- newCaseExpr' v1 v2
-            insertNewExprEnv (idName i) e
-            insertExprEnv1 (idName i) e
-            insertExprEnv2 (idName i) e
-            return (Var i)
+--     if  | n1 == n2 -> return v1
+--         | Just i <- m_i -> return (Var i)
+--         | E.isSymbolic n1 eenv1
+--         , E.isSymbolic n2 eenv2
+--         , isPrimType t -> do
+--             m_id <- splitId
+--             i <- freshIdM t
+--             insertNewSymbolic i
+--             let pc = [ PC.mkAssumePC m_id 1 $ ExtCond (mkEqPrimExpr t kv (Var i) v1) True
+--                      , PC.mkAssumePC m_id 2 $ ExtCond (mkEqPrimExpr t kv (Var i) v2) True ]
+--             addPC pc
+--             return (Var i)
+--         | E.isSymbolic n1 eenv1
+--         , E.isSymbolic n2 eenv2
+--         , n1 `E.member` eenv1
+--         , not (n1 `E.member` eenv2) -> do
+--             insertNewExprEnv n2 v1
+--             insertExprEnv2 n2 v1
+--             deleteSymbolic2 i2
+--             return v1
+--         | E.isSymbolic n1 eenv1
+--         , E.isSymbolic n2 eenv2
+--         , n2 `E.member` eenv2
+--         , not (n2 `E.member` eenv1) -> do
+--             insertNewExprEnv n1 v2
+--             insertExprEnv1 n1 v2
+--             deleteSymbolic1 i1
+--             return v2
+--         | Just e1 <- smnfVal eenv1 v1
+--         , Just e2 <- smnfVal eenv2 v2 -> do
+--             i <- freshIdM t
+--             insertNewMergedIds n1 n2 i
+--             e <- newMergeExpr kv e1 e2
+--             insertNewExprEnv (idName i) e
+--             insertExprEnv1 (idName i) e
+--             insertExprEnv2 (idName i) e
+--             return e
+--         | otherwise -> do
+--             i <- freshIdM t
+--             insertNewMergedIds n1 n2 i
+--             e <- newCaseExpr' v1 v2
+--             insertNewExprEnv (idName i) e
+--             insertExprEnv1 (idName i) e
+--             insertExprEnv2 (idName i) e
+--             return (Var i)
 
-newMergeExpr kv v1@(Var (Id _ t)) l@(Lit _) = do
-    m_id <- splitId
-    i <- freshIdM t
-    insertNewSymbolic i
-    let pc = [ PC.mkAssumePC m_id 1 $ ExtCond (mkEqPrimExpr t kv (Var i) v1) True
-             , PC.mkAssumePC m_id 2 $ ExtCond (mkEqPrimExpr t kv (Var i) l) True ]
-    addPC pc
-    return (Var i)
-newMergeExpr kv l@(Lit _) v2@(Var (Id _ t)) = do
-    m_id <- splitId
-    i <- freshIdM t
-    insertNewSymbolic i
-    let pc = [ PC.mkAssumePC m_id 1 $ ExtCond (mkEqPrimExpr t kv (Var i) l) True
-             , PC.mkAssumePC m_id 2 $ ExtCond (mkEqPrimExpr t kv (Var i) v2) True ]
-    addPC pc
-    return (Var i)
-newMergeExpr kv l1@(Lit _) l2@(Lit _) = do
-    m_id <- splitId
-    let t = typeOf l1
-    i <- freshIdM t
-    insertNewSymbolic i
-    let pc = [ PC.mkAssumePC m_id 1 $ ExtCond (mkEqPrimExpr t kv (Var i) l1) True
-             , PC.mkAssumePC m_id 2 $ ExtCond (mkEqPrimExpr t kv (Var i) l2) True ]
-    addPC pc
-    return (Var i)
+-- newMergeExpr kv v1@(Var (Id _ t)) l@(Lit _) = do
+--     m_id <- splitId
+--     i <- freshIdM t
+--     insertNewSymbolic i
+--     let pc = [ PC.mkAssumePC m_id 1 $ ExtCond (mkEqPrimExpr t kv (Var i) v1) True
+--              , PC.mkAssumePC m_id 2 $ ExtCond (mkEqPrimExpr t kv (Var i) l) True ]
+--     addPC pc
+--     return (Var i)
+-- newMergeExpr kv l@(Lit _) v2@(Var (Id _ t)) = do
+--     m_id <- splitId
+--     i <- freshIdM t
+--     insertNewSymbolic i
+--     let pc = [ PC.mkAssumePC m_id 1 $ ExtCond (mkEqPrimExpr t kv (Var i) l) True
+--              , PC.mkAssumePC m_id 2 $ ExtCond (mkEqPrimExpr t kv (Var i) v2) True ]
+--     addPC pc
+--     return (Var i)
+-- newMergeExpr kv l1@(Lit _) l2@(Lit _) = do
+--     m_id <- splitId
+--     let t = typeOf l1
+--     i <- freshIdM t
+--     insertNewSymbolic i
+--     let pc = [ PC.mkAssumePC m_id 1 $ ExtCond (mkEqPrimExpr t kv (Var i) l1) True
+--              , PC.mkAssumePC m_id 2 $ ExtCond (mkEqPrimExpr t kv (Var i) l2) True ]
+--     addPC pc
+--     return (Var i)
 
-newMergeExpr kv e1 e2
-    | Prim _ _:_ <- unApp e1 = do
-        let t = typeOf e1
-        b_id <- freshIdM t
-        insertSymbolic1 b_id
-        let pc = ExtCond (mkEqPrimExpr t kv e1 (Var b_id)) True
-        addPC [pc]
-        newMergeExpr kv (Var b_id) e2
-newMergeExpr kv e1 e2
-    | Prim _ _:_ <- unApp e2 = do
-        let t = typeOf e2
-        b_id <- freshIdM t
-        insertSymbolic2 b_id
-        let pc = ExtCond (mkEqPrimExpr t kv e2 (Var b_id)) True
-        addPC [pc]
-        newMergeExpr kv e1 (Var b_id)
+-- newMergeExpr kv e1 e2
+--     | Prim _ _:_ <- unApp e1 = do
+--         let t = typeOf e1
+--         b_id <- freshIdM t
+--         insertSymbolic1 b_id
+--         let pc = ExtCond (mkEqPrimExpr t kv e1 (Var b_id)) True
+--         addPC [pc]
+--         newMergeExpr kv (Var b_id) e2
+-- newMergeExpr kv e1 e2
+--     | Prim _ _:_ <- unApp e2 = do
+--         let t = typeOf e2
+--         b_id <- freshIdM t
+--         insertSymbolic2 b_id
+--         let pc = ExtCond (mkEqPrimExpr t kv e2 (Var b_id)) True
+--         addPC [pc]
+--         newMergeExpr kv e1 (Var b_id)
 
-newMergeExpr kv v@(Var (Id n t)) e2 = do
-    eenv1 <- exprEnv1
-    eenv2 <- exprEnv2
-    if  | Just e1 <- smnfVal eenv1 v
-        , Var vi@(Id n' _) <- e1
-        , isSMNF eenv2 e2 -> do
-            new_e1 <- arbDCCase1 vi
-            insertNewExprEnv n' new_e1
-            insertExprEnv1 n' new_e1
-            newMergeExpr kv new_e1 e2
-        | Just e1 <- smnfVal eenv1 v
-        , isSMNF eenv2 e2 ->
-            newMergeExpr kv e1 e2
-        | otherwise -> newCaseExpr' v e2
-newMergeExpr kv e1 v@(Var (Id n t)) = do
-    eenv1 <- exprEnv1
-    eenv2 <- exprEnv2
-    if  | Just e2 <- smnfVal eenv2 v
-        , Var vi@(Id n' _) <- e2
-        , isSMNF eenv1 e1 -> do
-            new_e2 <- arbDCCase2 vi
-            insertNewExprEnv n' new_e2
-            insertExprEnv2 n' new_e2
-            newMergeExpr kv e1 new_e2
-        | Just e2 <- smnfVal eenv2 v
-        , isSMNF eenv1 e1 ->
-            newMergeExpr kv e1 e2
-        | otherwise -> newCaseExpr' e1 v
+-- newMergeExpr kv v@(Var (Id n t)) e2 = do
+--     eenv1 <- exprEnv1
+--     eenv2 <- exprEnv2
+--     if  | Just e1 <- smnfVal eenv1 v
+--         , Var vi@(Id n' _) <- e1
+--         , isSMNF eenv2 e2 -> do
+--             new_e1 <- arbDCCase1 vi
+--             insertNewExprEnv n' new_e1
+--             insertExprEnv1 n' new_e1
+--             newMergeExpr kv new_e1 e2
+--         | Just e1 <- smnfVal eenv1 v
+--         , isSMNF eenv2 e2 ->
+--             newMergeExpr kv e1 e2
+--         | otherwise -> newCaseExpr' v e2
+-- newMergeExpr kv e1 v@(Var (Id n t)) = do
+--     eenv1 <- exprEnv1
+--     eenv2 <- exprEnv2
+--     if  | Just e2 <- smnfVal eenv2 v
+--         , Var vi@(Id n' _) <- e2
+--         , isSMNF eenv1 e1 -> do
+--             new_e2 <- arbDCCase2 vi
+--             insertNewExprEnv n' new_e2
+--             insertExprEnv2 n' new_e2
+--             newMergeExpr kv e1 new_e2
+--         | Just e2 <- smnfVal eenv2 v
+--         , isSMNF eenv1 e1 ->
+--             newMergeExpr kv e1 e2
+--         | otherwise -> newCaseExpr' e1 v
 
-newMergeExpr kv (Lam lu1 i1 e1) (Lam lu2 (Id n _) e2) = do
-    let e2' = replaceVar n (Var i1) e2
-    e <- if e1 == e2' then return e1 else newCaseExpr' e1 e2'
-    assert (lu1 == lu2) . return $ Lam lu1 i1 e
+-- newMergeExpr kv (Lam lu1 i1 e1) (Lam lu2 (Id n _) e2) = do
+--     let e2' = replaceVar n (Var i1) e2
+--     e <- if e1 == e2' then return e1 else newCaseExpr' e1 e2'
+--     assert (lu1 == lu2) . return $ Lam lu1 i1 e
 
-newMergeExpr kv e1 e2
-    | d@(Data (DataCon n1 _)):es1 <- unApp e1
-    , Data (DataCon n2 _):es2 <- unApp e2 
-    , n1 == n2 = do
-        es <- mapM (uncurry (newMergeExpr kv)) $ zip es1 es2
-        return $ mkApp (d:es)
+-- newMergeExpr kv e1 e2
+--     | d@(Data (DataCon n1 _)):es1 <- unApp e1
+--     , Data (DataCon n2 _):es2 <- unApp e2 
+--     , n1 == n2 = do
+--         es <- mapM (uncurry (newMergeExpr kv)) $ zip es1 es2
+--         return $ mkApp (d:es)
 
-newMergeExpr kv e1 e2@(Case (Var i2) b2 as2)
-    | Data dc1:_ <- unApp e1
-    , isSMNFCase e2 = newMergeDataConCase kv dc1 e1 i2 as2
-newMergeExpr kv e1@(Case (Var i1) b1 as1) e2
-    | Data dc2:_ <- unApp e2
-    , isSMNFCase e1 = newMergeCaseDataCon kv i1 as1 dc2 e2
-newMergeExpr kv e1@(Case (Var i1) b1 as1) e2@(Case (Var i2) b2 as2) 
-    | isSMNFCase e1
-    , isSMNFCase e2 = newMergeCaseExprs kv i1 as1 i2 as2
-newMergeExpr _ ty@(Type t) (Type t') = assert (t == t') return ty
+-- newMergeExpr kv e1 e2@(Case (Var i2) b2 as2)
+--     | Data dc1:_ <- unApp e1
+--     , isSMNFCase e2 = newMergeDataConCase kv dc1 e1 i2 as2
+-- newMergeExpr kv e1@(Case (Var i1) b1 as1) e2
+--     | Data dc2:_ <- unApp e2
+--     , isSMNFCase e1 = newMergeCaseDataCon kv i1 as1 dc2 e2
+-- newMergeExpr kv e1@(Case (Var i1) b1 as1) e2@(Case (Var i2) b2 as2) 
+--     | isSMNFCase e1
+--     , isSMNFCase e2 = newMergeCaseExprs kv i1 as1 i2 as2
+-- newMergeExpr _ ty@(Type t) (Type t') = assert (t == t') return ty
 newMergeExpr _ e1 e2 = newCaseExpr' e1 e2
 
 -- | Digs through lone Vars to look for a symbolic merged normal form expression.

@@ -366,7 +366,11 @@ redRulesToStates r rv1 s b = do
 
     let rf = foldr progPrioritizer NoProgress rr
 
-    return $ (rf, concat s', b', head r')
+    return $ (rf, concat s', b', head' r')
+
+head' :: [a] -> a
+head' (x:_) = x
+head' [] = error "head'"
 
 {-# INLINE (<~) #-}
 -- | Combines two @`SomeReducer`@s with a @`:<~`@
