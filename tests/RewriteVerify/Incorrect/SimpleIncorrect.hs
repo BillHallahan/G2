@@ -21,4 +21,5 @@ just n = Just n
 "badNegation" forall a . negation a = negation $ negation a
 "badMax" forall x y . maxOfInt x y = if x == y then y else x
 "badMaxLeft" forall x y . maxOfInt x y = x
+"badJust" forall n . just n = Nothing
   #-}

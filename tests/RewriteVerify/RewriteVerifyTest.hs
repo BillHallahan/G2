@@ -50,8 +50,7 @@ good_names = [ "addOneCommutative"
              , "doubleNegative"
              , "maybeForceZero"
              , "maxWithSelf"
-             , "addOneJust"
-             , "justJust" ]
+             , "addOneJust" ]
 
 good_src :: String
 good_src = "tests/RewriteVerify/Correct/SimpleCorrect.hs"
