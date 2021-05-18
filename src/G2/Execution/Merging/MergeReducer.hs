@@ -31,7 +31,7 @@ instance (Solver solver, Simplifier simplifier) => Reducer (MergeReducer solver 
     initReducer _ _ = ()
     redRules r@(MergeReducer solver simplifier) _ s b@(Bindings { name_gen = ng }) = do
         let ((rr, xs), ng') = runNamingM (mergeLitCases s) ng
-            b' = b { name_gen = ng }
+            b' = b { name_gen = ng' }
         xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
         return (rr, map (,()) xs', b', r)
 
@@ -106,7 +106,7 @@ mergeWherePossible orig_s@(State { curr_expr = CurrExpr er _ }) m_ile (il, me) =
                 in
                 return ((il, new_pc):m_ile)
     where
-        wJoinExpr is1 e1 is2 s = return . fmap ([],) =<< joinToState orig_s is2 e1 is2 s
+        wJoinExpr is1 e1 is2 s = return . fmap ([],) =<< joinToState orig_s is1 e1 is2 s
 
 -- replaces the first element in a list where the provided function returns a Just
 -- or returns Nothing if no such element exists
@@ -156,6 +156,7 @@ joinToState orig_s is1 me1 is2 new_pc@(NewPC { state = s@(State { curr_expr = Cu
             foldr (mkAndExpr kv_) (mkTrue kv_)
             . map (\(i, l) -> App (App (mkEqPrimInt kv_) (Var i)) (Lit l))
 
+        mkImp kv_ [] _ _ = mkTrue kv_
         mkImp kv_ is_ i_ l_ = App
                             (App (mkImpliesPrim kv_) (mkLeading kv_ is_))
                             (App (App (mkEqPrimInt kv_) i_) (Lit (LitInt l_)))
