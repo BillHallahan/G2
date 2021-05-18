@@ -49,9 +49,13 @@ mergeEffectiveTests = do
     --             compressTestCall [0..x]
     --             compressTestCallM [0..x]) [1 .. 5]
 
+    -- timeIOActionPrint "subseqOfTestM" $
+    --     [g2M| \(x :: Int) (a :: [Int]) -> ?(b :: [Int])
+    --         | subseqOfTestP x a b |] 5 [1,2,1]
+
     mapM_ (\x -> do
                 print x
-                -- subseqOfTestCall x
+                subseqOfTestCall x
                 subseqOfTestCallM x) [1 .. 10]
 
     -- mapM_ (\x -> do
@@ -98,11 +102,11 @@ mergeEffectiveTests = do
 --     timeIOActionPrint "compressM" $
 --         [g2M| \(ys :: [Int]) -> ?(xs :: [Int]) | compressTest xs ys |] xs
 
--- subseqOfTestCall :: Int -> IO ()
--- subseqOfTestCall x =
---     timeIOActionPrint "subseqOfTest" $
---         [g2| \(x :: Int) (a :: [Int]) -> ?(b :: [Int])
---            | subseqOfTestP x a b |] x [1,2,1,3]
+subseqOfTestCall :: Int -> IO ()
+subseqOfTestCall x =
+    timeIOActionPrint "subseqOfTest" $
+        [g2| \(x :: Int) (a :: [Int]) -> ?(b :: [Int])
+           | subseqOfTestP x a b |] x [1,2,1,3]
 
 subseqOfTestCallM :: Int -> IO ()
 subseqOfTestCallM x =

@@ -62,7 +62,7 @@ collapseCollectedCases il new_pc@(NewPC { state = s@(State { known_values = kv }
         pc = map (flip ExtCond True)
            $ map (\(i, l) -> App (App (mkEqPrimInt kv) (Var i)) (Lit l)) il
     in
-    new_pc { new_pcs = pc }
+    new_pc { new_pcs = pc ++ new_pcs new_pc }
 
 litAltInfo :: Id -> Alt -> ((Id, Lit), Expr)
 litAltInfo i (Alt (LitAlt l) e) = ((i, l), e)
@@ -92,7 +92,7 @@ mergeWherePossible orig_s@(State { curr_expr = CurrExpr er _ }) m_ile (il, me) =
     case rep_fst of
         Just v -> return v
         Nothing 
-            | FromVar n symbs e <- me-> 
+            | FromVar n symbs e <- me -> 
                 let
                     eenv = foldr (\i -> E.insertSymbolic (idName i) i) (expr_env orig_s) symbs
                     new_pc = newPCEmpty $ orig_s { expr_env = E.insert n e eenv
@@ -131,7 +131,7 @@ joinToState orig_s is1 me1 is2 new_pc@(NewPC { state = s@(State { curr_expr = Cu
     je <- runStateMInNamingM (joinExprs i (getExpr me1) ce) s
 
     case je of
-        (Just ce', s'@(State { expr_env = eenv, symbolic_ids = s_symbs})) ->  do
+        (Just ce', s'@(State { expr_env = eenv, symbolic_ids = s_symbs })) ->  do
             let kv = known_values orig_s
 
             let imp1 = mkImp kv is1 (Var i) 1
@@ -191,19 +191,43 @@ joinExprs :: Id -> Expr -> Expr -> StateNG t (Maybe Expr)
 joinExprs i e1 e2
     | ce1:es1 <- unApp e1
     , ce2:es2 <- unApp e2
-    , ce1 == ce2 =
-        let
-            me = mkApp $ ce1:map (uncurry (mkInnerJoin i)) (zip es1 es2)
-        in
+    , ce1 == ce2 = do
+        m_es <- mapM (uncurry (mkInnerJoin i)) (zip es1 es2)
+        let me = mkApp $ ce1:m_es
         return . Just $ me
 joinExprs _ _ _ = return Nothing
 
-mkInnerJoin :: Id -> Expr -> Expr -> Expr
-mkInnerJoin _ t@(Type t1) (Type t2) = assert (t1 == t2) t
-mkInnerJoin i e1 e2 =
-    Case (Var i) i
-        [ Alt (LitAlt (LitInt 1)) e1
-        , Alt (LitAlt (LitInt 2)) e2]
+mkInnerJoin :: Id -> Expr -> Expr -> StateNG t Expr
+mkInnerJoin _ t@(Type t1) (Type t2) = assert (t1 == t2) $ return t
+mkInnerJoin i@(Id _ t) e1 e2 = do
+    kv <- knownValues
+    eenv <- exprEnv
+    
+    if  | primVal eenv e1 -> do
+            n_id <- freshIdN t
+            insertSymbolicId n_id
+            insertSymbolicE (idName n_id) n_id
+
+            let pc1 = PC.mkAssumePC i 1 $ ExtCond (mkEqPrimExpr t kv (Var n_id) e1) True
+                pc2 = PC.mkAssumePC i 2 $ ExtCond (mkEqPrimExpr t kv (Var n_id) e2) True
+            insertPCStateNG pc1
+            insertPCStateNG pc2
+
+            assert (primVal eenv e2) $ return (Var n_id)
+        | otherwise -> 
+        return $ Case (Var i) i
+                    [ Alt (LitAlt (LitInt 1)) e1
+                    , Alt (LitAlt (LitInt 2)) e2]
+
+primVal :: ExprEnv -> Expr -> Bool
+primVal eenv (Var (Id n t))
+    | isPrimType t
+    , E.isSymbolic n eenv = True
+    | otherwise = False
+primVal eenv (Lit _) = True
+primVal eenv e
+    | (Prim _ _):_ <- unApp e = True
+symbPrimVal _ _ = False
 
 mkBounds :: Expr -> Integer -> Integer -> [PathCond]
 mkBounds e l u =
