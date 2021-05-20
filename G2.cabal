@@ -193,7 +193,7 @@ library
                        , HTTP >= 4000.3.0 && < 4001.0
                        , language-sygus >= 0.1.1.2 && < 0.2
                        , liquidhaskell >= 0.8.2.2 && <= 8.6.2
-                       , liquid-fixpoint >= 0.7.0.7 && < 0.8
+                       , liquid-fixpoint == 0.7.0.7
                        , MissingH >= 1.4.0.0 && < 1.5
                        , mtl >= 2.2 && < 2.3
                        , random == 1.1
