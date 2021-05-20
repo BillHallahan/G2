@@ -51,6 +51,8 @@ import GHC.Read
 
 import Test.Tasty.QuickCheck
 
+import Debug.Trace
+
 data UFMap k v = UFMap { joined :: UF.UnionFind k
                        , store :: M.HashMap k v }
                        deriving (Typeable, Data)
@@ -201,11 +203,11 @@ mergeJoiningWithKey fb f1 f2 fj1 fj2 j ufm1@(UFMap uf1 m1) ufm2@(UFMap uf2 m2) =
                                             _ -> error "merge: impossible state!") j_m2
 
         ks = concat . M.elems $ M.map snd j_m
-        j_uf' = foldr (uncurry UF.union) j_uf ks
 
         n_ufm = UFMap j_uf $ M.map fst j_m
+        n_ufm' = foldr (uncurry (join j)) n_ufm ks
     in
-    foldr (uncurry (join j)) n_ufm ks
+    n_ufm'
 
 map :: (v1 -> v2) -> UFMap k v1 -> UFMap k v2
 map f uf = uf { store = M.map f $ store uf }

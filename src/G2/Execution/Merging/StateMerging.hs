@@ -285,19 +285,19 @@ newMergeCurrExpr = do
         assert (er1 == er2) . return $ CurrExpr er1 e
 
 newMergeCurrExpr' :: KnownValues -> Expr -> Expr -> MergeM t Expr
-newMergeCurrExpr' kv v1@(Var vi1@(Id n1 t)) v2@(Var vi2@(Id n2 _))
-    | isPrimType t = newMergeExpr kv v1 v2
-    | otherwise = do
-        e1 <- arbDCCase1 vi1
-        e2 <- arbDCCase2 vi2
+-- newMergeCurrExpr' kv v1@(Var vi1@(Id n1 t)) v2@(Var vi2@(Id n2 _))
+--     | isPrimType t = newMergeExpr kv v1 v2
+--     | otherwise = do
+--         e1 <- arbDCCase1 vi1
+--         e2 <- arbDCCase2 vi2
 
-        insertNewExprEnv n1 e1
-        insertExprEnv1 n1 e1
+--         insertNewExprEnv n1 e1
+--         insertExprEnv1 n1 e1
 
-        insertNewExprEnv n2 e2
-        insertExprEnv2 n2 e2
+--         insertNewExprEnv n2 e2
+--         insertExprEnv2 n2 e2
 
-        newMergeExpr kv e1 e2
+--         newMergeExpr kv e1 e2
 newMergeCurrExpr' kv e1 e2 = newMergeExpr kv e1 e2
 
 ------------------------------------------------

@@ -62,6 +62,8 @@ import Data.Maybe
 import Prelude hiding (map, filter, null)
 import qualified Prelude as P (map)
 
+import Debug.Trace
+
 -- | Conceptually, the path constraints are a graph, with (Maybe Name)'s Nodes.
 -- Edges exist between any names that are in the same path constraint.
 -- Strongly connected components in the graph must be checked and solved together.
@@ -306,8 +308,10 @@ mergeWithAssumePCs i (PathConds pc1) (PathConds pc2) =
                     HS.union
                     HS.union
                     pc1 pc2
+        pc = PathConds $ adjustNothing (idName i) mrg
     in
-    PathConds $ adjustNothing (idName i) mrg
+    pc
+    
 
 -- mergeWithAssumePCs :: Id -> PathConds -> PathConds -> PathConds
 -- mergeWithAssumePCs i (PathConds pc1) (PathConds pc2) = 
@@ -381,7 +385,7 @@ adjustNothing :: Name
               -> UF.UFMap (Maybe Name) (HS.HashSet HashedPathCond)
               -> UF.UFMap (Maybe Name) (HS.HashSet HashedPathCond)
 adjustNothing n hs
-    | Just v <- UF.lookup Nothing hs = UF.insert Nothing HS.empty $ UF.insertWith (HS.union) (Just n) v hs
+    | Just v <- UF.lookup Nothing hs = UF.insertWith (HS.union) (Just n) v hs
     | otherwise = hs
 
 -- adjustNothing :: Name -> M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name) -> M.Map (Maybe Name) (HS.HashSet HashedPathCond, HS.HashSet Name)

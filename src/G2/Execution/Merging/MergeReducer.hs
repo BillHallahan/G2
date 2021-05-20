@@ -36,8 +36,8 @@ instance (Solver solver, Simplifier simplifier) => Reducer (MergeReducer solver 
         return (rr, map (,()) xs', b', r)
 
 mergeLitCases :: State t -> NameGenM (ReducerRes, [NewPC t])
-mergeLitCases s@(State { curr_expr = CurrExpr er e}) = do
-    case collectCases [] e of
+mergeLitCases s@(State { expr_env = eenv, curr_expr = CurrExpr er e}) = do
+    case collectCases eenv [] e of
         [_] -> return (NoProgress, [newPCEmpty s])
         ile -> do
             xs <- mergeLitCases' er ile s
@@ -45,16 +45,27 @@ mergeLitCases s@(State { curr_expr = CurrExpr er e}) = do
 
 -- Gathers pairs of the form (is, e).  The expression evaluates to e if for
 -- each pair (i, l) in is, i = l.
-collectCases :: [(Id, Lit)] -> Expr -> [([(Id, Lit)], Expr)]
-collectCases ils (Case (Var i@(Id _ t)) _ as)
-    | TyLitInt <- t
+collectCases :: ExprEnv -> [(Id, Lit)] -> Expr -> [([(Id, Lit)], Expr)]
+collectCases eenv ils e
+    | (Case (Var i@(Id _ t)) _ as) <- e'
+    , TyLitInt <- t
     , all isLitAlt as =
         concatMap (\a -> 
                         let
                             (il, e) = litAltInfo i a
                         in
-                        collectCases (il:ils) e) as
-collectCases ils e = [(ils, e)]
+                        collectCases eenv (il:ils) e) as
+    | otherwise = [(ils, e')]
+    where
+        e' = dig HS.empty eenv e
+
+dig :: HS.HashSet Name -> ExprEnv -> Expr -> Expr
+dig seen eenv v@(Var (Id n _))
+    | E.isSymbolic n eenv = v
+    | not (n `HS.member` seen)
+    , Just e <- E.lookup n eenv = dig (HS.insert n seen) eenv e
+    | otherwise = v
+dig _ _ e = e
 
 collapseCollectedCases :: [(Id, Lit)] -> NewPC t -> NewPC t
 collapseCollectedCases il new_pc@(NewPC { state = s@(State { known_values = kv }) }) =
@@ -68,7 +79,7 @@ litAltInfo :: Id -> Alt -> ((Id, Lit), Expr)
 litAltInfo i (Alt (LitAlt l) e) = ((i, l), e)
 litAltInfo _ _ = error "litAltInfo: Bad Lit"
 
-data MergableExpr = FromVar Name SymbolicIds Expr | OtherExpr Expr
+data MergableExpr = FromVar Name SymbolicIds Expr | OtherExpr Expr deriving (Show, Read)
 
 getExpr :: MergableExpr -> Expr
 getExpr (FromVar _ _ e) = e
@@ -77,7 +88,8 @@ getExpr (OtherExpr e) = e
 mergeLitCases' :: EvalOrReturn -> [([(Id, Lit)], Expr)] -> State t -> NameGenM [NewPC t]
 mergeLitCases' er iles s = do
     iles' <- concatMapM (expandVar (expr_env s) (type_env s)) iles
-    return . map (uncurry collapseCollectedCases) =<< foldM (mergeWherePossible s) [] iles'
+    merged <-  foldM (mergeWherePossible s) [] iles'
+    return $ map (uncurry collapseCollectedCases) merged
 
 expandVar :: ExprEnv -> TypeEnv -> ([(Id, Lit)], Expr) -> NameGenM [([(Id, Lit)], MergableExpr)]
 expandVar eenv tenv (il, Var i@(Id n t))
@@ -192,11 +204,16 @@ joinExprs :: Id -> Expr -> Expr -> StateNG t (Maybe Expr)
 joinExprs i e1 e2
     | ce1:es1 <- unApp e1
     , ce2:es2 <- unApp e2
-    , ce1 == ce2 = do
+    , equivCenters ce1 ce2 = do
         m_es <- mapM (uncurry (mkInnerJoin i)) (zip es1 es2)
         let me = mkApp $ ce1:m_es
         return . Just $ me
 joinExprs _ _ _ = return Nothing
+
+equivCenters :: Expr -> Expr -> Bool
+equivCenters (Var (Id n1 _)) (Var (Id n2 _)) = n1 == n2
+equivCenters (Data (DataCon n1 _)) (Data (DataCon n2 _)) = n1 == n2
+equivCenters _ _ = False
 
 mkInnerJoin :: Id -> Expr -> Expr -> StateNG t Expr
 mkInnerJoin _ t@(Type t1) (Type t2) = assert (t1 == t2) $ return t
@@ -204,7 +221,7 @@ mkInnerJoin i@(Id _ t) e1 e2 = do
     kv <- knownValues
     eenv <- exprEnv
     
-    if  | primVal eenv e1 -> do
+    if  | primVal eenv e1 && primVal eenv e2 -> do
             n_id <- freshIdN t
             insertSymbolicId n_id
             insertSymbolicE (idName n_id) n_id
@@ -214,7 +231,7 @@ mkInnerJoin i@(Id _ t) e1 e2 = do
             insertPCStateNG pc1
             insertPCStateNG pc2
 
-            assert (primVal eenv e2) $ return (Var n_id)
+            return (Var n_id)
         | otherwise -> 
         return $ Case (Var i) i
                     [ Alt (LitAlt (LitInt 1)) e1
@@ -228,7 +245,7 @@ primVal eenv (Var (Id n t))
 primVal eenv (Lit _) = True
 primVal eenv e
     | (Prim _ _):_ <- unApp e = True
-symbPrimVal _ _ = False
+primVal _ _ = False
 
 mkBounds :: Expr -> Integer -> Integer -> [PathCond]
 mkBounds e l u =

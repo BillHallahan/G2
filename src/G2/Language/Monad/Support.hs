@@ -223,7 +223,7 @@ rep_name_genM ng = do
 
 rep_name_genNG :: NameGen -> StateNG t ()
 rep_name_genNG ng = do
-    (s,ng) <- SM.get
+    (s, _) <- SM.get
     SM.put $ (s, ng)
 
 rep_known_valuesM :: KnownValues -> StateM t ()
