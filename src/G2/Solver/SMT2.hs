@@ -76,17 +76,17 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
 
     checkSatGetModel _ (h_in, h_out, _) formula vs = do
         setUpFormulaZ3 h_in formula
-        putStrLn "\n\n checkSatGetModel"
-        putStrLn formula
+        -- putStrLn "\n\n checkSatGetModel"
+        -- putStrLn formula
         r <- checkSat' h_in h_out
-        putStrLn $ "r =  " ++ show r
+        -- putStrLn $ "r =  " ++ show r
         case r of
             SAT () -> do
                 mdl <- getModelZ3 h_in h_out vs
                 -- putStrLn "======"
                 -- putStrLn (show mdl)
                 let m = parseModel mdl
-                putStrLn $ "m = " ++ show m
+                -- putStrLn $ "m = " ++ show m
                 -- putStrLn "======"
                 return $ SAT m
             UNSAT () -> return $ UNSAT ()
