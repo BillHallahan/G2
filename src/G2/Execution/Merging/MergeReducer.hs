@@ -79,9 +79,9 @@ litAltInfo :: Id -> Alt -> ((Id, Lit), Expr)
 litAltInfo i (Alt (LitAlt l) e) = ((i, l), e)
 litAltInfo _ _ = error "litAltInfo: Bad Lit"
 
-data MergableExpr = FromVar Name SymbolicIds Expr | OtherExpr Expr deriving (Show, Read)
+data MergeableExpr = FromVar Id SymbolicIds Expr | OtherExpr Expr deriving (Show, Read)
 
-getExpr :: MergableExpr -> Expr
+getExpr :: MergeableExpr -> Expr
 getExpr (FromVar _ _ e) = e
 getExpr (OtherExpr e) = e
 
@@ -91,20 +91,20 @@ mergeLitCases' er iles s = do
     merged <-  foldM (mergeWherePossible s) [] iles'
     return $ map (uncurry collapseCollectedCases) merged
 
-expandVar :: ExprEnv -> TypeEnv -> ([(Id, Lit)], Expr) -> NameGenM [([(Id, Lit)], MergableExpr)]
+expandVar :: ExprEnv -> TypeEnv -> ([(Id, Lit)], Expr) -> NameGenM [([(Id, Lit)], MergeableExpr)]
 expandVar eenv tenv (il, Var i@(Id n t))
     | E.isSymbolic n eenv
     , not (isPrimType t) = 
-        return . map (\(ars, dc) -> (il, FromVar n ars dc)) =<< allDCs tenv i
+        return . map (\(ars, dc) -> (il, FromVar i ars dc)) =<< allDCs tenv i
 expandVar _ _ (il, e) = return [(il, OtherExpr e)]
 
-mergeWherePossible :: State t -> [([(Id, Lit)], NewPC t)] -> ([(Id, Lit)], MergableExpr) -> NameGenM [([(Id, Lit)], NewPC t)]
+mergeWherePossible :: State t -> [([(Id, Lit)], NewPC t)] -> ([(Id, Lit)], MergeableExpr) -> NameGenM [([(Id, Lit)], NewPC t)]
 mergeWherePossible orig_s@(State { curr_expr = CurrExpr er _ }) m_ile (il, me) = do
     rep_fst <- replaceFirst (uncurry (wJoinExpr il me)) m_ile
     case rep_fst of
         Just v -> return v
         Nothing 
-            | FromVar n symbs e <- me -> 
+            | FromVar (Id n _) symbs e <- me -> 
                 let
                     eenv = foldr (\i -> E.insertSymbolic (idName i) i) (expr_env orig_s) symbs
                     new_pc = newPCEmpty $ orig_s { expr_env = E.insert n e eenv
@@ -134,13 +134,13 @@ replaceFirst f ls = do
                 Just v' -> return (Just (ys ++ (v':xs)))
                 Nothing -> go (x:ys) xs
 
-joinToState :: State t -> [(Id, Lit)] -> MergableExpr -> [(Id, Lit)] -> NewPC t -> NameGenM (Maybe (NewPC t))
+joinToState :: State t -> [(Id, Lit)] -> MergeableExpr -> [(Id, Lit)] -> NewPC t -> NameGenM (Maybe (NewPC t))
 joinToState orig_s is1 me1 is2 new_pc@(NewPC { state = s@(State { curr_expr = CurrExpr er1 ce })
                                             , new_pcs = pc 
                                             }) = do
     i <- freshIdN TyLitInt
 
-    je <- runStateMInNamingM (joinExprs i (getExpr me1) ce) s
+    je <- runStateMInNamingM (joinExprs i me1 ce) s
 
     case je of
         (Just ce', s'@(State { expr_env = eenv, symbolic_ids = s_symbs })) ->  do
@@ -152,13 +152,7 @@ joinToState orig_s is1 me1 is2 new_pc@(NewPC { state = s@(State { curr_expr = Cu
                 bounds = mkBounds (Var i) 1 2
                 pc' = bounds ++ ExtCond imp1 True:ExtCond imp2 True:pc
 
-            let (eenv', symbs) = case me1 of
-                                    FromVar n symbs_ e -> (E.insert n e eenv, symbs_)
-                                    OtherExpr _ -> (eenv, HS.empty)
-
-            let s'' = s' { expr_env = foldr (\i -> E.insertSymbolic (idName i) i) eenv' symbs
-                         , curr_expr = CurrExpr er1 ce'
-                         , symbolic_ids = HS.union symbs s_symbs}
+            let s'' = s' { curr_expr = CurrExpr er1 ce' }
                 new_pc' = new_pc { state = s'', new_pcs = pc'}
 
             return (Just new_pc')
@@ -173,7 +167,16 @@ joinToState orig_s is1 me1 is2 new_pc@(NewPC { state = s@(State { curr_expr = Cu
                             (App (mkImpliesPrim kv_) (mkLeading kv_ is_))
                             (App (App (mkEqPrimInt kv_) i_) (Lit (LitInt l_)))
 
-joinExprs :: Id -> Expr -> Expr -> StateNG t (Maybe Expr)
+joinExprs :: Id -> MergeableExpr -> Expr -> StateNG t (Maybe Expr)
+joinExprs i (FromVar vi symbs e1) e2 = do
+    mapM_ (\i_ -> insertSymbolicE (idName i_) i_) symbs
+    insertE (idName vi) e1
+    unionSymbolicId symbs
+    deleteSymbolicId vi
+    joinExprs' i e1 e2
+joinExprs i (OtherExpr e1) e2 = joinExprs' i e1 e2
+
+joinExprs' :: Id -> Expr -> Expr -> StateNG t (Maybe Expr)
 -- joinExprs i v1@(Var (Id n1 t)) v2@(Var (Id n2 _)) = do
 --     eenv <- exprEnv
 
@@ -201,14 +204,14 @@ joinExprs :: Id -> Expr -> Expr -> StateNG t (Maybe Expr)
 --             joinExprs i e1 e2
 --         | Just e2 <- smnfVal eenv v2 -> joinExprs i e1 e2
 --         | otherwise -> return Nothing
-joinExprs i e1 e2
+joinExprs' i e1 e2
     | ce1:es1 <- unApp e1
     , ce2:es2 <- unApp e2
     , equivCenters ce1 ce2 = do
         m_es <- mapM (uncurry (mkInnerJoin i)) (zip es1 es2)
         let me = mkApp $ ce1:m_es
         return . Just $ me
-joinExprs _ _ _ = return Nothing
+joinExprs' _ _ _ = return Nothing
 
 equivCenters :: Expr -> Expr -> Bool
 equivCenters (Var (Id n1 _)) (Var (Id n2 _)) = n1 == n2

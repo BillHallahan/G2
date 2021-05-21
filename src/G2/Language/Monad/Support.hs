@@ -20,6 +20,8 @@ module G2.Language.Monad.Support ( StateM
                                  , withNG
                                  , mapCurrExpr
                                  , insertSymbolicId
+                                 , deleteSymbolicId
+                                 , unionSymbolicId
                                  , insertPC
                                  , insertPCStateNG
                                  , mapMAccumB ) where
@@ -267,6 +269,16 @@ insertSymbolicId :: ExState s m => Id -> m ()
 insertSymbolicId i = do
     symbs <- symbolicIds
     putSymbolicIds $ HS.insert i symbs
+
+deleteSymbolicId :: ExState s m => Id -> m ()
+deleteSymbolicId i = do
+    symbs <- symbolicIds
+    putSymbolicIds $ HS.delete i symbs
+
+unionSymbolicId :: ExState s m => SymbolicIds -> m ()
+unionSymbolicId n_symbs = do
+    symbs <- symbolicIds
+    putSymbolicIds $ HS.union n_symbs symbs
 
 insertPC :: FullState s m => PathCond -> m ()
 insertPC pc = do
