@@ -405,7 +405,7 @@ executeAndSolveStates' :: Merging -> Bindings -> State () -> IO (Maybe (ExecRes 
 executeAndSolveStates' mergeStates b s = do
     config <- qqConfig
     SomeSolver solver <- initSolverInfinite config
-    let simplifier = IdSimplifier -- EliminateAssumePCs
+    let simplifier = EliminateAssumePCs -- IdSimplifier
     case qqRedHaltOrd config solver simplifier mergeStates of
         (SomeReducer red, SomeHalter hal, _) -> do
             -- let hal' = hal :<~> ErrorHalter
@@ -417,7 +417,7 @@ executeAndSolveStates' mergeStates b s = do
             -- (res, _) <- runG2Post (red :<~ Logger "qq") hal' ((IncrAfterN 2000 SymbolicADTOrderer)
                                           -- :<-> BucketSizeOrderer 6) solver s b
                 ord = ToOrderer (IncrAfterN 2000 (ADTHeightOrderer 0 Nothing) :<-> BucketSizeOrderer 6)
-            (res, _) <- runG2Post (red :<~ (MergeReducer solver simplifier) :<~ mkCountAllSteps :<~ CountMerges :<~ LimLogger 0 10000000000000 [] "a_red") hal' ord solver simplifier s b mergeStates
+            (res, _) <- runG2Post (red :<~ (MergeReducer solver simplifier) :<~ mkCountAllSteps :<~ CountMerges {- :<~ LimLogger 0 0 [2,2,1,2,1,2,1,2,2,1,1,2,1,2,2,1,2,2] "a_red" -}) hal' ord solver simplifier s b mergeStates
             -- (res, _) <- runG2Post (red) hal' (BucketSizeOrderer 3) solver s b
 
             case res of
