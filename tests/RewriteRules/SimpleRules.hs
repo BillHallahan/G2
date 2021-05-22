@@ -16,6 +16,8 @@ maxOfInt x y = if x < y then y else x
 just :: t -> Maybe t
 just n = Just n
 
+-- TODO remove this file, not needed anymore
+
 {-
 
 {-# RULES

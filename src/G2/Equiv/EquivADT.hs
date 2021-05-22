@@ -37,14 +37,12 @@ exprPairing :: State t ->
                Maybe (HS.HashSet (Expr, Expr))
 exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs =
   case (e1, e2) of
-    -- TODO needed to add expr_env as input for isSymbolic
     (Var i, _) | E.isSymbolic (idName i) h1 -> Just (HS.insert (e1, e2) pairs)
                | Just e <- E.lookup (idName i) h1 -> exprPairing s1 s2 e e2 pairs
                | otherwise -> error "unmapped variable"
     (_, Var i) | E.isSymbolic (idName i) h2 -> Just (HS.insert (e1, e2) pairs)
                | Just e <- E.lookup (idName i) h2 -> exprPairing s1 s2 e1 e pairs
                | otherwise -> error "unmapped variable"
-    -- TODO need to modify this case because of compiler errors
     (App _ _, App _ _) | (Data d1):l1 <- unApp e1
                        , (Data d2):l2 <- unApp e2
                        , d1 == d2 -> let ep = uncurry (exprPairing s1 s2)
