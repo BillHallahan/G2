@@ -19,6 +19,7 @@ import G2.Solver
 import Control.Exception
 import Control.Monad
 import Control.Monad.Extra
+import Control.Monad.IO.Class
 
 import qualified Data.HashSet as HS
 import qualified Data.Map.Lazy as M
@@ -30,12 +31,12 @@ data MergeReducer solver simplifier = MergeReducer solver simplifier
 instance (Solver solver, Simplifier simplifier) => Reducer (MergeReducer solver simplifier) () t where
     initReducer _ _ = ()
     redRules r@(MergeReducer solver simplifier) _ s b@(Bindings { name_gen = ng }) = do
-        let ((rr, xs), ng') = runNamingM (mergeLitCases s) ng
-            b' = b { name_gen = ng' }
+        ((rr, xs), ng') <- runNamingT (mergeLitCases s) ng
+        let b' = b { name_gen = ng' }
         xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
         return (rr, map (,()) xs', b', r)
 
-mergeLitCases :: State t -> NameGenM (ReducerRes, [NewPC t])
+mergeLitCases :: (MonadIO m, NamingM s m) => State t -> m (ReducerRes, [NewPC t])
 mergeLitCases s@(State { expr_env = eenv, curr_expr = CurrExpr er e}) = do
     case collectCases eenv [] e of
         [_] -> return (NoProgress, [newPCEmpty s])
@@ -85,20 +86,24 @@ getExpr :: MergeableExpr -> Expr
 getExpr (FromVar _ _ e) = e
 getExpr (OtherExpr e) = e
 
-mergeLitCases' :: EvalOrReturn -> [([(Id, Lit)], Expr)] -> State t -> NameGenM [NewPC t]
+mergeLitCases' :: (MonadIO m, NamingM s m) => EvalOrReturn -> [([(Id, Lit)], Expr)] -> State t -> m [NewPC t]
 mergeLitCases' er iles s = do
     iles' <- concatMapM (expandVar (expr_env s) (type_env s)) iles
     merged <-  foldM (mergeWherePossible s) [] iles'
     return $ map (uncurry collapseCollectedCases) merged
 
-expandVar :: ExprEnv -> TypeEnv -> ([(Id, Lit)], Expr) -> NameGenM [([(Id, Lit)], MergeableExpr)]
+expandVar :: NamingM s m => ExprEnv -> TypeEnv -> ([(Id, Lit)], Expr) -> m [([(Id, Lit)], MergeableExpr)]
 expandVar eenv tenv (il, Var i@(Id n t))
     | E.isSymbolic n eenv
     , not (isPrimType t) = 
         return . map (\(ars, dc) -> (il, FromVar i ars dc)) =<< allDCs tenv i
 expandVar _ _ (il, e) = return [(il, OtherExpr e)]
 
-mergeWherePossible :: State t -> [([(Id, Lit)], NewPC t)] -> ([(Id, Lit)], MergeableExpr) -> NameGenM [([(Id, Lit)], NewPC t)]
+mergeWherePossible :: (MonadIO m, NamingM s m)
+                   => State t
+                   -> [([(Id, Lit)], NewPC t)]
+                   -> ([(Id, Lit)], MergeableExpr)
+                   -> m [([(Id, Lit)], NewPC t)]
 mergeWherePossible orig_s@(State { curr_expr = CurrExpr er _ }) m_ile (il, me) = do
     rep_fst <- replaceFirst (uncurry (wJoinExpr il me)) m_ile
     case rep_fst of
@@ -134,7 +139,13 @@ replaceFirst f ls = do
                 Just v' -> return (Just (ys ++ (v':xs)))
                 Nothing -> go (x:ys) xs
 
-joinToState :: State t -> [(Id, Lit)] -> MergeableExpr -> [(Id, Lit)] -> NewPC t -> NameGenM (Maybe (NewPC t))
+joinToState :: (MonadIO m, NamingM s m)
+            => State t
+            -> [(Id, Lit)]
+            -> MergeableExpr
+            -> [(Id, Lit)]
+            -> NewPC t
+            -> m (Maybe (NewPC t))
 joinToState orig_s is1 me1 is2 new_pc@(NewPC { state = s@(State { curr_expr = CurrExpr er1 ce })
                                             , new_pcs = pc 
                                             }) = do
@@ -142,6 +153,7 @@ joinToState orig_s is1 me1 is2 new_pc@(NewPC { state = s@(State { curr_expr = Cu
 
     je <- runStateMInNamingM (joinExprs i me1 ce) s
 
+    liftIO $ putStrLn ("joinToState i = " ++ show i ++ "\nme1 = " ++ show me1 ++ "\nce = " ++ show ce) 
     case je of
         (Just ce', s'@(State { expr_env = eenv, symbolic_ids = s_symbs })) ->  do
             let kv = known_values orig_s
@@ -258,7 +270,7 @@ mkBounds e l u =
     [ ExtCond (App (App (Prim Le t) (Lit (LitInt l))) e) True
     , ExtCond (App (App (Prim Le t) e) (Lit (LitInt u))) True]
 
-allDCs :: TypeEnv -> Id -> NameGenM [(SymbolicIds, Expr)]
+allDCs :: NamingM s m => TypeEnv -> Id -> m [(SymbolicIds, Expr)]
 allDCs tenv i@(Id _ t) = do
     -- kv <- knownValues
     -- bool <- tyBoolT

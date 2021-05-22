@@ -461,6 +461,8 @@ runG2Solving solver simplifier bindings s@(State { known_values = kv })
             SAT m -> do
                 let m' = reverseSimplification simplifier s bindings m
 
+                print m'
+
                 let s' = s { model = m' }
 
                 let (es, e, ais) = subModel s' bindings

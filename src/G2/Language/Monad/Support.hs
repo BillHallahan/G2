@@ -4,8 +4,11 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module G2.Language.Monad.Support ( StateM
+module G2.Language.Monad.Support ( StateT
+                                 , StateM
+                                 , StateNGT
                                  , StateNG
+                                 , NameGenT
                                  , NameGenM
                                  , NamingM (..)
                                  , ExprEnvM (..)
@@ -14,6 +17,7 @@ module G2.Language.Monad.Support ( StateM
                                  , runStateM
                                  , execStateM
                                  , runNamingM
+                                 , runNamingT
                                  , runExprEnvM
                                  , runStateMInNamingM
                                  , readRecord
@@ -27,6 +31,7 @@ module G2.Language.Monad.Support ( StateM
                                  , mapMAccumB ) where
 
 import Control.Monad
+import Control.Monad.Identity
 import qualified Control.Monad.State.Lazy as SM
 
 import G2.Language.Naming
@@ -38,24 +43,28 @@ import G2.Language.TypeClasses
 import qualified Data.HashSet as HS
 
 -- | A wrapper for `State`, allowing it to be used as a monadic context.
-newtype StateM t a = StateM (SM.State (State t, Bindings) a) deriving (Applicative, Functor, Monad)
+type StateT t m a = SM.StateT (State t, Bindings) m a
+type StateM t a = StateT t Identity a
 
-newtype StateNG t a = StateNG (SM.State (State t, NameGen) a) deriving (Applicative, Functor, Monad)
+type StateNGT t m a = SM.StateT (State t, NameGen) m a
+type StateNG t a = StateNGT t Identity a
 
 -- | A wrapper for `NameGen`, allowing it to be used as a monadic context.
-newtype NameGenM a = NameGenM (SM.State NameGen a) deriving (Applicative, Functor, Monad)
+type NameGenT m a = SM.StateT NameGen m a
+type NameGenM a = NameGenT Identity a
 
 -- | A wrapper for `ExprEnv`, allowing it to be used as a monadic context.
-newtype EEM a = EEM (SM.State ExprEnv a) deriving (Applicative, Functor, Monad)
+type EET m a = SM.StateT ExprEnv m a
+type EEM a = EET Identity a
 
-instance SM.MonadState (State t, Bindings) (StateM t) where
-    state f = StateM (SM.state f)
+-- instance SM.MonadState (State t, Bindings) (SM.State (State t, Bindings)) where
+--     state f = StateM (SM.state f)
 
-instance SM.MonadState (State t, NameGen) (StateNG t) where
-    state f = StateNG (SM.state f)
+-- instance SM.MonadState (State t, NameGen) (SM.State (State t, NameGen)) where
+--     state f = StateNG (SM.state f)
 
-instance SM.MonadState NameGen NameGenM where
-    state f = NameGenM (SM.state f)
+-- instance SM.MonadState NameGen (SM.State NameGen) where
+--     state f = NameGenM (SM.state f)
 
 -- We split the State Monad into two pieces, so we can use it in the
 -- initialization stage of G2 (in this stage, we do not have an entire State.
@@ -96,27 +105,27 @@ class ExState s m => FullState s m | m -> s where
     inputNames :: m [Name]
     fixedInputs :: m [Expr]
 
-instance NamingM NameGen NameGenM where
+instance Monad m => NamingM NameGen (SM.StateT NameGen m) where
     nameGen = SM.get
     putNameGen = SM.put
 
-instance NamingM (State t, Bindings) (StateM t) where
+instance Monad m => NamingM (State t, Bindings) (SM.StateT (State t, Bindings) m) where
     nameGen = readRecord (\(_, b) -> name_gen b)
     putNameGen = rep_name_genM
 
-instance NamingM (State t, NameGen) (StateNG t) where
+instance Monad m => NamingM (State t, NameGen) (SM.StateT (State t, NameGen) m) where
     nameGen = readRecord (\(_, ng) -> ng)
     putNameGen = rep_name_genNG
 
-instance ExprEnvM (State t, Bindings) (StateM t) where
+instance ExprEnvM (State t, Bindings) (SM.State (State t, Bindings)) where
     exprEnv = readRecord (\(s, _) -> expr_env s)
     putExprEnv = rep_expr_envM
 
-instance ExprEnvM (State t, NameGen) (StateNG t) where
+instance ExprEnvM (State t, NameGen) (SM.State (State t, NameGen)) where
     exprEnv = readRecord (\(s, _) -> expr_env s)
     putExprEnv = rep_expr_envNG
 
-instance ExState (State t, Bindings) (StateM t) where
+instance ExState (State t, Bindings) (SM.State (State t, Bindings)) where
     typeEnv = readRecord (\(s, _) -> type_env s)
     putTypeEnv = rep_type_envM
 
@@ -129,7 +138,7 @@ instance ExState (State t, Bindings) (StateM t) where
     symbolicIds = readRecord (\(s, _) -> symbolic_ids s)
     putSymbolicIds = rep_symbolic_idsM
 
-instance ExState (State t, NameGen) (StateNG t) where
+instance ExState (State t, NameGen) (SM.State (State t, NameGen)) where
     typeEnv = readRecord (\(s, _) -> type_env s)
     putTypeEnv = rep_type_envNG
 
@@ -142,7 +151,7 @@ instance ExState (State t, NameGen) (StateNG t) where
     symbolicIds = readRecord (\(s, _) -> symbolic_ids s)
     putSymbolicIds = rep_symbolic_idsNG
 
-instance FullState (State t, Bindings) (StateM t) where
+instance FullState (State t, Bindings) (SM.State (State t, Bindings)) where
     currExpr = readRecord (\(s, _) -> curr_expr s)
     putCurrExpr = rep_curr_exprM
 
@@ -154,22 +163,25 @@ instance FullState (State t, Bindings) (StateM t) where
 
 
 runStateM :: StateM t a -> State t -> Bindings -> (a, (State t, Bindings))
-runStateM (StateM s) s' b = SM.runState s (s', b)
+runStateM s s' b = SM.runState s (s', b)
 
 execStateM :: StateM t a -> State t -> Bindings -> (State t, Bindings)
 execStateM s = (\lh_s b -> snd (runStateM s lh_s b))
 
 runStateNG :: StateNG t a -> State t -> NameGen -> (a, (State t, NameGen))
-runStateNG (StateNG s) s' ng = SM.runState s (s', ng)
+runStateNG s s' ng = SM.runState s (s', ng)
 
 execStateNG :: StateNG t a -> State t -> NameGen -> (State t, NameGen)
 execStateNG s = (\lh_s ng -> snd (runStateNG s lh_s ng))
 
+runNamingT :: NameGenT m a -> NameGen -> m (a, NameGen)
+runNamingT s = SM.runStateT s
+
 runNamingM :: NameGenM a -> NameGen -> (a, NameGen)
-runNamingM (NameGenM s) = SM.runState s
+runNamingM s = SM.runState s
 
 runExprEnvM :: EEM a -> ExprEnv -> (a, ExprEnv)
-runExprEnvM (EEM s) = SM.runState s
+runExprEnvM s = SM.runState s
 
 runStateMInNamingM :: (Monad m, NamingM s m) => StateNG t a -> State t -> m (a, State t)
 runStateMInNamingM m s = do
@@ -218,12 +230,12 @@ withNG f = do
     putNameGen ng'
     return a
 
-rep_name_genM :: NameGen -> StateM t ()
+rep_name_genM :: Monad m => NameGen -> StateT t m ()
 rep_name_genM ng = do
     (s,b) <- SM.get
     SM.put $ (s, b {name_gen = ng})
 
-rep_name_genNG :: NameGen -> StateNG t ()
+rep_name_genNG :: Monad m => NameGen -> StateNGT t m ()
 rep_name_genNG ng = do
     (s, _) <- SM.get
     SM.put $ (s, ng)
