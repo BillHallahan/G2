@@ -34,6 +34,13 @@ instance (Solver solver, Simplifier simplifier) => Reducer (MergeReducer solver 
         ((rr, xs), ng') <- runNamingT (mergeLitCases s) ng
         let b' = b { name_gen = ng' }
         xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
+        putStrLn $ "length xs = " ++ show (length xs) ++ "    length xs' = " ++ show (length xs')
+        if length xs' == 0
+            then do
+                putStrLn "HERE"
+                r <- check (solver) s (path_conds s)
+                print r
+            else return ()
         return (rr, map (,()) xs', b', r)
 
 mergeLitCases :: (MonadIO m, NamingM s m) => State t -> m (ReducerRes, [NewPC t])
@@ -88,6 +95,7 @@ getExpr (OtherExpr e) = e
 
 mergeLitCases' :: (MonadIO m, NamingM s m) => EvalOrReturn -> [([(Id, Lit)], Expr)] -> State t -> m [NewPC t]
 mergeLitCases' er iles s = do
+    liftIO $ putStrLn (show iles)
     iles' <- concatMapM (expandVar (expr_env s) (type_env s)) iles
     merged <-  foldM (mergeWherePossible s) [] iles'
     return $ map (uncurry collapseCollectedCases) merged
@@ -153,7 +161,6 @@ joinToState orig_s is1 me1 is2 new_pc@(NewPC { state = s@(State { curr_expr = Cu
 
     je <- runStateMInNamingM (joinExprs i me1 ce) s
 
-    liftIO $ putStrLn ("joinToState i = " ++ show i ++ "\nme1 = " ++ show me1 ++ "\nce = " ++ show ce) 
     case je of
         (Just ce', s'@(State { expr_env = eenv, symbolic_ids = s_symbs })) ->  do
             let kv = known_values orig_s
@@ -162,7 +169,7 @@ joinToState orig_s is1 me1 is2 new_pc@(NewPC { state = s@(State { curr_expr = Cu
                 imp2 = mkImp kv is2 (Var i) 2
 
                 bounds = mkBounds (Var i) 1 2
-                pc' = bounds ++ ExtCond imp1 True:ExtCond imp2 True:pc
+                pc' = bounds ++ ExtCond imp1 True:ExtCond imp2 True:map (PC.mkAssumePC i 2) pc
 
             let s'' = s' { curr_expr = CurrExpr er1 ce' }
                 new_pc' = new_pc { state = s'', new_pcs = pc'}
@@ -176,7 +183,7 @@ joinToState orig_s is1 me1 is2 new_pc@(NewPC { state = s@(State { curr_expr = Cu
 
         mkImp kv_ [] _ _ = mkTrue kv_
         mkImp kv_ is_ i_ l_ = App
-                            (App (mkImpliesPrim kv_) (mkLeading kv_ is_))
+                            (App (mkEqPrimType (tyBool kv_) kv_) (mkLeading kv_ is_))
                             (App (App (mkEqPrimInt kv_) i_) (Lit (LitInt l_)))
 
 joinExprs :: Id -> MergeableExpr -> Expr -> StateNG t (Maybe Expr)
