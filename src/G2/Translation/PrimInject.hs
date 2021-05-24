@@ -31,12 +31,12 @@ primInjectT (TyCon (Name "Double#" _ _ _) _) = TyLitDouble
 primInjectT (TyCon (Name "Char#" _ _ _) _) = TyLitChar
 primInjectT t = t
 
-dataInject :: Program -> [ProgramType] -> (Program, [ProgramType])
+dataInject :: (ASTContainer t Expr) => t -> [ProgramType] -> t
 dataInject prog progTy = 
     let
         dcNames = concatMap (\(_, dc) -> map conName (dataCon dc)) $ progTy
     in
-    (modifyASTs (dataInject' dcNames) prog, progTy)
+    modifyASTs (dataInject' dcNames) prog
 
 -- TODO: Polymorphic types?
 dataInject' :: [(Name, [Type])] -> Expr -> Expr

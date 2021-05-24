@@ -72,7 +72,7 @@ runWithArgs as = do
         runG2FromFile [proj] [src] libs (fmap T.pack m_assume)
                   (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                   (isJust m_assert || isJust m_reaches || m_retsTrue) 
-                  tentry config
+                  tentry simplTranslationConfig config
 
     case validate config of
         True -> do
