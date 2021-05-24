@@ -28,6 +28,7 @@ module G2.Language.Typing
     , (.::.)
     , specializes
     , specializes'
+    , applyTypeMap
     , hasFuncType
     , appendType
     , higherOrderFuncs
@@ -367,6 +368,14 @@ specializes' m _ TyUnknown = (True, m)
 specializes' m TyBottom _ = (True, m)
 specializes' m _ TyBottom = (False, m)
 specializes' m t1 t2 = (t1 == t2, m)
+
+applyTypeMap :: ASTContainer e Type => M.Map Name Type -> e -> e
+applyTypeMap m = modifyASTs (applyTypeMap' m)
+
+applyTypeMap' :: M.Map Name Type -> Type -> Type
+applyTypeMap' m (TyVar (Id n _))
+    | Just t <- M.lookup n m = t
+applyTypeMap' _ t = t
 
 hasFuncType :: (Typed t) => t -> Bool
 hasFuncType t =
