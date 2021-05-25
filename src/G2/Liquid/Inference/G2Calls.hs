@@ -44,7 +44,7 @@ import G2.Config
 import G2.Execution
 import qualified G2.Initialization.Types as IT
 import G2.Interface
-import G2.Language
+import G2.Language as G2
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad
 import G2.Lib.Printers
@@ -664,12 +664,11 @@ evalMeasures init_meas lrs ghci es = do
         let s' = s { true_assert = True }
             (final_s, final_b) = markAndSweepPreserving pres_names s' bindings
 
+            tot_meas = E.filter (isTotal (type_env s)) meas
+
         SomeSolver solver <- initSolver config
-        meas_res <- foldM (evalMeasures' final_s final_b solver config' meas tcv) init_meas $ filter (not . isError) es
+        meas_res <- foldM (evalMeasures' final_s final_b solver config' tot_meas tcv) init_meas $ filter (not . isError) es
         close solver
-
-        putStrLn $ "meas_res = " ++ show meas_res
-
         return meas_res
     where
         meas_names = measureNames ghci
@@ -684,6 +683,20 @@ evalMeasures init_meas lrs ghci es = do
     
         isError (Prim Error _) = True
         isError _ = False
+
+isTotal :: TypeEnv -> Expr -> Bool
+isTotal tenv = getAll . evalASTs isTotal'
+    where
+        isTotal' (Case i _ as)
+            | TyCon n _:_ <- unTyApp (typeOf i)
+            , Just adt <- M.lookup n tenv =
+                All (length (dataCon adt) == length (filter isDataAlt as))
+        isTotal' (Case i _ as) = All False
+        isTotal' _ = All True
+
+        isDataAlt (G2.Alt (DataAlt _ _) _) = True
+        isDataAlt _ = False
+
 
 evalMeasures' :: ( ASTContainer t Expr
                  , ASTContainer t Type
@@ -718,13 +731,18 @@ evalMeasures'' s b m tcv e =
                                   -- (i.e. the function that directly takes the argument)
                                   -- has the appropriate type
                                   t_me = typeOf . snd . last $ ns_me
+
+                                  _ = chainReturnType (typeOf e) ns_me
                               in
-                              case filter notLH . argumentTypes . PresType . inTyForAlls $ t_me of
-                                  [t] ->
-                                      case typeOf e `specializes` t of
-                                          (True, bound) -> Just (ns_me, bound)
-                                          _ -> Nothing
-                                  at -> Nothing) meas_comps
+                              case chainReturnType (typeOf e) ns_me of
+                                  Just (_, vms) -> Just (ns_me, vms)
+                                  Nothing -> Nothing) meas_comps
+                              -- case filter notLH . argumentTypes . PresType . inTyForAlls $ t_me of
+                              --     [t] ->
+                              --         case typeOf e `specializes` t of
+                              --             (True, bound) -> Just (ns_me, bound)
+                              --             _ -> Nothing
+                              --     at -> Nothing) meas_comps
     in
     map (\(ns_es, bound) ->
             let
@@ -758,29 +776,29 @@ formMeasureComps' !mx in_t existing ns_me
       let 
           r = [ ne1:ne2 | ne1@(n1, e1) <- ns_me
                         , ne2 <- existing
-                        , case (filter notLH $ anonArgumentTypes e1, chainReturnType in_t ne2) of
+                        , case (filter notLH $ anonArgumentTypes e1, fmap fst $ chainReturnType in_t ne2) of
                             ([at], Just t) -> PresType t .:: at
                             (at, t) -> False ]
       in
       formMeasureComps' (mx - 1) in_t (r ++ existing) ns_me
 
-chainReturnType :: Type -> [(Name, Expr)] -> Maybe Type
+chainReturnType :: Type -> [(Name, Expr)] -> Maybe (Type, [M.Map Name Type])
 chainReturnType t ne =
-    foldM (\t' et -> 
+    foldM (\(t', vms) et -> 
                 case filter notLH . anonArgumentTypes $ PresType et of
                     [at]
-                        | (True, vm) <- t' `specializes` at -> Just . applyTypeMap vm . returnType $ PresType et
-                    [at] ->  Nothing) t (map typeOf . map snd $ reverse ne)
+                        | (True, vm) <- t' `specializes` at -> Just (applyTypeMap vm . returnType $ PresType et, vm:vms)
+                    [at] ->  Nothing) (t, []) (map typeOf . map snd $ reverse ne)
 
 notLH :: Type -> Bool
 notLH ty
     | TyCon (Name n _ _ _) _ <- tyAppCenter ty = n /= "lh"
     | otherwise = True
 
-evalMeasuresCE :: Bindings -> [Id] -> Expr -> M.Map Name Type -> Expr
+evalMeasuresCE :: Bindings -> [Id] -> Expr -> [M.Map Name Type] -> Expr
 evalMeasuresCE bindings is e bound =
     let
-        meas_call = map tyAppId is
+        meas_call = map (uncurry tyAppId) $ zip is bound
         ds = deepseq_walkers bindings
 
         call =  foldr App e meas_call
@@ -789,10 +807,10 @@ evalMeasuresCE bindings is e bound =
     in
     lh_dicts_call
     where
-        tyAppId i =
+        tyAppId i b =
             let
                 bound_names = map idName $ tyForAllBindings i
-                bound_tys = map (\n -> case M.lookup n bound of
+                bound_tys = map (\n -> case M.lookup n b of
                                         Just t -> t
                                         Nothing -> TyUnknown) bound_names
                 lh_dicts = map (const $ Prim Undefined TyBottom) bound_tys
