@@ -693,11 +693,6 @@ evalMeasures' s bindings solver config meas tcv init_meas e =  do
             Just _ -> return meas_exs
             Nothing -> do
                 (er, _) <- genericG2Call config solver s_meas bindings
-                -- case ns of
-                --     [Name "len" _ _ _, Name "snd" _ _ _] -> do
-                --         genericG2CallLogging config solver s_meas bindings "a_liquid"
-                --         error ""
-                --    _ -> return ()
                 case er of
                     [er'] -> 
                         let 
