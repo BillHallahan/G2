@@ -9,6 +9,7 @@
 {-# LANGUAGE TupleSections #-}
 
 module G2.Liquid.Inference.G2Calls ( MeasureExs
+                                   , MaxMeasures
                                    , PreEvals
                                    , PostEvals
                                    , FCEvals
@@ -34,7 +35,9 @@ module G2.Liquid.Inference.G2Calls ( MeasureExs
                                    , deleteEvalsForFunc
                                    , printEvals
 
-                                   , evalMeasures) where
+                                   
+                                   , evalMeasures
+                                   , formMeasureComps) where
 
 import G2.Config
 
@@ -643,6 +646,8 @@ printEvals' f =
 
 type MeasureExs = HM.HashMap Expr (HM.HashMap [Name] Expr)
 
+type MaxMeasures = Int
+
 evalMeasures :: (InfConfigM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> [Expr] -> m MeasureExs
 evalMeasures init_meas lrs ghci es = do
     config <- g2ConfigM
@@ -705,7 +710,7 @@ evalMeasures' s bindings solver config meas tcv init_meas e =  do
 evalMeasures'' :: State t -> Bindings -> Measures -> TCValues -> Expr -> [([Name], Expr, State t)]
 evalMeasures'' s b m tcv e =
     let
-        meas_comps = formMeasureChains 2 e $ E.toExprList m
+        meas_comps = formMeasureComps 2 (typeOf e) m
 
         rel_m = mapMaybe (\ns_me ->
                               let
@@ -734,28 +739,30 @@ evalMeasures'' s b m tcv e =
             | otherwise = False
 
 -- Form all possible measure compositions, up to the maximal length
-formMeasureChains :: Int -- ^ max length
-                  -> Expr -- ^ Input value to the measures
+formMeasureComps :: MaxMeasures -- ^ max length
+                 -> Type -- ^ Type of input value to the measures
+                 -> Measures
+                 -> [[(Name, Expr)]]
+formMeasureComps !mx in_t ns_me =
+    let ns_me' = E.toExprList ns_me in
+    formMeasureComps' mx in_t (map (:[]) ns_me') ns_me'
+
+formMeasureComps' :: MaxMeasures -- ^ max length
+                  -> Type -- ^ Type of input value to the measures
+                  -> [[(Name, Expr)]]
                   -> [(Name, Expr)]
                   -> [[(Name, Expr)]]
-formMeasureChains !mx e ns_me = formMeasureChains' mx e (map (:[]) ns_me) ns_me
-
-formMeasureChains' :: Int -- ^ max length
-                   -> Expr -- ^ Input value to the measures
-                   -> [[(Name, Expr)]]
-                   -> [(Name, Expr)]
-                   -> [[(Name, Expr)]]
-formMeasureChains' !mx e existing ns_me
+formMeasureComps' !mx in_t existing ns_me
     | mx <= 1 = existing
     | otherwise =
       let 
           r = [ ne1:ne2 | ne1@(n1, e1) <- ns_me
                         , ne2 <- existing
-                        , case (filter notLH $ anonArgumentTypes e1, chainReturnType (typeOf e) ne2) of
+                        , case (filter notLH $ anonArgumentTypes e1, chainReturnType in_t ne2) of
                             ([at], Just t) -> PresType t .:: at
                             (at, t) -> False ]
       in
-      formMeasureChains' (mx - 1) e (r ++ existing) ns_me
+      formMeasureComps' (mx - 1) in_t (r ++ existing) ns_me
 
 chainReturnType :: Type -> [(Name, Expr)] -> Maybe Type
 chainReturnType t ne =

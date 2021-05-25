@@ -830,7 +830,7 @@ substMeasures tenv meas meas_ex t e =
                         es' = filter (isJust . typeToSort . returnType . snd) $ HM.toList es
                         -- Make sure that es's type is specific enough to be used with the measure
                         app_meas = applicableMeasures tenv meas t
-                        es'' = filter (\([n], _) -> n `E.member` app_meas) es'
+                        es'' = filter (\([n], _) -> n `E.member` app_meas) $ filter (\(ns, _) -> length ns == 1) es'
                     in
                     -- Sort to make sure we get the same order consistently
                     map snd $ L.sortBy (\(n1, _) (n2, _) -> compare n1 n2) es''
