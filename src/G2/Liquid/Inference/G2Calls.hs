@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
@@ -640,18 +641,7 @@ printEvals' f =
 -------------------------------
 -- Evaluate all relevant measures on a given expression
 
--- type MeasureExs = GMeasureExs Expr
--- type GMeasureExs e = HM.HashMap Name (HS.HashSet (GMeasureEx e))
-
-
--- type MeasureEx = GMeasureEx Expr
--- data GMeasureEx e = MeasureEx { meas_in :: e
---                               , meas_out :: e }
---                               deriving (Show, Read, Eq, Generic, Typeable, Data)
-
--- instance Hashable e => Hashable (GMeasureEx e)
-
-type MeasureExs = HM.HashMap Expr (HM.HashMap Name Expr)
+type MeasureExs = HM.HashMap Expr (HM.HashMap [Name] Expr)
 
 evalMeasures :: (InfConfigM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> [Expr] -> m MeasureExs
 evalMeasures init_meas lrs ghci es = do
@@ -672,6 +662,8 @@ evalMeasures init_meas lrs ghci es = do
         SomeSolver solver <- initSolver config
         meas_res <- foldM (evalMeasures' final_s final_b solver config' meas tcv) init_meas $ filter (not . isError) es
         close solver
+
+        putStrLn $ "meas_res = " ++ show meas_res
 
         return meas_res
     where
@@ -696,8 +688,8 @@ evalMeasures' :: ( ASTContainer t Expr
 evalMeasures' s bindings solver config meas tcv init_meas e =  do
     let m_sts = evalMeasures'' s bindings meas tcv e
 
-    foldM (\meas_exs (n, e_in, s_meas) -> do
-        case HM.lookup n =<< HM.lookup e_in meas_exs of
+    foldM (\meas_exs (ns, e_in, s_meas) -> do
+        case HM.lookup ns =<< HM.lookup e_in meas_exs of
             Just _ -> return meas_exs
             Nothing -> do
                 (er, _) <- genericG2Call config solver s_meas bindings
@@ -706,52 +698,99 @@ evalMeasures' s bindings solver config meas tcv init_meas e =  do
                         let 
                             CurrExpr _ e_out = curr_expr . final_state $ er'
                         in
-                        return $ HM.insertWith HM.union e_in (HM.singleton n e_out) meas_exs
-                    [] -> return $ HM.insertWith HM.union e_in (HM.singleton n (Prim Undefined TyBottom)) meas_exs
+                        return $ HM.insertWith HM.union e_in (HM.singleton ns e_out) meas_exs
+                    [] -> return $ HM.insertWith HM.union e_in (HM.singleton ns (Prim Undefined TyBottom)) meas_exs
                     _ -> error "evalMeasures': Bad G2 Call") init_meas m_sts
 
-evalMeasures'' :: State t -> Bindings -> Measures -> TCValues -> Expr -> [(Name, Expr, State t)]
+evalMeasures'' :: State t -> Bindings -> Measures -> TCValues -> Expr -> [([Name], Expr, State t)]
 evalMeasures'' s b m tcv e =
     let
-        rel_m = mapMaybe (\(n, me) ->
+        meas_comps = formMeasureChains 2 e $ E.toExprList m
+
+        rel_m = mapMaybe (\ns_me ->
                               let
-                                  t_me = typeOf $ me
-                                  ret_t = returnType $ PresType t_me
+                                  -- Check if the input to the rightmost function
+                                  -- (i.e. the function that directly takes the argument)
+                                  -- has the appropriate type
+                                  t_me = typeOf . snd . last $ ns_me
                               in
                               case filter notLH . argumentTypes . PresType . inTyForAlls $ t_me of
                                   [t] ->
                                       case typeOf e `specializes` t of
-                                          (True, bound) -> Just (n, me, bound)
+                                          (True, bound) -> Just (ns_me, bound)
                                           _ -> Nothing
-                                  at -> Nothing) $ E.toExprList m
+                                  at -> Nothing) meas_comps
     in
-    map (\(n, me, bound) ->
+    map (\(ns_es, bound) ->
             let
-                i = Id n (typeOf me)
-                str_call = evalMeasuresCE b i e bound
+                is = map (\(n, me) -> Id n (typeOf me)) ns_es
+                str_call = evalMeasuresCE b is e bound
             in
-            (n, e, s { curr_expr = CurrExpr Evaluate str_call })
+            (map fst ns_es, e, s { curr_expr = CurrExpr Evaluate str_call })
         ) rel_m
     where
         notLH t
             | TyCon n _ <- tyAppCenter t = n /= lhTC tcv
             | otherwise = False
 
-evalMeasuresCE :: Bindings -> Id -> Expr -> M.Map Name Type -> Expr
-evalMeasuresCE bindings i e bound =
-    let
-        bound_names = map idName $ tyForAllBindings i
-        bound_tys = map (\n -> case M.lookup n bound of
-                                Just t -> t
-                                Nothing -> error $ "Bound type not found" ++ "\n" ++ show n ++ "\ne = " ++ show e) bound_names
+-- Form all possible measure compositions, up to the maximal length
+formMeasureChains :: Int -- ^ max length
+                  -> Expr -- ^ Input value to the measures
+                  -> [(Name, Expr)]
+                  -> [[(Name, Expr)]]
+formMeasureChains !mx e ns_me = formMeasureChains' mx e (map (:[]) ns_me) ns_me
 
-        lh_dicts = map (const $ Prim Undefined TyBottom) bound_tys
+formMeasureChains' :: Int -- ^ max length
+                   -> Expr -- ^ Input value to the measures
+                   -> [[(Name, Expr)]]
+                   -> [(Name, Expr)]
+                   -> [[(Name, Expr)]]
+formMeasureChains' !mx e existing ns_me
+    | mx <= 1 = existing
+    | otherwise =
+      let 
+          r = [ ne1:ne2 | ne1@(n1, e1) <- ns_me
+                        , ne2 <- existing
+                        , case (filter notLH $ anonArgumentTypes e1, chainReturnType (typeOf e) ne2) of
+                            ([at], Just t) -> PresType t .:: at
+                            (at, t) -> False ]
+      in
+      formMeasureChains' (mx - 1) e (r ++ existing) ns_me
+
+chainReturnType :: Type -> [(Name, Expr)] -> Maybe Type
+chainReturnType t ne =
+    foldM (\t' et -> 
+                case filter notLH . anonArgumentTypes $ PresType et of
+                    [at]
+                        | (True, vm) <- t' `specializes` at -> Just . applyTypeMap vm . returnType $ PresType et
+                    [at] ->  Nothing) t (map typeOf . map snd $ reverse ne)
+
+notLH :: Type -> Bool
+notLH ty
+    | TyCon (Name n _ _ _) _ <- tyAppCenter ty = n /= "lh"
+    | otherwise = True
+
+evalMeasuresCE :: Bindings -> [Id] -> Expr -> M.Map Name Type -> Expr
+evalMeasuresCE bindings is e bound =
+    let
+        meas_call = map tyAppId is
         ds = deepseq_walkers bindings
 
-        call =  mkApp $ Var i:map Type bound_tys ++ lh_dicts ++ [e]
-        str_call = maybe call (fillLHDictArgs ds) $ mkStrict_maybe ds call
+        call =  foldr App e (reverse meas_call)
+        str_call = mkStrict_maybe ds call
+        lh_dicts_call = maybe call (fillLHDictArgs ds)  str_call
     in
-    str_call
+    lh_dicts_call
+    where
+        tyAppId i =
+            let
+                bound_names = map idName $ tyForAllBindings i
+                bound_tys = map (\n -> case M.lookup n bound of
+                                        Just t -> t
+                                        Nothing -> TyUnknown) bound_names
+                lh_dicts = map (const $ Prim Undefined TyBottom) bound_tys
+            in
+            mkApp $ Var i:map Type bound_tys ++ lh_dicts
 
 -------------------------------
 -- Generic
