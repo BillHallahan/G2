@@ -693,6 +693,11 @@ evalMeasures' s bindings solver config meas tcv init_meas e =  do
             Just _ -> return meas_exs
             Nothing -> do
                 (er, _) <- genericG2Call config solver s_meas bindings
+                -- case ns of
+                --     [Name "len" _ _ _, Name "snd" _ _ _] -> do
+                --         genericG2CallLogging config solver s_meas bindings "a_liquid"
+                --         error ""
+                --    _ -> return ()
                 case er of
                     [er'] -> 
                         let 
@@ -776,7 +781,7 @@ evalMeasuresCE bindings is e bound =
         meas_call = map tyAppId is
         ds = deepseq_walkers bindings
 
-        call =  foldr App e (reverse meas_call)
+        call =  foldr App e meas_call
         str_call = mkStrict_maybe ds call
         lh_dicts_call = maybe call (fillLHDictArgs ds)  str_call
     in
