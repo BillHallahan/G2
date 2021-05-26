@@ -667,7 +667,7 @@ evalMeasures init_meas lrs ghci es = do
             tot_meas = E.filter (isTotal (type_env s)) meas
 
         SomeSolver solver <- initSolver config
-        meas_res <- foldM (evalMeasures' final_s final_b solver config' tot_meas tcv) init_meas $ filter (not . isError) es
+        meas_res <- foldM (evalMeasures' (final_s {type_env = type_env s}) final_b solver config' tot_meas tcv) init_meas $ filter (not . isError) es
         close solver
         return meas_res
     where
@@ -723,7 +723,7 @@ evalMeasures' s bindings solver config meas tcv init_meas e =  do
 evalMeasures'' :: State t -> Bindings -> Measures -> TCValues -> Expr -> [([Name], Expr, State t)]
 evalMeasures'' s b m tcv e =
     let
-        meas_comps = formMeasureComps 2 (typeOf e) m
+        meas_comps = formMeasureComps 2 (type_env s) (typeOf e) m
 
         rel_m = mapMaybe (\ns_me ->
                               let
@@ -758,12 +758,15 @@ evalMeasures'' s b m tcv e =
 
 -- Form all possible measure compositions, up to the maximal length
 formMeasureComps :: MaxMeasures -- ^ max length
+                 -> TypeEnv
                  -> Type -- ^ Type of input value to the measures
                  -> Measures
                  -> [[(Name, Expr)]]
-formMeasureComps !mx in_t ns_me =
-    let ns_me' = E.toExprList ns_me in
-    formMeasureComps' mx in_t (map (:[]) ns_me') ns_me'
+formMeasureComps !mx tenv in_t meas =
+    let
+        meas' = E.toExprList $ E.filter (isTotal tenv) meas
+    in
+    formMeasureComps' mx in_t (map (:[]) meas') meas'
 
 formMeasureComps' :: MaxMeasures -- ^ max length
                   -> Type -- ^ Type of input value to the measures

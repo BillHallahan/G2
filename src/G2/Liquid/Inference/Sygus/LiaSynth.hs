@@ -830,7 +830,7 @@ substMeasures tenv meas meas_ex t e =
                         es' = filter (isJust . typeToSort . returnType . snd) $ HM.toList es
                         -- Make sure that es's type is specific enough to be used with the measure
                         app_meas = applicableMeasures tenv meas t
-                        es'' = filter (\([n], _) -> n `E.member` app_meas) $ filter (\(ns, _) -> length ns == 1) es'
+                        es'' = filter (\([n], _) -> n `HM.member` app_meas) $ filter (\(ns, _) -> length ns == 1) es'
                     in
                     -- Sort to make sure we get the same order consistently
                     map snd $ L.sortBy (\(n1, _) (n2, _) -> compare n1 n2) es''
@@ -1525,25 +1525,25 @@ getLHMeasureName ghci (Name n m _ l) =
 
 applicableMeasuresType :: TypeEnv -> Measures -> Type -> [(Name, (Type, Type))]
 applicableMeasuresType tenv meas =
-    HM.toList . E.map' (\e -> case filter notLH $ anonArgumentTypes e of
+    HM.toList . HM.map (\e -> case filter notLH $ anonArgumentTypes e of
                                 [at] -> (at, returnType e)
                                 _ -> error $ "applicableMeasuresType: too many arguments" ++ "\n" ++ show e)
               . applicableMeasures tenv meas
 
-applicableMeasures :: TypeEnv -> Measures -> Type -> Measures
-applicableMeasures tenv meas t = E.filterWithKey (applicableMeasure tenv t) meas 
+applicableMeasures :: TypeEnv -> Measures -> Type -> HM.HashMap Name G2.Expr
+applicableMeasures tenv meas t =
+    HM.fromList . mapMaybe (\ne -> case ne of
+                      [ne'] -> Just ne'
+                      _ -> Nothing) $ formMeasureComps 2 tenv t $ E.filter (measureRetApplicable t) meas
 
-applicableMeasure :: TypeEnv -> Type -> Name -> G2.Expr -> Bool
-applicableMeasure tenv t n e =
+measureRetApplicable :: Type -> G2.Expr -> Bool
+measureRetApplicable t e =
     let
         te = filter notLH . argumentTypes . PresType . inTyForAlls $ typeOf e
         rt = returnType e
     in
     case te of
-        [te'] | isTotal tenv e
-              , (True, vm) <- t `specializes` te'
-              , isJust . typeToSort . applyTypeMap vm $ rt ->
-            PresType t .:: te'
+        [te'] | (True, vm) <- t `specializes` te' -> isJust . typeToSort . applyTypeMap vm $ rt
         _ -> False
 
 isTotal :: TypeEnv -> G2.Expr -> Bool
