@@ -830,7 +830,7 @@ substMeasures tenv meas meas_ex t e =
                         es' = filter (isJust . typeToSort . returnType . snd) $ HM.toList es
                         -- Make sure that es's type is specific enough to be used with the measure
                         app_meas = applicableMeasures tenv meas t
-                        es'' = filter (\([n], _) -> n `HM.member` app_meas) $ filter (\(ns, _) -> length ns == 1) es'
+                        es'' = filter (\(ns, _) -> ns `HM.member` app_meas) es'
                     in
                     -- Sort to make sure we get the same order consistently
                     map snd $ L.sortBy (\(n1, _) (n2, _) -> compare n1 n2) es''
@@ -1420,9 +1420,9 @@ mkSpecArg ghci tenv meas symb t =
                     in
                     fmap (\srt' ->
                             let
-                                lh_mn = getLHMeasureName ghci mn
+                                lh_mn = map (getLHMeasureName ghci) mn
                             in
-                            SpecArg { lh_rep = EApp (EVar lh_mn) (EVar symb)
+                            SpecArg { lh_rep = foldr EApp (EVar symb) $ map EVar lh_mn
                                     , smt_var = "tbd"
                                     , smt_sort = srt'}) $ typeToSort rt') app_meas'
 
@@ -1523,32 +1523,18 @@ getLHMeasureName ghci (Name n m _ l) =
         Just meas -> meas
         Nothing -> error "getLHMeasureName: unhandled measure"
 
-applicableMeasuresType :: TypeEnv -> Measures -> Type -> [(Name, (Type, Type))]
+applicableMeasuresType :: TypeEnv -> Measures -> Type -> [([Name], (Type, Type))]
 applicableMeasuresType tenv meas =
-    HM.toList . HM.map (\e -> case filter notLH $ anonArgumentTypes e of
-                                [at] -> (at, returnType e)
-                                _ -> error $ "applicableMeasuresType: too many arguments" ++ "\n" ++ show e)
+    HM.toList . HM.map (\es -> case filter notLH . anonArgumentTypes $ last es of
+                                [at] -> (at, returnType $ head es)
+                                _ -> error $ "applicableMeasuresType: too many arguments" ++ "\n" ++ show es)
               . applicableMeasures tenv meas
 
-applicableMeasures :: TypeEnv -> Measures -> Type -> HM.HashMap Name G2.Expr
+applicableMeasures :: TypeEnv -> Measures -> Type -> HM.HashMap [Name] [G2.Expr]
 applicableMeasures tenv meas t =
-    HM.fromList . mapMaybe (\ne -> case ne of
-                      [ne'] -> Just ne'
-                      _ -> Nothing)
-                . filter (maybe False (isJust . typeToSort. fst) . chainReturnType t)
+    HM.fromList . map unzip
+                . filter (maybe False (isJust . typeToSort . fst) . chainReturnType t)
                 $ formMeasureComps 2 tenv t meas
-
-isTotal :: TypeEnv -> G2.Expr -> Bool
-isTotal tenv = M.getAll . evalASTs isTotal'
-    where
-        isTotal' (Case i _ as)
-            | TyCon n _:_ <- unTyApp (typeOf i)
-            , Just adt <- M.lookup n tenv =
-                M.All (length (dataCon adt) == length (filter isDataAlt as))
-        isTotal' _ = M.All True
-
-        isDataAlt (Alt (DataAlt _ _) _) = True
-        isDataAlt _ = False
 
 -- Helpers for SynthInfo
 allSynthSpec :: SpecInfo -> [SynthSpec]
