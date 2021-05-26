@@ -37,7 +37,8 @@ module G2.Liquid.Inference.G2Calls ( MeasureExs
 
                                    
                                    , evalMeasures
-                                   , formMeasureComps) where
+                                   , formMeasureComps
+                                   , chainReturnType) where
 
 import G2.Config
 
@@ -731,18 +732,10 @@ evalMeasures'' s b m tcv e =
                                   -- (i.e. the function that directly takes the argument)
                                   -- has the appropriate type
                                   t_me = typeOf . snd . last $ ns_me
-
-                                  _ = chainReturnType (typeOf e) ns_me
                               in
                               case chainReturnType (typeOf e) ns_me of
                                   Just (_, vms) -> Just (ns_me, vms)
                                   Nothing -> Nothing) meas_comps
-                              -- case filter notLH . argumentTypes . PresType . inTyForAlls $ t_me of
-                              --     [t] ->
-                              --         case typeOf e `specializes` t of
-                              --             (True, bound) -> Just (ns_me, bound)
-                              --             _ -> Nothing
-                              --     at -> Nothing) meas_comps
     in
     map (\(ns_es, bound) ->
             let

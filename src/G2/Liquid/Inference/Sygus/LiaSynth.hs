@@ -1534,17 +1534,9 @@ applicableMeasures :: TypeEnv -> Measures -> Type -> HM.HashMap Name G2.Expr
 applicableMeasures tenv meas t =
     HM.fromList . mapMaybe (\ne -> case ne of
                       [ne'] -> Just ne'
-                      _ -> Nothing) $ formMeasureComps 2 tenv t $ E.filter (measureRetApplicable t) meas
-
-measureRetApplicable :: Type -> G2.Expr -> Bool
-measureRetApplicable t e =
-    let
-        te = filter notLH . argumentTypes . PresType . inTyForAlls $ typeOf e
-        rt = returnType e
-    in
-    case te of
-        [te'] | (True, vm) <- t `specializes` te' -> isJust . typeToSort . applyTypeMap vm $ rt
-        _ -> False
+                      _ -> Nothing)
+                . filter (maybe False (isJust . typeToSort. fst) . chainReturnType t)
+                $ formMeasureComps 2 tenv t meas
 
 isTotal :: TypeEnv -> G2.Expr -> Bool
 isTotal tenv = M.getAll . evalASTs isTotal'
