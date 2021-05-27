@@ -652,25 +652,24 @@ type MaxMeasures = Int
 evalMeasures :: (InfConfigM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> [Expr] -> m MeasureExs
 evalMeasures init_meas lrs ghci es = do
     config <- g2ConfigM
-    liftIO $ do
-        let config' = config { counterfactual = NotCounterfactual }
+    let config' = config { counterfactual = NotCounterfactual }
 
-        let memc = emptyMemConfig { pres_func = presMeasureNames }
-        LiquidData { ls_state = s
-                   , ls_bindings = bindings
-                   , ls_measures = meas
-                   , ls_tcv = tcv
-                   , ls_memconfig = pres_names } <- extractWithoutSpecs lrs (Id (Name "" Nothing 0 Nothing) TyUnknown) ghci config' memc
+    let memc = emptyMemConfig { pres_func = presMeasureNames }
+    LiquidData { ls_state = s
+               , ls_bindings = bindings
+               , ls_measures = meas
+               , ls_tcv = tcv
+               , ls_memconfig = pres_names } <- liftIO $ extractWithoutSpecs lrs (Id (Name "" Nothing 0 Nothing) TyUnknown) ghci config' memc
 
-        let s' = s { true_assert = True }
-            (final_s, final_b) = markAndSweepPreserving pres_names s' bindings
+    let s' = s { true_assert = True }
+        (final_s, final_b) = markAndSweepPreserving pres_names s' bindings
 
-            tot_meas = E.filter (isTotal (type_env s)) meas
+        tot_meas = E.filter (isTotal (type_env s)) meas
 
-        SomeSolver solver <- initSolver config
-        meas_res <- foldM (evalMeasures' (final_s {type_env = type_env s}) final_b solver config' tot_meas tcv) init_meas $ filter (not . isError) es
-        close solver
-        return meas_res
+    SomeSolver solver <- liftIO $ initSolver config
+    meas_res <- foldM (evalMeasures' (final_s {type_env = type_env s}) final_b solver config' tot_meas tcv) init_meas $ filter (not . isError) es
+    liftIO $ close solver
+    return meas_res
     where
         meas_names = measureNames ghci
         meas_nameOcc = map (\(Name n md _ _) -> (n, md)) $ map symbolName meas_names
@@ -699,19 +698,22 @@ isTotal tenv = getAll . evalASTs isTotal'
         isDataAlt _ = False
 
 
-evalMeasures' :: ( ASTContainer t Expr
+evalMeasures' :: ( InfConfigM m
+                 , MonadIO m
+                 , ASTContainer t Expr
                  , ASTContainer t Type
                  , Named t
                  , Solver solver
-                 , Show t) => State t -> Bindings -> solver -> Config -> Measures -> TCValues -> MeasureExs -> Expr -> IO MeasureExs
+                 , Show t) => State t -> Bindings -> solver -> Config -> Measures -> TCValues -> MeasureExs -> Expr -> m MeasureExs
 evalMeasures' s bindings solver config meas tcv init_meas e =  do
-    let m_sts = evalMeasures'' s bindings meas tcv e
+    infC <- infConfigM
+    let m_sts = evalMeasures'' (max_meas_comp infC) s bindings meas tcv e
 
     foldM (\meas_exs (ns, e_in, s_meas) -> do
         case HM.lookup ns =<< HM.lookup e_in meas_exs of
             Just _ -> return meas_exs
             Nothing -> do
-                (er, _) <- genericG2Call config solver s_meas bindings
+                (er, _) <- liftIO $ genericG2Call config solver s_meas bindings
                 case er of
                     [er'] -> 
                         let 
@@ -721,10 +723,10 @@ evalMeasures' s bindings solver config meas tcv init_meas e =  do
                     [] -> return $ HM.insertWith HM.union e_in (HM.singleton ns (Prim Undefined TyBottom)) meas_exs
                     _ -> error "evalMeasures': Bad G2 Call") init_meas m_sts
 
-evalMeasures'' :: State t -> Bindings -> Measures -> TCValues -> Expr -> [([Name], Expr, State t)]
-evalMeasures'' s b m tcv e =
+evalMeasures'' :: Int -> State t -> Bindings -> Measures -> TCValues -> Expr -> [([Name], Expr, State t)]
+evalMeasures'' mx_meas s b m tcv e =
     let
-        meas_comps = formMeasureComps 2 (type_env s) (typeOf e) m
+        meas_comps = formMeasureComps mx_meas (type_env s) (typeOf e) m
 
         rel_m = mapMaybe (\ns_me ->
                               let

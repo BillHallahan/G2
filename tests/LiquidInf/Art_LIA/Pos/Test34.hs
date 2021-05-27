@@ -1,6 +1,7 @@
 {-@ LIQUID "--short-names" @-}
 {-@ LIQUID "--no-termination" @-}
 {-@ LIQUID "--prune-unsorted" @-}
+-- cmd_line = (--max-measures 2)
 
 module Combined ( List
                 , f) where
