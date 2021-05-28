@@ -19,7 +19,7 @@ import qualified Data.Text as T
 createLHState :: Measures -> KnownValues -> TypeClasses -> State [FuncCall] -> Bindings -> (LHState, Bindings)
 createLHState meenv mkv mtc s b =
     let
-        (tcv, (s', b')) = runStateM (createTCValues mkv) s b
+        (tcv, (s', b')) = runStateM (createTCValues mkv (type_env s)) s b
 
         lh_s = consLHState s' meenv mtc tcv
     in
@@ -28,8 +28,8 @@ createLHState meenv mkv mtc s b =
                     createExtractors) lh_s b'
     
 
-createTCValues :: KnownValues -> StateM [FuncCall] TCValues
-createTCValues kv = do
+createTCValues :: KnownValues -> TypeEnv -> StateM [FuncCall] TCValues
+createTCValues kv tenv = do
     lhTCN <- freshSeededStringN "lh"
     lhEqN <- freshSeededStringN "lhEq"
     lhNeN <- freshSeededStringN "lhNe"
@@ -75,7 +75,9 @@ createTCValues kv = do
                         , lhImplies = KV.impliesFunc kv
                         , lhIff = KV.iffFunc kv
 
-                        , lhPP = lhPPN })
+                        , lhPP = lhPPN
+
+                        , lhSet = nameModMatch (Name "Set" (Just "Data.Set.Internal") 0 Nothing) tenv})
 
     return tcv
 

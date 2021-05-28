@@ -7,7 +7,8 @@ import G2.Language.Syntax
 -- There are two reasons a name might exist:
 --   (1) It corresponds to something that only makes sense in the context of LH
 --       (i.e. the LH typeclass)
---   (2) It is a copy of a function that normally exists, but that copy has no assertion added. 
+--   (2) It is a copy of a function that normally exists, but that copy has no assertion added.
+--   (3) We only care about the specific name in LH code (the Set data type) 
 data TCValues = TCValues { lhTC :: Name
                          , lhNumTC :: Name
                          , lhOrdTC :: Name
@@ -43,7 +44,9 @@ data TCValues = TCValues { lhTC :: Name
                          , lhImplies :: Name
                          , lhIff :: Name
 
-                         , lhPP :: Name } deriving (Eq, Show, Read)
+                         , lhPP :: Name
+
+                         , lhSet :: Maybe Name } deriving (Eq, Show, Read)
 
 instance Named TCValues where
     names tcv = [ lhTC tcv
@@ -80,7 +83,7 @@ instance Named TCValues where
                 , lhImplies tcv
                 , lhIff tcv
 
-                , lhPP tcv]
+                , lhPP tcv] ++ maybe [] (:[]) (lhSet tcv)
 
     rename old new tcv = TCValues { lhTC = rename old new $ lhTC tcv
                                   , lhNumTC = rename old new $ lhNumTC tcv
@@ -116,4 +119,6 @@ instance Named TCValues where
                                   , lhImplies = rename old new $ lhImplies tcv
                                   , lhIff = rename old new $ lhIff tcv
 
-                                  , lhPP = rename old new $ lhPP tcv }
+                                  , lhPP = rename old new $ lhPP tcv
+
+                                  , lhSet = rename old new $ lhSet tcv }

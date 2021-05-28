@@ -349,16 +349,16 @@ convertLHExpr m bt _ (EApp e e') = do
                     (_:_) -> Just $ last at
                     _ -> Nothing
 
-        f_ar_ts = fmap tyAppArgs f_ar_t
+        f_ar_ts = fmap relTyVars f_ar_t
 
     argE <- convertLHExpr m bt f_ar_t e'
 
     let tArgE = typeOf argE
         ctArgE = tyAppCenter tArgE
-        ts = take (numTypeArgs f) $ tyAppArgs tArgE
-    
+        ts = take (numTypeArgs f) $ relTyVars tArgE
+
     case (ctArgE, f_ar_ts) of
-        (TyCon _ _, Just f_ar_ts') -> do
+        (_, Just f_ar_ts') -> do
             let specTo = concatMap (map snd) $ map M.toList $ map (snd . uncurry specializes) $ zip ts f_ar_ts'
                 te = map Type specTo
 
@@ -370,6 +370,10 @@ convertLHExpr m bt _ (EApp e e') = do
             
             return apps
         _ -> return $ App f argE
+    where
+        relTyVars t@(TyVar _) = [t]
+        relTyVars t@(TyApp _ _) = tyAppArgs t
+        relTyVars _ = []
 convertLHExpr m bt t (ENeg e) = do
     e' <- convertLHExpr m bt t e
     let t' = typeOf e'
@@ -633,7 +637,7 @@ convertEVar nm@(Name n md _ _) bt mt
                 return . Var $ Id n' (typeOf e)
            | Just dc <- getDataConNameMod' tenv nm -> return $ Data dc
            | Just t <- mt -> return $ Var (Id nm t)
-           | otherwise -> error $ "convertEVar: Required type not found"
+           | otherwise -> error $ "convertEVar: Required type not found" ++ "\n" ++ show n ++ "\nbt = " ++ show bt
 
 convertCon :: Maybe Type -> Constant -> LHStateM Expr
 convertCon (Just (TyCon n _)) (Ref.I i) = do
