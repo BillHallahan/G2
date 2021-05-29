@@ -46,6 +46,8 @@ data TCValues = TCValues { lhTC :: Name
 
                          , lhPP :: Name
 
+                         , lhOrd :: Name
+
                          , lhSet :: Maybe Name } deriving (Eq, Show, Read)
 
 instance Named TCValues where
@@ -83,7 +85,9 @@ instance Named TCValues where
                 , lhImplies tcv
                 , lhIff tcv
 
-                , lhPP tcv] ++ maybe [] (:[]) (lhSet tcv)
+                , lhPP tcv
+
+                , lhOrd tcv] ++ maybe [] (:[]) (lhSet tcv)
 
     rename old new tcv = TCValues { lhTC = rename old new $ lhTC tcv
                                   , lhNumTC = rename old new $ lhNumTC tcv
@@ -120,5 +124,7 @@ instance Named TCValues where
                                   , lhIff = rename old new $ lhIff tcv
 
                                   , lhPP = rename old new $ lhPP tcv
+
+                                  , lhOrd = rename old new $ lhOrd tcv
 
                                   , lhSet = rename old new $ lhSet tcv }

@@ -41,6 +41,7 @@ createTCValues kv tenv = do
 
     lhPPN <- freshSeededStringN "lhPP"
     lhNuOr <- freshSeededStringN "lhNuOr"
+    lhOrdN <- freshSeededStringN "lhOrd"
 
     let tcv = (TCValues { lhTC = lhTCN
                         , lhNumTC = KV.numTC kv 
@@ -76,6 +77,8 @@ createTCValues kv tenv = do
                         , lhIff = KV.iffFunc kv
 
                         , lhPP = lhPPN
+
+                        , lhOrd = lhOrdN
 
                         , lhSet = nameModMatch (Name "Set" (Just "Data.Set.Internal") 0 Nothing) tenv})
 
@@ -161,6 +164,15 @@ createLHTCFuncs' lhm n adt = do
     pp <- lhPPFunc n adt
     insertMeasureM ppN pp
 
+    -- We also put the Ord typeclass into the LH TC, if it exists.
+    ord <- ordTCM
+    ordDict <- lookupTCDictTC ord (TyCon n TyUnknown)
+    ordE <- case ordDict of
+                    Just i -> return (Var i)
+                    _ -> do
+                        flse <- mkFalseE
+                        return (Assume Nothing flse (Prim Undefined TyUnknown))
+
     -- We define a function to get the LH Dict for this type
     -- It takes and passes on the type arguments, and the LH Dicts for those
     -- type arguments
@@ -178,8 +190,8 @@ createLHTCFuncs' lhm n adt = do
                                            , (leN, (typeOf le))
                                            , (gtN, (typeOf gt))
                                            , (geN, (typeOf ge))
-                                           , (ppN, (typeOf pp)) ]
-    let fs' = map (\f -> mkApp $ f:bt ++ lhdv) fs
+                                           , (ppN, (typeOf pp))]
+    let fs' = map (\f -> mkApp $ f:bt ++ lhdv) fs ++ [ordE]
 
     lhdct <- lhDCType
     let e = mkApp $ Data (DataCon lh lhdct):fs'
@@ -221,9 +233,12 @@ lhDCType = do
                                     taab --ge
                                     (TyFun
                                         TyUnknown
-                                        (TyApp 
-                                            (TyCon lh TYPE) 
-                                            (TyVar n)
+                                        (TyFun
+                                            TyUnknown
+                                            (TyApp 
+                                                (TyCon lh TYPE) 
+                                                (TyVar n)
+                                            )
                                         )
                                     )
                                 )
@@ -507,7 +522,9 @@ createExtractors = do
     ne <- lhNeM
     pp <- lhPPM
 
-    createExtractors' lh [eq, ne, lt, le, gt, ge, pp]
+    ord <- lhOrdM
+
+    createExtractors' lh [eq, ne, lt, le, gt, ge, pp, ord]
 
 createExtractors' :: Name -> [Name] -> LHStateM ()
 createExtractors' lh ns = mapM_ (uncurry (createExtractors'' lh (length ns))) $ zip [0..] ns
