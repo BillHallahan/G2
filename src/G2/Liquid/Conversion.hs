@@ -341,35 +341,41 @@ polyPredLam cp m bt rapp  = do
 convertLHExpr :: DictMaps -> BoundTypes -> Maybe Type -> Ref.Expr -> LHStateM Expr
 convertLHExpr _ _ t (ECon c) = convertCon t c
 convertLHExpr _ bt t (EVar s) = convertEVar (symbolName s) bt t
-convertLHExpr m bt _ (EApp e e') = do
-    f <- convertLHExpr m bt Nothing e
+convertLHExpr m bt rt eapp@(EApp e e') = do
+    meas <- measuresM
+    m_set_e <- convertSetExpr meas m bt rt eapp
+    
+    case m_set_e of
+        Just set_e -> return set_e
+        Nothing -> do
+            f <- convertLHExpr m bt Nothing e
 
-    let at = argumentTypes f
-        f_ar_t = case at of
-                    (_:_) -> Just $ last at
-                    _ -> Nothing
+            let at = argumentTypes f
+                f_ar_t = case at of
+                            (_:_) -> Just $ last at
+                            _ -> Nothing
 
-        f_ar_ts = fmap relTyVars f_ar_t
+                f_ar_ts = fmap relTyVars f_ar_t
 
-    argE <- convertLHExpr m bt f_ar_t e'
+            argE <- convertLHExpr m bt f_ar_t e'
 
-    let tArgE = typeOf argE
-        ctArgE = tyAppCenter tArgE
-        ts = take (numTypeArgs f) $ relTyVars tArgE
+            let tArgE = typeOf argE
+                ctArgE = tyAppCenter tArgE
+                ts = take (numTypeArgs f) $ relTyVars tArgE
 
-    case (ctArgE, f_ar_ts) of
-        (_, Just f_ar_ts') -> do
-            let specTo = concatMap (map snd) $ map M.toList $ map (snd . uncurry specializes) $ zip ts f_ar_ts'
-                te = map Type specTo
+            case (ctArgE, f_ar_ts) of
+                (_, Just f_ar_ts') -> do
+                    let specTo = concatMap (map snd) $ map M.toList $ map (snd . uncurry specializes) $ zip ts f_ar_ts'
+                        te = map Type specTo
 
-            tcs <- mapM (lhTCDict m) ts
+                    tcs <- mapM (lhTCDict m) ts
 
-            let fw = mkApp $ f:te
+                    let fw = mkApp $ f:te
 
-                apps = mkApp $ fw:tcs ++ [argE]
-            
-            return apps
-        _ -> return $ App f argE
+                        apps = mkApp $ fw:tcs ++ [argE]
+                    
+                    return apps
+                _ -> return $ App f argE
     where
         relTyVars t@(TyVar _) = [t]
         relTyVars t@(TyApp _ _) = tyAppArgs t
@@ -459,6 +465,29 @@ convertLHExpr m bt _ (PAtom brel e1 e2) = do
 
     return $ mkApp [brel', Type t', dict, e1', e2']
 convertLHExpr _ _ _ e = error $ "Untranslated LH Expr " ++ (show e)
+
+convertSetExpr :: Measures -> DictMaps -> BoundTypes -> Maybe Type -> Ref.Expr -> LHStateM (Maybe Expr)
+convertSetExpr meas dm bt rt (EApp (EApp (EVar v) e1) e2)
+    | Just (nm, nm_mod) <- nm_mod
+    , Just (f_nm, f_e) <- E.lookupNameMod nm nm_mod meas = do
+        e1' <- convertLHExpr dm bt rt e1
+        e2' <- convertLHExpr dm bt rt e2
+        case typeOf e1' of
+            TyApp _ t -> do
+                ord <- ordDict dm t
+                return . Just $ mkApp [ Var (Id f_nm (typeOf f_e))
+                                      , Type t
+                                      , ord
+                                      , e1'
+                                      , e2' ]
+            _ -> error "convertSetExpr: incorrect type"
+    | otherwise = return Nothing
+    where
+        nm_mod = case nameOcc (symbolName v) of
+                            "Set_cup" -> Just ("union", Just "Data.Set.Internal")
+                            "Set_cap" -> Just ("intersection", Just "Data.Set.Internal")
+                            _ -> Nothing
+convertSetExpr _ _ _ _ _ = return Nothing
 
 convertBop :: Bop -> LHStateM Expr
 convertBop Ref.Plus = convertBop' lhPlusM
@@ -769,6 +798,18 @@ lhTCDict' m t = do
     case tc of
         Just e -> return e
         Nothing -> error $ "No lh dict " ++ show lh ++ "\n" ++ show t ++ "\n" ++ show m
+
+maybeOrdDict :: DictMaps -> Type -> LHStateM (Maybe Expr)
+maybeOrdDict m t = do
+    ord <- lhOrdTCM
+    typeClassInstTC (ord_dicts m) ord t
+
+ordDict :: DictMaps -> Type -> LHStateM Expr
+ordDict m t = do
+    tc <- maybeOrdDict m t
+    case tc of
+        Just e -> return e
+        Nothing -> error $ "No ord dict \n" ++ show t ++ "\n" ++ show m
 
 maybeNumDict :: DictMaps -> Type -> LHStateM (Maybe Expr)
 maybeNumDict m t = do

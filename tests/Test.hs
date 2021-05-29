@@ -324,6 +324,11 @@ liquidTests = testGroup "Liquid"
 
     , checkLiquid "tests/Liquid/Polymorphism/Poly1.hs" "f" 1000 1 [Exactly 0]
     , checkLiquid "tests/Liquid/Polymorphism/Poly2.hs" "f" 600 1 [Exactly 0]
+
+    , checkLiquidWithSet "tests/Liquid/Sets/Sets1.hs" "prop_union_assoc" 1000 2 [AtLeast 5]
+    , checkLiquidWithSet "tests/Liquid/Sets/Sets1.hs" "prop_intersection_comm" 1000 2 [AtLeast 5]
+
+    -- Abstract counterexamples
     , checkAbsLiquid "tests/Liquid/Polymorphism/Poly3.hs" "f" 800 1
         [ AtLeast 4
         , RForAll (\_ _ [ FuncCall { funcName = Name n _ _ _} ]  -> n == "fil")]
@@ -786,6 +791,12 @@ checkLiquid :: FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> Te
 checkLiquid fp entry stps i reqList = do
     checkLiquidWithConfig  fp entry i reqList
         (do config <- mkConfigTestIO
+            return $ config {steps = stps})
+
+checkLiquidWithSet :: FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> TestTree
+checkLiquidWithSet fp entry stps i reqList = do
+    checkLiquidWithConfig  fp entry i reqList
+        (do config <- mkConfigTestWithSetIO
             return $ config {steps = stps})
 
 checkLiquidWithCutOff :: FilePath -> String -> Int -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> TestTree

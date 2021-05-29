@@ -23,6 +23,9 @@ mkConfigTestIO = do
             , base = baseSimple homedir
             , extraDefaultMods = [] }
 
+mkConfigTestWithSetIO :: IO Config
+mkConfigTestWithSetIO = mkConfigTestWithMapIO
+
 mkConfigTestWithMapIO :: IO Config
 mkConfigTestWithMapIO = do
     config <- mkConfigTestIO
