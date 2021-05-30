@@ -325,8 +325,8 @@ liquidTests = testGroup "Liquid"
     , checkLiquid "tests/Liquid/Polymorphism/Poly1.hs" "f" 1000 1 [Exactly 0]
     , checkLiquid "tests/Liquid/Polymorphism/Poly2.hs" "f" 600 1 [Exactly 0]
 
-    , checkLiquidWithSet "tests/Liquid/Sets/Sets1.hs" "prop_union_assoc" 1000 2 [AtLeast 5]
-    , checkLiquidWithSet "tests/Liquid/Sets/Sets1.hs" "prop_intersection_comm" 1000 2 [AtLeast 5]
+    , checkLiquidWithSet "tests/Liquid/Sets/Sets1.hs" "prop_union_assoc" 2500 5 [AtLeast 3]
+    , checkLiquidWithSet "tests/Liquid/Sets/Sets1.hs" "prop_intersection_comm" 1000 4 [AtLeast 5]
 
     -- Abstract counterexamples
     , checkAbsLiquid "tests/Liquid/Polymorphism/Poly3.hs" "f" 800 1

@@ -802,7 +802,14 @@ lhTCDict' m t = do
 maybeOrdDict :: DictMaps -> Type -> LHStateM (Maybe Expr)
 maybeOrdDict m t = do
     ord <- lhOrdTCM
-    typeClassInstTC (ord_dicts m) ord t
+    tc <- typeClassInstTC (ord_dicts m) ord t
+    case tc of
+        Just _ -> return tc
+        Nothing -> do
+            ord <- lhOrdM
+            lh <- lhTCDict m t
+            return . Just $ App (Var (Id ord TyUnknown)) lh
+
 
 ordDict :: DictMaps -> Type -> LHStateM Expr
 ordDict m t = do

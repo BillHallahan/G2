@@ -435,7 +435,7 @@ concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC =
 
 concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> (NewPC t, NameGen)
 concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = syms})
-                ngen mexpr_id cvar (dcon, params, aexpr) maybeC = 
+                ngen mexpr_id cvar (dcon, params, aexpr) maybeC =
           (NewPC { state =  s { expr_env = eenv''
                               , symbolic_ids = syms'
                               , curr_expr = CurrExpr Evaluate aexpr''}
@@ -468,7 +468,8 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
     dConArgs = (map (Var) newparams)
     -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
     mexpr_t = typeOf mexpr_id
-    exprs = [dcon'] ++ (mexprTyToExpr mexpr_t tenv) ++ dConArgs
+    type_ars = mexprTyToExpr mexpr_t tenv
+    exprs = [dcon'] ++ type_ars ++ dConArgs
 
     -- Apply list of types (if present) and DataCon children to DataCon
     dcon'' = mkApp exprs
@@ -577,9 +578,9 @@ liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
                 _ -> Nothing
             dcs = dataCon adt
             badDCs = mapMaybe (\alt -> case alt of
-                (Alt (DataAlt dc _) _) -> Just dc
+                (Alt (DataAlt (DataCon dcn _) _) _) -> Just dcn
                 _ -> Nothing) alts
-            dcs' = dcs L.\\ badDCs
+            dcs' = filter (\(DataCon dcn _) -> dcn `notElem` badDCs) dcs
 
             (newId, ng') = freshId TyLitInt ng
 
