@@ -198,3 +198,13 @@ checkRule config init_state bindings rule = do
              bindings_l bindings_r config
   -- UNSAT for good, SAT for bad
   return res
+
+-- TODO check equivalence of path constraints
+-- alternatively, old path constraints imply the new
+-- should that go in a different file instead?
+-- check negation of the implication and get UNSAT
+-- split the path constraints into lists?
+-- make conjunctions of those, then the needed implication
+-- would need to handle AltCond constructor
+-- can I represent the AltCond matching with an Expr?
+-- TODO where do I need to distinguish state pair lists?
