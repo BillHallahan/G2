@@ -120,6 +120,7 @@ assumptionWrap (e1, e2) =
     -- TODO what type for the equality?
     ExtCond (App (App (Prim Eq TyUnknown) e1) e2) True
 
+-- TODO more TyUnknown here
 obligationWrap :: HS.HashSet (Expr, Expr) -> Maybe PathCond
 obligationWrap obligations =
     let obligation_list = HS.toList obligations
