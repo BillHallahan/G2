@@ -329,6 +329,7 @@ liquidTests = testGroup "Liquid"
     , checkLiquidWithSet "tests/Liquid/Sets/Sets1.hs" "prop_intersection_comm" 1000 5 [AtLeast 5]
     , checkLiquidWithSet "tests/Liquid/Sets/Sets2.hs" "badIdList" 1000 4 [AtLeast 1]
     , checkLiquidWithSet "tests/Liquid/Sets/Sets2.hs" "append" 1000 5 [AtLeast 1]
+    , checkLiquidWithSet "tests/Liquid/Sets/Sets3.hs" "filter" 1800 3 [AtLeast 1]
 
     -- Abstract counterexamples
     , checkAbsLiquid "tests/Liquid/Polymorphism/Poly3.hs" "f" 800 1

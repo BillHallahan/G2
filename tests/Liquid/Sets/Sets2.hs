@@ -1,4 +1,4 @@
-module Sets1 where
+module Sets2 where
 
 import Data.Set
 

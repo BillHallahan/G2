@@ -510,6 +510,7 @@ convertSetExpr meas dm bt rt e
         get_nameSet2 v = case nameOcc (symbolName v) of
                             "Set_cup" -> Just ("union", Just "Data.Set.Internal")
                             "Set_cap" -> Just ("intersection", Just "Data.Set.Internal")
+                            "Set_sub" -> Just ("isSubsetOf", Just "Data.Set.Internal")
                             _ -> Nothing
 convertSetExpr _ _ _ _ _ = return Nothing
 
