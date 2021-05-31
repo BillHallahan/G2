@@ -147,6 +147,7 @@ baseExtra root =
     ++
     [ root ++ "/.g2/base-4.9.1.0/Control/Monad.hs"
     , root ++ "/.g2/base-4.9.1.0/Data/Internal/Map.hs"
+    , root ++ "/.g2/base-4.9.1.0/Data/Internal/Set.hs"
     ]
 
 extraDefaultIncludePaths :: FilePath -> [FilePath]

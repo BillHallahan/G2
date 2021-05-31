@@ -1,4 +1,5 @@
 module Reqs ( Reqs (..)
+            , TestErrors (..)
             , checkExprGen
             , checkAbsLHExprGen ) where
 
@@ -18,22 +19,27 @@ data Reqs c = RForAll c
               | AtMost Int
               | Exactly Int
 
-data TestErrors = BadArgCount
+data TestErrors = BadArgCount [Int]
                 | TooMany
                 | TooFew
                 | NotExactly
                 | ArgsForAllFailed
-                | ArgsExistFailed deriving (Show)
+                | ArgsExistFailed 
+                | Time deriving (Show)
 
 -- | Checks conditions on given expressions
-checkExprGen :: [[Expr]] -> Int -> [Reqs ([Expr] -> Bool)] -> Bool
+checkExprGen :: [[Expr]] -> Int -> [Reqs ([Expr] -> Bool)] -> [TestErrors]
 checkExprGen exprs i reqList =
     let
-        argChecksAll = and . map (\f -> all (givenLengthCheck i f) exprs) $ [f | RForAll f <- reqList]
-        argChecksEx = and . map (\f -> any (givenLengthCheck i f) exprs) $ [f | RExists f <- reqList]
-        checkL = null $ checkLengths exprs i reqList
+        argChecksAll = if and . map (\f -> all (givenLengthCheck i f) exprs) $ [f | RForAll f <- reqList]
+                        then []
+                        else [ArgsForAllFailed]
+        argChecksEx = if and . map (\f -> any (givenLengthCheck i f) exprs) $ [f | RExists f <- reqList]
+                        then []
+                        else [ArgsExistFailed]
+        checkL = checkLengths exprs i reqList
     in
-    argChecksAll && argChecksEx && checkL
+    argChecksAll ++ argChecksEx ++ checkL
 
 givenLengthCheck :: Int -> ([Expr] -> Bool) -> [Expr] -> Bool
 givenLengthCheck i f e = if length e == i then f e else False
@@ -63,7 +69,7 @@ checkLengths exprs i reqList =
         checkAtMost = if and . map ((<=) (length exprs)) $ [x | AtMost x <- reqList] then [] else [TooMany]
         checkExactly = if and . map ((==) (length exprs)) $ [x | Exactly x <- reqList] then [] else [NotExactly]
 
-        checkArgCount = if and . map ((==) i . length) $ exprs then [] else [BadArgCount]
+        checkArgCount = if and . map ((==) i . length) $ exprs then [] else [BadArgCount $ map length exprs]
     in
     checkAtLeast ++ checkAtMost ++ checkExactly ++ checkArgCount
 
