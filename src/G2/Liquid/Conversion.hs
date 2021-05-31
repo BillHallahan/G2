@@ -467,27 +467,55 @@ convertLHExpr m bt _ (PAtom brel e1 e2) = do
 convertLHExpr _ _ _ e = error $ "Untranslated LH Expr " ++ (show e)
 
 convertSetExpr :: Measures -> DictMaps -> BoundTypes -> Maybe Type -> Ref.Expr -> LHStateM (Maybe Expr)
-convertSetExpr meas dm bt rt (EApp (EApp (EVar v) e1) e2)
-    | Just (nm, nm_mod) <- nm_mod
+convertSetExpr meas dm bt rt e
+    | EVar v:es <- unEApp e
+    , Just (nm, nm_mod) <- get_nameTyVar1 v
     , Just (f_nm, f_e) <- E.lookupNameMod nm nm_mod meas = do
-        e1' <- convertLHExpr dm bt rt e1
-        e2' <- convertLHExpr dm bt rt e2
-        case typeOf e1' of
+        es' <- mapM (convertLHExpr dm bt rt) es
+        let t = typeOf (head es')
+        return . Just $ mkApp ([ Var (Id f_nm (typeOf f_e))
+                               , Type t ]
+                                ++ es')
+    | EVar v:es <- unEApp e
+    , Just (nm, nm_mod) <- get_nameSet1 v
+    , Just (f_nm, f_e) <- E.lookupNameMod nm nm_mod meas = do
+        es' <- mapM (convertLHExpr dm bt rt) es
+        case typeOf (head es') of
+            TyApp _ t -> do
+                return . Just $ mkApp ([ Var (Id f_nm (typeOf f_e))
+                                       , Type t ]
+                                        ++ es')
+    | EVar v:es <- unEApp e
+    , Just (nm, nm_mod) <- get_nameSet2 v
+    , Just (f_nm, f_e) <- E.lookupNameMod nm nm_mod meas = do
+        es' <- mapM (convertLHExpr dm bt rt) es
+        case typeOf (head es') of
             TyApp _ t -> do
                 ord <- ordDict dm t
-                return . Just $ mkApp [ Var (Id f_nm (typeOf f_e))
-                                      , Type t
-                                      , ord
-                                      , e1'
-                                      , e2' ]
+                return . Just $ mkApp ([ Var (Id f_nm (typeOf f_e))
+                                       , Type t
+                                       , ord ]
+                                        ++ es')
             _ -> error "convertSetExpr: incorrect type"
     | otherwise = return Nothing
     where
-        nm_mod = case nameOcc (symbolName v) of
+        get_nameTyVar1 v = case nameOcc (symbolName v) of
+                            "Set_sng" -> Just ("singleton", Just "Data.Set.Internal")
+                            _ -> Nothing
+
+        get_nameSet1 v = case nameOcc (symbolName v) of
+                            "Set_emp" -> Just ("null", Just "Data.Set.Internal")
+                            _ -> Nothing
+
+        get_nameSet2 v = case nameOcc (symbolName v) of
                             "Set_cup" -> Just ("union", Just "Data.Set.Internal")
                             "Set_cap" -> Just ("intersection", Just "Data.Set.Internal")
                             _ -> Nothing
 convertSetExpr _ _ _ _ _ = return Nothing
+
+unEApp :: Ref.Expr -> [Ref.Expr]
+unEApp (EApp f a) = unEApp f ++ [a]
+unEApp expr = [expr]
 
 convertBop :: Bop -> LHStateM Expr
 convertBop Ref.Plus = convertBop' lhPlusM
@@ -808,7 +836,7 @@ maybeOrdDict m t = do
         Nothing -> do
             ord <- lhOrdM
             lh <- lhTCDict m t
-            return . Just $ App (Var (Id ord TyUnknown)) lh
+            return . Just $ App (App (Var (Id ord TyUnknown)) (Type t)) lh
 
 
 ordDict :: DictMaps -> Type -> LHStateM Expr
