@@ -47,7 +47,6 @@ import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid (Sum (..))
-import qualified Data.Monoid as M
 import qualified Data.Text as T
 import qualified Text.Builder as TB
 
@@ -1542,19 +1541,6 @@ applicableMeasure tenv t e =
         notLH ty
             | TyCon (Name n _ _ _) _ <- tyAppCenter ty = n /= "lh"
             | otherwise = False
-
-isTotal :: TypeEnv -> G2.Expr -> Bool
-isTotal tenv = M.getAll . evalASTs isTotal'
-    where
-        isTotal' (Case i _ as)
-            | TyCon n _:_ <- unTyApp (typeOf i)
-            , Just adt <- M.lookup n tenv =
-                M.All (length (dataCon adt) == length (filter isDataAlt as))
-        isTotal' (Case i _ as) = M.All False
-        isTotal' _ = M.All True
-
-        isDataAlt (G2.Alt (DataAlt _ _) _) = True
-        isDataAlt _ = False
 
 -- Helpers for SynthInfo
 allSynthSpec :: SpecInfo -> [SynthSpec]

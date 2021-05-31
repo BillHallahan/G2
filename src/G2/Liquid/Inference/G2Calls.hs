@@ -33,14 +33,15 @@ module G2.Liquid.Inference.G2Calls ( MeasureExs
                                    , deleteEvalsForFunc
                                    , printEvals
 
-                                   , evalMeasures) where
+                                   , evalMeasures
+                                   , isTotal) where
 
 import G2.Config
 
 import G2.Execution
 import qualified G2.Initialization.Types as IT
 import G2.Interface
-import G2.Language
+import G2.Language as G2
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad
 import G2.Lib.Printers
@@ -669,8 +670,10 @@ evalMeasures init_meas lrs ghci es = do
         let s' = s { true_assert = True }
             (final_s, final_b) = markAndSweepPreserving pres_names s' bindings
 
+            tot_meas = E.filter (isTotal (type_env s)) meas
+
         SomeSolver solver <- initSolver config
-        meas_res <- foldM (evalMeasures' final_s final_b solver config' meas tcv) init_meas $ filter (not . isError) es
+        meas_res <- foldM (evalMeasures' final_s final_b solver config' tot_meas tcv) init_meas $ filter (not . isError) es
         close solver
 
         return meas_res
@@ -688,6 +691,19 @@ evalMeasures init_meas lrs ghci es = do
         isError (Prim Error _) = True
         isError _ = False
 
+isTotal :: TypeEnv -> Expr -> Bool
+isTotal tenv = getAll . evalASTs isTotal'
+    where
+        isTotal' (Case i _ as)
+            | TyCon n _:_ <- unTyApp (typeOf i)
+            , Just adt <- M.lookup n tenv =
+                All (length (dataCon adt) == length (filter isDataAlt as))
+        isTotal' (Case i _ as) = All False
+        isTotal' _ = All True
+
+        isDataAlt (G2.Alt (DataAlt _ _) _) = True
+        isDataAlt _ = False
+
 evalMeasures' :: ( ASTContainer t Expr
                  , ASTContainer t Type
                  , Named t
@@ -700,6 +716,7 @@ evalMeasures' s bindings solver config meas tcv init_meas e =  do
         case HM.lookup n =<< HM.lookup e_in meas_exs of
             Just _ -> return meas_exs
             Nothing -> do
+                putStrLn $ "meas = " ++ show n
                 (er, _) <- genericG2Call config solver s_meas bindings
                 case er of
                     [er'] -> 
