@@ -469,7 +469,7 @@ convertLHExpr _ _ _ e = error $ "Untranslated LH Expr " ++ (show e)
 convertSetExpr :: Measures -> DictMaps -> BoundTypes -> Maybe Type -> Ref.Expr -> LHStateM (Maybe Expr)
 convertSetExpr meas dm bt rt e
     | EVar v:es <- unEApp e
-    , Just (nm, nm_mod) <- get_nameTyVar1 v
+    , Just (nm, nm_mod) <- get_nameTyVarAr v
     , Just (f_nm, f_e) <- E.lookupNameMod nm nm_mod meas = do
         es' <- mapM (convertLHExpr dm bt rt) es
         let t = typeOf (head es')
@@ -477,7 +477,17 @@ convertSetExpr meas dm bt rt e
                                , Type t ]
                                 ++ es')
     | EVar v:es <- unEApp e
-    , Just (nm, nm_mod) <- get_nameSet1 v
+    , Just (nm, nm_mod) <- get_nameTyVarArOrd v
+    , Just (f_nm, f_e) <- E.lookupNameMod nm nm_mod meas = do
+        es' <- mapM (convertLHExpr dm bt rt) es
+        let t = typeOf (head es')
+        ord <- ordDict dm t
+        return . Just $ mkApp ([ Var (Id f_nm (typeOf f_e))
+                               , Type t
+                               , ord ]
+                                ++ es')
+    | EVar v:es <- unEApp e
+    , Just (nm, nm_mod) <- get_nameSetAr v
     , Just (f_nm, f_e) <- E.lookupNameMod nm nm_mod meas = do
         es' <- mapM (convertLHExpr dm bt rt) es
         case typeOf (head es') of
@@ -486,7 +496,7 @@ convertSetExpr meas dm bt rt e
                                        , Type t ]
                                         ++ es')
     | EVar v:es <- unEApp e
-    , Just (nm, nm_mod) <- get_nameSet2 v
+    , Just (nm, nm_mod) <- get_nameSetArOrd v
     , Just (f_nm, f_e) <- E.lookupNameMod nm nm_mod meas = do
         es' <- mapM (convertLHExpr dm bt rt) es
         case typeOf (head es') of
@@ -499,15 +509,19 @@ convertSetExpr meas dm bt rt e
             _ -> error "convertSetExpr: incorrect type"
     | otherwise = return Nothing
     where
-        get_nameTyVar1 v = case nameOcc (symbolName v) of
+        get_nameTyVarAr v = case nameOcc (symbolName v) of
                             "Set_sng" -> Just ("singleton", Just "Data.Set.Internal")
                             _ -> Nothing
 
-        get_nameSet1 v = case nameOcc (symbolName v) of
+        get_nameTyVarArOrd v = case nameOcc (symbolName v) of
+                            "Set_mem" -> Just ("member", Just "Data.Set.Internal")
+                            _ -> Nothing
+
+        get_nameSetAr v = case nameOcc (symbolName v) of
                             "Set_emp" -> Just ("null", Just "Data.Set.Internal")
                             _ -> Nothing
 
-        get_nameSet2 v = case nameOcc (symbolName v) of
+        get_nameSetArOrd v = case nameOcc (symbolName v) of
                             "Set_cup" -> Just ("union", Just "Data.Set.Internal")
                             "Set_cap" -> Just ("intersection", Just "Data.Set.Internal")
                             "Set_sub" -> Just ("isSubsetOf", Just "Data.Set.Internal")
