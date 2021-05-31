@@ -327,8 +327,8 @@ liquidTests = testGroup "Liquid"
 
     , checkLiquidWithSet "tests/Liquid/Sets/Sets1.hs" "prop_union_assoc" 2500 6 [AtLeast 3]
     , checkLiquidWithSet "tests/Liquid/Sets/Sets1.hs" "prop_intersection_comm" 1000 5 [AtLeast 5]
-    , checkLiquidWithSet "tests/Liquid/Sets/Sets2.hs" "badIdList" 1000 4 [AtLeast 1]
-    , checkLiquidWithSet "tests/Liquid/Sets/Sets2.hs" "append" 1000 5 [AtLeast 1]
+    , checkLiquidWithSet "tests/Liquid/Sets/Sets2.hs" "badIdList" 1000 3 [AtLeast 1]
+    , checkLiquidWithSet "tests/Liquid/Sets/Sets2.hs" "append" 1000 4 [AtLeast 1]
     , checkLiquidWithSet "tests/Liquid/Sets/Sets3.hs" "filter" 1800 3 [AtLeast 1]
     , checkLiquidWithSet "tests/Liquid/Sets/Sets4.hs" "isin" 1000 5 [AtLeast 1]
 
