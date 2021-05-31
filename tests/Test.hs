@@ -325,8 +325,8 @@ liquidTests = testGroup "Liquid"
     , checkLiquid "tests/Liquid/Polymorphism/Poly1.hs" "f" 1000 1 [Exactly 0]
     , checkLiquid "tests/Liquid/Polymorphism/Poly2.hs" "f" 600 1 [Exactly 0]
 
-    , checkLiquidWithSet "tests/Liquid/Sets/Sets1.hs" "prop_union_assoc" 2500 5 [AtLeast 3]
-    , checkLiquidWithSet "tests/Liquid/Sets/Sets1.hs" "prop_intersection_comm" 1000 4 [AtLeast 5]
+    , checkLiquidWithSet "tests/Liquid/Sets/Sets1.hs" "prop_union_assoc" 2500 6 [AtLeast 3]
+    , checkLiquidWithSet "tests/Liquid/Sets/Sets1.hs" "prop_intersection_comm" 1000 5 [AtLeast 5]
 
     -- Abstract counterexamples
     , checkAbsLiquid "tests/Liquid/Polymorphism/Poly3.hs" "f" 800 1
@@ -733,7 +733,7 @@ checkExprWithConfig src m_assume m_assert m_reaches entry i reqList config_f = d
         
         let ch = case res of
                     Left _ -> False
-                    Right exprs -> checkExprGen (map (\(inp, out) -> inp ++ [out]) exprs) i reqList
+                    Right exprs -> null $ checkExprGen (map (\(inp, out) -> inp ++ [out]) exprs) i reqList
         assertBool ("Assume/Assert for file " ++ src
                                     ++ " with functions [" ++ (fromMaybe "" m_assume) ++ "] "
                                     ++ "[" ++ (fromMaybe "" m_assert) ++ "] "
@@ -818,12 +818,16 @@ checkLiquidWithConfig fp entry i reqList config_f =
         res <- findCounterExamples' fp (T.pack entry) [] [] config
 
         let (ch, r) = case res of
-                    Nothing -> (False, Right ())
+                    Nothing -> (False, Right [Time])
                     Just (Left e) -> (False, Left e)
-                    Just (Right exprs) -> (checkExprGen
-                                            (map (\(ExecRes { conc_args = inp, conc_out = out})
-                                                    -> inp ++ [out]) exprs
-                                            ) i reqList, Right ())
+                    Just (Right exprs) ->
+                        let
+                            r_ = checkExprGen
+                                    (map (\(ExecRes { conc_args = inp, conc_out = out}) -> inp ++ [out]) exprs)
+                                    i
+                                    reqList
+                        in
+                        (null r_, Right r_)
 
         assertBool ("Liquid test for file " ++ fp ++ 
                     " with function " ++ entry ++ " failed.\n" ++ show r) ch
