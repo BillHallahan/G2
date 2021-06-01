@@ -9,6 +9,7 @@ import qualified  G2.Language.ExprEnv as E
 import G2.Language.Monad
 import G2.Liquid.Conversion
 import G2.Liquid.Types
+import Language.Fixpoint.SortCheck
 import Language.Haskell.Liquid.Types
 import G2.Translation.Haskell
 
@@ -109,17 +110,15 @@ convertMeasure bt (M {name = n, sort = srt, eqns = eq}) = do
         stArgs = anonArgumentTypes . PresType $ fromJust st
         stRet = fmap (returnType . PresType) st
 
-    lam_i <- freshIdN (head stArgs)
+    lam_i <- mapM freshIdN stArgs
     cb <- freshIdN (head stArgs)
     
     alts <- mapMaybeM (convertDefs stArgs stRet (M.fromList as_t) bt) eq
     fls <- mkFalseE
-    let defTy = case alts of
-                    (a:_) -> typeOf a
-                    _ -> TyUnknown
+    let defTy = maybe TyUnknown (returnType . PresType) st
         defAlt = Alt Default $ Assume Nothing fls (Prim Undefined defTy)
 
-    let e = mkLams as' (Lam TermL lam_i $ Case (Var lam_i) cb (defAlt:alts)) 
+    let e = mkLams (as' ++ map (TermL,) lam_i) $ Case (Var (head lam_i)) cb (defAlt:alts) 
     
     case st of -- [1]
         Just _ -> return $ Just (n', e)
@@ -182,7 +181,14 @@ fixNamesType' _ t = t
 mkExprFromBody :: Maybe Type -> LHDictMap -> BoundTypes -> Body -> LHStateM Expr
 mkExprFromBody ret m bt (E e) = convertLHExpr (mkDictMaps m) bt ret e
 mkExprFromBody ret m bt (P e) = convertLHExpr (mkDictMaps m) bt ret e
-mkExprFromBody _ _ _ _ = error "mkExprFromBody: Unhandled Body"
+mkExprFromBody ret m bt (R s e) = do
+    let s_nm = symbolName s
+        t = maybe (error "mkExprFromBody: ret type unknown") id ret
+        i = Id s_nm t
+
+        bt' = M.insert s_nm t bt
+    g2_e <- convertLHExpr (mkDictMaps m) bt' ret e
+    return . Let [(i, SymGen t)] . Assume Nothing g2_e $ Var i 
 
 mkDictMaps :: LHDictMap -> DictMaps
 mkDictMaps ldm = DictMaps { lh_dicts = ldm
