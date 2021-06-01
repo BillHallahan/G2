@@ -208,3 +208,56 @@ checkRule config init_state bindings rule = do
 -- would need to handle AltCond constructor
 -- can I represent the AltCond matching with an Expr?
 -- TODO where do I need to distinguish state pair lists?
+
+pathCondExpr :: PathCond -> Expr
+pathCondExpr (ExtCond e _) = e
+pathCondExpr (AltCond _ _ _) = error "TODO AltCond"
+
+-- TODO no bool type?
+exprConj :: Expr -> Expr -> Expr
+exprConj e1 e2 =
+    App (App (Prim And TyUnknown) e1) e2
+
+-- get path cond list
+-- make into expr list
+-- fold to get a single big expr
+-- put that expr into an implication
+-- negate the implication
+
+-- TODO the input must be non-empty
+pathCondConj :: PathConds -> Expr
+pathCondConj pc =
+    let pc_list = P.toList pc
+        pc_exprs = map pathCondExpr pc_list
+    in
+        foldr exprConj (head pc_exprs) (tail pc_exprs)
+
+-- TODO actually returns the negation of the implication
+pathCondImplication :: PathConds -> PathConds -> Expr
+pathCondImplication pc_old pc_new =
+    let conj_old = pathCondConj pc_old
+        conj_new = pathCondConj pc_new
+        impl = App (App (Prim Implies TyUnknown) conj_old) conj_new
+    in
+        App (Prim Not TyUnknown) impl
+
+pathCondComparison :: PathConds -> PathConds -> PathConds
+pathCondComparison pc_old pc_new =
+    let not_impl = pathCondImplication pc_old pc_new
+        cond = ExtCond not_impl True
+    in
+        P.fromList [cond]
+
+-- TODO better name?
+-- TODO what state do I use?
+-- other comparisons to make here?
+-- TODO do I need to clean out the path conds in s1 and s2?
+checkContainment :: S.Solver solver =>
+                    solver ->
+                    PathConds ->
+                    PathConds ->
+                    State t ->
+                    State t ->
+                    IO (S.Result () ())
+checkContainment solver pc_old pc_new s1 s2 =
+    applySolver solver (pathCondComparison pc_old pc_new) s1 s2
