@@ -60,25 +60,25 @@ safeMapUnion (Just hm1) (Just hm2) =
 -- if it's not symbolic, they need to be the same variable
 -- TODO can a symbolic var be replaced by a different symbolic var?
 -- TODO need an upward accumulation of hash map info
+-- TODO should have only one state here
 moreRestrictive :: State t ->
-                   State t ->
                    (HM.HashMap Id Expr) ->
                    Expr ->
                    Expr ->
                    Maybe (HM.HashMap Id Expr)
-moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) hm e1 e2 =
+moreRestrictive s@(State {expr_env = h}) hm e1 e2 =
   case (e1, e2) of
-    (Var i, _) | E.isSymbolic (idName i) h1 -> Just (HM.insert i e2 hm)
+    (Var i, _) | E.isSymbolic (idName i) h -> Just (HM.insert i e2 hm)
                -- TODO insert syntax?
-    (Var i1, Var i2) | E.isSymbolic (idName i2) h2 -> Nothing
+    (Var i1, Var i2) | E.isSymbolic (idName i2) h -> Nothing
                      -- the case above means sym replaces non-sym
                      | i1 == i2 -> Just hm
                      | otherwise -> Nothing
     -- TODO function application case
     -- TODO valid syntax?
     -- TODO no need for the safe union
-    (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s1 s2 hm f1 f2
-                           , Just hm_a <- moreRestrictive s1 s2 hm_f a1 a2 -> Just hm_a
+    (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s hm f1 f2
+                           , Just hm_a <- moreRestrictive s hm_f a1 a2 -> Just hm_a
                            | otherwise -> Nothing
     (Data d1, Data d2) | d1 == d2 -> Just hm
                        | otherwise -> Nothing
@@ -92,9 +92,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) hm e1 e2 =
     -- TODO I presume I need syntactic equality for lambda expressions
     -- LamUse is a simple variant
     (Lam lu1 i1 b1, Lam lu2 i2 b2) | lu1 == lu2
-                                   , i1 == i2 -> moreRestrictive s1 s2 hm b1 b2
-                                   --, Just hm' <- moreRestrictive s1 s2 hm b1 b2
-                                   --, lu1 == lu2 -> Just hm'
+                                   , i1 == i2 -> moreRestrictive s hm b1 b2
                                    | otherwise -> Nothing
     -- TODO ignore types, like in exprPairing?
     (Type _, Type _) -> Just hm
@@ -105,13 +103,35 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) hm e1 e2 =
     -- this case means that the constructors do not match or are not covered
     _ -> Nothing
 
+isMoreRestrictive :: State t ->
+                     Expr ->
+                     Expr ->
+                     Bool
+isMoreRestrictive s e1 e2 =
+  case moreRestrictive s HM.empty e1 e2 of
+    Nothing -> False
+    Just _ -> True
+
+-- TODO check all elements of the HashSet
+-- see if any pair fits with isMoreRestrictive
+-- TODO this might not be efficient as it is now
+moreRestrictivePair :: State t ->
+                       State t ->
+                       HS.HashSet (Expr, Expr) ->
+                       Expr ->
+                       Expr ->
+                       Bool
+moreRestrictivePair s1 s2 exprs e1 e2 =
+  let mr (p1, p2) = (isMoreRestrictive s1 p1 e1) && (isMoreRestrictive s2 p2 e2)
+  in
+      not (HS.null $ HS.filter mr exprs)
+
 -- TODO coinductive version of exprPairing
 -- if a matching sub-expression is found, stop the recursion
 -- TODO not sure about all the implementation details
--- TODO use HashMap rather than a list
 epc :: State t ->
        State t ->
-       [(Expr, Expr)] ->
+       HS.HashSet (Expr, Expr) ->
        Expr ->
        Expr ->
        HS.HashSet (Expr, Expr) ->
@@ -120,18 +140,18 @@ epc s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) exprs e1 e2 pairs =
   case (e1, e2) of
     -- TODO new termination case?
     -- needs to allow for more restrictive versions as well
-    _ | (e1, e2) `elem` exprs -> Just pairs
+    _ | moreRestrictivePair s1 s2 exprs e1 e2 -> Just pairs
     (Var i, _) | E.isSymbolic (idName i) h1 -> Just (HS.insert (e1, e2) pairs)
                -- TODO adjust the recursion?
-               | Just e <- E.lookup (idName i) h1 -> epc s1 s2 ((e1, e2) : exprs) e e2 pairs
-               | otherwise -> error "unmapped variable"
+               | Just e <- E.lookup (idName i) h1 -> epc s1 s2 (HS.insert (e1, e2) exprs) e e2 pairs
+               | otherwise -> D.trace (show i) $ error "unmapped variable"
     (_, Var i) | E.isSymbolic (idName i) h2 -> Just (HS.insert (e1, e2) pairs)
                -- TODO same issue
-               | Just e <- E.lookup (idName i) h2 -> epc s1 s2 ((e1, e2) : exprs) e1 e pairs
+               | Just e <- E.lookup (idName i) h2 -> epc s1 s2 (HS.insert (e1, e2) exprs) e1 e pairs
                | otherwise -> D.trace (show i) $ error "unmapped variable"
     (App _ _, App _ _) | (Data d1):l1 <- unApp e1
                        , (Data d2):l2 <- unApp e2
-                       , d1 == d2 -> let ep = uncurry (epc s1 s2 ((e1, e2) : exprs))
+                       , d1 == d2 -> let ep = uncurry (epc s1 s2 (HS.insert (e1, e2) exprs))
                                          -- TODO recursion here, how to adjust?
                                          ep' hs p = ep p hs
                                          l = zip l1 l2
@@ -156,6 +176,10 @@ exprPairing :: State t ->
                Expr ->
                HS.HashSet (Expr, Expr) ->
                Maybe (HS.HashSet (Expr, Expr))
+exprPairing s1 s2 =
+  epc s1 s2 HS.empty
+
+{-
 exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs =
   case (e1, e2) of
     (Var i, _) | E.isSymbolic (idName i) h1 -> Just (HS.insert (e1, e2) pairs)
@@ -184,6 +208,7 @@ exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs =
     -- TODO assume for now that all types line up between the two expressions
     (Type _, Type _) -> Just pairs
     _ -> error "catch-all case"
+-}
 
 matchAll :: [(Id, Id)] ->
             (State t, State t) ->
