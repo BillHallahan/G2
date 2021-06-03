@@ -267,6 +267,7 @@ instance Named Bindings where
             ++ names (higher_order_inst b)
             ++ names (input_names b)
             ++ names (exported_funcs b)
+            ++ names (rewrite_rules b)
 
     rename old new b =
         Bindings { fixed_inputs = rename old new (fixed_inputs b)

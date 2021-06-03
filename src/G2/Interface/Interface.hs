@@ -24,6 +24,7 @@ module G2.Interface.Interface ( MkCurrExpr
                               
                               , initialStateFromFileSimple
                               , initialStateFromFile
+                              , initialStateNoStartFunc
 
                               , runG2FromFile
                               , runG2WithConfig
@@ -246,7 +247,7 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
         tenv = mkTypeEnv prog_typ
         tc = initTypeClasses cls
         kv = initKnownValues eenv tenv tc
-        ng = mkNameGen (prog, prog_typ)
+        ng = mkNameGen (prog, prog_typ, rs)
 
         s = IT.SimpleState { IT.expr_env = eenv
                            , IT.type_env = tenv
@@ -321,8 +322,26 @@ initialStateFromFileSimple :: [FilePath]
                    -> (Expr -> MkArgTypes)
                    -> Config
                    -> IO (State (), Id, Bindings)
-initialStateFromFileSimple proj src libs f mkCurr config =
-    initialStateFromFile proj src libs Nothing False f mkCurr config
+initialStateFromFileSimple proj src libs f mkCurr argTys config =
+    initialStateFromFile proj src libs Nothing False f mkCurr argTys simplTranslationConfig config
+
+initialStateNoStartFunc :: [FilePath]
+                     -> [FilePath]
+                     -> [FilePath]
+                     -> TranslationConfig
+                     -> Config
+                     -> IO (State (), Bindings)
+initialStateNoStartFunc proj src libs transConfig config = do
+    (mb_modname, exg2) <- translateLoaded proj src libs transConfig config
+
+    let simp_state = initSimpleState exg2
+
+        (init_s, bindings) = initStateFromSimpleState simp_state False
+                                 (\_ ng _ _ _ _ -> (Prim Undefined TyBottom, [], [], ng))
+                                 (E.higherOrderExprs . IT.expr_env)
+                                 config
+
+    return (init_s, bindings)
 
 initialStateFromFile :: [FilePath]
                      -> [FilePath]
@@ -332,10 +351,11 @@ initialStateFromFile :: [FilePath]
                      -> StartFunc
                      -> (Id -> MkCurrExpr)
                      -> (Expr -> MkArgTypes)
+                     -> TranslationConfig
                      -> Config
                      -> IO (State (), Id, Bindings)
-initialStateFromFile proj src libs m_reach def_assert f mkCurr argTys config = do
-    (mb_modname, exg2) <- translateLoaded proj src libs simplTranslationConfig config
+initialStateFromFile proj src libs m_reach def_assert f mkCurr argTys transConfig config = do
+    (mb_modname, exg2) <- translateLoaded proj src libs transConfig config
 
     let simp_state = initSimpleState exg2
         (ie, fe) = case findFunc f mb_modname (IT.expr_env simp_state) of
@@ -358,11 +378,13 @@ runG2FromFile :: [FilePath]
               -> Maybe ReachFunc
               -> Bool
               -> StartFunc
+              -> TranslationConfig
               -> Config
               -> IO (([ExecRes ()], Bindings), Id)
-runG2FromFile proj src libs m_assume m_assert m_reach def_assert f config = do
+runG2FromFile proj src libs m_assume m_assert m_reach def_assert f transConfig config = do
     (init_state, entry_f, bindings) <- initialStateFromFile proj src libs
-                                    m_reach def_assert f (mkCurrExpr m_assume m_assert) (mkArgTys) config
+                                    m_reach def_assert f (mkCurrExpr m_assume m_assert) (mkArgTys)
+                                    transConfig config
 
     r <- runG2WithConfig init_state config bindings
 

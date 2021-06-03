@@ -142,13 +142,17 @@ createBagFuncCaseAlt func_names tyvar_id ty_map dc = do
     let at = anonArgumentTypes dc
     is <- freshIdsN at
     let is' = foldr (uncurry retype) is ty_map
-    es <- return . concat =<< mapM (extractTyVarCall func_names todo_emp tyvar_id . Var) is
+        tyvar_id' = maybe tyvar_id id $ tyVarId =<< lookup tyvar_id ty_map
+    es <- return . concat =<< mapM (extractTyVarCall func_names todo_emp tyvar_id' . Var) is'
     case null es of
         True -> do 
             flse <- mkFalseE
             return $ Alt (DataAlt dc is') 
                          (Assume Nothing flse (Prim Undefined (TyVar tyvar_id)))
         False -> return $ Alt (DataAlt dc is') (NonDet es)
+    where
+        tyVarId (TyVar i) = Just i
+        tyVarId _ = Nothing
 
 todo_emp :: [a]
 todo_emp = []

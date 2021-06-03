@@ -35,6 +35,9 @@ import Typing
 import UnionFindTests
 import UFMapTests
 
+import RewriteVerify.RewriteVerifyTest
+import G2.Translation
+
 import InputOutputTest
 import Reqs
 import TestUtils
@@ -66,6 +69,8 @@ tests = testGroup "Tests"
         , simplificationTests
         , ufMapQuickcheck
         , unionFindQuickcheck
+        , rewriteVerifyTestsGood
+        , rewriteVerifyTestsBad
         ]
 
 timeout :: Timeout
@@ -324,6 +329,15 @@ liquidTests = testGroup "Liquid"
 
     , checkLiquid "tests/Liquid/Polymorphism/Poly1.hs" "f" 1000 1 [Exactly 0]
     , checkLiquid "tests/Liquid/Polymorphism/Poly2.hs" "f" 600 1 [Exactly 0]
+
+    , checkLiquidWithSet "tests/Liquid/Sets/Sets1.hs" "prop_union_assoc" 2500 6 [AtLeast 3]
+    , checkLiquidWithSet "tests/Liquid/Sets/Sets1.hs" "prop_intersection_comm" 1000 5 [AtLeast 5]
+    , checkLiquidWithSet "tests/Liquid/Sets/Sets2.hs" "badIdList" 1000 3 [AtLeast 1]
+    , checkLiquidWithSet "tests/Liquid/Sets/Sets2.hs" "append" 1000 4 [AtLeast 1]
+    , checkLiquidWithSet "tests/Liquid/Sets/Sets3.hs" "filter" 1800 3 [AtLeast 1]
+    , checkLiquidWithSet "tests/Liquid/Sets/Sets4.hs" "isin" 1000 5 [AtLeast 1]
+
+    -- Abstract counterexamples
     , checkAbsLiquid "tests/Liquid/Polymorphism/Poly3.hs" "f" 800 1
         [ AtLeast 4
         , RForAll (\_ _ [ FuncCall { funcName = Name n _ _ _} ]  -> n == "fil")]
@@ -728,7 +742,7 @@ checkExprWithConfig src m_assume m_assert m_reaches entry i reqList config_f = d
         
         let ch = case res of
                     Left _ -> False
-                    Right exprs -> checkExprGen (map (\(inp, out) -> inp ++ [out]) exprs) i reqList
+                    Right exprs -> null $ checkExprGen (map (\(inp, out) -> inp ++ [out]) exprs) i reqList
         assertBool ("Assume/Assert for file " ++ src
                                     ++ " with functions [" ++ (fromMaybe "" m_assume) ++ "] "
                                     ++ "[" ++ (fromMaybe "" m_assert) ++ "] "
@@ -771,6 +785,7 @@ testFileWithConfig src m_assume m_assert m_reaches entry config = do
                 (fmap T.pack m_reaches)
                 (isJust m_assert || isJust m_reaches)
                 (T.pack entry)
+                simplTranslationConfig
                 config
 
     let (states, _) = maybe (error "Timeout") fst r
@@ -786,6 +801,12 @@ checkLiquid :: FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> Te
 checkLiquid fp entry stps i reqList = do
     checkLiquidWithConfig  fp entry i reqList
         (do config <- mkConfigTestIO
+            return $ config {steps = stps})
+
+checkLiquidWithSet :: FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> TestTree
+checkLiquidWithSet fp entry stps i reqList = do
+    checkLiquidWithConfig  fp entry i reqList
+        (do config <- mkConfigTestWithSetIO
             return $ config {steps = stps})
 
 checkLiquidWithCutOff :: FilePath -> String -> Int -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> TestTree
@@ -807,12 +828,16 @@ checkLiquidWithConfig fp entry i reqList config_f =
         res <- findCounterExamples' fp (T.pack entry) [] [] config
 
         let (ch, r) = case res of
-                    Nothing -> (False, Right ())
+                    Nothing -> (False, Right [Time])
                     Just (Left e) -> (False, Left e)
-                    Just (Right exprs) -> (checkExprGen
-                                            (map (\(ExecRes { conc_args = inp, conc_out = out})
-                                                    -> inp ++ [out]) exprs
-                                            ) i reqList, Right ())
+                    Just (Right exprs) ->
+                        let
+                            r_ = checkExprGen
+                                    (map (\(ExecRes { conc_args = inp, conc_out = out}) -> inp ++ [out]) exprs)
+                                    i
+                                    reqList
+                        in
+                        (null r_, Right r_)
 
         assertBool ("Liquid test for file " ++ fp ++ 
                     " with function " ++ entry ++ " failed.\n" ++ show r) ch

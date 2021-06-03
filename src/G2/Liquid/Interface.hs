@@ -577,6 +577,8 @@ reqNames (State { expr_env = eenv
                 (\k _ -> k == eqTC kv || k == numTC kv || k == ordTC kv || k == integralTC kv || k == fractionalTC kv || k == structEqTC kv) 
                 (toMap tc)
             )
+          ++
+          Lang.names (filter (\(Name _ m _ _) -> m == Just "Data.Set.Internal") (E.keys eenv))
     in
     MemConfig { search_names = ns
               , pres_func = pf }

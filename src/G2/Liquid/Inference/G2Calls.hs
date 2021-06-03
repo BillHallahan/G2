@@ -35,7 +35,6 @@ module G2.Liquid.Inference.G2Calls ( MeasureExs
                                    , deleteEvalsForFunc
                                    , printEvals
 
-                                   
                                    , evalMeasures
                                    , formMeasureComps
                                    , chainReturnType) where

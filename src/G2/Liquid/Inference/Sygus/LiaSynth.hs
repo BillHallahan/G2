@@ -172,6 +172,7 @@ liaSynth con ghci lrs evals meas_ex max_sz fc blk_mdls to_be_ns ns_synth = do
     let eenv = expr_env . state $ lr_state lrs
         eenv' = HM.fromList . map (\(n, e) -> ((nameOcc n, nameModule n), e)) $ E.toExprList eenv
         tenv = type_env . state $ lr_state lrs
+
         tc = type_classes . state $ lr_state lrs
         es = map (\n -> case HM.lookup (nameOcc n, nameModule n) eenv' of
                             Just e' -> e'
@@ -1329,7 +1330,6 @@ buildSI tenv tc meas stat ghci f aty rty = do
         fspec = case genSpec ghci f of
                 Just spec' -> spec'
                 _ -> error $ "synthesize: No spec found for " ++ show f
-
 
     (outer_ars_pb, ret_pb) <- argsAndRetFromSpec tenv tc ghci meas [] aty rty fspec
     let outer_ars = map fst outer_ars_pb
