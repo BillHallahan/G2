@@ -27,8 +27,13 @@ intTake n (h:t) =
   else h:(intTake (n - 1) t)
 intTake _ [] = error "list not long enough"
 
+intReverse :: [Int] -> [Int]
+intReverse [] = []
+intReverse (h:t) = (intReverse t) ++ [h]
+
 {-# RULES
 "forceDoesNothing" forall l . intForce l = l
 "badDropSum" forall n m l . intDrop n $ intDrop m l = intDrop (n + m) l
 "doubleTake" forall n m l . intTake n (intTake m l) = intTake n l
+"badDoubleReverse" forall l . intReverse (intReverse l) = l
   #-}

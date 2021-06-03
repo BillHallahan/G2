@@ -30,7 +30,6 @@ import qualified G2.Solver as S
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as P
 import qualified G2.Language.Naming as N
--- TODO lazy vs. strict
 import qualified Data.HashSet as HS
 
 main :: IO ()
