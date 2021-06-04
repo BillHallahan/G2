@@ -1,4 +1,4 @@
-module G2.Equiv.EquivADT (proofObligations, assumptions, statePairing) where
+module G2.Equiv.EquivADT (proofObligations, statePairing) where
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
@@ -8,6 +8,7 @@ import qualified Data.HashMap.Lazy as HM
 
 -- TODO remove
 import qualified Debug.Trace as D
+import qualified Data.Text as T
 
 import Control.Monad
 
@@ -126,6 +127,9 @@ moreRestrictivePair s1 s2 exprs e1 e2 =
   in
       not (HS.null $ HS.filter mr exprs)
 
+l_name :: Name
+l_name = (Name (T.pack "l") Nothing 6989586621679189074 (Just (Span {start = Loc {line = 49, col = 20, file = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"}, end = Loc {line = 49, col = 21, file = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"}})))
+
 -- TODO coinductive version of exprPairing
 -- if a matching sub-expression is found, stop the recursion
 -- TODO not sure about all the implementation details
@@ -137,18 +141,21 @@ epc :: State t ->
        HS.HashSet (Expr, Expr) ->
        Maybe (HS.HashSet (Expr, Expr))
 epc s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) exprs e1 e2 pairs =
-  case (e1, e2) of
+  -- case D.trace (show $ E.member l_name h1) $ (e1, e2) of
+  -- case D.trace (show e1) $ (e1, e2) of
+  case D.trace "EPC" $ D.trace (show e1) (D.trace (show $ E.lookup l_name h1) $ (e1, e2)) of
+  -- case (e1, e2) of
     -- TODO new termination case?
     -- needs to allow for more restrictive versions as well
     _ | moreRestrictivePair s1 s2 exprs e1 e2 -> Just pairs
-    (Var i, _) | E.isSymbolic (idName i) h1 -> Just (HS.insert (e1, e2) pairs)
+    (Var i, _) | E.isSymbolic (idName i) h1 -> {-D.trace (show i) $-} Just (HS.insert (e1, e2) pairs)
                -- TODO adjust the recursion?
-               | Just e <- E.lookup (idName i) h1 -> epc s1 s2 (HS.insert (e1, e2) exprs) e e2 pairs
-               | otherwise -> D.trace (show i) $ error "unmapped variable"
-    (_, Var i) | E.isSymbolic (idName i) h2 -> Just (HS.insert (e1, e2) pairs)
+               | Just e <- E.lookup (idName i) h1 -> {-D.trace (show i) $-} epc s1 s2 (HS.insert (e1, e2) exprs) e e2 pairs
+               | otherwise -> {-D.trace (show i) $-} error "unmapped variable"
+    (_, Var i) | E.isSymbolic (idName i) h2 -> {-D.trace (show i) $-} Just (HS.insert (e1, e2) pairs)
                -- TODO same issue
-               | Just e <- E.lookup (idName i) h2 -> epc s1 s2 (HS.insert (e1, e2) exprs) e1 e pairs
-               | otherwise -> D.trace (show i) $ error "unmapped variable"
+               | Just e <- E.lookup (idName i) h2 -> {-D.trace (show i) $-} epc s1 s2 (HS.insert (e1, e2) exprs) e1 e pairs
+               | otherwise -> {-D.trace (show i) $-} error "unmapped variable"
     (App _ _, App _ _) | (Data d1):l1 <- unApp e1
                        , (Data d2):l2 <- unApp e2
                        , d1 == d2 -> let ep = uncurry (epc s1 s2 (HS.insert (e1, e2) exprs))

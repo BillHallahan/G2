@@ -5,6 +5,8 @@ module RewriteVerify.RewriteVerifyTest
     , coinductionTestsBad
     ) where
 
+-- TODO
+import qualified Debug.Trace as D
 -- TODO better test suite naming?
 
 import qualified Data.Map as M
