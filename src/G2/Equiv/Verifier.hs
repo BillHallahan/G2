@@ -29,6 +29,10 @@ import qualified G2.Language.PathConds as P
 import G2.Equiv.InitRewrite
 import G2.Equiv.EquivADT
 
+-- TODO
+import qualified Debug.Trace as D
+import qualified Data.Text as T
+
 exprReadyForSolver :: ExprEnv -> Expr -> Bool
 exprReadyForSolver h (Var i) = E.isSymbolic (idName i) h && T.isPrimType (typeOf i)
 exprReadyForSolver h (App f a) = exprReadyForSolver h f && exprReadyForSolver h a
@@ -98,6 +102,7 @@ verifyLoop solver pairs states b1 b2 config | states /= [] = do
   | otherwise = return $ S.UNSAT ()
 
 -- the hash set input is for the assumptions
+-- TODO printing
 verifyLoop' :: S.Solver solver =>
                solver ->
                State () ->
@@ -105,6 +110,10 @@ verifyLoop' :: S.Solver solver =>
                HS.HashSet (Expr, Expr) ->
                IO (Maybe [(State (), State ())])
 verifyLoop' solver s1 s2 assumption_set = do
+  print "***VERIFY LOOP***"
+  let h1 = expr_env s1
+  print (show $ E.lookup l_name h1)
+  print "***CONTINUE***"
   let obligation_set = getObligations s1 s2
       obligation_list = HS.toList obligation_set
       (ready, not_ready) = partition (exprPairReadyForSolver (expr_env s1, expr_env s2)) obligation_list
@@ -116,13 +125,19 @@ verifyLoop' solver s1 s2 assumption_set = do
       S.UNSAT () -> return $ Just [(currExprInsert s1 e1, currExprInsert s2 e2) | (e1, e2) <- not_ready]
       _ -> return Nothing
 
+l_name :: Name
+l_name = (Name (T.pack "l") Nothing 6989586621679189074 (Just (Span {start = Loc {line = 49, col = 20, file = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"}, end = Loc {line = 49, col = 21, file = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"}})))
+
+-- TODO adding stuff for debugging
 getObligations :: State () -> State () -> HS.HashSet (Expr, Expr)
 getObligations s1 s2 =
+  D.trace "***GET OBLIGATIONS***" $
   let CurrExpr _ e1 = curr_expr s1
       CurrExpr _ e2 = curr_expr s2
-  in case proofObligations s1 s2 e1 e2 of
+      h1 = expr_env s1
+  in case D.trace "***BEGIN***" $ D.trace (show $ E.lookup l_name h1) $ D.trace "***START***" $ proofObligations s1 s2 e1 e2 of
       Nothing -> error "TODO expressions not equivalent"
-      Just po -> po
+      Just po -> D.trace "***END***" po
 
 checkObligations :: S.Solver solver =>
                     solver ->
