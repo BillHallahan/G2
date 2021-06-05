@@ -39,9 +39,10 @@ jobs:
     - name: Install dependencies
       run: |
         cabal update
+        cabal clean
         cabal install --only-dependencies
         cabal configure --enable-tests
-        cabal build --overwrite-policy=always
+        cabal build
     - name: Build
       run: cabal build
     - name: Run tests
