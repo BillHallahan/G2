@@ -1,5 +1,6 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 module G2.Liquid.Inference.Sygus.LiaSynth ( SynthRes (..)
                                           , Size
@@ -73,6 +74,9 @@ data Coeffs = Coeffs { c_active :: SMTName
 coeffs :: Coeffs -> [SMTName]
 coeffs cf = b0 cf:ars_coeffs cf ++ rets_coeffs cf
 
+coeffsNoB :: Coeffs -> [SMTName]
+coeffsNoB cf = ars_coeffs cf ++ rets_coeffs cf
+
 type Clause = (SMTName, [Coeffs]) 
 type CNF = [Clause]
 
@@ -92,6 +96,9 @@ data SpecInfo = SI { s_max_coeff :: Integer
                    -- We have one precondition function per argument
                    , s_syn_pre :: [PolyBound SynthSpec]
                    , s_syn_post :: PolyBound SynthSpec
+
+                   , s_type_pre :: [Type]
+                   , s_type_post :: Type
 
                    , s_status :: Status }
                    deriving (Show)
@@ -204,7 +211,7 @@ liaSynth con ghci lrs evals meas_ex max_sz fc blk_mdls to_be_ns ns_synth = do
 
     let meas = lrsMeasures ghci lrs
 
-    synth con eenv' tenv tc meas meas_ex evals si max_sz fc blk_mdls 1
+    synth con ghci eenv' tenv tc meas meas_ex evals si max_sz fc blk_mdls 1
     where
       zeroOutName (Name n m _ l) = Name n m 0 l
 
@@ -281,6 +288,7 @@ liaSynthOfSize sz m_si = do
 
 synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
       => con
+      -> [GhcInfo]
       -> NMExprEnv
       -> TypeEnv
       -> TypeClasses
@@ -293,7 +301,7 @@ synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
       -> BlockedModels
       -> Size
       -> m SynthRes
-synth con eenv tenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc blk_mdls sz = do
+synth con ghci eenv tenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc blk_mdls sz = do
     si' <- liaSynthOfSize sz si
     let zero_coeff_hdrs = softCoeffAssertZero si' ++ softClauseActAssertZero si' -- ++ softFuncActAssertZero si'
         -- zero_coeff_hdrs = softFuncActAssertZero si' ++ softClauseActAssertZero si'
@@ -320,7 +328,7 @@ synth con eenv tenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc blk_mdls sz 
 
         drop_if_unknown = [Comment "stronger blocking of spurious models"] ++ fun_block_mdls
 
-    res <- synth' con eenv tenv tc meas meas_ex evals si' fc ex_assrts drop_if_unknown blk_mdls sz
+    res <- synth' con ghci eenv tenv tc meas meas_ex evals si' fc ex_assrts drop_if_unknown blk_mdls sz
     case res of
         SynthEnv _ _ n_mdl _ -> do
             new  <- checkModelIsNewFunc con si' n_mdl non_equiv_mdls
@@ -335,13 +343,14 @@ synth con eenv tenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc blk_mdls sz 
                         mdls' = foldr (\n -> insertEquivBlockedModel sz (MNOnlySMTNames [n]) n_mdl) blk_mdls mn
 
                     liftIO . putStrLn $ "mn = " ++ show mn
-                    synth con eenv tenv tc meas meas_ex evals si ms fc mdls' sz
+                    synth con ghci eenv tenv tc meas meas_ex evals si ms fc mdls' sz
         SynthFail _
-            | sz < max_sz -> synth con eenv tenv tc meas meas_ex evals si ms fc blk_mdls (sz + 1)
+            | sz < max_sz -> synth con ghci eenv tenv tc meas meas_ex evals si ms fc blk_mdls (sz + 1)
             | otherwise -> return res
     
 synth' :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
        => con
+       -> [GhcInfo]
        -> NMExprEnv
        -> TypeEnv
        -> TypeClasses
@@ -355,10 +364,10 @@ synth' :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
        -> BlockedModels
        -> Size
        -> m SynthRes
-synth' con eenv tenv tc meas meas_ex evals m_si fc headers drop_if_unknown blk_mdls sz = do
+synth' con ghci eenv tenv tc meas meas_ex evals m_si fc headers drop_if_unknown blk_mdls sz = do
     let n_for_m = namesForModel m_si
     liftIO $ print m_si
-    (cons, nm_fc_map) <- nonMaxCoeffConstraints eenv tenv tc meas meas_ex evals m_si fc
+    (cons, nm_fc_map) <- nonMaxCoeffConstraints ghci eenv tenv tc meas meas_ex evals m_si fc
     let hdrs = cons ++ headers ++ drop_if_unknown
 
     liftIO $ if not (null drop_if_unknown) then putStrLn "non empty drop_if_unknown" else return ()
@@ -377,7 +386,7 @@ synth' con eenv tenv tc meas meas_ex evals m_si fc headers drop_if_unknown blk_m
             return (SynthFail fc_uc)
         Unknown _
             | not (null drop_if_unknown) ->
-                synth' con eenv tenv tc meas meas_ex evals m_si fc headers [] blk_mdls sz
+                synth' con ghci eenv tenv tc meas meas_ex evals m_si fc headers [] blk_mdls sz
             | otherwise -> error "synth': Unknown"
 
 ------------------------------------
@@ -1006,9 +1015,9 @@ maxCoeffConstraints' to_header max_c =
                                     :&& (V c SortInt :<= VInt (max_c si))) cffs
                 else []) . M.elems
 
-nonMaxCoeffConstraints :: InfConfigM m => NMExprEnv -> TypeEnv -> TypeClasses -> Measures -> MeasureExs -> Evals Bool  -> M.Map Name SpecInfo -> FuncConstraints
+nonMaxCoeffConstraints :: InfConfigM m => [GhcInfo] -> NMExprEnv -> TypeEnv -> TypeClasses -> Measures -> MeasureExs -> Evals Bool  -> M.Map Name SpecInfo -> FuncConstraints
                        -> m ([SMTHeader], HM.HashMap SMTName FuncConstraint)
-nonMaxCoeffConstraints eenv tenv tc meas meas_ex evals m_si fc = do
+nonMaxCoeffConstraints ghci eenv tenv tc meas meas_ex evals m_si fc = do
     let evals' = assignIds evals
         
         all_acts = getActs m_si
@@ -1025,6 +1034,8 @@ nonMaxCoeffConstraints eenv tenv tc meas meas_ex evals m_si fc = do
         ret_is_non_zero = mkRetNonZero m_si
 
         lim_equiv_smt = limitEquivModels m_si
+
+        poly_access = polyAccessConstraints2 ghci meas m_si
     
     fc_smt <- constraintsToSMT eenv tenv tc meas meas_ex evals' m_si fc
 
@@ -1041,6 +1052,8 @@ nonMaxCoeffConstraints eenv tenv tc meas meas_ex evals m_si fc = do
           ++ ret_is_non_zero 
           ++ [Comment "block equivalent formulas"]
           ++ lim_equiv_smt
+          ++ [Comment "polymorphic access constraints"]
+          ++ poly_access
         , nm_fc)
 
 ---
@@ -1050,6 +1063,9 @@ getCoeffs = concatMap siGetCoeffs . M.elems
 
 sySpecGetCoeffs :: SynthSpec -> [SMTName]
 sySpecGetCoeffs = concatMap coeffs . concatMap snd . sy_coeffs
+
+sySpecGetCoeffsNoB :: SynthSpec -> [SMTName]
+sySpecGetCoeffsNoB = concatMap coeffsNoB . concatMap snd . sy_coeffs
 
 siGetCoeffs :: SpecInfo -> [SMTName]
 siGetCoeffs si
@@ -1363,6 +1379,10 @@ buildSI tenv tc meas stat ghci f aty rty = do
                                   )  $ zipPB r_pb (uniqueIds r_pb)
                      ) $ zip (filter (not . null) $ L.inits outer_ars_pb) [1..]
            , s_syn_post = mkSynSpecPB (smt_f ++ "_synth_post_") arg_ns ret_pb
+
+           , s_type_pre = aty
+           , s_type_post = rty
+
            , s_status = stat }
 
 argsAndRetFromSpec :: InfConfigM m => TypeEnv -> TypeClasses -> [GhcInfo] -> Measures -> [([SpecArg], PolyBound [SpecArg])] -> [Type] -> Type -> SpecType -> m ([([SpecArg], PolyBound [SpecArg])], PolyBound [SpecArg])
@@ -1541,6 +1561,66 @@ applicableMeasures mx_meas tenv meas t =
                 . filter (maybe False (isJust . typeToSort . fst) . chainReturnType t)
                 $ formMeasureComps mx_meas tenv t meas
 
+----------------------------------------------------------------------------
+-- Polymorphic access measures
+-- A measure is a polymorphic access measure if it returns a value of a polymorphic type.
+-- For example, `fst :: (a, b) -> a`.
+-- Specifications that use both tuple style specs i.e. ( {x:Int > 0 }, Int)
+-- and measure style specs i.e. { t:(Int, Int) | fst t > 0 } together can cause strange
+-- errors from LH.  Thus, we add softer assertions to, when possible,
+-- avoid using polymorphic access measures.
+
+polyAccessConstraints2 :: [GhcInfo] -> Measures -> M.Map Name SpecInfo -> [SMTHeader]
+polyAccessConstraints2 ghci meas =
+    let
+      pa_meas = getPolyAccessMeasures ghci meas
+    in
+      map (flip AssertSoft Nothing)
+    . polyAccessConstraints2' pa_meas
+    . M.filter (\si -> s_status si == Synth)
+
+polyAccessConstraints2' :: [(LH.Symbol, Type, Type)] -> M.Map Name SpecInfo -> [SMTAST]
+polyAccessConstraints2' meas = concatMap (polyAccessConstraints2'' meas) . M.elems
+
+polyAccessConstraints2'' :: [(LH.Symbol, Type, Type)] -> SpecInfo -> [SMTAST]
+polyAccessConstraints2'' meas si =
+    let
+        poly = allSynthSpecPoly si
+    in
+    concatMap (polyAccessConstraints2''' meas) $ concatMap extractValues poly
+
+polyAccessConstraints2''' :: [(LH.Symbol, Type, Type)] -> SynthSpec -> [SMTAST]
+polyAccessConstraints2''' meas sys =
+    let
+        cffs = sySpecGetCoeffsNoB sys
+        ars_coeffs =
+              if not (null (sy_args sys)) || not (null (sy_rets sys))
+                  then zip (cycle (sy_args sys ++ sy_rets sys)) cffs
+                  else []
+    in
+    concatMap (\(sy, c) -> if usesPolyAcc (lh_rep sy)
+                              then [V c SortInt := VInt 0]
+                              else []) ars_coeffs
+    where
+      meas' = map (\(m, _, _) -> m) meas
+
+      usesPolyAcc (EApp (EVar lh) e) = lh `elem` meas' || usesPolyAcc e
+      usesPolyAcc _ = False
+
+getPolyAccessMeasures :: [GhcInfo] -> Measures -> [(LH.Symbol, Type, Type)]
+getPolyAccessMeasures ghci =
+      map (\(n, at, rt) -> (getLHMeasureName ghci n, at, rt)) 
+    . mapMaybe (\(n, (t:ts, rt)) -> if null ts then Just (n, t, rt) else Nothing)
+    . HM.toList
+    . E.map' (\e -> (filter (not . isLHDict) $ anonArgumentTypes e, returnType e))
+    . E.filter (isTyVar . returnType)
+    where
+        isLHDict t
+          | (TyCon (Name n _ _ _) _):_ <- unTyApp t = n == "lh"
+          | otherwise = False
+
+----------------------------------------------------------------------------
+
 -- Helpers for SynthInfo
 allSynthSpec :: SpecInfo -> [SynthSpec]
 allSynthSpec si = allPreSynthSpec si ++ allPostSynthSpec si
@@ -1550,6 +1630,12 @@ allPreSynthSpec = concatMap extractValues . s_syn_pre
 
 allPostSynthSpec :: SpecInfo -> [SynthSpec]
 allPostSynthSpec = extractValues . s_syn_post
+
+allSynthSpecPoly :: SpecInfo -> [PolyBound SynthSpec]
+allSynthSpecPoly si = s_syn_pre si ++ [s_syn_post si]
+
+allSynthSpecTypes :: SpecInfo -> [Type]
+allSynthSpecTypes si = s_type_pre si ++ [s_type_post si]
 
 allCNFs :: SpecInfo -> CNF
 allCNFs si = allPreCoeffs si ++ allPostCoeffs si
