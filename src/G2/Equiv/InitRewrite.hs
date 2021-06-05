@@ -22,6 +22,7 @@ initWithRHS s b r =
            }
       b' = b {
              name_gen = ng'
+           , input_names = map idName $ ru_bndrs r
            }
   in
   (s', b')
@@ -47,6 +48,7 @@ initWithLHS s b r =
                        }
                   b' = b {
                          name_gen = ng'
+                       , input_names = map idName $ ru_bndrs r
                        }
               in
               (s', b')
