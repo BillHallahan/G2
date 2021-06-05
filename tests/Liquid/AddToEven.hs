@@ -10,6 +10,10 @@ import Prelude hiding (zipWith)
 f :: Int -> Int
 f x = x + g 5
 
+{-@ fBad :: Int -> Even @-}
+fBad :: Int -> Int
+fBad x = x + x
+
 -- Without the below refinement type for g, this file can not be verified
 -- {-@ g :: Int -> Even @-}
 -- {-@ g :: Int -> {v:Int | v /= -1} @-}
@@ -62,4 +66,3 @@ f4 = g2
 {-@ g4 :: Int @-}
 g4 :: Int
 g4 = 0
-

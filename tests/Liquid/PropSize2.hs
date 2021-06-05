@@ -8,7 +8,7 @@ import Prelude hiding (length)
 data List = Emp
           | C List
 
--- length :: Num a => List -> a
+length :: List -> Int
 length Emp = 0
 length (C xs) = length xs
 

@@ -7,7 +7,8 @@ import G2.Language.Syntax
 -- There are two reasons a name might exist:
 --   (1) It corresponds to something that only makes sense in the context of LH
 --       (i.e. the LH typeclass)
---   (2) It is a copy of a function that normally exists, but that copy has no assertion added. 
+--   (2) It is a copy of a function that normally exists, but that copy has no assertion added.
+--   (3) We only care about the specific name in LH code (the Set data type) 
 data TCValues = TCValues { lhTC :: Name
                          , lhNumTC :: Name
                          , lhOrdTC :: Name
@@ -26,14 +27,28 @@ data TCValues = TCValues { lhTC :: Name
                          , lhDiv :: Name
                          , lhNegate :: Name
                          , lhMod :: Name
+
                          , lhFromInteger :: Name
+                         , lhToInteger :: Name
+
+                         , lhFromRational :: Name
+
+                         , lhToRatioFunc :: Name
 
                          , lhNumOrd :: Name
 
                          , lhAnd :: Name
                          , lhOr :: Name
+                         , lhNot :: Name
 
-                         , lhPP :: Name } deriving (Eq, Show, Read)
+                         , lhImplies :: Name
+                         , lhIff :: Name
+
+                         , lhPP :: Name
+
+                         , lhOrd :: Name
+
+                         , lhSet :: Maybe Name } deriving (Eq, Show, Read)
 
 instance Named TCValues where
     names tcv = [ lhTC tcv
@@ -54,12 +69,25 @@ instance Named TCValues where
                 , lhNegate tcv
                 , lhMod tcv
                 , lhFromInteger tcv
+
+                , lhToInteger tcv
+
+                , lhFromRational tcv
+
+                , lhToRatioFunc tcv
+
                 , lhNumOrd tcv
 
                 , lhAnd tcv
                 , lhOr tcv
+                , lhNot tcv
 
-                , lhPP tcv]
+                , lhImplies tcv
+                , lhIff tcv
+
+                , lhPP tcv
+
+                , lhOrd tcv] ++ maybe [] (:[]) (lhSet tcv)
 
     rename old new tcv = TCValues { lhTC = rename old new $ lhTC tcv
                                   , lhNumTC = rename old new $ lhNumTC tcv
@@ -78,10 +106,25 @@ instance Named TCValues where
                                   , lhDiv = rename old new $ lhDiv tcv
                                   , lhNegate = rename old new $ lhNegate tcv
                                   , lhMod = rename old new $ lhMod tcv
+                                  
                                   , lhFromInteger = rename old new $ lhFromInteger tcv
+                                  , lhToInteger = rename old new $ lhToInteger tcv
+
+                                  , lhFromRational = rename old new $ lhFromRational tcv
+                                  
+                                  , lhToRatioFunc = rename old new $ lhToRatioFunc tcv
+
                                   , lhNumOrd = rename old new $ lhNumOrd tcv
 
                                   , lhAnd = rename old new $ lhAnd tcv
                                   , lhOr = rename old new $ lhOr tcv
+                                  , lhNot = rename old new $ lhNot tcv
 
-                                  , lhPP = rename old new $ lhPP tcv }
+                                  , lhImplies = rename old new $ lhImplies tcv
+                                  , lhIff = rename old new $ lhIff tcv
+
+                                  , lhPP = rename old new $ lhPP tcv
+
+                                  , lhOrd = rename old new $ lhOrd tcv
+
+                                  , lhSet = rename old new $ lhSet tcv }

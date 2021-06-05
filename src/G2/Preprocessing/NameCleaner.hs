@@ -17,7 +17,6 @@ module G2.Preprocessing.NameCleaner
     ) where
 
 import qualified Data.HashMap.Lazy as HM
-import qualified Data.Map as M
 import qualified Data.HashSet as S
 import qualified Data.Text as T
 
@@ -52,7 +51,7 @@ allowedName (Name n m _ _) =
 cleanNames :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> CleanedNames -> NameGen -> (State t, CleanedNames, NameGen)
 cleanNames s cl_names ng = (renames hns s, cl_names', ng')
   where
-    (ns, ng') = createNamePairs ng . filter (not . allowedName) $ allNames s
+    (ns, ng') = createNamePairs ng . filter (not . allowedName) . map idName $ symbolic_ids s
     hns = HM.fromList ns
     cl_names' = foldr (\(old, new) -> HM.insert new old) cl_names (HM.toList hns)
 
@@ -88,4 +87,4 @@ createNamePairs ing ins = go ing [] ins
             go ng' ((name, new_name):rns) ns
 
 allNames :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> [Name]
-allNames s = exprNames s ++ typeNames s ++ E.keys (expr_env s) ++ M.keys (type_env s)
+allNames s = exprNames s ++ E.keys (expr_env s)

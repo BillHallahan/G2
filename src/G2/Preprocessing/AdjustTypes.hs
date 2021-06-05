@@ -36,14 +36,16 @@ wrapInteger' _ e = e
 -- )
 -- We remove $unpackCString, and convert the LitString to a list
 unpackString :: ASTContainer t Expr => State t -> State t
-unpackString s@(State {type_env = tenv, known_values = kv}) = modifyASTsFix (unpackString' tenv kv) s
+unpackString s@(State {type_env = tenv, known_values = kv}) = modifyASTs (unpackString' tenv kv) s
 
 unpackString' :: TypeEnv -> KnownValues -> Expr -> Expr
-unpackString' _ _ (App (Var (Id (Name "unpackCString#" _ _ _) _)) e) = e
+unpackString' tenv kv (App (Var (Id (Name "unpackCString#" _ _ _) _)) e) = unpackString' tenv kv e
 unpackString' tenv kv (Lit (LitString s)) = 
     let
-        cns = mkCons kv tenv
-        em = mkEmpty kv tenv
+        cns = App (mkCons kv tenv) (Type (tyChar kv))
+        em = App (mkEmpty kv tenv) (Type (tyChar kv))
+
+        char = mkDCChar kv tenv
     in
-    foldr App em $ map (App cns . Lit . LitChar) s
+    foldr App em $ map (App cns . App char . Lit . LitChar) s
 unpackString' _ _ e = e

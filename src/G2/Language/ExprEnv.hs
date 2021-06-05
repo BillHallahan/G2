@@ -1,9 +1,11 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
 module G2.Language.ExprEnv
     ( ExprEnv
+    , ConcOrSym (..)
     , empty
     , singleton
     , fromList
@@ -11,6 +13,7 @@ module G2.Language.ExprEnv
     , size
     , member
     , lookup
+    , lookupConcOrSym
     , deepLookup
     , isSymbolic
     , occLookup
@@ -20,12 +23,12 @@ module G2.Language.ExprEnv
     , insertExprs
     , redirect
     , union
+    , union'
     , (!)
     , map
     , map'
     , mapWithKey
     , mapWithKey'
-    , mapKeys
     , mapM
     , mapWithKeyM
     , filter
@@ -37,9 +40,11 @@ module G2.Language.ExprEnv
     , symbolicKeys
     , elems
     , higherOrderExprs
+    , redirsToExprs
     , toList
     , toExprList
     , fromExprList
+    , toHashMap
     ) where
 
 import G2.Language.AST
@@ -54,10 +59,14 @@ import Prelude hiding( filter
                      , null)
 import qualified Prelude as Pre
 import Data.Coerce
+import Data.Data (Data, Typeable)
 import qualified Data.List as L
-import qualified Data.Map as M
+import qualified Data.HashMap.Lazy as M
 import Data.Maybe
 import qualified Data.Text as T
+
+data ConcOrSym = Conc Expr
+               | Sym Id
 
 -- From a user perspective, `ExprEnv`s are mappings from `Name` to
 -- `Expr`s. however, there are two complications:
@@ -68,13 +77,21 @@ import qualified Data.Text as T
 data EnvObj = ExprObj Expr
             | RedirObj Name
             | SymbObj Id
-            deriving (Show, Eq, Read)
+            deriving (Show, Eq, Read, Typeable, Data)
 
-newtype ExprEnv = ExprEnv (M.Map Name EnvObj)
-                  deriving (Show, Eq, Read)
+newtype ExprEnv = ExprEnv (M.HashMap Name EnvObj)
+                  deriving (Show, Eq, Read, Typeable, Data)
 
-unwrapExprEnv :: ExprEnv -> M.Map Name EnvObj
+{-# INLINE unwrapExprEnv #-}
+unwrapExprEnv :: ExprEnv -> M.HashMap Name EnvObj
 unwrapExprEnv = coerce
+
+toHashMap :: ExprEnv -> M.HashMap Name Expr
+toHashMap eenv =
+    M.map(\e -> case e of
+                    ExprObj e' -> e'
+                    RedirObj n' -> eenv ! n'
+                    SymbObj i -> Var i) . unwrapExprEnv $ eenv
 
 -- | Constructs an empty `ExprEnv`
 empty :: ExprEnv
@@ -108,6 +125,14 @@ lookup n (ExprEnv smap) =
         Just (ExprObj expr) -> Just expr
         Just (RedirObj redir) -> lookup redir (ExprEnv smap)
         Just (SymbObj i) -> Just $ Var i
+        Nothing -> Nothing
+
+lookupConcOrSym :: Name -> ExprEnv -> Maybe ConcOrSym
+lookupConcOrSym  n (ExprEnv smap) = 
+    case M.lookup n smap of
+        Just (ExprObj expr) -> Just $ Conc expr
+        Just (RedirObj redir) -> lookupConcOrSym redir (ExprEnv smap)
+        Just (SymbObj i) -> Just $ Sym i
         Nothing -> Nothing
 
 -- | Lookup the `Expr` with the given `Name`.
@@ -165,6 +190,9 @@ redirect n n' = ExprEnv . M.insert n (RedirObj n') . unwrapExprEnv
 union :: ExprEnv -> ExprEnv -> ExprEnv
 union (ExprEnv eenv) (ExprEnv eenv') = ExprEnv $ eenv `M.union` eenv'
 
+union' :: M.HashMap Name Expr -> ExprEnv -> ExprEnv
+union' m (ExprEnv eenv) = ExprEnv (M.map ExprObj m `M.union` eenv)
+
 -- | Map a function over all `Expr` in the `ExprEnv`.
 -- Will not replace symbolic variables with non-symbolic values,
 -- but will rename symbolic values.
@@ -172,7 +200,7 @@ map :: (Expr -> Expr) -> ExprEnv -> ExprEnv
 map f = mapWithKey (\_ -> f)
 
 -- | Maps a function with an arbitrary return type over all `Expr` in the `ExprEnv`, to get a `Data.Map`.
-map' :: (Expr -> a) -> ExprEnv -> M.Map Name a
+map' :: (Expr -> a) -> ExprEnv -> M.HashMap Name a
 map' f = mapWithKey' (\_ -> f)
 
 -- | Map a function over all `Expr` in the `ExprEnv`, with access to the `Name`.
@@ -189,11 +217,8 @@ mapWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
                 _ -> s
         f' _ n = n
 
-mapWithKey' :: (Name -> Expr -> a) -> ExprEnv -> M.Map Name a
+mapWithKey' :: (Name -> Expr -> a) -> ExprEnv -> M.HashMap Name a
 mapWithKey' f = M.mapWithKey f . toExprMap
-
-mapKeys :: (Name -> Name) -> ExprEnv -> ExprEnv
-mapKeys f = coerce . M.mapKeys f . unwrapExprEnv
 
 mapM :: Monad m => (Expr -> m Expr) -> ExprEnv -> m ExprEnv
 mapM f eenv = return . ExprEnv =<< Pre.mapM f' (unwrapExprEnv eenv)
@@ -251,6 +276,13 @@ elems = exprObjs . M.elems . unwrapExprEnv
 higherOrderExprs :: ExprEnv -> [Type]
 higherOrderExprs = concatMap (higherOrderFuncs) . elems
 
+-- | Converts all RedirObjs in ExprObjs.  Useful for certain kinds of analysis
+redirsToExprs :: ExprEnv -> ExprEnv
+redirsToExprs eenv = coerce . M.map rToE . coerce $ eenv
+    where
+        rToE (RedirObj n) = ExprObj . Var . Id n . typeOf $ eenv ! n
+        rToE e = e
+
 toList :: ExprEnv -> [(Name, EnvObj)]
 toList = M.toList . unwrapExprEnv
 
@@ -264,7 +296,7 @@ toExprList env@(ExprEnv env') =
 fromExprList :: [(Name, Expr)] -> ExprEnv
 fromExprList = ExprEnv . M.fromList . L.map (\(n, e) -> (n, ExprObj e))
 
-toExprMap :: ExprEnv -> M.Map Name Expr
+toExprMap :: ExprEnv -> M.HashMap Name Expr
 toExprMap env = M.mapWithKey (\k _ -> env ! k) $ unwrapExprEnv env
 
 getIdFromName :: ExprEnv -> Name -> Maybe Id
@@ -311,14 +343,16 @@ instance Named ExprEnv where
 
     rename old new =
         ExprEnv 
-        . M.mapKeys (\k -> if k == old then new else k)
+        . M.fromList
         . rename old new
+        . M.toList
         . unwrapExprEnv
 
     renames hm =
         ExprEnv
-        . M.mapKeys (renames hm)
+        . M.fromList
         . renames hm
+        . M.toList
         . unwrapExprEnv
 
 instance Named EnvObj where

@@ -2,20 +2,36 @@
 
 module TestUtils where
 
+import qualified Data.Map as M
 import Data.Monoid
 import qualified Data.Text as T
+
+import System.Directory
 
 import G2.Config
 import G2.Language
 
-mkConfigTest :: Config
-mkConfigTest = mkConfigDef { higherOrderSolver = AllFuncs
-                           , timeLimit = 50
-                           , base = [ "./base-4.9.1.0/Control/Exception/Base.hs"
-                                    , "./base-4.9.1.0/Prelude.hs" ] } 
+mkConfigTestIO :: IO Config
+mkConfigTestIO = do
+    homedir <- getHomeDirectory
+    return $
+        (mkConfig homedir [] M.empty)
+            { higherOrderSolver = AllFuncs
+            , timeLimit = 75
+            -- , baseInclude = [ "./base-4.9.1.0/Control/Exception/"
+            --                 , "./base-4.9.1.0/" ]
+            , base = baseSimple homedir
+            , extraDefaultMods = [] }
 
-mkConfigTestWithMap :: Config
-mkConfigTestWithMap = mkConfigTest { base = base mkConfigTest ++ [mapLib]}
+mkConfigTestWithSetIO :: IO Config
+mkConfigTestWithSetIO = mkConfigTestWithMapIO
+
+mkConfigTestWithMapIO :: IO Config
+mkConfigTestWithMapIO = do
+    config <- mkConfigTestIO
+    homedir <- getHomeDirectory
+    return $ config { base = base config ++ baseExtra homedir }
+
 
 eqIgT :: Expr -> Expr -> Bool
 eqIgT (Var n) (Var n') = eqIgIds n n'

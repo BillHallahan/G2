@@ -8,11 +8,8 @@ import qualified G2.Language.ExprEnv as E
 import Test.Tasty
 import Test.Tasty.HUnit
 
-exprTests :: IO TestTree
-exprTests = return exprTests'
-
-exprTests' :: TestTree
-exprTests' =
+exprTests :: TestTree
+exprTests =
     testGroup "Expr"
     [ testCase "Eta Expand To" $ assertBool "Eta Expand To failed" etaExpandTo1
     , testCase "Eta Expand To" $ assertBool "Eta Expand To failed" etaExpandTo2

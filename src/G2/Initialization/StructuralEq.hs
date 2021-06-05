@@ -1,13 +1,17 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
-module G2.Initialization.StructuralEq (createStructEqFuncs) where
+module G2.Initialization.StructuralEq ( createStructEqFuncs
+                                      , structEqFuncType
+                                      , structEqFuncTypeM) where
 
-import G2.Language
+import G2.Language as L
 import G2.Language.Monad
 import G2.Language.KnownValues
 
 import qualified Data.Foldable as F
+import qualified Data.HashSet as S
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
@@ -44,8 +48,9 @@ createStructEqFuncs ts = do
 
     tenv <- typeEnv
     -- For efficiency, we only generate structural equality when it's needed
-    let types = mapMaybe (tcaName . returnType . PresType) $ filter isTyFun ts ++ (nubBy (.::.) $ argTypesTEnv tenv)
-    let tenv' = M.filterWithKey (\n _ -> n `elem` types) tenv
+    let types = concatMap tcaNames $ filter isTyFun ts ++ (nubBy (.::.) $ argTypesTEnv tenv)
+        fix_types = genReqTypes tenv S.empty types
+    let tenv' = M.filterWithKey (\n _ -> n `elem` fix_types) tenv
 
     insertT adtn (DataTyCon {bound_ids = [Id tyvn TYPE], data_cons = [dc]})
 
@@ -61,15 +66,30 @@ createStructEqFuncs ts = do
 
     ins <- genInsts tcn nsT t dc $ M.toList tenv'
 
-    let tc' = insertClass tcn (Class { insts = ins, typ_ids = [tci] }) tc
+    let tc' = insertClass tcn (Class { insts = ins, typ_ids = [tci], superclasses = [] }) tc
     putTypeClasses tc'
 
     F.mapM_ (\(n, n', adt) -> createStructEqFunc dcn n n' adt) $ zip3 ns' tenvK tenvV
 
-tcaName :: Type -> Maybe Name
-tcaName (TyCon n _) = Just n
-tcaName (TyApp t _) = tcaName t
-tcaName _ = Nothing
+genReqTypes :: TypeEnv -> S.HashSet Name -> [Name] -> S.HashSet Name
+genReqTypes _ explored [] = explored
+genReqTypes tenv explored (n:ns) =
+    if S.member n explored
+      then genReqTypes tenv explored ns
+      else genReqTypes tenv explored' ns'
+  where
+    explored' = S.insert n explored
+    tenv_hits = case M.lookup n tenv of
+        Nothing -> []
+        Just r -> tcaNames r
+    ns' = tenv_hits ++ ns
+
+tcaNames :: ASTContainer m Type => m -> [Name]
+tcaNames = evalASTs tcaNames'
+
+tcaNames' :: Type -> [Name]
+tcaNames' (TyCon n _) = [n]
+tcaNames' _ = []
 
 genExtractor :: ExState s m => Type -> DataCon  -> m Name
 genExtractor t dc = do
@@ -212,18 +232,20 @@ structEqCheck :: ExState s m => [(Name, (Id, Id))] -> Type -> Id -> Id -> m Expr
 structEqCheck bm t i1 i2
     | TyCon _ _ <- tyAppCenter t = do
     kv <- knownValues
+    sft <- structEqFuncTypeM
 
-    let ex = Var $ Id (structEqFunc kv) TyUnknown
+    let ex = Var $ Id (structEqFunc kv) sft
 
     dict <- dictForType bm t
 
     return (App (App (App (App ex (Type t)) dict) (Var i1)) (Var i2))
 structEqCheck bm (TyVar (Id n _)) (Id n' _) (Id n'' _) = do
     kv <- knownValues
+    sft <- structEqFuncTypeM
 
     case lookup n bm of
         Just (ty, dict) -> do
-            let ex = Var $ Id (structEqFunc kv) TyUnknown
+            let ex = Var $ Id (structEqFunc kv) sft
 
             return (App (App (App (App ex (Var ty)) (Var dict)) (Var (Id n' (TyVar ty)))) (Var (Id n'' (TyVar ty))))
         Nothing -> error "Unaccounted for TyVar in structEqCheck"
@@ -240,12 +262,14 @@ structEqCheck _ TyLitChar i1 i2 = do
     eq <- mkEqPrimCharE
     return $ App (App eq (Var i1)) (Var i2)
 structEqCheck _ (TyForAll _ _) _ _ = mkTrueE
-structEqCheck _ (TyFun _ _) i1 i2 = return $ App (App (Prim BindFunc TyUnknown) (Var i1)) (Var i2)
+structEqCheck _ (TyFun _ _) i1 i2 = do
+    boolT <- tyBoolT
+    return $ App (App (Prim BindFunc (TyFun (typeOf i1) (TyFun (typeOf i2) boolT))) (Var i1)) (Var i2)
 structEqCheck _ t _ _ = error $ "Unsupported type in structEqCheck" ++ show t
 
 dictForType :: ExState s m => [(Name, (Id, Id))] -> Type -> m Expr
 dictForType bm t
-    | TyCon _ _ <- tyAppCenter t
+    | tycon@(TyCon _ _) <- tyAppCenter t
     , ts <- tyAppArgs t = do
     kv <- knownValues
     tc <- typeClasses
@@ -254,9 +278,31 @@ dictForType bm t
 
     case structEqTCDict kv tc t of
         Just i -> return $ foldl' App (Var i) (map Type ts ++ ds)
-        Nothing -> error $ "Required typeclass not found in dictForType"
+        Nothing -> error $ "Required typeclass not found in dictForType " ++ show t ++ "\n" ++ show bm ++ "\n" ++ show (lookupTCDicts (structEqTC kv) tc)
 dictForType bm (TyVar (Id n _)) =
     case lookup n bm of
         Just (_, dict) -> return (Var dict)
         Nothing -> error "Unaccounted for TyVar in dictForType"
 dictForType _ t = error $ "Unsupported type in dictForType" ++ show t
+
+-- | Returns the type for the StructEq func.
+-- The Name is used for a bound type, and should be generated with a NameGen.
+structEqFuncType :: KnownValues -> Name -> Type
+structEqFuncType kv n =
+    let
+        i = Id n TYPE
+        dict = structEqTC kv
+        bool = L.tyBool kv
+    in
+    TyForAll (NamedTyBndr i)
+        (TyFun (TyCon dict TYPE) 
+            (TyFun (TyVar i) 
+                (TyFun (TyVar i) bool)
+            )
+        )
+
+structEqFuncTypeM :: ExState s m => m Type
+structEqFuncTypeM = do
+    kv <- knownValues
+    n <- freshNameN
+    return $ structEqFuncType kv n

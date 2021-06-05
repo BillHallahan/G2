@@ -1,7 +1,10 @@
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
-module G2.Liquid.ConvertCurrExpr (convertCurrExpr) where
+module G2.Liquid.ConvertCurrExpr ( convertCurrExpr
+                                 , initiallyCalledFuncName) where
 
 import G2.Language
 import G2.Language.Monad
@@ -14,9 +17,13 @@ import Control.Monad.Extra
 import qualified Data.Map as M
 import Data.Maybe
 
-convertCurrExpr :: Id -> Bindings -> LHStateM [Name]
+import Debug.Trace
+
+-- | Returns (1) the Id of the new main function and (2) the functions that need counterfactual variants
+convertCurrExpr :: Id -> Bindings -> LHStateM (Id, [Name])
 convertCurrExpr ifi bindings = do
     ifi' <- modifyInputExpr ifi
+    mapWithKeyME (\(Name _ m _ _) e -> if isJust m then letLiftHigherOrder e else return e)
     addCurrExprAssumption ifi bindings
     return ifi'
 
@@ -33,7 +40,7 @@ convertCurrExpr ifi bindings = do
 --      it'll only be computed once.  This is NOT just for efficiency.
 --      Since the choice is nondeterministic, this is the only way to ensure that
 --      we don't make two different choices, and get two different values.
-modifyInputExpr :: Id -> LHStateM [Name]
+modifyInputExpr :: Id -> LHStateM (Id, [Name])
 modifyInputExpr i@(Id n _) = do
     (CurrExpr er ce) <- currExpr
 
@@ -45,15 +52,16 @@ modifyInputExpr i@(Id n _) = do
             let ce' = replaceVarWithName (idName i) (Var newI) ce
 
             putCurrExpr (CurrExpr er ce')
-            return ns
-        Nothing -> return []
+            return (newI, ns)
+        Nothing -> return (error "Name not found", [])
 
 -- Actually does the work of modify the function for modifyInputExpr
 -- Inserts the new function in the ExprEnv, and returns the Id
 modifyInputExpr' :: Id -> Expr -> LHStateM (Id, [Name])
 modifyInputExpr' i e = do
     (e', ns) <- rebindFuncs e
-    e''' <- letLiftFuncs e'
+    e'' <- letLiftFuncs e'
+    e''' <- replaceLocalAssert i e''
 
     newI <- freshSeededIdN (idName i) (typeOf i)
     insertE (idName newI) e'''
@@ -75,6 +83,25 @@ rebindFuncs e = do
         rewriteAssertName n (Assert (Just fc) e1 e2) = Assert (Just $ fc {funcName = n}) e1 e2
         rewriteAssertName n e1 = modifyChildren (rewriteAssertName n) e1
 
+-- | We are assuming the precondiiton holds, so we only have to check the postcondition!
+-- We also replace the name of the assert so we can recognize it as the inital call later.
+replaceLocalAssert :: Id -> Expr -> LHStateM Expr
+replaceLocalAssert (Id n _) ce = do
+    n_assert <- lookupPostM n
+    return $ modifyASTs
+        (\e -> case e of
+                    Assert (Just fc) e1 e2 ->
+                        let ars = arguments fc ++ [returns fc]
+                            assrt = case n_assert of
+                                        Just a -> mkApp (a:ars)
+                                        Nothing -> e1
+                        in 
+                        Assert (Just $ fc { funcName = initiallyCalledFuncName}) assrt e2
+                    _ -> e) ce
+
+initiallyCalledFuncName :: Name
+initiallyCalledFuncName = Name "INITIALLY_CALLED_FUNC" Nothing 0 Nothing
+
 replaceVarWithName :: Name -> Expr -> Expr -> Expr
 replaceVarWithName n new = modify (replaceVarWithName' n new)
 
@@ -89,7 +116,9 @@ replaceVarWithName' _ _ e = e
 -- Furthermore, we have to be careful to not move bindings from Lambdas/other Let's
 -- out of scope.
 letLiftFuncs :: Expr -> LHStateM Expr
-letLiftFuncs = modifyAppTopE letLiftFuncs'
+letLiftFuncs e = do
+    e' <- modifyAppTopE letLiftFuncs' e
+    return $ flattenLets e'
 
 letLiftFuncs' :: Expr -> LHStateM Expr
 letLiftFuncs' e
@@ -101,6 +130,63 @@ letLiftFuncs' e
         return . Let (zip is ars) . mkApp $ c:map Var is
     | otherwise = return e
 
+
+-- | Tries to be more selective then liftLetFuncs, doesn't really work yet...
+letLiftHigherOrder :: Expr -> LHStateM Expr
+letLiftHigherOrder e = return . shiftLetsOutOfApps =<< insertInLamsE letLiftHigherOrder' e
+
+letLiftHigherOrder' :: [Id] -> Expr -> LHStateM Expr
+letLiftHigherOrder' is e@(App _ _)
+    | Var i@(Id n t) <- appCenter e
+    , i `elem` is = do
+        ni <- freshIdN (typeOf e)
+        e' <- modifyAppRHSE (letLiftHigherOrder' is) e
+        return $ Let [(ni, e')] (Var ni)
+    | d@(Data _) <- appCenter e = do
+        let ars = passedArgs e
+        is <- freshIdsN $ map typeOf ars
+
+        ars' <- mapM (letLiftHigherOrder' is) ars
+
+        return . Let (zip is ars') . mkApp $ d:map Var is
+letLiftHigherOrder' is e@(Lam _ _ _) = insertInLamsE (\is' -> letLiftHigherOrder' (is ++ is')) e
+letLiftHigherOrder' is e = modifyChildrenM (letLiftHigherOrder' is) e
+
+isFunc :: Type -> Bool
+isFunc (TyFun _ _) = True
+isFunc (TyForAll _ _) = True
+isFunc _ = False
+
+shiftLetsOutOfApps :: Expr -> Expr
+shiftLetsOutOfApps e@(App _ _) =
+    case shiftLetsOutOfApps' e of
+        Let b e' -> Let b . modifyBottomApp shiftLetsOutOfApps $ e'
+        e' -> modifyBottomApp shiftLetsOutOfApps $ e'
+shiftLetsOutOfApps e = modifyChildren shiftLetsOutOfApps e
+
+shiftLetsOutOfApps' :: Expr -> Expr
+shiftLetsOutOfApps' a@(App _ _) =
+    let
+        b = getLetsInApp a
+    in
+    case b of
+        [] -> a
+        _ -> Let b $ elimLetsInApp a
+
+getLetsInApp :: Expr -> Binds
+getLetsInApp (Let b e) = b ++ getLetsInApp e
+getLetsInApp (App e e') = getLetsInApp e ++ getLetsInApp e'
+getLetsInApp _ = []
+
+elimLetsInApp :: Expr -> Expr
+elimLetsInApp (Let b e) = elimLetsInApp e
+elimLetsInApp (App e e') = App (elimLetsInApp e) (elimLetsInApp e')
+elimLetsInApp e = e
+
+modifyBottomApp :: (Expr -> Expr) -> Expr -> Expr
+modifyBottomApp f (App e e') = App (modifyBottomApp f e) (modifyBottomApp f e')
+modifyBottomApp f e = f e
+
 -- We add an assumption about the inputs to the current expression
 -- This prevents us from finding a violation of the output refinement type
 -- that requires a violation of the input refinement type
@@ -108,15 +194,19 @@ addCurrExprAssumption :: Id -> Bindings -> LHStateM ()
 addCurrExprAssumption ifi (Bindings {fixed_inputs = fi}) = do
     (CurrExpr er ce) <- currExpr
 
+    lh_tc_n <- lhTCM
+    let lh_tc = TyCon lh_tc_n TYPE
+    let fi' = filter (\e -> tyAppCenter (typeOf e) /= lh_tc) fi
+
     assumpt <- lookupAssumptionM (idName ifi)
     -- fi <- fixedInputs
     eenv <- exprEnv
     inames <- inputNames
 
-    lh <- mapM (lhTCDict' M.empty) $ mapMaybe typeType fi
+    lh <- mapM (lhTCDict' M.empty) $ mapMaybe typeType fi'
 
     let is = catMaybes (map (E.getIdFromName eenv) inames)   
-    let (typs, ars) = span isType $ fi ++ map Var is
+    let (typs, ars) = span isType $ fi' ++ map Var is
 
     case assumpt of
         Just assumpt' -> do

@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
 
@@ -8,16 +9,18 @@ module G2.Language.Stack
     , push
     , pop
     , popN
-    , toList) where
+    , toList
+    , filter) where
 
-import Prelude hiding (null)
+import Prelude hiding (null, filter)
+import Data.Data (Data, Typeable)
 import qualified Data.List as L
 
 import G2.Language.AST
 import G2.Language.Naming
 import G2.Language.Syntax
 
-newtype Stack a = Stack [a] deriving (Show, Eq, Read)
+newtype Stack a = Stack [a] deriving (Show, Eq, Read, Typeable, Data)
 
 -- | Get an empty `Stack`.
 empty :: Stack a
@@ -51,6 +54,9 @@ popN s n = case pop s of
 -- | Convert a `Stack` to a list.
 toList :: Stack a -> [a]
 toList (Stack xs) = xs
+
+filter :: (a -> Bool) -> Stack a -> Stack a
+filter p (Stack stck) = Stack (L.filter p stck)
 
 instance ASTContainer a Expr => ASTContainer (Stack a) Expr where
     containedASTs (Stack s) = containedASTs s

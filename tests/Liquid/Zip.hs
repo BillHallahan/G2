@@ -16,11 +16,11 @@ head :: [a] -> a
 head (x:xs) = x
 head [] = error "Bad call to head"
 
-{-@ zip :: xs:[a] -> {ys:[b] | size xs > 0 => size ys > 0} -> [(a, b)] @-}
+-- {-@ zip :: xs:[a] -> {ys:[b] | size xs > 0 => size ys > 0} -> [(a, b)] @-}
 zip   :: [a] -> [b] -> [(a, b)]
 zip [] [] = []
 zip (x:xs) (y:ys) = (x, y):zip xs ys
-zip _ _ = die  "Bad call to zip"
+zip _ _ = error  "Bad call to zip"
 
 {-@ die :: {v:String | false} -> a @-}
 die str = error ("Oops, I died!" ++ str)

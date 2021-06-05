@@ -12,6 +12,7 @@
 module G2.Solver.SMT2 where
 
 import G2.Config.Config
+import G2.Language.ArbValueGen
 import G2.Language.Expr
 import G2.Language.Support
 import G2.Language.Syntax hiding (Assert)
@@ -24,34 +25,40 @@ import G2.Solver.Converters --It would be nice to not import this...
 import Control.Exception.Base (evaluate)
 import Data.List
 import Data.List.Utils (countElem)
+import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Ratio
+import qualified Data.Text as T
+import qualified Text.Builder as TB
 import System.IO
 import System.Process
 
-data Z3 = Z3 (Handle, Handle, ProcessHandle)
-data CVC4 = CVC4 (Handle, Handle, ProcessHandle)
+data Z3 = Z3 ArbValueFunc (Handle, Handle, ProcessHandle)
+data CVC4 = CVC4 ArbValueFunc (Handle, Handle, ProcessHandle)
 
 data SomeSMTSolver where
     SomeSMTSolver :: forall con ast out io 
                    . SMTConverter con ast out io => con -> SomeSMTSolver
 
 instance Solver Z3 where
-    check solver _ pc = checkConstraints solver pc
-    solve = checkModel
+    check solver _ pc = checkConstraintsPC solver pc
+    solve con@(Z3 avf _) = checkModelPC avf con
     close = closeIO
 
 instance Solver CVC4 where
-    check solver _ pc = checkConstraints solver pc
-    solve = checkModel
+    check solver _ pc = checkConstraintsPC solver pc
+    solve con@(CVC4 avf _) = checkModelPC avf con
     close = closeIO
 
 instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
-    getIO (Z3 hhp) = hhp
-    closeIO (Z3 (h_in, _, _)) = hPutStr h_in "(exit)"
+    getIO (Z3 _ hhp) = hhp
+    closeIO (Z3 _ (h_in, h_out, ph)) = do
+        hPutStr h_in "(exit)"
+        hClose h_in
+        hClose h_out
 
     empty _ = ""  
-    merge _ = (++)
+    merge _ x y = x ++ "\n" ++ y
 
     checkSat _ (h_in, h_out, _) formula = do
         -- putStrLn "checkSat"
@@ -64,22 +71,44 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
 
         return r
 
-    checkSatGetModel _ (h_in, h_out, _) formula _ vs = do
+    checkSatGetModel _ (h_in, h_out, _) formula vs = do
         setUpFormulaZ3 h_in formula
         -- putStrLn "\n\n checkSatGetModel"
         -- putStrLn formula
         r <- checkSat' h_in h_out
         -- putStrLn $ "r =  " ++ show r
-        if r == SAT then do
+        case r of
+            SAT () -> do
+                mdl <- getModelZ3 h_in h_out vs
+                -- putStrLn "======"
+                -- putStrLn (show mdl)
+                let m = parseModel mdl
+                -- putStrLn $ "m = " ++ show m
+                -- putStrLn "======"
+                return $ SAT m
+            UNSAT () -> return $ UNSAT ()
+            Unknown s -> return $ Unknown s
+
+    checkSatGetModelOrUnsatCore con hvals@(h_in, h_out, _) formula vs = do
+        let formula' = "(set-option :produce-unsat-cores true)\n" ++ formula
+        putStrLn "\n\n checkSatGetModelOrUnsatCore"
+        putStrLn formula'
+        setUpFormulaZ3 h_in formula'
+        r <- checkSat' h_in h_out
+        -- putStrLn $ "r =  " ++ show r
+        if r == SAT () then do
             mdl <- getModelZ3 h_in h_out vs
-            -- putStrLn "======"
+            putStrLn "======"
             -- putStrLn (show mdl)
             let m = parseModel mdl
-            -- putStrLn $ "m = " ++ show m
-            -- putStrLn "======"
-            return (r, Just m)
-        else do
-            return (r, Nothing)
+            putStrLn $ "m = " ++ show m
+            putStrLn "======"
+            return (SAT m)
+        else if r == UNSAT () then do
+            uc <- getUnsatCoreZ3 h_in h_out
+            return (UNSAT $ HS.fromList uc)
+        else
+            return (Unknown "")
 
     checkSatGetModelGetExpr con (h_in, h_out, _) formula _ vs eenv (CurrExpr _ e) = do
         setUpFormulaZ3 h_in formula
@@ -87,24 +116,38 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
         -- putStrLn formula
         r <- checkSat' h_in h_out
         -- putStrLn $ "r =  " ++ show r
-        if r == SAT then do
-            mdl <- getModelZ3 h_in h_out vs
-            -- putStrLn "======"
-            -- putStrLn formula
-            -- putStrLn ""
-            -- putStrLn (show mdl)
-            -- putStrLn "======"
-            let m = parseModel mdl
+        case r of
+            SAT () -> do
+                mdl <- getModelZ3 h_in h_out vs
+                -- putStrLn "======"
+                -- putStrLn formula
+                -- putStrLn ""
+                -- putStrLn (show mdl)
+                -- putStrLn "======"
+                let m = parseModel mdl
 
-            expr <- solveExpr h_in h_out con eenv e
-            -- putStrLn (show expr)
-            return (r, Just m, Just expr)
-        else do
-            return (r, Nothing, Nothing)
+                expr <- solveExpr h_in h_out con eenv e
+                -- putStrLn (show expr)
+                return (SAT m, Just expr)
+            UNSAT () -> return (UNSAT (), Nothing)
+            Unknown s -> return (Unknown s, Nothing)
 
-    assert _ = function1 "assert"
-        
-    varDecl _ n s = "(declare-const " ++ n ++ " " ++ s ++ ")"
+    assertSolver _ = function1 "assert"
+
+    assertSoftSolver _ ast Nothing = function1 "assert-soft" ast
+    assertSoftSolver _ ast (Just lab) ="(assert-soft " ++ ast ++ " :id " ++ T.unpack lab ++ ")"
+
+    defineFun con fn ars ret body =
+        "(define-fun " ++ fn ++ " ("
+            ++ intercalate " " (map (\(n, s) -> "(" ++ n ++ " " ++ sortName con s ++ ")") ars) ++ ")"
+            ++ " (" ++ sortName con ret ++ ") " ++ toSolverAST con body ++ ")"
+
+    declareFun con fn ars ret =
+        "(declare-fun " ++ fn ++ " ("
+            ++ intercalate " " (map (sortName con) ars) ++ ")"
+            ++ " (" ++ sortName con ret ++ "))"
+
+    varDecl _ n s = "(declare-const " ++ (T.unpack (TB.run n)) ++ " " ++ s ++ ")"
     
     setLogic _ lgc =
         let 
@@ -115,11 +158,14 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
                 QF_NIA -> "QF_NIA"
                 QF_NRA -> "QF_NRA"
                 QF_NIRA -> "QF_NIRA"
+                QF_UFLIA -> "QF_UFLIA"
                 _ -> "ALL"
         in
         case lgc of
             ALL -> ""
             _ -> "(set-logic " ++ s ++ ")"
+
+    comment _ s = "; " ++ s
 
     (.>=) _ = function2 ">="
     (.>) _ = function2 ">"
@@ -140,8 +186,13 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
     (./) _ = function2 "/"
     smtQuot _ = function2 "div"
     smtModulo _ = function2 "mod"
-    smtSqrt _ x = "(^ " ++ x ++ " 0.5)" 
+    smtSqrt _ x = "(^ " ++ x ++ " 0.5)"
     neg _ = function1 "-"
+
+    smtFunc _ n [] = n
+    smtFunc _ n xs = "(" ++ n ++ " " ++ intercalate " " xs ++  ")"
+
+    strLen _ = function1 "str.len"
 
     itor _ = function1 "to_real"
 
@@ -153,12 +204,14 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
         "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
     double _ r =
         "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
+    char _ c = '"':c:'"':[]
     bool _ b = if b then "true" else "false"
     var _ n = function1 n
 
     sortInt _ = "Int"
     sortFloat _ = "Real"
     sortDouble _ = "Real"
+    sortChar _ = "String"
     sortBool _ = "Bool"
 
     cons _ n asts _ =
@@ -168,9 +221,15 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
             n
     varName _ n _ = n
 
+    named _ ast n = "(! " ++ ast ++ " :named " ++ n ++ ")"
+
+
 instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
-    getIO (CVC4 hhp) = hhp
-    closeIO (CVC4 (h_in, _, _)) = hPutStr h_in "(exit)"
+    getIO (CVC4 _ hhp) = hhp
+    closeIO (CVC4 _ (h_in, h_out, ph)) = do
+        hPutStr h_in "(exit)"
+        hClose h_in
+        hClose h_out
 
     empty _ = ""  
     merge _ = (++)
@@ -186,22 +245,23 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
 
         return r
 
-    checkSatGetModel _ (h_in, h_out, _) formula _ vs = do
+    checkSatGetModel _ (h_in, h_out, _) formula vs = do
         setUpFormulaCVC4 h_in formula
         -- putStrLn "\n\n checkSatGetModel"
         -- putStrLn formula
         r <- checkSat' h_in h_out
         -- putStrLn $ "r =  " ++ show r
-        if r == SAT then do
-            mdl <- getModelCVC4 h_in h_out vs
-            -- putStrLn "======"
-            -- putStrLn (show mdl)
-            let m = parseModel mdl
-            -- putStrLn $ "m = " ++ show m
-            -- putStrLn "======"
-            return (r, Just m)
-        else do
-            return (r, Nothing)
+        case r of
+            SAT _ -> do
+                mdl <- getModelCVC4 h_in h_out vs
+                -- putStrLn "======"
+                -- putStrLn (show mdl)
+                let m = parseModel mdl
+                -- putStrLn $ "m = " ++ show m
+                -- putStrLn "======"
+                return (SAT m)
+            UNSAT _ ->  return $ UNSAT ()
+            Unknown s -> return $ Unknown s
 
     checkSatGetModelGetExpr con (h_in, h_out, _) formula _ vs eenv (CurrExpr _ e) = do
         setUpFormulaCVC4 h_in formula
@@ -209,24 +269,25 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
         -- putStrLn formula
         r <- checkSat' h_in h_out
         -- putStrLn $ "r =  " ++ show r
-        if r == SAT then do
-            mdl <- getModelCVC4 h_in h_out vs
-            -- putStrLn "======"
-            -- putStrLn formula
-            -- putStrLn ""
-            -- putStrLn (show mdl)
-            -- putStrLn "======"
-            let m = parseModel mdl
+        case r of
+            SAT _ -> do
+                mdl <- getModelCVC4 h_in h_out vs
+                -- putStrLn "======"
+                -- putStrLn formula
+                -- putStrLn ""
+                -- putStrLn (show mdl)
+                -- putStrLn "======"
+                let m = parseModel mdl
 
-            expr <- solveExpr h_in h_out con eenv e
-            -- putStrLn (show expr)
-            return (r, Just m, Just expr)
-        else do
-            return (r, Nothing, Nothing)
+                expr <- solveExpr h_in h_out con eenv e
+                -- putStrLn (show expr)
+                return (SAT m, Just expr)
+            UNSAT _ -> return (UNSAT (), Nothing)
+            Unknown s -> return (Unknown s, Nothing)
 
-    assert _ = function1 "assert"
+    assertSolver _ = function1 "assert"
         
-    varDecl _ n s = "(declare-const " ++ n ++ " " ++ s ++ ")"
+    varDecl _ n s = "(declare-const " ++ (T.unpack (TB.run n)) ++ " " ++ s ++ ")"
     
     setLogic _ lgc =
         let 
@@ -237,6 +298,7 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
                 QF_NIA -> "QF_NIA"
                 QF_NRA -> "QF_NRA"
                 QF_NIRA -> "QF_NIRA"
+                QF_UFLIA -> "QF_UFLIA"
                 _ -> "ALL"
         in
         case lgc of
@@ -264,6 +326,7 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
     smtModulo _ = function2 "mod"
     smtSqrt _ x = "(^ " ++ x ++ " 0.5)" 
     neg _ = function1 "-"
+    strLen _ = function1 "str.len"
 
     itor _ = function1 "to_real"
 
@@ -274,12 +337,14 @@ instance SMTConverter CVC4 String String (Handle, Handle, ProcessHandle) where
         "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
     double _ r =
         "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
+    char _ c = '"':c:'"':[]
     bool _ b = if b then "true" else "false"
     var _ n = function1 n
 
     sortInt _ = "Int"
     sortFloat _ = "Real"
     sortDouble _ = "Real"
+    sortChar _ = "String"
     sortBool _ = "Bool"
 
     cons _ n asts _ =
@@ -323,13 +388,19 @@ getProcessHandles pr = do
     return (h_in, h_out, p)
 
 getSMT :: Config -> IO SomeSMTSolver
-getSMT (Config {smt = ConZ3}) = do
+getSMT = getSMTAV arbValue
+
+getSMTInfinite :: Config -> IO SomeSMTSolver
+getSMTInfinite = getSMTAV arbValueInfinite
+
+getSMTAV :: ArbValueFunc -> Config -> IO SomeSMTSolver
+getSMTAV avf (Config {smt = ConZ3}) = do
     hhp@(h_in, _, _) <- getZ3ProcessHandles
     hPutStr h_in "(set-option :pp.decimal true)"
-    return $ SomeSMTSolver (Z3 hhp)
-getSMT (Config {smt = ConCVC4}) = do
+    return $ SomeSMTSolver (Z3 avf hhp)
+getSMTAV avf (Config {smt = ConCVC4}) = do
     hhp <- getCVC4ProcessHandles
-    return $ SomeSMTSolver (CVC4 hhp)
+    return $ SomeSMTSolver (CVC4 avf hhp)
 
 -- | getZ3ProcessHandles
 -- This calls Z3, and get's it running in command line mode.  Then you can read/write on the
@@ -337,7 +408,7 @@ getSMT (Config {smt = ConCVC4}) = do
 -- Ideally, this function should be called only once, and the same Handles should be used
 -- in all future calls
 getZ3ProcessHandles :: IO (Handle, Handle, ProcessHandle)
-getZ3ProcessHandles = getProcessHandles $ proc "z3" ["-smt2", "-in"]
+getZ3ProcessHandles = getProcessHandles $ proc "z3" ["-smt2", "-in", "-t:10000"]
 
 getCVC4ProcessHandles :: IO (Handle, Handle, ProcessHandle)
 getCVC4ProcessHandles = getProcessHandles $ proc "cvc4" ["--lang", "smt2.6", "--produce-models"]
@@ -356,7 +427,7 @@ setUpFormulaCVC4 h_in form = do
     hPutStr h_in form
 
 -- Checks if a formula, previously written by setUp formula, is SAT
-checkSat' :: Handle -> Handle -> IO Result
+checkSat' :: Handle -> Handle -> IO (Result () ())
 checkSat' h_in h_out = do
     hPutStr h_in "(check-sat)\n"
 
@@ -367,9 +438,9 @@ checkSat' h_in h_out = do
         _ <- evaluate (length out)
 
         if out == "sat" then
-            return SAT
+            return $ SAT ()
         else if out == "unsat" then
-            return UNSAT
+            return $ UNSAT ()
         else
             return (Unknown out)
     else do
@@ -400,6 +471,18 @@ getModelZ3 h_in h_out ns = do
             _ <- evaluate (length out) --Forces reading/avoids problems caused by laziness
 
             return . (:) (n, out, s) =<< getModel' nss
+
+getUnsatCoreZ3 :: Handle -> Handle -> IO [SMTName]
+getUnsatCoreZ3 h_in h_out = do
+    hPutStr h_in "(get-unsat-core)\n"
+    r <- hWaitForInput h_out (-1)
+    out <- hGetLine h_out 
+    putStrLn $ "unsat-core = " ++ out
+    let out' = tail . init $ out -- drop opening and closing parens
+
+    case words out' of
+        "error":_ -> error "getUnsatCoreZ3: Error producing unsat core"
+        w -> return w
 
 getModelCVC4 :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
 getModelCVC4 h_in h_out ns = do

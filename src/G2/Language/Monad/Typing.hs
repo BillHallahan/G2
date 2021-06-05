@@ -2,7 +2,9 @@ module G2.Language.Monad.Typing ( tyIntT
                                           , tyIntegerT
                                           , tyDoubleT
                                           , tyFloatT
-                                          , tyBoolT ) where
+                                          , tyBoolT
+                                          , tyRationalT
+                                          , tyUnitT ) where
 
 import G2.Language.Syntax
 import G2.Language.Support
@@ -30,3 +32,9 @@ tyFloatT = appKV tyFloat
 
 tyBoolT :: ExState s m => m Type
 tyBoolT = appKV tyBool
+
+tyRationalT :: ExState s m => m Type
+tyRationalT = appKV tyRational
+
+tyUnitT :: ExState s m => m Type
+tyUnitT = appKV tyUnit

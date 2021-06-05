@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -11,6 +12,8 @@ module G2.Language.TypeClasses.TypeClasses ( TypeClasses
                                            , isTypeClass
                                            , lookupTCDict
                                            , lookupTCDicts
+                                           , lookupTCClass
+                                           , tcWithNameMap
                                            , tcDicts
                                            , typeClassInst
                                            , satisfyingTCTypes
@@ -24,22 +27,27 @@ import G2.Language.Syntax
 import G2.Language.Typing
 
 import Data.Coerce
+import Data.Data (Data, Typeable)
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
-data Class = Class { insts :: [(Type, Id)], typ_ids :: [Id]} deriving (Show, Eq, Read)
+data Class = Class { insts :: [(Type, Id)], typ_ids :: [Id], superclasses :: [(Type, Id)]}
+                deriving (Show, Eq, Read, Typeable, Data)
 
 type TCType = M.Map Name Class
 newtype TypeClasses = TypeClasses TCType
-                      deriving (Show, Eq, Read)
+                      deriving (Show, Eq, Read, Typeable, Data)
 
-initTypeClasses :: [(Name, Id, [Id])] -> TypeClasses
+initTypeClasses :: [(Name, Id, [Id], [(Type, Id)])] -> TypeClasses
 initTypeClasses nsi =
     let
-        ns = map (\(n, _, i) -> (n, i)) nsi
+        ns = map (\(n, _, i, sc) -> (n, i, sc)) nsi
         nsi' = filter (not . null . insts . snd)
-             $ map (\(n, i) -> (n, Class { insts = mapMaybe (nameIdToTypeId n) nsi, typ_ids = i } )) ns
+             $ map (\(n, i, sc) -> 
+                (n, Class { insts = mapMaybe (nameIdToTypeId n) nsi
+                          , typ_ids = i
+                          , superclasses = sc } )) ns
     in
     coerce $ M.fromList nsi'
 
@@ -49,8 +57,8 @@ insertClass n c (TypeClasses tc) = TypeClasses (M.insert n c tc)
 unionTypeClasses :: TypeClasses -> TypeClasses -> TypeClasses
 unionTypeClasses (TypeClasses tc) (TypeClasses tc') = TypeClasses (M.union tc tc')
 
-nameIdToTypeId :: Name -> (Name, Id, [Id]) -> Maybe (Type, Id)
-nameIdToTypeId nm (n, i, _) =
+nameIdToTypeId :: Name -> (Name, Id, [Id], [(Type, Id)]) -> Maybe (Type, Id)
+nameIdToTypeId nm (n, i, _, _) =
     let
         t = affectedType $ returnType i
     in
@@ -81,6 +89,24 @@ lookupTCDicts n = fmap insts . M.lookup n . coerce
 
 lookupTCDictsTypes :: TypeClasses -> Name -> Maybe [Type]
 lookupTCDictsTypes tc = fmap (map fst) . flip lookupTCDicts tc
+
+lookupTCClass :: Name -> TypeClasses -> Maybe Class
+lookupTCClass n = M.lookup n . coerce
+
+tcWithNameMap :: Name -> [Id] -> M.Map Name Id
+tcWithNameMap n =
+    M.fromList
+        . map (\i -> (forType $ typeOf i, i))
+        . filter (isTC . typeOf)
+    where
+        forType :: Type -> Name
+        forType (TyApp _ (TyVar (Id n' _))) = n'
+        forType _ = error "Bad type in forType"
+
+        isTC :: Type -> Bool
+        isTC t = case tyAppCenter t of
+                        TyCon n' _ -> n == n'
+                        _ -> False
 
 -- tcDicts
 tcDicts :: TypeClasses -> [Id]
@@ -173,12 +199,13 @@ instance ASTContainer Class Expr where
     modifyContainedASTs _ = id
 
 instance ASTContainer Class Type where
-    containedASTs = containedASTs . insts
+    containedASTs c = (containedASTs . insts $ c) ++ containedASTs (superclasses c)
     modifyContainedASTs f c = Class { insts = modifyContainedASTs f $ insts c
-                                    , typ_ids = modifyContainedASTs f $ typ_ids c}
+                                    , typ_ids = modifyContainedASTs f $ typ_ids c
+                                    , superclasses = modifyContainedASTs f $ superclasses c}
 
 instance Named TypeClasses where
-    names = names . (coerce :: TypeClasses -> TCType)
+    names (TypeClasses tc) = M.keys tc ++ names tc
     rename old new (TypeClasses m) =
         coerce $ M.mapKeys (rename old new) $ rename old new m
     renames hm (TypeClasses m) =
@@ -187,6 +214,8 @@ instance Named TypeClasses where
 instance Named Class where
     names = names . insts
     rename old new c = Class { insts = rename old new $ insts c
-                             , typ_ids = rename old new $ typ_ids c }
+                             , typ_ids = rename old new $ typ_ids c
+                             , superclasses = rename old new $ superclasses c }
     renames hm c = Class { insts = renames hm $ insts c
-                         , typ_ids = renames hm $ typ_ids c }
+                         , typ_ids = renames hm $ typ_ids c
+                         , superclasses = renames hm $ superclasses c }

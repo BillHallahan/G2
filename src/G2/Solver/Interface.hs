@@ -15,8 +15,9 @@ import qualified G2.Language.ExprEnv as E
 import G2.Solver.Converters
 import G2.Solver.Solver
 
-import Data.Maybe (catMaybes)
-import qualified Data.Map as M
+import qualified Data.List as L
+import Data.Maybe (mapMaybe)
+import qualified Data.HashMap.Lazy as HM
 
 subModel :: State t -> Bindings -> ([Expr], Expr, Maybe FuncCall)
 subModel (State { expr_env = eenv
@@ -27,34 +28,40 @@ subModel (State { expr_env = eenv
           (Bindings {input_names = inputNames}) = 
     let
         ais' = fmap (subVarFuncCall m eenv tc) ais
-        is = catMaybes (map (E.getIdFromName eenv) inputNames)
+
+        -- We do not inline Lambdas, because higher order function arguments
+        -- get preinserted into the model.
+        -- See [Higher-Order Model] in G2.Execution.Reducers
+        is = mapMaybe (\n -> case E.lookup n eenv of
+                                Just e@(Lam _ _ _) -> Just . Var $ Id n (typeOf e)
+                                Just e -> Just e
+                                Nothing -> Nothing) inputNames
     in
-    filterTC tc $ subVar m eenv tc (map Var is, cexpr, ais')
+    subVar m eenv tc (is, cexpr, ais')
 
 subVarFuncCall :: Model -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall
 subVarFuncCall em eenv tc fc@(FuncCall {arguments = ars}) =
     subVar em eenv tc $ fc {arguments = filter (not . isTC tc) ars}
 
 subVar :: (ASTContainer m Expr) => Model -> ExprEnv -> TypeClasses -> m -> m
-subVar em eenv tc = modifyContainedASTs (subVar' em eenv tc []) . filterTC tc
+subVar em eenv tc = modifyContainedASTs (subVar' em eenv tc [])
 
 subVar' :: Model -> ExprEnv -> TypeClasses -> [Id] -> Expr -> Expr
 subVar' em eenv tc is v@(Var i@(Id n _))
     | i `notElem` is
-    , Just e <- M.lookup n em =
-        subVar' em eenv tc (i:is) $ filterTC tc e
+    , Just e <- HM.lookup n em =
+        subVar' em eenv tc (i:is) e
     | i `notElem` is
     , Just e <- E.lookup n eenv
-    , (isExprValueForm eenv e && notLam e) || isApp e || isVar e =
-        subVar' em eenv tc (i:is) $ filterTC tc e
-    -- case M.lookup n em of
-    --     Just e -> trace ("e1 = " ++ show e) subVar' em eenv tc (i:is) $ filterTC tc e
-    --     Nothing -> case E.lookup n eenv of
-    --         Just e -> if (isExprValueForm e eenv && notLam e) || isApp e || isVar e
-    --                     then trace ("e2 = " ++ show e) subVar' em eenv tc (i:is) $ filterTC tc e
-    --                     else trace ("e3 = " ++ show e) v
-    --         Nothing -> trace ("v1 = " ++ show v) v
+    , (isExprValueForm eenv e && notLam e) || isApp e || isVar e || isLitCase e =
+        subVar' em eenv tc (i:is) e
     | otherwise = v
+subVar' mdl eenv tc is cse@(Case e _ as) =
+    case subVar' mdl eenv tc is e of
+        Lit l
+            | Just (Alt _ ae) <- L.find (\(Alt (LitAlt l') _) -> l == l') as ->
+                subVar' mdl eenv tc is ae
+        _ -> cse
 subVar' em eenv tc is e = modifyChildren (subVar' em eenv tc is) e
 
 notLam :: Expr -> Bool
@@ -69,20 +76,9 @@ isVar :: Expr -> Bool
 isVar (Var _) = True
 isVar _ = False
 
-filterTC :: ASTContainer m Expr => TypeClasses -> m -> m
-filterTC tc = modifyASTsFix (filterTC' tc)
-
-filterTC' :: TypeClasses -> Expr -> Expr
-filterTC' tc a@(App e e') =
-    case tcCenter tc $ typeOf e' of
-        True -> e 
-        False -> a
-filterTC' _ e = e
-
-tcCenter :: TypeClasses -> Type -> Bool
-tcCenter tc (TyCon n _) = isTypeClassNamed n tc
-tcCenter tc (TyFun t _) = tcCenter tc t
-tcCenter _ _ = False
+isLitCase :: Expr -> Bool
+isLitCase (Case e _ _) = isPrimType (typeOf e)
+isLitCase _ = False
 
 isTC :: TypeClasses -> Expr -> Bool
 isTC tc (Var (Id _ (TyCon n _))) = isTypeClassNamed n tc

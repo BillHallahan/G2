@@ -22,71 +22,82 @@ module G2.Language.Monad.Primitives ( mkGeE
                                               , mkEqPrimDoubleE
                                               , mkEqPrimCharE ) where
 
+import G2.Language.KnownValues
 import G2.Language.Primitives
 import G2.Language.Syntax
 import G2.Language.Support
+import G2.Language.Typing
 
+import G2.Language.Monad.ExprEnv
 import G2.Language.Monad.Support
 
 appExpr :: ExState s m => (ExprEnv -> Expr) -> m Expr
 appExpr f = return . f =<< exprEnv
 
 mkGeE :: ExState s m => m Expr
-mkGeE = appExpr mkGe
+mkGeE = appKVEEnv geFunc
 
 mkGtE :: ExState s m => m Expr
-mkGtE = appExpr mkGt
+mkGtE = appKVEEnv gtFunc
 
 mkEqE :: ExState s m => m Expr
-mkEqE = appExpr mkEq
+mkEqE = appKVEEnv eqFunc
 
 mkNeqE :: ExState s m => m Expr
-mkNeqE = appExpr mkNeq
+mkNeqE = appKVEEnv neqFunc
 
 mkLtE :: ExState s m => m Expr
-mkLtE = appExpr mkLt
+mkLtE = appKVEEnv ltFunc
 
 mkLeE :: ExState s m => m Expr
-mkLeE = appExpr mkLe
+mkLeE = appKVEEnv leFunc
 
 mkAndE :: ExState s m => m Expr
-mkAndE = appExpr mkAnd
+mkAndE = appKVEEnv andFunc
 
 mkOrE :: ExState s m => m Expr
-mkOrE = appExpr mkOr
+mkOrE = appKVEEnv orFunc
 
 mkNotE :: ExState s m => m Expr
-mkNotE = appExpr mkNot
+mkNotE = appKVEEnv notFunc
 
 mkPlusE :: ExState s m => m Expr
-mkPlusE = appExpr mkPlus
+mkPlusE = appKVEEnv plusFunc
 
 mkMinusE :: ExState s m => m Expr
-mkMinusE = appExpr mkMinus
+mkMinusE = appKVEEnv minusFunc
 
 mkMultE :: ExState s m => m Expr
-mkMultE = appExpr mkMult
+mkMultE = appKVEEnv timesFunc
 
 mkDivE :: ExState s m => m Expr
-mkDivE = appExpr mkDiv
+mkDivE = appKVEEnv divFunc
 
 mkModE :: ExState s m => m Expr
-mkModE = appExpr mkMod
+mkModE = appKVEEnv modFunc
 
 mkNegateE :: ExState s m => m Expr
-mkNegateE = appExpr mkNegate
+mkNegateE = appKVEEnv negateFunc
 
 mkImpliesE :: ExState s m => m Expr
-mkImpliesE = appExpr mkImplies
+mkImpliesE = appKVEEnv impliesFunc
 
 mkIffE :: ExState s m => m Expr
-mkIffE = appExpr mkIff
+mkIffE = appKVEEnv iffFunc
 
 mkFromIntegerE :: ExState s m => m Expr
-mkFromIntegerE = appExpr mkFromInteger
+mkFromIntegerE = appKVEEnv fromIntegerFunc
 
 mkToIntegerE :: ExState s m => m Expr
-mkToIntegerE = appExpr mkToInteger
+mkToIntegerE = appKVEEnv toIntegerFunc
+
+appKVEEnv :: ExState s m => (KnownValues -> Name) -> m Expr
+appKVEEnv f = do
+    n <- return . f =<< knownValues
+    e <- lookupE n
+    case e of
+        Just e' -> return . Var $ Id n (typeOf e')
+        Nothing -> error "appKVEEnv: not found"
 
 appKV :: ExState s m => (KnownValues -> Expr) -> m Expr
 appKV f = return . f =<< knownValues

@@ -15,19 +15,13 @@ It is capable of generating assertion failure counterexamples and solving for hi
 #### Setup:
 1) Install GHC 8.2.2 (other GHC 8 versions might also work)
 2) Install Z3
-3) Pull the Custom Haskell Standard Library (optional)
-4) Add a file to the G2 folder, called g2.cfg that contains:
-		`base = /path/to/custom/library`
-		
-  Example g2.cfg file:
-  ```
-  base = ../base-4.9.1.0/Control/Exception/Base.hs
-       , ../base-4.9.1.0/Prelude.hs
-       , ../base-4.9.1.0/Data/Internal/Map.hs
+3) Either:
 
-  n = 1000
-  time = 300
-  ```
+  a) Pull the Custom Haskell Standard Library into ~/.g2 by running `bash base_setup.sh` 
+
+  b) Manually pull the base library.  Add a file to the G2 folder, called g2.cfg that contains:
+		`base = /path/to/custom/library`
+
 
 ---
 #### Command line:

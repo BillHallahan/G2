@@ -43,5 +43,3 @@ r2 = foldl (\acc _ -> 1 :+: acc) Emp [1]
 badRep :: Int -> a -> List a
 badRep 0 _ = Emp
 badRep n x = x :+: x :+: badRep (n - 1) x
-
-

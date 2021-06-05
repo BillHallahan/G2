@@ -1,20 +1,59 @@
-module G2.Config.Config where
+module G2.Config.Config ( Mode (..)
+                        , Sharing (..)
+                        , Counterfactual (..)
+                        , CFModules (..)
+                        , SMTSolver (..)
+                        , HigherOrderSolver (..)
+                        , BlockErrorsMethod (..)
+                        , IncludePath
+                        , Config (..)
+                        , BoolDef (..)
+                        , mkConfig
+                        , strArg
+                        , boolArg
+
+                        , baseDef
+                        , baseSimple
+                        , baseExtra) where
+
 
 import Data.Char
+import qualified Data.HashSet as S
 import Data.List
 import qualified Data.Map as M
+import qualified Data.Text as T
+
+import System.Directory
+
+import G2.Language.Syntax
 
 data Mode = Regular | Liquid deriving (Eq, Show, Read)
+
+-- | Do we use sharing to only reduce variables once?
+data Sharing = Sharing | NoSharing deriving (Eq, Show, Read)
+
+data Counterfactual = Counterfactual CFModules | NotCounterfactual deriving (Eq, Show, Read)
+
+data CFModules = CFAll | CFOnly (S.HashSet (T.Text, Maybe T.Text)) deriving (Eq, Show, Read)
 
 data SMTSolver = ConZ3 | ConCVC4 deriving (Eq, Show, Read)
 
 data HigherOrderSolver = AllFuncs
                        | SingleFunc deriving (Eq, Show, Read)
 
+data BlockErrorsMethod = ArbBlock
+                       | AssumeBlock deriving (Eq, Show, Read)
+
+type IncludePath = FilePath
+
 data Config = Config {
       mode :: Mode
+    , baseInclude :: [IncludePath]
     , base :: [FilePath] -- ^ Filepath(s) to base libraries.  Get compiled in order from left to right
+    , extraDefaultInclude :: [IncludePath]
+    , extraDefaultMods :: [FilePath]
     , logStates :: Maybe String -- ^ If Just, dumps all thes states into the given folder
+    , sharing :: Sharing
     , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
     , printCurrExpr :: Bool -- ^ Controls whether the curr expr is printed
     , printExprEnv :: Bool -- ^ Controls whether the expr env is printed
@@ -29,21 +68,36 @@ data Config = Config {
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
     , timeLimit :: Int -- ^ Seconds
     , validate :: Bool -- ^ If True, HPC is run on G2's output, to measure code coverage.  TODO: Currently doesn't work
+    -- , baseLibs :: [BaseLib]
+
+    -- LiquidHaskell options
+    , counterfactual :: Counterfactual -- ^ Which functions should be able to generate abstract counterexamples
+    , only_top :: Bool -- ^ Only try to find counterexamples in the very first function definition, or directly called functions?
+    , block_errors_in :: (S.HashSet (T.Text, Maybe T.Text)) -- ^ Prevents calls from errors occuring in the indicated functions
+    , block_errors_method :: BlockErrorsMethod -- ^ Should errors be blocked with an Assume or with an arbitrarily inserted value
+    , reduce_abs :: Bool
+    , add_tyvars :: Bool
 }
 
-mkConfigDef :: Config
-mkConfigDef = mkConfig [] M.empty
+-- mkConfigDef :: Config
+-- mkConfigDef = mkConfig [] M.empty
 
-mapLib :: String
-mapLib = "./base-4.9.1.0/Data/Internal/Map.hs"
+baseRoot :: IO FilePath
+baseRoot = do
+  g2Dir <- getHomeDirectory >>= \f -> return $ f ++ "/.g2"
+  return $ g2Dir ++ "/base-4.9.1.0"
 
-mkConfig :: [String] -> M.Map String [String] -> Config
-mkConfig as m = Config {
+
+mkConfig :: String -> [String] -> M.Map String [String] -> Config
+mkConfig homedir as m = Config {
       mode = Regular
-    , base = strArgs "base" as m id [ "./base-4.9.1.0/Control/Exception/Base.hs"
-                                    , "./base-4.9.1.0/Prelude.hs"
-                                    , "./base-4.9.1.0/Data/Internal/Map.hs" ]
+    , baseInclude = baseIncludeDef (strArg "base" as m id homedir)
+    , base = baseDef (strArg "base" as m id homedir)
+    , extraDefaultInclude = extraDefaultIncludePaths (strArg "extra-base-inc" as m id homedir)
+    , extraDefaultMods = extraDefaultPaths (strArg "extra-base" as m id homedir)
     , logStates = strArg "log-states" as m Just Nothing
+    , sharing = boolArg' "sharing" as m Sharing Sharing NoSharing
+
     , maxOutputs = strArg "max-outputs" as m (Just . read) Nothing
     , printCurrExpr = boolArg "print-ce" as m Off
     , printExprEnv = boolArg "print-eenv" as m Off
@@ -52,14 +106,57 @@ mkConfig as m = Config {
     , returnsTrue = boolArg "returns-true" as m Off
     , higherOrderSolver = strArg "higher-order" as m higherOrderSolArg SingleFunc
     , smt = strArg "smt" as m smtSolverArg ConZ3
-    , steps = strArg "n" as m read 500
+    , steps = strArg "n" as m read 1000
     , cut_off = strArg "cut-off" as m read 600
     , switch_after = strArg "switch-after" as m read 300
     , strict = boolArg "strict" as m On
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off
+    -- , baseLibs = [BasePrelude, BaseException]
 
+    , counterfactual = boolArg' "counterfactual" as m
+                        (Counterfactual CFAll) (Counterfactual CFAll) NotCounterfactual
+    , only_top = boolArg "only-top" as m Off
+    , block_errors_in = S.empty
+    , block_errors_method = AssumeBlock
+    , reduce_abs = boolArg "reduce-abs" as m On
+    , add_tyvars = boolArg "add-tyvars" as m Off
 }
+
+baseIncludeDef :: FilePath -> [FilePath]
+baseIncludeDef root =
+    [ root ++ "/.g2/base-4.9.1.0/Control/Exception/"
+    , root ++ "/.g2/base-4.9.1.0/"
+    , root ++ "/.g2/base-4.9.1.0/Data/Internal/"
+    ]
+
+baseDef :: FilePath -> [FilePath]
+baseDef root =
+    baseSimple root
+    ++
+    baseExtra root
+
+baseSimple :: FilePath -> [FilePath]
+baseSimple root =
+    [ root ++ "/.g2/base-4.9.1.0/Control/Exception/Base.hs"
+    , root ++ "/.g2/base-4.9.1.0/Prelude.hs" ]
+
+baseExtra :: FilePath -> [FilePath]
+baseExtra root =
+    baseSimple root
+    ++
+    [ root ++ "/.g2/base-4.9.1.0/Control/Monad.hs"
+    , root ++ "/.g2/base-4.9.1.0/Data/Internal/Map.hs"
+    , root ++ "/.g2/base-4.9.1.0/Data/Internal/Set.hs"
+    ]
+
+extraDefaultIncludePaths :: FilePath -> [FilePath]
+extraDefaultIncludePaths root =
+    [ root ++ "/.g2/G2Stubs/src/" ] 
+
+extraDefaultPaths :: FilePath -> [FilePath]
+extraDefaultPaths root =
+    [ ] 
 
 smtSolverArg :: String -> SMTSolver
 smtSolverArg = smtSolverArg' . map toLower
@@ -95,6 +192,15 @@ boolArg s a m bd =
             else case  M.lookup s m of
                 Just st -> strToBool st d
                 Nothing -> d
+
+boolArg' :: String -> [String] -> M.Map String [String] -> b -> b -> b -> b
+boolArg' s a m b_default b1 b2 =
+    if "--" ++ s `elem` a 
+        then b1
+        else if "--no-" ++ s `elem` a 
+            then b2
+            else b_default
+
 
 strToBool :: [String] -> Bool -> Bool
 strToBool [s] b

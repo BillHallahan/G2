@@ -5,13 +5,23 @@ module G2.Initialization.KnownValues (initKnownValues) where
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
 import G2.Language.Syntax
+import G2.Language.TypeClasses
 import G2.Language.TypeEnv
+import G2.Language.Typing (PresType (..), tyAppCenter, returnType)
 
+import Data.List
 import qualified Data.Map as M
 import qualified Data.Text as T
 
-initKnownValues :: E.ExprEnv -> TypeEnv -> KnownValues
-initKnownValues eenv tenv =
+initKnownValues :: E.ExprEnv -> TypeEnv -> TypeClasses -> KnownValues
+initKnownValues eenv tenv tc =
+  let
+    numT = typeWithStrName tenv "Num"
+    integralT = typeWithStrName tenv "Integral"
+    realT = typeWithStrName tenv "Real"
+    eqT = typeWithStrName tenv "Eq"
+    ordT = typeWithStrName tenv "Ord"
+  in
   KnownValues {
       tyInt = typeWithStrName tenv "Int"
     , dcInt = dcWithStrName tenv "Int" "I#"
@@ -25,18 +35,37 @@ initKnownValues eenv tenv =
     , tyInteger = typeWithStrName tenv "Integer"
     , dcInteger = dcWithStrName tenv "Integer" "Z#"
 
+    , tyChar = typeWithStrName tenv "Char"
+    , dcChar = dcWithStrName tenv "Char" "C#"
+
     , tyBool = typeWithStrName tenv "Bool"
     , dcTrue = dcWithStrName tenv "Bool" "True"
     , dcFalse = dcWithStrName tenv "Bool" "False"
+
+    , tyRational = typeWithStrName tenv "Rational"
 
     , tyList = typeWithStrName tenv "[]"
     , dcCons = dcWithStrName tenv "[]" ":"
     , dcEmpty = dcWithStrName tenv "[]" "[]"
 
-    , eqTC = typeWithStrName tenv "Eq"
-    , numTC = typeWithStrName tenv "Num"
-    , ordTC = typeWithStrName tenv "Ord"
-    , integralTC = typeWithStrName tenv "Integral"
+    , tyMaybe = typeWithStrName tenv "Maybe"
+    , dcJust = dcWithStrName tenv "Maybe" "Just"
+    , dcNothing = dcWithStrName tenv "Maybe" "Nothing"
+
+    , tyUnit = typeWithStrName tenv "()"
+    , dcUnit = dcWithStrName tenv "()" "()"
+
+    , eqTC = eqT
+    , numTC = numT
+    , ordTC = ordT
+    , integralTC = integralT
+    , realTC = realT
+    , fractionalTC = typeWithStrName tenv "Fractional"
+
+    , integralExtactReal = superClassExtractor tc integralT realT
+    , realExtractNum = superClassExtractor tc realT numT
+    , realExtractOrd = superClassExtractor tc realT ordT
+    , ordExtractEq = superClassExtractor tc ordT eqT
 
     , eqFunc = exprWithStrName eenv "=="
     , neqFunc = exprWithStrName eenv "/="
@@ -47,19 +76,31 @@ initKnownValues eenv tenv =
     , divFunc = exprWithStrName eenv "/"
     , negateFunc = exprWithStrName eenv "negate"
     , modFunc = exprWithStrName eenv "mod"
+
     , fromIntegerFunc = exprWithStrName eenv "fromInteger"
+    , toIntegerFunc = exprWithStrName eenv "toInteger"
+
+    , toRatioFunc = exprWithStrName eenv "%"
+    , fromRationalFunc = exprWithStrName eenv "fromRational"
 
     , geFunc = exprWithStrName eenv ">="
     , gtFunc = exprWithStrName eenv ">"
     , ltFunc = exprWithStrName eenv "<"
     , leFunc = exprWithStrName eenv "<="
 
+    , impliesFunc = exprWithStrName eenv "implies"
+    , iffFunc = exprWithStrName eenv "iff"
+
     , structEqTC = Name "NotDefinedYet" Nothing 0 Nothing
     , structEqFunc = Name "NotDefinedYet" Nothing 0 Nothing
 
     , andFunc = exprWithStrName eenv "&&"
     , orFunc = exprWithStrName eenv "||"
+    , notFunc = exprWithStrName eenv "not"
 
+    , errorFunc = exprWithStrName eenv "error"
+    , errorEmptyListFunc = exprWithStrName eenv "errorEmptyList"
+    , errorWithoutStackTraceFunc = exprWithStrName eenv "errorWithoutStackTrace"
     , patErrorFunc = exprWithStrName eenv "patError"
     }
 
@@ -87,3 +128,18 @@ dcWithStrName' (DataCon n@(Name n' _ _ _) _:xs) s =
   if n' == s then n else dcWithStrName' xs s
 dcWithStrName' _ s = error $ "No dc found in dcWithStrName [" ++ (show $ T.unpack s) ++ "]"
 
+superClassExtractor :: TypeClasses -> Name -> Name -> Name
+superClassExtractor tc tc_n sc_n =
+    case lookupTCClass tc_n tc of
+        Just c
+            | Just (_, i) <- find extractsSC (superclasses c) -> idName i
+            | otherwise -> error $ "superClassExtractor: Extractor not found " ++ show (superclasses c)
+        Nothing -> error $ "superClassExtractor: Class not found " ++ show tc_n
+    where
+        extractsSC (t, _) =
+            let
+                t_c = tyAppCenter . returnType . PresType $ t
+            in
+            case t_c of
+                TyCon n _ -> n == sc_n
+                _ -> False

@@ -1,8 +1,10 @@
 module Reqs ( Reqs (..)
+            , TestErrors (..)
             , checkExprGen
             , checkAbsLHExprGen ) where
 
 import G2.Language
+import G2.Liquid.Interface
 
 -- | Requirements
 -- We use these to define checks on tests returning function inputs
@@ -17,35 +19,40 @@ data Reqs c = RForAll c
               | AtMost Int
               | Exactly Int
 
-data TestErrors = BadArgCount
+data TestErrors = BadArgCount [Int]
                 | TooMany
                 | TooFew
                 | NotExactly
                 | ArgsForAllFailed
-                | ArgsExistFailed deriving (Show)
+                | ArgsExistFailed 
+                | Time deriving (Show)
 
 -- | Checks conditions on given expressions
-checkExprGen :: [[Expr]] -> Int -> [Reqs ([Expr] -> Bool)] -> Bool
+checkExprGen :: [[Expr]] -> Int -> [Reqs ([Expr] -> Bool)] -> [TestErrors]
 checkExprGen exprs i reqList =
     let
-        argChecksAll = and . map (\f -> all (givenLengthCheck i f) exprs) $ [f | RForAll f <- reqList]
-        argChecksEx = and . map (\f -> any (givenLengthCheck i f) exprs) $ [f | RExists f <- reqList]
-        checkL = null $ checkLengths exprs i reqList
+        argChecksAll = if and . map (\f -> all (givenLengthCheck i f) exprs) $ [f | RForAll f <- reqList]
+                        then []
+                        else [ArgsForAllFailed]
+        argChecksEx = if and . map (\f -> any (givenLengthCheck i f) exprs) $ [f | RExists f <- reqList]
+                        then []
+                        else [ArgsExistFailed]
+        checkL = checkLengths exprs i reqList
     in
-    argChecksAll && argChecksEx && checkL
+    argChecksAll ++ argChecksEx ++ checkL
 
 givenLengthCheck :: Int -> ([Expr] -> Bool) -> [Expr] -> Bool
 givenLengthCheck i f e = if length e == i then f e else False
 
-checkAbsLHExprGen :: [(State [FuncCall], [Expr], Expr)] -> Int -> [Reqs ([Expr] -> Expr -> [FuncCall] -> Bool)] -> [TestErrors] 
+checkAbsLHExprGen :: [(State AbstractedInfo, [Expr], Expr)] -> Int -> [Reqs ([Expr] -> Expr -> [FuncCall] -> Bool)] -> [TestErrors] 
 checkAbsLHExprGen exprs i reqList =
     let
         argChecksAll =
-            if and . map (\f -> all (\(s, es, e) -> lhGivenLengthCheck i f es e (track s)) exprs) $ [f | RForAll f <- reqList]
+            if and . map (\f -> all (\(s, es, e) -> lhGivenLengthCheck i f es e (map abstract . abs_calls $ track s)) exprs) $ [f | RForAll f <- reqList]
                 then []
                 else [ArgsForAllFailed]
         argChecksEx =
-            if and . map (\f -> any (\(s, es, e) -> lhGivenLengthCheck i f es e (track s)) exprs) $ [f | RExists f <- reqList]
+            if and . map (\f -> any (\(s, es, e) -> lhGivenLengthCheck i f es e (map abstract . abs_calls $ track s)) exprs) $ [f | RExists f <- reqList]
                 then []
                 else [ArgsExistFailed]
         checkL = checkLengths (map (\(_, e, _) -> e) exprs) i reqList
@@ -62,7 +69,7 @@ checkLengths exprs i reqList =
         checkAtMost = if and . map ((<=) (length exprs)) $ [x | AtMost x <- reqList] then [] else [TooMany]
         checkExactly = if and . map ((==) (length exprs)) $ [x | Exactly x <- reqList] then [] else [NotExactly]
 
-        checkArgCount = if and . map ((==) i . length) $ exprs then [] else [BadArgCount]
+        checkArgCount = if and . map ((==) i . length) $ exprs then [] else [BadArgCount $ map length exprs]
     in
     checkAtLeast ++ checkAtMost ++ checkExactly ++ checkArgCount
 

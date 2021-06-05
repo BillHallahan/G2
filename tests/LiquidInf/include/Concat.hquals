@@ -1,0 +1,1 @@
+qualif Append(zs:[a], xs:[a], ys:[a]) : (Concat.size xs + Concat.size ys = Concat.size zs)

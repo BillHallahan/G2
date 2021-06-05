@@ -7,9 +7,11 @@ module G2.Language.Monad.Support ( StateM
                                  , ExState (..)
                                  , FullState (..)
                                  , runStateM
+                                 , execStateM
                                  , readRecord
                                  , withNG
-                                 , mapCurrExpr ) where
+                                 , mapCurrExpr
+                                 , mapMAccumB ) where
 
 import qualified Control.Monad.State.Lazy as SM
 
@@ -80,6 +82,9 @@ instance FullState (State t, Bindings) (StateM t) where
 runStateM :: StateM t a -> State t -> Bindings -> (a, (State t, Bindings))
 runStateM (StateM s) s' b = SM.runState s (s', b)
 
+execStateM :: StateM t a -> State t -> Bindings -> (State t, Bindings)
+execStateM s = (\lh_s b -> snd (runStateM s lh_s b))
+
 readRecord :: SM.MonadState s m => (s -> r) -> m r
 readRecord f = return . f =<< SM.get
 
@@ -125,3 +130,11 @@ mapCurrExpr f = do
     (CurrExpr er e) <- currExpr
     e' <- f e
     putCurrExpr (CurrExpr er e') 
+
+mapMAccumB :: Monad m => (a -> b -> m (a, c)) -> a -> [b] -> m (a, [c])
+mapMAccumB _ a [] = do
+    return (a, [])
+mapMAccumB f a (x:xs) = do
+    (a', res) <- f a x
+    (a'', res2) <- mapMAccumB f a' xs
+    return $ (a'', res:res2)

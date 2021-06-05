@@ -2,19 +2,21 @@
 {-# LANGUAGE TupleSections #-}
 
 module G2.Language.Monad.Expr ( mkDCTrueM
-                                        , mkDCFalseM
-                                        , mkDCIntE
-                                        , mkDCIntegerE
-                                        , mkDCFloatE
-                                        , mkDCDoubleE
-                                        , mkTrueE
-                                        , mkFalseE
-                                        , mkConsE
-                                        , mkEmptyE
-                                        , modifyAppTopE
-                                        , modifyLamTopE
-                                        , insertInLamsE
-                                        , etaExpandToE ) where
+                              , mkDCFalseM
+                              , mkDCIntE
+                              , mkDCIntegerE
+                              , mkDCFloatE
+                              , mkDCDoubleE
+                              , mkTrueE
+                              , mkFalseE
+                              , mkConsE
+                              , mkEmptyE
+                              , mkUnitE
+                              , modifyAppTopE
+                              , modifyLamTopE
+                              , modifyAppRHSE
+                              , insertInLamsE
+                              , etaExpandToE ) where
 
 import G2.Language.Expr
 import G2.Language.Syntax
@@ -22,6 +24,11 @@ import G2.Language.Support
 
 import G2.Language.Monad.AST
 import G2.Language.Monad.Support
+
+appKV :: ExState s m => (KnownValues -> a) -> m a
+appKV f = do
+    kv <- knownValues
+    return $ f kv
 
 appKVTEnv :: ExState s m => (KnownValues -> TypeEnv -> a) -> m a
 appKVTEnv f = do
@@ -48,16 +55,19 @@ mkDCDoubleE :: ExState s m => m Expr
 mkDCDoubleE = appKVTEnv mkDCDouble
 
 mkTrueE :: ExState s m => m Expr
-mkTrueE = appKVTEnv mkTrue
+mkTrueE = appKV mkTrue
 
 mkFalseE :: ExState s m => m Expr
-mkFalseE = appKVTEnv mkFalse
+mkFalseE = appKV mkFalse
 
 mkConsE :: ExState s m => m Expr
 mkConsE = appKVTEnv mkCons
 
 mkEmptyE :: ExState s m => m Expr
 mkEmptyE = appKVTEnv mkEmpty
+
+mkUnitE :: ExState s m => m Expr
+mkUnitE = appKVTEnv mkUnit
 
 modifyAppTopE :: (Monad m, ASTContainerM c Expr) => (Expr -> m Expr) -> c -> m c
 modifyAppTopE f = modifyContainedASTsM (modifyAppTopE' f)

@@ -31,12 +31,12 @@ primInjectT (TyCon (Name "Double#" _ _ _) _) = TyLitDouble
 primInjectT (TyCon (Name "Char#" _ _ _) _) = TyLitChar
 primInjectT t = t
 
-dataInject :: Program -> [ProgramType] -> (Program, [ProgramType])
+dataInject :: (ASTContainer t Expr) => t -> [ProgramType] -> t
 dataInject prog progTy = 
     let
         dcNames = concatMap (\(_, dc) -> map conName (dataCon dc)) $ progTy
     in
-    (modifyASTs (dataInject' dcNames) prog, progTy)
+    modifyASTs (dataInject' dcNames) prog
 
 -- TODO: Polymorphic types?
 dataInject' :: [(Name, [Type])] -> Expr -> Expr
@@ -77,6 +77,7 @@ primDefs' b = [ ("==#", Prim Eq $ tyIntIntBool b)
               , ("-##", Prim Minus tyDoubleDoubleDouble)
               , ("negateDouble#", Prim Negate tyDoubleDouble)
               , ("sqrtDouble#", Prim SqRt tyDoubleDoubleDouble)
+              , ("/##", Prim Div tyDoubleDoubleDouble)
               , ("<=##", Prim Le $ tyDoubleDoubleBool b)
               , ("<##", Prim Lt $ tyDoubleDoubleBool b)
               , (">##", Prim Gt $ tyDoubleDoubleBool b)
@@ -87,7 +88,6 @@ primDefs' b = [ ("==#", Prim Eq $ tyIntIntBool b)
               , ("minusFloat#", Prim Minus tyFloatFloatFloat)
               , ("negateFloat#", Prim Negate tyFloatFloat)
               , ("sqrtFloat#", Prim SqRt tyFloatFloatFloat)
-              , ("/##", Prim Div tyFloatFloatFloat)
               , ("divideFloat#", Prim Div tyFloatFloatFloat)
               , ("eqFloat#", Prim Eq $ tyFloatFloatBool b)
               , ("neqFloat#", Prim Neq $ tyFloatFloatBool b)
@@ -96,14 +96,18 @@ primDefs' b = [ ("==#", Prim Eq $ tyIntIntBool b)
               , ("gtFloat#", Prim Gt $ tyFloatFloatBool b)
               , ("geFloat#", Prim Ge $ tyFloatFloatBool b)
 
-              , ("quotInteger#", Prim Quot TyBottom)
+              , ("quotInteger#", Prim Quot tyIntIntInt)
 
-              , ("float2Int#", Prim ToInt TyBottom)
-              , ("int2Float#", Prim IntToFloat TyBottom)
-              , ("fromIntToFloat", Prim IntToFloat TyBottom)
-              , ("double2Int#", Prim ToInt TyBottom)
-              , ("int2Double#", Prim IntToDouble TyBottom)
-              , ("fromIntToDouble", Prim IntToDouble TyBottom)
+              , ("eqChar#", Prim Eq $ tyCharCharBool b )
+              , ("neChar#", Prim Neq $ tyCharCharBool b )
+
+              , ("float2Int#", Prim ToInt (TyFun TyLitFloat TyLitInt))
+              , ("int2Float#", Prim IntToFloat (TyFun TyLitInt TyLitFloat))
+              , ("fromIntToFloat", Prim IntToFloat (TyFun TyLitInt TyLitFloat))
+              , ("double2Int#", Prim ToInt (TyFun TyLitDouble TyLitInt))
+              , ("int2Double#", Prim IntToDouble (TyFun TyLitInt TyLitDouble))
+              , ("rationalToDouble#", Prim RationalToDouble (TyFun TyLitInt $ TyFun TyLitInt TyLitDouble))
+              , ("fromIntToDouble", Prim IntToDouble (TyFun TyLitInt TyLitDouble))
 
               , ("absentErr", Prim Error TyBottom)
               , ("error", Prim Error TyBottom)
@@ -112,6 +116,7 @@ primDefs' b = [ ("==#", Prim Eq $ tyIntIntBool b)
               , ("patError", Prim Error TyBottom)
               , ("succError", Prim Error TyBottom)
               , ("toEnumError", Prim Error TyBottom)
+              , ("ratioZeroDenominatorError", Prim Error TyBottom)
               , ("undefined", Prim Error TyBottom)]
 
 tyIntInt :: Type
@@ -140,6 +145,9 @@ tyFloatFloatBool n = TyFun TyLitFloat $ TyFun TyLitFloat (TyCon n TYPE)
 
 tyFloatFloatFloat :: Type
 tyFloatFloatFloat = TyFun TyLitFloat $ TyFun TyLitFloat TyLitFloat
+
+tyCharCharBool :: Name -> Type
+tyCharCharBool n = TyFun TyLitChar $ TyFun TyLitChar (TyCon n TYPE)
 
 boolName :: [ProgramType] -> Maybe Name
 boolName = find ((==) "Bool" . nameOcc) . map fst
