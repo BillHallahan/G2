@@ -33,7 +33,7 @@ findRule rule_list rule_name =
       rule = find (\r -> tentry == ru_name r) rule_list
   in case rule of
       Just r -> r
-      Nothing -> error "not found"
+      Nothing -> error $ "not found " ++ show rule_name
 
 acceptRule :: Config -> State t -> Bindings -> RewriteRule -> IO ()
 acceptRule config init_state bindings rule = do
@@ -56,7 +56,8 @@ good_names = [ "addOneCommutative"
              , "doubleNegative"
              , "maybeForceZero"
              , "maxWithSelf"
-             , "addOneJust" ]
+             , "addOneJust"
+             , "justJust" ]
 
 good_src :: String
 good_src = "tests/RewriteVerify/Correct/SimpleCorrect.hs"
@@ -65,7 +66,9 @@ bad_names :: [String]
 bad_names = [ "badMaybeForce"
             , "badNegation"
             , "badMax"
-            , "badMaxLeft" ]
+            , "badMaxLeft"
+            , "badJust"
+            , "badTuple" ]
 
 bad_src :: String
 bad_src = "tests/RewriteVerify/Incorrect/SimpleIncorrect.hs"

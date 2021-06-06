@@ -144,7 +144,7 @@ verifyLoop' solver s1 s2 orig assumption_set = do
       ready_hs = HS.fromList ready
   res <- checkObligations solver s1 s2 assumption_set ready_hs
   let currExprWrap e = CurrExpr Evaluate e
-      currExprInsert s e = s { curr_expr = currExprWrap (caseWrap e) }
+      currExprInsert s e = s { curr_expr = currExprWrap e }
   case res of
       S.UNSAT () -> return $ Just [(currExprInsert s1 e1, currExprInsert s2 e2) | (e1, e2) <- not_ready]
       _ -> return Nothing
@@ -213,11 +213,6 @@ obligationWrap obligations =
     if null eq_list
     then Nothing
     else Just $ ExtCond (App (Prim Not TyUnknown) conj) True
-
-caseWrap :: Expr -> Expr
-caseWrap e =
-  let matchId = Id (Name "caseWrap" Nothing 0 Nothing) (typeOf e) in
-  Case e matchId [Alt Default (Var matchId)]
 
 checkRule :: Config ->
              State t ->

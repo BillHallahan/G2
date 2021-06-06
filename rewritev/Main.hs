@@ -66,17 +66,18 @@ runWithArgs as = do
   let rule' = case rule of
               Just r -> r
               Nothing -> error "not found"
-  let (rewrite_state_r, bindings_r) = initWithRHS init_state bindings $ rule'
+  res <- checkRule config init_state bindings rule'
+  -- let (rewrite_state_r, bindings_r) = initWithRHS init_state bindings $ rule'
   
-  let (rewrite_state_l, bindings_l) = initWithLHS init_state bindings $ rule'
+  -- let (rewrite_state_l, bindings_l) = initWithLHS init_state bindings $ rule'
 
-  let pairs_l = symbolic_ids rewrite_state_l
-      pairs_r = symbolic_ids rewrite_state_r
+  -- let pairs_l = symbolic_ids rewrite_state_l
+  --     pairs_r = symbolic_ids rewrite_state_r
 
-  S.SomeSolver solver <- initSolver config
-  res <- verifyLoop solver (zip pairs_l pairs_r)
-         [(rewrite_state_l, rewrite_state_r)]
-         bindings_l bindings_r config
+  -- S.SomeSolver solver <- initSolver config
+  -- res <- verifyLoop solver (zip pairs_l pairs_r)
+  --        [(rewrite_state_l, rewrite_state_r)]
+  --        bindings_l bindings_r config
   print res
   return ()
 

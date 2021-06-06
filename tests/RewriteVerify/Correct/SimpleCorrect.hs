@@ -22,5 +22,5 @@ just n = Just n
 "maybeForceZero" maybeForce Nothing = 0
 "maxWithSelf" forall x . maxOfInt x x = x
 "addOneJust" forall n . just (addOne n) = Just (1 + n)
-"justJust" forall n . just n = Just n
+"justJust" forall (n :: Int) . just n = Just n
   #-}

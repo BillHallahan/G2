@@ -14,16 +14,12 @@ addSymbolic i =
 initWithRHS :: State t -> Bindings -> RewriteRule -> (State t, Bindings)
 initWithRHS s b r =
   let ng = name_gen b
-      (wrapped_expr, ng') = caseWrap (ru_rhs r) ng
       s' = s {
-             curr_expr = CurrExpr Evaluate wrapped_expr
+             curr_expr = CurrExpr Evaluate (ru_rhs r)
            , symbolic_ids = ru_bndrs r
            , expr_env = foldr addSymbolic (expr_env s) (ru_bndrs r)
            }
-      b' = b {
-             name_gen = ng'
-           , input_names = map idName $ ru_bndrs r
-           }
+      b' = b { input_names = map idName $ ru_bndrs r }
   in
   (s', b')
 
@@ -40,22 +36,11 @@ initWithLHS s b r =
                   v = Var i
                   app = X.mkApp (v:ru_args r)
                   ng = name_gen b
-                  (wrapped_expr, ng') = caseWrap app ng
                   s' = s {
-                         curr_expr = CurrExpr Evaluate wrapped_expr
+                         curr_expr = CurrExpr Evaluate app
                        , symbolic_ids = ru_bndrs r
                        , expr_env = foldr addSymbolic (expr_env s) (ru_bndrs r)
                        }
-                  b' = b {
-                         name_gen = ng'
-                       , input_names = map idName $ ru_bndrs r
-                       }
+                  b' = b { input_names = map idName $ ru_bndrs r }
               in
               (s', b')
-
-caseWrap :: Expr -> N.NameGen -> (Expr, N.NameGen)
-caseWrap e ng =
-    let (matchId, ng') = N.freshId (typeOf e) ng
-        c = Case e matchId [Alt Default (Var matchId)]
-    in
-    (c, ng')
