@@ -13,8 +13,7 @@ addSymbolic i =
 
 initWithRHS :: State t -> Bindings -> RewriteRule -> (State t, Bindings)
 initWithRHS s b r =
-  let ng = name_gen b
-      s' = s {
+  let s' = s {
              curr_expr = CurrExpr Evaluate (ru_rhs r)
            , symbolic_ids = ru_bndrs r
            , expr_env = foldr addSymbolic (expr_env s) (ru_bndrs r)
@@ -35,7 +34,6 @@ initWithLHS s b r =
                   i = Id fName t
                   v = Var i
                   app = X.mkApp (v:ru_args r)
-                  ng = name_gen b
                   s' = s {
                          curr_expr = CurrExpr Evaluate app
                        , symbolic_ids = ru_bndrs r
