@@ -67,7 +67,7 @@ bad_names = [ "badMaybeForce"
             , "badNegation"
             , "badMax"
             , "badMaxLeft"
-            , "badJust"
+            -- , "badJust"
             , "badTuple" ]
 
 bad_src :: String
