@@ -61,7 +61,6 @@ safeMapUnion (Just hm1) (Just hm2) =
 -- if it's not symbolic, they need to be the same variable
 -- TODO can a symbolic var be replaced by a different symbolic var?
 -- TODO need an upward accumulation of hash map info
--- TODO should have only one state here
 moreRestrictive :: State t ->
                    (HM.HashMap Id Expr) ->
                    Expr ->
