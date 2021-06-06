@@ -88,7 +88,7 @@ runVerifier solver entry init_state bindings config = do
 
     verifyLoop solver (zip pairs_l pairs_r)
                [(rewrite_state_l, rewrite_state_r)]
-               (orig_l, orig_r)
+               (HS.singleton (orig_l, orig_r))
                bindings_l bindings_r config
 
 -- build initial hash set in Main before calling
@@ -96,22 +96,27 @@ verifyLoop :: S.Solver solver =>
               solver ->
               [(Id, Id)] ->
               [(State (), State ())] ->
-              (Expr, Expr) ->
+              HS.HashSet (Expr, Expr) ->
               Bindings ->
               Bindings ->
               Config ->
               IO (S.Result () ())
-verifyLoop solver pairs states orig b1 b2 config | states /= [] = do
+verifyLoop solver pairs states prev b1 b2 config | states /= [] = do
+    putStr "+"
     (states', (b1', b2')) <- CM.runStateT (mapM (uncurry (runSymExec config)) states) (b1, b2)
     let sp = (\(l1, l2) -> statePairing l1 l2 pairs)
         paired_lists = concatMap sp states'
-        vl (s1, s2, hs) = verifyLoop' solver s1 s2 orig hs
+        vl (s1, s2, hs) = verifyLoop' solver s1 s2 prev hs
     proof_list <- mapM vl paired_lists
     let proof_list' = [l | Just l <- proof_list]
         new_obligations = concat proof_list'
+        new_curr_exprs = map (\(s1, s2) -> (curr_expr s1, curr_expr s2)) new_obligations
+        new_expr_pairs = map (\(CurrExpr _ e1, CurrExpr _ e2) -> (e1, e2)) new_curr_exprs
+        new_prev = HS.union prev (HS.fromList new_expr_pairs)
     let verified = all isJust proof_list
+    -- TODO wrapping may still be an issue here
     if verified then
-        verifyLoop solver pairs new_obligations orig b1' b2' config
+        verifyLoop solver pairs new_obligations new_prev b1' b2' config
     else
         return $ S.SAT ()
   | otherwise = return $ S.UNSAT ()
@@ -122,10 +127,11 @@ verifyLoop' :: S.Solver solver =>
                solver ->
                State () ->
                State () ->
-               (Expr, Expr) ->
+               HS.HashSet (Expr, Expr) ->
                HS.HashSet (Expr, Expr) ->
                IO (Maybe [(State (), State ())])
-verifyLoop' solver s1 s2 orig assumption_set = do
+verifyLoop' solver s1 s2 prev assumption_set = do
+  putStr "*"
   -- putStrLn "***VERIFY LOOP***"
   -- let h1 = expr_env s1
   -- putStrLn (show $ E.lookup l_name h1)
@@ -138,7 +144,7 @@ verifyLoop' solver s1 s2 orig assumption_set = do
       -- CurrExpr _ orig2 = curr_expr s2
   -- putStrLn $ show $ fst orig
   -- putStrLn "*-*-*-*"
-  let obligation_set' = HS.filter (not . (moreRestrictivePair s1 s2 orig)) obligation_set
+  let obligation_set' = HS.filter (not . (moreRestrictivePair s1 s2 prev)) obligation_set
       obligation_list = HS.toList obligation_set'
       (ready, not_ready) = partition (exprPairReadyForSolver (expr_env s1, expr_env s2)) obligation_list
       ready_hs = HS.fromList ready
@@ -235,7 +241,7 @@ checkRule config init_state bindings rule = do
   -- convert from State t to State ()
   res <- verifyLoop solver (zip pairs_l pairs_r)
              [(rewrite_state_l {track = ()}, rewrite_state_r {track = ()})]
-             (orig_l, orig_r)
+             (HS.singleton (orig_l, orig_r))
              bindings_l bindings_r config
   -- UNSAT for good, SAT for bad
   return res
@@ -303,7 +309,7 @@ checkContainment :: S.Solver solver =>
 checkContainment solver pc_old pc_new s1 s2 =
     applySolver solver (pathCondComparison pc_old pc_new) s1 s2
 
--- TODO originally in EquivADT
+-- TODO use the HashMap contents in the Var case
 moreRestrictive :: State t ->
                    (HM.HashMap Id Expr) ->
                    Expr ->
@@ -311,7 +317,13 @@ moreRestrictive :: State t ->
                    Maybe (HM.HashMap Id Expr)
 moreRestrictive s@(State {expr_env = h}) hm e1 e2 =
   case (e1, e2) of
-    (Var i, _) | E.isSymbolic (idName i) h -> Just (HM.insert i e2 hm)
+    (Var i, _) | E.isSymbolic (idName i) h
+               , Nothing <- HM.lookup i hm -> Just (HM.insert i e2 hm)
+               | E.isSymbolic (idName i) h
+               , Just e <- HM.lookup i hm
+               , e == e2 -> Just hm
+               | E.isSymbolic (idName i) h -> Nothing
+               -- TODO exact equality?
                -- TODO insert syntax?
     (Var i1, Var i2) | E.isSymbolic (idName i2) h -> Nothing
                      -- the case above means sym replaces non-sym
@@ -339,26 +351,31 @@ moreRestrictive s@(State {expr_env = h}) hm e1 e2 =
                                    | otherwise -> Nothing
     -- TODO ignore types, like in exprPairing?
     (Type _, Type _) -> Just hm
+    -- TODO extra case for singleton case expressions?
+    (Case e _ [_], _) -> moreRestrictive s hm e e2
+    (_, Case e _ [_]) -> moreRestrictive s hm e1 e
     (Let d1 b1, Let d2 b2) -> error "TODO"
-    (Case _ _ _, Case _ _ _) -> error "TODO"
+    -- (Case _ _ _, Case _ _ _) -> error "TODO"
     (Cast e1' c1, Cast e2' c2) -> error "TODO"
     (Coercion c1, Coercion c2) -> error "TODO"
     -- this case means that the constructors do not match or are not covered
     _ -> Nothing
 
 -- TODO never hits the true case
+-- TODO how many times is this called?  I can't tell
 isMoreRestrictive :: State t ->
                      Expr ->
                      Expr ->
                      Bool
 isMoreRestrictive s e1 e2 =
-  case moreRestrictive s HM.empty e1 e2 of
-    Nothing -> False
-    Just _ -> D.trace (show (e1, e2)) True
+  case D.trace "?" $ moreRestrictive s HM.empty e1 e2 of
+    Nothing -> D.trace "No" False
+    Just _ -> D.trace "Yes" True -- D.trace (show (e1, e2)) True
 
 -- TODO check all elements of the HashSet
 -- see if any pair fits with isMoreRestrictive
 -- TODO this might not be efficient as it is now
+{-
 moreRestrictivePair :: State t ->
                        State t ->
                        (Expr, Expr) ->
@@ -367,8 +384,8 @@ moreRestrictivePair :: State t ->
 moreRestrictivePair s1 s2 (orig1, orig2) (e1, e2) =
   -- D.trace (show e1) $
   (isMoreRestrictive s1 orig1 e1) && (isMoreRestrictive s2 orig2 e2)
+-}
 
-{-
 moreRestrictivePair :: State t ->
                        State t ->
                        HS.HashSet (Expr, Expr) ->
@@ -378,4 +395,3 @@ moreRestrictivePair s1 s2 prev (e1, e2) =
   let mr (p1, p2) = (isMoreRestrictive s1 p1 e1) && (isMoreRestrictive s2 p2 e2)
   in
       not (HS.null $ HS.filter mr prev)
--}
