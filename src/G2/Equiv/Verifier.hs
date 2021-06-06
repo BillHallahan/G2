@@ -330,8 +330,14 @@ moreRestrictive s@(State {expr_env = h}) hm e1 e2 =
     (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s hm f1 f2
                            , Just hm_a <- moreRestrictive s hm_f a1 a2 -> Just hm_a
                            | otherwise -> Nothing
-    (Data d1, Data d2) | d1 == d2 -> Just hm
-                       | otherwise -> Nothing
+    -- We just compare the names of the DataCons, not the types of the DataCons.
+    -- This is because (1) if two DataCons share the same name, they must share the
+    -- same type, but (2) "the same type" may be represented in different syntactic
+    -- ways, most significantly bound variable names may differ
+    -- "forall a . a" is the same type as "forall b . b", but fails a syntactic check.
+    (Data (DataCon d1 _), Data (DataCon d2 _))
+                                  | d1 == d2 -> Just hm
+                                  | otherwise -> Nothing
     -- TODO potential problems with type equality checking?
     (Prim p1 t1, Prim p2 t2) | p1 == p2
                              , t1 == t2 -> Just hm
