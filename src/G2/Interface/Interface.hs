@@ -416,7 +416,10 @@ runG2ForRewriteV state config bindings = do
 
     (in_out, bindings') <- case initRedHaltOrd solver simplifier config of
                 (red, hal, ord) ->
-                    runG2WithSomes red hal ord solver simplifier sym_config state bindings
+                    let
+                        red' = red <~ SomeReducer ConcSymReducer
+                    in
+                    runG2WithSomes red' hal ord solver simplifier sym_config state bindings
 
     close solver
 

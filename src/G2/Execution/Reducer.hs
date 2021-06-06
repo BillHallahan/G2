@@ -25,6 +25,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             -- Reducers
                             , RCombiner (..)
                             , StdRed (..)
+                            , ConcSymReducer (..)
                             , NonRedPCRed (..)
                             , TaggerRed (..)
                             , Logger (..)
@@ -76,6 +77,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Execution.Rules
 import G2.Language
 import qualified G2.Language.Monad as MD
+import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stck
 import G2.Solver
 import G2.Lib.Printers
@@ -346,6 +348,94 @@ instance (Solver solver, Simplifier simplifier) => Reducer (StdRed solver simpli
         (r, s', b') <- stdReduce share solver simplifier s b
         
         return (if r == RuleIdentity then Finished else InProgress, s', b', stdr)
+
+data ConcSymReducer = ConcSymReducer
+
+-- Forces a lone symbolic variable with a type corresponding to an ADT
+-- to evaluate to some value of that ADT
+instance Reducer ConcSymReducer () t where
+    initReducer _ _ = ()
+
+    redRules red _ s@(State { curr_expr = CurrExpr _ (Var i@(Id n t))
+                            , expr_env = eenv
+                            , type_env = tenv
+                            , path_conds = pc
+                            , symbolic_ids = sid })
+                   b@(Bindings { name_gen = ng })
+        | E.isSymbolic n eenv
+        , Just (e, pc', sid', ng') <- arbDCCase tenv ng t= do
+            let 
+                s' = s { curr_expr = CurrExpr Return e
+                       , expr_env =
+                            foldr (\i -> E.insertSymbolic (idName i) i)
+                                  (E.insert n e eenv)
+                                  sid'
+                       , path_conds = foldr PC.insert pc pc'
+                       , symbolic_ids = sid' ++ L.delete i sid } 
+                b' =  b { name_gen = ng' }
+            return (InProgress, [(s', ())], b', red)
+    redRules red _ s b = return (NoProgress, [(s, ())], b, red)
+
+-- | Build a case expression with one alt for each data constructor of the given type
+-- and symbolic arguments.  Thus, the case expression could evaluate to any value of the
+-- given type.
+arbDCCase :: TypeEnv
+          -> NameGen
+          -> Type
+          -> Maybe (Expr, [PathCond], [Id], NameGen)
+arbDCCase tenv ng t
+    | TyCon tn _:ts <- unTyApp t
+    , Just adt <- M.lookup tn tenv =
+        let
+            dcs = dataCon adt
+            (bindee_id, ng') = freshId TyLitInt ng
+
+            bound = boundIds adt
+            bound_ts = zip bound ts
+
+            ty_apped_dcs = map (\dc -> mkApp $ Data dc:map Type ts) dcs
+            ((ng'', symbs), apped_dcs) =
+                        L.mapAccumL
+                            (\(ng_, symbs_) dc ->
+                                let
+                                    anon_ts = anonArgumentTypes dc
+                                    re_anon = foldr (\(i, t) -> retype i t) anon_ts bound_ts
+                                    (ars, ng_') = freshIds re_anon ng_
+                                    symbs_' = symbs_ ++ ars
+                                in
+                                ((ng_', symbs_'), mkApp $ dc:map Var ars)
+                            )
+                            (ng', [])
+                            ty_apped_dcs
+
+            bindee = Var bindee_id
+
+            pc = mkBounds bindee 1 (toInteger $ length dcs)
+
+            e = createCaseExpr bindee_id apped_dcs
+        in
+        Just (e, pc, bindee_id:symbs, ng'')
+    | otherwise = Nothing
+
+createCaseExpr :: Id -> [Expr] -> Expr
+createCaseExpr _ [e] = e
+createCaseExpr newId es@(_:_) =
+    let
+        -- We assume that PathCond restricting newId's range is added elsewhere
+        (_, alts) = bindExprToNum (\num e -> Alt (LitAlt (LitInt num)) e) es
+    in Case (Var newId) newId alts
+createCaseExpr _ [] = error "No exprs"
+
+bindExprToNum :: (Integer -> a -> b) -> [a] -> (Integer, [b])
+bindExprToNum f es = L.mapAccumL (\num e -> (num + 1, f num e)) 1 es
+
+mkBounds :: Expr -> Integer -> Integer -> [PathCond]
+mkBounds e l u =
+    let
+        t = TyFun TyLitInt $ TyFun TyLitInt TyLitInt
+    in
+    [ ExtCond (App (App (Prim Le t) (Lit (LitInt l))) e) True
+    , ExtCond (App (App (Prim Le t) e) (Lit (LitInt u))) True]
 
 -- | Removes and reduces the values in a State's non_red_path_conds field. 
 data NonRedPCRed = NonRedPCRed
