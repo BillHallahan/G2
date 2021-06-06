@@ -222,7 +222,7 @@ exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs =
     (_, Lam _ _ _) -> Just (HS.insert (e1, e2) pairs)
     -- TODO assume for now that all types line up between the two expressions
     (Type _, Type _) -> Just pairs
-    _ -> error "catch-all case"
+    _ -> error $ "catch-all case\n" ++ show e1 ++ "\n" ++ show e2
 
 matchAll :: [(Id, Id)] ->
             (State t, State t) ->
