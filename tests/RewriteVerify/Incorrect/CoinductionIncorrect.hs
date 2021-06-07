@@ -31,6 +31,25 @@ intReverse :: [Int] -> [Int]
 intReverse [] = []
 intReverse (h:t) = (intReverse t) ++ [h]
 
+intMap :: (Int -> Int) -> [Int] -> [Int]
+intMap = Data.List.map
+
+intIterate :: (Int -> Int) -> Int -> [Int]
+intIterate f n = n : (intIterate f (f n))
+
+p1 :: Int -> Int
+p1 = (+ 1)
+
+t2 :: Int -> Int
+t2 = (* 2)
+
+{-# RULES
+"doubleMapBackward" forall l . intMap p1 (intMap t2 l) = intMap (t2 . p1) l
+"badMapIterate" forall n . intMap p1 (intIterate p1 n) = intIterate p1 n
+"badMapTake" forall n l . intMap p1 (intTake n l) = intTake n (intMap t2 l)
+  #-}
+
+-- some of these rules are incorrect only because of laziness
 {-# RULES
 "forceDoesNothing" forall l . intForce l = l
 "badDropSum" forall n m l . intDrop n $ intDrop m l = intDrop (n + m) l

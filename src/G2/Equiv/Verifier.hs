@@ -142,8 +142,7 @@ verifyLoop' solver s1 s2 prev assumption_set = do
       (ready, not_ready) = partition (exprPairReadyForSolver (expr_env s1, expr_env s2)) obligation_list
       ready_hs = HS.fromList ready
   res <- checkObligations solver s1 s2 assumption_set ready_hs
-  let currExprWrap e = CurrExpr Evaluate e
-      currExprInsert s e = s { curr_expr = currExprWrap e }
+  let currExprInsert s e = s { curr_expr = CurrExpr Evaluate e }
   case res of
       S.UNSAT () -> return $ Just [(currExprInsert s1 e1, currExprInsert s2 e2) | (e1, e2) <- not_ready]
       _ -> return Nothing
@@ -310,9 +309,6 @@ moreRestrictive s@(State {expr_env = h}) hm e1 e2 =
                      -- the case above means sym replaces non-sym
                      | i1 == i2 -> Just hm
                      | otherwise -> Nothing
-    -- TODO function application case
-    -- TODO valid syntax?
-    -- TODO no need for the safe union
     (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s hm f1 f2
                            , Just hm_a <- moreRestrictive s hm_f a1 a2 -> Just hm_a
                            | otherwise -> Nothing
@@ -340,7 +336,6 @@ moreRestrictive s@(State {expr_env = h}) hm e1 e2 =
     (Type _, Type _) -> Just hm
     -- TODO extra case for singleton case expressions?
     (Let d1 b1, Let d2 b2) -> error "TODO"
-    -- (Case _ _ _, Case _ _ _) -> error "TODO"
     (Cast e1' c1, Cast e2' c2) -> error "TODO"
     (Coercion c1, Coercion c2) -> error "TODO"
     -- this case means that the constructors do not match or are not covered
