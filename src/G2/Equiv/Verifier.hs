@@ -31,7 +31,6 @@ import G2.Equiv.EquivADT
 
 -- TODO
 import qualified Debug.Trace as D
-import qualified Data.Text as T
 import qualified Data.HashMap.Lazy as HM
 import qualified G2.Language.Expr as X
 
@@ -102,7 +101,7 @@ verifyLoop :: S.Solver solver =>
               Config ->
               IO (S.Result () ())
 verifyLoop solver pairs states prev b1 b2 config | states /= [] = do
-    putStr "+"
+    -- putStr "+"
     (states', (b1', b2')) <- CM.runStateT (mapM (uncurry (runSymExec config)) states) (b1, b2)
     let sp = (\(l1, l2) -> statePairing l1 l2 pairs)
         paired_lists = concatMap sp states'
@@ -110,7 +109,8 @@ verifyLoop solver pairs states prev b1 b2 config | states /= [] = do
     proof_list <- mapM vl paired_lists
     let proof_list' = [l | Just l <- proof_list]
         new_obligations = concat proof_list'
-        new_curr_exprs = map (\(s1, s2) -> (curr_expr s1, curr_expr s2)) new_obligations
+    print $ map (\(s1, s2) -> (curr_expr s1, curr_expr s2)) new_obligations
+    let new_curr_exprs = map (\(s1, s2) -> (curr_expr s1, curr_expr s2)) new_obligations
         new_expr_pairs = map (\(CurrExpr _ e1, CurrExpr _ e2) -> (e1, e2)) new_curr_exprs
         new_prev = HS.union prev (HS.fromList new_expr_pairs)
     let verified = all isJust proof_list
@@ -131,20 +131,13 @@ verifyLoop' :: S.Solver solver =>
                HS.HashSet (Expr, Expr) ->
                IO (Maybe [(State (), State ())])
 verifyLoop' solver s1 s2 prev assumption_set = do
-  putStr "*"
-  -- putStrLn "***VERIFY LOOP***"
+  -- putStr "*"
   -- let h1 = expr_env s1
   -- putStrLn (show $ E.lookup l_name h1)
-  -- putStrLn "***CONTINUE***"
   -- TODO discard some obligations based on coinduction?
   -- TODO can I use curr_expr as the initial expression?
   let obligation_set = getObligations s1 s2
-      -- TODO need the original expressions
-      -- CurrExpr _ orig1 = curr_expr s1
-      -- CurrExpr _ orig2 = curr_expr s2
-  -- putStrLn $ show $ fst orig
-  -- putStrLn "*-*-*-*"
-  let obligation_set' = HS.filter (not . (moreRestrictivePair s1 s2 prev)) obligation_set
+      obligation_set' = HS.filter (not . (moreRestrictivePair s1 s2 prev)) obligation_set
       obligation_list = HS.toList obligation_set'
       (ready, not_ready) = partition (exprPairReadyForSolver (expr_env s1, expr_env s2)) obligation_list
       ready_hs = HS.fromList ready
@@ -154,9 +147,6 @@ verifyLoop' solver s1 s2 prev assumption_set = do
   case res of
       S.UNSAT () -> return $ Just [(currExprInsert s1 e1, currExprInsert s2 e2) | (e1, e2) <- not_ready]
       _ -> return Nothing
-
--- l_name :: Name
--- l_name = (Name (T.pack "l") Nothing 6989586621679189074 (Just (Span {start = Loc {line = 49, col = 20, file = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"}, end = Loc {line = 49, col = 21, file = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"}})))
 
 -- TODO adding stuff for debugging
 getObligations :: State () -> State () -> HS.HashSet (Expr, Expr)
@@ -197,7 +187,6 @@ applySolver solver extraPC s1 s2 =
     let unionEnv = E.union (expr_env s1) (expr_env s2)
         rightPC = P.toList $ path_conds s2
         unionPC = foldr P.insert (path_conds s1) rightPC
-        -- pcList = map extWrap $ HS.toList extraPC
         allPC = foldr P.insert unionPC (P.toList extraPC)
         newState = s1 { expr_env = unionEnv, path_conds = allPC }
     in
@@ -245,9 +234,6 @@ checkRule config init_state bindings rule = do
 -- alternatively, old path constraints imply the new
 -- should that go in a different file instead?
 -- check negation of the implication and get UNSAT
--- split the path constraints into lists?
--- make conjunctions of those, then the needed implication
--- would need to handle AltCond constructor
 -- can I represent the AltCond matching with an Expr?
 -- TODO where do I need to distinguish state pair lists?
 
@@ -353,8 +339,6 @@ moreRestrictive s@(State {expr_env = h}) hm e1 e2 =
     -- TODO ignore types, like in exprPairing?
     (Type _, Type _) -> Just hm
     -- TODO extra case for singleton case expressions?
-    (Case e _ [_], _) -> moreRestrictive s hm e e2
-    (_, Case e _ [_]) -> moreRestrictive s hm e1 e
     (Let d1 b1, Let d2 b2) -> error "TODO"
     -- (Case _ _ _, Case _ _ _) -> error "TODO"
     (Cast e1' c1, Cast e2' c2) -> error "TODO"
@@ -362,14 +346,12 @@ moreRestrictive s@(State {expr_env = h}) hm e1 e2 =
     -- this case means that the constructors do not match or are not covered
     _ -> Nothing
 
--- TODO never hits the true case
--- TODO how many times is this called?  I can't tell
 isMoreRestrictive :: State t ->
                      Expr ->
                      Expr ->
                      Bool
 isMoreRestrictive s e1 e2 =
-  case D.trace "?" $ moreRestrictive s HM.empty e1 e2 of
+  case {- D.trace "?" $ -} moreRestrictive s HM.empty e1 e2 of
     Nothing -> D.trace "No" False
     Just _ -> D.trace "Yes" True -- D.trace (show (e1, e2)) True
 

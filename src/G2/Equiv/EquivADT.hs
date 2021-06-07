@@ -35,24 +35,6 @@ idPairing :: State t -> State t -> (Id, Id) -> Maybe (HS.HashSet (Expr, Expr))
 idPairing s1 s2 (i1, i2) =
   assumptions s1 s2 (Var i1) (Var i2)
 
--- TODO intersection is left-biased
--- I presume this means
--- TODO elem syntax
--- TODO might not actually need
-safeMapUnion :: Maybe (HM.HashMap Id Expr) ->
-                Maybe (HM.HashMap Id Expr) ->
-                Maybe (HM.HashMap Id Expr)
-safeMapUnion Nothing _ = Nothing
-safeMapUnion _ Nothing = Nothing
-safeMapUnion (Just hm1) (Just hm2) =
-  let inter = HM.intersection hm1 hm2
-      matches = HM.mapWithKey (\k v -> (Just v) == HM.lookup k hm2) inter
-      matches_list = HM.elems matches
-  in
-      if False `elem` matches_list
-      then Nothing
-      else Just (HM.union hm1 hm2)
-
 -- TODO how to define "more restrictive" for coinduction?
 -- checks whether the second expr is more restrictive than the first
 -- all variables must be mapped
@@ -69,14 +51,12 @@ moreRestrictive :: State t ->
 moreRestrictive s@(State {expr_env = h}) hm e1 e2 =
   case (e1, e2) of
     (Var i, _) | E.isSymbolic (idName i) h -> Just (HM.insert i e2 hm)
-               -- TODO insert syntax?
     (Var i1, Var i2) | E.isSymbolic (idName i2) h -> Nothing
                      -- the case above means sym replaces non-sym
                      | i1 == i2 -> Just hm
                      | otherwise -> Nothing
     -- TODO function application case
     -- TODO valid syntax?
-    -- TODO no need for the safe union
     (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s hm f1 f2
                            , Just hm_a <- moreRestrictive s hm_f a1 a2 -> Just hm_a
                            | otherwise -> Nothing
@@ -101,10 +81,10 @@ moreRestrictive s@(State {expr_env = h}) hm e1 e2 =
                                    | otherwise -> Nothing
     -- TODO ignore types, like in exprPairing?
     (Type _, Type _) -> Just hm
-    (Let d1 b1, Let d2 b2) -> error "TODO"
+    (Let _ _, Let _ _) -> error "TODO"
     (Case _ _ _, Case _ _ _) -> error "TODO"
-    (Cast e1' c1, Cast e2' c2) -> error "TODO"
-    (Coercion c1, Coercion c2) -> error "TODO"
+    (Cast _ _, Cast _ _) -> error "TODO"
+    (Coercion _, Coercion _) -> error "TODO"
     -- this case means that the constructors do not match or are not covered
     _ -> Nothing
 
@@ -137,6 +117,7 @@ l_name = (Name (T.pack "l") Nothing 6989586621679189074 (Just (Span {start = Loc
 -- TODO coinductive version of exprPairing
 -- if a matching sub-expression is found, stop the recursion
 -- TODO not sure about all the implementation details
+{-
 epc :: State t ->
        State t ->
        HS.HashSet (Expr, Expr) ->
@@ -180,6 +161,7 @@ epc s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) exprs e1 e2 pairs =
     -- TODO assume for now that all types line up between the two expressions
     (Type _, Type _) -> Just pairs
     _ -> error "catch-all case"
+-}
 
 exprPairing :: State t ->
                State t ->
