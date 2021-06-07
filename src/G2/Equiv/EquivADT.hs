@@ -43,6 +43,7 @@ idPairing s1 s2 (i1, i2) =
 -- if it's not symbolic, they need to be the same variable
 -- TODO can a symbolic var be replaced by a different symbolic var?
 -- TODO need an upward accumulation of hash map info
+{-
 moreRestrictive :: State t ->
                    (HM.HashMap Id Expr) ->
                    Expr ->
@@ -110,6 +111,7 @@ moreRestrictivePair s1 s2 exprs e1 e2 =
   let mr (p1, p2) = (isMoreRestrictive s1 p1 e1) && (isMoreRestrictive s2 p2 e2)
   in
       not (HS.null $ HS.filter mr exprs)
+-}
 
 l_name :: Name
 l_name = (Name (T.pack "l") Nothing 6989586621679189074 (Just (Span {start = Loc {line = 49, col = 20, file = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"}, end = Loc {line = 49, col = 21, file = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"}})))
