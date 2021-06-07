@@ -51,7 +51,8 @@ runSymExec config s1 s2 = do
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
                     b_ <- CM.get
-                    let s2_ = s1_ { curr_expr = curr_expr s2, expr_env = E.union (expr_env s1_) (expr_env s2) }
+                    let s2_ = s2 { expr_env = E.union (expr_env s1_) (expr_env s2)
+                                 , path_conds = foldr P.insert (path_conds s1_) (P.toList (path_conds s2)) }
                     (er2, b_') <- CM.lift $ runG2WithConfig s2_ config b_
                     CM.put b_'
                     return $ map (\er2_ -> (s1_, final_state er2_)) er2) final_s1
