@@ -25,13 +25,13 @@ initWithRHS s b r =
 initWithLHS :: State t -> Bindings -> RewriteRule -> (State t, Bindings)
 initWithLHS s b r =
   -- make LHS into a single expr
-  let fName = ru_head r
-      fMaybe = E.lookup fName (expr_env s)
+  let f_name = ru_head r
+      f_maybe = E.lookup f_name (expr_env s)
   in
-  case fMaybe of
+  case f_maybe of
     Nothing -> error "function name not found"
     Just f -> let t = T.typeOf f
-                  i = Id fName t
+                  i = Id f_name t
                   v = Var i
                   app = X.mkApp (v:ru_args r)
                   s' = s {
