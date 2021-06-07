@@ -43,13 +43,19 @@ exprPairReadyForSolver (h1, h2) (e1, e2) =
 runSymExec :: Config ->
               State () ->
               State () ->
-              CM.StateT (Bindings, Bindings) IO ([State ()], [State ()])
+              CM.StateT Bindings IO [(State (), State ())]
 runSymExec config s1 s2 = do
-  (bindings1, bindings2) <- CM.get
-  (exec_res1, bindings1') <- CM.lift $ runG2WithConfig s1 config bindings1
-  (exec_res2, bindings2') <- CM.lift $ runG2WithConfig s2 config bindings2
-  CM.put (bindings1', bindings2')
-  return (map final_state exec_res1, map final_state exec_res2)
+  bindings <- CM.get
+  (er1, bindings') <- CM.lift $ runG2WithConfig s1 config bindings
+  CM.put bindings'
+  let final_s1 = map final_state er1
+  pairs <- mapM (\s1_ -> do
+                    b_ <- CM.get
+                    let s2_ = s1_ { curr_expr = curr_expr s2, expr_env = E.union (expr_env s1_) (expr_env s2) }
+                    (er2, b_') <- CM.lift $ runG2WithConfig s2_ config b_
+                    CM.put b_'
+                    return $ map (\er2_ -> (s1_, final_state er2_)) er2) final_s1
+  return $ concat pairs
 
 runVerifier :: S.Solver solver =>
                solver ->
@@ -64,14 +70,14 @@ runVerifier solver entry init_state bindings config = do
         rule' = case rule of
                 Just r -> r
                 Nothing -> error "not found"
-    let (rewrite_state_l, bindings_l) = initWithLHS init_state bindings $ rule'
-        (rewrite_state_r, bindings_r) = initWithRHS init_state bindings $ rule'
+    let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule'
+        (rewrite_state_r, bindings'') = initWithRHS init_state bindings $ rule'
     let pairs_l = symbolic_ids rewrite_state_l
         pairs_r = symbolic_ids rewrite_state_r
 
     verifyLoop solver (zip pairs_l pairs_r)
                [(rewrite_state_l, rewrite_state_r)]
-               bindings_l bindings_r config
+               bindings'' config
 
 -- build initial hash set in Main before calling
 verifyLoop :: S.Solver solver =>
@@ -79,12 +85,11 @@ verifyLoop :: S.Solver solver =>
               [(Id, Id)] ->
               [(State (), State ())] ->
               Bindings ->
-              Bindings ->
               Config ->
               IO (S.Result () ())
-verifyLoop solver pairs states b1 b2 config | states /= [] = do
-    (states', (b1', b2')) <- CM.runStateT (mapM (uncurry (runSymExec config)) states) (b1, b2)
-    let sp = (\(l1, l2) -> statePairing l1 l2 pairs)
+verifyLoop solver pairs states b config | states /= [] = do
+    (states', b') <- CM.runStateT (mapM (uncurry (runSymExec config)) states) b
+    let sp = map (\(s1, s2) -> (s1, s2, HS.empty)) -- (\(l1, l2) -> statePairing l1 l2 pairs)
         paired_lists = concatMap sp states'
         vl (s1, s2, hs) = verifyLoop' solver s1 s2 hs
     proof_list <- mapM vl paired_lists
@@ -92,7 +97,7 @@ verifyLoop solver pairs states b1 b2 config | states /= [] = do
         new_obligations = concat proof_list'
     let verified = all isJust proof_list
     if verified then
-        verifyLoop solver pairs new_obligations b1' b2' config
+        verifyLoop solver pairs new_obligations b' config
     else
         return $ S.SAT ()
   | otherwise = return $ S.UNSAT ()
@@ -187,14 +192,15 @@ checkRule :: Config ->
              RewriteRule ->
              IO (S.Result () ())
 checkRule config init_state bindings rule = do
-  let (rewrite_state_l, bindings_l) = initWithLHS init_state bindings $ rule
-      (rewrite_state_r, bindings_r) = initWithRHS init_state bindings $ rule
+  let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
+      (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
+      eenv = E.union (expr_env rewrite_state_l) (expr_env rewrite_state_r)
       pairs_l = symbolic_ids rewrite_state_l
       pairs_r = symbolic_ids rewrite_state_r
   S.SomeSolver solver <- initSolver config
   -- convert from State t to State ()
   res <- verifyLoop solver (zip pairs_l pairs_r)
-             [(rewrite_state_l {track = ()}, rewrite_state_r {track = ()})]
-             bindings_l bindings_r config
+             [(rewrite_state_l {expr_env = eenv, track = ()}, rewrite_state_r {expr_env = eenv, track = ()})]
+             bindings'' config
   -- UNSAT for good, SAT for bad
   return res
