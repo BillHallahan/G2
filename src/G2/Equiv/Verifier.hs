@@ -89,11 +89,8 @@ verifyLoop :: S.Solver solver =>
               Config ->
               IO (S.Result () ())
 verifyLoop solver pairs states b config | states /= [] = do
-    (states', b') <- CM.runStateT (mapM (uncurry (runSymExec config)) states) b
-    let sp = map (\(s1, s2) -> (s1, s2, HS.empty)) -- (\(l1, l2) -> statePairing l1 l2 pairs)
-        paired_lists = concatMap sp states'
-        vl (s1, s2, hs) = verifyLoop' solver s1 s2 hs
-    proof_list <- mapM vl paired_lists
+    (states_pairs, b') <- CM.runStateT (mapM (uncurry (runSymExec config)) states) b
+    proof_list <- mapM (uncurry (verifyLoop' solver)) $ concat states_pairs
     let proof_list' = [l | Just l <- proof_list]
         new_obligations = concat proof_list'
     let verified = all isJust proof_list
@@ -108,14 +105,13 @@ verifyLoop' :: S.Solver solver =>
                solver ->
                State () ->
                State () ->
-               HS.HashSet (Expr, Expr) ->
                IO (Maybe [(State (), State ())])
-verifyLoop' solver s1 s2 assumption_set = do
+verifyLoop' solver s1 s2 = do
   let obligation_set = getObligations s1 s2
       obligation_list = HS.toList obligation_set
       (ready, not_ready) = partition (exprPairReadyForSolver (expr_env s1, expr_env s2)) obligation_list
       ready_hs = HS.fromList ready
-  res <- checkObligations solver s1 s2 assumption_set ready_hs
+  res <- checkObligations solver s1 s2 ready_hs
   let currExprWrap e = CurrExpr Evaluate e
       currExprInsert s e = s { curr_expr = currExprWrap (caseWrap e) }
   case res of
@@ -135,18 +131,11 @@ checkObligations :: S.Solver solver =>
                     State () ->
                     State () ->
                     HS.HashSet (Expr, Expr) ->
-                    HS.HashSet (Expr, Expr) ->
                     IO (S.Result () ())
-checkObligations solver s1 s2 assumption_set obligation_set | not $ HS.null obligation_set =
-    let maybeAllPO = obligationWrap obligation_set
-        -- snd should have the same type
-        assumption_set' = HS.filter (isPrimType . typeOf . fst) assumption_set
-        assumptionPC = HS.toList $ HS.map assumptionWrap assumption_set'
-        newPC = foldr P.insert P.empty (assumptionPC)
-    in
-    case maybeAllPO of
-        Nothing -> applySolver solver newPC s1 s2
-        Just allPO -> applySolver solver (P.insert allPO newPC) s1 s2
+checkObligations solver s1 s2 obligation_set | not $ HS.null obligation_set =
+    case obligationWrap obligation_set of
+        Nothing -> applySolver solver P.empty s1 s2
+        Just allPO -> applySolver solver (P.insert allPO P.empty) s1 s2
   | otherwise = return $ S.UNSAT ()
 
 applySolver :: S.Solver solver =>
@@ -164,12 +153,6 @@ applySolver solver extraPC s1 s2 =
         newState = s1 { expr_env = unionEnv, path_conds = allPC }
     in
     S.check solver newState allPC
-
--- TODO replace with equivalent function from other branch G2q-merge-final
-assumptionWrap :: (Expr, Expr) -> PathCond
-assumptionWrap (e1, e2) =
-    -- TODO what type for the equality?
-    ExtCond (App (App (Prim Eq TyUnknown) e1) e2) True
 
 obligationWrap :: HS.HashSet (Expr, Expr) -> Maybe PathCond
 obligationWrap obligations =

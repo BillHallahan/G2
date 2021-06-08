@@ -59,17 +59,18 @@ main = do
 
 tests :: TestTree
 tests = testGroup "Tests"
-        [ sampleTests
-        , liquidTests
-        , testFileTests
-        , baseTests
-        , primTests
-        , exprTests
-        , typingTests
-        , simplificationTests
-        , ufMapQuickcheck
-        , unionFindQuickcheck
-        , rewriteVerifyTestsGood
+        [ -- sampleTests
+        -- , liquidTests
+        -- , testFileTests
+        -- , baseTests
+        -- , primTests
+        -- , exprTests
+        -- , typingTests
+        -- , simplificationTests
+        -- , ufMapQuickcheck
+        -- , unionFindQuickcheck
+        -- , 
+        rewriteVerifyTestsGood
         , rewriteVerifyTestsBad
         ]
 

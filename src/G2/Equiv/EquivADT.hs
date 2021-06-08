@@ -1,4 +1,4 @@
-module G2.Equiv.EquivADT (proofObligations, assumptions, statePairing) where
+module G2.Equiv.EquivADT (proofObligations) where
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
@@ -16,18 +16,6 @@ proofObligations :: State t ->
 -- check concretizations for each of them
 proofObligations s1 s2 e1 e2 =
   exprPairing s1 s2 e1 e2 HS.empty
-
-assumptions :: State t ->
-               State t ->
-               Expr ->
-               Expr ->
-               Maybe (HS.HashSet (Expr, Expr))
-assumptions s1 s2 e1 e2 =
-  exprPairing s1 s2 e1 e2 HS.empty
-
-idPairing :: State t -> State t -> (Id, Id) -> Maybe (HS.HashSet (Expr, Expr))
-idPairing s1 s2 (i1, i2) =
-  assumptions s1 s2 (Var i1) (Var i2)
 
 exprPairing :: State t ->
                State t ->
@@ -62,24 +50,3 @@ exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs =
     -- TODO assume for now that all types line up between the two expressions
     (Type _, Type _) -> Just pairs
     _ -> error "catch-all case"
-
-matchAll :: [(Id, Id)] ->
-            (State t, State t) ->
-            Maybe (State t, State t, HS.HashSet (Expr, Expr))
-matchAll idPairs (s1, s2) =
-  let maybes = map (idPairing s1 s2) idPairs
-      hashSets = [hs | Just hs <- maybes]
-  in
-  if length maybes /= length hashSets then Nothing
-  else Just (s1, s2, foldr HS.union HS.empty hashSets)
-
--- to be paired, states need to match on all Id pairs
-statePairing :: [State t] ->
-                [State t] ->
-                [(Id, Id)] ->
-                [(State t, State t, HS.HashSet (Expr, Expr))]
-statePairing states1 states2 idPairs =
-  let statePairs = [(s1, s2) | s1 <- states1, s2 <- states2]
-      maybes = map (matchAll idPairs) statePairs
-  in
-  [triple | Just triple <- maybes]
