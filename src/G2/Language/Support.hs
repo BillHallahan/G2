@@ -4,6 +4,10 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 
+-- TODO
+--{-# LANGUAGE DeriveDataTypeable #-}
+--{-# LANGUAGE DeriveGeneric #-}
+
 module G2.Language.Support
     ( module G2.Language.AST
     , module G2.Language.Support
@@ -34,6 +38,10 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
 import qualified Data.Text as T
 
+-- TODO
+--import GHC.Generics (Generic)
+--import Data.Hashable
+
 -- | The State is passed around in G2. It can be utilized to
 -- perform defunctionalization, execution, and SMT solving.
 -- The t parameter can be used to track extra information during the execution.
@@ -54,6 +62,9 @@ data State t = State { expr_env :: E.ExprEnv
                      , tags :: S.HashSet Name -- ^ Allows attaching tags to a State, to identify it later
                      , track :: t
                      } deriving (Show, Eq, Read, Typeable, Data)
+
+-- TODO
+--instance Hashable t => Hashable (State t)
 
 data Bindings = Bindings { deepseq_walkers :: Walkers
                          , fixed_inputs :: [Expr]
