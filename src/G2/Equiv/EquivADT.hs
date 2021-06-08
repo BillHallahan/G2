@@ -7,8 +7,8 @@ import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 
 -- TODO remove
-import qualified Debug.Trace as D
-import qualified Data.Text as T
+-- import qualified Debug.Trace as D
+-- import qualified Data.Text as T
 
 import Control.Monad
 
@@ -113,8 +113,8 @@ moreRestrictivePair s1 s2 exprs e1 e2 =
       not (HS.null $ HS.filter mr exprs)
 -}
 
-l_name :: Name
-l_name = (Name (T.pack "l") Nothing 6989586621679189074 (Just (Span {start = Loc {line = 49, col = 20, file = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"}, end = Loc {line = 49, col = 21, file = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"}})))
+-- l_name :: Name
+-- l_name = (Name (T.pack "l") Nothing 6989586621679189074 (Just (Span {start = Loc {line = 49, col = 20, file = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"}, end = Loc {line = 49, col = 21, file = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"}})))
 
 -- TODO coinductive version of exprPairing
 -- if a matching sub-expression is found, stop the recursion

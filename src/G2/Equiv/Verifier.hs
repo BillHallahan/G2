@@ -45,6 +45,16 @@ exprPairReadyForSolver :: (ExprEnv, ExprEnv) -> (Expr, Expr) -> Bool
 exprPairReadyForSolver (h1, h2) (e1, e2) =
   exprReadyForSolver h1 e1 && exprReadyForSolver h2 e2
 
+-- TODO
+statePairReadyForSolver :: (State t, State t) -> Bool
+statePairReadyForSolver (s1, s2) =
+  let h1 = expr_env s1
+      h2 = expr_env s2
+      CurrExpr _ e1 = curr_expr s1
+      CurrExpr _ e2 = curr_expr s2
+  in
+  exprReadyForSolver h1 e1 && exprReadyForSolver h2 e2
+
 -- TODO different underlying G2 usage
 runSymExec :: Config ->
               State () ->
@@ -76,18 +86,9 @@ runVerifier solver entry init_state bindings config = do
         pairs_r = symbolic_ids rewrite_state_r
         -- CurrExpr _ orig_l = curr_expr rewrite_state_l
         -- CurrExpr _ orig_r = curr_expr rewrite_state_r
-        f_name = ru_head rule'
-        -- TODO doesn't cover Nothing case
-        Just f = E.lookup f_name (expr_env init_state)
-        t = T.typeOf f
-        i = Id f_name t
-        v = Var i
-        orig_l = X.mkApp (v:ru_args rule')
-        orig_r = ru_rhs rule'
-
     verifyLoop solver (zip pairs_l pairs_r)
                [(rewrite_state_l, rewrite_state_r)]
-               (HS.singleton (orig_l, orig_r))
+               [(rewrite_state_l, rewrite_state_r)]
                bindings_l bindings_r config
 
 -- build initial hash set in Main before calling
@@ -95,7 +96,7 @@ verifyLoop :: S.Solver solver =>
               solver ->
               [(Id, Id)] ->
               [(State (), State ())] ->
-              HS.HashSet (Expr, Expr) ->
+              [(State (), State ())] ->
               Bindings ->
               Bindings ->
               Config ->
@@ -109,10 +110,13 @@ verifyLoop solver pairs states prev b1 b2 config | states /= [] = do
     proof_list <- mapM vl paired_lists
     let proof_list' = [l | Just l <- proof_list]
         new_obligations = concat proof_list'
-    print $ map (\(s1, s2) -> (curr_expr s1, curr_expr s2)) new_obligations
-    let new_curr_exprs = map (\(s1, s2) -> (curr_expr s1, curr_expr s2)) new_obligations
-        new_expr_pairs = map (\(CurrExpr _ e1, CurrExpr _ e2) -> (e1, e2)) new_curr_exprs
-        new_prev = HS.union prev (HS.fromList new_expr_pairs)
+    {- print $ map (\(s1, s2) -> (curr_expr s1, curr_expr s2)) new_obligations -}
+    let -- new_curr_exprs = map (\(s1, s2) -> (curr_expr s1, curr_expr s2)) new_obligations
+        -- new_expr_pairs = map (\(CurrExpr _ e1, CurrExpr _ e2) -> (e1, e2)) new_curr_exprs
+        -- new_prev = HS.union prev (HS.fromList new_expr_pairs)
+        -- TODO remove duplicates?
+        new_prev = new_obligations ++ prev
+        -- new_prev = HS.union prev (HS.fromList new_obligations)
     let verified = all isJust proof_list
     -- TODO wrapping may still be an issue here
     if verified then
@@ -121,13 +125,19 @@ verifyLoop solver pairs states prev b1 b2 config | states /= [] = do
         return $ S.SAT ()
   | otherwise = return $ S.UNSAT ()
 
+currExprInsert :: State t -> Expr -> State t
+currExprInsert s e = s { curr_expr = CurrExpr Evaluate e }
+
+exprExtract :: State t -> Expr
+exprExtract s@(State {curr_expr = CurrExpr _ e}) = e
+
 -- the hash set input is for the assumptions
 -- TODO printing
 verifyLoop' :: S.Solver solver =>
                solver ->
                State () ->
                State () ->
-               HS.HashSet (Expr, Expr) ->
+               [(State (), State ())] ->
                HS.HashSet (Expr, Expr) ->
                IO (Maybe [(State (), State ())])
 verifyLoop' solver s1 s2 prev assumption_set = do
@@ -136,18 +146,36 @@ verifyLoop' solver s1 s2 prev assumption_set = do
   -- putStrLn (show $ E.lookup l_name h1)
   -- TODO discard some obligations based on coinduction?
   -- TODO can I use curr_expr as the initial expression?
-  let obligation_set = getObligations s1 s2
-      obligation_set' = HS.filter (not . (moreRestrictivePair s1 s2 prev)) obligation_set
-      obligation_list = HS.toList obligation_set'
-      (ready, not_ready) = partition (exprPairReadyForSolver (expr_env s1, expr_env s2)) obligation_list
-      ready_hs = HS.fromList ready
-  res <- checkObligations solver s1 s2 assumption_set ready_hs
-  let currExprInsert s e = s { curr_expr = CurrExpr Evaluate e }
+  -- let obligation_set = getObligations s1 s2
+  --     obligation_set' = HS.filter (not . (moreRestrictivePair s1 s2 prev)) obligation_set
+  -- TODO not sure about use of states here
+  let obligation_set = obligationStates s1 s2
+      -- obligation_set' = HS.filter (not . (moreRestrictivePair prev)) obligation_set
+      -- TODO list and set naming
+      obligation_list = filter (not . (moreRestrictivePair prev)) obligation_set
+  {-
+  putStr $ show $ HS.size obligation_set
+  putStr ", "
+  putStr $ show $ HS.size obligation_set'
+  putStr "\n"
+  putStrLn $ show $ prev
+  putStrLn $ show obligation_set'
+  -}
+  let -- obligation_list = HS.toList obligation_set'
+      -- (ready, not_ready) = partition (exprPairReadyForSolver (expr_env s1, expr_env s2)) obligation_list
+      (ready, not_ready) = partition statePairReadyForSolver obligation_list
+      -- ready_hs = HS.fromList ready
+      -- ready_curr_exprs = HS.map (\(r1, r2) -> (curr_expr r1, curr_expr r2)) ready_hs
+      -- ready_exprs = HS.map (\(CurrExpr _ e1, CurrExpr _ e2) -> (e1, e2)) ready_curr_exprs
+      -- ready_exprs = HS.map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready_hs
+      ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
+  -- TODO is it still right to use s1 and s2 here?
+  res <- checkObligations solver s1 s2 assumption_set ready_exprs
+  -- let currExprInsert s e = s { curr_expr = CurrExpr Evaluate e }
   case res of
-      S.UNSAT () -> return $ Just [(currExprInsert s1 e1, currExprInsert s2 e2) | (e1, e2) <- not_ready]
+      S.UNSAT () -> return $ Just not_ready
       _ -> return Nothing
 
--- TODO adding stuff for debugging
 getObligations :: State () -> State () -> HS.HashSet (Expr, Expr)
 getObligations s1 s2 =
   let CurrExpr _ e1 = curr_expr s1
@@ -156,6 +184,16 @@ getObligations s1 s2 =
   in case proofObligations s1 s2 e1 e2 of
       Nothing -> error "TODO expressions not equivalent"
       Just po -> po
+
+-- TODO wrap the expression pairs with their states
+obligationStates ::  State () -> State () -> [(State (), State ())]
+obligationStates s1 s2 =
+  let stateWrap (e1, e2) =
+        ( s1 { curr_expr = CurrExpr Evaluate e1 }
+        , s2 { curr_expr = CurrExpr Evaluate e2 } )
+  in
+  -- HS.map stateWrap (getObligations s1 s2)
+  map stateWrap $ HS.toList $ getObligations s1 s2
 
 checkObligations :: S.Solver solver =>
                     solver ->
@@ -218,13 +256,15 @@ checkRule config init_state bindings rule = do
       (rewrite_state_r, bindings_r) = initWithRHS init_state bindings $ rule
       pairs_l = symbolic_ids rewrite_state_l
       pairs_r = symbolic_ids rewrite_state_r
-      CurrExpr _ orig_l = curr_expr rewrite_state_l
-      CurrExpr _ orig_r = curr_expr rewrite_state_r
+      -- CurrExpr _ orig_l = curr_expr rewrite_state_l
+      -- CurrExpr _ orig_r = curr_expr rewrite_state_r
+      rewrite_state_l' = rewrite_state_l {track = ()}
+      rewrite_state_r' = rewrite_state_r {track = ()}
   S.SomeSolver solver <- initSolver config
   -- convert from State t to State ()
   res <- verifyLoop solver (zip pairs_l pairs_r)
-             [(rewrite_state_l {track = ()}, rewrite_state_r {track = ()})]
-             (HS.singleton (orig_l, orig_r))
+             [(rewrite_state_l', rewrite_state_r')]
+             [(rewrite_state_l', rewrite_state_r')]
              bindings_l bindings_r config
   -- UNSAT for good, SAT for bad
   return res
@@ -290,6 +330,7 @@ checkContainment solver pc_old pc_new s1 s2 =
     applySolver solver (pathCondComparison pc_old pc_new) s1 s2
 
 -- TODO use the HashMap contents in the Var case
+{-
 moreRestrictive :: State t ->
                    (HM.HashMap Id Expr) ->
                    Expr ->
@@ -340,7 +381,62 @@ moreRestrictive s@(State {expr_env = h}) hm e1 e2 =
     (Coercion c1, Coercion c2) -> error "TODO"
     -- this case means that the constructors do not match or are not covered
     _ -> Nothing
+-}
 
+-- s1 is the old state, s2 is the new state
+-- TODO look at var mappings in expr envs, not just the hash map
+-- TODO use exprs as recursive arguments
+-- no need for extra state manipulation then
+moreRestrictive :: State t ->
+                   State t ->
+                   HM.HashMap Id Expr ->
+                   Expr ->
+                   Expr ->
+                   Maybe (HM.HashMap Id Expr)
+moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) hm e1 e2 =
+  case (e1, e2) of
+    (Var i, _) | E.isSymbolic (idName i) h1
+               , Nothing <- HM.lookup i hm -> Just (HM.insert i e2 hm)
+               | E.isSymbolic (idName i) h1
+               , Just e <- HM.lookup i hm
+               , e == e2 -> Just hm
+               -- this last case means there's a mismatch
+               | E.isSymbolic (idName i) h1 -> Nothing
+               -- non-symbolic cases
+               | Just e <- E.lookup (idName i) h1 -> moreRestrictive s1 s2 hm e e2
+               | otherwise -> error "unmapped variable"
+    (_, Var i) | E.isSymbolic (idName i) h2 -> Nothing
+               -- the case above means sym replaces non-sym
+               | Just e <- E.lookup (idName i) h2 -> moreRestrictive s1 s2 hm e1 e
+               | otherwise -> error "unmapped variable"
+    (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s1 s2 hm f1 f2
+                           , Just hm_a <- moreRestrictive s1 s2 hm_f a1 a2 -> Just hm_a
+                           | otherwise -> Nothing
+    -- We just compare the names of the DataCons, not the types of the DataCons.
+    -- This is because (1) if two DataCons share the same name, they must share the
+    -- same type, but (2) "the same type" may be represented in different syntactic
+    -- ways, most significantly bound variable names may differ
+    -- "forall a . a" is the same type as "forall b . b", but fails a syntactic check.
+    (Data (DataCon d1 _), Data (DataCon d2 _))
+                                  | d1 == d2 -> Just hm
+                                  | otherwise -> Nothing
+    -- TODO potential problems with type equality checking?
+    (Prim p1 t1, Prim p2 t2) | p1 == p2
+                             , t1 == t2 -> Just hm
+                             | otherwise -> Nothing
+    -- TODO do I need to be more careful about Lit equality?
+    (Lit l1, Lit l2) | l1 == l2 -> Just hm
+                     | otherwise -> Nothing
+    -- TODO I presume I need syntactic equality for lambda expressions
+    -- LamUse is a simple variant
+    (Lam lu1 i1 b1, Lam lu2 i2 b2) | lu1 == lu2
+                                   , i1 == i2 -> moreRestrictive s1 s2 hm b1 b2
+                                   | otherwise -> Nothing
+    -- TODO ignore types, like in exprPairing?
+    (Type _, Type _) -> Just hm
+    _ -> Nothing
+
+{-
 isMoreRestrictive :: State t ->
                      Expr ->
                      Expr ->
@@ -349,6 +445,17 @@ isMoreRestrictive s e1 e2 =
   case {- D.trace "?" $ -} moreRestrictive s HM.empty e1 e2 of
     Nothing -> D.trace "No" False
     Just _ -> D.trace "Yes" True -- D.trace (show (e1, e2)) True
+-}
+
+isMoreRestrictive :: State t ->
+                     State t ->
+                     Bool
+isMoreRestrictive s1 s2 =
+  let CurrExpr _ e1 = curr_expr s1
+      CurrExpr _ e2 = curr_expr s2
+  in case moreRestrictive s1 s2 HM.empty e1 e2 of
+      Nothing -> False
+      Just _ -> True
 
 -- TODO check all elements of the HashSet
 -- see if any pair fits with isMoreRestrictive
@@ -364,6 +471,7 @@ moreRestrictivePair s1 s2 (orig1, orig2) (e1, e2) =
   (isMoreRestrictive s1 orig1 e1) && (isMoreRestrictive s2 orig2 e2)
 -}
 
+{-
 moreRestrictivePair :: State t ->
                        State t ->
                        HS.HashSet (Expr, Expr) ->
@@ -373,3 +481,13 @@ moreRestrictivePair s1 s2 prev (e1, e2) =
   let mr (p1, p2) = (isMoreRestrictive s1 p1 e1) && (isMoreRestrictive s2 p2 e2)
   in
       not (HS.null $ HS.filter mr prev)
+-}
+
+moreRestrictivePair :: [(State t, State t)] ->
+                       (State t, State t) ->
+                       Bool
+moreRestrictivePair prev (s1, s2) =
+  let mr (p1, p2) = isMoreRestrictive p1 s1 && isMoreRestrictive p2 s2
+  in
+      -- not (HS.null $ HS.filter mr prev)
+      not $ null $ filter mr prev
