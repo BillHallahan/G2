@@ -108,16 +108,24 @@ verifyLoop solver pairs states prev b1 b2 config | states /= [] = do
         paired_lists = concatMap sp states'
         vl (s1, s2, hs) = verifyLoop' solver s1 s2 prev hs
     proof_list <- mapM vl paired_lists
-    let proof_list' = [l | Just l <- proof_list]
+    let proof_list' = [l | Just (_, l) <- proof_list]
         new_obligations = concat proof_list'
+        -- TODO also get previously-solved equivalences to add to prev
+        solved_list = concat [l | Just (l, _) <- proof_list]
     {- print $ map (\(s1, s2) -> (curr_expr s1, curr_expr s2)) new_obligations -}
     let -- new_curr_exprs = map (\(s1, s2) -> (curr_expr s1, curr_expr s2)) new_obligations
         -- new_expr_pairs = map (\(CurrExpr _ e1, CurrExpr _ e2) -> (e1, e2)) new_curr_exprs
         -- new_prev = HS.union prev (HS.fromList new_expr_pairs)
         -- TODO remove duplicates?
-        new_prev = new_obligations ++ prev
+        new_prev = new_obligations ++ solved_list ++ prev
         -- new_prev = HS.union prev (HS.fromList new_obligations)
     let verified = all isJust proof_list
+    -- TODO
+    {-
+    putStrLn $ show $ length new_obligations
+    putStrLn $ show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) prev
+    putStrLn $ show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) new_obligations
+    -}
     -- TODO wrapping may still be an issue here
     if verified then
         verifyLoop solver pairs new_obligations new_prev b1' b2' config
@@ -129,7 +137,7 @@ currExprInsert :: State t -> Expr -> State t
 currExprInsert s e = s { curr_expr = CurrExpr Evaluate e }
 
 exprExtract :: State t -> Expr
-exprExtract s@(State {curr_expr = CurrExpr _ e}) = e
+exprExtract (State {curr_expr = CurrExpr _ e}) = e
 
 -- the hash set input is for the assumptions
 -- TODO printing
@@ -139,7 +147,7 @@ verifyLoop' :: S.Solver solver =>
                State () ->
                [(State (), State ())] ->
                HS.HashSet (Expr, Expr) ->
-               IO (Maybe [(State (), State ())])
+               IO (Maybe ([(State (), State ())], [(State (), State ())]))
 verifyLoop' solver s1 s2 prev assumption_set = do
   -- putStr "*"
   -- let h1 = expr_env s1
@@ -154,13 +162,14 @@ verifyLoop' solver s1 s2 prev assumption_set = do
       -- TODO list and set naming
       obligation_list = filter (not . (moreRestrictivePair prev)) obligation_set
   {-
-  putStr $ show $ HS.size obligation_set
+  putStr $ show $ length obligation_set
   putStr ", "
-  putStr $ show $ HS.size obligation_set'
+  putStr $ show $ length obligation_list
   putStr "\n"
-  putStrLn $ show $ prev
-  putStrLn $ show obligation_set'
+  putStrLn $ show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) prev
+  putStrLn $ show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) obligation_list
   -}
+  -- putStrLn $ show $ HS.toList assumption_set
   let -- obligation_list = HS.toList obligation_set'
       -- (ready, not_ready) = partition (exprPairReadyForSolver (expr_env s1, expr_env s2)) obligation_list
       (ready, not_ready) = partition statePairReadyForSolver obligation_list
@@ -169,11 +178,17 @@ verifyLoop' solver s1 s2 prev assumption_set = do
       -- ready_exprs = HS.map (\(CurrExpr _ e1, CurrExpr _ e2) -> (e1, e2)) ready_curr_exprs
       -- ready_exprs = HS.map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready_hs
       ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
+  {-
+  putStrLn "***"
+  putStrLn $ show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
+  putStrLn $ show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) not_ready
+  putStrLn "+++"
+  -}
   -- TODO is it still right to use s1 and s2 here?
   res <- checkObligations solver s1 s2 assumption_set ready_exprs
   -- let currExprInsert s e = s { curr_expr = CurrExpr Evaluate e }
   case res of
-      S.UNSAT () -> return $ Just not_ready
+      S.UNSAT () -> return $ Just (ready, not_ready)
       _ -> return Nothing
 
 getObligations :: State () -> State () -> HS.HashSet (Expr, Expr)
@@ -182,7 +197,7 @@ getObligations s1 s2 =
       CurrExpr _ e2 = curr_expr s2
       h1 = expr_env s1
   in case proofObligations s1 s2 e1 e2 of
-      Nothing -> error "TODO expressions not equivalent"
+      Nothing -> error "expressions not equivalent"
       Just po -> po
 
 -- TODO wrap the expression pairs with their states
@@ -245,6 +260,19 @@ obligationWrap obligations =
     if null eq_list
     then Nothing
     else Just $ ExtCond (App (Prim Not TyUnknown) conj) True
+
+-- TODO for testing
+testExprs1 :: (Expr, Expr)
+testExprs1 = (App (App (Prim Plus (TyFun TyLitInt (TyFun TyLitInt TyLitInt))) (App (App (Prim Mult (TyFun TyLitInt (TyFun TyLitInt TyLitInt))) (Var (Id (Name "fs?" Nothing 16903 Nothing) TyLitInt))) (Lit (LitInt 2)))) (Lit (LitInt 1)),App (App (Prim Plus (TyFun TyLitInt (TyFun TyLitInt TyLitInt))) (App (App (Prim Mult (TyFun TyLitInt (TyFun TyLitInt TyLitInt))) (Var (Id (Name "fs?" Nothing 16903 Nothing) TyLitInt))) (Lit (LitInt 2)))) (Lit (LitInt 1)))
+
+testExprs2 :: (Expr, Expr)
+testExprs2 = (App (App (Prim Plus (TyFun TyLitInt (TyFun TyLitInt TyLitInt))) (App (App (Prim Mult (TyFun TyLitInt (TyFun TyLitInt TyLitInt))) (Var (Id (Name "fs?" Nothing 16913 Nothing) TyLitInt))) (Lit (LitInt 2)))) (Lit (LitInt 1)),App (App (Prim Plus (TyFun TyLitInt (TyFun TyLitInt TyLitInt))) (App (App (Prim Mult (TyFun TyLitInt (TyFun TyLitInt TyLitInt))) (Var (Id (Name "fs?" Nothing 16913 Nothing) TyLitInt))) (Lit (LitInt 2)))) (Lit (LitInt 1)))
+
+testExprs3 :: (Expr, Expr)
+testExprs3 = (App (App (Prim Plus (TyFun TyLitInt (TyFun TyLitInt TyLitInt))) (App (App (Prim Mult (TyFun TyLitInt (TyFun TyLitInt TyLitInt))) (Var (Id (Name "fs?" Nothing 16923 Nothing) TyLitInt))) (Lit (LitInt 2)))) (Lit (LitInt 1)),App (App (Prim Plus (TyFun TyLitInt (TyFun TyLitInt TyLitInt))) (App (App (Prim Mult (TyFun TyLitInt (TyFun TyLitInt TyLitInt))) (Var (Id (Name "fs?" Nothing 16923 Nothing) TyLitInt))) (Lit (LitInt 2)))) (Lit (LitInt 1)))
+
+-- assumption repeated, but with different indices
+-- (Var (Id (Name "fs?" Nothing 16900 Nothing) (TyCon (Name "Int" (Just "GHC.Types") 8214565720323789235 Nothing) TYPE))
 
 checkRule :: Config ->
              State t ->
