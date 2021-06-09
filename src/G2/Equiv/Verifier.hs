@@ -304,6 +304,7 @@ checkRule config init_state bindings rule = do
 -- can I represent the AltCond matching with an Expr?
 -- TODO where do I need to distinguish state pair lists?
 
+{-
 pathCondExpr :: PathCond -> Expr
 pathCondExpr (ExtCond e _) = e
 pathCondExpr (AltCond _ _ _) = error "TODO AltCond"
@@ -356,6 +357,7 @@ checkContainment :: S.Solver solver =>
                     IO (S.Result () ())
 checkContainment solver pc_old pc_new s1 s2 =
     applySolver solver (pathCondComparison pc_old pc_new) s1 s2
+-}
 
 -- TODO use the HashMap contents in the Var case
 {-
@@ -424,45 +426,46 @@ moreRestrictive :: State t ->
 moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) hm e1 e2 =
   case (e1, e2) of
     (Var i, _) | E.isSymbolic (idName i) h1
-               , Nothing <- HM.lookup i hm -> Just (HM.insert i e2 hm)
+               , Nothing <- HM.lookup i hm -> D.trace (show $ HM.toList hm) $ Just (HM.insert i e2 hm)
                | E.isSymbolic (idName i) h1
                , Just e <- HM.lookup i hm
-               , e == e2 -> Just hm
+               , e == e2 -> D.trace "###" $ Just hm
                -- this last case means there's a mismatch
-               | E.isSymbolic (idName i) h1 -> Nothing
+               | E.isSymbolic (idName i) h1 -> D.trace "!!!" Nothing
                -- non-symbolic cases
-               | Just e <- E.lookup (idName i) h1 -> moreRestrictive s1 s2 hm e e2
+               | Just e <- E.lookup (idName i) h1 -> D.trace "???" moreRestrictive s1 s2 hm e e2
                | otherwise -> error "unmapped variable"
-    (_, Var i) | E.isSymbolic (idName i) h2 -> Nothing
+    (_, Var i) | E.isSymbolic (idName i) h2 -> D.trace "B" Nothing
                -- the case above means sym replaces non-sym
-               | Just e <- E.lookup (idName i) h2 -> moreRestrictive s1 s2 hm e1 e
+               | Just e <- E.lookup (idName i) h2 -> D.trace (show e) $ moreRestrictive s1 s2 hm e1 e
                | otherwise -> error "unmapped variable"
     (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s1 s2 hm f1 f2
-                           , Just hm_a <- moreRestrictive s1 s2 hm_f a1 a2 -> Just hm_a
-                           | otherwise -> Nothing
+                           , Just hm_a <- moreRestrictive s1 s2 hm_f a1 a2 -> D.trace "A" $ Just hm_a
+                           | otherwise -> D.trace "N" Nothing
     -- We just compare the names of the DataCons, not the types of the DataCons.
     -- This is because (1) if two DataCons share the same name, they must share the
     -- same type, but (2) "the same type" may be represented in different syntactic
     -- ways, most significantly bound variable names may differ
     -- "forall a . a" is the same type as "forall b . b", but fails a syntactic check.
     (Data (DataCon d1 _), Data (DataCon d2 _))
-                                  | d1 == d2 -> Just hm
-                                  | otherwise -> Nothing
+                                  | d1 == d2 -> D.trace "D" $ Just hm
+                                  | otherwise -> D.trace "E" Nothing
     -- TODO potential problems with type equality checking?
     (Prim p1 t1, Prim p2 t2) | p1 == p2
-                             , t1 == t2 -> Just hm
-                             | otherwise -> Nothing
+                             , t1 == t2 -> D.trace "F" $ Just hm
+                             | otherwise -> D.trace "G" Nothing
     -- TODO do I need to be more careful about Lit equality?
-    (Lit l1, Lit l2) | l1 == l2 -> Just hm
-                     | otherwise -> Nothing
+    (Lit l1, Lit l2) | l1 == l2 -> D.trace "H" $ Just hm
+                     | otherwise -> D.trace "I" Nothing
     -- TODO I presume I need syntactic equality for lambda expressions
     -- LamUse is a simple variant
     (Lam lu1 i1 b1, Lam lu2 i2 b2) | lu1 == lu2
-                                   , i1 == i2 -> moreRestrictive s1 s2 hm b1 b2
-                                   | otherwise -> Nothing
+                                   , i1 == i2 -> D.trace "J" $ moreRestrictive s1 s2 hm b1 b2
+                                   | otherwise -> D.trace "K" Nothing
     -- TODO ignore types, like in exprPairing?
-    (Type _, Type _) -> Just hm
-    _ -> Nothing
+    (Type _, Type _) -> D.trace "L" Just hm
+    -- _ -> D.trace (show (e1, e2)) $ error "nothing case"
+    _ -> D.trace "M" Nothing
 
 {-
 isMoreRestrictive :: State t ->
@@ -482,8 +485,8 @@ isMoreRestrictive s1 s2 =
   let CurrExpr _ e1 = curr_expr s1
       CurrExpr _ e2 = curr_expr s2
   in case moreRestrictive s1 s2 HM.empty e1 e2 of
-      Nothing -> False
-      Just _ -> True
+      Nothing -> D.trace "No" False
+      Just _ -> D.trace "Yes" True
 
 -- TODO check all elements of the HashSet
 -- see if any pair fits with isMoreRestrictive
