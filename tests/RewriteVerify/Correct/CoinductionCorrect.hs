@@ -34,7 +34,9 @@ intReverse [] = []
 intReverse (h:t) = (intReverse t) ++ [h]
 
 intMap :: (Int -> Int) -> [Int] -> [Int]
-intMap = Data.List.map
+--intMap = Data.List.map
+intMap _ [] = []
+intMap f (h:t) = (f h) : (intMap f t)
 
 intIterate :: (Int -> Int) -> Int -> [Int]
 intIterate f n = n : (intIterate f (f n))
@@ -47,7 +49,7 @@ t2 = (* 2)
 
 {-# RULES
 "doubleMap" forall l . intMap p1 (intMap t2 l) = intMap (p1 . t2) l
-"mapIterate" forall n . intMap p1 (intIterate p1 n) = intIterate p1 (n + 1)
+"mapIterate" forall n . intMap p1 (intIterate p1 n) = intIterate p1 (p1 n)
 "mapTake" forall n l . intMap p1 (intTake n l) = intTake n (intMap p1 l)
   #-}
 

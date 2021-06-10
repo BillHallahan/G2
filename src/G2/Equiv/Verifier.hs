@@ -29,7 +29,6 @@ import qualified G2.Language.PathConds as P
 import G2.Equiv.InitRewrite
 import G2.Equiv.EquivADT
 
--- TODO
 import qualified Data.HashMap.Lazy as HM
 
 exprReadyForSolver :: ExprEnv -> Expr -> Bool
@@ -48,7 +47,6 @@ statePairReadyForSolver (s1, s2) =
   in
   exprReadyForSolver h1 e1 && exprReadyForSolver h2 e2
 
--- TODO different underlying G2 usage
 runSymExec :: Config ->
               State () ->
               State () ->
@@ -100,16 +98,18 @@ verifyLoop solver ns_pair pairs states prev b1 b2 config | states /= [] = do
     let sp = (\(l1, l2) -> statePairing l1 l2 pairs)
         paired_lists = concatMap sp states'
         vl (s1, s2, hs) = verifyLoop' solver ns_pair s1 s2 prev hs
+    -- TODO
+    putStrLn "<Loop Iteration>"
     proof_list <- mapM vl paired_lists
     let proof_list' = [l | Just (_, l) <- proof_list]
         new_obligations = concat proof_list'
         -- TODO also get previously-solved equivalences to add to prev
         -- doesn't seem to help
         solved_list = concat [l | Just (l, _) <- proof_list]
-    let -- TODO do I really need all of these?
+        -- TODO do I really need all of these?
         new_prev = new_obligations ++ solved_list ++ prev
         -- new_prev = HS.union prev (HS.fromList new_obligations)
-    let verified = all isJust proof_list
+        verified = all isJust proof_list
     -- TODO wrapping may still be an issue here
     if verified then
         verifyLoop solver ns_pair pairs new_obligations new_prev b1' b2' config
@@ -134,14 +134,19 @@ verifyLoop' solver ns_pair s1 s2 prev assumption_set =
   let obligation_maybe = obligationStates s1 s2
   in case obligation_maybe of
       Nothing -> do
+          putStr "N! "
           putStrLn $ show (exprExtract s1, exprExtract s2)
           return Nothing
       Just obs -> do
+          putStr "J! "
           putStrLn $ show (exprExtract s1, exprExtract s2)
           let obligation_list = filter (not . (moreRestrictivePair ns_pair prev)) obs
               (ready, not_ready) = partition statePairReadyForSolver obligation_list
               ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
           res <- checkObligations solver s1 s2 assumption_set ready_exprs
+          case res of
+            S.UNSAT () -> putStrLn "V?"
+            _ -> putStrLn "X?"
           case res of
             S.UNSAT () -> return $ Just (ready, not_ready)
             _ -> return Nothing

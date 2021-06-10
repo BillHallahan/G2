@@ -404,14 +404,13 @@ runG2WithConfig state config bindings = do
 
     return (in_out, bindings')
 
--- TODO get names from symbolic ids in the state
+-- get names from symbolic ids in the state
 runG2ForRewriteV :: State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
 runG2ForRewriteV state config bindings = do
     SomeSolver solver <- initSolver config
     let simplifier = IdSimplifier
         sym_ids = symbolic_ids state
         sym_names = map idName sym_ids
-        -- sym_config = addSearchNames sym_names emptyMemConfig
         sym_config = addSearchNames (input_names bindings) emptyMemConfig
 
     (in_out, bindings') <- case initRedHaltOrd solver simplifier config of

@@ -16,6 +16,9 @@ maxOfInt x y = if x < y then y else x
 just :: t -> Maybe t
 just n = Just n
 
+t2 :: Int -> Int
+t2 = (* 2)
+
 {-# RULES
 "addOneCommutative" forall n . addOne n = 1 + n
 "doubleNegative" forall n . negation (negation n) = n
@@ -23,4 +26,5 @@ just n = Just n
 "maxWithSelf" forall x . maxOfInt x x = x
 "addOneJust" forall n . just (addOne n) = Just (1 + n)
 "justJust" forall (n :: Int) . just n = Just n
+"plusDouble" forall n . t2 n = n + n
   #-}
