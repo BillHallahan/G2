@@ -6,6 +6,7 @@ import DynFlags
 import System.Environment
 import System.FilePath
 
+import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
@@ -22,6 +23,8 @@ import G2.Equiv.EquivADT
 import G2.Equiv.Verifier
 
 import Control.Exception
+
+import Data.List
 
 main :: IO ()
 main = do
@@ -60,3 +63,6 @@ runWithArgs as = do
   res <- checkRule config init_state bindings rule'
   print res
   return ()
+
+mkMapSrc :: [String] -> Maybe String
+mkMapSrc a = strArg "mapsrc" a M.empty Just Nothing
