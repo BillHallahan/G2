@@ -30,9 +30,7 @@ import G2.Equiv.InitRewrite
 import G2.Equiv.EquivADT
 
 -- TODO
-import qualified Debug.Trace as D
 import qualified Data.HashMap.Lazy as HM
-import qualified G2.Language.Expr as X
 
 exprReadyForSolver :: ExprEnv -> Expr -> Bool
 exprReadyForSolver h (Var i) = E.isSymbolic (idName i) h && T.isPrimType (typeOf i)
@@ -119,11 +117,6 @@ verifyLoop solver ns_pair pairs states prev b1 b2 config | states /= [] = do
         return $ S.SAT ()
   | otherwise = return $ S.UNSAT ()
 
-{-
-currExprInsert :: State t -> Expr -> State t
-currExprInsert s e = s { curr_expr = CurrExpr Evaluate e }
--}
-
 exprExtract :: State t -> Expr
 exprExtract (State { curr_expr = CurrExpr _ e }) = e
 
@@ -140,8 +133,11 @@ verifyLoop' :: S.Solver solver =>
 verifyLoop' solver ns_pair s1 s2 prev assumption_set =
   let obligation_maybe = obligationStates s1 s2
   in case obligation_maybe of
-      Nothing -> do return Nothing
+      Nothing -> do
+          putStrLn $ show (exprExtract s1, exprExtract s2)
+          return Nothing
       Just obs -> do
+          putStrLn $ show (exprExtract s1, exprExtract s2)
           let obligation_list = filter (not . (moreRestrictivePair ns_pair prev)) obs
               (ready, not_ready) = partition statePairReadyForSolver obligation_list
               ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
@@ -149,46 +145,13 @@ verifyLoop' solver ns_pair s1 s2 prev assumption_set =
           case res of
             S.UNSAT () -> return $ Just (ready, not_ready)
             _ -> return Nothing
-  {-
-  -- TODO discard some obligations based on coinduction?
-  -- TODO can I use curr_expr as the initial expression?
-  -- TODO not sure about use of states here
-  let obligation_set = obligationStates s1 s2
-      -- TODO list and set naming
-      obligation_list = filter (not . (moreRestrictivePair ns_pair prev)) obligation_set
-      -- TODO adding difference to the returned list doesn't help
-  {-
-  putStr $ show $ length obligation_set
-  putStr ", "
-  putStr $ show $ length obligation_list
-  putStr "\n"
-  -}
-  -- putStrLn $ show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) prev
-  putStrLn $ show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) obligation_list
-  -- putStrLn $ show $ HS.toList assumption_set
-  let (ready, not_ready) = partition statePairReadyForSolver obligation_list
-      ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
-  -- TODO is it still right to use s1 and s2 here?
-  -- probably doesn't matter, check that nothing important changes
-  res <- checkObligations solver s1 s2 assumption_set ready_exprs
-  case res of
-      S.UNSAT () -> return $ Just (ready, not_ready)
-      _ -> return Nothing
-  -}
 
--- TODO badDropSum triggers the Nothing case
 getObligations :: State () -> State () -> Maybe (HS.HashSet (Expr, Expr))
 getObligations s1 s2 =
   let CurrExpr _ e1 = curr_expr s1
       CurrExpr _ e2 = curr_expr s2
   in proofObligations s1 s2 e1 e2
-  {-
-  in case proofObligations s1 s2 e1 e2 of
-      Nothing -> error "expressions not equivalent"
-      Just po -> po
-  -}
 
--- TODO wrap the expression pairs with their states
 obligationStates ::  State () -> State () -> Maybe [(State (), State ())]
 obligationStates s1 s2 =
   let stateWrap (e1, e2) =
@@ -229,8 +192,7 @@ applySolver solver extraPC s1 s2 =
         unionPC = foldr P.insert (path_conds s1) rightPC
         allPC = foldr P.insert unionPC (P.toList extraPC)
         newState = s1 { expr_env = unionEnv, path_conds = allPC }
-    in
-    S.check solver newState allPC
+    in S.check solver newState allPC
 
 -- TODO replace with equivalent function from other branch G2q-merge-final
 assumptionWrap :: (Expr, Expr) -> PathCond
@@ -259,12 +221,12 @@ checkRule config init_state bindings rule = do
       (rewrite_state_r, bindings_r) = initWithRHS init_state bindings $ rule
       pairs_l = symbolic_ids rewrite_state_l
       pairs_r = symbolic_ids rewrite_state_r
+      -- convert from State t to State ()
       rewrite_state_l' = rewrite_state_l {track = ()}
       rewrite_state_r' = rewrite_state_r {track = ()}
       ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
       ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
   S.SomeSolver solver <- initSolver config
-  -- convert from State t to State ()
   res <- verifyLoop solver (ns_l, ns_r) (zip pairs_l pairs_r)
              [(rewrite_state_l', rewrite_state_r')]
              [(rewrite_state_l', rewrite_state_r')]
@@ -273,9 +235,6 @@ checkRule config init_state bindings rule = do
   return res
 
 -- s1 is the old state, s2 is the new state
--- TODO look at var mappings in expr envs, not just the hash map
--- TODO use exprs as recursive arguments
--- no need for extra state manipulation then
 moreRestrictive :: State t ->
                    State t ->
                    HS.HashSet Name ->
@@ -283,23 +242,17 @@ moreRestrictive :: State t ->
                    Expr ->
                    Expr ->
                    Maybe (HM.HashMap Id Expr)
---moreRestrictive _ _ _ _ hm e1 e2 | e1 == e2 = Just hm
 moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e2 =
   case (e1, e2) of
     (Var i1, Var i2) | HS.member (idName i1) ns
                      , idName i1 == idName i2 -> Just hm
-    (Var i, _) -- | HS.member (idName i) ns -> error $ show (i, e2)
-               | E.isSymbolic (idName i) h1
+    (Var i, _) | E.isSymbolic (idName i) h1
                , Nothing <- HM.lookup i hm -> Just (HM.insert i e2 hm)
-               {-
-               | E.isSymbolic (idName i) h1
-               , Just e <- HM.lookup i hm -> D.trace "&&&" $ moreRestrictive s1 s2 hm e e2
-               -}
                | E.isSymbolic (idName i) h1
                , Just e <- HM.lookup i hm
                , e == e2 -> Just hm
                -- this last case means there's a mismatch
-               -- | E.isSymbolic (idName i) h1 -> Nothing
+               | E.isSymbolic (idName i) h1 -> Nothing
                -- non-symbolic cases
                | not $ HS.member (idName i) ns
                , Just e <- E.lookup (idName i) h1 -> moreRestrictive s1 s2 ns hm e e2
@@ -323,7 +276,6 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
     (Prim p1 t1, Prim p2 t2) | p1 == p2
                              , t1 == t2 -> Just hm
                              | otherwise -> Nothing
-    -- TODO do I need to be more careful about Lit equality?
     (Lit l1, Lit l2) | l1 == l2 -> Just hm
                      | otherwise -> Nothing
     -- TODO I presume I need syntactic equality for lambda expressions
@@ -334,7 +286,6 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
     -- TODO ignore types, like in exprPairing?
     (Type _, Type _) -> Just hm
     --(Case e1' i1 a1, Case e2' i2 a2) | i1 == i2
-    -- _ -> D.trace (show (e1, e2)) $ error "nothing case"
     _ -> Nothing
 
 isMoreRestrictive :: State t ->
