@@ -28,6 +28,7 @@ module G2.Interface.Interface ( MkCurrExpr
 
                               , runG2FromFile
                               , runG2WithConfig
+                              , runG2ForRewriteV
                               , runG2WithSomes
                               , runG2Pre
                               , runG2Post
@@ -398,6 +399,26 @@ runG2WithConfig state config bindings = do
     (in_out, bindings') <- case initRedHaltOrd solver simplifier config of
                 (red, hal, ord) ->
                     runG2WithSomes red hal ord solver simplifier emptyMemConfig state bindings
+
+    close solver
+
+    return (in_out, bindings')
+
+-- get names from symbolic ids in the state
+runG2ForRewriteV :: State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
+runG2ForRewriteV state config bindings = do
+    SomeSolver solver <- initSolver config
+    let simplifier = IdSimplifier
+        sym_ids = symbolic_ids state
+        sym_names = map idName sym_ids
+        sym_config = addSearchNames (input_names bindings) emptyMemConfig
+
+    (in_out, bindings') <- case initRedHaltOrd solver simplifier config of
+                (red, hal, ord) ->
+                    let
+                        red' = red <~ SomeReducer ConcSymReducer
+                    in
+                    runG2WithSomes red' hal ord solver simplifier sym_config state bindings
 
     close solver
 

@@ -25,6 +25,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             -- Reducers
                             , RCombiner (..)
                             , StdRed (..)
+                            , ConcSymReducer (..)
                             , NonRedPCRed (..)
                             , TaggerRed (..)
                             , Logger (..)
@@ -76,6 +77,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Execution.Rules
 import G2.Language
 import qualified G2.Language.Monad as MD
+import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stck
 import G2.Solver
 import G2.Lib.Printers
@@ -346,6 +348,68 @@ instance (Solver solver, Simplifier simplifier) => Reducer (StdRed solver simpli
         (r, s', b') <- stdReduce share solver simplifier s b
         
         return (if r == RuleIdentity then Finished else InProgress, s', b', stdr)
+
+data ConcSymReducer = ConcSymReducer
+
+-- Forces a lone symbolic variable with a type corresponding to an ADT
+-- to evaluate to some value of that ADT
+instance Reducer ConcSymReducer () t where
+    initReducer _ _ = ()
+
+    redRules red _ s@(State { curr_expr = CurrExpr _ (Var i@(Id n t))
+                            , expr_env = eenv
+                            , type_env = tenv
+                            , path_conds = pc
+                            , symbolic_ids = symbs })
+                   b@(Bindings { name_gen = ng })
+        | E.isSymbolic n eenv
+        , Just (dc_symbs, ng') <- arbDC tenv ng t = do
+            let 
+                xs = map (\(e, symbs') ->
+                                s   { curr_expr = CurrExpr Evaluate e
+                                    , expr_env =
+                                        foldr (\i -> E.insertSymbolic (idName i) i)
+                                              (E.insert n e eenv)
+                                              symbs'
+                                    , symbolic_ids = symbs' ++ L.delete i symbs
+                                    }) dc_symbs
+                b' =  b { name_gen = ng' }
+            return (InProgress, zip xs (repeat ()) , b', red)
+    redRules red _ s b = return (NoProgress, [(s, ())], b, red)
+
+-- | Build a case expression with one alt for each data constructor of the given type
+-- and symbolic arguments.  Thus, the case expression could evaluate to any value of the
+-- given type.
+arbDC :: TypeEnv
+      -> NameGen
+      -> Type
+      -> Maybe ([(Expr, [Id])], NameGen)
+arbDC tenv ng t
+    | TyCon tn _:ts <- unTyApp t
+    , Just adt <- M.lookup tn tenv =
+        let
+            dcs = dataCon adt
+            (bindee_id, ng') = freshId TyLitInt ng
+
+            bound = boundIds adt
+            bound_ts = zip bound ts
+
+            ty_apped_dcs = map (\dc -> mkApp $ Data dc:map Type ts) dcs
+            (ng'', dc_symbs) = 
+                L.mapAccumL
+                    (\ng_ dc ->
+                        let
+                            anon_ts = anonArgumentTypes dc
+                            re_anon = foldr (\(i, t) -> retype i t) anon_ts bound_ts
+                            (ars, ng_') = freshIds re_anon ng_
+                        in
+                        (ng_', (mkApp $ dc:map Var ars, ars))
+                    )
+                    ng'
+                    ty_apped_dcs
+        in
+        Just (dc_symbs, ng'')
+    | otherwise = Nothing
 
 -- | Removes and reduces the values in a State's non_red_path_conds field. 
 data NonRedPCRed = NonRedPCRed
