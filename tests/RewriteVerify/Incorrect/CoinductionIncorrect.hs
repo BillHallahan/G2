@@ -1,5 +1,7 @@
 module CoinductionIncorrect where
 
+import Data.List
+
 -- TODO make sure this is correct
 intForce :: [Int] -> [Int]
 intForce [] = []
@@ -52,7 +54,7 @@ t2 = (* 2)
 -- some of these rules are incorrect only because of laziness
 {-# RULES
 "forceDoesNothing" forall l . intForce l = l
-"badDropSum" forall n m l . intDrop n $ intDrop m l = intDrop (n + m) l
+"badDropSum" forall n m l . intDrop n (intDrop m l) = intDrop (n + m) l
 "doubleTake" forall n m l . intTake n (intTake m l) = intTake n l
 "badDoubleReverse" forall l . intReverse (intReverse l) = l
   #-}

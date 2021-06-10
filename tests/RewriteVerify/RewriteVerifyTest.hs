@@ -67,19 +67,19 @@ bad_names = [ "badMaybeForce"
             , "badNegation"
             , "badMax"
             , "badMaxLeft"
-            -- , "badJust"
+            , "badJust"
             , "badTuple" ]
 
 bad_src :: String
 bad_src = "tests/RewriteVerify/Incorrect/SimpleIncorrect.hs"
 
 coinduction_good_names :: [String]
-coinduction_good_names = [ -- "forceIdempotent"
-                         -- , "dropNoRecursion"
-                         -- , "takeIdempotent"
-                         -- , "doubleReverse" ]
-                         "doubleMap" ]
-                         -- , "mapIterate" ]
+coinduction_good_names = [ "forceIdempotent"
+                         , "dropNoRecursion"
+                         , "takeIdempotent"
+                         , "doubleReverse"
+                         , "doubleMap"
+                         , "mapIterate" ]
 
 coinduction_good_src :: String
 coinduction_good_src = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"

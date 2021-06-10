@@ -70,11 +70,10 @@ tests = testGroup "Tests"
         -- , simplificationTests
         -- , ufMapQuickcheck
         -- , unionFindQuickcheck
-        -- , rewriteVerifyTestsGood
-        -- , rewriteVerifyTestsBad
-        --,
-        coinductionTestsGood
-        -- , coinductionTestsBad
+          rewriteVerifyTestsGood
+        , rewriteVerifyTestsBad
+        , coinductionTestsGood
+        , coinductionTestsBad
         ]
 
 timeout :: Timeout
