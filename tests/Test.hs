@@ -72,8 +72,8 @@ tests = testGroup "Tests"
         -- , unionFindQuickcheck
           rewriteVerifyTestsGood
         , rewriteVerifyTestsBad
-        , coinductionTestsGood
-        , coinductionTestsBad
+        -- , coinductionTestsGood
+        -- , coinductionTestsBad
         ]
 
 timeout :: Timeout

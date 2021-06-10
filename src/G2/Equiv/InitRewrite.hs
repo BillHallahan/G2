@@ -5,8 +5,6 @@ import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.Typing as T
 import qualified G2.Language.Expr as X
 
-import qualified G2.Language.Naming as N
-
 addSymbolic :: Id -> ExprEnv -> ExprEnv
 addSymbolic i =
   E.insertSymbolic (idName i) i
