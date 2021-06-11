@@ -51,13 +51,20 @@ statePairReadyForSolver (s1, s2) =
 runSymExec :: Config ->
               State () ->
               State () ->
-              CM.StateT (Bindings, Bindings) IO ([State ()], [State ()])
+              CM.StateT Bindings IO [(State (), State ())]
 runSymExec config s1 s2 = do
-  (bindings1, bindings2) <- CM.get
-  (exec_res1, bindings1') <- CM.lift $ runG2ForRewriteV s1 config bindings1
-  (exec_res2, bindings2') <- CM.lift $ runG2ForRewriteV s2 config bindings2
-  CM.put (bindings1', bindings2')
-  return (map final_state exec_res1, map final_state exec_res2)
+  bindings <- CM.get
+  (er1, bindings') <- CM.lift $ runG2WithConfig s1 config bindings
+  CM.put bindings'
+  let final_s1 = map final_state er1
+  pairs <- mapM (\s1_ -> do
+                    b_ <- CM.get
+                    let s2_ = s2 { expr_env = E.union (expr_env s1_) (expr_env s2)
+                                 , path_conds = foldr P.insert (path_conds s1_) (P.toList (path_conds s2)) }
+                    (er2, b_') <- CM.lift $ runG2WithConfig s2_ config b_
+                    CM.put b_'
+                    return $ map (\er2_ -> (s1_, final_state er2_)) er2) final_s1
+  return $ concat pairs
 
 runVerifier :: S.Solver solver =>
                solver ->
@@ -72,8 +79,8 @@ runVerifier solver entry init_state bindings config = do
         rule' = case rule of
                 Just r -> r
                 Nothing -> error "not found"
-    let (rewrite_state_l, bindings_l) = initWithLHS init_state bindings $ rule'
-        (rewrite_state_r, bindings_r) = initWithRHS init_state bindings $ rule'
+    let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule'
+        (rewrite_state_r, bindings'') = initWithRHS init_state bindings $ rule'
     let pairs_l = symbolic_ids rewrite_state_l
         pairs_r = symbolic_ids rewrite_state_r
         ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
@@ -81,7 +88,7 @@ runVerifier solver entry init_state bindings config = do
     verifyLoop solver (ns_l, ns_r) (zip pairs_l pairs_r)
                [(rewrite_state_l, rewrite_state_r)]
                [(rewrite_state_l, rewrite_state_r)]
-               bindings_l bindings_r config
+               bindings'' config
 
 -- build initial hash set in Main before calling
 verifyLoop :: S.Solver solver =>
@@ -91,17 +98,14 @@ verifyLoop :: S.Solver solver =>
               [(State (), State ())] ->
               [(State (), State ())] ->
               Bindings ->
-              Bindings ->
               Config ->
               IO (S.Result () ())
-verifyLoop solver ns_pair pairs states prev b1 b2 config | states /= [] = do
-    (states', (b1', b2')) <- CM.runStateT (mapM (uncurry (runSymExec config)) states) (b1, b2)
-    let sp = (\(l1, l2) -> statePairing l1 l2 pairs)
-        paired_lists = concatMap sp states'
-        vl (s1, s2, hs) = verifyLoop' solver ns_pair s1 s2 prev hs
+verifyLoop solver ns_pair pairs states prev b config | states /= [] = do
+    (paired_states, b') <- CM.runStateT (mapM (uncurry (runSymExec config)) states) b
+    let vl (s1, s2) = verifyLoop' solver ns_pair s1 s2 prev
     -- TODO
     putStrLn "<Loop Iteration>"
-    proof_list <- mapM vl paired_lists
+    proof_list <- mapM vl $ concat paired_states
     let proof_list' = [l | Just (_, l) <- proof_list]
         new_obligations = concat proof_list'
         -- TODO also get previously-solved equivalences to add to prev
@@ -113,7 +117,7 @@ verifyLoop solver ns_pair pairs states prev b1 b2 config | states /= [] = do
         verified = all isJust proof_list
     -- TODO wrapping may still be an issue here
     if verified then
-        verifyLoop solver ns_pair pairs new_obligations new_prev b1' b2' config
+        verifyLoop solver ns_pair pairs new_obligations new_prev b' config
     else
         return $ S.SAT ()
   | otherwise = return $ S.UNSAT ()
@@ -129,9 +133,8 @@ verifyLoop' :: S.Solver solver =>
                State () ->
                State () ->
                [(State (), State ())] ->
-               HS.HashSet (Expr, Expr) ->
                IO (Maybe ([(State (), State ())], [(State (), State ())]))
-verifyLoop' solver ns_pair s1 s2 prev assumption_set =
+verifyLoop' solver ns_pair s1 s2 prev =
   let obligation_maybe = obligationStates s1 s2
   in case obligation_maybe of
       Nothing -> do
@@ -144,7 +147,7 @@ verifyLoop' solver ns_pair s1 s2 prev assumption_set =
           let obligation_list = filter (not . (moreRestrictivePair ns_pair prev)) obs
               (ready, not_ready) = partition statePairReadyForSolver obligation_list
               ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
-          res <- checkObligations solver s1 s2 assumption_set ready_exprs
+          res <- checkObligations solver s1 s2 ready_exprs
           case res of
             S.UNSAT () -> putStrLn "V?"
             _ -> putStrLn "X?"
@@ -172,18 +175,11 @@ checkObligations :: S.Solver solver =>
                     State () ->
                     State () ->
                     HS.HashSet (Expr, Expr) ->
-                    HS.HashSet (Expr, Expr) ->
                     IO (S.Result () ())
-checkObligations solver s1 s2 assumption_set obligation_set | not $ HS.null obligation_set =
-    let maybeAllPO = obligationWrap obligation_set
-        -- snd should have the same type
-        assumption_set' = HS.filter (isPrimType . typeOf . fst) assumption_set
-        assumptionPC = HS.toList $ HS.map assumptionWrap assumption_set'
-        newPC = foldr P.insert P.empty (assumptionPC)
-    in
-    case maybeAllPO of
-        Nothing -> applySolver solver newPC s1 s2
-        Just allPO -> applySolver solver (P.insert allPO newPC) s1 s2
+checkObligations solver s1 s2 obligation_set | not $ HS.null obligation_set =
+    case obligationWrap obligation_set of
+        Nothing -> applySolver solver P.empty s1 s2
+        Just allPO -> applySolver solver (P.insert allPO P.empty) s1 s2
   | otherwise = return $ S.UNSAT ()
 
 applySolver :: S.Solver solver =>
@@ -199,12 +195,6 @@ applySolver solver extraPC s1 s2 =
         allPC = foldr P.insert unionPC (P.toList extraPC)
         newState = s1 { expr_env = unionEnv, path_conds = allPC }
     in S.check solver newState allPC
-
--- TODO replace with equivalent function from other branch G2q-merge-final
-assumptionWrap :: (Expr, Expr) -> PathCond
-assumptionWrap (e1, e2) =
-    -- TODO what type for the equality?
-    ExtCond (App (App (Prim Eq TyUnknown) e1) e2) True
 
 obligationWrap :: HS.HashSet (Expr, Expr) -> Maybe PathCond
 obligationWrap obligations =
@@ -223,8 +213,9 @@ checkRule :: Config ->
              RewriteRule ->
              IO (S.Result () ())
 checkRule config init_state bindings rule = do
-  let (rewrite_state_l, bindings_l) = initWithLHS init_state bindings $ rule
-      (rewrite_state_r, bindings_r) = initWithRHS init_state bindings $ rule
+  let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
+      (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
+      eenv = E.union (expr_env rewrite_state_l) (expr_env rewrite_state_r)
       pairs_l = symbolic_ids rewrite_state_l
       pairs_r = symbolic_ids rewrite_state_r
       -- convert from State t to State ()
@@ -236,7 +227,7 @@ checkRule config init_state bindings rule = do
   res <- verifyLoop solver (ns_l, ns_r) (zip pairs_l pairs_r)
              [(rewrite_state_l', rewrite_state_r')]
              [(rewrite_state_l', rewrite_state_r')]
-             bindings_l bindings_r config
+             bindings'' config
   -- UNSAT for good, SAT for bad
   return res
 
