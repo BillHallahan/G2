@@ -74,12 +74,13 @@ bad_src :: String
 bad_src = "tests/RewriteVerify/Incorrect/SimpleIncorrect.hs"
 
 coinduction_good_names :: [String]
-coinduction_good_names = [ "forceIdempotent"
-                         , "dropNoRecursion"
+coinduction_good_names = [ -- "forceIdempotent"
+                         -- , "dropNoRecursion"
+                         , "mapTake"
                          , "takeIdempotent"
-                         , "doubleReverse"
-                         , "doubleMap"
-                         , "mapIterate" ]
+                         -- , "doubleReverse"
+                         , "doubleMap" ]
+                         -- , "mapIterate" ]
 
 coinduction_good_src :: String
 coinduction_good_src = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"
