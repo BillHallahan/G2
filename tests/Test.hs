@@ -60,17 +60,17 @@ main = do
 -- TODO commenting some out to speed up testing
 tests :: TestTree
 tests = testGroup "Tests"
-        [ -- sampleTests
-        -- , liquidTests
-        -- , testFileTests
-        -- , baseTests
-        -- , primTests
-        -- , exprTests
-        -- , typingTests
-        -- , simplificationTests
-        -- , ufMapQuickcheck
-        -- , unionFindQuickcheck
-          rewriteVerifyTestsGood
+        [ sampleTests
+        , liquidTests
+        , testFileTests
+        , baseTests
+        , primTests
+        , exprTests
+        , typingTests
+        , simplificationTests
+        , ufMapQuickcheck
+        , unionFindQuickcheck
+        , rewriteVerifyTestsGood
         , rewriteVerifyTestsBad
         -- , coinductionTestsGood
         -- , coinductionTestsBad

@@ -28,6 +28,7 @@ import qualified G2.Language.PathConds as P
 
 import G2.Equiv.InitRewrite
 import G2.Equiv.EquivADT
+import G2.Equiv.G2Calls
 
 import qualified Data.HashMap.Lazy as HM
 
