@@ -36,6 +36,7 @@ library
 
                        , G2.Equiv.InitRewrite
                        , G2.Equiv.EquivADT
+                       , G2.Equiv.G2Calls
                        , G2.Equiv.Verifier
 
                        , G2.Execution
