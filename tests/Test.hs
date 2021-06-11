@@ -70,7 +70,7 @@ tests = testGroup "Tests"
         , simplificationTests
         , ufMapQuickcheck
         , unionFindQuickcheck
-          rewriteVerifyTestsGood
+        , rewriteVerifyTestsGood
         , rewriteVerifyTestsBad
         -- , coinductionTestsGood
         -- , coinductionTestsBad
