@@ -29,7 +29,9 @@ assumptions s1 s2 e1 e2 =
 
 idPairing :: State t -> State t -> (Id, Id) -> Maybe (HS.HashSet (Expr, Expr))
 idPairing s1 s2 (i1, i2) =
-  assumptions s1 s2 (Var i1) (Var i2)
+  case assumptions s1 s2 (Var i1) (Var i2) of
+    Just hs -> D.trace (show hs) $ D.trace (show (i1, i2)) $ Just hs
+    Nothing -> Nothing
 
 exprPairing :: State t ->
                State t ->
@@ -53,8 +55,7 @@ exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs =
                 ep' hs p = ep p hs
                 l = zip l1 l2
             in foldM ep' pairs l
-            else Nothing -- Just (HS.insert (e1, e2) pairs)
-            -- TODO solve here like I do for one App?
+            else Nothing
             -- D.trace "AAA" $ D.trace (show (e1, e2)) $ D.trace "aaa" $ Nothing
     (App _ _, _) -> Just (HS.insert (e1, e2) pairs)
     (_, App _ _) -> Just (HS.insert (e1, e2) pairs)
@@ -62,8 +63,6 @@ exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs =
                        | d1 == d2 -> Just pairs
                        | otherwise -> D.trace "BBB" Nothing
     -- TODO Error and Undefined primitives
-    -- (Prim Error _, Prim Error _) -> Just pairs
-    -- (Prim Undefined _, Prim Undefined _) -> Just pairs
     (Prim p1 _, Prim p2 _) | p1 == Error || p1 == Undefined
                            , p2 == Error || p2 == Undefined -> Just pairs
     (Prim _ _, _) -> Just (HS.insert (e1, e2) pairs)

@@ -25,9 +25,31 @@ intTake :: Int -> [Int] -> [Int]
 intTake 0 _ = []
 intTake n (h:t) =
   if n < 0
-  then error "negative input"
+  then [] -- error "negative input"
   else h:(intTake (n - 1) t)
+intTake _ [] = [] -- error "list not long enough"
+
+{-
+intTake 0 _ = []
+intTake n (h:t) | n > 0 = h:(intTake (n - 1) t)
+intTake _ (_:_) = error "negative input"
 intTake _ [] = error "list not long enough"
+-}
+
+{-
+intTake n l = case l of
+  [] -> if n == 0 then [] else error "list not long enough"
+  h:t -> if n > 0 then h:(intTake (n - 1) t)
+         else if n == 0 then []
+         else error "negative input"
+-}
+
+{-
+intTake n l =
+  if n == 0 then []
+  else if n > 0 then (head l):(intTake (n - 1) (tail l))
+  else error "negative input"
+-}
 
 intReverse :: [Int] -> [Int]
 intReverse [] = []
@@ -51,6 +73,7 @@ t2 = (* 2)
 "doubleMap" forall l . intMap p1 (intMap t2 l) = intMap (p1 . t2) l
 "mapIterate" forall n . intMap p1 (intIterate p1 n) = intIterate p1 (p1 n)
 "mapTake" forall n l . intMap p1 (intTake n l) = intTake n (intMap p1 l)
+"additionSimple" forall n . p1 n = n + 1
   #-}
 
 {-# RULES
