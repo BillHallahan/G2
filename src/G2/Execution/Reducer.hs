@@ -395,6 +395,7 @@ arbDC tenv ng t
             bound_ts = zip bound ts
 
             ty_apped_dcs = map (\dc -> mkApp $ Data dc:map Type ts) dcs
+            ty_apped_dcs' = (Prim Error TyUnknown):ty_apped_dcs
             (ng'', dc_symbs) = 
                 L.mapAccumL
                     (\ng_ dc ->
@@ -406,7 +407,7 @@ arbDC tenv ng t
                         (ng_', (mkApp $ dc:map Var ars, ars))
                     )
                     ng'
-                    ty_apped_dcs
+                    ty_apped_dcs'
         in
         Just (dc_symbs, ng'')
     | otherwise = Nothing

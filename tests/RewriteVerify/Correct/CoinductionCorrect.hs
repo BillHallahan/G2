@@ -51,6 +51,7 @@ t2 = (* 2)
 "doubleMap" forall l . intMap p1 (intMap t2 l) = intMap (p1 . t2) l
 "mapIterate" forall n . intMap p1 (intIterate p1 n) = intIterate p1 (p1 n)
 "mapTake" forall n l . intMap p1 (intTake n l) = intTake n (intMap p1 l)
+"takeDropCancel" forall n l . intDrop n (intTake n l) = []
   #-}
 
 {-# RULES

@@ -1,13 +1,23 @@
+{-# LANGUAGE BangPatterns #-}
+
 module CoinductionIncorrect where
 
 import Data.List
+
+--cons :: t -> [t] -> [t]
+--cons n l = n:l
 
 -- TODO make sure this is correct
 intForce :: [Int] -> [Int]
 intForce [] = []
 intForce (h:t) =
+-- cons h $! t
   case intForce t of
     t' -> h:t'
+
+maybeForce :: Maybe t -> Maybe t
+maybeForce Nothing = Nothing
+maybeForce (Just !x) = Just x
 
 -- also have a rule about a non-strict function
 -- TODO runs forever on negatives, has error case
@@ -53,6 +63,7 @@ t2 = (* 2)
 
 -- some of these rules are incorrect only because of laziness
 {-# RULES
+"badMaybeForce" forall (m :: Maybe Int) . maybeForce m = m
 "forceDoesNothing" forall l . intForce l = l
 "badDropSum" forall n m l . intDrop n (intDrop m l) = intDrop (n + m) l
 "doubleTake" forall n m l . intTake n (intTake m l) = intTake n l
