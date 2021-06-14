@@ -1,9 +1,4 @@
-module RewriteVerify.RewriteVerifyTest
-    ( rewriteVerifyTestsGood
-    , rewriteVerifyTestsBad
-    , coinductionTestsGood
-    , coinductionTestsBad
-    ) where
+module RewriteVerify.RewriteVerifyTest ( rewriteTests ) where
 
 -- TODO
 import qualified Debug.Trace as D
@@ -94,6 +89,20 @@ coinduction_bad_names = [ "forceDoesNothing"
 coinduction_bad_src :: String
 coinduction_bad_src = "tests/RewriteVerify/Incorrect/CoinductionIncorrect.hs"
 
+higher_good_names :: [String]
+higher_good_names = [ "doubleMap"
+                    , "mapIterate"
+                    , "mapTake" ]
+
+higher_good_src :: String
+higher_good_src = "tests/RewriteVerify/Correct/HigherOrderCorrect.hs"
+
+higher_bad_names :: [String]
+higher_bad_names = [ "direct" ]
+
+higher_bad_src :: String
+higher_bad_src = "tests/RewriteVerify/Incorrect/HigherIncorrect.hs"
+
 -- no need for general mkMapSrc
 libs :: [String]
 libs = maybeToList $ strArg "mapsrc" [] M.empty Just Nothing
@@ -128,3 +137,23 @@ coinductionTestsGood =
 coinductionTestsBad :: TestTree
 coinductionTestsBad =
   testCase "CoinductionBad" $ rvTest rejectRule coinduction_bad_src coinduction_bad_names
+
+higherOrderTestsGood :: TestTree
+higherOrderTestsGood =
+  testCase "HigherOrderGood" $ rvTest acceptRule higher_good_src higher_good_names
+
+higherOrderTestsBad :: TestTree
+higherOrderTestsBad =
+  testCase "HigherOrderBad" $ rvTest rejectRule higher_bad_src higher_bad_names
+
+rewriteTests :: TestTree
+rewriteTests = testGroup "Rewrite Tests"
+        [ rewriteVerifyTestsGood
+        , rewriteVerifyTestsBad
+        , coinductionTestsGood
+        , coinductionTestsBad
+        , higherOrderTestsGood
+        , higherOrderTestsBad
+        ]
+
+
