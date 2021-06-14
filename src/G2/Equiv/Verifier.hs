@@ -32,6 +32,8 @@ import G2.Equiv.G2Calls
 
 import qualified Data.HashMap.Lazy as HM
 
+import Debug.Trace
+
 exprReadyForSolver :: ExprEnv -> Expr -> Bool
 exprReadyForSolver h (Var i) = E.isSymbolic (idName i) h && T.isPrimType (typeOf i)
 exprReadyForSolver h (App f a) = exprReadyForSolver h f && exprReadyForSolver h a
@@ -49,27 +51,44 @@ statePairReadyForSolver (s1, s2) =
   exprReadyForSolver h1 e1 && exprReadyForSolver h2 e2
 
 runSymExec :: Config ->
-              State () ->
-              State () ->
-              CM.StateT Bindings IO [(State (), State ())]
+              StateET ->
+              StateET ->
+              CM.StateT Bindings IO [(StateET, StateET)]
 runSymExec config s1 s2 = do
   bindings <- CM.get
-  (er1, bindings') <- CM.lift $ runG2WithConfig s1 config bindings
+  (er1, bindings') <- CM.lift $ runG2ForRewriteV s1 config bindings
   CM.put bindings'
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
                     b_ <- CM.get
-                    let s2_ = s2 { expr_env = E.union (expr_env s1_) (expr_env s2)
-                                 , path_conds = foldr P.insert (path_conds s1_) (P.toList (path_conds s2)) }
-                    (er2, b_') <- CM.lift $ runG2WithConfig s2_ config b_
+                    let s2_ = transferStateInfo s1_ s2
+                    (er2, b_') <- CM.lift $ runG2ForRewriteV s2_ config b_
                     CM.put b_'
-                    return $ map (\er2_ -> (s1_, final_state er2_)) er2) final_s1
+                    return $ map (\er2_ -> 
+                                    let
+                                        s2_' = final_state er2_
+                                        s1_' = transferStateInfo s2_' s1_
+                                    in
+                                    (s1_', s2_')
+                                 ) er2) final_s1
   return $ concat pairs
+
+-- After s1 has had it's expr_env, path constraints, and tracker updated,
+-- transfer these updates to s2.
+transferStateInfo :: State t -> State t -> State t
+transferStateInfo s1 s2 =
+    let
+        n_eenv = E.union (expr_env s1) (expr_env s2)
+    in
+    s2 { expr_env = n_eenv
+       , path_conds = foldr P.insert (path_conds s1) (P.toList (path_conds s2))
+       , symbolic_ids = map (\(Var i) -> i) . E.elems $ E.filterToSymbolic n_eenv
+       , track = track s1 }
 
 runVerifier :: S.Solver solver =>
                solver ->
                String ->
-               State () ->
+               StateET ->
                Bindings ->
                Config ->
                IO (S.Result () ())
@@ -95,12 +114,12 @@ verifyLoop :: S.Solver solver =>
               solver ->
               (HS.HashSet Name, HS.HashSet Name) ->
               [(Id, Id)] ->
-              [(State (), State ())] ->
-              [(State (), State ())] ->
+              [(StateET, StateET)] ->
+              [(StateET, StateET)] ->
               Bindings ->
               Config ->
               IO (S.Result () ())
-verifyLoop solver ns_pair pairs states prev b config | states /= [] = do
+verifyLoop solver ns_pair pairs states prev b config | not (null states) = do
     (paired_states, b') <- CM.runStateT (mapM (uncurry (runSymExec config)) states) b
     let vl (s1, s2) = verifyLoop' solver ns_pair s1 s2 prev
     -- TODO
@@ -130,10 +149,10 @@ exprExtract (State { curr_expr = CurrExpr _ e }) = e
 verifyLoop' :: S.Solver solver =>
                solver ->
                (HS.HashSet Name, HS.HashSet Name) ->
-               State () ->
-               State () ->
-               [(State (), State ())] ->
-               IO (Maybe ([(State (), State ())], [(State (), State ())]))
+               StateET ->
+               StateET ->
+               [(StateET, StateET)] ->
+               IO (Maybe ([(StateET, StateET)], [(StateET, StateET)]))
 verifyLoop' solver ns_pair s1 s2 prev =
   let obligation_maybe = obligationStates s1 s2
   in case obligation_maybe of
@@ -155,13 +174,13 @@ verifyLoop' solver ns_pair s1 s2 prev =
             S.UNSAT () -> return $ Just (ready, not_ready)
             _ -> return Nothing
 
-getObligations :: State () -> State () -> Maybe (HS.HashSet (Expr, Expr))
+getObligations :: State t -> State t -> Maybe (HS.HashSet (Expr, Expr))
 getObligations s1 s2 =
   let CurrExpr _ e1 = curr_expr s1
       CurrExpr _ e2 = curr_expr s2
   in proofObligations s1 s2 e1 e2
 
-obligationStates ::  State () -> State () -> Maybe [(State (), State ())]
+obligationStates ::  State t -> State t -> Maybe [(State t, State t)]
 obligationStates s1 s2 =
   let stateWrap (e1, e2) =
         ( s1 { curr_expr = CurrExpr Evaluate e1 }
@@ -172,8 +191,8 @@ obligationStates s1 s2 =
 
 checkObligations :: S.Solver solver =>
                     solver ->
-                    State () ->
-                    State () ->
+                    State t ->
+                    State t ->
                     HS.HashSet (Expr, Expr) ->
                     IO (S.Result () ())
 checkObligations solver s1 s2 obligation_set | not $ HS.null obligation_set =
@@ -219,8 +238,8 @@ checkRule config init_state bindings rule = do
       pairs_l = symbolic_ids rewrite_state_l
       pairs_r = symbolic_ids rewrite_state_r
       -- convert from State t to State ()
-      rewrite_state_l' = rewrite_state_l {track = ()}
-      rewrite_state_r' = rewrite_state_r {track = ()}
+      rewrite_state_l' = rewrite_state_l {track = emptyEquivTracker}
+      rewrite_state_r' = rewrite_state_r {track = emptyEquivTracker}
       ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
       ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
   S.SomeSolver solver <- initSolver config
