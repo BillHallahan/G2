@@ -717,7 +717,7 @@ evalMeasures' s bindings solver config meas tcv init_meas e =  do
                 case er of
                     [er'] -> 
                         let 
-                            CurrExpr _ e_out = curr_expr . final_state $ er'
+                            e_out = conc_out er'
                         in
                         return $ HM.insertWith HM.union e_in (HM.singleton ns e_out) meas_exs
                     [] -> return $ HM.insertWith HM.union e_in (HM.singleton ns (Prim Undefined TyBottom)) meas_exs
