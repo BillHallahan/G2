@@ -54,6 +54,8 @@ rewriteRedHaltOrd solver simplifier config =
 
 type StateET = State EquivTracker
 
+-- Maps higher order function calles to symbolic replacements.
+-- This allows the same call to be replaced by the same Id consistently.
 newtype EquivTracker = EquivTracker (HM.HashMap Expr Id) deriving Show
 
 emptyEquivTracker :: EquivTracker
@@ -70,6 +72,7 @@ instance Reducer EquivReducer () EquivTracker where
                  b@(Bindings { name_gen = ng })
         | isSymFuncApp eenv e =
             let
+                -- We inline variables to have a higher chance of hitting in the Equiv Tracker
                 e' = inlineApp eenv e
             in
             case HM.lookup e' et of
