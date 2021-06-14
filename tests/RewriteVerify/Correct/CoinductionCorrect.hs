@@ -1,13 +1,24 @@
+{-# LANGUAGE BangPatterns #-}
+
 module CoinductionCorrect where
 
 import Data.List
 
 -- TODO make sure this is correct
+{-
 intForce :: [Int] -> [Int]
 intForce [] = []
 intForce (h:t) =
   case intForce t of
     t' -> h:t'
+-}
+
+cons :: t -> [t] -> [t]
+cons n (!l) = n:l
+
+intForce :: [Int] -> [Int]
+intForce [] = []
+intForce (h:t) = cons h $ intForce t
 
 -- also have a rule about a non-strict function
 -- TODO runs forever on negatives, has error case

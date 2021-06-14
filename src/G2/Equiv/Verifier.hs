@@ -34,6 +34,8 @@ import qualified Data.HashMap.Lazy as HM
 
 import Debug.Trace
 
+import G2.Execution.NormalForms
+
 exprReadyForSolver :: ExprEnv -> Expr -> Bool
 exprReadyForSolver h (Var i) = E.isSymbolic (idName i) h && T.isPrimType (typeOf i)
 exprReadyForSolver h (App f a) = exprReadyForSolver h f && exprReadyForSolver h a
@@ -131,7 +133,9 @@ verifyLoop solver ns_pair pairs states prev b config | not (null states) = do
         -- doesn't seem to help
         solved_list = concat [l | Just (l, _) <- proof_list]
         -- TODO do I really need all of these?
-        new_prev = new_obligations ++ solved_list ++ prev
+        ievf s = not $ isExprValueForm (expr_env s) (exprExtract s)
+        ievfPair (s1, s2) = ievf s1 && ievf s2
+        new_prev = (filter ievfPair $ new_obligations ++ solved_list) ++ prev
         -- new_prev = HS.union prev (HS.fromList new_obligations)
         verified = all isJust proof_list
     -- TODO wrapping may still be an issue here
@@ -166,6 +170,9 @@ verifyLoop' solver ns_pair s1 s2 prev =
           let obligation_list = filter (not . (moreRestrictivePair ns_pair prev)) obs
               (ready, not_ready) = partition statePairReadyForSolver obligation_list
               ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
+          -- TODO empty obligation list for Error-App case
+          putStr "O: "
+          putStrLn $ show ready_exprs
           res <- checkObligations solver s1 s2 ready_exprs
           case res of
             S.UNSAT () -> putStrLn "V?"

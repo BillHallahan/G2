@@ -10,7 +10,7 @@ cons n (!l) = n:l
 -- TODO make sure this is correct
 intForce :: [Int] -> [Int]
 intForce [] = []
-intForce (h:t) = cons h t
+intForce (h:t) = cons h $ intForce t
 --  case intForce t of
 --    t' -> h:t'
 

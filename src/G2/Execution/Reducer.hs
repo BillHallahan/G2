@@ -405,7 +405,8 @@ arbDC tenv ng t
             bound = boundIds adt
             -- TODO more potential safety issues
             -- not a real TyVar
-            bound_ts = (error_id, TyVar error_id):(zip bound ts)
+            --bound_ts = (error_id, TyVar error_id):(zip bound ts)
+            bound_ts = zip bound ts
             -- TODO need more length-related adjustments
             -- to get the error case incorporated properly
 
@@ -415,7 +416,8 @@ arbDC tenv ng t
                 L.mapAccumL
                     (\ng_ dc ->
                         let
-                            anon_ts = (TyVar error_id):(anonArgumentTypes dc)
+                            --anon_ts = (TyVar error_id):(anonArgumentTypes dc)
+                            anon_ts = anonArgumentTypes dc
                             re_anon = foldr (\(i, t) -> retype i t) anon_ts bound_ts
                             (ars, ng_') = freshIds re_anon ng_
                         in
