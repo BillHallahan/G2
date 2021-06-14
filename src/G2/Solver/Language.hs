@@ -65,6 +65,10 @@ data SMTAST = (:>=) SMTAST SMTAST
             | Modulo SMTAST SMTAST
             | Neg SMTAST -- ^ Unary negation
 
+            | ArrayConst SMTAST Sort Sort
+            | ArrayStore SMTAST SMTAST SMTAST
+            | ArraySelect SMTAST SMTAST
+
             | Func SMTName [SMTAST] -- ^ Interpreted function
 
             | StrLen SMTAST
@@ -91,6 +95,7 @@ data Sort = SortInt
           | SortDouble
           | SortChar
           | SortBool
+          | SortArray Sort Sort
           | SortFunc [Sort] Sort
           deriving (Show, Eq, Ord)
 

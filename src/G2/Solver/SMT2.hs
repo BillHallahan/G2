@@ -194,6 +194,9 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
 
     strLen _ = function1 "str.len"
 
+    arrayStore _ = function3 "store"
+    arraySelect _ = function2 "select"
+
     itor _ = function1 "to_real"
 
 
@@ -206,6 +209,8 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
         "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
     char _ c = '"':c:'"':[]
     bool _ b = if b then "true" else "false"
+    constArray con v indSrt valSrt =
+        "((as const " ++ sortArray con indSrt valSrt ++ ") " ++ v ++ ")"
     var _ n = function1 n
 
     sortInt _ = "Int"
@@ -213,6 +218,7 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
     sortDouble _ = "Real"
     sortChar _ = "String"
     sortBool _ = "Bool"
+    sortArray _ ind val = "(Array " ++ ind ++ " " ++ val ++ ")"
 
     cons _ n asts _ =
         if asts /= [] then

@@ -85,6 +85,7 @@ import Data.Monoid
 import G2.Language.KnownValues
 
 import Debug.Trace
+import Data.Time.Clock
 
 -------------------------------------
 -- Generating Allowed Inputs/Outputs
@@ -741,7 +742,7 @@ evalMeasures'' mx_meas s b m tcv e =
     map (\(ns_es, bound) ->
             let
                 is = map (\(n, me) -> Id n (typeOf me)) ns_es
-                str_call = evalMeasuresCE b is e bound
+                str_call = evalMeasuresCE s b tcv is e bound
             in
             (map fst ns_es, e, s { curr_expr = CurrExpr Evaluate str_call })
         ) rel_m
@@ -792,8 +793,8 @@ notLH ty
     | TyCon (Name n _ _ _) _ <- tyAppCenter ty = n /= "lh"
     | otherwise = True
 
-evalMeasuresCE :: Bindings -> [Id] -> Expr -> [M.Map Name Type] -> Expr
-evalMeasuresCE bindings is e bound =
+evalMeasuresCE :: State t -> Bindings -> TCValues -> [Id] -> Expr -> [M.Map Name Type] -> Expr
+evalMeasuresCE s bindings tcv is e bound =
     let
         meas_call = map (uncurry tyAppId) $ zip is bound
         ds = deepseq_walkers bindings
@@ -810,7 +811,9 @@ evalMeasuresCE bindings is e bound =
                 bound_tys = map (\n -> case M.lookup n b of
                                         Just t -> t
                                         Nothing -> TyUnknown) bound_names
-                lh_dicts = map (const $ Prim Undefined TyBottom) bound_tys
+                lh_dicts = map (\t -> case lookupTCDict (type_classes s) (lhTC tcv) t of
+                                          Just tc -> Var tc
+                                          Nothing -> Prim Undefined TyBottom) bound_tys -- map (const $ Prim Undefined TyBottom) bound_tys
             in
             mkApp $ Var i:map Type bound_tys ++ lh_dicts
 
