@@ -875,10 +875,12 @@ constraintToSMT eenv tenv tc meas meas_ex evals si (NotFC fc) =
 adjustArgs :: Int -> TypeEnv -> Measures -> MeasureExs -> Type -> G2.Expr -> [SMTAST]
 adjustArgs mx_meas tenv meas meas_ex t =
       map (\e -> case e of
-                    (App (App (App (Data (DataCon (Name n _ _ _) _)) _) _) ls) ->
-                        ArrayConst (VBool False) SortInt SortBool
-                    (App (App (Data (DataCon (Name n _ _ _) _)) _) ls) ->
-                        ArrayConst (VBool False) SortInt SortBool
+                    (App (App (Data (DataCon (Name n _ _ _) _)) _) ls)
+                        | Just is <- extractInts ls ->
+                            let
+                                const_false = ArrayConst (VBool False) SortInt SortBool
+                            in
+                            foldr (\i arr -> ArrayStore arr (VInt i) (VBool True)) const_false is
                     _ -> exprToSMT e)
     . map adjustLits
     . substMeasures mx_meas tenv meas meas_ex t
@@ -897,10 +899,15 @@ substMeasures mx_meas tenv meas meas_ex t e =
                         app_meas = applicableMeasures mx_meas tenv meas t
                         es'' = filter (\(ns, _) -> ns `HM.member` app_meas) es'
                     in
-                    trace ("e = " ++ show e ++ "\nes = " ++ show es)
                     -- Sort to make sure we get the same order consistently
                     map snd $ L.sortBy (\(n1, _) (n2, _) -> compare n1 n2) es''
                 Nothing -> []
+
+extractInts :: G2.Expr -> Maybe [Integer]
+extractInts (App (App (App (Data _ ) (Type _)) (App _ (Lit (LitInt i)))) xs) =
+    return . (i:) =<< extractInts xs
+extractInts (App (Data _) _) = Just []
+extractInts e = trace ("Nothing e = " ++ show e) Nothing
 
 adjustLits :: G2.Expr -> G2.Expr
 adjustLits (App _ l@(Lit _)) = l
