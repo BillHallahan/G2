@@ -4,20 +4,19 @@ module CoinductionIncorrect where
 
 import Data.List
 
---cons :: t -> [t] -> [t]
---cons n l = n:l
+cons :: t -> [t] -> [t]
+cons n (!l) = n:l
 
 -- TODO make sure this is correct
 intForce :: [Int] -> [Int]
 intForce [] = []
-intForce (h:t) =
--- cons h $! t
-  case intForce t of
-    t' -> h:t'
+intForce (h:t) = cons h t
+--  case intForce t of
+--    t' -> h:t'
 
 maybeForce :: Maybe t -> Maybe t
-maybeForce Nothing = Nothing
-maybeForce (Just !x) = Just x
+maybeForce !Nothing = Nothing
+maybeForce !(Just !x) = Just x
 
 -- also have a rule about a non-strict function
 -- TODO runs forever on negatives, has error case
@@ -62,6 +61,7 @@ t2 = (* 2)
   #-}
 
 -- some of these rules are incorrect only because of laziness
+-- more cases for Maybe (Maybe Int) than Maybe Int
 {-# RULES
 "badMaybeForce" forall (m :: Maybe Int) . maybeForce m = m
 "forceDoesNothing" forall l . intForce l = l

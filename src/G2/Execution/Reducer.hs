@@ -94,6 +94,9 @@ import System.Random
 
 import Debug.Trace
 
+-- TODO
+import qualified Data.Text as T
+
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
 -- and to reorder states
@@ -364,6 +367,9 @@ instance Reducer ConcSymReducer () t where
                    b@(Bindings { name_gen = ng })
         | E.isSymbolic n eenv
         , Just (dc_symbs, ng') <- arbDC tenv ng t = do
+            -- TODO
+            putStr "SYMBS "
+            putStrLn $ show dc_symbs
             let 
                 xs = map (\(e, symbs') ->
                                 s   { curr_expr = CurrExpr Evaluate e
@@ -389,10 +395,19 @@ arbDC tenv ng t
     , Just adt <- M.lookup tn tenv =
         let
             dcs = dataCon adt
-            (bindee_id, ng') = freshId TyLitInt ng
+            -- TODO just use ng?
+            (_, ng') = freshId TyLitInt ng
+
+            -- TODO not sure if this is entirely safe
+            error_name = Name (T.pack "Error") Nothing 0 Nothing
+            error_id = Id error_name TyUnknown
 
             bound = boundIds adt
-            bound_ts = zip bound ts
+            -- TODO more potential safety issues
+            -- not a real TyVar
+            bound_ts = (error_id, TyVar error_id):(zip bound ts)
+            -- TODO need more length-related adjustments
+            -- to get the error case incorporated properly
 
             ty_apped_dcs = map (\dc -> mkApp $ Data dc:map Type ts) dcs
             ty_apped_dcs' = (Prim Error TyUnknown):ty_apped_dcs
@@ -400,7 +415,7 @@ arbDC tenv ng t
                 L.mapAccumL
                     (\ng_ dc ->
                         let
-                            anon_ts = anonArgumentTypes dc
+                            anon_ts = (TyVar error_id):(anonArgumentTypes dc)
                             re_anon = foldr (\(i, t) -> retype i t) anon_ts bound_ts
                             (ars, ng_') = freshIds re_anon ng_
                         in
