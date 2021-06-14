@@ -34,16 +34,17 @@ exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs =
                | Just e <- E.lookup (idName i) h2 -> exprPairing s1 s2 e1 e pairs
                | otherwise -> error "unmapped variable"
     -- See note in `moreRestrictive` regarding comparing DataCons
-    (App _ _, App _ _) | (Data (DataCon d1 _)):l1 <- unApp e1
-                       , (Data (DataCon d2 _)):l2 <- unApp e2 ->
-        if d1 == d2 then
-            let ep = uncurry (exprPairing s1 s2)
-                ep' hs p = ep p hs
-                l = zip l1 l2
-            in foldM ep' pairs l
-            else Nothing -- Just (HS.insert (e1, e2) pairs)
-            -- TODO solve here like I do for one App?
-            -- D.trace "AAA" $ D.trace (show (e1, e2)) $ D.trace "aaa" $ Nothing
+    (App _ _, App _ _)
+        | (Data (DataCon d1 _)):l1 <- unApp e1
+        , (Data (DataCon d2 _)):l2 <- unApp e2 ->
+            if d1 == d2 then
+                let ep = uncurry (exprPairing s1 s2)
+                    ep' hs p = ep p hs
+                    l = zip l1 l2
+                in foldM ep' pairs l
+                else Nothing -- Just (HS.insert (e1, e2) pairs)
+                -- TODO solve here like I do for one App?
+                -- D.trace "AAA" $ D.trace (show (e1, e2)) $ D.trace "aaa" $ Nothing
     (App _ _, _) -> Just (HS.insert (e1, e2) pairs)
     (_, App _ _) -> Just (HS.insert (e1, e2) pairs)
     (Data (DataCon d1 _), Data (DataCon d2 _))
