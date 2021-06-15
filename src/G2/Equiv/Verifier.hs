@@ -34,6 +34,8 @@ import qualified Data.HashMap.Lazy as HM
 
 import Debug.Trace
 
+import G2.Execution.NormalForms
+
 exprReadyForSolver :: ExprEnv -> Expr -> Bool
 exprReadyForSolver h (Var i) = E.isSymbolic (idName i) h && T.isPrimType (typeOf i)
 exprReadyForSolver h (App f a) = exprReadyForSolver h f && exprReadyForSolver h a
@@ -73,7 +75,7 @@ runSymExec config s1 s2 = do
                                  ) er2) final_s1
   return $ concat pairs
 
--- After s1 has had it's expr_env, path constraints, and tracker updated,
+-- After s1 has had its expr_env, path constraints, and tracker updated,
 -- transfer these updates to s2.
 transferStateInfo :: State t -> State t -> State t
 transferStateInfo s1 s2 =
@@ -109,6 +111,12 @@ runVerifier solver entry init_state bindings config = do
                [(rewrite_state_l, rewrite_state_r)]
                bindings'' config
 
+notEVF :: State t -> Bool
+notEVF s = not $ isExprValueForm (expr_env s) (exprExtract s)
+
+pairNotEVF :: (State t, State t) -> Bool
+pairNotEVF (s1, s2) = notEVF s1 && notEVF s2
+
 -- build initial hash set in Main before calling
 verifyLoop :: S.Solver solver =>
               solver ->
@@ -127,12 +135,9 @@ verifyLoop solver ns_pair pairs states prev b config | not (null states) = do
     proof_list <- mapM vl $ concat paired_states
     let proof_list' = [l | Just (_, l) <- proof_list]
         new_obligations = concat proof_list'
-        -- TODO also get previously-solved equivalences to add to prev
-        -- doesn't seem to help
         solved_list = concat [l | Just (l, _) <- proof_list]
-        -- TODO do I really need all of these?
-        new_prev = new_obligations ++ solved_list ++ prev
-        -- new_prev = HS.union prev (HS.fromList new_obligations)
+        -- TODO might not need solved_list
+        new_prev = (filter pairNotEVF $ new_obligations ++ solved_list) ++ prev
         verified = all isJust proof_list
     -- TODO wrapping may still be an issue here
     if verified then
@@ -166,6 +171,8 @@ verifyLoop' solver ns_pair s1 s2 prev =
           let obligation_list = filter (not . (moreRestrictivePair ns_pair prev)) obs
               (ready, not_ready) = partition statePairReadyForSolver obligation_list
               ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
+          putStr "O: "
+          putStrLn $ show ready_exprs
           res <- checkObligations solver s1 s2 ready_exprs
           case res of
             S.UNSAT () -> putStrLn "V?"
@@ -237,7 +244,7 @@ checkRule config init_state bindings rule = do
       eenv = E.union (expr_env rewrite_state_l) (expr_env rewrite_state_r)
       pairs_l = symbolic_ids rewrite_state_l
       pairs_r = symbolic_ids rewrite_state_r
-      -- convert from State t to State ()
+      -- convert from State t to StateET
       rewrite_state_l' = rewrite_state_l {track = emptyEquivTracker}
       rewrite_state_r' = rewrite_state_r {track = emptyEquivTracker}
       ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l

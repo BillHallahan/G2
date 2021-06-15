@@ -8,6 +8,8 @@ import qualified Data.HashMap.Lazy as HM
 
 import Control.Monad
 
+import G2.Execution.NormalForms
+
 -- TODO
 import qualified Debug.Trace as D
 
@@ -42,23 +44,23 @@ exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs =
                     ep' hs p = ep p hs
                     l = zip l1 l2
                 in foldM ep' pairs l
-                else Nothing -- Just (HS.insert (e1, e2) pairs)
-                -- TODO solve here like I do for one App?
-                -- D.trace "AAA" $ D.trace (show (e1, e2)) $ D.trace "aaa" $ Nothing
-    (App _ _, _) -> Just (HS.insert (e1, e2) pairs)
-    (_, App _ _) -> Just (HS.insert (e1, e2) pairs)
+                else Nothing
     (Data (DataCon d1 _), Data (DataCon d2 _))
                        | d1 == d2 -> Just pairs
-                       | otherwise -> D.trace "BBB" Nothing
-    -- TODO Error and Undefined primitives
-    -- (Prim Error _, Prim Error _) -> Just pairs
-    -- (Prim Undefined _, Prim Undefined _) -> Just pairs
+                       | otherwise -> Nothing
     (Prim p1 _, Prim p2 _) | p1 == Error || p1 == Undefined
                            , p2 == Error || p2 == Undefined -> Just pairs
+    -- extra cases for avoiding Error problems
+    (Prim p _, _) | (p == Error || p == Undefined)
+                  , isExprValueForm h2 e2 -> Nothing
+    (_, Prim p _) | (p == Error || p == Undefined)
+                  , isExprValueForm h1 e1 -> Nothing
     (Prim _ _, _) -> Just (HS.insert (e1, e2) pairs)
     (_, Prim _ _) -> Just (HS.insert (e1, e2) pairs)
+    (App _ _, _) -> Just (HS.insert (e1, e2) pairs)
+    (_, App _ _) -> Just (HS.insert (e1, e2) pairs)
     (Lit l1, Lit l2) | l1 == l2 -> Just pairs
-                     | otherwise -> D.trace "CCC" Nothing
+                     | otherwise -> Nothing
     (Lam _ _ _, _) -> Just (HS.insert (e1, e2) pairs)
     (_, Lam _ _ _) -> Just (HS.insert (e1, e2) pairs)
     -- TODO assume for now that all types line up between the two expressions

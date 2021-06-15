@@ -364,6 +364,9 @@ instance Reducer ConcSymReducer () t where
                    b@(Bindings { name_gen = ng })
         | E.isSymbolic n eenv
         , Just (dc_symbs, ng') <- arbDC tenv ng t = do
+            -- TODO printing for debugging
+            putStr "SYMBS "
+            putStrLn $ show dc_symbs
             let 
                 xs = map (\(e, symbs') ->
                                 s   { curr_expr = CurrExpr Evaluate e
@@ -389,13 +392,13 @@ arbDC tenv ng t
     , Just adt <- M.lookup tn tenv =
         let
             dcs = dataCon adt
-            (bindee_id, ng') = freshId TyLitInt ng
 
             bound = boundIds adt
             bound_ts = zip bound ts
 
             ty_apped_dcs = map (\dc -> mkApp $ Data dc:map Type ts) dcs
-            (ng'', dc_symbs) = 
+            ty_apped_dcs' = (Prim Error TyBottom):ty_apped_dcs
+            (ng', dc_symbs) = 
                 L.mapAccumL
                     (\ng_ dc ->
                         let
@@ -405,10 +408,10 @@ arbDC tenv ng t
                         in
                         (ng_', (mkApp $ dc:map Var ars, ars))
                     )
-                    ng'
-                    ty_apped_dcs
+                    ng
+                    ty_apped_dcs'
         in
-        Just (dc_symbs, ng'')
+        Just (dc_symbs, ng')
     | otherwise = Nothing
 
 -- | Removes and reduces the values in a State's non_red_path_conds field. 
