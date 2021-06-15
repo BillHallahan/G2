@@ -94,9 +94,6 @@ import System.Random
 
 import Debug.Trace
 
--- TODO
-import qualified Data.Text as T
-
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
 -- and to reorder states
