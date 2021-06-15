@@ -4,15 +4,6 @@ module CoinductionCorrect where
 
 import Data.List
 
--- TODO make sure this is correct
-{-
-intForce :: [Int] -> [Int]
-intForce [] = []
-intForce (h:t) =
-  case intForce t of
-    t' -> h:t'
--}
-
 cons :: t -> [t] -> [t]
 cons n (!l) = n:l
 
@@ -20,9 +11,6 @@ intForce :: [Int] -> [Int]
 intForce [] = []
 intForce (h:t) = cons h $ intForce t
 
--- also have a rule about a non-strict function
--- TODO runs forever on negatives, has error case
--- TODO adjust the error cases?
 intDrop :: Int -> [Int] -> [Int]
 intDrop 0 l = l
 intDrop n (_:t) =
@@ -31,7 +19,6 @@ intDrop n (_:t) =
   else intDrop (n - 1) t
 intDrop _ [] = error "list not long enough"
 
--- TODO strictness might be an issue here
 intTake :: Int -> [Int] -> [Int]
 intTake 0 _ = []
 intTake n (h:t) =
@@ -45,7 +32,6 @@ intReverse [] = []
 intReverse (h:t) = (intReverse t) ++ [h]
 
 intMap :: (Int -> Int) -> [Int] -> [Int]
---intMap = Data.List.map
 intMap _ [] = []
 intMap f (h:t) = (f h) : (intMap f t)
 
@@ -58,11 +44,13 @@ p1 = (+ 1)
 t2 :: Int -> Int
 t2 = (* 2)
 
+-- TODO takeDropCancel is bad as it is now
+-- doesn't work for an undefined list or a negative int
+-- same for mapTake?  No, it should be lazy on both sides
 {-# RULES
 "doubleMap" forall l . intMap p1 (intMap t2 l) = intMap (p1 . t2) l
 "mapIterate" forall n . intMap p1 (intIterate p1 n) = intIterate p1 (p1 n)
 "mapTake" forall n l . intMap p1 (intTake n l) = intTake n (intMap p1 l)
-"takeDropCancel" forall n l . intDrop n (intTake n l) = []
   #-}
 
 {-# RULES

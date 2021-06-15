@@ -48,19 +48,15 @@ exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs =
     (Data (DataCon d1 _), Data (DataCon d2 _))
                        | d1 == d2 -> Just pairs
                        | otherwise -> Nothing
-    -- TODO Error and Undefined primitives
     (Prim p1 _, Prim p2 _) | p1 == Error || p1 == Undefined
                            , p2 == Error || p2 == Undefined -> Just pairs
-    -- TODO extra cases for avoiding Error problems
-    -- TODO negate the function?  This runs forever either way
+    -- extra cases for avoiding Error problems
     (Prim p _, _) | (p == Error || p == Undefined)
                   , isExprValueForm h2 e2 -> Nothing
     (_, Prim p _) | (p == Error || p == Undefined)
                   , isExprValueForm h1 e1 -> Nothing
     (Prim _ _, _) -> Just (HS.insert (e1, e2) pairs)
     (_, Prim _ _) -> Just (HS.insert (e1, e2) pairs)
-    -- TODO this was making the case I want to reach unreachable
-    -- used to be right after the App-App case
     (App _ _, _) -> Just (HS.insert (e1, e2) pairs)
     (_, App _ _) -> Just (HS.insert (e1, e2) pairs)
     (Lit l1, Lit l2) | l1 == l2 -> Just pairs

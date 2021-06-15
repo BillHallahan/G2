@@ -111,6 +111,12 @@ runVerifier solver entry init_state bindings config = do
                [(rewrite_state_l, rewrite_state_r)]
                bindings'' config
 
+notEVF :: State t -> Bool
+notEVF s = not $ isExprValueForm (expr_env s) (exprExtract s)
+
+pairNotEVF :: (State t, State t) -> Bool
+pairNotEVF (s1, s2) = notEVF s1 && notEVF s2
+
 -- build initial hash set in Main before calling
 verifyLoop :: S.Solver solver =>
               solver ->
@@ -129,14 +135,9 @@ verifyLoop solver ns_pair pairs states prev b config | not (null states) = do
     proof_list <- mapM vl $ concat paired_states
     let proof_list' = [l | Just (_, l) <- proof_list]
         new_obligations = concat proof_list'
-        -- TODO also get previously-solved equivalences to add to prev
-        -- doesn't seem to help
         solved_list = concat [l | Just (l, _) <- proof_list]
-        -- TODO do I really need all of these?
-        ievf s = not $ isExprValueForm (expr_env s) (exprExtract s)
-        ievfPair (s1, s2) = ievf s1 && ievf s2
-        new_prev = (filter ievfPair $ new_obligations ++ solved_list) ++ prev
-        -- new_prev = HS.union prev (HS.fromList new_obligations)
+        -- TODO might not need solved_list
+        new_prev = (filter pairNotEVF $ new_obligations ++ solved_list) ++ prev
         verified = all isJust proof_list
     -- TODO wrapping may still be an issue here
     if verified then
@@ -170,7 +171,6 @@ verifyLoop' solver ns_pair s1 s2 prev =
           let obligation_list = filter (not . (moreRestrictivePair ns_pair prev)) obs
               (ready, not_ready) = partition statePairReadyForSolver obligation_list
               ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
-          -- TODO empty obligation list for Error-App case
           putStr "O: "
           putStrLn $ show ready_exprs
           res <- checkObligations solver s1 s2 ready_exprs

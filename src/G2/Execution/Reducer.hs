@@ -367,7 +367,7 @@ instance Reducer ConcSymReducer () t where
                    b@(Bindings { name_gen = ng })
         | E.isSymbolic n eenv
         , Just (dc_symbs, ng') <- arbDC tenv ng t = do
-            -- TODO
+            -- TODO printing for debugging
             putStr "SYMBS "
             putStrLn $ show dc_symbs
             let 
@@ -395,38 +395,26 @@ arbDC tenv ng t
     , Just adt <- M.lookup tn tenv =
         let
             dcs = dataCon adt
-            -- TODO just use ng?
-            (_, ng') = freshId TyLitInt ng
-
-            -- TODO not sure if this is entirely safe
-            error_name = Name (T.pack "Error") Nothing 0 Nothing
-            error_id = Id error_name TyUnknown
 
             bound = boundIds adt
-            -- TODO more potential safety issues
-            -- not a real TyVar
-            --bound_ts = (error_id, TyVar error_id):(zip bound ts)
             bound_ts = zip bound ts
-            -- TODO need more length-related adjustments
-            -- to get the error case incorporated properly
 
             ty_apped_dcs = map (\dc -> mkApp $ Data dc:map Type ts) dcs
-            ty_apped_dcs' = (Prim Error TyUnknown):ty_apped_dcs
-            (ng'', dc_symbs) = 
+            ty_apped_dcs' = (Prim Error TyBottom):ty_apped_dcs
+            (ng', dc_symbs) = 
                 L.mapAccumL
                     (\ng_ dc ->
                         let
-                            --anon_ts = (TyVar error_id):(anonArgumentTypes dc)
                             anon_ts = anonArgumentTypes dc
                             re_anon = foldr (\(i, t) -> retype i t) anon_ts bound_ts
                             (ars, ng_') = freshIds re_anon ng_
                         in
                         (ng_', (mkApp $ dc:map Var ars, ars))
                     )
-                    ng'
+                    ng
                     ty_apped_dcs'
         in
-        Just (dc_symbs, ng'')
+        Just (dc_symbs, ng')
     | otherwise = Nothing
 
 -- | Removes and reduces the values in a State's non_red_path_conds field. 
