@@ -710,7 +710,8 @@ instance Halter GuardedHalter () t where
         in
         case (isExecValueForm s) || (exprFullApp e) of
             True
-                | Stck.null $ exec_stack s -> return Accept
+                | Stck.null $ exec_stack s
+                , num_steps s /= 0 -> return Accept
                 | otherwise -> return Continue
             False -> return Continue
     stepHalter _ _ _ _ _ = ()

@@ -2,7 +2,7 @@
 
 module G2.Equiv.Verifier
     ( verifyLoop
-    , runVerifier
+    --, runVerifier
     , checkRule
     ) where
 
@@ -60,13 +60,15 @@ runSymExec :: Config ->
               StateET ->
               CM.StateT Bindings IO [(StateET, StateET)]
 runSymExec config s1 s2 = do
+  let s1' = s1 { rules = [], num_steps = 0 }
+      s2' = s2 { rules = [], num_steps = 0 }
   bindings <- trace "RS1" $ CM.get
-  (er1, bindings') <- CM.lift $ runG2ForRewriteV s1 config bindings
+  (er1, bindings') <- CM.lift $ runG2ForRewriteV s1' config bindings
   CM.put bindings'
   let final_s1 = trace "RSE2" $ map final_state er1
   pairs <- mapM (\s1_ -> do
                     b_ <- CM.get
-                    let s2_ = transferStateInfo s1_ s2
+                    let s2_ = transferStateInfo s1_ s2'
                     (er2, b_') <- trace "RSE3" $ CM.lift $ runG2ForRewriteV s2_ config b_
                     CM.put b_'
                     return $ map (\er2_ -> 
@@ -90,6 +92,7 @@ transferStateInfo s1 s2 =
        , symbolic_ids = map (\(Var i) -> i) . E.elems $ E.filterToSymbolic n_eenv
        , track = track s1 }
 
+{-
 runVerifier :: S.Solver solver =>
                solver ->
                String ->
@@ -113,7 +116,9 @@ runVerifier solver entry init_state bindings config = do
                [(rewrite_state_l, rewrite_state_r)]
                [(rewrite_state_l, rewrite_state_r)]
                bindings'' config
+-}
 
+-- TODO added extra criterion
 notEVF :: State t -> Bool
 notEVF s = not $ isExprValueForm (expr_env s) (exprExtract s)
 
@@ -277,6 +282,7 @@ moreRestrictive :: State t ->
                    Expr ->
                    Maybe (HM.HashMap Id Expr)
 moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e2 =
+  -- | num_steps s1 /= 0 =
   case (e1, e2) of
     (Var i1, Var i2) | HS.member (idName i1) ns
                      , idName i1 == idName i2 -> Just hm
@@ -321,6 +327,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
     (Type _, Type _) -> Just hm
     --(Case e1' i1 a1, Case e2' i2 a2) | i1 == i2
     _ -> Nothing
+    -- | otherwise = Nothing
 
 isMoreRestrictive :: State t ->
                      State t ->
