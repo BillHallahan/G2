@@ -40,6 +40,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             -- Halters
                             , SWHNFHalter (..)
                             , AcceptIfViolatedHalter (..)
+                            , GuardedHalter (..)
                             , HCombiner (..)
                             , ZeroHalter (..)
                             , DiscardIfAcceptedTag (..)
@@ -174,7 +175,7 @@ class Halter h hv t | h -> hv where
     -- | Determines whether to continue reduction on the current state
     stopRed :: h -> hv -> Processed (State t) -> State t -> IO HaltC
 
-    -- | Takes a state, and updates it's halter record field
+    -- | Takes a state, and updates its halter record field
     stepHalter :: h -> hv -> Processed (State t) -> [State t] -> State t -> hv
 
 
@@ -365,6 +366,12 @@ instance Reducer ConcSymReducer () t where
         | E.isSymbolic n eenv
         , Just (dc_symbs, ng') <- arbDC tenv ng t = do
             -- TODO printing for debugging
+            -- same expr over and over
+            -- symbolic ID list keeps getting longer
+            putStr "EXPR "
+            putStrLn $ show $ Var (Id n t)
+            --putStr "SYM_IDS "
+            --putStrLn $ show symbs
             putStr "SYMBS "
             putStrLn $ show dc_symbs
             let 
@@ -672,6 +679,39 @@ instance Halter AcceptIfViolatedHalter () t where
             True 
                 | true_assert s -> return Accept
                 | otherwise -> return Discard
+            False -> return Continue
+    stepHalter _ _ _ _ _ = ()
+
+-- TODO based on AcceptIfViolatedHalter
+
+-- returns number of arguments, 0 if not a function
+-- TODO assumes subsequent arguments go down the right side
+argCount :: Type -> Int
+argCount (TyFun _ t) = 1 + argCount t
+argCount _ = 0
+
+currExprFullApp :: State t -> Bool
+currExprFullApp (State { curr_expr = CurrExpr _ (e@(App (Var (Id _ t)) _)) }) =
+    -- TODO unApp includes the function at the start
+    length (unApp e) == 1 + argCount t
+currExprApp _ = False
+
+exprFullApp :: Expr -> Bool
+exprFullApp e@(App (Var (Id _ t)) _) = length (unApp e) == 1 + argCount t
+exprFullApp _ = False
+
+data GuardedHalter = GuardedHalter
+
+instance Halter GuardedHalter () t where
+    initHalt _ _ = ()
+    updatePerStateHalt _ _ _ _ = ()
+    stopRed _ _ _ s =
+        let CurrExpr _ e = curr_expr s
+        in
+        case (isExecValueForm s) || (exprFullApp e) of
+            True
+                | Stck.null $ exec_stack s -> return Accept
+                | otherwise -> return Continue
             False -> return Continue
     stepHalter _ _ _ _ _ = ()
 

@@ -49,7 +49,7 @@ rewriteRedHaltOrd solver simplifier config =
             Nothing -> SomeReducer (StdRed share solver simplifier :<~ ConcSymReducer :<~? EquivReducer)
      , SomeHalter
          (DiscardIfAcceptedTag state_name
-         :<~> AcceptIfViolatedHalter)
+         :<~> GuardedHalter)
      , SomeOrderer $ PickLeastUsedOrderer)
 
 type StateET = State EquivTracker

@@ -38,6 +38,9 @@ import G2.Execution.NormalForms
 
 exprReadyForSolver :: ExprEnv -> Expr -> Bool
 exprReadyForSolver h (Var i) = E.isSymbolic (idName i) h && T.isPrimType (typeOf i)
+-- TODO function application form allowed now?
+-- no, causes errors
+--exprReadyForSolver _ (App _ _) = True
 exprReadyForSolver h (App f a) = exprReadyForSolver h f && exprReadyForSolver h a
 exprReadyForSolver _ (Prim _ _) = True
 exprReadyForSolver _ (Lit _) = True
@@ -57,14 +60,14 @@ runSymExec :: Config ->
               StateET ->
               CM.StateT Bindings IO [(StateET, StateET)]
 runSymExec config s1 s2 = do
-  bindings <- CM.get
+  bindings <- trace "RS1" $ CM.get
   (er1, bindings') <- CM.lift $ runG2ForRewriteV s1 config bindings
   CM.put bindings'
-  let final_s1 = map final_state er1
+  let final_s1 = trace "RSE2" $ map final_state er1
   pairs <- mapM (\s1_ -> do
                     b_ <- CM.get
                     let s2_ = transferStateInfo s1_ s2
-                    (er2, b_') <- CM.lift $ runG2ForRewriteV s2_ config b_
+                    (er2, b_') <- trace "RSE3" $ CM.lift $ runG2ForRewriteV s2_ config b_
                     CM.put b_'
                     return $ map (\er2_ -> 
                                     let
@@ -73,7 +76,7 @@ runSymExec config s1 s2 = do
                                     in
                                     (s1_', s2_')
                                  ) er2) final_s1
-  return $ concat pairs
+  return $ trace "RSE4" $ concat pairs
 
 -- After s1 has had its expr_env, path constraints, and tracker updated,
 -- transfer these updates to s2.
@@ -139,17 +142,18 @@ verifyLoop solver ns_pair pairs states prev b config | not (null states) = do
         -- TODO might not need solved_list
         new_prev = (filter pairNotEVF $ new_obligations ++ solved_list) ++ prev
         verified = all isJust proof_list
-    -- TODO wrapping may still be an issue here
+    putStrLn $ show $ length new_obligations
     if verified then
         verifyLoop solver ns_pair pairs new_obligations new_prev b' config
     else
         return $ S.SAT ()
-  | otherwise = return $ S.UNSAT ()
+  | otherwise = do
+    putStrLn "FINISHED"
+    return $ S.UNSAT ()
 
 exprExtract :: State t -> Expr
 exprExtract (State { curr_expr = CurrExpr _ e }) = e
 
--- the hash set input is for the assumptions
 -- TODO printing
 verifyLoop' :: S.Solver solver =>
                solver ->
@@ -173,6 +177,10 @@ verifyLoop' solver ns_pair s1 s2 prev =
               ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
           putStr "O: "
           putStrLn $ show ready_exprs
+          putStr "NR: "
+          putStrLn $ show $ length not_ready
+          putStr "OBS: "
+          putStrLn $ show $ length obs
           res <- checkObligations solver s1 s2 ready_exprs
           case res of
             S.UNSAT () -> putStrLn "V?"
@@ -250,6 +258,9 @@ checkRule config init_state bindings rule = do
       ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
       ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
   S.SomeSolver solver <- initSolver config
+  -- TODO
+  putStrLn $ show $ curr_expr rewrite_state_l'
+  putStrLn $ show $ curr_expr rewrite_state_r'
   res <- verifyLoop solver (ns_l, ns_r) (zip pairs_l pairs_r)
              [(rewrite_state_l', rewrite_state_r')]
              [(rewrite_state_l', rewrite_state_r')]
@@ -318,7 +329,9 @@ isMoreRestrictive :: State t ->
 isMoreRestrictive s1 s2 ns =
   let CurrExpr _ e1 = curr_expr s1
       CurrExpr _ e2 = curr_expr s2
-  in isJust $ moreRestrictive s1 s2 ns HM.empty e1 e2
+      mr = isJust $ moreRestrictive s1 s2 ns HM.empty e1 e2
+  in-- isJust $ moreRestrictive s1 s2 ns HM.empty e1 e2
+  trace (show mr) $ trace (show (e1, e2)) $ mr
 
 moreRestrictivePair :: (HS.HashSet Name, HS.HashSet Name) ->
                        [(State t, State t)] ->

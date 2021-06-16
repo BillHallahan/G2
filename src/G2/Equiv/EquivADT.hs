@@ -43,13 +43,13 @@ exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs =
                 let ep = uncurry (exprPairing s1 s2)
                     ep' hs p = ep p hs
                     l = zip l1 l2
-                in foldM ep' pairs l
+                in D.trace "A" $ foldM ep' pairs l
                 else Nothing
     (Data (DataCon d1 _), Data (DataCon d2 _))
-                       | d1 == d2 -> Just pairs
+                       | d1 == d2 -> D.trace "C" $ Just pairs
                        | otherwise -> Nothing
     (Prim p1 _, Prim p2 _) | p1 == Error || p1 == Undefined
-                           , p2 == Error || p2 == Undefined -> Just pairs
+                           , p2 == Error || p2 == Undefined -> D.trace "B" $ Just pairs
     -- extra cases for avoiding Error problems
     (Prim p _, _) | (p == Error || p == Undefined)
                   , isExprValueForm h2 e2 -> Nothing
@@ -57,12 +57,12 @@ exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs =
                   , isExprValueForm h1 e1 -> Nothing
     (Prim _ _, _) -> Just (HS.insert (e1, e2) pairs)
     (_, Prim _ _) -> Just (HS.insert (e1, e2) pairs)
-    (App _ _, _) -> Just (HS.insert (e1, e2) pairs)
-    (_, App _ _) -> Just (HS.insert (e1, e2) pairs)
-    (Lit l1, Lit l2) | l1 == l2 -> Just pairs
+    (App _ _, _) -> D.trace "F" $ D.trace (show $ (e1, e2)) $ Just (HS.insert (e1, e2) pairs)
+    (_, App _ _) -> D.trace "G" $ Just (HS.insert (e1, e2) pairs)
+    (Lit l1, Lit l2) | l1 == l2 -> D.trace "D" $ Just pairs
                      | otherwise -> Nothing
     (Lam _ _ _, _) -> Just (HS.insert (e1, e2) pairs)
     (_, Lam _ _ _) -> Just (HS.insert (e1, e2) pairs)
     -- TODO assume for now that all types line up between the two expressions
-    (Type _, Type _) -> Just pairs
+    (Type _, Type _) -> D.trace "E" $ Just pairs
     _ -> error $ "catch-all case\n" ++ show e1 ++ "\n" ++ show e2
