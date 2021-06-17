@@ -75,6 +75,9 @@ data Forms = LIA { -- LIA formulas
            | Set { c_active :: SMTName
                  , c_op_branch1 :: SMTName
                  , c_op_branch2 :: SMTName
+
+                 , ars_bools :: [SMTName]
+                 , rets_bools :: [SMTName]
                  }
                  deriving Show
 
@@ -152,6 +155,16 @@ int_sy_args = filter (\a -> smt_sort a == SortInt) . sy_args
 
 int_sy_rets :: SynthSpec -> [SpecArg]
 int_sy_rets = filter (\a -> smt_sort a == SortInt) . sy_rets
+
+set_sy_args :: SynthSpec -> [SpecArg]
+set_sy_args = filter (isSet . smt_sort) . sy_args
+
+set_sy_rets :: SynthSpec -> [SpecArg]
+set_sy_rets = filter (isSet . smt_sort) . sy_rets
+
+isSet :: Sort -> Bool
+isSet (SortArray _ _) = True
+isSet _ = False
 
 int_sy_args_and_ret :: SynthSpec -> [SpecArg]
 int_sy_args_and_ret si = int_sy_args si ++ int_sy_rets si
@@ -280,7 +293,7 @@ liaSynthOfSize sz m_si = do
                     s ++ "_c_act_" ++ show j
                 ,
                      [ mkCoeffs s psi_ j k | k <- [1] {- [1..sz] -} ] -- Ors
-                  ++ [ mkSetForms s j k | k <- [1]]
+                  ++ [ mkSetForms s psi_ j k | k <- [1]]
                 )
             | j <-  [1..sz] ] -- Ands
 
@@ -312,13 +325,28 @@ mkCoeffs s psi j k =
             | a <- [1..rets]]
         }
 
-mkSetForms :: String -> Integer -> Integer -> Forms
-mkSetForms s j k =
+mkSetForms :: String -> SynthSpec -> Integer -> Integer -> Forms
+mkSetForms s psi j k =
+    let
+        ars = length (set_sy_args psi)
+        rets = length (set_sy_rets psi)
+    in
     Set
         { 
           c_active = s ++ "_s_act_" ++ show j ++ "_t_" ++ show k
         , c_op_branch1 = s ++ "_set_op1_" ++ show j ++ "_t_" ++ show k
         , c_op_branch2 = s ++ "_set_op2_" ++ show j ++ "_t_" ++ show k
+
+        , ars_bools =
+            if rets >= 1
+                then
+                    [ s ++ "_a_set_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
+                    | a <- [1..ars]]
+                else
+                    []
+        , rets_bools = 
+            [ s ++ "_r_set_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
+            | a <- [1..rets]]
         }
 
 synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
@@ -659,7 +687,7 @@ defineModelLIAFuncSF mdl sf =
 
         int_ars_nm = map smt_var (int_sy_args_and_ret sf)
     in
-    DefineFun (sy_name sf) ars SortBool (buildLIA_SMT_fromModel mdl (sy_coeffs sf) int_ars_nm)
+    DefineFun (sy_name sf) ars SortBool (buildLIA_SMT_fromModel mdl sf)
 
 renameByAdding :: String -> SpecInfo -> SpecInfo
 renameByAdding i si =
@@ -669,8 +697,9 @@ renameByAdding i si =
     where
         rn s = s { sy_name = sy_name s ++ "_MDL_" ++ i }
 
-buildLIA_SMT_fromModel :: SMTModel -> [(SMTName, [Forms])] -> [SMTName] -> SMTAST
-buildLIA_SMT_fromModel mdl = buildLIA (:+) (:*) (:=) (:>) (:>=) Ite mkSMTAnd mkSMTAnd mkSMTOr vint VInt vbool
+buildLIA_SMT_fromModel :: SMTModel -> SynthSpec -> SMTAST
+buildLIA_SMT_fromModel mdl sf =
+    buildSpec (:+) (:*) (:=) (:>) (:>=) Ite mkSMTAnd mkSMTAnd mkSMTOr vint VInt vbool sf 
     where
         vint n
             | Just v <- M.lookup n mdl = v
@@ -1209,10 +1238,8 @@ defineSynthLIAFuncSF sf =
     let
         ars_nm = map smt_var (sy_args_and_ret sf)
         ars = zip ars_nm (map smt_sort $ sy_args_and_ret sf)
-
-        int_ars_nm = map smt_var (int_sy_args_and_ret sf)
     in
-    DefineFun (sy_name sf) ars SortBool (buildLIA_SMT (sy_coeffs sf) int_ars_nm)
+    DefineFun (sy_name sf) ars SortBool (buildLIA_SMT sf)
 
 declareSynthLIAFuncSF :: SynthSpec -> SMTHeader
 declareSynthLIAFuncSF sf =
@@ -1237,8 +1264,9 @@ type VInt a = SMTName -> a
 type CInt a = Integer -> a
 type VBool b = SMTName -> b
 
-buildLIA_SMT :: [(SMTName, [Forms])] -> [SMTName] -> SMTAST
-buildLIA_SMT = buildLIA (:+) (:*) (:=) (:>) (:>=) Ite mkSMTAnd mkSMTAnd mkSMTOr (flip V SortInt) VInt (flip V SortBool)
+buildLIA_SMT :: SynthSpec -> SMTAST
+buildLIA_SMT sf =
+    buildSpec (:+) (:*) (:=) (:>) (:>=) Ite mkSMTAnd mkSMTAnd mkSMTOr (flip V SortInt) VInt (flip V SortBool) sf
 
 -- Get a list of all LIA formulas.  We raise these as high in a PolyBound as possible,
 -- because checking leaves is more expensive.  Also, checking leaves only happens if those
@@ -1257,9 +1285,9 @@ buildLIA_LH si mv = map (mapPB pAnd) {- . map (uncurry raiseSpecs) . zip synth_s
 buildLIA_LH' :: SpecInfo -> SMTModel -> [PolyBound [LH.Expr]]
 buildLIA_LH' si mv =
     let
-        build ars = buildLIA ePlus eTimes bEq bGt bGeq eIte id pAnd pOr (detVar ars) (ECon . I) (detBool ars)
-        pre = map (mapPB (\psi -> build (int_sy_args_and_ret psi) (sy_coeffs psi) (map smt_var (int_sy_args_and_ret psi)))) $ s_syn_pre si
-        post = mapPB (\psi -> build post_ars (sy_coeffs psi) (map smt_var (int_sy_args_and_ret psi))) $ s_syn_post si
+        build ars = buildSpec ePlus eTimes bEq bGt bGeq eIte id pAnd pOr (detVar ars) (ECon . I) (detBool ars)
+        pre = map (mapPB (\psi -> build (int_sy_args_and_ret psi) psi)) $ s_syn_pre si
+        post = mapPB (build post_ars) $ s_syn_post si
     in
     pre ++ [post]
     where
@@ -1353,27 +1381,30 @@ argsInExpr (POr xs) = HS.unions (map argsInExpr xs)
 argsInExpr e = error $ "argsInExpr: unhandled symbol " ++ show e
 
 
-buildLIA :: Plus a
-         -> Mult a
-         -> EqF a b
-         -> Gt a b
-         -> GEq a b
-         -> Ite b b 
-         -> And b c
-         -> And b b
-         -> Or b
-         -> VInt a
-         -> CInt a
-         -> VBool b
-         -> [(SMTName, [Forms])]
-         -> [SMTName]
-         -> c
-buildLIA plus mult eq gt geq ite mk_and_sp mk_and mk_or vint cint vbool all_coeffs args =
+buildSpec :: Plus a
+          -> Mult a
+          -> EqF a b
+          -> Gt a b
+          -> GEq a b
+          -> Ite b b 
+          -> And b c
+          -> And b b
+          -> Or b
+          -> VInt a
+          -> CInt a
+          -> VBool b
+          -> SynthSpec
+          -> c
+buildSpec plus mult eq gt geq ite mk_and_sp mk_and mk_or vint cint vbool sf =
     let
+        all_coeffs = sy_coeffs sf
+
         lin_ineqs = map (\(cl_act, cl) -> vbool cl_act:mapMaybe toLinInEqs cl) all_coeffs
     in
     mk_and_sp . map mk_or $ lin_ineqs
     where
+        args = map smt_var (int_sy_args_and_ret sf)
+
         toLinInEqs (LIA { c_active = act
                         , c_op_branch1 = op_br1
                         , c_op_branch2 = op_br2
