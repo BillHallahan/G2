@@ -123,6 +123,12 @@ isSat :: Result m u -> Bool
 isSat (SAT _) = True
 isSat _ = False
 
+mkSMTEmptyArray :: Sort -> Sort -> SMTAST
+mkSMTEmptyArray = ArrayConst (VBool False)
+
+mkSMTUnion :: SMTAST -> SMTAST -> SMTAST
+mkSMTUnion s1 s2 = Func "union" [s1, s2]
+
 type SMTModel = M.Map SMTName SMTAST
 type UnsatCore = HS.HashSet SMTName
 
