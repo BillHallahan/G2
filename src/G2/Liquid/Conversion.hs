@@ -495,6 +495,9 @@ convertSetExpr meas dm bt rt e
                 return . Just $ mkApp ([ Var (Id f_nm (typeOf f_e))
                                        , Type t ]
                                         ++ es')
+            _ -> do
+                t <- tyIntT
+                return . Just $ App (Var (Id f_nm (typeOf f_e))) (Type t)
     | EVar v:es <- unEApp e
     , Just (nm, nm_mod) <- get_nameSetArOrd v
     , Just (f_nm, f_e) <- E.lookupNameMod nm nm_mod meas = do
@@ -518,6 +521,7 @@ convertSetExpr meas dm bt rt e
                             _ -> Nothing
 
         get_nameSetAr v = case nameOcc (symbolName v) of
+                            "Set_empty" -> Just ("empty", Just "Data.Set.Internal")
                             "Set_emp" -> Just ("null", Just "Data.Set.Internal")
                             _ -> Nothing
 
