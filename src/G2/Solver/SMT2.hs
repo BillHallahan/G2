@@ -471,7 +471,6 @@ parseToSMTAST str s = correctTypes s . parseGetValues $ str
 getModelZ3 :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
 getModelZ3 h_in h_out ns = do
     hPutStr h_in "(set-option :model_evaluator.completion true)\n"
-    r <- hWaitForInput h_out 1000
     getModel' ns
     where
         getModel' :: [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]

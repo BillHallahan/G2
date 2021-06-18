@@ -300,12 +300,20 @@ liaSynthOfSize sz m_si = do
         list_i_j s psi_ =
             [ 
                 (
-                    s ++ "_c_act_" ++ show j
+                    s ++ "_c_coeff_act_" ++ show j
                 ,
-                     [ mkCoeffs s psi_ j k | k <- [1] {- [1..sz] -} ] -- Ors
-                  ++ [ mkSetForms s psi_ j k | k <- [1]]
+                     [ mkCoeffs s psi_ j k | k <- [1] ] -- Ors
                 )
             | j <-  [1..sz] ] -- Ands
+          ++
+            [ 
+                (
+                    s ++ "_c_set_act_" ++ show j
+                ,
+                     [ mkSetForms s psi_ j k | k <- [1] ] -- Ors
+                )
+            | j <-  [1..sz] ] -- Ands
+
 
 mkCoeffs :: String -> SynthSpec -> Integer -> Integer -> Forms
 mkCoeffs s psi j k =
@@ -393,6 +401,8 @@ synth con ghci eenv tenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc blk_mdl
         max_coeffs_cons = maxCoeffConstraints si'
         soft_coeff_cons = softCoeffConstraints si'
 
+        soft_set_bool_cons = softSetConstraints si'
+
         mdls = lookupBlockedModels sz blk_mdls
         rel_mdls = map (uncurry (filterModelToRel si')) mdls
         block_mdls = map blockModelDirectly rel_mdls
@@ -407,6 +417,8 @@ synth con ghci eenv tenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc blk_mdl
                     ++ max_coeffs_cons
                     ++ [Comment "favor coefficients being -1, 0, or 1"]
                     ++ soft_coeff_cons
+                    ++ [Comment "favor set booleans being false"]
+                    ++ soft_set_bool_cons
                     ++ [Comment "block spurious models"]
                     ++ block_mdls
 
@@ -1130,6 +1142,10 @@ maxCoeffConstraints' to_header max_c =
                 then map (\c -> (Neg (VInt (max_c si)) :<= V c SortInt)
                                     :&& (V c SortInt :<= VInt (max_c si))) cffs
                 else []) . M.elems
+
+softSetConstraints :: M.Map Name SpecInfo -> [SMTHeader]
+softSetConstraints =
+    map (\n -> AssertSoft ((:!) (V n SortBool)) (Just "minimal_sets")) . getSetBools
 
 nonMaxCoeffConstraints :: InfConfigM m => [GhcInfo] -> NMExprEnv -> TypeEnv -> TypeClasses -> Measures -> MeasureExs -> Evals Bool  -> M.Map Name SpecInfo -> FuncConstraints
                        -> m ([SMTHeader], HM.HashMap SMTName FuncConstraint)
