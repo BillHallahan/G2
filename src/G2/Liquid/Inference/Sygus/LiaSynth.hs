@@ -738,35 +738,39 @@ buildLIA_SMT_fromModel mdl sf =
             | Just v <- M.lookup n mdl = v
             | otherwise = V n (SortArray SortInt SortBool)
 
-blockVars :: String -> SpecInfo -> ([PolyBound [SMTName]], PolyBound [SMTName])
+blockVars :: String -> SpecInfo -> ([PolyBound [(SMTName, Sort)]], PolyBound [(SMTName, Sort)])
 blockVars str si = ( map (uncurry mk_blk_vars) . zip (map show [0..]) $ s_syn_pre si
                    , mk_blk_vars "r" $ s_syn_post si)
     where
-        mk_blk_vars i sy_s = mapPB (\(j, s) -> 
-                                          map (\k -> "x_MDL_" ++ str ++ "_" ++ i ++ "_" ++ show j ++ "_" ++ show k)
-                                        . map fst
-                                        . zip [0..]
-                                        $ sy_args_and_ret s
-                                 )
-                         $ zipPB (uniqueIds sy_s) sy_s
+        mk_blk_vars i sy_s =
+            mapPB (\(j, s) -> 
+                        map (\(k, sa) ->
+                                ("x_MDL_" ++ str ++ "_" ++ i ++ "_" ++ show j ++ "_" ++ show k, smt_sort sa))
+                      . zip [0..]
+                      $ sy_args_and_ret s
+                  )
+            $ zipPB (uniqueIds sy_s) sy_s
 
-varDefs :: ([PolyBound [SMTName]], PolyBound [SMTName]) -> [SMTHeader]
-varDefs = map (flip VarDecl SortInt . TB.text . T.pack)
+varDefs :: ([PolyBound [(SMTName, Sort)]], PolyBound [(SMTName, Sort)]) -> [SMTHeader]
+varDefs = map (\(n, srt) -> VarDecl (TB.text . T.pack $ n) srt)
         . concat
         . concatMap extractValues
         . (\(x, y) -> y:x)
 
-mkEqualityAST :: ([PolyBound [SMTName]], PolyBound [SMTName]) -> SpecInfo -> SpecInfo -> SMTAST
+mkEqualityAST :: ([PolyBound [(SMTName, Sort)]], PolyBound [(SMTName, Sort)]) -> SpecInfo -> SpecInfo -> SMTAST
 mkEqualityAST (avs, rvs) si nsi =
     let
+        avs' = map (mapPB (map fst)) avs
+        rvs' = mapPB (map fst) rvs
+
         pre_eq =
             map (mapPB (uncurry3 mkFuncEq) . uncurry3 zip3PB)
-            $ zip3 avs (s_syn_pre si) (s_syn_pre nsi)
+            $ zip3 avs' (s_syn_pre si) (s_syn_pre nsi)
 
         pre_eq' = concatMap extractValues pre_eq
 
         post_eq =
-            mapPB (uncurry3 mkFuncEq) $ zip3PB rvs (s_syn_post si) (s_syn_post nsi)
+            mapPB (uncurry3 mkFuncEq) $ zip3PB rvs' (s_syn_post si) (s_syn_post nsi)
 
         post_eq' = extractValues post_eq
     in

@@ -152,6 +152,8 @@ class Reducer r rv t | r -> rv where
     updateWithAll :: r -> [(State t, rv)] -> [rv]
     updateWithAll _ = map snd 
 
+    onAccept :: r -> State t -> rv -> IO ()
+    onAccept _ _ _ = return ()
 
 -- | Determines when to stop evaluating a state
 -- The type parameter h is used to disambiguate between different producers.
@@ -287,6 +289,17 @@ instance (Reducer r1 rv1 t, Reducer r2 rv2 t) => Reducer (RCombiner r1 r2) (RC r
     updateWithAll (r1 :<~ r2) = updateWithAllRC r1 r2
     updateWithAll (r1 :<~? r2) = updateWithAllRC r1 r2
     updateWithAll (r1 :<~| r2) = updateWithAllRC r1 r2
+
+    onAccept (r1 :<~ r2) s (RC rv1 rv2) = do
+        onAccept r1 s rv1
+        onAccept r2 s rv2
+    onAccept (r1 :<~? r2) s (RC rv1 rv2) = do
+        onAccept r1 s rv1
+        onAccept r2 s rv2
+    onAccept (r1 :<~| r2) s (RC rv1 rv2) = do
+        onAccept r1 s rv1
+        onAccept r2 s rv2
+
 
 initReducerGen :: (Reducer r1 rv1 t, Reducer r2 rv2 t) => r1 -> r2 -> State t -> RC rv1 rv2
 initReducerGen r1 r2 s =
@@ -536,6 +549,9 @@ instance Show t => Reducer LimLogger LLTracker t where
     updateWithAll _ [(_, l)] = [l]
     updateWithAll _ ss =
         map (\(llt, i) -> llt { ll_offset = ll_offset llt ++ [i] }) $ zip (map snd ss) [1..]
+
+    onAccept _ _ ll = putStrLn $ "Accepted on path " ++ show (ll_offset ll)
+
 
 data PredicateLogger = PredicateLogger { pred :: forall t . State t -> Bindings -> Bool
                                        , pred_output_path :: String }
@@ -1226,6 +1242,7 @@ runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_
                 in
                 case jrs of
                     Just (rs', xs') -> do
+                        onAccept red s r_val
                         switchState red hal ord pr' rs' b xs'
                         -- runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
                     Nothing -> return (pr', b)

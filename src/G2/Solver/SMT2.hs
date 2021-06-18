@@ -93,12 +93,15 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
         let formula' = "(set-option :produce-unsat-cores true)\n" ++ formula
         putStrLn "\n\n checkSatGetModelOrUnsatCore"
         putStrLn formula'
+
         setUpFormulaZ3 h_in formula'
         r <- checkSat' h_in h_out
         -- putStrLn $ "r =  " ++ show r
         if r == SAT () then do
             mdl <- getModelZ3 h_in h_out vs
             putStrLn "======"
+            putStrLn $ "r = " ++ show r
+            putStrLn $ "mdl = " ++ show mdl
             -- putStrLn (show mdl)
             let m = parseModel mdl
             putStrLn $ "m = " ++ show m
@@ -107,8 +110,9 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
         else if r == UNSAT () then do
             uc <- getUnsatCoreZ3 h_in h_out
             return (UNSAT $ HS.fromList uc)
-        else
+        else do
             return (Unknown "")
+
 
     checkSatGetModelGetExpr con (h_in, h_out, _) formula _ vs eenv (CurrExpr _ e) = do
         setUpFormulaZ3 h_in formula
@@ -467,6 +471,7 @@ parseToSMTAST str s = correctTypes s . parseGetValues $ str
 getModelZ3 :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
 getModelZ3 h_in h_out ns = do
     hPutStr h_in "(set-option :model_evaluator.completion true)\n"
+    r <- hWaitForInput h_out 1000
     getModel' ns
     where
         getModel' :: [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
