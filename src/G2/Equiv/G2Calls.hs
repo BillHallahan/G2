@@ -52,7 +52,7 @@ rewriteRedHaltOrd solver simplifier config =
             Nothing -> SomeReducer (StdRed share solver simplifier :<~ EnforceProgressR :<~ ConcSymReducer :<~? EquivReducer)
      , SomeHalter
          (DiscardIfAcceptedTag state_name
-         :<~> GuardedHalter
+         -- :<~> GuardedHalter
          :<~> EnforceProgressH)
      , SomeOrderer $ PickLeastUsedOrderer)
 
@@ -64,29 +64,58 @@ data EnforceProgressR = EnforceProgressR
 
 data EnforceProgressH = EnforceProgressH
 
-instance Reducer EnforceProgressR (Maybe Int) t where
+-- TODO the rv here is irrelevant
+-- get the MaybeInt from the EquivTracker instead
+-- TODO may need to alter the state as well
+-- TODO also check for FAF here?
+instance Reducer EnforceProgressR (Maybe Int) EquivTracker where
     initReducer _ _ = Nothing
     -- TODO never gets called currently
+    -- later:  always No Tick
+    -- TODO which here gets NoProgress?
+    {-
+    redRules r rv s@(State { num_steps = n }) b =
+        case rv of
+            Nothing -> trace "Not Yet" $ return (InProgress, [(s, Nothing)], b, r)
+            Just n' -> trace "Now" $ return (NoProgress, [(s, rv)], b, r)
+    -}
     redRules r rv s@(State { curr_expr = CurrExpr _ e
-                           , num_steps = n })
+                           , num_steps = n
+                           , track = EquivTracker et m })
                   b =
-        case (e, rv) of
+        let s' = s { track = EquivTracker et (Just n) }
+        in
+        case (e, m) of
+        --case (e, rv) of
             (Tick (NamedLoc (Name p _ _ _)) _, Nothing) ->
                 trace "Tick Nothing" $
                 if p == T.pack "STACK"
-                then return (NoProgress, [(s, Just n)], b, r)
-                else return (InProgress, [(s, Just n)], b, r)
+                then return (InProgress, [(s', Just n)], b, r)
+                else return (NoProgress, [(s, Nothing)], b, r)
+            -- TODO this case should be unreachable
+            -- rv Nothing, Tick Nothing, Tick Just, No Tick ...
             (Tick (NamedLoc (Name p _ _ _)) _, Just n0) ->
                 trace "Tick Just" $
                 if p == T.pack "STACK" && n > n0
-                then return (NoProgress, [(s, Just n)], b, r)
-                else return (InProgress, [(s, Just n)], b, r)
-            _ -> trace "No Tick" $ return (InProgress, [(s, Just n)], b, r)
+                then return (InProgress, [(s', Just n)], b, r)
+                else return (NoProgress, [(s, m)], b, r)
+            _ -> trace "No Tick" $ return (NoProgress, [(s, rv)], b, r)
 
-instance Halter EnforceProgressH (Maybe Int) t where
+-- TODO delete GuardedHalter code
+argCount :: Type -> Int
+argCount (TyFun _ t) = 1 + argCount t
+argCount _ = 0
+
+exprFullApp :: Expr -> Bool
+exprFullApp e@(App (Var (Id _ t)) _) = length (unApp e) == 1 + argCount t
+exprFullApp _ = False
+
+-- TODO changed t to EquivTracker
+instance Halter EnforceProgressH (Maybe Int) EquivTracker where
     initHalt _ _ = Nothing
     updatePerStateHalt _ _ _ _ = Nothing
-    stopRed _ Nothing _ _ = return Continue
+    -- stopRed never even gets called?
+    --stopRed _ Nothing _ _ = trace "rv Nothing" $ return Continue
         {-
         let CurrExpr _ e = curr_expr s
         in
@@ -95,14 +124,29 @@ instance Halter EnforceProgressH (Maybe Int) t where
                 return Accept
             _ -> return Continue
         -}
-    stopRed _ (Just n) _ s =
+    stopRed _ _ _ s =
+        --trace "rv Just" $
         let CurrExpr _ e = curr_expr s
             n' = num_steps s
+            EquivTracker _ m = track s
         in
+        case m of
+            Nothing -> return Continue
+            Just n0 -> if (isExecValueForm s) || (exprFullApp e)
+                       then return (if n' > n0 then Accept else Continue)
+                       else return Continue
+        -- TODO which version of these is correct?
+        -- no longer have anything checking for the Tick itself
+        -- still I get the Just case above?
+        --if (isExecValueForm s) || (exprFullApp e)
+        --then return (if n' > n then Accept else Continue)
+        {-
         case e of
             Tick (NamedLoc (Name p _ _ _)) _ | p == T.pack "STACK" ->
                 return (if n' > n then Accept else Continue)
             _ -> return Continue
+        -}
+        --else return Continue
     stepHalter _ _ _ _ _ = Nothing
 
 -- Maps higher order function calles to symbolic replacements.
