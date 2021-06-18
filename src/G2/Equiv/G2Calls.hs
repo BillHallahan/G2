@@ -52,7 +52,6 @@ rewriteRedHaltOrd solver simplifier config =
             Nothing -> SomeReducer (StdRed share solver simplifier :<~ EnforceProgressR :<~ ConcSymReducer :<~? EquivReducer)
      , SomeHalter
          (DiscardIfAcceptedTag state_name
-         -- :<~> GuardedHalter
          :<~> EnforceProgressH)
      , SomeOrderer $ PickLeastUsedOrderer)
 
@@ -73,12 +72,6 @@ instance Reducer EnforceProgressR (Maybe Int) EquivTracker where
     -- TODO never gets called currently
     -- later:  always No Tick
     -- TODO which here gets NoProgress?
-    {-
-    redRules r rv s@(State { num_steps = n }) b =
-        case rv of
-            Nothing -> trace "Not Yet" $ return (InProgress, [(s, Nothing)], b, r)
-            Just n' -> trace "Now" $ return (NoProgress, [(s, rv)], b, r)
-    -}
     redRules r rv s@(State { curr_expr = CurrExpr _ e
                            , num_steps = n
                            , track = EquivTracker et m })
@@ -114,16 +107,6 @@ exprFullApp _ = False
 instance Halter EnforceProgressH (Maybe Int) EquivTracker where
     initHalt _ _ = Nothing
     updatePerStateHalt _ _ _ _ = Nothing
-    -- stopRed never even gets called?
-    --stopRed _ Nothing _ _ = trace "rv Nothing" $ return Continue
-        {-
-        let CurrExpr _ e = curr_expr s
-        in
-        case e of
-            Tick (NamedLoc (Name p _ _ _)) _ | p == T.pack "STACK" ->
-                return Accept
-            _ -> return Continue
-        -}
     stopRed _ _ _ s =
         --trace "rv Just" $
         let CurrExpr _ e = curr_expr s
@@ -132,21 +115,12 @@ instance Halter EnforceProgressH (Maybe Int) EquivTracker where
         in
         case m of
             Nothing -> return Continue
+            -- Execution needs to take strictly more than one step beyond the
+            -- point when it reaches the Tick because the act of unwrapping the
+            -- expression inside the Tick counts as one step.
             Just n0 -> if (isExecValueForm s) || (exprFullApp e)
-                       then return (if n' > n0 then Accept else Continue)
+                       then return (if n' > n0 + 1 then Accept else Continue)
                        else return Continue
-        -- TODO which version of these is correct?
-        -- no longer have anything checking for the Tick itself
-        -- still I get the Just case above?
-        --if (isExecValueForm s) || (exprFullApp e)
-        --then return (if n' > n then Accept else Continue)
-        {-
-        case e of
-            Tick (NamedLoc (Name p _ _ _)) _ | p == T.pack "STACK" ->
-                return (if n' > n then Accept else Continue)
-            _ -> return Continue
-        -}
-        --else return Continue
     stepHalter _ _ _ _ _ = Nothing
 
 -- Maps higher order function calles to symbolic replacements.

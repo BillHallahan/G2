@@ -39,10 +39,10 @@ import qualified G2.Language.Stack as Stck
 import Control.Monad
 
 exprReadyForSolver :: ExprEnv -> Expr -> Bool
+-- TODO need a Tick case for this now?
+-- doesn't seem to make a difference
+exprReadyForSolver h (Tick _ e) = exprReadyForSolver h e
 exprReadyForSolver h (Var i) = E.isSymbolic (idName i) h && T.isPrimType (typeOf i)
--- TODO function application form allowed now?
--- no, causes errors
---exprReadyForSolver _ (App _ _) = True
 exprReadyForSolver h (App f a) = exprReadyForSolver h f && exprReadyForSolver h a
 exprReadyForSolver _ (Prim _ _) = True
 exprReadyForSolver _ (Lit _) = True
@@ -294,6 +294,8 @@ checkRule config init_state bindings rule = do
       pairs_l = symbolic_ids rewrite_state_l
       pairs_r = symbolic_ids rewrite_state_r
       -- convert from State t to StateET
+      -- TODO don't have Tick in prev list?
+      -- it shouldn't make a difference
       rewrite_state_l' = rewrite_state_l {
                            track = emptyEquivTracker
                          , curr_expr = CurrExpr Evaluate $ tickWrap $ exprExtract rewrite_state_l
@@ -314,6 +316,9 @@ checkRule config init_state bindings rule = do
              bindings'' config
   -- UNSAT for good, SAT for bad
   return res
+
+symInsert :: Id -> ExprEnv -> ExprEnv
+symInsert i = E.insertSymbolic (idName i) i
 
 -- s1 is the old state, s2 is the new state
 moreRestrictive :: State t ->
@@ -340,7 +345,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                -- non-symbolic cases
                | not $ HS.member (idName i) ns
                , Just e <- E.lookup (idName i) h1 -> moreRestrictive s1 s2 ns hm e e2
-               | not $ HS.member (idName i) ns -> error "unmapped variable"
+               | not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
     (_, Var i) | E.isSymbolic (idName i) h2 -> Nothing
                -- the case above means sym replaces non-sym
                | Just e <- E.lookup (idName i) h2 -> moreRestrictive s1 s2 ns hm e1 e
@@ -364,9 +369,16 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                      | otherwise -> Nothing
     -- TODO I presume I need syntactic equality for lambda expressions
     -- LamUse is a simple variant
-    (Lam lu1 i1 b1, Lam lu2 i2 b2) | lu1 == lu2
-                                   , i1 == i2 -> moreRestrictive s1 s2 ns hm b1 b2
-                                   | otherwise -> Nothing
+    -- TODO new symbolic variables inserted
+    -- TODO what do I use as the name?
+    (Lam lu1 i1 b1, Lam lu2 i2 b2)
+                | lu1 == lu2
+                , i1 == i2 ->
+                  let s1' = s1 { expr_env = symInsert i1 h1 }
+                      s2' = s2 { expr_env = symInsert i2 h2 }
+                  in
+                  moreRestrictive s1' s2' ns hm b1 b2
+                | otherwise -> Nothing
     -- TODO ignore types, like in exprPairing?
     (Type _, Type _) -> Just hm
     (Case e1' i1 a1, Case e2' i2 a2)
@@ -386,8 +398,16 @@ moreRestrictiveAlt :: State t ->
                       Alt ->
                       Maybe (HM.HashMap Id Expr)
 moreRestrictiveAlt s1 s2 ns hm (Alt am1 e1) (Alt am2 e2) =
-  if am1 == am2
-  then moreRestrictive s1 s2 ns hm e1 e2
+  if am1 == am2 then
+  case (am1, am2) of
+    (DataAlt _ t1, DataAlt _ t2) -> let h1 = expr_env s1
+                                        h2 = expr_env s2
+                                        h1' = foldr symInsert h1 t1
+                                        h2' = foldr symInsert h2 t2
+                                        s1' = s1 { expr_env = h1' }
+                                        s2' = s2 { expr_env = h2' }
+                                      in moreRestrictive s1' s2' ns hm e1 e2
+    _ -> moreRestrictive s1 s2 ns hm e1 e2
   else Nothing
 
 isMoreRestrictive :: State t ->
