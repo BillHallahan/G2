@@ -1,5 +1,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleInstances #-}
 
 module G2.Equiv.G2Calls ( StateET
                         , emptyEquivTracker
@@ -17,6 +18,8 @@ import qualified Data.HashSet as HS
 import Data.Text ()
 
 import Debug.Trace
+
+import qualified Data.Text as T
 
 -- get names from symbolic ids in the state
 runG2ForRewriteV :: StateET -> Config -> Bindings -> IO ([ExecRes EquivTracker], Bindings)
@@ -45,30 +48,79 @@ rewriteRedHaltOrd solver simplifier config =
         state_name = Name "state" Nothing 0 Nothing
     in
     (case logStates config of
-            Just fp -> SomeReducer (StdRed share solver simplifier :<~ ConcSymReducer :<~? (Logger fp :<~ EquivReducer))
-            Nothing -> SomeReducer (StdRed share solver simplifier :<~ ConcSymReducer :<~? EquivReducer)
+            Just fp -> SomeReducer (StdRed share solver simplifier :<~ EnforceProgressR :<~ ConcSymReducer :<~? (Logger fp :<~ EquivReducer))
+            Nothing -> SomeReducer (StdRed share solver simplifier :<~ EnforceProgressR :<~ ConcSymReducer :<~? EquivReducer)
      , SomeHalter
          (DiscardIfAcceptedTag state_name
-         :<~> GuardedHalter)
+         :<~> GuardedHalter
+         :<~> EnforceProgressH)
      , SomeOrderer $ PickLeastUsedOrderer)
 
 type StateET = State EquivTracker
 
+data EnforceProgress = EnforceProgress
+
+data EnforceProgressR = EnforceProgressR
+
+data EnforceProgressH = EnforceProgressH
+
+instance Reducer EnforceProgressR (Maybe Int) t where
+    initReducer _ _ = Nothing
+    -- TODO never gets called currently
+    redRules r rv s@(State { curr_expr = CurrExpr _ e
+                           , num_steps = n })
+                  b =
+        case (e, rv) of
+            (Tick (NamedLoc (Name p _ _ _)) _, Nothing) ->
+                trace "Tick Nothing" $
+                if p == T.pack "STACK"
+                then return (NoProgress, [(s, Just n)], b, r)
+                else return (InProgress, [(s, Just n)], b, r)
+            (Tick (NamedLoc (Name p _ _ _)) _, Just n0) ->
+                trace "Tick Just" $
+                if p == T.pack "STACK" && n > n0
+                then return (NoProgress, [(s, Just n)], b, r)
+                else return (InProgress, [(s, Just n)], b, r)
+            _ -> trace "No Tick" $ return (InProgress, [(s, Just n)], b, r)
+
+instance Halter EnforceProgressH (Maybe Int) t where
+    initHalt _ _ = Nothing
+    updatePerStateHalt _ _ _ _ = Nothing
+    stopRed _ Nothing _ _ = return Continue
+        {-
+        let CurrExpr _ e = curr_expr s
+        in
+        case e of
+            Tick (NamedLoc (Name p _ _ _)) _ | p == T.pack "STACK" ->
+                return Accept
+            _ -> return Continue
+        -}
+    stopRed _ (Just n) _ s =
+        let CurrExpr _ e = curr_expr s
+            n' = num_steps s
+        in
+        case e of
+            Tick (NamedLoc (Name p _ _ _)) _ | p == T.pack "STACK" ->
+                return (if n' > n then Accept else Continue)
+            _ -> return Continue
+    stepHalter _ _ _ _ _ = Nothing
+
 -- Maps higher order function calles to symbolic replacements.
 -- This allows the same call to be replaced by the same Id consistently.
-newtype EquivTracker = EquivTracker (HM.HashMap Expr Id) deriving Show
+data EquivTracker = EquivTracker (HM.HashMap Expr Id) (Maybe Int) deriving Show
 
 emptyEquivTracker :: EquivTracker
-emptyEquivTracker = EquivTracker HM.empty
+emptyEquivTracker = EquivTracker HM.empty Nothing
 
 data EquivReducer = EquivReducer
 
+-- TODO new variable m
 instance Reducer EquivReducer () EquivTracker where
     initReducer _ _ = ()
     redRules r _ s@(State { expr_env = eenv
                           , curr_expr = CurrExpr Evaluate e
                           , symbolic_ids = symbs
-                          , track = EquivTracker et })
+                          , track = EquivTracker et m })
                  b@(Bindings { name_gen = ng })
         | isSymFuncApp eenv e =
             let
@@ -86,7 +138,7 @@ instance Reducer EquivReducer () EquivTracker where
                         (v, ng') = freshId (typeOf e) ng
                         et' = HM.insert e' v et
                         s' = s { curr_expr = CurrExpr Evaluate (Var v)
-                               , track = EquivTracker et'
+                               , track = EquivTracker et' m
                                , expr_env = E.insertSymbolic (idName v) v eenv
                                , symbolic_ids = v:symbs }
                         b' = b { name_gen = ng' }
@@ -112,19 +164,21 @@ inlineVars' seen eenv (Var (Id n _))
 inlineVars' seen eenv (App e1 e2) = App (inlineVars' seen eenv e1) (inlineVars' seen eenv e2)
 inlineVars' _ _ e = e
 
+-- TODO not all m usage here and elsewhere may be correct
 instance ASTContainer EquivTracker Expr where
-    containedASTs (EquivTracker hm) = HM.keys hm
-    modifyContainedASTs f (EquivTracker hm) =
-        EquivTracker . HM.fromList . map (\(k, v) -> (f k, v)) $ HM.toList hm
+    containedASTs (EquivTracker hm _) = HM.keys hm
+    modifyContainedASTs f (EquivTracker hm m) =
+        (EquivTracker . HM.fromList . map (\(k, v) -> (f k, v)) $ HM.toList hm) m
 
 instance ASTContainer EquivTracker Type where
-    containedASTs (EquivTracker hm) = containedASTs $ HM.keys hm
-    modifyContainedASTs f (EquivTracker hm) =
-          EquivTracker
+    containedASTs (EquivTracker hm _) = containedASTs $ HM.keys hm
+    modifyContainedASTs f (EquivTracker hm m) =
+        ( EquivTracker
         . HM.fromList
         . map (\(k, v) -> (modifyContainedASTs f k, modifyContainedASTs f v))
-        $ HM.toList hm
+        $ HM.toList hm )
+        m
 
 instance Named EquivTracker where
-    names (EquivTracker hm) = names hm
-    rename old new (EquivTracker hm) = EquivTracker $ rename old new hm
+    names (EquivTracker hm _) = names hm
+    rename old new (EquivTracker hm m) = EquivTracker (rename old new hm) m

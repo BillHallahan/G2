@@ -35,6 +35,8 @@ import qualified Data.HashMap.Lazy as HM
 import Debug.Trace
 
 import G2.Execution.NormalForms
+import qualified G2.Language.Stack as Stck
+import Control.Monad
 
 exprReadyForSolver :: ExprEnv -> Expr -> Bool
 exprReadyForSolver h (Var i) = E.isSymbolic (idName i) h && T.isPrimType (typeOf i)
@@ -60,16 +62,18 @@ runSymExec :: Config ->
               StateET ->
               CM.StateT Bindings IO [(StateET, StateET)]
 runSymExec config s1 s2 = do
-  let s1' = s1 { rules = [], num_steps = 0 }
-      s2' = s2 { rules = [], num_steps = 0 }
-  bindings <- trace "RS1" $ CM.get
+  --let s1' = s1 { rules = [], num_steps = 0 }
+  --    s2' = s2 { rules = [], num_steps = 0 }
+  let s1' = prepareState s1
+      s2' = prepareState s2
+  bindings <- CM.get
   (er1, bindings') <- CM.lift $ runG2ForRewriteV s1' config bindings
   CM.put bindings'
-  let final_s1 = trace "RSE2" $ map final_state er1
+  let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
                     b_ <- CM.get
                     let s2_ = transferStateInfo s1_ s2'
-                    (er2, b_') <- trace "RSE3" $ CM.lift $ runG2ForRewriteV s2_ config b_
+                    (er2, b_') <- CM.lift $ runG2ForRewriteV s2_ config b_
                     CM.put b_'
                     return $ map (\er2_ -> 
                                     let
@@ -78,7 +82,7 @@ runSymExec config s1 s2 = do
                                     in
                                     (s1_', s2_')
                                  ) er2) final_s1
-  return $ trace "RSE4" $ concat pairs
+  return $ concat pairs
 
 -- After s1 has had its expr_env, path constraints, and tracker updated,
 -- transfer these updates to s2.
@@ -118,12 +122,44 @@ runVerifier solver entry init_state bindings config = do
                bindings'' config
 -}
 
+frameWrap :: Frame -> Expr -> Expr
+frameWrap (CaseFrame i alts) e = Case e i alts
+-- TODO which is the function, which is the argument?
+frameWrap (ApplyFrame e') e = App e e'
+frameWrap (UpdateFrame _) e = e
+frameWrap (CastFrame co) e = Cast e co
+frameWrap _ _ = error "unsupported frame"
+
+stackWrap :: Stck.Stack Frame -> Expr -> Expr
+stackWrap sk e =
+  case Stck.pop sk of
+    Nothing -> e
+    Just (fr, sk') -> stackWrap sk' $ frameWrap fr e
+
+loc_name :: Name
+loc_name = Name (DT.pack "STACK") Nothing 0 Nothing
+
+tickWrap :: Expr -> Expr
+tickWrap e = Tick (NamedLoc loc_name) e
+
+exprWrap :: Stck.Stack Frame -> Expr -> Expr
+exprWrap sk e = stackWrap sk $ tickWrap e
+
 -- TODO added extra criterion
 notEVF :: State t -> Bool
 notEVF s = not $ isExprValueForm (expr_env s) (exprExtract s)
 
 pairNotEVF :: (State t, State t) -> Bool
 pairNotEVF (s1, s2) = notEVF s1 && notEVF s2
+
+-- TODO anything else needs to change?
+prepareState :: StateET -> StateET
+prepareState s = s {
+    curr_expr = CurrExpr Evaluate $ exprWrap (exec_stack s) $ exprExtract s
+  , num_steps = 0
+  , rules = []
+  , exec_stack = Stck.empty
+  }
 
 -- build initial hash set in Main before calling
 verifyLoop :: S.Solver solver =>
@@ -258,8 +294,14 @@ checkRule config init_state bindings rule = do
       pairs_l = symbolic_ids rewrite_state_l
       pairs_r = symbolic_ids rewrite_state_r
       -- convert from State t to StateET
-      rewrite_state_l' = rewrite_state_l {track = emptyEquivTracker}
-      rewrite_state_r' = rewrite_state_r {track = emptyEquivTracker}
+      rewrite_state_l' = rewrite_state_l {
+                           track = emptyEquivTracker
+                         , curr_expr = CurrExpr Evaluate $ tickWrap $ exprExtract rewrite_state_l
+                         }
+      rewrite_state_r' = rewrite_state_r {
+                           track = emptyEquivTracker
+                         , curr_expr = CurrExpr Evaluate $ tickWrap $ exprExtract rewrite_state_r
+                         }
       ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
       ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
   S.SomeSolver solver <- initSolver config
@@ -282,8 +324,10 @@ moreRestrictive :: State t ->
                    Expr ->
                    Maybe (HM.HashMap Id Expr)
 moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e2 =
-  -- | num_steps s1 /= 0 =
   case (e1, e2) of
+    -- TODO ignore all Ticks
+    (Tick _ e1', _) -> moreRestrictive s1 s2 ns hm e1' e2
+    (_, Tick _ e2') -> moreRestrictive s1 s2 ns hm e1 e2'
     (Var i1, Var i2) | HS.member (idName i1) ns
                      , idName i1 == idName i2 -> Just hm
     (Var i, _) | E.isSymbolic (idName i) h1
@@ -325,9 +369,26 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                                    | otherwise -> Nothing
     -- TODO ignore types, like in exprPairing?
     (Type _, Type _) -> Just hm
-    --(Case e1' i1 a1, Case e2' i2 a2) | i1 == i2
+    (Case e1' i1 a1, Case e2' i2 a2)
+                | i1 == i2
+                , Just hm' <- moreRestrictive s1 s2 ns hm e1' e2' ->
+                  let mf hm_ (e1_, e2_) = moreRestrictiveAlt s1 s2 ns hm_ e1_ e2_
+                      l = zip a1 a2
+                  in foldM mf hm' l
     _ -> Nothing
-    -- | otherwise = Nothing
+
+-- TODO also add variable mapping to both states
+moreRestrictiveAlt :: State t ->
+                      State t ->
+                      HS.HashSet Name ->
+                      HM.HashMap Id Expr ->
+                      Alt ->
+                      Alt ->
+                      Maybe (HM.HashMap Id Expr)
+moreRestrictiveAlt s1 s2 ns hm (Alt am1 e1) (Alt am2 e2) =
+  if am1 == am2
+  then moreRestrictive s1 s2 ns hm e1 e2
+  else Nothing
 
 isMoreRestrictive :: State t ->
                      State t ->
