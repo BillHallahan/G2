@@ -63,15 +63,8 @@ data EnforceProgressR = EnforceProgressR
 
 data EnforceProgressH = EnforceProgressH
 
--- TODO the rv here is irrelevant
--- get the MaybeInt from the EquivTracker instead
--- TODO may need to alter the state as well
--- TODO also check for FAF here?
 instance Reducer EnforceProgressR (Maybe Int) EquivTracker where
     initReducer _ _ = Nothing
-    -- TODO never gets called currently
-    -- later:  always No Tick
-    -- TODO which here gets NoProgress?
     redRules r rv s@(State { curr_expr = CurrExpr _ e
                            , num_steps = n
                            , track = EquivTracker et m })
@@ -79,20 +72,18 @@ instance Reducer EnforceProgressR (Maybe Int) EquivTracker where
         let s' = s { track = EquivTracker et (Just n) }
         in
         case (e, m) of
-        --case (e, rv) of
             (Tick (NamedLoc (Name p _ _ _)) _, Nothing) ->
-                trace "Tick Nothing" $
                 if p == T.pack "STACK"
                 then return (InProgress, [(s', Just n)], b, r)
                 else return (NoProgress, [(s, Nothing)], b, r)
-            -- TODO this case should be unreachable
-            -- rv Nothing, Tick Nothing, Tick Just, No Tick ...
+            -- TODO condense these into one case?
+            -- TODO n > n0 + 1
+            -- then again, it might not matter at all here
             (Tick (NamedLoc (Name p _ _ _)) _, Just n0) ->
-                trace "Tick Just" $
                 if p == T.pack "STACK" && n > n0
                 then return (InProgress, [(s', Just n)], b, r)
                 else return (NoProgress, [(s, m)], b, r)
-            _ -> trace "No Tick" $ return (NoProgress, [(s, rv)], b, r)
+            _ -> return (NoProgress, [(s, rv)], b, r)
 
 -- TODO delete GuardedHalter code
 argCount :: Type -> Int

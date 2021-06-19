@@ -168,12 +168,13 @@ verifyLoop :: S.Solver solver =>
               [(Id, Id)] ->
               [(StateET, StateET)] ->
               [(StateET, StateET)] ->
+              [(StateET, StateET)] ->
               Bindings ->
               Config ->
               IO (S.Result () ())
-verifyLoop solver ns_pair pairs states prev b config | not (null states) = do
+verifyLoop solver ns_pair pairs states prev_u prev_g b config | not (null states) = do
     (paired_states, b') <- CM.runStateT (mapM (uncurry (runSymExec config)) states) b
-    let vl (s1, s2) = verifyLoop' solver ns_pair s1 s2 prev
+    let vl (s1, s2) = verifyLoop' solver ns_pair s1 s2 prev_u prev_g
     -- TODO
     putStrLn "<Loop Iteration>"
     proof_list <- mapM vl $ concat paired_states
@@ -181,29 +182,31 @@ verifyLoop solver ns_pair pairs states prev b config | not (null states) = do
         new_obligations = concat proof_list'
         solved_list = concat [l | Just (l, _) <- proof_list]
         -- TODO might not need solved_list
-        new_prev = (filter pairNotEVF $ new_obligations ++ solved_list) ++ prev
+        prev_u' = (filter pairNotEVF $ new_obligations ++ solved_list) ++ prev_u
+        prev_g' = new_obligations ++ solved_list ++ prev_g
         verified = all isJust proof_list
     putStrLn $ show $ length new_obligations
     if verified then
-        verifyLoop solver ns_pair pairs new_obligations new_prev b' config
+        verifyLoop solver ns_pair pairs new_obligations prev_u' prev_g' b' config
     else
         return $ S.SAT ()
   | otherwise = do
-    putStrLn "FINISHED"
     return $ S.UNSAT ()
 
 exprExtract :: State t -> Expr
 exprExtract (State { curr_expr = CurrExpr _ e }) = e
 
 -- TODO printing
+-- TODO how do I tell when to use prev_u or prev_g?
 verifyLoop' :: S.Solver solver =>
                solver ->
                (HS.HashSet Name, HS.HashSet Name) ->
                StateET ->
                StateET ->
                [(StateET, StateET)] ->
+               [(StateET, StateET)] ->
                IO (Maybe ([(StateET, StateET)], [(StateET, StateET)]))
-verifyLoop' solver ns_pair s1 s2 prev =
+verifyLoop' solver ns_pair s1 s2 prev_u prev_g =
   let obligation_maybe = obligationStates s1 s2
   in case obligation_maybe of
       Nothing -> do
@@ -213,6 +216,7 @@ verifyLoop' solver ns_pair s1 s2 prev =
       Just obs -> do
           putStr "J! "
           putStrLn $ show (exprExtract s1, exprExtract s2)
+          let prev = if pairNotEVF (s1, s2) then prev_u else prev_g
           let obligation_list = filter (not . (moreRestrictivePair ns_pair prev)) obs
               (ready, not_ready) = partition statePairReadyForSolver obligation_list
               ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
@@ -310,7 +314,10 @@ checkRule config init_state bindings rule = do
   -- TODO
   putStrLn $ show $ curr_expr rewrite_state_l'
   putStrLn $ show $ curr_expr rewrite_state_r'
+  -- TODO do we know that both sides are in SWHNF at the start?
+  -- Could that interfere with the results?
   res <- verifyLoop solver (ns_l, ns_r) (zip pairs_l pairs_r)
+             [(rewrite_state_l', rewrite_state_r')]
              [(rewrite_state_l', rewrite_state_r')]
              [(rewrite_state_l', rewrite_state_r')]
              bindings'' config

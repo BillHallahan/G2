@@ -10,6 +10,7 @@ cons n (!l) = n:l
 intForce :: [Int] -> [Int]
 intForce [] = []
 intForce (h:t) = cons h $ intForce t
+--intForce (h : (!t)) = h:(intForce t)
 
 maybeForce :: Maybe t -> Maybe t
 maybeForce !Nothing = Nothing
