@@ -365,15 +365,6 @@ instance Reducer ConcSymReducer () t where
                    b@(Bindings { name_gen = ng })
         | E.isSymbolic n eenv
         , Just (dc_symbs, ng') <- arbDC tenv ng t = do
-            -- TODO printing for debugging
-            -- same expr over and over
-            -- symbolic ID list keeps getting longer
-            putStr "EXPR "
-            putStrLn $ show $ Var (Id n t)
-            --putStr "SYM_IDS "
-            --putStrLn $ show symbs
-            putStr "SYMBS "
-            putStrLn $ show dc_symbs
             let 
                 xs = map (\(e, symbs') ->
                                 s   { curr_expr = CurrExpr Evaluate e

@@ -99,7 +99,6 @@ instance Halter EnforceProgressH (Maybe Int) EquivTracker where
     initHalt _ _ = Nothing
     updatePerStateHalt _ _ _ _ = Nothing
     stopRed _ _ _ s =
-        --trace "rv Just" $
         let CurrExpr _ e = curr_expr s
             n' = num_steps s
             EquivTracker _ m = track s
