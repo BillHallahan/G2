@@ -249,6 +249,7 @@ liaSynth con ghci lrs evals meas_ex max_sz fc blk_mdls to_be_ns ns_synth = do
     si <- buildSpecInfo con tenv tc ghci lrs ns_aty_rty to_be_ns_aty_rty known_ns_aty_rty meas_ex fc
 
     liftIO . putStrLn $ "si = " ++ show si
+    liftIO . putStrLn $ "evals = " ++ show (assignIds evals)
 
     let meas = lrsMeasures ghci lrs
 
@@ -1068,21 +1069,29 @@ mkRetNonZero' si =
                   (\(act, cff) ->
                           Solver.Assert (((:!) $ V act SortBool)
                         :=> 
-                          mkSMTOr (mapMaybe (\c -> mkCoeffRetNonZero c) cff))
+                          mkSMTOr (map (\c -> mkCoeffRetNonZero c) cff))
                   ) cffs
               ) sy_sps
 
-mkCoeffRetNonZero :: Forms -> Maybe SMTAST
+mkCoeffRetNonZero :: Forms -> SMTAST
 mkCoeffRetNonZero cffs@(LIA {}) =
     let
         act = c_active cffs
         ret_cffs = rets_coeffs cffs
     in
     case null ret_cffs of
-        True -> Just $ VBool True
+        True -> VBool True
         False -> 
-            Just $ V act SortBool :=> mkSMTOr (map (\r -> V r SortInt :/= VInt 0) ret_cffs)
-mkCoeffRetNonZero _ = Nothing
+            V act SortBool :=> mkSMTOr (map (\r -> V r SortInt :/= VInt 0) ret_cffs)
+mkCoeffRetNonZero cffs@(Set {}) =
+    let
+        act = c_active cffs
+        ret_bools = rets_bools_lhs cffs ++ rets_bools_rhs cffs
+    in
+    case null ret_bools of
+        True -> VBool True
+        False -> 
+            V act SortBool :=> mkSMTOr (map (\r -> V r SortBool) ret_bools)
 
 -- This function aims to limit the number of different models that can be produced
 -- that result in equivalent specifications. 
