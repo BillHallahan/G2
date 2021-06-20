@@ -47,6 +47,7 @@ bst (BBranch i t0@(BBranch j _ _) t1@(BBranch k _ _)) =
   #-}
 
 -- TODO I get SAT for this but UNSAT for forceDoesNothing
+-- for a newer verifier version, it runs forever on this instead
 {-# RULES
 "treeForceNothing" forall st . treeForce st = st
   #-}

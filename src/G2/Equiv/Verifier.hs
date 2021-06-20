@@ -158,6 +158,11 @@ pairEVF (s1, s2) =
   isExprValueForm (expr_env s1) (exprExtract s1) &&
   isExprValueForm (expr_env s2) (exprExtract s2)
 
+eitherEVF :: (State t, State t) -> Bool
+eitherEVF (s1, s2) =
+  isExprValueForm (expr_env s1) (exprExtract s1) ||
+  isExprValueForm (expr_env s2) (exprExtract s2)
+
 -- TODO anything else needs to change?
 prepareState :: StateET -> StateET
 prepareState s = s {
@@ -188,7 +193,7 @@ verifyLoop solver ns_pair pairs states prev_u prev_g b config | not (null states
         new_obligations = concat proof_list'
         solved_list = concat [l | Just (l, _) <- proof_list]
         -- TODO might not need solved_list
-        prev_u' = (filter pairEVF $ new_obligations ++ solved_list) ++ prev_u
+        prev_u' = (filter pairNotEVF $ new_obligations ++ solved_list) ++ prev_u
         prev_g' = new_obligations ++ solved_list ++ prev_g
         verified = all isJust proof_list
     putStrLn $ show $ length new_obligations
@@ -224,7 +229,7 @@ verifyLoop' solver ns_pair s1 s2 prev_u prev_g =
           putStrLn $ show (exprExtract s1, exprExtract s2)
           --let prev = if pairNotEVF (s1, s2) then prev_u else prev_g
           -- TODO make sure that this is correct
-          let prev = if pairEVF (s1, s2) then prev_g else prev_u
+          let prev = if eitherEVF (s1, s2) then prev_g else prev_u
           let obligation_list = filter (not . (moreRestrictivePair ns_pair prev)) obs
               (ready, not_ready) = partition statePairReadyForSolver obligation_list
               ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
@@ -324,7 +329,7 @@ checkRule config init_state bindings rule = do
   putStrLn $ show $ curr_expr rewrite_state_r'
   -- TODO do we know that both sides are in SWHNF at the start?
   -- Could that interfere with the results?
-  let prev_u = filter pairEVF [(rewrite_state_l', rewrite_state_r')]
+  let prev_u = filter pairNotEVF [(rewrite_state_l', rewrite_state_r')]
   res <- verifyLoop solver (ns_l, ns_r) (zip pairs_l pairs_r)
              [(rewrite_state_l', rewrite_state_r')]
              prev_u
