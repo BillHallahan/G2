@@ -51,7 +51,7 @@ allowedName (Name n m _ _) =
 cleanNames :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> CleanedNames -> NameGen -> (State t, CleanedNames, NameGen)
 cleanNames s cl_names ng = (renames hns s, cl_names', ng')
   where
-    (ns, ng') = createNamePairs ng . filter (not . allowedName) . map idName $ symbolic_ids s
+    (ns, ng') = createNamePairs ng . filter (not . allowedName) . map idName $ symbolic_ids s ++ altIds s
     hns = HM.fromList ns
     cl_names' = foldr (\(old, new) -> HM.insert new old) cl_names (HM.toList hns)
 
@@ -88,3 +88,14 @@ createNamePairs ing ins = go ing [] ins
 
 allNames :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> [Name]
 allNames s = exprNames s ++ E.keys (expr_env s)
+
+altIds :: ASTContainer c Expr => c -> [Id]
+altIds = evalASTs altIds'
+
+altIds' :: Expr -> [Id]
+altIds' (Case _ i as) = i:concatMap altIds'' as
+altIds' _ = []
+
+altIds'' :: Alt -> [Id]
+altIds'' (Alt (DataAlt _ is) _) = is
+altIds'' _ = []
