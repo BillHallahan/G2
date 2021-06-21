@@ -126,8 +126,14 @@ isSat _ = False
 mkSMTEmptyArray :: Sort -> Sort -> SMTAST
 mkSMTEmptyArray = ArrayConst (VBool False)
 
+mkSMTUniversalArray :: Sort -> Sort -> SMTAST
+mkSMTUniversalArray = ArrayConst (VBool True)
+
 mkSMTUnion :: SMTAST -> SMTAST -> SMTAST
 mkSMTUnion s1 s2 = Func "union" [s1, s2]
+
+mkSMTIntersection :: SMTAST -> SMTAST -> SMTAST
+mkSMTIntersection s1 s2 = Func "intersection" [s1, s2]
 
 type SMTModel = M.Map SMTName SMTAST
 type UnsatCore = HS.HashSet SMTName
