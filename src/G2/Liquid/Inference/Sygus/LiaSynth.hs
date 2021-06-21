@@ -740,7 +740,7 @@ renameByAdding i si =
 buildLIA_SMT_fromModel :: SMTModel -> SynthSpec -> SMTAST
 buildLIA_SMT_fromModel mdl sf =
     buildSpec (:+) (:*) (:=) (:>) (:>=) Ite Ite
-              mkSMTAnd mkSMTAnd mkSMTOr mkSMTUnion mkSMTIntersection
+              mkSMTAnd mkSMTAnd mkSMTOr mkSMTUnion mkSMTIntersection mkSMTIsSubsetOf
               vint VInt vbool vset
               (mkSMTEmptyArray SortInt SortBool)
               (mkSMTUniversalArray SortInt SortBool)
@@ -1340,6 +1340,8 @@ type Ite b a = b -> a -> a -> a
 type And b c = [b] -> c
 type Or b = [b] -> b
 
+type IsSubsetOf a b = a -> a -> b
+
 type Union a = a -> a -> a
 type Intersection a = a -> a -> a
 
@@ -1353,7 +1355,7 @@ type UniversalSet s = s
 buildLIA_SMT :: SynthSpec -> SMTAST
 buildLIA_SMT sf =
     buildSpec (:+) (:*) (:=) (:>) (:>=) Ite Ite
-              mkSMTAnd mkSMTAnd mkSMTOr mkSMTUnion mkSMTIntersection
+              mkSMTAnd mkSMTAnd mkSMTOr mkSMTUnion mkSMTIntersection mkSMTIsSubsetOf
               (flip V SortInt) VInt (flip V SortBool) (flip V $ SortArray SortInt SortBool)
               (mkSMTEmptyArray SortInt SortBool)
               (mkSMTUniversalArray SortInt SortBool)
@@ -1380,7 +1382,7 @@ buildLIA_LH' si mv =
                               bEq bGt bGeq
                               eIte eIte id
                               pAnd pOr
-                              eUnion eIntersection
+                              eUnion eIntersection bIsSubset
                               (detVar ars) (ECon . I) (detBool ars)
                               (detSet ars) eEmptySet eUnivSet
         pre = map (mapPB (\psi -> build (int_sy_args_and_ret psi) psi)) $ s_syn_pre si
@@ -1466,6 +1468,13 @@ buildLIA_LH' si mv =
             | x == y = x
             | otherwise = EApp (EApp (EVar "Set_cap") x) y
 
+        bIsSubset x y
+            | x == eEmptySet = PTrue
+            | y == eUnivSet = PTrue
+            | x == eUnivSet = PFalse
+            | x == y = PTrue
+            | otherwise = EApp (EApp (EVar "Set_sub") x) y
+
         eEmptySet = EApp (EVar "Set_empty") (ECon (I 0))
         eUnivSet = EVar ("Set_univ")
 
@@ -1517,6 +1526,7 @@ buildSpec :: Show b => Plus a
 
           -> Union a
           -> Intersection a
+          -> IsSubsetOf a b
 
           -> VInt a
           -> CInt a
@@ -1526,7 +1536,7 @@ buildSpec :: Show b => Plus a
           -> UniversalSet a
           -> SynthSpec
           -> c
-buildSpec plus mult eq gt geq ite ite_set mk_and_sp mk_and mk_or mk_union mk_intersection vint cint vbool vset cemptyset cunivset sf =
+buildSpec plus mult eq gt geq ite ite_set mk_and_sp mk_and mk_or mk_union mk_intersection is_subset vint cint vbool vset cemptyset cunivset sf =
     let
         all_coeffs = sy_coeffs sf
         lin_ineqs = map (\(cl_act, cl) -> vbool cl_act:map toLinInEqs cl) all_coeffs
@@ -1564,7 +1574,7 @@ buildSpec plus mult eq gt geq ite ite_set mk_and_sp mk_and mk_or mk_union mk_int
                 sm1 = set_form ars_b1 rets_b1
                 sm2 = set_form ars_b2 rets_b2
             in
-            mk_and [vbool act, sm1 `eq` sm2]
+            mk_and [vbool act, sm1 `eq` sm2 {- ite (vbool op_br1) (sm1 `eq` sm2) (sm1 `is_subset` sm2) -}]
 
         set_form ars rts =
             let

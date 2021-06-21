@@ -135,6 +135,9 @@ mkSMTUnion s1 s2 = Func "union" [s1, s2]
 mkSMTIntersection :: SMTAST -> SMTAST -> SMTAST
 mkSMTIntersection s1 s2 = Func "intersection" [s1, s2]
 
+mkSMTIsSubsetOf :: SMTAST -> SMTAST -> SMTAST
+mkSMTIsSubsetOf s1 s2 = Func "subset" [s1, s2]
+
 type SMTModel = M.Map SMTName SMTAST
 type UnsatCore = HS.HashSet SMTName
 
