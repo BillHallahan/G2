@@ -520,6 +520,9 @@ toSolverAST con (Neg x) = neg con $ toSolverAST con x
 toSolverAST con (ArrayConst v indS valS) =
     constArray con (toSolverAST con v) (sortName con indS) (sortName con valS)
 
+toSolverAST con (ArraySelect arr ind) =
+    arraySelect con (toSolverAST con arr) (toSolverAST con ind)
+
 toSolverAST con (ArrayStore arr ind val) =
     arrayStore con (toSolverAST con arr) (toSolverAST con ind) (toSolverAST con val)
 
