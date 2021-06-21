@@ -1455,6 +1455,7 @@ buildLIA_LH' si mv =
             | y == eEmptySet = x
             | x == eUnivSet = eUnivSet
             | y == eUnivSet = eUnivSet
+            | x == y = x
             | otherwise = EApp (EApp (EVar "Set_cup") x) y
         
         eIntersection x y
@@ -1462,6 +1463,7 @@ buildLIA_LH' si mv =
             | y == eUnivSet = x
             | x == eEmptySet = eEmptySet
             | y == eEmptySet = eEmptySet
+            | x == y = x
             | otherwise = EApp (EApp (EVar "Set_cap") x) y
 
         eEmptySet = EApp (EVar "Set_empty") (ECon (I 0))
