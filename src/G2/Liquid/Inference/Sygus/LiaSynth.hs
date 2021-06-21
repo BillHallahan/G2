@@ -249,7 +249,6 @@ liaSynth con ghci lrs evals meas_ex max_sz fc blk_mdls to_be_ns ns_synth = do
     si <- buildSpecInfo con tenv tc ghci lrs ns_aty_rty to_be_ns_aty_rty known_ns_aty_rty meas_ex fc
 
     liftIO . putStrLn $ "si = " ++ show si
-    liftIO . putStrLn $ "evals = " ++ show (assignIds evals)
 
     let meas = lrsMeasures ghci lrs
 
