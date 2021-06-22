@@ -130,6 +130,7 @@ instance Reducer EquivReducer () EquivTracker where
                           , symbolic_ids = symbs
                           , track = EquivTracker et m })
                  b@(Bindings { name_gen = ng })
+        -- | trace ("isSymFuncApp " ++ (show e) ++ "\n" ++ (show $ isSymFuncApp eenv e)) $
         | isSymFuncApp eenv e =
             let
                 -- We inline variables to have a higher chance of hitting in the Equiv Tracker
@@ -156,8 +157,13 @@ instance Reducer EquivReducer () EquivTracker where
 
 isSymFuncApp :: ExprEnv -> Expr -> Bool
 isSymFuncApp eenv e
-    | Var (Id f t):es@(_:_) <- unApp e = E.isSymbolic f eenv && hasFuncType (PresType t)
-    | otherwise = False
+    -- | Var (Id f t):es@(_:_) <- unApp e = trace ("f = " ++ (show f) ++ " " ++ (show $ E.lookupConcOrSym f eenv) ++ " " ++ (show $ hasFuncType (PresType t))) (E.isSymbolic f eenv && hasFuncType (PresType t))
+    | v@(Var _):es@(_:_) <- unApp e
+    , (Var (Id f t)) <- inlineVars eenv v = trace ("f = " ++ (show f) ++ " " ++ (show $ E.lookupConcOrSym f eenv) ++ " " ++ (show $ hasFuncType (PresType t))) $
+                                            E.isSymbolic f eenv && hasFuncType (PresType t)
+    -- TODO this case doesn't matter
+    -- | Var (Id f t):es@(_:_) <- unApp e = trace ("QQ " ++ (show $ E.isSymbolic f eenv && hasFuncType (PresType t))) $ trace (show f) $ E.isSymbolic f eenv && hasFuncType (PresType t)
+    | otherwise = {- trace "RR" $ trace (show e) -} False
 
 inlineApp :: ExprEnv -> Expr -> Expr
 inlineApp eenv = mkApp . map (inlineVars eenv) . unApp

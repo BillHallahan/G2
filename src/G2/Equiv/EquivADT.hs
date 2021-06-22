@@ -29,6 +29,10 @@ exprPairing :: State t ->
                Maybe (HS.HashSet (Expr, Expr))
 exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs =
   case (e1, e2) of
+    _ | e1 == e2 -> Just pairs
+    -- TODO ignore all Ticks now?
+    (Tick _ e1', _) -> exprPairing s1 s2 e1' e2 pairs
+    (_, Tick _ e2') -> exprPairing s1 s2 e1 e2' pairs
     (Var i, _) | E.isSymbolic (idName i) h1 -> Just (HS.insert (e1, e2) pairs)
                | Just e <- E.lookup (idName i) h1 -> exprPairing s1 s2 e e2 pairs
                | otherwise -> error "unmapped variable"
@@ -65,6 +69,11 @@ exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs =
     (_, Lam _ _ _) -> Just (HS.insert (e1, e2) pairs)
     -- TODO assume for now that all types line up between the two expressions
     (Type _, Type _) -> Just pairs
+    -- TODO handle Case expressions
+    (Case _ _ _, _) -> Just (HS.insert (e1, e2) pairs)
+    (_, Case _ _ _) -> Just (HS.insert (e1, e2) pairs)
+    -- TODO will need state modification for that
+    -- TODO allow changes in order?
     -- TODO Tick case
-    (Tick _ e1', Tick _ e2') -> exprPairing s1 s2 e1' e2' pairs
+    --(Tick _ e1', Tick _ e2') -> exprPairing s1 s2 e1' e2' pairs
     _ -> error $ "catch-all case\n" ++ show e1 ++ "\n" ++ show e2

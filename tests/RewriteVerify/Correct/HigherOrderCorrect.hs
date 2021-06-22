@@ -16,15 +16,15 @@ compose f g x = f (g x)
 
 intMap :: (Int -> Int) -> [Int] -> [Int]
 intMap _ [] = []
-intMap f (h:t) = (f h) : (intMap f t)
+intMap p (h:t) = (p h) : (intMap p t)
 
 intIterate :: (Int -> Int) -> Int -> [Int]
-intIterate f n = n : (intIterate f (f n))
+intIterate q n = n : (intIterate q (q n))
 
 -- TODO
 intFilter :: (Int -> Bool) -> [Int] -> [Int]
 intFilter _ [] = []
-intFilter f (h:t) = if f h then h:(intFilter f t) else intFilter f t
+intFilter r (h:t) = if r h then h:(intFilter r t) else intFilter r t
 
 nonneg :: Int -> Bool
 nonneg x = x >= 0

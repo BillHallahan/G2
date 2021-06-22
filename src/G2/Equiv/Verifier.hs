@@ -62,10 +62,10 @@ runSymExec :: Config ->
               StateET ->
               CM.StateT Bindings IO [(StateET, StateET)]
 runSymExec config s1 s2 = do
-  --let s1' = s1 { rules = [], num_steps = 0 }
-  --    s2' = s2 { rules = [], num_steps = 0 }
-  let s1' = prepareState s1
-      s2' = prepareState s2
+  let s1' = s1 { rules = [], num_steps = 0 }
+      s2' = s2 { rules = [], num_steps = 0 }
+  --let s1' = prepareState s1
+  --    s2' = prepareState s2
   bindings <- CM.get
   (er1, bindings') <- CM.lift $ runG2ForRewriteV s1' config bindings
   CM.put bindings'
@@ -80,7 +80,7 @@ runSymExec config s1 s2 = do
                                         s2_' = final_state er2_
                                         s1_' = transferStateInfo s2_' s1_
                                     in
-                                    (s1_', s2_')
+                                    (prepareState s1_', prepareState s2_')
                                  ) er2) final_s1
   return $ concat pairs
 
@@ -165,12 +165,27 @@ eitherEVF (s1, s2) =
 
 -- TODO anything else needs to change?
 prepareState :: StateET -> StateET
-prepareState s = s {
-    curr_expr = CurrExpr Evaluate $ exprWrap (exec_stack s) $ exprExtract s
+prepareState s =
+  let CurrExpr er e = curr_expr s
+  in s {
+    curr_expr = CurrExpr er $ exprWrap (exec_stack s) $ e
   , num_steps = 0
   , rules = []
   , exec_stack = Stck.empty
   }
+
+-- TODO
+f_name :: Name
+-- TODO what is this?
+--f_name = Name "f" Nothing 6989586621679188988 Nothing
+-- TODO this version comes out as concrete
+--f_name = Name "f" Nothing 7566047373982581205 Nothing
+-- TODO this comes from the initial state
+f_name = Name "f" Nothing 6989586621679189009 (Just (Span {start = Loc {line = 39, col = 20, file = "tests/RewriteVerify/Correct/HigherOrderCorrect.hs"}, end = Loc {line = 39, col = 21, file = "tests/RewriteVerify/Correct/HigherOrderCorrect.hs"}}))
+
+--f = Name "f" Nothing 7566047373982581205 Nothing Just (Conc (Var (Id (Name "f" Nothing 6989586621679189009 (Just (Span {start = Loc {line = 39, col = 20, file = "tests/RewriteVerify/Correct/HigherOrderCorrect.hs"}, end = Loc {line = 39, col = 21, file = "tests/RewriteVerify/Correct/HigherOrderCorrect.hs"}}))) (TyFun (TyCon (Name "Int" (Just "GHC.Types") 8214565720323789235 Nothing) TYPE) (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE))))) True
+
+--Just (Conc (Var (Id (Name "f" Nothing 6989586621679189009 (Just (Span {start = Loc {line = 39, col = 20, file = "tests/RewriteVerify/Correct/HigherOrderCorrect.hs"}, end = Loc {line = 39, col = 21, file = "tests/RewriteVerify/Correct/HigherOrderCorrect.hs"}}))) (TyFun (TyCon (Name "Int" (Just "GHC.Types") 8214565720323789235 Nothing) TYPE) (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE)))))
 
 -- build initial hash set in Main before calling
 verifyLoop :: S.Solver solver =>
@@ -194,6 +209,7 @@ verifyLoop solver ns_pair pairs states prev_u prev_g b config | not (null states
         solved_list = concat [l | Just (l, _) <- proof_list]
         -- TODO might not need solved_list
         prev_u' = (filter pairNotEVF $ new_obligations ++ solved_list) ++ prev_u
+        --prev_g' = (filter eitherEVF new_obligations ++ solved_list) ++ prev_g
         prev_g' = new_obligations ++ solved_list ++ prev_g
         verified = all isJust proof_list
     putStrLn $ show $ length new_obligations
@@ -227,16 +243,23 @@ verifyLoop' solver ns_pair s1 s2 prev_u prev_g =
       Just obs -> do
           putStr "J! "
           putStrLn $ show (exprExtract s1, exprExtract s2)
+          -- TODO
+          --putStrLn "$$$"
+          --putStrLn $ show $ E.lookupConcOrSym f_name (expr_env s1)
+          --putStrLn $ show $ E.lookupConcOrSym f_name (expr_env s2)
           --let prev = if pairNotEVF (s1, s2) then prev_u else prev_g
           -- TODO make sure that this is correct
           let prev = if eitherEVF (s1, s2) then prev_g else prev_u
+          --putStr "EVF: "
+          --putStrLn $ show $ eitherEVF (s1, s2)
+          --putStrLn $ show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) prev
           let obligation_list = filter (not . (moreRestrictivePair ns_pair prev)) obs
               (ready, not_ready) = partition statePairReadyForSolver obligation_list
               ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
           putStr "O: "
           putStrLn $ show ready_exprs
           putStr "NR: "
-          putStrLn $ show $ length not_ready
+          putStrLn $ show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) not_ready
           putStr "OBS: "
           putStrLn $ show $ length obs
           res <- checkObligations solver s1 s2 ready_exprs
@@ -253,11 +276,14 @@ getObligations s1 s2 =
       CurrExpr _ e2 = curr_expr s2
   in proofObligations s1 s2 e1 e2
 
+-- TODO right way to wrap here?
 obligationStates ::  State t -> State t -> Maybe [(State t, State t)]
 obligationStates s1 s2 =
-  let stateWrap (e1, e2) =
-        ( s1 { curr_expr = CurrExpr Evaluate e1 }
-        , s2 { curr_expr = CurrExpr Evaluate e2 } )
+  let CurrExpr er1 _ = curr_expr s1
+      CurrExpr er2 _ = curr_expr s2
+      stateWrap (e1, e2) =
+        ( s1 { curr_expr = CurrExpr er1 e1 }
+        , s2 { curr_expr = CurrExpr er2 e2 } )
   in case getObligations s1 s2 of
       Nothing -> Nothing
       Just obs -> Just $ map stateWrap $ HS.toList obs
@@ -307,26 +333,31 @@ checkRule :: Config ->
 checkRule config init_state bindings rule = do
   let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
       (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
-      eenv = E.union (expr_env rewrite_state_l) (expr_env rewrite_state_r)
       pairs_l = symbolic_ids rewrite_state_l
       pairs_r = symbolic_ids rewrite_state_r
       -- convert from State t to StateET
       -- TODO don't have Tick in prev list?
       -- it shouldn't make a difference
+      CurrExpr er_l e_l = curr_expr rewrite_state_l
+      CurrExpr er_r e_r = curr_expr rewrite_state_r
       rewrite_state_l' = rewrite_state_l {
                            track = emptyEquivTracker
-                         , curr_expr = CurrExpr Evaluate $ tickWrap $ exprExtract rewrite_state_l
+                         , curr_expr = CurrExpr er_l $ tickWrap $ e_l
                          }
       rewrite_state_r' = rewrite_state_r {
                            track = emptyEquivTracker
-                         , curr_expr = CurrExpr Evaluate $ tickWrap $ exprExtract rewrite_state_r
+                         , curr_expr = CurrExpr er_r $ tickWrap $ e_r
                          }
       ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
       ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
   S.SomeSolver solver <- initSolver config
   -- TODO
-  putStrLn $ show $ curr_expr rewrite_state_l'
-  putStrLn $ show $ curr_expr rewrite_state_r'
+  putStrLn $ show rule
+  putStrLn "-$-$-$-"
+  putStrLn $ show $ E.lookupConcOrSym f_name (expr_env rewrite_state_l)
+  putStrLn $ show $ E.lookupConcOrSym f_name (expr_env rewrite_state_r)
+  --putStrLn $ show $ curr_expr rewrite_state_l'
+  --putStrLn $ show $ curr_expr rewrite_state_r'
   -- TODO do we know that both sides are in SWHNF at the start?
   -- Could that interfere with the results?
   let prev_u = filter pairNotEVF [(rewrite_state_l', rewrite_state_r')]
@@ -338,6 +369,7 @@ checkRule config init_state bindings rule = do
   -- UNSAT for good, SAT for bad
   return res
 
+-- TODO very similar to addSymbolic
 symInsert :: Id -> ExprEnv -> ExprEnv
 symInsert i = E.insertSymbolic (idName i) i
 
@@ -402,10 +434,16 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                 | otherwise -> Nothing
     -- TODO ignore types, like in exprPairing?
     (Type _, Type _) -> Just hm
+    -- TODO add i1 and i2 to the expression environments?
     (Case e1' i1 a1, Case e2' i2 a2)
                 | i1 == i2
                 , Just hm' <- moreRestrictive s1 s2 ns hm e1' e2' ->
-                  let mf hm_ (e1_, e2_) = moreRestrictiveAlt s1 s2 ns hm_ e1_ e2_
+                  -- TODO modify the envs beforehand
+                  let h1' = E.insert (idName i1) e1' h1
+                      h2' = E.insert (idName i2) e2' h2
+                      s1' = s1 { expr_env = h1' }
+                      s2' = s2 { expr_env = h2' }
+                      mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ e1_ e2_
                       l = zip a1 a2
                   in foldM mf hm' l
     _ -> Nothing
@@ -427,7 +465,7 @@ moreRestrictiveAlt s1 s2 ns hm (Alt am1 e1) (Alt am2 e2) =
                                         h2' = foldr symInsert h2 t2
                                         s1' = s1 { expr_env = h1' }
                                         s2' = s2 { expr_env = h2' }
-                                      in moreRestrictive s1' s2' ns hm e1 e2
+                                    in moreRestrictive s1' s2' ns hm e1 e2
     _ -> moreRestrictive s1 s2 ns hm e1 e2
   else Nothing
 
@@ -438,15 +476,28 @@ isMoreRestrictive :: State t ->
 isMoreRestrictive s1 s2 ns =
   let CurrExpr _ e1 = curr_expr s1
       CurrExpr _ e2 = curr_expr s2
-      mr = isJust $ moreRestrictive s1 s2 ns HM.empty e1 e2
-  in-- isJust $ moreRestrictive s1 s2 ns HM.empty e1 e2
-  trace (show mr) $ trace (show (e1, e2)) $ mr
+      -- mr = isJust $ moreRestrictive s1 s2 ns HM.empty e1 e2
+  in isJust $ moreRestrictive s1 s2 ns HM.empty e1 e2
+  -- trace (show mr) $ trace (show (e1, e2)) $ mr
+
+mrHelper :: State t ->
+            State t ->
+            HS.HashSet Name ->
+            Maybe (HM.HashMap Id Expr) ->
+            Maybe (HM.HashMap Id Expr)
+mrHelper _ _ _ Nothing = Nothing
+mrHelper s1 s2 ns (Just hm) =
+  let CurrExpr _ e1 = curr_expr s1
+      CurrExpr _ e2 = curr_expr s2
+  in moreRestrictive s1 s2 ns hm e1 e2
 
 moreRestrictivePair :: (HS.HashSet Name, HS.HashSet Name) ->
                        [(State t, State t)] ->
                        (State t, State t) ->
                        Bool
 moreRestrictivePair (ns1, ns2) prev (s1, s2) =
-  let mr (p1, p2) = isMoreRestrictive p1 s1 ns1 && isMoreRestrictive p2 s2 ns2
+  let -- mr (p1, p2) = isMoreRestrictive p1 s1 ns1 && isMoreRestrictive p2 s2 ns2
+      mr (p1, p2) = isJust $ mrHelper p2 s2 ns2 $ mrHelper p1 s1 ns1 (Just HM.empty)
   in
       not $ null $ filter mr prev
+      --length (filter mr prev) > 0

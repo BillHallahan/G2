@@ -67,6 +67,7 @@ import qualified Data.Text as T
 
 data ConcOrSym = Conc Expr
                | Sym Id
+               deriving (Show)
 
 -- From a user perspective, `ExprEnv`s are mappings from `Name` to
 -- `Expr`s. however, there are two complications:
