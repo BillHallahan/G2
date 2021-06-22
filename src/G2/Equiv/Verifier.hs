@@ -38,6 +38,8 @@ import G2.Execution.NormalForms
 import qualified G2.Language.Stack as Stck
 import Control.Monad
 
+import Data.Time
+
 exprReadyForSolver :: ExprEnv -> Expr -> Bool
 -- TODO need a Tick case for this now?
 -- doesn't seem to make a difference
@@ -67,13 +69,17 @@ runSymExec config s1 s2 = do
   --let s1' = prepareState s1
   --    s2' = prepareState s2
   bindings <- CM.get
-  (er1, bindings') <- CM.lift $ runG2ForRewriteV s1' config bindings
+  ct <- CM.liftIO $ getCurrentTime
+  let config' = config-- { logStates = Just $ "verifier_states/" ++ show ct }
+  (er1, bindings') <- CM.lift $ runG2ForRewriteV s1' config' bindings
   CM.put bindings'
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
                     b_ <- CM.get
+                    ct' <- CM.liftIO $ getCurrentTime
+                    let config'' = config-- { logStates = Just $ "verifier_states/" ++ show ct' }
                     let s2_ = transferStateInfo s1_ s2'
-                    (er2, b_') <- CM.lift $ runG2ForRewriteV s2_ config b_
+                    (er2, b_') <- CM.lift $ runG2ForRewriteV s2_ config'' b_
                     CM.put b_'
                     return $ map (\er2_ -> 
                                     let
@@ -244,6 +250,10 @@ verifyLoop' solver ns_pair s1 s2 prev_u prev_g =
           putStr "J! "
           putStrLn $ show (exprExtract s1, exprExtract s2)
           -- TODO
+          putStrLn "FSFS"
+          putStrLn $ show $ E.lookup fs_name (expr_env s1)
+          putStrLn $ show $ E.lookup fs_name (expr_env s2)
+          -- TODO
           --putStrLn "$$$"
           --putStrLn $ show $ E.lookupConcOrSym f_name (expr_env s1)
           --putStrLn $ show $ E.lookupConcOrSym f_name (expr_env s2)
@@ -259,7 +269,7 @@ verifyLoop' solver ns_pair s1 s2 prev_u prev_g =
           putStr "O: "
           putStrLn $ show ready_exprs
           putStr "NR: "
-          putStrLn $ show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) not_ready
+          putStrLn $ show $ length $ show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) not_ready
           putStr "OBS: "
           putStrLn $ show $ length obs
           res <- checkObligations solver s1 s2 ready_exprs
@@ -388,24 +398,31 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
     (_, Tick _ e2') -> moreRestrictive s1 s2 ns hm e1 e2'
     (Var i1, Var i2) | HS.member (idName i1) ns
                      , idName i1 == idName i2 -> Just hm
+    -- TODO new cases, may make some old cases unreachable
+    (Var i, _) | not $ E.isSymbolic (idName i) h1
+               --, not $ HS.member (idName i) ns
+               , Just e <- E.lookup (idName i) h1 -> moreRestrictive s1 s2 ns hm e e2
+    (_, Var i) | not $ E.isSymbolic (idName i) h2
+               --, not $ HS.member (idName i) ns
+               , Just e <- E.lookup (idName i) h2 -> moreRestrictive s1 s2 ns hm e1 e
     (Var i, _) | E.isSymbolic (idName i) h1
                , Nothing <- HM.lookup i hm -> Just (HM.insert i e2 hm)
                | E.isSymbolic (idName i) h1
                , Just e <- HM.lookup i hm
                , e == e2 -> Just hm
                -- this last case means there's a mismatch
-               | E.isSymbolic (idName i) h1 -> Nothing
+               | E.isSymbolic (idName i) h1 -> trace ("CASE A" ++ (mrInfo h1 h2 hm e1 e2)) $ Nothing
                -- non-symbolic cases
                | not $ HS.member (idName i) ns
                , Just e <- E.lookup (idName i) h1 -> moreRestrictive s1 s2 ns hm e e2
                | not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
-    (_, Var i) | E.isSymbolic (idName i) h2 -> Nothing
+    (_, Var i) | E.isSymbolic (idName i) h2 -> trace ("CASE B" ++ (mrInfo h1 h2 hm e1 e2)) $ Nothing
                -- the case above means sym replaces non-sym
                | Just e <- E.lookup (idName i) h2 -> moreRestrictive s1 s2 ns hm e1 e
                | otherwise -> error "unmapped variable"
     (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s1 s2 ns hm f1 f2
                            , Just hm_a <- moreRestrictive s1 s2 ns hm_f a1 a2 -> Just hm_a
-                           | otherwise -> Nothing
+                           | otherwise -> {- trace ("CASE C" ++ show ns) $ -} Nothing
     -- We just compare the names of the DataCons, not the types of the DataCons.
     -- This is because (1) if two DataCons share the same name, they must share the
     -- same type, but (2) "the same type" may be represented in different syntactic
@@ -413,13 +430,13 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
     -- "forall a . a" is the same type as "forall b . b", but fails a syntactic check.
     (Data (DataCon d1 _), Data (DataCon d2 _))
                                   | d1 == d2 -> Just hm
-                                  | otherwise -> Nothing
+                                  | otherwise -> trace ("CASE D" ++ show d1) $ Nothing
     -- TODO potential problems with type equality checking?
     (Prim p1 t1, Prim p2 t2) | p1 == p2
                              , t1 == t2 -> Just hm
-                             | otherwise -> Nothing
+                             | otherwise -> trace ("CASE E" ++ show p1) $ Nothing
     (Lit l1, Lit l2) | l1 == l2 -> Just hm
-                     | otherwise -> Nothing
+                     | otherwise -> trace ("CASE F" ++ show l1) $ Nothing
     -- TODO I presume I need syntactic equality for lambda expressions
     -- LamUse is a simple variant
     -- TODO new symbolic variables inserted
@@ -431,7 +448,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                       s2' = s2 { expr_env = symInsert i2 h2 }
                   in
                   moreRestrictive s1' s2' ns hm b1 b2
-                | otherwise -> Nothing
+                | otherwise -> trace ("CASE G" ++ show i1) $ Nothing
     -- TODO ignore types, like in exprPairing?
     (Type _, Type _) -> Just hm
     -- TODO add i1 and i2 to the expression environments?
@@ -446,7 +463,37 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                       mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ e1_ e2_
                       l = zip a1 a2
                   in foldM mf hm' l
-    _ -> Nothing
+    _ -> {- trace ("CASE H" ++ show (e1, e2)) $ -} Nothing
+
+-- TODO
+ds_name :: Name
+ds_name = Name "ds" Nothing 8286623314361878754 Nothing
+
+-- TODO
+fs_name :: Name
+fs_name = Name "fs?" Nothing 16902 Nothing
+
+mrInfo :: ExprEnv ->
+          ExprEnv ->
+          HM.HashMap Id Expr ->
+          Expr ->
+          Expr ->
+          String
+mrInfo h1 h2 hm e1 e2 =
+  let a1 = case e1 of
+            Var i1 -> (show $ E.isSymbolic (idName i1) h1) ++ ";" ++
+                      (show $ HM.lookup i1 hm) ++ ";" ++
+                      (show $ E.lookup (idName i1) h1) ++ ";" ++
+                      (show e1)
+            _ -> show e1
+      a2 = case e2 of
+            Var i2 -> (show $ E.isSymbolic (idName i2) h2) ++ ";" ++
+                      (show $ HM.lookup i2 hm) ++ ";" ++
+                      (show $ E.lookup (idName i2) h2) ++ ";" ++
+                      (show e2)
+            _ -> show e2
+      a3 = show $ E.lookup ds_name h1
+  in a1 ++ ";;" ++ a2 ++ ";:" ++ a3
 
 -- TODO also add variable mapping to both states
 moreRestrictiveAlt :: State t ->
@@ -465,9 +512,9 @@ moreRestrictiveAlt s1 s2 ns hm (Alt am1 e1) (Alt am2 e2) =
                                         h2' = foldr symInsert h2 t2
                                         s1' = s1 { expr_env = h1' }
                                         s2' = s2 { expr_env = h2' }
-                                    in moreRestrictive s1' s2' ns hm e1 e2
+                                    in trace ("ALT" ++ (show (t1, t2))) $ moreRestrictive s1' s2' ns hm e1 e2
     _ -> moreRestrictive s1 s2 ns hm e1 e2
-  else Nothing
+  else trace ("CASE I" ++ show am1) Nothing
 
 isMoreRestrictive :: State t ->
                      State t ->
@@ -489,7 +536,9 @@ mrHelper _ _ _ Nothing = Nothing
 mrHelper s1 s2 ns (Just hm) =
   let CurrExpr _ e1 = curr_expr s1
       CurrExpr _ e2 = curr_expr s2
+      --res = moreRestrictive s1 s2 ns hm e1 e2
   in moreRestrictive s1 s2 ns hm e1 e2
+  --trace (show (isJust res)) res
 
 moreRestrictivePair :: (HS.HashSet Name, HS.HashSet Name) ->
                        [(State t, State t)] ->
@@ -499,5 +548,7 @@ moreRestrictivePair (ns1, ns2) prev (s1, s2) =
   let -- mr (p1, p2) = isMoreRestrictive p1 s1 ns1 && isMoreRestrictive p2 s2 ns2
       mr (p1, p2) = isJust $ mrHelper p2 s2 ns2 $ mrHelper p1 s1 ns1 (Just HM.empty)
   in
-      not $ null $ filter mr prev
+      trace ("MR: " ++ (show $ not $ null $ filter mr prev)) $
+      trace (show $ length prev) $
+      (not $ null $ filter mr prev)
       --length (filter mr prev) > 0

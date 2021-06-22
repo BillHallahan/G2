@@ -90,9 +90,11 @@ argCount :: Type -> Int
 argCount (TyFun _ t) = 1 + argCount t
 argCount _ = 0
 
-exprFullApp :: Expr -> Bool
-exprFullApp e@(App (Var (Id _ t)) _) = length (unApp e) == 1 + argCount t
-exprFullApp _ = False
+exprFullApp :: ExprEnv -> Expr -> Bool
+exprFullApp h e | (Var (Id n t)):_ <- unApp e
+                , not $ E.isSymbolic n h = length (unApp e) == 1 + argCount t
+--exprFullApp e@(App (Var (Id _ t)) _) = length (unApp e) == 1 + argCount t
+exprFullApp _ _ = False
 
 -- TODO changed t to EquivTracker
 instance Halter EnforceProgressH (Maybe Int) EquivTracker where
@@ -102,13 +104,14 @@ instance Halter EnforceProgressH (Maybe Int) EquivTracker where
         let CurrExpr _ e = curr_expr s
             n' = num_steps s
             EquivTracker _ m = track s
+            h = expr_env s
         in
         case m of
             Nothing -> return Continue
             -- Execution needs to take strictly more than one step beyond the
             -- point when it reaches the Tick because the act of unwrapping the
             -- expression inside the Tick counts as one step.
-            Just n0 -> if (isExecValueForm s) || (exprFullApp e)
+            Just n0 -> if (isExecValueForm s) || (exprFullApp h e)
                        then return (if n' > n0 + 1 then Accept else Continue)
                        else return Continue
     stepHalter _ _ _ _ _ = Nothing
@@ -145,7 +148,7 @@ instance Reducer EquivReducer () EquivTracker where
                 Nothing ->
                     let
                         (v, ng') = freshId (typeOf e) ng
-                        et' = HM.insert e' v et
+                        et' = trace ("FRESH " ++ show v) $ HM.insert e' v et
                         s' = s { curr_expr = CurrExpr Evaluate (Var v)
                                , track = EquivTracker et' m
                                , expr_env = E.insertSymbolic (idName v) v eenv
@@ -159,7 +162,7 @@ isSymFuncApp :: ExprEnv -> Expr -> Bool
 isSymFuncApp eenv e
     -- | Var (Id f t):es@(_:_) <- unApp e = trace ("f = " ++ (show f) ++ " " ++ (show $ E.lookupConcOrSym f eenv) ++ " " ++ (show $ hasFuncType (PresType t))) (E.isSymbolic f eenv && hasFuncType (PresType t))
     | v@(Var _):es@(_:_) <- unApp e
-    , (Var (Id f t)) <- inlineVars eenv v = trace ("f = " ++ (show f) ++ " " ++ (show $ E.lookupConcOrSym f eenv) ++ " " ++ (show $ hasFuncType (PresType t))) $
+    , (Var (Id f t)) <- inlineVars eenv v = --trace ("f = " ++ (show f) ++ " " ++ (show $ E.lookupConcOrSym f eenv) ++ " " ++ (show $ hasFuncType (PresType t))) $
                                             E.isSymbolic f eenv && hasFuncType (PresType t)
     -- TODO this case doesn't matter
     -- | Var (Id f t):es@(_:_) <- unApp e = trace ("QQ " ++ (show $ E.isSymbolic f eenv && hasFuncType (PresType t))) $ trace (show f) $ E.isSymbolic f eenv && hasFuncType (PresType t)
