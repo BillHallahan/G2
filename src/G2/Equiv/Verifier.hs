@@ -68,6 +68,8 @@ runSymExec config s1 s2 = do
   let s1' = s1 { rules = [], num_steps = 0 }
       s2' = s2 { rules = [], num_steps = 0 }
 
+  CM.liftIO $ putStrLn "runSymExec"
+
   ct1 <- CM.liftIO $ getCurrentTime
   let config' = config -- { logStates = Just $ "a_state" ++ show ct1 }
   --let s1' = prepareState s1
@@ -176,7 +178,7 @@ prepareState :: StateET -> StateET
 prepareState s =
   let CurrExpr er e = curr_expr s
   in s {
-    curr_expr = CurrExpr er $ exprWrap (exec_stack s) $ e
+    curr_expr = CurrExpr Evaluate $ exprWrap (exec_stack s) $ e
   , num_steps = 0
   , rules = []
   , exec_stack = Stck.empty
@@ -290,8 +292,8 @@ obligationStates s1 s2 =
   let CurrExpr er1 _ = curr_expr s1
       CurrExpr er2 _ = curr_expr s2
       stateWrap (e1, e2) =
-        ( s1 { curr_expr = CurrExpr er1 e1 }
-        , s2 { curr_expr = CurrExpr er2 e2 } )
+        ( s1 { curr_expr = CurrExpr Evaluate e1 }
+        , s2 { curr_expr = CurrExpr Evaluate e2 } )
   in case getObligations s1 s2 of
       Nothing -> Nothing
       Just obs -> Just . map stateWrap
@@ -366,11 +368,11 @@ checkRule config init_state bindings rule = do
       CurrExpr er_r e_r = curr_expr rewrite_state_r
       rewrite_state_l' = rewrite_state_l {
                            track = emptyEquivTracker
-                         , curr_expr = CurrExpr er_l $ tickWrap $ e_l
+                         , curr_expr = CurrExpr Evaluate $ tickWrap $ e_l
                          }
       rewrite_state_r' = rewrite_state_r {
                            track = emptyEquivTracker
-                         , curr_expr = CurrExpr er_r $ tickWrap $ e_r
+                         , curr_expr = CurrExpr Evaluate $ tickWrap $ e_r
                          }
       ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
       ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
