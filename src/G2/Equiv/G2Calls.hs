@@ -28,8 +28,9 @@ runG2ForRewriteV state config bindings = do
     let simplifier = IdSimplifier
         sym_ids = symbolic_ids state
         sym_names = map idName sym_ids
-        sym_config = addSearchNames (names $ track state)
-                   $ addSearchNames (input_names bindings) emptyMemConfig
+        sym_config = PreserveAllMC
+        -- sym_config = addSearchNames (names $ track state)
+        --            $ addSearchNames (input_names bindings) emptyMemConfig
 
         state' = state { track = (track state) { saw_tick = Nothing } }
 

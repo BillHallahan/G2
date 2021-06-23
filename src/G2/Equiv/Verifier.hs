@@ -184,18 +184,6 @@ prepareState s =
   , exec_stack = Stck.empty
   }
 
--- TODO
-f_name :: Name
--- TODO what is this?
---f_name = Name "f" Nothing 6989586621679188988 Nothing
--- TODO this version comes out as concrete
---f_name = Name "f" Nothing 7566047373982581205 Nothing
--- TODO this comes from the initial state
-f_name = Name "f" Nothing 6989586621679189009 (Just (Span {start = Loc {line = 39, col = 20, file = "tests/RewriteVerify/Correct/HigherOrderCorrect.hs"}, end = Loc {line = 39, col = 21, file = "tests/RewriteVerify/Correct/HigherOrderCorrect.hs"}}))
-
---f = Name "f" Nothing 7566047373982581205 Nothing Just (Conc (Var (Id (Name "f" Nothing 6989586621679189009 (Just (Span {start = Loc {line = 39, col = 20, file = "tests/RewriteVerify/Correct/HigherOrderCorrect.hs"}, end = Loc {line = 39, col = 21, file = "tests/RewriteVerify/Correct/HigherOrderCorrect.hs"}}))) (TyFun (TyCon (Name "Int" (Just "GHC.Types") 8214565720323789235 Nothing) TYPE) (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE))))) True
-
---Just (Conc (Var (Id (Name "f" Nothing 6989586621679189009 (Just (Span {start = Loc {line = 39, col = 20, file = "tests/RewriteVerify/Correct/HigherOrderCorrect.hs"}, end = Loc {line = 39, col = 21, file = "tests/RewriteVerify/Correct/HigherOrderCorrect.hs"}}))) (TyFun (TyCon (Name "Int" (Just "GHC.Types") 8214565720323789235 Nothing) TYPE) (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE)))))
 
 -- build initial hash set in Main before calling
 verifyLoop :: S.Solver solver =>
@@ -414,20 +402,20 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                , Nothing <- HM.lookup i hm -> Just (HM.insert i e2 hm)
                | E.isSymbolic (idName i) h1
                , Just e <- HM.lookup i hm
-               , e == e2 -> Just hm
+               , inlineEquiv h1 ns e == inlineEquiv h2 ns e2 -> Just hm
                -- this last case means there's a mismatch
-               | E.isSymbolic (idName i) h1 -> {- trace ("CASE A" ++ (mrInfo h1 h2 hm e1 e2)) $ -} Nothing
+               | E.isSymbolic (idName i) h1 -> {- trace ("CASE A" ++ (mrInfo h1 h2 hm e1 e2)) -} Nothing
                -- non-symbolic cases
                | not $ HS.member (idName i) ns
                , Just e <- E.lookup (idName i) h1 -> moreRestrictive s1 s2 ns hm e e2
                | not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
-    (_, Var i) | E.isSymbolic (idName i) h2 -> {- trace ("CASE B" ++ (mrInfo h1 h2 hm e1 e2)) $ -} Nothing
+    (_, Var i) | E.isSymbolic (idName i) h2 -> {- trace ("CASE B" ++ (mrInfo h1 h2 hm e1 e2)) -} Nothing
                -- the case above means sym replaces non-sym
                | Just e <- E.lookup (idName i) h2 -> moreRestrictive s1 s2 ns hm e1 e
                | otherwise -> error "unmapped variable"
     (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s1 s2 ns hm f1 f2
                            , Just hm_a <- moreRestrictive s1 s2 ns hm_f a1 a2 -> Just hm_a
-                           | otherwise -> {- trace ("CASE C" ++ show ns) $ -} {- trace ("Nothing App " ++ (mrInfo h1 h2 hm e1 e2)) -} Nothing
+                           | otherwise -> {- trace ("CASE C " ++ (mrInfo h1 h2 hm e1 e2)) -} Nothing
     -- We just compare the names of the DataCons, not the types of the DataCons.
     -- This is because (1) if two DataCons share the same name, they must share the
     -- same type, but (2) "the same type" may be represented in different syntactic
@@ -435,13 +423,13 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
     -- "forall a . a" is the same type as "forall b . b", but fails a syntactic check.
     (Data (DataCon d1 _), Data (DataCon d2 _))
                                   | d1 == d2 -> Just hm
-                                  | otherwise -> trace ("CASE D" ++ show d1) $ Nothing
+                                  | otherwise -> {- trace ("CASE D" ++ show d1) -} Nothing
     -- TODO potential problems with type equality checking?
     (Prim p1 t1, Prim p2 t2) | p1 == p2
                              , t1 == t2 -> Just hm
-                             | otherwise -> trace ("CASE E" ++ show p1) $ Nothing
+                             | otherwise -> {- trace ("CASE E" ++ show p1) -} Nothing
     (Lit l1, Lit l2) | l1 == l2 -> Just hm
-                     | otherwise -> trace ("CASE F" ++ show l1) $ Nothing
+                     | otherwise -> {- trace ("CASE F" ++ show l1) -} Nothing
     -- TODO I presume I need syntactic equality for lambda expressions
     -- LamUse is a simple variant
     -- TODO new symbolic variables inserted
@@ -453,7 +441,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                       s2' = s2 { expr_env = symInsert i2 h2 }
                   in
                   moreRestrictive s1' s2' ns hm b1 b2
-                | otherwise -> trace ("CASE G" ++ show i1) $ Nothing
+                | otherwise -> {- trace ("CASE G" ++ show i1) -} Nothing
     -- TODO ignore types, like in exprPairing?
     (Type _, Type _) -> Just hm
     -- TODO add i1 and i2 to the expression environments?
@@ -469,6 +457,13 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                       l = zip a1 a2
                   in {- trace ("CASE BOUND\ne1' = " ++ show e1' ++ "\ne2' = " ++ show e2') -} foldM mf hm' l
     _ -> {- trace ("CASE H" ++ show (e1, e2)) -} Nothing
+
+inlineEquiv :: ExprEnv -> HS.HashSet Name -> Expr -> Expr
+inlineEquiv h ns v@(Var (Id n _))
+    | E.isSymbolic n h = v
+    | HS.member n ns = v
+    | Just e <- E.lookup n h = inlineEquiv h ns e
+inlineEquiv h ns e = modifyChildren (inlineEquiv h ns) e
 
 -- TODO
 ds_name :: Name
@@ -531,7 +526,8 @@ mrHelper s1 s2 ns (Just hm) =
   let CurrExpr _ e1 = curr_expr s1
       CurrExpr _ e2 = curr_expr s2
       --res = moreRestrictive s1 s2 ns hm e1 e2
-  in moreRestrictive s1 s2 ns hm e1 e2
+  in
+  moreRestrictive s1 s2 ns hm e1 e2
   --trace (show (isJust res)) res
 
 moreRestrictivePair :: (HS.HashSet Name, HS.HashSet Name) ->
@@ -542,7 +538,7 @@ moreRestrictivePair (ns1, ns2) prev (s1, s2) =
   let
       mr (p1, p2) = isJust $ mrHelper p2 s2 ns2 $ mrHelper p1 s1 ns1 (Just HM.empty)
   in
-      trace ("MR: " ++ (show $ not $ null $ filter mr prev)) $
-      trace (show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) $ filter mr prev) $
+      -- trace ("MR: " ++ (show $ not $ null $ filter mr prev)) $
+      -- trace (show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) $ filter mr prev) $
       (not $ null $ filter mr prev)
       --length (filter mr prev) > 0
