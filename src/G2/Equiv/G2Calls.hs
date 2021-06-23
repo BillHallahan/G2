@@ -94,16 +94,24 @@ argCount = length . spArgumentTypes . PresType
 
 exprFullApp :: ExprEnv -> Expr -> Bool
 exprFullApp h e | (Var (Id n t)):_ <- unApp e
-                -- We require that the variable not map to a variable for two reasons:
+                -- We require that the variable be the center of a function
+                -- application, have at least one argument, and not map to a variable for two reasons:
                 -- (1) We do not want to count symbolic function applications as in FAF form
                 -- (2) We need to ensure we make sufficient progress to avoid
                 -- moreRestrictive matching states spuriously.
-                -- Consider an expression environment with a mapping of `f` to `Var g`.
-                -- We want to avoid storing a previous state using f,
-                -- having the symbolic execution inline g, and then deciding that 
-                -- the two states match and are sufficient for verification to succeed.  
+                -- Consider an expression environment with a mapping of `x :: Int` to `f y`.
+                -- We want to avoid storing a previous state using x,
+                -- having the symbolic execution inline `f y`, and then deciding that 
+                -- the two states match and are sufficient for verification to succeed,
+                -- when, in isMoreRestrictive, x is inlined.
                 , Just e' <- E.lookup n h
+<<<<<<< HEAD
                 , not (isVar e') = length (unApp e) == 1 + argCount t && argCount t > 0
+=======
+                , not (isVar e')
+                , c_unapp <- length (unApp e)
+                , c_unapp >= 2 = c_unapp == 1 + argCount t
+>>>>>>> 75137e870a6edc897b0e8834707389853e259c94
 exprFullApp _ _ = False
 
 isVar :: Expr -> Bool
@@ -126,6 +134,7 @@ instance Halter EnforceProgressH () EquivTracker where
             -- point when it reaches the Tick because the act of unwrapping the
             -- expression inside the Tick counts as one step.
             Just n0 -> do
+<<<<<<< HEAD
                 {-
                 case unApp e of
                     (Var (Id n t)):_ ->
@@ -135,6 +144,8 @@ instance Halter EnforceProgressH () EquivTracker where
                                     ++ "\nlength (unApp e) = " ++ show (length (unApp e))
                     _ -> return ()
                 -}
+=======
+>>>>>>> 75137e870a6edc897b0e8834707389853e259c94
                 if (isExecValueForm s) || (exprFullApp h e)
                        then return (if n' > n0 + 1 then Accept else Continue)
                        else return Continue
@@ -157,7 +168,6 @@ instance Reducer EquivReducer () EquivTracker where
                           , symbolic_ids = symbs
                           , track = EquivTracker et m })
                  b@(Bindings { name_gen = ng })
-        -- | trace ("isSymFuncApp " ++ (show e) ++ "\n" ++ (show $ isSymFuncApp eenv e)) $
         | isSymFuncApp eenv e =
             let
                 -- We inline variables to have a higher chance of hitting in the Equiv Tracker
@@ -184,13 +194,10 @@ instance Reducer EquivReducer () EquivTracker where
 
 isSymFuncApp :: ExprEnv -> Expr -> Bool
 isSymFuncApp eenv e
-    -- | Var (Id f t):es@(_:_) <- unApp e = trace ("f = " ++ (show f) ++ " " ++ (show $ E.lookupConcOrSym f eenv) ++ " " ++ (show $ hasFuncType (PresType t))) (E.isSymbolic f eenv && hasFuncType (PresType t))
     | v@(Var _):es@(_:_) <- unApp e
-    , (Var (Id f t)) <- inlineVars eenv v = --trace ("f = " ++ (show f) ++ " " ++ (show $ E.lookupConcOrSym f eenv) ++ " " ++ (show $ hasFuncType (PresType t))) $
-                                            E.isSymbolic f eenv && hasFuncType (PresType t)
-    -- TODO this case doesn't matter
-    -- | Var (Id f t):es@(_:_) <- unApp e = trace ("QQ " ++ (show $ E.isSymbolic f eenv && hasFuncType (PresType t))) $ trace (show f) $ E.isSymbolic f eenv && hasFuncType (PresType t)
-    | otherwise = {- trace "RR" $ trace (show e) -} False
+    , (Var (Id f t)) <- inlineVars eenv v =
+       E.isSymbolic f eenv && hasFuncType (PresType t)
+    | otherwise = False
 
 inlineApp :: ExprEnv -> Expr -> Expr
 inlineApp eenv = mkApp . map (inlineVars eenv) . unApp
