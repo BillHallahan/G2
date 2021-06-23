@@ -87,8 +87,9 @@ instance Reducer EnforceProgressR (Maybe Int) EquivTracker where
 
 -- TODO delete GuardedHalter code
 argCount :: Type -> Int
-argCount (TyFun _ t) = 1 + argCount t
-argCount _ = 0
+--argCount (TyFun _ t) = 1 + argCount t
+--argCount _ = 0
+argCount = length . spArgumentTypes . PresType
 
 exprFullApp :: ExprEnv -> Expr -> Bool
 exprFullApp h e | (Var (Id n t)):_ <- unApp e

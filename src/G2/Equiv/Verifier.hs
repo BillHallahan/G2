@@ -250,10 +250,6 @@ verifyLoop' solver ns_pair s1 s2 prev_u prev_g =
           putStr "J! "
           putStrLn $ show (exprExtract s1, exprExtract s2)
           -- TODO
-          putStrLn "FSFS"
-          putStrLn $ show $ E.lookup fs_name (expr_env s1)
-          putStrLn $ show $ E.lookup fs_name (expr_env s2)
-          -- TODO
           --putStrLn "$$$"
           --putStrLn $ show $ E.lookupConcOrSym f_name (expr_env s1)
           --putStrLn $ show $ E.lookupConcOrSym f_name (expr_env s2)
@@ -269,7 +265,7 @@ verifyLoop' solver ns_pair s1 s2 prev_u prev_g =
           putStr "O: "
           putStrLn $ show ready_exprs
           putStr "NR: "
-          putStrLn $ show $ length $ show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) not_ready
+          putStrLn $ show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) not_ready
           putStr "OBS: "
           putStrLn $ show $ length obs
           res <- checkObligations solver s1 s2 ready_exprs
@@ -361,13 +357,8 @@ checkRule config init_state bindings rule = do
       ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
       ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
   S.SomeSolver solver <- initSolver config
-  -- TODO
-  putStrLn $ show rule
-  putStrLn "-$-$-$-"
-  putStrLn $ show $ E.lookupConcOrSym f_name (expr_env rewrite_state_l)
-  putStrLn $ show $ E.lookupConcOrSym f_name (expr_env rewrite_state_r)
-  --putStrLn $ show $ curr_expr rewrite_state_l'
-  --putStrLn $ show $ curr_expr rewrite_state_r'
+  putStrLn $ show $ curr_expr rewrite_state_l'
+  putStrLn $ show $ curr_expr rewrite_state_r'
   -- TODO do we know that both sides are in SWHNF at the start?
   -- Could that interfere with the results?
   let prev_u = filter pairNotEVF [(rewrite_state_l', rewrite_state_r')]
