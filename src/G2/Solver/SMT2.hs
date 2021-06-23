@@ -99,19 +99,18 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
         -- putStrLn $ "r =  " ++ show r
         if r == SAT () then do
             mdl <- getModelZ3 h_in h_out vs
-            putStrLn "======"
-            putStrLn $ "r = " ++ show r
-            putStrLn $ "mdl = " ++ show mdl
+            -- putStrLn "======"
+            -- putStrLn $ "r = " ++ show r
+            -- putStrLn $ "mdl = " ++ show mdl
             -- putStrLn (show mdl)
             let m = parseModel mdl
-            putStrLn $ "m = " ++ show m
-            putStrLn "======"
+            -- putStrLn $ "m = " ++ show m
+            -- putStrLn "======"
             return (SAT m)
         else if r == UNSAT () then do
             uc <- getUnsatCoreZ3 h_in h_out
             return (UNSAT $ HS.fromList uc)
-        else do
-            return (Unknown "")
+        else return (Unknown "")
 
 
     checkSatGetModelGetExpr con (h_in, h_out, _) formula _ vs eenv (CurrExpr _ e) = do
