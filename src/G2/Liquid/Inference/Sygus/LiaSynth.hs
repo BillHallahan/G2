@@ -8,7 +8,6 @@ module G2.Liquid.Inference.Sygus.LiaSynth ( SynthRes (..)
                                           , liaSynth
 
                                           , MaxSize
-                                          , initMaxSize
                                           , incrMaxSize
 
                                           , BlockedModels
@@ -28,6 +27,7 @@ import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.FuncConstraint
 import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.GeneratedSpecs
+import G2.Liquid.Inference.InfStack (maxSynthSizeI)
 import G2.Liquid.Inference.PolyRef
 
 import G2.Solver as Solver
@@ -195,7 +195,6 @@ data Status = Synth -- ^ A specification should be synthesized
 
 type NMExprEnv = HM.HashMap (T.Text, Maybe T.Text) G2.Expr
 
-newtype MaxSize = MaxSize Integer
 type Size = Integer
 
 -- A list of functions that still must have specifications synthesized at a lower level
@@ -204,19 +203,12 @@ type ToBeNames = [Name]
 -- A list of functions to synthesize a the current level
 type ToSynthNames = [Name]
 
-initMaxSize :: MaxSize
-initMaxSize = MaxSize 1
-
-incrMaxSize :: MaxSize -> MaxSize
-incrMaxSize (MaxSize sz) = MaxSize (sz + 1)
-
-liaSynth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
+liaSynth :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
          => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
-         -> MaxSize
          -> FuncConstraints
          -> BlockedModels -- ^ SMT Models to block being returned by the synthesizer at various sizes
          -> ToBeNames -> ToSynthNames -> m SynthRes
-liaSynth con ghci lrs evals meas_ex max_sz fc blk_mdls to_be_ns ns_synth = do
+liaSynth con ghci lrs evals meas_ex fc blk_mdls to_be_ns ns_synth = do
     -- Compensate for zeroed out names in FuncConstraints
     let ns = map (\(Name n m _ l) -> Name n m 0 l) ns_synth
 
@@ -256,7 +248,7 @@ liaSynth con ghci lrs evals meas_ex max_sz fc blk_mdls to_be_ns ns_synth = do
 
     let meas = lrsMeasures ghci lrs
 
-    synth con ghci eenv' tenv tc meas meas_ex evals si max_sz fc blk_mdls 1
+    synth con ghci eenv' tenv tc meas meas_ex evals si fc blk_mdls 1
     where
       zeroOutName (Name n m _ l) = Name n m 0 l
 
@@ -279,21 +271,22 @@ buildSpecInfo con tenv tc ghci lrs ns_aty_rty to_be_ns_aty_rty known_ns_aty_rty 
 
     return si''
 
-liaSynthOfSize :: InfConfigM m => Integer -> M.Map Name SpecInfo -> m (M.Map Name SpecInfo)
+liaSynthOfSize :: (InfConfigM m, ProgresserM m) => Integer -> M.Map Name SpecInfo -> m (M.Map Name SpecInfo)
 liaSynthOfSize sz m_si = do
     inf_c <- infConfigM
+    MaxSize max_sz <- maxSynthSizeM
     let m_si' =
             M.map (\si -> 
                     let
                         s_syn_pre' =
                             map (mapPB
                                     (\psi ->
-                                        psi { sy_coeffs = list_i_j (sy_name psi) psi }
+                                        psi { sy_coeffs = list_i_j (fromInteger max_sz) (sy_name psi) psi }
                                     )
                                  ) (s_syn_pre si)
                         s_syn_post' =
                             mapPB (\psi -> 
-                                        psi { sy_coeffs = list_i_j (sy_name psi) psi }
+                                        psi { sy_coeffs = list_i_j (fromInteger max_sz) (sy_name psi) psi }
                                   ) (s_syn_post si)
                     in
                     si { s_syn_pre = s_syn_pre' -- (s_syn_pre si) { sy_coeffs = pre_c }
@@ -301,7 +294,7 @@ liaSynthOfSize sz m_si = do
                        , s_max_coeff = if restrict_coeffs inf_c then 1 else 2 * sz }) m_si
     return m_si'
     where
-        list_i_j s psi_ =
+        list_i_j ms s psi_ =
             [ 
                 (
                     s ++ "_c_coeff_act_" ++ show j
@@ -314,7 +307,7 @@ liaSynthOfSize sz m_si = do
                 (
                     s ++ "_c_set_act_" ++ show j
                 ,
-                     [ mkSetForms s psi_ j k | k <- [1] ] -- Ors
+                     [ mkSetForms ms s psi_ j k | k <- [1] ] -- Ors
                 )
             | j <-  [1..sz] ] -- Ands
 
@@ -347,8 +340,8 @@ mkCoeffs s psi j k =
             | a <- [1..rets]]
         }
 
-mkSetForms :: String -> SynthSpec -> Integer -> Integer -> Forms
-mkSetForms s psi j k =
+mkSetForms :: Int -> String -> SynthSpec -> Integer -> Integer -> Forms
+mkSetForms max_sz s psi j k =
     let
         int_ars = length (int_sy_args psi)
         int_rets = length (int_sy_rets psi)
@@ -376,29 +369,29 @@ mkSetForms s psi j k =
                     [ 
                       [ s ++ "_a_set_lhs_" ++ show j ++ "_t_" ++ show k
                             ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..ars]]
-                    | a <- [1..ars + rets]]
+                    | a <- [1..ars + rets + max_sz - 1]]
                 else
                     []
         , rets_bools_lhs = 
             [ [ s ++ "_r_set_lhs_" ++ show j ++ "_t_" ++ show k
                             ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..rets]]
-            | a <- [1..ars + rets]]
+            | a <- [1..ars + rets + max_sz - 1]]
 
         , ars_bools_rhs =
             if rets >= 1
                 then
                     [ [ s ++ "_a_set_rhs_" ++ show j ++ "_t_" ++ show k
                             ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..ars]]
-                    | a <- [1..ars + rets]]
+                    | a <- [1..ars + rets + max_sz - 1]]
                 else
                     []
         , rets_bools_rhs = 
             [[ s ++ "_r_set_rhs_" ++ show j ++ "_t_" ++ show k
                             ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..rets]]
-            | a <- [1..ars + rets]]
+            | a <- [1..ars + rets + max_sz - 1]]
         }
 
-synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
+synth :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
       => con
       -> [GhcInfo]
       -> NMExprEnv
@@ -408,12 +401,11 @@ synth :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
       -> MeasureExs
       -> Evals Bool
       -> M.Map Name SpecInfo
-      -> MaxSize
       -> FuncConstraints
       -> BlockedModels
       -> Size
       -> m SynthRes
-synth con ghci eenv tenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc blk_mdls sz = do
+synth con ghci eenv tenv tc meas meas_ex evals si fc blk_mdls sz = do
     si' <- liaSynthOfSize sz si
     let zero_coeff_hdrs = softCoeffAssertZero si' ++ softClauseActAssertZero si' -- ++ softFuncActAssertZero si'
         -- zero_coeff_hdrs = softFuncActAssertZero si' ++ softClauseActAssertZero si'
@@ -444,6 +436,8 @@ synth con ghci eenv tenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc blk_mdl
 
         drop_if_unknown = [Comment "stronger blocking of spurious models"] ++ fun_block_mdls
 
+    MaxSize max_sz <- maxSynthSizeM
+
     res <- synth' con ghci eenv tenv tc meas meas_ex evals si' fc ex_assrts drop_if_unknown blk_mdls sz
     case res of
         SynthEnv _ _ n_mdl _ -> do
@@ -459,9 +453,9 @@ synth con ghci eenv tenv tc meas meas_ex evals si ms@(MaxSize max_sz) fc blk_mdl
                         mdls' = foldr (\n -> insertEquivBlockedModel sz (MNOnlySMTNames [n]) n_mdl) blk_mdls mn
 
                     liftIO . putStrLn $ "mn = " ++ show mn
-                    synth con ghci eenv tenv tc meas meas_ex evals si ms fc mdls' sz
+                    synth con ghci eenv tenv tc meas meas_ex evals si fc mdls' sz
         SynthFail _
-            | sz < max_sz -> synth con ghci eenv tenv tc meas meas_ex evals si ms fc blk_mdls (sz + 1)
+            | sz < max_sz -> synth con ghci eenv tenv tc meas meas_ex evals si fc blk_mdls (sz + 1)
             | otherwise -> return res
     
 synth' :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)

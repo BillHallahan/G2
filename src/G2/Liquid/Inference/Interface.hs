@@ -102,7 +102,7 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
         prog = newProgress
 
     SomeSMTSolver smt <- getSMT g2config'
-    let infL = iterativeInference smt ghci main_mod lrs nls HM.empty initMaxSize emptyGS emptyFC
+    let infL = iterativeInference smt ghci main_mod lrs nls HM.empty emptyGS emptyFC
 
     timer <- newTimer
     (res, ev_timer, lvl_timer, loops) <- runInfStack configs prog infL -- runProgresser (runConfigs (runTimer infL timer) configs) prog
@@ -161,12 +161,11 @@ iterativeInference :: (MonadIO m, SMTConverter con ast out io)
                    -> LiquidReadyState
                    -> NameLevels
                    -> MeasureExs
-                   -> MaxSize
                    -> GeneratedSpecs
                    -> FuncConstraints
                    -> InfStack m (Either [CounterExample] GeneratedSpecs)
-iterativeInference con ghci m_modname lrs nls meas_ex max_sz gs fc = do
-    res <- inferenceL con ghci m_modname lrs nls emptyEvals meas_ex max_sz gs fc emptyFC emptyBlockedModels
+iterativeInference con ghci m_modname lrs nls meas_ex gs fc = do
+    res <- inferenceL con ghci m_modname lrs nls emptyEvals meas_ex gs fc emptyFC emptyBlockedModels
     case res of
         CEx cex -> return $ Left cex
         Env gs _ _ _ -> return $ Right gs
@@ -194,7 +193,8 @@ iterativeInference con ghci m_modname lrs nls meas_ex max_sz gs fc = do
                     logEventStartM UpdateMeasures
                     r_meas_ex' <- updateMeasureExs r_meas_ex lrs ghci fc'
                     logEventEndM
-                    iterativeInference con ghci m_modname lrs nls r_meas_ex' (incrMaxSize max_sz) gs (unionFC fc' r_fc)
+                    incrMaxSynthSizeI
+                    iterativeInference con ghci m_modname lrs nls r_meas_ex' gs (unionFC fc' r_fc)
 
 
 inferenceL :: (MonadIO m, SMTConverter con ast out io)
@@ -205,20 +205,19 @@ inferenceL :: (MonadIO m, SMTConverter con ast out io)
            -> NameLevels
            -> Evals Bool
            -> MeasureExs
-           -> MaxSize
            -> GeneratedSpecs
            -> FuncConstraints
            -> MaxSizeConstraints
            -> BlockedModels
            -> InfStack m InferenceRes
-inferenceL con ghci m_modname lrs nls evals meas_ex max_sz senv fc max_fc blk_mdls = do
+inferenceL con ghci m_modname lrs nls evals meas_ex senv fc max_fc blk_mdls = do
     let (fs, sf, below_sf) = case nls of
                         (fs_:sf_:be) -> (fs_, sf_, be)
                         ([fs_])-> (fs_, [], [])
                         [] -> ([], [], [])
 
     startLevelTimer (case nls of fs:_ -> fs; [] -> [])
-    (resAtL, evals') <- inferenceB con ghci m_modname lrs nls evals meas_ex max_sz senv fc max_fc blk_mdls
+    (resAtL, evals') <- inferenceB con ghci m_modname lrs nls evals meas_ex senv fc max_fc blk_mdls
     endLevelTimer
 
     liftIO $ do
@@ -233,12 +232,12 @@ inferenceL con ghci m_modname lrs nls evals meas_ex max_sz senv fc max_fc blk_md
                 (_:nls') -> do
                     liftIO $ putStrLn "Down a level!"
                     let evals'' = foldr deleteEvalsForFunc evals' sf
-                    inf_res <- inferenceL con ghci m_modname lrs nls' evals'' meas_ex' max_sz senv' (unionFC fc n_fc) (unionFC max_fc n_mfc) emptyBlockedModels
+                    inf_res <- inferenceL con ghci m_modname lrs nls' evals'' meas_ex' senv' (unionFC fc n_fc) (unionFC max_fc n_mfc) emptyBlockedModels
                     case inf_res of
                         Raise r_meas_ex r_fc r_max_fc -> do
                             liftIO $ putStrLn "Up a level!"
                             
-                            inferenceL con ghci m_modname lrs nls evals' r_meas_ex max_sz senv r_fc r_max_fc blk_mdls
+                            inferenceL con ghci m_modname lrs nls evals' r_meas_ex senv r_fc r_max_fc blk_mdls
                         _ -> return inf_res
         _ -> return resAtL
 
@@ -250,13 +249,12 @@ inferenceB :: (MonadIO m, SMTConverter con ast out io)
            -> NameLevels
            -> Evals Bool
            -> MeasureExs
-           -> MaxSize
            -> GeneratedSpecs
            -> FuncConstraints
            -> MaxSizeConstraints
            -> BlockedModels
            -> InfStack m (InferenceRes, Evals Bool)
-inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls = do
+inferenceB con ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls = do
     let (fs, sf, below_sf) = case nls of
                         (fs_:sf_:be) -> (fs_, sf_, be)
                         ([fs_])-> (fs_, [], [])
@@ -269,7 +267,7 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
     evals' <- updateEvals curr_ghci lrs fc evals
     logEventEndM
     logEventStartM Synth
-    synth_gs <- synthesize con curr_ghci lrs evals' meas_ex max_sz (unionFC max_fc fc) blk_mdls (concat below_sf) sf
+    synth_gs <- lift . lift . lift $ synthesize con curr_ghci lrs evals' meas_ex (unionFC max_fc fc) blk_mdls (concat below_sf) sf
     logEventEndM
 
     liftIO $ do
@@ -317,7 +315,7 @@ inferenceB con ghci m_modname lrs nls evals meas_ex max_sz gs fc max_fc blk_mdls
                             logEventEndM
                             liftIO $ putStrLn "After genMeasureExs"
 
-                            inferenceB con ghci m_modname lrs nls evals' meas_ex' max_sz gs (unionFC fc fc') max_fc blk_mdls''
+                            inferenceB con ghci m_modname lrs nls evals' meas_ex' gs (unionFC fc fc') max_fc blk_mdls''
 
                 Crash _ _ -> error "inferenceB: LiquidHaskell crashed"
         SynthFail sf_fc -> do
@@ -577,12 +575,12 @@ updateMeasureExs meas_ex lrs ghci fcs =
     in
     evalMeasures meas_ex lrs ghci es
 
-synthesize :: (InfConfigM m, MonadIO m, SMTConverter con ast out io)
+synthesize :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
            => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
-           -> MaxSize -> FuncConstraints -> BlockedModels -> [Name] -> [Name] -> m SynthRes
-synthesize con ghci lrs evals meas_ex max_sz fc blk_mdls to_be for_funcs = do
+           -> FuncConstraints -> BlockedModels -> [Name] -> [Name] -> m SynthRes
+synthesize con ghci lrs evals meas_ex fc blk_mdls to_be for_funcs = do
     liftIO . putStrLn $ "all fc = " ++ printFCs fc
-    liaSynth con ghci lrs evals meas_ex max_sz fc blk_mdls to_be for_funcs
+    liaSynth con ghci lrs evals meas_ex fc blk_mdls to_be for_funcs
 
 updateEvals :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> FuncConstraints -> Evals Bool -> m (Evals Bool)
 updateEvals ghci lrs fc evals = do
