@@ -218,9 +218,9 @@ verifyLoop solver ns_pair pairs states prev_u prev_g b config | not (null states
         new_obligations = concat proof_list'
         solved_list = concat [l | Just (l, _) <- proof_list]
         -- TODO might not need solved_list
-        prev_u' = (filter pairNotEVF $ new_obligations ++ solved_list) ++ prev_u
+        prev_u' = (filter pairNotEVF $ new_obligations {- ++ solved_list -}) ++ prev_u
         --prev_g' = (filter eitherEVF new_obligations ++ solved_list) ++ prev_g
-        prev_g' = new_obligations ++ solved_list ++ prev_g
+        prev_g' = new_obligations {- ++ solved_list -} ++ prev_g
         verified = all isJust proof_list
     putStrLn $ show $ length new_obligations
     if verified then
@@ -266,10 +266,10 @@ verifyLoop' solver ns_pair s1 s2 prev_u prev_g =
           let obligation_list = filter (not . (moreRestrictivePair ns_pair prev)) obs
               (ready, not_ready) = partition statePairReadyForSolver obligation_list
               ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
-          putStr "O: "
+          putStr "READY: "
           putStrLn $ show ready_exprs
-          putStr "NR: "
-          putStrLn $ show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) not_ready
+          --putStr "NOT READY: "
+          --putStrLn $ show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) not_ready
           putStr "OBS: "
           putStrLn $ show $ length obs
           res <- checkObligations solver s1 s2 ready_exprs
@@ -280,24 +280,18 @@ verifyLoop' solver ns_pair s1 s2 prev_u prev_g =
             S.UNSAT () -> return $ Just (ready, not_ready)
             _ -> return Nothing
 
-getObligations :: State t -> State t -> Maybe (HS.HashSet (Expr, Expr))
-getObligations s1 s2 =
-  let CurrExpr _ e1 = curr_expr s1
-      CurrExpr _ e2 = curr_expr s2
-  in proofObligations s1 s2 e1 e2
-
 -- TODO right way to wrap here?
 obligationStates ::  State t -> State t -> Maybe [(State t, State t)]
 obligationStates s1 s2 =
-  let CurrExpr er1 _ = curr_expr s1
-      CurrExpr er2 _ = curr_expr s2
+  let CurrExpr _ e1 = curr_expr s1
+      CurrExpr _ e2 = curr_expr s2
       stateWrap (e1, e2) =
         ( s1 { curr_expr = CurrExpr Evaluate e1 }
         , s2 { curr_expr = CurrExpr Evaluate e2 } )
-  in case getObligations s1 s2 of
+  in case proofObligations s1 s2 e1 e2 of
       Nothing -> Nothing
       Just obs -> Just . map stateWrap
-                       . map (\(e1, e2) -> (addStackTickIfNeeded e1, addStackTickIfNeeded e2))
+                       . map (\(e1', e2') -> (addStackTickIfNeeded e1', addStackTickIfNeeded e2'))
                        $ HS.toList obs
 
 addStackTickIfNeeded :: Expr -> Expr
@@ -422,18 +416,18 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                , Just e <- HM.lookup i hm
                , e == e2 -> Just hm
                -- this last case means there's a mismatch
-               | E.isSymbolic (idName i) h1 -> trace ("CASE A" ++ (mrInfo h1 h2 hm e1 e2)) $ Nothing
+               | E.isSymbolic (idName i) h1 -> {- trace ("CASE A" ++ (mrInfo h1 h2 hm e1 e2)) $ -} Nothing
                -- non-symbolic cases
                | not $ HS.member (idName i) ns
                , Just e <- E.lookup (idName i) h1 -> moreRestrictive s1 s2 ns hm e e2
                | not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
-    (_, Var i) | E.isSymbolic (idName i) h2 -> trace ("CASE B" ++ (mrInfo h1 h2 hm e1 e2)) $ Nothing
+    (_, Var i) | E.isSymbolic (idName i) h2 -> {- trace ("CASE B" ++ (mrInfo h1 h2 hm e1 e2)) $ -} Nothing
                -- the case above means sym replaces non-sym
                | Just e <- E.lookup (idName i) h2 -> moreRestrictive s1 s2 ns hm e1 e
                | otherwise -> error "unmapped variable"
     (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s1 s2 ns hm f1 f2
                            , Just hm_a <- moreRestrictive s1 s2 ns hm_f a1 a2 -> Just hm_a
-                           | otherwise -> {- trace ("CASE C" ++ show ns) $ -} trace ("Nothing App " ++ (mrInfo h1 h2 hm e1 e2)) Nothing
+                           | otherwise -> {- trace ("CASE C" ++ show ns) $ -} {- trace ("Nothing App " ++ (mrInfo h1 h2 hm e1 e2)) -} Nothing
     -- We just compare the names of the DataCons, not the types of the DataCons.
     -- This is because (1) if two DataCons share the same name, they must share the
     -- same type, but (2) "the same type" may be represented in different syntactic
@@ -473,8 +467,8 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                       s2' = s2 { expr_env = h2' }
                       mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ e1_ e2_
                       l = zip a1 a2
-                  in trace ("CASE BOUND\ne1' = " ++ show e1' ++ "\ne2' = " ++ show e2') foldM mf hm' l
-    _ -> trace ("CASE H" ++ show (e1, e2)) Nothing
+                  in {- trace ("CASE BOUND\ne1' = " ++ show e1' ++ "\ne2' = " ++ show e2') -} foldM mf hm' l
+    _ -> {- trace ("CASE H" ++ show (e1, e2)) -} Nothing
 
 -- TODO
 ds_name :: Name
@@ -523,7 +517,7 @@ moreRestrictiveAlt s1 s2 ns hm (Alt am1 e1) (Alt am2 e2) =
                                         h2' = foldr symInsert h2 t2
                                         s1' = s1 { expr_env = h1' }
                                         s2' = s2 { expr_env = h2' }
-                                    in trace ("ALT" ++ (show (t1, t2))) $ moreRestrictive s1' s2' ns hm e1 e2
+                                    in {- trace ("ALT" ++ (show (t1, t2))) $ -} moreRestrictive s1' s2' ns hm e1 e2
     _ -> moreRestrictive s1 s2 ns hm e1 e2
   else trace ("CASE I" ++ show am1) Nothing
 
@@ -549,6 +543,6 @@ moreRestrictivePair (ns1, ns2) prev (s1, s2) =
       mr (p1, p2) = isJust $ mrHelper p2 s2 ns2 $ mrHelper p1 s1 ns1 (Just HM.empty)
   in
       trace ("MR: " ++ (show $ not $ null $ filter mr prev)) $
-      trace (show $ length prev) $
+      trace (show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) $ filter mr prev) $
       (not $ null $ filter mr prev)
       --length (filter mr prev) > 0
