@@ -315,10 +315,14 @@ checkObligations :: S.Solver solver =>
                     HS.HashSet (Expr, Expr) ->
                     IO (S.Result () ())
 checkObligations solver s1 s2 obligation_set | not $ HS.null obligation_set =
-    case obligationWrap obligation_set of
+    case obligationWrap $ modifyASTs stripTicks obligation_set of
         Nothing -> applySolver solver P.empty s1 s2
         Just allPO -> applySolver solver (P.insert allPO P.empty) s1 s2
   | otherwise = return $ S.UNSAT ()
+
+stripTicks :: Expr -> Expr
+stripTicks (Tick _ e) = e
+stripTicks e = e
 
 applySolver :: S.Solver solver =>
                solver ->
