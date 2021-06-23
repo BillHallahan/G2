@@ -105,13 +105,9 @@ exprFullApp h e | (Var (Id n t)):_ <- unApp e
                 -- the two states match and are sufficient for verification to succeed,
                 -- when, in isMoreRestrictive, x is inlined.
                 , Just e' <- E.lookup n h
-<<<<<<< HEAD
-                , not (isVar e') = length (unApp e) == 1 + argCount t && argCount t > 0
-=======
                 , not (isVar e')
                 , c_unapp <- length (unApp e)
                 , c_unapp >= 2 = c_unapp == 1 + argCount t
->>>>>>> 75137e870a6edc897b0e8834707389853e259c94
 exprFullApp _ _ = False
 
 isVar :: Expr -> Bool
@@ -134,18 +130,6 @@ instance Halter EnforceProgressH () EquivTracker where
             -- point when it reaches the Tick because the act of unwrapping the
             -- expression inside the Tick counts as one step.
             Just n0 -> do
-<<<<<<< HEAD
-                {-
-                case unApp e of
-                    (Var (Id n t)):_ ->
-                        putStrLn $ "stopRed\nE.lookup n h = " ++ show (E.lookup n h)
-                                    ++ "\nexprFullApp = " ++ show (exprFullApp h e)
-                                    ++ "\nargCount t = " ++ show (argCount t)
-                                    ++ "\nlength (unApp e) = " ++ show (length (unApp e))
-                    _ -> return ()
-                -}
-=======
->>>>>>> 75137e870a6edc897b0e8834707389853e259c94
                 if (isExecValueForm s) || (exprFullApp h e)
                        then return (if n' > n0 + 1 then Accept else Continue)
                        else return Continue
