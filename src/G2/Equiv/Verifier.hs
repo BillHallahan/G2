@@ -67,19 +67,20 @@ runSymExec :: Config ->
 runSymExec config s1 s2 = do
   let s1' = s1 { rules = [], num_steps = 0 }
       s2' = s2 { rules = [], num_steps = 0 }
+
+  ct1 <- CM.liftIO $ getCurrentTime
+  let config' = config -- { logStates = Just $ "a_state" ++ show ct1 }
   --let s1' = prepareState s1
   --    s2' = prepareState s2
   bindings <- CM.get
-  ct <- CM.liftIO $ getCurrentTime
-  let config' = config-- { logStates = Just $ "verifier_states/" ++ show ct }
   (er1, bindings') <- CM.lift $ runG2ForRewriteV s1' config' bindings
   CM.put bindings'
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
                     b_ <- CM.get
-                    ct' <- CM.liftIO $ getCurrentTime
-                    let config'' = config-- { logStates = Just $ "verifier_states/" ++ show ct' }
                     let s2_ = transferStateInfo s1_ s2'
+                    ct2 <- CM.liftIO $ getCurrentTime
+                    let config'' = config -- { logStates = Just $ "a_state" ++ show ct2 }
                     (er2, b_') <- CM.lift $ runG2ForRewriteV s2_ config'' b_
                     CM.put b_'
                     return $ map (\er2_ -> 
@@ -404,10 +405,10 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                      , idName i1 == idName i2 -> Just hm
     -- TODO new cases, may make some old cases unreachable
     (Var i, _) | not $ E.isSymbolic (idName i) h1
-               --, not $ HS.member (idName i) ns
+               , not $ HS.member (idName i) ns
                , Just e <- E.lookup (idName i) h1 -> moreRestrictive s1 s2 ns hm e e2
     (_, Var i) | not $ E.isSymbolic (idName i) h2
-               --, not $ HS.member (idName i) ns
+               , not $ HS.member (idName i) ns
                , Just e <- E.lookup (idName i) h2 -> moreRestrictive s1 s2 ns hm e1 e
     (Var i, _) | E.isSymbolic (idName i) h1
                , Nothing <- HM.lookup i hm -> Just (HM.insert i e2 hm)
@@ -426,7 +427,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                | otherwise -> error "unmapped variable"
     (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s1 s2 ns hm f1 f2
                            , Just hm_a <- moreRestrictive s1 s2 ns hm_f a1 a2 -> Just hm_a
-                           | otherwise -> {- trace ("CASE C" ++ show ns) $ -} Nothing
+                           | otherwise -> {- trace ("CASE C" ++ show ns) $ -} trace ("Nothing App " ++ (mrInfo h1 h2 hm e1 e2)) Nothing
     -- We just compare the names of the DataCons, not the types of the DataCons.
     -- This is because (1) if two DataCons share the same name, they must share the
     -- same type, but (2) "the same type" may be represented in different syntactic
@@ -467,7 +468,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                       mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ e1_ e2_
                       l = zip a1 a2
                   in trace ("CASE BOUND\ne1' = " ++ show e1' ++ "\ne2' = " ++ show e2') foldM mf hm' l
-    _ -> {- trace ("CASE H" ++ show (e1, e2)) $ -} Nothing
+    _ -> trace ("CASE H" ++ show (e1, e2)) Nothing
 
 -- TODO
 ds_name :: Name
@@ -520,17 +521,6 @@ moreRestrictiveAlt s1 s2 ns hm (Alt am1 e1) (Alt am2 e2) =
     _ -> moreRestrictive s1 s2 ns hm e1 e2
   else trace ("CASE I" ++ show am1) Nothing
 
-isMoreRestrictive :: State t ->
-                     State t ->
-                     HS.HashSet Name ->
-                     Bool
-isMoreRestrictive s1 s2 ns =
-  let CurrExpr _ e1 = curr_expr s1
-      CurrExpr _ e2 = curr_expr s2
-      -- mr = isJust $ moreRestrictive s1 s2 ns HM.empty e1 e2
-  in isJust $ moreRestrictive s1 s2 ns HM.empty e1 e2
-  -- trace (show mr) $ trace (show (e1, e2)) $ mr
-
 mrHelper :: State t ->
             State t ->
             HS.HashSet Name ->
@@ -549,7 +539,7 @@ moreRestrictivePair :: (HS.HashSet Name, HS.HashSet Name) ->
                        (State t, State t) ->
                        Bool
 moreRestrictivePair (ns1, ns2) prev (s1, s2) =
-  let -- mr (p1, p2) = isMoreRestrictive p1 s1 ns1 && isMoreRestrictive p2 s2 ns2
+  let
       mr (p1, p2) = isJust $ mrHelper p2 s2 ns2 $ mrHelper p1 s1 ns1 (Just HM.empty)
   in
       trace ("MR: " ++ (show $ not $ null $ filter mr prev)) $

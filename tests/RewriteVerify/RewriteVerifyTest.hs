@@ -74,8 +74,8 @@ coinduction_good_names = [ -- "forceIdempotent"
                            "mapTake"
                          , "takeIdempotent"
                          -- , "doubleReverse"
-                         , "doubleMap" ]
-                         -- , "mapIterate" ]
+                         , "doubleMap"
+                         , "mapIterate" ]
 
 coinduction_good_src :: String
 coinduction_good_src = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"
@@ -119,7 +119,7 @@ rvTest check src rule_names = do
                             (TranslationConfig {simpl = True, load_rewrite_rules = True})
                             config
   let rules = map (findRule $ rewrite_rules bindings) rule_names
-  mapM_ (check config init_state bindings) rules
+  doTimeout (30 * length rules) mapM_ (check config init_state bindings) rules
   return ()
 
 rewriteVerifyTestsGood :: TestTree
