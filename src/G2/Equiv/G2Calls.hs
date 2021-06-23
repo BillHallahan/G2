@@ -103,7 +103,7 @@ exprFullApp h e | (Var (Id n t)):_ <- unApp e
                 -- having the symbolic execution inline g, and then deciding that 
                 -- the two states match and are sufficient for verification to succeed.  
                 , Just e' <- E.lookup n h
-                , not (isVar e') = length (unApp e) == 1 + argCount t
+                , not (isVar e') = length (unApp e) == 1 + argCount t && argCount t > 0
 exprFullApp _ _ = False
 
 isVar :: Expr -> Bool
@@ -126,6 +126,7 @@ instance Halter EnforceProgressH () EquivTracker where
             -- point when it reaches the Tick because the act of unwrapping the
             -- expression inside the Tick counts as one step.
             Just n0 -> do
+                {-
                 case unApp e of
                     (Var (Id n t)):_ ->
                         putStrLn $ "stopRed\nE.lookup n h = " ++ show (E.lookup n h)
@@ -133,6 +134,7 @@ instance Halter EnforceProgressH () EquivTracker where
                                     ++ "\nargCount t = " ++ show (argCount t)
                                     ++ "\nlength (unApp e) = " ++ show (length (unApp e))
                     _ -> return ()
+                -}
                 if (isExecValueForm s) || (exprFullApp h e)
                        then return (if n' > n0 + 1 then Accept else Continue)
                        else return Continue
