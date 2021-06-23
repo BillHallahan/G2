@@ -31,9 +31,11 @@ runG2ForRewriteV state config bindings = do
         sym_config = addSearchNames (names $ track state)
                    $ addSearchNames (input_names bindings) emptyMemConfig
 
+        state' = state { track = (track state) { saw_tick = Nothing } }
+
     (in_out, bindings') <- case rewriteRedHaltOrd solver simplifier config of
                 (red, hal, ord) ->
-                    runG2WithSomes red hal ord solver simplifier sym_config state bindings
+                    runG2WithSomes red hal ord solver simplifier sym_config state' bindings
 
     close solver
 
@@ -52,7 +54,8 @@ rewriteRedHaltOrd solver simplifier config =
             Nothing -> SomeReducer (StdRed share solver simplifier :<~ EnforceProgressR :<~ ConcSymReducer :<~? EquivReducer)
      , SomeHalter
          (DiscardIfAcceptedTag state_name
-         :<~> EnforceProgressH)
+         :<~> EnforceProgressH
+         :<~> SWHNFHalter)
      , SomeOrderer $ PickLeastUsedOrderer)
 
 type StateET = State EquivTracker
@@ -63,8 +66,8 @@ data EnforceProgressR = EnforceProgressR
 
 data EnforceProgressH = EnforceProgressH
 
-instance Reducer EnforceProgressR (Maybe Int) EquivTracker where
-    initReducer _ _ = Nothing
+instance Reducer EnforceProgressR () EquivTracker where
+    initReducer _ _ = ()
     redRules r rv s@(State { curr_expr = CurrExpr _ e
                            , num_steps = n
                            , track = EquivTracker et m })
@@ -74,33 +77,43 @@ instance Reducer EnforceProgressR (Maybe Int) EquivTracker where
         case (e, m) of
             (Tick (NamedLoc (Name p _ _ _)) _, Nothing) ->
                 if p == T.pack "STACK"
-                then return (InProgress, [(s', Just n)], b, r)
-                else return (NoProgress, [(s, Nothing)], b, r)
+                then return (InProgress, [(s', ())], b, r)
+                else return (NoProgress, [(s, ())], b, r)
             -- TODO condense these into one case?
             -- TODO n > n0 + 1
             -- then again, it might not matter at all here
             (Tick (NamedLoc (Name p _ _ _)) _, Just n0) ->
-                if p == T.pack "STACK" && n > n0
-                then return (InProgress, [(s', Just n)], b, r)
-                else return (NoProgress, [(s, m)], b, r)
+                if p == T.pack "STACK" && n > n0 + 1
+                then return (InProgress, [(s', ())], b, r)
+                else return (NoProgress, [(s, ())], b, r)
             _ -> return (NoProgress, [(s, rv)], b, r)
 
 -- TODO delete GuardedHalter code
 argCount :: Type -> Int
---argCount (TyFun _ t) = 1 + argCount t
---argCount _ = 0
 argCount = length . spArgumentTypes . PresType
 
 exprFullApp :: ExprEnv -> Expr -> Bool
 exprFullApp h e | (Var (Id n t)):_ <- unApp e
-                , not $ E.isSymbolic n h = length (unApp e) == 1 + argCount t
---exprFullApp e@(App (Var (Id _ t)) _) = length (unApp e) == 1 + argCount t
+                -- We require that the variable not map to a variable for two reasons:
+                -- (1) We do not want to count symbolic function applications as in FAF form
+                -- (2) We need to ensure we make sufficient progress to avoid
+                -- moreRestrictive matching states spuriously.
+                -- Consider an expression environment with a mapping of `f` to `Var g`.
+                -- We want to avoid storing a previous state using f,
+                -- having the symbolic execution inline g, and then deciding that 
+                -- the two states match and are sufficient for verification to succeed.  
+                , Just e <- E.lookup n h
+                , not (isVar e) = length (unApp e) == 1 + argCount t
 exprFullApp _ _ = False
 
+isVar :: Expr -> Bool
+isVar (Var _) = True
+isVar _ = False
+
 -- TODO changed t to EquivTracker
-instance Halter EnforceProgressH (Maybe Int) EquivTracker where
-    initHalt _ _ = Nothing
-    updatePerStateHalt _ _ _ _ = Nothing
+instance Halter EnforceProgressH () EquivTracker where
+    initHalt _ _ = ()
+    updatePerStateHalt _ _ _ _ = ()
     stopRed _ _ _ s =
         let CurrExpr _ e = curr_expr s
             n' = num_steps s
@@ -115,11 +128,11 @@ instance Halter EnforceProgressH (Maybe Int) EquivTracker where
             Just n0 -> if (isExecValueForm s) || (exprFullApp h e)
                        then return (if n' > n0 + 1 then Accept else Continue)
                        else return Continue
-    stepHalter _ _ _ _ _ = Nothing
+    stepHalter _ _ _ _ _ = ()
 
 -- Maps higher order function calles to symbolic replacements.
 -- This allows the same call to be replaced by the same Id consistently.
-data EquivTracker = EquivTracker (HM.HashMap Expr Id) (Maybe Int) deriving Show
+data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id, saw_tick :: Maybe Int } deriving Show
 
 emptyEquivTracker :: EquivTracker
 emptyEquivTracker = EquivTracker HM.empty Nothing

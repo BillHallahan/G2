@@ -31,6 +31,7 @@ import G2.Equiv.EquivADT
 import G2.Equiv.G2Calls
 
 import qualified Data.HashMap.Lazy as HM
+import Data.Monoid (Any (..))
 
 import Debug.Trace
 
@@ -292,7 +293,19 @@ obligationStates s1 s2 =
         , s2 { curr_expr = CurrExpr er2 e2 } )
   in case getObligations s1 s2 of
       Nothing -> Nothing
-      Just obs -> Just $ map stateWrap $ HS.toList obs
+      Just obs -> Just . map stateWrap
+                       . map (\(e1, e2) -> (addStackTickIfNeeded e1, addStackTickIfNeeded e2))
+                       $ HS.toList obs
+
+addStackTickIfNeeded :: Expr -> Expr
+addStackTickIfNeeded e =
+    if hasStackTick e then e else tickWrap e
+
+hasStackTick :: Expr -> Bool
+hasStackTick = getAny . evalASTs (\e -> case e of
+                                          Tick (NamedLoc l) _
+                                            | l == loc_name -> Any True
+                                          _ -> Any False)
 
 checkObligations :: S.Solver solver =>
                     solver ->
@@ -453,7 +466,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                       s2' = s2 { expr_env = h2' }
                       mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ e1_ e2_
                       l = zip a1 a2
-                  in foldM mf hm' l
+                  in trace ("CASE BOUND\ne1' = " ++ show e1' ++ "\ne2' = " ++ show e2') foldM mf hm' l
     _ -> {- trace ("CASE H" ++ show (e1, e2)) $ -} Nothing
 
 -- TODO
