@@ -336,7 +336,7 @@ liquidTests = testGroup "Liquid"
     , checkLiquidWithSet "tests/Liquid/Sets/Sets2.hs" "append" 1000 4 [AtLeast 1]
     , checkLiquidWithSet "tests/Liquid/Sets/Sets3.hs" "filter" 1800 3 [AtLeast 1]
     , checkLiquidWithSet "tests/Liquid/Sets/Sets4.hs" "isin" 1000 5 [AtLeast 1]
-    , checkLiquidWithSet "tests/Liquid/Sets/Sets5.hs" "f" 2000 4 [AtLeast 1]
+    , checkLiquidWithSet "tests/Liquid/Sets/Sets5.hs" "f" 1000 3 [AtLeast 1]
 
     -- Abstract counterexamples
     , checkAbsLiquid "tests/Liquid/Polymorphism/Poly3.hs" "f" 800 1

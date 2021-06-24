@@ -27,6 +27,7 @@ import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as S
+import G2.Preprocessing.NameCleaner
 import G2.Solver hiding (Assert)
 
 import Control.Monad.Extra
@@ -448,6 +449,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
   where
     -- Make sure that the parameters do not conflict in their symbolic reps.
     olds = map idName params
+    clean_olds = map cleanName olds
 
     -- [ChildrenNames]
     -- Optimization
@@ -456,7 +458,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
     -- Then, in the constraint solver, we can consider fewer constraints at once
     -- (see note [AltCond] in Language/PathConds.hs) 
     mexpr_n = idName mexpr_id
-    (news, ngen') = childrenNames mexpr_n olds ngen
+    (news, ngen') = childrenNames mexpr_n clean_olds ngen
 
     --Update the expr environment
     newIds = map (\(Id _ t, n) -> (n, Id n t)) (zip params news)

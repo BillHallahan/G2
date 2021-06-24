@@ -14,6 +14,7 @@ module G2.Preprocessing.NameCleaner
     , cleanNamesFromList
     , allowedStartSymbols
     , allowedSymbol
+    , cleanName
     ) where
 
 import qualified Data.HashMap.Lazy as HM
@@ -75,16 +76,24 @@ createNamePairs ing ins = go ing [] ins
         go ng rns [] = (rns, ng)
         go ng rns (name@(Name n m i l):ns) =
             let
-                n' = T.filter (\x -> x `S.member` allowedSymbol) n
-                m' = fmap (T.filter $ \x -> x `S.member` allowedSymbol) m
-
-                -- No reserved symbols start with a $, so this ensures both uniqueness
-                -- and starting with an allowed symbol
-                n'' = "$" `T.append` n'
-
-                (new_name, ng') = freshSeededName (Name n'' m' i l) ng
+                name' = cleanName name
+                (new_name, ng') = freshSeededName name' ng
             in
             go ng' ((name, new_name):rns) ns
+
+cleanName :: Name -> Name
+cleanName nm@(Name n m i l)
+  | allowedName nm = nm
+  | otherwise = 
+      let
+          n' = T.filter (\x -> x `S.member` allowedSymbol) n
+          m' = fmap (T.filter $ \x -> x `S.member` allowedSymbol) m
+
+          -- No reserved symbols start with a $, so this ensures both uniqueness
+          -- and starting with an allowed symbol
+          n'' = "$" `T.append` n'
+      in
+      Name n'' m' i l
 
 allNames :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> [Name]
 allNames s = exprNames s ++ E.keys (expr_env s)
