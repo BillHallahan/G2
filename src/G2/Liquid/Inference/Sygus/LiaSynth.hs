@@ -303,13 +303,16 @@ liaSynthOfSize sz m_si = do
                 )
             | j <-  [1..sz] ] -- Ands
           ++
-            [ 
-                (
-                    s ++ "_c_set_act_" ++ show j
-                ,
-                     [ mkSetForms ms s psi_ j k | k <- [1] ] -- Ors
-                )
-            | j <-  [1..sz] ] -- Ands
+            (if length (set_sy_args psi_) + length (set_sy_rets psi_) > 0
+                then
+                    [ 
+                        (
+                            s ++ "_c_set_act_" ++ show j
+                        ,
+                             [ mkSetForms ms s psi_ j k | k <- [1] ] -- Ors
+                        )
+                    | j <-  [1..sz] ] -- Ands
+                else [])
 
 
 mkCoeffs :: String -> SynthSpec -> Integer -> Integer -> Forms
