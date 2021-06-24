@@ -42,8 +42,6 @@ import Control.Monad
 import Data.Time
 
 exprReadyForSolver :: ExprEnv -> Expr -> Bool
--- TODO need a Tick case for this now?
--- doesn't seem to make a difference
 exprReadyForSolver h (Tick _ e) = exprReadyForSolver h e
 exprReadyForSolver h (Var i) = E.isSymbolic (idName i) h && T.isPrimType (typeOf i)
 exprReadyForSolver h (App f a) = exprReadyForSolver h f && exprReadyForSolver h a
@@ -65,21 +63,16 @@ runSymExec :: Config ->
               StateET ->
               CM.StateT Bindings IO [(StateET, StateET)]
 runSymExec config s1 s2 = do
-  -- TODO does this modification matter anymore?
-  let s1' = s1 { rules = [], num_steps = 0 }
-      s2' = s2 { rules = [], num_steps = 0 }
-
   CM.liftIO $ putStrLn "runSymExec"
-
   ct1 <- CM.liftIO $ getCurrentTime
   let config' = config -- { logStates = Just $ "a_state" ++ show ct1 }
   bindings <- CM.get
-  (er1, bindings') <- CM.lift $ runG2ForRewriteV s1' config' bindings
+  (er1, bindings') <- CM.lift $ runG2ForRewriteV s1 config' bindings
   CM.put bindings'
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
                     b_ <- CM.get
-                    let s2_ = transferStateInfo s1_ s2'
+                    let s2_ = transferStateInfo s1_ s2
                     ct2 <- CM.liftIO $ getCurrentTime
                     let config'' = config -- { logStates = Just $ "a_state" ++ show ct2 }
                     (er2, b_') <- CM.lift $ runG2ForRewriteV s2_ config'' b_
@@ -158,7 +151,6 @@ eitherEVF (s1, s2) =
   isExprValueForm (expr_env s1) (exprExtract s1) ||
   isExprValueForm (expr_env s2) (exprExtract s2)
 
--- TODO anything else needs to change?
 prepareState :: StateET -> StateET
 prepareState s =
   let e = exprExtract s
@@ -240,7 +232,6 @@ verifyLoop' solver ns_pair s1 s2 prev_u prev_g =
             S.UNSAT () -> return $ Just not_ready
             _ -> return Nothing
 
--- TODO right way to wrap here?
 obligationStates ::  State t -> State t -> Maybe [(State t, State t)]
 obligationStates s1 s2 =
   let e1 = exprExtract s1
@@ -331,8 +322,6 @@ checkRule config init_state bindings rule = do
   S.SomeSolver solver <- initSolver config
   putStrLn $ show $ curr_expr rewrite_state_l'
   putStrLn $ show $ curr_expr rewrite_state_r'
-  -- TODO do we know that both sides are in SWHNF at the start?
-  -- Could that interfere with the results?
   let prev_u = filter (not . eitherEVF) [(rewrite_state_l', rewrite_state_r')]
   res <- verifyLoop solver (ns_l, ns_r) (zip pairs_l pairs_r)
              [(rewrite_state_l', rewrite_state_r')]
@@ -402,10 +391,6 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                              | otherwise -> Nothing
     (Lit l1, Lit l2) | l1 == l2 -> Just hm
                      | otherwise -> Nothing
-    -- TODO I presume I need syntactic equality for lambda expressions
-    -- LamUse is a simple variant
-    -- TODO new symbolic variables inserted
-    -- TODO what do I use as the name?
     (Lam lu1 i1 b1, Lam lu2 i2 b2)
                 | lu1 == lu2
                 , i1 == i2 ->
@@ -414,12 +399,12 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                   in
                   moreRestrictive s1' s2' ns hm b1 b2
                 | otherwise -> Nothing
-    -- TODO ignore types, like in exprPairing?
+    -- ignore types, like in exprPairing
     (Type _, Type _) -> Just hm
     (Case e1' i1 a1, Case e2' i2 a2)
                 | i1 == i2
                 , Just hm' <- moreRestrictive s1 s2 ns hm e1' e2' ->
-                  -- TODO modify the envs beforehand
+                  -- add the matched-on exprs to the envs beforehand
                   let h1' = E.insert (idName i1) e1' h1
                       h2' = E.insert (idName i2) e2' h2
                       s1' = s1 { expr_env = h1' }
