@@ -10,7 +10,6 @@ cons n (!l) = n:l
 intForce :: [Int] -> [Int]
 intForce [] = []
 intForce (h:t) = cons h $ intForce t
---intForce (h : (!t)) = h:(intForce t)
 
 intDrop :: Int -> [Int] -> [Int]
 intDrop 0 l = l
@@ -45,9 +44,6 @@ p1 = (+ 1)
 t2 :: Int -> Int
 t2 = (* 2)
 
--- TODO takeDropCancel is bad as it is now
--- doesn't work for an undefined list or a negative int
--- same for mapTake?  No, it should be lazy on both sides
 {-# RULES
 "doubleMap" forall l . intMap p1 (intMap t2 l) = intMap (p1 . t2) l
 "mapIterate" forall n . intMap p1 (intIterate p1 n) = intIterate p1 (p1 n)

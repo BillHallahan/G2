@@ -1,9 +1,5 @@
 module RewriteVerify.RewriteVerifyTest ( rewriteTests ) where
 
--- TODO
-import qualified Debug.Trace as D
--- TODO better test suite naming?
-
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
@@ -70,8 +66,8 @@ bad_src = "tests/RewriteVerify/Incorrect/SimpleIncorrect.hs"
 
 coinduction_good_names :: [String]
 coinduction_good_names = [ -- "forceIdempotent"
-                         -- , "dropNoRecursion"
-                           "mapTake"
+                           "dropNoRecursion"
+                         , "mapTake"
                          , "takeIdempotent"
                          -- , "doubleReverse"
                          , "doubleMap"
@@ -154,7 +150,7 @@ rewriteTests = testGroup "Rewrite Tests"
         [ rewriteVerifyTestsGood
         , rewriteVerifyTestsBad
         , coinductionTestsGood
-        -- , coinductionTestsBad
+        , coinductionTestsBad
         , higherOrderTestsGood
         , higherOrderTestsBad
         ]

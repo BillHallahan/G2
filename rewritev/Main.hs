@@ -50,8 +50,6 @@ runWithArgs as = do
 
   let tentry = T.pack entry
 
-  -- TODO can modify the config here directly
-  -- having a flag is also an option
   config <- getConfig as
 
   let libs = maybeToList m_mapsrc

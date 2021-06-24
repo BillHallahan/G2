@@ -32,7 +32,6 @@ bst (BBranch i t0@(BBranch j _ _) t1@(BBranch k _ _)) =
 "doubleMapTree" forall bt . bmap p1 (bmap t2 bt) = bmap (p1 . t2) bt
   #-}
 
--- these two rules take a long time to verify, but it does succeed
 {-# RULES
 "bstPlus" forall bt . bst (bmap p1 bt) = bst bt
 "bstTimes" forall bt . bst (bmap t2 bt) = bst bt

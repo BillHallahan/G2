@@ -10,9 +10,6 @@ import Control.Monad
 
 import G2.Execution.NormalForms
 
--- TODO
-import qualified Debug.Trace as D
-
 proofObligations :: State t ->
                     State t ->
                     Expr ->
@@ -67,7 +64,7 @@ exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs =
                      | otherwise -> Nothing
     (Lam _ _ _, _) -> Just (HS.insert (e1, e2) pairs)
     (_, Lam _ _ _) -> Just (HS.insert (e1, e2) pairs)
-    -- TODO assume for now that all types line up between the two expressions
+    -- assume that all types line up between the two expressions
     (Type _, Type _) -> Just pairs
     (Case _ _ _, _) -> Just (HS.insert (e1, e2) pairs)
     (_, Case _ _ _) -> Just (HS.insert (e1, e2) pairs)

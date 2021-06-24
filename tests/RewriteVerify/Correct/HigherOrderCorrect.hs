@@ -2,7 +2,6 @@ module CoinductionCorrect where
 
 import Data.List
 
--- TODO strictness might be an issue here
 intTake :: Int -> [Int] -> [Int]
 intTake 0 _ = []
 intTake n (h:t) =
@@ -21,7 +20,6 @@ intMap p (h:t) = (p h) : (intMap p t)
 intIterate :: (Int -> Int) -> Int -> [Int]
 intIterate q n = n : (intIterate q (q n))
 
--- TODO
 intFilter :: (Int -> Bool) -> [Int] -> [Int]
 intFilter _ [] = []
 intFilter r (h:t) = if r h then h:(intFilter r t) else intFilter r t

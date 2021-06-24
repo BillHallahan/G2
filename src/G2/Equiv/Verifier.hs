@@ -395,13 +395,13 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
     -- "forall a . a" is the same type as "forall b . b", but fails a syntactic check.
     (Data (DataCon d1 _), Data (DataCon d2 _))
                                   | d1 == d2 -> Just hm
-                                  | otherwise -> {- trace ("CASE D" ++ show d1) -} Nothing
+                                  | otherwise -> Nothing
     -- TODO potential problems with type equality checking?
     (Prim p1 t1, Prim p2 t2) | p1 == p2
                              , t1 == t2 -> Just hm
-                             | otherwise -> {- trace ("CASE E" ++ show p1) -} Nothing
+                             | otherwise -> Nothing
     (Lit l1, Lit l2) | l1 == l2 -> Just hm
-                     | otherwise -> {- trace ("CASE F" ++ show l1) -} Nothing
+                     | otherwise -> Nothing
     -- TODO I presume I need syntactic equality for lambda expressions
     -- LamUse is a simple variant
     -- TODO new symbolic variables inserted
@@ -413,7 +413,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                       s2' = s2 { expr_env = symInsert i2 h2 }
                   in
                   moreRestrictive s1' s2' ns hm b1 b2
-                | otherwise -> {- trace ("CASE G" ++ show i1) -} Nothing
+                | otherwise -> Nothing
     -- TODO ignore types, like in exprPairing?
     (Type _, Type _) -> Just hm
     (Case e1' i1 a1, Case e2' i2 a2)
@@ -484,12 +484,7 @@ mrHelper :: State t ->
             Maybe (HM.HashMap Id Expr)
 mrHelper _ _ _ Nothing = Nothing
 mrHelper s1 s2 ns (Just hm) =
-  let CurrExpr _ e1 = curr_expr s1
-      CurrExpr _ e2 = curr_expr s2
-      --res = moreRestrictive s1 s2 ns hm e1 e2
-  in
-  moreRestrictive s1 s2 ns hm e1 e2
-  --trace (show (isJust res)) res
+  moreRestrictive s1 s2 ns hm (exprExtract s1) (exprExtract s2)
 
 moreRestrictivePair :: (HS.HashSet Name, HS.HashSet Name) ->
                        [(State t, State t)] ->
