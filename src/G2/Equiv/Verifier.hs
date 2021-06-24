@@ -65,7 +65,7 @@ runSymExec :: Config ->
 runSymExec config s1 s2 = do
   CM.liftIO $ putStrLn "runSymExec"
   ct1 <- CM.liftIO $ getCurrentTime
-  let config' = config -- { logStates = Just $ "a_state" ++ show ct1 }
+  let config' = config -- { logStates = Just $ "verifier_states/a" ++ show ct1 }
   bindings <- CM.get
   (er1, bindings') <- CM.lift $ runG2ForRewriteV s1 config' bindings
   CM.put bindings'
@@ -74,7 +74,7 @@ runSymExec config s1 s2 = do
                     b_ <- CM.get
                     let s2_ = transferStateInfo s1_ s2
                     ct2 <- CM.liftIO $ getCurrentTime
-                    let config'' = config -- { logStates = Just $ "a_state" ++ show ct2 }
+                    let config'' = config -- { logStates = Just $ "verifier_states/b" ++ show ct2 }
                     (er2, b_') <- CM.lift $ runG2ForRewriteV s2_ config'' b_
                     CM.put b_'
                     return $ map (\er2_ -> 
@@ -348,8 +348,6 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
     -- ignore all Ticks
     (Tick _ e1', _) -> moreRestrictive s1 s2 ns hm e1' e2
     (_, Tick _ e2') -> moreRestrictive s1 s2 ns hm e1 e2'
-    (Var i1, Var i2) | HS.member (idName i1) ns
-                     , idName i1 == idName i2 -> Just hm
     -- TODO new cases, may make some old cases unreachable
     (Var i, _) | not $ E.isSymbolic (idName i) h1
                , not $ HS.member (idName i) ns
@@ -357,23 +355,28 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
     (_, Var i) | not $ E.isSymbolic (idName i) h2
                , not $ HS.member (idName i) ns
                , Just e <- E.lookup (idName i) h2 -> moreRestrictive s1 s2 ns hm e1 e
+    -- TODO altered order
+    (Var i1, Var i2) | HS.member (idName i1) ns
+                     , idName i1 == idName i2 -> Just hm
+                     | HS.member (idName i1) ns -> trace ("CASE Y " ++ (show $ idName i1)) Nothing
+                     | HS.member (idName i2) ns -> trace ("CASE Z " ++ (show $ idName i2)) Nothing
     (Var i, _) | E.isSymbolic (idName i) h1
                -- TODO just insert the inlined versions?
                -- computation only needs to be done once
-               , Nothing <- HM.lookup i hm -> Just (HM.insert i (inlineEquiv h2 ns e2) hm)
+               , Nothing <- HM.lookup i hm -> trace ((show $ idName i) ++ " :; " ++ (show e2) ++ " :; " ++ (show $ inlineEquiv h2 ns e2)) Just (HM.insert i (inlineEquiv h2 ns e2) hm)
                | E.isSymbolic (idName i) h1
                , Just e <- HM.lookup i hm
                , e == inlineEquiv h2 ns e2 -> Just hm
                -- this last case means there's a mismatch
-               | E.isSymbolic (idName i) h1 -> {- trace ("CASE A" ++ (mrInfo h1 h2 hm e1 e2)) -} Nothing
+               | E.isSymbolic (idName i) h1 -> trace ("CASE A " ++ (mrInfo h1 h2 hm e1 e2)) Nothing
                -- non-symbolic cases
-               | not $ HS.member (idName i) ns
-               , Just e <- E.lookup (idName i) h1 -> moreRestrictive s1 s2 ns hm e e2
+               -- | not $ HS.member (idName i) ns
+               -- , Just e <- E.lookup (idName i) h1 -> moreRestrictive s1 s2 ns hm e e2
                | not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
-    (_, Var i) | E.isSymbolic (idName i) h2 -> {- trace ("CASE B" ++ (mrInfo h1 h2 hm e1 e2)) -} Nothing
+    (_, Var i) | E.isSymbolic (idName i) h2 -> trace ("CASE B " ++ (mrInfo h1 h2 hm e1 e2)) Nothing
                -- the case above means sym replaces non-sym
-               | Just e <- E.lookup (idName i) h2 -> moreRestrictive s1 s2 ns hm e1 e
-               | otherwise -> error "unmapped variable"
+               -- | Just e <- E.lookup (idName i) h2 -> trace ("CASE X " ++ (show $ idName i)) moreRestrictive s1 s2 ns hm e1 e
+               | not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
     (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s1 s2 ns hm f1 f2
                            , Just hm_a <- moreRestrictive s1 s2 ns hm_f a1 a2 -> Just hm_a
                            | otherwise -> {- trace ("CASE C " ++ (mrInfo h1 h2 hm e1 e2)) -} Nothing
@@ -479,6 +482,6 @@ moreRestrictivePair (ns1, ns2) prev (s1, s2) =
   let
       mr (p1, p2) = isJust $ mrHelper p2 s2 ns2 $ mrHelper p1 s1 ns1 (Just HM.empty)
   in
-      -- trace ("MR: " ++ (show $ not $ null $ filter mr prev)) $
-      -- trace (show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) $ filter mr prev) $
+      trace ("MR: " ++ (show $ not $ null $ filter mr prev)) $
+      trace (show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) $ filter mr prev) $
       (not $ null $ filter mr prev)

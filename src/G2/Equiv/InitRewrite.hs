@@ -5,6 +5,8 @@ import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.Typing as T
 import qualified G2.Language.Expr as X
 
+import G2.Execution.Memory
+
 addSymbolic :: Id -> ExprEnv -> ExprEnv
 addSymbolic i =
   E.insertSymbolic (idName i) i
@@ -18,7 +20,7 @@ initWithRHS s b r =
            }
       b' = b { input_names = map idName $ ru_bndrs r }
   in
-  (s', b')
+  markAndSweepPreserving emptyMemConfig s' b'
 
 initWithLHS :: State t -> Bindings -> RewriteRule -> (State t, Bindings)
 initWithLHS s b r =
@@ -39,4 +41,4 @@ initWithLHS s b r =
                        }
                   b' = b { input_names = map idName $ ru_bndrs r }
               in
-              (s', b')
+              markAndSweepPreserving emptyMemConfig s' b'
