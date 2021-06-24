@@ -65,6 +65,7 @@ runSymExec :: Config ->
               StateET ->
               CM.StateT Bindings IO [(StateET, StateET)]
 runSymExec config s1 s2 = do
+  -- TODO does this modification matter anymore?
   let s1' = s1 { rules = [], num_steps = 0 }
       s2' = s2 { rules = [], num_steps = 0 }
 
@@ -72,8 +73,6 @@ runSymExec config s1 s2 = do
 
   ct1 <- CM.liftIO $ getCurrentTime
   let config' = config -- { logStates = Just $ "a_state" ++ show ct1 }
-  --let s1' = prepareState s1
-  --    s2' = prepareState s2
   bindings <- CM.get
   (er1, bindings') <- CM.lift $ runG2ForRewriteV s1' config' bindings
   CM.put bindings'
@@ -134,7 +133,6 @@ runVerifier solver entry init_state bindings config = do
 
 frameWrap :: Frame -> Expr -> Expr
 frameWrap (CaseFrame i alts) e = Case e i alts
--- TODO which is the function, which is the argument?
 frameWrap (ApplyFrame e') e = App e e'
 frameWrap (UpdateFrame _) e = e
 frameWrap (CastFrame co) e = Cast e co
@@ -155,19 +153,6 @@ tickWrap e = Tick (NamedLoc loc_name) e
 exprWrap :: Stck.Stack Frame -> Expr -> Expr
 exprWrap sk e = stackWrap sk $ tickWrap e
 
--- TODO added extra criterion
-notEVF :: State t -> Bool
-notEVF s = not $ isExprValueForm (expr_env s) (exprExtract s)
-
-pairNotEVF :: (State t, State t) -> Bool
-pairNotEVF (s1, s2) = notEVF s1 && notEVF s2
-
--- TODO tuple or separate arguments?
-pairEVF :: (State t, State t) -> Bool
-pairEVF (s1, s2) =
-  isExprValueForm (expr_env s1) (exprExtract s1) &&
-  isExprValueForm (expr_env s2) (exprExtract s2)
-
 eitherEVF :: (State t, State t) -> Bool
 eitherEVF (s1, s2) =
   isExprValueForm (expr_env s1) (exprExtract s1) ||
@@ -176,7 +161,7 @@ eitherEVF (s1, s2) =
 -- TODO anything else needs to change?
 prepareState :: StateET -> StateET
 prepareState s =
-  let CurrExpr er e = curr_expr s
+  let e = exprExtract s
   in s {
     curr_expr = CurrExpr Evaluate $ exprWrap (exec_stack s) $ e
   , num_steps = 0
@@ -202,13 +187,10 @@ verifyLoop solver ns_pair pairs states prev_u prev_g b config | not (null states
     -- TODO
     putStrLn "<Loop Iteration>"
     proof_list <- mapM vl $ concat paired_states
-    let proof_list' = [l | Just (_, l) <- proof_list]
+    let proof_list' = [l | Just l <- proof_list]
         new_obligations = concat proof_list'
-        solved_list = concat [l | Just (l, _) <- proof_list]
-        -- TODO might not need solved_list
-        prev_u' = (filter pairNotEVF $ new_obligations {- ++ solved_list -}) ++ prev_u
-        --prev_g' = (filter eitherEVF new_obligations ++ solved_list) ++ prev_g
-        prev_g' = new_obligations {- ++ solved_list -} ++ prev_g
+        prev_u' = (filter (not . eitherEVF) new_obligations) ++ prev_u
+        prev_g' = new_obligations ++ prev_g
         verified = all isJust proof_list
     putStrLn $ show $ length new_obligations
     if verified then
@@ -222,7 +204,6 @@ exprExtract :: State t -> Expr
 exprExtract (State { curr_expr = CurrExpr _ e }) = e
 
 -- TODO printing
--- TODO how do I tell when to use prev_u or prev_g?
 verifyLoop' :: S.Solver solver =>
                solver ->
                (HS.HashSet Name, HS.HashSet Name) ->
@@ -230,7 +211,7 @@ verifyLoop' :: S.Solver solver =>
                StateET ->
                [(StateET, StateET)] ->
                [(StateET, StateET)] ->
-               IO (Maybe ([(StateET, StateET)], [(StateET, StateET)]))
+               IO (Maybe [(StateET, StateET)])
 verifyLoop' solver ns_pair s1 s2 prev_u prev_g =
   let obligation_maybe = obligationStates s1 s2
   in case obligation_maybe of
@@ -241,16 +222,7 @@ verifyLoop' solver ns_pair s1 s2 prev_u prev_g =
       Just obs -> do
           putStr "J! "
           putStrLn $ show (exprExtract s1, exprExtract s2)
-          -- TODO
-          --putStrLn "$$$"
-          --putStrLn $ show $ E.lookupConcOrSym f_name (expr_env s1)
-          --putStrLn $ show $ E.lookupConcOrSym f_name (expr_env s2)
-          --let prev = if pairNotEVF (s1, s2) then prev_u else prev_g
-          -- TODO make sure that this is correct
           let prev = if eitherEVF (s1, s2) then prev_g else prev_u
-          --putStr "EVF: "
-          --putStrLn $ show $ eitherEVF (s1, s2)
-          --putStrLn $ show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) prev
           let obligation_list = filter (not . (moreRestrictivePair ns_pair prev)) obs
               (ready, not_ready) = partition statePairReadyForSolver obligation_list
               ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
@@ -265,17 +237,17 @@ verifyLoop' solver ns_pair s1 s2 prev_u prev_g =
             S.UNSAT () -> putStrLn "V?"
             _ -> putStrLn "X?"
           case res of
-            S.UNSAT () -> return $ Just (ready, not_ready)
+            S.UNSAT () -> return $ Just not_ready
             _ -> return Nothing
 
 -- TODO right way to wrap here?
 obligationStates ::  State t -> State t -> Maybe [(State t, State t)]
 obligationStates s1 s2 =
-  let CurrExpr _ e1 = curr_expr s1
-      CurrExpr _ e2 = curr_expr s2
-      stateWrap (e1, e2) =
-        ( s1 { curr_expr = CurrExpr Evaluate e1 }
-        , s2 { curr_expr = CurrExpr Evaluate e2 } )
+  let e1 = exprExtract s1
+      e2 = exprExtract s2
+      stateWrap (e1', e2') =
+        ( s1 { curr_expr = CurrExpr Evaluate e1' }
+        , s2 { curr_expr = CurrExpr Evaluate e2' } )
   in case proofObligations s1 s2 e1 e2 of
       Nothing -> Nothing
       Just obs -> Just . map stateWrap
@@ -344,10 +316,8 @@ checkRule config init_state bindings rule = do
       pairs_l = symbolic_ids rewrite_state_l
       pairs_r = symbolic_ids rewrite_state_r
       -- convert from State t to StateET
-      -- TODO don't have Tick in prev list?
-      -- it shouldn't make a difference
-      CurrExpr er_l e_l = curr_expr rewrite_state_l
-      CurrExpr er_r e_r = curr_expr rewrite_state_r
+      e_l = exprExtract rewrite_state_l
+      e_r = exprExtract rewrite_state_r
       rewrite_state_l' = rewrite_state_l {
                            track = emptyEquivTracker
                          , curr_expr = CurrExpr Evaluate $ tickWrap $ e_l
@@ -363,7 +333,7 @@ checkRule config init_state bindings rule = do
   putStrLn $ show $ curr_expr rewrite_state_r'
   -- TODO do we know that both sides are in SWHNF at the start?
   -- Could that interfere with the results?
-  let prev_u = filter pairNotEVF [(rewrite_state_l', rewrite_state_r')]
+  let prev_u = filter (not . eitherEVF) [(rewrite_state_l', rewrite_state_r')]
   res <- verifyLoop solver (ns_l, ns_r) (zip pairs_l pairs_r)
              [(rewrite_state_l', rewrite_state_r')]
              prev_u
@@ -386,7 +356,7 @@ moreRestrictive :: State t ->
                    Maybe (HM.HashMap Id Expr)
 moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e2 =
   case (e1, e2) of
-    -- TODO ignore all Ticks
+    -- ignore all Ticks
     (Tick _ e1', _) -> moreRestrictive s1 s2 ns hm e1' e2
     (_, Tick _ e2') -> moreRestrictive s1 s2 ns hm e1 e2'
     (Var i1, Var i2) | HS.member (idName i1) ns
@@ -399,10 +369,12 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                , not $ HS.member (idName i) ns
                , Just e <- E.lookup (idName i) h2 -> moreRestrictive s1 s2 ns hm e1 e
     (Var i, _) | E.isSymbolic (idName i) h1
-               , Nothing <- HM.lookup i hm -> Just (HM.insert i e2 hm)
+               -- TODO just insert the inlined versions?
+               -- computation only needs to be done once
+               , Nothing <- HM.lookup i hm -> Just (HM.insert i (inlineEquiv h2 ns e2) hm)
                | E.isSymbolic (idName i) h1
                , Just e <- HM.lookup i hm
-               , inlineEquiv h1 ns e == inlineEquiv h2 ns e2 -> Just hm
+               , e == inlineEquiv h2 ns e2 -> Just hm
                -- this last case means there's a mismatch
                | E.isSymbolic (idName i) h1 -> {- trace ("CASE A" ++ (mrInfo h1 h2 hm e1 e2)) -} Nothing
                -- non-symbolic cases
@@ -444,7 +416,6 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                 | otherwise -> {- trace ("CASE G" ++ show i1) -} Nothing
     -- TODO ignore types, like in exprPairing?
     (Type _, Type _) -> Just hm
-    -- TODO add i1 and i2 to the expression environments?
     (Case e1' i1 a1, Case e2' i2 a2)
                 | i1 == i2
                 , Just hm' <- moreRestrictive s1 s2 ns hm e1' e2' ->
@@ -455,8 +426,8 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                       s2' = s2 { expr_env = h2' }
                       mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ e1_ e2_
                       l = zip a1 a2
-                  in {- trace ("CASE BOUND\ne1' = " ++ show e1' ++ "\ne2' = " ++ show e2') -} foldM mf hm' l
-    _ -> {- trace ("CASE H" ++ show (e1, e2)) -} Nothing
+                  in foldM mf hm' l
+    _ -> Nothing
 
 inlineEquiv :: ExprEnv -> HS.HashSet Name -> Expr -> Expr
 inlineEquiv h ns v@(Var (Id n _))
@@ -464,14 +435,6 @@ inlineEquiv h ns v@(Var (Id n _))
     | HS.member n ns = v
     | Just e <- E.lookup n h = inlineEquiv h ns e
 inlineEquiv h ns e = modifyChildren (inlineEquiv h ns) e
-
--- TODO
-ds_name :: Name
-ds_name = Name "ds" Nothing 8286623314361878754 Nothing
-
--- TODO
-fs_name :: Name
-fs_name = Name "fs?" Nothing 16902 Nothing
 
 mrInfo :: ExprEnv ->
           ExprEnv ->
@@ -492,10 +455,8 @@ mrInfo h1 h2 hm e1 e2 =
                       (show $ E.lookup (idName i2) h2) ++ ";" ++
                       (show e2)
             _ -> show e2
-      a3 = show $ E.lookup ds_name h1
-  in a1 ++ ";;" ++ a2 ++ ";:" ++ a3
+  in a1 ++ ";;" ++ a2
 
--- TODO also add variable mapping to both states
 moreRestrictiveAlt :: State t ->
                       State t ->
                       HS.HashSet Name ->
@@ -512,9 +473,9 @@ moreRestrictiveAlt s1 s2 ns hm (Alt am1 e1) (Alt am2 e2) =
                                         h2' = foldr symInsert h2 t2
                                         s1' = s1 { expr_env = h1' }
                                         s2' = s2 { expr_env = h2' }
-                                    in {- trace ("ALT" ++ (show (t1, t2))) $ -} moreRestrictive s1' s2' ns hm e1 e2
+                                    in moreRestrictive s1' s2' ns hm e1 e2
     _ -> moreRestrictive s1 s2 ns hm e1 e2
-  else trace ("CASE I" ++ show am1) Nothing
+  else Nothing
 
 mrHelper :: State t ->
             State t ->
@@ -541,4 +502,3 @@ moreRestrictivePair (ns1, ns2) prev (s1, s2) =
       -- trace ("MR: " ++ (show $ not $ null $ filter mr prev)) $
       -- trace (show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) $ filter mr prev) $
       (not $ null $ filter mr prev)
-      --length (filter mr prev) > 0

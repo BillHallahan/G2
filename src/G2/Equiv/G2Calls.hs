@@ -81,7 +81,6 @@ instance Reducer EnforceProgressR () EquivTracker where
                 then return (InProgress, [(s', ())], b, r)
                 else return (NoProgress, [(s, ())], b, r)
             -- TODO condense these into one case?
-            -- TODO n > n0 + 1
             -- then again, it might not matter at all here
             (Tick (NamedLoc (Name p _ _ _)) _, Just n0) ->
                 if p == T.pack "STACK" && n > n0 + 1
@@ -89,7 +88,6 @@ instance Reducer EnforceProgressR () EquivTracker where
                 else return (NoProgress, [(s, ())], b, r)
             _ -> return (NoProgress, [(s, rv)], b, r)
 
--- TODO delete GuardedHalter code
 argCount :: Type -> Int
 argCount = length . spArgumentTypes . PresType
 
@@ -115,7 +113,6 @@ isVar :: Expr -> Bool
 isVar (Var _) = True
 isVar _ = False
 
--- TODO changed t to EquivTracker
 instance Halter EnforceProgressH () EquivTracker where
     initHalt _ _ = ()
     updatePerStateHalt _ _ _ _ = ()
@@ -145,7 +142,6 @@ emptyEquivTracker = EquivTracker HM.empty Nothing
 
 data EquivReducer = EquivReducer
 
--- TODO new variable m
 instance Reducer EquivReducer () EquivTracker where
     initReducer _ _ = ()
     redRules r _ s@(State { expr_env = eenv
@@ -197,7 +193,6 @@ inlineVars' seen eenv (Var (Id n _))
 inlineVars' seen eenv (App e1 e2) = App (inlineVars' seen eenv e1) (inlineVars' seen eenv e2)
 inlineVars' _ _ e = e
 
--- TODO not all m usage here and elsewhere may be correct
 instance ASTContainer EquivTracker Expr where
     containedASTs (EquivTracker hm _) = HM.keys hm
     modifyContainedASTs f (EquivTracker hm m) =
