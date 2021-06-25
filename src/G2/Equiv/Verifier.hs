@@ -148,8 +148,8 @@ exprWrap sk e = stackWrap sk $ tickWrap e
 
 eitherEVF :: (State t, State t) -> Bool
 eitherEVF (s1, s2) =
-  isExprValueForm (expr_env s1) (unprepareExpr $ exprExtract s1) ||
-  isExprValueForm (expr_env s2) (unprepareExpr $ exprExtract s2)
+  isExprValueForm (expr_env s1) (untick $ exprExtract s1) ||
+  isExprValueForm (expr_env s2) (untick $ exprExtract s2)
 
 prepareState :: StateET -> StateET
 prepareState s =
@@ -161,10 +161,9 @@ prepareState s =
   , exec_stack = Stck.empty
   }
 
--- TODO make sure this is correct
-unprepareExpr :: Expr -> Expr
-unprepareExpr (Tick _ e) = trace ("UNPREPARE " ++ show e) e
-unprepareExpr e = e
+untick :: Expr -> Expr
+untick (Tick _ e) = trace ("UNPREPARE " ++ show e) e
+untick e = e
 
 -- build initial hash set in Main before calling
 verifyLoop :: S.Solver solver =>
@@ -183,10 +182,12 @@ verifyLoop solver ns_pair pairs states prev_u prev_g b config | not (null states
     -- TODO
     putStrLn "<Loop Iteration>"
     proof_list <- mapM vl $ concat paired_states
-    let proof_list' = [l | Just l <- proof_list]
+    let proof_list' = [l | Just (_, l) <- proof_list]
+        -- TODO adding this doesn't help with map-filter
+        repeat_list = concat [l | Just (l, _) <- proof_list]
         new_obligations = concat proof_list'
-        prev_u' = (filter (not . eitherEVF) new_obligations) ++ prev_u
-        prev_g' = new_obligations ++ prev_g
+        prev_u' = (filter (not . eitherEVF) (repeat_list ++ new_obligations)) ++ prev_u
+        prev_g' = repeat_list ++ new_obligations ++ prev_g
         verified = all isJust proof_list
     putStrLn $ show $ length new_obligations
     if verified then
@@ -207,7 +208,7 @@ verifyLoop' :: S.Solver solver =>
                StateET ->
                [(StateET, StateET)] ->
                [(StateET, StateET)] ->
-               IO (Maybe [(StateET, StateET)])
+               IO (Maybe ([(StateET, StateET)], [(StateET, StateET)]))
 verifyLoop' solver ns_pair s1 s2 prev_u prev_g =
   let obligation_maybe = obligationStates s1 s2
   in case obligation_maybe of
@@ -218,8 +219,9 @@ verifyLoop' solver ns_pair s1 s2 prev_u prev_g =
       Just obs -> do
           putStr "J! "
           putStrLn $ show (exprExtract s1, exprExtract s2)
-          let prev = if eitherEVF (s1, s2) then trace ("YES! " ++ (show $ length prev_g)) prev_g else trace ("NO! " ++ (show $ length prev_g)) prev_u
-          let obligation_list = filter (not . (moreRestrictivePair ns_pair prev)) obs
+          putStrLn $ if eitherEVF (s1, s2) then "YES! " {- ++ (show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) prev_g) -} else ("NO! " ++ (show $ length prev_u))
+          let prev = if eitherEVF (s1, s2) then {- trace ("YES! " ++ (show $ length prev_g)) -} prev_g else {- trace ("NO! " ++ (show $ length prev_g)) -} prev_u
+          let (obligation_list, repeats) = partition (not . (moreRestrictivePair ns_pair prev)) obs
               (ready, not_ready) = partition statePairReadyForSolver obligation_list
               ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
           putStr "READY: "
@@ -228,12 +230,13 @@ verifyLoop' solver ns_pair s1 s2 prev_u prev_g =
           --putStrLn $ show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) not_ready
           putStr "OBS: "
           putStrLn $ show $ length obs
+          putStrLn $ show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) obligation_list
           res <- checkObligations solver s1 s2 ready_exprs
           case res of
             S.UNSAT () -> putStrLn "V?"
             _ -> putStrLn "X?"
           case res of
-            S.UNSAT () -> return $ Just not_ready
+            S.UNSAT () -> return $ Just (repeats, not_ready)
             _ -> return Nothing
 
 obligationStates ::  State t -> State t -> Maybe [(State t, State t)]
@@ -367,7 +370,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
     (Var i, _) | E.isSymbolic (idName i) h1
                -- TODO just insert the inlined versions?
                -- computation only needs to be done once
-               , Nothing <- HM.lookup i hm -> trace ((show $ idName i) ++ " :; " ++ (show e2) ++ " :; " ++ (show $ inlineEquiv h2 ns e2)) Just (HM.insert i (inlineEquiv h2 ns e2) hm)
+               , Nothing <- HM.lookup i hm -> {- trace ((show $ idName i) ++ " :; " ++ (show e2) ++ " :; " ++ (show $ inlineEquiv h2 ns e2)) -} Just (HM.insert i (inlineEquiv h2 ns e2) hm)
                | E.isSymbolic (idName i) h1
                , Just e <- HM.lookup i hm
                , e == inlineEquiv h2 ns e2 -> Just hm
@@ -381,9 +384,12 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                -- the case above means sym replaces non-sym
                -- | Just e <- E.lookup (idName i) h2 -> trace ("CASE X " ++ (show $ idName i)) moreRestrictive s1 s2 ns hm e1 e
                | not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
+    -- TODO
+    --(Var _, _) -> error $ show (e1, e2)
+    --(_, Var _) -> error $ show (e1, e2)
     (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s1 s2 ns hm f1 f2
                            , Just hm_a <- moreRestrictive s1 s2 ns hm_f a1 a2 -> Just hm_a
-                           | otherwise -> {- trace ("CASE C " ++ (mrInfo h1 h2 hm e1 e2)) -} Nothing
+                           | otherwise -> trace ("CASE C " ++ (mrInfo h1 h2 hm e1 e2)) Nothing
     -- We just compare the names of the DataCons, not the types of the DataCons.
     -- This is because (1) if two DataCons share the same name, they must share the
     -- same type, but (2) "the same type" may be represented in different syntactic
@@ -391,13 +397,13 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
     -- "forall a . a" is the same type as "forall b . b", but fails a syntactic check.
     (Data (DataCon d1 _), Data (DataCon d2 _))
                                   | d1 == d2 -> Just hm
-                                  | otherwise -> Nothing
+                                  | otherwise -> trace ("CASE D " ++ (mrInfo h1 h2 hm e1 e2)) Nothing
     -- TODO potential problems with type equality checking?
     (Prim p1 t1, Prim p2 t2) | p1 == p2
                              , t1 == t2 -> Just hm
-                             | otherwise -> Nothing
+                             | otherwise -> trace ("CASE E " ++ (mrInfo h1 h2 hm e1 e2)) Nothing
     (Lit l1, Lit l2) | l1 == l2 -> Just hm
-                     | otherwise -> Nothing
+                     | otherwise -> trace ("CASE F " ++ (mrInfo h1 h2 hm e1 e2)) Nothing
     (Lam lu1 i1 b1, Lam lu2 i2 b2)
                 | lu1 == lu2
                 , i1 == i2 ->
@@ -405,7 +411,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                       s2' = s2 { expr_env = symInsert i2 h2 }
                   in
                   moreRestrictive s1' s2' ns hm b1 b2
-                | otherwise -> Nothing
+                | otherwise -> trace ("CASE G " ++ (mrInfo h1 h2 hm e1 e2)) Nothing
     -- ignore types, like in exprPairing
     (Type _, Type _) -> Just hm
     (Case e1' i1 a1, Case e2' i2 a2)
@@ -419,7 +425,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                       mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ e1_ e2_
                       l = zip a1 a2
                   in foldM mf hm' l
-    _ -> Nothing
+    _ -> trace ("CASE H " ++ (mrInfo h1 h2 hm e1 e2)) Nothing
 
 inlineEquiv :: ExprEnv -> HS.HashSet Name -> Expr -> Expr
 inlineEquiv h ns v@(Var (Id n _))
@@ -467,7 +473,7 @@ moreRestrictiveAlt s1 s2 ns hm (Alt am1 e1) (Alt am2 e2) =
                                         s2' = s2 { expr_env = h2' }
                                     in moreRestrictive s1' s2' ns hm e1 e2
     _ -> moreRestrictive s1 s2 ns hm e1 e2
-  else Nothing
+  else trace ("CASE I " ++ (show (e1, e2))) Nothing
 
 mrHelper :: State t ->
             State t ->
