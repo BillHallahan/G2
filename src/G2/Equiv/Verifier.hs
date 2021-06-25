@@ -148,8 +148,8 @@ exprWrap sk e = stackWrap sk $ tickWrap e
 
 eitherEVF :: (State t, State t) -> Bool
 eitherEVF (s1, s2) =
-  isExprValueForm (expr_env s1) (exprExtract s1) ||
-  isExprValueForm (expr_env s2) (exprExtract s2)
+  isExprValueForm (expr_env s1) (unprepareExpr $ exprExtract s1) ||
+  isExprValueForm (expr_env s2) (unprepareExpr $ exprExtract s2)
 
 prepareState :: StateET -> StateET
 prepareState s =
@@ -161,6 +161,10 @@ prepareState s =
   , exec_stack = Stck.empty
   }
 
+-- TODO make sure this is correct
+unprepareExpr :: Expr -> Expr
+unprepareExpr (Tick _ e) = trace ("UNPREPARE " ++ show e) e
+unprepareExpr e = e
 
 -- build initial hash set in Main before calling
 verifyLoop :: S.Solver solver =>
@@ -214,7 +218,7 @@ verifyLoop' solver ns_pair s1 s2 prev_u prev_g =
       Just obs -> do
           putStr "J! "
           putStrLn $ show (exprExtract s1, exprExtract s2)
-          let prev = if eitherEVF (s1, s2) then prev_g else prev_u
+          let prev = if eitherEVF (s1, s2) then trace ("YES! " ++ (show $ length prev_g)) prev_g else trace ("NO! " ++ (show $ length prev_g)) prev_u
           let obligation_list = filter (not . (moreRestrictivePair ns_pair prev)) obs
               (ready, not_ready) = partition statePairReadyForSolver obligation_list
               ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
