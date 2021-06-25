@@ -182,12 +182,12 @@ verifyLoop solver ns_pair pairs states prev_u prev_g b config | not (null states
     -- TODO
     putStrLn "<Loop Iteration>"
     proof_list <- mapM vl $ concat paired_states
-    let proof_list' = [l | Just (_, l) <- proof_list]
+    let proof_list' = [l | Just l <- proof_list]
         -- TODO adding this doesn't help with map-filter
-        repeat_list = concat [l | Just (l, _) <- proof_list]
+        --repeat_list = concat [l | Just (l, _) <- proof_list]
         new_obligations = concat proof_list'
-        prev_u' = (filter (not . eitherEVF) (repeat_list ++ new_obligations)) ++ prev_u
-        prev_g' = repeat_list ++ new_obligations ++ prev_g
+        prev_u' = (filter (not . eitherEVF) new_obligations) ++ prev_u
+        prev_g' = new_obligations ++ prev_g
         verified = all isJust proof_list
     putStrLn $ show $ length new_obligations
     if verified then
@@ -200,6 +200,15 @@ verifyLoop solver ns_pair pairs states prev_u prev_g b config | not (null states
 exprExtract :: State t -> Expr
 exprExtract (State { curr_expr = CurrExpr _ e }) = e
 
+-- TODO
+canUseGuarded :: Obligation -> Bool
+canUseGuarded (Ob c _ _) = c
+
+stateWrap :: StateET -> StateET -> Obligation -> (StateET, StateET)
+stateWrap s1 s2 (Ob _ e1 e2) =
+  ( s1 { curr_expr = CurrExpr Evaluate e1 }
+  , s2 { curr_expr = CurrExpr Evaluate e2 } )
+
 -- TODO printing
 verifyLoop' :: S.Solver solver =>
                solver ->
@@ -208,8 +217,39 @@ verifyLoop' :: S.Solver solver =>
                StateET ->
                [(StateET, StateET)] ->
                [(StateET, StateET)] ->
-               IO (Maybe ([(StateET, StateET)], [(StateET, StateET)]))
+               IO (Maybe [(StateET, StateET)])
 verifyLoop' solver ns_pair s1 s2 prev_u prev_g =
+  case getObligations s1 s2 of
+    Nothing -> do
+      putStr "N! "
+      putStrLn $ show (exprExtract s1, exprExtract s2)
+      return Nothing
+    Just obs -> do
+      putStr "J! "
+      putStrLn $ show (exprExtract s1, exprExtract s2)
+      -- TODO partition obligations, wrap them in states
+      let (obs_g, obs_u) = partition canUseGuarded obs
+          states_g = map (stateWrap s1 s2) obs_g
+          states_u = map (stateWrap s1 s2) obs_u
+          states_g' = filter (not . (moreRestrictivePair ns_pair prev_g)) states_g
+          states_u' = filter (not . (moreRestrictivePair ns_pair prev_u)) states_u
+          states = states_g' ++ states_u'
+          (ready, not_ready) = partition statePairReadyForSolver states
+          ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
+      putStr "READY: "
+      putStrLn $ show ready_exprs
+      putStr "OBS: "
+      putStrLn $ show $ length obs
+      putStrLn $ show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) states
+      res <- checkObligations solver s1 s2 ready_exprs
+      case res of
+        S.UNSAT () -> putStrLn "V?"
+        _ -> putStrLn "X?"
+      case res of
+        S.UNSAT () -> return $ Just (not_ready)
+        _ -> return Nothing
+
+  {-
   let obligation_maybe = obligationStates s1 s2
   in case obligation_maybe of
       Nothing -> do
@@ -221,7 +261,7 @@ verifyLoop' solver ns_pair s1 s2 prev_u prev_g =
           putStrLn $ show (exprExtract s1, exprExtract s2)
           putStrLn $ if eitherEVF (s1, s2) then "YES! " {- ++ (show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) prev_g) -} else ("NO! " ++ (show $ length prev_u))
           let prev = if eitherEVF (s1, s2) then {- trace ("YES! " ++ (show $ length prev_g)) -} prev_g else {- trace ("NO! " ++ (show $ length prev_g)) -} prev_u
-          let (obligation_list, repeats) = partition (not . (moreRestrictivePair ns_pair prev)) obs
+          let (obligation_list, _) = partition (not . (moreRestrictivePair ns_pair prev)) obs
               (ready, not_ready) = partition statePairReadyForSolver obligation_list
               ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
           putStr "READY: "
@@ -236,9 +276,19 @@ verifyLoop' solver ns_pair s1 s2 prev_u prev_g =
             S.UNSAT () -> putStrLn "V?"
             _ -> putStrLn "X?"
           case res of
-            S.UNSAT () -> return $ Just (repeats, not_ready)
+            S.UNSAT () -> return $ Just (not_ready)
             _ -> return Nothing
+  -}
 
+getObligations :: State t -> State t -> Maybe [Obligation]
+getObligations s1 s2 =
+  case proofObligations s1 s2 (exprExtract s1) (exprExtract s2) of
+    Nothing -> Nothing
+    Just obs -> Just $
+                map (\(Ob c e1 e2) -> Ob c (addStackTickIfNeeded e1) (addStackTickIfNeeded e2)) $
+                HS.toList obs
+
+{-
 obligationStates ::  State t -> State t -> Maybe [(State t, State t)]
 obligationStates s1 s2 =
   let e1 = exprExtract s1
@@ -251,6 +301,7 @@ obligationStates s1 s2 =
       Just obs -> Just . map stateWrap
                        . map (\(e1', e2') -> (addStackTickIfNeeded e1', addStackTickIfNeeded e2'))
                        $ HS.toList obs
+-}
 
 addStackTickIfNeeded :: Expr -> Expr
 addStackTickIfNeeded e =
