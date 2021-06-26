@@ -1836,16 +1836,17 @@ getLHMeasureName ghci (Name n m _ l) =
         Nothing -> error "getLHMeasureName: unhandled measure"
 
 applicableMeasuresType :: Int -> TypeEnv -> Measures -> Type -> [([Name], (Type, Type))]
-applicableMeasuresType mx_meas tenv meas =
+applicableMeasuresType mx_meas tenv meas t =
     HM.toList . HM.map (\es -> case filter notLH . anonArgumentTypes $ last es of
-                                [at] -> (at, returnType $ head es)
+                                [at]
+                                  | Just (rt, _) <- chainReturnType t es -> (at, rt)
                                 _ -> error $ "applicableMeasuresType: too many arguments" ++ "\n" ++ show es)
-              . applicableMeasures mx_meas tenv meas
+              $ applicableMeasures mx_meas tenv meas t
 
 applicableMeasures :: Int -> TypeEnv -> Measures -> Type -> HM.HashMap [Name] [G2.Expr]
 applicableMeasures mx_meas tenv meas t =
     HM.fromList . map unzip
-                . filter (maybe False (isJust . typeToSort . fst) . chainReturnType t)
+                . filter (maybe False (isJust . typeToSort . fst) . chainReturnType t . map snd)
                 $ formMeasureComps mx_meas tenv t meas
 
 ----------------------------------------------------------------------------
