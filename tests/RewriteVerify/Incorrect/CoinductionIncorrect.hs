@@ -57,6 +57,9 @@ f x = x + 1
 g :: Int -> Int
 g x = x + 2
 
+nonterm :: Bool -> Bool
+nonterm b = nonterm b
+
 {-# RULES
 "doubleMapBackward" forall l . intMap p1 (intMap t2 l) = intMap (t2 . p1) l
 "badMapIterate" forall n . intMap p1 (intIterate p1 n) = intIterate p1 n
@@ -72,4 +75,5 @@ g x = x + 2
 "doubleTake" forall n m l . intTake n (intTake m l) = intTake n l
 "badDoubleReverse" forall l . intReverse (intReverse l) = l
 "takeDropCancel" forall n l . intDrop n (intTake n l) = []
+"badBool" forall b . nonterm b = True
   #-}

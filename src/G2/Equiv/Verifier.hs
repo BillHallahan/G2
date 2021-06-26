@@ -84,6 +84,15 @@ runSymExec config s1 s2 = do
                                     in
                                     (prepareState s1_', prepareState s2_')
                                  ) er2) final_s1
+  -- TODO include original state of one side with final of others
+  -- will add a lot more branching
+  -- also include the complete original?  I don't think so
+  {-
+  let cpairs = concat pairs
+      same1 = map (\(_, s2_) -> (s1, s2_)) cpairs
+      same2 = map (\(s1_, _) -> (s1_, s2)) cpairs
+  return $ cpairs ++ same1 ++ same2
+  -}
   return $ concat pairs
 
 -- After s1 has had its expr_env, path constraints, and tracker updated,
@@ -231,16 +240,27 @@ verifyLoop' solver ns_pair s1 s2 prev_u prev_g =
       let (obs_g, obs_u) = partition canUseGuarded obs
           states_g = map (stateWrap s1 s2) obs_g
           states_u = map (stateWrap s1 s2) obs_u
-          states_g' = filter (not . (moreRestrictivePair ns_pair prev_g)) states_g
-          states_u' = filter (not . (moreRestrictivePair ns_pair prev_u)) states_u
+          prev_g' = [(g1, g2) | (g1, _) <- prev_g, (_, g2) <- prev_g]
+          prev_u' = [(u1, u2) | (u1, _) <- prev_u, (_, u2) <- prev_u]
+          states_g' = filter (not . (moreRestrictivePair ns_pair prev_g')) states_g
+          states_u' = filter (not . (moreRestrictivePair ns_pair prev_u')) states_u
           states = states_g' ++ states_u'
           (ready, not_ready) = partition statePairReadyForSolver states
           ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
+      putStrLn (if null states_g' then "EMPTY" else "GUARDED")
+      -- TODO variable info printing
+      {-
+      let vars1 = HS.toList $ allVarInfo (expr_env s1) (exprExtract s1)
+          vars2 = HS.toList $ allVarInfo (expr_env s2) (exprExtract s2)
+      mapM putStrLn vars1
+      putStrLn "+++++++++"
+      mapM putStrLn vars2
+      -}
       putStr "READY: "
       putStrLn $ show ready_exprs
       putStr "OBS: "
       putStrLn $ show $ length obs
-      putStrLn $ show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) states
+      --putStrLn $ show $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) states
       res <- checkObligations solver s1 s2 ready_exprs
       case res of
         S.UNSAT () -> putStrLn "V?"
@@ -416,15 +436,15 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
     -- TODO altered order
     (Var i1, Var i2) | HS.member (idName i1) ns
                      , idName i1 == idName i2 -> Just hm
-                     | HS.member (idName i1) ns -> trace ("CASE Y " ++ (show $ idName i1)) Nothing
-                     | HS.member (idName i2) ns -> trace ("CASE Z " ++ (show $ idName i2)) Nothing
+                     | HS.member (idName i1) ns -> trace ("CASE Y " ++ (mrInfo h1 h2 hm e1 e2)) Nothing
+                     | HS.member (idName i2) ns -> trace ("CASE Z " ++ (mrInfo h1 h2 hm e1 e2)) Nothing
     (Var i, _) | E.isSymbolic (idName i) h1
                -- TODO just insert the inlined versions?
                -- computation only needs to be done once
-               , Nothing <- HM.lookup i hm -> {- trace ((show $ idName i) ++ " :; " ++ (show e2) ++ " :; " ++ (show $ inlineEquiv h2 ns e2)) -} Just (HM.insert i (inlineEquiv h2 ns e2) hm)
+               , Nothing <- HM.lookup i hm -> {- trace ((show $ idName i) ++ " :; " ++ (show e2) ++ " :; " ++ (show $ inlineEquiv h2 ns e2)) -} Just (HM.insert i e2 hm)
                | E.isSymbolic (idName i) h1
                , Just e <- HM.lookup i hm
-               , e == inlineEquiv h2 ns e2 -> Just hm
+               , inlineEquiv h2 ns e == inlineEquiv h2 ns e2 -> Just hm
                -- this last case means there's a mismatch
                | E.isSymbolic (idName i) h1 -> trace ("CASE A " ++ (mrInfo h1 h2 hm e1 e2)) Nothing
                -- non-symbolic cases
@@ -440,7 +460,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
     --(_, Var _) -> error $ show (e1, e2)
     (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s1 s2 ns hm f1 f2
                            , Just hm_a <- moreRestrictive s1 s2 ns hm_f a1 a2 -> Just hm_a
-                           | otherwise -> trace ("CASE C " ++ (mrInfo h1 h2 hm e1 e2)) Nothing
+                           | otherwise -> {- trace ("CASE C " ++ (mrInfo h1 h2 hm e1 e2)) -} Nothing
     -- We just compare the names of the DataCons, not the types of the DataCons.
     -- This is because (1) if two DataCons share the same name, they must share the
     -- same type, but (2) "the same type" may be represented in different syntactic
@@ -458,11 +478,16 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
     (Lam lu1 i1 b1, Lam lu2 i2 b2)
                 | lu1 == lu2
                 , i1 == i2 ->
+                  let ns' = HS.insert (idName i1) ns
+                  -- no need to insert twice over because they're equal
+                  in moreRestrictive s1 s2 ns' hm b1 b2
+                  {-
                   let s1' = s1 { expr_env = symInsert i1 h1 }
                       s2' = s2 { expr_env = symInsert i2 h2 }
                   in
                   moreRestrictive s1' s2' ns hm b1 b2
-                | otherwise -> trace ("CASE G " ++ (mrInfo h1 h2 hm e1 e2)) Nothing
+                  -}
+                | otherwise -> {- trace ("CASE G " ++ (mrInfo h1 h2 hm e1 e2)) -} Nothing
     -- ignore types, like in exprPairing
     (Type _, Type _) -> Just hm
     (Case e1' i1 a1, Case e2' i2 a2)
@@ -476,7 +501,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                       mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ e1_ e2_
                       l = zip a1 a2
                   in foldM mf hm' l
-    _ -> trace ("CASE H " ++ (mrInfo h1 h2 hm e1 e2)) Nothing
+    _ -> {- trace ("CASE H " ++ (mrInfo h1 h2 hm e1 e2)) -} Nothing
 
 inlineEquiv :: ExprEnv -> HS.HashSet Name -> Expr -> Expr
 inlineEquiv h ns v@(Var (Id n _))
@@ -506,6 +531,37 @@ mrInfo h1 h2 hm e1 e2 =
             _ -> show e2
   in a1 ++ ";;" ++ a2
 
+varMapping :: ExprEnv -> Name -> Maybe Expr
+varMapping h n =
+  if E.isSymbolic n h then E.lookup n h
+  else case E.lookup n h of
+    Nothing -> Nothing
+    Just (Var i) -> varMapping h (idName i)
+    -- TODO lazy approach
+    --Just (App (Var (Id (Name "im" _ _ _) _)) (Var i)) -> varMapping h (idName i)
+    Just e -> Just e
+
+varInfo :: ExprEnv -> Name -> String
+varInfo h n =
+  case varMapping h n of
+    Nothing -> "{" ++ (show n) ++ "<>}"
+    Just e -> "{" ++ (show n) ++ "<>" ++ (show e) ++ "}"
+
+fs_name :: Name
+fs_name = Name "fs?" Nothing 16914 Nothing
+
+fs_name2 :: Name
+fs_name2 = Name "fs?" Nothing 16916 Nothing
+
+exprInfo :: ExprEnv -> Expr -> HS.HashSet String
+exprInfo h (Var i) = HS.insert (varInfo h (idName i)) HS.empty
+exprInfo h _ = HS.insert (varInfo h fs_name2) $ HS.insert (varInfo h fs_name) HS.empty
+
+allVarInfo :: ExprEnv -> Expr -> HS.HashSet String
+allVarInfo h = eval (exprInfo h)
+
+-- TODO ids are the same between both sides
+-- no need to insert twice
 moreRestrictiveAlt :: State t ->
                       State t ->
                       HS.HashSet Name ->
@@ -514,6 +570,14 @@ moreRestrictiveAlt :: State t ->
                       Alt ->
                       Maybe (HM.HashMap Id Expr)
 moreRestrictiveAlt s1 s2 ns hm (Alt am1 e1) (Alt am2 e2) =
+  if am1 == am2 then
+  case am1 of
+    DataAlt _ t1 -> let n1 = map (\(Id n _) -> n) t1
+                        ns' = foldr HS.insert ns n1
+                    in moreRestrictive s1 s2 ns' hm e1 e2
+    _ -> moreRestrictive s1 s2 ns hm e1 e2
+  else Nothing
+  {-
   if am1 == am2 then
   case (am1, am2) of
     (DataAlt _ t1, DataAlt _ t2) -> let h1 = expr_env s1
@@ -524,7 +588,8 @@ moreRestrictiveAlt s1 s2 ns hm (Alt am1 e1) (Alt am2 e2) =
                                         s2' = s2 { expr_env = h2' }
                                     in moreRestrictive s1' s2' ns hm e1 e2
     _ -> moreRestrictive s1 s2 ns hm e1 e2
-  else trace ("CASE I " ++ (show (e1, e2))) Nothing
+  else {- trace ("CASE I " ++ (show (e1, e2))) -} Nothing
+  -}
 
 mrHelper :: State t ->
             State t ->
