@@ -185,8 +185,6 @@ data InferenceConfig =
                     , modules :: S.HashSet (Maybe T.Text)
                     , max_ce :: Int
 
-                    , max_meas_comp :: Int -- ^ How many measures should we try composing in the synthesizer?
-
                     , pre_refined :: S.HashSet  (T.Text, Maybe T.Text)
                     , refinable_funcs :: S.HashSet (T.Text, Maybe T.Text)
 
@@ -208,7 +206,6 @@ mkInferenceConfig as =
     InferenceConfig { keep_quals = boolArg "keep-quals" as M.empty On
                     , modules = S.empty
                     , max_ce = strArg "max-ce" as M.empty read 5
-                    , max_meas_comp = strArg "max-measures" as M.empty read 1
                     , restrict_coeffs = boolArg "restrict-coeffs" as M.empty Off
                     , use_extra_fcs = boolArg "use-extra-fc" as M.empty On
                     , use_level_dec = boolArg "use-level-dec" as M.empty On
