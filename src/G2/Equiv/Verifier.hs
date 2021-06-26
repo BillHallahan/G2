@@ -41,6 +41,12 @@ import Control.Monad
 
 import Data.Time
 
+-- TODO formatting
+data StateH = StateH {
+    latest :: StateET
+  , history :: [StateET]
+}
+
 exprReadyForSolver :: ExprEnv -> Expr -> Bool
 exprReadyForSolver h (Tick _ e) = exprReadyForSolver h e
 exprReadyForSolver h (Var i) = E.isSymbolic (idName i) h && T.isPrimType (typeOf i)
@@ -174,18 +180,78 @@ untick :: Expr -> Expr
 untick (Tick _ e) = trace ("UNPREPARE " ++ show e) e
 untick e = e
 
+-- TODO helper functions for state history
+getLatest :: (StateH, StateH) -> (StateET, StateET)
+getLatest (StateH { latest = s1 }, StateH { latest = s2 }) = (s1, s2)
+
+newStateH :: StateET -> StateH
+newStateH s = StateH { latest = s, history = [] }
+
+appendH :: StateH -> StateET -> StateH
+appendH sh s =
+  StateH {
+    latest = s
+  , history = (latest sh):(history sh)
+  }
+
+replaceH :: StateH -> StateET -> StateH
+replaceH sh s = sh { latest = s }
+
+{-
+eitherEVF :: (StateH, StateH) -> Bool
+eitherEVF (StateH { latest = s1 }, StateH { latest = s2 }) =
+  isExprValueForm (expr_env s1) (untick $ exprExtract s1) ||
+  isExprValueForm (expr_env s2) (untick $ exprExtract s2)
+-}
+
+prevUnguarded :: (StateH, StateH) -> [(StateET, StateET)]
+prevUnguarded (sh1, sh2) =
+  {-
+  let s1 = latest sh1
+      s2 = latest sh2
+      hist1 = history sh1
+      hist2 = history sh2
+  in
+  -}
+  [(p1, p2) | p1 <- history sh1, p2 <- history sh2]
+
+-- TODO make sure the condition is right
+prevGuarded :: (StateH, StateH) -> [(StateET, StateET)]
+prevGuarded = (filter (not . eitherEVF)) . prevUnguarded
+
 -- build initial hash set in Main before calling
 verifyLoop :: S.Solver solver =>
               solver ->
               (HS.HashSet Name, HS.HashSet Name) ->
-              [(Id, Id)] ->
-              [(StateET, StateET)] ->
-              [(StateET, StateET)] ->
-              [(StateET, StateET)] ->
+              [(StateH, StateH)] ->
+              [(StateH, StateH)] ->
               Bindings ->
               Config ->
               IO (S.Result () ())
-verifyLoop solver ns_pair pairs states prev_u prev_g b config | not (null states) = do
+verifyLoop solver ns_pair states prev b config | not (null states) = do
+  -- TODO new implementation
+  let current_states = map getLatest states
+  (paired_states, b') <- CM.runStateT (mapM (uncurry (runSymExec config)) current_states) b
+  let vl (s1, s2) = verifyLoop' solver ns_pair s1 s2 prev
+  -- TODO printing
+  putStrLn "<Loop Iteration>"
+  -- for every internal list, map with its corresponding original state
+  let app_pair (sh1, sh2) (s1, s2) = (appendH sh1 s1, appendH sh2 s2)
+      map_fns = map app_pair states
+      updated_hists = map (uncurry map) (zip map_fns paired_states)
+  proof_list <- mapM vl $ concat updated_hists
+  let new_obligations = concat [l | Just l <- proof_list]
+      prev' = new_obligations ++ prev
+  putStrLn $ show $ length new_obligations
+  if all isJust proof_list then
+    verifyLoop solver ns_pair new_obligations prev' b' config
+  else
+    return $ S.SAT ()
+  | otherwise = do
+    return $ S.UNSAT ()
+  --let updated_states = map (\((s1, s2), (sh1, sh2)) -> (appendH s1 sh1, appendH s2 sh2)) $
+
+  {-
     (paired_states, b') <- CM.runStateT (mapM (uncurry (runSymExec config)) states) b
     let vl (s1, s2) = verifyLoop' solver ns_pair s1 s2 prev_u prev_g
     -- TODO
@@ -205,6 +271,7 @@ verifyLoop solver ns_pair pairs states prev_u prev_g b config | not (null states
         return $ S.SAT ()
   | otherwise = do
     return $ S.UNSAT ()
+  -}
 
 exprExtract :: State t -> Expr
 exprExtract (State { curr_expr = CurrExpr _ e }) = e
@@ -219,15 +286,57 @@ stateWrap s1 s2 (Ob _ e1 e2) =
   , s2 { curr_expr = CurrExpr Evaluate e2 } )
 
 -- TODO printing
+-- TODO inconsistent s and sh naming
+-- TODO non-ready obligations are not necessarily the original exprs
+-- Does it still make sense to graft them onto the starting states' histories?
 verifyLoop' :: S.Solver solver =>
                solver ->
                (HS.HashSet Name, HS.HashSet Name) ->
-               StateET ->
-               StateET ->
-               [(StateET, StateET)] ->
-               [(StateET, StateET)] ->
-               IO (Maybe [(StateET, StateET)])
-verifyLoop' solver ns_pair s1 s2 prev_u prev_g =
+               StateH ->
+               StateH ->
+               [(StateH, StateH)] ->
+               IO (Maybe [(StateH, StateH)])
+verifyLoop' solver ns_pair sh1 sh2 prev =
+  let s1 = latest sh1
+      s2 = latest sh2
+  in
+  case getObligations s1 s2 of
+    Nothing -> do
+      putStr "N! "
+      putStrLn $ show (exprExtract s1, exprExtract s2)
+      return Nothing
+    Just obs -> do
+      putStr "J! "
+      putStrLn $ show (exprExtract s1, exprExtract s2)
+      let (obs_g, obs_u) = partition canUseGuarded obs
+          states_g = map (stateWrap s1 s2) obs_g
+          states_u = map (stateWrap s1 s2) obs_u
+          -- TODO use both states_g and states_u?
+          -- TODO need all the states being used on this iteration
+          -- possibly even more than those
+          -- might want a full history
+          prev_g = concat $ map prevGuarded prev
+          prev_u = concat $ map prevUnguarded prev
+          states_g' = filter (not . (moreRestrictivePair ns_pair prev_g)) states_g
+          states_u' = filter (not . (moreRestrictivePair ns_pair prev_u)) states_u
+          states = states_g' ++ states_u'
+          (ready, not_ready) = partition statePairReadyForSolver states
+          ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
+          not_ready_h = map (\(n1, n2) -> (replaceH sh1 n1, replaceH sh2 n2)) not_ready
+      putStrLn (if null states_g' then "EMPTY" else "GUARDED")
+      putStr "READY: "
+      putStrLn $ show ready_exprs
+      putStr "OBS: "
+      putStrLn $ show $ length obs
+      res <- checkObligations solver s1 s2 ready_exprs
+      case res of
+        S.UNSAT () -> putStrLn "V?"
+        _ -> putStrLn "X?"
+      case res of
+        S.UNSAT () -> return $ Just (not_ready_h)
+        _ -> return Nothing
+
+  {-
   case getObligations s1 s2 of
     Nothing -> do
       putStr "N! "
@@ -268,6 +377,7 @@ verifyLoop' solver ns_pair s1 s2 prev_u prev_g =
       case res of
         S.UNSAT () -> return $ Just (not_ready)
         _ -> return Nothing
+  -}
 
   {-
   let obligation_maybe = obligationStates s1 s2
@@ -382,8 +492,6 @@ checkRule :: Config ->
 checkRule config init_state bindings rule = do
   let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
       (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
-      pairs_l = symbolic_ids rewrite_state_l
-      pairs_r = symbolic_ids rewrite_state_r
       -- convert from State t to StateET
       e_l = exprExtract rewrite_state_l
       e_r = exprExtract rewrite_state_r
@@ -400,11 +508,11 @@ checkRule config init_state bindings rule = do
   S.SomeSolver solver <- initSolver config
   putStrLn $ show $ curr_expr rewrite_state_l'
   putStrLn $ show $ curr_expr rewrite_state_r'
-  let prev_u = filter (not . eitherEVF) [(rewrite_state_l', rewrite_state_r')]
-  res <- verifyLoop solver (ns_l, ns_r) (zip pairs_l pairs_r)
-             [(rewrite_state_l', rewrite_state_r')]
-             prev_u
-             [(rewrite_state_l', rewrite_state_r')]
+  let rewrite_state_l'' = newStateH rewrite_state_l'
+      rewrite_state_r'' = newStateH rewrite_state_r'
+  res <- verifyLoop solver (ns_l, ns_r)
+             [(rewrite_state_l'', rewrite_state_r'')]
+             [(rewrite_state_l'', rewrite_state_r'')]
              bindings'' config
   -- UNSAT for good, SAT for bad
   return res
