@@ -649,7 +649,7 @@ type MeasureExs = HM.HashMap Expr (HM.HashMap [Name] Expr)
 
 type MaxMeasures = Int
 
-evalMeasures :: (InfConfigM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> [Expr] -> m MeasureExs
+evalMeasures :: (InfConfigM m, ProgresserM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> [Expr] -> m MeasureExs
 evalMeasures init_meas lrs ghci es = do
     config <- g2ConfigM
     let config' = config { counterfactual = NotCounterfactual }
@@ -700,14 +700,15 @@ isTotal tenv = getAll . evalASTs isTotal'
 
 evalMeasures' :: ( InfConfigM m
                  , MonadIO m
+                 , ProgresserM m
                  , ASTContainer t Expr
                  , ASTContainer t Type
                  , Named t
                  , Solver solver
                  , Show t) => State t -> Bindings -> solver -> Config -> Measures -> TCValues -> MeasureExs -> Expr -> m MeasureExs
 evalMeasures' s bindings solver config meas tcv init_meas e =  do
-    infC <- infConfigM
-    let m_sts = evalMeasures'' (max_meas_comp infC) s bindings meas tcv e
+    MaxSize max_meas <- maxSynthSizeM
+    let m_sts = evalMeasures'' (fromInteger max_meas) s bindings meas tcv e
 
     foldM (\meas_exs (ns, e_in, s_meas) -> do
         case HM.lookup ns =<< HM.lookup e_in meas_exs of

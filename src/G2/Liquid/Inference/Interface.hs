@@ -191,9 +191,9 @@ iterativeInference con ghci m_modname lrs nls meas_ex gs fc = do
                 Left cex -> return $ Left cex
                 Right fc' -> do
                     logEventStartM UpdateMeasures
-                    r_meas_ex' <- updateMeasureExs r_meas_ex lrs ghci fc'
                     logEventEndM
                     incrMaxSynthSizeI
+                    r_meas_ex' <- lift . lift . lift $ updateMeasureExs {- r_meas_ex -} HM.empty lrs ghci {- fc' -} (unionFC fc' r_fc)
                     iterativeInference con ghci m_modname lrs nls r_meas_ex' gs (unionFC fc' r_fc)
 
 
@@ -311,7 +311,7 @@ inferenceB con ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls = do
                                 blk_mdls'' = blk_mdls' `unionBlockedModels` new_blk_mdls
                             liftIO $ putStrLn "Before genMeasureExs"
                             logEventStartM UpdateMeasures
-                            meas_ex' <- updateMeasureExs meas_ex lrs ghci fc'
+                            meas_ex' <- lift . lift . lift $ updateMeasureExs meas_ex lrs ghci fc'
                             logEventEndM
                             liftIO $ putStrLn "After genMeasureExs"
 
@@ -561,7 +561,7 @@ checkNewConstraints ghci lrs cexs = do
         res'@(_:_) -> return . Left $ res'
         _ -> return . Right . unionsFC . map fromSingletonFC $ (rights res) ++ if use_extra_fcs infconfig then res2 else []
 
-updateMeasureExs :: (InfConfigM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> FuncConstraints -> m MeasureExs
+updateMeasureExs :: (InfConfigM m, ProgresserM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> FuncConstraints -> m MeasureExs
 updateMeasureExs meas_ex lrs ghci fcs =
     let
         es = concatMap (\fc ->
