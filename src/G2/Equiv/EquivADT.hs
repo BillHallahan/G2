@@ -21,8 +21,9 @@ import GHC.Generics (Generic)
 import Data.Data
 import Data.Hashable
 
--- TODO the bool is True if prev_g can be used
-data Obligation = Ob Bool Expr Expr deriving (Show, Eq, Read, Generic, Typeable, Data)
+-- the bool is True if guarded coinduction can be used
+data Obligation = Ob Bool Expr Expr
+                  deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 instance Hashable Obligation
 
@@ -34,7 +35,6 @@ proofObligations :: State t ->
 proofObligations s1 s2 e1 e2 =
   exprPairing s1 s2 e1 e2 HS.empty False
 
--- TODO also need a bool passed downward to mark children?
 exprPairing :: State t ->
                State t ->
                Expr ->
