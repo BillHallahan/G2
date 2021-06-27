@@ -48,10 +48,23 @@ p1 = (+ 1)
 t2 :: Int -> Int
 t2 = (* 2)
 
+con :: Int -> Int
+con x = x
+
+f :: Int -> Int
+f x = x + 1
+
+g :: Int -> Int
+g x = x + 2
+
+nonterm :: Bool -> Bool
+nonterm b = nonterm b
+
 {-# RULES
 "doubleMapBackward" forall l . intMap p1 (intMap t2 l) = intMap (t2 . p1) l
 "badMapIterate" forall n . intMap p1 (intIterate p1 n) = intIterate p1 n
 "badMapTake" forall n l . intMap p1 (intTake n l) = intTake n (intMap t2 l)
+"badCon" forall x . con (f x) = con (g x)
   #-}
 
 -- some of these rules are incorrect only because of laziness
@@ -62,4 +75,5 @@ t2 = (* 2)
 "doubleTake" forall n m l . intTake n (intTake m l) = intTake n l
 "badDoubleReverse" forall l . intReverse (intReverse l) = l
 "takeDropCancel" forall n l . intDrop n (intTake n l) = []
+"badBool" forall b . nonterm b = True
   #-}

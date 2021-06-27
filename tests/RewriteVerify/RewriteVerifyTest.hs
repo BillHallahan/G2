@@ -1,9 +1,5 @@
 module RewriteVerify.RewriteVerifyTest ( rewriteTests ) where
 
--- TODO
-import qualified Debug.Trace as D
--- TODO better test suite naming?
-
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
@@ -70,12 +66,12 @@ bad_src = "tests/RewriteVerify/Incorrect/SimpleIncorrect.hs"
 
 coinduction_good_names :: [String]
 coinduction_good_names = [ -- "forceIdempotent"
-                         -- , "dropNoRecursion"
-                           "mapTake"
+                           "dropNoRecursion"
+                         , "mapTake"
                          , "takeIdempotent"
                          -- , "doubleReverse"
-                         , "doubleMap" ]
-                         -- , "mapIterate" ]
+                         , "doubleMap"
+                         , "mapIterate" ]
 
 coinduction_good_src :: String
 coinduction_good_src = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"
@@ -92,7 +88,8 @@ coinduction_bad_src = "tests/RewriteVerify/Incorrect/CoinductionIncorrect.hs"
 higher_good_names :: [String]
 higher_good_names = [ "doubleMap"
                     , "mapIterate"
-                    , "mapTake" ]
+                    , "mapTake"
+                    , "mapFilter" ]
 
 higher_good_src :: String
 higher_good_src = "tests/RewriteVerify/Correct/HigherOrderCorrect.hs"
@@ -119,8 +116,10 @@ rvTest check src rule_names = do
                             (TranslationConfig {simpl = True, load_rewrite_rules = True})
                             config
   let rules = map (findRule $ rewrite_rules bindings) rule_names
-  mapM_ (check config init_state bindings) rules
-  return ()
+  r <- doTimeout (30 * length rules) $ mapM_ (check config init_state bindings) rules
+  case r of
+      Nothing -> error "Timeout"
+      Just r' -> return r'
 
 rewriteVerifyTestsGood :: TestTree
 rewriteVerifyTestsGood =
@@ -151,7 +150,7 @@ rewriteTests = testGroup "Rewrite Tests"
         [ rewriteVerifyTestsGood
         , rewriteVerifyTestsBad
         , coinductionTestsGood
-        -- , coinductionTestsBad
+        , coinductionTestsBad
         , higherOrderTestsGood
         , higherOrderTestsBad
         ]

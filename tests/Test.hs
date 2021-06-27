@@ -57,7 +57,6 @@ main = do
             ])
         (if todo then todoTests else tests)
 
--- TODO commenting some out to speed up testing
 tests :: TestTree
 tests = testGroup "Tests"
         [ sampleTests

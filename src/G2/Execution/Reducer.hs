@@ -176,7 +176,7 @@ class Halter h hv t | h -> hv where
     -- | Determines whether to continue reduction on the current state
     stopRed :: h -> hv -> Processed (State t) -> State t -> IO HaltC
 
-    -- | Takes a state, and updates it's halter record field
+    -- | Takes a state, and updates its halter record field
     stepHalter :: h -> hv -> Processed (State t) -> [State t] -> State t -> hv
 
 
@@ -377,9 +377,6 @@ instance Reducer ConcSymReducer () t where
                    b@(Bindings { name_gen = ng })
         | E.isSymbolic n eenv
         , Just (dc_symbs, ng') <- arbDC tenv ng t = do
-            -- TODO printing for debugging
-            putStr "SYMBS "
-            putStrLn $ show dc_symbs
             let 
                 xs = map (\(e, symbs') ->
                                 s   { curr_expr = CurrExpr Evaluate e
