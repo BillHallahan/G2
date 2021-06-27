@@ -1,7 +1,6 @@
 module Append (prop_append1, prop_append2) where
 
-import qualified Data.Set as S
-
+import Data.Set
 
 {-@ prop_append1 :: xs:[Int] -> ys:[Int] -> { v:[Int] | Set_sub (listElts xs) (listElts v)} @-}
 prop_append1 :: [Int] -> [Int] -> [Int]
