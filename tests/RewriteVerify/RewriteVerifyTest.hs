@@ -88,7 +88,7 @@ coinduction_bad_src = "tests/RewriteVerify/Incorrect/CoinductionIncorrect.hs"
 higher_good_names :: [String]
 higher_good_names = [ "doubleMap"
                     , "mapIterate"
-                    , "mapTake" ]
+                    , "mapTake"
                     , "mapFilter" ]
 
 higher_good_src :: String
