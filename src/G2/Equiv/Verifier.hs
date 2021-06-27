@@ -145,6 +145,34 @@ stackWrap sk e =
 loc_name :: Name
 loc_name = Name (DT.pack "STACK") Nothing 0 Nothing
 
+-- TODO different tick for recursive calls in case statements
+-- TODO where can I perform preprocessing?
+rec_name :: Name
+rec_name = Name (DT.pack "REC") Nothing 0 Nothing
+
+-- TODO use eval for processing function bodies
+-- TODO look up variables too?
+-- TODO var inlining will have other effects on expressions
+wrapRecursiveCall :: ExprEnv -> Name -> Expr -> Expr
+wrapRecursiveCall h n e@(Var (Id n' _)) =
+  if E.isSymbolic n' h
+  then trace ("SYMBOLIC " ++ (show e)) e
+  else case E.lookup n' h of
+    Nothing -> error "unmapped variable"
+    Just e' -> wrapRecursiveCall h n e'
+wrapRecursiveCall _ n e@(App (Var (Id n' _)) _) =
+  let Name t _ _ _ = n
+      Name t' _ _ _ = n'
+  in
+  if t == t'
+  then trace ("WRAPPED " ++ (show e)) Tick (NamedLoc rec_name) e
+  else trace ("UNALTERED " ++ (show e)) e
+wrapRecursiveCall _ _ e = trace ("WRONG FORMAT " ++ (show e)) e
+
+-- TODO use modifyASTs or modifyChildren?
+recWrap :: ExprEnv -> Name -> Expr -> Expr
+recWrap h n e = modifyChildren (wrapRecursiveCall h n) (wrapRecursiveCall h n e)
+
 tickWrap :: Expr -> Expr
 tickWrap e = Tick (NamedLoc loc_name) e
 
@@ -340,16 +368,22 @@ checkRule config init_state bindings rule = do
       -- convert from State t to StateET
       e_l = exprExtract rewrite_state_l
       e_r = exprExtract rewrite_state_r
+      -- TODO tick wrapping for recursive functions
+      h_l = expr_env rewrite_state_l
+      h_r = expr_env rewrite_state_r
       rewrite_state_l' = rewrite_state_l {
                            track = emptyEquivTracker
                          , curr_expr = CurrExpr Evaluate $ tickWrap $ e_l
+                         , expr_env = E.mapWithKey (recWrap h_l) h_l
                          }
       rewrite_state_r' = rewrite_state_r {
                            track = emptyEquivTracker
                          , curr_expr = CurrExpr Evaluate $ tickWrap $ e_r
+                         , expr_env = E.mapWithKey (recWrap h_r) h_r
                          }
-      ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
-      ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
+      -- TODO use the newer states instead?
+      ns_l = HS.fromList $ E.keys $ h_l
+      ns_r = HS.fromList $ E.keys $ h_r
   S.SomeSolver solver <- initSolver config
   putStrLn $ show $ curr_expr rewrite_state_l'
   putStrLn $ show $ curr_expr rewrite_state_r'
