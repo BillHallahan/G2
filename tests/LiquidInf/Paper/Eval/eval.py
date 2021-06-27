@@ -299,13 +299,13 @@ def main():
     # log = log_test
 
 
-    (log_book, safe_book, num_book) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Book_Inv", "240");
+    (log_book, safe_book, num_book) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Book_LIA_Inv", "240");
     print(str(safe_book) + "/" + str(num_book) + " Safe");
 
     (log_hw, safe_hw, num_hw) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_HW", "240");
     print(str(safe_hw) + "/" + str(num_hw) + " Safe");
 
-    (log_inv, safe_inv, num_inv) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Invented", "240");
+    (log_inv, safe_inv, num_inv) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_LIA_Invented", "240");
     print(str(safe_inv) + "/" + str(num_inv) + " Safe");
 
     (log_kmeans, safe_kmeans, num_kmeans) = test_pos_folder("tests/LiquidInf/Paper/Eval", "720");
