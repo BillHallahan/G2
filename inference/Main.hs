@@ -33,20 +33,26 @@ main = do
     let infconfig = mkInferenceConfig as
 
         func = strArg "liquid-func" as M.empty Just Nothing
+        verif_func = strArg "liquid-verify" as M.empty Just Nothing
 
     case as of
         (f:_) -> 
-            case func of
-                Nothing -> do
+            case (func, verif_func) of
+                (Nothing, Nothing) -> do
                             if "--qualif" `elem` as
                                 then checkQualifs f config
                                 else if "--count" `elem` as
                                     then checkFuncNums f infconfig config
                                     else callInference f infconfig config
-                Just func -> do
-                    ((in_out, _), entry) <- runLHInferenceAll infconfig config (T.pack func) [] [f] []
+                (Just func', _) -> do
+                    ((in_out, _), entry) <- runLHInferenceAll infconfig config (T.pack func') [] [f] []
                     printLHOut entry in_out
                     return ()
+                (_, Just _) -> do
+                    (ghci, lhconfig) <- getGHCI infconfig config [] [f] []
+                    let c = Configs { g2_config = config, lh_config = lhconfig, inf_config = infconfig}
+                    r <- runConfigs (tryToVerify ghci) c
+                    print r
         _ -> error "No path given"
 
 checkQualifs :: String -> G2.Config -> IO ()
@@ -100,3 +106,4 @@ checkFuncNums f infconfig config = do
     print $ length (concat nls) - 1
 
     return ()
+
