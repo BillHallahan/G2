@@ -10,5 +10,6 @@ prop_append1 xs ys = append xs ys
 prop_append2 :: [Int] -> [Int] -> [Int]
 prop_append2 xs ys = append xs ys
 
+append :: [Int] -> [Int] -> [Int]
 append []     ys = ys
 append (x:xs) ys = x : append xs ys
