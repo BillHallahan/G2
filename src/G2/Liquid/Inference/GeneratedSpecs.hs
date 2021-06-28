@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module G2.Liquid.Inference.GeneratedSpecs ( GeneratedSpecs
                                           , emptyGS
 
@@ -224,7 +226,7 @@ insertMissingAssumeSpec (G2.Name n _ _ _) = map create
 
 
 insertMissingAssertSpec :: G2.Name -> [GhcInfo] -> [GhcInfo]
-insertMissingAssertSpec (G2.Name n _ _ _) = map create 
+insertMissingAssertSpec (G2.Name n _ _ _) = map create
     where
         create ghci@(GI { spec = spc } ) =
             let

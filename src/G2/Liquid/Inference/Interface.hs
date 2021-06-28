@@ -317,7 +317,7 @@ inferenceB con ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls = do
 
                             inferenceB con ghci m_modname lrs nls evals' meas_ex' gs (unionFC fc fc') max_fc blk_mdls''
 
-                Crash _ _ -> error "inferenceB: LiquidHaskell crashed"
+                Crash e1 e2 -> error $ "inferenceB: LiquidHaskell crashed" ++ "\n" ++ show e1 ++ "\n" ++ e2
         SynthFail sf_fc -> do
             liftIO . putStrLn $ "synthfail fc = " ++ (printFCs sf_fc)
             return $ (Raise meas_ex fc (unionFC max_fc sf_fc), evals')
