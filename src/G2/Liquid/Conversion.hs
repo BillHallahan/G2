@@ -476,16 +476,21 @@ convertSetExpr meas dm bt rt e
         return . Just $ mkApp ([ Var (Id f_nm (typeOf f_e))
                                , Type t ]
                                 ++ es')
-    | EVar v:es <- unEApp e
+    | [EVar v, e1, e2] <- unEApp e
     , Just (nm, nm_mod) <- get_nameTyVarArOrd v
     , Just (f_nm, f_e) <- E.lookupNameMod nm nm_mod meas = do
-        es' <- mapM (convertLHExpr dm bt rt) es
-        let t = typeOf (head es')
+        e1' <- convertLHExpr dm bt rt e1
+        e2' <- convertLHExpr dm bt rt e2
+        let t1 = typeOf e1'
+            TyApp _ t2 = typeOf e2'
+        e1'' <- correctType dm bt t2 e1'
+        let t = typeOf e1''
         ord <- ordDict dm t
         return . Just $ mkApp ([ Var (Id f_nm (typeOf f_e))
                                , Type t
-                               , ord ]
-                                ++ es')
+                               , ord
+                               , e1''
+                               , e2' ])
     | EVar v:es <- unEApp e
     , Just (nm, nm_mod) <- get_nameSetAr v
     , Just (f_nm, f_e) <- E.lookupNameMod nm nm_mod meas = do
@@ -642,6 +647,22 @@ correctTypes m bt mt re re' = do
                                 ++ "\nretT = " ++ show retT
                                 ++ "\nretT' = " ++ show retT'
                                 ++ "\nm = " ++ show m
+
+correctType :: DictMaps -> BoundTypes -> Type -> Expr -> LHStateM Expr
+correctType m bt t e = do
+    fIntgr <- lhFromIntegerM
+    tIntgr <- lhToIntegerM
+    tyI <- tyIntegerT
+
+    let t' = typeOf e
+
+    may_nDict <- maybeNumDict m t
+
+    if | t == t' -> return e
+       | t' == tyI
+       , t /= tyI
+       , Just nDict <- may_nDict -> return $ mkApp [Var fIntgr, Type t, nDict, e]
+       | otherwise -> error "correctType: unhandled case"
 
 maybeRatioFromInteger :: DictMaps -> Expr -> LHStateM (Maybe Expr)
 maybeRatioFromInteger m e = do
