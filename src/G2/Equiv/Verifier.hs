@@ -163,10 +163,14 @@ wrapRecursiveCall h n e@(Var (Id n' _)) =
     Just e' -> wrapRecursiveCall h n e'
 -}
 -- TODO this first case never hit
-wrapRecursiveCall h n e@(Tick (NamedLoc n'@(Name p _ _ _)) e') =
-  if p == DT.pack "REC"
-  then trace ("STOPPED " ++ (show e)) e
-  else trace ("CONTINUE " ++ (show e)) Tick (NamedLoc n') (wrapRecursiveCall h n e')
+wrapRecursiveCall _ n e@(Var (Id n' _)) =
+  let Name t _ _ _ = n
+      Name t' _ _ _ = n'
+  in
+  if t == t'
+  then trace ("WRAPPED " ++ (show e)) Tick (NamedLoc rec_name) e
+  else trace ("UNALTERED " ++ (show e)) e
+{-
 wrapRecursiveCall _ n e@(App (Var (Id n' _)) _) =
   let Name t _ _ _ = n
       Name t' _ _ _ = n'
@@ -174,11 +178,12 @@ wrapRecursiveCall _ n e@(App (Var (Id n' _)) _) =
   if t == t'
   then trace ("WRAPPED " ++ (show e)) Tick (NamedLoc rec_name) e
   else trace ("UNALTERED " ++ (show e)) e
+-}
 wrapRecursiveCall _ _ e = trace ("WRONG FORMAT " ++ (show e)) e
 
 -- TODO use modifyASTs or modifyChildren?
 recWrap :: ExprEnv -> Name -> Expr -> Expr
-recWrap h n = modify (wrapRecursiveCall h n)
+recWrap h n = modifyChildren (wrapRecursiveCall h n)
 
 tickWrap :: Expr -> Expr
 tickWrap e = Tick (NamedLoc loc_name) e
