@@ -1,3 +1,5 @@
+{-@ LIQUID "--no-termination" @-}
+
 module Elem (test1, test2) where
 
 import Prelude hiding (elem)
