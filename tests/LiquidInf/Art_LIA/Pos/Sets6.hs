@@ -1,4 +1,4 @@
-module Elem (test1, test2) where
+module Sets6 (test1) where
 
 import Prelude hiding (elem)
 import Data.Set
@@ -12,7 +12,4 @@ elem _ []     = False
 elem x (y:ys) = x == y || elem x ys
 
 {-@ test1 :: True @-}
-test1      = elem 2 [1, 2, 3]
-
-{-@ test2 :: False @-}
-test2      = elem 2 [1, 3]
+test1      = elem 2 [2]
