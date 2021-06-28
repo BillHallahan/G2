@@ -51,7 +51,7 @@ addCounterfactualBranch cf_mod ns = do
     createBagAndInstFuncs bag_func_ns inst_func_ns
 
     cfn <- freshSeededStringN "cf"
-    mapWithKeyME (addCounterfactualBranch' cfn ns')
+    trace ("ns = " ++ show ns ++ "\ncf_mod = " ++ show cf_mod ++ "\nns' = " ++ show ns') mapWithKeyME (addCounterfactualBranch' cfn ns')
     return cfn
 
 addCounterfactualBranch' :: CounterfactualName -> [Name] -> Name -> Expr -> LHStateM Expr
@@ -82,7 +82,7 @@ addCounterfactualBranch'' cfn
         return $ NonDet [orig_e, e']
         where
             rt = typeOf r
-addCounterfactualBranch'' cfn e = modifyChildrenM (addCounterfactualBranch'' cfn) e
+addCounterfactualBranch'' cfn e = trace ("e = " ++ show e ) modifyChildrenM (addCounterfactualBranch'' cfn) e
 
 cfRetValue :: [Expr] -- ^ Arguments
            -> Type -- ^ Type of return value
