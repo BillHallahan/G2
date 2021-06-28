@@ -154,12 +154,19 @@ rec_name = Name (DT.pack "REC") Nothing 0 Nothing
 -- TODO look up variables too?
 -- TODO var inlining will have other effects on expressions
 wrapRecursiveCall :: ExprEnv -> Name -> Expr -> Expr
+{-
 wrapRecursiveCall h n e@(Var (Id n' _)) =
   if E.isSymbolic n' h
   then trace ("SYMBOLIC " ++ (show e)) e
   else case E.lookup n' h of
     Nothing -> error "unmapped variable"
     Just e' -> wrapRecursiveCall h n e'
+-}
+-- TODO this first case never hit
+wrapRecursiveCall h n e@(Tick (NamedLoc n'@(Name p _ _ _)) e') =
+  if p == DT.pack "REC"
+  then trace ("STOPPED " ++ (show e)) e
+  else trace ("CONTINUE " ++ (show e)) Tick (NamedLoc n') (wrapRecursiveCall h n e')
 wrapRecursiveCall _ n e@(App (Var (Id n' _)) _) =
   let Name t _ _ _ = n
       Name t' _ _ _ = n'
@@ -171,7 +178,7 @@ wrapRecursiveCall _ _ e = trace ("WRONG FORMAT " ++ (show e)) e
 
 -- TODO use modifyASTs or modifyChildren?
 recWrap :: ExprEnv -> Name -> Expr -> Expr
-recWrap h n e = modifyChildren (wrapRecursiveCall h n) (wrapRecursiveCall h n e)
+recWrap h n = modify (wrapRecursiveCall h n)
 
 tickWrap :: Expr -> Expr
 tickWrap e = Tick (NamedLoc loc_name) e
