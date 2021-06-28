@@ -280,7 +280,7 @@ isPrimRetTy kv e =
     let
         rel_t = extractValues . extractTypePolyBound $ returnType e
     in
-    any (\t -> t == tyInt kv) rel_t
+    any (\t -> t == tyInt kv || t == tyBool kv) rel_t
 
 tyVarNoMeas :: Measures -> TCValues -> [GhcInfo] -> Expr -> Bool
 tyVarNoMeas meas tcv ghci e =
