@@ -145,45 +145,31 @@ stackWrap sk e =
 loc_name :: Name
 loc_name = Name (DT.pack "STACK") Nothing 0 Nothing
 
--- TODO different tick for recursive calls in case statements
--- TODO where can I perform preprocessing?
 rec_name :: Name
 rec_name = Name (DT.pack "REC") Nothing 0 Nothing
 
--- TODO use eval for processing function bodies
--- TODO look up variables too?
--- TODO var inlining will have other effects on expressions
-wrapRecursiveCall :: ExprEnv -> Name -> Expr -> Expr
-{-
-wrapRecursiveCall h n e@(Var (Id n' _)) =
-  if E.isSymbolic n' h
-  then trace ("SYMBOLIC " ++ (show e)) e
-  else case E.lookup n' h of
-    Nothing -> error "unmapped variable"
-    Just e' -> wrapRecursiveCall h n e'
--}
--- TODO this first case never hit
-wrapRecursiveCall _ n e@(Var (Id n' _)) =
-  let Name t _ _ _ = n
-      Name t' _ _ _ = n'
-  in
-  if t == t'
-  then trace ("WRAPPED " ++ (show e)) Tick (NamedLoc rec_name) e
-  else trace ("UNALTERED " ++ (show e)) e
-{-
-wrapRecursiveCall _ n e@(App (Var (Id n' _)) _) =
-  let Name t _ _ _ = n
-      Name t' _ _ _ = n'
-  in
-  if t == t'
-  then trace ("WRAPPED " ++ (show e)) Tick (NamedLoc rec_name) e
-  else trace ("UNALTERED " ++ (show e)) e
--}
-wrapRecursiveCall _ _ e = trace ("WRONG FORMAT " ++ (show e)) e
+wrapRecursiveCall :: Name -> Expr -> Expr
+-- TODO attempt to prevent double wrapping
+wrapRecursiveCall n e@(Tick (NamedLoc n'@(Name t _ _ _)) e') =
+  if t == DT.pack "REC"
+  then e
+  else Tick (NamedLoc n') $ wrcHelper n e'
+wrapRecursiveCall n e@(Var (Id n' _)) =
+  if n == n'
+  then trace ("WRAPPED " ++ (show n) ++ " " ++ (show e)) Tick (NamedLoc rec_name) e
+  else trace ("UNALTERED " ++ (show n) ++ " " ++ (show e)) wrcHelper n e
+wrapRecursiveCall n e = trace ("WRONG FORMAT " ++ (show n) ++ " " ++ (show e)) (wrcHelper n e)
 
--- TODO use modifyASTs or modifyChildren?
+wrcHelper :: Name -> Expr -> Expr
+wrcHelper n = modifyChildren (wrapRecursiveCall n)
+
+-- do not allow wrapping for symbolic variables
+-- TODO what about symbolic functions?  Should they be wrapped?
 recWrap :: ExprEnv -> Name -> Expr -> Expr
-recWrap h n = modifyChildren (wrapRecursiveCall h n)
+recWrap h n =
+  if E.isSymbolic n h
+  then id
+  else (wrcHelper n) . (wrapRecursiveCall n)
 
 tickWrap :: Expr -> Expr
 tickWrap e = Tick (NamedLoc loc_name) e
@@ -407,10 +393,6 @@ checkRule config init_state bindings rule = do
              bindings'' config
   -- UNSAT for good, SAT for bad
   return res
-
--- TODO very similar to addSymbolic
-symInsert :: Id -> ExprEnv -> ExprEnv
-symInsert i = E.insertSymbolic (idName i) i
 
 -- s1 is the old state, s2 is the new state
 moreRestrictive :: State t ->

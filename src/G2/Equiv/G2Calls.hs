@@ -67,6 +67,25 @@ data EnforceProgressR = EnforceProgressR
 
 data EnforceProgressH = EnforceProgressH
 
+{-
+data RecursionStopR = RecursionStopR
+
+data RecursionStopH = RecursionStopH
+
+instance Reducer RecursionStopR () EquivTracker where
+    initReducer _ _ = ()
+    redRules r rv s@(State { curr_expr = CurrExpr _ e
+                           , num_steps = n
+                           , track = EquivTracker et m })
+                  b =
+        case e of
+            Tick (NamedLoc (Name p _ _ _)) _ ->
+                if p == T.pack "REC"
+                then return (InProgress, [(s, ())], b, r)
+                else return (NoProgress, [(s, ())], b, r)
+            _ -> else return (NoProgress, [(s, ())], b, r)
+-}
+
 instance Reducer EnforceProgressR () EquivTracker where
     initReducer _ _ = ()
     redRules r rv s@(State { curr_expr = CurrExpr _ e
@@ -113,6 +132,10 @@ isVar :: Expr -> Bool
 isVar (Var _) = True
 isVar _ = False
 
+isRecursionTick :: Expr -> Bool
+isRecursionTick (Tick (NamedLoc (Name p _ _ _)) _) = p == T.pack "REC"
+isRecursionTick _ = False
+
 instance Halter EnforceProgressH () EquivTracker where
     initHalt _ _ = ()
     updatePerStateHalt _ _ _ _ = ()
@@ -128,7 +151,7 @@ instance Halter EnforceProgressH () EquivTracker where
             -- point when it reaches the Tick because the act of unwrapping the
             -- expression inside the Tick counts as one step.
             Just n0 -> do
-                if (isExecValueForm s) || (exprFullApp h e)
+                if (isExecValueForm s) || (exprFullApp h e) || (isRecursionTick e)
                        then return (if n' > n0 + 1 then Accept else Continue)
                        else return Continue
     stepHalter _ _ _ _ _ = ()
