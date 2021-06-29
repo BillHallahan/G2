@@ -62,15 +62,29 @@ addTrueAssert'' n e = do
                     Let [(_, _)] (Assert _ _ _) -> return e'
                     _ -> do
                         true <- mkTrueE
-                        r <- freshIdN (typeOf e')
+                        r <- freshIdN (returnType e')
+
+                        more_is <- tyBindings e'
 
                         let fc = FuncCall { funcName = n
-                                          , arguments = map Var is
+                                          , arguments = map Var $ is ++ map snd more_is
                                           , returns = (Var r)}
-                            e'' = Let [(r, e')] $ Assert (Just fc) true (Var r)
+                            e'' = mkLams more_is $ Let [(r, mkApp $ e':map (Var . snd) more_is)] $ Assert (Just fc) true (Var r)
 
                         return e''
                 ) =<< etaExpandToE (numArgs e) e
+
+tyBindings :: (ExState s m, Typed t) => t -> m [(LamUse, Id)]
+tyBindings t = do
+    let at = spArgumentTypes t
+    fn <- freshNamesN (length at)
+    return $ tyBindings' fn at
+
+tyBindings' :: [Name] -> [ArgType] -> [(LamUse, Id)]
+tyBindings' _ [] = []
+tyBindings' ns (NamedType i:ts) = (TypeL, i):tyBindings' ns ts
+tyBindings' (n:ns) (AnonType t:ts) = (TermL, Id n t):tyBindings' ns ts
+tyBindings' [] _ = error "Name list exhausted in tyBindings'"
 
 addTrueAssertsAll :: ExState s m => m ()
 addTrueAssertsAll = mapWithKeyME (addTrueAssert'')

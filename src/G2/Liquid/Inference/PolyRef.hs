@@ -16,6 +16,7 @@ module G2.Liquid.Inference.PolyRef ( PolyBound (.. )
                                    , uniqueIds
                                    , mapPB
                                    , filterPB
+                                   , allPB
                                    , zipPB
                                    , zipWithPB
                                    , zipWithMaybePB
@@ -163,6 +164,9 @@ filterPB p pb@(PolyBound v xs) =
     case p pb of
         True -> Just $ PolyBound v (mapMaybe (filterPB p) xs)
         False -> Nothing
+
+allPB :: (a -> Bool) -> PolyBound a -> Bool
+allPB p = all p . extractValues
 
 zipPB :: PolyBound a -> PolyBound b -> PolyBound (a, b)
 zipPB (PolyBound a pba) (PolyBound b pbb) = PolyBound (a, b) (zipWith zipPB pba pbb)
