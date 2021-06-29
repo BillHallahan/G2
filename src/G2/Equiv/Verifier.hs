@@ -400,11 +400,14 @@ induction ns_pair prev (s1, s2) =
       -- try matching the prev state pair with other prev state pairs?
       -- I think that might be what I want
       hm_maybe_zipped = zip hm_maybe_list prev'
-      -- TODO minor optimization
+      -- ignore the combinations that didn't work
       hm_maybe_zipped' = [(hm, p) | (Just hm, p) <- hm_maybe_zipped]
       concretized = map (uncurry concretizeStatePair) hm_maybe_zipped'
+      -- TODO optimization:  just take the first one
+      concretized' = if null concretized then [] else [head concretized]
       ind p p' = mrHelper' ns_pair (Just HM.empty) p' p
-      ind_fns = map ind concretized
+      -- TODO just took the full concretized list before
+      ind_fns = map ind concretized'
       -- TODO why don't the expressions match on themselves?
       -- because the concretizations don't line up
       -- I need to do something more complicated
