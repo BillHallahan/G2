@@ -156,9 +156,9 @@ wrapRecursiveCall n e@(Tick (NamedLoc n'@(Name t _ _ _)) e') =
   else Tick (NamedLoc n') $ wrcHelper n e'
 wrapRecursiveCall n e@(Var (Id n' _)) =
   if n == n'
-  then trace ("WRAPPED " ++ (show n) ++ " " ++ (show e)) Tick (NamedLoc rec_name) e
-  else trace ("UNALTERED " ++ (show n) ++ " " ++ (show e)) wrcHelper n e
-wrapRecursiveCall n e = trace ("WRONG FORMAT " ++ (show n) ++ " " ++ (show e)) (wrcHelper n e)
+  then Tick (NamedLoc rec_name) e
+  else wrcHelper n e
+wrapRecursiveCall n e = wrcHelper n e
 
 wrcHelper :: Name -> Expr -> Expr
 wrcHelper n = modifyChildren (wrapRecursiveCall n)
@@ -282,14 +282,28 @@ crHelper (App e _) = crHelper e
 crHelper (Cast e _) = crHelper e
 crHelper _ = False
 
-{-
-canUseInduction :: (State t, State t) -> Bool
-canUseInduction (State { curr_expr = e1 }) (State { curr_expr = e2 }) =
-  caseRecursion e1 && caseRecursion e2
--}
-
 canUseInduction :: Obligation -> Bool
 canUseInduction (Ob _ e1 e2) = caseRecursion e1 && caseRecursion e2
+
+-- TODO extra helper function, might want a better name
+statePairInduction :: (State t, State t) -> Bool
+statePairInduction (s1, s2) =
+  (caseRecursion $ exprExtract s1) && (caseRecursion $ exprExtract s2)
+
+-- TODO another helper for induction
+concretize :: HM.HashMap Id Expr -> Expr -> Expr
+concretize hm e =
+  HM.foldrWithKey (\i -> replaceVar (idName i)) e hm
+
+concretizeStatePair :: HM.HashMap Id Expr ->
+                       (State t, State t) ->
+                       (State t, State t)
+concretizeStatePair hm (s1, s2) =
+  let e1 = concretize hm $ exprExtract s1
+      e2 = concretize hm $ exprExtract s2
+  in
+  ( s1 { curr_expr = CurrExpr Evaluate e1 }
+  , s2 { curr_expr = CurrExpr Evaluate e2 } )
 
 -- TODO make sure this is correct
 -- assumes that the initial input is from an induction-ready state
@@ -367,6 +381,10 @@ Compare the sub-expressions to the prev state pairs
 If any match occurs, try extrapolating it to the full expression pair
 (might not try every single match that works out)
 If extrapolation works, we can flag the real state pair as a repeat
+TODO don't just use HM mappings with the same old state pair used before
+Need to try using those same mappings with other unrelated old pairs
+This is where I use replaceVar?
+TODO this slows the verifier significantly now and doesn't fix forceIdempotent
 -}
 induction :: (HS.HashSet Name, HS.HashSet Name) ->
              [(StateET, StateET)] ->
@@ -375,11 +393,33 @@ induction :: (HS.HashSet Name, HS.HashSet Name) ->
 induction ns_pair prev (s1, s2) =
   let s1' = inductionState s1
       s2' = inductionState s2
-      hm_maybe_list = map (mrHelper' ns_pair (Just HM.empty) (s1', s2')) prev
-      hm_maybe_zipped = zip hm_maybe_list prev
-      hm_maybe_list' = map (\(hm, p) -> mrHelper' ns_pair hm (s1, s2) p) hm_maybe_zipped
+      prev' = filter statePairInduction prev
+      prev'' = map (\(p1, p2) -> (inductionState p1, inductionState p2)) prev'
+      hm_maybe_list = map (mrHelper' ns_pair (Just HM.empty) (s1', s2')) prev''
+      -- TODO need another 2D map
+      -- try matching the prev state pair with other prev state pairs?
+      -- I think that might be what I want
+      hm_maybe_zipped = zip hm_maybe_list prev'
+      -- TODO minor optimization
+      hm_maybe_zipped' = [(hm, p) | (Just hm, p) <- hm_maybe_zipped]
+      concretized = map (uncurry concretizeStatePair) hm_maybe_zipped'
+      ind p p' = mrHelper' ns_pair (Just HM.empty) p' p
+      ind_fns = map ind concretized
+      -- TODO why don't the expressions match on themselves?
+      -- because the concretizations don't line up
+      -- I need to do something more complicated
+      -- replace everything in the old expression pair used for the match
+      --ind (hm, p) p' = mrHelper' ns_pair hm p' p
+      --ind_fns = map ind hm_maybe_zipped'
+      hm_maybe_list' = concat $ map (\f -> map f prev) ind_fns
+      -- TODO end of new parts
+      --hm_maybe_zipped = zip hm_maybe_list prev'
+      --hm_maybe_list' = map (\(hm, p) -> mrHelper' ns_pair hm (s1, s2) p) hm_maybe_zipped
       res = filter isJust hm_maybe_list'
   in
+  -- TODO
+  trace ("FIRST PART " ++ show (length hm_maybe_zipped')) $
+  trace ("SECOND PART " ++ show (length res)) $
   not $ null res
 
 getObligations :: State t -> State t -> Maybe [Obligation]
