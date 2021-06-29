@@ -462,7 +462,7 @@ mkBoolForms pred sz max_sz s psi j k =
 
         , forms = concat
                 . map snd
-                $ mkCNF (const True) sz max_sz (s ++ "_bool_")
+                $ mkCNF (const True) sz max_sz (s ++ "_bool_" ++ show j ++ "_t_" ++ show k ++ "_" )
                         (psi { sy_args = filter (not . isBool . smt_sort) (sy_args psi)
                              , sy_rets = filter (not . isBool . smt_sort) (sy_rets psi) })
         }
