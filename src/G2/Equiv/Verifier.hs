@@ -339,15 +339,17 @@ verifyLoop' solver ns_pair sh1 sh2 prev =
           prev_u = concat $ map prevUnguarded prev
           states_g' = filter (not . (moreRestrictivePair ns_pair prev_g)) states_g
           states_u' = filter (not . (moreRestrictivePair ns_pair prev_u)) states_u
+          -- TODO use prev_g instead?  Doesn't help
           states_i' = filter (not . (induction ns_pair prev_u)) states_i
           states = states_g' ++ states_u' ++ states_i'
           (ready, not_ready) = partition statePairReadyForSolver states
           ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
           not_ready_h = map (\(n1, n2) -> (replaceH sh1 n1, replaceH sh2 n2)) not_ready
       res <- checkObligations solver s1 s2 ready_exprs
-      -- TODO always 0 currently
       putStr "Induction State Pairs: "
-      putStrLn $ show $ length states_i
+      putStrLn $ show $ map (\(r1, r2) -> (exprExtract $ inductionState r1, exprExtract $ inductionState r2)) states_i
+      putStr "Unverified: "
+      putStrLn $ show $ length states_i'
       case res of
         S.UNSAT () -> putStrLn "V?"
         _ -> putStrLn "X?"

@@ -128,14 +128,6 @@ isVar :: Expr -> Bool
 isVar (Var _) = True
 isVar _ = False
 
--- TODO remove the printing
-isRecursionTick :: Expr -> Bool
-isRecursionTick e@(Tick (NamedLoc (Name p _ _ _)) _) =
-    if p == T.pack "REC"
-    then trace ("STOP ON RECURSION " ++ (show e)) True
-    else False
-isRecursionTick _ = False
-
 containsCase :: Stck.Stack Frame -> Bool
 containsCase sk =
     case Stck.pop sk of
@@ -149,9 +141,10 @@ recursionInCase :: State t -> Bool
 recursionInCase (State { curr_expr = CurrExpr _ e, exec_stack = sk }) =
     case e of
         Tick (NamedLoc (Name p _ _ _)) _ ->
-            trace ("STOP? " ++ show (containsCase sk)) containsCase sk
+            p == T.pack "REC" && containsCase sk
         _ -> False
 
+-- TODO evaluation gets stuck if I remove the third condition
 instance Halter EnforceProgressH () EquivTracker where
     initHalt _ _ = ()
     updatePerStateHalt _ _ _ _ = ()
