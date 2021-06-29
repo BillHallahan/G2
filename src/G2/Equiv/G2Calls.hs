@@ -63,25 +63,6 @@ data EnforceProgressR = EnforceProgressR
 
 data EnforceProgressH = EnforceProgressH
 
-{-
-data RecursionStopR = RecursionStopR
-
-data RecursionStopH = RecursionStopH
-
-instance Reducer RecursionStopR () EquivTracker where
-    initReducer _ _ = ()
-    redRules r rv s@(State { curr_expr = CurrExpr _ e
-                           , num_steps = n
-                           , track = EquivTracker et m })
-                  b =
-        case e of
-            Tick (NamedLoc (Name p _ _ _)) _ ->
-                if p == T.pack "REC"
-                then return (InProgress, [(s, ())], b, r)
-                else return (NoProgress, [(s, ())], b, r)
-            _ -> else return (NoProgress, [(s, ())], b, r)
--}
-
 instance Reducer EnforceProgressR () EquivTracker where
     initReducer _ _ = ()
     redRules r rv s@(State { curr_expr = CurrExpr _ e
@@ -107,6 +88,14 @@ argCount :: Type -> Int
 argCount = length . spArgumentTypes . PresType
 
 exprFullApp :: ExprEnv -> Expr -> Bool
+-- TODO possible fix for badBool
+-- didn't seem to have any effect
+{-
+exprFullApp h e | (Tick (NamedLoc (Name p _ _ _)) e'):_ <- unApp e
+                , p == T.pack "REC" = exprFullApp h e'
+exprFullApp h (Tick (NamedLoc (Name p _ _ _)) e) =
+                  p == T.pack "REC" && exprFullApp h e
+-}
 exprFullApp h e | (Var (Id n t)):_ <- unApp e
                 -- We require that the variable be the center of a function
                 -- application, have at least one argument, and not map to a variable for two reasons:

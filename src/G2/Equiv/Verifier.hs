@@ -164,7 +164,6 @@ wrcHelper :: Name -> Expr -> Expr
 wrcHelper n = modifyChildren (wrapRecursiveCall n)
 
 -- do not allow wrapping for symbolic variables
--- TODO what about symbolic functions?  Should they be wrapped?
 recWrap :: ExprEnv -> Name -> Expr -> Expr
 recWrap h n =
   if E.isSymbolic n h
@@ -263,14 +262,6 @@ stateWrap s1 s2 (Ob _ e1 e2) =
 -- looks like the REC tag will be on the function side
 -- TODO can something other than Case be at the outermost level?
 caseRecursion :: Expr -> Bool
-{-
-caseRecursion (Case (Tick (NamedLoc (Name t _ _ _)) e) _ _) =
-  t == DT.pack "REC" || caseRecursion e
-caseRecursion (Case e _ _) = caseRecursion e
-caseRecursion (App e _) = caseRecursion e
-caseRecursion (Cast e _) = caseRecursion e
-caseRecursion _ = False
--}
 caseRecursion (Case e _ _) = crHelper e
 caseRecursion _ = False
 
@@ -290,6 +281,22 @@ statePairInduction :: (State t, State t) -> Bool
 statePairInduction (s1, s2) =
   (caseRecursion $ exprExtract s1) && (caseRecursion $ exprExtract s2)
 
+-- TODO might not use any of these functions
+openRecursion :: Expr -> Bool
+openRecursion (Tick (NamedLoc (Name t _ _ _)) _) = t == DT.pack "REC"
+openRecursion _ = False
+
+-- TODO assumes that Error is equivalent to non-termination
+openRecursionError :: State t -> State t
+openRecursionError s@(State { curr_expr = CurrExpr _ e }) =
+  if openRecursion e
+  then s { curr_expr = CurrExpr Evaluate (Prim Error TyBottom) }
+  else s
+
+-- TODO superfluous helper?
+openRecursionAdjust :: (State t, State t) -> (State t, State t)
+openRecursionAdjust (s1, s2) = (openRecursionError s1, openRecursionError s2)
+
 -- TODO another helper for induction
 concretize :: HM.HashMap Id Expr -> Expr -> Expr
 concretize hm e =
@@ -308,7 +315,6 @@ concretizeStatePair hm (s1, s2) =
 -- TODO make sure this is correct
 -- assumes that the initial input is from an induction-ready state
 inductionExtract :: Expr -> Expr
--- inductionExtract (Case (Tick (NamedLoc (Name t _ _ _)) e) _ _) = e
 inductionExtract (Case e _ _) =
   case e of
     Case _ _ _ -> inductionExtract e
@@ -342,10 +348,7 @@ verifyLoop' solver ns_pair sh1 sh2 prev =
       putStr "J! "
       putStrLn $ show (exprExtract s1, exprExtract s2)
       let (obs_g, obs_u) = partition canUseGuarded obs
-          -- TODO check which state pairs can use generalization / induction
-          -- TODO only from obs_u?  I think they can come from either
           (obs_i, obs_u') = partition canUseInduction obs_u
-          -- TODO end of new material
           states_g = map (stateWrap s1 s2) obs_g
           states_u = map (stateWrap s1 s2) obs_u'
           states_i = map (stateWrap s1 s2) obs_i
@@ -353,7 +356,6 @@ verifyLoop' solver ns_pair sh1 sh2 prev =
           prev_u = concat $ map prevUnguarded prev
           states_g' = filter (not . (moreRestrictivePair ns_pair prev_g)) states_g
           states_u' = filter (not . (moreRestrictivePair ns_pair prev_u)) states_u
-          -- TODO use prev_g instead?  Doesn't help
           states_i' = filter (not . (induction ns_pair prev_u)) states_i
           states = states_g' ++ states_u' ++ states_i'
           (ready, not_ready) = partition statePairReadyForSolver states
@@ -371,20 +373,13 @@ verifyLoop' solver ns_pair sh1 sh2 prev =
         S.UNSAT () -> return $ Just (not_ready_h)
         _ -> return Nothing
 
--- TODO new helper function
 {-
 Algorithm:
 Perform the sub-expression extraction in here
 The prev list is fully expanded already
-Make state pairs from prev, like in verifyLoop'
 Compare the sub-expressions to the prev state pairs
-If any match occurs, try extrapolating it to the full expression pair
-(might not try every single match that works out)
+If any match occurs, try extrapolating it
 If extrapolation works, we can flag the real state pair as a repeat
-TODO don't just use HM mappings with the same old state pair used before
-Need to try using those same mappings with other unrelated old pairs
-This is where I use replaceVar?
-TODO this slows the verifier significantly now and doesn't fix forceIdempotent
 -}
 induction :: (HS.HashSet Name, HS.HashSet Name) ->
              [(StateET, StateET)] ->
@@ -408,16 +403,8 @@ induction ns_pair prev (s1, s2) =
       ind p p' = mrHelper' ns_pair (Just HM.empty) p' p
       -- TODO just took the full concretized list before
       ind_fns = map ind concretized'
-      -- TODO why don't the expressions match on themselves?
-      -- because the concretizations don't line up
-      -- I need to do something more complicated
       -- replace everything in the old expression pair used for the match
-      --ind (hm, p) p' = mrHelper' ns_pair hm p' p
-      --ind_fns = map ind hm_maybe_zipped'
       hm_maybe_list' = concat $ map (\f -> map f prev) ind_fns
-      -- TODO end of new parts
-      --hm_maybe_zipped = zip hm_maybe_list prev'
-      --hm_maybe_list' = map (\(hm, p) -> mrHelper' ns_pair hm (s1, s2) p) hm_maybe_zipped
       res = filter isJust hm_maybe_list'
   in
   -- TODO
@@ -495,7 +482,7 @@ checkRule config init_state bindings rule = do
       -- convert from State t to StateET
       e_l = exprExtract rewrite_state_l
       e_r = exprExtract rewrite_state_r
-      -- TODO tick wrapping for recursive functions
+      -- Tick wrapping for recursive functions
       h_l = expr_env rewrite_state_l
       h_r = expr_env rewrite_state_r
       rewrite_state_l' = rewrite_state_l {
@@ -533,33 +520,6 @@ moreRestrictive :: State t ->
                    Maybe (HM.HashMap Id Expr)
 moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e2 =
   case (e1, e2) of
-    -- TODO new stuff for generalization
-    -- TODO not correct as it is now
-    -- the match case here is in fact being hit
-    -- non-termination still for forceIdempotent
-    -- prehaps it's not catching anything that wasn't caught before
-    {-
-    (Tick nl1 e1', Tick nl2 e2') ->
-               let NamedLoc (Name t1 _ _ _) = nl1
-                   NamedLoc (Name t2 _ _ _) = nl2
-               in
-               trace ("PAIR " ++ show t1) $
-               if t1 == DT.pack "REC" && t2 == DT.pack "REC"
-               then trace ("MATCH " ++ show (e1, e2)) Just hm
-               else moreRestrictive s1 s2 ns hm e1' e2'
-    -}
-    -- this doesn't make forceIdempotent pass either
-    -- it gets hit, but only on things that would match otherwise
-    {-
-    (App (Tick nl1 f1) a1, App (Tick nl2 f2) a2) ->
-               let NamedLoc (Name t1 _ _ _) = nl1
-                   NamedLoc (Name t2 _ _ _) = nl2
-               in
-               trace ("PAIR " ++ show t1) $
-               if t1 == DT.pack "REC" && t2 == DT.pack "REC"
-               then trace ("MATCH " ++ show (e1, e2)) Just hm
-               else moreRestrictive s1 s2 ns hm (App f1 a1) (App f2 a2)
-    -}
     -- ignore all Ticks
     (Tick _ e1', _) -> moreRestrictive s1 s2 ns hm e1' e2
     (_, Tick _ e2') -> moreRestrictive s1 s2 ns hm e1 e2'
