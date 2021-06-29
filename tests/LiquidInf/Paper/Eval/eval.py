@@ -302,6 +302,9 @@ def main():
     (log_book, safe_book, num_book) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Book_LIA_Inv", "240");
     print(str(safe_book) + "/" + str(num_book) + " Safe");
 
+    (log_book_sets, safe_book_sets, num_book_sets) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Book_Sets", "45");
+    print(str(safe_book_sets) + "/" + str(num_book_sets) + " Safe");
+
     (log_hw, safe_hw, num_hw) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_HW", "240");
     print(str(safe_hw) + "/" + str(num_hw) + " Safe");
 
@@ -311,7 +314,7 @@ def main():
     (log_kmeans, safe_kmeans, num_kmeans) = test_pos_folder("tests/LiquidInf/Paper/Eval", "720");
     print(str(safe_kmeans) + "/" + str(num_kmeans) + " Safe");
 
-    log = log_book + log_hw + log_inv + log_kmeans
+    log = log_book + log_book_sets + log_hw + log_inv + log_kmeans
 
     create_table(log)
     create_simple_table(log)
