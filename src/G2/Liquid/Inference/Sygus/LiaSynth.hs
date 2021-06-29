@@ -331,7 +331,7 @@ mkCNF pred sz ms s psi_ =
         (
             s ++ "_c_coeff_act_" ++ show j
         ,
-             [ mkCoeffs pred s psi_ j k | k <- [1] ] -- Ors
+             [ mkCoeffs pred s psi_ j k | k <- [1..sz] ] -- Ors
         )
     | j <-  [1..sz] ] -- Ands
   ++
@@ -341,7 +341,7 @@ mkCNF pred sz ms s psi_ =
                 (
                     s ++ "_c_set_act_" ++ show j
                 ,
-                     [ mkSetForms pred ms s psi_ j k | k <- [1] ] -- Ors
+                     [ mkSetForms pred ms s psi_ j k | k <- [1..sz] ] -- Ors
                 )
             | j <-  [1..sz] ] -- Ands
         else [])
@@ -352,7 +352,7 @@ mkCNF pred sz ms s psi_ =
                 (
                     s ++ "_c_bool_act_" ++ show j
                 ,
-                     [ mkBoolForms pred sz ms s psi_ j k | k <- [1] ] -- Ors
+                     [ mkBoolForms pred sz ms s psi_ j k | k <- [1..sz] ] -- Ors
                 )
             | j <-  [1..sz] ] -- Ands
         else [])
@@ -1210,6 +1210,10 @@ mkCoeffRetNonZero cffs@(BoolForm {}) =
 -- (2) Similarly, if the clause level boolean is set to true, we force all the
 -- formula level active booleans to be false, since the formulas are
 -- irrelevant.
+-- (3) If the n^th "or" is deactivated (by it's boolean being true),
+-- then the n + 1^th "or" must also be deactivated 
+-- (4) If the n^th "and" is deactivated (by it's boolean being false),
+-- then the n + 1^th "and" must also be deactivated 
 limitEquivModels :: M.Map Name SpecInfo -> [SMTHeader]
 limitEquivModels m_si =
     let
@@ -1227,8 +1231,25 @@ limitEquivModels m_si =
                                  (\cf ->
                                       map (\c -> ((:!) $ V (c_active cf) SortBool) :=> (V c SortInt := VInt 0)) (coeffs cf)
                                  ) cffs
+
+        -- (3)
+        or_acts = map (map (map fst) . allCNFsSeparated) a_si :: [[[SMTName]]]
+        or_neighbors_deact =
+            concatMap 
+              (concatMap 
+                (map (\(n1, n2) -> ((:!) $ V n2 SortBool) :=> ((:!) $ V n1 SortBool)) . neighbors)
+              ) $ or_acts
+
+        -- (4)
+        and_acts = concatMap (map (map (map c_active . snd)) . allCNFsSeparated) a_si :: [[[SMTName]]]
+        and_neighbors_deact =
+            concatMap (concatMap (map (\(n1, n2) -> V n2 SortBool :=> V n1 SortBool) . neighbors)) $ and_acts
     in
-    map Solver.Assert $ cl_imp_coeff ++ coeff_act_imp_zero
+    map Solver.Assert $ cl_imp_coeff ++ coeff_act_imp_zero ++ or_neighbors_deact ++ and_neighbors_deact
+    where
+        neighbors [] = []
+        neighbors [_] = []
+        neighbors (x:xs@(y:_)) = (x, y):neighbors xs
 
 softCoeffAssertZero :: M.Map Name SpecInfo -> [SMTHeader]
 softCoeffAssertZero = map (\n -> AssertSoft (V n SortInt := VInt 0) (Just "minimal_size")) . getCoeffs
@@ -2059,3 +2080,12 @@ allPostCoeffs = concatMap sy_coeffs . allPostSynthSpec
 
 allPostSpecArgs :: SpecInfo -> [SpecArg]
 allPostSpecArgs = concatMap sy_args_and_ret . allPostSynthSpec
+
+allCNFsSeparated :: SpecInfo -> [CNF]
+allCNFsSeparated si = allPreCoeffsSeparated si ++ allPostCoeffsSeparated si
+
+allPreCoeffsSeparated :: SpecInfo -> [CNF]
+allPreCoeffsSeparated = map sy_coeffs . allPreSynthSpec
+
+allPostCoeffsSeparated :: SpecInfo -> [CNF]
+allPostCoeffsSeparated = map sy_coeffs . allPostSynthSpec

@@ -311,7 +311,7 @@ def main():
     (log_inv, safe_inv, num_inv) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_LIA_Invented", "240");
     print(str(safe_inv) + "/" + str(num_inv) + " Safe");
 
-    (log_kmeans, safe_kmeans, num_kmeans) = test_pos_folder("tests/LiquidInf/Paper/Eval", "720");
+    (log_kmeans, safe_kmeans, num_kmeans) = test_pos_folder("tests/LiquidInf/Paper/Eval", "1080");
     print(str(safe_kmeans) + "/" + str(num_kmeans) + " Safe");
 
     log = log_book + log_book_sets + log_hw + log_inv + log_kmeans

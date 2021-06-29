@@ -79,7 +79,7 @@ length (x :+: xs) = 1 + length xs
 such that the following type checks:
 
 \begin{code}
-{-@ l0    :: List Int @-}
+{-@ l0 :: { r:List Int | size r == 0 } @-}
 l0     = Emp :: List Int
 \end{code}
 
