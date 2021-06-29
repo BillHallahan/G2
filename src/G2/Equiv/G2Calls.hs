@@ -21,13 +21,13 @@ import Debug.Trace
 
 import qualified Data.Text as T
 
+import qualified G2.Language.Stack as Stck
+
 -- get names from symbolic ids in the state
 runG2ForRewriteV :: StateET -> Config -> Bindings -> IO ([ExecRes EquivTracker], Bindings)
 runG2ForRewriteV state config bindings = do
     SomeSolver solver <- initSolver config
     let simplifier = IdSimplifier
-        sym_ids = symbolic_ids state
-        sym_names = map idName sym_ids
         sym_config = PreserveAllMC
         -- sym_config = addSearchNames (names $ track state)
         --            $ addSearchNames (input_names bindings) emptyMemConfig
@@ -46,8 +46,6 @@ rewriteRedHaltOrd :: (Solver solver, Simplifier simplifier) => solver -> simplif
 rewriteRedHaltOrd solver simplifier config =
     let
         share = sharing config
-
-        tr_ng = mkNameGen ()
         state_name = Name "state" Nothing 0 Nothing
     in
     (case logStates config of
@@ -60,8 +58,6 @@ rewriteRedHaltOrd solver simplifier config =
      , SomeOrderer $ PickLeastUsedOrderer)
 
 type StateET = State EquivTracker
-
-data EnforceProgress = EnforceProgress
 
 data EnforceProgressR = EnforceProgressR
 
@@ -132,9 +128,29 @@ isVar :: Expr -> Bool
 isVar (Var _) = True
 isVar _ = False
 
+-- TODO remove the printing
 isRecursionTick :: Expr -> Bool
-isRecursionTick (Tick (NamedLoc (Name p _ _ _)) _) = p == T.pack "REC"
+isRecursionTick e@(Tick (NamedLoc (Name p _ _ _)) _) =
+    if p == T.pack "REC"
+    then trace ("STOP ON RECURSION " ++ (show e)) True
+    else False
 isRecursionTick _ = False
+
+containsCase :: Stck.Stack Frame -> Bool
+containsCase sk =
+    case Stck.pop sk of
+        Nothing -> False
+        Just (CaseFrame _ _, _) -> True
+        Just (_, sk') -> containsCase sk'
+
+-- TODO induction only works if both states in a pair satisfy this
+-- there's no major harm in stopping here for just one, though
+recursionInCase :: State t -> Bool
+recursionInCase (State { curr_expr = CurrExpr _ e, exec_stack = sk }) =
+    case e of
+        Tick (NamedLoc (Name p _ _ _)) _ ->
+            trace ("STOP? " ++ show (containsCase sk)) containsCase sk
+        _ -> False
 
 instance Halter EnforceProgressH () EquivTracker where
     initHalt _ _ = ()
@@ -151,7 +167,7 @@ instance Halter EnforceProgressH () EquivTracker where
             -- point when it reaches the Tick because the act of unwrapping the
             -- expression inside the Tick counts as one step.
             Just n0 -> do
-                if (isExecValueForm s) || (exprFullApp h e) || (isRecursionTick e)
+                if (isExecValueForm s) || (exprFullApp h e) || (recursionInCase s)
                        then return (if n' > n0 + 1 then Accept else Continue)
                        else return Continue
     stepHalter _ _ _ _ _ = ()
@@ -198,7 +214,7 @@ instance Reducer EquivReducer () EquivTracker where
 
 isSymFuncApp :: ExprEnv -> Expr -> Bool
 isSymFuncApp eenv e
-    | v@(Var _):es@(_:_) <- unApp e
+    | v@(Var _):(_:_) <- unApp e
     , (Var (Id f t)) <- inlineVars eenv v =
        E.isSymbolic f eenv && hasFuncType (PresType t)
     | otherwise = False

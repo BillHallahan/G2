@@ -255,6 +255,56 @@ stateWrap s1 s2 (Ob _ e1 e2) =
   ( s1 { curr_expr = CurrExpr Evaluate e1 }
   , s2 { curr_expr = CurrExpr Evaluate e2 } )
 
+-- TODO helper functions for generalization
+-- can't use recursionInCase from G2Calls since stack has been put back on expr
+-- TODO allow any number of unwrappings?
+-- might also need to handle other wrappings
+-- TODO also allow App unwrapping?
+-- looks like the REC tag will be on the function side
+-- TODO can something other than Case be at the outermost level?
+caseRecursion :: Expr -> Bool
+{-
+caseRecursion (Case (Tick (NamedLoc (Name t _ _ _)) e) _ _) =
+  t == DT.pack "REC" || caseRecursion e
+caseRecursion (Case e _ _) = caseRecursion e
+caseRecursion (App e _) = caseRecursion e
+caseRecursion (Cast e _) = caseRecursion e
+caseRecursion _ = False
+-}
+caseRecursion (Case e _ _) = crHelper e
+caseRecursion _ = False
+
+crHelper :: Expr -> Bool
+crHelper (Tick (NamedLoc (Name t _ _ _)) e) =
+  t == DT.pack "REC" || crHelper e
+crHelper (Case e _ _) = crHelper e
+crHelper (App e _) = crHelper e
+crHelper (Cast e _) = crHelper e
+crHelper _ = False
+
+{-
+canUseInduction :: (State t, State t) -> Bool
+canUseInduction (State { curr_expr = e1 }) (State { curr_expr = e2 }) =
+  caseRecursion e1 && caseRecursion e2
+-}
+
+canUseInduction :: Obligation -> Bool
+canUseInduction (Ob _ e1 e2) = caseRecursion e1 && caseRecursion e2
+
+-- TODO make sure this is correct
+-- assumes that the initial input is from an induction-ready state
+inductionExtract :: Expr -> Expr
+-- inductionExtract (Case (Tick (NamedLoc (Name t _ _ _)) e) _ _) = e
+inductionExtract (Case e _ _) =
+  case e of
+    Case _ _ _ -> inductionExtract e
+    _ -> e
+inductionExtract _ = error "Improper Format"
+
+inductionState :: State t -> State t
+inductionState s =
+  s { curr_expr = CurrExpr Evaluate $ inductionExtract $ exprExtract s }
+
 -- TODO printing
 -- TODO non-ready obligations are not necessarily the original exprs
 -- Does it still make sense to graft them onto the starting states' histories?
@@ -278,23 +328,57 @@ verifyLoop' solver ns_pair sh1 sh2 prev =
       putStr "J! "
       putStrLn $ show (exprExtract s1, exprExtract s2)
       let (obs_g, obs_u) = partition canUseGuarded obs
+          -- TODO check which state pairs can use generalization / induction
+          -- TODO only from obs_u?  I think they can come from either
+          (obs_i, obs_u') = partition canUseInduction obs_u
+          -- TODO end of new material
           states_g = map (stateWrap s1 s2) obs_g
-          states_u = map (stateWrap s1 s2) obs_u
+          states_u = map (stateWrap s1 s2) obs_u'
+          states_i = map (stateWrap s1 s2) obs_i
           prev_g = concat $ map prevGuarded prev
           prev_u = concat $ map prevUnguarded prev
           states_g' = filter (not . (moreRestrictivePair ns_pair prev_g)) states_g
           states_u' = filter (not . (moreRestrictivePair ns_pair prev_u)) states_u
-          states = states_g' ++ states_u'
+          states_i' = filter (not . (induction ns_pair prev_u)) states_i
+          states = states_g' ++ states_u' ++ states_i'
           (ready, not_ready) = partition statePairReadyForSolver states
           ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
           not_ready_h = map (\(n1, n2) -> (replaceH sh1 n1, replaceH sh2 n2)) not_ready
       res <- checkObligations solver s1 s2 ready_exprs
+      -- TODO always 0 currently
+      putStr "Induction State Pairs: "
+      putStrLn $ show $ length states_i
       case res of
         S.UNSAT () -> putStrLn "V?"
         _ -> putStrLn "X?"
       case res of
         S.UNSAT () -> return $ Just (not_ready_h)
         _ -> return Nothing
+
+-- TODO new helper function
+{-
+Algorithm:
+Perform the sub-expression extraction in here
+The prev list is fully expanded already
+Make state pairs from prev, like in verifyLoop'
+Compare the sub-expressions to the prev state pairs
+If any match occurs, try extrapolating it to the full expression pair
+(might not try every single match that works out)
+If extrapolation works, we can flag the real state pair as a repeat
+-}
+induction :: (HS.HashSet Name, HS.HashSet Name) ->
+             [(StateET, StateET)] ->
+             (StateET, StateET) ->
+             Bool
+induction ns_pair prev (s1, s2) =
+  let s1' = inductionState s1
+      s2' = inductionState s2
+      hm_maybe_list = map (mrHelper' ns_pair (Just HM.empty) (s1', s2')) prev
+      hm_maybe_zipped = zip hm_maybe_list prev
+      hm_maybe_list' = map (\(hm, p) -> mrHelper' ns_pair hm (s1, s2) p) hm_maybe_zipped
+      res = filter isJust hm_maybe_list'
+  in
+  not $ null res
 
 getObligations :: State t -> State t -> Maybe [Obligation]
 getObligations s1 s2 =
@@ -404,6 +488,33 @@ moreRestrictive :: State t ->
                    Maybe (HM.HashMap Id Expr)
 moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e2 =
   case (e1, e2) of
+    -- TODO new stuff for generalization
+    -- TODO not correct as it is now
+    -- the match case here is in fact being hit
+    -- non-termination still for forceIdempotent
+    -- prehaps it's not catching anything that wasn't caught before
+    {-
+    (Tick nl1 e1', Tick nl2 e2') ->
+               let NamedLoc (Name t1 _ _ _) = nl1
+                   NamedLoc (Name t2 _ _ _) = nl2
+               in
+               trace ("PAIR " ++ show t1) $
+               if t1 == DT.pack "REC" && t2 == DT.pack "REC"
+               then trace ("MATCH " ++ show (e1, e2)) Just hm
+               else moreRestrictive s1 s2 ns hm e1' e2'
+    -}
+    -- this doesn't make forceIdempotent pass either
+    -- it gets hit, but only on things that would match otherwise
+    {-
+    (App (Tick nl1 f1) a1, App (Tick nl2 f2) a2) ->
+               let NamedLoc (Name t1 _ _ _) = nl1
+                   NamedLoc (Name t2 _ _ _) = nl2
+               in
+               trace ("PAIR " ++ show t1) $
+               if t1 == DT.pack "REC" && t2 == DT.pack "REC"
+               then trace ("MATCH " ++ show (e1, e2)) Just hm
+               else moreRestrictive s1 s2 ns hm (App f1 a1) (App f2 a2)
+    -}
     -- ignore all Ticks
     (Tick _ e1', _) -> moreRestrictive s1 s2 ns hm e1' e2
     (_, Tick _ e2') -> moreRestrictive s1 s2 ns hm e1 e2'
@@ -521,6 +632,17 @@ mrHelper :: State t ->
 mrHelper _ _ _ Nothing = Nothing
 mrHelper s1 s2 ns (Just hm) =
   moreRestrictive s1 s2 ns hm (exprExtract s1) (exprExtract s2)
+
+-- TODO better name?
+-- TODO the first state pair is the new one
+-- TODO do I really need two ns lists?
+mrHelper' :: (HS.HashSet Name, HS.HashSet Name) ->
+             Maybe (HM.HashMap Id Expr) ->
+             (State t, State t) ->
+             (State t, State t) ->
+             Maybe (HM.HashMap Id Expr)
+mrHelper' (ns1, ns2) hm_maybe (s1, s2) (p1, p2) =
+  mrHelper p2 s2 ns2 $ mrHelper p1 s1 ns1 hm_maybe
 
 moreRestrictivePair :: (HS.HashSet Name, HS.HashSet Name) ->
                        [(State t, State t)] ->
