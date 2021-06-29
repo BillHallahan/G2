@@ -400,11 +400,6 @@ refineUnsafe ghci m_modname lrs gs bad = do
         putStrLn "res = "
         printCE res
 
-        putStrLn "no_viol = "
-        mapM (putStrLn . printFC) no_viol
-        putStrLn $ "no_viol 2 = " ++ show no_viol
-
-
     let res' = filter (not . hasAbstractedArgError) res
 
     -- Either converts counterexamples to FuncConstraints, or returns them as errors to
@@ -505,8 +500,6 @@ genNewConstraints ghci m lrs n = do
     let (exec_res', no_viol) = partition (true_assert . final_state) exec_res
         
         allCCons = noAbsStatesToCons i $ exec_res' ++ if use_extra_fcs infconfig then no_viol else []
-
-    liftIO $ mapM_ (\c -> putStrLn $ "allCCon = " ++ show c) allCCons
     return $ (map (lhStateToCE i) exec_res', allCCons)
 
 getCEx :: MonadIO m =>
