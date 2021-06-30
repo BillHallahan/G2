@@ -30,10 +30,22 @@ nonneg x = x >= 0
 p1 :: Int -> Int
 p1 x = x + 1
 
+intMap1 :: (Int -> Int) -> [Int] -> [Int]
+intMap1 _ [] = []
+intMap1 f (h:t) = (f h) : (intMap2 f t)
+
+intMap2 :: (Int -> Int) -> [Int] -> [Int]
+intMap2 _ [] = []
+intMap2 f (h:t) = (f h) : (intMap1 f t)
+
 {-# RULES
 "doubleMap" forall f g l . intMap f (intMap g l) = intMap (compose f g) l
 "mapIterate" forall f  n . intMap f (intIterate f n) = intIterate f (f n)
 "mapTake" forall f n l . intMap f (intTake n l) = intTake n (intMap f l)
 "mapFilter" forall f g l . intMap g (intFilter (f . g) l) = intFilter f (intMap g l)
 "mf" forall l . intMap p1 (intFilter (nonneg . p1) l) = intFilter nonneg (intMap p1 l)
+  #-}
+
+{-# RULES
+"corecursiveMap" forall f l . intMap1 f l = intMap f l
   #-}

@@ -16,6 +16,7 @@ import qualified Control.Monad.State.Lazy as CM
 
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.Typing as T
+import qualified G2.Language.CallGraph as G
 
 import Data.List
 import Data.Maybe
@@ -169,6 +170,27 @@ recWrap h n =
   if E.isSymbolic n h
   then id
   else (wrcHelper n) . (wrapRecursiveCall n)
+
+-- first Name is the one that maps to the Expr in the environment
+-- second Name is the one that might be wrapped
+wrapIfCorecursive :: G.CallGraph -> ExprEnv -> Name -> Name -> Expr -> Expr
+wrapIfCorecursive cg h n m e =
+  let n_list = G.reachable n cg
+      m_list = G.reachable m cg
+  in
+  if (n `elem` m_list) && (m `elem` n_list)
+  then recWrap h m e
+  else e
+
+-- the call graph must be based on the given environment
+-- the Name must map to the Expr in the environment
+wrapAllRecursion :: G.CallGraph -> ExprEnv -> Name -> Expr -> Expr
+wrapAllRecursion cg h n e =
+  let n_list = G.reachable n cg
+  in
+  if (not $ E.isSymbolic n h) && (n `elem` n_list)
+  then foldr (wrapIfCorecursive cg h n) e n_list
+  else e
 
 tickWrap :: Expr -> Expr
 tickWrap e = Tick (NamedLoc loc_name) e
@@ -485,17 +507,20 @@ checkRule config init_state bindings rule = do
       -- Tick wrapping for recursive functions
       h_l = expr_env rewrite_state_l
       h_r = expr_env rewrite_state_r
+      -- handle corecursion, not just direct recursion
+      wrap_l = wrapAllRecursion (G.getCallGraph h_l) h_l
+      wrap_r = wrapAllRecursion (G.getCallGraph h_r) h_r
       rewrite_state_l' = rewrite_state_l {
                            track = emptyEquivTracker
                          , curr_expr = CurrExpr Evaluate $ tickWrap $ e_l
-                         , expr_env = E.mapWithKey (recWrap h_l) h_l
+                         , expr_env = E.mapWithKey wrap_l h_l
                          }
       rewrite_state_r' = rewrite_state_r {
                            track = emptyEquivTracker
                          , curr_expr = CurrExpr Evaluate $ tickWrap $ e_r
-                         , expr_env = E.mapWithKey (recWrap h_r) h_r
+                         , expr_env = E.mapWithKey wrap_r h_r
                          }
-      -- TODO use the newer states instead?
+      -- the keys are the same between the old and new environments
       ns_l = HS.fromList $ E.keys $ h_l
       ns_r = HS.fromList $ E.keys $ h_r
   S.SomeSolver solver <- initSolver config

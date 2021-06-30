@@ -44,6 +44,15 @@ p1 = (+ 1)
 t2 :: Int -> Int
 t2 = (* 2)
 
+nonterm1 :: Bool -> Bool
+nonterm1 b = nonterm2 b
+
+nonterm2 :: Bool -> Bool
+nonterm2 b = nonterm3 b
+
+nonterm3 :: Bool -> Bool
+nonterm3 b = nonterm1 b
+
 {-# RULES
 "doubleMap" forall l . intMap p1 (intMap t2 l) = intMap (p1 . t2) l
 "mapIterate" forall n . intMap p1 (intIterate p1 n) = intIterate p1 (p1 n)
@@ -55,4 +64,9 @@ t2 = (* 2)
 "dropNoRecursion" forall l . intDrop 0 l = l
 "takeIdempotent" forall n l . intTake n (intTake n l) = intTake n l
 "doubleReverse" forall l . intReverse (intReverse l) = intForce l
+  #-}
+
+{-# RULES
+"corecursion" forall b . nonterm1 b = nonterm2 b
+"nontermNegation" forall b . nonterm1 b = not (nonterm1 b)
   #-}
