@@ -195,6 +195,10 @@ library
                        , language-sygus >= 0.1.1.2 && < 0.2
                        , liquidhaskell >= 0.8.2.2 && <= 8.6.2
                        , liquid-fixpoint == 0.7.0.7
+<<<<<<< HEAD
+=======
+                      --  , liquid-fixpoint >= 0.8.0.0 && < 0.8.10
+>>>>>>> 727b714fd (add Stack.yaml)
                        , MissingH >= 1.4.0.0 && < 1.5
                        , mtl >= 2.2 && < 2.3
                        , random == 1.1
@@ -211,7 +215,7 @@ library
                        , text >= 1.2.3.1 && <= 1.2.4.0
                        , text-builder >= 0.6.6.1
                        , time >= 1.6 && <= 1.9.3
-                       , unordered-containers >= 0.2 && < 0.3
+                       , unordered-containers >= 0.2.10.0 && < 0.3
 
                        -- For LH
                        , Diff == 0.3.4
