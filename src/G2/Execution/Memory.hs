@@ -16,6 +16,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Language.Typing
 
 import Data.List
+import Data.Semigroup
 import qualified Data.HashSet as S
 import qualified Data.Map as M
 
