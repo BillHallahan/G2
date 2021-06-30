@@ -846,10 +846,18 @@ brelTCDict :: DictMaps -> Type -> LHStateM Expr
 brelTCDict = lhTCDict
 
 bopTCDict :: Bop -> DictMaps -> Type -> LHStateM Expr
-bopTCDict Ref.Mod = integralDict
-bopTCDict Ref.Div = fractionalDict
-bopTCDict Ref.RDiv = fractionalDict
-bopTCDict _ = numDict
+bopTCDict Ref.Mod dm t = integralDict dm t
+bopTCDict Ref.Div dm t = do
+    fd <- maybeFractionalDict dm t
+    case fd of
+        Just fd' -> return fd'
+        Nothing -> integralDict dm t
+bopTCDict Ref.RDiv dm t =  do
+    fd <- maybeFractionalDict dm t
+    case fd of
+        Just fd' -> return fd'
+        Nothing -> integralDict dm t 
+bopTCDict _ dm t = numDict dm t
 
 lhTCDict :: DictMaps -> Type -> LHStateM Expr
 lhTCDict m t = do

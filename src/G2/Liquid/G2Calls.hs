@@ -187,12 +187,19 @@ getAbstracted solver simplifier share s bindings abs_fc@(FuncCall { funcName = n
                   let fs' = modelToExprEnv fs
                   (bindings'', gfc') <- reduceFuncCallMaybeList solver simplifier share bindings' fs' gfc
                   return $ ( Abstracted { abstract = abs_fc
-                                        , real = abs_fc { returns = ce }
+                                        , real = abs_fc { returns = (inline (expr_env fs) HS.empty ce) }
                                         , hits_lib_err_in_real = hle
                                         , func_calls_in_real = gfc' }
                                 , m)
             _ -> error $ "checkAbstracted': Bad return from runG2WithSomes"
     | otherwise = error $ "getAbstracted: Bad lookup in runG2WithSomes"
+
+inline :: ExprEnv -> HS.HashSet Name -> Expr -> Expr
+inline h ns v@(Var (Id n _))
+    | E.isSymbolic n h = v
+    | HS.member n ns = v
+    | Just e <- E.lookup n h = inline h (HS.insert n ns) e
+inline h ns e = modifyChildren (inline h ns) e
 
 data HitsLibError = HitsLibError
 
