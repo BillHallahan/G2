@@ -33,26 +33,36 @@ proofObligations :: State t ->
                     Expr ->
                     Maybe (HS.HashSet Obligation)
 proofObligations s1 s2 e1 e2 =
-  exprPairing s1 s2 e1 e2 HS.empty False
+  exprPairing s1 s2 e1 e2 HS.empty [] [] False
 
 exprPairing :: State t ->
                State t ->
                Expr ->
                Expr ->
                HS.HashSet Obligation ->
+               [Name] ->
+               [Name] ->
                Bool ->
                Maybe (HS.HashSet Obligation)
-exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs child =
+exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs n1 n2 child =
   case (e1, e2) of
     _ | e1 == e2 -> Just pairs
     -- ignore all Ticks
-    (Tick _ e1', _) -> exprPairing s1 s2 e1' e2 pairs False
-    (_, Tick _ e2') -> exprPairing s1 s2 e1 e2' pairs False
+    (Tick _ e1', _) -> exprPairing s1 s2 e1' e2 pairs n1 n2 False
+    (_, Tick _ e2') -> exprPairing s1 s2 e1 e2' pairs n1 n2 False
+    -- TODO adjusting Var cases to avoid loops
+    (Var i1, Var i2) | (idName i1) `elem` n1
+                     , (idName i2) `elem` n2 -> Just (HS.insert (Ob child e1 e2) pairs)
+    -- TODO should the value of child carry over for Var recursion cases?
     (Var i, _) | E.isSymbolic (idName i) h1 -> Just (HS.insert (Ob child e1 e2) pairs)
-               | Just e <- E.lookup (idName i) h1 -> exprPairing s1 s2 e e2 pairs False
+               | m <- idName i
+               , Just e <- E.lookup m h1
+               , not (m `elem` n1) -> exprPairing s1 s2 e e2 pairs (m:n1) n2 False
                | otherwise -> error "unmapped variable"
     (_, Var i) | E.isSymbolic (idName i) h2 -> Just (HS.insert (Ob child e1 e2) pairs)
-               | Just e <- E.lookup (idName i) h2 -> exprPairing s1 s2 e1 e pairs False
+               | m <- idName i
+               , Just e <- E.lookup m h2
+               , not (m `elem` n2) -> exprPairing s1 s2 e1 e pairs n1 (m:n2) False
                | otherwise -> error "unmapped variable"
     -- See note in `moreRestrictive` regarding comparing DataCons
     (App _ _, App _ _)
@@ -60,7 +70,7 @@ exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs ch
         , (Data (DataCon d2 _)):l2 <- unApp e2 ->
             if d1 == d2 then
                 let ep = uncurry (exprPairing s1 s2)
-                    ep' hs p = ep p hs True
+                    ep' hs p = ep p hs n1 n2 True
                     l = zip l1 l2
                 in foldM ep' pairs l
                 else Nothing

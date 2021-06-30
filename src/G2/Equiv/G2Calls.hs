@@ -88,15 +88,15 @@ argCount :: Type -> Int
 argCount = length . spArgumentTypes . PresType
 
 exprFullApp :: ExprEnv -> Expr -> Bool
--- TODO possible fix for badBool
--- didn't seem to have any effect
+-- TODO this new first condition might not be sound
 {-
-exprFullApp h e | (Tick (NamedLoc (Name p _ _ _)) e'):_ <- unApp e
-                , p == T.pack "REC" = exprFullApp h e'
-exprFullApp h (Tick (NamedLoc (Name p _ _ _)) e) =
-                  p == T.pack "REC" && exprFullApp h e
+exprFullApp h (Tick (NamedLoc (Name p _ _ _)) (Var (Id n _)))
+                | Just e' <- E.lookup n h
+                , not (isVar e') = p == T.pack "REC"
 -}
-exprFullApp h e | (Var (Id n t)):_ <- unApp e
+exprFullApp h e | (Tick (NamedLoc (Name p _ _ _)) f):args <- unApp e
+                , p == T.pack "REC" = exprFullApp h (mkApp $ f:args)
+exprFullApp h e | (Var (Id n t)):_ <- trace ("EXPR " ++ show e) unApp e
                 -- We require that the variable be the center of a function
                 -- application, have at least one argument, and not map to a variable for two reasons:
                 -- (1) We do not want to count symbolic function applications as in FAF form
@@ -149,6 +149,8 @@ instance Halter EnforceProgressH () EquivTracker where
             -- point when it reaches the Tick because the act of unwrapping the
             -- expression inside the Tick counts as one step.
             Just n0 -> do
+                putStr "E is "
+                putStrLn $ show $ curr_expr s
                 if (isExecValueForm s) || (exprFullApp h e) || (recursionInCase s)
                        then return (if n' > n0 + 1 then Accept else Continue)
                        else return Continue

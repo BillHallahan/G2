@@ -76,6 +76,9 @@ runSymExec config s1 s2 = do
   (er1, bindings') <- CM.lift $ runG2ForRewriteV s1 config' bindings
   CM.put bindings'
   let final_s1 = map final_state er1
+  -- TODO more printing
+  -- badBool never makes it to this line
+  CM.liftIO $ putStrLn "Finished First"
   pairs <- mapM (\s1_ -> do
                     b_ <- CM.get
                     let s2_ = transferStateInfo s1_ s2
@@ -83,6 +86,7 @@ runSymExec config s1 s2 = do
                     let config'' = config -- { logStates = Just $ "verifier_states/b" ++ show ct2 }
                     (er2, b_') <- CM.lift $ runG2ForRewriteV s2_ config'' b_
                     CM.put b_'
+                    CM.liftIO $ putStrLn "Finished Another"
                     return $ map (\er2_ -> 
                                     let
                                         s2_' = final_state er2_
@@ -254,6 +258,9 @@ verifyLoop solver ns_pair states prev b config | not (null states) = do
   let app_pair (sh1, sh2) (s1, s2) = (appendH sh1 s1, appendH sh2 s2)
       map_fns = map app_pair states
       updated_hists = map (uncurry map) (zip map_fns paired_states)
+  -- TODO
+  putStrLn "Partway Through"
+  putStrLn $ show $ length $ concat updated_hists
   proof_list <- mapM vl $ concat updated_hists
   let new_obligations = concat [l | Just l <- proof_list]
       prev' = new_obligations ++ prev
@@ -439,7 +446,7 @@ getObligations s1 s2 =
   case proofObligations s1 s2 (exprExtract s1) (exprExtract s2) of
     Nothing -> Nothing
     Just obs -> Just $
-                map (\(Ob c e1 e2) -> Ob c (addStackTickIfNeeded e1) (addStackTickIfNeeded e2)) $
+                map (\(Ob c e1 e2) -> trace (show c) $ Ob c (addStackTickIfNeeded e1) (addStackTickIfNeeded e2)) $
                 HS.toList obs
 
 addStackTickIfNeeded :: Expr -> Expr

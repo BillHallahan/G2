@@ -26,52 +26,13 @@ proveBool lhs = lhs =:= True
 (=:=) :: Eq a => a -> a -> Bool
 (=:=) = (==)
 
--- TODO mainly copied from HipSpec, with some simplifications
+-- everything here mainly copied from HipSpec, with some simplifications
 
 data Nat = S Nat | Z
   deriving (Eq,Show,Ord)
 
-{-
-instance Arbitrary Nat where
-  arbitrary =
-    let nats = iterate S Z
-    in (nats !!) `fmap` choose (0,5)
-
-instance Names Nat where
-  names _ = ["m","n","o"]
-
-instance CoArbitrary Nat where
-  coarbitrary Z     = variant 0
-  coarbitrary (S x) = variant (-1) . coarbitrary x
--}
-
 data Tree a = Leaf | Node (Tree a) a (Tree a)
   deriving (Eq,Ord,Show)
-
-{-
-instance Arbitrary a => Arbitrary (Tree a) where
-  arbitrary = sized arbTree
-    where
-      arbTree 0 = return Leaf
-      arbTree n = frequency
-        [(1,return Leaf)
-        ,(n,do let n' = n `div` 2
-               l <- arbTree n'
-               x <- arbitrary
-               r <- arbTree n'
-               return (Node l x r))]
--}
-
-{-
-instance Names a => Names (Tree a) where
-  names ~(Node _ x _) = [ n ++ "t" | n <- names x ]
-
-instance Names (A -> A) where
-    names _ = ["f","g","h"]
-
-instance Names (A -> Bool) where
-    names _ = ["p","q","r"]
--}
 
 -- Boolean functions
 
@@ -252,7 +213,7 @@ mirror :: Tree a -> Tree a
 mirror Leaf = Leaf
 mirror (Node l x r) = Node (mirror r) x (mirror l)
 
--- TODO now copying the theorems
+
 
 prop_01 n xs
   = (take n xs ++ drop n xs =:= xs)
@@ -597,7 +558,6 @@ prop_83 :: Eq a => Eq b => [a] -> [a] -> [b] -> Bool
 prop_84 :: Eq a => Eq a1 => [a] -> [a1] -> [a1] -> Bool
 prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 
--- TODO don't actually convert them manually
 -- swapped side for 04
 {-# RULES
 "prop01" forall n l . prop_01 n l = True
