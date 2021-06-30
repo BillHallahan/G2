@@ -564,6 +564,8 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "appendEq" 500 2 [AtLeast 5]
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq" 3
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
+
+    , checkExpr "tests/TestFiles/Sets/SetInsert.hs" 700 "prop" 3 [AtLeast 3]
     
     , checkInputOutput "tests/TestFiles/BadDC.hs" "BadDC" "f" 400 2 [AtLeast 5]
     , checkInputOutput "tests/TestFiles/BadDC.hs" "BadDC" "g" 400 2 [AtLeast 3]
