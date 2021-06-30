@@ -1525,7 +1525,7 @@ buildLIA_LH' si mv =
         post_ars = allPostSpecArgs si
 
         build ars = buildSpec ePlus eTimes
-                              bEq bEq bGt bGeq
+                              bEq bIff bGt bGeq
                               eIte eIte id
                               pAnd pOr
                               eUnion eIntersection
@@ -1585,6 +1585,11 @@ buildLIA_LH' si mv =
             , y == eUnivSet = PTrue
             | x == eUnivSet || y == eUnivSet = PFalse
             | otherwise = PAtom LH.Eq x y
+
+        bIff x y
+            | x == y = PTrue
+            | otherwise = PIff x y
+
 
         bGt (ECon (I x)) (ECon (I y)) =
             if x > y then PTrue else PFalse
