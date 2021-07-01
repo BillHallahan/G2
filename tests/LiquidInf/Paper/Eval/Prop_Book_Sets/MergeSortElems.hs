@@ -30,11 +30,6 @@ halve 0 xs       = ([], xs)
 halve n (x:y:zs) = (x:xs, y:ys) where (xs, ys) = halve (n-1) zs
 halve _ xs       = ([], xs)
 
--- {-@ elts :: (Ord a) => xs:[a] -> { ys:Set a | listElts xs == ys } @-}
-elts        :: (Ord a) => [a] -> Set a
-elts []     = empty
-elts (x:xs) = singleton x `union` elts xs
-
 -- {-@ append :: xs:[a] -> ys:[a] -> { zs:[a] | Set_cup (listElts xs) (listElts ys) == listElts zs } @-}
 append []     ys = ys
 append (x:xs) ys = x : append xs ys

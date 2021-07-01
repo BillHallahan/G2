@@ -850,7 +850,7 @@ buildLIA_SMT_fromModel :: SMTModel -> SynthSpec -> SMTAST
 buildLIA_SMT_fromModel mdl sf =
     buildSpec (:+) (:*) (.=.) (.=.) (:>) (:>=) Ite Ite
               mkSMTAnd mkSMTAnd mkSMTOr
-              mkSMTUnion mkSMTIntersection (\v -> mkSMTSingleton v SortInt SortBool)
+              mkSMTUnion mkSMTIntersection smtSingleton
               mkSMTIsSubsetOf (flip ArraySelect)
               vint VInt vbool vset
               falseArray
@@ -868,6 +868,9 @@ buildLIA_SMT_fromModel mdl sf =
         vset n
             | Just v <- M.lookup n mdl = v
             | otherwise = V n (SortArray SortInt SortBool)
+
+smtSingleton :: SMTAST -> SMTAST
+smtSingleton mem = ArrayStore falseArray mem (VBool True)
 
 blockVars :: String -> SpecInfo -> ([PolyBound [(SMTName, Sort)]], PolyBound [(SMTName, Sort)])
 blockVars str si = ( map (uncurry mk_blk_vars) . zip (map show [0..]) $ s_syn_pre si
@@ -1544,7 +1547,7 @@ type UniversalSet s = s
 buildLIA_SMT :: SynthSpec -> SMTAST
 buildLIA_SMT sf =
     buildSpec (:+) (:*) (.=.) (.=.) (:>) (:>=) Ite Ite
-              mkSMTAnd mkSMTAnd mkSMTOr mkSMTUnion mkSMTIntersection (\v -> mkSMTSingleton v SortInt SortBool)
+              mkSMTAnd mkSMTAnd mkSMTOr mkSMTUnion mkSMTIntersection smtSingleton
               mkSMTIsSubsetOf (flip ArraySelect)
               (flip V SortInt) VInt (flip V SortBool) (flip V $ SortArray SortInt SortBool)
               falseArray
