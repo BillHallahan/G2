@@ -302,7 +302,7 @@ def main():
     (log_book, safe_book, num_book) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Book_LIA_Inv", "240");
     print(str(safe_book) + "/" + str(num_book) + " Safe");
 
-    (log_book_sets, safe_book_sets, num_book_sets) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Book_Sets", "45");
+    (log_book_sets, safe_book_sets, num_book_sets) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Book_Sets", "240");
     print(str(safe_book_sets) + "/" + str(num_book_sets) + " Safe");
 
     (log_hw, safe_hw, num_hw) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_HW", "240");
