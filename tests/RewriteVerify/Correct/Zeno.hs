@@ -1,7 +1,20 @@
 {-# LANGUAGE DeriveDataTypeable,FlexibleInstances #-}
 module Zeno where
 
-import Prelude (Eq,Ord,Show,iterate,(!!),fmap,Bool(..),div,return,(.),(||),(==))
+import Prelude
+  ( Eq
+  , Ord
+  , Show
+  , iterate
+  , (!!)
+  , fmap
+  , Bool(..)
+  , div
+  , return
+  , (.)
+  , (||)
+  , (==)
+  , ($))
 
 -- TODO HipSpec.hs contents here
 
@@ -631,6 +644,29 @@ inf1 = S inf1
 inf2 :: Nat
 inf2 = S inf2
 
+inf3 :: Nat
+inf3 = S $ S $ S inf3
+
+inf4 :: Nat
+inf4 = S $ S $ S $ S inf4
+
+inf_tree1 :: Tree Nat
+inf_tree1 = Node inf_tree1 Z inf_tree1
+
+inf_tree2 :: Tree Nat
+inf_tree2 = Node inf_tree2 Z inf_tree2
+
+inf_tree3 :: Tree Nat
+inf_tree3 = Node inf_tree3 Z inf_tree1
+
+inf_tree4 :: Tree Nat
+inf_tree4 = Node inf_tree2 Z inf_tree4
+
+-- all of these are valid, and the verifier returns UNSAT for all of them now
 {-# RULES
 "infEq" inf1 = inf2
+"differentPeriods" inf3 = inf4
+"infTreeEq" inf_tree1 = inf_tree2
+"differentCycles" inf_tree3 = inf_tree4
+"infPlusOne" inf1 = S inf1
   #-}

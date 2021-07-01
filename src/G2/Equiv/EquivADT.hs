@@ -56,13 +56,16 @@ exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs n1
     -- TODO should the value of child carry over for Var recursion cases?
     (Var i, _) | E.isSymbolic (idName i) h1 -> Just (HS.insert (Ob child e1 e2) pairs)
                | m <- idName i
-               , Just e <- E.lookup m h1
-               , not (m `elem` n1) -> exprPairing s1 s2 e e2 pairs (m:n1) n2 False
+               , Just e <- E.lookup m h1 -> exprPairing s1 s2 e e2 pairs (m:n1) n2 False
+               -- TODO don't really need to check exclusion from the name list
+               -- will terminate anyway if there's a variable cycle
+               -- TODO if e1 has a cycle of length x and e2 has one of length y,
+               -- termination will take up to xy recursive calls, with the worst
+               -- case happening if x and y are relatively prime
                | otherwise -> error "unmapped variable"
     (_, Var i) | E.isSymbolic (idName i) h2 -> Just (HS.insert (Ob child e1 e2) pairs)
                | m <- idName i
-               , Just e <- E.lookup m h2
-               , not (m `elem` n2) -> exprPairing s1 s2 e1 e pairs n1 (m:n2) False
+               , Just e <- E.lookup m h2 -> exprPairing s1 s2 e1 e pairs n1 (m:n2) False
                | otherwise -> error "unmapped variable"
     -- See note in `moreRestrictive` regarding comparing DataCons
     (App _ _, App _ _)
