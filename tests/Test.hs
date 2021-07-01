@@ -337,7 +337,7 @@ liquidTests = testGroup "Liquid"
     , checkLiquidWithSet "tests/Liquid/Sets/Sets4.hs" "isin" 1000 5 [AtLeast 1]
     , checkLiquidWithSet "tests/Liquid/Sets/Sets5.hs" "f" 1000 3 [AtLeast 1]
     , checkLiquidWithSet "tests/Liquid/Sets/Sets6.hs" "f" 2000 2 [AtLeast 1]
-    , checkLiquidWithSet "tests/Liquid/Sets/Sets7.hs" "insertSort" 3000 1 [AtLeast 1]
+    , checkLiquidWithSet "tests/Liquid/Sets/Sets7.hs" "insertSort" 3000 2 [AtLeast 1]
 
     -- Abstract counterexamples
     , checkAbsLiquid "tests/Liquid/Polymorphism/Poly3.hs" "f" 800 1
@@ -566,7 +566,7 @@ testFileTests = testGroup "TestFiles"
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq" 3
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
 
-    , checkExpr "tests/TestFiles/Sets/SetInsert.hs" 700 "prop" 3 [AtLeast 3]
+    , checkExprWithSet "tests/TestFiles/Sets/SetInsert.hs" 700 Nothing Nothing Nothing "prop" 3 [AtLeast 3]
     
     , checkInputOutput "tests/TestFiles/BadDC.hs" "BadDC" "f" 400 2 [AtLeast 5]
     , checkInputOutput "tests/TestFiles/BadDC.hs" "BadDC" "g" 400 2 [AtLeast 3]
@@ -728,6 +728,21 @@ checkExprWithMap src stps m_assume m_assert m_reaches entry i reqList = do
     checkExprWithConfig src m_assume m_assert m_reaches entry i reqList
             (do
                 config <- mkConfigTestWithMapIO
+                return $ config {steps = stps})
+
+checkExprWithSet :: String
+                 -> Int
+                 -> Maybe String
+                 -> Maybe String
+                 -> Maybe String
+                 -> String
+                 -> Int
+                 -> [Reqs ([Expr] -> Bool)]
+                 -> TestTree
+checkExprWithSet src stps m_assume m_assert m_reaches entry i reqList = do
+    checkExprWithConfig src m_assume m_assert m_reaches entry i reqList
+            (do
+                config <- mkConfigTestWithSetIO
                 return $ config {steps = stps})
 
 checkExprWithConfig :: String
