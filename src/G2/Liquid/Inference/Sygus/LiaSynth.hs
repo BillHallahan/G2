@@ -430,10 +430,11 @@ mkSetForms pred max_sz s psi j k =
         , int_sing_set_bools_rhs =
             if pred rets
                 then
-                    [ 
-                      [ s ++ "_a_set_sing_rhs_" ++ show j ++ "_t_" ++ show k
-                            ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..int_ars + int_rets]]
-                    | a <- [1..ars + rets + max_sz - 1]]
+                    []
+                    -- [ 
+                    --   [ s ++ "_a_set_sing_rhs_" ++ show j ++ "_t_" ++ show k
+                    --         ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..int_ars + int_rets]]
+                    -- | a <- [1..ars + rets + max_sz - 1]]
                 else
                     []
 
@@ -1812,7 +1813,9 @@ buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_unio
                 ints = map vint int_args
                 ite_sing_sets = map (zipWith (\s a -> ite_set (vbool a) (mk_sing s) cunivset) ints) is_bools
                
-                ite_sets' = zipWith (++) ite_sets ite_sing_sets
+                ite_sets' = if not (null ite_sing_sets)
+                                then zipWith (++) ite_sets ite_sing_sets
+                                else ite_sets
             in
             foldr mk_union cemptyset
               . map (foldr mk_intersection cunivset)
