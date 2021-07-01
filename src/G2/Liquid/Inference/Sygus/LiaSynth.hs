@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
@@ -76,9 +77,12 @@ data Forms = LIA { -- LIA formulas
                  , c_op_branch1 :: SMTName
                  , c_op_branch2 :: SMTName
 
-                 , int_mem_bools :: [SMTName]
-                 , int_mem_ars_coeffs :: [[SMTName]]
-                 , int_mem_rets_coeffs :: [[SMTName]]
+                 , int_mem_ars_coeffs :: [SMTName]
+                 , int_mem_rets_coeffs :: [SMTName]
+
+
+                 , int_sing_set_bools_lhs :: [[SMTName]]
+                 , int_sing_set_bools_rhs :: [[SMTName]]
 
                  , ars_bools_lhs :: [[SMTName]]
                  , rets_bools_lhs :: [[SMTName]]
@@ -99,18 +103,18 @@ data Forms = LIA { -- LIA formulas
 
 coeffs :: Forms -> [SMTName]
 coeffs cf@(LIA {}) = b0 cf:ars_coeffs cf ++ rets_coeffs cf
-coeffs cf@(Set {}) = concat (int_mem_ars_coeffs cf) ++ concat (int_mem_rets_coeffs cf)
+coeffs cf@(Set {}) = int_mem_ars_coeffs cf ++ int_mem_rets_coeffs cf
 coeffs cf@(BoolForm {}) = concatMap coeffs (forms cf)
 
 coeffsNoB :: Forms -> [SMTName]
 coeffsNoB cf@(LIA {}) = ars_coeffs cf ++ rets_coeffs cf
-coeffsNoB cf@(Set {}) = concat (int_mem_ars_coeffs cf) ++ concat (int_mem_rets_coeffs cf)
+coeffsNoB cf@(Set {}) = int_mem_ars_coeffs cf ++ int_mem_rets_coeffs cf
 coeffsNoB cf@(BoolForm {}) = concatMap coeffsNoB (forms cf)
 
 setBools :: Forms -> [SMTName]
 setBools (LIA {}) = []
 setBools s@(Set {}) =
-    int_mem_bools s ++ concat (ars_bools_lhs s ++ rets_bools_lhs s ++ ars_bools_rhs s ++ rets_bools_rhs s)
+    concat $ int_sing_set_bools_lhs s ++ int_sing_set_bools_rhs s ++ ars_bools_lhs s ++ rets_bools_lhs s ++ ars_bools_rhs s ++ rets_bools_rhs s
 setBools cf@(BoolForm {}) = concatMap setBools (forms cf)
 
 boolBools :: Forms -> [SMTName]
@@ -328,13 +332,16 @@ liaSynthOfSize sz m_si = do
 
 mkCNF :: (Int -> Bool) -> Integer -> Int -> String -> SynthSpec -> CNF
 mkCNF pred sz ms s psi_ =
-    [ 
-        (
-            s ++ "_c_coeff_act_" ++ show j
-        ,
-             [ mkCoeffs pred s psi_ j k | k <- [1..sz] ] -- Ors
-        )
-    | j <-  [1..sz] ] -- Ands
+    (if length (set_sy_args psi_) + length (set_sy_rets psi_) == 0
+        then
+          [ 
+              (
+                  s ++ "_c_coeff_act_" ++ show j
+              ,
+                   [ mkCoeffs pred s psi_ j k | k <- [1..sz] ] -- Ors
+              )
+          | j <-  [1..sz] ] -- Ands
+        else [])
   ++
     (if length (set_sy_args psi_) + length (set_sy_rets psi_) > 0
         then
@@ -402,23 +409,33 @@ mkSetForms pred max_sz s psi j k =
         , c_op_branch1 = s ++ "_set_op1_" ++ show j ++ "_t_" ++ show k
         , c_op_branch2 = s ++ "_set_op2_" ++ show j ++ "_t_" ++ show k
 
-        , int_mem_bools = 
-                [ s ++ "_imc_" ++ show j ++ "_t_" ++ show k ++ "_sz_" ++ show sz'
-                | sz' <- [1..max_sz]]
-
-        , int_mem_ars_coeffs =
-            [
-              [ s ++ "_ima_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a ++ "_sz_" ++ show sz'
-              | a <- [1..int_ars]]
-            | sz' <- [1..max_sz]
-            ]
+        , int_mem_ars_coeffs = 
+            [ s ++ "_ima_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
+            | a <- [1..int_ars]]
 
         , int_mem_rets_coeffs = 
-            [ 
-              [s ++ "_imr_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a ++ "_sz_" ++ show sz'
-              | a <- [1..int_rets]]
-            | sz' <- [1..max_sz]
-            ]
+            [ s ++ "_imr_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
+            | a <- [1..int_rets]]
+
+        , int_sing_set_bools_lhs =
+            if pred rets
+                then
+                    [ 
+                      [ s ++ "_a_set_sing_lhs_" ++ show j ++ "_t_" ++ show k
+                            ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..int_ars + int_rets]]
+                    | a <- [1..ars + rets + max_sz - 1]]
+                else
+                    []
+
+        , int_sing_set_bools_rhs =
+            if pred rets
+                then
+                    [ 
+                      [ s ++ "_a_set_sing_rhs_" ++ show j ++ "_t_" ++ show k
+                            ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..int_ars + int_rets]]
+                    | a <- [1..ars + rets + max_sz - 1]]
+                else
+                    []
 
         , ars_bools_lhs =
             if pred rets
@@ -500,6 +517,7 @@ synth con ghci eenv tenv tc meas meas_ex evals si fc blk_mdls sz = do
     let zero_coeff_hdrs = softCoeffAssertZero si' ++ softClauseActAssertZero si' -- ++ softFuncActAssertZero si'
         -- zero_coeff_hdrs = softFuncActAssertZero si' ++ softClauseActAssertZero si'
         -- zero_coeff_hdrs = softCoeffAssertZero si' -- softFuncActAssertZero si' ++ softClauseActAssertZero si'
+
         max_coeffs_cons = maxCoeffConstraints si'
         soft_coeff_cons = softCoeffConstraints si'
 
@@ -1252,15 +1270,28 @@ limitEquivModels m_si =
               ) $ or_acts
 
         -- (4)
-        and_acts = concatMap (map (map (map c_active . snd)) . allCNFsSeparated) a_si :: [[[SMTName]]]
-        and_neighbors_deact =
-            concatMap (concatMap (map (\(n1, n2) -> V n2 SortBool :=> V n1 SortBool) . neighbors)) $ and_acts
+        and_neighbors_deact =  and_block (\case LIA {} -> True; _ -> False) a_si
+                            ++ and_block (\case Set {} -> True; _ -> False) a_si
     in
-    map Solver.Assert $ cl_imp_coeff ++ coeff_act_imp_zero ++ or_neighbors_deact ++ and_neighbors_deact
+    map Solver.Assert $ cl_imp_coeff ++ coeff_act_imp_zero -- ++ or_neighbors_deact ++ and_neighbors_deact
     where
         neighbors [] = []
         neighbors [_] = []
         neighbors (x:xs@(y:_)) = (x, y):neighbors xs
+
+        and_block p a_si' = 
+            let
+                and_acts = concatMap (map (map snd) . allCNFsSeparated) a_si'
+            in
+            concatMap 
+              (concatMap 
+                  ( mapMaybe 
+                      (\(n1, n2) -> if p n1 && p n2
+                                        then Just (V (c_active n2) SortBool :=> V (c_active n1) SortBool)
+                                        else Nothing)
+                  . neighbors
+                  )
+              ) $ and_acts
 
 softCoeffAssertZero :: M.Map Name SpecInfo -> [SMTHeader]
 softCoeffAssertZero = map (\n -> AssertSoft (V n SortInt := VInt 0) (Just "minimal_size")) . getCoeffs
@@ -1498,6 +1529,7 @@ type IsMember a b = a -> a -> b
 
 type Union a = a -> a -> a
 type Intersection a = a -> a -> a
+
 type Singleton a = a -> a
 
 type VInt a = SMTName -> a
@@ -1739,21 +1771,20 @@ buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_unio
                         , c_op_branch1 = op_br1
                         , c_op_branch2 = op_br2 
 
-                        , int_mem_bools = intm_bools
                         , int_mem_ars_coeffs = int_c
                         , int_mem_rets_coeffs = int_r
+
+                        , int_sing_set_bools_lhs = int_sing_bools_lhs
+                        , int_sing_set_bools_rhs = int_sing_bools_rhs
 
                         , ars_bools_lhs = ars_b1
                         , rets_bools_lhs = rets_b1
                         , ars_bools_rhs = ars_b2
                         , rets_bools_rhs = rets_b2 }) =
             let
-                lia = map (\(b, l) -> ite_set (vbool b) (mk_sing l) cunivset)
-                    . zip intm_bools
-                    . map (uncurry lia_form)
-                    $ zip int_c int_r
-                sm1 = set_form ars_b1 rets_b1 lia
-                sm2 = set_form ars_b2 rets_b2 []
+                lia = lia_form int_c int_r
+                sm1 = set_form ars_b1 rets_b1 int_sing_bools_lhs
+                sm2 = set_form ars_b2 rets_b2 int_sing_bools_rhs
             in
             mk_and [vbool act, sm1 `eq` sm2]
             -- mk_and [vbool act, ite (vbool op_br1) (sm1 `eq` sm2) (lia `is_member` sm2)]
@@ -1771,18 +1802,21 @@ buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_unio
                          . map (uncurry mult)
                          $ zip (map vint $ acs ++ rcs) (map vint int_args)
 
-        set_form ars rts sing_sets =
+        set_form ars rts is_bools =
             let
                 sets = map vset set_args
                 ars_rts = map (map vbool) $ zipWith (++) ars rts
 
                 ite_sets = map (zipWith (\s a -> ite_set a s cunivset) sets) ars_rts
-
-                init_sets = foldr mk_union cemptyset sing_sets
+               
+                ints = map vint int_args
+                ite_sing_sets = map (zipWith (\s a -> ite_set (vbool a) (mk_sing s) cunivset) ints) is_bools
+               
+                ite_sets' = zipWith (++) ite_sets ite_sing_sets
             in
-            foldr mk_union init_sets
+            foldr mk_union cemptyset
               . map (foldr mk_intersection cunivset)
-              $ ite_sets
+              $ ite_sets'
             -- foldr mk_union cemptyset
             --        . map (\(b, s) -> ite_set b s cemptyset)
             --        $ zip (map vbool $ ars ++ rts) (map vset set_args)
