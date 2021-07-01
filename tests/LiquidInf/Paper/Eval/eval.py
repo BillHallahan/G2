@@ -293,10 +293,10 @@ def main():
     except:
         pass;
 
-    # (log_test, safe_test, num_test) = test_pos_folder("tests/LiquidInf/Paper/Eval/Test", "240");
-    # print(str(safe_test) + "/" + str(num_test) + " Safe");
+    (log_test, safe_test, num_test) = test_pos_folder("tests/LiquidInf/Paper/Eval/Test", "240");
+    print(str(safe_test) + "/" + str(num_test) + " Safe");
     
-    # log = log_test
+    log = log_test
 
 
     (log_book, safe_book, num_book) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Book_LIA_Inv", "240");

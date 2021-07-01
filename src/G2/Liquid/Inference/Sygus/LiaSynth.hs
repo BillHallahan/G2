@@ -76,8 +76,9 @@ data Forms = LIA { -- LIA formulas
                  , c_op_branch1 :: SMTName
                  , c_op_branch2 :: SMTName
 
-                 , int_mem_ars_coeffs :: [SMTName]
-                 , int_mem_rets_coeffs :: [SMTName]
+                 , int_mem_bools :: [SMTName]
+                 , int_mem_ars_coeffs :: [[SMTName]]
+                 , int_mem_rets_coeffs :: [[SMTName]]
 
                  , ars_bools_lhs :: [[SMTName]]
                  , rets_bools_lhs :: [[SMTName]]
@@ -98,18 +99,18 @@ data Forms = LIA { -- LIA formulas
 
 coeffs :: Forms -> [SMTName]
 coeffs cf@(LIA {}) = b0 cf:ars_coeffs cf ++ rets_coeffs cf
-coeffs cf@(Set {}) = int_mem_ars_coeffs cf ++ int_mem_rets_coeffs cf
+coeffs cf@(Set {}) = concat (int_mem_ars_coeffs cf) ++ concat (int_mem_rets_coeffs cf)
 coeffs cf@(BoolForm {}) = concatMap coeffs (forms cf)
 
 coeffsNoB :: Forms -> [SMTName]
 coeffsNoB cf@(LIA {}) = ars_coeffs cf ++ rets_coeffs cf
-coeffsNoB cf@(Set {}) = int_mem_ars_coeffs cf ++ int_mem_rets_coeffs cf
+coeffsNoB cf@(Set {}) = concat (int_mem_ars_coeffs cf) ++ concat (int_mem_rets_coeffs cf)
 coeffsNoB cf@(BoolForm {}) = concatMap coeffsNoB (forms cf)
 
 setBools :: Forms -> [SMTName]
 setBools (LIA {}) = []
 setBools s@(Set {}) =
-    concat $ ars_bools_lhs s ++ rets_bools_lhs s ++ ars_bools_rhs s ++ rets_bools_rhs s
+    int_mem_bools s ++ concat (ars_bools_lhs s ++ rets_bools_lhs s ++ ars_bools_rhs s ++ rets_bools_rhs s)
 setBools cf@(BoolForm {}) = concatMap setBools (forms cf)
 
 boolBools :: Forms -> [SMTName]
@@ -401,13 +402,23 @@ mkSetForms pred max_sz s psi j k =
         , c_op_branch1 = s ++ "_set_op1_" ++ show j ++ "_t_" ++ show k
         , c_op_branch2 = s ++ "_set_op2_" ++ show j ++ "_t_" ++ show k
 
-        , int_mem_ars_coeffs = 
-            [ s ++ "_ima_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
-            | a <- [1..int_ars]]
+        , int_mem_bools = 
+                [ s ++ "_imc_" ++ show j ++ "_t_" ++ show k ++ "_sz_" ++ show sz'
+                | sz' <- [1..max_sz]]
+
+        , int_mem_ars_coeffs =
+            [
+              [ s ++ "_ima_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a ++ "_sz_" ++ show sz'
+              | a <- [1..int_ars]]
+            | sz' <- [1..max_sz]
+            ]
 
         , int_mem_rets_coeffs = 
-            [ s ++ "_imr_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
-            | a <- [1..int_rets]]
+            [ 
+              [s ++ "_imr_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a ++ "_sz_" ++ show sz'
+              | a <- [1..int_rets]]
+            | sz' <- [1..max_sz]
+            ]
 
         , ars_bools_lhs =
             if pred rets
@@ -829,7 +840,7 @@ buildLIA_SMT_fromModel :: SMTModel -> SynthSpec -> SMTAST
 buildLIA_SMT_fromModel mdl sf =
     buildSpec (:+) (:*) (:=) (:=) (:>) (:>=) Ite Ite
               mkSMTAnd mkSMTAnd mkSMTOr
-              mkSMTUnion mkSMTIntersection
+              mkSMTUnion mkSMTIntersection (\v -> mkSMTSingleton v SortInt SortBool)
               mkSMTIsSubsetOf (flip ArraySelect)
               vint VInt vbool vset
               (mkSMTEmptyArray SortInt SortBool)
@@ -1487,6 +1498,7 @@ type IsMember a b = a -> a -> b
 
 type Union a = a -> a -> a
 type Intersection a = a -> a -> a
+type Singleton a = a -> a
 
 type VInt a = SMTName -> a
 type CInt a = Integer -> a
@@ -1498,7 +1510,7 @@ type UniversalSet s = s
 buildLIA_SMT :: SynthSpec -> SMTAST
 buildLIA_SMT sf =
     buildSpec (:+) (:*) (:=) (:=) (:>) (:>=) Ite Ite
-              mkSMTAnd mkSMTAnd mkSMTOr mkSMTUnion mkSMTIntersection
+              mkSMTAnd mkSMTAnd mkSMTOr mkSMTUnion mkSMTIntersection (\v -> mkSMTSingleton v SortInt SortBool)
               mkSMTIsSubsetOf (flip ArraySelect)
               (flip V SortInt) VInt (flip V SortBool) (flip V $ SortArray SortInt SortBool)
               (mkSMTEmptyArray SortInt SortBool)
@@ -1528,7 +1540,7 @@ buildLIA_LH' si mv =
                               bEq bIff bGt bGeq
                               eIte eIte id
                               pAnd pOr
-                              eUnion eIntersection
+                              eUnion eIntersection eSingleton
                               bIsSubset bIsMember
                               (detVar ars) (ECon . I) (detBool ars)
                               (detSet ars) eEmptySet eUnivSet
@@ -1619,6 +1631,8 @@ buildLIA_LH' si mv =
             | x == y = x
             | otherwise = EApp (EApp (EVar "Set_cap") x) y
 
+        eSingleton = EApp (EVar "Set_sng")
+
         bIsSubset x y
             | x == eEmptySet = PTrue
             | y == eUnivSet = PTrue
@@ -1683,6 +1697,7 @@ buildSpec :: Show b => Plus a
 
           -> Union a
           -> Intersection a
+          -> Singleton a
           -> IsSubsetOf a b
           -> IsMember a b
 
@@ -1694,7 +1709,7 @@ buildSpec :: Show b => Plus a
           -> UniversalSet a
           -> SynthSpec
           -> c
-buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_union mk_intersection is_subset is_member vint cint vbool vset cemptyset cunivset sf =
+buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_union mk_intersection mk_sing is_subset is_member vint cint vbool vset cemptyset cunivset sf =
     let
         all_coeffs = sy_coeffs sf
         lin_ineqs = map (\(cl_act, cl) -> vbool cl_act:map toLinInEqs cl) all_coeffs
@@ -1724,6 +1739,7 @@ buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_unio
                         , c_op_branch1 = op_br1
                         , c_op_branch2 = op_br2 
 
+                        , int_mem_bools = intm_bools
                         , int_mem_ars_coeffs = int_c
                         , int_mem_rets_coeffs = int_r
 
@@ -1732,11 +1748,15 @@ buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_unio
                         , ars_bools_rhs = ars_b2
                         , rets_bools_rhs = rets_b2 }) =
             let
-                lia = lia_form int_c int_r
-                sm1 = set_form ars_b1 rets_b1
-                sm2 = set_form ars_b2 rets_b2
+                lia = map (\(b, l) -> ite_set (vbool b) (mk_sing l) cunivset)
+                    . zip intm_bools
+                    . map (uncurry lia_form)
+                    $ zip int_c int_r
+                sm1 = set_form ars_b1 rets_b1 lia
+                sm2 = set_form ars_b2 rets_b2 []
             in
-            mk_and [vbool act, ite (vbool op_br1) (sm1 `eq` sm2) (lia `is_member` sm2)]
+            mk_and [vbool act, sm1 `eq` sm2]
+            -- mk_and [vbool act, ite (vbool op_br1) (sm1 `eq` sm2) (lia `is_member` sm2)]
                             {- ite (vbool op_br1) (sm1 `eq` sm2) (sm1 `is_subset` sm2) -}
         toLinInEqs (BoolForm { c_active = act
                              , ars_bools = as
@@ -1751,14 +1771,16 @@ buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_unio
                          . map (uncurry mult)
                          $ zip (map vint $ acs ++ rcs) (map vint int_args)
 
-        set_form ars rts =
+        set_form ars rts sing_sets =
             let
                 sets = map vset set_args
                 ars_rts = map (map vbool) $ zipWith (++) ars rts
 
                 ite_sets = map (zipWith (\s a -> ite_set a s cunivset) sets) ars_rts
+
+                init_sets = foldr mk_union cemptyset sing_sets
             in
-            foldr mk_union cemptyset
+            foldr mk_union init_sets
               . map (foldr mk_intersection cunivset)
               $ ite_sets
             -- foldr mk_union cemptyset

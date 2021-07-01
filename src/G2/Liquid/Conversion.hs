@@ -468,14 +468,16 @@ convertLHExpr _ _ _ e = error $ "Untranslated LH Expr " ++ (show e)
 
 convertSetExpr :: Measures -> DictMaps -> BoundTypes -> Maybe Type -> Ref.Expr -> LHStateM (Maybe Expr)
 convertSetExpr meas dm bt rt e
-    | EVar v:es <- unEApp e
+    | [EVar v, e1] <- unEApp e
     , Just (nm, nm_mod) <- get_nameTyVarAr v
     , Just (f_nm, f_e) <- E.lookupNameMod nm nm_mod meas = do
-        es' <- mapM (convertLHExpr dm bt rt) es
-        let t = typeOf (head es')
+        e1' <- convertLHExpr dm bt rt e1
+        tyI <- tyIntegerT
+        t <- if typeOf e1' == tyI then tyIntT else return $ typeOf e1'
+        e1'' <- if typeOf e1' == tyI then correctType dm bt t e1' else return e1'
         return . Just $ mkApp ([ Var (Id f_nm (typeOf f_e))
-                               , Type t ]
-                                ++ es')
+                               , Type t
+                               , e1''])
     | [EVar v, e1, e2] <- unEApp e
     , Just (nm, nm_mod) <- get_nameTyVarArOrd v
     , Just (f_nm, f_e) <- E.lookupNameMod nm nm_mod meas = do
@@ -662,7 +664,7 @@ correctType m bt t e = do
        | t' == tyI
        , t /= tyI
        , Just nDict <- may_nDict -> return $ mkApp [Var fIntgr, Type t, nDict, e]
-       | otherwise -> error "correctType: unhandled case"
+       | otherwise -> error $ "correctType: unhandled case\n" ++ show e ++ "\nmay_nDict" ++ show may_nDict
 
 maybeRatioFromInteger :: DictMaps -> Expr -> LHStateM (Maybe Expr)
 maybeRatioFromInteger m e = do
