@@ -1,4 +1,5 @@
-{-# LANGUAGE DeriveDataTypeable,FlexibleInstances #-}
+--{-# LANGUAGE DeriveDataTypeable,FlexibleInstances #-}
+-- TODO don't need these, but removing them doesn't fix Void issue
 module Zeno where
 
 import Prelude
@@ -75,17 +76,33 @@ Z     < _     = True
 Z     + y = y
 (S x) + y = S (x + y)
 
+(-) :: Nat -> Nat -> Nat
+(-) x y = case x of
+  Z -> Z
+  S x' -> case y of
+    Z -> x
+    S y' -> x' - y'
+{-
 Z     - _     = Z
 x     - Z     = x
 (S x) - (S y) = x - y
+-}
 
 min Z     y     = Z
 min (S x) Z     = Z
 min (S x) (S y) = S (min x y)
 
-max Z     y     = y             --
+max :: Nat -> Nat -> Nat
+max x y = case x of
+  Z -> y
+  S x' -> case y of
+    Z -> x
+    S y' -> S (max x' y')
+{-
+max Z     y     = y
 max x     Z     = x
 max (S x) (S y) = S (max x y)
+-}
 
 -- List functions
 
@@ -125,9 +142,17 @@ elem n (x:xs) =
     False -> elem n xs
 
 drop :: Nat -> [a] -> [a]
+drop x xs =
+  case x of
+    Z -> xs
+    S x' -> case xs of
+      [] -> []
+      _:xs' -> drop x xs
+{-
 drop Z xs = xs
 drop _ [] = []
 drop (S x) (_:xs) = drop x xs
+-}
 
 take :: Nat -> [a] -> [a]
 take Z _ = []
@@ -219,6 +244,11 @@ zipConcat _ _ [] = []
 zipConcat x xs (y:ys) = (x, y) : zip xs ys
 
 height :: Tree a -> Nat
+{-
+height a = case a of
+  Leaf -> Z
+  Node l _ r ->
+-}
 height Leaf = Z
 height (Node l x r) = S (max (height l) (height r))
 

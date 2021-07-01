@@ -310,22 +310,6 @@ statePairInduction :: (State t, State t) -> Bool
 statePairInduction (s1, s2) =
   (caseRecursion $ exprExtract s1) && (caseRecursion $ exprExtract s2)
 
--- TODO might not use any of these functions
-openRecursion :: Expr -> Bool
-openRecursion (Tick (NamedLoc (Name t _ _ _)) _) = t == DT.pack "REC"
-openRecursion _ = False
-
--- TODO assumes that Error is equivalent to non-termination
-openRecursionError :: State t -> State t
-openRecursionError s@(State { curr_expr = CurrExpr _ e }) =
-  if openRecursion e
-  then s { curr_expr = CurrExpr Evaluate (Prim Error TyBottom) }
-  else s
-
--- TODO superfluous helper?
-openRecursionAdjust :: (State t, State t) -> (State t, State t)
-openRecursionAdjust (s1, s2) = (openRecursionError s1, openRecursionError s2)
-
 -- TODO another helper for induction
 concretize :: HM.HashMap Id Expr -> Expr -> Expr
 concretize hm e =
@@ -434,6 +418,14 @@ induction ns_pair prev (s1, s2) =
       ind_fns = map ind concretized'
       -- replace everything in the old expression pair used for the match
       hm_maybe_list' = concat $ map (\f -> map f prev) ind_fns
+      -- TODO alternative approach to avoid unmapped fresh variables
+      -- TODO does optimization still work?
+      {-
+      ind (hm, p) p' = mrHelper' ns_pair (Just hm) p' p
+      ind_fns = map ind $ zip (map fst hm_maybe_zipped') concretized
+      ind_fns' = if null ind_fns then [] else [head ind_fns]
+      hm_maybe_list' = concat $ map (\f -> map f prev) ind_fns'
+      -}
       res = filter isJust hm_maybe_list'
   in
   -- TODO
