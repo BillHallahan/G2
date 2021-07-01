@@ -315,15 +315,37 @@ concretize :: HM.HashMap Id Expr -> Expr -> Expr
 concretize hm e =
   HM.foldrWithKey (\i -> replaceVar (idName i)) e hm
 
-concretizeStatePair :: HM.HashMap Id Expr ->
+-- TODO also need to adjust expression environments
+-- TODO do it even for ones that don't occur in the expression?
+-- that should never happen
+-- TODO I also need the expr_env that will supply nested bindings
+-- h_new supplies those bindings, h_old receives them
+-- low-effort approach:  just copy everything
+-- TODO check later if it's sound
+-- TODO also need to be careful about symbolic vars
+-- is overwriting the way I do now fine?
+concretizeEnv :: ExprEnv -> ExprEnv -> ExprEnv
+concretizeEnv h_new h_old =
+  let ins_sym n = case h_new E.! n of
+                    Var i -> E.insertSymbolic n i
+                    _ -> error ("unmapped symbolic variable " ++ show n)
+      all_bindings = map (\n -> (n, h_new E.! n)) $ E.keys h_new
+      all_sym_names = filter (\n -> E.isSymbolic n h_new) $ E.keys h_new
+  in
+  foldr ins_sym (foldr (uncurry E.insert) h_old all_bindings) all_sym_names
+
+concretizeStatePair :: (ExprEnv, ExprEnv) ->
+                       HM.HashMap Id Expr ->
                        (State t, State t) ->
                        (State t, State t)
-concretizeStatePair hm (s1, s2) =
+concretizeStatePair (h_new1, h_new2) hm (s1, s2) =
   let e1 = concretize hm $ exprExtract s1
       e2 = concretize hm $ exprExtract s2
+      h1 = concretizeEnv h_new1 $ expr_env s1
+      h2 = concretizeEnv h_new2 $ expr_env s2
   in
-  ( s1 { curr_expr = CurrExpr Evaluate e1 }
-  , s2 { curr_expr = CurrExpr Evaluate e2 } )
+  ( s1 { curr_expr = CurrExpr Evaluate e1, expr_env = h1 }
+  , s2 { curr_expr = CurrExpr Evaluate e2, expr_env = h2 } )
 
 -- TODO make sure this is correct
 -- assumes that the initial input is from an induction-ready state
@@ -407,13 +429,17 @@ induction ns_pair prev (s1, s2) =
       -- TODO need another 2D map
       -- try matching the prev state pair with other prev state pairs?
       -- I think that might be what I want
+      -- TODO
       hm_maybe_zipped = zip hm_maybe_list prev'
       -- ignore the combinations that didn't work
       hm_maybe_zipped' = [(hm, p) | (Just hm, p) <- hm_maybe_zipped]
-      concretized = map (uncurry concretizeStatePair) hm_maybe_zipped'
+      -- TODO this must be throwing off the name spaces
+      csp = concretizeStatePair (expr_env s1, expr_env s2)
+      concretized = map (uncurry csp) hm_maybe_zipped'
       -- TODO optimization:  just take the first one
       concretized' = if null concretized then [] else [head concretized]
-      ind p p' = mrHelper' ns_pair (Just HM.empty) p' p
+      -- TODO am I using mrHelper' backward here?
+      ind p p' = mrHelper' ns_pair (Just HM.empty) p p'
       -- TODO just took the full concretized list before
       ind_fns = map ind concretized'
       -- replace everything in the old expression pair used for the match
