@@ -19,6 +19,9 @@ just n = Just n
 t2 :: Int -> Int
 t2 = (* 2)
 
+nop :: a -> a
+nop a = a
+
 {-# RULES
 "addOneCommutative" forall n . addOne n = 1 + n
 "doubleNegative" forall n . negation (negation n) = n
@@ -27,4 +30,5 @@ t2 = (* 2)
 "addOneJust" forall n . just (addOne n) = Just (1 + n)
 "justJust" forall n . just n = Just n
 "plusDouble" forall n . t2 n = n + n
+"polymorphism" forall x . nop x = x
   #-}

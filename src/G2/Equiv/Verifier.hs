@@ -448,6 +448,7 @@ induction ns_pair prev (s1, s2) =
   in
   -- TODO
   trace ("FIRST PART " ++ show (length hm_maybe_zipped')) $
+  trace (show $ map (\(p1, p2) -> (exprExtract p1, exprExtract p2)) concretized') $
   trace ("SECOND PART " ++ show (length res)) $
   not $ null res
 
