@@ -399,7 +399,7 @@ mkSetForms pred max_sz s psi j k =
         ars = length (set_sy_args psi)
         rets = length (set_sy_rets psi)
 
-        max_sets = ars + rets + max_sz - 1
+        max_sets = min (ars + rets) 2 -- + max_sz - 1
     in
     Set
         { 
@@ -1319,10 +1319,16 @@ softSetConstraints =
 
 arrayConstants :: M.Map Name SpecInfo -> [SMTHeader]
 arrayConstants si =
-  [ VarDecl (TB.text "true_array") (SortArray SortInt SortBool)
-  , Solver.Assert (trueArray := (mkSMTUniversalArray SortInt SortBool))
-  , VarDecl (TB.text "false_array") (SortArray SortInt SortBool)
-  , Solver.Assert (falseArray := (mkSMTEmptyArray SortInt SortBool))]
+  let
+    frms = concatMap allForms $ M.elems si
+  in
+  if any (\case Set {} -> True; _ -> False) frms
+      then
+          [ VarDecl (TB.text "true_array") (SortArray SortInt SortBool)
+          , Solver.Assert (trueArray := (mkSMTUniversalArray SortInt SortBool))
+          , VarDecl (TB.text "false_array") (SortArray SortInt SortBool)
+          , Solver.Assert (falseArray := (mkSMTEmptyArray SortInt SortBool))]
+      else []
 
 trueArray :: SMTAST
 trueArray = V "true_array" (SortArray SortInt SortBool)
@@ -1810,7 +1816,7 @@ buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_unio
                 ite_sets = map (zipWith (\s a -> ite_set a s cunivset) sets) ars_rts
                
                 ints = map vint int_args
-                ite_sing_sets = map (zipWith (\s a -> ite_set (vbool a) (mk_sing s) cunivset) ints) is_bools
+                ite_sing_sets = map (:[]) $ map (foldr (\(i, b) -> ite_set (vbool b) (mk_sing i)) cunivset . zip ints) is_bools -- map (zipWith (\s a -> ite_set (vbool a) (mk_sing s) cunivset) ints) is_bools
                
                 ite_sets' = if not (null ite_sing_sets)
                                 then zipWith (++) ite_sets ite_sing_sets
@@ -2052,8 +2058,16 @@ applicableMeasuresType mx_meas tenv meas t =
 applicableMeasures :: Int -> TypeEnv -> Measures -> Type -> HM.HashMap [Name] [G2.Expr]
 applicableMeasures mx_meas tenv meas t =
     HM.fromList . map unzip
+                . filter repFstSnd
                 . filter (maybe False (isJust . typeToSort . fst) . chainReturnType t . map snd)
                 $ formMeasureComps mx_meas tenv t meas
+
+-- LiquidHaskell includes measures to extract from tuples of various sizes.
+-- It includes redundant pairs (fst and x_Tuple21) and (snd and x_Tuple22).
+-- Including both measures slows down the synthesis, so we eliminates
+-- chains involving x_Tuple21 and x_Tuple22.
+repFstSnd :: [(Name, a)] -> Bool
+repFstSnd = all (\(Name n _ _ _) -> n /= "x_Tuple21" && n /= "x_Tuple22") . map fst
 
 ----------------------------------------------------------------------------
 -- Polymorphic access measures
@@ -2154,3 +2168,12 @@ allPreCoeffsSeparated = map sy_coeffs . allPreSynthSpec
 
 allPostCoeffsSeparated :: SpecInfo -> [CNF]
 allPostCoeffsSeparated = map sy_coeffs . allPostSynthSpec
+
+allForms :: SpecInfo -> [Forms]
+allForms = concatMap allFormsFromForm
+         . concatMap snd
+         . allCNFs
+
+allFormsFromForm :: Forms -> [Forms]
+allFormsFromForm frm@(BoolForm { forms = frms }) = frm:concatMap allFormsFromForm frms
+allFormsFromForm frm = [frm]
