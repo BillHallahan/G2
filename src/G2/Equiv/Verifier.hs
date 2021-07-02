@@ -392,7 +392,11 @@ verifyLoop' solver ns_pair sh1 sh2 prev =
           states_g' = filter (not . (moreRestrictivePair ns_pair prev_g)) states_g
           states_u' = filter (not . (moreRestrictivePair ns_pair prev_u)) states_u
           states_i' = filter (not . (induction ns_pair prev_u)) states_i
+          -- TODO new induction handling
+          --states_i' = map (inductionRepeat ns_pair prev_u) states_i
+          --states_i'' = filter (not . (moreRestrictivePair ns_pair prev_u)) states_i'
           states = states_g' ++ states_u' ++ states_i'
+          -- TODO unnecessary to pass the induction states through this?
           (ready, not_ready) = partition statePairReadyForSolver states
           ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
           not_ready_h = map (\(n1, n2) -> (replaceH sh1 n1, replaceH sh2 n2)) not_ready
@@ -426,14 +430,10 @@ induction ns_pair prev (s1, s2) =
       prev' = filter statePairInduction prev
       prev'' = map (\(p1, p2) -> (inductionState p1, inductionState p2)) prev'
       hm_maybe_list = map (mrHelper' ns_pair (Just HM.empty) (s1', s2')) prev''
-      -- TODO need another 2D map
-      -- try matching the prev state pair with other prev state pairs?
-      -- I think that might be what I want
-      -- TODO
+      -- try matching the prev state pair with other prev state pairs
       hm_maybe_zipped = zip hm_maybe_list prev'
       -- ignore the combinations that didn't work
       hm_maybe_zipped' = [(hm, p) | (Just hm, p) <- hm_maybe_zipped]
-      -- TODO this must be throwing off the name spaces
       csp = concretizeStatePair (expr_env s1, expr_env s2)
       concretized = map (uncurry csp) hm_maybe_zipped'
       -- TODO optimization:  just take the first one
@@ -444,20 +444,49 @@ induction ns_pair prev (s1, s2) =
       ind_fns = map ind concretized'
       -- replace everything in the old expression pair used for the match
       hm_maybe_list' = concat $ map (\f -> map f prev) ind_fns
-      -- TODO alternative approach to avoid unmapped fresh variables
-      -- TODO does optimization still work?
-      {-
-      ind (hm, p) p' = mrHelper' ns_pair (Just hm) p' p
-      ind_fns = map ind $ zip (map fst hm_maybe_zipped') concretized
-      ind_fns' = if null ind_fns then [] else [head ind_fns]
-      hm_maybe_list' = concat $ map (\f -> map f prev) ind_fns'
-      -}
       res = filter isJust hm_maybe_list'
   in
   -- TODO
   trace ("FIRST PART " ++ show (length hm_maybe_zipped')) $
   trace ("SECOND PART " ++ show (length res)) $
   not $ null res
+
+-- TODO goal of this is to support "branching" induction on trees
+-- TODO assume that s1 and s2 are confirmed to be valid for induction
+{-
+Algorithm:
+See if induction works for the current state pair
+Replace it with a prev pair for which the induction works
+Where does the repeated induction come in?
+Insert back into the list of obligations to be solved, I think
+That comes after concretization, if that step succeeds
+What happens after the re-insertion?
+Try normal unguarded repeat matching right away, pass it on if that fails
+Evaluate it symbolically until it reaches the "recursion case" point
+Then try induction again through this same process
+
+If matching fails, return the original state pair
+If it succeeds, return the concretized state pair
+Would guarded coinduction ever be permissible on the output?
+I don't think so
+This always tries induction even if it's "the wrong approach"
+-}
+inductionRepeat :: (HS.HashSet Name, HS.HashSet Name) ->
+                   [(StateET, StateET)] ->
+                   (StateET, StateET) ->
+                   (StateET, StateET)
+inductionRepeat ns_pair prev (s1, s2) =
+  let s1' = inductionState s1
+      s2' = inductionState s2
+      prev' = filter statePairInduction prev
+      prev'' = map (\(p1, p2) -> (inductionState p1, inductionState p2)) prev'
+      hm_maybe_list = map (mrHelper' ns_pair (Just HM.empty) (s1', s2')) prev''
+      hm_maybe_zipped = zip hm_maybe_list prev'
+      hm_maybe_zipped' = [(hm, p) | (Just hm, p) <- hm_maybe_zipped]
+      csp = concretizeStatePair (expr_env s1, expr_env s2)
+      concretized = map (uncurry csp) hm_maybe_zipped'
+  in
+  if null concretized then (s1, s2) else head concretized
 
 getObligations :: State t -> State t -> Maybe [Obligation]
 getObligations s1 s2 =
