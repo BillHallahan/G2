@@ -99,6 +99,11 @@ data Sort = SortInt
           | SortFunc [Sort] Sort
           deriving (Show, Eq, Ord)
 
+(.=.) :: SMTAST -> SMTAST -> SMTAST
+x .=. y
+  | x == y = VBool True
+  | otherwise = x := y
+
 (.&&.) :: SMTAST -> SMTAST -> SMTAST
 (VBool True) .&&. x = x
 x .&&. (VBool True) = x

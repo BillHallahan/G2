@@ -77,10 +77,6 @@ data Forms = LIA { -- LIA formulas
                  , c_op_branch1 :: SMTName
                  , c_op_branch2 :: SMTName
 
-                 , int_mem_ars_coeffs :: [SMTName]
-                 , int_mem_rets_coeffs :: [SMTName]
-
-
                  , int_sing_set_bools_lhs :: [[SMTName]]
                  , int_sing_set_bools_rhs :: [[SMTName]]
 
@@ -103,12 +99,12 @@ data Forms = LIA { -- LIA formulas
 
 coeffs :: Forms -> [SMTName]
 coeffs cf@(LIA {}) = b0 cf:ars_coeffs cf ++ rets_coeffs cf
-coeffs cf@(Set {}) = int_mem_ars_coeffs cf ++ int_mem_rets_coeffs cf
+coeffs cf@(Set {}) = []
 coeffs cf@(BoolForm {}) = concatMap coeffs (forms cf)
 
 coeffsNoB :: Forms -> [SMTName]
 coeffsNoB cf@(LIA {}) = ars_coeffs cf ++ rets_coeffs cf
-coeffsNoB cf@(Set {}) = int_mem_ars_coeffs cf ++ int_mem_rets_coeffs cf
+coeffsNoB cf@(Set {}) = []
 coeffsNoB cf@(BoolForm {}) = concatMap coeffsNoB (forms cf)
 
 setBools :: Forms -> [SMTName]
@@ -402,6 +398,8 @@ mkSetForms pred max_sz s psi j k =
 
         ars = length (set_sy_args psi)
         rets = length (set_sy_rets psi)
+
+        max_sets = min (ars + rets + int_ars + int_rets) 2 -- + max_sz - 1
     in
     Set
         { 
@@ -409,31 +407,24 @@ mkSetForms pred max_sz s psi j k =
         , c_op_branch1 = s ++ "_set_op1_" ++ show j ++ "_t_" ++ show k
         , c_op_branch2 = s ++ "_set_op2_" ++ show j ++ "_t_" ++ show k
 
-        , int_mem_ars_coeffs = 
-            [ s ++ "_ima_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
-            | a <- [1..int_ars]]
-
-        , int_mem_rets_coeffs = 
-            [ s ++ "_imr_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
-            | a <- [1..int_rets]]
-
         , int_sing_set_bools_lhs =
             if pred rets
                 then
                     [ 
                       [ s ++ "_a_set_sing_lhs_" ++ show j ++ "_t_" ++ show k
                             ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..int_ars + int_rets]]
-                    | a <- [1..ars + rets + max_sz - 1]]
+                    | a <- [1..max_sets]]
                 else
                     []
 
         , int_sing_set_bools_rhs =
             if pred rets
                 then
-                    [ 
-                      [ s ++ "_a_set_sing_rhs_" ++ show j ++ "_t_" ++ show k
-                            ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..int_ars + int_rets]]
-                    | a <- [1..ars + rets + max_sz - 1]]
+                    []
+                    -- [ 
+                    --   [ s ++ "_a_set_sing_rhs_" ++ show j ++ "_t_" ++ show k
+                    --         ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..int_ars + int_rets]]
+                    -- | a <- [1..ars + rets + max_sz - 1]]
                 else
                     []
 
@@ -443,7 +434,7 @@ mkSetForms pred max_sz s psi j k =
                     [ 
                       [ s ++ "_a_set_lhs_" ++ show j ++ "_t_" ++ show k
                             ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..ars]]
-                    | a <- [1..ars + rets + max_sz - 1]]
+                    | a <- [1..max_sets]]
                 else
                     []
         , rets_bools_lhs = 
@@ -456,13 +447,13 @@ mkSetForms pred max_sz s psi j k =
                 then
                     [ [ s ++ "_a_set_rhs_" ++ show j ++ "_t_" ++ show k
                             ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..ars]]
-                    | a <- [1..ars + rets + max_sz - 1]]
+                    | a <- [1..max_sets]]
                 else
                     []
         , rets_bools_rhs = 
             [[ s ++ "_r_set_rhs_" ++ show j ++ "_t_" ++ show k
                             ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..rets]]
-            | a <- [1..ars + rets + max_sz - 1]]
+            | a <- [1..max_sets]]
         }
 
 mkBoolForms :: (Int -> Bool) -> Integer -> Int -> String -> SynthSpec -> Integer -> Integer -> Forms
@@ -585,8 +576,9 @@ synth' :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
 synth' con ghci eenv tenv tc meas meas_ex evals m_si fc headers drop_if_unknown blk_mdls sz = do
     let n_for_m = namesForModel m_si
     liftIO $ print m_si
+    let consts = arrayConstants m_si
     (cons, nm_fc_map) <- nonMaxCoeffConstraints ghci eenv tenv tc meas meas_ex evals m_si fc
-    let hdrs = cons ++ headers ++ drop_if_unknown
+    let hdrs = consts ++ cons ++ headers ++ drop_if_unknown
 
     liftIO $ if not (null drop_if_unknown) then putStrLn "non empty drop_if_unknown" else return ()
 
@@ -820,7 +812,7 @@ checkModelIsNewFunc' con si mdl1 mdl2 = do
 
         neq = [Solver.Assert . (:!) $ mkSMTAnd eqs]
     
-        hdrs = var_defs ++ fun_defs1 ++ fun_defs2 ++ neq
+        hdrs = arrayConstants si ++ var_defs ++ fun_defs1 ++ fun_defs2 ++ neq
 
     r <- liftIO $ checkConstraints con hdrs
     case r of
@@ -856,13 +848,13 @@ renameByAdding i si =
 
 buildLIA_SMT_fromModel :: SMTModel -> SynthSpec -> SMTAST
 buildLIA_SMT_fromModel mdl sf =
-    buildSpec (:+) (:*) (:=) (:=) (:>) (:>=) Ite Ite
+    buildSpec (:+) (:*) (.=.) (.=.) (:>) (:>=) Ite Ite
               mkSMTAnd mkSMTAnd mkSMTOr
-              mkSMTUnion mkSMTIntersection (\v -> mkSMTSingleton v SortInt SortBool)
+              mkSMTUnion mkSMTIntersection smtSingleton
               mkSMTIsSubsetOf (flip ArraySelect)
               vint VInt vbool vset
-              (mkSMTEmptyArray SortInt SortBool)
-              (mkSMTUniversalArray SortInt SortBool)
+              falseArray
+              trueArray
               sf 
     where
         vint n
@@ -876,6 +868,9 @@ buildLIA_SMT_fromModel mdl sf =
         vset n
             | Just v <- M.lookup n mdl = v
             | otherwise = V n (SortArray SortInt SortBool)
+
+smtSingleton :: SMTAST -> SMTAST
+smtSingleton mem = ArrayStore falseArray mem (VBool True)
 
 blockVars :: String -> SpecInfo -> ([PolyBound [(SMTName, Sort)]], PolyBound [(SMTName, Sort)])
 blockVars str si = ( map (uncurry mk_blk_vars) . zip (map show [0..]) $ s_syn_pre si
@@ -1078,10 +1073,7 @@ adjustArgs mx_meas tenv meas meas_ex t =
       map (\e -> case e of
                     (App (App (Data (DataCon (Name n _ _ _) _)) _) ls)
                         | Just is <- extractInts ls ->
-                            let
-                                const_false = mkSMTEmptyArray SortInt SortBool
-                            in
-                            foldr (\i arr -> ArrayStore arr (VInt i) (VBool True)) const_false is
+                            foldr (\i arr -> ArrayStore arr (VInt i) (VBool True)) falseArray is
                     _ -> exprToSMT e)
     . map adjustLits
     . substMeasures mx_meas tenv meas meas_ex t
@@ -1325,6 +1317,25 @@ softSetConstraints :: M.Map Name SpecInfo -> [SMTHeader]
 softSetConstraints =
     map (\n -> AssertSoft ((:!) (V n SortBool)) (Just "minimal_sets")) . getSetBools
 
+arrayConstants :: M.Map Name SpecInfo -> [SMTHeader]
+arrayConstants si =
+  let
+    frms = concatMap allForms $ M.elems si
+  in
+  if any (\case Set {} -> True; _ -> False) frms
+      then
+          [ VarDecl (TB.text "true_array") (SortArray SortInt SortBool)
+          , Solver.Assert (trueArray := (mkSMTUniversalArray SortInt SortBool))
+          , VarDecl (TB.text "false_array") (SortArray SortInt SortBool)
+          , Solver.Assert (falseArray := (mkSMTEmptyArray SortInt SortBool))]
+      else []
+
+trueArray :: SMTAST
+trueArray = V "true_array" (SortArray SortInt SortBool)
+
+falseArray :: SMTAST
+falseArray = V "false_array" (SortArray SortInt SortBool)
+
 nonMaxCoeffConstraints :: (InfConfigM m, ProgresserM m) => [GhcInfo] -> NMExprEnv -> TypeEnv -> TypeClasses -> Measures -> MeasureExs -> Evals Bool  -> M.Map Name SpecInfo -> FuncConstraints
                        -> m ([SMTHeader], HM.HashMap SMTName FuncConstraint)
 nonMaxCoeffConstraints ghci eenv tenv tc meas meas_ex evals m_si fc = do
@@ -1541,12 +1552,12 @@ type UniversalSet s = s
 
 buildLIA_SMT :: SynthSpec -> SMTAST
 buildLIA_SMT sf =
-    buildSpec (:+) (:*) (:=) (:=) (:>) (:>=) Ite Ite
-              mkSMTAnd mkSMTAnd mkSMTOr mkSMTUnion mkSMTIntersection (\v -> mkSMTSingleton v SortInt SortBool)
+    buildSpec (:+) (:*) (.=.) (.=.) (:>) (:>=) Ite Ite
+              mkSMTAnd mkSMTAnd mkSMTOr mkSMTUnion mkSMTIntersection smtSingleton
               mkSMTIsSubsetOf (flip ArraySelect)
               (flip V SortInt) VInt (flip V SortBool) (flip V $ SortArray SortInt SortBool)
-              (mkSMTEmptyArray SortInt SortBool)
-              (mkSMTUniversalArray SortInt SortBool)
+              falseArray
+              trueArray
               sf
 
 -- Get a list of all LIA formulas.  We raise these as high in a PolyBound as possible,
@@ -1771,9 +1782,6 @@ buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_unio
                         , c_op_branch1 = op_br1
                         , c_op_branch2 = op_br2 
 
-                        , int_mem_ars_coeffs = int_c
-                        , int_mem_rets_coeffs = int_r
-
                         , int_sing_set_bools_lhs = int_sing_bools_lhs
                         , int_sing_set_bools_rhs = int_sing_bools_rhs
 
@@ -1782,13 +1790,10 @@ buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_unio
                         , ars_bools_rhs = ars_b2
                         , rets_bools_rhs = rets_b2 }) =
             let
-                lia = lia_form int_c int_r
                 sm1 = set_form ars_b1 rets_b1 int_sing_bools_lhs
                 sm2 = set_form ars_b2 rets_b2 int_sing_bools_rhs
             in
             mk_and [vbool act, sm1 `eq` sm2]
-            -- mk_and [vbool act, ite (vbool op_br1) (sm1 `eq` sm2) (lia `is_member` sm2)]
-                            {- ite (vbool op_br1) (sm1 `eq` sm2) (sm1 `is_subset` sm2) -}
         toLinInEqs (BoolForm { c_active = act
                              , ars_bools = as
                              , rets_bools = rs
@@ -1810,13 +1815,17 @@ buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_unio
                 ite_sets = map (zipWith (\s a -> ite_set a s cunivset) sets) ars_rts
                
                 ints = map vint int_args
-                ite_sing_sets = map (zipWith (\s a -> ite_set (vbool a) (mk_sing s) cunivset) ints) is_bools
+                ite_sing_sets = map (:[]) $ map (foldr (\(i, b) -> ite_set (vbool b) (mk_sing i)) cunivset . zip ints) is_bools -- map (zipWith (\s a -> ite_set (vbool a) (mk_sing s) cunivset) ints) is_bools
                
-                ite_sets' = zipWith (++) ite_sets ite_sing_sets
+                ite_sets' = if not (null ite_sing_sets)
+                                then zipWith (++) ite_sets ite_sing_sets
+                                else ite_sets
             in
-            foldr mk_union cemptyset
-              . map (foldr mk_intersection cunivset)
-              $ ite_sets'
+            if not (null ite_sets') && any (not . null) ite_sets'
+                then foldr1 mk_union
+                        . map (foldr1 mk_intersection)
+                        $ ite_sets'
+                else cemptyset
             -- foldr mk_union cemptyset
             --        . map (\(b, s) -> ite_set b s cemptyset)
             --        $ zip (map vbool $ ars ++ rts) (map vset set_args)
@@ -2048,8 +2057,16 @@ applicableMeasuresType mx_meas tenv meas t =
 applicableMeasures :: Int -> TypeEnv -> Measures -> Type -> HM.HashMap [Name] [G2.Expr]
 applicableMeasures mx_meas tenv meas t =
     HM.fromList . map unzip
+                . filter repFstSnd
                 . filter (maybe False (isJust . typeToSort . fst) . chainReturnType t . map snd)
                 $ formMeasureComps mx_meas tenv t meas
+
+-- LiquidHaskell includes measures to extract from tuples of various sizes.
+-- It includes redundant pairs (fst and x_Tuple21) and (snd and x_Tuple22).
+-- Including both measures slows down the synthesis, so we eliminates
+-- chains involving x_Tuple21 and x_Tuple22.
+repFstSnd :: [(Name, a)] -> Bool
+repFstSnd = all (\(Name n _ _ _) -> n /= "x_Tuple21" && n /= "x_Tuple22") . map fst
 
 ----------------------------------------------------------------------------
 -- Polymorphic access measures
@@ -2150,3 +2167,12 @@ allPreCoeffsSeparated = map sy_coeffs . allPreSynthSpec
 
 allPostCoeffsSeparated :: SpecInfo -> [CNF]
 allPostCoeffsSeparated = map sy_coeffs . allPostSynthSpec
+
+allForms :: SpecInfo -> [Forms]
+allForms = concatMap allFormsFromForm
+         . concatMap snd
+         . allCNFs
+
+allFormsFromForm :: Forms -> [Forms]
+allFormsFromForm frm@(BoolForm { forms = frms }) = frm:concatMap allFormsFromForm frms
+allFormsFromForm frm = [frm]

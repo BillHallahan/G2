@@ -8,7 +8,8 @@ import Data.Set
 {-@ type True  = {v:Bool |     v} @-}
 {-@ type False = {v:Bool | not v} @-}
 
-{-@ elem      :: Int -> [Int] -> Bool @-}
+-- {-@ elem      :: x:Int -> xs:[Int] -> { b:Bool | b <=> (Set_cup (Set_sng x) (listElts xs) == listElts xs) } @-}
+{-@ elem      :: x:Int -> xs:[Int] -> Bool @-}
 elem :: Int -> [Int] -> Bool
 elem _ []     = False
 elem x (y:ys) = x == y || elem x ys

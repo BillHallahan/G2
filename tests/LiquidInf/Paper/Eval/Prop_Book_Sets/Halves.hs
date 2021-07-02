@@ -6,9 +6,9 @@ import Data.Set
 
 {-@ type True = {v:Bool | v} @-}
 
-{-@ prop_halve_append  :: Int -> [Int] -> True @-}
-prop_halve_append :: Int -> [Int] -> Bool
-prop_halve_append n xs = elts xs == elts xs'
+{-@ prop_halve_append  :: Int -> xs:[Int] -> { ys:[Int] | listElts xs == listElts ys } @-}
+prop_halve_append :: Int -> [Int] -> [Int]
+prop_halve_append n xs = xs'
   where
     xs'      =  append ys zs
     (ys, zs) =  halve n xs
@@ -21,8 +21,3 @@ halve _ xs       = ([], xs)
 append :: [Int] -> [Int] -> [Int]
 append []     ys = ys
 append (x:xs) ys = x : append xs ys
-
-elts        :: [Int] -> Set Int
-elts []     = empty
-elts (x:xs) = singleton x `union` elts xs
-
