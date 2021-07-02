@@ -1794,7 +1794,6 @@ buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_unio
                 sm2 = set_form ars_b2 rets_b2 int_sing_bools_rhs
             in
             mk_and [vbool act, sm1 `eq` sm2]
-
         toLinInEqs (BoolForm { c_active = act
                              , ars_bools = as
                              , rets_bools = rs
