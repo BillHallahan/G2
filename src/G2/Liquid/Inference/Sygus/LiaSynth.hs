@@ -399,7 +399,7 @@ mkSetForms pred max_sz s psi j k =
         ars = length (set_sy_args psi)
         rets = length (set_sy_rets psi)
 
-        max_sets = min (ars + rets) 2 -- + max_sz - 1
+        max_sets = min (ars + rets + int_ars + int_rets) 2 -- + max_sz - 1
     in
     Set
         { 
