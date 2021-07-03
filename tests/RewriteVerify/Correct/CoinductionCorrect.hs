@@ -70,3 +70,34 @@ nonterm3 b = nonterm1 b
 "corecursion" forall b . nonterm1 b = nonterm2 b
 "nontermNegation" forall b . nonterm1 b = not (nonterm1 b)
   #-}
+
+-- TODO more diagnosis attempts
+
+listConcat :: [[a]] -> [a]
+listConcat [] = []
+listConcat (h:t) = h ++ (listConcat t)
+
+listLength :: [a] -> Int
+listLength [] = 0
+listLength (_:t) = 1 + listLength t
+
+lmap :: (a -> b) -> [a] -> [b]
+lmap _ [] = []
+lmap f (h:t) = (f h) : (lmap f t)
+
+expLength :: [a] -> Int
+expLength [] = 0
+expLength (_:t) = 1 + expLength t + expLength t
+
+doubleLength :: [a] -> Int
+doubleLength [] = 1
+doubleLength (_:t) = doubleLength t + doubleLength t
+
+-- TODO forceConcat is actually invalid
+{-# RULES
+"mapLength" forall f l . listLength (intMap f l) = listLength l
+"forceLength" forall l . listLength (intForce l) = listLength l
+"forceConcat" forall m . listConcat (lmap intForce m) = intForce (listConcat m)
+"exp" forall x xs . expLength (x:xs) = 1 + (2 * expLength xs)
+"double" forall x xs . doubleLength (x:xs) = 2 * doubleLength xs
+  #-}

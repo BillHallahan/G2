@@ -81,3 +81,48 @@ posNegPath (BBranch i l r) =
 "rightLength" forall bt . listLength (rightmost bt) = rightSize bt
 "pnd" forall bt . listLength (posNegPath bt) = posNegDistance bt
   #-}
+
+-- TODO trying to isolate the problem
+data TripleTree = TLeaf
+                | TBranch TripleTree TripleTree TripleTree
+
+leafCount :: TripleTree -> Int
+leafCount TLeaf = 1
+leafCount (TBranch l m r) = (leafCount l) + (leafCount m) + (leafCount r)
+
+data ListTree = ListTree [ListTree]
+
+listLeaves :: ListTree -> Int
+listLeaves (ListTree []) = 1
+listLeaves (ListTree l) = foldr (+) 0 (map listLeaves l)
+
+{-# RULES
+"tripleLeaf" forall tt . leafCount (TBranch tt tt tt) = 3 * leafCount tt
+"listLeaf" forall lt . listLeaves (ListTree [lt]) = listLeaves lt
+  #-}
+
+slowFib :: Int -> Int
+slowFib n | n < 0 = error "negative"
+slowFib 0 = 0
+slowFib 1 = 1
+slowFib n = slowFib (n - 2) + slowFib (n - 1)
+
+fastFibHelper :: [Int] -> Int -> [Int]
+fastFibHelper acc n =
+  if n < 0 then error "negative"
+  else if n == 0 then acc
+  else case acc of
+    a:b:_ -> fastFibHelper ((a + b):acc) (n - 1)
+    _ -> error "invalid input"
+
+fastFib :: Int -> Int
+fastFib n | n < 0 = error "negative"
+fastFib 0 = 0
+fastFib 1 = 1
+fastFib n = case fastFibHelper [1,0] (n - 1) of
+  h:_ -> h
+  _ -> error "invalid input"
+
+{-# RULES
+"fib" slowFib = fastFib
+  #-}

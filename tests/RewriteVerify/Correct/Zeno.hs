@@ -700,3 +700,23 @@ inf_tree4 = Node inf_tree2 Z inf_tree4
 "differentCycles" inf_tree3 = inf_tree4
 "infPlusOne" inf1 = S inf1
   #-}
+
+-- TODO Fibonacci with Nats
+slowFib :: Nat -> Nat
+slowFib Z = Z
+slowFib (S Z) = S Z
+slowFib (S (S n)) = (slowFib (S n)) + (slowFib n)
+
+-- TODO first arg indicates number of iterations remaining
+fastFibHelper :: Nat -> Nat -> Nat -> Nat
+fastFibHelper n a b = case n of
+  Z -> a
+  S n' -> fastFibHelper n' (a + b) a
+
+fastFib :: Nat -> Nat
+fastFib Z = Z
+fastFib (S n) = fastFibHelper n (S Z) Z
+
+{-# RULES
+"fib" slowFib = fastFib
+  #-}
