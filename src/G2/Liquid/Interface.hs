@@ -420,7 +420,7 @@ runLHG2 config red hal ord solver simplifier pres_names init_id final_st binding
                          , violated = ais}) ->
                 (ExecRes { final_state =
                               s {track = 
-                                    mapAbstractedInfoFCs (subVarFuncCall (model s) (expr_env s) (type_classes s))
+                                    mapAbstractedInfoFCs (subVarFuncCall (model s) (expr_env final_st) (type_classes s))
                                     $ track s
                                 }
                          , conc_args = es
