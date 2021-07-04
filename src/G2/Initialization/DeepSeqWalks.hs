@@ -31,7 +31,9 @@ createDeepSeqStore (n, adt) n' w =
         bn = map TyVar $ bound_ids adt
         bnf = map (\b -> TyFun b b) bn
 
-        base = TyFun (TyCon n TYPE) (TyCon n TYPE)
+        dc_t = foldr (const $ TyFun TYPE) TYPE [1..length bi]
+
+        base = TyFun (TyCon n dc_t) (TyCon n dc_t)
 
         t = foldr TyFun base (bn ++ bnf)
         t' = foldr TyForAll t $ map NamedTyBndr bi
