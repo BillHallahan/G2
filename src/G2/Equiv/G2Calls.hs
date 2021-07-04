@@ -88,12 +88,6 @@ argCount :: Type -> Int
 argCount = length . spArgumentTypes . PresType
 
 exprFullApp :: ExprEnv -> Expr -> Bool
--- TODO this new first condition might not be sound
-{-
-exprFullApp h (Tick (NamedLoc (Name p _ _ _)) (Var (Id n _)))
-                | Just e' <- E.lookup n h
-                , not (isVar e') = p == T.pack "REC"
--}
 exprFullApp h e | (Tick (NamedLoc (Name p _ _ _)) f):args <- unApp e
                 , p == T.pack "REC" = exprFullApp h (mkApp $ f:args)
 exprFullApp h e | (Var (Id n t)):_ <- unApp e
@@ -124,8 +118,8 @@ containsCase sk =
         Just (CaseFrame _ _, _) -> True
         Just (_, sk') -> containsCase sk'
 
--- TODO induction only works if both states in a pair satisfy this
--- there's no major harm in stopping here for just one, though
+-- induction only works if both states in a pair satisfy this
+-- there's no harm in stopping here for just one, though
 recursionInCase :: State t -> Bool
 recursionInCase (State { curr_expr = CurrExpr _ e, exec_stack = sk }) =
     case e of
@@ -133,7 +127,6 @@ recursionInCase (State { curr_expr = CurrExpr _ e, exec_stack = sk }) =
             p == T.pack "REC" && containsCase sk
         _ -> False
 
--- TODO evaluation gets stuck if I remove the third condition
 instance Halter EnforceProgressH () EquivTracker where
     initHalt _ _ = ()
     updatePerStateHalt _ _ _ _ = ()

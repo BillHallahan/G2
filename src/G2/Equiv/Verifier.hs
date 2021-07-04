@@ -76,9 +76,6 @@ runSymExec config s1 s2 = do
   (er1, bindings') <- CM.lift $ runG2ForRewriteV s1 config' bindings
   CM.put bindings'
   let final_s1 = map final_state er1
-  -- TODO more printing
-  -- badBool never makes it to this line
-  CM.liftIO $ putStrLn "Finished First"
   pairs <- mapM (\s1_ -> do
                     b_ <- CM.get
                     let s2_ = transferStateInfo s1_ s2
@@ -86,7 +83,6 @@ runSymExec config s1 s2 = do
                     let config'' = config -- { logStates = Just $ "verifier_states/b" ++ show ct2 }
                     (er2, b_') <- CM.lift $ runG2ForRewriteV s2_ config'' b_
                     CM.put b_'
-                    CM.liftIO $ putStrLn "Finished Another"
                     return $ map (\er2_ -> 
                                     let
                                         s2_' = final_state er2_
@@ -258,8 +254,6 @@ verifyLoop solver ns_pair states prev b config | not (null states) = do
   let app_pair (sh1, sh2) (s1, s2) = (appendH sh1 s1, appendH sh2 s2)
       map_fns = map app_pair states
       updated_hists = map (uncurry map) (zip map_fns paired_states)
-  -- TODO
-  putStrLn "Partway Through"
   putStrLn $ show $ length $ concat updated_hists
   proof_list <- mapM vl $ concat updated_hists
   let new_obligations = concat [l | Just l <- proof_list]
@@ -283,12 +277,7 @@ stateWrap s1 s2 (Ob _ e1 e2) =
   ( s1 { curr_expr = CurrExpr Evaluate e1 }
   , s2 { curr_expr = CurrExpr Evaluate e2 } )
 
--- TODO helper functions for generalization
--- can't use recursionInCase from G2Calls since stack has been put back on expr
--- TODO allow any number of unwrappings?
--- might also need to handle other wrappings
--- TODO also allow App unwrapping?
--- looks like the REC tag will be on the function side
+-- helper functions for induction
 -- TODO can something other than Case be at the outermost level?
 caseRecursion :: Expr -> Bool
 caseRecursion (Case e _ _) = crHelper e

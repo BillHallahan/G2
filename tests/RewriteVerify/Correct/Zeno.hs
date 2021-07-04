@@ -1,5 +1,3 @@
---{-# LANGUAGE DeriveDataTypeable,FlexibleInstances #-}
--- TODO don't need these, but removing them doesn't fix Void issue
 module Zeno where
 
 import Prelude
@@ -17,7 +15,7 @@ import Prelude
   , (==)
   , ($))
 
--- TODO HipSpec.hs contents here
+-- code here adapted from HipSpec.hs
 
 infix 1 =:=
 
@@ -667,7 +665,7 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p84" forall xs ys zs . zip xs (ys ++ zs) = zip (take (len ys) xs) ys ++ zip (drop (len ys) xs) zs
   #-}
 
--- TODO not part of the official test suite
+-- everything else that follows is not part of the official test suite
 inf1 :: Nat
 inf1 = S inf1
 
@@ -701,13 +699,13 @@ inf_tree4 = Node inf_tree2 Z inf_tree4
 "infPlusOne" inf1 = S inf1
   #-}
 
--- TODO Fibonacci with Nats
+-- Fibonacci with Nats
 slowFib :: Nat -> Nat
 slowFib Z = Z
 slowFib (S Z) = S Z
 slowFib (S (S n)) = (slowFib (S n)) + (slowFib n)
 
--- TODO first arg indicates number of iterations remaining
+-- first arg indicates number of iterations remaining
 fastFibHelper :: Nat -> Nat -> Nat -> Nat
 fastFibHelper n a b = case n of
   Z -> a

@@ -1,6 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
--- TODO not sure if I need these
 
 module G2.Equiv.EquivADT (
     proofObligations
@@ -22,6 +21,7 @@ import Data.Data
 import Data.Hashable
 
 -- the bool is True if guarded coinduction can be used
+-- TODO do I need all of these typeclasses?
 data Obligation = Ob Bool Expr Expr
                   deriving (Show, Eq, Read, Generic, Typeable, Data)
 
