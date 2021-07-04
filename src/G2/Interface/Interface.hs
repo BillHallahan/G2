@@ -83,7 +83,7 @@ type StartFunc = T.Text
 type ModuleName = Maybe T.Text 
 
 type MkArgTypes = IT.SimpleState -> [Type]
-type MkCurrExpr = TypeClasses -> NameGen -> ExprEnv -> Walkers
+type MkCurrExpr = TypeClasses -> NameGen -> ExprEnv -> TypeEnv -> Walkers
                      -> KnownValues -> Config -> (Expr, [Id], [Expr], NameGen)
 
 doTimeout :: Int -> IO a -> IO (Maybe a)
@@ -185,7 +185,7 @@ initStateFromSimpleState s useAssert mkCurr argTys config =
         kv' = IT.known_values s'
         tc' = IT.type_classes s'
 
-        (ce, is, f_i, ng'') = mkCurr tc' ng' eenv' ds_walkers kv' config
+        (ce, is, f_i, ng'') = mkCurr tc' ng' eenv' tenv' ds_walkers kv' config
     in
     (State {
       expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv' is
@@ -337,7 +337,7 @@ initialStateNoStartFunc proj src libs transConfig config = do
     let simp_state = initSimpleState exg2
 
         (init_s, bindings) = initStateFromSimpleState simp_state False
-                                 (\_ ng _ _ _ _ -> (Prim Undefined TyBottom, [], [], ng))
+                                 (\_ ng _ _ _ _ _ -> (Prim Undefined TyBottom, [], [], ng))
                                  (E.higherOrderExprs . IT.expr_env)
                                  config
 
