@@ -136,7 +136,9 @@ mergeSpecType st fn e = do
     -- Gather up LH TC's to use in Assertion
     dm@(DictMaps {lh_dicts = lhm}) <- dictMapFromIds is
 
-    let e' = foldl' (\e_ -> App e_ . Var) e is
+    higher_is <- handleHigherOrderSpecs lh dm (M.map typeOf lhm) is st
+
+    let e' = foldl' App e higher_is
 
     -- Create a variable for the returned value
     -- We do not pass the LH TC to the assertion, since there is no matching
@@ -148,11 +150,15 @@ mergeSpecType st fn e = do
     let fc = FuncCall { funcName = fn 
                       , arguments = map Var is
                       , returns = Var r }
-    let rLet = Let [(r, e')] $ Assert (Just fc) assert (Var r)
+        e'' = modifyASTs (repAssertFC fc) e'
+    let rLet = Let [(r, e'')] $ Assert (Just fc) assert (Var r)
     
     let e''' = foldr (uncurry Lam) rLet $ zip lu is
 
     return e'''
+    where
+        repAssertFC fc_ (Assert Nothing e1 e2) = Assert (Just fc_) e1 e2
+        repAssertFC _ e = e
 
 createAssumption :: SpecType -> Expr -> LHStateM Expr
 createAssumption st e = do
@@ -260,7 +266,6 @@ convertSpecType cp m bt (i:is) r (RFun {rt_bind = b, rt_in = fin, rt_out = fout 
 
     e <- convertSpecType cp m bt' is r fout
 
-
     case hasFuncType i of
         True -> return $ App (Lam TermL i' e) (Var i)
         False -> do
@@ -310,6 +315,34 @@ convertSpecType _ _ _ _ _ st@(REx {}) = error $ "REx " ++ show st
 convertSpecType _ _ _ _ _ st@(RExprArg {}) = error $ "RExprArg " ++ show st
 convertSpecType _ _ _ _ _ st@(RRTy {}) = error $ "RRTy " ++ show st
 convertSpecType _ _ _ _ _ st = error $ "Bad st = " ++ show st
+
+handleHigherOrderSpecs :: Name -> DictMaps -> BoundTypes -> [Id] -> SpecType -> LHStateM [Expr]
+handleHigherOrderSpecs lh dm bt (i:is) st | isTC lh $ typeOf i = handleHigherOrderSpecs lh dm bt is st
+handleHigherOrderSpecs lh dm bt (i:is) (RFun {rt_bind = b, rt_in = fin, rt_out = fout })
+    | hasFuncType i = do
+        t <- unsafeSpecTypeToType fin
+        let i' = convertSymbolT b t
+
+        let bt' = M.insert (idName i') t bt
+        es <- handleHigherOrderSpecs lh dm bt' is fout
+
+        ars <- freshIdsN (anonArgumentTypes i)
+        ret <- freshIdN (returnType i)
+        spec <- convertSpecType CheckPre dm bt' ars (Just ret) fin
+
+        let let_assert_spec = mkLams (zip (repeat TermL) ars)
+                            . Let [(ret, mkApp $ Var i:map Var ars)]
+                            $ Assert Nothing spec (Var ret)
+
+        return $ let_assert_spec:es
+    | otherwise = do
+        t <- unsafeSpecTypeToType fin
+        let i' = convertSymbolT b t
+
+        let bt' = M.insert (idName i') t bt
+        es <- handleHigherOrderSpecs lh dm bt' is fout
+        return $ Var i:es
+handleHigherOrderSpecs lh dm bt _ _ = return []
 
 polyPredFunc :: CheckPre -> [SpecType] -> Type -> DictMaps -> BoundTypes -> Id -> LHStateM Expr
 polyPredFunc cp as ty m bt b = do

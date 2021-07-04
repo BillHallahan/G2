@@ -339,6 +339,9 @@ liquidTests = testGroup "Liquid"
     , checkLiquidWithSet "tests/Liquid/Sets/Sets6.hs" "f" 2000 2 [AtLeast 1]
     , checkLiquidWithSet "tests/Liquid/Sets/Sets7.hs" "insertSort" 3000 2 [AtLeast 1]
 
+    -- Higher Order Functions
+    , checkLiquid "tests/Liquid/HigherOrder/IntFuncArg.hs" "caller" 1000 2 [AtLeast 1]
+
     -- Abstract counterexamples
     , checkAbsLiquid "tests/Liquid/Polymorphism/Poly3.hs" "f" 800 1
         [ AtLeast 4
