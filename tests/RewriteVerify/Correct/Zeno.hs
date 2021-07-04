@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns #-}
+
 module Zeno where
 
 import Prelude
@@ -13,7 +15,8 @@ import Prelude
   , (.)
   , (||)
   , (==)
-  , ($))
+  , ($)
+  )
 
 -- code here adapted from HipSpec.hs
 
@@ -63,9 +66,18 @@ Z     === _     = False
 (S _) === Z     = False
 (S x) === (S y) = x === y
 
+-- TODO adjustment to avoid void error
+(<=) :: Nat -> Nat -> Bool
+(<=) x y = case x of
+  Z -> True
+  S x' -> case y of
+    Z -> False
+    S y' -> x' <= y'
+{-
 Z     <= _     = True
 _     <= Z     = False
 (S x) <= (S y) = x <= y
+-}
 
 _     < Z     = False
 Z     < _     = True
@@ -717,4 +729,48 @@ fastFib (S n) = fastFibHelper n (S Z) Z
 
 {-# RULES
 "fib" slowFib = fastFib
+  #-}
+
+-- TODO forcing functions, make sure these work
+forceNat :: Nat -> Nat
+forceNat Z = Z
+forceNat (S n) = (forceNat n) + (S Z)
+
+forceTree :: Tree a -> Tree a
+forceTree Leaf = Leaf
+forceTree (Node (!l) x (!r)) = Node (forceTree l) x (forceTree r)
+
+forceList :: [a] -> [a]
+forceList [] = []
+forceList (h:(!t)) = h:(forceList t)
+
+-- TODO these will help with implications
+-- TODO will this really have the intended effect?
+forceNatBool :: Nat -> Bool -> Bool
+forceNatBool Z b = b
+forceNatBool (S (!n)) b = forceNatBool n b
+
+forceListBool :: [a] -> Bool -> Bool
+forceListBool [] b = b
+forceListBool (_:(!t)) b = forceListBool t b
+
+-- TODO not sure about correctness of this
+forceTreeBool :: Tree a -> Bool -> Bool
+forceTreeBool Leaf b = b
+forceTreeBool (Node l _ r) b = case (forceTreeBool l b) of
+  True -> forceTreeBool r b
+  False -> forceTreeBool r b
+
+-- TODO implications and other things I couldn't handle before
+{-# RULES
+"p01a" forall n xs . prop_01 n xs = forceNatBool n (forceListBool xs True)
+"p05a" forall n x xs . prop_05 n x xs = forceNatBool n (forceListBool xs True)
+"p08a" forall k m n . prop_08 k m n = forceNatBool k (forceNatBool m (forceNatBool n True))
+"p10a" forall m . prop_10 m = forceNatBool m True
+"p06a" forall n m . prop_06 n m = forceNatBool n True
+"p16a" forall x xs . prop_16 x xs = forceListBool xs True
+"p18a" forall i m . prop_18 i m = forceNatBool i (forceNatBool m True)
+"p21a" forall n m . prop_21 n m = forceNatBool n True
+"p26a" forall x xs ys . prop_26 x xs ys = forceNatBool x (forceListBool xs True)
+"p78a" forall xs . prop_78 xs = forceListBool xs True
   #-}
