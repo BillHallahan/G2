@@ -317,7 +317,9 @@ convertSpecType _ _ _ _ _ st@(RRTy {}) = error $ "RRTy " ++ show st
 convertSpecType _ _ _ _ _ st = error $ "Bad st = " ++ show st
 
 handleHigherOrderSpecs :: Name -> DictMaps -> BoundTypes -> [Id] -> SpecType -> LHStateM [Expr]
-handleHigherOrderSpecs lh dm bt (i:is) st | isTC lh $ typeOf i = handleHigherOrderSpecs lh dm bt is st
+handleHigherOrderSpecs lh dm bt (i:is) st | isTC lh $ typeOf i = do
+    es <- handleHigherOrderSpecs lh dm bt is st
+    return $ Var i:es
 handleHigherOrderSpecs lh dm bt (i:is) (RFun {rt_bind = b, rt_in = fin, rt_out = fout })
     | hasFuncType i = do
         t <- unsafeSpecTypeToType fin
@@ -342,7 +344,16 @@ handleHigherOrderSpecs lh dm bt (i:is) (RFun {rt_bind = b, rt_in = fin, rt_out =
         let bt' = M.insert (idName i') t bt
         es <- handleHigherOrderSpecs lh dm bt' is fout
         return $ Var i:es
-handleHigherOrderSpecs lh dm bt _ _ = return []
+handleHigherOrderSpecs lh dm bt [] _ = return []
+handleHigherOrderSpecs lh dm bt (i:is) (RAllT {rt_tvbind = RTVar (RTV v) _, rt_ty = rty}) = do
+    let i' = mkIdUnsafe v
+
+    let dm' = copyIds (idName i) (idName i') dm
+    let bt' = M.insert (idName i') (typeOf i) bt
+
+    es <- handleHigherOrderSpecs lh dm' bt' is rty
+    return $ Var i:es
+handleHigherOrderSpecs lh dm bt _ st = error "handleHigherOrderSpecs: unhandled SpecType"
 
 polyPredFunc :: CheckPre -> [SpecType] -> Type -> DictMaps -> BoundTypes -> Id -> LHStateM Expr
 polyPredFunc cp as ty m bt b = do
