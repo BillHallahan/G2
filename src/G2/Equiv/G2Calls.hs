@@ -28,7 +28,7 @@ import qualified G2.Language.Stack as Stck
 runG2ForRewriteV :: StateET ->
                     Config ->
                     Bindings ->
-                    Bool ->
+                    HS.HashSet Name ->
                     IO ([ExecRes EquivTracker], Bindings)
 runG2ForRewriteV state config bindings total = do
     SomeSolver solver <- initSolver config
@@ -52,7 +52,7 @@ rewriteRedHaltOrd :: (Solver solver, Simplifier simplifier) =>
                      solver ->
                      simplifier ->
                      Config ->
-                     Bool ->
+                     HS.HashSet Name ->
                      (SomeReducer EquivTracker, SomeHalter EquivTracker, SomeOrderer EquivTracker)
 rewriteRedHaltOrd solver simplifier config total =
     let

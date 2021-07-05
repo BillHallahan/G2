@@ -363,7 +363,7 @@ instance (Solver solver, Simplifier simplifier) => Reducer (StdRed solver simpli
         return (if r == RuleIdentity then Finished else InProgress, s', b', stdr)
 
 -- TODO replace the bool with a HashSet of names
-data ConcSymReducer = ConcSymReducer Bool
+data ConcSymReducer = ConcSymReducer (S.HashSet Name)
 
 -- Forces a lone symbolic variable with a type corresponding to an ADT
 -- to evaluate to some value of that ADT
@@ -378,9 +378,8 @@ instance Reducer ConcSymReducer () t where
                             , symbolic_ids = symbs })
                    b@(Bindings { name_gen = ng })
         | E.isSymbolic n eenv
-        , Just (dc_symbs, ng') <- arbDC tenv ng t total = do
-            let 
-                xs = map (\(e, symbs') ->
+        , Just (dc_symbs, ng') <- arbDC tenv ng t n total = do
+            let xs = map (\(e, symbs') ->
                                 s   { curr_expr = CurrExpr Evaluate e
                                     , expr_env =
                                         foldr (\i -> E.insertSymbolic (idName i) i)
@@ -389,7 +388,15 @@ instance Reducer ConcSymReducer () t where
                                     , symbolic_ids = symbs' ++ L.delete i symbs
                                     }) dc_symbs
                 b' =  b { name_gen = ng' }
-            return (InProgress, zip xs (repeat ()) , b', red)
+                -- TODO only add to total if n was total
+                -- TODO not all of these will be used on each branch
+                -- they're all fresh, though
+                total_names = map idName $ concat $ map snd dc_symbs
+                total' = if n `elem` total
+                         then foldr S.insert total total_names
+                         else total
+                red' = ConcSymReducer total'
+            return (InProgress, zip xs (repeat ()) , b', red')
     redRules red _ s b = return (NoProgress, [(s, ())], b, red)
 
 -- | Build a case expression with one alt for each data constructor of the given type
@@ -398,9 +405,10 @@ instance Reducer ConcSymReducer () t where
 arbDC :: TypeEnv
       -> NameGen
       -> Type
-      -> Bool
+      -> Name
+      -> S.HashSet Name
       -> Maybe ([(Expr, [Id])], NameGen)
-arbDC tenv ng t total
+arbDC tenv ng t n total
     | TyCon tn _:ts <- unTyApp t
     , Just adt <- M.lookup tn tenv =
         let
@@ -422,7 +430,7 @@ arbDC tenv ng t total
                         (ng_', (mkApp $ dc:map Var ars, ars))
                     )
                     ng
-                    (if total then ty_apped_dcs else ty_apped_dcs')
+                    (if n `elem` total then ty_apped_dcs else ty_apped_dcs')
         in
         Just (dc_symbs, ng')
     | otherwise = Nothing

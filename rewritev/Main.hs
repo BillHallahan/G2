@@ -39,8 +39,8 @@ runWithArgs as = do
   proj <- guessProj src
 
   -- TODO for now, total as long as there's an extra arg
-  let total = not (null tail_args)
-      m_mapsrc = mkMapSrc (if total then tail tail_args else tail_args)
+  let total = map T.pack tail_args
+      m_mapsrc = mkMapSrc []
       tentry = T.pack entry
 
   config <- getConfig as

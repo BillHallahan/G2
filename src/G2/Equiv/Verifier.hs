@@ -66,7 +66,7 @@ statePairReadyForSolver (s1, s2) =
 
 -- TODO replace the Bool
 runSymExec :: Config ->
-              Bool ->
+              HS.HashSet Name ->
               StateET ->
               StateET ->
               CM.StateT Bindings IO [(StateET, StateET)]
@@ -239,6 +239,7 @@ prevUnguarded = (filter (not . eitherEVF)) . prevGuarded
 
 -- build initial hash set in Main before calling
 -- TODO replace the Bool
+-- TODO have one hash set for each side?
 verifyLoop :: S.Solver solver =>
               solver ->
               (HS.HashSet Name, HS.HashSet Name) ->
@@ -246,7 +247,7 @@ verifyLoop :: S.Solver solver =>
               [(StateH, StateH)] ->
               Bindings ->
               Config ->
-              Bool ->
+              HS.HashSet Name ->
               IO (S.Result () ())
 verifyLoop solver ns_pair states prev b config total | not (null states) = do
   let current_states = map getLatest states
@@ -541,11 +542,21 @@ obligationWrap obligations =
     then Nothing
     else Just $ ExtCond (App (Prim Not TyUnknown) conj) True
 
+-- TODO helper function
+nameText :: Name -> DT.Text
+nameText (Name t _ _ _) = t
+-- TODO get intersection of text from total and text from symbolic ids
+-- then go back and get the full names that correspond to them
+-- I can just do this with a filter
+
+totalName :: [DT.Text] -> Name -> Bool
+totalName texts (Name t _ _ _) = t `elem` texts
+
 -- TODO replace the Bool
 checkRule :: Config ->
              State t ->
              Bindings ->
-             Bool ->
+             [DT.Text] ->
              RewriteRule ->
              IO (S.Result () ())
 checkRule config init_state bindings total rule = do
@@ -578,10 +589,13 @@ checkRule config init_state bindings total rule = do
   putStrLn $ show $ curr_expr rewrite_state_r'
   let rewrite_state_l'' = newStateH rewrite_state_l'
       rewrite_state_r'' = newStateH rewrite_state_r'
+  -- TODO get names to count as total
+  let total_names = filter (totalName total) (map idName $ ru_bndrs rule)
+      total_hs = foldr HS.insert HS.empty total_names
   res <- verifyLoop solver (ns_l, ns_r)
              [(rewrite_state_l'', rewrite_state_r'')]
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config total
+             bindings'' config total_hs
   -- UNSAT for good, SAT for bad
   return res
 
