@@ -274,7 +274,7 @@ mkFirstCase :: PredFunc -> LHDictMap -> Id -> Id -> Name -> AlgDataTy -> LHState
 mkFirstCase f ldm d1 d2 n adt@(DataTyCon { data_cons = dcs }) = do
     caseB <- freshIdN (typeOf d1)
     return . Case (Var d1) caseB =<< mapM (mkFirstCase' f ldm d2 n adt) dcs
-mkFirstCase f ldm d1 d2 n adt@(NewTyCon { data_con = dc }) = do
+mkFirstCase f ldm d1 d2 n adt@(NewTyCon { data_con = dc, rep_type = rt }) = do
     caseB <- freshIdN (typeOf d1)
     return . Case (Var d1) caseB . (:[]) =<< mkFirstCase' f ldm d2 n adt dc
 mkFirstCase _ _ _ _ _ _ = error "mkFirstCase: Unsupported AlgDataTy"
@@ -458,10 +458,15 @@ lhPPFunc n adt = do
 type PPFuncMap = M.Map Name Id
 
 lhPPCase :: LHDictMap -> PPFuncMap -> AlgDataTy -> Id -> LHStateM Expr
-lhPPCase lhm fnm adt i = do
+lhPPCase lhm fnm (DataTyCon { data_cons = dcs }) i = do
     ci <- freshIdN (typeOf i)
 
-    return . Case (Var i) ci =<< mapM (lhPPAlt lhm fnm) (dataCon adt)
+    return . Case (Var i) ci =<< mapM (lhPPAlt lhm fnm) dcs
+lhPPCase lhm fnm (NewTyCon { data_con = dc, rep_type = rt}) i = do
+    pp <- lhPPCall lhm fnm rt
+    let c = Cast (Var i) (typeOf i :~ rt)
+    return $ App pp c
+
 
 lhPPAlt :: LHDictMap -> PPFuncMap -> DataCon -> LHStateM Alt
 lhPPAlt lhm fnm dc = do
@@ -496,8 +501,16 @@ lhPPCall lhm fnm t
         i <- freshIdN t
         return . Lam TermL i =<< mkTrueE
     | TyFun _ _ <- t = do
-        i <- freshIdN t
-        return . Lam TermL i =<< mkTrueE
+        let ts = anonArgumentTypes $ PresType t
+            rt = returnType $ PresType t
+        let_is <- freshIdsN ts
+        bind_i <- freshIdN t
+        let bind_app = mkApp $ Var bind_i:map Var let_is
+        pp <- lhPPCall lhm fnm rt
+        let pp_app = App pp bind_app
+        return . Lam TermL bind_i $ Let (zip let_is $ map SymGen ts) pp_app
+        -- i <- freshIdN t
+        -- return . Lam TermL i =<< mkTrueE
     | TyForAll _ _ <- t = do
         i <- freshIdN t
         return . Lam TermL i =<< mkTrueE
