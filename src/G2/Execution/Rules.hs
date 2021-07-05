@@ -76,9 +76,9 @@ stdReduce' _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
     , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], ng)
     | Just rs <- retReplaceSymbFunc s ng ce = return rs
     | Just (CaseFrame i a, stck') <- frstck = return $ retCaseFrame s ng ce i a stck'
+    | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ng ce c stck'
     | Lam u i e <- ce = return $ retLam s ng u i e
     | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ng ce e stck'
-    | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ng ce c stck'
     | Just (AssumeFrame e, stck') <- frstck = do
         let (r, xs, ng') = retAssumeFrame s ng ce e stck'
         xs' <- mapMaybeM (reduceNewPC solver simplifier) xs

@@ -70,8 +70,8 @@ splitCast ng (Cast e ((TyForAll (NamedTyBndr ni) t2) :~ (TyForAll (NamedTyBndr n
                 )
     in
     (e', ng')
-splitCast ng c@(Cast e (t1 :~ t2)) =
-    if hasFuncType (PresType t1) || hasFuncType (PresType t2) then (e, ng) else (c, ng)
+-- splitCast ng c@(Cast e (t1 :~ t2)) =
+--     if hasFuncType (PresType t1) || hasFuncType (PresType t2) then (e, ng) else (c, ng)
 splitCast ng e = (e, ng)
 
 -- | Eliminates redundant casts.
