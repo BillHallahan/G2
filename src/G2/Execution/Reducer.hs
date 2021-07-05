@@ -362,21 +362,23 @@ instance (Solver solver, Simplifier simplifier) => Reducer (StdRed solver simpli
         
         return (if r == RuleIdentity then Finished else InProgress, s', b', stdr)
 
-data ConcSymReducer = ConcSymReducer
+-- TODO replace the bool with a HashSet of names
+data ConcSymReducer = ConcSymReducer Bool
 
 -- Forces a lone symbolic variable with a type corresponding to an ADT
 -- to evaluate to some value of that ADT
 instance Reducer ConcSymReducer () t where
     initReducer _ _ = ()
 
-    redRules red _ s@(State { curr_expr = CurrExpr _ (Var i@(Id n t))
+    redRules red@(ConcSymReducer total) _
+                   s@(State { curr_expr = CurrExpr _ (Var i@(Id n t))
                             , expr_env = eenv
                             , type_env = tenv
                             , path_conds = pc
                             , symbolic_ids = symbs })
                    b@(Bindings { name_gen = ng })
         | E.isSymbolic n eenv
-        , Just (dc_symbs, ng') <- arbDC tenv ng t = do
+        , Just (dc_symbs, ng') <- arbDC tenv ng t total = do
             let 
                 xs = map (\(e, symbs') ->
                                 s   { curr_expr = CurrExpr Evaluate e
@@ -396,8 +398,9 @@ instance Reducer ConcSymReducer () t where
 arbDC :: TypeEnv
       -> NameGen
       -> Type
+      -> Bool
       -> Maybe ([(Expr, [Id])], NameGen)
-arbDC tenv ng t
+arbDC tenv ng t total
     | TyCon tn _:ts <- unTyApp t
     , Just adt <- M.lookup tn tenv =
         let
@@ -419,7 +422,7 @@ arbDC tenv ng t
                         (ng_', (mkApp $ dc:map Var ars, ars))
                     )
                     ng
-                    ty_apped_dcs'
+                    (if total then ty_apped_dcs else ty_apped_dcs')
         in
         Just (dc_symbs, ng')
     | otherwise = Nothing

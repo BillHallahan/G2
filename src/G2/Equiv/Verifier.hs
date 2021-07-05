@@ -64,16 +64,18 @@ statePairReadyForSolver (s1, s2) =
   in
   exprReadyForSolver h1 e1 && exprReadyForSolver h2 e2
 
+-- TODO replace the Bool
 runSymExec :: Config ->
+              Bool ->
               StateET ->
               StateET ->
               CM.StateT Bindings IO [(StateET, StateET)]
-runSymExec config s1 s2 = do
+runSymExec config total s1 s2 = do
   CM.liftIO $ putStrLn "runSymExec"
   ct1 <- CM.liftIO $ getCurrentTime
   let config' = config -- { logStates = Just $ "verifier_states/a" ++ show ct1 }
   bindings <- CM.get
-  (er1, bindings') <- CM.lift $ runG2ForRewriteV s1 config' bindings
+  (er1, bindings') <- CM.lift $ runG2ForRewriteV s1 config' bindings total
   CM.put bindings'
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
@@ -81,7 +83,7 @@ runSymExec config s1 s2 = do
                     let s2_ = transferStateInfo s1_ s2
                     ct2 <- CM.liftIO $ getCurrentTime
                     let config'' = config -- { logStates = Just $ "verifier_states/b" ++ show ct2 }
-                    (er2, b_') <- CM.lift $ runG2ForRewriteV s2_ config'' b_
+                    (er2, b_') <- CM.lift $ runG2ForRewriteV s2_ config'' b_ total
                     CM.put b_'
                     return $ map (\er2_ -> 
                                     let
@@ -236,6 +238,7 @@ prevUnguarded :: (StateH, StateH) -> [(StateET, StateET)]
 prevUnguarded = (filter (not . eitherEVF)) . prevGuarded
 
 -- build initial hash set in Main before calling
+-- TODO replace the Bool
 verifyLoop :: S.Solver solver =>
               solver ->
               (HS.HashSet Name, HS.HashSet Name) ->
@@ -243,10 +246,11 @@ verifyLoop :: S.Solver solver =>
               [(StateH, StateH)] ->
               Bindings ->
               Config ->
+              Bool ->
               IO (S.Result () ())
-verifyLoop solver ns_pair states prev b config | not (null states) = do
+verifyLoop solver ns_pair states prev b config total | not (null states) = do
   let current_states = map getLatest states
-  (paired_states, b') <- CM.runStateT (mapM (uncurry (runSymExec config)) current_states) b
+  (paired_states, b') <- CM.runStateT (mapM (uncurry (runSymExec config total)) current_states) b
   let vl (sh1, sh2) = verifyLoop' solver ns_pair sh1 sh2 prev
   -- TODO printing
   putStrLn "<Loop Iteration>"
@@ -260,7 +264,7 @@ verifyLoop solver ns_pair states prev b config | not (null states) = do
       prev' = new_obligations ++ prev
   putStrLn $ show $ length new_obligations
   if all isJust proof_list then
-    verifyLoop solver ns_pair new_obligations prev' b' config
+    verifyLoop solver ns_pair new_obligations prev' b' config total
   else
     return $ S.SAT ()
   | otherwise = do
@@ -537,12 +541,14 @@ obligationWrap obligations =
     then Nothing
     else Just $ ExtCond (App (Prim Not TyUnknown) conj) True
 
+-- TODO replace the Bool
 checkRule :: Config ->
              State t ->
              Bindings ->
+             Bool ->
              RewriteRule ->
              IO (S.Result () ())
-checkRule config init_state bindings rule = do
+checkRule config init_state bindings total rule = do
   let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
       (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
       -- convert from State t to StateET
@@ -575,7 +581,7 @@ checkRule config init_state bindings rule = do
   res <- verifyLoop solver (ns_l, ns_r)
              [(rewrite_state_l'', rewrite_state_r'')]
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config
+             bindings'' config total
   -- UNSAT for good, SAT for bad
   return res
 

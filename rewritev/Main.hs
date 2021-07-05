@@ -32,23 +32,16 @@ main = do
 
     runWithArgs as
 
-runSingleLHFun :: FilePath -> FilePath -> String -> [FilePath] -> [FilePath] -> [String] -> IO ()
-runSingleLHFun proj lhfile lhfun libs lhlibs ars = do
-  config <- getConfig ars
-  _ <- doTimeout (timeLimit config) $ do
-    ((in_out, _), entry) <- findCounterExamples [proj] [lhfile] (T.pack lhfun) libs lhlibs config
-    printLHOut entry in_out
-  return ()
-
 runWithArgs :: [String] -> IO ()
 runWithArgs as = do
   let (src:entry:tail_args) = as
 
   proj <- guessProj src
 
-  let m_mapsrc = mkMapSrc tail_args
-
-  let tentry = T.pack entry
+  -- TODO for now, total as long as there's an extra arg
+  let total = not (null tail_args)
+      m_mapsrc = mkMapSrc (if total then tail tail_args else tail_args)
+      tentry = T.pack entry
 
   config <- getConfig as
 
@@ -57,10 +50,10 @@ runWithArgs as = do
                             (TranslationConfig {simpl = True, load_rewrite_rules = True}) config
 
   let rule = find (\r -> tentry == ru_name r) (rewrite_rules bindings)
-  let rule' = case rule of
+      rule' = case rule of
               Just r -> r
               Nothing -> error "not found"
-  res <- checkRule config init_state bindings rule'
+  res <- checkRule config init_state bindings total rule'
   print res
   return ()
 

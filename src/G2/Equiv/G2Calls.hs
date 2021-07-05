@@ -24,8 +24,13 @@ import qualified Data.Text as T
 import qualified G2.Language.Stack as Stck
 
 -- get names from symbolic ids in the state
-runG2ForRewriteV :: StateET -> Config -> Bindings -> IO ([ExecRes EquivTracker], Bindings)
-runG2ForRewriteV state config bindings = do
+-- TODO replace the Bool
+runG2ForRewriteV :: StateET ->
+                    Config ->
+                    Bindings ->
+                    Bool ->
+                    IO ([ExecRes EquivTracker], Bindings)
+runG2ForRewriteV state config bindings total = do
     SomeSolver solver <- initSolver config
     let simplifier = IdSimplifier
         sym_config = PreserveAllMC
@@ -34,7 +39,7 @@ runG2ForRewriteV state config bindings = do
 
         state' = state { track = (track state) { saw_tick = Nothing } }
 
-    (in_out, bindings') <- case rewriteRedHaltOrd solver simplifier config of
+    (in_out, bindings') <- case rewriteRedHaltOrd solver simplifier config total of
                 (red, hal, ord) ->
                     runG2WithSomes red hal ord solver simplifier sym_config state' bindings
 
@@ -42,15 +47,21 @@ runG2ForRewriteV state config bindings = do
 
     return (in_out, bindings')
 
-rewriteRedHaltOrd :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Config -> (SomeReducer EquivTracker, SomeHalter EquivTracker, SomeOrderer EquivTracker)
-rewriteRedHaltOrd solver simplifier config =
+-- TODO replace the Bool with something else
+rewriteRedHaltOrd :: (Solver solver, Simplifier simplifier) =>
+                     solver ->
+                     simplifier ->
+                     Config ->
+                     Bool ->
+                     (SomeReducer EquivTracker, SomeHalter EquivTracker, SomeOrderer EquivTracker)
+rewriteRedHaltOrd solver simplifier config total =
     let
         share = sharing config
         state_name = Name "state" Nothing 0 Nothing
     in
     (case logStates config of
-            Just fp -> SomeReducer (StdRed share solver simplifier :<~ EnforceProgressR :<~ ConcSymReducer :<~? (Logger fp :<~ EquivReducer))
-            Nothing -> SomeReducer (StdRed share solver simplifier :<~ EnforceProgressR :<~ ConcSymReducer :<~? EquivReducer)
+            Just fp -> SomeReducer (StdRed share solver simplifier :<~ EnforceProgressR :<~ (ConcSymReducer total) :<~? (Logger fp :<~ EquivReducer))
+            Nothing -> SomeReducer (StdRed share solver simplifier :<~ EnforceProgressR :<~ (ConcSymReducer total) :<~? EquivReducer)
      , SomeHalter
          (DiscardIfAcceptedTag state_name
          :<~> EnforceProgressH

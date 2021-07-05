@@ -750,9 +750,20 @@ forceNatBool :: Nat -> Bool -> Bool
 forceNatBool Z b = b
 forceNatBool (S (!n)) b = forceNatBool n b
 
+forceEitherNat :: Nat -> Nat -> a -> a
+forceEitherNat x y r = case x of
+  Z -> r
+  S x' -> case y of
+    Z -> r
+    S y' -> forceEitherNat x' y' r
+
 forceListBool :: [a] -> Bool -> Bool
 forceListBool [] b = b
 forceListBool (_:(!t)) b = forceListBool t b
+
+forceNatListBool :: [Nat] -> Bool -> Bool
+forceNatListBool [] b = b
+forceNatListBool (h:(!t)) b = forceNatBool h (forceNatListBool t b)
 
 -- TODO not sure about correctness of this
 forceTreeBool :: Tree a -> Bool -> Bool
@@ -765,12 +776,26 @@ forceTreeBool (Node l _ r) b = case (forceTreeBool l b) of
 {-# RULES
 "p01a" forall n xs . prop_01 n xs = forceNatBool n (forceListBool xs True)
 "p05a" forall n x xs . prop_05 n x xs = forceNatBool n (forceListBool xs True)
+"p07a" forall n m . prop_07 n m = forceNatBool n (forceNatBool m True)
 "p08a" forall k m n . prop_08 k m n = forceNatBool k (forceNatBool m (forceNatBool n True))
 "p10a" forall m . prop_10 m = forceNatBool m True
 "p06a" forall n m . prop_06 n m = forceNatBool n True
+"p15a" forall x xs . prop_15 x xs = forceListBool xs True
 "p16a" forall x xs . prop_16 x xs = forceListBool xs True
 "p18a" forall i m . prop_18 i m = forceNatBool i (forceNatBool m True)
 "p21a" forall n m . prop_21 n m = forceNatBool n True
 "p26a" forall x xs ys . prop_26 x xs ys = forceNatBool x (forceListBool xs True)
+"p27a" forall x xs ys . prop_27 x xs ys = forceNatBool x (forceListBool xs (forceListBool ys True))
+"p28a" forall x xs . prop_28 x xs = forceNatBool x (forceListBool xs True)
+"p48a" forall xs . prop_48 xs = forceListBool xs True
+"p65a" forall i m . prop_65 i m = forceNatBool i (forceNatBool m True)
+"p69a" forall n m . prop_69 n m = forceNatBool n (forceNatBool m True)
 "p78a" forall xs . prop_78 xs = forceListBool xs True
+"p85a" forall xs ys . prop_85 xs ys = forceListBool xs (forceListBool ys True)
+  #-}
+
+{-# RULES
+"p05b" forall n x xs . prop_05 n x xs = forceNatBool n (forceNatBool x (forceNatListBool xs True))
+"p32c" forall a b . forceNatBool a (forceNatBool b True) = (min a b === min b a)
+"p78b" forall xs . prop_78 xs = forceNatListBool xs True
   #-}
