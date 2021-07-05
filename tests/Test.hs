@@ -342,6 +342,10 @@ liquidTests = testGroup "Liquid"
     , checkLiquid "tests/Liquid/HigherOrder/IntFuncArg.hs" "caller" 1000 2 [AtLeast 1]
     , checkLiquid "tests/Liquid/HigherOrder/HigherOrderPre.hs" "test" 1000 2 [AtLeast 1]
 
+    -- IO
+    , checkLiquid "tests/Liquid/IO/IO1.hs" "f" 1000 1 [Exactly 0]
+
+
     -- Abstract counterexamples
     , checkAbsLiquid "tests/Liquid/Polymorphism/Poly3.hs" "f" 800 1
         [ AtLeast 4
