@@ -64,16 +64,17 @@ mkMainExpr tenv tc kv ng ex =
         
         app_ex = foldl' App ex $ typsE ++ var_ids
     in
-    case returnType app_ex of
-        return_ty
-            | TyCon n _:_ <- unTyApp return_ty
-            , Just (NewTyCon { rep_type = rep_ty@(TyFun _ _) }) <- M.lookup n tenv -> 
-                let
-                    app_ex' = Cast app_ex (return_ty :~ rep_ty)
-                    (app_ex'', is', typsE', ng'') = mkMainExpr tenv tc kv ng' app_ex'
-                in
-                (app_ex'', is ++ is', typsE, ng'')
-        _ -> (app_ex, is, typsE, ng')
+    (app_ex, is, typsE, ng')
+    -- case returnType app_ex of
+    --     return_ty
+    --         | TyCon n _:_ <- unTyApp return_ty
+    --         , Just (NewTyCon { rep_type = rep_ty@(TyFun _ _) }) <- M.lookup n tenv -> 
+    --             let
+    --                 app_ex' = Cast app_ex (return_ty :~ rep_ty)
+    --                 (app_ex'', is', typsE', ng'') = mkMainExpr tenv tc kv ng' app_ex'
+    --             in
+    --             (app_ex'', is ++ is', typsE, ng'')
+    --     _ -> (app_ex, is, typsE, ng')
 
 mkStrictInAppCasts :: Walkers -> Expr -> Expr
 mkStrictInAppCasts w (App e1 e2)
