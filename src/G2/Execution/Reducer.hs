@@ -370,7 +370,7 @@ data ConcSymReducer = ConcSymReducer (S.HashSet Name)
 instance Reducer ConcSymReducer () t where
     initReducer _ _ = ()
 
-    redRules red@(ConcSymReducer total) _
+    redRules (ConcSymReducer total) _
                    s@(State { curr_expr = CurrExpr _ (Var i@(Id n t))
                             , expr_env = eenv
                             , type_env = tenv
@@ -392,10 +392,11 @@ instance Reducer ConcSymReducer () t where
                 -- TODO not all of these will be used on each branch
                 -- they're all fresh, though
                 total_names = map idName $ concat $ map snd dc_symbs
-                total' = if n `elem` total
-                         then foldr S.insert total total_names
-                         else total
-                red' = ConcSymReducer total'
+                total' = if trace (show total_names) $ n `elem` total
+                         then trace ("NEW TOTAL FROM " ++ show n) $
+                              foldr S.insert total total_names
+                         else trace ("NOT TOTAL " ++ show n) total
+                red' = trace (show total') $ ConcSymReducer total'
             return (InProgress, zip xs (repeat ()) , b', red')
     redRules red _ s b = return (NoProgress, [(s, ())], b, red)
 
@@ -430,7 +431,9 @@ arbDC tenv ng t n total
                         (ng_', (mkApp $ dc:map Var ars, ars))
                     )
                     ng
-                    (if n `elem` total then ty_apped_dcs else ty_apped_dcs')
+                    (if n `elem` total
+                    then trace ("TOTAL " ++ show n) ty_apped_dcs
+                    else ty_apped_dcs')
         in
         Just (dc_symbs, ng')
     | otherwise = Nothing
