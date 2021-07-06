@@ -129,9 +129,17 @@ rev [] = []
 rev (x:xs) = rev xs ++ [x]
 
 zip :: [a] -> [b] -> [(a, b)]
+zip xs ys =
+  case xs of
+    [] -> []
+    x:xs' -> case ys of
+      [] -> []
+      y:ys' -> (x, y) : (zip xs' ys')
+{-
 zip [] _ = []
 zip _ [] = []
 zip (x:xs) (y:ys) = (x, y) : (zip xs ys)
+-}
 
 delete :: Nat -> [Nat] -> [Nat]
 delete _ [] = []
@@ -165,9 +173,17 @@ drop (S x) (_:xs) = drop x xs
 -}
 
 take :: Nat -> [a] -> [a]
+take x ys =
+  case x of
+    Z -> []
+    S x' -> case ys of
+      [] -> []
+      y:ys' -> y : (take x' ys')
+{-
 take Z _ = []
 take _ [] = []
 take (S x) (y:ys) = y : (take x ys)
+-}
 
 count :: Nat -> [Nat] -> Nat
 count x [] = Z
