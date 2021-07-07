@@ -549,7 +549,6 @@ instance Reducer NonRedPCRedConst () t where
                    , non_red_path_conds = nrs
                    }
 
-        putStrLn $ "symbs = " ++ show symbs
         return (InProgress, [(s', ())], b { name_gen = ng'' }, nrpr)
     redRules nrpr _ s b = return (Finished, [(s, ())], b, nrpr)
 
