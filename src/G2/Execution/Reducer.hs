@@ -27,6 +27,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , StdRed (..)
                             , ConcSymReducer (..)
                             , NonRedPCRed (..)
+                            , NonRedPCRedConst (..)
                             , TaggerRed (..)
                             , Logger (..)
                             , LimLogger (..)
@@ -88,6 +89,7 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.List as L
+import Data.Tuple
 import Data.Time.Clock
 import System.Directory
 import System.Random
@@ -247,6 +249,7 @@ data SomeOrderer t where
 data RCombiner r1 r2 = r1 :<~ r2 -- ^ Apply r2, followed by r1.  Takes the leftmost update to r1
                      | r1 :<~? r2 -- ^ Apply r2, apply r1 only if r2 returns NoProgress
                      | r1 :<~| r2 -- ^ Apply r2, apply r1 only if r2 returns Finished
+                     | r1 :|: r2 -- ^ Apply both r1 and r2 to the initial states
                      deriving (Eq, Show, Read)
 
 -- We use RC to combine the reducer values for RCombiner
@@ -258,6 +261,8 @@ instance (Reducer r1 rv1 t, Reducer r2 rv2 t) => Reducer (RCombiner r1 r2) (RC r
     initReducer (r1 :<~ r2) = initReducerGen r1 r2
     initReducer (r1 :<~? r2) = initReducerGen r1 r2
     initReducer (r1 :<~| r2) = initReducerGen r1 r2
+    initReducer (r1 :|: r2) = initReducerGen r1 r2
+
 
     redRules (r1 :<~ r2) (RC rv1 rv2) s b = do
         (rr2, srv2, b', r2') <- redRules r2 rv2 s b
@@ -285,10 +290,20 @@ instance (Reducer r1 rv1 t, Reducer r2 rv2 t) => Reducer (RCombiner r1 r2) (RC r
                 return (rr1, ss, b'', r1' :<~| r2')
             _ -> return (rr2, zip s' (map (uncurry RC) (zip (repeat rv1) rv2')), b', r1 :<~| r2')
 
+    redRules (r1 :|: r2) (RC rv1 rv2) s b = do
+        (rr2, srv2, b', r2') <- redRules r2 rv2 s b
+        (rr1, srv1, b'', r1') <- redRules r1 rv1 s b'
+
+        let srv2' = map (\(s, rv2_) -> (s, RC rv1 rv2_) ) srv2
+            srv1' = map (\(s, rv1_) -> (s, RC rv1_ rv2) ) srv1
+
+        return (progPrioritizer rr1 rr2, srv2' ++ srv1', b'', r1' :|: r2')
+
     {-# INLINE updateWithAll #-}
     updateWithAll (r1 :<~ r2) = updateWithAllRC r1 r2
     updateWithAll (r1 :<~? r2) = updateWithAllRC r1 r2
     updateWithAll (r1 :<~| r2) = updateWithAllRC r1 r2
+    updateWithAll (r1 :|: r2) = updateWithAllRC r1 r2
 
     onAccept (r1 :<~ r2) s (RC rv1 rv2) = do
         onAccept r1 s rv1
@@ -297,6 +312,9 @@ instance (Reducer r1 rv1 t, Reducer r2 rv2 t) => Reducer (RCombiner r1 r2) (RC r
         onAccept r1 s rv1
         onAccept r2 s rv2
     onAccept (r1 :<~| r2) s (RC rv1 rv2) = do
+        onAccept r1 s rv1
+        onAccept r2 s rv2
+    onAccept (r1 :|: r2) s (RC rv1 rv2) = do
         onAccept r1 s rv1
         onAccept r2 s rv2
 
@@ -490,6 +508,51 @@ substHigherOrder' eenvsice ((i, es):iss) =
                                                    , replaceASTs (Var i) e_rep ce)
                             ) eenvsice)
         es) iss
+
+-- | Removes and reduces the values in a State's non_red_path_conds field by instantiating higher order functions to be constant
+data NonRedPCRedConst = NonRedPCRedConst
+
+instance Reducer NonRedPCRedConst () t where
+    initReducer _ _ = ()
+
+    redRules nrpr _  s@(State { expr_env = eenv
+                              , curr_expr = cexpr
+                              , exec_stack = stck
+                              , non_red_path_conds = nr:nrs
+                              , symbolic_ids = symbs
+                              , model = m })
+                      b@(Bindings { name_gen = ng
+                                  , higher_order_inst = inst }) = do
+        let stck' = Stck.push (CurrExprFrame AddPC cexpr) stck
+
+        let cexpr' = CurrExpr Evaluate nr
+
+        let (higher_ord, not_higher_ord) = L.partition (isTyFun . typeOf) symbs
+            (ng', new_lam_is) = L.mapAccumL (\ng_ ts -> swap $ freshIds ts ng_) ng (map anonArgumentTypes higher_ord)
+            (new_sym_gen, ng'') = freshIds (map returnType higher_ord) ng'
+
+            es = map (\(f_id, lam_i, sg_i) -> (f_id, mkLams (zip (repeat TermL) lam_i) (Var sg_i)) )
+               $ zip3 higher_ord new_lam_is new_sym_gen
+
+            eenv' = foldr (uncurry E.insert) eenv (map (\(i, e) -> (idName i, e)) es)
+            eenv'' = foldr (\i -> E.insertSymbolic (idName i) i) eenv' new_sym_gen
+            m' = foldr (\(i, e) -> HM.insert (idName i) e) m es
+
+            symbs' = foldr (\(i, _) -> L.delete i) symbs es
+            symbs'' = foldr (:) symbs' new_sym_gen
+
+        let s' = s { expr_env = eenv''
+                   , curr_expr = cexpr'
+                   , model = m'
+                   , symbolic_ids = symbs''
+                   , exec_stack = stck'
+                   , non_red_path_conds = nrs
+                   }
+
+        putStrLn $ "symbs = " ++ show symbs
+        return (InProgress, [(s', ())], b { name_gen = ng'' }, nrpr)
+    redRules nrpr _ s b = return (Finished, [(s, ())], b, nrpr)
+
 
 data TaggerRed = TaggerRed Name NameGen
 

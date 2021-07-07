@@ -445,7 +445,9 @@ lhPPFunc n adt = do
     b <- tyBoolT
     fs <- mapM (\v -> freshIdN (TyFun (TyVar v) b)) bi
 
-    d <- freshIdN (TyCon n TYPE)
+    let k = foldr (const (TyApp TYPE)) TYPE bi
+        t = foldl' TyApp (TyCon n k) (map TyVar bi)
+    d <- freshIdN t -- (TyCon n TYPE)
 
     let lhm = M.fromList $ zip (map idName bi) lhbi
     let fnm = M.fromList $ zip (map idName bi) fs

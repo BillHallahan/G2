@@ -251,6 +251,9 @@ createInstFunc' func_names is_fs (DataTyCon { bound_ids = bi
             e' <- foldM wrapPrimsInCase e vrs
             return $ Let (zip bnds ars) e') dcs
     return (NonDet dc')
+createInstFunc' func_names is_fs (NewTyCon { rep_type = rt }) = do
+    -- rt_val <- instTyVarCall' func_names is_fs rt
+    return $ Cast undefined undefined
 createInstFunc' _ _ _ = error "createInstFunc': unhandled datatype"
 
 -- | Creates an instTyVarCall function call to create an expression of type t with appropriate TyVars

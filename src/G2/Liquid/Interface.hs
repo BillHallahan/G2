@@ -399,6 +399,7 @@ runLHG2 config red hal ord solver simplifier pres_names init_id final_st binding
     let only_abs_st = addTicksToDeepSeqCases (deepseq_walkers bindings) final_st
     (ret, final_bindings) <- runG2WithSomes red hal ord solver simplifier pres_names only_abs_st bindings
     let n_ret = map (\er -> er { final_state = putSymbolicExistentialInstInExprEnv (final_state er) }) ret
+    putStrLn "after ret 1"
 
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length n_ret of
@@ -411,7 +412,9 @@ runLHG2 config red hal ord solver simplifier pres_names init_id final_st binding
 
 
     (bindings', ret''') <- mapAccumM (reduceCalls solver simplifier config) final_bindings ret''
+    putStrLn "after ret 2"
     ret'''' <- mapM (checkAbstracted solver simplifier config init_id bindings') ret'''
+    putStrLn "after ret 3"
 
     let exec_res = 
           map (\(ExecRes { final_state = s
@@ -449,9 +452,11 @@ lhReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
         state_name = Name "state" Nothing 0 Nothing
 
         abs_ret_name = Name "abs_ret" Nothing 0 Nothing
+
+        non_red = NonRedPCRed :|: NonRedPCRedConst
     in
     if higherOrderSolver config == AllFuncs then
-        ( SomeReducer NonRedPCRed
+        ( SomeReducer non_red
             <~| (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng ))
             <~| (case logStates config of
                   Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed :<~ Logger fp)
@@ -466,7 +471,7 @@ lhReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
         , SomeOrderer limOrd)
     else
         (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng)
-            <~| (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng))
+            <~| (SomeReducer (non_red :<~| TaggerRed state_name ng))
             <~| (case logStates config of
                   Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed :<~ Logger fp)
                   Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed))

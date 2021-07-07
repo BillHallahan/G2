@@ -333,7 +333,10 @@ evalCase s@(State { expr_env = eenv
   -- We perform the cvar binding and proceed with the alt
   -- expression.
   | e:_ <- unApp $ unsafeElimOuterCast mexpr
-  , isData e || isLit e || isLam e
+  , isData e
+      || isLit e
+      || isLam e
+      || (case e of Var i@(Id n _) -> E.isSymbolic n eenv && hasFuncType i; _ -> False)
   , (Alt _ expr):_ <- matchDefaultAlts alts =
       let 
           binds = [(bind, mexpr)]
@@ -671,8 +674,22 @@ restrictSymVal kv lower upper newId =
 ----------------------------------------------------
 
 evalCast :: State t -> NameGen -> Expr -> Coercion -> (Rule, [State t], NameGen)
-evalCast s@(State { exec_stack = stck }) 
-         ng e c
+evalCast s@(State { expr_env = eenv
+                  , exec_stack = stck
+                  , symbolic_ids = symbs }) 
+         ng e c@(t1 :~ t2)
+    | Var init_i@(Id n _) <- e
+    , E.isSymbolic n eenv
+    , hasFuncType (PresType t2) && not (hasFuncType $ PresType t1) =
+        let
+            (i, ng') = freshId t2 ng
+            new_e = Cast (Var i) (t2 :~ t1)
+        in
+        ( RuleOther
+        , [s { expr_env = E.insertSymbolic (idName i) i $ E.insert n new_e eenv
+             , curr_expr = CurrExpr Return (Var i)
+             , symbolic_ids = i:L.delete init_i symbs }]
+        , ng')
     | cast /= cast' =
         ( RuleEvalCastSplit
         , [ s { curr_expr = CurrExpr Evaluate $ simplifyCasts cast' }]
