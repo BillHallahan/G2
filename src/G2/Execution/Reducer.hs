@@ -392,10 +392,10 @@ instance Reducer ConcSymReducer () t where
                 -- TODO not all of these will be used on each branch
                 -- they're all fresh, though
                 total_names = map idName $ concat $ map snd dc_symbs
-                total' = if trace (show total_names) $ n `elem` total
-                         then trace ("NEW TOTAL FROM " ++ show n) $
+                total' = if {- trace (show total_names) $ -} n `elem` total
+                         then {- trace ("NEW TOTAL FROM " ++ show n) $ -}
                               foldr S.insert total total_names
-                         else trace ("NOT TOTAL " ++ show n) total
+                         else {- trace ("NOT TOTAL " ++ show n) -} total
                 red' = trace (show total') $ ConcSymReducer total'
             return (InProgress, zip xs (repeat ()) , b', red')
     redRules red _ s b = return (NoProgress, [(s, ())], b, red)
@@ -432,7 +432,7 @@ arbDC tenv ng t n total
                     )
                     ng
                     (if n `elem` total
-                    then trace ("TOTAL " ++ show n) ty_apped_dcs
+                    then {- trace ("TOTAL " ++ show n) -} ty_apped_dcs
                     else ty_apped_dcs')
         in
         Just (dc_symbs, ng')
