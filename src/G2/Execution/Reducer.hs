@@ -362,7 +362,6 @@ instance (Solver solver, Simplifier simplifier) => Reducer (StdRed solver simpli
         
         return (if r == RuleIdentity then Finished else InProgress, s', b', stdr)
 
--- TODO replace the bool with a HashSet of names
 data ConcSymReducer = ConcSymReducer (S.HashSet Name)
 
 -- Forces a lone symbolic variable with a type corresponding to an ADT
@@ -388,9 +387,9 @@ instance Reducer ConcSymReducer () t where
                                     , symbolic_ids = symbs' ++ L.delete i symbs
                                     }) dc_symbs
                 b' =  b { name_gen = ng' }
-                -- TODO only add to total if n was total
-                -- TODO not all of these will be used on each branch
-                -- they're all fresh, though
+                -- only add to total if n was total
+                -- not all of these will be used on each branch
+                -- they're all fresh, though, so overlap is not a problem
                 total_names = map idName $ concat $ map snd dc_symbs
                 total' = if {- trace (show total_names) $ -} n `elem` total
                          then {- trace ("NEW TOTAL FROM " ++ show n) $ -}

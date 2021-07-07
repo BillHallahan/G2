@@ -80,7 +80,7 @@ totalNamesExpr h (Var i) =
       e_maybe = E.lookup n h
   in case e_maybe of
     Nothing -> HS.empty
-    Just e -> HS.insert n (totalNames h n) -- $ eval (totalNamesExpr h) e
+    Just _ -> HS.insert n (totalNames h n) -- $ eval (totalNamesExpr h) e
 totalNamesExpr _ _ = HS.empty
 
 -- TODO compute the full set of total variables
@@ -270,9 +270,6 @@ prevGuarded (sh1, sh2) = [(p1, p2) | p1 <- history sh1, p2 <- history sh2]
 prevUnguarded :: (StateH, StateH) -> [(StateET, StateET)]
 prevUnguarded = (filter (not . eitherEVF)) . prevGuarded
 
--- build initial hash set in Main before calling
--- TODO replace the Bool
--- TODO have one hash set for each side?
 verifyLoop :: S.Solver solver =>
               solver ->
               (HS.HashSet Name, HS.HashSet Name) ->
@@ -374,7 +371,6 @@ concretizeStatePair (h_new1, h_new2) hm (s1, s2) =
   ( s1 { curr_expr = CurrExpr Evaluate e1, expr_env = h1 }
   , s2 { curr_expr = CurrExpr Evaluate e2, expr_env = h2 } )
 
--- TODO make sure this is correct
 -- assumes that the initial input is from an induction-ready state
 inductionExtract :: Expr -> Expr
 inductionExtract (Case e _ _) =
@@ -578,17 +574,9 @@ obligationWrap obligations =
     then Nothing
     else Just $ ExtCond (App (Prim Not TyUnknown) conj) True
 
--- TODO helper function
-nameText :: Name -> DT.Text
-nameText (Name t _ _ _) = t
--- TODO get intersection of text from total and text from symbolic ids
--- then go back and get the full names that correspond to them
--- I can just do this with a filter
-
 totalName :: [DT.Text] -> Name -> Bool
 totalName texts (Name t _ _ _) = t `elem` texts
 
--- TODO replace the Bool
 checkRule :: Config ->
              State t ->
              Bindings ->
@@ -625,7 +613,6 @@ checkRule config init_state bindings total rule = do
   putStrLn $ show $ curr_expr rewrite_state_r'
   let rewrite_state_l'' = newStateH rewrite_state_l'
       rewrite_state_r'' = newStateH rewrite_state_r'
-  -- TODO get names to count as total
   let total_names = filter (totalName total) (map idName $ ru_bndrs rule)
       total_hs = foldr HS.insert HS.empty total_names
   res <- verifyLoop solver (ns_l, ns_r)

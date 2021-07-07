@@ -24,7 +24,6 @@ import qualified Data.Text as T
 import qualified G2.Language.Stack as Stck
 
 -- get names from symbolic ids in the state
--- TODO replace the Bool
 runG2ForRewriteV :: StateET ->
                     Config ->
                     Bindings ->
@@ -47,7 +46,6 @@ runG2ForRewriteV state config bindings total = do
 
     return (in_out, bindings')
 
--- TODO replace the Bool with something else
 rewriteRedHaltOrd :: (Solver solver, Simplifier simplifier) =>
                      solver ->
                      simplifier ->
