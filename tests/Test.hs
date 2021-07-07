@@ -345,6 +345,7 @@ liquidTests = testGroup "Liquid"
     -- IO
     , checkLiquid "tests/Liquid/IO/IO1.hs" "f" 1000 1 [Exactly 0]
     , checkLiquid "tests/Liquid/IO/IO2.hs" "f" 1000 2 [AtLeast 1]
+    , checkLiquid "tests/Liquid/IO/IO3.hs" "f" 1400 1 [AtLeast 1]
 
     -- Abstract counterexamples
     , checkAbsLiquid "tests/Liquid/Polymorphism/Poly3.hs" "f" 800 1

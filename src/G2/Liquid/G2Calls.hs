@@ -65,13 +65,17 @@ checkAbstracted solver simplifier config init_id bindings er@(ExecRes{ final_sta
     let abstracted' = mapMaybe toAbstracted $ abstractedR
         models = mapMaybe toModel $ abstractedR
 
+    putStrLn "checkAbstracted 1"
+
     -- Get an `Abstracted` for the initial call
     let init_call = FuncCall (idName init_id) inArg ex
     abs_init <- getAbstracted solver simplifier (sharing config) s bindings init_call
+    putStrLn "checkAbstracted 2"
     let init_model = snd abs_init
 
     -- Get an `Abstracted` for the violated function (if it exists)
     (bindings', viol_er) <- reduceViolated solver simplifier (sharing config) bindings er
+    putStrLn "checkAbstracted 3"
     abs_viol <- case violated viol_er of
                   Just v -> return . Just =<<
                               getAbstracted solver simplifier (sharing config) (final_state viol_er) bindings v
