@@ -3,9 +3,11 @@ module G2.Translation.Interface ( translateLoaded
 
 import DynFlags
 
+import Control.Monad.Extra
 import Data.List
 import Data.Maybe
 import qualified Data.Text as T
+import System.Directory
 
 import G2.Config
 import G2.Language
@@ -17,13 +19,14 @@ import G2.Translation.TransTypes
 
 translateBase :: TranslationConfig
   -> Config
+  -> [FilePath]
   -> Maybe HscTarget
   -> IO (ExtractedG2, NameMap, TypeNameMap)
-translateBase tr_con config hsc = do
+translateBase tr_con config extra hsc = do
   -- For base we have the advantage of knowing apriori the structure
   -- So we can list the (proj, file) pairings
   let base_inc = baseInclude config
-  let bases = base config
+  let bases = base config ++ extra
 
   translateLibPairs specialConstructors specialTypeNames tr_con config emptyExtractedG2 hsc base_inc bases
 
@@ -62,7 +65,15 @@ translateLoaded :: [FilePath]
   -> Config
   -> IO (Maybe T.Text, ExtractedG2)
 translateLoaded proj src libs tr_con config = do
-  (base_exg2, b_nm, b_tnm) <- translateBase tr_con config Nothing
+  -- Stuff with the actual target
+  let def_proj = extraDefaultInclude config
+      def_src = extraDefaultMods config
+  tar_ems <- envModSumModGuts (Just HscInterpreted) (def_proj ++ proj) (def_src ++ src) tr_con
+  let imports = envModSumModGutsImports tar_ems
+  extra_imp <- return . catMaybes =<< mapM (findImports (baseInclude config)) imports
+
+  -- Stuff with the base library
+  (base_exg2, b_nm, b_tnm) <- translateBase tr_con config extra_imp Nothing
   let base_prog = [exg2_binds base_exg2]
       base_tys = exg2_tycons base_exg2
       b_exp = exg2_exports base_exg2
@@ -78,11 +89,11 @@ translateLoaded proj src libs tr_con config = do
   let merged_lib = mergeExtractedG2s ([base_trans', lib_transs])
 
   -- Now the stuff with the actual target
-  let def_proj = extraDefaultInclude config
-      def_src = extraDefaultMods config
-  (_, _, exg2) <- hskToG2ViaCgGutsFromFile (Just HscInterpreted) (def_proj ++ proj) (def_src ++ src) lib_nm lib_tnm tr_con
-  let mb_modname = listToMaybe . drop (length def_src) . map snd $ exg2_mod_names exg2
+  (_, _, exg2) <- hskToG2ViaEMS tr_con tar_ems lib_nm lib_tnm
+  let mb_modname = Just . last . map snd $ exg2_mod_names exg2
   let h_exp = exg2_exports exg2
+
+  -- putStrLn $ "exg2_deps = " ++ show (exg2_deps exg2)
 
   let merged_exg2 = mergeExtractedG2s [exg2, merged_lib]
       merged_prog = [exg2_binds merged_exg2]
@@ -103,6 +114,14 @@ translateLoaded proj src libs tr_con config = do
                                , exg2_rules = final_rules}
 
   return (mb_modname, final_exg2)
+
+findImports :: [FilePath] -> FilePath -> IO (Maybe FilePath)
+findImports roots fp = do
+    let fp' = map (\c -> if c == '.' then '/' else c) fp
+    mr <- findM (\r -> doesFileExist $ r ++ fp' ++ ".hs") roots
+    case mr of
+        Just r -> return . Just $ r ++ fp' ++ ".hs"
+        Nothing -> return Nothing
 
 translateLoadedD :: [FilePath]
   -> [FilePath]
