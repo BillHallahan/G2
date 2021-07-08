@@ -23,6 +23,9 @@ import qualified Data.Text as T
 
 import qualified G2.Language.Stack as Stck
 
+-- TODO
+import Data.Maybe
+
 -- get names from symbolic ids in the state
 runG2ForRewriteV :: StateET ->
                     Config ->
@@ -58,8 +61,8 @@ rewriteRedHaltOrd solver simplifier config total =
         state_name = Name "state" Nothing 0 Nothing
     in
     (case logStates config of
-            Just fp -> SomeReducer (StdRed share solver simplifier :<~ EnforceProgressR :<~ (ConcSymReducer total) :<~? (Logger fp :<~ EquivReducer))
-            Nothing -> SomeReducer (StdRed share solver simplifier :<~ EnforceProgressR :<~ (ConcSymReducer total) :<~? EquivReducer)
+            Just fp -> SomeReducer (StdRed share solver simplifier :<~ EnforceProgressR :<~ (ConcSymReducer total) :<~? (Logger fp :<~ (EquivReducer total)))
+            Nothing -> SomeReducer (StdRed share solver simplifier :<~ EnforceProgressR :<~ (ConcSymReducer total) :<~? (EquivReducer total))
      , SomeHalter
          (DiscardIfAcceptedTag state_name
          :<~> EnforceProgressH
@@ -163,11 +166,12 @@ data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id, saw_tick 
 emptyEquivTracker :: EquivTracker
 emptyEquivTracker = EquivTracker HM.empty Nothing
 
-data EquivReducer = EquivReducer
+data EquivReducer = EquivReducer (HS.HashSet Name)
 
 instance Reducer EquivReducer () EquivTracker where
     initReducer _ _ = ()
-    redRules r _ s@(State { expr_env = eenv
+    redRules r@(EquivReducer total) _
+                 s@(State { expr_env = eenv
                           , curr_expr = CurrExpr Evaluate e
                           , symbolic_ids = symbs
                           , track = EquivTracker et m })
@@ -187,14 +191,33 @@ instance Reducer EquivReducer () EquivTracker where
                     let
                         (v, ng') = freshId (typeOf e) ng
                         et' = trace ("FRESH " ++ show v) $ HM.insert e' v et
+                        -- TODO carry over totality if function and arg are total
+                        -- unApp, make sure every arg is a symbolic var
+                        -- they also need to be total
+                        -- this case means this combination has not been tried before
+                        -- TODO are they all inlined by now?
+                        -- TODO get all the var names from inside first
+                        -- these are exprs originally
+                        es = map exprVarName $ unApp e'
+                        all_vars = foldr (&&) True $ map isJust es
+                        es' = map (\(Just n) -> n) $ filter isJust es
+                        all_sym = foldr (&&) True $ map (\x -> E.isSymbolic x eenv) es'
+                        all_total = foldr (&&) True $ map (`elem` total) es'
+                        r' = if all_vars && all_sym && all_total
+                             then EquivReducer $ HS.insert (idName v) total
+                             else r
                         s' = s { curr_expr = CurrExpr Evaluate (Var v)
                                , track = EquivTracker et' m
                                , expr_env = E.insertSymbolic (idName v) v eenv
                                , symbolic_ids = v:symbs }
                         b' = b { name_gen = ng' }
                     in
-                    return (InProgress, [(s', ())], b', r)
+                    return (InProgress, [(s', ())], b', r')
     redRules r rv s b = return (NoProgress, [(s, rv)], b, r)
+
+exprVarName :: Expr -> Maybe Name
+exprVarName (Var i) = Just $ idName i
+exprVarName _ = Nothing
 
 isSymFuncApp :: ExprEnv -> Expr -> Bool
 isSymFuncApp eenv e
