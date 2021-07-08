@@ -1,4 +1,3 @@
-{-@ LIQUID "--no-termination" @-}
 
 module InsertSortElems (insertSort) where
 
@@ -18,3 +17,5 @@ insert x (y:ys)
 insertSort :: [Int] -> [Int]
 insertSort []     = []
 insertSort (x:xs) = insert x (insertSort xs)
+
+{-@ LIQUID "--no-termination" @-}

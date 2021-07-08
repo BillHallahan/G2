@@ -1,4 +1,3 @@
-{-@ LIQUID "--no-termination" @-}
 
 module MergeSortElems (mergeSort) where
 
@@ -35,3 +34,5 @@ halve _ xs       = ([], xs)
 append :: [Int] -> [Int] -> [Int]
 append []     ys = ys
 append (x:xs) ys = x : append xs ys
+
+{-@ LIQUID "--no-termination" @-}

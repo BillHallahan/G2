@@ -1,4 +1,3 @@
-{-@ LIQUID "--no-termination" @-}
 
 module TakeRelaxed (test) where
 
@@ -12,3 +11,5 @@ take n (x:xs)  = x : take (n-1) xs
 {-@ test :: [{ xs:[String] | len xs == 2 }] @-}
 test = [ take 2  ["cat", "dog", "mouse"]
        , take 20 ["cow", "goat"]        ]
+
+{-@ LIQUID "--no-termination" @-}

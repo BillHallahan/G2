@@ -1,4 +1,3 @@
-{-@ LIQUID "--no-termination" @-}
 
 module Reverse (reverse) where
 
@@ -15,3 +14,5 @@ reverse xs = revHelper [] xs
 revHelper :: [Int] -> [Int] -> [Int]
 revHelper acc []     = acc
 revHelper acc (x:xs) = revHelper (x:acc) xs
+
+{-@ LIQUID "--no-termination" @-}

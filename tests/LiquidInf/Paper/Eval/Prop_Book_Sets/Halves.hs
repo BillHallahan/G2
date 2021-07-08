@@ -1,4 +1,3 @@
-{-@ LIQUID "--no-termination" @-}
 
 module Halves (prop_halve_append) where
 
@@ -21,3 +20,5 @@ halve _ xs       = ([], xs)
 append :: [Int] -> [Int] -> [Int]
 append []     ys = ys
 append (x:xs) ys = x : append xs ys
+
+{-@ LIQUID "--no-termination" @-}

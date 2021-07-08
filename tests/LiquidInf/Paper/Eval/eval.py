@@ -22,15 +22,15 @@ def run_infer(file, name, timeout):
     f.close();
 
     # MAKES EVERYTHING AFTER THIS TIMEOUT QUICKLY
-    timeout = "1";
+    # timeout = "1";
 
     # run the test without extra fc
-    # no_fc_start_time = time.perf_counter();
-    # no_fc_res = call_infer_process(file, timeout, ["--no-use-extra-fc"])
-    # no_fc_end_time = time.perf_counter();
-    # no_fc_elapsed = no_fc_end_time - no_fc_start_time;
-    # no_fc_check_safe = no_fc_res.splitlines()[-2].decode('utf-8');
-    # no_fc_counts = get_opt_counts(no_fc_res);
+    no_fc_start_time = time.perf_counter();
+    no_fc_res = call_infer_process(file, timeout, ["--no-use-extra-fc"])
+    no_fc_end_time = time.perf_counter();
+    no_fc_elapsed = no_fc_end_time - no_fc_start_time;
+    no_fc_check_safe = no_fc_res.splitlines()[-2].decode('utf-8');
+    no_fc_counts = get_opt_counts(no_fc_res);
     (_, _, no_fc_counts, no_fc_elapsed) = call_with_timing(file, timeout, ["--no-use-extra-fc"])
 
     no_lev_dec_counts = empty_counts()

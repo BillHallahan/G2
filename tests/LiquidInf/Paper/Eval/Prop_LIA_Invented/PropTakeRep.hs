@@ -1,4 +1,3 @@
-{-@ LIQUID "--no-termination" @-}
 
 module TakeRep (prop_take_rep) where
 
@@ -26,3 +25,5 @@ replicate n x
 
 {-@ die :: {v:String | false} -> a @-}
 die str = error ("Oops, I died!" ++ str)
+
+{-@ LIQUID "--no-termination" @-}

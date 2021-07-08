@@ -1,5 +1,3 @@
-{-@ LIQUID "--no-termination" @-}
-{-@ LIQUID "--short-names"    @-}
 module WeightedAverage (mWtAverage, size) where
 import Prelude hiding(foldl, foldl1, map, sum, head, tail, null, all)
 
@@ -46,3 +44,6 @@ map f (x :+: xs)  =  f x :+: map f xs
 mWtAverage :: List (Int, Int) -> Maybe Int
 mWtAverage xs@(_ :+: _)  = Just (wtAverage xs)
 mWtAverage Emp = Nothing
+
+{-@ LIQUID "--no-termination" @-}
+{-@ LIQUID "--short-names"    @-}

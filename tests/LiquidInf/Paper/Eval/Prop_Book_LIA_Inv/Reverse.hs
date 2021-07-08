@@ -1,4 +1,3 @@
-{-@ LIQUID "--no-termination" @-}
 
 module Reverse (reverse) where
 
@@ -16,3 +15,5 @@ reverse xs        = go [] xs
 
 go acc []     = acc
 go acc (x:xs) = go (x:acc) xs
+
+{-@ LIQUID "--no-termination" @-}

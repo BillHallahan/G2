@@ -1,6 +1,3 @@
-{-@ LIQUID "--short-names" @-}
-{-@ LIQUID "--no-termination" @-}
-{-@ LIQUID "--prune-unsorted" @-}
 
 module PropConcat (size, sumsize, prop_concat) where
 
@@ -36,3 +33,7 @@ prop_concat xs ys =
         xss = [xs, ys]
     in
     size (concat xss) == size xs + size ys
+
+{-@ LIQUID "--short-names" @-}
+{-@ LIQUID "--no-termination" @-}
+{-@ LIQUID "--prune-unsorted" @-}

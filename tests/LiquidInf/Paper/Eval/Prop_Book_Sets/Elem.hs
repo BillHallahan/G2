@@ -1,4 +1,3 @@
-{-@ LIQUID "--no-termination" @-}
 
 module Elem (test1, test2) where
 
@@ -19,3 +18,5 @@ test1      = elem 2 [1, 2, 3]
 
 {-@ test2 :: False @-}
 test2      = elem 2 [1, 3]
+
+{-@ LIQUID "--no-termination" @-}
