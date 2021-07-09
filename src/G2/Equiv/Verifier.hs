@@ -67,59 +67,24 @@ statePairReadyForSolver (s1, s2) =
   in
   exprReadyForSolver h1 e1 && exprReadyForSolver h2 e2
 
-totalNames :: ExprEnv ->
-              Name ->
-              HS.HashSet Name
-totalNames h n | E.isSymbolic n h = HS.empty
-               | Nothing <- E.lookup n h = HS.empty
-               | Just e <- E.lookup n h = HS.insert n $ eval (totalNamesExpr h) e
-
--- TODO will there ever be unmapped variables?
-totalNamesExpr :: ExprEnv ->
-                  Expr ->
-                  HS.HashSet Name
-totalNamesExpr h (Var i) =
-  let n = idName i
-      e_maybe = E.lookup n h
-  in case e_maybe of
-    Nothing -> HS.empty
-    Just _ -> HS.insert n (totalNames h n) -- $ eval (totalNamesExpr h) e
-totalNamesExpr _ _ = HS.empty
-
--- TODO compute the full set of total variables
--- TODO some redundancy here
-computeTotal :: HS.HashSet Name ->
-                State t ->
-                State t ->
-                HS.HashSet Name
-computeTotal start_names (State { expr_env = h1 }) (State { expr_env = h2 }) =
-  let names1 = HS.foldr (HS.union . totalNames h1) start_names start_names
-      names2 = HS.foldr (HS.union . totalNames h2) start_names start_names
-  in
-  HS.union names1 names2
-
 runSymExec :: Config ->
-              HS.HashSet Name ->
               StateET ->
               StateET ->
               CM.StateT Bindings IO [(StateET, StateET)]
-runSymExec config total s1 s2 = do
+runSymExec config s1 s2 = do
   CM.liftIO $ putStrLn "runSymExec"
   ct1 <- CM.liftIO $ getCurrentTime
   let config' = config -- { logStates = Just $ "verifier_states/a" ++ show ct1 }
-      total' = computeTotal total s1 s2
   bindings <- CM.get
-  (er1, bindings') <- CM.lift $ runG2ForRewriteV s1 config' bindings total'
+  (er1, bindings') <- CM.lift $ runG2ForRewriteV s1 config' bindings
   CM.put bindings'
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
                     b_ <- CM.get
                     let s2_ = transferStateInfo s1_ s2
                     ct2 <- CM.liftIO $ getCurrentTime
-                    -- TODO start from total or total'?
                     let config'' = config -- { logStates = Just $ "verifier_states/b" ++ show ct2 }
-                        total'' = computeTotal total' s1_ s2_
-                    (er2, b_') <- CM.lift $ runG2ForRewriteV s2_ config'' b_ total''
+                    (er2, b_') <- CM.lift $ runG2ForRewriteV s2_ config'' b_
                     CM.put b_'
                     return $ map (\er2_ -> 
                                     let
@@ -280,11 +245,10 @@ verifyLoop :: S.Solver solver =>
               [(StateH, StateH)] ->
               Bindings ->
               Config ->
-              HS.HashSet Name ->
               IO (S.Result () ())
-verifyLoop solver ns_pair states prev b config total | not (null states) = do
+verifyLoop solver ns_pair states prev b config | not (null states) = do
   let current_states = map getLatest states
-  (paired_states, b') <- CM.runStateT (mapM (uncurry (runSymExec config total)) current_states) b
+  (paired_states, b') <- CM.runStateT (mapM (uncurry (runSymExec config)) current_states) b
   let vl (sh1, sh2) = verifyLoop' solver ns_pair sh1 sh2 prev
   -- TODO printing
   putStrLn "<Loop Iteration>"
@@ -298,7 +262,7 @@ verifyLoop solver ns_pair states prev b config total | not (null states) = do
       prev' = new_obligations ++ prev
   putStrLn $ show $ length new_obligations
   if all isJust proof_list then
-    verifyLoop solver ns_pair new_obligations prev' b' config total
+    verifyLoop solver ns_pair new_obligations prev' b' config
   else
     return $ S.SAT ()
   | otherwise = do
@@ -624,7 +588,7 @@ checkRule config init_state bindings total rule = do
   res <- verifyLoop solver (ns_l, ns_r)
              [(rewrite_state_l'', rewrite_state_r'')]
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config total_hs
+             bindings'' config
   -- UNSAT for good, SAT for bad
   return res
 

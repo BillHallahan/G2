@@ -31,9 +31,8 @@ import G2.Execution.Reducer ( EquivTracker )
 runG2ForRewriteV :: StateET ->
                     Config ->
                     Bindings ->
-                    HS.HashSet Name ->
                     IO ([ExecRes EquivTracker], Bindings)
-runG2ForRewriteV state config bindings total = do
+runG2ForRewriteV state config bindings = do
     SomeSolver solver <- initSolver config
     let simplifier = IdSimplifier
         sym_config = PreserveAllMC
@@ -42,7 +41,7 @@ runG2ForRewriteV state config bindings total = do
 
         state' = state { track = (track state) { saw_tick = Nothing } }
 
-    (in_out, bindings') <- case rewriteRedHaltOrd solver simplifier config total of
+    (in_out, bindings') <- case rewriteRedHaltOrd solver simplifier config of
                 (red, hal, ord) ->
                     runG2WithSomes red hal ord solver simplifier sym_config state' bindings
 
@@ -54,9 +53,8 @@ rewriteRedHaltOrd :: (Solver solver, Simplifier simplifier) =>
                      solver ->
                      simplifier ->
                      Config ->
-                     HS.HashSet Name ->
                      (SomeReducer EquivTracker, SomeHalter EquivTracker, SomeOrderer EquivTracker)
-rewriteRedHaltOrd solver simplifier config total =
+rewriteRedHaltOrd solver simplifier config =
     let
         share = sharing config
         state_name = Name "state" Nothing 0 Nothing
