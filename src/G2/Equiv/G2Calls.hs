@@ -25,6 +25,7 @@ import qualified G2.Language.Stack as Stck
 
 -- TODO
 import Data.Maybe
+import G2.Execution.Reducer ( EquivTracker )
 
 -- get names from symbolic ids in the state
 runG2ForRewriteV :: StateET ->
@@ -61,8 +62,8 @@ rewriteRedHaltOrd solver simplifier config total =
         state_name = Name "state" Nothing 0 Nothing
     in
     (case logStates config of
-            Just fp -> SomeReducer (StdRed share solver simplifier :<~ EnforceProgressR :<~ (ConcSymReducer total) :<~? (Logger fp :<~ (EquivReducer total)))
-            Nothing -> SomeReducer (StdRed share solver simplifier :<~ EnforceProgressR :<~ (ConcSymReducer total) :<~? (EquivReducer total))
+            Just fp -> SomeReducer (StdRed share solver simplifier :<~ EnforceProgressR :<~ ConcSymReducer :<~? (Logger fp :<~ EquivReducer))
+            Nothing -> SomeReducer (StdRed share solver simplifier :<~ EnforceProgressR :<~ ConcSymReducer :<~? EquivReducer)
      , SomeHalter
          (DiscardIfAcceptedTag state_name
          :<~> EnforceProgressH
@@ -79,9 +80,9 @@ instance Reducer EnforceProgressR () EquivTracker where
     initReducer _ _ = ()
     redRules r rv s@(State { curr_expr = CurrExpr _ e
                            , num_steps = n
-                           , track = EquivTracker et m })
+                           , track = EquivTracker et m total })
                   b =
-        let s' = s { track = EquivTracker et (Just n) }
+        let s' = s { track = EquivTracker et (Just n) total }
         in
         case (e, m) of
             (Tick (NamedLoc (Name p _ _ _)) _, Nothing) ->
@@ -145,7 +146,7 @@ instance Halter EnforceProgressH () EquivTracker where
     stopRed _ _ _ s =
         let CurrExpr _ e = curr_expr s
             n' = num_steps s
-            EquivTracker _ m = track s
+            EquivTracker _ m _ = track s
             h = expr_env s
         in
         case m of
@@ -161,20 +162,24 @@ instance Halter EnforceProgressH () EquivTracker where
 
 -- Maps higher order function calles to symbolic replacements.
 -- This allows the same call to be replaced by the same Id consistently.
-data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id, saw_tick :: Maybe Int } deriving Show
+{-
+data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
+                                 , saw_tick :: Maybe Int
+                                 , total :: HS.HashSet Name } deriving Show
+-}
 
 emptyEquivTracker :: EquivTracker
-emptyEquivTracker = EquivTracker HM.empty Nothing
+emptyEquivTracker = EquivTracker HM.empty Nothing HS.empty
 
-data EquivReducer = EquivReducer (HS.HashSet Name)
+data EquivReducer = EquivReducer
 
 instance Reducer EquivReducer () EquivTracker where
     initReducer _ _ = ()
-    redRules r@(EquivReducer total) _
+    redRules r _
                  s@(State { expr_env = eenv
                           , curr_expr = CurrExpr Evaluate e
                           , symbolic_ids = symbs
-                          , track = EquivTracker et m })
+                          , track = EquivTracker et m total })
                  b@(Bindings { name_gen = ng })
         | isSymFuncApp eenv e =
             let
@@ -198,21 +203,22 @@ instance Reducer EquivReducer () EquivTracker where
                         -- TODO are they all inlined by now?
                         -- TODO get all the var names from inside first
                         -- these are exprs originally
-                        es = map exprVarName $ unApp e'
-                        all_vars = foldr (&&) True $ map isJust es
+                        -- TODO new total not being carried over to ConcSymReducer
+                        es = trace ("ALL " ++ show total) $ map exprVarName $ unApp e'
+                        all_vars = trace ("EXPRS " ++ show es) $ foldr (&&) True $ map isJust es
                         es' = map (\(Just n) -> n) $ filter isJust es
                         all_sym = foldr (&&) True $ map (\x -> E.isSymbolic x eenv) es'
                         all_total = foldr (&&) True $ map (`elem` total) es'
-                        r' = if all_vars && all_sym && all_total
-                             then EquivReducer $ HS.insert (idName v) total
-                             else r
+                        total' = if all_vars && all_sym && all_total
+                                 then trace ("SUCCESS " ++ show v) HS.insert (idName v) total
+                                 else total
                         s' = s { curr_expr = CurrExpr Evaluate (Var v)
-                               , track = EquivTracker et' m
+                               , track = EquivTracker et' m total'
                                , expr_env = E.insertSymbolic (idName v) v eenv
                                , symbolic_ids = v:symbs }
                         b' = b { name_gen = ng' }
                     in
-                    return (InProgress, [(s', ())], b', r')
+                    return (InProgress, [(s', ())], b', r)
     redRules r rv s b = return (NoProgress, [(s, rv)], b, r)
 
 exprVarName :: Expr -> Maybe Name
@@ -240,19 +246,20 @@ inlineVars' seen eenv (App e1 e2) = App (inlineVars' seen eenv e1) (inlineVars' 
 inlineVars' _ _ e = e
 
 instance ASTContainer EquivTracker Expr where
-    containedASTs (EquivTracker hm _) = HM.keys hm
-    modifyContainedASTs f (EquivTracker hm m) =
-        (EquivTracker . HM.fromList . map (\(k, v) -> (f k, v)) $ HM.toList hm) m
+    containedASTs (EquivTracker hm _ _) = HM.keys hm
+    modifyContainedASTs f (EquivTracker hm m total) =
+        (EquivTracker . HM.fromList . map (\(k, v) -> (f k, v)) $ HM.toList hm) m total
 
 instance ASTContainer EquivTracker Type where
-    containedASTs (EquivTracker hm _) = containedASTs $ HM.keys hm
-    modifyContainedASTs f (EquivTracker hm m) =
+    containedASTs (EquivTracker hm _ _) = containedASTs $ HM.keys hm
+    modifyContainedASTs f (EquivTracker hm m total) =
         ( EquivTracker
         . HM.fromList
         . map (\(k, v) -> (modifyContainedASTs f k, modifyContainedASTs f v))
         $ HM.toList hm )
-        m
+        m total
 
 instance Named EquivTracker where
-    names (EquivTracker hm _) = names hm
-    rename old new (EquivTracker hm m) = EquivTracker (rename old new hm) m
+    names (EquivTracker hm _ _) = names hm
+    rename old new (EquivTracker hm m total) =
+        EquivTracker (rename old new hm) m total

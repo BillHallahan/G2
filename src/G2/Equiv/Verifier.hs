@@ -42,6 +42,9 @@ import Control.Monad
 
 import Data.Time
 
+-- TODO
+import G2.Execution.Reducer
+
 data StateH = StateH {
     latest :: StateET
   , history :: [StateET]
@@ -595,13 +598,18 @@ checkRule config init_state bindings total rule = do
       -- handle corecursion, not just direct recursion
       wrap_l = wrapAllRecursion (G.getCallGraph h_l) h_l
       wrap_r = wrapAllRecursion (G.getCallGraph h_r) h_r
+      total_names = filter (totalName total) (map idName $ ru_bndrs rule)
+      -- TODO do I still need the HashSet usage elsewhere?
+      total_hs = foldr HS.insert HS.empty total_names
+      EquivTracker et m _ = emptyEquivTracker
+      start_equiv_tracker = EquivTracker et m total_hs
       rewrite_state_l' = rewrite_state_l {
-                           track = emptyEquivTracker
+                           track = start_equiv_tracker
                          , curr_expr = CurrExpr Evaluate $ tickWrap $ e_l
                          , expr_env = E.mapWithKey wrap_l h_l
                          }
       rewrite_state_r' = rewrite_state_r {
-                           track = emptyEquivTracker
+                           track = start_equiv_tracker
                          , curr_expr = CurrExpr Evaluate $ tickWrap $ e_r
                          , expr_env = E.mapWithKey wrap_r h_r
                          }
@@ -613,8 +621,6 @@ checkRule config init_state bindings total rule = do
   putStrLn $ show $ curr_expr rewrite_state_r'
   let rewrite_state_l'' = newStateH rewrite_state_l'
       rewrite_state_r'' = newStateH rewrite_state_r'
-  let total_names = filter (totalName total) (map idName $ ru_bndrs rule)
-      total_hs = foldr HS.insert HS.empty total_names
   res <- verifyLoop solver (ns_l, ns_r)
              [(rewrite_state_l'', rewrite_state_r'')]
              [(rewrite_state_l'', rewrite_state_r'')]

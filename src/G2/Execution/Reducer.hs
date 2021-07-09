@@ -22,6 +22,9 @@ module G2.Execution.Reducer ( Reducer (..)
                             , SomeHalter (..)
                             , SomeOrderer (..)
 
+                            -- TODO
+                            , EquivTracker (..)
+
                             -- Reducers
                             , RCombiner (..)
                             , StdRed (..)
@@ -93,6 +96,9 @@ import System.Directory
 import System.Random
 
 import Debug.Trace
+
+-- TODO this causes a cyclic import
+--import G2.Equiv.G2Calls
 
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
@@ -362,41 +368,48 @@ instance (Solver solver, Simplifier simplifier) => Reducer (StdRed solver simpli
         
         return (if r == RuleIdentity then Finished else InProgress, s', b', stdr)
 
-data ConcSymReducer = ConcSymReducer (S.HashSet Name)
+data ConcSymReducer = ConcSymReducer
+
+-- TODO relocated from Equiv.G2Calls
+data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
+                                 , saw_tick :: Maybe Int
+                                 , total :: S.HashSet Name } deriving Show
 
 -- Forces a lone symbolic variable with a type corresponding to an ADT
 -- to evaluate to some value of that ADT
-instance Reducer ConcSymReducer () t where
+instance Reducer ConcSymReducer () EquivTracker where
     initReducer _ _ = ()
 
-    redRules (ConcSymReducer total) _
+    redRules red _
                    s@(State { curr_expr = CurrExpr _ (Var i@(Id n t))
                             , expr_env = eenv
                             , type_env = tenv
                             , path_conds = pc
-                            , symbolic_ids = symbs })
+                            , symbolic_ids = symbs
+                            , track = EquivTracker et m total })
                    b@(Bindings { name_gen = ng })
         | E.isSymbolic n eenv
         , Just (dc_symbs, ng') <- arbDC tenv ng t n total = do
-            let xs = map (\(e, symbs') ->
+            let total_names = map idName $ concat $ map snd dc_symbs
+                total' = if trace (show total_names) $ n `elem` total
+                         then trace ("NEW TOTAL FROM " ++ show n) $
+                              foldr S.insert total total_names
+                         else trace ("NOT TOTAL " ++ show n) total
+                xs = map (\(e, symbs') ->
                                 s   { curr_expr = CurrExpr Evaluate e
                                     , expr_env =
                                         foldr (\i -> E.insertSymbolic (idName i) i)
                                               (E.insert n e eenv)
                                               symbs'
                                     , symbolic_ids = symbs' ++ L.delete i symbs
+                                    -- TODO
+                                    , track = EquivTracker et m total'
                                     }) dc_symbs
                 b' =  b { name_gen = ng' }
                 -- only add to total if n was total
                 -- not all of these will be used on each branch
                 -- they're all fresh, though, so overlap is not a problem
-                total_names = map idName $ concat $ map snd dc_symbs
-                total' = if {- trace (show total_names) $ -} n `elem` total
-                         then {- trace ("NEW TOTAL FROM " ++ show n) $ -}
-                              foldr S.insert total total_names
-                         else {- trace ("NOT TOTAL " ++ show n) -} total
-                red' = trace (show total') $ ConcSymReducer total'
-            return (InProgress, zip xs (repeat ()) , b', red')
+            return (InProgress, zip xs (repeat ()) , b', red)
     redRules red _ s b = return (NoProgress, [(s, ())], b, red)
 
 -- | Build a case expression with one alt for each data constructor of the given type
@@ -431,7 +444,7 @@ arbDC tenv ng t n total
                     )
                     ng
                     (if n `elem` total
-                    then {- trace ("TOTAL " ++ show n) -} ty_apped_dcs
+                    then trace ("TOTAL " ++ show n) ty_apped_dcs
                     else ty_apped_dcs')
         in
         Just (dc_symbs, ng')
