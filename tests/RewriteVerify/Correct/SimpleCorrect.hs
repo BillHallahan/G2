@@ -31,4 +31,5 @@ nop a = a
 "justJust" forall n . just n = Just n
 "plusDouble" forall n . t2 n = n + n
 "polymorphism" forall x . nop x = x
+"doublePlusOne" forall n . addOne (t2 n) = 1 + n + n
   #-}

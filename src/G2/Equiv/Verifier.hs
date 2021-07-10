@@ -680,6 +680,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                       s2' = s2 { expr_env = h2' }
                       mf hm_ (e1_, e2_) = moreRestrictiveAltOld s1' s2' ns hm_ e1_ e2_
                   in trace ("!!! " ++ show (e1, e2)) $ foldM mf hm' (zip a1 a2)
+    {-
     (Case (Var i) i1 a1, _)
                 | not $ E.isSymbolic (idName i) h1
                 , not $ HS.member (idName i) ns
@@ -692,6 +693,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                 , Just e <- E.lookup (idName i) h2 ->
                   trace ("&&& " ++ show (e1, e2)) $
                   moreRestrictive s1 s2 ns hm e1 (Case e i2 a2)
+    -}
     (Case e1' i1 a1, Case e2' i2 a2)
                 | i1 == i2
                 , Just hm' <- moreRestrictive s1 s2 ns hm e1' e2' ->
