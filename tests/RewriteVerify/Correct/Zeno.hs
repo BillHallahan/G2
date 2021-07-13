@@ -83,8 +83,13 @@ _     < Z     = False
 Z     < _     = True
 (S x) < (S y) = x < y
 
+(+) x y = case x of
+  Z -> y
+  S x' -> S (x' + y)
+{-
 Z     + y = y
 (S x) + y = S (x + y)
+-}
 
 (-) :: Nat -> Nat -> Nat
 (-) x y = case x of

@@ -659,8 +659,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
     -- TODO neither case here is ever hit on p04 n
     -- neither of the case-var lines is ever hit either
     (Case e1'@(Var i1') i1 a1, Case e2'@(Var i2') i2 a2)
-                | i1 == i2
-                , E.isSymbolic (idName i1') h1
+                | E.isSymbolic (idName i1') h1
                 , E.isSymbolic (idName i2') h2
                 , Just hm' <- moreRestrictive s1 s2 ns hm e1' e2' ->
                   let h1' = E.insert (idName i1) e1' h1
@@ -671,8 +670,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                   in trace ("$$$ " ++ show (e1, e2)) $ foldM mf hm' (zip a1 a2)
     -- TODO what if only old side is symbolic?
     (Case e1'@(Var i1') i1 a1, Case e2' i2 a2)
-                | i1 == i2
-                , E.isSymbolic (idName i1') h1
+                | E.isSymbolic (idName i1') h1
                 , Just hm' <- moreRestrictive s1 s2 ns hm e1' e2' ->
                   let h1' = E.insert (idName i1) e1' h1
                       h2' = E.insert (idName i2) e2' h2
@@ -680,6 +678,15 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                       s2' = s2 { expr_env = h2' }
                       mf hm_ (e1_, e2_) = moreRestrictiveAltOld s1' s2' ns hm_ e1_ e2_
                   in trace ("!!! " ++ show (e1, e2)) $ foldM mf hm' (zip a1 a2)
+    (Case e1' i1 a1, Case e2' i2 a2)
+                | Just hm' <- trace ("+++ " ++ show (e1', e2')) moreRestrictive s1 s2 ns hm e1' e2'
+                , allVarsSymbolic h1 ns e1' ->
+                  let h1' = E.insert (idName i1) e1' h1
+                      h2' = E.insert (idName i2) e2' h2
+                      s1' = s1 { expr_env = h1' }
+                      s2' = s2 { expr_env = h2' }
+                      mf hm_ (e1_, e2_) = moreRestrictiveAltOld s1' s2' ns hm_ e1_ e2_
+                  in trace ("^^^ " ++ show (e1, e2)) $ foldM mf hm' (zip a1 a2)
     {-
     (Case (Var i) i1 a1, _)
                 | not $ E.isSymbolic (idName i) h1
@@ -695,8 +702,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                   moreRestrictive s1 s2 ns hm e1 (Case e i2 a2)
     -}
     (Case e1' i1 a1, Case e2' i2 a2)
-                | i1 == i2
-                , Just hm' <- moreRestrictive s1 s2 ns hm e1' e2' ->
+                | Just hm' <- moreRestrictive s1 s2 ns hm e1' e2' ->
                   -- add the matched-on exprs to the envs beforehand
                   let h1' = E.insert (idName i1) e1' h1
                       h2' = E.insert (idName i2) e2' h2
@@ -713,6 +719,16 @@ inlineEquiv h ns v@(Var (Id n _))
     | HS.member n ns = v
     | Just e <- E.lookup n h = inlineEquiv h ns e
 inlineEquiv h ns e = modifyChildren (inlineEquiv h ns) e
+
+-- TODO quick implementation
+-- may not be entirely accurate
+-- TODO inlineVars is not what it sounds like
+-- this is no good currently
+-- TODO should I allow ns?
+allVarsSymbolic :: ExprEnv -> HS.HashSet Name -> Expr -> Bool
+allVarsSymbolic h ns e =
+  trace ("AVS " ++ show (e, inlineEquiv h ns e)) $
+  e == inlineEquiv h ns e
 
 mrInfo :: ExprEnv ->
           ExprEnv ->
