@@ -679,8 +679,8 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                       mf hm_ (e1_, e2_) = moreRestrictiveAltOld s1' s2' ns hm_ e1_ e2_
                   in trace ("!!! " ++ show (e1, e2)) $ foldM mf hm' (zip a1 a2)
     (Case e1' i1 a1, Case e2' i2 a2)
-                | Just hm' <- trace ("+++ " ++ show (e1', e2')) moreRestrictive s1 s2 ns hm e1' e2'
-                , allVarsSymbolic h1 ns e1' ->
+                | allVarsSymbolic h1 ns e1'
+                , Just hm' <- trace ("+++ " ++ show (e1', e2')) moreRestrictive s1 s2 ns hm e1' e2' ->
                   let h1' = E.insert (idName i1) e1' h1
                       h2' = E.insert (idName i2) e2' h2
                       s1' = s1 { expr_env = h1' }

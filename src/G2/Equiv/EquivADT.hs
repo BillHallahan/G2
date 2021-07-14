@@ -48,8 +48,9 @@ exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs n1
   case (e1, e2) of
     _ | e1 == e2 -> Just pairs
     -- ignore all Ticks
-    (Tick _ e1', _) -> exprPairing s1 s2 e1' e2 pairs n1 n2 False
-    (_, Tick _ e2') -> exprPairing s1 s2 e1 e2' pairs n1 n2 False
+    -- TODO pass the child value through the tick?
+    (Tick _ e1', _) -> exprPairing s1 s2 e1' e2 pairs n1 n2 child
+    (_, Tick _ e2') -> exprPairing s1 s2 e1 e2' pairs n1 n2 child
     -- TODO adjusting Var cases to avoid loops
     (Var i1, Var i2) | (idName i1) `elem` n1
                      , (idName i2) `elem` n2 -> Just (HS.insert (Ob child e1 e2) pairs)
