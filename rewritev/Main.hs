@@ -26,11 +26,17 @@ import Control.Exception
 
 import Data.List
 
+import ZenoSuite
+
 main :: IO ()
 main = do
     as <- getArgs
 
-    runWithArgs as
+    if length as == 1 then
+        let n = read (head as) :: Int
+        in ZenoSuite.suite n
+    else
+        runWithArgs as
 
 runWithArgs :: [String] -> IO ()
 runWithArgs as = do
