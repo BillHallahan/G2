@@ -581,7 +581,7 @@ checkRule config init_state bindings total rule = do
       ns_l = HS.fromList $ E.keys $ h_l
       ns_r = HS.fromList $ E.keys $ h_r
   S.SomeSolver solver <- initSolver config
-  putStrLn "***\n***\n***"
+  putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
   putStrLn $ show $ curr_expr rewrite_state_l'
   putStrLn $ show $ curr_expr rewrite_state_r'
   let rewrite_state_l'' = newStateH rewrite_state_l'

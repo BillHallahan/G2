@@ -170,7 +170,7 @@ drop x xs =
     Z -> xs
     S x' -> case xs of
       [] -> []
-      _:xs' -> drop x xs
+      _:xs' -> drop x' xs'
 {-
 drop Z xs = xs
 drop _ [] = []
