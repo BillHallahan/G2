@@ -370,8 +370,8 @@ verifyLoop' solver ns_pair sh1 sh2 prev =
       putStrLn $ show (exprExtract s1, exprExtract s2)
       return Nothing
     Just obs -> do
-      putStr "J! "
-      putStrLn $ show (exprExtract s1, exprExtract s2)
+      --putStr "J! "
+      --putStrLn $ show (exprExtract s1, exprExtract s2)
       let (obs_g, obs_u) = partition canUseGuarded obs
           (obs_i, obs_u') = partition canUseInduction obs_u
           states_g = map (stateWrap s1 s2) obs_g
@@ -581,6 +581,7 @@ checkRule config init_state bindings total rule = do
       ns_l = HS.fromList $ E.keys $ h_l
       ns_r = HS.fromList $ E.keys $ h_r
   S.SomeSolver solver <- initSolver config
+  putStrLn "***\n***\n***"
   putStrLn $ show $ curr_expr rewrite_state_l'
   putStrLn $ show $ curr_expr rewrite_state_r'
   let rewrite_state_l'' = newStateH rewrite_state_l'
@@ -658,6 +659,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
     -- I still need the correspondence info, though
     -- TODO neither case here is ever hit on p04 n
     -- neither of the case-var lines is ever hit either
+    {-
     (Case e1'@(Var i1') i1 a1, Case e2'@(Var i2') i2 a2)
                 | E.isSymbolic (idName i1') h1
                 , E.isSymbolic (idName i2') h2
@@ -687,6 +689,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                       s2' = s2 { expr_env = h2' }
                       mf hm_ (e1_, e2_) = moreRestrictiveAltOld s1' s2' ns hm_ e1_ e2_
                   in trace ("^^^ " ++ show (e1, e2)) $ foldM mf hm' (zip a1 a2)
+    -}
     {-
     (Case (Var i) i1 a1, _)
                 | not $ E.isSymbolic (idName i) h1
