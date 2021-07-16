@@ -228,7 +228,7 @@ envModSumModGuts :: Maybe HscTarget
                  -> [FilePath]
                  -> G2.TranslationConfig 
                  -> IO EnvModSumModGuts
-envModSumModGuts hsc proj src tr_con = do
+envModSumModGuts hsc proj src tr_con =
   runGhc (Just libdir) $ do
       _ <- loadProj hsc proj src [] tr_con
       env <- getSession
