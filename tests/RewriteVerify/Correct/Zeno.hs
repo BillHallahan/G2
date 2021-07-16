@@ -748,8 +748,21 @@ fastFib :: Nat -> Nat
 fastFib Z = Z
 fastFib (S n) = fastFibHelper n (S Z) Z
 
+units :: [()]
+units = ():units
+
+nop :: a -> a
+nop x = x
+
+cycle :: a -> [a]
+cycle x = x:(cycle x)
+
 {-# RULES
 "fib" slowFib = fastFib
+"units" forall x . units ++ [x] = units
+"unitEq" forall x . nop x = ()
+"cycleEq" forall x y . (cycle x) ++ [y] = cycle x
+"unitCycle" forall y . (cycle ()) ++ [y] = cycle ()
   #-}
 
 -- TODO forcing functions, make sure these work

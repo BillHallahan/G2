@@ -370,8 +370,8 @@ verifyLoop' solver ns_pair sh1 sh2 prev =
       putStrLn $ show (exprExtract s1, exprExtract s2)
       return Nothing
     Just obs -> do
-      --putStr "J! "
-      --putStrLn $ show (exprExtract s1, exprExtract s2)
+      putStr "J! "
+      putStrLn $ show (exprExtract s1, exprExtract s2)
       let (obs_g, obs_u) = partition canUseGuarded obs
           (obs_i, obs_u') = partition canUseInduction obs_u
           states_g = map (stateWrap s1 s2) obs_g
