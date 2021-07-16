@@ -90,7 +90,7 @@ translateLoaded proj src libs tr_con config = do
 
   -- Now the stuff with the actual target
   (_, _, exg2) <- hskToG2ViaEMS tr_con tar_ems lib_nm lib_tnm
-  let mb_modname = Just . last . map snd $ exg2_mod_names exg2
+  let mb_modname = lookup (head src) $ exg2_mod_names exg2
   let h_exp = exg2_exports exg2
 
   -- putStrLn $ "exg2_deps = " ++ show (exg2_deps exg2)
