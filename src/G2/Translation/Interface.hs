@@ -4,6 +4,7 @@ module G2.Translation.Interface ( translateLoaded
 import DynFlags
 
 import Control.Monad.Extra
+import qualified Data.HashSet as HS
 import Data.List
 import Data.Maybe
 import qualified Data.Text as T
@@ -26,7 +27,7 @@ translateBase tr_con config extra hsc = do
   -- For base we have the advantage of knowing apriori the structure
   -- So we can list the (proj, file) pairings
   let base_inc = baseInclude config
-  let bases = base config ++ extra
+  let bases = nub $ base config ++ extra
 
   translateLibPairs specialConstructors specialTypeNames tr_con config emptyExtractedG2 hsc base_inc bases
 
