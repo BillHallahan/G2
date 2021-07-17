@@ -30,7 +30,7 @@ mkConfigTestWithMapIO :: IO Config
 mkConfigTestWithMapIO = do
     config <- mkConfigTestIO
     homedir <- getHomeDirectory
-    return $ config { base = base config ++ baseExtra homedir }
+    return $ config { base = base config }
 
 
 eqIgT :: Expr -> Expr -> Bool
