@@ -146,9 +146,7 @@ baseExtra :: FilePath -> [FilePath]
 baseExtra root =
     baseSimple root
     ++
-    [ root ++ "/.g2/base-4.9.1.0/Data/Internal/Map.hs"
-    , root ++ "/.g2/base-4.9.1.0/Data/Internal/Set.hs"
-    , root ++ "/.g2/base-4.9.1.0/GHC/IO/Unsafe.hs"
+    [ root ++ "/.g2/base-4.9.1.0/GHC/IO/Unsafe.hs"
     ]
 
 extraDefaultIncludePaths :: FilePath -> [FilePath]
