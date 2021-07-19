@@ -152,6 +152,17 @@ loc_name = Name (DT.pack "STACK") Nothing 0 Nothing
 rec_name :: Name
 rec_name = Name (DT.pack "REC") Nothing 0 Nothing
 
+-- TODO do I need to be careful about the index?
+identity_name :: Name
+identity_name = Name (DT.pack "VAR") Nothing 1 Nothing
+
+-- TODO type issues?
+identity_id :: Id
+identity_id = Id identity_name TyUnknown
+
+identity_fn :: Expr
+identity_fn = Lam TermL identity_id (Var identity_id)
+
 wrapRecursiveCall :: Name -> Expr -> Expr
 -- TODO attempt to prevent double wrapping
 wrapRecursiveCall n e@(Tick (NamedLoc n'@(Name t _ _ _)) e') =
@@ -160,7 +171,7 @@ wrapRecursiveCall n e@(Tick (NamedLoc n'@(Name t _ _ _)) e') =
   else Tick (NamedLoc n') $ wrcHelper n e'
 wrapRecursiveCall n e@(Var (Id n' _)) =
   if n == n'
-  then Tick (NamedLoc rec_name) e
+  then Tick (NamedLoc rec_name) (App identity_fn e)
   else wrcHelper n e
 wrapRecursiveCall n e = wrcHelper n e
 
