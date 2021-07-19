@@ -171,7 +171,7 @@ wrapRecursiveCall n e@(Tick (NamedLoc n'@(Name t _ _ _)) e') =
   else Tick (NamedLoc n') $ wrcHelper n e'
 wrapRecursiveCall n e@(Var (Id n' _)) =
   if n == n'
-  then Tick (NamedLoc rec_name) (App identity_fn e)
+  then Tick (NamedLoc rec_name) e -- (App identity_fn e)
   else wrcHelper n e
 wrapRecursiveCall n e = wrcHelper n e
 
@@ -627,17 +627,17 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
     -- TODO altered order
     (Var i1, Var i2) | HS.member (idName i1) ns
                      , idName i1 == idName i2 -> Just hm
-                     | HS.member (idName i1) ns -> Nothing
-                     | HS.member (idName i2) ns -> Nothing
+                     | HS.member (idName i1) ns -> trace ("MISMATCH A " ++ show (idName i1)) Nothing
+                     | HS.member (idName i2) ns -> trace ("MISMATCH B " ++ show (idName i2)) Nothing
     (Var i, _) | E.isSymbolic (idName i) h1
                , Nothing <- HM.lookup i hm -> Just (HM.insert i (inlineEquiv h2 ns e2) hm)
                | E.isSymbolic (idName i) h1
                , Just e <- HM.lookup i hm
                , e == inlineEquiv h2 ns e2 -> Just hm
                -- this last case means there's a mismatch
-               | E.isSymbolic (idName i) h1 -> Nothing
+               | E.isSymbolic (idName i) h1 -> trace ("MISMATCH C " ++ show (idName i)) Nothing
                | not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
-    (_, Var i) | E.isSymbolic (idName i) h2 -> Nothing -- sym replaces non-sym
+    (_, Var i) | E.isSymbolic (idName i) h2 -> trace ("MISMATCH D " ++ show (idName i)) Nothing -- sym replaces non-sym
                | not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
     (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s1 s2 ns hm f1 f2
                            , Just hm_a <- moreRestrictive s1 s2 ns hm_f a1 a2 -> Just hm_a
@@ -649,20 +649,20 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
     -- "forall a . a" is the same type as "forall b . b", but fails a syntactic check.
     (Data (DataCon d1 _), Data (DataCon d2 _))
                                   | d1 == d2 -> Just hm
-                                  | otherwise -> Nothing
+                                  | otherwise -> trace ("MISMATCH E " ++ show (d1, d2)) Nothing
     -- TODO potential problems with type equality checking?
     (Prim p1 t1, Prim p2 t2) | p1 == p2
                              , t1 == t2 -> Just hm
-                             | otherwise -> Nothing
+                             | otherwise -> trace ("MISMATCH F " ++ show (p1, p2)) Nothing
     (Lit l1, Lit l2) | l1 == l2 -> Just hm
-                     | otherwise -> Nothing
+                     | otherwise -> trace ("MISMATCH G " ++ show (l1, l2)) Nothing
     (Lam lu1 i1 b1, Lam lu2 i2 b2)
                 | lu1 == lu2
                 , i1 == i2 ->
                   let ns' = HS.insert (idName i1) ns
                   -- no need to insert twice over because they're equal
                   in moreRestrictive s1 s2 ns' hm b1 b2
-                | otherwise -> Nothing
+                | otherwise -> trace ("MISMATCH H " ++ show (e1, e2)) Nothing
     -- ignore types, like in exprPairing
     (Type _, Type _) -> Just hm
     -- TODO if scrutinee is symbolic var, make Alt vars symbolic
@@ -725,7 +725,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                       mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ e1_ e2_
                       l = zip a1 a2
                   in foldM mf hm' l
-    _ -> Nothing
+    _ -> trace ("MISMATCH I " ++ show (e1, e2)) Nothing
 
 inlineEquiv :: ExprEnv -> HS.HashSet Name -> Expr -> Expr
 inlineEquiv h ns v@(Var (Id n _))
@@ -765,6 +765,19 @@ mrInfo h1 h2 hm e1 e2 =
             _ -> show e2
   in a1 ++ ";;" ++ a2
 
+-- check only the names for DataAlt
+altEquiv :: AltMatch -> AltMatch -> Bool
+altEquiv (DataAlt dc1 ids1) (DataAlt dc2 ids2) =
+  let DataCon dn1 _ = dc1
+      DataCon dn2 _ = dc2
+      n1 = map idName ids1
+      n2 = map idName ids2
+  in
+  dn1 == dn2 && n1 == n2
+altEquiv (LitAlt l1) (LitAlt l2) = l1 == l2
+altEquiv Default Default = True
+altEquiv _ _ = False
+
 -- ids are the same between both sides; no need to insert twice
 moreRestrictiveAlt :: State t ->
                       State t ->
@@ -774,13 +787,13 @@ moreRestrictiveAlt :: State t ->
                       Alt ->
                       Maybe (HM.HashMap Id Expr)
 moreRestrictiveAlt s1 s2 ns hm (Alt am1 e1) (Alt am2 e2) =
-  if am1 == am2 then
+  if altEquiv am1 am2 then
   case am1 of
     DataAlt _ t1 -> let n1 = map (\(Id n _) -> n) t1
                         ns' = foldr HS.insert ns n1
                     in moreRestrictive s1 s2 ns' hm e1 e2
     _ -> moreRestrictive s1 s2 ns hm e1 e2
-  else Nothing
+  else trace ("MISMATCH J " ++ show (e1, e2)) Nothing
 
 -- TODO for use when the scrutinee is a symbolic variable
 -- TODO do both old and new need to be symbolic?  Just the old?
