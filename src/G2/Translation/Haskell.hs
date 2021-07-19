@@ -12,6 +12,12 @@ module G2.Translation.Haskell
     , hskToG2ViaCgGutsFromFile
     , mkCgGutsClosure
     , mkModDetailsClosure
+
+    , EnvModSumModGuts
+    , envModSumModGuts
+    , hskToG2ViaEMS
+    , envModSumModGutsImports
+
     , mergeExtractedG2s
     , mkIOString
     , prim_list
@@ -169,8 +175,19 @@ hskToG2ViaCgGutsFromFile :: Maybe HscTarget
   -> G2.TranslationConfig
   -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
 hskToG2ViaCgGutsFromFile hsc proj src nm tm tr_con = do
-  closures <- mkCgGutsModDetailsClosuresFromFile hsc proj src tr_con
-  return $ hskToG2ViaCgGuts nm tm closures tr_con
+  ems <- envModSumModGuts hsc proj src tr_con
+  hskToG2ViaEMS tr_con ems nm tm
+
+hskToG2ViaEMS :: G2.TranslationConfig
+              -> EnvModSumModGuts
+              -> G2.NameMap
+              -> G2.TypeNameMap
+              -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
+hskToG2ViaEMS tr_con ems nm tm = do
+  closures <- mkCgGutsModDetailsClosuresFromEMS tr_con ems
+  let (nm', tm', ex_g2) = hskToG2ViaCgGuts nm tm closures tr_con
+  return (nm', tm', ex_g2)
+
 
 
 hskToG2ViaCgGuts :: G2.NameMap
@@ -204,14 +221,15 @@ cgGutsModDetailsClosureToModGutsClosure cg md =
     }
 
 
-mkCgGutsModDetailsClosuresFromFile :: Maybe HscTarget
-  -> [FilePath]
-  -> [FilePath]
-  -> G2.TranslationConfig 
-  -> IO [(G2.CgGutsClosure, G2.ModDetailsClosure)]
-#if __GLASGOW_HASKELL__ < 806
-mkCgGutsModDetailsClosuresFromFile hsc proj src tr_con = do
-  (env, msums, modgutss) <- runGhc (Just libdir) $ do
+data EnvModSumModGuts = EnvModSumModGuts HscEnv [ModSummary] [ModGuts]
+
+envModSumModGuts :: Maybe HscTarget
+                 -> [FilePath]
+                 -> [FilePath]
+                 -> G2.TranslationConfig 
+                 -> IO EnvModSumModGuts
+envModSumModGuts hsc proj src tr_con =
+  runGhc (Just libdir) $ do
       _ <- loadProj hsc proj src [] tr_con
       env <- getSession
 
@@ -221,27 +239,21 @@ mkCgGutsModDetailsClosuresFromFile hsc proj src tr_con = do
       parsed_mods <- mapM parseModule mod_graph
       typed_mods <- mapM typecheckModule parsed_mods
       desug_mods <- mapM desugarModule typed_mods
-      return (env, msums, map coreModule desug_mods)
+      return . EnvModSumModGuts env msums $ map coreModule desug_mods
 
+envModSumModGutsImports :: EnvModSumModGuts -> [String]
+envModSumModGutsImports (EnvModSumModGuts _ ms _) = concatMap (map (\(_, L _ m) -> moduleNameString m) . ms_textual_imps) ms
+
+mkCgGutsModDetailsClosuresFromEMS :: G2.TranslationConfig -> EnvModSumModGuts -> IO [( G2.CgGutsClosure, G2.ModDetailsClosure)]
+#if __GLASGOW_HASKELL__ < 806
+mkCgGutsModDetailsClosuresFromEMS tr_con (EnvModSumModGuts env msums modgutss) = do
   simplgutss <- mapM (if G2.simpl tr_con then hscSimplify env else return . id) modgutss
   tidys <- mapM (tidyProgram env) simplgutss
   let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure msums (mg_binds mg) cg
-                                      , mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
+                                          , mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
   return pairs
 #else
-mkCgGutsModDetailsClosuresFromFile hsc proj src tr_con = do
-  (env, msums, modgutss) <- runGhc (Just libdir) $ do
-      _ <- loadProj hsc proj src [] tr_con
-      env <- getSession
-
-      mod_graph <- getModuleGraph
-      let msums = convertModuleGraph mod_graph
-      parsed_mods <- mapM parseModule $ mgModSummaries mod_graph
-      typed_mods <- mapM typecheckModule parsed_mods
-      desug_mods <- mapM desugarModule typed_mods
-
-      return (env, msums, map coreModule desug_mods)
-
+mkCgGutsModDetailsClosuresFromEMS tr_con (EnvModSumModGuts env msums modgutss) = do
   simplgutss <- mapM (if G2.simpl tr_con then hscSimplify env [] else return . id) modgutss
   tidys <- mapM (tidyProgram env) simplgutss
   let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure msums (mg_binds mg) cg

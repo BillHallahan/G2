@@ -79,7 +79,7 @@ length (x :+: xs) = 1 + length xs
 such that the following type checks:
 
 \begin{code}
-
+{-@ l0 :: { r:List Int | size r == 0 } @-}
 l0     = Emp :: List Int
 \end{code}
 
@@ -108,7 +108,8 @@ or specification (types, measures) that you need.
     sizeXs (Emp)            = 0
     sizeXs ((:+:) xs xss)   = size xs + sizeXs xss
   @-}
-    
+
+{-@ concat    :: List (List a) -> List a @-}
 concat Emp = Emp
 concat (xs :+: Emp) = xs
 concat (xs :+: (ys :+: xss)) = concat ((append xs ys) :+: xss)

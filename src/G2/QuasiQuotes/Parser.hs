@@ -36,7 +36,7 @@ symbVarRegex :: Regex
 symbVarRegex = mkRegex $ "[?][(]" ++ paddedIdRs ++ "::[^!?|]*"
 
 lamDividerRegex :: Regex
-lamDividerRegex = mkRegex $ "->" ++ whiteSpaceRs ++ "[?]"
+lamDividerRegex = mkRegex $ "->" ++ whiteSpaceRs ++ "*" ++ "[?]"
 
 dividerRegex :: Regex
 dividerRegex = mkRegex $ "[" ++ bar ++ "]"

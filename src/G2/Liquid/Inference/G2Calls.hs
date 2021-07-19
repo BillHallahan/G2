@@ -649,7 +649,7 @@ type MeasureExs = HM.HashMap Expr (HM.HashMap [Name] Expr)
 
 type MaxMeasures = Int
 
-evalMeasures :: (InfConfigM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> [Expr] -> m MeasureExs
+evalMeasures :: (InfConfigM m, ProgresserM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> [Expr] -> m MeasureExs
 evalMeasures init_meas lrs ghci es = do
     config <- g2ConfigM
     let config' = config { counterfactual = NotCounterfactual }
@@ -700,14 +700,15 @@ isTotal tenv = getAll . evalASTs isTotal'
 
 evalMeasures' :: ( InfConfigM m
                  , MonadIO m
+                 , ProgresserM m
                  , ASTContainer t Expr
                  , ASTContainer t Type
                  , Named t
                  , Solver solver
                  , Show t) => State t -> Bindings -> solver -> Config -> Measures -> TCValues -> MeasureExs -> Expr -> m MeasureExs
 evalMeasures' s bindings solver config meas tcv init_meas e =  do
-    infC <- infConfigM
-    let m_sts = evalMeasures'' (max_meas_comp infC) s bindings meas tcv e
+    MaxSize max_meas <- maxSynthSizeM
+    let m_sts = evalMeasures'' (fromInteger max_meas) s bindings meas tcv e
 
     foldM (\meas_exs (ns, e_in, s_meas) -> do
         case HM.lookup ns =<< HM.lookup e_in meas_exs of
@@ -735,7 +736,7 @@ evalMeasures'' mx_meas s b m tcv e =
                                   -- has the appropriate type
                                   t_me = typeOf . snd . last $ ns_me
                               in
-                              case chainReturnType (typeOf e) ns_me of
+                              case chainReturnType (typeOf e) (map snd ns_me) of
                                   Just (_, vms) -> Just (ns_me, vms)
                                   Nothing -> Nothing) meas_comps
     in
@@ -774,19 +775,19 @@ formMeasureComps' !mx in_t existing ns_me
       let 
           r = [ ne1:ne2 | ne1@(n1, e1) <- ns_me
                         , ne2 <- existing
-                        , case (filter notLH $ anonArgumentTypes e1, fmap fst $ chainReturnType in_t ne2) of
+                        , case (filter notLH $ anonArgumentTypes e1, fmap fst . chainReturnType in_t $ map snd ne2) of
                             ([at], Just t) -> PresType t .:: at
                             (at, t) -> False ]
       in
       formMeasureComps' (mx - 1) in_t (r ++ existing) ns_me
 
-chainReturnType :: Type -> [(Name, Expr)] -> Maybe (Type, [M.Map Name Type])
+chainReturnType :: Type -> [Expr] -> Maybe (Type, [M.Map Name Type])
 chainReturnType t ne =
     foldM (\(t', vms) et -> 
                 case filter notLH . anonArgumentTypes $ PresType et of
                     [at]
                         | (True, vm) <- t' `specializes` at -> Just (applyTypeMap vm . returnType $ PresType et, vm:vms)
-                    [at] ->  Nothing) (t, []) (map typeOf . map snd $ reverse ne)
+                    [at] ->  Nothing) (t, []) (map typeOf $ reverse ne)
 
 notLH :: Type -> Bool
 notLH ty

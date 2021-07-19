@@ -367,7 +367,7 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
                           Right errs -> error errs
 
         (ce, is, f_i, ng') = mkCurrExpr Nothing Nothing ie (type_classes s) (name_gen bindings)
-                                      (expr_env s) (deepseq_walkers bindings) (known_values s) config
+                                      (expr_env s) (type_env s) (deepseq_walkers bindings) (known_values s) config
 
         lhs' = lhs { state = s { expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) (expr_env s) is
                                , curr_expr = CurrExpr Evaluate ce
@@ -420,7 +420,7 @@ runLHG2 config red hal ord solver simplifier pres_names init_id final_st binding
                          , violated = ais}) ->
                 (ExecRes { final_state =
                               s {track = 
-                                    mapAbstractedInfoFCs (subVarFuncCall (model s) (expr_env s) (type_classes s))
+                                    mapAbstractedInfoFCs (subVarFuncCall (model s) (expr_env final_st) (type_classes s))
                                     $ track s
                                 }
                          , conc_args = es
@@ -449,9 +449,11 @@ lhReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
         state_name = Name "state" Nothing 0 Nothing
 
         abs_ret_name = Name "abs_ret" Nothing 0 Nothing
+
+        non_red = NonRedPCRed :|: NonRedPCRedConst
     in
     if higherOrderSolver config == AllFuncs then
-        ( SomeReducer NonRedPCRed
+        ( SomeReducer non_red
             <~| (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng ))
             <~| (case logStates config of
                   Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed :<~ Logger fp)
@@ -466,7 +468,7 @@ lhReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
         , SomeOrderer limOrd)
     else
         (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng)
-            <~| (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng))
+            <~| (SomeReducer (non_red :<~| TaggerRed state_name ng))
             <~| (case logStates config of
                   Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed :<~ Logger fp)
                   Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed))

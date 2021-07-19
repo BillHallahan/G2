@@ -1,5 +1,3 @@
--- cmd_line = (--max-measures 2)
-
 module MeasComp where
 
 {-@ f :: x:[Int] -> { y:[Int] | len x == len y } @-}

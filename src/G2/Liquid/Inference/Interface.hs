@@ -191,9 +191,9 @@ iterativeInference con ghci m_modname lrs nls meas_ex gs fc = do
                 Left cex -> return $ Left cex
                 Right fc' -> do
                     logEventStartM UpdateMeasures
-                    r_meas_ex' <- updateMeasureExs r_meas_ex lrs ghci fc'
                     logEventEndM
                     incrMaxSynthSizeI
+                    r_meas_ex' <- lift . lift . lift $ updateMeasureExs {- r_meas_ex -} HM.empty lrs ghci {- fc' -} (unionFC fc' r_fc)
                     iterativeInference con ghci m_modname lrs nls r_meas_ex' gs (unionFC fc' r_fc)
 
 
@@ -311,13 +311,13 @@ inferenceB con ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls = do
                                 blk_mdls'' = blk_mdls' `unionBlockedModels` new_blk_mdls
                             liftIO $ putStrLn "Before genMeasureExs"
                             logEventStartM UpdateMeasures
-                            meas_ex' <- updateMeasureExs meas_ex lrs ghci fc'
+                            meas_ex' <- lift . lift . lift $ updateMeasureExs meas_ex lrs ghci fc'
                             logEventEndM
                             liftIO $ putStrLn "After genMeasureExs"
 
                             inferenceB con ghci m_modname lrs nls evals' meas_ex' gs (unionFC fc fc') max_fc blk_mdls''
 
-                Crash _ _ -> error "inferenceB: LiquidHaskell crashed"
+                Crash e1 e2 -> error $ "inferenceB: LiquidHaskell crashed" ++ "\n" ++ show e1 ++ "\n" ++ e2
         SynthFail sf_fc -> do
             liftIO . putStrLn $ "synthfail fc = " ++ (printFCs sf_fc)
             return $ (Raise meas_ex fc (unionFC max_fc sf_fc), evals')
@@ -399,10 +399,6 @@ refineUnsafe ghci m_modname lrs gs bad = do
         putStrLn $ "--- Generated Counterexamples and Constraints for " ++ show bad ++ " ---"
         putStrLn "res = "
         printCE res
-
-        putStrLn "no_viol = "
-        mapM (putStrLn . printFC) no_viol
-
 
     let res' = filter (not . hasAbstractedArgError) res
 
@@ -504,7 +500,6 @@ genNewConstraints ghci m lrs n = do
     let (exec_res', no_viol) = partition (true_assert . final_state) exec_res
         
         allCCons = noAbsStatesToCons i $ exec_res' ++ if use_extra_fcs infconfig then no_viol else []
-
     return $ (map (lhStateToCE i) exec_res', allCCons)
 
 getCEx :: MonadIO m =>
@@ -561,7 +556,7 @@ checkNewConstraints ghci lrs cexs = do
         res'@(_:_) -> return . Left $ res'
         _ -> return . Right . unionsFC . map fromSingletonFC $ (rights res) ++ if use_extra_fcs infconfig then res2 else []
 
-updateMeasureExs :: (InfConfigM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> FuncConstraints -> m MeasureExs
+updateMeasureExs :: (InfConfigM m, ProgresserM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> FuncConstraints -> m MeasureExs
 updateMeasureExs meas_ex lrs ghci fcs =
     let
         es = concatMap (\fc ->

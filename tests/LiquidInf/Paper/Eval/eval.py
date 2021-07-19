@@ -22,15 +22,15 @@ def run_infer(file, name, timeout):
     f.close();
 
     # MAKES EVERYTHING AFTER THIS TIMEOUT QUICKLY
-    timeout = "1";
+    # timeout = "1";
 
     # run the test without extra fc
-    # no_fc_start_time = time.perf_counter();
-    # no_fc_res = call_infer_process(file, timeout, ["--no-use-extra-fc"])
-    # no_fc_end_time = time.perf_counter();
-    # no_fc_elapsed = no_fc_end_time - no_fc_start_time;
-    # no_fc_check_safe = no_fc_res.splitlines()[-2].decode('utf-8');
-    # no_fc_counts = get_opt_counts(no_fc_res);
+    no_fc_start_time = time.perf_counter();
+    no_fc_res = call_infer_process(file, timeout, ["--no-use-extra-fc"])
+    no_fc_end_time = time.perf_counter();
+    no_fc_elapsed = no_fc_end_time - no_fc_start_time;
+    no_fc_check_safe = no_fc_res.splitlines()[-2].decode('utf-8');
+    no_fc_counts = get_opt_counts(no_fc_res);
     (_, _, no_fc_counts, no_fc_elapsed) = call_with_timing(file, timeout, ["--no-use-extra-fc"])
 
     no_lev_dec_counts = empty_counts()
@@ -299,19 +299,22 @@ def main():
     # log = log_test
 
 
-    (log_book, safe_book, num_book) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Book_Inv", "240");
+    (log_book, safe_book, num_book) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Book_LIA_Inv", "240");
     print(str(safe_book) + "/" + str(num_book) + " Safe");
+
+    (log_book_sets, safe_book_sets, num_book_sets) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Book_Sets", "240");
+    print(str(safe_book_sets) + "/" + str(num_book_sets) + " Safe");
 
     (log_hw, safe_hw, num_hw) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_HW", "240");
     print(str(safe_hw) + "/" + str(num_hw) + " Safe");
 
-    (log_inv, safe_inv, num_inv) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_Invented", "240");
+    (log_inv, safe_inv, num_inv) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_LIA_Invented", "240");
     print(str(safe_inv) + "/" + str(num_inv) + " Safe");
 
-    (log_kmeans, safe_kmeans, num_kmeans) = test_pos_folder("tests/LiquidInf/Paper/Eval", "720");
+    (log_kmeans, safe_kmeans, num_kmeans) = test_pos_folder("tests/LiquidInf/Paper/Eval", "1080");
     print(str(safe_kmeans) + "/" + str(num_kmeans) + " Safe");
 
-    log = log_book + log_hw + log_inv + log_kmeans
+    log = log_book + log_book_sets + log_hw + log_inv + log_kmeans
 
     create_table(log)
     create_simple_table(log)

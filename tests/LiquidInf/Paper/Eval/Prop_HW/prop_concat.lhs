@@ -85,6 +85,7 @@ l2     = 2 :+: l1
 
 l1     = 1 :+: l0
 
+{-@ l0 :: { r:List Int | size r == 0 } @-}
 l0     = Emp :: List Int
 \end{code}
 

@@ -283,6 +283,10 @@ dictForType bm (TyVar (Id n _)) =
     case lookup n bm of
         Just (_, dict) -> return (Var dict)
         Nothing -> error "Unaccounted for TyVar in dictForType"
+dictForType _ t
+    | hasFuncType $ PresType t = do
+        flse <- mkFalseE
+        return $ Assume Nothing flse (Prim Undefined TyUnknown)
 dictForType _ t = error $ "Unsupported type in dictForType" ++ show t
 
 -- | Returns the type for the StructEq func.

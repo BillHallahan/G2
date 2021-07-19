@@ -99,6 +99,11 @@ data Sort = SortInt
           | SortFunc [Sort] Sort
           deriving (Show, Eq, Ord)
 
+(.=.) :: SMTAST -> SMTAST -> SMTAST
+x .=. y
+  | x == y = VBool True
+  | otherwise = x := y
+
 (.&&.) :: SMTAST -> SMTAST -> SMTAST
 (VBool True) .&&. x = x
 x .&&. (VBool True) = x
@@ -134,6 +139,10 @@ mkSMTUnion s1 s2 = Func "union" [s1, s2]
 
 mkSMTIntersection :: SMTAST -> SMTAST -> SMTAST
 mkSMTIntersection s1 s2 = Func "intersection" [s1, s2]
+
+mkSMTSingleton :: SMTAST -> Sort -> Sort -> SMTAST
+mkSMTSingleton mem srt srt2 =
+    ArrayStore (ArrayConst (VBool False) srt srt2) mem (VBool True)
 
 mkSMTIsSubsetOf :: SMTAST -> SMTAST -> SMTAST
 mkSMTIsSubsetOf s1 s2 = Func "subset" [s1, s2]

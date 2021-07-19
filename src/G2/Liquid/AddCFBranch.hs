@@ -65,19 +65,13 @@ addCounterfactualBranch'' cfn
             (Assert (Just (FuncCall { funcName = fn, arguments = ars, returns = r })) a _)) = do
         sg <- cfRetValue ars rt
 
-        -- Create lambdas, to gobble up any ApplyFrames left on the stack
-        lams <- tyBindings orig_e
-
         -- If the type of b is not the same as e's type, we have no assumption,
         -- so we get a new b.  Otherwise, we just keep our current b,
         -- in case it is used in the assertion
         b' <- if typeOf b == rt then return b else freshIdN rt
 
-        let fc = FuncCall { funcName = fn, arguments = ars', returns = (Var b')}
-            e' = lams $ Let [(b', sg)] $ Tick (NamedLoc cfn) $ Assume (Just fc) a (Var b')
-            -- We add the Id's from the newly created Lambdas to the arguments list
-            lamI = map Var $ leadingLamIds e'
-            ars' = ars ++ lamI
+        let fc = FuncCall { funcName = fn, arguments = ars, returns = (Var b')}
+            e' = Let [(b', sg)] $ Tick (NamedLoc cfn) $ Assume (Just fc) a (Var b')
 
         return $ NonDet [orig_e, e']
         where
@@ -121,20 +115,6 @@ nullNonDet _ = True
 
 instFuncTickName :: Name
 instFuncTickName = Name "INST_FUNC_TICK" Nothing 0 Nothing
-
--- Creates Lambda bindings to saturate the type of the given Typed thing,
--- and a list of the bindings so they can be used elsewhere
-tyBindings :: Typed t => t -> LHStateM (Expr -> Expr)
-tyBindings t = do
-    let at = spArgumentTypes t
-    fn <- freshNamesN (length at)
-    return $ tyBindings' fn at
-
-tyBindings' :: [Name] -> [ArgType] -> Expr -> Expr
-tyBindings' _ [] = id
-tyBindings' ns (NamedType i:ts) = Lam TypeL i . tyBindings' ns ts
-tyBindings' (n:ns) (AnonType t:ts) = Lam TermL (Id n t) . tyBindings' ns ts
-tyBindings' [] _ = error "Name list exhausted in tyBindings'"
 
 argumentNames :: ExState s m => Name -> m [Name]
 argumentNames n = do
