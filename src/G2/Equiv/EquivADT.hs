@@ -27,15 +27,19 @@ data Obligation = Ob Bool Expr Expr
 
 instance Hashable Obligation
 
-proofObligations :: State t ->
+proofObligations :: (HS.HashSet Name, HS.HashSet Name) ->
+                    State t ->
                     State t ->
                     Expr ->
                     Expr ->
                     Maybe (HS.HashSet Obligation)
-proofObligations s1 s2 e1 e2 =
-  exprPairing s1 s2 e1 e2 HS.empty [] [] False
+proofObligations ns_pair s1 s2 e1 e2 =
+  exprPairing ns_pair s1 s2 e1 e2 HS.empty [] [] False
 
-exprPairing :: State t ->
+-- TODO do not allow inlining of variables in ns
+-- TODO have more cases for handling variables that are in ns?
+exprPairing :: (HS.HashSet Name, HS.HashSet Name) ->
+               State t ->
                State t ->
                Expr ->
                Expr ->
@@ -44,36 +48,38 @@ exprPairing :: State t ->
                [Name] ->
                Bool ->
                Maybe (HS.HashSet Obligation)
-exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs n1 n2 child =
+exprPairing ns_pair s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs n1 n2 child =
   case (e1, e2) of
     _ | e1 == e2 -> Just pairs
     -- ignore all Ticks
     -- TODO pass the child value through the tick?
-    (Tick _ e1', _) -> exprPairing s1 s2 e1' e2 pairs n1 n2 child
-    (_, Tick _ e2') -> exprPairing s1 s2 e1 e2' pairs n1 n2 child
+    (Tick _ e1', _) -> exprPairing ns_pair s1 s2 e1' e2 pairs n1 n2 child
+    (_, Tick _ e2') -> exprPairing ns_pair s1 s2 e1 e2' pairs n1 n2 child
     -- TODO adjusting Var cases to avoid loops
     (Var i1, Var i2) | (idName i1) `elem` n1
                      , (idName i2) `elem` n2 -> Just (HS.insert (Ob child e1 e2) pairs)
     -- TODO should the value of child carry over for Var recursion cases?
     (Var i, _) | E.isSymbolic (idName i) h1 -> Just (HS.insert (Ob child e1 e2) pairs)
                | m <- idName i
-               , Just e <- E.lookup m h1 -> exprPairing s1 s2 e e2 pairs (m:n1) n2 False
+               , not $ m `elem` (fst ns_pair)
+               , Just e <- E.lookup m h1 -> exprPairing ns_pair s1 s2 e e2 pairs (m:n1) n2 False
                -- TODO don't really need to check exclusion from the name list
                -- will terminate anyway if there's a variable cycle
                -- TODO if e1 has a cycle of length x and e2 has one of length y,
                -- termination will take up to xy recursive calls, with the worst
                -- case happening if x and y are relatively prime
-               | otherwise -> error "unmapped variable"
+               | not $ (idName i) `elem` (fst ns_pair) -> error "unmapped variable"
     (_, Var i) | E.isSymbolic (idName i) h2 -> Just (HS.insert (Ob child e1 e2) pairs)
                | m <- idName i
-               , Just e <- E.lookup m h2 -> exprPairing s1 s2 e1 e pairs n1 (m:n2) False
-               | otherwise -> error "unmapped variable"
+               , not $ m `elem` (snd ns_pair)
+               , Just e <- E.lookup m h2 -> exprPairing ns_pair s1 s2 e1 e pairs n1 (m:n2) False
+               | not $ (idName i) `elem` (snd ns_pair) -> error "unmapped variable"
     -- See note in `moreRestrictive` regarding comparing DataCons
     (App _ _, App _ _)
         | (Data (DataCon d1 _)):l1 <- unApp e1
         , (Data (DataCon d2 _)):l2 <- unApp e2 ->
             if d1 == d2 then
-                let ep = uncurry (exprPairing s1 s2)
+                let ep = uncurry (exprPairing ns_pair s1 s2)
                     ep' hs p = ep p hs n1 n2 True
                     l = zip l1 l2
                 in foldM ep' pairs l

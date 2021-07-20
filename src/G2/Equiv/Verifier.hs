@@ -212,10 +212,21 @@ tickWrap e = Tick (NamedLoc loc_name) e
 exprWrap :: Stck.Stack Frame -> Expr -> Expr
 exprWrap sk e = stackWrap sk $ tickWrap e
 
+isSWHNF :: State t -> Bool
+isSWHNF (State { expr_env = h, curr_expr = CurrExpr _ e }) =
+  let e' = stripTicks e
+  in case e' of
+    Var i -> isPrimType (typeOf e') && isExprValueForm h e'
+    _ -> isExprValueForm h e'
+
 eitherEVF :: (State t, State t) -> Bool
+eitherEVF (s1, s2) =
+  isSWHNF s1 || isSWHNF s2
+{-
 eitherEVF (s1, s2) =
   isExprValueForm (expr_env s1) (stripTicks $ exprExtract s1) ||
   isExprValueForm (expr_env s2) (stripTicks $ exprExtract s2)
+-}
 
 prepareState :: StateET -> StateET
 prepareState s =
@@ -375,7 +386,7 @@ verifyLoop' solver ns_pair sh1 sh2 prev =
   let s1 = latest sh1
       s2 = latest sh2
   in
-  case getObligations s1 s2 of
+  case getObligations ns_pair s1 s2 of
     Nothing -> do
       putStr "N! "
       putStrLn $ show (exprExtract s1, exprExtract s2)
@@ -383,6 +394,7 @@ verifyLoop' solver ns_pair sh1 sh2 prev =
     Just obs -> do
       putStr "J! "
       putStrLn $ show (exprExtract s1, exprExtract s2)
+      putStrLn $ show obs
       let (obs_g, obs_u) = partition canUseGuarded obs
           (obs_i, obs_u') = partition canUseInduction obs_u
           states_g = map (stateWrap s1 s2) obs_g
@@ -493,9 +505,12 @@ inductionRepeat ns_pair prev (s1, s2) =
   in
   if null concretized then (s1, s2) else head concretized
 
-getObligations :: State t -> State t -> Maybe [Obligation]
-getObligations s1 s2 =
-  case proofObligations s1 s2 (exprExtract s1) (exprExtract s2) of
+getObligations :: (HS.HashSet Name, HS.HashSet Name) ->
+                  State t ->
+                  State t ->
+                  Maybe [Obligation]
+getObligations ns_pair s1 s2 =
+  case proofObligations ns_pair s1 s2 (exprExtract s1) (exprExtract s2) of
     Nothing -> Nothing
     Just obs -> Just $
                 map (\(Ob c e1 e2) -> trace (show c) $ Ob c (addStackTickIfNeeded e1) (addStackTickIfNeeded e2)) $
