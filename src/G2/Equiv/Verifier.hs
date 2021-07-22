@@ -174,7 +174,7 @@ tickWrap e = Tick (NamedLoc loc_name) e
 exprWrap :: Stck.Stack Frame -> Expr -> Expr
 exprWrap sk e = stackWrap sk $ tickWrap e
 
--- TODO a Var can satisfy EVF if it's symbolic or if it's unmapped
+-- A Var counts as being in EVF if it's symbolic or if it's unmapped.
 isSWHNF :: State t -> Bool
 isSWHNF (State { expr_env = h, curr_expr = CurrExpr _ e }) =
   let e' = stripTicks e
@@ -182,8 +182,10 @@ isSWHNF (State { expr_env = h, curr_expr = CurrExpr _ e }) =
     Var _ -> isPrimType (typeOf e') && isExprValueForm h e'
     _ -> isExprValueForm h e'
 
-eitherEVF :: (State t, State t) -> Bool
-eitherEVF (s1, s2) =
+-- The conditions for expr-value form do not align exactly with SWHNF.
+-- A symbolic variable is in SWHNF only if it is of primitive type.
+eitherSWHNF :: (State t, State t) -> Bool
+eitherSWHNF (s1, s2) =
   isSWHNF s1 || isSWHNF s2
 
 prepareState :: StateET -> StateET
@@ -216,7 +218,7 @@ prevGuarded :: (StateH, StateH) -> [(StateET, StateET)]
 prevGuarded (sh1, sh2) = [(p1, p2) | p1 <- history sh1, p2 <- history sh2]
 
 prevUnguarded :: (StateH, StateH) -> [(StateET, StateET)]
-prevUnguarded = (filter (not . eitherEVF)) . prevGuarded
+prevUnguarded = (filter (not . eitherSWHNF)) . prevGuarded
 
 verifyLoop :: S.Solver solver =>
               solver ->
@@ -397,7 +399,9 @@ induction ns_pair prev (s1, s2) =
       csp = concretizeStatePair (expr_env s1, expr_env s2)
       concretized = map (uncurry csp) hm_maybe_zipped'
       -- TODO optimization:  just take the first one
-      concretized' = if null concretized then [] else [head concretized]
+      concretized' = case concretized of
+        [] -> []
+        c:_ -> [c]
       -- TODO am I using mrHelper' backward here?
       ind p p' = mrHelper' ns_pair (Just HM.empty) p p'
       -- TODO just took the full concretized list before
@@ -473,51 +477,42 @@ obligationWrap obligations =
 totalName :: [DT.Text] -> Name -> Bool
 totalName texts (Name t _ _ _) = t `elem` texts
 
+startingState :: EquivTracker -> State t -> StateH
+startingState et s =
+  let h = expr_env s
+      -- Tick wrapping for recursive and corecursive functions
+      wrap_cg = wrapAllRecursion (G.getCallGraph h) h
+      s' = s {
+      track = et
+    , curr_expr = CurrExpr Evaluate $ tickWrap $ exprExtract s
+    , expr_env = E.mapWithKey wrap_cg h
+    }
+  in newStateH s'
+
 checkRule :: Config ->
              State t ->
              Bindings ->
-             [DT.Text] ->
+             [DT.Text] -> -- names of forall'd variables required to be total
              RewriteRule ->
              IO (S.Result () ())
 checkRule config init_state bindings total rule = do
   let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
       (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
-      -- convert from State t to StateET
-      e_l = exprExtract rewrite_state_l
-      e_r = exprExtract rewrite_state_r
-      -- Tick wrapping for recursive functions
-      h_l = expr_env rewrite_state_l
-      h_r = expr_env rewrite_state_r
-      -- handle corecursion, not just direct recursion
-      wrap_l = wrapAllRecursion (G.getCallGraph h_l) h_l
-      wrap_r = wrapAllRecursion (G.getCallGraph h_r) h_r
       total_names = filter (totalName total) (map idName $ ru_bndrs rule)
       -- TODO do I still need the HashSet usage elsewhere?
       total_hs = foldr HS.insert HS.empty total_names
       EquivTracker et m _ = emptyEquivTracker
       start_equiv_tracker = EquivTracker et m total_hs
-      rewrite_state_l' = rewrite_state_l {
-                           track = start_equiv_tracker
-                         , curr_expr = CurrExpr Evaluate $ tickWrap $ e_l
-                         , expr_env = E.mapWithKey wrap_l h_l
-                         }
-      rewrite_state_r' = rewrite_state_r {
-                           track = start_equiv_tracker
-                         , curr_expr = CurrExpr Evaluate $ tickWrap $ e_r
-                         , expr_env = E.mapWithKey wrap_r h_r
-                         }
       -- the keys are the same between the old and new environments
-      ns_l = HS.fromList $ E.keys $ h_l
-      ns_r = HS.fromList $ E.keys $ h_r
+      ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
+      ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
+      rewrite_state_l' = startingState start_equiv_tracker rewrite_state_l
+      rewrite_state_r' = startingState start_equiv_tracker rewrite_state_r
   S.SomeSolver solver <- initSolver config
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
-  putStrLn $ show $ curr_expr rewrite_state_l'
-  putStrLn $ show $ curr_expr rewrite_state_r'
-  let rewrite_state_l'' = newStateH rewrite_state_l'
-      rewrite_state_r'' = newStateH rewrite_state_r'
   res <- verifyLoop solver (ns_l, ns_r)
-             [(rewrite_state_l'', rewrite_state_r'')]
-             [(rewrite_state_l'', rewrite_state_r'')]
+             [(rewrite_state_l', rewrite_state_r')]
+             [(rewrite_state_l', rewrite_state_r')]
              bindings'' config
   -- UNSAT for good, SAT for bad
   return res

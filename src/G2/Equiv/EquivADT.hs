@@ -36,17 +36,15 @@ proofObligations :: (HS.HashSet Name, HS.HashSet Name) ->
 proofObligations ns_pair s1 s2 e1 e2 =
   exprPairing ns_pair s1 s2 e1 e2 HS.empty [] [] False
 
--- TODO do not allow inlining of variables in ns
--- TODO have more cases for handling variables that are in ns?
-exprPairing :: (HS.HashSet Name, HS.HashSet Name) ->
+exprPairing :: (HS.HashSet Name, HS.HashSet Name) -> -- vars that should not be inlined on either side
                State t ->
                State t ->
                Expr ->
                Expr ->
-               HS.HashSet Obligation ->
-               [Name] ->
-               [Name] ->
-               Bool ->
+               HS.HashSet Obligation -> -- accumulator for output obligations
+               [Name] -> -- variables inlined previously on the LHS
+               [Name] -> -- variables inlined previously on the RHS
+               Bool -> -- indicates whether the exprs are immediate children of Data constructors
                Maybe (HS.HashSet Obligation)
 exprPairing ns_pair s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs n1 n2 child =
   case (e1, e2) of
@@ -62,8 +60,6 @@ exprPairing ns_pair s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 
                | m <- idName i
                , not $ m `elem` (fst ns_pair)
                , Just e <- E.lookup m h1 -> exprPairing ns_pair s1 s2 e e2 pairs (m:n1) n2 False
-               -- TODO don't really need to check exclusion from the name list
-               -- will terminate anyway if there's a variable cycle
                -- TODO if e1 has a cycle of length x and e2 has one of length y,
                -- termination will take up to xy recursive calls, with the worst
                -- case happening if x and y are relatively prime
