@@ -158,14 +158,6 @@ instance Halter EnforceProgressH () EquivTracker where
                        else return Continue
     stepHalter _ _ _ _ _ = ()
 
--- Maps higher order function calles to symbolic replacements.
--- This allows the same call to be replaced by the same Id consistently.
-{-
-data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
-                                 , saw_tick :: Maybe Int
-                                 , total :: HS.HashSet Name } deriving Show
--}
-
 emptyEquivTracker :: EquivTracker
 emptyEquivTracker = EquivTracker HM.empty Nothing HS.empty
 
@@ -194,14 +186,9 @@ instance Reducer EquivReducer () EquivTracker where
                     let
                         (v, ng') = freshId (typeOf e) ng
                         et' = HM.insert e' v et
-                        -- TODO carry over totality if function and arg are total
-                        -- unApp, make sure every arg is a symbolic var
-                        -- they also need to be total
-                        -- this case means this combination has not been tried before
-                        -- TODO are they all inlined by now?
-                        -- TODO get all the var names from inside first
+                        -- carry over totality if function and all args are total
+                        -- unApp, make sure every arg is a total symbolic var
                         -- these are exprs originally
-                        -- TODO new total not being carried over to ConcSymReducer
                         es = map exprVarName $ unApp e'
                         all_vars = foldr (&&) True $ map isJust es
                         es' = map (\(Just n) -> n) $ filter isJust es

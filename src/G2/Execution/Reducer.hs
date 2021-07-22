@@ -22,7 +22,6 @@ module G2.Execution.Reducer ( Reducer (..)
                             , SomeHalter (..)
                             , SomeOrderer (..)
 
-                            -- TODO
                             , EquivTracker (..)
 
                             -- Reducers
@@ -385,7 +384,9 @@ instance (Solver solver, Simplifier simplifier) => Reducer (StdRed solver simpli
 
 data ConcSymReducer = ConcSymReducer
 
--- TODO relocated from Equiv.G2Calls
+-- Maps higher order function calls to symbolic replacements.
+-- This allows the same call to be replaced by the same Id consistently.
+-- relocated from Equiv.G2Calls
 data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
                                  , saw_tick :: Maybe Int
                                  , total :: S.HashSet Name } deriving Show
@@ -416,7 +417,6 @@ instance Reducer ConcSymReducer () EquivTracker where
                                               (E.insert n e eenv)
                                               symbs'
                                     , symbolic_ids = symbs' ++ L.delete i symbs
-                                    -- TODO
                                     , track = EquivTracker et m total'
                                     }) dc_symbs
                 b' =  b { name_gen = ng' }
