@@ -66,7 +66,7 @@ Z     === _     = False
 (S _) === Z     = False
 (S x) === (S y) = x === y
 
--- TODO adjustment to avoid void error
+-- adjustment to avoid void error
 (<=) :: Nat -> Nat -> Bool
 (<=) x y = case x of
   Z -> True

@@ -2,7 +2,6 @@
 
 module G2.Equiv.Verifier
     ( verifyLoop
-    --, runVerifier
     , checkRule
     ) where
 
@@ -107,32 +106,6 @@ transferStateInfo s1 s2 =
        , symbolic_ids = map (\(Var i) -> i) . E.elems $ E.filterToSymbolic n_eenv
        , track = track s1 }
 
-{-
-runVerifier :: S.Solver solver =>
-               solver ->
-               String ->
-               StateET ->
-               Bindings ->
-               Config ->
-               IO (S.Result () ())
-runVerifier solver entry init_state bindings config = do
-    let tentry = DT.pack entry
-        rule = find (\r -> tentry == ru_name r) (rewrite_rules bindings)
-        rule' = case rule of
-                Just r -> r
-                Nothing -> error "not found"
-    let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule'
-        (rewrite_state_r, bindings'') = initWithRHS init_state bindings $ rule'
-    let pairs_l = symbolic_ids rewrite_state_l
-        pairs_r = symbolic_ids rewrite_state_r
-        ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
-        ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
-    verifyLoop solver (ns_l, ns_r) (zip pairs_l pairs_r)
-               [(rewrite_state_l, rewrite_state_r)]
-               [(rewrite_state_l, rewrite_state_r)]
-               bindings'' config
--}
-
 frameWrap :: Frame -> Expr -> Expr
 frameWrap (CaseFrame i alts) e = Case e i alts
 frameWrap (ApplyFrame e') e = App e e'
@@ -201,21 +174,17 @@ tickWrap e = Tick (NamedLoc loc_name) e
 exprWrap :: Stck.Stack Frame -> Expr -> Expr
 exprWrap sk e = stackWrap sk $ tickWrap e
 
+-- TODO a Var can satisfy EVF if it's symbolic or if it's unmapped
 isSWHNF :: State t -> Bool
 isSWHNF (State { expr_env = h, curr_expr = CurrExpr _ e }) =
   let e' = stripTicks e
   in case e' of
-    Var i -> isPrimType (typeOf e') && isExprValueForm h e'
+    Var _ -> isPrimType (typeOf e') && isExprValueForm h e'
     _ -> isExprValueForm h e'
 
 eitherEVF :: (State t, State t) -> Bool
 eitherEVF (s1, s2) =
   isSWHNF s1 || isSWHNF s2
-{-
-eitherEVF (s1, s2) =
-  isExprValueForm (expr_env s1) (stripTicks $ exprExtract s1) ||
-  isExprValueForm (expr_env s2) (stripTicks $ exprExtract s2)
--}
 
 prepareState :: StateET -> StateET
 prepareState s =
@@ -312,14 +281,11 @@ statePairInduction :: (State t, State t) -> Bool
 statePairInduction (s1, s2) =
   (caseRecursion $ exprExtract s1) && (caseRecursion $ exprExtract s2)
 
--- TODO another helper for induction
 concretize :: HM.HashMap Id Expr -> Expr -> Expr
 concretize hm e =
   HM.foldrWithKey (\i -> replaceVar (idName i)) e hm
 
 -- TODO also need to adjust expression environments
--- TODO do it even for ones that don't occur in the expression?
--- that should never happen
 -- TODO I also need the expr_env that will supply nested bindings
 -- h_new supplies those bindings, h_old receives them
 -- low-effort approach:  just copy everything
@@ -383,7 +349,6 @@ verifyLoop' solver ns_pair sh1 sh2 prev =
     Just obs -> do
       putStr "J! "
       putStrLn $ show (exprExtract s1, exprExtract s2)
-      putStrLn $ show obs
       let (obs_g, obs_u) = partition canUseGuarded obs
           (obs_i, obs_u') = partition canUseInduction obs_u
           states_g = map (stateWrap s1 s2) obs_g
@@ -394,22 +359,12 @@ verifyLoop' solver ns_pair sh1 sh2 prev =
           states_g' = filter (not . (moreRestrictivePair ns_pair prev_g)) states_g
           states_u' = filter (not . (moreRestrictivePair ns_pair prev_u)) states_u
           states_i' = filter (not . (induction ns_pair prev_u)) states_i
-          -- TODO new induction handling
-          --states_i' = map (inductionRepeat ns_pair prev_u) states_i
-          --states_i'' = filter (not . (moreRestrictivePair ns_pair prev_u)) states_i'
           states = states_g' ++ states_u' ++ states_i'
           -- TODO unnecessary to pass the induction states through this?
           (ready, not_ready) = partition statePairReadyForSolver states
           ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
           not_ready_h = map (\(n1, n2) -> (replaceH sh1 n1, replaceH sh2 n2)) not_ready
       res <- checkObligations solver s1 s2 ready_exprs
-      -- TODO printing symbolic ids
-      putStrLn $ show $ symbolic_ids s1
-      putStrLn $ show $ symbolic_ids s2
-      putStr "Induction State Pairs: "
-      putStrLn $ show $ map (\(r1, r2) -> (exprExtract $ inductionState r1, exprExtract $ inductionState r2)) states_i
-      putStr "Unverified: "
-      putStrLn $ show $ length states_i'
       case res of
         S.UNSAT () -> putStrLn "V?"
         _ -> putStrLn "X?"
@@ -451,48 +406,7 @@ induction ns_pair prev (s1, s2) =
       hm_maybe_list' = concat $ map (\f -> map f prev) ind_fns
       res = filter isJust hm_maybe_list'
   in
-  -- TODO
-  trace ("FIRST PART " ++ show (length hm_maybe_zipped')) $
-  trace (show $ map (\(p1, p2) -> (exprExtract p1, exprExtract p2)) concretized') $
-  trace ("SECOND PART " ++ show (length res)) $
   not $ null res
-
--- TODO goal of this is to support "branching" induction on trees
--- TODO assume that s1 and s2 are confirmed to be valid for induction
-{-
-Algorithm:
-See if induction works for the current state pair
-Replace it with a prev pair for which the induction works
-Where does the repeated induction come in?
-Insert back into the list of obligations to be solved, I think
-That comes after concretization, if that step succeeds
-What happens after the re-insertion?
-Try normal unguarded repeat matching right away, pass it on if that fails
-Evaluate it symbolically until it reaches the "recursion case" point
-Then try induction again through this same process
-
-If matching fails, return the original state pair
-If it succeeds, return the concretized state pair
-Would guarded coinduction ever be permissible on the output?
-I don't think so
-This always tries induction even if it's "the wrong approach"
--}
-inductionRepeat :: (HS.HashSet Name, HS.HashSet Name) ->
-                   [(StateET, StateET)] ->
-                   (StateET, StateET) ->
-                   (StateET, StateET)
-inductionRepeat ns_pair prev (s1, s2) =
-  let s1' = inductionState s1
-      s2' = inductionState s2
-      prev' = filter statePairInduction prev
-      prev'' = map (\(p1, p2) -> (inductionState p1, inductionState p2)) prev'
-      hm_maybe_list = map (mrHelper' ns_pair (Just HM.empty) (s1', s2')) prev''
-      hm_maybe_zipped = zip hm_maybe_list prev'
-      hm_maybe_zipped' = [(hm, p) | (Just hm, p) <- hm_maybe_zipped]
-      csp = concretizeStatePair (expr_env s1, expr_env s2)
-      concretized = map (uncurry csp) hm_maybe_zipped'
-  in
-  if null concretized then (s1, s2) else head concretized
 
 getObligations :: (HS.HashSet Name, HS.HashSet Name) ->
                   State t ->
@@ -502,7 +416,7 @@ getObligations ns_pair s1 s2 =
   case proofObligations ns_pair s1 s2 (exprExtract s1) (exprExtract s2) of
     Nothing -> Nothing
     Just obs -> Just $
-                map (\(Ob c e1 e2) -> trace (show c) $ Ob c (addStackTickIfNeeded e1) (addStackTickIfNeeded e2)) $
+                map (\(Ob c e1 e2) -> Ob c (addStackTickIfNeeded e1) (addStackTickIfNeeded e2)) $
                 HS.toList obs
 
 addStackTickIfNeeded :: Expr -> Expr
@@ -669,56 +583,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                 | otherwise -> Nothing
     -- ignore types, like in exprPairing
     (Type _, Type _) -> Just hm
-    -- TODO if scrutinee is symbolic var, make Alt vars symbolic
-    -- TODO the recursive check is a little redundant
-    -- I still need the correspondence info, though
-    -- TODO neither case here is ever hit on p04 n
-    -- neither of the case-var lines is ever hit either
-    {-
-    (Case e1'@(Var i1') i1 a1, Case e2'@(Var i2') i2 a2)
-                | E.isSymbolic (idName i1') h1
-                , E.isSymbolic (idName i2') h2
-                , Just hm' <- moreRestrictive s1 s2 ns hm e1' e2' ->
-                  let h1' = E.insert (idName i1) e1' h1
-                      h2' = E.insert (idName i2) e2' h2
-                      s1' = s1 { expr_env = h1' }
-                      s2' = s2 { expr_env = h2' }
-                      mf hm_ (e1_, e2_) = moreRestrictiveAltSym s1' s2' ns hm_ e1_ e2_
-                  in trace ("$$$ " ++ show (e1, e2)) $ foldM mf hm' (zip a1 a2)
-    -- TODO what if only old side is symbolic?
-    (Case e1'@(Var i1') i1 a1, Case e2' i2 a2)
-                | E.isSymbolic (idName i1') h1
-                , Just hm' <- moreRestrictive s1 s2 ns hm e1' e2' ->
-                  let h1' = E.insert (idName i1) e1' h1
-                      h2' = E.insert (idName i2) e2' h2
-                      s1' = s1 { expr_env = h1' }
-                      s2' = s2 { expr_env = h2' }
-                      mf hm_ (e1_, e2_) = moreRestrictiveAltOld s1' s2' ns hm_ e1_ e2_
-                  in trace ("!!! " ++ show (e1, e2)) $ foldM mf hm' (zip a1 a2)
-    (Case e1' i1 a1, Case e2' i2 a2)
-                | allVarsSymbolic h1 ns e1'
-                , Just hm' <- trace ("+++ " ++ show (e1', e2')) moreRestrictive s1 s2 ns hm e1' e2' ->
-                  let h1' = E.insert (idName i1) e1' h1
-                      h2' = E.insert (idName i2) e2' h2
-                      s1' = s1 { expr_env = h1' }
-                      s2' = s2 { expr_env = h2' }
-                      mf hm_ (e1_, e2_) = moreRestrictiveAltOld s1' s2' ns hm_ e1_ e2_
-                  in trace ("^^^ " ++ show (e1, e2)) $ foldM mf hm' (zip a1 a2)
-    -}
-    {-
-    (Case (Var i) i1 a1, _)
-                | not $ E.isSymbolic (idName i) h1
-                , not $ HS.member (idName i) ns
-                , Just e <- E.lookup (idName i) h1 ->
-                  trace ("%%% " ++ show (e1, e2)) $
-                  moreRestrictive s1 s2 ns hm (Case e i1 a1) e2
-    (_, Case (Var i) i2 a2)
-                | not $ E.isSymbolic (idName i) h2
-                , not $ HS.member (idName i) ns
-                , Just e <- E.lookup (idName i) h2 ->
-                  trace ("&&& " ++ show (e1, e2)) $
-                  moreRestrictive s1 s2 ns hm e1 (Case e i2 a2)
-    -}
+    -- TODO if scrutinee is symbolic var, make Alt vars symbolic?
     (Case e1' i1 a1, Case e2' i2 a2)
                 | Just hm' <- moreRestrictive s1 s2 ns hm e1' e2' ->
                   -- add the matched-on exprs to the envs beforehand
@@ -737,37 +602,6 @@ inlineEquiv h ns v@(Var (Id n _))
     | HS.member n ns = v
     | Just e <- E.lookup n h = inlineEquiv h ns e
 inlineEquiv h ns e = modifyChildren (inlineEquiv h ns) e
-
--- TODO quick implementation
--- may not be entirely accurate
--- TODO inlineVars is not what it sounds like
--- this is no good currently
--- TODO should I allow ns?
-allVarsSymbolic :: ExprEnv -> HS.HashSet Name -> Expr -> Bool
-allVarsSymbolic h ns e =
-  trace ("AVS " ++ show (e, inlineEquiv h ns e)) $
-  e == inlineEquiv h ns e
-
-mrInfo :: ExprEnv ->
-          ExprEnv ->
-          HM.HashMap Id Expr ->
-          Expr ->
-          Expr ->
-          String
-mrInfo h1 h2 hm e1 e2 =
-  let a1 = case e1 of
-            Var i1 -> (show $ E.isSymbolic (idName i1) h1) ++ ";" ++
-                      (show $ HM.lookup i1 hm) ++ ";" ++
-                      (show $ E.lookup (idName i1) h1) ++ ";" ++
-                      (show e1)
-            _ -> show e1
-      a2 = case e2 of
-            Var i2 -> (show $ E.isSymbolic (idName i2) h2) ++ ";" ++
-                      (show $ HM.lookup i2 hm) ++ ";" ++
-                      (show $ E.lookup (idName i2) h2) ++ ";" ++
-                      (show e2)
-            _ -> show e2
-  in a1 ++ ";;" ++ a2
 
 -- check only the names for DataAlt
 altEquiv :: AltMatch -> AltMatch -> Bool
@@ -796,50 +630,6 @@ moreRestrictiveAlt s1 s2 ns hm (Alt am1 e1) (Alt am2 e2) =
     DataAlt _ t1 -> let n1 = map (\(Id n _) -> n) t1
                         ns' = foldr HS.insert ns n1
                     in moreRestrictive s1 s2 ns' hm e1 e2
-    _ -> moreRestrictive s1 s2 ns hm e1 e2
-  else Nothing
-
--- TODO for use when the scrutinee is a symbolic variable
--- TODO do both old and new need to be symbolic?  Just the old?
-moreRestrictiveAltSym :: State t ->
-                         State t ->
-                         HS.HashSet Name ->
-                         HM.HashMap Id Expr ->
-                         Alt ->
-                         Alt ->
-                         Maybe (HM.HashMap Id Expr)
-moreRestrictiveAltSym s1 s2 ns hm (Alt am1 e1) (Alt am2 e2) =
-  if am1 == am2 then
-  case am1 of
-    DataAlt _ t1 -> let h1 = expr_env s1
-                        h2 = expr_env s2
-                        n1 = map idName t1
-                        h1' = foldr (uncurry E.insertSymbolic) h1 (zip n1 t1)
-                        h2' = foldr (uncurry E.insertSymbolic) h2 (zip n1 t1)
-                        s1' = s1 { expr_env = h1' }
-                        s2' = s2 { expr_env = h2' }
-                    in moreRestrictive s1' s2' ns hm e1 e2
-    _ -> moreRestrictive s1 s2 ns hm e1 e2
-  else Nothing
-
--- TODO might not keep the other one
--- naming not so good
-moreRestrictiveAltOld :: State t ->
-                         State t ->
-                         HS.HashSet Name ->
-                         HM.HashMap Id Expr ->
-                         Alt ->
-                         Alt ->
-                         Maybe (HM.HashMap Id Expr)
-moreRestrictiveAltOld s1 s2 ns hm (Alt am1 e1) (Alt am2 e2) =
-  if am1 == am2 then
-  case am1 of
-    DataAlt _ t1 -> let h1 = expr_env s1
-                        n1 = map idName t1
-                        h1' = foldr (uncurry E.insertSymbolic) h1 (zip n1 t1)
-                        s1' = s1 { expr_env = h1' }
-                        ns' = foldr HS.insert ns n1
-                    in moreRestrictive s1' s2 ns' hm e1 e2
     _ -> moreRestrictive s1 s2 ns hm e1 e2
   else Nothing
 

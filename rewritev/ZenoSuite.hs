@@ -30,7 +30,7 @@ rule_names1 :: [String]
 rule_names1 = [
       "p01"
     , "p02"
-    , "p03"
+    --, "p03"
     , "p04"
     , "p06"
     , "p07"

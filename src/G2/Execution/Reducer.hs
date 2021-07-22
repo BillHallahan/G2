@@ -99,9 +99,6 @@ import System.Random
 
 import Debug.Trace
 
--- TODO this causes a cyclic import
---import G2.Equiv.G2Calls
-
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
 -- and to reorder states
@@ -409,10 +406,9 @@ instance Reducer ConcSymReducer () EquivTracker where
         | E.isSymbolic n eenv
         , Just (dc_symbs, ng') <- arbDC tenv ng t n total = do
             let total_names = map idName $ concat $ map snd dc_symbs
-                total' = if trace (show total_names) $ n `elem` total
-                         then trace ("NEW TOTAL FROM " ++ show n) $
-                              foldr S.insert total total_names
-                         else trace ("NOT TOTAL " ++ show n) total
+                total' = if n `elem` total
+                         then foldr S.insert total total_names
+                         else total
                 xs = map (\(e, symbs') ->
                                 s   { curr_expr = CurrExpr Evaluate e
                                     , expr_env =
@@ -461,9 +457,7 @@ arbDC tenv ng t n total
                         (ng_', (mkApp $ dc:map Var ars, ars))
                     )
                     ng
-                    (if n `elem` total
-                    then trace ("TOTAL " ++ show n) ty_apped_dcs
-                    else ty_apped_dcs')
+                    (if n `elem` total then ty_apped_dcs else ty_apped_dcs')
         in
         Just (dc_symbs, ng')
     | otherwise = Nothing

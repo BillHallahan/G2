@@ -193,7 +193,7 @@ instance Reducer EquivReducer () EquivTracker where
                 Nothing ->
                     let
                         (v, ng') = freshId (typeOf e) ng
-                        et' = trace ("FRESH " ++ show v) $ HM.insert e' v et
+                        et' = HM.insert e' v et
                         -- TODO carry over totality if function and arg are total
                         -- unApp, make sure every arg is a symbolic var
                         -- they also need to be total
@@ -202,13 +202,13 @@ instance Reducer EquivReducer () EquivTracker where
                         -- TODO get all the var names from inside first
                         -- these are exprs originally
                         -- TODO new total not being carried over to ConcSymReducer
-                        es = trace ("ALL " ++ show total) $ map exprVarName $ unApp e'
-                        all_vars = trace ("EXPRS " ++ show es) $ foldr (&&) True $ map isJust es
+                        es = map exprVarName $ unApp e'
+                        all_vars = foldr (&&) True $ map isJust es
                         es' = map (\(Just n) -> n) $ filter isJust es
                         all_sym = foldr (&&) True $ map (\x -> E.isSymbolic x eenv) es'
                         all_total = foldr (&&) True $ map (`elem` total) es'
                         total' = if all_vars && all_sym && all_total
-                                 then trace ("SUCCESS " ++ show v) HS.insert (idName v) total
+                                 then HS.insert (idName v) total
                                  else total
                         s' = s { curr_expr = CurrExpr Evaluate (Var v)
                                , track = EquivTracker et' m total'

@@ -51,8 +51,7 @@ exprPairing :: (HS.HashSet Name, HS.HashSet Name) ->
 exprPairing ns_pair s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs n1 n2 child =
   case (e1, e2) of
     _ | e1 == e2 -> Just pairs
-    -- ignore all Ticks
-    -- TODO pass the child value through the tick?
+    -- ignore all Ticks, pass the child value through the tick
     (Tick _ e1', _) -> exprPairing ns_pair s1 s2 e1' e2 pairs n1 n2 child
     (_, Tick _ e2') -> exprPairing ns_pair s1 s2 e1 e2' pairs n1 n2 child
     -- TODO adjusting Var cases to avoid loops
