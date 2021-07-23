@@ -492,7 +492,7 @@ startingState et s =
 checkRule :: Config ->
              State t ->
              Bindings ->
-             [DT.Text] -> -- names of forall'd variables required to be total
+             [DT.Text] -> -- ^ names of forall'd variables required to be total
              RewriteRule ->
              IO (S.Result () ())
 checkRule config init_state bindings total rule = do

@@ -36,15 +36,15 @@ proofObligations :: (HS.HashSet Name, HS.HashSet Name) ->
 proofObligations ns_pair s1 s2 e1 e2 =
   exprPairing ns_pair s1 s2 e1 e2 HS.empty [] [] False
 
-exprPairing :: (HS.HashSet Name, HS.HashSet Name) -> -- vars that should not be inlined on either side
+exprPairing :: (HS.HashSet Name, HS.HashSet Name) -> -- ^ vars that should not be inlined on either side
                State t ->
                State t ->
                Expr ->
                Expr ->
-               HS.HashSet Obligation -> -- accumulator for output obligations
-               [Name] -> -- variables inlined previously on the LHS
-               [Name] -> -- variables inlined previously on the RHS
-               Bool -> -- indicates whether the exprs are immediate children of Data constructors
+               HS.HashSet Obligation -> -- ^ accumulator for output obligations
+               [Name] -> -- ^ variables inlined previously on the LHS
+               [Name] -> -- ^ variables inlined previously on the RHS
+               Bool -> -- ^ indicates whether the exprs are immediate children of Data constructors
                Maybe (HS.HashSet Obligation)
 exprPairing ns_pair s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs n1 n2 child =
   case (e1, e2) of
