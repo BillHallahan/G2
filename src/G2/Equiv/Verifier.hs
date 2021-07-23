@@ -222,16 +222,16 @@ prevUnguarded = (filter (not . eitherSWHNF)) . prevGuarded
 
 verifyLoop :: S.Solver solver =>
               solver ->
-              (HS.HashSet Name, HS.HashSet Name) ->
+              HS.HashSet Name ->
               [(StateH, StateH)] ->
               [(StateH, StateH)] ->
               Bindings ->
               Config ->
               IO (S.Result () ())
-verifyLoop solver ns_pair states prev b config | not (null states) = do
+verifyLoop solver ns states prev b config | not (null states) = do
   let current_states = map getLatest states
   (paired_states, b') <- CM.runStateT (mapM (uncurry (runSymExec config)) current_states) b
-  let vl (sh1, sh2) = verifyLoop' solver ns_pair sh1 sh2 prev
+  let vl (sh1, sh2) = verifyLoop' solver ns sh1 sh2 prev
   -- TODO printing
   putStrLn "<Loop Iteration>"
   -- for every internal list, map with its corresponding original state
@@ -244,7 +244,7 @@ verifyLoop solver ns_pair states prev b config | not (null states) = do
       prev' = new_obligations ++ prev
   putStrLn $ show $ length new_obligations
   if all isJust proof_list then
-    verifyLoop solver ns_pair new_obligations prev' b' config
+    verifyLoop solver ns new_obligations prev' b' config
   else
     return $ S.SAT ()
   | otherwise = do
@@ -336,16 +336,16 @@ inductionState s =
 -- Does it still make sense to graft them onto the starting states' histories?
 verifyLoop' :: S.Solver solver =>
                solver ->
-               (HS.HashSet Name, HS.HashSet Name) ->
+               HS.HashSet Name ->
                StateH ->
                StateH ->
                [(StateH, StateH)] ->
                IO (Maybe [(StateH, StateH)])
-verifyLoop' solver ns_pair sh1 sh2 prev =
+verifyLoop' solver ns sh1 sh2 prev =
   let s1 = latest sh1
       s2 = latest sh2
   in
-  case getObligations ns_pair s1 s2 of
+  case getObligations ns s1 s2 of
     Nothing -> do
       putStr "N! "
       putStrLn $ show (exprExtract s1, exprExtract s2)
@@ -355,15 +355,15 @@ verifyLoop' solver ns_pair sh1 sh2 prev =
       putStrLn $ show (exprExtract s1, exprExtract s2)
       let (obs_g, obs_u) = partition canUseGuarded obs
           (obs_i, obs_u') = partition canUseInduction obs_u
-          states_g = map (stateWrap s1 s2) obs_g
+          --states_g = map (stateWrap s1 s2) obs_g
           states_u = map (stateWrap s1 s2) obs_u'
           states_i = map (stateWrap s1 s2) obs_i
-          prev_g = concat $ map prevGuarded prev
+          --prev_g = concat $ map prevGuarded prev
           prev_u = concat $ map prevUnguarded prev
-          states_g' = filter (not . (moreRestrictivePair ns_pair prev_g)) states_g
-          states_u' = filter (not . (moreRestrictivePair ns_pair prev_u)) states_u
-          states_i' = filter (not . (induction ns_pair prev_u)) states_i
-          states = states_g' ++ states_u' ++ states_i'
+          --states_g' = filter (not . (moreRestrictivePair ns_pair prev_g)) states_g
+          states_u' = filter (not . (moreRestrictivePair ns prev_u)) states_u
+          states_i' = filter (not . (induction ns prev_u)) states_i
+          states = {- states_g' ++ -} states_u' ++ states_i'
           -- TODO unnecessary to pass the induction states through this?
           (ready, not_ready) = partition statePairReadyForSolver states
           ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
@@ -384,16 +384,16 @@ Compare the sub-expressions to the prev state pairs
 If any match occurs, try extrapolating it
 If extrapolation works, we can flag the real state pair as a repeat
 -}
-induction :: (HS.HashSet Name, HS.HashSet Name) ->
+induction :: HS.HashSet Name ->
              [(StateET, StateET)] ->
              (StateET, StateET) ->
              Bool
-induction ns_pair prev (s1, s2) =
+induction ns prev (s1, s2) =
   let s1' = inductionState s1
       s2' = inductionState s2
       prev' = filter statePairInduction prev
       prev'' = map (\(p1, p2) -> (inductionState p1, inductionState p2)) prev'
-      hm_maybe_list = map (mrHelper' ns_pair (Just HM.empty) (s1', s2')) prev''
+      hm_maybe_list = map (mrHelper' ns (Just HM.empty) (s1', s2')) prev''
       -- try matching the prev state pair with other prev state pairs
       hm_maybe_zipped = zip hm_maybe_list prev'
       -- ignore the combinations that didn't work
@@ -405,7 +405,7 @@ induction ns_pair prev (s1, s2) =
         [] -> []
         c:_ -> [c]
       -- TODO am I using mrHelper' backward here?
-      ind p p' = mrHelper' ns_pair (Just HM.empty) p p'
+      ind p p' = mrHelper' ns (Just HM.empty) p p'
       -- TODO just took the full concretized list before
       ind_fns = map ind concretized'
       -- replace everything in the old expression pair used for the match
@@ -414,12 +414,12 @@ induction ns_pair prev (s1, s2) =
   in
   not $ null res
 
-getObligations :: (HS.HashSet Name, HS.HashSet Name) ->
+getObligations :: HS.HashSet Name ->
                   State t ->
                   State t ->
                   Maybe [Obligation]
-getObligations ns_pair s1 s2 =
-  case proofObligations ns_pair s1 s2 (exprExtract s1) (exprExtract s2) of
+getObligations ns s1 s2 =
+  case proofObligations ns s1 s2 (exprExtract s1) (exprExtract s2) of
     Nothing -> Nothing
     Just obs -> Just $
                 map (\(Ob c e1 e2) -> Ob c (addStackTickIfNeeded e1) (addStackTickIfNeeded e2)) $
@@ -508,11 +508,13 @@ checkRule config init_state bindings total rule = do
       -- the keys are the same between the old and new environments
       ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
       ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
+      -- TODO combine the two into a single set?
+      ns = HS.union ns_l ns_r
       rewrite_state_l' = startingState start_equiv_tracker rewrite_state_l
       rewrite_state_r' = startingState start_equiv_tracker rewrite_state_r
   S.SomeSolver solver <- initSolver config
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
-  res <- verifyLoop solver (ns_l, ns_r)
+  res <- verifyLoop solver ns
              [(rewrite_state_l', rewrite_state_r')]
              [(rewrite_state_l', rewrite_state_r')]
              bindings'' config
@@ -642,20 +644,20 @@ mrHelper s1 s2 ns (Just hm) =
 -- TODO better name?
 -- TODO the first state pair is the new one
 -- TODO do I really need two ns lists?
-mrHelper' :: (HS.HashSet Name, HS.HashSet Name) ->
+mrHelper' :: HS.HashSet Name ->
              Maybe (HM.HashMap Id Expr) ->
              (State t, State t) ->
              (State t, State t) ->
              Maybe (HM.HashMap Id Expr)
-mrHelper' (ns1, ns2) hm_maybe (s1, s2) (p1, p2) =
-  mrHelper p2 s2 ns2 $ mrHelper p1 s1 ns1 hm_maybe
+mrHelper' ns hm_maybe (s1, s2) (p1, p2) =
+  mrHelper p2 s2 ns $ mrHelper p1 s1 ns hm_maybe
 
-moreRestrictivePair :: (HS.HashSet Name, HS.HashSet Name) ->
+moreRestrictivePair :: HS.HashSet Name ->
                        [(State t, State t)] ->
                        (State t, State t) ->
                        Bool
-moreRestrictivePair (ns1, ns2) prev (s1, s2) =
+moreRestrictivePair ns prev (s1, s2) =
   let
-      mr (p1, p2) = isJust $ mrHelper p2 s2 ns2 $ mrHelper p1 s1 ns1 (Just HM.empty)
+      mr (p1, p2) = isJust $ mrHelper p2 s2 ns $ mrHelper p1 s1 ns (Just HM.empty)
   in
       (not $ null $ filter mr prev)
