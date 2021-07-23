@@ -254,12 +254,12 @@ exprExtract :: State t -> Expr
 exprExtract (State { curr_expr = CurrExpr _ e }) = e
 
 -- TODO don't need guarded coinduction?
-canUseGuarded :: Obligation -> Bool
+--canUseGuarded :: Obligation -> Bool
 --canUseGuarded (Ob c _ _) = c
-canUseGuarded _ = False
+--canUseGuarded _ = False
 
 stateWrap :: StateET -> StateET -> Obligation -> (StateET, StateET)
-stateWrap s1 s2 (Ob _ e1 e2) =
+stateWrap s1 s2 (Ob e1 e2) =
   ( s1 { curr_expr = CurrExpr Evaluate e1 }
   , s2 { curr_expr = CurrExpr Evaluate e2 } )
 
@@ -278,7 +278,7 @@ crHelper (Cast e _) = crHelper e
 crHelper _ = False
 
 canUseInduction :: Obligation -> Bool
-canUseInduction (Ob _ e1 e2) = caseRecursion e1 && caseRecursion e2
+canUseInduction (Ob e1 e2) = caseRecursion e1 && caseRecursion e2
 
 -- TODO extra helper function, might want a better name
 statePairInduction :: (State t, State t) -> Bool
@@ -353,17 +353,13 @@ verifyLoop' solver ns sh1 sh2 prev =
     Just obs -> do
       putStr "J! "
       putStrLn $ show (exprExtract s1, exprExtract s2)
-      let (obs_g, obs_u) = partition canUseGuarded obs
-          (obs_i, obs_u') = partition canUseInduction obs_u
-          --states_g = map (stateWrap s1 s2) obs_g
-          states_u = map (stateWrap s1 s2) obs_u'
+      let (obs_i, obs_u) = partition canUseInduction obs
+          states_u = map (stateWrap s1 s2) obs_u
           states_i = map (stateWrap s1 s2) obs_i
-          --prev_g = concat $ map prevGuarded prev
           prev_u = concat $ map prevUnguarded prev
-          --states_g' = filter (not . (moreRestrictivePair ns_pair prev_g)) states_g
           states_u' = filter (not . (moreRestrictivePair ns prev_u)) states_u
           states_i' = filter (not . (induction ns prev_u)) states_i
-          states = {- states_g' ++ -} states_u' ++ states_i'
+          states = states_u' ++ states_i'
           -- TODO unnecessary to pass the induction states through this?
           (ready, not_ready) = partition statePairReadyForSolver states
           ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
@@ -393,7 +389,7 @@ induction ns prev (s1, s2) =
       s2' = inductionState s2
       prev' = filter statePairInduction prev
       prev'' = map (\(p1, p2) -> (inductionState p1, inductionState p2)) prev'
-      hm_maybe_list = map (mrHelper' ns (Just HM.empty) (s1', s2')) prev''
+      hm_maybe_list = map (indHelper ns (Just HM.empty) (s1', s2')) prev''
       -- try matching the prev state pair with other prev state pairs
       hm_maybe_zipped = zip hm_maybe_list prev'
       -- ignore the combinations that didn't work
@@ -404,8 +400,8 @@ induction ns prev (s1, s2) =
       concretized' = case concretized of
         [] -> []
         c:_ -> [c]
-      -- TODO am I using mrHelper' backward here?
-      ind p p' = mrHelper' ns (Just HM.empty) p p'
+      -- TODO am I using the helper backward here?
+      ind p p' = indHelper ns (Just HM.empty) p p'
       -- TODO just took the full concretized list before
       ind_fns = map ind concretized'
       -- replace everything in the old expression pair used for the match
@@ -422,7 +418,7 @@ getObligations ns s1 s2 =
   case proofObligations ns s1 s2 (exprExtract s1) (exprExtract s2) of
     Nothing -> Nothing
     Just obs -> Just $
-                map (\(Ob c e1 e2) -> Ob c (addStackTickIfNeeded e1) (addStackTickIfNeeded e2)) $
+                map (\(Ob e1 e2) -> Ob (addStackTickIfNeeded e1) (addStackTickIfNeeded e2)) $
                 HS.toList obs
 
 addStackTickIfNeeded :: Expr -> Expr
@@ -643,13 +639,12 @@ mrHelper s1 s2 ns (Just hm) =
 
 -- TODO better name?
 -- TODO the first state pair is the new one
--- TODO do I really need two ns lists?
-mrHelper' :: HS.HashSet Name ->
+indHelper :: HS.HashSet Name ->
              Maybe (HM.HashMap Id Expr) ->
              (State t, State t) ->
              (State t, State t) ->
              Maybe (HM.HashMap Id Expr)
-mrHelper' ns hm_maybe (s1, s2) (p1, p2) =
+indHelper ns hm_maybe (s1, s2) (p1, p2) =
   mrHelper p2 s2 ns $ mrHelper p1 s1 ns hm_maybe
 
 moreRestrictivePair :: HS.HashSet Name ->
