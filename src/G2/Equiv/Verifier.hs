@@ -253,8 +253,10 @@ verifyLoop solver ns_pair states prev b config | not (null states) = do
 exprExtract :: State t -> Expr
 exprExtract (State { curr_expr = CurrExpr _ e }) = e
 
+-- TODO don't need guarded coinduction?
 canUseGuarded :: Obligation -> Bool
-canUseGuarded (Ob c _ _) = c
+--canUseGuarded (Ob c _ _) = c
+canUseGuarded _ = False
 
 stateWrap :: StateET -> StateET -> Obligation -> (StateET, StateET)
 stateWrap s1 s2 (Ob _ e1 e2) =
