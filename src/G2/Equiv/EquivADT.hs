@@ -1,6 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
--- TODO not sure if I need these
 
 module G2.Equiv.EquivADT (
     proofObligations
@@ -22,45 +21,61 @@ import Data.Data
 import Data.Hashable
 
 -- the bool is True if guarded coinduction can be used
+-- TODO do I need all of these typeclasses?
 data Obligation = Ob Bool Expr Expr
                   deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 instance Hashable Obligation
 
-proofObligations :: State t ->
+proofObligations :: (HS.HashSet Name, HS.HashSet Name) ->
+                    State t ->
                     State t ->
                     Expr ->
                     Expr ->
                     Maybe (HS.HashSet Obligation)
-proofObligations s1 s2 e1 e2 =
-  exprPairing s1 s2 e1 e2 HS.empty False
+proofObligations ns_pair s1 s2 e1 e2 =
+  exprPairing ns_pair s1 s2 e1 e2 HS.empty [] [] False
 
-exprPairing :: State t ->
+exprPairing :: (HS.HashSet Name, HS.HashSet Name) -> -- ^ vars that should not be inlined on either side
+               State t ->
                State t ->
                Expr ->
                Expr ->
-               HS.HashSet Obligation ->
-               Bool ->
+               HS.HashSet Obligation -> -- ^ accumulator for output obligations
+               [Name] -> -- ^ variables inlined previously on the LHS
+               [Name] -> -- ^ variables inlined previously on the RHS
+               Bool -> -- ^ indicates whether the exprs are immediate children of Data constructors
                Maybe (HS.HashSet Obligation)
-exprPairing s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs child =
+exprPairing ns_pair s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs n1 n2 child =
   case (e1, e2) of
     _ | e1 == e2 -> Just pairs
-    -- ignore all Ticks
-    (Tick _ e1', _) -> exprPairing s1 s2 e1' e2 pairs False
-    (_, Tick _ e2') -> exprPairing s1 s2 e1 e2' pairs False
+    -- ignore all Ticks, pass the child value through the tick
+    (Tick _ e1', _) -> exprPairing ns_pair s1 s2 e1' e2 pairs n1 n2 child
+    (_, Tick _ e2') -> exprPairing ns_pair s1 s2 e1 e2' pairs n1 n2 child
+    -- TODO adjusting Var cases to avoid loops
+    (Var i1, Var i2) | (idName i1) `elem` n1
+                     , (idName i2) `elem` n2 -> Just (HS.insert (Ob child e1 e2) pairs)
+    -- TODO should the value of child carry over for Var recursion cases?
     (Var i, _) | E.isSymbolic (idName i) h1 -> Just (HS.insert (Ob child e1 e2) pairs)
-               | Just e <- E.lookup (idName i) h1 -> exprPairing s1 s2 e e2 pairs False
-               | otherwise -> error "unmapped variable"
+               | m <- idName i
+               , not $ m `elem` (fst ns_pair)
+               , Just e <- E.lookup m h1 -> exprPairing ns_pair s1 s2 e e2 pairs (m:n1) n2 False
+               -- TODO if e1 has a cycle of length x and e2 has one of length y,
+               -- termination will take up to xy recursive calls, with the worst
+               -- case happening if x and y are relatively prime
+               | not $ (idName i) `elem` (fst ns_pair) -> error "unmapped variable"
     (_, Var i) | E.isSymbolic (idName i) h2 -> Just (HS.insert (Ob child e1 e2) pairs)
-               | Just e <- E.lookup (idName i) h2 -> exprPairing s1 s2 e1 e pairs False
-               | otherwise -> error "unmapped variable"
+               | m <- idName i
+               , not $ m `elem` (snd ns_pair)
+               , Just e <- E.lookup m h2 -> exprPairing ns_pair s1 s2 e1 e pairs n1 (m:n2) False
+               | not $ (idName i) `elem` (snd ns_pair) -> error "unmapped variable"
     -- See note in `moreRestrictive` regarding comparing DataCons
     (App _ _, App _ _)
         | (Data (DataCon d1 _)):l1 <- unApp e1
         , (Data (DataCon d2 _)):l2 <- unApp e2 ->
             if d1 == d2 then
-                let ep = uncurry (exprPairing s1 s2)
-                    ep' hs p = ep p hs True
+                let ep = uncurry (exprPairing ns_pair s1 s2)
+                    ep' hs p = ep p hs n1 n2 True
                     l = zip l1 l2
                 in foldM ep' pairs l
                 else Nothing

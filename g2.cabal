@@ -308,6 +308,7 @@ executable RewriteV
                        -- -fprof-auto "-with-rtsopts=-p"
   hs-source-dirs:      rewritev
   main-is:             Main.hs
+  other-modules:         ZenoSuite
 
 test-suite test
   build-depends:         g2
