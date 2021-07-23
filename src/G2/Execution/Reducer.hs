@@ -389,10 +389,12 @@ data ConcSymReducer = ConcSymReducer
 -- relocated from Equiv.G2Calls
 data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
                                  , saw_tick :: Maybe Int
-                                 , total :: S.HashSet Name } deriving Show
+                                 , total :: S.HashSet Name
+                                 , finite :: S.HashSet Name } deriving Show
 
 -- Forces a lone symbolic variable with a type corresponding to an ADT
 -- to evaluate to some value of that ADT
+-- TODO will there be any need to carry over finiteness sometimes?
 instance Reducer ConcSymReducer () EquivTracker where
     initReducer _ _ = ()
 
@@ -402,14 +404,18 @@ instance Reducer ConcSymReducer () EquivTracker where
                             , type_env = tenv
                             , path_conds = pc
                             , symbolic_ids = symbs
-                            , track = EquivTracker et m total })
+                            , track = EquivTracker et m total finite })
                    b@(Bindings { name_gen = ng })
         | E.isSymbolic n eenv
         , Just (dc_symbs, ng') <- arbDC tenv ng t n total = do
-            let total_names = map idName $ concat $ map snd dc_symbs
+            let new_names = map idName $ concat $ map snd dc_symbs
                 total' = if n `elem` total
-                         then foldr S.insert total total_names
+                         then foldr S.insert total new_names
                          else total
+                -- TODO finiteness carries over to sub-expressions too
+                finite' = if n `elem` finite
+                          then foldr S.insert finite new_names
+                          else finite
                 xs = map (\(e, symbs') ->
                                 s   { curr_expr = CurrExpr Evaluate e
                                     , expr_env =
@@ -417,7 +423,7 @@ instance Reducer ConcSymReducer () EquivTracker where
                                               (E.insert n e eenv)
                                               symbs'
                                     , symbolic_ids = symbs' ++ L.delete i symbs
-                                    , track = EquivTracker et m total'
+                                    , track = EquivTracker et m total' finite'
                                     }) dc_symbs
                 b' =  b { name_gen = ng' }
                 -- only add to total if n was total

@@ -472,8 +472,8 @@ obligationWrap obligations =
     then Nothing
     else Just $ ExtCond (App (Prim Not TyUnknown) conj) True
 
-totalName :: [DT.Text] -> Name -> Bool
-totalName texts (Name t _ _ _) = t `elem` texts
+includedName :: [DT.Text] -> Name -> Bool
+includedName texts (Name t _ _ _) = t `elem` texts
 
 startingState :: EquivTracker -> State t -> StateH
 startingState et s =
@@ -491,16 +491,20 @@ checkRule :: Config ->
              State t ->
              Bindings ->
              [DT.Text] -> -- ^ names of forall'd variables required to be total
+             [DT.Text] -> -- ^ names of forall'd variables required to be total and finite
              RewriteRule ->
              IO (S.Result () ())
-checkRule config init_state bindings total rule = do
+checkRule config init_state bindings total finite rule = do
   let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
       (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
-      total_names = filter (totalName total) (map idName $ ru_bndrs rule)
+      total_names = filter (includedName total) (map idName $ ru_bndrs rule)
+      finite_names = filter (includedName finite) (map idName $ ru_bndrs rule)
       -- TODO do I still need the HashSet usage elsewhere?
-      total_hs = foldr HS.insert HS.empty total_names
-      EquivTracker et m _ = emptyEquivTracker
-      start_equiv_tracker = EquivTracker et m total_hs
+      finite_hs = foldr HS.insert HS.empty finite_names
+      -- TODO always include the finite names in total
+      total_hs = foldr HS.insert finite_hs total_names
+      EquivTracker et m _ _ = emptyEquivTracker
+      start_equiv_tracker = EquivTracker et m total_hs finite_hs
       -- the keys are the same between the old and new environments
       ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
       ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
