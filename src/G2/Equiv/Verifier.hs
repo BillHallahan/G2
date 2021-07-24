@@ -253,11 +253,6 @@ verifyLoop solver ns states prev b config | not (null states) = do
 exprExtract :: State t -> Expr
 exprExtract (State { curr_expr = CurrExpr _ e }) = e
 
--- TODO don't need guarded coinduction?
---canUseGuarded :: Obligation -> Bool
---canUseGuarded (Ob c _ _) = c
---canUseGuarded _ = False
-
 stateWrap :: StateET -> StateET -> Obligation -> (StateET, StateET)
 stateWrap s1 s2 (Ob e1 e2) =
   ( s1 { curr_expr = CurrExpr Evaluate e1 }
@@ -397,12 +392,11 @@ induction ns prev (s1, s2) =
       csp = concretizeStatePair (expr_env s1, expr_env s2)
       concretized = map (uncurry csp) hm_maybe_zipped'
       -- TODO optimization:  just take the first one
+      -- just took the full concretized list before
       concretized' = case concretized of
         [] -> []
         c:_ -> [c]
-      -- TODO am I using the helper backward here?
       ind p p' = indHelper ns (Just HM.empty) p p'
-      -- TODO just took the full concretized list before
       ind_fns = map ind concretized'
       -- replace everything in the old expression pair used for the match
       hm_maybe_list' = concat $ map (\f -> map f prev) ind_fns
@@ -508,7 +502,7 @@ checkRule config init_state bindings total finite rule = do
       -- the keys are the same between the old and new environments
       ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
       ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
-      -- TODO combine the two into a single set?
+      -- no need for two separate name sets
       ns = HS.union ns_l ns_r
       rewrite_state_l' = startingState start_equiv_tracker rewrite_state_l
       rewrite_state_r' = startingState start_equiv_tracker rewrite_state_r
@@ -534,14 +528,12 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
     -- ignore all Ticks
     (Tick _ e1', _) -> moreRestrictive s1 s2 ns hm e1' e2
     (_, Tick _ e2') -> moreRestrictive s1 s2 ns hm e1 e2'
-    -- TODO new cases, may make some old cases unreachable
     (Var i, _) | not $ E.isSymbolic (idName i) h1
                , not $ HS.member (idName i) ns
                , Just e <- E.lookup (idName i) h1 -> moreRestrictive s1 s2 ns hm e e2
     (_, Var i) | not $ E.isSymbolic (idName i) h2
                , not $ HS.member (idName i) ns
                , Just e <- E.lookup (idName i) h2 -> moreRestrictive s1 s2 ns hm e1 e
-    -- TODO altered order
     (Var i1, Var i2) | HS.member (idName i1) ns
                      , idName i1 == idName i2 -> Just hm
                      | HS.member (idName i1) ns -> Nothing
@@ -641,8 +633,7 @@ mrHelper _ _ _ Nothing = Nothing
 mrHelper s1 s2 ns (Just hm) =
   moreRestrictive s1 s2 ns hm (exprExtract s1) (exprExtract s2)
 
--- TODO better name?
--- TODO the first state pair is the new one
+-- the first state pair is the new one, the second is the old
 indHelper :: HS.HashSet Name ->
              Maybe (HM.HashMap Id Expr) ->
              (State t, State t) ->
