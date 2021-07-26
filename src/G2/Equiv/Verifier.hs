@@ -326,6 +326,43 @@ inductionState :: State t -> State t
 inductionState s =
   s { curr_expr = CurrExpr Evaluate $ inductionExtract $ exprExtract s }
 
+-- TODO helpers for "finite induction"
+-- inline variables for this?
+-- vars in the finite set count, so do Data constructors with finite args
+-- also need list of symbolic vars, and list of vars not to inline?
+-- TODO keep track of inlined vars to avoid cycles
+finiteExpr :: HS.HashSet Name ->
+              HS.HashSet Name ->
+              ExprEnv ->
+              [Name] -> -- ^ vars inlined so far
+              Expr ->
+              Bool
+finiteExpr ns finite_hs h n e = case e of
+  Var i | (idName i) `elem` finite_hs -> True
+        | (idName i) `elem` ns -> False
+        | (idName i) `elem` n -> False
+        -- symbolic but not finite:  not allowed
+        | E.isSymbolic (idName i) h -> False
+        | m <- idName i
+        , Just e' <- E.lookup m h -> finiteExpr ns finite_hs h (m:n) e'
+        | otherwise -> error "unmapped variable"
+  -- TODO can literal strings be infinite?  This assumes they can't be
+  Lit _ -> True
+  -- TODO also assumes types can't be infinite
+  Prim _ _ -> True
+  Data _ -> True
+  -- TODO should I be more careful about this?
+  App e1 e2 -> (finiteExpr ns finite_hs h n e1) && (finiteExpr ns finite_hs h n e2)
+  Lam _ _ _ -> False
+  -- TODO might not even need to handle these two cases at all
+  Let _ _ -> False
+  Case _ _ _ -> False
+  Type _ -> True
+  --Cast e' _ -> finiteExpr finite_hs e'
+  --Coercion _ -> True
+  Tick _ e' -> finiteExpr ns finite_hs h n e'
+  _ -> error "unrecognized"
+
 -- TODO printing
 -- TODO non-ready obligations are not necessarily the original exprs
 -- Does it still make sense to graft them onto the starting states' histories?
