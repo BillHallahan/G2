@@ -649,7 +649,6 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p13" forall n x xs . drop (S n) (x : xs) = drop n xs
 "p14" forall p xs ys . filter p (xs ++ ys) = (filter p xs) ++ (filter p ys)
 "p15" forall x xs . len (ins x xs) = S (len xs)
-"prop16" forall x xs . prop_16 x xs = True
 "p17" forall n . n <= Z = n === Z
 "p19" forall n xs . len (drop n xs) = len xs - n
 "p20" forall xs . len (sort xs) = len xs
@@ -832,4 +831,26 @@ forceTreeBool (Node l _ r) b = case (forceTreeBool l b) of
 "p05b" forall n x xs . prop_05 n x xs = forceNatBool n (forceNatBool x (forceNatListBool xs True))
 "p32c" forall a b . forceNatBool a (forceNatBool b True) = (min a b === min b a)
 "p78b" forall xs . prop_78 xs = forceNatListBool xs True
+  #-}
+
+-- TODO the theorems that don't fit the ordinary equivalence format
+{-# RULES
+"prop16" forall x xs . prop_16 x xs = True
+"prop18" forall i m . prop_18 i m = True
+"prop21" forall n m . prop_21 n m = True
+"prop26" forall x xs ys . prop_26 x xs ys = True
+"prop27" forall x xs ys . prop_27 x xs ys = True
+"prop28" forall x xs . prop_28 x xs = True
+"prop29" forall x xs . prop_29 x xs = True
+"prop30" forall x xs . prop_30 x xs = True
+"prop37" forall x xs . prop_37 x xs = True
+"prop48" forall xs . prop_48 xs = True
+"prop59" forall xs ys . prop_59 xs ys = True
+"prop60" forall xs ys . prop_60 xs ys = True
+"prop62" forall xs x . prop_62 xs x = True
+"prop63" forall n xs . prop_63 n xs = True
+"prop65" forall i m . prop_65 i m = True
+"prop66" forall p xs . prop_66 p xs = True
+"prop68" forall n xs . prop_68 n xs = True
+"prop78" forall xs . prop_78 xs = True
   #-}
