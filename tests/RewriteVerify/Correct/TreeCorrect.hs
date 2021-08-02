@@ -7,6 +7,11 @@ treeSize :: SimpleTree -> Int
 treeSize SLeaf = 1
 treeSize (SBranch st1 st2) = (treeSize st1) + (treeSize st2)
 
+treeSizeOriginal :: SimpleTree -> Int
+treeSizeOriginal SLeaf = 1
+treeSizeOriginal (SBranch st1 st2) =
+  1 + (treeSizeOriginal st1) + (treeSizeOriginal st2)
+
 data BTree t = BLeaf
              | BBranch t (BTree t) (BTree t)
 
@@ -67,6 +72,7 @@ posNegPath (BBranch i l r) =
 
 {-# RULES
 "doubleTree" forall st . treeSize (SBranch st st) = (2 * treeSize st)
+"doubleTreeOriginal" forall st . treeSizeOriginal (SBranch st st) = 1 + (2 * treeSizeOriginal st)
 "doubleMapTree" forall bt . bmap p1 (bmap t2 bt) = bmap (p1 . t2) bt
   #-}
 

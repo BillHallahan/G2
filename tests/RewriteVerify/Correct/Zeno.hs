@@ -835,6 +835,8 @@ forceTreeBool (Node l _ r) b = case (forceTreeBool l b) of
 
 -- TODO the theorems that don't fit the ordinary equivalence format
 {-# RULES
+"prop03" forall n xs ys . prop_03 n xs ys = True
+"prop05" forall n x xs . prop_05 n x xs = True
 "prop16" forall x xs . prop_16 x xs = True
 "prop18" forall i m . prop_18 i m = True
 "prop21" forall n m . prop_21 n m = True
@@ -852,5 +854,11 @@ forceTreeBool (Node l _ r) b = case (forceTreeBool l b) of
 "prop65" forall i m . prop_65 i m = True
 "prop66" forall p xs . prop_66 p xs = True
 "prop68" forall n xs . prop_68 n xs = True
+"prop69" forall n m . prop_69 n m = True
+"prop70" forall m n . prop_70 m n = True
+"prop71" forall x y xs . prop_71 x y xs = True
+"prop76" forall n m xs . prop_76 n m xs = True
+"prop77" forall x xs . prop_77 x xs = True
 "prop78" forall xs . prop_78 xs = True
+"prop85" forall xs ys . prop_85 xs ys = True
   #-}

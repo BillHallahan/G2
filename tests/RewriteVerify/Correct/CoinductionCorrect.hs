@@ -101,3 +101,23 @@ doubleLength (_:t) = doubleLength t + doubleLength t
 "exp" forall x xs . expLength (x:xs) = 1 + (2 * expLength xs)
 "double" forall x xs . doubleLength (x:xs) = 2 * doubleLength xs
   #-}
+
+-- TODO Nats instead of Ints
+data Nat = Z
+         | S Nat
+
+addNat :: Nat -> Nat -> Nat
+addNat Z y = y
+addNat (S x) y = S (addNat x y)
+
+doubleNat :: Nat -> Nat
+doubleNat Z = Z
+doubleNat (S x) = S (S (doubleNat x))
+
+expLengthNat :: [a] -> Nat
+expLengthNat [] = Z
+expLengthNat (_:t) = S (addNat (expLengthNat t) (expLengthNat t))
+
+{-# RULES
+"expNat" forall x xs . expLengthNat (x:xs) = S (doubleNat (expLengthNat xs))
+  #-}

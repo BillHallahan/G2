@@ -545,6 +545,8 @@ checkRule config init_state bindings total finite rule = do
       rewrite_state_r' = startingState start_equiv_tracker rewrite_state_r
   S.SomeSolver solver <- initSolver config
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
+  putStrLn $ show $ exprExtract rewrite_state_l
+  putStrLn $ show $ exprExtract rewrite_state_r
   res <- verifyLoop solver ns
              [(rewrite_state_l', rewrite_state_r')]
              [(rewrite_state_l', rewrite_state_r')]
