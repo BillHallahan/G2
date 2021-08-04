@@ -363,6 +363,11 @@ finiteExpr ns finite_hs h n e = case e of
   Tick _ e' -> finiteExpr ns finite_hs h n e'
   _ -> error "unrecognized"
 
+notM :: IO Bool -> IO Bool
+notM b = do
+  b' <- b
+  return (not b')
+
 -- TODO printing
 -- TODO non-ready obligations are not necessarily the original exprs
 -- Does it still make sense to graft them onto the starting states' histories?
@@ -389,8 +394,8 @@ verifyLoop' solver ns sh1 sh2 prev =
           states_u = map (stateWrap s1 s2) obs_u
           states_i = map (stateWrap s1 s2) obs_i
           prev_u = concat $ map prevUnguarded prev
-          states_u' = filter (not . (moreRestrictivePair ns prev_u)) states_u
-          states_i' = filter (not . (induction ns prev_u)) states_i
+      states_u' <- filterM (notM . (moreRestrictivePair solver ns prev_u)) states_u
+      let states_i' = filter (not . (induction ns prev_u)) states_i
           states = states_u' ++ states_i'
           -- TODO unnecessary to pass the induction states through this?
           (ready, not_ready) = partition statePairReadyForSolver states
@@ -421,11 +426,11 @@ induction ns prev (s1, s2) =
       s2' = inductionState s2
       prev' = filter statePairInduction prev
       prev'' = map (\(p1, p2) -> (inductionState p1, inductionState p2)) prev'
-      hm_maybe_list = map (indHelper ns (Just HM.empty) (s1', s2')) prev''
+      hm_maybe_list = map (indHelper ns (Just (HM.empty, HS.empty)) (s1', s2')) prev''
       -- try matching the prev state pair with other prev state pairs
       hm_maybe_zipped = zip hm_maybe_list prev'
       -- ignore the combinations that didn't work
-      hm_maybe_zipped' = [(hm, p) | (Just hm, p) <- hm_maybe_zipped]
+      hm_maybe_zipped' = [(hm, p) | (Just (hm, _), p) <- hm_maybe_zipped]
       csp = concretizeStatePair (expr_env s1, expr_env s2)
       concretized = map (uncurry csp) hm_maybe_zipped'
       -- TODO optimization:  just take the first one
@@ -433,7 +438,7 @@ induction ns prev (s1, s2) =
       concretized' = case concretized of
         [] -> []
         c:_ -> [c]
-      ind p p' = indHelper ns (Just HM.empty) p p'
+      ind p p' = indHelper ns (Just (HM.empty, HS.empty)) p p'
       ind_fns = map ind concretized'
       -- replace everything in the old expression pair used for the match
       hm_maybe_list' = concat $ map (\f -> map f prev) ind_fns
@@ -558,10 +563,10 @@ checkRule config init_state bindings total finite rule = do
 moreRestrictive :: State t ->
                    State t ->
                    HS.HashSet Name ->
-                   HM.HashMap Id Expr ->
+                   (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                    Expr ->
                    Expr ->
-                   Maybe (HM.HashMap Id Expr)
+                   Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e2 =
   case (e1, e2) of
     -- ignore all Ticks
@@ -578,9 +583,10 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                      | HS.member (idName i1) ns -> Nothing
                      | HS.member (idName i2) ns -> Nothing
     (Var i, _) | E.isSymbolic (idName i) h1
-               , Nothing <- HM.lookup i hm -> Just (HM.insert i (inlineEquiv h2 ns e2) hm)
+               , (hm', hs) <- hm
+               , Nothing <- HM.lookup i hm' -> Just (HM.insert i (inlineEquiv h2 ns e2) hm', hs)
                | E.isSymbolic (idName i) h1
-               , Just e <- HM.lookup i hm
+               , Just e <- HM.lookup i (fst hm)
                , e == inlineEquiv h2 ns e2 -> Just hm
                -- this last case means there's a mismatch
                | E.isSymbolic (idName i) h1 -> Nothing
@@ -624,7 +630,9 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                       mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ e1_ e2_
                       l = zip a1 a2
                   in foldM mf hm' l
-    _ -> Nothing
+    -- TODO add anything extra as an obligation?
+    _ -> let (hm', hs) = hm
+         in Just (hm', HS.insert (e1, e2) hs)
 
 inlineEquiv :: ExprEnv -> HS.HashSet Name -> Expr -> Expr
 inlineEquiv h ns v@(Var (Id n _))
@@ -650,10 +658,10 @@ altEquiv _ _ = False
 moreRestrictiveAlt :: State t ->
                       State t ->
                       HS.HashSet Name ->
-                      HM.HashMap Id Expr ->
+                      (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                       Alt ->
                       Alt ->
-                      Maybe (HM.HashMap Id Expr)
+                      Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 moreRestrictiveAlt s1 s2 ns hm (Alt am1 e1) (Alt am2 e2) =
   if altEquiv am1 am2 then
   case am1 of
@@ -666,27 +674,50 @@ moreRestrictiveAlt s1 s2 ns hm (Alt am1 e1) (Alt am2 e2) =
 mrHelper :: State t ->
             State t ->
             HS.HashSet Name ->
-            Maybe (HM.HashMap Id Expr) ->
-            Maybe (HM.HashMap Id Expr)
+            Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
+            Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 mrHelper _ _ _ Nothing = Nothing
 mrHelper s1 s2 ns (Just hm) =
   moreRestrictive s1 s2 ns hm (exprExtract s1) (exprExtract s2)
 
 -- the first state pair is the new one, the second is the old
 indHelper :: HS.HashSet Name ->
-             Maybe (HM.HashMap Id Expr) ->
+             Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
              (State t, State t) ->
              (State t, State t) ->
-             Maybe (HM.HashMap Id Expr)
+             Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 indHelper ns hm_maybe (s1, s2) (p1, p2) =
   mrHelper p2 s2 ns $ mrHelper p1 s1 ns hm_maybe
 
+-- TODO rework so it also checks the obligations
+{-
 moreRestrictivePair :: HS.HashSet Name ->
                        [(State t, State t)] ->
                        (State t, State t) ->
                        Bool
 moreRestrictivePair ns prev (s1, s2) =
   let
-      mr (p1, p2) = isJust $ mrHelper p2 s2 ns $ mrHelper p1 s1 ns (Just HM.empty)
+      mr (p1, p2) = isJust $ mrHelper p2 s2 ns $ mrHelper p1 s1 ns (Just (HM.empty, HS.empty))
   in
       (not $ null $ filter mr prev)
+-}
+
+-- make all of the obligations into a single big list
+moreRestrictivePair :: S.Solver solver =>
+                       solver ->
+                       HS.HashSet Name ->
+                       [(State t, State t)] ->
+                       (State t, State t) ->
+                       IO Bool
+moreRestrictivePair solver ns prev (s1, s2) = do
+  let mr (p1, p2) = mrHelper p2 s2 ns $ mrHelper p1 s1 ns (Just (HM.empty, HS.empty))
+      getObs m = case m of
+        Nothing -> HS.empty
+        Just (_, hs) -> hs
+      maybe_pairs = map mr prev
+      obs_sets = map getObs maybe_pairs
+      obs = foldr HS.union HS.empty obs_sets
+  res <- checkObligations solver s1 s2 obs
+  case res of
+    S.UNSAT () -> return (not $ null $ filter isJust maybe_pairs)
+    _ -> return False

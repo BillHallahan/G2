@@ -86,6 +86,19 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
                   , isExprValueForm h1 e1 -> Nothing
     (Prim _ _, _) -> Just (HS.insert (Ob e1 e2) pairs)
     (_, Prim _ _) -> Just (HS.insert (Ob e1 e2) pairs)
+    -- TODO test equivalence of functions and arguments?
+    -- Might cause the verifier to miss some important things
+    -- doesn't seem to help with int-nat difference
+    -- on top of that, it breaks expNat, even with these constraints
+    {-
+    (App f1 a1, App f2 a2)
+                  | (Var i1):l1 <- unApp e1
+                  , (Var i2):l2 <- unApp e2
+                  , (idName i1) `elem` ns
+                  , (idName i2) `elem` ns
+                  , Just pairs' <- exprPairing ns s1 s2 a1 a2 pairs n1 n2 ->
+                    exprPairing ns s1 s2 f1 f2 pairs' n1 n2
+    -}
     (App _ _, _) -> Just (HS.insert (Ob e1 e2) pairs)
     (_, App _ _) -> Just (HS.insert (Ob e1 e2) pairs)
     (Lit l1, Lit l2) | l1 == l2 -> Just pairs
