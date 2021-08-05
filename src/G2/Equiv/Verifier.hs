@@ -631,7 +631,8 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                       l = zip a1 a2
                   in foldM mf hm' l
     -- TODO add anything extra as an obligation?
-    _ -> let (hm', hs) = hm
+    _ -> -- trace (show (e1, e2)) $
+         let (hm', hs) = hm
          in Just (hm', HS.insert (e1, e2) hs)
 
 inlineEquiv :: ExprEnv -> HS.HashSet Name -> Expr -> Expr
@@ -703,6 +704,7 @@ moreRestrictivePair ns prev (s1, s2) =
 -}
 
 -- make all of the obligations into a single big list
+-- TODO need to check whether the obligations are ready for the solver first
 moreRestrictivePair :: S.Solver solver =>
                        solver ->
                        HS.HashSet Name ->
@@ -717,7 +719,11 @@ moreRestrictivePair solver ns prev (s1, s2) = do
       maybe_pairs = map mr prev
       obs_sets = map getObs maybe_pairs
       obs = foldr HS.union HS.empty obs_sets
-  res <- checkObligations solver s1 s2 obs
-  case res of
-    S.UNSAT () -> return (not $ null $ filter isJust maybe_pairs)
+      -- TODO just look at the expressions directly?
+      h1 = expr_env s1
+      h2 = expr_env s2
+      obs' = HS.filter (\(e1, e2) -> exprReadyForSolver h1 e1 && exprReadyForSolver h2 e2) obs
+  res <- checkObligations solver s1 s2 obs'
+  case (obs == obs', res) of
+    (True, S.UNSAT ()) -> return (not $ null $ filter isJust maybe_pairs)
     _ -> return False

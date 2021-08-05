@@ -66,15 +66,6 @@ Z     === _     = False
 (S _) === Z     = False
 (S x) === (S y) = x === y
 
--- adjustment to avoid void error
-{-
-(<=) :: Nat -> Nat -> Bool
-(<=) x y = case x of
-  Z -> True
-  S x' -> case y of
-    Z -> False
-    S y' -> x' <= y'
--}
 Z     <= _     = True
 _     <= Z     = False
 (S x) <= (S y) = x <= y
@@ -83,22 +74,9 @@ _     < Z     = False
 Z     < _     = True
 (S x) < (S y) = x < y
 
-{-
-(+) x y = case x of
-  Z -> y
-  S x' -> S (x' + y)
--}
 Z     + y = y
 (S x) + y = S (x + y)
 
-{-
-(-) :: Nat -> Nat -> Nat
-(-) x y = case x of
-  Z -> Z
-  S x' -> case y of
-    Z -> x
-    S y' -> x' - y'
--}
 Z     - _     = Z
 x     - Z     = x
 (S x) - (S y) = x - y
@@ -107,14 +85,6 @@ min Z     y     = Z
 min (S x) Z     = Z
 min (S x) (S y) = S (min x y)
 
-{-
-max :: Nat -> Nat -> Nat
-max x y = case x of
-  Z -> y
-  S x' -> case y of
-    Z -> x
-    S y' -> S (max x' y')
--}
 max Z     y     = y
 max x     Z     = x
 max (S x) (S y) = S (max x y)
@@ -133,15 +103,6 @@ rev :: [a] -> [a]
 rev [] = []
 rev (x:xs) = rev xs ++ [x]
 
-{-
-zip :: [a] -> [b] -> [(a, b)]
-zip xs ys =
-  case xs of
-    [] -> []
-    x:xs' -> case ys of
-      [] -> []
-      y:ys' -> (x, y) : (zip xs' ys')
--}
 zip [] _ = []
 zip _ [] = []
 zip (x:xs) (y:ys) = (x, y) : (zip xs ys)
@@ -164,28 +125,10 @@ elem n (x:xs) =
     True -> True
     False -> elem n xs
 
-{-
-drop :: Nat -> [a] -> [a]
-drop x xs =
-  case x of
-    Z -> xs
-    S x' -> case xs of
-      [] -> []
-      _:xs' -> drop x' xs'
--}
 drop Z xs = xs
 drop _ [] = []
 drop (S x) (_:xs) = drop x xs
 
-{-
-take :: Nat -> [a] -> [a]
-take x ys =
-  case x of
-    Z -> []
-    S x' -> case ys of
-      [] -> []
-      y:ys' -> y : (take x' ys')
--}
 take Z _ = []
 take _ [] = []
 take (S x) (y:ys) = y : (take x ys)
@@ -275,11 +218,6 @@ zipConcat _ _ [] = []
 zipConcat x xs (y:ys) = (x, y) : zip xs ys
 
 height :: Tree a -> Nat
-{-
-height a = case a of
-  Leaf -> Z
-  Node l _ r ->
--}
 height Leaf = Z
 height (Node l x r) = S (max (height l) (height r))
 
