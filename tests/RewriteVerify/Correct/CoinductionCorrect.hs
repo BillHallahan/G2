@@ -118,6 +118,17 @@ expLengthNat :: [a] -> Nat
 expLengthNat [] = Z
 expLengthNat (_:t) = S (addNat (expLengthNat t) (expLengthNat t))
 
+idInt :: Int -> Int
+idInt x = x
+
+len :: [a] -> Int
+len [] = 0
+len (_:t) = 1 + len t
+
+-- TODO expReduced runs forever too
 {-# RULES
 "expNat" forall x xs . expLengthNat (x:xs) = S (doubleNat (expLengthNat xs))
+"expReduced" forall xs . expLength xs = (2 * expLength xs) - (expLength xs)
+"doubleMinus" forall x . idInt x = (2 * x) - x
+"listMinus" forall xs . len xs = (2 * (len xs)) - (len xs)
   #-}
