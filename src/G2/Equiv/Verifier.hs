@@ -368,6 +368,12 @@ notM b = do
   b' <- b
   return (not b')
 
+andM :: IO Bool -> IO Bool -> IO Bool
+andM b1 b2 = do
+  b1' <- b1
+  b2' <- b2
+  return (b1' && b2')
+
 -- TODO printing
 -- TODO non-ready obligations are not necessarily the original exprs
 -- Does it still make sense to graft them onto the starting states' histories?
@@ -703,8 +709,59 @@ moreRestrictivePair ns prev (s1, s2) =
       (not $ null $ filter mr prev)
 -}
 
+concObligation :: HM.HashMap Id Expr -> Maybe PathCond
+concObligation hm =
+  let l = HM.toList hm
+      l' = map (\(i, e) -> (Var i, e)) l
+  in obligationWrap $ HS.fromList l'
+
+-- TODO
+extractCond :: PathCond -> Expr
+extractCond (ExtCond e _) = e
+extractCond _ = error "unsupported"
+
+-- TODO s1 is old state, s2 is new state
+-- need to do this separately for LHS and RHS
+-- TODO for which states do I check it?
+-- only the ones for which moreRestrictive works
+moreRestrictivePC :: S.Solver solver =>
+                     solver ->
+                     State t ->
+                     State t ->
+                     HM.HashMap Id Expr ->
+                     IO Bool
+moreRestrictivePC solver s1 s2 hm = do
+  let new_conds = map extractCond (P.toList $ path_conds s2)
+      old_conds = map extractCond (P.toList $ path_conds s1)
+      l = map (\(i, e) -> (Var i, e)) $ HM.toList hm
+      -- TODO type issue
+      l' = map (\(e1, e2) -> App (App (Prim Eq TyUnknown) e1) e2) l
+      new_conds' = l' ++ new_conds
+      -- TODO need to make sure that the lists are non-empty
+      conj_new = foldr1 (\o1 o2 -> App (App (Prim And TyUnknown) o1) o2) new_conds'
+      conj_old = foldr1 (\o1 o2 -> App (App (Prim And TyUnknown) o1) o2) old_conds
+      -- TODO make sure the order is correct
+      imp = App (App (Prim Implies TyUnknown) conj_new) conj_old
+      neg_imp = ExtCond (App (Prim Not TyUnknown) imp) True
+      neg_conj = ExtCond (App (Prim Not TyUnknown) conj_old) True
+  res <- if null old_conds
+         then return $ S.UNSAT ()
+         else if null new_conds -- old_conds not null
+         -- TODO state order right?
+         then applySolver solver (P.insert neg_conj P.empty) s1 s2
+         else applySolver solver (P.insert neg_imp P.empty) s1 s2
+  case res of
+    S.UNSAT () -> return True
+    _ -> return False
+
 -- make all of the obligations into a single big list
 -- TODO need to check whether the obligations are ready for the solver first
+-- TODO also check the path conds implication
+-- TODO turn concretizations into a prop
+-- extra filter on top of isJust for maybe_pairs
+-- if mrHelper end result is Just, try checking the corresponding path conds
+-- for True output, there needs to be an entry for which that check succeeds
+-- should I replace the result with a Bool?
 moreRestrictivePair :: S.Solver solver =>
                        solver ->
                        HS.HashSet Name ->
@@ -716,14 +773,27 @@ moreRestrictivePair solver ns prev (s1, s2) = do
       getObs m = case m of
         Nothing -> HS.empty
         Just (_, hs) -> hs
+      getConcretizations m = case m of
+        Nothing -> HM.empty
+        Just (hm, _) -> hm
       maybe_pairs = map mr prev
       obs_sets = map getObs maybe_pairs
+      conc_sets = map getConcretizations maybe_pairs
       obs = foldr HS.union HS.empty obs_sets
+      conc_obs = map concObligation conc_sets
       -- TODO just look at the expressions directly?
       h1 = expr_env s1
       h2 = expr_env s2
+      -- TODO don't check that the filtered version equals the original
       obs' = HS.filter (\(e1, e2) -> exprReadyForSolver h1 e1 && exprReadyForSolver h2 e2) obs
+      mpc m = case m of
+        (Just (hm, _), (s_old1, s_old2)) ->
+          andM (moreRestrictivePC solver s_old1 s1 hm) (moreRestrictivePC solver s_old2 s2 hm)
+        _ -> return False
+      bools = map mpc (zip maybe_pairs prev)
   res <- checkObligations solver s1 s2 obs'
+  bools' <- filterM (\x -> x) bools
+  -- TODO
   case (obs == obs', res) of
-    (True, S.UNSAT ()) -> return (not $ null $ filter isJust maybe_pairs)
+    (True, S.UNSAT ()) -> return (not $ null bools')
     _ -> return False

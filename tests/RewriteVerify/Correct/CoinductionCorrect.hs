@@ -125,10 +125,19 @@ len :: [a] -> Int
 len [] = 0
 len (_:t) = 1 + len t
 
+lenDouble :: [a] -> Int
+lenDouble [] = 0
+lenDouble (_:t) = 1 + (lenDouble t) + 1
+
 -- TODO expReduced runs forever too
+-- TODO listMinus terminates, but lenDouble does not
+-- ld runs forever, but UNSAT for lpm
 {-# RULES
 "expNat" forall x xs . expLengthNat (x:xs) = S (doubleNat (expLengthNat xs))
 "expReduced" forall xs . expLength xs = (2 * expLength xs) - (expLength xs)
 "doubleMinus" forall x . idInt x = (2 * x) - x
 "listMinus" forall xs . len xs = (2 * (len xs)) - (len xs)
+"lenDouble" forall xs . lenDouble xs = (2 * (lenDouble xs)) - (lenDouble xs)
+"ld" forall xs . lenDouble xs = 1 + (lenDouble xs) - 1
+"lpm" forall xs . len xs = 1 + (len xs) - 1
   #-}
