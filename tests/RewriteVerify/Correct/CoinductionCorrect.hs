@@ -129,6 +129,10 @@ lenDouble :: [a] -> Int
 lenDouble [] = 0
 lenDouble (_:t) = 1 + (lenDouble t) + 1
 
+zeroList :: [a] -> Int
+zeroList [] = 0
+zeroList (_:t) = 0 + (zeroList t) + 0
+
 -- TODO expReduced runs forever too
 -- TODO listMinus terminates, but lenDouble does not
 -- ld runs forever, but UNSAT for lpm
@@ -140,4 +144,7 @@ lenDouble (_:t) = 1 + (lenDouble t) + 1
 "lenDouble" forall xs . lenDouble xs = (2 * (lenDouble xs)) - (lenDouble xs)
 "ld" forall xs . lenDouble xs = 1 + (lenDouble xs) - 1
 "lpm" forall xs . len xs = 1 + (len xs) - 1
+"zl" forall xs . zeroList xs = 0 + (zeroList xs) + 0
+"zl1" forall x xs . zeroList (x:xs) = zeroList xs
+"zl2" forall xs . 0 + zeroList xs + 0 = zeroList xs
   #-}

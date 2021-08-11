@@ -43,6 +43,7 @@ import Data.Time
 
 -- TODO
 import G2.Execution.Reducer
+import G2.Lib.Printers
 
 data StateH = StateH {
     latest :: StateET
@@ -394,8 +395,9 @@ verifyLoop' solver ns sh1 sh2 prev =
       putStrLn $ show (exprExtract s1, exprExtract s2)
       return Nothing
     Just obs -> do
-      putStr "J! "
-      putStrLn $ show (exprExtract s1, exprExtract s2)
+      putStrLn "J!"
+      --putStrLn $ mkExprHaskell $ exprExtract s1
+      --putStrLn $ mkExprHaskell $ exprExtract s2
       let (obs_i, obs_u) = partition canUseInduction obs
           states_u = map (stateWrap s1 s2) obs_u
           states_i = map (stateWrap s1 s2) obs_i
@@ -601,7 +603,21 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                | not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
     (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s1 s2 ns hm f1 f2
                            , Just hm_a <- moreRestrictive s1 s2 ns hm_f a1 a2 -> Just hm_a
-                           | otherwise -> Nothing
+                           -- TODO remove this case for now
+                           -- | otherwise -> Nothing
+    -- TODO don't just add mismatched cases indiscriminately
+    -- these cases get hit often if I remove the Prim requirement
+    -- TODO repurposing the inlineEquiv function
+    -- now it's getting hit very often
+    -- TODO full inlining for everything?
+    (App _ _, _) | e1':_ <- unApp e1
+                 , (Prim _ _) <- inlineHelper h1 ns e1' ->
+                                  let (hm', hs) = {- trace (show (e1, e2)) -} hm
+                                  in Just (hm', HS.insert (obligationHelper h1 ns $ inlineEquiv h1 ns e1, obligationHelper h2 ns $ inlineEquiv h2 ns e2) hs)
+    (_, App _ _) | e2':_ <- unApp e2
+                 , (Prim _ _) <- inlineHelper h1 ns e2' ->
+                                  let (hm', hs) = {- trace (show (e1, e2)) -} hm
+                                  in Just (hm', HS.insert (obligationHelper h1 ns $ inlineEquiv h1 ns e1, obligationHelper h2 ns $ inlineEquiv h2 ns e2) hs)
     -- We just compare the names of the DataCons, not the types of the DataCons.
     -- This is because (1) if two DataCons share the same name, they must share the
     -- same type, but (2) "the same type" may be represented in different syntactic
@@ -637,9 +653,20 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                       l = zip a1 a2
                   in foldM mf hm' l
     -- TODO add anything extra as an obligation?
-    _ -> -- trace (show (e1, e2)) $
-         let (hm', hs) = hm
-         in Just (hm', HS.insert (e1, e2) hs)
+    _ -> Nothing
+
+inlineHelper :: ExprEnv -> HS.HashSet Name -> Expr -> Expr
+inlineHelper h ns v@(Var (Id n _))
+    | E.isSymbolic n h = v
+    | Just e <- E.lookup n h = inlineHelper h ns e
+inlineHelper h ns e = e -- modifyChildren (inlineHelper h ns) e
+
+obligationHelper :: ExprEnv -> HS.HashSet Name -> Expr -> Expr
+obligationHelper h ns e =
+  let u = unApp e in
+  case u of
+    [] -> e
+    e':t -> mkApp ((inlineHelper h ns e'):t)
 
 inlineEquiv :: ExprEnv -> HS.HashSet Name -> Expr -> Expr
 inlineEquiv h ns v@(Var (Id n _))
@@ -750,6 +777,14 @@ moreRestrictivePC solver s1 s2 hm = do
          -- TODO state order right?
          then applySolver solver (P.insert neg_conj P.empty) s1 s2
          else applySolver solver (P.insert neg_imp P.empty) s1 s2
+  -- TODO
+  putStrLn "W."
+  --putStrLn $ show $ null old_conds
+  --putStrLn $ mkExprHaskell $ exprExtract s1
+  --putStrLn $ mkExprHaskell $ exprExtract s2
+  --putStrLn $ show l'
+  -- TODO absolutely every result is UNSAT
+  putStrLn $ show res
   case res of
     S.UNSAT () -> return True
     _ -> return False
@@ -791,9 +826,18 @@ moreRestrictivePair solver ns prev (s1, s2) = do
           andM (moreRestrictivePC solver s_old1 s1 hm) (moreRestrictivePC solver s_old2 s2 hm)
         _ -> return False
       bools = map mpc (zip maybe_pairs prev)
+  -- TODO does this check that the obligations all line up?
+  -- TODO does it get negated?  I think so
   res <- checkObligations solver s1 s2 obs'
   bools' <- filterM (\x -> x) bools
-  -- TODO
+  -- TODO s1 and s2 exprs aren't the ones used for obligations
+  -- on ld, bools' is always empty
+  -- on zl, bools' and obs are always empty
+  putStrLn "E."
+  --putStrLn $ mkExprHaskell $ exprExtract s1
+  --putStrLn $ mkExprHaskell $ exprExtract s2
+  putStrLn $ show obs
+  putStrLn $ show (length obs', res, length bools, length bools', length obs)
   case (obs == obs', res) of
     (True, S.UNSAT ()) -> return (not $ null bools')
     _ -> return False
