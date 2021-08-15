@@ -67,6 +67,10 @@ statePairReadyForSolver (s1, s2) =
   in
   exprReadyForSolver h1 e1 && exprReadyForSolver h2 e2
 
+-- TODO extra helper; using typeOf correctly?
+rfs :: ExprEnv -> Expr -> Bool
+rfs h e = (exprReadyForSolver h e) && (T.isPrimType $ typeOf e)
+
 runSymExec :: Config ->
               StateET ->
               StateET ->
@@ -396,8 +400,8 @@ verifyLoop' solver ns sh1 sh2 prev =
       return Nothing
     Just obs -> do
       putStrLn "J!"
-      --putStrLn $ mkExprHaskell $ exprExtract s1
-      --putStrLn $ mkExprHaskell $ exprExtract s2
+      putStrLn $ mkExprHaskell $ exprExtract s1
+      putStrLn $ mkExprHaskell $ exprExtract s2
       let (obs_i, obs_u) = partition canUseInduction obs
           states_u = map (stateWrap s1 s2) obs_u
           states_i = map (stateWrap s1 s2) obs_i
@@ -610,14 +614,22 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
     -- TODO repurposing the inlineEquiv function
     -- now it's getting hit very often
     -- TODO full inlining for everything?
+    -- TODO swapping the helper ordering alone does not fix the Plus error
+    -- neither did introduction of inlineHelper'
+    -- TODO
+    -- These two cases should come after the main App-App case.  If an
+    -- expression pair fits both patterns, then discharging it in a way that
+    -- does not add any extra proof obligations is preferable.
     (App _ _, _) | e1':_ <- unApp e1
-                 , (Prim _ _) <- inlineHelper h1 ns e1' ->
-                                  let (hm', hs) = {- trace (show (e1, e2)) -} hm
-                                  in Just (hm', HS.insert (obligationHelper h1 ns $ inlineEquiv h1 ns e1, obligationHelper h2 ns $ inlineEquiv h2 ns e2) hs)
+                 , (Prim _ _) <- inlineHelper h1 e1'
+                 , T.isPrimType $ typeOf e1 ->
+                                  let (hm', hs) = trace (show (e1, e2)) hm
+                                  in Just (hm', HS.insert (inlineHelper' h1 e1, inlineHelper' h2 e2) hs)
     (_, App _ _) | e2':_ <- unApp e2
-                 , (Prim _ _) <- inlineHelper h1 ns e2' ->
-                                  let (hm', hs) = {- trace (show (e1, e2)) -} hm
-                                  in Just (hm', HS.insert (obligationHelper h1 ns $ inlineEquiv h1 ns e1, obligationHelper h2 ns $ inlineEquiv h2 ns e2) hs)
+                 , (Prim _ _) <- inlineHelper h1 e2'
+                 , T.isPrimType $ typeOf e2 ->
+                                  let (hm', hs) = trace (show (e1, e2)) hm
+                                  in Just (hm', HS.insert (inlineHelper' h1 e1, inlineHelper' h2 e2) hs)
     -- We just compare the names of the DataCons, not the types of the DataCons.
     -- This is because (1) if two DataCons share the same name, they must share the
     -- same type, but (2) "the same type" may be represented in different syntactic
@@ -655,18 +667,17 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
     -- TODO add anything extra as an obligation?
     _ -> Nothing
 
-inlineHelper :: ExprEnv -> HS.HashSet Name -> Expr -> Expr
-inlineHelper h ns v@(Var (Id n _))
+inlineHelper :: ExprEnv -> Expr -> Expr
+inlineHelper h v@(Var (Id n _))
     | E.isSymbolic n h = v
-    | Just e <- E.lookup n h = inlineHelper h ns e
-inlineHelper h ns e = e -- modifyChildren (inlineHelper h ns) e
+    | Just e <- E.lookup n h = inlineHelper h e
+inlineHelper h e = e -- modifyChildren (inlineHelper h) e
 
-obligationHelper :: ExprEnv -> HS.HashSet Name -> Expr -> Expr
-obligationHelper h ns e =
-  let u = unApp e in
-  case u of
-    [] -> e
-    e':t -> mkApp ((inlineHelper h ns e'):t)
+inlineHelper' :: ExprEnv -> Expr -> Expr
+inlineHelper' h v@(Var (Id n _))
+    | E.isSymbolic n h = v
+    | Just e <- E.lookup n h = inlineHelper' h e
+inlineHelper' h e = modifyChildren (inlineHelper' h) e
 
 inlineEquiv :: ExprEnv -> HS.HashSet Name -> Expr -> Expr
 inlineEquiv h ns v@(Var (Id n _))
@@ -820,14 +831,14 @@ moreRestrictivePair solver ns prev (s1, s2) = do
       h1 = expr_env s1
       h2 = expr_env s2
       -- TODO don't check that the filtered version equals the original
-      obs' = HS.filter (\(e1, e2) -> exprReadyForSolver h1 e1 && exprReadyForSolver h2 e2) obs
+      obs' = HS.filter (\(e1, e2) -> rfs h1 e1 && rfs h2 e2) obs
       mpc m = case m of
         (Just (hm, _), (s_old1, s_old2)) ->
           andM (moreRestrictivePC solver s_old1 s1 hm) (moreRestrictivePC solver s_old2 s2 hm)
         _ -> return False
       bools = map mpc (zip maybe_pairs prev)
-  -- TODO does this check that the obligations all line up?
-  -- TODO does it get negated?  I think so
+  -- TODO for ld, getting additions with only one argument
+  putStrLn $ show obs'
   res <- checkObligations solver s1 s2 obs'
   bools' <- filterM (\x -> x) bools
   -- TODO s1 and s2 exprs aren't the ones used for obligations

@@ -133,9 +133,15 @@ zeroList :: [a] -> Int
 zeroList [] = 0
 zeroList (_:t) = 0 + (zeroList t) + 0
 
+pz :: Int -> Int
+pz x = 0 + x + 0
+
 -- TODO expReduced runs forever too
 -- TODO listMinus terminates, but lenDouble does not
 -- ld runs forever, but UNSAT for lpm
+-- UNSAT for zl1, runs forever on zl2
+-- UNSAT for branch2, runs forever for branch3
+-- UNSAT for branch4, branch5, branch6
 {-# RULES
 "expNat" forall x xs . expLengthNat (x:xs) = S (doubleNat (expLengthNat xs))
 "expReduced" forall xs . expLength xs = (2 * expLength xs) - (expLength xs)
@@ -146,5 +152,13 @@ zeroList (_:t) = 0 + (zeroList t) + 0
 "lpm" forall xs . len xs = 1 + (len xs) - 1
 "zl" forall xs . zeroList xs = 0 + (zeroList xs) + 0
 "zl1" forall x xs . zeroList (x:xs) = zeroList xs
-"zl2" forall xs . 0 + zeroList xs + 0 = zeroList xs
+"zl2" forall xs . pz (zeroList xs) = zeroList xs
+"zz" forall xs . zeroList xs = zeroList xs
+"branch2" forall xs . zeroList xs = (zeroList xs) + (zeroList xs)
+"branch3" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs)
+"zeroAdd" pz 0 = pz (0 + 0 + 0 + 0 + 0)
+"b3" forall xs . zeroList xs = 0 + 0 + 0
+"branch4" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs)
+"branch5" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs)
+"branch6" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs)
   #-}
