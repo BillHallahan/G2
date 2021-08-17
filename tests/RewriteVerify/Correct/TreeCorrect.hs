@@ -132,3 +132,40 @@ fastFib n = case fastFibHelper [1,0] (n - 1) of
 {-# RULES
 "fib" slowFib = fastFib
   #-}
+
+-- TODO testing multi-way branching issues
+data QuadTree = QLeaf
+              | QBranch QuadTree QuadTree QuadTree QuadTree
+
+quadCount :: QuadTree -> Int
+quadCount QLeaf = 1
+quadCount (QBranch a b c d) = (quadCount a) + (quadCount b) + (quadCount c) + (quadCount d)
+
+-- no extra obligations generated, runs forever
+{-# RULES
+"quadRepeat" forall qt . quadCount (QBranch qt qt qt qt) = (4 * quadCount qt)
+  #-}
+
+data PentTree = PLeaf
+              | PBranch PentTree PentTree PentTree PentTree PentTree
+
+pentCount :: PentTree -> Int
+pentCount PLeaf = 1
+pentCount (PBranch a b c d e) = (pentCount a) + (pentCount b) + (pentCount c) + (pentCount d) + (pentCount e)
+
+-- extra obligations generated, runs forever
+{-# RULES
+"pentRepeat" forall pt . pentCount (PBranch pt pt pt pt pt) = 5 * pentCount pt
+  #-}
+
+data HexTree = HLeaf
+             | HBranch HexTree HexTree HexTree HexTree HexTree HexTree
+
+hexCount :: HexTree -> Int
+hexCount HLeaf = 1
+hexCount (HBranch a b c d e f) = (hexCount a) + (hexCount b) + (hexCount c) + (hexCount d) + (hexCount e) + (hexCount f)
+
+-- extra obligations generated, runs forever
+{-# RULES
+"hexRepeat" forall ht . hexCount (HBranch ht ht ht ht ht ht) = 6 * hexCount ht
+  #-}

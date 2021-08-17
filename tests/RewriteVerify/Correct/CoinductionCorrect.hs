@@ -142,6 +142,10 @@ pz x = 0 + x + 0
 -- UNSAT for zl1, runs forever on zl2
 -- UNSAT for branch2, runs forever for branch3
 -- UNSAT for branch4, branch5, branch6
+-- UNSAT for add7, add7front, add7back
+-- add7as3 runs forever
+-- branch4alt runs forever, both as a+(b+c)+d and as a+b+(c+d); not as (a+b)+c+d
+-- UNSAT for branch3alt
 {-# RULES
 "expNat" forall x xs . expLengthNat (x:xs) = S (doubleNat (expLengthNat xs))
 "expReduced" forall xs . expLength xs = (2 * expLength xs) - (expLength xs)
@@ -156,9 +160,15 @@ pz x = 0 + x + 0
 "zz" forall xs . zeroList xs = zeroList xs
 "branch2" forall xs . zeroList xs = (zeroList xs) + (zeroList xs)
 "branch3" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs)
+"branch3alt" forall xs . zeroList xs = (zeroList xs) + ((zeroList xs) + (zeroList xs))
 "zeroAdd" pz 0 = pz (0 + 0 + 0 + 0 + 0)
 "b3" forall xs . zeroList xs = 0 + 0 + 0
 "branch4" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs)
+"branch4alt" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + ((zeroList xs) + (zeroList xs))
 "branch5" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs)
 "branch6" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs)
+"add7" forall xs . zeroList xs = 0 + 0 + 0 + (zeroList xs) + 0 + 0 + 0
+"add7as3" forall xs . zeroList xs = (0 + 0 + 0) + (zeroList xs) + (0 + 0 + 0)
+"add7front" forall xs . zeroList xs = (((((0 + 0) + 0) + zeroList xs) + 0) + 0) + 0
+"add7back" forall xs . zeroList xs = 0 + (0 + (0 + (zeroList xs + (0 + (0 + 0)))))
   #-}
