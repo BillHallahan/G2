@@ -94,6 +94,7 @@ doubleLength [] = 1
 doubleLength (_:t) = doubleLength t + doubleLength t
 
 -- TODO forceConcat is actually invalid
+-- With the crHelper change in place, exp gets UNSAT.  So does double.
 {-# RULES
 "mapLength" forall f l . listLength (intMap f l) = listLength l
 "forceLength" forall l . listLength (intForce l) = listLength l
@@ -162,6 +163,8 @@ pz x = 0 + x + 0
 "branch3" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs)
 "branch3alt" forall xs . zeroList xs = (zeroList xs) + ((zeroList xs) + (zeroList xs))
 "zeroAdd" pz 0 = pz (0 + 0 + 0 + 0 + 0)
+"b1" forall xs . zeroList xs = 0
+"b2" forall xs . zeroList xs = 0 + 0
 "b3" forall xs . zeroList xs = 0 + 0 + 0
 "branch4" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs)
 "branch4alt" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + ((zeroList xs) + (zeroList xs))

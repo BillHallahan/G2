@@ -81,6 +81,7 @@ posNegPath (BBranch i l r) =
 "bstTimes" forall bt . bst (bmap t2 bt) = bst bt
   #-}
 
+-- Even with the crHelper change, pnd runs forever.
 {-# RULES
 "leftMap" forall f bt . leftmost (bmap f bt) = listMap f (leftmost bt)
 "leftLength" forall bt . listLength (leftmost bt) = leftSize bt
@@ -102,6 +103,8 @@ listLeaves :: ListTree -> Int
 listLeaves (ListTree []) = 1
 listLeaves (ListTree l) = foldr (+) 0 (map listLeaves l)
 
+-- TODO with the crHelper change, listLeaf gets stuck.
+-- The same happens without that change in place.
 {-# RULES
 "tripleLeaf" forall tt . leafCount (TBranch tt tt tt) = 3 * leafCount tt
 "listLeaf" forall lt . listLeaves (ListTree [lt]) = listLeaves lt
@@ -169,3 +172,6 @@ hexCount (HBranch a b c d e f) = (hexCount a) + (hexCount b) + (hexCount c) + (h
 {-# RULES
 "hexRepeat" forall ht . hexCount (HBranch ht ht ht ht ht ht) = 6 * hexCount ht
   #-}
+
+-- With the crHelper change in place, all three of these get UNSAT.
+-- Also, seemingly, no more generation of extra obligations happens.

@@ -269,14 +269,20 @@ caseRecursion :: Expr -> Bool
 caseRecursion (Case e _ _) = crHelper e
 caseRecursion _ = False
 
+-- TODO should I make this more general to check the entire AST?
 crHelper :: Expr -> Bool
 crHelper (Tick (NamedLoc (Name t _ _ _)) e) =
   t == DT.pack "REC" || crHelper e
 crHelper (Case e _ _) = crHelper e
-crHelper (App e _) = crHelper e
+crHelper (App e1 e2) = crHelper e1 || crHelper e2
 crHelper (Cast e _) = crHelper e
 crHelper _ = False
 
+-- We only apply induction to a pair of expressions if both expressions are
+-- Case statements whose scrutinee includes a recursive function or variable
+-- use.  Induction is sound as long as the two expressions are Case statements,
+-- but, if no recursion is involved, ordinary coinduction is just as useful.
+-- We prefer coinduction in that scenario because it is more efficient.
 canUseInduction :: Obligation -> Bool
 canUseInduction (Ob e1 e2) = caseRecursion e1 && caseRecursion e2
 
@@ -456,6 +462,9 @@ induction ns prev (s1, s2) =
       hm_maybe_list' = concat $ map (\f -> map f prev) ind_fns
       res = filter isJust hm_maybe_list'
   in
+  -- TODO
+  --error ("INDUCTION " ++ show (exprExtract s1, exprExtract s2))
+  trace ("INDUCTION " ++ show res) $
   not $ null res
 
 getObligations :: HS.HashSet Name ->
