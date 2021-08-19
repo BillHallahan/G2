@@ -266,16 +266,19 @@ stateWrap s1 s2 (Ob e1 e2) =
 -- helper functions for induction
 -- TODO can something other than Case be at the outermost level?
 caseRecursion :: Expr -> Bool
-caseRecursion (Case e _ _) = crHelper e
+caseRecursion (Case e _ _) = (getAny . evalASTs (\e' -> Any $ crHelper e')) e
 caseRecursion _ = False
 
 -- TODO should I make this more general to check the entire AST?
 crHelper :: Expr -> Bool
+crHelper (Tick (NamedLoc (Name t _ _ _)) _) = t == DT.pack "REC"
+{-
 crHelper (Tick (NamedLoc (Name t _ _ _)) e) =
   t == DT.pack "REC" || crHelper e
 crHelper (Case e _ _) = crHelper e
 crHelper (App e1 e2) = crHelper e1 || crHelper e2
 crHelper (Cast e _) = crHelper e
+-}
 crHelper _ = False
 
 -- We only apply induction to a pair of expressions if both expressions are
@@ -581,6 +584,9 @@ checkRule config init_state bindings total finite rule = do
   return res
 
 -- s1 is the old state, s2 is the new state
+-- TODO adding to ns after each inlining
+-- Will it lead to any problematic situations?
+-- At the very least, it works as a fail-safe for recursive definitions.
 moreRestrictive :: State t ->
                    State t ->
                    HS.HashSet Name ->
@@ -589,16 +595,20 @@ moreRestrictive :: State t ->
                    Expr ->
                    Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e2 =
-  case (e1, e2) of
+  -- TODO for listLeaf, infinite looping within moreRestrictive
+  -- substitutions for same few vars over and over again
+  -- presumably the variables are for folding
+  -- z, k, wild2, go; over and over in a cycle
+  case {- trace ("MR " ++ show (e1 == e2)) -} (e1, e2) of
     -- ignore all Ticks
     (Tick _ e1', _) -> moreRestrictive s1 s2 ns hm e1' e2
     (_, Tick _ e2') -> moreRestrictive s1 s2 ns hm e1 e2'
     (Var i, _) | not $ E.isSymbolic (idName i) h1
                , not $ HS.member (idName i) ns
-               , Just e <- E.lookup (idName i) h1 -> moreRestrictive s1 s2 ns hm e e2
+               , Just e <- E.lookup (idName i) h1 -> {- trace ("SUBST_L " ++ show (idName i)) $ -} moreRestrictive s1 s2 (HS.insert (idName i) ns) hm e e2
     (_, Var i) | not $ E.isSymbolic (idName i) h2
                , not $ HS.member (idName i) ns
-               , Just e <- E.lookup (idName i) h2 -> moreRestrictive s1 s2 ns hm e1 e
+               , Just e <- E.lookup (idName i) h2 -> {- trace ("SUBST_R " ++ show (idName i)) $ -} moreRestrictive s1 s2 (HS.insert (idName i) ns) hm e1 e
     (Var i1, Var i2) | HS.member (idName i1) ns
                      , idName i1 == idName i2 -> Just hm
                      | HS.member (idName i1) ns -> Nothing

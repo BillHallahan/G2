@@ -103,7 +103,7 @@ listLeaves :: ListTree -> Int
 listLeaves (ListTree []) = 1
 listLeaves (ListTree l) = foldr (+) 0 (map listLeaves l)
 
--- TODO with the crHelper change, listLeaf gets stuck.
+-- With the crHelper change, listLeaf runs forever.
 -- The same happens without that change in place.
 {-# RULES
 "tripleLeaf" forall tt . leafCount (TBranch tt tt tt) = 3 * leafCount tt
@@ -132,6 +132,7 @@ fastFib n = case fastFibHelper [1,0] (n - 1) of
   h:_ -> h
   _ -> error "invalid input"
 
+-- Still runs forever with new conditions for induction.
 {-# RULES
 "fib" slowFib = fastFib
   #-}
