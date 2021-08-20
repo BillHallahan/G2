@@ -584,31 +584,42 @@ checkRule config init_state bindings total finite rule = do
   return res
 
 -- s1 is the old state, s2 is the new state
--- TODO adding to ns after each inlining
--- Will it lead to any problematic situations?
--- At the very least, it works as a fail-safe for recursive definitions.
+-- If any recursively-defined functions or other expressions manage to slip
+-- through the cracks with the other mechanisms in place for avoiding infinite
+-- inlining loops, then we can handle them here by keeping track of all of the
+-- variables that have been inlined previously.
+-- Keeping track of inlinings by adding to ns only lets a variable be inlined
+-- on one side.  We need to have two separate lists of variables that have been
+-- inlined previously so that inlinings on one side do not block any inlinings
+-- that need to happen on the other side.
 moreRestrictive :: State t ->
                    State t ->
                    HS.HashSet Name ->
                    (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
+                   [Name] -> -- ^ variables inlined previously on the LHS
+                   [Name] -> -- ^ variables inlined previously on the RHS
                    Expr ->
                    Expr ->
                    Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e2 =
+moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n2 e1 e2 =
   -- TODO for listLeaf, infinite looping within moreRestrictive
   -- substitutions for same few vars over and over again
   -- presumably the variables are for folding
   -- z, k, wild2, go; over and over in a cycle
   case {- trace ("MR " ++ show (e1 == e2)) -} (e1, e2) of
     -- ignore all Ticks
-    (Tick _ e1', _) -> moreRestrictive s1 s2 ns hm e1' e2
-    (_, Tick _ e2') -> moreRestrictive s1 s2 ns hm e1 e2'
-    (Var i, _) | not $ E.isSymbolic (idName i) h1
-               , not $ HS.member (idName i) ns
-               , Just e <- E.lookup (idName i) h1 -> {- trace ("SUBST_L " ++ show (idName i)) $ -} moreRestrictive s1 s2 (HS.insert (idName i) ns) hm e e2
-    (_, Var i) | not $ E.isSymbolic (idName i) h2
-               , not $ HS.member (idName i) ns
-               , Just e <- E.lookup (idName i) h2 -> {- trace ("SUBST_R " ++ show (idName i)) $ -} moreRestrictive s1 s2 (HS.insert (idName i) ns) hm e1 e
+    (Tick _ e1', _) -> moreRestrictive s1 s2 ns hm n1 n2 e1' e2
+    (_, Tick _ e2') -> moreRestrictive s1 s2 ns hm n1 n2 e1 e2'
+    (Var i, _) | m <- idName i
+               , not $ E.isSymbolic m h1
+               , not $ HS.member m ns
+               , not $ m `elem` n1
+               , Just e <- E.lookup m h1 -> {- trace ("SUBST_L " ++ show (idName i)) $ -} moreRestrictive s1 s2 ns hm (m:n1) n2 e e2
+    (_, Var i) | m <- idName i
+               , not $ E.isSymbolic m h2
+               , not $ HS.member m ns
+               , not $ m `elem` n2
+               , Just e <- E.lookup m h2 -> {- trace ("SUBST_R " ++ show (idName i)) $ -} moreRestrictive s1 s2 ns hm n1 (m:n2) e1 e
     (Var i1, Var i2) | HS.member (idName i1) ns
                      , idName i1 == idName i2 -> Just hm
                      | HS.member (idName i1) ns -> Nothing
@@ -621,11 +632,13 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                , e == inlineEquiv h2 ns e2 -> Just hm
                -- this last case means there's a mismatch
                | E.isSymbolic (idName i) h1 -> Nothing
-               | not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
+               | not $ (idName i) `elem` n1
+               , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
     (_, Var i) | E.isSymbolic (idName i) h2 -> Nothing -- sym replaces non-sym
-               | not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
-    (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s1 s2 ns hm f1 f2
-                           , Just hm_a <- moreRestrictive s1 s2 ns hm_f a1 a2 -> Just hm_a
+               | not $ (idName i) `elem` n2
+               , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
+    (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s1 s2 ns hm n1 n2 f1 f2
+                           , Just hm_a <- moreRestrictive s1 s2 ns hm_f n1 n2 a1 a2 -> Just hm_a
                            -- TODO remove this case for now
                            -- | otherwise -> Nothing
     -- TODO don't just add mismatched cases indiscriminately
@@ -668,19 +681,19 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                 , i1 == i2 ->
                   let ns' = HS.insert (idName i1) ns
                   -- no need to insert twice over because they're equal
-                  in moreRestrictive s1 s2 ns' hm b1 b2
+                  in moreRestrictive s1 s2 ns' hm n1 n2 b1 b2
                 | otherwise -> Nothing
     -- ignore types, like in exprPairing
     (Type _, Type _) -> Just hm
     -- TODO if scrutinee is symbolic var, make Alt vars symbolic?
     (Case e1' i1 a1, Case e2' i2 a2)
-                | Just hm' <- moreRestrictive s1 s2 ns hm e1' e2' ->
+                | Just hm' <- moreRestrictive s1 s2 ns hm n1 n2 e1' e2' ->
                   -- add the matched-on exprs to the envs beforehand
                   let h1' = E.insert (idName i1) e1' h1
                       h2' = E.insert (idName i2) e2' h2
                       s1' = s1 { expr_env = h1' }
                       s2' = s2 { expr_env = h2' }
-                      mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ e1_ e2_
+                      mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ n1 n2 e1_ e2_
                       l = zip a1 a2
                   in foldM mf hm' l
     -- TODO add anything extra as an obligation?
@@ -723,16 +736,18 @@ moreRestrictiveAlt :: State t ->
                       State t ->
                       HS.HashSet Name ->
                       (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
+                      [Name] -> -- ^ variables inlined previously on the LHS
+                      [Name] -> -- ^ variables inlined previously on the RHS
                       Alt ->
                       Alt ->
                       Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-moreRestrictiveAlt s1 s2 ns hm (Alt am1 e1) (Alt am2 e2) =
+moreRestrictiveAlt s1 s2 ns hm n1 n2 (Alt am1 e1) (Alt am2 e2) =
   if altEquiv am1 am2 then
   case am1 of
     DataAlt _ t1 -> let n1 = map (\(Id n _) -> n) t1
                         ns' = foldr HS.insert ns n1
-                    in moreRestrictive s1 s2 ns' hm e1 e2
-    _ -> moreRestrictive s1 s2 ns hm e1 e2
+                    in moreRestrictive s1 s2 ns' hm n1 n2 e1 e2
+    _ -> moreRestrictive s1 s2 ns hm n1 n2 e1 e2
   else Nothing
 
 mrHelper :: State t ->
@@ -742,7 +757,7 @@ mrHelper :: State t ->
             Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 mrHelper _ _ _ Nothing = Nothing
 mrHelper s1 s2 ns (Just hm) =
-  moreRestrictive s1 s2 ns hm (exprExtract s1) (exprExtract s2)
+  moreRestrictive s1 s2 ns hm [] [] (exprExtract s1) (exprExtract s2)
 
 -- the first state pair is the new one, the second is the old
 indHelper :: HS.HashSet Name ->
