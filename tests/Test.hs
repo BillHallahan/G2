@@ -286,7 +286,7 @@ liquidTests = testGroup "Liquid"
         , RForAll (\[] _ [(FuncCall { funcName = Name n _ _ _, returns = r }) ]
             -> n == "length2" && getIntB r (/= 3)) ]
 
-    , checkLiquid "tests/Liquid/MapReduceTest2.lhs" "mapReduce" 1500 3 [Exactly 0]
+    , checkLiquid "tests/Liquid/MapReduceTest2.lhs" "mapReduce" 1500 3 [AtLeast 1]
 
     , checkLiquid "tests/Liquid/MeasErr.hs" "f" 1500 2 [Exactly 0]
 
