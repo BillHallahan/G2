@@ -67,10 +67,6 @@ statePairReadyForSolver (s1, s2) =
   in
   exprReadyForSolver h1 e1 && exprReadyForSolver h2 e2
 
--- TODO extra helper; using typeOf correctly?
-rfs :: ExprEnv -> Expr -> Bool
-rfs h e = (exprReadyForSolver h e) && (T.isPrimType $ typeOf e)
-
 runSymExec :: Config ->
               StateET ->
               StateET ->
@@ -219,11 +215,11 @@ appendH sh s =
 replaceH :: StateH -> StateET -> StateH
 replaceH sh s = sh { latest = s }
 
-prevGuarded :: (StateH, StateH) -> [(StateET, StateET)]
-prevGuarded (sh1, sh2) = [(p1, p2) | p1 <- history sh1, p2 <- history sh2]
+prevFull :: (StateH, StateH) -> [(StateET, StateET)]
+prevFull (sh1, sh2) = [(p1, p2) | p1 <- history sh1, p2 <- history sh2]
 
-prevUnguarded :: (StateH, StateH) -> [(StateET, StateET)]
-prevUnguarded = (filter (not . eitherSWHNF)) . prevGuarded
+prevFiltered :: (StateH, StateH) -> [(StateET, StateET)]
+prevFiltered = (filter (not . eitherSWHNF)) . prevFull
 
 verifyLoop :: S.Solver solver =>
               solver ->
@@ -272,13 +268,6 @@ caseRecursion _ = False
 -- TODO should I make this more general to check the entire AST?
 crHelper :: Expr -> Bool
 crHelper (Tick (NamedLoc (Name t _ _ _)) _) = t == DT.pack "REC"
-{-
-crHelper (Tick (NamedLoc (Name t _ _ _)) e) =
-  t == DT.pack "REC" || crHelper e
-crHelper (Case e _ _) = crHelper e
-crHelper (App e1 e2) = crHelper e1 || crHelper e2
-crHelper (Cast e _) = crHelper e
--}
 crHelper _ = False
 
 -- We only apply induction to a pair of expressions if both expressions are
@@ -404,6 +393,7 @@ verifyLoop' solver ns sh1 sh2 prev =
   in
   case getObligations ns s1 s2 of
     Nothing -> do
+      -- obligation generation failed, so the expressions must not be equivalent
       putStr "N! "
       putStrLn $ show (exprExtract s1, exprExtract s2)
       return Nothing
@@ -411,14 +401,17 @@ verifyLoop' solver ns sh1 sh2 prev =
       putStrLn "J!"
       putStrLn $ mkExprHaskell $ exprExtract s1
       putStrLn $ mkExprHaskell $ exprExtract s2
-      let (obs_i, obs_u) = partition canUseInduction obs
-          states_u = map (stateWrap s1 s2) obs_u
-          states_i = map (stateWrap s1 s2) obs_i
-          prev_u = concat $ map prevUnguarded prev
-      states_u' <- filterM (notM . (moreRestrictivePair solver ns prev_u)) states_u
-      let states_i' = filter (not . (induction ns prev_u)) states_i
-          states = states_u' ++ states_i'
+
+      let prev' = concat $ map prevFiltered prev
+          (obs_i, obs_c) = partition canUseInduction obs
+          states_c = map (stateWrap s1 s2) obs_c
+      states_c' <- filterM (notM . (moreRestrictivePair solver ns prev')) states_c
+
+      let states_i = map (stateWrap s1 s2) obs_i
+          states_i' = filter (not . (induction ns prev')) states_i
+
           -- TODO unnecessary to pass the induction states through this?
+      let states = states_c' ++ states_i'
           (ready, not_ready) = partition statePairReadyForSolver states
           ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
           not_ready_h = map (\(n1, n2) -> (replaceH sh1 n1, replaceH sh2 n2)) not_ready
@@ -466,7 +459,6 @@ induction ns prev (s1, s2) =
       res = filter isJust hm_maybe_list'
   in
   -- TODO
-  --error ("INDUCTION " ++ show (exprExtract s1, exprExtract s2))
   trace ("INDUCTION " ++ show res) $
   not $ null res
 
@@ -602,11 +594,7 @@ moreRestrictive :: State t ->
                    Expr ->
                    Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n2 e1 e2 =
-  -- TODO for listLeaf, infinite looping within moreRestrictive
-  -- substitutions for same few vars over and over again
-  -- presumably the variables are for folding
-  -- z, k, wild2, go; over and over in a cycle
-  case {- trace ("MR " ++ show (e1 == e2)) -} (e1, e2) of
+  case (e1, e2) of
     -- ignore all Ticks
     (Tick _ e1', _) -> moreRestrictive s1 s2 ns hm n1 n2 e1' e2
     (_, Tick _ e2') -> moreRestrictive s1 s2 ns hm n1 n2 e1 e2'
@@ -614,12 +602,12 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                , not $ E.isSymbolic m h1
                , not $ HS.member m ns
                , not $ m `elem` n1
-               , Just e <- E.lookup m h1 -> {- trace ("SUBST_L " ++ show (idName i)) $ -} moreRestrictive s1 s2 ns hm (m:n1) n2 e e2
+               , Just e <- E.lookup m h1 -> moreRestrictive s1 s2 ns hm (m:n1) n2 e e2
     (_, Var i) | m <- idName i
                , not $ E.isSymbolic m h2
                , not $ HS.member m ns
                , not $ m `elem` n2
-               , Just e <- E.lookup m h2 -> {- trace ("SUBST_R " ++ show (idName i)) $ -} moreRestrictive s1 s2 ns hm n1 (m:n2) e1 e
+               , Just e <- E.lookup m h2 -> moreRestrictive s1 s2 ns hm n1 (m:n2) e1 e
     (Var i1, Var i2) | HS.member (idName i1) ns
                      , idName i1 == idName i2 -> Just hm
                      | HS.member (idName i1) ns -> Nothing
@@ -643,12 +631,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                            -- | otherwise -> Nothing
     -- TODO don't just add mismatched cases indiscriminately
     -- these cases get hit often if I remove the Prim requirement
-    -- TODO repurposing the inlineEquiv function
-    -- now it's getting hit very often
     -- TODO full inlining for everything?
-    -- TODO swapping the helper ordering alone does not fix the Plus error
-    -- neither did introduction of inlineHelper'
-    -- TODO
     -- These two cases should come after the main App-App case.  If an
     -- expression pair fits both patterns, then discharging it in a way that
     -- does not add any extra proof obligations is preferable.
@@ -699,11 +682,12 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
     -- TODO add anything extra as an obligation?
     _ -> Nothing
 
+-- TODO modify these to avoid cyclic inlining?
 inlineHelper :: ExprEnv -> Expr -> Expr
 inlineHelper h v@(Var (Id n _))
     | E.isSymbolic n h = v
     | Just e <- E.lookup n h = inlineHelper h e
-inlineHelper h e = e -- modifyChildren (inlineHelper h) e
+inlineHelper h e = e
 
 inlineHelper' :: ExprEnv -> Expr -> Expr
 inlineHelper' h v@(Var (Id n _))
@@ -768,26 +752,12 @@ indHelper :: HS.HashSet Name ->
 indHelper ns hm_maybe (s1, s2) (p1, p2) =
   mrHelper p2 s2 ns $ mrHelper p1 s1 ns hm_maybe
 
--- TODO rework so it also checks the obligations
-{-
-moreRestrictivePair :: HS.HashSet Name ->
-                       [(State t, State t)] ->
-                       (State t, State t) ->
-                       Bool
-moreRestrictivePair ns prev (s1, s2) =
-  let
-      mr (p1, p2) = isJust $ mrHelper p2 s2 ns $ mrHelper p1 s1 ns (Just (HM.empty, HS.empty))
-  in
-      (not $ null $ filter mr prev)
--}
-
 concObligation :: HM.HashMap Id Expr -> Maybe PathCond
 concObligation hm =
   let l = HM.toList hm
       l' = map (\(i, e) -> (Var i, e)) l
   in obligationWrap $ HS.fromList l'
 
--- TODO
 extractCond :: PathCond -> Expr
 extractCond (ExtCond e _) = e
 extractCond _ = error "unsupported"
@@ -822,17 +792,13 @@ moreRestrictivePC solver s1 s2 hm = do
          -- TODO state order right?
          then applySolver solver (P.insert neg_conj P.empty) s1 s2
          else applySolver solver (P.insert neg_imp P.empty) s1 s2
-  -- TODO
-  putStrLn "W."
-  --putStrLn $ show $ null old_conds
-  --putStrLn $ mkExprHaskell $ exprExtract s1
-  --putStrLn $ mkExprHaskell $ exprExtract s2
-  --putStrLn $ show l'
-  -- TODO absolutely every result is UNSAT
-  putStrLn $ show res
   case res of
     S.UNSAT () -> return True
     _ -> return False
+
+-- TODO extra helper; using typeOf correctly?
+rfs :: ExprEnv -> Expr -> Bool
+rfs h e = (exprReadyForSolver h e) && (T.isPrimType $ typeOf e)
 
 -- make all of the obligations into a single big list
 -- TODO need to check whether the obligations are ready for the solver first
@@ -864,25 +830,15 @@ moreRestrictivePair solver ns prev (s1, s2) = do
       -- TODO just look at the expressions directly?
       h1 = expr_env s1
       h2 = expr_env s2
-      -- TODO don't check that the filtered version equals the original
       obs' = HS.filter (\(e1, e2) -> rfs h1 e1 && rfs h2 e2) obs
       mpc m = case m of
         (Just (hm, _), (s_old1, s_old2)) ->
           andM (moreRestrictivePC solver s_old1 s1 hm) (moreRestrictivePC solver s_old2 s2 hm)
         _ -> return False
       bools = map mpc (zip maybe_pairs prev)
-  -- TODO for ld, getting additions with only one argument
-  putStrLn $ show obs'
   res <- checkObligations solver s1 s2 obs'
   bools' <- filterM (\x -> x) bools
-  -- TODO s1 and s2 exprs aren't the ones used for obligations
-  -- on ld, bools' is always empty
-  -- on zl, bools' and obs are always empty
-  putStrLn "E."
-  --putStrLn $ mkExprHaskell $ exprExtract s1
-  --putStrLn $ mkExprHaskell $ exprExtract s2
-  putStrLn $ show obs
-  putStrLn $ show (length obs', res, length bools, length bools', length obs)
-  case (obs == obs', res) of
+  -- TODO HashSet doesn't have a "forall" function?
+  case (HS.size obs == HS.size obs', res) of
     (True, S.UNSAT ()) -> return (not $ null bools')
     _ -> return False
