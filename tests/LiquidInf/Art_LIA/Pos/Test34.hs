@@ -1,10 +1,7 @@
 {-@ LIQUID "--short-names" @-}
 {-@ LIQUID "--no-termination" @-}
 {-@ LIQUID "--prune-unsorted" @-}
-<<<<<<< HEAD
-=======
 -- cmd_line = (--max-measures 2)
->>>>>>> master
 
 module Combined ( List
                 , f) where
