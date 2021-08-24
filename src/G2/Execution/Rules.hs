@@ -592,7 +592,7 @@ liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
             badDCs = mapMaybe (\alt -> case alt of
                 (Alt (DataAlt dc _) _) -> Just dc
                 _ -> Nothing) alts
-            dcs' = dcs L.\\ badDCs
+            dcs' = L.deleteFirstsBy (\(DataCon n1 _) (DataCon n2 _) -> n1 == n2) dcs badDCs
 
             (newId, ng') = freshId TyLitInt ng
 
