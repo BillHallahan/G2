@@ -262,13 +262,13 @@ stateWrap s1 s2 (Ob e1 e2) =
 -- helper functions for induction
 -- TODO can something other than Case be at the outermost level?
 caseRecursion :: Expr -> Bool
-caseRecursion (Case e _ _) = (getAny . evalASTs (\e' -> Any $ crHelper e')) e
+caseRecursion (Case e _ _) =
+  (getAny . evalASTs (\e' -> Any $ caseRecHelper e')) e
 caseRecursion _ = False
 
--- TODO should I make this more general to check the entire AST?
-crHelper :: Expr -> Bool
-crHelper (Tick (NamedLoc (Name t _ _ _)) _) = t == DT.pack "REC"
-crHelper _ = False
+caseRecHelper :: Expr -> Bool
+caseRecHelper (Tick (NamedLoc (Name t _ _ _)) _) = t == DT.pack "REC"
+caseRecHelper _ = False
 
 -- We only apply induction to a pair of expressions if both expressions are
 -- Case statements whose scrutinee includes a recursive function or variable
@@ -551,7 +551,6 @@ checkRule config init_state bindings total finite rule = do
       (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
       total_names = filter (includedName total) (map idName $ ru_bndrs rule)
       finite_names = filter (includedName finite) (map idName $ ru_bndrs rule)
-      -- TODO do I still need the HashSet usage elsewhere?
       finite_hs = foldr HS.insert HS.empty finite_names
       -- TODO always include the finite names in total
       total_hs = foldr HS.insert finite_hs total_names
@@ -627,8 +626,6 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
     (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s1 s2 ns hm n1 n2 f1 f2
                            , Just hm_a <- moreRestrictive s1 s2 ns hm_f n1 n2 a1 a2 -> Just hm_a
-                           -- TODO remove this case for now
-                           -- | otherwise -> Nothing
     -- TODO don't just add mismatched cases indiscriminately
     -- these cases get hit often if I remove the Prim requirement
     -- TODO full inlining for everything?
@@ -679,7 +676,6 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                       mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ n1 n2 e1_ e2_
                       l = zip a1 a2
                   in foldM mf hm' l
-    -- TODO add anything extra as an obligation?
     _ -> Nothing
 
 -- TODO modify these to avoid cyclic inlining?
@@ -779,10 +775,9 @@ moreRestrictivePC solver s1 s2 hm = do
       -- TODO type issue
       l' = map (\(e1, e2) -> App (App (Prim Eq TyUnknown) e1) e2) l
       new_conds' = l' ++ new_conds
-      -- TODO need to make sure that the lists are non-empty
+      -- not safe to use unless the lists are non-empty
       conj_new = foldr1 (\o1 o2 -> App (App (Prim And TyUnknown) o1) o2) new_conds'
       conj_old = foldr1 (\o1 o2 -> App (App (Prim And TyUnknown) o1) o2) old_conds
-      -- TODO make sure the order is correct
       imp = App (App (Prim Implies TyUnknown) conj_new) conj_old
       neg_imp = ExtCond (App (Prim Not TyUnknown) imp) True
       neg_conj = ExtCond (App (Prim Not TyUnknown) conj_old) True
@@ -796,7 +791,6 @@ moreRestrictivePC solver s1 s2 hm = do
     S.UNSAT () -> return True
     _ -> return False
 
--- TODO extra helper; using typeOf correctly?
 rfs :: ExprEnv -> Expr -> Bool
 rfs h e = (exprReadyForSolver h e) && (T.isPrimType $ typeOf e)
 

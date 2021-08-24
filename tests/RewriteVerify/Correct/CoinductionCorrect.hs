@@ -134,44 +134,16 @@ zeroList :: [a] -> Int
 zeroList [] = 0
 zeroList (_:t) = 0 + (zeroList t) + 0
 
-pz :: Int -> Int
-pz x = 0 + x + 0
-
--- TODO expReduced runs forever too
--- TODO listMinus terminates, but lenDouble does not
--- ld runs forever, but UNSAT for lpm
--- UNSAT for zl1, runs forever on zl2
--- UNSAT for branch2, runs forever for branch3
--- UNSAT for branch4, branch5, branch6
--- UNSAT for add7, add7front, add7back
--- add7as3 runs forever
--- branch4alt runs forever, both as a+(b+c)+d and as a+b+(c+d); not as (a+b)+c+d
--- UNSAT for branch3alt
+-- These rules test the verifier's ability to work with primitive operations
+-- and recursion at the same time.
 {-# RULES
 "expNat" forall x xs . expLengthNat (x:xs) = S (doubleNat (expLengthNat xs))
 "expReduced" forall xs . expLength xs = (2 * expLength xs) - (expLength xs)
-"doubleMinus" forall x . idInt x = (2 * x) - x
 "listMinus" forall xs . len xs = (2 * (len xs)) - (len xs)
 "lenDouble" forall xs . lenDouble xs = (2 * (lenDouble xs)) - (lenDouble xs)
-"ld" forall xs . lenDouble xs = 1 + (lenDouble xs) - 1
-"lpm" forall xs . len xs = 1 + (len xs) - 1
-"zl" forall xs . zeroList xs = 0 + (zeroList xs) + 0
-"zl1" forall x xs . zeroList (x:xs) = zeroList xs
-"zl2" forall xs . pz (zeroList xs) = zeroList xs
-"zz" forall xs . zeroList xs = zeroList xs
 "branch2" forall xs . zeroList xs = (zeroList xs) + (zeroList xs)
 "branch3" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs)
-"branch3alt" forall xs . zeroList xs = (zeroList xs) + ((zeroList xs) + (zeroList xs))
-"zeroAdd" pz 0 = pz (0 + 0 + 0 + 0 + 0)
-"b1" forall xs . zeroList xs = 0
-"b2" forall xs . zeroList xs = 0 + 0
-"b3" forall xs . zeroList xs = 0 + 0 + 0
 "branch4" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs)
-"branch4alt" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + ((zeroList xs) + (zeroList xs))
 "branch5" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs)
 "branch6" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs)
-"add7" forall xs . zeroList xs = 0 + 0 + 0 + (zeroList xs) + 0 + 0 + 0
-"add7as3" forall xs . zeroList xs = (0 + 0 + 0) + (zeroList xs) + (0 + 0 + 0)
-"add7front" forall xs . zeroList xs = (((((0 + 0) + 0) + zeroList xs) + 0) + 0) + 0
-"add7back" forall xs . zeroList xs = 0 + (0 + (0 + (zeroList xs + (0 + (0 + 0)))))
   #-}
