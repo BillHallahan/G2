@@ -19,7 +19,7 @@ import qualified Data.Text as T
 createLHState :: Measures -> KnownValues -> TypeClasses -> State [FuncCall] -> Bindings -> (LHState, Bindings)
 createLHState meenv mkv mtc s b =
     let
-        (tcv, (s', b')) = runStateM (createTCValues mkv) s b
+        (tcv, (s', b')) = runStateM (createTCValues mkv (type_env s)) s b
 
         lh_s = consLHState s' meenv mtc tcv
     in
@@ -28,8 +28,8 @@ createLHState meenv mkv mtc s b =
                     createExtractors) lh_s b'
     
 
-createTCValues :: KnownValues -> StateM [FuncCall] TCValues
-createTCValues kv = do
+createTCValues :: KnownValues -> TypeEnv -> StateM [FuncCall] TCValues
+createTCValues kv tenv = do
     lhTCN <- freshSeededStringN "lh"
     lhEqN <- freshSeededStringN "lhEq"
     lhNeN <- freshSeededStringN "lhNe"
@@ -41,6 +41,7 @@ createTCValues kv = do
 
     lhPPN <- freshSeededStringN "lhPP"
     lhNuOr <- freshSeededStringN "lhNuOr"
+    lhOrdN <- freshSeededStringN "lhOrd"
 
     let tcv = (TCValues { lhTC = lhTCN
                         , lhNumTC = KV.numTC kv 
@@ -75,7 +76,11 @@ createTCValues kv = do
                         , lhImplies = KV.impliesFunc kv
                         , lhIff = KV.iffFunc kv
 
-                        , lhPP = lhPPN })
+                        , lhPP = lhPPN
+
+                        , lhOrd = lhOrdN
+
+                        , lhSet = nameModMatch (Name "Set" (Just "Data.Set.Internal") 0 Nothing) tenv})
 
     return tcv
 
@@ -159,6 +164,15 @@ createLHTCFuncs' lhm n adt = do
     pp <- lhPPFunc n adt
     insertMeasureM ppN pp
 
+    -- We also put the Ord typeclass into the LH TC, if it exists.
+    ord <- ordTCM
+    ordDict <- lookupTCDictTC ord (TyCon n TyUnknown)
+    ordE <- case ordDict of
+                    Just i -> return (Var i)
+                    _ -> do
+                        flse <- mkFalseE
+                        return (Assume Nothing flse (Prim Undefined TyUnknown))
+
     -- We define a function to get the LH Dict for this type
     -- It takes and passes on the type arguments, and the LH Dicts for those
     -- type arguments
@@ -176,8 +190,8 @@ createLHTCFuncs' lhm n adt = do
                                            , (leN, (typeOf le))
                                            , (gtN, (typeOf gt))
                                            , (geN, (typeOf ge))
-                                           , (ppN, (typeOf pp)) ]
-    let fs' = map (\f -> mkApp $ f:bt ++ lhdv) fs
+                                           , (ppN, (typeOf pp))]
+    let fs' = map (\f -> mkApp $ f:bt ++ lhdv) fs ++ [ordE]
 
     lhdct <- lhDCType
     let e = mkApp $ Data (DataCon lh lhdct):fs'
@@ -219,9 +233,12 @@ lhDCType = do
                                     taab --ge
                                     (TyFun
                                         TyUnknown
-                                        (TyApp 
-                                            (TyCon lh TYPE) 
-                                            (TyVar n)
+                                        (TyFun
+                                            TyUnknown
+                                            (TyApp 
+                                                (TyCon lh TYPE) 
+                                                (TyVar n)
+                                            )
                                         )
                                     )
                                 )
@@ -257,7 +274,7 @@ mkFirstCase :: PredFunc -> LHDictMap -> Id -> Id -> Name -> AlgDataTy -> LHState
 mkFirstCase f ldm d1 d2 n adt@(DataTyCon { data_cons = dcs }) = do
     caseB <- freshIdN (typeOf d1)
     return . Case (Var d1) caseB =<< mapM (mkFirstCase' f ldm d2 n adt) dcs
-mkFirstCase f ldm d1 d2 n adt@(NewTyCon { data_con = dc }) = do
+mkFirstCase f ldm d1 d2 n adt@(NewTyCon { data_con = dc, rep_type = rt }) = do
     caseB <- freshIdN (typeOf d1)
     return . Case (Var d1) caseB . (:[]) =<< mkFirstCase' f ldm d2 n adt dc
 mkFirstCase _ _ _ _ _ _ = error "mkFirstCase: Unsupported AlgDataTy"
@@ -428,7 +445,9 @@ lhPPFunc n adt = do
     b <- tyBoolT
     fs <- mapM (\v -> freshIdN (TyFun (TyVar v) b)) bi
 
-    d <- freshIdN (TyCon n TYPE)
+    let k = foldr (const (TyApp TYPE)) TYPE bi
+        t = foldl' TyApp (TyCon n k) (map TyVar bi)
+    d <- freshIdN t -- (TyCon n TYPE)
 
     let lhm = M.fromList $ zip (map idName bi) lhbi
     let fnm = M.fromList $ zip (map idName bi) fs
@@ -441,10 +460,15 @@ lhPPFunc n adt = do
 type PPFuncMap = M.Map Name Id
 
 lhPPCase :: LHDictMap -> PPFuncMap -> AlgDataTy -> Id -> LHStateM Expr
-lhPPCase lhm fnm adt i = do
+lhPPCase lhm fnm (DataTyCon { data_cons = dcs }) i = do
     ci <- freshIdN (typeOf i)
 
-    return . Case (Var i) ci =<< mapM (lhPPAlt lhm fnm) (dataCon adt)
+    return . Case (Var i) ci =<< mapM (lhPPAlt lhm fnm) dcs
+lhPPCase lhm fnm (NewTyCon { data_con = dc, rep_type = rt}) i = do
+    pp <- lhPPCall lhm fnm rt
+    let c = Cast (Var i) (typeOf i :~ rt)
+    return $ App pp c
+
 
 lhPPAlt :: LHDictMap -> PPFuncMap -> DataCon -> LHStateM Alt
 lhPPAlt lhm fnm dc = do
@@ -479,8 +503,16 @@ lhPPCall lhm fnm t
         i <- freshIdN t
         return . Lam TermL i =<< mkTrueE
     | TyFun _ _ <- t = do
-        i <- freshIdN t
-        return . Lam TermL i =<< mkTrueE
+        let ts = anonArgumentTypes $ PresType t
+            rt = returnType $ PresType t
+        let_is <- freshIdsN ts
+        bind_i <- freshIdN t
+        let bind_app = mkApp $ Var bind_i:map Var let_is
+        pp <- lhPPCall lhm fnm rt
+        let pp_app = App pp bind_app
+        return . Lam TermL bind_i $ Let (zip let_is $ map SymGen ts) pp_app
+        -- i <- freshIdN t
+        -- return . Lam TermL i =<< mkTrueE
     | TyForAll _ _ <- t = do
         i <- freshIdN t
         return . Lam TermL i =<< mkTrueE
@@ -505,7 +537,9 @@ createExtractors = do
     ne <- lhNeM
     pp <- lhPPM
 
-    createExtractors' lh [eq, ne, lt, le, gt, ge, pp]
+    ord <- lhOrdM
+
+    createExtractors' lh [eq, ne, lt, le, gt, ge, pp, ord]
 
 createExtractors' :: Name -> [Name] -> LHStateM ()
 createExtractors' lh ns = mapM_ (uncurry (createExtractors'' lh (length ns))) $ zip [0..] ns

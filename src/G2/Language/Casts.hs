@@ -30,8 +30,8 @@ unsafeElimCast :: ASTContainer m Expr => m -> m
 unsafeElimCast e = if (getAny $ containsCast e) then modifyContainedASTs unsafeElimOuterCast e else e
 
 unsafeElimOuterCast :: Expr -> Expr
-unsafeElimOuterCast (Cast e (t1 :~ t2)) = unsafeElimOuterCast $ replaceASTs t1 t2 e
-unsafeElimOuterCast e = modifyChildren unsafeElimOuterCast e
+unsafeElimOuterCast (Cast e (t1 :~ t2)) = replaceASTs t1 t2 e
+unsafeElimOuterCast e = e
 
 -- | Given a function cast from (t1 -> t2) to (t1' -> t2'), decomposes it to two
 -- seperate casts, from t1 to t1', and from t2 to t2'.  Given a cast (t1 ~ t2)
@@ -70,8 +70,8 @@ splitCast ng (Cast e ((TyForAll (NamedTyBndr ni) t2) :~ (TyForAll (NamedTyBndr n
                 )
     in
     (e', ng')
-splitCast ng c@(Cast e (t1 :~ t2)) =
-    if hasFuncType (PresType t1) || hasFuncType (PresType t2) then (e, ng) else (c, ng)
+-- splitCast ng c@(Cast e (t1 :~ t2)) =
+--     if hasFuncType (PresType t1) || hasFuncType (PresType t2) then (e, ng) else (c, ng)
 splitCast ng e = (e, ng)
 
 -- | Eliminates redundant casts.

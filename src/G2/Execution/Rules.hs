@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Execution.Rules ( module G2.Execution.RuleTypes
+                          , Sharing (..)
                           , stdReduce
                           , evalVarSharing
                           , evalApp
@@ -28,14 +29,20 @@ import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as S
+import G2.Preprocessing.NameCleaner
 import G2.Solver hiding (Assert)
 
 import Control.Monad.Extra
 import Data.Maybe
+
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import qualified Data.Map as M
+
+import Control.Exception
+
+import Debug.Trace
 
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> Merging -> solver -> simplifier -> State t -> Bindings 
           -> IO (Rule, [(State t, ())], Bindings)
@@ -72,16 +79,16 @@ stdReduce' _ _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
         returnWithMP (RuleError, [s { exec_stack = stck'
                               , true_assert = True
                               , assert_ids = is }], ng)
+    | Just (UpdateFrame n, stck') <- frstck = returnWithMP $ retUpdateFrame s ng n stck'
     | isError ce
     , Just (_, stck') <- S.pop stck = returnWithMP (RuleError, [s { exec_stack = stck' }], ng)
     | Just (MergePtFrame i, stck') <- frstck = do
         returnWithMP (RuleHitMergePt, [s {exec_stack = stck'}], ng)
-    | Just (UpdateFrame n, stck') <- frstck = returnWithMP $ retUpdateFrame s ng n stck'
     | Just rs <- retReplaceSymbFunc s ng ce = returnWithMP rs
     | Just (CaseFrame i a, stck') <- frstck = returnWithMP $ retCaseFrame s ng ce i a stck'
+    | Just (CastFrame c, stck') <- frstck = returnWithMP $ retCastFrame s ng ce c stck'
     | Lam u i e <- ce = returnWithMP $ retLam s ng u i e
     | Just (ApplyFrame e, stck') <- S.pop stck = returnWithMP $ retApplyFrame s ng ce e stck'
-    | Just (CastFrame c, stck') <- frstck = returnWithMP $ retCastFrame s ng ce c stck'
     | Just (AssumeFrame e, stck') <- frstck = do
         let (r, xs, ng') = retAssumeFrame s ng ce e stck'
         xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
@@ -310,7 +317,10 @@ evalCase mergeStates s@(State { expr_env = eenv
   -- We perform the cvar binding and proceed with the alt
   -- expression.
   | e:_ <- unApp $ unsafeElimOuterCast mexpr
-  , isData e || isLit e || isLam e
+  , isData e
+      || isLit e
+      || isLam e
+      || (case e of Var i@(Id n _) -> E.isSymbolic n eenv && hasFuncType i; _ -> False)
   , (Alt _ expr):_ <- matchDefaultAlts alts =
       let 
           binds = [(bind, mexpr)]
@@ -355,7 +365,7 @@ evalCase mergeStates s@(State { expr_env = eenv
             _ -> (Nothing, mexpr)
 
         (dsts_cs, ng') = case unApp $ unsafeElimOuterCast expr of
-            (Var i@(Id _ _)):_ -> concretizeVarExpr s mergeStates ng i bind dalts cast
+            (Var i@(Id _ _)):_ -> concretizeVarExpr s ng i bind dalts cast
             (Prim _ _):_ -> createExtConds s ng expr bind dalts
             (Lit _):_ -> ([], ng)
             (Data _):_ -> ([], ng)
@@ -426,17 +436,17 @@ defaultAlts alts = [a | a @ (Alt Default _) <- alts]
 -- | Lift positive datacon `State`s from symbolic alt matching. This in
 -- part involves erasing all of the parameters from the environment by rename
 -- their occurrence in the aexpr to something fresh.
-concretizeVarExpr :: State t -> Merging -> NameGen -> Id -> Id -> [(DataCon, [Id], Expr)] -> Maybe Coercion -> ([NewPC t], NameGen)
-concretizeVarExpr _ _ ng _ _ [] _ = ([], ng)
-concretizeVarExpr s mergeStates ng mexpr_id cvar (x:xs) maybeC =
+concretizeVarExpr :: State t -> NameGen -> Id -> Id -> [(DataCon, [Id], Expr)] -> Maybe Coercion -> ([NewPC t], NameGen)
+concretizeVarExpr _ ng _ _ [] _ = ([], ng)
+concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC =
         (x':newPCs, ng'') 
     where
-        (x', ng') = concretizeVarExpr' s mergeStates ng mexpr_id cvar x maybeC
-        (newPCs, ng'') = concretizeVarExpr s mergeStates ng' mexpr_id cvar xs maybeC
+        (x', ng') = concretizeVarExpr' s ng mexpr_id cvar x maybeC
+        (newPCs, ng'') = concretizeVarExpr s ng' mexpr_id cvar xs maybeC
 
-concretizeVarExpr' :: State t -> Merging -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> (NewPC t, NameGen)
+concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> (NewPC t, NameGen)
 concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = syms})
-    mergeStates ngen mexpr_id cvar (dcon, params, aexpr) maybeC =
+                ngen mexpr_id cvar (dcon, params, aexpr) maybeC =
           (NewPC { state =  s { expr_env = eenv''
                               , symbolic_ids = syms'
                               , curr_expr = CurrExpr Evaluate aexpr''}
@@ -449,6 +459,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
   where
     -- Make sure that the parameters do not conflict in their symbolic reps.
     olds = map idName params
+    clean_olds = map cleanName olds
 
     -- [ChildrenNames]
     -- Optimization
@@ -457,21 +468,20 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
     -- Then, in the constraint solver, we can consider fewer constraints at once
     -- (see note [AltCond] in Language/PathConds.hs) 
     mexpr_n = idName mexpr_id
-    (news, ngen') = case mergeStates of
-        Merging -> freshSeededNames olds ngen
-        NoMerging -> childrenNames mexpr_n olds ngen
+    (news, ngen') = childrenNames mexpr_n clean_olds ngen
 
     --Update the expr environment
     newIds = map (\(Id _ t, n) -> (n, Id n t)) (zip params news)
     eenv' = foldr (uncurry E.insertSymbolic) eenv newIds
 
-    (dcon', aexpr') = renames (HM.fromList $ zip olds news) (Data dcon, aexpr)
+    (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, aexpr)
 
     newparams = map (uncurry Id) $ zip news (map typeOf params)
     dConArgs = (map (Var) newparams)
     -- Get list of Types to concretize polymorphic data constructor and concatenate with other arguments
     mexpr_t = typeOf mexpr_id
-    exprs = [dcon'] ++ (mexprTyToExpr mexpr_t tenv) ++ dConArgs
+    type_ars = mexprTyToExpr mexpr_t tenv
+    exprs = [dcon'] ++ type_ars ++ dConArgs
 
     -- Apply list of types (if present) and DataCon children to DataCon
     dcon'' = mkApp exprs
@@ -766,8 +776,22 @@ defAltExpr (_:xs) = defAltExpr xs
 ----------------------------------------------------
 
 evalCast :: State t -> NameGen -> Expr -> Coercion -> (Rule, [State t], NameGen)
-evalCast s@(State { exec_stack = stck }) 
-         ng e c
+evalCast s@(State { expr_env = eenv
+                  , exec_stack = stck
+                  , symbolic_ids = symbs }) 
+         ng e c@(t1 :~ t2)
+    | Var init_i@(Id n _) <- e
+    , E.isSymbolic n eenv
+    , hasFuncType (PresType t2) && not (hasFuncType $ PresType t1) =
+        let
+            (i, ng') = freshId t2 ng
+            new_e = Cast (Var i) (t2 :~ t1)
+        in
+        ( RuleOther
+        , [s { expr_env = E.insertSymbolic (idName i) i $ E.insert n new_e eenv
+             , curr_expr = CurrExpr Return (Var i)
+             , symbolic_ids = HS.insert i $ HS.delete init_i symbs }]
+        , ng')
     | cast /= cast' =
         ( RuleEvalCastSplit
         , [ s { curr_expr = CurrExpr Evaluate $ simplifyCasts cast' }]
@@ -994,29 +1018,28 @@ addPathConds s e1 ais e2 stck =
 -- seed values for the names.
 liftBinds :: [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, [Name])
-liftBinds binds eenv expr ngen = (eenv', expr', ngen', news)
+liftBinds binds eenv expr ngen = (eenv', expr', ngen'', news)
   where
     (bindsLHS, bindsRHS) = unzip binds
 
     olds = map (idName) bindsLHS
     (news, ngen') = freshSeededNames olds ngen
-    expr' = renames (HM.fromList $ zip olds news) expr
-    bindsLHS' = renames (HM.fromList $ zip olds news) bindsLHS
 
-    binds' = zip bindsLHS' bindsRHS
+    olds_news = HM.fromList $ zip olds news
+    expr' = renamesExprs olds_news expr
 
-    (eenv', ngen'') = E.insertExprsWithCL ngen' (zip news (map snd binds')) eenv
+    (eenv', ngen'') = E.insertExprsWithCL ngen' (zip news bindsRHS) eenv
 
 liftBind :: Id -> Expr -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, Name)
-liftBind bindsLHS bindsRHS eenv expr ngen = (eenv', expr', ngen', new)
+liftBind bindsLHS bindsRHS eenv expr ngen = (eenv', expr', ngen'', new)
   where
     old = idName bindsLHS
     (new, ngen') = freshSeededName old ngen
 
     expr' = renameExpr old new expr
 
-    eenv' = E.insert new bindsRHS eenv
+    (eenv', ngen'') = E.insertWithCL ngen' new bindsRHS eenv
 
 -- If the expression is a symbolic higher order function application, replaces
 -- it with a symbolic variable of the correct type.
@@ -1065,3 +1088,5 @@ retReplaceSymbFunc s@(State { expr_env = eenv
 isApplyFrame :: Frame -> Bool
 isApplyFrame (ApplyFrame _) = True
 isApplyFrame _ = False
+
+

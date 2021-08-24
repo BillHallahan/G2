@@ -19,8 +19,6 @@ import qualified Data.List as L
 import Data.Maybe (mapMaybe)
 import qualified Data.HashMap.Lazy as HM
 
-import Debug.Trace
-
 subModel :: State t -> Bindings -> ([Expr], Expr, Maybe FuncCall)
 subModel (State { expr_env = eenv
                 , curr_expr = CurrExpr _ cexpr

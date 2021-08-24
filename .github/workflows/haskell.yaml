@@ -18,6 +18,7 @@ jobs:
         ghc-version: '8.2.2'
         cabal-version: '2.0.0.1'
 
+<<<<<<< HEAD
     - name: Cache
       uses: actions/cache@v1
       env:
@@ -29,6 +30,19 @@ jobs:
           ${{ runner.os }}-build-${{ env.cache-name }}-
           ${{ runner.os }}-build-
           ${{ runner.os }}-
+=======
+    # - name: Cache
+    #   uses: actions/cache@v1
+    #   env:
+    #     cache-name: cache-cabal
+    #   with:
+    #     path: ~/.cabal
+    #     key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.cabal') }}-${{ hashFiles('**/cabal.project') }}
+    #     restore-keys: |
+    #       ${{ runner.os }}-build-${{ env.cache-name }}-
+    #       ${{ runner.os }}-build-
+    #       ${{ runner.os }}-
+>>>>>>> master
 
     - name: Install Z3
       uses: pavpanchekha/setup-z3@1.2.2
@@ -40,7 +54,10 @@ jobs:
       run: |
         cabal update
         cabal install --only-dependencies
+<<<<<<< HEAD
         cabal install --enable-tests
+=======
+>>>>>>> master
         cabal configure --enable-tests
         cabal build
     - name: Build

@@ -180,17 +180,19 @@ cutOff _ e = e
 -- | Generates an arbitrary value of the given AlgDataTy
 -- If there is no such finite value, this may return an infinite Expr
 getADT :: M.Map Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
-getADT m tenv av adt ts =
-    let
-        dcs = dataCon adt
-        ids = boundIds adt
+getADT m tenv av adt ts 
+    | dcs <- dataCon adt
+    , _:_ <- dcs =
+        let
+            ids = boundIds adt
 
-        -- Finds the DataCon for adt with the least arguments
-        min_dc = minimumBy (comparing (length . dataConArgs)) dcs
+            -- Finds the DataCon for adt with the least arguments
+            min_dc = minimumBy (comparing (length . dataConArgs)) dcs
 
-        tyVIds = map TyVar ids
-        m' = foldr (uncurry M.insert) m $ zip (map idName ids) ts
+            tyVIds = map TyVar ids
+            m' = foldr (uncurry M.insert) m $ zip (map idName ids) ts
 
-        (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite' m' t tenv av_) av $ dataConArgs min_dc
-    in
-    (mkApp $ Data min_dc:map Type ts ++ es, av')
+            (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite' m' t tenv av_) av $ dataConArgs min_dc
+        in
+        (mkApp $ Data min_dc:map Type ts ++ es, av')
+    | otherwise = (Prim Undefined TyBottom, av)

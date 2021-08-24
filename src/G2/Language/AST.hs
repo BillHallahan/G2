@@ -330,6 +330,21 @@ instance ASTContainer FuncCall Type where
     modifyContainedASTs f fc@(FuncCall { arguments = as, returns = r}) =
         fc {arguments = modifyContainedASTs f as, returns = modifyContainedASTs f r}
 
+instance ASTContainer RewriteRule Expr where
+    containedASTs (RewriteRule { ru_args = a, ru_rhs = s }) = a ++ [s]
+    modifyContainedASTs f rr@(RewriteRule { ru_args = a, ru_rhs = s }) =
+        rr { ru_args = modifyContainedASTs f a, ru_rhs = modifyContainedASTs f s }
+
+instance ASTContainer RewriteRule Type where
+    containedASTs (RewriteRule { ru_bndrs = b, ru_args = a, ru_rhs = s }) =
+        (containedASTs b) ++ (containedASTs a) ++ (containedASTs s)
+    modifyContainedASTs f rr@(RewriteRule { ru_bndrs = b, ru_args = a, ru_rhs = s }) =
+        rr {
+             ru_bndrs = modifyContainedASTs f b
+           , ru_args = modifyContainedASTs f a
+           , ru_rhs = modifyContainedASTs f s
+           }
+
 -- instance (Foldable f, Functor f, ASTContainer c t) => ASTContainer (f c) t where
 --     containedASTs = foldMap (containedASTs)
 

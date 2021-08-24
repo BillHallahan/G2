@@ -24,6 +24,7 @@ module G2.Interface.Interface ( MkCurrExpr
                               
                               , initialStateFromFileSimple
                               , initialStateFromFile
+                              , initialStateNoStartFunc
 
                               , runG2FromFile
                               , runG2WithConfig
@@ -83,7 +84,7 @@ type StartFunc = T.Text
 type ModuleName = Maybe T.Text 
 
 type MkArgTypes = IT.SimpleState -> [Type]
-type MkCurrExpr = TypeClasses -> NameGen -> ExprEnv -> Walkers
+type MkCurrExpr = TypeClasses -> NameGen -> ExprEnv -> TypeEnv -> Walkers
                      -> KnownValues -> Config -> (Expr, [Id], [Expr], NameGen)
 
 doTimeout :: Int -> IO a -> IO (Maybe a)
@@ -185,7 +186,7 @@ initStateFromSimpleState s useAssert mkCurr argTys config =
         kv' = IT.known_values s'
         tc' = IT.type_classes s'
 
-        (ce, is, f_i, ng'') = mkCurr tc' ng' eenv' ds_walkers kv' config
+        (ce, is, f_i, ng'') = mkCurr tc' ng' eenv' tenv' ds_walkers kv' config
     in
     (State {
       expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv' is
@@ -248,7 +249,7 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
         tenv = mkTypeEnv prog_typ
         tc = initTypeClasses cls
         kv = initKnownValues eenv tenv tc
-        ng = mkNameGen (prog, prog_typ)
+        ng = mkNameGen (prog, prog_typ, rs)
 
         s = IT.SimpleState { IT.expr_env = eenv
                            , IT.type_env = tenv
@@ -323,8 +324,26 @@ initialStateFromFileSimple :: [FilePath]
                    -> (Expr -> MkArgTypes)
                    -> Config
                    -> IO (State (), Id, Bindings)
-initialStateFromFileSimple proj src libs f mkCurr config =
-    initialStateFromFile proj src libs Nothing False f mkCurr config
+initialStateFromFileSimple proj src libs f mkCurr argTys config =
+    initialStateFromFile proj src libs Nothing False f mkCurr argTys simplTranslationConfig config
+
+initialStateNoStartFunc :: [FilePath]
+                     -> [FilePath]
+                     -> [FilePath]
+                     -> TranslationConfig
+                     -> Config
+                     -> IO (State (), Bindings)
+initialStateNoStartFunc proj src libs transConfig config = do
+    (mb_modname, exg2) <- translateLoaded proj src libs transConfig config
+
+    let simp_state = initSimpleState exg2
+
+        (init_s, bindings) = initStateFromSimpleState simp_state False
+                                 (\_ ng _ _ _ _ _ -> (Prim Undefined TyBottom, [], [], ng))
+                                 (E.higherOrderExprs . IT.expr_env)
+                                 config
+
+    return (init_s, bindings)
 
 initialStateFromFile :: [FilePath]
                      -> [FilePath]
@@ -334,10 +353,11 @@ initialStateFromFile :: [FilePath]
                      -> StartFunc
                      -> (Id -> MkCurrExpr)
                      -> (Expr -> MkArgTypes)
+                     -> TranslationConfig
                      -> Config
                      -> IO (State (), Id, Bindings)
-initialStateFromFile proj src libs m_reach def_assert f mkCurr argTys config = do
-    (mb_modname, exg2) <- translateLoaded proj src libs simplTranslationConfig config
+initialStateFromFile proj src libs m_reach def_assert f mkCurr argTys transConfig config = do
+    (mb_modname, exg2) <- translateLoaded proj src libs transConfig config
 
     let simp_state = initSimpleState exg2
         (ie, fe) = case findFunc f mb_modname (IT.expr_env simp_state) of
@@ -360,11 +380,13 @@ runG2FromFile :: [FilePath]
               -> Maybe ReachFunc
               -> Bool
               -> StartFunc
+              -> TranslationConfig
               -> Config
               -> IO (([ExecRes ()], Bindings), Id)
-runG2FromFile proj src libs m_assume m_assert m_reach def_assert f config = do
+runG2FromFile proj src libs m_assume m_assert m_reach def_assert f transConfig config = do
     (init_state, entry_f, bindings) <- initialStateFromFile proj src libs
-                                    m_reach def_assert f (mkCurrExpr m_assume m_assert) (mkArgTys) config
+                                    m_reach def_assert f (mkCurrExpr m_assume m_assert) (mkArgTys)
+                                    transConfig config
 
     r <- runG2WithConfig init_state config bindings
 
@@ -379,6 +401,7 @@ runG2WithConfig state config bindings = do
     (in_out, bindings') <- case initRedHaltOrd solver simplifier config of
                 (red, hal, ord) ->
                     runG2WithSomes red hal ord solver simplifier mergeStates emptyMemConfig state bindings
+
     close solver
 
     return (in_out, bindings')
@@ -446,7 +469,6 @@ runG2ThroughExecution red hal ord simplifier merge mem is bindings = do
     let (is', bindings') = runG2Pre mem is bindings
     runExecution red hal ord simplifier merge is' bindings'
 
-
 runG2Solving :: ( Named t
                 , ASTContainer t Expr
                 , ASTContainer t Type
@@ -460,8 +482,6 @@ runG2Solving solver simplifier bindings s@(State { known_values = kv })
         case r of
             SAT m -> do
                 let m' = reverseSimplification simplifier s bindings m
-
-                print m'
 
                 let s' = s { model = m' }
 

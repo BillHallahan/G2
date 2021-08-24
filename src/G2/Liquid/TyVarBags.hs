@@ -142,13 +142,17 @@ createBagFuncCaseAlt func_names tyvar_id ty_map dc = do
     let at = anonArgumentTypes dc
     is <- freshIdsN at
     let is' = foldr (uncurry retype) is ty_map
-    es <- return . concat =<< mapM (extractTyVarCall func_names todo_emp tyvar_id . Var) is
+        tyvar_id' = maybe tyvar_id id $ tyVarId =<< lookup tyvar_id ty_map
+    es <- return . concat =<< mapM (extractTyVarCall func_names todo_emp tyvar_id' . Var) is'
     case null es of
         True -> do 
             flse <- mkFalseE
             return $ Alt (DataAlt dc is') 
                          (Assume Nothing flse (Prim Undefined (TyVar tyvar_id)))
         False -> return $ Alt (DataAlt dc is') (NonDet es)
+    where
+        tyVarId (TyVar i) = Just i
+        tyVarId _ = Nothing
 
 todo_emp :: [a]
 todo_emp = []
@@ -247,6 +251,9 @@ createInstFunc' func_names is_fs (DataTyCon { bound_ids = bi
             e' <- foldM wrapPrimsInCase e vrs
             return $ Let (zip bnds ars) e') dcs
     return (NonDet dc')
+createInstFunc' func_names is_fs (NewTyCon { rep_type = rt }) = do
+    -- rt_val <- instTyVarCall' func_names is_fs rt
+    return $ Cast undefined undefined
 createInstFunc' _ _ _ = error "createInstFunc': unhandled datatype"
 
 -- | Creates an instTyVarCall function call to create an expression of type t with appropriate TyVars

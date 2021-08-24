@@ -65,6 +65,10 @@ data SMTAST = (:>=) SMTAST SMTAST
             | Modulo SMTAST SMTAST
             | Neg SMTAST -- ^ Unary negation
 
+            | ArrayConst SMTAST Sort Sort
+            | ArrayStore SMTAST SMTAST SMTAST
+            | ArraySelect SMTAST SMTAST
+
             | Func SMTName [SMTAST] -- ^ Interpreted function
 
             | StrLen SMTAST
@@ -91,8 +95,14 @@ data Sort = SortInt
           | SortDouble
           | SortChar
           | SortBool
+          | SortArray Sort Sort
           | SortFunc [Sort] Sort
           deriving (Show, Eq, Ord)
+
+(.=.) :: SMTAST -> SMTAST -> SMTAST
+x .=. y
+  | x == y = VBool True
+  | otherwise = x := y
 
 (.&&.) :: SMTAST -> SMTAST -> SMTAST
 (VBool True) .&&. x = x
@@ -117,6 +127,25 @@ mkSMTOr = foldr (.||.) (VBool False)
 isSat :: Result m u -> Bool
 isSat (SAT _) = True
 isSat _ = False
+
+mkSMTEmptyArray :: Sort -> Sort -> SMTAST
+mkSMTEmptyArray = ArrayConst (VBool False)
+
+mkSMTUniversalArray :: Sort -> Sort -> SMTAST
+mkSMTUniversalArray = ArrayConst (VBool True)
+
+mkSMTUnion :: SMTAST -> SMTAST -> SMTAST
+mkSMTUnion s1 s2 = Func "union" [s1, s2]
+
+mkSMTIntersection :: SMTAST -> SMTAST -> SMTAST
+mkSMTIntersection s1 s2 = Func "intersection" [s1, s2]
+
+mkSMTSingleton :: SMTAST -> Sort -> Sort -> SMTAST
+mkSMTSingleton mem srt srt2 =
+    ArrayStore (ArrayConst (VBool False) srt srt2) mem (VBool True)
+
+mkSMTIsSubsetOf :: SMTAST -> SMTAST -> SMTAST
+mkSMTIsSubsetOf s1 s2 = Func "subset" [s1, s2]
 
 type SMTModel = M.Map SMTName SMTAST
 type UnsatCore = HS.HashSet SMTName

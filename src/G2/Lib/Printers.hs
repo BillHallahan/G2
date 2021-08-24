@@ -80,6 +80,8 @@ mkExprHaskell ex = mkExprHaskell' ex 0
         mkExprHaskell' a@(App ea@(App e1 e2) e3) i
             | Data (DataCon n _) <- appCenter a
             , isTuple n = printTuple a
+            | Data (DataCon n _) <- appCenter a
+            , isPrimTuple n = printPrimTuple a
 
             | Data (DataCon n1 _) <- e1
             , nameOcc n1 == ":" =
@@ -149,8 +151,16 @@ isTuple :: Name -> Bool
 isTuple (Name n _ _ _) = T.head n == '(' && T.last n == ')'
                      && T.all (\c -> c == '(' || c == ')' || c == ',') n
 
+isPrimTuple :: Name -> Bool
+isPrimTuple (Name n _ _ _) = T.head n == '(' && T.last n == ')'
+                     && T.all (\c -> c == '(' || c == ')' || c == ',' || c == '#') n
+                     && T.any (\c -> c == '#') n
+
 printTuple :: Expr -> String
 printTuple a = "(" ++ intercalate ", " (reverse $ printTuple' a) ++ ")"
+
+printPrimTuple :: Expr -> String
+printPrimTuple a = "(#" ++ intercalate ", " (reverse $ printTuple' a) ++ "#)"
 
 printTuple' :: Expr -> [String]
 printTuple' (App e e') = mkExprHaskell e':printTuple' e
@@ -251,7 +261,6 @@ ppPathCond s (ExtCond e b) =
     in
     if b then es else "not (" ++ es ++ ")"
 ppPathCond s (AssumePC i num pc) = "if" ++ mkIdHaskell i ++ " == " ++ (show num) ++ " then (" ++ (ppPathCond s $ PC.unhashedPC pc) ++ ")"
-
 injNewLine :: [String] -> String
 injNewLine strs = intercalate "\n" strs
 

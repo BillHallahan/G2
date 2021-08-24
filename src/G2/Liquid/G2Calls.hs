@@ -131,15 +131,16 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
                 }] -> case not $ ce `eqUpToTypes` r of
                         True ->
                             return $ AbstractRes 
-                                        ( Abstracted { abstract = abs_fc
-                                                     , real = abs_fc { returns = ce }
-                                                     , hits_lib_err_in_real = t }
+                                        ( Abstracted { abstract = repTCsFC (type_classes s) $ abs_fc
+                                                     , real = repTCsFC (type_classes s) $ abs_fc { returns = ce }
+                                                     , hits_lib_err_in_real = t
+                                                     , func_calls_in_real = [] }
                                         ) m
                         False -> return NotAbstractRes
             [] -> do undefined -- ^ We hit an error in a library function
                      return $ AbstractRes 
-                              ( Abstracted { abstract = abs_fc
-                                           , real = abs_fc { returns = Prim Error TyUnknown }
+                              ( Abstracted { abstract = repTCsFC (type_classes s) $ abs_fc
+                                           , real = repTCsFC (type_classes s) $ abs_fc { returns = Prim Error TyUnknown }
                                            , hits_lib_err_in_real = True
                                            , func_calls_in_real = [] }
                               ) (model s)
@@ -186,13 +187,32 @@ getAbstracted solver simplifier share s bindings abs_fc@(FuncCall { funcName = n
                 }] -> do
                   let fs' = modelToExprEnv fs
                   (bindings'', gfc') <- reduceFuncCallMaybeList solver simplifier share bindings' fs' gfc
-                  return $ ( Abstracted { abstract = abs_fc
-                                        , real = abs_fc { returns = ce }
+                  return $ ( Abstracted { abstract = repTCsFC (type_classes s) abs_fc
+                                        , real = repTCsFC (type_classes s) $ abs_fc { returns = (inline (expr_env fs) HS.empty ce) }
                                         , hits_lib_err_in_real = hle
                                         , func_calls_in_real = gfc' }
                                 , m)
             _ -> error $ "checkAbstracted': Bad return from runG2WithSomes"
     | otherwise = error $ "getAbstracted: Bad lookup in runG2WithSomes"
+
+repTCsFC :: TypeClasses -> FuncCall -> FuncCall 
+repTCsFC tc fc = fc { arguments = map (repTCs tc) (arguments fc)
+                    , returns = repTCs tc (returns fc) }
+
+repTCs :: TypeClasses -> Expr -> Expr
+repTCs tc e
+    | isTypeClass tc $ (typeOf e)
+    , TyCon n _:t:_ <- unTyApp (typeOf e)
+    , Just tc_dict <- typeClassInst tc M.empty n t = tc_dict
+    | otherwise = e
+
+
+inline :: ExprEnv -> HS.HashSet Name -> Expr -> Expr
+inline h ns v@(Var (Id n _))
+    | E.isSymbolic n h = v
+    | HS.member n ns = v
+    | Just e <- E.lookup n h = inline h (HS.insert n ns) e
+inline h ns e = modifyChildren (inline h ns) e
 
 data HitsLibError = HitsLibError
 
@@ -377,6 +397,11 @@ reduceFCExpr share reducer solver simplifier s bindings e
                 let (CurrExpr _ ce) = curr_expr . final_state $ er'
                 return ((s', bindings { name_gen = name_gen bindings' }), ce)
             _ -> error $ "reduceAbstracted: Bad reduction"
+    | isTypeClass (type_classes s) $ (typeOf e)
+    , TyCon n _:_ <- unTyApp (typeOf e)
+    , _:Type t:_ <- unApp e
+    , Just tc_dict <- typeClassInst (type_classes s) M.empty n t = 
+          return $ ((s, bindings), tc_dict) 
     | otherwise = return ((s, bindings), redVar (expr_env s) e) 
 
 
@@ -428,6 +453,10 @@ reduceFCExprMaybe share reducer solver simplifier s bindings e
                 return $ Just (bindings { name_gen = name_gen bindings' }, ce)
             [] -> return Nothing
             _ -> error $ "reduceAbstracted: Bad reduction"
+    | isTypeClass (type_classes s) $ (typeOf e)
+    , TyCon n _:_ <- unTyApp (typeOf e)
+    , _:Type t:_ <- unApp e
+    , Just tc_dict <- typeClassInst (type_classes s) M.empty n t = return $ Just (bindings, tc_dict) 
     | otherwise = return $ Just (bindings, redVar (expr_env s) e) 
 
 redVar :: E.ExprEnv -> Expr -> Expr

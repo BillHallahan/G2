@@ -198,4 +198,3 @@ mkNotPrim kv = Prim Not $ TyFun t (TyCon (KV.tyBool kv) TYPE)
 mkImpliesPrim :: KnownValues -> Expr
 mkImpliesPrim kv = Prim Implies $ TyFun t (TyFun t t)
     where t = (TyCon (KV.tyBool kv) TYPE)
-

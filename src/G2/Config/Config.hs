@@ -17,8 +17,7 @@ module G2.Config.Config ( Mode (..)
                         , boolArg
 
                         , baseDef
-                        , baseSimple
-                        , baseExtra) where
+                        , baseSimple) where
 
 
 import Data.Char
@@ -95,7 +94,6 @@ baseRoot = do
   g2Dir <- getHomeDirectory >>= \f -> return $ f ++ "/.g2"
   return $ g2Dir ++ "/base-4.9.1.0"
 
-
 mkConfig :: String -> [String] -> M.Map String [String] -> Config
 mkConfig homedir as m = Config {
       mode = Regular
@@ -140,23 +138,13 @@ baseIncludeDef root =
     ]
 
 baseDef :: FilePath -> [FilePath]
-baseDef root =
-    baseSimple root
-    ++
-    baseExtra root
+baseDef root = baseSimple root
 
 baseSimple :: FilePath -> [FilePath]
 baseSimple root =
     [ root ++ "/.g2/base-4.9.1.0/Control/Exception/Base.hs"
-    , root ++ "/.g2/base-4.9.1.0/Prelude.hs" ]
-
-baseExtra :: FilePath -> [FilePath]
-baseExtra root =
-    baseSimple root
-    ++
-    [ root ++ "/.g2/base-4.9.1.0/Control/Monad.hs"
-    , root ++ "/.g2/base-4.9.1.0/Data/Internal/Map.hs"
-    ]
+    , root ++ "/.g2/base-4.9.1.0/Prelude.hs"
+    , root ++ "/.g2/base-4.9.1.0/Control/Monad.hs" ]
 
 extraDefaultIncludePaths :: FilePath -> [FilePath]
 extraDefaultIncludePaths root =

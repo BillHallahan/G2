@@ -31,7 +31,9 @@ createDeepSeqStore (n, adt) n' w =
         bn = map TyVar $ bound_ids adt
         bnf = map (\b -> TyFun b b) bn
 
-        base = TyFun (TyCon n TYPE) (TyCon n TYPE)
+        dc_t = foldr (const $ TyFun TYPE) TYPE [1..length bi]
+
+        base = TyFun (TyCon n dc_t) (TyCon n dc_t)
 
         t = foldr TyFun base (bn ++ bnf)
         t' = foldr TyForAll t $ map NamedTyBndr bi
@@ -83,14 +85,14 @@ createDeepSeqCase1 _ w ti n rm bn (NewTyCon {rep_type = t}) ng =
 
         cast = Cast (Var i) (t' :~ t'')
 
-        e = deepSeqFuncCall w ti rm (Var caseB)
+        (e, ng''') = deepSeqFuncCall w ng'' ti rm (Var caseB)
         e' = Cast e (t'' :~ t')
 
         alt = Alt Default e'
 
         c = Case cast caseB [alt]
     in
-    (Lam TermL i c, ng'')
+    (Lam TermL i c, ng''')
 createDeepSeqCase1 _ _ _ _ _ _ _ _ = error "createDeepSeqCase1: bad argument passed"
 
 createDeepSeqDataConCase1Alts :: TypeEnv -> Walkers -> [(Name, Id)] -> Name -> Id -> RenameMap -> [BoundName] -> NameGen -> [DataCon] -> ([Alt], NameGen)
@@ -130,34 +132,34 @@ createDeepSeqDataConCase2 tenv w ti rm (i:is) ng e
     let
         (i', ng') = freshId rt ng
 
-        b = deepSeqFuncCall w ti rm (Var i)
+        (b, ng'') = deepSeqFuncCall w ng' ti rm (Var i)
         bCast = Cast b (t :~ rt)
 
         vi = Var i'
         viCast = Cast vi (rt :~ t)
 
-        (ae, ng'') = createDeepSeqDataConCase2 tenv w ti rm is ng' (App e viCast)
+        (ae, ng''') = createDeepSeqDataConCase2 tenv w ti rm is ng'' (App e viCast)
     in
-    (Case bCast i' [Alt Default ae], ng'')
+    (Case bCast i' [Alt Default ae], ng''')
     | otherwise =
         let
             (i', ng') = freshId (typeOf i) ng
 
-            b = deepSeqFuncCall w ti rm (Var i)
+            (b, ng'') = deepSeqFuncCall w ng' ti rm (Var i)
 
-            (ae, ng'') = createDeepSeqDataConCase2 tenv w ti rm is ng' (App e (Var i'))
+            (ae, ng''') = createDeepSeqDataConCase2 tenv w ti rm is ng'' (App e (Var i'))
         in
-        (Case b i' [Alt Default ae], ng'')
+        (Case b i' [Alt Default ae], ng''')
 
 -- Calling a higher order function
-deepSeqFuncCall :: Walkers -> [(Name, Id)] -> RenameMap -> Expr -> Expr
-deepSeqFuncCall w ti rm e =
-    case deepSeqFunc w ti rm e of
-        Just e' -> App e' e
-        Nothing -> e
+deepSeqFuncCall :: Walkers -> NameGen -> [(Name, Id)] -> RenameMap -> Expr -> (Expr, NameGen)
+deepSeqFuncCall w ng ti rm e =
+    case deepSeqFunc w ng ti rm e of
+        Just (e', ng') -> (App e' e, ng')
+        Nothing -> (e, ng)
 
-deepSeqFunc :: Typed t => Walkers -> [(Name, Id)] -> RenameMap -> t -> Maybe Expr
-deepSeqFunc w ti rm e
+deepSeqFunc :: Typed t => Walkers -> NameGen -> [(Name, Id)] -> RenameMap -> t -> Maybe (Expr, NameGen)
+deepSeqFunc w ng ti rm e
     | t <- typeOf e
     , TyCon n _ <- tyAppCenter t
     , ts <- tyAppArgs t
@@ -166,10 +168,28 @@ deepSeqFunc w ti rm e
             as = map Type $ renames rm ts
             as' = map (walkerFunc w ti rm) ts
         in
-        Just $ foldl' App (Var f) (as ++ as')
+        Just $ (foldl' App (Var f) (as ++ as'), ng)
+    | t@(TyFun _ _) <- typeOf e =
+        let
+            (a_in, ng') = freshId t ng
+
+            tys = anonArgumentTypes e
+            (f_is, ng'') = freshIds tys ng' 
+            
+            cll = mkApp $ Var a_in:map Var f_is
+            let_cll = Let (zip f_is $ map SymGen tys) cll
+
+            (ds_cll, ng''') = deepSeqFuncCall w ng'' ti rm let_cll
+            (bnd, ng'''') = freshId (typeOf ds_cll) ng'''
+
+            (lam_ids, ng''''') = freshIds tys ng''''
+
+            cse = Case ds_cll bnd [Alt Default $ mkLams (zip (repeat TermL) lam_ids) (Var bnd)]
+        in
+        Just (Lam TermL a_in cse, ng''''')
     | (TyVar (Id n _)) <- typeOf e
     , Just f <- lookup n ti =
-       Just $  Var f
+       Just (Var f, ng)
     | otherwise = Nothing
 
 walkerFunc :: Walkers -> [(Name, Id)] -> RenameMap -> Type -> Expr
@@ -182,7 +202,7 @@ walkerFunc w ti rm t
     , Just f <- M.lookup n w =
         let
             as = renames rm $ map Type ts
-            ft = renames rm $ mapMaybe (deepSeqFunc w ti rm . PresType) ts
+            ft = renames rm . map fst $ mapMaybe (deepSeqFunc w undefined ti rm . PresType) ts
         in
         foldl' App (Var f) (as ++ ft)
 walkerFunc _ ni _ t = error $ "walkerFunc: bad argument passed" ++ "\n" ++ show ni ++ "\n" ++ show t

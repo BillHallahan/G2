@@ -302,7 +302,6 @@ insertPCStateNG pc = do
     (s@(State { path_conds = pcs }), ng) <- SM.get
     SM.put (s { path_conds = PC.insert pc pcs}, ng)
 
-
 mapMAccumB :: Monad m => (a -> b -> m (a, c)) -> a -> [b] -> m (a, [c])
 mapMAccumB _ a [] = do
     return (a, [])

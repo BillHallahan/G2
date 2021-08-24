@@ -23,12 +23,14 @@ mkConfigTestIO = do
             , base = baseSimple homedir
             , extraDefaultMods = [] }
 
+mkConfigTestWithSetIO :: IO Config
+mkConfigTestWithSetIO = mkConfigTestWithMapIO
+
 mkConfigTestWithMapIO :: IO Config
 mkConfigTestWithMapIO = do
     config <- mkConfigTestIO
     homedir <- getHomeDirectory
-    return $ config { base = base config ++ baseExtra homedir }
-
+    return $ config { base = base config }
 
 eqIgT :: Expr -> Expr -> Bool
 eqIgT (Var n) (Var n') = eqIgIds n n'

@@ -96,22 +96,24 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
         let formula' = "(set-option :produce-unsat-cores true)\n" ++ formula
         putStrLn "\n\n checkSatGetModelOrUnsatCore"
         putStrLn formula'
+
         setUpFormulaZ3 h_in formula'
         r <- checkSat' h_in h_out
         -- putStrLn $ "r =  " ++ show r
         if r == SAT () then do
             mdl <- getModelZ3 h_in h_out vs
-            putStrLn "======"
+            -- putStrLn "======"
+            -- putStrLn $ "r = " ++ show r
+            -- putStrLn $ "mdl = " ++ show mdl
             -- putStrLn (show mdl)
             let m = parseModel mdl
-            putStrLn $ "m = " ++ show m
-            putStrLn "======"
+            -- putStrLn $ "m = " ++ show m
+            -- putStrLn "======"
             return (SAT m)
         else if r == UNSAT () then do
             uc <- getUnsatCoreZ3 h_in h_out
             return (UNSAT $ HS.fromList uc)
-        else
-            return (Unknown "")
+        else return (Unknown "")
 
     checkSatGetModelGetExpr con (h_in, h_out, _) formula _ vs eenv (CurrExpr _ e) = do
         setUpFormulaZ3 h_in formula
@@ -197,6 +199,9 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
 
     strLen _ = function1 "str.len"
 
+    arrayStore _ = function3 "store"
+    arraySelect _ = function2 "select"
+
     itor _ = function1 "to_real"
 
 
@@ -209,6 +214,8 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
         "(/ " ++ show (numerator r) ++ " " ++ show (denominator r) ++ ")"
     char _ c = '"':c:'"':[]
     bool _ b = if b then "true" else "false"
+    constArray con v indSrt valSrt =
+        "((as const " ++ sortArray con indSrt valSrt ++ ") " ++ v ++ ")"
     var _ n = function1 n
 
     sortInt _ = "Int"
@@ -216,6 +223,7 @@ instance SMTConverter Z3 String String (Handle, Handle, ProcessHandle) where
     sortDouble _ = "Real"
     sortChar _ = "String"
     sortBool _ = "Bool"
+    sortArray _ ind val = "(Array " ++ ind ++ " " ++ val ++ ")"
 
     cons _ n asts _ =
         if asts /= [] then
@@ -412,7 +420,7 @@ getSMTAV avf (Config {smt = ConCVC4}) = do
 -- Ideally, this function should be called only once, and the same Handles should be used
 -- in all future calls
 getZ3ProcessHandles :: IO (Handle, Handle, ProcessHandle)
-getZ3ProcessHandles = getProcessHandles $ proc "z3" ["-smt2", "-in", "-t:10000"]
+getZ3ProcessHandles = getProcessHandles $ proc "z3" ["-smt2", "-in", "-t:90000"]
 
 getCVC4ProcessHandles :: IO (Handle, Handle, ProcessHandle)
 getCVC4ProcessHandles = getProcessHandles $ proc "cvc4" ["--lang", "smt2.6", "--produce-models"]

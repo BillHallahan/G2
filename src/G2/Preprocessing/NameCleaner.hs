@@ -14,6 +14,7 @@ module G2.Preprocessing.NameCleaner
     , cleanNamesFromList
     , allowedStartSymbols
     , allowedSymbol
+    , cleanName
     ) where
 
 import qualified Data.HashMap.Lazy as HM
@@ -51,7 +52,7 @@ allowedName (Name n m _ _) =
 cleanNames :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> CleanedNames -> NameGen -> (State t, CleanedNames, NameGen)
 cleanNames s cl_names ng = (renames hns s, cl_names', ng')
   where
-    (ns, ng') = createNamePairs ng . filter (not . allowedName) . map idName . S.toList $ symbolic_ids s
+    (ns, ng') = createNamePairs ng . filter (not . allowedName) . map idName . S.toList $ symbolic_ids s -- ++ altIds s
     hns = HM.fromList ns
     cl_names' = foldr (\(old, new) -> HM.insert new old) cl_names (HM.toList hns)
 
@@ -75,16 +76,35 @@ createNamePairs ing ins = go ing [] ins
         go ng rns [] = (rns, ng)
         go ng rns (name@(Name n m i l):ns) =
             let
-                n' = T.filter (\x -> x `S.member` allowedSymbol) n
-                m' = fmap (T.filter $ \x -> x `S.member` allowedSymbol) m
-
-                -- No reserved symbols start with a $, so this ensures both uniqueness
-                -- and starting with an allowed symbol
-                n'' = "$" `T.append` n'
-
-                (new_name, ng') = freshSeededName (Name n'' m' i l) ng
+                name' = cleanName name
+                (new_name, ng') = freshSeededName name' ng
             in
             go ng' ((name, new_name):rns) ns
 
+cleanName :: Name -> Name
+cleanName nm@(Name n m i l)
+  | allowedName nm = nm
+  | otherwise = 
+      let
+          n' = T.filter (\x -> x `S.member` allowedSymbol) n
+          m' = fmap (T.filter $ \x -> x `S.member` allowedSymbol) m
+
+          -- No reserved symbols start with a $, so this ensures both uniqueness
+          -- and starting with an allowed symbol
+          n'' = "$" `T.append` n'
+      in
+      Name n'' m' i l
+
 allNames :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> [Name]
 allNames s = exprNames s ++ E.keys (expr_env s)
+
+altIds :: ASTContainer c Expr => c -> [Id]
+altIds = evalASTs altIds'
+
+altIds' :: Expr -> [Id]
+altIds' (Case _ i as) = i:concatMap altIds'' as
+altIds' _ = []
+
+altIds'' :: Alt -> [Id]
+altIds'' (Alt (DataAlt _ is) _) = is
+altIds'' _ = []

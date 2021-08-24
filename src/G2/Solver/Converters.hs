@@ -88,6 +88,9 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     smtSqrt :: con -> ast -> ast
     neg :: con -> ast -> ast
 
+    arrayStore :: con -> ast -> ast -> ast -> ast
+    arraySelect :: con -> ast -> ast -> ast
+
     smtFunc :: con -> SMTName -> [ast] -> ast
 
     strLen :: con -> ast -> ast
@@ -101,6 +104,11 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     double :: con -> Rational -> ast
     char :: con -> Char -> ast
     bool :: con -> Bool -> ast
+    constArray :: con
+               -> ast -- ^ value to put in array
+               -> ast -- ^ Index sort of array
+               -> ast -- ^ Val sort of array
+               -> ast
     cons :: con -> SMTName -> [ast] -> Sort -> ast
     var :: con -> SMTName -> ast -> ast
 
@@ -110,6 +118,7 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     sortDouble :: con -> ast
     sortChar :: con -> ast
     sortBool :: con -> ast
+    sortArray :: con -> ast -> ast -> ast
 
     varName :: con -> SMTName -> Sort -> ast
 
@@ -526,6 +535,15 @@ toSolverAST con (x `Modulo` y) = smtModulo con (toSolverAST con x) (toSolverAST 
 toSolverAST con (SqrtSMT x) = smtSqrt con $ toSolverAST con x
 toSolverAST con (Neg x) = neg con $ toSolverAST con x
 
+toSolverAST con (ArrayConst v indS valS) =
+    constArray con (toSolverAST con v) (sortName con indS) (sortName con valS)
+
+toSolverAST con (ArraySelect arr ind) =
+    arraySelect con (toSolverAST con arr) (toSolverAST con ind)
+
+toSolverAST con (ArrayStore arr ind val) =
+    arrayStore con (toSolverAST con arr) (toSolverAST con ind) (toSolverAST con val)
+
 toSolverAST con (Func n xs) = smtFunc con n $ map (toSolverAST con) xs
 
 toSolverAST con (StrLen x) = strLen con $ toSolverAST con x
@@ -554,6 +572,7 @@ sortName con SortFloat = sortFloat con
 sortName con SortDouble = sortDouble con
 sortName con SortChar = sortChar con
 sortName con SortBool = sortBool con
+sortName con (SortArray ind val) = sortArray con (sortName con ind) (sortName con val)
 
 toSolverSetLogic :: SMTConverter con ast out io => con -> Logic -> out
 toSolverSetLogic = setLogic

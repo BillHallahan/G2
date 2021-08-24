@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module G2.Liquid.Inference.GeneratedSpecs ( GeneratedSpecs
                                           , emptyGS
 
@@ -147,7 +149,10 @@ addSpecsToGhcInfos :: [GhcInfo] -> GeneratedSpecs -> [GhcInfo]
 addSpecsToGhcInfos ghci gs = addAssumedSpecsToGhcInfos (addAssertedSpecsToGhcInfos ghci gs) gs
 
 addAssertedSpecsToGhcInfos :: [GhcInfo] -> GeneratedSpecs -> [GhcInfo]
-addAssertedSpecsToGhcInfos ghcis = foldr (uncurry addAssertedSpecToGhcInfos) ghcis . M.toList . assert_specs
+addAssertedSpecsToGhcInfos ghcis = foldr (uncurry addAssertedSpecToGhcInfos) ghcis
+                                 . filter (not . allEmptyPAnds . snd)
+                                 . M.toList
+                                 . assert_specs
 
 addAssertedSpecToGhcInfos :: G2.Name -> [PolyBound Expr] -> [GhcInfo] -> [GhcInfo]
 addAssertedSpecToGhcInfos v e = map (addAssertedSpecToGhcInfo v e) . insertMissingAssertSpec v
@@ -202,6 +207,11 @@ zipSpecTypes es st = error $ "zipSpecTypes: Unhandled case\n" ++ show es ++ "\n"
 zeroOutUnq :: G2.Name -> G2.Name
 zeroOutUnq (G2.Name n m _ l) = G2.Name n m 0 l
 
+allEmptyPAnds :: [PolyBound Expr] -> Bool
+allEmptyPAnds = all (allPB (\e -> case e of
+                                      PAnd [] -> True
+                                      _ -> False))
+
 -- | If the given variable does not have a specification, create it in the appropriate place
 insertMissingAssumeSpec :: G2.Name -> [GhcInfo] -> [GhcInfo]
 insertMissingAssumeSpec (G2.Name n _ _ _) = map create 
@@ -224,7 +234,7 @@ insertMissingAssumeSpec (G2.Name n _ _ _) = map create
 
 
 insertMissingAssertSpec :: G2.Name -> [GhcInfo] -> [GhcInfo]
-insertMissingAssertSpec (G2.Name n _ _ _) = map create 
+insertMissingAssertSpec (G2.Name n _ _ _) = map create
     where
         create ghci@(GI { spec = spc } ) =
             let

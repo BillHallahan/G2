@@ -5,6 +5,8 @@ module G2.Liquid.Inference.Config (
                                     Progress (..)
                                   , Progresser (..)
                                   , ProgresserM (..)
+                                  , MaxSize (..)
+
                                   , newProgress
                                   , runProgresser
 
@@ -16,7 +18,9 @@ module G2.Liquid.Inference.Config (
 
                                   , mkInferenceConfig
                                   , adjustConfig
-                                  , adjustConfigPostLH ) where
+                                  , adjustConfigPostLH
+
+                                  , incrMaxSize ) where
 
 import G2.Config.Config
 import G2.Initialization.Types
@@ -49,16 +53,20 @@ import Data.Time.Clock
 -- Progresser
 -------------------------------
 
+newtype MaxSize = MaxSize Integer
+
 data Progress =
     Progress { ex_max_ce :: M.Map (T.Text, Maybe T.Text) Int -- ^ Gives an extra budget for maximum ce number
              , ex_max_depth :: Int -- ^ Gives an extra budget for the depth limit
              , ex_max_time :: M.Map (T.Text, Maybe T.Text) NominalDiffTime -- ^ Gives an extra max bufget for time
+             , max_synth_size :: MaxSize
              }
 
 newProgress :: Progress
 newProgress = Progress { ex_max_ce = M.empty
                        , ex_max_depth = 0
-                       , ex_max_time = M.empty }
+                       , ex_max_time = M.empty
+                       , max_synth_size = MaxSize 1 }
 
 class Progresser p where
     extraMaxCEx ::  (T.Text, Maybe T.Text) -> p -> Int
@@ -69,6 +77,9 @@ class Progresser p where
 
     extraMaxTime :: (T.Text, Maybe T.Text) -> p -> NominalDiffTime
     incrMaxTime :: (T.Text, Maybe T.Text) -> p -> p
+
+    maxSynthSize :: p -> MaxSize
+    incrMaxSynthSize :: p -> p
 
 instance Progresser Progress where
     extraMaxCEx n (Progress { ex_max_ce = m }) = M.findWithDefault 0 n m
@@ -82,6 +93,9 @@ instance Progresser Progress where
     incrMaxTime n p@(Progress { ex_max_time = m }) =
         p { ex_max_time = M.insertWith (+) n 4 m }
 
+    maxSynthSize (Progress { max_synth_size = mss }) = mss
+    incrMaxSynthSize p@(Progress { max_synth_size = mss }) = p { max_synth_size = incrMaxSize mss }
+
 class Monad m => ProgresserM m where
     extraMaxCExM :: (T.Text, Maybe T.Text) -> m Int
     incrMaxCExM :: (T.Text, Maybe T.Text) -> m ()
@@ -91,6 +105,9 @@ class Monad m => ProgresserM m where
 
     extraMaxTimeM :: (T.Text, Maybe T.Text) -> m NominalDiffTime
     incrMaxTimeM :: (T.Text, Maybe T.Text) -> m ()
+
+    maxSynthSizeM :: m MaxSize
+    incrMaxSynthSizeM :: m ()
 
 instance (Monad m, Progresser p) => ProgresserM (StateT p m) where
     extraMaxCExM n = gets (extraMaxCEx n)
@@ -102,6 +119,9 @@ instance (Monad m, Progresser p) => ProgresserM (StateT p m) where
     extraMaxTimeM n = gets (extraMaxTime n)
     incrMaxTimeM n = modify' (incrMaxTime n)
 
+    maxSynthSizeM = gets maxSynthSize
+    incrMaxSynthSizeM = modify' incrMaxSynthSize
+
 instance ProgresserM m => ProgresserM (ReaderT env m) where
     extraMaxCExM n = lift (extraMaxCExM n)
     incrMaxCExM n = lift (incrMaxCExM n)
@@ -112,8 +132,14 @@ instance ProgresserM m => ProgresserM (ReaderT env m) where
     extraMaxTimeM n = lift (extraMaxTimeM n)
     incrMaxTimeM n = lift (incrMaxTimeM n)
 
+    maxSynthSizeM = lift maxSynthSizeM
+    incrMaxSynthSizeM = lift incrMaxSynthSizeM
+
 runProgresser :: (Monad m, Progresser p) => StateT p m a -> p -> m a
 runProgresser = evalStateT
+
+incrMaxSize :: MaxSize -> MaxSize
+incrMaxSize (MaxSize sz) = MaxSize (sz + 1)
 
 -------------------------------
 -- Configurations
@@ -255,7 +281,7 @@ isPrimRetTy kv e =
     let
         rel_t = extractValues . extractTypePolyBound $ returnType e
     in
-    any (\t -> t == tyInt kv) rel_t
+    any (\t -> t == tyInt kv || t == tyBool kv) rel_t
 
 tyVarNoMeas :: Measures -> TCValues -> [GhcInfo] -> Expr -> Bool
 tyVarNoMeas meas tcv ghci e =

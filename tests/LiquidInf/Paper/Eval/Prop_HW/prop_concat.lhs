@@ -85,6 +85,10 @@ l2     = 2 :+: l1
 
 l1     = 1 :+: l0
 
+<<<<<<< HEAD
+=======
+{-@ l0 :: { r:List Int | size r == 0 } @-}
+>>>>>>> master
 l0     = Emp :: List Int
 \end{code}
 

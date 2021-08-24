@@ -92,7 +92,8 @@ module G2.Liquid.Types ( LHOutput (..)
                        , lhAndE
                        , lhOrE
                        
-                       , lhPPM ) where
+                       , lhPPM
+                       , lhOrdM ) where
 
 import Data.Coerce
 import qualified Data.HashMap.Lazy as HM
@@ -729,6 +730,9 @@ lhNumOrdM = do
 
 lhPPM :: LHStateM L.Name
 lhPPM = liftTCValues lhPP
+
+lhOrdM :: LHStateM L.Name
+lhOrdM = liftTCValues lhOrd
 
 lhAndE :: LHStateM L.Expr
 lhAndE = do

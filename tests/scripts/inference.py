@@ -32,7 +32,11 @@ def call_infer_process(file):
 
         extra_args = [];
         if args_re and args_re.group(1):
+<<<<<<< HEAD
             extra_args = [args_re.group(1)];
+=======
+            extra_args = args_re.group(1).split(" ");
+>>>>>>> master
 
         timeout = "120"
         timeout_re = re.search("--\s*timeout\s*=\s*([0-9]*)\s*", code);

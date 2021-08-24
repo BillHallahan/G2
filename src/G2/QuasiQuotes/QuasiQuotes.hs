@@ -103,6 +103,8 @@ parseHaskellConfigQ config str = do
 
     -- Get names for the lambdas for the regular inputs
     exG2 <- parseHaskellQ' qext
+
+    config <- runIO qqConfig
     let (init_s, init_b) = initStateWithCall' exG2 (T.pack functionName) (Just $ T.pack moduleName)
                                         (mkCurrExpr Nothing Nothing) (mkArgTys) config
 
@@ -418,6 +420,7 @@ executeAndSolveStates' mergeStates b s = do
                                           -- :<-> BucketSizeOrderer 6) solver s b
                 ord = ToOrderer (IncrAfterN 2000 (ADTHeightOrderer 0 Nothing) :<-> BucketSizeOrderer 6)
             (res, _) <- runG2Post (red :<~ (MergeReducer solver simplifier) :<~ mkCountAllSteps :<~ CountMerges {- :<~ LimLogger 0 0 [] "a_red" -}) hal' ord solver simplifier s b mergeStates
+
             -- (res, _) <- runG2Post (red) hal' (BucketSizeOrderer 3) solver s b
 
             case res of

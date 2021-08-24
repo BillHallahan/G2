@@ -88,16 +88,24 @@ rebindFuncs e = do
 replaceLocalAssert :: Id -> Expr -> LHStateM Expr
 replaceLocalAssert (Id n _) ce = do
     n_assert <- lookupPostM n
-    return $ modifyASTs
-        (\e -> case e of
-                    Assert (Just fc) e1 e2 ->
-                        let ars = arguments fc ++ [returns fc]
-                            assrt = case n_assert of
-                                        Just a -> mkApp (a:ars)
-                                        Nothing -> e1
-                        in 
-                        Assert (Just $ fc { funcName = initiallyCalledFuncName}) assrt e2
-                    _ -> e) ce
+    -- Replace the initial function assertion with one that only checks the postcondition,
+    -- but is careful to not replace assertions tied to higher order functions.
+    let ce' = insertInLams
+                (\_ e -> case e of
+                            Let b (Assert (Just fc) e1 e2) ->
+                                let ars = arguments fc ++ [returns fc]
+                                    assrt = case n_assert of
+                                                Just a -> mkApp (a:ars)
+                                                Nothing -> e1
+                                in 
+                                Let b $ Assert (Just fc) assrt e2
+                            _ -> e) ce
+        ce'' = modifyASTs
+                (\e -> case e of
+                        Assert (Just fc) e1 e2 ->
+                            Assert (Just $ fc { funcName = initiallyCalledFuncName}) e1 e2
+                        _ -> e) ce'
+    return ce''
 
 initiallyCalledFuncName :: Name
 initiallyCalledFuncName = Name "INITIALLY_CALLED_FUNC" Nothing 0 Nothing

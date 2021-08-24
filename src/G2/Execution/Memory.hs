@@ -91,7 +91,6 @@ markAndSweepPreserving' mc (state@State { expr_env = eenv
 
     higher_ord_rel = higherOrderNames inst tenv eenv
 
-
 activeNames :: TypeEnv -> ExprEnv -> S.HashSet Name -> [Name] -> S.HashSet Name
 activeNames _ _ explored [] = explored
 activeNames tenv eenv explored (n:ns) =

@@ -23,11 +23,14 @@ module G2.Execution.Reducer ( Reducer (..)
                             , SomeHalter (..)
                             , SomeOrderer (..)
 
+                            , EquivTracker (..)
+
                             -- Reducers
                             , RCombiner (..)
                             , StdRed (..)
                             , ConcSymReducer (..)
                             , NonRedPCRed (..)
+                            , NonRedPCRedConst (..)
                             , TaggerRed (..)
                             , Logger (..)
                             , LimLogger (..)
@@ -98,6 +101,7 @@ import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.List as L
+import Data.Tuple
 import Data.Time.Clock
 import System.Directory
 import System.Random
@@ -174,6 +178,7 @@ class Reducer r rv t | r -> rv where
     onMerge :: r -> State t -> State t -> rv -> rv -> IO rv
     onMerge _ _ _ rc _ = return rc
 
+
 -- | Determines when to stop evaluating a state
 -- The type parameter h is used to disambiguate between different producers.
 -- To create a new Halter, define some new type, and use it as h.
@@ -197,7 +202,6 @@ class Halter h hv t | h -> hv where
 
     -- | Takes a state, and updates it's halter record field
     stepHalter :: h -> hv -> Processed (State t) -> [State t] -> State t -> hv
-
 
     -- | After multiple states, are returned
     -- gives an opportunity to update halters with all States and halter values visible.
@@ -266,6 +270,7 @@ data SomeOrderer t where
 data RCombiner r1 r2 = r1 :<~ r2 -- ^ Apply r2, followed by r1.  Takes the leftmost update to r1
                      | r1 :<~? r2 -- ^ Apply r2, apply r1 only if r2 returns NoProgress
                      | r1 :<~| r2 -- ^ Apply r2, apply r1 only if r2 returns Finished
+                     | r1 :|: r2 -- ^ Apply both r1 and r2 to the initial states
                      deriving (Eq, Show, Read)
 
 -- We use RC to combine the reducer values for RCombiner
@@ -277,6 +282,7 @@ instance (Reducer r1 rv1 t, Reducer r2 rv2 t) => Reducer (RCombiner r1 r2) (RC r
     initReducer (r1 :<~ r2) = initReducerGen r1 r2
     initReducer (r1 :<~? r2) = initReducerGen r1 r2
     initReducer (r1 :<~| r2) = initReducerGen r1 r2
+    initReducer (r1 :|: r2) = initReducerGen r1 r2
 
     redRules (r1 :<~ r2) (RC rv1 rv2) s b = do
         (rr2, srv2, b', r2') <- redRules r2 rv2 s b
@@ -304,10 +310,20 @@ instance (Reducer r1 rv1 t, Reducer r2 rv2 t) => Reducer (RCombiner r1 r2) (RC r
                 return (rr1, ss, b'', r1' :<~| r2')
             _ -> return (rr2, zip s' (map (uncurry RC) (zip (repeat rv1) rv2')), b', r1 :<~| r2')
 
+    redRules (r1 :|: r2) (RC rv1 rv2) s b = do
+        (rr2, srv2, b', r2') <- redRules r2 rv2 s b
+        (rr1, srv1, b'', r1') <- redRules r1 rv1 s b'
+
+        let srv2' = map (\(s, rv2_) -> (s, RC rv1 rv2_) ) srv2
+            srv1' = map (\(s, rv1_) -> (s, RC rv1_ rv2) ) srv1
+
+        return (progPrioritizer rr1 rr2, srv2' ++ srv1', b'', r1' :|: r2')
+
     {-# INLINE updateWithAll #-}
     updateWithAll (r1 :<~ r2) = updateWithAllRC r1 r2
     updateWithAll (r1 :<~? r2) = updateWithAllRC r1 r2
     updateWithAll (r1 :<~| r2) = updateWithAllRC r1 r2
+    updateWithAll (r1 :|: r2) = updateWithAllRC r1 r2
 
     onAccept (r1 :<~ r2) s (RC rv1 rv2) = do
         onAccept r1 s rv1
@@ -316,6 +332,9 @@ instance (Reducer r1 rv1 t, Reducer r2 rv2 t) => Reducer (RCombiner r1 r2) (RC r
         onAccept r1 s rv1
         onAccept r2 s rv2
     onAccept (r1 :<~| r2) s (RC rv1 rv2) = do
+        onAccept r1 s rv1
+        onAccept r2 s rv2
+    onAccept (r1 :|: r2) s (RC rv1 rv2) = do
         onAccept r1 s rv1
         onAccept r2 s rv2
 
@@ -406,79 +425,86 @@ instance (Solver solver, Simplifier simplifier) => Reducer (StdRed solver simpli
 maxDepth :: Int
 maxDepth = 4
 
+
 data ConcSymReducer = ConcSymReducer
 
-instance Reducer ConcSymReducer () t where
+-- Maps higher order function calls to symbolic replacements.
+-- This allows the same call to be replaced by the same Id consistently.
+-- relocated from Equiv.G2Calls
+data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
+                                 , saw_tick :: Maybe Int
+                                 , total :: HS.HashSet Name } deriving (Eq, Show)
+
+-- Forces a lone symbolic variable with a type corresponding to an ADT
+-- to evaluate to some value of that ADT
+instance Reducer ConcSymReducer () EquivTracker where
     initReducer _ _ = ()
 
-    redRules red _ s@(State { curr_expr = CurrExpr _ (Var i@(Id n t))
+    redRules red _
+                   s@(State { curr_expr = CurrExpr _ (Var i@(Id n t))
                             , expr_env = eenv
                             , type_env = tenv
                             , path_conds = pc
-                            , symbolic_ids = sid })
+                            , symbolic_ids = symbs
+                            , track = EquivTracker et m total })
                    b@(Bindings { name_gen = ng })
-        | E.isSymbolic n eenv = do
-            let (e, pc', sid', ng') = arbDCCase tenv ng t
-
-                s' = s { curr_expr = CurrExpr Return e
-                       , expr_env =
-                            foldr (\i -> E.insertSymbolic (idName i) i)
-                                  (E.insert n e eenv)
-                                  sid'
-                       , path_conds = foldr PC.insert pc pc'
-                       , symbolic_ids = HS.union sid' $ HS.delete i sid } 
+        | E.isSymbolic n eenv
+        , Just (dc_symbs, ng') <- arbDC tenv ng t n total = do
+            let total_names = map idName $ concat $ map snd dc_symbs
+                total' = if n `elem` total
+                         then foldr HS.insert total total_names
+                         else total
+                xs = map (\(e, symbs') ->
+                                s   { curr_expr = CurrExpr Evaluate e
+                                    , expr_env =
+                                        foldr (\i -> E.insertSymbolic (idName i) i)
+                                              (E.insert n e eenv)
+                                              symbs'
+                                    , symbolic_ids = HS.union (HS.fromList symbs') $ HS.delete i symbs
+                                    , track = EquivTracker et m total'
+                                    }) dc_symbs
                 b' =  b { name_gen = ng' }
-            return (InProgress, [(s', ())], b', red)
+                -- only add to total if n was total
+                -- not all of these will be used on each branch
+                -- they're all fresh, though, so overlap is not a problem
+            return (InProgress, zip xs (repeat ()) , b', red)
     redRules red _ s b = return (NoProgress, [(s, ())], b, red)
 
 -- | Build a case expression with one alt for each data constructor of the given type
 -- and symbolic arguments.  Thus, the case expression could evaluate to any value of the
 -- given type.
-arbDCCase :: TypeEnv
-          -> NameGen
-          -> Type
-          -> (Expr, [PathCond], HS.HashSet Id, NameGen)
-arbDCCase tenv ng t
+arbDC :: TypeEnv
+      -> NameGen
+      -> Type
+      -> Name
+      -> HS.HashSet Name
+      -> Maybe ([(Expr, [Id])], NameGen)
+arbDC tenv ng t n total
     | TyCon tn _:ts <- unTyApp t
     , Just adt <- M.lookup tn tenv =
         let
             dcs = dataCon adt
-            (bindee_id, ng') = freshId TyLitInt ng
 
             bound = boundIds adt
             bound_ts = zip bound ts
 
             ty_apped_dcs = map (\dc -> mkApp $ Data dc:map Type ts) dcs
-            ((ng'', symbs), apped_dcs) =
-                        L.mapAccumL
-                            (\(ng_, symbs_) dc ->
-                                let
-                                    anon_ts = anonArgumentTypes dc
-                                    re_anon = foldr (\(i, t) -> retype i t) anon_ts bound_ts
-                                    (ars, ng_') = freshIds re_anon ng_
-                                    symbs_' = foldr HS.insert symbs_ ars
-                                in
-                                ((ng_', symbs_'), mkApp $ dc:map Var ars)
-                            )
-                            (ng', HS.empty)
-                            ty_apped_dcs
-
-            bindee = Var bindee_id
-
-            pc = mkBounds bindee 1 (toInteger $ length dcs)
-
-            e = createCaseExpr bindee_id apped_dcs
+            ty_apped_dcs' = (Prim Error TyBottom):ty_apped_dcs
+            (ng', dc_symbs) = 
+                L.mapAccumL
+                    (\ng_ dc ->
+                        let
+                            anon_ts = anonArgumentTypes dc
+                            re_anon = foldr (\(i, t) -> retype i t) anon_ts bound_ts
+                            (ars, ng_') = freshIds re_anon ng_
+                        in
+                        (ng_', (mkApp $ dc:map Var ars, ars))
+                    )
+                    ng
+                    (if n `elem` total then ty_apped_dcs else ty_apped_dcs')
         in
-        (e, pc, HS.insert bindee_id symbs, ng'')
-    | otherwise = error "arbDCCase: type not found"
-
-mkBounds :: Expr -> Integer -> Integer -> [PathCond]
-mkBounds e l u =
-    let
-        t = TyFun TyLitInt $ TyFun TyLitInt TyLitInt
-    in
-    [ ExtCond (App (App (Prim Le t) (Lit (LitInt l))) e) True
-    , ExtCond (App (App (Prim Le t) e) (Lit (LitInt u))) True]
+        Just (dc_symbs, ng')
+    | otherwise = Nothing
 
 -- | Removes and reduces the values in a State's non_red_path_conds field. 
 data NonRedPCRed = NonRedPCRed
@@ -546,6 +572,50 @@ substHigherOrder' eenvsice ((i, es):iss) =
                                                    , replaceASTs (Var i) e_rep ce)
                             ) eenvsice)
         es) iss
+
+-- | Removes and reduces the values in a State's non_red_path_conds field by instantiating higher order functions to be constant
+data NonRedPCRedConst = NonRedPCRedConst
+
+instance Reducer NonRedPCRedConst () t where
+    initReducer _ _ = ()
+
+    redRules nrpr _  s@(State { expr_env = eenv
+                              , curr_expr = cexpr
+                              , exec_stack = stck
+                              , non_red_path_conds = nr:nrs
+                              , symbolic_ids = symbs
+                              , model = m })
+                      b@(Bindings { name_gen = ng
+                                  , higher_order_inst = inst }) = do
+        let stck' = Stck.push (CurrExprFrame AddPC cexpr) stck
+
+        let cexpr' = CurrExpr Evaluate nr
+
+        let (higher_ord, not_higher_ord) = L.partition (isTyFun . typeOf) $ HS.toList symbs
+            (ng', new_lam_is) = L.mapAccumL (\ng_ ts -> swap $ freshIds ts ng_) ng (map anonArgumentTypes higher_ord)
+            (new_sym_gen, ng'') = freshIds (map returnType higher_ord) ng'
+
+            es = map (\(f_id, lam_i, sg_i) -> (f_id, mkLams (zip (repeat TermL) lam_i) (Var sg_i)) )
+               $ zip3 higher_ord new_lam_is new_sym_gen
+
+            eenv' = foldr (uncurry E.insert) eenv (map (\(i, e) -> (idName i, e)) es)
+            eenv'' = foldr (\i -> E.insertSymbolic (idName i) i) eenv' new_sym_gen
+            m' = foldr (\(i, e) -> HM.insert (idName i) e) m es
+
+            symbs' = foldr (\(i, _) -> HS.delete i) symbs es
+            symbs'' = foldr HS.insert symbs' new_sym_gen
+
+        let s' = s { expr_env = eenv''
+                   , curr_expr = cexpr'
+                   , model = m'
+                   , symbolic_ids = symbs''
+                   , exec_stack = stck'
+                   , non_red_path_conds = nrs
+                   }
+
+        return (InProgress, [(s', ())], b { name_gen = ng'' }, nrpr)
+    redRules nrpr _ s b = return (Finished, [(s, ())], b, nrpr)
+
 
 data TaggerRed = TaggerRed Name NameGen
 
@@ -1365,6 +1435,7 @@ runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_
                 in
                 case jrs of
                     Just (rs', xs') -> do
+                        onAccept red s r_val
                         switchState red hal ord pr' rs' b xs'
                         -- runReducer' red hal ord pr' (updateExStateHalter hal pr' rs') b xs'
                     Nothing -> return (pr', b)
@@ -1674,3 +1745,6 @@ switchStates ex_s b@(_, hal, _, _, pr) =
 --                                 MergePtFrame _ -> False
 --                                 _ -> True) xs
 --     in Stck.fromList xs'
+
+numStates :: M.Map b [ExState rv hv sov t] -> Int
+numStates = sum . map length . M.elems
