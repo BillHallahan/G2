@@ -600,12 +600,29 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                , not $ E.isSymbolic m h1
                , not $ HS.member m ns
                , not $ m `elem` n1
-               , Just e <- E.lookup m h1 -> moreRestrictive s1 s2 ns hm (m:n1) n2 e e2
+               , Just e <- E.lookup m h1 ->
+                 -- TODO try both inlining and not inlining
+                 -- block it from being inlined later?  I think that's right
+                 -- give preference to the version that inlines this, for now
+                 -- TODO doesn't fix doubleReverse
+                 moreRestrictive s1 s2 ns hm (m:n1) n2 e e2
+                 {-
+                 in case res of
+                   Nothing -> moreRestrictive s1 s2 ns hm (m:n1) n2 e1 e2
+                   _ -> res
+                 -}
     (_, Var i) | m <- idName i
                , not $ E.isSymbolic m h2
                , not $ HS.member m ns
                , not $ m `elem` n2
-               , Just e <- E.lookup m h2 -> moreRestrictive s1 s2 ns hm n1 (m:n2) e1 e
+               , Just e <- E.lookup m h2 ->
+                 -- TODO not helpful
+                 moreRestrictive s1 s2 ns hm n1 (m:n2) e1 e
+                 {-
+                 in case res of
+                   Nothing -> moreRestrictive s1 s2 ns hm n1 (m:n2) e1 e2
+                   _ -> res
+                 -}
     (Var i1, Var i2) | HS.member (idName i1) ns
                      , idName i1 == idName i2 -> Just hm
                      | HS.member (idName i1) ns -> Nothing
@@ -672,6 +689,8 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                       h2' = E.insert (idName i2) e2' h2
                       s1' = s1 { expr_env = h1' }
                       s2' = s2 { expr_env = h2' }
+                      -- TODO what if I reset here?
+                      -- fixes doubleReverse, breaks listLeaf
                       mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ n1 n2 e1_ e2_
                       l = zip a1 a2
                   in foldM mf hm' l
@@ -723,8 +742,7 @@ moreRestrictiveAlt :: State t ->
 moreRestrictiveAlt s1 s2 ns hm n1 n2 (Alt am1 e1) (Alt am2 e2) =
   if altEquiv am1 am2 then
   case am1 of
-    DataAlt _ t1 -> let n1 = map (\(Id n _) -> n) t1
-                        ns' = foldr HS.insert ns n1
+    DataAlt _ t1 -> let ns' = foldr HS.insert ns $ map (\(Id n _) -> n) t1
                     in moreRestrictive s1 s2 ns' hm n1 n2 e1 e2
     _ -> moreRestrictive s1 s2 ns hm n1 n2 e1 e2
   else Nothing
