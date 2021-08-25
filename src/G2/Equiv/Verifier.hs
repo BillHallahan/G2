@@ -127,7 +127,7 @@ rec_name :: Name
 rec_name = Name (DT.pack "REC") Nothing 0 Nothing
 
 wrapRecursiveCall :: Name -> Expr -> Expr
--- TODO attempt to prevent double wrapping
+-- This first case prevents recursive calls from being wrapped twice
 wrapRecursiveCall n e@(Tick (NamedLoc n'@(Name t _ _ _)) e') =
   if t == DT.pack "REC"
   then e
@@ -378,8 +378,6 @@ andM b1 b2 = do
   return (b1' && b2')
 
 -- TODO printing
--- TODO non-ready obligations are not necessarily the original exprs
--- Does it still make sense to graft them onto the starting states' histories?
 verifyLoop' :: S.Solver solver =>
                solver ->
                HS.HashSet Name ->
@@ -410,7 +408,7 @@ verifyLoop' solver ns sh1 sh2 prev =
       let states_i = map (stateWrap s1 s2) obs_i
           states_i' = filter (not . (induction ns prev')) states_i
 
-          -- TODO unnecessary to pass the induction states through this?
+      -- TODO unnecessary to pass the induction states through this?
       let states = states_c' ++ states_i'
           (ready, not_ready) = partition statePairReadyForSolver states
           ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
@@ -444,6 +442,9 @@ induction ns prev (s1, s2) =
       -- try matching the prev state pair with other prev state pairs
       hm_maybe_zipped = zip hm_maybe_list prev'
       -- ignore the combinations that didn't work
+      -- TODO ignoring extra obligations here; is that a problem?
+      -- TODO modify the code to discard ones with extra obligations
+      -- TODO doubleReverse is failing now, and not because of this
       hm_maybe_zipped' = [(hm, p) | (Just (hm, _), p) <- hm_maybe_zipped]
       csp = concretizeStatePair (expr_env s1, expr_env s2)
       concretized = map (uncurry csp) hm_maybe_zipped'
@@ -458,8 +459,6 @@ induction ns prev (s1, s2) =
       hm_maybe_list' = concat $ map (\f -> map f prev) ind_fns
       res = filter isJust hm_maybe_list'
   in
-  -- TODO
-  trace ("INDUCTION " ++ show res) $
   not $ null res
 
 getObligations :: HS.HashSet Name ->
@@ -552,7 +551,7 @@ checkRule config init_state bindings total finite rule = do
       total_names = filter (includedName total) (map idName $ ru_bndrs rule)
       finite_names = filter (includedName finite) (map idName $ ru_bndrs rule)
       finite_hs = foldr HS.insert HS.empty finite_names
-      -- TODO always include the finite names in total
+      -- always include the finite names in total
       total_hs = foldr HS.insert finite_hs total_names
       EquivTracker et m _ _ = emptyEquivTracker
       start_equiv_tracker = EquivTracker et m total_hs finite_hs

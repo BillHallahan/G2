@@ -65,11 +65,11 @@ bad_src :: String
 bad_src = "tests/RewriteVerify/Incorrect/SimpleIncorrect.hs"
 
 coinduction_good_names :: [String]
-coinduction_good_names = [ -- "forceIdempotent"
+coinduction_good_names = [ "forceIdempotent"
                            "dropNoRecursion"
                          , "mapTake"
                          , "takeIdempotent"
-                         -- , "doubleReverse"
+                         , "doubleReverse"
                          , "doubleMap"
                          , "mapIterate" ]
 
@@ -99,6 +99,19 @@ higher_bad_names = [ "direct" ]
 
 higher_bad_src :: String
 higher_bad_src = "tests/RewriteVerify/Incorrect/HigherOrderIncorrect.hs"
+
+-- TODO also add some of the tree rewrite rules
+tree_good_names :: [String]
+tree_good_names = [ "doubleTree"
+                  , "doubleTreeOriginal"
+                  , "doubleMapTree" ]
+
+tree_good_src :: String
+tree_good_src = "tests/RewriteVerify/Correct/TreeCorrect.hs"
+
+tree_bad_names :: [String]
+tree_bad_names = [ "badSize"
+                 , "treeMapBackward" ]
 
 -- no need for general mkMapSrc
 libs :: [String]
@@ -145,6 +158,14 @@ higherOrderTestsBad :: TestTree
 higherOrderTestsBad =
   testCase "HigherOrderBad" $ rvTest rejectRule higher_bad_src higher_bad_names
 
+treeTestsGood :: TestTree
+treeTestsGood =
+  testCase "TreeGood" $ rvTest acceptRule tree_good_src tree_good_names
+
+treeTestsBad :: TestTree
+treeTestsBad =
+  testCase "TreeBad" $ rvTest rejectRule tree_bad_src tree_bad_names
+
 rewriteTests :: TestTree
 rewriteTests = testGroup "Rewrite Tests"
         [ rewriteVerifyTestsGood
@@ -153,6 +174,8 @@ rewriteTests = testGroup "Rewrite Tests"
         , coinductionTestsBad
         , higherOrderTestsGood
         , higherOrderTestsBad
+        , treeTestsGood
+        , treeTestsBad
         ]
 
 
