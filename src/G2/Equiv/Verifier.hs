@@ -582,12 +582,19 @@ checkRule config init_state bindings total finite rule = do
 -- on one side.  We need to have two separate lists of variables that have been
 -- inlined previously so that inlinings on one side do not block any inlinings
 -- that need to happen on the other side.
+-- Whenever a variable is inlined, we record the expression that was on the
+-- opposite side at the time.  Under the original system, a variable could not
+-- be inlined at all on one side in any sub-expressions that resulted from an
+-- inlining of it, and that was too restrictive.  Under the current system,
+-- repeated inlinings of a variable are allowed as long as the expression on
+-- the opposite side is not the same as it was when a previous inlining of the
+-- same variable happened.
 moreRestrictive :: State t ->
                    State t ->
                    HS.HashSet Name ->
                    (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
-                   [Name] -> -- ^ variables inlined previously on the LHS
-                   [Name] -> -- ^ variables inlined previously on the RHS
+                   [(Name, Expr)] -> -- ^ variables inlined previously on the LHS
+                   [(Name, Expr)] -> -- ^ variables inlined previously on the RHS
                    Expr ->
                    Expr ->
                    Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
@@ -599,30 +606,15 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
     (Var i, _) | m <- idName i
                , not $ E.isSymbolic m h1
                , not $ HS.member m ns
-               , not $ m `elem` n1
+               , not $ (m, e2) `elem` n1
                , Just e <- E.lookup m h1 ->
-                 -- TODO try both inlining and not inlining
-                 -- block it from being inlined later?  I think that's right
-                 -- give preference to the version that inlines this, for now
-                 -- TODO doesn't fix doubleReverse
-                 moreRestrictive s1 s2 ns hm (m:n1) n2 e e2
-                 {-
-                 in case res of
-                   Nothing -> moreRestrictive s1 s2 ns hm (m:n1) n2 e1 e2
-                   _ -> res
-                 -}
+                 moreRestrictive s1 s2 ns hm ((m, e2):n1) n2 e e2
     (_, Var i) | m <- idName i
                , not $ E.isSymbolic m h2
                , not $ HS.member m ns
-               , not $ m `elem` n2
+               , not $ (m, e1) `elem` n2
                , Just e <- E.lookup m h2 ->
-                 -- TODO not helpful
-                 moreRestrictive s1 s2 ns hm n1 (m:n2) e1 e
-                 {-
-                 in case res of
-                   Nothing -> moreRestrictive s1 s2 ns hm n1 (m:n2) e1 e2
-                   _ -> res
-                 -}
+                 moreRestrictive s1 s2 ns hm n1 ((m, e1):n2) e1 e
     (Var i1, Var i2) | HS.member (idName i1) ns
                      , idName i1 == idName i2 -> Just hm
                      | HS.member (idName i1) ns -> Nothing
@@ -635,10 +627,10 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                , e == inlineEquiv h2 ns e2 -> Just hm
                -- this last case means there's a mismatch
                | E.isSymbolic (idName i) h1 -> Nothing
-               | not $ (idName i) `elem` n1
+               | not $ (idName i, e2) `elem` n1
                , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
     (_, Var i) | E.isSymbolic (idName i) h2 -> Nothing -- sym replaces non-sym
-               | not $ (idName i) `elem` n2
+               | not $ (idName i, e1) `elem` n2
                , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
     (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s1 s2 ns hm n1 n2 f1 f2
                            , Just hm_a <- moreRestrictive s1 s2 ns hm_f n1 n2 a1 a2 -> Just hm_a
@@ -689,8 +681,6 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                       h2' = E.insert (idName i2) e2' h2
                       s1' = s1 { expr_env = h1' }
                       s2' = s2 { expr_env = h2' }
-                      -- TODO what if I reset here?
-                      -- fixes doubleReverse, breaks listLeaf
                       mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ n1 n2 e1_ e2_
                       l = zip a1 a2
                   in foldM mf hm' l
@@ -734,8 +724,8 @@ moreRestrictiveAlt :: State t ->
                       State t ->
                       HS.HashSet Name ->
                       (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
-                      [Name] -> -- ^ variables inlined previously on the LHS
-                      [Name] -> -- ^ variables inlined previously on the RHS
+                      [(Name, Expr)] -> -- ^ variables inlined previously on the LHS
+                      [(Name, Expr)] -> -- ^ variables inlined previously on the RHS
                       Alt ->
                       Alt ->
                       Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
