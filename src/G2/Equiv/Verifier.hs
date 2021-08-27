@@ -41,7 +41,6 @@ import Control.Monad
 
 import Data.Time
 
--- TODO
 import G2.Execution.Reducer
 import G2.Lib.Printers
 
@@ -278,7 +277,7 @@ caseRecHelper _ = False
 canUseInduction :: Obligation -> Bool
 canUseInduction (Ob e1 e2) = caseRecursion e1 && caseRecursion e2
 
--- TODO extra helper function, might want a better name
+-- Checks the same conditions, but takes a state pair as input instead.
 statePairInduction :: (State t, State t) -> Bool
 statePairInduction (s1, s2) =
   (caseRecursion $ exprExtract s1) && (caseRecursion $ exprExtract s2)
@@ -287,13 +286,10 @@ concretize :: HM.HashMap Id Expr -> Expr -> Expr
 concretize hm e =
   HM.foldrWithKey (\i -> replaceVar (idName i)) e hm
 
--- TODO also need to adjust expression environments
--- TODO I also need the expr_env that will supply nested bindings
--- h_new supplies those bindings, h_old receives them
--- low-effort approach:  just copy everything
--- TODO check later if it's sound
--- TODO also need to be careful about symbolic vars
--- is overwriting the way I do now fine?
+-- Copies bindings from the first expression environment into the second.
+-- This inserts symbolic variables twice over, once along with all of the other
+-- variables and then once on their own specifically marked as symbolic, but
+-- only the second insertion should matter.
 concretizeEnv :: ExprEnv -> ExprEnv -> ExprEnv
 concretizeEnv h_new h_old =
   let ins_sym n = case h_new E.! n of
@@ -508,14 +504,14 @@ applySolver solver extraPC s1 s2 =
         rightPC = P.toList $ path_conds s2
         unionPC = foldr P.insert (path_conds s1) rightPC
         allPC = foldr P.insert unionPC (P.toList extraPC)
-        newState = s1 { expr_env = unionEnv, path_conds = allPC }
+        -- TODO what if I use extraPC here instead of allPC?
+        newState = s1 { expr_env = unionEnv, path_conds = extraPC }
     in S.check solver newState allPC
 
 obligationWrap :: HS.HashSet (Expr, Expr) -> Maybe PathCond
 obligationWrap obligations =
     let obligation_list = HS.toList obligations
         eq_list = map (\(e1, e2) -> App (App (Prim Eq TyUnknown) e1) e2) obligation_list
-        -- TODO type issue again
         conj = foldr1 (\o1 o2 -> App (App (Prim And TyUnknown) o1) o2) eq_list
     in
     if null eq_list
@@ -563,10 +559,6 @@ checkRule config init_state bindings total finite rule = do
       rewrite_state_r' = startingState start_equiv_tracker rewrite_state_r
   S.SomeSolver solver <- initSolver config
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
-  {-
-  putStrLn $ show $ exprExtract rewrite_state_l
-  putStrLn $ show $ exprExtract rewrite_state_r
-  -}
   res <- verifyLoop solver ns
              [(rewrite_state_l', rewrite_state_r')]
              [(rewrite_state_l', rewrite_state_r')]
@@ -635,21 +627,18 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
     (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s1 s2 ns hm n1 n2 f1 f2
                            , Just hm_a <- moreRestrictive s1 s2 ns hm_f n1 n2 a1 a2 -> Just hm_a
-    -- TODO don't just add mismatched cases indiscriminately
-    -- these cases get hit often if I remove the Prim requirement
-    -- TODO full inlining for everything?
     -- These two cases should come after the main App-App case.  If an
     -- expression pair fits both patterns, then discharging it in a way that
     -- does not add any extra proof obligations is preferable.
     (App _ _, _) | e1':_ <- unApp e1
                  , (Prim _ _) <- inlineHelper [] h1 e1'
                  , T.isPrimType $ typeOf e1 ->
-                                  let (hm', hs) = {- trace (show (e1, e2)) -} hm
+                                  let (hm', hs) = hm
                                   in Just (hm', HS.insert (inlineHelper' [] h1 e1, inlineHelper' [] h2 e2) hs)
     (_, App _ _) | e2':_ <- unApp e2
                  , (Prim _ _) <- inlineHelper [] h1 e2'
                  , T.isPrimType $ typeOf e2 ->
-                                  let (hm', hs) = {- trace (show (e1, e2)) -} hm
+                                  let (hm', hs) = hm
                                   in Just (hm', HS.insert (inlineHelper' [] h1 e1, inlineHelper' [] h2 e2) hs)
     -- We just compare the names of the DataCons, not the types of the DataCons.
     -- This is because (1) if two DataCons share the same name, they must share the
@@ -659,10 +648,9 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
     (Data (DataCon d1 _), Data (DataCon d2 _))
                                   | d1 == d2 -> Just hm
                                   | otherwise -> Nothing
-    -- TODO potential problems with type equality checking?
-    (Prim p1 t1, Prim p2 t2) | p1 == p2
-                             , t1 == t2 -> Just hm
-                             | otherwise -> Nothing
+    -- We neglect to check type equality here for the same reason.
+    (Prim p1 _, Prim p2 _) | p1 == p2 -> Just hm
+                           | otherwise -> Nothing
     (Lit l1, Lit l2) | l1 == l2 -> Just hm
                      | otherwise -> Nothing
     (Lam lu1 i1 b1, Lam lu2 i2 b2)
@@ -687,7 +675,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                   in foldM mf hm' l
     _ -> Nothing
 
--- TODO modify these to avoid cyclic inlining?
+-- These helper functions have safeguards to avoid cyclic inlining.
 inlineHelper :: [Name] -> ExprEnv -> Expr -> Expr
 inlineHelper acc h v@(Var (Id n _))
     | n `elem` acc = v
@@ -765,12 +753,8 @@ concObligation hm =
       l' = map (\(i, e) -> (Var i, e)) l
   in obligationWrap $ HS.fromList l'
 
--- TODO negation for the bool in ExtCond?
--- TODO also TyUnknown
--- TODO stand-in for contradiction in non-prim cases
--- might be a cleaner way to do that
--- not sure if I really need it either
--- TODO should I ever have to deal with non-primitive things at all?
+-- All the PathConds that this receives are generated by symbolic execution.
+-- Consequently, non-primitive types are not an issue here.
 extractCond :: PathCond -> Expr
 extractCond (ExtCond e True) = e
 extractCond (ExtCond e False) = App (Prim Not TyUnknown) e
@@ -779,10 +763,8 @@ extractCond (AltCond l e True) =
 extractCond (AltCond l e False) =
   App (App (Prim Neq TyUnknown) e) (Lit l)
 
--- TODO s1 is old state, s2 is new state
--- need to do this separately for LHS and RHS
--- TODO for which states do I check it?
--- only the ones for which moreRestrictive works
+-- s1 is old state, s2 is new state
+-- only apply to old-new state pairs for which moreRestrictive works
 moreRestrictivePC :: S.Solver solver =>
                      solver ->
                      State t ->
@@ -793,8 +775,8 @@ moreRestrictivePC solver s1 s2 hm = do
   let new_conds = map extractCond (P.toList $ path_conds s2)
       old_conds = map extractCond (P.toList $ path_conds s1)
       l = map (\(i, e) -> (Var i, e)) $ HM.toList hm
-      -- TODO type issue
-      -- TODO modifying this to only work with primitive types?
+      -- this should only be used with primitive types
+      -- no apparent problems come from using TyUnknown
       l' = map (\(e1, e2) ->
                   if (T.isPrimType $ typeOf e1) && (T.isPrimType $ typeOf e2)
                   then Just $ App (App (Prim Eq TyUnknown) e1) e2
@@ -810,7 +792,8 @@ moreRestrictivePC solver s1 s2 hm = do
   res <- if null old_conds
          then return $ S.UNSAT ()
          else if null new_conds' -- old_conds not null
-         -- TODO state order right?
+         -- TODO applySolver uses states' path constraints directly
+         -- Are the conditions from this being satisfied trivially?
          then applySolver solver (P.insert neg_conj P.empty) s1 s2
          else applySolver solver (P.insert neg_imp P.empty) s1 s2
   case res of
@@ -820,10 +803,6 @@ moreRestrictivePC solver s1 s2 hm = do
 rfs :: ExprEnv -> Expr -> Bool
 rfs h e = (exprReadyForSolver h e) && (T.isPrimType $ typeOf e)
 
--- make all of the obligations into a single big list
--- TODO need to check whether the obligations are ready for the solver first
--- TODO also check the path conds implication
--- TODO turn concretizations into a prop
 -- extra filter on top of isJust for maybe_pairs
 -- if mrHelper end result is Just, try checking the corresponding path conds
 -- for True output, there needs to be an entry for which that check succeeds
@@ -847,7 +826,6 @@ moreRestrictivePair solver ns prev (s1, s2) = do
       conc_sets = map getConcretizations maybe_pairs
       obs = foldr HS.union HS.empty obs_sets
       conc_obs = map concObligation conc_sets
-      -- TODO just look at the expressions directly?
       h1 = expr_env s1
       h2 = expr_env s2
       obs' = HS.filter (\(e1, e2) -> rfs h1 e1 && rfs h2 e2) obs
