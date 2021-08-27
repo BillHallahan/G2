@@ -770,17 +770,14 @@ concObligation hm =
 -- TODO stand-in for contradiction in non-prim cases
 -- might be a cleaner way to do that
 -- not sure if I really need it either
+-- TODO should I ever have to deal with non-primitive things at all?
 extractCond :: PathCond -> Expr
 extractCond (ExtCond e True) = e
 extractCond (ExtCond e False) = App (Prim Not TyUnknown) e
 extractCond (AltCond l e True) =
-  if T.isPrimType $ typeOf e
-  then App (App (Prim Eq TyUnknown) e) (Lit l)
-  else App (App (Prim Neq TyUnknown) (Lit $ LitInt 0)) (Lit $ LitInt 0)
+  App (App (Prim Eq TyUnknown) e) (Lit l)
 extractCond (AltCond l e False) =
-  if T.isPrimType $ typeOf e
-  then App (App (Prim Neq TyUnknown) e) (Lit l)
-  else App (App (Prim Neq TyUnknown) (Lit $ LitInt 0)) (Lit $ LitInt 0)
+  App (App (Prim Neq TyUnknown) e) (Lit l)
 
 -- TODO s1 is old state, s2 is new state
 -- need to do this separately for LHS and RHS
@@ -800,9 +797,10 @@ moreRestrictivePC solver s1 s2 hm = do
       -- TODO modifying this to only work with primitive types?
       l' = map (\(e1, e2) ->
                   if (T.isPrimType $ typeOf e1) && (T.isPrimType $ typeOf e2)
-                  then App (App (Prim Eq TyUnknown) e1) e2
-                  else App (App (Prim Neq TyUnknown) (Lit $ LitInt 0)) (Lit $ LitInt 0)) l
-      new_conds' = l' ++ new_conds
+                  then Just $ App (App (Prim Eq TyUnknown) e1) e2
+                  else Nothing) l
+      l'' = [c | Just c <- l']
+      new_conds' = l'' ++ new_conds
       -- not safe to use unless the lists are non-empty
       conj_new = foldr1 (\o1 o2 -> App (App (Prim And TyUnknown) o1) o2) new_conds'
       conj_old = foldr1 (\o1 o2 -> App (App (Prim And TyUnknown) o1) o2) old_conds
@@ -811,7 +809,7 @@ moreRestrictivePC solver s1 s2 hm = do
       neg_conj = ExtCond (App (Prim Not TyUnknown) conj_old) True
   res <- if null old_conds
          then return $ S.UNSAT ()
-         else if null new_conds -- old_conds not null
+         else if null new_conds' -- old_conds not null
          -- TODO state order right?
          then applySolver solver (P.insert neg_conj P.empty) s1 s2
          else applySolver solver (P.insert neg_imp P.empty) s1 s2
