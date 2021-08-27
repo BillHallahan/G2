@@ -28,7 +28,7 @@ findRule rule_list rule_name =
 
 acceptRule :: Config -> State t -> Bindings -> RewriteRule -> IO ()
 acceptRule config init_state bindings rule = do
-  res <- checkRule config init_state bindings [] rule
+  res <- checkRule config init_state bindings [] [] rule
   return (case res of
     S.SAT _ -> error "Satisfiable"
     S.UNSAT _ -> ()
@@ -36,7 +36,7 @@ acceptRule config init_state bindings rule = do
 
 rejectRule :: Config -> State t -> Bindings -> RewriteRule -> IO ()
 rejectRule config init_state bindings rule = do
-  res <- checkRule config init_state bindings [] rule
+  res <- checkRule config init_state bindings [] [] rule
   return (case res of
     S.SAT _ -> ()
     S.UNSAT _ -> error "Unsatisfiable"
@@ -66,7 +66,7 @@ bad_src = "tests/RewriteVerify/Incorrect/SimpleIncorrect.hs"
 
 coinduction_good_names :: [String]
 coinduction_good_names = [ "forceIdempotent"
-                           "dropNoRecursion"
+                         , "dropNoRecursion"
                          , "mapTake"
                          , "takeIdempotent"
                          , "doubleReverse"
@@ -112,6 +112,9 @@ tree_good_src = "tests/RewriteVerify/Correct/TreeCorrect.hs"
 tree_bad_names :: [String]
 tree_bad_names = [ "badSize"
                  , "treeMapBackward" ]
+
+tree_bad_src :: String
+tree_bad_src = "tests/RewriteVerify/Incorrect/TreeIncorrect.hs"
 
 -- no need for general mkMapSrc
 libs :: [String]

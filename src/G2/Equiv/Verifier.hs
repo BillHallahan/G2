@@ -444,8 +444,7 @@ induction ns prev (s1, s2) =
       -- ignore the combinations that didn't work
       -- TODO ignoring extra obligations here; is that a problem?
       -- TODO modify the code to discard ones with extra obligations
-      -- TODO doubleReverse is failing now, and not because of this
-      hm_maybe_zipped' = [(hm, p) | (Just (hm, _), p) <- hm_maybe_zipped]
+      hm_maybe_zipped' = [(hm, p) | (Just (hm, hs), p) <- hm_maybe_zipped, HS.null hs]
       csp = concretizeStatePair (expr_env s1, expr_env s2)
       concretized = map (uncurry csp) hm_maybe_zipped'
       -- TODO optimization:  just take the first one
@@ -564,8 +563,10 @@ checkRule config init_state bindings total finite rule = do
       rewrite_state_r' = startingState start_equiv_tracker rewrite_state_r
   S.SomeSolver solver <- initSolver config
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
+  {-
   putStrLn $ show $ exprExtract rewrite_state_l
   putStrLn $ show $ exprExtract rewrite_state_r
+  -}
   res <- verifyLoop solver ns
              [(rewrite_state_l', rewrite_state_r')]
              [(rewrite_state_l', rewrite_state_r')]
@@ -621,10 +622,10 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                      | HS.member (idName i2) ns -> Nothing
     (Var i, _) | E.isSymbolic (idName i) h1
                , (hm', hs) <- hm
-               , Nothing <- HM.lookup i hm' -> Just (HM.insert i (inlineEquiv h2 ns e2) hm', hs)
+               , Nothing <- HM.lookup i hm' -> Just (HM.insert i (inlineEquiv [] h2 ns e2) hm', hs)
                | E.isSymbolic (idName i) h1
                , Just e <- HM.lookup i (fst hm)
-               , e == inlineEquiv h2 ns e2 -> Just hm
+               , e == inlineEquiv [] h2 ns e2 -> Just hm
                -- this last case means there's a mismatch
                | E.isSymbolic (idName i) h1 -> Nothing
                | not $ (idName i, e2) `elem` n1
@@ -641,15 +642,15 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
     -- expression pair fits both patterns, then discharging it in a way that
     -- does not add any extra proof obligations is preferable.
     (App _ _, _) | e1':_ <- unApp e1
-                 , (Prim _ _) <- inlineHelper h1 e1'
+                 , (Prim _ _) <- inlineHelper [] h1 e1'
                  , T.isPrimType $ typeOf e1 ->
-                                  let (hm', hs) = trace (show (e1, e2)) hm
-                                  in Just (hm', HS.insert (inlineHelper' h1 e1, inlineHelper' h2 e2) hs)
+                                  let (hm', hs) = {- trace (show (e1, e2)) -} hm
+                                  in Just (hm', HS.insert (inlineHelper' [] h1 e1, inlineHelper' [] h2 e2) hs)
     (_, App _ _) | e2':_ <- unApp e2
-                 , (Prim _ _) <- inlineHelper h1 e2'
+                 , (Prim _ _) <- inlineHelper [] h1 e2'
                  , T.isPrimType $ typeOf e2 ->
-                                  let (hm', hs) = trace (show (e1, e2)) hm
-                                  in Just (hm', HS.insert (inlineHelper' h1 e1, inlineHelper' h2 e2) hs)
+                                  let (hm', hs) = {- trace (show (e1, e2)) -} hm
+                                  in Just (hm', HS.insert (inlineHelper' [] h1 e1, inlineHelper' [] h2 e2) hs)
     -- We just compare the names of the DataCons, not the types of the DataCons.
     -- This is because (1) if two DataCons share the same name, they must share the
     -- same type, but (2) "the same type" may be represented in different syntactic
@@ -687,24 +688,27 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
     _ -> Nothing
 
 -- TODO modify these to avoid cyclic inlining?
-inlineHelper :: ExprEnv -> Expr -> Expr
-inlineHelper h v@(Var (Id n _))
+inlineHelper :: [Name] -> ExprEnv -> Expr -> Expr
+inlineHelper acc h v@(Var (Id n _))
+    | n `elem` acc = v
     | E.isSymbolic n h = v
-    | Just e <- E.lookup n h = inlineHelper h e
-inlineHelper h e = e
+    | Just e <- E.lookup n h = inlineHelper (n:acc) h e
+inlineHelper _ _ e = e
 
-inlineHelper' :: ExprEnv -> Expr -> Expr
-inlineHelper' h v@(Var (Id n _))
+inlineHelper' :: [Name] -> ExprEnv -> Expr -> Expr
+inlineHelper' acc h v@(Var (Id n _))
+    | n `elem` acc = v
     | E.isSymbolic n h = v
-    | Just e <- E.lookup n h = inlineHelper' h e
-inlineHelper' h e = modifyChildren (inlineHelper' h) e
+    | Just e <- E.lookup n h = inlineHelper' (n:acc) h e
+inlineHelper' acc h e = modifyChildren (inlineHelper' acc h) e
 
-inlineEquiv :: ExprEnv -> HS.HashSet Name -> Expr -> Expr
-inlineEquiv h ns v@(Var (Id n _))
+inlineEquiv :: [Name] -> ExprEnv -> HS.HashSet Name -> Expr -> Expr
+inlineEquiv acc h ns v@(Var (Id n _))
+    | n `elem` acc = v
     | E.isSymbolic n h = v
     | HS.member n ns = v
-    | Just e <- E.lookup n h = inlineEquiv h ns e
-inlineEquiv h ns e = modifyChildren (inlineEquiv h ns) e
+    | Just e <- E.lookup n h = inlineEquiv (n:acc) h ns e
+inlineEquiv acc h ns e = modifyChildren (inlineEquiv acc h ns) e
 
 -- check only the names for DataAlt
 altEquiv :: AltMatch -> AltMatch -> Bool
@@ -761,9 +765,22 @@ concObligation hm =
       l' = map (\(i, e) -> (Var i, e)) l
   in obligationWrap $ HS.fromList l'
 
+-- TODO negation for the bool in ExtCond?
+-- TODO also TyUnknown
+-- TODO stand-in for contradiction in non-prim cases
+-- might be a cleaner way to do that
+-- not sure if I really need it either
 extractCond :: PathCond -> Expr
-extractCond (ExtCond e _) = e
-extractCond _ = error "unsupported"
+extractCond (ExtCond e True) = e
+extractCond (ExtCond e False) = App (Prim Not TyUnknown) e
+extractCond (AltCond l e True) =
+  if T.isPrimType $ typeOf e
+  then App (App (Prim Eq TyUnknown) e) (Lit l)
+  else App (App (Prim Neq TyUnknown) (Lit $ LitInt 0)) (Lit $ LitInt 0)
+extractCond (AltCond l e False) =
+  if T.isPrimType $ typeOf e
+  then App (App (Prim Neq TyUnknown) e) (Lit l)
+  else App (App (Prim Neq TyUnknown) (Lit $ LitInt 0)) (Lit $ LitInt 0)
 
 -- TODO s1 is old state, s2 is new state
 -- need to do this separately for LHS and RHS
@@ -780,7 +797,11 @@ moreRestrictivePC solver s1 s2 hm = do
       old_conds = map extractCond (P.toList $ path_conds s1)
       l = map (\(i, e) -> (Var i, e)) $ HM.toList hm
       -- TODO type issue
-      l' = map (\(e1, e2) -> App (App (Prim Eq TyUnknown) e1) e2) l
+      -- TODO modifying this to only work with primitive types?
+      l' = map (\(e1, e2) ->
+                  if (T.isPrimType $ typeOf e1) && (T.isPrimType $ typeOf e2)
+                  then App (App (Prim Eq TyUnknown) e1) e2
+                  else App (App (Prim Neq TyUnknown) (Lit $ LitInt 0)) (Lit $ LitInt 0)) l
       new_conds' = l' ++ new_conds
       -- not safe to use unless the lists are non-empty
       conj_new = foldr1 (\o1 o2 -> App (App (Prim And TyUnknown) o1) o2) new_conds'
