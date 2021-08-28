@@ -631,15 +631,15 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
     -- expression pair fits both patterns, then discharging it in a way that
     -- does not add any extra proof obligations is preferable.
     (App _ _, _) | e1':_ <- unApp e1
-                 , (Prim _ _) <- inlineHelper [] h1 e1'
+                 , (Prim _ _) <- inlineTop [] h1 e1'
                  , T.isPrimType $ typeOf e1 ->
                                   let (hm', hs) = hm
-                                  in Just (hm', HS.insert (inlineHelper' [] h1 e1, inlineHelper' [] h2 e2) hs)
+                                  in Just (hm', HS.insert (inlineFull [] h1 e1, inlineFull [] h2 e2) hs)
     (_, App _ _) | e2':_ <- unApp e2
-                 , (Prim _ _) <- inlineHelper [] h1 e2'
+                 , (Prim _ _) <- inlineTop [] h1 e2'
                  , T.isPrimType $ typeOf e2 ->
                                   let (hm', hs) = hm
-                                  in Just (hm', HS.insert (inlineHelper' [] h1 e1, inlineHelper' [] h2 e2) hs)
+                                  in Just (hm', HS.insert (inlineFull [] h1 e1, inlineFull [] h2 e2) hs)
     -- We just compare the names of the DataCons, not the types of the DataCons.
     -- This is because (1) if two DataCons share the same name, they must share the
     -- same type, but (2) "the same type" may be represented in different syntactic
@@ -676,19 +676,19 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
     _ -> Nothing
 
 -- These helper functions have safeguards to avoid cyclic inlining.
-inlineHelper :: [Name] -> ExprEnv -> Expr -> Expr
-inlineHelper acc h v@(Var (Id n _))
+inlineTop :: [Name] -> ExprEnv -> Expr -> Expr
+inlineTop acc h v@(Var (Id n _))
     | n `elem` acc = v
     | E.isSymbolic n h = v
-    | Just e <- E.lookup n h = inlineHelper (n:acc) h e
-inlineHelper _ _ e = e
+    | Just e <- E.lookup n h = inlineTop (n:acc) h e
+inlineTop _ _ e = e
 
-inlineHelper' :: [Name] -> ExprEnv -> Expr -> Expr
-inlineHelper' acc h v@(Var (Id n _))
+inlineFull :: [Name] -> ExprEnv -> Expr -> Expr
+inlineFull acc h v@(Var (Id n _))
     | n `elem` acc = v
     | E.isSymbolic n h = v
-    | Just e <- E.lookup n h = inlineHelper' (n:acc) h e
-inlineHelper' acc h e = modifyChildren (inlineHelper' acc h) e
+    | Just e <- E.lookup n h = inlineFull (n:acc) h e
+inlineFull acc h e = modifyChildren (inlineFull acc h) e
 
 inlineEquiv :: [Name] -> ExprEnv -> HS.HashSet Name -> Expr -> Expr
 inlineEquiv acc h ns v@(Var (Id n _))
@@ -729,13 +729,13 @@ moreRestrictiveAlt s1 s2 ns hm n1 n2 (Alt am1 e1) (Alt am2 e2) =
     _ -> moreRestrictive s1 s2 ns hm n1 n2 e1 e2
   else Nothing
 
-mrHelper :: State t ->
-            State t ->
-            HS.HashSet Name ->
-            Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
-            Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-mrHelper _ _ _ Nothing = Nothing
-mrHelper s1 s2 ns (Just hm) =
+restrictHelper :: State t ->
+                  State t ->
+                  HS.HashSet Name ->
+                  Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
+                  Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+restrictHelper _ _ _ Nothing = Nothing
+restrictHelper s1 s2 ns (Just hm) =
   moreRestrictive s1 s2 ns hm [] [] (exprExtract s1) (exprExtract s2)
 
 -- the first state pair is the new one, the second is the old
@@ -745,7 +745,7 @@ indHelper :: HS.HashSet Name ->
              (State t, State t) ->
              Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 indHelper ns hm_maybe (s1, s2) (p1, p2) =
-  mrHelper p2 s2 ns $ mrHelper p1 s1 ns hm_maybe
+  restrictHelper p2 s2 ns $ restrictHelper p1 s1 ns hm_maybe
 
 concObligation :: HM.HashMap Id Expr -> Maybe PathCond
 concObligation hm =
@@ -804,7 +804,7 @@ rfs :: ExprEnv -> Expr -> Bool
 rfs h e = (exprReadyForSolver h e) && (T.isPrimType $ typeOf e)
 
 -- extra filter on top of isJust for maybe_pairs
--- if mrHelper end result is Just, try checking the corresponding path conds
+-- if restrictHelper end result is Just, try checking the corresponding PCs
 -- for True output, there needs to be an entry for which that check succeeds
 -- should I replace the result with a Bool?
 moreRestrictivePair :: S.Solver solver =>
@@ -814,7 +814,8 @@ moreRestrictivePair :: S.Solver solver =>
                        (State t, State t) ->
                        IO Bool
 moreRestrictivePair solver ns prev (s1, s2) = do
-  let mr (p1, p2) = mrHelper p2 s2 ns $ mrHelper p1 s1 ns (Just (HM.empty, HS.empty))
+  let mr (p1, p2) = restrictHelper p2 s2 ns $
+                    restrictHelper p1 s1 ns (Just (HM.empty, HS.empty))
       getObs m = case m of
         Nothing -> HS.empty
         Just (_, hs) -> hs
