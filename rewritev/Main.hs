@@ -45,9 +45,11 @@ runWithArgs as = do
   proj <- guessProj src
 
   -- TODO for now, total as long as there's an extra arg
+  -- TODO finite variables
   let total = map T.pack tail_args
       m_mapsrc = mkMapSrc []
       tentry = T.pack entry
+      finite = []
 
   config <- getConfig as
 
@@ -59,7 +61,7 @@ runWithArgs as = do
       rule' = case rule of
               Just r -> r
               Nothing -> error "not found"
-  res <- checkRule config init_state bindings total rule'
+  res <- checkRule config init_state bindings total finite rule'
   print res
   return ()
 
