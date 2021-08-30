@@ -76,6 +76,8 @@ runSymExec config s1 s2 = do
   let config' = config -- { logStates = Just $ "verifier_states/a" ++ show ct1 }
   bindings <- CM.get
   (er1, bindings') <- CM.lift $ runG2ForRewriteV s1 config' bindings
+  -- TODO
+  --CM.liftIO $ putStrLn "finished"
   CM.put bindings'
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
@@ -83,6 +85,8 @@ runSymExec config s1 s2 = do
                     let s2_ = transferStateInfo s1_ s2
                     ct2 <- CM.liftIO $ getCurrentTime
                     let config'' = config -- { logStates = Just $ "verifier_states/b" ++ show ct2 }
+                    -- TODO
+                    --CM.liftIO $ putStrLn "nested"
                     (er2, b_') <- CM.lift $ runG2ForRewriteV s2_ config'' b_
                     CM.put b_'
                     return $ map (\er2_ -> 
@@ -330,6 +334,9 @@ inductionState s =
 -- vars in the finite set count, so do Data constructors with finite args
 -- also need list of symbolic vars, and list of vars not to inline?
 -- TODO keep track of inlined vars to avoid cycles
+-- TODO There are other situations that I can carve out that qualify as finite
+-- expressions.  A variable or literal of a type that is non-algebraic and not
+-- functional must be finite, provided that it's well-defined.
 finiteExpr :: HS.HashSet Name ->
               HS.HashSet Name ->
               ExprEnv ->
@@ -559,6 +566,12 @@ checkRule config init_state bindings total finite rule = do
       rewrite_state_r' = startingState start_equiv_tracker rewrite_state_r
   S.SomeSolver solver <- initSolver config
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
+  putStrLn $ show $ curr_expr $ latest rewrite_state_l'
+  putStrLn $ show $ curr_expr $ latest rewrite_state_r'
+  -- TODO
+  --putStrLn $ show $ E.lookup (Name "enumFrom" (Just "GHC.Enum") 8214565720323800836 Nothing) $ expr_env rewrite_state_l
+  --putStrLn $ show $ E.lookup (Name "$dEnum" Nothing 6989586621679020293 Nothing) $ expr_env rewrite_state_r
+  --putStrLn $ show $ E.lookup (Name "fromInteger" (Just "GHC.Num") 8214565720323800746 Nothing) $ expr_env rewrite_state_r
   res <- verifyLoop solver ns
              [(rewrite_state_l', rewrite_state_r')]
              [(rewrite_state_l', rewrite_state_r')]

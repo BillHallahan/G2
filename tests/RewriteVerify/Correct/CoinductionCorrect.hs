@@ -147,3 +147,8 @@ zeroList (_:t) = 0 + (zeroList t) + 0
 "branch5" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs)
 "branch6" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs)
   #-}
+
+-- TODO can there be infinite terms with no recursive variables?
+{-# RULES
+"infiniteInts" len [1..] = lenDouble [1..]
+  #-}

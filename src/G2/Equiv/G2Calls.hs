@@ -131,6 +131,8 @@ containsCase sk =
 
 -- induction only works if both states in a pair satisfy this
 -- there's no harm in stopping here for just one, though
+-- TODO what about recursive helpers that don't get covered by this?
+-- Can I keep track of functions inlined since the last stop?
 recursionInCase :: State t -> Bool
 recursionInCase (State { curr_expr = CurrExpr _ e, exec_stack = sk }) =
     case e of
