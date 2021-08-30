@@ -148,7 +148,14 @@ zeroList (_:t) = 0 + (zeroList t) + 0
 "branch6" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs)
   #-}
 
--- TODO can there be infinite terms with no recursive variables?
+cyclic :: [Int]
+cyclic = 1:cyclic
+
+makeCycle :: Int -> [Int]
+makeCycle x = x:(makeCycle x)
+
+-- TODO the verifier gets stuck on infiniteInts
 {-# RULES
 "infiniteInts" len [1..] = lenDouble [1..]
+"onlyOnes" makeCycle 1 = cyclic
   #-}
