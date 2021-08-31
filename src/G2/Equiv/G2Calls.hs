@@ -135,13 +135,10 @@ containsCase sk =
 -- Can I keep track of functions inlined since the last stop?
 recursionInCase :: State t -> Bool
 recursionInCase (State { curr_expr = CurrExpr _ e, exec_stack = sk }) =
-    containsCase sk
-    {-
     case e of
         Tick (NamedLoc (Name p _ _ _)) _ ->
             p == T.pack "REC" && containsCase sk
         _ -> False
-    -}
 
 instance Halter EnforceProgressH () EquivTracker where
     initHalt _ _ = ()

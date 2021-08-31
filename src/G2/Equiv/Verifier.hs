@@ -77,7 +77,7 @@ runSymExec config s1 s2 = do
   bindings <- CM.get
   (er1, bindings') <- CM.lift $ runG2ForRewriteV s1 config' bindings
   -- TODO
-  --CM.liftIO $ putStrLn "finished"
+  CM.liftIO $ putStrLn "finished"
   CM.put bindings'
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
@@ -86,7 +86,7 @@ runSymExec config s1 s2 = do
                     ct2 <- CM.liftIO $ getCurrentTime
                     let config'' = config -- { logStates = Just $ "verifier_states/b" ++ show ct2 }
                     -- TODO
-                    --CM.liftIO $ putStrLn "nested"
+                    CM.liftIO $ putStrLn "nested"
                     (er2, b_') <- CM.lift $ runG2ForRewriteV s2_ config'' b_
                     CM.put b_'
                     return $ map (\er2_ -> 
@@ -150,6 +150,42 @@ recWrap h n =
   if E.isSymbolic n h
   then id
   else (wrcHelper n) . (wrapRecursiveCall n)
+
+-- TODO also handle nested let-statements
+-- Creating a new expression environment lets us use the existing reachability
+-- functions.
+-- TODO does the expr env really need to keep track of Lets above this?
+-- look inside the bindings and inside the body for recursion
+-- TODO I should merge this process with the other wrapping?
+-- TODO do I need an extra process for some other recursive structure?
+wrapLetRec :: ExprEnv -> Expr -> Expr
+wrapLetRec h (Let binds e) =
+  let binds1 = map (\(i, e_) -> (idName i, e_)) binds
+      -- TODO better name for this?
+      fresh_name = Name (DT.pack "FRESH") Nothing 0 Nothing
+      h' = foldr (\(n_, e_) h_ -> E.insert n_ e_ h_) h ((fresh_name, e):binds1)
+      -- TODO this needs to be a 2D map?
+      -- Leave it as 1D for now
+      -- TODO this might be doing more work than is necessary
+      wrap_cg = wrapAllRecursion (G.getCallGraph h') h'
+      binds2 = map (\(n_, e_) -> (n_, wrap_cg n_ e_)) binds1
+      --e' = wrap_cg fresh_name e
+      -- TODO will Tick insertions accumulate?
+      -- TODO doesn't work, again because nothing reaches fresh_name
+      -- should I even need wrapping like this within the body?
+      e' = foldr (wrapIfCorecursive (G.getCallGraph h') h' fresh_name) e (map fst binds1)
+      -- TODO do I need to do this twice over like this?
+      -- doesn't fix the problem of getting stuck
+      e'' = wrapLetRec h' $ modifyChildren (wrapLetRec h') e'
+      binds3 = map ((wrapLetRec h') . modifyChildren (wrapLetRec h')) (map snd binds2)
+      binds4 = zip (map fst binds) binds3
+  in
+  -- REC tick getting inserted in binds but not in body
+  -- it's only needed where the recursion actually happens
+  -- need to apply wrap_cg over it with the new names?
+  -- wrap_cg with fresh_name won't help because nothing can reach fresh_name
+  trace (show $ binds == binds4) $ trace (show $ e == e'') $ Let binds4 e''
+wrapLetRec h e = trace (show $ E.size h) modifyChildren (wrapLetRec h) e
 
 -- first Name is the one that maps to the Expr in the environment
 -- second Name is the one that might be wrapped
@@ -353,6 +389,7 @@ finiteExpr ns finite_hs h n e = case e of
         , Just e' <- E.lookup m h -> finiteExpr ns finite_hs h (m:n) e'
         | otherwise -> error "unmapped variable"
   -- TODO can literal strings be infinite?  This assumes they can't be
+  -- LitString might not get used at all, even
   Lit _ -> True
   -- TODO also assumes types can't be infinite
   Prim _ _ -> True
@@ -536,7 +573,7 @@ startingState et s =
       s' = s {
       track = et
     , curr_expr = CurrExpr Evaluate $ tickWrap $ exprExtract s
-    , expr_env = E.mapWithKey wrap_cg h
+    , expr_env = E.map (wrapLetRec h) $ E.mapWithKey wrap_cg h
     }
   in newStateH s'
 
@@ -569,9 +606,11 @@ checkRule config init_state bindings total finite rule = do
   putStrLn $ show $ curr_expr $ latest rewrite_state_l'
   putStrLn $ show $ curr_expr $ latest rewrite_state_r'
   -- TODO
-  --putStrLn $ show $ E.lookup (Name "enumFrom" (Just "GHC.Enum") 8214565720323800836 Nothing) $ expr_env rewrite_state_l
-  --putStrLn $ show $ E.lookup (Name "$dEnum" Nothing 6989586621679020293 Nothing) $ expr_env rewrite_state_r
-  --putStrLn $ show $ E.lookup (Name "fromInteger" (Just "GHC.Num") 8214565720323800746 Nothing) $ expr_env rewrite_state_r
+  --putStrLn $ show $ E.lookup (Name "enumFrom" (Just "GHC.Enum") 8214565720323800889 Nothing) $ expr_env $ latest rewrite_state_l'
+  --putStrLn $ show $ E.lookup (Name "$dEnum" Nothing 6989586621679020293 Nothing) $ expr_env $ latest rewrite_state_r'
+  --putStrLn $ show $ E.lookup (Name "fromInteger" (Just "GHC.Num") 8214565720323800799 Nothing) $ expr_env $ latest rewrite_state_r'
+  --putStrLn $ show $ E.lookup (Name "makeCycle" (Just "CoinductionCorrect") 8214565720323786279 (Just (Span {start = Loc {line = 155, col = 1, file = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"}, end = Loc {line = 155, col = 10, file = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"}}))) $ expr_env $ latest rewrite_state_l'
+  --putStrLn $ show $ E.lookup (Name "cyclic" (Just "CoinductionCorrect") 8214565720323786278 (Just (Span {start = Loc {line = 152, col = 1, file = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"}, end = Loc {line = 152, col = 7, file = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"}}))) $ expr_env $ latest rewrite_state_r'
   res <- verifyLoop solver ns
              [(rewrite_state_l', rewrite_state_r')]
              [(rewrite_state_l', rewrite_state_r')]
