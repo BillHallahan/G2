@@ -76,8 +76,6 @@ runSymExec config s1 s2 = do
   let config' = config -- { logStates = Just $ "verifier_states/a" ++ show ct1 }
   bindings <- CM.get
   (er1, bindings') <- CM.lift $ runG2ForRewriteV s1 config' bindings
-  -- TODO
-  CM.liftIO $ putStrLn "finished"
   CM.put bindings'
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
@@ -85,8 +83,6 @@ runSymExec config s1 s2 = do
                     let s2_ = transferStateInfo s1_ s2
                     ct2 <- CM.liftIO $ getCurrentTime
                     let config'' = config -- { logStates = Just $ "verifier_states/b" ++ show ct2 }
-                    -- TODO
-                    CM.liftIO $ putStrLn "nested"
                     (er2, b_') <- CM.lift $ runG2ForRewriteV s2_ config'' b_
                     CM.put b_'
                     return $ map (\er2_ -> 
@@ -184,8 +180,8 @@ wrapLetRec h (Let binds e) =
   -- it's only needed where the recursion actually happens
   -- need to apply wrap_cg over it with the new names?
   -- wrap_cg with fresh_name won't help because nothing can reach fresh_name
-  trace (show $ binds == binds4) $ trace (show $ e == e'') $ Let binds4 e''
-wrapLetRec h e = trace (show $ E.size h) modifyChildren (wrapLetRec h) e
+  Let binds4 e''
+wrapLetRec h e = modifyChildren (wrapLetRec h) e
 
 -- first Name is the one that maps to the Expr in the environment
 -- second Name is the one that might be wrapped
@@ -373,20 +369,20 @@ inductionState s =
 -- TODO There are other situations that I can carve out that qualify as finite
 -- expressions.  A variable or literal of a type that is non-algebraic and not
 -- functional must be finite, provided that it's well-defined.
+-- TODO because of my better REC tick placement, I should be able to check
+-- finiteness more reliably, even with constant expressions.
 finiteExpr :: HS.HashSet Name ->
-              HS.HashSet Name ->
               ExprEnv ->
               [Name] -> -- ^ vars inlined so far
               Expr ->
               Bool
-finiteExpr ns finite_hs h n e = case e of
+finiteExpr finite_hs h n e = case e of
   Var i | (idName i) `elem` finite_hs -> True
-        | (idName i) `elem` ns -> False
         | (idName i) `elem` n -> False
         -- symbolic but not finite:  not allowed
         | E.isSymbolic (idName i) h -> False
         | m <- idName i
-        , Just e' <- E.lookup m h -> finiteExpr ns finite_hs h (m:n) e'
+        , Just e' <- E.lookup m h -> finiteExpr finite_hs h (m:n) e'
         | otherwise -> error "unmapped variable"
   -- TODO can literal strings be infinite?  This assumes they can't be
   -- LitString might not get used at all, even
@@ -395,15 +391,17 @@ finiteExpr ns finite_hs h n e = case e of
   Prim _ _ -> True
   Data _ -> True
   -- TODO should I be more careful about this?
-  App e1 e2 -> (finiteExpr ns finite_hs h n e1) && (finiteExpr ns finite_hs h n e2)
+  App e1 e2 -> (finiteExpr finite_hs h n e1) && (finiteExpr finite_hs h n e2)
   Lam _ _ _ -> False
   -- TODO might not even need to handle these two cases at all
+  -- TODO would need to modify bindings here
   Let _ _ -> False
   Case _ _ _ -> False
   Type _ -> True
-  --Cast e' _ -> finiteExpr finite_hs e'
-  --Coercion _ -> True
-  Tick _ e' -> finiteExpr ns finite_hs h n e'
+  Cast e' _ -> finiteExpr finite_hs h n e'
+  Coercion _ -> True
+  Tick (NamedLoc (Name t _ _ _)) e' ->
+    (t /= DT.pack "REC") && (finiteExpr finite_hs h n e')
   _ -> error "unrecognized"
 
 notM :: IO Bool -> IO Bool
@@ -605,12 +603,6 @@ checkRule config init_state bindings total finite rule = do
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
   putStrLn $ show $ curr_expr $ latest rewrite_state_l'
   putStrLn $ show $ curr_expr $ latest rewrite_state_r'
-  -- TODO
-  --putStrLn $ show $ E.lookup (Name "enumFrom" (Just "GHC.Enum") 8214565720323800889 Nothing) $ expr_env $ latest rewrite_state_l'
-  --putStrLn $ show $ E.lookup (Name "$dEnum" Nothing 6989586621679020293 Nothing) $ expr_env $ latest rewrite_state_r'
-  --putStrLn $ show $ E.lookup (Name "fromInteger" (Just "GHC.Num") 8214565720323800799 Nothing) $ expr_env $ latest rewrite_state_r'
-  --putStrLn $ show $ E.lookup (Name "makeCycle" (Just "CoinductionCorrect") 8214565720323786279 (Just (Span {start = Loc {line = 155, col = 1, file = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"}, end = Loc {line = 155, col = 10, file = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"}}))) $ expr_env $ latest rewrite_state_l'
-  --putStrLn $ show $ E.lookup (Name "cyclic" (Just "CoinductionCorrect") 8214565720323786278 (Just (Span {start = Loc {line = 152, col = 1, file = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"}, end = Loc {line = 152, col = 7, file = "tests/RewriteVerify/Correct/CoinductionCorrect.hs"}}))) $ expr_env $ latest rewrite_state_r'
   res <- verifyLoop solver ns
              [(rewrite_state_l', rewrite_state_r')]
              [(rewrite_state_l', rewrite_state_r')]

@@ -154,8 +154,11 @@ cyclic = 1:cyclic
 makeCycle :: Int -> [Int]
 makeCycle x = x:(makeCycle x)
 
+infInt :: [Int]
+infInt = [1..]
+
 -- TODO the verifier gets stuck on infiniteInts
 {-# RULES
-"infiniteInts" len [1..] = lenDouble [1..]
+"infiniteInts" len infInt = lenDouble infInt
 "onlyOnes" makeCycle 1 = cyclic
   #-}
