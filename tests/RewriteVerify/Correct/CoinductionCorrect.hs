@@ -157,7 +157,10 @@ makeCycle x = x:(makeCycle x)
 infInt :: [Int]
 infInt = [1..]
 
--- TODO the verifier gets stuck on infiniteInts
+-- TODO Restricting the type of [1..] to [Int] makes the verifier stop getting
+-- stuck on infiniteInts, but the verifier still runs forever on the rule as it
+-- is now.  Making symbolic execution stop more often did cause the verifier to
+-- return UNSAT for it, though.
 {-# RULES
 "infiniteInts" len infInt = lenDouble infInt
 "onlyOnes" makeCycle 1 = cyclic

@@ -380,6 +380,8 @@ finiteExpr finite_hs h n e = case e of
   Var i | (idName i) `elem` finite_hs -> True
         | (idName i) `elem` n -> False
         -- symbolic but not finite:  not allowed
+        -- Type is irrelevant:  even a non-algebraic type could be undefined
+        -- What if we know it's total and non-algebraic, though?
         | E.isSymbolic (idName i) h -> False
         | m <- idName i
         , Just e' <- E.lookup m h -> finiteExpr finite_hs h (m:n) e'
@@ -388,11 +390,14 @@ finiteExpr finite_hs h n e = case e of
   -- LitString might not get used at all, even
   Lit _ -> True
   -- TODO also assumes types can't be infinite
+  Prim Error _ -> False
+  Prim Undefined _ -> False
   Prim _ _ -> True
   Data _ -> True
-  -- TODO should I be more careful about this?
   App e1 e2 -> (finiteExpr finite_hs h n e1) && (finiteExpr finite_hs h n e2)
-  Lam _ _ _ -> False
+  -- TODO I think type-level lambdas are fine
+  Lam TypeL _ _ -> True
+  Lam TermL _ _ -> False
   -- TODO might not even need to handle these two cases at all
   -- TODO would need to modify bindings here
   Let _ _ -> False
@@ -435,8 +440,8 @@ verifyLoop' solver ns sh1 sh2 prev =
       return Nothing
     Just obs -> do
       putStrLn "J!"
-      putStrLn $ mkExprHaskell $ exprExtract s1
-      putStrLn $ mkExprHaskell $ exprExtract s2
+      putStrLn $ show $ exprExtract s1
+      putStrLn $ show $ exprExtract s2
 
       let prev' = concat $ map prevFiltered prev
           (obs_i, obs_c) = partition canUseInduction obs
@@ -452,6 +457,8 @@ verifyLoop' solver ns sh1 sh2 prev =
           ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
           not_ready_h = map (\(n1, n2) -> (replaceH sh1 n1, replaceH sh2 n2)) not_ready
       res <- checkObligations solver s1 s2 ready_exprs
+      -- TODO
+      putStrLn $ show $ map (\(r1, r2) -> (exprExtract $ latest r1, exprExtract $ latest r2)) not_ready_h
       case res of
         S.UNSAT () -> putStrLn "V?"
         _ -> putStrLn "X?"
@@ -466,6 +473,7 @@ The prev list is fully expanded already
 Compare the sub-expressions to the prev state pairs
 If any match occurs, try extrapolating it
 If extrapolation works, we can flag the real state pair as a repeat
+TODO This never checks path constraint implication; is that a problem?
 -}
 induction :: HS.HashSet Name ->
              [(StateET, StateET)] ->
