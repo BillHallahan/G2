@@ -256,6 +256,22 @@ prevFull (sh1, sh2) = [(p1, p2) | p1 <- history sh1, p2 <- history sh2]
 prevFiltered :: (StateH, StateH) -> [(StateET, StateET)]
 prevFiltered = (filter (not . eitherSWHNF)) . prevFull
 
+-- TODO allow things in repeat list if they're both finite?
+-- this probably wouldn't be a sound technique to use
+prevFiltered' :: (StateH, StateH) -> [(StateET, StateET)]
+prevFiltered' (sh1, sh2) =
+  let s1 = latest sh1
+      h1 = expr_env s1
+      finite_hs1 = finite $ track s1
+      fe1 = (finiteExpr finite_hs1 h1 []) . exprExtract
+      s2 = latest sh2
+      h2 = expr_env s2
+      finite_hs2 = finite $ track s2
+      fe2 = (finiteExpr finite_hs2 h2 []) . exprExtract
+      pred (s1_, s2_) = ((not . eitherSWHNF) (s1_, s2_)) || (fe1 s1_ && fe2 s2_)
+  in
+  (filter pred) $ prevFull (sh1, sh2)
+
 verifyLoop :: S.Solver solver =>
               solver ->
               HS.HashSet Name ->
@@ -293,6 +309,23 @@ stateWrap :: StateET -> StateET -> Obligation -> (StateET, StateET)
 stateWrap s1 s2 (Ob e1 e2) =
   ( s1 { curr_expr = CurrExpr Evaluate e1 }
   , s2 { curr_expr = CurrExpr Evaluate e2 } )
+
+-- TODO helper functions for getting finite symbolic vars from an expr
+-- should be able to go through inlinings
+-- will need to keep track of things inlined so far
+-- TODO use containedASTs?
+finiteVars :: HS.HashSet Name -> ExprEnv -> [Name] -> Expr -> HS.HashSet Name
+finiteVars finite_hs h n e = case e of
+  Var i | (idName i) `elem` finite_hs -> HS.insert (idName i) HS.empty
+        | (idName i) `elem` n -> HS.empty
+        | E.isSymbolic (idName i) h -> HS.empty
+        | m <- idName i
+        , Just e' <- E.lookup m h -> finiteVars finite_hs h (m:n) e'
+        | otherwise -> error "unmapped variable"
+  -- TODO I think containedASTs doesn't include nested sub-expressions
+  -- I don't think it includes itself either
+  _ -> let fvs = map (finiteVars finite_hs h n) (containedASTs e)
+       in foldr HS.union HS.empty fvs
 
 -- helper functions for induction
 -- TODO can something other than Case be at the outermost level?
@@ -378,11 +411,11 @@ finiteExpr :: HS.HashSet Name ->
               Bool
 finiteExpr finite_hs h n e = case e of
   Var i | (idName i) `elem` finite_hs -> True
-        | (idName i) `elem` n -> False
+        | (idName i) `elem` n -> trace ("GG " ++ show e) False
         -- symbolic but not finite:  not allowed
         -- Type is irrelevant:  even a non-algebraic type could be undefined
         -- What if we know it's total and non-algebraic, though?
-        | E.isSymbolic (idName i) h -> False
+        | E.isSymbolic (idName i) h -> trace ("FF " ++ show e) False
         | m <- idName i
         , Just e' <- E.lookup m h -> finiteExpr finite_hs h (m:n) e'
         | otherwise -> error "unmapped variable"
@@ -390,24 +423,57 @@ finiteExpr finite_hs h n e = case e of
   -- LitString might not get used at all, even
   Lit _ -> True
   -- TODO also assumes types can't be infinite
-  Prim Error _ -> False
-  Prim Undefined _ -> False
+  Prim Error _ -> trace ("EE " ++ show e) False
+  Prim Undefined _ -> trace ("DD " ++ show e) False
   Prim _ _ -> True
   Data _ -> True
   App e1 e2 -> (finiteExpr finite_hs h n e1) && (finiteExpr finite_hs h n e2)
   -- TODO I think type-level lambdas are fine
   Lam TypeL _ _ -> True
-  Lam TermL _ _ -> False
+  -- TODO only the Lam failure case being hit for p10 with m finite
+  Lam TermL _ _ -> trace ("CC " ++ show e) False
   -- TODO might not even need to handle these two cases at all
   -- TODO would need to modify bindings here
-  Let _ _ -> False
-  Case _ _ _ -> False
+  Let _ _ -> trace ("BB " ++ show e) False
+  Case _ _ _ -> trace ("AA " ++ show e) False
   Type _ -> True
   Cast e' _ -> finiteExpr finite_hs h n e'
   Coercion _ -> True
   Tick (NamedLoc (Name t _ _ _)) e' ->
     (t /= DT.pack "REC") && (finiteExpr finite_hs h n e')
   _ -> error "unrecognized"
+
+-- i is the argument, e is the body
+-- can I just look for recursion ticks?
+-- Not necessarily:  there could be complex Let usage that obscures things
+finiteLam :: HS.HashSet Name -> ExprEnv -> Id -> Expr -> Bool
+finiteLam finite_hs h i e = error "TODO"
+
+-- TODO better approach
+-- Don't check whether a whole expression is finite
+-- Instead, check whether one var is a child of another
+-- TODO I think I can just do any AST searching like this
+-- name is thevar name for which containment is being checked
+-- TODO Lam, Let, and Case shouldn't need any special handling
+-- if the variables for which I search are always symbolic
+varChild :: Name -> ExprEnv -> [Name] -> Expr -> Bool
+varChild v h n e = case e of
+  Var i | (idName i) == v -> True
+        | (idName i) `elem` n -> False
+        -- other symbolic vars are no good
+        | E.isSymbolic (idName i) h -> False
+        | m <- idName i
+        , Just e' <- E.lookup m h -> varChild v h (m:n) e'
+        | otherwise -> False -- unmapped variable
+  -- TODO watch out for things that introduce new bindings?
+  {-
+  Lam _ i b | (idName i) == v -> False -- gets overwritten; would this ever happen?
+            | otherwise -> varChild v h n b -- don't need the new binding for anything
+  Let binds e' -> error "TODO"
+  Case e' i a -> error "TODO"
+  -}
+  _ -> let vcs = map (varChild v h n) (containedASTs e)
+       in foldr (||) False vcs
 
 notM :: IO Bool -> IO Bool
 notM b = do
@@ -440,19 +506,23 @@ verifyLoop' solver ns sh1 sh2 prev =
       return Nothing
     Just obs -> do
       putStrLn "J!"
-      putStrLn $ show $ exprExtract s1
-      putStrLn $ show $ exprExtract s2
+      putStrLn $ mkExprHaskell $ exprExtract s1
+      putStrLn $ mkExprHaskell $ exprExtract s2
 
       let prev' = concat $ map prevFiltered prev
           (obs_i, obs_c) = partition canUseInduction obs
           states_c = map (stateWrap s1 s2) obs_c
       states_c' <- filterM (notM . (moreRestrictivePair solver ns prev')) states_c
 
+      -- TODO implemented as a second pass over non-induction states for now
+      let prev'' = concat $ map prevFull prev
+          states_c'' = filter (not . (finiteMatchPair ns prev'')) states_c'
+
       let states_i = map (stateWrap s1 s2) obs_i
           states_i' = filter (not . (induction ns prev')) states_i
 
       -- TODO unnecessary to pass the induction states through this?
-      let states = states_c' ++ states_i'
+      let states = states_c'' ++ states_i'
           (ready, not_ready) = partition statePairReadyForSolver states
           ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
           not_ready_h = map (\(n1, n2) -> (replaceH sh1 n1, replaceH sh2 n2)) not_ready
@@ -617,6 +687,99 @@ checkRule config init_state bindings total finite rule = do
              bindings'' config
   -- UNSAT for good, SAT for bad
   return res
+
+-- TODO This is a repeat-flagging function for "finite induction."
+-- It is somewhat similar to moreRestrictive but is less lenient.
+-- Substitutions for symbolic variables in the old state are only allowed if
+-- those symbolic variables are marked as finite, and the replacements in the
+-- new state must be symbolic variables that are children of the symbolic
+-- variables that they replace.
+-- TODO do I really need ns?
+finiteMatch :: StateET ->
+               StateET ->
+               HS.HashSet Name ->
+               HM.HashMap Id Id ->
+               [Name] -> -- ^ variables inlined previously on the LHS
+               [Name] -> -- ^ variables inlined previously on the RHS
+               Expr ->
+               Expr ->
+               Maybe (HM.HashMap Id Id)
+finiteMatch s1@(State {expr_env = h1, track = tr}) s2@(State {expr_env = h2}) ns hm n1 n2 e1 e2 =
+  case (e1, e2) of
+    -- ignore all Ticks
+    (Tick _ e1', _) -> finiteMatch s1 s2 ns hm n1 n2 e1' e2
+    (_, Tick _ e2') -> finiteMatch s1 s2 ns hm n1 n2 e1 e2'
+    -- TODO can't copy all Var handling
+    -- TODO check that a mapping hasn't been found already
+    -- TODO inlining makes this get stuck after a few loop iterations
+    -- there needs to be a finite var for it to happen, though
+    (Var i, _) | m <- idName i
+               , not $ E.isSymbolic m h1
+               , not $ HS.member m ns
+               , not $ m `elem` n1
+               , Just e <- E.lookup m h1 ->
+                 finiteMatch s1 s2 ns hm (m:n1) n2 e e2
+    (_, Var i) | m <- idName i
+               , not $ E.isSymbolic m h2
+               , not $ HS.member m ns
+               , not $ m `elem` n2
+               , Just e <- E.lookup m h2 ->
+                 finiteMatch s1 s2 ns hm n1 (m:n2) e1 e
+    (Var i1, Var i2) | m1 <- idName i1
+                     , m2 <- idName i2
+                     , m1 `elem` (finite tr)
+                     , Nothing <- HM.lookup i1 hm
+                     , Just e1' <- E.lookup m1 h2
+                     , varChild m2 h2 [] e1' -> Just (HM.insert i1 i2 hm)
+                     | Just i3 <- HM.lookup i1 hm
+                     , idName i3 == idName i2 -> Just hm -- same mapping
+                     | idName i1 == idName i2 -> Just hm
+    (App f1 a1, App f2 a2) | Just hm_f <- finiteMatch s1 s2 ns hm n1 n2 f1 f2
+                           , Just hm_a <- finiteMatch s1 s2 ns hm_f n1 n2 a1 a2 -> Just hm_a
+    (Data (DataCon d1 _), Data (DataCon d2 _)) | d1 == d2 -> Just hm
+                                               | otherwise -> Nothing
+    (Prim p1 _, Prim p2 _) | p1 == p2 -> Just hm
+                           | otherwise -> Nothing
+    (Lit l1, Lit l2) | l1 == l2 -> Just hm
+                     | otherwise -> Nothing
+    -- TODO can I copy moreRestrictive here?
+    (Lam lu1 i1 b1, Lam lu2 i2 b2)
+                | lu1 == lu2
+                , i1 == i2 ->
+                  let ns' = HS.insert (idName i1) ns
+                  in finiteMatch s1 s2 ns' hm n1 n2 b1 b2
+                | otherwise -> Nothing
+    (Type _, Type _) -> Just hm
+    -- TODO don't need the extra bindings for now
+    (Let binds1 e1', Let binds2 e2') ->
+                let pairs = (e1', e2'):(zip (map snd binds1) (map snd binds2))
+                    fm hm_ (e1_, e2_) = finiteMatch s1 s2 ns hm_ n1 n2 e1_ e2_
+                in foldM fm hm pairs
+    -- TODO check for equality in the relevant parts like the ids
+    (Case e1' i1 a1, Case e2' i2 a2) -> error "TODO"
+    _ -> Nothing
+
+matchHelper :: StateET ->
+               StateET ->
+               HS.HashSet Name ->
+               Maybe (HM.HashMap Id Id) ->
+               Maybe (HM.HashMap Id Id)
+matchHelper _ _ _ Nothing = Nothing
+matchHelper s1 s2 ns (Just hm) =
+  finiteMatch s1 s2 ns hm [] [] (exprExtract s1) (exprExtract s2)
+
+-- TODO might not need ns here?
+-- TODO do I also need to check path constraints?
+-- I can adjust this later if I do
+finiteMatchPair :: HS.HashSet Name ->
+                   [(StateET, StateET)] ->
+                   (StateET, StateET) ->
+                   Bool
+finiteMatchPair ns prev (s1, s2) =
+  let fm (p1, p2) = matchHelper p2 s2 ns $ matchHelper p1 s1 ns (Just HM.empty)
+      maybes = map fm prev
+      res = [hm | Just hm <- maybes]
+  in trace ("FMP " ++ show (length res)) $ not $ null res
 
 -- s1 is the old state, s2 is the new state
 -- If any recursively-defined functions or other expressions manage to slip
@@ -866,6 +1029,7 @@ moreRestrictivePair :: S.Solver solver =>
                        (State t, State t) ->
                        IO Bool
 moreRestrictivePair solver ns prev (s1, s2) = do
+  putStrLn $ "MRP " ++ show (length prev)
   let mr (p1, p2) = restrictHelper p2 s2 ns $
                     restrictHelper p1 s1 ns (Just (HM.empty, HS.empty))
       getObs m = case m of
