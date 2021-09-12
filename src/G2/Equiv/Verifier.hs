@@ -324,7 +324,7 @@ finiteVars finite_hs h n e = case e of
         | otherwise -> error "unmapped variable"
   -- TODO I think containedASTs doesn't include nested sub-expressions
   -- I don't think it includes itself either
-  _ -> let fvs = map (finiteVars finite_hs h n) (containedASTs e)
+  _ -> let fvs = map (finiteVars finite_hs h n) (children e)
        in foldr HS.union HS.empty fvs
 
 -- helper functions for induction
@@ -456,6 +456,9 @@ finiteLam finite_hs h i e = error "TODO"
 -- name is thevar name for which containment is being checked
 -- TODO Lam, Let, and Case shouldn't need any special handling
 -- if the variables for which I search are always symbolic
+-- TODO infinite loop within this function
+-- Does containedASTS e include e?  It seems that way from debug printing
+-- TODO does children get indirectly contained expressions of the same type?
 varChild :: Name -> ExprEnv -> [Name] -> Expr -> Bool
 varChild v h n e = case e of
   Var i | (idName i) == v -> True
@@ -472,7 +475,7 @@ varChild v h n e = case e of
   Let binds e' -> error "TODO"
   Case e' i a -> error "TODO"
   -}
-  _ -> let vcs = map (varChild v h n) (containedASTs e)
+  _ -> let vcs = map (varChild v h n) (children e)
        in foldr (||) False vcs
 
 notM :: IO Bool -> IO Bool
@@ -710,9 +713,8 @@ finiteMatch s1@(State {expr_env = h1, track = tr}) s2@(State {expr_env = h2}) ns
     (Tick _ e1', _) -> finiteMatch s1 s2 ns hm n1 n2 e1' e2
     (_, Tick _ e2') -> finiteMatch s1 s2 ns hm n1 n2 e1 e2'
     -- TODO can't copy all Var handling
-    -- TODO check that a mapping hasn't been found already
-    -- TODO inlining makes this get stuck after a few loop iterations
-    -- there needs to be a finite var for it to happen, though
+    -- TODO should I inline ns vars?
+    -- TODO bring back Name-Expr pairs for n1 and n2?
     (Var i, _) | m <- idName i
                , not $ E.isSymbolic m h1
                , not $ HS.member m ns
@@ -725,6 +727,7 @@ finiteMatch s1@(State {expr_env = h1, track = tr}) s2@(State {expr_env = h2}) ns
                , not $ m `elem` n2
                , Just e <- E.lookup m h2 ->
                  finiteMatch s1 s2 ns hm n1 (m:n2) e1 e
+    -- check that a mapping hasn't been found already
     (Var i1, Var i2) | m1 <- idName i1
                      , m2 <- idName i2
                      , m1 `elem` (finite tr)
@@ -750,14 +753,42 @@ finiteMatch s1@(State {expr_env = h1, track = tr}) s2@(State {expr_env = h2}) ns
                   in finiteMatch s1 s2 ns' hm n1 n2 b1 b2
                 | otherwise -> Nothing
     (Type _, Type _) -> Just hm
-    -- TODO don't need the extra bindings for now
+    -- TODO now that I have inlining, I should handle the bindings
     (Let binds1 e1', Let binds2 e2') ->
                 let pairs = (e1', e2'):(zip (map snd binds1) (map snd binds2))
                     fm hm_ (e1_, e2_) = finiteMatch s1 s2 ns hm_ n1 n2 e1_ e2_
                 in foldM fm hm pairs
     -- TODO check for equality in the relevant parts like the ids
-    (Case e1' i1 a1, Case e2' i2 a2) -> error "TODO"
+    -- TODO check id equality or idName equality?
+    (Case e1' i1 a1, Case e2' i2 a2)
+                | Just hm' <- finiteMatch s1 s2 ns hm n1 n2 e1' e2'
+                , i1 == i2 ->
+                  let h1' = E.insert (idName i1) e1' h1
+                      h2' = E.insert (idName i2) e2' h2
+                      s1' = s1 { expr_env = h1' }
+                      s2' = s2 { expr_env = h2' }
+                      fm hm_ (e1_, e2_) = finiteMatchAlt s1' s2' ns hm_ n1 n2 e1_ e2_
+                      l = zip a1 a2
+                  in foldM fm hm' l
     _ -> Nothing
+
+-- TODO same issue for n1 and n2
+finiteMatchAlt :: StateET ->
+                  StateET ->
+                  HS.HashSet Name ->
+                  HM.HashMap Id Id ->
+                  [Name] -> -- ^ variables inlined previously on the LHS
+                  [Name] -> -- ^ variables inlined previously on the RHS
+                  Alt ->
+                  Alt ->
+                  Maybe (HM.HashMap Id Id)
+finiteMatchAlt s1 s2 ns hm n1 n2 (Alt am1 e1) (Alt am2 e2) =
+  if altEquiv am1 am2 then
+  case am1 of
+    DataAlt _ t1 -> let ns' = foldr HS.insert ns $ map (\(Id n _) -> n) t1
+                    in finiteMatch s1 s2 ns' hm n1 n2 e1 e2
+    _ -> finiteMatch s1 s2 ns hm n1 n2 e1 e2
+  else Nothing
 
 matchHelper :: StateET ->
                StateET ->
@@ -878,6 +909,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
     -- ignore types, like in exprPairing
     (Type _, Type _) -> Just hm
     -- TODO if scrutinee is symbolic var, make Alt vars symbolic?
+    -- TODO id equality never checked; does it matter?
     (Case e1' i1 a1, Case e2' i2 a2)
                 | Just hm' <- moreRestrictive s1 s2 ns hm n1 n2 e1' e2' ->
                   -- add the matched-on exprs to the envs beforehand
