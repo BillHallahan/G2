@@ -756,7 +756,12 @@ finiteMatch s1@(State {expr_env = h1, track = tr}) s2@(State {expr_env = h2}) ns
     -- TODO now that I have inlining, I should handle the bindings
     (Let binds1 e1', Let binds2 e2') ->
                 let pairs = (e1', e2'):(zip (map snd binds1) (map snd binds2))
-                    fm hm_ (e1_, e2_) = finiteMatch s1 s2 ns hm_ n1 n2 e1_ e2_
+                    ins (i_, e_) h_ = E.insert (idName i_) e_ h_
+                    h1' = foldr ins h1 binds1
+                    h2' = foldr ins h2 binds2
+                    s1' = s1 { expr_env = h1' }
+                    s2' = s2 { expr_env = h2' }
+                    fm hm_ (e1_, e2_) = finiteMatch s1' s2' ns hm_ n1 n2 e1_ e2_
                 in foldM fm hm pairs
     -- TODO check for equality in the relevant parts like the ids
     -- TODO check id equality or idName equality?
