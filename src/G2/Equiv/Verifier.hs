@@ -698,6 +698,7 @@ checkRule config init_state bindings total finite rule = do
 -- new state must be symbolic variables that are children of the symbolic
 -- variables that they replace.
 -- TODO do I really need ns?
+{-
 finiteMatch :: StateET ->
                StateET ->
                HS.HashSet Name ->
@@ -766,8 +767,7 @@ finiteMatch s1@(State {expr_env = h1, track = tr}) s2@(State {expr_env = h2}) ns
     -- TODO check for equality in the relevant parts like the ids
     -- TODO check id equality or idName equality?
     (Case e1' i1 a1, Case e2' i2 a2)
-                | Just hm' <- finiteMatch s1 s2 ns hm n1 n2 e1' e2'
-                , i1 == i2 ->
+                | Just hm' <- finiteMatch s1 s2 ns hm n1 n2 e1' e2' ->
                   let h1' = E.insert (idName i1) e1' h1
                       h2' = E.insert (idName i2) e2' h2
                       s1' = s1 { expr_env = h1' }
@@ -776,8 +776,10 @@ finiteMatch s1@(State {expr_env = h1, track = tr}) s2@(State {expr_env = h2}) ns
                       l = zip a1 a2
                   in foldM fm hm' l
     _ -> Nothing
+-}
 
 -- TODO same issue for n1 and n2
+{-
 finiteMatchAlt :: StateET ->
                   StateET ->
                   HS.HashSet Name ->
@@ -803,6 +805,48 @@ matchHelper :: StateET ->
 matchHelper _ _ _ Nothing = Nothing
 matchHelper s1 s2 ns (Just hm) =
   finiteMatch s1 s2 ns hm [] [] (exprExtract s1) (exprExtract s2)
+-}
+
+-- old state first, new state second
+-- TODO for second Var case, also check that i2 is symbolic?
+-- TODO how do I know whether to use left side or right side?
+-- Should it matter?  I can do both to start
+finiteSubst :: StateET ->
+               StateET ->
+               (Id, Expr) ->
+               Bool
+finiteSubst s1@(State { track = tr }) s2@(State{ expr_env = h }) (i1, e) =
+  let m1 = idName i1
+  in case e of
+    Var i2 | m1 `elem` (finite tr)
+           , Just e' <- E.lookup m1 h
+           , varChild (idName i2) h [] e' -> True
+           | m1 == idName i2 -> True
+    _ -> False
+
+-- TODO get results of moreRestrictive
+-- extra obligation list must be empty
+-- all concretizations must be of one of the following forms:
+-- symbolic variable maps to itself
+-- finite symbolic variable maps to a symbolic variable that is its child
+-- TODO better naming for this and the other function?
+-- first state pair is old, second is new
+finiteMatch :: HS.HashSet Name ->
+               (StateET, StateET) ->
+               (StateET, StateET) ->
+               Bool
+finiteMatch ns (p1, p2) (s1, s2) =
+  let res = restrictHelper p2 s2 ns $
+            restrictHelper p1 s1 ns $
+            Just (HM.empty, HS.empty)
+  in case res of
+    Nothing -> False
+    Just (hm, hs) | HS.null hs ->
+                    let binds = HM.toList hm
+                        l1 = map (finiteSubst p1 s1) binds
+                        l2 = map (finiteSubst p2 s2) binds
+                    in foldr (&&) True (l1 ++ l2)
+    _ -> False
 
 -- TODO might not need ns here?
 -- TODO do I also need to check path constraints?
@@ -811,11 +855,16 @@ finiteMatchPair :: HS.HashSet Name ->
                    [(StateET, StateET)] ->
                    (StateET, StateET) ->
                    Bool
-finiteMatchPair ns prev (s1, s2) =
+finiteMatchPair ns prev s_pair =
+{-
   let fm (p1, p2) = matchHelper p2 s2 ns $ matchHelper p1 s1 ns (Just HM.empty)
       maybes = map fm prev
       res = [hm | Just hm <- maybes]
   in trace ("FMP " ++ show (length res)) $ not $ null res
+-}
+  let fm p = finiteMatch ns p s_pair
+      bools = map fm prev
+  in foldr (||) False bools
 
 -- s1 is the old state, s2 is the new state
 -- If any recursively-defined functions or other expressions manage to slip
@@ -913,6 +962,17 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                 | otherwise -> Nothing
     -- ignore types, like in exprPairing
     (Type _, Type _) -> Just hm
+    -- new Let handling
+    -- TODO does this not account for bindings properly?
+    (Let binds1 e1', Let binds2 e2') ->
+                let pairs = (e1', e2'):(zip (map snd binds1) (map snd binds2))
+                    ins (i_, e_) h_ = E.insert (idName i_) e_ h_
+                    h1' = foldr ins h1 binds1
+                    h2' = foldr ins h2 binds2
+                    s1' = s1 { expr_env = h1' }
+                    s2' = s2 { expr_env = h2' }
+                    mf hm_ (e1_, e2_) = moreRestrictive s1' s2' ns hm_ n1 n2 e1_ e2_
+                in foldM mf hm pairs
     -- TODO if scrutinee is symbolic var, make Alt vars symbolic?
     -- TODO id equality never checked; does it matter?
     (Case e1' i1 a1, Case e2' i2 a2)
