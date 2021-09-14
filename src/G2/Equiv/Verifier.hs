@@ -255,22 +255,6 @@ prevFull (sh1, sh2) = [(p1, p2) | p1 <- history sh1, p2 <- history sh2]
 prevFiltered :: (StateH, StateH) -> [(StateET, StateET)]
 prevFiltered = (filter (not . eitherSWHNF)) . prevFull
 
--- TODO allow things in repeat list if they're both finite?
--- this probably wouldn't be a sound technique to use
-prevFiltered' :: (StateH, StateH) -> [(StateET, StateET)]
-prevFiltered' (sh1, sh2) =
-  let s1 = latest sh1
-      h1 = expr_env s1
-      finite_hs1 = finite $ track s1
-      fe1 = (finiteExpr finite_hs1 h1 []) . exprExtract
-      s2 = latest sh2
-      h2 = expr_env s2
-      finite_hs2 = finite $ track s2
-      fe2 = (finiteExpr finite_hs2 h2 []) . exprExtract
-      pred (s1_, s2_) = ((not . eitherSWHNF) (s1_, s2_)) || (fe1 s1_ && fe2 s2_)
-  in
-  (filter pred) $ prevFull (sh1, sh2)
-
 verifyLoop :: S.Solver solver =>
               solver ->
               HS.HashSet Name ->
