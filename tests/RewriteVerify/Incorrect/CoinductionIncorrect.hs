@@ -7,7 +7,7 @@ import Data.List
 cons :: t -> [t] -> [t]
 cons n (!l) = n:l
 
-intForce :: [Int] -> [Int]
+intForce :: [a] -> [a]
 intForce [] = []
 intForce (h:t) = cons h $ intForce t
 
@@ -76,4 +76,14 @@ nonterm b = nonterm b
 "badDoubleReverse" forall l . intReverse (intReverse l) = l
 "takeDropCancel" forall n l . intDrop n (intTake n l) = []
 "badBool" forall b . nonterm b = True
+  #-}
+
+-- TODO gets stuck with "let a = a in a"
+badZip :: [Int] -> [Int] -> [(Int, Int)]
+badZip _ [] = let w = w in w -- badZip [] []
+badZip [] _ = let w = w in w -- badZip [] []
+badZip (x:xs) (y:ys) = (x, y):(badZip xs ys)
+
+{-# RULES
+"bz" forall xs ys . intForce (badZip xs ys) = badZip xs ys
   #-}

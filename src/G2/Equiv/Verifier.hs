@@ -154,6 +154,8 @@ recWrap h n =
 -- look inside the bindings and inside the body for recursion
 -- TODO I should merge this process with the other wrapping?
 -- TODO do I need an extra process for some other recursive structure?
+-- TODO is this not tagging "let w = w in w" with a REC tick?
+-- other possibility:  no case, no full app, so no termination condition
 wrapLetRec :: ExprEnv -> Expr -> Expr
 wrapLetRec h (Let binds e) =
   let binds1 = map (\(i, e_) -> (idName i, e_)) binds
@@ -437,8 +439,8 @@ verifyLoop' solver ns sh1 sh2 prev =
       return Nothing
     Just obs -> do
       putStrLn "J!"
-      putStrLn $ mkExprHaskell $ exprExtract s1
-      putStrLn $ mkExprHaskell $ exprExtract s2
+      putStrLn $ show $ exprExtract s1
+      putStrLn $ show $ exprExtract s2
 
       let prev' = concat $ map prevFiltered prev
           (obs_i, obs_c) = partition canUseInduction obs

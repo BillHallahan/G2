@@ -137,7 +137,7 @@ recursionInCase :: State t -> Bool
 recursionInCase (State { curr_expr = CurrExpr _ e, exec_stack = sk }) =
     case e of
         Tick (NamedLoc (Name p _ _ _)) _ ->
-            p == T.pack "REC" && containsCase sk
+            p == T.pack "REC" -- && containsCase sk
         _ -> False
 
 instance Halter EnforceProgressH () EquivTracker where
@@ -199,8 +199,15 @@ instance Reducer EquivReducer () EquivTracker where
                         total' = if all_vars && all_sym && all_total
                                  then HS.insert (idName v) total
                                  else total
+                        -- TODO carry over finiteness in the same way
+                        -- Here a "finite function" means one that always gives
+                        -- a total finite output when given total finite inputs
+                        all_finite = foldr (&&) True $ map (`elem` finite) es'
+                        finite' = if all_vars && all_sym && all_finite
+                                  then HS.insert (idName v) finite
+                                  else finite
                         s' = s { curr_expr = CurrExpr Evaluate (Var v)
-                               , track = EquivTracker et' m total' finite
+                               , track = EquivTracker et' m total' finite'
                                , expr_env = E.insertSymbolic (idName v) v eenv
                                , symbolic_ids = v:symbs }
                         b' = b { name_gen = ng' }
