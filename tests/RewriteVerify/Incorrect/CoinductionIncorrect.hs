@@ -78,12 +78,24 @@ nonterm b = nonterm b
 "badBool" forall b . nonterm b = True
   #-}
 
--- TODO gets stuck with "let a = a in a"
+-- With normal stopping rules, this gets stuck with "let w = w in w"
+-- with the [] [] version, badNil gets UNSAT
+-- being more generous with stopping points prevents it from getting stuck too
 badZip :: [Int] -> [Int] -> [(Int, Int)]
-badZip _ [] = let w = w in w -- badZip [] []
-badZip [] _ = let w = w in w -- badZip [] []
+badZip _ [] = {- let w = w in w -} badZip [] []
+badZip [] _ = {- let w = w in w -} badZip [] []
 badZip (x:xs) (y:ys) = (x, y):(badZip xs ys)
+
+-- this gets UNSAT without any totality or finiteness restrictions
+-- Is this correct behavior?  Yes, because they both fail to terminate
+bad1 :: Int -> Int
+bad1 x = bad1 x
+
+bad2 :: Int -> Int
+bad2 x = bad2 x
 
 {-# RULES
 "bz" forall xs ys . intForce (badZip xs ys) = badZip xs ys
+"badPair" forall x . bad1 x = bad2 x
+"badNil" intForce (badZip [] []) = badZip [] []
   #-}

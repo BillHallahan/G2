@@ -49,6 +49,18 @@ data StateH = StateH {
   , history :: [StateET]
 }
 
+-- TODO new proposed system for finite induction
+-- only allowed for a var if its base cases terminate
+{-
+Potential issues with this setup:
+Need to see from moreRestrictive why a branch is being discharged
+Can I see from that whether it's being discharged for non-termination?
+Discharging because of mutual errors shouldn't be allowed either
+-}
+data FiniteDischarge = Allowed
+                     | Uncertain
+                     | Disallowed
+
 exprReadyForSolver :: ExprEnv -> Expr -> Bool
 exprReadyForSolver h (Tick _ e) = exprReadyForSolver h e
 exprReadyForSolver h (Var i) = E.isSymbolic (idName i) h && T.isPrimType (typeOf i)
@@ -379,7 +391,6 @@ inductionState :: State t -> State t
 inductionState s =
   s { curr_expr = CurrExpr Evaluate $ inductionExtract $ exprExtract s }
 
--- TODO better approach
 -- Don't check whether a whole expression is finite
 -- Instead, check whether one var is a child of another
 -- TODO I think I can just do any AST searching like this
@@ -399,12 +410,6 @@ varChild v h n e = case e of
         , Just e' <- E.lookup m h -> varChild v h (m:n) e'
         | otherwise -> False -- unmapped variable
   -- TODO watch out for things that introduce new bindings?
-  {-
-  Lam _ i b | (idName i) == v -> False -- gets overwritten; would this ever happen?
-            | otherwise -> varChild v h n b -- don't need the new binding for anything
-  Let binds e' -> error "TODO"
-  Case e' i a -> error "TODO"
-  -}
   _ -> let vcs = map (varChild v h n) (children e)
        in foldr (||) False vcs
 
@@ -777,6 +782,8 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
     (Type _, Type _) -> Just hm
     -- new Let handling
     -- TODO does this not account for bindings properly?
+    -- TODO only works properly if both binding lists are the same length
+    -- I can just discard cases where they aren't for now
     (Let binds1 e1', Let binds2 e2') ->
                 let pairs = (e1', e2'):(zip (map snd binds1) (map snd binds2))
                     ins (i_, e_) h_ = E.insert (idName i_) e_ h_
@@ -785,7 +792,10 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                     s1' = s1 { expr_env = h1' }
                     s2' = s2 { expr_env = h2' }
                     mf hm_ (e1_, e2_) = moreRestrictive s1' s2' ns hm_ n1 n2 e1_ e2_
-                in foldM mf hm pairs
+                in
+                if length binds1 == length binds2
+                then foldM mf hm pairs
+                else Nothing
     -- TODO if scrutinee is symbolic var, make Alt vars symbolic?
     -- TODO id equality never checked; does it matter?
     (Case e1' i1 a1, Case e2' i2 a2)
