@@ -44,9 +44,20 @@ import Data.Time
 import G2.Execution.Reducer
 import G2.Lib.Printers
 
+-- TODO new field:  finite symbolic variables for which this is a base case
+-- this should carry over to branching descendants
+-- the list can be extended, though, with concretizations
+-- before any discharging, check concretizations and update the list
+-- need to work with StateH more directly in some spots
+-- TODO also need to keep track of non-base concretizations for the vars?
+-- TODO need access to the "ever reached SWHNF" info in this file
+-- it'll be in the tracker in the latest state
+-- TODO need list of finite vars; I can get it from the equiv tracker
 data StateH = StateH {
     latest :: StateET
   , history :: [StateET]
+  , base_case :: [Name]
+  , ind_case :: [Name]
 }
 
 -- TODO new proposed system for finite induction
@@ -56,10 +67,19 @@ Potential issues with this setup:
 Need to see from moreRestrictive why a branch is being discharged
 Can I see from that whether it's being discharged for non-termination?
 Discharging because of mutual errors shouldn't be allowed either
+Idea:  Rather than checking that every single base case for a finite variable
+has been discharged in the right way, we can simply check whether the base
+cases that came from the same branching as the current inductive case have been
+discharged in the right way.  Then again, keeping track of the correspondences
+between branches might be more trouble than it's worth.
 -}
 data FiniteDischarge = Allowed
                      | Uncertain
                      | Disallowed
+
+-- TODO also need to see which cases are non-recursive base cases
+-- a data type needs to have at least one for finite matching to be allowed
+-- TypeEnv gives constructors, but not a reachability graph
 
 exprReadyForSolver :: ExprEnv -> Expr -> Bool
 exprReadyForSolver h (Tick _ e) = exprReadyForSolver h e
@@ -251,15 +271,19 @@ getLatest :: (StateH, StateH) -> (StateET, StateET)
 getLatest (StateH { latest = s1 }, StateH { latest = s2 }) = (s1, s2)
 
 newStateH :: StateET -> StateH
-newStateH s = StateH { latest = s, history = [] }
+newStateH s = StateH { latest = s, history = [], base_case = [], ind_case = [] }
 
+-- TODO at what point do I update base_case?
 appendH :: StateH -> StateET -> StateH
 appendH sh s =
   StateH {
     latest = s
   , history = (latest sh):(history sh)
+  , base_case = base_case sh
+  , ind_case = ind_case sh
   }
 
+-- TODO may need base_case updating here too?
 replaceH :: StateH -> StateET -> StateH
 replaceH sh s = sh { latest = s }
 
@@ -604,8 +628,8 @@ checkRule config init_state bindings total finite rule = do
       finite_hs = foldr HS.insert HS.empty finite_names
       -- always include the finite names in total
       total_hs = foldr HS.insert finite_hs total_names
-      EquivTracker et m _ _ = emptyEquivTracker
-      start_equiv_tracker = EquivTracker et m total_hs finite_hs
+      EquivTracker et m _ _ ev = emptyEquivTracker
+      start_equiv_tracker = EquivTracker et m total_hs finite_hs ev
       -- the keys are the same between the old and new environments
       ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
       ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
@@ -669,7 +693,8 @@ finiteMatch ns (p1, p2) (s1, s2) =
                     let binds = HM.toList hm
                         l1 = map (finiteSubst p1 s1) binds
                         l2 = map (finiteSubst p2 s2) binds
-                    in foldr (&&) True (l1 ++ l2)
+                    -- in foldr (&&) True (l1 ++ l2)
+                    in foldr (||) False (l1 ++ l2)
     _ -> False
 
 -- TODO might not need ns here?

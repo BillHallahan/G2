@@ -82,8 +82,8 @@ nonterm b = nonterm b
 -- with the [] [] version, badNil gets UNSAT
 -- being more generous with stopping points prevents it from getting stuck too
 badZip :: [Int] -> [Int] -> [(Int, Int)]
-badZip _ [] = {- let w = w in w -} badZip [] []
-badZip [] _ = {- let w = w in w -} badZip [] []
+badZip _ [] = let w = w in w -- badZip [] []
+badZip [] _ = let w = w in w -- badZip [] []
 badZip (x:xs) (y:ys) = (x, y):(badZip xs ys)
 
 -- this gets UNSAT without any totality or finiteness restrictions

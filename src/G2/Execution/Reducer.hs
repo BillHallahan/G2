@@ -387,14 +387,18 @@ data ConcSymReducer = ConcSymReducer
 -- Maps higher order function calls to symbolic replacements.
 -- This allows the same call to be replaced by the same Id consistently.
 -- relocated from Equiv.G2Calls
+-- TODO keep track of left SWHNF and right SWHNF separately?
+-- I think I have one of these for each side, so it's not a problem
 data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
                                  , saw_tick :: Maybe Int
                                  , total :: S.HashSet Name
-                                 , finite :: S.HashSet Name } deriving Show
+                                 , finite :: S.HashSet Name
+                                 , ever_swhnf :: Bool } deriving Show
 
 -- Forces a lone symbolic variable with a type corresponding to an ADT
 -- to evaluate to some value of that ADT
 -- TODO will there be any need to carry over finiteness sometimes?
+-- TODO check in here if in SWHNF?
 instance Reducer ConcSymReducer () EquivTracker where
     initReducer _ _ = ()
 
@@ -404,7 +408,7 @@ instance Reducer ConcSymReducer () EquivTracker where
                             , type_env = tenv
                             , path_conds = pc
                             , symbolic_ids = symbs
-                            , track = EquivTracker et m total finite })
+                            , track = EquivTracker et m total finite ev })
                    b@(Bindings { name_gen = ng })
         | E.isSymbolic n eenv
         , Just (dc_symbs, ng') <- arbDC tenv ng t n total = do
@@ -423,7 +427,7 @@ instance Reducer ConcSymReducer () EquivTracker where
                                               (E.insert n e eenv)
                                               symbs'
                                     , symbolic_ids = symbs' ++ L.delete i symbs
-                                    , track = EquivTracker et m total' finite'
+                                    , track = EquivTracker et m total' finite' ev
                                     }) dc_symbs
                 b' =  b { name_gen = ng' }
                 -- only add to total if n was total
