@@ -147,6 +147,45 @@ recWrap h n =
   then id
   else (wrcHelper n) . (wrapRecursiveCall n)
 
+-- TODO copy REC wrapping from finiteness branch
+-- TODO also handle nested let-statements
+-- Creating a new expression environment lets us use the existing reachability
+-- functions.
+-- TODO does the expr env really need to keep track of Lets above this?
+-- look inside the bindings and inside the body for recursion
+-- TODO I should merge this process with the other wrapping?
+-- TODO do I need an extra process for some other recursive structure?
+-- TODO is this not tagging "let w = w in w" with a REC tick?
+-- other possibility:  no case, no full app, so no termination condition
+-- TODO nothing is using this right now
+wrapLetRec :: ExprEnv -> Expr -> Expr
+wrapLetRec h (Let binds e) =
+  let binds1 = map (\(i, e_) -> (idName i, e_)) binds
+      -- TODO better name for this?
+      fresh_name = Name (DT.pack "FRESH") Nothing 0 Nothing
+      h' = foldr (\(n_, e_) h_ -> E.insert n_ e_ h_) h ((fresh_name, e):binds1)
+      -- TODO this needs to be a 2D map?
+      -- Leave it as 1D for now
+      -- TODO this might be doing more work than is necessary
+      wrap_cg = wrapAllRecursion (G.getCallGraph h') h'
+      binds2 = map (\(n_, e_) -> (n_, wrap_cg n_ e_)) binds1
+      -- TODO will Tick insertions accumulate?
+      -- TODO doesn't work, again because nothing reaches fresh_name
+      -- should I even need wrapping like this within the body?
+      e' = foldr (wrapIfCorecursive (G.getCallGraph h') h' fresh_name) e (map fst binds1)
+      -- TODO do I need to do this twice over like this?
+      -- doesn't fix the problem of getting stuck
+      e'' = wrapLetRec h' $ modifyChildren (wrapLetRec h') e'
+      binds3 = map ((wrapLetRec h') . modifyChildren (wrapLetRec h')) (map snd binds2)
+      binds4 = zip (map fst binds) binds3
+  in
+  -- REC tick getting inserted in binds but not in body
+  -- it's only needed where the recursion actually happens
+  -- need to apply wrap_cg over it with the new names?
+  -- wrap_cg with fresh_name won't help because nothing can reach fresh_name
+  Let binds4 e''
+wrapLetRec h e = modifyChildren (wrapLetRec h) e
+
 -- first Name is the one that maps to the Expr in the environment
 -- second Name is the one that might be wrapped
 wrapIfCorecursive :: G.CallGraph -> ExprEnv -> Name -> Name -> Expr -> Expr
@@ -424,6 +463,7 @@ The prev list is fully expanded already
 Compare the sub-expressions to the prev state pairs
 If any match occurs, try extrapolating it
 If extrapolation works, we can flag the real state pair as a repeat
+TODO This never checks path constraint implication; is that a problem?
 -}
 induction :: HS.HashSet Name ->
              [(StateET, StateET)] ->
@@ -529,7 +569,7 @@ startingState et s =
       s' = s {
       track = et
     , curr_expr = CurrExpr Evaluate $ tickWrap $ exprExtract s
-    , expr_env = E.mapWithKey wrap_cg h
+    , expr_env = E.map (wrapLetRec h) $ E.mapWithKey wrap_cg h
     }
   in newStateH s'
 
@@ -662,7 +702,24 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                 | otherwise -> Nothing
     -- ignore types, like in exprPairing
     (Type _, Type _) -> Just hm
+    -- new Let handling
+    -- TODO does this not account for bindings properly?
+    -- TODO only works properly if both binding lists are the same length
+    -- I can just discard cases where they aren't for now
+    (Let binds1 e1', Let binds2 e2') ->
+                let pairs = (e1', e2'):(zip (map snd binds1) (map snd binds2))
+                    ins (i_, e_) h_ = E.insert (idName i_) e_ h_
+                    h1' = foldr ins h1 binds1
+                    h2' = foldr ins h2 binds2
+                    s1' = s1 { expr_env = h1' }
+                    s2' = s2 { expr_env = h2' }
+                    mf hm_ (e1_, e2_) = moreRestrictive s1' s2' ns hm_ n1 n2 e1_ e2_
+                in
+                if length binds1 == length binds2
+                then foldM mf hm pairs
+                else Nothing
     -- TODO if scrutinee is symbolic var, make Alt vars symbolic?
+    -- TODO id equality never checked; does it matter?
     (Case e1' i1 a1, Case e2' i2 a2)
                 | Just hm' <- moreRestrictive s1 s2 ns hm n1 n2 e1' e2' ->
                   -- add the matched-on exprs to the envs beforehand

@@ -147,3 +147,21 @@ zeroList (_:t) = 0 + (zeroList t) + 0
 "branch5" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs)
 "branch6" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs)
   #-}
+
+cyclic :: [Int]
+cyclic = 1:cyclic
+
+makeCycle :: Int -> [Int]
+makeCycle x = x:(makeCycle x)
+
+infInt :: [Int]
+infInt = [1..]
+
+-- TODO Restricting the type of [1..] to [Int] makes the verifier stop getting
+-- stuck on infiniteInts, but the verifier still runs forever on the rule as it
+-- is now.  Making symbolic execution stop more often did cause the verifier to
+-- return UNSAT for it, though.
+{-# RULES
+"infiniteInts" len infInt = lenDouble infInt
+"onlyOnes" makeCycle 1 = cyclic
+  #-}
