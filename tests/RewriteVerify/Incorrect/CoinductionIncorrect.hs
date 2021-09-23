@@ -99,3 +99,25 @@ bad2 x = bad2 x
 "badPair" forall x . bad1 x = bad2 x
 "badNil" intForce (badZip [] []) = badZip [] []
   #-}
+
+-- TODO this is confirmation that the current version of induction is unsound
+-- also want an easily-readable trace
+-- new data type called Steps:  one constructor for each rule we apply
+-- show the steps taken at the end
+-- show the expression pairs used for matching
+match1 :: [Int] -> Int
+match1 [] = 1
+match1 ([_]) = 2
+match1 _ = 4
+
+match2 :: [Int] -> Int
+match2 [] = 1
+match2 ([_]) = 2
+match2 _ = 3
+
+badlist :: [Int] -> [Int]
+badlist xs = badlist xs
+
+{-# RULES
+"badlist" forall xs . match1 (intForce xs) = match2 (intForce xs)
+  #-}
