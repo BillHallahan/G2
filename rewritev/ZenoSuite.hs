@@ -117,6 +117,6 @@ suite n = do
                             (TranslationConfig {simpl = True, load_rewrite_rules = True}) config
   let rule_maybes = map (\t -> find (\r -> t == ru_name r) (rewrite_rules bindings)) texts
       rules = map fromJust rule_maybes
-  res <- mapM (checkRule config init_state bindings []) rules
+  res <- mapM (checkRule config init_state bindings [] []) rules
   print $ zip rn res
   return ()

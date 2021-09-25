@@ -94,10 +94,56 @@ doubleLength [] = 1
 doubleLength (_:t) = doubleLength t + doubleLength t
 
 -- TODO forceConcat is actually invalid
+-- With the crHelper change in place, exp gets UNSAT.  So does double.
 {-# RULES
 "mapLength" forall f l . listLength (intMap f l) = listLength l
 "forceLength" forall l . listLength (intForce l) = listLength l
 "forceConcat" forall m . listConcat (lmap intForce m) = intForce (listConcat m)
 "exp" forall x xs . expLength (x:xs) = 1 + (2 * expLength xs)
 "double" forall x xs . doubleLength (x:xs) = 2 * doubleLength xs
+  #-}
+
+-- TODO Nats instead of Ints
+data Nat = Z
+         | S Nat
+
+addNat :: Nat -> Nat -> Nat
+addNat Z y = y
+addNat (S x) y = S (addNat x y)
+
+doubleNat :: Nat -> Nat
+doubleNat Z = Z
+doubleNat (S x) = S (S (doubleNat x))
+
+expLengthNat :: [a] -> Nat
+expLengthNat [] = Z
+expLengthNat (_:t) = S (addNat (expLengthNat t) (expLengthNat t))
+
+idInt :: Int -> Int
+idInt x = x
+
+len :: [a] -> Int
+len [] = 0
+len (_:t) = 1 + len t
+
+lenDouble :: [a] -> Int
+lenDouble [] = 0
+lenDouble (_:t) = 1 + (lenDouble t) + 1
+
+zeroList :: [a] -> Int
+zeroList [] = 0
+zeroList (_:t) = 0 + (zeroList t) + 0
+
+-- These rules test the verifier's ability to work with primitive operations
+-- and recursion at the same time.
+{-# RULES
+"expNat" forall x xs . expLengthNat (x:xs) = S (doubleNat (expLengthNat xs))
+"expReduced" forall xs . expLength xs = (2 * expLength xs) - (expLength xs)
+"listMinus" forall xs . len xs = (2 * (len xs)) - (len xs)
+"lenDouble" forall xs . lenDouble xs = (2 * (lenDouble xs)) - (lenDouble xs)
+"branch2" forall xs . zeroList xs = (zeroList xs) + (zeroList xs)
+"branch3" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs)
+"branch4" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs)
+"branch5" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs)
+"branch6" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs)
   #-}

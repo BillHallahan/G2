@@ -22,21 +22,21 @@ import Data.Hashable
 
 -- the bool is True if guarded coinduction can be used
 -- TODO do I need all of these typeclasses?
-data Obligation = Ob Bool Expr Expr
+data Obligation = Ob Expr Expr
                   deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 instance Hashable Obligation
 
-proofObligations :: (HS.HashSet Name, HS.HashSet Name) ->
+proofObligations :: HS.HashSet Name ->
                     State t ->
                     State t ->
                     Expr ->
                     Expr ->
                     Maybe (HS.HashSet Obligation)
-proofObligations ns_pair s1 s2 e1 e2 =
-  exprPairing ns_pair s1 s2 e1 e2 HS.empty [] [] False
+proofObligations ns s1 s2 e1 e2 =
+  exprPairing ns s1 s2 e1 e2 HS.empty [] []
 
-exprPairing :: (HS.HashSet Name, HS.HashSet Name) -> -- ^ vars that should not be inlined on either side
+exprPairing :: HS.HashSet Name -> -- ^ vars that should not be inlined on either side
                State t ->
                State t ->
                Expr ->
@@ -44,38 +44,33 @@ exprPairing :: (HS.HashSet Name, HS.HashSet Name) -> -- ^ vars that should not b
                HS.HashSet Obligation -> -- ^ accumulator for output obligations
                [Name] -> -- ^ variables inlined previously on the LHS
                [Name] -> -- ^ variables inlined previously on the RHS
-               Bool -> -- ^ indicates whether the exprs are immediate children of Data constructors
                Maybe (HS.HashSet Obligation)
-exprPairing ns_pair s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs n1 n2 child =
+exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs n1 n2 =
   case (e1, e2) of
     _ | e1 == e2 -> Just pairs
-    -- ignore all Ticks, pass the child value through the tick
-    (Tick _ e1', _) -> exprPairing ns_pair s1 s2 e1' e2 pairs n1 n2 child
-    (_, Tick _ e2') -> exprPairing ns_pair s1 s2 e1 e2' pairs n1 n2 child
-    -- TODO adjusting Var cases to avoid loops
+    -- ignore all Ticks
+    (Tick _ e1', _) -> exprPairing ns s1 s2 e1' e2 pairs n1 n2
+    (_, Tick _ e2') -> exprPairing ns s1 s2 e1 e2' pairs n1 n2
+    -- keeping track of inlined vars prevents looping
     (Var i1, Var i2) | (idName i1) `elem` n1
-                     , (idName i2) `elem` n2 -> Just (HS.insert (Ob child e1 e2) pairs)
-    -- TODO should the value of child carry over for Var recursion cases?
-    (Var i, _) | E.isSymbolic (idName i) h1 -> Just (HS.insert (Ob child e1 e2) pairs)
+                     , (idName i2) `elem` n2 -> Just (HS.insert (Ob e1 e2) pairs)
+    (Var i, _) | E.isSymbolic (idName i) h1 -> Just (HS.insert (Ob e1 e2) pairs)
                | m <- idName i
-               , not $ m `elem` (fst ns_pair)
-               , Just e <- E.lookup m h1 -> exprPairing ns_pair s1 s2 e e2 pairs (m:n1) n2 False
-               -- TODO if e1 has a cycle of length x and e2 has one of length y,
-               -- termination will take up to xy recursive calls, with the worst
-               -- case happening if x and y are relatively prime
-               | not $ (idName i) `elem` (fst ns_pair) -> error "unmapped variable"
-    (_, Var i) | E.isSymbolic (idName i) h2 -> Just (HS.insert (Ob child e1 e2) pairs)
+               , not $ m `elem` ns
+               , Just e <- E.lookup m h1 -> exprPairing ns s1 s2 e e2 pairs (m:n1) n2
+               | not $ (idName i) `elem` ns -> error "unmapped variable"
+    (_, Var i) | E.isSymbolic (idName i) h2 -> Just (HS.insert (Ob e1 e2) pairs)
                | m <- idName i
-               , not $ m `elem` (snd ns_pair)
-               , Just e <- E.lookup m h2 -> exprPairing ns_pair s1 s2 e1 e pairs n1 (m:n2) False
-               | not $ (idName i) `elem` (snd ns_pair) -> error "unmapped variable"
+               , not $ m `elem` ns
+               , Just e <- E.lookup m h2 -> exprPairing ns s1 s2 e1 e pairs n1 (m:n2)
+               | not $ (idName i) `elem` ns -> error "unmapped variable"
     -- See note in `moreRestrictive` regarding comparing DataCons
     (App _ _, App _ _)
         | (Data (DataCon d1 _)):l1 <- unApp e1
         , (Data (DataCon d2 _)):l2 <- unApp e2 ->
             if d1 == d2 then
-                let ep = uncurry (exprPairing ns_pair s1 s2)
-                    ep' hs p = ep p hs n1 n2 True
+                let ep = uncurry (exprPairing ns s1 s2)
+                    ep' hs p = ep p hs n1 n2
                     l = zip l1 l2
                 in foldM ep' pairs l
                 else Nothing
@@ -89,18 +84,29 @@ exprPairing ns_pair s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 
                   , isExprValueForm h2 e2 -> Nothing
     (_, Prim p _) | (p == Error || p == Undefined)
                   , isExprValueForm h1 e1 -> Nothing
-    (Prim _ _, _) -> Just (HS.insert (Ob child e1 e2) pairs)
-    (_, Prim _ _) -> Just (HS.insert (Ob child e1 e2) pairs)
-    (App _ _, _) -> Just (HS.insert (Ob child e1 e2) pairs)
-    (_, App _ _) -> Just (HS.insert (Ob child e1 e2) pairs)
+    (Prim _ _, _) -> Just (HS.insert (Ob e1 e2) pairs)
+    (_, Prim _ _) -> Just (HS.insert (Ob e1 e2) pairs)
+    -- TODO test equivalence of functions and arguments?
+    -- Might cause the verifier to miss some important things
+    -- doesn't seem to help with int-nat difference
+    -- on top of that, it breaks expNat, even with these constraints
+    {-
+    (App f1 a1, App f2 a2)
+                  | (Var i1):l1 <- unApp e1
+                  , (Var i2):l2 <- unApp e2
+                  , (idName i1) `elem` ns
+                  , (idName i2) `elem` ns
+                  , Just pairs' <- exprPairing ns s1 s2 a1 a2 pairs n1 n2 ->
+                    exprPairing ns s1 s2 f1 f2 pairs' n1 n2
+    -}
+    (App _ _, _) -> Just (HS.insert (Ob e1 e2) pairs)
+    (_, App _ _) -> Just (HS.insert (Ob e1 e2) pairs)
     (Lit l1, Lit l2) | l1 == l2 -> Just pairs
                      | otherwise -> Nothing
-    -- TODO double lambda case necessary?
-    (Lam _ _ _, Lam _ _ _) -> Just (HS.insert (Ob True e1 e2) pairs)
-    (Lam _ _ _, _) -> Just (HS.insert (Ob child e1 e2) pairs)
-    (_, Lam _ _ _) -> Just (HS.insert (Ob child e1 e2) pairs)
+    (Lam _ _ _, _) -> Just (HS.insert (Ob e1 e2) pairs)
+    (_, Lam _ _ _) -> Just (HS.insert (Ob e1 e2) pairs)
     -- assume that all types line up between the two expressions
     (Type _, Type _) -> Just pairs
-    (Case _ _ _, _) -> Just (HS.insert (Ob child e1 e2) pairs)
-    (_, Case _ _ _) -> Just (HS.insert (Ob child e1 e2) pairs)
+    (Case _ _ _, _) -> Just (HS.insert (Ob e1 e2) pairs)
+    (_, Case _ _ _) -> Just (HS.insert (Ob e1 e2) pairs)
     _ -> error $ "catch-all case\n" ++ show e1 ++ "\n" ++ show e2
