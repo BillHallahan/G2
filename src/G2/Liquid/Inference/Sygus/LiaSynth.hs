@@ -993,8 +993,8 @@ mkPreCall eenv tenv tc meas meas_ex evals m_si fc@(FuncCall { funcName = n, argu
             to_be_body = Func (s_to_be_pre_name si) [VInt ev_i]
 
         case s_status si of
-                Synth -> return $ fixed_body :&& sy_body
-                ToBeSynthed -> return $ fixed_body :&& to_be_body
+                Synth -> return $ fixed_body .&&. sy_body
+                ToBeSynthed -> return $ fixed_body .&&. to_be_body
                 Known -> return $ fixed_body
     | otherwise = error "mkPreCall: specification not found"
 
@@ -1029,8 +1029,8 @@ mkPostCall eenv tenv tc meas meas_ex evals m_si fc@(FuncCall { funcName = n, arg
             to_be_body = Func (s_to_be_post_name si) [VInt ev_i]
 
         case s_status si of
-                Synth -> return $ fixed_body :&& sy_body
-                ToBeSynthed -> return $ fixed_body :&& to_be_body
+                Synth -> return $ fixed_body .&&. sy_body
+                ToBeSynthed -> return $ fixed_body .&&. to_be_body
                 Known -> return $ fixed_body
     | otherwise = error "mkPostCall: specification not found"
 
@@ -1310,7 +1310,7 @@ maxCoeffConstraints' to_header max_c =
             in
             if s_status si == Synth
                 then map (\c -> (Neg (VInt (max_c si)) :<= V c SortInt)
-                                    :&& (V c SortInt :<= VInt (max_c si))) cffs
+                                    .&&. (V c SortInt :<= VInt (max_c si))) cffs
                 else []) . M.elems
 
 softSetConstraints :: M.Map Name SpecInfo -> [SMTHeader]

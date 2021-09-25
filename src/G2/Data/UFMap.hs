@@ -11,6 +11,8 @@ module G2.Data.UFMap ( UFMap
                      , join
                      , joinAll
                      , lookup
+                     , lookupWithRep
+                     , lookupRep
                      , (!)
                      , find
                      , insert
@@ -31,6 +33,7 @@ module G2.Data.UFMap ( UFMap
 
 import qualified G2.Data.UnionFind as UF
 
+import Control.Exception
 import qualified Control.Monad as Mon
 
 import Data.Data (Data (..), Typeable)
@@ -96,20 +99,22 @@ join f k1 k2 ufm@(UFMap uf m)
     | UF.find k1 uf == UF.find k2 uf = ufm
     | otherwise =
         let
-            v1 = lookup k1 ufm
-            v2 = lookup k2 ufm
+            (r1, v1) = lookupWithRep k1 ufm
+            (r2, v2) = lookupWithRep k2 ufm
 
             uf' = UF.union k1 k2 uf
             r = UF.find k1 uf'
 
-            m' = M.delete k1 . M.delete k2 $ m
+            m' = M.delete r1 . M.delete r2 $ m
+
+            m'' = case (v1, v2) of
+                    (Just v1', Just v2') -> M.insert r (f v1' v2') m'
+                    (Just v1', _) -> M.insert r v1' m'
+                    (_, Just v2') -> M.insert r v2' m'
+                    _ -> m
         in
-        UFMap uf'
-            $ case (v1, v2) of
-                (Just v1', Just v2') -> M.insert r (f v1' v2') m'
-                (Just v1', _) -> M.insert r v1' m'
-                (_, Just v2') -> M.insert r v2' m'
-                _ -> m
+        assert (isNothing (M.lookup k1 m'') || isNothing (M.lookup k2 m''))
+            UFMap uf' m''
 
 joinAll :: (Eq k, Hashable k) => (v -> v -> v) -> [k] -> UFMap k v -> UFMap k v
 joinAll _ [] uf = uf
@@ -123,6 +128,9 @@ lookupWithRep k (UFMap uf m) =
     let r = UF.find k uf in
     (r, M.lookup r m)
 
+lookupRep :: (Eq k, Hashable k) => k -> UFMap k v -> k
+lookupRep k (UFMap uf m) = UF.find k uf
+
 (!) :: (Eq k, Hashable k) => UFMap k v -> k -> v
 uf ! k = case lookup k uf of
                 Just v -> v
@@ -132,7 +140,12 @@ find :: (Eq k, Hashable k) => k -> UFMap k v -> k
 find k = UF.find k . joined
 
 insert :: (Eq k, Hashable k) => k -> v -> UFMap k v -> UFMap k v
-insert k v (UFMap uf m) = UFMap uf $ M.insert (UF.find k uf) v m
+insert k v (UFMap uf m) =
+    let
+        m' = M.insert (UF.find k uf) v m
+    in
+    assert (UF.find k uf == k || isNothing (M.lookup k m'))
+        UFMap uf m'
 
 insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> UFMap k v -> UFMap k v
 insertWith f k v (UFMap uf m) = UFMap uf $ M.insertWith f (UF.find k uf) v m
@@ -196,11 +209,11 @@ mergeJoiningWithKey fb f1 f2 fj1 fj2 j ufm1@(UFMap uf1 m1) ufm2@(UFMap uf2 m2) =
                                             _ -> error "merge: impossible state!") j_m2
 
         ks = concat . M.elems $ M.map snd j_m
-        j_uf' = foldr (uncurry UF.union) j_uf ks
 
         n_ufm = UFMap j_uf $ M.map fst j_m
+        n_ufm' = foldr (uncurry (join j)) n_ufm ks
     in
-    foldr (uncurry (join j)) n_ufm ks
+    n_ufm'
 
 map :: (v1 -> v2) -> UFMap k v1 -> UFMap k v2
 map f uf = uf { store = M.map f $ store uf }
@@ -225,7 +238,7 @@ instance (Eq k, Eq v, Hashable k, Hashable v) => Eq (UFMap k v) where
     x == y = toSet x == toSet y
 
 instance (Eq k, Hashable k, Show k, Show v) => Show (UFMap k v) where
-    show uf = "fromList " ++ show (toList uf) 
+    show uf = "fromList " ++ show (toList uf)
 
 
 instance (Eq k, Hashable k, Read k, Read v) => Read (UFMap k v) where
@@ -244,7 +257,9 @@ instance (Arbitrary k, Arbitrary v, Eq k, Hashable k) => Arbitrary (UFMap k v) w
         js <- Mon.replicateM jnum arbitrary
 
         let uf = foldr (uncurry insert) empty (zip ks vs)
+            ufm = foldr (uncurry (join const)) uf js
 
-        return $ foldr (uncurry (join const)) uf js
+        return ufm
 
-    shrink = P.map (fromList . filter (not . P.null . fst)) . shrink . toList
+    shrink = P.map fromList . shrink . toList
+    -- shrink = P.map (fromList . filter (not . P.null . fst)) . shrink . toList
