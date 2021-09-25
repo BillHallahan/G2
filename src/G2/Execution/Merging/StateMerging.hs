@@ -339,7 +339,7 @@ newMergeEnvObj kv n eObj1 eObj2
                 e <- newMergeExpr kv e_s e2
                 deleteSymbolic1 i
                 return $ E.ExprObj Nothing e
-            Just obj' -> return obj'
+            Just obj' -> newMergeEnvObj kv n obj' eObj2
             Nothing -> error "mergeEnvObj: bad input"
     | (E.ExprObj _ e1) <- eObj1
     , (E.SymbObj i) <- eObj2 = do
@@ -352,7 +352,7 @@ newMergeEnvObj kv n eObj1 eObj2
                 e <- newMergeExpr kv e1 e_s
                 deleteSymbolic2 i
                 return $ E.ExprObj Nothing e
-            Just obj' -> return obj'
+            Just obj' -> newMergeEnvObj kv n eObj1 obj'
             Nothing -> error "mergeEnvObj: bad input"
     | (E.RedirObj n) <- eObj1
     , (E.ExprObj _ e2) <- eObj2 = do

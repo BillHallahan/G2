@@ -233,8 +233,8 @@ library
                        -fno-ignore-asserts
                        -- -ddump-rule-rewrites
                        -- -ddump-splices
-                       -- -fprof-auto
-                       -- -fexternal-interpreter
+                       -fprof-auto
+                       -fexternal-interpreter
   other-extensions:    CPP
   if flag(newLH)
     cpp-options: -DNEW_LH
@@ -316,6 +316,19 @@ executable RewriteV
   hs-source-dirs:      rewritev
   main-is:             Main.hs
   other-modules:         ZenoSuite
+
+executable G2M
+  -- other-extensions:    
+  build-depends:         g2
+                       , base >= 4.8 && < 5
+                       , time >= 1.6 && <= 1.9.3
+  default-language:    Haskell2010
+  ghc-options:         -Wall
+                       -- -ddump-splices
+                       -fprof-auto "-with-rtsopts=-p"
+  hs-source-dirs:      g2m
+  main-is:             Main.hs
+  other-modules:       
 
 test-suite test
   build-depends:         g2

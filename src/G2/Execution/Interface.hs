@@ -13,6 +13,8 @@ import G2.Language.Support
 import G2.Language.Naming
 import G2.Solver.Simplifier
 
+import Debug.Trace
+
 {-# INLINE runExecutionToProcessed #-}
 runExecutionToProcessed :: (Eq t, Named t, Reducer r rv t, Halter h hv t, Orderer or sov b t, Simplifier simplifier) 
                         => r -> h -> or -> simplifier -> Merging -> State t -> Bindings 

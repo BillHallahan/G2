@@ -34,10 +34,10 @@ instance (Solver solver, Simplifier simplifier) => Reducer (MergeReducer solver 
         ((rr, xs), ng') <- runNamingT (mergeLitCases s) ng
         let b' = b { name_gen = ng' }
         xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
-        putStrLn $ "length xs = " ++ show (length xs) ++ "    length xs' = " ++ show (length xs')
+        -- putStrLn $ "length xs = " ++ show (length xs) ++ "    length xs' = " ++ show (length xs')
         if length xs' == 0
             then do
-                putStrLn "HERE"
+                -- putStrLn "HERE"
                 r <- check (solver) s (path_conds s)
                 print r
             else return ()
@@ -95,7 +95,7 @@ getExpr (OtherExpr e) = e
 
 mergeLitCases' :: (MonadIO m, NamingM s m) => EvalOrReturn -> [([(Id, Lit)], Expr)] -> State t -> m [NewPC t]
 mergeLitCases' er iles s = do
-    liftIO $ putStrLn (show iles)
+    -- liftIO $ putStrLn (show iles)
     iles' <- concatMapM (expandVar (expr_env s) (type_env s)) iles
     merged <-  foldM (mergeWherePossible s) [] iles'
     return $ map (uncurry collapseCollectedCases) merged
@@ -117,12 +117,12 @@ mergeWherePossible orig_s@(State { curr_expr = CurrExpr er _ }) m_ile (il, me) =
     case rep_fst of
         Just v -> return v
         Nothing 
-            | FromVar (Id n _) symbs e <- me -> 
+            | FromVar i@(Id n _) symbs e <- me -> 
                 let
                     eenv = foldr (\i -> E.insertSymbolic (idName i) i) (expr_env orig_s) symbs
                     new_pc = newPCEmpty $ orig_s { expr_env = E.insert n e eenv
                                                  , curr_expr = CurrExpr er e
-                                                 , symbolic_ids = HS.union symbs (symbolic_ids orig_s) }
+                                                 , symbolic_ids = HS.delete i $ HS.union symbs (symbolic_ids orig_s) }
                 in
                 return ((il, new_pc):m_ile)
             | OtherExpr e <- me-> 
