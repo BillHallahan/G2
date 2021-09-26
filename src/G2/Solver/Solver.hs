@@ -90,7 +90,7 @@ groupRelatedInfinite = GroupRelated arbValueInfinite
 
 checkRelated :: TrSolver a => a -> State t -> PathConds -> IO (Result () (), a)
 checkRelated solver s pc =
-    checkRelated' solver s $ PC.relatedSets (known_values s) pc
+    checkRelated' solver s $ PC.relatedSets pc
 
 checkRelated' :: TrSolver a => a -> State t -> [PathConds] -> IO (Result () (), a)
 checkRelated' sol _ [] = return (SAT (), sol)
@@ -102,7 +102,7 @@ checkRelated' sol s (p:ps) = do
 
 solveRelated :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> [Id] -> PathConds -> IO (Result  Model (), a)
 solveRelated avf sol s b is pc = do
-    solveRelated' avf sol s b HM.empty is $ PC.relatedSets (known_values s) pc
+    solveRelated' avf sol s b HM.empty is $ PC.relatedSets pc
 
 solveRelated' :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> Model -> [Id] -> [PathConds] -> IO (Result Model (), a)
 solveRelated' avf sol s b m is [] =
@@ -121,7 +121,7 @@ solveRelated' avf sol s b m is [] =
     in
     return (SAT m', sol)
 solveRelated' avf sol s b m is (p:ps) = do
-    let is' = concat $ PC.map PC.varIdsInPC p
+    let is' = concat $ PC.map' PC.varIdsInPC p
     let is'' = ids p
     rm <- solveTr sol s b is' p
     case rm of

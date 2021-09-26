@@ -359,6 +359,13 @@ pathConsToSMT (ExtCond e b) =
         exprSMT = exprToSMT e
     in
     Just $ if b then exprSMT else (:!) exprSMT
+pathConsToSMT (AssumePC i num pc) =
+    let
+        idSMT = exprToSMT (Var i)
+        intSMT = exprToSMT (Lit (LitInt $ toInteger num))
+    in case pathConsToSMT $ PC.unhashedPC pc of
+        (Just pcSMT) -> Just $ (idSMT := intSMT) :=> pcSMT
+        Nothing -> error $ "Unable to convert pc: " ++ (show pc)
 
 exprToSMT :: Expr -> SMTAST
 exprToSMT (Var (Id n t)) = V (nameToStr n) (typeToSMT t)
@@ -454,9 +461,12 @@ pcVarDecls = createUniqVarDecls . pcVars
 
 -- Get's all variable required for a list of `PathCond` 
 pcVars :: [PathCond] -> [(Name, Sort)]
-pcVars [] = []
-pcVars (AltCond _ e _:xs) = vars e ++ pcVars xs
-pcVars (p:xs)= vars p ++ pcVars xs
+pcVars = concatMap pcVar
+
+pcVar :: PathCond -> [(Name, Sort)]
+pcVar (AssumePC i _ pc) = idToNameSort i:pcVar (PC.unhashedPC pc)
+pcVar (AltCond _ e _) = vars e
+pcVar p = vars p
 
 vars :: (ASTContainer m Expr) => m -> [(Name, Sort)]
 vars = evalASTs vars'
