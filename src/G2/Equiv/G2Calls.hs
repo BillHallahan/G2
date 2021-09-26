@@ -131,11 +131,12 @@ containsCase sk =
 
 -- induction only works if both states in a pair satisfy this
 -- there's no harm in stopping here for just one, though
+-- TODO removing the Case requirement doesn't fix forceIdempotent
 recursionInCase :: State t -> Bool
 recursionInCase (State { curr_expr = CurrExpr _ e, exec_stack = sk }) =
     case e of
         Tick (NamedLoc (Name p _ _ _)) _ ->
-            p == T.pack "REC" && containsCase sk
+            p == T.pack "REC" -- && containsCase sk
         _ -> False
 
 instance Halter EnforceProgressH () EquivTracker where
@@ -148,14 +149,17 @@ instance Halter EnforceProgressH () EquivTracker where
             h = expr_env s
         in
         case m of
-            Nothing -> return Continue
+            -- TODO the Nothing case is being hit infinitely
+            Nothing -> trace ("NM " ++ show n') $ return Continue
             -- Execution needs to take strictly more than one step beyond the
             -- point when it reaches the Tick because the act of unwrapping the
             -- expression inside the Tick counts as one step.
             Just n0 -> do
                 if (isExecValueForm s) || (exprFullApp h e) || (recursionInCase s)
-                       then return (if n' > n0 + 1 then Accept else Continue)
-                       else return Continue
+                       -- TODO same goes for this?
+                       then return (if n' > n0 + 1 then trace ("WW " ++ show n') Accept else trace ("WX " ++ show n') Continue)
+                       -- TODO not getting stuck in here repeatedly
+                       else trace ("XW " ++ show n') $ return Continue
     stepHalter _ _ _ _ _ = ()
 
 emptyEquivTracker :: EquivTracker

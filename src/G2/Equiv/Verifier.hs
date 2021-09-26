@@ -75,8 +75,10 @@ runSymExec config s1 s2 = do
   ct1 <- CM.liftIO $ getCurrentTime
   let config' = config -- { logStates = Just $ "verifier_states/a" ++ show ct1 }
   bindings <- CM.get
+  CM.liftIO $ putStrLn "M0"
   (er1, bindings') <- CM.lift $ runG2ForRewriteV s1 config' bindings
   CM.put bindings'
+  CM.liftIO $ putStrLn "M1"
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
                     b_ <- CM.get
@@ -85,6 +87,7 @@ runSymExec config s1 s2 = do
                     let config'' = config -- { logStates = Just $ "verifier_states/b" ++ show ct2 }
                     (er2, b_') <- CM.lift $ runG2ForRewriteV s2_ config'' b_
                     CM.put b_'
+                    CM.liftIO $ putStrLn "M2"
                     return $ map (\er2_ -> 
                                     let
                                         s2_' = final_state er2_
@@ -92,6 +95,7 @@ runSymExec config s1 s2 = do
                                     in
                                     (prepareState s1_', prepareState s2_')
                                  ) er2) final_s1
+  CM.liftIO $ putStrLn "M3"
   return $ concat pairs
 
 -- After s1 has had its expr_env, path constraints, and tracker updated,
@@ -270,7 +274,10 @@ verifyLoop :: S.Solver solver =>
 verifyLoop solver ns states prev b config | not (null states) = do
   let current_states = map getLatest states
   (paired_states, b') <- CM.runStateT (mapM (uncurry (runSymExec config)) current_states) b
-  let vl (sh1, sh2) = verifyLoop' solver ns sh1 sh2 prev
+  let ng = name_gen b'
+      (fresh_name, ng') = freshName ng
+      b'' = b' { name_gen = ng' }
+      vl (sh1, sh2) = verifyLoop' solver ns fresh_name sh1 sh2 prev
   -- TODO printing
   putStrLn "<Loop Iteration>"
   -- for every internal list, map with its corresponding original state
@@ -283,7 +290,7 @@ verifyLoop solver ns states prev b config | not (null states) = do
       prev' = new_obligations ++ prev
   putStrLn $ show $ length new_obligations
   if all isJust proof_list then
-    verifyLoop solver ns new_obligations prev' b' config
+    verifyLoop solver ns new_obligations prev' b'' config
   else
     return $ S.SAT ()
   | otherwise = do
@@ -364,6 +371,30 @@ inductionState :: State t -> State t
 inductionState s =
   s { curr_expr = CurrExpr Evaluate $ inductionExtract $ exprExtract s }
 
+-- TODO can't just replace the first case I see
+-- need to keep going down until I reach something that isn't a Case
+-- didn't fix forceIdempotent, though
+-- TODO the trace here is the last thing that gets printed before freeze
+-- TODO is this messing with the EquivTracker somehow?
+-- TODO removed error, but there's a soundness problem
+-- I get UNSAT for forceIdempotent
+newScrutinee :: Id -> Expr -> Expr
+{-
+newScrutinee i (Case e i' a) =
+  case e of
+    -- TODO use e here instead of e'
+    Case _ _ _ -> trace ("NG " ++ show e) $ Case (newScrutinee i e) i' a
+    -- TODO problems with this Tick case?
+    Tick nl e' -> Case (Tick nl $ newScrutinee i e') i' a
+    _ -> trace ("NS " ++ show i) $ Case (Var i) i' a
+-- TODO take Ticks into consideration
+newScrutinee i (Tick nl e) = Tick nl $ newScrutinee i e
+newScrutinee _ e = error $ "Improper Format " ++ show e
+-}
+newScrutinee i (Case e i' a) = Case (newScrutinee i e) i' a
+newScrutinee i (Tick nl e) = Tick nl $ newScrutinee i e
+newScrutinee i _ = Var i
+
 -- TODO helpers for "finite induction"
 -- inline variables for this?
 -- vars in the finite set count, so do Data constructors with finite args
@@ -413,14 +444,16 @@ andM b1 b2 = do
   return (b1' && b2')
 
 -- TODO printing
+-- TODO verifier gets stuck on forceIdempotent now
 verifyLoop' :: S.Solver solver =>
                solver ->
                HS.HashSet Name ->
+               Name ->
                StateH ->
                StateH ->
                [(StateH, StateH)] ->
                IO (Maybe [(StateH, StateH)])
-verifyLoop' solver ns sh1 sh2 prev =
+verifyLoop' solver ns fresh_name sh1 sh2 prev =
   let s1 = latest sh1
       s2 = latest sh2
   in
@@ -441,7 +474,8 @@ verifyLoop' solver ns sh1 sh2 prev =
       states_c' <- filterM (notM . (moreRestrictivePair solver ns prev')) states_c
 
       let states_i = map (stateWrap s1 s2) obs_i
-          states_i' = filter (not . (induction ns prev')) states_i
+          --states_i' = filter (not . (induction ns prev')) states_i
+          states_i' = map (induction ns fresh_name prev') states_i
 
       -- TODO unnecessary to pass the induction states through this?
       let states = states_c' ++ states_i'
@@ -465,6 +499,7 @@ If any match occurs, try extrapolating it
 If extrapolation works, we can flag the real state pair as a repeat
 TODO This never checks path constraint implication; is that a problem?
 -}
+{-
 induction :: HS.HashSet Name ->
              [(StateET, StateET)] ->
              (StateET, StateET) ->
@@ -495,6 +530,55 @@ induction ns prev (s1, s2) =
       res = filter isJust hm_maybe_list'
   in
   not $ null res
+-}
+
+-- TODO new induction function; the old one is unsound
+-- This one isn't a filter; it converts state pairs
+-- if induction can't be applied, just return the input
+-- TODO also need to return modified Bindings if the state pair changed
+-- TODO optimization:  only need one fresh name per loop iteration
+-- I could take care of the Bindings outside this
+induction :: HS.HashSet Name ->
+             Name ->
+             [(StateET, StateET)] ->
+             (StateET, StateET) ->
+             (StateET, StateET)
+induction ns fresh_name prev (s1, s2) =
+  let s1' = inductionState s1
+      s2' = inductionState s2
+      prev' = filter statePairInduction prev
+      prev'' = map (\(p1, p2) -> (inductionState p1, inductionState p2)) prev'
+      hm_maybe_list = map (indHelper ns (Just (HM.empty, HS.empty)) (s1', s2')) prev''
+      hm_maybe_zipped = zip hm_maybe_list prev'
+      -- ignore the combinations that didn't work
+      -- TODO ignoring extra obligations here; is that a problem?
+      -- TODO modify the code to discard ones with extra obligations
+      hm_maybe_zipped' = [(hm, p) | (Just (hm, hs), p) <- hm_maybe_zipped, HS.null hs]
+      -- here's the part where things become different
+      -- in the new expr pair, replace the scrutinees with a new symbolic var
+      -- TODO do I need a NameGen here?  Need to take Bindings as input
+      --ng = name_gen bindings
+      -- TODO might need an import
+      --(fresh_name, ng') = freshName ng
+      fresh_id = Id fresh_name (typeOf $ exprExtract s1')
+      --bindings' = bindings { name_gen = ng' }
+      -- TODO create new Id around the Name
+      -- need the types of the scrutinees
+      h1 = expr_env s1'
+      -- TODO I presume I use the same name and id
+      h1' = E.insertSymbolic fresh_name fresh_id h1
+      e1 = exprExtract s1
+      e1' = addStackTickIfNeeded $ newScrutinee fresh_id e1
+      s1'' = s1 { expr_env = h1', curr_expr = CurrExpr Evaluate e1' }
+      h2 = expr_env s2'
+      h2' = E.insertSymbolic fresh_name fresh_id h2
+      e2 = exprExtract s2
+      e2' = addStackTickIfNeeded $ newScrutinee fresh_id e2
+      s2'' = s2 { expr_env = h2', curr_expr = CurrExpr Evaluate e2' }
+  in
+  if null hm_maybe_zipped'
+  then (s1, s2)
+  else (s1'', s2'')
 
 getObligations :: HS.HashSet Name ->
                   State t ->
@@ -622,6 +706,7 @@ checkRule config init_state bindings total finite rule = do
 -- repeated inlinings of a variable are allowed as long as the expression on
 -- the opposite side is not the same as it was when a previous inlining of the
 -- same variable happened.
+-- TODO not getting stuck in here
 moreRestrictive :: State t ->
                    State t ->
                    HS.HashSet Name ->
