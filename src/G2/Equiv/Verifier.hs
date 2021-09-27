@@ -75,10 +75,8 @@ runSymExec config s1 s2 = do
   ct1 <- CM.liftIO $ getCurrentTime
   let config' = config -- { logStates = Just $ "verifier_states/a" ++ show ct1 }
   bindings <- CM.get
-  CM.liftIO $ putStrLn "M0"
   (er1, bindings') <- CM.lift $ runG2ForRewriteV s1 config' bindings
   CM.put bindings'
-  CM.liftIO $ putStrLn "M1"
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
                     b_ <- CM.get
@@ -87,7 +85,6 @@ runSymExec config s1 s2 = do
                     let config'' = config -- { logStates = Just $ "verifier_states/b" ++ show ct2 }
                     (er2, b_') <- CM.lift $ runG2ForRewriteV s2_ config'' b_
                     CM.put b_'
-                    CM.liftIO $ putStrLn "M2"
                     return $ map (\er2_ -> 
                                     let
                                         s2_' = final_state er2_
@@ -95,7 +92,6 @@ runSymExec config s1 s2 = do
                                     in
                                     (prepareState s1_', prepareState s2_')
                                  ) er2) final_s1
-  CM.liftIO $ putStrLn "M3"
   return $ concat pairs
 
 -- After s1 has had its expr_env, path constraints, and tracker updated,
@@ -379,58 +375,9 @@ inductionState s =
 -- TODO removed error, but there's a soundness problem
 -- I get UNSAT for forceIdempotent
 newScrutinee :: Id -> Expr -> Expr
-{-
-newScrutinee i (Case e i' a) =
-  case e of
-    -- TODO use e here instead of e'
-    Case _ _ _ -> trace ("NG " ++ show e) $ Case (newScrutinee i e) i' a
-    -- TODO problems with this Tick case?
-    Tick nl e' -> Case (Tick nl $ newScrutinee i e') i' a
-    _ -> trace ("NS " ++ show i) $ Case (Var i) i' a
--- TODO take Ticks into consideration
+newScrutinee i (Case e i' a) = trace ("NG " ++ show e) $ Case (newScrutinee i e) i' a
 newScrutinee i (Tick nl e) = Tick nl $ newScrutinee i e
-newScrutinee _ e = error $ "Improper Format " ++ show e
--}
-newScrutinee i (Case e i' a) = Case (newScrutinee i e) i' a
-newScrutinee i (Tick nl e) = Tick nl $ newScrutinee i e
-newScrutinee i _ = Var i
-
--- TODO helpers for "finite induction"
--- inline variables for this?
--- vars in the finite set count, so do Data constructors with finite args
--- also need list of symbolic vars, and list of vars not to inline?
--- TODO keep track of inlined vars to avoid cycles
-finiteExpr :: HS.HashSet Name ->
-              HS.HashSet Name ->
-              ExprEnv ->
-              [Name] -> -- ^ vars inlined so far
-              Expr ->
-              Bool
-finiteExpr ns finite_hs h n e = case e of
-  Var i | (idName i) `elem` finite_hs -> True
-        | (idName i) `elem` ns -> False
-        | (idName i) `elem` n -> False
-        -- symbolic but not finite:  not allowed
-        | E.isSymbolic (idName i) h -> False
-        | m <- idName i
-        , Just e' <- E.lookup m h -> finiteExpr ns finite_hs h (m:n) e'
-        | otherwise -> error "unmapped variable"
-  -- TODO can literal strings be infinite?  This assumes they can't be
-  Lit _ -> True
-  -- TODO also assumes types can't be infinite
-  Prim _ _ -> True
-  Data _ -> True
-  -- TODO should I be more careful about this?
-  App e1 e2 -> (finiteExpr ns finite_hs h n e1) && (finiteExpr ns finite_hs h n e2)
-  Lam _ _ _ -> False
-  -- TODO might not even need to handle these two cases at all
-  Let _ _ -> False
-  Case _ _ _ -> False
-  Type _ -> True
-  --Cast e' _ -> finiteExpr finite_hs e'
-  --Coercion _ -> True
-  Tick _ e' -> finiteExpr ns finite_hs h n e'
-  _ -> error "unrecognized"
+newScrutinee i _ = trace ("NS " ++ show i) $ Var i
 
 notM :: IO Bool -> IO Bool
 notM b = do
@@ -442,6 +389,19 @@ andM b1 b2 = do
   b1' <- b1
   b2' <- b2
   return (b1' && b2')
+
+-- TODO debugging function
+exprHistory :: StateH -> StateH -> [(Expr, Expr)]
+exprHistory sh1 sh2 =
+  let hist1 = map exprExtract $ (latest sh1):(history sh1)
+      hist2 = map exprExtract $ (latest sh2):(history sh2)
+  in reverse $ zip hist1 hist2
+
+exprTrace :: StateH -> StateH -> [String]
+exprTrace sh1 sh2 =
+  let e_hist = exprHistory sh1 sh2
+      s_pair (e1, e2) = [mkExprHaskell e1, mkExprHaskell e2, "******"]
+  in concat $ map s_pair e_hist
 
 -- TODO printing
 -- TODO verifier gets stuck on forceIdempotent now
@@ -460,13 +420,15 @@ verifyLoop' solver ns fresh_name sh1 sh2 prev =
   case getObligations ns s1 s2 of
     Nothing -> do
       -- obligation generation failed, so the expressions must not be equivalent
-      putStr "N! "
-      putStrLn $ show (exprExtract s1, exprExtract s2)
+      putStrLn "N!"
+      putStrLn $ show $ exprExtract s1
+      putStrLn $ show $ exprExtract s2
+      mapM putStrLn $ exprTrace sh1 sh2
       return Nothing
     Just obs -> do
       putStrLn "J!"
-      putStrLn $ mkExprHaskell $ exprExtract s1
-      putStrLn $ mkExprHaskell $ exprExtract s2
+      putStrLn $ show $ exprExtract s1
+      putStrLn $ show $ exprExtract s2
 
       let prev' = concat $ map prevFiltered prev
           (obs_i, obs_c) = partition canUseInduction obs
@@ -474,14 +436,13 @@ verifyLoop' solver ns fresh_name sh1 sh2 prev =
       states_c' <- filterM (notM . (moreRestrictivePair solver ns prev')) states_c
 
       let states_i = map (stateWrap s1 s2) obs_i
-          --states_i' = filter (not . (induction ns prev')) states_i
           states_i' = map (induction ns fresh_name prev') states_i
 
       -- TODO unnecessary to pass the induction states through this?
-      let states = states_c' ++ states_i'
-          (ready, not_ready) = partition statePairReadyForSolver states
+      let (ready, not_ready) = partition statePairReadyForSolver states_c'
+          not_ready' = not_ready ++ states_i'
           ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
-          not_ready_h = map (\(n1, n2) -> (replaceH sh1 n1, replaceH sh2 n2)) not_ready
+          not_ready_h = map (\(n1, n2) -> (replaceH sh1 n1, replaceH sh2 n2)) not_ready'
       res <- checkObligations solver s1 s2 ready_exprs
       case res of
         S.UNSAT () -> putStrLn "V?"
@@ -498,38 +459,6 @@ Compare the sub-expressions to the prev state pairs
 If any match occurs, try extrapolating it
 If extrapolation works, we can flag the real state pair as a repeat
 TODO This never checks path constraint implication; is that a problem?
--}
-{-
-induction :: HS.HashSet Name ->
-             [(StateET, StateET)] ->
-             (StateET, StateET) ->
-             Bool
-induction ns prev (s1, s2) =
-  let s1' = inductionState s1
-      s2' = inductionState s2
-      prev' = filter statePairInduction prev
-      prev'' = map (\(p1, p2) -> (inductionState p1, inductionState p2)) prev'
-      hm_maybe_list = map (indHelper ns (Just (HM.empty, HS.empty)) (s1', s2')) prev''
-      -- try matching the prev state pair with other prev state pairs
-      hm_maybe_zipped = zip hm_maybe_list prev'
-      -- ignore the combinations that didn't work
-      -- TODO ignoring extra obligations here; is that a problem?
-      -- TODO modify the code to discard ones with extra obligations
-      hm_maybe_zipped' = [(hm, p) | (Just (hm, hs), p) <- hm_maybe_zipped, HS.null hs]
-      csp = concretizeStatePair (expr_env s1, expr_env s2)
-      concretized = map (uncurry csp) hm_maybe_zipped'
-      -- TODO optimization:  just take the first one
-      -- just took the full concretized list before
-      concretized' = case concretized of
-        [] -> []
-        c:_ -> [c]
-      ind p p' = indHelper ns (Just (HM.empty, HS.empty)) p p'
-      ind_fns = map ind concretized'
-      -- replace everything in the old expression pair used for the match
-      hm_maybe_list' = concat $ map (\f -> map f prev) ind_fns
-      res = filter isJust hm_maybe_list'
-  in
-  not $ null res
 -}
 
 -- TODO new induction function; the old one is unsound
@@ -556,12 +485,7 @@ induction ns fresh_name prev (s1, s2) =
       hm_maybe_zipped' = [(hm, p) | (Just (hm, hs), p) <- hm_maybe_zipped, HS.null hs]
       -- here's the part where things become different
       -- in the new expr pair, replace the scrutinees with a new symbolic var
-      -- TODO do I need a NameGen here?  Need to take Bindings as input
-      --ng = name_gen bindings
-      -- TODO might need an import
-      --(fresh_name, ng') = freshName ng
       fresh_id = Id fresh_name (typeOf $ exprExtract s1')
-      --bindings' = bindings { name_gen = ng' }
       -- TODO create new Id around the Name
       -- need the types of the scrutinees
       h1 = expr_env s1'
@@ -657,6 +581,22 @@ startingState et s =
     }
   in newStateH s'
 
+unused_name :: Name
+unused_name = Name (DT.pack "UNUSED") Nothing 0 Nothing
+
+-- TODO get the actual symbolic vars that correspond to the finite names
+-- at the very least, I need the Ids
+-- Case statements force evaluation to SWHNF in G2
+-- TODO what to use as the extra Id for the Case statement?
+-- TODO the force function needs to match the type of the symbolic var
+-- I don't know if this will work as it is now
+forceFinite :: Walkers -> Id -> Expr -> Expr
+forceFinite w i e =
+  let e' = mkStrict w $ Var i
+      i' = Id unused_name (typeOf $ Var i)
+      a = Alt Default e
+  in Case e' i' [a]
+
 checkRule :: Config ->
              State t ->
              Bindings ->
@@ -679,13 +619,25 @@ checkRule config init_state bindings total finite rule = do
       ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
       -- no need for two separate name sets
       ns = HS.union ns_l ns_r
-      rewrite_state_l' = startingState start_equiv_tracker rewrite_state_l
-      rewrite_state_r' = startingState start_equiv_tracker rewrite_state_r
+      -- TODO wrap both sides with forcings for finite vars
+      -- get the finite vars first
+      -- TODO a little redundant with the earlier stuff
+      finite_ids = filter ((includedName finite) . idName) (ru_bndrs rule)
+      walkers = deepseq_walkers bindings''
+      e_l = exprExtract rewrite_state_l
+      e_l' = foldr (forceFinite walkers) e_l finite_ids
+      rewrite_state_l' = rewrite_state_l { curr_expr = CurrExpr Evaluate e_l' }
+      e_r = exprExtract rewrite_state_r
+      e_r' = foldr (forceFinite walkers) e_r finite_ids
+      rewrite_state_r' = rewrite_state_r { curr_expr = CurrExpr Evaluate e_r' }
+      
+      rewrite_state_l'' = startingState start_equiv_tracker rewrite_state_l'
+      rewrite_state_r'' = startingState start_equiv_tracker rewrite_state_r'
   S.SomeSolver solver <- initSolver config
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
   res <- verifyLoop solver ns
-             [(rewrite_state_l', rewrite_state_r')]
-             [(rewrite_state_l', rewrite_state_r')]
+             [(rewrite_state_l'', rewrite_state_r'')]
+             [(rewrite_state_l'', rewrite_state_r'')]
              bindings'' config
   -- UNSAT for good, SAT for bad
   return res

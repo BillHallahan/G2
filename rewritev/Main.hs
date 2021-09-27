@@ -38,6 +38,10 @@ main = do
     else
         runWithArgs as
 
+finiteArg :: String -> Bool
+finiteArg ('_':_) = True
+finiteArg _ = False
+
 runWithArgs :: [String] -> IO ()
 runWithArgs as = do
   let (src:entry:tail_args) = as
@@ -46,10 +50,11 @@ runWithArgs as = do
 
   -- TODO for now, total as long as there's an extra arg
   -- TODO finite variables
-  let total = map T.pack tail_args
+  let (finite_names, total_names) = partition finiteArg tail_args
+      total = map T.pack total_names
+      finite = map (T.pack . tail) finite_names
       m_mapsrc = mkMapSrc []
       tentry = T.pack entry
-      finite = []
 
   config <- getConfig as
 

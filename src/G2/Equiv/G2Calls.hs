@@ -150,16 +150,16 @@ instance Halter EnforceProgressH () EquivTracker where
         in
         case m of
             -- TODO the Nothing case is being hit infinitely
-            Nothing -> trace ("NM " ++ show n') $ return Continue
+            Nothing -> return Continue
             -- Execution needs to take strictly more than one step beyond the
             -- point when it reaches the Tick because the act of unwrapping the
             -- expression inside the Tick counts as one step.
             Just n0 -> do
                 if (isExecValueForm s) || (exprFullApp h e) || (recursionInCase s)
                        -- TODO same goes for this?
-                       then return (if n' > n0 + 1 then trace ("WW " ++ show n') Accept else trace ("WX " ++ show n') Continue)
+                       then return (if n' > n0 + 1 then Accept else Continue)
                        -- TODO not getting stuck in here repeatedly
-                       else trace ("XW " ++ show n') $ return Continue
+                       else return Continue
     stepHalter _ _ _ _ _ = ()
 
 emptyEquivTracker :: EquivTracker
