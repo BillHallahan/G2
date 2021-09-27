@@ -445,7 +445,7 @@ verifyLoop' solver ns fresh_name sh1 sh2 prev =
       states_c' <- filterM (notM . (moreRestrictivePair solver ns prev')) states_c
 
       let states_i = map (stateWrap s1 s2) obs_i
-          states_i' = map (induction ns fresh_name prev') states_i
+      states_i' <- mapM (induction solver ns fresh_name prev') states_i
 
       -- TODO unnecessary to pass the induction states through this?
       let (ready, not_ready) = partition statePairReadyForSolver states_c'
@@ -460,33 +460,27 @@ verifyLoop' solver ns fresh_name sh1 sh2 prev =
         S.UNSAT () -> return $ Just (not_ready_h)
         _ -> return Nothing
 
-{-
-Algorithm:
-Perform the sub-expression extraction in here
-The prev list is fully expanded already
-Compare the sub-expressions to the prev state pairs
-If any match occurs, try extrapolating it
-If extrapolation works, we can flag the real state pair as a repeat
-TODO This never checks path constraint implication; is that a problem?
--}
-
 -- TODO new induction function; the old one is unsound
 -- This one isn't a filter; it converts state pairs
 -- if induction can't be applied, just return the input
 -- TODO also need to return modified Bindings if the state pair changed
 -- TODO optimization:  only need one fresh name per loop iteration
 -- I could take care of the Bindings outside this
-induction :: HS.HashSet Name ->
+-- TODO (9/27) check path constraint implication?
+induction :: S.Solver solver =>
+             solver ->
+             HS.HashSet Name ->
              Name ->
              [(StateET, StateET)] ->
              (StateET, StateET) ->
-             (StateET, StateET)
-induction ns fresh_name prev (s1, s2) =
+             IO (StateET, StateET)
+induction solver ns fresh_name prev (s1, s2) = do
   let s1' = inductionState s1
       s2' = inductionState s2
       --prev' = filter statePairInduction prev
       --prev'' = map (\(p1, p2) -> (inductionState p1, inductionState p2)) prev'
       -- TODO don't use the scrutinees of the old state pairs
+      {-
       prev' = prev
       prev'' = prev'
       hm_maybe_list = map (indHelper ns (Just (HM.empty, HS.empty)) (s1', s2')) prev''
@@ -497,11 +491,27 @@ induction ns fresh_name prev (s1, s2) =
       hm_maybe_zipped' = [(hm, p) | (Just (hm, hs), p) <- hm_maybe_zipped, HS.null hs]
       -- here's the part where things become different
       -- in the new expr pair, replace the scrutinees with a new symbolic var
-      fresh_id = Id fresh_name (typeOf $ exprExtract s1')
+      -}
+  -- TODO just use moreRestrictivePair
+  res <- moreRestrictivePair solver ns prev (s1', s2')
+  -- TODO look at the obligations, try to confirm them
+  -- TODO copying and pasting for now, refactor later
+  {-
+  let getObs m = case m of
+        Nothing -> HS.empty
+        Just (_, hs) -> hs
+      obs_sets = map getObs hm_maybe_list
+      obs = foldr HS.union HS.empty obs_sets
+      obs' = HS.filter (\(e1, e2) -> rfs h1 e1 && rfs h2 e2) obs
+  -}
+  -- TODO are s1 and s2 right states to use?
+  -- TODO check different obligations individually
+  --res <- checkObligations solver s1 s2 obs'
+  let fresh_id = Id fresh_name (typeOf $ exprExtract s1')
       -- TODO create new Id around the Name
       -- need the types of the scrutinees
-      h1 = expr_env s1'
       -- TODO I presume I use the same name and id
+      h1 = expr_env s1'
       h1' = E.insertSymbolic fresh_name fresh_id h1
       e1 = exprExtract s1
       e1' = addStackTickIfNeeded $ newScrutinee fresh_id e1
@@ -511,13 +521,17 @@ induction ns fresh_name prev (s1, s2) =
       e2 = exprExtract s2
       e2' = addStackTickIfNeeded $ newScrutinee fresh_id e2
       s2'' = s2 { expr_env = h2', curr_expr = CurrExpr Evaluate e2' }
-  in
-  if null hm_maybe_zipped'
-  then (s1, s2)
+  --in
+  --if null hm_maybe_zipped'
+  return $ if res then (s1'', s2'') else (s1, s2)
+  {-
+  if not res
+  then return (s1, s2)
   else -- trace (mkExprHaskell e1) $ trace (mkExprHaskell e2) $ (s1'', s2'')
-  trace (mkExprHaskell $ exprExtract $ fst $ snd $ head hm_maybe_zipped') $
-  trace (mkExprHaskell $ exprExtract $ snd $ snd $ head hm_maybe_zipped') $
-  (s1'', s2'')
+       trace (mkExprHaskell $ exprExtract $ fst $ snd $ head hm_maybe_zipped') $
+       trace (mkExprHaskell $ exprExtract $ snd $ snd $ head hm_maybe_zipped') $
+       return (s1'', s2'')
+  -}
 
 getObligations :: HS.HashSet Name ->
                   State t ->
@@ -928,25 +942,39 @@ moreRestrictivePair solver ns prev (s1, s2) = do
       getObs m = case m of
         Nothing -> HS.empty
         Just (_, hs) -> hs
-      getConcretizations m = case m of
-        Nothing -> HM.empty
-        Just (hm, _) -> hm
+      --getConcretizations m = case m of
+      --  Nothing -> HM.empty
+      --  Just (hm, _) -> hm
       maybe_pairs = map mr prev
       obs_sets = map getObs maybe_pairs
-      conc_sets = map getConcretizations maybe_pairs
-      obs = foldr HS.union HS.empty obs_sets
-      conc_obs = map concObligation conc_sets
+      --conc_sets = map getConcretizations maybe_pairs
+      --obs = foldr HS.union HS.empty obs_sets
+      -- TODO (9/27) I don't use conc_obs for anything now
+      -- by extension, I don't use conc_sets for anything
+      --conc_obs = map concObligation conc_sets
       h1 = expr_env s1
       h2 = expr_env s2
-      obs' = HS.filter (\(e1, e2) -> rfs h1 e1 && rfs h2 e2) obs
+      --obs' = HS.filter (\(e1, e2) -> rfs h1 e1 && rfs h2 e2) obs
+      obs_sets' = map (HS.filter (\(e1, e2) -> rfs h1 e1 && rfs h2 e2)) obs_sets
+      no_loss = map (\(hs1, hs2) -> HS.size hs1 == HS.size hs2) (zip obs_sets obs_sets')
       mpc m = case m of
         (Just (hm, _), (s_old1, s_old2)) ->
           andM (moreRestrictivePC solver s_old1 s1 hm) (moreRestrictivePC solver s_old2 s2 hm)
         _ -> return False
       bools = map mpc (zip maybe_pairs prev)
-  res <- checkObligations solver s1 s2 obs'
-  bools' <- filterM (\x -> x) bools
+  -- TODO (9/27) why do I check all obligations in a group here?
+  -- should I be checking them individually?
+  --res <- checkObligations solver s1 s2 obs'
+  --bools' <- filterM (\x -> x) bools
+  res_list <- mapM (checkObligations solver s1 s2) obs_sets'
+  bools' <- mapM id bools
+  -- need res_list, no_loss, and bools all aligning at a point
+  let all_three thr = case thr of
+        (S.UNSAT (), (True, True)) -> True
+        _ -> False
+  -- TODO all three lists should be the same length
+  return $ not $ null $ filter all_three $ zip res_list $ zip no_loss bools'
   -- TODO HashSet doesn't have a "forall" function?
-  case (HS.size obs == HS.size obs', res) of
-    (True, S.UNSAT ()) -> return (not $ null bools')
-    _ -> return False
+  --case (HS.size obs == HS.size obs', res) of
+  --  (True, S.UNSAT ()) -> return (not $ null bools')
+  --  _ -> return False
