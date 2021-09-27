@@ -44,6 +44,15 @@ import Data.Time
 import G2.Execution.Reducer
 import G2.Lib.Printers
 
+-- 9/27 notes
+-- TODO have a list of every single state, not just the stopping ones
+-- At least be able to say what rules are being applied at every step
+-- Applications of induction and coinduction for different branches
+-- turn Case into Let for forcing, induction
+-- split into multiple branches for Case-Let thing?
+-- if the final value doesn't match what we expect, throw the branch out somehow
+-- have some notion of finite variables still in place?
+-- wrap finite things in force functions
 data StateH = StateH {
     latest :: StateET
   , history :: [StateET]
@@ -475,8 +484,11 @@ induction :: HS.HashSet Name ->
 induction ns fresh_name prev (s1, s2) =
   let s1' = inductionState s1
       s2' = inductionState s2
-      prev' = filter statePairInduction prev
-      prev'' = map (\(p1, p2) -> (inductionState p1, inductionState p2)) prev'
+      --prev' = filter statePairInduction prev
+      --prev'' = map (\(p1, p2) -> (inductionState p1, inductionState p2)) prev'
+      -- TODO don't use the scrutinees of the old state pairs
+      prev' = prev
+      prev'' = prev'
       hm_maybe_list = map (indHelper ns (Just (HM.empty, HS.empty)) (s1', s2')) prev''
       hm_maybe_zipped = zip hm_maybe_list prev'
       -- ignore the combinations that didn't work
@@ -502,7 +514,10 @@ induction ns fresh_name prev (s1, s2) =
   in
   if null hm_maybe_zipped'
   then (s1, s2)
-  else (s1'', s2'')
+  else -- trace (mkExprHaskell e1) $ trace (mkExprHaskell e2) $ (s1'', s2'')
+  trace (mkExprHaskell $ exprExtract $ fst $ snd $ head hm_maybe_zipped') $
+  trace (mkExprHaskell $ exprExtract $ snd $ snd $ head hm_maybe_zipped') $
+  (s1'', s2'')
 
 getObligations :: HS.HashSet Name ->
                   State t ->
