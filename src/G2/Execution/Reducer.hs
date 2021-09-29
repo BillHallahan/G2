@@ -90,6 +90,7 @@ import qualified Data.HashSet as S
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Monoid ((<>))
 import qualified Data.List as L
 import Data.Tuple
 import Data.Time.Clock
@@ -700,7 +701,7 @@ instance (ASTContainer a Type, ASTContainer b Type) => ASTContainer (C a b) Type
     modifyContainedASTs f (C a b) = C (modifyContainedASTs f a) (modifyContainedASTs f b)
 
 instance (Named a, Named b) => Named (C a b) where
-    names (C a b) = names a ++ names b
+    names (C a b) = names a <> names b
     rename old new (C a b) = C (rename old new a) (rename old new b)
     renames hm (C a b) = C (renames hm a) (renames hm b)
 

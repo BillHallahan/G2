@@ -59,6 +59,7 @@ import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Map.Merge.Lazy
 import Data.Maybe
+import Data.Monoid ((<>))
 import Prelude hiding (map, filter, null)
 import qualified Prelude as P (map)
 
@@ -312,7 +313,7 @@ instance Named PathConds where
 instance Named PathCond where
     names (AltCond _ e _) = names e
     names (ExtCond e _) = names e
-    names (AssumePC i _ pc) = names i ++ names pc
+    names (AssumePC i _ pc) = names i <> names pc
 
     rename old new (AltCond l e b) = AltCond l (rename old new e) b
     rename old new (ExtCond e b) = ExtCond (rename old new e) b

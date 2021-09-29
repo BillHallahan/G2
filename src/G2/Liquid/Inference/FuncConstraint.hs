@@ -178,7 +178,7 @@ instance Named FuncConstraint where
     names (Call _ fc) = names fc
     names (AndFC fcs) = names fcs
     names (OrFC fcs) = names fcs
-    names (ImpliesFC fc1 fc2) = names fc1 ++ names fc2
+    names (ImpliesFC fc1 fc2) = names fc1 <> names fc2
     names (NotFC fc) = names fc
 
     rename old new (Call sp fc) = Call sp (rename old new fc)

@@ -124,7 +124,7 @@ reduceNewPC solver simplifier
         let new_pc = foldr PC.insert spc $ pc''
             s'' = s' {path_conds = new_pc}
 
-        let ns = (concatMap PC.varNamesInPC pc) ++ (names concIds)
+        let ns = concatMap PC.varNamesInPC pc ++ namesList concIds
             rel_pc = case ns of
                 [] -> PC.fromList pc''
                 _ -> PC.scc ns new_pc
