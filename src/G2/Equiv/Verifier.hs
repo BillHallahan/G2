@@ -436,8 +436,8 @@ verifyLoop' solver ns fresh_name sh1 sh2 prev =
       return Nothing
     Just obs -> do
       putStrLn "J!"
-      putStrLn $ show $ exprExtract s1
-      putStrLn $ show $ exprExtract s2
+      putStrLn $ mkExprHaskell $ exprExtract s1
+      putStrLn $ mkExprHaskell $ exprExtract s2
 
       let prev' = concat $ map prevFiltered prev
           (obs_i, obs_c) = partition canUseInduction obs

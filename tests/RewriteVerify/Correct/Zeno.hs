@@ -694,6 +694,10 @@ nop x = x
 cycle :: a -> [a]
 cycle x = x:(cycle x)
 
+-- (9/28) notes
+-- verifier currently gets unitEq with x total
+-- runs forever on fib
+-- units, cycleEq, and unitCycle pass without any extra requirements
 {-# RULES
 "fib" slowFib = fastFib
 "units" forall x . units ++ [x] = units
