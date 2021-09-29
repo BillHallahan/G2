@@ -119,10 +119,10 @@ x .||. (VBool False) = x
 x .||. y = SmtOr [x, y]
 
 mkSMTAnd :: [SMTAST] -> SMTAST
-mkSMTAnd = foldr (.&&.) (VBool True)
+mkSMTAnd = SmtAnd
 
 mkSMTOr :: [SMTAST] -> SMTAST
-mkSMTOr = foldr (.||.) (VBool False)
+mkSMTOr = SmtOr
 
 isSat :: Result m u -> Bool
 isSat (SAT _) = True

@@ -22,7 +22,7 @@ def run_infer(file, name, timeout):
     f.close();
 
     # MAKES EVERYTHING AFTER THIS TIMEOUT QUICKLY
-    # timeout = "1";
+    timeout = "1";
 
     # run the test without extra fc
     no_fc_start_time = time.perf_counter();

@@ -28,7 +28,6 @@ import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.FuncConstraint
 import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.GeneratedSpecs
-import G2.Liquid.Inference.InfStack (maxSynthSizeI)
 import G2.Liquid.Inference.PolyRef
 
 import G2.Solver as Solver
@@ -36,10 +35,8 @@ import G2.Solver as Solver
 import Control.Monad
 import Control.Monad.IO.Class 
 
-import Language.Haskell.Liquid.Types as LH hiding (SP)
-import Language.Haskell.Liquid.Types.RefType
-import Language.Fixpoint.Types.Constraints
-import Language.Fixpoint.Types.Refinements as LH
+import Language.Haskell.Liquid.Types as LH hiding (SP, ms, isBool)
+import Language.Fixpoint.Types.Refinements as LH hiding (pAnd, pOr)
 import qualified Language.Fixpoint.Types as LH
 import qualified Language.Fixpoint.Types as LHF
 
@@ -49,13 +46,8 @@ import qualified Data.HashSet as HS
 import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
-import Data.Monoid (Sum (..))
-import qualified Data.Monoid as M
 import qualified Data.Text as T
 import qualified Text.Builder as TB
-
-import Debug.Trace
-import G2.Lib.Printers
 
 data SynthRes = SynthEnv
                   GeneratedSpecs -- ^ The synthesized specifications
@@ -99,12 +91,12 @@ data Forms = LIA { -- LIA formulas
 
 coeffs :: Forms -> [SMTName]
 coeffs cf@(LIA {}) = b0 cf:ars_coeffs cf ++ rets_coeffs cf
-coeffs cf@(Set {}) = []
+coeffs (Set {}) = []
 coeffs cf@(BoolForm {}) = concatMap coeffs (forms cf)
 
 coeffsNoB :: Forms -> [SMTName]
 coeffsNoB cf@(LIA {}) = ars_coeffs cf ++ rets_coeffs cf
-coeffsNoB cf@(Set {}) = []
+coeffsNoB (Set {}) = []
 coeffsNoB cf@(BoolForm {}) = concatMap coeffsNoB (forms cf)
 
 setBools :: Forms -> [SMTName]
@@ -115,7 +107,7 @@ setBools cf@(BoolForm {}) = concatMap setBools (forms cf)
 
 boolBools :: Forms -> [SMTName]
 boolBools (LIA {}) = []
-boolBools s@(Set {}) = []
+boolBools (Set {}) = []
 boolBools cf@(BoolForm {}) = ars_bools cf ++ rets_bools cf ++ concatMap boolBools (forms cf)
 
 
@@ -148,14 +140,8 @@ data SpecInfo = SI { s_max_coeff :: Integer
 s_known_pre_name :: SpecInfo -> SMTName
 s_known_pre_name = fs_name . s_known_pre
 
-s_known_pre_args :: SpecInfo -> [SpecArg]
-s_known_pre_args = fs_args . s_known_pre
-
 s_known_post_name :: SpecInfo -> SMTName
 s_known_post_name = fs_name . s_known_post
-
-s_known_post_args :: SpecInfo -> [SpecArg]
-s_known_post_args = fs_args . s_known_post
 
 s_to_be_pre_name :: SpecInfo -> SMTName
 s_to_be_pre_name = tb_name . s_to_be_pre
@@ -273,21 +259,20 @@ liaSynth con ghci lrs evals meas_ex fc blk_mdls to_be_ns ns_synth = do
         to_be_ns' = map zeroOutName to_be_ns
         (to_be_ns_aty_rty, known_ns_aty_rty) = L.partition (\(n, _) -> n `elem` to_be_ns') other_aty_rty
 
-    si <- buildSpecInfo con tenv tc ghci lrs ns_aty_rty to_be_ns_aty_rty known_ns_aty_rty meas_ex fc
+    si <- buildSpecInfo tenv tc ghci lrs ns_aty_rty to_be_ns_aty_rty known_ns_aty_rty
 
     liftIO . putStrLn $ "si = " ++ show si
 
     let meas = lrsMeasures ghci lrs
 
-    synth con ghci eenv' tenv tc meas meas_ex evals si fc blk_mdls 1
+    synth con ghci eenv' tenv meas meas_ex evals si fc blk_mdls 1
     where
       zeroOutName (Name n m _ l) = Name n m 0 l
 
-buildSpecInfo :: (InfConfigM m, ProgresserM m) => con -> TypeEnv -> TypeClasses -> [GhcInfo] -> LiquidReadyState
+buildSpecInfo :: (InfConfigM m, ProgresserM m) => TypeEnv -> TypeClasses -> [GhcInfo] -> LiquidReadyState
               -> [(Name, ([Type], Type))] -> [(Name, ([Type], Type))] -> [(Name, ([Type], Type))]
-              -> MeasureExs -> FuncConstraints
               -> m (M.Map Name SpecInfo)
-buildSpecInfo con tenv tc ghci lrs ns_aty_rty to_be_ns_aty_rty known_ns_aty_rty meas_exs fc = do
+buildSpecInfo tenv tc ghci lrs ns_aty_rty to_be_ns_aty_rty known_ns_aty_rty = do
     let meas = lrsMeasures ghci lrs
 
     si <- foldM (\m (n, (at, rt)) -> do
@@ -327,14 +312,14 @@ liaSynthOfSize sz m_si = do
     where
 
 mkCNF :: (Int -> Bool) -> Integer -> Int -> String -> SynthSpec -> CNF
-mkCNF pred sz ms s psi_ =
+mkCNF prd sz ms s psi_ =
     (if length (set_sy_args psi_) + length (set_sy_rets psi_) == 0
         then
           [ 
               (
                   s ++ "_c_coeff_act_" ++ show j
               ,
-                   [ mkCoeffs pred s psi_ j k | k <- [1..sz] ] -- Ors
+                   [ mkCoeffs prd s psi_ j k | k <- [1..sz] ] -- Ors
               )
           | j <-  [1..sz] ] -- Ands
         else [])
@@ -345,7 +330,7 @@ mkCNF pred sz ms s psi_ =
                 (
                     s ++ "_c_set_act_" ++ show j
                 ,
-                     [ mkSetForms pred ms s psi_ j k | k <- [1..sz] ] -- Ors
+                     [ mkSetForms prd ms s psi_ j k | k <- [1..sz] ] -- Ors
                 )
             | j <-  [1..sz] ] -- Ands
         else [])
@@ -356,14 +341,14 @@ mkCNF pred sz ms s psi_ =
                 (
                     s ++ "_c_bool_act_" ++ show j
                 ,
-                     [ mkBoolForms pred sz ms s psi_ j k | k <- [1..sz] ] -- Ors
+                     [ mkBoolForms prd sz ms s psi_ j k | k <- [1..sz] ] -- Ors
                 )
             | j <-  [1..sz] ] -- Ands
         else [])
 
 
 mkCoeffs :: (Int -> Bool) -> String -> SynthSpec -> Integer -> Integer -> Forms
-mkCoeffs pred s psi j k =
+mkCoeffs prd s psi j k =
     let
         ars = length (int_sy_args psi)
         rets = length (int_sy_rets psi)
@@ -379,7 +364,7 @@ mkCoeffs pred s psi j k =
         -- non-zero coefficient.  Thus, if we have no return values, we
         -- don't need to consider any arguments
         , ars_coeffs =
-            if pred rets
+            if prd rets
                 then
                     [ s ++ "_a_c_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
                     | a <- [1..ars]]
@@ -391,7 +376,7 @@ mkCoeffs pred s psi j k =
         }
 
 mkSetForms :: (Int -> Bool) -> Int -> String -> SynthSpec -> Integer -> Integer -> Forms
-mkSetForms pred max_sz s psi j k =
+mkSetForms prd max_sz s psi j k =
     let
         int_ars = length (int_sy_args psi)
         int_rets = length (int_sy_rets psi)
@@ -408,7 +393,7 @@ mkSetForms pred max_sz s psi j k =
         , c_op_branch2 = s ++ "_set_op2_" ++ show j ++ "_t_" ++ show k
 
         , int_sing_set_bools_lhs =
-            if pred rets
+            if prd rets
                 then
                     [ 
                       [ s ++ "_a_set_sing_lhs_" ++ show j ++ "_t_" ++ show k
@@ -418,7 +403,7 @@ mkSetForms pred max_sz s psi j k =
                     []
 
         , int_sing_set_bools_rhs =
-            if pred rets
+            if prd rets
                 then
                     []
                     -- [ 
@@ -429,7 +414,7 @@ mkSetForms pred max_sz s psi j k =
                     []
 
         , ars_bools_lhs =
-            if pred rets
+            if prd rets
                 then
                     [ 
                       [ s ++ "_a_set_lhs_" ++ show j ++ "_t_" ++ show k
@@ -443,7 +428,7 @@ mkSetForms pred max_sz s psi j k =
             | a <- [1..ars + rets + max_sz - 1]]
 
         , ars_bools_rhs =
-            if pred rets
+            if prd rets
                 then
                     [ [ s ++ "_a_set_rhs_" ++ show j ++ "_t_" ++ show k
                             ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..ars]]
@@ -457,7 +442,7 @@ mkSetForms pred max_sz s psi j k =
         }
 
 mkBoolForms :: (Int -> Bool) -> Integer -> Int -> String -> SynthSpec -> Integer -> Integer -> Forms
-mkBoolForms pred sz max_sz s psi j k =
+mkBoolForms prd sz max_sz s psi j k =
     let
         ars = length (bool_sy_args psi)
         rets = length (bool_sy_rets psi)
@@ -469,7 +454,7 @@ mkBoolForms pred sz max_sz s psi j k =
         , c_op_branch2 = s ++ "_bool_op2_" ++ show j ++ "_t_" ++ show k
 
         , ars_bools =
-            if pred rets
+            if prd rets
                 then
                     [ s ++ "_a_bool_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
                     | a <- [1..ars]]
@@ -494,7 +479,6 @@ synth :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
       -> [GhcInfo]
       -> NMExprEnv
       -> TypeEnv
-      -> TypeClasses
       -> Measures
       -> MeasureExs
       -> Evals Bool
@@ -503,7 +487,7 @@ synth :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
       -> BlockedModels
       -> Size
       -> m SynthRes
-synth con ghci eenv tenv tc meas meas_ex evals si fc blk_mdls sz = do
+synth con ghci eenv tenv meas meas_ex evals si fc blk_mdls sz = do
     si' <- liaSynthOfSize sz si
     let zero_coeff_hdrs = softCoeffAssertZero si' ++ softClauseActAssertZero si' -- ++ softFuncActAssertZero si'
         -- zero_coeff_hdrs = softFuncActAssertZero si' ++ softClauseActAssertZero si'
@@ -520,7 +504,7 @@ synth con ghci eenv tenv tc meas meas_ex evals si fc blk_mdls sz = do
 
         non_equiv_mdls = lookupNonEquivBlockedModels sz blk_mdls
         rel_non_equiv_mdls = map (uncurry (filterModelToRel si')) non_equiv_mdls
-        fun_block_mdls = concatMap (uncurry (blockModelWithFuns si')) $ zip (map show [0..]) rel_non_equiv_mdls
+        fun_block_mdls = concatMap (uncurry (blockModelWithFuns si')) $ zip (map show ([0..] :: [Integer])) rel_non_equiv_mdls
 
         ex_assrts =    [Comment "favor making coefficients 0"]
                     ++ zero_coeff_hdrs
@@ -537,7 +521,7 @@ synth con ghci eenv tenv tc meas meas_ex evals si fc blk_mdls sz = do
 
     MaxSize max_sz <- maxSynthSizeM
 
-    res <- synth' con ghci eenv tenv tc meas meas_ex evals si' fc ex_assrts drop_if_unknown blk_mdls sz
+    res <- synth' con ghci eenv tenv meas meas_ex evals si' fc ex_assrts drop_if_unknown blk_mdls sz
     case res of
         SynthEnv _ _ n_mdl _ -> do
             new  <- checkModelIsNewFunc con si' n_mdl non_equiv_mdls
@@ -552,9 +536,9 @@ synth con ghci eenv tenv tc meas meas_ex evals si fc blk_mdls sz = do
                         mdls' = foldr (\n -> insertEquivBlockedModel sz (MNOnlySMTNames [n]) n_mdl) blk_mdls mn
 
                     liftIO . putStrLn $ "mn = " ++ show mn
-                    synth con ghci eenv tenv tc meas meas_ex evals si fc mdls' sz
+                    synth con ghci eenv tenv meas meas_ex evals si fc mdls' sz
         SynthFail _
-            | sz < max_sz -> synth con ghci eenv tenv tc meas meas_ex evals si fc blk_mdls (sz + 1)
+            | sz < max_sz -> synth con ghci eenv tenv meas meas_ex evals si fc blk_mdls (sz + 1)
             | otherwise -> return res
     
 synth' :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
@@ -562,7 +546,6 @@ synth' :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
        -> [GhcInfo]
        -> NMExprEnv
        -> TypeEnv
-       -> TypeClasses
        -> Measures
        -> MeasureExs
        -> Evals Bool
@@ -573,12 +556,12 @@ synth' :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
        -> BlockedModels
        -> Size
        -> m SynthRes
-synth' con ghci eenv tenv tc meas meas_ex evals m_si fc headers drop_if_unknown blk_mdls sz = do
+synth' con ghci eenv tenv meas meas_ex evals m_si fc headers drop_if_unknown blk_mdls sz = do
     let n_for_m = namesForModel m_si
     liftIO $ print m_si
     let consts = arrayConstants m_si
-    (cons, nm_fc_map) <- nonMaxCoeffConstraints ghci eenv tenv tc meas meas_ex evals m_si fc
-    let hdrs = consts ++ cons ++ headers ++ drop_if_unknown
+    (constraints, nm_fc_map) <- nonMaxCoeffConstraints ghci eenv tenv meas meas_ex evals m_si fc
+    let hdrs = consts ++ constraints ++ headers ++ drop_if_unknown
 
     liftIO $ if not (null drop_if_unknown) then putStrLn "non empty drop_if_unknown" else return ()
 
@@ -596,7 +579,7 @@ synth' con ghci eenv tenv tc meas meas_ex evals m_si fc headers drop_if_unknown 
             return (SynthFail fc_uc)
         Unknown _
             | not (null drop_if_unknown) ->
-                synth' con ghci eenv tenv tc meas meas_ex evals m_si fc headers [] blk_mdls sz
+                synth' con ghci eenv tenv meas meas_ex evals m_si fc headers [] blk_mdls sz
             | otherwise -> error "synth': Unknown"
 
 ------------------------------------
@@ -681,7 +664,7 @@ filterModelToRel m_si ns mdl =
         sys = case ns of
                 MNAll  -> concatMap allSynthSpec $ M.elems m_si
                 MNOnly ns' -> concatMap allSynthSpec $ mapMaybe (flip M.lookup m_si) ns'
-                MNOnlySMTNames ns' -> filter (\sys -> sy_name sys `elem` ns')
+                MNOnlySMTNames ns' -> filter (\sy -> sy_name sy `elem` ns')
                                     . concatMap allSynthSpec
                                     $ M.elems m_si
         vs = map fst $ concatMap sySpecNamesForModel sys
@@ -749,16 +732,16 @@ blockModelWithFuns si s mdl =
     let
         e_si = M.elems $ M.filter (\si' -> s_status si' == Synth) si
 
-        vars = map (uncurry blockVars) $ zip (map (\i -> s ++ "_" ++ show i) [0..]) e_si
-        var_defs = concatMap varDefs vars
+        vrs = map (uncurry blockVars) $ zip (map (\i -> s ++ "_" ++ show i) ([0..] :: [Integer])) e_si
+        var_defs = concatMap varDefs vrs
 
         si_nsi =   map (\(i, si') -> (si', renameByAdding i si'))
-                 . zip (map (\i -> s ++ "_" ++ show i) [0..])
+                 . zip (map (\i -> s ++ "_" ++ show i) ([0..] :: [Integer]))
                  $ e_si
 
         fun_defs = concatMap (defineModelLIAFuns mdl . snd) si_nsi
 
-        eqs = map (\(vs, (si', nsi')) -> mkEqualityAST vs si' nsi') $ zip vars si_nsi
+        eqs = map (\(vs, (si', nsi')) -> mkEqualityAST vs si' nsi') $ zip vrs si_nsi
 
         neq = [Solver.Assert . (:!) $ mkSMTAnd eqs]
     
@@ -779,7 +762,7 @@ blockModelWithFuns si s mdl =
 -- reject newly synthesized specifications that are identical to some previous
 -- specifications.
 checkModelIsNewFunc :: (MonadIO m, SMTConverter con ast out io) => con -> M.Map Name SpecInfo -> SMTModel -> [(ModelNames, SMTModel)] -> m (Maybe (ModelNames, SMTModel))
-checkModelIsNewFunc _ si mdl [] = return Nothing
+checkModelIsNewFunc _ _ _ [] = return Nothing
 checkModelIsNewFunc con si mdl ((mdl_nm, mdl'):mdls) = do
     b' <- checkModelIsNewFunc' con si mdl mdl'
     case b' of
@@ -798,17 +781,17 @@ checkModelIsNewFunc' :: (MonadIO m, SMTConverter con ast out io) => con -> M.Map
 checkModelIsNewFunc' con si mdl1 mdl2 = do
     let e_si = M.elems $ M.filter (\si' -> s_status si' == Synth) si
 
-        vars = map (uncurry blockVars) $ zip (map (\i -> "_c_" ++ show i) [0..]) e_si
-        var_defs = concatMap varDefs vars
+        vrs = map (uncurry blockVars) $ zip (map (\i -> "_c_" ++ show i) ([0..] :: [Integer])) e_si
+        var_defs = concatMap varDefs vrs
 
         si_nsi = map (\(i, si') -> (si', renameByAdding i si'))
-               . zip (map (\i -> "_c_" ++ show i) [0..])
+               . zip (map (\i -> "_c_" ++ show i) ([0..] :: [Integer]))
                $ e_si
 
         fun_defs1 = concatMap (defineModelLIAFuns mdl1 . fst) si_nsi
         fun_defs2 = concatMap (defineModelLIAFuns mdl2 . snd) si_nsi
 
-        eqs = map (\(vs, (si', nsi')) -> mkEqualityAST vs si' nsi') $ zip vars si_nsi
+        eqs = map (\(vs, (si', nsi')) -> mkEqualityAST vs si' nsi') $ zip vrs si_nsi
 
         neq = [Solver.Assert . (:!) $ mkSMTAnd eqs]
     
@@ -833,8 +816,6 @@ defineModelLIAFuncSF mdl sf =
     let
         ars_nm = map smt_var (sy_args_and_ret sf)
         ars = zip ars_nm (map smt_sort $ sy_args_and_ret sf)
-
-        int_ars_nm = map smt_var (int_sy_args_and_ret sf)
     in
     DefineFun (sy_name sf) ars SortBool (buildLIA_SMT_fromModel mdl sf)
 
@@ -873,14 +854,14 @@ smtSingleton :: SMTAST -> SMTAST
 smtSingleton mem = ArrayStore falseArray mem (VBool True)
 
 blockVars :: String -> SpecInfo -> ([PolyBound [(SMTName, Sort)]], PolyBound [(SMTName, Sort)])
-blockVars str si = ( map (uncurry mk_blk_vars) . zip (map show [0..]) $ s_syn_pre si
+blockVars str si = ( map (uncurry mk_blk_vars) . zip (map show ([0..] :: [Integer])) $ s_syn_pre si
                    , mk_blk_vars "r" $ s_syn_post si)
     where
         mk_blk_vars i sy_s =
             mapPB (\(j, s) -> 
                         map (\(k, sa) ->
                                 ("x_MDL_" ++ str ++ "_" ++ i ++ "_" ++ show j ++ "_" ++ show k, smt_sort sa))
-                      . zip [0..]
+                      . zip ([0..] :: [Integer])
                       $ sy_args_and_ret s
                   )
             $ zipPB (uniqueIds sy_s) sy_s
@@ -950,8 +931,8 @@ determineRelSynthSpecs m_si mdl1 mdl2 =
 -- Building SMT Formulas
 ------------------------------------
 
-mkPreCall :: ProgresserM m => NMExprEnv -> TypeEnv -> TypeClasses -> Measures -> MeasureExs -> Evals (Integer, Bool) -> M.Map Name SpecInfo -> FuncCall -> m SMTAST
-mkPreCall eenv tenv tc meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars })
+mkPreCall :: ProgresserM m => NMExprEnv -> TypeEnv -> Measures -> MeasureExs -> Evals (Integer, Bool) -> M.Map Name SpecInfo -> FuncCall -> m SMTAST
+mkPreCall eenv tenv meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars })
     | Just si <- M.lookup n m_si
     , Just (ev_i, _) <- lookupEvals fc (pre_evals evals)
     , Just func_e <- HM.lookup (nameOcc n, nameModule n) eenv = do
@@ -998,8 +979,8 @@ mkPreCall eenv tenv tc meas meas_ex evals m_si fc@(FuncCall { funcName = n, argu
                 Known -> return $ fixed_body
     | otherwise = error "mkPreCall: specification not found"
 
-mkPostCall :: ProgresserM m => NMExprEnv -> TypeEnv -> TypeClasses -> Measures -> MeasureExs -> Evals (Integer, Bool) -> M.Map Name SpecInfo -> FuncCall -> m SMTAST
-mkPostCall eenv tenv tc meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars, returns = r })
+mkPostCall :: ProgresserM m => NMExprEnv -> TypeEnv -> Measures -> MeasureExs -> Evals (Integer, Bool) -> M.Map Name SpecInfo -> FuncCall -> m SMTAST
+mkPostCall eenv tenv meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars, returns = r })
     | Just si <- M.lookup n m_si
     , Just (ev_i, _) <- lookupEvals fc (post_evals evals)
     , Just func_e <- HM.lookup (nameOcc n, nameModule n) eenv = do
@@ -1034,39 +1015,31 @@ mkPostCall eenv tenv tc meas meas_ex evals m_si fc@(FuncCall { funcName = n, arg
                 Known -> return $ fixed_body
     | otherwise = error "mkPostCall: specification not found"
 
-constraintsToSMT :: (InfConfigM m, ProgresserM m) => NMExprEnv -> TypeEnv -> TypeClasses -> Measures -> MeasureExs -> Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncConstraints -> m [SMTHeader]
-constraintsToSMT eenv tenv tc meas meas_ex evals si fc = do
+constraintsToSMT :: (InfConfigM m, ProgresserM m) => NMExprEnv -> TypeEnv -> Measures -> MeasureExs -> Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncConstraints -> m [SMTHeader]
+constraintsToSMT eenv tenv meas meas_ex evals si fc = do
     let fc' = toListFC fc
-    smt <- mapM (constraintToSMT eenv tenv tc meas meas_ex evals si) fc'
+    smt <- mapM (constraintToSMT eenv tenv meas meas_ex evals si) fc'
     return $ map (Solver.Assert) smt
 
-constraintToSMT :: (InfConfigM m, ProgresserM m) => NMExprEnv -> TypeEnv -> TypeClasses -> Measures -> MeasureExs -> Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncConstraint -> m SMTAST
-constraintToSMT eenv tenv tc meas meas_ex evals si (Call All fc) =
-    case M.lookup (funcName fc) si of
-        Just si' -> do
-            pre <- mkPreCall eenv tenv tc meas meas_ex evals si fc
-            post <- mkPostCall eenv tenv tc meas meas_ex evals si fc
-            return $ pre :=> post
-        Nothing -> error "constraintToSMT: specification not found"
-constraintToSMT eenv tenv tc meas meas_ex evals si (Call Pre fc) =
-    case M.lookup (funcName fc) si of
-        Just si' ->
-            mkPreCall eenv tenv tc meas meas_ex evals si fc
-        Nothing -> error $ "constraintToSMT: specification not found" ++ show fc
-constraintToSMT eenv tenv tc meas meas_ex evals si (Call Post fc) =
-    case M.lookup (funcName fc) si of
-        Just si' -> mkPostCall eenv tenv tc meas meas_ex evals si fc
-        Nothing -> error "constraintToSMT: specification not found"
-constraintToSMT eenv tenv tc meas meas_ex evals si (AndFC fs) =
-    return . mkSMTAnd =<< mapM (constraintToSMT eenv tenv tc meas meas_ex evals si) fs
-constraintToSMT eenv tenv tc meas meas_ex evals si (OrFC fs) =
-    return . mkSMTOr =<< mapM (constraintToSMT eenv tenv tc meas meas_ex evals si) fs
-constraintToSMT eenv tenv tc meas meas_ex evals si (ImpliesFC fc1 fc2) = do
-    lhs <- constraintToSMT eenv tenv tc meas meas_ex evals si fc1
-    rhs <- constraintToSMT eenv tenv tc meas meas_ex evals si fc2
+constraintToSMT :: (InfConfigM m, ProgresserM m) => NMExprEnv -> TypeEnv -> Measures -> MeasureExs -> Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncConstraint -> m SMTAST
+constraintToSMT eenv tenv meas meas_ex evals si (Call All fc) = do
+    pre <- mkPreCall eenv tenv meas meas_ex evals si fc
+    post <- mkPostCall eenv tenv meas meas_ex evals si fc
+    return $ pre :=> post
+constraintToSMT eenv tenv meas meas_ex evals si (Call Pre fc) =
+    mkPreCall eenv tenv meas meas_ex evals si fc
+constraintToSMT eenv tenv meas meas_ex evals si (Call Post fc) =
+    mkPostCall eenv tenv meas meas_ex evals si fc
+constraintToSMT eenv tenv meas meas_ex evals si (AndFC fs) =
+    return . mkSMTAnd =<< mapM (constraintToSMT eenv tenv meas meas_ex evals si) fs
+constraintToSMT eenv tenv meas meas_ex evals si (OrFC fs) =
+    return . mkSMTOr =<< mapM (constraintToSMT eenv tenv meas meas_ex evals si) fs
+constraintToSMT eenv tenv meas meas_ex evals si (ImpliesFC fc1 fc2) = do
+    lhs <- constraintToSMT eenv tenv meas meas_ex evals si fc1
+    rhs <- constraintToSMT eenv tenv meas meas_ex evals si fc2
     return $ lhs :=> rhs
-constraintToSMT eenv tenv tc meas meas_ex evals si (NotFC fc) =
-    return . (:!) =<< constraintToSMT eenv tenv tc meas meas_ex evals si fc
+constraintToSMT eenv tenv meas meas_ex evals si (NotFC fc) =
+    return . (:!) =<< constraintToSMT eenv tenv meas meas_ex evals si fc
 
 adjustArgs :: Int -> TypeEnv -> Measures -> MeasureExs -> Type -> G2.Expr -> [SMTAST]
 adjustArgs mx_meas tenv meas meas_ex t =
@@ -1122,7 +1095,7 @@ envToSMT :: MeasureExs -> Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncC
          -> ([SMTHeader], HM.HashMap SMTName FuncConstraint)
 envToSMT meas_ex evals si fc =
     let
-        nm_fc = zip ["f" ++ show i | i <- [1..]]
+        nm_fc = zip ["f" ++ show i | i <- ([1..] :: [Integer])]
               . L.nub
               $ allCallsFC fc
 
@@ -1336,9 +1309,9 @@ trueArray = V "true_array" (SortArray SortInt SortBool)
 falseArray :: SMTAST
 falseArray = V "false_array" (SortArray SortInt SortBool)
 
-nonMaxCoeffConstraints :: (InfConfigM m, ProgresserM m) => [GhcInfo] -> NMExprEnv -> TypeEnv -> TypeClasses -> Measures -> MeasureExs -> Evals Bool  -> M.Map Name SpecInfo -> FuncConstraints
+nonMaxCoeffConstraints :: (InfConfigM m, ProgresserM m) => [GhcInfo] -> NMExprEnv -> TypeEnv -> Measures -> MeasureExs -> Evals Bool  -> M.Map Name SpecInfo -> FuncConstraints
                        -> m ([SMTHeader], HM.HashMap SMTName FuncConstraint)
-nonMaxCoeffConstraints ghci eenv tenv tc meas meas_ex evals m_si fc = do
+nonMaxCoeffConstraints ghci eenv tenv meas meas_ex evals m_si fc = do
     let evals' = assignIds evals
         
         all_acts = getActs m_si
@@ -1362,7 +1335,7 @@ nonMaxCoeffConstraints ghci eenv tenv tc meas meas_ex evals m_si fc = do
 
         poly_access = polyAccessConstraints2 ghci meas m_si
     
-    fc_smt <- constraintsToSMT eenv tenv tc meas meas_ex evals' m_si fc
+    fc_smt <- constraintsToSMT eenv tenv meas meas_ex evals' m_si fc
 
     return
         (    var_act_hdrs
@@ -1515,13 +1488,6 @@ defineSynthLIAFuncSF sf =
     in
     DefineFun (sy_name sf) ars SortBool (buildLIA_SMT sf)
 
-declareSynthLIAFuncSF :: SynthSpec -> SMTHeader
-declareSynthLIAFuncSF sf =
-    let
-        ars = map smt_sort (sy_args_and_ret sf)
-    in
-    DeclareFun (sy_name sf) (ars) SortBool
-
 ------------------------------------
 -- Building LIA Formulas
 ------------------------------------
@@ -1620,7 +1586,7 @@ buildLIA_LH' si mv =
 
         eIte PTrue x _ = x
         eIte PFalse _ y = y
-        eIte b x y = error "eIte: Should never have non-concrete bool"
+        eIte _ _ _ = error "eIte: Should never have non-concrete bool"
 
         pAnd xs =
             case any (== PFalse) xs of
@@ -1709,7 +1675,6 @@ raiseSpecs sy_sp pb =
                     (se_cont, e))
                 symb_es symb_pb
     in
-    trace ("sy_name sy_sb = " ++ show (sy_name (headValue sy_sp)) ++ "\npb = " ++ show pb ++ "\nr = " ++ show r)
     zipWithPB (++) null_pb r 
 
 argsInExpr :: LH.Expr -> HS.HashSet LH.Symbol
@@ -1843,11 +1808,10 @@ buildSI tenv tc meas stat ghci f aty rty = do
 
     (outer_ars_pb, ret_pb) <- argsAndRetFromSpec tenv tc ghci meas [] aty rty fspec
     let outer_ars = map fst outer_ars_pb
-        ars_pb = map snd outer_ars_pb
         ret = headValue ret_pb
 
-        arg_ns = map (\(a, i) -> a { smt_var = "x_" ++ show i } ) $ zip (concat outer_ars) [1..]
-        ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show i }) $ zip ret [1..]
+        arg_ns = map (\(a, i) -> a { smt_var = "x_" ++ show i } ) $ zip (concat outer_ars) ([1..] :: [Integer])
+        ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show i }) $ zip ret ([1..] :: [Integer])
 
     return $ 
         SI { s_max_coeff = 0
@@ -1867,11 +1831,11 @@ buildSI tenv tc meas stat ghci f aty rty = do
                             in
                             mapPB (\(rets, j) ->
                                     SynthSpec { sy_name = smt_f ++ "_synth_pre_" ++ show i ++ "_" ++ show j
-                                              , sy_args = map (\(a, k) -> a { smt_var = "x_" ++ show k}) $ zip ars [1..]
-                                              , sy_rets = map (\(r, k) -> r { smt_var = "x_r_" ++ show k}) $ zip rets [1..]
+                                              , sy_args = map (\(a, k) -> a { smt_var = "x_" ++ show k}) $ zip ars ([1..] :: [Integer])
+                                              , sy_rets = map (\(r, k) -> r { smt_var = "x_r_" ++ show k}) $ zip rets ([1..] :: [Integer])
                                               , sy_coeffs = []}
                                   )  $ zipPB r_pb (uniqueIds r_pb)
-                     ) $ zip (filter (not . null) $ L.inits outer_ars_pb) [1..]
+                     ) $ zip (filter (not . null) $ L.inits outer_ars_pb) ([1..] :: [Integer])
            , s_syn_post = mkSynSpecPB (smt_f ++ "_synth_post_") arg_ns ret_pb
 
            , s_type_pre = aty
@@ -1882,19 +1846,19 @@ buildSI tenv tc meas stat ghci f aty rty = do
 argsAndRetFromSpec :: (InfConfigM m, ProgresserM m) => TypeEnv -> TypeClasses -> [GhcInfo] -> Measures -> [([SpecArg], PolyBound [SpecArg])] -> [Type] -> Type -> SpecType -> m ([([SpecArg], PolyBound [SpecArg])], PolyBound [SpecArg])
 argsAndRetFromSpec tenv tc ghci meas ars ts rty (RAllT { rt_ty = out }) =
     argsAndRetFromSpec tenv tc ghci meas ars ts rty out
-argsAndRetFromSpec tenv tc ghci meas ars (t:ts) rty rfun@(RFun { rt_bind = b, rt_in = i, rt_out = out}) = do
+argsAndRetFromSpec tenv tc ghci meas ars (t:ts) rty rfun@(RFun { rt_in = i, rt_out = out}) = do
     (Just out_symb, sa) <- mkSpecArgPB ghci tenv meas t rfun
     case i of
         RVar {} -> argsAndRetFromSpec tenv tc ghci meas ars ts rty out
         RFun {} -> argsAndRetFromSpec tenv tc ghci meas ars ts rty out
         _ -> argsAndRetFromSpec tenv tc ghci meas ((out_symb, sa):ars) ts rty out
-argsAndRetFromSpec tenv _ ghci meas ars _ rty rapp@(RApp { rt_reft = ref}) = do
+argsAndRetFromSpec tenv _ ghci meas ars _ rty rapp@(RApp {}) = do
     (_, sa) <- mkSpecArgPB ghci tenv meas rty rapp
     return (reverse ars, sa)
-argsAndRetFromSpec tenv _ ghci meas ars _ rty rvar@(RVar { rt_reft = ref}) = do
+argsAndRetFromSpec tenv _ ghci meas ars _ rty rvar@(RVar {}) = do
     (_, sa) <- mkSpecArgPB ghci tenv meas rty rvar
     return (reverse ars, sa)
-argsAndRetFromSpec _ _ ghci meas ars [] rty st@(RFun {}) = error $ "argsAndRetFromSpec: RFun with empty type list " ++ show st
+argsAndRetFromSpec _ _ _ _ _ [] _ st@(RFun {}) = error $ "argsAndRetFromSpec: RFun with empty type list " ++ show st
 argsAndRetFromSpec _ _ _ _ _ _ _ st = error $ "argsAndRetFromSpec: unhandled SpecType " ++ show st
 
 mkSpecArgPB :: (InfConfigM m, ProgresserM m) => [GhcInfo] -> TypeEnv -> Measures -> Type -> SpecType -> m (Maybe [SpecArg], PolyBound [SpecArg])
@@ -1949,7 +1913,7 @@ mkSynSpecPB :: String -> [SpecArg] -> PolyBound [SpecArg] -> PolyBound SynthSpec
 mkSynSpecPB smt_f arg_ns pb_sa =
     mapPB (\(ui, sa) ->
             let
-                ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show ui ++ "_" ++ show i }) $ zip sa [1..]
+                ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show ui ++ "_" ++ show i }) $ zip sa ([1..] :: [Integer])
             in
             SynthSpec { sy_name = smt_f ++ show ui
                       , sy_args = arg_ns
@@ -1975,32 +1939,17 @@ filterPBByType f = filterPB (\(PolyBound v _) ->
 -- Manipulate SpecTypes
 ----------------------------------------------------------------------------
 
-specTypeSymbol :: SpecType -> LH.Symbol
-specTypeSymbol (RFun { rt_bind = b }) = b
-specTypeSymbol rapp@(RApp { rt_reft = ref }) = reftSymbol $ ur_reft ref
-specTypeSymbol (RVar { rt_reft = ref }) = reftSymbol $ ur_reft ref
-specTypeSymbol _ = error $ "specTypeSymbol: SpecType not handled"
-
 data SymbolPair = SP { inner :: LH.Symbol, outer :: Maybe LH.Symbol }
 
 specTypeSymbolPB :: SpecType -> PolyBound SymbolPair
-specTypeSymbolPB rfun@(RFun { rt_bind = b, rt_in = i, rt_out = out}) =
+specTypeSymbolPB (RFun { rt_bind = b, rt_in = i }) =
     case specTypeSymbolPB i of
         PolyBound sp ps -> PolyBound (sp { outer = Just b}) ps
 specTypeSymbolPB (RApp { rt_reft = ref, rt_args = ars }) =
     PolyBound (SP { inner = reftSymbol $ ur_reft ref, outer = Nothing}) $ map specTypeSymbolPB ars
 specTypeSymbolPB (RVar {rt_reft = ref}) =
     PolyBound (SP { inner = reftSymbol $ ur_reft ref, outer = Nothing }) []
-specTypeSymbolPB r = error $ "specTypePB: Unexpected SpecType" ++ "\n" ++ show r
-
-
-specTypePB :: SpecType -> PolyBound SpecType
-specTypePB rfun@(RFun { rt_bind = b, rt_in = i, rt_out = out}) = specTypePB i
-specTypePB rapp@(RApp { rt_reft = ref, rt_args = ars }) =
-    PolyBound rapp $ map specTypePB ars
-specTypePB rvar@(RVar {}) = PolyBound rvar []
-specTypePB r = error $ "specTypePB: Unexpected SpecType" ++ "\n" ++ show r
-
+specTypeSymbolPB r = error $ "specTypeSymbolPB: Unexpected SpecType" ++ "\n" ++ show r
 
 reftSymbol :: Reft -> LH.Symbol
 reftSymbol = fst . unpackReft
@@ -2100,14 +2049,14 @@ polyAccessConstraints2''' :: [(LH.Symbol, Type, Type)] -> SynthSpec -> [SMTAST]
 polyAccessConstraints2''' meas sys =
     let
         cffs = sySpecGetCoeffsNoB sys
-        ars_coeffs =
+        ars_cffs =
               if not (null (sy_args sys)) || not (null (sy_rets sys))
                   then zip (cycle (sy_args sys ++ sy_rets sys)) cffs
                   else []
     in
     concatMap (\(sy, c) -> if usesPolyAcc (lh_rep sy)
                               then [V c SortInt := VInt 0]
-                              else []) ars_coeffs
+                              else []) ars_cffs
     where
       meas' = map (\(m, _, _) -> m) meas
 
@@ -2141,17 +2090,11 @@ allPostSynthSpec = extractValues . s_syn_post
 allSynthSpecPoly :: SpecInfo -> [PolyBound SynthSpec]
 allSynthSpecPoly si = s_syn_pre si ++ [s_syn_post si]
 
-allSynthSpecTypes :: SpecInfo -> [Type]
-allSynthSpecTypes si = s_type_pre si ++ [s_type_post si]
-
 allCNFs :: SpecInfo -> CNF
 allCNFs si = allPreCoeffs si ++ allPostCoeffs si
 
 allPreCoeffs :: SpecInfo -> CNF
 allPreCoeffs = concatMap sy_coeffs . allPreSynthSpec
-
-allPreSpecArgs :: SpecInfo -> [SpecArg]
-allPreSpecArgs = concatMap sy_args_and_ret . allPreSynthSpec
 
 allPostCoeffs :: SpecInfo -> CNF
 allPostCoeffs = concatMap sy_coeffs . allPostSynthSpec
