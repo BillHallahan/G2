@@ -31,6 +31,8 @@ import Data.Data (Data, Typeable)
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Monoid ((<>))
+import qualified Data.Sequence as S
 
 data Class = Class { insts :: [(Type, Id)], typ_ids :: [Id], superclasses :: [(Type, Id)]}
                 deriving (Show, Eq, Read, Typeable, Data)
@@ -205,7 +207,7 @@ instance ASTContainer Class Type where
                                     , superclasses = modifyContainedASTs f $ superclasses c}
 
 instance Named TypeClasses where
-    names (TypeClasses tc) = M.keys tc ++ names tc
+    names (TypeClasses tc) = S.fromList (M.keys tc) <> names tc
     rename old new (TypeClasses m) =
         coerce $ M.mapKeys (rename old new) $ rename old new m
     renames hm (TypeClasses m) =

@@ -32,6 +32,7 @@ import Data.Data (Data, Typeable)
 import qualified Data.Map as M
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
+import Data.Monoid ((<>))
 import qualified Data.Text as T
 
 -- | The State is passed around in G2. It can be utilized to
@@ -169,16 +170,16 @@ renameState old new_seed s b =
 
 instance Named t => Named (State t) where
     names s = names (expr_env s)
-            ++ names (type_env s)
-            ++ names (curr_expr s)
-            ++ names (path_conds s)
-            ++ names (assert_ids s)
-            ++ names (type_classes s)
-            ++ names (symbolic_ids s)
-            ++ names (exec_stack s)
-            ++ names (model s)
-            ++ names (known_values s)
-            ++ names (track s)
+            <> names (type_env s)
+            <> names (curr_expr s)
+            <> names (path_conds s)
+            <> names (assert_ids s)
+            <> names (type_classes s)
+            <> names (symbolic_ids s)
+            <> names (exec_stack s)
+            <> names (model s)
+            <> names (known_values s)
+            <> names (track s)
 
     rename old new s =
         State { expr_env = rename old new (expr_env s)
@@ -262,12 +263,12 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
 
 instance Named Bindings where
     names b = names (fixed_inputs b)
-            ++ names (deepseq_walkers b)
-            ++ names (cleaned_names b)
-            ++ names (higher_order_inst b)
-            ++ names (input_names b)
-            ++ names (exported_funcs b)
-            ++ names (rewrite_rules b)
+            <> names (deepseq_walkers b)
+            <> names (cleaned_names b)
+            <> names (higher_order_inst b)
+            <> names (input_names b)
+            <> names (exported_funcs b)
+            <> names (rewrite_rules b)
 
     rename old new b =
         Bindings { fixed_inputs = rename old new (fixed_inputs b)
@@ -354,13 +355,13 @@ instance Named CurrExpr where
     renames hm (CurrExpr er e) = CurrExpr er $ renames hm e
 
 instance Named Frame where
-    names (CaseFrame i a) = names i ++ names a
+    names (CaseFrame i a) = names i <> names a
     names (ApplyFrame e) = names e
-    names (UpdateFrame n) = [n]
+    names (UpdateFrame n) = names n
     names (CastFrame c) = names c
     names (CurrExprFrame _ e) = names e
     names (AssumeFrame e) = names e
-    names (AssertFrame is e) = names is ++ names e
+    names (AssertFrame is e) = names is <> names e
 
     rename old new (CaseFrame i a) = CaseFrame (rename old new i) (rename old new a)
     rename old new (ApplyFrame e) = ApplyFrame (rename old new e)
@@ -379,7 +380,7 @@ instance Named Frame where
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
 
 instance Named DCNum where
-    names (DCNum { dc2Int = m1, int2Dc = m2 }) = names (HM.keys m1) ++ names (HM.elems m2)
+    names (DCNum { dc2Int = m1, int2Dc = m2 }) = names (HM.keys m1) <> names (HM.elems m2)
     rename old new dcNum@(DCNum {dc2Int = m1 , int2Dc = m2}) = dcNum { dc2Int = m1', int2Dc = m2' }
         where m1' = HM.fromList . rename old new $ HM.toList m1
               m2' = HM.fromList . rename old new $ HM.toList m2

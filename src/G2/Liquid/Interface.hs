@@ -316,8 +316,8 @@ extractWithoutSpecs lrs@(LiquidReadyState { lr_state = s
     let lh_s' = deconsLHState lh_s
 
     let annm = annots lh_s
-        pres_names = addSearchNames (names tcv ++ names mkv) $ reqNames lh_s'
-        pres_names' = addSearchNames (names annm) pres_names
+        pres_names = addSearchNames (namesList tcv ++ namesList mkv) $ reqNames lh_s'
+        pres_names' = addSearchNames (namesList annm) pres_names
 
     let track_state = lh_s' {track = LHTracker { abstract_calls = []
                                                , last_var = Nothing
@@ -544,7 +544,7 @@ reqNames (State { expr_env = eenv
                 , type_env = tenv
                 , type_classes = tc
                 , known_values = kv}) =
-    let ns = Lang.names
+    let ns = Lang.namesList
                    [ mkGe kv eenv
                    , mkGt kv eenv
                    , mkEq kv eenv
@@ -574,13 +574,13 @@ reqNames (State { expr_env = eenv
                    , mkRealExtractNum kv 
                    ]
           ++
-          Lang.names 
+          Lang.namesList 
             (M.filterWithKey 
                 (\k _ -> k == eqTC kv || k == numTC kv || k == ordTC kv || k == integralTC kv || k == fractionalTC kv || k == structEqTC kv) 
                 (toMap tc)
             )
           ++
-          Lang.names (filter (\(Name _ m _ _) -> m == Just "Data.Set.Internal") (E.keys eenv))
+          Lang.namesList (filter (\(Name _ m _ _) -> m == Just "Data.Set.Internal") (E.keys eenv))
     in
     MemConfig { search_names = ns
               , pres_func = pf }
