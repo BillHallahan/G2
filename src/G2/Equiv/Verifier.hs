@@ -53,9 +53,18 @@ import G2.Lib.Printers
 -- if the final value doesn't match what we expect, throw the branch out somehow
 -- have some notion of finite variables still in place?
 -- wrap finite things in force functions
+-- The value of discharge should be the previously-encountered state pair that
+-- was used to discharge this branch, if the branch has been discharged.
 data StateH = StateH {
     latest :: StateET
   , history :: [StateET]
+  , inductions :: [IndMarker]
+  , discharge :: Maybe (StateET, StateET)
+}
+
+data IndMarker = IndMarker {
+    old_pair :: (StateET, StateET)
+  , current_pair :: (StateET, StateET)
 }
 
 exprReadyForSolver :: ExprEnv -> Expr -> Bool
@@ -250,13 +259,21 @@ getLatest :: (StateH, StateH) -> (StateET, StateET)
 getLatest (StateH { latest = s1 }, StateH { latest = s2 }) = (s1, s2)
 
 newStateH :: StateET -> StateH
-newStateH s = StateH { latest = s, history = [] }
+newStateH s = StateH {
+    latest = s
+  , history = []
+  , inductions = []
+  , discharge = Nothing
+  }
 
+-- discharge only has a meaningful value when execution is done for a branch
 appendH :: StateH -> StateET -> StateH
 appendH sh s =
   StateH {
     latest = s
   , history = (latest sh):(history sh)
+  , inductions = inductions sh
+  , discharge = discharge sh
   }
 
 replaceH :: StateH -> StateET -> StateH
@@ -388,6 +405,12 @@ newScrutinee i (Case e i' a) = trace ("NG " ++ show e) $ Case (newScrutinee i e)
 newScrutinee i (Tick nl e) = Tick nl $ newScrutinee i e
 newScrutinee i _ = trace ("NS " ++ show i) $ Var i
 
+-- the first expression becomes the new scrutinee of the second
+substScrutinee :: Expr -> Expr -> Expr
+substScrutinee e (Case e' i a) = Case (substScrutinee e e') i a
+substScrutinee e (Tick nl e') = Tick nl $ substScrutinee e e'
+substScrutinee e _ = e
+
 notM :: IO Bool -> IO Bool
 notM b = do
   b' <- b
@@ -398,6 +421,11 @@ andM b1 b2 = do
   b1' <- b1
   b2' <- b2
   return (b1' && b2')
+
+isNothingM :: IO (Maybe t) -> IO Bool
+isNothingM m = do
+  m' <- m
+  return $ not $ isJust m'
 
 -- TODO debugging function
 exprHistory :: StateH -> StateH -> [(Expr, Expr)]
@@ -442,9 +470,10 @@ verifyLoop' solver ns fresh_name sh1 sh2 prev =
       let prev' = concat $ map prevFiltered prev
           (obs_i, obs_c) = partition canUseInduction obs
           states_c = map (stateWrap s1 s2) obs_c
-      states_c' <- filterM (notM . (moreRestrictivePair solver ns prev')) states_c
+      states_c' <- filterM (isNothingM . (moreRestrictivePair solver ns prev')) states_c
 
       let states_i = map (stateWrap s1 s2) obs_i
+      -- TODO need a way to get the prev pair used for induction
       states_i' <- mapM (induction solver ns fresh_name prev') states_i
 
       -- TODO unnecessary to pass the induction states through this?
@@ -467,6 +496,8 @@ verifyLoop' solver ns fresh_name sh1 sh2 prev =
 -- TODO optimization:  only need one fresh name per loop iteration
 -- I could take care of the Bindings outside this
 -- TODO (9/27) check path constraint implication?
+-- TODO (9/30) alternate:  just substitute one scrutinee for the other
+-- put a non-symbolic variable there?
 induction :: S.Solver solver =>
              solver ->
              HS.HashSet Name ->
@@ -493,20 +524,25 @@ induction solver ns fresh_name prev (s1, s2) = do
       -- in the new expr pair, replace the scrutinees with a new symbolic var
       -}
   -- TODO just use moreRestrictivePair
-  res <- moreRestrictivePair solver ns prev (s1', s2')
-  -- TODO look at the obligations, try to confirm them
-  -- TODO copying and pasting for now, refactor later
-  {-
-  let getObs m = case m of
-        Nothing -> HS.empty
-        Just (_, hs) -> hs
-      obs_sets = map getObs hm_maybe_list
-      obs = foldr HS.union HS.empty obs_sets
-      obs' = HS.filter (\(e1, e2) -> rfs h1 e1 && rfs h2 e2) obs
-  -}
+  res_ <- moreRestrictivePair solver ns prev (s1', s2')
+  let res = isJust res_
+  -- TODO different approach:  substitution and partial generalization
+  -- TODO adjust expr env of the one where the substitution happens
+  let e1' = exprExtract s1'
+      e2' = exprExtract s2'
+      e1 = exprExtract s1
+      e2 = exprExtract s2
+      h1 = expr_env s1'
+      h2 = expr_env s2'
+      -- TODO I think mappings from the first overwrite the second
+      h2' = E.union h1 h2
+      e2'' = addStackTickIfNeeded $ substScrutinee e1' e2
+      s2'' = s2 { expr_env = h2', curr_expr = CurrExpr Evaluate e2'' }
+      -- TODO look for common sub-exps in the scrutinees?
   -- TODO are s1 and s2 right states to use?
   -- TODO check different obligations individually
   --res <- checkObligations solver s1 s2 obs'
+  {-
   let fresh_id = Id fresh_name (typeOf $ exprExtract s1')
       -- TODO create new Id around the Name
       -- need the types of the scrutinees
@@ -521,9 +557,9 @@ induction solver ns fresh_name prev (s1, s2) = do
       e2 = exprExtract s2
       e2' = addStackTickIfNeeded $ newScrutinee fresh_id e2
       s2'' = s2 { expr_env = h2', curr_expr = CurrExpr Evaluate e2' }
-  --in
-  --if null hm_maybe_zipped'
-  return $ if res then (s1'', s2'') else (s1, s2)
+  -}
+  -- TODO reaching this conditional but always taking the F branch
+  return $ if trace ("III " ++ show res) res then (s1, s2'') {-(s1'', s2'')-} else (s1, s2)
   {-
   if not res
   then return (s1, s2)
@@ -930,12 +966,15 @@ rfs h e = (exprReadyForSolver h e) && (T.isPrimType $ typeOf e)
 -- if restrictHelper end result is Just, try checking the corresponding PCs
 -- for True output, there needs to be an entry for which that check succeeds
 -- should I replace the result with a Bool?
+-- TODO return the previous state pair that was used for the discharge
+-- return Nothing if there was no discharge
+-- if there are multiple, just return the first
 moreRestrictivePair :: S.Solver solver =>
                        solver ->
                        HS.HashSet Name ->
                        [(State t, State t)] ->
                        (State t, State t) ->
-                       IO Bool
+                       IO (Maybe (State t, State t))
 moreRestrictivePair solver ns prev (s1, s2) = do
   let mr (p1, p2) = restrictHelper p2 s2 ns $
                     restrictHelper p1 s1 ns (Just (HM.empty, HS.empty))
@@ -970,10 +1009,13 @@ moreRestrictivePair solver ns prev (s1, s2) = do
   bools' <- mapM id bools
   -- need res_list, no_loss, and bools all aligning at a point
   let all_three thr = case thr of
-        (S.UNSAT (), (True, True)) -> True
+        ((S.UNSAT (), _), (True, True)) -> True
         _ -> False
   -- TODO all three lists should be the same length
-  return $ not $ null $ filter all_three $ zip res_list $ zip no_loss bools'
+  --return $ not $ null $
+  case filter all_three $ zip (zip res_list prev) $ zip no_loss bools' of
+    [] -> return Nothing
+    ((_, prev_pair), _):_ -> return $ Just prev_pair
   -- TODO HashSet doesn't have a "forall" function?
   --case (HS.size obs == HS.size obs', res) of
   --  (True, S.UNSAT ()) -> return (not $ null bools')
