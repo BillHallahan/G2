@@ -3,6 +3,7 @@
 module G2.Liquid.Inference.Sygus.SpecInfo where
 
 import G2.Language as G2
+import qualified G2.Language.ExprEnv as E
 import G2.Liquid.Conversion
 import G2.Liquid.Helpers
 import G2.Liquid.Interface
@@ -24,6 +25,16 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
+import qualified Data.Text as T
+
+type NMExprEnv = HM.HashMap (T.Text, Maybe T.Text) G2.Expr
+
+-- A list of functions that still must have specifications synthesized at a lower level
+type ToBeNames = [Name]
+
+-- A list of functions to synthesize a the current level
+type ToSynthNames = [Name]
+
 
 data Forms = LIA { -- LIA formulas
                    c_active :: SMTName
@@ -179,11 +190,37 @@ data Status = Synth -- ^ A specification should be synthesized
             | Known -- ^ The specification is completely fixed
             deriving (Eq, Show)
 
-buildSpecInfo :: (InfConfigM m, ProgresserM m) => TypeEnv -> TypeClasses -> [GhcInfo] -> LiquidReadyState
-              -> [(Name, ([Type], Type))] -> [(Name, ([Type], Type))] -> [(Name, ([Type], Type))]
+buildNMExprEnv :: ExprEnv -> NMExprEnv
+buildNMExprEnv = HM.fromList . map (\(n, e) -> ((nameOcc n, nameModule n), e)) . E.toExprList
+
+buildSpecInfo :: (InfConfigM m, ProgresserM m) =>
+                 NMExprEnv
+              -> TypeEnv
+              -> TypeClasses
+              -> Measures
+              -> [GhcInfo]
+              -> FuncConstraints
+              -> ToBeNames
+              -> ToSynthNames
               -> m (M.Map Name SpecInfo)
-buildSpecInfo tenv tc ghci lrs ns_aty_rty to_be_ns_aty_rty known_ns_aty_rty = do
-    let meas = lrsMeasures ghci lrs
+buildSpecInfo eenv tenv tc meas ghci fc to_be_ns ns_synth = do
+    -- Compensate for zeroed out names in FuncConstraints
+    let ns_synth' = map zeroOutName ns_synth
+
+    -- Figure out what the other functions relevant to the current spec are
+    let all_calls = concatMap allCallNames $ toListFC fc
+        non_ns = filter (`notElem` ns_synth') all_calls
+
+    -- Form tuples of:
+    -- (1) Func Names
+    -- (2) Function Argument Types
+    -- (3) Function Known Types
+    -- to be used in forming SpecInfo's
+    let ns_aty_rty = map (relNameTypePairs eenv) ns_synth'
+
+        other_aty_rty = map (relNameTypePairs eenv) non_ns
+        to_be_ns' = map zeroOutName to_be_ns
+        (to_be_ns_aty_rty, known_ns_aty_rty) = L.partition (\(n, _) -> n `elem` to_be_ns') other_aty_rty
 
     si <- foldM (\m (n, (at, rt)) -> do
         s <- buildSI tenv tc meas Synth ghci n at rt
@@ -196,6 +233,25 @@ buildSpecInfo tenv tc ghci lrs ns_aty_rty to_be_ns_aty_rty known_ns_aty_rty = do
         return $ M.insert n s m) si' known_ns_aty_rty
 
     return si''
+    where
+      zeroOutName (Name n m _ l) = Name n m 0 l
+
+relNameTypePairs :: NMExprEnv -> Name -> (Name, ([Type], Type))
+relNameTypePairs eenv n =
+    case HM.lookup (nameOcc n, nameModule n) eenv of
+        Just e' -> (n, generateRelTypes e')
+        Nothing -> error $ "synthesize: No expr found"
+
+generateRelTypes :: G2.Expr -> ([Type], Type)
+generateRelTypes e =
+    let
+        ty_e = PresType $ inTyForAlls (typeOf e)
+        arg_ty_c = filter (not . isTYPE)
+                 . filter (notLH)
+                 $ argumentTypes ty_e
+        ret_ty_c = returnType ty_e
+    in
+    (arg_ty_c, ret_ty_c)
 
 ------------------------------------
 -- Building SpecInfos
@@ -331,10 +387,17 @@ filterPBByType f = filterPB (\(PolyBound v _) ->
                                 in
                                 not (isTyVar t) && not (isTyFun t))
 
--- ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show i }) $ zip ret [1..]
-       -- , s_syn_post = SynthSpec { sy_name = smt_f ++ "_synth_post"
-       --                          , sy_args_and_ret = arg_ns ++ ret_ns
-       --                          , sy_coeffs = [] }
+----------------------------------------------------------------------------
+-- Manipulate Evals
+----------------------------------------------------------------------------
+
+-- We assign a unique id to each function call, and use these as the arguments
+-- to the known functions, rather than somehow using the arguments directly.
+-- This means we can get away with needing only a single known function
+-- for the pre, and a single known function for the post, as opposed
+-- to needing individual known functions/function calls for polymorphic refinements.
+assignIds :: Evals Bool -> Evals (Integer, Bool)
+assignIds = snd . mapAccumLEvals (\i b -> (i + 1, (i, b))) 0
 
 ----------------------------------------------------------------------------
 -- Manipulate SpecTypes

@@ -60,60 +60,26 @@ data SynthRes = SynthEnv
 
 type Size = Integer
 
--- A list of functions that still must have specifications synthesized at a lower level
-type ToBeNames = [Name]
-
--- A list of functions to synthesize a the current level
-type ToSynthNames = [Name]
-
 liaSynth :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
          => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
          -> FuncConstraints
          -> BlockedModels -- ^ SMT Models to block being returned by the synthesizer at various sizes
          -> ToBeNames -> ToSynthNames -> m SynthRes
 liaSynth con ghci lrs evals meas_ex fc blk_mdls to_be_ns ns_synth = do
-    -- Compensate for zeroed out names in FuncConstraints
-    let ns = map (\(Name n m _ l) -> Name n m 0 l) ns_synth
 
     -- Figure out the type of each of the functions we need to synthesize
-    let eenv = expr_env . state $ lr_state lrs
-        eenv' = HM.fromList . map (\(n, e) -> ((nameOcc n, nameModule n), e)) $ E.toExprList eenv
+    let eenv = buildNMExprEnv $ expr_env . state $ lr_state lrs
         tenv = type_env . state $ lr_state lrs
-
         tc = type_classes . state $ lr_state lrs
-        es = map (\n -> case HM.lookup (nameOcc n, nameModule n) eenv' of
-                            Just e' -> e'
-                            Nothing -> error $ "synthesize: No expr found") ns
-        ts = map generateRelTypes es
+        meas = lrsMeasures ghci lrs
 
-    -- Figure out what the other functions relevant to the current spec are
-    let all_calls = concatMap allCallNames $ toListFC fc
-        non_ns = filter (`notElem` ns) all_calls
-        non_es = map (\n -> case HM.lookup (nameOcc n, nameModule n) eenv' of
-                                        Just e' -> e'
-                                        Nothing -> error $ "synthesize: No expr found") non_ns
-        non_ts = map generateRelTypes non_es
-
-    -- Form tuples of:
-    -- (1) Func Names
-    -- (2) Function Argument Types
-    -- (3) Function Known Types
-    -- to be used in forming SpecInfo's
-    let ns_aty_rty = zip ns ts
-
-        other_aty_rty = zip non_ns non_ts
-        to_be_ns' = map zeroOutName to_be_ns
-        (to_be_ns_aty_rty, known_ns_aty_rty) = L.partition (\(n, _) -> n `elem` to_be_ns') other_aty_rty
-
-    si <- buildSpecInfo tenv tc ghci lrs ns_aty_rty to_be_ns_aty_rty known_ns_aty_rty
+    si <- buildSpecInfo eenv tenv tc meas ghci fc to_be_ns ns_synth
 
     liftIO . putStrLn $ "si = " ++ show si
 
     let meas = lrsMeasures ghci lrs
 
-    synth con ghci eenv' tenv meas meas_ex evals si fc blk_mdls 1
-    where
-      zeroOutName (Name n m _ l) = Name n m 0 l
+    synth con ghci eenv tenv meas meas_ex evals si fc blk_mdls 1
 
 liaSynthOfSize :: (InfConfigM m, ProgresserM m) => Integer -> M.Map Name SpecInfo -> m (M.Map Name SpecInfo)
 liaSynthOfSize sz m_si = do
@@ -1039,8 +1005,8 @@ constraintsToSMT eenv tenv meas meas_ex evals si fc =
                     (:!)
                     (:=>)
                     Func
-                    (\n i -> Func n [VInt i])
-                    (\n i -> Func n [VInt i])
+                    (\n i _ -> Func n [VInt i])
+                    (\n i _ -> Func n [VInt i])
                     eenv tenv meas meas_ex evals si fc
     where
         ifNotNull _ def [] = def
@@ -1154,14 +1120,6 @@ siGetFuncActs si
 formActives :: Forms -> [SMTName]
 formActives cffs@(BoolForm {}) = c_active cffs:concatMap formActives (forms cffs)
 formActives cffs = [c_active cffs]
-
--- We assign a unique id to each function call, and use these as the arguments
--- to the known functions, rather than somehow using the arguments directly.
--- This means we can get away with needing only a single known function
--- for the pre, and a single known function for the post, as opposed
--- to needing individual known functions/function calls for polymorphic refinements.
-assignIds :: Evals Bool -> Evals (Integer, Bool)
-assignIds = snd . mapAccumLEvals (\i b -> (i + 1, (i, b))) 0
 
 defineLIAFuns :: SpecInfo -> [SMTHeader]
 defineLIAFuns si =
@@ -1499,19 +1457,6 @@ buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_unio
             --        . map (\(b, s) -> ite_set b s cemptyset)
             --        $ zip (map vbool $ ars ++ rts) (map vset set_args)
 
-
-----------------------------------------------------------------------------
-
-generateRelTypes :: G2.Expr -> ([Type], Type)
-generateRelTypes e =
-    let
-        ty_e = PresType $ inTyForAlls (typeOf e)
-        arg_ty_c = filter (not . isTYPE)
-                 . filter (notLH)
-                 $ argumentTypes ty_e
-        ret_ty_c = returnType ty_e
-    in
-    (arg_ty_c, ret_ty_c)
 
 ----------------------------------------------------------------------------
 -- Polymorphic access measures
