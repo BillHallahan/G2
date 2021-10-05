@@ -17,8 +17,6 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
-type NMExprEnv = HM.HashMap (T.Text, Maybe T.Text) G2.Expr
-
 type ConvertExpr a = G2.Expr -> a
 type AndF a = [a] -> a
 type OrF a = [a] -> a
@@ -26,8 +24,8 @@ type NotF a = a -> a
 type ImpliesF a = a -> a -> a
 
 type Func a = String -> [a] -> a
-type KnownFunc a = String -> Integer -> a
-type ToBeFunc a = String -> Integer -> a
+type KnownFunc a = String -> Integer -> Bool -> a
+type ToBeFunc a = String -> Integer -> Bool -> a
 
 ------------------------------------
 -- Building Formulas
@@ -50,7 +48,7 @@ mkPreCall :: ProgresserM m =>
           -> m form
 mkPreCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars })
     | Just si <- M.lookup n m_si
-    , Just (ev_i, _) <- lookupEvals fc (pre_evals evals)
+    , Just (ev_i, ev_b) <- lookupEvals fc (pre_evals evals)
     , Just func_e <- HM.lookup (nameOcc n, nameModule n) eenv = do
         MaxSize mx_meas <- maxSynthSizeM
         let func_ts = argumentTypes func_e
@@ -86,8 +84,8 @@ mkPreCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_si
                   ) . zip (s_syn_pre si) . filter (not . null) $ L.inits v_ars
 
             sy_body = andF sy_body_p
-            fixed_body = knownF (s_known_pre_name si) ev_i
-            to_be_body = toBeF (s_to_be_pre_name si) ev_i
+            fixed_body = knownF (s_known_pre_name si) ev_i ev_b
+            to_be_body = toBeF (s_to_be_pre_name si) ev_i ev_b
 
         case s_status si of
                 Synth -> return $ andF [fixed_body, sy_body]
@@ -112,7 +110,7 @@ mkPostCall :: ProgresserM m =>
            -> m form
 mkPostCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars, returns = r })
     | Just si <- M.lookup n m_si
-    , Just (ev_i, _) <- lookupEvals fc (post_evals evals)
+    , Just (ev_i, ev_b) <- lookupEvals fc (post_evals evals)
     , Just func_e <- HM.lookup (nameOcc n, nameModule n) eenv = do
         MaxSize mx_meas <- maxSynthSizeM
         let func_ts = argumentTypes func_e
@@ -136,8 +134,8 @@ mkPostCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_s
                             map (\smt_r' -> funcF (sy_name syn_p) $ smt_ars ++ smt_r') smt_r)
                     . extractValues 
                     $ zipWithPB (\x (y, z) -> (x, y, z)) (s_syn_post si) smt_ret_e_ty
-            fixed_body = knownF (s_known_post_name si) ev_i
-            to_be_body = toBeF (s_to_be_post_name si) ev_i
+            fixed_body = knownF (s_known_post_name si) ev_i ev_b
+            to_be_body = toBeF (s_to_be_post_name si) ev_i ev_b
 
         case s_status si of
                 Synth -> return $ andF [fixed_body, sy_body]
