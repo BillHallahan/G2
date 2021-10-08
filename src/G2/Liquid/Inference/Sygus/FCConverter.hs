@@ -77,9 +77,10 @@ mkPreCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_si
                         concatMap
                             (\(psi, re, rt) ->
                                 let
+                                    f_smt_ars = if null (sy_args psi) then [] else smt_ars
                                     smt_r = map (adjustArgs convExpr (fromInteger mx_meas) tenv meas meas_ex rt) re
                                 in
-                                map (\r -> funcF (sy_name psi) $ smt_ars ++ r) smt_r
+                                map (\r -> funcF (sy_name psi) $ f_smt_ars ++ r) smt_r
                               ) $ extractValues si_re_rt_pb
                   ) . zip (s_syn_pre si) . filter (not . null) $ L.inits v_ars
 
@@ -118,7 +119,7 @@ mkPostCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_s
             smt_ars = concatMap (uncurry (adjustArgs convExpr (fromInteger mx_meas) tenv meas meas_ex))
                     . filter (\(t, _) -> not (isTyFun t) && not (isTyVar t))
                     . filter (validArgForSMT . snd) $ zip func_ts ars
-            
+
             smt_ret = extractExprPolyBoundWithRoot r
             smt_ret_ty = extractTypePolyBound (returnType func_e)
             smt_ret_e_ty = case filterPBByType snd $ zipPB smt_ret smt_ret_ty of
@@ -129,9 +130,10 @@ mkPostCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_s
                     . concatMap
                         (\(syn_p, r, rt) ->
                             let
+                                f_smt_ars = if null (sy_args syn_p) then [] else smt_ars
                                 smt_r = map (adjustArgs convExpr (fromInteger mx_meas) tenv meas meas_ex rt) $ r
                             in
-                            map (\smt_r' -> funcF (sy_name syn_p) $ smt_ars ++ smt_r') smt_r)
+                            map (\smt_r' -> funcF (sy_name syn_p) $ f_smt_ars ++ smt_r') smt_r)
                     . extractValues 
                     $ zipWithPB (\x (y, z) -> (x, y, z)) (s_syn_post si) smt_ret_e_ty
             fixed_body = knownF (s_known_post_name si) ev_i ev_b

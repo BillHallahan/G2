@@ -79,7 +79,9 @@ liaSynth con ghci lrs evals meas_ex fc blk_mdls to_be_ns ns_synth = do
 
     let meas = lrsMeasures ghci lrs
 
-    synth con ghci eenv tenv meas meas_ex evals si fc blk_mdls 1
+    MaxSize max_sz <- maxSynthSizeM
+
+    synth con ghci eenv tenv meas meas_ex evals si fc blk_mdls max_sz
 
 liaSynthOfSize :: (InfConfigM m, ProgresserM m) => Integer -> M.Map Name SpecInfo -> m (M.Map Name SpecInfo)
 liaSynthOfSize sz m_si = do
@@ -951,11 +953,11 @@ nonMaxCoeffConstraints ghci eenv tenv meas meas_ex evals m_si fc = do
         all_bool_bools = getBoolBools m_si
         get_ops = getOpBranches m_si
 
-        var_act_hdrs = map (flip VarDecl SortBool . TB.text . T.pack) all_acts
-        var_int_hdrs = map (flip VarDecl SortInt . TB.text . T.pack) all_coeffs
-        var_bool_set_hdrs = map (flip VarDecl SortBool . TB.text . T.pack) all_set_bools
-        var_bool_bool_hdrs = map (flip VarDecl SortBool . TB.text . T.pack) all_bool_bools
-        var_op_hdrs = map (flip VarDecl SortBool . TB.text . T.pack) get_ops
+        var_act_hdrs = map (flip VarDecl SortBool . TB.text . T.pack) $ L.nub all_acts
+        var_int_hdrs = map (flip VarDecl SortInt . TB.text . T.pack) $ L.nub all_coeffs
+        var_bool_set_hdrs = map (flip VarDecl SortBool . TB.text . T.pack) $ L.nub all_set_bools
+        var_bool_bool_hdrs = map (flip VarDecl SortBool . TB.text . T.pack) $ L.nub all_bool_bools
+        var_op_hdrs = map (flip VarDecl SortBool . TB.text . T.pack) $ L.nub get_ops
 
         def_funs = concatMap defineLIAFuns $ M.elems m_si
         (env_smt, nm_fc) = envToSMT meas_ex evals' m_si fc
@@ -1124,9 +1126,12 @@ formActives cffs = [c_active cffs]
 defineLIAFuns :: SpecInfo -> [SMTHeader]
 defineLIAFuns si =
     (if s_status si == Synth
-        then 
-               map defineSynthLIAFuncSF (extractValues $ s_syn_post si)
-            ++ map defineSynthLIAFuncSF (concatMap extractValues $ s_syn_pre si)
+        then
+            let
+                funcs = L.nubBy (\si1 si2 -> sy_name si1 == sy_name si2)
+                      $ (extractValues $ s_syn_post si) ++ (concatMap extractValues $ s_syn_pre si)
+            in
+            map defineSynthLIAFuncSF funcs
         else [])
     ++
     [ defineFixedLIAFuncSF (s_known_pre si)
