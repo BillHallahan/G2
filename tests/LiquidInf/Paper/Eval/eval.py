@@ -6,7 +6,7 @@ import re
 import subprocess
 import time
 
-def run_infer(file, name, timeout):
+def run_infer(file, name, timeout, extra_opts=[]):
     # get info about the file
     (funcs, depth) = get_counts(file)
 
@@ -15,7 +15,7 @@ def run_infer(file, name, timeout):
     # res = call_infer_process(file, timeout);
     # end_time = time.perf_counter();
     # elapsed = end_time - start_time;
-    (check_safe, res, counts, elapsed) = call_with_timing(file, timeout)
+    (check_safe, res, counts, elapsed) = call_with_timing(file, timeout, extra_opts)
 
     f = open("logs/" + name + ".txt", "w")
     f.write(res.decode("utf-8") );
@@ -26,22 +26,22 @@ def run_infer(file, name, timeout):
 
     # run the test without extra fc
     no_fc_start_time = time.perf_counter();
-    no_fc_res = call_infer_process(file, timeout, ["--no-use-extra-fc"])
+    no_fc_res = call_infer_process(file, timeout, extra_opts + ["--no-use-extra-fc"])
     no_fc_end_time = time.perf_counter();
     no_fc_elapsed = no_fc_end_time - no_fc_start_time;
     no_fc_check_safe = no_fc_res.splitlines()[-2].decode('utf-8');
     no_fc_counts = get_opt_counts(no_fc_res);
-    (_, _, no_fc_counts, no_fc_elapsed) = call_with_timing(file, timeout, ["--no-use-extra-fc"])
+    (_, _, no_fc_counts, no_fc_elapsed) = call_with_timing(file, timeout, extra_opts + ["--no-use-extra-fc"])
 
     no_lev_dec_counts = empty_counts()
     no_lev_dec_elapsed = None
     if counts["searched_below"] is not None and int(counts["searched_below"]) > 0:
-        (_, _, no_lev_dec_counts, no_lev_dec_elapsed) = call_with_timing(file, timeout, ["--no-use-level-dec"])
+        (_, _, no_lev_dec_counts, no_lev_dec_elapsed) = call_with_timing(file, timeout, extra_opts + ["--no-use-level-dec"])
 
     no_n_mdl_counts = empty_counts()
     no_n_mdl_elapsed = None
     if counts["negated_model"] is not None and int(counts["negated_model"]) > 0:
-        (_, _, no_n_mdl_counts, no_n_mdl_elapsed) = call_with_timing(file, timeout, ["--no-use-negated-models"])
+        (_, _, no_n_mdl_counts, no_n_mdl_elapsed) = call_with_timing(file, timeout, extra_opts + ["--no-use-negated-models"])
 
     return (check_safe, elapsed, funcs, depth, counts
                       , no_fc_elapsed, no_fc_counts
@@ -133,7 +133,7 @@ def adj_time(check_safe, time):
     else:
         return None;
 
-def test_pos_folder(folder, timeout):
+def test_pos_folder(folder, timeout, extra_opts=[]):
     all_files = os.listdir(folder);
     num_files = count_files(all_files);
     safe_num = 0;
@@ -147,7 +147,7 @@ def test_pos_folder(folder, timeout):
             (check_safe, elapsed, funcs, depth, counts
                        , no_fc_elapsed, no_fc_counts
                        , no_lev_dec_elapsed, no_lev_dex_count
-                       , no_n_mdl_elapsed, no_n_mdl_count) = run_infer(os.path.join(folder, file), file, timeout);
+                       , no_n_mdl_elapsed, no_n_mdl_count) = run_infer(os.path.join(folder, file), file, timeout, extra_opts);
 
             if check_safe == "Safe":
                 print("\tSafe - " + str(elapsed) + "s");

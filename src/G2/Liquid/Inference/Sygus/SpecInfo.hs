@@ -232,7 +232,9 @@ buildSpecInfo eenv tenv tc meas ghci fc to_be_ns ns_synth = do
         s <- buildSI tenv tc meas Known ghci n at rt
         return $ M.insert n s m) si' known_ns_aty_rty
 
-    return si''
+    let si''' = conflateLoopNames . elimSyArgs . elimPolyArgSpecs $ si''
+
+    return si'''
     where
       zeroOutName (Name n m _ l) = Name n m 0 l
 
@@ -420,6 +422,39 @@ reftSymbol = fst . unpackReft
 
 unpackReft :: Reft -> (LH.Symbol, LH.Expr) 
 unpackReft = coerce
+
+----------------------------------------------------------------------------
+-- Invariant configuration
+----------------------------------------------------------------------------
+
+elimPolyArgSpecs :: M.Map a SpecInfo -> M.Map a SpecInfo
+elimPolyArgSpecs = M.map elimPolyArgSpecs'
+
+elimPolyArgSpecs' :: SpecInfo -> SpecInfo
+elimPolyArgSpecs' si = si { s_syn_pre = map (\(PolyBound a _) -> PolyBound a []) (s_syn_pre si)
+                          , s_syn_post = (\(PolyBound a _) -> PolyBound a []) (s_syn_post si)}
+
+elimSyArgs :: M.Map a SpecInfo -> M.Map a SpecInfo
+elimSyArgs = M.map elimSyArgs'
+
+elimSyArgs' :: SpecInfo -> SpecInfo
+elimSyArgs' si = si { s_syn_pre = map (mapPB elimSyArgs'') (s_syn_pre si)
+                    , s_syn_post = mapPB elimSyArgs'' (s_syn_post si)}
+
+elimSyArgs'' :: SynthSpec -> SynthSpec
+elimSyArgs'' sy | take 4 (sy_name sy) == "loop" = sy { sy_args = [] }
+elimSyArgs'' sy = sy
+
+conflateLoopNames ::  M.Map a SpecInfo -> M.Map a SpecInfo
+conflateLoopNames = M.map conflateLoopNames'
+
+conflateLoopNames' :: SpecInfo -> SpecInfo
+conflateLoopNames' si@(SI { s_syn_pre = pb_sy_pre@(_:_)
+                          , s_syn_post = PolyBound sy_post [] })
+    | PolyBound sy_pre [] <- last pb_sy_pre
+    , take 4 (sy_name sy_post) == "loop" =
+        si { s_syn_pre = init pb_sy_pre ++ [PolyBound (sy_pre { sy_name = sy_name sy_post }) []] }
+conflateLoopNames' si = si
 
 ----------------------------------------------------------------------------
 
