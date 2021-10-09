@@ -68,6 +68,16 @@ data IndMarker = IndMarker {
   , current_state :: StateET
 }
 
+-- TODO this should be the output from tryDischarge
+-- what indicates failure?
+-- unfinished is what tryDischarge gave as output before
+-- finished is the proof obligations that were just discharged
+data DischargeResult = DischargeResult {
+    unfinished :: [(StateH, StateH)]
+  , finished :: [(StateH, StateH)]
+  , bad_states :: Maybe [(StateET, StateET)]
+}
+
 exprReadyForSolver :: ExprEnv -> Expr -> Bool
 exprReadyForSolver h (Tick _ e) = exprReadyForSolver h e
 exprReadyForSolver h (Var i) = E.isSymbolic (idName i) h && T.isPrimType (typeOf i)
@@ -300,7 +310,12 @@ verifyLoop solver ns states prev b config | not (null states) = do
   let ng = name_gen b'
       (fresh_name, ng') = freshName ng
       b'' = b' { name_gen = ng' }
-      vl (sh1, sh2) = tryDischarge solver ns fresh_name sh1 sh2 prev
+      simplify dr = do
+        dr' <- dr
+        case bad_states dr' of
+          Nothing -> return $ Just $ unfinished dr'
+          Just _ -> return Nothing
+      vl (sh1, sh2) = simplify $ tryDischarge solver ns fresh_name sh1 sh2 prev
   -- TODO printing
   putStrLn "<Loop Iteration>"
   -- for every internal list, map with its corresponding original state
@@ -442,7 +457,7 @@ exprTrace sh1 sh2 =
   in concat $ map s_pair e_hist
 
 addDischarge :: StateET -> StateH -> StateH
-addDischarge s sh = sh { discarge = Just s }
+addDischarge s sh = sh { discharge = Just s }
 
 addInduction :: StateET -> StateH -> StateH
 addInduction s sh =
@@ -458,7 +473,7 @@ tryDischarge :: S.Solver solver =>
                 StateH ->
                 StateH ->
                 [(StateH, StateH)] ->
-                IO (Maybe [(StateH, StateH)])
+                IO DischargeResult
 tryDischarge solver ns fresh_name sh1 sh2 prev =
   let s1 = latest sh1
       s2 = latest sh2
@@ -470,7 +485,10 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
       putStrLn $ show $ exprExtract s1
       putStrLn $ show $ exprExtract s2
       mapM putStrLn $ exprTrace sh1 sh2
-      return Nothing
+      -- TODO what to return here?
+      -- all left unfinished, nothing resolved
+      -- bad_states are the ones right here
+      return $ DischargeResult [] [] (Just [(s1, s2)])
     Just obs -> do
       putStrLn "J!"
       putStrLn $ mkExprHaskell $ exprExtract s1
@@ -481,6 +499,16 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
           states_c = map (stateWrap s1 s2) obs_c
       -- TODO redundant computation
       discharges <- mapM (moreRestrictivePair solver ns prev') states_c
+      -- get the states and histories for the successful discharges
+      -- will need to fill in the discharge field
+      -- also need to pair them up with the original states?
+      -- there's only one original state pair
+      let discharges' = [(d, sp) | (Just d, sp) <- zip discharges states_c]
+          matches1 = [(d1, s1_) | ((d1, _), (s1_, _)) <- discharges']
+          matches1' = map (\(d1, s1_) -> addDischarge d1 $ replaceH sh1 s1_) matches1
+          matches2 = [(d2, s2_) | ((_, d2), (_, s2_)) <- discharges']
+          matches2' = map (\(d2, s2_) -> addDischarge d2 $ replaceH sh2 s2_) matches2
+          matches = zip matches1' matches2'
       states_c' <- filterM (isNothingM . (moreRestrictivePair solver ns prev')) states_c
 
       let states_i = map (stateWrap s1 s2) obs_i
@@ -492,13 +520,20 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
           not_ready' = not_ready ++ states_i'
           ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
           not_ready_h = map (\(n1, n2) -> (replaceH sh1 n1, replaceH sh2 n2)) not_ready'
+          -- TODO what debug information do I give for these?
+          -- let the "discharge" state be the current state itself?
+          -- I think that's good enough for now
+          ready_solved = map
+                        (\(n1, n2) -> (addDischarge n1 $ replaceH sh1 n1, addDischarge n2 $ replaceH sh2 n2))
+                        ready
       res <- checkObligations solver s1 s2 ready_exprs
       case res of
         S.UNSAT () -> putStrLn "V?"
         _ -> putStrLn "X?"
       case res of
-        S.UNSAT () -> return $ Just (not_ready_h)
-        _ -> return Nothing
+        -- TODO discharged exprs should come from filter and solver
+        S.UNSAT () -> return $ DischargeResult not_ready_h (matches ++ ready_solved) Nothing
+        _ -> return $ DischargeResult not_ready_h (matches ++ ready_solved) (Just ready)
 
 -- The induction function isn't a filter; it converts state pairs
 -- if induction can't be applied, just return the input
