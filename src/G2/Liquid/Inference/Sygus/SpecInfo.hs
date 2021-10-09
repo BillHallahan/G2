@@ -444,6 +444,7 @@ elimSyArgs' si = si { s_syn_pre = map (mapPB elimSyArgs'') (s_syn_pre si)
 elimSyArgs'' :: SynthSpec -> SynthSpec
 elimSyArgs'' sy | take 4 (sy_name sy) == "loop" = sy { sy_args = [] }
 elimSyArgs'' sy | take 5 (sy_name sy) == "while" = sy { sy_args = [] }
+elimSyArgs'' sy | take 5 (sy_name sy) == "breakWhile" = sy { sy_args = [] }
 elimSyArgs'' sy = sy
 
 conflateLoopNames ::  M.Map a SpecInfo -> M.Map a SpecInfo

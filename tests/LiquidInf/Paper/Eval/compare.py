@@ -22,8 +22,8 @@ def main():
     (log_compare, safe_compare, num_compare) = eval.test_pos_folder("tests/LiquidInf/Paper/Eval/Compare", "240", []);
     print(str(safe_compare) + "/" + str(num_compare) + " Safe");
 
-    create_table(log_compare)
-    create_simple_table(log_compare)
+    eval.create_table(log_compare)
+    eval.create_simple_table(log_compare)
 
 if __name__ == "__main__":
     main()
