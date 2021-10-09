@@ -59,12 +59,13 @@ data StateH = StateH {
     latest :: StateET
   , history :: [StateET]
   , inductions :: [IndMarker]
-  , discharge :: Maybe (StateET, StateET)
+  , discharge :: Maybe StateET
 }
 
+-- remember this is for only one side
 data IndMarker = IndMarker {
-    old_pair :: (StateET, StateET)
-  , current_pair :: (StateET, StateET)
+    old_state :: StateET
+  , current_state :: StateET
 }
 
 exprReadyForSolver :: ExprEnv -> Expr -> Bool
@@ -299,7 +300,7 @@ verifyLoop solver ns states prev b config | not (null states) = do
   let ng = name_gen b'
       (fresh_name, ng') = freshName ng
       b'' = b' { name_gen = ng' }
-      vl (sh1, sh2) = verifyLoop' solver ns fresh_name sh1 sh2 prev
+      vl (sh1, sh2) = tryDischarge solver ns fresh_name sh1 sh2 prev
   -- TODO printing
   putStrLn "<Loop Iteration>"
   -- for every internal list, map with its corresponding original state
@@ -437,20 +438,28 @@ exprHistory sh1 sh2 =
 exprTrace :: StateH -> StateH -> [String]
 exprTrace sh1 sh2 =
   let e_hist = exprHistory sh1 sh2
-      s_pair (e1, e2) = [mkExprHaskell e1, mkExprHaskell e2, "******"]
+      s_pair (e1, e2) = [mkExprHaskell e1, mkExprHaskell e2, "------"]
   in concat $ map s_pair e_hist
 
+addDischarge :: StateET -> StateH -> StateH
+addDischarge s sh = sh { discarge = Just s }
+
+addInduction :: StateET -> StateH -> StateH
+addInduction s sh =
+  let im = IndMarker s (latest sh)
+  in sh { inductions = im:(inductions sh) }
+
 -- TODO printing
--- TODO verifier gets stuck on forceIdempotent now
-verifyLoop' :: S.Solver solver =>
-               solver ->
-               HS.HashSet Name ->
-               Name ->
-               StateH ->
-               StateH ->
-               [(StateH, StateH)] ->
-               IO (Maybe [(StateH, StateH)])
-verifyLoop' solver ns fresh_name sh1 sh2 prev =
+-- TODO also give some meaningful output in the event of failure
+tryDischarge :: S.Solver solver =>
+                solver ->
+                HS.HashSet Name ->
+                Name ->
+                StateH ->
+                StateH ->
+                [(StateH, StateH)] ->
+                IO (Maybe [(StateH, StateH)])
+tryDischarge solver ns fresh_name sh1 sh2 prev =
   let s1 = latest sh1
       s2 = latest sh2
   in
@@ -470,6 +479,8 @@ verifyLoop' solver ns fresh_name sh1 sh2 prev =
       let prev' = concat $ map prevFiltered prev
           (obs_i, obs_c) = partition canUseInduction obs
           states_c = map (stateWrap s1 s2) obs_c
+      -- TODO redundant computation
+      discharges <- mapM (moreRestrictivePair solver ns prev') states_c
       states_c' <- filterM (isNothingM . (moreRestrictivePair solver ns prev')) states_c
 
       let states_i = map (stateWrap s1 s2) obs_i
@@ -489,12 +500,9 @@ verifyLoop' solver ns fresh_name sh1 sh2 prev =
         S.UNSAT () -> return $ Just (not_ready_h)
         _ -> return Nothing
 
--- TODO new induction function; the old one is unsound
--- This one isn't a filter; it converts state pairs
+-- The induction function isn't a filter; it converts state pairs
 -- if induction can't be applied, just return the input
--- TODO also need to return modified Bindings if the state pair changed
 -- TODO optimization:  only need one fresh name per loop iteration
--- I could take care of the Bindings outside this
 -- TODO (9/27) check path constraint implication?
 -- TODO (9/30) alternate:  just substitute one scrutinee for the other
 -- put a non-symbolic variable there?
@@ -508,27 +516,11 @@ induction :: S.Solver solver =>
 induction solver ns fresh_name prev (s1, s2) = do
   let s1' = inductionState s1
       s2' = inductionState s2
-      --prev' = filter statePairInduction prev
-      --prev'' = map (\(p1, p2) -> (inductionState p1, inductionState p2)) prev'
-      -- TODO don't use the scrutinees of the old state pairs
-      {-
-      prev' = prev
-      prev'' = prev'
-      hm_maybe_list = map (indHelper ns (Just (HM.empty, HS.empty)) (s1', s2')) prev''
-      hm_maybe_zipped = zip hm_maybe_list prev'
-      -- ignore the combinations that didn't work
-      -- TODO ignoring extra obligations here; is that a problem?
-      -- TODO modify the code to discard ones with extra obligations
-      hm_maybe_zipped' = [(hm, p) | (Just (hm, hs), p) <- hm_maybe_zipped, HS.null hs]
-      -- here's the part where things become different
-      -- in the new expr pair, replace the scrutinees with a new symbolic var
-      -}
-  -- TODO just use moreRestrictivePair
   res_ <- moreRestrictivePair solver ns prev (s1', s2')
   let res = isJust res_
-  -- TODO different approach:  substitution and partial generalization
-  -- TODO adjust expr env of the one where the substitution happens
-  let e1' = exprExtract s1'
+      -- TODO different approach:  substitution and partial generalization
+      -- TODO adjust expr env of the one where the substitution happens
+      e1' = exprExtract s1'
       e2' = exprExtract s2'
       e1 = exprExtract s1
       e2 = exprExtract s2
@@ -539,35 +531,8 @@ induction solver ns fresh_name prev (s1, s2) = do
       e2'' = addStackTickIfNeeded $ substScrutinee e1' e2
       s2'' = s2 { expr_env = h2', curr_expr = CurrExpr Evaluate e2'' }
       -- TODO look for common sub-exps in the scrutinees?
-  -- TODO are s1 and s2 right states to use?
-  -- TODO check different obligations individually
-  --res <- checkObligations solver s1 s2 obs'
-  {-
-  let fresh_id = Id fresh_name (typeOf $ exprExtract s1')
-      -- TODO create new Id around the Name
-      -- need the types of the scrutinees
-      -- TODO I presume I use the same name and id
-      h1 = expr_env s1'
-      h1' = E.insertSymbolic fresh_name fresh_id h1
-      e1 = exprExtract s1
-      e1' = addStackTickIfNeeded $ newScrutinee fresh_id e1
-      s1'' = s1 { expr_env = h1', curr_expr = CurrExpr Evaluate e1' }
-      h2 = expr_env s2'
-      h2' = E.insertSymbolic fresh_name fresh_id h2
-      e2 = exprExtract s2
-      e2' = addStackTickIfNeeded $ newScrutinee fresh_id e2
-      s2'' = s2 { expr_env = h2', curr_expr = CurrExpr Evaluate e2' }
-  -}
   -- TODO reaching this conditional but always taking the F branch
   return $ if trace ("III " ++ show res) res then (s1, s2'') {-(s1'', s2'')-} else (s1, s2)
-  {-
-  if not res
-  then return (s1, s2)
-  else -- trace (mkExprHaskell e1) $ trace (mkExprHaskell e2) $ (s1'', s2'')
-       trace (mkExprHaskell $ exprExtract $ fst $ snd $ head hm_maybe_zipped') $
-       trace (mkExprHaskell $ exprExtract $ snd $ snd $ head hm_maybe_zipped') $
-       return (s1'', s2'')
-  -}
 
 getObligations :: HS.HashSet Name ->
                   State t ->
@@ -723,7 +688,6 @@ checkRule config init_state bindings total finite rule = do
 -- repeated inlinings of a variable are allowed as long as the expression on
 -- the opposite side is not the same as it was when a previous inlining of the
 -- same variable happened.
--- TODO not getting stuck in here
 moreRestrictive :: State t ->
                    State t ->
                    HS.HashSet Name ->
@@ -981,19 +945,10 @@ moreRestrictivePair solver ns prev (s1, s2) = do
       getObs m = case m of
         Nothing -> HS.empty
         Just (_, hs) -> hs
-      --getConcretizations m = case m of
-      --  Nothing -> HM.empty
-      --  Just (hm, _) -> hm
       maybe_pairs = map mr prev
       obs_sets = map getObs maybe_pairs
-      --conc_sets = map getConcretizations maybe_pairs
-      --obs = foldr HS.union HS.empty obs_sets
-      -- TODO (9/27) I don't use conc_obs for anything now
-      -- by extension, I don't use conc_sets for anything
-      --conc_obs = map concObligation conc_sets
       h1 = expr_env s1
       h2 = expr_env s2
-      --obs' = HS.filter (\(e1, e2) -> rfs h1 e1 && rfs h2 e2) obs
       obs_sets' = map (HS.filter (\(e1, e2) -> rfs h1 e1 && rfs h2 e2)) obs_sets
       no_loss = map (\(hs1, hs2) -> HS.size hs1 == HS.size hs2) (zip obs_sets obs_sets')
       mpc m = case m of
@@ -1001,22 +956,14 @@ moreRestrictivePair solver ns prev (s1, s2) = do
           andM (moreRestrictivePC solver s_old1 s1 hm) (moreRestrictivePC solver s_old2 s2 hm)
         _ -> return False
       bools = map mpc (zip maybe_pairs prev)
-  -- TODO (9/27) why do I check all obligations in a group here?
-  -- should I be checking them individually?
-  --res <- checkObligations solver s1 s2 obs'
-  --bools' <- filterM (\x -> x) bools
+  -- check obligations individually rather than as one big group
   res_list <- mapM (checkObligations solver s1 s2) obs_sets'
   bools' <- mapM id bools
   -- need res_list, no_loss, and bools all aligning at a point
   let all_three thr = case thr of
         ((S.UNSAT (), _), (True, True)) -> True
         _ -> False
-  -- TODO all three lists should be the same length
-  --return $ not $ null $
+  -- TODO all four lists should be the same length
   case filter all_three $ zip (zip res_list prev) $ zip no_loss bools' of
     [] -> return Nothing
     ((_, prev_pair), _):_ -> return $ Just prev_pair
-  -- TODO HashSet doesn't have a "forall" function?
-  --case (HS.size obs == HS.size obs', res) of
-  --  (True, S.UNSAT ()) -> return (not $ null bools')
-  --  _ -> return False
