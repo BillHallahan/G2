@@ -165,3 +165,15 @@ infInt = [1..]
 "infiniteInts" len infInt = lenDouble infInt
 "onlyOnes" makeCycle 1 = cyclic
   #-}
+
+-- TODO not valid because it doesn't use bang patterns
+simpleForce :: [a] -> [a]
+simpleForce zs = case zs of
+  [] -> []
+  x:xs -> case simpleForce xs of
+    [] -> x:[]
+    x':xs' -> x:x':xs'
+
+{-# RULES
+"sf" forall (xs :: [Int]) . simpleForce (simpleForce xs) = simpleForce xs
+  #-}

@@ -429,8 +429,12 @@ substScrutinee e _ = e
 
 -- TODO new rule:  removal of singleton Case statements
 -- convert them into Let statements
+-- TODO if there's only one constructor, that should count too
+-- likewise, if there's only one literal value, that should work
+-- that's a really uncommon case, though
 isSingleton :: Expr -> Bool
 isSingleton (Case _ _ [Alt Default _]) = True
+isSingleton (Case e _ [Alt (DataAlt _ _) _]) = error "TODO"
 isSingleton _ = False
 
 elimSingleton :: Expr -> Expr
@@ -520,7 +524,7 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
       let prev' = concat $ map prevFiltered prev
           (obs_i, obs_c) = partition canUseInduction obs
           -- TODO not sure if this will ever apply to these
-          states_c = map elimSingletonPair $ map (stateWrap s1 s2) obs_c
+          states_c = map (stateWrap s1 s2) obs_c
       -- TODO redundant computation
       discharges <- mapM (moreRestrictivePair solver ns prev') states_c
       -- get the states and histories for the successful discharges
@@ -535,8 +539,7 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
           matches = zip matches1' matches2'
       states_c' <- filterM (isNothingM . (moreRestrictivePair solver ns prev')) states_c
 
-      -- TODO this might cause problems with eligibility for induction
-      let states_i = map elimSingletonPair $ map (stateWrap s1 s2) obs_i
+      let states_i = map (stateWrap s1 s2) obs_i
       -- TODO need a way to get the prev pair used for induction
       states_i' <- mapM (induction solver ns fresh_name prev') states_i
 
@@ -592,7 +595,11 @@ induction solver ns fresh_name prev (s1, s2) = do
       s2'' = s2 { expr_env = h2', curr_expr = CurrExpr Evaluate e2'' }
       -- TODO look for common sub-exps in the scrutinees?
   -- TODO reaching this conditional but always taking the F branch
-  return $ if trace ("III " ++ show res) res then (s1, s2'') {-(s1'', s2'')-} else (s1, s2)
+  return $
+    if trace ("III " ++ show res) res
+    then (s1, s2'') {-(s1'', s2'')-}
+    -- TODO this might be a better place to use the function
+    else elimSingletonPair (s1, s2)
 
 getObligations :: HS.HashSet Name ->
                   State t ->
