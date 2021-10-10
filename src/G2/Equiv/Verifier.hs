@@ -427,6 +427,29 @@ substScrutinee e (Case e' i a) = Case (substScrutinee e e') i a
 substScrutinee e (Tick nl e') = Tick nl $ substScrutinee e e'
 substScrutinee e _ = e
 
+-- TODO new rule:  removal of singleton Case statements
+-- convert them into Let statements
+isSingleton :: Expr -> Bool
+isSingleton (Case _ _ [Alt Default _]) = True
+isSingleton _ = False
+
+elimSingleton :: Expr -> Expr
+elimSingleton (Case e i [Alt Default e']) = Let [(i, e)] e'
+elimSingleton _ = error "Improper Format"
+
+elimSingletonPair :: (StateET, StateET) -> (StateET, StateET)
+elimSingletonPair (s1, s2) =
+  let e1 = exprExtract s1
+      e1' = elimSingleton e1
+      s1' = s1 { curr_expr = CurrExpr Evaluate e1' }
+      e2 = exprExtract s2
+      e2' = elimSingleton e2
+      s2' = s2 { curr_expr = CurrExpr Evaluate e2' }
+  in
+  if isSingleton e1 && isSingleton e2
+  then trace ("ELIM " ++ show (e1 == e2)) (s1', s2')
+  else (s1, s2)
+
 notM :: IO Bool -> IO Bool
 notM b = do
   b' <- b
@@ -496,7 +519,8 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
 
       let prev' = concat $ map prevFiltered prev
           (obs_i, obs_c) = partition canUseInduction obs
-          states_c = map (stateWrap s1 s2) obs_c
+          -- TODO not sure if this will ever apply to these
+          states_c = map elimSingletonPair $ map (stateWrap s1 s2) obs_c
       -- TODO redundant computation
       discharges <- mapM (moreRestrictivePair solver ns prev') states_c
       -- get the states and histories for the successful discharges
@@ -511,7 +535,8 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
           matches = zip matches1' matches2'
       states_c' <- filterM (isNothingM . (moreRestrictivePair solver ns prev')) states_c
 
-      let states_i = map (stateWrap s1 s2) obs_i
+      -- TODO this might cause problems with eligibility for induction
+      let states_i = map elimSingletonPair $ map (stateWrap s1 s2) obs_i
       -- TODO need a way to get the prev pair used for induction
       states_i' <- mapM (induction solver ns fresh_name prev') states_i
 
