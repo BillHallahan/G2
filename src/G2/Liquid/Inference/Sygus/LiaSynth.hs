@@ -601,10 +601,12 @@ checkModelIsNewFunc' con si mdl1 mdl2 = do
 
 defineModelLIAFuns :: SMTModel -> SpecInfo -> [SMTHeader]
 defineModelLIAFuns mdl si =
+    let
+        fs = L.nubBy (\si1 si2 -> sy_name si1 == sy_name si2)
+           $ (extractValues $ s_syn_post si) ++ (concatMap extractValues $ s_syn_pre si)
+    in
     if s_status si == Synth
-        then 
-               map (defineModelLIAFuncSF mdl) (extractValues $ s_syn_post si)
-            ++ map (defineModelLIAFuncSF mdl) (concatMap extractValues $ s_syn_pre si)
+        then map (defineModelLIAFuncSF mdl) fs
         else []
 
 defineModelLIAFuncSF :: SMTModel -> SynthSpec -> SMTHeader
