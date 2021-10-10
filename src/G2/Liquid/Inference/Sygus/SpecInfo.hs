@@ -232,7 +232,7 @@ buildSpecInfo eenv tenv tc meas ghci fc to_be_ns ns_synth = do
         s <- buildSI tenv tc meas Known ghci n at rt
         return $ M.insert n s m) si' known_ns_aty_rty
 
-    let si''' = conflateLoopNames . elimSyArgs . elimPolyArgSpecs $ si''
+    let si''' = conflateLoopNames . elimSyArgs {- . elimPolyArgSpecs -} $ si''
 
     return si'''
     where
@@ -452,11 +452,16 @@ conflateLoopNames = M.map conflateLoopNames'
 
 conflateLoopNames' :: SpecInfo -> SpecInfo
 conflateLoopNames' si@(SI { s_syn_pre = pb_sy_pre@(_:_)
-                          , s_syn_post = PolyBound sy_post [] })
-    | PolyBound sy_pre [] <- last pb_sy_pre
-    , take 4 (sy_name sy_post) == "loop" =
-        si { s_syn_pre = init pb_sy_pre ++ [PolyBound (sy_pre { sy_name = sy_name sy_post }) []] }
+                          , s_syn_post = pb_post@(PolyBound sy_post ps) })
+    | take 4 (sy_name sy_post) == "loop" =
+        let
+            pb_pre = last pb_sy_pre
+        in
+        si { s_syn_pre = init pb_sy_pre ++ [conflateLoopNames'' pb_pre pb_post] }
 conflateLoopNames' si = si
+
+conflateLoopNames'' :: PolyBound SynthSpec -> PolyBound SynthSpec -> PolyBound SynthSpec
+conflateLoopNames'' pb1 = mapPB (\(sy1, sy2) -> sy1 { sy_name = sy_name sy2} ) . zipPB pb1
 
 ----------------------------------------------------------------------------
 
