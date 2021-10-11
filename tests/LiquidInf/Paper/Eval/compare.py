@@ -22,9 +22,6 @@ def main():
     (log_compare, safe_compare, num_compare) = eval.test_pos_folder("tests/LiquidInf/Paper/Eval/Compare", "360", []);
     print(str(safe_compare) + "/" + str(num_compare) + " Safe");
 
-    (log_compare_res, safe_compare_res, num_compare_res) = eval.test_pos_folder("tests/LiquidInf/Paper/Eval/Compare", "360", ["--restrict-coeffs"]);
-    print(str(safe_compare_res) + "/" + str(num_compare_res) + " Safe");
-
     eval.create_table(log_compare)
     eval.create_simple_table(log_compare)
 

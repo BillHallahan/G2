@@ -8,15 +8,15 @@ data List a = Cons a (List a) | Nil
 main :: List Bool -> Int -> Bool
 main xs m | m <= 0 = True
           | otherwise = 
-                    case while xs (0, 1, m) of
-                        (a', j', m') -> a' >= -m' && a' <= m'
+                    case while xs m (0, 1) of
+                        (a', j') -> a' >= -m && a' <= m
 
-while :: List Bool -> (Int, Int, Int) -> (Int, Int, Int)
-while xs (a, j, m) =
-    if j <= m then while (listTail xs) (if isTrueCons xs
-                                            then (a + 1, j + 1, m)
-                                            else (a - 1, j + 1, m))
-              else (a, j, m)
+while :: List Bool -> Int -> (Int, Int) -> (Int, Int)
+while xs m (a, j) =
+    if j <= m then while (listTail xs) m (if isTrueCons xs
+                                            then (a + 1, j + 1)
+                                            else (a - 1, j + 1))
+              else (a, j)
 
 isCons :: List a -> Bool
 isCons (Cons _ _) = True

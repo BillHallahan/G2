@@ -31,7 +31,11 @@ while3 pred body x = if pred x then while3 pred body (body x) else x
 cond2 :: Int -> (Int, Int) -> Bool
 cond2 m (i, j) = j < m
 
-{-@ loop2 :: Int -> Int -> Int -> (Int, Int) -> (Int, Int) @-}
+{-@ loop2 :: Int
+          -> Int
+          -> n:Int
+          -> t:{ t:(Int, Int) | snd t >= 0 && n + snd t + 5 > fst t }
+          -> { t:(Int, Int) | snd t >= 0 && n + snd t + 5 > fst t } @-}
 loop2 :: Int -> Int -> Int -> (Int, Int) -> (Int, Int)
 loop2 b m n (i, j) =
     if b >= 0 
