@@ -17,7 +17,9 @@ while xs pred body x = if pred xs x then while (peanoTail xs) pred body (body x)
 cond1 :: Peano -> (Int, Int) -> Bool
 cond1 xs (i, j) = isSucc xs
 
-{-@ loop1 :: Int -> (Int, Int) -> (Int, Int) @-}
+{-@ loop1 :: flag:Int
+		  -> t:{ t:({ i:Int | flag == 1 => i mod 2 == 0 }, Int) | flag == 1 => fst t + 1 == snd t }
+		  -> { t:({ i:Int | flag == 1 => i mod 2 == 0 }, Int) | flag == 1 => fst t + 1 == snd t } @-}
 loop1 :: Int -> (Int, Int) -> (Int, Int)
 loop1 flag (i, j) = (i + 2, if (i + 2) `mod` 2 == 0 then j + 2 else j + 1)
 
@@ -25,7 +27,11 @@ loop1 flag (i, j) = (i + 2, if (i + 2) `mod` 2 == 0 then j + 2 else j + 1)
 cond2 :: Peano -> (Int, Int) -> Bool
 cond2 xs (a, b) = isSucc xs
 
-{-@ loop2 :: Int -> Int -> Int -> (Int, Int) -> (Int, Int) @-}
+{-@ loop2 :: flag:Int
+		  -> i:Int
+		  -> { j:Int | flag == 1 => j - i == 1 }
+		  -> t:{ t:(Int, Int) | flag == 1 => fst t == snd t }
+		  ->{ t:(Int, Int) | flag == 1 => fst t == snd t } @-}
 loop2 :: Int -> Int -> Int -> (Int, Int) -> (Int, Int)
 loop2 flag i j (a, b) = (a + 1, b + j - i)
 
