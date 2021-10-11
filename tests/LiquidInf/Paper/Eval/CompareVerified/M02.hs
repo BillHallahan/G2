@@ -17,7 +17,10 @@ while ys pred body x = if pred ys x then while (peanoTail ys) pred body (body x)
 cond :: Peano -> (Int, Int, Int, Int) -> Bool
 cond ys _ = isSucc ys
 
-{-@ loop :: (Int, Int, Int, Int) -> (Int, Int, Int, Int) @-}
+{-@ loop :: t:{ t:(Int, Int, Int, Int) | (x_Tuple41 t) mod 2 == 1 && (x_Tuple44 t) mod 2 == 0
+                                       && x_Tuple42 t == x_Tuple43 t }
+		 -> { t:(Int, Int, Int, Int) | (x_Tuple41 t) mod 2 == 1 && (x_Tuple44 t) mod 2 == 0
+                                       && x_Tuple42 t == x_Tuple43 t } @-}
 loop :: (Int, Int, Int, Int) -> (Int, Int, Int, Int)
 loop (z, x, y, w) =
     ( z + x + y + w

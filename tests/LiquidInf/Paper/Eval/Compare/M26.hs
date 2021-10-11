@@ -28,27 +28,28 @@ cond1 xs (w, z, x, y) = isCons xs
 
 {-@ loop1 :: List Bool -> List Bool -> (Int, Int, Int, Int) -> (Int, Int, Int, Int) @-}
 loop1 :: List Bool -> List Bool -> (Int, Int, Int, Int) -> (Int, Int, Int, Int)
-loop1 ys zs wzxy =
+loop1 ys zs (w, z, x, y) =
     let
-        wzxy' = while2 ys cond2 loop2 wzxy
+        (x', y') = while2 ys cond2 (loop2 w z) (x, y)
+        (w', z') = while2 zs cond3 (loop3 x' y') (w, z)
     in
-    while2 zs cond3 loop3 wzxy'
+    (w', z', x', y')
 
-{-@ cond2 :: List Bool -> (Int, Int, Int, Int) -> Bool @-}
-cond2 :: List Bool -> (Int, Int, Int, Int) -> Bool
-cond2 xs (w, z, x, y) = isCons xs
+{-@ cond2 :: List Bool -> (Int, Int) -> Bool @-}
+cond2 :: List Bool -> (Int, Int) -> Bool
+cond2 xs (x, y) = isCons xs
 
-{-@ loop2 :: (Int, Int, Int, Int) -> (Int, Int, Int, Int) @-}
-loop2 :: (Int, Int, Int, Int) -> (Int, Int, Int, Int)
-loop2 (w, z, x, y) = (w, z, if w `mod` 2 == 1 then x + 1 else x, if z `mod` 2 == 0 then y + 1 else y)
+{-@ loop2 :: Int -> Int -> (Int, Int) -> (Int, Int) @-}
+loop2 :: Int -> Int -> (Int, Int) -> (Int, Int)
+loop2 w z (x, y) = (if w `mod` 2 == 1 then x + 1 else x, if z `mod` 2 == 0 then y + 1 else y)
 
-{-@ cond3 :: List Bool -> (Int, Int, Int, Int) -> Bool @-}
-cond3 :: List Bool -> (Int, Int, Int, Int) -> Bool
-cond3 xs (w, z, x, y) = isCons xs
+{-@ cond3 :: List Bool -> (Int, Int) -> Bool @-}
+cond3 :: List Bool -> (Int, Int) -> Bool
+cond3 xs (w, z) = isCons xs
 
-{-@ loop3 :: (Int, Int, Int, Int) -> (Int, Int, Int, Int) @-}
-loop3 :: (Int, Int, Int, Int) -> (Int, Int, Int, Int)
-loop3 (w, z, x, y) = (x + y + 1, x + y, x, y)
+{-@ loop3 :: Int -> Int -> (Int, Int) -> (Int, Int) @-}
+loop3 :: Int -> Int -> (Int, Int) -> (Int, Int)
+loop3 x y (w, z) = (x + y + 1, x + y)
 
 isCons :: List a -> Bool
 isCons (Cons _ _) = True

@@ -11,6 +11,9 @@ main n poss_k flag =
     case while n k (0, 0) of
         (i', j') -> k + i' + j' > 2 * n
 
-{-@ while :: Int -> Int -> (Int, Int) -> (Int, Int) @-}
+{-@ while :: n:Int
+          -> k:Int
+          -> t:{ t:(Int, Int) | fst t >= 0 && fst t <= snd t }
+          -> { t:(Int, Int) | fst t > n && fst t <= snd t } @-}
 while :: Int -> Int -> (Int, Int) -> (Int, Int)
 while n k (i, j) = if i <= n then while n k (i + 1, j + i + 1) else (i, j)
