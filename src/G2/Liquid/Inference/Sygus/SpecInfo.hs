@@ -232,7 +232,11 @@ buildSpecInfo eenv tenv tc meas ghci fc to_be_ns ns_synth = do
         s <- buildSI tenv tc meas Known ghci n at rt
         return $ M.insert n s m) si' known_ns_aty_rty
 
-    let si''' = conflateLoopNames . elimSyArgs {- . elimPolyArgSpecs -} $ si''
+    inf_config <- infConfigM
+
+    let si''' = if use_invs inf_config
+                    then conflateLoopNames . elimSyArgs $ si''
+                    else si''
 
     return si'''
     where
