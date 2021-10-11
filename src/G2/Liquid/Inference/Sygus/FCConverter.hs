@@ -62,7 +62,7 @@ mkPreCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_si
                     (\(si_pb, ts_es) ->
                         let
                             t_ars = init ts_es
-                            smt_ars = concat $ map (uncurry (adjustArgs convExpr (fromInteger mx_meas) tenv meas meas_ex)) t_ars
+                            smt_ars = concat $ map (uncurry (adjustArgsWithCare n convExpr (fromInteger mx_meas) tenv meas meas_ex)) t_ars
 
                             (l_rt, l_re) = last ts_es
                             re_pb = extractExprPolyBoundWithRoot l_re
@@ -116,7 +116,7 @@ mkPostCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_s
         MaxSize mx_meas <- maxSynthSizeM
         let func_ts = argumentTypes func_e
 
-            smt_ars = concatMap (uncurry (adjustArgs convExpr (fromInteger mx_meas) tenv meas meas_ex))
+            smt_ars = concatMap (uncurry (adjustArgsWithCare n convExpr (fromInteger mx_meas) tenv meas meas_ex))
                     . filter (\(t, _) -> not (isTyFun t) && not (isTyVar t))
                     . filter (validArgForSMT . snd) $ zip func_ts ars
 
@@ -234,6 +234,14 @@ substMeasures mx_meas tenv meas meas_ex t e =
                     -- Sort to make sure we get the same order consistently
                     map snd $ L.sortBy (\(n1, _) (n2, _) -> compare n1 n2) es''
                 Nothing -> []
+
+adjustArgsWithCare :: Name -> ConvertExpr form -> Int -> TypeEnv -> Measures -> MeasureExs -> Type -> G2.Expr -> [form]
+adjustArgsWithCare n convExpr mx_meas tenv meas meas_ex t
+    | specialFunction n =
+          map convExpr
+        . map adjustLits
+        . (\e -> case typeToSort t of Just _ -> [e]; Nothing -> [])
+    | otherwise = adjustArgs convExpr mx_meas tenv meas meas_ex t
 
 adjustLits :: G2.Expr -> G2.Expr
 adjustLits (App _ l@(Lit _)) = l

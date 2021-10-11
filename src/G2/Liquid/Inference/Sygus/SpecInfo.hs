@@ -434,18 +434,27 @@ elimPolyArgSpecs' :: SpecInfo -> SpecInfo
 elimPolyArgSpecs' si = si { s_syn_pre = map (\(PolyBound a _) -> PolyBound a []) (s_syn_pre si)
                           , s_syn_post = (\(PolyBound a _) -> PolyBound a []) (s_syn_post si)}
 
-elimSyArgs :: M.Map a SpecInfo -> M.Map a SpecInfo
-elimSyArgs = M.map elimSyArgs'
+elimSyArgs :: M.Map Name SpecInfo -> M.Map Name SpecInfo
+elimSyArgs = M.mapWithKey (\n si -> if specialFunction n then elimSyArgs' si else si)
 
 elimSyArgs' :: SpecInfo -> SpecInfo
-elimSyArgs' si = si { s_syn_pre = map (mapPB elimSyArgs'') (s_syn_pre si)
-                    , s_syn_post = mapPB elimSyArgs'' (s_syn_post si)}
+elimSyArgs' si = si { s_syn_pre = map (mapPB dropNonDirectInt) (s_syn_pre si)
+                    , s_syn_post = mapPB dropNonDirectInt (s_syn_post si)}
 
-elimSyArgs'' :: SynthSpec -> SynthSpec
-elimSyArgs'' sy | take 4 (sy_name sy) == "loop" = sy { sy_args = [] }
-elimSyArgs'' sy | take 5 (sy_name sy) == "while" = sy { sy_args = [] }
-elimSyArgs'' sy | take 5 (sy_name sy) == "breakWhile" = sy { sy_args = [] }
-elimSyArgs'' sy = sy
+dropNonDirectInt :: SynthSpec -> SynthSpec
+dropNonDirectInt sy = sy { sy_args = filter dropNonDirectInt' (sy_args sy) }
+
+dropNonDirectInt' :: SpecArg -> Bool
+dropNonDirectInt' sy =
+    case lh_rep sy of
+        EVar {} -> True
+        _ -> False
+
+specialFunction :: Name -> Bool
+specialFunction (Name n _ _ _) | T.take 4 n == "loop" = True
+                               | T.take 5 n == "while" = True
+                               | T.take 5 n == "breakWhile" = True
+                               | otherwise = False
 
 conflateLoopNames ::  M.Map a SpecInfo -> M.Map a SpecInfo
 conflateLoopNames = M.map conflateLoopNames'
