@@ -26,18 +26,18 @@ cond1 ys _ = isCons ys
 loop1 :: List Bool -> (Int, Int, Int, Int) -> (Int, Int, Int, Int)
 loop1 ys (w, z, x, y) =
     let
-        (w', z', x', y') = while2 ys cond2 loop2 (w, z, x, y)
+        (x', y') = while2 ys cond2 (loop2 w z) (x, y)
     in
     (x' + y' + 1, x' + y', x', y')
 
-{-@ cond2 :: List Bool -> (Int, Int, Int, Int) -> Bool @-}
-cond2 :: List Bool -> (Int, Int, Int, Int) -> Bool
+{-@ cond2 :: List Bool -> (Int, Int) -> Bool @-}
+cond2 :: List Bool -> (Int, Int) -> Bool
 cond2 ys _ = isCons ys
 
-{-@ loop2 :: (Int, Int, Int, Int) -> (Int, Int, Int, Int) @-}
-loop2 :: (Int, Int, Int, Int) -> (Int, Int, Int, Int)
-loop2 (w, z, x, y) =
-    (w, z, if w `mod` 2 == 1 then x + 1 else x, if z `mod` 2 == 0 then y + 1 else y)
+{-@ loop2 :: Int -> Int -> (Int, Int) -> (Int, Int) @-}
+loop2 :: Int -> Int -> (Int, Int) -> (Int, Int)
+loop2 w z (x, y) =
+    (if w `mod` 2 == 1 then x + 1 else x, if z `mod` 2 == 0 then y + 1 else y)
 
 isCons :: List a -> Bool
 isCons (Cons _ _) = True
