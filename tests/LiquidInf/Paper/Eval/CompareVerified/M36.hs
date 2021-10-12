@@ -22,7 +22,13 @@ while2 xs pred body x =
 cond1 :: List Bool -> (Int, Int, Int) -> Bool
 cond1 xs (k, w, z) = isCons xs
 
-{-@ loop1 :: List Bool -> (Int, Int, Int) -> (Int, Int, Int) @-}
+{-@ loop1 :: List Bool
+          -> t:{ t:( { k:Int | k >= 0 }, Int, Int)
+                   | x_Tuple32 t >= x_Tuple31 t + x_Tuple33 t
+               }
+          -> { t:( { k:Int | k >= 0 }, Int, Int)
+                   | x_Tuple32 t >= x_Tuple31 t + x_Tuple33 t
+               } @-}
 loop1 :: List Bool -> (Int, Int, Int) -> (Int, Int, Int)
 loop1 xs (k, w, z) =
     let
@@ -35,7 +41,9 @@ loop1 xs (k, w, z) =
     in
     (k', x' + y' + 1, z + 1)
 
-{-@ while :: Int -> (Int, Int) -> (Int, Int) @-}
+{-@ while :: j:Int
+          -> ({ k:Int | k >= 0 }, Int)
+          -> ({ k:Int | k >= 0 }, Int) @-}
 while :: Int -> (Int, Int) -> (Int, Int)
 while j (k, i) =
     if i < j then while j (k + 1, i + 1) else (k, i)
@@ -44,7 +52,10 @@ while j (k, i) =
 cond3 :: List Bool -> (Int, Int) -> Bool
 cond3 xs _ = isCons xs
 
-{-@ loop3 :: Int -> Int -> (Int, Int) -> (Int, Int) @-}
+{-@ loop3 :: k:Int
+          -> z:Int
+          -> t:{ t:(Int, Int) | ((fst t) mod 2 == 0 && fst t + snd t == k + z) }
+          -> t:{ t:(Int, Int) | ((fst t) mod 2 == 0 && fst t + snd t == k + z) } @-}
 loop3 :: Int -> Int -> (Int, Int) -> (Int, Int)
 loop3 k z (x, y) = if x `mod` 2 == 0 then (x + 2, y - 2) else (x - 1, y - 1)
 
@@ -52,7 +63,9 @@ loop3 k z (x, y) = if x `mod` 2 == 0 then (x + 2, y - 2) else (x - 1, y - 1)
 cond4 :: List Bool -> (Int, Int, Int, Int) -> Bool
 cond4 xs _ = isCons xs
 
-{-@ loop4 :: Int -> (Int, Int, Int, Int) -> (Int, Int, Int, Int) @-}
+{-@ loop4 :: Int
+          -> t:{ t:(Int, Int, Int, Int) | x_Tuple43 t == x_Tuple44 t && x_Tuple41 t - x_Tuple42 t == 0 }
+          -> { t:(Int, Int, Int, Int) | x_Tuple43 t == x_Tuple44 t && x_Tuple41 t - x_Tuple42 t == 0 } @-}
 loop4 :: Int -> (Int, Int, Int, Int) -> (Int, Int, Int, Int)
 loop4 flag (a, b, c, d) =
     (if flag >= 0 then a + 1 else a + c + 1, if flag >= 0 then b + 1 else b + d + 1, c + 1, d + 1)
