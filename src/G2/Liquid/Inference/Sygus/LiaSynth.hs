@@ -79,6 +79,8 @@ liaSynth con ghci lrs evals meas_ex fc blk_mdls to_be_ns ns_synth = do
 
     let meas = lrsMeasures ghci lrs
 
+    MaxSize max_sz <- maxSynthSizeM
+
     synth con ghci eenv tenv meas meas_ex evals si fc blk_mdls 1
 
 liaSynthOfSize :: (InfConfigM m, ProgresserM m) => Integer -> M.Map Name SpecInfo -> m (M.Map Name SpecInfo)
