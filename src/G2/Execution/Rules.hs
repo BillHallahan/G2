@@ -947,6 +947,58 @@ liftBind bindsLHS bindsRHS eenv expr ngen = (eenv', expr', ngen', new)
 
     eenv' = E.insert new bindsRHS eenv
 
+
+-- retReplaceSymbFunc' :: State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
+-- retReplaceSymbFunc' s@(State { expr_env = eenv
+--                             , known_values = kv
+--                             , type_classes = tc
+--                             , exec_stack = stck })
+--                    ng ce
+--     | (Var (Id f idt):_) <- unApp ce
+--     , E.isSymbolic f eenv
+--     , isTyFun idt
+--     = let
+--         t = typeOf ce
+--     in Just (RuleReturnReplaceSymbFunc, [], ng)
+--     | otherwise = Nothing
+                
+
+retReplaceSymbFunc' :: State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
+retReplaceSymbFunc' state@(State { expr_env = eenv
+                            , known_values = kv
+                            , type_classes = tc
+                            , exec_stack = stck })
+                   ng ce
+    | Var (Id s (TyFun t1@(TyFun _ _) t2)) <- ce
+    , E.isSymbolic s eenv
+    = let
+        (tfs, tr) = argTypes t1
+        (xIds, ng') = freshIds tfs ng
+        xs = map Var xIds
+        (fId, ng'') = freshId (TyFun tr $ TyFun t1 t2) ng'
+        f = Var fId
+        (fa, ng''') = freshId t1 ng''
+        e = Lam TermL fa $ mkApp [f, mkApp (Var fa : xs), Var fa]
+        eenv' = insertIds eenv xIds
+        eenv'' = E.insertSymbolic (idName fId) fId eenv'
+    in Just (RuleReturnReplaceSymbFunc, [state {
+        curr_expr = CurrExpr Return e,
+        symbolic_ids = xIds ++ (fId:symbolic_ids state),
+        expr_env = eenv''
+    }], ng''')
+    | otherwise = Nothing
+    where
+        argTypes :: Type -> ([Type], Type)
+        argTypes (TyFun t1 t2) = let (args, ret) = argTypes t2 in (t1 : args, ret)
+        argTypes t = ([], t)
+
+        insertIds :: ExprEnv -> [Id] -> ExprEnv
+        insertIds = foldr (\i eenv -> E.insertSymbolic (idName i) i eenv)
+        -- insertIds eenv [] = eenv
+        -- insertIds 
+
+
+
 -- If the expression is a symbolic higher order function application, replaces
 -- it with a symbolic variable of the correct type.
 -- A non reduced path constraint is added, to force solving for the symbolic
