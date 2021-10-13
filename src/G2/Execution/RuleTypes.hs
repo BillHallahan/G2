@@ -10,6 +10,8 @@ import G2.Language.AST
 import G2.Language.Naming
 import G2.Language.Syntax
 
+import qualified Data.Sequence as S
+
 data Rule = RuleEvalVal
           | RuleEvalVarNonVal Name
           | RuleEvalVarVal Name
@@ -80,5 +82,5 @@ instance AST e => ASTContainer Rule e where
     modifyContainedASTs _ r = r
 
 instance Named Rule where
-     names _ = []
+     names _ = S.empty
      rename _ _ = id

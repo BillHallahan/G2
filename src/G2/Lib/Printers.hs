@@ -248,7 +248,7 @@ ppCurrExpr :: State t -> String
 ppCurrExpr s@(State {curr_expr = CurrExpr _ e}) = mkUnsugaredExprHaskell s e
 
 ppPathConds :: State t -> String
-ppPathConds s@(State {path_conds = pc}) = intercalate "\n" $ PC.map (ppPathCond s) pc
+ppPathConds s@(State {path_conds = pc}) = intercalate "\n" $ PC.map' (ppPathCond s) pc
 
 ppPathCond :: State t -> PathCond -> String
 ppPathCond s (AltCond l e b) =
