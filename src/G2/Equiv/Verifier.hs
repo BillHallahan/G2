@@ -55,6 +55,7 @@ import G2.Lib.Printers
 -- wrap finite things in force functions
 -- The value of discharge should be the previously-encountered state pair that
 -- was used to discharge this branch, if the branch has been discharged.
+-- TODO requiring finiteness for forceIdempotent makes verifier get stuck
 data StateH = StateH {
     latest :: StateET
   , history :: [StateET]
@@ -432,13 +433,16 @@ substScrutinee e _ = e
 -- TODO if there's only one constructor, that should count too
 -- likewise, if there's only one literal value, that should work
 -- that's a really uncommon case, though
+-- TODO make it recursive?
 isSingleton :: Expr -> Bool
 isSingleton (Case _ _ [Alt Default _]) = True
-isSingleton (Case e _ [Alt (DataAlt _ _) _]) = error "TODO"
+isSingleton (Case e _ _) = isSingleton e
+--isSingleton (Case e _ [Alt (DataAlt _ _) _]) = error "TODO"
 isSingleton _ = False
 
 elimSingleton :: Expr -> Expr
 elimSingleton (Case e i [Alt Default e']) = Let [(i, e)] e'
+elimSingleton (Case e i a) = Case (elimSingleton e) i a
 elimSingleton _ = error "Improper Format"
 
 elimSingletonPair :: (StateET, StateET) -> (StateET, StateET)
@@ -451,7 +455,7 @@ elimSingletonPair (s1, s2) =
       s2' = s2 { curr_expr = CurrExpr Evaluate e2' }
   in
   if isSingleton e1 && isSingleton e2
-  then trace ("ELIM " ++ show (e1 == e2)) (s1', s2')
+  then trace ("ELIM " ++ show (mkExprHaskell e1', mkExprHaskell e2')) (s1', s2')
   else (s1, s2)
 
 notM :: IO Bool -> IO Bool
