@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Lib.Printers ( mkCleanExprHaskell
+module G2.Lib.Printers ( printHaskell
+                       , mkCleanExprHaskell
                        , mkUnsugaredExprHaskell
-                       , mkExprHaskell
                        , ppExprEnv
                        , ppRelExprEnv
                        , ppCurrExpr
@@ -39,6 +39,9 @@ mkNameHaskell = T.unpack . nameOcc
 mkUnsugaredExprHaskell :: State t -> Expr -> String
 mkUnsugaredExprHaskell (State {known_values = kv, type_classes = tc}) =
     mkExprHaskell . modifyFix (mkCleanExprHaskell' kv tc)
+
+printHaskell :: State t -> Expr -> String
+printHaskell = mkCleanExprHaskell
 
 mkCleanExprHaskell :: State t -> Expr -> String
 mkCleanExprHaskell (State {known_values = kv, type_classes = tc}) = 

@@ -598,11 +598,11 @@ pprint (v, r) = do
 
 printLHOut :: Lang.Id -> [ExecRes AbstractedInfo] -> IO ()
 printLHOut entry =
-    mapM_ (\s -> do printParsedLHOut s; putStrLn "") . map (parseLHOut entry)
+    mapM_ (\lhr -> do printParsedLHOut lhr; putStrLn "") . map (parseLHOut entry)
 
-printCE :: [CounterExample] -> IO ()
-printCE =
-    mapM_ (\s -> do printParsedLHOut s; putStrLn "") . map counterExampleToLHReturn
+printCE :: State t -> [CounterExample] -> IO ()
+printCE s =
+    mapM_ (\lhr -> do printParsedLHOut lhr; putStrLn "") . map (counterExampleToLHReturn s)
 
 printParsedLHOut :: LHReturn -> IO ()
 printParsedLHOut (LHReturn { calledFunc = FuncInfo {func = f, funcArgs = call, funcReturn = output}
@@ -659,20 +659,20 @@ parseLHOut entry (ExecRes { final_state = s
            , violating = viFunc
            , abstracted = abstr}
 
-counterExampleToLHReturn :: CounterExample -> LHReturn
-counterExampleToLHReturn (DirectCounter fc abstr) =
+counterExampleToLHReturn :: State t -> CounterExample -> LHReturn
+counterExampleToLHReturn s (DirectCounter fc abstr) =
     let
-        called = funcCallToFuncInfo (T.pack . mkExprHaskell) . abstract $ fc
-        abstr' = map (funcCallToFuncInfo (T.pack . mkExprHaskell) . abstract) abstr
+        called = funcCallToFuncInfo (T.pack . mkCleanExprHaskell s) . abstract $ fc
+        abstr' = map (funcCallToFuncInfo (T.pack . mkCleanExprHaskell s) . abstract) abstr
     in
     LHReturn { calledFunc = called
              , violating = Nothing
              , abstracted = abstr'}
-counterExampleToLHReturn (CallsCounter fc viol_fc abstr) =
+counterExampleToLHReturn s (CallsCounter fc viol_fc abstr) =
     let
-        called = funcCallToFuncInfo (T.pack . mkExprHaskell) . abstract $ fc
-        viol_called = funcCallToFuncInfo (T.pack . mkExprHaskell) . abstract $ viol_fc
-        abstr' = map (funcCallToFuncInfo (T.pack . mkExprHaskell) . abstract) abstr
+        called = funcCallToFuncInfo (T.pack . mkCleanExprHaskell s) . abstract $ fc
+        viol_called = funcCallToFuncInfo (T.pack . mkCleanExprHaskell s) . abstract $ viol_fc
+        abstr' = map (funcCallToFuncInfo (T.pack . mkCleanExprHaskell s) . abstract) abstr
     in
     LHReturn { calledFunc = called
              , violating = Just viol_called

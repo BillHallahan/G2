@@ -32,8 +32,11 @@ module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
 
 import G2.Language.AST
 import G2.Language.Naming
+import G2.Language.Support
 import G2.Language.Syntax
 import G2.Lib.Printers
+import G2.Liquid.Interface
+import G2.Liquid.Types
 
 import Data.Coerce
 import GHC.Generics (Generic)
@@ -132,29 +135,30 @@ allCallsFC = concatMap allCalls . toListFC
 allCallsByName :: FuncConstraints -> [FuncCall]
 allCallsByName = concatMap allCalls . toListFC
 
-printFCs :: FuncConstraints -> String
-printFCs fcs = intercalate "\n" (map printFC $ toListFC fcs)
+printFCs :: LiquidReadyState -> FuncConstraints -> String
+printFCs lrs fcs =
+    intercalate "\n" . map (printFC (state . lr_state $ lrs)) $ toListFC fcs
 
-printFC :: FuncConstraint -> String
-printFC (Call sp (FuncCall { funcName = Name f _ _ _, arguments = ars, returns = r})) =
+printFC :: State t -> FuncConstraint -> String
+printFC s (Call sp (FuncCall { funcName = Name f _ _ _, arguments = ars, returns = r})) =
     let
-        call_str fn = mkExprHaskell . foldl (\a a' -> App a a') (Var (Id fn TyUnknown)) $ ars
-        r_str = mkExprHaskell r
+        call_str fn = printHaskell s . foldl (\a a' -> App a a') (Var (Id fn TyUnknown)) $ ars
+        r_str = printHaskell s r
     in
     case sp of
         Pre -> "(" ++ call_str (Name (f <> "_pre") Nothing 0 Nothing) ++ ")"
         Post -> "(" ++ call_str (Name (f <> "_post") Nothing 0 Nothing) ++ " " ++ r_str ++ ")"
         All -> "(" ++ call_str (Name f Nothing 0 Nothing) ++ " " ++ r_str ++ ")"
-printFC (AndFC fcs) =
+printFC s (AndFC fcs) =
     case fcs of
-        (f:fcs') -> foldr (\fc fcs'' -> fcs'' ++ " && " ++ printFC fc) (printFC f) fcs'
+        (f:fcs') -> foldr (\fc fcs'' -> fcs'' ++ " && " ++ printFC s fc) (printFC s f) fcs'
         [] -> "True"
-printFC (OrFC fcs) =
+printFC s (OrFC fcs) =
     case fcs of
-        (f:fcs') -> foldr (\fc fcs'' -> fcs'' ++ " || " ++ printFC fc) (printFC f) fcs'
+        (f:fcs') -> foldr (\fc fcs'' -> fcs'' ++ " || " ++ printFC s fc) (printFC s f) fcs'
         [] -> "False"
-printFC (ImpliesFC fc1 fc2) = "(" ++ printFC fc1 ++ ") => (" ++ printFC fc2 ++ ")"
-printFC (NotFC fc) = "not (" ++ printFC fc ++ ")"
+printFC s (ImpliesFC fc1 fc2) = "(" ++ printFC s fc1 ++ ") => (" ++ printFC s fc2 ++ ")"
+printFC s (NotFC fc) = "not (" ++ printFC s fc ++ ")"
 
 instance ASTContainer FuncConstraint Expr where
     containedASTs (Call sp fc) = containedASTs fc
