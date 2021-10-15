@@ -12,6 +12,7 @@ import G2.Language.Monad
 import G2.Liquid.Types
 
 import qualified Data.HashSet as HS
+import Data.Monoid ((<>))
 import qualified Data.Text as T
 
 import Debug.Trace
@@ -136,7 +137,7 @@ inlineEnv = do
 
     eenv <- exprEnv
     meas <- measuresM
-    let lh_ns = names tcv ++ names lh_int_tc ++ names num_int_tc
+    let lh_ns = names tcv <> names lh_int_tc <> names num_int_tc
         eenv' = E.filterWithKey (\n _ -> n `elem` lh_ns) $ E.union eenv meas
     return eenv'
 
@@ -150,7 +151,7 @@ inlineInCaseEnv = do
 
     eenv <- exprEnv
     meas <- measuresM
-    let lh_ns = names all_lh_tc ++ names all_num_tc
+    let lh_ns = names all_lh_tc <> names all_num_tc
         eenv' = E.filterWithKey (\n _ -> n `elem` lh_ns) $ E.union eenv meas
     return eenv'
 

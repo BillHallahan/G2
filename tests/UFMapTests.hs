@@ -9,6 +9,7 @@ import Data.Maybe as M
 import Test.Tasty
 import Test.Tasty.QuickCheck
 
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
 import Data.Maybe
 
@@ -27,6 +28,9 @@ ufMapQuickcheck =
         , testProperty "if a key is present in two maps being merged, in will be present in the merge" prop_merge_preserves_values
         , testProperty "if a key is present in two maps being merged, in will be present in the merge (less thorough, but simpler)" prop_merge_preserves_values_simple
         , testProperty "merge function is applied to all values from original map" prop_merge_merges_values
+        , testProperty "toList . fromList preserves joins" prop_toList_fromList_joins
+        , testProperty "toList . fromList preserves stored values" prop_toList_fromList_values
+        , testProperty "the toList function returns a list with at least as many elements as in the simple map" prop_toList_leq_simple_map
         ]
 
 prop_from_hs_to_hs :: [([Integer], Maybe Integer)] -> Property
@@ -172,6 +176,33 @@ prop_merge_merges_values x ufm1 ufm2 =
 
 isSubsetOf :: (Eq a, Hashable a) => S.HashSet a -> S.HashSet a -> Bool
 isSubsetOf xs ys = all (\x -> x `S.member` ys) $ S.toList xs
+
+prop_toList_fromList_joins :: Integer
+                           -> Integer
+                           -> UFMap Integer (S.HashSet Integer)
+                           -> Property
+prop_toList_fromList_joins i1 i2 ufm =
+    let
+        ufm' = fromList . toList $ join S.union i1 i2 ufm
+    in
+    property $ lookupRep i1 ufm' == lookupRep i2 ufm'
+
+prop_toList_fromList_values :: Integer
+                            -> S.HashSet Integer
+                            -> UFMap Integer (S.HashSet Integer)
+                            -> Property
+prop_toList_fromList_values i hs ufm =
+    let
+        ufm' = fromList . toList $ insert i hs ufm
+    in
+    property $ lookup i ufm' == Just hs
+
+prop_toList_leq_simple_map :: [(Integer, S.HashSet Integer)] -> UFMap Integer (S.HashSet Integer) -> Property
+prop_toList_leq_simple_map els ufm =
+    let
+        ufm' = foldr (uncurry insert) ufm els
+    in
+    property $ length (toList ufm') >= HM.size (toSimpleMap ufm')
 
 instance (Hashable a, Eq a, Arbitrary a) => Arbitrary (S.HashSet a) where
     arbitrary = return . S.fromList =<< arbitrary

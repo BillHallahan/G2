@@ -3,6 +3,9 @@ module G2.Liquid.TCValues where
 import G2.Language.Naming
 import G2.Language.Syntax
 
+import Data.Monoid ((<>))
+import qualified Data.Sequence as S
+
 -- | Stores variable names that are used in the LH encoding.
 -- There are two reasons a name might exist:
 --   (1) It corresponds to something that only makes sense in the context of LH
@@ -51,7 +54,9 @@ data TCValues = TCValues { lhTC :: Name
                          , lhSet :: Maybe Name } deriving (Eq, Show, Read)
 
 instance Named TCValues where
-    names tcv = [ lhTC tcv
+    names tcv = 
+            S.fromList
+                [ lhTC tcv
                 , lhNumTC tcv
                 , lhOrdTC tcv
                 , lhEq tcv
@@ -87,7 +92,7 @@ instance Named TCValues where
 
                 , lhPP tcv
 
-                , lhOrd tcv] ++ maybe [] (:[]) (lhSet tcv)
+                , lhOrd tcv] <> maybe S.empty (S.singleton) (lhSet tcv)
 
     rename old new tcv = TCValues { lhTC = rename old new $ lhTC tcv
                                   , lhNumTC = rename old new $ lhNumTC tcv

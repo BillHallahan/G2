@@ -64,7 +64,7 @@ relNames tenv rel (n:ns) =
   where
     ns' = case M.lookup n tenv of
         Nothing -> ns
-        Just r -> names r ++ ns
+        Just r -> namesList r ++ ns
 
 createBagFuncs :: TyVarBags -- ^ Which types do we need bag functions for?
                -> TypeEnv

@@ -18,6 +18,7 @@ import G2.Language.ExprEnv (ExprEnv)
 import Data.Hashable
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Foldable
 
 class Located l where
     loc :: l -> Maybe Loc
@@ -102,7 +103,7 @@ combineSpans s1 s2 =
 -- | Constructs a map of Spans to Names, based on all Names in the ExprEnv
 spanLookup :: ExprEnv -> M.Map Span Name
 spanLookup =
-    M.fromList . mapMaybe (\n -> maybe Nothing (\s -> Just (s, n)) (spanning n)) . names
+    M.fromList . mapMaybe (\n -> maybe Nothing (\s -> Just (s, n)) (spanning n)) . toList . names
 
 -- | Constructs a map of Locs to Names, based on all Names in the ExprEnv
 locLookup :: ExprEnv -> M.Map Loc Name

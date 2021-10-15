@@ -486,11 +486,21 @@ exprHistory sh1 sh2 =
       hist2 = map exprExtract $ (latest sh2):(history sh2)
   in reverse $ zip hist1 hist2
 
+stateHistory :: StateH -> StateH -> [(StateET, StateET)]
+stateHistory sh1 sh2 =
+  let hist1 = (latest sh1):(history sh1)
+      hist2 = (latest sh2):(history sh2)
+  in reverse $ zip hist1 hist2
+
 exprTrace :: StateH -> StateH -> [String]
 exprTrace sh1 sh2 =
-  let e_hist = exprHistory sh1 sh2
-      s_pair (e1, e2) = [mkExprHaskell e1, mkExprHaskell e2, "------"]
-  in concat $ map s_pair e_hist
+  let s_hist = stateHistory sh1 sh2
+      s_pair (s1, s2) = [
+          printHaskell s1 (exprExtract s1)
+        , printHaskell s2 (exprExtract s2)
+        , "------"
+        ]
+  in concat $ map s_pair s_hist
 
 addDischarge :: StateET -> StateH -> StateH
 addDischarge s sh = sh { discharge = Just s }
@@ -527,8 +537,8 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
       return $ DischargeResult [] [] (Just [(s1, s2)])
     Just obs -> do
       putStrLn "J!"
-      putStrLn $ mkExprHaskell $ exprExtract s1
-      putStrLn $ mkExprHaskell $ exprExtract s2
+      putStrLn $ printHaskell s1 $ exprExtract s1
+      putStrLn $ printHaskell s2 $ exprExtract s2
 
       let prev' = concat $ map prevFiltered prev
           (obs_i, obs_c) = partition canUseInduction obs

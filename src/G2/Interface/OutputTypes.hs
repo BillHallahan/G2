@@ -5,6 +5,8 @@ module G2.Interface.OutputTypes ( ExecRes (..)) where
 
 import G2.Language
 
+import Data.Monoid ((<>))
+
 -- | A fully executed State
 data ExecRes t = ExecRes { final_state :: State t
                          , conc_args :: [Expr]
@@ -17,7 +19,7 @@ instance Named t => Named (ExecRes t) where
                    , conc_args = es
                    , conc_out = r
                    , violated = fc }) =
-                      names s ++ names es ++ names r ++ names fc
+                      names s <> names es <> names r <> names fc
 
     rename old new (ExecRes { final_state = s
                             , conc_args = es

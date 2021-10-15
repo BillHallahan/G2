@@ -25,6 +25,7 @@ import Language.Haskell.TH as TH
 
 import GHC.Generics (Generic)
 import Data.Data
+import Data.Foldable
 import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
@@ -40,7 +41,7 @@ type QQMap = HM.HashMap QQName G2.Name
 qqMap :: Named n => CleanedNames -> n -> QQMap
 qqMap cn n =
     let
-        ns = names n
+        ns = toList $ names n
     in
     HM.fromList $ zip (map (nameToQQName . renames cn) ns) ns
 
