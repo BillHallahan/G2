@@ -113,6 +113,8 @@ mkExprHaskell ex = mkExprHaskell' ex 0
             off i ++ mkAltMatchHaskell am ++ " -> " ++ mkExprHaskell' e i
 
 mkAltMatchHaskell :: AltMatch -> String
+mkAltMatchHaskell (DataAlt dc@(DataCon n _) [id1, id2]) | isInfixableName n =
+    mkIdHaskell id1 ++ " " ++ mkDataConHaskell dc ++ " " ++ mkIdHaskell id2
 mkAltMatchHaskell (DataAlt dc ids) = mkDataConHaskell dc ++ " " ++ intercalate " "  (map mkIdHaskell ids)
 mkAltMatchHaskell (LitAlt l) = mkLitHaskell l
 mkAltMatchHaskell Default = "_"
@@ -169,8 +171,12 @@ printTuple' _ = []
 
 
 isInfixable :: Expr -> Bool
-isInfixable (Data (DataCon n _)) = not $ T.any isAlphaNum $ nameOcc n
+isInfixable (Var (Id n _)) = isInfixableName n
+isInfixable (Data (DataCon n _)) = isInfixableName n
 isInfixable _ = False
+
+isInfixableName :: Name -> Bool
+isInfixableName = not . T.any isAlphaNum . nameOcc
 
 isApp :: Expr -> Bool
 isApp (App _ _) = True
