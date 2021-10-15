@@ -30,6 +30,8 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import qualified Data.Text as T
 
+import Debug.Trace
+
 mkIdHaskell :: Id -> String
 mkIdHaskell (Id n _) = mkNameHaskell n
 
@@ -201,6 +203,7 @@ printTuple' _ = []
 isInfixable :: Expr -> Bool
 isInfixable (Var (Id n _)) = isInfixableName n
 isInfixable (Data (DataCon n _)) = isInfixableName n
+isInfixable (Prim p _) = not . any isAlphaNum $ mkPrimHaskell p
 isInfixable _ = False
 
 isInfixableName :: Name -> Bool
