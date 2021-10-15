@@ -68,15 +68,18 @@ mkCleanExprHaskell' kv tc e
     | otherwise = e
 
 mkExprHaskell :: Expr -> String
-mkExprHaskell ex = mkExprHaskell' ex 0
+mkExprHaskell ex = mkExprHaskell' 0 ex
     where
-        mkExprHaskell' :: Expr -> Int -> String
-        mkExprHaskell' (Var ids) _ = mkIdHaskell ids
-        mkExprHaskell' (Lit c) _ = mkLitHaskell c
-        mkExprHaskell' (Prim p _) _ = mkPrimHaskell p
-        mkExprHaskell' (Lam _ ids e) i = "(\\" ++ mkIdHaskell ids ++ " -> " ++ mkExprHaskell' e i ++ ")"
+        mkExprHaskell' :: Int -- ^ How much should a new line be indented?
+                       -> Expr
+                       -> String
+        mkExprHaskell' _ (Var ids) = mkIdHaskell ids
+        mkExprHaskell' _ (Lit c) = mkLitHaskell c
+        mkExprHaskell' _ (Prim p _) = mkPrimHaskell p
+        mkExprHaskell' off (Lam _ ids e) =
+            "(\\" ++ mkIdHaskell ids ++ " -> " ++ mkExprHaskell' off e ++ ")"
 
-        mkExprHaskell' a@(App ea@(App e1 e2) e3) i
+        mkExprHaskell' off a@(App ea@(App e1 e2) e3)
             | Data (DataCon n _) <- appCenter a
             , isTuple n = printTuple a
             | Data (DataCon n _) <- appCenter a
@@ -88,29 +91,41 @@ mkExprHaskell ex = mkExprHaskell' ex 0
 
             | isInfixable e1 =
                 let
-                    e2P = if isApp e2 then "(" ++ mkExprHaskell' e2 i ++ ")" else mkExprHaskell' e2 i
-                    e3P = if isApp e3 then "(" ++ mkExprHaskell' e3 i ++ ")" else mkExprHaskell' e3 i
+                    e2P = if isApp e2 then "(" ++ mkExprHaskell' off e2 ++ ")" else mkExprHaskell' off e2
+                    e3P = if isApp e3 then "(" ++ mkExprHaskell' off e3 ++ ")" else mkExprHaskell' off e3
                 in
-                e2P ++ " " ++ mkExprHaskell' e1 i ++ " " ++ e3P
+                e2P ++ " " ++ mkExprHaskell' off e1 ++ " " ++ e3P
 
-            | App _ _ <- e3 = mkExprHaskell' ea i ++ " (" ++ mkExprHaskell' e3 i ++ ")"
-            | otherwise = mkExprHaskell' ea i ++ " " ++ mkExprHaskell' e3 i
+            | App _ _ <- e3 = mkExprHaskell' off ea ++ " (" ++ mkExprHaskell' off e3 ++ ")"
+            | otherwise = mkExprHaskell' off ea ++ " " ++ mkExprHaskell' off e3
 
-        mkExprHaskell' (App e1 ea@(App _ _)) i = mkExprHaskell' e1 i ++ " (" ++ mkExprHaskell' ea i ++ ")"
-        mkExprHaskell' (App e1 e2) i = mkExprHaskell' e1 i ++ " " ++ mkExprHaskell' e2 i
-        mkExprHaskell' (Data d) _ = mkDataConHaskell d
-        mkExprHaskell' (Case e _ ae) i = "\n" ++ off (i + 1) ++ "case " ++ (mkExprHaskell' e i) ++ " of\n" 
-                                        ++ intercalate "\n" (map (mkAltHaskell (i + 2)) ae)
-        mkExprHaskell' (Type _) _ = ""
-        mkExprHaskell' (Cast e (_ :~ t)) i = "((coerce " ++ mkExprHaskell' e i ++ ") :: " ++ mkTypeHaskell t ++ ")"
-        mkExprHaskell' (Let _ e) i = "let { ... } in " ++ mkExprHaskell' e i
+        mkExprHaskell' off (App e1 ea@(App _ _)) = mkExprHaskell' off e1 ++ " (" ++ mkExprHaskell' off ea ++ ")"
+        mkExprHaskell' off (App e1 e2) = mkExprHaskell' off e1 ++ " " ++ mkExprHaskell' off e2
+        mkExprHaskell' _ (Data d) = mkDataConHaskell d
+        mkExprHaskell' off (Case e bndr@(Id bndr_name _) ae) =
+            let
+                needs_binder = bndr_name `elem` names ae
+            in
+               "case " ++ (if needs_binder then mkIdHaskell bndr ++ "@" else "") ++ parenWrap needs_binder e (mkExprHaskell' off e) ++ " of\n" 
+            ++ intercalate "\n" (map (mkAltHaskell (off + 2)) ae)
+        mkExprHaskell' _ (Type _) = ""
+        mkExprHaskell' off (Cast e (_ :~ t)) = "((coerce " ++ mkExprHaskell' off e ++ ") :: " ++ mkTypeHaskell t ++ ")"
+        mkExprHaskell' off (Let _ e) = "let { ... } in " ++ mkExprHaskell' off e
         -- TODO
-        mkExprHaskell' (Tick _ e) i = mkExprHaskell' e i
-        mkExprHaskell' e _ = "e = " ++ show e ++ " NOT SUPPORTED"
+        mkExprHaskell' off (Tick _ e) = mkExprHaskell' off e
+        mkExprHaskell' _ e = "e = " ++ show e ++ " NOT SUPPORTED"
 
         mkAltHaskell :: Int -> Alt -> String
-        mkAltHaskell i (Alt am e) =
-            off i ++ mkAltMatchHaskell am ++ " -> " ++ mkExprHaskell' e i
+        mkAltHaskell off (Alt am e) =
+            offset off ++ mkAltMatchHaskell am ++ " -> " ++ mkExprHaskell' off e
+
+        parenWrap :: Bool -- Do we need the case binder?
+                  -> Expr -> String -> String
+        parenWrap _ (Case _ _ _) s = "(" ++ s ++ ")"
+        parenWrap _ (Let _ _) s = "(" ++ s ++ ")"
+        parenWrap True (App _ _) s = "(" ++ s ++ ")"
+        parenWrap b (Tick _ e) s = parenWrap b e s
+        parenWrap _ _ s = s
 
 mkAltMatchHaskell :: AltMatch -> String
 mkAltMatchHaskell (DataAlt dc@(DataCon n _) [id1, id2]) | isInfixableName n =
@@ -124,8 +139,8 @@ mkDataConHaskell :: DataCon -> String
 mkDataConHaskell (DataCon (Name "Assocs" _ _ _) _) = "fromList"
 mkDataConHaskell (DataCon n _) = mkNameHaskell n
 
-off :: Int -> String
-off i = duplicate "   " i
+offset :: Int -> String
+offset i = duplicate "   " i
 
 printList :: Expr -> String
 printList a = "[" ++ intercalate ", " (printList' a) ++ "]"
