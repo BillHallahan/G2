@@ -25,7 +25,7 @@ import G2.Language.Syntax
 import G2.Language.Support
 
 import Data.Char
-import Data.List
+import Data.List as L
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import qualified Data.Text as T
@@ -103,11 +103,8 @@ mkExprHaskell ex = mkExprHaskell' 0 ex
         mkExprHaskell' off (App e1 e2) = mkExprHaskell' off e1 ++ " " ++ mkExprHaskell' off e2
         mkExprHaskell' _ (Data d) = mkDataConHaskell d
         mkExprHaskell' off (Case e bndr@(Id bndr_name _) ae) =
-            let
-                needs_binder = bndr_name `elem` names ae
-            in
-               "case " ++ (if needs_binder then mkIdHaskell bndr ++ "@" else "") ++ parenWrap needs_binder e (mkExprHaskell' off e) ++ " of\n" 
-            ++ intercalate "\n" (map (mkAltHaskell (off + 2)) ae)
+               "case " ++ parenWrap e (mkExprHaskell' off e) ++ " of\n" 
+            ++ intercalate "\n" (map (mkAltHaskell (off + 2) bndr) ae)
         mkExprHaskell' _ (Type _) = ""
         mkExprHaskell' off (Cast e (_ :~ t)) = "((coerce " ++ mkExprHaskell' off e ++ ") :: " ++ mkTypeHaskell t ++ ")"
         mkExprHaskell' off (Let _ e) = "let { ... } in " ++ mkExprHaskell' off e
@@ -115,24 +112,40 @@ mkExprHaskell ex = mkExprHaskell' 0 ex
         mkExprHaskell' off (Tick _ e) = mkExprHaskell' off e
         mkExprHaskell' _ e = "e = " ++ show e ++ " NOT SUPPORTED"
 
-        mkAltHaskell :: Int -> Alt -> String
-        mkAltHaskell off (Alt am e) =
-            offset off ++ mkAltMatchHaskell am ++ " -> " ++ mkExprHaskell' off e
+        mkAltHaskell :: Int -> Id -> Alt -> String
+        mkAltHaskell off bndr@(Id bndr_name _) (Alt am e) =
+            let
+                needs_bndr = bndr_name `elem` names e
+            in
+            offset off ++ mkAltMatchHaskell (if needs_bndr then Just bndr else Nothing) am ++ " -> " ++ mkExprHaskell' off e
 
-        parenWrap :: Bool -- Do we need the case binder?
-                  -> Expr -> String -> String
-        parenWrap _ (Case _ _ _) s = "(" ++ s ++ ")"
-        parenWrap _ (Let _ _) s = "(" ++ s ++ ")"
-        parenWrap True (App _ _) s = "(" ++ s ++ ")"
-        parenWrap b (Tick _ e) s = parenWrap b e s
-        parenWrap _ _ s = s
+        parenWrap :: Expr -> String -> String
+        parenWrap (Case _ _ _) s = "(" ++ s ++ ")"
+        parenWrap (Let _ _) s = "(" ++ s ++ ")"
+        parenWrap (Tick _ e) s = parenWrap e s
+        parenWrap _ s = s
 
-mkAltMatchHaskell :: AltMatch -> String
-mkAltMatchHaskell (DataAlt dc@(DataCon n _) [id1, id2]) | isInfixableName n =
-    mkIdHaskell id1 ++ " " ++ mkDataConHaskell dc ++ " " ++ mkIdHaskell id2
-mkAltMatchHaskell (DataAlt dc ids) = mkDataConHaskell dc ++ " " ++ intercalate " "  (map mkIdHaskell ids)
-mkAltMatchHaskell (LitAlt l) = mkLitHaskell l
-mkAltMatchHaskell Default = "_"
+mkAltMatchHaskell :: Maybe Id -> AltMatch -> String
+mkAltMatchHaskell m_bndr (DataAlt dc@(DataCon n _) [id1, id2]) | isInfixableName n =
+    let
+        am = mkIdHaskell id1 ++ " " ++ mkDataConHaskell dc ++ " " ++ mkIdHaskell id2
+    in
+    case m_bndr of
+        Just bndr -> mkIdHaskell bndr ++ "@(" ++ am ++ ")" 
+        Nothing -> am
+mkAltMatchHaskell m_bndr (DataAlt dc ids) =
+    let
+        am = mkDataConHaskell dc ++ " " ++ intercalate " "  (map mkIdHaskell ids)
+    in
+    case m_bndr of
+        Just bndr | not (L.null ids) -> mkIdHaskell bndr ++ "@(" ++ am ++ ")"
+        Nothing -> am
+mkAltMatchHaskell m_bndr (LitAlt l) =
+    case m_bndr of
+        Just bndr -> mkIdHaskell bndr ++ "@" ++ mkLitHaskell l
+        Nothing -> mkLitHaskell l
+mkAltMatchHaskell (Just bndr) Default = mkIdHaskell bndr
+mkAltMatchHaskell _ Default = "_"
 
 mkDataConHaskell :: DataCon -> String
 -- Special casing for Data.Map in the modified base
