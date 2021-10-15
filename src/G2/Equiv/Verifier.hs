@@ -453,10 +453,15 @@ elimSingletonPair (s1, s2) =
       e2 = exprExtract s2
       e2' = elimSingleton e2
       s2' = s2 { curr_expr = CurrExpr Evaluate e2' }
-  in
+      s1_ = if isSingleton e1 then s1' else s1
+      s2_ = if isSingleton e2 then s2' else s2
+  in (s1_, s2_)
+  -- TODO trying one-sided case elim; no apparent benefit
+  {-
   if isSingleton e1 && isSingleton e2
   then trace ("ELIM " ++ show (mkExprHaskell e1', mkExprHaskell e2')) (s1', s2')
   else (s1, s2)
+  -}
 
 notM :: IO Bool -> IO Bool
 notM b = do
