@@ -61,7 +61,7 @@ runCheck' proj src modN entry chAll gflags s ars out = do
         let e = mkApp $ Var v:ars
         let arsStr = mkCleanExprHaskell s e
         let outStr = mkCleanExprHaskell s out
-        
+
         let outType = mkTypeHaskell (typeOf out)
 
         let chck = case outStr == "error" of
