@@ -290,6 +290,9 @@ liquidTests = testGroup "Liquid"
 
     , checkLiquid "tests/Liquid/MeasErr.hs" "f" 1500 2 [Exactly 0]
 
+    , checkAbsLiquid "tests/Liquid/PropRep.hs" "prop_rep" 2000 3
+        [ AtLeast 1 ]
+
     , checkAbsLiquid "tests/Liquid/Replicate.hs" "replicate" 2000 3
         [ AtLeast 1
         , RExists (\_ _ [(FuncCall { funcName = Name n _ _ _ }) ] -> n == "foldl") ]
@@ -565,6 +568,8 @@ testFileTests = testGroup "TestFiles"
         , RExists (\[_, y] -> isError y)]
     , checkInputOutput "tests/TestFiles/Coercions/BadCoerce.hs" "BadCoerce" "f" 400 3 [AtLeast 1]
     , checkExpr "tests/TestFiles/Expr.hs" 400 "leadingLams" 2 [AtLeast 5, RForAll (\[_, y] -> noUndefined y)]
+
+    , checkExprAssume "tests/TestFiles/Subseq.hs" 1200 (Just "assume") "subseqTest" 2 [AtLeast 1]
 
     , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "con" 300 3 [AtLeast 10]
     , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "eq" 700 3 [AtLeast 10]
