@@ -10,7 +10,6 @@ module G2.Language.Stack
     , pop
     , popN
     , toList
-    , fromList
     , filter) where
 
 import Prelude hiding (null, filter)
@@ -52,16 +51,12 @@ popN s n = case pop s of
         (x:xs, s'')
     Nothing -> ([], s)
 
-filter :: (a -> Bool) -> Stack a -> Stack a
-filter p (Stack stck) = Stack (L.filter p stck)
-
 -- | Convert a `Stack` to a list.
 toList :: Stack a -> [a]
 toList (Stack xs) = xs
 
--- | Convert a list to a 'Stack'
-fromList :: [a] -> Stack a
-fromList xs = Stack xs
+filter :: (a -> Bool) -> Stack a -> Stack a
+filter p (Stack stck) = Stack (L.filter p stck)
 
 instance ASTContainer a Expr => ASTContainer (Stack a) Expr where
     containedASTs (Stack s) = containedASTs s
