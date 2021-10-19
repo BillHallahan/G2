@@ -17,6 +17,7 @@ module G2.Preprocessing.NameCleaner
     , cleanName
     ) where
 
+import Data.Foldable
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
 import qualified Data.Text as T
@@ -60,13 +61,13 @@ cleanNames s cl_names ng = (renames hns s, cl_names', ng')
 cleanNames' :: Named n => NameGen -> n -> (n, NameGen)
 cleanNames' ng n = (renames hns n, ng')
     where
-      (ns, ng') = createNamePairs ng . filter (not . allowedName) $ names n
+      (ns, ng') = createNamePairs ng . filter (not . allowedName) . toList $ names n
       hns = HM.fromList ns
 
 cleanNamesFromList :: Named n => NameGen -> [Name] -> n -> (n, NameGen)
 cleanNamesFromList ng ns n = (renames hns n, ng')
     where
-      (ns', ng') = createNamePairs ng . filter (not . allowedName) $ names ns
+      (ns', ng') = createNamePairs ng . filter (not . allowedName) . toList $ names ns
       hns = HM.fromList ns'
 
 createNamePairs :: NameGen -> [Name] -> ([(Name, Name)], NameGen)

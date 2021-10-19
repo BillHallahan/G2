@@ -120,7 +120,7 @@ parseHaskellConfigQ config str = do
         Completed xs b -> do
             case elimUnusedCompleted xs b of
                 (xs'@(s:_), b') -> do
-                    let xs'' = listE $ map (moveOutTypeEnvState tenv_name) xs'
+                    let xs'' = listE $ map (moveOutStatePieces tenv_name) xs'
 
                         xs''' = addCompRegVarPasses (varE state_name) tenv_name cleaned_names_name ns (inputIds s b') b'
 
@@ -146,7 +146,7 @@ parseHaskellConfigQ config str = do
             let 
                 (s', b') = elimUnusedNonCompleted s b
 
-                s'' = moveOutTypeEnvState tenv_name s'
+                s'' = moveOutStatePieces tenv_name s'
 
                 s''' = addedNonCompRegVarBinds (varE state_name) tenv_name cleaned_names_name ns (inputIds s' b') b'
 
@@ -311,18 +311,46 @@ type TypeEnvName = TH.Name
 type CleanedNamesName = TH.Name
 
 -- We have the TypeEnv separately from the state, and it is a waste to lift it to TH twice.
--- This avoids having to do that
-moveOutTypeEnvState :: Data t => TypeEnvName -> State t -> Q Exp
-moveOutTypeEnvState tenv_name s = do
-    let s' = s { type_env = M.empty, path_conds = () }
-        s_exp = liftDataT s'
+-- Further, we cannot directly apply Data to the PathConds, since they use and IORef
+moveOutStatePieces :: Data t => TypeEnvName -> State t -> Q Exp
+moveOutStatePieces tenv_name s = do
+    let -- s' = s { type_env = M.empty, path_conds = undefined }
+        -- s_exp = liftDataT s'
 
-        -- [PC_EXP]
-        -- The PathConds implementation uses a UFMap, which uses a UnionFind, which uses and IORef.
-        -- IORefs cannot be directly used by Template Haskell.
-        -- Thus, we instead build a list of the PCs, and at runtime we rebuild the UFMap.
+        expr_env_exp = liftDataT (expr_env s)
+        curr_expr_exp = liftDataT (curr_expr s)
+        non_red_path_conds_exp = liftDataT (non_red_path_conds s)
+        true_assert_exp = liftDataT (true_assert s)
+        assert_ids_exp = liftDataT (assert_ids s)
+        type_classes_exp = liftDataT (type_classes s)
+        symbolic_ids_exp = liftDataT (symbolic_ids s)
+        exec_stack_exp = liftDataT (exec_stack s)
+        model_exp = liftDataT (model s)
+        known_values_exp = liftDataT (known_values s)
+        rules_exp = liftDataT (rules s)
+        num_steps_exp = liftDataT (num_steps s)
+        tags_exp = liftDataT (tags s)
+        track_exp = liftDataT (track s)
+
+        pc = path_conds s
         pc_exp = liftDataT . PC.toList $ path_conds s
-    [| $(s_exp) { type_env = $(varE tenv_name), path_conds = PC.fromList $(pc_exp) } |]
+
+    [| State { expr_env = $(expr_env_exp)
+             , type_env = $(varE tenv_name)
+             , curr_expr = $(curr_expr_exp)
+             , path_conds = PC.fromList $(pc_exp)
+             , non_red_path_conds = $(non_red_path_conds_exp)
+             , true_assert = $(true_assert_exp) 
+             , assert_ids = $(assert_ids_exp)
+             , type_classes = $(type_classes_exp)
+             , symbolic_ids = $(symbolic_ids_exp)
+             , exec_stack = $(exec_stack_exp)
+             , model = $(model_exp)
+             , known_values = $(known_values_exp)
+             , rules = $(rules_exp)
+             , num_steps = $(num_steps_exp)
+             , tags = $(tags_exp) 
+             , track = $(track_exp) } |]
 
 -- Returns an Q Exp represeting a [(Name, Expr)] list
 regVarBindings :: [TH.Name] -> TypeEnvName -> CleanedNamesName -> InputIds -> Bindings -> Q Exp

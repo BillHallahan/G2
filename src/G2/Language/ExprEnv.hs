@@ -80,6 +80,8 @@ import qualified Data.List as L
 import qualified Data.Map.Merge.Lazy as M
 import qualified Data.Map.Lazy as M
 import Data.Maybe
+import Data.Monoid ((<>))
+import qualified Data.Sequence as S
 import qualified Data.Text as T
 
 data ConcOrSym = Conc Expr
@@ -439,7 +441,7 @@ instance ASTContainer EnvObj Type where
     modifyContainedASTs _ r = r
 
 instance Named ExprEnv where
-    names (ExprEnv eenv) = names (M.keys eenv) ++ names eenv
+    names (ExprEnv eenv) = names (M.keys eenv) <> names eenv
 
     rename old new =
         ExprEnv 
@@ -457,7 +459,7 @@ instance Named ExprEnv where
 
 instance Named EnvObj where
     names (ExprObj _ e) = names e
-    names (RedirObj r) = [r]
+    names (RedirObj r) = S.singleton r
     names (SymbObj s) = names s
 
     rename old new (ExprObj _ e) = ExprObj Nothing $ rename old new e

@@ -21,9 +21,9 @@ type SMTNameBldr = Builder
 type SMTName = String
 
 -- | These define the kinds of top level calls we give to the SMT solver.
-data SMTHeader = Assert SMTAST
-               | AssertSoft SMTAST (Maybe T.Text)
-               | DefineFun SMTName [(SMTName, Sort)] Sort SMTAST
+data SMTHeader = Assert !SMTAST
+               | AssertSoft !SMTAST (Maybe T.Text)
+               | DefineFun SMTName [(SMTName, Sort)] Sort !SMTAST
                | DeclareFun SMTName [Sort] Sort
                | VarDecl SMTNameBldr Sort
                | SetLogic Logic
@@ -43,38 +43,38 @@ data Logic = ALL
 
 -- | These correspond to first order logic, arithmetic operators, and variables, as supported by an SMT Solver
 -- Its use should be confined to interactions with G2.SMT.* 
-data SMTAST = (:>=) SMTAST SMTAST
-            | (:>) SMTAST SMTAST
-            | (:=) SMTAST SMTAST
-            | (:/=) SMTAST SMTAST
-            | (:<) SMTAST SMTAST
-            | (:<=) SMTAST SMTAST
+data SMTAST = (:>=) !SMTAST !SMTAST
+            | (:>) !SMTAST !SMTAST
+            | (:=) !SMTAST !SMTAST
+            | (:/=) !SMTAST !SMTAST
+            | (:<) !SMTAST !SMTAST
+            | (:<=) !SMTAST !SMTAST
 
-            | SmtAnd [SMTAST]
-            | SmtOr [SMTAST]
-            | (:!) SMTAST
-            | (:=>) SMTAST SMTAST
-            | (:<=>) SMTAST SMTAST
+            | SmtAnd ![SMTAST]
+            | SmtOr ![SMTAST]
+            | (:!) !SMTAST
+            | (:=>) !SMTAST !SMTAST
+            | (:<=>) !SMTAST !SMTAST
 
-            | (:+) SMTAST SMTAST
-            | (:-) SMTAST SMTAST -- ^ Subtraction
-            | (:*) SMTAST SMTAST
-            | (:/) SMTAST SMTAST
-            | SqrtSMT SMTAST
-            | QuotSMT SMTAST SMTAST
-            | Modulo SMTAST SMTAST
-            | Neg SMTAST -- ^ Unary negation
+            | (:+) !SMTAST !SMTAST
+            | (:-) !SMTAST !SMTAST -- ^ Subtraction
+            | (:*) !SMTAST !SMTAST
+            | (:/) !SMTAST !SMTAST
+            | SqrtSMT !SMTAST
+            | QuotSMT !SMTAST !SMTAST
+            | Modulo !SMTAST !SMTAST
+            | Neg !SMTAST -- ^ Unary negation
 
-            | ArrayConst SMTAST Sort Sort
-            | ArrayStore SMTAST SMTAST SMTAST
-            | ArraySelect SMTAST SMTAST
+            | ArrayConst !SMTAST Sort Sort
+            | ArrayStore !SMTAST !SMTAST !SMTAST
+            | ArraySelect !SMTAST !SMTAST
 
-            | Func SMTName [SMTAST] -- ^ Interpreted function
+            | Func SMTName ![SMTAST] -- ^ Interpreted function
 
-            | StrLen SMTAST
+            | StrLen !SMTAST
 
-            | Ite SMTAST SMTAST SMTAST
-            | SLet (SMTName, SMTAST) SMTAST
+            | Ite !SMTAST !SMTAST !SMTAST
+            | SLet (SMTName, SMTAST) !SMTAST
 
             | VInt Integer
             | VFloat Rational
@@ -84,9 +84,9 @@ data SMTAST = (:>=) SMTAST SMTAST
 
             | V SMTName Sort
 
-            | ItoR SMTAST -- ^ Integer to real conversion
+            | ItoR !SMTAST -- ^ Integer to real conversion
 
-            | Named SMTAST SMTName -- ^ Name a piece of the SMTAST, allowing it to be returned in unsat cores
+            | Named !SMTAST SMTName -- ^ Name a piece of the SMTAST, allowing it to be returned in unsat cores
             deriving (Show, Eq)
 
 -- | Every `SMTAST` has a `Sort`
@@ -119,10 +119,10 @@ x .||. (VBool False) = x
 x .||. y = SmtOr [x, y]
 
 mkSMTAnd :: [SMTAST] -> SMTAST
-mkSMTAnd = foldr (.&&.) (VBool True)
+mkSMTAnd = SmtAnd
 
 mkSMTOr :: [SMTAST] -> SMTAST
-mkSMTOr = foldr (.||.) (VBool False)
+mkSMTOr = SmtOr
 
 isSat :: Result m u -> Bool
 isSat (SAT _) = True

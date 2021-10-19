@@ -9,7 +9,8 @@ module G2.Language.Naming
     , nameTuple
     , nameLoc
     , NameGen
-    , Named (names, rename, renames)
+    , Named (..)
+    , namesList
     , doRename
     , doRenames
     , renameAll
@@ -55,12 +56,15 @@ import G2.Language.Syntax
 import G2.Language.TypeEnv
 
 import Data.Data (Data, Typeable)
+import Data.Foldable
 import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.List
 import Data.List.Utils
 import qualified Data.Map as M
+import Data.Monoid ((<>))
+import qualified Data.Sequence as S
 import qualified Data.Text as T
 import Data.Tuple
 import qualified Text.Builder as TB
@@ -121,7 +125,7 @@ builderToName txt = strToName $ show txt
 mkNameGen :: Named n => n -> NameGen
 mkNameGen nmd =
     let
-        allNames = names nmd
+        allNames = toList $ names nmd
     in
     NameGen {
           max_uniq = HM.fromListWith max $ map (\(Name n m i _) -> ((n, m), i + 1)) allNames
@@ -189,13 +193,16 @@ doRenames ns ng e =
 renameAll :: (Named a) => a -> NameGen -> (a, NameGen)
 renameAll x ng =
     let
-        old = nub $ names x
+        old = nub . toList $ names x
     in
     doRenames old ng x
 
+namesList :: Named a => a -> [Name]
+namesList = toList . names
+
 -- | Types that contain `Name`@s@
 class Named a where
-    names :: a -> [Name]
+    names :: a -> S.Seq Name
     rename :: Name -> Name -> a -> a
     renames :: HM.HashMap Name Name -> a -> a
 
@@ -203,7 +210,7 @@ class Named a where
 
 instance Named Name where
     {-# INLINE names #-}
-    names n = [n]
+    names n = S.singleton n
     {-# INLINE rename #-}
     rename old (Name nn nm ni _) n@(Name _ _ _ l) = if old == n then Name nn nm ni l else n
     {-# INLINE renames #-}
@@ -213,7 +220,7 @@ instance Named Name where
 
 instance Named Id where
     {-# INLINE names #-}
-    names (Id n t) = n:names t
+    names (Id n t) = n S.<| names t
     {-# INLINE rename #-}
     rename old new (Id n t) = Id (rename old new n) (rename old new t)
     {-# INLINE renames #-}
@@ -222,13 +229,13 @@ instance Named Id where
 instance Named Expr where
     names = eval go
         where
-            go :: Expr -> [Name]
+            go :: Expr -> S.Seq Name
             go (Var i) = names i
             go (Prim _ t) = names t
             go (Data d) = names d
             go (Lam _ i _) = names i
-            go (Let b _) = concatMap (names . fst) b
-            go (Case _ i a) = names i ++ concatMap (names . altMatch) a
+            go (Let b _) = foldr (<>) S.empty $ map (names . fst) b
+            go (Case _ i a) = names i <> (foldr (<>) S.empty $ map (names . altMatch) a)
             go (Type t) = names t
             go (Cast _ c) = names c
             go (Coercion c) = names c
@@ -236,7 +243,7 @@ instance Named Expr where
             go (SymGen t) = names t
             go (Assume is _ _) = names is
             go (Assert is _ _) = names is
-            go _ = []
+            go _ = S.empty
 
     rename old new = modify go
       where
@@ -369,9 +376,9 @@ instance Named Type where
     names = eval go
         where
             go (TyVar i) = idNamesInType i
-            go (TyCon n _) = [n]
+            go (TyCon n _) = S.singleton n
             go (TyForAll b _) = tyBinderNamesInType b
-            go _ = []
+            go _ = S.empty
 
     rename old new = modify go
       where
@@ -391,12 +398,12 @@ instance Named Type where
 
 -- We don't want both modify and go to recurse on the Type's in TyBinders or Ids
 -- so we introduce functions to collect or rename only the Names directly in those types
-tyBinderNamesInType :: TyBinder -> [Name]
+tyBinderNamesInType :: TyBinder -> S.Seq Name
 tyBinderNamesInType (NamedTyBndr i) = idNamesInType i
-tyBinderNamesInType _ = []
+tyBinderNamesInType _ = S.empty
 
-idNamesInType :: Id -> [Name]
-idNamesInType (Id n _) = [n]
+idNamesInType :: Id -> S.Seq Name
+idNamesInType (Id n _) = S.singleton n
 
 renameTyBinderInType :: Name -> Name -> TyBinder -> TyBinder
 renameTyBinderInType old new (NamedTyBndr i) = NamedTyBndr $ renameIdInType old new i
@@ -414,7 +421,7 @@ renamesIdInType hm (Id n t) = Id (renames hm n) t
 
 instance Named Alt where
     {-# INLINE names #-}
-    names (Alt am e) = names am ++ names e
+    names (Alt am e) = names am <> names e
 
     {-# INLINE rename #-}
     rename old new (Alt am e) = Alt (rename old new am) (rename old new e)
@@ -424,7 +431,7 @@ instance Named Alt where
 
 instance Named DataCon where
     {-# INLINE names #-}
-    names (DataCon n t) = n:names t
+    names (DataCon n t) = n S.<| names t
 
     {-# INLINE rename #-}
     rename old new (DataCon n t) =
@@ -436,8 +443,8 @@ instance Named DataCon where
 
 instance Named AltMatch where
     {-# INLINE names #-}
-    names (DataAlt dc i) = names dc ++ names i
-    names _ = []
+    names (DataAlt dc i) = names dc <> names i
+    names _ = S.empty
 
     {-# INLINE rename #-}
     rename old new (DataAlt dc i) =
@@ -460,13 +467,13 @@ instance Named TyBinder where
     renames hm (NamedTyBndr i) = NamedTyBndr (renames hm i)
 
 instance Named Coercion where
-    names (t1 :~ t2) = names t1 ++ names t2
+    names (t1 :~ t2) = names t1 <> names t2
     rename old new (t1 :~ t2) = rename old new t1 :~ rename old new t2
     renames hm (t1 :~ t2) = renames hm t1 :~ renames hm t2
 
 instance Named Tickish where
-    names (Breakpoint _) = []
-    names (NamedLoc n) = [n]
+    names (Breakpoint _) = S.empty
+    names (NamedLoc n) = S.singleton n
 
     rename _ _ bp@(Breakpoint _) = bp
     rename old new (NamedLoc n) = NamedLoc $ rename old new n
@@ -480,7 +487,7 @@ instance Named RewriteRule where
                        , ru_bndrs = b
                        , ru_args = as
                        , ru_rhs = rhs}) =
-        h:names rs ++ names b ++ names as ++ names rhs
+        h S.<| names rs <> names b <> names as <> names rhs
 
     rename old new (RewriteRule { ru_name = n
                                 , ru_head = h
@@ -509,7 +516,7 @@ instance Named RewriteRule where
                     , ru_rhs = renames hm rhs}
 
 instance Named FuncCall where
-    names (FuncCall {funcName = n, arguments = as, returns = r}) = n:names as ++ names r
+    names (FuncCall {funcName = n, arguments = as, returns = r}) = n S.<| names as <> names r
     rename old new (FuncCall {funcName = n, arguments = as, returns = r}) = 
         FuncCall {funcName = rename old new n, arguments = rename old new as, returns = rename old new r}
     renames hm (FuncCall {funcName = n, arguments = as, returns = r} ) =
@@ -517,9 +524,9 @@ instance Named FuncCall where
 
 
 instance Named AlgDataTy where
-    names (DataTyCon ns dc) = names ns ++ names dc
-    names (NewTyCon ns dc rt) = names ns ++ names dc ++ names rt
-    names (TypeSynonym is st) = names is ++ names st
+    names (DataTyCon ns dc) = names ns <> names dc
+    names (NewTyCon ns dc rt) = names ns <> names dc <> names rt
+    names (TypeSynonym is st) = names is <> names st
 
     rename old new (DataTyCon n dc) = DataTyCon (rename old new n) (rename old new dc)
     rename old new (NewTyCon n dc rt) = NewTyCon (rename old new n) (rename old new dc) (rename old new rt)
@@ -608,19 +615,20 @@ instance Named KnownValues where
             , errorWithoutStackTraceFunc = errWOST
             , patErrorFunc = patE
             }) =
-            [dI, dF, dD, dI2, dcCh, tI, tI2, tF, tD, tCh, tB, dcT, dcF, tR
-            , tList, tCons, tEmp
-            , tMaybe, dJust, dNothing
-            , tUnit, dUnit
-            , eqT, numT, ordT, integralT, realT, fractionalT
-            , integralEReal, realENum, realEOrd, ordEEq
-            , eqF, neqF, plF, minusF, tmsF, divF, negF, modF
-            , fromIntegerF, toIntegerF
-            , toRatioF, fromRationalF
-            , geF, gtF, ltF, leF, seT, seF
-            , impF, iffF
-            , andF, orF, notF
-            , errF, errEmpListF, errWOST, patE]
+            S.fromList
+                [dI, dF, dD, dI2, dcCh, tI, tI2, tF, tD, tCh, tB, dcT, dcF, tR
+                , tList, tCons, tEmp
+                , tMaybe, dJust, dNothing
+                , tUnit, dUnit
+                , eqT, numT, ordT, integralT, realT, fractionalT
+                , integralEReal, realENum, realEOrd, ordEEq
+                , eqF, neqF, plF, minusF, tmsF, divF, negF, modF
+                , fromIntegerF, toIntegerF
+                , toRatioF, fromRationalF
+                , geF, gtF, ltF, leF, seT, seF
+                , impF, iffF
+                , andF, orF, notF
+                , errF, errEmpListF, errWOST, patE]
 
     rename old new (KnownValues {
                      dcInt = dI
@@ -814,7 +822,7 @@ instance Named a => Named (HM.HashMap k a) where
 
 instance Named () where
     {-# INLINE names #-}
-    names _ = []
+    names _ = S.empty
     {-# INLINE rename #-}
     rename _ _ = id
     {-# INLINE renames #-}
@@ -829,46 +837,46 @@ instance (Named s, Hashable s, Eq s) => Named (HS.HashSet s) where
     renames hm = HS.map (renames hm)
 
 instance (Named a, Named b) => Named (a, b) where
-    names (a, b) = names a ++ names b
+    names (a, b) = names a <> names b
     rename old new (a, b) = (rename old new a, rename old new b)
     renames hm (a, b) = (renames hm a, renames hm b)
 
 instance (Named a, Named b, Named c) => Named (a, b, c) where
-    names (a, b, c) = names a ++ names b ++ names c
+    names (a, b, c) = names a <> names b <> names c
     rename old new (a, b, c) = (rename old new a, rename old new b, rename old new c)
     renames hm (a, b, c) = (renames hm a, renames hm b, renames hm c)
 
 instance (Named a, Named b, Named c, Named d) => Named (a, b, c, d) where
-    names (a, b, c, d) = names a ++ names b ++ names c ++ names d
+    names (a, b, c, d) = names a <> names b <> names c <> names d
     rename old new (a, b, c, d) = (rename old new a, rename old new b, rename old new c, rename old new d)
     renames hm (a, b, c, d) = (renames hm a, renames hm b, renames hm c, renames hm d)
 
 instance (Named a, Named b, Named c, Named d, Named e) => Named (a, b, c, d, e) where
-    names (a, b, c, d, e) = names a ++ names b ++ names c ++ names d ++ names e
+    names (a, b, c, d, e) = names a <> names b <> names c <> names d <> names e
     rename old new (a, b, c, d, e) = (rename old new a, rename old new b, rename old new c, rename old new d, rename old new e)
     renames hm (a, b, c, d, e) = (renames hm a, renames hm b, renames hm c, renames hm d, renames hm e)
 
 instance Named Bool where
     {-# INLINE names #-}
-    names _ = []
+    names _ = S.empty
     {-# INLINE rename #-}
     rename _ _ = id
 
 instance Named Int where
     {-# INLINE names #-}
-    names _ = []
+    names _ = S.empty
     {-# INLINE rename #-}
     rename _ _ = id
 
 instance Named Integer where
     {-# INLINE names #-}
-    names _ = []
+    names _ = S.empty
     {-# INLINE rename #-}
     rename _ _ = id
 
 instance Named T.Text where
     {-# INLINE names #-}
-    names _ = []
+    names _ = S.empty
     {-# INLINE rename #-}
     rename _ _ = id
 
@@ -918,7 +926,9 @@ freshIds ts ngen =
 freshSeededId :: Named a => a -> Type -> NameGen -> (Id, NameGen)
 freshSeededId x t ngen =
     let
-        (n, ngen') = freshSeededName (head $ names x) ngen
+        (n, ngen') = case S.viewl (names x) of
+                            S.EmptyL -> error "freshSeededId: no names available"
+                            x' S.:< _ -> freshSeededName x' ngen
     in
     (Id n t, ngen')
 

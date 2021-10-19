@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Lib.Printers ( mkCleanExprHaskell
+module G2.Lib.Printers ( printHaskell
+                       , mkCleanExprHaskell
                        , mkUnsugaredExprHaskell
                        , mkExprHaskell
                        , mkTypeHaskell
@@ -28,11 +29,13 @@ import G2.Language.Syntax
 import G2.Language.Support
 
 import Data.Char
-import Data.List
+import Data.List as L
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import qualified Data.Text as T
+
+import Debug.Trace
 
 mkIdHaskell :: Id -> String
 mkIdHaskell (Id n _) = mkNameHaskell n
@@ -43,6 +46,9 @@ mkNameHaskell = T.unpack . nameOcc
 mkUnsugaredExprHaskell :: State t -> Expr -> String
 mkUnsugaredExprHaskell (State {known_values = kv, type_classes = tc}) =
     mkExprHaskell . modifyFix (mkCleanExprHaskell' kv tc)
+
+printHaskell :: State t -> Expr -> String
+printHaskell = mkCleanExprHaskell
 
 mkCleanExprHaskell :: State t -> Expr -> String
 mkCleanExprHaskell (State {known_values = kv, type_classes = tc}) = 
@@ -69,15 +75,18 @@ mkCleanExprHaskell' kv tc e
     | otherwise = e
 
 mkExprHaskell :: Expr -> String
-mkExprHaskell ex = mkExprHaskell' ex 0
+mkExprHaskell ex = mkExprHaskell' 0 ex
     where
-        mkExprHaskell' :: Expr -> Int -> String
-        mkExprHaskell' (Var ids) _ = mkIdHaskell ids
-        mkExprHaskell' (Lit c) _ = mkLitHaskell c
-        mkExprHaskell' (Prim p _) _ = mkPrimHaskell p
-        mkExprHaskell' (Lam _ ids e) i = "(\\" ++ mkIdHaskell ids ++ " -> " ++ mkExprHaskell' e i ++ ")"
+        mkExprHaskell' :: Int -- ^ How much should a new line be indented?
+                       -> Expr
+                       -> String
+        mkExprHaskell' _ (Var ids) = mkIdHaskell ids
+        mkExprHaskell' _ (Lit c) = mkLitHaskell c
+        mkExprHaskell' _ (Prim p _) = mkPrimHaskell p
+        mkExprHaskell' off (Lam _ ids e) =
+            "(\\" ++ mkIdHaskell ids ++ " -> " ++ mkExprHaskell' off e ++ ")"
 
-        mkExprHaskell' a@(App ea@(App e1 e2) e3) i
+        mkExprHaskell' off a@(App ea@(App e1 e2) e3)
             | Data (DataCon n _) <- appCenter a
             , isTuple n = printTuple a
             | Data (DataCon n _) <- appCenter a
@@ -89,40 +98,69 @@ mkExprHaskell ex = mkExprHaskell' ex 0
 
             | isInfixable e1 =
                 let
-                    e2P = if isApp e2 then "(" ++ mkExprHaskell' e2 i ++ ")" else mkExprHaskell' e2 i
-                    e3P = if isApp e3 then "(" ++ mkExprHaskell' e3 i ++ ")" else mkExprHaskell' e3 i
+                    e2P = if isApp e2 then "(" ++ mkExprHaskell' off e2 ++ ")" else mkExprHaskell' off e2
+                    e3P = if isApp e3 then "(" ++ mkExprHaskell' off e3 ++ ")" else mkExprHaskell' off e3
                 in
-                e2P ++ " " ++ mkExprHaskell' e1 i ++ " " ++ e3P
+                e2P ++ " " ++ mkExprHaskell' off e1 ++ " " ++ e3P
 
-            | App _ _ <- e3 = mkExprHaskell' ea i ++ " (" ++ mkExprHaskell' e3 i ++ ")"
-            | otherwise = mkExprHaskell' ea i ++ " " ++ mkExprHaskell' e3 i
+            | App _ _ <- e3 = mkExprHaskell' off ea ++ " (" ++ mkExprHaskell' off e3 ++ ")"
+            | otherwise = mkExprHaskell' off ea ++ " " ++ mkExprHaskell' off e3
 
-        mkExprHaskell' (App e1 ea@(App _ _)) i = mkExprHaskell' e1 i ++ " (" ++ mkExprHaskell' ea i ++ ")"
-        mkExprHaskell' (App e1 e2) i = mkExprHaskell' e1 i ++ " " ++ mkExprHaskell' e2 i
-        mkExprHaskell' (Data d) _ = mkDataConHaskell d
-        mkExprHaskell' (Case e _ ae) i = "\n" ++ off (i + 1) ++ "case " ++ (mkExprHaskell' e i) ++ " of\n" 
-                                        ++ intercalate "\n" (map (mkAltHaskell (i + 2)) ae)
-        mkExprHaskell' (Type _) _ = ""
-        mkExprHaskell' (Cast e (_ :~ t)) i = "((coerce " ++ mkExprHaskell' e i ++ ") :: " ++ mkTypeHaskell t ++ ")"
-        mkExprHaskell' (Let _ e) i = "let { ... } in " ++ mkExprHaskell' e i
-        mkExprHaskell' e _ = "e = " ++ show e ++ " NOT SUPPORTED"
+        mkExprHaskell' off (App e1 ea@(App _ _)) = mkExprHaskell' off e1 ++ " (" ++ mkExprHaskell' off ea ++ ")"
+        mkExprHaskell' off (App e1 e2) = mkExprHaskell' off e1 ++ " " ++ mkExprHaskell' off e2
+        mkExprHaskell' _ (Data d) = mkDataConHaskell d
+        mkExprHaskell' off (Case e bndr@(Id bndr_name _) ae) =
+               "case " ++ parenWrap e (mkExprHaskell' off e) ++ " of\n" 
+            ++ intercalate "\n" (map (mkAltHaskell (off + 2) bndr) ae)
+        mkExprHaskell' _ (Type _) = ""
+        mkExprHaskell' off (Cast e (_ :~ t)) = "((coerce " ++ mkExprHaskell' off e ++ ") :: " ++ mkTypeHaskell t ++ ")"
+        mkExprHaskell' off (Let _ e) = "let { ... } in " ++ mkExprHaskell' off e
+        -- TODO
+        mkExprHaskell' off (Tick _ e) = mkExprHaskell' off e
+        mkExprHaskell' _ e = "e = " ++ show e ++ " NOT SUPPORTED"
 
-        mkAltHaskell :: Int -> Alt -> String
-        mkAltHaskell i (Alt am e) =
-            off i ++ mkAltMatchHaskell am ++ " -> " ++ mkExprHaskell' e i
+        mkAltHaskell :: Int -> Id -> Alt -> String
+        mkAltHaskell off bndr@(Id bndr_name _) (Alt am e) =
+            let
+                needs_bndr = bndr_name `elem` names e
+            in
+            offset off ++ mkAltMatchHaskell (if needs_bndr then Just bndr else Nothing) am ++ " -> " ++ mkExprHaskell' off e
 
-mkAltMatchHaskell :: AltMatch -> String
-mkAltMatchHaskell (DataAlt dc ids) = mkDataConHaskell dc ++ " " ++ intercalate " "  (map mkIdHaskell ids)
-mkAltMatchHaskell (LitAlt l) = mkLitHaskell l
-mkAltMatchHaskell Default = "_"
+        parenWrap :: Expr -> String -> String
+        parenWrap (Case _ _ _) s = "(" ++ s ++ ")"
+        parenWrap (Let _ _) s = "(" ++ s ++ ")"
+        parenWrap (Tick _ e) s = parenWrap e s
+        parenWrap _ s = s
+
+mkAltMatchHaskell :: Maybe Id -> AltMatch -> String
+mkAltMatchHaskell m_bndr (DataAlt dc@(DataCon n _) [id1, id2]) | isInfixableName n =
+    let
+        am = mkIdHaskell id1 ++ " " ++ mkDataConHaskell dc ++ " " ++ mkIdHaskell id2
+    in
+    case m_bndr of
+        Just bndr -> mkIdHaskell bndr ++ "@(" ++ am ++ ")" 
+        Nothing -> am
+mkAltMatchHaskell m_bndr (DataAlt dc ids) =
+    let
+        am = mkDataConHaskell dc ++ " " ++ intercalate " "  (map mkIdHaskell ids)
+    in
+    case m_bndr of
+        Just bndr | not (L.null ids) -> mkIdHaskell bndr ++ "@(" ++ am ++ ")"
+        Nothing -> am
+mkAltMatchHaskell m_bndr (LitAlt l) =
+    case m_bndr of
+        Just bndr -> mkIdHaskell bndr ++ "@" ++ mkLitHaskell l
+        Nothing -> mkLitHaskell l
+mkAltMatchHaskell (Just bndr) Default = mkIdHaskell bndr
+mkAltMatchHaskell _ Default = "_"
 
 mkDataConHaskell :: DataCon -> String
 -- Special casing for Data.Map in the modified base
 mkDataConHaskell (DataCon (Name "Assocs" _ _ _) _) = "fromList"
 mkDataConHaskell (DataCon n _) = mkNameHaskell n
 
-off :: Int -> String
-off i = duplicate "   " i
+offset :: Int -> String
+offset i = duplicate "   " i
 
 printList :: Expr -> String
 printList a = "[" ++ intercalate ", " (printList' a) ++ "]"
@@ -168,8 +206,13 @@ printTuple' _ = []
 
 
 isInfixable :: Expr -> Bool
-isInfixable (Data (DataCon n _)) = not $ T.any isAlphaNum $ nameOcc n
+isInfixable (Var (Id n _)) = isInfixableName n
+isInfixable (Data (DataCon n _)) = isInfixableName n
+isInfixable (Prim p _) = not . any isAlphaNum $ mkPrimHaskell p
 isInfixable _ = False
+
+isInfixableName :: Name -> Bool
+isInfixableName = not . T.any isAlphaNum . nameOcc
 
 isApp :: Expr -> Bool
 isApp (App _ _) = True

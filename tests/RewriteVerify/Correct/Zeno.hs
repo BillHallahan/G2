@@ -66,58 +66,28 @@ Z     === _     = False
 (S _) === Z     = False
 (S x) === (S y) = x === y
 
--- adjustment to avoid void error
-(<=) :: Nat -> Nat -> Bool
-(<=) x y = case x of
-  Z -> True
-  S x' -> case y of
-    Z -> False
-    S y' -> x' <= y'
-{-
 Z     <= _     = True
 _     <= Z     = False
 (S x) <= (S y) = x <= y
--}
 
 _     < Z     = False
 Z     < _     = True
 (S x) < (S y) = x < y
 
-(+) x y = case x of
-  Z -> y
-  S x' -> S (x' + y)
-{-
 Z     + y = y
 (S x) + y = S (x + y)
--}
 
-(-) :: Nat -> Nat -> Nat
-(-) x y = case x of
-  Z -> Z
-  S x' -> case y of
-    Z -> x
-    S y' -> x' - y'
-{-
 Z     - _     = Z
 x     - Z     = x
 (S x) - (S y) = x - y
--}
 
 min Z     y     = Z
 min (S x) Z     = Z
 min (S x) (S y) = S (min x y)
 
-max :: Nat -> Nat -> Nat
-max x y = case x of
-  Z -> y
-  S x' -> case y of
-    Z -> x
-    S y' -> S (max x' y')
-{-
 max Z     y     = y
 max x     Z     = x
 max (S x) (S y) = S (max x y)
--}
 
 -- List functions
 
@@ -133,18 +103,9 @@ rev :: [a] -> [a]
 rev [] = []
 rev (x:xs) = rev xs ++ [x]
 
-zip :: [a] -> [b] -> [(a, b)]
-zip xs ys =
-  case xs of
-    [] -> []
-    x:xs' -> case ys of
-      [] -> []
-      y:ys' -> (x, y) : (zip xs' ys')
-{-
 zip [] _ = []
 zip _ [] = []
 zip (x:xs) (y:ys) = (x, y) : (zip xs ys)
--}
 
 delete :: Nat -> [Nat] -> [Nat]
 delete _ [] = []
@@ -164,31 +125,13 @@ elem n (x:xs) =
     True -> True
     False -> elem n xs
 
-drop :: Nat -> [a] -> [a]
-drop x xs =
-  case x of
-    Z -> xs
-    S x' -> case xs of
-      [] -> []
-      _:xs' -> drop x' xs'
-{-
 drop Z xs = xs
 drop _ [] = []
 drop (S x) (_:xs) = drop x xs
--}
 
-take :: Nat -> [a] -> [a]
-take x ys =
-  case x of
-    Z -> []
-    S x' -> case ys of
-      [] -> []
-      y:ys' -> y : (take x' ys')
-{-
 take Z _ = []
 take _ [] = []
 take (S x) (y:ys) = y : (take x ys)
--}
 
 count :: Nat -> [Nat] -> Nat
 count x [] = Z
@@ -275,11 +218,6 @@ zipConcat _ _ [] = []
 zipConcat x xs (y:ys) = (x, y) : zip xs ys
 
 height :: Tree a -> Nat
-{-
-height a = case a of
-  Leaf -> Z
-  Node l _ r ->
--}
 height Leaf = Z
 height (Node l x r) = S (max (height l) (height r))
 
@@ -649,7 +587,6 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p13" forall n x xs . drop (S n) (x : xs) = drop n xs
 "p14" forall p xs ys . filter p (xs ++ ys) = (filter p xs) ++ (filter p ys)
 "p15" forall x xs . len (ins x xs) = S (len xs)
-"prop16" forall x xs . prop_16 x xs = True
 "p17" forall n . n <= Z = n === Z
 "p19" forall n xs . len (drop n xs) = len xs - n
 "p20" forall xs . len (sort xs) = len xs
@@ -832,4 +769,34 @@ forceTreeBool (Node l _ r) b = case (forceTreeBool l b) of
 "p05b" forall n x xs . prop_05 n x xs = forceNatBool n (forceNatBool x (forceNatListBool xs True))
 "p32c" forall a b . forceNatBool a (forceNatBool b True) = (min a b === min b a)
 "p78b" forall xs . prop_78 xs = forceNatListBool xs True
+  #-}
+
+-- TODO the theorems that don't fit the ordinary equivalence format
+{-# RULES
+"prop03" forall n xs ys . prop_03 n xs ys = True
+"prop05" forall n x xs . prop_05 n x xs = True
+"prop16" forall x xs . prop_16 x xs = True
+"prop18" forall i m . prop_18 i m = True
+"prop21" forall n m . prop_21 n m = True
+"prop26" forall x xs ys . prop_26 x xs ys = True
+"prop27" forall x xs ys . prop_27 x xs ys = True
+"prop28" forall x xs . prop_28 x xs = True
+"prop29" forall x xs . prop_29 x xs = True
+"prop30" forall x xs . prop_30 x xs = True
+"prop37" forall x xs . prop_37 x xs = True
+"prop48" forall xs . prop_48 xs = True
+"prop59" forall xs ys . prop_59 xs ys = True
+"prop60" forall xs ys . prop_60 xs ys = True
+"prop62" forall xs x . prop_62 xs x = True
+"prop63" forall n xs . prop_63 n xs = True
+"prop65" forall i m . prop_65 i m = True
+"prop66" forall p xs . prop_66 p xs = True
+"prop68" forall n xs . prop_68 n xs = True
+"prop69" forall n m . prop_69 n m = True
+"prop70" forall m n . prop_70 m n = True
+"prop71" forall x y xs . prop_71 x y xs = True
+"prop76" forall n m xs . prop_76 n m xs = True
+"prop77" forall x xs . prop_77 x xs = True
+"prop78" forall xs . prop_78 xs = True
+"prop85" forall xs ys . prop_85 xs ys = True
   #-}

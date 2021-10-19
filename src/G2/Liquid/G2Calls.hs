@@ -115,7 +115,7 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
                     s { curr_expr = CurrExpr Evaluate strict_call
                       , track = False }
 
-        let pres = HS.fromList $ names s' ++ names bindings
+        let pres = HS.fromList $ namesList s' ++ namesList bindings
         (er, _) <- runG2WithSomes 
                         (SomeReducer (StdRed share NoMerging solver simplifier :<~ HitsLibError))
                         (SomeHalter SWHNFHalter)
@@ -171,7 +171,7 @@ getAbstracted solver simplifier share s bindings abs_fc@(FuncCall { funcName = n
                     s { curr_expr = CurrExpr Evaluate strict_call
                       , track = ([] :: [FuncCall], False)}
 
-        let pres = HS.fromList $ names s' ++ names bindings
+        let pres = HS.fromList $ namesList s' ++ namesList bindings
         (er, bindings') <- runG2WithSomes 
                               (SomeReducer (StdRed share NoMerging solver simplifier :<~ HitsLibErrorGatherer))
                               (SomeHalter SWHNFHalter)
@@ -438,7 +438,7 @@ reduceFCExprMaybe share reducer solver simplifier s bindings e
                . modelToExprEnv $
                    s { curr_expr = CurrExpr Evaluate e'}
 
-        let pres = HS.fromList $ names s' ++ names bindings
+        let pres = HS.fromList $ namesList s' ++ namesList bindings
         (er, bindings') <- runG2WithSomes 
                     reducer
                     (SomeHalter SWHNFHalter)

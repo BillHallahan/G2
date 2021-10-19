@@ -41,8 +41,8 @@ import Control.Monad
 
 import Data.Time
 
--- TODO
 import G2.Execution.Reducer
+import G2.Lib.Printers
 
 data StateH = StateH {
     latest :: StateET
@@ -127,7 +127,7 @@ rec_name :: Name
 rec_name = Name (DT.pack "REC") Nothing 0 Nothing
 
 wrapRecursiveCall :: Name -> Expr -> Expr
--- TODO attempt to prevent double wrapping
+-- This first case prevents recursive calls from being wrapped twice
 wrapRecursiveCall n e@(Tick (NamedLoc n'@(Name t _ _ _)) e') =
   if t == DT.pack "REC"
   then e
@@ -215,24 +215,24 @@ appendH sh s =
 replaceH :: StateH -> StateET -> StateH
 replaceH sh s = sh { latest = s }
 
-prevGuarded :: (StateH, StateH) -> [(StateET, StateET)]
-prevGuarded (sh1, sh2) = [(p1, p2) | p1 <- history sh1, p2 <- history sh2]
+prevFull :: (StateH, StateH) -> [(StateET, StateET)]
+prevFull (sh1, sh2) = [(p1, p2) | p1 <- history sh1, p2 <- history sh2]
 
-prevUnguarded :: (StateH, StateH) -> [(StateET, StateET)]
-prevUnguarded = (filter (not . eitherSWHNF)) . prevGuarded
+prevFiltered :: (StateH, StateH) -> [(StateET, StateET)]
+prevFiltered = (filter (not . eitherSWHNF)) . prevFull
 
 verifyLoop :: S.Solver solver =>
               solver ->
-              (HS.HashSet Name, HS.HashSet Name) ->
+              HS.HashSet Name ->
               [(StateH, StateH)] ->
               [(StateH, StateH)] ->
               Bindings ->
               Config ->
               IO (S.Result () ())
-verifyLoop solver ns_pair states prev b config | not (null states) = do
+verifyLoop solver ns states prev b config | not (null states) = do
   let current_states = map getLatest states
   (paired_states, b') <- CM.runStateT (mapM (uncurry (runSymExec config)) current_states) b
-  let vl (sh1, sh2) = verifyLoop' solver ns_pair sh1 sh2 prev
+  let vl (sh1, sh2) = verifyLoop' solver ns sh1 sh2 prev
   -- TODO printing
   putStrLn "<Loop Iteration>"
   -- for every internal list, map with its corresponding original state
@@ -245,7 +245,7 @@ verifyLoop solver ns_pair states prev b config | not (null states) = do
       prev' = new_obligations ++ prev
   putStrLn $ show $ length new_obligations
   if all isJust proof_list then
-    verifyLoop solver ns_pair new_obligations prev' b' config
+    verifyLoop solver ns new_obligations prev' b' config
   else
     return $ S.SAT ()
   | otherwise = do
@@ -254,32 +254,31 @@ verifyLoop solver ns_pair states prev b config | not (null states) = do
 exprExtract :: State t -> Expr
 exprExtract (State { curr_expr = CurrExpr _ e }) = e
 
-canUseGuarded :: Obligation -> Bool
-canUseGuarded (Ob c _ _) = c
-
 stateWrap :: StateET -> StateET -> Obligation -> (StateET, StateET)
-stateWrap s1 s2 (Ob _ e1 e2) =
+stateWrap s1 s2 (Ob e1 e2) =
   ( s1 { curr_expr = CurrExpr Evaluate e1 }
   , s2 { curr_expr = CurrExpr Evaluate e2 } )
 
 -- helper functions for induction
 -- TODO can something other than Case be at the outermost level?
 caseRecursion :: Expr -> Bool
-caseRecursion (Case e _ _) = crHelper e
+caseRecursion (Case e _ _) =
+  (getAny . evalASTs (\e' -> Any $ caseRecHelper e')) e
 caseRecursion _ = False
 
-crHelper :: Expr -> Bool
-crHelper (Tick (NamedLoc (Name t _ _ _)) e) =
-  t == DT.pack "REC" || crHelper e
-crHelper (Case e _ _) = crHelper e
-crHelper (App e _) = crHelper e
-crHelper (Cast e _) = crHelper e
-crHelper _ = False
+caseRecHelper :: Expr -> Bool
+caseRecHelper (Tick (NamedLoc (Name t _ _ _)) _) = t == DT.pack "REC"
+caseRecHelper _ = False
 
+-- We only apply induction to a pair of expressions if both expressions are
+-- Case statements whose scrutinee includes a recursive function or variable
+-- use.  Induction is sound as long as the two expressions are Case statements,
+-- but, if no recursion is involved, ordinary coinduction is just as useful.
+-- We prefer coinduction in that scenario because it is more efficient.
 canUseInduction :: Obligation -> Bool
-canUseInduction (Ob _ e1 e2) = caseRecursion e1 && caseRecursion e2
+canUseInduction (Ob e1 e2) = caseRecursion e1 && caseRecursion e2
 
--- TODO extra helper function, might want a better name
+-- Checks the same conditions, but takes a state pair as input instead.
 statePairInduction :: (State t, State t) -> Bool
 statePairInduction (s1, s2) =
   (caseRecursion $ exprExtract s1) && (caseRecursion $ exprExtract s2)
@@ -288,13 +287,10 @@ concretize :: HM.HashMap Id Expr -> Expr -> Expr
 concretize hm e =
   HM.foldrWithKey (\i -> replaceVar (idName i)) e hm
 
--- TODO also need to adjust expression environments
--- TODO I also need the expr_env that will supply nested bindings
--- h_new supplies those bindings, h_old receives them
--- low-effort approach:  just copy everything
--- TODO check later if it's sound
--- TODO also need to be careful about symbolic vars
--- is overwriting the way I do now fine?
+-- Copies bindings from the first expression environment into the second.
+-- This inserts symbolic variables twice over, once along with all of the other
+-- variables and then once on their own specifically marked as symbolic, but
+-- only the second insertion should matter.
 concretizeEnv :: ExprEnv -> ExprEnv -> ExprEnv
 concretizeEnv h_new h_old =
   let ins_sym n = case h_new E.! n of
@@ -330,40 +326,87 @@ inductionState :: State t -> State t
 inductionState s =
   s { curr_expr = CurrExpr Evaluate $ inductionExtract $ exprExtract s }
 
+-- TODO helpers for "finite induction"
+-- inline variables for this?
+-- vars in the finite set count, so do Data constructors with finite args
+-- also need list of symbolic vars, and list of vars not to inline?
+-- TODO keep track of inlined vars to avoid cycles
+finiteExpr :: HS.HashSet Name ->
+              HS.HashSet Name ->
+              ExprEnv ->
+              [Name] -> -- ^ vars inlined so far
+              Expr ->
+              Bool
+finiteExpr ns finite_hs h n e = case e of
+  Var i | (idName i) `elem` finite_hs -> True
+        | (idName i) `elem` ns -> False
+        | (idName i) `elem` n -> False
+        -- symbolic but not finite:  not allowed
+        | E.isSymbolic (idName i) h -> False
+        | m <- idName i
+        , Just e' <- E.lookup m h -> finiteExpr ns finite_hs h (m:n) e'
+        | otherwise -> error "unmapped variable"
+  -- TODO can literal strings be infinite?  This assumes they can't be
+  Lit _ -> True
+  -- TODO also assumes types can't be infinite
+  Prim _ _ -> True
+  Data _ -> True
+  -- TODO should I be more careful about this?
+  App e1 e2 -> (finiteExpr ns finite_hs h n e1) && (finiteExpr ns finite_hs h n e2)
+  Lam _ _ _ -> False
+  -- TODO might not even need to handle these two cases at all
+  Let _ _ -> False
+  Case _ _ _ -> False
+  Type _ -> True
+  --Cast e' _ -> finiteExpr finite_hs e'
+  --Coercion _ -> True
+  Tick _ e' -> finiteExpr ns finite_hs h n e'
+  _ -> error "unrecognized"
+
+notM :: IO Bool -> IO Bool
+notM b = do
+  b' <- b
+  return (not b')
+
+andM :: IO Bool -> IO Bool -> IO Bool
+andM b1 b2 = do
+  b1' <- b1
+  b2' <- b2
+  return (b1' && b2')
+
 -- TODO printing
--- TODO non-ready obligations are not necessarily the original exprs
--- Does it still make sense to graft them onto the starting states' histories?
 verifyLoop' :: S.Solver solver =>
                solver ->
-               (HS.HashSet Name, HS.HashSet Name) ->
+               HS.HashSet Name ->
                StateH ->
                StateH ->
                [(StateH, StateH)] ->
                IO (Maybe [(StateH, StateH)])
-verifyLoop' solver ns_pair sh1 sh2 prev =
+verifyLoop' solver ns sh1 sh2 prev =
   let s1 = latest sh1
       s2 = latest sh2
   in
-  case getObligations ns_pair s1 s2 of
+  case getObligations ns s1 s2 of
     Nothing -> do
+      -- obligation generation failed, so the expressions must not be equivalent
       putStr "N! "
       putStrLn $ show (exprExtract s1, exprExtract s2)
       return Nothing
     Just obs -> do
-      putStr "J! "
-      putStrLn $ show (exprExtract s1, exprExtract s2)
-      let (obs_g, obs_u) = partition canUseGuarded obs
-          (obs_i, obs_u') = partition canUseInduction obs_u
-          states_g = map (stateWrap s1 s2) obs_g
-          states_u = map (stateWrap s1 s2) obs_u'
-          states_i = map (stateWrap s1 s2) obs_i
-          prev_g = concat $ map prevGuarded prev
-          prev_u = concat $ map prevUnguarded prev
-          states_g' = filter (not . (moreRestrictivePair ns_pair prev_g)) states_g
-          states_u' = filter (not . (moreRestrictivePair ns_pair prev_u)) states_u
-          states_i' = filter (not . (induction ns_pair prev_u)) states_i
-          states = states_g' ++ states_u' ++ states_i'
-          -- TODO unnecessary to pass the induction states through this?
+      putStrLn "J!"
+      putStrLn $ printHaskell s1 $ exprExtract s1
+      putStrLn $ printHaskell s2 $ exprExtract s2
+
+      let prev' = concat $ map prevFiltered prev
+          (obs_i, obs_c) = partition canUseInduction obs
+          states_c = map (stateWrap s1 s2) obs_c
+      states_c' <- filterM (notM . (moreRestrictivePair solver ns prev')) states_c
+
+      let states_i = map (stateWrap s1 s2) obs_i
+          states_i' = filter (not . (induction ns prev')) states_i
+
+      -- TODO unnecessary to pass the induction states through this?
+      let states = states_c' ++ states_i'
           (ready, not_ready) = partition statePairReadyForSolver states
           ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
           not_ready_h = map (\(n1, n2) -> (replaceH sh1 n1, replaceH sh2 n2)) not_ready
@@ -383,29 +426,30 @@ Compare the sub-expressions to the prev state pairs
 If any match occurs, try extrapolating it
 If extrapolation works, we can flag the real state pair as a repeat
 -}
-induction :: (HS.HashSet Name, HS.HashSet Name) ->
+induction :: HS.HashSet Name ->
              [(StateET, StateET)] ->
              (StateET, StateET) ->
              Bool
-induction ns_pair prev (s1, s2) =
+induction ns prev (s1, s2) =
   let s1' = inductionState s1
       s2' = inductionState s2
       prev' = filter statePairInduction prev
       prev'' = map (\(p1, p2) -> (inductionState p1, inductionState p2)) prev'
-      hm_maybe_list = map (mrHelper' ns_pair (Just HM.empty) (s1', s2')) prev''
+      hm_maybe_list = map (indHelper ns (Just (HM.empty, HS.empty)) (s1', s2')) prev''
       -- try matching the prev state pair with other prev state pairs
       hm_maybe_zipped = zip hm_maybe_list prev'
       -- ignore the combinations that didn't work
-      hm_maybe_zipped' = [(hm, p) | (Just hm, p) <- hm_maybe_zipped]
+      -- TODO ignoring extra obligations here; is that a problem?
+      -- TODO modify the code to discard ones with extra obligations
+      hm_maybe_zipped' = [(hm, p) | (Just (hm, hs), p) <- hm_maybe_zipped, HS.null hs]
       csp = concretizeStatePair (expr_env s1, expr_env s2)
       concretized = map (uncurry csp) hm_maybe_zipped'
       -- TODO optimization:  just take the first one
+      -- just took the full concretized list before
       concretized' = case concretized of
         [] -> []
         c:_ -> [c]
-      -- TODO am I using mrHelper' backward here?
-      ind p p' = mrHelper' ns_pair (Just HM.empty) p p'
-      -- TODO just took the full concretized list before
+      ind p p' = indHelper ns (Just (HM.empty, HS.empty)) p p'
       ind_fns = map ind concretized'
       -- replace everything in the old expression pair used for the match
       hm_maybe_list' = concat $ map (\f -> map f prev) ind_fns
@@ -413,15 +457,15 @@ induction ns_pair prev (s1, s2) =
   in
   not $ null res
 
-getObligations :: (HS.HashSet Name, HS.HashSet Name) ->
+getObligations :: HS.HashSet Name ->
                   State t ->
                   State t ->
                   Maybe [Obligation]
-getObligations ns_pair s1 s2 =
-  case proofObligations ns_pair s1 s2 (exprExtract s1) (exprExtract s2) of
+getObligations ns s1 s2 =
+  case proofObligations ns s1 s2 (exprExtract s1) (exprExtract s2) of
     Nothing -> Nothing
     Just obs -> Just $
-                map (\(Ob c e1 e2) -> Ob c (addStackTickIfNeeded e1) (addStackTickIfNeeded e2)) $
+                map (\(Ob e1 e2) -> Ob (addStackTickIfNeeded e1) (addStackTickIfNeeded e2)) $
                 HS.toList obs
 
 addStackTickIfNeeded :: Expr -> Expr
@@ -461,22 +505,22 @@ applySolver solver extraPC s1 s2 =
         rightPC = P.toList $ path_conds s2
         unionPC = foldr P.insert (path_conds s1) rightPC
         allPC = foldr P.insert unionPC (P.toList extraPC)
-        newState = s1 { expr_env = unionEnv, path_conds = allPC }
+        -- TODO what if I use extraPC here instead of allPC?
+        newState = s1 { expr_env = unionEnv, path_conds = extraPC }
     in S.check solver newState allPC
 
 obligationWrap :: HS.HashSet (Expr, Expr) -> Maybe PathCond
 obligationWrap obligations =
     let obligation_list = HS.toList obligations
         eq_list = map (\(e1, e2) -> App (App (Prim Eq TyUnknown) e1) e2) obligation_list
-        -- TODO type issue again
         conj = foldr1 (\o1 o2 -> App (App (Prim And TyUnknown) o1) o2) eq_list
     in
     if null eq_list
     then Nothing
     else Just $ ExtCond (App (Prim Not TyUnknown) conj) True
 
-totalName :: [DT.Text] -> Name -> Bool
-totalName texts (Name t _ _ _) = t `elem` texts
+includedName :: [DT.Text] -> Name -> Bool
+includedName texts (Name t _ _ _) = t `elem` texts
 
 startingState :: EquivTracker -> State t -> StateH
 startingState et s =
@@ -494,24 +538,29 @@ checkRule :: Config ->
              State t ->
              Bindings ->
              [DT.Text] -> -- ^ names of forall'd variables required to be total
+             [DT.Text] -> -- ^ names of forall'd variables required to be total and finite
              RewriteRule ->
              IO (S.Result () ())
-checkRule config init_state bindings total rule = do
+checkRule config init_state bindings total finite rule = do
   let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
       (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
-      total_names = filter (totalName total) (map idName $ ru_bndrs rule)
-      -- TODO do I still need the HashSet usage elsewhere?
-      total_hs = foldr HS.insert HS.empty total_names
-      EquivTracker et m _ = emptyEquivTracker
-      start_equiv_tracker = EquivTracker et m total_hs
+      total_names = filter (includedName total) (map idName $ ru_bndrs rule)
+      finite_names = filter (includedName finite) (map idName $ ru_bndrs rule)
+      finite_hs = foldr HS.insert HS.empty finite_names
+      -- always include the finite names in total
+      total_hs = foldr HS.insert finite_hs total_names
+      EquivTracker et m _ _ = emptyEquivTracker
+      start_equiv_tracker = EquivTracker et m total_hs finite_hs
       -- the keys are the same between the old and new environments
       ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
       ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
+      -- no need for two separate name sets
+      ns = HS.union ns_l ns_r
       rewrite_state_l' = startingState start_equiv_tracker rewrite_state_l
       rewrite_state_r' = startingState start_equiv_tracker rewrite_state_r
   S.SomeSolver solver <- initSolver config
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
-  res <- verifyLoop solver (ns_l, ns_r)
+  res <- verifyLoop solver ns
              [(rewrite_state_l', rewrite_state_r')]
              [(rewrite_state_l', rewrite_state_r')]
              bindings'' config
@@ -519,43 +568,79 @@ checkRule config init_state bindings total rule = do
   return res
 
 -- s1 is the old state, s2 is the new state
+-- If any recursively-defined functions or other expressions manage to slip
+-- through the cracks with the other mechanisms in place for avoiding infinite
+-- inlining loops, then we can handle them here by keeping track of all of the
+-- variables that have been inlined previously.
+-- Keeping track of inlinings by adding to ns only lets a variable be inlined
+-- on one side.  We need to have two separate lists of variables that have been
+-- inlined previously so that inlinings on one side do not block any inlinings
+-- that need to happen on the other side.
+-- Whenever a variable is inlined, we record the expression that was on the
+-- opposite side at the time.  Under the original system, a variable could not
+-- be inlined at all on one side in any sub-expressions that resulted from an
+-- inlining of it, and that was too restrictive.  Under the current system,
+-- repeated inlinings of a variable are allowed as long as the expression on
+-- the opposite side is not the same as it was when a previous inlining of the
+-- same variable happened.
 moreRestrictive :: State t ->
                    State t ->
                    HS.HashSet Name ->
-                   HM.HashMap Id Expr ->
+                   (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
+                   [(Name, Expr)] -> -- ^ variables inlined previously on the LHS
+                   [(Name, Expr)] -> -- ^ variables inlined previously on the RHS
                    Expr ->
                    Expr ->
-                   Maybe (HM.HashMap Id Expr)
-moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e2 =
+                   Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n2 e1 e2 =
   case (e1, e2) of
     -- ignore all Ticks
-    (Tick _ e1', _) -> moreRestrictive s1 s2 ns hm e1' e2
-    (_, Tick _ e2') -> moreRestrictive s1 s2 ns hm e1 e2'
-    -- TODO new cases, may make some old cases unreachable
-    (Var i, _) | not $ E.isSymbolic (idName i) h1
-               , not $ HS.member (idName i) ns
-               , Just e <- E.lookup (idName i) h1 -> moreRestrictive s1 s2 ns hm e e2
-    (_, Var i) | not $ E.isSymbolic (idName i) h2
-               , not $ HS.member (idName i) ns
-               , Just e <- E.lookup (idName i) h2 -> moreRestrictive s1 s2 ns hm e1 e
-    -- TODO altered order
+    (Tick _ e1', _) -> moreRestrictive s1 s2 ns hm n1 n2 e1' e2
+    (_, Tick _ e2') -> moreRestrictive s1 s2 ns hm n1 n2 e1 e2'
+    (Var i, _) | m <- idName i
+               , not $ E.isSymbolic m h1
+               , not $ HS.member m ns
+               , not $ (m, e2) `elem` n1
+               , Just e <- E.lookup m h1 ->
+                 moreRestrictive s1 s2 ns hm ((m, e2):n1) n2 e e2
+    (_, Var i) | m <- idName i
+               , not $ E.isSymbolic m h2
+               , not $ HS.member m ns
+               , not $ (m, e1) `elem` n2
+               , Just e <- E.lookup m h2 ->
+                 moreRestrictive s1 s2 ns hm n1 ((m, e1):n2) e1 e
     (Var i1, Var i2) | HS.member (idName i1) ns
                      , idName i1 == idName i2 -> Just hm
                      | HS.member (idName i1) ns -> Nothing
                      | HS.member (idName i2) ns -> Nothing
     (Var i, _) | E.isSymbolic (idName i) h1
-               , Nothing <- HM.lookup i hm -> Just (HM.insert i (inlineEquiv h2 ns e2) hm)
+               , (hm', hs) <- hm
+               , Nothing <- HM.lookup i hm' -> Just (HM.insert i (inlineEquiv [] h2 ns e2) hm', hs)
                | E.isSymbolic (idName i) h1
-               , Just e <- HM.lookup i hm
-               , e == inlineEquiv h2 ns e2 -> Just hm
+               , Just e <- HM.lookup i (fst hm)
+               , e == inlineEquiv [] h2 ns e2 -> Just hm
                -- this last case means there's a mismatch
                | E.isSymbolic (idName i) h1 -> Nothing
-               | not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
+               | not $ (idName i, e2) `elem` n1
+               , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
     (_, Var i) | E.isSymbolic (idName i) h2 -> Nothing -- sym replaces non-sym
-               | not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
-    (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s1 s2 ns hm f1 f2
-                           , Just hm_a <- moreRestrictive s1 s2 ns hm_f a1 a2 -> Just hm_a
-                           | otherwise -> Nothing
+               | not $ (idName i, e1) `elem` n2
+               , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
+    (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s1 s2 ns hm n1 n2 f1 f2
+                           , Just hm_a <- moreRestrictive s1 s2 ns hm_f n1 n2 a1 a2 -> Just hm_a
+    -- These two cases should come after the main App-App case.  If an
+    -- expression pair fits both patterns, then discharging it in a way that
+    -- does not add any extra proof obligations is preferable.
+    (App _ _, _) | e1':_ <- unApp e1
+                 , (Prim _ _) <- inlineTop [] h1 e1'
+                 , T.isPrimType $ typeOf e1 ->
+                                  let (hm', hs) = hm
+                                  in Just (hm', HS.insert (inlineFull [] h1 e1, inlineFull [] h2 e2) hs)
+    (_, App _ _) | e2':_ <- unApp e2
+                 , (Prim _ _) <- inlineTop [] h1 e2'
+                 , T.isPrimType $ typeOf e2 ->
+                                  let (hm', hs) = hm
+                                  in Just (hm', HS.insert (inlineFull [] h1 e1, inlineFull [] h2 e2) hs)
     -- We just compare the names of the DataCons, not the types of the DataCons.
     -- This is because (1) if two DataCons share the same name, they must share the
     -- same type, but (2) "the same type" may be represented in different syntactic
@@ -564,10 +649,9 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
     (Data (DataCon d1 _), Data (DataCon d2 _))
                                   | d1 == d2 -> Just hm
                                   | otherwise -> Nothing
-    -- TODO potential problems with type equality checking?
-    (Prim p1 t1, Prim p2 t2) | p1 == p2
-                             , t1 == t2 -> Just hm
-                             | otherwise -> Nothing
+    -- We neglect to check type equality here for the same reason.
+    (Prim p1 _, Prim p2 _) | p1 == p2 -> Just hm
+                           | otherwise -> Nothing
     (Lit l1, Lit l2) | l1 == l2 -> Just hm
                      | otherwise -> Nothing
     (Lam lu1 i1 b1, Lam lu2 i2 b2)
@@ -575,29 +659,45 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm e1 e
                 , i1 == i2 ->
                   let ns' = HS.insert (idName i1) ns
                   -- no need to insert twice over because they're equal
-                  in moreRestrictive s1 s2 ns' hm b1 b2
+                  in moreRestrictive s1 s2 ns' hm n1 n2 b1 b2
                 | otherwise -> Nothing
     -- ignore types, like in exprPairing
     (Type _, Type _) -> Just hm
     -- TODO if scrutinee is symbolic var, make Alt vars symbolic?
     (Case e1' i1 a1, Case e2' i2 a2)
-                | Just hm' <- moreRestrictive s1 s2 ns hm e1' e2' ->
+                | Just hm' <- moreRestrictive s1 s2 ns hm n1 n2 e1' e2' ->
                   -- add the matched-on exprs to the envs beforehand
                   let h1' = E.insert (idName i1) e1' h1
                       h2' = E.insert (idName i2) e2' h2
                       s1' = s1 { expr_env = h1' }
                       s2' = s2 { expr_env = h2' }
-                      mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ e1_ e2_
+                      mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ n1 n2 e1_ e2_
                       l = zip a1 a2
                   in foldM mf hm' l
     _ -> Nothing
 
-inlineEquiv :: ExprEnv -> HS.HashSet Name -> Expr -> Expr
-inlineEquiv h ns v@(Var (Id n _))
+-- These helper functions have safeguards to avoid cyclic inlining.
+inlineTop :: [Name] -> ExprEnv -> Expr -> Expr
+inlineTop acc h v@(Var (Id n _))
+    | n `elem` acc = v
+    | E.isSymbolic n h = v
+    | Just e <- E.lookup n h = inlineTop (n:acc) h e
+inlineTop _ _ e = e
+
+inlineFull :: [Name] -> ExprEnv -> Expr -> Expr
+inlineFull acc h v@(Var (Id n _))
+    | n `elem` acc = v
+    | E.isSymbolic n h = v
+    | Just e <- E.lookup n h = inlineFull (n:acc) h e
+inlineFull acc h e = modifyChildren (inlineFull acc h) e
+
+inlineEquiv :: [Name] -> ExprEnv -> HS.HashSet Name -> Expr -> Expr
+inlineEquiv acc h ns v@(Var (Id n _))
+    | n `elem` acc = v
     | E.isSymbolic n h = v
     | HS.member n ns = v
-    | Just e <- E.lookup n h = inlineEquiv h ns e
-inlineEquiv h ns e = modifyChildren (inlineEquiv h ns) e
+    | Just e <- E.lookup n h = inlineEquiv (n:acc) h ns e
+inlineEquiv acc h ns e = modifyChildren (inlineEquiv acc h ns) e
 
 -- check only the names for DataAlt
 altEquiv :: AltMatch -> AltMatch -> Bool
@@ -616,45 +716,129 @@ altEquiv _ _ = False
 moreRestrictiveAlt :: State t ->
                       State t ->
                       HS.HashSet Name ->
-                      HM.HashMap Id Expr ->
+                      (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
+                      [(Name, Expr)] -> -- ^ variables inlined previously on the LHS
+                      [(Name, Expr)] -> -- ^ variables inlined previously on the RHS
                       Alt ->
                       Alt ->
-                      Maybe (HM.HashMap Id Expr)
-moreRestrictiveAlt s1 s2 ns hm (Alt am1 e1) (Alt am2 e2) =
+                      Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+moreRestrictiveAlt s1 s2 ns hm n1 n2 (Alt am1 e1) (Alt am2 e2) =
   if altEquiv am1 am2 then
   case am1 of
-    DataAlt _ t1 -> let n1 = map (\(Id n _) -> n) t1
-                        ns' = foldr HS.insert ns n1
-                    in moreRestrictive s1 s2 ns' hm e1 e2
-    _ -> moreRestrictive s1 s2 ns hm e1 e2
+    DataAlt _ t1 -> let ns' = foldr HS.insert ns $ map (\(Id n _) -> n) t1
+                    in moreRestrictive s1 s2 ns' hm n1 n2 e1 e2
+    _ -> moreRestrictive s1 s2 ns hm n1 n2 e1 e2
   else Nothing
 
-mrHelper :: State t ->
-            State t ->
-            HS.HashSet Name ->
-            Maybe (HM.HashMap Id Expr) ->
-            Maybe (HM.HashMap Id Expr)
-mrHelper _ _ _ Nothing = Nothing
-mrHelper s1 s2 ns (Just hm) =
-  moreRestrictive s1 s2 ns hm (exprExtract s1) (exprExtract s2)
+restrictHelper :: State t ->
+                  State t ->
+                  HS.HashSet Name ->
+                  Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
+                  Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+restrictHelper _ _ _ Nothing = Nothing
+restrictHelper s1 s2 ns (Just hm) =
+  moreRestrictive s1 s2 ns hm [] [] (exprExtract s1) (exprExtract s2)
 
--- TODO better name?
--- TODO the first state pair is the new one
--- TODO do I really need two ns lists?
-mrHelper' :: (HS.HashSet Name, HS.HashSet Name) ->
-             Maybe (HM.HashMap Id Expr) ->
+-- the first state pair is the new one, the second is the old
+indHelper :: HS.HashSet Name ->
+             Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
              (State t, State t) ->
              (State t, State t) ->
-             Maybe (HM.HashMap Id Expr)
-mrHelper' (ns1, ns2) hm_maybe (s1, s2) (p1, p2) =
-  mrHelper p2 s2 ns2 $ mrHelper p1 s1 ns1 hm_maybe
+             Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+indHelper ns hm_maybe (s1, s2) (p1, p2) =
+  restrictHelper p2 s2 ns $ restrictHelper p1 s1 ns hm_maybe
 
-moreRestrictivePair :: (HS.HashSet Name, HS.HashSet Name) ->
+concObligation :: HM.HashMap Id Expr -> Maybe PathCond
+concObligation hm =
+  let l = HM.toList hm
+      l' = map (\(i, e) -> (Var i, e)) l
+  in obligationWrap $ HS.fromList l'
+
+-- All the PathConds that this receives are generated by symbolic execution.
+-- Consequently, non-primitive types are not an issue here.
+extractCond :: PathCond -> Expr
+extractCond (ExtCond e True) = e
+extractCond (ExtCond e False) = App (Prim Not TyUnknown) e
+extractCond (AltCond l e True) =
+  App (App (Prim Eq TyUnknown) e) (Lit l)
+extractCond (AltCond l e False) =
+  App (App (Prim Neq TyUnknown) e) (Lit l)
+
+-- s1 is old state, s2 is new state
+-- only apply to old-new state pairs for which moreRestrictive works
+moreRestrictivePC :: S.Solver solver =>
+                     solver ->
+                     State t ->
+                     State t ->
+                     HM.HashMap Id Expr ->
+                     IO Bool
+moreRestrictivePC solver s1 s2 hm = do
+  let new_conds = map extractCond (P.toList $ path_conds s2)
+      old_conds = map extractCond (P.toList $ path_conds s1)
+      l = map (\(i, e) -> (Var i, e)) $ HM.toList hm
+      -- this should only be used with primitive types
+      -- no apparent problems come from using TyUnknown
+      l' = map (\(e1, e2) ->
+                  if (T.isPrimType $ typeOf e1) && (T.isPrimType $ typeOf e2)
+                  then Just $ App (App (Prim Eq TyUnknown) e1) e2
+                  else Nothing) l
+      l'' = [c | Just c <- l']
+      new_conds' = l'' ++ new_conds
+      -- not safe to use unless the lists are non-empty
+      conj_new = foldr1 (\o1 o2 -> App (App (Prim And TyUnknown) o1) o2) new_conds'
+      conj_old = foldr1 (\o1 o2 -> App (App (Prim And TyUnknown) o1) o2) old_conds
+      imp = App (App (Prim Implies TyUnknown) conj_new) conj_old
+      neg_imp = ExtCond (App (Prim Not TyUnknown) imp) True
+      neg_conj = ExtCond (App (Prim Not TyUnknown) conj_old) True
+  res <- if null old_conds
+         then return $ S.UNSAT ()
+         else if null new_conds' -- old_conds not null
+         -- TODO applySolver uses states' path constraints directly
+         -- Are the conditions from this being satisfied trivially?
+         then applySolver solver (P.insert neg_conj P.empty) s1 s2
+         else applySolver solver (P.insert neg_imp P.empty) s1 s2
+  case res of
+    S.UNSAT () -> return True
+    _ -> return False
+
+rfs :: ExprEnv -> Expr -> Bool
+rfs h e = (exprReadyForSolver h e) && (T.isPrimType $ typeOf e)
+
+-- extra filter on top of isJust for maybe_pairs
+-- if restrictHelper end result is Just, try checking the corresponding PCs
+-- for True output, there needs to be an entry for which that check succeeds
+-- should I replace the result with a Bool?
+moreRestrictivePair :: S.Solver solver =>
+                       solver ->
+                       HS.HashSet Name ->
                        [(State t, State t)] ->
                        (State t, State t) ->
-                       Bool
-moreRestrictivePair (ns1, ns2) prev (s1, s2) =
-  let
-      mr (p1, p2) = isJust $ mrHelper p2 s2 ns2 $ mrHelper p1 s1 ns1 (Just HM.empty)
-  in
-      (not $ null $ filter mr prev)
+                       IO Bool
+moreRestrictivePair solver ns prev (s1, s2) = do
+  let mr (p1, p2) = restrictHelper p2 s2 ns $
+                    restrictHelper p1 s1 ns (Just (HM.empty, HS.empty))
+      getObs m = case m of
+        Nothing -> HS.empty
+        Just (_, hs) -> hs
+      getConcretizations m = case m of
+        Nothing -> HM.empty
+        Just (hm, _) -> hm
+      maybe_pairs = map mr prev
+      obs_sets = map getObs maybe_pairs
+      conc_sets = map getConcretizations maybe_pairs
+      obs = foldr HS.union HS.empty obs_sets
+      conc_obs = map concObligation conc_sets
+      h1 = expr_env s1
+      h2 = expr_env s2
+      obs' = HS.filter (\(e1, e2) -> rfs h1 e1 && rfs h2 e2) obs
+      mpc m = case m of
+        (Just (hm, _), (s_old1, s_old2)) ->
+          andM (moreRestrictivePC solver s_old1 s1 hm) (moreRestrictivePC solver s_old2 s2 hm)
+        _ -> return False
+      bools = map mpc (zip maybe_pairs prev)
+  res <- checkObligations solver s1 s2 obs'
+  bools' <- filterM (\x -> x) bools
+  -- TODO HashSet doesn't have a "forall" function?
+  case (HS.size obs == HS.size obs', res) of
+    (True, S.UNSAT ()) -> return (not $ null bools')
+    _ -> return False

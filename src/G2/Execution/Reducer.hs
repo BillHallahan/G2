@@ -61,6 +61,7 @@ module G2.Execution.Reducer ( Reducer (..)
 
                             -- Orderers
                             , OCombiner (..)
+                            , FlexOrdCombiner (..)
                             , NextOrderer (..)
                             , PickLeastUsedOrderer (..)
                             , BucketSizeOrderer (..)
@@ -68,6 +69,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , SymbolicADTOrderer (..)
                             , ADTHeightOrderer (..)
                             , ADTSizeOrderer (..)
+                            , PCSizeOrderer (..)
                             , IncrAfterN (..)
                             , QuotTrueAssert (..)
                             , RandomOrderer (..)
@@ -100,6 +102,7 @@ import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Monoid ((<>))
 import qualified Data.List as L
 import Data.Tuple
 import Data.Time.Clock
@@ -433,10 +436,12 @@ data ConcSymReducer = ConcSymReducer
 -- relocated from Equiv.G2Calls
 data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
                                  , saw_tick :: Maybe Int
-                                 , total :: HS.HashSet Name } deriving (Eq, Show)
+                                 , total :: HS.HashSet Name
+                                 , finite :: HS.HashSet Name } deriving (Eq, Show)
 
 -- Forces a lone symbolic variable with a type corresponding to an ADT
 -- to evaluate to some value of that ADT
+-- TODO will there be any need to carry over finiteness sometimes?
 instance Reducer ConcSymReducer () EquivTracker where
     initReducer _ _ = ()
 
@@ -446,14 +451,18 @@ instance Reducer ConcSymReducer () EquivTracker where
                             , type_env = tenv
                             , path_conds = pc
                             , symbolic_ids = symbs
-                            , track = EquivTracker et m total })
+                            , track = EquivTracker et m total finite })
                    b@(Bindings { name_gen = ng })
         | E.isSymbolic n eenv
         , Just (dc_symbs, ng') <- arbDC tenv ng t n total = do
-            let total_names = map idName $ concat $ map snd dc_symbs
+            let new_names = map idName $ concat $ map snd dc_symbs
                 total' = if n `elem` total
-                         then foldr HS.insert total total_names
+                         then foldr HS.insert total new_names
                          else total
+                -- TODO finiteness carries over to sub-expressions too
+                finite' = if n `elem` finite
+                          then foldr HS.insert finite new_names
+                          else finite
                 xs = map (\(e, symbs') ->
                                 s   { curr_expr = CurrExpr Evaluate e
                                     , expr_env =
@@ -461,7 +470,7 @@ instance Reducer ConcSymReducer () EquivTracker where
                                               (E.insert n e eenv)
                                               symbs'
                                     , symbolic_ids = HS.union (HS.fromList symbs') $ HS.delete i symbs
-                                    , track = EquivTracker et m total'
+                                    , track = EquivTracker et m total' finite'
                                     }) dc_symbs
                 b' =  b { name_gen = ng' }
                 -- only add to total if n was total
@@ -796,7 +805,7 @@ data HCombiner h1 h2 = h1 :<~> h2 deriving (Eq, Show, Read)
 -- We use C to combine the halter values for HCombiner
 -- We should never define any other instance of Halter with C, or export it
 -- because this could lead to undecidable instances
-data C a b = C a b
+data C a b = C a b deriving Eq
 
 instance (ASTContainer a Expr, ASTContainer b Expr) => ASTContainer (C a b) Expr where
     containedASTs (C a b) = containedASTs a ++ containedASTs b
@@ -807,7 +816,7 @@ instance (ASTContainer a Type, ASTContainer b Type) => ASTContainer (C a b) Type
     modifyContainedASTs f (C a b) = C (modifyContainedASTs f a) (modifyContainedASTs f b)
 
 instance (Named a, Named b) => Named (C a b) where
-    names (C a b) = names a ++ names b
+    names (C a b) = names a <> names b
     rename old new (C a b) = C (rename old new a) (rename old new b)
     renames hm (C a b) = C (renames hm a) (renames hm b)
 
@@ -1144,6 +1153,42 @@ instance (MinOrderer or1 sov1 b1 t, MinOrderer or2 sov2 b2 t)
         in
         C sov1' sov2'
 
+data FlexOrdCombiner v1 v2 v3 or1 or2 = OrdComb (v1 -> v2 -> v3) or1 or2
+
+instance (MinOrderer or1 sov1 v1 t, MinOrderer or2 sov2 v2 t, Ord v3)
+      => MinOrderer (FlexOrdCombiner v1 v2 v3 or1 or2) (C sov1 sov2) v3 t where
+
+    -- | Initializing the per state ordering value 
+    minInitPerStateOrder (OrdComb _ or1 or2) s =
+      let
+          sov1 = minInitPerStateOrder or1 s
+          sov2 = minInitPerStateOrder or2 s
+      in
+      C sov1 sov2
+
+    -- | Assigns each state some value of an ordered type, and then proceeds with execution on the
+    -- state assigned the minimal value
+    minOrderStates (OrdComb f or1 or2) (C sov1 sov2) pr s =
+      let
+          (sov1', or1') = minOrderStates or1 sov1 pr s
+          (sov2', or2') = minOrderStates or2 sov2 pr s
+      in
+      (f sov1' sov2', OrdComb f or1' or2')
+
+    -- | Run on the selected state, to update it's sov field
+    minUpdateSelected (OrdComb _ or1 or2) (C sov1 sov2) proc s = 
+      let
+          sov1' = minUpdateSelected or1 sov1 proc s
+          sov2' = minUpdateSelected or2 sov2 proc s
+      in
+      C sov1' sov2'
+
+    minStepOrderer (OrdComb _ or1 or2) (C sov1 sov2) proc xs s =
+        let
+            sov1' = minStepOrderer or1 sov1 proc xs s
+            sov2' = minStepOrderer or2 sov2 proc xs s
+        in
+        C sov1' sov2'
 
 data NextOrderer = NextOrderer
 
@@ -1306,6 +1351,29 @@ adtSize' e s =
     sum $ 0:map (\e' -> case e' of
                         Var (Id n _) -> adtSize n s
                         _ -> 0) es
+
+
+-- Orders by the number of Path Constraints
+data PCSizeOrderer = PCSizeOrderer
+                            Int -- ^ What size should we prioritize?
+
+-- The tracked bool is to speed up adjusting this hashset- if it is set to false,
+-- we do not update the hashset.  If it is set to true,
+-- after the next step the hashset will be updated, and the bool will be set
+-- back to false.
+-- This avoids repeated operations on the hashset after rules that we know
+-- will not add symbolic variables.
+instance MinOrderer PCSizeOrderer () Int t where
+    minInitPerStateOrder _ s = ()
+    minOrderStates ord@(PCSizeOrderer pref_height) _ _ s =
+        let
+            m = PC.number (path_conds s)
+            h = abs (pref_height - m)
+        in
+        (h, ord)
+    minUpdateSelected _ v _ _ = v
+
+    minStepOrderer _ d _ _ _ = d
 
 data RandomOrderer = RandomOrderer StdGen
 

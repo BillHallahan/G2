@@ -49,7 +49,7 @@ import Data.List
 import Data.List.Extra
 import qualified Data.Map as M
 import Data.Maybe
-import Data.Monoid
+import Data.Monoid hiding ((<>))
 import Data.Ord
 import Data.Semigroup
 import qualified Data.Text as T
@@ -125,7 +125,7 @@ abstractCallsNum = length . abstract_calls . track
 
 instance Named LHTracker where
     names (LHTracker {abstract_calls = abs_c, last_var = n, annotations = anns, all_calls = ac}) = 
-        names abs_c ++ names n ++ names anns ++ names ac
+        names abs_c <> names n <> names anns <> names ac
     
     rename old new (LHTracker {abstract_calls = abs_c, last_var = n, annotations = anns, all_calls = ac}) =
         LHTracker { abstract_calls = rename old new abs_c

@@ -101,7 +101,7 @@ checkRelated' sol s (p:ps) = do
         r -> return (r, sol')
 
 solveRelated :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> [Id] -> PathConds -> IO (Result  Model (), a)
-solveRelated avf sol s b is pc =
+solveRelated avf sol s b is pc = do
     solveRelated' avf sol s b HM.empty is $ PC.relatedSets pc
 
 solveRelated' :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> Model -> [Id] -> [PathConds] -> IO (Result Model (), a)

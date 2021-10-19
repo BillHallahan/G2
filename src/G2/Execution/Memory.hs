@@ -1,4 +1,3 @@
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RankNTypes #-}
 
 module G2.Execution.Memory 
@@ -8,7 +7,6 @@ module G2.Execution.Memory
   , markAndSweep
   , markAndSweepIgnoringKnownValues
   , markAndSweepPreserving
-  , markAndSweepExprEnv
   ) where
 
 import G2.Language.Syntax
@@ -17,13 +15,17 @@ import G2.Language.Naming
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Typing
 
+import Data.Foldable
 import Data.List
-import qualified Data.HashSet as S
+import qualified Data.HashSet as HS
 import qualified Data.Map as M
+import Data.Monoid ((<>))
+
+import qualified Data.Sequence as S
 
 import Debug.Trace
 
-type PreservingFunc = forall t . State t -> Bindings -> S.HashSet Name -> S.HashSet Name
+type PreservingFunc = forall t . State t -> Bindings -> HS.HashSet Name -> HS.HashSet Name
 
 data MemConfig = MemConfig { search_names :: [Name]
                            , pres_func :: PreservingFunc }
@@ -35,7 +37,7 @@ instance Monoid MemConfig where
     mappend (MemConfig { search_names = sn1, pres_func = pf1 })
             (MemConfig { search_names = sn2, pres_func = pf2 }) =
                 MemConfig { search_names = sn1 ++ sn2
-                          , pres_func = \s b hs -> pf1 s b hs `S.union` pf2 s b hs}
+                          , pres_func = \s b hs -> pf1 s b hs `HS.union` pf2 s b hs}
     mappend _ _ = PreserveAllMC
 
 emptyMemConfig :: MemConfig
@@ -53,7 +55,7 @@ markAndSweepIgnoringKnownValues = markAndSweepPreserving' emptyMemConfig
 
 markAndSweepPreserving :: MemConfig -> State t -> Bindings -> (State t, Bindings)
 markAndSweepPreserving mc s =
-    markAndSweepPreserving' (names (known_values s) `addSearchNames` mc) s
+    markAndSweepPreserving' (toList (names (known_values s)) `addSearchNames` mc) s
 
 markAndSweepPreserving' :: MemConfig -> State t -> Bindings -> (State t, Bindings)
 markAndSweepPreserving' PreserveAllMC s b = (s, b)
@@ -72,92 +74,41 @@ markAndSweepPreserving' mc (state@State { expr_env = eenv
                    }
     bindings' = bindings { deepseq_walkers = dsw'}
 
-    active = activeNames tenv (E.redirsToExprs eenv) S.empty $ names cexpr ++
-                                                               names es ++
-                                                               names pc ++
-                                                               names iids ++
-                                                               higher_ord_rel ++
-                                                               search_names mc
+    active = activeNames tenv (E.redirsToExprs eenv) HS.empty $ names cexpr <>
+                                                                names es <>
+                                                                names pc <>
+                                                                names iids <>
+                                                                S.fromList higher_ord_rel <>
+                                                                S.fromList (search_names mc)
 
-    active' = S.union (pres_func mc state bindings active) active
+    active' = HS.union (pres_func mc state bindings active) active
 
     isActive :: Name -> Bool
-    isActive = (flip S.member) active'
+    isActive = (flip HS.member) active'
 
     eenv' = E.filterWithKey (\n _ -> isActive n) eenv
     tenv' = M.filterWithKey (\n _ -> isActive n) tenv
 
     dsw' = M.filterWithKey (\n _ -> isActive n) dsw
 
-    higher_ord_rel = higherOrderNames inst tenv eenv
+    higher_ord_eenv = E.filterWithKey (\n _ -> n `HS.member` inst) eenv
+    higher_ord = nubBy (.::.) $ argTypesTEnv tenv ++ E.higherOrderExprs higher_ord_eenv
+    higher_ord_rel = E.keys $ E.filter (\e -> any (e .::) higher_ord) higher_ord_eenv
 
-activeNames :: TypeEnv -> ExprEnv -> S.HashSet Name -> [Name] -> S.HashSet Name
-activeNames _ _ explored [] = explored
-activeNames tenv eenv explored (n:ns) =
-    if S.member n explored
-      then activeNames tenv eenv explored ns
-      else activeNames tenv eenv explored' ns'
-  where
-    explored' = S.insert n explored
-    tenv_hits = case M.lookup n tenv of
-        Nothing -> []
-        Just r -> names r
-    eenv_hits = case E.lookup n eenv of
-        Nothing -> []
-        Just r -> names r
-    ns' = tenv_hits ++ eenv_hits ++ ns
-
-higherOrderNames :: S.HashSet Name -> TypeEnv -> ExprEnv -> [Name]
-higherOrderNames inst tenv eenv =
-    let
-        higher_ord_eenv = E.filterWithKey (\n _ -> n `S.member` inst) eenv
-        higher_ord = nubBy (.::.) $ argTypesTEnv tenv ++ E.higherOrderExprs higher_ord_eenv
-        higher_ord_rel = E.keys $ E.filter (\e -> any (e .::) higher_ord) higher_ord_eenv
-    in
-    higher_ord_rel
-
-markAndSweepExprEnv :: MemConfig -> State t -> Bindings -> State t
-markAndSweepExprEnv mc state@(State { expr_env = eenv
-                                    , type_env = tenv
-                                    , curr_expr = cexpr
-                                    , path_conds = pc
-                                    , symbolic_ids = iids
-                                    , exec_stack = es})
-                       (bindings@Bindings { higher_order_inst = inst }) = state { expr_env = eenv' }
-  where
-    active = activeExprNames (E.redirsToExprs eenv) S.empty $ S.toList
-                                                                  (getFuncs cexpr `mappend`
-                                                                   getFuncs es `mappend`
-                                                                   getFuncs pc) ++
-                                                              names iids ++
-                                                              higher_ord_rel ++
-                                                              search_names mc
-
-    active' = S.union (pres_func mc state bindings active) active
-
-    isActive :: Name -> Bool
-    isActive = (flip S.member) active'
-
-    eenv' = E.filterWithKey (\n _ -> isActive n) eenv
-
-    higher_ord_rel = higherOrderNames inst tenv eenv
-
-activeExprNames :: ExprEnv -> S.HashSet Name -> [Name] -> S.HashSet Name
-activeExprNames _ explored [] = explored
-activeExprNames eenv explored (n:ns) =
-    if S.member n explored
-      then activeExprNames eenv explored ns
-      else activeExprNames eenv explored' ns'
-  where
-    explored' = S.insert n explored
-    eenv_hits = case E.lookup n eenv of
-        Nothing -> []
-        Just r -> S.toList $ getFuncs r
-    ns' = eenv_hits ++ ns
-
-getFuncs :: ASTContainer m Expr => m -> S.HashSet Name
-getFuncs = evalASTs getFuncs'
-
-getFuncs' :: Expr -> S.HashSet Name
-getFuncs' (Var (Id n _)) = S.singleton n
-getFuncs' _ = S.empty
+activeNames :: TypeEnv -> ExprEnv -> HS.HashSet Name -> S.Seq Name -> HS.HashSet Name
+activeNames tenv eenv explored nss
+    | n S.:< ns <- S.viewl nss =
+        let
+            explored' = HS.insert n explored
+            tenv_hits = case M.lookup n tenv of
+                Nothing -> S.empty
+                Just r -> names r
+            eenv_hits = case E.lookup n eenv of
+                Nothing -> S.empty
+                Just r -> names r
+            ns' = tenv_hits <> eenv_hits <> ns
+        in
+        if HS.member n explored
+          then activeNames tenv eenv explored ns
+          else activeNames tenv eenv explored' ns'
+    | otherwise = explored
