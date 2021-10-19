@@ -6,7 +6,6 @@ module G2.Liquid.Inference.Config (
                                   , Progresser (..)
                                   , ProgresserM (..)
                                   , MaxSize (..)
-
                                   , newProgress
                                   , runProgresser
 

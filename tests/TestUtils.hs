@@ -32,6 +32,7 @@ mkConfigTestWithMapIO = do
     homedir <- getHomeDirectory
     return $ config { base = base config }
 
+
 eqIgT :: Expr -> Expr -> Bool
 eqIgT (Var n) (Var n') = eqIgIds n n'
 eqIgT (Lit c) (Lit c') = c == c'
