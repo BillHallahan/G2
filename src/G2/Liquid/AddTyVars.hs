@@ -7,7 +7,7 @@ module G2.Liquid.AddTyVars ( addTyVarsEEnvTEnv
                            , PhantomTyVars) where
 
 import G2.Initialization.Types
-import G2.Language hiding (GenState (..), Bindings (..))
+import G2.Language hiding (State (..), Bindings (..))
 import qualified G2.Language.KnownValues as KV
 import G2.Liquid.Types
 
