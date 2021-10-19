@@ -52,7 +52,6 @@ library
                        , G2.Execution.Merging.MergeReducer
                        , G2.Execution.Merging.MergingHelpers
                        , G2.Execution.Merging.StateMerging
-                       , G2.Execution.Merging.Zipper
                        , G2.Execution.NewPC
                        
                        , G2.Initialization.Interface
