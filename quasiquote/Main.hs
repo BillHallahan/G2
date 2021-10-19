@@ -149,7 +149,7 @@ main = do
     -- debruijnTests
     -- regexTests
 
-    -- nqueensTests
+    nqueensTests
     runArithmeticsEval
     runDeBruijnEval
     runRegExEval
