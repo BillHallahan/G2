@@ -40,7 +40,6 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , mkEqPrimExpr
 
                         , cnf
-                        , dnf
 
                         , isData
                         , isLit
@@ -224,10 +223,6 @@ cnf :: KnownValues -> [Expr] -> Expr
 cnf kv (x:y:xs) = cnf kv $ (mkAndExpr kv x y):xs
 cnf _ [x] = x
 
-dnf :: KnownValues -> [Expr] -> Expr
-dnf kv (x:y:xs) = dnf kv $ (mkOrExpr kv x y):xs
-dnf _ [x] = x
-
 mkToRatioExpr :: KnownValues -> Expr
 mkToRatioExpr kv = Var $ Id (KV.toRatioFunc kv) TyUnknown
 
@@ -291,17 +286,6 @@ getFuncCallsRHS :: Expr -> [Expr]
 getFuncCallsRHS (App e1 e2) = getFuncCallsRHS e1 ++ getFuncCalls' e2
 getFuncCallsRHS (Var _) = []
 getFuncCallsRHS e = getFuncCalls' e
-
-getBoolFromDataCon :: KV.KnownValues -> Expr -> Bool
-getBoolFromDataCon kv (Data dcon)
-    | (DataCon dconName dconType) <- dcon
-    , dconType == (tyBool kv)
-    , dconName == (KV.dcTrue kv) = True
-    | (DataCon dconName dconType) <- dcon
-    , dconType == (tyBool kv)
-    , dconName == (KV.dcFalse kv) = False
-    | otherwise = error $ "getBoolFromDataCon: invalid DataCon passed in\n" ++ show dcon ++ "\n"
-getBoolFromDataCon _ _ = error $ "Expr passed to getBoolFromDataCon is not of the form (Data DataCon)\n"
 
 -- | Calls the given function on the topmost @App@ in every function application
 -- in the given `Expr`
