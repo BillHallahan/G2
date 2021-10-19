@@ -3,6 +3,7 @@
 module G2.Lib.Printers ( printHaskell
                        , mkCleanExprHaskell
                        , mkUnsugaredExprHaskell
+                       , mkTypeHaskell
                        , ppExprEnv
                        , ppRelExprEnv
                        , ppCurrExpr

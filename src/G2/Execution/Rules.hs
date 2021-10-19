@@ -575,7 +575,7 @@ liftSymDefAlt s ng mexpr cvar as =
 liftSymDefAlt' :: State t -> NameGen -> Expr -> Expr -> Id -> [Alt] -> ([NewPC t], NameGen)
 liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
     | (Var i):_ <- unApp $ unsafeElimOuterCast mexpr
-    , isADT (typeOf i)
+    , isADTType (typeOf i)
     , (Var i'):_ <- unApp $ exprInCasts mexpr = -- Id with original Type
         let (adt, bi) = fromJust $ getCastedAlgDataTy (typeOf i) tenv
             maybeC = case mexpr of
