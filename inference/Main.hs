@@ -106,4 +106,3 @@ checkFuncNums f infconfig config = do
     print $ length (concat nls) - 1
 
     return ()
-
