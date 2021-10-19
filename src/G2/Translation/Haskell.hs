@@ -188,6 +188,8 @@ hskToG2ViaEMS tr_con ems nm tm = do
   let (nm', tm', ex_g2) = hskToG2ViaCgGuts nm tm closures tr_con
   return (nm', tm', ex_g2)
 
+
+
 hskToG2ViaCgGuts :: G2.NameMap
   -> G2.TypeNameMap
   -> [(G2.CgGutsClosure, G2.ModDetailsClosure)]
