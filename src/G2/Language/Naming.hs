@@ -974,13 +974,5 @@ childrenNamesNew n ns ng =
 
 -- | Allows mapping, while passing a NameGen along
 mapNG :: (a -> NameGen -> (b, NameGen)) -> [a] -> NameGen -> ([b], NameGen)
-mapNG f xs ng = swap $ mapAccumR (\xs' ng' -> swap $ f ng' xs') ng xs -- mapNG' f (reverse xs) ng []
+mapNG f xs ng = swap $ mapAccumR (\xs' ng' -> swap $ f ng' xs') ng xs
 {-# INLINE mapNG #-}
-
--- mapNG' :: (a -> NameGen -> (b, NameGen)) -> [a] -> NameGen -> [b] -> ([b], NameGen)
--- mapNG' _ [] ng xs = (xs, ng)
--- mapNG' f (x:xs) ng xs' =
---     let
---         (x', ng') = f x ng
---     in
---     mapNG' f xs ng' (x':xs')
