@@ -432,6 +432,7 @@ funcToSMT2Prim Mult a1 a2 = exprToSMT a1 :* exprToSMT a2
 funcToSMT2Prim Div a1 a2 = exprToSMT a1 :/ exprToSMT a2
 funcToSMT2Prim Quot a1 a2 = exprToSMT a1 `QuotSMT` exprToSMT a2
 funcToSMT2Prim Mod a1 a2 = exprToSMT a1 `Modulo` exprToSMT a2
+funcToSMT2Prim Rem a1 a2 = exprToSMT a1 :- ((exprToSMT a1 `QuotSMT` exprToSMT a2) :* exprToSMT a2) -- TODO: more efficient encoding?
 funcToSMT2Prim RationalToDouble a1 a2  = exprToSMT a1 :/ exprToSMT a2
 funcToSMT2Prim op lhs rhs = error $ "funcToSMT2Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
 
