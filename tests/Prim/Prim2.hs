@@ -13,6 +13,13 @@ remI1 x y = x `rem` y == 7
 remI2 :: Int -> Int -> Bool
 remI2 x y = x `rem` y == -7
 
+remI3 :: Int -> Int -> Int
+remI3 x y | x < -20 && y > 100 = x `rem` y
+          | otherwise = x + y
+
+remI4 :: Int -> Int -> Int
+remI4 x y = (-1) `rem` 10
+
 --Various combinations
 p1 :: Int -> Int
 p1 x =

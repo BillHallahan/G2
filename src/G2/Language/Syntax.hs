@@ -174,6 +174,7 @@ data Primitive = Ge
                | DivInt
                | Quot
                | Mod
+               | Rem
                | Negate
                | SqRt
                | IntToFloat
