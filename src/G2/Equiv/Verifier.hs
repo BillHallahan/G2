@@ -415,15 +415,42 @@ inductionState s =
 -- TODO removed error, but there's a soundness problem
 -- I get UNSAT for forceIdempotent
 newScrutinee :: Id -> Expr -> Expr
-newScrutinee i (Case e i' a) = trace ("NG " ++ show e) $ Case (newScrutinee i e) i' a
+newScrutinee i (Case e i' a) = Case (newScrutinee i e) i' a
 newScrutinee i (Tick nl e) = Tick nl $ newScrutinee i e
-newScrutinee i _ = trace ("NS " ++ show i) $ Var i
+newScrutinee i _ = Var i
 
 -- the first expression becomes the new scrutinee of the second
 substScrutinee :: Expr -> Expr -> Expr
 substScrutinee e (Case e' i a) = Case (substScrutinee e e') i a
 substScrutinee e (Tick nl e') = Tick nl $ substScrutinee e e'
 substScrutinee e _ = e
+
+-- TODO new induction scheme
+removeMatchingCases :: Expr -> Expr -> Expr
+removeMatchingCases (Tick _ e1) e2 = removeMatchingCases e1 e2
+removeMatchingCases e1 (Tick _ e2) = removeMatchingCases e1 e2
+removeMatchingCases (Case e1 i1 a1) (Case e2 i2 a2) =
+  if a1 == a2 then removeMatchingCases e1 e2 else e2
+removeMatchingCases _ e2 = e2
+
+rmcHelper :: Expr -> State t -> State t
+rmcHelper e1 s@(State { curr_expr = CurrExpr _ e2 }) =
+  s { curr_expr = CurrExpr Evaluate (removeMatchingCases e1 e2) }
+
+-- TODO I might have a function like this elsewhere
+innerScrutinee :: Expr -> Expr
+innerScrutinee (Case e i a) = innerScrutinee e
+innerScrutinee (Tick _ e) = innerScrutinee e
+innerScrutinee e = e
+
+{-
+How to handle the extra evaluation of past scrutinees?
+Just record more stuff beforehand?
+Every time I have a Case statement beforehand, I can precompute
+what the steps would be for the scrutinee
+Eventually it'll reach SWHNF or a recursion tick
+Either that or pause evaluation more often?
+-}
 
 -- TODO new rule:  removal of singleton Case statements
 -- convert them into Let statements
@@ -442,7 +469,7 @@ isSingleton _ = False
 elimSingleton :: Expr -> Expr
 elimSingleton (Tick nl e) = Tick nl (elimSingleton e)
 elimSingleton (Case e i [Alt Default e']) = Let [(i, e)] e'
-elimSingleton (Case e i a) = trace ("@@ " ++ show i) $ Case (elimSingleton e) i a
+elimSingleton (Case e i a) = Case (elimSingleton e) i a
 elimSingleton _ = error "Improper Format"
 
 elimSingletonPair :: (StateET, StateET) -> (StateET, StateET)
@@ -558,7 +585,8 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
 
       let states_i = map (stateWrap s1 s2) obs_i
       -- TODO need a way to get the prev pair used for induction
-      states_i' <- mapM (induction solver ns fresh_name prev') states_i
+      --states_i' <- mapM (induction solver ns fresh_name prev') states_i
+      states_i' <- filterM (notM . (induction solver ns fresh_name prev')) states_i
 
       -- TODO unnecessary to pass the induction states through this?
       let (ready, not_ready) = partition statePairReadyForSolver states_c'
@@ -580,12 +608,51 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
         S.UNSAT () -> return $ DischargeResult not_ready_h (matches ++ ready_solved) Nothing
         _ -> return $ DischargeResult not_ready_h (matches ++ ready_solved) (Just ready)
 
+-- TODO the signature will need to change again
+-- now this function is a filter again
+-- TODO might have more informative return later
+-- TODO gets stuck on non-polymorphic badMapTake
+-- runs forever on badBool
+-- SAT on all other CoinductionIncorrect rules
+-- UNSAT for forceDoesNothing and badDoubleReverse with input list finite
+-- TODO UNSAT for forceConcat, which I marked as invalid before
+-- TODO SAT for expNat
+-- very slow on the higher-end "branch" rules, but always gets UNSAT
+-- seemingly gets stuck on infiniteInts
+-- UNSAT on all other CoinductionCorrect rules
+induction :: S.Solver solver =>
+             solver ->
+             HS.HashSet Name ->
+             Name ->
+             [(StateET, StateET)] ->
+             (StateET, StateET) ->
+             IO Bool
+induction solver ns fresh_name prev (s1, s2) = do
+  -- TODO might not even need these
+  -- need to remove matching cases for every current expression and prev pair
+  -- TODO do I need innerScrutinee for anything?
+  let s1' = inductionState s1
+      s2' = inductionState s2
+      e1 = exprExtract s1
+      e2 = exprExtract s2
+      e1_i = innerScrutinee e1
+      e2_i = innerScrutinee e2
+      s1_i = s1 { curr_expr = CurrExpr Evaluate e1_i }
+      s2_i = s2 { curr_expr = CurrExpr Evaluate e2_i }
+  let (prev1, prev2) = unzip prev
+      prev1' = map (rmcHelper e1) prev1
+      prev2' = map (rmcHelper e2) prev2
+      prev' = zip prev1' prev2'
+  res_ <- moreRestrictivePair solver ns prev' (s1_i, s2_i)
+  return $ isJust res_
+
 -- The induction function isn't a filter; it converts state pairs
 -- if induction can't be applied, just return the input
 -- TODO optimization:  only need one fresh name per loop iteration
 -- TODO (9/27) check path constraint implication?
 -- TODO (9/30) alternate:  just substitute one scrutinee for the other
 -- put a non-symbolic variable there?
+{-
 induction :: S.Solver solver =>
              solver ->
              HS.HashSet Name ->
@@ -617,6 +684,7 @@ induction solver ns fresh_name prev (s1, s2) = do
     then (s1, s2'') {-(s1'', s2'')-}
     -- TODO this might be a better place to use the function
     else {-elimSingletonPair-} (s1, s2)
+-}
 
 getObligations :: HS.HashSet Name ->
                   State t ->

@@ -26,6 +26,7 @@ import qualified G2.Language.Stack as Stck
 -- TODO
 import Data.Maybe
 import G2.Execution.Reducer ( EquivTracker )
+import G2.Execution.NormalForms
 
 -- get names from symbolic ids in the state
 runG2ForRewriteV :: StateET ->
@@ -139,6 +140,29 @@ recursionInCase (State { curr_expr = CurrExpr _ e, exec_stack = sk }) =
             p == T.pack "REC" -- && containsCase sk
         _ -> False
 
+-- TODO copied from Verifier
+stripTicks :: Expr -> Expr
+stripTicks (Tick _ e) = e
+stripTicks e = e
+
+-- TODO also copied
+isSWHNF :: State t -> Bool
+isSWHNF (State { expr_env = h, curr_expr = CurrExpr _ e }) =
+  let e' = stripTicks e
+  in case e' of
+    Var _ -> isPrimType (typeOf e') && isExprValueForm h e'
+    _ -> isExprValueForm h e'
+
+-- TODO extra halting condition for new induction scheme
+-- Case where the scrutinee is in SWHNF
+readyCase :: State t -> Bool
+readyCase s@(State { curr_expr = CurrExpr _ e, exec_stack = sk }) =
+    case e of
+        Tick _ e' -> readyCase (s { curr_expr = CurrExpr Evaluate e' })
+        Case e' _ _ -> containsCase sk &&
+                       isSWHNF (s { curr_expr = CurrExpr Evaluate e' })
+        _ -> False
+
 instance Halter EnforceProgressH () EquivTracker where
     initHalt _ _ = ()
     updatePerStateHalt _ _ _ _ = ()
@@ -155,7 +179,7 @@ instance Halter EnforceProgressH () EquivTracker where
             -- point when it reaches the Tick because the act of unwrapping the
             -- expression inside the Tick counts as one step.
             Just n0 -> do
-                if (isExecValueForm s) || (exprFullApp h e) || (recursionInCase s)
+                if (isExecValueForm s) || (exprFullApp h e) || (recursionInCase s) || (readyCase s)
                        -- TODO same goes for this?
                        then return (if n' > n0 + 1 then Accept else Continue)
                        -- TODO not getting stuck in here repeatedly
