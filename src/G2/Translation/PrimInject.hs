@@ -68,7 +68,7 @@ primDefs' b = [ ("==#", Prim Eq $ tyIntIntBool b)
               , ("divInt#", Prim Quot tyIntIntInt)
               , ("modInt#", Prim Mod tyIntIntInt)
               , ("quotInt#", Prim Quot tyIntIntInt)
-              , ("remInt#", Prim Mod tyIntIntInt)
+              , ("remInt#", Prim Rem tyIntIntInt)
 
               , ("==##", Prim Eq $ tyDoubleDoubleBool b)
               , ("/=##", Prim Neq $ tyDoubleDoubleBool b)

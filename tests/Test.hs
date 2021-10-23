@@ -616,6 +616,8 @@ primTests = testGroup "Prims"
     , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "quotI2" 1000 3 [AtLeast 4]
     , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "remI1" 1000 3 [AtLeast 4]
     , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "remI2" 1000 3 [AtLeast 3]
+    , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "remI3" 1000 3 [AtLeast 1]
+    , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "remI4" 1000 3 [AtLeast 1]
 
     , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "p1List" 300000 1 [AtLeast 1]
     , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "p2List" 700000 1 [AtLeast 1]
