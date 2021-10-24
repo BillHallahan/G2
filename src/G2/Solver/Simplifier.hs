@@ -13,11 +13,13 @@ import Data.List
 import Data.Maybe
 import Data.Tuple
 
-import Debug.Trace
-
 class Simplifier simplifier where
     -- | Simplifies a PC, by converting it to a form that is easier for the Solver's to handle
     simplifyPC :: forall t . simplifier -> State t -> PathCond -> (State t, [PathCond])
+
+    {-# INLINE simplifyPCs #-}
+    simplifyPCs :: forall t. simplifier -> State t -> PathCond -> PathConds -> PathConds
+    simplifyPCs _ _ _ = id
 
     -- | Reverses the affect of simplification in the model, if needed.
     reverseSimplification :: forall t . simplifier -> State t -> Bindings -> Model -> Model
