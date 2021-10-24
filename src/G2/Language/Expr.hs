@@ -624,4 +624,3 @@ typeToWalker_maybe w t
     Just i -> foldl' (App) (Var i) (map Type ts ++ map (typeToWalker_maybe w) ts)
     Nothing -> mkIdentity t
 typeToWalker_maybe _ t = mkIdentity t
-
