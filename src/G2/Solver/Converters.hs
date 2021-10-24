@@ -382,13 +382,6 @@ exprToSMT (Data (DataCon n (TyCon (Name "Bool" _ _ _) _))) =
         "False" -> VBool False
         _ -> error "Invalid bool in exprToSMT"
 exprToSMT (Data (DataCon n t)) = V (nameToStr n) (typeToSMT t)
-exprToSMT (NonDet es) =
-    case es of
-        [] -> error $ "exprToSMT: invalid NonDet Expr: " ++ show es
-        [x] -> exprToSMT x
-        [x1,x2] -> SmtOr [exprToSMT x1, exprToSMT x2]
-        (x:xs) -> SmtOr [exprToSMT x, exprToSMT (NonDet xs)]
-exprToSMT (Assume _ e1 e2) = exprToSMT e1 :=> exprToSMT e2
 exprToSMT a@(App _ _) =
     let
         f = getFunc a
@@ -467,7 +460,7 @@ createUniqVarDecls' ((n,s):xs) = VarDecl (nameToBuilder n) s:createUniqVarDecls'
 pcVarDecls :: [PathCond] -> [SMTHeader]
 pcVarDecls = createUniqVarDecls . pcVars
 
--- Get's all variable required for a list of `PathCond`
+-- Get's all variable required for a list of `PathCond` 
 pcVars :: [PathCond] -> [(Name, Sort)]
 pcVars = concatMap pcVar
 
