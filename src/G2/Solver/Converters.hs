@@ -173,7 +173,7 @@ getModelVal avf con s b (Id n _) pc = do
 solveNumericConstraintsPC :: SMTConverter con ast out io => con -> PathConds -> IO (Maybe Model)
 solveNumericConstraintsPC con pc = do
     let headers = toSMTHeaders $ PC.toList pc
-    let vs = map (\(n', srt) -> (nameToStr n', srt)) . pcVars $ PC.toList pc
+    let vs = map (\(n', srt) -> (nameToStr n', srt)) . HS.toList . pcVars $ PC.toList pc
 
     m <- solveConstraints con headers vs
     return $ fmap modelAsExpr m
@@ -444,37 +444,32 @@ altToSMT (LitChar c) _ = VChar c
 altToSMT am _ = error $ "Unhandled " ++ show am
 
 createUniqVarDecls :: [(Name, Sort)] -> [SMTHeader]
-createUniqVarDecls xs =
-    let xs' = S.toList $ S.fromList xs
-    in createUniqVarDecls' xs'
-
-createUniqVarDecls' :: [(Name, Sort)] -> [SMTHeader]
-createUniqVarDecls' [] = []
-createUniqVarDecls' ((n,SortChar):xs) =
+createUniqVarDecls [] = []
+createUniqVarDecls ((n,SortChar):xs) =
     let
         lenAssert = Assert $ StrLen (V (nameToStr n) SortChar) := VInt 1
     in
-    VarDecl (nameToBuilder n) SortChar:lenAssert:createUniqVarDecls' xs
-createUniqVarDecls' ((n,s):xs) = VarDecl (nameToBuilder n) s:createUniqVarDecls' xs
+    VarDecl (nameToBuilder n) SortChar:lenAssert:createUniqVarDecls xs
+createUniqVarDecls ((n,s):xs) = VarDecl (nameToBuilder n) s:createUniqVarDecls xs
 
 pcVarDecls :: [PathCond] -> [SMTHeader]
-pcVarDecls = createUniqVarDecls . pcVars
+pcVarDecls = createUniqVarDecls . HS.toList . pcVars
 
 -- Get's all variable required for a list of `PathCond` 
-pcVars :: [PathCond] -> [(Name, Sort)]
-pcVars = concatMap pcVar
+pcVars :: [PathCond] -> HS.HashSet (Name, Sort)
+pcVars = foldr HS.union HS.empty . map pcVar
 
-pcVar :: PathCond -> [(Name, Sort)]
-pcVar (AssumePC i _ pc) = idToNameSort i:pcVar (PC.unhashedPC pc)
+pcVar :: PathCond -> HS.HashSet (Name, Sort)
+pcVar (AssumePC i _ pc) = HS.insert (idToNameSort i) (pcVar (PC.unhashedPC pc))
 pcVar (AltCond _ e _) = vars e
 pcVar p = vars p
 
-vars :: (ASTContainer m Expr) => m -> [(Name, Sort)]
+vars :: (ASTContainer m Expr) => m -> HS.HashSet (Name, Sort)
 vars = evalASTs vars'
     where
-        vars' :: Expr -> [(Name, Sort)]
-        vars' (Var i) = [idToNameSort i]
-        vars' _ = []
+        vars' :: Expr -> HS.HashSet (Name, Sort)
+        vars' (Var i) = HS.singleton (idToNameSort i)
+        vars' _ = HS.empty
 
 idToNameSort :: Id -> (Name, Sort)
 idToNameSort (Id n t) = (n, typeToSMT t)

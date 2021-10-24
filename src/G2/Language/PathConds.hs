@@ -93,6 +93,9 @@ instance Hashable PathCond where
 toUFMap :: PathConds -> UF.UFMap (Maybe Name) (HS.HashSet HashedPathCond)
 toUFMap = coerce
 
+fromUFMap :: UF.UFMap (Maybe Name) (HS.HashSet HashedPathCond) -> PathConds
+fromUFMap = coerce
+
 toUFList :: PathConds -> [([Maybe Name], HS.HashSet HashedPathCond)]
 toUFList = mapMaybe (\(ns, pc) -> case pc of Just pc' -> Just (ns, pc'); Nothing -> Nothing) . UF.toList . toUFMap
 
@@ -128,7 +131,11 @@ alter :: (PathCond -> Maybe PathCond) -> PathConds -> PathConds
 alter f = fromList . mapMaybe f . toList
 
 alterHashed :: (HashedPathCond -> Maybe HashedPathCond) -> PathConds -> PathConds
-alterHashed f = fromHashedList . mapMaybe f . toHashedList
+alterHashed f = fromUFMap . UF.map (HS.map fromJust . HS.filter isJust . HS.map f) . toUFMap
+
+-- alterHashed, but reforms the UnionFind to ensure that no PathCond are unnecessarily linked 
+alterHashed' :: (HashedPathCond -> Maybe HashedPathCond) -> PathConds -> PathConds
+alterHashed' f = fromHashedList . mapMaybe f . toHashedList
 
 -- Each name n maps to all other names that are in any PathCond containing n
 -- However, each n does NOT neccessarily map to all PCs containing n- instead each

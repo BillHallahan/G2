@@ -41,7 +41,7 @@ import Data.Hashable
 import qualified Data.HashMap.Lazy as M
 import qualified Data.HashSet as S
 import qualified Data.List as L
-import Data.Maybe
+import qualified Data.Maybe as MB
 
 import Prelude hiding (lookup, null, map)
 import qualified Prelude as P
@@ -113,7 +113,7 @@ join f k1 k2 ufm@(UFMap uf m)
                     (_, Just v2') -> M.insert r v2' m'
                     _ -> m
         in
-        assert (isNothing (M.lookup k1 m'') || isNothing (M.lookup k2 m''))
+        assert (MB.isNothing (M.lookup k1 m'') || MB.isNothing (M.lookup k2 m''))
             UFMap uf' m''
 
 joinAll :: (Eq k, Hashable k) => (v -> v -> v) -> [k] -> UFMap k v -> UFMap k v
@@ -144,7 +144,7 @@ insert k v (UFMap uf m) =
     let
         m' = M.insert (UF.find k uf) v m
     in
-    assert (UF.find k uf == k || isNothing (M.lookup k m'))
+    assert (UF.find k uf == k || MB.isNothing (M.lookup k m'))
         UFMap uf m'
 
 insertWith :: (Eq k, Hashable k) => (v -> v -> v) -> k -> v -> UFMap k v -> UFMap k v
