@@ -39,8 +39,6 @@ module G2.Language.Expr ( module G2.Language.Casts
 
                         , mkEqPrimExpr
 
-                        , cnf
-
                         , isData
                         , isLit
                         , isLam
@@ -218,10 +216,6 @@ mkImpliesExpr kv e1 e2 = App (App impEx e1) e2
 mkNotExpr :: KnownValues -> Expr -> Expr
 mkNotExpr kv e = App notEx e
     where notEx = mkNotPrim kv
-
-cnf :: KnownValues -> [Expr] -> Expr
-cnf kv (x:y:xs) = cnf kv $ (mkAndExpr kv x y):xs
-cnf _ [x] = x
 
 mkToRatioExpr :: KnownValues -> Expr
 mkToRatioExpr kv = Var $ Id (KV.toRatioFunc kv) TyUnknown
