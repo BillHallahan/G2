@@ -42,6 +42,7 @@ library
                        , G2.Execution
                        , G2.Execution.Interface
                        , G2.Execution.Memory
+                       , G2.Execution.NewPC
                        , G2.Execution.NormalForms
                        , G2.Execution.PrimitiveEval
                        , G2.Execution.Reducer
@@ -52,7 +53,6 @@ library
                        , G2.Execution.Merging.MergeReducer
                        , G2.Execution.Merging.MergingHelpers
                        , G2.Execution.Merging.StateMerging
-                       , G2.Execution.NewPC
                        
                        , G2.Initialization.Interface
                        , G2.Initialization.DeepSeqWalks

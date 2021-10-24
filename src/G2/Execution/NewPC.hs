@@ -47,4 +47,3 @@ reduceNewPC solver simplifier
         else
             return Nothing
     | otherwise = return $ Just s
-
