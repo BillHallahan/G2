@@ -12,6 +12,7 @@ import qualified G2.Language.PathConds as PC
 import Data.List
 import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as HS
 import Data.List
 import Data.Maybe
 import Data.Tuple
@@ -56,34 +57,48 @@ instance Simplifier EliminateAssumePCs where
     simplifyPC _ s pc = (s, [pc])
 
     simplifyPCs _ _ (AltCond (LitInt n) (Var i) True) pcs =
-        PC.alterHashed (simpAssumePC i n) pcs
+        PC.unionAlterHashed (simpAssumePC i n) pcs
     simplifyPCs _ _ (ExtCond (App (App (Prim Eq _) x) y) True) pcs
         | Var i <- x
-        , Lit (LitInt n) <- y = PC.alterHashed (simpAssumePC i n) pcs
+        , Lit (LitInt n) <- y = PC.unionAlterHashed (simpAssumePC i n) pcs
     simplifyPCs _ _ (ExtCond (App (App (Prim Eq _) x) y) True) pcs
         | Var i <- y
-        , Lit (LitInt n) <- x = PC.alterHashed (simpAssumePC i n) pcs
+        , Lit (LitInt n) <- x = PC.unionAlterHashed (simpAssumePC i n) pcs
     simplifyPCs _ _ _ pcs = pcs
 
     -- | Reverses the affect of simplification in the model, if needed.
     reverseSimplification _ _ _ = id
 
-simpAssumePC :: Id -> Integer -> PC.HashedPathCond -> Maybe PC.HashedPathCond
+simpAssumePC :: Id -> Integer -> PC.HashedPathCond -> HS.HashSet PC.HashedPathCond
 simpAssumePC i n exc
     | ExtCond (App (App (Prim Implies _) x) y) True <- PC.unhashedPC exc =
         case x of
             (App (App (Prim Eq _) e1) e2)
                 | Lit (LitInt n') <- e1
-                , Var i' <- e2 -> simpAssumePC' i n i' n' (PC.hashedPC $ ExtCond y True)
+                , Var i' <- e2 -> simpAssumePC' i n i' n' . PC.hashedPC $ ExtCond y True
                 | Lit (LitInt n') <- e2
-                , Var i' <- e1 -> simpAssumePC' i n i' n' (PC.hashedPC $ ExtCond y True)
-            _ -> Just exc
+                , Var i' <- e1 -> simpAssumePC' i n i' n' . PC.hashedPC $ ExtCond y True
+            _ -> HS.singleton exc
 simpAssumePC i n p
-    | AssumePC i' n' pc <- PC.unhashedPC p = simpAssumePC' i n i' n' pc
-simpAssumePC _ _ pc = Just pc
+    | AssumePC i' n' pc <- PC.unhashedPC p = simpAssumePCHS i n i' n' (PC.unhashedHHS pc)
+simpAssumePC _ _ pc = HS.singleton pc
 
-simpAssumePC' :: Id -> Integer -> Id -> Integer -> PC.HashedPathCond -> Maybe PC.HashedPathCond
+simpAssumePC' :: Id -> Integer -> Id -> Integer -> PC.HashedPathCond -> HS.HashSet PC.HashedPathCond
 simpAssumePC' i n i' n' pc
-    | i == i' && n == n' = Just pc
-    | i == i' && n /= n' = Nothing
-    | otherwise = fmap (PC.hashedAssumePC i' n') $ simpAssumePC i n pc
+    | i == i' && n == n' = HS.singleton pc
+    | i == i' && n /= n' = HS.empty
+    | otherwise =
+        let
+            pc' = simpAssumePC i n pc
+        in
+        if HS.null pc' then HS.empty else HS.singleton (PC.hashedPC (PC.mkAssumePC i' n' pc'))
+
+simpAssumePCHS :: Id -> Integer -> Id -> Integer -> HS.HashSet PC.HashedPathCond -> HS.HashSet PC.HashedPathCond
+simpAssumePCHS i n i' n' pc
+    | i == i' && n == n' = pc
+    | i == i' && n /= n' = HS.empty
+    | otherwise =
+        let
+            pc' = foldl' HS.union HS.empty $ HS.map (simpAssumePC i n) pc
+        in
+        if HS.null pc' then HS.empty else HS.singleton (PC.hashedPC (PC.mkAssumePC i' n' pc'))

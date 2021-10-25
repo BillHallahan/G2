@@ -303,7 +303,8 @@ ppPathCond s (ExtCond e b) =
         es = mkUnsugaredExprHaskell s e
     in
     if b then es else "not (" ++ es ++ ")"
-ppPathCond s (AssumePC i num pc) = "if" ++ mkIdHaskell i ++ " == " ++ (show num) ++ " then (" ++ (ppPathCond s $ PC.unhashedPC pc) ++ ")"
+ppPathCond s (AssumePC i num pc) = "if" ++ mkIdHaskell i ++ " == " ++ (show num) ++ " then (" ++ (intercalate "\n" . map (ppPathCond s . PC.unhashedPC) . HS.toList $ PC.unhashedHHS pc) ++ ")"
+
 injNewLine :: [String] -> String
 injNewLine strs = intercalate "\n" strs
 

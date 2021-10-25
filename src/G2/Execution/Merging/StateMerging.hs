@@ -376,8 +376,8 @@ arbDCCase insertSym i@(Id _ t) = do
             bindee_id <- freshIdM TyLitInt
             let bindee = Var bindee_id
             let pc = mkBounds bindee 1 2
-                bool_pc = [ PC.mkAssumePC bindee_id 1 $ ExtCond (Var i) True
-                          , PC.mkAssumePC bindee_id 2 $ ExtCond (Var i) False ]
+                bool_pc = [ PC.mkSingletonAssumePC bindee_id 1 $ ExtCond (Var i) True
+                          , PC.mkSingletonAssumePC bindee_id 2 $ ExtCond (Var i) False ]
                 e = Case bindee bindee_id
                         [ Alt (LitAlt (LitInt 1)) tre
                         , Alt (LitAlt (LitInt 2)) flse]

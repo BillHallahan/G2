@@ -38,10 +38,10 @@ replaceCaseWSym' (s@(State {known_values = kv}), ng) (Case (Var i) _ alts@(a:_))
 
         -- for each modified Alt Expr, add Path Cond
         es' = map (mkEqPrimExpr newSymT kv (Var newSym)) es
-        (_, newPCs) = bindExprToNum (\num e -> PC.mkAssumePC i (fromInteger num) (ExtCond e True)) es'
+        (_, newPCs) = bindExprToNum (\num e -> PC.mkSingletonAssumePC i (fromInteger num) (ExtCond e True)) es'
 
         -- for the PathConds returned from replaceCaseWSym', wrap them in AssumePCs
-        pcsL' = concat . snd $ bindExprToNum (\num pcs -> map (\pc -> PC.mkAssumePC i (fromInteger num) pc) pcs) pcsL
+        pcsL' = concat . snd $ bindExprToNum (\num pcs -> map (\pc -> PC.mkSingletonAssumePC i (fromInteger num) pc) pcs) pcsL
         -- we assume PathCond restricting values of `i` has already been added before hand when creating the Case Expr
 
         eenv' = expr_env s'
@@ -61,7 +61,7 @@ exprToPCs (Case (Var i) _ alts) boolVal =
     let altEs = map (\(Alt (LitAlt (LitInt n)) e) -> (n, e)) alts
         -- wrap Exprs in AssumePCs
         -- we assume PathCond restricting values of `i` has already been added before hand when creating the Case Expr
-    in map (\(num, e) -> PC.mkAssumePC i num (ExtCond e boolVal)) altEs
+    in map (\(num, e) -> PC.mkSingletonAssumePC i num (ExtCond e boolVal)) altEs
 exprToPCs e boolVal = [ExtCond e boolVal]
 
 createEqExpr :: KnownValues -> Id -> Expr -> Expr

@@ -169,7 +169,7 @@ joinToState orig_s is1 me1 is2 new_pc@(NewPC { state = s@(State { curr_expr = Cu
                 imp2 = mkImp kv is2 (Var i) 2
 
                 bounds = mkBounds (Var i) 1 2
-                pc' = bounds ++ ExtCond imp1 True:ExtCond imp2 True:map (PC.mkAssumePC i 2) pc
+                pc' = bounds ++ ExtCond imp1 True:ExtCond imp2 True:map (PC.mkSingletonAssumePC i 2) pc
 
             let s'' = s' { curr_expr = CurrExpr er1 ce' }
                 new_pc' = new_pc { state = s'', new_pcs = pc'}
@@ -248,8 +248,8 @@ mkInnerJoin i@(Id _ t) e1 e2 = do
             insertSymbolicId n_id
             insertSymbolicE (idName n_id) n_id
 
-            let pc1 = PC.mkAssumePC i 1 $ ExtCond (mkEqPrimExpr t kv (Var n_id) e1) True
-                pc2 = PC.mkAssumePC i 2 $ ExtCond (mkEqPrimExpr t kv (Var n_id) e2) True
+            let pc1 = PC.mkSingletonAssumePC i 1 $ ExtCond (mkEqPrimExpr t kv (Var n_id) e1) True
+                pc2 = PC.mkSingletonAssumePC i 2 $ ExtCond (mkEqPrimExpr t kv (Var n_id) e2) True
             insertPCStateNG pc1
             insertPCStateNG pc2
 
@@ -335,8 +335,8 @@ arbDCCase i@(Id _ t) = do
             bindee_id <- freshIdN TyLitInt
             let bindee = Var bindee_id
             let pc = mkBounds bindee 1 2
-                bool_pc = [ PC.mkAssumePC bindee_id 1 $ ExtCond (Var i) True
-                          , PC.mkAssumePC bindee_id 2 $ ExtCond (Var i) False ]
+                bool_pc = [ PC.mkSingletonAssumePC bindee_id 1 $ ExtCond (Var i) True
+                          , PC.mkSingletonAssumePC bindee_id 2 $ ExtCond (Var i) False ]
                 e = Case bindee bindee_id
                         [ Alt (LitAlt (LitInt 1)) tre
                         , Alt (LitAlt (LitInt 2)) flse]

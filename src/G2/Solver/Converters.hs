@@ -345,27 +345,27 @@ isCoreSort _ = False
 -------------------------------------------------------------------------------
 
 pathConsToSMTHeaders :: [PathCond] -> [SMTHeader]
-pathConsToSMTHeaders = map Assert . mapMaybe pathConsToSMT
+pathConsToSMTHeaders = map Assert . map pathConsToSMT
 
-pathConsToSMT :: PathCond -> Maybe SMTAST
+pathConsToSMT :: PathCond -> SMTAST
 pathConsToSMT (AltCond l e b) =
     let
         exprSMT = exprToSMT e
         altSMT = altToSMT l e
     in
-    Just $ if b then exprSMT := altSMT else (:!) (exprSMT := altSMT) 
+    if b then exprSMT := altSMT else (:!) (exprSMT := altSMT) 
 pathConsToSMT (ExtCond e b) =
     let
         exprSMT = exprToSMT e
     in
-    Just $ if b then exprSMT else (:!) exprSMT
+    if b then exprSMT else (:!) exprSMT
 pathConsToSMT (AssumePC i num pc) =
     let
         idSMT = exprToSMT (Var i)
         intSMT = exprToSMT (Lit (LitInt $ toInteger num))
-    in case pathConsToSMT $ PC.unhashedPC pc of
-        (Just pcSMT) -> Just $ (idSMT := intSMT) :=> pcSMT
-        Nothing -> error $ "Unable to convert pc: " ++ (show pc)
+        pcSMT = map (pathConsToSMT . PC.unhashedPC) . HS.toList $ PC.unhashedHHS pc
+    in
+    (idSMT := intSMT) :=> SmtAnd pcSMT
 
 exprToSMT :: Expr -> SMTAST
 exprToSMT (Var (Id n t)) = V (nameToStr n) (typeToSMT t)
@@ -457,12 +457,16 @@ pcVarDecls = createUniqVarDecls . HS.toList . pcVars
 
 -- Get's all variable required for a list of `PathCond` 
 pcVars :: [PathCond] -> HS.HashSet (Name, Sort)
-pcVars = foldr HS.union HS.empty . map pcVar
+pcVars = foldl' pcVar HS.empty 
 
-pcVar :: PathCond -> HS.HashSet (Name, Sort)
-pcVar (AssumePC i _ pc) = HS.insert (idToNameSort i) (pcVar (PC.unhashedPC pc))
-pcVar (AltCond _ e _) = vars e
-pcVar p = vars p
+pcVar :: HS.HashSet (Name, Sort) -> PathCond -> HS.HashSet (Name, Sort)
+pcVar ns (AssumePC i _ pc) =
+    let
+        ns' = HS.insert (idToNameSort i) ns
+    in
+    foldl' pcVar ns' (map PC.unhashedPC . HS.toList $ PC.unhashedHHS pc)
+pcVar ns (AltCond _ e _) = vars e `HS.union` ns
+pcVar ns p = vars p `HS.union` ns
 
 vars :: (ASTContainer m Expr) => m -> HS.HashSet (Name, Sort)
 vars = evalASTs vars'
