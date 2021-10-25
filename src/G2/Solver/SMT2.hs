@@ -65,7 +65,7 @@ instance SMTConverter Z3 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) w
     checkSat _ (h_in, h_out, _) formula = do
         -- putStrLn "checkSat"
         -- let formula = run formulaBldr
-        -- TIO.putStrLn formula
+        -- T.putStrLn (TB.run formula)
         -- putStrLn formula
         
         setUpFormulaZ3 h_in (TB.run formula)

@@ -113,21 +113,21 @@ compressTestCallM xs =
 --         [g2| \(x :: Int) (a :: [Int]) -> ?(b :: [Int])
 --            | subseqOfTestP x a b |] x [1,2,1,3]
 
-subseqOfTestCallM :: Int -> IO ()
-subseqOfTestCallM x =
-    timeIOActionPrint "subseqOfTestM" $
-        [g2M| \(x :: Int) (a :: [Int]) -> ?(b :: [Int])
-            | subseqOfTestP x a b |] x [1,2,1,3]
+-- subseqOfTestCallM :: Int -> IO ()
+-- subseqOfTestCallM x =
+--     timeIOActionPrint "subseqOfTestM" $
+--         [g2M| \(x :: Int) (a :: [Int]) -> ?(b :: [Int])
+--             | subseqOfTestP x a b |] x [1,2,1,3]
 
 -- sumsEvenTestCall :: Int -> IO ()
 -- sumsEvenTestCall x =
 --     timeIOActionPrint "sumEvensTest" $
 --         [g2| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] x
 
-sumsEvenTestCallM :: Int -> IO ()
-sumsEvenTestCallM x =
-    timeIOActionPrint "sumEvensTestM" $
-        [g2M| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] x
+-- sumsEvenTestCallM :: Int -> IO ()
+-- sumsEvenTestCallM x =
+--     timeIOActionPrint "sumEvensTestM" $
+--         [g2M| \(x :: Int) -> ?(xs :: [Int]) | sumEvensTest xs x |] x
 
 -- sampleTests :: IO ()
 -- sampleTests = do

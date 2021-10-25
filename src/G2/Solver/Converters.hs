@@ -512,8 +512,11 @@ toSolverAST con (x :/= y) = (./=) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :< y) = (.<) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :<= y) = (.<=) con (toSolverAST con x) (toSolverAST con y)
 
+toSolverAST con (SmtAnd [x]) = toSolverAST con x
 toSolverAST con (SmtAnd xs) = smtAnd con $ map (toSolverAST con) xs
+toSolverAST con (SmtOr [x]) = toSolverAST con x
 toSolverAST con (SmtOr xs) =  smtOr con $ map (toSolverAST con) xs
+
 toSolverAST con ((:!) x) = (.!) con $ toSolverAST con x
 toSolverAST con (x :=> y) = (.=>) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :<=> y) = (.<=>) con (toSolverAST con x) (toSolverAST con y)
