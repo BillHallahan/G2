@@ -127,7 +127,7 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
 
 checkConstraintsPC :: SMTConverter con ast out io => con -> PathConds -> IO (Result () ())
 checkConstraintsPC con pc = do
-    let headers = toSMTHeaders $ PC.toList pc
+    let headers = toSMTHeaders pc
     checkConstraints con headers
 
 checkConstraints :: SMTConverter con ast out io => con -> [SMTHeader] -> IO (Result () ())
@@ -170,8 +170,8 @@ getModelVal avf con s b (Id n _) pc = do
 
 solveNumericConstraintsPC :: SMTConverter con ast out io => con -> PathConds -> IO (Maybe Model)
 solveNumericConstraintsPC con pc = do
-    let headers = toSMTHeaders $ PC.toList pc
-    let vs = map (\(n', srt) -> (nameToStr n', srt)) . HS.toList . pcVars $ PC.toList pc
+    let headers = toSMTHeaders pc
+    let vs = map (\(n', srt) -> (nameToStr n', srt)) . HS.toList . pcVars $ pc
 
     m <- solveConstraints con headers vs
     return $ fmap modelAsExpr m
@@ -198,14 +198,17 @@ constraintsToModelOrUnsatCore con headers vs = do
 -- we need only consider the types and path constraints of that state.
 -- We can also pass in some other Expr Container to instantiate names from, which is
 -- important if you wish to later be able to scrape variables from those Expr's
-toSMTHeaders :: [PathCond] -> [SMTHeader]
+toSMTHeaders :: PathConds -> [SMTHeader]
 toSMTHeaders = addSetLogic . toSMTHeaders'
 
-toSMTHeaders' :: [PathCond] -> [SMTHeader]
-toSMTHeaders' pc  = 
+toSMTHeaders' :: PathConds -> [SMTHeader]
+toSMTHeaders' pc  =
+    let
+        pc' = PC.toList pc
+    in 
     (pcVarDecls pc)
     ++
-    (pathConsToSMTHeaders pc)
+    (pathConsToSMTHeaders pc')
 
 -- |  Determines an appropriate SetLogic command, and adds it to the headers
 addSetLogic :: [SMTHeader] -> [SMTHeader]
@@ -357,10 +360,10 @@ pathConsToSMT (ExtCond e b) =
         exprSMT = exprToSMT e
     in
     if b then exprSMT else (:!) exprSMT
-pathConsToSMT (AssumePC i num pc) =
+pathConsToSMT (AssumePC (Id n t) num pc) =
     let
-        idSMT = exprToSMT (Var i)
-        intSMT = exprToSMT (Lit (LitInt $ toInteger num))
+        idSMT = V (nameToStr n) (typeToSMT t) -- exprToSMT (Var i)
+        intSMT = VInt $ toInteger num -- exprToSMT (Lit (LitInt $ toInteger num))
         pcSMT = map (pathConsToSMT . PC.unhashedPC) . HS.toList $ PC.unhashedHHS pc
     in
     (idSMT := intSMT) :=> SmtAnd pcSMT
@@ -450,28 +453,12 @@ createUniqVarDecls ((n,SortChar):xs) =
     VarDecl (nameToBuilder n) SortChar:lenAssert:createUniqVarDecls xs
 createUniqVarDecls ((n,s):xs) = VarDecl (nameToBuilder n) s:createUniqVarDecls xs
 
-pcVarDecls :: [PathCond] -> [SMTHeader]
+pcVarDecls :: PathConds -> [SMTHeader]
 pcVarDecls = createUniqVarDecls . HS.toList . pcVars
 
 -- Get's all variable required for a list of `PathCond` 
-pcVars :: [PathCond] -> HS.HashSet (Name, Sort)
-pcVars = foldl' pcVar HS.empty 
-
-pcVar :: HS.HashSet (Name, Sort) -> PathCond -> HS.HashSet (Name, Sort)
-pcVar ns (AssumePC i _ pc) =
-    let
-        ns' = HS.insert (idToNameSort i) ns
-    in
-    foldl' pcVar ns' (map PC.unhashedPC . HS.toList $ PC.unhashedHHS pc)
-pcVar ns (AltCond _ e _) = vars e `HS.union` ns
-pcVar ns p = vars p `HS.union` ns
-
-vars :: (ASTContainer m Expr) => m -> HS.HashSet (Name, Sort)
-vars = evalASTs vars'
-    where
-        vars' :: Expr -> HS.HashSet (Name, Sort)
-        vars' (Var i) = HS.singleton (idToNameSort i)
-        vars' _ = HS.empty
+pcVars :: PathConds -> HS.HashSet (Name, Sort)
+pcVars = HS.map idToNameSort . PC.allIds
 
 idToNameSort :: Id -> (Name, Sort)
 idToNameSort (Id n t) = (n, typeToSMT t)
