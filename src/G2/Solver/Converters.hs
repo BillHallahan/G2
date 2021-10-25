@@ -127,9 +127,7 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
 
 checkConstraintsPC :: SMTConverter con ast out io => con -> PathConds -> IO (Result () ())
 checkConstraintsPC con pc = do
-    let pc' = unsafeElimCast pc
-
-    let headers = toSMTHeaders $ PC.toList pc'
+    let headers = toSMTHeaders $ PC.toList pc
     checkConstraints con headers
 
 checkConstraints :: SMTConverter con ast out io => con -> [SMTHeader] -> IO (Result () ())
