@@ -6,6 +6,7 @@
 module G2.Language.ExprEnv
     ( ExprEnv
     , ConcOrSym (..)
+    , EnvObj (..)
     , empty
     , singleton
     , fromList

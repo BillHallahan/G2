@@ -1,4 +1,6 @@
 module G2.Config.Config ( Mode (..)
+                        , LogMode (..)
+                        , LogMethod (..)
                         , Sharing (..)
                         , Counterfactual (..)
                         , CFModules (..)
@@ -28,6 +30,10 @@ import G2.Language.Syntax
 
 data Mode = Regular | Liquid deriving (Eq, Show, Read)
 
+data LogMode = Log LogMethod String | NoLog deriving (Eq, Show, Read)
+
+data LogMethod = Raw | Pretty deriving (Eq, Show, Read)
+
 -- | Do we use sharing to only reduce variables once?
 data Sharing = Sharing | NoSharing deriving (Eq, Show, Read)
 
@@ -51,7 +57,7 @@ data Config = Config {
     , base :: [FilePath] -- ^ Filepath(s) to base libraries.  Get compiled in order from left to right
     , extraDefaultInclude :: [IncludePath]
     , extraDefaultMods :: [FilePath]
-    , logStates :: Maybe String -- ^ If Just, dumps all thes states into the given folder
+    , logStates :: LogMode -- ^ If Just, dumps all thes states into the given folder
     , sharing :: Sharing
     , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
     , printCurrExpr :: Bool -- ^ Controls whether the curr expr is printed
@@ -94,7 +100,8 @@ mkConfig homedir as m = Config {
     , base = baseDef (strArg "base" as m id homedir)
     , extraDefaultInclude = extraDefaultIncludePaths (strArg "extra-base-inc" as m id homedir)
     , extraDefaultMods = extraDefaultPaths (strArg "extra-base" as m id homedir)
-    , logStates = strArg "log-states" as m Just Nothing
+    , logStates = strArg "log-states" as m (Log Raw)
+                        (strArg "log-pretty" as m (Log Pretty) NoLog)
     , sharing = boolArg' "sharing" as m Sharing Sharing NoSharing
 
     , maxOutputs = strArg "max-outputs" as m (Just . read) Nothing

@@ -32,7 +32,7 @@ runCheck proj src modN entry chAll gflags (ExecRes {final_state = s, conc_args =
     (v, chAllR) <- runGhc (Just libdir) (runCheck' proj src modN entry chAll gflags s ars out)
 
     v' <- unsafeCoerce v :: IO (Either SomeException Bool)
-    let outStr = mkCleanExprHaskell s out
+    let outStr = printHaskell s out
     let v'' = case v' of
                     Left _ -> outStr == "error"
                     Right b -> b && outStr /= "error"
@@ -59,8 +59,8 @@ runCheck' proj src modN entry chAll gflags s ars out = do
 
         let Left (v, _) = findFunc (T.pack entry) (Just $ T.pack modN) (expr_env s)
         let e = mkApp $ Var v:ars
-        let arsStr = mkCleanExprHaskell s e
-        let outStr = mkCleanExprHaskell s out
+        let arsStr = printHaskell s e
+        let outStr = printHaskell s out
 
         let outType = mkTypeHaskell (typeOf out)
 
@@ -72,7 +72,7 @@ runCheck' proj src modN entry chAll gflags s ars out = do
         v' <- compileExpr chck
 
         let chArgs = ars ++ [out] 
-        let chAllStr = map (\f -> mkCleanExprHaskell s $ mkApp ((simpVar $ T.pack f):chArgs)) chAll
+        let chAllStr = map (\f -> printHaskell s $ mkApp ((simpVar $ T.pack f):chArgs)) chAll
         let chAllStr' = map (\str -> "try (evaluate (" ++ str ++ ")) :: IO (Either SomeException Bool)") chAllStr
 
         chAllR <- mapM compileExpr chAllStr'
@@ -112,7 +112,7 @@ runHPC' src modN ars = do
     -- putStrLn mainFunc
 
 toCall :: String -> State t -> [Expr] -> Expr -> String
-toCall entry s ars _ = mkCleanExprHaskell s $ mkApp ((simpVar $ T.pack entry):ars)
+toCall entry s ars _ = printHaskell s $ mkApp ((simpVar $ T.pack entry):ars)
 
 removeModule :: String -> String -> String
 removeModule modN s =
