@@ -140,6 +140,7 @@ recursionInCase (State { curr_expr = CurrExpr _ e, exec_stack = sk }) =
             p == T.pack "REC" -- && containsCase sk
         _ -> False
 
+{-
 -- TODO copied from Verifier
 stripTicks :: Expr -> Expr
 stripTicks (Tick _ e) = e
@@ -162,6 +163,7 @@ readyCase s@(State { curr_expr = CurrExpr _ e, exec_stack = sk }) =
         Case e' _ _ -> containsCase sk &&
                        isSWHNF (s { curr_expr = CurrExpr Evaluate e' })
         _ -> False
+-}
 
 instance Halter EnforceProgressH () EquivTracker where
     initHalt _ _ = ()
@@ -179,7 +181,7 @@ instance Halter EnforceProgressH () EquivTracker where
             -- point when it reaches the Tick because the act of unwrapping the
             -- expression inside the Tick counts as one step.
             Just n0 -> do
-                if (isExecValueForm s) || (exprFullApp h e) || (recursionInCase s) || (readyCase s)
+                if (isExecValueForm s) || (exprFullApp h e) || (recursionInCase s) -- || (readyCase s)
                        -- TODO same goes for this?
                        then return (if n' > n0 + 1 then Accept else Continue)
                        -- TODO not getting stuck in here repeatedly

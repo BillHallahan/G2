@@ -407,6 +407,12 @@ inductionState :: State t -> State t
 inductionState s =
   s { curr_expr = CurrExpr Evaluate $ inductionExtract $ exprExtract s }
 
+getAlts :: State t -> [Alt]
+getAlts (State { curr_expr = CurrExpr _ e }) =
+  case e of
+    Case _ _ a -> a
+    _ -> error "Improper Format"
+
 -- TODO can't just replace the first case I see
 -- need to keep going down until I reach something that isn't a Case
 -- didn't fix forceIdempotent, though
@@ -620,6 +626,9 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
 -- very slow on the higher-end "branch" rules, but always gets UNSAT
 -- seemingly gets stuck on infiniteInts
 -- UNSAT on all other CoinductionCorrect rules
+-- that implementation was wrong because it didn't check Alt equivalence
+-- Alts that were being used before for forceIdempotent are clearly not equal
+-- other part of induction always succeeding for forceIdempotent, though?
 induction :: S.Solver solver =>
              solver ->
              HS.HashSet Name ->
@@ -643,8 +652,11 @@ induction solver ns fresh_name prev (s1, s2) = do
       prev1' = map (rmcHelper e1) prev1
       prev2' = map (rmcHelper e2) prev2
       prev' = zip prev1' prev2'
-  res_ <- moreRestrictivePair solver ns prev' (s1_i, s2_i)
-  return $ isJust res_
+  res <- moreRestrictivePair solver ns prev' (s1_i, s2_i)
+  -- TODO check that the Alts equal each other
+  if getAlts s1 == getAlts s2
+  then return $ isJust res
+  else trace (if isJust res then show (getAlts s1, getAlts s2) else show $ isJust res) $ return False
 
 -- The induction function isn't a filter; it converts state pairs
 -- if induction can't be applied, just return the input
