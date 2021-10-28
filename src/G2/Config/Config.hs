@@ -57,7 +57,7 @@ data Config = Config {
     , base :: [FilePath] -- ^ Filepath(s) to base libraries.  Get compiled in order from left to right
     , extraDefaultInclude :: [IncludePath]
     , extraDefaultMods :: [FilePath]
-    , logStates :: LogMode -- ^ If Just, dumps all thes states into the given folder
+    , logStates :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
     , sharing :: Sharing
     , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
     , printCurrExpr :: Bool -- ^ Controls whether the curr expr is printed
