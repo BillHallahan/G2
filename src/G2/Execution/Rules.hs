@@ -24,6 +24,7 @@ import G2.Execution.PrimitiveEval
 import G2.Execution.RuleTypes
 import G2.Language
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.TypeEnv as TE
 import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as S
@@ -74,7 +75,7 @@ stdReduce' _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
     | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
     | isError ce
     , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], ng)
-    | Just rs <- retReplaceSymbFunc s ng ce = return rs
+    | Just rs <- retReplaceSymbFunc' s ng ce = return rs
     | Just (CaseFrame i a, stck') <- frstck = return $ retCaseFrame s ng ce i a stck'
     | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ng ce c stck'
     | Lam u i e <- ce = return $ retLam s ng u i e
@@ -965,10 +966,35 @@ liftBind bindsLHS bindsRHS eenv expr ngen = (eenv', expr', ngen', new)
 
 retReplaceSymbFunc' :: State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
 retReplaceSymbFunc' state@(State { expr_env = eenv
+                            , type_env = tenv
                             , known_values = kv
                             , type_classes = tc
                             , exec_stack = stck })
                    ng ce
+    -- DC-SPLIT
+    | Var sId@(Id s (TyFun t1@(TyCon tname tkind) t2)) <- ce
+    , E.isSymbolic s eenv
+    , Just dcs <- TE.getDataCons tname tenv
+    = let
+        (x, ng') = freshId t1 ng
+        (x', ng'') = freshId t1 ng'
+        (alts, symIds, ng''') = foldr (\dc@(DataCon _ dcty) (alts, symIds, ng) ->
+            let (argIds, ng') = genArgIds dc ng
+                altMatch = DataAlt dc argIds
+                (fi, ng'') = freshSeededId (Name "symFun" Nothing 0 Nothing) (mkTyFun $ fst (argTypes dcty) ++ [t2]) ng'
+                args = map Var argIds
+            in (Alt altMatch (mkApp (Var fi : args)) : alts, fi : symIds, ng'')
+            ) ([], [], ng'') dcs
+        -- alts = map (\dc -> Alt (Alt)) dcs
+        e = Lam TermL x $ Case (Var x) x' alts
+        eenv' = insertIds eenv symIds
+        eenv'' = E.insert s e eenv'
+    in Just (RuleReturnReplaceSymbFunc, [state {
+        curr_expr = CurrExpr Return e,
+        symbolic_ids = symIds ++ L.delete sId (symbolic_ids state),
+        expr_env = eenv''
+    }], ng''')
+    -- FUNC-APP
     | Var (Id s (TyFun t1@(TyFun _ _) t2)) <- ce
     , E.isSymbolic s eenv
     = let
@@ -996,6 +1022,11 @@ retReplaceSymbFunc' state@(State { expr_env = eenv
         insertIds = foldr (\i eenv -> E.insertSymbolic (idName i) i eenv)
         -- insertIds eenv [] = eenv
         -- insertIds 
+
+        genArgIds :: DataCon -> NameGen -> ([Id], NameGen)
+        genArgIds (DataCon _ dcty) ng =
+            let (argTys, _) = argTypes dcty
+            in foldr (\ty (ids, ng) -> let (id, ng') = freshId ty ng in ((id:ids), ng')) ([], ng) argTys
 
 
 

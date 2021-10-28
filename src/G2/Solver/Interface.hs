@@ -53,15 +53,15 @@ subVar' em eenv tc is v@(Var i@(Id n _))
         subVar' em eenv tc (i:is) e
     | i `notElem` is
     , Just e <- E.lookup n eenv
-    , (isExprValueForm eenv e && notLam e) || isApp e || isVar e || isLitCase e =
+    , (isExprValueForm eenv e) || isApp e || isVar e || isLitCase e =
         subVar' em eenv tc (i:is) e
     | otherwise = v
-subVar' mdl eenv tc is cse@(Case e _ as) =
-    case subVar' mdl eenv tc is e of
-        Lit l
-            | Just (Alt _ ae) <- L.find (\(Alt (LitAlt l') _) -> l == l') as ->
-                subVar' mdl eenv tc is ae
-        _ -> cse
+-- subVar' mdl eenv tc is cse@(Case e _ as) =
+--     case subVar' mdl eenv tc is e of
+--         Lit l
+--             | Just (Alt _ ae) <- L.find (\(Alt (LitAlt l') _) -> l == l') as ->
+--                 subVar' mdl eenv tc is ae
+--         _ -> cse
 subVar' em eenv tc is e = modifyChildren (subVar' em eenv tc is) e
 
 notLam :: Expr -> Bool
