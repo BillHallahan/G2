@@ -560,6 +560,12 @@ printFuncCallPG pg (FuncCall { funcName = Name f _ _ _, arguments = ars, returns
 -- Pretty Guide
 -------------------------------------------------------------------------------
 
+-- | Maps G2 `Name`s to printable `String`s uniquely and consistently
+-- (two `Name`s will not map to the same `String`, and on a per `PrettyGuide`
+-- basis the same `Name` will always map to the same `String`.)
+-- The `PrettyGuide` will only work on `Name`s it "knows" about.
+-- It "knows" about names in the `Named` value it is passed in it's creation
+-- (via `mkPrettyGuide`) and all `Name`s that it is passed via `updatePrettyGuide`.
 data PrettyGuide = PG { pg_assigned :: HM.HashMap Name String, pg_nums :: HM.HashMap T.Text Int }
 
 mkPrettyGuide :: Named a => a -> PrettyGuide
