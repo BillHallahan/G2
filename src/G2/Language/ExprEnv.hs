@@ -26,6 +26,7 @@ module G2.Language.ExprEnv
     , union
     , union'
     , unionWithM
+    , unionWithNameM
     , (!)
     , map
     , map'
@@ -209,6 +210,15 @@ unionWithM f (ExprEnv m1) (ExprEnv m2) =
                                                             f x' y') 
                                                       (M.map return m1)
                                                       (M.map return m2))
+
+unionWithNameM :: Monad m => (Name -> EnvObj -> EnvObj -> m EnvObj) -> ExprEnv -> ExprEnv -> m ExprEnv
+unionWithNameM f (ExprEnv m1) (ExprEnv m2) =
+    return . ExprEnv =<< (Trav.sequence $ M.unionWithKey (\n x y -> do
+                                                                    x' <- x
+                                                                    y' <- y
+                                                                    f n x' y') 
+                                                         (M.map return m1)
+                                                         (M.map return m2))
 
 -- | Map a function over all `Expr` in the `ExprEnv`.
 -- Will not replace symbolic variables with non-symbolic values,
