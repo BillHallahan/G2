@@ -294,10 +294,8 @@ newMergeExprEnv = do
 
     eenv1 <- exprEnv1
     eenv2 <- exprEnv2
-    m_eenv <- E.mergeAEnvObj
-                  E.preserveMissing
-                  E.preserveMissing
-                  (E.zipWithAMatched (newMergeEnvObj kv)) 
+    m_eenv <- E.unionWithNameM
+                  (newMergeEnvObj kv) 
                   eenv1 
                   eenv2
     n_eenv <- newExprEnv

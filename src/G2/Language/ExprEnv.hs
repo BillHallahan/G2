@@ -36,6 +36,7 @@ module G2.Language.ExprEnv
     , difference
     , union'
     , unionWithM
+    , unionWithNameM
     , (!)
     , map
     , map'
@@ -58,11 +59,6 @@ module G2.Language.ExprEnv
     , fromExprList
     , assignCLs
     , giveEnvObjCL
-    , mergeAEnvObj
-    , M.WhenMissing
-    , M.WhenMatched
-    , M.preserveMissing
-    , M.zipWithAMatched
     ) where
 
 import G2.Language.AST
@@ -80,7 +76,6 @@ import Control.Monad hiding (mapM)
 import Data.Coerce
 import Data.Data (Data, Typeable)
 import qualified Data.List as L
-import qualified Data.Map.Merge.Lazy as M
 import qualified Data.Map.Lazy as M
 import Data.Maybe
 import Data.Monoid ((<>))
@@ -272,6 +267,15 @@ unionWithM f (ExprEnv m1) (ExprEnv m2) =
                                                       (M.map return m1)
                                                       (M.map return m2))
 
+unionWithNameM :: Monad m => (Name -> EnvObj -> EnvObj -> m EnvObj) -> ExprEnv -> ExprEnv -> m ExprEnv
+unionWithNameM f (ExprEnv m1) (ExprEnv m2) =
+    return . ExprEnv =<< (Trav.sequence $ M.unionWithKey (\n x y -> do
+                                                                    x' <- x
+                                                                    y' <- y
+                                                                    f n x' y') 
+                                                         (M.map return m1)
+                                                         (M.map return m2))
+
 -- | Map a function over all `Expr` in the `ExprEnv`.
 -- Will not replace symbolic variables with non-symbolic values,
 -- but will rename symbolic values.
@@ -386,17 +390,6 @@ getIdFromName eenv name =
     case (lookup name eenv) of 
         Just (Var i) -> Just i       
         _ -> Nothing
-
-{-# INLINE mergeAEnvObj #-}
-mergeAEnvObj :: Applicative f
-             => M.WhenMissing f Name EnvObj EnvObj
-             -> M.WhenMissing f Name EnvObj EnvObj
-             -> M.WhenMatched f Name EnvObj EnvObj EnvObj
-             -> ExprEnv
-             -> ExprEnv
-             -> f ExprEnv
-mergeAEnvObj wm1 wm2 wm3 (ExprEnv eenv1) (ExprEnv eenv2) =
-    fmap ExprEnv $ M.mergeA wm1 wm2 wm3 eenv1 eenv2
 
 -- Give a CL to every ExprObj that does not already have one.
 assignCLs :: NameGen -> ExprEnv -> (ExprEnv, NameGen)
