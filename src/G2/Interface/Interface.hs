@@ -274,11 +274,13 @@ initRedHaltOrd solver simplifier config =
 
         tr_ng = mkNameGen ()
         state_name = Name "state" Nothing 0 Nothing
+
+        m_logger = getLogger config
     in
     if higherOrderSolver config == AllFuncs
         then (SomeReducer (NonRedPCRed)
-                 <~| (case logStates config of
-                        Just fp -> SomeReducer (StdRed share mergeStates solver simplifier :<~ Logger fp)
+                 <~| (case m_logger of
+                        Just logger -> SomeReducer (StdRed share mergeStates solver simplifier) <~ logger
                         Nothing -> SomeReducer (StdRed share mergeStates solver simplifier))
              , SomeHalter
                  (SwitchEveryNHalter 20
@@ -287,8 +289,8 @@ initRedHaltOrd solver simplifier config =
                  :<~> AcceptIfViolatedHalter)
              , SomeOrderer $ PickLeastUsedOrderer)
         else ( SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
-                 <~| (case logStates config of
-                        Just fp -> SomeReducer (StdRed share mergeStates solver simplifier :<~ Logger fp)
+                 <~| (case m_logger of
+                        Just logger -> SomeReducer (StdRed share mergeStates solver simplifier) <~ logger
                         Nothing -> SomeReducer (StdRed share mergeStates solver simplifier))
              , SomeHalter
                  (DiscardIfAcceptedTag state_name

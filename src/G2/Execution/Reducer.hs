@@ -33,6 +33,9 @@ module G2.Execution.Reducer ( Reducer (..)
                             , NonRedPCRedConst (..)
                             , TaggerRed (..)
                             , Logger (..)
+                            , prettyLogger
+                            , getLogger
+                            , PrettyLogger (..)
                             , LimLogger (..)
                             , PredicateLogger (..)
                             , mkCountAllSteps
@@ -82,7 +85,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , runReducer 
                             , runReducerMerge ) where
 
-import G2.Config.Config
+import G2.Config
 import qualified G2.Language.ExprEnv as E
 import G2.Execution.Rules
 import G2.Language
@@ -638,6 +641,13 @@ instance Reducer TaggerRed () t where
         else
             return (Finished, [(s, ())], b, tr)
 
+
+getLogger :: Show t => Config -> Maybe (SomeReducer t)
+getLogger config = case logStates config of
+                        Log Raw fp -> Just (SomeReducer (Logger fp))
+                        Log Pretty fp -> Just (SomeReducer (prettyLogger fp))
+                        NoLog -> Nothing
+
 -- | A Reducer to producer logging output 
 data Logger = Logger String
 
@@ -654,6 +664,23 @@ instance Show t => Reducer Logger [Int] t where
     onMerge (Logger ll) s1 s2 lt1 lt2 = do
         outputMerge ll lt1 lt2 s1 s2
         return lt1
+
+-- | A Reducer to producer logging output 
+data PrettyLogger = PrettyLogger String PrettyGuide
+
+instance Show t => Reducer PrettyLogger [Int] t where
+    initReducer _ s = []
+
+    redRules l@(PrettyLogger fn pg) li s b = do
+        let pg' = updatePrettyGuide (s { track = () }) pg
+        outputState fn li s b (\s _ -> prettyState pg' s)
+        return (NoProgress, [(s, li)], b, PrettyLogger fn pg')
+    
+    updateWithAll _ [(_, l)] = [l]
+    updateWithAll _ ss = map (\(l, i) -> l ++ [i]) $ zip (map snd ss) [1..]
+
+prettyLogger :: String -> PrettyLogger
+prettyLogger s = PrettyLogger s (mkPrettyGuide ())
 
 -- | A Reducer to producer limited logging output.
 data LimLogger =

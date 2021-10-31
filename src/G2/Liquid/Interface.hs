@@ -453,12 +453,14 @@ lhReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
         abs_ret_name = Name "abs_ret" Nothing 0 Nothing
 
         non_red = NonRedPCRed :|: NonRedPCRedConst
+
+        m_logger = getLogger config
     in
     if higherOrderSolver config == AllFuncs then
         ( SomeReducer non_red
             <~| (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng ))
-            <~| (case logStates config of
-                  Just fp -> SomeReducer (StdRed share merge solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed :<~ Logger fp)
+            <~| (case m_logger of
+                  Just logger -> SomeReducer (StdRed share merge solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed) <~ logger
                   Nothing -> SomeReducer (StdRed share merge solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed))
         , SomeHalter
                 (MaxOutputsHalter (maxOutputs config)
@@ -470,9 +472,9 @@ lhReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
         , SomeOrderer limOrd)
     else
         (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng)
-            <~| (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng))
-            <~| (case logStates config of
-                  Just fp -> SomeReducer (StdRed share merge solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed :<~ Logger fp)
+            <~| (SomeReducer (non_red :<~| TaggerRed state_name ng))
+            <~| (case m_logger of
+                  Just logger -> SomeReducer (StdRed share merge solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed) <~ logger
                   Nothing -> SomeReducer (StdRed share merge solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed))
         , SomeHalter
             (DiscardIfAcceptedTag state_name
@@ -651,7 +653,7 @@ parseLHOut entry (ExecRes { final_state = s
                           , conc_out = ex
                           , violated = ais}) =
   let
-      called = funcCallToFuncInfo  (T.pack . mkCleanExprHaskell s)
+      called = funcCallToFuncInfo  (T.pack . printHaskell s)
              $ FuncCall { funcName = idName entry, arguments = inArg, returns = ex}
       viFunc = fmap (parseLHFuncTuple s) ais
 
@@ -664,17 +666,17 @@ parseLHOut entry (ExecRes { final_state = s
 counterExampleToLHReturn :: State t -> CounterExample -> LHReturn
 counterExampleToLHReturn s (DirectCounter fc abstr) =
     let
-        called = funcCallToFuncInfo (T.pack . mkCleanExprHaskell s) . abstract $ fc
-        abstr' = map (funcCallToFuncInfo (T.pack . mkCleanExprHaskell s) . abstract) abstr
+        called = funcCallToFuncInfo (T.pack . printHaskell s) . abstract $ fc
+        abstr' = map (funcCallToFuncInfo (T.pack . printHaskell s) . abstract) abstr
     in
     LHReturn { calledFunc = called
              , violating = Nothing
              , abstracted = abstr'}
 counterExampleToLHReturn s (CallsCounter fc viol_fc abstr) =
     let
-        called = funcCallToFuncInfo (T.pack . mkCleanExprHaskell s) . abstract $ fc
-        viol_called = funcCallToFuncInfo (T.pack . mkCleanExprHaskell s) . abstract $ viol_fc
-        abstr' = map (funcCallToFuncInfo (T.pack . mkCleanExprHaskell s) . abstract) abstr
+        called = funcCallToFuncInfo (T.pack . printHaskell s) . abstract $ fc
+        viol_called = funcCallToFuncInfo (T.pack . printHaskell s) . abstract $ viol_fc
+        abstr' = map (funcCallToFuncInfo (T.pack . printHaskell s) . abstract) abstr
     in
     LHReturn { calledFunc = called
              , violating = Just viol_called
@@ -703,5 +705,5 @@ parseLHFuncTuple s (FuncCall {funcName = n, arguments = ars, returns = out}) =
                   Nothing -> error $ "Unknown type for abstracted function " ++ show n
     in
     FuncInfo { func = nameOcc n
-             , funcArgs = T.pack $ mkCleanExprHaskell s (foldl' App (Var (Id n t)) ars)
-             , funcReturn = T.pack $ mkCleanExprHaskell s out }
+             , funcArgs = T.pack $ printHaskell s (foldl' App (Var (Id n t)) ars)
+             , funcReturn = T.pack $ printHaskell s out }

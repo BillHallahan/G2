@@ -60,9 +60,11 @@ rewriteRedHaltOrd solver simplifier config =
         share = sharing config
         merge = stateMerging config
         state_name = Name "state" Nothing 0 Nothing
+
+        m_logger = getLogger config
     in
-    (case logStates config of
-            Just fp -> SomeReducer (StdRed share merge solver simplifier :<~ EnforceProgressR :<~ ConcSymReducer :<~? (Logger fp :<~ EquivReducer))
+    (case m_logger of
+            Just logger -> SomeReducer (StdRed share merge solver simplifier :<~ EnforceProgressR :<~ ConcSymReducer) <~? (logger <~ SomeReducer EquivReducer)
             Nothing -> SomeReducer (StdRed share merge solver simplifier :<~ EnforceProgressR :<~ ConcSymReducer :<~? EquivReducer)
      , SomeHalter
          (DiscardIfAcceptedTag state_name

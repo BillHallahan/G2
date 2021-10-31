@@ -284,16 +284,13 @@ qqRedHaltOrd :: (Solver solver, Simplifier simplifier) => Config -> solver -> si
 qqRedHaltOrd config solver simplifier mergeStates =
     let
         share = sharing config
-        logSt = logStates config
 
         tr_ng = mkNameGen ()
         state_name = G2.Name "state" Nothing 0 Nothing
     in
     ( SomeReducer
         (NonRedPCRed :<~| TaggerRed state_name tr_ng)
-            <~| (case logSt of
-                    Just fp -> SomeReducer (StdRed share mergeStates solver simplifier :<~ Logger fp)
-                    Nothing -> SomeReducer (StdRed share mergeStates solver simplifier))
+            <~| (SomeReducer (StdRed share mergeStates solver simplifier))
     , SomeHalter
         (DiscardIfAcceptedTag state_name 
         :<~> AcceptIfViolatedHalter)

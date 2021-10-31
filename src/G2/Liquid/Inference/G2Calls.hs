@@ -172,13 +172,15 @@ gatherReducerHalterOrderer infconfig config solver simplifier entry mb_modname s
         share = sharing config
 
         state_name = Name "state" Nothing 0 Nothing
-    
+
+        m_logger = getLogger config
+
     timer_halter <- timerHalter (timeout_se infconfig * 3)
 
     return
         (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng)
-            <~| (case logStates config of
-                  Just fp -> SomeReducer (StdRed share merge solver simplifier :<~ Gatherer :<~ Logger fp)
+            <~| (case m_logger of
+                  Just logger -> SomeReducer (StdRed share merge solver simplifier :<~ Gatherer) <~ logger
                   Nothing -> SomeReducer (StdRed share merge solver simplifier :<~ Gatherer))
         , SomeHalter
             (DiscardIfAcceptedTag state_name
@@ -285,6 +287,8 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
 
         timeout = timeout_se infconfig + extra_time
 
+        m_logger = getLogger config
+
     liftIO $ putStrLn $ "ce num for " ++ T.unpack entry ++ " is " ++ show ce_num
     liftIO $ putStrLn $ "timeout for " ++ T.unpack entry ++ " is " ++ show timeout
     
@@ -304,8 +308,8 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
     return $
         (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng)
             <~| (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng))
-            <~| (case logStates config of
-                  Just fp -> SomeReducer (StdRed share merge solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~? ExistentialInstRed :<~ Logger fp)
+            <~| (case m_logger of
+                  Just logger -> SomeReducer (StdRed share merge solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~? ExistentialInstRed) <~ logger
                   Nothing -> SomeReducer (StdRed share merge solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~? ExistentialInstRed))
         , SomeHalter
             (DiscardIfAcceptedTag state_name :<~> halter)
@@ -374,7 +378,9 @@ realCExReducerHalterOrderer infconfig config entry modname solver simplifier  cf
         --                                      , discarded_at_most = 15 }
         ce_num = max_ce infconfig + extra_ce
         lh_max_outputs = LHMaxOutputsHalter ce_num
-    
+
+        m_logger = getLogger config
+
     timer_halter <- liftIO $ timerHalter (timeout_se infconfig)
 
     let halter =      lh_max_outputs
@@ -387,8 +393,8 @@ realCExReducerHalterOrderer infconfig config entry modname solver simplifier  cf
     return $
         (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng)
             <~| (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng))
-            <~| (case logStates config of
-                  Just fp -> SomeReducer (StdRed share merge solver simplifier :<~| LHRed cfn :<~ Logger fp)
+            <~| (case m_logger of
+                  Just logger -> SomeReducer (StdRed share merge solver simplifier :<~| LHRed cfn) <~ logger
                   Nothing -> SomeReducer (StdRed share merge solver simplifier :<~| LHRed cfn))
         , SomeHalter
             (DiscardIfAcceptedTag state_name :<~> halter)
