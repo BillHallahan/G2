@@ -25,6 +25,7 @@ module G2.Language.ExprEnv
     , redirect
     , union
     , union'
+    , unionWithM
     , (!)
     , map
     , map'
@@ -59,6 +60,7 @@ import Prelude hiding( filter
                      , mapM
                      , null)
 import qualified Prelude as Pre
+import Control.Monad hiding (mapM)
 import Data.Coerce
 import Data.Data (Data, Typeable)
 import qualified Data.List as L
@@ -67,6 +69,7 @@ import Data.Maybe
 import Data.Monoid ((<>))
 import qualified Data.Sequence as S
 import qualified Data.Text as T
+import qualified Data.Traversable as Trav
 
 data ConcOrSym = Conc Expr
                | Sym Id
@@ -196,6 +199,16 @@ union (ExprEnv eenv) (ExprEnv eenv') = ExprEnv $ eenv `M.union` eenv'
 
 union' :: M.HashMap Name Expr -> ExprEnv -> ExprEnv
 union' m (ExprEnv eenv) = ExprEnv (M.map ExprObj m `M.union` eenv)
+
+
+unionWithM :: Monad m => (EnvObj -> EnvObj -> m EnvObj) -> ExprEnv -> ExprEnv -> m ExprEnv
+unionWithM f (ExprEnv m1) (ExprEnv m2) =
+    return . ExprEnv =<< (Trav.sequence $ M.unionWith (\x y -> do
+                                                            x' <- x
+                                                            y' <- y
+                                                            f x' y') 
+                                                      (M.map return m1)
+                                                      (M.map return m2))
 
 -- | Map a function over all `Expr` in the `ExprEnv`.
 -- Will not replace symbolic variables with non-symbolic values,
