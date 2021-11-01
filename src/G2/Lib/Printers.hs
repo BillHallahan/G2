@@ -385,7 +385,7 @@ prettyPathCond pg (ExtCond e b) =
     if b then mkDirtyExprHaskell pg e else "not (" ++ mkDirtyExprHaskell pg e ++ ")"
 prettyPathCond pg (AssumePC i l pc) =
     let
-        pc' = map PC.unhashedPC . HS.toList $ PC.unhashedHHS pc
+        pc' = map PC.unhashedPC $ HS.toList pc
     in
     mkIdHaskell pg i ++ " = " ++ show l ++ "=> (" ++ intercalate "\nand " (map (prettyPathCond pg) pc') ++ ")"
 
@@ -430,7 +430,7 @@ ppPathCond s (ExtCond e b) =
         es = mkUnsugaredExprHaskell s e
     in
     if b then es else "not (" ++ es ++ ")"
-ppPathCond s (AssumePC i num pc) = "if" ++ mkIdHaskell (mkPrettyGuide ()) i ++ " == " ++ (show num) ++ " then (" ++ (intercalate "\n" . map (ppPathCond s . PC.unhashedPC) . HS.toList $ PC.unhashedHHS pc) ++ ")"
+ppPathCond s (AssumePC i num pc) = "if" ++ mkIdHaskell (mkPrettyGuide ()) i ++ " == " ++ (show num) ++ " then (" ++ (intercalate "\n" . map (ppPathCond s . PC.unhashedPC) $ HS.toList pc) ++ ")"
 
 injNewLine :: [String] -> String
 injNewLine strs = intercalate "\n" strs

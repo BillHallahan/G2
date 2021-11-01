@@ -364,7 +364,7 @@ pathConsToSMT (AssumePC (Id n t) num pc) =
     let
         idSMT = V (nameToStr n) (typeToSMT t) -- exprToSMT (Var i)
         intSMT = VInt $ toInteger num -- exprToSMT (Lit (LitInt $ toInteger num))
-        pcSMT = map (pathConsToSMT . PC.unhashedPC) . HS.toList $ PC.unhashedHHS pc
+        pcSMT = map (pathConsToSMT . PC.unhashedPC) $ HS.toList pc
     in
     (idSMT := intSMT) :=> SmtAnd pcSMT
 

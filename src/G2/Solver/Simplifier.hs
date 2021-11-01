@@ -80,7 +80,7 @@ simpAssumePC i n exc
                 , Var i' <- e1 -> simpAssumePC' i n i' n' . PC.hashedPC $ ExtCond y True
             _ -> HS.singleton exc
 simpAssumePC i n p
-    | AssumePC i' n' pc <- PC.unhashedPC p = simpAssumePCHS i n i' n' (PC.unhashedHHS pc)
+    | AssumePC i' n' pc <- PC.unhashedPC p = simpAssumePCHS i n i' n' pc
 simpAssumePC _ _ pc = HS.singleton pc
 
 simpAssumePC' :: Id -> Integer -> Id -> Integer -> PC.HashedPathCond -> HS.HashSet PC.HashedPathCond
