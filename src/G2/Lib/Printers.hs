@@ -368,7 +368,7 @@ prettyEEnv pg =
   intercalate "\n\n" . map (\(n, e) -> mkNameHaskell pg n ++ " = " ++ printEnvObj pg e ) . E.toList
 
 printEnvObj :: PrettyGuide -> E.EnvObj -> String
-printEnvObj pg (E.ExprObj _ e) = mkDirtyExprHaskell pg e
+printEnvObj pg (E.ExprObj e) = mkDirtyExprHaskell pg e
 printEnvObj pg (E.SymbObj (Id _ t)) = "symbolic " ++ mkTypeHaskellPG pg t
 printEnvObj pg (E.RedirObj n) = "redir to " ++ mkNameHaskell pg n
 
@@ -399,7 +399,7 @@ ppExprEnv = ppExprEnvPG (mkPrettyGuide ())
 ppExprEnvPG :: PrettyGuide -> State t -> String
 ppExprEnvPG pg s@(State {expr_env = eenv}) =
     let
-        eenvs = M.toList $ E.map' (mkUnsugaredExprHaskell s) eenv
+        eenvs = HM.toList $ E.map' (mkUnsugaredExprHaskell s) eenv
     in
     intercalate "\n" $ map (\(n, es) -> mkNameHaskell pg n ++ " = " ++ es) eenvs
 

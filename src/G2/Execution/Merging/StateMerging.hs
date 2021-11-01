@@ -304,13 +304,13 @@ newMergeExprEnv = do
 newMergeEnvObj :: KnownValues -> Name -> E.EnvObj -> E.EnvObj
                -> MergeM t E.EnvObj
 newMergeEnvObj kv n eObj1 eObj2
-    | E.EqFast eObj1 == E.EqFast eObj2 = return eObj1
-    | E.ExprObj _ e1 <- eObj1
-    , E.ExprObj _ e2 <- eObj2 = do
+    | eObj1 == eObj2 = return eObj1
+    | E.ExprObj e1 <- eObj1
+    , E.ExprObj e2 <- eObj2 = do
         m_e <- newCaseExpr e1 e2
-        return $ E.ExprObj Nothing m_e
+        return $ E.ExprObj m_e
     | (E.SymbObj i) <- eObj1
-    , (E.ExprObj _ e2) <- eObj2 = do
+    , (E.ExprObj e2) <- eObj2 = do
         -- We check to make sure that we have not already overwritten the SymbObj in some other mergeExpr call
         obj <- lookupEnvObjExprEnv1 (idName i)
         case obj of
@@ -319,10 +319,10 @@ newMergeEnvObj kv n eObj1 eObj2
                 insertExprEnv1 (idName i) e_s
                 e <- newCaseExpr e_s e2
                 deleteSymbolic1 i
-                return $ E.ExprObj Nothing e
+                return $ E.ExprObj e
             Just obj' -> newMergeEnvObj kv n obj' eObj2
             Nothing -> error "mergeEnvObj: bad input"
-    | (E.ExprObj _ e1) <- eObj1
+    | (E.ExprObj e1) <- eObj1
     , (E.SymbObj i) <- eObj2 = do
         -- We check to make sure that we have not already overwritten the SymbObj in some other mergeExpr call
         obj <- lookupEnvObjExprEnv2 (idName i)
@@ -332,25 +332,25 @@ newMergeEnvObj kv n eObj1 eObj2
                 insertExprEnv2 (idName i) e_s
                 e <- newCaseExpr e1 e_s
                 deleteSymbolic2 i
-                return $ E.ExprObj Nothing e
+                return $ E.ExprObj e
             Just obj' -> newMergeEnvObj kv n eObj1 obj'
             Nothing -> error "mergeEnvObj: bad input"
     | (E.RedirObj n) <- eObj1
-    , (E.ExprObj _ e2) <- eObj2 = do
+    , (E.ExprObj e2) <- eObj2 = do
         i1 <- nameToId1 n
         e <- newCaseExpr (Var i1) e2
-        return $ E.ExprObj Nothing e
-    | (E.ExprObj _ e1) <- eObj1
+        return $ E.ExprObj e
+    | (E.ExprObj e1) <- eObj1
     , (E.RedirObj n) <- eObj2 = do
         i2 <- nameToId2 n
         e <- newCaseExpr e1 (Var i2)
-        return $ E.ExprObj Nothing e
+        return $ E.ExprObj e
     | (E.RedirObj n1) <- eObj1
     , (E.RedirObj n2) <- eObj2 = do
         i1 <- nameToId1 n
         i2 <- nameToId2 n
         e <- newCaseExpr (Var i1) (Var i2)
-        return $ E.ExprObj Nothing e
+        return $ E.ExprObj e
     | (E.SymbObj i1) <- eObj1
     , (E.SymbObj i2) <- eObj2
     , i1 == i2 = return eObj1
@@ -439,7 +439,7 @@ smnfVal eenv = go HS.empty
         go seen v@(Var (Id n _))
             | n `HS.member` seen = Nothing
             | Just (E.SymbObj _) <- E.lookupEnvObj n eenv = Just v
-            | Just (E.ExprObj _ e) <- E.lookupEnvObj n eenv = go seen e
+            | Just (E.ExprObj e) <- E.lookupEnvObj n eenv = go seen e
         go _ e
             | isSMNF eenv e = Just e
             | otherwise = Nothing

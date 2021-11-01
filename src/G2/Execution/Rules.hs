@@ -160,13 +160,13 @@ evalApp s@(State { expr_env = eenv
     , Var i1 <- findSym v
     , v2 <- e2 =
         let
-            (eenv', ng') = E.insertWithCL ng (idName i1) v2 eenv
+            eenv' = E.insert (idName i1) v2 eenv
         in
         ( RuleBind
         , [s { expr_env = eenv'
              , symbolic_ids = HS.delete i1 syms
              , curr_expr = CurrExpr Return (mkTrue kv) }]
-        , ng')
+        , ng)
 
     | ac@(Prim Error _) <- appCenter e1 = (RuleError, [s { curr_expr = CurrExpr Return ac }], ng)
     | isExprValueForm eenv (App e1 e2) =
@@ -265,11 +265,11 @@ evalLet s@(State { expr_env = eenv })
         e' = renames (HM.fromList $ zip olds news) e
         binds_rhs' = renames (HM.fromList $ zip olds news) binds_rhs
 
-        (eenv', ng'') = E.insertExprsWithCL ng' (zip news binds_rhs') eenv
+        eenv' = E.insertExprs (zip news binds_rhs') eenv
     in
     (RuleEvalLet news, [s { expr_env = eenv'
                           , curr_expr = CurrExpr Evaluate e'}]
-                     , ng'')
+                     , ng')
 
 -- | Handle the Case forms of Evaluate.
 evalCase :: Merging -> State t -> NameGen -> MergePoint -> Expr -> Id -> [Alt] -> (Rule, [NewPC t], NameGen, MergePoint)
@@ -455,7 +455,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
                  -- not violate any path constraints from default cases. 
                  , new_pcs = []
                  , concretized = [mexpr_id]
-                 }, ngen'')
+                 }, ngen')
   where
     -- Make sure that the parameters do not conflict in their symbolic reps.
     olds = map idName params
@@ -494,7 +494,7 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
     syms' = HS.union (HS.fromList newparams) (HS.delete mexpr_id syms)
 
     -- concretizes the mexpr to have same form as the DataCon specified
-    (eenv'', ngen'') = E.insertWithCL ngen' mexpr_n dcon''' eenv' 
+    eenv'' = E.insert mexpr_n dcon''' eenv' 
 
     -- Now do a round of rename for binding the cvar.
     binds = [(cvar, (Var mexpr_id))]
@@ -835,12 +835,12 @@ retUpdateFrame s@(State { expr_env = eenv
        , ng)
     | otherwise =
         let
-            (eenv', ng') = E.insertWithCL ng un e eenv
+            eenv' = E.insert un e eenv
         in
         ( RuleReturnEUpdateNonVar un
         , [s { expr_env = eenv'
              , exec_stack = stck }]
-        , ng')
+        , ng)
 
 retApplyFrame :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> (Rule, [State t], NameGen)
 retApplyFrame s@(State { expr_env = eenv }) ng e1 e2 stck'
@@ -958,12 +958,12 @@ concretizeExprToBool' s@(State {expr_env = eenv
                         , true_assert = assertVal}
                , new_pcs = []
                , concretized = [] }
-        , ngen')
+        , ngen)
     where
         mexpr_n = idName mexpr_id
 
         -- concretize the mexpr to the DataCon specified
-        (eenv', ngen') = E.insertWithCL ngen mexpr_n (Data dcon) eenv
+        eenv' = E.insert mexpr_n (Data dcon) eenv
         syms' = HS.delete mexpr_id syms
 
         assertVal = if (dconName == (KV.dcTrue kv))
@@ -990,7 +990,7 @@ addPathConds s e1 ais e2 stck =
 -- seed values for the names.
 liftBinds :: [(Id, Expr)] -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, [Name])
-liftBinds binds eenv expr ngen = (eenv', expr', ngen'', news)
+liftBinds binds eenv expr ngen = (eenv', expr', ngen', news)
   where
     (bindsLHS, bindsRHS) = unzip binds
 
@@ -1000,18 +1000,18 @@ liftBinds binds eenv expr ngen = (eenv', expr', ngen'', news)
     olds_news = HM.fromList $ zip olds news
     expr' = renamesExprs olds_news expr
 
-    (eenv', ngen'') = E.insertExprsWithCL ngen' (zip news bindsRHS) eenv
+    eenv' = E.insertExprs (zip news bindsRHS) eenv
 
 liftBind :: Id -> Expr -> E.ExprEnv -> Expr -> NameGen ->
              (E.ExprEnv, Expr, NameGen, Name)
-liftBind bindsLHS bindsRHS eenv expr ngen = (eenv', expr', ngen'', new)
+liftBind bindsLHS bindsRHS eenv expr ngen = (eenv', expr', ngen', new)
   where
     old = idName bindsLHS
     (new, ngen') = freshSeededName old ngen
 
     expr' = renameExpr old new expr
 
-    (eenv', ngen'') = E.insertWithCL ngen' new bindsRHS eenv
+    eenv' = E.insert new bindsRHS eenv
 
 -- If the expression is a symbolic higher order function application, replaces
 -- it with a symbolic variable of the correct type.

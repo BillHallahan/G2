@@ -482,7 +482,7 @@ mapAccumM f z (x:xs) = do
   return (z'', return y `mplus` ys)
 
 modelToExprEnv :: State t -> State t
-modelToExprEnv s = s { expr_env = (M.fromList . HM.toList $ model s) `E.union'` expr_env s
+modelToExprEnv s = s { expr_env = model s `E.union'` expr_env s
                      , model = HM.empty }
 
 mkAssertsTrue :: ASTContainer t Expr => KnownValues -> State t -> State t

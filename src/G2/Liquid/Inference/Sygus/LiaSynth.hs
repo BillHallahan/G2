@@ -1515,7 +1515,7 @@ getPolyAccessMeasures :: [GhcInfo] -> Measures -> [(LH.Symbol, Type, Type)]
 getPolyAccessMeasures ghci =
       map (\(n, at, rt) -> (getLHMeasureName ghci n, at, rt)) 
     . mapMaybe (\(n, (t:ts, rt)) -> if null ts then Just (n, t, rt) else Nothing)
-    . M.toList
+    . HM.toList
     . E.map' (\e -> (filter (not . isLHDict) $ anonArgumentTypes e, returnType e))
     . E.filter (isTyVar . returnType)
     where
