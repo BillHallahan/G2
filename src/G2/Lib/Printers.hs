@@ -33,6 +33,7 @@ import G2.Language.Support
 import Data.Char
 import Data.List as L
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import qualified Data.Text as T
 
@@ -381,7 +382,10 @@ prettyPathCond pg (AltCond l e b) =
 prettyPathCond pg (ExtCond e b) =
     if b then mkDirtyExprHaskell pg e else "not (" ++ mkDirtyExprHaskell pg e ++ ")"
 prettyPathCond pg (AssumePC i l pc) =
-    mkIdHaskell pg i ++ " = " ++ show l ++ "=> (" ++ prettyPathCond pg (PC.unhashedPC pc) ++ ")"
+    let
+        pc' = map PC.unhashedPC $ HS.toList pc
+    in
+    mkIdHaskell pg i ++ " = " ++ show l ++ "=> (" ++ intercalate "\nand " (map (prettyPathCond pg) pc') ++ ")"
 
 prettyNonRedPaths :: PrettyGuide -> [Expr] -> String
 prettyNonRedPaths pg = intercalate "\n" . map (mkDirtyExprHaskell pg)
