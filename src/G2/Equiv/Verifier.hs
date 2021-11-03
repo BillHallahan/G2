@@ -1081,13 +1081,35 @@ moreRestrictiveAlt s1 s2 ns hm n1 n2 (Alt am1 e1) (Alt am2 e2) =
     _ -> moreRestrictive s1 s2 ns hm n1 n2 e1 e2
   else Nothing
 
+validMap :: State t -> State t -> HM.HashMap Id Expr -> Bool
+validMap s1 s2 hm =
+  let hm_list = HM.toList hm
+      check (_, e) = (not $ isSWHNF $ s1 { curr_expr = CurrExpr Evaluate e })
+                  || (not $ isSWHNF $ s2 { curr_expr = CurrExpr Evaluate e })
+                  || isPrimType (typeOf e)
+  in foldr (&&) True (map check hm_list)
+
 restrictHelper :: State t ->
                   State t ->
                   HS.HashSet Name ->
                   Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                   Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+{-
 restrictHelper _ _ _ Nothing = Nothing
 restrictHelper s1 s2 ns (Just hm) =
+  moreRestrictive s1 s2 ns hm [] [] (exprExtract s1) (exprExtract s2)
+-}
+restrictHelper s1 s2 ns hm_hs = case restrictAux s1 s2 ns hm_hs of
+  Nothing -> Nothing
+  Just (hm, hs) -> if validMap s1 s2 hm then Just (hm, hs) else Nothing
+
+restrictAux :: State t ->
+               State t ->
+               HS.HashSet Name ->
+               Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
+               Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+restrictAux _ _ _ Nothing = Nothing
+restrictAux s1 s2 ns (Just hm) =
   moreRestrictive s1 s2 ns hm [] [] (exprExtract s1) (exprExtract s2)
 
 -- the first state pair is the new one, the second is the old
