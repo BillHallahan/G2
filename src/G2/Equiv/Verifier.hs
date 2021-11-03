@@ -407,10 +407,13 @@ inductionState :: State t -> State t
 inductionState s =
   s { curr_expr = CurrExpr Evaluate $ inductionExtract $ exprExtract s }
 
+-- TODO keep going recursively though more nested Cases
 getAlts :: State t -> [Alt]
-getAlts (State { curr_expr = CurrExpr _ e }) =
+getAlts s@(State { curr_expr = CurrExpr _ e }) =
   case e of
-    Case _ _ a -> a
+    Case e' _ a -> case e' of
+      Case _ _ _ -> getAlts $ s { curr_expr = CurrExpr Evaluate e' }
+      _ -> a
     _ -> error "Improper Format"
 
 -- TODO can't just replace the first case I see
@@ -448,6 +451,16 @@ innerScrutinee :: Expr -> Expr
 innerScrutinee (Case e i a) = innerScrutinee e
 innerScrutinee (Tick _ e) = innerScrutinee e
 innerScrutinee e = e
+
+-- TODO new version gets all of the layers, not just the innermost
+innerScrutinees :: Expr -> [Expr]
+innerScrutinees e@(Case e' _ _) = e:(innerScrutinees e')
+innerScrutinees e = [e]
+
+replaceScrutinee :: Expr -> Expr -> Expr -> Expr
+replaceScrutinee e1 e2 e | e1 == e = e2
+replaceScrutinee e1 e2 (Case e i a) = Case (replaceScrutinee e1 e2 e) i a
+replaceScrutinee _ _ e = e
 
 {-
 How to handle the extra evaluation of past scrutinees?
@@ -591,8 +604,8 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
 
       let states_i = map (stateWrap s1 s2) obs_i
       -- TODO need a way to get the prev pair used for induction
-      --states_i' <- mapM (induction solver ns fresh_name prev') states_i
-      states_i' <- filterM (notM . (induction solver ns fresh_name prev')) states_i
+      states_i' <- mapM (induction solver ns prev') states_i
+      --states_i' <- filterM (notM . (induction solver ns fresh_name prev')) states_i
 
       -- TODO unnecessary to pass the induction states through this?
       let (ready, not_ready) = partition statePairReadyForSolver states_c'
@@ -614,6 +627,53 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
         S.UNSAT () -> return $ DischargeResult not_ready_h (matches ++ ready_solved) Nothing
         _ -> return $ DischargeResult not_ready_h (matches ++ ready_solved) (Just ready)
 
+-- TODO (11/1) back to being a converter rather than a filter, possibly
+-- if it's a converter, I may need a way to explore lots of branching paths
+-- I could just make a single arbitrary choice, alternatively
+-- that worked out well enough for the old induction
+-- combinations to try:
+-- try current left state with all right scrutinees and all prior state pairs
+-- try current right state with all left scrutinees and all prior state pairs
+-- also need to do substitutions coming from moreRestrictivePair
+-- those come later, on the combinations that work out
+induction :: S.Solver solver =>
+             solver ->
+             HS.HashSet Name ->
+             [(StateET, StateET)] ->
+             (StateET, StateET) ->
+             IO (StateET, StateET)
+induction solver ns prev (s1, s2) = do
+  let scr1 = innerScrutinees $ exprExtract s1
+      scr2 = innerScrutinees $ exprExtract s2
+      scr_pairs = [(sc1, sc2) | sc1 <- scr1, sc2 <- scr2]
+      scr_states = [(s1 { curr_expr = CurrExpr Evaluate sc1 }, s2 { curr_expr = CurrExpr Evaluate sc2 }) | (sc1, sc2) <- scr_pairs]
+  mr_pairs <- mapM (moreRestrictivePair solver ns prev) scr_states
+  let mr_zipped = zip scr_pairs mr_pairs
+      working_pairs = [(sc1, sc2, s1', s2') | ((sc1, sc2), Just (s1', s2')) <- mr_zipped]
+      -- TODO don't need
+      working_exprs = map (\(sc1, sc2, s1', s2') -> (sc1, sc2, exprExtract s1', exprExtract s2')) working_pairs
+  -- TODO make an arbitrary choice about which working combination to return
+  -- need to make a substitution for it
+  -- going with left substitution for now
+  let (sc1, sc2, p1, p2) = case working_pairs of
+        [] -> error "empty"
+        h:_ -> h
+      -- get the variable mapping
+      -- the leftover obligations shouldn't matter anymore, if there are any
+      -- earlier steps confirmed them to be valid by this point
+      mr_maybe = restrictHelper p2 s2 ns $ restrictHelper p1 s1 ns (Just (HM.empty, HS.empty))
+      mapping = case mr_maybe of
+        Nothing -> error "mismatch"
+        Just (hm, _) -> hm
+      e2_old = exprExtract p2
+      hm_list = HM.toList mapping
+      e2_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e2_old hm_list
+      e1_new = replaceScrutinee sc1 e2_old' $ exprExtract s1
+  case working_pairs of
+    -- return original pair if failed
+    [] -> return (s1, s2)
+    _ -> trace ("I! " ++ show (length prev)) $ return (s1{ curr_expr = CurrExpr Evaluate e1_new }, s2)
+
 -- TODO the signature will need to change again
 -- now this function is a filter again
 -- TODO might have more informative return later
@@ -629,6 +689,8 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
 -- that implementation was wrong because it didn't check Alt equivalence
 -- Alts that were being used before for forceIdempotent are clearly not equal
 -- other part of induction always succeeding for forceIdempotent, though?
+-- TODO use the mapping from moreRestrictivePair for induction
+{-
 induction :: S.Solver solver =>
              solver ->
              HS.HashSet Name ->
@@ -655,8 +717,9 @@ induction solver ns fresh_name prev (s1, s2) = do
   res <- moreRestrictivePair solver ns prev' (s1_i, s2_i)
   -- TODO check that the Alts equal each other
   if getAlts s1 == getAlts s2
-  then return $ isJust res
+  then trace ("III" ++ (show $ isJust res)) $ return $ isJust res
   else trace (if isJust res then show (getAlts s1, getAlts s2) else show $ isJust res) $ return False
+-}
 
 -- The induction function isn't a filter; it converts state pairs
 -- if induction can't be applied, just return the input
