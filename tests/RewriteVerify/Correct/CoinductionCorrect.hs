@@ -11,6 +11,14 @@ intForce :: [Int] -> [Int]
 intForce [] = []
 intForce (h:t) = cons h $ intForce t
 
+--intForce (!zs) = case zs of
+--  [] -> []
+--  x:xs -> case intForce xs of
+--    xs' -> x:xs'
+
+--intForce [] = []
+--intForce (h:(!t)) = h:(intForce t)
+
 intDrop :: Int -> [Int] -> [Int]
 intDrop 0 l = l
 intDrop n (_:t) =

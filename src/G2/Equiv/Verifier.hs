@@ -446,14 +446,9 @@ rmcHelper :: Expr -> State t -> State t
 rmcHelper e1 s@(State { curr_expr = CurrExpr _ e2 }) =
   s { curr_expr = CurrExpr Evaluate (removeMatchingCases e1 e2) }
 
--- TODO I might have a function like this elsewhere
-innerScrutinee :: Expr -> Expr
-innerScrutinee (Case e i a) = innerScrutinee e
-innerScrutinee (Tick _ e) = innerScrutinee e
-innerScrutinee e = e
-
 -- TODO new version gets all of the layers, not just the innermost
 innerScrutinees :: Expr -> [Expr]
+innerScrutinees (Tick _ e) = innerScrutinees e
 innerScrutinees e@(Case e' _ _) = e:(innerScrutinees e')
 innerScrutinees e = [e]
 
@@ -636,6 +631,8 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
 -- try current right state with all left scrutinees and all prior state pairs
 -- also need to do substitutions coming from moreRestrictivePair
 -- those come later, on the combinations that work out
+-- (11/3) this function is being called, but it never succeeds
+-- TODO match on whole expr one one side, inner scrutinee on the other
 induction :: S.Solver solver =>
              solver ->
              HS.HashSet Name ->
@@ -647,14 +644,25 @@ induction solver ns prev (s1, s2) = do
       scr2 = innerScrutinees $ exprExtract s2
       scr_pairs = [(sc1, sc2) | sc1 <- scr1, sc2 <- scr2]
       scr_states = [(s1 { curr_expr = CurrExpr Evaluate sc1 }, s2 { curr_expr = CurrExpr Evaluate sc2 }) | (sc1, sc2) <- scr_pairs]
-  mr_pairs <- mapM (moreRestrictivePair solver ns prev) scr_states
+  mr_pairs <- mapM (moreRestrictiveIndRight solver ns prev) scr_states
   let mr_zipped = zip scr_pairs mr_pairs
       working_pairs = [(sc1, sc2, s1', s2') | ((sc1, sc2), Just (s1', s2')) <- mr_zipped]
-      -- TODO don't need
-      working_exprs = map (\(sc1, sc2, s1', s2') -> (sc1, sc2, exprExtract s1', exprExtract s2')) working_pairs
   -- TODO make an arbitrary choice about which working combination to return
   -- need to make a substitution for it
   -- going with left substitution for now
+  case working_pairs of
+    [] -> trace ("NOT I! " ++ show (length scr_pairs)) return (s1, s2)
+    h:_ -> let (sc1, sc2, p1, p2) = h
+               mr_maybe = restrictHelper p2 s2 ns $ restrictHelper p1 s1 ns (Just (HM.empty, HS.empty))
+               mapping = case mr_maybe of
+                 Nothing -> error "mismatch"
+                 Just (hm, _) -> hm
+               e2_old = exprExtract p2
+               hm_list = HM.toList mapping
+               e2_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e2_old hm_list
+               e1_new = replaceScrutinee sc1 e2_old' $ exprExtract s1
+           in trace ("YES I! " ++ show (length prev)) $ return (s1{ curr_expr = CurrExpr Evaluate e1_new }, s2)
+  {-
   let (sc1, sc2, p1, p2) = case working_pairs of
         [] -> error "empty"
         h:_ -> h
@@ -671,8 +679,9 @@ induction solver ns prev (s1, s2) = do
       e1_new = replaceScrutinee sc1 e2_old' $ exprExtract s1
   case working_pairs of
     -- return original pair if failed
-    [] -> return (s1, s2)
-    _ -> trace ("I! " ++ show (length prev)) $ return (s1{ curr_expr = CurrExpr Evaluate e1_new }, s2)
+    [] -> trace ("NOT I! " ++ show (length scr_pairs)) return (s1, s2)
+    _ -> trace ("YES I! " ++ show (length prev)) $ return (s1{ curr_expr = CurrExpr Evaluate e1_new }, s2)
+  -}
 
 -- TODO the signature will need to change again
 -- now this function is a filter again
@@ -727,39 +736,6 @@ induction solver ns fresh_name prev (s1, s2) = do
 -- TODO (9/27) check path constraint implication?
 -- TODO (9/30) alternate:  just substitute one scrutinee for the other
 -- put a non-symbolic variable there?
-{-
-induction :: S.Solver solver =>
-             solver ->
-             HS.HashSet Name ->
-             Name ->
-             [(StateET, StateET)] ->
-             (StateET, StateET) ->
-             IO (StateET, StateET)
-induction solver ns fresh_name prev (s1, s2) = do
-  let s1' = inductionState s1
-      s2' = inductionState s2
-  res_ <- moreRestrictivePair solver ns prev (s1', s2')
-  let res = isJust res_
-      -- TODO different approach:  substitution and partial generalization
-      -- TODO adjust expr env of the one where the substitution happens
-      e1' = exprExtract s1'
-      e2' = exprExtract s2'
-      e1 = exprExtract s1
-      e2 = exprExtract s2
-      h1 = expr_env s1'
-      h2 = expr_env s2'
-      -- TODO I think mappings from the first overwrite the second
-      h2' = E.union h1 h2
-      e2'' = addStackTickIfNeeded $ substScrutinee e1' e2
-      s2'' = s2 { expr_env = h2', curr_expr = CurrExpr Evaluate e2'' }
-      -- TODO look for common sub-exps in the scrutinees?
-  -- TODO reaching this conditional but always taking the F branch
-  return $
-    if trace ("III " ++ show res) res
-    then (s1, s2'') {-(s1'', s2'')-}
-    -- TODO this might be a better place to use the function
-    else {-elimSingletonPair-} (s1, s2)
--}
 
 getObligations :: HS.HashSet Name ->
                   State t ->
@@ -1220,3 +1196,31 @@ moreRestrictivePair solver ns prev (s1, s2) = do
   case filter all_three $ zip (zip res_list prev) $ zip no_loss bools' of
     [] -> return Nothing
     ((_, prev_pair), _):_ -> return $ Just prev_pair
+
+innerScrutineeStates :: State t -> [State t]
+innerScrutineeStates s@(State { curr_expr = CurrExpr _ e }) =
+  map (\e' -> s { curr_expr = CurrExpr Evaluate e' }) (innerScrutinees e)
+
+-- inner scrutinees on the left side
+-- ultimately for a substitution that happens on the right
+moreRestrictiveIndLeft :: S.Solver solver =>
+                          solver ->
+                          HS.HashSet Name ->
+                          [(State t, State t)] ->
+                          (State t, State t) ->
+                          IO (Maybe (State t, State t))
+moreRestrictiveIndLeft solver ns prev (s1, s2) =
+  let prev1 = map (\(p1, p2) -> (innerScrutineeStates p1, p2)) prev
+      prev2 = [(p1, p2) | (p1l, p2) <- prev1, p1 <- p1l]
+  in moreRestrictivePair solver ns prev2 (s1, s2)
+
+moreRestrictiveIndRight :: S.Solver solver =>
+                           solver ->
+                           HS.HashSet Name ->
+                           [(State t, State t)] ->
+                           (State t, State t) ->
+                           IO (Maybe (State t, State t))
+moreRestrictiveIndRight solver ns prev (s1, s2) =
+  let prev1 = map (\(p1, p2) -> (p1, innerScrutineeStates p2)) prev
+      prev2 = [(p1, p2) | (p1, p2l) <- prev1, p2 <- p2l]
+  in moreRestrictivePair solver ns prev2 (s1, s2)
