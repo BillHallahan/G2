@@ -584,12 +584,13 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
           (obs_i, obs_c) = partition canUseInduction obs
           states_c = map (stateWrap s1 s2) obs_c
       -- TODO redundant computation
+      -- TODO do I need more adjustments than what I have here?
       discharges <- mapM (moreRestrictivePair solver ns prev') states_c
       -- get the states and histories for the successful discharges
       -- will need to fill in the discharge field
       -- also need to pair them up with the original states?
       -- there's only one original state pair
-      let discharges' = [(d, sp) | (Just (_, d), sp) <- zip discharges states_c]
+      let discharges' = [(d, sp) | (Just (PrevMatch _ d _), sp) <- zip discharges states_c]
           matches1 = [(d1, s1_) | ((d1, _), (s1_, _)) <- discharges']
           matches1' = map (\(d1, s1_) -> addDischarge d1 $ replaceH sh1 s1_) matches1
           matches2 = [(d2, s2_) | ((_, d2), (_, s2_)) <- discharges']
@@ -633,6 +634,7 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
 -- those come later, on the combinations that work out
 -- (11/3) this function is being called, but it never succeeds
 -- TODO match on whole expr one one side, inner scrutinee on the other
+-- TODO almost certainly incorrect as it is now; also gets stuck
 induction :: S.Solver solver =>
              solver ->
              HS.HashSet Name ->
@@ -646,26 +648,29 @@ induction solver ns prev (s1, s2) = do
       scr_states = [(s1 { curr_expr = CurrExpr Evaluate sc1 }, s2 { curr_expr = CurrExpr Evaluate sc2 }) | (sc1, sc2) <- scr_pairs]
   mr_pairs <- mapM (moreRestrictiveIndRight solver ns prev) scr_states
   let mr_zipped = zip scr_pairs mr_pairs
-      working_pairs = [(sc1, sc2, s1', s2') | ((sc1, sc2), Just (s1', s2')) <- mr_zipped]
+      --working_pairs = [(sc1, sc2, s1', s2') | ((sc1, sc2), Just (s1', s2')) <- mr_zipped]
+      working_info = [(sc1, sc2, pm) | ((sc1, sc2), Just pm) <- mr_zipped]
   -- TODO make an arbitrary choice about which working combination to return
   -- need to make a substitution for it
   -- going with left substitution for now
-  case working_pairs of
+  case working_info of
     [] -> trace ("NOT I! " ++ show (length scr_pairs)) return (s1, s2)
     -- TODO use the "current" pair
-    h:_ -> let (sc1, sc2, _, (p1, p2)) = h
-               mr_maybe = restrictHelper p2 s2 ns $ restrictHelper p1 s1 ns (Just (HM.empty, HS.empty))
+    h:_ -> let (sc1, sc2, PrevMatch (q1, q2) (p1, p2) (mapping, _)) = h
+               --mr_maybe = restrictHelper p2 s2 ns $ restrictHelper p1 s1 ns (Just (HM.empty, HS.empty))
                --mapping = case mr_maybe of
                --  Nothing -> error "mismatch"
                --  Just (hm, _) -> hm
                -- TODO this is just a substitute; it may not work
-               mr_maybe_l = mrFoldL ns prev (s1, s2)
-               mr_maybe_r = mrFoldR ns prev (s1, s2)
+               --mr_maybe_l = mrFoldL ns prev (s1, s2)
+               --mr_maybe_r = mrFoldR ns prev (s1, s2)
                -- TODO right way to get mapping?
+               {-
                mapping = case (mr_maybe_l, mr_maybe_r) of
-                 (Just (_, (hm, _)), _) -> hm
-                 (_, Just (_, (hm, _))) -> hm
+                 (Just (PrevMatch _ _ (hm, _)), _) -> hm
+                 (_, Just (PrevMatch _ _ (hm, _))) -> hm
                  _ -> error "mismatch"
+               -}
                e2_old = exprExtract p2
                hm_list = HM.toList mapping
                e2_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e2_old hm_list
@@ -1153,16 +1158,17 @@ mrFoldL ns prev (s1, s2) = case prev of
 mrFoldR :: HS.HashSet Name ->
            [(State t, State t)] ->
            (State t, State t) ->
-           Maybe ((State t, State t), (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)))
+           Maybe (PrevMatch t)
 mrFoldR ns prev (s1, s2) = case prev of
   [] -> Nothing
   (q1, q2):t -> let mr (p1, p2) = restrictHelper p2 s2 ns $
                                   restrictHelper p1 s1 ns (Just (HM.empty, HS.empty))
                     maybe_pairs = map mr prev
-                    res = [p | Just p <- maybe_pairs]
+                    maybes_and_prev = zip prev maybe_pairs
+                    res = [(q, p) | (q, Just p) <- maybes_and_prev]
                 in case res of
                   [] -> mrFoldL ns t (q1, s2)
-                  h:_ -> Just ((s1, s2), h)
+                  (q, p):_ -> Just $ PrevMatch (s1, s2) q p
 
 -- extra filter on top of isJust for maybe_pairs
 -- if restrictHelper end result is Just, try checking the corresponding PCs
@@ -1176,39 +1182,46 @@ moreRestrictivePair :: S.Solver solver =>
                        HS.HashSet Name ->
                        [(State t, State t)] ->
                        (State t, State t) ->
-                       IO (Maybe ((State t, State t), (State t, State t)))
+                       --IO (Maybe ((State t, State t), (State t, State t)))
+                       IO (Maybe (PrevMatch t))
 moreRestrictivePair solver ns prev (s1, s2) = do
   let mr (p1, p2) = restrictHelper p2 s2 ns $
                     restrictHelper p1 s1 ns (Just (HM.empty, HS.empty))
       getObs m = case m of
         Nothing -> HS.empty
-        Just (_, (_, hs)) -> hs
+        Just pm -> snd $ conditions pm
       --maybe_pairs = map mr prev
-      maybe_pairs = [mrFoldL ns prev (s1, s2), mrFoldR ns prev (s1, s2)]
-      obs_sets = map getObs maybe_pairs
+      prev_matches = [mrFoldL ns prev (s1, s2), mrFoldR ns prev (s1, s2)]
+      obs_sets = map getObs prev_matches
       h1 = expr_env s1
       h2 = expr_env s2
       obs_sets' = map (HS.filter (\(e1, e2) -> rfs h1 e1 && rfs h2 e2)) obs_sets
       no_loss = map (\(hs1, hs2) -> HS.size hs1 == HS.size hs2) (zip obs_sets obs_sets')
       mpc m = case m of
-        (Just (hm, _), (s_old1, s_old2)) ->
-          andM (moreRestrictivePC solver s_old1 s1 hm) (moreRestrictivePC solver s_old2 s2 hm)
+        Just pm -> let (s1_, s2_) = present pm
+                       (s_old1, s_old2) = past pm
+                       (hm, _) = conditions pm
+                   in andM (moreRestrictivePC solver s_old1 s1_ hm) (moreRestrictivePC solver s_old2 s2_ hm)
         _ -> return False
       -- TODO length problem here; won't do what's intended
       -- TODO I need even more reworking to get all four states and mapping
-      bools = map mpc (zip maybe_pairs prev)
+      bools = map mpc prev_matches
+      getPrevs m = case m of
+        Nothing -> Nothing
+        Just pm -> Just $ past pm
+      prev_maybes = map getPrevs prev_matches
   -- check obligations individually rather than as one big group
   res_list <- mapM (checkObligations solver s1 s2) obs_sets'
   bools' <- mapM id bools
   -- need res_list, no_loss, and bools all aligning at a point
-  let all_three thr = case thr of
-        ((S.UNSAT (), _), (True, True)) -> True
+  let all_four fr = case fr of
+        ((S.UNSAT (), Just _), (True, True)) -> True
         _ -> False
   -- all four lists should be the same length
   -- TODO this isn't the case anymore
-  case filter all_three $ zip (zip res_list prev) $ zip no_loss bools' of
+  case filter all_four $ zip (zip res_list prev_matches) $ zip no_loss bools' of
     [] -> return Nothing
-    ((_, prev_pair), _):_ -> return $ Just prev_pair
+    ((_, Just pm), _):_ -> return $ Just pm
 
 innerScrutineeStates :: State t -> [State t]
 innerScrutineeStates s@(State { curr_expr = CurrExpr _ e }) =
@@ -1221,7 +1234,7 @@ moreRestrictiveIndLeft :: S.Solver solver =>
                           HS.HashSet Name ->
                           [(State t, State t)] ->
                           (State t, State t) ->
-                          IO (Maybe ((State t, State t), (State t, State t)))
+                          IO (Maybe (PrevMatch t))
 moreRestrictiveIndLeft solver ns prev (s1, s2) =
   let prev1 = map (\(p1, p2) -> (innerScrutineeStates p1, p2)) prev
       prev2 = [(p1, p2) | (p1l, p2) <- prev1, p1 <- p1l]
@@ -1232,7 +1245,7 @@ moreRestrictiveIndRight :: S.Solver solver =>
                            HS.HashSet Name ->
                            [(State t, State t)] ->
                            (State t, State t) ->
-                           IO (Maybe ((State t, State t), (State t, State t)))
+                           IO (Maybe (PrevMatch t))
 moreRestrictiveIndRight solver ns prev (s1, s2) =
   let prev1 = map (\(p1, p2) -> (p1, innerScrutineeStates p2)) prev
       prev2 = [(p1, p2) | (p1, p2l) <- prev1, p2 <- p2l]
