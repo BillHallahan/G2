@@ -600,7 +600,7 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
 
       let states_i = map (stateWrap s1 s2) obs_i
       -- TODO need a way to get the prev pair used for induction
-      states_i' <- mapM (induction solver ns prev') states_i
+      states_i' <- mapM (inductionFold solver ns prev') states_i
       --states_i' <- filterM (notM . (induction solver ns fresh_name prev')) states_i
 
       -- TODO unnecessary to pass the induction states through this?
@@ -615,6 +615,7 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
                         (\(n1, n2) -> (addDischarge n1 $ replaceH sh1 n1, addDischarge n2 $ replaceH sh2 n2))
                         ready
       res <- checkObligations solver s1 s2 ready_exprs
+      putStrLn "Finishing tryDischarge"
       case res of
         S.UNSAT () -> putStrLn "V?"
         _ -> putStrLn "X?"
@@ -640,7 +641,7 @@ induction :: S.Solver solver =>
              HS.HashSet Name ->
              [(StateET, StateET)] ->
              (StateET, StateET) ->
-             IO (StateET, StateET)
+             IO (Bool, StateET, StateET)
 induction solver ns prev (s1, s2) = do
   let scr1 = innerScrutinees $ exprExtract s1
       scr2 = innerScrutinees $ exprExtract s2
@@ -654,8 +655,9 @@ induction solver ns prev (s1, s2) = do
   -- need to make a substitution for it
   -- going with left substitution for now
   case working_info of
-    [] -> trace ("NOT I! " ++ show (length scr_pairs)) return (s1, s2)
+    [] -> trace ("NOT I! " ++ show (length scr_pairs)) return (False, s1, s2)
     -- TODO use the "current" pair
+    -- TODO some of this doesn't matter anymore
     h:_ -> let (sc1, sc2, PrevMatch (q1, q2) (p1, p2) (mapping, _)) = h
                --mr_maybe = restrictHelper p2 s2 ns $ restrictHelper p1 s1 ns (Just (HM.empty, HS.empty))
                --mapping = case mr_maybe of
@@ -675,7 +677,49 @@ induction solver ns prev (s1, s2) = do
                hm_list = HM.toList mapping
                e2_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e2_old hm_list
                e1_new = replaceScrutinee sc1 e2_old' $ exprExtract s1
-           in trace ("YES I! " ++ show (length prev)) $ return (s1{ curr_expr = CurrExpr Evaluate e1_new }, s2)
+           in trace ("YES I! " ++ show (length prev)) $ return (True, s1{ curr_expr = CurrExpr Evaluate e1_new }, s2)
+
+-- left side stays constant
+inductionFoldL :: S.Solver solver =>
+                  solver ->
+                  HS.HashSet Name ->
+                  [(StateET, StateET)] ->
+                  (StateET, StateET) ->
+                  IO (Bool, StateET, StateET)
+inductionFoldL solver ns prev (s1, s2) = do
+  putStrLn $ "FL " ++ show (length prev)
+  (b, s1', s2') <- induction solver ns prev (s1, s2)
+  if b then trace ("EL " ++ show (length prev)) $ return (True, s1', s2')
+  else case prev of
+    [] -> return (False, s1, s2)
+    (_, p2):t -> trace ("L " ++ show (length prev)) $ inductionFoldL solver ns t (s1, p2)
+
+inductionFoldR :: S.Solver solver =>
+                  solver ->
+                  HS.HashSet Name ->
+                  [(StateET, StateET)] ->
+                  (StateET, StateET) ->
+                  IO (StateET, StateET)
+inductionFoldR solver ns prev (s1, s2) = do
+  putStrLn $ "FR " ++ show (length prev)
+  (b, s1', s2') <- induction solver ns prev (s1, s2)
+  if b then trace ("ER " ++ show (length prev)) $ return (s1', s2')
+  else case prev of
+    [] -> return (s1, s2)
+    (p1, _):t -> trace ("R " ++ show (length prev)) $ inductionFoldR solver ns t (p1, s2)
+
+inductionFold :: S.Solver solver =>
+                 solver ->
+                 HS.HashSet Name ->
+                 [(StateET, StateET)] ->
+                 (StateET, StateET) ->
+                 IO (StateET, StateET)
+inductionFold solver ns prev (s1, s2) = do
+  putStrLn "Fold1"
+  (b, s1', s2') <- inductionFoldL solver ns prev (s1, s2)
+  putStrLn "Fold2"
+  if b then trace ("L! " ++ show (length prev)) $ return (s1', s2')
+  else trace ("R! " ++ show (length prev)) $ inductionFoldR solver ns prev (s1, s2)
 
 -- TODO the signature will need to change again
 -- now this function is a filter again
@@ -1136,6 +1180,7 @@ data PrevMatch t = PrevMatch {
 
 -- TODO give better names
 -- left state stays constant
+-- TODO getting rid of the extra folding for now
 mrFoldL :: HS.HashSet Name ->
            [(State t, State t)] ->
            (State t, State t) ->
@@ -1148,7 +1193,7 @@ mrFoldL ns prev (s1, s2) = case prev of
                     maybes_and_prev = zip prev maybe_pairs
                     res = [(q, p) | (q, Just p) <- maybes_and_prev]
                 in case res of
-                  [] -> mrFoldL ns t (s1, q2)
+                  [] -> Nothing -- mrFoldL ns t (s1, q2)
                   (q, p):_ -> Just $ PrevMatch (s1, s2) q p
 
 -- now the right state stays constant
@@ -1167,8 +1212,49 @@ mrFoldR ns prev (s1, s2) = case prev of
                     maybes_and_prev = zip prev maybe_pairs
                     res = [(q, p) | (q, Just p) <- maybes_and_prev]
                 in case res of
-                  [] -> mrFoldL ns t (q1, s2)
+                  [] -> Nothing -- mrFoldR ns t (q1, s2)
                   (q, p):_ -> Just $ PrevMatch (s1, s2) q p
+
+-- left side stays constant
+tryCoinductionL :: S.Solver solver =>
+                   solver ->
+                   HS.HashSet Name ->
+                   [(State t, State t)] ->
+                   (State t, State t) ->
+                   IO (Maybe (PrevMatch t))
+tryCoinductionL solver ns prev (s1, s2) = do
+  maybe_pm <- moreRestrictivePair solver ns prev (s1, s2)
+  case maybe_pm of
+    Just _ -> return maybe_pm
+    Nothing -> case prev of
+                 [] -> return Nothing
+                 (_, p2):t -> tryCoinductionL solver ns t (s1, p2)
+
+tryCoinductionR :: S.Solver solver =>
+                   solver ->
+                   HS.HashSet Name ->
+                   [(State t, State t)] ->
+                   (State t, State t) ->
+                   IO (Maybe (PrevMatch t))
+tryCoinductionR solver ns prev (s1, s2) = do
+  maybe_pm <- moreRestrictivePair solver ns prev (s1, s2)
+  case maybe_pm of
+    Just _ -> return maybe_pm
+    Nothing -> case prev of
+                 [] -> return Nothing
+                 (p1, _):t -> tryCoinductionR solver ns t (p1, s2)
+
+tryCoinduction :: S.Solver solver =>
+                  solver ->
+                  HS.HashSet Name ->
+                  [(State t, State t)] ->
+                  (State t, State t) ->
+                  IO (Maybe (PrevMatch t))
+tryCoinduction solver ns prev (s1, s2) = do
+  pm_l <- tryCoinductionL solver ns prev (s1, s2)
+  case pm_l of
+    Just _ -> return pm_l
+    Nothing -> tryCoinductionR solver ns prev (s1, s2)
 
 -- extra filter on top of isJust for maybe_pairs
 -- if restrictHelper end result is Just, try checking the corresponding PCs
@@ -1185,6 +1271,37 @@ moreRestrictivePair :: S.Solver solver =>
                        --IO (Maybe ((State t, State t), (State t, State t)))
                        IO (Maybe (PrevMatch t))
 moreRestrictivePair solver ns prev (s1, s2) = do
+  let mr (p1, p2) = restrictHelper p2 s2 ns $
+                    restrictHelper p1 s1 ns (Just (HM.empty, HS.empty))
+      getObs m = case m of
+        Nothing -> HS.empty
+        Just (_, hs) -> hs
+      getMap m = case m of
+        Nothing -> HM.empty
+        Just (hm, _) -> hm
+      maybe_pairs = map mr prev
+      obs_sets = map getObs maybe_pairs
+      h1 = expr_env s1
+      h2 = expr_env s2
+      obs_sets' = map (HS.filter (\(e1, e2) -> rfs h1 e1 && rfs h2 e2)) obs_sets
+      no_loss = map (\(hs1, hs2) -> HS.size hs1 == HS.size hs2) (zip obs_sets obs_sets')
+      mpc m = case m of
+        (Just (hm, _), (s_old1, s_old2)) ->
+          andM (moreRestrictivePC solver s_old1 s1 hm) (moreRestrictivePC solver s_old2 s2 hm)
+        _ -> return False
+      bools = map mpc (zip maybe_pairs prev)
+  -- check obligations individually rather than as one big group
+  res_list <- mapM (checkObligations solver s1 s2) obs_sets'
+  bools' <- mapM id bools
+  -- need res_list, no_loss, and bools all aligning at a point
+  let all_three thr = case fst thr of
+        ((S.UNSAT (), _), (True, True)) -> True
+        _ -> False
+  -- all four lists should be the same length
+  case filter all_three $ zip (zip (zip res_list prev) $ zip no_loss bools') maybe_pairs of
+    [] -> return Nothing
+    (((_, prev_pair), _), m):_ -> return $ Just $ PrevMatch (s1, s2) prev_pair (getMap m, getObs m)
+  {-
   let mr (p1, p2) = restrictHelper p2 s2 ns $
                     restrictHelper p1 s1 ns (Just (HM.empty, HS.empty))
       getObs m = case m of
@@ -1222,6 +1339,7 @@ moreRestrictivePair solver ns prev (s1, s2) = do
   case filter all_four $ zip (zip res_list prev_matches) $ zip no_loss bools' of
     [] -> return Nothing
     ((_, Just pm), _):_ -> return $ Just pm
+  -}
 
 innerScrutineeStates :: State t -> [State t]
 innerScrutineeStates s@(State { curr_expr = CurrExpr _ e }) =

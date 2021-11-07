@@ -393,7 +393,7 @@ data ConcSymReducer = ConcSymReducer
 data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
                                  , saw_tick :: Maybe Int
                                  , total :: S.HashSet Name
-                                 , finite :: S.HashSet Name } deriving Show
+                                 , finite :: S.HashSet Name } deriving (Show, Eq)
 
 -- Forces a lone symbolic variable with a type corresponding to an ADT
 -- to evaluate to some value of that ADT
