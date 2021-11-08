@@ -184,4 +184,5 @@ simpleForce zs = case zs of
 
 {-# RULES
 "sf" forall (xs :: [Int]) . simpleForce (simpleForce xs) = simpleForce xs
+"forceBackward" forall xs . intForce xs = intForce (intForce xs)
   #-}

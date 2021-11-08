@@ -97,24 +97,25 @@ statePairReadyForSolver (s1, s2) =
   exprReadyForSolver h1 e1 && exprReadyForSolver h2 e2
 
 runSymExec :: Config ->
+              Maybe String ->
               StateET ->
               StateET ->
-              CM.StateT Bindings IO [(StateET, StateET)]
-runSymExec config s1 s2 = do
+              CM.StateT (Bindings, Int) IO [(StateET, StateET)]
+runSymExec config folder_root s1 s2 = do
   CM.liftIO $ putStrLn "runSymExec"
   ct1 <- CM.liftIO $ getCurrentTime
-  let config' = config -- { logStates = Just $ "verifier_states/a" ++ show ct1 }
-  bindings <- CM.get
+  (bindings, k) <- CM.get
+  let config' = config { logStates = fmap (\fr -> fr ++ "/a" ++ (show k) ++ "/" ++ show ct1) folder_root }
   (er1, bindings') <- CM.lift $ runG2ForRewriteV s1 config' bindings
-  CM.put bindings'
+  CM.put (bindings', k + 1)
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
-                    b_ <- CM.get
+                    (b_, k_) <- CM.get
                     let s2_ = transferStateInfo s1_ s2
                     ct2 <- CM.liftIO $ getCurrentTime
-                    let config'' = config -- { logStates = Just $ "verifier_states/b" ++ show ct2 }
+                    let config'' = config { logStates = fmap (\fr -> fr ++ "/b" ++ (show k) ++ "/" ++ show ct2) folder_root }
                     (er2, b_') <- CM.lift $ runG2ForRewriteV s2_ config'' b_
-                    CM.put b_'
+                    CM.put (b_', k_ + 1)
                     return $ map (\er2_ -> 
                                     let
                                         s2_' = final_state er2_
@@ -301,10 +302,12 @@ verifyLoop :: S.Solver solver =>
               [(StateH, StateH)] ->
               Bindings ->
               Config ->
+              Maybe String ->
+              Int ->
               IO (S.Result () ())
-verifyLoop solver ns states prev b config | not (null states) = do
+verifyLoop solver ns states prev b config folder_root k | not (null states) = do
   let current_states = map getLatest states
-  (paired_states, b') <- CM.runStateT (mapM (uncurry (runSymExec config)) current_states) b
+  (paired_states, (b', k')) <- CM.runStateT (mapM (uncurry (runSymExec config folder_root)) current_states) (b, k)
   let ng = name_gen b'
       (fresh_name, ng') = freshName ng
       b'' = b' { name_gen = ng' }
@@ -326,7 +329,7 @@ verifyLoop solver ns states prev b config | not (null states) = do
       prev' = new_obligations ++ prev
   putStrLn $ show $ length new_obligations
   if all isJust proof_list then
-    verifyLoop solver ns new_obligations prev' b'' config
+    verifyLoop solver ns new_obligations prev' b'' config folder_root k'
   else
     return $ S.SAT ()
   | otherwise = do
@@ -497,12 +500,6 @@ elimSingletonPair (s1, s2) =
       s1_ = if isSingleton e1 then s1' else s1
       s2_ = if isSingleton e2 then s2' else s2
   in (s1_, s2_)
-  -- TODO trying one-sided case elim; no apparent benefit
-  {-
-  if isSingleton e1 && isSingleton e2
-  then trace ("ELIM " ++ show (mkExprHaskell e1', mkExprHaskell e2')) (s1', s2')
-  else (s1, s2)
-  -}
 
 notM :: IO Bool -> IO Bool
 notM b = do
@@ -615,7 +612,6 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
                         (\(n1, n2) -> (addDischarge n1 $ replaceH sh1 n1, addDischarge n2 $ replaceH sh2 n2))
                         ready
       res <- checkObligations solver s1 s2 ready_exprs
-      putStrLn "Finishing tryDischarge"
       case res of
         S.UNSAT () -> putStrLn "V?"
         _ -> putStrLn "X?"
@@ -649,7 +645,6 @@ induction solver ns prev (s1, s2) = do
       scr_states = [(s1 { curr_expr = CurrExpr Evaluate sc1 }, s2 { curr_expr = CurrExpr Evaluate sc2 }) | (sc1, sc2) <- scr_pairs]
   mr_pairs <- mapM (moreRestrictiveIndRight solver ns prev) scr_states
   let mr_zipped = zip scr_pairs mr_pairs
-      --working_pairs = [(sc1, sc2, s1', s2') | ((sc1, sc2), Just (s1', s2')) <- mr_zipped]
       working_info = [(sc1, sc2, pm) | ((sc1, sc2), Just pm) <- mr_zipped]
   -- TODO make an arbitrary choice about which working combination to return
   -- need to make a substitution for it
@@ -659,25 +654,11 @@ induction solver ns prev (s1, s2) = do
     -- TODO use the "current" pair
     -- TODO some of this doesn't matter anymore
     h:_ -> let (sc1, sc2, PrevMatch (q1, q2) (p1, p2) (mapping, _)) = h
-               --mr_maybe = restrictHelper p2 s2 ns $ restrictHelper p1 s1 ns (Just (HM.empty, HS.empty))
-               --mapping = case mr_maybe of
-               --  Nothing -> error "mismatch"
-               --  Just (hm, _) -> hm
-               -- TODO this is just a substitute; it may not work
-               --mr_maybe_l = mrFoldL ns prev (s1, s2)
-               --mr_maybe_r = mrFoldR ns prev (s1, s2)
-               -- TODO right way to get mapping?
-               {-
-               mapping = case (mr_maybe_l, mr_maybe_r) of
-                 (Just (PrevMatch _ _ (hm, _)), _) -> hm
-                 (_, Just (PrevMatch _ _ (hm, _))) -> hm
-                 _ -> error "mismatch"
-               -}
                e2_old = exprExtract p2
                hm_list = HM.toList mapping
                e2_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e2_old hm_list
                e1_new = replaceScrutinee sc1 e2_old' $ exprExtract s1
-           in trace ("YES I! " ++ show (length prev)) $ return (True, s1{ curr_expr = CurrExpr Evaluate e1_new }, s2)
+           in trace ("YES I! " ++ show (exprExtract q1, exprExtract q2)) $ return (True, s1{ curr_expr = CurrExpr Evaluate e1_new }, s2)
 
 -- left side stays constant
 inductionFoldL :: S.Solver solver =>
@@ -687,12 +668,11 @@ inductionFoldL :: S.Solver solver =>
                   (StateET, StateET) ->
                   IO (Bool, StateET, StateET)
 inductionFoldL solver ns prev (s1, s2) = do
-  putStrLn $ "FL " ++ show (length prev)
   (b, s1', s2') <- induction solver ns prev (s1, s2)
   if b then trace ("EL " ++ show (length prev)) $ return (True, s1', s2')
   else case prev of
     [] -> return (False, s1, s2)
-    (_, p2):t -> trace ("L " ++ show (length prev)) $ inductionFoldL solver ns t (s1, p2)
+    (_, p2):t -> inductionFoldL solver ns t (s1, p2)
 
 inductionFoldR :: S.Solver solver =>
                   solver ->
@@ -701,12 +681,11 @@ inductionFoldR :: S.Solver solver =>
                   (StateET, StateET) ->
                   IO (StateET, StateET)
 inductionFoldR solver ns prev (s1, s2) = do
-  putStrLn $ "FR " ++ show (length prev)
   (b, s1', s2') <- induction solver ns prev (s1, s2)
   if b then trace ("ER " ++ show (length prev)) $ return (s1', s2')
   else case prev of
     [] -> return (s1, s2)
-    (p1, _):t -> trace ("R " ++ show (length prev)) $ inductionFoldR solver ns t (p1, s2)
+    (p1, _):t -> inductionFoldR solver ns t (p1, s2)
 
 inductionFold :: S.Solver solver =>
                  solver ->
@@ -715,58 +694,9 @@ inductionFold :: S.Solver solver =>
                  (StateET, StateET) ->
                  IO (StateET, StateET)
 inductionFold solver ns prev (s1, s2) = do
-  putStrLn "Fold1"
   (b, s1', s2') <- inductionFoldL solver ns prev (s1, s2)
-  putStrLn "Fold2"
-  if b then trace ("L! " ++ show (length prev)) $ return (s1', s2')
-  else trace ("R! " ++ show (length prev)) $ inductionFoldR solver ns prev (s1, s2)
-
--- TODO the signature will need to change again
--- now this function is a filter again
--- TODO might have more informative return later
--- TODO gets stuck on non-polymorphic badMapTake
--- runs forever on badBool
--- SAT on all other CoinductionIncorrect rules
--- UNSAT for forceDoesNothing and badDoubleReverse with input list finite
--- TODO UNSAT for forceConcat, which I marked as invalid before
--- TODO SAT for expNat
--- very slow on the higher-end "branch" rules, but always gets UNSAT
--- seemingly gets stuck on infiniteInts
--- UNSAT on all other CoinductionCorrect rules
--- that implementation was wrong because it didn't check Alt equivalence
--- Alts that were being used before for forceIdempotent are clearly not equal
--- other part of induction always succeeding for forceIdempotent, though?
--- TODO use the mapping from moreRestrictivePair for induction
-{-
-induction :: S.Solver solver =>
-             solver ->
-             HS.HashSet Name ->
-             Name ->
-             [(StateET, StateET)] ->
-             (StateET, StateET) ->
-             IO Bool
-induction solver ns fresh_name prev (s1, s2) = do
-  -- TODO might not even need these
-  -- need to remove matching cases for every current expression and prev pair
-  -- TODO do I need innerScrutinee for anything?
-  let s1' = inductionState s1
-      s2' = inductionState s2
-      e1 = exprExtract s1
-      e2 = exprExtract s2
-      e1_i = innerScrutinee e1
-      e2_i = innerScrutinee e2
-      s1_i = s1 { curr_expr = CurrExpr Evaluate e1_i }
-      s2_i = s2 { curr_expr = CurrExpr Evaluate e2_i }
-  let (prev1, prev2) = unzip prev
-      prev1' = map (rmcHelper e1) prev1
-      prev2' = map (rmcHelper e2) prev2
-      prev' = zip prev1' prev2'
-  res <- moreRestrictivePair solver ns prev' (s1_i, s2_i)
-  -- TODO check that the Alts equal each other
-  if getAlts s1 == getAlts s2
-  then trace ("III" ++ (show $ isJust res)) $ return $ isJust res
-  else trace (if isJust res then show (getAlts s1, getAlts s2) else show $ isJust res) $ return False
--}
+  if b then return (s1', s2')
+  else inductionFoldR solver ns prev (s1, s2)
 
 -- The induction function isn't a filter; it converts state pairs
 -- if induction can't be applied, just return the input
@@ -910,7 +840,7 @@ checkRule config init_state bindings total finite rule = do
   res <- verifyLoop solver ns
              [(rewrite_state_l'', rewrite_state_r'')]
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config
+             bindings'' config Nothing 0
   -- UNSAT for good, SAT for bad
   return res
 
