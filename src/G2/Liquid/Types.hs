@@ -7,6 +7,7 @@ module G2.Liquid.Types ( LHOutput (..)
                        , Measures
                        , LHState (..)
                        , LHStateM (..)
+                       , NamingM (..)
                        , ExState (..)
                        , AnnotMap (..)
                        , Abstracted (..)
@@ -258,15 +259,17 @@ newtype LHStateM a = LHStateM { unSM :: (SM.State (LHState, L.Bindings) a) } der
 instance SM.MonadState (LHState, L.Bindings) LHStateM where
     state f = LHStateM (SM.state f) 
 
-instance ExState (LHState, L.Bindings) LHStateM where
+instance NamingM (LHState, L.Bindings) LHStateM where
+    nameGen = readRecord $ L.name_gen . snd
+    putNameGen = rep_name_genM
+
+instance ExprEnvM (LHState, L.Bindings) LHStateM where
     exprEnv = readRecord $ expr_env . fst
     putExprEnv = rep_expr_envM
 
+instance ExState (LHState, L.Bindings) LHStateM where
     typeEnv = readRecord $ type_env . fst
     putTypeEnv = rep_type_envM
-
-    nameGen = readRecord $ L.name_gen . snd
-    putNameGen = rep_name_genM
 
     knownValues = readRecord $ known_values . fst
     putKnownValues = rep_known_valuesM

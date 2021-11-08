@@ -290,6 +290,9 @@ liquidTests = testGroup "Liquid"
 
     , checkLiquid "tests/Liquid/MeasErr.hs" "f" 1500 2 [Exactly 0]
 
+    , checkAbsLiquid "tests/Liquid/PropRep.hs" "prop_rep" 2000 3
+        [ AtLeast 1 ]
+
     , checkAbsLiquid "tests/Liquid/Replicate.hs" "replicate" 2000 3
         [ AtLeast 1
         , RExists (\_ _ [(FuncCall { funcName = Name n _ _ _ }) ] -> n == "foldl") ]
@@ -566,6 +569,8 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutput "tests/TestFiles/Coercions/BadCoerce.hs" "BadCoerce" "f" 400 3 [AtLeast 1]
     , checkExpr "tests/TestFiles/Expr.hs" 400 "leadingLams" 2 [AtLeast 5, RForAll (\[_, y] -> noUndefined y)]
 
+    , checkExprAssume "tests/TestFiles/Subseq.hs" 1200 (Just "assume") "subseqTest" 2 [AtLeast 1]
+
     , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "con" 300 3 [AtLeast 10]
     , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "eq" 700 3 [AtLeast 10]
     , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "eqGt1" 700 3 [AtLeast 10]
@@ -611,6 +616,8 @@ primTests = testGroup "Prims"
     , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "quotI2" 1000 3 [AtLeast 4]
     , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "remI1" 1000 3 [AtLeast 4]
     , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "remI2" 1000 3 [AtLeast 3]
+    , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "remI3" 1000 3 [AtLeast 1]
+    , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "remI4" 1000 3 [AtLeast 1]
 
     , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "p1List" 300000 1 [AtLeast 1]
     , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "p2List" 700000 1 [AtLeast 1]

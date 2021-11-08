@@ -27,7 +27,12 @@ module G2.Language.Primitives ( primStr
                               , mkEqPrimChar
                               , mkAndPrim
                               , mkGePrimInt
-                              , mkLePrimInt) where
+                              , mkLePrimInt
+
+                              , mkEqPrimType
+                              , mkOrPrim
+                              , mkImpliesPrim
+                              , mkNotPrim) where
 
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues as KV
@@ -182,3 +187,14 @@ mkAndPrim :: KnownValues -> Expr
 mkAndPrim kv = Prim And $ TyFun t (TyFun t (TyCon (KV.tyBool kv) TYPE))
     where t = (TyCon (KV.tyBool kv) TYPE)
 
+mkOrPrim :: KnownValues -> Expr
+mkOrPrim kv = Prim Or $ TyFun t (TyFun t (TyCon (KV.tyBool kv) TYPE))
+    where t = (TyCon (KV.tyBool kv) TYPE)
+
+mkNotPrim :: KnownValues -> Expr
+mkNotPrim kv = Prim Not $ TyFun t (TyCon (KV.tyBool kv) TYPE)
+    where t = (TyCon (KV.tyBool kv) TYPE)
+
+mkImpliesPrim :: KnownValues -> Expr
+mkImpliesPrim kv = Prim Implies $ TyFun t (TyFun t t)
+    where t = (TyCon (KV.tyBool kv) TYPE)

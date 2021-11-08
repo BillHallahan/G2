@@ -3,6 +3,7 @@
 
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 module G2.Solver.Language
     ( module G2.Solver.Language
@@ -12,6 +13,8 @@ module G2.Solver.Language
 import G2.Language.AST
 import G2.Solver.Solver
 
+import GHC.Generics (Generic)
+import Data.Hashable
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Text.Builder
@@ -97,7 +100,9 @@ data Sort = SortInt
           | SortBool
           | SortArray Sort Sort
           | SortFunc [Sort] Sort
-          deriving (Show, Eq, Ord)
+          deriving (Show, Eq, Ord, Generic)
+
+instance Hashable Sort
 
 (.=.) :: SMTAST -> SMTAST -> SMTAST
 x .=. y
