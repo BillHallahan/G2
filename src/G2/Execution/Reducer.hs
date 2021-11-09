@@ -396,8 +396,8 @@ data ConcSymReducer = ConcSymReducer
 -- relocated from Equiv.G2Calls
 data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
                                  , saw_tick :: Maybe Int
-                                 , total :: S.HashSet Name
-                                 , finite :: S.HashSet Name } deriving (Show, Eq)
+                                 , total :: HS.HashSet Name
+                                 , finite :: HS.HashSet Name } deriving (Show, Eq)
 
 -- Forces a lone symbolic variable with a type corresponding to an ADT
 -- to evaluate to some value of that ADT
@@ -470,7 +470,7 @@ arbDC tenv ng t n total
                         (ng_', (mkApp $ dc:map Var ars, ars))
                     )
                     ng
-                    (if n `elem` total then ty_apped_dcs else ty_apped_dcs')
+                    (if trace (show total) $ n `elem` total then ty_apped_dcs else ty_apped_dcs')
         in
         Just (dc_symbs, ng')
     | otherwise = Nothing

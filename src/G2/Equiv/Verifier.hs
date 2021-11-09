@@ -96,6 +96,11 @@ statePairReadyForSolver (s1, s2) =
   in
   exprReadyForSolver h1 e1 && exprReadyForSolver h2 e2
 
+logStatesFolder :: String -> Maybe String -> LogMode
+logStatesFolder _ Nothing = NoLog
+logStatesFolder pre (Just fr) = Log Pretty $ fr ++ "/" ++ pre
+
+-- TODO keep track of the prefixes for debugging
 runSymExec :: Config ->
               Maybe String ->
               StateET ->
@@ -105,7 +110,7 @@ runSymExec config folder_root s1 s2 = do
   CM.liftIO $ putStrLn "runSymExec"
   ct1 <- CM.liftIO $ getCurrentTime
   (bindings, k) <- CM.get
-  let config' = config { logStates = fmap (\fr -> fr ++ "/a" ++ (show k) ++ "/" ++ show ct1) folder_root }
+  let config' = config { logStates = logStatesFolder ("a" ++ show k) folder_root }
   (er1, bindings') <- CM.lift $ runG2ForRewriteV s1 config' bindings
   CM.put (bindings', k + 1)
   let final_s1 = map final_state er1
@@ -113,7 +118,7 @@ runSymExec config folder_root s1 s2 = do
                     (b_, k_) <- CM.get
                     let s2_ = transferStateInfo s1_ s2
                     ct2 <- CM.liftIO $ getCurrentTime
-                    let config'' = config { logStates = fmap (\fr -> fr ++ "/b" ++ (show k) ++ "/" ++ show ct2) folder_root }
+                    let config'' = config { logStates = logStatesFolder ("b" ++ show k_) folder_root }
                     (er2, b_') <- CM.lift $ runG2ForRewriteV s2_ config'' b_
                     CM.put (b_', k_ + 1)
                     return $ map (\er2_ -> 
@@ -632,6 +637,8 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
 -- (11/3) this function is being called, but it never succeeds
 -- TODO match on whole expr one one side, inner scrutinee on the other
 -- TODO almost certainly incorrect as it is now; also gets stuck
+
+-- TODO (11/8) clear out some of past if old state used as "present"
 induction :: S.Solver solver =>
              solver ->
              HS.HashSet Name ->
@@ -840,7 +847,7 @@ checkRule config init_state bindings total finite rule = do
   res <- verifyLoop solver ns
              [(rewrite_state_l'', rewrite_state_r'')]
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config Nothing 0
+             bindings'' config Nothing 0 -- (Just "testing") 0
   -- UNSAT for good, SAT for bad
   return res
 

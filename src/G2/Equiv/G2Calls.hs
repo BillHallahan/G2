@@ -27,6 +27,7 @@ import qualified G2.Language.Stack as Stck
 import Data.Maybe
 import G2.Execution.Reducer ( EquivTracker )
 import G2.Execution.NormalForms
+import qualified Data.Map as M
 
 -- get names from symbolic ids in the state
 runG2ForRewriteV :: StateET ->
@@ -36,9 +37,10 @@ runG2ForRewriteV :: StateET ->
 runG2ForRewriteV state config bindings = do
     SomeSolver solver <- initSolver config
     let simplifier = IdSimplifier
-        sym_config = PreserveAllMC
-        -- sym_config = addSearchNames (names $ track state)
-        --            $ addSearchNames (input_names bindings) emptyMemConfig
+        --sym_config = PreserveAllMC
+        sym_config = addSearchNames (namesList $ track state)
+                   $ addSearchNames (input_names bindings)
+                   $ addSearchNames (M.keys $ deepseq_walkers bindings) emptyMemConfig
 
         state' = state { track = (track state) { saw_tick = Nothing } }
 
