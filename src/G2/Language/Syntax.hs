@@ -174,6 +174,7 @@ data Primitive = Ge
                | DivInt
                | Quot
                | Mod
+               | Rem
                | Negate
                | SqRt
                | IntToFloat
@@ -224,6 +225,9 @@ instance Hashable Alt
 
 altMatch :: Alt -> AltMatch
 altMatch (Alt am _) = am
+
+altExpr :: Alt -> Expr
+altExpr (Alt _ e) = e
 
 -- | Used in the `TyForAll`, to bind an `Id` to a `Type`
 data TyBinder = AnonTyBndr Type

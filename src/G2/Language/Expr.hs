@@ -23,10 +23,13 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , mkUnit
 
                         , mkIdentity
-                        , mkEqIntExpr
+                        , mkEqExpr
                         , mkGeIntExpr
                         , mkLeIntExpr
                         , mkAndExpr
+                        , mkOrExpr
+                        , mkNotExpr
+                        , mkImpliesExpr
                         , mkToRatioExpr
                         , mkFromRationalExpr
                         , mkIntegralExtactReal
@@ -34,9 +37,12 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , mkRealExtractOrd
                         , mkOrdExtractEq
 
+                        , mkEqPrimExpr
+
                         , isData
                         , isLit
                         , isLam
+                        , isADT
 
                         , replaceVar
                         , getFuncCalls
@@ -179,9 +185,13 @@ mkIdentity t =
     in
     Lam TermL x (Var x)
 
-mkEqIntExpr :: KnownValues -> Expr -> Integer -> Expr
-mkEqIntExpr kv e num = App (App eq e) (Lit (LitInt num))
-    where eq = mkEqPrimInt kv
+mkEqExpr :: KnownValues -> Expr -> Expr -> Expr
+mkEqExpr kv e1 e2 = App (App eq e1) e2
+    where eq = mkEqPrimType (typeOf e1) kv
+
+mkEqPrimExpr :: Type -> KnownValues -> Expr -> Expr -> Expr
+mkEqPrimExpr t kv e1 e2 = App (App eq e1) e2
+    where eq = mkEqPrimType t kv
 
 mkGeIntExpr :: KnownValues -> Expr -> Integer -> Expr
 mkGeIntExpr kv e num = App (App ge e) (Lit (LitInt num))
@@ -194,6 +204,18 @@ mkLeIntExpr kv e num = App (App le e) (Lit (LitInt num))
 mkAndExpr :: KnownValues -> Expr -> Expr -> Expr
 mkAndExpr kv e1 e2 = App (App andEx e1) e2
     where andEx = mkAndPrim kv
+
+mkOrExpr :: KnownValues -> Expr -> Expr -> Expr
+mkOrExpr kv e1 e2 = App (App orEx e1) e2
+    where orEx = mkOrPrim kv
+
+mkImpliesExpr :: KnownValues -> Expr -> Expr -> Expr
+mkImpliesExpr kv e1 e2 = App (App impEx e1) e2
+    where impEx = mkImpliesPrim kv
+
+mkNotExpr :: KnownValues -> Expr -> Expr
+mkNotExpr kv e = App notEx e
+    where notEx = mkNotPrim kv
 
 mkToRatioExpr :: KnownValues -> Expr
 mkToRatioExpr kv = Var $ Id (KV.toRatioFunc kv) TyUnknown
@@ -224,6 +246,11 @@ isLit _ = False
 isLam :: Expr -> Bool
 isLam (Lam _ _ _) = True
 isLam _ = False
+
+isADT :: Expr -> Bool
+isADT e
+    | Data _:_ <- unApp e = True
+    | otherwise = False
 
 replaceVar :: ASTContainer m Expr => Name -> Expr -> m -> m
 replaceVar n e = modifyContainedASTs (replaceVar' n e)
@@ -597,4 +624,3 @@ typeToWalker_maybe w t
     Just i -> foldl' (App) (Var i) (map Type ts ++ map (typeToWalker_maybe w) ts)
     Nothing -> mkIdentity t
 typeToWalker_maybe _ t = mkIdentity t
-

@@ -32,6 +32,9 @@ module G2.Execution.Reducer ( Reducer (..)
                             , NonRedPCRedConst (..)
                             , TaggerRed (..)
                             , Logger (..)
+                            , prettyLogger
+                            , getLogger
+                            , PrettyLogger (..)
                             , LimLogger (..)
                             , PredicateLogger (..)
                             , OnlyPath (..)
@@ -78,6 +81,7 @@ module G2.Execution.Reducer ( Reducer (..)
 
                             , runReducer ) where
 
+import G2.Config
 import qualified G2.Language.ExprEnv as E
 import G2.Execution.Rules
 import G2.Language
@@ -88,7 +92,7 @@ import G2.Solver
 import G2.Lib.Printers
 
 import Data.Foldable
-import qualified Data.HashSet as S
+import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import Data.Maybe
@@ -392,8 +396,8 @@ data ConcSymReducer = ConcSymReducer
 -- relocated from Equiv.G2Calls
 data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
                                  , saw_tick :: Maybe Int
-                                 , total :: S.HashSet Name
-                                 , finite :: S.HashSet Name } deriving Show
+                                 , total :: HS.HashSet Name
+                                 , finite :: HS.HashSet Name } deriving Show
 
 -- Forces a lone symbolic variable with a type corresponding to an ADT
 -- to evaluate to some value of that ADT
@@ -413,11 +417,11 @@ instance Reducer ConcSymReducer () EquivTracker where
         , Just (dc_symbs, ng') <- arbDC tenv ng t n total = do
             let new_names = map idName $ concat $ map snd dc_symbs
                 total' = if n `elem` total
-                         then foldr S.insert total new_names
+                         then foldr HS.insert total new_names
                          else total
                 -- TODO finiteness carries over to sub-expressions too
                 finite' = if n `elem` finite
-                          then foldr S.insert finite new_names
+                          then foldr HS.insert finite new_names
                           else finite
                 xs = map (\(e, symbs') ->
                                 s   { curr_expr = CurrExpr Evaluate e
@@ -442,7 +446,7 @@ arbDC :: TypeEnv
       -> NameGen
       -> Type
       -> Name
-      -> S.HashSet Name
+      -> HS.HashSet Name
       -> Maybe ([(Expr, [Id])], NameGen)
 arbDC tenv ng t n total
     | TyCon tn _:ts <- unTyApp t
@@ -505,12 +509,12 @@ instance Reducer NonRedPCRed () t where
 -- Substitutes all possible higher order functions for symbolic higher order functions.
 -- We insert the substituted higher order function directly into the model, because, due
 -- to the VAR-RED rule, the function name will (if the function is called) be lost during execution.
-substHigherOrder :: ExprEnv -> Model -> SymbolicIds -> S.HashSet Name -> CurrExpr -> [(ExprEnv, Model, SymbolicIds, CurrExpr)]
+substHigherOrder :: ExprEnv -> Model -> SymbolicIds -> HS.HashSet Name -> CurrExpr -> [(ExprEnv, Model, SymbolicIds, CurrExpr)]
 substHigherOrder eenv m si ns ce =
     let
         is = mapMaybe (\n -> case E.lookup n eenv of
                                 Just e -> Just $ Id n (typeOf e)
-                                Nothing -> Nothing) $ S.toList ns
+                                Nothing -> Nothing) $ HS.toList ns
 
         higherOrd = filter (isTyFun . typeOf) . mapMaybe varId . symbVars eenv $ ce
         higherOrdSub = map (\v -> (v, mapMaybe (genSubstitutable v) is)) higherOrd
@@ -591,10 +595,17 @@ instance Reducer TaggerRed () t where
         let
             (n'@(Name n_ m_ _ _), ng') = freshSeededName n ng
         in
-        if null $ S.filter (\(Name n__ m__ _ _) -> n_ == n__ && m_ == m__) ts then
-            return (Finished, [(s {tags = S.insert n' ts}, ())], b, TaggerRed n ng')
+        if null $ HS.filter (\(Name n__ m__ _ _) -> n_ == n__ && m_ == m__) ts then
+            return (Finished, [(s {tags = HS.insert n' ts}, ())], b, TaggerRed n ng')
         else
             return (Finished, [(s, ())], b, tr)
+
+
+getLogger :: Show t => Config -> Maybe (SomeReducer t)
+getLogger config = case logStates config of
+                        Log Raw fp -> Just (SomeReducer (Logger fp))
+                        Log Pretty fp -> Just (SomeReducer (prettyLogger fp))
+                        NoLog -> Nothing
 
 -- | A Reducer to producer logging output 
 data Logger = Logger String
@@ -603,11 +614,28 @@ instance Show t => Reducer Logger [Int] t where
     initReducer _ _ = []
 
     redRules l@(Logger fn) li s b = do
-        outputState fn li s b
+        outputState fn li s b pprExecStateStr
         return (NoProgress, [(s, li)], b, l)
     
     updateWithAll _ [(_, l)] = [l]
     updateWithAll _ ss = map (\(l, i) -> l ++ [i]) $ zip (map snd ss) [1..]
+
+-- | A Reducer to producer logging output 
+data PrettyLogger = PrettyLogger String PrettyGuide
+
+instance Show t => Reducer PrettyLogger [Int] t where
+    initReducer _ s = []
+
+    redRules l@(PrettyLogger fn pg) li s b = do
+        let pg' = updatePrettyGuide (s { track = () }) pg
+        outputState fn li s b (\s _ -> prettyState pg' s)
+        return (NoProgress, [(s, li)], b, PrettyLogger fn pg')
+    
+    updateWithAll _ [(_, l)] = [l]
+    updateWithAll _ ss = map (\(l, i) -> l ++ [i]) $ zip (map snd ss) [1..]
+
+prettyLogger :: String -> PrettyLogger
+prettyLogger s = PrettyLogger s (mkPrettyGuide ())
 
 -- | A Reducer to producer limited logging output.
 data LimLogger =
@@ -627,7 +655,7 @@ instance Show t => Reducer LimLogger LLTracker t where
             llt@(LLTracker { ll_count = 0, ll_offset = off }) s b
         | down `L.isPrefixOf` off || off `L.isPrefixOf` down
         , length (rules s) >= aft = do
-            outputState (lim_output_path ll) off s b
+            outputState (lim_output_path ll) off s b pprExecStateStr
             return (NoProgress, [(s, llt { ll_count = every_n ll })], b, ll)
         | otherwise =
             return (NoProgress, [(s, llt { ll_count = every_n ll })], b, ll)
@@ -649,7 +677,7 @@ instance Show t => Reducer PredicateLogger [Int] t where
 
     redRules pl@(PredicateLogger p out) ll s b
         | p s b = do
-            outputState out ll s b
+            outputState out ll s b pprExecStateStr
             return (NoProgress, [(s, ll)], b, pl)
         | otherwise =
             return (NoProgress, [(s, ll)], b, pl)
@@ -673,16 +701,27 @@ instance Reducer OnlyPath [Int] t where
     updateWithAll _ ss = map (\(llt, i) -> llt ++ [i]) $ zip (map snd ss) [1..]
 
 
-outputState :: Show t => String -> [Int] -> State t -> Bindings -> IO ()
-outputState fdn is s b = do
-    let dir = fdn ++ "/" ++ foldl' (\str i -> str ++ show i ++ "/") "" is
+outputState :: String -> [Int] -> State t -> Bindings -> (State t -> Bindings -> String) -> IO ()
+outputState dn is s b printer = do
+    fn <- getFile dn is "state" s
+
+    -- Don't re-output states that  already exist
+    exists <- doesPathExist fn
+
+    if not exists
+        then do
+            let write = printer s b
+            writeFile fn write
+
+            putStrLn fn
+        else return ()
+
+getFile :: String -> [Int] -> String -> State t -> IO String
+getFile dn is n s = do
+    let dir = dn ++ "/" ++ foldl' (\str i -> str ++ show i ++ "/") "" is
     createDirectoryIfMissing True dir
-
-    let fn = dir ++ "state" ++ show (num_steps s) ++ ".txt"
-    let write = pprExecStateStr s b
-    writeFile fn write
-
-    putStrLn fn
+    let fn = dir ++ n ++ show (length $ rules s) ++ ".txt"
+    return fn
 
 -- | Allows executing multiple halters.
 -- If the halters disagree, prioritizes the order:
@@ -901,8 +940,8 @@ instance Halter RecursiveCutOff (HM.HashMap SpannedName Int) t where
 -- and in the State being evaluated, discard the State
 data DiscardIfAcceptedTag = DiscardIfAcceptedTag Name 
 
-instance Halter DiscardIfAcceptedTag (S.HashSet Name) t where
-    initHalt _ _ = S.empty
+instance Halter DiscardIfAcceptedTag (HS.HashSet Name) t where
+    initHalt _ _ = HS.empty
     
     -- updatePerStateHalt gets the intersection of the accepted States Tags,
     -- and the Tags of the State being evaluated.
@@ -912,13 +951,13 @@ instance Halter DiscardIfAcceptedTag (S.HashSet Name) t where
                        (Processed {accepted = acc})
                        (State {tags = ts}) =
         let
-            allAccTags = S.unions $ map tags acc
-            matchCurrState = S.intersection ts allAccTags
+            allAccTags = HS.unions $ map tags acc
+            matchCurrState = HS.intersection ts allAccTags
         in
-        S.filter (\(Name n' m' _ _) -> n == n' && m == m') matchCurrState
+        HS.filter (\(Name n' m' _ _) -> n == n' && m == m') matchCurrState
 
     stopRed _ ns _ _ =
-        return $ if not (S.null ns) then Discard else Continue
+        return $ if not (HS.null ns) then Discard else Continue
 
     stepHalter _ hv _ _ _ = hv
 
@@ -1119,14 +1158,14 @@ instance Orderer CaseCountOrderer Int Int t where
 -- Orders by the smallest symbolic ADTs
 data SymbolicADTOrderer = SymbolicADTOrderer
 
-instance Orderer SymbolicADTOrderer (S.HashSet Name) Int t where
-    initPerStateOrder _ = S.fromList . map idName . symbolic_ids
-    orderStates or v _ _ = (S.size v, or)
+instance Orderer SymbolicADTOrderer (HS.HashSet Name) Int t where
+    initPerStateOrder _ = HS.fromList . map idName . symbolic_ids
+    orderStates or v _ _ = (HS.size v, or)
 
     updateSelected _ v _ _ = v
 
     stepOrderer _ v _ _ s =
-        v `S.union` (S.fromList . map idName . symbolic_ids $ s)
+        v `HS.union` (HS.fromList . map idName . symbolic_ids $ s)
 
 -- Orders by the size (in terms of height) of (previously) symbolic ADT.
 -- In particular, aims to first execute those states with a height closest to
@@ -1144,11 +1183,11 @@ data ADTHeightOrderer = ADTHeightOrderer
 -- back to false.
 -- This avoids repeated operations on the hashset after rules that we know
 -- will not add symbolic variables.
-instance MinOrderer ADTHeightOrderer (S.HashSet Name, Bool) Int t where
-    minInitPerStateOrder _ s = (S.fromList . map idName . symbolic_ids $ s, False)
+instance MinOrderer ADTHeightOrderer (HS.HashSet Name, Bool) Int t where
+    minInitPerStateOrder _ s = (HS.fromList . map idName . symbolic_ids $ s, False)
     minOrderStates ord@(ADTHeightOrderer pref_height _) (v, _) _ s =
         let
-            m = maximum $ (-1):(S.toList $ S.map (flip adtHeight s) v)
+            m = maximum $ (-1):(HS.toList $ HS.map (flip adtHeight s) v)
             h = abs (pref_height - m)
         in
         (h, ord)
@@ -1157,11 +1196,11 @@ instance MinOrderer ADTHeightOrderer (S.HashSet Name, Bool) Int t where
     minStepOrderer _ (v, _) _ _
                   (State { curr_expr = CurrExpr _ (SymGen _) }) = (v, True)
     minStepOrderer _ (v, True) _ _ s =
-        (v `S.union` (S.fromList . map idName . symbolic_ids $ s), False)
+        (v `HS.union` (HS.fromList . map idName . symbolic_ids $ s), False)
     minStepOrderer (ADTHeightOrderer _ (Just n)) (v, _) _ _ 
                    s@(State { curr_expr = CurrExpr _ (Tick (NamedLoc n') (Var (Id vn _))) }) 
             | n == n' =
-                (S.insert vn v, False)
+                (HS.insert vn v, False)
     minStepOrderer _ v _ _ s =
         v
 
@@ -1199,11 +1238,11 @@ data ADTSizeOrderer = ADTSizeOrderer
 -- back to false.
 -- This avoids repeated operations on the hashset after rules that we know
 -- will not add symbolic variables.
-instance MinOrderer ADTSizeOrderer (S.HashSet Name, Bool) Int t where
-    minInitPerStateOrder _ s = (S.fromList . map idName . symbolic_ids $ s, False)
+instance MinOrderer ADTSizeOrderer (HS.HashSet Name, Bool) Int t where
+    minInitPerStateOrder _ s = (HS.fromList . map idName . symbolic_ids $ s, False)
     minOrderStates ord@(ADTSizeOrderer pref_height _) (v, _) _ s =
         let
-            m = sum (S.toList $ S.map (flip adtSize s) v)
+            m = sum (HS.toList $ HS.map (flip adtSize s) v)
             h = abs (pref_height - m)
         in
         (h, ord)
@@ -1212,11 +1251,11 @@ instance MinOrderer ADTSizeOrderer (S.HashSet Name, Bool) Int t where
     minStepOrderer _ (v, _) _ _
                   (State { curr_expr = CurrExpr _ (SymGen _) }) = (v, True)
     minStepOrderer _ (v, True) _ _ s =
-        (v `S.union` (S.fromList . map idName . symbolic_ids $ s), False)
+        (v `HS.union` (HS.fromList . map idName . symbolic_ids $ s), False)
     minStepOrderer (ADTSizeOrderer _ (Just n)) (v, _) _ _ 
                    s@(State { curr_expr = CurrExpr _ (Tick (NamedLoc n') (Var (Id vn _))) }) 
             | n == n' =
-                (S.insert vn v, False)
+                (HS.insert vn v, False)
     minStepOrderer _ v _ _ s =
         v
 

@@ -6,6 +6,7 @@
 module G2.Language.ExprEnv
     ( ExprEnv
     , ConcOrSym (..)
+    , EnvObj (..)
     , empty
     , singleton
     , fromList
@@ -14,6 +15,7 @@ module G2.Language.ExprEnv
     , member
     , lookup
     , lookupConcOrSym
+    , lookupEnvObj
     , deepLookup
     , isSymbolic
     , occLookup
@@ -24,6 +26,8 @@ module G2.Language.ExprEnv
     , redirect
     , union
     , union'
+    , unionWithM
+    , unionWithNameM
     , (!)
     , map
     , map'
@@ -58,6 +62,7 @@ import Prelude hiding( filter
                      , mapM
                      , null)
 import qualified Prelude as Pre
+import Control.Monad hiding (mapM)
 import Data.Coerce
 import Data.Data (Data, Typeable)
 import qualified Data.List as L
@@ -66,6 +71,7 @@ import Data.Maybe
 import Data.Monoid ((<>))
 import qualified Data.Sequence as S
 import qualified Data.Text as T
+import qualified Data.Traversable as Trav
 
 data ConcOrSym = Conc Expr
                | Sym Id
@@ -138,6 +144,9 @@ lookupConcOrSym  n (ExprEnv smap) =
         Just (SymbObj i) -> Just $ Sym i
         Nothing -> Nothing
 
+lookupEnvObj :: Name -> ExprEnv -> Maybe EnvObj
+lookupEnvObj n = M.lookup n . unwrapExprEnv
+
 -- | Lookup the `Expr` with the given `Name`.
 -- If the name is bound to a @Var@, recursively searches that @Vars@ name.
 -- Returns `Nothing` if the `Name` is not in the `ExprEnv`.
@@ -195,6 +204,25 @@ union (ExprEnv eenv) (ExprEnv eenv') = ExprEnv $ eenv `M.union` eenv'
 
 union' :: M.HashMap Name Expr -> ExprEnv -> ExprEnv
 union' m (ExprEnv eenv) = ExprEnv (M.map ExprObj m `M.union` eenv)
+
+
+unionWithM :: Monad m => (EnvObj -> EnvObj -> m EnvObj) -> ExprEnv -> ExprEnv -> m ExprEnv
+unionWithM f (ExprEnv m1) (ExprEnv m2) =
+    return . ExprEnv =<< (Trav.sequence $ M.unionWith (\x y -> do
+                                                            x' <- x
+                                                            y' <- y
+                                                            f x' y') 
+                                                      (M.map return m1)
+                                                      (M.map return m2))
+
+unionWithNameM :: Monad m => (Name -> EnvObj -> EnvObj -> m EnvObj) -> ExprEnv -> ExprEnv -> m ExprEnv
+unionWithNameM f (ExprEnv m1) (ExprEnv m2) =
+    return . ExprEnv =<< (Trav.sequence $ M.unionWithKey (\n x y -> do
+                                                                    x' <- x
+                                                                    y' <- y
+                                                                    f n x' y') 
+                                                         (M.map return m1)
+                                                         (M.map return m2))
 
 -- | Map a function over all `Expr` in the `ExprEnv`.
 -- Will not replace symbolic variables with non-symbolic values,

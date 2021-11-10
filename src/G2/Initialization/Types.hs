@@ -28,15 +28,17 @@ newtype SimpleStateM a = SimpleStateM { unSM :: (SM.State SimpleState a) } deriv
 instance SM.MonadState SimpleState SimpleStateM where
     state f = SimpleStateM (SM.state f)
 
-instance ExState SimpleState SimpleStateM where
+instance NamingM SimpleState SimpleStateM where
+    nameGen = return . name_gen =<< SM.get
+    putNameGen = rep_name_genM
+
+instance ExprEnvM SimpleState SimpleStateM where
     exprEnv = return . expr_env =<< SM.get
     putExprEnv = rep_expr_envM
 
+instance ExState SimpleState SimpleStateM where
     typeEnv = return . type_env =<< SM.get
     putTypeEnv = rep_type_envM
-
-    nameGen = return . name_gen =<< SM.get
-    putNameGen = rep_name_genM
 
     knownValues = return . known_values =<< SM.get
     putKnownValues = rep_known_valuesM

@@ -451,12 +451,14 @@ lhReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
         abs_ret_name = Name "abs_ret" Nothing 0 Nothing
 
         non_red = NonRedPCRed :|: NonRedPCRedConst
+
+        m_logger = getLogger config
     in
     if higherOrderSolver config == AllFuncs then
         ( SomeReducer non_red
             <~| (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng ))
-            <~| (case logStates config of
-                  Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed :<~ Logger fp)
+            <~| (case m_logger of
+                  Just logger -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed) <~ logger
                   Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed))
         , SomeHalter
                 (MaxOutputsHalter (maxOutputs config)
@@ -469,8 +471,8 @@ lhReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
     else
         (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng)
             <~| (SomeReducer (non_red :<~| TaggerRed state_name ng))
-            <~| (case logStates config of
-                  Just fp -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed :<~ Logger fp)
+            <~| (case m_logger of
+                  Just logger -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed) <~ logger
                   Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed))
         , SomeHalter
             (DiscardIfAcceptedTag state_name
@@ -598,11 +600,11 @@ pprint (v, r) = do
 
 printLHOut :: Lang.Id -> [ExecRes AbstractedInfo] -> IO ()
 printLHOut entry =
-    mapM_ (\s -> do printParsedLHOut s; putStrLn "") . map (parseLHOut entry)
+    mapM_ (\lhr -> do printParsedLHOut lhr; putStrLn "") . map (parseLHOut entry)
 
-printCE :: [CounterExample] -> IO ()
-printCE =
-    mapM_ (\s -> do printParsedLHOut s; putStrLn "") . map counterExampleToLHReturn
+printCE :: State t -> [CounterExample] -> IO ()
+printCE s =
+    mapM_ (\lhr -> do printParsedLHOut lhr; putStrLn "") . map (counterExampleToLHReturn s)
 
 printParsedLHOut :: LHReturn -> IO ()
 printParsedLHOut (LHReturn { calledFunc = FuncInfo {func = f, funcArgs = call, funcReturn = output}
@@ -649,7 +651,7 @@ parseLHOut entry (ExecRes { final_state = s
                           , conc_out = ex
                           , violated = ais}) =
   let
-      called = funcCallToFuncInfo  (T.pack . mkCleanExprHaskell s)
+      called = funcCallToFuncInfo  (T.pack . printHaskell s)
              $ FuncCall { funcName = idName entry, arguments = inArg, returns = ex}
       viFunc = fmap (parseLHFuncTuple s) ais
 
@@ -659,20 +661,20 @@ parseLHOut entry (ExecRes { final_state = s
            , violating = viFunc
            , abstracted = abstr}
 
-counterExampleToLHReturn :: CounterExample -> LHReturn
-counterExampleToLHReturn (DirectCounter fc abstr) =
+counterExampleToLHReturn :: State t -> CounterExample -> LHReturn
+counterExampleToLHReturn s (DirectCounter fc abstr) =
     let
-        called = funcCallToFuncInfo (T.pack . mkExprHaskell) . abstract $ fc
-        abstr' = map (funcCallToFuncInfo (T.pack . mkExprHaskell) . abstract) abstr
+        called = funcCallToFuncInfo (T.pack . printHaskell s) . abstract $ fc
+        abstr' = map (funcCallToFuncInfo (T.pack . printHaskell s) . abstract) abstr
     in
     LHReturn { calledFunc = called
              , violating = Nothing
              , abstracted = abstr'}
-counterExampleToLHReturn (CallsCounter fc viol_fc abstr) =
+counterExampleToLHReturn s (CallsCounter fc viol_fc abstr) =
     let
-        called = funcCallToFuncInfo (T.pack . mkExprHaskell) . abstract $ fc
-        viol_called = funcCallToFuncInfo (T.pack . mkExprHaskell) . abstract $ viol_fc
-        abstr' = map (funcCallToFuncInfo (T.pack . mkExprHaskell) . abstract) abstr
+        called = funcCallToFuncInfo (T.pack . printHaskell s) . abstract $ fc
+        viol_called = funcCallToFuncInfo (T.pack . printHaskell s) . abstract $ viol_fc
+        abstr' = map (funcCallToFuncInfo (T.pack . printHaskell s) . abstract) abstr
     in
     LHReturn { calledFunc = called
              , violating = Just viol_called
@@ -701,5 +703,5 @@ parseLHFuncTuple s (FuncCall {funcName = n, arguments = ars, returns = out}) =
                   Nothing -> error $ "Unknown type for abstracted function " ++ show n
     in
     FuncInfo { func = nameOcc n
-             , funcArgs = T.pack $ mkCleanExprHaskell s (foldl' App (Var (Id n t)) ars)
-             , funcReturn = T.pack $ mkCleanExprHaskell s out }
+             , funcArgs = T.pack $ printHaskell s (foldl' App (Var (Id n t)) ars)
+             , funcReturn = T.pack $ printHaskell s out }

@@ -130,20 +130,6 @@ data CEAction = AddPC | NoAction
 -- typically produced by a solver. 
 type Model = HM.HashMap Name Expr
 
-type ADTIntMaps = HM.HashMap Type DCNum
-
--- The Data Constructors of each ADT appearing in the PathConds are mapped to the range [0,`upperB`), where
--- `upperB` equals the number of Data Constructors for that type
-data DCNum = DCNum { upperB :: Integer
-                   , dc2Int :: HM.HashMap Name Integer
-                   , int2Dc :: HM.HashMap Integer DataCon } deriving (Show, Eq, Read, Typeable, Data)
-
-lookupInt :: Name -> DCNum -> Maybe Integer
-lookupInt n DCNum { dc2Int = m } = HM.lookup n m
-
-lookupDC :: Integer -> DCNum -> Maybe DataCon
-lookupDC n DCNum { int2Dc = m } = HM.lookup n m
-
 -- | Replaces all of the names old in state with a name seeded by new_seed
 renameState :: Named t => Name -> Name -> State t -> Bindings -> (State t, Bindings)
 renameState old new_seed s b =
@@ -345,10 +331,6 @@ instance ASTContainer Frame Type where
     modifyContainedASTs f (AssertFrame is e) = AssertFrame (modifyContainedASTs f is) (modifyContainedASTs f e)
     modifyContainedASTs _ fr = fr
 
-instance ASTContainer DCNum Type where
-    containedASTs _ = []
-    modifyContainedASTs _ m = m
-
 instance Named CurrExpr where
     names (CurrExpr _ e) = names e
     rename old new (CurrExpr er e) = CurrExpr er $ rename old new e
@@ -378,12 +360,3 @@ instance Named Frame where
     renames hm (CurrExprFrame act e) = CurrExprFrame act (renames hm e)
     renames hm (AssumeFrame e) = AssumeFrame (renames hm e)
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
-
-instance Named DCNum where
-    names (DCNum { dc2Int = m1, int2Dc = m2 }) = names (HM.keys m1) <> names (HM.elems m2)
-    rename old new dcNum@(DCNum {dc2Int = m1 , int2Dc = m2}) = dcNum { dc2Int = m1', int2Dc = m2' }
-        where m1' = HM.fromList . rename old new $ HM.toList m1
-              m2' = HM.fromList . rename old new $ HM.toList m2
-    renames hm dcNum@(DCNum {dc2Int = m1 , int2Dc = m2}) = dcNum { dc2Int = m1', int2Dc = m2' }
-        where m1' = HM.fromList . renames hm $ HM.toList m1
-              m2' = HM.fromList . renames hm $ HM.toList m2

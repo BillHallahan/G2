@@ -127,9 +127,7 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
 
 checkConstraintsPC :: SMTConverter con ast out io => con -> PathConds -> IO (Result () ())
 checkConstraintsPC con pc = do
-    let pc' = unsafeElimCast pc
-
-    let headers = toSMTHeaders $ PC.toList pc'
+    let headers = toSMTHeaders pc
     checkConstraints con headers
 
 checkConstraints :: SMTConverter con ast out io => con -> [SMTHeader] -> IO (Result () ())
@@ -172,8 +170,8 @@ getModelVal avf con s b (Id n _) pc = do
 
 solveNumericConstraintsPC :: SMTConverter con ast out io => con -> PathConds -> IO (Maybe Model)
 solveNumericConstraintsPC con pc = do
-    let headers = toSMTHeaders $ PC.toList pc
-    let vs = map (\(n', srt) -> (nameToStr n', srt)) . pcVars $ PC.toList pc
+    let headers = toSMTHeaders pc
+    let vs = map (\(n', srt) -> (nameToStr n', srt)) . HS.toList . pcVars $ pc
 
     m <- solveConstraints con headers vs
     return $ fmap modelAsExpr m
@@ -200,14 +198,17 @@ constraintsToModelOrUnsatCore con headers vs = do
 -- we need only consider the types and path constraints of that state.
 -- We can also pass in some other Expr Container to instantiate names from, which is
 -- important if you wish to later be able to scrape variables from those Expr's
-toSMTHeaders :: [PathCond] -> [SMTHeader]
+toSMTHeaders :: PathConds -> [SMTHeader]
 toSMTHeaders = addSetLogic . toSMTHeaders'
 
-toSMTHeaders' :: [PathCond] -> [SMTHeader]
-toSMTHeaders' pc  = 
+toSMTHeaders' :: PathConds -> [SMTHeader]
+toSMTHeaders' pc  =
+    let
+        pc' = PC.toList pc
+    in 
     (pcVarDecls pc)
     ++
-    (pathConsToSMTHeaders pc)
+    (pathConsToSMTHeaders pc')
 
 -- |  Determines an appropriate SetLogic command, and adds it to the headers
 addSetLogic :: [SMTHeader] -> [SMTHeader]
@@ -345,27 +346,27 @@ isCoreSort _ = False
 -------------------------------------------------------------------------------
 
 pathConsToSMTHeaders :: [PathCond] -> [SMTHeader]
-pathConsToSMTHeaders = map Assert . mapMaybe pathConsToSMT
+pathConsToSMTHeaders = map Assert . map pathConsToSMT
 
-pathConsToSMT :: PathCond -> Maybe SMTAST
+pathConsToSMT :: PathCond -> SMTAST
 pathConsToSMT (AltCond l e b) =
     let
         exprSMT = exprToSMT e
         altSMT = altToSMT l e
     in
-    Just $ if b then exprSMT := altSMT else (:!) (exprSMT := altSMT) 
+    if b then exprSMT := altSMT else (:!) (exprSMT := altSMT) 
 pathConsToSMT (ExtCond e b) =
     let
         exprSMT = exprToSMT e
     in
-    Just $ if b then exprSMT else (:!) exprSMT
-pathConsToSMT (AssumePC i num pc) =
+    if b then exprSMT else (:!) exprSMT
+pathConsToSMT (AssumePC (Id n t) num pc) =
     let
-        idSMT = exprToSMT (Var i)
-        intSMT = exprToSMT (Lit (LitInt $ toInteger num))
-    in case pathConsToSMT $ PC.unhashedPC pc of
-        (Just pcSMT) -> Just $ (idSMT := intSMT) :=> pcSMT
-        Nothing -> error $ "Unable to convert pc: " ++ (show pc)
+        idSMT = V (nameToStr n) (typeToSMT t) -- exprToSMT (Var i)
+        intSMT = VInt $ toInteger num -- exprToSMT (Lit (LitInt $ toInteger num))
+        pcSMT = map (pathConsToSMT . PC.unhashedPC) $ HS.toList pc
+    in
+    (idSMT := intSMT) :=> SmtAnd pcSMT
 
 exprToSMT :: Expr -> SMTAST
 exprToSMT (Var (Id n t)) = V (nameToStr n) (typeToSMT t)
@@ -432,6 +433,7 @@ funcToSMT2Prim Mult a1 a2 = exprToSMT a1 :* exprToSMT a2
 funcToSMT2Prim Div a1 a2 = exprToSMT a1 :/ exprToSMT a2
 funcToSMT2Prim Quot a1 a2 = exprToSMT a1 `QuotSMT` exprToSMT a2
 funcToSMT2Prim Mod a1 a2 = exprToSMT a1 `Modulo` exprToSMT a2
+funcToSMT2Prim Rem a1 a2 = exprToSMT a1 :- ((exprToSMT a1 `QuotSMT` exprToSMT a2) :* exprToSMT a2) -- TODO: more efficient encoding?
 funcToSMT2Prim RationalToDouble a1 a2  = exprToSMT a1 :/ exprToSMT a2
 funcToSMT2Prim op lhs rhs = error $ "funcToSMT2Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
 
@@ -443,37 +445,20 @@ altToSMT (LitChar c) _ = VChar c
 altToSMT am _ = error $ "Unhandled " ++ show am
 
 createUniqVarDecls :: [(Name, Sort)] -> [SMTHeader]
-createUniqVarDecls xs =
-    let xs' = S.toList $ S.fromList xs
-    in createUniqVarDecls' xs'
-
-createUniqVarDecls' :: [(Name, Sort)] -> [SMTHeader]
-createUniqVarDecls' [] = []
-createUniqVarDecls' ((n,SortChar):xs) =
+createUniqVarDecls [] = []
+createUniqVarDecls ((n,SortChar):xs) =
     let
         lenAssert = Assert $ StrLen (V (nameToStr n) SortChar) := VInt 1
     in
-    VarDecl (nameToBuilder n) SortChar:lenAssert:createUniqVarDecls' xs
-createUniqVarDecls' ((n,s):xs) = VarDecl (nameToBuilder n) s:createUniqVarDecls' xs
+    VarDecl (nameToBuilder n) SortChar:lenAssert:createUniqVarDecls xs
+createUniqVarDecls ((n,s):xs) = VarDecl (nameToBuilder n) s:createUniqVarDecls xs
 
-pcVarDecls :: [PathCond] -> [SMTHeader]
-pcVarDecls = createUniqVarDecls . pcVars
+pcVarDecls :: PathConds -> [SMTHeader]
+pcVarDecls = createUniqVarDecls . HS.toList . pcVars
 
 -- Get's all variable required for a list of `PathCond` 
-pcVars :: [PathCond] -> [(Name, Sort)]
-pcVars = concatMap pcVar
-
-pcVar :: PathCond -> [(Name, Sort)]
-pcVar (AssumePC i _ pc) = idToNameSort i:pcVar (PC.unhashedPC pc)
-pcVar (AltCond _ e _) = vars e
-pcVar p = vars p
-
-vars :: (ASTContainer m Expr) => m -> [(Name, Sort)]
-vars = evalASTs vars'
-    where
-        vars' :: Expr -> [(Name, Sort)]
-        vars' (Var i) = [idToNameSort i]
-        vars' _ = []
+pcVars :: PathConds -> HS.HashSet (Name, Sort)
+pcVars = HS.map idToNameSort . PC.allIds
 
 idToNameSort :: Id -> (Name, Sort)
 idToNameSort (Id n t) = (n, typeToSMT t)
@@ -512,8 +497,11 @@ toSolverAST con (x :/= y) = (./=) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :< y) = (.<) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :<= y) = (.<=) con (toSolverAST con x) (toSolverAST con y)
 
+toSolverAST con (SmtAnd [x]) = toSolverAST con x
 toSolverAST con (SmtAnd xs) = smtAnd con $ map (toSolverAST con) xs
+toSolverAST con (SmtOr [x]) = toSolverAST con x
 toSolverAST con (SmtOr xs) =  smtOr con $ map (toSolverAST con) xs
+
 toSolverAST con ((:!) x) = (.!) con $ toSolverAST con x
 toSolverAST con (x :=> y) = (.=>) con (toSolverAST con x) (toSolverAST con y)
 toSolverAST con (x :<=> y) = (.<=>) con (toSolverAST con x) (toSolverAST con y)

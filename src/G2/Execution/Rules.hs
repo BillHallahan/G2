@@ -19,6 +19,7 @@ module G2.Execution.Rules ( module G2.Execution.RuleTypes
                           , isExecValueForm ) where
 
 import G2.Config.Config
+import G2.Execution.NewPC
 import G2.Execution.NormalForms
 import G2.Execution.PrimitiveEval
 import G2.Execution.RuleTypes
@@ -100,43 +101,6 @@ stdReduce' _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
             isError (Prim Error _) = True
             isError (Prim Undefined _) = True
             isError _ = False
-
-data NewPC t = NewPC { state :: State t
-                     , new_pcs :: [PathCond]
-                     , concretized :: [Id] }
-
-newPCEmpty :: State t -> NewPC t
-newPCEmpty s = NewPC { state = s, new_pcs = [], concretized = []}
-
-reduceNewPC :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> NewPC t -> IO (Maybe (State t))
-reduceNewPC solver simplifier
-            (NewPC { state = s@(State { path_conds = spc })
-                   , new_pcs = pc
-                   , concretized = concIds })
-    | not (null pc) || not (null concIds) = do
-        let (s', pc') = L.mapAccumL (simplifyPC simplifier) s pc
-            pc'' = concat pc'
-
-        -- Optimization
-        -- We replace the path_conds with only those that are directly
-        -- affected by the new path constraints
-        -- This allows for more efficient solving, and in some cases may
-        -- change an Unknown into a SAT or UNSAT
-        let new_pc = foldr PC.insert spc $ pc''
-            s'' = s' {path_conds = new_pc}
-
-        let ns = concatMap PC.varNamesInPC pc ++ namesList concIds
-            rel_pc = case ns of
-                [] -> PC.fromList pc''
-                _ -> PC.scc ns new_pc
-
-        res <- check solver s' rel_pc
-
-        if res == SAT () then
-            return $ Just s''
-        else
-            return Nothing
-    | otherwise = return $ Just s
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
@@ -576,7 +540,7 @@ liftSymDefAlt s ng mexpr cvar as =
 liftSymDefAlt' :: State t -> NameGen -> Expr -> Expr -> Id -> [Alt] -> ([NewPC t], NameGen)
 liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
     | (Var i):_ <- unApp $ unsafeElimOuterCast mexpr
-    , isADT (typeOf i)
+    , isADTType (typeOf i)
     , (Var i'):_ <- unApp $ exprInCasts mexpr = -- Id with original Type
         let (adt, bi) = fromJust $ getCastedAlgDataTy (typeOf i) tenv
             maybeC = case mexpr of

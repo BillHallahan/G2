@@ -58,9 +58,11 @@ rewriteRedHaltOrd solver simplifier config =
     let
         share = sharing config
         state_name = Name "state" Nothing 0 Nothing
+
+        m_logger = getLogger config
     in
-    (case logStates config of
-            Just fp -> SomeReducer (StdRed share solver simplifier :<~ EnforceProgressR :<~ ConcSymReducer :<~? (Logger fp :<~ EquivReducer))
+    (case m_logger of
+            Just logger -> SomeReducer (StdRed share solver simplifier :<~ EnforceProgressR :<~ ConcSymReducer) <~? (logger <~ SomeReducer EquivReducer)
             Nothing -> SomeReducer (StdRed share solver simplifier :<~ EnforceProgressR :<~ ConcSymReducer :<~? EquivReducer)
      , SomeHalter
          (DiscardIfAcceptedTag state_name
