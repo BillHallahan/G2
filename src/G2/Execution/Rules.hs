@@ -953,11 +953,12 @@ retReplaceSymbFunc' state@(State { expr_env = eenv
         e = Lam TermL x $ Case (Var x) x' alts
         eenv' = insertIds eenv symIds
         eenv'' = E.insert s e eenv'
+        (constState, ng'''') = mkFuncConst ng'''
     in Just (RuleReturnReplaceSymbFunc, [state {
         curr_expr = CurrExpr Return e,
         symbolic_ids = symIds ++ L.delete sId (symbolic_ids state),
         expr_env = eenv''
-    }], ng''')
+    }, constState], ng'''')
     -- FUNC-APP
     | Var (Id s (TyFun t1@(TyFun _ _) t2)) <- ce
     , E.isSymbolic s eenv
@@ -971,11 +972,36 @@ retReplaceSymbFunc' state@(State { expr_env = eenv
         e = Lam TermL fa $ mkApp [f, mkApp (Var fa : xs), Var fa]
         eenv' = insertIds eenv xIds
         eenv'' = E.insertSymbolic (idName fId) fId eenv'
+        eenv''' = E.insert s e eenv''
+        (constState, ng'''') = mkFuncConst ng'''
     in Just (RuleReturnReplaceSymbFunc, [state {
         curr_expr = CurrExpr Return e,
         symbolic_ids = xIds ++ (fId:symbolic_ids state),
+        expr_env = eenv'''
+    }, constState], ng'''')
+    -- LIT-SPLIT
+    | Var (Id s (TyFun t1 t2)) <- ce
+    , isPrimType t1
+    , E.isSymbolic s eenv
+    = let
+        boolTy = (TyCon (KV.tyBool kv) TYPE)
+        trueDc = DataCon (KV.dcTrue kv) boolTy
+        falseDc = DataCon (KV.dcFalse kv) boolTy
+        eqT1 = mkEqPrimType t1 kv
+        (f1Id:f2Id:yId:xId:discrimId:[], ng') = freshIds [t2, TyFun t1 t2, t1, t1, boolTy] ng
+        x = Var xId
+        e = Lam TermL xId $ Case (mkApp [eqT1,x,(Var yId)]) discrimId [
+            -- simplify true case
+            Alt (DataAlt trueDc []) (Var f1Id),
+            Alt (DataAlt falseDc []) (App (Var f2Id) x)]
+        eenv' = insertIds eenv [f1Id, f2Id, yId]
+        eenv'' = E.insert s e eenv'
+        (constState, ng'' ) = mkFuncConst ng'
+    in Just (RuleReturnReplaceSymbFunc, [state {
+        curr_expr = CurrExpr Return e,
+        symbolic_ids = f1Id:f2Id:yId:symbolic_ids state,
         expr_env = eenv''
-    }], ng''')
+    }, constState], ng'')
     | otherwise = Nothing
     where
         argTypes :: Type -> ([Type], Type)
@@ -991,6 +1017,21 @@ retReplaceSymbFunc' state@(State { expr_env = eenv
         genArgIds (DataCon _ dcty) ng =
             let (argTys, _) = argTypes dcty
             in foldr (\ty (ids, ng) -> let (id, ng') = freshId ty ng in ((id:ids), ng')) ([], ng) argTys
+
+        -- mkFuncConst :: NameGen -> (State t, NameGen)
+        mkFuncConst ng =
+            let
+                Var (Id s (TyFun t1 t2)) = ce
+                (fId:xId:[], ng') = freshIds [t2, t1] ng
+                eenv' = insertIds eenv [fId]
+                e = Lam TermL xId $ Var fId
+                eenv'' = E.insert s e eenv'
+            in (state {
+                curr_expr = CurrExpr Return e,
+                symbolic_ids = fId:symbolic_ids state,
+                expr_env = eenv''
+            }, ng')
+        
 
 
 
