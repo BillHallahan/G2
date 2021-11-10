@@ -541,6 +541,12 @@ exprTrace sh1 sh2 =
       s_pair (s1, s2) = [
           printHaskell s1 (exprExtract s1)
         , printHaskell s2 (exprExtract s2)
+        , show (symbolic_ids s1)
+        , show (symbolic_ids s2)
+        , show (track s1)
+        , show (track s2)
+        , show (exprExtract s1)
+        , show (exprExtract s2)
         , "------"
         ]
   in concat $ map s_pair s_hist
@@ -581,6 +587,8 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
       putStrLn "J!"
       putStrLn $ printHaskell s1 $ exprExtract s1
       putStrLn $ printHaskell s2 $ exprExtract s2
+      --putStrLn $ show $ exprExtract s1
+      --putStrLn $ show $ exprExtract s2
 
       let prev' = concat $ map prevFiltered prev
           (obs_i, obs_c) = partition canUseInduction obs
@@ -625,6 +633,16 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
         S.UNSAT () -> return $ DischargeResult not_ready_h (matches ++ ready_solved) Nothing
         _ -> return $ DischargeResult not_ready_h (matches ++ ready_solved) (Just ready)
 
+-- TODO (11/10) need to move total-finite info for induction
+-- info from first tracker gets added to the second
+-- TODO left takes precedence in union?
+mergeTrackers :: EquivTracker -> EquivTracker -> EquivTracker
+mergeTrackers t1 t2 = t2 {
+    higher_order = HM.union (higher_order t1) (higher_order t2)
+  , total = HS.union (total t1) (total t2)
+  , finite = HS.union (finite t1) (finite t2)
+}
+
 -- TODO (11/1) back to being a converter rather than a filter, possibly
 -- if it's a converter, I may need a way to explore lots of branching paths
 -- I could just make a single arbitrary choice, alternatively
@@ -657,15 +675,29 @@ induction solver ns prev (s1, s2) = do
   -- need to make a substitution for it
   -- going with left substitution for now
   case working_info of
-    [] -> trace ("NOT I! " ++ show (length scr_pairs)) return (False, s1, s2)
+    [] -> trace ("NOT I! " ++ show (length prev)) return (False, s1, s2)
     -- TODO use the "current" pair
     -- TODO some of this doesn't matter anymore
     h:_ -> let (sc1, sc2, PrevMatch (q1, q2) (p1, p2) (mapping, _)) = h
                e2_old = exprExtract p2
                hm_list = HM.toList mapping
                e2_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e2_old hm_list
-               e1_new = replaceScrutinee sc1 e2_old' $ exprExtract s1
-           in trace ("YES I! " ++ show (exprExtract q1, exprExtract q2)) $ return (True, s1{ curr_expr = CurrExpr Evaluate e1_new }, s2)
+               e1_new = replaceScrutinee sc1 e2_old' $ exprExtract q1
+               e1_old = exprExtract p1
+               e1_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e1_old hm_list
+               e2_new = replaceScrutinee sc2 e1_old' $ exprExtract q2
+               q1' = q1 { track = mergeTrackers (track q2) (track q1) }
+               -- TODO q2' doesn't help either
+               --q2' = q2 { track = mergeTrackers (track s2) (track q2) }
+               q2' = q2 { track = mergeTrackers (track q1) (track q2) }
+               -- TODO use q1 and q2 rather than s1 and s2?
+               -- I get SAT for p10 _m with either q2 or s2
+               -- just backtracking to q1 and q2 throws things off
+           --in trace ("YES I! " ++ show (printHaskell q1 $ exprExtract q1, printHaskell q2 $ exprExtract q2) ++ " :: " ++ show (printHaskell p1 $ exprExtract p1, printHaskell p2 $ exprExtract p2) ++ " :: " ++ show (printHaskell q1 $ sc1, printHaskell q2 $ sc2) ++ " :: " ++ show (printHaskell s1 $ exprExtract s1, printHaskell s2 $ exprExtract s2)) $ return (True, q1{ curr_expr = CurrExpr Evaluate e1_new }, q2)
+           --in trace ("YES I! " ++ show (track q1', track q2) ++ " :: " ++ show (track p1, track p2) ++ " :: " ++ show (sc1, sc2) ++ " :: " ++ show (track s1, track s2)) $ return (True, q1'{ curr_expr = CurrExpr Evaluate e1_new }, q2')
+           in trace ("YES I! " ++ show (length prev)) $ return (True, q1', q2)
+           --in trace ("YES I! " ++ show (length prev)) $ return (True, s1, s2)
+           --in trace ("YES I! " ++ show (length prev)) $ return (True, q1, q2'{ curr_expr = CurrExpr Evaluate e2_new })
 
 -- left side stays constant
 inductionFoldL :: S.Solver solver =>
@@ -678,7 +710,7 @@ inductionFoldL solver ns prev (s1, s2) = do
   (b, s1', s2') <- induction solver ns prev (s1, s2)
   if b then trace ("EL " ++ show (length prev)) $ return (True, s1', s2')
   else case prev of
-    [] -> return (False, s1, s2)
+    [] -> trace ("XL " ++ show (length prev)) $ return (False, s1, s2)
     (_, p2):t -> inductionFoldL solver ns t (s1, p2)
 
 inductionFoldR :: S.Solver solver =>
@@ -686,12 +718,12 @@ inductionFoldR :: S.Solver solver =>
                   HS.HashSet Name ->
                   [(StateET, StateET)] ->
                   (StateET, StateET) ->
-                  IO (StateET, StateET)
+                  IO (Bool, StateET, StateET)
 inductionFoldR solver ns prev (s1, s2) = do
   (b, s1', s2') <- induction solver ns prev (s1, s2)
-  if b then trace ("ER " ++ show (length prev)) $ return (s1', s2')
+  if b then trace ("ER " ++ show (length prev)) $ return (True, s1', s2')
   else case prev of
-    [] -> return (s1, s2)
+    [] -> trace ("XR " ++ show (length prev)) $ return (False, s1, s2)
     (p1, _):t -> inductionFoldR solver ns t (p1, s2)
 
 inductionFold :: S.Solver solver =>
@@ -701,9 +733,11 @@ inductionFold :: S.Solver solver =>
                  (StateET, StateET) ->
                  IO (StateET, StateET)
 inductionFold solver ns prev (s1, s2) = do
-  (b, s1', s2') <- inductionFoldL solver ns prev (s1, s2)
-  if b then return (s1', s2')
-  else inductionFoldR solver ns prev (s1, s2)
+  (bl, s1l, s2l) <- inductionFoldL solver ns prev (s1, s2)
+  (br, s1r, s2r) <- inductionFoldR solver ns prev (s1, s2)
+  if bl then return (s1l, s2l)
+  else if br then return (s1r, s2r)
+  else return (s1, s2)
 
 -- The induction function isn't a filter; it converts state pairs
 -- if induction can't be applied, just return the input
