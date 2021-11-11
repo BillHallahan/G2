@@ -66,8 +66,9 @@ data StateH = StateH {
 
 -- remember this is for only one side
 data IndMarker = IndMarker {
-    old_state :: StateET
-  , current_state :: StateET
+    past_state :: StateET
+  , present_state :: StateET
+  , result_state :: StateET
 }
 
 -- TODO this should be the output from tryDischarge
@@ -100,6 +101,10 @@ logStatesFolder :: String -> Maybe String -> LogMode
 logStatesFolder _ Nothing = NoLog
 logStatesFolder pre (Just fr) = Log Pretty $ fr ++ "/" ++ pre
 
+logStatesET :: String -> Maybe String -> Maybe String
+logStatesET _ Nothing = Nothing
+logStatesET pre (Just fr) = Just $ fr ++ "/" ++ pre
+
 -- TODO keep track of the prefixes for debugging
 runSymExec :: Config ->
               Maybe String ->
@@ -111,7 +116,9 @@ runSymExec config folder_root s1 s2 = do
   ct1 <- CM.liftIO $ getCurrentTime
   (bindings, k) <- CM.get
   let config' = config { logStates = logStatesFolder ("a" ++ show k) folder_root }
-  (er1, bindings') <- CM.lift $ runG2ForRewriteV s1 config' bindings
+      t1 = (track s1) { folder_name = logStatesET ("a" ++ show k) folder_root }
+  CM.liftIO $ putStrLn $ (show $ folder_name $ track s1) ++ " becomes " ++ (show $ folder_name t1)
+  (er1, bindings') <- CM.lift $ runG2ForRewriteV (s1 { track = t1 }) config' bindings
   CM.put (bindings', k + 1)
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
@@ -119,7 +126,9 @@ runSymExec config folder_root s1 s2 = do
                     let s2_ = transferStateInfo s1_ s2
                     ct2 <- CM.liftIO $ getCurrentTime
                     let config'' = config { logStates = logStatesFolder ("b" ++ show k_) folder_root }
-                    (er2, b_') <- CM.lift $ runG2ForRewriteV s2_ config'' b_
+                        t2 = (track s2_) { folder_name = logStatesET ("b" ++ show k_) folder_root }
+                    CM.liftIO $ putStrLn $ (show $ folder_name $ track s2_) ++ " becomes " ++ (show $ folder_name t2)
+                    (er2, b_') <- CM.lift $ runG2ForRewriteV (s2_ { track = t2 }) config'' b_
                     CM.put (b_', k_ + 1)
                     return $ map (\er2_ -> 
                                     let
@@ -132,7 +141,7 @@ runSymExec config folder_root s1 s2 = do
 
 -- After s1 has had its expr_env, path constraints, and tracker updated,
 -- transfer these updates to s2.
-transferStateInfo :: State t -> State t -> State t
+transferStateInfo :: StateET -> StateET -> StateET
 transferStateInfo s1 s2 =
     let
         n_eenv = E.union (expr_env s1) (expr_env s2)
@@ -140,7 +149,7 @@ transferStateInfo s1 s2 =
     s2 { expr_env = n_eenv
        , path_conds = foldr P.insert (path_conds s1) (P.toList (path_conds s2))
        , symbolic_ids = map (\(Var i) -> i) . E.elems $ E.filterToSymbolic n_eenv
-       , track = track s1 }
+       , track = (track s1) { folder_name = folder_name $ track s2 } }
 
 frameWrap :: Frame -> Expr -> Expr
 frameWrap (CaseFrame i alts) e = Case e i alts
@@ -545,8 +554,10 @@ exprTrace sh1 sh2 =
         , show (symbolic_ids s2)
         , show (track s1)
         , show (track s2)
-        , show (exprExtract s1)
-        , show (exprExtract s2)
+        , show (length $ inductions sh1)
+        , show (length $ inductions sh2)
+        --, show (exprExtract s1)
+        --, show (exprExtract s2)
         , "------"
         ]
   in concat $ map s_pair s_hist
@@ -554,10 +565,29 @@ exprTrace sh1 sh2 =
 addDischarge :: StateET -> StateH -> StateH
 addDischarge s sh = sh { discharge = Just s }
 
+-- TODO don't use for now
 addInduction :: StateET -> StateH -> StateH
 addInduction s sh =
-  let im = IndMarker s (latest sh)
+  let im = IndMarker s s (latest sh)
   in sh { inductions = im:(inductions sh) }
+
+-- TODO a better setup would also indicate which side was used for induction
+-- TODO just return (sh1, sh2) in failure event?
+-- TODO I can add induction markers here; preserve the old states
+-- q1 and q2 were the states used for the induction
+-- TODO more reworking would be necessary to get the actual past states used
+makeIndStateH :: (StateH, StateH) ->
+                 ((StateET, StateET), (Int, StateET, StateET)) ->
+                 (StateH, StateH)
+makeIndStateH (sh1, sh2) ((q1, q2), (n, s1, s2)) | n >= 0 =
+  let hist1 = drop n $ history sh1
+      hist2 = drop n $ history sh2
+      sh1' = sh1 { history = hist1, latest = s1 }
+      sh2' = sh2 { history = hist2, latest = s2 }
+      im1 = IndMarker q2 q1 s1
+      im2 = IndMarker q1 q2 s2
+  in (sh1', sh2')
+  | otherwise = (sh1 { latest = s1 }, sh2 { latest = s2 })
 
 -- TODO printing
 tryDischarge :: S.Solver solver =>
@@ -615,9 +645,13 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
 
       -- TODO unnecessary to pass the induction states through this?
       let (ready, not_ready) = partition statePairReadyForSolver states_c'
-          not_ready' = not_ready ++ states_i'
+          --not_ready' = not_ready ++ states_i'
           ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
-          not_ready_h = map (\(n1, n2) -> (replaceH sh1 n1, replaceH sh2 n2)) not_ready'
+          not_ready_h1 = map (\(n1, n2) -> (replaceH sh1 n1, replaceH sh2 n2)) not_ready
+          -- TODO crude solution:  induction states lose their history
+          -- seems to cause some other problems
+          not_ready_h2 = map (makeIndStateH (sh1, sh2)) (zip states_i states_i')
+          not_ready_h = not_ready_h1 ++ not_ready_h2
           -- TODO what debug information do I give for these?
           -- let the "discharge" state be the current state itself?
           -- I think that's good enough for now
@@ -675,7 +709,7 @@ induction solver ns prev (s1, s2) = do
   -- need to make a substitution for it
   -- going with left substitution for now
   case working_info of
-    [] -> trace ("NOT I! " ++ show (length prev)) return (False, s1, s2)
+    [] -> return (False, s1, s2)
     -- TODO use the "current" pair
     -- TODO some of this doesn't matter anymore
     h:_ -> let (sc1, sc2, PrevMatch (q1, q2) (p1, p2) (mapping, _)) = h
@@ -689,13 +723,13 @@ induction solver ns prev (s1, s2) = do
                q1' = q1 { track = mergeTrackers (track q2) (track q1) }
                -- TODO q2' doesn't help either
                --q2' = q2 { track = mergeTrackers (track s2) (track q2) }
-               q2' = q2 { track = mergeTrackers (track q1) (track q2) }
+               --q2' = q2 { track = mergeTrackers (track q1) (track q2) }
                -- TODO use q1 and q2 rather than s1 and s2?
                -- I get SAT for p10 _m with either q2 or s2
                -- just backtracking to q1 and q2 throws things off
            --in trace ("YES I! " ++ show (printHaskell q1 $ exprExtract q1, printHaskell q2 $ exprExtract q2) ++ " :: " ++ show (printHaskell p1 $ exprExtract p1, printHaskell p2 $ exprExtract p2) ++ " :: " ++ show (printHaskell q1 $ sc1, printHaskell q2 $ sc2) ++ " :: " ++ show (printHaskell s1 $ exprExtract s1, printHaskell s2 $ exprExtract s2)) $ return (True, q1{ curr_expr = CurrExpr Evaluate e1_new }, q2)
            --in trace ("YES I! " ++ show (track q1', track q2) ++ " :: " ++ show (track p1, track p2) ++ " :: " ++ show (sc1, sc2) ++ " :: " ++ show (track s1, track s2)) $ return (True, q1'{ curr_expr = CurrExpr Evaluate e1_new }, q2')
-           in trace ("YES I! " ++ show (length prev)) $ return (True, q1', q2)
+           in trace ("YES I! " ++ show (map (folder_name . track) [s1, s2, q1, q2, p1, p2])) $ return (True, q1', q2)
            --in trace ("YES I! " ++ show (length prev)) $ return (True, s1, s2)
            --in trace ("YES I! " ++ show (length prev)) $ return (True, q1, q2'{ curr_expr = CurrExpr Evaluate e2_new })
 
@@ -705,43 +739,43 @@ inductionFoldL :: S.Solver solver =>
                   HS.HashSet Name ->
                   [(StateET, StateET)] ->
                   (StateET, StateET) ->
-                  IO (Bool, StateET, StateET)
+                  IO (Int, StateET, StateET)
 inductionFoldL solver ns prev (s1, s2) = do
   (b, s1', s2') <- induction solver ns prev (s1, s2)
-  if b then trace ("EL " ++ show (length prev)) $ return (True, s1', s2')
+  if b then trace ("EL " ++ show (length prev)) $ return (length prev, s1', s2')
   else case prev of
-    [] -> trace ("XL " ++ show (length prev)) $ return (False, s1, s2)
+    [] -> return (-1, s1, s2)
     (_, p2):t -> inductionFoldL solver ns t (s1, p2)
 
+-- TODO this returns the length of prev at the time of return
 inductionFoldR :: S.Solver solver =>
                   solver ->
                   HS.HashSet Name ->
                   [(StateET, StateET)] ->
                   (StateET, StateET) ->
-                  IO (Bool, StateET, StateET)
+                  IO (Int, StateET, StateET)
 inductionFoldR solver ns prev (s1, s2) = do
   (b, s1', s2') <- induction solver ns prev (s1, s2)
-  if b then trace ("ER " ++ show (length prev)) $ return (True, s1', s2')
+  if b then trace ("ER " ++ show (length prev)) $ return (length prev, s1', s2')
   else case prev of
-    [] -> trace ("XR " ++ show (length prev)) $ return (False, s1, s2)
+    [] -> return (-1, s1, s2)
     (p1, _):t -> inductionFoldR solver ns t (p1, s2)
 
+-- TODO somewhat crude solution:  record how "far back" it needed to go
+-- negative one means that it failed
 inductionFold :: S.Solver solver =>
                  solver ->
                  HS.HashSet Name ->
                  [(StateET, StateET)] ->
                  (StateET, StateET) ->
-                 IO (StateET, StateET)
+                 IO (Int, StateET, StateET)
 inductionFold solver ns prev (s1, s2) = do
-  (bl, s1l, s2l) <- inductionFoldL solver ns prev (s1, s2)
-  (br, s1r, s2r) <- inductionFoldR solver ns prev (s1, s2)
-  if bl then return (s1l, s2l)
-  else if br then return (s1r, s2r)
-  else return (s1, s2)
+  (nl, s1l, s2l) <- inductionFoldL solver ns prev (s1, s2)
+  (nr, s1r, s2r) <- inductionFoldR solver ns prev (s1, s2)
+  if nl >= 0 then return (length prev - nl, s1l, s2l)
+  else if nr >= 0 then return (length prev - nr, s1r, s2r)
+  else return (-1, s1, s2)
 
--- The induction function isn't a filter; it converts state pairs
--- if induction can't be applied, just return the input
--- TODO optimization:  only need one fresh name per loop iteration
 -- TODO (9/27) check path constraint implication?
 -- TODO (9/30) alternate:  just substitute one scrutinee for the other
 -- put a non-symbolic variable there?
@@ -855,8 +889,8 @@ checkRule config init_state bindings total finite rule = do
       finite_hs = foldr HS.insert HS.empty finite_names
       -- always include the finite names in total
       total_hs = foldr HS.insert finite_hs total_names
-      EquivTracker et m _ _ = emptyEquivTracker
-      start_equiv_tracker = EquivTracker et m total_hs finite_hs
+      EquivTracker et m _ _ _ = emptyEquivTracker
+      start_equiv_tracker = EquivTracker et m total_hs finite_hs Nothing
       -- the keys are the same between the old and new environments
       ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
       ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
@@ -881,7 +915,7 @@ checkRule config init_state bindings total finite rule = do
   res <- verifyLoop solver ns
              [(rewrite_state_l'', rewrite_state_r'')]
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config Nothing 0 -- (Just "testing") 0
+             bindings'' config (Just "testing") 0
   -- UNSAT for good, SAT for bad
   return res
 
@@ -1272,45 +1306,6 @@ moreRestrictivePair solver ns prev (s1, s2) = do
   case filter all_three $ zip (zip (zip res_list prev) $ zip no_loss bools') maybe_pairs of
     [] -> return Nothing
     (((_, prev_pair), _), m):_ -> return $ Just $ PrevMatch (s1, s2) prev_pair (getMap m, getObs m)
-  {-
-  let mr (p1, p2) = restrictHelper p2 s2 ns $
-                    restrictHelper p1 s1 ns (Just (HM.empty, HS.empty))
-      getObs m = case m of
-        Nothing -> HS.empty
-        Just pm -> snd $ conditions pm
-      --maybe_pairs = map mr prev
-      prev_matches = [mrFoldL ns prev (s1, s2), mrFoldR ns prev (s1, s2)]
-      obs_sets = map getObs prev_matches
-      h1 = expr_env s1
-      h2 = expr_env s2
-      obs_sets' = map (HS.filter (\(e1, e2) -> rfs h1 e1 && rfs h2 e2)) obs_sets
-      no_loss = map (\(hs1, hs2) -> HS.size hs1 == HS.size hs2) (zip obs_sets obs_sets')
-      mpc m = case m of
-        Just pm -> let (s1_, s2_) = present pm
-                       (s_old1, s_old2) = past pm
-                       (hm, _) = conditions pm
-                   in andM (moreRestrictivePC solver s_old1 s1_ hm) (moreRestrictivePC solver s_old2 s2_ hm)
-        _ -> return False
-      -- TODO length problem here; won't do what's intended
-      -- TODO I need even more reworking to get all four states and mapping
-      bools = map mpc prev_matches
-      getPrevs m = case m of
-        Nothing -> Nothing
-        Just pm -> Just $ past pm
-      prev_maybes = map getPrevs prev_matches
-  -- check obligations individually rather than as one big group
-  res_list <- mapM (checkObligations solver s1 s2) obs_sets'
-  bools' <- mapM id bools
-  -- need res_list, no_loss, and bools all aligning at a point
-  let all_four fr = case fr of
-        ((S.UNSAT (), Just _), (True, True)) -> True
-        _ -> False
-  -- all four lists should be the same length
-  -- TODO this isn't the case anymore
-  case filter all_four $ zip (zip res_list prev_matches) $ zip no_loss bools' of
-    [] -> return Nothing
-    ((_, Just pm), _):_ -> return $ Just pm
-  -}
 
 innerScrutineeStates :: State t -> [State t]
 innerScrutineeStates s@(State { curr_expr = CurrExpr _ e }) =

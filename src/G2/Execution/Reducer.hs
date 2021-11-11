@@ -397,7 +397,8 @@ data ConcSymReducer = ConcSymReducer
 data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
                                  , saw_tick :: Maybe Int
                                  , total :: HS.HashSet Name
-                                 , finite :: HS.HashSet Name } deriving (Show, Eq)
+                                 , finite :: HS.HashSet Name
+                                 , folder_name :: Maybe String } deriving (Show, Eq)
 
 -- Forces a lone symbolic variable with a type corresponding to an ADT
 -- to evaluate to some value of that ADT
@@ -411,7 +412,7 @@ instance Reducer ConcSymReducer () EquivTracker where
                             , type_env = tenv
                             , path_conds = pc
                             , symbolic_ids = symbs
-                            , track = EquivTracker et m total finite })
+                            , track = EquivTracker et m total finite fname })
                    b@(Bindings { name_gen = ng })
         | E.isSymbolic n eenv
         , Just (dc_symbs, ng') <- arbDC tenv ng t n total = do
@@ -430,7 +431,7 @@ instance Reducer ConcSymReducer () EquivTracker where
                                               (E.insert n e eenv)
                                               symbs'
                                     , symbolic_ids = symbs' ++ L.delete i symbs
-                                    , track = EquivTracker et m total' finite'
+                                    , track = EquivTracker et m total' finite' fname
                                     }) dc_symbs
                 b' =  b { name_gen = ng' }
                 -- only add to total if n was total
