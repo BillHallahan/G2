@@ -249,7 +249,9 @@ wrapAllRecursion cg h n e =
   then foldr (wrapIfCorecursive cg h n) e n_list
   else e
 
+-- TODO also needs to go underneath Cases
 tickWrap :: Expr -> Expr
+tickWrap (Case e i a) = Case (tickWrap e) i a
 tickWrap (App e1 e2) = App (tickWrap e1) e2
 tickWrap (Tick nl e) = Tick nl (tickWrap e)
 tickWrap e = Tick (NamedLoc loc_name) e
@@ -603,8 +605,8 @@ tryCoinduction solver ns prev (s1, s2) = do
   res1 <- moreRestrictiveEquiv solver ns s1 s2
   res2 <- moreRestrictivePair solver ns prev (s1, s2)
   case res1 of
-    Just _ -> return res1
-    _ -> return res2
+    Just _ -> trace ("EQUIVALENT " ++ show (length prev)) $ return res1
+    _ -> trace ("DISCHARGE " ++ show (length prev)) $ return res2
 
 -- TODO printing
 -- TODO was the type signature wrong before?
@@ -1063,6 +1065,7 @@ checkRule config init_state bindings total finite rule = do
       walkers = deepseq_walkers bindings''
       e_l = exprExtract rewrite_state_l
       e_l' = foldr (forceFinite walkers) e_l finite_ids
+      -- TODO prepareState to avoid tick problem?
       rewrite_state_l' = rewrite_state_l { curr_expr = CurrExpr Evaluate e_l' }
       e_r = exprExtract rewrite_state_r
       e_r' = foldr (forceFinite walkers) e_r finite_ids
@@ -1072,6 +1075,11 @@ checkRule config init_state bindings total finite rule = do
       rewrite_state_r'' = startingState start_equiv_tracker rewrite_state_r'
   S.SomeSolver solver <- initSolver config
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
+  putStrLn $ printHaskell rewrite_state_l' e_l'
+  putStrLn $ printHaskell rewrite_state_r' e_r'
+  -- TODO prepareState putting in wrong place?
+  putStrLn $ printHaskell rewrite_state_l' $ exprExtract rewrite_state_l'
+  putStrLn $ printHaskell rewrite_state_r' $ exprExtract rewrite_state_r'
   res <- verifyLoop solver ns
              [(rewrite_state_l'', rewrite_state_r'')]
              [(rewrite_state_l'', rewrite_state_r'')]
