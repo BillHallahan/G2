@@ -647,7 +647,7 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
 
       let states_i = map (stateWrap s1 s2) obs_i
       -- TODO need a way to get the prev pair used for induction
-      states_i' <- mapM (inductionFold solver ns (sh1, sh2)) states_i
+      states_i' <- mapM (inductionFull solver ns fresh_name (sh1, sh2)) states_i
       --states_i' <- filterM (notM . (induction solver ns fresh_name prev')) states_i
 
       -- TODO unnecessary to pass the induction states through this?
@@ -698,13 +698,14 @@ mergeTrackers t1 t2 = t2 {
 -- TODO almost certainly incorrect as it is now; also gets stuck
 
 -- TODO (11/8) clear out some of past if old state used as "present"
-induction :: S.Solver solver =>
-             solver ->
-             HS.HashSet Name ->
-             [(StateET, StateET)] ->
-             (StateET, StateET) ->
-             IO (Bool, StateET, StateET)
-induction solver ns prev (s1, s2) = do
+-- TODO substitution happens on the left here
+inductionL :: S.Solver solver =>
+              solver ->
+              HS.HashSet Name ->
+              [(StateET, StateET)] ->
+              (StateET, StateET) ->
+              IO (Bool, StateET, StateET)
+inductionL solver ns prev (s1, s2) = do
   let scr1 = innerScrutinees $ exprExtract s1
       scr2 = innerScrutinees $ exprExtract s2
       scr_pairs = [(sc1, sc2) | sc1 <- scr1, sc2 <- scr2]
@@ -724,10 +725,10 @@ induction solver ns prev (s1, s2) = do
                hm_list = HM.toList mapping
                e2_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e2_old hm_list
                e1_new = replaceScrutinee sc1 e2_old' $ exprExtract s1
-               e1_old = exprExtract p1
-               e1_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e1_old hm_list
-               e2_new = replaceScrutinee sc2 e1_old' $ exprExtract q2
-               q1' = q1 { track = mergeTrackers (track q2) (track q1) }
+               --e1_old = exprExtract p1
+               --e1_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e1_old hm_list
+               --e2_new = replaceScrutinee sc2 e1_old' $ exprExtract q2
+               --q1' = q1 { track = mergeTrackers (track q2) (track q1) }
                -- TODO q2' doesn't help either
                --q2' = q2 { track = mergeTrackers (track s2) (track q2) }
                --q2' = q2 { track = mergeTrackers (track q1) (track q2) }
@@ -742,6 +743,45 @@ induction solver ns prev (s1, s2) = do
               return (True, s1 { curr_expr = CurrExpr Evaluate e1_new }, s2)
            --in trace ("YES I! " ++ show (map (folder_name . track) [s1, s2, q1, q2, p1, p2])) $ return (False, s1, s2)
            --in trace ("YES I! " ++ show (length prev)) $ return (True, q1, q2'{ curr_expr = CurrExpr Evaluate e2_new })
+
+-- TODO reduce duplicated code?  Also make sure it's correct
+-- substitution happens on the right here
+inductionR :: S.Solver solver =>
+              solver ->
+              HS.HashSet Name ->
+              [(StateET, StateET)] ->
+              (StateET, StateET) ->
+              IO (Bool, StateET, StateET)
+inductionR solver ns prev (s1, s2) = do
+  let scr1 = innerScrutinees $ exprExtract s1
+      scr2 = innerScrutinees $ exprExtract s2
+      scr_pairs = [(sc1, sc2) | sc1 <- scr1, sc2 <- scr2]
+      scr_states = [(s1 { curr_expr = CurrExpr Evaluate sc1 }, s2 { curr_expr = CurrExpr Evaluate sc2 }) | (sc1, sc2) <- scr_pairs]
+  mr_pairs <- mapM (moreRestrictiveIndLeft solver ns prev) scr_states
+  let mr_zipped = zip scr_pairs mr_pairs
+      working_info = [(sc1, sc2, pm) | ((sc1, sc2), Just pm) <- mr_zipped]
+  case working_info of
+    [] -> return (False, s1, s2)
+    h:_ -> let (sc1, sc2, PrevMatch (q1, q2) (p1, p2) (mapping, _) pc1) = h
+               e1_old = exprExtract pc1
+               hm_list = HM.toList mapping
+               e1_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e1_old hm_list
+               e2_new = replaceScrutinee sc2 e1_old' $ exprExtract s2
+           in return (True, s1, s2 { curr_expr = CurrExpr Evaluate e2_new })
+
+-- precedence goes to left-side substitution
+-- right-side substitution only happens if left-side fails
+induction :: S.Solver solver =>
+             solver ->
+             HS.HashSet Name ->
+             [(StateET, StateET)] ->
+             (StateET, StateET) ->
+             IO (Bool, StateET, StateET)
+induction solver ns prev (s1, s2) = do
+  (bl, s1l, s2l) <- inductionL solver ns prev (s1, s2)
+  (br, s1r, s2r) <- inductionR solver ns prev (s1, s2)
+  if bl then return (bl, s1l, s2l)
+  else return (br, s1r, s2r)
 
 backtrackOne :: StateH -> StateH
 backtrackOne sh =
@@ -799,6 +839,78 @@ inductionFold solver ns sh_pair@(sh1, sh2) (s1, s2) = do
   if nl >= 0 then trace ("IL " ++ show (map (folder_name . track) [s1, s2, s1l, s2l])) $ return (min_length - nl, s1l, s2l)
   else if nr >= 0 then trace ("IR " ++ show (map (folder_name . track) [s1, s2, s1r, s2r])) $ return (min_length - nr, s1r, s2r)
   else return (-1, s1, s2)
+
+generalizeAux :: S.Solver solver =>
+                 solver ->
+                 HS.HashSet Name ->
+                 [State t] ->
+                 State t ->
+                 IO (Maybe (PrevMatch t))
+generalizeAux solver ns s1_list s2 = do
+  let check_equiv s1_ = moreRestrictiveEquiv solver ns s1_ s2
+  res <- mapM check_equiv s1_list
+  let res' = filter isJust res
+  case res' of
+    [] -> return Nothing
+    h:_ -> return h
+
+-- TODO replace the largest sub-expression possible with a fresh symbolic var
+generalize :: S.Solver solver =>
+              solver ->
+              HS.HashSet Name ->
+              Name ->
+              (StateET, StateET) ->
+              IO (StateET, StateET)
+generalize solver ns fresh_name (s1, s2) = do
+  -- expressions are ordered from outer to inner
+  -- the largest ones are on the outside
+  -- take the earliest array entry that works
+  -- for anything on one side, there can only be one match on the other side
+  let e1 = exprExtract s1
+      scr1 = innerScrutinees e1
+      scr_states1 = map (\e -> s1 { curr_expr = CurrExpr Evaluate e }) scr1
+      e2 = exprExtract s2
+      scr2 = innerScrutinees e2
+      scr_states2 = map (\e -> s2 { curr_expr = CurrExpr Evaluate e }) scr2
+  res <- mapM (generalizeAux solver ns scr_states1) scr_states2
+  -- TODO expression environment adjustment?  Only for the fresh var
+  -- TODO also may want to adjust the equivalence tracker
+  let res' = filter isJust res
+  case res' of
+    (Just pm):_ -> let (s1', s2') = present pm
+                       fresh_id = Id fresh_name (typeOf e1')
+                       fresh_var = Var fresh_id
+                       e1' = exprExtract s1'
+                       e1'' = replaceScrutinee e1' fresh_var e1
+                       h1 = expr_env s1
+                       h1' = E.insertSymbolic fresh_name fresh_id h1
+                       s1'' = s1 {
+                         curr_expr = CurrExpr Evaluate e1''
+                       , expr_env = h1'
+                       }
+                       e2' = exprExtract s2'
+                       e2'' = replaceScrutinee e2' fresh_var e2
+                       h2 = expr_env s2
+                       h2' = E.insertSymbolic fresh_name fresh_id h2
+                       s2'' = s2 {
+                         curr_expr = CurrExpr Evaluate e2''
+                       , expr_env = h2'
+                       }
+                   in return (s1'', s2'')
+    _ -> return (s1, s2)
+
+-- TODO does this throw off history logging?  I don't think so
+inductionFull :: S.Solver solver =>
+                 solver ->
+                 HS.HashSet Name ->
+                 Name ->
+                 (StateH, StateH) ->
+                 (StateET, StateET) ->
+                 IO (Int, StateET, StateET)
+inductionFull solver ns fresh_name sh_pair s_pair = do
+  (n, s1, s2) <- inductionFold solver ns sh_pair s_pair
+  (s1', s2') <- generalize solver ns fresh_name (s1, s2)
+  if n < 0 then return (n, s1, s2) else return (n, s1', s2')
 
 -- TODO (9/27) check path constraint implication?
 -- TODO (9/30) alternate:  just substitute one scrutinee for the other
@@ -939,7 +1051,7 @@ checkRule config init_state bindings total finite rule = do
   res <- verifyLoop solver ns
              [(rewrite_state_l'', rewrite_state_r'')]
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config (Just "testing") 0
+             bindings'' config Nothing 0 -- (Just "testing") 0
   -- UNSAT for good, SAT for bad
   return res
 
@@ -1376,3 +1488,26 @@ moreRestrictiveIndRight solver ns prev (s1, s2) =
   let prev1 = map (\(p1, p2) -> (p1, p2, innerScrutineeStates p2)) prev
       prev2 = [(p1, p2', p2) | (p1, p2, p2l) <- prev1, p2' <- p2l]
   in moreRestrictivePairAux solver ns prev2 (s1, s2)
+
+isIdentity :: (Id, Expr) -> Bool
+isIdentity (i1, (Var i2)) = i1 == i2
+isIdentity _ = False
+
+isIdentityMap :: HM.HashMap Id Expr -> Bool
+isIdentityMap hm = foldr (&&) True (map isIdentity $ HM.toList hm)
+
+-- approximation should be the identity map
+-- needs to be enforced, won't just happen naturally
+moreRestrictiveEquiv :: S.Solver solver =>
+                        solver ->
+                        HS.HashSet Name ->
+                        State t ->
+                        State t ->
+                        IO (Maybe (PrevMatch t))
+moreRestrictiveEquiv solver ns s1 s2 = do
+  pm_maybe <- moreRestrictivePair solver ns [(s2, s1)] (s1, s2)
+  case pm_maybe of
+    Nothing -> return Nothing
+    Just (PrevMatch _ _ (hm, _) _) -> if isIdentityMap hm
+                                      then return pm_maybe
+                                      else return Nothing
