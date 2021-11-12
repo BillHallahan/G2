@@ -142,7 +142,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             in
             "let " ++ binds' ++ " in " ++ mkExprHaskell'' off e
         -- TODO
-        mkExprHaskell'' off (Tick _ e) = mkExprHaskell'' off e
+        mkExprHaskell'' off (Tick nl e) = "TICK[" ++ (show nl) ++ "]{" ++ (mkExprHaskell'' off e) ++ "}"
         mkExprHaskell'' _ e = "e = " ++ show e ++ " NOT SUPPORTED"
 
         parenWrap :: Expr -> String -> String

@@ -250,6 +250,8 @@ wrapAllRecursion cg h n e =
   else e
 
 tickWrap :: Expr -> Expr
+tickWrap (App e1 e2) = App (tickWrap e1) e2
+tickWrap (Tick nl e) = Tick nl (tickWrap e)
 tickWrap e = Tick (NamedLoc loc_name) e
 
 exprWrap :: Stck.Stack Frame -> Expr -> Expr
@@ -330,7 +332,8 @@ verifyLoop solver ns states prev b config folder_root k | not (null states) = do
         case bad_states dr' of
           Nothing -> return $ Just $ unfinished dr'
           Just _ -> return Nothing
-      vl (sh1, sh2) = simplify $ tryDischarge solver ns fresh_name sh1 sh2 prev
+      -- TODO don't use a universal prev list; every exec path has its own
+      vl (sh1, sh2) = simplify $ tryDischarge solver ns fresh_name sh1 sh2 (zip (history sh1) (history sh2))
   -- TODO printing
   putStrLn "<Loop Iteration>"
   -- for every internal list, map with its corresponding original state
@@ -590,13 +593,15 @@ makeIndStateH (sh1, sh2) ((q1, q2), (n, s1, s2)) | n >= 0 =
   | otherwise = (sh1 { latest = s1 }, sh2 { latest = s2 })
 
 -- TODO printing
+-- TODO was the type signature wrong before?
+-- TODO prev not used anymore
 tryDischarge :: S.Solver solver =>
                 solver ->
                 HS.HashSet Name ->
                 Name ->
                 StateH ->
                 StateH ->
-                [(StateH, StateH)] ->
+                [(StateET, StateET)] ->
                 IO DischargeResult
 tryDischarge solver ns fresh_name sh1 sh2 prev =
   let s1 = latest sh1
@@ -614,13 +619,15 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
       -- bad_states are the ones right here
       return $ DischargeResult [] [] (Just [(s1, s2)])
     Just obs -> do
-      putStrLn "J!"
+      putStrLn $ "J! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
       putStrLn $ printHaskell s1 $ exprExtract s1
       putStrLn $ printHaskell s2 $ exprExtract s2
       --putStrLn $ show $ exprExtract s1
       --putStrLn $ show $ exprExtract s2
 
-      let prev' = concat $ map prevFiltered prev
+      -- TODO new prev'
+      let -- prev' = concat $ map prevFiltered prev
+          prev' = prevFiltered (sh1, sh2)
           (obs_i, obs_c) = partition canUseInduction obs
           states_c = map (stateWrap s1 s2) obs_c
       -- TODO redundant computation
@@ -630,7 +637,7 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
       -- will need to fill in the discharge field
       -- also need to pair them up with the original states?
       -- there's only one original state pair
-      let discharges' = [(d, sp) | (Just (PrevMatch _ d _), sp) <- zip discharges states_c]
+      let discharges' = [(d, sp) | (Just (PrevMatch _ d _ _), sp) <- zip discharges states_c]
           matches1 = [(d1, s1_) | ((d1, _), (s1_, _)) <- discharges']
           matches1' = map (\(d1, s1_) -> addDischarge d1 $ replaceH sh1 s1_) matches1
           matches2 = [(d2, s2_) | ((_, d2), (_, s2_)) <- discharges']
@@ -640,7 +647,7 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
 
       let states_i = map (stateWrap s1 s2) obs_i
       -- TODO need a way to get the prev pair used for induction
-      states_i' <- mapM (inductionFold solver ns prev') states_i
+      states_i' <- mapM (inductionFold solver ns (sh1, sh2)) states_i
       --states_i' <- filterM (notM . (induction solver ns fresh_name prev')) states_i
 
       -- TODO unnecessary to pass the induction states through this?
@@ -712,11 +719,11 @@ induction solver ns prev (s1, s2) = do
     [] -> return (False, s1, s2)
     -- TODO use the "current" pair
     -- TODO some of this doesn't matter anymore
-    h:_ -> let (sc1, sc2, PrevMatch (q1, q2) (p1, p2) (mapping, _)) = h
-               e2_old = exprExtract p2
+    h:_ -> let (sc1, sc2, PrevMatch (q1, q2) (p1, p2) (mapping, _) pc2) = h
+               e2_old = exprExtract pc2
                hm_list = HM.toList mapping
                e2_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e2_old hm_list
-               e1_new = replaceScrutinee sc1 e2_old' $ exprExtract q1
+               e1_new = replaceScrutinee sc1 e2_old' $ exprExtract s1
                e1_old = exprExtract p1
                e1_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e1_old hm_list
                e2_new = replaceScrutinee sc2 e1_old' $ exprExtract q2
@@ -729,51 +736,68 @@ induction solver ns prev (s1, s2) = do
                -- just backtracking to q1 and q2 throws things off
            --in trace ("YES I! " ++ show (printHaskell q1 $ exprExtract q1, printHaskell q2 $ exprExtract q2) ++ " :: " ++ show (printHaskell p1 $ exprExtract p1, printHaskell p2 $ exprExtract p2) ++ " :: " ++ show (printHaskell q1 $ sc1, printHaskell q2 $ sc2) ++ " :: " ++ show (printHaskell s1 $ exprExtract s1, printHaskell s2 $ exprExtract s2)) $ return (True, q1{ curr_expr = CurrExpr Evaluate e1_new }, q2)
            --in trace ("YES I! " ++ show (track q1', track q2) ++ " :: " ++ show (track p1, track p2) ++ " :: " ++ show (sc1, sc2) ++ " :: " ++ show (track s1, track s2)) $ return (True, q1'{ curr_expr = CurrExpr Evaluate e1_new }, q2')
-           in trace ("YES I! " ++ show (map (folder_name . track) [s1, s2, q1, q2, p1, p2])) $ return (True, q1', q2)
-           --in trace ("YES I! " ++ show (length prev)) $ return (True, s1, s2)
+           in trace (show (sc1, e2_old', exprExtract s1)) $
+              trace (show (map (\(r1, r2) -> (folder_name $ track r1, folder_name $ track r2)) prev)) $
+              trace ("YES I! " ++ show (map (folder_name . track) [s1, s2, q1, q2, p1, p2])) $
+              return (True, s1 { curr_expr = CurrExpr Evaluate e1_new }, s2)
+           --in trace ("YES I! " ++ show (map (folder_name . track) [s1, s2, q1, q2, p1, p2])) $ return (False, s1, s2)
            --in trace ("YES I! " ++ show (length prev)) $ return (True, q1, q2'{ curr_expr = CurrExpr Evaluate e2_new })
+
+backtrackOne :: StateH -> StateH
+backtrackOne sh =
+  case history sh of
+    [] -> error "No Backtrack Possible"
+    h:t -> sh {
+        latest = h
+      , history = t
+      }
 
 -- left side stays constant
 inductionFoldL :: S.Solver solver =>
                   solver ->
                   HS.HashSet Name ->
-                  [(StateET, StateET)] ->
+                  (StateH, StateH) ->
                   (StateET, StateET) ->
                   IO (Int, StateET, StateET)
-inductionFoldL solver ns prev (s1, s2) = do
+inductionFoldL solver ns (sh1, sh2) (s1, s2) = do
+  let prev = prevFiltered (sh1, sh2)
   (b, s1', s2') <- induction solver ns prev (s1, s2)
-  if b then trace ("EL " ++ show (length prev)) $ return (length prev, s1', s2')
-  else case prev of
+  if b then trace ("EL " ++ show (map (folder_name . track) [s1, s2, s1', s2'])) $ return (length $ history sh2, s1', s2')
+  else case history sh2 of
     [] -> return (-1, s1, s2)
-    (_, p2):t -> inductionFoldL solver ns t (s1, p2)
+    p2:_ -> inductionFoldL solver ns (sh1, backtrackOne sh2) (s1, p2)
 
 -- TODO this returns the length of prev at the time of return
 inductionFoldR :: S.Solver solver =>
                   solver ->
                   HS.HashSet Name ->
-                  [(StateET, StateET)] ->
+                  (StateH, StateH) ->
                   (StateET, StateET) ->
                   IO (Int, StateET, StateET)
-inductionFoldR solver ns prev (s1, s2) = do
+inductionFoldR solver ns (sh1, sh2) (s1, s2) = do
+  let prev = prevFiltered (sh1, sh2)
   (b, s1', s2') <- induction solver ns prev (s1, s2)
-  if b then trace ("ER " ++ show (length prev)) $ return (length prev, s1', s2')
-  else case prev of
+  if b then trace ("ER " ++ show (map (folder_name . track) [s1, s2, s1', s2'])) $ return (length $ history sh1, s1', s2')
+  else case history sh1 of
     [] -> return (-1, s1, s2)
-    (p1, _):t -> inductionFoldR solver ns t (p1, s2)
+    p1:_ -> inductionFoldR solver ns (backtrackOne sh1, sh2) (p1, s2)
 
 -- TODO somewhat crude solution:  record how "far back" it needed to go
 -- negative one means that it failed
+-- TODO only use histories from sh1 and sh2
 inductionFold :: S.Solver solver =>
                  solver ->
                  HS.HashSet Name ->
-                 [(StateET, StateET)] ->
+                 (StateH, StateH) ->
                  (StateET, StateET) ->
                  IO (Int, StateET, StateET)
-inductionFold solver ns prev (s1, s2) = do
-  (nl, s1l, s2l) <- inductionFoldL solver ns prev (s1, s2)
-  (nr, s1r, s2r) <- inductionFoldR solver ns prev (s1, s2)
-  if nl >= 0 then return (length prev - nl, s1l, s2l)
-  else if nr >= 0 then return (length prev - nr, s1r, s2r)
+inductionFold solver ns sh_pair@(sh1, sh2) (s1, s2) = do
+  (nl, s1l, s2l) <- inductionFoldL solver ns sh_pair (s1, s2)
+  (nr, s1r, s2r) <- inductionFoldR solver ns sh_pair (s1, s2)
+  -- TODO this could cause excessive removals
+  let min_length = min (length $ history sh1) (length $ history sh2)
+  if nl >= 0 then trace ("IL " ++ show (map (folder_name . track) [s1, s2, s1l, s2l])) $ return (min_length - nl, s1l, s2l)
+  else if nr >= 0 then trace ("IR " ++ show (map (folder_name . track) [s1, s2, s1r, s2r])) $ return (min_length - nr, s1r, s2r)
   else return (-1, s1, s2)
 
 -- TODO (9/27) check path constraint implication?
@@ -1177,15 +1201,18 @@ moreRestrictivePC solver s1 s2 hm = do
 rfs :: ExprEnv -> Expr -> Bool
 rfs h e = (exprReadyForSolver h e) && (T.isPrimType $ typeOf e)
 
+-- TODO container
 data PrevMatch t = PrevMatch {
     present :: (State t, State t)
   , past :: (State t, State t)
   , conditions :: (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+  , container :: State t
 }
 
 -- TODO give better names
 -- left state stays constant
 -- TODO getting rid of the extra folding for now
+{-
 mrFoldL :: HS.HashSet Name ->
            [(State t, State t)] ->
            (State t, State t) ->
@@ -1200,11 +1227,13 @@ mrFoldL ns prev (s1, s2) = case prev of
                 in case res of
                   [] -> Nothing -- mrFoldL ns t (s1, q2)
                   (q, p):_ -> Just $ PrevMatch (s1, s2) q p
+-}
 
 -- now the right state stays constant
 -- TODO I may need to adjust other parts for all this to work properly
 -- TODO underlying alignment problems are still possible
 -- I never need to throw out previous states on the side that's constant
+{-
 mrFoldR :: HS.HashSet Name ->
            [(State t, State t)] ->
            (State t, State t) ->
@@ -1219,6 +1248,7 @@ mrFoldR ns prev (s1, s2) = case prev of
                 in case res of
                   [] -> Nothing -- mrFoldR ns t (q1, s2)
                   (q, p):_ -> Just $ PrevMatch (s1, s2) q p
+-}
 
 -- left side stays constant
 tryCoinductionL :: S.Solver solver =>
@@ -1268,16 +1298,16 @@ tryCoinduction solver ns prev (s1, s2) = do
 -- return Nothing if there was no discharge
 -- if there are multiple, just return the first
 -- TODO first pair is "current," second pair is the match from the past
-moreRestrictivePair :: S.Solver solver =>
-                       solver ->
-                       HS.HashSet Name ->
-                       [(State t, State t)] ->
-                       (State t, State t) ->
-                       --IO (Maybe ((State t, State t), (State t, State t)))
-                       IO (Maybe (PrevMatch t))
-moreRestrictivePair solver ns prev (s1, s2) = do
-  let mr (p1, p2) = restrictHelper p2 s2 ns $
-                    restrictHelper p1 s1 ns (Just (HM.empty, HS.empty))
+-- TODO the third entry in a prev triple is the original for left or right
+moreRestrictivePairAux :: S.Solver solver =>
+                          solver ->
+                          HS.HashSet Name ->
+                          [(State t, State t, State t)] ->
+                          (State t, State t) ->
+                          IO (Maybe (PrevMatch t))
+moreRestrictivePairAux solver ns prev (s1, s2) = do
+  let mr (p1, p2, _) = restrictHelper p2 s2 ns $
+                       restrictHelper p1 s1 ns (Just (HM.empty, HS.empty))
       getObs m = case m of
         Nothing -> HS.empty
         Just (_, hs) -> hs
@@ -1291,7 +1321,7 @@ moreRestrictivePair solver ns prev (s1, s2) = do
       obs_sets' = map (HS.filter (\(e1, e2) -> rfs h1 e1 && rfs h2 e2)) obs_sets
       no_loss = map (\(hs1, hs2) -> HS.size hs1 == HS.size hs2) (zip obs_sets obs_sets')
       mpc m = case m of
-        (Just (hm, _), (s_old1, s_old2)) ->
+        (Just (hm, _), (s_old1, s_old2, _)) ->
           andM (moreRestrictivePC solver s_old1 s1 hm) (moreRestrictivePC solver s_old2 s2 hm)
         _ -> return False
       bools = map mpc (zip maybe_pairs prev)
@@ -1305,7 +1335,18 @@ moreRestrictivePair solver ns prev (s1, s2) = do
   -- all four lists should be the same length
   case filter all_three $ zip (zip (zip res_list prev) $ zip no_loss bools') maybe_pairs of
     [] -> return Nothing
-    (((_, prev_pair), _), m):_ -> return $ Just $ PrevMatch (s1, s2) prev_pair (getMap m, getObs m)
+    (((_, (p1, p2, pc)), _), m):_ -> return $ Just $ PrevMatch (s1, s2) (p1, p2) (getMap m, getObs m) pc
+
+-- the third entry in prev tuples is meaningless here
+moreRestrictivePair :: S.Solver solver =>
+                       solver ->
+                       HS.HashSet Name ->
+                       [(State t, State t)] ->
+                       (State t, State t) ->
+                       IO (Maybe (PrevMatch t))
+moreRestrictivePair solver ns prev (s1, s2) =
+  let prev' = map (\(p1, p2) -> (p1, p2, p2)) prev
+  in moreRestrictivePairAux solver ns prev' (s1, s2)
 
 innerScrutineeStates :: State t -> [State t]
 innerScrutineeStates s@(State { curr_expr = CurrExpr _ e }) =
@@ -1320,10 +1361,11 @@ moreRestrictiveIndLeft :: S.Solver solver =>
                           (State t, State t) ->
                           IO (Maybe (PrevMatch t))
 moreRestrictiveIndLeft solver ns prev (s1, s2) =
-  let prev1 = map (\(p1, p2) -> (innerScrutineeStates p1, p2)) prev
-      prev2 = [(p1, p2) | (p1l, p2) <- prev1, p1 <- p1l]
-  in moreRestrictivePair solver ns prev2 (s1, s2)
+  let prev1 = map (\(p1, p2) -> (p1, innerScrutineeStates p1, p2)) prev
+      prev2 = [(p1', p2, p1) | (p1, p1l, p2) <- prev1, p1' <- p1l]
+  in moreRestrictivePairAux solver ns prev2 (s1, s2)
 
+-- TODO keep track of the whole expression that was used for the inner scrutinee
 moreRestrictiveIndRight :: S.Solver solver =>
                            solver ->
                            HS.HashSet Name ->
@@ -1331,6 +1373,6 @@ moreRestrictiveIndRight :: S.Solver solver =>
                            (State t, State t) ->
                            IO (Maybe (PrevMatch t))
 moreRestrictiveIndRight solver ns prev (s1, s2) =
-  let prev1 = map (\(p1, p2) -> (p1, innerScrutineeStates p2)) prev
-      prev2 = [(p1, p2) | (p1, p2l) <- prev1, p2 <- p2l]
-  in moreRestrictivePair solver ns prev2 (s1, s2)
+  let prev1 = map (\(p1, p2) -> (p1, p2, innerScrutineeStates p2)) prev
+      prev2 = [(p1, p2', p2) | (p1, p2, p2l) <- prev1, p2' <- p2l]
+  in moreRestrictivePairAux solver ns prev2 (s1, s2)
