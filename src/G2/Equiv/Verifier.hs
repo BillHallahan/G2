@@ -733,14 +733,16 @@ inductionL solver ns prev (s1, s2) = do
                hm_list = HM.toList mapping
                e2_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e2_old hm_list
                e1_new = replaceScrutinee sc1 e2_old' $ exprExtract s1
-               -- TODO update expr env here?
-               h1_new = E.union (expr_env s1) (expr_env pc2)
+               -- TODO use s2 or pc2 here?  Probably s2
+               h1_new = E.union (expr_env s1) (expr_env s2)
+               si1_new = map (\(Var i) -> i) . E.elems $ E.filterToSymbolic h1_new
            --in trace ("YES I! " ++ show (printHaskell q1 $ exprExtract q1, printHaskell q2 $ exprExtract q2) ++ " :: " ++ show (printHaskell p1 $ exprExtract p1, printHaskell p2 $ exprExtract p2) ++ " :: " ++ show (printHaskell q1 $ sc1, printHaskell q2 $ sc2) ++ " :: " ++ show (printHaskell s1 $ exprExtract s1, printHaskell s2 $ exprExtract s2)) $ return (True, q1{ curr_expr = CurrExpr Evaluate e1_new }, q2)
            --in trace ("YES I! " ++ show (track q1', track q2) ++ " :: " ++ show (track p1, track p2) ++ " :: " ++ show (sc1, sc2) ++ " :: " ++ show (track s1, track s2)) $ return (True, q1'{ curr_expr = CurrExpr Evaluate e1_new }, q2')
            in trace (show (sc1, e2_old', exprExtract s1)) $
+              trace ("YL " ++ show (length working_info)) $
               trace (show (map (\(r1, r2) -> (folder_name $ track r1, folder_name $ track r2)) prev)) $
               trace ("YES IL! " ++ show (map (folder_name . track) [s1, s2, q1, q2, p1, p2])) $
-              return (True, s1 { curr_expr = CurrExpr Evaluate e1_new, expr_env = h1_new }, s2)
+              return (True, s1 { curr_expr = CurrExpr Evaluate e1_new, expr_env = h1_new, symbolic_ids = si1_new }, s2)
            --in trace ("YES I! " ++ show (map (folder_name . track) [s1, s2, q1, q2, p1, p2])) $ return (False, s1, s2)
            --in trace ("YES I! " ++ show (length prev)) $ return (True, q1, q2'{ curr_expr = CurrExpr Evaluate e2_new })
 
@@ -767,11 +769,14 @@ inductionR solver ns prev (s1, s2) = do
                hm_list = HM.toList mapping
                e1_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e1_old hm_list
                e2_new = replaceScrutinee sc2 e1_old' $ exprExtract s2
-               h2_new = E.union (expr_env s2) (expr_env pc1)
+               -- TODO use s1 or pc1 here?
+               h2_new = E.union (expr_env s2) (expr_env s1)
+               si2_new = map (\(Var i) -> i) . E.elems $ E.filterToSymbolic h2_new
            in trace (show (sc2, e1_old', exprExtract s2)) $
+              trace ("YR " ++ show (length working_info)) $
               trace (show (map (\(r1, r2) -> (folder_name $ track r1, folder_name $ track r2)) prev)) $
               trace ("YES IR! " ++ show (map (folder_name . track) [s1, s2, q1, q2, p1, p2])) $
-              return (True, s1, s2 { curr_expr = CurrExpr Evaluate e2_new, expr_env = h2_new })
+              return (True, s1, s2 { curr_expr = CurrExpr Evaluate e2_new, expr_env = h2_new, symbolic_ids = si2_new })
 
 -- precedence goes to left-side substitution
 -- right-side substitution only happens if left-side fails
@@ -800,48 +805,62 @@ backtrackOne sh =
 inductionFoldL :: S.Solver solver =>
                   solver ->
                   HS.HashSet Name ->
+                  Name ->
                   (StateH, StateH) ->
                   (StateET, StateET) ->
                   IO (Int, StateET, StateET)
-inductionFoldL solver ns (sh1, sh2) (s1, s2) = do
+inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2) = do
   let prev = prevFiltered (sh1, sh2)
   (b, s1', s2') <- induction solver ns prev (s1, s2)
-  if b then trace ("EL " ++ show (map (folder_name . track) [s1, s2, s1', s2'])) $ return (length $ history sh2, s1', s2')
+  if b then do
+    (b', s1'', s2'') <- generalize solver ns fresh_name (s1', s2')
+    if b' then trace ("EL " ++ show (map (folder_name . track) [s1, s2, s1', s2'])) $ return (length $ history sh2, s1', s2')
+    else case history sh2 of
+      [] -> return (-1, s1, s2)
+      p2:_ -> inductionFoldL solver ns fresh_name (sh1, backtrackOne sh2) (s1, p2)
   else case history sh2 of
     [] -> return (-1, s1, s2)
-    p2:_ -> inductionFoldL solver ns (sh1, backtrackOne sh2) (s1, p2)
+    p2:_ -> inductionFoldL solver ns fresh_name (sh1, backtrackOne sh2) (s1, p2)
 
 -- TODO this returns the length of prev at the time of return
 inductionFoldR :: S.Solver solver =>
                   solver ->
                   HS.HashSet Name ->
+                  Name ->
                   (StateH, StateH) ->
                   (StateET, StateET) ->
                   IO (Int, StateET, StateET)
-inductionFoldR solver ns (sh1, sh2) (s1, s2) = do
+inductionFoldR solver ns fresh_name (sh1, sh2) (s1, s2) = do
   let prev = prevFiltered (sh1, sh2)
   (b, s1', s2') <- induction solver ns prev (s1, s2)
-  if b then trace ("ER " ++ show (map (folder_name . track) [s1, s2, s1', s2'])) $ return (length $ history sh1, s1', s2')
+  if b then do
+    (b', s1'', s2'') <- generalize solver ns fresh_name (s1', s2')
+    if b' then trace ("ER " ++ show (map (folder_name . track) [s1, s2, s1', s2'])) $ return (length $ history sh1, s1', s2')
+    else case history sh1 of
+      [] -> return (-1, s1, s2)
+      p1:_ -> inductionFoldR solver ns fresh_name (backtrackOne sh1, sh2) (p1, s2)
   else case history sh1 of
     [] -> return (-1, s1, s2)
-    p1:_ -> inductionFoldR solver ns (backtrackOne sh1, sh2) (p1, s2)
+    p1:_ -> inductionFoldR solver ns fresh_name (backtrackOne sh1, sh2) (p1, s2)
 
 -- TODO somewhat crude solution:  record how "far back" it needed to go
 -- negative one means that it failed
 -- TODO only use histories from sh1 and sh2
+-- TODO no induction without substitution now
 inductionFold :: S.Solver solver =>
                  solver ->
                  HS.HashSet Name ->
+                 Name ->
                  (StateH, StateH) ->
                  (StateET, StateET) ->
                  IO (Int, StateET, StateET)
-inductionFold solver ns sh_pair@(sh1, sh2) (s1, s2) = do
-  (nl, s1l, s2l) <- inductionFoldL solver ns sh_pair (s1, s2)
+inductionFold solver ns fresh_name sh_pair@(sh1, sh2) (s1, s2) = do
+  (nl, s1l, s2l) <- inductionFoldL solver ns fresh_name sh_pair (s1, s2)
   -- TODO this could cause excessive removals
   let min_length = min (length $ history sh1) (length $ history sh2)
   if nl >= 0 then trace ("IL " ++ show (map (folder_name . track) [s1, s2, s1l, s2l])) $ return (min_length - nl, s1l, s2l)
   else do
-    (nr, s1r, s2r) <- inductionFoldR solver ns sh_pair (s1, s2)
+    (nr, s1r, s2r) <- inductionFoldR solver ns fresh_name sh_pair (s1, s2)
     if nr >= 0 then trace ("IR " ++ show (map (folder_name . track) [s1, s2, s1r, s2r])) $ return (min_length - nr, s1r, s2r)
     else return (-1, s1, s2)
 
@@ -867,7 +886,7 @@ generalize :: S.Solver solver =>
               HS.HashSet Name ->
               Name ->
               (StateET, StateET) ->
-              IO (StateET, StateET)
+              IO (Bool, StateET, StateET)
 generalize solver ns fresh_name (s1, s2) = do
   putStrLn $ "Starting G " ++ show fresh_name
   -- expressions are ordered from outer to inner
@@ -896,6 +915,7 @@ generalize solver ns fresh_name (s1, s2) = do
                        s1'' = s1 {
                          curr_expr = CurrExpr Evaluate e1''
                        , expr_env = h1'
+                       , symbolic_ids = fresh_id:(symbolic_ids s1)
                        }
                        e2' = exprExtract s2'
                        e2'' = replaceScrutinee e2' fresh_var e2
@@ -904,14 +924,16 @@ generalize solver ns fresh_name (s1, s2) = do
                        s2'' = s2 {
                          curr_expr = CurrExpr Evaluate e2''
                        , expr_env = h2'
+                       , symbolic_ids = fresh_id:(symbolic_ids s2)
                        }
                    in trace ("G! " ++ show (e1'', e2'')) $
                       trace (show fresh_var) $
-                      return (s1'', s2'')
+                      return (True, s1'', s2'')
     _ -> trace ("No G? " ++ show fresh_name) $
-         return (s1, s2)
+         return (False, s1, s2)
 
 -- TODO does this throw off history logging?  I don't think so
+-- TODO might not matter with s1 and s2 naming
 inductionFull :: S.Solver solver =>
                  solver ->
                  HS.HashSet Name ->
@@ -919,12 +941,15 @@ inductionFull :: S.Solver solver =>
                  (StateH, StateH) ->
                  (StateET, StateET) ->
                  IO (Int, StateET, StateET)
-inductionFull solver ns fresh_name sh_pair s_pair = do
-  (n, s1, s2) <- inductionFold solver ns sh_pair s_pair
+inductionFull solver ns fresh_name sh_pair s_pair@(s1, s2) = do
+  (n, s1', s2') <- inductionFold solver ns fresh_name sh_pair s_pair
   if n < 0 then return (n, s1, s2)
+  else return (n, s1', s2')
+  {-
   else do
-    (s1', s2') <- generalize solver ns fresh_name (s1, s2)
+    (_, s1', s2') <- generalize solver ns fresh_name (s1, s2)
     return (n, s1', s2')
+  -}
 
 -- TODO (9/27) check path constraint implication?
 -- TODO (9/30) alternate:  just substitute one scrutinee for the other
