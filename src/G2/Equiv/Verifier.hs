@@ -646,7 +646,6 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
           prev' = prevFiltered (sh1, sh2)
           (obs_i, obs_c) = partition canUseInduction obs
           states_c = map (stateWrap s1 s2) obs_c
-      -- TODO redundant computation
       -- TODO do I need more adjustments than what I have here?
       discharges <- mapM (tryCoinduction solver ns prev') states_c
       -- get the states and histories for the successful discharges
@@ -659,7 +658,8 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
           matches2 = [(d2, s2_) | ((_, d2), (_, s2_)) <- discharges']
           matches2' = map (\(d2, s2_) -> addDischarge d2 $ replaceH sh2 s2_) matches2
           matches = zip matches1' matches2'
-      states_c' <- filterM (isNothingM . (tryCoinduction solver ns prev')) states_c
+      let discharges_ = map (not . isJust) discharges
+          states_c' = map snd $ filter fst (zip discharges_ states_c)
 
       let states_i = map (stateWrap s1 s2) obs_i
       -- TODO need a way to get the prev pair used for induction
@@ -700,21 +700,13 @@ mergeTrackers t1 t2 = t2 {
   , finite = HS.union (finite t1) (finite t2)
 }
 
--- TODO (11/1) back to being a converter rather than a filter, possibly
--- if it's a converter, I may need a way to explore lots of branching paths
--- I could just make a single arbitrary choice, alternatively
--- that worked out well enough for the old induction
 -- combinations to try:
 -- try current left state with all right scrutinees and all prior state pairs
 -- try current right state with all left scrutinees and all prior state pairs
 -- also need to do substitutions coming from moreRestrictivePair
 -- those come later, on the combinations that work out
--- (11/3) this function is being called, but it never succeeds
--- TODO match on whole expr one one side, inner scrutinee on the other
--- TODO almost certainly incorrect as it is now; also gets stuck
-
 -- TODO (11/8) clear out some of past if old state used as "present"
--- TODO substitution happens on the left here
+-- substitution happens on the left here
 inductionL :: S.Solver solver =>
               solver ->
               HS.HashSet Name ->
@@ -741,22 +733,14 @@ inductionL solver ns prev (s1, s2) = do
                hm_list = HM.toList mapping
                e2_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e2_old hm_list
                e1_new = replaceScrutinee sc1 e2_old' $ exprExtract s1
-               --e1_old = exprExtract p1
-               --e1_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e1_old hm_list
-               --e2_new = replaceScrutinee sc2 e1_old' $ exprExtract q2
-               --q1' = q1 { track = mergeTrackers (track q2) (track q1) }
-               -- TODO q2' doesn't help either
-               --q2' = q2 { track = mergeTrackers (track s2) (track q2) }
-               --q2' = q2 { track = mergeTrackers (track q1) (track q2) }
-               -- TODO use q1 and q2 rather than s1 and s2?
-               -- I get SAT for p10 _m with either q2 or s2
-               -- just backtracking to q1 and q2 throws things off
+               -- TODO update expr env here?
+               h1_new = E.union (expr_env s1) (expr_env pc2)
            --in trace ("YES I! " ++ show (printHaskell q1 $ exprExtract q1, printHaskell q2 $ exprExtract q2) ++ " :: " ++ show (printHaskell p1 $ exprExtract p1, printHaskell p2 $ exprExtract p2) ++ " :: " ++ show (printHaskell q1 $ sc1, printHaskell q2 $ sc2) ++ " :: " ++ show (printHaskell s1 $ exprExtract s1, printHaskell s2 $ exprExtract s2)) $ return (True, q1{ curr_expr = CurrExpr Evaluate e1_new }, q2)
            --in trace ("YES I! " ++ show (track q1', track q2) ++ " :: " ++ show (track p1, track p2) ++ " :: " ++ show (sc1, sc2) ++ " :: " ++ show (track s1, track s2)) $ return (True, q1'{ curr_expr = CurrExpr Evaluate e1_new }, q2')
            in trace (show (sc1, e2_old', exprExtract s1)) $
               trace (show (map (\(r1, r2) -> (folder_name $ track r1, folder_name $ track r2)) prev)) $
               trace ("YES IL! " ++ show (map (folder_name . track) [s1, s2, q1, q2, p1, p2])) $
-              return (True, s1 { curr_expr = CurrExpr Evaluate e1_new }, s2)
+              return (True, s1 { curr_expr = CurrExpr Evaluate e1_new, expr_env = h1_new }, s2)
            --in trace ("YES I! " ++ show (map (folder_name . track) [s1, s2, q1, q2, p1, p2])) $ return (False, s1, s2)
            --in trace ("YES I! " ++ show (length prev)) $ return (True, q1, q2'{ curr_expr = CurrExpr Evaluate e2_new })
 
@@ -783,10 +767,11 @@ inductionR solver ns prev (s1, s2) = do
                hm_list = HM.toList mapping
                e1_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e1_old hm_list
                e2_new = replaceScrutinee sc2 e1_old' $ exprExtract s2
+               h2_new = E.union (expr_env s2) (expr_env pc1)
            in trace (show (sc2, e1_old', exprExtract s2)) $
               trace (show (map (\(r1, r2) -> (folder_name $ track r1, folder_name $ track r2)) prev)) $
               trace ("YES IR! " ++ show (map (folder_name . track) [s1, s2, q1, q2, p1, p2])) $
-              return (True, s1, s2 { curr_expr = CurrExpr Evaluate e2_new })
+              return (True, s1, s2 { curr_expr = CurrExpr Evaluate e2_new, expr_env = h2_new })
 
 -- precedence goes to left-side substitution
 -- right-side substitution only happens if left-side fails
@@ -852,19 +837,20 @@ inductionFold :: S.Solver solver =>
                  IO (Int, StateET, StateET)
 inductionFold solver ns sh_pair@(sh1, sh2) (s1, s2) = do
   (nl, s1l, s2l) <- inductionFoldL solver ns sh_pair (s1, s2)
-  (nr, s1r, s2r) <- inductionFoldR solver ns sh_pair (s1, s2)
   -- TODO this could cause excessive removals
   let min_length = min (length $ history sh1) (length $ history sh2)
   if nl >= 0 then trace ("IL " ++ show (map (folder_name . track) [s1, s2, s1l, s2l])) $ return (min_length - nl, s1l, s2l)
-  else if nr >= 0 then trace ("IR " ++ show (map (folder_name . track) [s1, s2, s1r, s2r])) $ return (min_length - nr, s1r, s2r)
-  else return (-1, s1, s2)
+  else do
+    (nr, s1r, s2r) <- inductionFoldR solver ns sh_pair (s1, s2)
+    if nr >= 0 then trace ("IR " ++ show (map (folder_name . track) [s1, s2, s1r, s2r])) $ return (min_length - nr, s1r, s2r)
+    else return (-1, s1, s2)
 
 generalizeAux :: S.Solver solver =>
                  solver ->
                  HS.HashSet Name ->
-                 [State t] ->
-                 State t ->
-                 IO (Maybe (PrevMatch t))
+                 [StateET] ->
+                 StateET ->
+                 IO (Maybe (PrevMatch EquivTracker))
 generalizeAux solver ns s1_list s2 = do
   --putStrLn "GAux"
   let check_equiv s1_ = moreRestrictiveEquiv solver ns s1_ s2
@@ -935,8 +921,10 @@ inductionFull :: S.Solver solver =>
                  IO (Int, StateET, StateET)
 inductionFull solver ns fresh_name sh_pair s_pair = do
   (n, s1, s2) <- inductionFold solver ns sh_pair s_pair
-  (s1', s2') <- generalize solver ns fresh_name (s1, s2)
-  if n < 0 then return (n, s1, s2) else return (n, s1', s2')
+  if n < 0 then return (n, s1, s2)
+  else do
+    (s1', s2') <- generalize solver ns fresh_name (s1, s2)
+    return (n, s1', s2')
 
 -- TODO (9/27) check path constraint implication?
 -- TODO (9/30) alternate:  just substitute one scrutinee for the other
@@ -1450,12 +1438,13 @@ isIdentityMap hm = foldr (&&) True (map isIdentity $ HM.toList hm)
 -- needs to be enforced, won't just happen naturally
 -- TODO error hit after the very first time
 -- TODO does the left side in the union take precedence?
+-- TODO not having identity is not the problem for forceIdempotent
 moreRestrictiveEquiv :: S.Solver solver =>
                         solver ->
                         HS.HashSet Name ->
-                        State t ->
-                        State t ->
-                        IO (Maybe (PrevMatch t))
+                        StateET ->
+                        StateET ->
+                        IO (Maybe (PrevMatch EquivTracker))
 moreRestrictiveEquiv solver ns s1 s2 = do
   --putStrLn $ "MRE"
   --putStrLn $ show $ exprExtract s1
@@ -1466,7 +1455,7 @@ moreRestrictiveEquiv solver ns s1 s2 = do
       s2' = s2 { expr_env = E.union h2 h1 }
   pm_maybe <- moreRestrictivePair solver ns [(s2', s1')] (s1, s2)
   case pm_maybe of
-    Nothing -> return Nothing
+    Nothing -> trace ("FAILED " ++ show (track s1, track s2)) $ return Nothing
     Just (PrevMatch _ _ (hm, _) _) -> if isIdentityMap hm
                                       then return pm_maybe
-                                      else return Nothing
+                                      else trace ("NOT ID " ++ show hm) $ return Nothing
