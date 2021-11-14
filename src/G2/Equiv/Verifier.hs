@@ -175,22 +175,23 @@ wrapRecursiveCall :: Name -> Expr -> Expr
 wrapRecursiveCall n e@(Tick (NamedLoc n'@(Name t _ _ _)) e') =
   if t == DT.pack "REC"
   then e
-  else Tick (NamedLoc n') $ wrcHelper n e'
+  else Tick (NamedLoc n') $ wrapRecursiveCall n e'
 wrapRecursiveCall n e@(Var (Id n' _)) =
   if n == n'
   then Tick (NamedLoc rec_name) e
   else wrcHelper n e
 wrapRecursiveCall n e = wrcHelper n e
 
+-- TODO also modify the expression itself directly?
 wrcHelper :: Name -> Expr -> Expr
 wrcHelper n = modifyChildren (wrapRecursiveCall n)
 
 -- do not allow wrapping for symbolic variables
 recWrap :: ExprEnv -> Name -> Expr -> Expr
-recWrap h n =
+recWrap h n e =
   if E.isSymbolic n h
-  then id
-  else (wrcHelper n) . (wrapRecursiveCall n)
+  then e
+  else ((wrcHelper n) . (wrapRecursiveCall n)) (wrapRecursiveCall n e)
 
 -- Creating a new expression environment lets us use the existing reachability
 -- functions.
@@ -365,6 +366,7 @@ stateWrap s1 s2 (Ob e1 e2) =
 -- helper functions for induction
 -- TODO can something other than Case be at the outermost level?
 caseRecursion :: Expr -> Bool
+caseRecursion (Tick _ e) = caseRecursion e
 caseRecursion (Case e _ _) =
   (getAny . evalASTs (\e' -> Any $ caseRecHelper e')) e
 caseRecursion _ = False
@@ -734,12 +736,13 @@ inductionL solver ns prev (s1, s2) = do
                e2_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e2_old hm_list
                e1_new = replaceScrutinee sc1 e2_old' $ exprExtract s1
                -- TODO use s2 or pc2 here?  Probably s2
-               h1_new = E.union (expr_env s1) (expr_env s2)
+               h1_new = E.union (expr_env s1) (expr_env pc2)
                si1_new = map (\(Var i) -> i) . E.elems $ E.filterToSymbolic h1_new
            --in trace ("YES I! " ++ show (printHaskell q1 $ exprExtract q1, printHaskell q2 $ exprExtract q2) ++ " :: " ++ show (printHaskell p1 $ exprExtract p1, printHaskell p2 $ exprExtract p2) ++ " :: " ++ show (printHaskell q1 $ sc1, printHaskell q2 $ sc2) ++ " :: " ++ show (printHaskell s1 $ exprExtract s1, printHaskell s2 $ exprExtract s2)) $ return (True, q1{ curr_expr = CurrExpr Evaluate e1_new }, q2)
            --in trace ("YES I! " ++ show (track q1', track q2) ++ " :: " ++ show (track p1, track p2) ++ " :: " ++ show (sc1, sc2) ++ " :: " ++ show (track s1, track s2)) $ return (True, q1'{ curr_expr = CurrExpr Evaluate e1_new }, q2')
            in trace (show (sc1, e2_old', exprExtract s1)) $
               trace ("YL " ++ show (length working_info)) $
+              trace ("HM " ++ show hm_list) $
               trace (show (map (\(r1, r2) -> (folder_name $ track r1, folder_name $ track r2)) prev)) $
               trace ("YES IL! " ++ show (map (folder_name . track) [s1, s2, q1, q2, p1, p2])) $
               return (True, s1 { curr_expr = CurrExpr Evaluate e1_new, expr_env = h1_new, symbolic_ids = si1_new }, s2)
@@ -770,10 +773,12 @@ inductionR solver ns prev (s1, s2) = do
                e1_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e1_old hm_list
                e2_new = replaceScrutinee sc2 e1_old' $ exprExtract s2
                -- TODO use s1 or pc1 here?
-               h2_new = E.union (expr_env s2) (expr_env s1)
+               -- the s1 version gets an error that pc1 doesn't
+               h2_new = E.union (expr_env s2) (expr_env pc1)
                si2_new = map (\(Var i) -> i) . E.elems $ E.filterToSymbolic h2_new
            in trace (show (sc2, e1_old', exprExtract s2)) $
               trace ("YR " ++ show (length working_info)) $
+              trace ("HM " ++ show hm_list) $
               trace (show (map (\(r1, r2) -> (folder_name $ track r1, folder_name $ track r2)) prev)) $
               trace ("YES IR! " ++ show (map (folder_name . track) [s1, s2, q1, q2, p1, p2])) $
               return (True, s1, s2 { curr_expr = CurrExpr Evaluate e2_new, expr_env = h2_new, symbolic_ids = si2_new })
@@ -930,6 +935,7 @@ generalize solver ns fresh_name (s1, s2) = do
                       trace (show fresh_var) $
                       return (True, s1'', s2'')
     _ -> trace ("No G? " ++ show fresh_name) $
+         -- TODO allowing failures for now
          return (False, s1, s2)
 
 -- TODO does this throw off history logging?  I don't think so
@@ -943,7 +949,7 @@ inductionFull :: S.Solver solver =>
                  IO (Int, StateET, StateET)
 inductionFull solver ns fresh_name sh_pair s_pair@(s1, s2) = do
   (n, s1', s2') <- inductionFold solver ns fresh_name sh_pair s_pair
-  if n < 0 then return (n, s1, s2)
+  if n < 0 then trace ("NO INDUCTION " ++ show n) return (n, s1, s2)
   else return (n, s1', s2')
   {-
   else do
@@ -1025,10 +1031,12 @@ startingState et s =
   let h = expr_env s
       -- Tick wrapping for recursive and corecursive functions
       wrap_cg = wrapAllRecursion (G.getCallGraph h) h
+      h' = E.map (wrapLetRec h) $ E.mapWithKey wrap_cg h
+      all_names = E.keys h
       s' = s {
       track = et
-    , curr_expr = CurrExpr Evaluate $ tickWrap $ exprExtract s
-    , expr_env = E.map (wrapLetRec h) $ E.mapWithKey wrap_cg h
+    , curr_expr = CurrExpr Evaluate $ foldr wrap_cg (tickWrap $ exprExtract s) all_names
+    , expr_env = h'
     }
   in newStateH s'
 
@@ -1091,8 +1099,9 @@ checkRule config init_state bindings total finite rule = do
   putStrLn $ printHaskell rewrite_state_l' e_l'
   putStrLn $ printHaskell rewrite_state_r' e_r'
   -- TODO prepareState putting in wrong place?
-  putStrLn $ printHaskell rewrite_state_l' $ exprExtract rewrite_state_l'
-  putStrLn $ printHaskell rewrite_state_r' $ exprExtract rewrite_state_r'
+  -- TODO put REC ticks in the starting expression?
+  putStrLn $ printHaskell (latest rewrite_state_l'') $ exprExtract $ latest rewrite_state_l''
+  putStrLn $ printHaskell (latest rewrite_state_r'') $ exprExtract $ latest rewrite_state_r''
   res <- verifyLoop solver ns
              [(rewrite_state_l'', rewrite_state_r'')]
              [(rewrite_state_l'', rewrite_state_r'')]
