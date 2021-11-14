@@ -144,6 +144,12 @@ recursionInCase (State { curr_expr = CurrExpr _ e, exec_stack = sk }) =
             p == T.pack "REC" -- && containsCase sk
         _ -> False
 
+loneSymVar :: State t -> Bool
+loneSymVar (State { curr_expr = CurrExpr _ e, expr_env = h }) =
+    case e of
+        Var i -> E.isSymbolic (idName i) h
+        _ -> False
+
 instance Halter EnforceProgressH () EquivTracker where
     initHalt _ _ = ()
     updatePerStateHalt _ _ _ _ = ()
@@ -160,7 +166,7 @@ instance Halter EnforceProgressH () EquivTracker where
             -- point when it reaches the Tick because the act of unwrapping the
             -- expression inside the Tick counts as one step.
             Just n0 -> do
-                if (isExecValueForm s) || (exprFullApp h e) || (recursionInCase s)
+                if (isExecValueForm s) || (exprFullApp h e) || (recursionInCase s) || (loneSymVar s)
                        -- TODO same goes for this?
                        then return (if n' > n0 + 1 then Accept else Continue)
                        -- TODO not getting stuck in here repeatedly

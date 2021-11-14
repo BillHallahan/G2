@@ -555,8 +555,8 @@ exprTrace :: StateH -> StateH -> [String]
 exprTrace sh1 sh2 =
   let s_hist = stateHistory sh1 sh2
       s_pair (s1, s2) = [
-          printHaskell s1 (exprExtract s1)
-        , printHaskell s2 (exprExtract s2)
+          printHaskellDirty (exprExtract s1)
+        , printHaskellDirty (exprExtract s2)
         , show (symbolic_ids s1)
         , show (symbolic_ids s2)
         , show (track s1)
@@ -587,8 +587,8 @@ makeIndStateH :: (StateH, StateH) ->
                  ((StateET, StateET), (Int, StateET, StateET)) ->
                  (StateH, StateH)
 makeIndStateH (sh1, sh2) ((q1, q2), (n, s1, s2)) | n >= 0 =
-  let hist1 = drop n $ history sh1
-      hist2 = drop n $ history sh2
+  let hist1 = [] -- drop n $ history sh1
+      hist2 = [] -- drop n $ history sh2
       sh1' = sh1 { history = hist1, latest = s1 }
       sh2' = sh2 { history = hist2, latest = s2 }
       im1 = IndMarker q2 q1 s1
@@ -597,18 +597,21 @@ makeIndStateH (sh1, sh2) ((q1, q2), (n, s1, s2)) | n >= 0 =
   | otherwise = (sh1 { latest = s1 }, sh2 { latest = s2 })
 
 -- this covers discharging of equivalent present states
+-- TODO check past pairs, not just present; like with induction
+-- TODO apply for induction states too
 tryCoinduction :: S.Solver solver =>
                   solver ->
                   HS.HashSet Name ->
                   [(StateET, StateET)] ->
+                  (StateH, StateH) ->
                   (StateET, StateET) ->
                   IO (Maybe (PrevMatch EquivTracker))
-tryCoinduction solver ns prev (s1, s2) = do
-  res1 <- moreRestrictiveEquiv solver ns s1 s2
+tryCoinduction solver ns prev sh_pair (s1, s2) = do
+  res1 <- equivFold solver ns sh_pair (s1, s2)
   res2 <- moreRestrictivePair solver ns prev (s1, s2)
   case res1 of
     Just _ -> trace ("EQUIVALENT " ++ show (length prev)) $ return res1
-    _ -> trace ("DISCHARGE " ++ show (length prev)) $ return res2
+    _ -> trace ("NOT EQUIVALENT " ++ show (length prev)) $ return res2
 
 -- TODO printing
 -- TODO was the type signature wrong before?
@@ -638,8 +641,8 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
       return $ DischargeResult [] [] (Just [(s1, s2)])
     Just obs -> do
       putStrLn $ "J! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
-      putStrLn $ printHaskell s1 $ exprExtract s1
-      putStrLn $ printHaskell s2 $ exprExtract s2
+      putStrLn $ printHaskellDirty $ exprExtract s1
+      putStrLn $ printHaskellDirty $ exprExtract s2
       --putStrLn $ show $ exprExtract s1
       --putStrLn $ show $ exprExtract s2
 
@@ -649,7 +652,7 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
           (obs_i, obs_c) = partition canUseInduction obs
           states_c = map (stateWrap s1 s2) obs_c
       -- TODO do I need more adjustments than what I have here?
-      discharges <- mapM (tryCoinduction solver ns prev') states_c
+      discharges <- mapM (tryCoinduction solver ns prev' (sh1, sh2)) states_c
       -- get the states and histories for the successful discharges
       -- will need to fill in the discharge field
       -- also need to pair them up with the original states?
@@ -664,8 +667,10 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
           states_c' = map snd $ filter fst (zip discharges_ states_c)
 
       let states_i = map (stateWrap s1 s2) obs_i
+      -- TODO redundancy?
+      states_i_ <- filterM (isNothingM . (tryCoinduction solver ns prev' (sh1, sh2))) states_i
       -- TODO need a way to get the prev pair used for induction
-      states_i' <- mapM (inductionFull solver ns fresh_name (sh1, sh2)) states_i
+      states_i' <- mapM (inductionFull solver ns fresh_name (sh1, sh2)) states_i_
       --states_i' <- filterM (notM . (induction solver ns fresh_name prev')) states_i
 
       -- TODO unnecessary to pass the induction states through this?
@@ -738,14 +743,24 @@ inductionL solver ns prev (s1, s2) = do
                -- TODO use s2 or pc2 here?  Probably s2
                h1_new = E.union (expr_env s1) (expr_env pc2)
                si1_new = map (\(Var i) -> i) . E.elems $ E.filterToSymbolic h1_new
-           --in trace ("YES I! " ++ show (printHaskell q1 $ exprExtract q1, printHaskell q2 $ exprExtract q2) ++ " :: " ++ show (printHaskell p1 $ exprExtract p1, printHaskell p2 $ exprExtract p2) ++ " :: " ++ show (printHaskell q1 $ sc1, printHaskell q2 $ sc2) ++ " :: " ++ show (printHaskell s1 $ exprExtract s1, printHaskell s2 $ exprExtract s2)) $ return (True, q1{ curr_expr = CurrExpr Evaluate e1_new }, q2)
+               s1' = s1 {
+                 curr_expr = CurrExpr Evaluate e1_new
+               , expr_env = h1_new
+               , symbolic_ids = si1_new
+               }
+           --in trace ("YES I! " ++ show (printHaskellDirty q1 $ exprExtract q1, printHaskellDirty q2 $ exprExtract q2) ++ " :: " ++ show (printHaskellDirty p1 $ exprExtract p1, printHaskellDirty p2 $ exprExtract p2) ++ " :: " ++ show (printHaskellDirty q1 $ sc1, printHaskellDirty q2 $ sc2) ++ " :: " ++ show (printHaskellDirty $ exprExtract s1, printHaskellDirty $ exprExtract s2)) $ return (True, q1{ curr_expr = CurrExpr Evaluate e1_new }, q2)
            --in trace ("YES I! " ++ show (track q1', track q2) ++ " :: " ++ show (track p1, track p2) ++ " :: " ++ show (sc1, sc2) ++ " :: " ++ show (track s1, track s2)) $ return (True, q1'{ curr_expr = CurrExpr Evaluate e1_new }, q2')
-           in trace (show (sc1, e2_old', exprExtract s1)) $
+           in --trace (show (sc1, e2_old', exprExtract s1)) $
               trace ("YL " ++ show (length working_info)) $
+              trace (printHaskellDirty sc1) $
+              trace (printHaskellDirty e2_old) $
+              trace (printHaskellDirty e2_old') $
+              trace (printHaskellDirty $ exprExtract s1) $
+              trace (printHaskellDirty e1_new) $
               trace ("HM " ++ show hm_list) $
               trace (show (map (\(r1, r2) -> (folder_name $ track r1, folder_name $ track r2)) prev)) $
               trace ("YES IL! " ++ show (map (folder_name . track) [s1, s2, q1, q2, p1, p2])) $
-              return (True, s1 { curr_expr = CurrExpr Evaluate e1_new, expr_env = h1_new, symbolic_ids = si1_new }, s2)
+              return (True, s1', s2)
            --in trace ("YES I! " ++ show (map (folder_name . track) [s1, s2, q1, q2, p1, p2])) $ return (False, s1, s2)
            --in trace ("YES I! " ++ show (length prev)) $ return (True, q1, q2'{ curr_expr = CurrExpr Evaluate e2_new })
 
@@ -758,6 +773,10 @@ inductionR :: S.Solver solver =>
               (StateET, StateET) ->
               IO (Bool, StateET, StateET)
 inductionR solver ns prev (s1, s2) = do
+  putStrLn "RIGHT SIDE"
+  print $ track s1
+  print $ track s2
+  print $ map (\(p1, p2) -> (folder_name $ track p1, folder_name $ track p2)) prev
   let scr1 = innerScrutinees $ exprExtract s1
       scr2 = innerScrutinees $ exprExtract s2
       scr_pairs = [(sc1, sc2) | sc1 <- scr1, sc2 <- scr2]
@@ -776,12 +795,22 @@ inductionR solver ns prev (s1, s2) = do
                -- the s1 version gets an error that pc1 doesn't
                h2_new = E.union (expr_env s2) (expr_env pc1)
                si2_new = map (\(Var i) -> i) . E.elems $ E.filterToSymbolic h2_new
-           in trace (show (sc2, e1_old', exprExtract s2)) $
+               s2' = s2 {
+                 curr_expr = CurrExpr Evaluate e2_new
+               , expr_env = h2_new
+               , symbolic_ids = si2_new
+               }
+           in --trace (show (sc2, e1_old', exprExtract s2)) $
               trace ("YR " ++ show (length working_info)) $
+              trace (printHaskellDirty sc2) $
+              trace (printHaskellDirty e1_old) $
+              trace (printHaskellDirty e1_old') $
+              trace (printHaskellDirty $ exprExtract s2) $
+              trace (printHaskellDirty e2_new) $
               trace ("HM " ++ show hm_list) $
               trace (show (map (\(r1, r2) -> (folder_name $ track r1, folder_name $ track r2)) prev)) $
               trace ("YES IR! " ++ show (map (folder_name . track) [s1, s2, q1, q2, p1, p2])) $
-              return (True, s1, s2 { curr_expr = CurrExpr Evaluate e2_new, expr_env = h2_new, symbolic_ids = si2_new })
+              return (True, s1, s2')
 
 -- precedence goes to left-side substitution
 -- right-side substitution only happens if left-side fails
@@ -819,7 +848,7 @@ inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2) = do
   (b, s1', s2') <- induction solver ns prev (s1, s2)
   if b then do
     (b', s1'', s2'') <- generalize solver ns fresh_name (s1', s2')
-    if b' then trace ("EL " ++ show (map (folder_name . track) [s1, s2, s1', s2'])) $ return (length $ history sh2, s1', s2')
+    if b' then trace ("EL " ++ show (map (folder_name . track) [s1, s2, s1', s2'])) $ return (length $ history sh2, s1'', s2'')
     else case history sh2 of
       [] -> return (-1, s1, s2)
       p2:_ -> inductionFoldL solver ns fresh_name (sh1, backtrackOne sh2) (s1, p2)
@@ -840,7 +869,7 @@ inductionFoldR solver ns fresh_name (sh1, sh2) (s1, s2) = do
   (b, s1', s2') <- induction solver ns prev (s1, s2)
   if b then do
     (b', s1'', s2'') <- generalize solver ns fresh_name (s1', s2')
-    if b' then trace ("ER " ++ show (map (folder_name . track) [s1, s2, s1', s2'])) $ return (length $ history sh1, s1', s2')
+    if b' then trace ("ER " ++ show (map (folder_name . track) [s1, s2, s1', s2'])) $ return (length $ history sh1, s1'', s2'')
     else case history sh1 of
       [] -> return (-1, s1, s2)
       p1:_ -> inductionFoldR solver ns fresh_name (backtrackOne sh1, sh2) (p1, s2)
@@ -914,7 +943,9 @@ generalize solver ns fresh_name (s1, s2) = do
                        fresh_id = Id fresh_name (typeOf e1')
                        fresh_var = Var fresh_id
                        e1' = exprExtract s1'
-                       e1'' = replaceScrutinee e1' fresh_var e1
+                       -- TODO could some of this be simplified?
+                       -- call a function on both sides
+                       e1'' = addStackTickIfNeeded $ replaceScrutinee e1' fresh_var e1
                        h1 = expr_env s1
                        h1' = E.insertSymbolic fresh_name fresh_id h1
                        s1'' = s1 {
@@ -923,7 +954,7 @@ generalize solver ns fresh_name (s1, s2) = do
                        , symbolic_ids = fresh_id:(symbolic_ids s1)
                        }
                        e2' = exprExtract s2'
-                       e2'' = replaceScrutinee e2' fresh_var e2
+                       e2'' = addStackTickIfNeeded $ replaceScrutinee e2' fresh_var e2
                        h2 = expr_env s2
                        h2' = E.insertSymbolic fresh_name fresh_id h2
                        s2'' = s2 {
@@ -1078,7 +1109,7 @@ checkRule config init_state bindings total finite rule = do
       ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
       ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
       -- no need for two separate name sets
-      ns = HS.union ns_l ns_r
+      ns = HS.filter (\n -> not (E.isSymbolic n $ expr_env rewrite_state_l)) $ HS.union ns_l ns_r
       -- TODO wrap both sides with forcings for finite vars
       -- get the finite vars first
       -- TODO a little redundant with the earlier stuff
@@ -1096,16 +1127,16 @@ checkRule config init_state bindings total finite rule = do
       rewrite_state_r'' = startingState start_equiv_tracker rewrite_state_r'
   S.SomeSolver solver <- initSolver config
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
-  putStrLn $ printHaskell rewrite_state_l' e_l'
-  putStrLn $ printHaskell rewrite_state_r' e_r'
+  putStrLn $ printHaskellDirty e_l'
+  putStrLn $ printHaskellDirty e_r'
   -- TODO prepareState putting in wrong place?
   -- TODO put REC ticks in the starting expression?
-  putStrLn $ printHaskell (latest rewrite_state_l'') $ exprExtract $ latest rewrite_state_l''
-  putStrLn $ printHaskell (latest rewrite_state_r'') $ exprExtract $ latest rewrite_state_r''
+  putStrLn $ printHaskellDirty $ exprExtract $ latest rewrite_state_l''
+  putStrLn $ printHaskellDirty $ exprExtract $ latest rewrite_state_r''
   res <- verifyLoop solver ns
              [(rewrite_state_l'', rewrite_state_r'')]
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config (Just "testing") 0
+             bindings'' config Nothing 0 -- (Just "testing") 0
   -- UNSAT for good, SAT for bad
   return res
 
@@ -1145,17 +1176,19 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                , not $ HS.member m ns
                , not $ (m, e2) `elem` n1
                , Just e <- E.lookup m h1 ->
+                 --trace ("INLINE L " ++ show i ++ show e) $
                  moreRestrictive s1 s2 ns hm ((m, e2):n1) n2 e e2
     (_, Var i) | m <- idName i
                , not $ E.isSymbolic m h2
                , not $ HS.member m ns
                , not $ (m, e1) `elem` n2
                , Just e <- E.lookup m h2 ->
+                 --trace ("INLINE R " ++ show i ++ show e) $
                  moreRestrictive s1 s2 ns hm n1 ((m, e1):n2) e1 e
     (Var i1, Var i2) | HS.member (idName i1) ns
                      , idName i1 == idName i2 -> Just hm
-                     | HS.member (idName i1) ns -> Nothing
-                     | HS.member (idName i2) ns -> Nothing
+                     | HS.member (idName i1) ns -> {-trace ("VLeft " ++ show (i1, i2))-} Nothing
+                     | HS.member (idName i2) ns -> {-trace ("VRight " ++ show (i1, i2))-} Nothing
     (Var i, _) | E.isSymbolic (idName i) h1
                , (hm', hs) <- hm
                , Nothing <- HM.lookup i hm' -> Just (HM.insert i (inlineEquiv [] h2 ns e2) hm', hs)
@@ -1163,14 +1196,20 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                , Just e <- HM.lookup i (fst hm)
                , e == inlineEquiv [] h2 ns e2 -> Just hm
                -- this last case means there's a mismatch
-               | E.isSymbolic (idName i) h1 -> Nothing
+               | E.isSymbolic (idName i) h1 -> {-trace ("VSymLeft " ++ show i)-} Nothing
                | not $ (idName i, e2) `elem` n1
                , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
-    (_, Var i) | E.isSymbolic (idName i) h2 -> Nothing -- sym replaces non-sym
+    (_, Var i) | E.isSymbolic (idName i) h2 -> {-trace ("VSymRight " ++ show i)-} Nothing -- sym replaces non-sym
                | not $ (idName i, e1) `elem` n2
                , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
-    (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s1 s2 ns hm n1 n2 f1 f2
-                           , Just hm_a <- moreRestrictive s1 s2 ns hm_f n1 n2 a1 a2 -> Just hm_a
+    (App f1 a1, App f2 a2) | Just hm_f <- {-trace ("APP FN " ++ show (printHaskellDirty e1) ++ "\n" ++ show (printHaskellDirty e2))-} moreRestrictive s1 s2 ns hm n1 n2 f1 f2
+                           , Just hm_a <- {-trace ("APP ARG " ++ show hm_f ++ "\n" ++ show (printHaskellDirty a1) ++ "\n" ++ show (printHaskellDirty a2))-} moreRestrictive s1 s2 ns hm_f n1 n2 a1 a2 -> Just hm_a
+    -- TODO ignoring lam use; these are never used seemingly
+    -- TODO shouldn't lead to non-termination
+    (App (Lam _ i b) a, _) -> let e1' = replaceASTs (Var i) a b
+                              in trace ("LAM L" ++ show i) $ moreRestrictive s1 s2 ns hm n1 n2 e1' e2
+    (_, App (Lam _ i b) a) -> let e2' = replaceASTs (Var i) a b
+                              in trace ("LAM R" ++ show i) $ moreRestrictive s1 s2 ns hm n1 n2 e1 e2'
     -- These two cases should come after the main App-App case.  If an
     -- expression pair fits both patterns, then discharging it in a way that
     -- does not add any extra proof obligations is preferable.
@@ -1298,17 +1337,18 @@ validMap s1 s2 hm =
                   || isPrimType (typeOf e)
   in foldr (&&) True (map check hm_list)
 
-restrictHelper :: State t ->
-                  State t ->
+restrictHelper :: StateET ->
+                  StateET ->
                   HS.HashSet Name ->
                   Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                   Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 restrictHelper s1 s2 ns hm_hs = case restrictAux s1 s2 ns hm_hs of
-  Nothing -> Nothing
-  Just (hm, hs) -> if validMap s1 s2 hm then Just (hm, hs) else Nothing
+  Nothing -> {-trace ("NOTHING " ++ (show (folder_name $ track s1, folder_name $ track s2)) ++ "\n" ++ (printHaskellDirty $ exprExtract s1) ++ "\n" ++ (printHaskellDirty $ exprExtract s2))-} Nothing
+  Just (hm, hs) -> trace ("JUST " ++ (show (folder_name $ track s1, folder_name $ track s2, hm))) $
+                   if validMap s1 s2 hm then Just (hm, hs) else Nothing
 
-restrictAux :: State t ->
-               State t ->
+restrictAux :: StateET ->
+               StateET ->
                HS.HashSet Name ->
                Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
@@ -1383,14 +1423,16 @@ data PrevMatch t = PrevMatch {
 -- if there are multiple, just return the first
 -- TODO first pair is "current," second pair is the match from the past
 -- TODO the third entry in a prev triple is the original for left or right
+-- TODO make a new type for the prev-threesomes
 moreRestrictivePairAux :: S.Solver solver =>
                           solver ->
                           HS.HashSet Name ->
-                          [(State t, State t, State t)] ->
-                          (State t, State t) ->
-                          IO (Maybe (PrevMatch t))
+                          [(StateET, StateET, StateET)] ->
+                          (StateET, StateET) ->
+                          IO (Maybe (PrevMatch EquivTracker))
 moreRestrictivePairAux solver ns prev (s1, s2) = do
-  let mr (p1, p2, _) = restrictHelper p2 s2 ns $
+  let mr (p1, p2, _) = --trace (show (folder_name $ track p1, folder_name $ track s1, folder_name $ track p2, folder_name $ track s2)) $
+                       restrictHelper p2 s2 ns $
                        restrictHelper p1 s1 ns (Just (HM.empty, HS.empty))
       getObs m = case m of
         Nothing -> HS.empty
@@ -1412,6 +1454,17 @@ moreRestrictivePairAux solver ns prev (s1, s2) = do
   -- check obligations individually rather than as one big group
   res_list <- mapM (checkObligations solver s1 s2) obs_sets'
   bools' <- mapM id bools
+  {-
+  print "#####"
+  print $ folder_name $ track s1
+  print $ folder_name $ track s2
+  print "PREV"
+  print $ map (\(p1, p2, _) -> (folder_name $ track p1, folder_name $ track p2)) prev
+  print "MPAIRS"
+  print $ map isJust maybe_pairs
+  print "BOOLS"
+  print bools'
+  -}
   -- need res_list, no_loss, and bools all aligning at a point
   let all_three thr = case fst thr of
         ((S.UNSAT (), _), (True, True)) -> True
@@ -1425,9 +1478,9 @@ moreRestrictivePairAux solver ns prev (s1, s2) = do
 moreRestrictivePair :: S.Solver solver =>
                        solver ->
                        HS.HashSet Name ->
-                       [(State t, State t)] ->
-                       (State t, State t) ->
-                       IO (Maybe (PrevMatch t))
+                       [(StateET, StateET)] ->
+                       (StateET, StateET) ->
+                       IO (Maybe (PrevMatch EquivTracker))
 moreRestrictivePair solver ns prev (s1, s2) =
   let prev' = map (\(p1, p2) -> (p1, p2, p2)) prev
   in moreRestrictivePairAux solver ns prev' (s1, s2)
@@ -1441,9 +1494,9 @@ innerScrutineeStates s@(State { curr_expr = CurrExpr _ e }) =
 moreRestrictiveIndLeft :: S.Solver solver =>
                           solver ->
                           HS.HashSet Name ->
-                          [(State t, State t)] ->
-                          (State t, State t) ->
-                          IO (Maybe (PrevMatch t))
+                          [(StateET, StateET)] ->
+                          (StateET, StateET) ->
+                          IO (Maybe (PrevMatch EquivTracker))
 moreRestrictiveIndLeft solver ns prev (s1, s2) =
   let prev1 = map (\(p1, p2) -> (p1, innerScrutineeStates p1, p2)) prev
       prev2 = [(p1', p2, p1) | (p1, p1l, p2) <- prev1, p1' <- p1l]
@@ -1453,9 +1506,9 @@ moreRestrictiveIndLeft solver ns prev (s1, s2) =
 moreRestrictiveIndRight :: S.Solver solver =>
                            solver ->
                            HS.HashSet Name ->
-                           [(State t, State t)] ->
-                           (State t, State t) ->
-                           IO (Maybe (PrevMatch t))
+                           [(StateET, StateET)] ->
+                           (StateET, StateET) ->
+                           IO (Maybe (PrevMatch EquivTracker))
 moreRestrictiveIndRight solver ns prev (s1, s2) =
   let prev1 = map (\(p1, p2) -> (p1, p2, innerScrutineeStates p2)) prev
       prev2 = [(p1, p2', p2) | (p1, p2, p2l) <- prev1, p2' <- p2l]
@@ -1489,7 +1542,44 @@ moreRestrictiveEquiv solver ns s1 s2 = do
       s2' = s2 { expr_env = E.union h2 h1 }
   pm_maybe <- moreRestrictivePair solver ns [(s2', s1')] (s1, s2)
   case pm_maybe of
-    Nothing -> trace ("FAILED " ++ show (track s1, track s2)) $ return Nothing
+    Nothing -> do
+      putStrLn $ "FAILED " ++ show (track s1, track s2)
+      putStrLn $ printHaskellDirty $ exprExtract s1
+      putStrLn $ printHaskellDirty $ exprExtract s2
+      return Nothing
+      --trace ("FAILED " ++ show (track s1, track s2)) $ return Nothing
     Just (PrevMatch _ _ (hm, _) _) -> if isIdentityMap hm
                                       then return pm_maybe
-                                      else trace ("NOT ID " ++ show hm) $ return Nothing
+                                      else do
+                                        putStrLn $ "NOT ID " ++ show hm
+                                        putStrLn $ printHaskellDirty $ exprExtract s1
+                                        putStrLn $ printHaskellDirty $ exprExtract s2
+                                        return Nothing
+
+equivFoldL :: S.Solver solver =>
+              solver ->
+              HS.HashSet Name ->
+              [StateET] ->
+              StateET ->
+              IO (Maybe (PrevMatch EquivTracker))
+equivFoldL solver ns prev2 s1 = do
+  case prev2 of
+    [] -> return Nothing
+    p2:t -> do
+      mre <- moreRestrictiveEquiv solver ns s1 p2
+      case mre of
+        Just _ -> return mre
+        _ -> equivFoldL solver ns t s1
+
+-- TODO clean up code
+equivFold :: S.Solver solver =>
+             solver ->
+             HS.HashSet Name ->
+             (StateH, StateH) ->
+             (StateET, StateET) ->
+             IO (Maybe (PrevMatch EquivTracker))
+equivFold solver ns (sh1, sh2) (s1, s2) = do
+  pm_l <- equivFoldL solver ns (s2:history sh2) s1
+  case pm_l of
+    Just _ -> return pm_l
+    _ -> equivFoldL solver ns (s1:history sh1) s2

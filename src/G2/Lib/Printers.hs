@@ -5,6 +5,7 @@ module G2.Lib.Printers ( PrettyGuide
                        , updatePrettyGuide
 
                        , printHaskell
+                       , printHaskellDirty
                        , printHaskellPG
                        , mkUnsugaredExprHaskell
                        , mkTypeHaskell
@@ -55,6 +56,9 @@ mkUnsugaredExprHaskell (State {known_values = kv, type_classes = tc}) =
 
 printHaskell :: State t -> Expr -> String
 printHaskell = mkCleanExprHaskell (mkPrettyGuide ())
+
+printHaskellDirty :: Expr -> String
+printHaskellDirty = mkExprHaskell Dirty (mkPrettyGuide ())
 
 printHaskellPG :: PrettyGuide -> State t -> Expr -> String
 printHaskellPG = mkCleanExprHaskell
