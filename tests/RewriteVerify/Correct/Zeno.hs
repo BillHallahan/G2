@@ -635,6 +635,84 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p84" forall xs ys zs . zip xs (ys ++ zs) = zip (take (len ys) xs) ys ++ zip (drop (len ys) xs) zs
   #-}
 
+{-
+RESULTS 11/14
+I required "walk" variables to be total
+p06fin n gets UNSAT
+p08fin k gets UNSAT
+p16fin x xs runs forever
+p18fin i gets UNSAT
+p21fin n gets UNSAT
+p24fin a runs forever
+p24finA a runs forever
+p25fin a runs forever
+p38fin n xs runs forever
+p65fin i m runs forever
+p69fin n m runs forever
+
+Next round of attempts:
+p03fin n xs runs forever
+p03finA n xs runs forever
+p04fin n runs forever
+p05finC n x xs runs forever
+p10fin m gets UNSAT
+p15fin x xs runs forever
+p20fin xs runs forever
+p48fin xs runs forever
+p61fin xs runs forever
+p70fin m n runs forever
+p78fin xs runs forever
+p78finA xs runs forever
+p81fin n m xs runs forever
+p85fin xs ys runs forever
+p85finA xs ys runs forever
+-}
+
+{-# RULES
+"p03fin" forall n xs ys . count n xs <= count n (xs ++ ys) = walkNatList xs True
+"p03finA" forall n xs ys . count n xs <= count n (xs ++ ys) = walkNat n (walkNatList xs True)
+"p04fin" forall n xs . count n (n : xs) = walkNat n (S (count n xs))
+"p05finA" forall n x xs . prop_05 n x xs = walkNat n True
+"p05finB" forall n x xs . prop_05 n x xs = walkNat x (walkNatList xs True)
+"p05finC" forall n x xs . prop_05 n x xs = walkNat n (walkNat x (walkNatList xs True))
+"p06fin" forall n m . n - (n + m) = walkNat n Z
+"p08fin" forall k m n . (k + m) - (k + n) = walkNat k (m - n)
+"p10fin" forall m . m - m = walkNat m Z
+"p15fin" forall x xs . len (ins x xs) = walkNat x (S (len xs))
+"p16fin" forall x xs . prop_16 x xs = walkNat x True
+"p18fin" forall i m . prop_18 i m = walkNat i True
+"p20fin" forall xs . len (sort xs) = walkNatList xs (len xs)
+"p21fin" forall n m . prop_21 n m = walkNat n True
+"p24fin" forall a b . (max a b) === a = walkNat a (b <= a)
+"p24finA" forall a b . walkNat a ((max a b) === a) = walkNat a (b <= a)
+"p25fin" forall a b . (max a b) === b = walkNat b (a <= b)
+"p38fin" forall n xs . count n (xs ++ [n]) = walkNat n (walkNatList xs (S (count n xs)))
+"p48fin" forall xs . prop_48 xs = walkList xs True
+"p61fin" forall xs ys . last (xs ++ ys) = walkList xs (lastOfTwo xs ys)
+"p65fin" forall i m . prop_65 i m = walkNat i (walkNat m True)
+"p69fin" forall n m . prop_69 n m = walkNat n (walkNat m True)
+"p70fin" forall m n . prop_70 m n = walkNat m (walkNat n True)
+"p78fin" forall xs . prop_78 xs = walkNatList xs True
+"p78finA" forall xs . prop_78 xs = walkList xs True
+"p81fin" forall n m xs . take n (drop m xs) = walkNat m (walkList xs (drop m (take (n + m) xs)))
+"p85fin" forall xs ys . prop_85 xs ys = walkList xs (walkList ys True)
+"p85finA" forall xs ys . prop_85 xs ys = walkList ys (walkList xs True)
+  #-}
+
+-- TODO alternative finiteness approach
+walkNat :: Nat -> a -> a
+walkNat Z a = a
+walkNat (S x) a = walkNat x a
+
+walkList :: [a] -> b -> b
+walkList [] a = a
+walkList (_:xs) a = walkList xs a
+
+walkNatList :: [Nat] -> a -> a
+walkNatList xs a = case xs of
+  [] -> a
+  y:ys -> walkNatList ys (walkNat y a)
+
 -- everything else that follows is not part of the official test suite
 inf1 :: Nat
 inf1 = S inf1

@@ -119,9 +119,19 @@ addNat :: Nat -> Nat -> Nat
 addNat Z y = y
 addNat (S x) y = S (addNat x y)
 
+subNat :: Nat -> Nat -> Nat
+subNat Z _ = Z
+subNat x Z = x
+subNat (S x) (S y) = subNat x y
+
 doubleNat :: Nat -> Nat
 doubleNat Z = Z
 doubleNat (S x) = S (S (doubleNat x))
+
+forceNat :: Nat -> Nat -> Nat
+forceNat x y = case x of
+  Z -> y
+  S x' -> forceNat x' y
 
 expLengthNat :: [a] -> Nat
 expLengthNat [] = Z
@@ -185,4 +195,9 @@ simpleForce zs = case zs of
 {-# RULES
 "sf" forall (xs :: [Int]) . simpleForce (simpleForce xs) = simpleForce xs
 "forceBackward" forall xs . intForce xs = intForce (intForce xs)
+  #-}
+
+{-# RULES
+"walkLeft" forall m . subNat m m = forceNat m Z
+"walkBoth" forall m . forceNat m (subNat m m) = forceNat m Z
   #-}
