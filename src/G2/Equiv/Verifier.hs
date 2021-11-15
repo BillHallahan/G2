@@ -137,7 +137,7 @@ runSymExec config folder_root s1 s2 = do
                                         s2_' = final_state er2_
                                         s1_' = transferStateInfo s2_' s1_
                                     in
-                                    (addStamps $ prepareState s1_', addStamps $ prepareState s2_')
+                                    (addStamps k $ prepareState s1_', addStamps k_ $ prepareState s2_')
                                  ) er2) final_s1
   return $ concat pairs
 
@@ -289,33 +289,31 @@ prepareState s =
 -- TODO (11/15) new mechanism for induction soundness
 -- now the folder name needs to be Just at all times except init
 -- TODO add an extra int for uniqueness of layers to be extra thorough
-stampString :: Int -> Maybe String -> String
-stampString x Nothing = (show x) ++ "STAMP"
-stampString x (Just fname) = (show x) ++ "STAMP:" ++ fname
+stampString :: Int -> Int -> String
+stampString x k = (show x) ++ "STAMP:" ++ (show k)
 
-stampName :: Int -> Maybe String -> Name
-stampName x ms =
-  Name (DT.pack $ stampString x ms) Nothing 0 Nothing
+stampName :: Int -> Int -> Name
+stampName x k =
+  Name (DT.pack $ stampString x k) Nothing 0 Nothing
 
 -- TODO leave existing stamp ticks unaffected
 -- don't cover them with more layers
-insertStamps :: Int -> Maybe String -> Expr -> Expr
-insertStamps x ms (Tick nl e) = Tick nl (insertStamps x ms e)
-insertStamps x ms (Case e i a) =
+insertStamps :: Int -> Int -> Expr -> Expr
+insertStamps x k (Tick nl e) = Tick nl (insertStamps x k e)
+insertStamps x k (Case e i a) =
   case a of
     (Alt am1 a1):as -> case a1 of
-        Tick nl e' -> Case (insertStamps (x + 1) ms e) i a
-        _ -> let sn = stampName x ms
+        Tick nl e' -> Case (insertStamps (x + 1) k e) i a
+        _ -> let sn = stampName x k
                  a1' = Alt am1 (Tick (NamedLoc sn) a1)
-             in Case (insertStamps (x + 1) ms e) i (a1':as)
+             in Case (insertStamps (x + 1) k e) i (a1':as)
     _ -> error "Empty Alt List"
 insertStamps _ _ e = e
 
-addStamps :: StateET -> StateET
-addStamps s =
-  let ms = folder_name $ track s
-      CurrExpr c e = curr_expr s
-      e' = insertStamps 0 ms e
+addStamps :: Int -> StateET -> StateET
+addStamps k s =
+  let CurrExpr c e = curr_expr s
+      e' = insertStamps 0 k e
   in s { curr_expr = CurrExpr c e' }
 
 -- TODO not sure if I'll need this

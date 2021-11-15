@@ -198,6 +198,6 @@ simpleForce zs = case zs of
   #-}
 
 {-# RULES
-"walkLeft" forall m . subNat m m = forceNat m Z
+"walkRight" forall m . subNat m m = forceNat m Z
 "walkBoth" forall m . forceNat m (subNat m m) = forceNat m Z
   #-}
