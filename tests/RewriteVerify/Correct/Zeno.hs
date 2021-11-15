@@ -666,6 +666,14 @@ p78finA xs runs forever
 p81fin n m xs runs forever
 p85fin xs ys runs forever
 p85finA xs ys runs forever
+
+RESULTS 11/15
+Added extra condition for induction
+p06fin n still UNSAT
+p08fin k still UNSAT
+p10fin m still UNSAT
+p18fin i still UNSAT
+p21fin n still UNSAT
 -}
 
 {-# RULES

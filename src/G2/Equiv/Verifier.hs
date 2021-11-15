@@ -350,9 +350,9 @@ validScrutineeR :: StateET -> (Expr, Expr, PrevMatch EquivTracker) -> Bool
 validScrutineeR s2 (_, sc2, PrevMatch _ (_, p2) _ pc2) =
   let d_old = scrutineeDepth (exprExtract p2) (exprExtract pc2)
       stamps_old = take d_old $ readStamps (exprExtract pc2)
-      d_new = scrutineeDepth sc2 (exprExtract s2)
-      stamps_new = take d_new $ readStamps (exprExtract s2)
-  in trace (show (d_old, stamps_old, d_new, stamps_new)) True -- stamps_old == stamps_new
+      --d_new = scrutineeDepth sc2 (exprExtract s2)
+      stamps_new = take d_old $ readStamps (exprExtract s2)
+  in trace (show (d_old, stamps_old, stamps_new)) stamps_old == stamps_new
 
 -- TODO substitution happens on the right here
 -- find depth of p1 within pc1
@@ -364,9 +364,9 @@ validScrutineeL :: StateET -> (Expr, Expr, PrevMatch EquivTracker) -> Bool
 validScrutineeL s1 (sc1, _, PrevMatch _ (p1, _) _ pc1) =
   let d_old = scrutineeDepth (exprExtract p1) (exprExtract pc1)
       stamps_old = take d_old $ readStamps (exprExtract pc1)
-      d_new = scrutineeDepth sc1 (exprExtract s1)
-      stamps_new = take d_new $ readStamps (exprExtract s1)
-  in trace (show (d_old, stamps_old, d_new, stamps_new)) True -- stamps_old == stamps_new
+      --d_new = scrutineeDepth sc1 (exprExtract s1)
+      stamps_new = take d_old $ readStamps (exprExtract s1)
+  in trace (show (d_old, stamps_old, stamps_new)) stamps_old == stamps_new
 
 getLatest :: (StateH, StateH) -> (StateET, StateET)
 getLatest (StateH { latest = s1 }, StateH { latest = s2 }) = (s1, s2)
@@ -1222,7 +1222,7 @@ checkRule config init_state bindings total finite rule = do
   res <- verifyLoop solver ns
              [(rewrite_state_l'', rewrite_state_r'')]
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config (Just "testing") 0
+             bindings'' config (Just "") 0
   -- UNSAT for good, SAT for bad
   return res
 
