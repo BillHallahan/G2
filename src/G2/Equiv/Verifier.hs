@@ -97,8 +97,10 @@ statePairReadyForSolver (s1, s2) =
   in
   exprReadyForSolver h1 e1 && exprReadyForSolver h2 e2
 
+-- TODO don't log when the base folder name is empty
 logStatesFolder :: String -> Maybe String -> LogMode
 logStatesFolder _ Nothing = NoLog
+logStatesFolder _ (Just "") = NoLog
 logStatesFolder pre (Just fr) = Log Pretty $ fr ++ "/" ++ pre
 
 logStatesET :: String -> Maybe String -> Maybe String
@@ -135,7 +137,7 @@ runSymExec config folder_root s1 s2 = do
                                         s2_' = final_state er2_
                                         s1_' = transferStateInfo s2_' s1_
                                     in
-                                    (prepareState s1_', prepareState s2_')
+                                    (addStamps $ prepareState s1_', addStamps $ prepareState s2_')
                                  ) er2) final_s1
   return $ concat pairs
 
@@ -283,6 +285,88 @@ prepareState s =
   , rules = []
   , exec_stack = Stck.empty
   }
+
+-- TODO (11/15) new mechanism for induction soundness
+-- now the folder name needs to be Just at all times except init
+stamp_string :: Maybe String -> String
+stamp_string Nothing = "STAMP"
+stamp_string (Just fname) = "STAMP:" ++ fname
+
+stampName :: StateET -> Name
+stampName s =
+  Name (DT.pack $ stamp_string $ folder_name $ track s) Nothing 0 Nothing
+
+-- TODO leave existing stamp ticks unaffected
+-- don't cover them with more layers
+insertStamps :: Name -> Expr -> Expr
+insertStamps sn (Tick nl e) = Tick nl (insertStamps sn e)
+insertStamps sn (Case e i a) =
+  case a of
+    (Alt am1 a1):as -> case a1 of
+        Tick nl e' -> Case (insertStamps sn e) i a
+        _ -> let a1' = Alt am1 (Tick (NamedLoc sn) a1)
+             in Case (insertStamps sn e) i (a1':as)
+    _ -> error "Empty Alt List"
+insertStamps _ e = e
+
+addStamps :: StateET -> StateET
+addStamps s =
+  let sn = stampName s
+      CurrExpr c e = curr_expr s
+      e' = insertStamps sn e
+  in s { curr_expr = CurrExpr c e' }
+
+-- TODO not sure if I'll need this
+empty_name :: Name
+empty_name = Name (DT.pack "") Nothing 1 Nothing
+
+-- TODO keep track of case statements with no stamp
+readStamps :: Expr -> [Name]
+readStamps (Tick _ e) = readStamps e
+readStamps (Case e i a) =
+  case a of
+    (Alt am1 a1):_ -> case a1 of
+      Tick (NamedLoc n) _ -> n:(readStamps e)
+      _ -> empty_name:(readStamps e)
+    _ -> error "Empty Alt List"
+readStamps _ = []
+
+-- checking for depth of first expression within second
+scrutineeDepth :: Expr -> Expr -> Int
+scrutineeDepth e1 e2 | e1 == e2 = 0
+scrutineeDepth e1 (Tick _ e) = scrutineeDepth e1 e
+scrutineeDepth e1 (Case e i a) = 1 + scrutineeDepth e1 e
+scrutineeDepth _ _ = error "Not Contained"
+
+matchingStamps :: Int -> Expr -> Expr -> Bool
+matchingStamps i e1 e2 =
+  let stamps1 = readStamps e1
+      stamps2 = readStamps e2
+  in (take i stamps1) == (take i stamps2)
+
+-- TODO this is for a substitution that happens on the left
+-- TODO refactor code to avoid duplication
+validScrutineeR :: StateET -> (Expr, Expr, PrevMatch EquivTracker) -> Bool
+validScrutineeR s2 (_, sc2, PrevMatch _ (_, p2) _ pc2) =
+  let d_old = scrutineeDepth (exprExtract p2) (exprExtract pc2)
+      stamps_old = take d_old $ readStamps (exprExtract pc2)
+      d_new = scrutineeDepth sc2 (exprExtract s2)
+      stamps_new = take d_new $ readStamps (exprExtract s2)
+  in trace (show (d_old, stamps_old, d_new, stamps_new)) True -- stamps_old == stamps_new
+
+-- TODO substitution happens on the right here
+-- find depth of p1 within pc1
+-- find depth of sc1 within s1
+-- get the stamps from pc1
+-- get the stamps from s1
+-- the depths should be the same, and the stamps should match up to that point
+validScrutineeL :: StateET -> (Expr, Expr, PrevMatch EquivTracker) -> Bool
+validScrutineeL s1 (sc1, _, PrevMatch _ (p1, _) _ pc1) =
+  let d_old = scrutineeDepth (exprExtract p1) (exprExtract pc1)
+      stamps_old = take d_old $ readStamps (exprExtract pc1)
+      d_new = scrutineeDepth sc1 (exprExtract s1)
+      stamps_new = take d_new $ readStamps (exprExtract s1)
+  in trace (show (d_old, stamps_old, d_new, stamps_new)) True -- stamps_old == stamps_new
 
 getLatest :: (StateH, StateH) -> (StateET, StateET)
 getLatest (StateH { latest = s1 }, StateH { latest = s2 }) = (s1, s2)
@@ -611,7 +695,7 @@ tryCoinduction solver ns prev sh_pair (s1, s2) = do
   res2 <- moreRestrictivePair solver ns prev (s1, s2)
   case res1 of
     Just _ -> trace ("EQUIVALENT " ++ show (length prev)) $ return res1
-    _ -> trace ("NOT EQUIVALENT " ++ show (length prev)) $ return res2
+    _ -> {- trace ("NOT EQUIVALENT " ++ show (length prev)) $ -} return res2
 
 -- TODO printing
 -- TODO was the type signature wrong before?
@@ -728,10 +812,11 @@ inductionL solver ns prev (s1, s2) = do
   mr_pairs <- mapM (moreRestrictiveIndRight solver ns prev) scr_states
   let mr_zipped = zip scr_pairs mr_pairs
       working_info = [(sc1, sc2, pm) | ((sc1, sc2), Just pm) <- mr_zipped]
+      working_info' = filter (validScrutineeR s2) working_info
   -- TODO make an arbitrary choice about which working combination to return
   -- need to make a substitution for it
   -- going with left substitution for now
-  case working_info of
+  case working_info' of
     [] -> return (False, s1, s2)
     -- TODO use the "current" pair
     -- TODO some of this doesn't matter anymore
@@ -751,7 +836,7 @@ inductionL solver ns prev (s1, s2) = do
            --in trace ("YES I! " ++ show (printHaskellDirty q1 $ exprExtract q1, printHaskellDirty q2 $ exprExtract q2) ++ " :: " ++ show (printHaskellDirty p1 $ exprExtract p1, printHaskellDirty p2 $ exprExtract p2) ++ " :: " ++ show (printHaskellDirty q1 $ sc1, printHaskellDirty q2 $ sc2) ++ " :: " ++ show (printHaskellDirty $ exprExtract s1, printHaskellDirty $ exprExtract s2)) $ return (True, q1{ curr_expr = CurrExpr Evaluate e1_new }, q2)
            --in trace ("YES I! " ++ show (track q1', track q2) ++ " :: " ++ show (track p1, track p2) ++ " :: " ++ show (sc1, sc2) ++ " :: " ++ show (track s1, track s2)) $ return (True, q1'{ curr_expr = CurrExpr Evaluate e1_new }, q2')
            in --trace (show (sc1, e2_old', exprExtract s1)) $
-              trace ("YL " ++ show (length working_info)) $
+              trace ("YL " ++ show (length working_info')) $
               trace (printHaskellDirty sc1) $
               trace (printHaskellDirty e2_old) $
               trace (printHaskellDirty e2_old') $
@@ -784,7 +869,8 @@ inductionR solver ns prev (s1, s2) = do
   mr_pairs <- mapM (moreRestrictiveIndLeft solver ns prev) scr_states
   let mr_zipped = zip scr_pairs mr_pairs
       working_info = [(sc1, sc2, pm) | ((sc1, sc2), Just pm) <- mr_zipped]
-  case working_info of
+      working_info' = filter (validScrutineeL s1) working_info
+  case working_info' of
     [] -> return (False, s1, s2)
     h:_ -> let (sc1, sc2, PrevMatch (q1, q2) (p1, p2) (mapping, _) pc1) = h
                e1_old = exprExtract pc1
@@ -801,7 +887,7 @@ inductionR solver ns prev (s1, s2) = do
                , symbolic_ids = si2_new
                }
            in --trace (show (sc2, e1_old', exprExtract s2)) $
-              trace ("YR " ++ show (length working_info)) $
+              trace ("YR " ++ show (length working_info')) $
               trace (printHaskellDirty sc2) $
               trace (printHaskellDirty e1_old) $
               trace (printHaskellDirty e1_old') $
@@ -1136,7 +1222,7 @@ checkRule config init_state bindings total finite rule = do
   res <- verifyLoop solver ns
              [(rewrite_state_l'', rewrite_state_r'')]
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config Nothing 0 -- (Just "testing") 0
+             bindings'' config (Just "testing") 0
   -- UNSAT for good, SAT for bad
   return res
 
@@ -1206,10 +1292,12 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                            , Just hm_a <- {-trace ("APP ARG " ++ show hm_f ++ "\n" ++ show (printHaskellDirty a1) ++ "\n" ++ show (printHaskellDirty a2))-} moreRestrictive s1 s2 ns hm_f n1 n2 a1 a2 -> Just hm_a
     -- TODO ignoring lam use; these are never used seemingly
     -- TODO shouldn't lead to non-termination
+    {-
     (App (Lam _ i b) a, _) -> let e1' = replaceASTs (Var i) a b
                               in trace ("LAM L" ++ show i) $ moreRestrictive s1 s2 ns hm n1 n2 e1' e2
     (_, App (Lam _ i b) a) -> let e2' = replaceASTs (Var i) a b
                               in trace ("LAM R" ++ show i) $ moreRestrictive s1 s2 ns hm n1 n2 e1 e2'
+    -}
     -- These two cases should come after the main App-App case.  If an
     -- expression pair fits both patterns, then discharging it in a way that
     -- does not add any extra proof obligations is preferable.
@@ -1344,7 +1432,7 @@ restrictHelper :: StateET ->
                   Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 restrictHelper s1 s2 ns hm_hs = case restrictAux s1 s2 ns hm_hs of
   Nothing -> {-trace ("NOTHING " ++ (show (folder_name $ track s1, folder_name $ track s2)) ++ "\n" ++ (printHaskellDirty $ exprExtract s1) ++ "\n" ++ (printHaskellDirty $ exprExtract s2))-} Nothing
-  Just (hm, hs) -> trace ("JUST " ++ (show (folder_name $ track s1, folder_name $ track s2, hm))) $
+  Just (hm, hs) -> {-trace ("JUST " ++ (show (folder_name $ track s1, folder_name $ track s2, hm))) $ -}
                    if validMap s1 s2 hm then Just (hm, hs) else Nothing
 
 restrictAux :: StateET ->
@@ -1543,17 +1631,17 @@ moreRestrictiveEquiv solver ns s1 s2 = do
   pm_maybe <- moreRestrictivePair solver ns [(s2', s1')] (s1, s2)
   case pm_maybe of
     Nothing -> do
-      putStrLn $ "FAILED " ++ show (track s1, track s2)
-      putStrLn $ printHaskellDirty $ exprExtract s1
-      putStrLn $ printHaskellDirty $ exprExtract s2
+      --putStrLn $ "FAILED " ++ show (track s1, track s2)
+      --putStrLn $ printHaskellDirty $ exprExtract s1
+      --putStrLn $ printHaskellDirty $ exprExtract s2
       return Nothing
       --trace ("FAILED " ++ show (track s1, track s2)) $ return Nothing
     Just (PrevMatch _ _ (hm, _) _) -> if isIdentityMap hm
                                       then return pm_maybe
-                                      else do
-                                        putStrLn $ "NOT ID " ++ show hm
-                                        putStrLn $ printHaskellDirty $ exprExtract s1
-                                        putStrLn $ printHaskellDirty $ exprExtract s2
+                                      else --do
+                                        --putStrLn $ "NOT ID " ++ show hm
+                                        --putStrLn $ printHaskellDirty $ exprExtract s1
+                                        --putStrLn $ printHaskellDirty $ exprExtract s2
                                         return Nothing
 
 equivFoldL :: S.Solver solver =>
