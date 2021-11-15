@@ -288,32 +288,34 @@ prepareState s =
 
 -- TODO (11/15) new mechanism for induction soundness
 -- now the folder name needs to be Just at all times except init
-stamp_string :: Maybe String -> String
-stamp_string Nothing = "STAMP"
-stamp_string (Just fname) = "STAMP:" ++ fname
+-- TODO add an extra int for uniqueness of layers to be extra thorough
+stampString :: Int -> Maybe String -> String
+stampString x Nothing = (show x) ++ "STAMP"
+stampString x (Just fname) = (show x) ++ "STAMP:" ++ fname
 
-stampName :: StateET -> Name
-stampName s =
-  Name (DT.pack $ stamp_string $ folder_name $ track s) Nothing 0 Nothing
+stampName :: Int -> Maybe String -> Name
+stampName x ms =
+  Name (DT.pack $ stampString x ms) Nothing 0 Nothing
 
 -- TODO leave existing stamp ticks unaffected
 -- don't cover them with more layers
-insertStamps :: Name -> Expr -> Expr
-insertStamps sn (Tick nl e) = Tick nl (insertStamps sn e)
-insertStamps sn (Case e i a) =
+insertStamps :: Int -> Maybe String -> Expr -> Expr
+insertStamps x ms (Tick nl e) = Tick nl (insertStamps x ms e)
+insertStamps x ms (Case e i a) =
   case a of
     (Alt am1 a1):as -> case a1 of
-        Tick nl e' -> Case (insertStamps sn e) i a
-        _ -> let a1' = Alt am1 (Tick (NamedLoc sn) a1)
-             in Case (insertStamps sn e) i (a1':as)
+        Tick nl e' -> Case (insertStamps (x + 1) ms e) i a
+        _ -> let sn = stampName x ms
+                 a1' = Alt am1 (Tick (NamedLoc sn) a1)
+             in Case (insertStamps (x + 1) ms e) i (a1':as)
     _ -> error "Empty Alt List"
-insertStamps _ e = e
+insertStamps _ _ e = e
 
 addStamps :: StateET -> StateET
 addStamps s =
-  let sn = stampName s
+  let ms = folder_name $ track s
       CurrExpr c e = curr_expr s
-      e' = insertStamps sn e
+      e' = insertStamps 0 ms e
   in s { curr_expr = CurrExpr c e' }
 
 -- TODO not sure if I'll need this
@@ -1219,6 +1221,7 @@ checkRule config init_state bindings total finite rule = do
   -- TODO put REC ticks in the starting expression?
   putStrLn $ printHaskellDirty $ exprExtract $ latest rewrite_state_l''
   putStrLn $ printHaskellDirty $ exprExtract $ latest rewrite_state_r''
+  -- TODO this may not be sound anymore with Nothing
   res <- verifyLoop solver ns
              [(rewrite_state_l'', rewrite_state_r'')]
              [(rewrite_state_l'', rewrite_state_r'')]
