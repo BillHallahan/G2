@@ -31,6 +31,8 @@ import G2.Equiv.EquivADT
 import G2.Equiv.G2Calls
 
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.Map as M
+import G2.Execution.Memory
 import Data.Monoid (Any (..))
 
 import Debug.Trace
@@ -1200,6 +1202,12 @@ forceFinite w i e =
       a = Alt Default e
   in Case e' i' [a]
 
+cleanState :: State t -> Bindings -> (State t, Bindings)
+cleanState state bindings =
+  let sym_config = addSearchNames (input_names bindings)
+                   $ addSearchNames (M.keys $ deepseq_walkers bindings) emptyMemConfig
+  in markAndSweepPreserving sym_config state bindings
+
 checkRule :: Config ->
              State t ->
              Bindings ->
@@ -1230,10 +1238,10 @@ checkRule config init_state bindings total finite rule = do
       e_l = exprExtract rewrite_state_l
       e_l' = foldr (forceFinite walkers) e_l finite_ids
       -- TODO prepareState to avoid tick problem?
-      rewrite_state_l' = rewrite_state_l { curr_expr = CurrExpr Evaluate e_l' }
+      (rewrite_state_l',_) = cleanState (rewrite_state_l { curr_expr = CurrExpr Evaluate e_l' }) bindings
       e_r = exprExtract rewrite_state_r
       e_r' = foldr (forceFinite walkers) e_r finite_ids
-      rewrite_state_r' = rewrite_state_r { curr_expr = CurrExpr Evaluate e_r' }
+      (rewrite_state_r',_) = cleanState (rewrite_state_r { curr_expr = CurrExpr Evaluate e_r' }) bindings
       
       rewrite_state_l'' = startingState start_equiv_tracker rewrite_state_l'
       rewrite_state_r'' = startingState start_equiv_tracker rewrite_state_r'
@@ -1249,7 +1257,7 @@ checkRule config init_state bindings total finite rule = do
   res <- verifyLoop solver ns
              [(rewrite_state_l'', rewrite_state_r'')]
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config (Just "") 0
+             bindings'' config (Just "testing") 0
   -- UNSAT for good, SAT for bad
   return res
 

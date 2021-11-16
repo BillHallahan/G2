@@ -40,10 +40,12 @@ runG2ForRewriteV :: StateET ->
 runG2ForRewriteV state h_opp track_opp config bindings = do
     SomeSolver solver <- initSolver config
     let simplifier = IdSimplifier
-        --sym_config = PreserveAllMC
+        sym_config = PreserveAllMC
+        {-
         sym_config = addSearchNames (namesList $ track state)
                    $ addSearchNames (input_names bindings)
                    $ addSearchNames (M.keys $ deepseq_walkers bindings) emptyMemConfig
+        -}
 
         state' = state { track = (track state) { saw_tick = Nothing } }
 
