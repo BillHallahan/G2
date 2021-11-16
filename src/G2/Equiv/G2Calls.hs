@@ -33,10 +33,11 @@ import qualified Data.List as L
 -- get names from symbolic ids in the state
 runG2ForRewriteV :: StateET ->
                     E.ExprEnv ->
+                    EquivTracker ->
                     Config ->
                     Bindings ->
                     IO ([ExecRes EquivTracker], Bindings)
-runG2ForRewriteV state h_opp config bindings = do
+runG2ForRewriteV state h_opp track_opp config bindings = do
     SomeSolver solver <- initSolver config
     let simplifier = IdSimplifier
         --sym_config = PreserveAllMC
@@ -46,7 +47,7 @@ runG2ForRewriteV state h_opp config bindings = do
 
         state' = state { track = (track state) { saw_tick = Nothing } }
 
-    (in_out, bindings') <- case rewriteRedHaltOrd solver simplifier h_opp config of
+    (in_out, bindings') <- case rewriteRedHaltOrd solver simplifier h_opp track_opp config of
                 (red, hal, ord) ->
                     runG2WithSomes red hal ord solver simplifier sym_config state' bindings
 
@@ -58,9 +59,10 @@ rewriteRedHaltOrd :: (Solver solver, Simplifier simplifier) =>
                      solver ->
                      simplifier ->
                      E.ExprEnv ->
+                     EquivTracker ->
                      Config ->
                      (SomeReducer EquivTracker, SomeHalter EquivTracker, SomeOrderer EquivTracker)
-rewriteRedHaltOrd solver simplifier h_opp config =
+rewriteRedHaltOrd solver simplifier h_opp track_opp config =
     let
         share = sharing config
         state_name = Name "state" Nothing 0 Nothing
@@ -69,10 +71,10 @@ rewriteRedHaltOrd solver simplifier h_opp config =
     in
     (case m_logger of
             Just logger -> SomeReducer (StdRed share solver simplifier :<~
-                                        EnforceProgressR :<~ ConcSymReducer :<~ SymbolicSwapper h_opp) <~?
+                                        EnforceProgressR :<~ ConcSymReducer :<~ SymbolicSwapper h_opp track_opp) <~?
                                         (logger <~ SomeReducer EquivReducer)
             Nothing -> SomeReducer (StdRed share solver simplifier :<~
-                                    EnforceProgressR :<~ ConcSymReducer :<~ SymbolicSwapper h_opp :<~?
+                                    EnforceProgressR :<~ ConcSymReducer :<~ SymbolicSwapper h_opp track_opp :<~?
                                     EquivReducer)
      , SomeHalter
          (DiscardIfAcceptedTag state_name
@@ -82,24 +84,33 @@ rewriteRedHaltOrd solver simplifier h_opp config =
 
 type StateET = State EquivTracker
 
-data SymbolicSwapper = SymbolicSwapper E.ExprEnv
+data SymbolicSwapper = SymbolicSwapper E.ExprEnv EquivTracker
 
 instance Reducer SymbolicSwapper () EquivTracker where
     initReducer _ _ = ()
-    redRules r@(SymbolicSwapper h_opp) rv
+    redRules r@(SymbolicSwapper h_opp track_opp) rv
                   s@(State { curr_expr = CurrExpr _ e
                            , expr_env = h
                            , symbolic_ids = si
-                           , track = EquivTracker et m total finite fname })
+                           , track = EquivTracker et m tot fin fname })
                   b =
         case e of
             Var i@(Id n _) | E.isSymbolic n h ->
                 let cos = E.lookupConcOrSym n h_opp
                 in case cos of
                     Just (E.Conc e') ->
-                        let si' = L.nub (varIds e') ++ L.delete i si
-                            h' = foldr (\j -> E.insertSymbolic (idName j) j) (E.insert n e' h) (L.nub $ varIds e')
-                            s' = s { expr_env = h', symbolic_ids = si' }
+                        let vi = varIds e'
+                            vi_hs = HS.fromList $ map idName vi
+                            si' = L.nub vi ++ L.delete i si
+                            h' = foldr (\j -> E.insertSymbolic (idName j) j) (E.insert n e' h) (L.nub vi)
+                            total' = HS.union (HS.intersection (total track_opp) vi_hs) tot
+                            finite' = HS.union (HS.intersection (finite track_opp) vi_hs) fin
+                            track' = EquivTracker et m total' finite' fname
+                            s' = s {
+                              expr_env = h'
+                            , symbolic_ids = si'
+                            , track = track'
+                            }
                         in return (InProgress, [(s', rv)], b, r)
                     _ -> return (NoProgress, [(s, rv)], b, r)
             _ -> return (NoProgress, [(s, rv)], b, r)
@@ -222,8 +233,14 @@ instance Reducer EquivReducer () EquivTracker where
             in
             case HM.lookup e' et of
                 Just v ->
-                    let
-                        s' = s { curr_expr = CurrExpr Evaluate (Var v) }
+                    let (eenv', symbs') = case E.lookup (idName v) eenv of
+                            Just _ -> (eenv, symbs)
+                            Nothing -> (E.insertSymbolic (idName v) v eenv, v:symbs)
+                        s' = s {
+                            curr_expr = CurrExpr Evaluate (Var v)
+                          , expr_env = eenv'
+                          , symbolic_ids = symbs'
+                        }
                     in
                     return (InProgress, [(s', ())], b, r)
                 Nothing ->

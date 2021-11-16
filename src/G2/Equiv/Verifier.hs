@@ -122,22 +122,22 @@ runSymExec solver config folder_root s1 s2 = do
   let config' = config { logStates = logStatesFolder ("a" ++ show k) folder_root }
       t1 = (track s1) { folder_name = logStatesET ("a" ++ show k) folder_root }
   CM.liftIO $ putStrLn $ (show $ folder_name $ track s1) ++ " becomes " ++ (show $ folder_name t1)
-  (er1, bindings') <- CM.lift $ runG2ForRewriteV (s1 { track = t1 }) (expr_env s2) config' bindings
+  (er1, bindings') <- CM.lift $ runG2ForRewriteV (s1 { track = t1 }) (expr_env s2) (track s2) config' bindings
   CM.put (bindings', k + 1)
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
                     (b_, k_) <- CM.get
-                    let s2_ = s2
+                    let s2_ = transferSymFuncInfo s1_ s2
                     ct2 <- CM.liftIO $ getCurrentTime
                     let config'' = config { logStates = logStatesFolder ("b" ++ show k_) folder_root }
                         t2 = (track s2_) { folder_name = logStatesET ("b" ++ show k_) folder_root }
                     CM.liftIO $ putStrLn $ (show $ folder_name $ track s2_) ++ " becomes " ++ (show $ folder_name t2)
-                    (er2, b_') <- CM.lift $ runG2ForRewriteV (s2_ { track = t2 }) (expr_env s1_) config'' b_
+                    (er2, b_') <- CM.lift $ runG2ForRewriteV (s2_ { track = t2 }) (expr_env s1_) (track s1_) config'' b_
                     CM.put (b_', k_ + 1)
                     return $ map (\er2_ -> 
                                     let
                                         s2_' = final_state er2_
-                                        s1_' = s1_
+                                        s1_' = transferSymFuncInfo s2_' s1_
                                     in
                                     (addStamps k $ prepareState s1_', addStamps k_ $ prepareState s2_')
                                  ) er2) final_s1
@@ -152,6 +152,11 @@ pathCondsConsistent solver (s1, s2) = do
   case res of
     S.UNSAT () -> return False
     _ -> return True
+
+-- info goes from left to right
+transferSymFuncInfo :: StateET -> StateET -> StateET
+transferSymFuncInfo s1 s2 =
+  s2 { track = (track s2) { higher_order = higher_order $ track s1 } }
 
 -- After s1 has had its expr_env, path constraints, and tracker updated,
 -- transfer these updates to s2.
@@ -732,7 +737,7 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
   case getObligations ns s1 s2 of
     Nothing -> do
       -- obligation generation failed, so the expressions must not be equivalent
-      putStrLn "N!"
+      putStrLn $ "N! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
       putStrLn $ show $ exprExtract s1
       putStrLn $ show $ exprExtract s2
       mapM putStrLn $ exprTrace sh1 sh2
@@ -1386,11 +1391,13 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
     _ -> Nothing
 
 -- These helper functions have safeguards to avoid cyclic inlining.
+-- TODO remove ticks with this?
 inlineTop :: [Name] -> ExprEnv -> Expr -> Expr
 inlineTop acc h v@(Var (Id n _))
     | n `elem` acc = v
     | E.isSymbolic n h = v
     | Just e <- E.lookup n h = inlineTop (n:acc) h e
+inlineTop acc h (Tick _ e) = inlineTop acc h e
 inlineTop _ _ e = e
 
 inlineFull :: [Name] -> ExprEnv -> Expr -> Expr
