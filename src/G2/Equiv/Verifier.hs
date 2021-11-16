@@ -1232,7 +1232,7 @@ checkRule config init_state bindings total finite rule = do
   res <- verifyLoop solver ns
              [(rewrite_state_l'', rewrite_state_r'')]
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config (Just "testing") 0
+             bindings'' config (Just "") 0
   -- UNSAT for good, SAT for bad
   return res
 
@@ -1272,19 +1272,19 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                , not $ HS.member m ns
                , not $ (m, e2) `elem` n1
                , Just e <- E.lookup m h1 ->
-                 trace ("INLINE L " ++ show i ++ show e) $
+                 --trace ("INLINE L " ++ show i ++ show e) $
                  moreRestrictive s1 s2 ns hm ((m, e2):n1) n2 e e2
     (_, Var i) | m <- idName i
                , not $ E.isSymbolic m h2
                , not $ HS.member m ns
                , not $ (m, e1) `elem` n2
                , Just e <- E.lookup m h2 ->
-                 trace ("INLINE R " ++ show i ++ show e) $
+                 --trace ("INLINE R " ++ show i ++ show e) $
                  moreRestrictive s1 s2 ns hm n1 ((m, e1):n2) e1 e
     (Var i1, Var i2) | HS.member (idName i1) ns
                      , idName i1 == idName i2 -> Just hm
-                     | HS.member (idName i1) ns -> trace ("VLeft " ++ show (i1, i2)) Nothing
-                     | HS.member (idName i2) ns -> trace ("VRight " ++ show (i1, i2)) Nothing
+                     | HS.member (idName i1) ns -> {-trace ("VLeft " ++ show (i1, i2))-} Nothing
+                     | HS.member (idName i2) ns -> {-trace ("VRight " ++ show (i1, i2))-} Nothing
     (Var i, _) | E.isSymbolic (idName i) h1
                , (hm', hs) <- hm
                , Nothing <- HM.lookup i hm' -> Just (HM.insert i (inlineEquiv [] h2 ns e2) hm', hs)
@@ -1292,10 +1292,10 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                , Just e <- HM.lookup i (fst hm)
                , e == inlineEquiv [] h2 ns e2 -> Just hm
                -- this last case means there's a mismatch
-               | E.isSymbolic (idName i) h1 -> trace ("VSymLeft " ++ show i) Nothing
+               | E.isSymbolic (idName i) h1 -> {-trace ("VSymLeft " ++ show i)-} Nothing
                | not $ (idName i, e2) `elem` n1
                , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
-    (_, Var i) | E.isSymbolic (idName i) h2 -> trace ("VSymRight " ++ show i) Nothing -- sym replaces non-sym
+    (_, Var i) | E.isSymbolic (idName i) h2 -> {-trace ("VSymRight " ++ show i)-} Nothing -- sym replaces non-sym
                | not $ (idName i, e1) `elem` n2
                , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
     (App f1 a1, App f2 a2) | Just hm_f <- {-trace ("APP FN " ++ show (printHaskellDirty e1) ++ "\n" ++ show (printHaskellDirty e2))-} moreRestrictive s1 s2 ns hm n1 n2 f1 f2

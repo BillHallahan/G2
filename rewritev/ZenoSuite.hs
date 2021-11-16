@@ -115,14 +115,80 @@ rule_names5 = [
     , "p82"
     ]
 
+all_empty :: [[String]]
+all_empty = []:all_empty
+
+regression1 :: [(String, [String])]
+regression1 = [
+    ("p01", ["n"])
+  , ("p06fin", [])
+  , ("p07fin", [])
+  , ("p08fin", [])
+  , ("p09", [])
+  , ("p10fin", [])
+  , ("p11", [])
+  , ("p12", [])
+  , ("p13", [])
+  , ("p14", [])
+  , ("p17", [])
+  , ("p18fin", [])
+  , ("p19", ["n"])
+  , ("p21fin", [])
+  ]
+
+regression2 :: [(String, [String])]
+regression2 = [
+    ("p22", [])
+  , ("p23", [])
+  , ("p31", [])
+  , ("p32", ["a", "b"])
+  , ("p33", [])
+  , ("p34", ["a"])
+  , ("p35", [])
+  , ("p36", [])
+  , ("p40", [])
+  , ("p41", [])
+  , ("p42", [])
+  , ("p43", ["p", "xs"])
+  , ("p44", [])
+  , ("p45", [])
+  ]
+
+regression3 :: [(String, [String])]
+regression3 = [
+    ("p46", [])
+  , ("p47", [])
+  , ("p49", ["xs", "ys"])
+  , ("p50", [])
+  , ("p51", ["xs"])
+  , ("p64fin", [])
+  , ("p67", [])
+  , ("p73", ["p", "xs"])
+  , ("p79", ["n"])
+  , ("p80", [])
+  , ("p82", [])
+  , ("p83", ["ys"])
+  , ("p84", ["ys"])
+  ]
+
+rule_inputs :: [[(String, [String])]]
+rule_inputs = [regression1, regression2, regression3]
+
 rule_names :: [[String]]
-rule_names = [rule_names1, rule_names2, rule_names3, rule_names4, rule_names5]
+rule_names = [
+      rule_names1
+    , rule_names2
+    , rule_names3
+    , rule_names4
+    , rule_names5
+    ]
 
 suite :: Int -> IO ()
 suite n = do
   let src = "tests/RewriteVerify/Correct/Zeno.hs"
-      rn = rule_names !! (n - 1)
-      texts = map T.pack rn
+      ri = rule_inputs !! (n - 1)
+      texts = map (T.pack . fst) ri
+      totals = map (\(_, v) -> map T.pack v) ri
       libs = maybeToList $ strArg "mapsrc" [] M.empty Just Nothing
   proj <- guessProj src
   config <- getConfig [src]
@@ -130,6 +196,6 @@ suite n = do
                             (TranslationConfig {simpl = True, load_rewrite_rules = True}) config
   let rule_maybes = map (\t -> find (\r -> t == ru_name r) (rewrite_rules bindings)) texts
       rules = map fromJust rule_maybes
-  res <- mapM (checkRule config init_state bindings [] []) rules
-  print $ zip rn res
+  res <- mapM (\(r, t) -> checkRule config init_state bindings t [] r) (zip rules totals)
+  print $ zip ri res
   return ()
