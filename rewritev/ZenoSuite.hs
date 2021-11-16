@@ -102,8 +102,21 @@ rule_names4 = [
     , "p84"
     ]
 
+-- TODO
+rule_names5 :: [String]
+rule_names5 = [
+      "p44"
+    , "p45"
+    , "p46"
+    , "p47"
+    , "p50"
+    --, "p55"
+    , "p80"
+    , "p82"
+    ]
+
 rule_names :: [[String]]
-rule_names = [rule_names1, rule_names2, rule_names3, rule_names4]
+rule_names = [rule_names1, rule_names2, rule_names3, rule_names4, rule_names5]
 
 suite :: Int -> IO ()
 suite n = do

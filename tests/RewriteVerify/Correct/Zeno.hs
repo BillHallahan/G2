@@ -674,6 +674,19 @@ p08fin k still UNSAT
 p10fin m still UNSAT
 p18fin i still UNSAT
 p21fin n still UNSAT
+
+Adjusted stamp-naming system
+p07fin gets UNSAT (no totality)
+p54fin runs forever (no totality)
+p54fin n runs forever
+p64fin gets UNSAT (no totality)
+p65finA i m runs forever
+p69finA n m runs forever
+p70finA m n runs forever
+p38finA n xs runs forever
+p57fin n m xs runs forever
+p85finB xs ys runs forever
+p85finC xs ys runs forever
 -}
 
 {-# RULES
@@ -684,6 +697,7 @@ p21fin n still UNSAT
 "p05finB" forall n x xs . prop_05 n x xs = walkNat x (walkNatList xs True)
 "p05finC" forall n x xs . prop_05 n x xs = walkNat n (walkNat x (walkNatList xs True))
 "p06fin" forall n m . n - (n + m) = walkNat n Z
+"p07fin" forall n m . (n + m) - n = walkNat n m
 "p08fin" forall k m n . (k + m) - (k + n) = walkNat k (m - n)
 "p10fin" forall m . m - m = walkNat m Z
 "p15fin" forall x xs . len (ins x xs) = walkNat x (S (len xs))
@@ -695,16 +709,25 @@ p21fin n still UNSAT
 "p24finA" forall a b . walkNat a ((max a b) === a) = walkNat a (b <= a)
 "p25fin" forall a b . (max a b) === b = walkNat b (a <= b)
 "p38fin" forall n xs . count n (xs ++ [n]) = walkNat n (walkNatList xs (S (count n xs)))
+"p38finA" forall n xs . count n (xs ++ [n]) = walkNat n (S (count n xs))
 "p48fin" forall xs . prop_48 xs = walkList xs True
+"p54fin" forall n m . (m + n) - n = walkNat n m
+"p57fin" forall n m xs . drop n (take m xs) = walkNat m (take (m - n) (drop n xs))
 "p61fin" forall xs ys . last (xs ++ ys) = walkList xs (lastOfTwo xs ys)
+"p64fin" forall x xs . last (xs ++ [x]) = walkList xs x
 "p65fin" forall i m . prop_65 i m = walkNat i (walkNat m True)
+"p65finA" forall i m . prop_65 i m = walkNat i True
 "p69fin" forall n m . prop_69 n m = walkNat n (walkNat m True)
+"p69finA" forall n m . prop_69 n m = walkNat n True
 "p70fin" forall m n . prop_70 m n = walkNat m (walkNat n True)
+"p70finA" forall m n . prop_70 m n = walkNat m True
 "p78fin" forall xs . prop_78 xs = walkNatList xs True
 "p78finA" forall xs . prop_78 xs = walkList xs True
 "p81fin" forall n m xs . take n (drop m xs) = walkNat m (walkList xs (drop m (take (n + m) xs)))
 "p85fin" forall xs ys . prop_85 xs ys = walkList xs (walkList ys True)
 "p85finA" forall xs ys . prop_85 xs ys = walkList ys (walkList xs True)
+"p85finB" forall xs ys . prop_85 xs ys = walkList xs True
+"p85finC" forall xs ys . prop_85 xs ys = walkList ys True
   #-}
 
 -- TODO alternative finiteness approach
