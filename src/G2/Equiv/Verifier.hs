@@ -108,38 +108,50 @@ logStatesET _ Nothing = Nothing
 logStatesET pre (Just fr) = Just $ fr ++ "/" ++ pre
 
 -- TODO keep track of the prefixes for debugging
-runSymExec :: Config ->
+runSymExec :: S.Solver solver =>
+              solver ->
+              Config ->
               Maybe String ->
               StateET ->
               StateET ->
               CM.StateT (Bindings, Int) IO [(StateET, StateET)]
-runSymExec config folder_root s1 s2 = do
+runSymExec solver config folder_root s1 s2 = do
   CM.liftIO $ putStrLn "runSymExec"
   ct1 <- CM.liftIO $ getCurrentTime
   (bindings, k) <- CM.get
   let config' = config { logStates = logStatesFolder ("a" ++ show k) folder_root }
       t1 = (track s1) { folder_name = logStatesET ("a" ++ show k) folder_root }
   CM.liftIO $ putStrLn $ (show $ folder_name $ track s1) ++ " becomes " ++ (show $ folder_name t1)
-  (er1, bindings') <- CM.lift $ runG2ForRewriteV (s1 { track = t1 }) config' bindings
+  (er1, bindings') <- CM.lift $ runG2ForRewriteV (s1 { track = t1 }) (expr_env s2) config' bindings
   CM.put (bindings', k + 1)
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
                     (b_, k_) <- CM.get
-                    let s2_ = transferStateInfo s1_ s2
+                    let s2_ = s2
                     ct2 <- CM.liftIO $ getCurrentTime
                     let config'' = config { logStates = logStatesFolder ("b" ++ show k_) folder_root }
                         t2 = (track s2_) { folder_name = logStatesET ("b" ++ show k_) folder_root }
                     CM.liftIO $ putStrLn $ (show $ folder_name $ track s2_) ++ " becomes " ++ (show $ folder_name t2)
-                    (er2, b_') <- CM.lift $ runG2ForRewriteV (s2_ { track = t2 }) config'' b_
+                    (er2, b_') <- CM.lift $ runG2ForRewriteV (s2_ { track = t2 }) (expr_env s1_) config'' b_
                     CM.put (b_', k_ + 1)
                     return $ map (\er2_ -> 
                                     let
                                         s2_' = final_state er2_
-                                        s1_' = transferStateInfo s2_' s1_
+                                        s1_' = s1_
                                     in
                                     (addStamps k $ prepareState s1_', addStamps k_ $ prepareState s2_')
                                  ) er2) final_s1
-  return $ concat pairs
+  CM.liftIO $ filterM (pathCondsConsistent solver) (concat pairs)
+
+pathCondsConsistent :: S.Solver solver =>
+                       solver ->
+                       (StateET, StateET) ->
+                       IO Bool
+pathCondsConsistent solver (s1, s2) = do
+  res <- applySolver solver P.empty s1 s2
+  case res of
+    S.UNSAT () -> return False
+    _ -> return True
 
 -- After s1 has had its expr_env, path constraints, and tracker updated,
 -- transfer these updates to s2.
@@ -414,7 +426,7 @@ verifyLoop :: S.Solver solver =>
               IO (S.Result () ())
 verifyLoop solver ns states prev b config folder_root k | not (null states) = do
   let current_states = map getLatest states
-  (paired_states, (b', k')) <- CM.runStateT (mapM (uncurry (runSymExec config folder_root)) current_states) (b, k)
+  (paired_states, (b', k')) <- CM.runStateT (mapM (uncurry (runSymExec solver config folder_root)) current_states) (b, k)
   let ng = name_gen b'
       (fresh_name, ng') = freshName ng
       b'' = b' { name_gen = ng' }

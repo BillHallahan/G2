@@ -28,13 +28,15 @@ import Data.Maybe
 import G2.Execution.Reducer ( EquivTracker )
 import G2.Execution.NormalForms
 import qualified Data.Map as M
+import qualified Data.List as L
 
 -- get names from symbolic ids in the state
 runG2ForRewriteV :: StateET ->
+                    E.ExprEnv ->
                     Config ->
                     Bindings ->
                     IO ([ExecRes EquivTracker], Bindings)
-runG2ForRewriteV state config bindings = do
+runG2ForRewriteV state h_opp config bindings = do
     SomeSolver solver <- initSolver config
     let simplifier = IdSimplifier
         --sym_config = PreserveAllMC
@@ -44,7 +46,7 @@ runG2ForRewriteV state config bindings = do
 
         state' = state { track = (track state) { saw_tick = Nothing } }
 
-    (in_out, bindings') <- case rewriteRedHaltOrd solver simplifier config of
+    (in_out, bindings') <- case rewriteRedHaltOrd solver simplifier h_opp config of
                 (red, hal, ord) ->
                     runG2WithSomes red hal ord solver simplifier sym_config state' bindings
 
@@ -55,9 +57,10 @@ runG2ForRewriteV state config bindings = do
 rewriteRedHaltOrd :: (Solver solver, Simplifier simplifier) =>
                      solver ->
                      simplifier ->
+                     E.ExprEnv ->
                      Config ->
                      (SomeReducer EquivTracker, SomeHalter EquivTracker, SomeOrderer EquivTracker)
-rewriteRedHaltOrd solver simplifier config =
+rewriteRedHaltOrd solver simplifier h_opp config =
     let
         share = sharing config
         state_name = Name "state" Nothing 0 Nothing
@@ -65,8 +68,12 @@ rewriteRedHaltOrd solver simplifier config =
         m_logger = getLogger config
     in
     (case m_logger of
-            Just logger -> SomeReducer (StdRed share solver simplifier :<~ EnforceProgressR :<~ ConcSymReducer) <~? (logger <~ SomeReducer EquivReducer)
-            Nothing -> SomeReducer (StdRed share solver simplifier :<~ EnforceProgressR :<~ ConcSymReducer :<~? EquivReducer)
+            Just logger -> SomeReducer (StdRed share solver simplifier :<~
+                                        EnforceProgressR :<~ ConcSymReducer :<~ SymbolicSwapper h_opp) <~?
+                                        (logger <~ SomeReducer EquivReducer)
+            Nothing -> SomeReducer (StdRed share solver simplifier :<~
+                                    EnforceProgressR :<~ ConcSymReducer :<~ SymbolicSwapper h_opp :<~?
+                                    EquivReducer)
      , SomeHalter
          (DiscardIfAcceptedTag state_name
          :<~> EnforceProgressH
@@ -74,6 +81,28 @@ rewriteRedHaltOrd solver simplifier config =
      , SomeOrderer $ PickLeastUsedOrderer)
 
 type StateET = State EquivTracker
+
+data SymbolicSwapper = SymbolicSwapper E.ExprEnv
+
+instance Reducer SymbolicSwapper () EquivTracker where
+    initReducer _ _ = ()
+    redRules r@(SymbolicSwapper h_opp) rv
+                  s@(State { curr_expr = CurrExpr _ e
+                           , expr_env = h
+                           , symbolic_ids = si
+                           , track = EquivTracker et m total finite fname })
+                  b =
+        case e of
+            Var i@(Id n _) | E.isSymbolic n h ->
+                let cos = E.lookupConcOrSym n h_opp
+                in case cos of
+                    Just (E.Conc e') ->
+                        let si' = L.nub (varIds e') ++ L.delete i si
+                            h' = foldr (\j -> E.insertSymbolic (idName j) j) (E.insert n e' h) (L.nub $ varIds e')
+                            s' = s { expr_env = h', symbolic_ids = si' }
+                        in return (InProgress, [(s', rv)], b, r)
+                    _ -> return (NoProgress, [(s, rv)], b, r)
+            _ -> return (NoProgress, [(s, rv)], b, r)
 
 data EnforceProgressR = EnforceProgressR
 
