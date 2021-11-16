@@ -687,6 +687,9 @@ p38finA n xs runs forever
 p57fin n m xs runs forever
 p85finB xs ys runs forever
 p85finC xs ys runs forever
+
+p26fin x xs ys runs forever
+p59fin xs ys runs forever
 -}
 
 {-# RULES
@@ -708,11 +711,13 @@ p85finC xs ys runs forever
 "p24fin" forall a b . (max a b) === a = walkNat a (b <= a)
 "p24finA" forall a b . walkNat a ((max a b) === a) = walkNat a (b <= a)
 "p25fin" forall a b . (max a b) === b = walkNat b (a <= b)
+"p26fin" forall x xs ys . prop_26 x xs ys = walkNat x True
 "p38fin" forall n xs . count n (xs ++ [n]) = walkNat n (walkNatList xs (S (count n xs)))
 "p38finA" forall n xs . count n (xs ++ [n]) = walkNat n (S (count n xs))
 "p48fin" forall xs . prop_48 xs = walkList xs True
 "p54fin" forall n m . (m + n) - n = walkNat n m
 "p57fin" forall n m xs . drop n (take m xs) = walkNat m (take (m - n) (drop n xs))
+"p59fin" forall xs ys . prop_59 xs ys = walkList xs True
 "p61fin" forall xs ys . last (xs ++ ys) = walkList xs (lastOfTwo xs ys)
 "p64fin" forall x xs . last (xs ++ [x]) = walkList xs x
 "p65fin" forall i m . prop_65 i m = walkNat i (walkNat m True)

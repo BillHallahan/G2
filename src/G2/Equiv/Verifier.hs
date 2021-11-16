@@ -298,12 +298,16 @@ stampName x k =
 
 -- TODO leave existing stamp ticks unaffected
 -- don't cover them with more layers
+-- TODO check what the tick is in the match case
+-- TODO only stamp strings should contain a colon
 insertStamps :: Int -> Int -> Expr -> Expr
 insertStamps x k (Tick nl e) = Tick nl (insertStamps x k e)
 insertStamps x k (Case e i a) =
   case a of
     (Alt am1 a1):as -> case a1 of
-        Tick nl e' -> Case (insertStamps (x + 1) k e) i a
+        Tick (NamedLoc (Name n _ _ _)) e' | str <- DT.unpack n
+                                          , ':' `elem` str ->
+          Case (insertStamps (x + 1) k e) i a
         _ -> let sn = stampName x k
                  a1' = Alt am1 (Tick (NamedLoc sn) a1)
              in Case (insertStamps (x + 1) k e) i (a1':as)
@@ -667,12 +671,13 @@ addInduction s sh =
 -- TODO I can add induction markers here; preserve the old states
 -- q1 and q2 were the states used for the induction
 -- TODO more reworking would be necessary to get the actual past states used
+-- TODO could be losing valuable parts of history from this
 makeIndStateH :: (StateH, StateH) ->
-                 ((StateET, StateET), (Int, StateET, StateET)) ->
+                 ((StateET, StateET), ((Int, Int), StateET, StateET)) ->
                  (StateH, StateH)
-makeIndStateH (sh1, sh2) ((q1, q2), (n, s1, s2)) | n >= 0 =
-  let hist1 = [] -- drop n $ history sh1
-      hist2 = [] -- drop n $ history sh2
+makeIndStateH (sh1, sh2) ((q1, q2), ((n1, n2), s1, s2)) | n1 >= 0, n2 >= 0 =
+  let hist1 = drop n1 $ history sh1
+      hist2 = drop n2 $ history sh2
       sh1' = sh1 { history = hist1, latest = s1 }
       sh2' = sh2 { history = hist2, latest = s2 }
       im1 = IndMarker q2 q1 s1
@@ -858,10 +863,10 @@ inductionR :: S.Solver solver =>
               (StateET, StateET) ->
               IO (Bool, StateET, StateET)
 inductionR solver ns prev (s1, s2) = do
-  putStrLn "RIGHT SIDE"
-  print $ track s1
-  print $ track s2
-  print $ map (\(p1, p2) -> (folder_name $ track p1, folder_name $ track p2)) prev
+  --putStrLn "RIGHT SIDE"
+  --print $ track s1
+  --print $ track s2
+  --print $ map (\(p1, p2) -> (folder_name $ track p1, folder_name $ track p2)) prev
   let scr1 = innerScrutinees $ exprExtract s1
       scr2 = innerScrutinees $ exprExtract s2
       scr_pairs = [(sc1, sc2) | sc1 <- scr1, sc2 <- scr2]
@@ -973,16 +978,18 @@ inductionFold :: S.Solver solver =>
                  Name ->
                  (StateH, StateH) ->
                  (StateET, StateET) ->
-                 IO (Int, StateET, StateET)
+                 IO ((Int, Int), StateET, StateET)
 inductionFold solver ns fresh_name sh_pair@(sh1, sh2) (s1, s2) = do
   (nl, s1l, s2l) <- inductionFoldL solver ns fresh_name sh_pair (s1, s2)
   -- TODO this could cause excessive removals
   let min_length = min (length $ history sh1) (length $ history sh2)
-  if nl >= 0 then trace ("IL " ++ show (map (folder_name . track) [s1, s2, s1l, s2l])) $ return (min_length - nl, s1l, s2l)
+      length1 = length $ history sh1
+      length2 = length $ history sh2
+  if nl >= 0 then trace ("IL " ++ show (map (folder_name . track) [s1, s2, s1l, s2l])) $ return ((0, length2 - nl), s1l, s2l)
   else do
     (nr, s1r, s2r) <- inductionFoldR solver ns fresh_name sh_pair (s1, s2)
-    if nr >= 0 then trace ("IR " ++ show (map (folder_name . track) [s1, s2, s1r, s2r])) $ return (min_length - nr, s1r, s2r)
-    else return (-1, s1, s2)
+    if nr >= 0 then trace ("IR " ++ show (map (folder_name . track) [s1, s2, s1r, s2r])) $ return ((length1 - nr, 0), s1r, s2r)
+    else return ((-1, -1), s1, s2)
 
 generalizeAux :: S.Solver solver =>
                  solver ->
@@ -1009,6 +1016,8 @@ generalize :: S.Solver solver =>
               IO (Bool, StateET, StateET)
 generalize solver ns fresh_name (s1, s2) = do
   putStrLn $ "Starting G " ++ show fresh_name
+  putStrLn $ printHaskellDirty $ exprExtract s1
+  putStrLn $ printHaskellDirty $ exprExtract s2
   -- expressions are ordered from outer to inner
   -- the largest ones are on the outside
   -- take the earliest array entry that works
@@ -1063,11 +1072,11 @@ inductionFull :: S.Solver solver =>
                  Name ->
                  (StateH, StateH) ->
                  (StateET, StateET) ->
-                 IO (Int, StateET, StateET)
+                 IO ((Int, Int), StateET, StateET)
 inductionFull solver ns fresh_name sh_pair s_pair@(s1, s2) = do
-  (n, s1', s2') <- inductionFold solver ns fresh_name sh_pair s_pair
-  if n < 0 then trace ("NO INDUCTION " ++ show n) return (n, s1, s2)
-  else return (n, s1', s2')
+  ((n1, n2), s1', s2') <- inductionFold solver ns fresh_name sh_pair s_pair
+  if n1 < 0 || n2 < 0 then trace ("NO INDUCTION " ++ show n1) return ((n1, n2), s1, s2)
+  else return ((n1, n2), s1', s2')
   {-
   else do
     (_, s1', s2') <- generalize solver ns fresh_name (s1, s2)
@@ -1223,7 +1232,7 @@ checkRule config init_state bindings total finite rule = do
   res <- verifyLoop solver ns
              [(rewrite_state_l'', rewrite_state_r'')]
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config (Just "") 0
+             bindings'' config (Just "testing") 0
   -- UNSAT for good, SAT for bad
   return res
 
@@ -1263,19 +1272,19 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                , not $ HS.member m ns
                , not $ (m, e2) `elem` n1
                , Just e <- E.lookup m h1 ->
-                 --trace ("INLINE L " ++ show i ++ show e) $
+                 trace ("INLINE L " ++ show i ++ show e) $
                  moreRestrictive s1 s2 ns hm ((m, e2):n1) n2 e e2
     (_, Var i) | m <- idName i
                , not $ E.isSymbolic m h2
                , not $ HS.member m ns
                , not $ (m, e1) `elem` n2
                , Just e <- E.lookup m h2 ->
-                 --trace ("INLINE R " ++ show i ++ show e) $
+                 trace ("INLINE R " ++ show i ++ show e) $
                  moreRestrictive s1 s2 ns hm n1 ((m, e1):n2) e1 e
     (Var i1, Var i2) | HS.member (idName i1) ns
                      , idName i1 == idName i2 -> Just hm
-                     | HS.member (idName i1) ns -> {-trace ("VLeft " ++ show (i1, i2))-} Nothing
-                     | HS.member (idName i2) ns -> {-trace ("VRight " ++ show (i1, i2))-} Nothing
+                     | HS.member (idName i1) ns -> trace ("VLeft " ++ show (i1, i2)) Nothing
+                     | HS.member (idName i2) ns -> trace ("VRight " ++ show (i1, i2)) Nothing
     (Var i, _) | E.isSymbolic (idName i) h1
                , (hm', hs) <- hm
                , Nothing <- HM.lookup i hm' -> Just (HM.insert i (inlineEquiv [] h2 ns e2) hm', hs)
@@ -1283,10 +1292,10 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                , Just e <- HM.lookup i (fst hm)
                , e == inlineEquiv [] h2 ns e2 -> Just hm
                -- this last case means there's a mismatch
-               | E.isSymbolic (idName i) h1 -> {-trace ("VSymLeft " ++ show i)-} Nothing
+               | E.isSymbolic (idName i) h1 -> trace ("VSymLeft " ++ show i) Nothing
                | not $ (idName i, e2) `elem` n1
                , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
-    (_, Var i) | E.isSymbolic (idName i) h2 -> {-trace ("VSymRight " ++ show i)-} Nothing -- sym replaces non-sym
+    (_, Var i) | E.isSymbolic (idName i) h2 -> trace ("VSymRight " ++ show i) Nothing -- sym replaces non-sym
                | not $ (idName i, e1) `elem` n2
                , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
     (App f1 a1, App f2 a2) | Just hm_f <- {-trace ("APP FN " ++ show (printHaskellDirty e1) ++ "\n" ++ show (printHaskellDirty e2))-} moreRestrictive s1 s2 ns hm n1 n2 f1 f2
