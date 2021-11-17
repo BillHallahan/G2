@@ -129,7 +129,7 @@ runSymExec solver config folder_root s1 s2 = do
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
                     (b_, k_) <- CM.get
-                    let s2_ = transferSymFuncInfo s1_ s2
+                    let s2_ = transferTrackerInfo s1_ s2
                     ct2 <- CM.liftIO $ getCurrentTime
                     let config'' = config { logStates = logStatesFolder ("b" ++ show k_) folder_root }
                         t2 = (track s2_) { folder_name = logStatesET ("b" ++ show k_) folder_root }
@@ -139,7 +139,7 @@ runSymExec solver config folder_root s1 s2 = do
                     return $ map (\er2_ -> 
                                     let
                                         s2_' = final_state er2_
-                                        s1_' = transferSymFuncInfo s2_' s1_
+                                        s1_' = transferTrackerInfo s2_' s1_
                                     in
                                     (addStamps k $ prepareState s1_', addStamps k_ $ prepareState s2_')
                                  ) er2) final_s1
@@ -156,9 +156,17 @@ pathCondsConsistent solver (s1, s2) = do
     _ -> return True
 
 -- info goes from left to right
-transferSymFuncInfo :: StateET -> StateET -> StateET
-transferSymFuncInfo s1 s2 =
-  s2 { track = (track s2) { higher_order = higher_order $ track s1 } }
+-- TODO union instead?
+transferTrackerInfo :: StateET -> StateET -> StateET
+transferTrackerInfo s1 s2 =
+  let t1 = track s1
+      t2 = track s2
+      t2' = t2 {
+        higher_order = higher_order t1
+      , total = total t1-- HS.union (total t1) (total t2)
+      , finite = finite t1-- HS.union (finite t1) (finite t2)
+      }
+  in s2 { track = t2' }
 
 -- After s1 has had its expr_env, path constraints, and tracker updated,
 -- transfer these updates to s2.
@@ -542,36 +550,6 @@ inductionState :: State t -> State t
 inductionState s =
   s { curr_expr = CurrExpr Evaluate $ inductionExtract $ exprExtract s }
 
--- TODO keep going recursively though more nested Cases
--- TODO unused
-getAlts :: State t -> [Alt]
-getAlts s@(State { curr_expr = CurrExpr _ e }) =
-  case e of
-    Case e' _ a -> case e' of
-      Case _ _ _ -> getAlts $ s { curr_expr = CurrExpr Evaluate e' }
-      _ -> a
-    _ -> error "Improper Format"
-
--- TODO can't just replace the first case I see
--- need to keep going down until I reach something that isn't a Case
--- didn't fix forceIdempotent, though
--- TODO the trace here is the last thing that gets printed before freeze
--- TODO is this messing with the EquivTracker somehow?
--- TODO removed error, but there's a soundness problem
--- I get UNSAT for forceIdempotent
--- TODO unused
-newScrutinee :: Id -> Expr -> Expr
-newScrutinee i (Case e i' a) = Case (newScrutinee i e) i' a
-newScrutinee i (Tick nl e) = Tick nl $ newScrutinee i e
-newScrutinee i _ = Var i
-
--- the first expression becomes the new scrutinee of the second
--- TODO unused
-substScrutinee :: Expr -> Expr -> Expr
-substScrutinee e (Case e' i a) = Case (substScrutinee e e') i a
-substScrutinee e (Tick nl e') = Tick nl $ substScrutinee e e'
-substScrutinee e _ = e
-
 -- TODO new induction scheme
 removeMatchingCases :: Expr -> Expr -> Expr
 removeMatchingCases (Tick _ e1) e2 = removeMatchingCases e1 e2
@@ -579,11 +557,6 @@ removeMatchingCases e1 (Tick _ e2) = removeMatchingCases e1 e2
 removeMatchingCases (Case e1 i1 a1) (Case e2 i2 a2) =
   if a1 == a2 then removeMatchingCases e1 e2 else e2
 removeMatchingCases _ e2 = e2
-
--- TODO unused
-rmcHelper :: Expr -> State t -> State t
-rmcHelper e1 s@(State { curr_expr = CurrExpr _ e2 }) =
-  s { curr_expr = CurrExpr Evaluate (removeMatchingCases e1 e2) }
 
 -- TODO new version gets all of the layers, not just the innermost
 innerScrutinees :: Expr -> [Expr]
@@ -606,39 +579,6 @@ what the steps would be for the scrutinee
 Eventually it'll reach SWHNF or a recursion tick
 Either that or pause evaluation more often?
 -}
-
--- TODO new rule:  removal of singleton Case statements
--- convert them into Let statements
--- TODO if there's only one constructor, that should count too
--- likewise, if there's only one literal value, that should work
--- that's a really uncommon case, though
--- TODO make it recursive?
-isSingleton :: Expr -> Bool
-isSingleton (Case _ _ [Alt Default _]) = True
-isSingleton (Case e _ _) = isSingleton e
-isSingleton (Tick _ e) = isSingleton e
---isSingleton (Case e _ [Alt (DataAlt _ _) _]) = error "TODO"
-isSingleton _ = False
-
--- TODO not looping in here
-elimSingleton :: Expr -> Expr
-elimSingleton (Tick nl e) = Tick nl (elimSingleton e)
-elimSingleton (Case e i [Alt Default e']) = Let [(i, e)] e'
-elimSingleton (Case e i a) = Case (elimSingleton e) i a
-elimSingleton _ = error "Improper Format"
-
--- TODO unused
-elimSingletonPair :: (StateET, StateET) -> (StateET, StateET)
-elimSingletonPair (s1, s2) =
-  let e1 = exprExtract s1
-      e1' = elimSingleton e1
-      s1' = s1 { curr_expr = CurrExpr Evaluate e1' }
-      e2 = exprExtract s2
-      e2' = elimSingleton e2
-      s2' = s2 { curr_expr = CurrExpr Evaluate e2' }
-      s1_ = if isSingleton e1 then s1' else s1
-      s2_ = if isSingleton e2 then s2' else s2
-  in (s1_, s2_)
 
 notM :: IO Bool -> IO Bool
 notM b = do
@@ -786,7 +726,6 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
           states_c' = map snd $ filter fst (zip discharges_ states_c)
 
       let states_i = map (stateWrap s1 s2) obs_i
-      -- TODO redundancy?
       states_i_ <- filterM (isNothingM . (tryCoinduction solver ns prev' (sh1, sh2))) states_i
       -- TODO need a way to get the prev pair used for induction
       states_i' <- mapM (inductionFull solver ns fresh_name (sh1, sh2)) states_i_
@@ -868,6 +807,7 @@ inductionL solver ns prev (s1, s2) = do
                  curr_expr = CurrExpr Evaluate e1_new
                , expr_env = h1_new
                , symbolic_ids = si1_new
+               --, track = mergeTrackers (track pc2) (track s1)
                }
            --in trace ("YES I! " ++ show (printHaskellDirty q1 $ exprExtract q1, printHaskellDirty q2 $ exprExtract q2) ++ " :: " ++ show (printHaskellDirty p1 $ exprExtract p1, printHaskellDirty p2 $ exprExtract p2) ++ " :: " ++ show (printHaskellDirty q1 $ sc1, printHaskellDirty q2 $ sc2) ++ " :: " ++ show (printHaskellDirty $ exprExtract s1, printHaskellDirty $ exprExtract s2)) $ return (True, q1{ curr_expr = CurrExpr Evaluate e1_new }, q2)
            --in trace ("YES I! " ++ show (track q1', track q2) ++ " :: " ++ show (track p1, track p2) ++ " :: " ++ show (sc1, sc2) ++ " :: " ++ show (track s1, track s2)) $ return (True, q1'{ curr_expr = CurrExpr Evaluate e1_new }, q2')
@@ -1108,11 +1048,6 @@ inductionFull solver ns fresh_name sh_pair s_pair@(s1, s2) = do
   ((n1, n2), s1', s2') <- inductionFold solver ns fresh_name sh_pair s_pair
   if n1 < 0 || n2 < 0 then trace ("NO INDUCTION " ++ show n1) return ((n1, n2), s1, s2)
   else return ((n1, n2), s1', s2')
-  {-
-  else do
-    (_, s1', s2') <- generalize solver ns fresh_name (s1, s2)
-    return (n, s1', s2')
-  -}
 
 -- TODO (9/27) check path constraint implication?
 -- TODO (9/30) alternate:  just substitute one scrutinee for the other

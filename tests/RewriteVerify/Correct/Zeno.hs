@@ -690,9 +690,15 @@ p85finC xs ys runs forever
 
 p26fin x xs ys runs forever
 p59fin xs ys runs forever
+
+RESULTS 11/17
+p01fin n xs runs forever
+p01finA n xs runs forever
 -}
 
 {-# RULES
+"p01fin" forall n xs . take n xs ++ drop n xs = walkNat n xs
+"p01finA" forall n xs . walkNat n (take n xs ++ drop n xs) = walkNat n xs
 "p03fin" forall n xs ys . count n xs <= count n (xs ++ ys) = walkNatList xs True
 "p03finA" forall n xs ys . count n xs <= count n (xs ++ ys) = walkNat n (walkNatList xs True)
 "p04fin" forall n xs . count n (n : xs) = walkNat n (S (count n xs))
