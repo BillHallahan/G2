@@ -166,6 +166,7 @@ exprFullApp h e | (Var (Id n t)):_ <- unApp e
 exprFullApp _ _ = False
 
 isVar :: Expr -> Bool
+isVar (Tick _ e) = isVar e
 isVar (Var _) = True
 isVar _ = False
 
@@ -208,7 +209,7 @@ instance Halter EnforceProgressH () EquivTracker where
             -- point when it reaches the Tick because the act of unwrapping the
             -- expression inside the Tick counts as one step.
             Just n0 -> do
-                if (isExecValueForm s) || (exprFullApp h e) || (recursionInCase s) || (loneSymVar s)
+                if (isExecValueForm s) || (exprFullApp h e) || (recursionInCase s)-- || (loneSymVar s)
                        -- TODO same goes for this?
                        then return (if n' > n0 + 1 then Accept else Continue)
                        -- TODO not getting stuck in here repeatedly
@@ -265,7 +266,7 @@ instance Reducer EquivReducer () EquivTracker where
                                , expr_env = E.insertSymbolic (idName v) v eenv
                                , symbolic_ids = v:symbs }
                         b' = b { name_gen = ng' }
-                    in trace ("SYM FUNC " ++ show v) $
+                    in trace ("SYM FUNC " ++ show v ++ "\n" ++ show e) $
                     return (InProgress, [(s', ())], b', r)
     redRules r rv s b = return (NoProgress, [(s, rv)], b, r)
 

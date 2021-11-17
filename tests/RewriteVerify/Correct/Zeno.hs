@@ -774,6 +774,9 @@ inf_tree3 = Node inf_tree3 Z inf_tree1
 inf_tree4 :: Tree Nat
 inf_tree4 = Node inf_tree2 Z inf_tree4
 
+triv Z = True
+triv (S _) = False
+
 -- all of these are valid, and the verifier returns UNSAT for all of them now
 {-# RULES
 "infEq" inf1 = inf2
@@ -781,6 +784,7 @@ inf_tree4 = Node inf_tree2 Z inf_tree4
 "infTreeEq" inf_tree1 = inf_tree2
 "differentCycles" inf_tree3 = inf_tree4
 "infPlusOne" inf1 = S inf1
+"p43alt" forall xs . takeWhile triv xs ++ dropWhile triv xs = xs
   #-}
 
 -- Fibonacci with Nats

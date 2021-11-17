@@ -719,7 +719,7 @@ tryCoinduction solver ns prev sh_pair (s1, s2) = do
   res2 <- moreRestrictivePair solver ns prev (s1, s2)
   case res1 of
     Just _ -> trace ("EQUIVALENT " ++ show (length prev)) $ return res1
-    _ -> {- trace ("NOT EQUIVALENT " ++ show (length prev)) $ -} return res2
+    _ -> trace ("COINDUCTION " ++ show (isJust res2)) $ return res2
 
 -- TODO printing
 -- TODO was the type signature wrong before?
@@ -798,7 +798,7 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
                         ready
       res <- checkObligations solver s1 s2 ready_exprs
       case res of
-        S.UNSAT () -> putStrLn "V?"
+        S.UNSAT () -> putStrLn $ "V? " ++ show (length not_ready_h)
         _ -> putStrLn "X?"
       case res of
         -- TODO discharged exprs should come from filter and solver
@@ -1257,7 +1257,7 @@ checkRule config init_state bindings total finite rule = do
   res <- verifyLoop solver ns
              [(rewrite_state_l'', rewrite_state_r'')]
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config (Just "testing") 0
+             bindings'' config (Just "") 0
   -- UNSAT for good, SAT for bad
   return res
 
