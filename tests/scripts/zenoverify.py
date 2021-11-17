@@ -145,6 +145,69 @@ equivalences = [
     "p84"
 ]
 
+equivalences_all_total = [
+    ("p01", ["n", "xs"]),
+    ("p02", ["n", "xs", "ys"]),
+    ("p03", ["n", "xs", "ys"]),
+    ("p04", ["n", "xs"]),
+    ("p06", ["n", "m"]),
+    ("p07", ["n", "m"]),
+    ("p08", ["k", "m", "n"]),
+    ("p09", ["i", "j", "k"]),
+    ("p10", ["m"]),
+    ("p11", ["xs"]),
+    ("p12", ["f", "n", "xs"]),
+    ("p13", ["n", "x", "xs"]),
+    ("p14", ["p", "xs", "ys"]),
+    ("p15", ["x", "xs"]),
+    ("p17", ["n"]),
+    ("p19", ["n", "xs"]),
+    ("p20", ["xs"]),
+    ("p22", ["a", "b", "c"]),
+    ("p23", ["a", "b"]),
+    ("p24", ["a", "b"]),
+    ("p25", ["a", "b"]),
+    ("p31", ["a", "b", "c"]),
+    ("p32", ["a", "b"]),
+    ("p33", ["a", "b"]),
+    ("p34", ["a", "b"]),
+    ("p35", ["xs"]),
+    ("p36", ["xs"]),
+    ("p38", ["n", "xs"]),
+    ("p39", ["n", "x", "xs"]),
+    ("p40", ["xs"]),
+    ("p41", ["f", "n", "xs"]),
+    ("p42", ["n", "x", "xs"]),
+    ("p43", ["p", "xs"]),
+    ("p44", ["x", "xs", "ys"]),
+    ("p45", ["x", "y", "xs", "ys"]),
+    ("p46", ["xs"]),
+    ("p47", ["a"]),
+    ("p49", ["xs", "ys"]),
+    ("p50", ["xs"]),
+    ("p51", ["x", "xs"]),
+    ("p52", ["n", "xs"]),
+    ("p53", ["n", "xs"]),
+    ("p54", ["n", "m"]),
+    ("p55", ["n", "xs", "ys"]),
+    ("p56", ["n", "m", "xs"]),
+    ("p57", ["n", "m", "xs"]),
+    ("p58", ["n", "xs", "ys"]),
+    ("p61", ["xs", "ys"]),
+    ("p64", ["x", "xs"]),
+    ("p67", ["xs"]),
+    ("p72", ["i", "xs"]),
+    ("p73", ["p", "xs"]),
+    ("p74", ["i", "xs"]),
+    ("p75", ["n", "m", "xs"]),
+    ("p79", ["m", "n", "k"]),
+    ("p80", ["n", "xs", "ys"]),
+    ("p81", ["n", "m", "xs"]),
+    ("p82", ["n", "xs", "ys"]),
+    ("p83", ["xs", "ys", "zs"]),
+    ("p84", ["xs", "ys", "zs"])
+]
+
 def test_equivalences_basic():
     unsat_num = 0;
     for thm in equivalences:
@@ -154,9 +217,23 @@ def test_equivalences_basic():
             print("\tVerified - " + str(elapsed) + "s");
             unsat_num += 1
         elif check_unsat == "Timeout":
-            print("\tTimeout")
+            print("\tTimeout - " + str(elapsed) + "s")
         else:
-            print("\tFailed")
+            print("\tFailed - " + str(elapsed) + "s")
+    return unsat_num
+
+def test_equivalences_all_total():
+    unsat_num = 0;
+    for (thm, settings) in equivalences_all_total:
+        print(thm, settings);
+        (check_unsat, elapsed) = run_zeno(thm, settings);
+        if check_unsat == "UNSAT ()":
+            print("\tVerified - " + str(elapsed) + "s");
+            unsat_num += 1
+        elif check_unsat == "Timeout":
+            print("\tTimeout - " + str(elapsed) + "s")
+        else:
+            print("\tFailed - " + str(elapsed) + "s")
     return unsat_num
 
 def test_pos_folder(folder):
@@ -227,6 +304,8 @@ def main():
     #(ce_art, num_ce_art) = test_neg_folder("tests/LiquidInf/Art_LIA/Neg");
 
     unsat_num = test_equivalences_basic()
+    #unsat_num = test_equivalences_all_total()
+    print(unsat_num, "Confirmed out of", len(equivalences_all_total))
 
     # print(str(safe_real + safe_art) + "/" + str(num_real + num_art) + " Safe");
 

@@ -1129,8 +1129,8 @@ hasStackTick = getAny . evalASTs (\e -> case e of
 
 checkObligations :: S.Solver solver =>
                     solver ->
-                    State t ->
-                    State t ->
+                    StateET ->
+                    StateET ->
                     HS.HashSet (Expr, Expr) ->
                     IO (S.Result () ())
 checkObligations solver s1 s2 obligation_set | not $ HS.null obligation_set =
@@ -1143,11 +1143,12 @@ stripTicks :: Expr -> Expr
 stripTicks (Tick _ e) = e
 stripTicks e = e
 
+-- shortcut:  don't invoke Z3 if there are no path conds
 applySolver :: S.Solver solver =>
                solver ->
                PathConds ->
-               State t ->
-               State t ->
+               StateET ->
+               StateET ->
                IO (S.Result () ())
 applySolver solver extraPC s1 s2 =
     let unionEnv = E.union (expr_env s1) (expr_env s2)
@@ -1156,7 +1157,13 @@ applySolver solver extraPC s1 s2 =
         allPC = foldr P.insert unionPC (P.toList extraPC)
         -- TODO what if I use extraPC here instead of allPC?
         newState = s1 { expr_env = unionEnv, path_conds = extraPC }
-    in S.check solver newState allPC
+    in case (P.toList allPC) of
+      [] -> return $ S.SAT ()
+      _ -> trace ("APPLY SOLVER " ++ (show $ folder_name $ track s1)) $
+           trace (show $ P.number $ path_conds s1) $
+           trace (show $ folder_name $ track s2) $
+           trace (show $ P.number $ path_conds s2) $
+           S.check solver newState allPC
 
 obligationWrap :: HS.HashSet (Expr, Expr) -> Maybe PathCond
 obligationWrap obligations =
@@ -1496,8 +1503,8 @@ extractCond _ = error "Not Supported"
 -- only apply to old-new state pairs for which moreRestrictive works
 moreRestrictivePC :: S.Solver solver =>
                      solver ->
-                     State t ->
-                     State t ->
+                     StateET ->
+                     StateET ->
                      HM.HashMap Id Expr ->
                      IO Bool
 moreRestrictivePC solver s1 s2 hm = do
