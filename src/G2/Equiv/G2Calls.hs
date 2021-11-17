@@ -229,7 +229,7 @@ instance Reducer EquivReducer () EquivTracker where
                           , symbolic_ids = symbs
                           , track = EquivTracker et m total finite fname })
                  b@(Bindings { name_gen = ng })
-        | isSymFuncApp eenv e =
+        | isSymFuncApp eenv (removeAllTicks e) =
             let
                 -- We inline variables to have a higher chance of hitting in the Equiv Tracker
                 e' = removeAllTicks $ inlineApp eenv e
@@ -270,10 +270,12 @@ instance Reducer EquivReducer () EquivTracker where
                     return (InProgress, [(s', ())], b', r)
     redRules r rv s b = return (NoProgress, [(s, rv)], b, r)
 
+-- TODO shouldn't need tick removal
 exprVarName :: Expr -> Maybe Name
 exprVarName (Var i) = Just $ idName i
 exprVarName _ = Nothing
 
+-- TODO ticks?
 isSymFuncApp :: ExprEnv -> Expr -> Bool
 isSymFuncApp eenv e
     | v@(Var _):(_:_) <- unApp e

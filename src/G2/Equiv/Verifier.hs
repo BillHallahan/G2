@@ -282,9 +282,10 @@ exprWrap :: Stck.Stack Frame -> Expr -> Expr
 exprWrap sk e = stackWrap sk $ tickWrap e
 
 -- A Var counts as being in EVF if it's symbolic or if it's unmapped.
+-- TODO remove ticks recursively?
 isSWHNF :: State t -> Bool
 isSWHNF (State { expr_env = h, curr_expr = CurrExpr _ e }) =
-  let e' = stripTicks e
+  let e' = modifyASTs stripTicks e
   in case e' of
     Var _ -> isPrimType (typeOf e') && isExprValueForm h e'
     _ -> isExprValueForm h e'
@@ -478,6 +479,7 @@ caseRecursion (Case e _ _) =
   (getAny . evalASTs (\e' -> Any $ caseRecHelper e')) e
 caseRecursion _ = False
 
+-- TODO this shouldn't need to look more deeply since it's used with evalASTs
 caseRecHelper :: Expr -> Bool
 caseRecHelper (Tick (NamedLoc (Name t _ _ _)) _) = t == DT.pack "REC"
 caseRecHelper _ = False
@@ -513,6 +515,7 @@ concretizeEnv h_new h_old =
   in
   foldr ins_sym (foldr (uncurry E.insert) h_old all_bindings) all_sym_names
 
+-- TODO not used anywhere currently
 concretizeStatePair :: (ExprEnv, ExprEnv) ->
                        HM.HashMap Id Expr ->
                        (State t, State t) ->
@@ -534,11 +537,13 @@ inductionExtract (Case e _ _) =
     _ -> e
 inductionExtract _ = error "Improper Format"
 
+-- TODO also not used anywhere
 inductionState :: State t -> State t
 inductionState s =
   s { curr_expr = CurrExpr Evaluate $ inductionExtract $ exprExtract s }
 
 -- TODO keep going recursively though more nested Cases
+-- TODO unused
 getAlts :: State t -> [Alt]
 getAlts s@(State { curr_expr = CurrExpr _ e }) =
   case e of
@@ -554,12 +559,14 @@ getAlts s@(State { curr_expr = CurrExpr _ e }) =
 -- TODO is this messing with the EquivTracker somehow?
 -- TODO removed error, but there's a soundness problem
 -- I get UNSAT for forceIdempotent
+-- TODO unused
 newScrutinee :: Id -> Expr -> Expr
 newScrutinee i (Case e i' a) = Case (newScrutinee i e) i' a
 newScrutinee i (Tick nl e) = Tick nl $ newScrutinee i e
 newScrutinee i _ = Var i
 
 -- the first expression becomes the new scrutinee of the second
+-- TODO unused
 substScrutinee :: Expr -> Expr -> Expr
 substScrutinee e (Case e' i a) = Case (substScrutinee e e') i a
 substScrutinee e (Tick nl e') = Tick nl $ substScrutinee e e'
@@ -573,6 +580,7 @@ removeMatchingCases (Case e1 i1 a1) (Case e2 i2 a2) =
   if a1 == a2 then removeMatchingCases e1 e2 else e2
 removeMatchingCases _ e2 = e2
 
+-- TODO unused
 rmcHelper :: Expr -> State t -> State t
 rmcHelper e1 s@(State { curr_expr = CurrExpr _ e2 }) =
   s { curr_expr = CurrExpr Evaluate (removeMatchingCases e1 e2) }
@@ -583,8 +591,10 @@ innerScrutinees (Tick _ e) = innerScrutinees e
 innerScrutinees e@(Case e' _ _) = e:(innerScrutinees e')
 innerScrutinees e = [e]
 
+-- TODO look through ticks here?
 replaceScrutinee :: Expr -> Expr -> Expr -> Expr
 replaceScrutinee e1 e2 e | e1 == e = e2
+replaceScrutinee e1 e2 (Tick nl e) = Tick nl (replaceScrutinee e1 e2 e)
 replaceScrutinee e1 e2 (Case e i a) = Case (replaceScrutinee e1 e2 e) i a
 replaceScrutinee _ _ e = e
 
@@ -617,6 +627,7 @@ elimSingleton (Case e i [Alt Default e']) = Let [(i, e)] e'
 elimSingleton (Case e i a) = Case (elimSingleton e) i a
 elimSingleton _ = error "Improper Format"
 
+-- TODO unused
 elimSingletonPair :: (StateET, StateET) -> (StateET, StateET)
 elimSingletonPair (s1, s2) =
   let e1 = exprExtract s1
@@ -808,6 +819,7 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
 -- TODO (11/10) need to move total-finite info for induction
 -- info from first tracker gets added to the second
 -- TODO left takes precedence in union?
+-- TODO unused
 mergeTrackers :: EquivTracker -> EquivTracker -> EquivTracker
 mergeTrackers t1 t2 = t2 {
     higher_order = HM.union (higher_order t1) (higher_order t2)
@@ -1655,7 +1667,9 @@ moreRestrictiveIndRight solver ns prev (s1, s2) =
       prev2 = [(p1, p2', p2) | (p1, p2, p2l) <- prev1, p2' <- p2l]
   in moreRestrictivePairAux solver ns prev2 (s1, s2)
 
+-- TODO tick adjusting here?
 isIdentity :: (Id, Expr) -> Bool
+isIdentity (i1, Tick _ e2) = isIdentity (i1, e2)
 isIdentity (i1, (Var i2)) = i1 == i2
 isIdentity _ = False
 
