@@ -208,9 +208,33 @@ equivalences_all_total = [
     ("p84", ["xs", "ys", "zs"])
 ]
 
+custom_finite = [
+    "p06fin",
+    "p07fin",
+    "p08fin",
+    "p10fin",
+    "p18fin",
+    "p21fin",
+    "p64fin"
+]
+
 def test_equivalences_basic():
     unsat_num = 0;
     for thm in equivalences:
+        print(thm);
+        (check_unsat, elapsed) = run_zeno(thm, []);
+        if check_unsat == "UNSAT ()":
+            print("\tVerified - " + str(elapsed) + "s");
+            unsat_num += 1
+        elif check_unsat == "Timeout":
+            print("\tTimeout - " + str(elapsed) + "s")
+        else:
+            print("\tFailed - " + str(elapsed) + "s")
+    return unsat_num
+
+def test_custom_finite():
+    unsat_num = 0;
+    for thm in custom_finite:
         print(thm);
         (check_unsat, elapsed) = run_zeno(thm, []);
         if check_unsat == "UNSAT ()":
@@ -303,7 +327,8 @@ def main():
 
     #(ce_art, num_ce_art) = test_neg_folder("tests/LiquidInf/Art_LIA/Neg");
 
-    unsat_num = test_equivalences_basic()
+    #unsat_num = test_equivalences_basic()
+    unsat_num = test_custom_finite()
     #unsat_num = test_equivalences_all_total()
     print(unsat_num, "Confirmed out of", len(equivalences_all_total))
 
