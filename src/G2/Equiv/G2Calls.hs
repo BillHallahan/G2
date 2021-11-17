@@ -232,7 +232,7 @@ instance Reducer EquivReducer () EquivTracker where
         | isSymFuncApp eenv e =
             let
                 -- We inline variables to have a higher chance of hitting in the Equiv Tracker
-                e' = inlineApp eenv e
+                e' = removeAllTicks $ inlineApp eenv e
             in
             case HM.lookup e' et of
                 Just v ->
@@ -280,6 +280,13 @@ isSymFuncApp eenv e
     , (Var (Id f t)) <- inlineVars eenv v =
        E.isSymbolic f eenv && hasFuncType (PresType t)
     | otherwise = False
+
+removeTicks :: Expr -> Expr
+removeTicks (Tick _ e) = removeTicks e
+removeTicks e = e
+
+removeAllTicks :: Expr -> Expr
+removeAllTicks = modifyASTs removeTicks
 
 inlineApp :: ExprEnv -> Expr -> Expr
 inlineApp eenv = mkApp . map (inlineVars eenv) . unApp

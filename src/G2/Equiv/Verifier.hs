@@ -1540,6 +1540,14 @@ data PrevMatch t = PrevMatch {
   , container :: State t
 }
 
+syncSymbolic :: StateET -> StateET -> (StateET, StateET)
+syncSymbolic s1 s2 =
+  let f (E.SymbObj _) e2 = e2
+      f e1 _ = e1
+      h1 = E.unionWith f (expr_env s1) (expr_env s2)
+      h2 = E.unionWith f (expr_env s2) (expr_env s1)
+  in (s1 { expr_env = h1 }, s2 { expr_env = h2 })
+
 -- extra filter on top of isJust for maybe_pairs
 -- if restrictHelper end result is Just, try checking the corresponding PCs
 -- for True output, there needs to be an entry for which that check succeeds
@@ -1556,9 +1564,10 @@ moreRestrictivePairAux :: S.Solver solver =>
                           (StateET, StateET) ->
                           IO (Maybe (PrevMatch EquivTracker))
 moreRestrictivePairAux solver ns prev (s1, s2) = do
-  let mr (p1, p2, _) = --trace (show (folder_name $ track p1, folder_name $ track s1, folder_name $ track p2, folder_name $ track s2)) $
-                       restrictHelper p2 s2 ns $
-                       restrictHelper p1 s1 ns (Just (HM.empty, HS.empty))
+  let (s1', s2') = syncSymbolic s1 s2
+      mr (p1, p2, _) = --trace (show (folder_name $ track p1, folder_name $ track s1, folder_name $ track p2, folder_name $ track s2)) $
+                       restrictHelper p2 s2' ns $
+                       restrictHelper p1 s1' ns (Just (HM.empty, HS.empty))
       getObs m = case m of
         Nothing -> HS.empty
         Just (_, hs) -> hs
