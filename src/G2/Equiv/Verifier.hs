@@ -101,19 +101,17 @@ statePairReadyForSolver (s1, s2) =
 
 -- don't log when the base folder name is empty
 -- TODO I could have folder_name be a String and not a Maybe
-logStatesFolder :: String -> Maybe String -> LogMode
-logStatesFolder _ Nothing = NoLog
-logStatesFolder _ (Just "") = NoLog
-logStatesFolder pre (Just fr) = Log Pretty $ fr ++ "/" ++ pre
+logStatesFolder :: String -> String -> LogMode
+logStatesFolder _ "" = NoLog
+logStatesFolder pre fr = Log Pretty $ fr ++ "/" ++ pre
 
-logStatesET :: String -> Maybe String -> Maybe String
-logStatesET _ Nothing = Nothing
-logStatesET pre (Just fr) = Just $ fr ++ "/" ++ pre
+logStatesET :: String -> String -> String
+logStatesET pre fr = fr ++ "/" ++ pre
 
 runSymExec :: S.Solver solver =>
               solver ->
               Config ->
-              Maybe String ->
+              String ->
               StateET ->
               StateET ->
               CM.StateT (Bindings, Int) IO [(StateET, StateET)]
@@ -429,7 +427,7 @@ verifyLoop :: S.Solver solver =>
               [(StateH, StateH)] ->
               Bindings ->
               Config ->
-              Maybe String ->
+              String ->
               Int ->
               IO (S.Result () ())
 verifyLoop solver ns states prev b config folder_root k | not (null states) = do
@@ -1121,7 +1119,7 @@ checkRule config init_state bindings total finite rule = do
       -- always include the finite names in total
       total_hs = foldr HS.insert finite_hs total_names
       EquivTracker et m _ _ _ = emptyEquivTracker
-      start_equiv_tracker = EquivTracker et m total_hs finite_hs Nothing
+      start_equiv_tracker = EquivTracker et m total_hs finite_hs ""
       -- the keys are the same between the old and new environments
       ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
       ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
@@ -1153,7 +1151,7 @@ checkRule config init_state bindings total finite rule = do
   res <- verifyLoop solver ns
              [(rewrite_state_l'', rewrite_state_r'')]
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config (Just "") 0
+             bindings'' config "" 0
   -- UNSAT for good, SAT for bad
   return res
 
@@ -1459,8 +1457,7 @@ moreRestrictivePairAux :: S.Solver solver =>
                           IO (Maybe (PrevMatch EquivTracker))
 moreRestrictivePairAux solver ns prev (s1, s2) = do
   let (s1', s2') = syncSymbolic s1 s2
-      mr (p1, p2, _) = --trace (show (folder_name $ track p1, folder_name $ track s1, folder_name $ track p2, folder_name $ track s2)) $
-                       restrictHelper p2 s2' ns $
+      mr (p1, p2, _) = restrictHelper p2 s2' ns $
                        restrictHelper p1 s1' ns (Just (HM.empty, HS.empty))
       getObs m = case m of
         Nothing -> HS.empty

@@ -398,7 +398,7 @@ data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
                                  , saw_tick :: Maybe Int
                                  , total :: HS.HashSet Name
                                  , finite :: HS.HashSet Name
-                                 , folder_name :: Maybe String } deriving (Show, Eq)
+                                 , folder_name :: String } deriving (Show, Eq)
 
 -- Forces a lone symbolic variable with a type corresponding to an ADT
 -- to evaluate to some value of that ADT

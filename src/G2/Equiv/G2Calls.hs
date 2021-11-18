@@ -217,7 +217,7 @@ instance Halter EnforceProgressH () EquivTracker where
     stepHalter _ _ _ _ _ = ()
 
 emptyEquivTracker :: EquivTracker
-emptyEquivTracker = EquivTracker HM.empty Nothing HS.empty HS.empty Nothing
+emptyEquivTracker = EquivTracker HM.empty Nothing HS.empty HS.empty ""
 
 data EquivReducer = EquivReducer
 
