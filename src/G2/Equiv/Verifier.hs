@@ -99,7 +99,8 @@ statePairReadyForSolver (s1, s2) =
   in
   exprReadyForSolver h1 e1 && exprReadyForSolver h2 e2
 
--- TODO don't log when the base folder name is empty
+-- don't log when the base folder name is empty
+-- TODO I could have folder_name be a String and not a Maybe
 logStatesFolder :: String -> Maybe String -> LogMode
 logStatesFolder _ Nothing = NoLog
 logStatesFolder _ (Just "") = NoLog
@@ -109,7 +110,6 @@ logStatesET :: String -> Maybe String -> Maybe String
 logStatesET _ Nothing = Nothing
 logStatesET pre (Just fr) = Just $ fr ++ "/" ++ pre
 
--- TODO keep track of the prefixes for debugging
 runSymExec :: S.Solver solver =>
               solver ->
               Config ->
@@ -228,8 +228,6 @@ recWrap h n e =
 -- look inside the bindings and inside the body for recursion
 -- TODO I should merge this process with the other wrapping?
 -- TODO do I need an extra process for some other recursive structure?
--- TODO is this not tagging "let w = w in w" with a REC tick?
--- other possibility:  no case, no full app, so no termination condition
 wrapLetRec :: ExprEnv -> Expr -> Expr
 wrapLetRec h (Let binds e) =
   let binds1 = map (\(i, e_) -> (idName i, e_)) binds
@@ -279,7 +277,6 @@ wrapAllRecursion cg h n e =
   then foldr (wrapIfCorecursive cg h n) e n_list
   else e
 
--- TODO also needs to go underneath Cases
 tickWrap :: Expr -> Expr
 tickWrap (Case e i a) = Case (tickWrap e) i a
 tickWrap (App e1 e2) = App (tickWrap e1) e2
@@ -316,7 +313,6 @@ prepareState s =
 
 -- TODO (11/15) new mechanism for induction soundness
 -- now the folder name needs to be Just at all times except init
--- TODO add an extra int for uniqueness of layers to be extra thorough
 stampString :: Int -> Int -> String
 stampString x k = (show x) ++ "STAMP:" ++ (show k)
 
@@ -324,8 +320,7 @@ stampName :: Int -> Int -> Name
 stampName x k =
   Name (DT.pack $ stampString x k) Nothing 0 Nothing
 
--- TODO leave existing stamp ticks unaffected
--- don't cover them with more layers
+-- leave existing stamp ticks unaffected; don't cover them with more layers
 -- TODO check what the tick is in the match case
 -- TODO only stamp strings should contain a colon
 insertStamps :: Int -> Int -> Expr -> Expr
@@ -348,7 +343,6 @@ addStamps k s =
       e' = insertStamps 0 k e
   in s { curr_expr = CurrExpr c e' }
 
--- TODO not sure if I'll need this
 empty_name :: Name
 empty_name = Name (DT.pack "") Nothing 1 Nothing
 
@@ -382,7 +376,6 @@ validScrutineeR :: StateET -> (Expr, Expr, PrevMatch EquivTracker) -> Bool
 validScrutineeR s2 (_, sc2, PrevMatch _ (_, p2) _ pc2) =
   let d_old = scrutineeDepth (exprExtract p2) (exprExtract pc2)
       stamps_old = take d_old $ readStamps (exprExtract pc2)
-      --d_new = scrutineeDepth sc2 (exprExtract s2)
       stamps_new = take d_old $ readStamps (exprExtract s2)
   in trace (show (d_old, stamps_old, stamps_new)) stamps_old == stamps_new
 
@@ -396,7 +389,6 @@ validScrutineeL :: StateET -> (Expr, Expr, PrevMatch EquivTracker) -> Bool
 validScrutineeL s1 (sc1, _, PrevMatch _ (p1, _) _ pc1) =
   let d_old = scrutineeDepth (exprExtract p1) (exprExtract pc1)
       stamps_old = take d_old $ readStamps (exprExtract pc1)
-      --d_new = scrutineeDepth sc1 (exprExtract s1)
       stamps_new = take d_old $ readStamps (exprExtract s1)
   in trace (show (d_old, stamps_old, stamps_new)) stamps_old == stamps_new
 
@@ -537,48 +529,16 @@ concretizeStatePair (h_new1, h_new2) hm (s1, s2) =
   ( s1 { curr_expr = CurrExpr Evaluate e1, expr_env = h1 }
   , s2 { curr_expr = CurrExpr Evaluate e2, expr_env = h2 } )
 
--- assumes that the initial input is from an induction-ready state
-inductionExtract :: Expr -> Expr
-inductionExtract (Case e _ _) =
-  case e of
-    Case _ _ _ -> inductionExtract e
-    _ -> e
-inductionExtract _ = error "Improper Format"
-
--- TODO also not used anywhere
-inductionState :: State t -> State t
-inductionState s =
-  s { curr_expr = CurrExpr Evaluate $ inductionExtract $ exprExtract s }
-
--- TODO new induction scheme
-removeMatchingCases :: Expr -> Expr -> Expr
-removeMatchingCases (Tick _ e1) e2 = removeMatchingCases e1 e2
-removeMatchingCases e1 (Tick _ e2) = removeMatchingCases e1 e2
-removeMatchingCases (Case e1 i1 a1) (Case e2 i2 a2) =
-  if a1 == a2 then removeMatchingCases e1 e2 else e2
-removeMatchingCases _ e2 = e2
-
--- TODO new version gets all of the layers, not just the innermost
 innerScrutinees :: Expr -> [Expr]
 innerScrutinees (Tick _ e) = innerScrutinees e
 innerScrutinees e@(Case e' _ _) = e:(innerScrutinees e')
 innerScrutinees e = [e]
 
--- TODO look through ticks here?
 replaceScrutinee :: Expr -> Expr -> Expr -> Expr
 replaceScrutinee e1 e2 e | e1 == e = e2
 replaceScrutinee e1 e2 (Tick nl e) = Tick nl (replaceScrutinee e1 e2 e)
 replaceScrutinee e1 e2 (Case e i a) = Case (replaceScrutinee e1 e2 e) i a
 replaceScrutinee _ _ e = e
-
-{-
-How to handle the extra evaluation of past scrutinees?
-Just record more stuff beforehand?
-Every time I have a Case statement beforehand, I can precompute
-what the steps would be for the scrutinee
-Eventually it'll reach SWHNF or a recursion tick
-Either that or pause evaluation more often?
--}
 
 notM :: IO Bool -> IO Bool
 notM b = do
@@ -597,12 +557,6 @@ isNothingM m = do
   return $ not $ isJust m'
 
 -- TODO debugging function
-exprHistory :: StateH -> StateH -> [(Expr, Expr)]
-exprHistory sh1 sh2 =
-  let hist1 = map exprExtract $ (latest sh1):(history sh1)
-      hist2 = map exprExtract $ (latest sh2):(history sh2)
-  in reverse $ zip hist1 hist2
-
 stateHistory :: StateH -> StateH -> [(StateET, StateET)]
 stateHistory sh1 sh2 =
   let hist1 = (latest sh1):(history sh1)
@@ -809,10 +763,7 @@ inductionL solver ns prev (s1, s2) = do
                , symbolic_ids = si1_new
                --, track = mergeTrackers (track pc2) (track s1)
                }
-           --in trace ("YES I! " ++ show (printHaskellDirty q1 $ exprExtract q1, printHaskellDirty q2 $ exprExtract q2) ++ " :: " ++ show (printHaskellDirty p1 $ exprExtract p1, printHaskellDirty p2 $ exprExtract p2) ++ " :: " ++ show (printHaskellDirty q1 $ sc1, printHaskellDirty q2 $ sc2) ++ " :: " ++ show (printHaskellDirty $ exprExtract s1, printHaskellDirty $ exprExtract s2)) $ return (True, q1{ curr_expr = CurrExpr Evaluate e1_new }, q2)
-           --in trace ("YES I! " ++ show (track q1', track q2) ++ " :: " ++ show (track p1, track p2) ++ " :: " ++ show (sc1, sc2) ++ " :: " ++ show (track s1, track s2)) $ return (True, q1'{ curr_expr = CurrExpr Evaluate e1_new }, q2')
-           in --trace (show (sc1, e2_old', exprExtract s1)) $
-              trace ("YL " ++ show (length working_info')) $
+           in trace ("YL " ++ show (length working_info')) $
               trace (printHaskellDirty sc1) $
               trace (printHaskellDirty e2_old) $
               trace (printHaskellDirty e2_old') $
@@ -822,8 +773,6 @@ inductionL solver ns prev (s1, s2) = do
               trace (show (map (\(r1, r2) -> (folder_name $ track r1, folder_name $ track r2)) prev)) $
               trace ("YES IL! " ++ show (map (folder_name . track) [s1, s2, q1, q2, p1, p2])) $
               return (True, s1', s2)
-           --in trace ("YES I! " ++ show (map (folder_name . track) [s1, s2, q1, q2, p1, p2])) $ return (False, s1, s2)
-           --in trace ("YES I! " ++ show (length prev)) $ return (True, q1, q2'{ curr_expr = CurrExpr Evaluate e2_new })
 
 -- TODO reduce duplicated code?  Also make sure it's correct
 -- substitution happens on the right here
@@ -834,10 +783,6 @@ inductionR :: S.Solver solver =>
               (StateET, StateET) ->
               IO (Bool, StateET, StateET)
 inductionR solver ns prev (s1, s2) = do
-  --putStrLn "RIGHT SIDE"
-  --print $ track s1
-  --print $ track s2
-  --print $ map (\(p1, p2) -> (folder_name $ track p1, folder_name $ track p2)) prev
   let scr1 = innerScrutinees $ exprExtract s1
       scr2 = innerScrutinees $ exprExtract s2
       scr_pairs = [(sc1, sc2) | sc1 <- scr1, sc2 <- scr2]
@@ -862,8 +807,7 @@ inductionR solver ns prev (s1, s2) = do
                , expr_env = h2_new
                , symbolic_ids = si2_new
                }
-           in --trace (show (sc2, e1_old', exprExtract s2)) $
-              trace ("YR " ++ show (length working_info')) $
+           in trace ("YR " ++ show (length working_info')) $
               trace (printHaskellDirty sc2) $
               trace (printHaskellDirty e1_old) $
               trace (printHaskellDirty e1_old') $
@@ -969,7 +913,6 @@ generalizeAux :: S.Solver solver =>
                  StateET ->
                  IO (Maybe (PrevMatch EquivTracker))
 generalizeAux solver ns s1_list s2 = do
-  --putStrLn "GAux"
   let check_equiv s1_ = moreRestrictiveEquiv solver ns s1_ s2
   res <- mapM check_equiv s1_list
   let res' = filter isJust res
@@ -1191,7 +1134,6 @@ checkRule config init_state bindings total finite rule = do
       walkers = deepseq_walkers bindings''
       e_l = exprExtract rewrite_state_l
       e_l' = foldr (forceFinite walkers) e_l finite_ids
-      -- TODO prepareState to avoid tick problem?
       (rewrite_state_l',_) = cleanState (rewrite_state_l { curr_expr = CurrExpr Evaluate e_l' }) bindings
       e_r = exprExtract rewrite_state_r
       e_r' = foldr (forceFinite walkers) e_r finite_ids
@@ -1231,7 +1173,6 @@ checkRule config init_state bindings total finite rule = do
 -- repeated inlinings of a variable are allowed as long as the expression on
 -- the opposite side is not the same as it was when a previous inlining of the
 -- same variable happened.
--- TODO not looping in here
 moreRestrictive :: State t ->
                    State t ->
                    HS.HashSet Name ->
@@ -1422,9 +1363,8 @@ restrictHelper :: StateET ->
                   Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                   Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 restrictHelper s1 s2 ns hm_hs = case restrictAux s1 s2 ns hm_hs of
-  Nothing -> {-trace ("NOTHING " ++ (show (folder_name $ track s1, folder_name $ track s2)) ++ "\n" ++ (printHaskellDirty $ exprExtract s1) ++ "\n" ++ (printHaskellDirty $ exprExtract s2))-} Nothing
-  Just (hm, hs) -> {-trace ("JUST " ++ (show (folder_name $ track s1, folder_name $ track s2, hm))) $ -}
-                   if validMap s1 s2 hm then Just (hm, hs) else Nothing
+  Nothing -> Nothing
+  Just (hm, hs) -> if validMap s1 s2 hm then Just (hm, hs) else Nothing
 
 restrictAux :: StateET ->
                StateET ->
@@ -1613,9 +1553,6 @@ isIdentityMap hm = foldr (&&) True (map isIdentity $ HM.toList hm)
 
 -- approximation should be the identity map
 -- needs to be enforced, won't just happen naturally
--- TODO error hit after the very first time
--- TODO does the left side in the union take precedence?
--- TODO not having identity is not the problem for forceIdempotent
 moreRestrictiveEquiv :: S.Solver solver =>
                         solver ->
                         HS.HashSet Name ->
@@ -1623,28 +1560,16 @@ moreRestrictiveEquiv :: S.Solver solver =>
                         StateET ->
                         IO (Maybe (PrevMatch EquivTracker))
 moreRestrictiveEquiv solver ns s1 s2 = do
-  --putStrLn $ "MRE"
-  --putStrLn $ show $ exprExtract s1
-  --putStrLn $ show $ exprExtract s2
   let h1 = expr_env s1
       h2 = expr_env s2
       s1' = s1 { expr_env = E.union h1 h2 }
       s2' = s2 { expr_env = E.union h2 h1 }
   pm_maybe <- moreRestrictivePair solver ns [(s2', s1')] (s1, s2)
   case pm_maybe of
-    Nothing -> do
-      --putStrLn $ "FAILED " ++ show (track s1, track s2)
-      --putStrLn $ printHaskellDirty $ exprExtract s1
-      --putStrLn $ printHaskellDirty $ exprExtract s2
-      return Nothing
-      --trace ("FAILED " ++ show (track s1, track s2)) $ return Nothing
+    Nothing -> return Nothing
     Just (PrevMatch _ _ (hm, _) _) -> if isIdentityMap hm
                                       then return pm_maybe
-                                      else --do
-                                        --putStrLn $ "NOT ID " ++ show hm
-                                        --putStrLn $ printHaskellDirty $ exprExtract s1
-                                        --putStrLn $ printHaskellDirty $ exprExtract s2
-                                        return Nothing
+                                      else return Nothing
 
 equivFoldL :: S.Solver solver =>
               solver ->
