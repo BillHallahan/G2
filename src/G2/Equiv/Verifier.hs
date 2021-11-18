@@ -309,8 +309,7 @@ prepareState s =
   , exec_stack = Stck.empty
   }
 
--- TODO (11/15) new mechanism for induction soundness
--- now the folder name needs to be Just at all times except init
+-- "stamps" for Case statements enforce induction validity
 stampString :: Int -> Int -> String
 stampString x k = (show x) ++ "STAMP:" ++ (show k)
 
@@ -319,8 +318,7 @@ stampName x k =
   Name (DT.pack $ stampString x k) Nothing 0 Nothing
 
 -- leave existing stamp ticks unaffected; don't cover them with more layers
--- TODO check what the tick is in the match case
--- TODO only stamp strings should contain a colon
+-- only stamp strings should contain a colon
 insertStamps :: Int -> Int -> Expr -> Expr
 insertStamps x k (Tick nl e) = Tick nl (insertStamps x k e)
 insertStamps x k (Case e i a) =
@@ -368,27 +366,14 @@ matchingStamps i e1 e2 =
       stamps2 = readStamps e2
   in (take i stamps1) == (take i stamps2)
 
--- TODO this is for a substitution that happens on the left
--- TODO refactor code to avoid duplication
-validScrutineeR :: StateET -> (Expr, Expr, PrevMatch EquivTracker) -> Bool
-validScrutineeR s2 (_, sc2, PrevMatch _ (_, p2) _ pc2) =
-  let d_old = scrutineeDepth (exprExtract p2) (exprExtract pc2)
-      stamps_old = take d_old $ readStamps (exprExtract pc2)
-      stamps_new = take d_old $ readStamps (exprExtract s2)
-  in trace (show (d_old, stamps_old, stamps_new)) stamps_old == stamps_new
-
--- TODO substitution happens on the right here
--- find depth of p1 within pc1
--- find depth of sc1 within s1
--- get the stamps from pc1
--- get the stamps from s1
--- the depths should be the same, and the stamps should match up to that point
-validScrutineeL :: StateET -> (Expr, Expr, PrevMatch EquivTracker) -> Bool
-validScrutineeL s1 (sc1, _, PrevMatch _ (p1, _) _ pc1) =
-  let d_old = scrutineeDepth (exprExtract p1) (exprExtract pc1)
-      stamps_old = take d_old $ readStamps (exprExtract pc1)
-      stamps_new = take d_old $ readStamps (exprExtract s1)
-  in trace (show (d_old, stamps_old, stamps_new)) stamps_old == stamps_new
+-- the depths do not need to be the same
+-- however, the stamps should match up to the depth of the old one
+validScrutinee :: StateET -> StateET -> StateET -> Bool
+validScrutinee s p pc =
+  let d = scrutineeDepth (exprExtract p) (exprExtract pc)
+      stamps_old = take d $ readStamps (exprExtract pc)
+      stamps_new = take d $ readStamps (exprExtract s)
+  in trace (show (d, stamps_old, stamps_new)) stamps_old == stamps_new
 
 getLatest :: (StateH, StateH) -> (StateET, StateET)
 getLatest (StateH { latest = s1 }, StateH { latest = s2 }) = (s1, s2)
@@ -685,7 +670,6 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
 
       -- TODO unnecessary to pass the induction states through this?
       let (ready, not_ready) = partition statePairReadyForSolver states_c'
-          --not_ready' = not_ready ++ states_i'
           ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
           not_ready_h1 = map (\(n1, n2) -> (replaceH sh1 n1, replaceH sh2 n2)) not_ready
           -- TODO crude solution:  induction states lose their history
@@ -725,6 +709,7 @@ mergeTrackers t1 t2 = t2 {
 -- those come later, on the combinations that work out
 -- TODO (11/8) clear out some of past if old state used as "present"
 -- substitution happens on the left here
+{-
 inductionL :: S.Solver solver =>
               solver ->
               HS.HashSet Name ->
@@ -739,7 +724,7 @@ inductionL solver ns prev (s1, s2) = do
   mr_pairs <- mapM (moreRestrictiveIndRight solver ns prev) scr_states
   let mr_zipped = zip scr_pairs mr_pairs
       working_info = [(sc1, sc2, pm) | ((sc1, sc2), Just pm) <- mr_zipped]
-      working_info' = filter (validScrutineeR s2) working_info
+      working_info' = filter (\(_, _, PrevMatch _ (_, p2) _ pc2) -> validScrutinee s2 p2 pc2) working_info
   -- TODO make an arbitrary choice about which working combination to return
   -- need to make a substitution for it
   -- going with left substitution for now
@@ -771,6 +756,7 @@ inductionL solver ns prev (s1, s2) = do
               trace (show (map (\(r1, r2) -> (folder_name $ track r1, folder_name $ track r2)) prev)) $
               trace ("YES IL! " ++ show (map (folder_name . track) [s1, s2, q1, q2, p1, p2])) $
               return (True, s1', s2)
+-}
 
 -- TODO reduce duplicated code?  Also make sure it's correct
 -- substitution happens on the right here
@@ -788,7 +774,7 @@ inductionR solver ns prev (s1, s2) = do
   mr_pairs <- mapM (moreRestrictiveIndLeft solver ns prev) scr_states
   let mr_zipped = zip scr_pairs mr_pairs
       working_info = [(sc1, sc2, pm) | ((sc1, sc2), Just pm) <- mr_zipped]
-      working_info' = filter (validScrutineeL s1) working_info
+      working_info' = filter (\(_, _, PrevMatch _ (p1, _) _ pc1) -> validScrutinee s1 p1 pc1) working_info
   case working_info' of
     [] -> return (False, s1, s2)
     h:_ -> let (sc1, sc2, PrevMatch (q1, q2) (p1, p2) (mapping, _) pc1) = h
@@ -816,8 +802,42 @@ inductionR solver ns prev (s1, s2) = do
               trace ("YES IR! " ++ show (map (folder_name . track) [s1, s2, q1, q2, p1, p2])) $
               return (True, s1, s2')
 
+-- substitution happens on the left here
+-- TODO now the right-hand state returned would always be s2
+inductionL :: S.Solver solver =>
+              solver ->
+              HS.HashSet Name ->
+              [(StateET, StateET)] ->
+              (StateET, StateET) ->
+              IO (Bool, StateET)
+inductionL solver ns prev (s1, s2) = do
+  let scr1 = innerScrutinees $ exprExtract s1
+      scr2 = innerScrutinees $ exprExtract s2
+      scr_pairs = [(sc1, sc2) | sc1 <- scr1, sc2 <- scr2]
+      scr_states = [(s1 { curr_expr = CurrExpr Evaluate sc1 }, s2 { curr_expr = CurrExpr Evaluate sc2 }) | (sc1, sc2) <- scr_pairs]
+  mr_pairs <- mapM (moreRestrictiveIndRight solver ns prev) scr_states
+  let mr_zipped = zip scr_pairs mr_pairs
+      working_info = [(sc1, sc2, pm) | ((sc1, sc2), Just pm) <- mr_zipped]
+      working_info' = filter (\(_, _, PrevMatch _ (_, p2) _ pc2) -> validScrutinee s2 p2 pc2) working_info
+  case working_info' of
+    [] -> return (False, s1)
+    h:_ -> let (sc1, _, PrevMatch _ _ (mapping, _) pc2) = h
+               e2_old = exprExtract pc2
+               hm_list = HM.toList mapping
+               e2_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e2_old hm_list
+               e1_new = replaceScrutinee sc1 e2_old' $ exprExtract s1
+               h1_new = E.union (expr_env s1) (expr_env pc2)
+               si1_new = map (\(Var i) -> i) . E.elems $ E.filterToSymbolic h1_new
+               s1' = s1 {
+                 curr_expr = CurrExpr Evaluate e1_new
+               , expr_env = h1_new
+               , symbolic_ids = si1_new
+               }
+           in return (True, s1')
+
 -- precedence goes to left-side substitution
 -- right-side substitution only happens if left-side fails
+-- TODO reverse prev for the right side
 induction :: S.Solver solver =>
              solver ->
              HS.HashSet Name ->
@@ -825,10 +845,12 @@ induction :: S.Solver solver =>
              (StateET, StateET) ->
              IO (Bool, StateET, StateET)
 induction solver ns prev (s1, s2) = do
-  (bl, s1l, s2l) <- inductionL solver ns prev (s1, s2)
-  (br, s1r, s2r) <- inductionR solver ns prev (s1, s2)
-  if bl then return (bl, s1l, s2l)
-  else return (br, s1r, s2r)
+  (bl, s1l) <- inductionL solver ns prev (s1, s2)
+  if bl then return (bl, s1l, s2)
+  else do
+    let prev' = map (\(p1, p2) -> (p2, p1)) prev
+    (br, s2r) <- inductionL solver ns prev' (s2, s1)
+    return (br, s1, s2r)
 
 backtrackOne :: StateH -> StateH
 backtrackOne sh =
@@ -840,6 +862,7 @@ backtrackOne sh =
       }
 
 -- left side stays constant
+-- TODO complex conditional, but avoids needless generalization
 inductionFoldL :: S.Solver solver =>
                   solver ->
                   HS.HashSet Name ->
@@ -852,34 +875,13 @@ inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2) = do
   (b, s1', s2') <- induction solver ns prev (s1, s2)
   if b then do
     (b', s1'', s2'') <- generalize solver ns fresh_name (s1', s2')
-    if b' then trace ("EL " ++ show (map (folder_name . track) [s1, s2, s1', s2'])) $ return (length $ history sh2, s1'', s2'')
+    if b' then return (length $ history sh2, s1'', s2'')
     else case history sh2 of
       [] -> return (-1, s1, s2)
       p2:_ -> inductionFoldL solver ns fresh_name (sh1, backtrackOne sh2) (s1, p2)
   else case history sh2 of
     [] -> return (-1, s1, s2)
     p2:_ -> inductionFoldL solver ns fresh_name (sh1, backtrackOne sh2) (s1, p2)
-
--- TODO this returns the length of prev at the time of return
-inductionFoldR :: S.Solver solver =>
-                  solver ->
-                  HS.HashSet Name ->
-                  Name ->
-                  (StateH, StateH) ->
-                  (StateET, StateET) ->
-                  IO (Int, StateET, StateET)
-inductionFoldR solver ns fresh_name (sh1, sh2) (s1, s2) = do
-  let prev = prevFiltered (sh1, sh2)
-  (b, s1', s2') <- induction solver ns prev (s1, s2)
-  if b then do
-    (b', s1'', s2'') <- generalize solver ns fresh_name (s1', s2')
-    if b' then trace ("ER " ++ show (map (folder_name . track) [s1, s2, s1', s2'])) $ return (length $ history sh1, s1'', s2'')
-    else case history sh1 of
-      [] -> return (-1, s1, s2)
-      p1:_ -> inductionFoldR solver ns fresh_name (backtrackOne sh1, sh2) (p1, s2)
-  else case history sh1 of
-    [] -> return (-1, s1, s2)
-    p1:_ -> inductionFoldR solver ns fresh_name (backtrackOne sh1, sh2) (p1, s2)
 
 -- TODO somewhat crude solution:  record how "far back" it needed to go
 -- negative one means that it failed
@@ -892,15 +894,15 @@ inductionFold :: S.Solver solver =>
                  (StateH, StateH) ->
                  (StateET, StateET) ->
                  IO ((Int, Int), StateET, StateET)
-inductionFold solver ns fresh_name sh_pair@(sh1, sh2) (s1, s2) = do
-  (nl, s1l, s2l) <- inductionFoldL solver ns fresh_name sh_pair (s1, s2)
+inductionFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
+  (nl, s1l, s2l) <- inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2)
   -- TODO this could cause excessive removals
   let min_length = min (length $ history sh1) (length $ history sh2)
       length1 = length $ history sh1
       length2 = length $ history sh2
   if nl >= 0 then trace ("IL " ++ show (map (folder_name . track) [s1, s2, s1l, s2l])) $ return ((0, length2 - nl), s1l, s2l)
   else do
-    (nr, s1r, s2r) <- inductionFoldR solver ns fresh_name sh_pair (s1, s2)
+    (nr, s2r, s1r) <- inductionFoldL solver ns fresh_name (sh2, sh1) (s2, s1)
     if nr >= 0 then trace ("IR " ++ show (map (folder_name . track) [s1, s2, s1r, s2r])) $ return ((length1 - nr, 0), s1r, s2r)
     else return ((-1, -1), s1, s2)
 
@@ -917,6 +919,20 @@ generalizeAux solver ns s1_list s2 = do
   case res' of
     [] -> return Nothing
     h:_ -> return h
+
+adjustStateForGeneralization :: Expr -> Name -> StateET -> StateET
+adjustStateForGeneralization e_old fresh_name s =
+  let e = exprExtract s
+      fresh_id = Id fresh_name (typeOf e)
+      fresh_var = Var fresh_id
+      e' = addStackTickIfNeeded $ replaceScrutinee e fresh_var e_old
+      h = expr_env s
+      h' = E.insertSymbolic fresh_name fresh_id h
+  in s {
+    curr_expr = CurrExpr Evaluate e'
+  , expr_env = h'
+  , symbolic_ids = fresh_id:(symbolic_ids s)
+  }
 
 -- TODO replace the largest sub-expression possible with a fresh symbolic var
 -- TODO this is never finishing, seemingly
@@ -947,30 +963,10 @@ generalize solver ns fresh_name (s1, s2) = do
   let res' = filter isJust res
   case res' of
     (Just pm):_ -> let (s1', s2') = present pm
-                       fresh_id = Id fresh_name (typeOf e1')
-                       fresh_var = Var fresh_id
                        e1' = exprExtract s1'
-                       -- TODO could some of this be simplified?
-                       -- call a function on both sides
-                       e1'' = addStackTickIfNeeded $ replaceScrutinee e1' fresh_var e1
-                       h1 = expr_env s1
-                       h1' = E.insertSymbolic fresh_name fresh_id h1
-                       s1'' = s1 {
-                         curr_expr = CurrExpr Evaluate e1''
-                       , expr_env = h1'
-                       , symbolic_ids = fresh_id:(symbolic_ids s1)
-                       }
-                       e2' = exprExtract s2'
-                       e2'' = addStackTickIfNeeded $ replaceScrutinee e2' fresh_var e2
-                       h2 = expr_env s2
-                       h2' = E.insertSymbolic fresh_name fresh_id h2
-                       s2'' = s2 {
-                         curr_expr = CurrExpr Evaluate e2''
-                       , expr_env = h2'
-                       , symbolic_ids = fresh_id:(symbolic_ids s2)
-                       }
-                   in trace ("G! " ++ show (e1'', e2'')) $
-                      trace (show fresh_var) $
+                       s1'' = adjustStateForGeneralization e1 fresh_name s1'
+                       s2'' = adjustStateForGeneralization e2 fresh_name s2'
+                   in trace ("G! " ++ show fresh_name) $
                       return (True, s1'', s2'')
     _ -> trace ("No G? " ++ show fresh_name) $
          -- TODO allowing failures for now
