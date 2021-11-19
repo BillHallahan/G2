@@ -175,8 +175,7 @@ transferStateInfo s1 s2 =
     in
     s2 { expr_env = n_eenv
        , path_conds = foldr P.insert (path_conds s1) (P.toList (path_conds s2))
-       , symbolic_ids = map (\(Var i) -> i) . E.elems $ E.filterToSymbolic n_eenv
-       , track = (track s1) { folder_name = folder_name $ track s2 } }
+       , track = track s1 }
 
 frameWrap :: Frame -> Expr -> Expr
 frameWrap (CaseFrame i alts) e = Case e i alts
@@ -552,8 +551,8 @@ exprTrace sh1 sh2 =
       s_pair (s1, s2) = [
           printHaskellDirty (exprExtract s1)
         , printHaskellDirty (exprExtract s2)
-        , show (symbolic_ids s1)
-        , show (symbolic_ids s2)
+        , show (E.symbolicIds $ expr_env s1)
+        , show (E.symbolicIds $ expr_env s2)
         , show (track s1)
         , show (track s2)
         , show (length $ inductions sh1)
@@ -785,11 +784,9 @@ inductionR solver ns prev (s1, s2) = do
                -- TODO use s1 or pc1 here?
                -- the s1 version gets an error that pc1 doesn't
                h2_new = E.union (expr_env s2) (expr_env pc1)
-               si2_new = map (\(Var i) -> i) . E.elems $ E.filterToSymbolic h2_new
                s2' = s2 {
                  curr_expr = CurrExpr Evaluate e2_new
                , expr_env = h2_new
-               , symbolic_ids = si2_new
                }
            in trace ("YR " ++ show (length working_info')) $
               trace (printHaskellDirty sc2) $
@@ -827,11 +824,9 @@ inductionL solver ns prev (s1, s2) = do
                e2_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e2_old hm_list
                e1_new = replaceScrutinee sc1 e2_old' $ exprExtract s1
                h1_new = E.union (expr_env s1) (expr_env pc2)
-               si1_new = map (\(Var i) -> i) . E.elems $ E.filterToSymbolic h1_new
                s1' = s1 {
                  curr_expr = CurrExpr Evaluate e1_new
                , expr_env = h1_new
-               , symbolic_ids = si1_new
                }
            in return (True, s1')
 
@@ -931,7 +926,6 @@ adjustStateForGeneralization e_old fresh_name s =
   in s {
     curr_expr = CurrExpr Evaluate e'
   , expr_env = h'
-  , symbolic_ids = fresh_id:(symbolic_ids s)
   }
 
 -- TODO replace the largest sub-expression possible with a fresh symbolic var

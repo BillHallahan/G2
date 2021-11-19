@@ -370,8 +370,7 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
                                       (expr_env s) (type_env s) (deepseq_walkers bindings) (known_values s) config
 
         lhs' = lhs { state = s { expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) (expr_env s) is
-                               , curr_expr = CurrExpr Evaluate ce
-                               , symbolic_ids = is }
+                               , curr_expr = CurrExpr Evaluate ce }
                    }
         (lhs'', bindings') = execLHStateM (addLHTCCurrExpr) lhs' (bindings { name_gen = ng' })
 

@@ -459,7 +459,6 @@ instance Reducer NonRedAbstractReturns () LHTracker where
                               , curr_expr = cexpr
                               , exec_stack = stck
                               , track = LHTracker { abstract_calls = afs }
-                              , symbolic_ids = si
                               , model = m
                               , true_assert = True })
                       b@(Bindings { deepseq_walkers = ds})

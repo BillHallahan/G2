@@ -93,7 +93,6 @@ instance Reducer SymbolicSwapper () EquivTracker where
     redRules r@(SymbolicSwapper h_opp track_opp) rv
                   s@(State { curr_expr = CurrExpr _ e
                            , expr_env = h
-                           , symbolic_ids = si
                            , track = EquivTracker et m tot fin fname })
                   b =
         case e of
@@ -103,14 +102,12 @@ instance Reducer SymbolicSwapper () EquivTracker where
                     Just (E.Conc e') ->
                         let vi = varIds e'
                             vi_hs = HS.fromList $ map idName vi
-                            si' = L.nub vi ++ L.delete i si
                             h' = foldr (\j -> E.insertSymbolic (idName j) j) (E.insert n e' h) (L.nub vi)
                             total' = HS.union (HS.intersection (total track_opp) vi_hs) tot
                             finite' = HS.union (HS.intersection (finite track_opp) vi_hs) fin
                             track' = EquivTracker et m total' finite' fname
                             s' = s {
                               expr_env = h'
-                            , symbolic_ids = si'
                             , track = track'
                             }
                         in return (InProgress, [(s', rv)], b, r)
@@ -226,7 +223,6 @@ instance Reducer EquivReducer () EquivTracker where
     redRules r _
                  s@(State { expr_env = eenv
                           , curr_expr = CurrExpr Evaluate e
-                          , symbolic_ids = symbs
                           , track = EquivTracker et m total finite fname })
                  b@(Bindings { name_gen = ng })
         | isSymFuncApp eenv (removeAllTicks e) =
@@ -236,13 +232,12 @@ instance Reducer EquivReducer () EquivTracker where
             in
             case HM.lookup e' et of
                 Just v ->
-                    let (eenv', symbs') = case E.lookup (idName v) eenv of
-                            Just _ -> (eenv, symbs)
-                            Nothing -> (E.insertSymbolic (idName v) v eenv, v:symbs)
+                    let eenv' = case E.lookup (idName v) eenv of
+                            Just _ -> eenv
+                            Nothing -> E.insertSymbolic (idName v) v eenv
                         s' = s {
                             curr_expr = CurrExpr Evaluate (Var v)
                           , expr_env = eenv'
-                          , symbolic_ids = symbs'
                         }
                     in
                     return (InProgress, [(s', ())], b, r)
@@ -263,8 +258,7 @@ instance Reducer EquivReducer () EquivTracker where
                                  else total
                         s' = s { curr_expr = CurrExpr Evaluate (Var v)
                                , track = EquivTracker et' m total' finite fname
-                               , expr_env = E.insertSymbolic (idName v) v eenv
-                               , symbolic_ids = v:symbs }
+                               , expr_env = E.insertSymbolic (idName v) v eenv }
                         b' = b { name_gen = ng' }
                     in trace ("SYM FUNC " ++ show v ++ "\n" ++ show e) $
                     return (InProgress, [(s', ())], b', r)
