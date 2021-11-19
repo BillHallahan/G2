@@ -29,7 +29,6 @@ import G2.QuasiQuotes.Parser
 import qualified Control.Concurrent.Lock as Lock
 
 import Data.Data
-import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.List
 import qualified Data.Map as M
