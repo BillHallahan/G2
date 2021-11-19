@@ -410,7 +410,6 @@ instance Reducer ConcSymReducer () EquivTracker where
                             , expr_env = eenv
                             , type_env = tenv
                             , path_conds = pc
-                            , symbolic_ids = symbs
                             , track = EquivTracker et m total finite })
                    b@(Bindings { name_gen = ng })
         | E.isSymbolic n eenv
@@ -429,7 +428,6 @@ instance Reducer ConcSymReducer () EquivTracker where
                                         foldr (\i -> E.insertSymbolic (idName i) i)
                                               (E.insert n e eenv)
                                               symbs'
-                                    , symbolic_ids = symbs' ++ L.delete i symbs
                                     , track = EquivTracker et m total' finite'
                                     }) dc_symbs
                 b' =  b { name_gen = ng' }
@@ -485,22 +483,20 @@ instance Reducer NonRedPCRed () t where
                               , curr_expr = cexpr
                               , exec_stack = stck
                               , non_red_path_conds = nr:nrs
-                              , symbolic_ids = si
                               , model = m })
                       b@(Bindings { higher_order_inst = inst }) = do
         let stck' = Stck.push (CurrExprFrame AddPC cexpr) stck
 
         let cexpr' = CurrExpr Evaluate nr
 
-        let eenv_si_ces = substHigherOrder eenv m si inst cexpr'
+        let eenv_si_ces = substHigherOrder eenv m inst cexpr'
 
         let s' = s { exec_stack = stck'
                    , non_red_path_conds = nrs
                    }
-            xs = map (\(eenv', m', si', ce) -> (s' { expr_env = eenv'
-                                                   , model = m'
-                                                   , curr_expr = ce
-                                                   , symbolic_ids = si' }, ())) eenv_si_ces
+            xs = map (\(eenv', m', ce) -> (s' { expr_env = eenv'
+                                              , model = m'
+                                              , curr_expr = ce }, ())) eenv_si_ces
 
         return (InProgress, xs, b, nrpr)
     redRules nrpr _ s b = return (Finished, [(s, ())], b, nrpr)
@@ -509,8 +505,8 @@ instance Reducer NonRedPCRed () t where
 -- Substitutes all possible higher order functions for symbolic higher order functions.
 -- We insert the substituted higher order function directly into the model, because, due
 -- to the VAR-RED rule, the function name will (if the function is called) be lost during execution.
-substHigherOrder :: ExprEnv -> Model -> SymbolicIds -> HS.HashSet Name -> CurrExpr -> [(ExprEnv, Model, SymbolicIds, CurrExpr)]
-substHigherOrder eenv m si ns ce =
+substHigherOrder :: ExprEnv -> Model -> HS.HashSet Name -> CurrExpr -> [(ExprEnv, Model, CurrExpr)]
+substHigherOrder eenv m ns ce =
     let
         is = mapMaybe (\n -> case E.lookup n eenv of
                                 Just e -> Just $ Id n (typeOf e)
@@ -519,7 +515,7 @@ substHigherOrder eenv m si ns ce =
         higherOrd = filter (isTyFun . typeOf) . mapMaybe varId . symbVars eenv $ ce
         higherOrdSub = map (\v -> (v, mapMaybe (genSubstitutable v) is)) higherOrd
     in
-    substHigherOrder' [(eenv, m, si, ce)] higherOrdSub
+    substHigherOrder' [(eenv, m, ce)] higherOrdSub
     where
         genSubstitutable v i
             | (True, bm) <- specializes (typeOf v) (typeOf i) =
@@ -530,15 +526,14 @@ substHigherOrder eenv m si ns ce =
                 Just . mkApp $ Var i:tys
             | otherwise = Nothing
 
-substHigherOrder' :: [(ExprEnv, Model, SymbolicIds, CurrExpr)] -> [(Id, [Expr])] -> [(ExprEnv, Model, SymbolicIds, CurrExpr)]
+substHigherOrder' :: [(ExprEnv, Model, CurrExpr)] -> [(Id, [Expr])] -> [(ExprEnv, Model, CurrExpr)]
 substHigherOrder' eenvsice [] = eenvsice
 substHigherOrder' eenvsice ((i, es):iss) =
     substHigherOrder'
         (concatMap (\e_rep -> 
-                        map (\(eenv, m, si, ce) -> ( E.insert (idName i) e_rep eenv
-                                                   , HM.insert (idName i) e_rep m
-                                                   , filter (/= i) si
-                                                   , replaceASTs (Var i) e_rep ce)
+                        map (\(eenv, m, ce) -> ( E.insert (idName i) e_rep eenv
+                                               , HM.insert (idName i) e_rep m
+                                               , replaceASTs (Var i) e_rep ce)
                             ) eenvsice)
         es) iss
 
@@ -552,7 +547,6 @@ instance Reducer NonRedPCRedConst () t where
                               , curr_expr = cexpr
                               , exec_stack = stck
                               , non_red_path_conds = nr:nrs
-                              , symbolic_ids = symbs
                               , model = m })
                       b@(Bindings { name_gen = ng
                                   , higher_order_inst = inst }) = do
@@ -560,7 +554,7 @@ instance Reducer NonRedPCRedConst () t where
 
         let cexpr' = CurrExpr Evaluate nr
 
-        let (higher_ord, not_higher_ord) = L.partition (isTyFun . typeOf) symbs
+        let (higher_ord, not_higher_ord) = L.partition (isTyFun . typeOf) $ E.symbolicIds eenv
             (ng', new_lam_is) = L.mapAccumL (\ng_ ts -> swap $ freshIds ts ng_) ng (map anonArgumentTypes higher_ord)
             (new_sym_gen, ng'') = freshIds (map returnType higher_ord) ng'
 
@@ -571,13 +565,9 @@ instance Reducer NonRedPCRedConst () t where
             eenv'' = foldr (\i -> E.insertSymbolic (idName i) i) eenv' new_sym_gen
             m' = foldr (\(i, e) -> HM.insert (idName i) e) m es
 
-            symbs' = foldr (\(i, _) -> L.delete i) symbs es
-            symbs'' = foldr (:) symbs' new_sym_gen
-
         let s' = s { expr_env = eenv''
                    , curr_expr = cexpr'
                    , model = m'
-                   , symbolic_ids = symbs''
                    , exec_stack = stck'
                    , non_red_path_conds = nrs
                    }
@@ -1159,13 +1149,13 @@ instance Orderer CaseCountOrderer Int Int t where
 data SymbolicADTOrderer = SymbolicADTOrderer
 
 instance Orderer SymbolicADTOrderer (HS.HashSet Name) Int t where
-    initPerStateOrder _ = HS.fromList . map idName . symbolic_ids
+    initPerStateOrder _ = HS.fromList . map idName . E.symbolicIds . expr_env
     orderStates or v _ _ = (HS.size v, or)
 
     updateSelected _ v _ _ = v
 
     stepOrderer _ v _ _ s =
-        v `HS.union` (HS.fromList . map idName . symbolic_ids $ s)
+        v `HS.union` (HS.fromList . map idName . E.symbolicIds . expr_env $ s)
 
 -- Orders by the size (in terms of height) of (previously) symbolic ADT.
 -- In particular, aims to first execute those states with a height closest to
@@ -1184,7 +1174,7 @@ data ADTHeightOrderer = ADTHeightOrderer
 -- This avoids repeated operations on the hashset after rules that we know
 -- will not add symbolic variables.
 instance MinOrderer ADTHeightOrderer (HS.HashSet Name, Bool) Int t where
-    minInitPerStateOrder _ s = (HS.fromList . map idName . symbolic_ids $ s, False)
+    minInitPerStateOrder _ s = (HS.fromList . map idName . E.symbolicIds . expr_env $ s, False)
     minOrderStates ord@(ADTHeightOrderer pref_height _) (v, _) _ s =
         let
             m = maximum $ (-1):(HS.toList $ HS.map (flip adtHeight s) v)
@@ -1196,7 +1186,7 @@ instance MinOrderer ADTHeightOrderer (HS.HashSet Name, Bool) Int t where
     minStepOrderer _ (v, _) _ _
                   (State { curr_expr = CurrExpr _ (SymGen _) }) = (v, True)
     minStepOrderer _ (v, True) _ _ s =
-        (v `HS.union` (HS.fromList . map idName . symbolic_ids $ s), False)
+        (v `HS.union` (HS.fromList . map idName . E.symbolicIds . expr_env $ s), False)
     minStepOrderer (ADTHeightOrderer _ (Just n)) (v, _) _ _ 
                    s@(State { curr_expr = CurrExpr _ (Tick (NamedLoc n') (Var (Id vn _))) }) 
             | n == n' =
@@ -1239,7 +1229,7 @@ data ADTSizeOrderer = ADTSizeOrderer
 -- This avoids repeated operations on the hashset after rules that we know
 -- will not add symbolic variables.
 instance MinOrderer ADTSizeOrderer (HS.HashSet Name, Bool) Int t where
-    minInitPerStateOrder _ s = (HS.fromList . map idName . symbolic_ids $ s, False)
+    minInitPerStateOrder _ s = (HS.fromList . map idName . E.symbolicIds . expr_env $ s, False)
     minOrderStates ord@(ADTSizeOrderer pref_height _) (v, _) _ s =
         let
             m = sum (HS.toList $ HS.map (flip adtSize s) v)
@@ -1251,7 +1241,7 @@ instance MinOrderer ADTSizeOrderer (HS.HashSet Name, Bool) Int t where
     minStepOrderer _ (v, _) _ _
                   (State { curr_expr = CurrExpr _ (SymGen _) }) = (v, True)
     minStepOrderer _ (v, True) _ _ s =
-        (v `HS.union` (HS.fromList . map idName . symbolic_ids $ s), False)
+        (v `HS.union` (HS.fromList . map idName . E.symbolicIds . expr_env $ s), False)
     minStepOrderer (ADTSizeOrderer _ (Just n)) (v, _) _ _ 
                    s@(State { curr_expr = CurrExpr _ (Tick (NamedLoc n') (Var (Id vn _))) }) 
             | n == n' =

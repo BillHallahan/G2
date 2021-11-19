@@ -15,7 +15,6 @@ initWithRHS :: State t -> Bindings -> RewriteRule -> (State t, Bindings)
 initWithRHS s b r =
   let s' = s {
              curr_expr = CurrExpr Evaluate (ru_rhs r)
-           , symbolic_ids = ru_bndrs r
            , expr_env = foldr addSymbolic (expr_env s) (ru_bndrs r)
            }
       b' = b { input_names = map idName $ ru_bndrs r }
@@ -36,7 +35,6 @@ initWithLHS s b r =
                   app = X.mkApp (v:ru_args r)
                   s' = s {
                          curr_expr = CurrExpr Evaluate app
-                       , symbolic_ids = ru_bndrs r
                        , expr_env = foldr addSymbolic (expr_env s) (ru_bndrs r)
                        }
                   b' = b { input_names = map idName $ ru_bndrs r }
