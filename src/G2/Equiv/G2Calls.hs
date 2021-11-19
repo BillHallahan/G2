@@ -170,7 +170,6 @@ instance Reducer EquivReducer () EquivTracker where
     redRules r _
                  s@(State { expr_env = eenv
                           , curr_expr = CurrExpr Evaluate e
-                          , symbolic_ids = symbs
                           , track = EquivTracker et m total finite })
                  b@(Bindings { name_gen = ng })
         | isSymFuncApp eenv e =
@@ -201,8 +200,7 @@ instance Reducer EquivReducer () EquivTracker where
                                  else total
                         s' = s { curr_expr = CurrExpr Evaluate (Var v)
                                , track = EquivTracker et' m total' finite
-                               , expr_env = E.insertSymbolic (idName v) v eenv
-                               , symbolic_ids = v:symbs }
+                               , expr_env = E.insertSymbolic (idName v) v eenv }
                         b' = b { name_gen = ng' }
                     in
                     return (InProgress, [(s', ())], b', r)

@@ -196,7 +196,6 @@ initStateFromSimpleState s useAssert mkCurr argTys config =
     , true_assert = if useAssert then False else True
     , assert_ids = Nothing
     , type_classes = tc'
-    , symbolic_ids = is
     , exec_stack = Stack.empty
     , model = HM.empty
     , known_values = kv'
@@ -469,7 +468,7 @@ runG2Solving :: ( Named t
                 solver -> simplifier -> Bindings -> State t -> IO (Maybe (ExecRes t))
 runG2Solving solver simplifier bindings s@(State { known_values = kv })
     | true_assert s = do
-        r <- solve solver s bindings (symbolic_ids s) (path_conds s)
+        r <- solve solver s bindings (E.symbolicIds . expr_env $ s) (path_conds s)
 
         case r of
             SAT m -> do
