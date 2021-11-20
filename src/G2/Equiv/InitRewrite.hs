@@ -7,8 +7,6 @@ import qualified G2.Language.Expr as X
 
 import G2.Execution.Memory
 
-import qualified Data.HashSet as HS
-
 addSymbolic :: Id -> ExprEnv -> ExprEnv
 addSymbolic i =
   E.insertSymbolic (idName i) i

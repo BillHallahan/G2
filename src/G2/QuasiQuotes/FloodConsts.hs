@@ -8,7 +8,6 @@ import G2.Execution.PrimitiveEval
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
-import qualified Data.HashSet as HS
 
 -- | Tries to eliminate a symbolic variable by replacing them with constants.
 -- Returns Maybe a State, if the variables are replacable, and don't make the
@@ -37,8 +36,7 @@ floodConstant n e s
                     r_pc = replaceASTs (Var i) e (path_conds s) 
                 in
                 Just (s { expr_env = E.insert n e (expr_env s)
-                        , path_conds = r_pc
-                        })
+                        , path_conds = r_pc })
             _ -> Nothing
     | otherwise = 
         case E.lookup n (expr_env s) of
