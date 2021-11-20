@@ -121,8 +121,12 @@ runSymExec solver config folder_root s1 s2 = do
   (bindings, k) <- CM.get
   let config' = config { logStates = logStatesFolder ("a" ++ show k) folder_root }
       t1 = (track s1) { folder_name = logStatesET ("a" ++ show k) folder_root }
+      -- TODO always Evaluate here?
+      CurrExpr r1 e1 = curr_expr s1
+      e1' = addStackTickIfNeeded e1
+      s1' = s1 { track = t1, curr_expr = CurrExpr r1 e1' }
   CM.liftIO $ putStrLn $ (show $ folder_name $ track s1) ++ " becomes " ++ (show $ folder_name t1)
-  (er1, bindings') <- CM.lift $ runG2ForRewriteV (s1 { track = t1 }) (expr_env s2) (track s2) config' bindings
+  (er1, bindings') <- CM.lift $ runG2ForRewriteV s1' (expr_env s2) (track s2) config' bindings
   CM.put (bindings', k + 1)
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
@@ -131,8 +135,11 @@ runSymExec solver config folder_root s1 s2 = do
                     ct2 <- CM.liftIO $ getCurrentTime
                     let config'' = config { logStates = logStatesFolder ("b" ++ show k_) folder_root }
                         t2 = (track s2_) { folder_name = logStatesET ("b" ++ show k_) folder_root }
+                        CurrExpr r2 e2 = curr_expr s2_
+                        e2' = addStackTickIfNeeded e2
+                        s2' = s2_ { track = t2, curr_expr = CurrExpr r2 e2' }
                     CM.liftIO $ putStrLn $ (show $ folder_name $ track s2_) ++ " becomes " ++ (show $ folder_name t2)
-                    (er2, b_') <- CM.lift $ runG2ForRewriteV (s2_ { track = t2 }) (expr_env s1_) (track s1_) config'' b_
+                    (er2, b_') <- CM.lift $ runG2ForRewriteV s2' (expr_env s1_) (track s1_) config'' b_
                     CM.put (b_', k_ + 1)
                     return $ map (\er2_ -> 
                                     let
@@ -153,6 +160,7 @@ pathCondsConsistent solver (s1, s2) = do
     S.UNSAT () -> return False
     _ -> return True
 
+-- Don't share expr env and path constraints between sides
 -- info goes from left to right
 -- TODO union instead?
 transferTrackerInfo :: StateET -> StateET -> StateET
@@ -165,17 +173,6 @@ transferTrackerInfo s1 s2 =
       , finite = finite t1-- HS.union (finite t1) (finite t2)
       }
   in s2 { track = t2' }
-
--- After s1 has had its expr_env, path constraints, and tracker updated,
--- transfer these updates to s2.
-transferStateInfo :: StateET -> StateET -> StateET
-transferStateInfo s1 s2 =
-    let
-        n_eenv = E.union (expr_env s1) (expr_env s2)
-    in
-    s2 { expr_env = n_eenv
-       , path_conds = foldr P.insert (path_conds s1) (P.toList (path_conds s2))
-       , track = track s1 }
 
 frameWrap :: Frame -> Expr -> Expr
 frameWrap (CaseFrame i alts) e = Case e i alts
@@ -211,13 +208,6 @@ wrapRecursiveCall n e = wrcHelper n e
 -- TODO also modify the expression itself directly?
 wrcHelper :: Name -> Expr -> Expr
 wrcHelper n = modifyChildren (wrapRecursiveCall n)
-
--- do not allow wrapping for symbolic variables
-recWrap :: ExprEnv -> Name -> Expr -> Expr
-recWrap h n e =
-  if E.isSymbolic n h
-  then e
-  else ((wrcHelper n) . (wrapRecursiveCall n)) (wrapRecursiveCall n e)
 
 -- Creating a new expression environment lets us use the existing reachability
 -- functions.
@@ -255,13 +245,18 @@ wrapLetRec h e = modifyChildren (wrapLetRec h) e
 
 -- first Name is the one that maps to the Expr in the environment
 -- second Name is the one that might be wrapped
+-- TODO eliminated recWrap helper function
+-- do not allow wrapping for symbolic variables
 wrapIfCorecursive :: G.CallGraph -> ExprEnv -> Name -> Name -> Expr -> Expr
 wrapIfCorecursive cg h n m e =
   let n_list = G.reachable n cg
       m_list = G.reachable m cg
   in
   if (n `elem` m_list) && (m `elem` n_list)
-  then recWrap h m e
+  then
+    if E.isSymbolic m h
+    then e
+    else ((wrcHelper m) . (wrapRecursiveCall m)) (wrapRecursiveCall m e)
   else e
 
 -- the call graph must be based on the given environment
@@ -280,9 +275,6 @@ tickWrap (App e1 e2) = App (tickWrap e1) e2
 tickWrap (Tick nl e) = Tick nl (tickWrap e)
 tickWrap e = Tick (NamedLoc loc_name) e
 
-exprWrap :: Stck.Stack Frame -> Expr -> Expr
-exprWrap sk e = stackWrap sk $ tickWrap e
-
 -- A Var counts as being in EVF if it's symbolic or if it's unmapped.
 -- TODO remove ticks recursively?
 isSWHNF :: State t -> Bool
@@ -292,29 +284,21 @@ isSWHNF (State { expr_env = h, curr_expr = CurrExpr _ e }) =
     Var _ -> isPrimType (typeOf e') && isExprValueForm h e'
     _ -> isExprValueForm h e'
 
--- The conditions for expr-value form do not align exactly with SWHNF.
--- A symbolic variable is in SWHNF only if it is of primitive type.
-eitherSWHNF :: (State t, State t) -> Bool
-eitherSWHNF (s1, s2) =
-  isSWHNF s1 || isSWHNF s2
-
+-- TODO don't add stack tick here, just add the stack
 prepareState :: StateET -> StateET
 prepareState s =
   let e = exprExtract s
   in s {
-    curr_expr = CurrExpr Evaluate $ exprWrap (exec_stack s) $ e
+    curr_expr = CurrExpr Evaluate $ stackWrap (exec_stack s) $ e
   , num_steps = 0
   , rules = []
   , exec_stack = Stck.empty
   }
 
 -- "stamps" for Case statements enforce induction validity
-stampString :: Int -> Int -> String
-stampString x k = (show x) ++ "STAMP:" ++ (show k)
-
 stampName :: Int -> Int -> Name
 stampName x k =
-  Name (DT.pack $ stampString x k) Nothing 0 Nothing
+  Name (DT.pack $ (show x) ++ "STAMP:" ++ (show k)) Nothing 0 Nothing
 
 -- leave existing stamp ticks unaffected; don't cover them with more layers
 -- only stamp strings should contain a colon
@@ -359,12 +343,6 @@ scrutineeDepth e1 (Tick _ e) = scrutineeDepth e1 e
 scrutineeDepth e1 (Case e i a) = 1 + scrutineeDepth e1 e
 scrutineeDepth _ _ = error "Not Contained"
 
-matchingStamps :: Int -> Expr -> Expr -> Bool
-matchingStamps i e1 e2 =
-  let stamps1 = readStamps e1
-      stamps2 = readStamps e2
-  in (take i stamps1) == (take i stamps2)
-
 -- the depths do not need to be the same
 -- however, the stamps should match up to the depth of the old one
 validScrutinee :: StateET -> StateET -> StateET -> Bool
@@ -401,8 +379,12 @@ replaceH sh s = sh { latest = s }
 prevFull :: (StateH, StateH) -> [(StateET, StateET)]
 prevFull (sh1, sh2) = [(p1, p2) | p1 <- history sh1, p2 <- history sh2]
 
+-- The conditions for expr-value form do not align exactly with SWHNF.
+-- A symbolic variable is in SWHNF only if it is of primitive type.
 prevFiltered :: (StateH, StateH) -> [(StateET, StateET)]
-prevFiltered = (filter (not . eitherSWHNF)) . prevFull
+prevFiltered =
+  let neitherSWHNF (s1, s2) = not (isSWHNF s1 || isSWHNF s2)
+  in (filter neitherSWHNF) . prevFull
 
 verifyLoop :: S.Solver solver =>
               solver ->
@@ -473,43 +455,6 @@ caseRecHelper _ = False
 -- We prefer coinduction in that scenario because it is more efficient.
 canUseInduction :: Obligation -> Bool
 canUseInduction (Ob e1 e2) = caseRecursion e1 && caseRecursion e2
-
--- Checks the same conditions, but takes a state pair as input instead.
-statePairInduction :: (State t, State t) -> Bool
-statePairInduction (s1, s2) =
-  (caseRecursion $ exprExtract s1) && (caseRecursion $ exprExtract s2)
-
-concretize :: HM.HashMap Id Expr -> Expr -> Expr
-concretize hm e =
-  HM.foldrWithKey (\i -> replaceVar (idName i)) e hm
-
--- Copies bindings from the first expression environment into the second.
--- This inserts symbolic variables twice over, once along with all of the other
--- variables and then once on their own specifically marked as symbolic, but
--- only the second insertion should matter.
-concretizeEnv :: ExprEnv -> ExprEnv -> ExprEnv
-concretizeEnv h_new h_old =
-  let ins_sym n = case h_new E.! n of
-                    Var i -> E.insertSymbolic n i
-                    _ -> error ("unmapped symbolic variable " ++ show n)
-      all_bindings = map (\n -> (n, h_new E.! n)) $ E.keys h_new
-      all_sym_names = filter (\n -> E.isSymbolic n h_new) $ E.keys h_new
-  in
-  foldr ins_sym (foldr (uncurry E.insert) h_old all_bindings) all_sym_names
-
--- TODO not used anywhere currently
-concretizeStatePair :: (ExprEnv, ExprEnv) ->
-                       HM.HashMap Id Expr ->
-                       (State t, State t) ->
-                       (State t, State t)
-concretizeStatePair (h_new1, h_new2) hm (s1, s2) =
-  let e1 = concretize hm $ exprExtract s1
-      e2 = concretize hm $ exprExtract s2
-      h1 = concretizeEnv h_new1 $ expr_env s1
-      h2 = concretizeEnv h_new2 $ expr_env s2
-  in
-  ( s1 { curr_expr = CurrExpr Evaluate e1, expr_env = h1 }
-  , s2 { curr_expr = CurrExpr Evaluate e2, expr_env = h2 } )
 
 innerScrutinees :: Expr -> [Expr]
 innerScrutinees (Tick _ e) = innerScrutinees e
@@ -915,12 +860,13 @@ generalizeAux solver ns s1_list s2 = do
     [] -> return Nothing
     h:_ -> return h
 
+-- TODO don't add stack ticks here; only do it before execution
 adjustStateForGeneralization :: Expr -> Name -> StateET -> StateET
 adjustStateForGeneralization e_old fresh_name s =
   let e = exprExtract s
       fresh_id = Id fresh_name (typeOf e)
       fresh_var = Var fresh_id
-      e' = addStackTickIfNeeded $ replaceScrutinee e fresh_var e_old
+      e' = replaceScrutinee e fresh_var e_old
       h = expr_env s
       h' = E.insertSymbolic fresh_name fresh_id h
   in s {
@@ -991,19 +937,15 @@ getObligations :: HS.HashSet Name ->
 getObligations ns s1 s2 =
   case proofObligations ns s1 s2 (exprExtract s1) (exprExtract s2) of
     Nothing -> Nothing
-    Just obs -> Just $
-                map (\(Ob e1 e2) -> Ob (addStackTickIfNeeded e1) (addStackTickIfNeeded e2)) $
-                HS.toList obs
+    Just obs -> Just $ HS.toList obs
 
 addStackTickIfNeeded :: Expr -> Expr
-addStackTickIfNeeded e =
-    if hasStackTick e then e else tickWrap e
-
-hasStackTick :: Expr -> Bool
-hasStackTick = getAny . evalASTs (\e -> case e of
+addStackTickIfNeeded e' =
+  let has_tick = getAny . evalASTs (\e -> case e of
                                           Tick (NamedLoc l) _
                                             | l == loc_name -> Any True
-                                          _ -> Any False)
+                                          _ -> Any False) $ e'
+  in if has_tick then e' else tickWrap e'
 
 checkObligations :: S.Solver solver =>
                     solver ->
@@ -1056,6 +998,7 @@ obligationWrap obligations =
 includedName :: [DT.Text] -> Name -> Bool
 includedName texts (Name t _ _ _) = t `elem` texts
 
+-- stack tick should appear inside rec tick
 startingState :: EquivTracker -> State t -> StateH
 startingState et s =
   let h = expr_env s
@@ -1065,7 +1008,7 @@ startingState et s =
       all_names = E.keys h
       s' = s {
       track = et
-    , curr_expr = CurrExpr Evaluate $ foldr wrap_cg (tickWrap $ exprExtract s) all_names
+    , curr_expr = CurrExpr Evaluate $ tickWrap $ foldr wrap_cg (exprExtract s) all_names
     , expr_env = h'
     }
   in newStateH s'
@@ -1411,9 +1354,6 @@ moreRestrictivePC solver s1 s2 hm = do
     S.UNSAT () -> return True
     _ -> return False
 
-rfs :: ExprEnv -> Expr -> Bool
-rfs h e = (exprReadyForSolver h e) && (T.isPrimType $ typeOf e)
-
 -- TODO container
 data PrevMatch t = PrevMatch {
     present :: (State t, State t)
@@ -1449,6 +1389,7 @@ moreRestrictivePairAux solver ns prev (s1, s2) = do
   let (s1', s2') = syncSymbolic s1 s2
       mr (p1, p2, _) = restrictHelper p2 s2' ns $
                        restrictHelper p1 s1' ns (Just (HM.empty, HS.empty))
+      rfs h e = (exprReadyForSolver h e) && (T.isPrimType $ typeOf e)
       getObs m = case m of
         Nothing -> HS.empty
         Just (_, hs) -> hs
@@ -1535,9 +1476,6 @@ isIdentity (i1, Tick _ e2) = isIdentity (i1, e2)
 isIdentity (i1, (Var i2)) = i1 == i2
 isIdentity _ = False
 
-isIdentityMap :: HM.HashMap Id Expr -> Bool
-isIdentityMap hm = foldr (&&) True (map isIdentity $ HM.toList hm)
-
 -- approximation should be the identity map
 -- needs to be enforced, won't just happen naturally
 moreRestrictiveEquiv :: S.Solver solver =>
@@ -1554,9 +1492,10 @@ moreRestrictiveEquiv solver ns s1 s2 = do
   pm_maybe <- moreRestrictivePair solver ns [(s2', s1')] (s1, s2)
   case pm_maybe of
     Nothing -> return Nothing
-    Just (PrevMatch _ _ (hm, _) _) -> if isIdentityMap hm
-                                      then return pm_maybe
-                                      else return Nothing
+    Just (PrevMatch _ _ (hm, _) _) ->
+      if foldr (&&) True (map isIdentity $ HM.toList hm)
+      then return pm_maybe
+      else return Nothing
 
 equivFoldL :: S.Solver solver =>
               solver ->
