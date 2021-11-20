@@ -172,10 +172,15 @@ parseHaskellConfigQ config str = do
 liftDataT :: Data a => a -> Q Exp
 liftDataT = dataToExpQ (\a -> case liftText <$> cast a of
                                     je@(Just _) -> je
-                                    Nothing -> liftLoc <$> cast a)
+                                    Nothing -> case liftLoc <$> cast a of
+                                                    jl@(Just _) -> jl
+                                                    Nothing -> liftMaybeSpan <$> cast a)
     where
         liftText txt = appE (varE 'T.pack) (stringE (T.unpack txt))
         liftLoc (G2.Loc l c f) = conE 'G2.Loc `appE` intE l `appE` intE c `appE` stringE f
+        
+        liftMaybeSpan :: Maybe Span -> Q Exp
+        liftMaybeSpan _ = conE 'Nothing
         intE i = [| i |]
 
 parseHaskellQ' :: QuotedExtract -> Q ExtractedG2
@@ -320,7 +325,6 @@ moveOutStatePieces tenv_name s = do
         true_assert_exp = liftDataT (true_assert s)
         assert_ids_exp = liftDataT (assert_ids s)
         type_classes_exp = liftDataT (type_classes s)
-        symbolic_ids_exp = liftDataT (symbolic_ids s)
         exec_stack_exp = liftDataT (exec_stack s)
         model_exp = liftDataT (model s)
         known_values_exp = liftDataT (known_values s)
@@ -340,7 +344,6 @@ moveOutStatePieces tenv_name s = do
              , true_assert = $(true_assert_exp) 
              , assert_ids = $(assert_ids_exp)
              , type_classes = $(type_classes_exp)
-             , symbolic_ids = $(symbolic_ids_exp)
              , exec_stack = $(exec_stack_exp)
              , model = $(model_exp)
              , known_values = $(known_values_exp)

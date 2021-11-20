@@ -46,21 +46,19 @@ data Context t = Context { state1_ :: State t
                          , ng_ :: NameGen
                          , newId_ :: MergeId -- `newId` is set to 1 or 2 in an AssumePC/ Case Expr when merging values from `state1_` or `state2_` respectively
                          , newPCs_ :: [PathCond]
-                         , newSyms_ :: SymbolicIds
                          }
 
 type MergeM t a = S.State (Context t) a
 
-runMergeM :: MergeId -> MergedIds -> NameGen -> [PathCond] -> SymbolicIds -> State t -> State t -> MergeM t a -> (a, Context t)
-runMergeM m_id m_ns ng pc syms s1 s2 f =
+runMergeM :: MergeId -> MergedIds -> NameGen -> [PathCond] -> State t -> State t -> MergeM t a -> (a, Context t)
+runMergeM m_id m_ns ng pc s1 s2 f =
     let
         ctxt = Context { state1_ = s1
                        , state2_ = s2
                        , mergedIds_ = m_ns
                        , ng_ = ng
                        , newId_ = m_id
-                       , newPCs_ = pc
-                       , newSyms_ = syms }
+                       , newPCs_ = pc }
     in
     runMergeMContext f ctxt
 
@@ -92,12 +90,6 @@ modifyState1 f = S.modify (\c -> c { state1_ = f (state1_ c) })
 
 modifyState2 :: (State t -> State t) -> MergeM t ()
 modifyState2 f = S.modify (\c -> c { state2_ = f (state2_ c) })
-
-modifySymbolicIds1 :: (SymbolicIds -> SymbolicIds) -> MergeM t ()
-modifySymbolicIds1 f = modifyState1 (\s -> s { symbolic_ids = f (symbolic_ids s) })
-
-modifySymbolicIds2 :: (SymbolicIds -> SymbolicIds) -> MergeM t ()
-modifySymbolicIds2 f = modifyState2 (\s -> s { symbolic_ids = f (symbolic_ids s) })
 
 exprEnv1 :: MergeM t ExprEnv
 exprEnv1 = S.gets (expr_env . state1_)
@@ -148,24 +140,15 @@ insertSymbolic1 :: Id -> MergeM t ()
 insertSymbolic1 i = do
     modifyNewExprEnv (E.insertSymbolic (idName i) i)
     modifyExprEnv1 (E.insertSymbolic (idName i) i)
-    modifySymbolicIds1 (HS.insert i)
-
-deleteSymbolic1 :: Id -> MergeM t ()
-deleteSymbolic1 i = modifySymbolicIds1 (HS.delete i)
 
 insertSymbolic2 :: Id -> MergeM t ()
 insertSymbolic2 i = do
     modifyNewExprEnv (E.insertSymbolic (idName i) i)
     modifyExprEnv2 (E.insertSymbolic (idName i) i)
-    modifySymbolicIds2 (HS.insert i)
-
-deleteSymbolic2 :: Id -> MergeM t ()
-deleteSymbolic2 i = modifySymbolicIds2 (HS.delete i)
 
 insertNewSymbolic :: Id -> MergeM t ()
 insertNewSymbolic i = do
     modifyNewExprEnv (E.insertSymbolic (idName i) i)
-    S.modify (\c -> c { newSyms_ = HS.insert i (newSyms_ c) })
 
 addPC :: [PathCond] -> MergeM t ()
 addPC pc = S.modify (\c -> c { newPCs_ = pc ++ newPCs_ c})
@@ -226,8 +209,7 @@ emptyContext s1 s2 ng newId = Context { state1_ = s1
                                       , mergedIds_ = HM.empty
                                       , newExprEnv_ = E.empty
                                       , newId_ = newId
-                                      , newPCs_ = []
-                                      , newSyms_ = HS.empty }
+                                      , newPCs_ = [] }
 
 mergeState :: (Eq t, Named t, Simplifier simplifier) => Bindings -> simplifier -> State t -> State t -> Maybe (Bindings, State t)
 mergeState b@(Bindings { name_gen = ng }) simplifier s1 s2 =
@@ -245,8 +227,6 @@ mergeState b@(Bindings { name_gen = ng }) simplifier s1 s2 =
 
                 (ctxt'', path_conds') = mergePathConds simplifier ctxt'
 
-                syms' = mergeSymbolicIds ctxt''
-
                 s1' = state1_ ctxt''
                 ng'' = ng_ ctxt''
 
@@ -259,7 +239,6 @@ mergeState b@(Bindings { name_gen = ng }) simplifier s1 s2 =
                             , true_assert = true_assert s1'
                             , assert_ids = assert_ids s1'
                             , type_classes = type_classes s1'
-                            , symbolic_ids = syms'
                             , exec_stack = exec_stack s1'
                             , model = model s1'
                             , known_values = known_values s1'
@@ -285,8 +264,6 @@ newMergeCurrExpr = do
 
 ------------------------------------------------
 -- Merging expressions
-
-type NewSymbolicIds = SymbolicIds
 
 newMergeExprEnv :: MergeM t ExprEnv
 newMergeExprEnv = do
@@ -318,7 +295,6 @@ newMergeEnvObj kv n eObj1 eObj2
                 e_s <- arbDCCase1 i
                 insertExprEnv1 (idName i) e_s
                 e <- newCaseExpr e_s e2
-                deleteSymbolic1 i
                 return $ E.ExprObj e
             Just obj' -> newMergeEnvObj kv n obj' eObj2
             Nothing -> error "mergeEnvObj: bad input"
@@ -331,7 +307,6 @@ newMergeEnvObj kv n eObj1 eObj2
                 e_s <- arbDCCase2 i
                 insertExprEnv2 (idName i) e_s
                 e <- newCaseExpr e1 e_s
-                deleteSymbolic2 i
                 return $ E.ExprObj e
             Just obj' -> newMergeEnvObj kv n eObj1 obj'
             Nothing -> error "mergeEnvObj: bad input"
@@ -480,8 +455,7 @@ concretizeSym bi maybeC (s, ng) dc@(DataCon n ts) =
             (Just (t1 :~ t2)) -> Cast dc'' (t2 :~ t1)
             Nothing -> dc''
         eenv = foldr (uncurry E.insertSymbolic) (expr_env s) $ zip (map idName newParams) newParams
-        syms = foldr HS.insert (symbolic_ids s) newParams
-    in ((s {expr_env = eenv, symbolic_ids = syms} , ng'), dc''')
+    in ((s {expr_env = eenv} , ng'), dc''')
 
 -- Given an Expr `e`, and an `Id`, `Int` pair, returns `ExtCond ((NOT (Id == Int)) OR e) True`
 implies :: KnownValues -> Id -> Integer -> Expr -> Bool -> PathCond
@@ -503,15 +477,6 @@ createCaseExpr _ [] = error "No exprs"
 
 bindExprToNum :: (Integer -> a -> b) -> [a] -> (Integer, [b])
 bindExprToNum f es = L.mapAccumL (\num e -> (num + 1, f num e)) 1 es
-
-
-mergeSymbolicIds :: Context t -> SymbolicIds
-mergeSymbolicIds (Context { state1_ = (State {symbolic_ids = syms1}), state2_ = (State {symbolic_ids = syms2})
-                          , newId_ = newId}) =
-    let
-        syms' = syms1 `HS.union` syms2
-        syms'' = HS.insert newId syms'
-    in syms''
 
 mergePathConds :: Simplifier simplifier => simplifier -> Context t -> (Context t, PathConds)
 mergePathConds simplifier ctxt@(Context { state1_ = s1@(State { path_conds = pc1, known_values = kv })

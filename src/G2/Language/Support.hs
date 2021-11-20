@@ -50,7 +50,6 @@ data State t = State { expr_env :: E.ExprEnv
                      , true_assert :: Bool -- ^ Have we violated an assertion?
                      , assert_ids :: Maybe FuncCall
                      , type_classes :: TypeClasses
-                     , symbolic_ids :: SymbolicIds
                      , exec_stack :: Stack Frame
                      , model :: Model
                      , known_values :: KnownValues
@@ -81,10 +80,6 @@ inputIds (State { expr_env = eenv }) (Bindings { input_names = ns }) =
     map (\n -> case E.lookup n eenv of
                 Just e -> Id n (typeOf e)
                 Nothing -> error "inputIds: Name not found in ExprEnv") ns
-
--- | The `SymbolicIds` are a list of the variable names that we should ensure are
--- inserted in the model, after we solve the path constraints
-type SymbolicIds = S.HashSet Id
 
 -- | `CurrExpr` is the current expression we have. 
 data CurrExpr = CurrExpr EvalOrReturn Expr
@@ -161,7 +156,6 @@ renameState old new_seed s b =
              , true_assert = true_assert s
              , assert_ids = rename old new (assert_ids s)
              , type_classes = rename old new (type_classes s)
-             , symbolic_ids = rename old new (symbolic_ids s)
              , exec_stack = exec_stack s
              , model = model s
              , known_values = rename old new (known_values s)
@@ -178,7 +172,6 @@ instance Named t => Named (State t) where
             <> names (path_conds s)
             <> names (assert_ids s)
             <> names (type_classes s)
-            <> names (symbolic_ids s)
             <> names (exec_stack s)
             <> names (model s)
             <> names (known_values s)
@@ -195,7 +188,6 @@ instance Named t => Named (State t) where
                , true_assert = true_assert s
                , assert_ids = rename old new (assert_ids s)
                , type_classes = rename old new (type_classes s)
-               , symbolic_ids = rename old new (symbolic_ids s)
                , exec_stack = rename old new (exec_stack s)
                , model = rename old new (model s)
                , known_values = rename old new (known_values s)
@@ -215,7 +207,6 @@ instance Named t => Named (State t) where
                , true_assert = true_assert s
                , assert_ids = renames hm (assert_ids s)
                , type_classes = renames hm (type_classes s)
-               , symbolic_ids = renames hm (symbolic_ids s)
                , exec_stack = renames hm (exec_stack s)
                , model = renames hm (model s)
                , known_values = renames hm (known_values s)
@@ -230,7 +221,6 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                       (containedASTs $ curr_expr s) ++
                       (containedASTs $ path_conds s) ++
                       (containedASTs $ assert_ids s) ++
-                      (containedASTs $ symbolic_ids s) ++
                       (containedASTs $ exec_stack s) ++
                       (containedASTs $ track s)
 
@@ -239,7 +229,6 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                                 , curr_expr = modifyContainedASTs f $ curr_expr s
                                 , path_conds = modifyContainedASTs f $ path_conds s
                                 , assert_ids = modifyContainedASTs f $ assert_ids s
-                                , symbolic_ids = modifyContainedASTs f $ symbolic_ids s
                                 , exec_stack = modifyContainedASTs f $ exec_stack s
                                 , track = modifyContainedASTs f $ track s }
 
@@ -250,7 +239,6 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                       ((containedASTs . path_conds) s) ++
                       ((containedASTs . assert_ids) s) ++
                       ((containedASTs . type_classes) s) ++
-                      ((containedASTs . symbolic_ids) s) ++
                       ((containedASTs . exec_stack) s) ++
                       (containedASTs $ track s)
 
@@ -260,7 +248,6 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                                 , path_conds = (modifyContainedASTs f . path_conds) s
                                 , assert_ids = (modifyContainedASTs f . assert_ids) s
                                 , type_classes = (modifyContainedASTs f . type_classes) s
-                                , symbolic_ids = (modifyContainedASTs f . symbolic_ids) s
                                 , exec_stack = (modifyContainedASTs f . exec_stack) s
                                 , track = modifyContainedASTs f $ track s }
 

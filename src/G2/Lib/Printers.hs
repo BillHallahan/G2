@@ -448,7 +448,7 @@ pprExecStateStr ex_state b = injNewLine acc_strs
     code_str = pprExecCodeStr (curr_expr ex_state)
     names_str = pprExecNamesStr (name_gen b)
     in_names_str = show (input_names b)
-    symb_ids_str = pprSymbolicIdsStr (symbolic_ids ex_state)
+    symb_ids_str = pprSymbolicIdsStr (E.symbolicIds . expr_env $ ex_state)
     paths_str = pprPathsStr (map (\(ns, pcg) -> (ns, PC.pcs pcg)) . PC.toUFList $ path_conds ex_state)
     non_red_paths_str = injNewLine (map show $ non_red_path_conds ex_state)
     tc_str = pprTCStr (type_classes ex_state)
@@ -502,7 +502,7 @@ pprExecStateCoreStr ex_state b = injNewLine acc_strs
     estk_str = pprExecStackStr (exec_stack ex_state)
     code_str = pprExecCodeStr (curr_expr ex_state)
     in_names_str = show (input_names b)
-    symb_ids_str = pprSymbolicIdsStr (symbolic_ids ex_state)
+    symb_ids_str = pprSymbolicIdsStr (E.symbolicIds . expr_env $ ex_state)
     model_str = pprModelStr (model ex_state)
     acc_strs = [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
                , "----- [Code] ----------------------"
@@ -560,10 +560,10 @@ pprTCStr tc = injNewLine cond_strs
   where
     cond_strs = map show $ M.toList $ toMap tc
 
-pprSymbolicIdsStr :: SymbolicIds -> String
+pprSymbolicIdsStr :: [Id] -> String
 pprSymbolicIdsStr i = injNewLine id_strs
   where
-    id_strs = map show $ HS.toList i
+    id_strs = map show i
 
 -- pprPathCondStr :: PathCond -> String
 -- pprPathCondStr pc = injTuple (pprPathCondStr' pc)

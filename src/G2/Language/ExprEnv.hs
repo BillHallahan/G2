@@ -41,7 +41,7 @@ module G2.Language.ExprEnv
     , getIdFromName
     , funcsOfType
     , keys
-    , symbolicKeys
+    , symbolicIds
     , elems
     , higherOrderExprs
     , redirsToExprs
@@ -287,7 +287,9 @@ filterWithKey p env@(ExprEnv env') = ExprEnv $ M.filterWithKey p' env'
 
 -- | Returns a new `ExprEnv`, which contains only the symbolic values.
 filterToSymbolic :: ExprEnv -> ExprEnv
-filterToSymbolic eenv = filterWithKey (\n _ -> isSymbolic n eenv) eenv
+filterToSymbolic = ExprEnv . M.filter (\e -> case e of
+                                                SymbObj _ -> True
+                                                _ -> False) . unwrapExprEnv
 
 -- | Returns the names of all expressions with the given type in the expression environment
 funcsOfType :: Type -> ExprEnv -> [Name]
@@ -296,8 +298,10 @@ funcsOfType t = keys . filter (\e -> t == typeOf e)
 keys :: ExprEnv -> [Name]
 keys = M.keys . unwrapExprEnv
 
-symbolicKeys :: ExprEnv -> [Name]
-symbolicKeys eenv = M.keys . unwrapExprEnv . filterWithKey (\n _ -> isSymbolic n eenv) $ eenv
+symbolicIds :: ExprEnv -> [Id]
+symbolicIds = mapMaybe (\e -> case e of
+                                SymbObj i ->  Just i
+                                _ -> Nothing) . M.elems . unwrapExprEnv
 
 -- | Returns all `Expr`@s@ in the `ExprEnv`
 elems :: ExprEnv -> [Expr]

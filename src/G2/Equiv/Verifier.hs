@@ -103,7 +103,6 @@ transferStateInfo s1 s2 =
     in
     s2 { expr_env = n_eenv
        , path_conds = foldr P.insert (path_conds s1) (P.toList (path_conds s2))
-       , symbolic_ids = HS.fromList . map (\(Var i) -> i) . E.elems $ E.filterToSymbolic n_eenv
        , track = track s1 }
 
 frameWrap :: Frame -> Expr -> Expr

@@ -46,10 +46,7 @@ replaceCaseWSym' (s@(State {known_values = kv}), ng) (Case (Var i) _ alts@(a:_))
 
         eenv' = expr_env s'
         eenv'' = E.insertSymbolic (idName newSym) newSym eenv'
-        syms' = symbolic_ids s'
-        syms'' = HS.insert newSym syms'
-
-    in ((s' {expr_env = eenv'', symbolic_ids = syms''}, ng''), (Var newSym, newPCs ++ pcsL'))
+    in ((s' {expr_env = eenv''}, ng''), (Var newSym, newPCs ++ pcsL'))
 replaceCaseWSym' (s, ng) (App e1 e2) =
     let ((s', ng'), (e1', newPCs1)) = replaceCaseWSym' (s, ng) e1
         ((s'', ng''), (e2', newPCs2)) = replaceCaseWSym' (s', ng') e2

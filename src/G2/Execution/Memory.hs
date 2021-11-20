@@ -63,7 +63,6 @@ markAndSweepPreserving' mc (state@State { expr_env = eenv
                                         , type_env = tenv
                                         , curr_expr = cexpr
                                         , path_conds = pc
-                                        , symbolic_ids = iids
                                         , exec_stack = es
                                         }) (bindings@Bindings { deepseq_walkers = dsw
                                                               , higher_order_inst = inst }) = -- error $ show $ length $ take 20 $ PC.toList path_conds
@@ -77,7 +76,7 @@ markAndSweepPreserving' mc (state@State { expr_env = eenv
     active = activeNames tenv (E.redirsToExprs eenv) HS.empty $ names cexpr <>
                                                                 names es <>
                                                                 names pc <>
-                                                                names iids <>
+                                                                names (E.symbolicIds eenv) <>
                                                                 S.fromList higher_ord_rel <>
                                                                 S.fromList (search_names mc)
 

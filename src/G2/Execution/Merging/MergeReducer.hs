@@ -87,6 +87,7 @@ litAltInfo :: Id -> Alt -> ((Id, Lit), Expr)
 litAltInfo i (Alt (LitAlt l) e) = ((i, l), e)
 litAltInfo _ _ = error "litAltInfo: Bad Lit"
 
+type SymbolicIds = HS.HashSet Id
 data MergeableExpr = FromVar Id SymbolicIds Expr | OtherExpr Expr deriving (Show, Read)
 
 getExpr :: MergeableExpr -> Expr
@@ -121,8 +122,7 @@ mergeWherePossible orig_s@(State { curr_expr = CurrExpr er _ }) m_ile (il, me) =
                 let
                     eenv = foldr (\i -> E.insertSymbolic (idName i) i) (expr_env orig_s) symbs
                     new_pc = newPCEmpty $ orig_s { expr_env = E.insert n e eenv
-                                                 , curr_expr = CurrExpr er e
-                                                 , symbolic_ids = HS.delete i $ HS.union symbs (symbolic_ids orig_s) }
+                                                 , curr_expr = CurrExpr er e }
                 in
                 return ((il, new_pc):m_ile)
             | OtherExpr e <- me-> 
@@ -162,7 +162,7 @@ joinToState orig_s is1 me1 is2 new_pc@(NewPC { state = s@(State { curr_expr = Cu
     je <- runStateMInNamingM (joinExprs i me1 ce) s
 
     case je of
-        (Just ce', s'@(State { expr_env = eenv, symbolic_ids = s_symbs })) ->  do
+        (Just ce', s'@(State { expr_env = eenv })) ->  do
             let kv = known_values orig_s
 
             let imp1 = mkImp kv is1 (Var i) 1
@@ -190,8 +190,6 @@ joinExprs :: Id -> MergeableExpr -> Expr -> StateNG t (Maybe Expr)
 joinExprs i (FromVar vi symbs e1) e2 = do
     mapM_ (\i_ -> insertSymbolicE (idName i_) i_) symbs
     insertE (idName vi) e1
-    unionSymbolicId symbs
-    deleteSymbolicId vi
     joinExprs' i e1 e2
 joinExprs i (OtherExpr e1) e2 = joinExprs' i e1 e2
 
@@ -245,7 +243,6 @@ mkInnerJoin i@(Id _ t) e1 e2 = do
     
     if  | primVal eenv e1 && primVal eenv e2 -> do
             n_id <- freshIdN t
-            insertSymbolicId n_id
             insertSymbolicE (idName n_id) n_id
 
             let pc1 = PC.mkSingletonAssumePC i 1 $ ExtCond (mkEqPrimExpr t kv (Var n_id) e1) True
@@ -342,7 +339,6 @@ arbDCCase i@(Id _ t) = do
                         , Alt (LitAlt (LitInt 2)) flse]
 
             insertSymbolicE (idName bindee_id) bindee_id
-            insertSymbolicId bindee_id
             mapM_ insertPCStateNG (pc ++ bool_pc)
 
             return e
@@ -365,7 +361,6 @@ arbDCCase i@(Id _ t) = do
 
                                             ars <- freshIdsN re_anon
                                             mapM (\a -> insertSymbolicE (idName a) a) ars
-                                            mapM insertSymbolicId ars
 
                                             return (mkApp $ dc:map Var ars)) ty_apped_dcs
 
@@ -374,7 +369,6 @@ arbDCCase i@(Id _ t) = do
                         e = createCaseExpr bindee_id apped_dcs
                     
                     insertSymbolicE (idName bindee_id) bindee_id
-                    insertSymbolicId bindee_id
                     mapM_ insertPCStateNG pc
 
                     return e

@@ -38,7 +38,7 @@ floodConstant n e s
                 in
                 Just (s { expr_env = E.insert n e (expr_env s)
                         , path_conds = r_pc
-                        , symbolic_ids = HS.delete i (symbolic_ids s)})
+                        })
             _ -> Nothing
     | otherwise = 
         case E.lookup n (expr_env s) of

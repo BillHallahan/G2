@@ -23,9 +23,6 @@ module G2.Language.Monad.Support ( StateT
                                  , readRecord
                                  , withNG
                                  , mapCurrExpr
-                                 , insertSymbolicId
-                                 , deleteSymbolicId
-                                 , unionSymbolicId
                                  , insertPC
                                  , insertPCStateNG
                                  , mapMAccumB ) where
@@ -90,9 +87,6 @@ class (ExprEnvM s m, NamingM s m) => ExState s m | m -> s where
     typeClasses :: m TypeClasses
     putTypeClasses :: TypeClasses -> m ()
 
-    symbolicIds :: m SymbolicIds
-    putSymbolicIds :: SymbolicIds -> m ()
-
 -- Extends `ExState`, allowing access to a more complete set of the
 -- components in the `State`.
 class ExState s m => FullState s m | m -> s where
@@ -135,9 +129,6 @@ instance ExState (State t, Bindings) (SM.State (State t, Bindings)) where
     typeClasses = readRecord (\(s, _) -> type_classes s)
     putTypeClasses = rep_type_classesM
 
-    symbolicIds = readRecord (\(s, _) -> symbolic_ids s)
-    putSymbolicIds = rep_symbolic_idsM
-
 instance ExState (State t, NameGen) (SM.State (State t, NameGen)) where
     typeEnv = readRecord (\(s, _) -> type_env s)
     putTypeEnv = rep_type_envNG
@@ -147,9 +138,6 @@ instance ExState (State t, NameGen) (SM.State (State t, NameGen)) where
 
     typeClasses = readRecord (\(s, _) -> type_classes s)
     putTypeClasses = rep_type_classesNG
-
-    symbolicIds = readRecord (\(s, _) -> symbolic_ids s)
-    putSymbolicIds = rep_symbolic_idsNG
 
 instance FullState (State t, Bindings) (SM.State (State t, Bindings)) where
     currExpr = readRecord (\(s, _) -> curr_expr s)
@@ -213,16 +201,6 @@ rep_type_envNG tenv = do
     (s,b) <- SM.get
     SM.put $ (s {type_env = tenv}, b)
 
-rep_symbolic_idsM :: SymbolicIds -> StateM t ()
-rep_symbolic_idsM symbs = do
-    (s,b) <- SM.get
-    SM.put $ (s {symbolic_ids = symbs}, b)
-
-rep_symbolic_idsNG :: SymbolicIds -> StateNG t ()
-rep_symbolic_idsNG symbs = do
-    (s,b) <- SM.get
-    SM.put $ (s {symbolic_ids = symbs}, b)
-
 withNG :: NamingM s m => (NameGen -> (a, NameGen)) -> m a
 withNG f = do
     ng <- nameGen
@@ -276,21 +254,6 @@ rep_path_condsM :: PathConds -> StateM t ()
 rep_path_condsM pc = do
     (s, b) <- SM.get
     SM.put $ (s {path_conds = pc}, b)
-
-insertSymbolicId :: ExState s m => Id -> m ()
-insertSymbolicId i = do
-    symbs <- symbolicIds
-    putSymbolicIds $ HS.insert i symbs
-
-deleteSymbolicId :: ExState s m => Id -> m ()
-deleteSymbolicId i = do
-    symbs <- symbolicIds
-    putSymbolicIds $ HS.delete i symbs
-
-unionSymbolicId :: ExState s m => SymbolicIds -> m ()
-unionSymbolicId n_symbs = do
-    symbs <- symbolicIds
-    putSymbolicIds $ HS.union n_symbs symbs
 
 insertPC :: FullState s m => PathCond -> m ()
 insertPC pc = do
