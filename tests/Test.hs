@@ -625,6 +625,11 @@ primTests = testGroup "Prims"
 
     , checkInputOutput "tests/Prim/Prim3.hs" "Prim3" "int2FloatTest" 1000 2 [AtLeast 1]
     , checkInputOutput "tests/Prim/Prim3.hs" "Prim3" "int2DoubleTest" 1000 2 [AtLeast 1]
+
+    , checkInputOutput "tests/Prim/Prim4.hs" "Prim4" "divIntTest" 1500 2 [AtLeast 4]
+    , checkInputOutput "tests/Prim/Prim4.hs" "Prim4" "divIntegerTest" 1500 2 [AtLeast 1]
+    , checkInputOutput "tests/Prim/Prim4.hs" "Prim4" "divIntegerTest2" 1500 2 [AtLeast 4]
+    , checkInputOutput "tests/Prim/Prim4.hs" "Prim4" "divFloatTest" 1500 2 [AtLeast 1]
     ]
 
 -- To Do Tests
