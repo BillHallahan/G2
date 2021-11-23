@@ -23,7 +23,6 @@ import qualified Data.Text as T
 
 import qualified G2.Language.Stack as Stck
 
--- TODO
 import Data.Maybe
 import G2.Execution.Reducer ( EquivTracker )
 import G2.Execution.NormalForms
@@ -200,16 +199,13 @@ instance Halter EnforceProgressH () EquivTracker where
             h = expr_env s
         in
         case m of
-            -- TODO the Nothing case is being hit infinitely
             Nothing -> return Continue
             -- Execution needs to take strictly more than one step beyond the
             -- point when it reaches the Tick because the act of unwrapping the
             -- expression inside the Tick counts as one step.
             Just n0 -> do
                 if (isExecValueForm s) || (exprFullApp h e) || (recursionInCase s)-- || (loneSymVar s)
-                       -- TODO same goes for this?
                        then return (if n' > n0 + 1 then Accept else Continue)
-                       -- TODO not getting stuck in here repeatedly
                        else return Continue
     stepHalter _ _ _ _ _ = ()
 
@@ -264,12 +260,11 @@ instance Reducer EquivReducer () EquivTracker where
                     return (InProgress, [(s', ())], b', r)
     redRules r rv s b = return (NoProgress, [(s, rv)], b, r)
 
--- TODO shouldn't need tick removal
+-- doesn't need tick removal
 exprVarName :: Expr -> Maybe Name
 exprVarName (Var i) = Just $ idName i
 exprVarName _ = Nothing
 
--- TODO ticks?
 isSymFuncApp :: ExprEnv -> Expr -> Bool
 isSymFuncApp eenv e
     | v@(Var _):(_:_) <- unApp e

@@ -402,7 +402,6 @@ data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
 
 -- Forces a lone symbolic variable with a type corresponding to an ADT
 -- to evaluate to some value of that ADT
--- TODO will there be any need to carry over finiteness sometimes?
 instance Reducer ConcSymReducer () EquivTracker where
     initReducer _ _ = ()
 
@@ -419,7 +418,7 @@ instance Reducer ConcSymReducer () EquivTracker where
                 total' = if n `elem` total
                          then foldr HS.insert total new_names
                          else total
-                -- TODO finiteness carries over to sub-expressions too
+                -- finiteness carries over to sub-expressions too
                 finite' = if n `elem` finite
                           then foldr HS.insert finite new_names
                           else finite

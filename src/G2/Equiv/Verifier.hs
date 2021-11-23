@@ -46,6 +46,11 @@ import Data.Time
 import G2.Execution.Reducer
 import G2.Lib.Printers
 
+-- TODO reader / writer monad source consulted
+-- https://mmhaskell.com/monads/reader-writer
+
+import qualified Control.Monad.Writer.Lazy as W
+
 -- 9/27 notes
 -- TODO have a list of every single state, not just the stopping ones
 -- At least be able to say what rules are being applied at every step
@@ -82,6 +87,37 @@ data DischargeResult = DischargeResult {
   , bad_states :: Maybe [(StateET, StateET)]
 }
 
+-- TODO starting Writer functions
+-- TODO what should the second writer type be?
+noteBasicDischarge :: String -> (StateET, StateET) -> W.WriterT String IO ()
+noteBasicDischarge msg (s1, s2) = do
+  let fn1 = folder_name $ track s1
+      fn2 = folder_name $ track s2
+      out_str = "(" ++ fn1 ++ "," ++ fn2 ++ ") " ++ msg ++ "\n"
+  W.tell out_str
+  return ()
+
+noteEquivDischarge :: (StateET, StateET) -> W.WriterT String IO ()
+noteEquivDischarge = noteBasicDischarge "discharged by equivalence"
+
+noteNoObligationsDischarge :: (StateET, StateET) -> W.WriterT String IO ()
+noteNoObligationsDischarge = noteBasicDischarge "produced no proof obligations"
+
+{-
+TODO
+Information to provide for induction:
+Real present states, their expressions
+Fake present states, their expressions
+Past states, their expressions
+Present scrutinees used
+Past scrutinees used
+Fresh variable name
+New generalized expressions for the present
+
+Information to provide for coinduction:
+Real present, fake present, past
+-}
+
 exprReadyForSolver :: ExprEnv -> Expr -> Bool
 exprReadyForSolver h (Tick _ e) = exprReadyForSolver h e
 exprReadyForSolver h (Var i) = E.isSymbolic (idName i) h && T.isPrimType (typeOf i)
@@ -100,7 +136,6 @@ statePairReadyForSolver (s1, s2) =
   exprReadyForSolver h1 e1 && exprReadyForSolver h2 e2
 
 -- don't log when the base folder name is empty
--- TODO I could have folder_name be a String and not a Maybe
 logStatesFolder :: String -> String -> LogMode
 logStatesFolder _ "" = NoLog
 logStatesFolder pre fr = Log Pretty $ fr ++ "/" ++ pre
@@ -245,7 +280,6 @@ wrapLetRec h e = modifyChildren (wrapLetRec h) e
 
 -- first Name is the one that maps to the Expr in the environment
 -- second Name is the one that might be wrapped
--- TODO eliminated recWrap helper function
 -- do not allow wrapping for symbolic variables
 wrapIfCorecursive :: G.CallGraph -> ExprEnv -> Name -> Name -> Expr -> Expr
 wrapIfCorecursive cg h n m e =
@@ -395,10 +429,10 @@ verifyLoop :: S.Solver solver =>
               Config ->
               String ->
               Int ->
-              IO (S.Result () ())
+              W.WriterT String IO (S.Result () ())
 verifyLoop solver ns states prev b config folder_root k | not (null states) = do
   let current_states = map getLatest states
-  (paired_states, (b', k')) <- CM.runStateT (mapM (uncurry (runSymExec solver config folder_root)) current_states) (b, k)
+  (paired_states, (b', k')) <- W.liftIO $ CM.runStateT (mapM (uncurry (runSymExec solver config folder_root)) current_states) (b, k)
   let ng = name_gen b'
       (fresh_name, ng') = freshName ng
       b'' = b' { name_gen = ng' }
@@ -410,16 +444,16 @@ verifyLoop solver ns states prev b config folder_root k | not (null states) = do
       -- TODO don't use a universal prev list; every exec path has its own
       vl (sh1, sh2) = simplify $ tryDischarge solver ns fresh_name sh1 sh2 (zip (history sh1) (history sh2))
   -- TODO printing
-  putStrLn "<Loop Iteration>"
+  W.liftIO $ putStrLn "<Loop Iteration>"
   -- for every internal list, map with its corresponding original state
   let app_pair (sh1, sh2) (s1, s2) = (appendH sh1 s1, appendH sh2 s2)
       map_fns = map app_pair states
       updated_hists = map (uncurry map) (zip map_fns paired_states)
-  putStrLn $ show $ length $ concat updated_hists
+  W.liftIO $ putStrLn $ show $ length $ concat updated_hists
   proof_list <- mapM vl $ concat updated_hists
   let new_obligations = concat [l | Just l <- proof_list]
       prev' = new_obligations ++ prev
-  putStrLn $ show $ length new_obligations
+  W.liftIO $ putStrLn $ show $ length new_obligations
   if all isJust proof_list then
     verifyLoop solver ns new_obligations prev' b'' config folder_root k'
   else
@@ -467,21 +501,14 @@ replaceScrutinee e1 e2 (Tick nl e) = Tick nl (replaceScrutinee e1 e2 e)
 replaceScrutinee e1 e2 (Case e i a) = Case (replaceScrutinee e1 e2 e) i a
 replaceScrutinee _ _ e = e
 
-notM :: IO Bool -> IO Bool
-notM b = do
-  b' <- b
-  return (not b')
+notM :: Monad m => m Bool -> m Bool
+notM = liftM not
 
-andM :: IO Bool -> IO Bool -> IO Bool
-andM b1 b2 = do
-  b1' <- b1
-  b2' <- b2
-  return (b1' && b2')
+andM :: Monad m => m Bool -> m Bool -> m Bool
+andM = liftM2 (&&)
 
-isNothingM :: IO (Maybe t) -> IO Bool
-isNothingM m = do
-  m' <- m
-  return $ not $ isJust m'
+isNothingM :: Monad m => m (Maybe t) -> m Bool
+isNothingM = liftM (not . isJust)
 
 -- TODO debugging function
 stateHistory :: StateH -> StateH -> [(StateET, StateET)]
@@ -545,17 +572,23 @@ tryCoinduction :: S.Solver solver =>
                   [(StateET, StateET)] ->
                   (StateH, StateH) ->
                   (StateET, StateET) ->
-                  IO (Maybe (PrevMatch EquivTracker))
+                  W.WriterT String IO (Maybe (PrevMatch EquivTracker))
 tryCoinduction solver ns prev sh_pair (s1, s2) = do
-  res1 <- equivFold solver ns sh_pair (s1, s2)
-  res2 <- moreRestrictivePair solver ns prev (s1, s2)
+  res1 <- W.liftIO $ equivFold solver ns sh_pair (s1, s2)
+  res2 <- W.liftIO $ moreRestrictivePair solver ns prev (s1, s2)
   case res1 of
-    Just _ -> trace ("EQUIVALENT " ++ show (length prev)) $ return res1
-    _ -> trace ("COINDUCTION " ++ show (isJust res2)) $ return res2
+    Just _ -> do
+      noteEquivDischarge (s1, s2)
+      --trace ("EQUIVALENT " ++ show (length prev)) $
+      return res1
+    _ -> do
+      --trace ("COINDUCTION " ++ show (isJust res2)) $
+      return res2
 
 -- TODO printing
 -- TODO was the type signature wrong before?
 -- TODO prev not used anymore
+-- TODO have something other than a string as the Writer accumulator
 tryDischarge :: S.Solver solver =>
                 solver ->
                 HS.HashSet Name ->
@@ -563,7 +596,7 @@ tryDischarge :: S.Solver solver =>
                 StateH ->
                 StateH ->
                 [(StateET, StateET)] ->
-                IO DischargeResult
+                W.WriterT String IO DischargeResult
 tryDischarge solver ns fresh_name sh1 sh2 prev =
   let s1 = latest sh1
       s2 = latest sh2
@@ -571,18 +604,18 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
   case getObligations ns s1 s2 of
     Nothing -> do
       -- obligation generation failed, so the expressions must not be equivalent
-      putStrLn $ "N! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
-      putStrLn $ show $ exprExtract s1
-      putStrLn $ show $ exprExtract s2
-      mapM putStrLn $ exprTrace sh1 sh2
+      W.liftIO $ putStrLn $ "N! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
+      W.liftIO $ putStrLn $ show $ exprExtract s1
+      W.liftIO $ putStrLn $ show $ exprExtract s2
+      W.liftIO $ mapM putStrLn $ exprTrace sh1 sh2
       -- TODO what to return here?
       -- all left unfinished, nothing resolved
       -- bad_states are the ones right here
       return $ DischargeResult [] [] (Just [(s1, s2)])
     Just obs -> do
-      putStrLn $ "J! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
-      putStrLn $ printHaskellDirty $ exprExtract s1
-      putStrLn $ printHaskellDirty $ exprExtract s2
+      W.liftIO $ putStrLn $ "J! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
+      W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s1
+      W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s2
       --putStrLn $ show $ exprExtract s1
       --putStrLn $ show $ exprExtract s2
 
@@ -609,7 +642,7 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
       let states_i = map (stateWrap s1 s2) obs_i
       states_i_ <- filterM (isNothingM . (tryCoinduction solver ns prev' (sh1, sh2))) states_i
       -- TODO need a way to get the prev pair used for induction
-      states_i' <- mapM (inductionFull solver ns fresh_name (sh1, sh2)) states_i_
+      states_i' <- W.liftIO $ mapM (inductionFull solver ns fresh_name (sh1, sh2)) states_i_
       --states_i' <- filterM (notM . (induction solver ns fresh_name prev')) states_i
 
       -- TODO unnecessary to pass the induction states through this?
@@ -626,8 +659,8 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
           ready_solved = map
                         (\(n1, n2) -> (addDischarge n1 $ replaceH sh1 n1, addDischarge n2 $ replaceH sh2 n2))
                         ready
-      res <- checkObligations solver s1 s2 ready_exprs
-      case res of
+      res <- W.liftIO $ checkObligations solver s1 s2 ready_exprs
+      W.liftIO $ case res of
         S.UNSAT () -> putStrLn $ "V? " ++ show (length not_ready_h)
         _ -> putStrLn "X?"
       case res of
@@ -746,6 +779,7 @@ inductionR solver ns prev (s1, s2) = do
 
 -- substitution happens on the left here
 -- TODO now the right-hand state returned would always be s2
+-- TODO collect information about the expressions used for induction
 inductionL :: S.Solver solver =>
               solver ->
               HS.HashSet Name ->
@@ -1081,11 +1115,12 @@ checkRule config init_state bindings total finite rule = do
   putStrLn $ printHaskellDirty $ exprExtract $ latest rewrite_state_l''
   putStrLn $ printHaskellDirty $ exprExtract $ latest rewrite_state_r''
   -- TODO this may not be sound anymore with Nothing
-  res <- verifyLoop solver ns
+  (res, w) <- W.runWriterT $ verifyLoop solver ns
              [(rewrite_state_l'', rewrite_state_r'')]
              [(rewrite_state_l'', rewrite_state_r'')]
              bindings'' config "" 0
   -- UNSAT for good, SAT for bad
+  putStrLn w
   return res
 
 -- s1 is the old state, s2 is the new state
