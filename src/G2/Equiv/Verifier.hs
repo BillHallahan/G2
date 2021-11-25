@@ -71,12 +71,41 @@ data StateH = StateH {
   , discharge :: Maybe StateET
 }
 
--- remember this is for only one side
+-- TODO constructors may need to change
+data Marker = Induction IndMarker
+            | Coinduction CoMarker
+            | Equivalence (StateET, StateET)
+            | NoObligations (StateET, StateET)
+            | NotEquivalent (StateET, StateET)
+            | SolverFail (StateET, StateET)
+
+data Side = Left | Right
+
+-- TODO two-sided now
+-- TODO some
 data IndMarker = IndMarker {
-    past_state :: StateET
-  , present_state :: StateET
-  , result_state :: StateET
+    ind_real_present :: (StateET, StateET)
+  , ind_used_present :: (StateET, StateET)
+  , ind_past :: (StateET, StateET)
+  , ind_present_scrutinees :: (StateET, StateET)
+  , ind_past_scrutinees :: (StateET, StateET)
+  , ind_side :: Side
 }
+
+-- TODO two-sided
+-- TODO no present variation for coinduction currently
+data CoMarker = CoMarker {
+    co_present :: (StateET, StateET)
+  , co_past :: (StateET, StateET)
+}
+
+-- TODO include history?
+{-
+data EquivMarker = EquivMarker {
+    real_present :: (StateET, StateET)
+  , used_present :: (StateET, StateET)
+}
+-}
 
 -- TODO this should be the output from tryDischarge
 -- unfinished is what tryDischarge gave as output before
@@ -97,11 +126,15 @@ noteBasicDischarge msg (s1, s2) = do
   W.tell out_str
   return ()
 
-noteEquivDischarge :: (StateET, StateET) -> W.WriterT String IO ()
-noteEquivDischarge = noteBasicDischarge "discharged by equivalence"
+noteEquivDischarge :: (StateET, StateET) -> W.WriterT [Marker] IO ()
+noteEquivDischarge s_pair = do
+  W.tell $ [Equivalence s_pair]
+  return ()
 
-noteNoObligationsDischarge :: (StateET, StateET) -> W.WriterT String IO ()
-noteNoObligationsDischarge = noteBasicDischarge "produced no proof obligations"
+noteNoObligationsDischarge :: (StateET, StateET) -> W.WriterT [Marker] IO ()
+noteNoObligationsDischarge s_pair = do
+  W.tell $ [NoObligations s_pair]
+  return ()
 
 {-
 TODO
@@ -429,7 +462,7 @@ verifyLoop :: S.Solver solver =>
               Config ->
               String ->
               Int ->
-              W.WriterT String IO (S.Result () ())
+              W.WriterT [Marker] IO (S.Result () ())
 verifyLoop solver ns states prev b config folder_root k | not (null states) = do
   let current_states = map getLatest states
   (paired_states, (b', k')) <- W.liftIO $ CM.runStateT (mapM (uncurry (runSymExec solver config folder_root)) current_states) (b, k)
@@ -539,10 +572,12 @@ addDischarge :: StateET -> StateH -> StateH
 addDischarge s sh = sh { discharge = Just s }
 
 -- TODO don't use for now
+{-
 addInduction :: StateET -> StateH -> StateH
 addInduction s sh =
   let im = IndMarker s s (latest sh)
   in sh { inductions = im:(inductions sh) }
+-}
 
 -- TODO a better setup would also indicate which side was used for induction
 -- TODO just return (sh1, sh2) in failure event?
@@ -558,8 +593,8 @@ makeIndStateH (sh1, sh2) ((q1, q2), ((n1, n2), s1, s2)) | n1 >= 0, n2 >= 0 =
       hist2 = drop n2 $ history sh2
       sh1' = sh1 { history = hist1, latest = s1 }
       sh2' = sh2 { history = hist2, latest = s2 }
-      im1 = IndMarker q2 q1 s1
-      im2 = IndMarker q1 q2 s2
+      --im1 = IndMarker q2 q1 s1
+      --im2 = IndMarker q1 q2 s2
   in (sh1', sh2')
   | otherwise = (sh1 { latest = s1 }, sh2 { latest = s2 })
 
@@ -572,18 +607,20 @@ tryCoinduction :: S.Solver solver =>
                   [(StateET, StateET)] ->
                   (StateH, StateH) ->
                   (StateET, StateET) ->
-                  W.WriterT String IO (Maybe (PrevMatch EquivTracker))
+                  W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
 tryCoinduction solver ns prev sh_pair (s1, s2) = do
-  res1 <- W.liftIO $ equivFold solver ns sh_pair (s1, s2)
-  res2 <- W.liftIO $ moreRestrictivePair solver ns prev (s1, s2)
-  case res1 of
-    Just _ -> do
+  res1 <- equivFold solver ns sh_pair (s1, s2)
+  res2 <- moreRestrictivePair solver ns prev (s1, s2)
+  case (res1, res2) of
+    (Just _, _) -> do
       noteEquivDischarge (s1, s2)
       --trace ("EQUIVALENT " ++ show (length prev)) $
       return res1
-    _ -> do
+    (_, Just (PrevMatch _ p_pair _ _)) -> do
+      W.tell $ [Coinduction $ CoMarker (s1, s2) p_pair]
       --trace ("COINDUCTION " ++ show (isJust res2)) $
       return res2
+    _ -> return Nothing
 
 -- TODO printing
 -- TODO was the type signature wrong before?
@@ -596,13 +633,14 @@ tryDischarge :: S.Solver solver =>
                 StateH ->
                 StateH ->
                 [(StateET, StateET)] ->
-                W.WriterT String IO DischargeResult
+                W.WriterT [Marker] IO DischargeResult
 tryDischarge solver ns fresh_name sh1 sh2 prev =
   let s1 = latest sh1
       s2 = latest sh2
   in
   case getObligations ns s1 s2 of
     Nothing -> do
+      W.tell [NotEquivalent (s1, s2)]
       -- obligation generation failed, so the expressions must not be equivalent
       W.liftIO $ putStrLn $ "N! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
       W.liftIO $ putStrLn $ show $ exprExtract s1
@@ -613,6 +651,10 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
       -- bad_states are the ones right here
       return $ DischargeResult [] [] (Just [(s1, s2)])
     Just obs -> do
+      -- TODO Writer logging
+      case obs of
+        [] -> W.tell [NoObligations (s1, s2)]
+        _ -> return ()
       W.liftIO $ putStrLn $ "J! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
       W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s1
       W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s2
@@ -642,7 +684,7 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
       let states_i = map (stateWrap s1 s2) obs_i
       states_i_ <- filterM (isNothingM . (tryCoinduction solver ns prev' (sh1, sh2))) states_i
       -- TODO need a way to get the prev pair used for induction
-      states_i' <- W.liftIO $ mapM (inductionFull solver ns fresh_name (sh1, sh2)) states_i_
+      states_i' <- mapM (inductionFull solver ns fresh_name (sh1, sh2)) states_i_
       --states_i' <- filterM (notM . (induction solver ns fresh_name prev')) states_i
 
       -- TODO unnecessary to pass the induction states through this?
@@ -660,9 +702,11 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
                         (\(n1, n2) -> (addDischarge n1 $ replaceH sh1 n1, addDischarge n2 $ replaceH sh2 n2))
                         ready
       res <- W.liftIO $ checkObligations solver s1 s2 ready_exprs
-      W.liftIO $ case res of
-        S.UNSAT () -> putStrLn $ "V? " ++ show (length not_ready_h)
-        _ -> putStrLn "X?"
+      case res of
+        S.UNSAT () -> W.liftIO $ putStrLn $ "V? " ++ show (length not_ready_h)
+        _ -> do
+          W.liftIO $ putStrLn "X?"
+          W.tell [SolverFail (s1, s2)]
       case res of
         -- TODO discharged exprs should come from filter and solver
         S.UNSAT () -> return $ DischargeResult not_ready_h (matches ++ ready_solved) Nothing
@@ -742,7 +786,7 @@ inductionR :: S.Solver solver =>
               HS.HashSet Name ->
               [(StateET, StateET)] ->
               (StateET, StateET) ->
-              IO (Bool, StateET, StateET)
+              W.WriterT [Marker] IO (Bool, StateET, StateET)
 inductionR solver ns prev (s1, s2) = do
   let scr1 = innerScrutinees $ exprExtract s1
       scr2 = innerScrutinees $ exprExtract s2
@@ -785,7 +829,7 @@ inductionL :: S.Solver solver =>
               HS.HashSet Name ->
               [(StateET, StateET)] ->
               (StateET, StateET) ->
-              IO (Bool, StateET)
+              W.WriterT [Marker] IO (Bool, StateET)
 inductionL solver ns prev (s1, s2) = do
   let scr1 = innerScrutinees $ exprExtract s1
       scr2 = innerScrutinees $ exprExtract s2
@@ -817,7 +861,7 @@ induction :: S.Solver solver =>
              HS.HashSet Name ->
              [(StateET, StateET)] ->
              (StateET, StateET) ->
-             IO (Bool, StateET, StateET)
+             W.WriterT [Marker] IO (Bool, StateET, StateET)
 induction solver ns prev (s1, s2) = do
   (bl, s1l) <- inductionL solver ns prev (s1, s2)
   if bl then return (bl, s1l, s2)
@@ -843,7 +887,7 @@ inductionFoldL :: S.Solver solver =>
                   Name ->
                   (StateH, StateH) ->
                   (StateET, StateET) ->
-                  IO (Int, StateET, StateET)
+                  W.WriterT [Marker] IO (Int, StateET, StateET)
 inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2) = do
   let prev = prevFiltered (sh1, sh2)
   (b, s1', s2') <- induction solver ns prev (s1, s2)
@@ -867,7 +911,7 @@ inductionFold :: S.Solver solver =>
                  Name ->
                  (StateH, StateH) ->
                  (StateET, StateET) ->
-                 IO ((Int, Int), StateET, StateET)
+                 W.WriterT [Marker] IO ((Int, Int), StateET, StateET)
 inductionFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
   (nl, s1l, s2l) <- inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2)
   -- TODO this could cause excessive removals
@@ -885,7 +929,7 @@ generalizeAux :: S.Solver solver =>
                  HS.HashSet Name ->
                  [StateET] ->
                  StateET ->
-                 IO (Maybe (PrevMatch EquivTracker))
+                 W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
 generalizeAux solver ns s1_list s2 = do
   let check_equiv s1_ = moreRestrictiveEquiv solver ns s1_ s2
   res <- mapM check_equiv s1_list
@@ -915,11 +959,11 @@ generalize :: S.Solver solver =>
               HS.HashSet Name ->
               Name ->
               (StateET, StateET) ->
-              IO (Bool, StateET, StateET)
+              W.WriterT [Marker] IO (Bool, StateET, StateET)
 generalize solver ns fresh_name (s1, s2) = do
-  putStrLn $ "Starting G " ++ show fresh_name
-  putStrLn $ printHaskellDirty $ exprExtract s1
-  putStrLn $ printHaskellDirty $ exprExtract s2
+  W.liftIO $ putStrLn $ "Starting G " ++ show fresh_name
+  W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s1
+  W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s2
   -- expressions are ordered from outer to inner
   -- the largest ones are on the outside
   -- take the earliest array entry that works
@@ -931,7 +975,7 @@ generalize solver ns fresh_name (s1, s2) = do
       scr2 = innerScrutinees e2
       scr_states2 = map (\e -> s2 { curr_expr = CurrExpr Evaluate e }) scr2
   res <- mapM (generalizeAux solver ns scr_states1) scr_states2
-  putStrLn "Generalized"
+  W.liftIO $ putStrLn "Generalized"
   -- TODO expression environment adjustment?  Only for the fresh var
   -- TODO also may want to adjust the equivalence tracker
   let res' = filter isJust res
@@ -954,7 +998,7 @@ inductionFull :: S.Solver solver =>
                  Name ->
                  (StateH, StateH) ->
                  (StateET, StateET) ->
-                 IO ((Int, Int), StateET, StateET)
+                 W.WriterT [Marker] IO ((Int, Int), StateET, StateET)
 inductionFull solver ns fresh_name sh_pair s_pair@(s1, s2) = do
   ((n1, n2), s1', s2') <- inductionFold solver ns fresh_name sh_pair s_pair
   if n1 < 0 || n2 < 0 then trace ("NO INDUCTION " ++ show n1) return ((n1, n2), s1, s2)
@@ -1120,7 +1164,8 @@ checkRule config init_state bindings total finite rule = do
              [(rewrite_state_l'', rewrite_state_r'')]
              bindings'' config "" 0
   -- UNSAT for good, SAT for bad
-  putStrLn w
+  -- TODO how to display?
+  putStrLn $ show $ length w
   return res
 
 -- s1 is the old state, s2 is the new state
@@ -1359,7 +1404,7 @@ moreRestrictivePC :: S.Solver solver =>
                      StateET ->
                      StateET ->
                      HM.HashMap Id Expr ->
-                     IO Bool
+                     W.WriterT [Marker] IO Bool
 moreRestrictivePC solver s1 s2 hm = do
   let new_conds = map extractCond (P.toList $ path_conds s2)
       old_conds = map extractCond (P.toList $ path_conds s1)
@@ -1383,8 +1428,8 @@ moreRestrictivePC solver s1 s2 hm = do
          else if null new_conds' -- old_conds not null
          -- TODO applySolver uses states' path constraints directly
          -- Are the conditions from this being satisfied trivially?
-         then applySolver solver (P.insert neg_conj P.empty) s1 s2
-         else applySolver solver (P.insert neg_imp P.empty) s1 s2
+         then W.liftIO $ applySolver solver (P.insert neg_conj P.empty) s1 s2
+         else W.liftIO $ applySolver solver (P.insert neg_imp P.empty) s1 s2
   case res of
     S.UNSAT () -> return True
     _ -> return False
@@ -1419,7 +1464,7 @@ moreRestrictivePairAux :: S.Solver solver =>
                           HS.HashSet Name ->
                           [(StateET, StateET, StateET)] ->
                           (StateET, StateET) ->
-                          IO (Maybe (PrevMatch EquivTracker))
+                          W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
 moreRestrictivePairAux solver ns prev (s1, s2) = do
   let (s1', s2') = syncSymbolic s1 s2
       mr (p1, p2, _) = restrictHelper p2 s2' ns $
@@ -1443,7 +1488,7 @@ moreRestrictivePairAux solver ns prev (s1, s2) = do
         _ -> return False
       bools = map mpc (zip maybe_pairs prev)
   -- check obligations individually rather than as one big group
-  res_list <- mapM (checkObligations solver s1 s2) obs_sets'
+  res_list <- W.liftIO $ mapM (checkObligations solver s1 s2) obs_sets'
   bools' <- mapM id bools
   {-
   print "#####"
@@ -1471,7 +1516,7 @@ moreRestrictivePair :: S.Solver solver =>
                        HS.HashSet Name ->
                        [(StateET, StateET)] ->
                        (StateET, StateET) ->
-                       IO (Maybe (PrevMatch EquivTracker))
+                       W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
 moreRestrictivePair solver ns prev (s1, s2) =
   let prev' = map (\(p1, p2) -> (p1, p2, p2)) prev
   in moreRestrictivePairAux solver ns prev' (s1, s2)
@@ -1487,7 +1532,7 @@ moreRestrictiveIndLeft :: S.Solver solver =>
                           HS.HashSet Name ->
                           [(StateET, StateET)] ->
                           (StateET, StateET) ->
-                          IO (Maybe (PrevMatch EquivTracker))
+                          W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
 moreRestrictiveIndLeft solver ns prev (s1, s2) =
   let prev1 = map (\(p1, p2) -> (p1, innerScrutineeStates p1, p2)) prev
       prev2 = [(p1', p2, p1) | (p1, p1l, p2) <- prev1, p1' <- p1l]
@@ -1499,7 +1544,7 @@ moreRestrictiveIndRight :: S.Solver solver =>
                            HS.HashSet Name ->
                            [(StateET, StateET)] ->
                            (StateET, StateET) ->
-                           IO (Maybe (PrevMatch EquivTracker))
+                           W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
 moreRestrictiveIndRight solver ns prev (s1, s2) =
   let prev1 = map (\(p1, p2) -> (p1, p2, innerScrutineeStates p2)) prev
       prev2 = [(p1, p2', p2) | (p1, p2, p2l) <- prev1, p2' <- p2l]
@@ -1518,7 +1563,7 @@ moreRestrictiveEquiv :: S.Solver solver =>
                         HS.HashSet Name ->
                         StateET ->
                         StateET ->
-                        IO (Maybe (PrevMatch EquivTracker))
+                        W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
 moreRestrictiveEquiv solver ns s1 s2 = do
   let h1 = expr_env s1
       h2 = expr_env s2
@@ -1537,7 +1582,7 @@ equivFoldL :: S.Solver solver =>
               HS.HashSet Name ->
               [StateET] ->
               StateET ->
-              IO (Maybe (PrevMatch EquivTracker))
+              W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
 equivFoldL solver ns prev2 s1 = do
   case prev2 of
     [] -> return Nothing
@@ -1553,7 +1598,7 @@ equivFold :: S.Solver solver =>
              HS.HashSet Name ->
              (StateH, StateH) ->
              (StateET, StateET) ->
-             IO (Maybe (PrevMatch EquivTracker))
+             W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
 equivFold solver ns (sh1, sh2) (s1, s2) = do
   pm_l <- equivFoldL solver ns (s2:history sh2) s1
   case pm_l of
