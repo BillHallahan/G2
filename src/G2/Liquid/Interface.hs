@@ -369,7 +369,7 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
         (ce, is, f_i, ng') = mkCurrExpr Nothing Nothing ie (type_classes s) (name_gen bindings)
                                       (expr_env s) (type_env s) (deepseq_walkers bindings) (known_values s) config
 
-        lhs' = lhs { state = s { expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) (expr_env s) is
+        lhs' = lhs { state = s { expr_env = foldr E.insertSymbolic (expr_env s) is
                                , curr_expr = CurrExpr Evaluate ce }
                    }
         (lhs'', bindings') = execLHStateM (addLHTCCurrExpr) lhs' (bindings { name_gen = ng' })
