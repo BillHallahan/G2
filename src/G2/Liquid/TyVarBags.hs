@@ -349,7 +349,6 @@ putExistentialInstInExprEnv s@(State { expr_env = eenv }) =
 putSymbolicExistentialInstInExprEnv :: State t -> State t
 putSymbolicExistentialInstInExprEnv s@(State { expr_env = eenv }) =
     s { expr_env = E.insertSymbolic
-                        (idName existentialInstId)
                         existentialInstId
                         eenv
       }
@@ -365,7 +364,7 @@ instance Reducer ExistentialInstRed () t where
         | Var i <- e
         , i == existentialInstId =
             let
-                s' = s { expr_env = E.insertSymbolic (idName i) i eenv
+                s' = s { expr_env = E.insertSymbolic i eenv
                        , curr_expr = CurrExpr Return e }
             in
             return (InProgress, [(s', rv)], b, r)
@@ -376,7 +375,7 @@ instance Reducer ExistentialInstRed () t where
                 (n_bnd, ng') = freshSeededName (idName bnd) ng
                 (n_params, ng'') = freshSeededNames (map idName params) ng
 
-                eenv' = E.insertSymbolic n_bnd postSeqExistentialInstId eenv
+                eenv' = E.insertSymbolic postSeqExistentialInstId eenv
                 eenv'' = foldr (\n -> E.insert n (Var existentialInstId)) eenv' n_params
 
                 n_e = rename (idName bnd) n_bnd $ foldr (uncurry rename) e (zip (map idName params) n_params)
@@ -390,7 +389,7 @@ instance Reducer ExistentialInstRed () t where
         , i == existentialInstId
         , n == existentialCaseName =
             let
-                eenv' = E.insertSymbolic (idName bnd) postSeqExistentialInstId eenv
+                eenv' = E.insertSymbolic postSeqExistentialInstId eenv
             in 
             return ( InProgress
                    , [(s { expr_env = eenv'

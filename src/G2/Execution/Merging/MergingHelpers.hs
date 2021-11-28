@@ -45,7 +45,7 @@ replaceCaseWSym' (s@(State {known_values = kv}), ng) (Case (Var i) _ alts@(a:_))
         -- we assume PathCond restricting values of `i` has already been added before hand when creating the Case Expr
 
         eenv' = expr_env s'
-        eenv'' = E.insertSymbolic (idName newSym) newSym eenv'
+        eenv'' = E.insertSymbolic newSym eenv'
     in ((s' {expr_env = eenv''}, ng''), (Var newSym, newPCs ++ pcsL'))
 replaceCaseWSym' (s, ng) (App e1 e2) =
     let ((s', ng'), (e1', newPCs1)) = replaceCaseWSym' (s, ng) e1

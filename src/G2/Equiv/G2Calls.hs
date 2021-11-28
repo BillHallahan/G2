@@ -202,7 +202,7 @@ instance Reducer EquivReducer () EquivTracker where
                                  else total
                         s' = s { curr_expr = CurrExpr Evaluate (Var v)
                                , track = EquivTracker et' m total' finite
-                               , expr_env = E.insertSymbolic (idName v) v eenv }
+                               , expr_env = E.insertSymbolic v eenv }
                         b' = b { name_gen = ng' }
                     in
                     return (InProgress, [(s', ())], b', r)

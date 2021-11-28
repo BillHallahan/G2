@@ -120,7 +120,7 @@ mergeWherePossible orig_s@(State { curr_expr = CurrExpr er _ }) m_ile (il, me) =
         Nothing 
             | FromVar i@(Id n _) symbs e <- me -> 
                 let
-                    eenv = foldr (\i -> E.insertSymbolic (idName i) i) (expr_env orig_s) symbs
+                    eenv = foldr (\i -> E.insertSymbolic i) (expr_env orig_s) symbs
                     new_pc = newPCEmpty $ orig_s { expr_env = E.insert n e eenv
                                                  , curr_expr = CurrExpr er e }
                 in
@@ -188,39 +188,12 @@ joinToState orig_s is1 me1 is2 new_pc@(NewPC { state = s@(State { curr_expr = Cu
 
 joinExprs :: Id -> MergeableExpr -> Expr -> StateNG t (Maybe Expr)
 joinExprs i (FromVar vi symbs e1) e2 = do
-    mapM_ (\i_ -> insertSymbolicE (idName i_) i_) symbs
+    mapM_ (\i_ -> insertSymbolicE i_) symbs
     insertE (idName vi) e1
     joinExprs' i e1 e2
 joinExprs i (OtherExpr e1) e2 = joinExprs' i e1 e2
 
 joinExprs' :: Id -> Expr -> Expr -> StateNG t (Maybe Expr)
--- joinExprs i v1@(Var (Id n1 t)) v2@(Var (Id n2 _)) = do
---     eenv <- exprEnv
-
---     if  | E.isSymbolic n1 eenv
---         , E.isSymbolic n2 eenv -> undefined
---         | Just e1 <- smnfVal eenv v1
---         , Just e2 <- smnfVal eenv v2 -> joinExprs i e1 e2 
---         | otherwise -> return Nothing
-
--- joinExprs i v1@(Var vi@(Id n _)) e2 = do
---     eenv <- exprEnv
-
---     if  | E.isSymbolic n eenv -> do
---             e1 <- arbDCCase vi
---             insertE n e1
---             joinExprs i e1 e2
---         | Just e1 <- smnfVal eenv v1 -> joinExprs i e1 e2
---         | otherwise -> return Nothing
--- joinExprs i e1 v2@(Var vi@(Id n _)) = do
---     eenv <- exprEnv
-
---     if  | E.isSymbolic n eenv -> do
---             e2 <- arbDCCase vi
---             insertE n e2
---             joinExprs i e1 e2
---         | Just e2 <- smnfVal eenv v2 -> joinExprs i e1 e2
---         | otherwise -> return Nothing
 joinExprs' i e1 e2
     | ce1:es1 <- unApp e1
     , ce2:es2 <- unApp e2
@@ -243,7 +216,7 @@ mkInnerJoin i@(Id _ t) e1 e2 = do
     
     if  | primVal eenv e1 && primVal eenv e2 -> do
             n_id <- freshIdN t
-            insertSymbolicE (idName n_id) n_id
+            insertSymbolicE n_id
 
             let pc1 = PC.mkSingletonAssumePC i 1 $ ExtCond (mkEqPrimExpr t kv (Var n_id) e1) True
                 pc2 = PC.mkSingletonAssumePC i 2 $ ExtCond (mkEqPrimExpr t kv (Var n_id) e2) True
@@ -276,28 +249,6 @@ mkBounds e l u =
 
 allDCs :: NamingM s m => TypeEnv -> Id -> m [(SymbolicIds, Expr)]
 allDCs tenv i@(Id _ t) = do
-    -- kv <- knownValues
-    -- bool <- tyBoolT
-
-    -- if  | (PresType t) .:: bool -> do
-    --         let tre@(Data tre_dc) = mkTrue kv
-    --             flse@(Data flse_dc) = mkFalse kv
-
-    --         bindee_id <- freshIdN TyLitInt
-    --         let bindee = Var bindee_id
-    --         let pc = mkBounds bindee 1 2
-    --             bool_pc = [ PC.mkAssumePC bindee_id 1 $ ExtCond (Var i) True
-    --                       , PC.mkAssumePC bindee_id 2 $ ExtCond (Var i) False ]
-    --             e = Case bindee bindee_id
-    --                     [ Alt (LitAlt (LitInt 1)) tre
-    --                     , Alt (LitAlt (LitInt 2)) flse]
-
-    --         insertSymbolicE (idName bindee_id) bindee_id
-    --         insertSymbolicId bindee_id
-    --         mapM_ insertPCStateNG (pc ++ bool_pc)
-
-    --         return e
-
     if  | TyCon tn _:ts <- unTyApp t
         , Just adt <- M.lookup tn tenv -> do
             let dcs = dataCon adt
@@ -338,7 +289,7 @@ arbDCCase i@(Id _ t) = do
                         [ Alt (LitAlt (LitInt 1)) tre
                         , Alt (LitAlt (LitInt 2)) flse]
 
-            insertSymbolicE (idName bindee_id) bindee_id
+            insertSymbolicE bindee_id
             mapM_ insertPCStateNG (pc ++ bool_pc)
 
             return e
@@ -360,7 +311,7 @@ arbDCCase i@(Id _ t) = do
                                                 re_anon = foldr (\(i, t) -> retype i t) anon_ts bound_ts
 
                                             ars <- freshIdsN re_anon
-                                            mapM (\a -> insertSymbolicE (idName a) a) ars
+                                            mapM (\a -> insertSymbolicE a) ars
 
                                             return (mkApp $ dc:map Var ars)) ty_apped_dcs
 
@@ -368,7 +319,7 @@ arbDCCase i@(Id _ t) = do
                     let pc = mkBounds bindee 1 (toInteger $ length dcs)
                         e = createCaseExpr bindee_id apped_dcs
                     
-                    insertSymbolicE (idName bindee_id) bindee_id
+                    insertSymbolicE bindee_id
                     mapM_ insertPCStateNG pc
 
                     return e

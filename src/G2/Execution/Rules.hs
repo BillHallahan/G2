@@ -468,8 +468,8 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv})
     (news, ngen') = childrenNames mexpr_n clean_olds ngen
 
     --Update the expr environment
-    newIds = map (\(Id _ t, n) -> (n, Id n t)) (zip params news)
-    eenv' = foldr (uncurry E.insertSymbolic) eenv newIds
+    newIds = map (\(Id _ t, n) -> Id n t) (zip params news)
+    eenv' = foldr E.insertSymbolic eenv newIds
 
     (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, aexpr)
 
@@ -753,7 +753,7 @@ evalCast s@(State { expr_env = eenv
             new_e = Cast (Var i) (t2 :~ t1)
         in
         ( RuleOther
-        , [s { expr_env = E.insertSymbolic (idName i) i $ E.insert n new_e eenv
+        , [s { expr_env = E.insertSymbolic i $ E.insert n new_e eenv
              , curr_expr = CurrExpr Return (Var i) }]
         , ng')
     | cast /= cast' =
@@ -787,7 +787,7 @@ evalSymGen s@( State { expr_env = eenv })
           (n, ng') = freshSeededString "symG" ng
           i = Id n t
 
-          eenv' = E.insertSymbolic n i eenv
+          eenv' = E.insertSymbolic i eenv
     in
     (RuleSymGen, [s { expr_env = eenv'
                     , curr_expr = CurrExpr Evaluate (Var i) }]
@@ -1033,7 +1033,7 @@ retReplaceSymbFunc s@(State { expr_env = eenv
                            , ce ]
         in
         Just (RuleReturnReplaceSymbFunc, 
-            [s { expr_env = E.insertSymbolic new_sym new_sym_id eenv
+            [s { expr_env = E.insertSymbolic new_sym_id eenv
                , curr_expr = CurrExpr Return (Var new_sym_id)
                , non_red_path_conds = non_red_path_conds s ++ [nrpc_e] }]
             , ng')

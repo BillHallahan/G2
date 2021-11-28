@@ -293,7 +293,7 @@ concretize hm e =
 concretizeEnv :: ExprEnv -> ExprEnv -> ExprEnv
 concretizeEnv h_new h_old =
   let ins_sym n = case h_new E.! n of
-                    Var i -> E.insertSymbolic n i
+                    Var i -> E.insertSymbolic i
                     _ -> error ("unmapped symbolic variable " ++ show n)
       all_bindings = map (\n -> (n, h_new E.! n)) $ E.keys h_new
       all_sym_names = filter (\n -> E.isSymbolic n h_new) $ E.keys h_new

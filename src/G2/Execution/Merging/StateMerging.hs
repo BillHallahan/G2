@@ -100,8 +100,8 @@ modifyExprEnv1 f = modifyState1 (\s -> s { expr_env = f (expr_env s) })
 insertExprEnv1 :: Name -> Expr -> MergeM t ()
 insertExprEnv1 n e = modifyExprEnv1 (E.insert n e)
 
-insertSymbolicExprEnv1 :: Name -> Id -> MergeM t ()
-insertSymbolicExprEnv1 n i = modifyExprEnv1 (E.insertSymbolic n i)
+insertSymbolicExprEnv1 :: Id -> MergeM t ()
+insertSymbolicExprEnv1 i = modifyExprEnv1 (E.insertSymbolic i)
 
 lookupExprEnv1 :: Name -> MergeM t (Maybe Expr)
 lookupExprEnv1 n = return . E.lookup n =<< return . expr_env =<< state1
@@ -138,17 +138,17 @@ lookupNewExprEnv n = return . E.lookup n =<< newExprEnv
 
 insertSymbolic1 :: Id -> MergeM t ()
 insertSymbolic1 i = do
-    modifyNewExprEnv (E.insertSymbolic (idName i) i)
-    modifyExprEnv1 (E.insertSymbolic (idName i) i)
+    modifyNewExprEnv (E.insertSymbolic i)
+    modifyExprEnv1 (E.insertSymbolic i)
 
 insertSymbolic2 :: Id -> MergeM t ()
 insertSymbolic2 i = do
-    modifyNewExprEnv (E.insertSymbolic (idName i) i)
-    modifyExprEnv2 (E.insertSymbolic (idName i) i)
+    modifyNewExprEnv (E.insertSymbolic i)
+    modifyExprEnv2 (E.insertSymbolic i)
 
 insertNewSymbolic :: Id -> MergeM t ()
 insertNewSymbolic i = do
-    modifyNewExprEnv (E.insertSymbolic (idName i) i)
+    modifyNewExprEnv (E.insertSymbolic i)
 
 addPC :: [PathCond] -> MergeM t ()
 addPC pc = S.modify (\c -> c { newPCs_ = pc ++ newPCs_ c})
@@ -454,7 +454,7 @@ concretizeSym bi maybeC (s, ng) dc@(DataCon n ts) =
         dc''' = case maybeC of
             (Just (t1 :~ t2)) -> Cast dc'' (t2 :~ t1)
             Nothing -> dc''
-        eenv = foldr (uncurry E.insertSymbolic) (expr_env s) $ zip (map idName newParams) newParams
+        eenv = foldr E.insertSymbolic (expr_env s) newParams
     in ((s {expr_env = eenv} , ng'), dc''')
 
 -- Given an Expr `e`, and an `Id`, `Int` pair, returns `ExtCond ((NOT (Id == Int)) OR e) True`

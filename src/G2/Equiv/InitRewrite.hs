@@ -7,15 +7,11 @@ import qualified G2.Language.Expr as X
 
 import G2.Execution.Memory
 
-addSymbolic :: Id -> ExprEnv -> ExprEnv
-addSymbolic i =
-  E.insertSymbolic (idName i) i
-
 initWithRHS :: State t -> Bindings -> RewriteRule -> (State t, Bindings)
 initWithRHS s b r =
   let s' = s {
              curr_expr = CurrExpr Evaluate (ru_rhs r)
-           , expr_env = foldr addSymbolic (expr_env s) (ru_bndrs r)
+           , expr_env = foldr E.insertSymbolic (expr_env s) (ru_bndrs r)
            }
       b' = b { input_names = map idName $ ru_bndrs r }
   in
@@ -35,7 +31,7 @@ initWithLHS s b r =
                   app = X.mkApp (v:ru_args r)
                   s' = s {
                          curr_expr = CurrExpr Evaluate app
-                       , expr_env = foldr addSymbolic (expr_env s) (ru_bndrs r)
+                       , expr_env = foldr E.insertSymbolic (expr_env s) (ru_bndrs r)
                        }
                   b' = b { input_names = map idName $ ru_bndrs r }
               in
