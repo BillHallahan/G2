@@ -79,17 +79,39 @@ data Marker = Induction IndMarker
             | NotEquivalent (StateET, StateET)
             | SolverFail (StateET, StateET)
 
-data Side = Left | Right
+data Side = ILeft | IRight
 
 -- TODO two-sided now
--- TODO some
+-- TODO some redundancy in this, also no full history
 data IndMarker = IndMarker {
     ind_real_present :: (StateET, StateET)
   , ind_used_present :: (StateET, StateET)
   , ind_past :: (StateET, StateET)
-  , ind_present_scrutinees :: (StateET, StateET)
+  , ind_result :: (StateET, StateET)
+  , ind_present_scrutinees :: (Expr, Expr)
   , ind_past_scrutinees :: (StateET, StateET)
   , ind_side :: Side
+  , ind_fresh_name :: Name
+}
+
+otherSide :: Side -> Side
+otherSide ILeft = IRight
+otherSide IRight = ILeft
+
+swap :: (a, b) -> (b, a)
+swap (x, y) = (y, x)
+
+-- TODO
+reverseIndMarker :: IndMarker -> IndMarker
+reverseIndMarker im = IndMarker {
+    ind_real_present = swap $ ind_real_present im
+  , ind_used_present = swap $ ind_used_present im
+  , ind_past = swap $ ind_past im
+  , ind_result = swap $ ind_result im
+  , ind_present_scrutinees = swap $ ind_present_scrutinees im
+  , ind_past_scrutinees = swap $ ind_past_scrutinees im
+  , ind_side = otherSide $ ind_side im
+  , ind_fresh_name = ind_fresh_name im
 }
 
 -- TODO two-sided
@@ -98,6 +120,9 @@ data CoMarker = CoMarker {
     co_present :: (StateET, StateET)
   , co_past :: (StateET, StateET)
 }
+
+reverseCoMarker :: CoMarker -> CoMarker
+reverseCoMarker (CoMarker (q1, q2) (p1, p2)) = CoMarker (q2, q1) (p2, p1)
 
 -- TODO include history?
 {-
@@ -824,12 +849,13 @@ inductionR solver ns prev (s1, s2) = do
 -- substitution happens on the left here
 -- TODO now the right-hand state returned would always be s2
 -- TODO collect information about the expressions used for induction
+-- TODO return a partially-defined IndMarker?
 inductionL :: S.Solver solver =>
               solver ->
               HS.HashSet Name ->
               [(StateET, StateET)] ->
               (StateET, StateET) ->
-              W.WriterT [Marker] IO (Bool, StateET)
+              W.WriterT [Marker] IO (Bool, StateET, IndMarker)
 inductionL solver ns prev (s1, s2) = do
   let scr1 = innerScrutinees $ exprExtract s1
       scr2 = innerScrutinees $ exprExtract s2
@@ -840,8 +866,8 @@ inductionL solver ns prev (s1, s2) = do
       working_info = [(sc1, sc2, pm) | ((sc1, sc2), Just pm) <- mr_zipped]
       working_info' = filter (\(_, _, PrevMatch _ (_, p2) _ pc2) -> validScrutinee s2 p2 pc2) working_info
   case working_info' of
-    [] -> return (False, s1)
-    h:_ -> let (sc1, _, PrevMatch _ _ (mapping, _) pc2) = h
+    [] -> return (False, s1, undefined)
+    h:_ -> let (sc1, sc2, PrevMatch (q1, q2) (p1, p2) (mapping, _) pc2) = h
                e2_old = exprExtract pc2
                hm_list = HM.toList mapping
                e2_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e2_old hm_list
@@ -851,7 +877,21 @@ inductionL solver ns prev (s1, s2) = do
                  curr_expr = CurrExpr Evaluate e1_new
                , expr_env = h1_new
                }
-           in return (True, s1')
+               -- TODO past
+               -- TODO should result include generalization?
+               -- TODO p1, p2, q1, q2, present scrutinees
+               -- TODO do I really need q1 and q2?
+               im = IndMarker {
+                 ind_real_present = undefined
+               , ind_used_present = (s1, s2)
+               , ind_past = (p1, pc2)
+               , ind_result = (s1', s2)
+               , ind_present_scrutinees = (sc1, sc2)
+               , ind_past_scrutinees = (p1, p2)
+               , ind_side = ILeft
+               , ind_fresh_name = undefined
+               }
+           in return (True, s1', im)
 
 -- precedence goes to left-side substitution
 -- right-side substitution only happens if left-side fails
@@ -861,14 +901,14 @@ induction :: S.Solver solver =>
              HS.HashSet Name ->
              [(StateET, StateET)] ->
              (StateET, StateET) ->
-             W.WriterT [Marker] IO (Bool, StateET, StateET)
+             W.WriterT [Marker] IO (Bool, StateET, StateET, IndMarker)
 induction solver ns prev (s1, s2) = do
-  (bl, s1l) <- inductionL solver ns prev (s1, s2)
-  if bl then return (bl, s1l, s2)
+  (bl, s1l, iml) <- inductionL solver ns prev (s1, s2)
+  if bl then return (bl, s1l, s2, iml)
   else do
     let prev' = map (\(p1, p2) -> (p2, p1)) prev
-    (br, s2r) <- inductionL solver ns prev' (s2, s1)
-    return (br, s1, s2r)
+    (br, s2r, imr) <- inductionL solver ns prev' (s2, s1)
+    return (br, s1, s2r, imr)
 
 backtrackOne :: StateH -> StateH
 backtrackOne sh =
@@ -881,30 +921,32 @@ backtrackOne sh =
 
 -- left side stays constant
 -- TODO complex conditional, but avoids needless generalization
+-- TODO returning marker in case of failure
 inductionFoldL :: S.Solver solver =>
                   solver ->
                   HS.HashSet Name ->
                   Name ->
                   (StateH, StateH) ->
                   (StateET, StateET) ->
-                  W.WriterT [Marker] IO (Int, StateET, StateET)
+                  W.WriterT [Marker] IO (Int, StateET, StateET, IndMarker)
 inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2) = do
   let prev = prevFiltered (sh1, sh2)
-  (b, s1', s2') <- induction solver ns prev (s1, s2)
+  (b, s1', s2', im) <- induction solver ns prev (s1, s2)
   if b then do
     (b', s1'', s2'') <- generalize solver ns fresh_name (s1', s2')
-    if b' then return (length $ history sh2, s1'', s2'')
+    if b' then return (length $ history sh2, s1'', s2'', im)
     else case history sh2 of
-      [] -> return (-1, s1, s2)
+      [] -> return (-1, s1, s2, im)
       p2:_ -> inductionFoldL solver ns fresh_name (sh1, backtrackOne sh2) (s1, p2)
   else case history sh2 of
-    [] -> return (-1, s1, s2)
+    [] -> return (-1, s1, s2, im)
     p2:_ -> inductionFoldL solver ns fresh_name (sh1, backtrackOne sh2) (s1, p2)
 
 -- TODO somewhat crude solution:  record how "far back" it needed to go
 -- negative one means that it failed
 -- TODO only use histories from sh1 and sh2
 -- TODO no induction without substitution now
+-- TODO failure marker return
 inductionFold :: S.Solver solver =>
                  solver ->
                  HS.HashSet Name ->
@@ -913,15 +955,27 @@ inductionFold :: S.Solver solver =>
                  (StateET, StateET) ->
                  W.WriterT [Marker] IO ((Int, Int), StateET, StateET)
 inductionFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
-  (nl, s1l, s2l) <- inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2)
-  -- TODO this could cause excessive removals
-  let min_length = min (length $ history sh1) (length $ history sh2)
-      length1 = length $ history sh1
+  (nl, s1l, s2l, iml) <- inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2)
+  let length1 = length $ history sh1
       length2 = length $ history sh2
-  if nl >= 0 then trace ("IL " ++ show (map (folder_name . track) [s1, s2, s1l, s2l])) $ return ((0, length2 - nl), s1l, s2l)
+  if nl >= 0 then do
+    W.liftIO $ putStrLn $ "IL " ++ show (map (folder_name . track) [s1, s2, s1l, s2l])
+    let iml' = iml {
+      ind_real_present = (s1, s2)
+    , ind_fresh_name = fresh_name
+    }
+    W.tell $ [Induction iml']
+    return ((0, length2 - nl), s1l, s2l)
   else do
-    (nr, s2r, s1r) <- inductionFoldL solver ns fresh_name (sh2, sh1) (s2, s1)
-    if nr >= 0 then trace ("IR " ++ show (map (folder_name . track) [s1, s2, s1r, s2r])) $ return ((length1 - nr, 0), s1r, s2r)
+    (nr, s2r, s1r, imr) <- inductionFoldL solver ns fresh_name (sh2, sh1) (s2, s1)
+    if nr >= 0 then do
+      W.liftIO $ putStrLn $ "IR " ++ show (map (folder_name . track) [s1, s2, s1r, s2r])
+      let imr' = reverseIndMarker $ imr {
+        ind_real_present = (s2, s1)
+      , ind_fresh_name = fresh_name
+      }
+      W.tell $ [Induction imr']
+      return ((length1 - nr, 0), s1r, s2r)
     else return ((-1, -1), s1, s2)
 
 generalizeAux :: S.Solver solver =>
