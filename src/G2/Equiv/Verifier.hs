@@ -29,6 +29,8 @@ import qualified G2.Language.PathConds as P
 import G2.Equiv.InitRewrite
 import G2.Equiv.EquivADT
 import G2.Equiv.G2Calls
+import G2.Equiv.Tactics
+import G2.Equiv.Induction
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
@@ -64,65 +66,6 @@ import qualified Control.Monad.Writer.Lazy as W
 -- was used to discharge this branch, if the branch has been discharged.
 -- TODO requiring finiteness for forceIdempotent makes verifier get stuck
 -- same goes for p10 in Zeno
-data StateH = StateH {
-    latest :: StateET
-  , history :: [StateET]
-  , inductions :: [IndMarker]
-  , discharge :: Maybe StateET
-}
-
--- TODO constructors may need to change
-data Marker = Induction IndMarker
-            | Coinduction CoMarker
-            | Equivalence (StateET, StateET)
-            | NoObligations (StateET, StateET)
-            | NotEquivalent (StateET, StateET)
-            | SolverFail (StateET, StateET)
-
-data Side = ILeft | IRight
-
--- TODO two-sided now
--- TODO some redundancy in this, also no full history
-data IndMarker = IndMarker {
-    ind_real_present :: (StateET, StateET)
-  , ind_used_present :: (StateET, StateET)
-  , ind_past :: (StateET, StateET)
-  , ind_result :: (StateET, StateET)
-  , ind_present_scrutinees :: (Expr, Expr)
-  , ind_past_scrutinees :: (StateET, StateET)
-  , ind_side :: Side
-  , ind_fresh_name :: Name
-}
-
-otherSide :: Side -> Side
-otherSide ILeft = IRight
-otherSide IRight = ILeft
-
-swap :: (a, b) -> (b, a)
-swap (x, y) = (y, x)
-
--- TODO
-reverseIndMarker :: IndMarker -> IndMarker
-reverseIndMarker im = IndMarker {
-    ind_real_present = swap $ ind_real_present im
-  , ind_used_present = swap $ ind_used_present im
-  , ind_past = swap $ ind_past im
-  , ind_result = swap $ ind_result im
-  , ind_present_scrutinees = swap $ ind_present_scrutinees im
-  , ind_past_scrutinees = swap $ ind_past_scrutinees im
-  , ind_side = otherSide $ ind_side im
-  , ind_fresh_name = ind_fresh_name im
-}
-
--- TODO two-sided
--- TODO no present variation for coinduction currently
-data CoMarker = CoMarker {
-    co_present :: (StateET, StateET)
-  , co_past :: (StateET, StateET)
-}
-
-reverseCoMarker :: CoMarker -> CoMarker
-reverseCoMarker (CoMarker (q1, q2) (p1, p2)) = CoMarker (q2, q1) (p2, p1)
 
 -- TODO include history?
 {-
@@ -149,16 +92,6 @@ noteBasicDischarge msg (s1, s2) = do
       fn2 = folder_name $ track s2
       out_str = "(" ++ fn1 ++ "," ++ fn2 ++ ") " ++ msg ++ "\n"
   W.tell out_str
-  return ()
-
-noteEquivDischarge :: (StateET, StateET) -> W.WriterT [Marker] IO ()
-noteEquivDischarge s_pair = do
-  W.tell $ [Equivalence s_pair]
-  return ()
-
-noteNoObligationsDischarge :: (StateET, StateET) -> W.WriterT [Marker] IO ()
-noteNoObligationsDischarge s_pair = do
-  W.tell $ [NoObligations s_pair]
   return ()
 
 {-
@@ -367,15 +300,6 @@ tickWrap (App e1 e2) = App (tickWrap e1) e2
 tickWrap (Tick nl e) = Tick nl (tickWrap e)
 tickWrap e = Tick (NamedLoc loc_name) e
 
--- A Var counts as being in EVF if it's symbolic or if it's unmapped.
--- TODO remove ticks recursively?
-isSWHNF :: State t -> Bool
-isSWHNF (State { expr_env = h, curr_expr = CurrExpr _ e }) =
-  let e' = modifyASTs stripTicks e
-  in case e' of
-    Var _ -> isPrimType (typeOf e') && isExprValueForm h e'
-    _ -> isExprValueForm h e'
-
 -- TODO don't add stack tick here, just add the stack
 prepareState :: StateET -> StateET
 prepareState s =
@@ -414,36 +338,6 @@ addStamps k s =
       e' = insertStamps 0 k e
   in s { curr_expr = CurrExpr c e' }
 
-empty_name :: Name
-empty_name = Name (DT.pack "") Nothing 1 Nothing
-
--- TODO keep track of case statements with no stamp
-readStamps :: Expr -> [Name]
-readStamps (Tick _ e) = readStamps e
-readStamps (Case e i a) =
-  case a of
-    (Alt am1 a1):_ -> case a1 of
-      Tick (NamedLoc n) _ -> n:(readStamps e)
-      _ -> empty_name:(readStamps e)
-    _ -> error "Empty Alt List"
-readStamps _ = []
-
--- checking for depth of first expression within second
-scrutineeDepth :: Expr -> Expr -> Int
-scrutineeDepth e1 e2 | e1 == e2 = 0
-scrutineeDepth e1 (Tick _ e) = scrutineeDepth e1 e
-scrutineeDepth e1 (Case e i a) = 1 + scrutineeDepth e1 e
-scrutineeDepth _ _ = error "Not Contained"
-
--- the depths do not need to be the same
--- however, the stamps should match up to the depth of the old one
-validScrutinee :: StateET -> StateET -> StateET -> Bool
-validScrutinee s p pc =
-  let d = scrutineeDepth (exprExtract p) (exprExtract pc)
-      stamps_old = take d $ readStamps (exprExtract pc)
-      stamps_new = take d $ readStamps (exprExtract s)
-  in trace (show (d, stamps_old, stamps_new)) stamps_old == stamps_new
-
 getLatest :: (StateH, StateH) -> (StateET, StateET)
 getLatest (StateH { latest = s1 }, StateH { latest = s2 }) = (s1, s2)
 
@@ -467,16 +361,6 @@ appendH sh s =
 
 replaceH :: StateH -> StateET -> StateH
 replaceH sh s = sh { latest = s }
-
-prevFull :: (StateH, StateH) -> [(StateET, StateET)]
-prevFull (sh1, sh2) = [(p1, p2) | p1 <- history sh1, p2 <- history sh2]
-
--- The conditions for expr-value form do not align exactly with SWHNF.
--- A symbolic variable is in SWHNF only if it is of primitive type.
-prevFiltered :: (StateH, StateH) -> [(StateET, StateET)]
-prevFiltered =
-  let neitherSWHNF (s1, s2) = not (isSWHNF s1 || isSWHNF s2)
-  in (filter neitherSWHNF) . prevFull
 
 verifyLoop :: S.Solver solver =>
               solver ->
@@ -519,9 +403,6 @@ verifyLoop solver ns states prev b config folder_root k | not (null states) = do
   | otherwise = do
     return $ S.UNSAT ()
 
-exprExtract :: State t -> Expr
-exprExtract (State { curr_expr = CurrExpr _ e }) = e
-
 stateWrap :: StateET -> StateET -> Obligation -> (StateET, StateET)
 stateWrap s1 s2 (Ob e1 e2) =
   ( s1 { curr_expr = CurrExpr Evaluate e1 }
@@ -547,23 +428,6 @@ caseRecHelper _ = False
 -- We prefer coinduction in that scenario because it is more efficient.
 canUseInduction :: Obligation -> Bool
 canUseInduction (Ob e1 e2) = caseRecursion e1 && caseRecursion e2
-
-innerScrutinees :: Expr -> [Expr]
-innerScrutinees (Tick _ e) = innerScrutinees e
-innerScrutinees e@(Case e' _ _) = e:(innerScrutinees e')
-innerScrutinees e = [e]
-
-replaceScrutinee :: Expr -> Expr -> Expr -> Expr
-replaceScrutinee e1 e2 e | e1 == e = e2
-replaceScrutinee e1 e2 (Tick nl e) = Tick nl (replaceScrutinee e1 e2 e)
-replaceScrutinee e1 e2 (Case e i a) = Case (replaceScrutinee e1 e2 e) i a
-replaceScrutinee _ _ e = e
-
-notM :: Monad m => m Bool -> m Bool
-notM = liftM not
-
-andM :: Monad m => m Bool -> m Bool -> m Bool
-andM = liftM2 (&&)
 
 isNothingM :: Monad m => m (Maybe t) -> m Bool
 isNothingM = liftM (not . isJust)
@@ -623,30 +487,6 @@ makeIndStateH (sh1, sh2) ((q1, q2), ((n1, n2), s1, s2)) | n1 >= 0, n2 >= 0 =
   in (sh1', sh2')
   | otherwise = (sh1 { latest = s1 }, sh2 { latest = s2 })
 
--- this covers discharging of equivalent present states
--- TODO check past pairs, not just present; like with induction
--- TODO apply for induction states too
-tryCoinduction :: S.Solver solver =>
-                  solver ->
-                  HS.HashSet Name ->
-                  [(StateET, StateET)] ->
-                  (StateH, StateH) ->
-                  (StateET, StateET) ->
-                  W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-tryCoinduction solver ns prev sh_pair (s1, s2) = do
-  res1 <- equivFold solver ns sh_pair (s1, s2)
-  res2 <- moreRestrictivePair solver ns prev (s1, s2)
-  case (res1, res2) of
-    (Just _, _) -> do
-      noteEquivDischarge (s1, s2)
-      --trace ("EQUIVALENT " ++ show (length prev)) $
-      return res1
-    (_, Just (PrevMatch _ p_pair _ _)) -> do
-      W.tell $ [Coinduction $ CoMarker (s1, s2) p_pair]
-      --trace ("COINDUCTION " ++ show (isJust res2)) $
-      return res2
-    _ -> return Nothing
-
 -- TODO printing
 -- TODO was the type signature wrong before?
 -- TODO prev not used anymore
@@ -692,7 +532,11 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
           (obs_i, obs_c) = partition canUseInduction obs
           states_c = map (stateWrap s1 s2) obs_c
       -- TODO do I need more adjustments than what I have here?
-      discharges <- mapM (tryCoinduction solver ns prev' (sh1, sh2)) states_c
+      discharges_e <- mapM (tryEquivalence solver ns (sh1, sh2)) states_c
+      discharges_c <- mapM (tryCoinduction solver ns prev') states_c
+      let either_maybe (Just x, _) = Just x
+          either_maybe (Nothing, y) = y
+          discharges = map either_maybe (zip discharges_e discharges_c)
       -- get the states and histories for the successful discharges
       -- will need to fill in the discharge field
       -- also need to pair them up with the original states?
@@ -707,9 +551,10 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
           states_c' = map snd $ filter fst (zip discharges_ states_c)
 
       let states_i = map (stateWrap s1 s2) obs_i
-      states_i_ <- filterM (isNothingM . (tryCoinduction solver ns prev' (sh1, sh2))) states_i
+      states_i1 <- filterM (isNothingM . (tryEquivalence solver ns (sh1, sh2))) states_i
+      states_i2 <- filterM (isNothingM . (tryCoinduction solver ns prev')) states_i1
       -- TODO need a way to get the prev pair used for induction
-      states_i' <- mapM (inductionFull solver ns fresh_name (sh1, sh2)) states_i_
+      states_i' <- mapM (inductionFull solver ns fresh_name (sh1, sh2)) states_i2
       --states_i' <- filterM (notM . (induction solver ns fresh_name prev')) states_i
 
       -- TODO unnecessary to pass the induction states through this?
@@ -806,6 +651,7 @@ inductionL solver ns prev (s1, s2) = do
 
 -- TODO reduce duplicated code?  Also make sure it's correct
 -- substitution happens on the right here
+{-
 inductionR :: S.Solver solver =>
               solver ->
               HS.HashSet Name ->
@@ -845,218 +691,7 @@ inductionR solver ns prev (s1, s2) = do
               trace (show (map (\(r1, r2) -> (folder_name $ track r1, folder_name $ track r2)) prev)) $
               trace ("YES IR! " ++ show (map (folder_name . track) [s1, s2, q1, q2, p1, p2])) $
               return (True, s1, s2')
-
--- substitution happens on the left here
--- TODO now the right-hand state returned would always be s2
--- TODO collect information about the expressions used for induction
--- TODO return a partially-defined IndMarker?
-inductionL :: S.Solver solver =>
-              solver ->
-              HS.HashSet Name ->
-              [(StateET, StateET)] ->
-              (StateET, StateET) ->
-              W.WriterT [Marker] IO (Bool, StateET, IndMarker)
-inductionL solver ns prev (s1, s2) = do
-  let scr1 = innerScrutinees $ exprExtract s1
-      scr2 = innerScrutinees $ exprExtract s2
-      scr_pairs = [(sc1, sc2) | sc1 <- scr1, sc2 <- scr2]
-      scr_states = [(s1 { curr_expr = CurrExpr Evaluate sc1 }, s2 { curr_expr = CurrExpr Evaluate sc2 }) | (sc1, sc2) <- scr_pairs]
-  mr_pairs <- mapM (moreRestrictiveIndRight solver ns prev) scr_states
-  let mr_zipped = zip scr_pairs mr_pairs
-      working_info = [(sc1, sc2, pm) | ((sc1, sc2), Just pm) <- mr_zipped]
-      working_info' = filter (\(_, _, PrevMatch _ (_, p2) _ pc2) -> validScrutinee s2 p2 pc2) working_info
-  case working_info' of
-    [] -> return (False, s1, undefined)
-    h:_ -> let (sc1, sc2, PrevMatch (q1, q2) (p1, p2) (mapping, _) pc2) = h
-               e2_old = exprExtract pc2
-               hm_list = HM.toList mapping
-               e2_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e2_old hm_list
-               e1_new = replaceScrutinee sc1 e2_old' $ exprExtract s1
-               h1_new = E.union (expr_env s1) (expr_env pc2)
-               s1' = s1 {
-                 curr_expr = CurrExpr Evaluate e1_new
-               , expr_env = h1_new
-               }
-               -- TODO past
-               -- TODO should result include generalization?
-               -- TODO p1, p2, q1, q2, present scrutinees
-               -- TODO do I really need q1 and q2?
-               im = IndMarker {
-                 ind_real_present = undefined
-               , ind_used_present = (s1, s2)
-               , ind_past = (p1, pc2)
-               , ind_result = (s1', s2)
-               , ind_present_scrutinees = (sc1, sc2)
-               , ind_past_scrutinees = (p1, p2)
-               , ind_side = ILeft
-               , ind_fresh_name = undefined
-               }
-           in return (True, s1', im)
-
--- precedence goes to left-side substitution
--- right-side substitution only happens if left-side fails
--- TODO reverse prev for the right side
-induction :: S.Solver solver =>
-             solver ->
-             HS.HashSet Name ->
-             [(StateET, StateET)] ->
-             (StateET, StateET) ->
-             W.WriterT [Marker] IO (Bool, StateET, StateET, IndMarker)
-induction solver ns prev (s1, s2) = do
-  (bl, s1l, iml) <- inductionL solver ns prev (s1, s2)
-  if bl then return (bl, s1l, s2, iml)
-  else do
-    let prev' = map (\(p1, p2) -> (p2, p1)) prev
-    (br, s2r, imr) <- inductionL solver ns prev' (s2, s1)
-    return (br, s1, s2r, imr)
-
-backtrackOne :: StateH -> StateH
-backtrackOne sh =
-  case history sh of
-    [] -> error "No Backtrack Possible"
-    h:t -> sh {
-        latest = h
-      , history = t
-      }
-
--- left side stays constant
--- TODO complex conditional, but avoids needless generalization
--- TODO returning marker in case of failure
-inductionFoldL :: S.Solver solver =>
-                  solver ->
-                  HS.HashSet Name ->
-                  Name ->
-                  (StateH, StateH) ->
-                  (StateET, StateET) ->
-                  W.WriterT [Marker] IO (Int, StateET, StateET, IndMarker)
-inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2) = do
-  let prev = prevFiltered (sh1, sh2)
-  (b, s1', s2', im) <- induction solver ns prev (s1, s2)
-  if b then do
-    (b', s1'', s2'') <- generalize solver ns fresh_name (s1', s2')
-    if b' then return (length $ history sh2, s1'', s2'', im)
-    else case history sh2 of
-      [] -> return (-1, s1, s2, im)
-      p2:_ -> inductionFoldL solver ns fresh_name (sh1, backtrackOne sh2) (s1, p2)
-  else case history sh2 of
-    [] -> return (-1, s1, s2, im)
-    p2:_ -> inductionFoldL solver ns fresh_name (sh1, backtrackOne sh2) (s1, p2)
-
--- TODO somewhat crude solution:  record how "far back" it needed to go
--- negative one means that it failed
--- TODO only use histories from sh1 and sh2
--- TODO no induction without substitution now
--- TODO failure marker return
-inductionFold :: S.Solver solver =>
-                 solver ->
-                 HS.HashSet Name ->
-                 Name ->
-                 (StateH, StateH) ->
-                 (StateET, StateET) ->
-                 W.WriterT [Marker] IO ((Int, Int), StateET, StateET)
-inductionFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
-  (nl, s1l, s2l, iml) <- inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2)
-  let length1 = length $ history sh1
-      length2 = length $ history sh2
-  if nl >= 0 then do
-    W.liftIO $ putStrLn $ "IL " ++ show (map (folder_name . track) [s1, s2, s1l, s2l])
-    let iml' = iml {
-      ind_real_present = (s1, s2)
-    , ind_fresh_name = fresh_name
-    }
-    W.tell $ [Induction iml']
-    return ((0, length2 - nl), s1l, s2l)
-  else do
-    (nr, s2r, s1r, imr) <- inductionFoldL solver ns fresh_name (sh2, sh1) (s2, s1)
-    if nr >= 0 then do
-      W.liftIO $ putStrLn $ "IR " ++ show (map (folder_name . track) [s1, s2, s1r, s2r])
-      let imr' = reverseIndMarker $ imr {
-        ind_real_present = (s2, s1)
-      , ind_fresh_name = fresh_name
-      }
-      W.tell $ [Induction imr']
-      return ((length1 - nr, 0), s1r, s2r)
-    else return ((-1, -1), s1, s2)
-
-generalizeAux :: S.Solver solver =>
-                 solver ->
-                 HS.HashSet Name ->
-                 [StateET] ->
-                 StateET ->
-                 W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-generalizeAux solver ns s1_list s2 = do
-  let check_equiv s1_ = moreRestrictiveEquiv solver ns s1_ s2
-  res <- mapM check_equiv s1_list
-  let res' = filter isJust res
-  case res' of
-    [] -> return Nothing
-    h:_ -> return h
-
--- TODO don't add stack ticks here; only do it before execution
-adjustStateForGeneralization :: Expr -> Name -> StateET -> StateET
-adjustStateForGeneralization e_old fresh_name s =
-  let e = exprExtract s
-      fresh_id = Id fresh_name (typeOf e)
-      fresh_var = Var fresh_id
-      e' = replaceScrutinee e fresh_var e_old
-      h = expr_env s
-      h' = E.insertSymbolic fresh_name fresh_id h
-  in s {
-    curr_expr = CurrExpr Evaluate e'
-  , expr_env = h'
-  }
-
--- TODO replace the largest sub-expression possible with a fresh symbolic var
--- TODO this is never finishing, seemingly
-generalize :: S.Solver solver =>
-              solver ->
-              HS.HashSet Name ->
-              Name ->
-              (StateET, StateET) ->
-              W.WriterT [Marker] IO (Bool, StateET, StateET)
-generalize solver ns fresh_name (s1, s2) = do
-  W.liftIO $ putStrLn $ "Starting G " ++ show fresh_name
-  W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s1
-  W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s2
-  -- expressions are ordered from outer to inner
-  -- the largest ones are on the outside
-  -- take the earliest array entry that works
-  -- for anything on one side, there can only be one match on the other side
-  let e1 = exprExtract s1
-      scr1 = innerScrutinees e1
-      scr_states1 = map (\e -> s1 { curr_expr = CurrExpr Evaluate e }) scr1
-      e2 = exprExtract s2
-      scr2 = innerScrutinees e2
-      scr_states2 = map (\e -> s2 { curr_expr = CurrExpr Evaluate e }) scr2
-  res <- mapM (generalizeAux solver ns scr_states1) scr_states2
-  W.liftIO $ putStrLn "Generalized"
-  -- TODO expression environment adjustment?  Only for the fresh var
-  -- TODO also may want to adjust the equivalence tracker
-  let res' = filter isJust res
-  case res' of
-    (Just pm):_ -> let (s1', s2') = present pm
-                       e1' = exprExtract s1'
-                       s1'' = adjustStateForGeneralization e1 fresh_name s1'
-                       s2'' = adjustStateForGeneralization e2 fresh_name s2'
-                   in trace ("G! " ++ show fresh_name) $
-                      return (True, s1'', s2'')
-    _ -> trace ("No G? " ++ show fresh_name) $
-         -- TODO allowing failures for now
-         return (False, s1, s2)
-
--- TODO does this throw off history logging?  I don't think so
--- TODO might not matter with s1 and s2 naming
-inductionFull :: S.Solver solver =>
-                 solver ->
-                 HS.HashSet Name ->
-                 Name ->
-                 (StateH, StateH) ->
-                 (StateET, StateET) ->
-                 W.WriterT [Marker] IO ((Int, Int), StateET, StateET)
-inductionFull solver ns fresh_name sh_pair s_pair@(s1, s2) = do
-  ((n1, n2), s1', s2') <- inductionFold solver ns fresh_name sh_pair s_pair
-  if n1 < 0 || n2 < 0 then trace ("NO INDUCTION " ++ show n1) return ((n1, n2), s1, s2)
-  else return ((n1, n2), s1', s2')
+-}
 
 -- TODO (9/27) check path constraint implication?
 -- TODO (9/30) alternate:  just substitute one scrutinee for the other
@@ -1222,365 +857,9 @@ checkRule config init_state bindings total finite rule = do
   putStrLn $ show $ length w
   return res
 
--- s1 is the old state, s2 is the new state
--- If any recursively-defined functions or other expressions manage to slip
--- through the cracks with the other mechanisms in place for avoiding infinite
--- inlining loops, then we can handle them here by keeping track of all of the
--- variables that have been inlined previously.
--- Keeping track of inlinings by adding to ns only lets a variable be inlined
--- on one side.  We need to have two separate lists of variables that have been
--- inlined previously so that inlinings on one side do not block any inlinings
--- that need to happen on the other side.
--- Whenever a variable is inlined, we record the expression that was on the
--- opposite side at the time.  Under the original system, a variable could not
--- be inlined at all on one side in any sub-expressions that resulted from an
--- inlining of it, and that was too restrictive.  Under the current system,
--- repeated inlinings of a variable are allowed as long as the expression on
--- the opposite side is not the same as it was when a previous inlining of the
--- same variable happened.
-moreRestrictive :: State t ->
-                   State t ->
-                   HS.HashSet Name ->
-                   (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
-                   [(Name, Expr)] -> -- ^ variables inlined previously on the LHS
-                   [(Name, Expr)] -> -- ^ variables inlined previously on the RHS
-                   Expr ->
-                   Expr ->
-                   Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n2 e1 e2 =
-  case (e1, e2) of
-    -- ignore all Ticks
-    (Tick _ e1', _) -> moreRestrictive s1 s2 ns hm n1 n2 e1' e2
-    (_, Tick _ e2') -> moreRestrictive s1 s2 ns hm n1 n2 e1 e2'
-    (Var i, _) | m <- idName i
-               , not $ E.isSymbolic m h1
-               , not $ HS.member m ns
-               , not $ (m, e2) `elem` n1
-               , Just e <- E.lookup m h1 ->
-                 --trace ("INLINE L " ++ show i ++ show e) $
-                 moreRestrictive s1 s2 ns hm ((m, e2):n1) n2 e e2
-    (_, Var i) | m <- idName i
-               , not $ E.isSymbolic m h2
-               , not $ HS.member m ns
-               , not $ (m, e1) `elem` n2
-               , Just e <- E.lookup m h2 ->
-                 --trace ("INLINE R " ++ show i ++ show e) $
-                 moreRestrictive s1 s2 ns hm n1 ((m, e1):n2) e1 e
-    (Var i1, Var i2) | HS.member (idName i1) ns
-                     , idName i1 == idName i2 -> Just hm
-                     | HS.member (idName i1) ns -> {-trace ("VLeft " ++ show (i1, i2))-} Nothing
-                     | HS.member (idName i2) ns -> {-trace ("VRight " ++ show (i1, i2))-} Nothing
-    (Var i, _) | E.isSymbolic (idName i) h1
-               , (hm', hs) <- hm
-               , Nothing <- HM.lookup i hm' -> Just (HM.insert i (inlineEquiv [] h2 ns e2) hm', hs)
-               | E.isSymbolic (idName i) h1
-               , Just e <- HM.lookup i (fst hm)
-               , e == inlineEquiv [] h2 ns e2 -> Just hm
-               -- this last case means there's a mismatch
-               | E.isSymbolic (idName i) h1 -> {-trace ("VSymLeft " ++ show i)-} Nothing
-               | not $ (idName i, e2) `elem` n1
-               , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
-    (_, Var i) | E.isSymbolic (idName i) h2 -> {-trace ("VSymRight " ++ show i)-} Nothing -- sym replaces non-sym
-               | not $ (idName i, e1) `elem` n2
-               , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
-    (App f1 a1, App f2 a2) | Just hm_f <- {-trace ("APP FN " ++ show (printHaskellDirty e1) ++ "\n" ++ show (printHaskellDirty e2))-} moreRestrictive s1 s2 ns hm n1 n2 f1 f2
-                           , Just hm_a <- {-trace ("APP ARG " ++ show hm_f ++ "\n" ++ show (printHaskellDirty a1) ++ "\n" ++ show (printHaskellDirty a2))-} moreRestrictive s1 s2 ns hm_f n1 n2 a1 a2 -> Just hm_a
-    -- TODO ignoring lam use; these are never used seemingly
-    -- TODO shouldn't lead to non-termination
-    {-
-    (App (Lam _ i b) a, _) -> let e1' = replaceASTs (Var i) a b
-                              in trace ("LAM L" ++ show i) $ moreRestrictive s1 s2 ns hm n1 n2 e1' e2
-    (_, App (Lam _ i b) a) -> let e2' = replaceASTs (Var i) a b
-                              in trace ("LAM R" ++ show i) $ moreRestrictive s1 s2 ns hm n1 n2 e1 e2'
-    -}
-    -- These two cases should come after the main App-App case.  If an
-    -- expression pair fits both patterns, then discharging it in a way that
-    -- does not add any extra proof obligations is preferable.
-    (App _ _, _) | e1':_ <- unApp e1
-                 , (Prim _ _) <- inlineTop [] h1 e1'
-                 , T.isPrimType $ typeOf e1 ->
-                                  let (hm', hs) = hm
-                                  in Just (hm', HS.insert (inlineFull [] h1 e1, inlineFull [] h2 e2) hs)
-    (_, App _ _) | e2':_ <- unApp e2
-                 , (Prim _ _) <- inlineTop [] h1 e2'
-                 , T.isPrimType $ typeOf e2 ->
-                                  let (hm', hs) = hm
-                                  in Just (hm', HS.insert (inlineFull [] h1 e1, inlineFull [] h2 e2) hs)
-    -- We just compare the names of the DataCons, not the types of the DataCons.
-    -- This is because (1) if two DataCons share the same name, they must share the
-    -- same type, but (2) "the same type" may be represented in different syntactic
-    -- ways, most significantly bound variable names may differ
-    -- "forall a . a" is the same type as "forall b . b", but fails a syntactic check.
-    (Data (DataCon d1 _), Data (DataCon d2 _))
-                                  | d1 == d2 -> Just hm
-                                  | otherwise -> Nothing
-    -- We neglect to check type equality here for the same reason.
-    (Prim p1 _, Prim p2 _) | p1 == p2 -> Just hm
-                           | otherwise -> Nothing
-    (Lit l1, Lit l2) | l1 == l2 -> Just hm
-                     | otherwise -> Nothing
-    (Lam lu1 i1 b1, Lam lu2 i2 b2)
-                | lu1 == lu2
-                , i1 == i2 ->
-                  let ns' = HS.insert (idName i1) ns
-                  -- no need to insert twice over because they're equal
-                  in moreRestrictive s1 s2 ns' hm n1 n2 b1 b2
-                | otherwise -> Nothing
-    -- ignore types, like in exprPairing
-    (Type _, Type _) -> Just hm
-    -- new Let handling
-    -- TODO does this not account for bindings properly?
-    -- TODO only works properly if both binding lists are the same length
-    -- I can just discard cases where they aren't for now
-    (Let binds1 e1', Let binds2 e2') ->
-                let pairs = (e1', e2'):(zip (map snd binds1) (map snd binds2))
-                    ins (i_, e_) h_ = E.insert (idName i_) e_ h_
-                    h1' = foldr ins h1 binds1
-                    h2' = foldr ins h2 binds2
-                    s1' = s1 { expr_env = h1' }
-                    s2' = s2 { expr_env = h2' }
-                    mf hm_ (e1_, e2_) = moreRestrictive s1' s2' ns hm_ n1 n2 e1_ e2_
-                in
-                if length binds1 == length binds2
-                then foldM mf hm pairs
-                else Nothing
-    -- TODO if scrutinee is symbolic var, make Alt vars symbolic?
-    -- TODO id equality never checked; does it matter?
-    (Case e1' i1 a1, Case e2' i2 a2)
-                | Just hm' <- moreRestrictive s1 s2 ns hm n1 n2 e1' e2' ->
-                  -- add the matched-on exprs to the envs beforehand
-                  let h1' = E.insert (idName i1) e1' h1
-                      h2' = E.insert (idName i2) e2' h2
-                      s1' = s1 { expr_env = h1' }
-                      s2' = s2 { expr_env = h2' }
-                      mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ n1 n2 e1_ e2_
-                      l = zip a1 a2
-                  in foldM mf hm' l
-    _ -> Nothing
-
--- These helper functions have safeguards to avoid cyclic inlining.
--- TODO remove ticks with this?
-inlineTop :: [Name] -> ExprEnv -> Expr -> Expr
-inlineTop acc h v@(Var (Id n _))
-    | n `elem` acc = v
-    | E.isSymbolic n h = v
-    | Just e <- E.lookup n h = inlineTop (n:acc) h e
-inlineTop acc h (Tick _ e) = inlineTop acc h e
-inlineTop _ _ e = e
-
-inlineFull :: [Name] -> ExprEnv -> Expr -> Expr
-inlineFull acc h v@(Var (Id n _))
-    | n `elem` acc = v
-    | E.isSymbolic n h = v
-    | Just e <- E.lookup n h = inlineFull (n:acc) h e
-inlineFull acc h e = modifyChildren (inlineFull acc h) e
-
-inlineEquiv :: [Name] -> ExprEnv -> HS.HashSet Name -> Expr -> Expr
-inlineEquiv acc h ns v@(Var (Id n _))
-    | n `elem` acc = v
-    | E.isSymbolic n h = v
-    | HS.member n ns = v
-    | Just e <- E.lookup n h = inlineEquiv (n:acc) h ns e
-inlineEquiv acc h ns e = modifyChildren (inlineEquiv acc h ns) e
-
--- check only the names for DataAlt
-altEquiv :: AltMatch -> AltMatch -> Bool
-altEquiv (DataAlt dc1 ids1) (DataAlt dc2 ids2) =
-  let DataCon dn1 _ = dc1
-      DataCon dn2 _ = dc2
-      n1 = map idName ids1
-      n2 = map idName ids2
-  in
-  dn1 == dn2 && n1 == n2
-altEquiv (LitAlt l1) (LitAlt l2) = l1 == l2
-altEquiv Default Default = True
-altEquiv _ _ = False
-
--- ids are the same between both sides; no need to insert twice
-moreRestrictiveAlt :: State t ->
-                      State t ->
-                      HS.HashSet Name ->
-                      (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
-                      [(Name, Expr)] -> -- ^ variables inlined previously on the LHS
-                      [(Name, Expr)] -> -- ^ variables inlined previously on the RHS
-                      Alt ->
-                      Alt ->
-                      Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-moreRestrictiveAlt s1 s2 ns hm n1 n2 (Alt am1 e1) (Alt am2 e2) =
-  if altEquiv am1 am2 then
-  case am1 of
-    DataAlt _ t1 -> let ns' = foldr HS.insert ns $ map (\(Id n _) -> n) t1
-                    in moreRestrictive s1 s2 ns' hm n1 n2 e1 e2
-    _ -> moreRestrictive s1 s2 ns hm n1 n2 e1 e2
-  else Nothing
-
-validMap :: State t -> State t -> HM.HashMap Id Expr -> Bool
-validMap s1 s2 hm =
-  let hm_list = HM.toList hm
-      check (_, e) = (not $ isSWHNF $ s1 { curr_expr = CurrExpr Evaluate e })
-                  || (not $ isSWHNF $ s2 { curr_expr = CurrExpr Evaluate e })
-                  || isPrimType (typeOf e)
-  in foldr (&&) True (map check hm_list)
-
-restrictHelper :: StateET ->
-                  StateET ->
-                  HS.HashSet Name ->
-                  Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
-                  Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-restrictHelper s1 s2 ns hm_hs = case restrictAux s1 s2 ns hm_hs of
-  Nothing -> Nothing
-  Just (hm, hs) -> if validMap s1 s2 hm then Just (hm, hs) else Nothing
-
-restrictAux :: StateET ->
-               StateET ->
-               HS.HashSet Name ->
-               Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
-               Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-restrictAux _ _ _ Nothing = Nothing
-restrictAux s1 s2 ns (Just hm) =
-  moreRestrictive s1 s2 ns hm [] [] (exprExtract s1) (exprExtract s2)
-
--- All the PathConds that this receives are generated by symbolic execution.
--- Consequently, non-primitive types are not an issue here.
-extractCond :: PathCond -> Expr
-extractCond (ExtCond e True) = e
-extractCond (ExtCond e False) = App (Prim Not TyUnknown) e
-extractCond (AltCond l e True) =
-  App (App (Prim Eq TyUnknown) e) (Lit l)
-extractCond (AltCond l e False) =
-  App (App (Prim Neq TyUnknown) e) (Lit l)
-extractCond _ = error "Not Supported"
-
--- s1 is old state, s2 is new state
--- only apply to old-new state pairs for which moreRestrictive works
-moreRestrictivePC :: S.Solver solver =>
-                     solver ->
-                     StateET ->
-                     StateET ->
-                     HM.HashMap Id Expr ->
-                     W.WriterT [Marker] IO Bool
-moreRestrictivePC solver s1 s2 hm = do
-  let new_conds = map extractCond (P.toList $ path_conds s2)
-      old_conds = map extractCond (P.toList $ path_conds s1)
-      l = map (\(i, e) -> (Var i, e)) $ HM.toList hm
-      -- this should only be used with primitive types
-      -- no apparent problems come from using TyUnknown
-      l' = map (\(e1, e2) ->
-                  if (T.isPrimType $ typeOf e1) && (T.isPrimType $ typeOf e2)
-                  then Just $ App (App (Prim Eq TyUnknown) e1) e2
-                  else Nothing) l
-      l'' = [c | Just c <- l']
-      new_conds' = l'' ++ new_conds
-      -- not safe to use unless the lists are non-empty
-      conj_new = foldr1 (\o1 o2 -> App (App (Prim And TyUnknown) o1) o2) new_conds'
-      conj_old = foldr1 (\o1 o2 -> App (App (Prim And TyUnknown) o1) o2) old_conds
-      imp = App (App (Prim Implies TyUnknown) conj_new) conj_old
-      neg_imp = ExtCond (App (Prim Not TyUnknown) imp) True
-      neg_conj = ExtCond (App (Prim Not TyUnknown) conj_old) True
-  res <- if null old_conds
-         then return $ S.UNSAT ()
-         else if null new_conds' -- old_conds not null
-         -- TODO applySolver uses states' path constraints directly
-         -- Are the conditions from this being satisfied trivially?
-         then W.liftIO $ applySolver solver (P.insert neg_conj P.empty) s1 s2
-         else W.liftIO $ applySolver solver (P.insert neg_imp P.empty) s1 s2
-  case res of
-    S.UNSAT () -> return True
-    _ -> return False
-
--- TODO container
-data PrevMatch t = PrevMatch {
-    present :: (State t, State t)
-  , past :: (State t, State t)
-  , conditions :: (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-  , container :: State t
-}
-
-syncSymbolic :: StateET -> StateET -> (StateET, StateET)
-syncSymbolic s1 s2 =
-  let f (E.SymbObj _) e2 = e2
-      f e1 _ = e1
-      h1 = E.unionWith f (expr_env s1) (expr_env s2)
-      h2 = E.unionWith f (expr_env s2) (expr_env s1)
-  in (s1 { expr_env = h1 }, s2 { expr_env = h2 })
-
--- extra filter on top of isJust for maybe_pairs
--- if restrictHelper end result is Just, try checking the corresponding PCs
--- for True output, there needs to be an entry for which that check succeeds
--- return the previous state pair that was used for the discharge
--- return Nothing if there was no discharge
--- if there are multiple, just return the first
--- TODO first pair is "current," second pair is the match from the past
--- TODO the third entry in a prev triple is the original for left or right
--- TODO make a new type for the prev-threesomes
-moreRestrictivePairAux :: S.Solver solver =>
-                          solver ->
-                          HS.HashSet Name ->
-                          [(StateET, StateET, StateET)] ->
-                          (StateET, StateET) ->
-                          W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-moreRestrictivePairAux solver ns prev (s1, s2) = do
-  let (s1', s2') = syncSymbolic s1 s2
-      mr (p1, p2, _) = restrictHelper p2 s2' ns $
-                       restrictHelper p1 s1' ns (Just (HM.empty, HS.empty))
-      rfs h e = (exprReadyForSolver h e) && (T.isPrimType $ typeOf e)
-      getObs m = case m of
-        Nothing -> HS.empty
-        Just (_, hs) -> hs
-      getMap m = case m of
-        Nothing -> HM.empty
-        Just (hm, _) -> hm
-      maybe_pairs = map mr prev
-      obs_sets = map getObs maybe_pairs
-      h1 = expr_env s1
-      h2 = expr_env s2
-      obs_sets' = map (HS.filter (\(e1, e2) -> rfs h1 e1 && rfs h2 e2)) obs_sets
-      no_loss = map (\(hs1, hs2) -> HS.size hs1 == HS.size hs2) (zip obs_sets obs_sets')
-      mpc m = case m of
-        (Just (hm, _), (s_old1, s_old2, _)) ->
-          andM (moreRestrictivePC solver s_old1 s1 hm) (moreRestrictivePC solver s_old2 s2 hm)
-        _ -> return False
-      bools = map mpc (zip maybe_pairs prev)
-  -- check obligations individually rather than as one big group
-  res_list <- W.liftIO $ mapM (checkObligations solver s1 s2) obs_sets'
-  bools' <- mapM id bools
-  {-
-  print "#####"
-  print $ folder_name $ track s1
-  print $ folder_name $ track s2
-  print "PREV"
-  print $ map (\(p1, p2, _) -> (folder_name $ track p1, folder_name $ track p2)) prev
-  print "MPAIRS"
-  print $ map isJust maybe_pairs
-  print "BOOLS"
-  print bools'
-  -}
-  -- need res_list, no_loss, and bools all aligning at a point
-  let all_three thr = case fst thr of
-        ((S.UNSAT (), _), (True, True)) -> True
-        _ -> False
-  -- all four lists should be the same length
-  case filter all_three $ zip (zip (zip res_list prev) $ zip no_loss bools') maybe_pairs of
-    [] -> return Nothing
-    (((_, (p1, p2, pc)), _), m):_ -> return $ Just $ PrevMatch (s1, s2) (p1, p2) (getMap m, getObs m) pc
-
--- the third entry in prev tuples is meaningless here
-moreRestrictivePair :: S.Solver solver =>
-                       solver ->
-                       HS.HashSet Name ->
-                       [(StateET, StateET)] ->
-                       (StateET, StateET) ->
-                       W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-moreRestrictivePair solver ns prev (s1, s2) =
-  let prev' = map (\(p1, p2) -> (p1, p2, p2)) prev
-  in moreRestrictivePairAux solver ns prev' (s1, s2)
-
-innerScrutineeStates :: State t -> [State t]
-innerScrutineeStates s@(State { curr_expr = CurrExpr _ e }) =
-  map (\e' -> s { curr_expr = CurrExpr Evaluate e' }) (innerScrutinees e)
-
 -- inner scrutinees on the left side
 -- ultimately for a substitution that happens on the right
+{-
 moreRestrictiveIndLeft :: S.Solver solver =>
                           solver ->
                           HS.HashSet Name ->
@@ -1591,70 +870,4 @@ moreRestrictiveIndLeft solver ns prev (s1, s2) =
   let prev1 = map (\(p1, p2) -> (p1, innerScrutineeStates p1, p2)) prev
       prev2 = [(p1', p2, p1) | (p1, p1l, p2) <- prev1, p1' <- p1l]
   in moreRestrictivePairAux solver ns prev2 (s1, s2)
-
--- TODO keep track of the whole expression that was used for the inner scrutinee
-moreRestrictiveIndRight :: S.Solver solver =>
-                           solver ->
-                           HS.HashSet Name ->
-                           [(StateET, StateET)] ->
-                           (StateET, StateET) ->
-                           W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-moreRestrictiveIndRight solver ns prev (s1, s2) =
-  let prev1 = map (\(p1, p2) -> (p1, p2, innerScrutineeStates p2)) prev
-      prev2 = [(p1, p2', p2) | (p1, p2, p2l) <- prev1, p2' <- p2l]
-  in moreRestrictivePairAux solver ns prev2 (s1, s2)
-
--- TODO tick adjusting here?
-isIdentity :: (Id, Expr) -> Bool
-isIdentity (i1, Tick _ e2) = isIdentity (i1, e2)
-isIdentity (i1, (Var i2)) = i1 == i2
-isIdentity _ = False
-
--- approximation should be the identity map
--- needs to be enforced, won't just happen naturally
-moreRestrictiveEquiv :: S.Solver solver =>
-                        solver ->
-                        HS.HashSet Name ->
-                        StateET ->
-                        StateET ->
-                        W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-moreRestrictiveEquiv solver ns s1 s2 = do
-  let h1 = expr_env s1
-      h2 = expr_env s2
-      s1' = s1 { expr_env = E.union h1 h2 }
-      s2' = s2 { expr_env = E.union h2 h1 }
-  pm_maybe <- moreRestrictivePair solver ns [(s2', s1')] (s1, s2)
-  case pm_maybe of
-    Nothing -> return Nothing
-    Just (PrevMatch _ _ (hm, _) _) ->
-      if foldr (&&) True (map isIdentity $ HM.toList hm)
-      then return pm_maybe
-      else return Nothing
-
-equivFoldL :: S.Solver solver =>
-              solver ->
-              HS.HashSet Name ->
-              [StateET] ->
-              StateET ->
-              W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-equivFoldL solver ns prev2 s1 = do
-  case prev2 of
-    [] -> return Nothing
-    p2:t -> do
-      mre <- moreRestrictiveEquiv solver ns s1 p2
-      case mre of
-        Just _ -> return mre
-        _ -> equivFoldL solver ns t s1
-
--- TODO clean up code
-equivFold :: S.Solver solver =>
-             solver ->
-             HS.HashSet Name ->
-             (StateH, StateH) ->
-             (StateET, StateET) ->
-             W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-equivFold solver ns (sh1, sh2) (s1, s2) = do
-  pm_l <- equivFoldL solver ns (s2:history sh2) s1
-  case pm_l of
-    Just _ -> return pm_l
-    _ -> equivFoldL solver ns (s1:history sh1) s2
+-}
