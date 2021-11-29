@@ -158,11 +158,8 @@ evalApp s@(State { expr_env = eenv
     | (App (Prim BindFunc _) v) <- e1
     , Var i1 <- findSym v
     , v2 <- e2 =
-        let
-            eenv' = E.insert (idName i1) v2 eenv
-        in
         ( RuleBind
-        , [s { expr_env = eenv'
+        , [s { expr_env = E.insert (idName i1) v2 eenv
              , curr_expr = CurrExpr Return (mkTrue kv) }]
         , ng)
 
@@ -716,21 +713,16 @@ handleDefMatches :: State t -> Maybe (Alt, Match) -> Id -> [NewPC t]
 handleDefMatches s@(State { expr_env = eenv }) (Just (alt, Defaults matches)) bind
     -- Only 1 match, no need to insert Case expr
     | (Alt Default aexpr) <- alt
-    , [(mexpr, _)] <- matches =
+    , [(mexpr, assums)] <- matches =
         let
             binds = [(bind, mexpr)]
             aexpr' = liftCaseBinds binds aexpr
             s' = s {curr_expr = CurrExpr Evaluate aexpr'}
-            assums = snd $ head' matches
             conds = map (flip ExtCond True) assums
         in
         [NewPC {state = s', new_pcs = conds, concretized = []}]
     | otherwise = error $ "Alt is not a Default: " ++ show alt
 handleDefMatches _ _ _ = []
-
-head' :: [a] -> a
-head' (x:_) = x
-head' [] = error "head'"
 
 --------------------------------------------------------------------------------------
 
@@ -825,11 +817,8 @@ retUpdateFrame s@(State { expr_env = eenv
             , exec_stack = stck }]
        , ng)
     | otherwise =
-        let
-            eenv' = E.insert un e eenv
-        in
         ( RuleReturnEUpdateNonVar un
-        , [s { expr_env = eenv'
+        , [s { expr_env = E.insert un e eenv
              , exec_stack = stck }]
         , ng)
 
