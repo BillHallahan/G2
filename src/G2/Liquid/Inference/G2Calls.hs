@@ -243,10 +243,9 @@ runLHInferenceCore entry m lrs ghci = do
     SomeSolver solver <- liftIO $ initSolver g2config
     let simplifier = IdSimplifier
         final_st' = swapHigherOrdForSymGen bindings final_st
-        merge = stateMerging g2config
 
     (red, hal, ord) <- inferenceReducerHalterOrderer infconfig g2config solver simplifier entry m cfn cf_funcs final_st'
-    (exec_res, final_bindings) <- liftIO $ runLHG2 g2config red hal ord solver simplifier merge pres_names ifi final_st' bindings
+    (exec_res, final_bindings) <- liftIO $ runLHG2 g2config red hal ord solver simplifier pres_names ifi final_st' bindings
 
     liftIO $ close solver
 
@@ -337,10 +336,9 @@ runLHCExSearch entry m lrs ghci = do
     SomeSolver solver <- liftIO $ initSolver g2config'
     let simplifier = IdSimplifier
         final_st' = swapHigherOrdForSymGen bindings final_st
-        merge = stateMerging g2config
 
     (red, hal, ord) <- realCExReducerHalterOrderer infconfig g2config' entry m solver simplifier cfn cf_funcs final_st'
-    (exec_res, final_bindings) <- liftIO $ runLHG2 g2config' red hal ord solver simplifier merge pres_names ifi final_st' bindings
+    (exec_res, final_bindings) <- liftIO $ runLHG2 g2config' red hal ord solver simplifier pres_names ifi final_st' bindings
 
     liftIO $ close solver
 

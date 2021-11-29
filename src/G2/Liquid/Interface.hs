@@ -133,7 +133,7 @@ runLHCore entry (mb_modname, exg2) ghci config = do
     let simplifier = IdSimplifier
 
     let (red, hal, ord) = lhReducerHalterOrderer config solver simplifier entry mb_modname cfn final_st
-    (exec_res, final_bindings) <- runLHG2 config red hal ord solver simplifier (stateMerging config) pres_names ifi final_st bindings
+    (exec_res, final_bindings) <- runLHG2 config red hal ord solver simplifier pres_names ifi final_st bindings
 
     close solver
 
@@ -389,14 +389,14 @@ runLHG2 :: (Solver solver, Simplifier simplifier)
         -> SomeOrderer LHTracker
         -> solver
         -> simplifier
-        -> Merging
         -> MemConfig
         -> Lang.Id
         -> State LHTracker
         -> Bindings
         -> IO ([ExecRes AbstractedInfo], Bindings)
-runLHG2 config red hal ord solver simplifier merging pres_names init_id final_st bindings = do
+runLHG2 config red hal ord solver simplifier pres_names init_id final_st bindings = do
     let only_abs_st = addTicksToDeepSeqCases (deepseq_walkers bindings) final_st
+        merging = stateMerging config
     (ret, final_bindings) <- runG2WithSomes red hal ord solver simplifier merging pres_names only_abs_st bindings
     let n_ret = map (\er -> er { final_state = putSymbolicExistentialInstInExprEnv (final_state er) }) ret
 
