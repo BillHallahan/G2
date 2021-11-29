@@ -187,8 +187,8 @@ isMergeable s1 s2 =
     && (tags s1 == tags s2)
     && (track s1 == track s2)
     && (type_classes s1 == type_classes s2)
-    && (isEmpty $ model s1)
-    && (isEmpty $ model s2)
+    && (HM.null $ model s1)
+    && (HM.null $ model s2)
 
 isMergeableCurrExpr :: E.ExprEnv -> E.ExprEnv -> CurrExpr -> CurrExpr -> Bool
 isMergeableCurrExpr eenv1 eenv2 (CurrExpr Evaluate ce1) (CurrExpr Evaluate ce2) = isMergeableExpr eenv1 eenv2 ce1 ce2
