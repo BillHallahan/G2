@@ -72,12 +72,18 @@ summarizeInduction im =
 
 summarizeCoinduction :: CoMarker -> String
 summarizeCoinduction cm =
-  let (s1, s2) = co_present cm
+  let (s1, s2) = co_real_present cm
+      (q1, q2) = co_used_present cm
       (p1, p2) = co_past cm
   in "Coinduction:\n\t" ++
-  (folder_name $ track s1) ++ " matches " ++
-  (folder_name $ track p1) ++ "\n\t" ++
-  (folder_name $ track s2) ++ " matches " ++
+  "Real Present: " ++
+  (folder_name $ track s1) ++ "," ++
+  (folder_name $ track s2) ++ "\n\t" ++
+  "Used Present: " ++
+  (folder_name $ track q1) ++ "," ++
+  (folder_name $ track q2) ++ "\n\t" ++
+  "Past: " ++
+  (folder_name $ track p1) ++ "," ++
   (folder_name $ track p2)
 
 -- TODO equivalence may not be between the two real present states

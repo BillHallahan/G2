@@ -86,16 +86,6 @@ readStamps (Case e i a) =
     _ -> error "Empty Alt List"
 readStamps _ = []
 
-prevFull :: (StateH, StateH) -> [(StateET, StateET)]
-prevFull (sh1, sh2) = [(p1, p2) | p1 <- history sh1, p2 <- history sh2]
-
--- The conditions for expr-value form do not align exactly with SWHNF.
--- A symbolic variable is in SWHNF only if it is of primitive type.
-prevFiltered :: (StateH, StateH) -> [(StateET, StateET)]
-prevFiltered =
-  let neitherSWHNF (s1, s2) = not (isSWHNF s1 || isSWHNF s2)
-  in (filter neitherSWHNF) . prevFull
-
 innerScrutinees :: Expr -> [Expr]
 innerScrutinees (Tick _ e) = innerScrutinees e
 innerScrutinees e@(Case e' _ _) = e:(innerScrutinees e')
@@ -202,15 +192,6 @@ induction solver ns prev (s1, s2) = do
     let prev' = map (\(p1, p2) -> (p2, p1)) prev
     (br, s2r, imr) <- inductionL solver ns prev' (s2, s1)
     return (br, s1, s2r, imr)
-
-backtrackOne :: StateH -> StateH
-backtrackOne sh =
-  case history sh of
-    [] -> error "No Backtrack Possible"
-    h:t -> sh {
-        latest = h
-      , history = t
-      }
 
 -- left side stays constant
 -- TODO complex conditional, but avoids needless generalization

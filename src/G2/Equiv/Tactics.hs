@@ -17,6 +17,8 @@ module G2.Equiv.Tactics
     , exprReadyForSolver
     , checkObligations
     , applySolver
+    , backtrackOne
+    , prevFiltered
     )
     where
 
@@ -106,7 +108,8 @@ data IndMarker = IndMarker {
 -- TODO two-sided
 -- TODO no present variation for coinduction currently
 data CoMarker = CoMarker {
-    co_present :: (StateET, StateET)
+    co_real_present :: (StateET, StateET)
+  , co_used_present :: (StateET, StateET)
   , co_past :: (StateET, StateET)
 }
 
@@ -115,8 +118,10 @@ data EquivMarker = EquivMarker {
   , eq_used_present :: (StateET, StateET)
 }
 
+-- TODO not used?
 reverseCoMarker :: CoMarker -> CoMarker
-reverseCoMarker (CoMarker (q1, q2) (p1, p2)) = CoMarker (q2, q1) (p2, p1)
+reverseCoMarker (CoMarker (s1, s2) (q1, q2) (p1, p2)) =
+  CoMarker (s2, s1) (q2, q1) (p2, p1)
 
 noteNoObligationsDischarge :: (StateET, StateET) -> W.WriterT [Marker] IO ()
 noteNoObligationsDischarge s_pair = do
@@ -163,6 +168,16 @@ extractCond (AltCond l e True) =
 extractCond (AltCond l e False) =
   App (App (Prim Neq TyUnknown) e) (Lit l)
 extractCond _ = error "Not Supported"
+
+prevFull :: (StateH, StateH) -> [(StateET, StateET)]
+prevFull (sh1, sh2) = [(p1, p2) | p1 <- history sh1, p2 <- history sh2]
+
+-- The conditions for expr-value form do not align exactly with SWHNF.
+-- A symbolic variable is in SWHNF only if it is of primitive type.
+prevFiltered :: (StateH, StateH) -> [(StateET, StateET)]
+prevFiltered =
+  let neitherSWHNF (s1, s2) = not (isSWHNF s1 || isSWHNF s2)
+  in (filter neitherSWHNF) . prevFull
 
 -- s1 is old state, s2 is new state
 -- only apply to old-new state pairs for which moreRestrictive works
@@ -586,6 +601,7 @@ equivFoldL solver ns prev2 s1 = do
 
 -- TODO clean up code
 -- TODO redundancy in return values?
+-- TODO yes there is; just use the PrevMatch
 equivFold :: S.Solver solver =>
              solver ->
              HS.HashSet Name ->
@@ -617,18 +633,79 @@ tryEquivalence solver ns sh_pair (s1, s2) = do
       return $ Just pm
     _ -> return Nothing
 
+backtrackOne :: StateH -> StateH
+backtrackOne sh =
+  case history sh of
+    [] -> error "No Backtrack Possible"
+    h:t -> sh {
+        latest = h
+      , history = t
+      }
+
+-- TODO may change return type
+-- "left side" stays constant
+coinductionFoldL :: S.Solver solver =>
+                    solver ->
+                    HS.HashSet Name ->
+                    (StateH, StateH) ->
+                    (StateET, StateET) ->
+                    W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
+coinductionFoldL solver ns (sh1, sh2) (s1, s2) = do
+  let prev = prevFiltered (sh1, sh2)
+  res <- moreRestrictivePair solver ns prev (s1, s2)
+  case res of
+    Just _ -> return res
+    _ -> case history sh2 of
+      [] -> return Nothing
+      p2:_ -> coinductionFoldL solver ns (sh1, backtrackOne sh2) (s1, p2)
+
+-- TODO redundancy
+coinductionFold :: S.Solver solver =>
+                   solver ->
+                   HS.HashSet Name ->
+                   (StateH, StateH) ->
+                   (StateET, StateET) ->
+                   W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
+coinductionFold solver ns (sh1, sh2) (s1, s2) = do
+  res_l <- coinductionFoldL solver ns (sh1, sh2) (s1, s2)
+  case res_l of
+    Just pm -> do
+      let cml = CoMarker {
+        co_real_present = (s1, s2)
+      , co_used_present = present pm
+      , co_past = past pm
+      }
+      W.tell [Coinduction cml]
+      return res_l
+    _ -> do
+      res_r <- coinductionFoldL solver ns (sh2, sh1) (s2, s1)
+      case res_r of
+        Just pm' -> do
+          let cmr = CoMarker {
+            co_real_present = (s2, s1)
+          , co_used_present = present pm'
+          , co_past = past pm'
+          }
+          W.tell [Coinduction $ reverseCoMarker cmr]
+          return res_r
+        _ -> return Nothing
+
 -- TODO check past pairs, not just present; like with induction
 -- TODO apply for induction states too
+-- TODO redundant functions
 tryCoinduction :: S.Solver solver =>
                   solver ->
                   HS.HashSet Name ->
-                  [(StateET, StateET)] ->
+                  (StateH, StateH) ->
                   (StateET, StateET) ->
                   W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-tryCoinduction solver ns prev (s1, s2) = do
+tryCoinduction = coinductionFold
+{-
+tryCoinduction solver ns sh_pair (s1, s2) = do
   res <- moreRestrictivePair solver ns prev (s1, s2)
   case res of
     Just (PrevMatch _ p_pair _ _) -> do
       W.tell $ [Coinduction $ CoMarker (s1, s2) p_pair]
       return res
     _ -> return Nothing
+-}

@@ -520,13 +520,12 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
       --putStrLn $ show $ exprExtract s2
 
       -- TODO new prev'
-      let -- prev' = concat $ map prevFiltered prev
-          prev' = prevFiltered (sh1, sh2)
+      let -- prev' = prevFiltered (sh1, sh2)
           (obs_i, obs_c) = partition canUseInduction obs
           states_c = map (stateWrap s1 s2) obs_c
       -- TODO do I need more adjustments than what I have here?
       discharges_e <- mapM (tryEquivalence solver ns (sh1, sh2)) states_c
-      discharges_c <- mapM (tryCoinduction solver ns prev') states_c
+      discharges_c <- mapM (tryCoinduction solver ns (sh1, sh2)) states_c
       let either_maybe (Just x, _) = Just x
           either_maybe (Nothing, y) = y
           discharges = map either_maybe (zip discharges_e discharges_c)
@@ -545,7 +544,7 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
 
       let states_i = map (stateWrap s1 s2) obs_i
       states_i1 <- filterM (isNothingM . (tryEquivalence solver ns (sh1, sh2))) states_i
-      states_i2 <- filterM (isNothingM . (tryCoinduction solver ns prev')) states_i1
+      states_i2 <- filterM (isNothingM . (tryCoinduction solver ns (sh1, sh2))) states_i1
       -- TODO need a way to get the prev pair used for induction
       states_i' <- mapM (inductionFull solver ns fresh_name (sh1, sh2)) states_i2
       --states_i' <- filterM (notM . (induction solver ns fresh_name prev')) states_i
