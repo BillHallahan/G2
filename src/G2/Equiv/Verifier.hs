@@ -799,7 +799,9 @@ checkRule config init_state bindings total finite rule = do
              bindings'' config "" 0
   -- UNSAT for good, SAT for bad
   -- TODO how to display?
+  putStrLn "--- SUMMARY ---"
   mapM (putStrLn . summarize) w
+  putStrLn "--- END OF SUMMARY ---"
   return res
 
 -- inner scrutinees on the left side

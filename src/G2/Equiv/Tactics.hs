@@ -6,6 +6,7 @@ module G2.Equiv.Tactics
     , Marker (..)
     , CoMarker (..)
     , IndMarker (..)
+    , EquivMarker (..)
     , Side (..)
     , isSWHNF
     , tryEquivalence
@@ -82,7 +83,7 @@ data PrevMatch t = PrevMatch {
 -- TODO constructors may need to change
 data Marker = Induction IndMarker
             | Coinduction CoMarker
-            | Equivalence (StateET, StateET)
+            | Equivalence EquivMarker
             | NoObligations (StateET, StateET)
             | NotEquivalent (StateET, StateET)
             | SolverFail (StateET, StateET)
@@ -109,13 +110,13 @@ data CoMarker = CoMarker {
   , co_past :: (StateET, StateET)
 }
 
+data EquivMarker = EquivMarker {
+    eq_real_present :: (StateET, StateET)
+  , eq_used_present :: (StateET, StateET)
+}
+
 reverseCoMarker :: CoMarker -> CoMarker
 reverseCoMarker (CoMarker (q1, q2) (p1, p2)) = CoMarker (q2, q1) (p2, p1)
-
-noteEquivDischarge :: (StateET, StateET) -> W.WriterT [Marker] IO ()
-noteEquivDischarge s_pair = do
-  W.tell $ [Equivalence s_pair]
-  return ()
 
 noteNoObligationsDischarge :: (StateET, StateET) -> W.WriterT [Marker] IO ()
 noteNoObligationsDischarge s_pair = do
@@ -573,28 +574,33 @@ equivFoldL :: S.Solver solver =>
               HS.HashSet Name ->
               [StateET] ->
               StateET ->
-              W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
+              W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker, StateET))
 equivFoldL solver ns prev2 s1 = do
   case prev2 of
     [] -> return Nothing
     p2:t -> do
       mre <- moreRestrictiveEquiv solver ns s1 p2
       case mre of
-        Just _ -> return mre
+        Just pm -> return $ Just (pm, p2)
         _ -> equivFoldL solver ns t s1
 
 -- TODO clean up code
+-- TODO redundancy in return values?
 equivFold :: S.Solver solver =>
              solver ->
              HS.HashSet Name ->
              (StateH, StateH) ->
              (StateET, StateET) ->
-             W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
+             W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker, (StateET, StateET)))
 equivFold solver ns (sh1, sh2) (s1, s2) = do
   pm_l <- equivFoldL solver ns (s2:history sh2) s1
   case pm_l of
-    Just _ -> return pm_l
-    _ -> equivFoldL solver ns (s1:history sh1) s2
+    Just (pm, p2) -> return $ Just (pm, (s1, p2))
+    _ -> do
+      pm_r <- equivFoldL solver ns (s1:history sh1) s2
+      case pm_r of
+        Just (pm', p1) -> return $ Just (pm', (p1, s2))
+        _ -> return Nothing
 
 tryEquivalence :: S.Solver solver =>
                   solver ->
@@ -605,9 +611,10 @@ tryEquivalence :: S.Solver solver =>
 tryEquivalence solver ns sh_pair (s1, s2) = do
   res <- equivFold solver ns sh_pair (s1, s2)
   case res of
-    Just _ -> do
-      noteEquivDischarge (s1, s2)
-      return res
+    Just (pm, (q1, q2)) -> do
+      --noteEquivDischarge (s1, s2)
+      W.tell $ [Equivalence $ EquivMarker (s1, s2) (q1, q2)]
+      return $ Just pm
     _ -> return Nothing
 
 -- TODO check past pairs, not just present; like with induction

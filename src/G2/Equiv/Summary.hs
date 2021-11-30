@@ -58,51 +58,75 @@ summarizeInduction im =
   let (s1, s2) = ind_real_present im
       (q1, q2) = ind_used_present im
       (p1, p2) = ind_past im
-  in "Induction:\n" ++
+  in "Induction:\n\t" ++
   "Real Present: " ++
   (folder_name $ track s1) ++ "," ++
-  (folder_name $ track s2) ++ "\n" ++
+  (folder_name $ track s2) ++ "\n\t" ++
   "Used Present: " ++
   (folder_name $ track q1) ++ "," ++
-  (folder_name $ track q2) ++ "\n" ++
+  (folder_name $ track q2) ++ "\n\t" ++
   "Past: " ++
   (folder_name $ track p1) ++ "," ++
-  (folder_name $ track p2) ++ "\n" ++
+  (folder_name $ track p2) ++ "\n\t" ++
   "Side: " ++ (sideName $ ind_side im)
 
 summarizeCoinduction :: CoMarker -> String
 summarizeCoinduction cm =
   let (s1, s2) = co_present cm
       (p1, p2) = co_past cm
-  in "Coinduction:\n" ++
+  in "Coinduction:\n\t" ++
   (folder_name $ track s1) ++ " matches " ++
-  (folder_name $ track p1) ++ "\n" ++
+  (folder_name $ track p1) ++ "\n\t" ++
   (folder_name $ track s2) ++ " matches " ++
   (folder_name $ track p2)
 
 -- TODO equivalence may not be between the two real present states
 -- would need to record more information beforehand
-summarizeEquivalence :: (StateET, StateET) -> String
-summarizeEquivalence (s1, s2) =
-  "Equivalent Expressions:\n" ++
+summarizeEquivalence :: EquivMarker -> String
+summarizeEquivalence em =
+  let (s1, s2) = eq_real_present em
+      (q1, q2) = eq_used_present em
+  in "Equivalent Expressions:\n\t" ++
+  "Real Present: " ++
   (folder_name $ track s1) ++ ", " ++
-  (folder_name $ track s2) ++ "\n" ++
-  (printHaskellDirty $ exprExtract s1) ++ "\n" ++
-  (printHaskellDirty $ exprExtract s2)
+  (folder_name $ track s2) ++ "\n\t" ++
+  (printHaskellDirty $ exprExtract s1) ++ "\n\t" ++
+  (printHaskellDirty $ exprExtract s2) ++ "\n\t" ++
+  "Used States: " ++
+  (folder_name $ track q1) ++ ", " ++
+  (folder_name $ track q2) ++ "\n\t" ++
+  (printHaskellDirty $ exprExtract q1) ++ "\n\t" ++
+  (printHaskellDirty $ exprExtract q2)
 
 summarizeNoObligations :: (StateET, StateET) -> String
 summarizeNoObligations (s1, s2) =
-  "No Obligations Produced:\n" ++
+  "No Obligations Produced:\n\t" ++
   (folder_name $ track s1) ++ ", " ++
-  (folder_name $ track s2) ++ "\n" ++
-  (printHaskellDirty $ exprExtract s1) ++ "\n" ++
+  (folder_name $ track s2) ++ "\n\t" ++
+  (printHaskellDirty $ exprExtract s1) ++ "\n\t" ++
+  (printHaskellDirty $ exprExtract s2)
+
+summarizeNotEquivalent :: (StateET, StateET) -> String
+summarizeNotEquivalent (s1, s2) =
+  "NOT EQUIVALENT:\n\t" ++
+  (folder_name $ track s1) ++ ", " ++
+  (folder_name $ track s2) ++ "\n\t" ++
+  (printHaskellDirty $ exprExtract s1) ++ "\n\t" ++
+  (printHaskellDirty $ exprExtract s2)
+
+summarizeSolverFail :: (StateET, StateET) -> String
+summarizeSolverFail (s1, s2) =
+  "SOLVER FAIL:\n\t" ++
+  (folder_name $ track s1) ++ ", " ++
+  (folder_name $ track s2) ++ "\n\t" ++
+  (printHaskellDirty $ exprExtract s1) ++ "\n\t" ++
   (printHaskellDirty $ exprExtract s2)
 
 summarize :: Marker -> String
 summarize m = case m of
   Induction im -> summarizeInduction im
   Coinduction cm -> summarizeCoinduction cm
-  Equivalence s_pair -> summarizeEquivalence s_pair
+  Equivalence em -> summarizeEquivalence em
   NoObligations s_pair -> summarizeNoObligations s_pair
-  NotEquivalent _ -> "NOT EQUIVALENT"
-  SolverFail _ -> "SOLVER FAIL"
+  NotEquivalent s_pair -> summarizeNotEquivalent s_pair
+  SolverFail s_pair -> summarizeSolverFail s_pair
