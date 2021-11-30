@@ -13,6 +13,9 @@ module G2.Equiv.Tactics
     , tryCoinduction
     , exprExtract
     , moreRestrictivePairAux
+    , exprReadyForSolver
+    , checkObligations
+    , applySolver
     )
     where
 
@@ -84,7 +87,7 @@ data Marker = Induction IndMarker
             | NotEquivalent (StateET, StateET)
             | SolverFail (StateET, StateET)
 
-data Side = ILeft | IRight
+data Side = ILeft | IRight deriving (Show)
 
 -- TODO two-sided now
 -- TODO some redundancy in this, also no full history
@@ -124,9 +127,6 @@ notM = liftM not
 
 andM :: Monad m => m Bool -> m Bool -> m Bool
 andM = liftM2 (&&)
-
-isNothingM :: Monad m => m (Maybe t) -> m Bool
-isNothingM = liftM (not . isJust)
 
 stripTicks :: Expr -> Expr
 stripTicks (Tick _ e) = e

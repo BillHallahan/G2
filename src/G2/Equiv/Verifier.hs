@@ -31,6 +31,7 @@ import G2.Equiv.EquivADT
 import G2.Equiv.G2Calls
 import G2.Equiv.Tactics
 import G2.Equiv.Induction
+import G2.Equiv.Summary
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
@@ -108,14 +109,6 @@ New generalized expressions for the present
 Information to provide for coinduction:
 Real present, fake present, past
 -}
-
-exprReadyForSolver :: ExprEnv -> Expr -> Bool
-exprReadyForSolver h (Tick _ e) = exprReadyForSolver h e
-exprReadyForSolver h (Var i) = E.isSymbolic (idName i) h && T.isPrimType (typeOf i)
-exprReadyForSolver h (App f a) = exprReadyForSolver h f && exprReadyForSolver h a
-exprReadyForSolver _ (Prim _ _) = True
-exprReadyForSolver _ (Lit _) = True
-exprReadyForSolver _ _ = False
 
 statePairReadyForSolver :: (State t, State t) -> Bool
 statePairReadyForSolver (s1, s2) =
@@ -714,54 +707,6 @@ addStackTickIfNeeded e' =
                                           _ -> Any False) $ e'
   in if has_tick then e' else tickWrap e'
 
-checkObligations :: S.Solver solver =>
-                    solver ->
-                    StateET ->
-                    StateET ->
-                    HS.HashSet (Expr, Expr) ->
-                    IO (S.Result () ())
-checkObligations solver s1 s2 obligation_set | not $ HS.null obligation_set =
-    case obligationWrap $ modifyASTs stripTicks obligation_set of
-        Nothing -> applySolver solver P.empty s1 s2
-        Just allPO -> applySolver solver (P.insert allPO P.empty) s1 s2
-  | otherwise = return $ S.UNSAT ()
-
-stripTicks :: Expr -> Expr
-stripTicks (Tick _ e) = e
-stripTicks e = e
-
--- shortcut:  don't invoke Z3 if there are no path conds
-applySolver :: S.Solver solver =>
-               solver ->
-               PathConds ->
-               StateET ->
-               StateET ->
-               IO (S.Result () ())
-applySolver solver extraPC s1 s2 =
-    let unionEnv = E.union (expr_env s1) (expr_env s2)
-        rightPC = P.toList $ path_conds s2
-        unionPC = foldr P.insert (path_conds s1) rightPC
-        allPC = foldr P.insert unionPC (P.toList extraPC)
-        -- TODO what if I use extraPC here instead of allPC?
-        newState = s1 { expr_env = unionEnv, path_conds = extraPC }
-    in case (P.toList allPC) of
-      [] -> return $ S.SAT ()
-      _ -> trace ("APPLY SOLVER " ++ (show $ folder_name $ track s1)) $
-           trace (show $ P.number $ path_conds s1) $
-           trace (show $ folder_name $ track s2) $
-           trace (show $ P.number $ path_conds s2) $
-           S.check solver newState allPC
-
-obligationWrap :: HS.HashSet (Expr, Expr) -> Maybe PathCond
-obligationWrap obligations =
-    let obligation_list = HS.toList obligations
-        eq_list = map (\(e1, e2) -> App (App (Prim Eq TyUnknown) e1) e2) obligation_list
-        conj = foldr1 (\o1 o2 -> App (App (Prim And TyUnknown) o1) o2) eq_list
-    in
-    if null eq_list
-    then Nothing
-    else Just $ ExtCond (App (Prim Not TyUnknown) conj) True
-
 includedName :: [DT.Text] -> Name -> Bool
 includedName texts (Name t _ _ _) = t `elem` texts
 
@@ -854,7 +799,7 @@ checkRule config init_state bindings total finite rule = do
              bindings'' config "" 0
   -- UNSAT for good, SAT for bad
   -- TODO how to display?
-  putStrLn $ show $ length w
+  mapM (putStrLn . summarize) w
   return res
 
 -- inner scrutinees on the left side
