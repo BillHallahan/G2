@@ -37,8 +37,6 @@ import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import qualified Data.Text as T
 
-import Debug.Trace
-
 data Clean = Cleaned | Dirty deriving Eq
 
 mkIdHaskell :: PrettyGuide -> Id -> String
@@ -130,7 +128,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
         mkExprHaskell'' off (App e1 ea@(App _ _)) = mkExprHaskell'' off e1 ++ " (" ++ mkExprHaskell'' off ea ++ ")"
         mkExprHaskell'' off (App e1 e2) = mkExprHaskell'' off e1 ++ " " ++ mkExprHaskell'' off e2
         mkExprHaskell'' _ (Data d) = mkDataConHaskell pg d
-        mkExprHaskell'' off (Case e bndr@(Id bndr_name _) ae) =
+        mkExprHaskell'' off (Case e bndr ae) =
                "case " ++ parenWrap e (mkExprHaskell'' off e) ++ " of\n" 
             ++ intercalate "\n" (map (mkAltHaskell (off + 2) cleaned pg bndr) ae)
         mkExprHaskell'' _ (Type t) = "@" ++ mkTypeHaskellPG pg t
@@ -138,7 +136,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
         mkExprHaskell'' off (Let binds e) =
             let
                 binds' = intercalate (offset off ++ "\n")
-                       $ map (\(i, e) -> mkIdHaskell pg i ++ " = " ++ mkExprHaskell'' off e) binds 
+                       $ map (\(i, be) -> mkIdHaskell pg i ++ " = " ++ mkExprHaskell'' off be) binds 
             in
             "let " ++ binds' ++ " in " ++ mkExprHaskell'' off e
         -- TODO
@@ -152,11 +150,11 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
         parenWrap _ s = s
 
 mkAltHaskell :: Int -> Clean -> PrettyGuide -> Id -> Alt -> String
-mkAltHaskell off cleaned pg bndr@(Id bndr_name _) (Alt am e) =
+mkAltHaskell off cleaned pg i_bndr@(Id bndr_name _) (Alt am e) =
     let
         needs_bndr = bndr_name `elem` names e
     in
-    offset off ++ mkAltMatchHaskell (if needs_bndr then Just bndr else Nothing) am ++ " -> " ++ mkExprHaskell' off cleaned pg e
+    offset off ++ mkAltMatchHaskell (if needs_bndr then Just i_bndr else Nothing) am ++ " -> " ++ mkExprHaskell' off cleaned pg e
     where
         mkAltMatchHaskell :: Maybe Id -> AltMatch -> String
         mkAltMatchHaskell m_bndr (DataAlt dc@(DataCon n _) [id1, id2]) | isInfixableName n =
@@ -428,6 +426,12 @@ ppPathCond s (ExtCond e b) =
         es = mkUnsugaredExprHaskell s e
     in
     if b then es else "not (" ++ es ++ ")"
+ppPathCond s (AssumePC i l h_pc) =
+    let
+        pc = map PC.unhashedPC $ HS.toList h_pc
+    in
+    mkIdHaskell (mkPrettyGuide ()) i ++ " = " ++ show l
+        ++ "=> (" ++ intercalate "\nand " (map (ppPathCond s) pc) ++ ")"
 
 injNewLine :: [String] -> String
 injNewLine strs = intercalate "\n" strs

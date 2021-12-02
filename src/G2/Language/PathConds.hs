@@ -48,7 +48,6 @@ module G2.Language.PathConds ( PathConds
 import qualified G2.Data.UFMap as UF
 import G2.Language.AST
 import G2.Language.Ids
-import qualified G2.Language.KnownValues as KV
 import G2.Language.Naming
 import G2.Language.Syntax
 
@@ -60,16 +59,11 @@ import Data.Hashable
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
-import qualified Data.Map as M
-import Data.Map.Merge.Lazy
 import Data.Maybe
 import Data.Monoid (Monoid (..))
 import Prelude hiding (map, filter, null)
 import qualified Prelude as P (map)
 import Data.Semigroup (Semigroup (..))
-import qualified Data.Sequence as Seq
-
-import Debug.Trace
 
 -- | Conceptually, the path constraints are a graph, with (Maybe Name)'s Nodes.
 -- Edges exist between any names that are in the same path constraint.
@@ -89,13 +83,7 @@ instance Semigroup PCGroup where
 
 instance Monoid PCGroup where
     mempty = PCGroup HS.empty HS.empty
-
-mapPCGroup :: (HashedPathCond -> HashedPathCond) -> PCGroup -> PCGroup
-mapPCGroup f pcg =
-    let
-        pcs' = HS.map f (pcs pcg)
-    in
-    PCGroup { pcs_contains = HS.fromList (concatMap (varIdsInPC . unhashedPC) pcs'), pcs = pcs' }
+    mappend = (<>)
 
 mapMaybePCGroup :: (HashedPathCond -> Maybe HashedPathCond) -> PCGroup -> PCGroup
 mapMaybePCGroup f pcg =
@@ -151,9 +139,6 @@ fromList = coerce . foldr insert empty
 fromHashedList :: [HashedPathCond] -> PathConds
 fromHashedList = coerce . foldr insertHashed empty
 
-fromHashedHashSet :: HS.HashSet HashedPathCond -> PathConds
-fromHashedHashSet = coerce . foldr insertHashed empty
-
 map :: (PathCond -> PathCond) -> PathConds -> PathConds
 map f = fromList . L.map f . toList
 
@@ -177,10 +162,6 @@ alterHashed f = fromUFMap . UF.map (mapMaybePCGroup f) . toUFMap
 unionAlterHashed :: (HashedPathCond -> HS.HashSet HashedPathCond) -> PathConds -> PathConds
 unionAlterHashed f = fromUFMap . UF.map (unionMapMaybePCGroup f) . toUFMap
 
--- alterHashed, but reforms the UnionFind to ensure that no PathCond are unnecessarily linked 
-alterHashed' :: (HashedPathCond -> Maybe HashedPathCond) -> PathConds -> PathConds
-alterHashed' f = fromHashedList . mapMaybe f . toHashedList
-
 -- Each name n maps to all other names that are in any PathCond containing n
 -- However, each n does NOT neccessarily map to all PCs containing n- instead each
 -- PC is associated with only one name.
@@ -191,16 +172,16 @@ insert :: PathCond -> PathConds -> PathConds
 insert pc = insertHashed (hashedPC pc)
 
 insertHashed :: HashedPathCond -> PathConds -> PathConds
-insertHashed pc (PathConds pcs) =
+insertHashed pc (PathConds pcc) =
     let
         var_ids = varIdsInPC (unhashedPC pc)
         sing_pc = PCGroup (HS.fromList var_ids) (HS.singleton pc)
     in
     case var_ids of
-        [] -> PathConds $ UF.insertWith (<>) Nothing sing_pc pcs
+        [] -> PathConds $ UF.insertWith (<>) Nothing sing_pc pcc
         vs@(v:_) ->
             let
-                ins_pcs = UF.insertWith (<>) (Just (idName v)) sing_pc pcs
+                ins_pcs = UF.insertWith (<>) (Just (idName v)) sing_pc pcc
             in
             PathConds $ UF.joinAll (<>) (P.map (Just . idName) vs) ins_pcs
 
@@ -242,11 +223,11 @@ allIds (PathConds pc) = HS.unions . P.map pcs_contains $ UF.elems pc
 
 -- {-# INLINE scc #-}
 scc :: [Name] -> PathConds -> PathConds
-scc ns (PathConds pcs) =
+scc ns (PathConds pcc) =
     let
-        ns' = P.map (flip UF.lookupRep pcs . Just) ns
+        ns' = P.map (flip UF.lookupRep pcc . Just) ns
     in
-    PathConds $ UF.filterWithKey (\k _ -> k `L.elem` ns') pcs
+    PathConds $ UF.filterWithKey (\k _ -> k `L.elem` ns') pcc
 
 {-# INLINE toList #-}
 toList :: PathConds -> [PathCond]
@@ -351,23 +332,23 @@ instance Named PathConds where
 
     names = names . UF.toList . toUFMap
 
-    rename old new (PathConds pcs) =
+    rename old new (PathConds pcc) =
         let
-            pcs' = UF.join (<>) (Just old) (Just new) pcs
+            pcc' = UF.join (<>) (Just old) (Just new) pcc
         in
-        case UF.lookup (Just old) pcs' of
-            Just pc -> PathConds $ UF.insert (Just new) (rename old new pc) pcs'
-            Nothing -> PathConds pcs'
+        case UF.lookup (Just old) pcc' of
+            Just pc -> PathConds $ UF.insert (Just new) (rename old new pc) pcc'
+            Nothing -> PathConds pcc'
 
-    renames hm (PathConds pcs) =
+    renames hm (PathConds pcc) =
         let
-            rep_ns = L.foldr (\k -> HS.insert (UF.find (Just k) pcs)) HS.empty $ HM.keys hm
-            pcs' = L.foldr (\(k1, k2) -> UF.join (<>) (Just k1) (Just k2)) pcs $ HM.toList hm
+            rep_ns = L.foldr (\k -> HS.insert (UF.find (Just k) pcc)) HS.empty $ HM.keys hm
+            pcc' = L.foldr (\(k1, k2) -> UF.join (<>) (Just k1) (Just k2)) pcc $ HM.toList hm
         in
         PathConds $ L.foldr (\k pcs_ -> 
                                 case UF.lookup k pcs_ of
                                     Just pc -> UF.insert k (renames hm pc) pcs_
-                                    Nothing -> pcs_) pcs' rep_ns
+                                    Nothing -> pcs_) pcc' rep_ns
 
 instance ASTContainer PCGroup Expr where
     containedASTs = containedASTs . pcs

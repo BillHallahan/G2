@@ -25,13 +25,10 @@ module G2.Solver.Converters
     , constraintsToModelOrUnsatCore
     , SMTConverter (..) ) where
 
-import Data.List
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
-import Data.Maybe
 import Data.Monoid
-import qualified Data.Set as S
 import qualified Data.Text as T
 
 import G2.Language hiding (Assert, vars)

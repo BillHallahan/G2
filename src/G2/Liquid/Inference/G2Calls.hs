@@ -131,7 +131,7 @@ gatherAllowedCalls entry m lrs ghci infconfig config = do
 
     (bindings''', red_calls) <- mapAccumM 
                                 (\b (fs, fc) -> do
-                                    (_, b', rfc) <- reduceFuncCall (sharing config') 
+                                    (_, b', rfc) <- reduceFuncCall
                                                                        fc_red
                                                                        solver
                                                                        simplifier
@@ -206,7 +206,7 @@ runLHInferenceAll :: MonadIO m
                   -> m (([ExecRes AbstractedInfo], Bindings), Id)
 runLHInferenceAll infconfig config func proj fp lhlibs = do
     -- Initialize LiquidHaskell
-    (ghci, lhconfig) <- liftIO $ getGHCI infconfig config proj fp lhlibs
+    (ghci, lhconfig) <- liftIO $ getGHCI infconfig proj fp lhlibs
 
     let g2config = config { mode = Liquid
                           , steps = 2000 }

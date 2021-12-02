@@ -33,8 +33,6 @@ import qualified Data.HashSet as S
 import qualified Data.Map.Lazy as M
 import qualified Data.Text as T
 
-import Debug.Trace
-
 -- | The bag and instantiation functions rely on each other, so we have to make them together
 createBagAndInstFuncs :: [Name] -- ^ Which types do we need bag functions for?
                       -> [Name] -- ^ Which types do we need instantiation functions for?
@@ -175,8 +173,7 @@ extractTyVarCall func_names is_fs i e
         nds' <- mapM (extractTyVarCall func_names is_fs i) nds
         return (concat nds')
     | TyFun _ _ <- t = do
-        let is_ars = leadingTyForAllBindings $ PresType t
-            ars_ty = anonArgumentTypes $ PresType t
+        let ars_ty = anonArgumentTypes $ PresType t
             tvs = tyVarIds . returnType $ PresType t
 
         inst_funcs <- getInstFuncs
@@ -235,8 +232,7 @@ createInstFunc func_names tn adt
     | otherwise = error "createInstFunc: type not found"
 
 createInstFunc' :: InstFuncs -> [(Id, Id)] -> AlgDataTy -> LHStateM Expr
-createInstFunc' func_names is_fs (DataTyCon { bound_ids = bi
-                                            , data_cons = dcs }) = do
+createInstFunc' func_names is_fs (DataTyCon { data_cons = dcs }) = do
     dc' <- mapM (\dc -> do
             let apped_dc = mkApp (Data dc:map (Type . TyVar . fst) is_fs)
                 ars_ty = anonArgumentTypes dc
@@ -251,7 +247,7 @@ createInstFunc' func_names is_fs (DataTyCon { bound_ids = bi
             e' <- foldM wrapPrimsInCase e vrs
             return $ Let (zip bnds ars) e') dcs
     return (NonDet dc')
-createInstFunc' func_names is_fs (NewTyCon { rep_type = rt }) = do
+createInstFunc' _ _ (NewTyCon { rep_type = _ }) = do
     -- rt_val <- instTyVarCall' func_names is_fs rt
     return $ Cast undefined undefined
 createInstFunc' _ _ _ = error "createInstFunc': unhandled datatype"
@@ -402,8 +398,7 @@ instance Reducer ExistentialInstRed () t where
                 s' = s { curr_expr = CurrExpr Return (Var i) }
             in
             return (InProgress, [(s', rv)], b, r)
-    redRules r rv s@(State { expr_env = eenv
-                           , curr_expr = CurrExpr Return e
+    redRules r rv s@(State { curr_expr = CurrExpr Return e
                            , exec_stack = stck }) b
 
         | Just (AssumeFrame _, stck') <- Stck.pop stck

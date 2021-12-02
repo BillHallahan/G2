@@ -20,8 +20,6 @@ module G2.Liquid.Inference.Sygus.LiaSynth ( SynthRes (..)
 import G2.Data.Utils
 import G2.Language as G2
 import qualified G2.Language.ExprEnv as E
-import G2.Liquid.Conversion
-import G2.Liquid.Helpers
 import G2.Liquid.Interface
 import G2.Liquid.Types
 import G2.Liquid.Inference.Config
@@ -34,7 +32,6 @@ import G2.Liquid.Inference.Sygus.SpecInfo
 
 import G2.Solver as Solver
 
-import Control.Monad
 import Control.Monad.IO.Class 
 
 import Language.Haskell.Liquid.Types as LH hiding (SP, ms, isBool)
@@ -42,7 +39,6 @@ import Language.Fixpoint.Types.Refinements as LH hiding (pAnd, pOr)
 import qualified Language.Fixpoint.Types as LH
 import qualified Language.Fixpoint.Types as LHF
 
-import Data.Coerce
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.List as L

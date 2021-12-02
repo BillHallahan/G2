@@ -49,7 +49,7 @@ main = do
                     printLHOut entry in_out
                     return ()
                 (_, Just _) -> do
-                    (ghci, lhconfig) <- getGHCI infconfig config [] [f] []
+                    (ghci, lhconfig) <- getGHCI infconfig [] [f] []
                     let c = Configs { g2_config = config, lh_config = lhconfig, inf_config = infconfig}
                     r <- runConfigs (tryToVerify ghci) c
                     print r
@@ -96,7 +96,7 @@ callInference f infconfig config = do
 
 checkFuncNums :: String -> InferenceConfig -> G2.Config -> IO ()
 checkFuncNums f infconfig config = do
-    (ghci, lhconfig) <- getGHCI infconfig config [] [f] []
+    (ghci, lhconfig) <- getGHCI infconfig [] [f] []
     (lrs, _, _, main_mod)  <- getInitState [] [f] [] ghci infconfig config
     let nls = getNameLevels main_mod lrs
 

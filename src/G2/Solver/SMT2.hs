@@ -23,7 +23,6 @@ import G2.Solver.Solver
 import G2.Solver.Converters --It would be nice to not import this...
 
 import Control.Exception.Base (evaluate)
-import Data.List
 import Data.List.Utils (countElem)
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
@@ -491,7 +490,7 @@ getModelZ3 h_in h_out ns = do
 getUnsatCoreZ3 :: Handle -> Handle -> IO [SMTName]
 getUnsatCoreZ3 h_in h_out = do
     hPutStr h_in "(get-unsat-core)\n"
-    r <- hWaitForInput h_out (-1)
+    _ <- hWaitForInput h_out (-1)
     out <- hGetLine h_out 
     putStrLn $ "unsat-core = " ++ out
     let out' = tail . init $ out -- drop opening and closing parens

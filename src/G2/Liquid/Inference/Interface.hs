@@ -25,7 +25,6 @@ import G2.Liquid.Inference.InfStack
 import G2.Liquid.Inference.Initalization
 import G2.Liquid.Inference.PolyRef
 import G2.Liquid.Inference.Sygus
-import G2.Liquid.Inference.Sygus.Sygus
 import G2.Liquid.Inference.GeneratedSpecs
 import G2.Liquid.Inference.Verify
 import G2.Liquid.Interface
@@ -50,7 +49,7 @@ import qualified Data.Text as T
 -- Assuming inference is working correctly, this check should neve fail.
 inferenceCheck :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO (Either [CounterExample] GeneratedSpecs)
 inferenceCheck infconfig config proj fp lhlibs = do
-    (ghci, lhconfig) <- getGHCI infconfig config proj fp lhlibs
+    (ghci, lhconfig) <- getGHCI infconfig proj fp lhlibs
     (res, _, loops) <- inference' infconfig config lhconfig ghci proj fp lhlibs
     print $ loop_count loops
     print . sum . HM.elems $ loop_count loops
@@ -67,7 +66,7 @@ inferenceCheck infconfig config proj fp lhlibs = do
 inference :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO (Either [CounterExample] GeneratedSpecs)
 inference infconfig config proj fp lhlibs = do
     -- Initialize LiquidHaskell
-    (ghci, lhconfig) <- getGHCI infconfig config proj fp lhlibs
+    (ghci, lhconfig) <- getGHCI infconfig proj fp lhlibs
     (res, timer, _) <- inference' infconfig config lhconfig ghci proj fp lhlibs
     print . logToSecs . sumLog . getLog $ timer
     return res
@@ -152,12 +151,12 @@ iterativeInference con ghci m_modname lrs nls meas_ex gs fc = do
     case res of
         CEx cex -> return $ Left cex
         Env n_gs _ _ _ -> return $ Right n_gs
-        Raise r_meas_ex r_fc _ -> do
+        Raise _ r_fc _ -> do
             incrMaxDepthI
             -- We might be missing some internal GHC types from our deep_seq walkers
             -- We filter them out to avoid an error
             let eenv = expr_env . G2LH.state $ lr_state lrs
-                check = filter (\n -> 
+                chck = filter (\n -> 
                                   case E.lookup n eenv of
                                       Just e -> isJust $ 
                                               mkStrict_maybe 
@@ -165,10 +164,10 @@ iterativeInference con ghci m_modname lrs nls meas_ex gs fc = do
                                               (Var (Id (Name "" Nothing 0 Nothing) (returnType e)))
                                       Nothing -> False) (head nls)
             liftIO . putStrLn $ "head nls =  " ++ show (head nls)
-            liftIO . putStrLn $ "iterativeInference check =  " ++ show check
+            liftIO . putStrLn $ "iterativeInference check =  " ++ show chck
 
             logEventStartM CExSE
-            ref <- getCEx ghci m_modname lrs gs check
+            ref <- getCEx ghci m_modname lrs gs chck
             logEventEndM
             case ref of
                 Left cex -> return $ Left cex
@@ -199,7 +198,7 @@ inferenceL con ghci m_modname lrs nls evals meas_ex senv fc max_fc blk_mdls = do
                         ([fs_])-> (fs_, [], [])
                         [] -> ([], [], [])
 
-    startLevelTimer (case nls of fs:_ -> fs; [] -> [])
+    startLevelTimer (case nls of fs_:_ -> fs_; [] -> [])
     (resAtL, evals') <- inferenceB con ghci m_modname lrs nls evals meas_ex senv fc max_fc blk_mdls
     endLevelTimer
 
@@ -275,7 +274,7 @@ inferenceB con ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls = do
             case res' of
                 Safe -> return $ (Env gs' fc max_fc meas_ex, evals')
                 Unsafe bad -> do
-                    inf_config <- infConfigM
+                    inf_con <- infConfigM
                     ref <- tryToGen (nub bad) ((emptyFC, emptyBlockedModels), emptyFC)
                               (\(fc1, bm1) (fc2, bm2) -> (fc1 `unionFC` fc2, bm1 `unionBlockedModels` bm2))
                               unionFC
@@ -283,8 +282,8 @@ inferenceB con ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls = do
                                     logEventStartM (InfSE n)
                                     return $ Right (Nothing, emptyFC))
                               , refineUnsafe ghci m_modname lrs gs'
-                              , if use_level_dec inf_config then searchBelowLevel ghci m_modname lrs res sf gs' else genEmp
-                              , if use_negated_models inf_config then adjModel lrs sz smt_mdl else incrCExAndTime ]
+                              , if use_level_dec inf_con then searchBelowLevel ghci m_modname lrs res sf gs' else genEmp
+                              , if use_negated_models inf_con then adjModel lrs sz smt_mdl else incrCExAndTime ]
                               logEventEndM
 
                     case ref of
@@ -483,7 +482,7 @@ genNewConstraints ghci m lrs n = do
     let (exec_res', no_viol) = partition (true_assert . final_state) exec_res
         
         allCCons = noAbsStatesToCons i $ exec_res' ++ if use_extra_fcs infconfig then no_viol else []
-    return $ (map (lhStateToCE i) exec_res', allCCons)
+    return $ (map lhStateToCE exec_res', allCCons)
 
 getCEx :: MonadIO m =>
           [GhcInfo]
@@ -525,9 +524,9 @@ checkForCEx :: MonadIO m =>
             -> InfStack m [CounterExample]
 checkForCEx ghci m lrs n = do
     liftIO . putStrLn $ "Checking CEx for " ++ T.unpack n
-    ((exec_res, _), i) <- runLHCExSearch n m lrs ghci
+    ((exec_res, _), _) <- runLHCExSearch n m lrs ghci
     let exec_res' = filter (true_assert . final_state) exec_res
-    return $ map (lhStateToCE i) exec_res'
+    return $ map lhStateToCE exec_res'
 
 checkNewConstraints :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> [CounterExample] -> m (Either [CounterExample] FuncConstraints)
 checkNewConstraints ghci lrs cexs = do

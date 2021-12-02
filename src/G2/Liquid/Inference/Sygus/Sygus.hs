@@ -4,7 +4,6 @@
 module G2.Liquid.Inference.Sygus.Sygus where
 
 import G2.Language as G2
-import G2.Liquid.Helpers
 import G2.Liquid.Interface
 import G2.Liquid.Types
 import G2.Liquid.Inference.Config
@@ -31,9 +30,6 @@ import Data.Ratio
 import qualified Data.Text as T
 
 import Language.Haskell.Liquid.Types as LH hiding (SP, ms, isBool)
-import Language.Fixpoint.Types.Refinements as LH hiding (pAnd, pOr)
-import qualified Language.Fixpoint.Types as LH
-import qualified Language.Fixpoint.Types as LHF
 
 generateSygusProblem :: (InfConfigM m, ProgresserM m, MonadIO m) =>
                         [GhcInfo]
@@ -415,5 +411,5 @@ containsSymbolBfTerm _ (BfLiteral _) = False
 
 containsSymbolIdent :: Symbol -> Identifier -> Bool
 containsSymbolIdent symb (ISymb symb') = symb == symb'
-containsSymbolIdent symb _ = False
+containsSymbolIdent _ _ = False
 

@@ -62,7 +62,6 @@ import Prelude hiding( filter
                      , mapM
                      , null)
 import qualified Prelude as Pre
-import Control.Monad hiding (mapM)
 import Data.Coerce
 import Data.Data (Data, Typeable)
 import qualified Data.List as L

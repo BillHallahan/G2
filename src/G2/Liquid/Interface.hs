@@ -44,7 +44,6 @@ import qualified G2.Language.ExprEnv as E
 import G2.Execution
 
 import G2.Initialization.MkCurrExpr
-import qualified G2.Initialization.Types as T (expr_env)
 
 import G2.Liquid.AddCFBranch
 import G2.Liquid.AddLHTC
@@ -83,12 +82,7 @@ import qualified Data.Text.IO as TI
 
 import Var
 
-import G2.Language.KnownValues
-
-import Debug.Trace
 import G2.Language.Monad
-
-import Data.Maybe
 
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
@@ -126,7 +120,6 @@ runLHCore entry (mb_modname, exg2) ghci config = do
                , ls_bindings = bindings
                , ls_id = ifi
                , ls_counterfactual_name = cfn
-               , ls_counterfactual_funcs = fs
                , ls_memconfig = pres_names } <- liquidStateWithCall entry (mb_modname, exg2) ghci config mempty
 
     SomeSolver solver <- initSolver config
@@ -257,7 +250,7 @@ fromLiquidNoCleaning init_state ifi bindings ghci ph_tyvars config memconfig = d
     processLiquidReadyState lrs ifi ghci config memconfig
 
 createLiquidReadyState :: State () -> Bindings -> [GhcInfo] -> Maybe PhantomTyVars -> Config -> LiquidReadyState
-createLiquidReadyState s@(State {expr_env = eenv}) bindings ghci ph_tyvars config =
+createLiquidReadyState s bindings ghci ph_tyvars config =
     let
         np_ng = name_gen bindings
 
@@ -285,10 +278,7 @@ processLiquidReadyStateCleaning lrs ifi ghci config memconfig =
 
 processLiquidReadyState :: LiquidReadyState -> Lang.Id -> [GhcInfo] -> Config -> MemConfig -> IO LiquidData
 processLiquidReadyState lrs@(LiquidReadyState { lr_state = lh_state
-                                              , lr_binding = lh_bindings
-                                              , lr_known_values = mkv
-                                              , lr_type_classes = mtc
-                                              , lr_higher_ord_insts = minst}) ifi ghci config memconfig = do
+                                              , lr_binding = lh_bindings }) ifi ghci config memconfig = do
     let ((cfn, mc, cff), (merged_state, bindings')) = runLHStateM (initializeLHSpecs (counterfactual config) ghci ifi lh_bindings) lh_state lh_bindings
         lrs' = lrs { lr_state = merged_state, lr_binding = bindings'}
 
@@ -516,11 +506,9 @@ initializeLHData ghcInfos m_ph_tyvars config = do
 -- of all functions with counterfactual branches
 initializeLHSpecs :: Counterfactual -> [GhcInfo] -> Lang.Id -> Bindings -> LHStateM (Lang.Name, Lang.Id, S.HashSet Lang.Name)
 initializeLHSpecs counter ghcInfos ifi bindings = do
-    (CurrExpr er ce) <- currExpr
     let specs = funcSpecs ghcInfos
     mergeLHSpecState specs
 
-    (CurrExpr er ce') <- currExpr
     addSpecialAsserts
     addTrueAsserts (idName ifi)
 
@@ -687,10 +675,8 @@ funcCallToFuncInfo t (FuncCall { funcName = f, arguments = inArg, returns = ret 
     in
     FuncInfo {func = nameOcc f, funcArgs = funcCall, funcReturn = funcOut}
 
-lhStateToCE :: Lang.Id -> ExecRes AbstractedInfo -> CounterExample
-lhStateToCE i (ExecRes { final_state = s@State { track = t }
-                       , conc_args = inArg
-                       , conc_out = ex})
+lhStateToCE :: ExecRes AbstractedInfo -> CounterExample
+lhStateToCE (ExecRes { final_state = State { track = t } })
     | Nothing <- abs_violated t = DirectCounter (init_call t) (abs_calls t)
     | Just c <-  abs_violated t = CallsCounter (init_call t) c (abs_calls t)
 

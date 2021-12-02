@@ -20,6 +20,8 @@ module G2.Language.Monad.Support ( StateT
                                  , runNamingT
                                  , runExprEnvM
                                  , runStateMInNamingM
+                                 , runStateNG
+                                 , execStateNG
                                  , readRecord
                                  , withNG
                                  , mapCurrExpr
@@ -27,7 +29,6 @@ module G2.Language.Monad.Support ( StateT
                                  , insertPCStateNG
                                  , mapMAccumB ) where
 
-import Control.Monad
 import Control.Monad.Identity
 import qualified Control.Monad.State.Lazy as SM
 
@@ -36,9 +37,6 @@ import qualified G2.Language.PathConds as PC
 import G2.Language.Syntax
 import G2.Language.Support
 import G2.Language.TypeClasses
-
-import qualified Data.HashSet as HS
-import qualified Data.List as L
 
 -- | A wrapper for `State`, allowing it to be used as a monadic context.
 type StateT t m a = SM.StateT (State t, Bindings) m a

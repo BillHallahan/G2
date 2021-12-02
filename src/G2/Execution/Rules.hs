@@ -26,7 +26,6 @@ import G2.Execution.RuleTypes
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.KnownValues as KV
-import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as S
 import G2.Preprocessing.NameCleaner
 import G2.Solver hiding (Assert)
@@ -38,11 +37,9 @@ import qualified Data.List as L
 
 import Control.Exception
 
-import Debug.Trace
-
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
-stdReduce sharing solver simplifier s b@(Bindings {name_gen = ng}) = do
-    (r, s', ng') <- stdReduce' sharing solver simplifier s ng
+stdReduce share solver simplifier s b@(Bindings {name_gen = ng}) = do
+    (r, s', ng') <- stdReduce' share solver simplifier s ng
     let s'' = map (\ss -> ss { rules = r:rules ss }) s'
     return (r, zip s'' (repeat ()), b { name_gen = ng'})
 
@@ -596,12 +593,12 @@ defAltExpr (_:xs) = defAltExpr xs
 
 -- | Creates and applies new symbolic variables for arguments of Data Constructor
 concretizeSym :: [(Id, Type)] -> Maybe Coercion -> (State t, NameGen) -> DataCon -> ((State t, NameGen), Expr)
-concretizeSym bi maybeC (s, ng) dc@(DataCon n ts) =
+concretizeSym bi maybeC (s, ng) dc@(DataCon _ ts) =
     let dc' = Data dc
         ts' = anonArgumentTypes $ PresType ts
         ts'' = foldr (\(i, t) e -> retype i t e) ts' bi
         (ns, ng') = freshNames (length ts'') ng
-        newParams = map (\(n', t) -> Id n' t) (zip ns ts'')
+        newParams = map (\(n, t) -> Id n t) (zip ns ts'')
         ts2 = map snd bi
         dc'' = mkApp $ dc' : (map Type ts2) ++ (map Var newParams)
         dc''' = case maybeC of
@@ -634,7 +631,7 @@ evalCast :: State t -> NameGen -> Expr -> Coercion -> (Rule, [State t], NameGen)
 evalCast s@(State { expr_env = eenv
                   , exec_stack = stck }) 
          ng e c@(t1 :~ t2)
-    | Var init_i@(Id n _) <- e
+    | Var (Id n _) <- e
     , E.isSymbolic n eenv
     , hasFuncType (PresType t2) && not (hasFuncType $ PresType t1) =
         let
@@ -645,7 +642,9 @@ evalCast s@(State { expr_env = eenv
         , [s { expr_env = E.insertSymbolic i $ E.insert n new_e eenv
              , curr_expr = CurrExpr Return (Var i) }]
         , ng')
-    | cast /= cast' =
+    | cast <- Cast e c
+    , (cast', ng') <- splitCast ng cast
+    , cast /= cast' =
         ( RuleEvalCastSplit
         , [ s { curr_expr = CurrExpr Evaluate $ simplifyCasts cast' }]
         , ng')
@@ -655,8 +654,7 @@ evalCast s@(State { expr_env = eenv
              , exec_stack = S.push frame stck}]
         , ng)
     where
-        cast = Cast e c
-        (cast', ng') = splitCast ng cast
+        
         frame = CastFrame c
 
 evalTick :: State t -> NameGen -> Tickish -> Expr -> (Rule, [State t], NameGen)
@@ -752,7 +750,7 @@ retCurrExpr s e1 AddPC e2 stck =
                          , exec_stack = stck}
              , new_pcs = [ExtCond e1 True]
              , concretized = []}] )
-retCurrExpr s e1 NoAction e2 stck = 
+retCurrExpr s _ NoAction e2 stck = 
     ( RuleReturnCurrExprFr
     , [NewPC { state = s { curr_expr = e2
                          , exec_stack = stck}
@@ -934,12 +932,7 @@ retReplaceSymbFunc s@(State { expr_env = eenv
                , curr_expr = CurrExpr Return (Var new_sym_id)
                , non_red_path_conds = non_red_path_conds s ++ [nrpc_e] }]
             , ng')
-    | otherwise = 
-      let
-        t = typeOf ce
-      in
-      -- trace ("eq_tc = " ++ show (concreteSatStructEq kv tc t))
-      Nothing
+    | otherwise = Nothing
 
 isApplyFrame :: Frame -> Bool
 isApplyFrame (ApplyFrame _) = True

@@ -19,8 +19,6 @@ import G2.Liquid.TyVarBags
 import qualified Data.HashSet as S
 import Data.List
 
-import Debug.Trace
-
 type CounterfactualName = Name
 
 -- Enables finding abstract counterexamples, by adding counterfactual branches
@@ -100,8 +98,8 @@ cfRetValue ars rt
 
         dUnit <- mkUnitE
 
-        inst_funcs <- getInstFuncs
-        inst_ret <- instTyVarCall inst_funcs ex_tvs_to_vrs rt
+        insts_f <- getInstFuncs
+        inst_ret <- instTyVarCall insts_f ex_tvs_to_vrs rt
         let inst_ret_call = App inst_ret dUnit
         ir_bndr <- freshIdN (typeOf inst_ret_call)
         

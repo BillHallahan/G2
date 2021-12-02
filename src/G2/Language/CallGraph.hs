@@ -12,10 +12,7 @@ import G2.Language.Syntax
 
 import Data.Graph hiding (reachable)
 import qualified Data.Graph as G
-import qualified Data.HashMap.Lazy as M
 import Data.Maybe
-
-import Debug.Trace
 
 data CallGraph = CallGraph { graph :: Graph
                            , nfv :: Vertex -> ((), Name, [Name])
@@ -29,9 +26,9 @@ getCallGraph eenv =
         (g, nfv', vert') = graphFromEdges
             . map (\(n, e) -> 
                         let
-                            calls = filter (\n -> n `elem` funcs) . map idName $ varIds e
+                            clls = filter (\n' -> n' `elem` funcs) . map idName $ varIds e
                         in
-                        ((), n, calls)) $ E.toList eenv
+                        ((), n, clls)) $ E.toList eenv
     in
     CallGraph g nfv' vert'
 
@@ -87,22 +84,3 @@ nameLevels' callers eds =
 
 removeEdgesTo :: [Name] -> [(Name, Name)] -> [(Name, Name)]
 removeEdgesTo ns = filter (\(_, n2) -> n2 `notElem` ns)
-
--- nameLevels :: [Name] -> CallGraph -> [[Name]]
--- nameLevels start (CallGraph { graph = g, nfv = f, vert = v }) =
---     nameLevels' . map (mapTree (f'. f)) $ dfs g (mapMaybe v start)
---     where
---         f' (_, n, _) = n
-
--- nameLevels' :: Forest Name -> [[Name]]
--- nameLevels' [] = []
--- nameLevels' frst = map nodeName frst:nameLevels' (concatMap nodeNested frst)
---     where
---         nodeName (Node n _) = n
---         nodeNested (Node _ ns) = ns
-
-------------------------------------------
--- Helper functions
-
-mapTree :: (a -> b) -> Tree a -> Tree b
-mapTree f (Node x xs) = Node (f x) $ map (mapTree f) xs

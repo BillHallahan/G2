@@ -449,7 +449,7 @@ insertTyVarBags n is = do
 
 lookupTyVarBags :: L.Name -> LHStateM (Maybe [L.Id])
 lookupTyVarBags n = do
-    (lh_s, b) <- SM.get
+    (lh_s, _) <- SM.get
     return $ M.lookup n (tyvar_bags lh_s)
 
 setTyVarBags :: TyVarBags -> LHStateM ()
@@ -468,7 +468,7 @@ insertInstFuncs n i = do
 
 lookupInstFuncs :: L.Name -> LHStateM (Maybe L.Id)
 lookupInstFuncs n = do
-    (lh_s, b) <- SM.get
+    (lh_s, _) <- SM.get
     return $ M.lookup n (inst_funcs lh_s)
 
 setInstFuncs :: M.Map L.Name L.Id -> LHStateM ()
@@ -655,7 +655,6 @@ ratioFuncT = do
     a <- freshIdN L.TYPE
     let tva = L.TyVar a
     integral <- return . KV.integralTC =<< knownValues
-    integerT <- tyIntegerT
 
     let integral' = L.TyCon integral L.TYPE
 

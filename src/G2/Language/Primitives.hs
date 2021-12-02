@@ -37,9 +37,7 @@ module G2.Language.Primitives ( primStr
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues as KV
 import G2.Language.Syntax
-import G2.Language.Typing
 
-import Data.Foldable
 import qualified Data.Text as T
 
 primStr :: Primitive -> T.Text
@@ -61,6 +59,7 @@ primStr Div = "/"
 primStr DivInt = "/"
 primStr Quot = "quot"
 primStr Mod = "mod"
+primStr Rem = "rem"
 primStr Negate = "negate"
 primStr SqRt = "sqrt"
 primStr IntToFloat = "fromIntegral"
@@ -104,9 +103,6 @@ mkGt kv eenv = eenv E.! (gtFunc kv)
 
 mkEq :: KnownValues -> E.ExprEnv -> Expr
 mkEq kv eenv = eenv E.! (eqFunc kv)
-
-mkEq' :: KnownValues -> Expr
-mkEq' kv = Var (Id (eqFunc kv) TyBottom)
 
 mkNeq :: KnownValues -> E.ExprEnv -> Expr
 mkNeq kv eenv = eenv E.! (neqFunc kv)
