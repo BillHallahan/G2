@@ -498,7 +498,7 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
   in
   case getObligations ns s1 s2 of
     Nothing -> do
-      W.tell [NotEquivalent (s1, s2)]
+      W.tell [Marker (sh1, sh2) $ NotEquivalent (s1, s2)]
       -- obligation generation failed, so the expressions must not be equivalent
       W.liftIO $ putStrLn $ "N! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
       W.liftIO $ putStrLn $ show $ exprExtract s1
@@ -511,7 +511,7 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
     Just obs -> do
       -- TODO Writer logging
       case obs of
-        [] -> W.tell [NoObligations (s1, s2)]
+        [] -> W.tell [Marker (sh1, sh2) $ NoObligations (s1, s2)]
         _ -> return ()
       W.liftIO $ putStrLn $ "J! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
       W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s1
@@ -524,7 +524,7 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
           (obs_i, obs_c) = partition canUseInduction obs
           states_c = map (stateWrap s1 s2) obs_c
       -- TODO do I need more adjustments than what I have here?
-      discharges_e <- mapM (tryEquivalence solver ns (sh1, sh2)) states_c
+      discharges_e <- mapM (tryEquality solver ns (sh1, sh2)) states_c
       discharges_c <- mapM (tryCoinduction solver ns (sh1, sh2)) states_c
       let either_maybe (Just x, _) = Just x
           either_maybe (Nothing, y) = y
@@ -543,7 +543,7 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
           states_c' = map snd $ filter fst (zip discharges_ states_c)
 
       let states_i = map (stateWrap s1 s2) obs_i
-      states_i1 <- filterM (isNothingM . (tryEquivalence solver ns (sh1, sh2))) states_i
+      states_i1 <- filterM (isNothingM . (tryEquality solver ns (sh1, sh2))) states_i
       states_i2 <- filterM (isNothingM . (tryCoinduction solver ns (sh1, sh2))) states_i1
       -- TODO need a way to get the prev pair used for induction
       states_i' <- mapM (inductionFull solver ns fresh_name (sh1, sh2)) states_i2
@@ -568,7 +568,7 @@ tryDischarge solver ns fresh_name sh1 sh2 prev =
         S.UNSAT () -> W.liftIO $ putStrLn $ "V? " ++ show (length not_ready_h)
         _ -> do
           W.liftIO $ putStrLn "X?"
-          W.tell [SolverFail (s1, s2)]
+          W.tell [Marker (sh1, sh2) $ SolverFail (s1, s2)]
       case res of
         -- TODO discharged exprs should come from filter and solver
         S.UNSAT () -> return $ DischargeResult not_ready_h (matches ++ ready_solved) Nothing

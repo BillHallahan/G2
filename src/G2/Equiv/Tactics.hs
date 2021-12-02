@@ -4,12 +4,13 @@ module G2.Equiv.Tactics
     ( StateH (..)
     , PrevMatch (..)
     , Marker (..)
+    , ActMarker (..)
     , CoMarker (..)
     , IndMarker (..)
-    , EquivMarker (..)
+    , EqualMarker (..)
     , Side (..)
     , isSWHNF
-    , tryEquivalence
+    , tryEquality
     , moreRestrictiveEquiv
     , tryCoinduction
     , exprExtract
@@ -83,12 +84,15 @@ data PrevMatch t = PrevMatch {
 }
 
 -- TODO constructors may need to change
-data Marker = Induction IndMarker
-            | Coinduction CoMarker
-            | Equivalence EquivMarker
-            | NoObligations (StateET, StateET)
-            | NotEquivalent (StateET, StateET)
-            | SolverFail (StateET, StateET)
+-- TODO HistoryMarker wrapper outside Marker to include StateH pair
+data ActMarker = Induction IndMarker
+               | Coinduction CoMarker
+               | Equality EqualMarker
+               | NoObligations (StateET, StateET)
+               | NotEquivalent (StateET, StateET)
+               | SolverFail (StateET, StateET)
+
+data Marker = Marker (StateH, StateH) ActMarker
 
 data Side = ILeft | IRight deriving (Show)
 
@@ -113,7 +117,7 @@ data CoMarker = CoMarker {
   , co_past :: (StateET, StateET)
 }
 
-data EquivMarker = EquivMarker {
+data EqualMarker = EqualMarker {
     eq_real_present :: (StateET, StateET)
   , eq_used_present :: (StateET, StateET)
 }
@@ -123,10 +127,12 @@ reverseCoMarker :: CoMarker -> CoMarker
 reverseCoMarker (CoMarker (s1, s2) (q1, q2) (p1, p2)) =
   CoMarker (s2, s1) (q2, q1) (p2, p1)
 
+{-
 noteNoObligationsDischarge :: (StateET, StateET) -> W.WriterT [Marker] IO ()
 noteNoObligationsDischarge s_pair = do
   W.tell $ [NoObligations s_pair]
   return ()
+-}
 
 notM :: Monad m => m Bool -> m Bool
 notM = liftM not
@@ -618,18 +624,19 @@ equivFold solver ns (sh1, sh2) (s1, s2) = do
         Just (pm', p1) -> return $ Just (pm', (p1, s2))
         _ -> return Nothing
 
-tryEquivalence :: S.Solver solver =>
-                  solver ->
-                  HS.HashSet Name ->
-                  (StateH, StateH) ->
-                  (StateET, StateET) ->
-                  W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-tryEquivalence solver ns sh_pair (s1, s2) = do
+-- TODO call this equality instead of equivalence
+tryEquality :: S.Solver solver =>
+               solver ->
+               HS.HashSet Name ->
+               (StateH, StateH) ->
+               (StateET, StateET) ->
+               W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
+tryEquality solver ns sh_pair (s1, s2) = do
   res <- equivFold solver ns sh_pair (s1, s2)
   case res of
     Just (pm, (q1, q2)) -> do
       --noteEquivDischarge (s1, s2)
-      W.tell $ [Equivalence $ EquivMarker (s1, s2) (q1, q2)]
+      W.tell $ [Marker sh_pair $ Equality $ EqualMarker (s1, s2) (q1, q2)]
       return $ Just pm
     _ -> return Nothing
 
@@ -659,14 +666,13 @@ coinductionFoldL solver ns (sh1, sh2) (s1, s2) = do
       [] -> return Nothing
       p2:_ -> coinductionFoldL solver ns (sh1, backtrackOne sh2) (s1, p2)
 
--- TODO redundancy
-coinductionFold :: S.Solver solver =>
-                   solver ->
-                   HS.HashSet Name ->
-                   (StateH, StateH) ->
-                   (StateET, StateET) ->
-                   W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-coinductionFold solver ns (sh1, sh2) (s1, s2) = do
+tryCoinduction :: S.Solver solver =>
+                  solver ->
+                  HS.HashSet Name ->
+                  (StateH, StateH) ->
+                  (StateET, StateET) ->
+                  W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
+tryCoinduction solver ns (sh1, sh2) (s1, s2) = do
   res_l <- coinductionFoldL solver ns (sh1, sh2) (s1, s2)
   case res_l of
     Just pm -> do
@@ -675,7 +681,7 @@ coinductionFold solver ns (sh1, sh2) (s1, s2) = do
       , co_used_present = present pm
       , co_past = past pm
       }
-      W.tell [Coinduction cml]
+      W.tell [Marker (sh1, sh2) $ Coinduction cml]
       return res_l
     _ -> do
       res_r <- coinductionFoldL solver ns (sh2, sh1) (s2, s1)
@@ -686,20 +692,12 @@ coinductionFold solver ns (sh1, sh2) (s1, s2) = do
           , co_used_present = present pm'
           , co_past = past pm'
           }
-          W.tell [Coinduction $ reverseCoMarker cmr]
+          W.tell [Marker (sh1, sh2) $ Coinduction $ reverseCoMarker cmr]
           return res_r
         _ -> return Nothing
 
 -- TODO check past pairs, not just present; like with induction
 -- TODO apply for induction states too
--- TODO redundant functions
-tryCoinduction :: S.Solver solver =>
-                  solver ->
-                  HS.HashSet Name ->
-                  (StateH, StateH) ->
-                  (StateET, StateET) ->
-                  W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-tryCoinduction = coinductionFold
 {-
 tryCoinduction solver ns sh_pair (s1, s2) = do
   res <- moreRestrictivePair solver ns prev (s1, s2)

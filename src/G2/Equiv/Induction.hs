@@ -238,7 +238,7 @@ inductionFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
       ind_real_present = (s1, s2)
     , ind_fresh_name = fresh_name
     }
-    W.tell $ [Induction iml']
+    W.tell $ [Marker (sh1, sh2) $ Induction iml']
     return ((0, length2 - nl), s1l, s2l)
   else do
     (nr, s2r, s1r, imr) <- inductionFoldL solver ns fresh_name (sh2, sh1) (s2, s1)
@@ -248,7 +248,7 @@ inductionFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
         ind_real_present = (s2, s1)
       , ind_fresh_name = fresh_name
       }
-      W.tell $ [Induction imr']
+      W.tell $ [Marker (sh1, sh2) $ Induction imr']
       return ((length1 - nr, 0), s1r, s2r)
     else return ((-1, -1), s1, s2)
 
