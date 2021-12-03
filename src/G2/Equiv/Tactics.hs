@@ -90,8 +90,6 @@ data PrevMatch t = PrevMatch {
   , container :: State t
 }
 
--- TODO constructors may need to change
--- TODO HistoryMarker wrapper outside Marker to include StateH pair
 data ActMarker = Induction IndMarker
                | Coinduction CoMarker
                | Equality EqualMarker
@@ -124,8 +122,6 @@ instance Named Marker where
 
 data Side = ILeft | IRight deriving (Show)
 
--- TODO two-sided now
--- TODO some redundancy in this, also no full history
 data IndMarker = IndMarker {
     ind_real_present :: (StateET, StateET)
   , ind_used_present :: (StateET, StateET)
@@ -159,8 +155,6 @@ instance Named IndMarker where
     , ind_fresh_name = rename old new $ ind_fresh_name im
     }
 
--- TODO two-sided
--- TODO no present variation for coinduction currently
 data CoMarker = CoMarker {
     co_real_present :: (StateET, StateET)
   , co_used_present :: (StateET, StateET)
@@ -202,13 +196,6 @@ instance Named EqualMarker where
 reverseCoMarker :: CoMarker -> CoMarker
 reverseCoMarker (CoMarker (s1, s2) (q1, q2) (p1, p2)) =
   CoMarker (s2, s1) (q2, q1) (p2, p1)
-
-{-
-noteNoObligationsDischarge :: (StateET, StateET) -> W.WriterT [Marker] IO ()
-noteNoObligationsDischarge s_pair = do
-  W.tell $ [NoObligations s_pair]
-  return ()
--}
 
 notM :: Monad m => m Bool -> m Bool
 notM = liftM not
@@ -608,17 +595,6 @@ moreRestrictivePairAux solver ns prev (s1, s2) = do
   -- check obligations individually rather than as one big group
   res_list <- W.liftIO $ mapM (checkObligations solver s1 s2) obs_sets'
   bools' <- mapM id bools
-  {-
-  print "#####"
-  print $ folder_name $ track s1
-  print $ folder_name $ track s2
-  print "PREV"
-  print $ map (\(p1, p2, _) -> (folder_name $ track p1, folder_name $ track p2)) prev
-  print "MPAIRS"
-  print $ map isJust maybe_pairs
-  print "BOOLS"
-  print bools'
-  -}
   -- need res_list, no_loss, and bools all aligning at a point
   let all_three thr = case fst thr of
         ((S.UNSAT (), _), (True, True)) -> True

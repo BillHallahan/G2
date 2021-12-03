@@ -25,6 +25,7 @@ import G2.Equiv.Verifier
 import Control.Exception
 
 import Data.List
+import Data.Char
 
 import ZenoSuite
 
@@ -44,16 +45,7 @@ finiteArg _ = False
 
 isFlagOrNumber :: String -> Bool
 isFlagOrNumber ('-':'-':_) = True
-isFlagOrNumber ('0':_) = True
-isFlagOrNumber ('1':_) = True
-isFlagOrNumber ('2':_) = True
-isFlagOrNumber ('3':_) = True
-isFlagOrNumber ('4':_) = True
-isFlagOrNumber ('5':_) = True
-isFlagOrNumber ('6':_) = True
-isFlagOrNumber ('7':_) = True
-isFlagOrNumber ('8':_) = True
-isFlagOrNumber ('9':_) = True
+isFlagOrNumber (c:_) = isDigit c
 isFlagOrNumber _ = False
 
 runWithArgs :: [String] -> IO ()

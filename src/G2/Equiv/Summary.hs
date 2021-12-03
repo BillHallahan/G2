@@ -58,14 +58,15 @@ printPG pg s = printHaskellPG pg s $ exprExtract s
 
 -- TODO print the name differently?
 summarizeInduction :: PrettyGuide -> IndMarker -> String
-summarizeInduction pg im =
-  let (s1, s2) = ind_real_present im
-      (q1, q2) = ind_used_present im
-      (p1, p2) = ind_past im
-      (s1', s2') = ind_result im
-      (e1, e2) = ind_present_scrutinees im
-      (r1, r2) = ind_past_scrutinees im
-  in "Induction:\n" ++
+summarizeInduction pg im@(IndMarker {
+                        ind_real_present = (s1, s2)
+                      , ind_used_present = (q1, q2)
+                      , ind_past = (p1, p2)
+                      , ind_result = (s1', s2')
+                      , ind_present_scrutinees = (e1, e2)
+                      , ind_past_scrutinees = (r1, r2)
+                      }) =
+  "Induction:\n" ++
   "Real Present: " ++
   (folder_name $ track s1) ++ "," ++
   (folder_name $ track s2) ++ "\n" ++
@@ -94,11 +95,12 @@ summarizeInduction pg im =
   "New Variable Name: " ++ (show $ ind_fresh_name im)
 
 summarizeCoinduction :: PrettyGuide -> CoMarker -> String
-summarizeCoinduction pg cm =
-  let (s1, s2) = co_real_present cm
-      (q1, q2) = co_used_present cm
-      (p1, p2) = co_past cm
-  in "Coinduction:\n" ++
+summarizeCoinduction pg (CoMarker {
+                          co_real_present = (s1, s2)
+                        , co_used_present = (q1, q2)
+                        , co_past = (p1, p2)
+                        }) =
+  "Coinduction:\n" ++
   "Real Present: " ++
   (folder_name $ track s1) ++ "," ++
   (folder_name $ track s2) ++ "\n" ++
@@ -121,10 +123,11 @@ summarizeCoinduction pg cm =
 -- print all relevant vars beside the expressions
 -- maybe don't include definitions from the initial state
 summarizeEquality :: PrettyGuide -> EqualMarker -> String
-summarizeEquality pg em =
-  let (s1, s2) = eq_real_present em
-      (q1, q2) = eq_used_present em
-  in "Equivalent Expressions:\n" ++
+summarizeEquality pg (EqualMarker {
+                       eq_real_present = (s1, s2)
+                     , eq_used_present = (q1, q2)
+                     }) =
+  "Equivalent Expressions:\n" ++
   "Real Present: " ++
   (folder_name $ track s1) ++ ", " ++
   (folder_name $ track s2) ++ "\n" ++

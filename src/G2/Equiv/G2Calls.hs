@@ -310,4 +310,4 @@ instance ASTContainer EquivTracker Type where
 instance Named EquivTracker where
     names (EquivTracker hm _ _ _ _) = names hm
     rename old new (EquivTracker hm m total finite fname) =
-        EquivTracker (rename old new hm) m total finite fname
+        EquivTracker (rename old new hm) m (rename old new total) (rename old new finite) fname

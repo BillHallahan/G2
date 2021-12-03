@@ -22,6 +22,7 @@ import qualified G2.Language.CallGraph as G
 
 import Data.List
 import Data.Maybe
+import Data.Tuple
 import qualified Data.Text as DT
 
 import qualified Data.HashSet as HS
@@ -51,9 +52,6 @@ import G2.Execution.Reducer
 import G2.Lib.Printers
 
 import qualified Control.Monad.Writer.Lazy as W
-
-swap :: (a, b) -> (b, a)
-swap (x, y) = (y, x)
 
 otherSide :: Side -> Side
 otherSide ILeft = IRight
@@ -107,11 +105,11 @@ scrutineeDepth _ _ = error "Not Contained"
 -- the depths do not need to be the same
 -- however, the stamps should match up to the depth of the old one
 validScrutinee :: StateET -> StateET -> StateET -> Bool
-validScrutinee s p pc =
-  let d = scrutineeDepth (exprExtract p) (exprExtract pc)
-      stamps_old = take d $ readStamps (exprExtract pc)
+validScrutinee s p_inner p_outer =
+  let d = scrutineeDepth (exprExtract p_inner) (exprExtract p_outer)
+      stamps_old = take d $ readStamps (exprExtract p_outer)
       stamps_new = take d $ readStamps (exprExtract s)
-  in trace (show (d, stamps_old, stamps_new)) stamps_old == stamps_new
+  in stamps_old == stamps_new
 
 innerScrutineeStates :: State t -> [State t]
 innerScrutineeStates s@(State { curr_expr = CurrExpr _ e }) =
@@ -129,10 +127,8 @@ moreRestrictiveIndRight solver ns prev (s1, s2) =
       prev2 = [(p1, p2', p2) | (p1, p2, p2l) <- prev1, p2' <- p2l]
   in moreRestrictivePairAux solver ns prev2 (s1, s2)
 
--- substitution happens on the left here
--- TODO now the right-hand state returned would always be s2
+-- substitution happens on the left here; no right-side state returned
 -- TODO collect information about the expressions used for induction
--- TODO return a partially-defined IndMarker?
 inductionL :: S.Solver solver =>
               solver ->
               HS.HashSet Name ->
@@ -283,8 +279,7 @@ adjustStateForGeneralization e_old fresh_name s =
   , expr_env = h'
   }
 
--- TODO replace the largest sub-expression possible with a fresh symbolic var
--- TODO this is never finishing, seemingly
+-- replace the largest sub-expression possible with a fresh symbolic var
 generalize :: S.Solver solver =>
               solver ->
               HS.HashSet Name ->
@@ -315,11 +310,8 @@ generalize solver ns fresh_name (s1, s2) = do
                        e1' = exprExtract s1'
                        s1'' = adjustStateForGeneralization e1 fresh_name s1'
                        s2'' = adjustStateForGeneralization e2 fresh_name s2'
-                   in trace ("G! " ++ show fresh_name) $
-                      return (True, s1'', s2'')
-    _ -> trace ("No G? " ++ show fresh_name) $
-         -- TODO allowing failures for now
-         return (False, s1, s2)
+                   in return (True, s1'', s2'')
+    _ -> return (False, s1, s2)
 
 -- TODO does this throw off history logging?  I don't think so
 -- TODO might not matter with s1 and s2 naming

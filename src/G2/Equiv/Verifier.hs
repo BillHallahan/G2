@@ -68,14 +68,6 @@ import qualified Control.Monad.Writer.Lazy as W
 -- TODO requiring finiteness for forceIdempotent makes verifier get stuck
 -- same goes for p10 in Zeno
 
--- TODO include history?
-{-
-data EquivMarker = EquivMarker {
-    real_present :: (StateET, StateET)
-  , used_present :: (StateET, StateET)
-}
--}
-
 -- TODO this should be the output from tryDischarge
 -- unfinished is what tryDischarge gave as output before
 -- finished is the proof obligations that were just discharged
@@ -84,31 +76,6 @@ data DischargeResult = DischargeResult {
   , finished :: [(StateH, StateH)]
   , bad_states :: Maybe [(StateET, StateET)]
 }
-
--- TODO starting Writer functions
--- TODO what should the second writer type be?
-noteBasicDischarge :: String -> (StateET, StateET) -> W.WriterT String IO ()
-noteBasicDischarge msg (s1, s2) = do
-  let fn1 = folder_name $ track s1
-      fn2 = folder_name $ track s2
-      out_str = "(" ++ fn1 ++ "," ++ fn2 ++ ") " ++ msg ++ "\n"
-  W.tell out_str
-  return ()
-
-{-
-TODO
-Information to provide for induction:
-Real present states, their expressions
-Fake present states, their expressions
-Past states, their expressions
-Present scrutinees used
-Past scrutinees used
-Fresh variable name
-New generalized expressions for the present
-
-Information to provide for coinduction:
-Real present, fake present, past
--}
 
 statePairReadyForSolver :: (State t, State t) -> Bool
 statePairReadyForSolver (s1, s2) =
@@ -293,7 +260,7 @@ tickWrap (App e1 e2) = App (tickWrap e1) e2
 tickWrap (Tick nl e) = Tick nl (tickWrap e)
 tickWrap e = Tick (NamedLoc loc_name) e
 
--- TODO don't add stack tick here, just add the stack
+-- stack tick not added here anymore
 prepareState :: StateET -> StateET
 prepareState s =
   let e = exprExtract s
@@ -355,11 +322,10 @@ appendH sh s =
 replaceH :: StateH -> StateET -> StateH
 replaceH sh s = sh { latest = s }
 
--- TODO allow a negative loop iteration count for unlimited iterations
+-- negative loop iteration count means there's no limit
 verifyLoop :: S.Solver solver =>
               solver ->
               HS.HashSet Name ->
-              [(StateH, StateH)] ->
               [(StateH, StateH)] ->
               Bindings ->
               Config ->
@@ -367,7 +333,7 @@ verifyLoop :: S.Solver solver =>
               Int ->
               Int ->
               W.WriterT [Marker] IO (S.Result () ())
-verifyLoop solver ns states prev b config folder_root k n | not (null states)
+verifyLoop solver ns states b config folder_root k n | not (null states)
                                                           , n /= 0 = do
   let current_states = map getLatest states
   (paired_states, (b', k')) <- W.liftIO $ CM.runStateT (mapM (uncurry (runSymExec solver config folder_root)) current_states) (b, k)
@@ -379,8 +345,7 @@ verifyLoop solver ns states prev b config folder_root k n | not (null states)
         case bad_states dr' of
           Nothing -> return $ Just $ unfinished dr'
           Just _ -> return Nothing
-      -- TODO don't use a universal prev list; every exec path has its own
-      vl (sh1, sh2) = simplify $ tryDischarge solver ns fresh_name sh1 sh2 (zip (history sh1) (history sh2))
+      vl (sh1, sh2) = simplify $ tryDischarge solver ns fresh_name sh1 sh2
   -- TODO printing
   W.liftIO $ putStrLn "<Loop Iteration>"
   W.liftIO $ putStrLn $ show n
@@ -391,11 +356,10 @@ verifyLoop solver ns states prev b config folder_root k n | not (null states)
   W.liftIO $ putStrLn $ show $ length $ concat updated_hists
   proof_list <- mapM vl $ concat updated_hists
   let new_obligations = concat [l | Just l <- proof_list]
-      prev' = new_obligations ++ prev
       n' = if n > 0 then n - 1 else n
   W.liftIO $ putStrLn $ show $ length new_obligations
   if all isJust proof_list then
-    verifyLoop solver ns new_obligations prev' b'' config folder_root k' n'
+    verifyLoop solver ns new_obligations b'' config folder_root k' n'
   else
     return $ S.SAT ()
   | not (null states) = do
@@ -430,7 +394,7 @@ canUseInduction :: Obligation -> Bool
 canUseInduction (Ob e1 e2) = caseRecursion e1 && caseRecursion e2
 
 isNothingM :: Monad m => m (Maybe t) -> m Bool
-isNothingM = liftM (not . isJust)
+isNothingM = liftM isNothing
 
 -- TODO debugging function
 stateHistory :: StateH -> StateH -> [(StateET, StateET)]
@@ -488,18 +452,14 @@ makeIndStateH (sh1, sh2) ((q1, q2), ((n1, n2), s1, s2)) | n1 >= 0, n2 >= 0 =
   | otherwise = (sh1 { latest = s1 }, sh2 { latest = s2 })
 
 -- TODO printing
--- TODO was the type signature wrong before?
--- TODO prev not used anymore
--- TODO have something other than a string as the Writer accumulator
 tryDischarge :: S.Solver solver =>
                 solver ->
                 HS.HashSet Name ->
                 Name ->
                 StateH ->
                 StateH ->
-                [(StateET, StateET)] ->
                 W.WriterT [Marker] IO DischargeResult
-tryDischarge solver ns fresh_name sh1 sh2 prev =
+tryDischarge solver ns fresh_name sh1 sh2 =
   let s1 = latest sh1
       s2 = latest sh2
   in
@@ -591,106 +551,6 @@ mergeTrackers t1 t2 = t2 {
   , total = HS.union (total t1) (total t2)
   , finite = HS.union (finite t1) (finite t2)
 }
-
--- combinations to try:
--- try current left state with all right scrutinees and all prior state pairs
--- try current right state with all left scrutinees and all prior state pairs
--- also need to do substitutions coming from moreRestrictivePair
--- those come later, on the combinations that work out
--- TODO (11/8) clear out some of past if old state used as "present"
--- substitution happens on the left here
-{-
-inductionL :: S.Solver solver =>
-              solver ->
-              HS.HashSet Name ->
-              [(StateET, StateET)] ->
-              (StateET, StateET) ->
-              IO (Bool, StateET, StateET)
-inductionL solver ns prev (s1, s2) = do
-  let scr1 = innerScrutinees $ exprExtract s1
-      scr2 = innerScrutinees $ exprExtract s2
-      scr_pairs = [(sc1, sc2) | sc1 <- scr1, sc2 <- scr2]
-      scr_states = [(s1 { curr_expr = CurrExpr Evaluate sc1 }, s2 { curr_expr = CurrExpr Evaluate sc2 }) | (sc1, sc2) <- scr_pairs]
-  mr_pairs <- mapM (moreRestrictiveIndRight solver ns prev) scr_states
-  let mr_zipped = zip scr_pairs mr_pairs
-      working_info = [(sc1, sc2, pm) | ((sc1, sc2), Just pm) <- mr_zipped]
-      working_info' = filter (\(_, _, PrevMatch _ (_, p2) _ pc2) -> validScrutinee s2 p2 pc2) working_info
-  -- TODO make an arbitrary choice about which working combination to return
-  -- need to make a substitution for it
-  -- going with left substitution for now
-  case working_info' of
-    [] -> return (False, s1, s2)
-    -- TODO use the "current" pair
-    -- TODO some of this doesn't matter anymore
-    h:_ -> let (sc1, sc2, PrevMatch (q1, q2) (p1, p2) (mapping, _) pc2) = h
-               e2_old = exprExtract pc2
-               hm_list = HM.toList mapping
-               e2_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e2_old hm_list
-               e1_new = replaceScrutinee sc1 e2_old' $ exprExtract s1
-               -- TODO use s2 or pc2 here?  Probably s2
-               h1_new = E.union (expr_env s1) (expr_env pc2)
-               si1_new = map (\(Var i) -> i) . E.elems $ E.filterToSymbolic h1_new
-               s1' = s1 {
-                 curr_expr = CurrExpr Evaluate e1_new
-               , expr_env = h1_new
-               , symbolic_ids = si1_new
-               --, track = mergeTrackers (track pc2) (track s1)
-               }
-           in trace ("YL " ++ show (length working_info')) $
-              trace (printHaskellDirty sc1) $
-              trace (printHaskellDirty e2_old) $
-              trace (printHaskellDirty e2_old') $
-              trace (printHaskellDirty $ exprExtract s1) $
-              trace (printHaskellDirty e1_new) $
-              trace ("HM " ++ show hm_list) $
-              trace (show (map (\(r1, r2) -> (folder_name $ track r1, folder_name $ track r2)) prev)) $
-              trace ("YES IL! " ++ show (map (folder_name . track) [s1, s2, q1, q2, p1, p2])) $
-              return (True, s1', s2)
--}
-
--- TODO reduce duplicated code?  Also make sure it's correct
--- substitution happens on the right here
-{-
-inductionR :: S.Solver solver =>
-              solver ->
-              HS.HashSet Name ->
-              [(StateET, StateET)] ->
-              (StateET, StateET) ->
-              W.WriterT [Marker] IO (Bool, StateET, StateET)
-inductionR solver ns prev (s1, s2) = do
-  let scr1 = innerScrutinees $ exprExtract s1
-      scr2 = innerScrutinees $ exprExtract s2
-      scr_pairs = [(sc1, sc2) | sc1 <- scr1, sc2 <- scr2]
-      scr_states = [(s1 { curr_expr = CurrExpr Evaluate sc1 }, s2 { curr_expr = CurrExpr Evaluate sc2 }) | (sc1, sc2) <- scr_pairs]
-  mr_pairs <- mapM (moreRestrictiveIndLeft solver ns prev) scr_states
-  let mr_zipped = zip scr_pairs mr_pairs
-      working_info = [(sc1, sc2, pm) | ((sc1, sc2), Just pm) <- mr_zipped]
-      working_info' = filter (\(_, _, PrevMatch _ (p1, _) _ pc1) -> validScrutinee s1 p1 pc1) working_info
-  case working_info' of
-    [] -> return (False, s1, s2)
-    h:_ -> let (sc1, sc2, PrevMatch (q1, q2) (p1, p2) (mapping, _) pc1) = h
-               e1_old = exprExtract pc1
-               hm_list = HM.toList mapping
-               e1_old' = foldr (\(i, e) acc -> replaceASTs (Var i) e acc) e1_old hm_list
-               e2_new = replaceScrutinee sc2 e1_old' $ exprExtract s2
-               -- TODO use s1 or pc1 here?
-               -- the s1 version gets an error that pc1 doesn't
-               h2_new = E.union (expr_env s2) (expr_env pc1)
-               s2' = s2 {
-                 curr_expr = CurrExpr Evaluate e2_new
-               , expr_env = h2_new
-               }
-           in trace ("YR " ++ show (length working_info')) $
-              trace (printHaskellDirty sc2) $
-              trace (printHaskellDirty e1_old) $
-              trace (printHaskellDirty e1_old') $
-              trace (printHaskellDirty $ exprExtract s2) $
-              trace (printHaskellDirty e2_new) $
-              trace ("HM " ++ show hm_list) $
-              trace (show (map (\(r1, r2) -> (folder_name $ track r1, folder_name $ track r2)) prev)) $
-              trace ("YES IR! " ++ show (map (folder_name . track) [s1, s2, q1, q2, p1, p2])) $
-              return (True, s1, s2')
--}
 
 -- TODO (9/27) check path constraint implication?
 -- TODO (9/30) alternate:  just substitute one scrutinee for the other
@@ -796,17 +656,12 @@ checkRule config init_state bindings total finite print_summary iterations rule 
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
   putStrLn $ printHaskellDirty e_l'
   putStrLn $ printHaskellDirty e_r'
-  -- TODO prepareState putting in wrong place?
-  -- TODO put REC ticks in the starting expression?
   putStrLn $ printHaskellDirty $ exprExtract $ latest rewrite_state_l''
   putStrLn $ printHaskellDirty $ exprExtract $ latest rewrite_state_r''
-  -- TODO this may not be sound anymore with Nothing
   (res, w) <- W.runWriterT $ verifyLoop solver ns
-             [(rewrite_state_l'', rewrite_state_r'')]
              [(rewrite_state_l'', rewrite_state_r'')]
              bindings'' config "" 0 iterations
   -- UNSAT for good, SAT for bad
-  -- TODO how to display?
   if print_summary then do
     putStrLn "--- SUMMARY ---"
     let pg = mkPrettyGuide w
@@ -814,18 +669,3 @@ checkRule config init_state bindings total finite print_summary iterations rule 
     putStrLn "--- END OF SUMMARY ---"
   else return ()
   return res
-
--- inner scrutinees on the left side
--- ultimately for a substitution that happens on the right
-{-
-moreRestrictiveIndLeft :: S.Solver solver =>
-                          solver ->
-                          HS.HashSet Name ->
-                          [(StateET, StateET)] ->
-                          (StateET, StateET) ->
-                          W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-moreRestrictiveIndLeft solver ns prev (s1, s2) =
-  let prev1 = map (\(p1, p2) -> (p1, innerScrutineeStates p1, p2)) prev
-      prev2 = [(p1', p2, p1) | (p1, p1l, p2) <- prev1, p1' <- p1l]
-  in moreRestrictivePairAux solver ns prev2 (s1, s2)
--}
