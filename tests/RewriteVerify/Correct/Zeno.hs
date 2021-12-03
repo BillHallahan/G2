@@ -741,6 +741,37 @@ p01finA n xs runs forever
 "p85finC" forall xs ys . prop_85 xs ys = walkList ys True
   #-}
 
+{-
+TODO non-equivalence theorems I hadn't covered before
+Uncertain ones where the walking may need to be different:
+27
+28
+29
+30
+37
+60
+63
+68
+71
+76
+77
+-}
+{-# RULES
+"p27fin" forall x xs ys . prop_27 x xs ys = walkList ys True
+"p28fin" forall x xs . prop_28 x xs = walkList xs True
+"p29fin" forall x xs . prop_29 x xs = walkList xs True
+"p30fin" forall x xs . prop_30 x xs = walkList xs True
+"p37fin" forall x xs . prop_37 x xs = walkList xs True
+"p60fin" forall xs ys . prop_60 xs ys = walkList ys True
+"p62fin" forall xs x . prop_62 xs x = walkList xs True
+"p63fin" forall n xs . prop_63 n xs = walkList xs True
+"p66fin" forall p xs . prop_66 p xs = walkList xs True
+"p68fin" forall n xs . prop_68 n xs = walkList xs True
+"p71fin" forall x y xs . prop_71 x y xs = walkList xs True
+"p76fin" forall n m xs . prop_76 n m xs = walkList xs True
+"p77fin" forall x xs . prop_77 x xs = walkList xs True
+  #-}
+
 -- TODO alternative finiteness approach
 walkNat :: Nat -> a -> a
 walkNat Z a = a

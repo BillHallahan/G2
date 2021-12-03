@@ -43,14 +43,17 @@ finiteArg ('_':_) = True
 finiteArg _ = False
 
 isFlag :: String -> Bool
-isFlag ('_':'_':_) = True
+isFlag ('-':'-':_) = True
 isFlag _ = False
 
 runWithArgs :: [String] -> IO ()
 runWithArgs as = do
   let (src:entry:tail_args) = as
       (flags, tail_vars) = partition isFlag tail_args
-      print_summary = "__summarize" `elem` flags
+      print_summary = "--summarize" `elem` flags
+      limit = case elemIndex "--limit" tail_args of
+        Nothing -> -1
+        Just n -> read (tail_args !! (n + 1)) :: Int
 
   proj <- guessProj src
 
@@ -73,7 +76,7 @@ runWithArgs as = do
       rule' = case rule of
               Just r -> r
               Nothing -> error "not found"
-  res <- checkRule config init_state bindings total finite print_summary rule'
+  res <- checkRule config init_state bindings total finite print_summary limit rule'
   print res
   return ()
 

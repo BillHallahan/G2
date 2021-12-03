@@ -6,22 +6,6 @@ import re
 import subprocess
 import time
 
-def run_infer(file):
-    start_time = time.monotonic();
-    res = call_infer_process(file);
-    end_time = time.monotonic();
-    elapsed = end_time - start_time;
-
-    try:
-        check_safe = res.splitlines()[-2].decode('utf-8');
-    except IndexError:
-        if res == "Timeout":
-            check_safe = "Timeout";
-        else:
-            check_safe = "";
-
-    return (check_safe, elapsed);
-
 def run_zeno(thm, var_settings):
     start_time = time.monotonic();
     res = call_zeno_process(thm, var_settings);
@@ -40,47 +24,12 @@ def run_zeno(thm, var_settings):
 
 def call_zeno_process(thm, var_settings):
     try:
-        timeout = "20"
-        #args = ["cabal", "run", "RewriteV", "tests/RewriteVerify/Correct/Zeno.hs", thm]
         args = ["dist/build/RewriteV/RewriteV", "tests/RewriteVerify/Correct/Zeno.hs", thm]
-        res = subprocess.run(args + var_settings, capture_output = True, timeout = 10);
+        limit_settings = ["--", "--limit", "10"]
+        res = subprocess.run(args + var_settings + limit_settings, capture_output = True, timeout = 20);
         return res.stdout;
     except subprocess.TimeoutExpired:
-        #res.terminate()
         return "Timeout".encode('utf-8')
-
-
-def call_infer_process(file):    
-    try:
-        code_file = open(file, "r");
-        code = code_file.read();
-        code_file.close();
-
-        args_re = re.search("--\s*cmd_line\s*=\s*\(([^)]*)\)\s*", code);
-
-        extra_args = [];
-        if args_re and args_re.group(1):
-            extra_args = args_re.group(1).split(" ");
-
-        timeout = "120"
-        timeout_re = re.search("--\s*timeout\s*=\s*([0-9]*)\s*", code);
-        if timeout_re and timeout_re.group(1):
-            timeout = timeout_re.group(1);
-
-        timeout_sygus = "30"
-        timeout_sygus_re = re.search("--\s*timeout-sygus\s*=\s*([0-9]*)\s*", code);
-        if timeout_sygus_re and timeout_sygus_re.group(1):
-            timeout_sygus = timeout_sygus_re.group(1);
-
-        args = ["gtimeout", timeout, "cabal", "run", "Inference", file
-               , "--", "--timeout-sygus", timeout_sygus]
-
-        res = subprocess.run(args + extra_args
-                            , capture_output = True);
-        return res.stdout;
-    except subprocess.TimeoutExpired:
-        res.terminate()
-        return "Timeout"
 
 equivalences = [
     "p01",
@@ -218,6 +167,32 @@ custom_finite = [
     "p64fin"
 ]
 
+n = "n"
+x = "x"
+xs = "xs"
+m = "m"
+y = "y"
+ys = "ys"
+i = "i"
+a = "a"
+p = "p"
+
+extra_theorems = [
+    ("p27fin", [x, xs, ys]),
+    ("p28fin", [x, xs]),
+    ("p29fin", [x, xs]),
+    ("p30fin", [x, xs]),
+    ("p37fin", [x, xs]),
+    ("p60fin", [xs, ys]),
+    ("p62fin", [xs, x]),
+    ("p63fin", [n, xs]),
+    ("p66fin", [p, xs]),
+    ("p68fin", [n, xs]),
+    ("p71fin", [x, y, xs]),
+    ("p76fin", [n, m, xs]),
+    ("p77fin", [x, xs])
+]
+
 def test_equivalences_basic():
     unsat_num = 0;
     for thm in equivalences:
@@ -260,82 +235,26 @@ def test_equivalences_all_total():
             print("\tFailed - " + str(elapsed) + "s")
     return unsat_num
 
-def test_pos_folder(folder):
-    all_files = os.listdir(folder);
-    num_files = count_files(all_files);
-    safe_num = 0;
-
-    for file in all_files:
-        if file.endswith(".hs"):
-            print(file);
-
-            (check_safe, elapsed) = run_infer(os.path.join(folder, file));
-
-            if check_safe == "Safe":
-                print("\tSafe - " + str(elapsed) + "s");
-                safe_num += 1
-            elif check_safe == "Timeout":
-                print("\tTimeout")
-            else:
-                # print("check_safe =" + repr(check_safe) + "|")
-                print("\tUnsafe")
-
-    return (safe_num, num_files)
-
-def test_neg_folder(folder):
-    all_files = os.listdir(folder);
-    num_files = count_files(all_files);
-    safe_num = 0;
-
-    for file in all_files:
-        if file.endswith(".hs"):
-            print(file);
-
-            (check_safe, elapsed) = run_infer(os.path.join(folder, file));
-
-            if check_safe == "Counterexample":
-                print("\tCounterexample - " + str(elapsed) + "s");
-                safe_num += 1
-            elif check_safe == "Timeout":
-                print("\tTimeout")
-            else:
-                print("\tUnsafe")
-
-    return (safe_num, num_files)
-
-def count_files(all_files):
-    num_files = 0;
-    for file in all_files:
-        if file.endswith(".hs"):
-            num_files += 1;
-
-    return num_files
-
-def orig():
-    (safe_real, num_real) = test_pos_folder("tests/LiquidInf/Real");
-    (safe_art, num_art) = test_pos_folder("tests/LiquidInf/Artificial/Pos");
-
-    (ce_art, num_ce_art) = test_neg_folder("tests/LiquidInf/Artificial/Neg");
-
-    print(str(safe_real + safe_art) + "/" + str(num_real + num_art) + " Safe");
-
-    print(str(ce_art) + "/" + str(num_ce_art) + " Counterexamples");
+def test_extra_theorems():
+    unsat_num = 0;
+    for (thm, settings) in extra_theorems:
+        print(thm, settings);
+        (check_unsat, elapsed) = run_zeno(thm, settings);
+        if check_unsat == "UNSAT ()":
+            print("\tVerified - " + str(elapsed) + "s");
+            unsat_num += 1
+        elif check_unsat == "Timeout":
+            print("\tTimeout - " + str(elapsed) + "s")
+        else:
+            print("\tFailed - " + str(elapsed) + "s")
+    return unsat_num
 
 def main():
-    # (safe_real, num_real) = test_pos_folder("tests/LiquidInf/Real");
-    #(safe_art, num_art) = test_pos_folder("tests/LiquidInf/Art_LIA/Pos");
-
-    #(ce_art, num_ce_art) = test_neg_folder("tests/LiquidInf/Art_LIA/Neg");
-
     #unsat_num = test_equivalences_basic()
-    unsat_num = test_custom_finite()
+    #unsat_num = test_custom_finite()
     #unsat_num = test_equivalences_all_total()
-    print(unsat_num, "Confirmed out of", len(equivalences_all_total))
-
-    # print(str(safe_real + safe_art) + "/" + str(num_real + num_art) + " Safe");
-
-    # print(str(ce_art) + "/" + str(num_ce_art) + " Counterexamples");
-
+    unsat_num = test_extra_theorems()
+    print(unsat_num, "Confirmed out of", len(extra_theorems))
 
 if __name__ == "__main__":
     main()
