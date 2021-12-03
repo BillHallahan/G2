@@ -398,7 +398,6 @@ runLHG2 config red hal ord solver simplifier pres_names init_id final_st binding
                                   else er) n_ret
     let ret'' = filter (\(ExecRes {final_state = s}) -> mi == (abstractCallsNum s)) ret'
 
-
     (bindings', ret''') <- mapAccumM (reduceCalls solver simplifier config) final_bindings ret''
     ret'''' <- mapM (checkAbstracted solver simplifier config init_id bindings') ret'''
 
@@ -677,8 +676,8 @@ funcCallToFuncInfo t (FuncCall { funcName = f, arguments = inArg, returns = ret 
 
 lhStateToCE :: ExecRes AbstractedInfo -> CounterExample
 lhStateToCE (ExecRes { final_state = State { track = t } })
-    | Nothing <- abs_violated t = DirectCounter (init_call t) (abs_calls t)
     | Just c <-  abs_violated t = CallsCounter (init_call t) c (abs_calls t)
+    | otherwise = DirectCounter (init_call t) (abs_calls t)
 
 parseLHFuncTuple :: State t -> FuncCall -> FuncInfo
 parseLHFuncTuple s (FuncCall {funcName = n, arguments = ars, returns = out}) =

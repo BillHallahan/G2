@@ -17,6 +17,7 @@ module G2.Liquid.TyVarBags ( TyVarBags
                            , instTyVarCall
 
                            , existentialInstId
+                           , postSeqExistentialInstId
                            , putExistentialInstInExprEnv
                            , putSymbolicExistentialInstInExprEnv
                            , addTicksToDeepSeqCases) where

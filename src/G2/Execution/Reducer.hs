@@ -620,6 +620,8 @@ instance Show t => Reducer PrettyLogger [Int] t where
     updateWithAll _ [(_, l)] = [l]
     updateWithAll _ ss = map (\(l, i) -> l ++ [i]) $ zip (map snd ss) [1..]
 
+    onAccept _ _ ll = putStrLn $ "Accepted on path " ++ show ll
+
 prettyLogger :: String -> PrettyLogger
 prettyLogger s = PrettyLogger s (mkPrettyGuide ())
 

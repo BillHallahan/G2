@@ -18,6 +18,7 @@ import G2.Liquid.Helpers
 import G2.Liquid.LHReducers
 import G2.Liquid.SpecialAsserts
 import G2.Liquid.Types
+import G2.Liquid.TyVarBags
 import G2.Solver
 
 import Control.Monad
@@ -435,8 +436,12 @@ mapAccumM f z (x:xs) = do
   return (z'', return y `mplus` ys)
 
 modelToExprEnv :: State t -> State t
-modelToExprEnv s = s { expr_env = model s `E.union'` expr_env s
-                     , model = HM.empty }
+modelToExprEnv s =
+    let
+         m = HM.filterWithKey (\k _ -> k /= idName existentialInstId && k /= idName postSeqExistentialInstId) (model s)
+    in
+    s { expr_env = m `E.union'` expr_env s
+      , model = HM.empty }
 
 mkAssertsTrue :: ASTContainer t Expr => KnownValues -> State t -> State t
 mkAssertsTrue kv = modifyASTs (mkAssertsTrue' (mkTrue kv))

@@ -482,7 +482,7 @@ genNewConstraints ghci m lrs n = do
     let (exec_res', no_viol) = partition (true_assert . final_state) exec_res
         
         allCCons = noAbsStatesToCons i $ exec_res' ++ if use_extra_fcs infconfig then no_viol else []
-    return $ (map lhStateToCE exec_res', allCCons)
+    return $ (filter (not . hasPreArgError) $ map lhStateToCE exec_res', allCCons)
 
 getCEx :: MonadIO m =>
           [GhcInfo]
@@ -742,6 +742,10 @@ lhStateToPreFC i (ExecRes { conc_args = inArg
 
 abstractedMod :: Abstracted -> Maybe T.Text
 abstractedMod = nameModule . funcName . abstract
+
+hasPreArgError :: CounterExample -> Bool
+hasPreArgError (DirectCounter _ _) = False
+hasPreArgError (CallsCounter _ calls_f _) = hasArgError $ real calls_f
 
 hasAbstractedArgError :: CounterExample -> Bool
 hasAbstractedArgError (DirectCounter _ as) = any (hasArgError . real) as
