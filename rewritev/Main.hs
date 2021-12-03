@@ -42,15 +42,21 @@ finiteArg :: String -> Bool
 finiteArg ('_':_) = True
 finiteArg _ = False
 
+isFlag :: String -> Bool
+isFlag ('_':'_':_) = True
+isFlag _ = False
+
 runWithArgs :: [String] -> IO ()
 runWithArgs as = do
   let (src:entry:tail_args) = as
+      (flags, tail_vars) = partition isFlag tail_args
+      print_summary = "__summarize" `elem` flags
 
   proj <- guessProj src
 
   -- TODO for now, total as long as there's an extra arg
   -- TODO finite variables
-  let (finite_names, total_names) = partition finiteArg tail_args
+  let (finite_names, total_names) = partition finiteArg tail_vars
       finite = map (T.pack . tail) finite_names
       -- TODO don't need to add finite to this
       total = (map T.pack total_names) ++ finite
@@ -67,7 +73,7 @@ runWithArgs as = do
       rule' = case rule of
               Just r -> r
               Nothing -> error "not found"
-  res <- checkRule config init_state bindings total finite rule'
+  res <- checkRule config init_state bindings total finite print_summary rule'
   print res
   return ()
 

@@ -759,9 +759,10 @@ checkRule :: Config ->
              Bindings ->
              [DT.Text] -> -- ^ names of forall'd variables required to be total
              [DT.Text] -> -- ^ names of forall'd variables required to be total and finite
+             Bool ->
              RewriteRule ->
              IO (S.Result () ())
-checkRule config init_state bindings total finite rule = do
+checkRule config init_state bindings total finite print_summary rule = do
   let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
       (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
       total_names = filter (includedName total) (map idName $ ru_bndrs rule)
@@ -805,10 +806,12 @@ checkRule config init_state bindings total finite rule = do
              bindings'' config "" 0 10
   -- UNSAT for good, SAT for bad
   -- TODO how to display?
-  putStrLn "--- SUMMARY ---"
-  let pg = mkPrettyGuide w
-  mapM (putStrLn . (summarize pg)) w
-  putStrLn "--- END OF SUMMARY ---"
+  if print_summary then do
+    putStrLn "--- SUMMARY ---"
+    let pg = mkPrettyGuide w
+    mapM (putStrLn . (summarize pg)) w
+    putStrLn "--- END OF SUMMARY ---"
+  else return ()
   return res
 
 -- inner scrutinees on the left side
