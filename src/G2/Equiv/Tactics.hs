@@ -40,6 +40,7 @@ import qualified G2.Language.CallGraph as G
 import Data.List
 import Data.Maybe
 import qualified Data.Text as DT
+import qualified Data.Sequence as DS
 
 import qualified Data.HashSet as HS
 import qualified G2.Solver as S
@@ -75,6 +76,12 @@ data StateH = StateH {
   , discharge :: Maybe StateET
 }
 
+instance Named StateH where
+  names (StateH s h ims d) =
+    names s DS.>< names h DS.>< names ims DS.>< names d
+  rename old new (StateH s h ims d) =
+    StateH (rename old new s) (rename old new h) (rename old new ims) (rename old new d)
+
 -- TODO container
 data PrevMatch t = PrevMatch {
     present :: (State t, State t)
@@ -92,7 +99,28 @@ data ActMarker = Induction IndMarker
                | NotEquivalent (StateET, StateET)
                | SolverFail (StateET, StateET)
 
+instance Named ActMarker where
+  names (Induction im) = names im
+  names (Coinduction cm) = names cm
+  names (Equality em) = names em
+  names (NoObligations s_pair) = names s_pair
+  names (NotEquivalent s_pair) = names s_pair
+  names (SolverFail s_pair) = names s_pair
+  rename old new m = case m of
+    Induction im -> Induction $ rename old new im
+    Coinduction cm -> Coinduction $ rename old new cm
+    Equality em -> Equality $ rename old new em
+    NoObligations s_pair -> NoObligations $ rename old new s_pair
+    NotEquivalent s_pair -> NotEquivalent $ rename old new s_pair
+    SolverFail s_pair -> SolverFail $ rename old new s_pair
+
 data Marker = Marker (StateH, StateH) ActMarker
+
+instance Named Marker where
+  names (Marker (sh1, sh2) m) =
+    names sh1 DS.>< names sh2 DS.>< names m
+  rename old new (Marker (sh1, sh2) m) =
+    Marker (rename old new sh1, rename old new sh2) $ rename old new m
 
 data Side = ILeft | IRight deriving (Show)
 
@@ -109,6 +137,28 @@ data IndMarker = IndMarker {
   , ind_fresh_name :: Name
 }
 
+-- TODO shouldn't need present scrutinees
+instance Named IndMarker where
+  names im =
+    let (s1, s2) = ind_real_present im
+        (q1, q2) = ind_used_present im
+        (p1, p2) = ind_past im
+        (s1', s2') = ind_result im
+        (r1, r2) = ind_past_scrutinees im
+        states = [s1, s2, q1, q2, p1, p2, s1', s2', r1, r2]
+    in foldr (DS.><) DS.empty $ map names states
+  rename old new im =
+    let r = rename old new
+    in im {
+      ind_real_present = r $ ind_real_present im
+    , ind_used_present = r $ ind_used_present im
+    , ind_past = r $ ind_past im
+    , ind_result = r $ ind_result im
+    , ind_present_scrutinees = rename old new $ ind_present_scrutinees im
+    , ind_past_scrutinees = r $ ind_past_scrutinees im
+    , ind_fresh_name = rename old new $ ind_fresh_name im
+    }
+
 -- TODO two-sided
 -- TODO no present variation for coinduction currently
 data CoMarker = CoMarker {
@@ -117,10 +167,36 @@ data CoMarker = CoMarker {
   , co_past :: (StateET, StateET)
 }
 
+-- TODO Names
+-- TODO remove duplicates?
+instance Named CoMarker where
+  names (CoMarker (s1, s2) (q1, q2) (p1, p2)) =
+    foldr (DS.><) DS.empty $ map names [s1, s2, q1, q2, p1, p2]
+  rename old new (CoMarker (s1, s2) (q1, q2) (p1, p2)) =
+    let r = rename old new
+        s1' = r s1
+        s2' = r s2
+        q1' = r q1
+        q2' = r q2
+        p1' = r p1
+        p2' = r p2
+    in CoMarker (s1', s2') (q1', q2') (p1', p2')
+
 data EqualMarker = EqualMarker {
     eq_real_present :: (StateET, StateET)
   , eq_used_present :: (StateET, StateET)
 }
+
+instance Named EqualMarker where
+  names (EqualMarker (s1, s2) (q1, q2)) =
+    foldr (DS.><) DS.empty $ map names [s1, s2, q1, q2]
+  rename old new (EqualMarker (s1, s2) (q1, q2)) =
+    let r = rename old new
+        s1' = r s1
+        s2' = r s2
+        q1' = r q1
+        q2' = r q2
+    in EqualMarker (s1', s2') (q1', q2')
 
 -- TODO not used?
 reverseCoMarker :: CoMarker -> CoMarker

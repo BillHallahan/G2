@@ -59,7 +59,7 @@ otherSide :: Side -> Side
 otherSide ILeft = IRight
 otherSide IRight = ILeft
 
--- TODO
+-- TODO still getting bad induction summary results
 reverseIndMarker :: IndMarker -> IndMarker
 reverseIndMarker im = IndMarker {
     ind_real_present = swap $ ind_real_present im
@@ -164,21 +164,23 @@ inductionL solver ns prev (s1, s2) = do
                -- TODO should result include generalization?
                -- TODO p1, p2, q1, q2, present scrutinees
                -- TODO do I really need q1 and q2?
+               -- TODO placeholders for real present and name to avoid undefined errors
                im = IndMarker {
-                 ind_real_present = undefined
+                 ind_real_present = (s1, s2)
                , ind_used_present = (s1, s2)
                , ind_past = (p1, pc2)
                , ind_result = (s1', s2)
                , ind_present_scrutinees = (sc1, sc2)
                , ind_past_scrutinees = (p1, p2)
                , ind_side = ILeft
-               , ind_fresh_name = undefined
+               , ind_fresh_name = Name "" Nothing 0 Nothing
                }
            in return (True, s1', im)
 
 -- precedence goes to left-side substitution
 -- right-side substitution only happens if left-side fails
 -- TODO reverse prev for the right side
+-- TODO right-sided induction can happen here, even if it's called left
 induction :: S.Solver solver =>
              solver ->
              HS.HashSet Name ->
@@ -189,9 +191,9 @@ induction solver ns prev (s1, s2) = do
   (bl, s1l, iml) <- inductionL solver ns prev (s1, s2)
   if bl then return (bl, s1l, s2, iml)
   else do
-    let prev' = map (\(p1, p2) -> (p2, p1)) prev
+    let prev' = map swap prev
     (br, s2r, imr) <- inductionL solver ns prev' (s2, s1)
-    return (br, s1, s2r, imr)
+    return (br, s1, s2r, reverseIndMarker imr)
 
 -- left side stays constant
 -- TODO complex conditional, but avoids needless generalization
@@ -244,10 +246,11 @@ inductionFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
     (nr, s2r, s1r, imr) <- inductionFoldL solver ns fresh_name (sh2, sh1) (s2, s1)
     if nr >= 0 then do
       W.liftIO $ putStrLn $ "IR " ++ show (map (folder_name . track) [s1, s2, s1r, s2r])
-      let imr' = reverseIndMarker $ imr {
+      -- TODO still reverse here?
+      let imr' = reverseIndMarker (imr {
         ind_real_present = (s2, s1)
       , ind_fresh_name = fresh_name
-      }
+      })
       W.tell $ [Marker (sh1, sh2) $ Induction imr']
       return ((length1 - nr, 0), s1r, s2r)
     else return ((-1, -1), s1, s2)

@@ -355,6 +355,7 @@ appendH sh s =
 replaceH :: StateH -> StateET -> StateH
 replaceH sh s = sh { latest = s }
 
+-- TODO allow a negative loop iteration count for unlimited iterations
 verifyLoop :: S.Solver solver =>
               solver ->
               HS.HashSet Name ->
@@ -364,8 +365,10 @@ verifyLoop :: S.Solver solver =>
               Config ->
               String ->
               Int ->
+              Int ->
               W.WriterT [Marker] IO (S.Result () ())
-verifyLoop solver ns states prev b config folder_root k | not (null states) = do
+verifyLoop solver ns states prev b config folder_root k n | not (null states)
+                                                          , n /= 0 = do
   let current_states = map getLatest states
   (paired_states, (b', k')) <- W.liftIO $ CM.runStateT (mapM (uncurry (runSymExec solver config folder_root)) current_states) (b, k)
   let ng = name_gen b'
@@ -380,6 +383,7 @@ verifyLoop solver ns states prev b config folder_root k | not (null states) = do
       vl (sh1, sh2) = simplify $ tryDischarge solver ns fresh_name sh1 sh2 (zip (history sh1) (history sh2))
   -- TODO printing
   W.liftIO $ putStrLn "<Loop Iteration>"
+  W.liftIO $ putStrLn $ show n
   -- for every internal list, map with its corresponding original state
   let app_pair (sh1, sh2) (s1, s2) = (appendH sh1 s1, appendH sh2 s2)
       map_fns = map app_pair states
@@ -388,11 +392,14 @@ verifyLoop solver ns states prev b config folder_root k | not (null states) = do
   proof_list <- mapM vl $ concat updated_hists
   let new_obligations = concat [l | Just l <- proof_list]
       prev' = new_obligations ++ prev
+      n' = if n > 0 then n - 1 else n
   W.liftIO $ putStrLn $ show $ length new_obligations
   if all isJust proof_list then
-    verifyLoop solver ns new_obligations prev' b'' config folder_root k'
+    verifyLoop solver ns new_obligations prev' b'' config folder_root k' n'
   else
     return $ S.SAT ()
+  | not (null states) = do
+    return $ S.Unknown "Loop Iterations Exhausted"
   | otherwise = do
     return $ S.UNSAT ()
 
@@ -795,11 +802,12 @@ checkRule config init_state bindings total finite rule = do
   (res, w) <- W.runWriterT $ verifyLoop solver ns
              [(rewrite_state_l'', rewrite_state_r'')]
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config "" 0
+             bindings'' config "" 0 10
   -- UNSAT for good, SAT for bad
   -- TODO how to display?
   putStrLn "--- SUMMARY ---"
-  mapM (putStrLn . summarize) w
+  let pg = mkPrettyGuide w
+  mapM (putStrLn . (summarize pg)) w
   putStrLn "--- END OF SUMMARY ---"
   return res
 

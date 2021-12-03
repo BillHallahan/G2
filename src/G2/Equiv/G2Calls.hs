@@ -306,6 +306,7 @@ instance ASTContainer EquivTracker Type where
         $ HM.toList hm )
         m total finite fname
 
+-- TODO should names change in total and finite?
 instance Named EquivTracker where
     names (EquivTracker hm _ _ _ _) = names hm
     rename old new (EquivTracker hm m total finite fname) =
