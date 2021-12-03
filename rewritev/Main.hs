@@ -42,15 +42,25 @@ finiteArg :: String -> Bool
 finiteArg ('_':_) = True
 finiteArg _ = False
 
-isFlag :: String -> Bool
-isFlag ('-':'-':_) = True
-isFlag _ = False
+isFlagOrNumber :: String -> Bool
+isFlagOrNumber ('-':'-':_) = True
+isFlagOrNumber ('0':_) = True
+isFlagOrNumber ('1':_) = True
+isFlagOrNumber ('2':_) = True
+isFlagOrNumber ('3':_) = True
+isFlagOrNumber ('4':_) = True
+isFlagOrNumber ('5':_) = True
+isFlagOrNumber ('6':_) = True
+isFlagOrNumber ('7':_) = True
+isFlagOrNumber ('8':_) = True
+isFlagOrNumber ('9':_) = True
+isFlagOrNumber _ = False
 
 runWithArgs :: [String] -> IO ()
 runWithArgs as = do
   let (src:entry:tail_args) = as
-      (flags, tail_vars) = partition isFlag tail_args
-      print_summary = "--summarize" `elem` flags
+      (flags_nums, tail_vars) = partition isFlagOrNumber tail_args
+      print_summary = "--summarize" `elem` flags_nums
       limit = case elemIndex "--limit" tail_args of
         Nothing -> -1
         Just n -> read (tail_args !! (n + 1)) :: Int
