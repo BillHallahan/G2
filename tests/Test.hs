@@ -478,6 +478,7 @@ testFileTests = testGroup "TestFiles"
     , checkExpr "tests/TestFiles/Error/Error3.hs" 400 "g" 2 [AtLeast 1, RForAll(not . errors)]
     , checkExpr "tests/TestFiles/Error/Undefined1.hs" 400 "undefined1" 2 [AtLeast 1, RForAll(errors)]
     , checkExpr "tests/TestFiles/Error/Undefined1.hs" 400 "undefined2" 2 [AtLeast 1, RForAll(errors)]
+    , checkExpr "tests/TestFiles/Error/IrrefutError.hs" 400 "f" 2 [AtLeast 2, RExists(errors)]
 
     , checkExpr "tests/TestFiles/BadNames1.hs" 400 "abs'" 2 [Exactly 2]
     , checkExpr "tests/TestFiles/BadNames1.hs" 400 "xswitch" 2 [AtLeast 10]
