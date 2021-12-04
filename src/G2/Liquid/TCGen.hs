@@ -274,7 +274,7 @@ mkFirstCase :: PredFunc -> LHDictMap -> Id -> Id -> Name -> AlgDataTy -> LHState
 mkFirstCase f ldm d1 d2 n adt@(DataTyCon { data_cons = dcs }) = do
     caseB <- freshIdN (typeOf d1)
     return . Case (Var d1) caseB =<< mapM (mkFirstCase' f ldm d2 n adt) dcs
-mkFirstCase f ldm d1 d2 n adt@(NewTyCon { data_con = dc, rep_type = rt }) = do
+mkFirstCase f ldm d1 d2 n adt@(NewTyCon { data_con = dc }) = do
     caseB <- freshIdN (typeOf d1)
     return . Case (Var d1) caseB . (:[]) =<< mkFirstCase' f ldm d2 n adt dc
 mkFirstCase _ _ _ _ _ _ = error "mkFirstCase: Unsupported AlgDataTy"
@@ -464,7 +464,7 @@ lhPPCase lhm fnm (DataTyCon { data_cons = dcs }) i = do
     ci <- freshIdN (typeOf i)
 
     return . Case (Var i) ci =<< mapM (lhPPAlt lhm fnm) dcs
-lhPPCase lhm fnm (NewTyCon { data_con = dc, rep_type = rt}) i = do
+lhPPCase lhm fnm (NewTyCon { rep_type = rt }) i = do
     pp <- lhPPCall lhm fnm rt
     let c = Cast (Var i) (typeOf i :~ rt)
     return $ App pp c

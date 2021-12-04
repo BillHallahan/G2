@@ -75,7 +75,7 @@ createNamePairs ing ins = go ing [] ins
     where
         go :: NameGen -> [(Name, Name)] -> [Name] -> ([(Name, Name)], NameGen)
         go ng rns [] = (rns, ng)
-        go ng rns (name@(Name n m i l):ns) =
+        go ng rns (name:ns) =
             let
                 name' = cleanName name
                 (new_name, ng') = freshSeededName name' ng
@@ -95,17 +95,3 @@ cleanName nm@(Name n m i l)
           n'' = "$" `T.append` n'
       in
       Name n'' m' i l
-
-allNames :: (ASTContainer t Expr, ASTContainer t Type, Named t) => State t -> [Name]
-allNames s = exprNames s ++ E.keys (expr_env s)
-
-altIds :: ASTContainer c Expr => c -> [Id]
-altIds = evalASTs altIds'
-
-altIds' :: Expr -> [Id]
-altIds' (Case _ i as) = i:concatMap altIds'' as
-altIds' _ = []
-
-altIds'' :: Alt -> [Id]
-altIds'' (Alt (DataAlt _ is) _) = is
-altIds'' _ = []

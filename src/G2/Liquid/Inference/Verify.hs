@@ -30,7 +30,6 @@ import Control.Monad.IO.Class
 import qualified Control.Exception as Ex
 import HscTypes (SourceError)
 import Language.Haskell.Liquid.UX.Tidy
-import qualified Language.Haskell.Liquid.UX.DiffCheck as DC
 import Language.Haskell.Liquid.GHC.Interface
 import Language.Haskell.Liquid.Constraint.Generate
 import Language.Haskell.Liquid.Constraint.ToFixpoint
@@ -57,7 +56,6 @@ import Language.Haskell.Liquid.Liquid ()
 import           Language.Haskell.Liquid.UX.Annotate (mkOutput)
 import Language.Haskell.Liquid.UX.Errors
 import Language.Haskell.Liquid.Types.RefType
-import Language.Haskell.Liquid.Model
 import qualified Language.Haskell.Liquid.UX.DiffCheck as DC
 
 data VerifyResult v = Safe
@@ -303,7 +301,6 @@ liquidQuery infconfig cfg tgt info edc = do
     cbs''  = either id              DC.newBinds                        edc
     info'  = either (const info)    (\z -> info {spec = DC.newSpec z}) edc
     names  = either (const Nothing) (Just . map show . DC.checkedVars) edc
-    oldOut = either (const mempty)  DC.oldOutput                       edc
 
 
 dumpCs :: CGInfo -> IO ()

@@ -15,7 +15,6 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
-import qualified Data.Text as T
 
 type ConvertExpr a = G2.Expr -> a
 type AndF a = [a] -> a
@@ -34,7 +33,6 @@ type ToBeFunc a = String -> Integer -> Bool -> a
 mkPreCall :: (InfConfigM m, ProgresserM m) => 
              ConvertExpr form
           -> AndF form
-          -> OrF form
           -> Func form
           -> KnownFunc form
           -> ToBeFunc form
@@ -46,11 +44,11 @@ mkPreCall :: (InfConfigM m, ProgresserM m) =>
           -> M.Map Name SpecInfo
           -> FuncCall
           -> m form
-mkPreCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars })
+mkPreCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars })
     | Just si <- M.lookup n m_si
     , Just (ev_i, ev_b) <- lookupEvals fc (pre_evals evals)
     , Just func_e <- HM.lookup (nameOcc n, nameModule n) eenv = do
-        inf_config <- infConfigM
+        inf_con <- infConfigM
 
         MaxSize mx_meas <- maxSynthSizeM
         let func_ts = argumentTypes func_e
@@ -64,15 +62,15 @@ mkPreCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_si
                     (\(si_pb, ts_es) ->
                         let
                             t_ars = init ts_es
-                            smt_ars = concat $ map (uncurry (adjustArgsWithCare inf_config n convExpr (fromInteger mx_meas) tenv meas meas_ex)) t_ars
+                            smt_ars = concat $ map (uncurry (adjustArgsWithCare inf_con n convExpr (fromInteger mx_meas) tenv meas meas_ex)) t_ars
 
                             (l_rt, l_re) = last ts_es
                             re_pb = extractExprPolyBoundWithRoot l_re
                             rt_pb = extractTypePolyBound l_rt
 
 
-                            re_rt_pb = filterPBByType snd $ zipPB re_pb rt_pb
-                            si_re_rt_pb = case re_rt_pb of
+                            m_re_rt_pb = filterPBByType snd $ zipPB re_pb rt_pb
+                            si_re_rt_pb = case m_re_rt_pb of
                                               Just re_rt_pb -> zipWithPB (\x (y, z) -> (x, y, z)) si_pb re_rt_pb
                                               Nothing -> error "mkPreCall: impossible, the polybound should have already been filtered"
                         in
@@ -99,7 +97,6 @@ mkPreCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_si
 mkPostCall :: (InfConfigM m, ProgresserM m) => 
               ConvertExpr form
            -> AndF form
-           -> OrF form
            -> Func form
            -> KnownFunc form
            -> ToBeFunc form
@@ -111,20 +108,20 @@ mkPostCall :: (InfConfigM m, ProgresserM m) =>
            -> M.Map Name SpecInfo
            -> FuncCall
            -> m form
-mkPostCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars, returns = r })
+mkPostCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars, returns = ret })
     | Just si <- M.lookup n m_si
     , Just (ev_i, ev_b) <- lookupEvals fc (post_evals evals)
     , Just func_e <- HM.lookup (nameOcc n, nameModule n) eenv = do
-        inf_config <- infConfigM
+        inf_con <- infConfigM
 
         MaxSize mx_meas <- maxSynthSizeM
         let func_ts = argumentTypes func_e
 
-            smt_ars = concatMap (uncurry (adjustArgsWithCare inf_config n convExpr (fromInteger mx_meas) tenv meas meas_ex))
+            smt_ars = concatMap (uncurry (adjustArgsWithCare inf_con n convExpr (fromInteger mx_meas) tenv meas meas_ex))
                     . filter (\(t, _) -> not (isTyFun t) && not (isTyVar t))
                     . filter (validArgForSMT . snd) $ zip func_ts ars
 
-            smt_ret = extractExprPolyBoundWithRoot r
+            smt_ret = extractExprPolyBoundWithRoot ret
             smt_ret_ty = extractTypePolyBound (returnType func_e)
             smt_ret_e_ty = case filterPBByType snd $ zipPB smt_ret smt_ret_ty of
                               Just smt_ret_e_ty' -> smt_ret_e_ty'
@@ -196,14 +193,14 @@ convertConstraint :: (InfConfigM m, ProgresserM m) =>
                   -> M.Map Name SpecInfo
                   -> FuncConstraint
                   -> m form
-convertConstraint convExpr andF orF _ impF funcF knownF toBeF eenv tenv meas meas_ex evals si (Call All fc) = do
-    pre <- mkPreCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals si fc
-    post <- mkPostCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals si fc
+convertConstraint convExpr andF _ _ impF funcF knownF toBeF eenv tenv meas meas_ex evals si (Call All fc) = do
+    pre <- mkPreCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals si fc
+    post <- mkPostCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals si fc
     return $ pre `impF` post
-convertConstraint convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si (Call Pre fc) =
-    mkPreCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals si fc
-convertConstraint convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si (Call Post fc) =
-    mkPostCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals si fc
+convertConstraint convExpr andF _ _ _ funcF knownF toBeF eenv tenv meas meas_ex evals si (Call Pre fc) =
+    mkPreCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals si fc
+convertConstraint convExpr andF _ _ _ funcF knownF toBeF eenv tenv meas meas_ex evals si (Call Post fc) =
+    mkPostCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals si fc
 convertConstraint convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si (AndFC fs) =
     return . andF =<< mapM (convertConstraint convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si) fs
 convertConstraint convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si (OrFC fs) =
@@ -240,8 +237,8 @@ substMeasures mx_meas tenv meas meas_ex t e =
                 Nothing -> []
 
 adjustArgsWithCare :: InferenceConfig -> Name -> ConvertExpr form -> Int -> TypeEnv -> Measures -> MeasureExs -> Type -> G2.Expr -> [form]
-adjustArgsWithCare inf_config n convExpr mx_meas tenv meas meas_ex t
-    | use_invs inf_config
+adjustArgsWithCare inf_con n convExpr mx_meas tenv meas meas_ex t
+    | use_invs inf_con
     , specialFunction n =
           map convExpr
         . map adjustLits
@@ -258,6 +255,6 @@ validArgForSMT e = not (isLHDict e) && not (isType e)
         isType (Type _) = True
         isType _ = False
 
-        isLHDict e
-            | (TyCon (Name n _ _ _) _):_ <- unTyApp (typeOf e) = n == "lh"
+        isLHDict e_
+            | (TyCon (Name n _ _ _) _):_ <- unTyApp (typeOf e_) = n == "lh"
             | otherwise = False

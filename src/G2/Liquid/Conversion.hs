@@ -28,7 +28,7 @@ import Language.Fixpoint.Types.Names
 import Language.Fixpoint.Types.Sorts
 import qualified Language.Fixpoint.Types.Refinements as Ref
 import Language.Fixpoint.Types.Refinements hiding (Expr, I)
-import Language.Haskell.Liquid.Types
+import Language.Haskell.Liquid.Types hiding (spec)
 
 import Data.Coerce
 import Data.Foldable
@@ -36,8 +36,6 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
-
-import Debug.Trace
 
 -- | A mapping of TyVar Name's, to Id's for the LH dict's
 type LHDictMap = M.Map Name Id
@@ -158,7 +156,7 @@ mergeSpecType st fn e = do
     return e'''
     where
         repAssertFC fc_ (Assert Nothing e1 e2) = Assert (Just fc_) e1 e2
-        repAssertFC _ e = e
+        repAssertFC _ e_ = e_
 
 createAssumption :: SpecType -> Expr -> LHStateM Expr
 createAssumption st e = do
@@ -245,7 +243,7 @@ convertPostSpecType m bt is r st =
 -- otherwise it does not.  This allows us to use this same function to
 -- translate both for assumptions and assertions
 convertSpecType :: CheckPre -> DictMaps -> BoundTypes -> [Id] -> Maybe Id -> SpecType -> LHStateM Expr
-convertSpecType cp m bt _ r (RVar {rt_var = (RTV v), rt_reft = ref})
+convertSpecType _ m bt _ r (RVar {rt_var = (RTV v), rt_reft = ref})
     | Just r' <- r = do
         let symb = reftSymbol $ ur_reft ref
         let i = mkIdUnsafe v
@@ -344,7 +342,7 @@ handleHigherOrderSpecs lh dm bt (i:is) (RFun {rt_bind = b, rt_in = fin, rt_out =
         let bt' = M.insert (idName i') t bt
         es <- handleHigherOrderSpecs lh dm bt' is fout
         return $ Var i:es
-handleHigherOrderSpecs lh dm bt [] _ = return []
+handleHigherOrderSpecs _ _ _ [] _ = return []
 handleHigherOrderSpecs lh dm bt (i:is) (RAllT {rt_tvbind = RTVar (RTV v) _, rt_ty = rty}) = do
     let i' = mkIdUnsafe v
 
@@ -353,7 +351,7 @@ handleHigherOrderSpecs lh dm bt (i:is) (RAllT {rt_tvbind = RTVar (RTV v) _, rt_t
 
     es <- handleHigherOrderSpecs lh dm' bt' is rty
     return $ Var i:es
-handleHigherOrderSpecs lh dm bt _ st = error "handleHigherOrderSpecs: unhandled SpecType"
+handleHigherOrderSpecs _ _ _ _ _ = error "handleHigherOrderSpecs: unhandled SpecType"
 
 polyPredFunc :: CheckPre -> [SpecType] -> Type -> DictMaps -> BoundTypes -> Id -> LHStateM Expr
 polyPredFunc cp as ty m bt b = do
@@ -518,7 +516,7 @@ convertSetExpr meas dm bt rt e
         e1' <- convertLHExpr dm bt rt e1
         tyI <- tyIntegerT
         t <- if typeOf e1' == tyI then tyIntT else return $ typeOf e1'
-        e1'' <- if typeOf e1' == tyI then correctType dm bt t e1' else return e1'
+        e1'' <- if typeOf e1' == tyI then correctType dm t e1' else return e1'
         return . Just $ mkApp ([ Var (Id f_nm (typeOf f_e))
                                , Type t
                                , e1''])
@@ -527,9 +525,8 @@ convertSetExpr meas dm bt rt e
     , Just (f_nm, f_e) <- E.lookupNameMod nm nm_mod meas = do
         e1' <- convertLHExpr dm bt rt e1
         e2' <- convertLHExpr dm bt rt e2
-        let t1 = typeOf e1'
-            TyApp _ t2 = typeOf e2'
-        e1'' <- correctType dm bt t2 e1'
+        let TyApp _ t2 = typeOf e2'
+        e1'' <- correctType dm t2 e1'
         let t = typeOf e1''
         ord <- ordDict dm t
         return . Just $ mkApp ([ Var (Id f_nm (typeOf f_e))
@@ -581,11 +578,10 @@ convertSetExpr meas dm bt rt e
                             "Set_cap" -> Just ("intersection", Just "Data.Set.Internal")
                             "Set_sub" -> Just ("isSubsetOf", Just "Data.Set.Internal")
                             _ -> Nothing
-convertSetExpr _ _ _ _ _ = return Nothing
 
 unEApp :: Ref.Expr -> [Ref.Expr]
 unEApp (EApp f a) = unEApp f ++ [a]
-unEApp expr = [expr]
+unEApp e = [e]
 
 convertBop :: Bop -> LHStateM Expr
 convertBop Ref.Plus = convertBop' lhPlusM
@@ -651,9 +647,6 @@ correctTypes m bt mt re re' = do
     may_ratio_e' <- maybeRatioFromInteger m e'
     fromRationalF <- lhFromRationalM
 
-    maybe_nfiDict <- maybeNumFromIntegral m retT
-    maybe_nfiDict' <- maybeNumFromIntegral m retT'
-
     if | t == t' -> return (e, e')
        | retT /= tyI
        , retT' == tyI
@@ -694,10 +687,9 @@ correctTypes m bt mt re re' = do
                                 ++ "\nretT' = " ++ show retT'
                                 ++ "\nm = " ++ show m
 
-correctType :: DictMaps -> BoundTypes -> Type -> Expr -> LHStateM Expr
-correctType m bt t e = do
+correctType :: DictMaps -> Type -> Expr -> LHStateM Expr
+correctType m t e = do
     fIntgr <- lhFromIntegerM
-    tIntgr <- lhToIntegerM
     tyI <- tyIntegerT
 
     let t' = typeOf e
@@ -723,18 +715,6 @@ maybeRatioFromInteger m e = do
         , typeOf e == tyI  ->
             return . Just $ mkApp [Var toRatioF, Type (typeOf e), iDict, e, App dcIntegerE (Lit (LitInt 1))]
        | otherwise -> return Nothing
-
-
-maybeNumFromIntegral :: DictMaps -> Type -> LHStateM (Maybe Expr)
-maybeNumFromIntegral m t = do
-    may_iDict <- maybeIntegralDict m t
-
-    intExReal <- return . mkIntegralExtactReal =<< knownValues
-    realExNum <- return . mkRealExtractNum =<< knownValues
-
-    case may_iDict of
-        Just iDict -> return . Just $ App realExNum (App intExReal iDict)
-        Nothing -> return Nothing
 
 convertSymbolT :: Symbol -> Type -> Id
 convertSymbolT s = Id (symbolName s)
@@ -923,8 +903,8 @@ lhTCDict' m t = do
 
 maybeOrdDict :: DictMaps -> Type -> LHStateM (Maybe Expr)
 maybeOrdDict m t = do
-    ord <- lhOrdTCM
-    tc <- typeClassInstTC (ord_dicts m) ord t
+    ordTC <- lhOrdTCM
+    tc <- typeClassInstTC (ord_dicts m) ordTC t
     case tc of
         Just _ -> return tc
         Nothing -> do
@@ -968,10 +948,3 @@ maybeFractionalDict :: DictMaps -> Type -> LHStateM (Maybe Expr)
 maybeFractionalDict m t = do
     integral <- return . KV.fractionalTC =<< knownValues
     typeClassInstTC (fractional_dicts m) integral t
-
-fractionalDict :: DictMaps -> Type -> LHStateM Expr
-fractionalDict m t = do
-    tc <- maybeFractionalDict m t
-    case tc of
-        Just e -> return e
-        Nothing ->  error $ "No fractional dict\n" ++ show t ++ "\n" ++ show m

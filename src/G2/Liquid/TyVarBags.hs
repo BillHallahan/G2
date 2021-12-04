@@ -177,8 +177,8 @@ extractTyVarCall func_names is_fs i e
         let ars_ty = anonArgumentTypes $ PresType t
             tvs = tyVarIds . returnType $ PresType t
 
-        inst_funcs <- getInstFuncs
-        inst_ars <- mapM (instTyVarCall' inst_funcs is_fs) ars_ty
+        inst_fs <- getInstFuncs
+        inst_ars <- mapM (instTyVarCall' inst_fs is_fs) ars_ty
         let call_f = mkApp $ e:inst_ars
 
         cll <- if i `elem` tvs then extractTyVarCall func_names is_fs i call_f else return []
@@ -365,7 +365,7 @@ instance Reducer ExistentialInstRed () t where
                        , curr_expr = CurrExpr Return e }
             in
             return (InProgress, [(s', rv)], b, r)
-        | Case (Var i) bnd ([Alt (DataAlt _ params) (Tick (NamedLoc n) e)]) <- e
+        | Case (Var i) bnd ([Alt (DataAlt _ params) (Tick (NamedLoc n) ae)]) <- e
         , i == existentialInstId
         , n == existentialCaseName =
             let
@@ -373,16 +373,16 @@ instance Reducer ExistentialInstRed () t where
                 (n_params, ng'') = freshSeededNames (map idName params) ng'
 
                 eenv' = E.insertSymbolic postSeqExistentialInstId eenv
-                eenv'' = foldr (\n -> E.insert n (Var existentialInstId)) eenv' n_params
+                eenv'' = foldr (\en -> E.insert en (Var existentialInstId)) eenv' n_params
 
-                n_e = rename (idName bnd) n_bnd $ foldr (uncurry rename) e (zip (map idName params) n_params)
+                n_e = rename (idName bnd) n_bnd $ foldr (uncurry rename) ae (zip (map idName params) n_params)
             in 
             return ( InProgress
                    , [(s { expr_env = eenv''
                          , curr_expr = CurrExpr Evaluate n_e }, rv)]
                    , b { name_gen = ng'' }
                    , r)
-        | Case (Var i) _ ([Alt _ (Tick (NamedLoc n) e)]) <- e
+        | Case (Var i) _ ([Alt _ (Tick (NamedLoc n) ae)]) <- e
         , i == existentialInstId
         , n == existentialCaseName =
             let
@@ -390,7 +390,7 @@ instance Reducer ExistentialInstRed () t where
             in 
             return ( InProgress
                    , [(s { expr_env = eenv'
-                         , curr_expr = CurrExpr Evaluate e }, rv)]
+                         , curr_expr = CurrExpr Evaluate ae }, rv)]
                    , b
                    , r)
         | Case (Var i) _ _ <- e

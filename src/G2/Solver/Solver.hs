@@ -22,8 +22,6 @@ import qualified G2.Language.PathConds as PC
 import Data.List
 import qualified Data.HashMap.Lazy as HM
 
-import Debug.Trace
-
 -- | The result of a Solver query
 data Result m u = SAT m
                 | UNSAT u

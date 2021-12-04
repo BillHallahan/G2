@@ -11,7 +11,6 @@ import Test.Tasty.QuickCheck
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
-import Data.Maybe
 
 import Prelude hiding (lookup, map, null)
 import qualified Prelude as P

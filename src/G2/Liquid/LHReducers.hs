@@ -13,7 +13,6 @@ module G2.Liquid.LHReducers ( LHRed (..)
                             , LHSWHNFHalter (..)
                             , LHLimitByAcceptedOrderer (..)
                             , LHLimitByAcceptedHalter
-                            , LHLimitByAcceptedOrderer
                             , LHAbsHalter (..)
                             , LHMaxOutputsHalter (..)
                             , LHMaxOutputsButTryHalter (..)
@@ -42,8 +41,6 @@ import G2.Liquid.Annotations
 import G2.Liquid.Helpers
 import G2.Liquid.SpecialAsserts
 
-import Data.Foldable
-import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
 import Data.List
 import Data.List.Extra
@@ -54,9 +51,6 @@ import Data.Ord
 import Data.Semigroup
 import qualified Data.Text as T
 import Data.Time.Clock
-
-import Debug.Trace
-import G2.Lib.Printers
 
 -- lhReduce
 -- When reducing for LH, we change the rule for evaluating Var f.
@@ -242,7 +236,7 @@ data LHLimitByAcceptedOrderer = LHLimitByAcceptedOrderer
 instance Orderer LHLimitByAcceptedOrderer () Int LHTracker where
     initPerStateOrder _ _ = ()
 
-    orderStates or _ _ s = (num_steps s, or)
+    orderStates ord _ _ s = (num_steps s, ord)
 
     updateSelected _ _ _ _ = ()
 
@@ -273,7 +267,7 @@ instance Halter LHAbsHalter Int LHTracker where
                                         True -> Just . length . abstract_calls . track $ s
                                         False -> Nothing) acc
 
-    stopRed _ hv pr s =
+    stopRed _ hv _ s =
         return $ if length (abstract_calls $ track s) > hv
             then Discard
             else Continue
@@ -315,9 +309,9 @@ instance Halter LHMaxOutputsButTryHalter () LHTracker where
             && ( abstractCallsNum s >= m || length dis' >= tal || min_abs == 0 )
         where
             min_abs = minAbstractCalls acc
-            acc' = filter (\s -> abstractCallsNum s == min_abs) acc
+            acc' = filter (\acc_s -> abstractCallsNum acc_s == min_abs) acc
 
-            dis' = filter (\s -> abstractCallsNum s < min_abs) dis
+            dis' = filter (\dis_s -> abstractCallsNum dis_s < min_abs) dis
 
     stepHalter _ hv _ _ _ = hv
 
@@ -356,7 +350,7 @@ data SBInfo = SBInfo { accepted_lt_num :: Int
 instance Halter SearchedBelowHalter SBInfo LHTracker where
     initHalt _ _ = SBInfo { accepted_lt_num = 0, discarded_lt_num = 0}
 
-    updatePerStateHalt _ hv (Processed { accepted = acc, discarded = dis }) _ =
+    updatePerStateHalt _ _ (Processed { accepted = acc, discarded = dis }) _ =
         SBInfo { accepted_lt_num = length acc'
                , discarded_lt_num = length dis_less_than_min }
         where
@@ -366,7 +360,9 @@ instance Halter SearchedBelowHalter SBInfo LHTracker where
 
             dis_less_than_min = filter (\s -> abstractCallsNum s < min_abs || abstractCallsNum s == 0) dis
 
-    stopRed sbh (SBInfo { accepted_lt_num = length_acc, discarded_lt_num = length_dis_ltm } ) (Processed { accepted = acc }) s
+    stopRed sbh (SBInfo { accepted_lt_num = length_acc
+                        , discarded_lt_num = length_dis_ltm } )
+                _ _
         | length_acc >= found_at_least sbh
         , length_dis_ltm >= discarded_at_least sbh = return Discard
 
@@ -374,8 +370,6 @@ instance Halter SearchedBelowHalter SBInfo LHTracker where
         , length_dis_ltm >= discarded_at_most sbh = return Discard
 
         | otherwise = return Continue
-        where
-            min_abs = minAbstractCalls acc
             
     stepHalter _ hv _ _ _ = hv
 
@@ -392,15 +386,15 @@ instance Halter LHTimerHalter Int t where
     initHalt _ _ = 0
     updatePerStateHalt _ _ _ _ = 0
 
-    stopRed tr@(LHTimerHalter { lh_init_time = it
-                              , lh_max_seconds = ms })
-            v (Processed { accepted = acc }) s
+    stopRed (LHTimerHalter { lh_init_time = it
+                           , lh_max_seconds = ms })
+            v (Processed { accepted = acc }) _
         | v == 0
         , any true_assert acc = do
             curr <- getCurrentTime
-            let diff = diffUTCTime curr it
+            let t_diff = diffUTCTime curr it
 
-            if diff > ms
+            if t_diff > ms
                 then return Discard
                 else return Continue
         | otherwise = return Continue
@@ -459,7 +453,6 @@ instance Reducer NonRedAbstractReturns () LHTracker where
                               , curr_expr = cexpr
                               , exec_stack = stck
                               , track = LHTracker { abstract_calls = afs }
-                              , model = m
                               , true_assert = True })
                       b@(Bindings { deepseq_walkers = ds})
         | Just af <- firstJust (absRetToRed eenv ds) afs = do

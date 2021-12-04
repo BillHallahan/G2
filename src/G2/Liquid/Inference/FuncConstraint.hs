@@ -45,7 +45,6 @@ import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
-import Data.Maybe
 import Data.Monoid hiding (All)
 
 newtype FuncConstraints = FuncConstraints (M.Map Name (HS.HashSet FuncConstraint))
@@ -132,9 +131,6 @@ allCalls (NotFC fc) = allCalls fc
 allCallsFC :: FuncConstraints -> [FuncCall]
 allCallsFC = concatMap allCalls . toListFC
 
-allCallsByName :: FuncConstraints -> [FuncCall]
-allCallsByName = concatMap allCalls . toListFC
-
 printFCs :: LiquidReadyState -> FuncConstraints -> String
 printFCs lrs fcs =
     intercalate "\n" . map (printFC (state . lr_state $ lrs)) $ toListFC fcs
@@ -161,7 +157,7 @@ printFC s (ImpliesFC fc1 fc2) = "(" ++ printFC s fc1 ++ ") => (" ++ printFC s fc
 printFC s (NotFC fc) = "not (" ++ printFC s fc ++ ")"
 
 instance ASTContainer FuncConstraint Expr where
-    containedASTs (Call sp fc) = containedASTs fc
+    containedASTs (Call _ fc) = containedASTs fc
     containedASTs (AndFC fcs) = containedASTs fcs
     containedASTs (OrFC fcs) = containedASTs fcs
     containedASTs (ImpliesFC fc1 fc2) = containedASTs fc1 ++ containedASTs fc2
