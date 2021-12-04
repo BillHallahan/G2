@@ -89,7 +89,7 @@ cfRetValue ars rt
         let ex_tvs_to_vrs = zip all_tvs ex_vrs
 
         ex_ty_clls <- mapM 
-                        (\tv -> wrapExtractCalls tv
+                        (\tv -> wrapExtractCalls
                               . filter nullNonDet
                               . concat
                               =<< mapM (extractTyVarCall ty_bags ex_tvs_to_vrs tv) ars) (nub all_tvs)

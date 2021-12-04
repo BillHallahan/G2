@@ -132,7 +132,7 @@ createBagFuncCase func_names adt_i tyvar_id bi (NewTyCon { bound_ids = adt_bi
     let rt' = foldr (uncurry retype) rt $ zip adt_bi (map TyVar bi)
         cst = Cast (Var adt_i) (typeOf adt_i :~ rt')
     clls <- extractTyVarCall func_names todo_emp tyvar_id cst
-    wrapExtractCalls tyvar_id clls
+    wrapExtractCalls clls
 createBagFuncCase _ _ _ _ (TypeSynonym {}) =
     error "creatBagFuncCase: TypeSynonyms unsupported"
 
@@ -187,8 +187,8 @@ extractTyVarCall func_names is_fs i e
     where
         t = typeOf e
 
-wrapExtractCalls :: ExState s m => Id -> [Expr] -> m Expr
-wrapExtractCalls i clls = do
+wrapExtractCalls :: ExState s m => [Expr] -> m Expr
+wrapExtractCalls clls = do
     case null clls of
         True -> do
             -- flse <- mkFalseE
@@ -224,10 +224,10 @@ createInstFunc :: InstFuncs -> Name -> AlgDataTy -> LHStateM ()
 createInstFunc func_names tn adt
     | Just fn <- M.lookup tn func_names = do
         bi <- freshIdsN $ map (const TYPE) (bound_ids adt)
-        inst_funcs <- freshIdsN $ map TyVar bi
+        inst_fs <- freshIdsN $ map TyVar bi
 
-        cse <- createInstFunc' func_names (zip bi inst_funcs) adt
-        let e = mkLams (map (TypeL,) bi) $ mkLams (map (TermL,) inst_funcs) cse
+        cse <- createInstFunc' func_names (zip bi inst_fs) adt
+        let e = mkLams (map (TypeL,) bi) $ mkLams (map (TermL,) inst_fs) cse
 
         insertE (idName fn) e
     | otherwise = error "createInstFunc: type not found"
@@ -370,7 +370,7 @@ instance Reducer ExistentialInstRed () t where
         , n == existentialCaseName =
             let
                 (n_bnd, ng') = freshSeededName (idName bnd) ng
-                (n_params, ng'') = freshSeededNames (map idName params) ng
+                (n_params, ng'') = freshSeededNames (map idName params) ng'
 
                 eenv' = E.insertSymbolic postSeqExistentialInstId eenv
                 eenv'' = foldr (\n -> E.insert n (Var existentialInstId)) eenv' n_params
@@ -382,7 +382,7 @@ instance Reducer ExistentialInstRed () t where
                          , curr_expr = CurrExpr Evaluate n_e }, rv)]
                    , b { name_gen = ng'' }
                    , r)
-        | Case (Var i) bnd ([Alt _ (Tick (NamedLoc n) e)]) <- e
+        | Case (Var i) _ ([Alt _ (Tick (NamedLoc n) e)]) <- e
         , i == existentialInstId
         , n == existentialCaseName =
             let
