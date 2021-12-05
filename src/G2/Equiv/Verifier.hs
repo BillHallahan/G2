@@ -56,13 +56,6 @@ import qualified Control.Monad.Writer.Lazy as W
 
 -- 9/27 notes
 -- TODO have a list of every single state, not just the stopping ones
--- At least be able to say what rules are being applied at every step
--- Applications of induction and coinduction for different branches
--- turn Case into Let for forcing, induction
--- split into multiple branches for Case-Let thing?
--- if the final value doesn't match what we expect, throw the branch out somehow
--- have some notion of finite variables still in place?
--- wrap finite things in force functions
 -- The value of discharge should be the previously-encountered state pair that
 -- was used to discharge this branch, if the branch has been discharged.
 -- TODO requiring finiteness for forceIdempotent makes verifier get stuck
@@ -204,11 +197,8 @@ wrcHelper n = modifyChildren (wrapRecursiveCall n)
 wrapLetRec :: ExprEnv -> Expr -> Expr
 wrapLetRec h (Let binds e) =
   let binds1 = map (\(i, e_) -> (idName i, e_)) binds
-      -- TODO better name for this?
       fresh_name = Name (DT.pack "FRESH") Nothing 0 Nothing
       h' = foldr (\(n_, e_) h_ -> E.insert n_ e_ h_) h ((fresh_name, e):binds1)
-      -- TODO this needs to be a 2D map?
-      -- Leave it as 1D for now
       -- TODO this might be doing more work than is necessary
       wrap_cg = wrapAllRecursion (G.getCallGraph h') h'
       binds2 = map (\(n_, e_) -> (n_, wrap_cg n_ e_)) binds1
@@ -424,30 +414,14 @@ exprTrace sh1 sh2 =
 addDischarge :: StateET -> StateH -> StateH
 addDischarge s sh = sh { discharge = Just s }
 
--- TODO don't use for now
-{-
-addInduction :: StateET -> StateH -> StateH
-addInduction s sh =
-  let im = IndMarker s s (latest sh)
-  in sh { inductions = im:(inductions sh) }
--}
-
--- TODO a better setup would also indicate which side was used for induction
--- TODO just return (sh1, sh2) in failure event?
--- TODO I can add induction markers here; preserve the old states
--- q1 and q2 were the states used for the induction
--- TODO more reworking would be necessary to get the actual past states used
--- TODO could be losing valuable parts of history from this
 makeIndStateH :: (StateH, StateH) ->
                  ((StateET, StateET), ((Int, Int), StateET, StateET)) ->
                  (StateH, StateH)
-makeIndStateH (sh1, sh2) ((q1, q2), ((n1, n2), s1, s2)) | n1 >= 0, n2 >= 0 =
+makeIndStateH (sh1, sh2) (_, ((n1, n2), s1, s2)) | n1 >= 0, n2 >= 0 =
   let hist1 = drop n1 $ history sh1
       hist2 = drop n2 $ history sh2
       sh1' = sh1 { history = hist1, latest = s1 }
       sh2' = sh2 { history = hist2, latest = s2 }
-      --im1 = IndMarker q2 q1 s1
-      --im2 = IndMarker q1 q2 s2
   in (sh1', sh2')
   | otherwise = (sh1 { latest = s1 }, sh2 { latest = s2 })
 
@@ -483,12 +457,8 @@ tryDischarge solver ns fresh_name sh1 sh2 =
       W.liftIO $ putStrLn $ "J! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
       W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s1
       W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s2
-      --putStrLn $ show $ exprExtract s1
-      --putStrLn $ show $ exprExtract s2
 
-      -- TODO new prev'
-      let -- prev' = prevFiltered (sh1, sh2)
-          (obs_i, obs_c) = partition canUseInduction obs
+      let (obs_i, obs_c) = partition canUseInduction obs
           states_c = map (stateWrap s1 s2) obs_c
       -- TODO do I need more adjustments than what I have here?
       discharges_e <- mapM (tryEquality solver ns (sh1, sh2)) states_c
@@ -514,7 +484,6 @@ tryDischarge solver ns fresh_name sh1 sh2 =
       states_i2 <- filterM (isNothingM . (tryCoinduction solver ns (sh1, sh2))) states_i1
       -- TODO need a way to get the prev pair used for induction
       states_i' <- mapM (inductionFull solver ns fresh_name (sh1, sh2)) states_i2
-      --states_i' <- filterM (notM . (induction solver ns fresh_name prev')) states_i
 
       -- TODO unnecessary to pass the induction states through this?
       let (ready, not_ready) = partition statePairReadyForSolver states_c'
@@ -540,17 +509,6 @@ tryDischarge solver ns fresh_name sh1 sh2 =
         -- TODO discharged exprs should come from filter and solver
         S.UNSAT () -> return $ DischargeResult not_ready_h (matches ++ ready_solved) Nothing
         _ -> return $ DischargeResult not_ready_h (matches ++ ready_solved) (Just ready)
-
--- TODO (11/10) need to move total-finite info for induction
--- info from first tracker gets added to the second
--- TODO left takes precedence in union?
--- TODO unused
-mergeTrackers :: EquivTracker -> EquivTracker -> EquivTracker
-mergeTrackers t1 t2 = t2 {
-    higher_order = HM.union (higher_order t1) (higher_order t2)
-  , total = HS.union (total t1) (total t2)
-  , finite = HS.union (finite t1) (finite t2)
-}
 
 -- TODO (9/27) check path constraint implication?
 -- TODO (9/30) alternate:  just substitute one scrutinee for the other
@@ -594,13 +552,7 @@ startingState et s =
 unused_name :: Name
 unused_name = Name (DT.pack "UNUSED") Nothing 0 Nothing
 
--- TODO get the actual symbolic vars that correspond to the finite names
--- at the very least, I need the Ids
--- Case statements force evaluation to SWHNF in G2
--- TODO what to use as the extra Id for the Case statement?
--- TODO the force function needs to match the type of the symbolic var
--- I don't know if this will work as it is now
--- TODO adding extra stack tick here doesn't help
+-- TODO may not use this finiteness-forcing method at all
 forceFinite :: Walkers -> Id -> Expr -> Expr
 forceFinite w i e =
   let e' = mkStrict w $ Var i

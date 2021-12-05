@@ -3,7 +3,6 @@
 module G2.Equiv.Summary (summarize, summarizeAct) where
 
 -- TODO may not need all imports
--- TODO add flag to disable summary printing
 
 import G2.Language
 
@@ -11,43 +10,25 @@ import G2.Config
 
 import G2.Interface
 
-import qualified Control.Monad.State.Lazy as CM
-
-import qualified G2.Language.ExprEnv as E
-import qualified G2.Language.Typing as T
-import qualified G2.Language.CallGraph as G
-
 import Data.List
 import Data.Maybe
-import qualified Data.Text as DT
-
-import qualified Data.HashSet as HS
-import qualified G2.Solver as S
-
-import qualified G2.Language.PathConds as P
 
 import G2.Equiv.InitRewrite
 import G2.Equiv.EquivADT
 import G2.Equiv.G2Calls
 import G2.Equiv.Tactics
 
-import qualified Data.HashMap.Lazy as HM
-import qualified Data.Map as M
 import G2.Execution.Memory
-import Data.Monoid (Any (..))
 
 import Debug.Trace
 
 import G2.Execution.NormalForms
-import qualified G2.Language.Stack as Stck
 import Control.Monad
 
 import Data.Time
 
 import G2.Execution.Reducer
 import G2.Lib.Printers
-
-import qualified Control.Monad.Writer.Lazy as W
 
 sideName :: Side -> String
 sideName ILeft = "Left"
@@ -177,7 +158,7 @@ tabsAfterNewLines [] = []
 tabsAfterNewLines ('\n':t) = '\n':'\t':(tabsAfterNewLines t)
 tabsAfterNewLines (c:t) = c:(tabsAfterNewLines t)
 
--- TODO same guide for the whole summary, generate externally
+-- generate the guide for the whole summary externally
 summarize :: PrettyGuide -> Marker -> String
 summarize pg (Marker (sh1, sh2) m) =
   "***\nLeft Path: " ++

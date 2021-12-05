@@ -35,11 +35,9 @@ import qualified Control.Monad.State.Lazy as CM
 
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.Typing as T
-import qualified G2.Language.CallGraph as G
 
 import Data.List
 import Data.Maybe
-import qualified Data.Text as DT
 import qualified Data.Sequence as DS
 
 import qualified Data.HashSet as HS
@@ -59,7 +57,6 @@ import Data.Monoid (Any (..))
 import Debug.Trace
 
 import G2.Execution.NormalForms
-import qualified G2.Language.Stack as Stck
 import Control.Monad
 
 import Data.Time
@@ -82,7 +79,9 @@ instance Named StateH where
   rename old new (StateH s h ims d) =
     StateH (rename old new s) (rename old new h) (rename old new ims) (rename old new d)
 
--- TODO container
+-- The container field is only relevant for induction.  When the expression for
+-- one past state is actually an inner scrutinee of an expression that really
+-- was encountered in the past, the container holds the full expression.
 data PrevMatch t = PrevMatch {
     present :: (State t, State t)
   , past :: (State t, State t)
@@ -161,7 +160,6 @@ data CoMarker = CoMarker {
   , co_past :: (StateET, StateET)
 }
 
--- TODO Names
 -- TODO remove duplicates?
 instance Named CoMarker where
   names (CoMarker (s1, s2) (q1, q2) (p1, p2)) =
@@ -196,9 +194,6 @@ instance Named EqualMarker where
 reverseCoMarker :: CoMarker -> CoMarker
 reverseCoMarker (CoMarker (s1, s2) (q1, q2) (p1, p2)) =
   CoMarker (s2, s1) (q2, q1) (p2, p1)
-
-notM :: Monad m => m Bool -> m Bool
-notM = liftM not
 
 andM :: Monad m => m Bool -> m Bool -> m Bool
 andM = liftM2 (&&)
