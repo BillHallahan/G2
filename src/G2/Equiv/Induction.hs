@@ -197,33 +197,21 @@ inductionFoldL :: S.Solver solver =>
                   Name ->
                   (StateH, StateH) ->
                   (StateET, StateET) ->
-                  W.WriterT [Marker] IO (Int, StateET, StateET, IndMarker)
+                  W.WriterT [Marker] IO (Maybe (Int, StateET, StateET, IndMarker))
 inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2) = do
   let prev = prevFiltered (sh1, sh2)
   ind <- induction solver ns prev (s1, s2)
   case ind of
     Nothing -> case history sh2 of
-      [] -> return (-1, s1, s2, undefined)
+      [] -> return Nothing
       p2:_ -> inductionFoldL solver ns fresh_name (sh1, backtrackOne sh2) (s1, p2)
     Just (s1', s2', im) -> do
       g <- generalize solver ns fresh_name (s1', s2')
       case g of
         Nothing -> case history sh2 of
-          [] -> return (-1, s1, s2, im)
+          [] -> return Nothing
           p2:_ -> inductionFoldL solver ns fresh_name (sh1, backtrackOne sh2) (s1, p2)
-        Just (s1'', s2'') -> return (length $ history sh2, s1'', s2'', im)
-{-
-  (b, s1', s2', im) <- induction solver ns prev (s1, s2)
-  if b then do
-    (b', s1'', s2'') <- generalize solver ns fresh_name (s1', s2')
-    if b' then return (length $ history sh2, s1'', s2'', im)
-    else case history sh2 of
-      [] -> return (-1, s1, s2, im)
-      p2:_ -> inductionFoldL solver ns fresh_name (sh1, backtrackOne sh2) (s1, p2)
-  else case history sh2 of
-    [] -> return (-1, s1, s2, im)
-    p2:_ -> inductionFoldL solver ns fresh_name (sh1, backtrackOne sh2) (s1, p2)
--}
+        Just (s1'', s2'') -> return $ Just (length $ history sh2, s1'', s2'', im)
 
 -- TODO somewhat crude solution:  record how "far back" it needed to go
 -- negative one means that it failed
@@ -245,30 +233,30 @@ inductionFold :: S.Solver solver =>
                  Name ->
                  (StateH, StateH) ->
                  (StateET, StateET) ->
-                 W.WriterT [Marker] IO ((Int, Int), StateET, StateET)
+                 W.WriterT [Marker] IO (Maybe ((Int, Int), StateET, StateET))
 inductionFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
-  (nl, s1l, s2l, iml) <- inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2)
-  let length1 = length $ history sh1
-      length2 = length $ history sh2
-  if nl >= 0 then do
-    W.liftIO $ putStrLn $ "IL " ++ show (map (folder_name . track) [s1, s2, s1l, s2l])
-    let iml' = iml {
-      ind_real_present = (s1, s2)
-    , ind_fresh_name = fresh_name
-    }
-    W.tell $ [Marker (sh1, sh2) $ Induction iml']
-    return ((0, length2 - nl), s1l, s2l)
-  else do
-    (nr, s2r, s1r, imr) <- inductionFoldL solver ns fresh_name (sh2, sh1) (s2, s1)
-    if nr >= 0 then do
-      W.liftIO $ putStrLn $ "IR " ++ show (map (folder_name . track) [s1, s2, s1r, s2r])
-      let imr' = reverseIndMarker (imr {
-        ind_real_present = (s2, s1)
+  fl <- inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2)
+  case fl of
+    Just (nl, s1l, s2l, iml) -> do
+      W.liftIO $ putStrLn $ "IL " ++ show (map (folder_name . track) [s1, s2, s1l, s2l])
+      let iml' = iml {
+        ind_real_present = (s1, s2)
       , ind_fresh_name = fresh_name
-      })
-      W.tell $ [Marker (sh1, sh2) $ Induction imr']
-      return ((length1 - nr, 0), s1r, s2r)
-    else return ((-1, -1), s1, s2)
+      }
+      W.tell $ [Marker (sh1, sh2) $ Induction iml']
+      return $ Just ((0, (length $ history sh2) - nl), s1l, s2l)
+    Nothing -> do
+      fr <- inductionFoldL solver ns fresh_name (sh2, sh1) (s2, s1)
+      case fr of
+        Just (nr, s2r, s1r, imr) -> do
+          W.liftIO $ putStrLn $ "IR " ++ show (map (folder_name . track) [s1, s2, s1r, s2r])
+          let imr' = reverseIndMarker (imr {
+            ind_real_present = (s2, s1)
+          , ind_fresh_name = fresh_name
+          })
+          W.tell $ [Marker (sh1, sh2) $ Induction imr']
+          return $ Just (((length $ history sh1) - nr, 0), s1r, s2r)
+        Nothing -> return Nothing
 
 generalizeAux :: S.Solver solver =>
                  solver ->
@@ -332,14 +320,21 @@ generalize solver ns fresh_name (s1, s2) = do
 
 -- TODO does this throw off history logging?  I don't think so
 -- TODO might not matter with s1 and s2 naming
+-- TODO s1 and s2 returned in event of failure; not the same across all entries
 inductionFull :: S.Solver solver =>
                  solver ->
                  HS.HashSet Name ->
                  Name ->
                  (StateH, StateH) ->
                  (StateET, StateET) ->
-                 W.WriterT [Marker] IO ((Int, Int), StateET, StateET)
+                 W.WriterT [Marker] IO (Maybe (Int, Int), StateET, StateET)
 inductionFull solver ns fresh_name sh_pair s_pair@(s1, s2) = do
+  ifold <- inductionFold solver ns fresh_name sh_pair s_pair
+  case ifold of
+    Nothing -> return (Nothing, s1, s2)
+    Just ((n1, n2), s1', s2') -> return (Just (n1, n2), s1', s2')
+  {-
   ((n1, n2), s1', s2') <- inductionFold solver ns fresh_name sh_pair s_pair
   if n1 < 0 || n2 < 0 then trace ("NO INDUCTION " ++ show n1) return ((n1, n2), s1, s2)
   else return ((n1, n2), s1', s2')
+  -}

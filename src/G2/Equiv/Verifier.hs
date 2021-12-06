@@ -416,16 +416,18 @@ exprTrace sh1 sh2 =
 addDischarge :: StateET -> StateH -> StateH
 addDischarge s sh = sh { discharge = Just s }
 
+-- TODO keeping non-negative requirement just in case
 makeIndStateH :: (StateH, StateH) ->
-                 ((StateET, StateET), ((Int, Int), StateET, StateET)) ->
+                 ((StateET, StateET), (Maybe (Int, Int), StateET, StateET)) ->
                  (StateH, StateH)
-makeIndStateH (sh1, sh2) (_, ((n1, n2), s1, s2)) | n1 >= 0, n2 >= 0 =
+makeIndStateH (sh1, sh2) (_, (Just (n1, n2), s1, s2)) | n1 >= 0, n2 >= 0 =
   let hist1 = drop n1 $ history sh1
       hist2 = drop n2 $ history sh2
       sh1' = sh1 { history = hist1, latest = s1 }
       sh2' = sh2 { history = hist2, latest = s2 }
   in (sh1', sh2')
-  | otherwise = (sh1 { latest = s1 }, sh2 { latest = s2 })
+makeIndStateH (sh1, sh2) (_, (_, s1, s2)) =
+  (sh1 { latest = s1 }, sh2 { latest = s2 })
 
 -- TODO printing
 tryDischarge :: S.Solver solver =>
