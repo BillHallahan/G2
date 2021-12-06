@@ -28,7 +28,7 @@ findRule rule_list rule_name =
 
 acceptRule :: Config -> State t -> Bindings -> RewriteRule -> IO ()
 acceptRule config init_state bindings rule = do
-  res <- checkRule config init_state bindings [] [] rule
+  res <- checkRule config init_state bindings [] [] False 10 rule
   return (case res of
     S.SAT _ -> error "Satisfiable"
     S.UNSAT _ -> ()
@@ -36,7 +36,7 @@ acceptRule config init_state bindings rule = do
 
 rejectRule :: Config -> State t -> Bindings -> RewriteRule -> IO ()
 rejectRule config init_state bindings rule = do
-  res <- checkRule config init_state bindings [] [] rule
+  res <- checkRule config init_state bindings [] [] False 10 rule
   return (case res of
     S.SAT _ -> ()
     S.UNSAT _ -> error "Unsatisfiable"
