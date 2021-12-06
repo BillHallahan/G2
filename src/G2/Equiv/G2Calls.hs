@@ -101,7 +101,7 @@ instance Reducer SymbolicSwapper () EquivTracker where
                     Just (E.Conc e') ->
                         let vi = varIds e'
                             vi_hs = HS.fromList $ map idName vi
-                            h' = foldr (\j -> E.insertSymbolic (idName j) j) (E.insert n e' h) (L.nub vi)
+                            h' = foldr (\j -> E.insertSymbolic j) (E.insert n e' h) (L.nub vi)
                             total' = HS.union (HS.intersection (total track_opp) vi_hs) tot
                             finite' = HS.union (HS.intersection (finite track_opp) vi_hs) fin
                             track' = EquivTracker et m total' finite' fname
@@ -230,7 +230,7 @@ instance Reducer EquivReducer () EquivTracker where
                 Just v ->
                     let eenv' = case E.lookup (idName v) eenv of
                             Just _ -> eenv
-                            Nothing -> E.insertSymbolic (idName v) v eenv
+                            Nothing -> E.insertSymbolic v eenv
                         s' = s {
                             curr_expr = CurrExpr Evaluate (Var v)
                           , expr_env = eenv'

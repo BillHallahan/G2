@@ -278,7 +278,7 @@ adjustStateForGeneralization e_old fresh_name s =
       fresh_var = Var fresh_id
       e' = replaceScrutinee e fresh_var e_old
       h = expr_env s
-      h' = E.insertSymbolic fresh_name fresh_id h
+      h' = E.insertSymbolic fresh_id h
   in s {
     curr_expr = CurrExpr Evaluate e'
   , expr_env = h'
