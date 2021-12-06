@@ -69,7 +69,7 @@ coinduction_good_names = [ "forceIdempotent"
                          , "dropNoRecursion"
                          , "mapTake"
                          , "takeIdempotent"
-                         , "doubleReverse"
+                         --, "doubleReverse"
                          , "doubleMap"
                          , "mapIterate" ]
 
