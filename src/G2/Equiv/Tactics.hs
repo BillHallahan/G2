@@ -559,7 +559,6 @@ applySolver solver extraPC s1 s2 =
 -- if there are multiple, just return the first
 -- TODO first pair is "current," second pair is the match from the past
 -- TODO the third entry in a prev triple is the original for left or right
--- TODO make a new type for the prev-threesomes
 moreRestrictivePairAux :: S.Solver solver =>
                           solver ->
                           HS.HashSet Name ->
@@ -704,8 +703,6 @@ backtrackOne sh =
       , history = t
       }
 
--- TODO may change return type
--- "left side" stays constant
 -- This attempts to find a past-present combination that works for coinduction.
 -- The left-hand present state stays fixed, but the recursion iterates through
 -- all of the possible options for the right-hand present state.
@@ -753,15 +750,3 @@ tryCoinduction solver ns (sh1, sh2) (s1, s2) = do
           W.tell [Marker (sh1, sh2) $ Coinduction $ reverseCoMarker cmr]
           return res_r
         _ -> return Nothing
-
--- TODO check past pairs, not just present; like with induction
--- TODO apply for induction states too
-{-
-tryCoinduction solver ns sh_pair (s1, s2) = do
-  res <- moreRestrictivePair solver ns prev (s1, s2)
-  case res of
-    Just (PrevMatch _ p_pair _ _) -> do
-      W.tell $ [Coinduction $ CoMarker (s1, s2) p_pair]
-      return res
-    _ -> return Nothing
--}

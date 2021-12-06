@@ -132,8 +132,10 @@ inductionL solver ns prev (s1, s2) = do
   let scr1 = innerScrutinees $ exprExtract s1
       scr2 = innerScrutinees $ exprExtract s2
       scr_pairs = [(sc1, sc2) | sc1 <- scr1, sc2 <- scr2]
-      scr_states = map (\(sc1, sc2) -> (s1 { curr_expr = CurrExpr Evaluate sc1 }, s2 { curr_expr = CurrExpr Evaluate sc2 })) scr_pairs
-  mr_pairs <- mapM (moreRestrictiveIndRight solver ns prev) scr_states
+  mr_pairs <- mapM (\(sc1, sc2) -> do
+                      let s1_ = s1 { curr_expr = CurrExpr Evaluate sc1 }
+                          s2_ = s2 { curr_expr = CurrExpr Evaluate sc2 }
+                      moreRestrictiveIndRight solver ns prev (s1_, s2_)) scr_pairs
   let mr_zipped = zip scr_pairs mr_pairs
       working_info = [(sc1, sc2, pm) | ((sc1, sc2), Just pm) <- mr_zipped]
       working_info' = filter (\(_, _, PrevMatch _ (_, p2) _ p_outer2) -> validScrutinee s2 p2 p_outer2) working_info
@@ -214,9 +216,6 @@ inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2) = do
         Just (s1'', s2'') -> return $ Just (length $ history sh2, s1'', s2'', im)
 
 -- TODO somewhat crude solution:  record how "far back" it needed to go
--- negative one means that it failed
--- TODO only use histories from sh1 and sh2
--- TODO failure marker return
 -- This tries all of the possible combinations of present states for induction.
 -- First it tries using the real left-hand present state with all of the
 -- right-hand states.  If none of those work, the function tries all of the
@@ -333,8 +332,3 @@ inductionFull solver ns fresh_name sh_pair s_pair@(s1, s2) = do
   case ifold of
     Nothing -> return (Nothing, s1, s2)
     Just ((n1, n2), s1', s2') -> return (Just (n1, n2), s1', s2')
-  {-
-  ((n1, n2), s1', s2') <- inductionFold solver ns fresh_name sh_pair s_pair
-  if n1 < 0 || n2 < 0 then trace ("NO INDUCTION " ++ show n1) return ((n1, n2), s1, s2)
-  else return ((n1, n2), s1', s2')
-  -}

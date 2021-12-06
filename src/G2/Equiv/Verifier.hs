@@ -345,7 +345,7 @@ verifyLoop solver ns states b config folder_root k n | not (null states)
       updated_hists = map (uncurry map) (zip map_fns paired_states)
   W.liftIO $ putStrLn $ show $ length $ concat updated_hists
   proof_list <- mapM vl $ concat updated_hists
-  let new_obligations = concat [l | Just l <- proof_list]
+  let new_obligations = concat $ catMaybes proof_list
       n' = if n > 0 then n - 1 else n
   W.liftIO $ putStrLn $ show $ length new_obligations
   if all isJust proof_list then
