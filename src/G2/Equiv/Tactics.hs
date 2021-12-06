@@ -11,7 +11,7 @@ module G2.Equiv.Tactics
     , Side (..)
     , isSWHNF
     , tryEquality
-    , moreRestrictiveEquiv
+    , moreRestrictiveEqual
     , tryCoinduction
     , exprExtract
     , moreRestrictivePairAux
@@ -38,6 +38,7 @@ import qualified G2.Language.Typing as T
 
 import Data.List
 import Data.Maybe
+import Data.Tuple
 import qualified Data.Sequence as DS
 
 import qualified Data.HashSet as HS
@@ -618,13 +619,13 @@ isIdentity _ = False
 
 -- approximation should be the identity map
 -- needs to be enforced, won't just happen naturally
-moreRestrictiveEquiv :: S.Solver solver =>
+moreRestrictiveEqual :: S.Solver solver =>
                         solver ->
                         HS.HashSet Name ->
                         StateET ->
                         StateET ->
                         W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-moreRestrictiveEquiv solver ns s1 s2 = do
+moreRestrictiveEqual solver ns s1 s2 = do
   let h1 = expr_env s1
       h2 = expr_env s2
       s1' = s1 { expr_env = E.union h1 h2 }
@@ -637,41 +638,46 @@ moreRestrictiveEquiv solver ns s1 s2 = do
       then return pm_maybe
       else return Nothing
 
-equivFoldL :: S.Solver solver =>
+-- This attempts to find a pair of equal expressions between the left and right
+-- sides.  The state used for the left side stays constant, but the recursion
+-- iterates through all of the states in the right side's history.
+equalFoldL :: S.Solver solver =>
               solver ->
               HS.HashSet Name ->
               [StateET] ->
               StateET ->
-              W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker, StateET))
-equivFoldL solver ns prev2 s1 = do
+              W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
+equalFoldL solver ns prev2 s1 = do
   case prev2 of
     [] -> return Nothing
     p2:t -> do
-      mre <- moreRestrictiveEquiv solver ns s1 p2
+      mre <- moreRestrictiveEqual solver ns s1 p2
       case mre of
-        Just pm -> return $ Just (pm, p2)
-        _ -> equivFoldL solver ns t s1
+        Just pm -> return $ Just pm
+        _ -> equalFoldL solver ns t s1
 
 -- TODO clean up code
--- TODO redundancy in return values?
--- TODO yes there is; just use the PrevMatch
-equivFold :: S.Solver solver =>
+-- This tries all of the allowable combinations for equality checking.  First
+-- it tries matching the left-hand present state with all of the previously
+-- encountered right-hand states.  If all of those fail, it tries matching the
+-- right-hand present state with all of the previously encountered left-hand
+-- states.
+equalFold :: S.Solver solver =>
              solver ->
              HS.HashSet Name ->
              (StateH, StateH) ->
              (StateET, StateET) ->
-             W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker, (StateET, StateET)))
-equivFold solver ns (sh1, sh2) (s1, s2) = do
-  pm_l <- equivFoldL solver ns (s2:history sh2) s1
+             W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker, Side))
+equalFold solver ns (sh1, sh2) (s1, s2) = do
+  pm_l <- equalFoldL solver ns (s2:history sh2) s1
   case pm_l of
-    Just (pm, p2) -> return $ Just (pm, (s1, p2))
+    Just pm -> return $ Just (pm, ILeft)
     _ -> do
-      pm_r <- equivFoldL solver ns (s1:history sh1) s2
+      pm_r <- equalFoldL solver ns (s1:history sh1) s2
       case pm_r of
-        Just (pm', p1) -> return $ Just (pm', (p1, s2))
+        Just pm' -> return $ Just (pm', IRight)
         _ -> return Nothing
 
--- TODO call this equality instead of equivalence
 tryEquality :: S.Solver solver =>
                solver ->
                HS.HashSet Name ->
@@ -679,10 +685,12 @@ tryEquality :: S.Solver solver =>
                (StateET, StateET) ->
                W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
 tryEquality solver ns sh_pair (s1, s2) = do
-  res <- equivFold solver ns sh_pair (s1, s2)
+  res <- equalFold solver ns sh_pair (s1, s2)
   case res of
-    Just (pm, (q1, q2)) -> do
-      --noteEquivDischarge (s1, s2)
+    Just (pm, sd) -> do
+      let (q1, q2) = case sd of
+                       ILeft -> present pm
+                       IRight -> swap $ present pm
       W.tell $ [Marker sh_pair $ Equality $ EqualMarker (s1, s2) (q1, q2)]
       return $ Just pm
     _ -> return Nothing
@@ -698,6 +706,9 @@ backtrackOne sh =
 
 -- TODO may change return type
 -- "left side" stays constant
+-- This attempts to find a past-present combination that works for coinduction.
+-- The left-hand present state stays fixed, but the recursion iterates through
+-- all of the possible options for the right-hand present state.
 coinductionFoldL :: S.Solver solver =>
                     solver ->
                     HS.HashSet Name ->

@@ -380,8 +380,10 @@ caseRecHelper _ = False
 -- use.  Induction is sound as long as the two expressions are Case statements,
 -- but, if no recursion is involved, ordinary coinduction is just as useful.
 -- We prefer coinduction in that scenario because it is more efficient.
+-- TODO (12/6) Have a looser requirement now?
 canUseInduction :: Obligation -> Bool
-canUseInduction (Ob e1 e2) = caseRecursion e1 && caseRecursion e2
+--canUseInduction (Ob e1 e2) = caseRecursion e1 && caseRecursion e2
+canUseInduction _ = True
 
 isNothingM :: Monad m => m (Maybe t) -> m Bool
 isNothingM = liftM isNothing

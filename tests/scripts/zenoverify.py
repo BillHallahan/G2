@@ -177,6 +177,43 @@ i = "i"
 a = "a"
 p = "p"
 
+more_finite = [
+    ("p03fin", [n, xs]),
+    ("p03finA", [n, xs]),
+    ("p04fin", [n]),
+    ("p05finC", [n, x, xs]),
+    ("p15fin", [x, xs]),
+    ("p20fin", [xs]),
+    ("p48fin", [xs]),
+    ("p61fin", [xs]),
+    ("p70fin", [m, n]),
+    ("p78fin", [xs]),
+    ("p78finA", [xs]),
+    ("p81fin", [n, m, xs]),
+    ("p85fin", [xs, ys]),
+    ("p85finA", [xs, ys]),
+
+    ("p54fin", [n]),
+    ("p65finA", [i, m]),
+    ("p69finA", [n, m]),
+    ("p70finA", [m, n]),
+    ("p38finA", [n, xs]),
+    ("p57fin", [n, m, xs]),
+    ("p85finB", [xs, ys]),
+    ("p85finC", [xs, ys]),
+
+    ("p26fin", [x, xs, ys]),
+    ("p59fin", [xs, ys]),
+
+    ("p16fin", [x, xs]),
+    ("p24fin", [a]),
+    ("p24finA", [a]),
+    ("p25fin", [a]),
+    ("p38fin", [n, xs]),
+    ("p65fin", [i, m]),
+    ("p69fin", [n, m])
+]
+
 extra_theorems = [
     ("p27fin", [x, xs, ys]),
     ("p28fin", [x, xs]),
@@ -235,6 +272,20 @@ def test_equivalences_all_total():
             print("\tFailed - " + str(elapsed) + "s")
     return unsat_num
 
+def test_more_finite():
+    unsat_num = 0;
+    for (thm, settings) in more_finite:
+        print(thm, settings);
+        (check_unsat, elapsed) = run_zeno(thm, settings);
+        if check_unsat == "UNSAT ()":
+            print("\tVerified - " + str(elapsed) + "s");
+            unsat_num += 1
+        elif check_unsat == "Timeout":
+            print("\tTimeout - " + str(elapsed) + "s")
+        else:
+            print("\tFailed - " + str(elapsed) + "s")
+    return unsat_num
+
 def test_extra_theorems():
     unsat_num = 0;
     for (thm, settings) in extra_theorems:
@@ -253,7 +304,8 @@ def main():
     #unsat_num = test_equivalences_basic()
     #unsat_num = test_custom_finite()
     #unsat_num = test_equivalences_all_total()
-    unsat_num = test_extra_theorems()
+    unsat_num = test_more_finite()
+    #unsat_num = test_extra_theorems()
     print(unsat_num, "Confirmed out of", len(extra_theorems))
 
 if __name__ == "__main__":
