@@ -145,8 +145,14 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                        $ map (\(i, e) -> mkIdHaskell pg i ++ " = " ++ mkExprHaskell'' off e) binds 
             in
             "let " ++ binds' ++ " in " ++ mkExprHaskell'' off e
-        -- TODO
         mkExprHaskell'' off (Tick nl e) = "TICK[" ++ (show nl) ++ "]{" ++ (mkExprHaskell'' off e) ++ "}"
+        mkExprHaskell'' off (Assert m_fc e1 e2) =
+            let
+                print_fc = maybe "" (\fc -> "(" ++ printFuncCallPG pg fc ++ ") ") m_fc
+            in
+            "assert " ++ print_fc
+                ++ "(" ++ mkExprHaskell'' off e1
+                ++ ") (" ++ mkExprHaskell'' off e2 ++ ")"
         mkExprHaskell'' _ e = "e = " ++ show e ++ " NOT SUPPORTED"
 
         parenWrap :: Expr -> String -> String
@@ -176,6 +182,7 @@ mkAltHaskell off cleaned pg bndr@(Id bndr_name _) (Alt am e) =
             in
             case m_bndr of
                 Just bndr | not (L.null ids) -> mkIdHaskell pg bndr ++ "@(" ++ am ++ ")"
+                          | otherwise -> mkIdHaskell pg bndr
                 Nothing -> am
         mkAltMatchHaskell m_bndr (LitAlt l) =
             case m_bndr of
@@ -300,7 +307,7 @@ mkTypeHaskellPG pg (TyVar i) = mkIdHaskell pg i
 mkTypeHaskellPG pg (TyFun t1 t2) = mkTypeHaskellPG pg t1 ++ " -> " ++ mkTypeHaskellPG pg t2
 mkTypeHaskellPG pg (TyCon n _) = mkNameHaskell pg n
 mkTypeHaskellPG pg (TyApp t1 t2) = "(" ++ mkTypeHaskellPG pg t1 ++ " " ++ mkTypeHaskellPG pg t2 ++ ")"
-mkTypeHaskellPG _ _ = "Unsupported type in printer."
+mkTypeHaskellPG _ t = "Unsupported type in printer. " ++ show t
 
 duplicate :: String -> Int -> String
 duplicate _ 0 = ""
@@ -309,7 +316,7 @@ duplicate s n = s ++ duplicate s (n - 1)
 
 -------------------------------------------------------------------------------
 
-prettyState :: PrettyGuide -> State t -> String
+prettyState :: Show t => PrettyGuide -> State t -> String
 prettyState pg s =
     injNewLine
         [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
@@ -325,6 +332,10 @@ prettyState pg s =
         , pretty_non_red_paths
         , "----- [True Assert] ---------------------"
         , show (true_assert s)
+        , "----- [Assert FC] ---------------------"
+        , pretty_assert_fcs
+        , "----- [Tracker] ---------------------"
+        , show (track s)
         , "----- [Pretty] ---------------------"
         , pretty_names
         ]
@@ -334,6 +345,7 @@ prettyState pg s =
         pretty_eenv = prettyEEnv pg (expr_env s)
         pretty_paths = prettyPathConds pg (path_conds s)
         pretty_non_red_paths = prettyNonRedPaths pg (non_red_path_conds s)
+        pretty_assert_fcs = maybe "None" (printFuncCallPG pg) (assert_ids s)
         pretty_names = prettyGuideStr pg
 
 

@@ -482,8 +482,12 @@ mapAccumM f z (x:xs) = do
   return (z'', return y `mplus` ys)
 
 modelToExprEnv :: State t -> State t
-modelToExprEnv s = s { expr_env = model s `E.union'` expr_env s
-                     , model = HM.empty }
+modelToExprEnv s =
+    let
+         m = HM.filterWithKey (\k _ -> k /= idName existentialInstId && k /= idName postSeqExistentialInstId) (model s)
+    in
+    s { expr_env = m `E.union'` expr_env s
+      , model = HM.empty }
 
 mkAssertsTrue :: ASTContainer t Expr => KnownValues -> State t -> State t
 mkAssertsTrue kv = modifyASTs (mkAssertsTrue' (mkTrue kv))

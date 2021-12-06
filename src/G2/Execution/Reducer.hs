@@ -425,7 +425,7 @@ instance Reducer ConcSymReducer () EquivTracker where
                 xs = map (\(e, symbs') ->
                                 s   { curr_expr = CurrExpr Evaluate e
                                     , expr_env =
-                                        foldr (\i -> E.insertSymbolic (idName i) i)
+                                        foldr E.insertSymbolic
                                               (E.insert n e eenv)
                                               symbs'
                                     , track = EquivTracker et m total' finite' fname
@@ -562,7 +562,7 @@ instance Reducer NonRedPCRedConst () t where
                $ zip3 higher_ord new_lam_is new_sym_gen
 
             eenv' = foldr (uncurry E.insert) eenv (map (\(i, e) -> (idName i, e)) es)
-            eenv'' = foldr (\i -> E.insertSymbolic (idName i) i) eenv' new_sym_gen
+            eenv'' = foldr E.insertSymbolic eenv' new_sym_gen
             m' = foldr (\(i, e) -> HM.insert (idName i) e) m es
 
         let s' = s { expr_env = eenv''
@@ -623,6 +623,8 @@ instance Show t => Reducer PrettyLogger [Int] t where
     
     updateWithAll _ [(_, l)] = [l]
     updateWithAll _ ss = map (\(l, i) -> l ++ [i]) $ zip (map snd ss) [1..]
+
+    onAccept _ _ ll = putStrLn $ "Accepted on path " ++ show ll
 
 prettyLogger :: String -> PrettyLogger
 prettyLogger s = PrettyLogger s (mkPrettyGuide ())

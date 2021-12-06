@@ -188,7 +188,7 @@ initStateFromSimpleState s useAssert mkCurr argTys config =
         (ce, is, f_i, ng'') = mkCurr tc' ng' eenv' tenv' ds_walkers kv' config
     in
     (State {
-      expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv' is
+      expr_env = foldr E.insertSymbolic eenv' is
     , type_env = tenv'
     , curr_expr = CurrExpr Evaluate ce
     , path_conds = PC.fromList []
@@ -488,7 +488,7 @@ runG2Solving solver simplifier bindings s@(State { known_values = kv })
                                    , conc_args = fixed_inputs bindings ++ conc_args sm'
                                    , conc_out = evalPrims kv (conc_out sm')
                                    , violated = evalPrims kv (violated sm')}
-                
+
                 return $ Just sm''
             UNSAT _ -> return Nothing
             Unknown _ -> return Nothing

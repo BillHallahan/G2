@@ -152,10 +152,15 @@ parseHaskellQ str = do
 liftDataT :: Data a => a -> Q Exp
 liftDataT = dataToExpQ (\a -> case liftText <$> cast a of
                                     je@(Just _) -> je
-                                    Nothing -> liftLoc <$> cast a)
+                                    Nothing -> case liftLoc <$> cast a of
+                                                    jl@(Just _) -> jl
+                                                    Nothing -> liftMaybeSpan <$> cast a)
     where
         liftText txt = appE (varE 'T.pack) (stringE (T.unpack txt))
         liftLoc (G2.Loc l c f) = conE 'G2.Loc `appE` intE l `appE` intE c `appE` stringE f
+        
+        liftMaybeSpan :: Maybe Span -> Q Exp
+        liftMaybeSpan _ = conE 'Nothing
         intE i = [| i |]
 
 parseHaskellQ' :: QuotedExtract-> Q ExtractedG2
@@ -326,7 +331,6 @@ moveOutStatePieces tenv_name s = do
              , num_steps = $(num_steps_exp)
              , tags = $(tags_exp) 
              , track = $(track_exp) } |]
-
 
 -- Returns an Q Exp represeting a [(Name, Expr)] list
 regVarBindings :: [TH.Name] -> TypeEnvName -> CleanedNamesName -> InputIds -> Bindings -> Q Exp

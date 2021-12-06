@@ -190,8 +190,8 @@ lookupNameMod ns ms =
 insert :: Name -> Expr -> ExprEnv -> ExprEnv
 insert n e = ExprEnv . M.insert n (ExprObj e) . unwrapExprEnv
 
-insertSymbolic :: Name -> Id -> ExprEnv -> ExprEnv
-insertSymbolic n i = ExprEnv. M.insert n (SymbObj i) . unwrapExprEnv
+insertSymbolic :: Id -> ExprEnv -> ExprEnv
+insertSymbolic i = ExprEnv. M.insert (idName i) (SymbObj i) . unwrapExprEnv
 
 insertExprs :: [(Name, Expr)] -> ExprEnv -> ExprEnv
 insertExprs kvs scope = foldr (uncurry insert) scope kvs
