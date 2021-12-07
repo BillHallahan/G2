@@ -397,11 +397,11 @@ data ConcSymReducer = ConcSymReducer
 data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
                                  , saw_tick :: Maybe Int
                                  , total :: HS.HashSet Name
-                                 , finite :: HS.HashSet Name } deriving Show
+                                 , finite :: HS.HashSet Name
+                                 , folder_name :: String } deriving (Show, Eq)
 
 -- Forces a lone symbolic variable with a type corresponding to an ADT
 -- to evaluate to some value of that ADT
--- TODO will there be any need to carry over finiteness sometimes?
 instance Reducer ConcSymReducer () EquivTracker where
     initReducer _ _ = ()
 
@@ -410,7 +410,7 @@ instance Reducer ConcSymReducer () EquivTracker where
                             , expr_env = eenv
                             , type_env = tenv
                             , path_conds = pc
-                            , track = EquivTracker et m total finite })
+                            , track = EquivTracker et m total finite fname })
                    b@(Bindings { name_gen = ng })
         | E.isSymbolic n eenv
         , Just (dc_symbs, ng') <- arbDC tenv ng t n total = do
@@ -418,7 +418,7 @@ instance Reducer ConcSymReducer () EquivTracker where
                 total' = if n `elem` total
                          then foldr HS.insert total new_names
                          else total
-                -- TODO finiteness carries over to sub-expressions too
+                -- finiteness carries over to sub-expressions too
                 finite' = if n `elem` finite
                           then foldr HS.insert finite new_names
                           else finite
@@ -428,7 +428,7 @@ instance Reducer ConcSymReducer () EquivTracker where
                                         foldr E.insertSymbolic
                                               (E.insert n e eenv)
                                               symbs'
-                                    , track = EquivTracker et m total' finite'
+                                    , track = EquivTracker et m total' finite' fname
                                     }) dc_symbs
                 b' =  b { name_gen = ng' }
                 -- only add to total if n was total
@@ -468,7 +468,7 @@ arbDC tenv ng t n total
                         (ng_', (mkApp $ dc:map Var ars, ars))
                     )
                     ng
-                    (if n `elem` total then ty_apped_dcs else ty_apped_dcs')
+                    (if trace (show total) $ n `elem` total then ty_apped_dcs else ty_apped_dcs')
         in
         Just (dc_symbs, ng')
     | otherwise = Nothing

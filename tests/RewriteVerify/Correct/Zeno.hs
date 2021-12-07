@@ -635,6 +635,157 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p84" forall xs ys zs . zip xs (ys ++ zs) = zip (take (len ys) xs) ys ++ zip (drop (len ys) xs) zs
   #-}
 
+{-
+RESULTS 11/14
+I required "walk" variables to be total
+p06fin n gets UNSAT
+p08fin k gets UNSAT
+p16fin x xs runs forever
+p18fin i gets UNSAT
+p21fin n gets UNSAT
+p24fin a runs forever
+p24finA a runs forever
+p25fin a runs forever
+p38fin n xs runs forever
+p65fin i m runs forever
+p69fin n m runs forever
+
+Next round of attempts:
+p03fin n xs runs forever
+p03finA n xs runs forever
+p04fin n runs forever
+p05finC n x xs runs forever
+p10fin m gets UNSAT
+p15fin x xs runs forever
+p20fin xs runs forever
+p48fin xs runs forever
+p61fin xs runs forever
+p70fin m n runs forever
+p78fin xs runs forever
+p78finA xs runs forever
+p81fin n m xs runs forever
+p85fin xs ys runs forever
+p85finA xs ys runs forever
+
+RESULTS 11/15
+Added extra condition for induction
+p06fin n still UNSAT
+p08fin k still UNSAT
+p10fin m still UNSAT
+p18fin i still UNSAT
+p21fin n still UNSAT
+
+Adjusted stamp-naming system
+p07fin gets UNSAT (no totality)
+p54fin runs forever (no totality)
+p54fin n runs forever
+p64fin gets UNSAT (no totality)
+p65finA i m runs forever
+p69finA n m runs forever
+p70finA m n runs forever
+p38finA n xs runs forever
+p57fin n m xs runs forever
+p85finB xs ys runs forever
+p85finC xs ys runs forever
+
+p26fin x xs ys runs forever
+p59fin xs ys runs forever
+
+RESULTS 11/17
+p01fin n xs runs forever
+p01finA n xs runs forever
+-}
+
+{-# RULES
+"p01fin" forall n xs . take n xs ++ drop n xs = walkNat n xs
+"p01finA" forall n xs . walkNat n (take n xs ++ drop n xs) = walkNat n xs
+"p03fin" forall n xs ys . count n xs <= count n (xs ++ ys) = walkNatList xs True
+"p03finA" forall n xs ys . count n xs <= count n (xs ++ ys) = walkNat n (walkNatList xs True)
+"p04fin" forall n xs . count n (n : xs) = walkNat n (S (count n xs))
+"p05finA" forall n x xs . prop_05 n x xs = walkNat n True
+"p05finB" forall n x xs . prop_05 n x xs = walkNat x (walkNatList xs True)
+"p05finC" forall n x xs . prop_05 n x xs = walkNat n (walkNat x (walkNatList xs True))
+"p06fin" forall n m . n - (n + m) = walkNat n Z
+"p07fin" forall n m . (n + m) - n = walkNat n m
+"p08fin" forall k m n . (k + m) - (k + n) = walkNat k (m - n)
+"p10fin" forall m . m - m = walkNat m Z
+"p15fin" forall x xs . len (ins x xs) = walkNat x (S (len xs))
+"p16fin" forall x xs . prop_16 x xs = walkNat x True
+"p18fin" forall i m . prop_18 i m = walkNat i True
+"p20fin" forall xs . len (sort xs) = walkNatList xs (len xs)
+"p21fin" forall n m . prop_21 n m = walkNat n True
+"p24fin" forall a b . (max a b) === a = walkNat a (b <= a)
+"p24finA" forall a b . walkNat a ((max a b) === a) = walkNat a (b <= a)
+"p25fin" forall a b . (max a b) === b = walkNat b (a <= b)
+"p26fin" forall x xs ys . prop_26 x xs ys = walkNat x True
+"p38fin" forall n xs . count n (xs ++ [n]) = walkNat n (walkNatList xs (S (count n xs)))
+"p38finA" forall n xs . count n (xs ++ [n]) = walkNat n (S (count n xs))
+"p48fin" forall xs . prop_48 xs = walkList xs True
+"p54fin" forall n m . (m + n) - n = walkNat n m
+"p57fin" forall n m xs . drop n (take m xs) = walkNat m (take (m - n) (drop n xs))
+"p59fin" forall xs ys . prop_59 xs ys = walkList xs True
+"p61fin" forall xs ys . last (xs ++ ys) = walkList xs (lastOfTwo xs ys)
+"p64fin" forall x xs . last (xs ++ [x]) = walkList xs x
+"p65fin" forall i m . prop_65 i m = walkNat i (walkNat m True)
+"p65finA" forall i m . prop_65 i m = walkNat i True
+"p69fin" forall n m . prop_69 n m = walkNat n (walkNat m True)
+"p69finA" forall n m . prop_69 n m = walkNat n True
+"p70fin" forall m n . prop_70 m n = walkNat m (walkNat n True)
+"p70finA" forall m n . prop_70 m n = walkNat m True
+"p78fin" forall xs . prop_78 xs = walkNatList xs True
+"p78finA" forall xs . prop_78 xs = walkList xs True
+"p81fin" forall n m xs . take n (drop m xs) = walkNat m (walkList xs (drop m (take (n + m) xs)))
+"p85fin" forall xs ys . prop_85 xs ys = walkList xs (walkList ys True)
+"p85finA" forall xs ys . prop_85 xs ys = walkList ys (walkList xs True)
+"p85finB" forall xs ys . prop_85 xs ys = walkList xs True
+"p85finC" forall xs ys . prop_85 xs ys = walkList ys True
+  #-}
+
+{-
+TODO non-equivalence theorems I hadn't covered before
+Uncertain ones where the walking may need to be different:
+27
+28
+29
+30
+37
+60
+63
+68
+71
+76
+77
+-}
+{-# RULES
+"p27fin" forall x xs ys . prop_27 x xs ys = walkList ys True
+"p28fin" forall x xs . prop_28 x xs = walkList xs True
+"p29fin" forall x xs . prop_29 x xs = walkList xs True
+"p30fin" forall x xs . prop_30 x xs = walkList xs True
+"p37fin" forall x xs . prop_37 x xs = walkList xs True
+"p60fin" forall xs ys . prop_60 xs ys = walkList ys True
+"p62fin" forall xs x . prop_62 xs x = walkList xs True
+"p63fin" forall n xs . prop_63 n xs = walkList xs True
+"p66fin" forall p xs . prop_66 p xs = walkList xs True
+"p68fin" forall n xs . prop_68 n xs = walkList xs True
+"p71fin" forall x y xs . prop_71 x y xs = walkList xs True
+"p76fin" forall n m xs . prop_76 n m xs = walkList xs True
+"p77fin" forall x xs . prop_77 x xs = walkList xs True
+  #-}
+
+-- TODO alternative finiteness approach
+walkNat :: Nat -> a -> a
+walkNat Z a = a
+walkNat (S x) a = walkNat x a
+
+walkList :: [a] -> b -> b
+walkList [] a = a
+walkList (_:xs) a = walkList xs a
+
+walkNatList :: [Nat] -> a -> a
+walkNatList xs a = case xs of
+  [] -> a
+  y:ys -> walkNatList ys (walkNat y a)
+
 -- everything else that follows is not part of the official test suite
 inf1 :: Nat
 inf1 = S inf1
@@ -660,6 +811,9 @@ inf_tree3 = Node inf_tree3 Z inf_tree1
 inf_tree4 :: Tree Nat
 inf_tree4 = Node inf_tree2 Z inf_tree4
 
+triv Z = True
+triv (S _) = False
+
 -- all of these are valid, and the verifier returns UNSAT for all of them now
 {-# RULES
 "infEq" inf1 = inf2
@@ -667,6 +821,7 @@ inf_tree4 = Node inf_tree2 Z inf_tree4
 "infTreeEq" inf_tree1 = inf_tree2
 "differentCycles" inf_tree3 = inf_tree4
 "infPlusOne" inf1 = S inf1
+"p43alt" forall xs . takeWhile triv xs ++ dropWhile triv xs = xs
   #-}
 
 -- Fibonacci with Nats
@@ -694,6 +849,10 @@ nop x = x
 cycle :: a -> [a]
 cycle x = x:(cycle x)
 
+-- (9/28) notes
+-- verifier currently gets unitEq with x total
+-- runs forever on fib
+-- units, cycleEq, and unitCycle pass without any extra requirements
 {-# RULES
 "fib" slowFib = fastFib
 "units" forall x . units ++ [x] = units
