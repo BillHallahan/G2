@@ -9,6 +9,8 @@ module G2.Equiv.Tactics
     , IndMarker (..)
     , EqualMarker (..)
     , Side (..)
+    , TacticResult (..)
+    , Tactic (..)
     , isSWHNF
     , tryEquality
     , moreRestrictiveEqual
@@ -190,6 +192,20 @@ instance Named EqualMarker where
         q1' = r q1
         q2' = r q2
     in EqualMarker (s1', s2') (q1', q2')
+
+-- TODO add debug info with these?
+data TacticResult = Success (Maybe (Int, Int, StateET, StateET))
+                  | NoProof
+
+-- this takes a list of fresh names as input
+-- equality and coinduction don't need them
+-- induction just needs one
+type Tactic s = s ->
+                HS.HashSet Name ->
+                [Name] ->
+                (StateH, StateH) ->
+                (StateET, StateET) ->
+                W.WriterT [Marker] IO TacticResult
 
 -- TODO not used?
 reverseCoMarker :: CoMarker -> CoMarker
@@ -677,6 +693,7 @@ equalFold solver ns (sh1, sh2) (s1, s2) = do
         Just pm' -> return $ Just (pm', IRight)
         _ -> return Nothing
 
+{-
 tryEquality :: S.Solver solver =>
                solver ->
                HS.HashSet Name ->
@@ -693,6 +710,19 @@ tryEquality solver ns sh_pair (s1, s2) = do
       W.tell $ [Marker sh_pair $ Equality $ EqualMarker (s1, s2) (q1, q2)]
       return $ Just pm
     _ -> return Nothing
+-}
+
+tryEquality :: S.Solver s => Tactic s
+tryEquality solver ns _ sh_pair (s1, s2) = do
+  res <- equalFold solver ns sh_pair (s1, s2)
+  case res of
+    Just (pm, sd) -> do
+      let (q1, q2) = case sd of
+                       ILeft -> present pm
+                       IRight -> swap $ present pm
+      W.tell $ [Marker sh_pair $ Equality $ EqualMarker (s1, s2) (q1, q2)]
+      return $ Success Nothing
+    _ -> return NoProof
 
 backtrackOne :: StateH -> StateH
 backtrackOne sh =
@@ -721,6 +751,7 @@ coinductionFoldL solver ns (sh1, sh2) (s1, s2) = do
       [] -> return Nothing
       p2:_ -> coinductionFoldL solver ns (sh1, backtrackOne sh2) (s1, p2)
 
+{-
 tryCoinduction :: S.Solver solver =>
                   solver ->
                   HS.HashSet Name ->
@@ -750,3 +781,29 @@ tryCoinduction solver ns (sh1, sh2) (s1, s2) = do
           W.tell [Marker (sh1, sh2) $ Coinduction $ reverseCoMarker cmr]
           return res_r
         _ -> return Nothing
+-}
+
+tryCoinduction :: S.Solver s => Tactic s
+tryCoinduction solver ns _ (sh1, sh2) (s1, s2) = do
+  res_l <- coinductionFoldL solver ns (sh1, sh2) (s1, s2)
+  case res_l of
+    Just pm -> do
+      let cml = CoMarker {
+        co_real_present = (s1, s2)
+      , co_used_present = present pm
+      , co_past = past pm
+      }
+      W.tell [Marker (sh1, sh2) $ Coinduction cml]
+      return $ Success Nothing
+    _ -> do
+      res_r <- coinductionFoldL solver ns (sh2, sh1) (s2, s1)
+      case res_r of
+        Just pm' -> do
+          let cmr = CoMarker {
+            co_real_present = (s2, s1)
+          , co_used_present = present pm'
+          , co_past = past pm'
+          }
+          W.tell [Marker (sh1, sh2) $ Coinduction $ reverseCoMarker cmr]
+          return $ Success Nothing
+        _ -> return NoProof
