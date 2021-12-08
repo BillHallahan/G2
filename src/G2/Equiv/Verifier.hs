@@ -326,7 +326,7 @@ replaceH :: StateH -> StateET -> StateH
 replaceH sh s = sh { latest = s }
 
 all_tactics :: S.Solver s => [Tactic s]
-all_tactics = [tryEquality, tryCoinduction, inductionFull]
+all_tactics = [tryEquality, tryCoinduction, inductionFull, trySolver]
 
 -- negative loop iteration count means there's no limit
 verifyLoop :: S.Solver solver =>
@@ -460,6 +460,31 @@ adjustStateH (sh1, sh2) (n1, n2) (s1, s2) =
       sh2' = sh2 { history = hist2, latest = s2 }
   in (sh1', sh2')
 
+data TacticEnd = EFail
+               | EDischarge
+               | EContinue (StateH, StateH)
+
+getRemaining :: TacticEnd -> [(StateH, StateH)] -> [(StateH, StateH)]
+getRemaining (EContinue sh_pair) acc = sh_pair:acc
+getRemaining _ acc = acc
+
+hasFail :: [TacticEnd] -> Bool
+hasFail [] = False
+hasFail (EFail:_) = True
+hasFail (_:es) = hasFail es
+
+-- TODO put in a different file?
+-- TODO do all of the solver obligations need to be covered together?
+trySolver :: S.Solver s => Tactic s
+trySolver solver ns _ _ (s1, s2) | statePairReadyForSolver (s1, s2) = do
+  let e1 = exprExtract s1
+      e2 = exprExtract s2
+  res <- W.liftIO $ checkObligations solver s1 s2 (HS.fromList [(e1, e2)])
+  case res of
+    S.UNSAT () -> return $ Success Nothing
+    _ -> return Failure
+trySolver _ _ _ _ _ = return NoProof
+
 -- TODO apply all tactics sequentially in a single run
 -- make StateH adjustments between each application, if necessary
 -- if Success is ever empty, it's done
@@ -472,18 +497,19 @@ applyTactics :: S.Solver solver =>
                 [Name] ->
                 (StateH, StateH) ->
                 (StateET, StateET) ->
-                W.WriterT [Marker] IO (Maybe (StateH, StateH))
+                W.WriterT [Marker] IO TacticEnd
 applyTactics solver (tac:tacs) ns fresh_names (sh1, sh2) (s1, s2) = do
   tr <- tac solver ns fresh_names (sh1, sh2) (s1, s2)
   case tr of
+    Failure -> return EFail
     NoProof -> applyTactics solver tacs ns fresh_names (sh1, sh2) (s1, s2)
     Success res -> case res of
-      Nothing -> return Nothing
+      Nothing -> return EDischarge
       Just (n1, n2, s1', s2') -> do
         let (sh1', sh2') = adjustStateH (sh1, sh2) (n1, n2) (s1', s2')
         applyTactics solver tacs ns fresh_names (sh1', sh2') (s1', s2')
 applyTactics _ _ _ _ (sh1, sh2) (s1, s2) =
-  return $ Just (replaceH sh1 s1, replaceH sh2 s2)
+  return $ EContinue (replaceH sh1 s1, replaceH sh2 s2)
 
 -- TODO how do I handle the solver application in this version?
 -- Nothing output means failure now
@@ -518,6 +544,15 @@ tryDischarge solver tactics ns fresh_names sh1 sh2 =
       res <- mapM (applyTactics solver tactics ns fresh_names (sh1, sh2)) states
       -- list of remaining obligations in StateH form
       -- TODO I think non-ready ones can stay as they are
+      let res' = foldr getRemaining [] res
+      if hasFail res then do
+        W.liftIO $ putStrLn "X?"
+        W.tell [Marker (sh1, sh2) $ SolverFail (s1, s2)]
+        return Nothing
+      else do
+        W.liftIO $ putStrLn $ "V? " ++ show (length res')
+        return $ Just res'
+      {-
       let res' = catMaybes res
           (ready, not_ready) = partition readyForSolverH res'
           ready_present = map (\(rh1, rh2) -> (latest rh1, latest rh2)) ready
@@ -531,6 +566,7 @@ tryDischarge solver tactics ns fresh_names sh1 sh2 =
       case res of
         S.UNSAT () -> return $ Just not_ready
         _ -> return Nothing
+      -}
 
 -- TODO printing
 {-

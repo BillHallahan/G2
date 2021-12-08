@@ -196,6 +196,7 @@ instance Named EqualMarker where
 -- TODO add debug info with these?
 data TacticResult = Success (Maybe (Int, Int, StateET, StateET))
                   | NoProof
+                  | Failure
 
 -- this takes a list of fresh names as input
 -- equality and coinduction don't need them
