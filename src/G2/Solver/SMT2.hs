@@ -55,7 +55,8 @@ instance Solver CVC4 where
 instance SMTConverter Z3 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) where
     getIO (Z3 _ hhp) = hhp
     closeIO (Z3 _ (h_in, h_out, ph)) = do
-        T.hPutStr h_in "(exit)"
+        T.hPutStrLn h_in "(exit)"
+        _ <- waitForProcess ph
         hClose h_in
         hClose h_out
 
@@ -238,7 +239,8 @@ instance SMTConverter Z3 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) w
 instance SMTConverter CVC4 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) where
     getIO (CVC4 _ hhp) = hhp
     closeIO (CVC4 _ (h_in, h_out, ph)) = do
-        hPutStr h_in "(exit)"
+        hPutStrLn h_in "(exit)"
+        _ <- waitForProcess ph
         hClose h_in
         hClose h_out
 
