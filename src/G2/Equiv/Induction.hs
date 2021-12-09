@@ -31,6 +31,7 @@ import G2.Equiv.Tactics
 
 import qualified Data.HashMap.Lazy as HM
 import G2.Execution.Memory
+import Data.Monoid (Any (..))
 
 import Debug.Trace
 
@@ -166,16 +167,37 @@ inductionL solver ns prev (s1, s2) = do
                }
            in return $ Just (s1', im)
 
+-- TODO check the criterion at a different level
+-- only attempt induction if we have recursion in the right spots in the present
+caseRecursion :: Expr -> Bool
+caseRecursion (Tick _ e) = caseRecursion e
+caseRecursion (Case e _ _) =
+  (getAny . evalASTs (\e' -> Any $ caseRecHelper e')) e
+caseRecursion _ = False
+
+-- TODO this shouldn't need to look more deeply since it's used with evalASTs
+caseRecHelper :: Expr -> Bool
+caseRecHelper (Tick (NamedLoc (Name t _ _ _)) _) = t == DT.pack "REC"
+caseRecHelper _ = False
+
 -- This attempts to perform induction on both the left side and the right side.
 -- Precedence goes to the left side:  induction will only happen on the right
 -- if induction on the left fails.
+-- We only apply induction to a pair of expressions if both expressions are
+-- Case statements whose scrutinee includes a recursive function or variable
+-- use.  Induction is sound as long as the two expressions are Case statements,
+-- but, if no recursion is involved, ordinary coinduction is just as useful.
+-- We prefer coinduction in that scenario because it is more efficient.
+-- TODO (12/9) As a slight optimization, I could avoid using coinduction in
+-- situations like this where induction is applicable.
 induction :: S.Solver solver =>
              solver ->
              HS.HashSet Name ->
              [(StateET, StateET)] ->
              (StateET, StateET) ->
              W.WriterT [Marker] IO (Maybe (StateET, StateET, IndMarker))
-induction solver ns prev (s1, s2) = do
+induction solver ns prev (s1, s2) | caseRecursion (exprExtract s1)
+                                  , caseRecursion (exprExtract s2) = do
   ind <- inductionL solver ns prev (s1, s2)
   case ind of
     Just (s1l, iml) -> return $ Just (s1l, s2, iml)
@@ -185,6 +207,7 @@ induction solver ns prev (s1, s2) = do
       case ind' of
         Just (s2r, imr) -> return $ Just (s1, s2r, imr)
         Nothing -> return Nothing
+  | otherwise = return Nothing
 
 -- TODO complex conditional, but avoids needless generalization
 -- TODO returning marker in case of failure
@@ -319,16 +342,11 @@ generalize solver ns fresh_name (s1, s2) = do
 
 -- TODO does this throw off history logging?  I don't think so
 -- TODO might not matter with s1 and s2 naming
--- TODO s1 and s2 returned in event of failure; not the same across all entries
-inductionFull :: S.Solver solver =>
-                 solver ->
-                 HS.HashSet Name ->
-                 Name ->
-                 (StateH, StateH) ->
-                 (StateET, StateET) ->
-                 W.WriterT [Marker] IO (Maybe (Int, Int), StateET, StateET)
-inductionFull solver ns fresh_name sh_pair s_pair@(s1, s2) = do
+-- TODO needs at least one fresh name
+inductionFull :: S.Solver s => Tactic s
+inductionFull solver ns (fresh_name:_) sh_pair s_pair = do
   ifold <- inductionFold solver ns fresh_name sh_pair s_pair
   case ifold of
-    Nothing -> return (Nothing, s1, s2)
-    Just ((n1, n2), s1', s2') -> return (Just (n1, n2), s1', s2')
+    Nothing -> return NoProof
+    Just ((n1, n2), s1', s2') -> return $ Success (Just (n1, n2, s1', s2'))
+inductionFull _ _ _ _ _ = return NoProof

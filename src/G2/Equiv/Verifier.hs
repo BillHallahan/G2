@@ -61,15 +61,6 @@ import qualified Control.Monad.Writer.Lazy as W
 -- TODO requiring finiteness for forceIdempotent makes verifier get stuck
 -- same goes for p10 in Zeno
 
--- TODO this should be the output from tryDischarge
--- unfinished is what tryDischarge gave as output before
--- finished is the proof obligations that were just discharged
-data DischargeResult = DischargeResult {
-    unfinished :: [(StateH, StateH)]
-  , finished :: [(StateH, StateH)]
-  , bad_states :: Maybe [(StateET, StateET)]
-}
-
 statePairReadyForSolver :: (State t, State t) -> Bool
 statePairReadyForSolver (s1, s2) =
   let h1 = expr_env s1
@@ -87,6 +78,8 @@ logStatesFolder pre fr = Log Pretty $ fr ++ "/" ++ pre
 logStatesET :: String -> String -> String
 logStatesET pre fr = fr ++ "/" ++ pre
 
+-- TODO keep a single solver rather than making a new one each time
+-- TODO connection between Solver and SomeSolver?
 runSymExec :: S.Solver solver =>
               solver ->
               Config ->
@@ -105,7 +98,7 @@ runSymExec solver config folder_root s1 s2 = do
       e1' = addStackTickIfNeeded e1
       s1' = s1 { track = t1, curr_expr = CurrExpr r1 e1' }
   CM.liftIO $ putStrLn $ (show $ folder_name $ track s1) ++ " becomes " ++ (show $ folder_name t1)
-  (er1, bindings') <- CM.lift $ runG2ForRewriteV s1' (expr_env s2) (track s2) config' bindings
+  (er1, bindings') <- CM.lift $ runG2ForRewriteV solver s1' (expr_env s2) (track s2) config' bindings
   CM.put (bindings', k + 1)
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
@@ -118,7 +111,7 @@ runSymExec solver config folder_root s1 s2 = do
                         e2' = addStackTickIfNeeded e2
                         s2' = s2_ { track = t2, curr_expr = CurrExpr r2 e2' }
                     CM.liftIO $ putStrLn $ (show $ folder_name $ track s2_) ++ " becomes " ++ (show $ folder_name t2)
-                    (er2, b_') <- CM.lift $ runG2ForRewriteV s2' (expr_env s1_) (track s1_) config'' b_
+                    (er2, b_') <- CM.lift $ runG2ForRewriteV solver s2' (expr_env s1_) (track s1_) config'' b_
                     CM.put (b_', k_ + 1)
                     return $ map (\er2_ -> 
                                     let
@@ -141,15 +134,14 @@ pathCondsConsistent solver (s1, s2) = do
 
 -- Don't share expr env and path constraints between sides
 -- info goes from left to right
--- TODO union instead?
 transferTrackerInfo :: StateET -> StateET -> StateET
 transferTrackerInfo s1 s2 =
   let t1 = track s1
       t2 = track s2
       t2' = t2 {
         higher_order = higher_order t1
-      , total = total t1-- HS.union (total t1) (total t2)
-      , finite = finite t1-- HS.union (finite t1) (finite t2)
+      , total = total t1
+      , finite = finite t1
       }
   in s2 { track = t2' }
 
@@ -312,6 +304,9 @@ appendH sh s =
 replaceH :: StateH -> StateET -> StateH
 replaceH sh s = sh { latest = s }
 
+all_tactics :: S.Solver s => [Tactic s]
+all_tactics = [tryEquality, tryCoinduction, inductionFull, trySolver]
+
 -- negative loop iteration count means there's no limit
 verifyLoop :: S.Solver solver =>
               solver ->
@@ -330,12 +325,7 @@ verifyLoop solver ns states b config folder_root k n | not (null states)
   let ng = name_gen b'
       (fresh_name, ng') = freshName ng
       b'' = b' { name_gen = ng' }
-      simplify dr = do
-        dr' <- dr
-        case bad_states dr' of
-          Nothing -> return $ Just $ unfinished dr'
-          Just _ -> return Nothing
-      vl (sh1, sh2) = simplify $ tryDischarge solver ns fresh_name sh1 sh2
+      td (sh1, sh2) = tryDischarge solver all_tactics ns [fresh_name] sh1 sh2
   -- TODO printing
   W.liftIO $ putStrLn "<Loop Iteration>"
   W.liftIO $ putStrLn $ show n
@@ -344,7 +334,7 @@ verifyLoop solver ns states b config folder_root k n | not (null states)
       map_fns = map app_pair states
       updated_hists = map (uncurry map) (zip map_fns paired_states)
   W.liftIO $ putStrLn $ show $ length $ concat updated_hists
-  proof_list <- mapM vl $ concat updated_hists
+  proof_list <- mapM td $ concat updated_hists
   let new_obligations = concat $ catMaybes proof_list
       n' = if n > 0 then n - 1 else n
   W.liftIO $ putStrLn $ show $ length new_obligations
@@ -361,32 +351,6 @@ stateWrap :: StateET -> StateET -> Obligation -> (StateET, StateET)
 stateWrap s1 s2 (Ob e1 e2) =
   ( s1 { curr_expr = CurrExpr Evaluate e1 }
   , s2 { curr_expr = CurrExpr Evaluate e2 } )
-
--- helper functions for induction
--- TODO can something other than Case be at the outermost level?
-caseRecursion :: Expr -> Bool
-caseRecursion (Tick _ e) = caseRecursion e
-caseRecursion (Case e _ _) =
-  (getAny . evalASTs (\e' -> Any $ caseRecHelper e')) e
-caseRecursion _ = False
-
--- TODO this shouldn't need to look more deeply since it's used with evalASTs
-caseRecHelper :: Expr -> Bool
-caseRecHelper (Tick (NamedLoc (Name t _ _ _)) _) = t == DT.pack "REC"
-caseRecHelper _ = False
-
--- We only apply induction to a pair of expressions if both expressions are
--- Case statements whose scrutinee includes a recursive function or variable
--- use.  Induction is sound as long as the two expressions are Case statements,
--- but, if no recursion is involved, ordinary coinduction is just as useful.
--- We prefer coinduction in that scenario because it is more efficient.
--- TODO (12/6) Have a looser requirement now?
-canUseInduction :: Obligation -> Bool
---canUseInduction (Ob e1 e2) = caseRecursion e1 && caseRecursion e2
-canUseInduction _ = True
-
-isNothingM :: Monad m => m (Maybe t) -> m Bool
-isNothingM = liftM isNothing
 
 -- TODO debugging function
 stateHistory :: StateH -> StateH -> [(StateET, StateET)]
@@ -416,103 +380,111 @@ exprTrace sh1 sh2 =
 addDischarge :: StateET -> StateH -> StateH
 addDischarge s sh = sh { discharge = Just s }
 
--- TODO keeping non-negative requirement just in case
-makeIndStateH :: (StateH, StateH) ->
-                 ((StateET, StateET), (Maybe (Int, Int), StateET, StateET)) ->
-                 (StateH, StateH)
-makeIndStateH (sh1, sh2) (_, (Just (n1, n2), s1, s2)) | n1 >= 0, n2 >= 0 =
+-- TODO what if n1 or n2 is negative?
+adjustStateH :: (StateH, StateH) ->
+                (Int, Int) ->
+                (StateET, StateET) ->
+                (StateH, StateH)
+adjustStateH (sh1, sh2) (n1, n2) (s1, s2) =
   let hist1 = drop n1 $ history sh1
       hist2 = drop n2 $ history sh2
       sh1' = sh1 { history = hist1, latest = s1 }
       sh2' = sh2 { history = hist2, latest = s2 }
   in (sh1', sh2')
-makeIndStateH (sh1, sh2) (_, (_, s1, s2)) =
-  (sh1 { latest = s1 }, sh2 { latest = s2 })
 
+data TacticEnd = EFail
+               | EDischarge
+               | EContinue (StateH, StateH)
+
+getRemaining :: TacticEnd -> [(StateH, StateH)] -> [(StateH, StateH)]
+getRemaining (EContinue sh_pair) acc = sh_pair:acc
+getRemaining _ acc = acc
+
+hasFail :: [TacticEnd] -> Bool
+hasFail [] = False
+hasFail (EFail:_) = True
+hasFail (_:es) = hasFail es
+
+-- TODO put in a different file?
+-- TODO do all of the solver obligations need to be covered together?
+trySolver :: S.Solver s => Tactic s
+trySolver solver ns _ _ (s1, s2) | statePairReadyForSolver (s1, s2) = do
+  let e1 = exprExtract s1
+      e2 = exprExtract s2
+  res <- W.liftIO $ checkObligations solver s1 s2 (HS.fromList [(e1, e2)])
+  case res of
+    S.UNSAT () -> return $ Success Nothing
+    _ -> return Failure
+trySolver _ _ _ _ _ = return NoProof
+
+-- TODO apply all tactics sequentially in a single run
+-- make StateH adjustments between each application, if necessary
+-- if Success is ever empty, it's done
+-- TODO adjust the output in any way when no tactics remaining?  Yes
+-- TODO include the old version in the history or not?
+applyTactics :: S.Solver solver =>
+                solver ->
+                [Tactic solver] ->
+                HS.HashSet Name ->
+                [Name] ->
+                (StateH, StateH) ->
+                (StateET, StateET) ->
+                W.WriterT [Marker] IO TacticEnd
+applyTactics solver (tac:tacs) ns fresh_names (sh1, sh2) (s1, s2) = do
+  tr <- tac solver ns fresh_names (sh1, sh2) (s1, s2)
+  case tr of
+    Failure -> return EFail
+    NoProof -> applyTactics solver tacs ns fresh_names (sh1, sh2) (s1, s2)
+    Success res -> case res of
+      Nothing -> return EDischarge
+      Just (n1, n2, s1', s2') -> do
+        let (sh1', sh2') = adjustStateH (sh1, sh2) (n1, n2) (s1', s2')
+        applyTactics solver tacs ns fresh_names (sh1', sh2') (s1', s2')
+applyTactics _ _ _ _ (sh1, sh2) (s1, s2) =
+  return $ EContinue (replaceH sh1 s1, replaceH sh2 s2)
+
+-- TODO how do I handle the solver application in this version?
+-- Nothing output means failure now
 -- TODO printing
 tryDischarge :: S.Solver solver =>
                 solver ->
+                [Tactic solver] ->
                 HS.HashSet Name ->
-                Name ->
+                [Name] ->
                 StateH ->
                 StateH ->
-                W.WriterT [Marker] IO DischargeResult
-tryDischarge solver ns fresh_name sh1 sh2 =
+                W.WriterT [Marker] IO (Maybe [(StateH, StateH)])
+tryDischarge solver tactics ns fresh_names sh1 sh2 =
   let s1 = latest sh1
       s2 = latest sh2
-  in
-  case getObligations ns s1 s2 of
+  in case getObligations ns s1 s2 of
     Nothing -> do
       W.tell [Marker (sh1, sh2) $ NotEquivalent (s1, s2)]
-      -- obligation generation failed, so the expressions must not be equivalent
       W.liftIO $ putStrLn $ "N! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
       W.liftIO $ putStrLn $ show $ exprExtract s1
       W.liftIO $ putStrLn $ show $ exprExtract s2
       W.liftIO $ mapM putStrLn $ exprTrace sh1 sh2
-      -- TODO what to return here?
-      -- all left unfinished, nothing resolved
-      -- bad_states are the ones right here
-      return $ DischargeResult [] [] (Just [(s1, s2)])
+      return Nothing
     Just obs -> do
-      -- TODO Writer logging
       case obs of
         [] -> W.tell [Marker (sh1, sh2) $ NoObligations (s1, s2)]
         _ -> return ()
       W.liftIO $ putStrLn $ "J! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
       W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s1
       W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s2
-
-      let (obs_i, obs_c) = partition canUseInduction obs
-          states_c = map (stateWrap s1 s2) obs_c
-      -- TODO do I need more adjustments than what I have here?
-      discharges_e <- mapM (tryEquality solver ns (sh1, sh2)) states_c
-      discharges_c <- mapM (tryCoinduction solver ns (sh1, sh2)) states_c
-      let either_maybe (Just x, _) = Just x
-          either_maybe (Nothing, y) = y
-          discharges = map either_maybe (zip discharges_e discharges_c)
-      -- get the states and histories for the successful discharges
-      -- will need to fill in the discharge field
-      -- also need to pair them up with the original states?
-      -- there's only one original state pair
-      let discharges' = [(d, sp) | (Just (PrevMatch _ d _ _), sp) <- zip discharges states_c]
-          matches1 = [(d1, s1_) | ((d1, _), (s1_, _)) <- discharges']
-          matches1' = map (\(d1, s1_) -> addDischarge d1 $ replaceH sh1 s1_) matches1
-          matches2 = [(d2, s2_) | ((_, d2), (_, s2_)) <- discharges']
-          matches2' = map (\(d2, s2_) -> addDischarge d2 $ replaceH sh2 s2_) matches2
-          matches = zip matches1' matches2'
-      let discharges_ = map (not . isJust) discharges
-          states_c' = map snd $ filter fst (zip discharges_ states_c)
-
-      let states_i = map (stateWrap s1 s2) obs_i
-      states_i1 <- filterM (isNothingM . (tryEquality solver ns (sh1, sh2))) states_i
-      states_i2 <- filterM (isNothingM . (tryCoinduction solver ns (sh1, sh2))) states_i1
-      -- TODO need a way to get the prev pair used for induction
-      states_i' <- mapM (inductionFull solver ns fresh_name (sh1, sh2)) states_i2
-
-      -- TODO unnecessary to pass the induction states through this?
-      let (ready, not_ready) = partition statePairReadyForSolver states_c'
-          ready_exprs = HS.fromList $ map (\(r1, r2) -> (exprExtract r1, exprExtract r2)) ready
-          not_ready_h1 = map (\(n1, n2) -> (replaceH sh1 n1, replaceH sh2 n2)) not_ready
-          -- TODO crude solution:  induction states lose their history
-          -- seems to cause some other problems
-          not_ready_h2 = map (makeIndStateH (sh1, sh2)) (zip states_i states_i')
-          not_ready_h = not_ready_h1 ++ not_ready_h2
-          -- TODO what debug information do I give for these?
-          -- let the "discharge" state be the current state itself?
-          -- I think that's good enough for now
-          ready_solved = map
-                        (\(n1, n2) -> (addDischarge n1 $ replaceH sh1 n1, addDischarge n2 $ replaceH sh2 n2))
-                        ready
-      res <- W.liftIO $ checkObligations solver s1 s2 ready_exprs
-      case res of
-        S.UNSAT () -> W.liftIO $ putStrLn $ "V? " ++ show (length not_ready_h)
-        _ -> do
-          W.liftIO $ putStrLn "X?"
-          W.tell [Marker (sh1, sh2) $ SolverFail (s1, s2)]
-      case res of
-        -- TODO discharged exprs should come from filter and solver
-        S.UNSAT () -> return $ DischargeResult not_ready_h (matches ++ ready_solved) Nothing
-        _ -> return $ DischargeResult not_ready_h (matches ++ ready_solved) (Just ready)
+      -- TODO no more limitations on when induction can be used here
+      let states = map (stateWrap s1 s2) obs
+      res <- mapM (applyTactics solver tactics ns fresh_names (sh1, sh2)) states
+      -- list of remaining obligations in StateH form
+      -- TODO I think non-ready ones can stay as they are
+      let res' = foldr getRemaining [] res
+      if hasFail res then do
+        W.liftIO $ putStrLn "X?"
+        W.tell [Marker (sh1, sh2) $ SolverFail (s1, s2)]
+        return Nothing
+      else do
+        W.liftIO $ putStrLn $ "V? " ++ show (length res')
+        return $ Just res'
 
 -- TODO (9/27) check path constraint implication?
 -- TODO (9/30) alternate:  just substitute one scrutinee for the other
@@ -624,4 +596,5 @@ checkRule config init_state bindings total finite print_summary iterations rule 
     mapM (putStrLn . (summarize pg)) w
     putStrLn "--- END OF SUMMARY ---"
   else return ()
+  S.close solver
   return res
