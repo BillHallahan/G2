@@ -183,6 +183,13 @@ caseRecHelper _ = False
 -- This attempts to perform induction on both the left side and the right side.
 -- Precedence goes to the left side:  induction will only happen on the right
 -- if induction on the left fails.
+-- We only apply induction to a pair of expressions if both expressions are
+-- Case statements whose scrutinee includes a recursive function or variable
+-- use.  Induction is sound as long as the two expressions are Case statements,
+-- but, if no recursion is involved, ordinary coinduction is just as useful.
+-- We prefer coinduction in that scenario because it is more efficient.
+-- TODO (12/9) As a slight optimization, I could avoid using coinduction in
+-- situations like this where induction is applicable.
 induction :: S.Solver solver =>
              solver ->
              HS.HashSet Name ->
@@ -335,22 +342,6 @@ generalize solver ns fresh_name (s1, s2) = do
 
 -- TODO does this throw off history logging?  I don't think so
 -- TODO might not matter with s1 and s2 naming
--- TODO s1 and s2 returned in event of failure; not the same across all entries
-{-
-inductionFull :: S.Solver solver =>
-                 solver ->
-                 HS.HashSet Name ->
-                 Name ->
-                 (StateH, StateH) ->
-                 (StateET, StateET) ->
-                 W.WriterT [Marker] IO (Maybe (Int, Int), StateET, StateET)
-inductionFull solver ns fresh_name sh_pair s_pair@(s1, s2) = do
-  ifold <- inductionFold solver ns fresh_name sh_pair s_pair
-  case ifold of
-    Nothing -> return (Nothing, s1, s2)
-    Just ((n1, n2), s1', s2') -> return (Just (n1, n2), s1', s2')
--}
-
 -- TODO needs at least one fresh name
 inductionFull :: S.Solver s => Tactic s
 inductionFull solver ns (fresh_name:_) sh_pair s_pair = do

@@ -302,8 +302,8 @@ def test_extra_theorems():
 
 def main():
     #unsat_num = test_equivalences_basic()
-    #unsat_num = test_custom_finite()
-    unsat_num = test_equivalences_all_total()
+    unsat_num = test_custom_finite()
+    #unsat_num = test_equivalences_all_total()
     #unsat_num = test_more_finite()
     #unsat_num = test_extra_theorems()
     print(unsat_num, "Confirmed out of", len(extra_theorems))

@@ -694,25 +694,6 @@ equalFold solver ns (sh1, sh2) (s1, s2) = do
         Just pm' -> return $ Just (pm', IRight)
         _ -> return Nothing
 
-{-
-tryEquality :: S.Solver solver =>
-               solver ->
-               HS.HashSet Name ->
-               (StateH, StateH) ->
-               (StateET, StateET) ->
-               W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-tryEquality solver ns sh_pair (s1, s2) = do
-  res <- equalFold solver ns sh_pair (s1, s2)
-  case res of
-    Just (pm, sd) -> do
-      let (q1, q2) = case sd of
-                       ILeft -> present pm
-                       IRight -> swap $ present pm
-      W.tell $ [Marker sh_pair $ Equality $ EqualMarker (s1, s2) (q1, q2)]
-      return $ Just pm
-    _ -> return Nothing
--}
-
 tryEquality :: S.Solver s => Tactic s
 tryEquality solver ns _ sh_pair (s1, s2) = do
   res <- equalFold solver ns sh_pair (s1, s2)
@@ -751,38 +732,6 @@ coinductionFoldL solver ns (sh1, sh2) (s1, s2) = do
     _ -> case history sh2 of
       [] -> return Nothing
       p2:_ -> coinductionFoldL solver ns (sh1, backtrackOne sh2) (s1, p2)
-
-{-
-tryCoinduction :: S.Solver solver =>
-                  solver ->
-                  HS.HashSet Name ->
-                  (StateH, StateH) ->
-                  (StateET, StateET) ->
-                  W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-tryCoinduction solver ns (sh1, sh2) (s1, s2) = do
-  res_l <- coinductionFoldL solver ns (sh1, sh2) (s1, s2)
-  case res_l of
-    Just pm -> do
-      let cml = CoMarker {
-        co_real_present = (s1, s2)
-      , co_used_present = present pm
-      , co_past = past pm
-      }
-      W.tell [Marker (sh1, sh2) $ Coinduction cml]
-      return res_l
-    _ -> do
-      res_r <- coinductionFoldL solver ns (sh2, sh1) (s2, s1)
-      case res_r of
-        Just pm' -> do
-          let cmr = CoMarker {
-            co_real_present = (s2, s1)
-          , co_used_present = present pm'
-          , co_past = past pm'
-          }
-          W.tell [Marker (sh1, sh2) $ Coinduction $ reverseCoMarker cmr]
-          return res_r
-        _ -> return Nothing
--}
 
 tryCoinduction :: S.Solver s => Tactic s
 tryCoinduction solver ns _ (sh1, sh2) (s1, s2) = do

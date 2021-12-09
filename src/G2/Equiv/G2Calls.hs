@@ -30,14 +30,16 @@ import qualified Data.Map as M
 import qualified Data.List as L
 
 -- get names from symbolic ids in the state
-runG2ForRewriteV :: StateET ->
+runG2ForRewriteV :: Solver solver =>
+                    solver ->
+                    StateET ->
                     E.ExprEnv ->
                     EquivTracker ->
                     Config ->
                     Bindings ->
                     IO ([ExecRes EquivTracker], Bindings)
-runG2ForRewriteV state h_opp track_opp config bindings = do
-    SomeSolver solver <- initSolver config
+runG2ForRewriteV solver state h_opp track_opp config bindings = do
+    --SomeSolver solver <- initSolver config
     let simplifier = IdSimplifier
         sym_config = PreserveAllMC
         {-
@@ -52,7 +54,7 @@ runG2ForRewriteV state h_opp track_opp config bindings = do
                 (red, hal, ord) ->
                     runG2WithSomes red hal ord solver simplifier sym_config state' bindings
 
-    close solver
+    --close solver
 
     return (in_out, bindings')
 
