@@ -512,7 +512,7 @@ substHigherOrder eenv m ns ce =
                                 Just e -> Just $ Id n (typeOf e)
                                 Nothing -> Nothing) $ HS.toList ns
 
-        higherOrd = filter (isTyFun . typeOf) . mapMaybe varId . symbVars eenv $ ce
+        higherOrd = filter (isTyFun . typeOf) . symbVars eenv $ ce
         higherOrdSub = map (\v -> (v, mapMaybe (genSubstitutable v) is)) higherOrd
     in
     substHigherOrder' [(eenv, m, ce)] higherOrdSub

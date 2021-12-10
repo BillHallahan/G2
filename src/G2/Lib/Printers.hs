@@ -9,6 +9,7 @@ module G2.Lib.Printers ( PrettyGuide
                        , printHaskellPG
                        , mkUnsugaredExprHaskell
                        , mkTypeHaskell
+                       , mkTypeHaskellPG
                        , ppExprEnv
                        , ppRelExprEnv
                        , ppCurrExpr

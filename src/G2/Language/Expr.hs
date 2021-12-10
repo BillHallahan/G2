@@ -441,23 +441,22 @@ passedArgs' (App e e') = e':passedArgs' e
 passedArgs' _ = []
 
 --Returns all Vars in an ASTContainer
-vars :: (ASTContainer m Expr) => m -> [Expr]
+vars :: (ASTContainer m Expr) => m -> [Id]
 vars = evalASTs vars'
 
-vars' :: Expr -> [Expr]
-vars' v@(Var _) = [v]
+vars' :: Expr -> [Id]
+vars' (Var i) = [i]
 vars' _ = []
 
 varId :: Expr -> Maybe Id
 varId (Var i) = Just i
 varId _ = Nothing
 
-symbVars :: (ASTContainer m Expr) => ExprEnv -> m -> [Expr]
+symbVars :: (ASTContainer m Expr) => ExprEnv -> m -> [Id]
 symbVars eenv = filter (symbVars' eenv) . vars
 
-symbVars' :: ExprEnv -> Expr -> Bool
-symbVars' eenv (Var (Id n _)) = E.isSymbolic n eenv
-symbVars' _ _ = False
+symbVars' :: ExprEnv -> Id -> Bool
+symbVars' eenv (Id n _) = E.isSymbolic n eenv
 
 -- | freeVars
 -- Returns the free (unbound by a Lambda, Let, or the Expr Env) variables of an expr
