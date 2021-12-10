@@ -343,6 +343,10 @@ verifyLoop solver ns states b config folder_root k n | not (null states)
   else
     return $ S.SAT ()
   | not (null states) = do
+    -- TODO log some new things with the writer for unresolved obligations
+    -- TODO the present states are somewhat redundant
+    let ob (sh1, sh2) = Marker (sh1, sh2) $ Unresolved (latest sh1, latest sh2)
+    W.tell $ map ob states
     return $ S.Unknown "Loop Iterations Exhausted"
   | otherwise = do
     return $ S.UNSAT ()
