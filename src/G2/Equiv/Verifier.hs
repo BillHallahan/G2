@@ -593,7 +593,7 @@ checkRule config init_state bindings total finite print_summary iterations rule 
   if print_summary then do
     putStrLn "--- SUMMARY ---"
     let pg = mkPrettyGuide w
-    mapM (putStrLn . (summarize pg)) w
+    mapM (putStrLn . (summarize pg $ HS.toList ns)) w
     putStrLn "--- END OF SUMMARY ---"
   else return ()
   S.close solver
