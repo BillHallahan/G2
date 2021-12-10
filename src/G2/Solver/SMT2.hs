@@ -535,7 +535,7 @@ getLinesMatchParens' h_out n = do
 
 solveExpr :: SMTConverter con TB.Builder out io => Handle -> Handle -> con -> ExprEnv -> Expr -> IO Expr
 solveExpr h_in h_out con eenv e = do
-    let vs = symbVars eenv e
+    let vs = map (\i -> Var i) $ symbVars eenv e
     vs' <- solveExpr' h_in h_out con vs
     let vs'' = map smtastToExpr vs'
     

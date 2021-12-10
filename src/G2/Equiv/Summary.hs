@@ -11,6 +11,7 @@ import G2.Config
 import G2.Interface
 
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.Expr as X
 
 import Data.List
 import Data.Maybe
@@ -36,6 +37,13 @@ sideName :: Side -> String
 sideName ILeft = "Left"
 sideName IRight = "Right"
 
+trackName :: StateET -> String
+trackName s =
+  let str = folder_name $ track s
+  in case str of
+    "" -> "Start"
+    _ -> str
+
 printPG :: PrettyGuide -> [Name] -> StateET -> String
 printPG pg ns s =
   let h = expr_env s
@@ -43,7 +51,7 @@ printPG pg ns s =
       var_str = printVars pg ns s
   in case var_str of
     "" -> e_str ++ "\n---"
-    _ -> e_str ++ "\nVariables:" ++ var_str ++ "\n---"
+    _ -> e_str ++ "\nVariables:\n" ++ var_str ++ "\n---"
 
 data ChainEnd = Symbolic
               | Cycle Id
@@ -51,12 +59,9 @@ data ChainEnd = Symbolic
               | Unmapped
 
 -- don't include ns names in the result here
+-- TODO remove duplicates here?
 varsInExpr :: [Name] -> Expr -> [Id]
-varsInExpr ns e =
-  let ids = evalASTs (\e_ -> case e_ of
-                               Var i -> [i]
-                               _ -> []) e
-  in filter (\i -> not ((idName i) `elem` ns)) ids
+varsInExpr ns e = filter (\i -> not ((idName i) `elem` ns)) $ X.vars e
 
 extraVars :: ChainEnd -> [Id]
 extraVars (Terminal _ ids) = ids
@@ -66,6 +71,7 @@ extraVars _ = []
 -- some of the computations here are redundant with what happens later
 -- need to prune out repeats
 -- should things count as repeats if they appear in the chain?
+-- TODO remove duplicates
 varsFull :: ExprEnv -> [Name] -> Expr -> [Id]
 varsFull h ns e =
   let vs = varsInExpr ns e
@@ -109,12 +115,27 @@ printVar pg ns s@(State{ expr_env = h }) i =
     Unmapped -> ""
     _ -> (foldr (\str acc -> str ++ " -> " ++ acc) "" chain_strs) ++ end_str
 
+-- TODO will this alter order?
 printVars :: PrettyGuide -> [Name] -> StateET -> String
 printVars pg ns s =
-  let vars = varsFull (expr_env s) ns (exprExtract s)
+  let vars = nub $ varsFull (expr_env s) ns (exprExtract s)
       var_strs = map (printVar pg ns s) vars
       non_empty_strs = filter (not . null) var_strs
-  in foldr (\str acc -> acc ++ "\n" ++ str) "" $ non_empty_strs
+  in intercalate "\n" non_empty_strs
+
+-- no new line at end
+summarizeStatePairTrack :: String ->
+                           PrettyGuide ->
+                           [Name] ->
+                           StateET ->
+                           StateET ->
+                           String
+summarizeStatePairTrack str pg ns s1 s2 =
+  str ++ ": " ++
+  (trackName s1) ++ ", " ++
+  (trackName s2) ++ "\n" ++
+  (printPG pg ns s1) ++ "\n" ++
+  (printPG pg ns s2)
 
 -- TODO print the name differently?
 summarizeInduction :: PrettyGuide -> [Name] -> IndMarker -> String
@@ -127,21 +148,9 @@ summarizeInduction pg ns im@(IndMarker {
                          , ind_past_scrutinees = (r1, r2)
                          }) =
   "Induction:\n" ++
-  "Real Present: " ++
-  (folder_name $ track s1) ++ "," ++
-  (folder_name $ track s2) ++ "\n" ++
-  (printPG pg ns s1) ++ "\n" ++
-  (printPG pg ns s2) ++ "\n" ++
-  "Used Present: " ++
-  (folder_name $ track q1) ++ "," ++
-  (folder_name $ track q2) ++ "\n" ++
-  (printPG pg ns q1) ++ "\n" ++
-  (printPG pg ns q2) ++ "\n" ++
-  "Past: " ++
-  (folder_name $ track p1) ++ "," ++
-  (folder_name $ track p2) ++ "\n" ++
-  (printPG pg ns p1) ++ "\n" ++
-  (printPG pg ns p2) ++ "\n" ++
+  (summarizeStatePairTrack "Real Present" pg ns s1 s2) ++ "\n" ++
+  (summarizeStatePairTrack "Used Present" pg ns q1 q2) ++ "\n" ++
+  (summarizeStatePairTrack "Past" pg ns p1 p2) ++ "\n" ++
   "Side: " ++ (sideName $ ind_side im) ++ "\n" ++
   "Result:\n" ++
   (printPG pg ns s1') ++ "\n" ++
@@ -161,21 +170,9 @@ summarizeCoinduction pg ns (CoMarker {
                            , co_past = (p1, p2)
                            }) =
   "Coinduction:\n" ++
-  "Real Present: " ++
-  (folder_name $ track s1) ++ "," ++
-  (folder_name $ track s2) ++ "\n" ++
-  (printPG pg ns s1) ++ "\n" ++
-  (printPG pg ns s2) ++ "\n" ++
-  "Used Present: " ++
-  (folder_name $ track q1) ++ "," ++
-  (folder_name $ track q2) ++ "\n" ++
-  (printPG pg ns q1) ++ "\n" ++
-  (printPG pg ns q2) ++ "\n" ++
-  "Past: " ++
-  (folder_name $ track p1) ++ "," ++
-  (folder_name $ track p2) ++ "\n" ++
-  (printPG pg ns p1) ++ "\n" ++
-  (printPG pg ns p2)
+  (summarizeStatePairTrack "Real Present" pg ns s1 s2) ++ "\n" ++
+  (summarizeStatePairTrack "Used Present" pg ns q1 q2) ++ "\n" ++
+  (summarizeStatePairTrack "Past" pg ns p1 p2)
 
 -- variables:  find all names used in here
 -- look them up, find a fixed point
@@ -187,16 +184,8 @@ summarizeEquality pg ns (EqualMarker {
                         , eq_used_present = (q1, q2)
                         }) =
   "Equivalent Expressions:\n" ++
-  "Real Present: " ++
-  (folder_name $ track s1) ++ ", " ++
-  (folder_name $ track s2) ++ "\n" ++
-  (printPG pg ns s1) ++ "\n" ++
-  (printPG pg ns s2) ++ "\n" ++
-  "Used States: " ++
-  (folder_name $ track q1) ++ ", " ++
-  (folder_name $ track q2) ++ "\n" ++
-  (printPG pg ns q1) ++ "\n" ++
-  (printPG pg ns q2)
+  (summarizeStatePairTrack "Real Present" pg ns s1 s2) ++ "\n" ++
+  (summarizeStatePairTrack "Used States" pg ns q1 q2)
 
 summarizeNoObligations :: PrettyGuide -> [Name] -> (StateET, StateET) -> String
 summarizeNoObligations = summarizeStatePair "No Obligations Produced"
@@ -217,8 +206,8 @@ summarizeStatePair :: String ->
                       String
 summarizeStatePair str pg ns (s1, s2) =
   str ++ ":\n" ++
-  (folder_name $ track s1) ++ ", " ++
-  (folder_name $ track s2) ++ "\n" ++
+  (trackName s1) ++ ", " ++
+  (trackName s2) ++ "\n" ++
   (printPG pg ns s1) ++ "\n" ++
   (printPG pg ns s2)
 
@@ -240,8 +229,11 @@ tabsAfterNewLines (c:t) = c:(tabsAfterNewLines t)
 -- generate the guide for the whole summary externally
 summarize :: PrettyGuide -> [Name] -> Marker -> String
 summarize pg ns (Marker (sh1, sh2) m) =
+  let names1 = map trackName $ (latest sh1):history sh1
+      names2 = map trackName $ (latest sh2):history sh2
+  in
   "***\nLeft Path: " ++
-  (foldr (\s acc -> acc ++ " -> " ++ s) "Start" $ map (folder_name . track) $ (latest sh1):history sh1) ++
+  (intercalate " -> " $ (reverse names1)) ++
   "\nRight Path: " ++
-  (foldr (\s acc -> acc ++ " -> " ++ s) "Start" $ map (folder_name . track) $ (latest sh2):history sh2) ++ "\n" ++
+  (intercalate " -> " $ (reverse names2)) ++ "\n" ++
   (tabsAfterNewLines $ summarizeAct pg ns m)

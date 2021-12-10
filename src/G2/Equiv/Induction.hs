@@ -205,7 +205,7 @@ induction solver ns prev (s1, s2) | caseRecursion (exprExtract s1)
       let prev' = map swap prev
       ind' <- inductionL solver ns prev' (s2, s1)
       case ind' of
-        Just (s2r, imr) -> return $ Just (s1, s2r, imr)
+        Just (s2r, imr) -> return $ Just (s1, s2r, reverseIndMarker imr)
         Nothing -> return Nothing
   | otherwise = return Nothing
 
