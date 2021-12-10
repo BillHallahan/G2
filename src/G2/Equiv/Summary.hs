@@ -55,13 +55,13 @@ printPG pg ns s =
     "" -> e_str ++ "\n---"
     _ -> e_str ++ "\nVariables:\n" ++ var_str ++ "\n---"
 
-data ChainEnd = Symbolic
+data ChainEnd = Symbolic Id
               | Cycle Id
               | Terminal Expr [Id]
               | Unmapped
 
 -- don't include ns names in the result here
--- TODO remove duplicates here?
+-- this does not remove duplicates
 varsInExpr :: [Name] -> Expr -> [Id]
 varsInExpr ns e = filter (\i -> not ((idName i) `elem` ns)) $ X.vars e
 
@@ -73,21 +73,11 @@ extraVars _ = []
 -- some of the computations here are redundant with what happens later
 -- need to prune out repeats
 -- should things count as repeats if they appear in the chain?
--- TODO remove duplicates
+-- no need to remove duplicates if HashSet used internally
 varsFull :: ExprEnv -> [Name] -> Expr -> [Id]
-varsFull h ns e = HS.toList $ varsFullRec ns h HS.empty $ varsInExpr ns e
-{-
 varsFull h ns e =
-  let vs = varsInExpr ns e
-      chains = map (varChain h ns []) vs
-      extras = concat $ map (extraVars . snd) chains
-      -- throw out the ones that we covered already
-      extras' = filter (\i -> not (i `elem` vs)) extras
-      -- get the var chains of these, with ns extended
-      ns' = (map idName vs) ++ ns
-      extras_full = concat $ map (\i -> varsFull h ns' $ Var i) extras'
-  in vs ++ extras_full
--}
+  let ids = varsInExpr ns e
+  in HS.toList $ varsFullRec ns h (HS.fromList ids) ids
 
 varsFullRec :: [Name] -> ExprEnv -> HS.HashSet Id -> [Id] -> HS.HashSet Id
 varsFullRec ns h seen search
@@ -108,7 +98,7 @@ varChain h ns inlined i =
   else if (idName i) `elem` ns then (reverse inlined, Terminal (Var i) [])
   else case E.lookupConcOrSym (idName i) h of
     Nothing -> ([], Unmapped)
-    Just (E.Sym i') -> (reverse (i':inlined), Symbolic)
+    Just (E.Sym i') -> (reverse (i:inlined), Symbolic i')
     Just (E.Conc e) -> exprChain h ns (i:inlined) e
 
 exprChain :: ExprEnv -> [Name] -> [Id] -> Expr -> ([Id], ChainEnd)
@@ -118,13 +108,12 @@ exprChain h ns inlined e = case e of
   _ -> (reverse inlined, Terminal e $ varsInExpr ns e)
 
 -- stop inlining when something in ns reached
--- TODO not the best case setup
 printVar :: PrettyGuide -> [Name] -> StateET -> Id -> String
 printVar pg ns s@(State{ expr_env = h }) i =
   let (chain, c_end) = varChain h ns [] i
       chain_strs = map (\i_ -> printHaskellPG pg s $ Var i_) chain
       end_str = case c_end of
-        Symbolic -> "Symbolic"
+        Symbolic (Id _ t) -> "Symbolic " ++ mkTypeHaskellPG pg t
         Cycle i' -> "Cycle " ++ printHaskellPG pg s (Var i')
         Terminal e _ -> printHaskellPG pg s e
         Unmapped -> ""
@@ -132,10 +121,9 @@ printVar pg ns s@(State{ expr_env = h }) i =
     Unmapped -> ""
     _ -> (foldr (\str acc -> str ++ " -> " ++ acc) "" chain_strs) ++ end_str
 
--- TODO will this alter order?
 printVars :: PrettyGuide -> [Name] -> StateET -> String
 printVars pg ns s =
-  let vars = nub $ varsFull (expr_env s) ns (exprExtract s)
+  let vars = varsFull (expr_env s) ns (exprExtract s)
       var_strs = map (printVar pg ns s) vars
       non_empty_strs = filter (not . null) var_strs
   in intercalate "\n" non_empty_strs
@@ -154,7 +142,6 @@ summarizeStatePairTrack str pg ns s1 s2 =
   (printPG pg ns s1) ++ "\n" ++
   (printPG pg ns s2)
 
--- TODO print the name differently?
 summarizeInduction :: PrettyGuide -> [Name] -> IndMarker -> String
 summarizeInduction pg ns im@(IndMarker {
                            ind_real_present = (s1, s2)
@@ -178,7 +165,8 @@ summarizeInduction pg ns im@(IndMarker {
   "Past Sub-Expressions Used for Induction:\n" ++
   (printPG pg ns r1) ++ "\n" ++
   (printPG pg ns r2) ++ "\n" ++
-  "New Variable Name: " ++ (show $ ind_fresh_name im)
+  "New Variable Name: " ++
+  (printHaskellPG pg s1' $ Var $ Id (ind_fresh_name im) $ typeOf $ exprExtract s1')
 
 summarizeCoinduction :: PrettyGuide -> [Name] -> CoMarker -> String
 summarizeCoinduction pg ns (CoMarker {
