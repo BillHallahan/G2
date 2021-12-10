@@ -16,6 +16,8 @@ import qualified G2.Language.Expr as X
 import Data.List
 import Data.Maybe
 
+import qualified Data.HashSet as HS
+
 import G2.Equiv.InitRewrite
 import G2.Equiv.EquivADT
 import G2.Equiv.G2Calls
@@ -73,6 +75,8 @@ extraVars _ = []
 -- should things count as repeats if they appear in the chain?
 -- TODO remove duplicates
 varsFull :: ExprEnv -> [Name] -> Expr -> [Id]
+varsFull h ns e = HS.toList $ varsFullRec ns h HS.empty $ varsInExpr ns e
+{-
 varsFull h ns e =
   let vs = varsInExpr ns e
       chains = map (varChain h ns []) vs
@@ -83,6 +87,19 @@ varsFull h ns e =
       ns' = (map idName vs) ++ ns
       extras_full = concat $ map (\i -> varsFull h ns' $ Var i) extras'
   in vs ++ extras_full
+-}
+
+varsFullRec :: [Name] -> ExprEnv -> HS.HashSet Id -> [Id] -> HS.HashSet Id
+varsFullRec ns h seen search
+  | null search = seen
+  | otherwise =
+    let all_exprs = mapMaybe (flip E.lookup h) $ map idName search
+        all_vars = vars all_exprs
+        all_new = filter
+                  (\i -> not (((idName i) `elem` ns) || HS.member i seen))
+                  all_vars
+        new_seen = HS.union (HS.fromList all_new) seen
+    in varsFullRec ns h new_seen all_new
 
 -- the terminal expression can have variables of its own that we should cover
 varChain :: ExprEnv -> [Name] -> [Id] -> Id -> ([Id], ChainEnd)
