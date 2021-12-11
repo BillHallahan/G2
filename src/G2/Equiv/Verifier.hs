@@ -176,9 +176,10 @@ wrapRecursiveCall n e@(Var (Id n' _)) =
   else wrcHelper n e
 wrapRecursiveCall n e = wrcHelper n e
 
--- TODO also modify the expression itself directly?
 wrcHelper :: Name -> Expr -> Expr
-wrcHelper n = modifyChildren (wrapRecursiveCall n)
+wrcHelper n e = case e of
+  Tick (NamedLoc (Name t _ _ _)) _ | t == DT.pack "REC" -> e
+  _ -> modifyChildren (wrapRecursiveCall n) e
 
 -- Creating a new expression environment lets us use the existing reachability
 -- functions.
@@ -214,6 +215,8 @@ wrapLetRec h e = modifyChildren (wrapLetRec h) e
 -- first Name is the one that maps to the Expr in the environment
 -- second Name is the one that might be wrapped
 -- do not allow wrapping for symbolic variables
+-- TODO this is the culprit:  getting either 0 or 2 REC ticks
+-- modifyChildren can't see a REC tick that was just inserted above it
 wrapIfCorecursive :: G.CallGraph -> ExprEnv -> Name -> Name -> Expr -> Expr
 wrapIfCorecursive cg h n m e =
   let n_list = G.reachable n cg
@@ -223,7 +226,7 @@ wrapIfCorecursive cg h n m e =
   then
     if E.isSymbolic m h
     then e
-    else ((wrcHelper m) . (wrapRecursiveCall m)) (wrapRecursiveCall m e)
+    else wrcHelper m (wrapRecursiveCall m e) -- ((wrcHelper m) . (wrapRecursiveCall m)) e (wrapRecursiveCall m e)
   else e
 
 -- the call graph must be based on the given environment

@@ -15,6 +15,8 @@ import qualified G2.Language.Expr as X
 
 import Data.List
 import Data.Maybe
+import qualified Data.Text as DT
+--import qualified Data.Strings as DS
 
 import qualified Data.HashSet as HS
 
@@ -42,9 +44,14 @@ sideName IRight = "Right"
 trackName :: StateET -> String
 trackName s =
   let str = folder_name $ track s
-  in case str of
+      substrs = DT.splitOn (DT.pack "/") $ DT.pack str
+      --substrs = DS.strSplitAll "/" str
+      final_sub = case reverse substrs of
+        [] -> error "No Substring"
+        fs:_ -> DT.unpack fs
+  in case final_sub of
     "" -> "Start"
-    _ -> str
+    _ -> final_sub
 
 printPG :: PrettyGuide -> [Name] -> StateET -> String
 printPG pg ns s =

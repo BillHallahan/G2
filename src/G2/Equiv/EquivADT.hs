@@ -50,6 +50,8 @@ unAppNoTicks e =
     e':t -> (removeTicks e'):t
     _ -> e_list
 
+-- TODO getting catch-all case from infEq with inf1 and inf2
+-- also getting two REC ticks on the variables at the beginning, which is wrong
 exprPairing :: HS.HashSet Name -> -- ^ vars that should not be inlined on either side
                State t ->
                State t ->
@@ -123,4 +125,7 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
     (Type _, Type _) -> Just pairs
     (Case _ _ _, _) -> Just (HS.insert (Ob e1 e2) pairs)
     (_, Case _ _ _) -> Just (HS.insert (Ob e1 e2) pairs)
+    -- TODO not sure if I should have it this way
+    (Var _, _) -> Just (HS.insert (Ob e1 e2) pairs)
+    (_, Var _) -> Just (HS.insert (Ob e1 e2) pairs)
     _ -> error $ "catch-all case\n" ++ show e1 ++ "\n" ++ show e2
