@@ -215,7 +215,6 @@ wrapLetRec h e = modifyChildren (wrapLetRec h) e
 -- first Name is the one that maps to the Expr in the environment
 -- second Name is the one that might be wrapped
 -- do not allow wrapping for symbolic variables
--- TODO this is the culprit:  getting either 0 or 2 REC ticks
 -- modifyChildren can't see a REC tick that was just inserted above it
 wrapIfCorecursive :: G.CallGraph -> ExprEnv -> Name -> Name -> Expr -> Expr
 wrapIfCorecursive cg h n m e =
@@ -226,7 +225,7 @@ wrapIfCorecursive cg h n m e =
   then
     if E.isSymbolic m h
     then e
-    else wrcHelper m (wrapRecursiveCall m e) -- ((wrcHelper m) . (wrapRecursiveCall m)) e (wrapRecursiveCall m e)
+    else wrcHelper m (wrapRecursiveCall m e)
   else e
 
 -- the call graph must be based on the given environment
@@ -348,6 +347,7 @@ verifyLoop solver ns states b config folder_root k n | not (null states)
   | not (null states) = do
     -- TODO log some new things with the writer for unresolved obligations
     -- TODO the present states are somewhat redundant
+    W.liftIO $ putStrLn $ "Unresolved Obligations: " ++ show (length states)
     let ob (sh1, sh2) = Marker (sh1, sh2) $ Unresolved (latest sh1, latest sh2)
     W.tell $ map ob states
     return $ S.Unknown "Loop Iterations Exhausted"
@@ -599,8 +599,11 @@ checkRule config init_state bindings total finite print_summary iterations rule 
   -- UNSAT for good, SAT for bad
   if print_summary then do
     putStrLn "--- SUMMARY ---"
-    let pg = mkPrettyGuide w
-    mapM (putStrLn . (summarize pg $ HS.toList ns)) w
+    -- TODO find a more concise way to make this guide in the first place
+    -- TODO get initial symbolic IDs
+    -- ru_bndrs from the rewrite rule is a list of Ids
+    let pg = mkPrettyGuide $ map (\(Marker _ m) -> m) w
+    mapM (putStrLn . (summarize pg (HS.toList ns) (ru_bndrs rule))) w
     putStrLn "--- END OF SUMMARY ---"
   else return ()
   S.close solver
