@@ -55,14 +55,19 @@ trackName s =
 printPG :: PrettyGuide -> [Name] -> [Id] -> StateET -> String
 printPG pg ns sym_ids s =
   let h = expr_env s
-      e_str = printHaskellPG pg s $ exprExtract s
-      sym_str = printVarsList pg ns sym_ids s
-      -- TODO don't print the symbolic variables over again?
-      var_str = printVars pg ns s
-  in case var_str of
-    "" -> e_str ++ "\nSymbolic Variables:\n" ++ sym_str ++ "\n---"
-    _ -> e_str ++ "\nSymbolic Variables:\n" ++ sym_str ++
-         "\nOther Variables:\n" ++ var_str ++ "\n---"
+      e = exprExtract s
+      e_str = printHaskellPG pg s e
+      sym_vars = varsFullList h ns sym_ids
+      sym_str = printVars pg ns s sym_vars
+      sym_print = case sym_str of
+        "" -> ""
+        _ -> "\nMain Symbolic Variables:\n" ++ sym_str
+      other_vars = varsFull h ns e \\ sym_vars
+      var_str = printVars pg ns s other_vars
+      var_print = case var_str of
+        "" -> ""
+        _ -> "\nOther Variables:\n" ++ var_str
+  in e_str ++ sym_print ++ var_print ++ "\n---"
 
 data ChainEnd = Symbolic Id
               | Cycle Id
@@ -133,20 +138,9 @@ printVar pg ns s@(State{ expr_env = h }) i =
     Unmapped -> ""
     _ -> (foldr (\str acc -> str ++ " -> " ++ acc) "" chain_strs) ++ end_str
 
--- TODO use markAndSweepPreserving plus an extra filter
-printVars :: PrettyGuide -> [Name] -> StateET -> String
-printVars pg ns s =
-  let vars = varsFull (expr_env s) ns (exprExtract s)
-      var_strs = map (printVar pg ns s) vars
-      non_empty_strs = filter (not . null) var_strs
-  in intercalate "\n" non_empty_strs
-
--- TODO only need the expression environment from the state
--- TODO redundant code
-printVarsList :: PrettyGuide -> [Name] -> [Id] -> StateET -> String
-printVarsList pg ns ids s =
-  let vars = varsFullList (expr_env s) ns ids
-      var_strs = map (printVar pg ns s) vars
+printVars :: PrettyGuide -> [Name] -> StateET -> [Id] -> String
+printVars pg ns s vars =
+  let var_strs = map (printVar pg ns s) vars
       non_empty_strs = filter (not . null) var_strs
   in intercalate "\n" non_empty_strs
 

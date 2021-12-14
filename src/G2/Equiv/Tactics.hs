@@ -119,16 +119,9 @@ instance Named ActMarker where
 
 data Marker = Marker (StateH, StateH) ActMarker
 
--- TODO don't need the StateH names for summary?
--- names doesn't usually filter out duplicates
--- TODO would be good to print concretizations of symbolic vars
--- get symbolic ids from init state
--- include those in the var list that you print (recursively)
--- also no need to print real present, probably
 instance Named Marker where
   names (Marker (sh1, sh2) m) =
     names sh1 DS.>< names sh2 DS.>< names m
-    --names m
   rename old new (Marker (sh1, sh2) m) =
     Marker (rename old new sh1, rename old new sh2) $ rename old new m
 
@@ -173,7 +166,6 @@ data CoMarker = CoMarker {
   , co_past :: (StateET, StateET)
 }
 
--- TODO remove duplicates?
 instance Named CoMarker where
   names (CoMarker (s1, s2) (q1, q2) (p1, p2)) =
     foldr (DS.><) DS.empty $ map names [s1, s2, q1, q2, p1, p2]
