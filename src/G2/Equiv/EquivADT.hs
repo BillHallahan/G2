@@ -50,6 +50,8 @@ unAppNoTicks e =
     e':t -> (removeTicks e'):t
     _ -> e_list
 
+-- TODO getting catch-all case from infEq with inf1 and inf2
+-- also getting two REC ticks on the variables at the beginning, which is wrong
 exprPairing :: HS.HashSet Name -> -- ^ vars that should not be inlined on either side
                State t ->
                State t ->
@@ -67,13 +69,13 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
     (_, Tick _ e2') -> exprPairing ns s1 s2 e1 e2' pairs n1 n2
     -- keeping track of inlined vars prevents looping
     (Var i1, Var i2) | (idName i1) `elem` n1
-                     , (idName i2) `elem` n2 -> Just (HS.insert (Ob e1 e2) pairs)
-    (Var i, _) | E.isSymbolic (idName i) h1 -> Just (HS.insert (Ob e1 e2) pairs)
+                     , (idName i2) `elem` n2 -> Just $ HS.insert (Ob e1 e2) pairs
+    (Var i, _) | E.isSymbolic (idName i) h1 -> Just $ HS.insert (Ob e1 e2) pairs
                | m <- idName i
                , not $ m `elem` ns
                , Just e <- E.lookup m h1 -> exprPairing ns s1 s2 e e2 pairs (m:n1) n2
                | not $ (idName i) `elem` ns -> error "unmapped variable"
-    (_, Var i) | E.isSymbolic (idName i) h2 -> Just (HS.insert (Ob e1 e2) pairs)
+    (_, Var i) | E.isSymbolic (idName i) h2 -> Just $ HS.insert (Ob e1 e2) pairs
                | m <- idName i
                , not $ m `elem` ns
                , Just e <- E.lookup m h2 -> exprPairing ns s1 s2 e1 e pairs n1 (m:n2)
@@ -98,8 +100,6 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
                   , isExprValueForm h2 (removeAllTicks e2) -> Nothing
     (_, Prim p _) | (p == Error || p == Undefined)
                   , isExprValueForm h1 (removeAllTicks e1) -> Nothing
-    (Prim _ _, _) -> Just (HS.insert (Ob e1 e2) pairs)
-    (_, Prim _ _) -> Just (HS.insert (Ob e1 e2) pairs)
     -- TODO test equivalence of functions and arguments?
     -- Might cause the verifier to miss some important things
     -- doesn't seem to help with int-nat difference
@@ -113,14 +113,8 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
                   , Just pairs' <- exprPairing ns s1 s2 a1 a2 pairs n1 n2 ->
                     exprPairing ns s1 s2 f1 f2 pairs' n1 n2
     -}
-    (App _ _, _) -> Just (HS.insert (Ob e1 e2) pairs)
-    (_, App _ _) -> Just (HS.insert (Ob e1 e2) pairs)
     (Lit l1, Lit l2) | l1 == l2 -> Just pairs
                      | otherwise -> Nothing
-    (Lam _ _ _, _) -> Just (HS.insert (Ob e1 e2) pairs)
-    (_, Lam _ _ _) -> Just (HS.insert (Ob e1 e2) pairs)
     -- assume that all types line up between the two expressions
     (Type _, Type _) -> Just pairs
-    (Case _ _ _, _) -> Just (HS.insert (Ob e1 e2) pairs)
-    (_, Case _ _ _) -> Just (HS.insert (Ob e1 e2) pairs)
-    _ -> error $ "catch-all case\n" ++ show e1 ++ "\n" ++ show e2
+    _ -> Just $ HS.insert (Ob e1 e2) pairs

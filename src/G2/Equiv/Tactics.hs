@@ -166,7 +166,6 @@ data CoMarker = CoMarker {
   , co_past :: (StateET, StateET)
 }
 
--- TODO remove duplicates?
 instance Named CoMarker where
   names (CoMarker (s1, s2) (q1, q2) (p1, p2)) =
     foldr (DS.><) DS.empty $ map names [s1, s2, q1, q2, p1, p2]

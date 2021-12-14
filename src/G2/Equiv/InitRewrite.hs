@@ -15,9 +15,7 @@ initWithRHS s b r =
            }
       b' = b { input_names = map idName $ ru_bndrs r }
   in
-  --markAndSweepPreserving emptyMemConfig s' b'
-  -- TODO temporary fix
-  (s', b')
+  markAndSweepPreserving emptyMemConfig s' b'
 
 initWithLHS :: State t -> Bindings -> RewriteRule -> (State t, Bindings)
 initWithLHS s b r =
@@ -37,6 +35,4 @@ initWithLHS s b r =
                        }
                   b' = b { input_names = map idName $ ru_bndrs r }
               in
-              --markAndSweepPreserving emptyMemConfig s' b'
-              -- TODO temporary fix
-              (s', b')
+              markAndSweepPreserving emptyMemConfig s' b'

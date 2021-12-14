@@ -15,6 +15,7 @@ import qualified G2.Language.Expr as X
 
 import Data.List
 import Data.Maybe
+import qualified Data.Text as DT
 
 import qualified Data.HashSet as HS
 
@@ -42,18 +43,31 @@ sideName IRight = "Right"
 trackName :: StateET -> String
 trackName s =
   let str = folder_name $ track s
-  in case str of
+      substrs = DT.splitOn (DT.pack "/") $ DT.pack str
+      --substrs = DS.strSplitAll "/" str
+      final_sub = case reverse substrs of
+        [] -> error "No Substring"
+        fs:_ -> DT.unpack fs
+  in case final_sub of
     "" -> "Start"
-    _ -> str
+    _ -> final_sub
 
-printPG :: PrettyGuide -> [Name] -> StateET -> String
-printPG pg ns s =
+printPG :: PrettyGuide -> [Name] -> [Id] -> StateET -> String
+printPG pg ns sym_ids s =
   let h = expr_env s
-      e_str = printHaskellPG pg s $ exprExtract s
-      var_str = printVars pg ns s
-  in case var_str of
-    "" -> e_str ++ "\n---"
-    _ -> e_str ++ "\nVariables:\n" ++ var_str ++ "\n---"
+      e = exprExtract s
+      e_str = printHaskellPG pg s e
+      sym_vars = varsFullList h ns sym_ids
+      sym_str = printVars pg ns s sym_vars
+      sym_print = case sym_str of
+        "" -> ""
+        _ -> "\nMain Symbolic Variables:\n" ++ sym_str
+      other_vars = varsFull h ns e \\ sym_vars
+      var_str = printVars pg ns s other_vars
+      var_print = case var_str of
+        "" -> ""
+        _ -> "\nOther Variables:\n" ++ var_str
+  in e_str ++ sym_print ++ var_print ++ "\n---"
 
 data ChainEnd = Symbolic Id
               | Cycle Id
@@ -78,6 +92,9 @@ varsFull :: ExprEnv -> [Name] -> Expr -> [Id]
 varsFull h ns e =
   let ids = varsInExpr ns e
   in HS.toList $ varsFullRec ns h (HS.fromList ids) ids
+
+varsFullList :: ExprEnv -> [Name] -> [Id] -> [Id]
+varsFullList h ns ids = HS.toList $ varsFullRec ns h (HS.fromList ids) ids
 
 varsFullRec :: [Name] -> ExprEnv -> HS.HashSet Id -> [Id] -> HS.HashSet Id
 varsFullRec ns h seen search
@@ -121,10 +138,9 @@ printVar pg ns s@(State{ expr_env = h }) i =
     Unmapped -> ""
     _ -> (foldr (\str acc -> str ++ " -> " ++ acc) "" chain_strs) ++ end_str
 
-printVars :: PrettyGuide -> [Name] -> StateET -> String
-printVars pg ns s =
-  let vars = varsFull (expr_env s) ns (exprExtract s)
-      var_strs = map (printVar pg ns s) vars
+printVars :: PrettyGuide -> [Name] -> StateET -> [Id] -> String
+printVars pg ns s vars =
+  let var_strs = map (printVar pg ns s) vars
       non_empty_strs = filter (not . null) var_strs
   in intercalate "\n" non_empty_strs
 
@@ -132,18 +148,19 @@ printVars pg ns s =
 summarizeStatePairTrack :: String ->
                            PrettyGuide ->
                            [Name] ->
+                           [Id] ->
                            StateET ->
                            StateET ->
                            String
-summarizeStatePairTrack str pg ns s1 s2 =
+summarizeStatePairTrack str pg ns sym_ids s1 s2 =
   str ++ ": " ++
   (trackName s1) ++ ", " ++
   (trackName s2) ++ "\n" ++
-  (printPG pg ns s1) ++ "\n" ++
-  (printPG pg ns s2)
+  (printPG pg ns sym_ids s1) ++ "\n" ++
+  (printPG pg ns sym_ids s2)
 
-summarizeInduction :: PrettyGuide -> [Name] -> IndMarker -> String
-summarizeInduction pg ns im@(IndMarker {
+summarizeInduction :: PrettyGuide -> [Name] -> [Id] -> IndMarker -> String
+summarizeInduction pg ns sym_ids im@(IndMarker {
                            ind_real_present = (s1, s2)
                          , ind_used_present = (q1, q2)
                          , ind_past = (p1, p2)
@@ -152,79 +169,96 @@ summarizeInduction pg ns im@(IndMarker {
                          , ind_past_scrutinees = (r1, r2)
                          }) =
   "Induction:\n" ++
-  (summarizeStatePairTrack "Real Present" pg ns s1 s2) ++ "\n" ++
-  (summarizeStatePairTrack "Used Present" pg ns q1 q2) ++ "\n" ++
-  (summarizeStatePairTrack "Past" pg ns p1 p2) ++ "\n" ++
+  --(summarizeStatePairTrack "Real Present" pg ns sym_ids s1 s2) ++ "\n" ++
+  (summarizeStatePairTrack "Used Present" pg ns sym_ids q1 q2) ++ "\n" ++
+  (summarizeStatePairTrack "Past" pg ns sym_ids p1 p2) ++ "\n" ++
   "Side: " ++ (sideName $ ind_side im) ++ "\n" ++
   "Result:\n" ++
-  (printPG pg ns s1') ++ "\n" ++
-  (printPG pg ns s2') ++ "\n" ++
+  (printPG pg ns sym_ids s1') ++ "\n" ++
+  (printPG pg ns sym_ids s2') ++ "\n" ++
   "Present Sub-Expressions Used for Induction:\n" ++
   (printHaskellPG pg q1 e1) ++ "\n" ++
   (printHaskellPG pg q2 e2) ++ "\n" ++
   "Past Sub-Expressions Used for Induction:\n" ++
-  (printPG pg ns r1) ++ "\n" ++
-  (printPG pg ns r2) ++ "\n" ++
+  (printPG pg ns sym_ids r1) ++ "\n" ++
+  (printPG pg ns sym_ids r2) ++ "\n" ++
   "New Variable Name: " ++
   (printHaskellPG pg s1' $ Var $ Id (ind_fresh_name im) $ typeOf $ exprExtract s1')
 
-summarizeCoinduction :: PrettyGuide -> [Name] -> CoMarker -> String
-summarizeCoinduction pg ns (CoMarker {
+summarizeCoinduction :: PrettyGuide -> [Name] -> [Id] -> CoMarker -> String
+summarizeCoinduction pg ns sym_ids (CoMarker {
                              co_real_present = (s1, s2)
                            , co_used_present = (q1, q2)
                            , co_past = (p1, p2)
                            }) =
   "Coinduction:\n" ++
-  (summarizeStatePairTrack "Real Present" pg ns s1 s2) ++ "\n" ++
-  (summarizeStatePairTrack "Used Present" pg ns q1 q2) ++ "\n" ++
-  (summarizeStatePairTrack "Past" pg ns p1 p2)
+  --(summarizeStatePairTrack "Real Present" pg ns sym_ids s1 s2) ++ "\n" ++
+  (summarizeStatePairTrack "Used Present" pg ns sym_ids q1 q2) ++ "\n" ++
+  (summarizeStatePairTrack "Past" pg ns sym_ids p1 p2)
 
 -- variables:  find all names used in here
 -- look them up, find a fixed point
 -- print all relevant vars beside the expressions
 -- don't include definitions from the initial state (i.e. things in ns)
-summarizeEquality :: PrettyGuide -> [Name] -> EqualMarker -> String
-summarizeEquality pg ns (EqualMarker {
+summarizeEquality :: PrettyGuide -> [Name] -> [Id] -> EqualMarker -> String
+summarizeEquality pg ns sym_ids (EqualMarker {
                           eq_real_present = (s1, s2)
                         , eq_used_present = (q1, q2)
                         }) =
   "Equivalent Expressions:\n" ++
-  (summarizeStatePairTrack "Real Present" pg ns s1 s2) ++ "\n" ++
-  (summarizeStatePairTrack "Used States" pg ns q1 q2)
+  --(summarizeStatePairTrack "Real Present" pg ns sym_ids s1 s2) ++ "\n" ++
+  (summarizeStatePairTrack "Used States" pg ns sym_ids q1 q2)
 
-summarizeNoObligations :: PrettyGuide -> [Name] -> (StateET, StateET) -> String
+summarizeNoObligations :: PrettyGuide ->
+                          [Name] ->
+                          [Id] ->
+                          (StateET, StateET) ->
+                          String
 summarizeNoObligations = summarizeStatePair "No Obligations Produced"
 
-summarizeNotEquivalent :: PrettyGuide -> [Name] -> (StateET, StateET) -> String
+summarizeNotEquivalent :: PrettyGuide ->
+                          [Name] ->
+                          [Id] ->
+                          (StateET, StateET) ->
+                          String
 summarizeNotEquivalent = summarizeStatePair "NOT EQUIVALENT"
 
-summarizeSolverFail :: PrettyGuide -> [Name] -> (StateET, StateET) -> String
+summarizeSolverFail :: PrettyGuide ->
+                       [Name] ->
+                       [Id] ->
+                       (StateET, StateET) ->
+                       String
 summarizeSolverFail = summarizeStatePair "SOLVER FAIL"
 
-summarizeUnresolved :: PrettyGuide -> [Name] -> (StateET, StateET) -> String
+summarizeUnresolved :: PrettyGuide ->
+                       [Name] ->
+                       [Id] ->
+                       (StateET, StateET) ->
+                       String
 summarizeUnresolved = summarizeStatePair "Unresolved"
 
 summarizeStatePair :: String ->
                       PrettyGuide ->
                       [Name] ->
+                      [Id] ->
                       (StateET, StateET) ->
                       String
-summarizeStatePair str pg ns (s1, s2) =
+summarizeStatePair str pg ns sym_ids (s1, s2) =
   str ++ ":\n" ++
   (trackName s1) ++ ", " ++
   (trackName s2) ++ "\n" ++
-  (printPG pg ns s1) ++ "\n" ++
-  (printPG pg ns s2)
+  (printPG pg ns sym_ids s1) ++ "\n" ++
+  (printPG pg ns sym_ids s2)
 
-summarizeAct :: PrettyGuide -> [Name] -> ActMarker -> String
-summarizeAct pg ns m = case m of
-  Induction im -> summarizeInduction pg ns im
-  Coinduction cm -> summarizeCoinduction pg ns cm
-  Equality em -> summarizeEquality pg ns em
-  NoObligations s_pair -> summarizeNoObligations pg ns s_pair
-  NotEquivalent s_pair -> summarizeNotEquivalent pg ns s_pair
-  SolverFail s_pair -> summarizeSolverFail pg ns s_pair
-  Unresolved s_pair -> summarizeUnresolved pg ns s_pair
+summarizeAct :: PrettyGuide -> [Name] -> [Id] -> ActMarker -> String
+summarizeAct pg ns sym_ids m = case m of
+  Induction im -> summarizeInduction pg ns sym_ids im
+  Coinduction cm -> summarizeCoinduction pg ns sym_ids cm
+  Equality em -> summarizeEquality pg ns sym_ids em
+  NoObligations s_pair -> summarizeNoObligations pg ns sym_ids s_pair
+  NotEquivalent s_pair -> summarizeNotEquivalent pg ns sym_ids s_pair
+  SolverFail s_pair -> summarizeSolverFail pg ns sym_ids s_pair
+  Unresolved s_pair -> summarizeUnresolved pg ns sym_ids s_pair
 
 tabsAfterNewLines :: String -> String
 tabsAfterNewLines [] = []
@@ -232,8 +266,8 @@ tabsAfterNewLines ('\n':t) = '\n':'\t':(tabsAfterNewLines t)
 tabsAfterNewLines (c:t) = c:(tabsAfterNewLines t)
 
 -- generate the guide for the whole summary externally
-summarize :: PrettyGuide -> [Name] -> Marker -> String
-summarize pg ns (Marker (sh1, sh2) m) =
+summarize :: PrettyGuide -> [Name] -> [Id] -> Marker -> String
+summarize pg ns sym_ids (Marker (sh1, sh2) m) =
   let names1 = map trackName $ (latest sh1):history sh1
       names2 = map trackName $ (latest sh2):history sh2
   in
@@ -241,4 +275,4 @@ summarize pg ns (Marker (sh1, sh2) m) =
   (intercalate " -> " $ (reverse names1)) ++
   "\nRight Path: " ++
   (intercalate " -> " $ (reverse names2)) ++ "\n" ++
-  (tabsAfterNewLines $ summarizeAct pg ns m)
+  (tabsAfterNewLines $ summarizeAct pg ns sym_ids m)
