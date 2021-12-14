@@ -599,9 +599,6 @@ checkRule config init_state bindings total finite print_summary iterations rule 
   -- UNSAT for good, SAT for bad
   if print_summary then do
     putStrLn "--- SUMMARY ---"
-    -- TODO find a more concise way to make this guide in the first place
-    -- TODO get initial symbolic IDs
-    -- ru_bndrs from the rewrite rule is a list of Ids
     let pg = mkPrettyGuide $ map (\(Marker _ m) -> m) w
     mapM (putStrLn . (summarize pg (HS.toList ns) (ru_bndrs rule))) w
     putStrLn "--- END OF SUMMARY ---"
