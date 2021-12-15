@@ -31,10 +31,10 @@ insertE n e = do
     let eenv' = E.insert n e eenv
     putExprEnv eenv'
 
-insertSymbolicE :: ExprEnvM s m => Name -> Id -> m ()
-insertSymbolicE n i = do
+insertSymbolicE :: ExprEnvM s m => Id -> m ()
+insertSymbolicE i = do
     eenv <- exprEnv
-    let eenv' = E.insertSymbolic n i eenv
+    let eenv' = E.insertSymbolic i eenv
     putExprEnv eenv'
 
 mapE :: ExprEnvM s m => (Expr -> Expr) -> m ()

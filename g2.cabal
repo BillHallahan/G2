@@ -38,6 +38,9 @@ library
                        , G2.Equiv.EquivADT
                        , G2.Equiv.G2Calls
                        , G2.Equiv.Verifier
+                       , G2.Equiv.Tactics
+                       , G2.Equiv.Induction
+                       , G2.Equiv.Summary
 
                        , G2.Execution
                        , G2.Execution.Interface

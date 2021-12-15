@@ -369,9 +369,8 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
         (ce, is, f_i, ng') = mkCurrExpr Nothing Nothing ie (type_classes s) (name_gen bindings)
                                       (expr_env s) (type_env s) (deepseq_walkers bindings) (known_values s) config
 
-        lhs' = lhs { state = s { expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) (expr_env s) is
-                               , curr_expr = CurrExpr Evaluate ce
-                               , symbolic_ids = is }
+        lhs' = lhs { state = s { expr_env = foldr E.insertSymbolic (expr_env s) is
+                               , curr_expr = CurrExpr Evaluate ce }
                    }
         (lhs'', bindings') = execLHStateM (addLHTCCurrExpr) lhs' (bindings { name_gen = ng' })
 
@@ -408,7 +407,6 @@ runLHG2 config red hal ord solver simplifier pres_names init_id final_st binding
                                   then er { violated = Nothing }
                                   else er) n_ret
     let ret'' = filter (\(ExecRes {final_state = s}) -> mi == (abstractCallsNum s)) ret'
-
 
     (bindings', ret''') <- mapAccumM (reduceCalls solver simplifier config) final_bindings ret''
     ret'''' <- mapM (checkAbstracted solver simplifier config init_id bindings') ret'''

@@ -26,6 +26,7 @@ module G2.Language.ExprEnv
     , redirect
     , union
     , union'
+    , unionWith
     , unionWithM
     , unionWithNameM
     , (!)
@@ -41,7 +42,7 @@ module G2.Language.ExprEnv
     , getIdFromName
     , funcsOfType
     , keys
-    , symbolicKeys
+    , symbolicIds
     , elems
     , higherOrderExprs
     , redirsToExprs
@@ -189,8 +190,8 @@ lookupNameMod ns ms =
 insert :: Name -> Expr -> ExprEnv -> ExprEnv
 insert n e = ExprEnv . M.insert n (ExprObj e) . unwrapExprEnv
 
-insertSymbolic :: Name -> Id -> ExprEnv -> ExprEnv
-insertSymbolic n i = ExprEnv. M.insert n (SymbObj i) . unwrapExprEnv
+insertSymbolic :: Id -> ExprEnv -> ExprEnv
+insertSymbolic i = ExprEnv. M.insert (idName i) (SymbObj i) . unwrapExprEnv
 
 insertExprs :: [(Name, Expr)] -> ExprEnv -> ExprEnv
 insertExprs kvs scope = foldr (uncurry insert) scope kvs
@@ -205,6 +206,9 @@ union (ExprEnv eenv) (ExprEnv eenv') = ExprEnv $ eenv `M.union` eenv'
 union' :: M.HashMap Name Expr -> ExprEnv -> ExprEnv
 union' m (ExprEnv eenv) = ExprEnv (M.map ExprObj m `M.union` eenv)
 
+unionWith :: (EnvObj -> EnvObj -> EnvObj) -> ExprEnv -> ExprEnv -> ExprEnv
+unionWith f (ExprEnv m1) (ExprEnv m2) =
+    ExprEnv $ M.unionWith f m1 m2
 
 unionWithM :: Monad m => (EnvObj -> EnvObj -> m EnvObj) -> ExprEnv -> ExprEnv -> m ExprEnv
 unionWithM f (ExprEnv m1) (ExprEnv m2) =
@@ -287,7 +291,9 @@ filterWithKey p env@(ExprEnv env') = ExprEnv $ M.filterWithKey p' env'
 
 -- | Returns a new `ExprEnv`, which contains only the symbolic values.
 filterToSymbolic :: ExprEnv -> ExprEnv
-filterToSymbolic eenv = filterWithKey (\n _ -> isSymbolic n eenv) eenv
+filterToSymbolic = ExprEnv . M.filter (\e -> case e of
+                                                SymbObj _ -> True
+                                                _ -> False) . unwrapExprEnv
 
 -- | Returns the names of all expressions with the given type in the expression environment
 funcsOfType :: Type -> ExprEnv -> [Name]
@@ -296,8 +302,10 @@ funcsOfType t = keys . filter (\e -> t == typeOf e)
 keys :: ExprEnv -> [Name]
 keys = M.keys . unwrapExprEnv
 
-symbolicKeys :: ExprEnv -> [Name]
-symbolicKeys eenv = M.keys . unwrapExprEnv . filterWithKey (\n _ -> isSymbolic n eenv) $ eenv
+symbolicIds :: ExprEnv -> [Id]
+symbolicIds = mapMaybe (\e -> case e of
+                                SymbObj i ->  Just i
+                                _ -> Nothing) . M.elems . unwrapExprEnv
 
 -- | Returns all `Expr`@s@ in the `ExprEnv`
 elems :: ExprEnv -> [Expr]

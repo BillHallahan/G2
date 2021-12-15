@@ -478,6 +478,7 @@ testFileTests = testGroup "TestFiles"
     , checkExpr "tests/TestFiles/Error/Error3.hs" 400 "g" 2 [AtLeast 1, RForAll(not . errors)]
     , checkExpr "tests/TestFiles/Error/Undefined1.hs" 400 "undefined1" 2 [AtLeast 1, RForAll(errors)]
     , checkExpr "tests/TestFiles/Error/Undefined1.hs" 400 "undefined2" 2 [AtLeast 1, RForAll(errors)]
+    , checkExpr "tests/TestFiles/Error/IrrefutError.hs" 400 "f" 2 [AtLeast 2, RExists(errors)]
 
     , checkExpr "tests/TestFiles/BadNames1.hs" 400 "abs'" 2 [Exactly 2]
     , checkExpr "tests/TestFiles/BadNames1.hs" 400 "xswitch" 2 [AtLeast 10]
@@ -625,6 +626,11 @@ primTests = testGroup "Prims"
 
     , checkInputOutput "tests/Prim/Prim3.hs" "Prim3" "int2FloatTest" 1000 2 [AtLeast 1]
     , checkInputOutput "tests/Prim/Prim3.hs" "Prim3" "int2DoubleTest" 1000 2 [AtLeast 1]
+
+    , checkInputOutput "tests/Prim/Prim4.hs" "Prim4" "divIntTest" 1500 2 [AtLeast 4]
+    , checkInputOutput "tests/Prim/Prim4.hs" "Prim4" "divIntegerTest" 1500 2 [AtLeast 1]
+    , checkInputOutput "tests/Prim/Prim4.hs" "Prim4" "divIntegerTest2" 1500 2 [AtLeast 4]
+    , checkInputOutput "tests/Prim/Prim4.hs" "Prim4" "divFloatTest" 1500 2 [AtLeast 1]
     ]
 
 -- To Do Tests

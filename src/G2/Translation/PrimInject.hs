@@ -97,6 +97,7 @@ primDefs' b = [ ("==#", Prim Eq $ tyIntIntBool b)
               , ("geFloat#", Prim Ge $ tyFloatFloatBool b)
 
               , ("quotInteger#", Prim Quot tyIntIntInt)
+              , ("remInteger#", Prim Rem tyIntIntInt)
 
               , ("eqChar#", Prim Eq $ tyCharCharBool b )
               , ("neChar#", Prim Neq $ tyCharCharBool b )

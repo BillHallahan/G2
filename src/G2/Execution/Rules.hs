@@ -403,10 +403,9 @@ concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC =
         (newPCs, ng'') = concretizeVarExpr s ng' mexpr_id cvar xs maybeC
 
 concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> (NewPC t, NameGen)
-concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = syms})
+concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv})
                 ngen mexpr_id cvar (dcon, params, aexpr) maybeC =
           (NewPC { state =  s { expr_env = eenv''
-                              , symbolic_ids = syms'
                               , curr_expr = CurrExpr Evaluate aexpr''}
                  -- It is VERY important that we insert the mexpr_id in `concretized`
                  -- This forces reduceNewPC to check that the concretized data constructor does
@@ -429,8 +428,8 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
     (news, ngen') = childrenNames mexpr_n clean_olds ngen
 
     --Update the expr environment
-    newIds = map (\(Id _ t, n) -> (n, Id n t)) (zip params news)
-    eenv' = foldr (uncurry E.insertSymbolic) eenv newIds
+    newIds = map (\(Id _ t, n) -> Id n t) (zip params news)
+    eenv' = foldr E.insertSymbolic eenv newIds
 
     (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, aexpr)
 
@@ -448,8 +447,6 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
     dcon''' = case maybeC of 
                 (Just (t1 :~ t2)) -> Cast dcon'' (t2 :~ t1)
                 Nothing -> dcon''
-
-    syms' = newparams ++ (filter (/= mexpr_id) syms)
 
     -- concretizes the mexpr to have same form as the DataCon specified
     eenv'' = E.insert mexpr_n dcon''' eenv' 
@@ -563,10 +560,8 @@ liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
             -- add PC restricting range of values for newSymId
             newSymConstraint = restrictSymVal (known_values s') 1 (toInteger $ length dcs'') newId
 
-            syms' = L.delete i' $ newId:symbolic_ids s'
             eenv' = E.insert (idName i') mexpr' (expr_env s')
             s'' = s' { curr_expr = CurrExpr Evaluate aexpr'
-                     , symbolic_ids = syms'
                      , expr_env = eenv'}
         in
         ([NewPC { state = s'', new_pcs = [newSymConstraint], concretized = [] }], ng'')
@@ -613,10 +608,8 @@ concretizeSym bi maybeC (s, ng) dc@(DataCon n ts) =
         dc''' = case maybeC of
             (Just (t1 :~ t2)) -> Cast dc'' (t2 :~ t1)
             Nothing -> dc''
-        eenv = foldr (uncurry E.insertSymbolic) (expr_env s)
-             $ zip (map idName newParams) newParams
-        syms = symbolic_ids s ++ newParams
-    in ((s {expr_env = eenv, symbolic_ids = syms} , ng'), dc''')
+        eenv = foldr E.insertSymbolic (expr_env s) newParams
+    in ((s {expr_env = eenv} , ng'), dc''')
 
 createCaseExpr :: Id -> [Expr] -> Expr
 createCaseExpr _ [e] = e
@@ -640,8 +633,7 @@ restrictSymVal kv lower upper newId =
 
 evalCast :: State t -> NameGen -> Expr -> Coercion -> (Rule, [State t], NameGen)
 evalCast s@(State { expr_env = eenv
-                  , exec_stack = stck
-                  , symbolic_ids = symbs }) 
+                  , exec_stack = stck }) 
          ng e c@(t1 :~ t2)
     | Var init_i@(Id n _) <- e
     , E.isSymbolic n eenv
@@ -651,9 +643,8 @@ evalCast s@(State { expr_env = eenv
             new_e = Cast (Var i) (t2 :~ t1)
         in
         ( RuleOther
-        , [s { expr_env = E.insertSymbolic (idName i) i $ E.insert n new_e eenv
-             , curr_expr = CurrExpr Return (Var i)
-             , symbolic_ids = i:L.delete init_i symbs }]
+        , [s { expr_env = E.insertSymbolic i $ E.insert n new_e eenv
+             , curr_expr = CurrExpr Return (Var i) }]
         , ng')
     | cast /= cast' =
         ( RuleEvalCastSplit
@@ -686,11 +677,10 @@ evalSymGen s@( State { expr_env = eenv })
           (n, ng') = freshSeededString "symG" ng
           i = Id n t
 
-          eenv' = E.insertSymbolic n i eenv
+          eenv' = E.insertSymbolic i eenv
     in
     (RuleSymGen, [s { expr_env = eenv'
-                    , curr_expr = CurrExpr Evaluate (Var i)
-                    , symbolic_ids = i:symbolic_ids s }]
+                    , curr_expr = CurrExpr Evaluate (Var i) }]
                 , ng')
 
 evalAssume :: State t -> NameGen -> Maybe FuncCall -> Expr -> Expr -> (Rule, [State t], NameGen)
@@ -836,11 +826,9 @@ concretizeExprToBool s ng mexpr_id (x:xs) e2 stck =
 
 concretizeExprToBool' :: State t -> NameGen -> Id -> DataCon -> Expr -> S.Stack Frame -> (NewPC t, NameGen)
 concretizeExprToBool' s@(State {expr_env = eenv
-                        , symbolic_ids = syms
                         , known_values = kv})
                 ngen mexpr_id dcon@(DataCon dconName _) e2 stck = 
         (NewPC { state = s { expr_env = eenv'
-                        , symbolic_ids = syms'
                         , exec_stack = stck
                         , curr_expr = CurrExpr Evaluate e2
                         , true_assert = assertVal}
@@ -852,7 +840,6 @@ concretizeExprToBool' s@(State {expr_env = eenv
 
         -- concretize the mexpr to the DataCon specified
         eenv' = E.insert mexpr_n (Data dcon) eenv
-        syms' = filter (/= mexpr_id) syms
 
         assertVal = if (dconName == (KV.dcTrue kv))
                         then False
@@ -956,7 +943,7 @@ retReplaceSymbFunc' state@(State { expr_env = eenv
         (constState, ng'''') = mkFuncConst ng'''
     in Just (RuleReturnReplaceSymbFunc, [state {
         curr_expr = CurrExpr Return e,
-        symbolic_ids = symIds ++ L.delete sId (symbolic_ids state),
+        -- symbolic_ids = symIds ++ L.delete sId (symbolic_ids state),
         expr_env = eenv''
     }, constState], ng'''')
     -- FUNC-APP
@@ -971,12 +958,13 @@ retReplaceSymbFunc' state@(State { expr_env = eenv
         (fa, ng''') = freshId t1 ng''
         e = Lam TermL fa $ mkApp [f, mkApp (Var fa : xs), Var fa]
         eenv' = insertIds eenv xIds
-        eenv'' = E.insertSymbolic (idName fId) fId eenv'
+        -- eenv'' = E.insertSymbolic (idName fId) fId eenv'
+        eenv'' = E.insertSymbolic fId eenv'
         eenv''' = E.insert s e eenv''
         (constState, ng'''') = mkFuncConst ng'''
     in Just (RuleReturnReplaceSymbFunc, [state {
         curr_expr = CurrExpr Return e,
-        symbolic_ids = xIds ++ (fId:symbolic_ids state),
+        -- symbolic_ids = xIds ++ (fId:symbolic_ids state),
         expr_env = eenv'''
     }, constState], ng'''')
     -- LIT-SPLIT
@@ -999,7 +987,7 @@ retReplaceSymbFunc' state@(State { expr_env = eenv
         (constState, ng'' ) = mkFuncConst ng'
     in Just (RuleReturnReplaceSymbFunc, [state {
         curr_expr = CurrExpr Return e,
-        symbolic_ids = f1Id:f2Id:yId:symbolic_ids state,
+        -- symbolic_ids = f1Id:f2Id:yId:symbolic_ids state,
         expr_env = eenv''
     }, constState], ng'')
     | otherwise = Nothing
@@ -1009,7 +997,8 @@ retReplaceSymbFunc' state@(State { expr_env = eenv
         argTypes t = ([], t)
 
         insertIds :: ExprEnv -> [Id] -> ExprEnv
-        insertIds = foldr (\i eenv -> E.insertSymbolic (idName i) i eenv)
+        -- insertIds = foldr (\i eenv -> E.insertSymbolic (idName i) i eenv)
+        insertIds = foldr E.insertSymbolic
         -- insertIds eenv [] = eenv
         -- insertIds 
 
@@ -1028,7 +1017,7 @@ retReplaceSymbFunc' state@(State { expr_env = eenv
                 eenv'' = E.insert s e eenv'
             in (state {
                 curr_expr = CurrExpr Return e,
-                symbolic_ids = fId:symbolic_ids state,
+                -- symbolic_ids = fId:symbolic_ids state,
                 expr_env = eenv''
             }, ng')
         
@@ -1067,9 +1056,8 @@ retReplaceSymbFunc s@(State { expr_env = eenv
                            , ce ]
         in
         Just (RuleReturnReplaceSymbFunc, 
-            [s { expr_env = E.insertSymbolic new_sym new_sym_id eenv
+            [s { expr_env = E.insertSymbolic new_sym_id eenv
                , curr_expr = CurrExpr Return (Var new_sym_id)
-               , symbolic_ids = new_sym_id:symbolic_ids s
                , non_red_path_conds = non_red_path_conds s ++ [nrpc_e] }]
             , ng')
     | otherwise = 

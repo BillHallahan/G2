@@ -25,6 +25,7 @@ import G2.Equiv.Verifier
 import Control.Exception
 
 import Data.List
+import Data.Char
 
 import ZenoSuite
 
@@ -38,18 +39,34 @@ main = do
     else
         runWithArgs as
 
+finiteArg :: String -> Bool
+finiteArg ('_':_) = True
+finiteArg _ = False
+
+isFlagOrNumber :: String -> Bool
+isFlagOrNumber ('-':'-':_) = True
+isFlagOrNumber (c:_) = isDigit c
+isFlagOrNumber _ = False
+
 runWithArgs :: [String] -> IO ()
 runWithArgs as = do
   let (src:entry:tail_args) = as
+      (flags_nums, tail_vars) = partition isFlagOrNumber tail_args
+      print_summary = "--summarize" `elem` flags_nums
+      limit = case elemIndex "--limit" tail_args of
+        Nothing -> -1
+        Just n -> read (tail_args !! (n + 1)) :: Int
 
   proj <- guessProj src
 
   -- TODO for now, total as long as there's an extra arg
   -- TODO finite variables
-  let total = map T.pack tail_args
+  let (finite_names, total_names) = partition finiteArg tail_vars
+      finite = map (T.pack . tail) finite_names
+      -- TODO don't need to add finite to this
+      total = (map T.pack total_names) ++ finite
       m_mapsrc = mkMapSrc []
       tentry = T.pack entry
-      finite = []
 
   config <- getConfig as
 
@@ -61,7 +78,7 @@ runWithArgs as = do
       rule' = case rule of
               Just r -> r
               Nothing -> error "not found"
-  res <- checkRule config init_state bindings total finite rule'
+  res <- checkRule config init_state bindings total finite print_summary limit rule'
   print res
   return ()
 
