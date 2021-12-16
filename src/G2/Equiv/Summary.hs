@@ -55,8 +55,8 @@ trackName s =
 printPG :: PrettyGuide -> [Name] -> [Id] -> StateET -> String
 printPG pg ns sym_ids s =
   let h = expr_env s
-      e = exprExtract s
-      e_str = printHaskellPG pg s e
+      e = inlineVars ns h $ exprExtract s
+      e_str = printHaskellDirtyPG pg e
       sym_vars = varsFullList h ns sym_ids
       sym_str = printVars pg ns s sym_vars
       sym_print = case sym_str of
@@ -68,6 +68,16 @@ printPG pg ns sym_ids s =
         "" -> ""
         _ -> "\nOther Variables:\n" ++ var_str
   in e_str ++ sym_print ++ var_print ++ "\n---"
+
+inlineVars :: [Name] -> ExprEnv -> Expr -> Expr
+inlineVars ns eenv = inlineVars' HS.empty ns eenv
+
+inlineVars' :: HS.HashSet Name -> [Name] -> ExprEnv -> Expr -> Expr
+inlineVars' seen ns eenv v@(Var (Id n _))
+    | n `elem` ns = v
+    | n `HS.member` seen = v
+    | Just (E.Conc e) <- E.lookupConcOrSym n eenv = inlineVars' (HS.insert n seen) ns eenv e
+inlineVars' seen ns eenv e = modifyChildren (inlineVars' seen ns eenv) e
 
 data ChainEnd = Symbolic Id
               | Cycle Id
