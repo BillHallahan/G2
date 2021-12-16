@@ -308,6 +308,7 @@ mkTypeHaskellPG pg (TyVar i) = mkIdHaskell pg i
 mkTypeHaskellPG pg (TyFun t1 t2) = mkTypeHaskellPG pg t1 ++ " -> " ++ mkTypeHaskellPG pg t2
 mkTypeHaskellPG pg (TyCon n _) = mkNameHaskell pg n
 mkTypeHaskellPG pg (TyApp t1 t2) = "(" ++ mkTypeHaskellPG pg t1 ++ " " ++ mkTypeHaskellPG pg t2 ++ ")"
+mkTypeHaskellPG pg TYPE = "Type"
 mkTypeHaskellPG _ t = "Unsupported type in printer. " ++ show t
 
 duplicate :: String -> Int -> String
