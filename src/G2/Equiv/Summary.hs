@@ -67,7 +67,7 @@ printPG pg ns sym_ids s =
       var_print = case var_str of
         "" -> ""
         _ -> "\nOther Variables:\n" ++ var_str
-  in (show (exprExtract s)) ++ "\n" ++ show e ++ "\n" ++ e_str ++ sym_print ++ var_print ++ "\n---"
+  in e_str ++ sym_print ++ var_print ++ "\n---"
 
 inlineVars :: [Name] -> ExprEnv -> Expr -> Expr
 inlineVars ns eenv = inlineVars' HS.empty ns eenv
