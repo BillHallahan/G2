@@ -6,6 +6,7 @@ module G2.Lib.Printers ( PrettyGuide
 
                        , printHaskell
                        , printHaskellDirty
+                       , printHaskellDirtyPG
                        , printHaskellPG
                        , mkUnsugaredExprHaskell
                        , mkTypeHaskell
@@ -60,6 +61,9 @@ printHaskell = mkCleanExprHaskell (mkPrettyGuide ())
 
 printHaskellDirty :: Expr -> String
 printHaskellDirty = mkExprHaskell Dirty (mkPrettyGuide ())
+
+printHaskellDirtyPG :: PrettyGuide -> Expr -> String
+printHaskellDirtyPG = mkExprHaskell Dirty
 
 printHaskellPG :: PrettyGuide -> State t -> Expr -> String
 printHaskellPG = mkCleanExprHaskell
@@ -308,6 +312,7 @@ mkTypeHaskellPG pg (TyVar i) = mkIdHaskell pg i
 mkTypeHaskellPG pg (TyFun t1 t2) = mkTypeHaskellPG pg t1 ++ " -> " ++ mkTypeHaskellPG pg t2
 mkTypeHaskellPG pg (TyCon n _) = mkNameHaskell pg n
 mkTypeHaskellPG pg (TyApp t1 t2) = "(" ++ mkTypeHaskellPG pg t1 ++ " " ++ mkTypeHaskellPG pg t2 ++ ")"
+mkTypeHaskellPG pg TYPE = "Type"
 mkTypeHaskellPG _ t = "Unsupported type in printer. " ++ show t
 
 duplicate :: String -> Int -> String
