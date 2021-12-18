@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Equiv.Summary (summarize, summarizeAct) where
+module G2.Equiv.Summary (SummaryMode (..), summarize, summarizeAct) where
 
 -- TODO may not need all imports
 
@@ -35,6 +35,8 @@ import Data.Time
 
 import G2.Execution.Reducer
 import G2.Lib.Printers
+
+data SummaryMode = NoHistory | WithHistory | NoSummary deriving Eq
 
 sideName :: Side -> String
 sideName ILeft = "Left"
@@ -270,14 +272,18 @@ summarizeAct pg ns sym_ids m = case m of
   SolverFail s_pair -> summarizeSolverFail pg ns sym_ids s_pair
   Unresolved s_pair -> summarizeUnresolved pg ns sym_ids s_pair
 
+summarizeHistory :: PrettyGuide -> [Name] -> [Id] -> StateH -> String
+summarizeHistory pg ns sym_ids =
+  intercalate "\n" . map (printPG pg ns sym_ids) . reverse . history
+
 tabsAfterNewLines :: String -> String
 tabsAfterNewLines [] = []
 tabsAfterNewLines ('\n':t) = '\n':'\t':(tabsAfterNewLines t)
 tabsAfterNewLines (c:t) = c:(tabsAfterNewLines t)
 
 -- generate the guide for the whole summary externally
-summarize :: PrettyGuide -> [Name] -> [Id] -> Marker -> String
-summarize pg ns sym_ids (Marker (sh1, sh2) m) =
+summarize :: SummaryMode -> PrettyGuide -> [Name] -> [Id] -> Marker -> String
+summarize mode pg ns sym_ids (Marker (sh1, sh2) m) =
   let names1 = map trackName $ (latest sh1):history sh1
       names2 = map trackName $ (latest sh2):history sh2
   in
@@ -285,4 +291,9 @@ summarize pg ns sym_ids (Marker (sh1, sh2) m) =
   (intercalate " -> " $ (reverse names1)) ++
   "\nRight Path: " ++
   (intercalate " -> " $ (reverse names2)) ++ "\n" ++
+  (if mode == WithHistory
+      then "Left:\n\t" ++ tabsAfterNewLines (summarizeHistory pg ns sym_ids sh1)
+            ++ "\nRight:\n\t" ++ tabsAfterNewLines (summarizeHistory pg ns sym_ids sh2) ++ "\n"
+      else "")
+  ++
   (tabsAfterNewLines $ summarizeAct pg ns sym_ids m)
