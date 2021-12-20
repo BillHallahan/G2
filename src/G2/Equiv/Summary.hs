@@ -140,11 +140,11 @@ exprChain h ns inlined e = case e of
 printVar :: PrettyGuide -> [Name] -> StateET -> Id -> String
 printVar pg ns s@(State{ expr_env = h }) i =
   let (chain, c_end) = varChain h ns [] i
-      chain_strs = map (\i_ -> printHaskellPG pg s $ Var i_) chain
+      chain_strs = map (\i_ -> printHaskellDirtyPG pg $ Var i_) chain
       end_str = case c_end of
         Symbolic (Id _ t) -> "Symbolic " ++ mkTypeHaskellPG pg t
-        Cycle i' -> "Cycle " ++ printHaskellPG pg s (Var i')
-        Terminal e _ -> printHaskellPG pg s e
+        Cycle i' -> "Cycle " ++ printHaskellDirtyPG pg (Var i')
+        Terminal e _ -> printHaskellDirtyPG pg e
         Unmapped -> ""
   in case c_end of
     Unmapped -> ""
@@ -189,13 +189,13 @@ summarizeInduction pg ns sym_ids im@(IndMarker {
   (printPG pg ns sym_ids s1') ++ "\n" ++
   (printPG pg ns sym_ids s2') ++ "\n" ++
   "Present Sub-Expressions Used for Induction:\n" ++
-  (printHaskellPG pg q1 e1) ++ "\n" ++
-  (printHaskellPG pg q2 e2) ++ "\n" ++
+  (printHaskellDirtyPG pg e1) ++ "\n" ++
+  (printHaskellDirtyPG pg e2) ++ "\n" ++
   "Past Sub-Expressions Used for Induction:\n" ++
   (printPG pg ns sym_ids r1) ++ "\n" ++
   (printPG pg ns sym_ids r2) ++ "\n" ++
   "New Variable Name: " ++
-  (printHaskellPG pg s1' $ Var $ Id (ind_fresh_name im) $ typeOf $ exprExtract s1')
+  (printHaskellDirtyPG pg $ Var $ Id (ind_fresh_name im) $ typeOf $ exprExtract s1')
 
 summarizeCoinduction :: PrettyGuide -> [Name] -> [Id] -> CoMarker -> String
 summarizeCoinduction pg ns sym_ids (CoMarker {
