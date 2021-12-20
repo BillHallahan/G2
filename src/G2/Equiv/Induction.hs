@@ -169,11 +169,15 @@ inductionL solver ns prev (s1, s2) = do
 
 -- TODO check the criterion at a different level
 -- only attempt induction if we have recursion in the right spots in the present
+-- TODO be more generous instead; try induction whenever there's a Case
 caseRecursion :: Expr -> Bool
+caseRecursion _ = True
+{-
 caseRecursion (Tick _ e) = caseRecursion e
-caseRecursion (Case e _ _) =
-  (getAny . evalASTs (\e' -> Any $ caseRecHelper e')) e
+caseRecursion (Case e _ _) = True
+  --(getAny . evalASTs (\e' -> Any $ caseRecHelper e')) e
 caseRecursion _ = False
+-}
 
 -- TODO this shouldn't need to look more deeply since it's used with evalASTs
 caseRecHelper :: Expr -> Bool

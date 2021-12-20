@@ -178,11 +178,12 @@ containsCase sk =
 -- induction only works if both states in a pair satisfy this
 -- there's no harm in stopping here for just one, though
 -- TODO removing the Case requirement doesn't fix forceIdempotent
+-- TODO not sure if this is sound as it is now
 recursionInCase :: State t -> Bool
 recursionInCase (State { curr_expr = CurrExpr _ e, exec_stack = sk }) =
     case e of
         Tick (NamedLoc (Name p _ _ _)) _ ->
-            p == T.pack "REC" -- && containsCase sk
+            p == T.pack "REC"
         _ -> False
 
 loneSymVar :: State t -> Bool

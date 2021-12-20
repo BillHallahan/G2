@@ -572,7 +572,6 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 
 -- swapped side for 04
 {-# RULES
-"prop01" forall n l . prop_01 n l = True
 "p01" forall n xs . take n xs ++ drop n xs = xs
 "p02" forall n xs ys . count n xs + count n ys = count n (xs ++ ys)
 "p03" forall n xs ys . count n xs <= count n (xs ++ ys) = True
@@ -694,6 +693,9 @@ p59fin xs ys runs forever
 RESULTS 11/17
 p01fin n xs runs forever
 p01finA n xs runs forever
+
+RESULTS 12/17
+p24finB hits the limit
 -}
 
 {-# RULES
@@ -716,6 +718,7 @@ p01finA n xs runs forever
 "p21fin" forall n m . prop_21 n m = walkNat n True
 "p24fin" forall a b . (max a b) === a = walkNat a (b <= a)
 "p24finA" forall a b . walkNat a ((max a b) === a) = walkNat a (b <= a)
+"p24finB" forall a b . (max a b) === a = walkNat b (b <= a)
 "p25fin" forall a b . (max a b) === b = walkNat b (a <= b)
 "p26fin" forall x xs ys . prop_26 x xs ys = walkNat x True
 "p38fin" forall n xs . count n (xs ++ [n]) = walkNat n (walkNatList xs (S (count n xs)))
