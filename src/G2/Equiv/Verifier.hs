@@ -554,7 +554,7 @@ checkRule :: Config ->
              Bindings ->
              [DT.Text] -> -- ^ names of forall'd variables required to be total
              [DT.Text] -> -- ^ names of forall'd variables required to be total and finite
-             Bool ->
+             SummaryMode ->
              Int ->
              RewriteRule ->
              IO (S.Result () ())
@@ -597,10 +597,10 @@ checkRule config init_state bindings total finite print_summary iterations rule 
              [(rewrite_state_l'', rewrite_state_r'')]
              bindings'' config "" 0 iterations
   -- UNSAT for good, SAT for bad
-  if print_summary then do
+  if print_summary /= NoSummary then do
     putStrLn "--- SUMMARY ---"
     let pg = mkPrettyGuide $ map (\(Marker _ m) -> m) w
-    mapM (putStrLn . (summarize pg (HS.toList ns) (ru_bndrs rule))) w
+    mapM (putStrLn . (summarize print_summary pg (HS.toList ns) (ru_bndrs rule))) w
     putStrLn "--- END OF SUMMARY ---"
   else return ()
   S.close solver

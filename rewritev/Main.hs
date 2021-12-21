@@ -1,4 +1,6 @@
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
+
 module Main (main) where
 
 import DynFlags
@@ -20,6 +22,7 @@ import G2.Translation
 import G2.Liquid.Interface
 import G2.Equiv.InitRewrite
 import G2.Equiv.EquivADT
+import G2.Equiv.Summary
 import G2.Equiv.Verifier
 
 import Control.Exception
@@ -52,7 +55,9 @@ runWithArgs :: [String] -> IO ()
 runWithArgs as = do
   let (src:entry:tail_args) = as
       (flags_nums, tail_vars) = partition isFlagOrNumber tail_args
-      print_summary = "--summarize" `elem` flags_nums
+      print_summary = if | "--summarize" `elem` flags_nums -> NoHistory
+                         | "--hist-summarize" `elem` flags_nums -> WithHistory
+                         | otherwise -> NoSummary
       limit = case elemIndex "--limit" tail_args of
         Nothing -> -1
         Just n -> read (tail_args !! (n + 1)) :: Int

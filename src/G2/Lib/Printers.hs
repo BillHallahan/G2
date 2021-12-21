@@ -150,7 +150,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                        $ map (\(i, e) -> mkIdHaskell pg i ++ " = " ++ mkExprHaskell'' off e) binds 
             in
             "let " ++ binds' ++ " in " ++ mkExprHaskell'' off e
-        mkExprHaskell'' off (Tick nl e) = "TICK[" ++ (show nl) ++ "]{" ++ (mkExprHaskell'' off e) ++ "}"
+        mkExprHaskell'' off (Tick nl e) = "TICK[" ++ printTickish pg nl ++ "]{" ++ mkExprHaskell'' off e ++ "}"
         mkExprHaskell'' off (Assert m_fc e1 e2) =
             let
                 print_fc = maybe "" (\fc -> "(" ++ printFuncCallPG pg fc ++ ") ") m_fc
@@ -319,6 +319,12 @@ duplicate :: String -> Int -> String
 duplicate _ 0 = ""
 duplicate s n = s ++ duplicate s (n - 1)
 
+printTickish :: PrettyGuide -> Tickish -> String
+printTickish pg (Breakpoint sp) = printLoc (start sp) ++ " - " ++ printLoc (end sp)
+printTickish pg (NamedLoc n) = mkNameHaskell pg n
+
+printLoc :: Loc -> String
+printLoc (Loc ln cl fl) = "(line " ++ show ln ++ " column " ++ show cl ++ " in " ++  fl ++ ")" 
 
 -------------------------------------------------------------------------------
 
