@@ -395,11 +395,11 @@ data ConcSymReducer = ConcSymReducer
 data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
                                  , saw_tick :: Maybe Int
                                  , total :: HS.HashSet Name
-                                 , finite :: HS.HashSet Name } deriving Show
+                                 , finite :: HS.HashSet Name
+                                 , folder_name :: String } deriving (Show, Eq)
 
 -- Forces a lone symbolic variable with a type corresponding to an ADT
 -- to evaluate to some value of that ADT
--- TODO will there be any need to carry over finiteness sometimes?
 instance Reducer ConcSymReducer () EquivTracker where
     initReducer _ _ = ()
 
@@ -407,7 +407,7 @@ instance Reducer ConcSymReducer () EquivTracker where
                    s@(State { curr_expr = CurrExpr _ (Var (Id n t))
                             , expr_env = eenv
                             , type_env = tenv
-                            , track = EquivTracker et m tot fin })
+                            , track = EquivTracker et m tot fin fname })
                    b@(Bindings { name_gen = ng })
         | E.isSymbolic n eenv
         , Just (dc_symbs, ng') <- arbDC tenv ng t n tot = do
@@ -425,7 +425,7 @@ instance Reducer ConcSymReducer () EquivTracker where
                                         foldr E.insertSymbolic
                                               (E.insert n e eenv)
                                               symbs'
-                                    , track = EquivTracker et m tot' fin'
+                                    , track = EquivTracker et m tot' fin' fname
                                     }) dc_symbs
                 b' =  b { name_gen = ng' }
                 -- only add to tot if n was total
@@ -509,7 +509,7 @@ substHigherOrder eenv m ns ce =
                                 Just e -> Just $ Id n (typeOf e)
                                 Nothing -> Nothing) $ HS.toList ns
 
-        higherOrd = filter (isTyFun . typeOf) . mapMaybe varId . symbVars eenv $ ce
+        higherOrd = filter (isTyFun . typeOf) . symbVars eenv $ ce
         higherOrdSub = map (\v -> (v, mapMaybe (genSubstitutable v) is)) higherOrd
     in
     substHigherOrder' [(eenv, m, ce)] higherOrdSub

@@ -26,6 +26,7 @@ module G2.Language.ExprEnv
     , redirect
     , union
     , union'
+    , unionWith
     , unionWithM
     , unionWithNameM
     , (!)
@@ -204,6 +205,9 @@ union (ExprEnv eenv) (ExprEnv eenv') = ExprEnv $ eenv `M.union` eenv'
 union' :: M.HashMap Name Expr -> ExprEnv -> ExprEnv
 union' m (ExprEnv eenv) = ExprEnv (M.map ExprObj m `M.union` eenv)
 
+unionWith :: (EnvObj -> EnvObj -> EnvObj) -> ExprEnv -> ExprEnv -> ExprEnv
+unionWith f (ExprEnv m1) (ExprEnv m2) =
+    ExprEnv $ M.unionWith f m1 m2
 
 unionWithM :: Monad m => (EnvObj -> EnvObj -> m EnvObj) -> ExprEnv -> ExprEnv -> m ExprEnv
 unionWithM f (ExprEnv m1) (ExprEnv m2) =

@@ -5,9 +5,11 @@ module G2.Lib.Printers ( PrettyGuide
                        , updatePrettyGuide
 
                        , printHaskell
+                       , printHaskellDirty
                        , printHaskellPG
                        , mkUnsugaredExprHaskell
                        , mkTypeHaskell
+                       , mkTypeHaskellPG
                        , ppExprEnv
                        , ppRelExprEnv
                        , ppCurrExpr
@@ -53,6 +55,9 @@ mkUnsugaredExprHaskell (State {known_values = kv, type_classes = tc}) =
 
 printHaskell :: State t -> Expr -> String
 printHaskell = mkCleanExprHaskell (mkPrettyGuide ())
+
+printHaskellDirty :: Expr -> String
+printHaskellDirty = mkExprHaskell Dirty (mkPrettyGuide ())
 
 printHaskellPG :: PrettyGuide -> State t -> Expr -> String
 printHaskellPG = mkCleanExprHaskell
@@ -139,8 +144,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                        $ map (\(i, be) -> mkIdHaskell pg i ++ " = " ++ mkExprHaskell'' off be) binds 
             in
             "let " ++ binds' ++ " in " ++ mkExprHaskell'' off e
-        -- TODO
-        mkExprHaskell'' off (Tick _ e) = mkExprHaskell'' off e
+        mkExprHaskell'' off (Tick nl e) = "TICK[" ++ (show nl) ++ "]{" ++ (mkExprHaskell'' off e) ++ "}"
         mkExprHaskell'' off (Assert m_fc e1 e2) =
             let
                 print_fc = maybe "" (\fc -> "(" ++ printFuncCallPG pg fc ++ ") ") m_fc

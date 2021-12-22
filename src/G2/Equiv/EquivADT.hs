@@ -36,6 +36,20 @@ proofObligations :: HS.HashSet Name ->
 proofObligations ns s1 s2 e1 e2 =
   exprPairing ns s1 s2 e1 e2 HS.empty [] []
 
+removeTicks :: Expr -> Expr
+removeTicks (Tick _ e) = removeTicks e
+removeTicks e = e
+
+removeAllTicks :: Expr -> Expr
+removeAllTicks = modifyASTs removeTicks
+
+unAppNoTicks :: Expr -> [Expr]
+unAppNoTicks e =
+  let e_list = unApp e
+  in case e_list of
+    e':t -> (removeTicks e'):t
+    _ -> e_list
+
 exprPairing :: HS.HashSet Name -> -- ^ vars that should not be inlined on either side
                State t ->
                State t ->
@@ -66,8 +80,8 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
                | not $ (idName i) `elem` ns -> error "unmapped variable"
     -- See note in `moreRestrictive` regarding comparing DataCons
     (App _ _, App _ _)
-        | (Data (DataCon d1 _)):l1 <- unApp e1
-        , (Data (DataCon d2 _)):l2 <- unApp e2 ->
+        | (Data (DataCon d1 _)):l1 <- unAppNoTicks e1
+        , (Data (DataCon d2 _)):l2 <- unAppNoTicks e2 ->
             if d1 == d2 then
                 let ep = uncurry (exprPairing ns s1 s2)
                     ep' hs p = ep p hs n1 n2
@@ -81,9 +95,9 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
                            , p2 == Error || p2 == Undefined -> Just pairs
     -- extra cases for avoiding Error problems
     (Prim p _, _) | (p == Error || p == Undefined)
-                  , isExprValueForm h2 e2 -> Nothing
+                  , isExprValueForm h2 (removeAllTicks e2) -> Nothing
     (_, Prim p _) | (p == Error || p == Undefined)
-                  , isExprValueForm h1 e1 -> Nothing
+                  , isExprValueForm h1 (removeAllTicks e1) -> Nothing
     (Prim _ _, _) -> Just (HS.insert (Ob e1 e2) pairs)
     (_, Prim _ _) -> Just (HS.insert (Ob e1 e2) pairs)
     -- TODO test equivalence of functions and arguments?
