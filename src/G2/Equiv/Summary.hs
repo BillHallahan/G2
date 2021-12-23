@@ -56,7 +56,8 @@ trackName s =
 
 printPG :: PrettyGuide -> [Name] -> [Id] -> StateET -> String
 printPG pg ns sym_ids s =
-  let h = expr_env s
+  let label_str = trackName s
+      h = expr_env s
       e = inlineVars ns h $ exprExtract s
       e_str = printHaskellDirtyPG pg e
       sym_vars = varsFullList h ns sym_ids
@@ -69,7 +70,7 @@ printPG pg ns sym_ids s =
       var_print = case var_str of
         "" -> ""
         _ -> "\nOther Variables:\n" ++ var_str
-  in e_str ++ sym_print ++ var_print ++ "\n---"
+  in label_str ++ "\n" ++ e_str ++ sym_print ++ var_print ++ "\n---"
 
 inlineVars :: [Name] -> ExprEnv -> Expr -> Expr
 inlineVars ns eenv = inlineVars' HS.empty ns eenv

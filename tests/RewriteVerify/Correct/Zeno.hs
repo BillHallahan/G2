@@ -787,7 +787,7 @@ walkList (_:xs) a = walkList xs a
 walkNatList :: [Nat] -> a -> a
 walkNatList xs a = case xs of
   [] -> a
-  y:ys -> walkNatList ys (walkNat y a)
+  y:ys -> walkNat y $ walkNatList ys a
 
 -- everything else that follows is not part of the official test suite
 inf1 :: Nat
