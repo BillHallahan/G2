@@ -299,10 +299,6 @@ moreRestrictivePC solver s1 s2 hm = do
     S.UNSAT () -> return True
     _ -> return False
 
-tr :: Bool -> String -> a -> a
-tr False _ x = x
-tr True str x = trace str x
-
 -- s1 is the old state, s2 is the new state
 -- If any recursively-defined functions or other expressions manage to slip
 -- through the cracks with the other mechanisms in place for avoiding infinite
@@ -319,8 +315,7 @@ tr True str x = trace str x
 -- repeated inlinings of a variable are allowed as long as the expression on
 -- the opposite side is not the same as it was when a previous inlining of the
 -- same variable happened.
-moreRestrictive :: Bool ->
-                   State t ->
+moreRestrictive :: State t ->
                    State t ->
                    HS.HashSet Name ->
                    (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
@@ -329,27 +324,27 @@ moreRestrictive :: Bool ->
                    Expr ->
                    Expr ->
                    Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-moreRestrictive a2b4 s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n2 e1 e2 =
+moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n2 e1 e2 =
   case (e1, e2) of
     -- ignore all Ticks
-    (Tick _ e1', _) -> moreRestrictive a2b4 s1 s2 ns hm n1 n2 e1' e2
-    (_, Tick _ e2') -> moreRestrictive a2b4 s1 s2 ns hm n1 n2 e1 e2'
+    (Tick _ e1', _) -> moreRestrictive s1 s2 ns hm n1 n2 e1' e2
+    (_, Tick _ e2') -> moreRestrictive s1 s2 ns hm n1 n2 e1 e2'
     (Var i, _) | m <- idName i
                , not $ E.isSymbolic m h1
                , not $ HS.member m ns
                , not $ (m, e2) `elem` n1
                , Just e <- E.lookup m h1 ->
-                 moreRestrictive a2b4 s1 s2 ns hm ((m, e2):n1) n2 e e2
+                 moreRestrictive s1 s2 ns hm ((m, e2):n1) n2 e e2
     (_, Var i) | m <- idName i
                , not $ E.isSymbolic m h2
                , not $ HS.member m ns
                , not $ (m, e1) `elem` n2
                , Just e <- E.lookup m h2 ->
-                 moreRestrictive a2b4 s1 s2 ns hm n1 ((m, e1):n2) e1 e
+                 moreRestrictive s1 s2 ns hm n1 ((m, e1):n2) e1 e
     (Var i1, Var i2) | HS.member (idName i1) ns
                      , idName i1 == idName i2 -> Just hm
-                     | HS.member (idName i1) ns -> tr a2b4 ("CASE A " ++ show (i1, i2)) Nothing
-                     | HS.member (idName i2) ns -> tr a2b4 ("CASE B " ++ show (i1, i2)) Nothing
+                     | HS.member (idName i1) ns -> Nothing
+                     | HS.member (idName i2) ns -> Nothing
     (Var i, _) | E.isSymbolic (idName i) h1
                , (hm', hs) <- hm
                , Nothing <- HM.lookup i hm' -> Just (HM.insert i (inlineEquiv [] h2 ns e2) hm', hs)
@@ -357,14 +352,14 @@ moreRestrictive a2b4 s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm
                , Just e <- HM.lookup i (fst hm)
                , e == inlineEquiv [] h2 ns e2 -> Just hm
                -- this last case means there's a mismatch
-               | E.isSymbolic (idName i) h1 -> tr a2b4 ("CASE C " ++ show i) Nothing
+               | E.isSymbolic (idName i) h1 -> Nothing
                | not $ (idName i, e2) `elem` n1
                , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
-    (_, Var i) | E.isSymbolic (idName i) h2 -> tr a2b4 ("CASE D " ++ show i) Nothing -- sym replaces non-sym
+    (_, Var i) | E.isSymbolic (idName i) h2 -> Nothing -- sym replaces non-sym
                | not $ (idName i, e1) `elem` n2
                , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
-    (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive a2b4 s1 s2 ns hm n1 n2 f1 f2
-                           , Just hm_a <- moreRestrictive a2b4 s1 s2 ns hm_f n1 n2 a1 a2 -> Just hm_a
+    (App f1 a1, App f2 a2) | Just hm_f <- moreRestrictive s1 s2 ns hm n1 n2 f1 f2
+                           , Just hm_a <- moreRestrictive s1 s2 ns hm_f n1 n2 a1 a2 -> Just hm_a
     -- TODO ignoring lam use; these are never used seemingly
     -- TODO shouldn't lead to non-termination
     {-
@@ -393,19 +388,19 @@ moreRestrictive a2b4 s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm
     -- "forall a . a" is the same type as "forall b . b", but fails a syntactic check.
     (Data (DataCon d1 _), Data (DataCon d2 _))
                                   | d1 == d2 -> Just hm
-                                  | otherwise -> tr a2b4 ("CASE E " ++ show (d1, d2)) Nothing
+                                  | otherwise -> Nothing
     -- We neglect to check type equality here for the same reason.
     (Prim p1 _, Prim p2 _) | p1 == p2 -> Just hm
-                           | otherwise -> tr a2b4 ("CASE F " ++ show (p1, p2)) Nothing
+                           | otherwise -> Nothing
     (Lit l1, Lit l2) | l1 == l2 -> Just hm
-                     | otherwise -> tr a2b4 ("CASE G " ++ show (l1, l2)) Nothing
+                     | otherwise -> Nothing
     (Lam lu1 i1 b1, Lam lu2 i2 b2)
                 | lu1 == lu2
                 , i1 == i2 ->
                   let ns' = HS.insert (idName i1) ns
                   -- no need to insert twice over because they're equal
-                  in moreRestrictive a2b4 s1 s2 ns' hm n1 n2 b1 b2
-                | otherwise -> tr a2b4 ("CASE H " ++ show (i1, i2)) Nothing
+                  in moreRestrictive s1 s2 ns' hm n1 n2 b1 b2
+                | otherwise -> Nothing
     -- ignore types, like in exprPairing
     (Type _, Type _) -> Just hm
     -- new Let handling
@@ -419,7 +414,7 @@ moreRestrictive a2b4 s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm
                     h2' = foldr ins h2 binds2
                     s1' = s1 { expr_env = h1' }
                     s2' = s2 { expr_env = h2' }
-                    mf hm_ (e1_, e2_) = moreRestrictive a2b4 s1' s2' ns hm_ n1 n2 e1_ e2_
+                    mf hm_ (e1_, e2_) = moreRestrictive s1' s2' ns hm_ n1 n2 e1_ e2_
                 in
                 if length binds1 == length binds2
                 then foldM mf hm pairs
@@ -427,16 +422,16 @@ moreRestrictive a2b4 s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm
     -- TODO if scrutinee is symbolic var, make Alt vars symbolic?
     -- TODO id equality never checked; does it matter?
     (Case e1' i1 a1, Case e2' i2 a2)
-                | Just hm' <- moreRestrictive a2b4 s1 s2 ns hm n1 n2 e1' e2' ->
+                | Just hm' <- moreRestrictive s1 s2 ns hm n1 n2 e1' e2' ->
                   -- add the matched-on exprs to the envs beforehand
                   let h1' = E.insert (idName i1) e1' h1
                       h2' = E.insert (idName i2) e2' h2
                       s1' = s1 { expr_env = h1' }
                       s2' = s2 { expr_env = h2' }
-                      mf hm_ (e1_, e2_) = moreRestrictiveAlt a2b4 s1' s2' ns hm_ n1 n2 e1_ e2_
+                      mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ n1 n2 e1_ e2_
                       l = zip a1 a2
                   in foldM mf hm' l
-    _ -> tr a2b4 ("CASE I " ++ show (e1, e2)) Nothing
+    _ -> Nothing
 
 -- These helper functions have safeguards to avoid cyclic inlining.
 -- TODO remove ticks with this?
@@ -464,8 +459,7 @@ inlineEquiv acc h ns v@(Var (Id n _))
 inlineEquiv acc h ns e = modifyChildren (inlineEquiv acc h ns) e
 
 -- ids are the same between both sides; no need to insert twice
-moreRestrictiveAlt :: Bool ->
-                      State t ->
+moreRestrictiveAlt :: State t ->
                       State t ->
                       HS.HashSet Name ->
                       (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
@@ -474,12 +468,12 @@ moreRestrictiveAlt :: Bool ->
                       Alt ->
                       Alt ->
                       Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-moreRestrictiveAlt a2b4 s1 s2 ns hm n1 n2 (Alt am1 e1) (Alt am2 e2) =
+moreRestrictiveAlt s1 s2 ns hm n1 n2 (Alt am1 e1) (Alt am2 e2) =
   if altEquiv am1 am2 then
   case am1 of
     DataAlt _ t1 -> let ns' = foldr HS.insert ns $ map (\(Id n _) -> n) t1
-                    in moreRestrictive a2b4 s1 s2 ns' hm n1 n2 e1 e2
-    _ -> moreRestrictive a2b4 s1 s2 ns hm n1 n2 e1 e2
+                    in moreRestrictive s1 s2 ns' hm n1 n2 e1 e2
+    _ -> moreRestrictive s1 s2 ns hm n1 n2 e1 e2
   else Nothing
 
 -- check only the names for DataAlt
@@ -503,25 +497,23 @@ validMap s1 s2 hm =
                   || isPrimType (typeOf e)
   in foldr (&&) True (map check hm_list)
 
-restrictHelper :: Bool->
-                  StateET ->
+restrictHelper :: StateET ->
                   StateET ->
                   HS.HashSet Name ->
                   Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                   Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-restrictHelper a2b4 s1 s2 ns hm_hs = case restrictAux a2b4 s1 s2 ns hm_hs of
+restrictHelper s1 s2 ns hm_hs = case restrictAux s1 s2 ns hm_hs of
   Nothing -> Nothing
   Just (hm, hs) -> if validMap s1 s2 hm then Just (hm, hs) else Nothing
 
-restrictAux :: Bool ->
-               StateET ->
+restrictAux :: StateET ->
                StateET ->
                HS.HashSet Name ->
                Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                Maybe (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-restrictAux _ _ _ _ Nothing = Nothing
-restrictAux a2b4 s1 s2 ns (Just hm) =
-  moreRestrictive a2b4 s1 s2 ns hm [] [] (exprExtract s1) (exprExtract s2)
+restrictAux _ _ _ Nothing = Nothing
+restrictAux s1 s2 ns (Just hm) =
+  moreRestrictive s1 s2 ns hm [] [] (exprExtract s1) (exprExtract s2)
 
 syncSymbolic :: StateET -> StateET -> (StateET, StateET)
 syncSymbolic s1 s2 =
@@ -575,11 +567,6 @@ applySolver solver extraPC s1 s2 =
            trace (show $ P.number $ path_conds s2) $
            S.check solver newState allPC
 
--- TODO
-isCase :: Expr -> Bool
-isCase (Case _ _ _) = True
-isCase _ = False
-
 -- extra filter on top of isJust for maybe_pairs
 -- if restrictHelper end result is Just, try checking the corresponding PCs
 -- for True output, there needs to be an entry for which that check succeeds
@@ -595,22 +582,10 @@ moreRestrictivePairAux :: S.Solver solver =>
                           (StateET, StateET) ->
                           W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
 moreRestrictivePairAux solver ns prev (s1, s2) = do
-  let a2b4 = (folder_name (track s1) == "/a13") &&
-             (folder_name (track s2) == "/b15")
-             --(isCase $ exprExtract s1)-- &&
-             --(isCase $ exprExtract s2)
-  if a2b4 then do
-    W.liftIO $ putStrLn "A2B4"
-    W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s1
-    W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s2
-  else return ()
   let (s1', s2') = syncSymbolic s1 s2
-      mr (p1, p2, _) = let ab = (folder_name (track p1) == "/a2") &&
-                                (folder_name (track p2) == "/b4")
-                           ab' = ab && a2b4
-                           (p1', p2') = syncSymbolic p1 p2
-                       in restrictHelper ab' p2' s2' ns $
-                       restrictHelper ab' p1' s1' ns (Just (HM.empty, HS.empty))
+      mr (p1, p2, _) = let (p1', p2') = syncSymbolic p1 p2
+                       in restrictHelper p2' s2' ns $
+                       restrictHelper p1' s1' ns (Just (HM.empty, HS.empty))
       rfs h e = (exprReadyForSolver h e) && (T.isPrimType $ typeOf e)
       getObs m = case m of
         Nothing -> HS.empty
@@ -639,13 +614,7 @@ moreRestrictivePairAux solver ns prev (s1, s2) = do
   -- all four lists should be the same length
   case filter all_three $ zip (zip (zip res_list prev) $ zip no_loss bools') maybe_pairs of
     [] -> return Nothing
-    (((_, (p1, p2, pc)), _), m):_ -> do
-      if a2b4 then do
-        W.liftIO $ putStrLn "A2B4!!!"
-        W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s1
-        W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s2
-      else return ()
-      return $ Just $ PrevMatch (s1, s2) (p1, p2) (getMap m, getObs m) pc
+    (((_, (p1, p2, pc)), _), m):_ -> return $ Just $ PrevMatch (s1, s2) (p1, p2) (getMap m, getObs m) pc
 
 -- the third entry in prev tuples is meaningless here
 moreRestrictivePair :: S.Solver solver =>

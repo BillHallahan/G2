@@ -46,7 +46,6 @@ trackName :: StateET -> String
 trackName s =
   let str = folder_name $ track s
       substrs = DT.splitOn (DT.pack "/") $ DT.pack str
-      --substrs = DS.strSplitAll "/" str
       final_sub = case reverse substrs of
         [] -> error "No Substring"
         fs:_ -> DT.unpack fs

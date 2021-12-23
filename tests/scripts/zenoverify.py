@@ -259,11 +259,13 @@ old_successes = [
     ("p44", []),
     ("p45", []),
     ("p46", []),
+    ("p49", [xs, ys]),
     ("p50", []),
     ("p51", [xs]),
     ("p64fin", []),
     ("p67", [xs]),
     ("p73", [p, xs]),
+    ("p79", [n]),
     ("p82", [])
 ]
 
@@ -296,7 +298,8 @@ def test_suite(suite):
     print(unsat_num, "Confirmed out of", len(suite))
 
 def main():
-    test_suite(old_successes)
+    test_suite(extra_theorems)
+    #test_suite_simple(custom_finite)
 
 if __name__ == "__main__":
     main()
