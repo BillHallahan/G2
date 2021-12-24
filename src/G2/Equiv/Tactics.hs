@@ -53,6 +53,7 @@ import G2.Equiv.EquivADT
 import G2.Equiv.G2Calls
 
 import Data.Either
+import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import G2.Execution.Memory
@@ -199,7 +200,7 @@ instance Named EqualMarker where
 
 -- TODO add debug info with these?
 data TacticResult = Success (Maybe (Int, Int, StateET, StateET))
-                  | NoProof (HS.HashSet (Expr, Expr))
+                  | NoProof (HS.HashSet (StateET, StateET))
                   | Failure
 
 -- this takes a list of fresh names as input
@@ -322,7 +323,7 @@ moreRestrictive :: State t ->
                    [(Name, Expr)] -> -- ^ variables inlined previously on the RHS
                    Expr ->
                    Expr ->
-                   Either (Maybe (Expr, Expr)) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+                   Either (Maybe (State t, State t)) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n2 e1 e2 =
   case (e1, e2) of
     -- ignore all Ticks
@@ -359,7 +360,12 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
     (App f1 a1, App f2 a2) | Right hm_fa <- moreResFA -> Right hm_fa
                            | Left (Just _) <- moreResFA -> moreResFA
-                           | not (hasFuncType e1) -> Left (Just (e1, e2))
+                           | not (hasFuncType e1) ->
+                                let
+                                    ls1 = s1 { curr_expr = CurrExpr Evaluate e1 }
+                                    ls2 = s2 { curr_expr = CurrExpr Evaluate e2}
+                                in
+                                Left (Just (ls1, ls2))
         where
             moreResFA = do
                 hm_f <- moreRestrictive s1 s2 ns hm n1 n2 f1 f2
@@ -471,7 +477,7 @@ moreRestrictiveAlt :: State t ->
                       [(Name, Expr)] -> -- ^ variables inlined previously on the RHS
                       Alt ->
                       Alt ->
-                      Either (Maybe (Expr, Expr)) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+                      Either (Maybe (State t, State t)) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 moreRestrictiveAlt s1 s2 ns hm n1 n2 (Alt am1 e1) (Alt am2 e2) =
   if altEquiv am1 am2 then
   case am1 of
@@ -504,8 +510,8 @@ validMap s1 s2 hm =
 restrictHelper :: StateET ->
                   StateET ->
                   HS.HashSet Name ->
-                  Either (Maybe (Expr, Expr)) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
-                  Either (Maybe (Expr, Expr)) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+                  Either (Maybe (StateET, StateET)) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
+                  Either (Maybe (StateET, StateET)) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 restrictHelper s1 s2 ns hm_hs = case restrictAux s1 s2 ns hm_hs of
   Right (hm, hs) -> if validMap s1 s2 hm then Right (hm, hs) else Left Nothing
   left -> left
@@ -513,8 +519,8 @@ restrictHelper s1 s2 ns hm_hs = case restrictAux s1 s2 ns hm_hs of
 restrictAux :: StateET ->
                StateET ->
                HS.HashSet Name ->
-               Either (Maybe (Expr, Expr)) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
-               Either (Maybe (Expr, Expr)) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+               Either (Maybe (StateET, StateET)) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
+               Either (Maybe (StateET, StateET)) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 restrictAux s1 s2 ns (Right hm) =
   moreRestrictive s1 s2 ns hm [] [] (exprExtract s1) (exprExtract s2)
 restrictAux _ _ _ left = left
@@ -584,7 +590,7 @@ moreRestrictivePairAux :: S.Solver solver =>
                           HS.HashSet Name ->
                           [(StateET, StateET, StateET)] ->
                           (StateET, StateET) ->
-                          W.WriterT [Marker] IO (Either (HS.HashSet (Expr, Expr)) (PrevMatch EquivTracker))
+                          W.WriterT [Marker] IO (Either (HS.HashSet (StateET, StateET)) (PrevMatch EquivTracker))
 moreRestrictivePairAux solver ns prev (s1, s2) = do
   let (s1', s2') = syncSymbolic s1 s2
       mr (p1, p2, pc) =
@@ -616,7 +622,7 @@ moreRestrictivePair :: S.Solver solver =>
                        HS.HashSet Name ->
                        [(StateET, StateET)] ->
                        (StateET, StateET) ->
-                       W.WriterT [Marker] IO (Either (HS.HashSet (Expr, Expr)) (PrevMatch EquivTracker))
+                       W.WriterT [Marker] IO (Either (HS.HashSet (StateET, StateET)) (PrevMatch EquivTracker))
 moreRestrictivePair solver ns prev (s1, s2) =
   let prev' = map (\(p1, p2) -> (p1, p2, p2)) prev
   in moreRestrictivePairAux solver ns prev' (s1, s2)
@@ -715,10 +721,10 @@ backtrackOne sh =
 coinductionFoldL :: S.Solver solver =>
                     solver ->
                     HS.HashSet Name ->
-                    HS.HashSet (Expr, Expr) ->
+                    HS.HashSet (StateET, StateET) ->
                     (StateH, StateH) ->
                     (StateET, StateET) ->
-                    W.WriterT [Marker] IO (Either (HS.HashSet (Expr, Expr)) (PrevMatch EquivTracker))
+                    W.WriterT [Marker] IO (Either (HS.HashSet (StateET, StateET)) (PrevMatch EquivTracker))
 coinductionFoldL solver ns lemmas (sh1, sh2) (s1, s2) = do
   let prev = prevFiltered (sh1, sh2)
   res <- moreRestrictivePair solver ns prev (s1, s2)

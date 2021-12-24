@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
@@ -66,6 +67,7 @@ import qualified Prelude as Pre
 import Control.Monad hiding (mapM)
 import Data.Coerce
 import Data.Data (Data, Typeable)
+import Data.Hashable
 import qualified Data.List as L
 import qualified Data.HashMap.Lazy as M
 import Data.Maybe
@@ -73,6 +75,7 @@ import Data.Monoid ((<>))
 import qualified Data.Sequence as S
 import qualified Data.Text as T
 import qualified Data.Traversable as Trav
+import GHC.Generics (Generic)
 
 data ConcOrSym = Conc Expr
                | Sym Id
@@ -87,10 +90,14 @@ data ConcOrSym = Conc Expr
 data EnvObj = ExprObj Expr
             | RedirObj Name
             | SymbObj Id
-            deriving (Show, Eq, Read, Typeable, Data)
+            deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+instance Hashable EnvObj
 
 newtype ExprEnv = ExprEnv (M.HashMap Name EnvObj)
-                  deriving (Show, Eq, Read, Typeable, Data)
+                  deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+instance Hashable ExprEnv
 
 {-# INLINE unwrapExprEnv #-}
 unwrapExprEnv :: ExprEnv -> M.HashMap Name EnvObj

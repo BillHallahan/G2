@@ -340,8 +340,8 @@ verifyLoop solver ns states b config folder_root k n | n /= 0 = do
           mapM (\l@(le1, le2) -> do
                         let pg = mkPrettyGuide l
                         W.liftIO $ putStrLn "----"
-                        W.liftIO $ putStrLn $ printHaskellDirtyPG pg le1
-                        W.liftIO $ putStrLn $ printHaskellDirtyPG pg le2) $ HS.toList new_lemmas
+                        W.liftIO $ putStrLn $ printHaskellDirtyPG pg (exprExtract le1)
+                        W.liftIO $ putStrLn $ printHaskellDirtyPG pg (exprExtract le2)) $ HS.toList new_lemmas
           verifyLoop solver ns new_obligations b' config folder_root k' n'
       CounterexampleFound -> return $ S.SAT ()
       Proven -> return $ S.UNSAT ()
@@ -354,7 +354,7 @@ verifyLoop solver ns states b config folder_root k n | n /= 0 = do
     return $ S.Unknown "Loop Iterations Exhausted"
 
 data StepRes = CounterexampleFound
-             | ContinueWith [(StateH, StateH)] (HS.HashSet (Expr, Expr))
+             | ContinueWith [(StateH, StateH)] (HS.HashSet (StateET, StateET))
              | Proven 
 
 verifyLoop' :: S.Solver solver =>
@@ -438,13 +438,13 @@ adjustStateH (sh1, sh2) (n1, n2) (s1, s2) =
 
 data TacticEnd = EFail
                | EDischarge
-               | EContinue (HS.HashSet (Expr, Expr)) (StateH, StateH)
+               | EContinue (HS.HashSet (StateET, StateET)) (StateH, StateH)
 
 getRemaining :: TacticEnd -> [(StateH, StateH)] -> [(StateH, StateH)]
 getRemaining (EContinue _ sh_pair) acc = sh_pair:acc
 getRemaining _ acc = acc
 
-getLemmas :: TacticEnd -> HS.HashSet (Expr, Expr)
+getLemmas :: TacticEnd -> HS.HashSet (StateET, StateET)
 getLemmas (EContinue lemmas _) = lemmas
 getLemmas _ = HS.empty
 
@@ -474,7 +474,7 @@ applyTactics :: S.Solver solver =>
                 solver ->
                 [Tactic solver] ->
                 HS.HashSet Name ->
-                HS.HashSet (Expr, Expr) ->
+                HS.HashSet (StateET, StateET) ->
                 [Name] ->
                 (StateH, StateH) ->
                 (StateET, StateET) ->
@@ -502,7 +502,7 @@ tryDischarge :: S.Solver solver =>
                 [Name] ->
                 StateH ->
                 StateH ->
-                W.WriterT [Marker] IO (Maybe ([(StateH, StateH)], HS.HashSet (Expr, Expr)))
+                W.WriterT [Marker] IO (Maybe ([(StateH, StateH)], HS.HashSet (StateET, StateET)))
 tryDischarge solver tactics ns fresh_names sh1 sh2 =
   let s1 = latest sh1
       s2 = latest sh2

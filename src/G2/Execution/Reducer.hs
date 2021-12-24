@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -92,6 +93,7 @@ import G2.Solver
 import G2.Lib.Printers
 
 import Data.Foldable
+import Data.Hashable
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
@@ -102,6 +104,8 @@ import Data.Tuple
 import Data.Time.Clock
 import System.Directory
 import System.Random
+
+import GHC.Generics (Generic)
 
 import Debug.Trace
 
@@ -398,7 +402,9 @@ data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
                                  , saw_tick :: Maybe Int
                                  , total :: HS.HashSet Name
                                  , finite :: HS.HashSet Name
-                                 , folder_name :: String } deriving (Show, Eq)
+                                 , folder_name :: String } deriving (Show, Eq, Generic)
+
+instance Hashable EquivTracker
 
 -- Forces a lone symbolic variable with a type corresponding to an ADT
 -- to evaluate to some value of that ADT
