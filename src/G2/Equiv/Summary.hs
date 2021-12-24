@@ -18,6 +18,7 @@ import Data.Maybe
 import qualified Data.Text as DT
 
 import qualified Data.HashSet as HS
+import qualified Data.HashMap.Lazy as HM
 
 import G2.Equiv.InitRewrite
 import G2.Equiv.EquivADT
@@ -59,7 +60,11 @@ printPG pg ns sym_ids s =
       h = expr_env s
       e = inlineVars ns h $ exprExtract s
       e_str = printHaskellDirtyPG pg e
-      sym_vars = varsFullList h ns sym_ids
+      -- sym exec keeps higher_order in sync but not concretizations
+      -- this means that the ids in func_ids are not always mapped
+      -- if they are unmapped, they will not be printed for a state
+      func_ids = map snd $ HM.toList $ higher_order $ track s
+      sym_vars = varsFullList h ns $ sym_ids ++ func_ids
       sym_str = printVars pg ns s sym_vars
       sym_print = case sym_str of
         "" -> ""
@@ -69,7 +74,11 @@ printPG pg ns sym_ids s =
       var_print = case var_str of
         "" -> ""
         _ -> "\nOther Variables:\n" ++ var_str
-  in label_str ++ "\n" ++ e_str ++ sym_print ++ var_print ++ "\n---"
+      map_str = printMappings pg s
+      map_print = case map_str of
+        "" -> ""
+        _ -> "\nSymbolic Function Mappings:\n" ++ map_str
+  in label_str ++ "\n" ++ e_str ++ sym_print ++ var_print ++ map_print ++ "\n---"
 
 inlineVars :: [Name] -> ExprEnv -> Expr -> Expr
 inlineVars ns eenv = inlineVars' HS.empty ns eenv
@@ -148,13 +157,25 @@ printVar pg ns s@(State{ expr_env = h }) i =
         Unmapped -> ""
   in case c_end of
     Unmapped -> ""
-    _ -> (foldr (\str acc -> str ++ " -> " ++ acc) "" chain_strs) ++ end_str
+    _ -> (foldr (\str acc -> str ++ " = " ++ acc) "" chain_strs) ++ end_str
 
 printVars :: PrettyGuide -> [Name] -> StateET -> [Id] -> String
 printVars pg ns s vars =
   let var_strs = map (printVar pg ns s) vars
       non_empty_strs = filter (not . null) var_strs
   in intercalate "\n" non_empty_strs
+
+-- TODO print symbolic function mappings too
+printMapping :: PrettyGuide -> (Expr, Id) -> String
+printMapping pg (e, i) =
+  let e_str = printHaskellDirtyPG pg e
+      i_str = printHaskellDirtyPG pg (Var i)
+  in e_str ++ " --> " ++ i_str
+
+printMappings :: PrettyGuide -> StateET -> String
+printMappings pg s =
+  let mapping_list = HM.toList $ higher_order $ track s
+  in intercalate "\n" $ map (printMapping pg) mapping_list
 
 -- no new line at end
 summarizeStatePairTrack :: String ->

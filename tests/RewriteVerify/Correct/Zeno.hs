@@ -696,6 +696,9 @@ p01finA n xs runs forever
 
 RESULTS 12/17
 p24finB hits the limit
+
+RESULTS 12/23
+p54finA hits the limit
 -}
 
 {-# RULES
@@ -725,6 +728,7 @@ p24finB hits the limit
 "p38finA" forall n xs . count n (xs ++ [n]) = walkNat n (S (count n xs))
 "p48fin" forall xs . prop_48 xs = walkList xs True
 "p54fin" forall n m . (m + n) - n = walkNat n m
+"p54finA" forall n m . (m + n) - n = walkNat m m
 "p57fin" forall n m xs . drop n (take m xs) = walkNat m (take (m - n) (drop n xs))
 "p59fin" forall xs ys . prop_59 xs ys = walkList xs True
 "p61fin" forall xs ys . last (xs ++ ys) = walkList xs (lastOfTwo xs ys)
