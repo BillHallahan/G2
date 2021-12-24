@@ -169,6 +169,7 @@ inductionL solver ns prev (s1, s2) = do
 
 -- TODO check the criterion at a different level
 -- only attempt induction if we have recursion in the right spots in the present
+-- TODO be more generous instead; try induction whenever there's a Case
 caseRecursion :: Expr -> Bool
 caseRecursion (Tick _ e) = caseRecursion e
 caseRecursion (Case e _ _) =

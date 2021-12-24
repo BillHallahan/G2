@@ -583,8 +583,9 @@ moreRestrictivePairAux :: S.Solver solver =>
                           W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
 moreRestrictivePairAux solver ns prev (s1, s2) = do
   let (s1', s2') = syncSymbolic s1 s2
-      mr (p1, p2, _) = restrictHelper p2 s2' ns $
-                       restrictHelper p1 s1' ns (Just (HM.empty, HS.empty))
+      mr (p1, p2, _) = let (p1', p2') = syncSymbolic p1 p2
+                       in restrictHelper p2' s2' ns $
+                       restrictHelper p1' s1' ns (Just (HM.empty, HS.empty))
       rfs h e = (exprReadyForSolver h e) && (T.isPrimType $ typeOf e)
       getObs m = case m of
         Nothing -> HS.empty
