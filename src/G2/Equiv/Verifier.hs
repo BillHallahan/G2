@@ -1,3 +1,4 @@
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Equiv.Verifier
@@ -309,6 +310,11 @@ replaceH sh s = sh { latest = s }
 all_tactics :: S.Solver s => [Tactic s]
 all_tactics = [tryEquality, tryCoinduction, inductionFull, trySolver]
 
+data Lemma = Lemma StateET StateET LemmaType [(StateH, StateH)]
+data LemmaType = LemMain | LemSub
+
+type PosLemma = Lemma
+
 -- negative loop iteration count means there's no limit
 verifyLoop :: S.Solver solver =>
               solver ->
@@ -320,47 +326,70 @@ verifyLoop :: S.Solver solver =>
               Int ->
               Int ->
               W.WriterT [Marker] IO (S.Result () ())
-verifyLoop solver ns states b config folder_root k n | not (null states)
-                                                          , n /= 0 = do
-  let current_states = map getLatest states
-  (paired_states, (b', k')) <- W.liftIO $ CM.runStateT (mapM (uncurry (runSymExec solver config folder_root)) current_states) (b, k)
-  let ng = name_gen b'
-      (fresh_name, ng') = freshName ng
-      b'' = b' { name_gen = ng' }
-      td (sh1, sh2) = tryDischarge solver all_tactics ns [fresh_name] sh1 sh2
-  -- TODO printing
+verifyLoop solver ns states b config folder_root k n | n /= 0 = do
+  (sr, b', k') <- verifyLoop' solver all_tactics ns b config folder_root k states
+
   W.liftIO $ putStrLn "<Loop Iteration>"
   W.liftIO $ putStrLn $ show n
-  -- for every internal list, map with its corresponding original state
-  let app_pair (sh1, sh2) (s1, s2) = (appendH sh1 s1, appendH sh2 s2)
-      map_fns = map app_pair states
-      updated_hists = map (uncurry map) (zip map_fns paired_states)
-  W.liftIO $ putStrLn $ show $ length $ concat updated_hists
-  proof_lemma_list <- mapM td $ concat updated_hists
 
-  let new_obligations = concatMap fst $ catMaybes proof_lemma_list
-      new_lemmas = HS.unions . map snd $ catMaybes proof_lemma_list
-      n' = if n > 0 then n - 1 else n
-  W.liftIO $ putStrLn $ show $ length new_obligations
-  W.liftIO $ putStrLn $ "length new_lemmas = " ++ show (length new_lemmas)
-  mapM (\l@(le1, le2) -> do
-                let pg = mkPrettyGuide l
-                W.liftIO $ putStrLn "----"
-                W.liftIO $ putStrLn $ printHaskellDirtyPG pg le1
-                W.liftIO $ putStrLn $ printHaskellDirtyPG pg le2) $ HS.toList new_lemmas
-  if all isJust proof_lemma_list then
-    verifyLoop solver ns new_obligations b'' config folder_root k' n'
-  else
-    return $ S.SAT ()
-  | not (null states) = do
+  case sr of
+      ContinueWith new_obligations new_lemmas -> do
+          let n' = if n > 0 then n - 1 else n
+          W.liftIO $ putStrLn $ show $ length new_obligations
+          W.liftIO $ putStrLn $ "length new_lemmas = " ++ show (length new_lemmas)
+          mapM (\l@(le1, le2) -> do
+                        let pg = mkPrettyGuide l
+                        W.liftIO $ putStrLn "----"
+                        W.liftIO $ putStrLn $ printHaskellDirtyPG pg le1
+                        W.liftIO $ putStrLn $ printHaskellDirtyPG pg le2) $ HS.toList new_lemmas
+          verifyLoop solver ns new_obligations b' config folder_root k' n'
+      CounterexampleFound -> return $ S.SAT ()
+      Proven -> return $ S.UNSAT ()
+  | otherwise = do
     -- TODO log some new things with the writer for unresolved obligations
     -- TODO the present states are somewhat redundant
     W.liftIO $ putStrLn $ "Unresolved Obligations: " ++ show (length states)
     let ob (sh1, sh2) = Marker (sh1, sh2) $ Unresolved (latest sh1, latest sh2)
     W.tell $ map ob states
     return $ S.Unknown "Loop Iterations Exhausted"
-  | otherwise = do
-    return $ S.UNSAT ()
+
+data StepRes = CounterexampleFound
+             | ContinueWith [(StateH, StateH)] (HS.HashSet (Expr, Expr))
+             | Proven 
+
+verifyLoop' :: S.Solver solver =>
+               solver
+            -> [Tactic solver]
+            -> HS.HashSet Name
+            -> Bindings
+            -> Config
+            -> String
+            -> Int
+            -> [(StateH, StateH)]
+            -> W.WriterT [Marker] IO (StepRes, Bindings, Int)
+verifyLoop' solver tactics ns b config folder_root k states = do
+    let current_states = map getLatest states
+    (paired_states, (b', k')) <- W.liftIO $ CM.runStateT (mapM (uncurry (runSymExec solver config folder_root)) current_states) (b, k)
+
+    let (fresh_name, ng') = freshName (name_gen b')
+        b'' = b' { name_gen = ng' }
+ 
+        td (sh1, sh2) = tryDischarge solver tactics ns [fresh_name] sh1 sh2
+
+    -- for every internal list, map with its corresponding original state
+    let app_pair (sh1, sh2) (s1, s2) = (appendH sh1 s1, appendH sh2 s2)
+        map_fns = map app_pair states
+        updated_hists = map (uncurry map) (zip map_fns paired_states)
+    W.liftIO $ putStrLn $ show $ length $ concat updated_hists
+    proof_lemma_list <- mapM td $ concat updated_hists
+
+    let new_obligations = concatMap fst $ catMaybes proof_lemma_list
+        new_lemmas = HS.unions . map snd $ catMaybes proof_lemma_list
+
+    let res = if | null proof_lemma_list -> Proven
+                 | all isJust proof_lemma_list -> ContinueWith new_obligations new_lemmas
+                 | otherwise -> CounterexampleFound
+    return (res, b', k')
 
 stateWrap :: StateET -> StateET -> Obligation -> (StateET, StateET)
 stateWrap s1 s2 (Ob e1 e2) =
