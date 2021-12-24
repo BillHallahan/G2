@@ -172,7 +172,7 @@ inductionL solver ns prev (s1, s2) = do
 -- TODO be more generous instead; try induction whenever there's a Case
 caseRecursion :: Expr -> Bool
 caseRecursion (Tick _ e) = caseRecursion e
-caseRecursion (Case e _ _) = True
+caseRecursion (Case e _ _) =
   (getAny . evalASTs (\e' -> Any $ caseRecHelper e')) e
 caseRecursion _ = False
 
