@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Equiv.Tactics
@@ -38,6 +40,8 @@ import qualified Control.Monad.State.Lazy as CM
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.Typing as T
 
+import GHC.Generics (Generic)
+import Data.Data (Typeable)
 import Data.List
 import Data.Maybe
 import Data.Tuple
@@ -78,6 +82,7 @@ data StateH = StateH {
   , inductions :: [IndMarker]
   , discharge :: Maybe StateET
 }
+
 
 instance Named StateH where
   names (StateH s h ims d) =
@@ -128,7 +133,9 @@ instance Named Marker where
   rename old new (Marker (sh1, sh2) m) =
     Marker (rename old new sh1, rename old new sh2) $ rename old new m
 
-data Side = ILeft | IRight deriving (Show)
+data Side = ILeft | IRight deriving (Eq, Show, Typeable, Generic)
+
+instance Hashable Side
 
 data IndMarker = IndMarker {
     ind_real_present :: (StateET, StateET)

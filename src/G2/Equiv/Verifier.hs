@@ -310,15 +310,16 @@ replaceH sh s = sh { latest = s }
 all_tactics :: S.Solver s => [Tactic s]
 all_tactics = [tryEquality, tryCoinduction, inductionFull, trySolver]
 
-data Lemma = Lemma StateET StateET LemmaType [(StateH, StateH)]
-data LemmaType = LemMain | LemSub
+data Lemma = Lemma StateET StateET [(StateH, StateH)]
 
-type PosLemma = Lemma
+type ProposedLemma = Lemma
+type ProvenLemma = Lemma
 
 -- negative loop iteration count means there's no limit
 verifyLoop :: S.Solver solver =>
               solver ->
               HS.HashSet Name ->
+              [ProposedLemma] ->
               [(StateH, StateH)] ->
               Bindings ->
               Config ->
@@ -326,23 +327,34 @@ verifyLoop :: S.Solver solver =>
               Int ->
               Int ->
               W.WriterT [Marker] IO (S.Result () ())
-verifyLoop solver ns states b config folder_root k n | n /= 0 = do
-  (sr, b', k') <- verifyLoop' solver all_tactics ns b config folder_root k states
-
+verifyLoop solver ns prop_lemmas states b config folder_root k n | n /= 0 = do
   W.liftIO $ putStrLn "<Loop Iteration>"
   W.liftIO $ putStrLn $ show n
+
+  (sr, b', k') <- verifyLoop' solver all_tactics ns b config folder_root k states
+
+  (prop_lemmas', (b'', k'')) <-
+              CM.runStateT (mapM (verifyLoopPropLemmas solver all_tactics ns config folder_root) prop_lemmas) (b', k')
+
+  let (proven_lemma, continued_lemmas) = partition (\(sr, _) -> case sr of
+                                                                    Proven -> True
+                                                                    _ -> False) prop_lemmas'
+      proven_lemma' = concatMap snd proven_lemma
+      continued_lemmas' = concatMap snd continued_lemmas
 
   case sr of
       ContinueWith new_obligations new_lemmas -> do
           let n' = if n > 0 then n - 1 else n
           W.liftIO $ putStrLn $ show $ length new_obligations
           W.liftIO $ putStrLn $ "length new_lemmas = " ++ show (length new_lemmas)
+
+          let prop_lemmas'' = continued_lemmas' ++ new_lemmas
           -- mapM (\l@(le1, le2) -> do
           --               let pg = mkPrettyGuide l
           --               W.liftIO $ putStrLn "----"
           --               W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le1) le1
           --               W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le2) le2) $ HS.toList new_lemmas
-          verifyLoop solver ns new_obligations b' config folder_root k' n'
+          verifyLoop solver ns prop_lemmas'' new_obligations b'' config folder_root k'' n'
       CounterexampleFound -> return $ S.SAT ()
       Proven -> return $ S.UNSAT ()
   | otherwise = do
@@ -354,8 +366,27 @@ verifyLoop solver ns states b config folder_root k n | n /= 0 = do
     return $ S.Unknown "Loop Iterations Exhausted"
 
 data StepRes = CounterexampleFound
-             | ContinueWith [(StateH, StateH)] (HS.HashSet (StateET, StateET))
-             | Proven 
+             | ContinueWith [(StateH, StateH)] [Lemma]
+             | Proven
+
+verifyLoopPropLemmas :: S.Solver solver =>
+                        solver
+                     -> [Tactic solver]
+                     -> HS.HashSet Name
+                     -> Config
+                     -> String
+                     -> ProposedLemma
+                     -> CM.StateT (Bindings, Int)  (W.WriterT [Marker] IO) (StepRes, [Lemma])
+verifyLoopPropLemmas solver tactics ns config folder_root l@(Lemma is1 is2 states) = do
+    (b, k) <- CM.get
+    W.liftIO $ putStrLn $ "k = " ++ show k
+    (sr, b', k') <- W.lift (verifyLoop' solver tactics ns b config folder_root k states)
+    CM.put (b', k')
+    let lem = case sr of
+                  CounterexampleFound -> []
+                  ContinueWith states' lemmas -> Lemma is1 is2 states':lemmas -- TODO - pass back lemmas also
+                  Proven -> [Lemma is1 is2 []] -- TODO - what to return here?
+    return (sr, lem)
 
 verifyLoop' :: S.Solver solver =>
                solver
@@ -387,9 +418,13 @@ verifyLoop' solver tactics ns b config folder_root k states = do
         new_lemmas = HS.unions . map snd $ catMaybes proof_lemma_list
 
     let res = if | null proof_lemma_list -> Proven
-                 | all isJust proof_lemma_list -> ContinueWith new_obligations new_lemmas
+                 | all isJust proof_lemma_list ->
+                      ContinueWith new_obligations (map (uncurry mkProposedLemma) $ HS.toList new_lemmas)
                  | otherwise -> CounterexampleFound
     return (res, b'', k')
+
+mkProposedLemma :: StateET -> StateET -> ProposedLemma
+mkProposedLemma s1 s2 = Lemma s1 s2 [(newStateH s1, newStateH s2)] 
 
 stateWrap :: StateET -> StateET -> Obligation -> (StateET, StateET)
 stateWrap s1 s2 (Ob e1 e2) =
@@ -637,6 +672,7 @@ checkRule config init_state bindings total finite print_summary iterations rule 
   putStrLn $ printHaskellDirty $ exprExtract $ latest rewrite_state_l''
   putStrLn $ printHaskellDirty $ exprExtract $ latest rewrite_state_r''
   (res, w) <- W.runWriterT $ verifyLoop solver ns
+             []
              [(rewrite_state_l'', rewrite_state_r'')]
              bindings'' config "" 0 iterations
   -- UNSAT for good, SAT for bad
