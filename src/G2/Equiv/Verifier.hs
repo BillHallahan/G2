@@ -337,11 +337,11 @@ verifyLoop solver ns states b config folder_root k n | n /= 0 = do
           let n' = if n > 0 then n - 1 else n
           W.liftIO $ putStrLn $ show $ length new_obligations
           W.liftIO $ putStrLn $ "length new_lemmas = " ++ show (length new_lemmas)
-          mapM (\l@(le1, le2) -> do
-                        let pg = mkPrettyGuide l
-                        W.liftIO $ putStrLn "----"
-                        W.liftIO $ putStrLn $ printHaskellDirtyPG pg (exprExtract le1)
-                        W.liftIO $ putStrLn $ printHaskellDirtyPG pg (exprExtract le2)) $ HS.toList new_lemmas
+          -- mapM (\l@(le1, le2) -> do
+          --               let pg = mkPrettyGuide l
+          --               W.liftIO $ putStrLn "----"
+          --               W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le1) le1
+          --               W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le2) le2) $ HS.toList new_lemmas
           verifyLoop solver ns new_obligations b' config folder_root k' n'
       CounterexampleFound -> return $ S.SAT ()
       Proven -> return $ S.UNSAT ()

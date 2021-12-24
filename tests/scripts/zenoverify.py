@@ -175,6 +175,7 @@ y = "y"
 ys = "ys"
 i = "i"
 a = "a"
+b = "b"
 p = "p"
 
 more_finite = [
@@ -230,9 +231,47 @@ extra_theorems = [
     ("p77fin", [x, xs])
 ]
 
-def test_equivalences_basic():
+old_successes = [
+    ("p06fin", []),
+    ("p07fin", []),
+    ("p08fin", []),
+    ("p09", []),
+    ("p10fin", []),
+    ("p11", []),
+    ("p12", []),
+    ("p13", []),
+    ("p14", []),
+    ("p17", []),
+    ("p18fin", []),
+    ("p19", [n]),
+    ("p21fin", []),
+    ("p22", []),
+    ("p23", []),
+    ("p31", []),
+    ("p32", [a, b]),
+    ("p33", []),
+    ("p34", [a]),
+    ("p35", []),
+    ("p36", []),
+    ("p40", []),
+    ("p41", []),
+    ("p42", []),
+    ("p44", []),
+    ("p45", []),
+    ("p46", []),
+    ("p49", [xs, ys]),
+    ("p50", []),
+    ("p51", [xs]),
+    ("p64fin", []),
+    ("p67", [xs]),
+    ("p73", [p, xs]),
+    ("p79", [n]),
+    ("p82", [])
+]
+
+def test_suite_simple(suite):
     unsat_num = 0;
-    for thm in equivalences:
+    for thm in suite:
         print(thm);
         (check_unsat, elapsed) = run_zeno(thm, []);
         if check_unsat == "UNSAT ()":
@@ -242,25 +281,11 @@ def test_equivalences_basic():
             print("\tTimeout - " + str(elapsed) + "s")
         else:
             print("\tFailed - " + str(elapsed) + "s")
-    return unsat_num
+    print(unsat_num, "Confirmed out of", len(suite))
 
-def test_custom_finite():
+def test_suite(suite):
     unsat_num = 0;
-    for thm in custom_finite:
-        print(thm);
-        (check_unsat, elapsed) = run_zeno(thm, []);
-        if check_unsat == "UNSAT ()":
-            print("\tVerified - " + str(elapsed) + "s");
-            unsat_num += 1
-        elif check_unsat == "Timeout":
-            print("\tTimeout - " + str(elapsed) + "s")
-        else:
-            print("\tFailed - " + str(elapsed) + "s")
-    return unsat_num
-
-def test_equivalences_all_total():
-    unsat_num = 0;
-    for (thm, settings) in equivalences_all_total:
+    for (thm, settings) in suite:
         print(thm, settings);
         (check_unsat, elapsed) = run_zeno(thm, settings);
         if check_unsat == "UNSAT ()":
@@ -270,43 +295,11 @@ def test_equivalences_all_total():
             print("\tTimeout - " + str(elapsed) + "s")
         else:
             print("\tFailed - " + str(elapsed) + "s")
-    return unsat_num
-
-def test_more_finite():
-    unsat_num = 0;
-    for (thm, settings) in more_finite:
-        print(thm, settings);
-        (check_unsat, elapsed) = run_zeno(thm, settings);
-        if check_unsat == "UNSAT ()":
-            print("\tVerified - " + str(elapsed) + "s");
-            unsat_num += 1
-        elif check_unsat == "Timeout":
-            print("\tTimeout - " + str(elapsed) + "s")
-        else:
-            print("\tFailed - " + str(elapsed) + "s")
-    return unsat_num
-
-def test_extra_theorems():
-    unsat_num = 0;
-    for (thm, settings) in extra_theorems:
-        print(thm, settings);
-        (check_unsat, elapsed) = run_zeno(thm, settings);
-        if check_unsat == "UNSAT ()":
-            print("\tVerified - " + str(elapsed) + "s");
-            unsat_num += 1
-        elif check_unsat == "Timeout":
-            print("\tTimeout - " + str(elapsed) + "s")
-        else:
-            print("\tFailed - " + str(elapsed) + "s")
-    return unsat_num
+    print(unsat_num, "Confirmed out of", len(suite))
 
 def main():
-    #unsat_num = test_equivalences_basic()
-    unsat_num = test_custom_finite()
-    unsat_num += test_equivalences_all_total()
-    #unsat_num = test_more_finite()
-    #unsat_num = test_extra_theorems()
-    print(unsat_num, "Confirmed out of", len(equivalences_all_total) + len(custom_finite))
+    test_suite_simple(custom_finite)
+    test_suite(equivalences_all_total)
 
 if __name__ == "__main__":
     main()

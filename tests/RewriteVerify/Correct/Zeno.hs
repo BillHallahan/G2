@@ -572,7 +572,6 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 
 -- swapped side for 04
 {-# RULES
-"prop01" forall n l . prop_01 n l = True
 "p01" forall n xs . take n xs ++ drop n xs = xs
 "p02" forall n xs ys . count n xs + count n ys = count n (xs ++ ys)
 "p03" forall n xs ys . count n xs <= count n (xs ++ ys) = True
@@ -694,6 +693,12 @@ p59fin xs ys runs forever
 RESULTS 11/17
 p01fin n xs runs forever
 p01finA n xs runs forever
+
+RESULTS 12/17
+p24finB hits the limit
+
+RESULTS 12/23
+p54finA hits the limit
 -}
 
 {-# RULES
@@ -716,12 +721,14 @@ p01finA n xs runs forever
 "p21fin" forall n m . prop_21 n m = walkNat n True
 "p24fin" forall a b . (max a b) === a = walkNat a (b <= a)
 "p24finA" forall a b . walkNat a ((max a b) === a) = walkNat a (b <= a)
+"p24finB" forall a b . (max a b) === a = walkNat b (b <= a)
 "p25fin" forall a b . (max a b) === b = walkNat b (a <= b)
 "p26fin" forall x xs ys . prop_26 x xs ys = walkNat x True
 "p38fin" forall n xs . count n (xs ++ [n]) = walkNat n (walkNatList xs (S (count n xs)))
 "p38finA" forall n xs . count n (xs ++ [n]) = walkNat n (S (count n xs))
 "p48fin" forall xs . prop_48 xs = walkList xs True
 "p54fin" forall n m . (m + n) - n = walkNat n m
+"p54finA" forall n m . (m + n) - n = walkNat m m
 "p57fin" forall n m xs . drop n (take m xs) = walkNat m (take (m - n) (drop n xs))
 "p59fin" forall xs ys . prop_59 xs ys = walkList xs True
 "p61fin" forall xs ys . last (xs ++ ys) = walkList xs (lastOfTwo xs ys)
@@ -784,7 +791,7 @@ walkList (_:xs) a = walkList xs a
 walkNatList :: [Nat] -> a -> a
 walkNatList xs a = case xs of
   [] -> a
-  y:ys -> walkNatList ys (walkNat y a)
+  y:ys -> walkNat y $ walkNatList ys a
 
 -- everything else that follows is not part of the official test suite
 inf1 :: Nat

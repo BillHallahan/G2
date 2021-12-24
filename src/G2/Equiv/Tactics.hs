@@ -595,23 +595,26 @@ moreRestrictivePairAux solver ns prev (s1, s2) = do
   let (s1', s2') = syncSymbolic s1 s2
       mr (p1, p2, pc) =
           let
-              hm_obs = restrictHelper p2 s2' ns $
-                       restrictHelper p1 s1' ns (Right (HM.empty, HS.empty))
+              hm_obs = let (p1', p2') = syncSymbolic p1 p2
+                       in restrictHelper p2' s2' ns $
+                       restrictHelper p1' s1' ns (Right (HM.empty, HS.empty))
           in
           fmap (\hm_obs' -> PrevMatch (s1, s2) (p1, p2) hm_obs' pc) hm_obs
       rfs h e = (exprReadyForSolver h e) && (T.isPrimType $ typeOf e)
       
       (possible_lemmas, possible_matches) = partitionEithers $ map mr prev
 
+      -- As a heuristic, take only lemmas where both sides are not in SWHNF
+      possible_lemmas' = filter (\(s1, s2) -> not (isSWHNF s1)
+                                           && not (isSWHNF s2))
+                       $ catMaybes possible_lemmas
+
       mpc (PrevMatch _ (p1, p2) (hm, _) _) =
           andM [moreRestrictivePC solver p1 s1 hm, moreRestrictivePC solver p2 s2 hm]
   possible_matches' <- filterM mpc possible_matches -- (zip possible_matches prev)
   -- check obligations individually rather than as one big group
   res_list <- W.liftIO (findM (\pm -> isUnsat =<< checkObligations solver s1 s2 (snd . conditions $ pm)) (possible_matches'))
-  return $ maybe (Left . HS.fromList $ catMaybes possible_lemmas) Right res_list
-  -- case res_list of
-  --   Just _ -> return res_list
-  --   _ -> return Nothing
+  return $ maybe (Left $ HS.fromList possible_lemmas') Right res_list
   where
       isUnsat (S.UNSAT _) = return True
       isUnsat _ = return False
