@@ -389,7 +389,7 @@ verifyLoop' solver tactics ns b config folder_root k states = do
     let res = if | null proof_lemma_list -> Proven
                  | all isJust proof_lemma_list -> ContinueWith new_obligations new_lemmas
                  | otherwise -> CounterexampleFound
-    return (res, b', k')
+    return (res, b'', k')
 
 stateWrap :: StateET -> StateET -> Obligation -> (StateET, StateET)
 stateWrap s1 s2 (Ob e1 e2) =
