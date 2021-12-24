@@ -336,11 +336,19 @@ verifyLoop solver ns states b config folder_root k n | not (null states)
       map_fns = map app_pair states
       updated_hists = map (uncurry map) (zip map_fns paired_states)
   W.liftIO $ putStrLn $ show $ length $ concat updated_hists
-  proof_list <- mapM td $ concat updated_hists
-  let new_obligations = concat $ catMaybes proof_list
+  proof_lemma_list <- mapM td $ concat updated_hists
+
+  let new_obligations = concatMap fst $ catMaybes proof_lemma_list
+      new_lemmas = HS.unions . map snd $ catMaybes proof_lemma_list
       n' = if n > 0 then n - 1 else n
   W.liftIO $ putStrLn $ show $ length new_obligations
-  if all isJust proof_list then
+  W.liftIO $ putStrLn $ "length new_lemmas = " ++ show (length new_lemmas)
+  mapM (\l@(le1, le2) -> do
+                let pg = mkPrettyGuide l
+                W.liftIO $ putStrLn "----"
+                W.liftIO $ putStrLn $ printHaskellDirtyPG pg le1
+                W.liftIO $ putStrLn $ printHaskellDirtyPG pg le2) $ HS.toList new_lemmas
+  if all isJust proof_lemma_list then
     verifyLoop solver ns new_obligations b'' config folder_root k' n'
   else
     return $ S.SAT ()
@@ -401,11 +409,15 @@ adjustStateH (sh1, sh2) (n1, n2) (s1, s2) =
 
 data TacticEnd = EFail
                | EDischarge
-               | EContinue (StateH, StateH)
+               | EContinue (HS.HashSet (Expr, Expr)) (StateH, StateH)
 
 getRemaining :: TacticEnd -> [(StateH, StateH)] -> [(StateH, StateH)]
-getRemaining (EContinue sh_pair) acc = sh_pair:acc
+getRemaining (EContinue _ sh_pair) acc = sh_pair:acc
 getRemaining _ acc = acc
+
+getLemmas :: TacticEnd -> HS.HashSet (Expr, Expr)
+getLemmas (EContinue lemmas _) = lemmas
+getLemmas _ = HS.empty
 
 hasFail :: [TacticEnd] -> Bool
 hasFail [] = False
@@ -422,7 +434,7 @@ trySolver solver ns _ _ (s1, s2) | statePairReadyForSolver (s1, s2) = do
   case res of
     S.UNSAT () -> return $ Success Nothing
     _ -> return Failure
-trySolver _ _ _ _ _ = return NoProof
+trySolver _ _ _ _ _ = return $ NoProof HS.empty
 
 -- TODO apply all tactics sequentially in a single run
 -- make StateH adjustments between each application, if necessary
@@ -433,22 +445,23 @@ applyTactics :: S.Solver solver =>
                 solver ->
                 [Tactic solver] ->
                 HS.HashSet Name ->
+                HS.HashSet (Expr, Expr) ->
                 [Name] ->
                 (StateH, StateH) ->
                 (StateET, StateET) ->
                 W.WriterT [Marker] IO TacticEnd
-applyTactics solver (tac:tacs) ns fresh_names (sh1, sh2) (s1, s2) = do
+applyTactics solver (tac:tacs) ns lemmas fresh_names (sh1, sh2) (s1, s2) = do
   tr <- tac solver ns fresh_names (sh1, sh2) (s1, s2)
   case tr of
     Failure -> return EFail
-    NoProof -> applyTactics solver tacs ns fresh_names (sh1, sh2) (s1, s2)
+    NoProof new_lemmas -> applyTactics solver tacs ns (HS.union new_lemmas lemmas) fresh_names (sh1, sh2) (s1, s2)
     Success res -> case res of
       Nothing -> return EDischarge
       Just (n1, n2, s1', s2') -> do
         let (sh1', sh2') = adjustStateH (sh1, sh2) (n1, n2) (s1', s2')
-        applyTactics solver tacs ns fresh_names (sh1', sh2') (s1', s2')
-applyTactics _ _ _ _ (sh1, sh2) (s1, s2) =
-  return $ EContinue (replaceH sh1 s1, replaceH sh2 s2)
+        applyTactics solver tacs ns lemmas fresh_names (sh1', sh2') (s1', s2')
+applyTactics _ _ _ lemmas _ (sh1, sh2) (s1, s2) =
+  return $ EContinue lemmas (replaceH sh1 s1, replaceH sh2 s2)
 
 -- TODO how do I handle the solver application in this version?
 -- Nothing output means failure now
@@ -460,7 +473,7 @@ tryDischarge :: S.Solver solver =>
                 [Name] ->
                 StateH ->
                 StateH ->
-                W.WriterT [Marker] IO (Maybe [(StateH, StateH)])
+                W.WriterT [Marker] IO (Maybe ([(StateH, StateH)], HS.HashSet (Expr, Expr)))
 tryDischarge solver tactics ns fresh_names sh1 sh2 =
   let s1 = latest sh1
       s2 = latest sh2
@@ -481,17 +494,18 @@ tryDischarge solver tactics ns fresh_names sh1 sh2 =
       W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s2
       -- TODO no more limitations on when induction can be used here
       let states = map (stateWrap s1 s2) obs
-      res <- mapM (applyTactics solver tactics ns fresh_names (sh1, sh2)) states
+      res <- mapM (applyTactics solver tactics ns HS.empty fresh_names (sh1, sh2)) states
       -- list of remaining obligations in StateH form
       -- TODO I think non-ready ones can stay as they are
       let res' = foldr getRemaining [] res
+          lemmas = HS.unions $ map getLemmas res
       if hasFail res then do
         W.liftIO $ putStrLn "X?"
         W.tell [Marker (sh1, sh2) $ SolverFail (s1, s2)]
         return Nothing
       else do
         W.liftIO $ putStrLn $ "V? " ++ show (length res')
-        return $ Just res'
+        return $ Just (res', lemmas)
 
 -- TODO (9/27) check path constraint implication?
 -- TODO (9/30) alternate:  just substitute one scrutinee for the other
