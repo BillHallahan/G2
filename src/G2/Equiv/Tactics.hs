@@ -38,6 +38,9 @@ module G2.Equiv.Tactics
     , replaceProposedLemmas
     , insertProvenLemma
     , provenLemmas
+
+    , disprovenLemmas
+    , insertDisprovenLemma
     )
     where
 
@@ -804,7 +807,8 @@ insertProposedLemma solver ns lem lems@(Lemmas { proposed_lemmas = prop_lems
                                                , disproven_lemmas = disproven_lems }) = do
     same_as_proposed <- equivLemma solver ns lem prop_lems
     implied_by_proven <- moreRestrictiveLemma solver ns lem proven_lems
-    case same_as_proposed || implied_by_proven of
+    implied_by_disproven <- anyM (\dl -> moreRestrictiveLemma solver ns dl [lem]) disproven_lems
+    case same_as_proposed || implied_by_proven  || implied_by_disproven of
         True -> return lems
         False -> return lems { proposed_lemmas = lem:prop_lems }
 
@@ -814,11 +818,17 @@ proposedLemmas = proposed_lemmas
 provenLemmas :: Lemmas -> [ProposedLemma]
 provenLemmas = proven_lemmas
 
+disprovenLemmas :: Lemmas -> [ProposedLemma]
+disprovenLemmas = disproven_lemmas
+
 replaceProposedLemmas :: [ProposedLemma] -> Lemmas -> Lemmas
 replaceProposedLemmas pl lems = lems { proposed_lemmas = pl }
 
 insertProvenLemma :: ProvenLemma -> Lemmas -> Lemmas
 insertProvenLemma lem lems = lems { proven_lemmas = lem:proven_lemmas lems }
+
+insertDisprovenLemma :: DisprovenLemma -> Lemmas -> Lemmas
+insertDisprovenLemma lem lems = lems { disproven_lemmas = lem:disproven_lemmas lems }
 
 moreRestrictiveLemma :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> [Lemma] -> W.WriterT [Marker] IO Bool 
 moreRestrictiveLemma solver ns (Lemma l1_1 l1_2 _) lems = do
