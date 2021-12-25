@@ -310,16 +310,11 @@ replaceH sh s = sh { latest = s }
 all_tactics :: S.Solver s => [Tactic s]
 all_tactics = [tryEquality, tryCoinduction, inductionFull, trySolver]
 
-data Lemma = Lemma StateET StateET [(StateH, StateH)]
-
-type ProposedLemma = Lemma
-type ProvenLemma = Lemma
-
 -- negative loop iteration count means there's no limit
 verifyLoop :: S.Solver solver =>
               solver ->
               HS.HashSet Name ->
-              [ProposedLemma] ->
+              Lemmas ->
               [(StateH, StateH)] ->
               Bindings ->
               Config ->
@@ -327,11 +322,13 @@ verifyLoop :: S.Solver solver =>
               Int ->
               Int ->
               W.WriterT [Marker] IO (S.Result () ())
-verifyLoop solver ns prop_lemmas states b config folder_root k n | n /= 0 = do
+verifyLoop solver ns lemmas states b config folder_root k n | n /= 0 = do
   W.liftIO $ putStrLn "<Loop Iteration>"
   W.liftIO $ putStrLn $ show n
 
   (sr, b', k') <- verifyLoop' solver all_tactics ns b config folder_root k states
+
+  let prop_lemmas = proposedLemmas lemmas
 
   (prop_lemmas', (b'', k'')) <-
               CM.runStateT (mapM (verifyLoopPropLemmas solver all_tactics ns config folder_root) prop_lemmas) (b', k')
@@ -348,15 +345,27 @@ verifyLoop solver ns prop_lemmas states b config folder_root k n | n /= 0 = do
           W.liftIO $ putStrLn $ show $ length new_obligations
           W.liftIO $ putStrLn $ "length new_lemmas = " ++ show (length new_lemmas)
 
-          let prop_lemmas'' = continued_lemmas' ++ new_lemmas
+          -- let prop_lemmas'' = continued_lemmas' ++ new_lemmas
+          lemmas' <- foldM (flip (insertProposedLemma solver ns))
+                           (replaceProposedLemmas continued_lemmas' lemmas)
+                           new_lemmas
+          let lemmas'' = foldr insertProvenLemma lemmas' proven_lemma'
           -- mapM (\l@(le1, le2) -> do
           --               let pg = mkPrettyGuide l
           --               W.liftIO $ putStrLn "----"
           --               W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le1) le1
           --               W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le2) le2) $ HS.toList new_lemmas
-          verifyLoop solver ns prop_lemmas'' new_obligations b'' config folder_root k'' n'
+          verifyLoop solver ns lemmas'' new_obligations b'' config folder_root k'' n'
       CounterexampleFound -> return $ S.SAT ()
-      Proven -> return $ S.UNSAT ()
+      Proven -> do
+          W.liftIO $ putStrLn $ "proposed = " ++ show (length continued_lemmas')
+          mapM (\l@(Lemma le1 le2 _) -> do
+                        let pg = mkPrettyGuide l
+                        W.liftIO $ putStrLn "----"
+                        W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le1) le1
+                        W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le2) le2) $ continued_lemmas'
+          W.liftIO $ putStrLn $ "proven = " ++ show (length proven_lemma') 
+          return $ S.UNSAT ()
   | otherwise = do
     -- TODO log some new things with the writer for unresolved obligations
     -- TODO the present states are somewhat redundant
@@ -672,7 +681,7 @@ checkRule config init_state bindings total finite print_summary iterations rule 
   putStrLn $ printHaskellDirty $ exprExtract $ latest rewrite_state_l''
   putStrLn $ printHaskellDirty $ exprExtract $ latest rewrite_state_r''
   (res, w) <- W.runWriterT $ verifyLoop solver ns
-             []
+             emptyLemmas
              [(rewrite_state_l'', rewrite_state_r'')]
              bindings'' config "" 0 iterations
   -- UNSAT for good, SAT for bad

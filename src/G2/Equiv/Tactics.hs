@@ -13,6 +13,13 @@ module G2.Equiv.Tactics
     , Side (..)
     , TacticResult (..)
     , Tactic (..)
+
+    , Lemmas
+    , Lemma (..)
+    , ProposedLemma
+    , ProvenLemma
+    , DisprovenLemma
+
     , isSWHNF
     , tryEquality
     , moreRestrictiveEqual
@@ -24,6 +31,13 @@ module G2.Equiv.Tactics
     , applySolver
     , backtrackOne
     , prevFiltered
+
+    , emptyLemmas
+    , insertProposedLemma
+    , proposedLemmas
+    , replaceProposedLemmas
+    , insertProvenLemma
+    , provenLemmas
     )
     where
 
@@ -61,7 +75,7 @@ import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import G2.Execution.Memory
-import Data.Monoid (Any (..))
+import Data.Monoid (Any (..), (<>))
 
 import Debug.Trace
 
@@ -768,3 +782,61 @@ tryCoinduction solver ns _ (sh1, sh2) (s1, s2) = do
           W.tell [Marker (sh1, sh2) $ Coinduction $ reverseCoMarker cmr]
           return $ Success Nothing
         Left r_lemmas -> return . NoProof $ HS.union l_lemmas r_lemmas
+
+-------------------------------------------------------------------------------
+
+data Lemmas = Lemmas { proposed_lemmas :: [ProposedLemma]
+                     , proven_lemmas :: [ProvenLemma]
+                     , disproven_lemmas :: [DisprovenLemma]}
+
+data Lemma = Lemma StateET StateET [(StateH, StateH)]
+
+type ProposedLemma = Lemma
+type ProvenLemma = Lemma
+type DisprovenLemma = Lemma
+
+emptyLemmas :: Lemmas
+emptyLemmas = Lemmas [] [] []
+
+insertProposedLemma :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> Lemmas -> W.WriterT [Marker] IO Lemmas
+insertProposedLemma solver ns lem lems@(Lemmas { proposed_lemmas = prop_lems
+                                               , proven_lemmas = proven_lems
+                                               , disproven_lemmas = disproven_lems }) = do
+    same_as_proposed <- equivLemma solver ns lem prop_lems
+    implied_by_proven <- moreRestrictiveLemma solver ns lem proven_lems
+    case same_as_proposed || implied_by_proven of
+        True -> return lems
+        False -> return lems { proposed_lemmas = lem:prop_lems }
+
+proposedLemmas :: Lemmas -> [ProposedLemma]
+proposedLemmas = proposed_lemmas
+
+provenLemmas :: Lemmas -> [ProposedLemma]
+provenLemmas = proven_lemmas
+
+replaceProposedLemmas :: [ProposedLemma] -> Lemmas -> Lemmas
+replaceProposedLemmas pl lems = lems { proposed_lemmas = pl }
+
+insertProvenLemma :: ProvenLemma -> Lemmas -> Lemmas
+insertProvenLemma lem lems = lems { proven_lemmas = lem:proven_lemmas lems }
+
+moreRestrictiveLemma :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> [Lemma] -> W.WriterT [Marker] IO Bool 
+moreRestrictiveLemma solver ns (Lemma l1_1 l1_2 _) lems = do
+    mr <- moreRestrictivePair solver ns (map (\(Lemma l2_1 l2_2 _) -> (l2_1, l2_2)) lems) (l1_1, l1_2)
+    case mr of
+        Left _ -> return False
+        Right _ -> return True
+
+equivLemma :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> [Lemma] -> W.WriterT [Marker] IO Bool 
+equivLemma solver ns (Lemma l1_1 l1_2 _) lems = do
+    anyM (\(Lemma l2_1 l2_2 _) -> do
+                    mr1 <- moreRestrictivePair solver ns [(l2_1, l2_2)] (l1_1, l1_2)
+                    mr2 <- moreRestrictivePair solver ns [(l1_1, l1_2)] (l2_1, l2_2)
+                    case (mr1, mr2) of
+                        (Right _, Right _) -> return True
+                        _ -> return False) lems
+
+instance Named Lemma where
+    names (Lemma s1 s2 sh) = names s1 <> names s2 <> names sh
+    rename old new (Lemma s1 s2 sh) =
+        Lemma (rename old new s1) (rename old new s2) (rename old new sh)
