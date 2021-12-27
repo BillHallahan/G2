@@ -326,12 +326,12 @@ verifyLoop solver ns lemmas states b config folder_root k n | n /= 0 = do
   W.liftIO $ putStrLn "<Loop Iteration>"
   W.liftIO $ putStrLn $ show n
 
-  (sr, b', k') <- verifyLoop' solver all_tactics ns b config folder_root k states
+  (sr, b', k') <- verifyLoop' solver all_tactics ns lemmas b config folder_root k states
 
   let prop_lemmas = proposedLemmas lemmas
 
   (prop_lemmas', (b'', k'')) <-
-              CM.runStateT (mapM (verifyLoopPropLemmas solver all_tactics ns config folder_root) prop_lemmas) (b', k')
+              CM.runStateT (mapM (verifyLoopPropLemmas solver all_tactics ns lemmas config folder_root) prop_lemmas) (b', k')
 
   let (proven_lemmas, continued_lemmas, disproven_lemmas) = partitionLemmas ([], [], []) prop_lemmas'
 
@@ -339,6 +339,11 @@ verifyLoop solver ns lemmas states b config folder_root k n | n /= 0 = do
   W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length proven_lemmas)
   W.liftIO $ putStrLn $ "continued_lemmas: " ++ show (length continued_lemmas)
   W.liftIO $ putStrLn $ "disproven_lemmas: " ++ show (length disproven_lemmas)
+  mapM (\l@(Lemma le1 le2 _) -> do
+                let pg = mkPrettyGuide l
+                W.liftIO $ putStrLn "---- Proven ----"
+                W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le1) le1
+                W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le2) le2) proven_lemmas
 
   case sr of
       ContinueWith new_obligations new_lemmas -> do
@@ -361,11 +366,11 @@ verifyLoop solver ns lemmas states b config folder_root k n | n /= 0 = do
       CounterexampleFound -> return $ S.SAT ()
       Proven -> do
           W.liftIO $ putStrLn $ "proposed = " ++ show (length $ proposedLemmas lemmas)
-          mapM (\l@(Lemma le1 le2 _) -> do
-                        let pg = mkPrettyGuide l
-                        W.liftIO $ putStrLn "----"
-                        W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le1) le1
-                        W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le2) le2) $ proposedLemmas lemmas
+          -- mapM (\l@(Lemma le1 le2 _) -> do
+          --               let pg = mkPrettyGuide l
+          --               W.liftIO $ putStrLn "----"
+          --               W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le1) le1
+          --               W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le2) le2) $ proposedLemmas lemmas
           W.liftIO $ putStrLn $ "proven = " ++ show (length $ provenLemmas lemmas) 
           W.liftIO $ putStrLn $ "disproven = " ++ show (length $ disprovenLemmas lemmas) 
           return $ S.UNSAT ()
@@ -390,14 +395,15 @@ verifyLoopPropLemmas :: S.Solver solver =>
                         solver
                      -> [Tactic solver]
                      -> HS.HashSet Name
+                     -> Lemmas
                      -> Config
                      -> String
                      -> ProposedLemma
                      -> CM.StateT (Bindings, Int)  (W.WriterT [Marker] IO) (StepRes, [Lemma])
-verifyLoopPropLemmas solver tactics ns config folder_root l@(Lemma is1 is2 states) = do
+verifyLoopPropLemmas solver tactics ns lemmas config folder_root l@(Lemma is1 is2 states) = do
     (b, k) <- CM.get
     W.liftIO $ putStrLn $ "k = " ++ show k
-    (sr, b', k') <- W.lift (verifyLoop' solver tactics ns b config folder_root k states)
+    (sr, b', k') <- W.lift (verifyLoop' solver tactics ns lemmas b config folder_root k states)
     CM.put (b', k')
     let lem = case sr of
                   CounterexampleFound -> trace "COUNTEREXAMPLE verifyLemma" [Lemma is1 is2 []]
@@ -409,20 +415,21 @@ verifyLoop' :: S.Solver solver =>
                solver
             -> [Tactic solver]
             -> HS.HashSet Name
+            -> Lemmas
             -> Bindings
             -> Config
             -> String
             -> Int
             -> [(StateH, StateH)]
             -> W.WriterT [Marker] IO (StepRes, Bindings, Int)
-verifyLoop' solver tactics ns b config folder_root k states = do
+verifyLoop' solver tactics ns lemmas b config folder_root k states = do
     let current_states = map getLatest states
     (paired_states, (b', k')) <- W.liftIO $ CM.runStateT (mapM (uncurry (runSymExec solver config folder_root)) current_states) (b, k)
 
     let (fresh_name, ng') = freshName (name_gen b')
         b'' = b' { name_gen = ng' }
  
-        td (sh1, sh2) = tryDischarge solver tactics ns [fresh_name] sh1 sh2
+        td (sh1, sh2) = tryDischarge solver tactics ns lemmas [fresh_name] sh1 sh2
 
     -- for every internal list, map with its corresponding original state
     let app_pair (sh1, sh2) (s1, s2) = (appendH sh1 s1, appendH sh2 s2)
@@ -508,14 +515,14 @@ hasFail (_:es) = hasFail es
 -- TODO put in a different file?
 -- TODO do all of the solver obligations need to be covered together?
 trySolver :: S.Solver s => Tactic s
-trySolver solver ns _ _ (s1, s2) | statePairReadyForSolver (s1, s2) = do
+trySolver solver ns _ _ _ (s1, s2) | statePairReadyForSolver (s1, s2) = do
   let e1 = exprExtract s1
       e2 = exprExtract s2
   res <- W.liftIO $ checkObligations solver s1 s2 (HS.fromList [(e1, e2)])
   case res of
     S.UNSAT () -> return $ Success Nothing
     _ -> return Failure
-trySolver _ _ _ _ _ = return $ NoProof HS.empty
+trySolver _ _ _ _ _ _ = return $ NoProof HS.empty
 
 -- TODO apply all tactics sequentially in a single run
 -- make StateH adjustments between each application, if necessary
@@ -526,23 +533,24 @@ applyTactics :: S.Solver solver =>
                 solver ->
                 [Tactic solver] ->
                 HS.HashSet Name ->
+                Lemmas ->
                 HS.HashSet (StateET, StateET) ->
                 [Name] ->
                 (StateH, StateH) ->
                 (StateET, StateET) ->
                 W.WriterT [Marker] IO TacticEnd
-applyTactics solver (tac:tacs) ns lemmas fresh_names (sh1, sh2) (s1, s2) = do
-  tr <- tac solver ns fresh_names (sh1, sh2) (s1, s2)
+applyTactics solver (tac:tacs) ns lemmas gen_lemmas fresh_names (sh1, sh2) (s1, s2) = do
+  tr <- tac solver ns lemmas fresh_names (sh1, sh2) (s1, s2)
   case tr of
     Failure -> return EFail
-    NoProof new_lemmas -> applyTactics solver tacs ns (HS.union new_lemmas lemmas) fresh_names (sh1, sh2) (s1, s2)
+    NoProof new_lemmas -> applyTactics solver tacs ns lemmas (HS.union new_lemmas gen_lemmas) fresh_names (sh1, sh2) (s1, s2)
     Success res -> case res of
       Nothing -> return EDischarge
       Just (n1, n2, s1', s2') -> do
         let (sh1', sh2') = adjustStateH (sh1, sh2) (n1, n2) (s1', s2')
-        applyTactics solver tacs ns lemmas fresh_names (sh1', sh2') (s1', s2')
-applyTactics _ _ _ lemmas _ (sh1, sh2) (s1, s2) =
-  return $ EContinue lemmas (replaceH sh1 s1, replaceH sh2 s2)
+        applyTactics solver tacs ns lemmas gen_lemmas fresh_names (sh1', sh2') (s1', s2')
+applyTactics _ _ _ _ gen_lemmas _ (sh1, sh2) (s1, s2) =
+  return $ EContinue gen_lemmas (replaceH sh1 s1, replaceH sh2 s2)
 
 -- TODO how do I handle the solver application in this version?
 -- Nothing output means failure now
@@ -551,11 +559,12 @@ tryDischarge :: S.Solver solver =>
                 solver ->
                 [Tactic solver] ->
                 HS.HashSet Name ->
+                Lemmas ->
                 [Name] ->
                 StateH ->
                 StateH ->
                 W.WriterT [Marker] IO (Maybe ([(StateH, StateH)], HS.HashSet (StateET, StateET)))
-tryDischarge solver tactics ns fresh_names sh1 sh2 =
+tryDischarge solver tactics ns lemmas fresh_names sh1 sh2 =
   let s1 = latest sh1
       s2 = latest sh2
   in case getObligations ns s1 s2 of
@@ -575,7 +584,7 @@ tryDischarge solver tactics ns fresh_names sh1 sh2 =
       W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s2
       -- TODO no more limitations on when induction can be used here
       let states = map (stateWrap s1 s2) obs
-      res <- mapM (applyTactics solver tactics ns HS.empty fresh_names (sh1, sh2)) states
+      res <- mapM (applyTactics solver tactics ns lemmas HS.empty fresh_names (sh1, sh2)) states
       -- list of remaining obligations in StateH form
       -- TODO I think non-ready ones can stay as they are
       let res' = foldr getRemaining [] res

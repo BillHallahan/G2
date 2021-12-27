@@ -19,7 +19,9 @@ module G2.Lib.Printers ( PrettyGuide
                        , pprExecStateStr
                        , pprExecEEnvStr
                        , printFuncCall
-                       , prettyState) where
+                       , prettyState
+
+                       , prettyGuideStr) where
 
 import G2.Execution.Memory
 import G2.Language.Expr
