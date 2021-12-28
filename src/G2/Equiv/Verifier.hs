@@ -356,8 +356,8 @@ verifyLoop solver ns lemmas states b config folder_root k n | n /= 0 = do
           -- mapM (\l@(le1, le2) -> do
           --               let pg = mkPrettyGuide l
           --               W.liftIO $ putStrLn "----"
-          --               W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le1) le1
-          --               W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le2) le2) $ HS.toList new_lemmas
+          --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
+          --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) $ HS.toList new_lemmas
           verifyLoop solver ns lemmas''' new_obligations b'' config folder_root k'' n'
       CounterexampleFound -> return $ S.SAT ()
       Proven -> do
@@ -365,8 +365,8 @@ verifyLoop solver ns lemmas states b config folder_root k n | n /= 0 = do
           -- mapM (\l@(Lemma le1 le2 _) -> do
           --               let pg = mkPrettyGuide l
           --               W.liftIO $ putStrLn "----"
-          --               W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le1) le1
-          --               W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le2) le2) $ proposedLemmas lemmas
+          --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
+          --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) $ proposedLemmas lemmas
           W.liftIO $ putStrLn $ "proven = " ++ show (length $ provenLemmas lemmas) 
           W.liftIO $ putStrLn $ "disproven = " ++ show (length $ disprovenLemmas lemmas) 
           return $ S.UNSAT ()
@@ -374,18 +374,18 @@ verifyLoop solver ns lemmas states b config folder_root k n | n /= 0 = do
     mapM (\l@(Lemma le1 le2 _) -> do
                   let pg = mkPrettyGuide l
                   W.liftIO $ putStrLn "---- Proven ----"
-                  W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le1) le1
-                  W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le2) le2) (provenLemmas lemmas)
+                  W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
+                  W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) (provenLemmas lemmas)
     mapM (\l@(Lemma le1 le2 _) -> do
                   let pg = mkPrettyGuide l
                   W.liftIO $ putStrLn "---- Disproven ----"
-                  W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le1) le1
-                  W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le2) le2) (disprovenLemmas lemmas)
+                  W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
+                  W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) (disprovenLemmas lemmas)
     mapM (\l@(Lemma le1 le2 _) -> do
                   let pg = mkPrettyGuide l
                   W.liftIO $ putStrLn "---- Proposed ----"
-                  W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le1) le1
-                  W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le2) le2) (proposedLemmas lemmas)
+                  W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
+                  W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) (proposedLemmas lemmas)
     -- TODO log some new things with the writer for unresolved obligations
     -- TODO the present states are somewhat redundant
     W.liftIO $ putStrLn $ "Unresolved Obligations: " ++ show (length states)
@@ -585,8 +585,8 @@ tryDischarge solver tactics ns lemmas fresh_names sh1 sh2 =
       let pg = mkPrettyGuide (s1, s2)
       W.tell [Marker (sh1, sh2) $ NotEquivalent (s1, s2)]
       W.liftIO $ putStrLn $ "N! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
-      W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env s1) s1
-      W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env s2) s2
+      W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s1) s1
+      W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s2) s2
       W.liftIO $ mapM putStrLn $ exprTrace sh1 sh2
       return Nothing
     Just obs -> do
@@ -595,8 +595,8 @@ tryDischarge solver tactics ns lemmas fresh_names sh1 sh2 =
         [] -> W.tell [Marker (sh1, sh2) $ NoObligations (s1, s2)]
         _ -> return ()
       W.liftIO $ putStrLn $ "J! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
-      W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env s1) s1
-      W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env s2) s2
+      W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s1) s1
+      W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s2) s2
       -- TODO no more limitations on when induction can be used here
       let states = map (stateWrap s1 s2) obs
       res <- mapM (applyTactics solver tactics ns lemmas HS.empty fresh_names (sh1, sh2)) states
@@ -720,7 +720,7 @@ checkRule config init_state bindings total finite print_summary iterations rule 
   if print_summary /= NoSummary then do
     putStrLn "--- SUMMARY ---"
     let pg = mkPrettyGuide $ map (\(Marker _ m) -> m) w
-    mapM (putStrLn . (summarize print_summary pg (HS.toList ns) (ru_bndrs rule))) w
+    mapM (putStrLn . (summarize print_summary pg ns (ru_bndrs rule))) w
     putStrLn "--- END OF SUMMARY ---"
   else return ()
   S.close solver
