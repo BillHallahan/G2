@@ -389,8 +389,8 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                            | Left (Just _) <- moreResFA -> moreResFA
                            | not (hasFuncType e1) ->
                                 let
-                                    ls1 = s1 { curr_expr = CurrExpr Evaluate e1 }
-                                    ls2 = s2 { curr_expr = CurrExpr Evaluate e2}
+                                    ls1 = s2 { curr_expr = CurrExpr Evaluate e1 }
+                                    ls2 = s2 { curr_expr = CurrExpr Evaluate e2 }
                                 in
                                 Left (Just (ls1, ls2))
         where
@@ -558,7 +558,8 @@ syncSymbolic s1 s2 =
       f e1 _ = e1
       h1 = E.unionWith f (expr_env s1) (expr_env s2)
       h2 = E.unionWith f (expr_env s2) (expr_env s1)
-  in (s1 { expr_env = h1 }, s2 { expr_env = h2 })
+  in
+  assert (E.symbolicIds h1 == E.symbolicIds h2) $ (s1 { expr_env = h1 }, s2 { expr_env = h2 })
 
 obligationWrap :: HS.HashSet (Expr, Expr) -> Maybe PathCond
 obligationWrap obligations =
@@ -638,7 +639,7 @@ moreRestrictivePairAux solver ns prev (s1, s2) = do
       mpc (PrevMatch _ (p1, p2) (hm, _) _) =
           andM [moreRestrictivePC solver p1 s1 hm, moreRestrictivePC solver p2 s2 hm]
 
-  possible_matches' <- filterM mpc possible_matches-- (zip possible_matches prev)
+  possible_matches' <- filterM mpc possible_matches
   -- check obligations individually rather than as one big group
   res_list <- W.liftIO (findM (\pm -> isUnsat =<< checkObligations solver s1 s2 (snd . conditions $ pm)) (possible_matches'))
   return $ maybe (Left $ HS.fromList possible_lemmas') Right res_list
@@ -927,8 +928,6 @@ moreRestrictivePairWithLemmas solver ns lemmas past (s1, s2) = do
     xs2 <- substLemma solver ns s2 lemmas
 
     let pairs = [ (s1', s2') | s1' <- s1:xs1, s2' <- s2:xs2 ]
-
-    W.liftIO $ putStrLn $ "length pairs = " ++ show (length pairs)
 
     (possible_lemmas, possible_matches) <- return . partitionEithers =<< mapM (moreRestrictivePair solver ns past) pairs
     case possible_matches of

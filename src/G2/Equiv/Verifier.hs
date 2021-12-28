@@ -12,6 +12,7 @@ import G2.Config
 
 import G2.Interface
 
+import Control.Exception
 import qualified Control.Monad.State.Lazy as CM
 
 import qualified G2.Language.ExprEnv as E
@@ -339,11 +340,6 @@ verifyLoop solver ns lemmas states b config folder_root k n | n /= 0 = do
   W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length proven_lemmas)
   W.liftIO $ putStrLn $ "continued_lemmas: " ++ show (length continued_lemmas)
   W.liftIO $ putStrLn $ "disproven_lemmas: " ++ show (length disproven_lemmas)
-  mapM (\l@(Lemma le1 le2 _) -> do
-                let pg = mkPrettyGuide l
-                W.liftIO $ putStrLn "---- Proven ----"
-                W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le1) le1
-                W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le2) le2) proven_lemmas
 
   case sr of
       ContinueWith new_obligations new_lemmas -> do
@@ -375,6 +371,21 @@ verifyLoop solver ns lemmas states b config folder_root k n | n /= 0 = do
           W.liftIO $ putStrLn $ "disproven = " ++ show (length $ disprovenLemmas lemmas) 
           return $ S.UNSAT ()
   | otherwise = do
+    mapM (\l@(Lemma le1 le2 _) -> do
+                  let pg = mkPrettyGuide l
+                  W.liftIO $ putStrLn "---- Proven ----"
+                  W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le1) le1
+                  W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le2) le2) (provenLemmas lemmas)
+    mapM (\l@(Lemma le1 le2 _) -> do
+                  let pg = mkPrettyGuide l
+                  W.liftIO $ putStrLn "---- Disproven ----"
+                  W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le1) le1
+                  W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le2) le2) (disprovenLemmas lemmas)
+    mapM (\l@(Lemma le1 le2 _) -> do
+                  let pg = mkPrettyGuide l
+                  W.liftIO $ putStrLn "---- Proposed ----"
+                  W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le1) le1
+                  W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env le2) le2) (proposedLemmas lemmas)
     -- TODO log some new things with the writer for unresolved obligations
     -- TODO the present states are somewhat redundant
     W.liftIO $ putStrLn $ "Unresolved Obligations: " ++ show (length states)
@@ -448,7 +459,9 @@ verifyLoop' solver tactics ns lemmas b config folder_root k states = do
     return (res, b'', k')
 
 mkProposedLemma :: StateET -> StateET -> ProposedLemma
-mkProposedLemma s1 s2 = Lemma s1 s2 [(newStateH s1, newStateH s2)] 
+mkProposedLemma s1 s2 =
+    assert (E.symbolicIds (expr_env s1) == E.symbolicIds (expr_env s2))
+           $ Lemma s1 s2 [(newStateH s1, newStateH s2)] 
 
 stateWrap :: StateET -> StateET -> Obligation -> (StateET, StateET)
 stateWrap s1 s2 (Ob e1 e2) =
