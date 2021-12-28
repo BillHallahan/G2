@@ -582,19 +582,21 @@ tryDischarge solver tactics ns lemmas fresh_names sh1 sh2 =
       s2 = latest sh2
   in case getObligations ns s1 s2 of
     Nothing -> do
+      let pg = mkPrettyGuide (s1, s2)
       W.tell [Marker (sh1, sh2) $ NotEquivalent (s1, s2)]
       W.liftIO $ putStrLn $ "N! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
-      W.liftIO $ putStrLn $ show $ exprExtract s1
-      W.liftIO $ putStrLn $ show $ exprExtract s2
+      W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env s1) s1
+      W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env s2) s2
       W.liftIO $ mapM putStrLn $ exprTrace sh1 sh2
       return Nothing
     Just obs -> do
+      let pg = mkPrettyGuide (s1, s2)
       case obs of
         [] -> W.tell [Marker (sh1, sh2) $ NoObligations (s1, s2)]
         _ -> return ()
       W.liftIO $ putStrLn $ "J! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
-      W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s1
-      W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s2
+      W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env s1) s1
+      W.liftIO $ putStrLn $ printPG pg (HS.toList ns) (E.symbolicIds $ expr_env s2) s2
       -- TODO no more limitations on when induction can be used here
       let states = map (stateWrap s1 s2) obs
       res <- mapM (applyTactics solver tactics ns lemmas HS.empty fresh_names (sh1, sh2)) states
