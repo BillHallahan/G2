@@ -444,8 +444,7 @@ verifyLoop' solver tactics ns lemmas b config folder_root k states = do
 
     -- for every internal list, map with its corresponding original state
     let app_pair (sh1, sh2) (s1, s2) = (appendH sh1 s1, appendH sh2 s2)
-        map_fns = map app_pair states
-        updated_hists = map (uncurry map) (zip map_fns paired_states)
+        updated_hists = map (\(s, ps) -> map (app_pair s) ps) $ zip states paired_states
     W.liftIO $ putStrLn $ show $ length $ concat updated_hists
     proof_lemma_list <- mapM td $ concat updated_hists
 
