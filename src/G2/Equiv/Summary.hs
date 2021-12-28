@@ -54,7 +54,7 @@ trackName s =
     "" -> "Start"
     _ -> final_sub
 
-printPG :: PrettyGuide -> [Name] -> [Id] -> StateET -> String
+printPG :: PrettyGuide -> HS.HashSet Name -> [Id] -> StateET -> String
 printPG pg ns sym_ids s =
   let label_str = trackName s
       h = expr_env s
@@ -80,10 +80,10 @@ printPG pg ns sym_ids s =
         _ -> "\nSymbolic Function Mappings:\n" ++ map_str
   in label_str ++ "\n" ++ e_str ++ sym_print ++ var_print ++ map_print ++ "\n---"
 
-inlineVars :: [Name] -> ExprEnv -> Expr -> Expr
+inlineVars :: HS.HashSet Name -> ExprEnv -> Expr -> Expr
 inlineVars ns eenv = inlineVars' HS.empty ns eenv
 
-inlineVars' :: HS.HashSet Name -> [Name] -> ExprEnv -> Expr -> Expr
+inlineVars' :: HS.HashSet Name -> HS.HashSet Name -> ExprEnv -> Expr -> Expr
 inlineVars' seen ns eenv v@(Var (Id n _))
     | n `elem` ns = v
     | n `HS.member` seen = v
@@ -97,7 +97,7 @@ data ChainEnd = Symbolic Id
 
 -- don't include ns names in the result here
 -- this does not remove duplicates
-varsInExpr :: [Name] -> Expr -> [Id]
+varsInExpr :: HS.HashSet Name -> Expr -> [Id]
 varsInExpr ns e = filter (\i -> not ((idName i) `elem` ns)) $ X.vars e
 
 extraVars :: ChainEnd -> [Id]
@@ -109,15 +109,15 @@ extraVars _ = []
 -- need to prune out repeats
 -- should things count as repeats if they appear in the chain?
 -- no need to remove duplicates if HashSet used internally
-varsFull :: ExprEnv -> [Name] -> Expr -> [Id]
+varsFull :: ExprEnv -> HS.HashSet Name -> Expr -> [Id]
 varsFull h ns e =
   let ids = varsInExpr ns e
   in HS.toList $ varsFullRec ns h (HS.fromList ids) ids
 
-varsFullList :: ExprEnv -> [Name] -> [Id] -> [Id]
+varsFullList :: ExprEnv -> HS.HashSet Name -> [Id] -> [Id]
 varsFullList h ns ids = HS.toList $ varsFullRec ns h (HS.fromList ids) ids
 
-varsFullRec :: [Name] -> ExprEnv -> HS.HashSet Id -> [Id] -> HS.HashSet Id
+varsFullRec :: HS.HashSet Name -> ExprEnv -> HS.HashSet Id -> [Id] -> HS.HashSet Id
 varsFullRec ns h seen search
   | null search = seen
   | otherwise =
@@ -130,7 +130,7 @@ varsFullRec ns h seen search
     in varsFullRec ns h new_seen all_new
 
 -- the terminal expression can have variables of its own that we should cover
-varChain :: ExprEnv -> [Name] -> [Id] -> Id -> ([Id], ChainEnd)
+varChain :: ExprEnv -> HS.HashSet Name -> [Id] -> Id -> ([Id], ChainEnd)
 varChain h ns inlined i =
   if i `elem` inlined then (reverse inlined, Cycle i)
   else if (idName i) `elem` ns then (reverse inlined, Terminal (Var i) [])
@@ -139,14 +139,14 @@ varChain h ns inlined i =
     Just (E.Sym i') -> (reverse (i:inlined), Symbolic i')
     Just (E.Conc e) -> exprChain h ns (i:inlined) e
 
-exprChain :: ExprEnv -> [Name] -> [Id] -> Expr -> ([Id], ChainEnd)
+exprChain :: ExprEnv -> HS.HashSet Name -> [Id] -> Expr -> ([Id], ChainEnd)
 exprChain h ns inlined e = case e of
   Tick _ e' -> exprChain h ns inlined e'
   Var i -> varChain h ns inlined i
   _ -> (reverse inlined, Terminal e $ varsInExpr ns e)
 
 -- stop inlining when something in ns reached
-printVar :: PrettyGuide -> [Name] -> StateET -> Id -> String
+printVar :: PrettyGuide -> HS.HashSet Name -> StateET -> Id -> String
 printVar pg ns s@(State{ expr_env = h }) i =
   let (chain, c_end) = varChain h ns [] i
       chain_strs = map (\i_ -> printHaskellDirtyPG pg $ Var i_) chain
@@ -159,7 +159,7 @@ printVar pg ns s@(State{ expr_env = h }) i =
     Unmapped -> ""
     _ -> (foldr (\str acc -> str ++ " = " ++ acc) "" chain_strs) ++ end_str
 
-printVars :: PrettyGuide -> [Name] -> StateET -> [Id] -> String
+printVars :: PrettyGuide -> HS.HashSet Name -> StateET -> [Id] -> String
 printVars pg ns s vars =
   let var_strs = map (printVar pg ns s) vars
       non_empty_strs = filter (not . null) var_strs
@@ -180,7 +180,7 @@ printMappings pg s =
 -- no new line at end
 summarizeStatePairTrack :: String ->
                            PrettyGuide ->
-                           [Name] ->
+                           HS.HashSet Name ->
                            [Id] ->
                            StateET ->
                            StateET ->
@@ -192,7 +192,7 @@ summarizeStatePairTrack str pg ns sym_ids s1 s2 =
   (printPG pg ns sym_ids s1) ++ "\n" ++
   (printPG pg ns sym_ids s2)
 
-summarizeInduction :: PrettyGuide -> [Name] -> [Id] -> IndMarker -> String
+summarizeInduction :: PrettyGuide -> HS.HashSet Name -> [Id] -> IndMarker -> String
 summarizeInduction pg ns sym_ids im@(IndMarker {
                            ind_real_present = (s1, s2)
                          , ind_used_present = (q1, q2)
@@ -218,7 +218,7 @@ summarizeInduction pg ns sym_ids im@(IndMarker {
   "New Variable Name: " ++
   (printHaskellDirtyPG pg $ Var $ Id (ind_fresh_name im) $ typeOf $ exprExtract s1')
 
-summarizeCoinduction :: PrettyGuide -> [Name] -> [Id] -> CoMarker -> String
+summarizeCoinduction :: PrettyGuide -> HS.HashSet Name -> [Id] -> CoMarker -> String
 summarizeCoinduction pg ns sym_ids (CoMarker {
                              co_real_present = (s1, s2)
                            , co_used_present = (q1, q2)
@@ -233,7 +233,7 @@ summarizeCoinduction pg ns sym_ids (CoMarker {
 -- look them up, find a fixed point
 -- print all relevant vars beside the expressions
 -- don't include definitions from the initial state (i.e. things in ns)
-summarizeEquality :: PrettyGuide -> [Name] -> [Id] -> EqualMarker -> String
+summarizeEquality :: PrettyGuide -> HS.HashSet Name -> [Id] -> EqualMarker -> String
 summarizeEquality pg ns sym_ids (EqualMarker {
                           eq_real_present = (s1, s2)
                         , eq_used_present = (q1, q2)
@@ -243,28 +243,28 @@ summarizeEquality pg ns sym_ids (EqualMarker {
   (summarizeStatePairTrack "Used States" pg ns sym_ids q1 q2)
 
 summarizeNoObligations :: PrettyGuide ->
-                          [Name] ->
+                          HS.HashSet Name ->
                           [Id] ->
                           (StateET, StateET) ->
                           String
 summarizeNoObligations = summarizeStatePair "No Obligations Produced"
 
 summarizeNotEquivalent :: PrettyGuide ->
-                          [Name] ->
+                          HS.HashSet Name ->
                           [Id] ->
                           (StateET, StateET) ->
                           String
 summarizeNotEquivalent = summarizeStatePair "NOT EQUIVALENT"
 
 summarizeSolverFail :: PrettyGuide ->
-                       [Name] ->
+                       HS.HashSet Name ->
                        [Id] ->
                        (StateET, StateET) ->
                        String
 summarizeSolverFail = summarizeStatePair "SOLVER FAIL"
 
 summarizeUnresolved :: PrettyGuide ->
-                       [Name] ->
+                       HS.HashSet Name ->
                        [Id] ->
                        (StateET, StateET) ->
                        String
@@ -272,7 +272,7 @@ summarizeUnresolved = summarizeStatePair "Unresolved"
 
 summarizeStatePair :: String ->
                       PrettyGuide ->
-                      [Name] ->
+                      HS.HashSet Name ->
                       [Id] ->
                       (StateET, StateET) ->
                       String
@@ -283,7 +283,7 @@ summarizeStatePair str pg ns sym_ids (s1, s2) =
   (printPG pg ns sym_ids s1) ++ "\n" ++
   (printPG pg ns sym_ids s2)
 
-summarizeAct :: PrettyGuide -> [Name] -> [Id] -> ActMarker -> String
+summarizeAct :: PrettyGuide -> HS.HashSet Name -> [Id] -> ActMarker -> String
 summarizeAct pg ns sym_ids m = case m of
   Induction im -> summarizeInduction pg ns sym_ids im
   Coinduction cm -> summarizeCoinduction pg ns sym_ids cm
@@ -293,7 +293,7 @@ summarizeAct pg ns sym_ids m = case m of
   SolverFail s_pair -> summarizeSolverFail pg ns sym_ids s_pair
   Unresolved s_pair -> summarizeUnresolved pg ns sym_ids s_pair
 
-summarizeHistory :: PrettyGuide -> [Name] -> [Id] -> StateH -> String
+summarizeHistory :: PrettyGuide -> HS.HashSet Name -> [Id] -> StateH -> String
 summarizeHistory pg ns sym_ids =
   intercalate "\n" . map (printPG pg ns sym_ids) . reverse . history
 
@@ -303,7 +303,7 @@ tabsAfterNewLines ('\n':t) = '\n':'\t':(tabsAfterNewLines t)
 tabsAfterNewLines (c:t) = c:(tabsAfterNewLines t)
 
 -- generate the guide for the whole summary externally
-summarize :: SummaryMode -> PrettyGuide -> [Name] -> [Id] -> Marker -> String
+summarize :: SummaryMode -> PrettyGuide -> HS.HashSet Name -> [Id] -> Marker -> String
 summarize mode pg ns sym_ids (Marker (sh1, sh2) m) =
   let names1 = map trackName $ (latest sh1):history sh1
       names2 = map trackName $ (latest sh2):history sh2

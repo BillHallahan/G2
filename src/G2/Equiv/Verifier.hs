@@ -600,7 +600,7 @@ checkRule config init_state bindings total finite print_summary iterations rule 
   if print_summary /= NoSummary then do
     putStrLn "--- SUMMARY ---"
     let pg = mkPrettyGuide $ map (\(Marker _ m) -> m) w
-    mapM (putStrLn . (summarize print_summary pg (HS.toList ns) (ru_bndrs rule))) w
+    mapM (putStrLn . (summarize print_summary pg ns (ru_bndrs rule))) w
     putStrLn "--- END OF SUMMARY ---"
   else return ()
   S.close solver
