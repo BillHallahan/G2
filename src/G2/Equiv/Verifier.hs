@@ -416,10 +416,15 @@ verifyLoopPropLemmas solver tactics ns lemmas config folder_root l@(Lemma is1 is
     W.liftIO $ putStrLn $ "k = " ++ show k
     (sr, b', k') <- W.lift (verifyLoop' solver tactics ns lemmas b config folder_root k states)
     CM.put (b', k')
-    let lem = case sr of
-                  CounterexampleFound -> trace "COUNTEREXAMPLE verifyLemma" [Lemma is1 is2 []]
-                  ContinueWith states' lemmas -> Lemma is1 is2 states':lemmas
-                  Proven -> [Lemma is1 is2 []]
+    lem <- case sr of
+                  CounterexampleFound -> trace "COUNTEREXAMPLE verifyLemma" return [Lemma is1 is2 []]
+                  ContinueWith states' lemmas -> return $ Lemma is1 is2 states':lemmas
+                  Proven -> do
+                      let pg = mkPrettyGuide l
+                      CM.liftIO $ putStrLn "---- Just Proved ----"
+                      CM.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env is1) is1
+                      CM.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env is2) is2
+                      return [Lemma is1 is2 []]
     return (sr, lem)
 
 verifyLoop' :: S.Solver solver =>

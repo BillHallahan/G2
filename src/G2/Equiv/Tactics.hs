@@ -389,8 +389,10 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                            | Left (Just _) <- moreResFA -> moreResFA
                            | not (hasFuncType e1)
                            , not (hasFuncType e2)
-                           , Var _:_ <- unApp (modifyASTs stripTicks e1)
-                           , Var _:_ <- unApp (modifyASTs stripTicks e2) ->
+                           , Var (Id n1 _):_ <- unApp (modifyASTs stripTicks e1)
+                           , Var (Id n2 _):_ <- unApp (modifyASTs stripTicks e2)
+                           , nameOcc n1 == "drop" -- TODO temporary!
+                           , nameOcc n2 == "drop" ->
                                 let
                                     v_rep = HM.toList $ fst hm
                                     e1' = replaceVars e1 v_rep
@@ -560,9 +562,7 @@ restrictHelper :: StateET ->
                   HS.HashSet Name ->
                   Either (Maybe (StateET, StateET)) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                   Either (Maybe (StateET, StateET)) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-restrictHelper s1 s2 ns hm_hs = case restrictAux s1 s2 ns hm_hs of
-  Right (hm, hs) -> if validMap s1 s2 hm then Right (hm, hs) else Left Nothing
-  left -> left
+restrictHelper s1 s2 ns hm_hs = restrictAux s1 s2 ns hm_hs
 
 restrictAux :: StateET ->
                StateET ->
@@ -679,19 +679,20 @@ moreRestrictivePair solver ns prev (s1, s2) =
   let prev' = map (\(p1, p2) -> (p1, p2, p2)) prev in
   moreRestrictivePairAux solver ns prev' (s1, s2)
 
-moreRestrictiveSingle :: S.Solver solver => solver -> HS.HashSet Name -> StateET -> StateET -> W.WriterT [Marker] IO (Maybe (HM.HashMap Id Expr))
+moreRestrictiveSingle :: S.Solver solver => solver -> HS.HashSet Name -> StateET -> StateET
+                      -> W.WriterT [Marker] IO (Either (Maybe (StateET, StateET)) (HM.HashMap Id Expr))
 moreRestrictiveSingle solver ns s1 s2 = do
     case restrictHelper s1 s2 ns $ Right (HM.empty, HS.empty) of
-        Left _ -> return Nothing
+        (Left l) -> return $ Left l
         Right (hm, obs) -> do
             more_res_pc <- moreRestrictivePC solver s1 s2 hm
             case more_res_pc of
-                False -> return Nothing
+                False -> return $ Left Nothing
                 True -> do
                     obs <- W.liftIO (checkObligations solver s1 s2 obs)
                     case isUnsat obs of
-                        True -> return (Just hm)
-                        False -> return Nothing
+                        True -> return (Right hm)
+                        False -> return $ Left Nothing
     where
         isUnsat (S.UNSAT _) = True
         isUnsat _ = False
@@ -919,12 +920,30 @@ substLemma solver ns s =
                           mr_sub
                     ) . provenLemmas
 
-moreRestrictiveSubExpr :: S.Solver solver => solver -> HS.HashSet Name -> StateET -> StateET -> W.WriterT [Marker] IO (Maybe (Expr, HM.HashMap Id Expr))
+moreRestrictiveSubExpr :: S.Solver solver => solver -> HS.HashSet Name -> StateET -> StateET
+                       -> W.WriterT [Marker] IO (Maybe (Expr, HM.HashMap Id Expr))
 moreRestrictiveSubExpr solver ns s1 s2 = do
     mr_sub <- moreRestrictiveSingle solver ns s1 s2
+    if folder_name (track s1) == "/a138" || folder_name (track s2) == "/a138" then
+          W.liftIO $ do
+              putStrLn "moreRestrictiveSubExpr"
+              let pg = mkPrettyGuide (s1, s2)
+                  in1 = inlineFull (HS.toList ns) (expr_env s1)
+                  in2 = inlineFull (HS.toList ns) (expr_env s2)
+              putStrLn "----------"
+              putStrLn $ printHaskellDirtyPG pg (in1 $ exprExtract s1)
+              putStrLn $ printHaskellDirtyPG pg (in2 $ exprExtract s2)
+              case mr_sub of
+                  Left (Just (ls1, ls2)) -> do
+                      putStrLn $ printHaskellDirtyPG pg (in1 $ exprExtract ls1)
+                      putStrLn $ printHaskellDirtyPG pg (in2 $ exprExtract ls2)
+                  Left Nothing -> putStrLn "Left"
+                  Right _ -> putStrLn "Right"
+              putStrLn "----------"
+    else return ()
     case mr_sub of
-        Just hm -> return $ Just (exprExtract s2, hm)
-        Nothing -> do
+        Right hm -> return $ Just (exprExtract s2, hm)
+        Left _ -> do
             let ns' = foldr HS.insert ns (bind $ exprExtract s2)
                 es = children (exprExtract s2)
             firstJustM (\e -> moreRestrictiveSubExpr solver ns' s1 (s2 { curr_expr = CurrExpr Evaluate e })) es
@@ -950,7 +969,21 @@ moreRestrictivePairWithLemmas solver ns lemmas past (s1, s2) = do
 
     let pairs = [ (s1', s2') | s1' <- s1:xs1, s2' <- s2:xs2 ]
 
-    (possible_lemmas, possible_matches) <- return . partitionEithers =<< mapM (moreRestrictivePair solver ns past) pairs
+    rp <- mapM (moreRestrictivePair solver ns past) pairs
+    let (possible_lemmas, possible_matches) = partitionEithers rp
+
+    W.liftIO $ do
+        putStrLn "moreRestrictivePairWithLemmas Start"
+        mapM (\((s1_, s2_), r) -> do
+                  let pg = mkPrettyGuide (s1_, s2_)
+                      in1 = inlineFull (HS.toList ns) (expr_env s1_)
+                      in2 = inlineFull (HS.toList ns) (expr_env s2_)
+                  putStrLn "----------"
+                  putStrLn $ printHaskellDirtyPG pg (in1 $ exprExtract s1_)
+                  putStrLn $ printHaskellDirtyPG pg (in2 $ exprExtract s2_)
+                  putStrLn $ if isLeft r then "Left" else "Right") $ zip pairs rp
+        putStrLn "moreRestrictivePairWithLemmas End"
+
     case possible_matches of
         x:_ -> return $ Right x
         [] -> return . Left $ HS.unions possible_lemmas
