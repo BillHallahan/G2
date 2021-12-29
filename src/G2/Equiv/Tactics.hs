@@ -395,18 +395,18 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                                     v_rep = HM.toList $ fst hm
                                     e1' = replaceVars e1 v_rep
                                     h2' = E.mapConc (flip replaceVars v_rep) h2 -- foldr (\(Id n _, e) -> E.insert n e) h2 (HM.toList $ fst hm)
-                                    ls1 = s2 { expr_env = h2', curr_expr = CurrExpr Evaluate e1 }
+                                    ls1 = s2 { expr_env = h2', curr_expr = CurrExpr Evaluate e1' }
                                     ls2 = s2 { curr_expr = CurrExpr Evaluate e2 }
 
                                     in1 = inlineFull (HS.toList ns) (expr_env s1)
                                     in2 = inlineFull (HS.toList ns) (expr_env s2)
                                 in
                                 let pg = mkPrettyGuide (ls1, ls2) in
-                                trace ("LEMMA " ++ (folder_name $ track s2) ++ " " ++ (folder_name $ track s1)
-                                                ++ " -\ncurr_expr s1 = " ++ printHaskellDirtyPG pg (in1 $ exprExtract s1)
-                                                ++ "\ncurr_expr s2 = " ++ printHaskellDirtyPG pg (in2 $ exprExtract s2)
-                                                ++ "\ne1 = " ++  printHaskellDirtyPG pg (in1 e1)
-                                                ++ "\ne2 = " ++ printHaskellDirtyPG pg (in2 e2))
+                                -- trace ("LEMMA " ++ (folder_name $ track s2) ++ " " ++ (folder_name $ track s1)
+                                --                 ++ " -\ncurr_expr s1 = " ++ printHaskellDirtyPG pg (in1 $ exprExtract s1)
+                                --                 ++ "\ncurr_expr s2 = " ++ printHaskellDirtyPG pg (in2 $ exprExtract s2)
+                                --                 ++ "\ne1 = " ++  printHaskellDirtyPG pg (in1 e1)
+                                --                 ++ "\ne2 = " ++ printHaskellDirtyPG pg (in2 e2))
                                 Left (Just (ls1, ls2))
         where
             moreResFA = do
