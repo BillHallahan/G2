@@ -342,15 +342,15 @@ moreRestrictivePC solver s1 s2 hm = do
 -- repeated inlinings of a variable are allowed as long as the expression on
 -- the opposite side is not the same as it was when a previous inlining of the
 -- same variable happened.
-moreRestrictive :: State t ->
-                   State t ->
+moreRestrictive :: StateET ->
+                   StateET ->
                    HS.HashSet Name ->
                    (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                    [(Name, Expr)] -> -- ^ variables inlined previously on the LHS
                    [(Name, Expr)] -> -- ^ variables inlined previously on the RHS
                    Expr ->
                    Expr ->
-                   Either (Maybe (State t, State t)) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+                   Either (Maybe (StateET, StateET)) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n2 e1 e2 =
   case (e1, e2) of
     -- ignore all Ticks
@@ -387,12 +387,23 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
     (App f1 a1, App f2 a2) | Right hm_fa <- moreResFA -> Right hm_fa
                            | Left (Just _) <- moreResFA -> moreResFA
-                           | not (hasFuncType e1) ->
+                           | not (hasFuncType e1)
+                           , not (hasFuncType e2)
+                           , Var _:_ <- unApp (modifyASTs stripTicks e1)
+                           , Var _:_ <- unApp (modifyASTs stripTicks e2) ->
                                 let
                                     h1' = foldr (\(Id n _, e) -> E.insert n e) h2 (HM.toList $ fst hm)
                                     ls1 = s2 { curr_expr = CurrExpr Evaluate e1 }
                                     ls2 = s2 { curr_expr = CurrExpr Evaluate e2 }
+
+                                    in1 = inlineFull (HS.toList ns) (expr_env s1)
+                                    in2 = inlineFull (HS.toList ns) (expr_env s2)
                                 in
+                                trace ("LEMMA " ++ (folder_name $ track s2) ++ " " ++ (folder_name $ track s1)
+                                                ++ " -\ncurr_expr s1 = " ++ printHaskellDirty (in1 $ exprExtract s1)
+                                                ++ "\ncurr_expr s2 = " ++ printHaskellDirty (in2 $ exprExtract s2)
+                                                ++ "\ne1 = " ++  printHaskellDirty (in1 e1)
+                                                ++ "\ne2 = " ++ printHaskellDirty (in2 e2))
                                 Left (Just (ls1, ls2))
         where
             moreResFA = do
@@ -500,15 +511,15 @@ inlineEquiv acc h ns v@(Var (Id n _))
 inlineEquiv acc h ns e = modifyChildren (inlineEquiv acc h ns) e
 
 -- ids are the same between both sides; no need to insert twice
-moreRestrictiveAlt :: State t ->
-                      State t ->
+moreRestrictiveAlt :: StateET ->
+                      StateET ->
                       HS.HashSet Name ->
                       (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                       [(Name, Expr)] -> -- ^ variables inlined previously on the LHS
                       [(Name, Expr)] -> -- ^ variables inlined previously on the RHS
                       Alt ->
                       Alt ->
-                      Either (Maybe (State t, State t)) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+                      Either (Maybe (StateET, StateET)) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 moreRestrictiveAlt s1 s2 ns hm n1 n2 (Alt am1 e1) (Alt am2 e2) =
   if altEquiv am1 am2 then
   case am1 of
