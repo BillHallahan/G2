@@ -33,8 +33,10 @@ module G2.Language.ExprEnv
     , (!)
     , map
     , map'
+    , mapConc
     , mapWithKey
     , mapWithKey'
+    , mapConcWithKey
     , mapM
     , mapWithKeyM
     , filter
@@ -245,6 +247,9 @@ map f = mapWithKey (\_ -> f)
 map' :: (Expr -> a) -> ExprEnv -> M.HashMap Name a
 map' f = mapWithKey' (\_ -> f)
 
+mapConc :: (Expr -> Expr) -> ExprEnv -> ExprEnv
+mapConc f = mapConcWithKey (\_ -> f)
+
 -- | Map a function over all `Expr` in the `ExprEnv`, with access to the `Name`.
 -- Will not replace symbolic variables with non-symbolic values,
 -- but will rename symbolic values.
@@ -261,6 +266,14 @@ mapWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
 
 mapWithKey' :: (Name -> Expr -> a) -> ExprEnv -> M.HashMap Name a
 mapWithKey' f = M.mapWithKey f . toExprMap
+
+mapConcWithKey :: (Name -> Expr -> Expr) -> ExprEnv -> ExprEnv
+mapConcWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
+    where
+        f' :: Name -> EnvObj -> EnvObj
+        f' n (ExprObj e) = ExprObj $ f n e
+        f' n s@(SymbObj _) = s
+        f' _ n = n
 
 mapM :: Monad m => (Expr -> m Expr) -> ExprEnv -> m ExprEnv
 mapM f eenv = return . ExprEnv =<< Pre.mapM f' (unwrapExprEnv eenv)
