@@ -389,6 +389,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                            | Left (Just _) <- moreResFA -> moreResFA
                            | not (hasFuncType e1) ->
                                 let
+                                    h1' = foldr (\(Id n _, e) -> E.insert n e) h2 (HM.toList $ fst hm)
                                     ls1 = s2 { curr_expr = CurrExpr Evaluate e1 }
                                     ls2 = s2 { curr_expr = CurrExpr Evaluate e2 }
                                 in
@@ -459,7 +460,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
     -- TODO if scrutinee is symbolic var, make Alt vars symbolic?
     -- TODO id equality never checked; does it matter?
     (Case e1' i1 a1, Case e2' i2 a2)
-                | Right hm' <- moreRestrictive s1 s2 ns hm n1 n2 e1' e2' ->
+                | Right hm' <- b_mr ->
                   -- add the matched-on exprs to the envs beforehand
                   let h1' = E.insert (idName i1) e1' h1
                       h2' = E.insert (idName i2) e2' h2
@@ -468,6 +469,9 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                       mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ n1 n2 e1_ e2_
                       l = zip a1 a2
                   in foldM mf hm' l
+                | otherwise -> b_mr
+                where
+                    b_mr = moreRestrictive s1 s2 ns hm n1 n2 e1' e2'
     _ -> Left Nothing
 
 -- These helper functions have safeguards to avoid cyclic inlining.
