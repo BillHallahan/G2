@@ -55,6 +55,7 @@ import G2.Interface
 import qualified Control.Monad.State.Lazy as CM
 
 import qualified G2.Language.ExprEnv as E
+import G2.Language.Monad.AST
 import qualified G2.Language.Typing as T
 
 import GHC.Generics (Generic)
@@ -907,46 +908,60 @@ instance Named Lemma where
 substLemma :: S.Solver solver => solver -> HS.HashSet Name -> StateET -> Lemmas -> W.WriterT [Marker] IO [StateET]
 substLemma solver ns s =
     mapMaybeM (\lem -> do
-                    mr_sub <- moreRestrictiveSubExpr solver ns (lemma_lhs lem) s
-                    maybe (return Nothing)
-                          (\(e, hm) -> do
-                              let hm' = map (\(i, e) -> (idName i, e)) $  HM.toList hm
-                                  rhs_subst = foldr (uncurry replaceVar) (exprExtract $ lemma_rhs lem) hm'
+                    replaceMoreRestrictiveSubExpr solver ns lem s
+                    -- maybe (return Nothing)
+                    --       (\(e, hm) -> do
+                    --           let hm' = map (\(i, e) -> (idName i, e)) $  HM.toList hm
+                    --               rhs_subst = foldr (uncurry replaceVar) (exprExtract $ lemma_rhs lem) hm'
 
-                                  eenv = E.union (expr_env s) (expr_env $ lemma_rhs lem)
-                                  cexpr = replaceASTs e rhs_subst (curr_expr s)
-                              return . Just $ s { expr_env = eenv, curr_expr = cexpr }
-                          )
-                          mr_sub
+                    --               eenv = E.union (expr_env s) (expr_env $ lemma_rhs lem)
+                    --               cexpr = replaceASTs e rhs_subst (curr_expr s)
+                    --           return . Just $ s { expr_env = eenv, curr_expr = cexpr }
+                    --       )
+                    --       mr_sub
                     ) . provenLemmas
 
-moreRestrictiveSubExpr :: S.Solver solver => solver -> HS.HashSet Name -> StateET -> StateET
-                       -> W.WriterT [Marker] IO (Maybe (Expr, HM.HashMap Id Expr))
-moreRestrictiveSubExpr solver ns s1 s2 = do
-    mr_sub <- moreRestrictiveSingle solver ns s1 s2
-    if folder_name (track s1) == "/a138" || folder_name (track s2) == "/a138" then
-          W.liftIO $ do
-              putStrLn "moreRestrictiveSubExpr"
-              let pg = mkPrettyGuide (s1, s2)
-                  in1 = inlineFull (HS.toList ns) (expr_env s1)
-                  in2 = inlineFull (HS.toList ns) (expr_env s2)
-              putStrLn "----------"
-              putStrLn $ printHaskellDirtyPG pg (in1 $ exprExtract s1)
-              putStrLn $ printHaskellDirtyPG pg (in2 $ exprExtract s2)
-              case mr_sub of
-                  Left (Just (ls1, ls2)) -> do
-                      putStrLn $ printHaskellDirtyPG pg (in1 $ exprExtract ls1)
-                      putStrLn $ printHaskellDirtyPG pg (in2 $ exprExtract ls2)
-                  Left Nothing -> putStrLn "Left"
-                  Right _ -> putStrLn "Right"
-              putStrLn "----------"
-    else return ()
-    case mr_sub of
-        Right hm -> return $ Just (exprExtract s2, hm)
-        Left _ -> do
-            let ns' = foldr HS.insert ns (bind $ exprExtract s2)
-                es = children (exprExtract s2)
-            firstJustM (\e -> moreRestrictiveSubExpr solver ns' s1 (s2 { curr_expr = CurrExpr Evaluate e })) es
+replaceMoreRestrictiveSubExpr :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> StateET
+                               -> W.WriterT [Marker] IO (Maybe StateET)
+replaceMoreRestrictiveSubExpr solver ns lemma s@(State { curr_expr = CurrExpr er _ }) = do
+    (e, replaced) <- CM.runStateT (replaceMoreRestrictiveSubExpr' solver ns lemma s $ exprExtract s) False
+    return $ if replaced then Just (s { curr_expr = CurrExpr er e }) else Nothing
+
+replaceMoreRestrictiveSubExpr' :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> StateET -> Expr
+                               -> CM.StateT Bool (W.WriterT [Marker] IO) Expr
+replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma lhs_s rhs_s _) s2@(State { curr_expr = CurrExpr er _ }) e = do
+    replaced <- CM.get
+    if not replaced then do 
+        mr_sub <- CM.lift $ moreRestrictiveSingle solver ns lhs_s (s2 { curr_expr = CurrExpr Evaluate e })
+        case mr_sub of
+            Right hm -> do
+                let v_rep = HM.toList hm
+
+                    rhs_e' = replaceVars (inlineFull (HS.toList ns) (expr_env rhs_s) $ exprExtract rhs_s) v_rep
+                -- DEBUG
+                -- if folder_name (track s2) == "/a138" then
+                --       W.liftIO $ do
+                --           putStrLn "replaceMoreRestrictiveSubExpr"
+                --           let pg = mkPrettyGuide (lhs_s, rhs_s, s2)
+                --               lhs_in = inlineFull (HS.toList ns) (expr_env lhs_s)
+                --               rhs_in = inlineFull (HS.toList ns) (expr_env rhs_s)
+                --               in2 = inlineFull (HS.toList ns) (expr_env s2)
+                --           putStrLn "----------"
+                --           putStrLn $ "lhs lemma = " ++ printHaskellDirtyPG pg (lhs_in $ exprExtract lhs_s)
+                --           putStrLn $ "rhs_lemma = " ++ printHaskellDirtyPG pg (rhs_in $ exprExtract rhs_s)
+                --           putStrLn $ "replacing   = " ++ printHaskellDirtyPG pg (in2 e)
+                --           putStrLn $ "replaceWith = " ++ printHaskellDirtyPG pg (inlineFull (HS.toList ns) (expr_env rhs_s) rhs_e')
+                --           putStrLn $ "v_rep =\n" ++ intercalate "\n\t" (map (\(n, e) -> printName pg (idName n) ++ " -> " ++ (printHaskellDirtyPG pg e)) v_rep)
+                --           putStrLn "----------"
+                -- else return ()
+                -- DEBUG
+
+                CM.put True
+                return rhs_e'                 
+            Left _ -> do
+                let ns' = foldr HS.insert ns (bind $ exprExtract s2)
+                modifyChildrenM (replaceMoreRestrictiveSubExpr' solver ns' lemma s2) e
+    else return e
     where
         bind (Lam _ i _) = [idName i]
         bind (Case _ i as) = idName i:concatMap altBind as
@@ -972,17 +987,19 @@ moreRestrictivePairWithLemmas solver ns lemmas past (s1, s2) = do
     rp <- mapM (moreRestrictivePair solver ns past) pairs
     let (possible_lemmas, possible_matches) = partitionEithers rp
 
-    W.liftIO $ do
-        putStrLn "moreRestrictivePairWithLemmas Start"
-        mapM (\((s1_, s2_), r) -> do
-                  let pg = mkPrettyGuide (s1_, s2_)
-                      in1 = inlineFull (HS.toList ns) (expr_env s1_)
-                      in2 = inlineFull (HS.toList ns) (expr_env s2_)
-                  putStrLn "----------"
-                  putStrLn $ printHaskellDirtyPG pg (in1 $ exprExtract s1_)
-                  putStrLn $ printHaskellDirtyPG pg (in2 $ exprExtract s2_)
-                  putStrLn $ if isLeft r then "Left" else "Right") $ zip pairs rp
-        putStrLn "moreRestrictivePairWithLemmas End"
+    if folder_name (track s1) == "/a138" || folder_name (track s2) == "/a138" then
+        W.liftIO $ do
+            putStrLn "moreRestrictivePairWithLemmas Start"
+            mapM (\((s1_, s2_), r) -> do
+                      let pg = mkPrettyGuide (s1_, s2_)
+                          in1 = inlineFull (HS.toList ns) (expr_env s1_)
+                          in2 = inlineFull (HS.toList ns) (expr_env s2_)
+                      putStrLn "----------"
+                      putStrLn $ printHaskellDirtyPG pg (in1 $ exprExtract s1_)
+                      putStrLn $ printHaskellDirtyPG pg (in2 $ exprExtract s2_)
+                      putStrLn $ if isLeft r then "Left" else "Right") $ zip pairs rp
+            putStrLn "moreRestrictivePairWithLemmas End"
+    else return ()
 
     case possible_matches of
         x:_ -> return $ Right x

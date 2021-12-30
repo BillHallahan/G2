@@ -4,6 +4,8 @@ module G2.Lib.Printers ( PrettyGuide
                        , mkPrettyGuide
                        , updatePrettyGuide
 
+                       , printName
+
                        , printHaskell
                        , printHaskellDirty
                        , printHaskellDirtyPG
@@ -48,6 +50,9 @@ data Clean = Cleaned | Dirty deriving Eq
 
 mkIdHaskell :: PrettyGuide -> Id -> String
 mkIdHaskell pg (Id n _) = mkNameHaskell pg n
+
+printName :: PrettyGuide -> Name -> String
+printName = mkNameHaskell
 
 mkNameHaskell :: PrettyGuide -> Name -> String
 mkNameHaskell pg n
