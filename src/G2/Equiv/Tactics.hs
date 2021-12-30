@@ -120,10 +120,14 @@ data PrevMatch t = PrevMatch {
   , container :: State t
 }
 
+-- TODO new constructor for lemma proving
+-- also have one for lemma application
 data ActMarker = Induction IndMarker
                | Coinduction CoMarker
                | Equality EqualMarker
                | NoObligations (StateET, StateET)
+               | LemmaProven (StateET, StateET)
+               | LemmaUse (StateET, StateET)
                | NotEquivalent (StateET, StateET)
                | SolverFail (StateET, StateET)
                | Unresolved (StateET, StateET)
@@ -391,9 +395,9 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                            | not (hasFuncType e1)
                            , not (hasFuncType e2)
                            , Var (Id n1 _):_ <- unApp (modifyASTs stripTicks e1)
-                           , Var (Id n2 _):_ <- unApp (modifyASTs stripTicks e2)
-                           , nameOcc n1 == "drop" -- TODO temporary!
-                           , nameOcc n2 == "drop" ->
+                           , Var (Id n2 _):_ <- unApp (modifyASTs stripTicks e2) ->
+                           --, nameOcc n1 == "drop" -- TODO temporary!
+                           --, nameOcc n2 == "drop" ->
                                 let
                                     v_rep = HM.toList $ fst hm
                                     e1' = replaceVars e1 v_rep
@@ -807,7 +811,8 @@ coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) = do
       p2:_ -> coinductionFoldL solver ns lemmas (HS.union new_lems gen_lemmas) (sh1, backtrackOne sh2) (s1, p2)
 
 tryCoinduction :: S.Solver s => Tactic s
-tryCoinduction solver ns lemmas _ (sh1, sh2) (s1, s2) = do
+tryCoinduction solver ns lemmas _ (sh1, sh2) (s1, s2) | not $ isSWHNF s1
+                                                      , not $ isSWHNF s2 = do
   res_l <- coinductionFoldL solver ns lemmas HS.empty (sh1, sh2) (s1, s2)
   case res_l of
     Right pm -> do
@@ -830,6 +835,7 @@ tryCoinduction solver ns lemmas _ (sh1, sh2) (s1, s2) = do
           W.tell [Marker (sh1, sh2) $ Coinduction $ reverseCoMarker cmr]
           return $ Success Nothing
         Left r_lemmas -> return . NoProof $ HS.union l_lemmas r_lemmas
+  | otherwise = return $ NoProof HS.empty
 
 -------------------------------------------------------------------------------
 
