@@ -229,7 +229,6 @@ instance Named EqualMarker where
         q2' = r q2
     in EqualMarker (s1', s2') (q1', q2')
 
--- TODO add debug info with these?
 data TacticResult = Success (Maybe (Int, Int, StateET, StateET))
                   | NoProof (HS.HashSet (StateET, StateET))
                   | Failure
@@ -351,28 +350,29 @@ moreRestrictive :: StateET ->
                    StateET ->
                    HS.HashSet Name ->
                    (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
+                   Bool -> -- indicates whether this is part of the "active expression"
                    [(Name, Expr)] -> -- ^ variables inlined previously on the LHS
                    [(Name, Expr)] -> -- ^ variables inlined previously on the RHS
                    Expr ->
                    Expr ->
                    Either (Maybe (StateET, StateET)) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n2 e1 e2 =
+moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm active n1 n2 e1 e2 =
   case (e1, e2) of
     -- ignore all Ticks
-    (Tick _ e1', _) -> moreRestrictive s1 s2 ns hm n1 n2 e1' e2
-    (_, Tick _ e2') -> moreRestrictive s1 s2 ns hm n1 n2 e1 e2'
+    (Tick _ e1', _) -> moreRestrictive s1 s2 ns hm active n1 n2 e1' e2
+    (_, Tick _ e2') -> moreRestrictive s1 s2 ns hm active n1 n2 e1 e2'
     (Var i, _) | m <- idName i
                , not $ E.isSymbolic m h1
                , not $ HS.member m ns
                , not $ (m, e2) `elem` n1
                , Just e <- E.lookup m h1 ->
-                 moreRestrictive s1 s2 ns hm ((m, e2):n1) n2 e e2
+                 moreRestrictive s1 s2 ns hm active ((m, e2):n1) n2 e e2
     (_, Var i) | m <- idName i
                , not $ E.isSymbolic m h2
                , not $ HS.member m ns
                , not $ (m, e1) `elem` n2
                , Just e <- E.lookup m h2 ->
-                 moreRestrictive s1 s2 ns hm n1 ((m, e1):n2) e1 e
+                 moreRestrictive s1 s2 ns hm active n1 ((m, e1):n2) e1 e
     (Var i1, Var i2) | HS.member (idName i1) ns
                      , idName i1 == idName i2 -> Right hm
                      | HS.member (idName i1) ns -> Left Nothing
@@ -394,10 +394,9 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                            | Left (Just _) <- moreResFA -> moreResFA
                            | not (hasFuncType e1)
                            , not (hasFuncType e2)
+                           , not active
                            , Var (Id n1 _):_ <- unApp (modifyASTs stripTicks e1)
                            , Var (Id n2 _):_ <- unApp (modifyASTs stripTicks e2) ->
-                           --, nameOcc n1 == "drop" -- TODO temporary!
-                           --, nameOcc n2 == "drop" ->
                                 let
                                     v_rep = HM.toList $ fst hm
                                     e1' = replaceVars e1 v_rep
@@ -417,8 +416,8 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                                 Left (Just (ls2, ls1))
         where
             moreResFA = do
-                hm_f <- moreRestrictive s1 s2 ns hm n1 n2 f1 f2
-                moreRestrictive s1 s2 ns hm_f n1 n2 a1 a2
+                hm_f <- moreRestrictive s1 s2 ns hm active n1 n2 f1 f2
+                moreRestrictive s1 s2 ns hm_f False n1 n2 a1 a2
     -- TODO ignoring lam use; these are never used seemingly
     -- TODO shouldn't lead to non-termination
     {-
@@ -458,7 +457,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                 , i1 == i2 ->
                   let ns' = HS.insert (idName i1) ns
                   -- no need to insert twice over because they're equal
-                  in moreRestrictive s1 s2 ns' hm n1 n2 b1 b2
+                  in moreRestrictive s1 s2 ns' hm active n1 n2 b1 b2
                 | otherwise -> Left Nothing
     -- ignore types, like in exprPairing
     (Type _, Type _) -> Right hm
@@ -473,7 +472,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                     h2' = foldr ins h2 binds2
                     s1' = s1 { expr_env = h1' }
                     s2' = s2 { expr_env = h2' }
-                    mf hm_ (e1_, e2_) = moreRestrictive s1' s2' ns hm_ n1 n2 e1_ e2_
+                    mf hm_ (e1_, e2_) = moreRestrictive s1' s2' ns hm_ active n1 n2 e1_ e2_
                 in
                 if length binds1 == length binds2
                 then foldM mf hm pairs
@@ -487,12 +486,12 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm n1 n
                       h2' = E.insert (idName i2) e2' h2
                       s1' = s1 { expr_env = h1' }
                       s2' = s2 { expr_env = h2' }
-                      mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ n1 n2 e1_ e2_
+                      mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ False n1 n2 e1_ e2_
                       l = zip a1 a2
                   in foldM mf hm' l
                 | otherwise -> b_mr
                 where
-                    b_mr = moreRestrictive s1 s2 ns hm n1 n2 e1' e2'
+                    b_mr = moreRestrictive s1 s2 ns hm active n1 n2 e1' e2'
     _ -> Left Nothing
 
 replaceVars :: Expr -> [(Id, Expr)] -> Expr
@@ -528,17 +527,18 @@ moreRestrictiveAlt :: StateET ->
                       StateET ->
                       HS.HashSet Name ->
                       (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
+                      Bool -> -- active expression
                       [(Name, Expr)] -> -- ^ variables inlined previously on the LHS
                       [(Name, Expr)] -> -- ^ variables inlined previously on the RHS
                       Alt ->
                       Alt ->
                       Either (Maybe (StateET, StateET)) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-moreRestrictiveAlt s1 s2 ns hm n1 n2 (Alt am1 e1) (Alt am2 e2) =
+moreRestrictiveAlt s1 s2 ns hm active n1 n2 (Alt am1 e1) (Alt am2 e2) =
   if altEquiv am1 am2 then
   case am1 of
-    DataAlt _ t1 -> let ns' = foldr HS.insert ns $ map (\(Id n _) -> n) t1
-                    in moreRestrictive s1 s2 ns' hm n1 n2 e1 e2
-    _ -> moreRestrictive s1 s2 ns hm n1 n2 e1 e2
+    DataAlt _ t1 -> let ns' = foldr HS.insert ns $ map idName t1
+                    in moreRestrictive s1 s2 ns' hm active n1 n2 e1 e2
+    _ -> moreRestrictive s1 s2 ns hm active n1 n2 e1 e2
   else Left Nothing
 
 -- check only the names for DataAlt
@@ -575,7 +575,7 @@ restrictAux :: StateET ->
                Either (Maybe (StateET, StateET)) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                Either (Maybe (StateET, StateET)) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 restrictAux s1 s2 ns (Right hm) =
-  moreRestrictive s1 s2 ns hm [] [] (exprExtract s1) (exprExtract s2)
+  moreRestrictive s1 s2 ns hm True [] [] (exprExtract s1) (exprExtract s2)
 restrictAux _ _ _ left = left
 
 syncSymbolic :: StateET -> StateET -> (StateET, StateET)
