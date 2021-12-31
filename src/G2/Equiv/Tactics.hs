@@ -801,18 +801,30 @@ coinductionFoldL :: S.Solver solver =>
                     (StateH, StateH) ->
                     (StateET, StateET) ->
                     W.WriterT [Marker] IO (Either (HS.HashSet (StateET, StateET)) (PrevMatch EquivTracker))
-coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) = do
+coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) | not . isSWHNF $ inlineCurrExpr s1
+                                                                 , not . isSWHNF $ inlineCurrExpr s2  = do
   let prev = prevFiltered (sh1, sh2)
+
   res <- moreRestrictivePairWithLemmas solver ns lemmas prev (s1, s2)
   case res of
     Right _ -> return res
-    Left new_lems -> case history sh2 of
-      [] -> return . Left $ HS.union new_lems gen_lemmas
-      p2:_ -> coinductionFoldL solver ns lemmas (HS.union new_lems gen_lemmas) (sh1, backtrackOne sh2) (s1, p2)
+    Left new_lems -> backtrack new_lems
+  | otherwise = backtrack HS.empty
+  where
+      backtrack new_lems_ =
+          case history sh2 of
+              [] -> return . Left $ HS.union new_lems_ gen_lemmas
+              p2:_ -> coinductionFoldL solver ns lemmas
+                                       (HS.union new_lems_ gen_lemmas) (sh1, backtrackOne sh2) (s1, p2)
+
+      inlineCurrExpr s_@(State { expr_env = eenv, curr_expr = CurrExpr er cexpr}) =
+          let
+              cexpr' = inlineFull (HS.toList ns) eenv cexpr
+          in
+          s_ { curr_expr = CurrExpr er cexpr' }
 
 tryCoinduction :: S.Solver s => Tactic s
-tryCoinduction solver ns lemmas _ (sh1, sh2) (s1, s2) | not $ isSWHNF s1
-                                                      , not $ isSWHNF s2 = do
+tryCoinduction solver ns lemmas _ (sh1, sh2) (s1, s2) = do
   res_l <- coinductionFoldL solver ns lemmas HS.empty (sh1, sh2) (s1, s2)
   case res_l of
     Right pm -> do
@@ -835,7 +847,6 @@ tryCoinduction solver ns lemmas _ (sh1, sh2) (s1, s2) | not $ isSWHNF s1
           W.tell [Marker (sh1, sh2) $ Coinduction $ reverseCoMarker cmr]
           return $ Success Nothing
         Left r_lemmas -> return . NoProof $ HS.union l_lemmas r_lemmas
-  | otherwise = return $ NoProof HS.empty
 
 -------------------------------------------------------------------------------
 
