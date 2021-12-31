@@ -1004,19 +1004,19 @@ moreRestrictivePairWithLemmas solver ns lemmas past (s1, s2) = do
     rp <- mapM (moreRestrictivePair solver ns past) pairs
     let (possible_lemmas, possible_matches) = partitionEithers rp
 
-    if folder_name (track s1) == "/a138" || folder_name (track s2) == "/a138" then
-        W.liftIO $ do
-            putStrLn "moreRestrictivePairWithLemmas Start"
-            mapM (\((s1_, s2_), r) -> do
-                      let pg = mkPrettyGuide (s1_, s2_)
-                          in1 = inlineFull (HS.toList ns) (expr_env s1_)
-                          in2 = inlineFull (HS.toList ns) (expr_env s2_)
-                      putStrLn "----------"
-                      putStrLn $ printHaskellDirtyPG pg (in1 $ exprExtract s1_)
-                      putStrLn $ printHaskellDirtyPG pg (in2 $ exprExtract s2_)
-                      putStrLn $ if isLeft r then "Left" else "Right") $ zip pairs rp
-            putStrLn "moreRestrictivePairWithLemmas End"
-    else return ()
+    -- if folder_name (track s1) == "/a138" || folder_name (track s2) == "/a138" then
+    --     W.liftIO $ do
+    --         putStrLn "moreRestrictivePairWithLemmas Start"
+    --         mapM (\((s1_, s2_), r) -> do
+    --                   let pg = mkPrettyGuide (s1_, s2_)
+    --                       in1 = inlineFull (HS.toList ns) (expr_env s1_)
+    --                       in2 = inlineFull (HS.toList ns) (expr_env s2_)
+    --                   putStrLn "----------"
+    --                   putStrLn $ printHaskellDirtyPG pg (in1 $ exprExtract s1_)
+    --                   putStrLn $ printHaskellDirtyPG pg (in2 $ exprExtract s2_)
+    --                   putStrLn $ if isLeft r then "Left" else "Right") $ zip pairs rp
+    --         putStrLn "moreRestrictivePairWithLemmas End"
+    -- else return ()
 
     case possible_matches of
         x:_ -> return $ Right x

@@ -25,8 +25,8 @@ def run_zeno(thm, var_settings):
 def call_zeno_process(thm, var_settings):
     try:
         args = ["dist/build/RewriteV/RewriteV", "tests/RewriteVerify/Correct/Zeno.hs", thm]
-        limit_settings = ["--", "--limit", "10"]
-        res = subprocess.run(args + var_settings + limit_settings, capture_output = True, timeout = 20);
+        limit_settings = ["--", "--limit", "15"]
+        res = subprocess.run(args + var_settings + limit_settings, capture_output = True, timeout = 25);
         return res.stdout;
     except subprocess.TimeoutExpired:
         return "Timeout".encode('utf-8')
