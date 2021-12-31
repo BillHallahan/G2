@@ -965,7 +965,7 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma lhs_s rhs_s _) s2@(State {
                 CM.put True
                 return rhs_e'                 
             Left _ -> do
-                let ns' = foldr HS.insert ns (bind $ exprExtract s2)
+                let ns' = foldr HS.insert ns (bind e)
                 modifyChildrenM (replaceMoreRestrictiveSubExpr' solver ns' lemma s2) e
     else return e
     where
