@@ -395,8 +395,9 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                            | not (hasFuncType e1)
                            , not (hasFuncType e2)
                            , not active
-                           , Var (Id n1 _):_ <- unApp (modifyASTs stripTicks e1)
-                           , Var (Id n2 _):_ <- unApp (modifyASTs stripTicks e2) ->
+                           , Var (Id m1 _):_ <- unApp (modifyASTs stripTicks e1)
+                           , Var (Id m2 _):_ <- unApp (modifyASTs stripTicks e2)
+                           , nameOcc m1 == nameOcc m2 ->
                                 let
                                     v_rep = HM.toList $ fst hm
                                     e1' = replaceVars e1 v_rep
