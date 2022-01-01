@@ -720,7 +720,7 @@ p54finA hits the limit
 "p20fin" forall xs . len (sort xs) = walkNatList xs (len xs)
 "p21fin" forall n m . prop_21 n m = walkNat n True
 "p24fin" forall a b . (max a b) === a = walkNat a (b <= a)
-"p24finA" forall a b . (max a b) === a = walkNat a (b <= a)
+"p24finA" forall a b . walkNat a ((max a b) === a) = walkNat a (b <= a)
 "p24finB" forall a b . (max a b) === a = walkNat b (b <= a)
 "p25fin" forall a b . (max a b) === b = walkNat b (a <= b)
 "p26fin" forall x xs ys . prop_26 x xs ys = walkNat x True
