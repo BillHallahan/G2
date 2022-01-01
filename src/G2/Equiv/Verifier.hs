@@ -86,10 +86,11 @@ runSymExec :: S.Solver solver =>
               solver ->
               Config ->
               String ->
+              HS.HashSet Name ->
               StateET ->
               StateET ->
               CM.StateT (Bindings, Int) IO [(StateET, StateET)]
-runSymExec solver config folder_root s1 s2 = do
+runSymExec solver config folder_root ns s1 s2 = do
   CM.liftIO $ putStrLn "runSymExec"
   ct1 <- CM.liftIO $ getCurrentTime
   (bindings, k) <- CM.get
@@ -97,7 +98,7 @@ runSymExec solver config folder_root s1 s2 = do
       t1 = (track s1) { folder_name = logStatesET ("a" ++ show k) folder_root }
       -- TODO always Evaluate here?
       CurrExpr r1 e1 = curr_expr s1
-      e1' = addStackTickIfNeeded e1
+      e1' = addStackTickIfNeeded ns (expr_env s1) e1
       s1' = s1 { track = t1, curr_expr = CurrExpr r1 e1' }
   CM.liftIO $ putStrLn $ (show $ folder_name $ track s1) ++ " becomes " ++ (show $ folder_name t1)
   (er1, bindings') <- CM.lift $ runG2ForRewriteV solver s1' (expr_env s2) (track s2) config' bindings
@@ -110,7 +111,7 @@ runSymExec solver config folder_root s1 s2 = do
                     let config'' = config { logStates = logStatesFolder ("b" ++ show k_) folder_root }
                         t2 = (track s2_) { folder_name = logStatesET ("b" ++ show k_) folder_root }
                         CurrExpr r2 e2 = curr_expr s2_
-                        e2' = addStackTickIfNeeded e2
+                        e2' = addStackTickIfNeeded ns (expr_env s2) e2
                         s2' = s2_ { track = t2, curr_expr = CurrExpr r2 e2' }
                     CM.liftIO $ putStrLn $ (show $ folder_name $ track s2_) ++ " becomes " ++ (show $ folder_name t2)
                     (er2, b_') <- CM.lift $ runG2ForRewriteV solver s2' (expr_env s1_) (track s1_) config'' b_
@@ -239,12 +240,6 @@ wrapAllRecursion cg h n e =
   if (not $ E.isSymbolic n h) && (n `elem` n_list)
   then foldr (wrapIfCorecursive cg h n) e n_list
   else e
-
-tickWrap :: Expr -> Expr
-tickWrap (Case e i a) = Case (tickWrap e) i a
-tickWrap (App e1 e2) = App (tickWrap e1) e2
-tickWrap (Tick nl e) = Tick nl (tickWrap e)
-tickWrap e = Tick (NamedLoc loc_name) e
 
 -- stack tick not added here anymore
 prepareState :: StateET -> StateET
@@ -440,7 +435,7 @@ verifyLoop' :: S.Solver solver =>
             -> W.WriterT [Marker] IO (StepRes, Bindings, Int)
 verifyLoop' solver tactics ns lemmas b config folder_root k states = do
     let current_states = map getLatest states
-    (paired_states, (b', k')) <- W.liftIO $ CM.runStateT (mapM (uncurry (runSymExec solver config folder_root)) current_states) (b, k)
+    (paired_states, (b', k')) <- W.liftIO $ CM.runStateT (mapM (uncurry (runSymExec solver config folder_root ns)) current_states) (b, k)
 
     let (fresh_name, ng') = freshName (name_gen b')
         b'' = b' { name_gen = ng' }
@@ -629,20 +624,29 @@ getObligations ns s1 s2 =
     Nothing -> Nothing
     Just obs -> Just $ HS.toList obs
 
-addStackTickIfNeeded :: Expr -> Expr
-addStackTickIfNeeded e' =
+addStackTickIfNeeded :: HS.HashSet Name -> ExprEnv -> Expr -> Expr
+addStackTickIfNeeded ns h e' =
   let has_tick = getAny . evalASTs (\e -> case e of
                                           Tick (NamedLoc l) _
                                             | l == loc_name -> Any True
                                           _ -> Any False) $ e'
-  in if has_tick then e' else tickWrap e'
+  in if has_tick then e' else tickWrap ns h e'
+
+tickWrap :: HS.HashSet Name -> ExprEnv -> Expr -> Expr
+tickWrap ns h (Var (Id n _))
+    | not (n `HS.member` ns)
+    , Just (E.Conc e) <- E.lookupConcOrSym n h = tickWrap ns h e 
+tickWrap ns h (Case e i a) = Case (tickWrap ns h e) i a
+tickWrap ns h (App e1 e2) = App (tickWrap ns h e1) e2
+tickWrap ns h (Tick nl e) = Tick nl (tickWrap ns h e)
+tickWrap _ _ e = Tick (NamedLoc loc_name) e
 
 includedName :: [DT.Text] -> Name -> Bool
 includedName texts (Name t _ _ _) = t `elem` texts
 
 -- stack tick should appear inside rec tick
-startingState :: EquivTracker -> State t -> StateH
-startingState et s =
+startingState :: EquivTracker -> HS.HashSet Name -> State t -> StateH
+startingState et ns s =
   let h = expr_env s
       -- Tick wrapping for recursive and corecursive functions
       wrap_cg = wrapAllRecursion (G.getCallGraph h) h
@@ -650,7 +654,7 @@ startingState et s =
       all_names = E.keys h
       s' = s {
       track = et
-    , curr_expr = CurrExpr Evaluate $ tickWrap $ foldr wrap_cg (exprExtract s) all_names
+    , curr_expr = CurrExpr Evaluate $ tickWrap ns h $ foldr wrap_cg (exprExtract s) all_names
     , expr_env = h'
     }
   in newStateH s'
@@ -708,8 +712,8 @@ checkRule config init_state bindings total finite print_summary iterations rule 
       e_r' = foldr (forceFinite walkers) e_r finite_ids
       (rewrite_state_r',_) = cleanState (rewrite_state_r { curr_expr = CurrExpr Evaluate e_r' }) bindings
       
-      rewrite_state_l'' = startingState start_equiv_tracker rewrite_state_l'
-      rewrite_state_r'' = startingState start_equiv_tracker rewrite_state_r'
+      rewrite_state_l'' = startingState start_equiv_tracker ns rewrite_state_l'
+      rewrite_state_r'' = startingState start_equiv_tracker ns rewrite_state_r'
   S.SomeSolver solver <- initSolver config
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
   putStrLn $ printHaskellDirty e_l'

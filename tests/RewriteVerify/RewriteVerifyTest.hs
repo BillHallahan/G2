@@ -103,8 +103,8 @@ higher_bad_src = "tests/RewriteVerify/Incorrect/HigherOrderIncorrect.hs"
 
 -- TODO also add some of the tree rewrite rules
 tree_good_names :: [String]
-tree_good_names = [ "doubleTree"
-                  , "doubleTreeOriginal"
+tree_good_names = [ -- "doubleTree"
+                    "doubleTreeOriginal"
                   , "doubleMapTree" ]
 
 tree_good_src :: String
