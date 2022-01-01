@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
@@ -32,8 +33,10 @@ module G2.Language.ExprEnv
     , (!)
     , map
     , map'
+    , mapConc
     , mapWithKey
     , mapWithKey'
+    , mapConcWithKey
     , mapM
     , mapWithKeyM
     , filter
@@ -66,6 +69,7 @@ import qualified Prelude as Pre
 import Control.Monad hiding (mapM)
 import Data.Coerce
 import Data.Data (Data, Typeable)
+import Data.Hashable
 import qualified Data.List as L
 import qualified Data.HashMap.Lazy as M
 import Data.Maybe
@@ -73,6 +77,7 @@ import Data.Monoid ((<>))
 import qualified Data.Sequence as S
 import qualified Data.Text as T
 import qualified Data.Traversable as Trav
+import GHC.Generics (Generic)
 
 data ConcOrSym = Conc Expr
                | Sym Id
@@ -87,10 +92,14 @@ data ConcOrSym = Conc Expr
 data EnvObj = ExprObj Expr
             | RedirObj Name
             | SymbObj Id
-            deriving (Show, Eq, Read, Typeable, Data)
+            deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+instance Hashable EnvObj
 
 newtype ExprEnv = ExprEnv (M.HashMap Name EnvObj)
-                  deriving (Show, Eq, Read, Typeable, Data)
+                  deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+instance Hashable ExprEnv
 
 {-# INLINE unwrapExprEnv #-}
 unwrapExprEnv :: ExprEnv -> M.HashMap Name EnvObj
@@ -238,6 +247,9 @@ map f = mapWithKey (\_ -> f)
 map' :: (Expr -> a) -> ExprEnv -> M.HashMap Name a
 map' f = mapWithKey' (\_ -> f)
 
+mapConc :: (Expr -> Expr) -> ExprEnv -> ExprEnv
+mapConc f = mapConcWithKey (\_ -> f)
+
 -- | Map a function over all `Expr` in the `ExprEnv`, with access to the `Name`.
 -- Will not replace symbolic variables with non-symbolic values,
 -- but will rename symbolic values.
@@ -254,6 +266,14 @@ mapWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
 
 mapWithKey' :: (Name -> Expr -> a) -> ExprEnv -> M.HashMap Name a
 mapWithKey' f = M.mapWithKey f . toExprMap
+
+mapConcWithKey :: (Name -> Expr -> Expr) -> ExprEnv -> ExprEnv
+mapConcWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
+    where
+        f' :: Name -> EnvObj -> EnvObj
+        f' n (ExprObj e) = ExprObj $ f n e
+        f' n s@(SymbObj _) = s
+        f' _ n = n
 
 mapM :: Monad m => (Expr -> m Expr) -> ExprEnv -> m ExprEnv
 mapM f eenv = return . ExprEnv =<< Pre.mapM f' (unwrapExprEnv eenv)

@@ -35,6 +35,8 @@ import G2.Language.Syntax
 import G2.Language.Typing
 import G2.Language.AlgDataTy
 
+import Data.Hashable
+import Data.Hashable.Lifted
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
@@ -43,6 +45,15 @@ import Data.Maybe
 -- our primary interest with these is for dealing with algebraic data types,
 -- and we only store those information accordingly.
 type TypeEnv = M.Map Name AlgDataTy
+
+instance Hashable2 M.Map where
+    liftHashWithSalt2 hk hv s m = M.foldlWithKey'
+        (\s' k v -> hv (hk s' k) v)
+        (hashWithSalt s (M.size m))
+        m
+
+instance (Hashable k, Hashable v) => Hashable (M.Map k v) where
+    hashWithSalt = hashWithSalt2
 
 nameModMatch :: Name -> TypeEnv -> Maybe Name
 nameModMatch (Name n m _ _) = find (\(Name n' m' _ _) -> n == n' && m == m' ) . M.keys

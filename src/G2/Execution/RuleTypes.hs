@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
 
@@ -10,7 +11,10 @@ import G2.Language.AST
 import G2.Language.Naming
 import G2.Language.Syntax
 
+import Data.Hashable
 import qualified Data.Sequence as S
+
+import GHC.Generics (Generic)
 
 data Rule = RuleEvalVal
           | RuleEvalVarNonVal Name
@@ -75,7 +79,9 @@ data Rule = RuleEvalVal
           | RuleTick
           
           | RuleOther
-           deriving (Show, Eq, Read, Typeable, Data)
+           deriving (Show, Eq, Read, Typeable, Data, Generic)
+
+instance Hashable Rule
 
 instance AST e => ASTContainer Rule e where
     containedASTs _ = []

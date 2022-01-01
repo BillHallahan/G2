@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Equiv.Summary (SummaryMode (..), summarize, summarizeAct) where
+module G2.Equiv.Summary (SummaryMode (..), summarize, summarizeAct, printPG) where
 
 -- TODO may not need all imports
 

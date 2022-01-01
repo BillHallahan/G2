@@ -4,6 +4,8 @@ module G2.Lib.Printers ( PrettyGuide
                        , mkPrettyGuide
                        , updatePrettyGuide
 
+                       , printName
+
                        , printHaskell
                        , printHaskellDirty
                        , printHaskellDirtyPG
@@ -19,7 +21,9 @@ module G2.Lib.Printers ( PrettyGuide
                        , pprExecStateStr
                        , pprExecEEnvStr
                        , printFuncCall
-                       , prettyState) where
+                       , prettyState
+
+                       , prettyGuideStr) where
 
 import G2.Execution.Memory
 import G2.Language.Expr
@@ -46,6 +50,9 @@ data Clean = Cleaned | Dirty deriving Eq
 
 mkIdHaskell :: PrettyGuide -> Id -> String
 mkIdHaskell pg (Id n _) = mkNameHaskell pg n
+
+printName :: PrettyGuide -> Name -> String
+printName = mkNameHaskell
 
 mkNameHaskell :: PrettyGuide -> Name -> String
 mkNameHaskell pg n

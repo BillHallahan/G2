@@ -25,8 +25,8 @@ def run_zeno(thm, var_settings):
 def call_zeno_process(thm, var_settings):
     try:
         args = ["dist/build/RewriteV/RewriteV", "tests/RewriteVerify/Correct/Zeno.hs", thm]
-        limit_settings = ["--", "--limit", "10"]
-        res = subprocess.run(args + var_settings + limit_settings, capture_output = True, timeout = 20);
+        limit_settings = ["--", "--limit", "15"]
+        res = subprocess.run(args + var_settings + limit_settings, capture_output = True, timeout = 25);
         return res.stdout;
     except subprocess.TimeoutExpired:
         return "Timeout".encode('utf-8')
@@ -232,6 +232,7 @@ extra_theorems = [
 ]
 
 old_successes = [
+    ("p01", [n]),
     ("p06fin", []),
     ("p07fin", []),
     ("p08fin", []),
@@ -256,6 +257,7 @@ old_successes = [
     ("p40", []),
     ("p41", []),
     ("p42", []),
+    ("p43", [p, xs]),
     ("p44", []),
     ("p45", []),
     ("p46", []),
@@ -298,8 +300,8 @@ def test_suite(suite):
     print(unsat_num, "Confirmed out of", len(suite))
 
 def main():
-    test_suite(extra_theorems)
-    #test_suite_simple(custom_finite)
+    test_suite_simple(custom_finite)
+    test_suite(equivalences_all_total)
 
 if __name__ == "__main__":
     main()

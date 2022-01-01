@@ -38,6 +38,7 @@ import Debug.Trace
 import G2.Execution.NormalForms
 import Control.Monad
 
+import Data.Either.Extra
 import Data.Time
 
 import G2.Execution.Reducer
@@ -120,7 +121,8 @@ moreRestrictiveIndRight :: S.Solver solver =>
 moreRestrictiveIndRight solver ns prev (s1, s2) =
   let prev1 = map (\(p1, p2) -> (p1, p2, innerScrutineeStates p2)) prev
       prev2 = [(p1, p2', p2) | (p1, p2, p2l) <- prev1, p2' <- p2l]
-  in moreRestrictivePairAux solver ns prev2 (s1, s2)
+  in
+  return . eitherToMaybe =<< moreRestrictivePairAux solver ns prev2 (s1, s2)
 
 -- substitution happens on the left here; no right-side state returned
 inductionL :: S.Solver solver =>
@@ -345,9 +347,9 @@ generalize solver ns fresh_name (s1, s2) = do
 -- TODO might not matter with s1 and s2 naming
 -- TODO needs at least one fresh name
 inductionFull :: S.Solver s => Tactic s
-inductionFull solver ns (fresh_name:_) sh_pair s_pair = do
+inductionFull solver ns _ (fresh_name:_) sh_pair s_pair = do
   ifold <- inductionFold solver ns fresh_name sh_pair s_pair
   case ifold of
-    Nothing -> return NoProof
+    Nothing -> return $ NoProof HS.empty
     Just ((n1, n2), s1', s2') -> return $ Success (Just (n1, n2, s1', s2'))
-inductionFull _ _ _ _ _ = return NoProof
+inductionFull _ _ _ _ _ _ = return $ NoProof HS.empty
