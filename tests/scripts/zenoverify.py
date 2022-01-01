@@ -232,6 +232,7 @@ extra_theorems = [
 ]
 
 old_successes = [
+    ("p01", [n]),
     ("p06fin", []),
     ("p07fin", []),
     ("p08fin", []),

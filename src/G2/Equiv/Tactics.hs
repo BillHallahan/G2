@@ -126,8 +126,6 @@ data ActMarker = Induction IndMarker
                | Coinduction CoMarker
                | Equality EqualMarker
                | NoObligations (StateET, StateET)
-               | LemmaProven (StateET, StateET)
-               | LemmaUse (StateET, StateET)
                | NotEquivalent (StateET, StateET)
                | SolverFail (StateET, StateET)
                | Unresolved (StateET, StateET)
