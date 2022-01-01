@@ -173,16 +173,14 @@ treeTestsBad =
 
 rewriteTests :: TestTree
 rewriteTests = testGroup "Rewrite Tests"
-        [
-        --  rewriteVerifyTestsGood
-        -- , rewriteVerifyTestsBad
-        -- , coinductionTestsGood
-        -- , coinductionTestsBad
-        -- , higherOrderTestsGood
-        -- , higherOrderTestsBad
-        -- , 
-        treeTestsGood
-        -- , treeTestsBad
+        [ rewriteVerifyTestsGood
+        , rewriteVerifyTestsBad
+        , coinductionTestsGood
+        , coinductionTestsBad
+        , higherOrderTestsGood
+        , higherOrderTestsBad
+        , treeTestsGood
+        , treeTestsBad
         ]
 
 

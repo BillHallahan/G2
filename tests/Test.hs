@@ -59,19 +59,17 @@ main = do
 
 tests :: TestTree
 tests = testGroup "Tests"
-        [ 
-        -- sampleTests
-        -- , liquidTests
-        -- , testFileTests
-        -- , baseTests
-        -- , primTests
-        -- , exprTests
-        -- , typingTests
-        -- , simplificationTests
-        -- , ufMapQuickcheck
-        -- , unionFindQuickcheck
-        -- , 
-        rewriteTests
+        [ sampleTests
+        , liquidTests
+        , testFileTests
+        , baseTests
+        , primTests
+        , exprTests
+        , typingTests
+        , simplificationTests
+        , ufMapQuickcheck
+        , unionFindQuickcheck
+        , rewriteTests
         ]
 
 timeout :: Timeout
