@@ -104,8 +104,8 @@ higher_bad_src = "tests/RewriteVerify/Incorrect/HigherOrderIncorrect.hs"
 -- TODO also add some of the tree rewrite rules
 tree_good_names :: [String]
 tree_good_names = [ -- "doubleTree"
-                    "doubleTreeOriginal"
-                  , "doubleMapTree" ]
+                    -- "doubleTreeOriginal"
+                    "doubleMapTree" ]
 
 tree_good_src :: String
 tree_good_src = "tests/RewriteVerify/Correct/TreeCorrect.hs"
@@ -173,14 +173,16 @@ treeTestsBad =
 
 rewriteTests :: TestTree
 rewriteTests = testGroup "Rewrite Tests"
-        [ rewriteVerifyTestsGood
-        , rewriteVerifyTestsBad
-        , coinductionTestsGood
-        , coinductionTestsBad
-        , higherOrderTestsGood
-        , higherOrderTestsBad
-        , treeTestsGood
-        , treeTestsBad
+        [
+        --  rewriteVerifyTestsGood
+        -- , rewriteVerifyTestsBad
+        -- , coinductionTestsGood
+        -- , coinductionTestsBad
+        -- , higherOrderTestsGood
+        -- , higherOrderTestsBad
+        -- , 
+        treeTestsGood
+        -- , treeTestsBad
         ]
 
 
