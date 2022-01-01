@@ -430,12 +430,16 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
     -- does not add any extra proof obligations is preferable.
     (App _ _, _) | e1':_ <- unApp e1
                  , (Prim _ _) <- inlineTop [] h1 e1'
-                 , T.isPrimType $ typeOf e1 ->
+                 , T.isPrimType $ typeOf e1
+                 , T.isPrimType $ typeOf e2
+                 , isSWHNF $ (s2 { curr_expr = CurrExpr Evaluate e2 }) ->
                                   let (hm', hs) = hm
                                   in Right (hm', HS.insert (inlineFull [] h1 e1, inlineFull [] h2 e2) hs)
     (_, App _ _) | e2':_ <- unApp e2
                  , (Prim _ _) <- inlineTop [] h1 e2'
-                 , T.isPrimType $ typeOf e2 ->
+                 , T.isPrimType $ typeOf e2
+                 , T.isPrimType $ typeOf e1
+                 , isSWHNF $ (s1 { curr_expr = CurrExpr Evaluate e1 }) ->
                                   let (hm', hs) = hm
                                   in Right (hm', HS.insert (inlineFull [] h1 e1, inlineFull [] h2 e2) hs)
     -- We just compare the names of the DataCons, not the types of the DataCons.
@@ -624,10 +628,11 @@ applySolver solver extraPC s1 s2 =
         newState = s1 { expr_env = unionEnv, path_conds = extraPC }
     in case (P.toList allPC) of
       [] -> return $ S.SAT ()
-      _ -> trace ("APPLY SOLVER " ++ (show $ folder_name $ track s1)) $
-           trace (show $ P.number $ path_conds s1) $
-           trace (show $ folder_name $ track s2) $
-           trace (show $ P.number $ path_conds s2) $
+      _ -> do
+           putStrLn ("APPLY SOLVER " ++ (show $ folder_name $ track s1))
+           putStrLn (show $ P.number $ path_conds s1)
+           putStrLn (show $ folder_name $ track s2)
+           putStrLn (show $ P.number $ path_conds s2)
            S.check solver newState allPC
 
 -- extra filter on top of isJust for maybe_pairs
