@@ -27,19 +27,19 @@ findRule rule_list rule_name =
       Just r -> r
       Nothing -> error $ "not found " ++ show rule_name
 
-acceptRule :: Config -> State t -> Bindings -> RewriteRule -> IO ()
+acceptRule :: Config -> State t -> Bindings -> RewriteRule -> IO Bool
 acceptRule config init_state bindings rule = do
   res <- checkRule config init_state bindings [] [] NoSummary 10 rule
   return (case res of
     S.SAT _ -> error "Satisfiable"
-    S.UNSAT _ -> ()
+    S.UNSAT _ -> True
     _ -> error "Failed to Produce a Result")
 
-rejectRule :: Config -> State t -> Bindings -> RewriteRule -> IO ()
+rejectRule :: Config -> State t -> Bindings -> RewriteRule -> IO Bool
 rejectRule config init_state bindings rule = do
   res <- checkRule config init_state bindings [] [] NoSummary 10 rule
   return (case res of
-    S.SAT _ -> ()
+    S.SAT _ -> True
     S.UNSAT _ -> error "Unsatisfiable"
     _ -> error "Failed to Produce a Result")
 
@@ -124,7 +124,7 @@ libs = maybeToList $ strArg "mapsrc" [] M.empty Just Nothing
 empty_config :: IO Config
 empty_config = getConfig []
 
-rvTest :: (Config -> State () -> Bindings -> RewriteRule -> IO ()) ->
+rvTest :: (Config -> State () -> Bindings -> RewriteRule -> IO Bool) ->
           String -> [String] -> IO ()
 rvTest check src rule_names = do
   proj <- guessProj src
@@ -133,10 +133,11 @@ rvTest check src rule_names = do
                             (TranslationConfig {simpl = True, load_rewrite_rules = True})
                             config
   let rules = map (findRule $ rewrite_rules bindings) rule_names
-  r <- doTimeout (30 * length rules) $ mapM_ (check config init_state bindings) rules
+  r <- doTimeout (30 * length rules) $ mapM (check config init_state bindings) rules
   case r of
-      Nothing -> error "Timeout"
-      Just r' -> return r'
+      Nothing -> error "TIMEOUT"
+      Just r' | and r' -> return ()
+              | otherwise -> error "test failed"
 
 rewriteVerifyTestsGood :: TestTree
 rewriteVerifyTestsGood =
