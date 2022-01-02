@@ -521,10 +521,34 @@ verifyWithNewProvenLemmas solver nl_tactics ns proven_lemmas lemmas b config fol
     return (res, b', k)
 
 applyTacticToLabeledStates :: Tactic solver -> String -> String -> Tactic solver
-applyTacticToLabeledStates tactic lbl1 lbl2 solver ns lemmas fresh_names (sh1, sh2) (s1, s2)
-    | Just sh1' <- digInStateH lbl1 $ appendH sh1 s1
-    , Just sh2' <- digInStateH lbl2 $ appendH sh2 s2 =
-        tactic solver ns lemmas fresh_names (sh1', sh2') (latest sh1', latest sh2')
+applyTacticToLabeledStates tactic lbl1 _ solver ns lemmas fresh_names (sh1, sh2) (s1, s2)
+    | Just sh1' <- digInStateH lbl1 $ appendH sh1 s1 = do
+        W.liftIO $ do
+          putStrLn "applyTacticToLabeledStates"
+          putStrLn $ "label1 = " ++ show (folder_name . track $ latest sh1')
+        r <- tactic solver ns lemmas fresh_names (sh1', sh2) (latest sh1', latest sh2)
+        W.liftIO $ case r of 
+                        Success _ -> putStrLn "Success"
+                        NoProof _ -> putStrLn "NoProof"
+                        Failure -> putStrLn "Failure"
+        return r
+    | Just sh2' <- digInStateH lbl1 $ appendH sh2 s2 = do
+        W.liftIO $ do
+          putStrLn "applyTacticToLabeledStates"
+          putStrLn $ "label2 = " ++ show (folder_name . track $ latest sh2)
+        r <- tactic solver ns lemmas fresh_names (sh1, sh2') (latest sh1, latest sh2')
+        W.liftIO $ case r of 
+                        Success _ -> putStrLn "Success"
+                        NoProof _ -> putStrLn "NoProof"
+                        Failure -> putStrLn "Failure"
+        return r
+    -- | Just sh1' <- digInStateH lbl1 $ appendH sh1 s1
+    -- , Just sh2' <- digInStateH lbl2 $ appendH sh2 s2 = do
+    --     W.liftIO $ do
+    --       putStrLn "applyTacticToLabeledStates"
+    --       putStrLn $ "label1 = " ++ show (folder_name . track $ latest sh1')
+    --       putStrLn $ "label2 = " ++ show (folder_name . track $ latest sh2')
+    --     tactic solver ns lemmas fresh_names (sh1', sh2') (latest sh1', latest sh2')
     | otherwise = return . NoProof $ HS.empty
 
 digInStateH :: String -> StateH -> Maybe StateH

@@ -235,6 +235,7 @@ instance Named EqualMarker where
 data TacticResult = Success (Maybe (Int, Int, StateET, StateET))
                   | NoProof (HS.HashSet (StateET, StateET))
                   | Failure
+                  deriving Show
 
 -- this takes a list of fresh names as input
 -- equality and coinduction don't need them
