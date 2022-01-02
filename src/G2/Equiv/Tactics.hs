@@ -97,12 +97,14 @@ import qualified Control.Monad.Writer.Lazy as W
 import Control.Exception
 
 data StateH = StateH {
-    latest :: StateET
-  , history :: [StateET]
-  , inductions :: [IndMarker]
-  , discharge :: Maybe StateET
-}
+      latest :: StateET
+    , history :: [StateET]
+    , inductions :: [IndMarker]
+    , discharge :: Maybe StateET
+  }
+  deriving (Eq, Generic)
 
+instance Hashable StateH
 
 instance Named StateH where
   names (StateH s h ims d) =
@@ -160,15 +162,18 @@ data Side = ILeft | IRight deriving (Eq, Show, Typeable, Generic)
 instance Hashable Side
 
 data IndMarker = IndMarker {
-    ind_real_present :: (StateET, StateET)
-  , ind_used_present :: (StateET, StateET)
-  , ind_past :: (StateET, StateET)
-  , ind_result :: (StateET, StateET)
-  , ind_present_scrutinees :: (Expr, Expr)
-  , ind_past_scrutinees :: (StateET, StateET)
-  , ind_side :: Side
-  , ind_fresh_name :: Name
-}
+      ind_real_present :: (StateET, StateET)
+    , ind_used_present :: (StateET, StateET)
+    , ind_past :: (StateET, StateET)
+    , ind_result :: (StateET, StateET)
+    , ind_present_scrutinees :: (Expr, Expr)
+    , ind_past_scrutinees :: (StateET, StateET)
+    , ind_side :: Side
+    , ind_fresh_name :: Name
+  }
+  deriving (Eq, Generic)
+
+instance Hashable IndMarker
 
 -- TODO shouldn't need present scrutinees
 instance Named IndMarker where
@@ -785,14 +790,14 @@ tryEquality solver ns _ _ sh_pair (s1, s2) = do
       return $ Success Nothing
     _ -> return (NoProof HS.empty)
 
-backtrackOne :: StateH -> StateH
+backtrackOne :: StateH -> Maybe StateH
 backtrackOne sh =
   case history sh of
-    [] -> error "No Backtrack Possible"
-    h:t -> sh {
-        latest = h
-      , history = t
-      }
+    [] -> Nothing
+    h:t -> Just $ sh {
+                       latest = h
+                     , history = t
+                     }
 
 -- This attempts to find a past-present combination that works for coinduction.
 -- The left-hand present state stays fixed, but the recursion iterates through
@@ -816,10 +821,10 @@ coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) | not . isSWHNF
   | otherwise = backtrack HS.empty
   where
       backtrack new_lems_ =
-          case history sh2 of
-              [] -> return . Left $ HS.union new_lems_ gen_lemmas
-              p2:_ -> coinductionFoldL solver ns lemmas
-                                       (HS.union new_lems_ gen_lemmas) (sh1, backtrackOne sh2) (s1, p2)
+          case backtrackOne sh2 of
+              Nothing -> return . Left $ HS.union new_lems_ gen_lemmas
+              Just sh2' -> coinductionFoldL solver ns lemmas
+                                       (HS.union new_lems_ gen_lemmas) (sh1, sh2') (s1, latest sh2')
 
       inlineCurrExpr s_@(State { expr_env = eenv, curr_expr = CurrExpr er cexpr}) =
           let
@@ -860,7 +865,12 @@ data Lemmas = Lemmas { proposed_lemmas :: [ProposedLemma]
 
 data Lemma = Lemma { lemma_lhs :: StateET
                    , lemma_rhs :: StateET
+                   , lemma_lhs_origin :: String
+                   , lemma_rhs_origin :: String
                    , lemma_to_be_proven :: [(StateH, StateH)] }
+                   deriving (Eq, Generic)
+
+instance Hashable Lemma
 
 type ProposedLemma = Lemma
 type ProvenLemma = Lemma
@@ -899,16 +909,18 @@ insertDisprovenLemma :: DisprovenLemma -> Lemmas -> Lemmas
 insertDisprovenLemma lem lems = lems { disproven_lemmas = lem:disproven_lemmas lems }
 
 moreRestrictiveLemma :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> [Lemma] -> W.WriterT [Marker] IO Bool 
-moreRestrictiveLemma solver ns (Lemma l1_1 l1_2 _) lems = do
-    mr <- moreRestrictivePair solver ns (map (\(Lemma l2_1 l2_2 _) -> (l2_1, l2_2)) lems) (l1_1, l1_2)
+moreRestrictiveLemma solver ns (Lemma { lemma_lhs = l1_1, lemma_rhs = l1_2 }) lems = do
+    mr <- moreRestrictivePair solver ns
+                              (map (\(Lemma { lemma_lhs = l2_1, lemma_rhs = l2_2 }) -> (l2_1, l2_2)) lems)
+                              (l1_1, l1_2)
     case mr of
         Left _ -> return False
         Right _ -> return True
 
 -- TODO Is this correct?  See moreRestrictiveEqual
 equivLemma :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> [Lemma] -> W.WriterT [Marker] IO Bool 
-equivLemma solver ns (Lemma l1_1 l1_2 _) lems = do
-    anyM (\(Lemma l2_1 l2_2 _) -> do
+equivLemma solver ns (Lemma { lemma_lhs = l1_1, lemma_rhs = l1_2 }) lems = do
+    anyM (\(Lemma { lemma_lhs = l2_1, lemma_rhs = l2_2 }) -> do
                     mr1 <- moreRestrictivePair solver ns [(l2_1, l2_2)] (l1_1, l1_2)
                     mr2 <- moreRestrictivePair solver ns [(l1_1, l1_2)] (l2_1, l2_2)
                     case (mr1, mr2) of
@@ -916,9 +928,9 @@ equivLemma solver ns (Lemma l1_1 l1_2 _) lems = do
                         _ -> return False) lems
 
 instance Named Lemma where
-    names (Lemma s1 s2 sh) = names s1 <> names s2 <> names sh
-    rename old new (Lemma s1 s2 sh) =
-        Lemma (rename old new s1) (rename old new s2) (rename old new sh)
+    names (Lemma s1 s2 _ _ sh) = names s1 <> names s2 <> names sh
+    rename old new (Lemma s1 s2 f1 f2 sh) =
+        Lemma (rename old new s1) (rename old new s2) f1 f2 (rename old new sh)
 
 -- TODO: Does substLemma need to do something more to check correctness of path constraints?
 -- `substLemma state lemmas` tries to apply each proven lemma in `lemmas` to `state`.
@@ -950,7 +962,8 @@ replaceMoreRestrictiveSubExpr solver ns lemma s@(State { curr_expr = CurrExpr er
 
 replaceMoreRestrictiveSubExpr' :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> StateET -> Expr
                                -> CM.StateT Bool (W.WriterT [Marker] IO) Expr
-replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma lhs_s rhs_s _) s2@(State { curr_expr = CurrExpr er _ }) e = do
+replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma_rhs = rhs_s })
+                                         s2@(State { curr_expr = CurrExpr er _ }) e = do
     replaced <- CM.get
     if not replaced then do 
         mr_sub <- CM.lift $ moreRestrictiveSingle solver ns lhs_s (s2 { curr_expr = CurrExpr Evaluate e })
