@@ -99,11 +99,7 @@ equivalences_all_total = [
     ("p02", ["n", "xs", "ys"]),
     ("p03", ["n", "xs", "ys"]),
     ("p04", ["n", "xs"]),
-    ("p06", ["n", "m"]),
-    ("p07", ["n", "m"]),
-    ("p08", ["k", "m", "n"]),
     ("p09", ["i", "j", "k"]),
-    ("p10", ["m"]),
     ("p11", ["xs"]),
     ("p12", ["f", "n", "xs"]),
     ("p13", ["n", "x", "xs"]),
@@ -114,8 +110,6 @@ equivalences_all_total = [
     ("p20", ["xs"]),
     ("p22", ["a", "b", "c"]),
     ("p23", ["a", "b"]),
-    ("p24", ["a", "b"]),
-    ("p25", ["a", "b"]),
     ("p31", ["a", "b", "c"]),
     ("p32", ["a", "b"]),
     ("p33", ["a", "b"]),
@@ -137,13 +131,11 @@ equivalences_all_total = [
     ("p51", ["x", "xs"]),
     ("p52", ["n", "xs"]),
     ("p53", ["n", "xs"]),
-    ("p54", ["n", "m"]),
     ("p55", ["n", "xs", "ys"]),
     ("p56", ["n", "m", "xs"]),
     ("p57", ["n", "m", "xs"]),
     ("p58", ["n", "xs", "ys"]),
     ("p61", ["xs", "ys"]),
-    ("p64", ["x", "xs"]),
     ("p67", ["xs"]),
     ("p72", ["i", "xs"]),
     ("p73", ["p", "xs"]),
@@ -156,6 +148,18 @@ equivalences_all_total = [
     ("p83", ["xs", "ys", "zs"]),
     ("p84", ["xs", "ys", "zs"])
 ]
+
+equivalences_should_fail = [
+    ("p06", ["n", "m"]),
+    ("p07", ["n", "m"]),
+    ("p08", ["k", "m", "n"]),
+    ("p10", ["m"]),
+    ("p24", ["a", "b"]),
+    ("p25", ["a", "b"]),
+    ("p54", ["n", "m"]),
+    ("p64", ["x", "xs"]),
+]
+
 
 custom_finite = [
     "p06fin",
@@ -170,6 +174,7 @@ custom_finite = [
 finite_long = [
     ("p24fin", ["a", "b"]),
     ("p25fin", ["a", "b"]),
+    ("p54fin", ["m"]),
 ]
 
 
@@ -305,10 +310,30 @@ def test_suite(suite, timeout = 25):
             print("\tFailed - " + str(elapsed) + "s")
     print(unsat_num, "Confirmed out of", len(suite))
 
+# For tests that should not return unsat
+def test_suite_fail(suite, timeout = 25):
+    sat_num = 0;
+    for (thm, settings) in suite:
+        print(thm, settings);
+        (check_unsat, elapsed) = run_zeno(thm, settings, timeout);
+        if check_unsat == "UNSAT ()":
+            print("\tIncorrectly verified - " + str(elapsed) + "s");
+        elif check_unsat == "Timeout":
+            print("\tDid not verify - Timeout - " + str(elapsed) + "s")
+            sat_num += 1
+        elif check_unsat == "SAT ()":
+            print("\tDid not verify - Sat - " + str(elapsed) + "s")
+            sat_num += 1
+        else:
+            print("\tDid Not verify - Other" + str(elapsed) + "s")
+            sat_num += 1
+    print(sat_num, "Confirmed out of", len(suite))
+
 def main():
     test_suite_simple(custom_finite)
     test_suite(equivalences_all_total)
     test_suite(finite_long, 90)
+    test_suite_fail(equivalences_should_fail)
 
 if __name__ == "__main__":
     main()
