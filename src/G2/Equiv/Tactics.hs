@@ -1049,11 +1049,11 @@ moreRestrictivePairWithLemmas :: S.Solver solver =>
                                  (StateET, StateET) ->
                                  W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (PrevMatch EquivTracker))
 moreRestrictivePairWithLemmas solver ns lemmas past (s1, s2) = do
-    xs1 <- substLemma solver ns s1 lemmas
-    xs2 <- substLemma solver ns s2 lemmas
+    let (s1', s2') = syncSymbolic s1 s2
+    xs1 <- substLemma solver ns s1' lemmas
+    xs2 <- substLemma solver ns s2' lemmas
 
-    let pairs = [ (s1'', s2'') | s1' <- s1:xs1, s2' <- s2:xs2
-                             , let (s1'', s2'') = syncSymbolic s1' s2' ]
+    let pairs = [ (s1_, s2_) | s1_ <- s1':xs1, s2_ <- s2':xs2 ]
 
     rp <- mapM (moreRestrictivePair solver ns past) pairs
     let (possible_lemmas, possible_matches) = partitionEithers rp
