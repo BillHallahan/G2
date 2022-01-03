@@ -988,43 +988,11 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma
     replaced <- CM.get
     if not replaced then do 
         mr_sub <- CM.lift $ moreRestrictiveSingle solver ns lhs_s (s2 { curr_expr = CurrExpr Evaluate e })
-        if folder_name (track s2) == "/b12" && lemma_name lemma == "past_1 = /a10 present_1 = /a110 past_2 = /b1 present_2 = /b12"
-            then W.liftIO $ do
-                let pg = mkPrettyGuide (lhs_s, s2)
-                    in1 = inlineFull (HS.toList ns) (expr_env lhs_s)
-                    in2 = inlineFull (HS.toList ns) (expr_env s2)
-                putStrLn "replaceMoreRestrictiveSubExpr'"
-                putStrLn $ printHaskellDirtyPG pg (in1 $ exprExtract lhs_s)
-                putStrLn $ printHaskellDirtyPG pg (in2 $ exprExtract (s2 { curr_expr = CurrExpr Evaluate e }))
-                putStrLn $ case mr_sub of
-                                Left Nothing -> "\tLeft Nothing"
-                                Left (Just lem) -> "\tLeft\n"
-                                        ++ "\t" ++ printHaskellDirtyPG pg (in2 $ exprExtract (lemma_lhs lem))
-                                        ++ "\n\t" ++ printHaskellDirtyPG pg (in2 $ exprExtract (lemma_rhs lem))
-                                Right _ -> "\tRight"
-            else return ()
         case mr_sub of
             Right hm -> do
                 let v_rep = HM.toList hm
 
                     rhs_e' = replaceVars (inlineFull (HS.toList ns) (expr_env rhs_s) $ exprExtract rhs_s) v_rep
-                -- DEBUG
-                -- if folder_name (track s2) == "/a138" then
-                --       W.liftIO $ do
-                --           putStrLn "replaceMoreRestrictiveSubExpr"
-                --           let pg = mkPrettyGuide (lhs_s, rhs_s, s2)
-                --               lhs_in = inlineFull (HS.toList ns) (expr_env lhs_s)
-                --               rhs_in = inlineFull (HS.toList ns) (expr_env rhs_s)
-                --               in2 = inlineFull (HS.toList ns) (expr_env s2)
-                --           putStrLn "----------"
-                --           putStrLn $ "lhs lemma = " ++ printHaskellDirtyPG pg (lhs_in $ exprExtract lhs_s)
-                --           putStrLn $ "rhs_lemma = " ++ printHaskellDirtyPG pg (rhs_in $ exprExtract rhs_s)
-                --           putStrLn $ "replacing   = " ++ printHaskellDirtyPG pg (in2 e)
-                --           putStrLn $ "replaceWith = " ++ printHaskellDirtyPG pg (inlineFull (HS.toList ns) (expr_env rhs_s) rhs_e')
-                --           putStrLn $ "v_rep =\n" ++ intercalate "\n\t" (map (\(n, e) -> printName pg (idName n) ++ " -> " ++ (printHaskellDirtyPG pg e)) v_rep)
-                --           putStrLn "----------"
-                -- else return ()
-                -- DEBUG
 
                 CM.put True
                 return rhs_e'                 
@@ -1057,20 +1025,6 @@ moreRestrictivePairWithLemmas solver ns lemmas past (s1, s2) = do
 
     rp <- mapM (moreRestrictivePair solver ns past) pairs
     let (possible_lemmas, possible_matches) = partitionEithers rp
-
-    if folder_name (track s1) == "/b12" || folder_name (track s2) == "/b12" then
-        W.liftIO $ do
-            putStrLn "moreRestrictivePairWithLemmas Start"
-            mapM (\((s1_, s2_), r) -> do
-                      let pg = mkPrettyGuide (s1_, s2_)
-                          in1 = inlineFull (HS.toList ns) (expr_env s1_)
-                          in2 = inlineFull (HS.toList ns) (expr_env s2_)
-                      putStrLn "----------"
-                      putStrLn $ printHaskellDirtyPG pg (in1 $ exprExtract s1_)
-                      putStrLn $ printHaskellDirtyPG pg (in2 $ exprExtract s2_)
-                      putStrLn $ if isLeft r then "Left" else "Right") $ zip pairs rp
-            putStrLn "moreRestrictivePairWithLemmas End"
-    else return ()
 
     case possible_matches of
         x:_ -> return $ Right x

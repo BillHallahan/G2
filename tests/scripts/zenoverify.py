@@ -6,9 +6,9 @@ import re
 import subprocess
 import time
 
-def run_zeno(thm, var_settings):
+def run_zeno(thm, var_settings, timeout):
     start_time = time.monotonic();
-    res = call_zeno_process(thm, var_settings);
+    res = call_zeno_process(thm, var_settings, timeout);
     end_time = time.monotonic();
     elapsed = end_time - start_time;
 
@@ -22,11 +22,11 @@ def run_zeno(thm, var_settings):
             check_unsat = "";
     return (check_unsat, elapsed);
 
-def call_zeno_process(thm, var_settings):
+def call_zeno_process(thm, var_settings, time):
     try:
         args = ["dist/build/RewriteV/RewriteV", "tests/RewriteVerify/Correct/Zeno.hs", thm]
         limit_settings = ["--", "--limit", "15"]
-        res = subprocess.run(args + var_settings + limit_settings, capture_output = True, timeout = 25);
+        res = subprocess.run(args + var_settings + limit_settings, capture_output = True, timeout = time);
         return res.stdout;
     except subprocess.TimeoutExpired:
         return "Timeout".encode('utf-8')
@@ -167,6 +167,12 @@ custom_finite = [
     "p64fin"
 ]
 
+finite_long = [
+    ("p24fin", ["a", "b"]),
+    ("p25fin", ["a", "b"]),
+]
+
+
 n = "n"
 x = "x"
 xs = "xs"
@@ -271,11 +277,11 @@ old_successes = [
     ("p82", [])
 ]
 
-def test_suite_simple(suite):
+def test_suite_simple(suite, timeout = 25):
     unsat_num = 0;
     for thm in suite:
         print(thm);
-        (check_unsat, elapsed) = run_zeno(thm, []);
+        (check_unsat, elapsed) = run_zeno(thm, [], timeout);
         if check_unsat == "UNSAT ()":
             print("\tVerified - " + str(elapsed) + "s");
             unsat_num += 1
@@ -285,11 +291,11 @@ def test_suite_simple(suite):
             print("\tFailed - " + str(elapsed) + "s")
     print(unsat_num, "Confirmed out of", len(suite))
 
-def test_suite(suite):
+def test_suite(suite, timeout = 25):
     unsat_num = 0;
     for (thm, settings) in suite:
         print(thm, settings);
-        (check_unsat, elapsed) = run_zeno(thm, settings);
+        (check_unsat, elapsed) = run_zeno(thm, settings, timeout);
         if check_unsat == "UNSAT ()":
             print("\tVerified - " + str(elapsed) + "s");
             unsat_num += 1
@@ -302,6 +308,7 @@ def test_suite(suite):
 def main():
     test_suite_simple(custom_finite)
     test_suite(equivalences_all_total)
+    test_suite(finite_long, 90)
 
 if __name__ == "__main__":
     main()
