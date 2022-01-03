@@ -284,14 +284,6 @@ getLatest (StateH { latest = s1 }, StateH { latest = s2 }) = (s1, s2)
 
 type NewLemmaTactic solver = String -> String -> Tactic solver
 
-newStateH :: StateET -> StateH
-newStateH s = StateH {
-    latest = s
-  , history = []
-  , inductions = []
-  , discharge = Nothing
-  }
-
 -- discharge only has a meaningful value when execution is done for a branch
 appendH :: StateH -> StateET -> StateH
 appendH sh s =
@@ -448,6 +440,8 @@ verifyLoopPropLemmas' solver tactics ns lemmas config folder_root
                   Proven -> do
                       let pg = mkPrettyGuide l
                       CM.liftIO $ putStrLn "---- Just Proved ----"
+                      CM.liftIO $ putStrLn $ lemma_name l
+                      CM.liftIO $ putStrLn $ lemma_lhs_origin l ++ " " ++ lemma_rhs_origin l
                       CM.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env is1) is1
                       CM.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env is2) is2
                       return [l { lemma_to_be_proven = [] }]
@@ -483,9 +477,15 @@ verifyLoop' solver tactics ns lemmas b config folder_root k states = do
     let new_obligations = concatMap fst $ catMaybes proof_lemma_list
         new_lemmas = HS.unions . map snd $ catMaybes proof_lemma_list
 
+    mapM_ (\l@(Lemma { lemma_lhs = le1, lemma_rhs = le2}) -> do
+              let pg = mkPrettyGuide l
+              W.liftIO $ putStrLn "---- verifyLoopPropLemmas' Proposed ----"
+              W.liftIO $ putStrLn $ "proposed " ++ lemma_name l
+              W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
+              W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) new_lemmas
+   
     let res = if | null proof_lemma_list -> Proven
-                 | all isJust proof_lemma_list ->
-                      ContinueWith new_obligations $ HS.toList new_lemmas
+                 | all isJust proof_lemma_list -> ContinueWith new_obligations $ HS.toList new_lemmas
                  | otherwise -> CounterexampleFound
     return (res, b'', k')
 
@@ -521,26 +521,44 @@ verifyWithNewProvenLemmas solver nl_tactics ns proven_lemmas lemmas b config fol
     return (res, b', k)
 
 applyTacticToLabeledStates :: Tactic solver -> String -> String -> Tactic solver
-applyTacticToLabeledStates tactic lbl1 _ solver ns lemmas fresh_names (sh1, sh2) (s1, s2)
+applyTacticToLabeledStates tactic lbl1 lbl2 solver ns lemmas fresh_names (sh1, sh2) (s1, s2)
     | Just sh1' <- digInStateH lbl1 $ appendH sh1 s1 = do
         W.liftIO $ do
-          putStrLn "applyTacticToLabeledStates"
-          putStrLn $ "label1 = " ++ show (folder_name . track $ latest sh1')
+          putStrLn $ "applyTacticToLabeledStates labels "
+                      ++ lbl1 ++ " " ++ lbl2
+                      ++ (folder_name . track $ latest sh1')
+                      ++ " "
+                      ++ (folder_name . track $ latest sh2)
         r <- tactic solver ns lemmas fresh_names (sh1', sh2) (latest sh1', latest sh2)
         W.liftIO $ case r of 
-                        Success _ -> putStrLn "Success"
-                        NoProof _ -> putStrLn "NoProof"
-                        Failure -> putStrLn "Failure"
+                        Success _ -> putStrLn "Success 1"
+                        NoProof _ -> putStrLn "NoProof 1"
+                        Failure -> putStrLn "Failure 1"
         return r
-    | Just sh2' <- digInStateH lbl1 $ appendH sh2 s2 = do
+    | Just sh2' <- digInStateH lbl2 $ appendH sh2 s2 = do
         W.liftIO $ do
-          putStrLn "applyTacticToLabeledStates"
-          putStrLn $ "label2 = " ++ show (folder_name . track $ latest sh2)
+          putStrLn $ "applyTacticToLabeledStates labels "
+                      ++ lbl1 ++ " " ++ lbl2
+                      ++ (folder_name . track $ latest sh1)
+                      ++ " "
+                      ++ (folder_name . track $ latest sh2')
         r <- tactic solver ns lemmas fresh_names (sh1, sh2') (latest sh1, latest sh2')
         W.liftIO $ case r of 
-                        Success _ -> putStrLn "Success"
-                        NoProof _ -> putStrLn "NoProof"
-                        Failure -> putStrLn "Failure"
+                        Success _ -> putStrLn "Success 2"
+                        NoProof _ -> do
+                            let ps1 = latest sh1
+                                ps2 = latest sh2'
+                            let pg = mkPrettyGuide (ps1, ps2)
+                                symbs =  (E.symbolicIds $ expr_env ps1) ++ (E.symbolicIds $ expr_env ps2)
+                            putStrLn "NoProof 2"
+                            CM.liftIO $ putStrLn "===="
+                            mapM_ (CM.liftIO . putStrLn . printPG pg ns symbs) (history sh1)
+                            CM.liftIO $ putStrLn $ printPG pg ns symbs ps1
+                            CM.liftIO $ putStrLn "===="
+                            mapM_ (CM.liftIO . putStrLn . printPG pg ns symbs) (history sh2')
+                            CM.liftIO $ putStrLn $ printPG pg ns symbs ps2
+                            CM.liftIO $ putStrLn "===="
+                        Failure -> putStrLn "Failure 2"
         return r
     -- | Just sh1' <- digInStateH lbl1 $ appendH sh1 s1
     -- , Just sh2' <- digInStateH lbl2 $ appendH sh2 s2 = do
@@ -549,22 +567,20 @@ applyTacticToLabeledStates tactic lbl1 _ solver ns lemmas fresh_names (sh1, sh2)
     --       putStrLn $ "label1 = " ++ show (folder_name . track $ latest sh1')
     --       putStrLn $ "label2 = " ++ show (folder_name . track $ latest sh2')
     --     tactic solver ns lemmas fresh_names (sh1', sh2') (latest sh1', latest sh2')
-    | otherwise = return . NoProof $ HS.empty
+    | otherwise = do
+        W.liftIO $ putStrLn $ "FAIL applyTacticToLabeledStates labels "
+                                ++ lbl1 ++ " " ++ lbl2
+                                ++ " latest "
+                                ++ (folder_name . track $ latest sh1)
+                                ++ " "
+                                ++ (folder_name . track $ latest sh2)
+        return . NoProof $ HS.empty
 
 digInStateH :: String -> StateH -> Maybe StateH
 digInStateH lbl sh
     | (folder_name . track $ latest sh) == lbl = Just sh
     | Just sh' <- backtrackOne sh = digInStateH lbl sh'
     | otherwise = Nothing
-
-mkProposedLemma :: StateET -> StateET -> ProposedLemma
-mkProposedLemma s1 s2 =
-    assert (E.symbolicIds (expr_env s1) == E.symbolicIds (expr_env s2))
-          Lemma { lemma_lhs = s1
-                , lemma_rhs = s2
-                , lemma_lhs_origin = folder_name . track $ s1
-                , lemma_rhs_origin = folder_name . track $ s2
-                , lemma_to_be_proven  =[(newStateH s1, newStateH s2)] }
 
 stateWrap :: StateET -> StateET -> Obligation -> (StateET, StateET)
 stateWrap s1 s2 (Ob e1 e2) =
@@ -613,13 +629,13 @@ adjustStateH (sh1, sh2) (n1, n2) (s1, s2) =
 
 data TacticEnd = EFail
                | EDischarge
-               | EContinue (HS.HashSet (StateET, StateET)) (StateH, StateH)
+               | EContinue (HS.HashSet Lemma) (StateH, StateH)
 
 getRemaining :: TacticEnd -> [(StateH, StateH)] -> [(StateH, StateH)]
 getRemaining (EContinue _ sh_pair) acc = sh_pair:acc
 getRemaining _ acc = acc
 
-getLemmas :: TacticEnd -> HS.HashSet (StateET, StateET)
+getLemmas :: TacticEnd -> HS.HashSet Lemma
 getLemmas (EContinue lemmas _) = lemmas
 getLemmas _ = HS.empty
 
@@ -650,7 +666,7 @@ applyTactics :: S.Solver solver =>
                 [Tactic solver] ->
                 HS.HashSet Name ->
                 Lemmas ->
-                HS.HashSet (StateET, StateET) ->
+                HS.HashSet Lemma ->
                 [Name] ->
                 (StateH, StateH) ->
                 (StateET, StateET) ->
@@ -706,7 +722,7 @@ tryDischarge solver tactics ns lemmas fresh_names sh1 sh2 =
       -- list of remaining obligations in StateH form
       -- TODO I think non-ready ones can stay as they are
       let res' = foldr getRemaining [] res
-          new_lemmas = HS.map (uncurry mkProposedLemma) . HS.unions $ map getLemmas res
+          new_lemmas = HS.unions $ map getLemmas res
       if hasFail res then do
         W.liftIO $ putStrLn "X?"
         W.tell [Marker (sh1, sh2) $ SolverFail (s1, s2)]
