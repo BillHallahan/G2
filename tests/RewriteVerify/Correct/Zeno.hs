@@ -779,6 +779,30 @@ Uncertain ones where the walking may need to be different:
 "p77fin" forall x xs . prop_77 x xs = walkList xs True
   #-}
 
+{-
+RESULTS 1/2
+No outcome seen for p72fin
+
+RESULTS 1/3
+No outcome seen for p05finD
+No outcome seen for p37finA
+No outcome seen for p39fin
+No outcome seen for p52fin
+No outcome seen for p53fin
+No outcome seen for p70finB
+No outcome seen for p76finA
+-}
+{-# RULES
+"p05finD" forall n x xs . prop_05 n x xs = walkNat x True
+"p37finA" forall x xs . prop_37 x xs = walkNatList xs True
+"p39fin" forall n x xs . count n [x] + count n xs = walkNat x (count n (x:xs))
+"p52fin" forall n xs . walkNatList xs (count n xs) = count n (rev xs)
+"p53fin" forall n xs . walkNatList xs (count n xs) = count n (sort xs)
+"p70finB" forall m n . prop_70 m n = walkNat n True
+"p72fin" forall i xs . walkList xs (rev (drop i xs)) = take (len xs - i) (rev xs)
+"p76finA" forall n m xs . prop_76 n m xs = walkNat n True
+  #-}
+
 -- TODO alternative finiteness approach
 walkNat :: Nat -> a -> a
 walkNat Z a = a
