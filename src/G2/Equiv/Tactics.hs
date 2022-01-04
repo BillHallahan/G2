@@ -607,7 +607,7 @@ syncSymbolic s1 s2 =
       h1 = E.unionWith f (expr_env s1) (expr_env s2)
       h2 = E.unionWith f (expr_env s2) (expr_env s1)
   in
-  assert (E.symbolicIds h1 == E.symbolicIds h2) $ (s1 { expr_env = h1 }, s2 { expr_env = h2 })
+  assert (map idName (E.symbolicIds h1) == map idName (E.symbolicIds h2)) $ (s1 { expr_env = h1 }, s2 { expr_env = h2 })
 
 obligationWrap :: HS.HashSet (Expr, Expr) -> Maybe PathCond
 obligationWrap obligations =
@@ -1032,7 +1032,7 @@ moreRestrictivePairWithLemmas solver ns lemmas past (s1, s2) = do
 
 mkProposedLemma :: String -> StateET -> StateET -> StateET -> StateET -> ProposedLemma
 mkProposedLemma lm_name or_s1 or_s2 s1 s2 =
-    assert (E.symbolicIds (expr_env s1) == E.symbolicIds (expr_env s2))
+    assert (map idName (E.symbolicIds (expr_env s1)) == map idName (E.symbolicIds (expr_env s2)))
           Lemma { lemma_name = lm_name
                 , lemma_lhs = s1
                 , lemma_rhs = s2
