@@ -330,7 +330,7 @@ verifyLoop solver ns lemmas states b config folder_root k n | n /= 0 = do
   W.liftIO $ putStrLn $ "continued_lemmas: " ++ show (length continued_lemmas)
   W.liftIO $ putStrLn $ "disproven_lemmas: " ++ show (length disproven_lemmas)
 
-  (pl_sr, b'', k'') <- verifyWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas lemmas''' b' config folder_root k' states
+  (pl_sr, b'', k'') <- return (ContinueWith states [], b', k') -- verifyWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas lemmas''' b' config folder_root k' states
 
   case pl_sr of
       CounterexampleFound -> return $ S.SAT ()
