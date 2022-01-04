@@ -330,13 +330,13 @@ verifyLoop solver ns lemmas states b config folder_root k n | n /= 0 = do
   W.liftIO $ putStrLn $ "continued_lemmas: " ++ show (length continued_lemmas)
   W.liftIO $ putStrLn $ "disproven_lemmas: " ++ show (length disproven_lemmas)
 
-  (pl_sr, b'', k'') <- return (ContinueWith states [], b', k') -- verifyWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas lemmas''' b' config folder_root k' states
+  (pl_sr, b'', k'') <- verifyWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas lemmas''' b' config folder_root k' states
 
   case pl_sr of
       CounterexampleFound -> return $ S.SAT ()
       Proven -> return $ S.UNSAT ()
       ContinueWith pl_new_obs pl_lemmas -> do
-          (sr, b''', k''') <- verifyLoop' solver allTactics ns lemmas''' b'' config folder_root k'' pl_new_obs
+          (sr, b''', k''') <- verifyLoopWithSymEx solver allTactics ns lemmas''' b'' config folder_root k'' pl_new_obs
           case sr of
               ContinueWith new_obligations new_lemmas -> do
                   let n' = if n > 0 then n - 1 else n
@@ -432,7 +432,7 @@ verifyLoopPropLemmas' solver tactics ns lemmas config folder_root
                      l@(Lemma { lemma_lhs = is1, lemma_rhs = is2, lemma_to_be_proven = states }) = do
     (b, k) <- CM.get
     W.liftIO $ putStrLn $ "k = " ++ show k
-    (sr, b', k') <- W.lift (verifyLoop' solver tactics ns lemmas b config folder_root k states)
+    (sr, b', k') <- W.lift (verifyLoopWithSymEx solver tactics ns lemmas b config folder_root k states)
     CM.put (b', k')
     lem <- case sr of
                   CounterexampleFound -> trace "COUNTEREXAMPLE verifyLemma" return [l { lemma_to_be_proven = [] }]
@@ -447,40 +447,28 @@ verifyLoopPropLemmas' solver tactics ns lemmas config folder_root
                       return [l { lemma_to_be_proven = [] }]
     return (sr, lem)
 
-verifyLoop' :: S.Solver solver =>
-               solver
-            -> [Tactic solver]
-            -> HS.HashSet Name
-            -> Lemmas
-            -> Bindings
-            -> Config
-            -> String
-            -> Int
-            -> [(StateH, StateH)]
-            -> W.WriterT [Marker] IO (StepRes, Bindings, Int)
-verifyLoop' solver tactics ns lemmas b config folder_root k states = do
+verifyLoopWithSymEx :: S.Solver solver =>
+                       solver
+                    -> [Tactic solver]
+                    -> HS.HashSet Name
+                    -> Lemmas
+                    -> Bindings
+                    -> Config
+                    -> String
+                    -> Int
+                    -> [(StateH, StateH)]
+                    -> W.WriterT [Marker] IO (StepRes, Bindings, Int)
+verifyLoopWithSymEx solver tactics ns lemmas b config folder_root k states = do
     let current_states = map getLatest states
     (paired_states, (b', k')) <- W.liftIO $ CM.runStateT (mapM (uncurry (runSymExec solver config folder_root ns)) current_states) (b, k)
 
-    W.liftIO $ putStrLn "verifyLoop'"
-    let (fresh_name, ng') = freshName (name_gen b')
-        b'' = b' { name_gen = ng' }
- 
-        td (sh1, sh2) = tryDischarge solver tactics ns lemmas [fresh_name] sh1 sh2
-
+    W.liftIO $ putStrLn "verifyLoopWithSymEx"
     -- for every internal list, map with its corresponding original state
     let app_pair (sh1, sh2) (s1, s2) = (appendH sh1 s1, appendH sh2 s2)
         updated_hists = map (\(s, ps) -> map (app_pair s) ps) $ zip states paired_states
     W.liftIO $ putStrLn $ show $ length $ concat updated_hists
-    proof_lemma_list <- mapM td $ concat updated_hists
 
-    let new_obligations = concatMap fst $ catMaybes proof_lemma_list
-        new_lemmas = HS.unions . map snd $ catMaybes proof_lemma_list
-
-    let res = if | null proof_lemma_list -> Proven
-                 | all isJust proof_lemma_list -> ContinueWith new_obligations $ HS.toList new_lemmas
-                 | otherwise -> CounterexampleFound
-    return (res, b'', k')
+    verifyLoop' solver tactics ns lemmas b' config folder_root k' (concat updated_hists)
 
 verifyWithNewProvenLemmas :: S.Solver solver =>
                              solver
@@ -498,18 +486,34 @@ verifyWithNewProvenLemmas solver nl_tactics ns proven_lemmas lemmas b config fol
     let rel_states = map (\pl -> (lemma_lhs_origin pl, lemma_rhs_origin pl)) proven_lemmas
         tactics = concatMap (\t -> map (uncurry t) rel_states) nl_tactics
 
+    W.liftIO $ putStrLn "verifyWithNewProvenLemmas"
+    verifyLoop' solver tactics ns lemmas b config folder_name k states
+
+verifyLoop' :: S.Solver solver =>
+               solver
+            -> [Tactic solver]
+            -> HS.HashSet Name
+            -> Lemmas
+            -> Bindings
+            -> Config
+            -> String
+            -> Int
+            -> [(StateH, StateH)]
+            -> W.WriterT [Marker] IO (StepRes, Bindings, Int)
+verifyLoop' solver tactics ns lemmas b config folder_root k states = do
+    W.liftIO $ putStrLn "verifyLoop'"
     let (fresh_name, ng') = freshName (name_gen b)
         b' = b { name_gen = ng' }
+ 
+        td (sh1, sh2) = tryDischarge solver tactics ns lemmas [fresh_name] sh1 sh2
 
-    W.liftIO $ putStrLn "verifyWithNewProvenLemmas"
-    proof_lemma_list <- mapM (uncurry (tryDischarge solver tactics ns lemmas [fresh_name])) states
+    proof_lemma_list <- mapM td states
 
     let new_obligations = concatMap fst $ catMaybes proof_lemma_list
         new_lemmas = HS.unions . map snd $ catMaybes proof_lemma_list
 
     let res = if | null proof_lemma_list -> Proven
-                 | all isJust proof_lemma_list ->
-                      ContinueWith new_obligations $ HS.toList new_lemmas
+                 | all isJust proof_lemma_list -> ContinueWith new_obligations $ HS.toList new_lemmas
                  | otherwise -> CounterexampleFound
     return (res, b', k)
 
