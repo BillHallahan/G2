@@ -779,6 +779,57 @@ Uncertain ones where the walking may need to be different:
 "p77fin" forall x xs . prop_77 x xs = walkList xs True
   #-}
 
+{-
+TODO copied from new-theorems branch
+
+ RESULTS 1/2
+ No outcome seen for p72fin
+
+ RESULTS 1/3
+ No outcome seen for p05finD
+ No outcome seen for p37finA
+ No outcome seen for p39fin
+ No outcome seen for p52fin
+ No outcome seen for p53fin
+ No outcome seen for p70finB
+ No outcome seen for p76finA
+ -}
+{-# RULES
+"p05finD" forall n x xs . prop_05 n x xs = walkNat x True
+"p37finA" forall x xs . prop_37 x xs = walkNatList xs True
+"p39fin" forall n x xs . count n [x] + count n xs = walkNat x (count n (x:xs))
+"p52fin" forall n xs . walkNatList xs (count n xs) = count n (rev xs)
+"p53fin" forall n xs . walkNatList xs (count n xs) = count n (sort xs)
+"p70finB" forall m n . prop_70 m n = walkNat n True
+"p72fin" forall i xs . walkList xs (rev (drop i xs)) = take (len xs - i) (rev xs)
+"p76finA" forall n m xs . prop_76 n m xs = walkNat n True
+  #-}
+
+{-
+TODO swapped sides for p26imp, p59imp, p60imp, p62imp
+Also swapped p85imp for type issues
+
+RESULTS 1/4
+No outcome seen for p26imp, waited 2 minutes
+p48imp reached iteration limit 10, also reached 20 without result
+p59imp gets stuck right after starting a2, seemingly
+p60imp gets stuck right after starting a8
+p62imp gets stuck right after starting a8
+No outcome seen for p63imp, waited 2 minutes
+p70imp reached iteration limit 10, but got UNSAT with limit 20
+p85 gets stuck right after starting a2
+-}
+{-# RULES
+"p26imp" forall x xs ys . (x `elem` xs) && (x `elem` (xs ++ ys)) = x `elem` xs
+"p48imp" forall xs . not (null xs) = (not (null xs)) && (butlast xs ++ [last xs] =:= xs)
+"p59imp" forall xs ys . (ys =:= []) && (last (xs ++ ys) =:= last xs) = ys =:= []
+"p60imp" forall xs ys . (not (null ys)) && (last (xs ++ ys) =:= last ys) = not (null ys)
+"p62imp" forall xs x . (not (null xs)) && (last (x:xs) =:= last xs) = not (null xs)
+"p63imp" forall n xs . n < len xs = (n < len xs) && (last (drop n xs) =:= last xs)
+"p70imp" forall m n . m <= n = (m <= n) && (m <= S n)
+"p85imp" forall xs ys . (len xs =:= len ys) && (zip (rev xs) (rev ys) =:= rev (zip xs ys)) = len xs =:= len ys
+  #-}
+
 -- TODO alternative finiteness approach
 walkNat :: Nat -> a -> a
 walkNat Z a = a
