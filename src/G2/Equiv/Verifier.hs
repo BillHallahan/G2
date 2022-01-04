@@ -318,25 +318,21 @@ verifyLoop :: S.Solver solver =>
 verifyLoop solver ns lemmas states b config folder_root k n | n /= 0 = do
   W.liftIO $ putStrLn "<Loop Iteration>"
   W.liftIO $ putStrLn $ show n
-  (b', k', proven_lemmas, continued_lemmas, disproven_lemmas) <- verifyLoopPropLemmas solver allTactics ns lemmas b config folder_root k
-
-  -- let prop_lemmas'' = continued_lemmas' ++ new_lemmas
-  let lemmas' = replaceProposedLemmas continued_lemmas lemmas
-      lemmas'' = foldr insertProvenLemma lemmas' proven_lemmas
-      lemmas''' = foldr insertDisprovenLemma lemmas'' disproven_lemmas
+  (b', k', proven_lemmas, lemmas') <- verifyLoopPropLemmas solver allTactics ns lemmas b config folder_root k
 
   -- W.liftIO $ putStrLn $ "prop_lemmas': " ++ show (length prop_lemmas')
   W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length proven_lemmas)
-  W.liftIO $ putStrLn $ "continued_lemmas: " ++ show (length continued_lemmas)
-  W.liftIO $ putStrLn $ "disproven_lemmas: " ++ show (length disproven_lemmas)
+  -- W.liftIO $ putStrLn $ "continued_lemmas: " ++ show (length continued_lemmas)
+  -- W.liftIO $ putStrLn $ "disproven_lemmas: " ++ show (length disproven_lemmas)
 
-  (pl_sr, b'', k'') <- verifyWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas lemmas''' b' config folder_root k' states
+  (b'', k'', proven_lemmas', lemmas'') <- verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas lemmas' b' config folder_root k'
+  (pl_sr, b''', k''') <- verifyWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas' lemmas'' b'' config folder_root k'' states
 
   case pl_sr of
       CounterexampleFound -> return $ S.SAT ()
       Proven -> return $ S.UNSAT ()
       ContinueWith pl_new_obs pl_lemmas -> do
-          (sr, b''', k''') <- verifyLoopWithSymEx solver allTactics ns lemmas''' b'' config folder_root k'' pl_new_obs
+          (sr, b'''', k'''') <- verifyLoopWithSymEx solver allTactics ns lemmas'' b''' config folder_root k''' pl_new_obs
           case sr of
               ContinueWith new_obligations new_lemmas -> do
                   let n' = if n > 0 then n - 1 else n
@@ -344,7 +340,7 @@ verifyLoop solver ns lemmas states b config folder_root k n | n /= 0 = do
                   W.liftIO $ putStrLn $ "length new_lemmas = " ++ show (length $ pl_lemmas ++ new_lemmas)
 
                   final_lemmas <- foldM (flip (insertProposedLemma solver ns))
-                                        lemmas'''
+                                        lemmas''
                                         (pl_lemmas ++ new_lemmas)
 
                   -- mapM (\l@(le1, le2) -> do
@@ -352,7 +348,7 @@ verifyLoop solver ns lemmas states b config folder_root k n | n /= 0 = do
                   --               W.liftIO $ putStrLn "----"
                   --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
                   --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) $ HS.toList new_lemmas
-                  verifyLoop solver ns final_lemmas new_obligations b''' config folder_root k''' n'
+                  verifyLoop solver ns final_lemmas new_obligations b'''' config folder_root k'''' n'
               CounterexampleFound -> return $ S.SAT ()
               Proven -> do
                   W.liftIO $ putStrLn $ "proposed = " ++ show (length $ proposedLemmas lemmas)
@@ -405,14 +401,18 @@ verifyLoopPropLemmas :: S.Solver solver =>
                      -> Config
                      -> String
                      -> Int
-                     -> (W.WriterT [Marker] IO) (Bindings, Int, [ProvenLemma], [ProposedLemma], [DisprovenLemma])
+                     -> (W.WriterT [Marker] IO) (Bindings, Int, [ProvenLemma], Lemmas)
 verifyLoopPropLemmas solver tactics ns lemmas b config folder_root k = do
     let prop_lemmas = proposedLemmas lemmas
         verify_lemma = verifyLoopPropLemmas' solver tactics ns lemmas config folder_root
     (prop_lemmas', (b', k')) <- CM.runStateT (mapM verify_lemma prop_lemmas) (b, k)
 
     let (proven_lemmas, continued_lemmas, disproven_lemmas) = partitionLemmas ([], [], []) prop_lemmas'
-    return (b', k', proven_lemmas, continued_lemmas, disproven_lemmas)
+        lemmas' = replaceProposedLemmas continued_lemmas lemmas
+        lemmas'' = foldr insertProvenLemma lemmas' proven_lemmas
+        lemmas''' = foldr insertDisprovenLemma lemmas'' disproven_lemmas
+
+    return (b', k', proven_lemmas, lemmas''')
     where
       partitionLemmas (p, c, d) ((CounterexampleFound, lemma):xs) = partitionLemmas (p, c, lemma ++ d) xs
       partitionLemmas (p, c, d) ((ContinueWith _ _, lemmas):xs) = partitionLemmas (p, lemmas ++ c, d) xs
@@ -488,6 +488,33 @@ verifyWithNewProvenLemmas solver nl_tactics ns proven_lemmas lemmas b config fol
 
     W.liftIO $ putStrLn "verifyWithNewProvenLemmas"
     verifyLoop' solver tactics ns lemmas b config folder_name k states
+
+verifyLemmasWithNewProvenLemmas :: S.Solver solver =>
+                                   solver
+                                -> [NewLemmaTactic solver]
+                                -> HS.HashSet Name
+                                -> [ProvenLemma]
+                                -> Lemmas
+                                -> Bindings
+                                -> Config
+                                -> String
+                                -> Int
+                                -> W.WriterT [Marker] IO (Bindings, Int, [ProvenLemma], Lemmas)
+verifyLemmasWithNewProvenLemmas solver nl_tactics ns proven_lemmas lemmas b config folder_name k = do
+    let rel_states = map (\pl -> (lemma_lhs_origin pl, lemma_rhs_origin pl)) proven_lemmas
+        tactics = concatMap (\t -> map (uncurry t) rel_states) nl_tactics
+
+    W.liftIO $ putStrLn "verifyLemmasWithNewProvenLemmas"
+    (b', k', new_proven_lemmas, lemmas') <-
+          verifyLoopPropLemmas solver tactics ns lemmas b config folder_name k
+    case null new_proven_lemmas of
+        True -> return (b', k', proven_lemmas, lemmas')
+        False ->
+            let
+                proven_lemmas' = new_proven_lemmas ++ proven_lemmas
+            in
+            verifyLemmasWithNewProvenLemmas solver nl_tactics ns proven_lemmas' lemmas' b config folder_name k
+
 
 verifyLoop' :: S.Solver solver =>
                solver
