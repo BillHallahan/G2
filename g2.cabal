@@ -39,6 +39,7 @@ library
                        , G2.Equiv.G2Calls
                        , G2.Equiv.Verifier
                        , G2.Equiv.Tactics
+                       , G2.Equiv.Types
                        , G2.Equiv.Induction
                        , G2.Equiv.Summary
 

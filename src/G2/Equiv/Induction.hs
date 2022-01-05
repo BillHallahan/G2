@@ -230,15 +230,15 @@ inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2) = do
   let prev = prevFiltered (sh1, sh2)
   ind <- induction solver ns prev (s1, s2)
   case ind of
-    Nothing -> case history sh2 of
-      [] -> return Nothing
-      p2:_ -> inductionFoldL solver ns fresh_name (sh1, backtrackOne sh2) (s1, p2)
+    Nothing -> case backtrackOne sh2 of
+      Nothing -> return Nothing
+      Just sh2' -> inductionFoldL solver ns fresh_name (sh1, sh2') (s1, latest sh2')
     Just (s1', s2', im) -> do
       g <- generalize solver ns fresh_name (s1', s2')
       case g of
-        Nothing -> case history sh2 of
-          [] -> return Nothing
-          p2:_ -> inductionFoldL solver ns fresh_name (sh1, backtrackOne sh2) (s1, p2)
+        Nothing -> case backtrackOne sh2 of
+          Nothing -> return Nothing
+          Just sh2' -> inductionFoldL solver ns fresh_name (sh1, sh2') (s1, latest sh2')
         Just (s1'', s2'') -> return $ Just (length $ history sh2, s1'', s2'', im)
 
 -- TODO somewhat crude solution:  record how "far back" it needed to go
