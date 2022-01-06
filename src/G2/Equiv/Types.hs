@@ -123,7 +123,7 @@ instance Named IndMarker where
     , ind_fresh_name = rename old new $ ind_fresh_name im
     }
 
--- TODO states paired with lemmas show what the state was before lemma usage
+-- states paired with lemmas show what the state was before lemma usage
 data CoMarker = CoMarker {
     co_real_present :: (StateET, StateET)
   , co_used_present :: (StateET, StateET)
@@ -178,15 +178,9 @@ data Lemma = Lemma { lemma_name :: String
 instance Hashable Lemma
 
 instance Named Lemma where
-  names lemma =
-    (names $ lemma_lhs lemma) DS.><
-    (names $ lemma_rhs lemma) DS.><
-    (names $ lemma_to_be_proven lemma)
-  rename old new lemma = lemma {
-      lemma_lhs = rename old new $ lemma_lhs lemma
-    , lemma_rhs = rename old new $ lemma_rhs lemma
-    , lemma_to_be_proven = rename old new $ lemma_to_be_proven lemma
-    }
+  names (Lemma _ s1 s2 _ _ sh) = names s1 DS.>< names s2 DS.>< names sh
+  rename old new (Lemma lnm s1 s2 f1 f2 sh) =
+    Lemma lnm (rename old new s1) (rename old new s2) f1 f2 (rename old new sh)
 
 type ProposedLemma = Lemma
 type ProvenLemma = Lemma
