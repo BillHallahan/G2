@@ -361,6 +361,9 @@ verifyLoop solver ns lemmas states b config folder_root k n | n /= 0 = do
                   W.liftIO $ putStrLn $ "disproven = " ++ show (length $ disprovenLemmas lemmas) 
                   return $ S.UNSAT ()
   | otherwise = do
+    W.liftIO $ putStrLn $ "proposed = " ++ show (length $ proposedLemmas lemmas)
+    W.liftIO $ putStrLn $ "proven = " ++ show (length $ provenLemmas lemmas) 
+    W.liftIO $ putStrLn $ "disproven = " ++ show (length $ disprovenLemmas lemmas) 
     mapM (\l@(Lemma { lemma_lhs = le1, lemma_rhs = le2}) -> do
                   let pg = mkPrettyGuide l
                   W.liftIO $ putStrLn "---- Proven ----"
@@ -374,6 +377,7 @@ verifyLoop solver ns lemmas states b config folder_root k n | n /= 0 = do
     mapM (\l@(Lemma { lemma_lhs = le1, lemma_rhs = le2}) -> do
                   let pg = mkPrettyGuide l
                   W.liftIO $ putStrLn "---- Proposed ----"
+                  W.liftIO $ putStrLn $ lemma_name l
                   W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
                   W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) (proposedLemmas lemmas)
     -- TODO log some new things with the writer for unresolved obligations
@@ -382,11 +386,6 @@ verifyLoop solver ns lemmas states b config folder_root k n | n /= 0 = do
     let ob (sh1, sh2) = Marker (sh1, sh2) $ Unresolved (latest sh1, latest sh2)
     W.tell $ map ob states
     return $ S.Unknown "Loop Iterations Exhausted"
-    where
-      partitionLemmas (p, c, d) ((CounterexampleFound, lemma):xs) = partitionLemmas (p, c, lemma ++ d) xs
-      partitionLemmas (p, c, d) ((ContinueWith _ _, lemmas):xs) = partitionLemmas (p, lemmas ++ c, d) xs
-      partitionLemmas (p, c, d) ((Proven, lemmas):xs) = partitionLemmas (lemmas ++ p, c, d) xs
-      partitionLemmas r [] = r
 
 data StepRes = CounterexampleFound
              | ContinueWith [(StateH, StateH)] [Lemma]
@@ -407,16 +406,20 @@ verifyLoopPropLemmas solver tactics ns lemmas b config folder_root k = do
         verify_lemma = verifyLoopPropLemmas' solver tactics ns lemmas config folder_root
     (prop_lemmas', (b', k')) <- CM.runStateT (mapM verify_lemma prop_lemmas) (b, k)
 
-    let (proven_lemmas, continued_lemmas, disproven_lemmas) = partitionLemmas ([], [], []) prop_lemmas'
+    let (proven_lemmas, continued_lemmas, disproven_lemmas, new_lemmas) = partitionLemmas ([], [], [], []) prop_lemmas'
         lemmas' = replaceProposedLemmas continued_lemmas lemmas
         lemmas'' = foldr insertProvenLemma lemmas' proven_lemmas
         lemmas''' = foldr insertDisprovenLemma lemmas'' disproven_lemmas
 
-    return (b', k', proven_lemmas, lemmas''')
+    lemmas'''' <- foldM (flip (insertProposedLemma solver ns))
+                          lemmas'''
+                          new_lemmas
+
+    return (b', k', proven_lemmas, lemmas'''')
     where
-      partitionLemmas (p, c, d) ((CounterexampleFound, lemma):xs) = partitionLemmas (p, c, lemma ++ d) xs
-      partitionLemmas (p, c, d) ((ContinueWith _ _, lemmas):xs) = partitionLemmas (p, lemmas ++ c, d) xs
-      partitionLemmas (p, c, d) ((Proven, lemmas):xs) = partitionLemmas (lemmas ++ p, c, d) xs
+      partitionLemmas (p, c, d, n) ((CounterexampleFound, lem):xs) = partitionLemmas (p, c, lem:d, n) xs
+      partitionLemmas (p, c, d, n) ((ContinueWith _ new_lem, lem):xs) = partitionLemmas (p, lem:c, d, new_lem ++ n) xs
+      partitionLemmas (p, c, d, n) ((Proven, lem):xs) = partitionLemmas (lem:p, c, d, n) xs
       partitionLemmas r [] = r
 
 verifyLoopPropLemmas' :: S.Solver solver =>
@@ -427,16 +430,17 @@ verifyLoopPropLemmas' :: S.Solver solver =>
                       -> Config
                       -> String
                       -> ProposedLemma
-                      -> CM.StateT (Bindings, Int)  (W.WriterT [Marker] IO) (StepRes, [Lemma])
+                      -> CM.StateT (Bindings, Int)  (W.WriterT [Marker] IO) (StepRes, Lemma)
 verifyLoopPropLemmas' solver tactics ns lemmas config folder_root
                      l@(Lemma { lemma_lhs = is1, lemma_rhs = is2, lemma_to_be_proven = states }) = do
     (b, k) <- CM.get
     W.liftIO $ putStrLn $ "k = " ++ show k
+    W.liftIO $ putStrLn $ lemma_name l
     (sr, b', k') <- W.lift (verifyLoopWithSymEx solver tactics ns lemmas b config folder_root k states)
     CM.put (b', k')
     lem <- case sr of
-                  CounterexampleFound -> trace "COUNTEREXAMPLE verifyLemma" return [l { lemma_to_be_proven = [] }]
-                  ContinueWith states' lemmas -> return $ (l { lemma_to_be_proven = states' }):lemmas
+                  CounterexampleFound -> trace "COUNTEREXAMPLE verifyLemma" return $ l { lemma_to_be_proven = [] }
+                  ContinueWith states' lemmas -> return $ l { lemma_to_be_proven = states' }
                   Proven -> do
                       let pg = mkPrettyGuide l
                       CM.liftIO $ putStrLn "---- Just Proved ----"
@@ -444,7 +448,7 @@ verifyLoopPropLemmas' solver tactics ns lemmas config folder_root
                       CM.liftIO $ putStrLn $ lemma_lhs_origin l ++ " " ++ lemma_rhs_origin l
                       CM.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env is1) is1
                       CM.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env is2) is2
-                      return [l { lemma_to_be_proven = [] }]
+                      return $ l { lemma_to_be_proven = [] }
     return (sr, lem)
 
 verifyLoopWithSymEx :: S.Solver solver =>
