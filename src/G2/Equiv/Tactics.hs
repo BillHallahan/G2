@@ -1,13 +1,13 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections #-}
 
 module G2.Equiv.Tactics
     ( module G2.Equiv.Types
     , TacticResult (..)
     , Tactic
 
-    , Lemmas
-    , Lemma (..)
+    , Lemmas (..)
     , ProposedLemma
     , ProvenLemma
     , DisprovenLemma
@@ -654,7 +654,7 @@ coinductionFoldL :: S.Solver solver =>
                     HS.HashSet Lemma ->
                     (StateH, StateH) ->
                     (StateET, StateET) ->
-                    W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (PrevMatch EquivTracker))
+                    W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe Lemma, Maybe Lemma, PrevMatch EquivTracker))
 coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) | not . isSWHNF $ inlineCurrExpr s1
                                                                  , not . isSWHNF $ inlineCurrExpr s2  = do
   let prev = prevFiltered (sh1, sh2)
@@ -681,22 +681,26 @@ tryCoinduction :: S.Solver s => Tactic s
 tryCoinduction solver ns lemmas _ (sh1, sh2) (s1, s2) = do
   res_l <- coinductionFoldL solver ns lemmas HS.empty (sh1, sh2) (s1, s2)
   case res_l of
-    Right pm -> do
+    Right (lem_l, lem_r, pm) -> do
       let cml = CoMarker {
         co_real_present = (s1, s2)
       , co_used_present = present pm
       , co_past = past pm
+      , lemma_used_left = lem_l
+      , lemma_used_right = lem_r
       }
       W.tell [Marker (sh1, sh2) $ Coinduction cml]
       return $ Success Nothing
     Left l_lemmas -> do
       res_r <- coinductionFoldL solver ns lemmas HS.empty (sh2, sh1) (s2, s1)
       case res_r of
-        Right pm' -> do
+        Right (lem_l', lem_r', pm') -> do
           let cmr = CoMarker {
             co_real_present = (s2, s1)
           , co_used_present = present pm'
           , co_past = past pm'
+          , lemma_used_left = lem_l'
+          , lemma_used_right = lem_r'
           }
           W.tell [Marker (sh1, sh2) $ Coinduction $ reverseCoMarker cmr]
           return $ Success Nothing
@@ -707,20 +711,6 @@ tryCoinduction solver ns lemmas _ (sh1, sh2) (s1, s2) = do
 data Lemmas = Lemmas { proposed_lemmas :: [ProposedLemma]
                      , proven_lemmas :: [ProvenLemma]
                      , disproven_lemmas :: [DisprovenLemma]}
-
-data Lemma = Lemma { lemma_name :: String
-                   , lemma_lhs :: StateET
-                   , lemma_rhs :: StateET
-                   , lemma_lhs_origin :: String
-                   , lemma_rhs_origin :: String
-                   , lemma_to_be_proven :: [(StateH, StateH)] }
-                   deriving (Eq, Generic)
-
-instance Hashable Lemma
-
-type ProposedLemma = Lemma
-type ProvenLemma = Lemma
-type DisprovenLemma = Lemma
 
 emptyLemmas :: Lemmas
 emptyLemmas = Lemmas [] [] []
@@ -773,38 +763,21 @@ equivLemma solver ns (Lemma { lemma_lhs = l1_1, lemma_rhs = l1_2 }) lems = do
                         (Right _, Right _) -> return True
                         _ -> return False) lems
 
-instance Named Lemma where
-    names (Lemma _ s1 s2 _ _ sh) = names s1 <> names s2 <> names sh
-    rename old new (Lemma lnm s1 s2 f1 f2 sh) =
-        Lemma lnm (rename old new s1) (rename old new s2) f1 f2 (rename old new sh)
-
 -- TODO: Does substLemma need to do something more to check correctness of path constraints?
 -- `substLemma state lemmas` tries to apply each proven lemma in `lemmas` to `state`.
 -- In particular, for each `lemma = (lemma_l `equiv lemma_r` in the proven lemmas, it
 -- searches for a subexpression `e'` of `state`'s current expression such that `e' <=_V lemma_l`.
 -- If it find such a subexpression, it adds state[e'[V(x)/x]] to the returned
 -- list of States.
-substLemma :: S.Solver solver => solver -> HS.HashSet Name -> StateET -> Lemmas -> W.WriterT [Marker] IO [StateET]
+substLemma :: S.Solver solver => solver -> HS.HashSet Name -> StateET -> Lemmas -> W.WriterT [Marker] IO [(Lemma, StateET)]
 substLemma solver ns s =
-    mapMaybeM (\lem -> do
-                    replaceMoreRestrictiveSubExpr solver ns lem s
-                    -- maybe (return Nothing)
-                    --       (\(e, hm) -> do
-                    --           let hm' = map (\(i, e) -> (idName i, e)) $  HM.toList hm
-                    --               rhs_subst = foldr (uncurry replaceVar) (exprExtract $ lemma_rhs lem) hm'
-
-                    --               eenv = E.union (expr_env s) (expr_env $ lemma_rhs lem)
-                    --               cexpr = replaceASTs e rhs_subst (curr_expr s)
-                    --           return . Just $ s { expr_env = eenv, curr_expr = cexpr }
-                    --       )
-                    --       mr_sub
-                    ) . provenLemmas
+    mapMaybeM (\lem -> replaceMoreRestrictiveSubExpr solver ns lem s) . provenLemmas
 
 replaceMoreRestrictiveSubExpr :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> StateET
-                               -> W.WriterT [Marker] IO (Maybe StateET)
+                               -> W.WriterT [Marker] IO (Maybe (Lemma, StateET))
 replaceMoreRestrictiveSubExpr solver ns lemma s@(State { curr_expr = CurrExpr er _ }) = do
     (e, replaced) <- CM.runStateT (replaceMoreRestrictiveSubExpr' solver ns lemma s $ exprExtract s) False
-    return $ if replaced then Just (s { curr_expr = CurrExpr er e }) else Nothing
+    return $ if replaced then Just (lemma, s { curr_expr = CurrExpr er e }) else Nothing
 
 replaceMoreRestrictiveSubExpr' :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> StateET -> Expr
                                -> CM.StateT Bool (W.WriterT [Marker] IO) Expr
@@ -840,15 +813,19 @@ moreRestrictivePairWithLemmas :: S.Solver solver =>
                                  Lemmas ->
                                  [(StateET, StateET)] ->
                                  (StateET, StateET) ->
-                                 W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (PrevMatch EquivTracker))
+                                 W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe Lemma, Maybe Lemma, PrevMatch EquivTracker))
 moreRestrictivePairWithLemmas solver ns lemmas past (s1, s2) = do
     let (s1', s2') = syncSymbolic s1 s2
     xs1 <- substLemma solver ns s1' lemmas
     xs2 <- substLemma solver ns s2' lemmas
 
-    let pairs = [ (s1_, s2_) | s1_ <- s1':xs1, s2_ <- s2':xs2 ]
+    let xs1' = (Nothing, s1'):(map (\(l, s) -> (Just l, s)) xs1)
+        xs2' = (Nothing, s2'):(map (\(l, s) -> (Just l, s)) xs2)
+        pairs = [ (pair1, pair2) | pair1 <- xs1', pair2 <- xs2' ]
 
-    rp <- mapM (moreRestrictivePair solver ns past) pairs
+    rp <- mapM (\((l1, s1_), (l2, s2_)) -> do
+            mrp <- moreRestrictivePair solver ns past (s1_, s2_)
+            return $ fmap (l1, l2, ) mrp) pairs
     let (possible_lemmas, possible_matches) = partitionEithers rp
 
     case possible_matches of

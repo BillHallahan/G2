@@ -177,6 +177,20 @@ printMappings pg s =
   let mapping_list = HM.toList $ higher_order $ track s
   in intercalate "\n" $ map (printMapping pg) mapping_list
 
+-- TODO may need some adjustment
+-- TODO would be better to use trackName with all of these
+printLemma :: PrettyGuide -> HS.HashSet Name -> [Id] -> Lemma -> String
+printLemma pg ns sym_ids (Lemma{
+                   lemma_name = n
+                 , lemma_lhs = s1
+                 , lemma_rhs = s2
+                 , lemma_lhs_origin = n1
+                 , lemma_rhs_origin = n2
+                 }) =
+  n ++ ": from " ++
+  n1 ++ ", " ++ n2 ++ "\n" ++
+  (summarizeStatePairTrack "States" pg ns sym_ids s1 s2)
+
 -- no new line at end
 summarizeStatePairTrack :: String ->
                            PrettyGuide ->
@@ -223,11 +237,19 @@ summarizeCoinduction pg ns sym_ids (CoMarker {
                              co_real_present = (s1, s2)
                            , co_used_present = (q1, q2)
                            , co_past = (p1, p2)
+                           , lemma_used_left = lemma_l
+                           , lemma_used_right = lemma_r
                            }) =
   "Coinduction:\n" ++
   --(summarizeStatePairTrack "Real Present" pg ns sym_ids s1 s2) ++ "\n" ++
   (summarizeStatePairTrack "Used Present" pg ns sym_ids q1 q2) ++ "\n" ++
-  (summarizeStatePairTrack "Past" pg ns sym_ids p1 p2)
+  (summarizeStatePairTrack "Past" pg ns sym_ids p1 p2) ++
+  (case lemma_l of
+    Nothing -> ""
+    Just lem_l -> "\nLeft Lemma:\n" ++ printLemma pg ns sym_ids lem_l) ++
+  (case lemma_r of
+    Nothing -> ""
+    Just lem_r -> "\nRight Lemma:\n" ++ printLemma pg ns sym_ids lem_r)
 
 -- variables:  find all names used in here
 -- look them up, find a fixed point
