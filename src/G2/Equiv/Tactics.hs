@@ -654,7 +654,7 @@ coinductionFoldL :: S.Solver solver =>
                     HS.HashSet Lemma ->
                     (StateH, StateH) ->
                     (StateET, StateET) ->
-                    W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe Lemma, Maybe Lemma, PrevMatch EquivTracker))
+                    W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
 coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) | not . isSWHNF $ inlineCurrExpr s1
                                                                  , not . isSWHNF $ inlineCurrExpr s2  = do
   let prev = prevFiltered (sh1, sh2)
@@ -813,7 +813,7 @@ moreRestrictivePairWithLemmas :: S.Solver solver =>
                                  Lemmas ->
                                  [(StateET, StateET)] ->
                                  (StateET, StateET) ->
-                                 W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe Lemma, Maybe Lemma, PrevMatch EquivTracker))
+                                 W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
 moreRestrictivePairWithLemmas solver ns lemmas past (s1, s2) = do
     let (s1', s2') = syncSymbolic s1 s2
     xs1 <- substLemma solver ns s1' lemmas
@@ -825,7 +825,14 @@ moreRestrictivePairWithLemmas solver ns lemmas past (s1, s2) = do
 
     rp <- mapM (\((l1, s1_), (l2, s2_)) -> do
             mrp <- moreRestrictivePair solver ns past (s1_, s2_)
-            return $ fmap (l1, l2, ) mrp) pairs
+            -- TODO use synced or non-synced?
+            let l1' = case l1 of
+                  Nothing -> Nothing
+                  Just lem1 -> Just (s1', lem1)
+                l2' = case l2 of
+                  Nothing -> Nothing
+                  Just lem2 -> Just (s2', lem2)
+            return $ fmap (l1', l2', ) mrp) pairs
     let (possible_lemmas, possible_matches) = partitionEithers rp
 
     case possible_matches of
@@ -841,4 +848,3 @@ mkProposedLemma lm_name or_s1 or_s2 s1 s2 =
                 , lemma_lhs_origin = folder_name . track $ or_s1
                 , lemma_rhs_origin = folder_name . track $ or_s2
                 , lemma_to_be_proven  =[(newStateH s1, newStateH s2)] }
-

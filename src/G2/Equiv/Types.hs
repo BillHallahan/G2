@@ -123,12 +123,13 @@ instance Named IndMarker where
     , ind_fresh_name = rename old new $ ind_fresh_name im
     }
 
+-- TODO states paired with lemmas show what the state was before lemma usage
 data CoMarker = CoMarker {
     co_real_present :: (StateET, StateET)
   , co_used_present :: (StateET, StateET)
   , co_past :: (StateET, StateET)
-  , lemma_used_left :: Maybe Lemma
-  , lemma_used_right :: Maybe Lemma
+  , lemma_used_left :: Maybe (StateET, Lemma)
+  , lemma_used_right :: Maybe (StateET, Lemma)
 }
 
 instance Named CoMarker where

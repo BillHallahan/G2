@@ -246,10 +246,14 @@ summarizeCoinduction pg ns sym_ids (CoMarker {
   (summarizeStatePairTrack "Past" pg ns sym_ids p1 p2) ++
   (case lemma_l of
     Nothing -> ""
-    Just lem_l -> "\nLeft Lemma:\n" ++ printLemma pg ns sym_ids lem_l) ++
+    Just (s1', lem_l) ->
+      "\nLeft Lemma:\n" ++ printLemma pg ns sym_ids lem_l ++
+      "\nLeft Before Lemma Usage:\n" ++ printPG pg ns sym_ids s1') ++
   (case lemma_r of
     Nothing -> ""
-    Just lem_r -> "\nRight Lemma:\n" ++ printLemma pg ns sym_ids lem_r)
+    Just (s2', lem_r) ->
+      "\nRight Lemma:\n" ++ printLemma pg ns sym_ids lem_r ++
+      "\nRight Before Lemma Usage:\n" ++ printPG pg ns sym_ids s2')
 
 -- variables:  find all names used in here
 -- look them up, find a fixed point
