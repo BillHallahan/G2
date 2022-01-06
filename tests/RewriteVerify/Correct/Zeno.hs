@@ -730,7 +730,7 @@ p54finA hits the limit
 "p54fin" forall n m . (m + n) - n = walkNat n m
 "p54finA" forall n m . (m + n) - n = walkNat m m
 "p57fin" forall n m xs . drop n (take m xs) = walkNat m (take (m - n) (drop n xs))
-"p59fin" forall xs ys . prop_59 xs ys = walkList xs True
+"p59fin" forall xs ys . walkList xs (prop_59 xs ys) = walkList xs True
 "p61fin" forall xs ys . last (xs ++ ys) = walkList xs (lastOfTwo xs ys)
 "p64fin" forall x xs . last (xs ++ [x]) = walkList xs x
 "p65fin" forall i m . prop_65 i m = walkNat i (walkNat m True)
