@@ -298,7 +298,7 @@ replaceH :: StateH -> StateET -> StateH
 replaceH sh s = sh { latest = s }
 
 allTactics :: S.Solver s => [Tactic s]
-allTactics = [tryEquality, tryCoinduction, inductionFull, trySolver]
+allTactics = [tryEquality, tryCoinduction, generalizeFull, inductionFull, trySolver]
 
 allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
 allNewLemmaTactics = [applyTacticToLabeledStates tryCoinduction]
