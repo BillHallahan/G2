@@ -123,16 +123,19 @@ instance Named IndMarker where
     , ind_fresh_name = rename old new $ ind_fresh_name im
     }
 
+-- states paired with lemmas show what the state was before lemma usage
 data CoMarker = CoMarker {
     co_real_present :: (StateET, StateET)
   , co_used_present :: (StateET, StateET)
   , co_past :: (StateET, StateET)
+  , lemma_used_left :: Maybe (StateET, Lemma)
+  , lemma_used_right :: Maybe (StateET, Lemma)
 }
 
 instance Named CoMarker where
-  names (CoMarker (s1, s2) (q1, q2) (p1, p2)) =
-    foldr (DS.><) DS.empty $ map names [s1, s2, q1, q2, p1, p2]
-  rename old new (CoMarker (s1, s2) (q1, q2) (p1, p2)) =
+  names (CoMarker (s1, s2) (q1, q2) (p1, p2) lemma_l lemma_r) =
+    (DS.><) (names [s1, s2, q1, q2, p1, p2]) ((names lemma_l) DS.>< (names lemma_r))
+  rename old new (CoMarker (s1, s2) (q1, q2) (p1, p2) lemma_l lemma_r) =
     let r = rename old new
         s1' = r s1
         s2' = r s2
@@ -140,11 +143,13 @@ instance Named CoMarker where
         q2' = r q2
         p1' = r p1
         p2' = r p2
-    in CoMarker (s1', s2') (q1', q2') (p1', p2')
+        lemma_l' = rename old new lemma_l
+        lemma_r' = rename old new lemma_r
+    in CoMarker (s1', s2') (q1', q2') (p1', p2') lemma_l' lemma_r'
 
 reverseCoMarker :: CoMarker -> CoMarker
-reverseCoMarker (CoMarker (s1, s2) (q1, q2) (p1, p2)) =
-  CoMarker (s2, s1) (q2, q1) (p2, p1)
+reverseCoMarker (CoMarker (s1, s2) (q1, q2) (p1, p2) lemma_l lemma_r) =
+  CoMarker (s2, s1) (q2, q1) (p2, p1) lemma_r lemma_l
 
 data EqualMarker = EqualMarker {
     eq_real_present :: (StateET, StateET)
@@ -161,3 +166,22 @@ instance Named EqualMarker where
         q1' = r q1
         q2' = r q2
     in EqualMarker (s1', s2') (q1', q2')
+
+data Lemma = Lemma { lemma_name :: String
+                   , lemma_lhs :: StateET
+                   , lemma_rhs :: StateET
+                   , lemma_lhs_origin :: String
+                   , lemma_rhs_origin :: String
+                   , lemma_to_be_proven :: [(StateH, StateH)] }
+                   deriving (Eq, Generic)
+
+instance Hashable Lemma
+
+instance Named Lemma where
+  names (Lemma _ s1 s2 _ _ sh) = names s1 DS.>< names s2 DS.>< names sh
+  rename old new (Lemma lnm s1 s2 f1 f2 sh) =
+    Lemma lnm (rename old new s1) (rename old new s2) f1 f2 (rename old new sh)
+
+type ProposedLemma = Lemma
+type ProvenLemma = Lemma
+type DisprovenLemma = Lemma

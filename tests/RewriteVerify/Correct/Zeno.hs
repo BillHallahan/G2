@@ -793,6 +793,9 @@ TODO copied from new-theorems branch
  No outcome seen for p53fin
  No outcome seen for p70finB
  No outcome seen for p76finA
+
+ RESULTS 1/6
+ No outcome seen for p85finE after waiting for 2 minutes
  -}
 {-# RULES
 "p05finD" forall n x xs . prop_05 n x xs = walkNat x True
@@ -803,6 +806,8 @@ TODO copied from new-theorems branch
 "p70finB" forall m n . prop_70 m n = walkNat n True
 "p72fin" forall i xs . walkList xs (rev (drop i xs)) = take (len xs - i) (rev xs)
 "p76finA" forall n m xs . prop_76 n m xs = walkNat n True
+"p85finD" forall xs ys . prop_85 xs ys = walkTwoLists (xs, ys) True
+"p85finE" forall xs ys . walkList xs (prop_85 xs ys) = walkList xs True
   #-}
 
 {-
@@ -838,6 +843,13 @@ walkNat (S x) a = walkNat x a
 walkList :: [a] -> b -> b
 walkList [] a = a
 walkList (_:xs) a = walkList xs a
+
+-- TODO new walking functions for more complex situations
+walkTwoLists :: ([a], [b]) -> c -> c
+walkTwoLists ([], []) a = a
+walkTwoLists ([], ys) a = walkList ys a
+walkTwoLists (xs, []) a = walkList xs a
+walkTwoLists (x:xs, y:ys) a = walkTwoLists (xs, ys) a
 
 walkNatList :: [Nat] -> a -> a
 walkNatList xs a = case xs of

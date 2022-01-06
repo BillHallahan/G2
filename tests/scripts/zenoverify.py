@@ -34,7 +34,7 @@ def call_zeno_process(thm, var_settings, time):
 equivalences = [
     "p01",
     "p02",
-    "p03",
+    # "p03",
     "p04",
     "p06",
     "p07",
@@ -97,7 +97,7 @@ equivalences = [
 equivalences_all_total = [
     ("p01", ["n", "xs"]),
     ("p02", ["n", "xs", "ys"]),
-    ("p03", ["n", "xs", "ys"]),
+    # ("p03", ["n", "xs", "ys"]),
     ("p04", ["n", "xs"]),
     ("p09", ["i", "j", "k"]),
     ("p11", ["xs"]),
