@@ -320,9 +320,6 @@ generalize :: S.Solver solver =>
               (StateET, StateET) ->
               W.WriterT [Marker] IO (Maybe (StateET, StateET))
 generalize solver ns fresh_name (s1, s2) = do
-  W.liftIO $ putStrLn $ "Starting G " ++ show fresh_name
-  W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s1
-  W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s2
   -- expressions are ordered from outer to inner
   -- the largest ones are on the outside
   -- take the earliest array entry that works
@@ -334,7 +331,6 @@ generalize solver ns fresh_name (s1, s2) = do
       scr2 = innerScrutinees e2
       scr_states2 = map (\e -> s2 { curr_expr = CurrExpr Evaluate e }) scr2
   res <- mapM (generalizeAux solver ns scr_states1) scr_states2
-  W.liftIO $ putStrLn "Generalized"
   -- TODO also may want to adjust the equivalence tracker
   let res' = filter isJust res
   case res' of

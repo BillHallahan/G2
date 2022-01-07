@@ -796,6 +796,9 @@ TODO copied from new-theorems branch
 
  RESULTS 1/6
  No outcome seen for p85finE after waiting for 2 minutes
+
+ RESULTS 1/7
+ No outcome seen for p85finE after waiting 2:30
  -}
 {-# RULES
 "p05finD" forall n x xs . prop_05 n x xs = walkNat x True

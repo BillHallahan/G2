@@ -204,13 +204,13 @@ more_finite = [
     ("p70fin", [m, n]),
     ("p78fin", [xs]),
     ("p78finA", [xs]),
-    ("p81fin", [n, m, xs]),
+    #("p81fin", [n, m, xs]), shouldn't need finiteness
     ("p85fin", [xs, ys]),
     ("p85finA", [xs, ys]),
 
     ("p54fin", [n]),
-    ("p65finA", [i, m]),
-    ("p69finA", [n, m]),
+    #("p65finA", [i, m]), slow
+    #("p69finA", [n, m]), slow
     ("p70finA", [m, n]),
     ("p38finA", [n, xs]),
     ("p57fin", [n, m, xs]),
@@ -221,12 +221,12 @@ more_finite = [
     ("p59fin", [xs, ys]),
 
     ("p16fin", [x, xs]),
-    ("p24fin", [a]),
-    ("p24finA", [a]),
-    ("p25fin", [a]),
+    #("p24fin", [a]), slow
+    #("p24finA", [a]), not needed
+    #("p25fin", [a]), slow
     ("p38fin", [n, xs]),
-    ("p65fin", [i, m]),
-    ("p69fin", [n, m])
+    #("p65fin", [i, m]),
+    #("p69fin", [n, m])
 ]
 
 extra_theorems = [
@@ -245,9 +245,10 @@ extra_theorems = [
     ("p77fin", [x, xs])
 ]
 
+# this includes even the slow ones
 old_successes = [
     ("p01", [n]),
-    ("p02", []),
+    ("p02", []), # slow
     ("p06fin", []),
     ("p07fin", []),
     ("p08fin", []),
@@ -263,6 +264,8 @@ old_successes = [
     ("p21fin", []),
     ("p22", []),
     ("p23", []),
+    ("p24fin", [b]), # slow
+    ("p25fin", [a]), # slow
     ("p31", []),
     ("p32", [a, b]),
     ("p33", []),
@@ -280,9 +283,14 @@ old_successes = [
     ("p49", [xs, ys]),
     ("p50", []),
     ("p51", [xs]),
+    ("p54fin", [m]),
+    ("p56", [n, m]),
+    ("p61fin", []), # slow
     ("p64fin", []),
+    ("p65finA", ["m"]),
     ("p67", []),
-    ("p73", [p, xs]),
+    ("p69finA", ["m"]),
+    ("p73", [p, xs]), # slow, but only a little
     ("p79", [n]),
     ("p82", [])
 ]
@@ -337,8 +345,9 @@ def test_suite_fail(suite, timeout = 25):
 def main():
     test_suite_simple(custom_finite)
     test_suite(equivalences_all_total)
-    test_suite(finite_long, 90)
+    test_suite(finite_long, 120)
     test_suite_fail(equivalences_should_fail)
+    #test_suite(more_finite)
 
 if __name__ == "__main__":
     main()
