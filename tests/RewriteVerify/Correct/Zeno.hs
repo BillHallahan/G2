@@ -802,6 +802,7 @@ TODO copied from new-theorems branch
  -}
 {-# RULES
 "p05finD" forall n x xs . prop_05 n x xs = walkNat x True
+"p16finA" forall x xs . walkNat x (prop_16 x xs) = walkNat x True
 "p37finA" forall x xs . prop_37 x xs = walkNatList xs True
 "p39fin" forall n x xs . count n [x] + count n xs = walkNat x (count n (x:xs))
 "p52fin" forall n xs . walkNatList xs (count n xs) = count n (rev xs)
