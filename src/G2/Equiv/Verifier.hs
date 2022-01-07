@@ -301,7 +301,7 @@ allTactics :: S.Solver s => [Tactic s]
 allTactics = [tryEquality, tryCoinduction, generalizeFull, inductionFull, trySolver]
 
 allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
-allNewLemmaTactics = [applyTacticToLabeledStates tryCoinduction]
+allNewLemmaTactics = map applyTacticToLabeledStates [tryEquality, tryCoinduction]
 
 -- negative loop iteration count means there's no limit
 verifyLoop :: S.Solver solver =>
