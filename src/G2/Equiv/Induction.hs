@@ -291,7 +291,8 @@ generalizeAux :: S.Solver solver =>
                  StateET ->
                  W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
 generalizeAux solver ns s1_list s2 = do
-  let check_equiv s1_ = moreRestrictiveEqual solver ns s1_ s2
+  -- TODO add lemmas here later?
+  let check_equiv s1_ = moreRestrictiveEqual solver ns emptyLemmas s1_ s2
   res <- mapM check_equiv s1_list
   let res' = filter isJust res
   case res' of

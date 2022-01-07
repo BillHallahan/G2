@@ -567,18 +567,20 @@ isIdentity _ = False
 moreRestrictiveEqual :: S.Solver solver =>
                         solver ->
                         HS.HashSet Name ->
+                        Lemmas ->
                         StateET ->
                         StateET ->
                         W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-moreRestrictiveEqual solver ns s1 s2 = do
+moreRestrictiveEqual solver ns lemmas s1 s2 = do
   let h1 = expr_env s1
       h2 = expr_env s2
       s1' = s1 { expr_env = E.union h1 h2 }
       s2' = s2 { expr_env = E.union h2 h1 }
-  pm_maybe <- moreRestrictivePair solver ns [(s2', s1')] (s1, s2)
+  pm_maybe <- moreRestrictivePairWithLemmas solver ns lemmas [(s2', s1')] (s1, s2)
   case pm_maybe of
     Left _ -> return Nothing
-    Right pm@(PrevMatch _ _ (hm, _) _) ->
+    Right (_, _, pm@(PrevMatch _ _ (hm, _) _)) ->
+      -- TODO do something with the lemmas for logging later
       if foldr (&&) True (map isIdentity $ HM.toList hm)
       then return $ Just pm
       else return Nothing
@@ -589,17 +591,18 @@ moreRestrictiveEqual solver ns s1 s2 = do
 equalFoldL :: S.Solver solver =>
               solver ->
               HS.HashSet Name ->
+              Lemmas ->
               [StateET] ->
               StateET ->
               W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-equalFoldL solver ns prev2 s1 = do
+equalFoldL solver ns lemmas prev2 s1 = do
   case prev2 of
     [] -> return Nothing
     p2:t -> do
-      mre <- moreRestrictiveEqual solver ns s1 p2
+      mre <- moreRestrictiveEqual solver ns lemmas s1 p2
       case mre of
         Just pm -> return $ Just pm
-        _ -> equalFoldL solver ns t s1
+        _ -> equalFoldL solver ns lemmas t s1
 
 -- TODO clean up code
 -- This tries all of the allowable combinations for equality checking.  First
@@ -610,22 +613,23 @@ equalFoldL solver ns prev2 s1 = do
 equalFold :: S.Solver solver =>
              solver ->
              HS.HashSet Name ->
+             Lemmas ->
              (StateH, StateH) ->
              (StateET, StateET) ->
              W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker, Side))
-equalFold solver ns (sh1, sh2) (s1, s2) = do
-  pm_l <- equalFoldL solver ns (s2:history sh2) s1
+equalFold solver ns lemmas (sh1, sh2) (s1, s2) = do
+  pm_l <- equalFoldL solver ns lemmas (s2:history sh2) s1
   case pm_l of
     Just pm -> return $ Just (pm, ILeft)
     _ -> do
-      pm_r <- equalFoldL solver ns (s1:history sh1) s2
+      pm_r <- equalFoldL solver ns lemmas (s1:history sh1) s2
       case pm_r of
         Just pm' -> return $ Just (pm', IRight)
         _ -> return Nothing
 
 tryEquality :: S.Solver s => Tactic s
-tryEquality solver ns _ _ sh_pair (s1, s2) = do
-  res <- equalFold solver ns sh_pair (s1, s2)
+tryEquality solver ns lemmas _ sh_pair (s1, s2) = do
+  res <- equalFold solver ns lemmas sh_pair (s1, s2)
   case res of
     Just (pm, sd) -> do
       let (q1, q2) = case sd of
