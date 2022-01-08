@@ -799,14 +799,18 @@ TODO copied from new-theorems branch
 
  RESULTS 1/7
  No outcome seen for p85finE after waiting 2:30
+ No outcome seen for p48finA after waiting at least 2:10
+ No outcome seen for p60finA after waiting 2 minutes
  -}
 {-# RULES
 "p05finD" forall n x xs . prop_05 n x xs = walkNat x True
 "p16finA" forall x xs . walkNat x (prop_16 x xs) = walkNat x True
 "p37finA" forall x xs . prop_37 x xs = walkNatList xs True
+"p48finA" forall xs . prop_48 xs = walkLastNat xs True
 "p39fin" forall n x xs . count n [x] + count n xs = walkNat x (count n (x:xs))
 "p52fin" forall n xs . walkNatList xs (count n xs) = count n (rev xs)
 "p53fin" forall n xs . walkNatList xs (count n xs) = count n (sort xs)
+"p60finA" forall xs ys . prop_60 xs ys = walkLastNat ys True
 "p70finB" forall m n . prop_70 m n = walkNat n True
 "p72fin" forall i xs . walkList xs (rev (drop i xs)) = take (len xs - i) (rev xs)
 "p76finA" forall n m xs . prop_76 n m xs = walkNat n True
@@ -854,6 +858,13 @@ walkTwoLists ([], []) a = a
 walkTwoLists ([], ys) a = walkList ys a
 walkTwoLists (xs, []) a = walkList xs a
 walkTwoLists (x:xs, y:ys) a = walkTwoLists (xs, ys) a
+
+walkLastNat :: [Nat] -> a -> a
+walkLastNat xs a = case xs of
+  [] -> a
+  y:ys -> case ys of
+    [] -> walkNat y a
+    _ -> walkLastNat ys a
 
 walkNatList :: [Nat] -> a -> a
 walkNatList xs a = case xs of
