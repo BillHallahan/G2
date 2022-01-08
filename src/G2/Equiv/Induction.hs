@@ -3,6 +3,7 @@
 module G2.Equiv.Induction
     ( inductionFull
     , prevFiltered
+    , generalizeFull
     )
     where
 
@@ -290,7 +291,8 @@ generalizeAux :: S.Solver solver =>
                  StateET ->
                  W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
 generalizeAux solver ns s1_list s2 = do
-  let check_equiv s1_ = moreRestrictiveEqual solver ns s1_ s2
+  -- TODO add lemmas here later?
+  let check_equiv s1_ = moreRestrictiveEqual solver ns emptyLemmas s1_ s2
   res <- mapM check_equiv s1_list
   let res' = filter isJust res
   case res' of
@@ -318,9 +320,6 @@ generalize :: S.Solver solver =>
               (StateET, StateET) ->
               W.WriterT [Marker] IO (Maybe (StateET, StateET))
 generalize solver ns fresh_name (s1, s2) = do
-  W.liftIO $ putStrLn $ "Starting G " ++ show fresh_name
-  W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s1
-  W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s2
   -- expressions are ordered from outer to inner
   -- the largest ones are on the outside
   -- take the earliest array entry that works
@@ -332,7 +331,6 @@ generalize solver ns fresh_name (s1, s2) = do
       scr2 = innerScrutinees e2
       scr_states2 = map (\e -> s2 { curr_expr = CurrExpr Evaluate e }) scr2
   res <- mapM (generalizeAux solver ns scr_states1) scr_states2
-  W.liftIO $ putStrLn "Generalized"
   -- TODO also may want to adjust the equivalence tracker
   let res' = filter isJust res
   case res' of
@@ -353,3 +351,50 @@ inductionFull solver ns _ (fresh_name:_) sh_pair s_pair = do
     Nothing -> return $ NoProof HS.empty
     Just ((n1, n2), s1', s2') -> return $ Success (Just (n1, n2, s1', s2'))
 inductionFull _ _ _ _ _ _ = return $ NoProof HS.empty
+
+-- TODO new functions for generalization without induction
+generalizeFoldL :: S.Solver solver =>
+                   solver ->
+                   HS.HashSet Name ->
+                   Name ->
+                   [StateET] ->
+                   StateET ->
+                   W.WriterT [Marker] IO (Maybe (StateET, StateET, StateET, StateET))
+generalizeFoldL solver ns fresh_name prev2 s1 = do
+  case prev2 of
+    [] -> return Nothing
+    p2:t -> do
+      gen <- generalize solver ns fresh_name (s1, p2)
+      case gen of
+        Just (s1', s2') -> return $ Just (s1, p2, s1', s2')
+        _ -> generalizeFoldL solver ns fresh_name t s1
+
+-- TODO make a new marker type for this?
+-- TODO make this more like equalFold?
+generalizeFold :: S.Solver solver =>
+                  solver ->
+                  HS.HashSet Name ->
+                  Name ->
+                  (StateH, StateH) ->
+                  (StateET, StateET) ->
+                  W.WriterT [Marker] IO (Maybe (StateET, StateET, StateET, StateET))
+generalizeFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
+  fl <- generalizeFoldL solver ns fresh_name (s2:history sh2) s1
+  case fl of
+    Just (q1, q2, q1', q2') -> return fl
+    Nothing -> do
+      fr <- generalizeFoldL solver ns fresh_name (s1:history sh1) s2
+      case fr of
+        Just (q2, q1, q2', q1') -> return $ Just (q1, q2, q1', q2')
+        Nothing -> return Nothing
+
+-- TODO this should come before induction in the list of tactics
+-- TODO this uses the same fresh name that induction uses currently
+generalizeFull :: S.Solver s => Tactic s
+generalizeFull solver ns _ (fresh_name:_) sh_pair s_pair = do
+  gfold <- generalizeFold solver ns fresh_name sh_pair s_pair
+  case gfold of
+    Nothing -> return $ NoProof HS.empty
+    Just (s1, s2, q1, q2) -> let lem = mkProposedLemma "Generalization" s1 s2 q1 q2
+                             in return $ NoProof $ HS.singleton lem
+generalizeFull _ _ _ _ _ _ = return $ NoProof HS.empty
