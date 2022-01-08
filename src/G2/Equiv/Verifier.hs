@@ -517,7 +517,7 @@ verifyLemmasWithNewProvenLemmas solver nl_tactics ns proven_lemmas lemmas b conf
             let
                 proven_lemmas' = new_proven_lemmas ++ proven_lemmas
             in
-            verifyLemmasWithNewProvenLemmas solver nl_tactics ns proven_lemmas' lemmas' b config folder_name k
+            verifyLemmasWithNewProvenLemmas solver nl_tactics ns proven_lemmas' lemmas' b' config folder_name k'
 
 
 verifyLoop' :: S.Solver solver =>
