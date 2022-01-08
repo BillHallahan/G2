@@ -339,6 +339,8 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                 | otherwise -> b_mr
                 where
                     b_mr = moreRestrictive s1 s2 ns hm active n1 n2 e1' e2'
+    (Cast e1' c1, Cast e2' c2) | c1 == c2 ->
+        moreRestrictive s1 s2 ns hm active n1 n2 e1' e2'
     _ -> Left Nothing
 
 replaceVars :: Expr -> [(Id, Expr)] -> Expr
