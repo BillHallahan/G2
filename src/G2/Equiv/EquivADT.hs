@@ -80,19 +80,6 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
                , not $ m `elem` ns
                , Just e <- E.lookup m h2 -> exprPairing ns s1 s2 e1 e pairs n1 (m:n2)
                | not $ (idName i) `elem` ns -> error "unmapped variable"
-    -- See note in `moreRestrictive` regarding comparing DataCons
-    (App _ _, App _ _)
-        | (Data (DataCon d1 _)):l1 <- unAppNoTicks e1
-        , (Data (DataCon d2 _)):l2 <- unAppNoTicks e2 ->
-            if d1 == d2 then
-                let ep = uncurry (exprPairing ns s1 s2)
-                    ep' hs p = ep p hs n1 n2
-                    l = zip l1 l2
-                in foldM ep' pairs l
-                else Nothing
-    (Data (DataCon d1 _), Data (DataCon d2 _))
-                       | d1 == d2 -> Just pairs
-                       | otherwise -> Nothing
     (Prim p1 _, Prim p2 _) | p1 == Error || p1 == Undefined
                            , p2 == Error || p2 == Undefined -> Just pairs
     -- extra cases for avoiding Error problems
@@ -117,4 +104,14 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
                      | otherwise -> Nothing
     -- assume that all types line up between the two expressions
     (Type _, Type _) -> Just pairs
-    _ -> Just $ HS.insert (Ob e1 e2) pairs
+    -- See note in `moreRestrictive` regarding comparing DataCons
+    _
+        | (Data (DataCon d1 _)):l1 <- unAppNoTicks e1
+        , (Data (DataCon d2 _)):l2 <- unAppNoTicks e2 ->
+            if d1 == d2 then
+                let ep = uncurry (exprPairing ns s1 s2)
+                    ep' hs p = ep p hs n1 n2
+                    l = zip l1 l2
+                in foldM ep' pairs l
+                else Nothing
+        | otherwise -> Just $ HS.insert (Ob e1 e2) pairs
