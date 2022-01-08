@@ -853,43 +853,19 @@ moreRestrictivePairWithLemmasPast :: S.Solver solver =>
                                      [(StateET, StateET)] ->
                                      (StateET, StateET) ->
                                      W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
-moreRestrictivePairWithLemmasPast solver ns lemmas past (s1, s2) = do
-    let (s1', s2') = syncSymbolic s1 s2
-        (past1, past2) = unzip past
-    -- TODO do this to both present and past states
-    xs1 <- substLemma solver ns s1' lemmas
-    xs2 <- substLemma solver ns s2' lemmas
+moreRestrictivePairWithLemmasPast solver ns lemmas past s_pair = do
+    let (past1, past2) = unzip past
     xs_past1 <- mapM (\s_ -> substLemma solver ns s_ lemmas) past1
     xs_past2 <- mapM (\s_ -> substLemma solver ns s_ lemmas) past2
-
-    let xs1' = (Nothing, s1'):(map (\(l, s) -> (Just l, s)) xs1)
-        xs2' = (Nothing, s2'):(map (\(l, s) -> (Just l, s)) xs2)
-        pairs = [ (pair1, pair2) | pair1 <- xs1', pair2 <- xs2' ]
-        plain_past1 = map (\s_ -> (Nothing, s_)) past1
+    let plain_past1 = map (\s_ -> (Nothing, s_)) past1
         plain_past2 = map (\s_ -> (Nothing, s_)) past2
         xs_past1' = plain_past1 ++ (map (\(l, s) -> (Just l, s)) $ concat xs_past1)
         xs_past2' = plain_past2 ++ (map (\(l, s) -> (Just l, s)) $ concat xs_past2)
         -- TODO is it fine to sync after lemma usage rather than before?
         -- TODO also record the lemmas used somehow?
-        pair_past (lem1, p1) (lem2, p2) = {-let (p1', p2') =-} syncSymbolic p1 p2
-                                          {-in ((lem1, p1'), (lem2, p2'))-}
+        pair_past (_, p1) (_, p2) = syncSymbolic p1 p2
         past' = [pair_past pair1 pair2 | pair1 <- xs_past1', pair2 <- xs_past2']
-
-    rp <- mapM (\((l1, s1_), (l2, s2_)) -> do
-            mrp <- moreRestrictivePair solver ns past' (s1_, s2_)
-            -- TODO use synced or non-synced?
-            let l1' = case l1 of
-                  Nothing -> Nothing
-                  Just lem1 -> Just (s1', lem1)
-                l2' = case l2 of
-                  Nothing -> Nothing
-                  Just lem2 -> Just (s2', lem2)
-            return $ fmap (l1', l2', ) mrp) pairs
-    let (possible_lemmas, possible_matches) = partitionEithers rp
-
-    case possible_matches of
-        x:_ -> return $ Right x
-        [] -> return . Left $ HS.unions possible_lemmas
+    moreRestrictivePairWithLemmas solver ns lemmas past' s_pair
 
 mkProposedLemma :: String -> StateET -> StateET -> StateET -> StateET -> ProposedLemma
 mkProposedLemma lm_name or_s1 or_s2 s1 s2 =
