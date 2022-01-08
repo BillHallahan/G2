@@ -339,6 +339,8 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                 | otherwise -> b_mr
                 where
                     b_mr = moreRestrictive s1 s2 ns hm active n1 n2 e1' e2'
+    (Cast e1' c1, Cast e2' c2) | c1 == c2 ->
+        moreRestrictive s1 s2 ns hm active n1 n2 e1' e2'
     _ -> Left Nothing
 
 replaceVars :: Expr -> [(Id, Expr)] -> Expr
@@ -418,7 +420,7 @@ totalExpr :: StateET ->
              Bool
 totalExpr s@(State { expr_env = h, track = EquivTracker _ _ total _ _ }) ns n e =
   case e of
-    Tick _ e' -> totalExpr s n e'
+    Tick _ e' -> totalExpr s ns n e'
     Var i | m <- idName i
           , E.isSymbolic m h -> m `elem` total
           | m <- idName i
@@ -455,7 +457,12 @@ restrictHelper :: StateET ->
                   HS.HashSet Name ->
                   Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                   Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-restrictHelper s1 s2 ns hm_hs = restrictAux s1 s2 ns hm_hs
+restrictHelper s1 s2 ns hm_hs =
+  case restrictAux s1 s2 ns hm_hs of
+    Right (hm, hs) -> if validTotal s1 s2 ns hm
+                      then Right (hm, hs)
+                      else Left Nothing
+    res -> res
 
 restrictAux :: StateET ->
                StateET ->
@@ -608,18 +615,20 @@ isIdentity _ = False
 moreRestrictiveEqual :: S.Solver solver =>
                         solver ->
                         HS.HashSet Name ->
+                        Lemmas ->
                         StateET ->
                         StateET ->
                         W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-moreRestrictiveEqual solver ns s1 s2 = do
+moreRestrictiveEqual solver ns lemmas s1 s2 = do
   let h1 = expr_env s1
       h2 = expr_env s2
       s1' = s1 { expr_env = E.union h1 h2 }
       s2' = s2 { expr_env = E.union h2 h1 }
-  pm_maybe <- moreRestrictivePair solver ns [(s2', s1')] (s1, s2)
+  pm_maybe <- moreRestrictivePairWithLemmasPast solver ns lemmas [(s2', s1')] (s1, s2)
   case pm_maybe of
     Left _ -> return Nothing
-    Right pm@(PrevMatch _ _ (hm, _) _) ->
+    Right (_, _, pm@(PrevMatch _ _ (hm, _) _)) ->
+      -- TODO do something with the lemmas for logging later
       if foldr (&&) True (map isIdentity $ HM.toList hm)
       then return $ Just pm
       else return Nothing
@@ -630,17 +639,18 @@ moreRestrictiveEqual solver ns s1 s2 = do
 equalFoldL :: S.Solver solver =>
               solver ->
               HS.HashSet Name ->
+              Lemmas ->
               [StateET] ->
               StateET ->
               W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-equalFoldL solver ns prev2 s1 = do
+equalFoldL solver ns lemmas prev2 s1 = do
   case prev2 of
     [] -> return Nothing
     p2:t -> do
-      mre <- moreRestrictiveEqual solver ns s1 p2
+      mre <- moreRestrictiveEqual solver ns lemmas s1 p2
       case mre of
         Just pm -> return $ Just pm
-        _ -> equalFoldL solver ns t s1
+        _ -> equalFoldL solver ns lemmas t s1
 
 -- TODO clean up code
 -- This tries all of the allowable combinations for equality checking.  First
@@ -651,22 +661,23 @@ equalFoldL solver ns prev2 s1 = do
 equalFold :: S.Solver solver =>
              solver ->
              HS.HashSet Name ->
+             Lemmas ->
              (StateH, StateH) ->
              (StateET, StateET) ->
              W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker, Side))
-equalFold solver ns (sh1, sh2) (s1, s2) = do
-  pm_l <- equalFoldL solver ns (s2:history sh2) s1
+equalFold solver ns lemmas (sh1, sh2) (s1, s2) = do
+  pm_l <- equalFoldL solver ns lemmas (s2:history sh2) s1
   case pm_l of
     Just pm -> return $ Just (pm, ILeft)
     _ -> do
-      pm_r <- equalFoldL solver ns (s1:history sh1) s2
+      pm_r <- equalFoldL solver ns lemmas (s1:history sh1) s2
       case pm_r of
         Just pm' -> return $ Just (pm', IRight)
         _ -> return Nothing
 
 tryEquality :: S.Solver s => Tactic s
-tryEquality solver ns _ _ sh_pair (s1, s2) = do
-  res <- equalFold solver ns sh_pair (s1, s2)
+tryEquality solver ns lemmas _ sh_pair (s1, s2) = do
+  res <- equalFold solver ns lemmas sh_pair (s1, s2)
   case res of
     Just (pm, sd) -> do
       let (q1, q2) = case sd of
@@ -879,6 +890,28 @@ moreRestrictivePairWithLemmas solver ns lemmas past (s1, s2) = do
     case possible_matches of
         x:_ -> return $ Right x
         [] -> return . Left $ HS.unions possible_lemmas
+
+-- TODO have a cleaner setup for these variations
+moreRestrictivePairWithLemmasPast :: S.Solver solver =>
+                                     solver ->
+                                     HS.HashSet Name ->
+                                     Lemmas ->
+                                     [(StateET, StateET)] ->
+                                     (StateET, StateET) ->
+                                     W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
+moreRestrictivePairWithLemmasPast solver ns lemmas past s_pair = do
+    let (past1, past2) = unzip past
+    xs_past1 <- mapM (\s_ -> substLemma solver ns s_ lemmas) past1
+    xs_past2 <- mapM (\s_ -> substLemma solver ns s_ lemmas) past2
+    let plain_past1 = map (\s_ -> (Nothing, s_)) past1
+        plain_past2 = map (\s_ -> (Nothing, s_)) past2
+        xs_past1' = plain_past1 ++ (map (\(l, s) -> (Just l, s)) $ concat xs_past1)
+        xs_past2' = plain_past2 ++ (map (\(l, s) -> (Just l, s)) $ concat xs_past2)
+        -- TODO is it fine to sync after lemma usage rather than before?
+        -- TODO also record the lemmas used somehow?
+        pair_past (_, p1) (_, p2) = syncSymbolic p1 p2
+        past' = [pair_past pair1 pair2 | pair1 <- xs_past1', pair2 <- xs_past2']
+    moreRestrictivePairWithLemmas solver ns lemmas past' s_pair
 
 mkProposedLemma :: String -> StateET -> StateET -> StateET -> StateET -> ProposedLemma
 mkProposedLemma lm_name or_s1 or_s2 s1 s2 =

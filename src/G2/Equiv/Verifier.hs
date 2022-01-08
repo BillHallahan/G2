@@ -298,10 +298,10 @@ replaceH :: StateH -> StateET -> StateH
 replaceH sh s = sh { latest = s }
 
 allTactics :: S.Solver s => [Tactic s]
-allTactics = [tryEquality, tryCoinduction, inductionFull, trySolver]
+allTactics = [tryEquality, tryCoinduction, generalizeFull, inductionFull, trySolver]
 
 allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
-allNewLemmaTactics = [applyTacticToLabeledStates tryCoinduction]
+allNewLemmaTactics = map applyTacticToLabeledStates [tryEquality, tryCoinduction]
 
 -- negative loop iteration count means there's no limit
 verifyLoop :: S.Solver solver =>
@@ -517,7 +517,7 @@ verifyLemmasWithNewProvenLemmas solver nl_tactics ns proven_lemmas lemmas b conf
             let
                 proven_lemmas' = new_proven_lemmas ++ proven_lemmas
             in
-            verifyLemmasWithNewProvenLemmas solver nl_tactics ns proven_lemmas' lemmas' b config folder_name k
+            verifyLemmasWithNewProvenLemmas solver nl_tactics ns proven_lemmas' lemmas' b' config folder_name k'
 
 
 verifyLoop' :: S.Solver solver =>
