@@ -35,6 +35,7 @@ module G2.Equiv.Tactics
     , insertDisprovenLemma
 
     , mkProposedLemma
+    , transferTrackerInfo
     )
     where
 
@@ -815,6 +816,19 @@ equivLemma solver ns (Lemma { lemma_lhs = l1_1, lemma_rhs = l1_2 }) lems = do
                         (Right _, Right _) -> return True
                         _ -> return False) lems
 
+-- Don't share expr env and path constraints between sides
+-- info goes from left to right
+transferTrackerInfo :: StateET -> StateET -> StateET
+transferTrackerInfo s1 s2 =
+  let t1 = track s1
+      t2 = track s2
+      t2' = t2 {
+        higher_order = higher_order t1
+      , total = total t1
+      , finite = finite t1
+      }
+  in s2 { track = t2' }
+
 -- TODO: Does substLemma need to do something more to check correctness of path constraints?
 -- `substLemma state lemmas` tries to apply each proven lemma in `lemmas` to `state`.
 -- In particular, for each `lemma = (lemma_l `equiv lemma_r` in the proven lemmas, it
@@ -836,8 +850,9 @@ replaceMoreRestrictiveSubExpr' :: S.Solver solver => solver -> HS.HashSet Name -
 replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma_rhs = rhs_s })
                                          s2@(State { curr_expr = CurrExpr er _ }) e = do
     replaced <- CM.get
-    if not replaced then do 
-        mr_sub <- CM.lift $ moreRestrictiveSingle solver ns lhs_s (s2 { curr_expr = CurrExpr Evaluate e })
+    if not replaced then do
+        let s2' = transferTrackerInfo lhs_s s2
+        mr_sub <- CM.lift $ moreRestrictiveSingle solver ns lhs_s (s2' { curr_expr = CurrExpr Evaluate e })
         case mr_sub of
             Right hm -> do
                 let v_rep = HM.toList hm

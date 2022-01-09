@@ -345,11 +345,12 @@ def test_suite_fail(suite, timeout = 25):
     print(sat_num, "Confirmed out of", len(suite))
 
 def main():
-    test_suite_simple(custom_finite)
-    test_suite(equivalences_all_total)
-    test_suite(finite_long, 120)
-    test_suite_fail(equivalences_should_fail)
+    #test_suite_simple(custom_finite)
+    #test_suite(equivalences_all_total)
+    #test_suite(finite_long, 120)
+    #test_suite_fail(equivalences_should_fail)
     #test_suite(more_finite)
+    test_suite(old_successes, 120)
 
 if __name__ == "__main__":
     main()
