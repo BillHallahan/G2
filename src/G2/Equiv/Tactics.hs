@@ -35,7 +35,6 @@ module G2.Equiv.Tactics
     , insertDisprovenLemma
 
     , mkProposedLemma
-    , transferTrackerInfo
     )
     where
 
@@ -413,7 +412,7 @@ validMap s1 s2 hm =
   in all check hm_list
 
 -- TODO not exhaustive
--- TODO do cyclic expressions count as total?  I think so
+-- cyclic expressions count as total
 totalExpr :: StateET ->
              HS.HashSet Name ->
              [Name] -> -- variables inlined previously
@@ -815,19 +814,6 @@ equivLemma solver ns (Lemma { lemma_lhs = l1_1, lemma_rhs = l1_2 }) lems = do
                     case (mr1, mr2) of
                         (Right _, Right _) -> return True
                         _ -> return False) lems
-
--- Don't share expr env and path constraints between sides
--- info goes from left to right
-transferTrackerInfo :: StateET -> StateET -> StateET
-transferTrackerInfo s1 s2 =
-  let t1 = track s1
-      t2 = track s2
-      t2' = t2 {
-        higher_order = higher_order t1
-      , total = total t1
-      , finite = finite t1
-      }
-  in s2 { track = t2' }
 
 -- TODO: Does substLemma need to do something more to check correctness of path constraints?
 -- `substLemma state lemmas` tries to apply each proven lemma in `lemmas` to `state`.
