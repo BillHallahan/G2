@@ -801,10 +801,14 @@ TODO copied from new-theorems branch
  No outcome seen for p85finE after waiting 2:30
  No outcome seen for p48finA after waiting at least 2:10
  No outcome seen for p60finA after waiting 2 minutes
+
+ RESULTS 1/9
+ No outcome seen for p28finA after waiting 2 minutes
  -}
 {-# RULES
 "p05finD" forall n x xs . prop_05 n x xs = walkNat x True
 "p16finA" forall x xs . walkNat x (prop_16 x xs) = walkNat x True
+"p28finA" forall x xs . prop_28 x xs = walkNat x $ walkList xs True
 "p37finA" forall x xs . prop_37 x xs = walkNatList xs True
 "p48finA" forall xs . prop_48 xs = walkLastNat xs True
 "p39fin" forall n x xs . count n [x] + count n xs = walkNat x (count n (x:xs))
