@@ -258,7 +258,7 @@ old_successes = [
     ("p12", []),
     ("p13", []),
     ("p14", []),
-    ("p16finA", [xs]), # slow
+    ("p16finA", [xs]), # extra slow, took about 2:10
     ("p17", []),
     ("p18fin", []),
     ("p19", [n]),

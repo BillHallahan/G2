@@ -410,7 +410,7 @@ validMap s1 s2 hm =
       check (_, e) = (not $ isSWHNF $ s1 { curr_expr = CurrExpr Evaluate e })
                   || (not $ isSWHNF $ s2 { curr_expr = CurrExpr Evaluate e })
                   || isPrimType (typeOf e)
-  in foldr (&&) True (map check hm_list)
+  in all check hm_list
 
 -- TODO not exhaustive
 -- TODO do cyclic expressions count as total?  I think so
@@ -450,7 +450,7 @@ validTotal s1 s2 ns hm =
   let hm_list = HM.toList hm
       total_hs = total $ track s1
       check (i, e) = (not $ (idName i) `elem` total_hs) || (totalExpr s2 ns [] e)
-  in foldr (&&) True (map check hm_list)
+  in all check hm_list
 
 -- TODO check for total validity in here
 restrictHelper :: StateET ->
@@ -630,7 +630,7 @@ moreRestrictiveEqual solver ns lemmas s1 s2 = do
     Left _ -> return Nothing
     Right (_, _, pm@(PrevMatch _ _ (hm, _) _)) ->
       -- TODO do something with the lemmas for logging later
-      if foldr (&&) True (map isIdentity $ HM.toList hm)
+      if all isIdentity $ HM.toList hm
       then return $ Just pm
       else return Nothing
 
@@ -851,8 +851,7 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma
                                          s2@(State { curr_expr = CurrExpr er _ }) e = do
     replaced <- CM.get
     if not replaced then do
-        let s2' = transferTrackerInfo lhs_s s2
-        mr_sub <- CM.lift $ moreRestrictiveSingle solver ns lhs_s (s2' { curr_expr = CurrExpr Evaluate e })
+        mr_sub <- CM.lift $ moreRestrictiveSingle solver ns lhs_s (s2 { curr_expr = CurrExpr Evaluate e })
         case mr_sub of
             Right hm -> do
                 let v_rep = HM.toList hm
