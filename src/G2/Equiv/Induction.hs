@@ -118,7 +118,7 @@ moreRestrictiveIndRight :: S.Solver solver =>
                            HS.HashSet Name ->
                            [(StateET, StateET)] ->
                            (StateET, StateET) ->
-                           W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
+                           TacticM (Maybe (PrevMatch EquivTracker))
 moreRestrictiveIndRight solver ns prev (s1, s2) =
   let prev1 = map (\(p1, p2) -> (p1, p2, innerScrutineeStates p2)) prev
       prev2 = [(p1, p2', p2) | (p1, p2, p2l) <- prev1, p2' <- p2l]
@@ -131,7 +131,7 @@ inductionL :: S.Solver solver =>
               HS.HashSet Name ->
               [(StateET, StateET)] ->
               (StateET, StateET) ->
-              W.WriterT [Marker] IO (Maybe (StateET, IndMarker))
+              TacticM (Maybe (StateET, IndMarker))
 inductionL solver ns prev (s1, s2) = do
   let scr1 = innerScrutinees $ exprExtract s1
       scr2 = innerScrutinees $ exprExtract s2
@@ -199,7 +199,7 @@ induction :: S.Solver solver =>
              HS.HashSet Name ->
              [(StateET, StateET)] ->
              (StateET, StateET) ->
-             W.WriterT [Marker] IO (Maybe (StateET, StateET, IndMarker))
+             TacticM (Maybe (StateET, StateET, IndMarker))
 induction solver ns prev (s1, s2) | caseRecursion (exprExtract s1)
                                   , caseRecursion (exprExtract s2) = do
   ind <- inductionL solver ns prev (s1, s2)
@@ -226,7 +226,7 @@ inductionFoldL :: S.Solver solver =>
                   Name ->
                   (StateH, StateH) ->
                   (StateET, StateET) ->
-                  W.WriterT [Marker] IO (Maybe (Int, StateET, StateET, IndMarker))
+                  TacticM (Maybe (Int, StateET, StateET, IndMarker))
 inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2) = do
   let prev = prevFiltered (sh1, sh2)
   ind <- induction solver ns prev (s1, s2)
@@ -259,7 +259,7 @@ inductionFold :: S.Solver solver =>
                  Name ->
                  (StateH, StateH) ->
                  (StateET, StateET) ->
-                 W.WriterT [Marker] IO (Maybe ((Int, Int), StateET, StateET))
+                 TacticM (Maybe ((Int, Int), StateET, StateET))
 inductionFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
   fl <- inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2)
   case fl of
@@ -289,7 +289,7 @@ generalizeAux :: S.Solver solver =>
                  HS.HashSet Name ->
                  [StateET] ->
                  StateET ->
-                 W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
+                 TacticM (Maybe (PrevMatch EquivTracker))
 generalizeAux solver ns s1_list s2 = do
   -- TODO add lemmas here later?
   let check_equiv s1_ = moreRestrictiveEqual solver ns emptyLemmas s1_ s2
@@ -318,7 +318,7 @@ generalize :: S.Solver solver =>
               HS.HashSet Name ->
               Name ->
               (StateET, StateET) ->
-              W.WriterT [Marker] IO (Maybe (StateET, StateET))
+              TacticM (Maybe (StateET, StateET))
 generalize solver ns fresh_name (s1, s2) = do
   -- expressions are ordered from outer to inner
   -- the largest ones are on the outside
@@ -359,7 +359,7 @@ generalizeFoldL :: S.Solver solver =>
                    Name ->
                    [StateET] ->
                    StateET ->
-                   W.WriterT [Marker] IO (Maybe (StateET, StateET, StateET, StateET))
+                   TacticM (Maybe (StateET, StateET, StateET, StateET))
 generalizeFoldL solver ns fresh_name prev2 s1 = do
   case prev2 of
     [] -> return Nothing
@@ -377,7 +377,7 @@ generalizeFold :: S.Solver solver =>
                   Name ->
                   (StateH, StateH) ->
                   (StateET, StateET) ->
-                  W.WriterT [Marker] IO (Maybe (StateET, StateET, StateET, StateET))
+                  TacticM (Maybe (StateET, StateET, StateET, StateET))
 generalizeFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
   fl <- generalizeFoldL solver ns fresh_name (s2:history sh2) s1
   case fl of

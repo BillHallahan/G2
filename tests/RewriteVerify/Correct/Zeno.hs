@@ -710,6 +710,7 @@ p54finA hits the limit
 "p05finA" forall n x xs . prop_05 n x xs = walkNat n True
 "p05finB" forall n x xs . prop_05 n x xs = walkNat x (walkNatList xs True)
 "p05finC" forall n x xs . prop_05 n x xs = walkNat n (walkNat x (walkNatList xs True))
+"p05finE" forall n x xs . walkNat n (walkList xs (prop_05 n x xs)) = walkNat n (walkList xs True)
 "p06fin" forall n m . n - (n + m) = walkNat n Z
 "p07fin" forall n m . (n + m) - n = walkNat n m
 "p08fin" forall k m n . (k + m) - (k + n) = walkNat k (m - n)
