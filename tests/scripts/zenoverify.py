@@ -258,7 +258,7 @@ old_successes = [
     ("p12", []),
     ("p13", []),
     ("p14", []),
-    ("p16finA", [xs]), # slow
+    ("p16finA", [xs]), # extra slow, took about 2:10
     ("p17", []),
     ("p18fin", []),
     ("p19", [n]),
@@ -350,6 +350,7 @@ def main():
     test_suite(finite_long, 120)
     test_suite_fail(equivalences_should_fail)
     #test_suite(more_finite)
+    #test_suite(old_successes, 150)
 
 if __name__ == "__main__":
     main()

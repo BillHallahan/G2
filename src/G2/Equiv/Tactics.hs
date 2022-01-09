@@ -409,14 +409,60 @@ validMap s1 s2 hm =
       check (_, e) = (not $ isSWHNF $ s1 { curr_expr = CurrExpr Evaluate e })
                   || (not $ isSWHNF $ s2 { curr_expr = CurrExpr Evaluate e })
                   || isPrimType (typeOf e)
-  in foldr (&&) True (map check hm_list)
+  in all check hm_list
 
+-- TODO not exhaustive
+-- cyclic expressions count as total
+totalExpr :: StateET ->
+             HS.HashSet Name ->
+             [Name] -> -- variables inlined previously
+             Expr ->
+             Bool
+totalExpr s@(State { expr_env = h, track = EquivTracker _ _ total _ _ }) ns n e =
+  case e of
+    Tick _ e' -> totalExpr s ns n e'
+    Var i | m <- idName i
+          , E.isSymbolic m h -> m `elem` total
+          | m <- idName i
+          , not $ HS.member m ns
+          , not $ m `elem` n
+          , Just e' <- E.lookup m h -> totalExpr s ns (m:n) e'
+          | (idName i) `elem` n -> True
+          | HS.member (idName i) ns -> False
+          | otherwise -> error $ "unmapped variable " ++ show i
+    App f a -> totalExpr s ns n f && totalExpr s ns n a
+    Data _ -> True
+    Prim _ _ -> True
+    Lit _ -> True
+    Lam _ _ _ -> False
+    Type _ -> True
+    Let _ _ -> False
+    Case _ _ _ -> False
+    _ -> False
+
+validTotal :: StateET ->
+              StateET ->
+              HS.HashSet Name ->
+              HM.HashMap Id Expr ->
+              Bool
+validTotal s1 s2 ns hm =
+  let hm_list = HM.toList hm
+      total_hs = total $ track s1
+      check (i, e) = (not $ (idName i) `elem` total_hs) || (totalExpr s2 ns [] e)
+  in all check hm_list
+
+-- TODO check for total validity in here
 restrictHelper :: StateET ->
                   StateET ->
                   HS.HashSet Name ->
                   Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                   Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-restrictHelper s1 s2 ns hm_hs = restrictAux s1 s2 ns hm_hs
+restrictHelper s1 s2 ns hm_hs =
+  case restrictAux s1 s2 ns hm_hs of
+    Right (hm, hs) -> if validTotal s1 s2 ns hm
+                      then Right (hm, hs)
+                      else Left Nothing
+    res -> res
 
 restrictAux :: StateET ->
                StateET ->
@@ -583,7 +629,7 @@ moreRestrictiveEqual solver ns lemmas s1 s2 = do
     Left _ -> return Nothing
     Right (_, _, pm@(PrevMatch _ _ (hm, _) _)) ->
       -- TODO do something with the lemmas for logging later
-      if foldr (&&) True (map isIdentity $ HM.toList hm)
+      if all isIdentity $ HM.toList hm
       then return $ Just pm
       else return Nothing
 
@@ -790,7 +836,7 @@ replaceMoreRestrictiveSubExpr' :: S.Solver solver => solver -> HS.HashSet Name -
 replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma_rhs = rhs_s })
                                          s2@(State { curr_expr = CurrExpr er _ }) e = do
     replaced <- CM.get
-    if not replaced then do 
+    if not replaced then do
         mr_sub <- CM.lift $ moreRestrictiveSingle solver ns lhs_s (s2 { curr_expr = CurrExpr Evaluate e })
         case mr_sub of
             Right hm -> do

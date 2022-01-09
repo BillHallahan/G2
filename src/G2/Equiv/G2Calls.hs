@@ -247,10 +247,10 @@ instance Reducer EquivReducer () EquivTracker where
                         -- unApp, make sure every arg is a total symbolic var
                         -- these are exprs originally
                         es = map exprVarName $ unApp e'
-                        all_vars = foldr (&&) True $ map isJust es
+                        all_vars = all isJust es
                         es' = map (\(Just n) -> n) $ filter isJust es
-                        all_sym = foldr (&&) True $ map (\x -> E.isSymbolic x eenv) es'
-                        all_total = foldr (&&) True $ map (`elem` total) es'
+                        all_sym = all (\x -> E.isSymbolic x eenv) es'
+                        all_total = all (`elem` total) es'
                         total' = if all_vars && all_sym && all_total
                                  then HS.insert (idName v) total
                                  else total
