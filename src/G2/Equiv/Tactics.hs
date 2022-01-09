@@ -495,15 +495,18 @@ genLemmaHashSet' :: S.Solver solver => solver -> HS.HashSet Name -> (StateET, St
                  -> TacticM (HS.HashSet Lemma)
 genLemmaHashSet' solver ns (s1, s2) (rep_e, lem) = do
     fresh <- freshNameN
+    W.liftIO $ putStrLn "genLemmaHashSet' 1"
     f_s1 <- repFresh fresh s1
+    W.liftIO $ putStrLn "genLemmaHashSet' 2"
     f_s2 <- repFresh fresh s2
     case (f_s1, f_s2) of
         (Just s1', Just s2') -> do
             let fr_lem = mkProposedLemma "gen" s1 s2 s1' s2'
             let in1 = inlineFull (HS.toList ns) (expr_env s1')
                 in2 = inlineFull (HS.toList ns) (expr_env s2')
-            let pg = mkPrettyGuide (s1, s2, s1', s2')
-            W.liftIO $ putStrLn $ "genLemmaHashSet'\ne1 = " ++  printHaskellDirtyPG pg (in1 $ exprExtract s1)
+            let pg = mkPrettyGuide (rep_e, s1, s2, s1', s2')
+            W.liftIO $ putStrLn $ "genLemmaHashSet'\nrep_e = " ++ printHaskellDirtyPG pg (in2 $ rep_e)
+                            ++ "\ne1 = " ++  printHaskellDirtyPG pg (in1 $ exprExtract s1)
                             ++ "\ne2 = " ++ printHaskellDirtyPG pg (in2 $ exprExtract s2)
                             ++ "\ne1' = " ++  printHaskellDirtyPG pg (in1 $ exprExtract s1')
                             ++ "\ne2' = " ++ printHaskellDirtyPG pg (in2 $ exprExtract s2')
@@ -513,7 +516,10 @@ genLemmaHashSet' solver ns (s1, s2) (rep_e, lem) = do
             let in1 = inlineFull (HS.toList ns) (expr_env s1)
                 in2 = inlineFull (HS.toList ns) (expr_env s2)
             let pg = mkPrettyGuide (s1, s2)
-            W.liftIO $ putStrLn $ "genLemmaHashSet' No rep fresh\ne1 = " ++  printHaskellDirtyPG pg (in1 $ exprExtract s1)
+            W.liftIO $ putStrLn $ "genLemmaHashSet' No rep fresh\nrep_e = " ++ printHaskellDirtyPG pg (in2 $ rep_e)
+                            ++ "\nisJust1 = " ++ show (isJust f_s1)
+                            ++ "\nisJust2 = " ++ show (isJust f_s2)
+                            ++ "\ne1 = " ++  printHaskellDirtyPG pg (in1 $ exprExtract s1)
                             ++ "\ne2 = " ++ printHaskellDirtyPG pg (in2 $ exprExtract s2)
 
             return $ HS.singleton lem
@@ -541,11 +547,39 @@ replaceEqual' solver ns lhs_s rhs_s
     mr_sub <- CM.lift $ moreRestrictiveSingle solver ns lhs_s (s2 { curr_expr = CurrExpr Evaluate e })
     case mr_sub of
         Right hm -> do
+            W.liftIO $ do
+                  putStrLn "Right"
+                  let in1 = inlineFull (HS.toList ns) (expr_env lhs_s)
+                      in2 = inlineFull (HS.toList ns) (expr_env s2)
+                  let pg = mkPrettyGuide (lhs_s, s2, e)
+                  putStrLn $ "e1 = " ++  printHaskellDirtyPG pg (in1 $ exprExtract lhs_s)
+                            ++ "\ne2 = " ++ printHaskellDirtyPG pg (in2 e)
             CM.put True
             return $ exprExtract rhs_s                 
         Left _ -> do
+            W.liftIO $ do
+                  putStrLn "Left"
+                  let in1 = inlineFull (HS.toList ns) (expr_env lhs_s)
+                      in2 = inlineFull (HS.toList ns) (expr_env s2)
+                  let pg = mkPrettyGuide (lhs_s, s2, e)
+                  putStrLn $ "e1 = " ++  printHaskellDirtyPG pg (in1 $ exprExtract lhs_s)
+                            ++ "\ne2 = " ++ printHaskellDirtyPG pg (in2 e)
+                  print e
+
             let ns' = foldr HS.insert ns (bind e)
-            modifyChildrenM (replaceEqual' solver ns' lhs_s rhs_s s2) e
+            case e of
+                Var (Id n _)
+                    | not (n `HS.member` ns)
+                    , Just e' <- E.lookup n (expr_env s2) -> do
+                        W.liftIO . putStrLn $ "looked up " ++ show n
+                        W.liftIO . putStrLn $ "e' = " ++ show e'
+                        let ns'' = HS.insert n ns'
+                        modifyChildrenM (replaceEqual' solver ns'' lhs_s rhs_s s2) e'
+                    | otherwise -> do W.liftIO . putStrLn $ "skipped " ++ show n
+                                              ++ "\nin ns = " ++ show (n `HS.member` ns)
+                                              ++ "\nin expr_env s2 = " ++ show (isJust $ E.lookup n (expr_env s2))
+                                      modifyChildrenM (replaceEqual' solver ns' lhs_s rhs_s s2) e
+                _ -> modifyChildrenM (replaceEqual' solver ns' lhs_s rhs_s s2) e
     where
         bind (Lam _ i _) = [idName i]
         bind (Case _ i as) = idName i:concatMap altBind as
