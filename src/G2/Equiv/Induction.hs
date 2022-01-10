@@ -194,22 +194,23 @@ caseRecHelper _ = False
 -- We prefer coinduction in that scenario because it is more efficient.
 -- TODO (12/9) As a slight optimization, I could avoid using coinduction in
 -- situations like this where induction is applicable.
+-- TODO redundant return type for lemmas
 induction :: S.Solver solver =>
              solver ->
              HS.HashSet Name ->
              [(StateET, StateET)] ->
              (StateET, StateET) ->
-             W.WriterT [Marker] IO (Maybe (StateET, StateET, IndMarker))
+             W.WriterT [Marker] IO (Maybe (StateET, StateET, StateET, StateET, IndMarker))
 induction solver ns prev (s1, s2) | caseRecursion (exprExtract s1)
                                   , caseRecursion (exprExtract s2) = do
   ind <- inductionL solver ns prev (s1, s2)
   case ind of
-    Just (s1l, iml) -> return $ Just (s1l, s2, iml)
+    Just (s1l, iml) -> return $ Just (s1, s2, s1l, s2, iml)
     Nothing -> do
       let prev' = map swap prev
       ind' <- inductionL solver ns prev' (s2, s1)
       case ind' of
-        Just (s2r, imr) -> return $ Just (s1, s2r, reverseIndMarker imr)
+        Just (s2r, imr) -> return $ Just (s1, s2, s1, s2r, reverseIndMarker imr)
         Nothing -> return Nothing
   | otherwise = return Nothing
 
@@ -226,7 +227,7 @@ inductionFoldL :: S.Solver solver =>
                   Name ->
                   (StateH, StateH) ->
                   (StateET, StateET) ->
-                  W.WriterT [Marker] IO (Maybe (Int, StateET, StateET, IndMarker))
+                  W.WriterT [Marker] IO (Maybe (StateET, StateET, StateET, StateET, IndMarker))
 inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2) = do
   let prev = prevFiltered (sh1, sh2)
   ind <- induction solver ns prev (s1, s2)
@@ -234,13 +235,13 @@ inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2) = do
     Nothing -> case backtrackOne sh2 of
       Nothing -> return Nothing
       Just sh2' -> inductionFoldL solver ns fresh_name (sh1, sh2') (s1, latest sh2')
-    Just (s1', s2', im) -> do
+    Just (s1_, s2_, s1', s2', im) -> do
       g <- generalize solver ns fresh_name (s1', s2')
       case g of
         Nothing -> case backtrackOne sh2 of
           Nothing -> return Nothing
           Just sh2' -> inductionFoldL solver ns fresh_name (sh1, sh2') (s1, latest sh2')
-        Just (s1'', s2'') -> return $ Just (length $ history sh2, s1'', s2'', im)
+        Just (s1'', s2'') -> return $ Just (s1_, s2_, s1'', s2'', im)
 
 -- TODO somewhat crude solution:  record how "far back" it needed to go
 -- This tries all of the possible combinations of present states for induction.
@@ -259,29 +260,29 @@ inductionFold :: S.Solver solver =>
                  Name ->
                  (StateH, StateH) ->
                  (StateET, StateET) ->
-                 W.WriterT [Marker] IO (Maybe ((Int, Int), StateET, StateET))
+                 W.WriterT [Marker] IO (Maybe (StateET, StateET, StateET, StateET))
 inductionFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
   fl <- inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2)
   case fl of
-    Just (nl, s1l, s2l, iml) -> do
+    Just (s1_, s2_, s1l, s2l, iml) -> do
       W.liftIO $ putStrLn $ "IL " ++ show (map (folder_name . track) [s1, s2, s1l, s2l])
       let iml' = iml {
         ind_real_present = (s1, s2)
       , ind_fresh_name = fresh_name
       }
       W.tell $ [Marker (sh1, sh2) $ Induction iml']
-      return $ Just ((0, (length $ history sh2) - nl), s1l, s2l)
+      return $ Just (s1_, s2_, s1l, s2l)
     Nothing -> do
       fr <- inductionFoldL solver ns fresh_name (sh2, sh1) (s2, s1)
       case fr of
-        Just (nr, s2r, s1r, imr) -> do
+        Just (s2_, s1_, s2r, s1r, imr) -> do
           W.liftIO $ putStrLn $ "IR " ++ show (map (folder_name . track) [s1, s2, s1r, s2r])
           let imr' = reverseIndMarker (imr {
             ind_real_present = (s2, s1)
           , ind_fresh_name = fresh_name
           })
           W.tell $ [Marker (sh1, sh2) $ Induction imr']
-          return $ Just (((length $ history sh1) - nr, 0), s1r, s2r)
+          return $ Just (s1_, s2_, s1r, s2r)
         Nothing -> return Nothing
 
 generalizeAux :: S.Solver solver =>
@@ -349,7 +350,8 @@ inductionFull solver ns _ (fresh_name:_) sh_pair s_pair = do
   ifold <- inductionFold solver ns fresh_name sh_pair s_pair
   case ifold of
     Nothing -> return $ NoProof HS.empty
-    Just ((n1, n2), s1', s2') -> return $ Success (Just (n1, n2, s1', s2'))
+    Just (s1, s2, s1', s2') -> let lem = mkProposedLemma "Induction" s1 s2 s1' s2'
+                               in return $ NoProof $ HS.singleton lem
 inductionFull _ _ _ _ _ _ = return $ NoProof HS.empty
 
 -- TODO new functions for generalization without induction
