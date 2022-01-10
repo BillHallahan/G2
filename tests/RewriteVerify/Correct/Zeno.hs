@@ -783,26 +783,30 @@ Uncertain ones where the walking may need to be different:
 {-
 TODO copied from new-theorems branch
 
- RESULTS 1/2
- No outcome seen for p72fin
+RESULTS 1/2
+No outcome seen for p72fin
 
- RESULTS 1/3
- No outcome seen for p05finD
- No outcome seen for p37finA
- No outcome seen for p39fin
- No outcome seen for p52fin
- No outcome seen for p53fin
- No outcome seen for p70finB
- No outcome seen for p76finA
+RESULTS 1/3
+No outcome seen for p05finD
+No outcome seen for p37finA
+No outcome seen for p39fin
+No outcome seen for p52fin
+No outcome seen for p53fin
+No outcome seen for p70finB
+No outcome seen for p76finA
 
- RESULTS 1/6
- No outcome seen for p85finE after waiting for 2 minutes
+RESULTS 1/6
+No outcome seen for p85finE after waiting for 2 minutes
 
- RESULTS 1/7
- No outcome seen for p85finE after waiting 2:30
- No outcome seen for p48finA after waiting at least 2:10
- No outcome seen for p60finA after waiting 2 minutes
- -}
+RESULTS 1/7
+No outcome seen for p85finE after waiting 2:30
+No outcome seen for p48finA after waiting at least 2:10
+No outcome seen for p60finA after waiting 2 minutes
+
+RESULTS 1/10
+No outcome seen for p57finA with all vars total after 2:30
+No outcome seen for p57finB with all vars total after 2:30
+-}
 {-# RULES
 "p05finD" forall n x xs . prop_05 n x xs = walkNat x True
 "p16finA" forall x xs . walkNat x (prop_16 x xs) = walkNat x True
@@ -811,6 +815,9 @@ TODO copied from new-theorems branch
 "p39fin" forall n x xs . count n [x] + count n xs = walkNat x (count n (x:xs))
 "p52fin" forall n xs . walkNatList xs (count n xs) = count n (rev xs)
 "p53fin" forall n xs . walkNatList xs (count n xs) = count n (sort xs)
+"p57finA" forall n m xs . walkNat m (drop n (take m xs)) = take (m - n) (drop n xs)
+"p57finB" forall n m xs . walkNat n (drop n (take m xs)) = take (m - n) (drop n xs)
+"p59finA" forall xs ys . walkLastNat xs (prop_59 xs ys) = walkLastNat xs True
 "p60finA" forall xs ys . prop_60 xs ys = walkLastNat ys True
 "p70finB" forall m n . prop_70 m n = walkNat n True
 "p72fin" forall i xs . walkList xs (rev (drop i xs)) = take (len xs - i) (rev xs)
