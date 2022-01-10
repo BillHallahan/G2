@@ -495,9 +495,7 @@ genLemmaHashSet' :: S.Solver solver => solver -> HS.HashSet Name -> (StateET, St
                  -> TacticM (HS.HashSet Lemma)
 genLemmaHashSet' solver ns (s1, s2) (rep_e, lem) = do
     fresh <- freshNameN
-    W.liftIO $ putStrLn "genLemmaHashSet' 1"
     f_s1 <- repFresh fresh s1
-    W.liftIO $ putStrLn "genLemmaHashSet' 2"
     f_s2 <- repFresh fresh s2
     case (f_s1, f_s2) of
         (Just s1', Just s2') -> do

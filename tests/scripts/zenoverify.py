@@ -33,9 +33,7 @@ def call_zeno_process(thm, var_settings, time):
 
 equivalences = [
     "p01",
-    "p02",
     # "p03",
-    "p04",
     "p06",
     "p07",
     "p08",
@@ -96,9 +94,7 @@ equivalences = [
 
 equivalences_all_total = [
     ("p01", ["n", "xs"]),
-    ("p02", ["n", "xs", "ys"]),
     # ("p03", ["n", "xs", "ys"]),
-    ("p04", ["n", "xs"]),
     ("p09", ["i", "j", "k"]),
     ("p11", ["xs"]),
     ("p12", ["f", "n", "xs"]),
@@ -117,7 +113,6 @@ equivalences_all_total = [
     ("p35", ["xs"]),
     ("p36", ["xs"]),
     ("p38", ["n", "xs"]),
-    ("p39", ["n", "x", "xs"]),
     ("p40", ["xs"]),
     ("p41", ["f", "n", "xs"]),
     ("p42", ["n", "x", "xs"]),
@@ -149,6 +144,7 @@ equivalences_all_total = [
 ]
 
 equivalences_should_fail = [
+    ("p04", []),
     ("p06", ["n", "m"]),
     ("p07", ["n", "m"]),
     ("p08", ["k", "m", "n"]),
@@ -162,6 +158,7 @@ equivalences_should_fail = [
 
 
 custom_finite = [
+    "p04fin",
     "p06fin",
     "p07fin",
     "p08fin",
@@ -169,6 +166,11 @@ custom_finite = [
     "p18fin",
     "p21fin",
     "p64fin"
+]
+
+nonfinite_long = [
+    ("p02", []),
+    ("p39", [])
 ]
 
 finite_long = [
@@ -249,6 +251,7 @@ extra_theorems = [
 old_successes = [
     ("p01", [n]),
     ("p02", []), # slow
+    ("p04fin", []), # slow
     ("p06fin", []),
     ("p07fin", []),
     ("p08fin", []),
@@ -347,6 +350,7 @@ def test_suite_fail(suite, timeout = 25):
 def main():
     test_suite_simple(custom_finite)
     test_suite(equivalences_all_total)
+    test_suite(nonfinite_long, 120)
     test_suite(finite_long, 120)
     test_suite_fail(equivalences_should_fail)
     #test_suite(more_finite)
