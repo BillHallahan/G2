@@ -13,14 +13,18 @@ def run_zeno(thm, var_settings, timeout):
     elapsed = end_time - start_time;
 
     try:
+        left_str = res.splitlines()[3].decode('utf-8');
+        right_str = res.splitlines()[4].decode('utf-8');
         check_unsat = res.splitlines()[-1].decode('utf-8');
         print(check_unsat);
     except IndexError:
+        left_str = res.splitlines()[3].decode('utf-8');
+        right_str = res.splitlines()[4].decode('utf-8');
         if res == "Timeout":
             check_unsat = "Timeout";
         else:
             check_unsat = "";
-    return (check_unsat, elapsed);
+    return (left_str, right_str, check_unsat, elapsed);
 
 def call_zeno_process(thm, var_settings, time):
     try:
@@ -301,7 +305,7 @@ def test_suite_simple(suite, timeout = 25):
     unsat_num = 0;
     for thm in suite:
         print(thm);
-        (check_unsat, elapsed) = run_zeno(thm, [], timeout);
+        (l, r, check_unsat, elapsed) = run_zeno(thm, [], timeout);
         if check_unsat == "UNSAT ()":
             print("\tVerified - " + str(elapsed) + "s");
             unsat_num += 1
@@ -315,7 +319,7 @@ def test_suite(suite, timeout = 25):
     unsat_num = 0;
     for (thm, settings) in suite:
         print(thm, settings);
-        (check_unsat, elapsed) = run_zeno(thm, settings, timeout);
+        (l, r, check_unsat, elapsed) = run_zeno(thm, settings, timeout);
         if check_unsat == "UNSAT ()":
             print("\tVerified - " + str(elapsed) + "s");
             unsat_num += 1
@@ -325,12 +329,42 @@ def test_suite(suite, timeout = 25):
             print("\tFailed - " + str(elapsed) + "s")
     print(unsat_num, "Confirmed out of", len(suite))
 
+def total_string(settings):
+    if len(settings) == 0:
+        return ""
+    t_str = settings[0]
+    for t in settings[1:]:
+        t_str += " " + t
+    return t_str
+
+# TODO does writing insert line breaks automatically?
+def test_suite_csv(suite, timeout = 25):
+    unsat_num = 0;
+    file = open("outcomes.csv", "w")
+    file.write("Name,LHS,RHS,Total,Outcome,Time\n")
+    for (thm, settings) in suite:
+        print(thm, settings);
+        (l_str, r_str, check_unsat, elapsed) = run_zeno(thm, settings, timeout);
+        file.write(thm + "," + l_str + "," + r_str +"," + total_string(settings) + ",")
+        if check_unsat == "UNSAT ()":
+            print("\tVerified - " + str(elapsed) + "s");
+            unsat_num += 1
+            file.write("Verified," + str(elapsed) + "s\n")
+        elif check_unsat == "Timeout":
+            print("\tTimeout - " + str(elapsed) + "s")
+            file.write("Timeout," + str(elapsed) + "s\n")
+        else:
+            print("\tFailed - " + str(elapsed) + "s")
+            file.write("Failed," + str(elapsed) + "s\n")
+    print(unsat_num, "Confirmed out of", len(suite))
+    file.close()
+
 # For tests that should not return unsat
 def test_suite_fail(suite, timeout = 25):
     sat_num = 0;
     for (thm, settings) in suite:
         print(thm, settings);
-        (check_unsat, elapsed) = run_zeno(thm, settings, timeout);
+        (l, r, check_unsat, elapsed) = run_zeno(thm, settings, timeout);
         if check_unsat == "UNSAT ()":
             print("\tIncorrectly verified - " + str(elapsed) + "s");
         elif check_unsat == "Timeout":
@@ -345,10 +379,11 @@ def test_suite_fail(suite, timeout = 25):
     print(sat_num, "Confirmed out of", len(suite))
 
 def main():
-    test_suite_simple(custom_finite)
-    test_suite(equivalences_all_total)
-    test_suite(finite_long, 120)
-    test_suite_fail(equivalences_should_fail)
+    test_suite_csv(finite_long, 60)
+    #test_suite_simple(custom_finite)
+    #test_suite(equivalences_all_total)
+    #test_suite(finite_long, 120)
+    #test_suite_fail(equivalences_should_fail)
     #test_suite(more_finite)
     #test_suite(old_successes, 150)
 

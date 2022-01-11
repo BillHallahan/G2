@@ -832,4 +832,7 @@ checkRule config init_state bindings total finite print_summary iterations rule 
     putStrLn "--- END OF SUMMARY ---"
   else return ()
   S.close solver
+  -- TODO print these twice over so CSV can use them?
+  putStrLn $ printHaskellDirty e_l'
+  putStrLn $ printHaskellDirty e_r'
   return res
