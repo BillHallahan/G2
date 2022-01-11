@@ -13,27 +13,29 @@ def run_zeno(thm, var_settings, timeout):
     elapsed = end_time - start_time;
 
     try:
-        left_str = res.splitlines()[3].decode('utf-8');
-        right_str = res.splitlines()[4].decode('utf-8');
+        print("length " + str(len(res.splitlines())))
+        left_str = res.splitlines()[4].decode('utf-8');
+        right_str = res.splitlines()[5].decode('utf-8');
         check_unsat = res.splitlines()[-1].decode('utf-8');
         print(check_unsat);
     except IndexError:
-        left_str = res.splitlines()[3].decode('utf-8');
-        right_str = res.splitlines()[4].decode('utf-8');
+        left_str = res.splitlines()[4].decode('utf-8');
+        right_str = res.splitlines()[5].decode('utf-8');
         if res == "Timeout":
             check_unsat = "Timeout";
         else:
             check_unsat = "";
     return (left_str, right_str, check_unsat, elapsed);
 
+# TODO is there a way to get stdout if run fails?
 def call_zeno_process(thm, var_settings, time):
     try:
         args = ["dist/build/RewriteV/RewriteV", "tests/RewriteVerify/Correct/Zeno.hs", thm]
         limit_settings = ["--", "--limit", "15"]
         res = subprocess.run(args + var_settings + limit_settings, capture_output = True, timeout = time);
         return res.stdout;
-    except subprocess.TimeoutExpired:
-        return "Timeout".encode('utf-8')
+    except subprocess.TimeoutExpired as TimeoutEx:
+        return (TimeoutEx.stdout.decode('utf-8') + "\nTimeout").encode('utf-8')
 
 equivalences = [
     "p01",
@@ -164,7 +166,6 @@ equivalences_should_fail = [
     ("p64", ["x", "xs"]),
 ]
 
-
 custom_finite = [
     "p06fin",
     "p07fin",
@@ -173,6 +174,16 @@ custom_finite = [
     "p18fin",
     "p21fin",
     "p64fin"
+]
+
+custom_finite2 = [
+    ("p06fin", []),
+    ("p07fin", []),
+    ("p08fin", []),
+    ("p10fin", []),
+    ("p18fin", []),
+    ("p21fin", []),
+    ("p64fin", [])
 ]
 
 finite_long = [
@@ -337,7 +348,7 @@ def total_string(settings):
         t_str += " " + t
     return t_str
 
-# TODO does writing insert line breaks automatically?
+# TODO need to clear the file every time
 def test_suite_csv(suite, timeout = 25):
     unsat_num = 0;
     file = open("outcomes.csv", "w")
@@ -379,7 +390,7 @@ def test_suite_fail(suite, timeout = 25):
     print(sat_num, "Confirmed out of", len(suite))
 
 def main():
-    test_suite_csv(finite_long, 60)
+    test_suite_csv(equivalences_should_fail)
     #test_suite_simple(custom_finite)
     #test_suite(equivalences_all_total)
     #test_suite(finite_long, 120)
