@@ -575,11 +575,7 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p01" forall n xs . take n xs ++ drop n xs = xs
 "p02" forall n xs ys . count n xs + count n ys = count n (xs ++ ys)
 "p04" forall n xs . count n (n : xs) = S (count n xs)
-"p06" forall n m . n - (n + m) = Z
-"p07" forall n m . (n + m) - n = m
-"p08" forall k m n . (k + m) - (k + n) = m - n
 "p09" forall i j k . (i - j) - k = i - (j + k)
-"p10" forall m . m - m = Z
 "p11" forall xs . drop Z xs = xs
 "p12" forall f n xs . drop n (map f xs) = map f (drop n xs)
 "p13" forall n x xs . drop (S n) (x : xs) = drop n xs
@@ -587,7 +583,6 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p15" forall x xs . len (ins x xs) = S (len xs)
 "p17" forall n . n <= Z = n === Z
 "p19" forall n xs . len (drop n xs) = len xs - n
-"p20" forall xs . len (sort xs) = len xs
 "p22" forall a b c . max (max a b) c = max a (max b c)
 "p23" forall a b . max a b = max b a
 "p24" forall a b . (max a b) === a = b <= a
@@ -598,7 +593,6 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p34" forall a b . min a b === b = b <= a
 "p35" forall xs . dropWhile (\_ -> False) xs = xs
 "p36" forall xs . takeWhile (\_ -> True) xs = xs
-"p38" forall n xs . count n (xs ++ [n]) = S (count n xs)
 "p39" forall n x xs . count n [x] + count n xs = count n (x:xs)
 "p40" forall xs . take Z xs = []
 "p41" forall f n xs . take n (map f xs) = map f (take n xs)
@@ -611,20 +605,14 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p49" forall xs ys . butlast (xs ++ ys) = butlastConcat xs ys
 "p50" forall xs . butlast xs = take (len xs - S Z) xs
 "p51" forall x xs . butlast (xs ++ [x]) = xs
-"p52" forall n xs . count n xs = count n (rev xs)
-"p53" forall n xs . count n xs = count n (sort xs)
-"p54" forall n m . (m + n) - n = m
 "p55" forall n xs ys . drop n (xs ++ ys) = drop n xs ++ drop (n - len xs) ys
 "p56" forall n m xs . drop n (drop m xs) = drop (n + m) xs
 "p57" forall n m xs . drop n (take m xs) = take (m - n) (drop n xs)
 "p58" forall n xs ys . drop n (zip xs ys) = zip (drop n xs) (drop n ys)
-"p61" forall xs ys . last (xs ++ ys) = lastOfTwo xs ys
-"p64" forall x xs . last (xs ++ [x]) = x
 "p67" forall xs . len (butlast xs) = len xs - S Z
 "p72" forall i xs . rev (drop i xs) = take (len xs - i) (rev xs)
 "p73" forall p xs . rev (filter p xs) = filter p (rev xs)
 "p74" forall i xs . rev (take i xs) = drop (len xs - i) (rev xs)
-"p75" forall n m xs . count n xs + count n [m] = count n (m : xs)
 "p79" forall m n k . (S m - n) - S k = (m - n) - k
 "p80" forall n xs ys . take n (xs ++ ys) = take n xs ++ take (n - len xs) ys
 "p81" forall n m xs . take n (drop m xs) = drop m (take (n + m) xs)
@@ -650,34 +638,25 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p21fin" forall n m . prop_21 n m = walkNat n True
 "p24fin" forall a b . (max a b) === a = walkNat a (b <= a)
 "p25fin" forall a b . (max a b) === b = walkNat b (a <= b)
-"p26fin" forall x xs ys . prop_26 x xs ys = walkNat x True
 "p38fin" forall n xs . count n (xs ++ [n]) = walkNat n (walkNatList xs (S (count n xs)))
 "p38finA" forall n xs . count n (xs ++ [n]) = walkNat n (S (count n xs))
 "p48fin" forall xs . prop_48 xs = walkList xs True
 "p54fin" forall n m . (m + n) - n = walkNat n m
-"p54finA" forall n m . (m + n) - n = walkNat m m
 "p57fin" forall n m xs . drop n (take m xs) = walkNat m (take (m - n) (drop n xs))
 "p59fin" forall xs ys . walkList xs (prop_59 xs ys) = walkList xs True
 "p61fin" forall xs ys . last (xs ++ ys) = walkList xs (lastOfTwo xs ys)
 "p64fin" forall x xs . last (xs ++ [x]) = walkList xs x
 "p65finA" forall i m . prop_65 i m = walkNat i True
 "p69finA" forall n m . prop_69 n m = walkNat n True
-"p70fin" forall m n . prop_70 m n = walkNat m (walkNat n True)
 "p70finA" forall m n . prop_70 m n = walkNat m True
 "p78fin" forall xs . prop_78 xs = walkNatList xs True
 "p78finA" forall xs . prop_78 xs = walkList xs True
 "p81fin" forall n m xs . take n (drop m xs) = walkNat m (walkList xs (drop m (take (n + m) xs)))
-"p85fin" forall xs ys . prop_85 xs ys = walkList xs (walkList ys True)
-"p85finA" forall xs ys . prop_85 xs ys = walkList ys (walkList xs True)
 "p85finB" forall xs ys . prop_85 xs ys = walkList xs True
 "p85finC" forall xs ys . prop_85 xs ys = walkList ys True
   #-}
 
 {-# RULES
-"p27fin" forall x xs ys . prop_27 x xs ys = walkList ys True
-"p28fin" forall x xs . prop_28 x xs = walkList xs True
-"p29fin" forall x xs . prop_29 x xs = walkList xs True
-"p30fin" forall x xs . prop_30 x xs = walkList xs True
 "p37fin" forall x xs . prop_37 x xs = walkList xs True
 "p60fin" forall xs ys . prop_60 xs ys = walkList ys True
 "p62fin" forall xs x . prop_62 xs x = walkList xs True
