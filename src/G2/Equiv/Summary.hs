@@ -11,7 +11,6 @@ import G2.Config
 import G2.Interface
 
 import qualified G2.Language.ExprEnv as E
-import qualified G2.Language.Typing as T
 import qualified G2.Language.Expr as X
 
 import Data.List
