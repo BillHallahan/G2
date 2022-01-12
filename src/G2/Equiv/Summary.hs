@@ -344,3 +344,23 @@ summarize mode pg ns sym_ids (Marker (sh1, sh2) m) =
       else "")
   ++
   (tabsAfterNewLines $ summarizeAct pg ns sym_ids m)
+
+-- TODO new functions for printing counterexamples
+-- TODO what else needs to change here?
+printVarCX :: PrettyGuide -> HS.HashSet Name -> StateET -> Id -> String
+printVarCX pg ns s@(State{ expr_env = h }) i =
+  let (chain, c_end) = varChain h ns [] i
+      chain_strs = map (\i_ -> printHaskellDirtyPG pg $ Var i_) chain
+      end_str = case c_end of
+        Symbolic (Id _ t) -> "Irrelevant " ++ mkTypeHaskellPG pg t
+        Cycle i' -> "Cycle " ++ printHaskellDirtyPG pg (Var i')
+        Terminal e _ -> printHaskellDirtyPG pg e
+        Unmapped -> ""
+  in case c_end of
+    Unmapped -> ""
+    _ -> (foldr (\str acc -> str ++ " = " ++ acc) "" chain_strs) ++ end_str
+
+printCX :: PrettyGuide -> HS.HashSet Name -> [Id] -> (StateET, StateET) -> String
+printCX pg ns sym_ids (s1, s2) =
+  "Counterexample Found:\n" ++
+  error "TODO"
