@@ -12,22 +12,23 @@ def run_zeno(thm, var_settings, timeout):
     end_time = time.monotonic();
     elapsed = end_time - start_time;
 
+    lines = res.splitlines()
     try:
-        print("length " + str(len(res.splitlines())))
-        left_str = res.splitlines()[4].decode('utf-8');
-        right_str = res.splitlines()[5].decode('utf-8');
-        check_unsat = res.splitlines()[-1].decode('utf-8');
+        # the numbers 4 and 5 are dependent on the initial printing
+        # if that printing changes, these need to change too
+        left_str = lines[4].decode('utf-8');
+        right_str = lines[5].decode('utf-8');
+        check_unsat = lines[-1].decode('utf-8');
         print(check_unsat);
     except IndexError:
-        left_str = res.splitlines()[4].decode('utf-8');
-        right_str = res.splitlines()[5].decode('utf-8');
+        left_str = lines[4].decode('utf-8');
+        right_str = lines[5].decode('utf-8');
         if res == "Timeout":
             check_unsat = "Timeout";
         else:
             check_unsat = "";
     return (left_str, right_str, check_unsat, elapsed);
 
-# TODO is there a way to get stdout if run fails?
 def call_zeno_process(thm, var_settings, time):
     try:
         args = ["dist/build/RewriteV/RewriteV", "tests/RewriteVerify/Correct/Zeno.hs", thm]
@@ -174,16 +175,6 @@ custom_finite = [
     "p18fin",
     "p21fin",
     "p64fin"
-]
-
-custom_finite2 = [
-    ("p06fin", []),
-    ("p07fin", []),
-    ("p08fin", []),
-    ("p10fin", []),
-    ("p18fin", []),
-    ("p21fin", []),
-    ("p64fin", [])
 ]
 
 finite_long = [
@@ -348,7 +339,6 @@ def total_string(settings):
         t_str += " " + t
     return t_str
 
-# TODO need to clear the file every time
 def test_suite_csv(suite, timeout = 25):
     unsat_num = 0;
     file = open("outcomes.csv", "w")
@@ -356,7 +346,8 @@ def test_suite_csv(suite, timeout = 25):
     for (thm, settings) in suite:
         print(thm, settings);
         (l_str, r_str, check_unsat, elapsed) = run_zeno(thm, settings, timeout);
-        file.write(thm + "," + l_str + "," + r_str +"," + total_string(settings) + ",")
+        file.write(thm + "," + l_str + "," + r_str + ",")
+        file.write(total_string(settings) + ",")
         if check_unsat == "UNSAT ()":
             print("\tVerified - " + str(elapsed) + "s");
             unsat_num += 1
@@ -390,13 +381,12 @@ def test_suite_fail(suite, timeout = 25):
     print(sat_num, "Confirmed out of", len(suite))
 
 def main():
-    test_suite_csv(equivalences_should_fail)
     #test_suite_simple(custom_finite)
     #test_suite(equivalences_all_total)
     #test_suite(finite_long, 120)
     #test_suite_fail(equivalences_should_fail)
     #test_suite(more_finite)
-    #test_suite(old_successes, 150)
+    test_suite(old_successes, 150)
 
 if __name__ == "__main__":
     main()
