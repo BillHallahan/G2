@@ -345,25 +345,3 @@ summarize mode pg ns sym_ids (Marker (sh1, sh2) m) =
       else "")
   ++
   (tabsAfterNewLines $ summarizeAct pg ns sym_ids m)
-
--- TODO different set of functions for CSV
-csvHeader :: String
-csvHeader = "Name,LHS,RHS,Total,Outcome,Time"
-
--- TODO does not remove duplicate total vars or ones that are irrelevant
--- TODO what if there are line breaks in an expression string?
-csvRowStart :: [DT.Text] -> RewriteRule -> String
-csvRowStart total r =
-  let i = Id (ru_head r) TyUnknown
-      v = Var i
-      app = X.mkApp (v:ru_args r)
-  in (DT.unpack $ ru_name r) ++ "," ++
-  (printHaskellDirty app) ++ "," ++
-  (printHaskellDirty $ ru_rhs r) ++ "," ++
-  (intercalate " " $ map DT.unpack total) ++ ","
-
--- TODO how to get the time string?
--- the time isn't calculated within the Haskell program
--- I should do this inside the Python code instead
-csvRowEnd :: String -> String -> String
-csvRowEnd outcome time = outcome ++ "," ++ time
