@@ -12,15 +12,22 @@ def run_zeno(thm, var_settings, timeout):
     end_time = time.monotonic();
     elapsed = end_time - start_time;
 
+    lines = res.splitlines()
     try:
-        check_unsat = res.splitlines()[-1].decode('utf-8');
+        # the numbers 4 and 5 are dependent on the initial printing
+        # if that printing changes, these need to change too
+        left_str = lines[4].decode('utf-8');
+        right_str = lines[5].decode('utf-8');
+        check_unsat = lines[-1].decode('utf-8');
         print(check_unsat);
     except IndexError:
+        left_str = lines[4].decode('utf-8');
+        right_str = lines[5].decode('utf-8');
         if res == "Timeout":
             check_unsat = "Timeout";
         else:
             check_unsat = "";
-    return (check_unsat, elapsed);
+    return (left_str, right_str, check_unsat, elapsed);
 
 def call_zeno_process(thm, var_settings, time):
     try:
@@ -28,8 +35,8 @@ def call_zeno_process(thm, var_settings, time):
         limit_settings = ["--", "--limit", "15"]
         res = subprocess.run(args + var_settings + limit_settings, capture_output = True, timeout = time);
         return res.stdout;
-    except subprocess.TimeoutExpired:
-        return "Timeout".encode('utf-8')
+    except subprocess.TimeoutExpired as TimeoutEx:
+        return (TimeoutEx.stdout.decode('utf-8') + "\nTimeout").encode('utf-8')
 
 equivalences = [
     "p01",
@@ -159,7 +166,6 @@ equivalences_should_fail = [
     ("p61", ["xs", "ys"]),
     ("p64", ["x", "xs"]),
 ]
-
 
 custom_finite = [
     "p06fin",
@@ -301,7 +307,7 @@ def test_suite_simple(suite, timeout = 25):
     unsat_num = 0;
     for thm in suite:
         print(thm);
-        (check_unsat, elapsed) = run_zeno(thm, [], timeout);
+        (l, r, check_unsat, elapsed) = run_zeno(thm, [], timeout);
         if check_unsat == "UNSAT ()":
             print("\tVerified - " + str(elapsed) + "s");
             unsat_num += 1
@@ -315,7 +321,7 @@ def test_suite(suite, timeout = 25):
     unsat_num = 0;
     for (thm, settings) in suite:
         print(thm, settings);
-        (check_unsat, elapsed) = run_zeno(thm, settings, timeout);
+        (l, r, check_unsat, elapsed) = run_zeno(thm, settings, timeout);
         if check_unsat == "UNSAT ()":
             print("\tVerified - " + str(elapsed) + "s");
             unsat_num += 1
@@ -325,12 +331,42 @@ def test_suite(suite, timeout = 25):
             print("\tFailed - " + str(elapsed) + "s")
     print(unsat_num, "Confirmed out of", len(suite))
 
+def total_string(settings):
+    if len(settings) == 0:
+        return ""
+    t_str = settings[0]
+    for t in settings[1:]:
+        t_str += " " + t
+    return t_str
+
+def test_suite_csv(suite, timeout = 25):
+    unsat_num = 0;
+    file = open("outcomes.csv", "w")
+    file.write("Name,LHS,RHS,Total,Outcome,Time\n")
+    for (thm, settings) in suite:
+        print(thm, settings);
+        (l_str, r_str, check_unsat, elapsed) = run_zeno(thm, settings, timeout);
+        file.write(thm + "," + l_str + "," + r_str + ",")
+        file.write(total_string(settings) + ",")
+        if check_unsat == "UNSAT ()":
+            print("\tVerified - " + str(elapsed) + "s");
+            unsat_num += 1
+            file.write("Verified," + str(elapsed) + "s\n")
+        elif check_unsat == "Timeout":
+            print("\tTimeout - " + str(elapsed) + "s")
+            file.write("Timeout," + str(elapsed) + "s\n")
+        else:
+            print("\tFailed - " + str(elapsed) + "s")
+            file.write("Failed," + str(elapsed) + "s\n")
+    print(unsat_num, "Confirmed out of", len(suite))
+    file.close()
+
 # For tests that should not return unsat
 def test_suite_fail(suite, timeout = 25):
     sat_num = 0;
     for (thm, settings) in suite:
         print(thm, settings);
-        (check_unsat, elapsed) = run_zeno(thm, settings, timeout);
+        (l, r, check_unsat, elapsed) = run_zeno(thm, settings, timeout);
         if check_unsat == "UNSAT ()":
             print("\tIncorrectly verified - " + str(elapsed) + "s");
         elif check_unsat == "Timeout":
@@ -345,12 +381,12 @@ def test_suite_fail(suite, timeout = 25):
     print(sat_num, "Confirmed out of", len(suite))
 
 def main():
-    test_suite_simple(custom_finite)
-    test_suite(equivalences_all_total)
-    test_suite(finite_long, 120)
-    test_suite_fail(equivalences_should_fail)
+    #test_suite_simple(custom_finite)
+    #test_suite(equivalences_all_total)
+    #test_suite(finite_long, 120)
+    #test_suite_fail(equivalences_should_fail)
     #test_suite(more_finite)
-    #test_suite(old_successes, 150)
+    test_suite(old_successes, 150)
 
 if __name__ == "__main__":
     main()
