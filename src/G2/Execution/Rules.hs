@@ -915,6 +915,7 @@ liftBind bindsLHS bindsRHS eenv expr ngen = (eenv', expr', ngen', new)
 --     | otherwise = Nothing
                 
 
+-- change literal rule to only match on arguments
 retReplaceSymbFunc' :: State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
 retReplaceSymbFunc' state@(State { expr_env = eenv
                             , type_env = tenv
@@ -923,6 +924,7 @@ retReplaceSymbFunc' state@(State { expr_env = eenv
                             , exec_stack = stck })
                    ng ce
     -- DC-SPLIT
+    --                        vvvvvv   this could be a tyapp
     | Var sId@(Id s (TyFun t1@(TyCon tname tkind) t2)) <- ce
     , E.isSymbolic s eenv
     , Just dcs <- TE.getDataCons tname tenv
@@ -968,7 +970,7 @@ retReplaceSymbFunc' state@(State { expr_env = eenv
         expr_env = eenv'''
     }, constState], ng'''')
     -- LIT-SPLIT
-    | Var (Id s (TyFun t1 t2)) <- ce
+    | App (Var (Id s (TyFun t1 t2))) ea <- ce
     , isPrimType t1
     , E.isSymbolic s eenv
     = let
@@ -976,20 +978,40 @@ retReplaceSymbFunc' state@(State { expr_env = eenv
         trueDc = DataCon (KV.dcTrue kv) boolTy
         falseDc = DataCon (KV.dcFalse kv) boolTy
         eqT1 = mkEqPrimType t1 kv
-        (f1Id:f2Id:yId:xId:discrimId:[], ng') = freshIds [t2, TyFun t1 t2, t1, t1, boolTy] ng
+        (f1Id:f2Id:xId:discrimId:[], ng') = freshIds [t2, TyFun t1 t2, t1, boolTy] ng
         x = Var xId
-        e = Lam TermL xId $ Case (mkApp [eqT1,x,(Var yId)]) discrimId [
-            -- simplify true case
+        e = Lam TermL xId $ Case (mkApp [eqT1, x, ea]) discrimId [
             Alt (DataAlt trueDc []) (Var f1Id),
             Alt (DataAlt falseDc []) (App (Var f2Id) x)]
-        eenv' = insertIds eenv [f1Id, f2Id, yId]
+        eenv' = insertIds eenv [f1Id, f2Id]
         eenv'' = E.insert s e eenv'
-        (constState, ng'' ) = mkFuncConst ng'
     in Just (RuleReturnReplaceSymbFunc, [state {
-        curr_expr = CurrExpr Return e,
-        -- symbolic_ids = f1Id:f2Id:yId:symbolic_ids state,
+        -- because we are always going down true branch
+        curr_expr = CurrExpr Return (Var f1Id),
         expr_env = eenv''
-    }, constState], ng'')
+    }], ng')
+    -- | Var (Id s (TyFun t1 t2)) <- ce
+    -- , isPrimType t1
+    -- , E.isSymbolic s eenv
+    -- = let
+    --     boolTy = (TyCon (KV.tyBool kv) TYPE)
+    --     trueDc = DataCon (KV.dcTrue kv) boolTy
+    --     falseDc = DataCon (KV.dcFalse kv) boolTy
+    --     eqT1 = mkEqPrimType t1 kv
+    --     (f1Id:f2Id:yId:xId:discrimId:[], ng') = freshIds [t2, TyFun t1 t2, t1, t1, boolTy] ng
+    --     x = Var xId
+    --     e = Lam TermL xId $ Case (mkApp [eqT1,x,(Var yId)]) discrimId [
+    --         -- simplify true case
+    --         Alt (DataAlt trueDc []) (Var f1Id),
+    --         Alt (DataAlt falseDc []) (App (Var f2Id) x)]
+    --     eenv' = insertIds eenv [f1Id, f2Id, yId]
+    --     eenv'' = E.insert s e eenv'
+    --     (constState, ng'' ) = mkFuncConst ng'
+    -- in Just (RuleReturnReplaceSymbFunc, [state {
+    --     curr_expr = CurrExpr Return e,
+    --     -- symbolic_ids = f1Id:f2Id:yId:symbolic_ids state,
+    --     expr_env = eenv''
+    -- }, constState], ng'')
     | otherwise = Nothing
     where
         argTypes :: Type -> ([Type], Type)
