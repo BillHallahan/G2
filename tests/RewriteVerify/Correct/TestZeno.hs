@@ -644,9 +644,9 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p26finB" forall x xs ys . walkList xs (prop_26 x xs ys) = walkNat x $ walkList xs True
 "p27finA" forall x xs ys . walkNat x (walkList xs (walkList ys (prop_27 x xs ys))) = walkNat x $ walkList xs $ walkList ys True
 "p28finA" forall x xs . walkList xs (prop_28 x xs) = walkNat x $ walkList xs True
-"p29finA" forall x xs . prop_29 x xs = walkNat x $ walkList xs True
-"p30finA" forall x xs . prop_30 x xs = walkNat x $ walkList xs True
-"p37finB" forall x xs . walkNatList (prop_37 x xs) = walkNatList xs True
+"p29finA" forall x xs . walkList xs (prop_29 x xs) = walkNat x $ walkList xs True
+"p30finA" forall x xs . walkList xs (prop_30 x xs) = walkNat x $ walkList xs True
+"p37finB" forall x xs . walkNatList xs (prop_37 x xs) = walkNatList xs True
 "p37finC" forall x xs . walkNat x (prop_37 x xs) = walkNat x $ walkList xs True
 "p38finB" forall n xs . walkList xs (count n (xs ++ [n])) = walkNat n $ walkList xs $ S (count n xs)
 "p48finB" forall xs . walkNatList xs (prop_48 xs) = walkNatList xs True
@@ -667,7 +667,7 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p68finB" forall n xs . walkNatList xs (prop_68 n xs) = walkNatList xs True
 "p69finA" forall n m . prop_69 n m = walkNat n True
 "p70finC" forall m n . walkNat m (prop_70 m n) = walkNat m True
-"p70finB" forall m n . walkNat n (prop_70 m n) = walkNat n True
+"p70finD" forall m n . walkNat n (prop_70 m n) = walkNat n True
 "p71finA" forall x y xs . walkNatList xs (prop_71 x y xs) = walkNat x $ walkNatList xs True
 "p71finB" forall x y xs . walkNatList xs (prop_71 x y xs) = walkNat y $ walkNatList xs True
 "p75fin" forall n m xs . count n xs + count n [m] = walkList xs $ count n (m : xs)
