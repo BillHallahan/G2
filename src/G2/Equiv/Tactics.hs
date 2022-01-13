@@ -823,33 +823,37 @@ equivLemma solver ns (Lemma { lemma_lhs = l1_1, lemma_rhs = l1_2 }) lems = do
 -- list of States.
 substLemma :: S.Solver solver => solver -> HS.HashSet Name -> StateET -> Lemmas -> W.WriterT [Marker] IO [(Lemma, StateET)]
 substLemma solver ns s =
-    mapMaybeM (\lem -> replaceMoreRestrictiveSubExpr solver ns lem s) . provenLemmas
+    mapMaybeM (\lem -> replaceNonActiveMoreRestrictiveSubExpr solver ns lem s) . provenLemmas
 
-replaceMoreRestrictiveSubExpr :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> StateET
+replaceNonActiveMoreRestrictiveSubExpr :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> StateET
                                -> W.WriterT [Marker] IO (Maybe (Lemma, StateET))
-replaceMoreRestrictiveSubExpr solver ns lemma s@(State { curr_expr = CurrExpr er _ }) = do
-    (e, replaced) <- CM.runStateT (replaceMoreRestrictiveSubExpr' solver ns lemma s $ exprExtract s) False
+replaceNonActiveMoreRestrictiveSubExpr solver ns lemma s@(State { curr_expr = CurrExpr er _ }) = do
+    (e, replaced) <- CM.runStateT (replaceNonActiveMoreRestrictiveSubExpr' solver ns lemma s True $ exprExtract s) False
     return $ if replaced then Just (lemma, s { curr_expr = CurrExpr er e }) else Nothing
 
-replaceMoreRestrictiveSubExpr' :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> StateET -> Expr
+replaceNonActiveMoreRestrictiveSubExpr' :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> StateET -> Bool -> Expr
                                -> CM.StateT Bool (W.WriterT [Marker] IO) Expr
-replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma_rhs = rhs_s })
-                                         s2@(State { curr_expr = CurrExpr er _ }) e = do
-    replaced <- CM.get
-    if not replaced then do
-        mr_sub <- CM.lift $ moreRestrictiveSingle solver ns lhs_s (s2 { curr_expr = CurrExpr Evaluate e })
-        case mr_sub of
-            Right hm -> do
-                let v_rep = HM.toList hm
+replaceNonActiveMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma_rhs = rhs_s })
+                                         s2@(State { curr_expr = CurrExpr er _ }) active e
+    | active = do
+        let ns' = foldr HS.insert ns (bind e)
+        modifyNonActiveChildrenM (replaceNonActiveMoreRestrictiveSubExpr' solver ns' lemma s2) False e
+    | otherwise = do
+        replaced <- CM.get
+        if not replaced then do
+            mr_sub <- CM.lift $ moreRestrictiveSingle solver ns lhs_s (s2 { curr_expr = CurrExpr Evaluate e })
+            case mr_sub of
+                Right hm -> do
+                    let v_rep = HM.toList hm
 
-                    rhs_e' = replaceVars (inlineFull (HS.toList ns) (expr_env rhs_s) $ exprExtract rhs_s) v_rep
+                        rhs_e' = replaceVars (inlineFull (HS.toList ns) (expr_env rhs_s) $ exprExtract rhs_s) v_rep
 
-                CM.put True
-                return rhs_e'                 
-            Left _ -> do
-                let ns' = foldr HS.insert ns (bind e)
-                modifyChildrenM (replaceMoreRestrictiveSubExpr' solver ns' lemma s2) e
-    else return e
+                    CM.put True
+                    return rhs_e'                 
+                Left _ -> do
+                    let ns' = foldr HS.insert ns (bind e)
+                    modifyNonActiveChildrenM (replaceNonActiveMoreRestrictiveSubExpr' solver ns' lemma s2) False e
+        else return e
     where
         bind (Lam _ i _) = [idName i]
         bind (Case _ i as) = idName i:concatMap altBind as
@@ -858,6 +862,36 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma
 
         altBind (Alt (DataAlt _ is) _) = map idName is
         altBind _ = []
+
+modifyNonActiveChildrenM :: Monad m => (Bool -> Expr -> m Expr) -> Bool -> Expr -> m Expr
+modifyNonActiveChildrenM f active (App fx ax) = do
+    fx' <- f active fx
+    ax' <- f False ax
+    return $ App fx' ax'
+modifyNonActiveChildrenM f _ (Lam u b e) = return . Lam u b =<< f True e
+modifyNonActiveChildrenM f active (Let bind e) = do
+    bind' <- modifyContainedASTsM (f False) bind
+    return . Let bind' =<< f active e
+modifyNonActiveChildrenM f active (Case m b as) = do
+    m' <- f active m
+    return . Case m' b =<< modifyContainedASTsM (f False) as
+modifyNonActiveChildrenM  f active (Cast e c) = do
+    e' <- f active e
+    return $ Cast e' c
+modifyNonActiveChildrenM f active (Tick t e) = return . Tick t =<< f active e
+modifyNonActiveChildrenM f active (NonDet es) = return . NonDet =<< mapM (f active) es
+modifyNonActiveChildrenM f active (Assume is e1 e2) = do
+    is' <- modifyContainedASTsM (f False) is
+    e1' <- f False e1
+    e2' <- f active e2
+    return $ Assume is' e1' e2'
+modifyNonActiveChildrenM f active (Assert is e1 e2) = do
+    is' <- modifyContainedASTsM (f False) is
+    e1' <- f False e1
+    e2' <- f active e2
+    return $ Assert is' e1' e2'
+modifyNonActiveChildrenM _ _ e = return e
+
 
 moreRestrictivePairWithLemmas :: S.Solver solver =>
                                  solver ->
