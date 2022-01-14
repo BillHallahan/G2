@@ -130,7 +130,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             | Data (DataCon n1 _) <- e1
             , nameOcc n1 == ":"
             , isCleaned =
-                if isLitChar e2 then printString a else printList pg a
+                if isLitChar e2 then printString pg a else printList pg a
 
             | isInfixable e1
             , isCleaned =
@@ -227,21 +227,27 @@ printList' pg e@(Prim p _) | (p == Error || p == Undefined) =
     ([mkExprHaskell Cleaned pg e], False)
 printList' _ _ = ([], True)
 
-printString :: Expr -> String
-printString a =
+printString :: PrettyGuide -> Expr -> String
+printString pg a =
     let
-        str = printString' a
-    in
-    if all isPrint str then "\"" ++ str ++ "\""
-        else "[" ++ intercalate ", " (map stringToEnum str) ++ "]"
+        maybe_str = printString' a
+    in case maybe_str of
+        Just str -> if all isPrint str then "\"" ++ str ++ "\""
+                    else "[" ++ intercalate ", " (map stringToEnum str) ++ "]"
+        Nothing -> printList pg a
     where
         stringToEnum c
             | isPrint c = '\'':c:'\'':[]
             | otherwise = "toEnum " ++ show (ord c)
 
-printString' :: Expr -> String
-printString' (App (App _ (Lit (LitChar c))) e') = c:printString' e'
-printString' _ = []
+-- TODO handle other problematic cases as well?
+printString' :: Expr -> Maybe String
+printString' (App (App _ (Lit (LitChar c))) e') =
+    case printString' e' of
+        Nothing -> Nothing
+        Just str -> Just (c:str)
+printString' (Prim p _) | (p == Error || p == Undefined) = Nothing
+printString' _ = Just []
 
 isTuple :: Name -> Bool
 isTuple (Name n _ _ _) = T.head n == '(' && T.last n == ')'
