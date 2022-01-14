@@ -19,10 +19,14 @@ import G2.Execution.NormalForms
 import GHC.Generics (Generic)
 import Data.Data
 import Data.Hashable
+import Data.Maybe
 
 -- the bool is True if guarded coinduction can be used
 -- TODO do I need all of these typeclasses?
-data Obligation = Ob Expr Expr
+-- TODO earlier DataCons in the list are farther out
+-- TODO Int tags indicate which argument of the constructor it was
+-- TODO also record the number of arguments for each one?
+data Obligation = Ob [(DataCon, Int, Int)] Expr Expr
                   deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 instance Hashable Obligation
@@ -69,13 +73,13 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
     (_, Tick _ e2') -> exprPairing ns s1 s2 e1 e2' pairs n1 n2
     -- keeping track of inlined vars prevents looping
     (Var i1, Var i2) | (idName i1) `elem` n1
-                     , (idName i2) `elem` n2 -> Just $ HS.insert (Ob e1 e2) pairs
-    (Var i, _) | E.isSymbolic (idName i) h1 -> Just $ HS.insert (Ob e1 e2) pairs
+                     , (idName i2) `elem` n2 -> Just $ HS.insert (Ob [] e1 e2) pairs
+    (Var i, _) | E.isSymbolic (idName i) h1 -> Just $ HS.insert (Ob [] e1 e2) pairs
                | m <- idName i
                , not $ m `elem` ns
                , Just e <- E.lookup m h1 -> exprPairing ns s1 s2 e e2 pairs (m:n1) n2
                | not $ (idName i) `elem` ns -> error "unmapped variable"
-    (_, Var i) | E.isSymbolic (idName i) h2 -> Just $ HS.insert (Ob e1 e2) pairs
+    (_, Var i) | E.isSymbolic (idName i) h2 -> Just $ HS.insert (Ob [] e1 e2) pairs
                | m <- idName i
                , not $ m `elem` ns
                , Just e <- E.lookup m h2 -> exprPairing ns s1 s2 e1 e pairs n1 (m:n2)
@@ -106,12 +110,28 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
     (Type _, Type _) -> Just pairs
     -- See note in `moreRestrictive` regarding comparing DataCons
     _
-        | (Data (DataCon d1 _)):l1 <- unAppNoTicks e1
+        | (Data d@(DataCon d1 _)):l1 <- unAppNoTicks e1
         , (Data (DataCon d2 _)):l2 <- unAppNoTicks e2 ->
             if d1 == d2 then
                 let ep = uncurry (exprPairing ns s1 s2)
                     ep' hs p = ep p hs n1 n2
                     l = zip l1 l2
-                in foldM ep' pairs l
+                    -- TODO inefficient list conversion
+                    hl = map (\m -> case m of
+                               Nothing -> Nothing
+                               Just hs -> Just $ HS.toList hs) $ map (ep' HS.empty) l
+                    hl' = map (\(i, m) -> case m of
+                                Nothing -> Nothing
+                                Just hs_l -> Just $ map (\(Ob ds e1_ e2_) -> Ob ((d, i, length l):ds) e1_ e2_) hs_l)
+                              (zip [0..] hl)
+                    --(map (\(i, Ob ds e1_ e2_) -> Ob ((d, i):ds) e1_ e2_))
+                    --           (zip [1..] hs_list)
+                -- TODO I need to preserve order of the list entries
+                in
+                if any isNothing hl'
+                then Nothing
+                else Just $ HS.union pairs $ HS.fromList $ concat (map fromJust hl')
+                --HS.map (\(i, Ob ds e1_ e2_) -> Ob ((d1, i):ds) e1_ e2_)
+                --(zip [1..] $ foldM ep' pairs l)
                 else Nothing
-        | otherwise -> Just $ HS.insert (Ob e1 e2) pairs
+        | otherwise -> Just $ HS.insert (Ob [] e1 e2) pairs

@@ -562,10 +562,13 @@ digInStateH lbl sh
     | Just sh' <- backtrackOne sh = digInStateH lbl sh'
     | otherwise = Nothing
 
+updateDC :: EquivTracker -> [(DataCon, Int, Int)] -> EquivTracker
+updateDC et ds = et { dc_path = dc_path et ++ ds }
+
 stateWrap :: StateET -> StateET -> Obligation -> (StateET, StateET)
-stateWrap s1 s2 (Ob e1 e2) =
-  ( s1 { curr_expr = CurrExpr Evaluate e1 }
-  , s2 { curr_expr = CurrExpr Evaluate e2 } )
+stateWrap s1 s2 (Ob ds e1 e2) =
+  ( s1 { curr_expr = CurrExpr Evaluate e1, track = updateDC (track s1) ds }
+  , s2 { curr_expr = CurrExpr Evaluate e2, track = updateDC (track s2) ds } )
 
 -- TODO debugging function
 stateHistory :: StateH -> StateH -> [(StateET, StateET)]
@@ -802,8 +805,8 @@ checkRule config init_state bindings total finite print_summary iterations rule 
       finite_hs = foldr HS.insert HS.empty finite_names
       -- always include the finite names in total
       total_hs = foldr HS.insert finite_hs total_names
-      EquivTracker et m _ _ _ = emptyEquivTracker
-      start_equiv_tracker = EquivTracker et m total_hs finite_hs ""
+      EquivTracker et m _ _ _ _ = emptyEquivTracker
+      start_equiv_tracker = EquivTracker et m total_hs finite_hs [] ""
       -- the keys are the same between the old and new environments
       ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
       ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r

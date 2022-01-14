@@ -352,8 +352,20 @@ summarize mode pg ns sym_ids (Marker (sh1, sh2) m) =
   ++
   (tabsAfterNewLines $ summarizeAct pg ns sym_ids m)
 
+-- TODO take a state?
+printDC :: PrettyGuide -> [(DataCon, Int, Int)] -> String -> String
+printDC _ [] str = str
+printDC pg ((d, i, n):ds) str =
+  let d_str = printHaskellDirtyPG pg $ Data d
+      blanks = replicate n "_"
+      str' = "(" ++ str ++ ")"
+      pre_blanks = replicate i "_"
+      post_blanks = replicate (n - (i + 1)) "_"
+  in intercalate " " $ d_str:(pre_blanks ++ (str':post_blanks))
+
 -- counterexample printing
 -- first state pair is initial states, second is from counterexample
+-- TODO symbolic list and string tails are still a problem
 showCX :: PrettyGuide ->
           HS.HashSet Name ->
           [Id] ->
@@ -366,11 +378,11 @@ showCX pg ns sym_ids (s1, s2) (q1, q2) =
       e1 = inlineVars ns (expr_env q1') $ exprExtract s1
       e1_str = printHaskellPG pg q1' e1
       end1 = inlineVars ns (expr_env q1') $ exprExtract q1'
-      end1_str = printHaskellPG pg q1' end1
+      end1_str = printDC pg (dc_path $ track q1') $ printHaskellPG pg q1' end1
       e2 = inlineVars ns (expr_env q2') $ exprExtract s2
       e2_str = printHaskellPG pg q2' e2
       end2 = inlineVars ns (expr_env q2') $ exprExtract q2'
-      end2_str = printHaskellPG pg q2' end2
+      end2_str = printDC pg (dc_path $ track q2') $ printHaskellPG pg q2' end2
       cx_str = e1_str ++ " = " ++ end1_str ++ " but " ++
                e2_str ++ " = " ++ end2_str
       func_ids = map snd $ HM.toList $ higher_order $ track q2'
