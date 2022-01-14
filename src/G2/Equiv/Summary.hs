@@ -1,6 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Equiv.Summary (SummaryMode (..), summarize, summarizeAct, printPG) where
+module G2.Equiv.Summary
+  ( SummaryMode (..)
+  , summarize
+  , summarizeAct
+  , printPG
+  , showCX
+  )
+  where
 
 -- TODO may not need all imports
 
@@ -345,22 +352,32 @@ summarize mode pg ns sym_ids (Marker (sh1, sh2) m) =
   ++
   (tabsAfterNewLines $ summarizeAct pg ns sym_ids m)
 
--- TODO new functions for printing counterexamples
--- TODO what else needs to change here?
-printVarCX :: PrettyGuide -> HS.HashSet Name -> StateET -> Id -> String
-printVarCX pg ns s@(State{ expr_env = h }) i =
-  let (chain, c_end) = varChain h ns [] i
-      chain_strs = map (\i_ -> printHaskellDirtyPG pg $ Var i_) chain
-      end_str = case c_end of
-        Symbolic (Id _ t) -> "Irrelevant " ++ mkTypeHaskellPG pg t
-        Cycle i' -> "Cycle " ++ printHaskellDirtyPG pg (Var i')
-        Terminal e _ -> printHaskellDirtyPG pg e
-        Unmapped -> ""
-  in case c_end of
-    Unmapped -> ""
-    _ -> (foldr (\str acc -> str ++ " = " ++ acc) "" chain_strs) ++ end_str
-
-printCX :: PrettyGuide -> HS.HashSet Name -> [Id] -> (StateET, StateET) -> String
-printCX pg ns sym_ids (s1, s2) =
-  "Counterexample Found:\n" ++
-  error "TODO"
+-- TODO counterexample printing
+-- first state pair is initial states, second is from counterexample
+showCX :: PrettyGuide ->
+          HS.HashSet Name ->
+          [Id] ->
+          (State t, State t) ->
+          (StateET, StateET) ->
+          String
+showCX pg ns sym_ids (s1, s2) (q1, q2) =
+  -- main part showing contradiction
+  -- TODO substitution?
+  let e1 = exprExtract s1
+      e1_str = printHaskellDirtyPG pg e1
+      end1 = exprExtract q1
+      end1_str = printHaskellDirtyPG pg end1
+      e2 = exprExtract s2
+      e2_str = printHaskellDirtyPG pg e2
+      end2 = exprExtract q2
+      end2_str = printHaskellDirtyPG pg end2
+      cx_str = e1_str ++ " = " ++ end1_str ++ " but " ++
+               e2_str ++ " = " ++ end2_str
+      -- TODO any other syncing necessary?
+      (_, q2') = syncSymbolic q1 q2
+      h = expr_env q2'
+      func_ids = map snd $ HM.toList $ higher_order $ track q2'
+      sym_vars = varsFullList h ns $ sym_ids ++ func_ids
+      sym_str = printVars pg ns q2' sym_vars
+      sym_print = "Arguments:\n" ++ sym_str
+  in cx_str ++ "\n" ++ sym_print

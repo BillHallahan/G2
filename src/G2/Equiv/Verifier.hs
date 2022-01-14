@@ -776,6 +776,15 @@ cleanState state bindings =
                    $ addSearchNames (M.keys $ deepseq_walkers bindings) emptyMemConfig
   in markAndSweepPreserving sym_config state bindings
 
+-- TODO get the first one in the list, which was created last
+-- TODO lemmas could cause problems for this
+fetchCX :: [Marker] -> (StateET, StateET)
+fetchCX [] = error "No Counterexample"
+fetchCX ((Marker _ m):ms) = case m of
+  NotEquivalent s_pair -> s_pair
+  SolverFail s_pair -> s_pair
+  _ -> fetchCX ms
+
 checkRule :: Config ->
              State t ->
              Bindings ->
@@ -831,5 +840,14 @@ checkRule config init_state bindings total finite print_summary iterations rule 
     mapM (putStrLn . (summarize print_summary pg ns (ru_bndrs rule))) w
     putStrLn "--- END OF SUMMARY ---"
   else return ()
+  case res of
+    S.SAT () -> do
+      let cx_pair = fetchCX w
+          pg = mkPrettyGuide $ map (\(Marker _ m) -> m) w
+      putStrLn "--------------------"
+      putStrLn "COUNTEREXAMPLE FOUND"
+      putStrLn "--------------------"
+      putStrLn $ showCX pg ns (ru_bndrs rule) (rewrite_state_l, rewrite_state_r) cx_pair
+    _ -> return ()
   S.close solver
   return res

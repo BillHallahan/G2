@@ -23,6 +23,7 @@ module G2.Equiv.Tactics
     , applySolver
     , backtrackOne
     , prevFiltered
+    , syncSymbolic
 
     , emptyLemmas
     , insertProposedLemma
