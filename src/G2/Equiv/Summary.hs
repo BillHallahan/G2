@@ -352,7 +352,7 @@ summarize mode pg ns sym_ids (Marker (sh1, sh2) m) =
   ++
   (tabsAfterNewLines $ summarizeAct pg ns sym_ids m)
 
--- TODO counterexample printing
+-- counterexample printing
 -- first state pair is initial states, second is from counterexample
 showCX :: PrettyGuide ->
           HS.HashSet Name ->
@@ -362,9 +362,7 @@ showCX :: PrettyGuide ->
           String
 showCX pg ns sym_ids (s1, s2) (q1, q2) =
   -- main part showing contradiction
-  -- TODO substitution?
-  let --(s1', s2') = syncSymbolic s1 s2
-      (q1', q2') = syncSymbolic q1 q2
+  let (q1', q2') = syncSymbolic q1 q2
       e1 = inlineVars ns (expr_env q1') $ exprExtract s1
       e1_str = printHaskellPG pg q1' e1
       end1 = inlineVars ns (expr_env q1') $ exprExtract q1'
@@ -375,10 +373,8 @@ showCX pg ns sym_ids (s1, s2) (q1, q2) =
       end2_str = printHaskellPG pg q2' end2
       cx_str = e1_str ++ " = " ++ end1_str ++ " but " ++
                e2_str ++ " = " ++ end2_str
-      -- TODO any other syncing necessary?
-      h = expr_env q2'
       func_ids = map snd $ HM.toList $ higher_order $ track q2'
-      sym_vars = varsFullList h ns $ sym_ids ++ func_ids
+      sym_vars = varsFullList (expr_env q2') ns $ sym_ids ++ func_ids
       sym_str = printVars pg ns q2' sym_vars
       sym_print = "Arguments:\n" ++ sym_str
   in cx_str ++ "\n" ++ sym_print

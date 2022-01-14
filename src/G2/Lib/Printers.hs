@@ -212,11 +212,20 @@ offset :: Int -> String
 offset i = duplicate "   " i
 
 printList :: PrettyGuide -> Expr -> String
-printList pg a = "[" ++ intercalate ", " (printList' pg a) ++ "]"
+printList pg a =
+    let (strs, b) = printList' pg a
+    in case b of
+        False -> "[" ++ intercalate ", " strs ++ "..."
+        _ -> "[" ++ intercalate ", " strs ++ "]"
 
-printList' :: PrettyGuide -> Expr -> [String]
-printList' pg (App (App _ e) e') = mkExprHaskell Cleaned pg e:printList' pg e'
-printList' _ _ = []
+printList' :: PrettyGuide -> Expr -> ([String], Bool)
+printList' pg (App (App _ e) e') =
+    let (strs, b) = printList' pg e'
+    in (mkExprHaskell Cleaned pg e:strs, b)
+-- don't display the undefined tail as if it were an entry
+printList' pg e@(Prim p _) | (p == Error || p == Undefined) =
+    ([mkExprHaskell Cleaned pg e], False)
+printList' _ _ = ([], True)
 
 printString :: Expr -> String
 printString a =
