@@ -622,8 +622,9 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 -- TODO partial progress can interfere with 52 and 53 as well
 -- TODO p59 doesn't line up with spreadsheet
 -- TODO not sure about 71 and 76 now
+-- TODO I think p47 is being thrown off by induction, not a mistake
 {-# RULES
-"p03fin" forall n xs ys . count n xs <= count n (xs ++ ys) = walkNatList xs True
+"p03fin" forall n xs ys . walkNatList xs (count n xs <= count n (xs ++ ys)) = walkNatList xs True
 "p03finB" forall n xs ys . count n xs <= count n (xs ++ ys) = walkNat n (walkList xs True)
 "p04fin" forall n xs . count n (n : xs) = walkNat n (S (count n xs))
 "p05finE" forall n x xs . walkNat n (walkList xs (prop_05 n x xs)) = walkNat n (walkList xs True)

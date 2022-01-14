@@ -8,7 +8,7 @@ import time
 
 def run_zeno(filename, thm, var_settings, timeout):
     start_time = time.monotonic();
-    res = call_zeno_process(thm, var_settings, timeout);
+    res = call_zeno_process(filename, thm, var_settings, timeout);
     end_time = time.monotonic();
     elapsed = end_time - start_time;
 
@@ -29,7 +29,7 @@ def run_zeno(filename, thm, var_settings, timeout):
             check_unsat = "";
     return (left_str, right_str, check_unsat, elapsed);
 
-def call_zeno_process(thm, var_settings, time):
+def call_zeno_process(filename, thm, var_settings, time):
     try:
         args = ["dist/build/RewriteV/RewriteV", "tests/RewriteVerify/Correct/" + filename, thm]
         limit_settings = ["--", "--limit", "15"]
@@ -193,6 +193,7 @@ xs = "xs"
 m = "m"
 y = "y"
 ys = "ys"
+zs = "zs"
 i = "i"
 j = "j"
 a = "a"
@@ -311,7 +312,7 @@ ground_truth = [
     ("p01", [n]),
     ("p02", []), # slow
     ("p03fin", [n]),
-    ("p03finB", []),
+    ("p03finB", [n, xs]),
     ("p04fin", []),
     ("p05finE", [x]),
     ("p05finF", [n]),
@@ -370,8 +371,8 @@ ground_truth = [
     ("p55", []),
     ("p56", [n, m]),
     ("p57finA", []),
-    ("p57finB", []),
-    ("p58", []),
+    ("p57finB", [n, xs]),
+    ("p58", [n, xs, ys]),
     ("p59finA", [ys]),
     ("p60finB", []),
     ("p61fin", []), # slow
@@ -391,7 +392,7 @@ ground_truth = [
     ("p72", [i]),
     ("p73", [p, xs]), # slow, but only a little
     ("p74", [i, xs]),
-    ("p75fin", [m]),
+    ("p75fin", [m, xs]),
     ("p76finB", [m, xs]),
     ("p76finC", [n]),
     ("p77finA", [x]),
@@ -400,8 +401,8 @@ ground_truth = [
     ("p80", []),
     ("p81", [n, m, xs]),
     ("p82", []),
-    ("p83", []),
-    ("p84", []),
+    ("p83", [ys]),
+    ("p84", [ys]),
     ("p85finB", [xs, ys]),
     ("p85finC", [xs, ys])
 ]
@@ -603,7 +604,8 @@ def main():
     #test_suite(finite_long, 120)
     #test_suite_fail(equivalences_should_fail)
     #test_suite(more_finite)
-    test_suite(old_successes, 150)
+    #test_suite(old_successes, 150)
+    test_suite_ground(ground_truth)
 
 if __name__ == "__main__":
     main()
