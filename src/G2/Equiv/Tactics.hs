@@ -711,7 +711,7 @@ coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) | not . isSWHNF
                                                                  , not . isSWHNF $ inlineCurrExpr s2  = do
   let prev = prevFiltered (sh1, sh2)
 
-  res <- moreRestrictivePairWithLemmas solver ns lemmas prev (s1, s2)
+  res <- moreRestrictivePairWithLemmas solver ns lemmas ReplaceNonActive prev (s1, s2)
   case res of
     Right _ -> return res
     Left new_lems -> backtrack new_lems
@@ -815,29 +815,31 @@ equivLemma solver ns (Lemma { lemma_lhs = l1_1, lemma_rhs = l1_2 }) lems = do
                         (Right _, Right _) -> return True
                         _ -> return False) lems
 
+data Replace = ReplaceAny | ReplaceNonActive deriving Eq
+
 -- TODO: Does substLemma need to do something more to check correctness of path constraints?
 -- `substLemma state lemmas` tries to apply each proven lemma in `lemmas` to `state`.
 -- In particular, for each `lemma = (lemma_l `equiv lemma_r` in the proven lemmas, it
 -- searches for a subexpression `e'` of `state`'s current expression such that `e' <=_V lemma_l`.
 -- If it find such a subexpression, it adds state[e'[V(x)/x]] to the returned
 -- list of States.
-substLemma :: S.Solver solver => solver -> HS.HashSet Name -> StateET -> Lemmas -> W.WriterT [Marker] IO [(Lemma, StateET)]
-substLemma solver ns s =
-    mapMaybeM (\lem -> replaceNonActiveMoreRestrictiveSubExpr solver ns lem s) . provenLemmas
+substLemma :: S.Solver solver => solver -> HS.HashSet Name -> StateET -> Replace -> Lemmas -> W.WriterT [Marker] IO [(Lemma, StateET)]
+substLemma solver ns s rep =
+    mapMaybeM (\lem -> replaceNonActiveMoreRestrictiveSubExpr solver ns lem s rep) . provenLemmas
 
-replaceNonActiveMoreRestrictiveSubExpr :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> StateET
+replaceNonActiveMoreRestrictiveSubExpr :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> StateET -> Replace
                                -> W.WriterT [Marker] IO (Maybe (Lemma, StateET))
-replaceNonActiveMoreRestrictiveSubExpr solver ns lemma s@(State { curr_expr = CurrExpr er _ }) = do
-    (e, replaced) <- CM.runStateT (replaceNonActiveMoreRestrictiveSubExpr' solver ns lemma s True $ exprExtract s) False
+replaceNonActiveMoreRestrictiveSubExpr solver ns lemma s@(State { curr_expr = CurrExpr er _ }) rep = do
+    (e, replaced) <- CM.runStateT (replaceMoreRestrictiveSubExpr' solver ns lemma s (rep == ReplaceNonActive) $ exprExtract s) False
     return $ if replaced then Just (lemma, s { curr_expr = CurrExpr er e }) else Nothing
 
-replaceNonActiveMoreRestrictiveSubExpr' :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> StateET -> Bool -> Expr
+replaceMoreRestrictiveSubExpr' :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> StateET -> Bool -> Expr
                                -> CM.StateT Bool (W.WriterT [Marker] IO) Expr
-replaceNonActiveMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma_rhs = rhs_s })
+replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma_rhs = rhs_s })
                                          s2@(State { curr_expr = CurrExpr er _ }) active e
     | active = do
         let ns' = foldr HS.insert ns (bind e)
-        modifyNonActiveChildrenM (replaceNonActiveMoreRestrictiveSubExpr' solver ns' lemma s2) False e
+        modifyNonActiveChildrenM (replaceMoreRestrictiveSubExpr' solver ns' lemma s2) active e
     | otherwise = do
         replaced <- CM.get
         if not replaced then do
@@ -852,7 +854,7 @@ replaceNonActiveMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs
                     return rhs_e'                 
                 Left _ -> do
                     let ns' = foldr HS.insert ns (bind e)
-                    modifyNonActiveChildrenM (replaceNonActiveMoreRestrictiveSubExpr' solver ns' lemma s2) False e
+                    modifyNonActiveChildrenM (replaceMoreRestrictiveSubExpr' solver ns' lemma s2) active e
         else return e
     where
         bind (Lam _ i _) = [idName i]
@@ -868,7 +870,7 @@ modifyNonActiveChildrenM f active (App fx ax) = do
     fx' <- f active fx
     ax' <- f False ax
     return $ App fx' ax'
-modifyNonActiveChildrenM f _ (Lam u b e) = return . Lam u b =<< f True e
+modifyNonActiveChildrenM f active (Lam u b e) = return . Lam u b =<< f active e
 modifyNonActiveChildrenM f active (Let bind e) = do
     bind' <- modifyContainedASTsM (f False) bind
     return . Let bind' =<< f active e
@@ -897,13 +899,14 @@ moreRestrictivePairWithLemmas :: S.Solver solver =>
                                  solver ->
                                  HS.HashSet Name ->
                                  Lemmas ->
+                                 Replace ->
                                  [(StateET, StateET)] ->
                                  (StateET, StateET) ->
                                  W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
-moreRestrictivePairWithLemmas solver ns lemmas past (s1, s2) = do
+moreRestrictivePairWithLemmas solver ns lemmas rep past (s1, s2) = do
     let (s1', s2') = syncSymbolic s1 s2
-    xs1 <- substLemma solver ns s1' lemmas
-    xs2 <- substLemma solver ns s2' lemmas
+    xs1 <- substLemma solver ns s1' rep lemmas
+    xs2 <- substLemma solver ns s2' rep lemmas
 
     let xs1' = (Nothing, s1'):(map (\(l, s) -> (Just l, s)) xs1)
         xs2' = (Nothing, s2'):(map (\(l, s) -> (Just l, s)) xs2)
@@ -935,8 +938,8 @@ moreRestrictivePairWithLemmasPast :: S.Solver solver =>
                                      W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
 moreRestrictivePairWithLemmasPast solver ns lemmas past s_pair = do
     let (past1, past2) = unzip past
-    xs_past1 <- mapM (\s_ -> substLemma solver ns s_ lemmas) past1
-    xs_past2 <- mapM (\s_ -> substLemma solver ns s_ lemmas) past2
+    xs_past1 <- mapM (\s_ -> substLemma solver ns s_ ReplaceAny lemmas) past1
+    xs_past2 <- mapM (\s_ -> substLemma solver ns s_ ReplaceAny lemmas) past2
     let plain_past1 = map (\s_ -> (Nothing, s_)) past1
         plain_past2 = map (\s_ -> (Nothing, s_)) past2
         xs_past1' = plain_past1 ++ (map (\(l, s) -> (Just l, s)) $ concat xs_past1)
@@ -945,7 +948,7 @@ moreRestrictivePairWithLemmasPast solver ns lemmas past s_pair = do
         -- TODO also record the lemmas used somehow?
         pair_past (_, p1) (_, p2) = syncSymbolic p1 p2
         past' = [pair_past pair1 pair2 | pair1 <- xs_past1', pair2 <- xs_past2']
-    moreRestrictivePairWithLemmas solver ns lemmas past' s_pair
+    moreRestrictivePairWithLemmas solver ns lemmas ReplaceAny past' s_pair
 
 mkProposedLemma :: String -> StateET -> StateET -> StateET -> StateET -> ProposedLemma
 mkProposedLemma lm_name or_s1 or_s2 s1 s2 =
