@@ -215,7 +215,7 @@ printList :: PrettyGuide -> Expr -> String
 printList pg a =
     let (strs, b) = printList' pg a
     in case b of
-        False -> "[" ++ intercalate ", " strs ++ "..."
+        False -> "(" ++ intercalate ":" strs ++ ")"
         _ -> "[" ++ intercalate ", " strs ++ "]"
 
 printList' :: PrettyGuide -> Expr -> ([String], Bool)
