@@ -35,6 +35,7 @@ module G2.Equiv.Tactics
     , insertDisprovenLemma
 
     , mkProposedLemma
+    , checkCycle
     )
     where
 
@@ -922,3 +923,28 @@ mkProposedLemma lm_name or_s1 or_s2 s1 s2 =
                 , lemma_lhs_origin = folder_name . track $ or_s1
                 , lemma_rhs_origin = folder_name . track $ or_s2
                 , lemma_to_be_proven  =[(newStateH s1, newStateH s2)] }
+
+-- TODO cycle detection
+-- TODO do I need to be careful about thrown-out Data constructors?
+-- sync symbolic variables for present; for whole past as well?
+-- see if any SWHNF state is on the non-terminating side
+-- TODO use moreRestrictiveSingle with all history
+checkCycle :: S.Solver s => Tactic s
+checkCycle solver ns _ _ (sh1, sh2) (s1, s2) = do
+  let (s1', s2') = syncSymbolic s1 s2
+  mr1 <- mapM (moreRestrictiveSingle solver ns s1') (history sh1)
+  mr2 <- mapM (moreRestrictiveSingle solver ns s2') (history sh2)
+  let term1 = filter isSWHNF (s1':history sh1)
+      term2 = filter isSWHNF (s2':history sh2)
+  {-
+  case (term1, rights mr2) of
+    (q1:_, hm:_) ->
+    _ -> case (term2, rights mr1) of
+  -}
+  if not (null term1) && not (null $ rights mr2) then do
+    --W.tell $ [Marker (sh1, sh2) $ CycleFound (s1, s2) _ _ IRight]
+    return Failure
+  else if not (null term2) && not (null $ rights mr1) then do
+    --W.tell $ [Marker (sh1, sh2) $ CycleFound (s1, s2) _ _ ILeft]
+    return Failure
+  else return $ NoProof HS.empty

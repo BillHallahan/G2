@@ -56,6 +56,7 @@ data ActMarker = Induction IndMarker
                | NoObligations (StateET, StateET)
                | NotEquivalent (StateET, StateET)
                | SolverFail (StateET, StateET)
+               | CycleFound CycleMarker
                | Unresolved (StateET, StateET)
 
 instance Named ActMarker where
@@ -166,6 +167,27 @@ instance Named EqualMarker where
         q1' = r q1
         q2' = r q2
     in EqualMarker (s1', s2') (q1', q2')
+
+-- the indicated side is the one with the cycle
+-- cycle_past is the past state that matches the present
+-- cycle_term is the SWHNF state on the other side
+data CycleMarker = CycleMarker {
+    cycle_real_present :: (StateET, StateET)
+  , cycle_past :: StateET
+  , cycle_term :: StateET
+  , cycle_side :: Side
+}
+
+instance Named CycleMarker where
+  names (CycleMarker (s1, s2) p q _) =
+    names s1 DS.>< names s2 DS.>< names p DS.>< names q
+  rename old new (CycleMarker (s1, s2) p q sd) =
+    let r = rename old new
+        s1' = r s1
+        s2' = r s2
+        p' = r p
+        q' = r q
+    in CycleMarker (s1', s2') p' q' sd
 
 data Lemma = Lemma { lemma_name :: String
                    , lemma_lhs :: StateET
