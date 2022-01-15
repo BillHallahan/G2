@@ -50,6 +50,7 @@ import G2.Language.Monad.AST
 import qualified G2.Language.Typing as T
 
 import GHC.Generics (Generic)
+import Data.List
 import Data.Maybe
 import Data.Tuple
 import Data.Hashable
@@ -927,33 +928,24 @@ mkProposedLemma lm_name or_s1 or_s2 s1 s2 =
 
 -- cycle detection
 -- TODO do I need to be careful about thrown-out Data constructors?
+-- that doesn't matter for checking latest states
 checkCycle :: S.Solver s => Tactic s
 checkCycle solver ns _ _ (sh1, sh2) (s1, s2) = do
-  W.liftIO $ putStrLn "CHECK CYCLE"
-  W.liftIO $ putStrLn $ folder_name $ track s1
-  W.liftIO $ putStrLn $ folder_name $ track s2
   let (s1', s2') = syncSymbolic s1 s2
       hist1 = history sh1
       hist2 = history sh2
   mr1 <- mapM (moreRestrictiveSingle solver ns s1') hist1
   mr2 <- mapM (moreRestrictiveSingle solver ns s2') hist2
-  let term1 = filter isSWHNF (s1':hist1)
-      term2 = filter isSWHNF (s2':hist2)
-      mr1_pairs = zip mr1 hist1
-      mr1_pairs' = filter (isRight . fst) mr1_pairs
+  let mr1_pairs = zip mr1 hist1
+      mr1_pair = find (isRight . fst) mr1_pairs
       mr2_pairs = zip mr2 hist2
-      mr2_pairs' = filter (isRight . fst) mr2_pairs
-  W.liftIO $ putStrLn $ show $ length mr1_pairs'
-  W.liftIO $ putStrLn $ show $ length mr2_pairs'
-  W.liftIO $ putStrLn "....."
-  W.liftIO $ putStrLn $ show $ length term1
-  W.liftIO $ putStrLn $ show $ length term2
-  case (term1, mr2_pairs') of
-    (q1:_, (Right hm, p2):_) -> do
-      W.tell [Marker (sh1, sh2) $ CycleFound $ CycleMarker (s1, s2) p2 q1 hm IRight]
+      mr2_pair = find (isRight . fst) mr2_pairs
+  case (isSWHNF s1', mr2_pair) of
+    (True, Just (Right hm, p2)) -> do
+      W.tell [Marker (sh1, sh2) $ CycleFound $ CycleMarker (s1, s2) p2 hm IRight]
       return $ Failure True
-    _ -> case (term2, mr1_pairs') of
-      (q2:_, (Right hm, p1):_) -> do
-        W.tell [Marker (sh1, sh2) $ CycleFound $ CycleMarker (s1, s2) p1 q2 hm ILeft]
+    _ -> case (isSWHNF s2', mr1_pair) of
+      (True, Just (Right hm, p1)) -> do
+        W.tell [Marker (sh1, sh2) $ CycleFound $ CycleMarker (s1, s2) p1 hm ILeft]
         return $ Failure True
       _ -> return $ NoProof HS.empty

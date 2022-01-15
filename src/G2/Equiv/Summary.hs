@@ -273,7 +273,7 @@ summarizeCycleFound :: PrettyGuide ->
                        [Id] ->
                        CycleMarker ->
                        String
-summarizeCycleFound pg ns sym_ids (CycleMarker s_pair _ _ _ _) =
+summarizeCycleFound pg ns sym_ids (CycleMarker s_pair _ _ _) =
   summarizeStatePair "CYCLE FOUND" pg ns sym_ids s_pair
 
 summarizeNoObligations :: PrettyGuide ->
