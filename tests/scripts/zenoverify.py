@@ -6,9 +6,9 @@ import re
 import subprocess
 import time
 
-def run_zeno(thm, var_settings, timeout):
+def run_zeno(filename, thm, var_settings, timeout):
     start_time = time.monotonic();
-    res = call_zeno_process(thm, var_settings, timeout);
+    res = call_zeno_process(filename, thm, var_settings, timeout);
     end_time = time.monotonic();
     elapsed = end_time - start_time;
 
@@ -29,9 +29,9 @@ def run_zeno(thm, var_settings, timeout):
             check_unsat = "";
     return (left_str, right_str, check_unsat, elapsed);
 
-def call_zeno_process(thm, var_settings, time):
+def call_zeno_process(filename, thm, var_settings, time):
     try:
-        args = ["dist/build/RewriteV/RewriteV", "tests/RewriteVerify/Correct/Zeno.hs", thm]
+        args = ["dist/build/RewriteV/RewriteV", "tests/RewriteVerify/Correct/" + filename, thm]
         limit_settings = ["--", "--limit", "15"]
         res = subprocess.run(args + var_settings + limit_settings, capture_output = True, timeout = time);
         return res.stdout;
@@ -193,10 +193,15 @@ xs = "xs"
 m = "m"
 y = "y"
 ys = "ys"
+zs = "zs"
 i = "i"
+j = "j"
 a = "a"
 b = "b"
+c = "c"
 p = "p"
+f = "f"
+k = "k"
 
 more_finite = [
     ("p03fin", [n, xs]),
@@ -303,11 +308,209 @@ old_successes = [
     ("p82", [])
 ]
 
+ground_truth = [
+    ("p01", [n]),
+    ("p02", []), # slow
+    ("p03fin", [n]),
+    ("p03finB", [n, xs]),
+    ("p04fin", []),
+    ("p05finE", [x]),
+    ("p05finF", [n]),
+    ("p06fin", []),
+    ("p07fin", []),
+    ("p08fin", []),
+    ("p09", []),
+    ("p10fin", []),
+    ("p11", []),
+    ("p12", []),
+    ("p13", []),
+    ("p14", []),
+    ("p15finA", [x]),
+    ("p15finB", [xs]),
+    ("p16finA", [xs]), # extra slow, took about 2:10
+    ("p17", []),
+    ("p18fin", []),
+    ("p19", [n]),
+    ("p20finA", []),
+    ("p21fin", []),
+    ("p22", []),
+    ("p23", []),
+    ("p24fin", [b]), # slow
+    ("p25fin", [a]), # slow
+    ("p26finA", [x]),
+    ("p26finB", [xs]),
+    ("p27finA", [xs, ys]),
+    ("p28finA", [xs]),
+    ("p29finA", [xs]),
+    ("p30finA", [xs]),
+    ("p31", []),
+    ("p32", [a, b]),
+    ("p33", []),
+    ("p34", [a]),
+    ("p35", []),
+    ("p36", []),
+    ("p37finB", [x]),
+    ("p37finC", [xs]),
+    ("p38finB", []),
+    ("p39", []),
+    ("p40", []),
+    ("p41", []),
+    ("p42", []),
+    ("p43", [p, xs]),
+    ("p44", []),
+    ("p45", []),
+    ("p46", []),
+    ("p47", []),
+    ("p48finB", []),
+    ("p49", [xs, ys]),
+    ("p50", []),
+    ("p51", [xs]),
+    ("p52finA", []),
+    ("p53finA", []),
+    ("p54fin", [m]),
+    ("p55", []),
+    ("p56", [n, m]),
+    ("p57finA", []),
+    ("p57finB", [n, xs]),
+    ("p58", [n, xs, ys]),
+    ("p59finA", [ys]),
+    ("p60finB", []),
+    ("p61fin", []), # slow
+    ("p62finA", []),
+    ("p63finA", [n]),
+    ("p64fin", []),
+    ("p65finA", [m]),
+    ("p66fin", [p, xs]),
+    ("p67", []),
+    ("p68finA", [xs]),
+    ("p68finB", [n]),
+    ("p69finA", [m]),
+    ("p70finC", [n]),
+    ("p70finD", [m]),
+    ("p71finA", [y]),
+    ("p71finB", [x]),
+    ("p72", [i]),
+    ("p73", [p, xs]), # slow, but only a little
+    ("p74", [i, xs]),
+    ("p75fin", [m, xs]),
+    ("p76finB", [m, xs]),
+    ("p76finC", [n]),
+    ("p77finA", [x]),
+    ("p78finB", []),
+    ("p79", [n]),
+    ("p80", []),
+    ("p81", [n, m, xs]),
+    ("p82", []),
+    ("p83", [ys]),
+    ("p84", [ys]),
+    ("p85finB", [xs, ys]),
+    ("p85finC", [xs, ys])
+]
+
+ground_truth_all_total = [
+    ("p01", [n, xs]),
+    ("p02", [n, xs, ys]), # slow
+    ("p03fin", [n, xs, ys]),
+    ("p03finB", [n, xs, ys]),
+    ("p04fin", [n, xs]),
+    ("p05finE", [n, x, xs]),
+    ("p05finF", [n, x, xs]),
+    ("p06fin", [n, m]),
+    ("p07fin", [n, m]),
+    ("p08fin", [k, m, n]),
+    ("p09", [i, j, k]),
+    ("p10fin", [m]),
+    ("p11", [xs]),
+    ("p12", [f, n, xs]),
+    ("p13", [n, x, xs]),
+    ("p14", [p, xs, ys]),
+    ("p15finA", [x, xs]),
+    ("p15finB", [x, xs]),
+    ("p16finA", [x, xs]), # extra slow, took about 2:10
+    ("p17", [n]),
+    ("p18fin", [i, m]),
+    ("p19", [n, xs]),
+    ("p20finA", [xs]),
+    ("p21fin", [n, m]),
+    ("p22", [a, b, c]),
+    ("p23", [a, b]),
+    ("p24fin", [a, b]), # slow
+    ("p25fin", [a, b]), # slow
+    ("p26finA", [x, xs, ys]),
+    ("p26finB", [x, xs, ys]),
+    ("p27finA", [x, xs, ys]),
+    ("p28finA", [x, xs]),
+    ("p29finA", [x, xs]),
+    ("p30finA", [x, xs]),
+    ("p31", [a, b, c]),
+    ("p32", [a, b]),
+    ("p33", [a, b]),
+    ("p34", [a, b]),
+    ("p35", [xs]),
+    ("p36", [xs]),
+    ("p37finB", [x, xs]),
+    ("p37finC", [x, xs]),
+    ("p38finB", [n, xs]),
+    ("p39", [n, x, xs]),
+    ("p40", [xs]),
+    ("p41", [f, n, xs]),
+    ("p42", [n, x, xs]),
+    ("p43", [p, xs]),
+    ("p44", [x, xs, ys]),
+    ("p45", [x, y, xs, ys]),
+    ("p46", [xs]),
+    ("p47", [a]),
+    ("p48finB", [xs]),
+    ("p49", [xs, ys]),
+    ("p50", [xs]),
+    ("p51", [x, xs]),
+    ("p52finA", [n, xs]),
+    ("p53finA", [n, xs]),
+    ("p54fin", [n, m]),
+    ("p55", [n, xs, ys]),
+    ("p56", [n, m, xs]),
+    ("p57finA", [n, m, xs]),
+    ("p57finB", [n, m, xs]),
+    ("p58", [n, xs, ys]),
+    ("p59finA", [xs, ys]),
+    ("p60finB", [xs, ys]),
+    ("p61fin", [xs, ys]), # slow
+    ("p62finA", [xs, x]),
+    ("p63finA", [n, xs]),
+    ("p64fin", [x, xs]),
+    ("p65finA", [i, m]),
+    ("p66fin", [p, xs]),
+    ("p67", [xs]),
+    ("p68finA", [n, xs]),
+    ("p68finB", [n, xs]),
+    ("p69finA", [n, m]),
+    ("p70finC", [m, n]),
+    ("p70finD", [m, n]),
+    ("p71finA", [x, y, xs]),
+    ("p71finB", [x, y, xs]),
+    ("p72", [i, xs]),
+    ("p73", [p, xs]), # slow, but only a little
+    ("p74", [i, xs]),
+    ("p75fin", [n, m, xs]),
+    ("p76finB", [n, m, xs]),
+    ("p76finC", [n, m, xs]),
+    ("p77finA", [x, xs]),
+    ("p78finB", [xs]),
+    ("p79", [m, n, k]),
+    ("p80", [n, xs, ys]),
+    ("p81", [n, m, xs]),
+    ("p82", [n, xs, ys]),
+    ("p83", [xs, ys, zs]),
+    ("p84", [xs, ys, zs]),
+    ("p85finB", [xs, ys]),
+    ("p85finC", [xs, ys])
+]
+
 def test_suite_simple(suite, timeout = 25):
     unsat_num = 0;
     for thm in suite:
         print(thm);
-        (l, r, check_unsat, elapsed) = run_zeno(thm, [], timeout);
+        (l, r, check_unsat, elapsed) = run_zeno("Zeno.hs", thm, [], timeout);
         if check_unsat == "UNSAT ()":
             print("\tVerified - " + str(elapsed) + "s");
             unsat_num += 1
@@ -321,7 +524,22 @@ def test_suite(suite, timeout = 25):
     unsat_num = 0;
     for (thm, settings) in suite:
         print(thm, settings);
-        (l, r, check_unsat, elapsed) = run_zeno(thm, settings, timeout);
+        (l, r, check_unsat, elapsed) = run_zeno("Zeno.hs", thm, settings, timeout);
+        if check_unsat == "UNSAT ()":
+            print("\tVerified - " + str(elapsed) + "s");
+            unsat_num += 1
+        elif check_unsat == "Timeout":
+            print("\tTimeout - " + str(elapsed) + "s")
+        else:
+            print("\tFailed - " + str(elapsed) + "s")
+    print(unsat_num, "Confirmed out of", len(suite))
+
+# TODO make this system more modular?
+def test_suite_ground(suite, timeout = 25):
+    unsat_num = 0;
+    for (thm, settings) in suite:
+        print(thm, settings);
+        (l, r, check_unsat, elapsed) = run_zeno("TestZeno.hs", thm, settings, timeout);
         if check_unsat == "UNSAT ()":
             print("\tVerified - " + str(elapsed) + "s");
             unsat_num += 1
@@ -345,7 +563,7 @@ def test_suite_csv(suite, timeout = 25):
     file.write("Name,LHS,RHS,Total,Outcome,Time\n")
     for (thm, settings) in suite:
         print(thm, settings);
-        (l_str, r_str, check_unsat, elapsed) = run_zeno(thm, settings, timeout);
+        (l_str, r_str, check_unsat, elapsed) = run_zeno("Zeno.hs", thm, settings, timeout);
         file.write(thm + "," + l_str + "," + r_str + ",")
         file.write(total_string(settings) + ",")
         if check_unsat == "UNSAT ()":
@@ -366,7 +584,7 @@ def test_suite_fail(suite, timeout = 25):
     sat_num = 0;
     for (thm, settings) in suite:
         print(thm, settings);
-        (l, r, check_unsat, elapsed) = run_zeno(thm, settings, timeout);
+        (l, r, check_unsat, elapsed) = run_zeno("Zeno.hs", thm, settings, timeout);
         if check_unsat == "UNSAT ()":
             print("\tIncorrectly verified - " + str(elapsed) + "s");
         elif check_unsat == "Timeout":
@@ -386,7 +604,8 @@ def main():
     #test_suite(finite_long, 120)
     #test_suite_fail(equivalences_should_fail)
     #test_suite(more_finite)
-    test_suite(old_successes, 150)
+    #test_suite(old_successes, 150)
+    test_suite_ground(ground_truth)
 
 if __name__ == "__main__":
     main()
