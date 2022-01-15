@@ -569,10 +569,13 @@ digInStateH lbl sh
     | Just sh' <- backtrackOne sh = digInStateH lbl sh'
     | otherwise = Nothing
 
+updateDC :: EquivTracker -> [(DataCon, Int, Int)] -> EquivTracker
+updateDC et ds = et { dc_path = dc_path et ++ ds }
+
 stateWrap :: StateET -> StateET -> Obligation -> (StateET, StateET)
-stateWrap s1 s2 (Ob e1 e2) =
-  ( s1 { curr_expr = CurrExpr Evaluate e1 }
-  , s2 { curr_expr = CurrExpr Evaluate e2 } )
+stateWrap s1 s2 (Ob ds e1 e2) =
+  ( s1 { curr_expr = CurrExpr Evaluate e1, track = updateDC (track s1) ds }
+  , s2 { curr_expr = CurrExpr Evaluate e2, track = updateDC (track s2) ds } )
 
 -- TODO debugging function
 stateHistory :: StateH -> StateH -> [(StateET, StateET)]
@@ -791,6 +794,15 @@ cleanState state bindings =
                    $ addSearchNames (M.keys $ deepseq_walkers bindings) emptyMemConfig
   in markAndSweepPreserving sym_config state bindings
 
+-- TODO get the first one in the list, which was created last
+-- TODO lemmas could cause problems for this
+fetchCX :: [Marker] -> (StateET, StateET)
+fetchCX [] = error "No Counterexample"
+fetchCX ((Marker _ m):ms) = case m of
+  NotEquivalent s_pair -> s_pair
+  SolverFail s_pair -> s_pair
+  _ -> fetchCX ms
+
 checkRule :: Config ->
              State t ->
              Bindings ->
@@ -808,8 +820,8 @@ checkRule config init_state bindings total finite print_summary iterations rule 
       finite_hs = foldr HS.insert HS.empty finite_names
       -- always include the finite names in total
       total_hs = foldr HS.insert finite_hs total_names
-      EquivTracker et m _ _ _ = emptyEquivTracker
-      start_equiv_tracker = EquivTracker et m total_hs finite_hs ""
+      EquivTracker et m _ _ _ _ = emptyEquivTracker
+      start_equiv_tracker = EquivTracker et m total_hs finite_hs [] ""
       -- the keys are the same between the old and new environments
       ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
       ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
@@ -846,5 +858,14 @@ checkRule config init_state bindings total finite print_summary iterations rule 
     mapM (putStrLn . (summarize print_summary pg ns (ru_bndrs rule))) w
     putStrLn "--- END OF SUMMARY ---"
   else return ()
+  case res of
+    S.SAT () -> do
+      let cx_pair = fetchCX w
+          pg = mkPrettyGuide $ map (\(Marker _ m) -> m) w
+      putStrLn "--------------------"
+      putStrLn "COUNTEREXAMPLE FOUND"
+      putStrLn "--------------------"
+      putStrLn $ showCX pg ns (ru_bndrs rule) (rewrite_state_l, rewrite_state_r) cx_pair
+    _ -> return ()
   S.close solver
   return res

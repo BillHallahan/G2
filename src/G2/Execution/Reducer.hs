@@ -402,6 +402,7 @@ data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
                                  , saw_tick :: Maybe Int
                                  , total :: HS.HashSet Name
                                  , finite :: HS.HashSet Name
+                                 , dc_path :: [(DataCon, Int, Int)]
                                  , folder_name :: String } deriving (Show, Eq, Generic)
 
 instance Hashable EquivTracker
@@ -416,7 +417,7 @@ instance Reducer ConcSymReducer () EquivTracker where
                             , expr_env = eenv
                             , type_env = tenv
                             , path_conds = pc
-                            , track = EquivTracker et m total finite fname })
+                            , track = EquivTracker et m total finite dcp fname })
                    b@(Bindings { name_gen = ng })
         | E.isSymbolic n eenv
         , Just (dc_symbs, ng') <- arbDC tenv ng t n total = do
@@ -434,7 +435,7 @@ instance Reducer ConcSymReducer () EquivTracker where
                                         foldr E.insertSymbolic
                                               (E.insert n e eenv)
                                               symbs'
-                                    , track = EquivTracker et m total' finite' fname
+                                    , track = EquivTracker et m total' finite' dcp fname
                                     }) dc_symbs
                 b' =  b { name_gen = ng' }
                 -- only add to total if n was total
