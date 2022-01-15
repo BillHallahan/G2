@@ -712,6 +712,7 @@ tryDischarge solver tactics ns lemmas fresh_names sh1 sh2 =
           new_lemmas = HS.unions $ map getLemmas res
       if hasFail res then do
         W.liftIO $ putStrLn "X?"
+        -- TODO don't add this when a cycle has been found
         W.tell [Marker (sh1, sh2) $ SolverFail (s1, s2)]
         return Nothing
       else do

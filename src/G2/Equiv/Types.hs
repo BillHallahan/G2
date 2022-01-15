@@ -66,6 +66,7 @@ instance Named ActMarker where
   names (NoObligations s_pair) = names s_pair
   names (NotEquivalent s_pair) = names s_pair
   names (SolverFail s_pair) = names s_pair
+  names (CycleFound cm) = names cm
   names (Unresolved s_pair) = names s_pair
   rename old new m = case m of
     Induction im -> Induction $ rename old new im
@@ -74,6 +75,7 @@ instance Named ActMarker where
     NoObligations s_pair -> NoObligations $ rename old new s_pair
     NotEquivalent s_pair -> NotEquivalent $ rename old new s_pair
     SolverFail s_pair -> SolverFail $ rename old new s_pair
+    CycleFound cm -> CycleFound $ rename old new cm
     Unresolved s_pair -> Unresolved $ rename old new s_pair
 
 data Marker = Marker (StateH, StateH) ActMarker

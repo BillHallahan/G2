@@ -931,10 +931,13 @@ mkProposedLemma lm_name or_s1 or_s2 s1 s2 =
 -- TODO use moreRestrictiveSingle with all history
 checkCycle :: S.Solver s => Tactic s
 checkCycle solver ns _ _ (sh1, sh2) (s1, s2) = do
+  W.liftIO $ putStrLn "CHECK CYCLE"
+  W.liftIO $ putStrLn $ folder_name $ track s1
+  W.liftIO $ putStrLn $ folder_name $ track s2
   let (s1', s2') = syncSymbolic s1 s2
       -- TODO does it matter which one comes first for syncing here?
-      hist1 = map (snd . syncSymbolic s2') (history sh1)
-      hist2 = map (snd . syncSymbolic s1') (history sh2)
+      hist1 = map (snd . syncSymbolic s2) (history sh1)
+      hist2 = map (snd . syncSymbolic s1) (history sh2)
   mr1 <- mapM (moreRestrictiveSingle solver ns s1') hist1
   mr2 <- mapM (moreRestrictiveSingle solver ns s2') hist2
   let term1 = filter isSWHNF (s1':hist1)
@@ -944,6 +947,12 @@ checkCycle solver ns _ _ (sh1, sh2) (s1, s2) = do
       mr1_pairs' = filter (isRight . fst) mr1_pairs
       mr2_pairs = zip mr2 $ history sh2
       mr2_pairs' = filter (isRight . fst) mr2_pairs
+  -- TODO not getting any matches on LHS for p10
+  W.liftIO $ putStrLn $ show $ length mr1_pairs'
+  W.liftIO $ putStrLn $ show $ length mr2_pairs'
+  W.liftIO $ putStrLn "....."
+  W.liftIO $ putStrLn $ show $ length term1
+  W.liftIO $ putStrLn $ show $ length term2
   case (term1, mr2_pairs') of
     (q1:_, (Right hm, p2):_) -> do
       W.tell [Marker (sh1, sh2) $ CycleFound $ CycleMarker (s1, s2) p2 q1 hm IRight]
