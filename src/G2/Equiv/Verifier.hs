@@ -801,6 +801,7 @@ fetchCX [] = error "No Counterexample"
 fetchCX ((Marker _ m):ms) = case m of
   NotEquivalent s_pair -> s_pair
   SolverFail s_pair -> s_pair
+  CycleFound cm -> cycle_real_present cm
   _ -> fetchCX ms
 
 checkRule :: Config ->
