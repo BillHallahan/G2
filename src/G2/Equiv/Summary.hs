@@ -358,7 +358,7 @@ printDC _ [] str = str
 printDC pg ((d, i, n):ds) str =
   let d_str = printHaskellDirtyPG pg $ Data d
       blanks = replicate n "_"
-      str' = "(" ++ str ++ ")"
+      str' = "(" ++ (printDC pg ds str) ++ ")"
       pre_blanks = replicate i "_"
       post_blanks = replicate (n - (i + 1)) "_"
   in intercalate " " $ d_str:(pre_blanks ++ (str':post_blanks))

@@ -684,12 +684,17 @@ tryDischarge solver tactics ns lemmas fresh_names sh1 sh2 =
       s2 = latest sh2
   in case getObligations ns s1 s2 of
     Nothing -> do
+      -- TODO need state wrapping in here as well?
+      -- don't have any obligations to show
+      -- also, this is where the constructors mismatch
       let pg = mkPrettyGuide (s1, s2)
       W.tell [Marker (sh1, sh2) $ NotEquivalent (s1, s2)]
       W.liftIO $ putStrLn $ "N! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
       W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s1) s1
       W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s2) s2
       W.liftIO $ mapM putStrLn $ exprTrace sh1 sh2
+      W.liftIO $ putStrLn $ show $ dc_path $ track s1
+      W.liftIO $ putStrLn $ show $ dc_path $ track s2
       return Nothing
     Just obs -> do
       let pg = mkPrettyGuide (s1, s2)
@@ -700,6 +705,7 @@ tryDischarge solver tactics ns lemmas fresh_names sh1 sh2 =
       W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s1) s1
       W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s2) s2
       -- TODO no more limitations on when induction can be used here
+      W.liftIO $ mapM (\(Ob ds _ _) -> putStrLn $ "DCP " ++ show ds) obs
       let states = map (stateWrap s1 s2) obs
       res <- mapM (applyTactics solver tactics ns lemmas HS.empty fresh_names (sh1, sh2)) states
       -- list of remaining obligations in StateH form
