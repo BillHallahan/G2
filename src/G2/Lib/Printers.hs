@@ -218,7 +218,6 @@ printList pg a =
         False -> "[" ++ intercalate ", " strs ++ "..."
         _ -> "[" ++ intercalate ", " strs ++ "]"
 
--- TODO what are nil and cons constructors?
 printList' :: PrettyGuide -> Expr -> ([String], Bool)
 printList' pg (App (App e1 e) e') | Data (DataCon n1 _) <- e1
                                   , nameOcc n1 == ":" =
@@ -227,12 +226,6 @@ printList' pg (App (App e1 e) e') | Data (DataCon n1 _) <- e1
 printList' pg e | Data (DataCon n _) <- appCenter e
                 , nameOcc n == "[]" = ([], True)
                 | otherwise = ([mkExprHaskell Cleaned pg e], False)
--- don't display the undefined tail as if it were an entry
-{-
-printList' pg e@(Prim p _) | (p == Error || p == Undefined) =
-    ([mkExprHaskell Cleaned pg e], False)
-printList' _ _ = ([], True)
--}
 
 printString :: PrettyGuide -> Expr -> String
 printString pg a =
@@ -247,7 +240,6 @@ printString pg a =
             | isPrint c = '\'':c:'\'':[]
             | otherwise = "toEnum " ++ show (ord c)
 
--- TODO handle other problematic cases as well?
 printString' :: Expr -> Maybe String
 printString' (App (App _ (Lit (LitChar c))) e') =
     case printString' e' of
@@ -256,8 +248,6 @@ printString' (App (App _ (Lit (LitChar c))) e') =
 printString' e | Data (DataCon n _) <- appCenter e
                , nameOcc n == "[]" = Just []
                | otherwise = Nothing
---printString' (Prim p _) | (p == Error || p == Undefined) = Nothing
---printString' _ = Just []
 
 isTuple :: Name -> Bool
 isTuple (Name n _ _ _) = T.head n == '(' && T.last n == ')'

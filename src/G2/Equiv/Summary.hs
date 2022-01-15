@@ -352,7 +352,6 @@ summarize mode pg ns sym_ids (Marker (sh1, sh2) m) =
   ++
   (tabsAfterNewLines $ summarizeAct pg ns sym_ids m)
 
--- TODO take a state?
 printDC :: PrettyGuide -> [(DataCon, Int, Int)] -> String -> String
 printDC _ [] str = str
 printDC pg ((d, i, n):ds) str =
@@ -365,7 +364,6 @@ printDC pg ((d, i, n):ds) str =
 
 -- counterexample printing
 -- first state pair is initial states, second is from counterexample
--- TODO symbolic list and string tails are still a problem
 showCX :: PrettyGuide ->
           HS.HashSet Name ->
           [Id] ->

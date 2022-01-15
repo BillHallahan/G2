@@ -23,9 +23,9 @@ import Data.Maybe
 
 -- the bool is True if guarded coinduction can be used
 -- TODO do I need all of these typeclasses?
--- TODO earlier DataCons in the list are farther out
--- TODO Int tags indicate which argument of the constructor it was
--- TODO also record the number of arguments for each one?
+-- earlier DataCons in the list are farther out
+-- the first Int tag indicates which argument of the constructor this was
+-- the second one indicates the total number of arguments for that constructor
 data Obligation = Ob [(DataCon, Int, Int)] Expr Expr
                   deriving (Show, Eq, Read, Generic, Typeable, Data)
 
@@ -124,14 +124,9 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
                                 Nothing -> Nothing
                                 Just hs_l -> Just $ map (\(Ob ds e1_ e2_) -> Ob ((d, i, length l):ds) e1_ e2_) hs_l)
                               (zip [0..] hl)
-                    --(map (\(i, Ob ds e1_ e2_) -> Ob ((d, i):ds) e1_ e2_))
-                    --           (zip [1..] hs_list)
-                -- TODO I need to preserve order of the list entries
                 in
                 if any isNothing hl'
                 then Nothing
                 else Just $ HS.union pairs $ HS.fromList $ concat (map fromJust hl')
-                --HS.map (\(i, Ob ds e1_ e2_) -> Ob ((d1, i):ds) e1_ e2_)
-                --(zip [1..] $ foldM ep' pairs l)
                 else Nothing
         | otherwise -> Just $ HS.insert (Ob [] e1 e2) pairs
