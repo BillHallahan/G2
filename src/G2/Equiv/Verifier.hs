@@ -614,7 +614,8 @@ adjustStateH (sh1, sh2) (n1, n2) (s1, s2) =
       sh2' = sh2 { history = hist2, latest = s2 }
   in (sh1', sh2')
 
-data TacticEnd = EFail
+-- the Bool value for EFail is True if a cycle has been found
+data TacticEnd = EFail Bool
                | EDischarge
                | EContinue (HS.HashSet Lemma) (StateH, StateH)
 
@@ -628,8 +629,13 @@ getLemmas _ = HS.empty
 
 hasFail :: [TacticEnd] -> Bool
 hasFail [] = False
-hasFail (EFail:_) = True
+hasFail ((EFail _):_) = True
 hasFail (_:es) = hasFail es
+
+hasSolverFail :: [TacticEnd] -> Bool
+hasSolverFail [] = False
+hasSolverFail ((EFail False):_) = True
+hasSolverFail (_:es) = hasSolverFail es
 
 -- TODO put in a different file?
 -- TODO do all of the solver obligations need to be covered together?
@@ -640,7 +646,7 @@ trySolver solver ns _ _ _ (s1, s2) | statePairReadyForSolver (s1, s2) = do
   res <- W.liftIO $ checkObligations solver s1 s2 (HS.fromList [(e1, e2)])
   case res of
     S.UNSAT () -> return $ Success Nothing
-    _ -> return Failure
+    _ -> return $ Failure False
 trySolver _ _ _ _ _ _ = return $ NoProof HS.empty
 
 -- TODO apply all tactics sequentially in a single run
@@ -661,7 +667,7 @@ applyTactics :: S.Solver solver =>
 applyTactics solver (tac:tacs) ns lemmas gen_lemmas fresh_names (sh1, sh2) (s1, s2) = do
   tr <- tac solver ns lemmas fresh_names (sh1, sh2) (s1, s2)
   case tr of
-    Failure -> return EFail
+    Failure b -> return $ EFail b
     NoProof new_lemmas -> applyTactics solver tacs ns lemmas (HS.union new_lemmas gen_lemmas) fresh_names (sh1, sh2) (s1, s2)
     Success res -> case res of
       Nothing -> return EDischarge
@@ -712,8 +718,9 @@ tryDischarge solver tactics ns lemmas fresh_names sh1 sh2 =
           new_lemmas = HS.unions $ map getLemmas res
       if hasFail res then do
         W.liftIO $ putStrLn "X?"
-        -- TODO don't add this when a cycle has been found
-        W.tell [Marker (sh1, sh2) $ SolverFail (s1, s2)]
+        if hasSolverFail res
+          then W.tell [Marker (sh1, sh2) $ SolverFail (s1, s2)]
+          else return ()
         return Nothing
       else do
         W.liftIO $ putStrLn $ "V? " ++ show (length res')
