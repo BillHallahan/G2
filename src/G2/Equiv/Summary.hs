@@ -1,6 +1,13 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Equiv.Summary (SummaryMode (..), summarize, summarizeAct, printPG) where
+module G2.Equiv.Summary
+  ( SummaryMode (..)
+  , summarize
+  , summarizeAct
+  , printPG
+  , showCX
+  )
+  where
 
 -- TODO may not need all imports
 
@@ -344,3 +351,40 @@ summarize mode pg ns sym_ids (Marker (sh1, sh2) m) =
       else "")
   ++
   (tabsAfterNewLines $ summarizeAct pg ns sym_ids m)
+
+printDC :: PrettyGuide -> [(DataCon, Int, Int)] -> String -> String
+printDC _ [] str = str
+printDC pg ((d, i, n):ds) str =
+  let d_str = printHaskellDirtyPG pg $ Data d
+      blanks = replicate n "_"
+      str' = "(" ++ (printDC pg ds str) ++ ")"
+      pre_blanks = replicate i "_"
+      post_blanks = replicate (n - (i + 1)) "_"
+  in intercalate " " $ d_str:(pre_blanks ++ (str':post_blanks))
+
+-- counterexample printing
+-- first state pair is initial states, second is from counterexample
+showCX :: PrettyGuide ->
+          HS.HashSet Name ->
+          [Id] ->
+          (State t, State t) ->
+          (StateET, StateET) ->
+          String
+showCX pg ns sym_ids (s1, s2) (q1, q2) =
+  -- main part showing contradiction
+  let (q1', q2') = syncSymbolic q1 q2
+      e1 = inlineVars ns (expr_env q1') $ exprExtract s1
+      e1_str = printHaskellPG pg q1' e1
+      end1 = inlineVars ns (expr_env q1') $ exprExtract q1'
+      end1_str = printDC pg (dc_path $ track q1') $ printHaskellPG pg q1' end1
+      e2 = inlineVars ns (expr_env q2') $ exprExtract s2
+      e2_str = printHaskellPG pg q2' e2
+      end2 = inlineVars ns (expr_env q2') $ exprExtract q2'
+      end2_str = printDC pg (dc_path $ track q2') $ printHaskellPG pg q2' end2
+      cx_str = e1_str ++ " = " ++ end1_str ++ " but " ++
+               e2_str ++ " = " ++ end2_str
+      func_ids = map snd $ HM.toList $ higher_order $ track q2'
+      sym_vars = varsFullList (expr_env q2') ns $ sym_ids ++ func_ids
+      sym_str = printVars pg ns q2' sym_vars
+      sym_print = "Arguments:\n" ++ sym_str
+  in cx_str ++ "\n" ++ sym_print

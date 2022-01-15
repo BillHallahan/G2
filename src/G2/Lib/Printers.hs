@@ -130,7 +130,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             | Data (DataCon n1 _) <- e1
             , nameOcc n1 == ":"
             , isCleaned =
-                if isLitChar e2 then printString a else printList pg a
+                if isLitChar e2 then printString pg a else printList pg a
 
             | isInfixable e1
             , isCleaned =
@@ -212,27 +212,42 @@ offset :: Int -> String
 offset i = duplicate "   " i
 
 printList :: PrettyGuide -> Expr -> String
-printList pg a = "[" ++ intercalate ", " (printList' pg a) ++ "]"
+printList pg a =
+    let (strs, b) = printList' pg a
+    in case b of
+        False -> "(" ++ intercalate ":" strs ++ ")"
+        _ -> "[" ++ intercalate ", " strs ++ "]"
 
-printList' :: PrettyGuide -> Expr -> [String]
-printList' pg (App (App _ e) e') = mkExprHaskell Cleaned pg e:printList' pg e'
-printList' _ _ = []
+printList' :: PrettyGuide -> Expr -> ([String], Bool)
+printList' pg (App (App e1 e) e') | Data (DataCon n1 _) <- e1
+                                  , nameOcc n1 == ":" =
+    let (strs, b) = printList' pg e'
+    in (mkExprHaskell Cleaned pg e:strs, b)
+printList' pg e | Data (DataCon n _) <- appCenter e
+                , nameOcc n == "[]" = ([], True)
+                | otherwise = ([mkExprHaskell Cleaned pg e], False)
 
-printString :: Expr -> String
-printString a =
+printString :: PrettyGuide -> Expr -> String
+printString pg a =
     let
-        str = printString' a
-    in
-    if all isPrint str then "\"" ++ str ++ "\""
-        else "[" ++ intercalate ", " (map stringToEnum str) ++ "]"
+        maybe_str = printString' a
+    in case maybe_str of
+        Just str -> if all isPrint str then "\"" ++ str ++ "\""
+                    else "[" ++ intercalate ", " (map stringToEnum str) ++ "]"
+        Nothing -> printList pg a
     where
         stringToEnum c
             | isPrint c = '\'':c:'\'':[]
             | otherwise = "toEnum " ++ show (ord c)
 
-printString' :: Expr -> String
-printString' (App (App _ (Lit (LitChar c))) e') = c:printString' e'
-printString' _ = []
+printString' :: Expr -> Maybe String
+printString' (App (App _ (Lit (LitChar c))) e') =
+    case printString' e' of
+        Nothing -> Nothing
+        Just str -> Just (c:str)
+printString' e | Data (DataCon n _) <- appCenter e
+               , nameOcc n == "[]" = Just []
+               | otherwise = Nothing
 
 isTuple :: Name -> Bool
 isTuple (Name n _ _ _) = T.head n == '(' && T.last n == ')'

@@ -944,6 +944,10 @@ cycle x = x:(cycle x)
 "unitEq" forall x . nop x = ()
 "cycleEq" forall x y . (cycle x) ++ [y] = cycle x
 "unitCycle" forall y . (cycle ()) ++ [y] = cycle ()
+"addTwo" forall n . S (S Z) + n = S (S (S Z))
+"addThree" forall n . S (S (S Z)) + n = S (S (S Z))
+"addThreeR" forall n . n + S (S (S Z)) = S (S (S Z))
+"addThreeBoth" forall n . n + S (S (S Z)) = S Z + S (S Z)
   #-}
 
 -- TODO forcing functions, make sure these work

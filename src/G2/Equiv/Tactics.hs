@@ -23,6 +23,7 @@ module G2.Equiv.Tactics
     , applySolver
     , backtrackOne
     , prevFiltered
+    , syncSymbolic
 
     , emptyLemmas
     , insertProposedLemma
@@ -418,7 +419,7 @@ totalExpr :: StateET ->
              [Name] -> -- variables inlined previously
              Expr ->
              Bool
-totalExpr s@(State { expr_env = h, track = EquivTracker _ _ total _ _ }) ns n e =
+totalExpr s@(State { expr_env = h, track = EquivTracker _ _ total _ _ _ }) ns n e =
   case e of
     Tick _ e' -> totalExpr s ns n e'
     Var i | m <- idName i
