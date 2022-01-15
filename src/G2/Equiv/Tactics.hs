@@ -932,10 +932,14 @@ mkProposedLemma lm_name or_s1 or_s2 s1 s2 =
 checkCycle :: S.Solver s => Tactic s
 checkCycle solver ns _ _ (sh1, sh2) (s1, s2) = do
   let (s1', s2') = syncSymbolic s1 s2
-  mr1 <- mapM (moreRestrictiveSingle solver ns s1') (history sh1)
-  mr2 <- mapM (moreRestrictiveSingle solver ns s2') (history sh2)
-  let term1 = filter isSWHNF (s1':history sh1)
-      term2 = filter isSWHNF (s2':history sh2)
+      -- TODO does it matter which one comes first for syncing here?
+      hist1 = map (snd . syncSymbolic s2') (history sh1)
+      hist2 = map (snd . syncSymbolic s1') (history sh2)
+  mr1 <- mapM (moreRestrictiveSingle solver ns s1') hist1
+  mr2 <- mapM (moreRestrictiveSingle solver ns s2') hist2
+  let term1 = filter isSWHNF (s1':hist1)
+      term2 = filter isSWHNF (s2':hist2)
+      -- TODO just use regular history for markers
       mr1_pairs = zip mr1 $ history sh1
       mr1_pairs' = filter (isRight . fst) mr1_pairs
       mr2_pairs = zip mr2 $ history sh2
