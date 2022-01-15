@@ -268,6 +268,14 @@ summarizeEquality pg ns sym_ids (EqualMarker {
   --(summarizeStatePairTrack "Real Present" pg ns sym_ids s1 s2) ++ "\n" ++
   (summarizeStatePairTrack "Used States" pg ns sym_ids q1 q2)
 
+summarizeCycleFound :: PrettyGuide ->
+                       HS.HashSet Name ->
+                       [Id] ->
+                       CycleMarker ->
+                       String
+summarizeCycleFound pg ns sym_ids (CycleMarker s_pair _ _ _ _) =
+  summarizeStatePair "CYCLE FOUND" pg ns sym_ids s_pair
+
 summarizeNoObligations :: PrettyGuide ->
                           HS.HashSet Name ->
                           [Id] ->
@@ -317,6 +325,7 @@ summarizeAct pg ns sym_ids m = case m of
   NoObligations s_pair -> summarizeNoObligations pg ns sym_ids s_pair
   NotEquivalent s_pair -> summarizeNotEquivalent pg ns sym_ids s_pair
   SolverFail s_pair -> summarizeSolverFail pg ns sym_ids s_pair
+  CycleFound cm -> summarizeCycleFound pg ns sym_ids cm
   Unresolved s_pair -> summarizeUnresolved pg ns sym_ids s_pair
 
 summarizeHistory :: PrettyGuide -> HS.HashSet Name -> [Id] -> StateH -> String

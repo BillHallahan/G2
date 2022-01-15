@@ -936,15 +936,16 @@ checkCycle solver ns _ _ (sh1, sh2) (s1, s2) = do
   mr2 <- mapM (moreRestrictiveSingle solver ns s2') (history sh2)
   let term1 = filter isSWHNF (s1':history sh1)
       term2 = filter isSWHNF (s2':history sh2)
-  {-
-  case (term1, rights mr2) of
-    (q1:_, hm:_) ->
-    _ -> case (term2, rights mr1) of
-  -}
-  if not (null term1) && not (null $ rights mr2) then do
-    --W.tell $ [Marker (sh1, sh2) $ CycleFound (s1, s2) _ _ IRight]
-    return Failure
-  else if not (null term2) && not (null $ rights mr1) then do
-    --W.tell $ [Marker (sh1, sh2) $ CycleFound (s1, s2) _ _ ILeft]
-    return Failure
-  else return $ NoProof HS.empty
+      mr1_pairs = zip mr1 $ history sh1
+      mr1_pairs' = filter (isRight . fst) mr1_pairs
+      mr2_pairs = zip mr2 $ history sh2
+      mr2_pairs' = filter (isRight . fst) mr2_pairs
+  case (term1, mr2_pairs') of
+    (q1:_, (Right hm, p2):_) -> do
+      W.tell [Marker (sh1, sh2) $ CycleFound $ CycleMarker (s1, s2) p2 q1 hm IRight]
+      return Failure
+    _ -> case (term2, mr1_pairs') of
+      (q2:_, (Right hm, p1):_) -> do
+        W.tell [Marker (sh1, sh2) $ CycleFound $ CycleMarker (s1, s2) p1 q2 hm ILeft]
+        return Failure
+      _ -> return $ NoProof HS.empty

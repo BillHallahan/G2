@@ -175,19 +175,20 @@ data CycleMarker = CycleMarker {
     cycle_real_present :: (StateET, StateET)
   , cycle_past :: StateET
   , cycle_term :: StateET
+  , cycle_mapping :: HM.HashMap Id Expr
   , cycle_side :: Side
 }
 
 instance Named CycleMarker where
-  names (CycleMarker (s1, s2) p q _) =
+  names (CycleMarker (s1, s2) p q _ _) =
     names s1 DS.>< names s2 DS.>< names p DS.>< names q
-  rename old new (CycleMarker (s1, s2) p q sd) =
+  rename old new (CycleMarker (s1, s2) p q hm sd) =
     let r = rename old new
         s1' = r s1
         s2' = r s2
         p' = r p
         q' = r q
-    in CycleMarker (s1', s2') p' q' sd
+    in CycleMarker (s1', s2') p' q' hm sd
 
 data Lemma = Lemma { lemma_name :: String
                    , lemma_lhs :: StateET
