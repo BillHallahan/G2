@@ -587,12 +587,22 @@ def test_suite_simple(suite, timeout = 25):
 
 def test_suite(suite, timeout = 25):
     unsat_num = 0;
+    depth_dict = {}
     for (thm, settings) in suite:
         print(thm, settings);
         (l, r, check_unsat, elapsed) = run_zeno("Zeno.hs", thm, settings, timeout);
         if check_unsat == "UNSAT ()":
             print("\tVerified - " + str(elapsed) + "s");
             unsat_num += 1
+        elif check_unsat[:7] == "Unknown":
+            # get the depth number from the string
+            # it has quotation marks on either side
+            depth_str = check_unsat[9:]
+            end_idx = depth_str.index("\"")
+            depth = int(depth_str[:end_idx])
+            depth_dict[thm] = depth
+            print("\tIncomplete - " + str(elapsed) + "s")
+            print("\tAll concretizations checked up to depth " + str(depth))
         elif check_unsat == "Timeout":
             print("\tTimeout - " + str(elapsed) + "s")
         else:
@@ -602,12 +612,22 @@ def test_suite(suite, timeout = 25):
 # TODO make this system more modular?
 def test_suite_ground(suite, timeout = 25):
     unsat_num = 0;
+    depth_dict = {}
     for (thm, settings) in suite:
         print(thm, settings);
         (l, r, check_unsat, elapsed) = run_zeno("TestZeno.hs", thm, settings, timeout);
         if check_unsat == "UNSAT ()":
             print("\tVerified - " + str(elapsed) + "s");
             unsat_num += 1
+        elif check_unsat[:7] == "Unknown":
+            # get the depth number from the string
+            # it has quotation marks on either side
+            depth_str = check_unsat[9:]
+            end_idx = depth_str.index("\"")
+            depth = int(depth_str[:end_idx])
+            depth_dict[thm] = depth
+            print("\tIncomplete - " + str(elapsed) + "s")
+            print("\tAll concretizations checked up to depth " + str(depth))
         elif check_unsat == "Timeout":
             print("\tTimeout - " + str(elapsed) + "s")
         else:
