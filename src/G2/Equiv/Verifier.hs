@@ -310,6 +310,32 @@ allTactics = [
 allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
 allNewLemmaTactics = map applyTacticToLabeledStates [tryEquality, tryCoinduction]
 
+-- TODO calculate depths of the original arguments
+-- need access to the original list of ids for them
+-- get concretizations from expr env
+-- TODO can ignore Let since that will never appear in a concretization?
+-- TODO don't need to care about ns or cycles if only applied to initial args?
+-- There could be types, though
+-- TODO should Data count differently?
+exprDepth :: ExprEnv -> HS.HashSet Name -> [Name] -> Expr -> Int
+exprDepth h ns n e = case e of
+  Tick _ e' -> exprDepth h ns n e'
+  Var i | E.isSymbolic (idName i) h -> 0
+        | m <- idName i
+        , not $ m `elem` ns
+        , Just e' <- E.lookup m h -> exprDepth h ns (m:n) e'
+        | not $ (idName i) `elem` ns -> error "unmapped variable"
+  Data _ -> 0
+  _ | (Data (DataCon _ _)):l <- unAppNoTicks e ->
+      1 + (minimum $ map (exprDepth h ns n) l)
+    | otherwise -> 0
+
+getDepth :: StateET -> HS.HashSet Name -> Id -> Int
+getDepth s ns i = exprDepth (expr_env s) ns [] (Var i)
+
+minArgDepth :: HS.HashSet Name -> [Id] -> StateET -> Int
+minArgDepth ns sym_ids s = minimum $ map (getDepth s ns) sym_ids
+
 -- negative loop iteration count means there's no limit
 verifyLoop :: S.Solver solver =>
               solver ->
@@ -318,11 +344,12 @@ verifyLoop :: S.Solver solver =>
               [(StateH, StateH)] ->
               Bindings ->
               Config ->
+              [Id] ->
               String ->
               Int ->
               Int ->
               W.WriterT [Marker] IO (S.Result () ())
-verifyLoop solver ns lemmas states b config folder_root k n | n /= 0 = do
+verifyLoop solver ns lemmas states b config sym_ids folder_root k n | n /= 0 = do
   W.liftIO $ putStrLn "<Loop Iteration>"
   W.liftIO $ putStrLn $ show n
   (b', k', proven_lemmas, lemmas') <- verifyLoopPropLemmas solver allTactics ns lemmas b config folder_root k
@@ -355,7 +382,7 @@ verifyLoop solver ns lemmas states b config folder_root k n | n /= 0 = do
                   --               W.liftIO $ putStrLn "----"
                   --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
                   --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) $ HS.toList new_lemmas
-                  verifyLoop solver ns final_lemmas new_obligations b'''' config folder_root k'''' n'
+                  verifyLoop solver ns final_lemmas new_obligations b'''' config sym_ids folder_root k'''' n'
               CounterexampleFound -> return $ S.SAT ()
               Proven -> do
                   W.liftIO $ putStrLn $ "proposed = " ++ show (length $ proposedLemmas lemmas)
@@ -392,7 +419,14 @@ verifyLoop solver ns lemmas states b config folder_root k n | n /= 0 = do
     W.liftIO $ putStrLn $ "Unresolved Obligations: " ++ show (length states)
     let ob (sh1, sh2) = Marker (sh1, sh2) $ Unresolved (latest sh1, latest sh2)
     W.tell $ map ob states
-    return $ S.Unknown "Loop Iterations Exhausted"
+    let lefts = map (\(sh1, _) -> latest sh1) states
+        rights = map (\(_, sh2) -> latest sh2) states
+        (lefts', rights') = unzip $ map (uncurry syncSymbolic) (zip lefts rights)
+        depths = map (minArgDepth ns sym_ids) $ lefts' ++ rights'
+    -- TODO calculate depths of all remaining states
+    W.liftIO $ putStrLn $ show sym_ids
+    W.liftIO $ putStrLn $ show depths
+    return $ S.Unknown $ show $ minimum depths
 
 data StepRes = CounterexampleFound
              | ContinueWith [(StateH, StateH)] [Lemma]
@@ -829,8 +863,9 @@ checkRule :: Config ->
 checkRule config init_state bindings total finite print_summary iterations rule = do
   let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
       (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
-      total_names = filter (includedName total) (map idName $ ru_bndrs rule)
-      finite_names = filter (includedName finite) (map idName $ ru_bndrs rule)
+      sym_ids = ru_bndrs rule
+      total_names = filter (includedName total) (map idName sym_ids)
+      finite_names = filter (includedName finite) (map idName sym_ids)
       finite_hs = foldr HS.insert HS.empty finite_names
       -- always include the finite names in total
       total_hs = foldr HS.insert finite_hs total_names
@@ -844,7 +879,7 @@ checkRule config init_state bindings total finite print_summary iterations rule 
       -- TODO wrap both sides with forcings for finite vars
       -- get the finite vars first
       -- TODO a little redundant with the earlier stuff
-      finite_ids = filter ((includedName finite) . idName) (ru_bndrs rule)
+      finite_ids = filter ((includedName finite) . idName) sym_ids
       walkers = deepseq_walkers bindings''
       e_l = exprExtract rewrite_state_l
       e_l' = foldr (forceFinite walkers) e_l finite_ids
@@ -864,12 +899,12 @@ checkRule config init_state bindings total finite print_summary iterations rule 
   (res, w) <- W.runWriterT $ verifyLoop solver ns
              emptyLemmas
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config "" 0 iterations
+             bindings'' config sym_ids "" 0 iterations
   -- UNSAT for good, SAT for bad
   if print_summary /= NoSummary then do
     putStrLn "--- SUMMARY ---"
     let pg = mkPrettyGuide $ map (\(Marker _ m) -> m) w
-    mapM (putStrLn . (summarize print_summary pg ns (ru_bndrs rule))) w
+    mapM (putStrLn . (summarize print_summary pg ns sym_ids)) w
     putStrLn "--- END OF SUMMARY ---"
   else return ()
   case res of
@@ -878,7 +913,7 @@ checkRule config init_state bindings total finite print_summary iterations rule 
       putStrLn "--------------------"
       putStrLn "COUNTEREXAMPLE FOUND"
       putStrLn "--------------------"
-      putStrLn $ printCX w pg ns (ru_bndrs rule) (rewrite_state_l, rewrite_state_r)
+      putStrLn $ printCX w pg ns sym_ids (rewrite_state_l, rewrite_state_r)
     _ -> return ()
   S.close solver
   return res
