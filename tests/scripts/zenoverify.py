@@ -604,8 +604,8 @@ def main():
     #test_suite(finite_long, 120)
     #test_suite_fail(equivalences_should_fail)
     #test_suite(more_finite)
-    #test_suite(old_successes, 150)
-    test_suite_ground(ground_truth)
+    test_suite(old_successes, 150)
+    # test_suite_ground(ground_truth)
 
 if __name__ == "__main__":
     main()

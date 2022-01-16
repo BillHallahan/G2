@@ -92,38 +92,41 @@ runSymExec :: S.Solver solver =>
               CM.StateT (Bindings, Int) IO [(StateET, StateET)]
 runSymExec solver config folder_root ns s1 s2 = do
   CM.liftIO $ putStrLn "runSymExec"
-  ct1 <- CM.liftIO $ getCurrentTime
+  final_s1 <- runSymExec' solver config "a" folder_root ns s1 s2
   (bindings, k) <- CM.get
-  let config' = config { logStates = logStatesFolder ("a" ++ show k) folder_root }
-      t1 = (track s1) { folder_name = logStatesET ("a" ++ show k) folder_root }
-      -- TODO always Evaluate here?
-      CurrExpr r1 e1 = curr_expr s1
-      e1' = addStackTickIfNeeded ns (expr_env s1) e1
-      s1' = s1 { track = t1, curr_expr = CurrExpr r1 e1' }
-  CM.liftIO $ putStrLn $ (show $ folder_name $ track s1) ++ " becomes " ++ (show $ folder_name t1)
-  (er1, bindings') <- CM.lift $ runG2ForRewriteV solver s1' (expr_env s2) (track s2) config' bindings
-  CM.put (bindings', k + 1)
-  let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
                     (b_, k_) <- CM.get
-                    let s2_ = transferTrackerInfo s1_ s2
-                    ct2 <- CM.liftIO $ getCurrentTime
-                    let config'' = config { logStates = logStatesFolder ("b" ++ show k_) folder_root }
-                        t2 = (track s2_) { folder_name = logStatesET ("b" ++ show k_) folder_root }
-                        CurrExpr r2 e2 = curr_expr s2_
-                        e2' = addStackTickIfNeeded ns (expr_env s2) e2
-                        s2' = s2_ { track = t2, curr_expr = CurrExpr r2 e2' }
-                    CM.liftIO $ putStrLn $ (show $ folder_name $ track s2_) ++ " becomes " ++ (show $ folder_name t2)
-                    (er2, b_') <- CM.lift $ runG2ForRewriteV solver s2' (expr_env s1_) (track s1_) config'' b_
-                    CM.put (b_', k_ + 1)
-                    return $ map (\er2_ -> 
+                    let transferred_s2 = transferTrackerInfo s1_ s2
+                    exec_s2 <- runSymExec' solver config "b" folder_root ns transferred_s2 s1_
+                    return $ map (\s2_ -> 
                                     let
-                                        s2_' = final_state er2_
-                                        s1_' = transferTrackerInfo s2_' s1_
+                                        s1_' = transferTrackerInfo s2_ s1_
                                     in
-                                    (addStamps k $ prepareState s1_', addStamps k_ $ prepareState s2_')
-                                 ) er2) final_s1
+                                    (addStamps k $ prepareState s1_', addStamps k_ $ prepareState s2_)
+                                 ) exec_s2) final_s1
   CM.liftIO $ filterM (pathCondsConsistent solver) (concat pairs)
+
+runSymExec' :: S.Solver solver =>
+               solver ->
+               Config ->
+               String ->
+               String ->
+               HS.HashSet Name ->
+               StateET ->
+               StateET ->
+               CM.StateT (Bindings, Int) IO [StateET]
+runSymExec' solver config file_name folder_root ns s_run s_other = do
+  (bindings, k) <- CM.get
+  let config' = config { logStates = logStatesFolder (file_name ++ show k) folder_root }
+      t1 = (track s_run) { folder_name = logStatesET (file_name ++ show k) folder_root }
+      -- TODO always Evaluate here?
+      CurrExpr r1 e1 = curr_expr s_run
+      e1' = addStackTickIfNeeded ns (expr_env s_run) e1
+      s_run' = s_run { track = t1, curr_expr = CurrExpr r1 e1' }
+  CM.liftIO $ putStrLn $ (show $ folder_name $ track s_run) ++ " becomes " ++ (show $ folder_name t1)
+  (er1, bindings') <- CM.lift $ runG2ForRewriteV solver s_run' (expr_env s_other) (track s_other) config' bindings
+  CM.put (bindings', k + 1)
+  return $ map final_state er1
 
 pathCondsConsistent :: S.Solver solver =>
                        solver ->
