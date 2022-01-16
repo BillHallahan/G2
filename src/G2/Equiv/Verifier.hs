@@ -303,8 +303,8 @@ allTactics = [
   , tryCoinduction
   , generalizeFull
   , inductionFull
-  , checkCycle
   , trySolver
+  , checkCycle
   ]
 
 allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
@@ -804,6 +804,19 @@ fetchCX ((Marker _ m):ms) = case m of
   CycleFound cm -> cycle_real_present cm
   _ -> fetchCX ms
 
+printCX :: [Marker] ->
+           PrettyGuide ->
+           HS.HashSet Name ->
+           [Id] ->
+           (State t, State t) ->
+           String
+printCX [] _ _ _ _ = error "No Counterexample"
+printCX ((Marker _ m):ms) pg ns sym_ids init_pair = case m of
+  NotEquivalent s_pair -> showCX pg ns sym_ids init_pair s_pair
+  SolverFail s_pair -> showCX pg ns sym_ids init_pair s_pair
+  CycleFound cm -> showCycle pg ns sym_ids init_pair cm
+  _ -> printCX ms pg ns sym_ids init_pair
+
 checkRule :: Config ->
              State t ->
              Bindings ->
@@ -861,12 +874,11 @@ checkRule config init_state bindings total finite print_summary iterations rule 
   else return ()
   case res of
     S.SAT () -> do
-      let cx_pair = fetchCX w
-          pg = mkPrettyGuide $ map (\(Marker _ m) -> m) w
+      let pg = mkPrettyGuide $ map (\(Marker _ m) -> m) w
       putStrLn "--------------------"
       putStrLn "COUNTEREXAMPLE FOUND"
       putStrLn "--------------------"
-      putStrLn $ showCX pg ns (ru_bndrs rule) (rewrite_state_l, rewrite_state_r) cx_pair
+      putStrLn $ printCX w pg ns (ru_bndrs rule) (rewrite_state_l, rewrite_state_r)
     _ -> return ()
   S.close solver
   return res

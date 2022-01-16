@@ -483,8 +483,7 @@ syncSymbolic s1 s2 =
       f e1 _ = e1
       h1 = E.unionWith f (expr_env s1) (expr_env s2)
       h2 = E.unionWith f (expr_env s2) (expr_env s1)
-  in
-  assert (map idName (E.symbolicIds h1) == map idName (E.symbolicIds h2)) $ (s1 { expr_env = h1 }, s2 { expr_env = h2 })
+  in (s1 { expr_env = h1 }, s2 { expr_env = h2 })
 
 obligationWrap :: HS.HashSet (Expr, Expr) -> Maybe PathCond
 obligationWrap obligations =
@@ -933,8 +932,8 @@ mkProposedLemma lm_name or_s1 or_s2 s1 s2 =
 checkCycle :: S.Solver s => Tactic s
 checkCycle solver ns _ _ (sh1, sh2) (s1, s2) = do
   let (s1', s2') = syncSymbolic s1 s2
-      hist1 = history sh1
-      hist2 = history sh2
+      hist1 = filter (\p -> dc_path (track p) == dc_path (track s1')) $ history sh1
+      hist2 = filter (\p -> dc_path (track p) == dc_path (track s2')) $ history sh2
   mr1 <- mapM (moreRestrictiveSingle solver ns s1') hist1
   mr2 <- mapM (moreRestrictiveSingle solver ns s2') hist2
   let mr1_pairs = zip mr1 hist1

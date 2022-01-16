@@ -6,6 +6,7 @@ module G2.Equiv.Summary
   , summarizeAct
   , printPG
   , showCX
+  , showCycle
   )
   where
 
@@ -22,6 +23,7 @@ import qualified G2.Language.Expr as X
 
 import Data.List
 import Data.Maybe
+import Data.Tuple
 import qualified Data.Text as DT
 
 import qualified Data.HashSet as HS
@@ -280,8 +282,11 @@ summarizeCycleFound :: PrettyGuide ->
                        [Id] ->
                        CycleMarker ->
                        String
-summarizeCycleFound pg ns sym_ids (CycleMarker s_pair _ _ _) =
-  summarizeStatePair "CYCLE FOUND" pg ns sym_ids s_pair
+summarizeCycleFound pg ns sym_ids (CycleMarker (s1, s2) p _ sd) =
+  "CYCLE FOUND:\n" ++
+  (summarizeStatePairTrack "Real Present" pg ns sym_ids s1 s2) ++
+  "\nPast State:\n" ++ (printPG pg ns sym_ids p) ++
+  "\nSide: " ++ (sideName sd)
 
 summarizeNoObligations :: PrettyGuide ->
                           HS.HashSet Name ->
@@ -397,3 +402,37 @@ showCX pg ns sym_ids (s1, s2) (q1, q2) =
       sym_str = printVars pg ns q2' sym_vars
       sym_print = "Arguments:\n" ++ sym_str
   in cx_str ++ "\n" ++ sym_print
+
+-- TODO remove redundancy
+-- TODO show cyclic mappings as well
+showCycle :: PrettyGuide ->
+             HS.HashSet Name ->
+             [Id] ->
+             (State t, State t) ->
+             CycleMarker ->
+             String
+showCycle pg ns sym_ids (s1, s2) cm =
+  let (q1, q2) = cycle_real_present cm
+      (q1', q2') = syncSymbolic q1 q2
+      e1 = inlineVars ns (expr_env q1') $ exprExtract s1
+      e1_str = printHaskellPG pg q1' e1
+      end1 = inlineVars ns (expr_env q1') $ exprExtract q1'
+      end1_str = case cycle_side cm of
+        ILeft -> "{HAS NON-TERMINATING PATH}"
+        IRight -> printDC pg (dc_path $ track q1') $ printHaskellPG pg q1' end1
+      e2 = inlineVars ns (expr_env q2') $ exprExtract s2
+      e2_str = printHaskellPG pg q2' e2
+      end2 = inlineVars ns (expr_env q2') $ exprExtract q2'
+      end2_str = case cycle_side cm of
+        ILeft -> printDC pg (dc_path $ track q2') $ printHaskellPG pg q2' end2
+        IRight -> "{HAS NON-TERMINATING PATH}"
+      cx_str = e1_str ++ " = " ++ end1_str ++ " but " ++
+               e2_str ++ " = " ++ end2_str
+      func_ids = map snd $ HM.toList $ higher_order $ track q2'
+      sym_vars = varsFullList (expr_env q2') ns $ sym_ids ++ func_ids
+      sym_str = printVars pg ns q2' sym_vars
+      sym_print = "Arguments:\n" ++ sym_str
+      mappings = map swap $ HM.toList $ cycle_mapping cm
+      mapping_str = intercalate "\n" $ map (printMapping pg) mappings
+      mapping_print = "Mapping for Cycle:\n" ++ mapping_str
+  in cx_str ++ "\n" ++ sym_print ++ "\n" ++ mapping_print
