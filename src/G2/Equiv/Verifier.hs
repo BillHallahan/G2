@@ -302,7 +302,7 @@ allTactics = [
     tryEquality
   , tryCoinduction
   , generalizeFull
-  , inductionFull
+  --, inductionFull
   , trySolver
   , checkCycle
   ]

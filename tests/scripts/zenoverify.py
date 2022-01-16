@@ -506,6 +506,71 @@ ground_truth_all_total = [
     ("p85finC", [xs, ys])
 ]
 
+# TODO new function for making totality variations
+def totality_change(suite):
+    alt_suite = []
+    for (thm, settings) in suite:
+        for i in range(len(settings)):
+            alt_rule = (thm, settings[:i] + settings[(i+1):])
+            alt_suite.append(alt_rule)
+    return alt_suite
+
+'''
+Results for totality-altered ground truth, 1/16/22:
+p01 SAT
+p03fin Timeout
+p03finB SAT SAT
+p05finE Timeout
+p05finF Timeout
+p15finA timeout
+p15finB t
+p16finA t
+p19 SAT
+p24fin fail
+p25fin t
+p26finA t
+p26finB t
+p27finA t t
+p28finA t
+p29finA t
+p30finA t
+p32 S S
+p34 S
+p37finB t
+p37finC t
+p43 S S
+p49 S S
+p51 S
+p54fin S
+p56 S S
+p57finB SAT for xs, timeout for n
+p58 S S S
+p59finA t
+p63finA t
+p65finA S
+p66fin S S
+p68finA t
+p68finB t
+p69finA S
+p70finC S
+p70finD S
+p71finA t
+p71finB t
+p72 S
+p73 S S
+p74 S S
+p75fin timeout for xs, SAT for m
+p76finB t t
+p76finC t
+p77finA t
+p79 S
+p81 S S S
+p83 S
+p84 S
+p85finB S S
+p85finC S S
+'''
+
 def test_suite_simple(suite, timeout = 25):
     unsat_num = 0;
     for thm in suite:
@@ -605,7 +670,8 @@ def main():
     #test_suite_fail(equivalences_should_fail)
     #test_suite(more_finite)
     #test_suite(old_successes, 150)
-    test_suite_ground(ground_truth)
+    #test_suite_ground(ground_truth)
+    test_suite_ground(totality_change(ground_truth))
 
 if __name__ == "__main__":
     main()
