@@ -36,6 +36,7 @@ module G2.Equiv.Tactics
     , insertDisprovenLemma
 
     , mkProposedLemma
+    , checkCycle
     )
     where
 
@@ -50,6 +51,7 @@ import G2.Language.Monad.AST
 import qualified G2.Language.Typing as T
 
 import GHC.Generics (Generic)
+import Data.List
 import Data.Maybe
 import Data.Tuple
 import Data.Hashable
@@ -76,9 +78,10 @@ import qualified Control.Monad.Writer.Lazy as W
 
 import Control.Exception
 
+-- the Bool value for Failure is True if a cycle has been found
 data TacticResult = Success (Maybe (Int, Int, StateET, StateET))
                   | NoProof (HS.HashSet Lemma)
-                  | Failure
+                  | Failure Bool
 
 -- this takes a list of fresh names as input
 -- equality and coinduction don't need them
@@ -480,8 +483,7 @@ syncSymbolic s1 s2 =
       f e1 _ = e1
       h1 = E.unionWith f (expr_env s1) (expr_env s2)
       h2 = E.unionWith f (expr_env s2) (expr_env s1)
-  in
-  assert (map idName (E.symbolicIds h1) == map idName (E.symbolicIds h2)) $ (s1 { expr_env = h1 }, s2 { expr_env = h2 })
+  in (s1 { expr_env = h1 }, s2 { expr_env = h2 })
 
 obligationWrap :: HS.HashSet (Expr, Expr) -> Maybe PathCond
 obligationWrap obligations =
@@ -923,3 +925,27 @@ mkProposedLemma lm_name or_s1 or_s2 s1 s2 =
                 , lemma_lhs_origin = folder_name . track $ or_s1
                 , lemma_rhs_origin = folder_name . track $ or_s2
                 , lemma_to_be_proven  =[(newStateH s1, newStateH s2)] }
+
+-- cycle detection
+-- TODO do I need to be careful about thrown-out Data constructors?
+-- that doesn't matter for checking latest states
+checkCycle :: S.Solver s => Tactic s
+checkCycle solver ns _ _ (sh1, sh2) (s1, s2) = do
+  let (s1', s2') = syncSymbolic s1 s2
+      hist1 = filter (\p -> dc_path (track p) == dc_path (track s1')) $ history sh1
+      hist2 = filter (\p -> dc_path (track p) == dc_path (track s2')) $ history sh2
+  mr1 <- mapM (moreRestrictiveSingle solver ns s1') hist1
+  mr2 <- mapM (moreRestrictiveSingle solver ns s2') hist2
+  let mr1_pairs = zip mr1 hist1
+      mr1_pair = find (isRight . fst) mr1_pairs
+      mr2_pairs = zip mr2 hist2
+      mr2_pair = find (isRight . fst) mr2_pairs
+  case (isSWHNF s1', mr2_pair) of
+    (True, Just (Right hm, p2)) -> do
+      W.tell [Marker (sh1, sh2) $ CycleFound $ CycleMarker (s1, s2) p2 hm IRight]
+      return $ Failure True
+    _ -> case (isSWHNF s2', mr1_pair) of
+      (True, Just (Right hm, p1)) -> do
+        W.tell [Marker (sh1, sh2) $ CycleFound $ CycleMarker (s1, s2) p1 hm ILeft]
+        return $ Failure True
+      _ -> return $ NoProof HS.empty

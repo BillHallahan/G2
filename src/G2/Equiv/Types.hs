@@ -56,6 +56,7 @@ data ActMarker = Induction IndMarker
                | NoObligations (StateET, StateET)
                | NotEquivalent (StateET, StateET)
                | SolverFail (StateET, StateET)
+               | CycleFound CycleMarker
                | Unresolved (StateET, StateET)
 
 instance Named ActMarker where
@@ -65,6 +66,7 @@ instance Named ActMarker where
   names (NoObligations s_pair) = names s_pair
   names (NotEquivalent s_pair) = names s_pair
   names (SolverFail s_pair) = names s_pair
+  names (CycleFound cm) = names cm
   names (Unresolved s_pair) = names s_pair
   rename old new m = case m of
     Induction im -> Induction $ rename old new im
@@ -73,6 +75,7 @@ instance Named ActMarker where
     NoObligations s_pair -> NoObligations $ rename old new s_pair
     NotEquivalent s_pair -> NotEquivalent $ rename old new s_pair
     SolverFail s_pair -> SolverFail $ rename old new s_pair
+    CycleFound cm -> CycleFound $ rename old new cm
     Unresolved s_pair -> Unresolved $ rename old new s_pair
 
 data Marker = Marker (StateH, StateH) ActMarker
@@ -166,6 +169,25 @@ instance Named EqualMarker where
         q1' = r q1
         q2' = r q2
     in EqualMarker (s1', s2') (q1', q2')
+
+-- the indicated side is the one with the cycle
+-- cycle_past is the past state that matches the present
+data CycleMarker = CycleMarker {
+    cycle_real_present :: (StateET, StateET)
+  , cycle_past :: StateET
+  , cycle_mapping :: HM.HashMap Id Expr
+  , cycle_side :: Side
+}
+
+instance Named CycleMarker where
+  names (CycleMarker (s1, s2) p _ _) =
+    names s1 DS.>< names s2 DS.>< names p
+  rename old new (CycleMarker (s1, s2) p hm sd) =
+    let r = rename old new
+        s1' = r s1
+        s2' = r s2
+        p' = r p
+    in CycleMarker (s1', s2') p' hm sd
 
 data Lemma = Lemma { lemma_name :: String
                    , lemma_lhs :: StateET

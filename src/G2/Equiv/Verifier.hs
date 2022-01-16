@@ -298,7 +298,14 @@ replaceH :: StateH -> StateET -> StateH
 replaceH sh s = sh { latest = s }
 
 allTactics :: S.Solver s => [Tactic s]
-allTactics = [tryEquality, tryCoinduction, generalizeFull, inductionFull, trySolver]
+allTactics = [
+    tryEquality
+  , tryCoinduction
+  , generalizeFull
+  , inductionFull
+  , trySolver
+  , checkCycle
+  ]
 
 allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
 allNewLemmaTactics = map applyTacticToLabeledStates [tryEquality, tryCoinduction]
@@ -610,7 +617,8 @@ adjustStateH (sh1, sh2) (n1, n2) (s1, s2) =
       sh2' = sh2 { history = hist2, latest = s2 }
   in (sh1', sh2')
 
-data TacticEnd = EFail
+-- the Bool value for EFail is True if a cycle has been found
+data TacticEnd = EFail Bool
                | EDischarge
                | EContinue (HS.HashSet Lemma) (StateH, StateH)
 
@@ -624,8 +632,13 @@ getLemmas _ = HS.empty
 
 hasFail :: [TacticEnd] -> Bool
 hasFail [] = False
-hasFail (EFail:_) = True
+hasFail ((EFail _):_) = True
 hasFail (_:es) = hasFail es
+
+hasSolverFail :: [TacticEnd] -> Bool
+hasSolverFail [] = False
+hasSolverFail ((EFail False):_) = True
+hasSolverFail (_:es) = hasSolverFail es
 
 -- TODO put in a different file?
 -- TODO do all of the solver obligations need to be covered together?
@@ -636,7 +649,7 @@ trySolver solver ns _ _ _ (s1, s2) | statePairReadyForSolver (s1, s2) = do
   res <- W.liftIO $ checkObligations solver s1 s2 (HS.fromList [(e1, e2)])
   case res of
     S.UNSAT () -> return $ Success Nothing
-    _ -> return Failure
+    _ -> return $ Failure False
 trySolver _ _ _ _ _ _ = return $ NoProof HS.empty
 
 -- TODO apply all tactics sequentially in a single run
@@ -657,7 +670,7 @@ applyTactics :: S.Solver solver =>
 applyTactics solver (tac:tacs) ns lemmas gen_lemmas fresh_names (sh1, sh2) (s1, s2) = do
   tr <- tac solver ns lemmas fresh_names (sh1, sh2) (s1, s2)
   case tr of
-    Failure -> return EFail
+    Failure b -> return $ EFail b
     NoProof new_lemmas -> applyTactics solver tacs ns lemmas (HS.union new_lemmas gen_lemmas) fresh_names (sh1, sh2) (s1, s2)
     Success res -> case res of
       Nothing -> return EDischarge
@@ -708,7 +721,9 @@ tryDischarge solver tactics ns lemmas fresh_names sh1 sh2 =
           new_lemmas = HS.unions $ map getLemmas res
       if hasFail res then do
         W.liftIO $ putStrLn "X?"
-        W.tell [Marker (sh1, sh2) $ SolverFail (s1, s2)]
+        if hasSolverFail res
+          then W.tell [Marker (sh1, sh2) $ SolverFail (s1, s2)]
+          else return ()
         return Nothing
       else do
         W.liftIO $ putStrLn $ "V? " ++ show (length res')
@@ -786,7 +801,21 @@ fetchCX [] = error "No Counterexample"
 fetchCX ((Marker _ m):ms) = case m of
   NotEquivalent s_pair -> s_pair
   SolverFail s_pair -> s_pair
+  CycleFound cm -> cycle_real_present cm
   _ -> fetchCX ms
+
+printCX :: [Marker] ->
+           PrettyGuide ->
+           HS.HashSet Name ->
+           [Id] ->
+           (State t, State t) ->
+           String
+printCX [] _ _ _ _ = error "No Counterexample"
+printCX ((Marker _ m):ms) pg ns sym_ids init_pair = case m of
+  NotEquivalent s_pair -> showCX pg ns sym_ids init_pair s_pair
+  SolverFail s_pair -> showCX pg ns sym_ids init_pair s_pair
+  CycleFound cm -> showCycle pg ns sym_ids init_pair cm
+  _ -> printCX ms pg ns sym_ids init_pair
 
 checkRule :: Config ->
              State t ->
@@ -845,12 +874,11 @@ checkRule config init_state bindings total finite print_summary iterations rule 
   else return ()
   case res of
     S.SAT () -> do
-      let cx_pair = fetchCX w
-          pg = mkPrettyGuide $ map (\(Marker _ m) -> m) w
+      let pg = mkPrettyGuide $ map (\(Marker _ m) -> m) w
       putStrLn "--------------------"
       putStrLn "COUNTEREXAMPLE FOUND"
       putStrLn "--------------------"
-      putStrLn $ showCX pg ns (ru_bndrs rule) (rewrite_state_l, rewrite_state_r) cx_pair
+      putStrLn $ printCX w pg ns (ru_bndrs rule) (rewrite_state_l, rewrite_state_r)
     _ -> return ()
   S.close solver
   return res
