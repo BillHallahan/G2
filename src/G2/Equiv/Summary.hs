@@ -404,7 +404,6 @@ showCX pg ns sym_ids (s1, s2) (q1, q2) =
   in cx_str ++ "\n" ++ sym_print
 
 -- TODO remove redundancy
--- TODO show cyclic mappings as well
 showCycle :: PrettyGuide ->
              HS.HashSet Name ->
              [Id] ->

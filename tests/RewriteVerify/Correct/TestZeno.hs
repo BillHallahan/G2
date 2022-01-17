@@ -618,9 +618,7 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 
 -- TODO should the order be different for 26B, 27, 28, 37C, 60?
 -- TODO only really need the last nat total for p48; same for 62, 63
--- TODO p59 doesn't line up with spreadsheet
 -- TODO not sure about 71 and 76 now
--- TODO I think p47 is being thrown off by induction, not a mistake
 {-# RULES
 "p03fin" forall n xs ys . walkNatList xs (count n xs <= count n (xs ++ ys)) = walkNatList xs True
 "p03finB" forall n xs ys . count n xs <= count n (xs ++ ys) = walkNat n (walkList xs True)
@@ -681,6 +679,7 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 -- TODO altered rules with some walking removed
 -- TODO some of these are identical to the original theorems
 -- Some variations on the same theorem have the same "non-walked" version
+-- That only applies to 85, actually
 {-# RULES
 "p03fin1" forall n xs ys . count n xs <= count n (xs ++ ys) = walkNatList xs True
 "p03fin2" forall n xs ys . walkNatList xs (count n xs <= count n (xs ++ ys)) = True
@@ -793,7 +792,7 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p77finA2" forall x xs . walkNatList xs (prop_77 x xs) = True
 "p78finB1" forall xs . prop_78 xs = walkNatList xs True
 "p78finB2" forall xs . walkNatList xs (prop_78 xs) = True
-"p85fin1" forall xs ys . prop_85 xs ys = True
+"p85finB1" forall xs ys . prop_85 xs ys = True
   #-}
 
 walkNat :: Nat -> a -> a

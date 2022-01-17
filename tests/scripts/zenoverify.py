@@ -48,7 +48,6 @@ def call_zeno_process(filename, thm, var_settings, time):
     except subprocess.TimeoutExpired as TimeoutEx:
         return (TimeoutEx.stdout.decode('utf-8') + "\nTimeout").encode('utf-8')
 
-# TODO reduce this by one?
 def check_depth(lines):
     depths = []
     for line in lines:
@@ -523,7 +522,71 @@ ground_truth_all_total = [
     ("p85finC", [xs, ys])
 ]
 
-# TODO new function for making totality variations
+# TODO theorems with altered finiteness
+# construct the final list from this using a function
+ground_truth_altered_finite = [
+    ("p03fin", [n], 2),
+    ("p03finB", [n, xs], 2),
+    ("p04fin", [], 1),
+    ("p05finE", [x], 4),
+    ("p05finF", [n], 4),
+    ("p06fin", [], 1),
+    ("p07fin", [], 1),
+    ("p08fin", [], 1),
+    ("p10fin", [], 1),
+    ("p15finA", [x], 2),
+    ("p15finB", [xs], 4),
+    ("p16finA", [xs], 2),
+    ("p18fin", [], 1),
+    ("p20finA", [], 2),
+    ("p21fin", [], 1),
+    ("p24fin", [b], 1),
+    ("p25fin", [a], 1),
+    ("p26finA", [x], 2),
+    ("p26finB", [xs], 3),
+    ("p27finA", [xs, ys], 6),
+    ("p28finA", [xs], 3),
+    ("p29finA", [xs], 3),
+    ("p30finA", [xs], 3),
+    ("p37finB", [x], 2),
+    ("p37finC", [xs], 3),
+    ("p38finB", [], 3),
+    ("p48finB", [], 2),
+    ("p52finA", [], 2),
+    ("p53finA", [], 2),
+    ("p54fin", [m], 1),
+    ("p57finA", [], 2),
+    ("p57finB", [n, xs], 2),
+    ("p59finA", [ys], 2),
+    ("p60finB", [], 4),
+    ("p61fin", [], 1),
+    ("p62finA", [], 2),
+    ("p63finA", [n], 2),
+    ("p64fin", [], 1),
+    ("p65finA", [m], 1),
+    ("p66fin", [p, xs], 1),
+    ("p68finA", [xs], 3),
+    ("p68finB", [n], 2),
+    ("p69finA", [m], 1),
+    ("p70finC", [n], 2),
+    ("p70finD", [m], 2),
+    ("p71finA", [y], 3),
+    ("p71finB", [x], 3),
+    ("p75fin", [m, xs], 1),
+    ("p76finB", [m, xs], 3),
+    ("p76finC", [n], 3),
+    ("p77finA", [x], 2),
+    ("p78finB", [], 2),
+    ("p85finB", [xs, ys], 1) #85C omitted because it would be the same
+]
+
+def make_altered_finite_list(suite):
+    alt_suite = []
+    for (thm, settings, qty) in suite:
+        for i in range(qty):
+            alt_suite.append((thm + str(i + 1), settings))
+    return alt_suite
+
 def totality_change(suite):
     alt_suite = []
     for (thm, settings) in suite:
@@ -532,8 +595,7 @@ def totality_change(suite):
             alt_suite.append(alt_rule)
     return alt_suite
 
-# TODO subtraction of 1 happens in here
-# just change the message instead?
+# subtraction of 1 happens in here
 def print_depth(depth):
     if depth > 0:
         print("\tAll concretizations checked up to depth " + str(depth - 1))

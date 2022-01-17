@@ -310,14 +310,9 @@ allTactics = [
 allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
 allNewLemmaTactics = map applyTacticToLabeledStates [tryEquality, tryCoinduction]
 
--- TODO calculate depths of the original arguments
--- need access to the original list of ids for them
--- get concretizations from expr env
--- TODO can ignore Let since that will never appear in a concretization?
+-- most Expr constructors will never appear in a concretization of an argument
 -- TODO don't need to care about ns or cycles if only applied to initial args?
--- There could be types, though
--- TODO should Data count differently?
--- TODO right now [] counts as 1 but Z counts as 0
+-- type arguments do not contribute to the depth of an expression
 exprDepth :: ExprEnv -> HS.HashSet Name -> [Name] -> Expr -> Int
 exprDepth h ns n e = case e of
   Tick _ e' -> exprDepth h ns n e'
