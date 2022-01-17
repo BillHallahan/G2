@@ -13,6 +13,7 @@ def run_zeno(filename, thm, var_settings, timeout):
     elapsed = end_time - start_time;
 
     lines = res.splitlines()
+    depth = 0
     try:
         # the numbers 4 and 5 are dependent on the initial printing
         # if that printing changes, these need to change too
@@ -25,23 +26,40 @@ def run_zeno(filename, thm, var_settings, timeout):
         right_str = lines[5].decode('utf-8');
         if res == "Timeout":
             check_unsat = "Timeout";
+            depth = check_depth(lines)
         else:
             check_unsat = "";
-    return (left_str, right_str, check_unsat, elapsed);
+    return {
+        "left":left_str,
+        "right":right_str,
+        "result":check_unsat,
+        "time":elapsed,
+        "depth":depth
+    }
+    #return (left_str, right_str, check_unsat, elapsed);
 
 def call_zeno_process(filename, thm, var_settings, time):
     try:
         args = ["dist/build/RewriteV/RewriteV", "tests/RewriteVerify/Correct/" + filename, thm]
-        limit_settings = ["--", "--limit", "15"]
+        #limit_settings = ["--", "--limit", "15"]
+        limit_settings = []
         res = subprocess.run(args + var_settings + limit_settings, capture_output = True, timeout = time);
         return res.stdout;
     except subprocess.TimeoutExpired as TimeoutEx:
         return (TimeoutEx.stdout.decode('utf-8') + "\nTimeout").encode('utf-8')
 
+# TODO reduce this by one?
+def check_depth(lines):
+    depths = []
+    for line in lines:
+        if line[:21] == "<<Current Min Depth>>":
+            depth_str = line[22:]
+            depths.append(int(depth_str))
+    return max(depths)
+
 equivalences = [
     "p01",
     "p02",
-    # "p03",
     "p04",
     "p06",
     "p07",
@@ -104,7 +122,6 @@ equivalences = [
 equivalences_all_total = [
     ("p01", ["n", "xs"]),
     ("p02", ["n", "xs", "ys"]),
-    # ("p03", ["n", "xs", "ys"]),
     ("p04", ["n", "xs"]),
     ("p09", ["i", "j", "k"]),
     ("p11", ["xs"]),
@@ -575,7 +592,9 @@ def test_suite_simple(suite, timeout = 25):
     unsat_num = 0;
     for thm in suite:
         print(thm);
-        (l, r, check_unsat, elapsed) = run_zeno("Zeno.hs", thm, [], timeout);
+        d = run_zeno("Zeno.hs", thm, [], timeout);
+        check_unsat = d["result"]
+        elapsed = d["time"]
         if check_unsat == "UNSAT ()":
             print("\tVerified - " + str(elapsed) + "s");
             unsat_num += 1
@@ -590,7 +609,9 @@ def test_suite(suite, timeout = 25):
     depth_dict = {}
     for (thm, settings) in suite:
         print(thm, settings);
-        (l, r, check_unsat, elapsed) = run_zeno("Zeno.hs", thm, settings, timeout);
+        d = run_zeno("Zeno.hs", thm, settings, timeout);
+        check_unsat = d["result"]
+        elapsed = d["time"]
         if check_unsat == "UNSAT ()":
             print("\tVerified - " + str(elapsed) + "s");
             unsat_num += 1
@@ -604,7 +625,10 @@ def test_suite(suite, timeout = 25):
             print("\tIncomplete - " + str(elapsed) + "s")
             print("\tAll concretizations checked up to depth " + str(depth))
         elif check_unsat == "Timeout":
+            depth = d["depth"]
+            depth_dict[thm] = depth
             print("\tTimeout - " + str(elapsed) + "s")
+            print("\tAll concretizations checked up to depth " + str(depth))
         else:
             print("\tFailed - " + str(elapsed) + "s")
     print(unsat_num, "Confirmed out of", len(suite))
@@ -615,7 +639,9 @@ def test_suite_ground(suite, timeout = 25):
     depth_dict = {}
     for (thm, settings) in suite:
         print(thm, settings);
-        (l, r, check_unsat, elapsed) = run_zeno("TestZeno.hs", thm, settings, timeout);
+        d = run_zeno("TestZeno.hs", thm, settings, timeout);
+        check_unsat = d["result"]
+        elapsed = d["time"]
         if check_unsat == "UNSAT ()":
             print("\tVerified - " + str(elapsed) + "s");
             unsat_num += 1
@@ -629,7 +655,10 @@ def test_suite_ground(suite, timeout = 25):
             print("\tIncomplete - " + str(elapsed) + "s")
             print("\tAll concretizations checked up to depth " + str(depth))
         elif check_unsat == "Timeout":
+            depth = d["depth"]
+            depth_dict[thm] = depth
             print("\tTimeout - " + str(elapsed) + "s")
+            print("\tAll concretizations checked up to depth " + str(depth))
         else:
             print("\tFailed - " + str(elapsed) + "s")
     print(unsat_num, "Confirmed out of", len(suite))
@@ -648,7 +677,11 @@ def test_suite_csv(suite, timeout = 25):
     file.write("Name,LHS,RHS,Total,Outcome,Time\n")
     for (thm, settings) in suite:
         print(thm, settings);
-        (l_str, r_str, check_unsat, elapsed) = run_zeno("Zeno.hs", thm, settings, timeout);
+        d = run_zeno("Zeno.hs", thm, settings, timeout);
+        check_unsat = d["result"]
+        elapsed = d["time"]
+        l_str = d["left"]
+        r_str = d["right"]
         file.write(thm + "," + l_str + "," + r_str + ",")
         file.write(total_string(settings) + ",")
         if check_unsat == "UNSAT ()":
@@ -669,7 +702,9 @@ def test_suite_fail(suite, timeout = 25):
     sat_num = 0;
     for (thm, settings) in suite:
         print(thm, settings);
-        (l, r, check_unsat, elapsed) = run_zeno("Zeno.hs", thm, settings, timeout);
+        d = run_zeno("Zeno.hs", thm, settings, timeout);
+        check_unsat = d["result"]
+        elapsed = d["time"]
         if check_unsat == "UNSAT ()":
             print("\tIncorrectly verified - " + str(elapsed) + "s");
         elif check_unsat == "Timeout":
@@ -690,8 +725,8 @@ def main():
     #test_suite_fail(equivalences_should_fail)
     #test_suite(more_finite)
     #test_suite(old_successes, 150)
-    #test_suite_ground(ground_truth)
-    test_suite_ground(totality_change(ground_truth))
+    test_suite_ground(ground_truth)
+    #test_suite_ground(totality_change(ground_truth))
 
 if __name__ == "__main__":
     main()
