@@ -326,8 +326,8 @@ exprDepth h ns n e = case e of
         , not $ m `elem` ns
         , Just e' <- E.lookup m h -> exprDepth h ns (m:n) e'
         | not $ (idName i) `elem` ns -> error "unmapped variable"
-  Data _ -> 1
-  _ | (Data (DataCon _ _)):l <- unAppNoTicks e ->
+  _ | d@(Data (DataCon _ _)):l <- unAppNoTicks e
+    , not $ null (anonArgumentTypes d) ->
       1 + (maximum $ 0:(map (exprDepth h ns n) l))
     | otherwise -> 0
 
@@ -434,12 +434,6 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k n | n /= 0 = d
     W.liftIO $ putStrLn $ "Unresolved Obligations: " ++ show (length states)
     let ob (sh1, sh2) = Marker (sh1, sh2) $ Unresolved (latest sh1, latest sh2)
     W.tell $ map ob states
-    W.liftIO $ putStrLn $ show sym_ids
-    let lefts = map (\(sh1, _) -> latest sh1) states
-        rights = map (\(_, sh2) -> latest sh2) states
-        (lefts', rights') = unzip $ map (uncurry syncSymbolic) (zip lefts rights)
-        depths = map (minArgDepth ns sym_ids) $ lefts' ++ rights'
-    W.liftIO $ mapM (putStrLn . show) depths
     return $ S.Unknown $ show $ minDepth ns sym_ids states
 
 data StepRes = CounterexampleFound
