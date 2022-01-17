@@ -532,6 +532,14 @@ def totality_change(suite):
             alt_suite.append(alt_rule)
     return alt_suite
 
+# TODO subtraction of 1 happens in here
+# just change the message instead?
+def print_depth(depth):
+    if depth > 0:
+        print("\tAll concretizations checked up to depth " + str(depth - 1))
+    else:
+        print("\tConcretizations of depth 0 still remaining")
+
 '''
 Results for totality-altered ground truth, 1/16/22:
 p01 SAT
@@ -623,12 +631,12 @@ def test_suite(suite, timeout = 25):
             depth = int(depth_str[:end_idx])
             depth_dict[thm] = depth
             print("\tIncomplete - " + str(elapsed) + "s")
-            print("\tAll concretizations checked up to depth " + str(depth))
+            print_depth(depth)
         elif check_unsat == "Timeout":
             depth = d["depth"]
             depth_dict[thm] = depth
             print("\tTimeout - " + str(elapsed) + "s")
-            print("\tAll concretizations checked up to depth " + str(depth))
+            print_depth(depth)
         else:
             print("\tFailed - " + str(elapsed) + "s")
     print(unsat_num, "Confirmed out of", len(suite))
@@ -653,12 +661,12 @@ def test_suite_ground(suite, timeout = 25):
             depth = int(depth_str[:end_idx])
             depth_dict[thm] = depth
             print("\tIncomplete - " + str(elapsed) + "s")
-            print("\tAll concretizations checked up to depth " + str(depth))
+            print_depth(depth)
         elif check_unsat == "Timeout":
             depth = d["depth"]
             depth_dict[thm] = depth
             print("\tTimeout - " + str(elapsed) + "s")
-            print("\tAll concretizations checked up to depth " + str(depth))
+            print_depth(depth)
         else:
             print("\tFailed - " + str(elapsed) + "s")
     print(unsat_num, "Confirmed out of", len(suite))
