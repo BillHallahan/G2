@@ -395,6 +395,6 @@ generalizeFull solver ns _ (fresh_name:_) sh_pair s_pair = do
   gfold <- generalizeFold solver ns fresh_name sh_pair s_pair
   case gfold of
     Nothing -> return $ NoProof HS.empty
-    Just (s1, s2, q1, q2) -> let lem = mkProposedLemma "Generalization" s1 s2 q1 q2
+    Just (s1, s2, q1, q2) -> let lem = mkPropEquivLemma "Generalization" s1 s2 q1 q2
                              in return $ NoProof $ HS.singleton lem
 generalizeFull _ _ _ _ _ _ = return $ NoProof HS.empty

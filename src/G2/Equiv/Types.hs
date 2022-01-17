@@ -5,9 +5,12 @@ module G2.Equiv.Types ( module G2.Equiv.Types
                       , module G2.Equiv.G2Calls) where
 
 import G2.Equiv.G2Calls
+import G2.Execution.Reducer
 import G2.Language
+import qualified G2.Language.ExprEnv as E
 
 import GHC.Generics (Generic)
+import Control.Exception
 import Data.Data (Typeable)
 import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
@@ -189,21 +192,114 @@ instance Named CycleMarker where
         p' = r p
     in CycleMarker (s1', s2') p' hm sd
 
+-- | We have two kinds of `ProposedLemma`.
+-- `PropEquiv` lemmas simply aim to show that the two sides of the lemma are equivalent,
+-- using our normal proof tactics.
+-- `PropEvalsTo` lemmas reduce the right hand side and create a new lemma for each stopping point
+-- until the RHS state branches, at which point we discard the proposed lemma.
+-- Proven lemmas (the `Lemma` type) record which method they were proven by using the
+-- `lemma_type` field.  Only `PropEvalsTo` lemmas may be used with coinduction.
+data ProposedLemma = PropEquiv Lemma
+                   | PropEvalsTo PropEvalsToLemma
+                   deriving (Eq, Generic)
+
+instance Hashable ProposedLemma
+
+instance Named ProposedLemma where
+    names (PropEquiv l) = names l
+    names (PropEvalsTo pel) = names pel
+
+    rename old new (PropEquiv l) = PropEquiv $ rename old new l
+    rename old new (PropEvalsTo pel) = PropEvalsTo $ rename old new pel
+
+data PropEvalsToLemma = PEL { et_lemma_name :: String
+                            , et_lemma_lhs :: StateET
+                            , et_lemma_rhs :: StateET
+                            , et_lemma_origin :: String}
+                            deriving (Eq, Generic)
+
+instance Hashable PropEvalsToLemma
+
+instance Named PropEvalsToLemma where
+    names (PEL { et_lemma_lhs = lhs, et_lemma_rhs = rhs }) =
+      names lhs DS.>< names rhs
+    rename old new pel@(PEL { et_lemma_lhs = lhs, et_lemma_rhs = rhs }) =
+        pel { et_lemma_lhs = rename old new lhs
+            , et_lemma_rhs = rename old new rhs }
+
+data LemmaType = EquivLemma | EvalsToLemma
+                 deriving (Eq, Generic)
+
+instance Hashable LemmaType
+
 data Lemma = Lemma { lemma_name :: String
                    , lemma_lhs :: StateET
                    , lemma_rhs :: StateET
                    , lemma_lhs_origin :: String
                    , lemma_rhs_origin :: String
-                   , lemma_to_be_proven :: [(StateH, StateH)] }
+                   , lemma_to_be_proven :: [(StateH, StateH)]
+                   , lemma_type :: LemmaType }
                    deriving (Eq, Generic)
 
 instance Hashable Lemma
 
 instance Named Lemma where
-  names (Lemma _ s1 s2 _ _ sh) = names s1 DS.>< names s2 DS.>< names sh
-  rename old new (Lemma lnm s1 s2 f1 f2 sh) =
-    Lemma lnm (rename old new s1) (rename old new s2) f1 f2 (rename old new sh)
+  names (Lemma _ s1 s2 _ _ sh _) = names s1 DS.>< names s2 DS.>< names sh
+  rename old new (Lemma lnm s1 s2 f1 f2 sh lt) =
+    Lemma lnm (rename old new s1) (rename old new s2) f1 f2 (rename old new sh) lt
 
-type ProposedLemma = Lemma
 type ProvenLemma = Lemma
-type DisprovenLemma = Lemma
+type DisprovenLemma = ProposedLemma
+
+mkPropEquivLemma :: String -> StateET -> StateET -> StateET -> StateET -> ProposedLemma
+mkPropEquivLemma lm_name or_s1 or_s2 s1 s2 =
+    assert (map idName (E.symbolicIds (expr_env s1)) == map idName (E.symbolicIds (expr_env s2)))
+          PropEquiv $ Lemma { lemma_name = lm_name
+                            , lemma_lhs = s1
+                            , lemma_rhs = s2
+                            , lemma_lhs_origin = folder_name . track $ or_s1
+                            , lemma_rhs_origin = folder_name . track $ or_s2
+                            , lemma_to_be_proven  =[(newStateH s1, newStateH s2)]
+                            , lemma_type = EvalsToLemma}
+
+mkPropEvalsToLemma :: String -> StateET -> ProposedLemma
+mkPropEvalsToLemma lm_name s =
+        PropEvalsTo $ PEL { et_lemma_name = lm_name
+                          , et_lemma_lhs = s
+                          , et_lemma_rhs = s
+                          , et_lemma_origin = folder_name . track $ s }
+
+proposedLemmaToLemma :: ProposedLemma -> Lemma
+proposedLemmaToLemma (PropEquiv l) = l
+proposedLemmaToLemma (PropEvalsTo pel) =
+    Lemma { lemma_name = et_lemma_name pel
+          , lemma_lhs = et_lemma_lhs pel
+          , lemma_rhs = et_lemma_rhs pel
+          , lemma_lhs_origin = et_lemma_origin pel
+          , lemma_rhs_origin = et_lemma_origin pel
+          , lemma_to_be_proven = []
+          , lemma_type = EvalsToLemma }
+
+isPropEquiv :: ProposedLemma -> Bool
+isPropEquiv (PropEquiv _) = True
+isPropEquiv _ = False
+
+isPropEvalsTo :: ProposedLemma -> Bool
+isPropEvalsTo (PropEvalsTo _) = True
+isPropEvalsTo _ = False
+
+repProposedLemmaName :: String -> ProposedLemma -> ProposedLemma
+repProposedLemmaName lem_name (PropEquiv l) = PropEquiv $ l { lemma_name = lem_name }
+repProposedLemmaName lem_name (PropEvalsTo l) = PropEvalsTo $ l { et_lemma_name = lem_name }
+
+lemmaName :: ProposedLemma -> String
+lemmaName (PropEquiv l) = lemma_name l
+lemmaName (PropEvalsTo pel) = et_lemma_name pel
+
+lemmaLHS :: ProposedLemma -> StateET
+lemmaLHS (PropEquiv l) = lemma_lhs l
+lemmaLHS (PropEvalsTo l) = et_lemma_lhs l
+
+lemmaRHS :: ProposedLemma -> StateET
+lemmaRHS (PropEquiv l) = lemma_rhs l
+lemmaRHS (PropEvalsTo l) = et_lemma_rhs l

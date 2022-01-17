@@ -27,6 +27,7 @@ module G2.Equiv.Tactics
 
     , emptyLemmas
     , insertProposedLemma
+    , insertProposedLemmaNoCheck
     , proposedLemmas
     , replaceProposedLemmas
     , insertProvenLemma
@@ -35,7 +36,6 @@ module G2.Equiv.Tactics
     , disprovenLemmas
     , insertDisprovenLemma
 
-    , mkProposedLemma
     , checkCycle
     )
     where
@@ -80,7 +80,7 @@ import Control.Exception
 
 -- the Bool value for Failure is True if a cycle has been found
 data TacticResult = Success (Maybe (Int, Int, StateET, StateET))
-                  | NoProof (HS.HashSet Lemma)
+                  | NoProof (HS.HashSet ProposedLemma)
                   | Failure Bool
 
 -- this takes a list of fresh names as input
@@ -201,7 +201,7 @@ moreRestrictive :: StateET ->
                    [(Name, Expr)] -> -- ^ variables inlined previously on the RHS
                    Expr ->
                    Expr ->
-                   Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+                   Either (Maybe ProposedLemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm active n1 n2 e1 e2 =
   case (e1, e2) of
     -- ignore all Ticks
@@ -260,7 +260,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                                 --                 ++ "\ncurr_expr s2 = " ++ printHaskellDirtyPG pg (in2 $ exprExtract s2)
                                 --                 ++ "\ne1 = " ++  printHaskellDirtyPG pg (in1 e1)
                                 --                 ++ "\ne2 = " ++ printHaskellDirtyPG pg (in2 e2))
-                                Left (Just $ mkProposedLemma "lemma" s1 s2 ls2 ls1)
+                                Left (Just $ mkPropEvalsToLemma "lemma" ls2)
         where
             moreResFA = do
                 hm_f <- moreRestrictive s1 s2 ns hm active n1 n2 f1 f2
@@ -385,7 +385,7 @@ moreRestrictiveAlt :: StateET ->
                       [(Name, Expr)] -> -- ^ variables inlined previously on the RHS
                       Alt ->
                       Alt ->
-                      Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+                      Either (Maybe ProposedLemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 moreRestrictiveAlt s1 s2 ns hm active n1 n2 (Alt am1 e1) (Alt am2 e2) =
   if altEquiv am1 am2 then
   case am1 of
@@ -459,8 +459,8 @@ validTotal s1 s2 ns hm =
 restrictHelper :: StateET ->
                   StateET ->
                   HS.HashSet Name ->
-                  Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
-                  Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+                  Either (Maybe ProposedLemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
+                  Either (Maybe ProposedLemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 restrictHelper s1 s2 ns hm_hs =
   case restrictAux s1 s2 ns hm_hs of
     Right (hm, hs) -> if validTotal s1 s2 ns hm
@@ -471,8 +471,8 @@ restrictHelper s1 s2 ns hm_hs =
 restrictAux :: StateET ->
                StateET ->
                HS.HashSet Name ->
-               Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
-               Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+               Either (Maybe ProposedLemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
+               Either (Maybe ProposedLemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 restrictAux s1 s2 ns (Right hm) =
   moreRestrictive s1 s2 ns hm True [] [] (exprExtract s1) (exprExtract s2)
 restrictAux _ _ _ left = left
@@ -543,7 +543,7 @@ moreRestrictivePairAux :: S.Solver solver =>
                           HS.HashSet Name ->
                           [(StateET, StateET, StateET)] ->
                           (StateET, StateET) ->
-                          W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (PrevMatch EquivTracker))
+                          W.WriterT [Marker] IO (Either (HS.HashSet ProposedLemma) (PrevMatch EquivTracker))
 moreRestrictivePairAux solver ns prev (s1, s2) = do
   let (s1', s2') = syncSymbolic s1 s2
       mr (p1, p2, pc) =
@@ -552,19 +552,18 @@ moreRestrictivePairAux solver ns prev (s1, s2) = do
                        in restrictHelper p2' s2' ns $
                        restrictHelper p1' s1' ns (Right (HM.empty, HS.empty))
           in
-            mapLeft (fmap (\l -> l { lemma_name = "past_1 = " ++ folder p1
-                                                ++ " present_1 = " ++ folder s1
-                                                ++ " past_2 = " ++ folder p2
-                                                ++ " present_2 = " ++ folder s2  }))
+            mapLeft (fmap (repProposedLemmaName
+                                    ("past_1 = " ++ folder p1
+                                  ++ " present_1 = " ++ folder s1
+                                  ++ " past_2 = " ++ folder p2
+                                  ++ " present_2 = " ++ folder s2)))
           $ fmap (\hm_obs' -> PrevMatch (s1, s2) (p1, p2) hm_obs' pc) hm_obs
       
       (possible_lemmas, possible_matches) = partitionEithers $ map mr prev
 
       folder = folder_name . track
       -- As a heuristic, take only lemmas where both sides are not in SWHNF
-      possible_lemmas' = filter (\(Lemma { lemma_lhs = s1, lemma_rhs = s2 }) ->
-                                              not (isSWHNF s1)
-                                           && not (isSWHNF s2))
+      possible_lemmas' = filter (not . isSWHNF . lemmaLHS)
                        $ catMaybes possible_lemmas
 
       mpc (PrevMatch _ (p1, p2) (hm, _) _) =
@@ -584,13 +583,13 @@ moreRestrictivePair :: S.Solver solver =>
                        HS.HashSet Name ->
                        [(StateET, StateET)] ->
                        (StateET, StateET) ->
-                       W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (PrevMatch EquivTracker))
+                       W.WriterT [Marker] IO (Either (HS.HashSet ProposedLemma) (PrevMatch EquivTracker))
 moreRestrictivePair solver ns prev (s1, s2) =
   let prev' = map (\(p1, p2) -> (p1, p2, p2)) prev in
   moreRestrictivePairAux solver ns prev' (s1, s2)
 
 moreRestrictiveSingle :: S.Solver solver => solver -> HS.HashSet Name -> StateET -> StateET
-                      -> W.WriterT [Marker] IO (Either (Maybe Lemma) (HM.HashMap Id Expr))
+                      -> W.WriterT [Marker] IO (Either (Maybe ProposedLemma) (HM.HashMap Id Expr))
 moreRestrictiveSingle solver ns s1 s2 = do
     case restrictHelper s1 s2 ns $ Right (HM.empty, HS.empty) of
         (Left l) -> return $ Left l
@@ -706,10 +705,10 @@ coinductionFoldL :: S.Solver solver =>
                     solver ->
                     HS.HashSet Name ->
                     Lemmas ->
-                    HS.HashSet Lemma ->
+                    HS.HashSet ProposedLemma ->
                     (StateH, StateH) ->
                     (StateET, StateET) ->
-                    W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
+                    W.WriterT [Marker] IO (Either (HS.HashSet ProposedLemma) (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
 coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) | not . isSWHNF $ inlineCurrExpr s1
                                                                  , not . isSWHNF $ inlineCurrExpr s2  = do
   let prev = prevFiltered (sh1, sh2)
@@ -770,24 +769,28 @@ data Lemmas = Lemmas { proposed_lemmas :: [ProposedLemma]
 emptyLemmas :: Lemmas
 emptyLemmas = Lemmas [] [] []
 
-insertProposedLemma :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> Lemmas -> W.WriterT [Marker] IO Lemmas
+insertProposedLemma :: S.Solver solver => solver -> HS.HashSet Name -> ProposedLemma -> Lemmas -> W.WriterT [Marker] IO Lemmas
 insertProposedLemma solver ns lem lems@(Lemmas { proposed_lemmas = prop_lems
                                                , proven_lemmas = proven_lems
                                                , disproven_lemmas = disproven_lems }) = do
     same_as_proposed <- equivLemma solver ns lem prop_lems
     implied_by_proven <- moreRestrictiveLemma solver ns lem proven_lems
-    implied_by_disproven <- anyM (\dl -> moreRestrictiveLemma solver ns dl [lem]) disproven_lems
+    implied_by_disproven <- anyM (\dl -> moreRestrictiveProposedLemma solver ns dl [lem]) disproven_lems
     case same_as_proposed || implied_by_proven  || implied_by_disproven of
         True -> return lems
         False -> return lems { proposed_lemmas = lem:prop_lems }
 
+insertProposedLemmaNoCheck :: ProposedLemma -> Lemmas -> Lemmas
+insertProposedLemmaNoCheck lem lems@(Lemmas { proposed_lemmas = prop_lems }) = do
+    lems { proposed_lemmas = lem:prop_lems }
+
 proposedLemmas :: Lemmas -> [ProposedLemma]
 proposedLemmas = proposed_lemmas
 
-provenLemmas :: Lemmas -> [ProposedLemma]
+provenLemmas :: Lemmas -> [ProvenLemma]
 provenLemmas = proven_lemmas
 
-disprovenLemmas :: Lemmas -> [ProposedLemma]
+disprovenLemmas :: Lemmas -> [DisprovenLemma]
 disprovenLemmas = disproven_lemmas
 
 replaceProposedLemmas :: [ProposedLemma] -> Lemmas -> Lemmas
@@ -799,24 +802,54 @@ insertProvenLemma lem lems = lems { proven_lemmas = lem:proven_lemmas lems }
 insertDisprovenLemma :: DisprovenLemma -> Lemmas -> Lemmas
 insertDisprovenLemma lem lems = lems { disproven_lemmas = lem:disproven_lemmas lems }
 
-moreRestrictiveLemma :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> [Lemma] -> W.WriterT [Marker] IO Bool 
-moreRestrictiveLemma solver ns (Lemma { lemma_lhs = l1_1, lemma_rhs = l1_2 }) lems = do
+moreRestrictiveLemma :: S.Solver solver => solver -> HS.HashSet Name -> ProposedLemma -> [Lemma] -> W.WriterT [Marker] IO Bool 
+moreRestrictiveLemma solver ns (PropEquiv (Lemma { lemma_lhs = l1_1, lemma_rhs = l1_2 })) lems = do
     mr <- moreRestrictivePair solver ns
                               (map (\(Lemma { lemma_lhs = l2_1, lemma_rhs = l2_2 }) -> (l2_1, l2_2)) lems)
                               (l1_1, l1_2)
     case mr of
         Left _ -> return False
         Right _ -> return True
+moreRestrictiveLemma solver ns (PropEvalsTo (PEL { et_lemma_lhs = l1, et_lemma_rhs = l2 })) lems = do
+    anyM (\lem2 -> do
+                    mr <- moreRestrictiveSingle solver ns l1 (lemma_lhs lem2)
+                    return $ isRight mr) lems
+
+moreRestrictiveProposedLemma :: S.Solver solver => solver -> HS.HashSet Name -> ProposedLemma -> [ProposedLemma] -> W.WriterT [Marker] IO Bool 
+moreRestrictiveProposedLemma solver ns (PropEquiv (Lemma { lemma_lhs = l1_1, lemma_rhs = l1_2 })) lems = do
+    mr <- moreRestrictivePair solver ns
+                              (map (\lem -> (lemmaLHS lem, lemmaRHS lem)) $ filter isPropEquiv lems)
+                              (l1_1, l1_2)
+    case mr of
+        Left _ -> return False
+        Right _ -> return True
+moreRestrictiveProposedLemma solver ns (PropEvalsTo (PEL { et_lemma_lhs = l1 })) lems = do
+    anyM (\lem2 -> do
+                    mr <- moreRestrictiveSingle solver ns l1 (lemmaLHS lem2)
+                    return $ isRight mr)
+         $ filter isPropEvalsTo lems
 
 -- TODO Is this correct?  See moreRestrictiveEqual
-equivLemma :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> [Lemma] -> W.WriterT [Marker] IO Bool 
-equivLemma solver ns (Lemma { lemma_lhs = l1_1, lemma_rhs = l1_2 }) lems = do
-    anyM (\(Lemma { lemma_lhs = l2_1, lemma_rhs = l2_2 }) -> do
+equivLemma :: S.Solver solver => solver -> HS.HashSet Name -> ProposedLemma -> [ProposedLemma] -> W.WriterT [Marker] IO Bool 
+equivLemma solver ns (PropEquiv (Lemma { lemma_lhs = l1_1, lemma_rhs = l1_2 })) =
+    anyM (\lem2 -> do
+                    let l2_1 = lemmaLHS lem2
+                        l2_2 = lemmaRHS lem2
                     mr1 <- moreRestrictivePair solver ns [(l2_1, l2_2)] (l1_1, l1_2)
                     mr2 <- moreRestrictivePair solver ns [(l1_1, l1_2)] (l2_1, l2_2)
                     case (mr1, mr2) of
                         (Right _, Right _) -> return True
-                        _ -> return False) lems
+                        _ -> return False)
+        . filter isPropEquiv
+equivLemma solver ns (PropEvalsTo (PEL { et_lemma_lhs = l1 })) =
+    anyM (\lem2 -> do
+                    let l2 = lemmaLHS lem2
+                    mr1 <- moreRestrictiveSingle solver ns l1 l2
+                    mr2 <- moreRestrictiveSingle solver ns l2 l1
+                    case (mr1, mr2) of
+                        (Right _, Right _) -> return True
+                        _ -> return False)
+        . filter isPropEvalsTo
 
 -- TODO: Does substLemma need to do something more to check correctness of path constraints?
 -- `substLemma state lemmas` tries to apply each proven lemma in `lemmas` to `state`.
@@ -868,7 +901,7 @@ moreRestrictivePairWithLemmas :: S.Solver solver =>
                                  Lemmas ->
                                  [(StateET, StateET)] ->
                                  (StateET, StateET) ->
-                                 W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
+                                 W.WriterT [Marker] IO (Either (HS.HashSet ProposedLemma) (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
 moreRestrictivePairWithLemmas solver ns lemmas past (s1, s2) = do
     let (s1', s2') = syncSymbolic s1 s2
     xs1 <- substLemma solver ns s1' lemmas
@@ -901,7 +934,7 @@ moreRestrictivePairWithLemmasPast :: S.Solver solver =>
                                      Lemmas ->
                                      [(StateET, StateET)] ->
                                      (StateET, StateET) ->
-                                     W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
+                                     W.WriterT [Marker] IO (Either (HS.HashSet ProposedLemma) (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
 moreRestrictivePairWithLemmasPast solver ns lemmas past s_pair = do
     let (past1, past2) = unzip past
     xs_past1 <- mapM (\s_ -> substLemma solver ns s_ lemmas) past1
@@ -915,16 +948,6 @@ moreRestrictivePairWithLemmasPast solver ns lemmas past s_pair = do
         pair_past (_, p1) (_, p2) = syncSymbolic p1 p2
         past' = [pair_past pair1 pair2 | pair1 <- xs_past1', pair2 <- xs_past2']
     moreRestrictivePairWithLemmas solver ns lemmas past' s_pair
-
-mkProposedLemma :: String -> StateET -> StateET -> StateET -> StateET -> ProposedLemma
-mkProposedLemma lm_name or_s1 or_s2 s1 s2 =
-    assert (map idName (E.symbolicIds (expr_env s1)) == map idName (E.symbolicIds (expr_env s2)))
-          Lemma { lemma_name = lm_name
-                , lemma_lhs = s1
-                , lemma_rhs = s2
-                , lemma_lhs_origin = folder_name . track $ or_s1
-                , lemma_rhs_origin = folder_name . track $ or_s2
-                , lemma_to_be_proven  =[(newStateH s1, newStateH s2)] }
 
 -- cycle detection
 -- TODO do I need to be careful about thrown-out Data constructors?
