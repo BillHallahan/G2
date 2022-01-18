@@ -334,6 +334,14 @@ minArgDepth ns sym_ids s = case sym_ids of
   [] -> 0
   _ -> minimum $ map (getDepth s ns) sym_ids
 
+maxArgDepth :: HS.HashSet Name -> [Id] -> StateET -> Int
+maxArgDepth ns sym_ids s = case sym_ids of
+  [] -> 0
+  _ -> maximum $ map (getDepth s ns) sym_ids
+
+sumArgDepths :: HS.HashSet Name -> [Id] -> StateET -> Int
+sumArgDepths ns sym_ids s = foldr (+) 0 $ map (getDepth s ns) sym_ids
+
 minDepth :: HS.HashSet Name -> [Id] -> [(StateH, StateH)] -> Int
 minDepth ns sym_ids states =
   let lefts = map (\(sh1, _) -> latest sh1) states
@@ -344,7 +352,31 @@ minDepth ns sym_ids states =
     [] -> 0
     _ -> minimum depths
 
+-- TODO two depth metrics
+minMaxDepth :: HS.HashSet Name -> [Id] -> [(StateH, StateH)] -> Int
+minMaxDepth ns sym_ids states =
+  let lefts = map (\(sh1, _) -> latest sh1) states
+      rights = map (\(_, sh2) -> latest sh2) states
+      (lefts', rights') = unzip $ map (uncurry syncSymbolic) (zip lefts rights)
+      depths = map (maxArgDepth ns sym_ids) $ lefts' ++ rights'
+  in case states of
+    [] -> 0
+    _ -> minimum depths
+
+-- correct to sync beforehand for all these
+minSumDepth :: HS.HashSet Name -> [Id] -> [(StateH, StateH)] -> Int
+minSumDepth ns sym_ids states =
+  let lefts = map (\(sh1, _) -> latest sh1) states
+      rights = map (\(_, sh2) -> latest sh2) states
+      (lefts', rights') = unzip $ map (uncurry syncSymbolic) (zip lefts rights)
+      depths = map (sumArgDepths ns sym_ids) $ lefts' ++ rights'
+  in case states of
+    [] -> 0
+    _ -> minimum depths
+
 -- negative loop iteration count means there's no limit
+-- TODO if states is empty but n = 0, we'll get Unknown rather than UNSAT
+-- added (null states) check to deal with that
 verifyLoop :: S.Solver solver =>
               solver ->
               HS.HashSet Name ->
@@ -357,11 +389,20 @@ verifyLoop :: S.Solver solver =>
               Int ->
               Int ->
               W.WriterT [Marker] IO (S.Result () ())
-verifyLoop solver ns lemmas states b config sym_ids folder_root k n | n /= 0 = do
+verifyLoop solver ns lemmas states b config sym_ids folder_root k n | (n /= 0) || (null states) = do
   W.liftIO $ putStrLn "<Loop Iteration>"
   W.liftIO $ putStrLn $ show n
-  let min_depth = minDepth ns sym_ids states
-  W.liftIO $ putStrLn $ "<<Current Min Depth>> " ++ show min_depth
+  --let min_depth = minDepth ns sym_ids states
+  --W.liftIO $ putStrLn $ "<<Current Min Depth>> " ++ show min_depth
+  -- TODO use these instead in the Python script
+  let min_max_depth = minMaxDepth ns sym_ids states
+      min_sum_depth = minSumDepth ns sym_ids states
+  -- TODO don't print if state list is empty
+  case states of
+    [] -> return ()
+    _ -> do
+      W.liftIO $ putStrLn $ "<<Min Max Depth>> " ++ show min_max_depth
+      W.liftIO $ putStrLn $ "<<Min Sum Depth>> " ++ show min_sum_depth
   (b', k', proven_lemmas, lemmas') <- verifyLoopPropLemmas solver allTactics ns lemmas b config folder_root k
 
   -- W.liftIO $ putStrLn $ "prop_lemmas': " ++ show (length prop_lemmas')

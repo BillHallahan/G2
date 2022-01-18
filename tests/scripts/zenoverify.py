@@ -13,20 +13,24 @@ def run_zeno(filename, thm, var_settings, timeout):
     elapsed = end_time - start_time;
 
     lines = res.splitlines()
-    depth = 0
+    depth1 = 0
+    depth2 = 0
     try:
         # the numbers 4 and 5 are dependent on the initial printing
         # if that printing changes, these need to change too
         left_str = lines[4].decode('utf-8');
         right_str = lines[5].decode('utf-8');
         check_unsat = lines[-1].decode('utf-8');
+        depth1 = check_depth("Max", lines)
+        depth2 = check_depth("Sum", lines)
         print(check_unsat);
     except IndexError:
         left_str = lines[4].decode('utf-8');
         right_str = lines[5].decode('utf-8');
         if res == "Timeout":
             check_unsat = "Timeout";
-            depth = check_depth(lines)
+            depth1 = check_depth("Max", lines)
+            depth2 = check_depth("Sum", lines)
         else:
             check_unsat = "";
     return {
@@ -34,7 +38,8 @@ def run_zeno(filename, thm, var_settings, timeout):
         "right":right_str,
         "result":check_unsat,
         "time":elapsed,
-        "depth":depth
+        "min_max_depth":depth1,
+        "min_sum_depth":depth2
     }
     #return (left_str, right_str, check_unsat, elapsed);
 
@@ -48,12 +53,27 @@ def call_zeno_process(filename, thm, var_settings, time):
     except subprocess.TimeoutExpired as TimeoutEx:
         return (TimeoutEx.stdout.decode('utf-8') + "\nTimeout").encode('utf-8')
 
+# TODO don't need the Unknown iteration-limit depth anymore
+'''
 def check_depth(lines):
-    depths = []
+    depths = [0]
     for line in lines:
         if line[:21] == "<<Current Min Depth>>":
             depth_str = line[22:]
             depths.append(int(depth_str))
+    return max(depths)
+'''
+
+# ver should be either "Max" or "Sum"
+def check_depth(ver, lines):
+    depths = [0]
+    for utf in lines:
+        line = utf.decode('utf-8')
+        if line[:17] == ("<<Min " + ver + " Depth>>"):
+            depth_str = line[18:]
+            depths.append(int(depth_str))
+            #print(ver, depth_str)
+    #print("Max", ver, max(depths))
     return max(depths)
 
 equivalences = [
@@ -676,61 +696,59 @@ def test_suite_simple(suite, timeout = 25):
 
 def test_suite(suite, timeout = 25):
     unsat_num = 0;
-    depth_dict = {}
+    min_max_depth_dict = {}
+    min_sum_depth_dict = {}
     for (thm, settings) in suite:
         print(thm, settings);
         d = run_zeno("Zeno.hs", thm, settings, timeout);
         check_unsat = d["result"]
         elapsed = d["time"]
+        min_max_depth = d["min_max_depth"]
+        min_sum_depth = d["min_sum_depth"]
+        min_max_depth_dict[thm] = min_max_depth
+        min_sum_depth_dict[thm] = min_sum_depth
         if check_unsat == "UNSAT ()":
             print("\tVerified - " + str(elapsed) + "s");
             unsat_num += 1
         elif check_unsat[:7] == "Unknown":
-            # get the depth number from the string
-            # it has quotation marks on either side
-            depth_str = check_unsat[9:]
-            end_idx = depth_str.index("\"")
-            depth = int(depth_str[:end_idx])
-            depth_dict[thm] = depth
             print("\tIncomplete - " + str(elapsed) + "s")
-            print_depth(depth)
         elif check_unsat == "Timeout":
-            depth = d["depth"]
-            depth_dict[thm] = depth
             print("\tTimeout - " + str(elapsed) + "s")
-            print_depth(depth)
         else:
             print("\tFailed - " + str(elapsed) + "s")
+        print("\tMin Max Depth:")
+        print_depth(min_max_depth)
+        print("\tMin Sum Depth:")
+        print_depth(min_sum_depth)
     print(unsat_num, "Confirmed out of", len(suite))
 
 # TODO make this system more modular?
 def test_suite_ground(suite, timeout = 25):
     unsat_num = 0;
-    depth_dict = {}
+    min_max_depth_dict = {}
+    min_sum_depth_dict = {}
     for (thm, settings) in suite:
         print(thm, settings);
         d = run_zeno("TestZeno.hs", thm, settings, timeout);
         check_unsat = d["result"]
         elapsed = d["time"]
+        min_max_depth = d["min_max_depth"]
+        min_sum_depth = d["min_sum_depth"]
+        min_max_depth_dict[thm] = min_max_depth
+        min_sum_depth_dict[thm] = min_sum_depth
         if check_unsat == "UNSAT ()":
             print("\tVerified - " + str(elapsed) + "s");
             unsat_num += 1
         elif check_unsat[:7] == "Unknown":
-            # get the depth number from the string
-            # it has quotation marks on either side
-            depth_str = check_unsat[9:]
-            end_idx = depth_str.index("\"")
-            depth = int(depth_str[:end_idx])
-            depth_dict[thm] = depth
             print("\tIncomplete - " + str(elapsed) + "s")
-            print_depth(depth)
         elif check_unsat == "Timeout":
-            depth = d["depth"]
-            depth_dict[thm] = depth
             print("\tTimeout - " + str(elapsed) + "s")
-            print_depth(depth)
         else:
             print("\tFailed - " + str(elapsed) + "s")
+        print("\tMin Max Depth:")
+        print_depth(min_max_depth)
+        print("\tMin Sum Depth:")
+        print_depth(min_sum_depth)
     print(unsat_num, "Confirmed out of", len(suite))
 
 def total_string(settings):
@@ -743,8 +761,10 @@ def total_string(settings):
 
 def test_suite_csv(suite, timeout = 25):
     unsat_num = 0;
+    min_max_depth_dict = {}
+    min_sum_depth_dict = {}
     file = open("outcomes.csv", "w")
-    file.write("Name,LHS,RHS,Total,Outcome,Time\n")
+    file.write("Name,LHS,RHS,Total,Outcome,Time,Min Max Depth,Min Sum Depth\n")
     for (thm, settings) in suite:
         print(thm, settings);
         d = run_zeno("Zeno.hs", thm, settings, timeout);
@@ -752,18 +772,27 @@ def test_suite_csv(suite, timeout = 25):
         elapsed = d["time"]
         l_str = d["left"]
         r_str = d["right"]
+        min_max_depth = d["min_max_depth"]
+        min_sum_depth = d["min_sum_depth"]
+        min_max_depth_dict[thm] = min_max_depth
+        min_sum_depth_dict[thm] = min_sum_depth
         file.write(thm + "," + l_str + "," + r_str + ",")
         file.write(total_string(settings) + ",")
         if check_unsat == "UNSAT ()":
             print("\tVerified - " + str(elapsed) + "s");
             unsat_num += 1
-            file.write("Verified," + str(elapsed) + "s\n")
+            file.write("Verified," + str(elapsed) + "s,")
         elif check_unsat == "Timeout":
             print("\tTimeout - " + str(elapsed) + "s")
-            file.write("Timeout," + str(elapsed) + "s\n")
+            file.write("Timeout," + str(elapsed) + "s,")
         else:
             print("\tFailed - " + str(elapsed) + "s")
-            file.write("Failed," + str(elapsed) + "s\n")
+            file.write("Failed," + str(elapsed) + "s,")
+        print("\tMin Max Depth:")
+        print_depth(min_max_depth)
+        print("\tMin Sum Depth:")
+        print_depth(min_sum_depth)
+        file.write(str(min_max_depth) + "," + str(min_sum_depth) + "\n")
     print(unsat_num, "Confirmed out of", len(suite))
     file.close()
 
@@ -797,6 +826,7 @@ def main():
     #test_suite(old_successes, 150)
     test_suite_ground(ground_truth)
     #test_suite_ground(totality_change(ground_truth))
+    #test_suite_ground([("p48finB", [xs])], 45)
 
 if __name__ == "__main__":
     main()
