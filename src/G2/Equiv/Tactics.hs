@@ -455,6 +455,41 @@ validTotal s1 s2 ns hm =
       check (i, e) = (not $ (idName i) `elem` total_hs) || (totalExpr s2 ns [] e)
   in all check hm_list
 
+-- TODO extra validity check for symbolic function mappings
+-- TODO we'll need recursive higher-order checking
+-- how to avoid cycle?  Only check this at the outermost layer?
+-- Remove some of the mappings from higher_order for recursion?
+-- TODO still need validTotal at every step
+-- I don't think infinite cycles are a problem
+-- Every time we recurse, we go to a simpler expression
+-- if anything lines up between old and new exprs with the correspondence,
+-- then the things to which they map need to line up as well
+-- TODO this will get a cycle as it is now?
+-- TODO can I just discard higher_order for the recursion?
+-- TODO I still need to hold onto some info from higher_order?  Maybe not
+-- TODO I think I have a syncing problem now
+validHigherOrder :: StateET ->
+                    StateET ->
+                    HS.HashSet Name ->
+                    Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
+                    Bool
+validHigherOrder s1 s2 ns hm_hs =
+  let s1' = s1 { track = (track s1) { higher_order = HM.empty } }
+      s2' = s2 { track = (track s2) { higher_order = HM.empty } }
+      old_pairs = HM.toList $ higher_order $ track s1
+      old_exprs = map (\(e, _) -> s1' { curr_expr = CurrExpr Evaluate e }) old_pairs
+      old_vars = map (\(_, i) -> s1' { curr_expr = CurrExpr Evaluate (Var i) }) old_pairs
+      new_pairs = HM.toList $ higher_order $ track s2
+      new_exprs = map (\(e, _) -> s2' { curr_expr = CurrExpr Evaluate e }) new_pairs
+      new_vars = map (\(_, i) -> s2' { curr_expr = CurrExpr Evaluate (Var i) }) new_pairs
+      zipped = zip (zip old_exprs new_exprs) (zip old_vars new_vars)
+      -- TODO do a fold over all of the foursomes
+      -- TODO map instead?
+      check ((p1, q1), (p2, q2)) = case restrictHelper p1 q1 ns hm_hs of
+        Right res -> restrictHelper p2 q2 ns (Right res)
+        _ -> hm_hs
+  in all isRight $ map check zipped
+
 -- TODO check for total validity in here
 restrictHelper :: StateET ->
                   StateET ->
@@ -462,11 +497,12 @@ restrictHelper :: StateET ->
                   Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                   Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 restrictHelper s1 s2 ns hm_hs =
-  case restrictAux s1 s2 ns hm_hs of
-    Right (hm, hs) -> if validTotal s1 s2 ns hm
+  let res = restrictAux s1 s2 ns hm_hs
+  in case res of
+    Right (hm, hs) -> if (validTotal s1 s2 ns hm) && (validHigherOrder s1 s2 ns res)
                       then Right (hm, hs)
                       else Left Nothing
-    res -> res
+    _ -> res
 
 restrictAux :: StateET ->
                StateET ->

@@ -824,9 +824,10 @@ def main():
     #test_suite_fail(equivalences_should_fail)
     #test_suite(more_finite)
     #test_suite(old_successes, 150)
-    test_suite_ground(ground_truth)
+    #test_suite_ground(ground_truth)
     #test_suite_ground(totality_change(ground_truth))
     #test_suite_ground([("p48finB", [xs])], 45)
+    test_suite_ground(old_successes, 60)
 
 if __name__ == "__main__":
     main()
