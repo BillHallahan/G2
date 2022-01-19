@@ -387,21 +387,39 @@ showCX :: PrettyGuide ->
 showCX pg ns sym_ids (s1, s2) (q1, q2) =
   -- main part showing contradiction
   let (q1', q2') = syncSymbolic q1 q2
+      h = expr_env q2'
       e1 = inlineVars ns (expr_env q1') $ exprExtract s1
       e1_str = printHaskellPG pg q1' e1
       end1 = inlineVars ns (expr_env q1') $ exprExtract q1'
       end1_str = printDC pg (dc_path $ track q1') $ printHaskellPG pg q1' end1
-      e2 = inlineVars ns (expr_env q2') $ exprExtract s2
+      e2 = inlineVars ns h $ exprExtract s2
       e2_str = printHaskellPG pg q2' e2
-      end2 = inlineVars ns (expr_env q2') $ exprExtract q2'
+      end2 = inlineVars ns h $ exprExtract q2'
       end2_str = printDC pg (dc_path $ track q2') $ printHaskellPG pg q2' end2
       cx_str = e1_str ++ " = " ++ end1_str ++ " but " ++
                e2_str ++ " = " ++ end2_str
       func_ids = map snd $ HM.toList $ higher_order $ track q2'
+      sym_vars = varsFullList h ns $ sym_ids ++ func_ids
+      sym_str = printVars pg ns q2' sym_vars
+      sym_print = case sym_str of
+        "" -> ""
+        _ -> "\nMain Symbolic Variables:\n" ++ sym_str
+      other_vars = varsFull h ns (App (exprExtract q1') (exprExtract q2')) \\ sym_vars
+      var_str = printVars pg ns q2' other_vars
+      var_print = case var_str of
+        "" -> ""
+        _ -> "\nOther Variables:\n" ++ var_str
+      map_str = printMappings pg q2'
+      map_print = case map_str of
+        "" -> ""
+        _ -> "\nSymbolic Function Mappings:\n" ++ map_str
+      {-
+      func_ids = map snd $ HM.toList $ higher_order $ track q2'
       sym_vars = varsFullList (expr_env q2') ns $ sym_ids ++ func_ids
       sym_str = printVars pg ns q2' sym_vars
       sym_print = "Arguments:\n" ++ sym_str
-  in cx_str ++ "\n" ++ sym_print
+      -}
+  in intercalate "" [cx_str, sym_print, var_print, map_print]
 
 -- TODO remove redundancy
 showCycle :: PrettyGuide ->
@@ -413,25 +431,44 @@ showCycle :: PrettyGuide ->
 showCycle pg ns sym_ids (s1, s2) cm =
   let (q1, q2) = cycle_real_present cm
       (q1', q2') = syncSymbolic q1 q2
+      h = expr_env q2'
       e1 = inlineVars ns (expr_env q1') $ exprExtract s1
       e1_str = printHaskellPG pg q1' e1
       end1 = inlineVars ns (expr_env q1') $ exprExtract q1'
       end1_str = case cycle_side cm of
         ILeft -> "{HAS NON-TERMINATING PATH}"
         IRight -> printDC pg (dc_path $ track q1') $ printHaskellPG pg q1' end1
-      e2 = inlineVars ns (expr_env q2') $ exprExtract s2
+      e2 = inlineVars ns h $ exprExtract s2
       e2_str = printHaskellPG pg q2' e2
-      end2 = inlineVars ns (expr_env q2') $ exprExtract q2'
+      end2 = inlineVars ns h $ exprExtract q2'
       end2_str = case cycle_side cm of
         ILeft -> printDC pg (dc_path $ track q2') $ printHaskellPG pg q2' end2
         IRight -> "{HAS NON-TERMINATING PATH}"
       cx_str = e1_str ++ " = " ++ end1_str ++ " but " ++
                e2_str ++ " = " ++ end2_str
+      {-
       func_ids = map snd $ HM.toList $ higher_order $ track q2'
       sym_vars = varsFullList (expr_env q2') ns $ sym_ids ++ func_ids
       sym_str = printVars pg ns q2' sym_vars
       sym_print = "Arguments:\n" ++ sym_str
+      -}
+      func_ids = map snd $ HM.toList $ higher_order $ track q2'
+      sym_vars = varsFullList h ns $ sym_ids ++ func_ids
+      sym_str = printVars pg ns q2' sym_vars
+      sym_print = case sym_str of
+        "" -> ""
+        _ -> "\nMain Symbolic Variables:\n" ++ sym_str
+      -- TODO will this expression capture everything?
+      other_vars = varsFull h ns (App (exprExtract q1') (exprExtract q2')) \\ sym_vars
+      var_str = printVars pg ns q2' other_vars
+      var_print = case var_str of
+        "" -> ""
+        _ -> "\nOther Variables:\n" ++ var_str
+      map_str = printMappings pg q2'
+      map_print = case map_str of
+        "" -> ""
+        _ -> "\nSymbolic Function Mappings:\n" ++ map_str
       mappings = map swap $ HM.toList $ cycle_mapping cm
       mapping_str = intercalate "\n" $ map (printMapping pg) mappings
-      mapping_print = "Mapping for Cycle:\n" ++ mapping_str
-  in cx_str ++ "\n" ++ sym_print ++ "\n" ++ mapping_print
+      mapping_print = "\nMapping for Cycle:\n" ++ mapping_str
+  in intercalate "" [cx_str, sym_print, var_print, map_print, mapping_print]
