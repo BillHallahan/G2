@@ -78,8 +78,6 @@ import qualified Control.Monad.Writer.Lazy as W
 
 import Control.Exception
 
-import Debug.Trace
-
 -- the Bool value for Failure is True if a cycle has been found
 data TacticResult = Success (Maybe (Int, Int, StateET, StateET))
                   | NoProof (HS.HashSet Lemma)
@@ -456,8 +454,7 @@ validTotal :: StateET ->
 validTotal s1 s2 ns hm =
   let hm_list = HM.toList hm
       total_hs = total $ track s1
-      check (i, e) = (not $ (idName i) `elem` total_hs) ||
-                     (trace ("TOTAL? " ++ show e) $ totalExpr s2 ns [] e)
+      check (i, e) = (not $ (idName i) `elem` total_hs) || (totalExpr s2 ns [] e)
   in all check hm_list
 
 -- TODO extra validity check for symbolic function mappings
@@ -469,38 +466,30 @@ validTotal s1 s2 ns hm =
 -- Every time we recurse, we go to a simpler expression
 -- if anything lines up between old and new exprs with the correspondence,
 -- then the things to which they map need to line up as well
--- TODO this will get a cycle as it is now?
 -- TODO can I just discard higher_order for the recursion?
 -- TODO I still need to hold onto some info from higher_order?  Maybe not
--- TODO I think I have a syncing problem now
 validHigherOrder :: StateET ->
                     StateET ->
                     HS.HashSet Name ->
                     Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                     Bool
 validHigherOrder s1 s2 ns hm_hs =
-  -- TODO extra syncing here doesn't help
-  let (s1_, s2_) = syncSymbolic s1 s2
-      -- empty these to avoid an infinite loop
-      s1' = s1_ { track = (track s1_) { higher_order = HM.empty, folder_name = "G" ++ (folder_name $ track s1_) } }
-      s2' = s2_ { track = (track s2_) { higher_order = HM.empty, folder_name = "H" ++ (folder_name $ track s2_) } }
-      old_pairs = HM.toList $ higher_order $ track s1
-      old_exprs = map (\(e, _) -> s1' { curr_expr = CurrExpr Evaluate e }) old_pairs
-      old_vars = map (\(_, i) -> s1' { curr_expr = CurrExpr Evaluate (Var i) }) old_pairs
-      new_pairs = HM.toList $ higher_order $ track s2
-      new_exprs = map (\(e, _) -> s2' { curr_expr = CurrExpr Evaluate e }) new_pairs
-      new_vars = map (\(_, i) -> s2' { curr_expr = CurrExpr Evaluate (Var i) }) new_pairs
-      --zipped = zip (zip old_exprs new_exprs) (zip old_vars new_vars)
-      zipped = [(p, q) | p <- zip old_exprs old_vars, q <- zip new_exprs new_vars]
+  let -- empty these to avoid an infinite loop
+      s1' = s1 { track = (track s1) { higher_order = HM.empty, folder_name = "G" ++ (folder_name $ track s1) } }
+      s2' = s2 { track = (track s2) { higher_order = HM.empty, folder_name = "H" ++ (folder_name $ track s2) } }
+      -- TODO filter these to only the ones that are mapped?
+      old_pairs = filter (\(_, i) -> E.member (idName i) (expr_env s1)) $ HM.toList $ higher_order $ track s1
+      new_pairs = filter (\(_, i) -> E.member (idName i) (expr_env s2)) $ HM.toList $ higher_order $ track s2
+      old_states = map (\(e, i) -> (s1' { curr_expr = CurrExpr Evaluate e },
+                                    s1' { curr_expr = CurrExpr Evaluate (Var i) })) old_pairs
+      new_states = map (\(e, i) -> (s2' { curr_expr = CurrExpr Evaluate e },
+                                    s2' { curr_expr = CurrExpr Evaluate (Var i) })) new_pairs
+      zipped = [(p, q) | p <- old_states, q <- new_states]
       -- TODO do a fold over all of the foursomes
       -- TODO map instead?
-      -- TODO should I be using syncSymbolic here at all?  didn't fix issue
-      -- probably redundant, in fact
       check ((p1, p2), (q1, q2)) =
-        let (p1', q1') = syncSymbolic p1 q1
-            (p2', q2') = syncSymbolic p2 q2
-        in case restrictHelper p1' q1' ns hm_hs of
-          Right res -> restrictHelper p2' q2' ns (Right res)
+        case restrictHelper p1 q1 ns hm_hs of
+          Right res -> restrictHelper p2 q2 ns (Right res)
           _ -> hm_hs
   in all isRight $ map check zipped
 
