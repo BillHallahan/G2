@@ -174,7 +174,6 @@ printVars pg ns s vars =
       non_empty_strs = filter (not . null) var_strs
   in intercalate "\n" non_empty_strs
 
--- TODO print symbolic function mappings too
 printMapping :: PrettyGuide -> (Expr, Id) -> String
 printMapping pg (e, i) =
   let e_str = printHaskellDirtyPG pg e
@@ -413,12 +412,6 @@ showCX pg ns sym_ids (s1, s2) (q1, q2) =
       map_print = case map_str of
         "" -> ""
         _ -> "\nSymbolic Function Mappings:\n" ++ map_str
-      {-
-      func_ids = map snd $ HM.toList $ higher_order $ track q2'
-      sym_vars = varsFullList (expr_env q2') ns $ sym_ids ++ func_ids
-      sym_str = printVars pg ns q2' sym_vars
-      sym_print = "Arguments:\n" ++ sym_str
-      -}
   in intercalate "" [cx_str, sym_print, var_print, map_print]
 
 -- TODO remove redundancy
@@ -446,12 +439,6 @@ showCycle pg ns sym_ids (s1, s2) cm =
         IRight -> "{HAS NON-TERMINATING PATH}"
       cx_str = e1_str ++ " = " ++ end1_str ++ " but " ++
                e2_str ++ " = " ++ end2_str
-      {-
-      func_ids = map snd $ HM.toList $ higher_order $ track q2'
-      sym_vars = varsFullList (expr_env q2') ns $ sym_ids ++ func_ids
-      sym_str = printVars pg ns q2' sym_vars
-      sym_print = "Arguments:\n" ++ sym_str
-      -}
       func_ids = map snd $ HM.toList $ higher_order $ track q2'
       sym_vars = varsFullList h ns $ sym_ids ++ func_ids
       sym_str = printVars pg ns q2' sym_vars

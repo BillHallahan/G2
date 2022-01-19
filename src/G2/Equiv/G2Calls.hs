@@ -250,6 +250,7 @@ instance Reducer EquivReducer () EquivTracker where
                         all_vars = all isJust es
                         es' = map (\(Just n) -> n) $ filter isJust es
                         all_sym = all (\x -> E.isSymbolic x eenv) es'
+                        -- TODO I could use totalExpr here
                         all_total = all (`elem` total) es'
                         total' = if all_vars && all_sym && all_total
                                  then HS.insert (idName v) total

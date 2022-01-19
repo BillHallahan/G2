@@ -444,8 +444,6 @@ totalExpr s@(State { expr_env = h, track = EquivTracker _ _ total _ _ _ }) ns n 
     Case _ _ _ -> False
     _ -> False
 
--- TODO not just a validTotal problem
--- I get unbound errors from moreRestrictive too
 validTotal :: StateET ->
               StateET ->
               HS.HashSet Name ->
@@ -457,17 +455,6 @@ validTotal s1 s2 ns hm =
       check (i, e) = (not $ (idName i) `elem` total_hs) || (totalExpr s2 ns [] e)
   in all check hm_list
 
--- TODO extra validity check for symbolic function mappings
--- TODO we'll need recursive higher-order checking
--- how to avoid cycle?  Only check this at the outermost layer?
--- Remove some of the mappings from higher_order for recursion?
--- TODO still need validTotal at every step
--- I don't think infinite cycles are a problem
--- Every time we recurse, we go to a simpler expression
--- if anything lines up between old and new exprs with the correspondence,
--- then the things to which they map need to line up as well
--- TODO can I just discard higher_order for the recursion?
--- TODO I still need to hold onto some info from higher_order?  Maybe not
 validHigherOrder :: StateET ->
                     StateET ->
                     HS.HashSet Name ->
@@ -475,9 +462,9 @@ validHigherOrder :: StateET ->
                     Bool
 validHigherOrder s1 s2 ns hm_hs =
   let -- empty these to avoid an infinite loop
-      s1' = s1 { track = (track s1) { higher_order = HM.empty, folder_name = "G" ++ (folder_name $ track s1) } }
-      s2' = s2 { track = (track s2) { higher_order = HM.empty, folder_name = "H" ++ (folder_name $ track s2) } }
-      -- TODO filter these to only the ones that are mapped?
+      s1' = s1 { track = (track s1) { higher_order = HM.empty } }
+      s2' = s2 { track = (track s2) { higher_order = HM.empty } }
+      -- if the Id isn't present, the mapping isn't relevant
       old_pairs = filter (\(_, i) -> E.member (idName i) (expr_env s1)) $ HM.toList $ higher_order $ track s1
       new_pairs = filter (\(_, i) -> E.member (idName i) (expr_env s2)) $ HM.toList $ higher_order $ track s2
       old_states = map (\(e, i) -> (s1' { curr_expr = CurrExpr Evaluate e },
@@ -485,15 +472,12 @@ validHigherOrder s1 s2 ns hm_hs =
       new_states = map (\(e, i) -> (s2' { curr_expr = CurrExpr Evaluate e },
                                     s2' { curr_expr = CurrExpr Evaluate (Var i) })) new_pairs
       zipped = [(p, q) | p <- old_states, q <- new_states]
-      -- TODO do a fold over all of the foursomes
-      -- TODO map instead?
       check ((p1, p2), (q1, q2)) =
         case restrictHelper p1 q1 ns hm_hs of
           Right res -> restrictHelper p2 q2 ns (Right res)
           _ -> hm_hs
   in all isRight $ map check zipped
 
--- TODO check for total validity in here
 restrictHelper :: StateET ->
                   StateET ->
                   HS.HashSet Name ->
