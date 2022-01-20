@@ -15,6 +15,7 @@ def run_zeno(filename, thm, var_settings, timeout):
     lines = res.splitlines()
     depth1 = 0
     depth2 = 0
+    cx_text = []
     try:
         # the numbers 4 and 5 are dependent on the initial printing
         # if that printing changes, these need to change too
@@ -23,6 +24,11 @@ def run_zeno(filename, thm, var_settings, timeout):
         check_unsat = lines[-1].decode('utf-8');
         depth1 = check_depth("Max", lines)
         depth2 = check_depth("Sum", lines)
+        cx_idx = check_cx(lines)
+        if cx_idx < 0:
+            cx_text = lines[cx_idx:]
+            for i in range(len(cx_text)):
+                cx_text[i] = cx_text[i].decode('utf-8')
         print(check_unsat);
     except IndexError:
         left_str = lines[4].decode('utf-8');
@@ -31,6 +37,11 @@ def run_zeno(filename, thm, var_settings, timeout):
             check_unsat = "Timeout";
             depth1 = check_depth("Max", lines)
             depth2 = check_depth("Sum", lines)
+            cx_idx = check_cx(lines)
+            if cx_idx < 0:
+                cx_text = lines[cx_idx:]
+                for i in range(len(cx_text)):
+                    cx_text[i] = cx_text[i].decode('utf-8')
         else:
             check_unsat = "";
     return {
@@ -39,7 +50,8 @@ def run_zeno(filename, thm, var_settings, timeout):
         "result":check_unsat,
         "time":elapsed,
         "min_max_depth":depth1,
-        "min_sum_depth":depth2
+        "min_sum_depth":depth2,
+        "cx":cx_text
     }
     #return (left_str, right_str, check_unsat, elapsed);
 
@@ -75,6 +87,13 @@ def check_depth(ver, lines):
             #print(ver, depth_str)
     #print("Max", ver, max(depths))
     return max(depths)
+
+def check_cx(lines):
+    for i in range(1, 1 + len(lines)):
+        line = lines[-i].decode('utf-8')
+        if "COUNTEREXAMPLE FOUND" in line:
+            return -i
+    return 0
 
 equivalences = [
     "p01",
@@ -759,15 +778,18 @@ def total_string(settings):
         t_str += " " + t
     return t_str
 
-def test_suite_csv(suite, timeout = 25):
+def test_suite_csv(fname, suite, timeout = 25):
     unsat_num = 0;
     min_max_depth_dict = {}
     min_sum_depth_dict = {}
-    file = open("outcomes.csv", "w")
+    file = open(fname + ".csv", "w")
     file.write("Name,LHS,RHS,Total,Outcome,Time,Min Max Depth,Min Sum Depth\n")
+    # index to ensure uniqueness
+    k = 0
     for (thm, settings) in suite:
         print(thm, settings);
-        d = run_zeno("Zeno.hs", thm, settings, timeout);
+        # TODO only use with TestZeno now
+        d = run_zeno("TestZeno.hs", thm, settings, timeout);
         check_unsat = d["result"]
         elapsed = d["time"]
         l_str = d["left"]
@@ -793,6 +815,18 @@ def test_suite_csv(suite, timeout = 25):
         print("\tMin Sum Depth:")
         print_depth(min_sum_depth)
         file.write(str(min_max_depth) + "," + str(min_sum_depth) + "\n")
+        # TODO new code for counterexample writing
+        cx = d["cx"]
+        if len(cx) > 0:
+            cx_file = open(fname + "-" + thm + "-" + str(k) + ".txt", "w")
+            cx_file.write(thm + " ")
+            cx_file.write(str(settings))
+            cx_file.write("\n")
+            for ln in cx:
+                cx_file.write(ln)
+                cx_file.write("\n")
+            cx_file.close()
+        k += 1
     print(unsat_num, "Confirmed out of", len(suite))
     file.close()
 
@@ -825,12 +859,22 @@ def main():
     #test_suite_fail(equivalences_should_fail)
     #test_suite(more_finite)
     #test_suite(old_successes, 150)
-    #test_suite_ground(ground_truth, 45)
+    #test_suite_csv(ground_truth[:2], 30)
     #test_suite_ground(totality_change(ground_truth))
     #test_suite_ground([("p73", [p, xs])], 20)
     #test_suite_ground(old_successes, 60)
     #print(len(totality_change(ground_truth)))
     #print(len(make_altered_finite_list(ground_truth_altered_finite)))
+
+    # TODO this is the toy example I used for testing the new file writing
+    #test_suite_csv("CX", [("p01", [])], 30)
+    
+    # TODO this is the real test suite
+    # feel free to reduce the time from 180, but keep at least 150
+    t = 180
+    test_suite_csv("ZenoTrue", ground_truth, t)
+    test_suite_csv("ZenoAlteredTotal", totality_change(ground_truth), t)
+    test_suite_csv("ZenoAlteredFinite", make_altered_finite_list(ground_truth_altered_finite), t)
 
 if __name__ == "__main__":
     main()
