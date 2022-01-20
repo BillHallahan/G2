@@ -542,7 +542,7 @@ ground_truth_all_total = [
     ("p85finC", [xs, ys])
 ]
 
-# TODO theorems with altered finiteness
+# theorems with altered finiteness
 # construct the final list from this using a function
 ground_truth_altered_finite = [
     ("p03fin", [n], 2),
@@ -817,6 +817,7 @@ def test_suite_fail(suite, timeout = 25):
             sat_num += 1
     print(sat_num, "Confirmed out of", len(suite))
 
+# 70 altered-totality theorems, 112 altered-finiteness ones
 def main():
     #test_suite_simple(custom_finite)
     #test_suite(equivalences_all_total)
@@ -824,10 +825,12 @@ def main():
     #test_suite_fail(equivalences_should_fail)
     #test_suite(more_finite)
     #test_suite(old_successes, 150)
-    #test_suite_ground(ground_truth)
+    #test_suite_ground(ground_truth, 45)
     #test_suite_ground(totality_change(ground_truth))
-    test_suite_ground([("p16finA", [xs])], 180)
+    #test_suite_ground([("p73", [p, xs])], 20)
     #test_suite_ground(old_successes, 60)
+    #print(len(totality_change(ground_truth)))
+    #print(len(make_altered_finite_list(ground_truth_altered_finite)))
 
 if __name__ == "__main__":
     main()

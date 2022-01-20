@@ -310,70 +310,6 @@ allTactics = [
 allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
 allNewLemmaTactics = map applyTacticToLabeledStates [tryEquality, tryCoinduction]
 
--- most Expr constructors will never appear in a concretization of an argument
--- TODO don't need to care about ns or cycles if only applied to initial args?
--- type arguments do not contribute to the depth of an expression
-exprDepth :: ExprEnv -> HS.HashSet Name -> [Name] -> Expr -> Int
-exprDepth h ns n e = case e of
-  Tick _ e' -> exprDepth h ns n e'
-  Var i | E.isSymbolic (idName i) h -> 0
-        | m <- idName i
-        , not $ m `elem` ns
-        , Just e' <- E.lookup m h -> exprDepth h ns (m:n) e'
-        | not $ (idName i) `elem` ns -> error "unmapped variable"
-  _ | d@(Data (DataCon _ _)):l <- unAppNoTicks e
-    , not $ null (anonArgumentTypes d) ->
-      1 + (maximum $ 0:(map (exprDepth h ns n) l))
-    | otherwise -> 0
-
-getDepth :: StateET -> HS.HashSet Name -> Id -> Int
-getDepth s ns i = exprDepth (expr_env s) ns [] (Var i)
-
-minArgDepth :: HS.HashSet Name -> [Id] -> StateET -> Int
-minArgDepth ns sym_ids s = case sym_ids of
-  [] -> 0
-  _ -> minimum $ map (getDepth s ns) sym_ids
-
-maxArgDepth :: HS.HashSet Name -> [Id] -> StateET -> Int
-maxArgDepth ns sym_ids s = case sym_ids of
-  [] -> 0
-  _ -> maximum $ map (getDepth s ns) sym_ids
-
-sumArgDepths :: HS.HashSet Name -> [Id] -> StateET -> Int
-sumArgDepths ns sym_ids s = foldr (+) 0 $ map (getDepth s ns) sym_ids
-
-minDepth :: HS.HashSet Name -> [Id] -> [(StateH, StateH)] -> Int
-minDepth ns sym_ids states =
-  let lefts = map (\(sh1, _) -> latest sh1) states
-      rights = map (\(_, sh2) -> latest sh2) states
-      (lefts', rights') = unzip $ map (uncurry syncSymbolic) (zip lefts rights)
-      depths = map (minArgDepth ns sym_ids) $ lefts' ++ rights'
-  in case states of
-    [] -> 0
-    _ -> minimum depths
-
--- TODO two depth metrics
-minMaxDepth :: HS.HashSet Name -> [Id] -> [(StateH, StateH)] -> Int
-minMaxDepth ns sym_ids states =
-  let lefts = map (\(sh1, _) -> latest sh1) states
-      rights = map (\(_, sh2) -> latest sh2) states
-      (lefts', rights') = unzip $ map (uncurry syncSymbolic) (zip lefts rights)
-      depths = map (maxArgDepth ns sym_ids) $ lefts' ++ rights'
-  in case states of
-    [] -> 0
-    _ -> minimum depths
-
--- correct to sync beforehand for all these
-minSumDepth :: HS.HashSet Name -> [Id] -> [(StateH, StateH)] -> Int
-minSumDepth ns sym_ids states =
-  let lefts = map (\(sh1, _) -> latest sh1) states
-      rights = map (\(_, sh2) -> latest sh2) states
-      (lefts', rights') = unzip $ map (uncurry syncSymbolic) (zip lefts rights)
-      depths = map (sumArgDepths ns sym_ids) $ lefts' ++ rights'
-  in case states of
-    [] -> 0
-    _ -> minimum depths
-
 -- negative loop iteration count means there's no limit
 -- TODO if states is empty but n = 0, we'll get Unknown rather than UNSAT
 -- added (null states) check to deal with that
@@ -470,7 +406,7 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k n | (n /= 0) |
     W.liftIO $ putStrLn $ "Unresolved Obligations: " ++ show (length states)
     let ob (sh1, sh2) = Marker (sh1, sh2) $ Unresolved (latest sh1, latest sh2)
     W.tell $ map ob states
-    return $ S.Unknown $ show $ minDepth ns sym_ids states
+    return $ S.Unknown "Loop Iterations Exhausted"
 
 data StepRes = CounterexampleFound
              | ContinueWith [(StateH, StateH)] [Lemma]

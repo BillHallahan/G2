@@ -7,6 +7,8 @@ module G2.Equiv.Summary
   , printPG
   , showCX
   , showCycle
+  , minMaxDepth
+  , minSumDepth
   )
   where
 
@@ -72,6 +74,8 @@ printPG pg ns sym_ids s =
       -- sym exec keeps higher_order in sync but not concretizations
       -- this means that the ids in func_ids are not always mapped
       -- if they are unmapped, they will not be printed for a state
+      depth_str1 = "\nMax Depth:  " ++ (show $ maxArgDepth ns sym_ids s)
+      depth_str2 = "\nSum Depth:  " ++ (show $ sumArgDepths ns sym_ids s)
       func_ids = map snd $ HM.toList $ higher_order $ track s
       sym_vars = varsFullList h ns $ sym_ids ++ func_ids
       sym_str = printVars pg ns s sym_vars
@@ -87,7 +91,8 @@ printPG pg ns sym_ids s =
       map_print = case map_str of
         "" -> ""
         _ -> "\nSymbolic Function Mappings:\n" ++ map_str
-  in label_str ++ "\n" ++ e_str ++ sym_print ++ var_print ++ map_print ++ "\n---"
+  in label_str ++ "\n" ++ e_str ++ depth_str1 ++ depth_str2 ++
+     sym_print ++ var_print ++ map_print ++ "\n---"
 
 inlineVars :: HS.HashSet Name -> ExprEnv -> Expr -> Expr
 inlineVars ns eenv = inlineVars' HS.empty ns eenv
@@ -459,3 +464,67 @@ showCycle pg ns sym_ids (s1, s2) cm =
       mapping_str = intercalate "\n" $ map (printMapping pg) mappings
       mapping_print = "\nMapping for Cycle:\n" ++ mapping_str
   in intercalate "" [cx_str, sym_print, var_print, map_print, mapping_print]
+
+-- most Expr constructors will never appear in a concretization of an argument
+-- TODO don't need to care about ns or cycles if only applied to initial args?
+-- type arguments do not contribute to the depth of an expression
+exprDepth :: ExprEnv -> HS.HashSet Name -> [Name] -> Expr -> Int
+exprDepth h ns n e = case e of
+  Tick _ e' -> exprDepth h ns n e'
+  Var i | E.isSymbolic (idName i) h -> 0
+        | m <- idName i
+        , not $ m `elem` ns
+        , Just e' <- E.lookup m h -> exprDepth h ns (m:n) e'
+        | not $ (idName i) `elem` ns -> error "unmapped variable"
+  _ | d@(Data (DataCon _ _)):l <- unAppNoTicks e
+    , not $ null (anonArgumentTypes d) ->
+      1 + (maximum $ 0:(map (exprDepth h ns n) l))
+    | otherwise -> 0
+
+getDepth :: StateET -> HS.HashSet Name -> Id -> Int
+getDepth s ns i = exprDepth (expr_env s) ns [] (Var i)
+
+minArgDepth :: HS.HashSet Name -> [Id] -> StateET -> Int
+minArgDepth ns sym_ids s = case sym_ids of
+  [] -> 0
+  _ -> minimum $ map (getDepth s ns) sym_ids
+
+maxArgDepth :: HS.HashSet Name -> [Id] -> StateET -> Int
+maxArgDepth ns sym_ids s = case sym_ids of
+  [] -> 0
+  _ -> maximum $ map (getDepth s ns) sym_ids
+
+sumArgDepths :: HS.HashSet Name -> [Id] -> StateET -> Int
+sumArgDepths ns sym_ids s = foldr (+) 0 $ map (getDepth s ns) sym_ids
+
+minDepth :: HS.HashSet Name -> [Id] -> [(StateH, StateH)] -> Int
+minDepth ns sym_ids states =
+  let lefts = map (\(sh1, _) -> latest sh1) states
+      rights = map (\(_, sh2) -> latest sh2) states
+      (lefts', rights') = unzip $ map (uncurry syncSymbolic) (zip lefts rights)
+      depths = map (minArgDepth ns sym_ids) $ lefts' ++ rights'
+  in case states of
+    [] -> 0
+    _ -> minimum depths
+
+-- TODO two depth metrics
+minMaxDepth :: HS.HashSet Name -> [Id] -> [(StateH, StateH)] -> Int
+minMaxDepth ns sym_ids states =
+  let lefts = map (\(sh1, _) -> latest sh1) states
+      rights = map (\(_, sh2) -> latest sh2) states
+      (lefts', rights') = unzip $ map (uncurry syncSymbolic) (zip lefts rights)
+      depths = map (maxArgDepth ns sym_ids) $ lefts' ++ rights'
+  in case states of
+    [] -> 0
+    _ -> minimum depths
+
+-- correct to sync beforehand for all these
+minSumDepth :: HS.HashSet Name -> [Id] -> [(StateH, StateH)] -> Int
+minSumDepth ns sym_ids states =
+  let lefts = map (\(sh1, _) -> latest sh1) states
+      rights = map (\(_, sh2) -> latest sh2) states
+      (lefts', rights') = unzip $ map (uncurry syncSymbolic) (zip lefts rights)
+      depths = map (sumArgDepths ns sym_ids) $ lefts' ++ rights'
+  in case states of
+    [] -> 0
+    _ -> minimum depths
