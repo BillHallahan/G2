@@ -737,7 +737,7 @@ coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) | not . isSWHNF
                                                                  , not . isSWHNF $ inlineCurrExpr s2  = do
   let prev = prevFiltered (sh1, sh2)
 
-  res <- moreRestrictivePairWithLemmas solver ns lemmas prev (s1, s2)
+  res <- moreRestrictivePairWithLemmasOnFuncApps solver ns lemmas prev (s1, s2)
   case res of
     Right _ -> return res
     Left new_lems -> backtrack new_lems
@@ -841,6 +841,9 @@ equivLemma solver ns (Lemma { lemma_lhs = l1_1, lemma_rhs = l1_2 }) lems = do
                         (Right _, Right _) -> return True
                         _ -> return False) lems
 
+filterProvenLemmas :: (Lemma -> Bool) -> Lemmas -> Lemmas
+filterProvenLemmas p lems@(Lemmas { proven_lemmas = prov }) = lems { proven_lemmas = filter p prov }
+
 -- TODO: Does substLemma need to do something more to check correctness of path constraints?
 -- `substLemma state lemmas` tries to apply each proven lemma in `lemmas` to `state`.
 -- In particular, for each `lemma = (lemma_l `equiv lemma_r` in the proven lemmas, it
@@ -885,6 +888,32 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma
         altBind (Alt (DataAlt _ is) _) = map idName is
         altBind _ = []
 
+-- Tries to apply lemmas to expressions only in FAF form, and only if the function being applied can not be
+-- called in any way by the lemma.
+moreRestrictivePairWithLemmasOnFuncApps :: S.Solver solver =>
+                                           solver ->
+                                           HS.HashSet Name ->
+                                           Lemmas ->
+                                           [(StateET, StateET)] ->
+                                           (StateET, StateET) ->
+                                           W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
+moreRestrictivePairWithLemmasOnFuncApps solver ns =
+    moreRestrictivePairWithLemmas'
+        (\s lem -> case unApp . modifyASTs stripTicks . inlineFull (HS.toList ns) (expr_env s) $ exprExtract s of
+                    Var (Id f _):_ ->
+                        let
+                            lem_vars = varNames $ inlineFull (HS.toList ns) (expr_env s) $ exprExtract (lemma_rhs lem)
+                        in
+                        not $ f `elem` lem_vars
+                    _ -> False)
+        solver ns
+--     | Var (Id f1 _):_ <- unApp $ exprExtract s1
+--     , Var (Id f2 _):_ <- unApp $ exprExtract s2 = do
+--         moreRestrictivePairWithLemmas solver ns lemmas past (s1, s2)
+--     | otherwise = do
+--         mrp <- moreRestrictivePair solver ns past (s1, s2)
+--         return $ fmap (Nothing, Nothing,) mrp
+
 moreRestrictivePairWithLemmas :: S.Solver solver =>
                                  solver ->
                                  HS.HashSet Name ->
@@ -892,10 +921,20 @@ moreRestrictivePairWithLemmas :: S.Solver solver =>
                                  [(StateET, StateET)] ->
                                  (StateET, StateET) ->
                                  W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
-moreRestrictivePairWithLemmas solver ns lemmas past (s1, s2) = do
+moreRestrictivePairWithLemmas = moreRestrictivePairWithLemmas' (\_ _ -> True)
+
+moreRestrictivePairWithLemmas' :: S.Solver solver =>
+                                  (StateET -> Lemma -> Bool) ->
+                                  solver ->
+                                  HS.HashSet Name ->
+                                  Lemmas ->
+                                  [(StateET, StateET)] ->
+                                  (StateET, StateET) ->
+                                  W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
+moreRestrictivePairWithLemmas' app_state solver ns lemmas past (s1, s2) = do
     let (s1', s2') = syncSymbolic s1 s2
-    xs1 <- substLemma solver ns s1' lemmas
-    xs2 <- substLemma solver ns s2' lemmas
+    xs1 <- substLemma solver ns s1' $ filterProvenLemmas (app_state s1') lemmas
+    xs2 <- substLemma solver ns s2' $ filterProvenLemmas (app_state s2') lemmas
 
     let xs1' = (Nothing, s1'):(map (\(l, s) -> (Just l, s)) xs1)
         xs2' = (Nothing, s2'):(map (\(l, s) -> (Just l, s)) xs2)

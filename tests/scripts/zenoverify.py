@@ -858,7 +858,7 @@ def main():
     #test_suite(finite_long, 120)
     #test_suite_fail(equivalences_should_fail)
     #test_suite(more_finite)
-    #test_suite(old_successes, 150)
+    test_suite(old_successes, 150)
     #test_suite_csv(ground_truth[:2], 30)
     #test_suite_ground(totality_change(ground_truth))
     #test_suite_ground([("p73", [p, xs])], 20)
