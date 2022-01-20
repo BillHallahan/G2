@@ -65,17 +65,6 @@ def call_zeno_process(filename, thm, var_settings, time):
     except subprocess.TimeoutExpired as TimeoutEx:
         return (TimeoutEx.stdout.decode('utf-8') + "\nTimeout").encode('utf-8')
 
-# TODO don't need the Unknown iteration-limit depth anymore
-'''
-def check_depth(lines):
-    depths = [0]
-    for line in lines:
-        if line[:21] == "<<Current Min Depth>>":
-            depth_str = line[22:]
-            depths.append(int(depth_str))
-    return max(depths)
-'''
-
 # ver should be either "Max" or "Sum"
 def check_depth(ver, lines):
     depths = [0]
@@ -363,7 +352,6 @@ old_successes = [
     ("p82", [])
 ]
 
-# TODO update for 81, 85
 ground_truth = [
     ("p01", [n]),
     ("p02", []), # slow
@@ -455,7 +443,6 @@ ground_truth = [
     ("p78finB", []),
     ("p79", [n]),
     ("p80", []),
-    #("p81", [n, m, xs]),
     ("p81fin", [m, xs]),
     ("p81finA", [m, xs]),
     ("p82", []),
@@ -568,7 +555,6 @@ ground_truth_all_total = [
 
 # theorems with altered finiteness
 # construct the final list from this using a function
-# TODO update for 81, 85
 ground_truth_altered_finite = [
     ("p03fin", [n], 2),
     ("p03finB", [n, xs], 2),
@@ -800,8 +786,10 @@ def test_suite_csv(fname, suite, timeout = 25):
         d = run_zeno("TestZeno.hs", thm, settings, timeout);
         check_unsat = d["result"]
         elapsed = d["time"]
-        l_str = d["left"]
-        r_str = d["right"]
+        # TODO replace commas in anything else?
+        # swap out the semicolons in a later conversion?
+        l_str = d["left"].replace(",", ";")
+        r_str = d["right"].replace(",", ";")
         min_max_depth = d["min_max_depth"]
         min_sum_depth = d["min_sum_depth"]
         min_max_depth_dict[thm] = min_max_depth
