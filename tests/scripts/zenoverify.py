@@ -363,6 +363,7 @@ old_successes = [
     ("p82", [])
 ]
 
+# TODO update for 81, 85
 ground_truth = [
     ("p01", [n]),
     ("p02", []), # slow
@@ -393,7 +394,7 @@ ground_truth = [
     ("p24fin", [b]), # slow
     ("p25fin", [a]), # slow
     ("p26finA", [x]),
-    ("p26finB", [xs]),
+    ("p26finB", [x, xs]),
     ("p27finA", [xs, ys]),
     ("p28finA", [xs]),
     ("p29finA", [xs]),
@@ -425,7 +426,7 @@ ground_truth = [
     ("p54fin", [m]),
     ("p55", []),
     ("p56", [n, m]),
-    ("p57finA", []),
+    ("p57finA", [m, xs]),
     ("p57finB", [n, xs]),
     ("p58", [n, xs, ys]),
     ("p59finA", [ys]),
@@ -454,7 +455,9 @@ ground_truth = [
     ("p78finB", []),
     ("p79", [n]),
     ("p80", []),
-    ("p81", [n, m, xs]),
+    #("p81", [n, m, xs]),
+    ("p81fin", [m, xs]),
+    ("p81finA", [m, xs]),
     ("p82", []),
     ("p83", [ys]),
     ("p84", [ys]),
@@ -462,6 +465,7 @@ ground_truth = [
     ("p85finC", [xs, ys])
 ]
 
+# TODO check before using again
 ground_truth_all_total = [
     ("p01", [n, xs]),
     ("p02", [n, xs, ys]), # slow
@@ -553,7 +557,8 @@ ground_truth_all_total = [
     ("p78finB", [xs]),
     ("p79", [m, n, k]),
     ("p80", [n, xs, ys]),
-    ("p81", [n, m, xs]),
+    ("p81fin", [n, m, xs]),
+    ("p81finA", [n, m, xs]),
     ("p82", [n, xs, ys]),
     ("p83", [xs, ys, zs]),
     ("p84", [xs, ys, zs]),
@@ -563,6 +568,7 @@ ground_truth_all_total = [
 
 # theorems with altered finiteness
 # construct the final list from this using a function
+# TODO update for 81, 85
 ground_truth_altered_finite = [
     ("p03fin", [n], 2),
     ("p03finB", [n, xs], 2),
@@ -582,7 +588,7 @@ ground_truth_altered_finite = [
     ("p24fin", [b], 1),
     ("p25fin", [a], 1),
     ("p26finA", [x], 2),
-    ("p26finB", [xs], 3),
+    ("p26finB", [x, xs], 3),
     ("p27finA", [xs, ys], 6),
     ("p28finA", [xs], 3),
     ("p29finA", [xs], 3),
@@ -594,7 +600,7 @@ ground_truth_altered_finite = [
     ("p52finA", [], 2),
     ("p53finA", [], 2),
     ("p54fin", [m], 1),
-    ("p57finA", [], 2),
+    ("p57finA", [m, xs], 2),
     ("p57finB", [n, xs], 2),
     ("p59finA", [ys], 2),
     ("p60finB", [], 4),
@@ -616,7 +622,9 @@ ground_truth_altered_finite = [
     ("p76finC", [n], 3),
     ("p77finA", [x], 2),
     ("p78finB", [], 2),
-    ("p85finB", [xs, ys], 1) #85C omitted because it would be the same
+    ("p81fin", [m, xs], 1), #81A omitted because it would be the same
+    ("p85finB", [xs, ys], 2),
+    ("p85finC", [xs, ys], 2)
 ]
 
 def make_altered_finite_list(suite):
@@ -868,6 +876,7 @@ def main():
 
     # TODO this is the toy example I used for testing the new file writing
     #test_suite_csv("CX", [("p01", [])], 30)
+    #test_suite_csv("CX", [("p45", [])], 30)
     
     # TODO this is the real test suite
     # feel free to reduce the time from 180, but keep at least 150

@@ -672,8 +672,10 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p76finC" forall n m xs . walkNatList xs (prop_76 n m xs) = walkNat m $ walkNatList xs True
 "p77finA" forall x xs . walkNatList xs (prop_77 x xs) = walkNatList xs True
 "p78finB" forall xs . walkNatList xs (prop_78 xs) = walkNatList xs True
-"p85finB" forall xs ys . prop_85 xs ys = walkList xs True
-"p85finC" forall xs ys . prop_85 xs ys = walkList ys True
+"p81fin" forall n m xs . walkNat m (take n (drop m xs)) = drop m (take (n + m) xs)
+"p81finA" forall n m xs . walkList xs (take n (drop m xs)) = drop m (take (n + m) xs)
+"p85finB" forall xs ys . walkList xs (prop_85 xs ys) = walkList xs True
+"p85finC" forall xs ys . walkList ys (prop_85 xs ys) = walkList ys True
   #-}
 
 -- TODO altered rules with some walking removed
@@ -792,7 +794,11 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p77finA2" forall x xs . walkNatList xs (prop_77 x xs) = True
 "p78finB1" forall xs . prop_78 xs = walkNatList xs True
 "p78finB2" forall xs . walkNatList xs (prop_78 xs) = True
-"p85finB1" forall xs ys . prop_85 xs ys = True
+"p81fin1" forall n m xs . take n (drop m xs) = drop m (take (n + m) xs)
+"p85finB1" forall xs ys . prop_85 xs ys = walkList xs True
+"p85finB2" forall xs ys . walkList xs (prop_85 xs ys) = True
+"p85finC1" forall xs ys . prop_85 xs ys = walkList ys True
+"p85finC2" forall xs ys . walkList ys (prop_85 xs ys) = True
   #-}
 
 walkNat :: Nat -> a -> a

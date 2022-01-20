@@ -818,6 +818,9 @@ fetchCX ((Marker _ m):ms) = case m of
   CycleFound cm -> cycle_real_present cm
   _ -> fetchCX ms
 
+-- If the Marker list is reversed from how it was when it was fetched, then
+-- we're guaranteed to get something that came from the main proof rather than
+-- a lemma.  Lemma examination happens first within iterations.
 printCX :: [Marker] ->
            PrettyGuide ->
            HS.HashSet Name ->
@@ -825,10 +828,10 @@ printCX :: [Marker] ->
            (State t, State t) ->
            String
 printCX [] _ _ _ _ = error "No Counterexample"
-printCX ((Marker _ m):ms) pg ns sym_ids init_pair = case m of
-  NotEquivalent s_pair -> showCX pg ns sym_ids init_pair s_pair
-  SolverFail s_pair -> showCX pg ns sym_ids init_pair s_pair
-  CycleFound cm -> showCycle pg ns sym_ids init_pair cm
+printCX ((Marker hist m):ms) pg ns sym_ids init_pair = case m of
+  NotEquivalent s_pair -> showCX pg ns sym_ids hist init_pair s_pair
+  SolverFail s_pair -> showCX pg ns sym_ids hist init_pair s_pair
+  CycleFound cm -> showCycle pg ns sym_ids hist init_pair cm
   _ -> printCX ms pg ns sym_ids init_pair
 
 checkRule :: Config ->
@@ -893,7 +896,7 @@ checkRule config init_state bindings total finite print_summary iterations rule 
       putStrLn "--------------------"
       putStrLn "COUNTEREXAMPLE FOUND"
       putStrLn "--------------------"
-      putStrLn $ printCX w pg ns sym_ids (rewrite_state_l, rewrite_state_r)
+      putStrLn $ printCX (reverse w) pg ns sym_ids (rewrite_state_l, rewrite_state_r)
     _ -> return ()
   S.close solver
   return res

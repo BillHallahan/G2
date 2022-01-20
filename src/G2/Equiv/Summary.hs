@@ -385,13 +385,16 @@ printDC pg ((d, i, n):ds) str =
 showCX :: PrettyGuide ->
           HS.HashSet Name ->
           [Id] ->
+          (StateH, StateH) ->
           (State t, State t) ->
           (StateET, StateET) ->
           String
-showCX pg ns sym_ids (s1, s2) (q1, q2) =
+showCX pg ns sym_ids (sh1, sh2) (s1, s2) (q1, q2) =
   -- main part showing contradiction
   let (q1', q2') = syncSymbolic q1 q2
       h = expr_env q2'
+      names1 = map trackName $ (latest sh1):history sh1
+      names2 = map trackName $ (latest sh2):history sh2
       e1 = inlineVars ns (expr_env q1') $ exprExtract s1
       e1_str = printHaskellPG pg q1' e1
       end1 = inlineVars ns (expr_env q1') $ exprExtract q1'
@@ -417,19 +420,28 @@ showCX pg ns sym_ids (s1, s2) (q1, q2) =
       map_print = case map_str of
         "" -> ""
         _ -> "\nSymbolic Function Mappings:\n" ++ map_str
-  in intercalate "" [cx_str, sym_print, var_print, map_print]
+  in
+  "\nLeft Path: " ++
+  (intercalate " -> " $ (reverse names1)) ++
+  "\nRight Path: " ++
+  (intercalate " -> " $ (reverse names2)) ++ "\n" ++
+  intercalate "" [cx_str, sym_print, var_print, map_print]
 
 -- TODO remove redundancy
+-- TODO take the history
 showCycle :: PrettyGuide ->
              HS.HashSet Name ->
              [Id] ->
+             (StateH, StateH) ->
              (State t, State t) ->
              CycleMarker ->
              String
-showCycle pg ns sym_ids (s1, s2) cm =
+showCycle pg ns sym_ids (sh1, sh2) (s1, s2) cm =
   let (q1, q2) = cycle_real_present cm
       (q1', q2') = syncSymbolic q1 q2
       h = expr_env q2'
+      names1 = map trackName $ (latest sh1):history sh1
+      names2 = map trackName $ (latest sh2):history sh2
       e1 = inlineVars ns (expr_env q1') $ exprExtract s1
       e1_str = printHaskellPG pg q1' e1
       end1 = inlineVars ns (expr_env q1') $ exprExtract q1'
@@ -463,7 +475,12 @@ showCycle pg ns sym_ids (s1, s2) cm =
       mappings = map swap $ HM.toList $ cycle_mapping cm
       mapping_str = intercalate "\n" $ map (printMapping pg) mappings
       mapping_print = "\nMapping for Cycle:\n" ++ mapping_str
-  in intercalate "" [cx_str, sym_print, var_print, map_print, mapping_print]
+  in
+  "\nLeft Path: " ++
+  (intercalate " -> " $ (reverse names1)) ++
+  "\nRight Path: " ++
+  (intercalate " -> " $ (reverse names2)) ++ "\n" ++
+  intercalate "" [cx_str, sym_print, var_print, map_print, mapping_print]
 
 -- most Expr constructors will never appear in a concretization of an argument
 -- TODO don't need to care about ns or cycles if only applied to initial args?
