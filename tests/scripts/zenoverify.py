@@ -443,8 +443,8 @@ ground_truth = [
     ("p78finB", []),
     ("p79", [n]),
     ("p80", []),
-    ("p81fin", [m, xs]),
-    ("p81finA", [m, xs]),
+    ("p81fin", [n, m, xs]),
+    ("p81finA", [n, m, xs]),
     ("p82", []),
     ("p83", [ys]),
     ("p84", [ys]),
@@ -608,7 +608,7 @@ ground_truth_altered_finite = [
     ("p76finC", [n], 3),
     ("p77finA", [x], 2),
     ("p78finB", [], 2),
-    ("p81fin", [m, xs], 1), #81A omitted because it would be the same
+    ("p81fin", [n, m, xs], 1), #81A omitted because it would be the same
     ("p85finB", [xs, ys], 2),
     ("p85finC", [xs, ys], 2)
 ]
