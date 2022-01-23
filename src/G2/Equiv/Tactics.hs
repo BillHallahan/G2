@@ -415,35 +415,6 @@ validMap s1 s2 hm =
                   || isPrimType (typeOf e)
   in all check hm_list
 
--- TODO not exhaustive
--- cyclic expressions count as total
-totalExpr :: StateET ->
-             HS.HashSet Name ->
-             [Name] -> -- variables inlined previously
-             Expr ->
-             Bool
-totalExpr s@(State { expr_env = h, track = EquivTracker _ _ total _ _ _ }) ns n e =
-  case e of
-    Tick _ e' -> totalExpr s ns n e'
-    Var i | m <- idName i
-          , E.isSymbolic m h -> m `elem` total
-          | m <- idName i
-          , not $ HS.member m ns
-          , not $ m `elem` n
-          , Just e' <- E.lookup m h -> totalExpr s ns (m:n) e'
-          | (idName i) `elem` n -> True
-          | HS.member (idName i) ns -> False
-          | otherwise -> error $ "unmapped variable " ++ show i ++ " " ++ (folder_name $ track s)
-    App f a -> totalExpr s ns n f && totalExpr s ns n a
-    Data _ -> True
-    Prim _ _ -> True
-    Lit _ -> True
-    Lam _ _ _ -> False
-    Type _ -> True
-    Let _ _ -> False
-    Case _ _ _ -> False
-    _ -> False
-
 validTotal :: StateET ->
               StateET ->
               HS.HashSet Name ->

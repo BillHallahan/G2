@@ -453,6 +453,7 @@ ground_truth = [
 ]
 
 # TODO check before using again
+# TODO use this for the finiteness tests instead of the normal lists
 ground_truth_all_total = [
     ("p01", [n, xs]),
     ("p02", [n, xs, ys]), # slow
@@ -1047,6 +1048,10 @@ def main():
     #print(results_matrix(csv_matrix("ZenoAlteredTotal")))
     #lat = latex_table(results_matrix(csv_matrix("ZenoAlteredTotal")))
     #write_latex("LatexTest", lat)
+    #csv_mat = good_matrix(results_matrix(csv_matrix("ZenoTrue")))
+    #csv_mat = bad_matrix(results_matrix(csv_matrix("ZenoAlteredFinite")))
+    #lat = latex_table(csv_mat)
+    #write_latex("EvaluationFinite", lat)
     
     # TODO this is the real test suite
     # feel free to reduce the time from 180, but keep at least 150

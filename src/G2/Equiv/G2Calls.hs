@@ -4,7 +4,8 @@
 
 module G2.Equiv.G2Calls ( StateET
                         , emptyEquivTracker
-                        , runG2ForRewriteV) where
+                        , runG2ForRewriteV
+                        , totalExpr ) where
 
 import G2.Config
 import G2.Execution
@@ -246,13 +247,17 @@ instance Reducer EquivReducer () EquivTracker where
                         -- carry over totality if function and all args are total
                         -- unApp, make sure every arg is a total symbolic var
                         -- these are exprs originally
+                        {-
                         es = map exprVarName $ unApp e'
                         all_vars = all isJust es
                         es' = map (\(Just n) -> n) $ filter isJust es
                         all_sym = all (\x -> E.isSymbolic x eenv) es'
+                        -}
                         -- TODO I could use totalExpr here
-                        all_total = all (`elem` total) es'
-                        total' = if all_vars && all_sym && all_total
+                        -- TODO do I have access to ns here?
+                        -- TODO do I still want all_sym?
+                        all_total = all (totalExpr s HS.empty []) $ unApp e'
+                        total' = if all_total
                                  then HS.insert (idName v) total
                                  else total
                         s' = s { curr_expr = CurrExpr Evaluate (Var v)
@@ -262,6 +267,36 @@ instance Reducer EquivReducer () EquivTracker where
                     in trace ("SYM FUNC " ++ show v ++ "\n" ++ show e) $
                     return (InProgress, [(s', ())], b', r)
     redRules r rv s b = return (NoProgress, [(s, rv)], b, r)
+
+-- TODO not exhaustive
+-- cyclic expressions count as total
+-- TODO reject Error and Undefined primitives
+totalExpr :: StateET ->
+             HS.HashSet Name ->
+             [Name] -> -- variables inlined previously
+             Expr ->
+             Bool
+totalExpr s@(State { expr_env = h, track = EquivTracker _ _ total _ _ _ }) ns n e =
+  case e of
+    Tick _ e' -> totalExpr s ns n e'
+    Var i | m <- idName i
+          , E.isSymbolic m h -> m `elem` total
+          | m <- idName i
+          , not $ HS.member m ns
+          , not $ m `elem` n
+          , Just e' <- E.lookup m h -> totalExpr s ns (m:n) e'
+          | (idName i) `elem` n -> True
+          | HS.member (idName i) ns -> False
+          | otherwise -> error $ "unmapped variable " ++ show i ++ " " ++ (folder_name $ track s)
+    App f a -> totalExpr s ns n f && totalExpr s ns n a
+    Data _ -> True
+    Prim p _ -> not (p == Error || p == Undefined)
+    Lit _ -> True
+    Lam _ _ _ -> False
+    Type _ -> True
+    Let _ _ -> False
+    Case _ _ _ -> False
+    _ -> False
 
 -- doesn't need tick removal
 exprVarName :: Expr -> Maybe Name
