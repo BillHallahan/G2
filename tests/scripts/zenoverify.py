@@ -53,7 +53,6 @@ def run_zeno(filename, thm, var_settings, timeout):
         "min_sum_depth":depth2,
         "cx":cx_text
     }
-    #return (left_str, right_str, check_unsat, elapsed);
 
 def call_zeno_process(filename, thm, var_settings, time):
     try:
@@ -73,8 +72,6 @@ def check_depth(ver, lines):
         if line[:17] == ("<<Min " + ver + " Depth>>"):
             depth_str = line[18:]
             depths.append(int(depth_str))
-            #print(ver, depth_str)
-    #print("Max", ver, max(depths))
     return max(depths)
 
 def check_cx(lines):
@@ -716,113 +713,63 @@ def test_suite_simple(suite, timeout = 25):
             print("\tFailed - " + str(elapsed) + "s")
     print(unsat_num, "Confirmed out of", len(suite))
 
-def test_suite(suite, timeout = 25):
-    unsat_num = 0;
-    min_max_depth_dict = {}
-    min_sum_depth_dict = {}
-    for (thm, settings) in suite:
-        print(thm, settings);
-        d = run_zeno("Zeno.hs", thm, settings, timeout);
-        check_unsat = d["result"]
-        elapsed = d["time"]
-        min_max_depth = d["min_max_depth"]
-        min_sum_depth = d["min_sum_depth"]
-        min_max_depth_dict[thm] = min_max_depth
-        min_sum_depth_dict[thm] = min_sum_depth
-        if check_unsat == "UNSAT ()":
-            print("\tVerified - " + str(elapsed) + "s");
-            unsat_num += 1
-        elif check_unsat[:7] == "Unknown":
-            print("\tIncomplete - " + str(elapsed) + "s")
-        elif check_unsat == "Timeout":
-            print("\tTimeout - " + str(elapsed) + "s")
-        else:
-            print("\tFailed - " + str(elapsed) + "s")
-        print("\tMin Max Depth:")
-        print_depth(min_max_depth)
-        print("\tMin Sum Depth:")
-        print_depth(min_sum_depth)
-    print(unsat_num, "Confirmed out of", len(suite))
-
-# TODO make this system more modular?
-def test_suite_ground(suite, timeout = 25):
-    unsat_num = 0;
-    min_max_depth_dict = {}
-    min_sum_depth_dict = {}
-    for (thm, settings) in suite:
-        print(thm, settings);
-        d = run_zeno("TestZeno.hs", thm, settings, timeout);
-        check_unsat = d["result"]
-        elapsed = d["time"]
-        min_max_depth = d["min_max_depth"]
-        min_sum_depth = d["min_sum_depth"]
-        min_max_depth_dict[thm] = min_max_depth
-        min_sum_depth_dict[thm] = min_sum_depth
-        if check_unsat == "UNSAT ()":
-            print("\tVerified - " + str(elapsed) + "s");
-            unsat_num += 1
-        elif check_unsat[:7] == "Unknown":
-            print("\tIncomplete - " + str(elapsed) + "s")
-        elif check_unsat == "Timeout":
-            print("\tTimeout - " + str(elapsed) + "s")
-        else:
-            print("\tFailed - " + str(elapsed) + "s")
-        print("\tMin Max Depth:")
-        print_depth(min_max_depth)
-        print("\tMin Sum Depth:")
-        print_depth(min_sum_depth)
-    print(unsat_num, "Confirmed out of", len(suite))
-
-def total_string(settings):
-    if len(settings) == 0:
-        return ""
-    t_str = settings[0]
-    for t in settings[1:]:
-        t_str += " " + t
-    return t_str
-
-def test_suite_csv(fname, suite, timeout = 25):
-    unsat_num = 0;
-    min_max_depth_dict = {}
-    min_sum_depth_dict = {}
-    file = open(fname + ".csv", "w")
-    file.write("Name,LHS,RHS,Total,Outcome,Time,Min Max Depth,Min Sum Depth\n")
+def test_suite_general(suite, fname_in, fname_out, timeout = 25):
+    unsat_num = 0
+    sat_num = 0
     # index to ensure uniqueness
     k = 0
+    # TODO use these to report stats?
+    min_max_depth_dict = {}
+    min_sum_depth_dict = {}
+    if fname_out is not None:
+        file = open(fname_out + ".csv", "w")
+        file.write("Name,LHS,RHS,Total,Outcome,Time,Min Max Depth,Min Sum Depth\n")
     for (thm, settings) in suite:
-        print(thm, settings);
-        # TODO only use with TestZeno now
-        d = run_zeno("TestZeno.hs", thm, settings, timeout);
+        print(thm, settings)
+        d = run_zeno(fname_in, thm, settings, timeout)
         check_unsat = d["result"]
         elapsed = d["time"]
-        # TODO replace commas in anything else?
-        # swap out the semicolons in a later conversion?
-        l_str = d["left"].replace(",", ";")
-        r_str = d["right"].replace(",", ";")
         min_max_depth = d["min_max_depth"]
         min_sum_depth = d["min_sum_depth"]
         min_max_depth_dict[thm] = min_max_depth
         min_sum_depth_dict[thm] = min_sum_depth
-        file.write(thm + "," + l_str + "," + r_str + ",")
-        file.write(total_string(settings) + ",")
+        if fname_out is not None:
+            # TODO replace commas in anything else?
+            l_str = d["left"].replace(",", ";")
+            r_str = d["right"].replace(",", ";")
+            file.write(thm + "," + l_str + "," + r_str + ",")
+            file.write(total_string(settings) + ",")
         if check_unsat == "UNSAT ()":
             print("\tVerified - " + str(elapsed) + "s");
             unsat_num += 1
-            file.write("Verified," + str(elapsed) + "s,")
+            if fname_out is not None:
+                file.write("Verified," + str(elapsed) + "s,")
+        # TODO will need adjustment to look for different keywords?
+        elif check_unsat == "SAT ()":
+            print("\tFailed - " + str(elapsed) + "s")
+            sat_num += 1
+            if fname_out is not None:
+                file.write("Failed," + str(elapsed) + "s,")
+        elif check_unsat[:7] == "Unknown":
+            print("\tIncomplete - " + str(elapsed) + "s")
+            if fname_out is not None:
+                file.write("Incomplete," + str(elapsed) + "s,")
         elif check_unsat == "Timeout":
             print("\tTimeout - " + str(elapsed) + "s")
-            file.write("Timeout," + str(elapsed) + "s,")
+            if fname_out is not None:
+                file.write("Timeout," + str(elapsed) + "s,")
         else:
-            print("\tFailed - " + str(elapsed) + "s")
-            file.write("Failed," + str(elapsed) + "s,")
+            print("\tError - " + str(elapsed) + "s")
+            if fname_out is not None:
+                file.write("Error," + str(elapsed) + "s,")
         print("\tMin Max Depth:")
         print_depth(min_max_depth)
         print("\tMin Sum Depth:")
         print_depth(min_sum_depth)
-        file.write(str(min_max_depth) + "," + str(min_sum_depth) + "\n")
-        # TODO new code for counterexample writing
+        if fname_out is not None:
+            file.write(str(min_max_depth) + "," + str(min_sum_depth) + "\n")
         cx = d["cx"]
-        if len(cx) > 0:
+        if len(cx) > 0 and fname_out is not None:
             cx_file = open(fname + "-" + thm + "-" + str(k) + ".txt", "w")
             cx_file.write(thm + " ")
             cx_file.write(str(settings))
@@ -833,7 +780,26 @@ def test_suite_csv(fname, suite, timeout = 25):
             cx_file.close()
         k += 1
     print(unsat_num, "Confirmed out of", len(suite))
-    file.close()
+    print(sat_num, "Rejected out of", len(suite))
+    if fname_out is not None:
+        file.close()
+
+def test_suite(suite, timeout = 25):
+    return test_suite_general(suite, "Zeno.hs", None, timeout)
+
+def test_suite_ground(suite, timeout = 25):
+    return test_suite_general(suite, "TestZeno.hs", None, timeout)
+
+def total_string(settings):
+    if len(settings) == 0:
+        return ""
+    t_str = settings[0]
+    for t in settings[1:]:
+        t_str += " " + t
+    return t_str
+
+def test_suite_csv(fname, suite, timeout = 25):
+    return test_suite_general(suite, "TestZeno.hs", fname, timeout)
 
 # For tests that should not return unsat
 def test_suite_fail(suite, timeout = 25):
