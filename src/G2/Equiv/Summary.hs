@@ -380,6 +380,48 @@ printDC pg ((d, i, n):ds) str =
       post_blanks = replicate (n - (i + 1)) "_"
   in intercalate " " $ d_str:(pre_blanks ++ (str':post_blanks))
 
+-- TODO for both cycles and regular counterexamples
+printCX :: PrettyGuide ->
+           HS.HashSet Name ->
+           [Id] ->
+           (StateH, StateH) ->
+           (State t, State t) ->
+           (StateET, StateET) ->
+           String ->
+           String ->
+           String
+printCX pg ns sym_ids (sh1, sh2) (s1, s2) (q1', q2') end1_str end2_str =
+  let h = expr_env q2'
+      names1 = map trackName $ (latest sh1):history sh1
+      names2 = map trackName $ (latest sh2):history sh2
+      e1 = inlineVars ns (expr_env q1') $ exprExtract s1
+      e1_str = printHaskellPG pg q1' e1
+      e2 = inlineVars ns h $ exprExtract s2
+      e2_str = printHaskellPG pg q2' e2
+      cx_str = e1_str ++ " = " ++ end1_str ++ " but " ++
+               e2_str ++ " = " ++ end2_str
+      func_ids = map snd $ HM.toList $ higher_order $ track q2'
+      sym_vars = varsFullList h ns $ sym_ids ++ func_ids
+      sym_str = printVars pg ns q2' sym_vars
+      sym_print = case sym_str of
+        "" -> ""
+        _ -> "\nMain Symbolic Variables:\n" ++ sym_str
+      other_vars = varsFull h ns (App (exprExtract q1') (exprExtract q2')) \\ sym_vars
+      var_str = printVars pg ns q2' other_vars
+      var_print = case var_str of
+        "" -> ""
+        _ -> "\nOther Variables:\n" ++ var_str
+      map_str = printMappings pg q2'
+      map_print = case map_str of
+        "" -> ""
+        _ -> "\nSymbolic Function Mappings:\n" ++ map_str
+  in
+  "Left Path: " ++
+  (intercalate " -> " $ (reverse names1)) ++
+  "\nRight Path: " ++
+  (intercalate " -> " $ (reverse names2)) ++ "\n" ++
+  intercalate "" [cx_str, sym_print, var_print, map_print]
+
 -- counterexample printing
 -- first state pair is initial states, second is from counterexample
 showCX :: PrettyGuide ->
@@ -389,46 +431,15 @@ showCX :: PrettyGuide ->
           (State t, State t) ->
           (StateET, StateET) ->
           String
-showCX pg ns sym_ids (sh1, sh2) (s1, s2) (q1, q2) =
+showCX pg ns sym_ids sh_pair s_pair (q1, q2) =
   -- main part showing contradiction
   let (q1', q2') = syncSymbolic q1 q2
-      h = expr_env q2'
-      names1 = map trackName $ (latest sh1):history sh1
-      names2 = map trackName $ (latest sh2):history sh2
-      e1 = inlineVars ns (expr_env q1') $ exprExtract s1
-      e1_str = printHaskellPG pg q1' e1
       end1 = inlineVars ns (expr_env q1') $ exprExtract q1'
       end1_str = printDC pg (dc_path $ track q1') $ printHaskellPG pg q1' end1
-      e2 = inlineVars ns h $ exprExtract s2
-      e2_str = printHaskellPG pg q2' e2
-      end2 = inlineVars ns h $ exprExtract q2'
+      end2 = inlineVars ns (expr_env q2') $ exprExtract q2'
       end2_str = printDC pg (dc_path $ track q2') $ printHaskellPG pg q2' end2
-      cx_str = e1_str ++ " = " ++ end1_str ++ " but " ++
-               e2_str ++ " = " ++ end2_str
-      func_ids = map snd $ HM.toList $ higher_order $ track q2'
-      sym_vars = varsFullList h ns $ sym_ids ++ func_ids
-      sym_str = printVars pg ns q2' sym_vars
-      sym_print = case sym_str of
-        "" -> ""
-        _ -> "\nMain Symbolic Variables:\n" ++ sym_str
-      other_vars = varsFull h ns (App (exprExtract q1') (exprExtract q2')) \\ sym_vars
-      var_str = printVars pg ns q2' other_vars
-      var_print = case var_str of
-        "" -> ""
-        _ -> "\nOther Variables:\n" ++ var_str
-      map_str = printMappings pg q2'
-      map_print = case map_str of
-        "" -> ""
-        _ -> "\nSymbolic Function Mappings:\n" ++ map_str
-  in
-  "\nLeft Path: " ++
-  (intercalate " -> " $ (reverse names1)) ++
-  "\nRight Path: " ++
-  (intercalate " -> " $ (reverse names2)) ++ "\n" ++
-  intercalate "" [cx_str, sym_print, var_print, map_print]
+  in printCX pg ns sym_ids sh_pair s_pair (q1', q2') end1_str end2_str
 
--- TODO remove redundancy
--- TODO take the history
 showCycle :: PrettyGuide ->
              HS.HashSet Name ->
              [Id] ->
@@ -436,51 +447,22 @@ showCycle :: PrettyGuide ->
              (State t, State t) ->
              CycleMarker ->
              String
-showCycle pg ns sym_ids (sh1, sh2) (s1, s2) cm =
+showCycle pg ns sym_ids sh_pair s_pair cm =
   let (q1, q2) = cycle_real_present cm
       (q1', q2') = syncSymbolic q1 q2
-      h = expr_env q2'
-      names1 = map trackName $ (latest sh1):history sh1
-      names2 = map trackName $ (latest sh2):history sh2
-      e1 = inlineVars ns (expr_env q1') $ exprExtract s1
-      e1_str = printHaskellPG pg q1' e1
       end1 = inlineVars ns (expr_env q1') $ exprExtract q1'
       end1_str = case cycle_side cm of
         ILeft -> "{HAS NON-TERMINATING PATH}"
         IRight -> printDC pg (dc_path $ track q1') $ printHaskellPG pg q1' end1
-      e2 = inlineVars ns h $ exprExtract s2
-      e2_str = printHaskellPG pg q2' e2
-      end2 = inlineVars ns h $ exprExtract q2'
+      end2 = inlineVars ns (expr_env q2') $ exprExtract q2'
       end2_str = case cycle_side cm of
         ILeft -> printDC pg (dc_path $ track q2') $ printHaskellPG pg q2' end2
         IRight -> "{HAS NON-TERMINATING PATH}"
-      cx_str = e1_str ++ " = " ++ end1_str ++ " but " ++
-               e2_str ++ " = " ++ end2_str
-      func_ids = map snd $ HM.toList $ higher_order $ track q2'
-      sym_vars = varsFullList h ns $ sym_ids ++ func_ids
-      sym_str = printVars pg ns q2' sym_vars
-      sym_print = case sym_str of
-        "" -> ""
-        _ -> "\nMain Symbolic Variables:\n" ++ sym_str
-      -- TODO will this expression capture everything?
-      other_vars = varsFull h ns (App (exprExtract q1') (exprExtract q2')) \\ sym_vars
-      var_str = printVars pg ns q2' other_vars
-      var_print = case var_str of
-        "" -> ""
-        _ -> "\nOther Variables:\n" ++ var_str
-      map_str = printMappings pg q2'
-      map_print = case map_str of
-        "" -> ""
-        _ -> "\nSymbolic Function Mappings:\n" ++ map_str
       mappings = map swap $ HM.toList $ cycle_mapping cm
       mapping_str = intercalate "\n" $ map (printMapping pg) mappings
       mapping_print = "\nMapping for Cycle:\n" ++ mapping_str
   in
-  "\nLeft Path: " ++
-  (intercalate " -> " $ (reverse names1)) ++
-  "\nRight Path: " ++
-  (intercalate " -> " $ (reverse names2)) ++ "\n" ++
-  intercalate "" [cx_str, sym_print, var_print, map_print, mapping_print]
+  (printCX pg ns sym_ids sh_pair s_pair (q1', q2') end1_str end2_str) ++ mapping_print
 
 -- most Expr constructors will never appear in a concretization of an argument
 -- TODO don't need to care about ns or cycles if only applied to initial args?
@@ -514,34 +496,26 @@ maxArgDepth ns sym_ids s = case sym_ids of
 sumArgDepths :: HS.HashSet Name -> [Id] -> StateET -> Int
 sumArgDepths ns sym_ids s = foldr (+) 0 $ map (getDepth s ns) sym_ids
 
-minDepth :: HS.HashSet Name -> [Id] -> [(StateH, StateH)] -> Int
-minDepth ns sym_ids states =
+minDepthMetric :: (HS.HashSet Name -> [Id] -> StateET -> Int) ->
+                  HS.HashSet Name ->
+                  [Id] ->
+                  [(StateH, StateH)] ->
+                  Int
+minDepthMetric m ns sym_ids states =
   let lefts = map (\(sh1, _) -> latest sh1) states
       rights = map (\(_, sh2) -> latest sh2) states
       (lefts', rights') = unzip $ map (uncurry syncSymbolic) (zip lefts rights)
-      depths = map (minArgDepth ns sym_ids) $ lefts' ++ rights'
+      depths = map (m ns sym_ids) $ lefts' ++ rights'
   in case states of
     [] -> 0
     _ -> minimum depths
 
--- TODO two depth metrics
+minDepth :: HS.HashSet Name -> [Id] -> [(StateH, StateH)] -> Int
+minDepth = minDepthMetric minArgDepth
+
 minMaxDepth :: HS.HashSet Name -> [Id] -> [(StateH, StateH)] -> Int
-minMaxDepth ns sym_ids states =
-  let lefts = map (\(sh1, _) -> latest sh1) states
-      rights = map (\(_, sh2) -> latest sh2) states
-      (lefts', rights') = unzip $ map (uncurry syncSymbolic) (zip lefts rights)
-      depths = map (maxArgDepth ns sym_ids) $ lefts' ++ rights'
-  in case states of
-    [] -> 0
-    _ -> minimum depths
+minMaxDepth = minDepthMetric maxArgDepth
 
 -- correct to sync beforehand for all these
 minSumDepth :: HS.HashSet Name -> [Id] -> [(StateH, StateH)] -> Int
-minSumDepth ns sym_ids states =
-  let lefts = map (\(sh1, _) -> latest sh1) states
-      rights = map (\(_, sh2) -> latest sh2) states
-      (lefts', rights') = unzip $ map (uncurry syncSymbolic) (zip lefts rights)
-      depths = map (sumArgDepths ns sym_ids) $ lefts' ++ rights'
-  in case states of
-    [] -> 0
-    _ -> minimum depths
+minSumDepth = minDepthMetric sumArgDepths
