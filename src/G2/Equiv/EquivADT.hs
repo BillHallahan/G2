@@ -4,6 +4,7 @@
 module G2.Equiv.EquivADT (
     proofObligations
   , Obligation (..)
+  , unAppNoTicks
   ) where
 
 import G2.Language

@@ -415,35 +415,6 @@ validMap s1 s2 hm =
                   || isPrimType (typeOf e)
   in all check hm_list
 
--- TODO not exhaustive
--- cyclic expressions count as total
-totalExpr :: StateET ->
-             HS.HashSet Name ->
-             [Name] -> -- variables inlined previously
-             Expr ->
-             Bool
-totalExpr s@(State { expr_env = h, track = EquivTracker _ _ total _ _ _ }) ns n e =
-  case e of
-    Tick _ e' -> totalExpr s ns n e'
-    Var i | m <- idName i
-          , E.isSymbolic m h -> m `elem` total
-          | m <- idName i
-          , not $ HS.member m ns
-          , not $ m `elem` n
-          , Just e' <- E.lookup m h -> totalExpr s ns (m:n) e'
-          | (idName i) `elem` n -> True
-          | HS.member (idName i) ns -> False
-          | otherwise -> error $ "unmapped variable " ++ show i
-    App f a -> totalExpr s ns n f && totalExpr s ns n a
-    Data _ -> True
-    Prim _ _ -> True
-    Lit _ -> True
-    Lam _ _ _ -> False
-    Type _ -> True
-    Let _ _ -> False
-    Case _ _ _ -> False
-    _ -> False
-
 validTotal :: StateET ->
               StateET ->
               HS.HashSet Name ->
@@ -455,18 +426,41 @@ validTotal s1 s2 ns hm =
       check (i, e) = (not $ (idName i) `elem` total_hs) || (totalExpr s2 ns [] e)
   in all check hm_list
 
--- TODO check for total validity in here
+validHigherOrder :: StateET ->
+                    StateET ->
+                    HS.HashSet Name ->
+                    Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
+                    Bool
+validHigherOrder s1 s2 ns hm_hs =
+  let -- empty these to avoid an infinite loop
+      s1' = s1 { track = (track s1) { higher_order = HM.empty } }
+      s2' = s2 { track = (track s2) { higher_order = HM.empty } }
+      -- if the Id isn't present, the mapping isn't relevant
+      old_pairs = filter (\(_, i) -> E.member (idName i) (expr_env s1)) $ HM.toList $ higher_order $ track s1
+      new_pairs = filter (\(_, i) -> E.member (idName i) (expr_env s2)) $ HM.toList $ higher_order $ track s2
+      old_states = map (\(e, i) -> (s1' { curr_expr = CurrExpr Evaluate e },
+                                    s1' { curr_expr = CurrExpr Evaluate (Var i) })) old_pairs
+      new_states = map (\(e, i) -> (s2' { curr_expr = CurrExpr Evaluate e },
+                                    s2' { curr_expr = CurrExpr Evaluate (Var i) })) new_pairs
+      zipped = [(p, q) | p <- old_states, q <- new_states]
+      check ((p1, p2), (q1, q2)) =
+        case restrictHelper p1 q1 ns hm_hs of
+          Right res -> restrictHelper p2 q2 ns (Right res)
+          _ -> hm_hs
+  in all isRight $ map check zipped
+
 restrictHelper :: StateET ->
                   StateET ->
                   HS.HashSet Name ->
                   Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                   Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 restrictHelper s1 s2 ns hm_hs =
-  case restrictAux s1 s2 ns hm_hs of
-    Right (hm, hs) -> if validTotal s1 s2 ns hm
+  let res = restrictAux s1 s2 ns hm_hs
+  in case res of
+    Right (hm, hs) -> if (validTotal s1 s2 ns hm) && (validHigherOrder s1 s2 ns res)
                       then Right (hm, hs)
                       else Left Nothing
-    res -> res
+    _ -> res
 
 restrictAux :: StateET ->
                StateET ->
@@ -714,7 +708,7 @@ coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) | not . isSWHNF
                                                                  , not . isSWHNF $ inlineCurrExpr s2  = do
   let prev = prevFiltered (sh1, sh2)
 
-  res <- moreRestrictivePairWithLemmas solver ns lemmas prev (s1, s2)
+  res <- moreRestrictivePairWithLemmasOnFuncApps solver ns lemmas prev (s1, s2)
   case res of
     Right _ -> return res
     Left new_lems -> backtrack new_lems
@@ -818,6 +812,9 @@ equivLemma solver ns (Lemma { lemma_lhs = l1_1, lemma_rhs = l1_2 }) lems = do
                         (Right _, Right _) -> return True
                         _ -> return False) lems
 
+filterProvenLemmas :: (Lemma -> Bool) -> Lemmas -> Lemmas
+filterProvenLemmas p lems@(Lemmas { proven_lemmas = prov }) = lems { proven_lemmas = filter p prov }
+
 -- TODO: Does substLemma need to do something more to check correctness of path constraints?
 -- `substLemma state lemmas` tries to apply each proven lemma in `lemmas` to `state`.
 -- In particular, for each `lemma = (lemma_l `equiv lemma_r` in the proven lemmas, it
@@ -862,6 +859,32 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma
         altBind (Alt (DataAlt _ is) _) = map idName is
         altBind _ = []
 
+-- Tries to apply lemmas to expressions only in FAF form, and only if the function being applied can not be
+-- called in any way by the lemma.
+moreRestrictivePairWithLemmasOnFuncApps :: S.Solver solver =>
+                                           solver ->
+                                           HS.HashSet Name ->
+                                           Lemmas ->
+                                           [(StateET, StateET)] ->
+                                           (StateET, StateET) ->
+                                           W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
+moreRestrictivePairWithLemmasOnFuncApps solver ns =
+    moreRestrictivePairWithLemmas'
+        (\s lem -> case unApp . modifyASTs stripTicks . inlineFull (HS.toList ns) (expr_env s) $ exprExtract s of
+                    Var (Id f _):_ ->
+                        let
+                            lem_vars = varNames $ inlineFull (HS.toList ns) (expr_env s) $ exprExtract (lemma_rhs lem)
+                        in
+                        not $ f `elem` lem_vars
+                    _ -> False)
+        solver ns
+--     | Var (Id f1 _):_ <- unApp $ exprExtract s1
+--     , Var (Id f2 _):_ <- unApp $ exprExtract s2 = do
+--         moreRestrictivePairWithLemmas solver ns lemmas past (s1, s2)
+--     | otherwise = do
+--         mrp <- moreRestrictivePair solver ns past (s1, s2)
+--         return $ fmap (Nothing, Nothing,) mrp
+
 moreRestrictivePairWithLemmas :: S.Solver solver =>
                                  solver ->
                                  HS.HashSet Name ->
@@ -869,10 +892,20 @@ moreRestrictivePairWithLemmas :: S.Solver solver =>
                                  [(StateET, StateET)] ->
                                  (StateET, StateET) ->
                                  W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
-moreRestrictivePairWithLemmas solver ns lemmas past (s1, s2) = do
+moreRestrictivePairWithLemmas = moreRestrictivePairWithLemmas' (\_ _ -> True)
+
+moreRestrictivePairWithLemmas' :: S.Solver solver =>
+                                  (StateET -> Lemma -> Bool) ->
+                                  solver ->
+                                  HS.HashSet Name ->
+                                  Lemmas ->
+                                  [(StateET, StateET)] ->
+                                  (StateET, StateET) ->
+                                  W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
+moreRestrictivePairWithLemmas' app_state solver ns lemmas past (s1, s2) = do
     let (s1', s2') = syncSymbolic s1 s2
-    xs1 <- substLemma solver ns s1' lemmas
-    xs2 <- substLemma solver ns s2' lemmas
+    xs1 <- substLemma solver ns s1' $ filterProvenLemmas (app_state s1') lemmas
+    xs2 <- substLemma solver ns s2' $ filterProvenLemmas (app_state s2') lemmas
 
     let xs1' = (Nothing, s1'):(map (\(l, s) -> (Just l, s)) xs1)
         xs2' = (Nothing, s2'):(map (\(l, s) -> (Just l, s)) xs2)

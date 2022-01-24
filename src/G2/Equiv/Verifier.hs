@@ -302,7 +302,7 @@ allTactics = [
     tryEquality
   , tryCoinduction
   , generalizeFull
-  , inductionFull
+  --, inductionFull
   , trySolver
   , checkCycle
   ]
@@ -311,6 +311,8 @@ allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
 allNewLemmaTactics = map applyTacticToLabeledStates [tryEquality, tryCoinduction]
 
 -- negative loop iteration count means there's no limit
+-- TODO if states is empty but n = 0, we'll get Unknown rather than UNSAT
+-- added (null states) check to deal with that
 verifyLoop :: S.Solver solver =>
               solver ->
               HS.HashSet Name ->
@@ -318,13 +320,25 @@ verifyLoop :: S.Solver solver =>
               [(StateH, StateH)] ->
               Bindings ->
               Config ->
+              [Id] ->
               String ->
               Int ->
               Int ->
               W.WriterT [Marker] IO (S.Result () ())
-verifyLoop solver ns lemmas states b config folder_root k n | n /= 0 = do
+verifyLoop solver ns lemmas states b config sym_ids folder_root k n | (n /= 0) || (null states) = do
   W.liftIO $ putStrLn "<Loop Iteration>"
   W.liftIO $ putStrLn $ show n
+  --let min_depth = minDepth ns sym_ids states
+  --W.liftIO $ putStrLn $ "<<Current Min Depth>> " ++ show min_depth
+  -- TODO use these instead in the Python script
+  let min_max_depth = minMaxDepth ns sym_ids states
+      min_sum_depth = minSumDepth ns sym_ids states
+  -- TODO don't print if state list is empty
+  case states of
+    [] -> return ()
+    _ -> do
+      W.liftIO $ putStrLn $ "<<Min Max Depth>> " ++ show min_max_depth
+      W.liftIO $ putStrLn $ "<<Min Sum Depth>> " ++ show min_sum_depth
   (b', k', proven_lemmas, lemmas') <- verifyLoopPropLemmas solver allTactics ns lemmas b config folder_root k
 
   -- W.liftIO $ putStrLn $ "prop_lemmas': " ++ show (length prop_lemmas')
@@ -355,7 +369,7 @@ verifyLoop solver ns lemmas states b config folder_root k n | n /= 0 = do
                   --               W.liftIO $ putStrLn "----"
                   --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
                   --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) $ HS.toList new_lemmas
-                  verifyLoop solver ns final_lemmas new_obligations b'''' config folder_root k'''' n'
+                  verifyLoop solver ns final_lemmas new_obligations b'''' config sym_ids folder_root k'''' n'
               CounterexampleFound -> return $ S.SAT ()
               Proven -> do
                   W.liftIO $ putStrLn $ "proposed = " ++ show (length $ proposedLemmas lemmas)
@@ -804,6 +818,9 @@ fetchCX ((Marker _ m):ms) = case m of
   CycleFound cm -> cycle_real_present cm
   _ -> fetchCX ms
 
+-- If the Marker list is reversed from how it was when it was fetched, then
+-- we're guaranteed to get something that came from the main proof rather than
+-- a lemma.  Lemma examination happens first within iterations.
 printCX :: [Marker] ->
            PrettyGuide ->
            HS.HashSet Name ->
@@ -811,10 +828,10 @@ printCX :: [Marker] ->
            (State t, State t) ->
            String
 printCX [] _ _ _ _ = error "No Counterexample"
-printCX ((Marker _ m):ms) pg ns sym_ids init_pair = case m of
-  NotEquivalent s_pair -> showCX pg ns sym_ids init_pair s_pair
-  SolverFail s_pair -> showCX pg ns sym_ids init_pair s_pair
-  CycleFound cm -> showCycle pg ns sym_ids init_pair cm
+printCX ((Marker hist m):ms) pg ns sym_ids init_pair = case m of
+  NotEquivalent s_pair -> showCX pg ns sym_ids hist init_pair s_pair
+  SolverFail s_pair -> showCX pg ns sym_ids hist init_pair s_pair
+  CycleFound cm -> showCycle pg ns sym_ids hist init_pair cm
   _ -> printCX ms pg ns sym_ids init_pair
 
 checkRule :: Config ->
@@ -829,8 +846,9 @@ checkRule :: Config ->
 checkRule config init_state bindings total finite print_summary iterations rule = do
   let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
       (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
-      total_names = filter (includedName total) (map idName $ ru_bndrs rule)
-      finite_names = filter (includedName finite) (map idName $ ru_bndrs rule)
+      sym_ids = ru_bndrs rule
+      total_names = filter (includedName total) (map idName sym_ids)
+      finite_names = filter (includedName finite) (map idName sym_ids)
       finite_hs = foldr HS.insert HS.empty finite_names
       -- always include the finite names in total
       total_hs = foldr HS.insert finite_hs total_names
@@ -844,7 +862,7 @@ checkRule config init_state bindings total finite print_summary iterations rule 
       -- TODO wrap both sides with forcings for finite vars
       -- get the finite vars first
       -- TODO a little redundant with the earlier stuff
-      finite_ids = filter ((includedName finite) . idName) (ru_bndrs rule)
+      finite_ids = filter ((includedName finite) . idName) sym_ids
       walkers = deepseq_walkers bindings''
       e_l = exprExtract rewrite_state_l
       e_l' = foldr (forceFinite walkers) e_l finite_ids
@@ -864,12 +882,12 @@ checkRule config init_state bindings total finite print_summary iterations rule 
   (res, w) <- W.runWriterT $ verifyLoop solver ns
              emptyLemmas
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config "" 0 iterations
+             bindings'' config sym_ids "" 0 iterations
   -- UNSAT for good, SAT for bad
   if print_summary /= NoSummary then do
     putStrLn "--- SUMMARY ---"
     let pg = mkPrettyGuide $ map (\(Marker _ m) -> m) w
-    mapM (putStrLn . (summarize print_summary pg ns (ru_bndrs rule))) w
+    mapM (putStrLn . (summarize print_summary pg ns sym_ids)) w
     putStrLn "--- END OF SUMMARY ---"
   else return ()
   case res of
@@ -878,7 +896,7 @@ checkRule config init_state bindings total finite print_summary iterations rule 
       putStrLn "--------------------"
       putStrLn "COUNTEREXAMPLE FOUND"
       putStrLn "--------------------"
-      putStrLn $ printCX w pg ns (ru_bndrs rule) (rewrite_state_l, rewrite_state_r)
+      putStrLn $ printCX (reverse w) pg ns sym_ids (rewrite_state_l, rewrite_state_r)
     _ -> return ()
   S.close solver
   return res

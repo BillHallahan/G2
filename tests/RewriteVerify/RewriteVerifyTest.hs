@@ -66,8 +66,8 @@ bad_src :: String
 bad_src = "tests/RewriteVerify/Incorrect/SimpleIncorrect.hs"
 
 coinduction_good_names :: [String]
-coinduction_good_names = [ "forceIdempotent"
-                         , "dropNoRecursion"
+coinduction_good_names = [ --"forceIdempotent"
+                           "dropNoRecursion"
                          , "mapTake"
                          , "takeIdempotent"
                          --, "doubleReverse"
