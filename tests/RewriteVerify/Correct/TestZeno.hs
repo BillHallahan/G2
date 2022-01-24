@@ -619,6 +619,7 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 -- TODO should the order be different for 26B, 27, 28, 37C, 60?
 -- TODO only really need the last nat total for p48; same for 62, 63
 -- TODO not sure about 71 and 76 now
+-- TODO p03 should be phrased like the rest with a function application
 {-# RULES
 "p03fin" forall n xs ys . walkNatList xs (count n xs <= count n (xs ++ ys)) = walkNatList xs True
 "p03finB" forall n xs ys . count n xs <= count n (xs ++ ys) = walkNat n (walkList xs True)

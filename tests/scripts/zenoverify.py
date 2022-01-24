@@ -452,7 +452,6 @@ ground_truth = [
     ("p85finC", [xs, ys])
 ]
 
-# TODO check before using again
 # TODO use this for the finiteness tests instead of the normal lists
 ground_truth_all_total = [
     ("p01", [n, xs]),
@@ -468,7 +467,7 @@ ground_truth_all_total = [
     ("p09", [i, j, k]),
     ("p10fin", [m]),
     ("p11", [xs]),
-    ("p12", [f, n, xs]),
+    ("p12", [n, f, xs]),
     ("p13", [n, x, xs]),
     ("p14", [p, xs, ys]),
     ("p15finA", [x, xs]),
@@ -500,7 +499,7 @@ ground_truth_all_total = [
     ("p38finB", [n, xs]),
     ("p39", [n, x, xs]),
     ("p40", [xs]),
-    ("p41", [f, n, xs]),
+    ("p41", [n, f, xs]),
     ("p42", [n, x, xs]),
     ("p43", [p, xs]),
     ("p44", [x, xs, ys]),
@@ -510,7 +509,7 @@ ground_truth_all_total = [
     ("p48finB", [xs]),
     ("p49", [xs, ys]),
     ("p50", [xs]),
-    ("p51", [x, xs]),
+    ("p51", [xs, x]),
     ("p52finA", [n, xs]),
     ("p53finA", [n, xs]),
     ("p54fin", [n, m]),
@@ -613,6 +612,15 @@ ground_truth_altered_finite = [
     ("p85finB", [xs, ys], 2),
     ("p85finC", [xs, ys], 2)
 ]
+
+# input lists must have same length and aligning entries
+def altered_total_for_finite(fin_suite, other_suite):
+    alt_suite = []
+    for i in range(len(fin_suite)):
+        (thm, settings, qty) = fin_suite[i]
+        (alt_thm, alt_settings) = other_suite[i]
+        alt_suite.append((thm, alt_settings, qty))
+    return alt_suite
 
 def make_altered_finite_list(suite):
     alt_suite = []
@@ -1058,7 +1066,8 @@ def main():
     t = 180
     test_suite_csv("ZenoTrue", ground_truth, t)
     test_suite_csv("ZenoAlteredTotal", totality_change(ground_truth), t)
-    test_suite_csv("ZenoAlteredFinite", make_altered_finite_list(ground_truth_altered_finite), t)
+    all_total_alt_finite = altered_total_for_finite(ground_truth_altered_finite)
+    test_suite_csv("ZenoAlteredFinite", make_altered_finite_list(all_total_alt_finite), t)
 
 if __name__ == "__main__":
     main()
