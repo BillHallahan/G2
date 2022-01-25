@@ -445,8 +445,8 @@ ground_truth = [
     ("p82", []),
     ("p83", [ys]),
     ("p84", [ys]),
-    ("p85finB", [xs, ys]),
-    ("p85finC", [xs, ys])
+    ("p85finB", [ys]),
+    ("p85finC", [xs])
 ]
 
 # TODO use this for the finiteness tests instead of the normal lists
@@ -606,8 +606,8 @@ ground_truth_altered_finite = [
     ("p77finA", [x], 2),
     ("p78finB", [], 2),
     ("p81fin", [n, m, xs], 1), #81A omitted because it would be the same
-    ("p85finB", [xs, ys], 2),
-    ("p85finC", [xs, ys], 2)
+    ("p85finB", [ys], 2),
+    ("p85finC", [xs], 2)
 ]
 
 # input lists must have same length and aligning entries
@@ -640,62 +640,6 @@ def print_depth(depth):
         print("\tAll concretizations checked up to depth " + str(depth - 1))
     else:
         print("\tConcretizations of depth 0 still remaining")
-
-'''
-Results for totality-altered ground truth, 1/16/22:
-p01 SAT
-p03fin Timeout
-p03finB SAT SAT
-p05finE Timeout
-p05finF Timeout
-p15finA timeout
-p15finB t
-p16finA t
-p19 SAT
-p24fin fail
-p25fin t
-p26finA t
-p26finB t
-p27finA t t
-p28finA t
-p29finA t
-p30finA t
-p32 S S
-p34 S
-p37finB t
-p37finC t
-p43 S S
-p49 S S
-p51 S
-p54fin S
-p56 S S
-p57finB SAT for xs, timeout for n
-p58 S S S
-p59finA t
-p63finA t
-p65finA S
-p66fin S S
-p68finA t
-p68finB t
-p69finA S
-p70finC S
-p70finD S
-p71finA t
-p71finB t
-p72 S
-p73 S S
-p74 S S
-p75fin timeout for xs, SAT for m
-p76finB t t
-p76finC t
-p77finA t
-p79 S
-p81 S S S
-p83 S
-p84 S
-p85finB S S
-p85finC S S
-'''
 
 def test_suite_simple(suite, timeout = 25):
     unsat_num = 0;
