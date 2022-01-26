@@ -80,8 +80,19 @@ logStatesFolder pre fr = Log Pretty $ fr ++ "/" ++ pre
 logStatesET :: String -> String -> String
 logStatesET pre fr = fr ++ "/" ++ pre
 
--- TODO keep a single solver rather than making a new one each time
--- TODO connection between Solver and SomeSolver?
+{-
+TODO 1/25
+If some states are significantly farther ahead than others in terms of
+expression depth, mark them as "dormant" for one loop iteration, or a variable
+number of iterations.  This will allow states with low depths to "catch up" so
+that we get better results in terms of the expression depth covered by the
+entire attempted proof.  Whatever the system is for delaying evaluation of some
+branches, we need it to uphold a non-starvation guarantee.
+If the number of iterations for a branch to remain dormant is fixed at the time
+when the branch's evaluation halts, we have the guarantee we need.
+If, at any time, every single branch has been marked as dormant, the ones that
+would be awakened soonest should be awakened immediately.
+-}
 runSymExec :: S.Solver solver =>
               solver ->
               Config ->
