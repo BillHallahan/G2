@@ -117,7 +117,7 @@ runSymExec solver config folder_root ns s1 s2 = do
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
                     (b_, k_) <- CM.get
-                    let s2_ = transferTrackerInfo s1_ s2
+                    let s2_ = transferTrackerInfo s1_ s2-- (snd $ syncSymbolic s1_ s2)
                     ct2 <- CM.liftIO $ getCurrentTime
                     let config'' = config { logStates = logStatesFolder ("b" ++ show k_) folder_root }
                         t2 = (track s2_) { folder_name = logStatesET ("b" ++ show k_) folder_root }
@@ -130,7 +130,7 @@ runSymExec solver config folder_root ns s1 s2 = do
                     return $ map (\er2_ -> 
                                     let
                                         s2_' = final_state er2_
-                                        s1_' = transferTrackerInfo s2_' s1_
+                                        s1_' = transferTrackerInfo s2_' s1_-- (snd $ syncSymbolic s2_' s1_)
                                     in
                                     (addStamps k $ prepareState s1_', addStamps k_ $ prepareState s2_')
                                  ) er2) final_s1
