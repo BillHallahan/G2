@@ -770,7 +770,7 @@ def test_suite_general(suite, fname_in, fname_out, timeout = 25):
             file.write(str(min_max_depth) + "," + str(min_sum_depth) + "\n")
         cx = d["cx"]
         if len(cx) > 0 and fname_out is not None:
-            cx_file = open(fname + "-" + thm + "-" + str(k) + ".txt", "w")
+            cx_file = open(fname_out + "-" + thm + "-" + str(k) + ".txt", "w")
             cx_file.write(thm + " ")
             cx_file.write(str(settings))
             cx_file.write("\n")
