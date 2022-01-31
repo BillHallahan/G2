@@ -1031,9 +1031,9 @@ def main():
     # feel free to reduce the time from 180, but keep at least 150
     t = 180
     test_suite_csv("ZenoTrue", ground_truth, t)
-    test_suite_csv("ZenoAlteredTotal", totality_change(ground_truth), t)
-    all_total_alt_finite = altered_total_for_finite(ground_truth_altered_finite)
-    test_suite_csv("ZenoAlteredFinite", make_altered_finite_list(all_total_alt_finite), t)
+    # test_suite_csv("ZenoAlteredTotal", totality_change(ground_truth), t)
+    # all_total_alt_finite = altered_total_for_finite(ground_truth_altered_finite)
+    # test_suite_csv("ZenoAlteredFinite", make_altered_finite_list(all_total_alt_finite), t)
 
 if __name__ == "__main__":
     main()
