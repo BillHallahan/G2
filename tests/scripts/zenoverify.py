@@ -715,7 +715,7 @@ def test_suite_general(suite, fname_in, fname_out, timeout = 25):
             file.write(str(min_max_depth) + "," + str(min_sum_depth) + "\n")
         cx = d["cx"]
         if len(cx) > 0 and fname_out is not None:
-            cx_file = open(fname + "-" + thm + "-" + str(k) + ".txt", "w")
+            cx_file = open(fname_out + "-" + thm + "-" + str(k) + ".txt", "w")
             cx_file.write(thm + " ")
             cx_file.write(str(settings))
             cx_file.write("\n")
@@ -974,13 +974,11 @@ def main():
     
     # TODO this is the real test suite
     # feel free to reduce the time from 180, but keep at least 150
-    t = 25
-    test_suite_csv(None, ground_truth, t)
-    '''
-    test_suite_csv("ZenoAlteredTotal", totality_change(ground_truth), t)
-    all_total_alt_finite = altered_total_for_finite(ground_truth_altered_finite)
-    test_suite_csv("ZenoAlteredFinite", make_altered_finite_list(all_total_alt_finite), t)
-    '''
+    t = 180
+    test_suite_csv("ZenoTrue", ground_truth, t)
+    # test_suite_csv("ZenoAlteredTotal", totality_change(ground_truth), t)
+    # all_total_alt_finite = altered_total_for_finite(ground_truth_altered_finite)
+    # test_suite_csv("ZenoAlteredFinite", make_altered_finite_list(all_total_alt_finite), t)
 
 if __name__ == "__main__":
     main()
