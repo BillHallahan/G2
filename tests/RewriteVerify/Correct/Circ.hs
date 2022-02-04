@@ -84,6 +84,9 @@ altMorse = f $ Cons Z $ streamTail altMorse
 -- TODO the verifier gets stuck on zipOddEven at printing a0
 -- it gets stuck for some of the others as well
 -- adding Show to the types didn't help
+-- (2/1) ex3a gets stuck even with state printing disabled
+-- same goes for ex3b, ex4, ex6a
+-- I get UNSAT for ex1, ex2, ex6b with state printing disabled
 {-# RULES
 "ex1" forall s . streamZip (streamOdd s, streamEven s) = s
 "ex2" zip31 (ozo, ozo) = feigenbaum
