@@ -975,6 +975,7 @@ def main():
     # TODO this is the real test suite
     # feel free to reduce the time from 180, but keep at least 150
     t = 180
+    #test_suite_csv(None, ground_truth[:2], t)
     test_suite_csv("ZenoTrue", ground_truth, t)
     # test_suite_csv("ZenoAlteredTotal", totality_change(ground_truth), t)
     # all_total_alt_finite = altered_total_for_finite(ground_truth_altered_finite)
