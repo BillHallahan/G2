@@ -361,15 +361,28 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k m n | (n /= 0)
     _ -> do
       W.liftIO $ putStrLn $ "<<Min Max Depth>> " ++ show min_max_depth
       W.liftIO $ putStrLn $ "<<Min Sum Depth>> " ++ show min_sum_depth
-  (b', k', proven_lemmas, lemmas') <- verifyLoopPropLemmas solver allTactics ns lemmas b config folder_root k
+  -- TODO alternating iterations for this too?
+  -- Didn't test on much, but no apparent benefit
+  (b', k', proven_lemmas, lemmas') <- if m `mod` 2 == 0
+                                      then return (b, k, [], lemmas)
+                                      else verifyLoopPropLemmas solver allTactics ns lemmas b config folder_root k
 
   -- W.liftIO $ putStrLn $ "prop_lemmas': " ++ show (length prop_lemmas')
   W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length proven_lemmas)
   -- W.liftIO $ putStrLn $ "continued_lemmas: " ++ show (length continued_lemmas)
   -- W.liftIO $ putStrLn $ "disproven_lemmas: " ++ show (length disproven_lemmas)
 
-  (b'', k'', proven_lemmas', lemmas'') <- verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas lemmas' b' config folder_root k'
-  (pl_sr, b''', k''') <- verifyWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas' lemmas'' b'' config folder_root k'' states
+  -- p02 went from about 50s to 1:50 when I added this
+  -- No improvement for p03fin
+  (b'', k'', proven_lemmas', lemmas'') <- if m `mod` 2 == 0
+                                          then return (b', k', proven_lemmas, lemmas')
+                                          else verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas lemmas' b' config folder_root k'
+  -- TODO I think the lemmas should be the unresolved ones
+  -- TODO what to do with disproven lemmas?
+  -- No noticeable time change for p02 with this added, still 1:50
+  (pl_sr, b''', k''') <- if m `mod` 2 == 0
+                         then return (ContinueWith states $ proposed_lemmas lemmas'', b'', k'')
+                         else verifyWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas' lemmas'' b'' config folder_root k'' states
 
   case pl_sr of
       CounterexampleFound -> return $ S.SAT ()
