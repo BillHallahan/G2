@@ -319,7 +319,7 @@ generalize :: S.Solver solver =>
               Name ->
               (StateET, StateET) ->
               W.WriterT [Marker] IO (Maybe (StateET, StateET))
-generalize solver ns fresh_name (s1, s2) = do
+generalize solver ns fresh_name (s1, s2) | dc_path (track s1) == dc_path (track s2) = do
   -- expressions are ordered from outer to inner
   -- the largest ones are on the outside
   -- take the earliest array entry that works
@@ -340,6 +340,7 @@ generalize solver ns fresh_name (s1, s2) = do
                        s2'' = adjustStateForGeneralization e2 fresh_name s2'
                    in return $ Just (s1'', s2'')
     _ -> return Nothing
+  | otherwise = return Nothing
 
 -- TODO does this throw off history logging?  I don't think so
 -- TODO might not matter with s1 and s2 naming

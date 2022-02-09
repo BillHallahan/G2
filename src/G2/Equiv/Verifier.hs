@@ -363,9 +363,9 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k m n | (n /= 0)
       W.liftIO $ putStrLn $ "<<Min Sum Depth>> " ++ show min_sum_depth
   -- TODO alternating iterations for this too?
   -- Didn't test on much, but no apparent benefit
-  (b', k', proven_lemmas, lemmas') <- if m `mod` 2 == 0
+  (b', k', proven_lemmas, lemmas') <- {-if m `mod` 2 == 0
                                       then return (b, k, [], lemmas)
-                                      else verifyLoopPropLemmas solver allTactics ns lemmas b config folder_root k
+                                      else -}verifyLoopPropLemmas solver allTactics ns lemmas b config folder_root k
 
   -- W.liftIO $ putStrLn $ "prop_lemmas': " ++ show (length prop_lemmas')
   W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length proven_lemmas)
@@ -374,15 +374,15 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k m n | (n /= 0)
 
   -- p02 went from about 50s to 1:50 when I added this
   -- No improvement for p03fin
-  (b'', k'', proven_lemmas', lemmas'') <- if m `mod` 2 == 0
+  (b'', k'', proven_lemmas', lemmas'') <- {-if m `mod` 2 == 0
                                           then return (b', k', proven_lemmas, lemmas')
-                                          else verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas lemmas' b' config folder_root k'
+                                          else -}verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas lemmas' b' config folder_root k'
   -- TODO I think the lemmas should be the unresolved ones
   -- TODO what to do with disproven lemmas?
   -- No noticeable time change for p02 with this added, still 1:50
-  (pl_sr, b''', k''') <- if m `mod` 2 == 0
+  (pl_sr, b''', k''') <- {-if m `mod` 2 == 0
                          then return (ContinueWith states $ proposed_lemmas lemmas'', b'', k'')
-                         else verifyWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas' lemmas'' b'' config folder_root k'' states
+                         else -}verifyWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas' lemmas'' b'' config folder_root k'' states
 
   case pl_sr of
       CounterexampleFound -> return $ S.SAT ()
@@ -392,7 +392,7 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k m n | (n /= 0)
           -- do I need an active-latent distinction for lemmas?
           -- if a newly-proven lemma isn't used before, it goes to waste
           -- TODO make sure current lemma preservation is sound
-          let (active, latent) = if m `mod` 2 == 0
+          let (active, latent) = if True-- m `mod` 2 == 0
                                  then (states, [])
                                  else partition
                                       (\sh_pair -> min_max_depth == stateMaxDepth ns sym_ids sh_pair)

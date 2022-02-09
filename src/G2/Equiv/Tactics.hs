@@ -538,19 +538,22 @@ moreRestrictivePairAux :: S.Solver solver =>
                           [(StateET, StateET, StateET)] ->
                           (StateET, StateET) ->
                           W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (PrevMatch EquivTracker))
-moreRestrictivePairAux solver ns prev (s1, s2) = do
+moreRestrictivePairAux solver ns prev (s1, s2) | dc_path (track s1) == dc_path (track s2) = do
   let (s1', s2') = syncSymbolic s1 s2
+      -- TODO might be better to enforce this higher up
       mr (p1, p2, pc) =
-          let
-              hm_obs = let (p1', p2') = syncSymbolic p1 p2
-                       in restrictHelper p2' s2' ns $
-                       restrictHelper p1' s1' ns (Right (HM.empty, HS.empty))
-          in
-            mapLeft (fmap (\l -> l { lemma_name = "past_1 = " ++ folder p1
-                                                ++ " present_1 = " ++ folder s1
-                                                ++ " past_2 = " ++ folder p2
-                                                ++ " present_2 = " ++ folder s2  }))
-          $ fmap (\hm_obs' -> PrevMatch (s1, s2) (p1, p2) hm_obs' pc) hm_obs
+          if dc_path (track p1) == dc_path (track p2) then
+            let
+                hm_obs = let (p1', p2') = syncSymbolic p1 p2
+                        in restrictHelper p2' s2' ns $
+                        restrictHelper p1' s1' ns (Right (HM.empty, HS.empty))
+            in
+              mapLeft (fmap (\l -> l { lemma_name = "past_1 = " ++ folder p1
+                                                  ++ " present_1 = " ++ folder s1
+                                                  ++ " past_2 = " ++ folder p2
+                                                  ++ " present_2 = " ++ folder s2  }))
+            $ fmap (\hm_obs' -> PrevMatch (s1, s2) (p1, p2) hm_obs' pc) hm_obs
+          else Left Nothing
       
       (possible_lemmas, possible_matches) = partitionEithers $ map mr prev
 
@@ -568,6 +571,7 @@ moreRestrictivePairAux solver ns prev (s1, s2) = do
   -- check obligations individually rather than as one big group
   res_list <- W.liftIO (findM (\pm -> isUnsat =<< checkObligations solver s1 s2 (snd . conditions $ pm)) (possible_matches'))
   return $ maybe (Left $ HS.fromList possible_lemmas') Right res_list
+  | otherwise = return $ Left HS.empty
   where
       isUnsat (S.UNSAT _) = return True
       isUnsat _ = return False
@@ -621,14 +625,18 @@ moreRestrictiveEqual solver ns lemmas s1 s2 = do
       h2 = expr_env s2
       s1' = s1 { expr_env = E.union h1 h2 }
       s2' = s2 { expr_env = E.union h2 h1 }
-  pm_maybe <- moreRestrictivePairWithLemmasPast solver ns lemmas [(s2', s1')] (s1, s2)
-  case pm_maybe of
-    Left _ -> return Nothing
-    Right (_, _, pm@(PrevMatch _ _ (hm, _) _)) ->
-      -- TODO do something with the lemmas for logging later
-      if all isIdentity $ HM.toList hm
-      then return $ Just pm
-      else return Nothing
+  -- TODO only attempt if dc paths are the same
+  if dc_path (track s1') == dc_path (track s2') then return Nothing
+  else do
+    -- TODO no need to enforce dc path condition for this function
+    pm_maybe <- moreRestrictivePairWithLemmasPast solver ns lemmas [(s2', s1')] (s1, s2)
+    case pm_maybe of
+      Left _ -> return Nothing
+      Right (_, _, pm@(PrevMatch _ _ (hm, _) _)) ->
+        -- TODO do something with the lemmas for logging later
+        if all isIdentity $ HM.toList hm
+        then return $ Just pm
+        else return Nothing
 
 -- This attempts to find a pair of equal expressions between the left and right
 -- sides.  The state used for the left side stays constant, but the recursion
