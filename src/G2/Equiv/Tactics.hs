@@ -80,7 +80,7 @@ import Control.Exception
 
 -- the Bool value for Failure is True if a cycle has been found
 data TacticResult = Success (Maybe (Int, Int, StateET, StateET))
-                  | NoProof (HS.HashSet Lemma)
+                  | NoProof [Lemma]
                   | Failure Bool
 
 -- this takes a list of fresh names as input
@@ -537,7 +537,7 @@ moreRestrictivePairAux :: S.Solver solver =>
                           HS.HashSet Name ->
                           [(StateET, StateET, StateET)] ->
                           (StateET, StateET) ->
-                          W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (PrevMatch EquivTracker))
+                          W.WriterT [Marker] IO (Either [Lemma] (PrevMatch EquivTracker))
 moreRestrictivePairAux solver ns prev (s1, s2) = do
   let (s1', s2') = syncSymbolic s1 s2
       mr (p1, p2, pc) =
@@ -567,7 +567,7 @@ moreRestrictivePairAux solver ns prev (s1, s2) = do
   possible_matches' <- filterM mpc possible_matches
   -- check obligations individually rather than as one big group
   res_list <- W.liftIO (findM (\pm -> isUnsat =<< checkObligations solver s1 s2 (snd . conditions $ pm)) (possible_matches'))
-  return $ maybe (Left $ HS.fromList possible_lemmas') Right res_list
+  return $ maybe (Left possible_lemmas') Right res_list
   where
       isUnsat (S.UNSAT _) = return True
       isUnsat _ = return False
@@ -578,7 +578,7 @@ moreRestrictivePair :: S.Solver solver =>
                        HS.HashSet Name ->
                        [(StateET, StateET)] ->
                        (StateET, StateET) ->
-                       W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (PrevMatch EquivTracker))
+                       W.WriterT [Marker] IO (Either [Lemma] (PrevMatch EquivTracker))
 moreRestrictivePair solver ns prev (s1, s2) =
   let prev' = map (\(p1, p2) -> (p1, p2, p2)) prev in
   moreRestrictivePairAux solver ns prev' (s1, s2)
@@ -682,7 +682,7 @@ tryEquality solver ns lemmas _ sh_pair (s1, s2) = do
                        IRight -> swap $ present pm
       W.tell $ [Marker sh_pair $ Equality $ EqualMarker (s1, s2) (q1, q2)]
       return $ Success Nothing
-    _ -> return (NoProof HS.empty)
+    _ -> return (NoProof [])
 
 backtrackOne :: StateH -> Maybe StateH
 backtrackOne sh =
@@ -700,10 +700,10 @@ coinductionFoldL :: S.Solver solver =>
                     solver ->
                     HS.HashSet Name ->
                     Lemmas ->
-                    HS.HashSet Lemma ->
+                    [Lemma] ->
                     (StateH, StateH) ->
                     (StateET, StateET) ->
-                    W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
+                    W.WriterT [Marker] IO (Either [Lemma] (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
 coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) | not . isSWHNF $ inlineCurrExpr s1'
                                                                  , not . isSWHNF $ inlineCurrExpr s2'  = do
   let prev = prevFiltered (sh1, sh2)
@@ -712,15 +712,15 @@ coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) | not . isSWHNF
   case res of
     Right _ -> return res
     Left new_lems -> backtrack new_lems
-  | otherwise = backtrack HS.empty
+  | otherwise = backtrack []
   where
       (s1', s2') = syncSymbolic s1 s2
 
       backtrack new_lems_ =
           case backtrackOne sh2 of
-              Nothing -> return . Left $ HS.union new_lems_ gen_lemmas
+              Nothing -> return . Left $ new_lems_ ++ gen_lemmas
               Just sh2' -> coinductionFoldL solver ns lemmas
-                                       (HS.union new_lems_ gen_lemmas) (sh1, sh2') (s1, latest sh2')
+                                       (new_lems_ ++ gen_lemmas) (sh1, sh2') (s1, latest sh2')
 
       inlineCurrExpr s_@(State { expr_env = eenv, curr_expr = CurrExpr er cexpr}) =
           let
@@ -730,7 +730,7 @@ coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) | not . isSWHNF
 
 tryCoinduction :: S.Solver s => Tactic s
 tryCoinduction solver ns lemmas _ (sh1, sh2) (s1, s2) = do
-  res_l <- coinductionFoldL solver ns lemmas HS.empty (sh1, sh2) (s1, s2)
+  res_l <- coinductionFoldL solver ns lemmas [] (sh1, sh2) (s1, s2)
   case res_l of
     Right (lem_l, lem_r, pm) -> do
       let cml = CoMarker {
@@ -743,7 +743,7 @@ tryCoinduction solver ns lemmas _ (sh1, sh2) (s1, s2) = do
       W.tell [Marker (sh1, sh2) $ Coinduction cml]
       return $ Success Nothing
     Left l_lemmas -> do
-      res_r <- coinductionFoldL solver ns lemmas HS.empty (sh2, sh1) (s2, s1)
+      res_r <- coinductionFoldL solver ns lemmas [] (sh2, sh1) (s2, s1)
       case res_r of
         Right (lem_l', lem_r', pm') -> do
           let cmr = CoMarker {
@@ -755,7 +755,7 @@ tryCoinduction solver ns lemmas _ (sh1, sh2) (s1, s2) = do
           }
           W.tell [Marker (sh1, sh2) $ Coinduction $ reverseCoMarker cmr]
           return $ Success Nothing
-        Left r_lemmas -> return . NoProof $ HS.union l_lemmas r_lemmas
+        Left r_lemmas -> return . NoProof $ l_lemmas ++ r_lemmas
 
 -------------------------------------------------------------------------------
 
@@ -869,7 +869,7 @@ moreRestrictivePairWithLemmasOnFuncApps :: S.Solver solver =>
                                            Lemmas ->
                                            [(StateET, StateET)] ->
                                            (StateET, StateET) ->
-                                           W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
+                                           W.WriterT [Marker] IO (Either [Lemma] (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
 moreRestrictivePairWithLemmasOnFuncApps solver ns =
     moreRestrictivePairWithLemmas'
         (\s lem -> case unApp . modifyASTs stripTicks . inlineFull (HS.toList ns) (expr_env s) $ exprExtract s of
@@ -893,7 +893,7 @@ moreRestrictivePairWithLemmas :: S.Solver solver =>
                                  Lemmas ->
                                  [(StateET, StateET)] ->
                                  (StateET, StateET) ->
-                                 W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
+                                 W.WriterT [Marker] IO (Either [Lemma] (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
 moreRestrictivePairWithLemmas = moreRestrictivePairWithLemmas' (\_ _ -> True)
 
 moreRestrictivePairWithLemmas' :: S.Solver solver =>
@@ -903,7 +903,7 @@ moreRestrictivePairWithLemmas' :: S.Solver solver =>
                                   Lemmas ->
                                   [(StateET, StateET)] ->
                                   (StateET, StateET) ->
-                                  W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
+                                  W.WriterT [Marker] IO (Either [Lemma] (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
 moreRestrictivePairWithLemmas' app_state solver ns lemmas past (s1, s2) = do
     let (s1', s2') = syncSymbolic s1 s2
     xs1 <- substLemma solver ns s1' $ filterProvenLemmas (app_state s1') lemmas
@@ -927,7 +927,7 @@ moreRestrictivePairWithLemmas' app_state solver ns lemmas past (s1, s2) = do
 
     case possible_matches of
         x:_ -> return $ Right x
-        [] -> return . Left $ HS.unions possible_lemmas
+        [] -> return . Left $ concat possible_lemmas
 
 -- TODO have a cleaner setup for these variations
 moreRestrictivePairWithLemmasPast :: S.Solver solver =>
@@ -936,7 +936,7 @@ moreRestrictivePairWithLemmasPast :: S.Solver solver =>
                                      Lemmas ->
                                      [(StateET, StateET)] ->
                                      (StateET, StateET) ->
-                                     W.WriterT [Marker] IO (Either (HS.HashSet Lemma) (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
+                                     W.WriterT [Marker] IO (Either [Lemma] (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
 moreRestrictivePairWithLemmasPast solver ns lemmas past s_pair = do
     let (past1, past2) = unzip past
     xs_past1 <- mapM (\s_ -> substLemma solver ns s_ lemmas) past1
@@ -983,4 +983,4 @@ checkCycle solver ns _ _ (sh1, sh2) (s1, s2) = do
       (True, Just (Right hm, p1)) -> do
         W.tell [Marker (sh1, sh2) $ CycleFound $ CycleMarker (s1, s2) p1 hm ILeft]
         return $ Failure True
-      _ -> return $ NoProof HS.empty
+      _ -> return $ NoProof []

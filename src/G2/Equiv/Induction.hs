@@ -348,9 +348,9 @@ inductionFull :: S.Solver s => Tactic s
 inductionFull solver ns _ (fresh_name:_) sh_pair s_pair = do
   ifold <- inductionFold solver ns fresh_name sh_pair s_pair
   case ifold of
-    Nothing -> return $ NoProof HS.empty
+    Nothing -> return $ NoProof []
     Just ((n1, n2), s1', s2') -> return $ Success (Just (n1, n2, s1', s2'))
-inductionFull _ _ _ _ _ _ = return $ NoProof HS.empty
+inductionFull _ _ _ _ _ _ = return $ NoProof []
 
 -- TODO new functions for generalization without induction
 generalizeFoldL :: S.Solver solver =>
@@ -394,7 +394,7 @@ generalizeFull :: S.Solver s => Tactic s
 generalizeFull solver ns _ (fresh_name:_) sh_pair s_pair = do
   gfold <- generalizeFold solver ns fresh_name sh_pair s_pair
   case gfold of
-    Nothing -> return $ NoProof HS.empty
+    Nothing -> return $ NoProof []
     Just (s1, s2, q1, q2) -> let lem = mkProposedLemma "Generalization" s1 s2 q1 q2
-                             in return $ NoProof $ HS.singleton lem
-generalizeFull _ _ _ _ _ _ = return $ NoProof HS.empty
+                             in return $ NoProof $ [lem]
+generalizeFull _ _ _ _ _ _ = return $ NoProof []
