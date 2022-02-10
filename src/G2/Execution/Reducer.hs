@@ -478,7 +478,7 @@ arbDC tenv ng t n total
                         (ng_', (mkApp $ dc:map Var ars, ars))
                     )
                     ng
-                    (if trace (show total) $ n `elem` total then ty_apped_dcs else ty_apped_dcs')
+                    (if n `elem` total then ty_apped_dcs else ty_apped_dcs')
         in
         Just (dc_symbs, ng')
     | otherwise = Nothing
