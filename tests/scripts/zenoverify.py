@@ -355,8 +355,8 @@ ground_truth = [
     ("p03fin", [n]),
     ("p03finB", [n, xs]),
     ("p04fin", []),
-    ("p05finE", [x]),
-    ("p05finF", [n]),
+    ("p05finE", [x, xs]),
+    ("p05finF", [n, xs]),
     ("p06fin", []),
     ("p07fin", []),
     ("p08fin", []),
@@ -392,7 +392,7 @@ ground_truth = [
     ("p36", []),
     ("p37finB", [x]),
     ("p37finC", [xs]),
-    ("p38finB", []),
+    ("p38finB", [xs]),
     ("p39", []),
     ("p40", []),
     ("p41", []),
@@ -445,8 +445,8 @@ ground_truth = [
     ("p82", []),
     ("p83", [ys]),
     ("p84", [ys]),
-    ("p85finB", [xs, ys]),
-    ("p85finC", [xs, ys])
+    ("p85finB", [ys]),
+    ("p85finC", [xs])
 ]
 
 # TODO use this for the finiteness tests instead of the normal lists
@@ -552,62 +552,63 @@ ground_truth_all_total = [
 
 # theorems with altered finiteness
 # construct the final list from this using a function
+# TODO Instead of removing walkNatList calls, I could change to walkList
 ground_truth_altered_finite = [
-    ("p03fin", [n], 2),
+    ("p03fin", [n], 4),
     ("p03finB", [n, xs], 2),
     ("p04fin", [], 1),
-    ("p05finE", [x], 4),
-    ("p05finF", [n], 4),
+    ("p05finE", [x, xs], 4),
+    ("p05finF", [n, xs], 4),
     ("p06fin", [], 1),
     ("p07fin", [], 1),
     ("p08fin", [], 1),
     ("p10fin", [], 1),
-    ("p15finA", [x], 2),
+    ("p15finA", [x], 4),
     ("p15finB", [xs], 4),
     ("p16finA", [xs], 2),
     ("p18fin", [], 1),
-    ("p20finA", [], 2),
+    ("p20finA", [], 4),
     ("p21fin", [], 1),
     ("p24fin", [b], 1),
     ("p25fin", [a], 1),
-    ("p26finA", [x], 2),
+    ("p26finA", [x], 4),
     ("p26finB", [x, xs], 3),
     ("p27finA", [xs, ys], 6),
     ("p28finA", [xs], 3),
     ("p29finA", [xs], 3),
     ("p30finA", [xs], 3),
-    ("p37finB", [x], 2),
+    ("p37finB", [x], 4),
     ("p37finC", [xs], 3),
-    ("p38finB", [], 3),
-    ("p48finB", [], 2),
-    ("p52finA", [], 2),
-    ("p53finA", [], 2),
+    ("p38finB", [xs], 3),
+    ("p48finB", [], 4),
+    ("p52finA", [], 4),
+    ("p53finA", [], 4),
     ("p54fin", [m], 1),
     ("p57finA", [m, xs], 2),
     ("p57finB", [n, xs], 2),
-    ("p59finA", [ys], 2),
-    ("p60finB", [], 4),
+    ("p59finA", [ys], 4),
+    ("p60finB", [], 6),
     ("p61fin", [], 1),
-    ("p62finA", [], 2),
-    ("p63finA", [n], 2),
+    ("p62finA", [], 4),
+    ("p63finA", [n], 4),
     ("p64fin", [], 1),
     ("p65finA", [m], 1),
     ("p66fin", [p, xs], 1),
     ("p68finA", [xs], 3),
-    ("p68finB", [n], 2),
+    ("p68finB", [n], 4),
     ("p69finA", [m], 1),
     ("p70finC", [n], 2),
     ("p70finD", [m], 2),
-    ("p71finA", [y], 3),
-    ("p71finB", [x], 3),
+    ("p71finA", [y], 5),
+    ("p71finB", [x], 5),
     ("p75fin", [m, xs], 1),
     ("p76finB", [m, xs], 3),
-    ("p76finC", [n], 3),
-    ("p77finA", [x], 2),
-    ("p78finB", [], 2),
+    ("p76finC", [n], 5),
+    ("p77finA", [x], 4),
+    ("p78finB", [], 4),
     ("p81fin", [n, m, xs], 1), #81A omitted because it would be the same
-    ("p85finB", [xs, ys], 2),
-    ("p85finC", [xs, ys], 2)
+    ("p85finB", [ys], 2),
+    ("p85finC", [xs], 2)
 ]
 
 # input lists must have same length and aligning entries
@@ -640,62 +641,6 @@ def print_depth(depth):
         print("\tAll concretizations checked up to depth " + str(depth - 1))
     else:
         print("\tConcretizations of depth 0 still remaining")
-
-'''
-Results for totality-altered ground truth, 1/16/22:
-p01 SAT
-p03fin Timeout
-p03finB SAT SAT
-p05finE Timeout
-p05finF Timeout
-p15finA timeout
-p15finB t
-p16finA t
-p19 SAT
-p24fin fail
-p25fin t
-p26finA t
-p26finB t
-p27finA t t
-p28finA t
-p29finA t
-p30finA t
-p32 S S
-p34 S
-p37finB t
-p37finC t
-p43 S S
-p49 S S
-p51 S
-p54fin S
-p56 S S
-p57finB SAT for xs, timeout for n
-p58 S S S
-p59finA t
-p63finA t
-p65finA S
-p66fin S S
-p68finA t
-p68finB t
-p69finA S
-p70finC S
-p70finD S
-p71finA t
-p71finB t
-p72 S
-p73 S S
-p74 S S
-p75fin timeout for xs, SAT for m
-p76finB t t
-p76finC t
-p77finA t
-p79 S
-p81 S S S
-p83 S
-p84 S
-p85finB S S
-p85finC S S
-'''
 
 def test_suite_simple(suite, timeout = 25):
     unsat_num = 0;
@@ -1030,7 +975,8 @@ def main():
     # TODO this is the real test suite
     # feel free to reduce the time from 180, but keep at least 150
     t = 180
-    test_suite_csv("ZenoTrue", ground_truth, t)
+    test_suite_csv(None, ground_truth, t)
+    #test_suite_csv("ZenoTrue", ground_truth, t)
     # test_suite_csv("ZenoAlteredTotal", totality_change(ground_truth), t)
     # all_total_alt_finite = altered_total_for_finite(ground_truth_altered_finite)
     # test_suite_csv("ZenoAlteredFinite", make_altered_finite_list(all_total_alt_finite), t)

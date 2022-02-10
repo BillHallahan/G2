@@ -398,6 +398,9 @@ data ConcSymReducer = ConcSymReducer
 -- Maps higher order function calls to symbolic replacements.
 -- This allows the same call to be replaced by the same Id consistently.
 -- relocated from Equiv.G2Calls
+-- TODO dormant is 0 if execution can happen now
+-- at what point do dormant values get assigned?
+-- EquivTracker probably the wrong level for handling this
 data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
                                  , saw_tick :: Maybe Int
                                  , total :: HS.HashSet Name

@@ -7,6 +7,8 @@ module G2.Equiv.Summary
   , printPG
   , showCX
   , showCycle
+  , stateMaxDepth
+  , stateSumDepths
   , minMaxDepth
   , minSumDepth
   )
@@ -509,6 +511,21 @@ minDepthMetric m ns sym_ids states =
   in case states of
     [] -> 0
     _ -> minimum depths
+
+stateDepthMetric :: (HS.HashSet Name -> [Id] -> StateET -> Int) ->
+                    HS.HashSet Name ->
+                    [Id] ->
+                    (StateH, StateH) ->
+                    Int
+stateDepthMetric m ns sym_ids (sh1, sh2) =
+  let (s1, s2) = syncSymbolic (latest sh1) (latest sh2)
+  in min (m ns sym_ids s1) (m ns sym_ids s2)
+
+stateMaxDepth :: HS.HashSet Name -> [Id] -> (StateH, StateH) -> Int
+stateMaxDepth = stateDepthMetric maxArgDepth
+
+stateSumDepths :: HS.HashSet Name -> [Id] -> (StateH, StateH) -> Int
+stateSumDepths = stateDepthMetric sumArgDepths
 
 minDepth :: HS.HashSet Name -> [Id] -> [(StateH, StateH)] -> Int
 minDepth = minDepthMetric minArgDepth

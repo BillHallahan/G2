@@ -684,8 +684,10 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 -- Some variations on the same theorem have the same "non-walked" version
 -- That only applies to 85, actually
 {-# RULES
-"p03fin1" forall n xs ys . count n xs <= count n (xs ++ ys) = walkNatList xs True
-"p03fin2" forall n xs ys . walkNatList xs (count n xs <= count n (xs ++ ys)) = True
+"p03fin1" forall n xs ys . walkList xs (count n xs <= count n (xs ++ ys)) = walkNatList xs True
+"p03fin2" forall n xs ys . walkNatList xs (count n xs <= count n (xs ++ ys)) = walkList xs True
+"p03fin3" forall n xs ys . count n xs <= count n (xs ++ ys) = walkNatList xs True
+"p03fin4" forall n xs ys . walkNatList xs (count n xs <= count n (xs ++ ys)) = True
 "p03finB1" forall n xs ys . count n xs <= count n (xs ++ ys) = walkList xs True
 "p03finB2" forall n xs ys . count n xs <= count n (xs ++ ys) = walkNat n True
 "p04fin1" forall n xs . count n (n : xs) = S (count n xs)
@@ -701,8 +703,10 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p07fin1" forall n m . (n + m) - n = m
 "p08fin1" forall k m n . (k + m) - (k + n) = m - n
 "p10fin1" forall m . m - m = Z
-"p15finA1" forall x xs . len (ins x xs) = walkNatList xs $ S (len xs)
-"p15finA2" forall x xs . walkNatList xs (len (ins x xs)) = S (len xs)
+"p15finA1" forall x xs . walkList xs (len (ins x xs)) = walkNatList xs $ S (len xs)
+"p15finA2" forall x xs . walkNatList xs (len (ins x xs)) = walkList xs $ S (len xs)
+"p15finA3" forall x xs . len (ins x xs) = walkNatList xs $ S (len xs)
+"p15finA4" forall x xs . walkNatList xs (len (ins x xs)) = S (len xs)
 "p15finB1" forall x xs . walkList xs (len (ins x xs)) = walkNat x $ walkList xs $ S (len xs)
 "p15finB2" forall x xs . walkNat x (len (ins x xs)) = walkNat x $ walkList xs $ S (len xs)
 "p15finB3" forall x xs . walkNat x (walkList xs (len (ins x xs))) = walkList xs $ S (len xs)
@@ -710,13 +714,17 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p16finA1" forall x xs . prop_16 x xs = walkNat x True
 "p16finA2" forall x xs . walkNat x (prop_16 x xs) = True
 "p18fin1" forall i m . prop_18 i m = True
-"p20finA1" forall xs . len (sort xs) = walkNatList xs (len xs)
-"p20finA2" forall xs . walkNatList xs (len (sort xs)) = len xs
+"p20finA1" forall xs . walkList xs (len (sort xs)) = walkNatList xs (len xs)
+"p20finA2" forall xs . walkNatList xs (len (sort xs)) = walkList xs (len xs)
+"p20finA3" forall xs . len (sort xs) = walkNatList xs (len xs)
+"p20finA4" forall xs . walkNatList xs (len (sort xs)) = len xs
 "p21fin1" forall n m . prop_21 n m = True
 "p24fin1" forall a b . (max a b) === a = b <= a
 "p25fin1" forall a b . (max a b) === b = a <= b
-"p26finA1" forall x xs ys . prop_26 x xs ys = walkNatList xs True
-"p26finA2" forall x xs ys . walkNatList xs (prop_26 x xs ys) = True
+"p26finA1" forall x xs ys . walkList xs (prop_26 x xs ys) = walkNatList xs True
+"p26finA2" forall x xs ys . walkNatList xs (prop_26 x xs ys) = walkList xs True
+"p26finA3" forall x xs ys . prop_26 x xs ys = walkNatList xs True
+"p26finA4" forall x xs ys . walkNatList xs (prop_26 x xs ys) = True
 "p26finB1" forall x xs ys . prop_26 x xs ys = walkNat x $ walkList xs True
 "p26finB2" forall x xs ys . walkList xs (prop_26 x xs ys) = walkList xs True
 "p26finB3" forall x xs ys . walkList xs (prop_26 x xs ys) = walkNat x True
@@ -735,66 +743,94 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p30finA1" forall x xs . prop_30 x xs = walkNat x $ walkList xs True
 "p30finA2" forall x xs . walkList xs (prop_30 x xs) = walkList xs True
 "p30finA3" forall x xs . walkList xs (prop_30 x xs) = walkNat x True
-"p37finB1" forall x xs . prop_37 x xs = walkNatList xs True
-"p37finB2" forall x xs . walkNatList xs (prop_37 x xs) = True
+"p37finB1" forall x xs . walkList xs (prop_37 x xs) = walkNatList xs True
+"p37finB2" forall x xs . walkNatList xs (prop_37 x xs) = walkList xs True
+"p37finB3" forall x xs . prop_37 x xs = walkNatList xs True
+"p37finB4" forall x xs . walkNatList xs (prop_37 x xs) = True
 "p37finC1" forall x xs . prop_37 x xs = walkNat x $ walkList xs True
 "p37finC2" forall x xs . walkNat x (prop_37 x xs) = walkList xs True
 "p37finC3" forall x xs . walkNat x (prop_37 x xs) = walkNat x True
 "p38finB1" forall n xs . count n (xs ++ [n]) = walkNat n $ walkList xs $ S (count n xs)
 "p38finB2" forall n xs . walkList xs (count n (xs ++ [n])) = walkList xs $ S (count n xs)
 "p38finB3" forall n xs . walkList xs (count n (xs ++ [n])) = walkNat n $ S (count n xs)
-"p48finB1" forall xs . prop_48 xs = walkNatList xs True
-"p48finB2" forall xs . walkNatList xs (prop_48 xs) = True
-"p52finA1" forall n xs . count n xs = walkNatList xs (count n (rev xs))
-"p52finA2" forall n xs . walkNatList xs (count n xs) = count n (rev xs)
-"p53finA1" forall n xs . count n xs = walkNatList xs (count n (sort xs))
-"p53finA2" forall n xs . walkNatList xs (count n xs) = count n (sort xs)
+"p48finB1" forall xs . walkList xs (prop_48 xs) = walkNatList xs True
+"p48finB2" forall xs . walkNatList xs (prop_48 xs) = walkList xs True
+"p48finB3" forall xs . prop_48 xs = walkNatList xs True
+"p48finB4" forall xs . walkNatList xs (prop_48 xs) = True
+"p52finA1" forall n xs . walkList xs (count n xs) = walkNatList xs (count n (rev xs))
+"p52finA2" forall n xs . walkNatList xs (count n xs) = walkList xs (count n (rev xs))
+"p52finA3" forall n xs . count n xs = walkNatList xs (count n (rev xs))
+"p52finA4" forall n xs . walkNatList xs (count n xs) = count n (rev xs)
+"p53finA1" forall n xs . walkList xs (count n xs) = walkNatList xs (count n (sort xs))
+"p53finA2" forall n xs . walkNatList xs (count n xs) = walkList xs (count n (sort xs))
+"p53finA3" forall n xs . count n xs = walkNatList xs (count n (sort xs))
+"p53finA4" forall n xs . walkNatList xs (count n xs) = count n (sort xs)
 "p54fin1" forall n m . (m + n) - n = m
 "p57finA1" forall n m xs . drop n (take m xs) = walkNat n (take (m - n) (drop n xs))
 "p57finA2" forall n m xs . walkNat n (drop n (take m xs)) = take (m - n) (drop n xs)
 "p57finB1" forall n m xs . drop n (take m xs) = walkNat m (take (m - n) (drop n xs))
 "p57finB2" forall n m xs . walkNat m (drop n (take m xs)) = take (m - n) (drop n xs)
-"p59finA1" forall xs ys . prop_59 xs ys = walkNatList xs True
-"p59finA2" forall xs ys . walkNatList xs (prop_59 xs ys) = True
+"p59finA1" forall xs ys . walkList xs (prop_59 xs ys) = walkNatList xs True
+"p59finA2" forall xs ys . walkNatList xs (prop_59 xs ys) = walkList xs True
+"p59finA3" forall xs ys . prop_59 xs ys = walkNatList xs True
+"p59finA4" forall xs ys . walkNatList xs (prop_59 xs ys) = True
 "p60finB1" forall xs ys . walkNatList ys (prop_60 xs ys) = walkList xs $ walkNatList ys True
-"p60finB2" forall xs ys . walkList xs (prop_60 xs ys) = walkList xs $ walkNatList ys True
+"p60finB2" forall xs ys . walkList xs (walkList ys (prop_60 xs ys)) = walkList xs $ walkNatList ys True
 "p60finB3" forall xs ys . walkList xs (walkNatList ys (prop_60 xs ys)) = walkNatList ys True
-"p60finB4" forall xs ys . walkList xs (walkNatList ys (prop_60 xs ys)) = walkList xs True
+"p60finB4" forall xs ys . walkList xs (walkNatList ys (prop_60 xs ys)) = walkList xs $ walkList ys True
+"p60finB5" forall xs ys . walkList xs (prop_60 xs ys) = walkList xs $ walkNatList ys True
+"p60finB6" forall xs ys . walkList xs (walkNatList ys (prop_60 xs ys)) = walkList xs True
 "p61fin1" forall xs ys . last (xs ++ ys) = lastOfTwo xs ys
-"p62finA1" forall xs x . prop_62 xs x = walkNatList xs True
-"p62finA2" forall xs x . walkNatList xs (prop_62 xs x) = True
-"p63finA1" forall n xs . prop_63 n xs = walkNatList xs True
-"p63finA2" forall n xs . walkNatList xs (prop_63 n xs) = True
+"p62finA1" forall xs x . walkList xs (prop_62 xs x) = walkNatList xs True
+"p62finA2" forall xs x . walkNatList xs (prop_62 xs x) = walkList xs True
+"p62finA3" forall xs x . prop_62 xs x = walkNatList xs True
+"p62finA4" forall xs x . walkNatList xs (prop_62 xs x) = True
+"p63finA1" forall n xs . walkList xs (prop_63 n xs) = walkNatList xs True
+"p63finA2" forall n xs . walkNatList xs (prop_63 n xs) = walkList xs True
+"p63finA3" forall n xs . prop_63 n xs = walkNatList xs True
+"p63finA4" forall n xs . walkNatList xs (prop_63 n xs) = True
 "p64fin1" forall x xs . last (xs ++ [x]) = x
 "p65finA1" forall i m . prop_65 i m = True
 "p66fin1" forall p xs . prop_66 p xs = True
 "p68finA1" forall n xs . prop_68 n xs = walkNat n $ walkList xs True
 "p68finA2" forall n xs . walkNat n (prop_68 n xs) = walkList xs True
 "p68finA3" forall n xs . walkNat n (prop_68 n xs) = walkNat n True
-"p68finB1" forall n xs . prop_68 n xs = walkNatList xs True
-"p68finB2" forall n xs . walkNatList xs (prop_68 n xs) = True
+"p68finB1" forall n xs . walkList xs (prop_68 n xs) = walkNatList xs True
+"p68finB2" forall n xs . walkNatList xs (prop_68 n xs) = walkList xs True
+"p68finB3" forall n xs . prop_68 n xs = walkNatList xs True
+"p68finB4" forall n xs . walkNatList xs (prop_68 n xs) = True
 "p69finA1" forall n m . prop_69 n m = True
 "p70finC1" forall m n . prop_70 m n = walkNat m True
 "p70finC2" forall m n . walkNat m (prop_70 m n) = True
 "p70finD1" forall m n . prop_70 m n = walkNat n True
 "p70finD2" forall m n . walkNat n (prop_70 m n) = True
-"p71finA1" forall x y xs . prop_71 x y xs = walkNat x $ walkNatList xs True
+"p71finA1" forall x y xs . walkList xs (prop_71 x y xs) = walkNat x $ walkNatList xs True
 "p71finA2" forall x y xs . walkNatList xs (prop_71 x y xs) = walkNatList xs True
-"p71finA3" forall x y xs . walkNatList xs (prop_71 x y xs) = walkNat x True
-"p71finB1" forall x y xs . prop_71 x y xs = walkNat y $ walkNatList xs True
+"p71finA3" forall x y xs . walkNatList xs (prop_71 x y xs) = walkNat x $ walkList xs True
+"p71finA4" forall x y xs . prop_71 x y xs = walkNat x $ walkNatList xs True
+"p71finA5" forall x y xs . walkNatList xs (prop_71 x y xs) = walkNat x True
+"p71finB1" forall x y xs . walkList xs (prop_71 x y xs) = walkNat y $ walkNatList xs True
 "p71finB2" forall x y xs . walkNatList xs (prop_71 x y xs) = walkNatList xs True
-"p71finB3" forall x y xs . walkNatList xs (prop_71 x y xs) = walkNat y True
+"p71finB3" forall x y xs . walkNatList xs (prop_71 x y xs) = walkNat y $ walkList xs True
+"p71finB4" forall x y xs . prop_71 x y xs = walkNat y $ walkNatList xs True
+"p71finB5" forall x y xs . walkNatList xs (prop_71 x y xs) = walkNat y True
 "p75fin1" forall n m xs . count n xs + count n [m] = count n (m : xs)
 "p76finB1" forall n m xs . prop_76 n m xs = walkNat n $ walkList xs True
 "p76finB2" forall n m xs . walkList xs (prop_76 n m xs) = walkList xs True
 "p76finB3" forall n m xs . walkList xs (prop_76 n m xs) = walkNat n True
-"p76finC1" forall n m xs . prop_76 n m xs = walkNat m $ walkNatList xs True
+"p76finC1" forall n m xs . walkList xs (prop_76 n m xs) = walkNat m $ walkNatList xs True
 "p76finC2" forall n m xs . walkNatList xs (prop_76 n m xs) = walkNatList xs True
-"p76finC3" forall n m xs . walkNatList xs (prop_76 n m xs) = walkNat m True
-"p77finA1" forall x xs . prop_77 x xs = walkNatList xs True
-"p77finA2" forall x xs . walkNatList xs (prop_77 x xs) = True
-"p78finB1" forall xs . prop_78 xs = walkNatList xs True
-"p78finB2" forall xs . walkNatList xs (prop_78 xs) = True
+"p76finC3" forall n m xs . walkNatList xs (prop_76 n m xs) = walkNat m $ walkList xs True
+"p76finC4" forall n m xs . prop_76 n m xs = walkNat m $ walkNatList xs True
+"p76finC5" forall n m xs . walkNatList xs (prop_76 n m xs) = walkNat m True
+"p77finA1" forall x xs . walkList xs (prop_77 x xs) = walkNatList xs True
+"p77finA2" forall x xs . walkNatList xs (prop_77 x xs) = walkList xs True
+"p77finA3" forall x xs . prop_77 x xs = walkNatList xs True
+"p77finA4" forall x xs . walkNatList xs (prop_77 x xs) = True
+"p78finB1" forall xs . walkList xs (prop_78 xs) = walkNatList xs True
+"p78finB2" forall xs . walkNatList xs (prop_78 xs) = walkList xs True
+"p78finB3" forall xs . prop_78 xs = walkNatList xs True
+"p78finB4" forall xs . walkNatList xs (prop_78 xs) = True
 "p81fin1" forall n m xs . take n (drop m xs) = drop m (take (n + m) xs)
 "p85finB1" forall xs ys . prop_85 xs ys = walkList xs True
 "p85finB2" forall xs ys . walkList xs (prop_85 xs ys) = True
