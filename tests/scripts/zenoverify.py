@@ -353,7 +353,7 @@ ground_truth = [
     ("p01", [n]),
     ("p02", []), # slow
     ("p03fin", [n]),
-    ("p03finB", [n, xs]),
+    ("p03finB", [xs]),
     ("p04fin", []),
     ("p05finE", [x, xs]),
     ("p05finF", [n, xs]),
@@ -555,7 +555,7 @@ ground_truth_all_total = [
 # TODO Instead of removing walkNatList calls, I could change to walkList
 ground_truth_altered_finite = [
     ("p03fin", [n], 4),
-    ("p03finB", [n, xs], 2),
+    ("p03finB", [xs], 3),
     ("p04fin", [], 1),
     ("p05finE", [x, xs], 4),
     ("p05finF", [n, xs], 4),
@@ -978,6 +978,7 @@ def main():
     test_suite_csv(None, ground_truth, t)
     #test_suite_csv("ZenoTrue", ground_truth, t)
     # test_suite_csv("ZenoAlteredTotal", totality_change(ground_truth), t)
+    # TODO this is improper usage
     # all_total_alt_finite = altered_total_for_finite(ground_truth_altered_finite)
     # test_suite_csv("ZenoAlteredFinite", make_altered_finite_list(all_total_alt_finite), t)
 

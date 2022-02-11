@@ -621,9 +621,11 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 -- TODO not sure about 71 and 76 now
 -- TODO p03 should be phrased like the rest with a function application
 -- TODO is p03finB really correct?
+-- if n is infinity and xs is all-finite, left terminates and right doesn't
+-- we need an extra walk of n on the left
 {-# RULES
 "p03fin" forall n xs ys . walkNatList xs (prop_03 n xs ys) = walkNatList xs True
-"p03finB" forall n xs ys . prop_03 n xs ys = walkNat n (walkList xs True)
+"p03finB" forall n xs ys . walkNat n (prop_03 n xs ys) = walkNat n (walkList xs True)
 "p04fin" forall n xs . count n (n : xs) = walkNat n (S (count n xs))
 "p05finE" forall n x xs . walkNat n (walkList xs (prop_05 n x xs)) = walkNat n (walkList xs True)
 "p05finF" forall n x xs . walkNat x (walkList xs (prop_05 n x xs)) = walkNat x (walkList xs True)
@@ -689,8 +691,9 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p03fin2" forall n xs ys . walkNatList xs (prop_03 n xs ys) = walkList xs True
 "p03fin3" forall n xs ys . prop_03 n xs ys = walkNatList xs True
 "p03fin4" forall n xs ys . walkNatList xs (prop_03 n xs ys) = True
-"p03finB1" forall n xs ys . prop_03 n xs ys = walkList xs True
-"p03finB2" forall n xs ys . prop_03 n xs ys = walkNat n True
+"p03finB1" forall n xs ys . prop_03 n xs ys = walkNat n (walkList xs True)
+"p03finB2" forall n xs ys . walkNat n (prop_03 n xs ys) = walkList xs True
+"p03finB3" forall n xs ys . walkNat n (prop_03 n xs ys) = walkNat n True
 "p04fin1" forall n xs . count n (n : xs) = S (count n xs)
 "p05finE1" forall n x xs . walkList xs (prop_05 n x xs) = walkNat n (walkList xs True)
 "p05finE2" forall n x xs . walkNat n (prop_05 n x xs) = walkNat n (walkList xs True)
