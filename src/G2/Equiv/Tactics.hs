@@ -626,10 +626,11 @@ moreRestrictiveEqual :: S.Solver solver =>
 moreRestrictiveEqual solver ns lemmas s1 s2 = do
   let h1 = expr_env s1
       h2 = expr_env s2
+      -- TODO should this be syncSymbolic?
       s1' = s1 { expr_env = E.union h1 h2 }
       s2' = s2 { expr_env = E.union h2 h1 }
   -- TODO only attempt if dc paths are the same
-  if dc_path (track s1') == dc_path (track s2') then return Nothing
+  if dc_path (track s1') /= dc_path (track s2') then return Nothing
   else do
     -- TODO no need to enforce dc path condition for this function
     pm_maybe <- moreRestrictivePairWithLemmasPast solver ns lemmas [(s2', s1')] (s1, s2)
