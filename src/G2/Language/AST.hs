@@ -279,7 +279,6 @@ instance ASTContainer DataCon Expr where
 
 instance ASTContainer DataCon Type where
     containedASTs (DataCon _ t) = [t]
-
     modifyContainedASTs f (DataCon n t) = DataCon n (f t)
 
 instance ASTContainer AltMatch Expr where
@@ -328,7 +327,7 @@ instance ASTContainer FuncCall Expr where
 
 instance ASTContainer FuncCall Type where
     containedASTs (FuncCall { arguments = as, returns = r}) = containedASTs as ++ containedASTs r
-    modifyContainedASTs f fc@(FuncCall { arguments = as, returns = r}) = 
+    modifyContainedASTs f fc@(FuncCall { arguments = as, returns = r}) =
         fc {arguments = modifyContainedASTs f as, returns = modifyContainedASTs f r}
 
 instance ASTContainer RewriteRule Expr where

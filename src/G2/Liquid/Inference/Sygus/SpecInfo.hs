@@ -232,7 +232,13 @@ buildSpecInfo eenv tenv tc meas ghci fc to_be_ns ns_synth = do
         s <- buildSI tenv tc meas Known ghci n at rt
         return $ M.insert n s m) si' known_ns_aty_rty
 
-    return si''
+    inf_config <- infConfigM
+
+    let si''' = if use_invs inf_config
+                    then conflateLoopNames . elimSyArgs $ si''
+                    else si''
+
+    return si'''
     where
       zeroOutName (Name n m _ l) = Name n m 0 l
 
@@ -420,6 +426,55 @@ reftSymbol = fst . unpackReft
 
 unpackReft :: Reft -> (LH.Symbol, LH.Expr) 
 unpackReft = coerce
+
+----------------------------------------------------------------------------
+-- Invariant configuration
+----------------------------------------------------------------------------
+
+elimPolyArgSpecs :: M.Map a SpecInfo -> M.Map a SpecInfo
+elimPolyArgSpecs = M.map elimPolyArgSpecs'
+
+elimPolyArgSpecs' :: SpecInfo -> SpecInfo
+elimPolyArgSpecs' si = si { s_syn_pre = map (\(PolyBound a _) -> PolyBound a []) (s_syn_pre si)
+                          , s_syn_post = (\(PolyBound a _) -> PolyBound a []) (s_syn_post si)}
+
+elimSyArgs :: M.Map Name SpecInfo -> M.Map Name SpecInfo
+elimSyArgs = M.mapWithKey (\n si -> if specialFunction n then elimSyArgs' si else si)
+
+elimSyArgs' :: SpecInfo -> SpecInfo
+elimSyArgs' si = si { s_syn_pre = map (mapPB dropNonDirectInt) (s_syn_pre si)
+                    , s_syn_post = mapPB dropNonDirectInt (s_syn_post si)}
+
+dropNonDirectInt :: SynthSpec -> SynthSpec
+dropNonDirectInt sy = sy { sy_args = filter dropNonDirectInt' (sy_args sy) }
+
+dropNonDirectInt' :: SpecArg -> Bool
+dropNonDirectInt' sy =
+    case lh_rep sy of
+        EVar {} -> True
+        _ -> False
+
+specialFunction :: Name -> Bool
+specialFunction (Name n _ _ _) | T.take 4 n == "loop" = True
+                               | T.take 5 n == "while" = True
+                               | T.take 5 n == "breakWhile" = True
+                               | otherwise = False
+
+conflateLoopNames ::  M.Map a SpecInfo -> M.Map a SpecInfo
+conflateLoopNames = M.map conflateLoopNames'
+
+conflateLoopNames' :: SpecInfo -> SpecInfo
+conflateLoopNames' si@(SI { s_syn_pre = pb_sy_pre@(_:_)
+                          , s_syn_post = pb_post@(PolyBound sy_post ps) })
+    | take 4 (sy_name sy_post) == "loop" =
+        let
+            pb_pre = last pb_sy_pre
+        in
+        si { s_syn_pre = init pb_sy_pre ++ [conflateLoopNames'' pb_pre pb_post] }
+conflateLoopNames' si = si
+
+conflateLoopNames'' :: PolyBound SynthSpec -> PolyBound SynthSpec -> PolyBound SynthSpec
+conflateLoopNames'' pb1 = mapPB (\(sy1, sy2) -> sy1 { sy_name = sy_name sy2} ) . zipPB pb1
 
 ----------------------------------------------------------------------------
 

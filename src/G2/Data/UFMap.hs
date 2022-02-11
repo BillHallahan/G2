@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TupleSections #-}
 
 module G2.Data.UFMap ( UFMap
@@ -50,11 +51,15 @@ import Text.Read
 import qualified Text.Read.Lex as L
 import GHC.Read
 
+import GHC.Generics (Generic)
+
 import Test.Tasty.QuickCheck
 
 data UFMap k v = UFMap { joined :: UF.UnionFind k
                        , store :: M.HashMap k v }
-                       deriving (Typeable, Data)
+                       deriving (Typeable, Data, Generic)
+
+instance (Eq k, Hashable k, Hashable v) => Hashable (UFMap k v)
 
 empty :: UFMap k v
 empty = UFMap UF.empty M.empty

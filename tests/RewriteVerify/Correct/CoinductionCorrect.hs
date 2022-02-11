@@ -11,6 +11,14 @@ intForce :: [Int] -> [Int]
 intForce [] = []
 intForce (h:t) = cons h $ intForce t
 
+--intForce (!zs) = case zs of
+--  [] -> []
+--  x:xs -> case intForce xs of
+--    xs' -> x:xs'
+
+--intForce [] = []
+--intForce (h:(!t)) = h:(intForce t)
+
 intDrop :: Int -> [Int] -> [Int]
 intDrop 0 l = l
 intDrop n (_:t) =
@@ -111,9 +119,19 @@ addNat :: Nat -> Nat -> Nat
 addNat Z y = y
 addNat (S x) y = S (addNat x y)
 
+subNat :: Nat -> Nat -> Nat
+subNat Z _ = Z
+subNat x Z = x
+subNat (S x) (S y) = subNat x y
+
 doubleNat :: Nat -> Nat
 doubleNat Z = Z
 doubleNat (S x) = S (S (doubleNat x))
+
+forceNat :: Nat -> Nat -> Nat
+forceNat x y = case x of
+  Z -> y
+  S x' -> forceNat x' y
 
 expLengthNat :: [a] -> Nat
 expLengthNat [] = Z
@@ -146,4 +164,40 @@ zeroList (_:t) = 0 + (zeroList t) + 0
 "branch4" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs)
 "branch5" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs)
 "branch6" forall xs . zeroList xs = (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs) + (zeroList xs)
+  #-}
+
+cyclic :: [Int]
+cyclic = 1:cyclic
+
+makeCycle :: Int -> [Int]
+makeCycle x = x:(makeCycle x)
+
+infInt :: [Int]
+infInt = [1..]
+
+-- TODO Restricting the type of [1..] to [Int] makes the verifier stop getting
+-- stuck on infiniteInts, but the verifier still runs forever on the rule as it
+-- is now.  Making symbolic execution stop more often did cause the verifier to
+-- return UNSAT for it, though.
+{-# RULES
+"infiniteInts" len infInt = lenDouble infInt
+"onlyOnes" makeCycle 1 = cyclic
+  #-}
+
+-- TODO not valid because it doesn't use bang patterns
+simpleForce :: [a] -> [a]
+simpleForce zs = case zs of
+  [] -> []
+  x:xs -> case simpleForce xs of
+    [] -> x:[]
+    x':xs' -> x:x':xs'
+
+{-# RULES
+"sf" forall (xs :: [Int]) . simpleForce (simpleForce xs) = simpleForce xs
+"forceBackward" forall xs . intForce xs = intForce (intForce xs)
+  #-}
+
+{-# RULES
+"walkRight" forall m . subNat m m = forceNat m Z
+"walkBoth" forall m . forceNat m (subNat m m) = forceNat m Z
   #-}

@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric #-}
 
 -- We define a datatype to hol the names of other data types we know should
 -- exist, and that we care about for some special reason
@@ -8,6 +9,8 @@ module G2.Language.KnownValues where
 
 import G2.Language.Syntax
 import Data.Data (Data, Typeable)
+import Data.Hashable
+import GHC.Generics (Generic)
 
 data KnownValues = KnownValues {
                    tyInt :: Name
@@ -91,7 +94,9 @@ data KnownValues = KnownValues {
                  , errorWithoutStackTraceFunc :: Name
                  , errorEmptyListFunc :: Name
                  , patErrorFunc :: Name
-                 } deriving (Show, Eq, Read, Typeable, Data)
+                 } deriving (Show, Eq, Read, Typeable, Data, Generic)
+
+instance Hashable KnownValues
 
 isErrorFunc :: KnownValues -> Name -> Bool
 isErrorFunc kv n =    n == errorFunc kv

@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
@@ -6,6 +7,7 @@
 module G2.Language.ExprEnv
     ( ExprEnv
     , ConcOrSym (..)
+    , EnvObj (..)
     , empty
     , singleton
     , fromList
@@ -14,6 +16,7 @@ module G2.Language.ExprEnv
     , member
     , lookup
     , lookupConcOrSym
+    , lookupEnvObj
     , deepLookup
     , isSymbolic
     , occLookup
@@ -24,11 +27,16 @@ module G2.Language.ExprEnv
     , redirect
     , union
     , union'
+    , unionWith
+    , unionWithM
+    , unionWithNameM
     , (!)
     , map
     , map'
+    , mapConc
     , mapWithKey
     , mapWithKey'
+    , mapConcWithKey
     , mapM
     , mapWithKeyM
     , filter
@@ -37,7 +45,7 @@ module G2.Language.ExprEnv
     , getIdFromName
     , funcsOfType
     , keys
-    , symbolicKeys
+    , symbolicIds
     , elems
     , higherOrderExprs
     , redirsToExprs
@@ -58,14 +66,18 @@ import Prelude hiding( filter
                      , mapM
                      , null)
 import qualified Prelude as Pre
+import Control.Monad hiding (mapM)
 import Data.Coerce
 import Data.Data (Data, Typeable)
+import Data.Hashable
 import qualified Data.List as L
 import qualified Data.HashMap.Lazy as M
 import Data.Maybe
 import Data.Monoid ((<>))
 import qualified Data.Sequence as S
 import qualified Data.Text as T
+import qualified Data.Traversable as Trav
+import GHC.Generics (Generic)
 
 data ConcOrSym = Conc Expr
                | Sym Id
@@ -80,10 +92,14 @@ data ConcOrSym = Conc Expr
 data EnvObj = ExprObj Expr
             | RedirObj Name
             | SymbObj Id
-            deriving (Show, Eq, Read, Typeable, Data)
+            deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+instance Hashable EnvObj
 
 newtype ExprEnv = ExprEnv (M.HashMap Name EnvObj)
-                  deriving (Show, Eq, Read, Typeable, Data)
+                  deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+instance Hashable ExprEnv
 
 {-# INLINE unwrapExprEnv #-}
 unwrapExprEnv :: ExprEnv -> M.HashMap Name EnvObj
@@ -138,6 +154,9 @@ lookupConcOrSym  n (ExprEnv smap) =
         Just (SymbObj i) -> Just $ Sym i
         Nothing -> Nothing
 
+lookupEnvObj :: Name -> ExprEnv -> Maybe EnvObj
+lookupEnvObj n = M.lookup n . unwrapExprEnv
+
 -- | Lookup the `Expr` with the given `Name`.
 -- If the name is bound to a @Var@, recursively searches that @Vars@ name.
 -- Returns `Nothing` if the `Name` is not in the `ExprEnv`.
@@ -180,8 +199,8 @@ lookupNameMod ns ms =
 insert :: Name -> Expr -> ExprEnv -> ExprEnv
 insert n e = ExprEnv . M.insert n (ExprObj e) . unwrapExprEnv
 
-insertSymbolic :: Name -> Id -> ExprEnv -> ExprEnv
-insertSymbolic n i = ExprEnv. M.insert n (SymbObj i) . unwrapExprEnv
+insertSymbolic :: Id -> ExprEnv -> ExprEnv
+insertSymbolic i = ExprEnv. M.insert (idName i) (SymbObj i) . unwrapExprEnv
 
 insertExprs :: [(Name, Expr)] -> ExprEnv -> ExprEnv
 insertExprs kvs scope = foldr (uncurry insert) scope kvs
@@ -196,6 +215,28 @@ union (ExprEnv eenv) (ExprEnv eenv') = ExprEnv $ eenv `M.union` eenv'
 union' :: M.HashMap Name Expr -> ExprEnv -> ExprEnv
 union' m (ExprEnv eenv) = ExprEnv (M.map ExprObj m `M.union` eenv)
 
+unionWith :: (EnvObj -> EnvObj -> EnvObj) -> ExprEnv -> ExprEnv -> ExprEnv
+unionWith f (ExprEnv m1) (ExprEnv m2) =
+    ExprEnv $ M.unionWith f m1 m2
+
+unionWithM :: Monad m => (EnvObj -> EnvObj -> m EnvObj) -> ExprEnv -> ExprEnv -> m ExprEnv
+unionWithM f (ExprEnv m1) (ExprEnv m2) =
+    return . ExprEnv =<< (Trav.sequence $ M.unionWith (\x y -> do
+                                                            x' <- x
+                                                            y' <- y
+                                                            f x' y') 
+                                                      (M.map return m1)
+                                                      (M.map return m2))
+
+unionWithNameM :: Monad m => (Name -> EnvObj -> EnvObj -> m EnvObj) -> ExprEnv -> ExprEnv -> m ExprEnv
+unionWithNameM f (ExprEnv m1) (ExprEnv m2) =
+    return . ExprEnv =<< (Trav.sequence $ M.unionWithKey (\n x y -> do
+                                                                    x' <- x
+                                                                    y' <- y
+                                                                    f n x' y') 
+                                                         (M.map return m1)
+                                                         (M.map return m2))
+
 -- | Map a function over all `Expr` in the `ExprEnv`.
 -- Will not replace symbolic variables with non-symbolic values,
 -- but will rename symbolic values.
@@ -205,6 +246,9 @@ map f = mapWithKey (\_ -> f)
 -- | Maps a function with an arbitrary return type over all `Expr` in the `ExprEnv`, to get a `Data.Map`.
 map' :: (Expr -> a) -> ExprEnv -> M.HashMap Name a
 map' f = mapWithKey' (\_ -> f)
+
+mapConc :: (Expr -> Expr) -> ExprEnv -> ExprEnv
+mapConc f = mapConcWithKey (\_ -> f)
 
 -- | Map a function over all `Expr` in the `ExprEnv`, with access to the `Name`.
 -- Will not replace symbolic variables with non-symbolic values,
@@ -222,6 +266,14 @@ mapWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
 
 mapWithKey' :: (Name -> Expr -> a) -> ExprEnv -> M.HashMap Name a
 mapWithKey' f = M.mapWithKey f . toExprMap
+
+mapConcWithKey :: (Name -> Expr -> Expr) -> ExprEnv -> ExprEnv
+mapConcWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
+    where
+        f' :: Name -> EnvObj -> EnvObj
+        f' n (ExprObj e) = ExprObj $ f n e
+        f' n s@(SymbObj _) = s
+        f' _ n = n
 
 mapM :: Monad m => (Expr -> m Expr) -> ExprEnv -> m ExprEnv
 mapM f eenv = return . ExprEnv =<< Pre.mapM f' (unwrapExprEnv eenv)
@@ -259,7 +311,9 @@ filterWithKey p env@(ExprEnv env') = ExprEnv $ M.filterWithKey p' env'
 
 -- | Returns a new `ExprEnv`, which contains only the symbolic values.
 filterToSymbolic :: ExprEnv -> ExprEnv
-filterToSymbolic eenv = filterWithKey (\n _ -> isSymbolic n eenv) eenv
+filterToSymbolic = ExprEnv . M.filter (\e -> case e of
+                                                SymbObj _ -> True
+                                                _ -> False) . unwrapExprEnv
 
 -- | Returns the names of all expressions with the given type in the expression environment
 funcsOfType :: Type -> ExprEnv -> [Name]
@@ -268,8 +322,10 @@ funcsOfType t = keys . filter (\e -> t == typeOf e)
 keys :: ExprEnv -> [Name]
 keys = M.keys . unwrapExprEnv
 
-symbolicKeys :: ExprEnv -> [Name]
-symbolicKeys eenv = M.keys . unwrapExprEnv . filterWithKey (\n _ -> isSymbolic n eenv) $ eenv
+symbolicIds :: ExprEnv -> [Id]
+symbolicIds = mapMaybe (\e -> case e of
+                                SymbObj i ->  Just i
+                                _ -> Nothing) . M.elems . unwrapExprEnv
 
 -- | Returns all `Expr`@s@ in the `ExprEnv`
 elems :: ExprEnv -> [Expr]

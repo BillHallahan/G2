@@ -19,6 +19,7 @@ module G2.Execution.Rules ( module G2.Execution.RuleTypes
                           , isExecValueForm ) where
 
 import G2.Config.Config
+import G2.Execution.NewPC
 import G2.Execution.NormalForms
 import G2.Execution.PrimitiveEval
 import G2.Execution.RuleTypes
@@ -99,43 +100,6 @@ stdReduce' _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
             isError (Prim Error _) = True
             isError (Prim Undefined _) = True
             isError _ = False
-
-data NewPC t = NewPC { state :: State t
-                     , new_pcs :: [PathCond]
-                     , concretized :: [Id] }
-
-newPCEmpty :: State t -> NewPC t
-newPCEmpty s = NewPC { state = s, new_pcs = [], concretized = []}
-
-reduceNewPC :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> NewPC t -> IO (Maybe (State t))
-reduceNewPC solver simplifier
-            (NewPC { state = s@(State { path_conds = spc })
-                   , new_pcs = pc
-                   , concretized = concIds })
-    | not (null pc) || not (null concIds) = do
-        let (s', pc') = L.mapAccumL (simplifyPC simplifier) s pc
-            pc'' = concat pc'
-
-        -- Optimization
-        -- We replace the path_conds with only those that are directly
-        -- affected by the new path constraints
-        -- This allows for more efficient solving, and in some cases may
-        -- change an Unknown into a SAT or UNSAT
-        let new_pc = foldr PC.insert spc $ pc''
-            s'' = s' {path_conds = new_pc}
-
-        let ns = concatMap PC.varNamesInPC pc ++ namesList concIds
-            rel_pc = case ns of
-                [] -> PC.fromList pc''
-                _ -> PC.scc ns new_pc
-
-        res <- check solver s' rel_pc
-
-        if res == SAT () then
-            return $ Just s''
-        else
-            return Nothing
-    | otherwise = return $ Just s
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
@@ -438,10 +402,9 @@ concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC =
         (newPCs, ng'') = concretizeVarExpr s ng' mexpr_id cvar xs maybeC
 
 concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> (NewPC t, NameGen)
-concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = syms})
+concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv})
                 ngen mexpr_id cvar (dcon, params, aexpr) maybeC =
           (NewPC { state =  s { expr_env = eenv''
-                              , symbolic_ids = syms'
                               , curr_expr = CurrExpr Evaluate aexpr''}
                  -- It is VERY important that we insert the mexpr_id in `concretized`
                  -- This forces reduceNewPC to check that the concretized data constructor does
@@ -464,8 +427,8 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
     (news, ngen') = childrenNames mexpr_n clean_olds ngen
 
     --Update the expr environment
-    newIds = map (\(Id _ t, n) -> (n, Id n t)) (zip params news)
-    eenv' = foldr (uncurry E.insertSymbolic) eenv newIds
+    newIds = map (\(Id _ t, n) -> Id n t) (zip params news)
+    eenv' = foldr E.insertSymbolic eenv newIds
 
     (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, aexpr)
 
@@ -483,8 +446,6 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, symbolic_ids = sy
     dcon''' = case maybeC of 
                 (Just (t1 :~ t2)) -> Cast dcon'' (t2 :~ t1)
                 Nothing -> dcon''
-
-    syms' = newparams ++ (filter (/= mexpr_id) syms)
 
     -- concretizes the mexpr to have same form as the DataCon specified
     eenv'' = E.insert mexpr_n dcon''' eenv' 
@@ -575,7 +536,7 @@ liftSymDefAlt s ng mexpr cvar as =
 liftSymDefAlt' :: State t -> NameGen -> Expr -> Expr -> Id -> [Alt] -> ([NewPC t], NameGen)
 liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
     | (Var i):_ <- unApp $ unsafeElimOuterCast mexpr
-    , isADT (typeOf i)
+    , isADTType (typeOf i)
     , (Var i'):_ <- unApp $ exprInCasts mexpr = -- Id with original Type
         let (adt, bi) = fromJust $ getCastedAlgDataTy (typeOf i) tenv
             maybeC = case mexpr of
@@ -598,10 +559,8 @@ liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
             -- add PC restricting range of values for newSymId
             newSymConstraint = restrictSymVal (known_values s') 1 (toInteger $ length dcs'') newId
 
-            syms' = L.delete i' $ newId:symbolic_ids s'
             eenv' = E.insert (idName i') mexpr' (expr_env s')
             s'' = s' { curr_expr = CurrExpr Evaluate aexpr'
-                     , symbolic_ids = syms'
                      , expr_env = eenv'}
         in
         ([NewPC { state = s'', new_pcs = [newSymConstraint], concretized = [] }], ng'')
@@ -648,10 +607,8 @@ concretizeSym bi maybeC (s, ng) dc@(DataCon n ts) =
         dc''' = case maybeC of
             (Just (t1 :~ t2)) -> Cast dc'' (t2 :~ t1)
             Nothing -> dc''
-        eenv = foldr (uncurry E.insertSymbolic) (expr_env s)
-             $ zip (map idName newParams) newParams
-        syms = symbolic_ids s ++ newParams
-    in ((s {expr_env = eenv, symbolic_ids = syms} , ng'), dc''')
+        eenv = foldr E.insertSymbolic (expr_env s) newParams
+    in ((s {expr_env = eenv} , ng'), dc''')
 
 createCaseExpr :: Id -> [Expr] -> Expr
 createCaseExpr _ [e] = e
@@ -675,8 +632,7 @@ restrictSymVal kv lower upper newId =
 
 evalCast :: State t -> NameGen -> Expr -> Coercion -> (Rule, [State t], NameGen)
 evalCast s@(State { expr_env = eenv
-                  , exec_stack = stck
-                  , symbolic_ids = symbs }) 
+                  , exec_stack = stck }) 
          ng e c@(t1 :~ t2)
     | Var init_i@(Id n _) <- e
     , E.isSymbolic n eenv
@@ -686,9 +642,8 @@ evalCast s@(State { expr_env = eenv
             new_e = Cast (Var i) (t2 :~ t1)
         in
         ( RuleOther
-        , [s { expr_env = E.insertSymbolic (idName i) i $ E.insert n new_e eenv
-             , curr_expr = CurrExpr Return (Var i)
-             , symbolic_ids = i:L.delete init_i symbs }]
+        , [s { expr_env = E.insertSymbolic i $ E.insert n new_e eenv
+             , curr_expr = CurrExpr Return (Var i) }]
         , ng')
     | cast /= cast' =
         ( RuleEvalCastSplit
@@ -721,11 +676,10 @@ evalSymGen s@( State { expr_env = eenv })
           (n, ng') = freshSeededString "symG" ng
           i = Id n t
 
-          eenv' = E.insertSymbolic n i eenv
+          eenv' = E.insertSymbolic i eenv
     in
     (RuleSymGen, [s { expr_env = eenv'
-                    , curr_expr = CurrExpr Evaluate (Var i)
-                    , symbolic_ids = i:symbolic_ids s }]
+                    , curr_expr = CurrExpr Evaluate (Var i) }]
                 , ng')
 
 evalAssume :: State t -> NameGen -> Maybe FuncCall -> Expr -> Expr -> (Rule, [State t], NameGen)
@@ -871,11 +825,9 @@ concretizeExprToBool s ng mexpr_id (x:xs) e2 stck =
 
 concretizeExprToBool' :: State t -> NameGen -> Id -> DataCon -> Expr -> S.Stack Frame -> (NewPC t, NameGen)
 concretizeExprToBool' s@(State {expr_env = eenv
-                        , symbolic_ids = syms
                         , known_values = kv})
                 ngen mexpr_id dcon@(DataCon dconName _) e2 stck = 
         (NewPC { state = s { expr_env = eenv'
-                        , symbolic_ids = syms'
                         , exec_stack = stck
                         , curr_expr = CurrExpr Evaluate e2
                         , true_assert = assertVal}
@@ -887,7 +839,6 @@ concretizeExprToBool' s@(State {expr_env = eenv
 
         -- concretize the mexpr to the DataCon specified
         eenv' = E.insert mexpr_n (Data dcon) eenv
-        syms' = filter (/= mexpr_id) syms
 
         assertVal = if (dconName == (KV.dcTrue kv))
                         then False
@@ -979,9 +930,8 @@ retReplaceSymbFunc s@(State { expr_env = eenv
                            , ce ]
         in
         Just (RuleReturnReplaceSymbFunc, 
-            [s { expr_env = E.insertSymbolic new_sym new_sym_id eenv
+            [s { expr_env = E.insertSymbolic new_sym_id eenv
                , curr_expr = CurrExpr Return (Var new_sym_id)
-               , symbolic_ids = new_sym_id:symbolic_ids s
                , non_red_path_conds = non_red_path_conds s ++ [nrpc_e] }]
             , ng')
     | otherwise = 

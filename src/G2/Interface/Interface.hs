@@ -188,7 +188,7 @@ initStateFromSimpleState s useAssert mkCurr argTys config =
         (ce, is, f_i, ng'') = mkCurr tc' ng' eenv' tenv' ds_walkers kv' config
     in
     (State {
-      expr_env = foldr (\i@(Id n _) -> E.insertSymbolic n i) eenv' is
+      expr_env = foldr E.insertSymbolic eenv' is
     , type_env = tenv'
     , curr_expr = CurrExpr Evaluate ce
     , path_conds = PC.fromList []
@@ -196,7 +196,6 @@ initStateFromSimpleState s useAssert mkCurr argTys config =
     , true_assert = if useAssert then False else True
     , assert_ids = Nothing
     , type_classes = tc'
-    , symbolic_ids = is
     , exec_stack = Stack.empty
     , model = HM.empty
     , known_values = kv'
@@ -271,11 +270,13 @@ initRedHaltOrd solver simplifier config =
 
         tr_ng = mkNameGen ()
         state_name = Name "state" Nothing 0 Nothing
+
+        m_logger = getLogger config
     in
     if higherOrderSolver config == AllFuncs
         then (SomeReducer (NonRedPCRed)
-                 <~| (case logStates config of
-                        Just fp -> SomeReducer (StdRed share solver simplifier :<~ Logger fp)
+                 <~| (case m_logger of
+                        Just logger -> SomeReducer (StdRed share solver simplifier) <~ logger
                         Nothing -> SomeReducer (StdRed share solver simplifier))
              , SomeHalter
                  (SwitchEveryNHalter 20
@@ -284,8 +285,8 @@ initRedHaltOrd solver simplifier config =
                  :<~> AcceptIfViolatedHalter)
              , SomeOrderer $ PickLeastUsedOrderer)
         else ( SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
-                 <~| (case logStates config of
-                        Just fp -> SomeReducer (StdRed share solver simplifier :<~ Logger fp)
+                 <~| (case m_logger of
+                        Just logger -> SomeReducer (StdRed share solver simplifier) <~ logger
                         Nothing -> SomeReducer (StdRed share solver simplifier))
              , SomeHalter
                  (DiscardIfAcceptedTag state_name
@@ -467,7 +468,7 @@ runG2Solving :: ( Named t
                 solver -> simplifier -> Bindings -> State t -> IO (Maybe (ExecRes t))
 runG2Solving solver simplifier bindings s@(State { known_values = kv })
     | true_assert s = do
-        r <- solve solver s bindings (symbolic_ids s) (path_conds s)
+        r <- solve solver s bindings (E.symbolicIds . expr_env $ s) (path_conds s)
 
         case r of
             SAT m -> do
@@ -487,7 +488,7 @@ runG2Solving solver simplifier bindings s@(State { known_values = kv })
                                    , conc_args = fixed_inputs bindings ++ conc_args sm'
                                    , conc_out = evalPrims kv (conc_out sm')
                                    , violated = evalPrims kv (violated sm')}
-                
+
                 return $ Just sm''
             UNSAT _ -> return Nothing
             Unknown _ -> return Nothing

@@ -31,7 +31,7 @@ type ToBeFunc a = String -> Integer -> Bool -> a
 -- Building Formulas
 ------------------------------------
 
-mkPreCall :: ProgresserM m => 
+mkPreCall :: (InfConfigM m, ProgresserM m) => 
              ConvertExpr form
           -> AndF form
           -> OrF form
@@ -50,6 +50,8 @@ mkPreCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_si
     | Just si <- M.lookup n m_si
     , Just (ev_i, ev_b) <- lookupEvals fc (pre_evals evals)
     , Just func_e <- HM.lookup (nameOcc n, nameModule n) eenv = do
+        inf_config <- infConfigM
+
         MaxSize mx_meas <- maxSynthSizeM
         let func_ts = argumentTypes func_e
 
@@ -62,7 +64,7 @@ mkPreCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_si
                     (\(si_pb, ts_es) ->
                         let
                             t_ars = init ts_es
-                            smt_ars = concat $ map (uncurry (adjustArgs convExpr (fromInteger mx_meas) tenv meas meas_ex)) t_ars
+                            smt_ars = concat $ map (uncurry (adjustArgsWithCare inf_config n convExpr (fromInteger mx_meas) tenv meas meas_ex)) t_ars
 
                             (l_rt, l_re) = last ts_es
                             re_pb = extractExprPolyBoundWithRoot l_re
@@ -77,9 +79,10 @@ mkPreCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_si
                         concatMap
                             (\(psi, re, rt) ->
                                 let
+                                    f_smt_ars = if null (sy_args psi) then [] else smt_ars
                                     smt_r = map (adjustArgs convExpr (fromInteger mx_meas) tenv meas meas_ex rt) re
                                 in
-                                map (\r -> funcF (sy_name psi) $ smt_ars ++ r) smt_r
+                                map (\r -> funcF (sy_name psi) $ f_smt_ars ++ r) smt_r
                               ) $ extractValues si_re_rt_pb
                   ) . zip (s_syn_pre si) . filter (not . null) $ L.inits v_ars
 
@@ -93,7 +96,7 @@ mkPreCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_si
                 Known -> return $ fixed_body
     | otherwise = error "mkPreCall: specification not found"
 
-mkPostCall :: ProgresserM m => 
+mkPostCall :: (InfConfigM m, ProgresserM m) => 
               ConvertExpr form
            -> AndF form
            -> OrF form
@@ -112,13 +115,15 @@ mkPostCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_s
     | Just si <- M.lookup n m_si
     , Just (ev_i, ev_b) <- lookupEvals fc (post_evals evals)
     , Just func_e <- HM.lookup (nameOcc n, nameModule n) eenv = do
+        inf_config <- infConfigM
+
         MaxSize mx_meas <- maxSynthSizeM
         let func_ts = argumentTypes func_e
 
-            smt_ars = concatMap (uncurry (adjustArgs convExpr (fromInteger mx_meas) tenv meas meas_ex))
+            smt_ars = concatMap (uncurry (adjustArgsWithCare inf_config n convExpr (fromInteger mx_meas) tenv meas meas_ex))
                     . filter (\(t, _) -> not (isTyFun t) && not (isTyVar t))
                     . filter (validArgForSMT . snd) $ zip func_ts ars
-            
+
             smt_ret = extractExprPolyBoundWithRoot r
             smt_ret_ty = extractTypePolyBound (returnType func_e)
             smt_ret_e_ty = case filterPBByType snd $ zipPB smt_ret smt_ret_ty of
@@ -129,9 +134,10 @@ mkPostCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_s
                     . concatMap
                         (\(syn_p, r, rt) ->
                             let
+                                f_smt_ars = if null (sy_args syn_p) then [] else smt_ars
                                 smt_r = map (adjustArgs convExpr (fromInteger mx_meas) tenv meas meas_ex rt) $ r
                             in
-                            map (\smt_r' -> funcF (sy_name syn_p) $ smt_ars ++ smt_r') smt_r)
+                            map (\smt_r' -> funcF (sy_name syn_p) $ f_smt_ars ++ smt_r') smt_r)
                     . extractValues 
                     $ zipWithPB (\x (y, z) -> (x, y, z)) (s_syn_post si) smt_ret_e_ty
             fixed_body = knownF (s_known_post_name si) ev_i ev_b
@@ -232,6 +238,15 @@ substMeasures mx_meas tenv meas meas_ex t e =
                     -- Sort to make sure we get the same order consistently
                     map snd $ L.sortBy (\(n1, _) (n2, _) -> compare n1 n2) es''
                 Nothing -> []
+
+adjustArgsWithCare :: InferenceConfig -> Name -> ConvertExpr form -> Int -> TypeEnv -> Measures -> MeasureExs -> Type -> G2.Expr -> [form]
+adjustArgsWithCare inf_config n convExpr mx_meas tenv meas meas_ex t
+    | use_invs inf_config
+    , specialFunction n =
+          map convExpr
+        . map adjustLits
+        . (\e -> case typeToSort t of Just _ -> [e]; Nothing -> [])
+    | otherwise = adjustArgs convExpr mx_meas tenv meas meas_ex t
 
 adjustLits :: G2.Expr -> G2.Expr
 adjustLits (App _ l@(Lit _)) = l

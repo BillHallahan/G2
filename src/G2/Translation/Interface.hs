@@ -156,4 +156,3 @@ translateLoadedD proj src libs tr_con = do
           final_tycons,
           final_classes,
           exports)
-

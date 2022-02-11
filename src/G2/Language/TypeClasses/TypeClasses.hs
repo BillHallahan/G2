@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -25,21 +26,28 @@ import G2.Language.KnownValues (KnownValues)
 import G2.Language.Naming
 import G2.Language.Syntax
 import G2.Language.Typing
+import G2.Language.TypeEnv
 
 import Data.Coerce
 import Data.Data (Data, Typeable)
+import Data.Hashable
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid ((<>))
 import qualified Data.Sequence as S
+import GHC.Generics (Generic)
 
 data Class = Class { insts :: [(Type, Id)], typ_ids :: [Id], superclasses :: [(Type, Id)]}
-                deriving (Show, Eq, Read, Typeable, Data)
+                deriving (Show, Eq, Read, Typeable, Data, Generic)
+
+instance Hashable Class
 
 type TCType = M.Map Name Class
 newtype TypeClasses = TypeClasses TCType
-                      deriving (Show, Eq, Read, Typeable, Data)
+                      deriving (Show, Eq, Read, Typeable, Data, Generic)
+
+instance Hashable TypeClasses
 
 initTypeClasses :: [(Name, Id, [Id], [(Type, Id)])] -> TypeClasses
 initTypeClasses nsi =

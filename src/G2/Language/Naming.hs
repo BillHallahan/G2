@@ -49,6 +49,7 @@ module G2.Language.Naming
     , mapNG
     ) where
 
+import qualified G2.Data.UFMap as UF
 import G2.Language.AST
 import G2.Language.KnownValues
 import G2.Language.Syntax
@@ -879,6 +880,12 @@ instance Named T.Text where
     {-# INLINE rename #-}
     rename _ _ = id
 
+instance (Named k, Named v, Eq k, Hashable k) => Named (UF.UFMap k v) where
+    names = names . UF.toList
+    rename old new = UF.fromList . rename old new . UF.toList
+    renames hm = UF.fromList . renames hm . UF.toList
+
+
 freshSeededString :: T.Text -> NameGen -> (Name, NameGen)
 freshSeededString t = freshSeededName (Name t Nothing 0 Nothing)
 
@@ -967,13 +974,5 @@ childrenNamesNew n ns ng =
 
 -- | Allows mapping, while passing a NameGen along
 mapNG :: (a -> NameGen -> (b, NameGen)) -> [a] -> NameGen -> ([b], NameGen)
-mapNG f xs ng = swap $ mapAccumR (\xs' ng' -> swap $ f ng' xs') ng xs -- mapNG' f (reverse xs) ng []
+mapNG f xs ng = swap $ mapAccumR (\xs' ng' -> swap $ f ng' xs') ng xs
 {-# INLINE mapNG #-}
-
--- mapNG' :: (a -> NameGen -> (b, NameGen)) -> [a] -> NameGen -> [b] -> ([b], NameGen)
--- mapNG' _ [] ng xs = (xs, ng)
--- mapNG' f (x:xs) ng xs' =
---     let
---         (x', ng') = f x ng
---     in
---     mapNG' f xs ng' (x':xs')

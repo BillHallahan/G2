@@ -30,6 +30,7 @@ import G2.Liquid.Inference.GeneratedSpecs
 import G2.Liquid.Inference.Verify
 import G2.Liquid.Interface
 import G2.Liquid.Types hiding (state)
+import qualified G2.Liquid.Types as T
 import qualified G2.Liquid.Types as G2LH
 import G2.Solver
 import G2.Translation
@@ -301,7 +302,7 @@ inferenceB con ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls = do
 
                 Crash e1 e2 -> error $ "inferenceB: LiquidHaskell crashed" ++ "\n" ++ show e1 ++ "\n" ++ e2
         SynthFail sf_fc -> do
-            liftIO . putStrLn $ "synthfail fc = " ++ (printFCs sf_fc)
+            liftIO . putStrLn $ "synthfail fc = " ++ (printFCs lrs sf_fc)
             return $ (Raise meas_ex fc (unionFC max_fc sf_fc), evals')
 
 tryToGen :: Monad m =>
@@ -380,7 +381,7 @@ refineUnsafe ghci m_modname lrs gs bad = do
     liftIO $ do
         putStrLn $ "--- Generated Counterexamples and Constraints for " ++ show bad ++ " ---"
         putStrLn "res = "
-        printCE res
+        printCE (T.state $ lr_state lrs) res
 
     let res' = filter (not . hasAbstractedArgError) res
 
@@ -391,7 +392,7 @@ refineUnsafe ghci m_modname lrs gs bad = do
     case new_fc of
         Left cex -> return $ Left cex
         Right new_fc' -> do
-            liftIO . putStrLn $ "new_fc' = " ++ printFCs new_fc'
+            liftIO . putStrLn $ "new_fc' = " ++ printFCs lrs new_fc'
             return $ Right (if nullFC new_fc'
                                     then Nothing
                                     else Just (new_fc', emptyBlockedModels), fromListFC no_viol)
@@ -482,7 +483,7 @@ genNewConstraints ghci m lrs n = do
     let (exec_res', no_viol) = partition (true_assert . final_state) exec_res
         
         allCCons = noAbsStatesToCons i $ exec_res' ++ if use_extra_fcs infconfig then no_viol else []
-    return $ (map (lhStateToCE i) exec_res', allCCons)
+    return $ (filter (not . hasPreArgError) $ map (lhStateToCE i) exec_res', allCCons)
 
 getCEx :: MonadIO m =>
           [GhcInfo]
@@ -502,7 +503,7 @@ getCEx ghci m_modname lrs gs bad = do
 
     liftIO $ do
         putStrLn $ "getCEx res = "
-        printCE $ concat res
+        printCE (T.state $ lr_state lrs) $ concat res
 
     let res' = concat res
 
@@ -513,7 +514,7 @@ getCEx ghci m_modname lrs gs bad = do
     case new_fc of
         Left cex -> return $ Left cex
         Right new_fc' -> do
-            liftIO . putStrLn $ "new_fc' = " ++ printFCs new_fc'
+            liftIO . putStrLn $ "new_fc' = " ++ printFCs lrs new_fc'
             return $ Right new_fc'
 
 checkForCEx :: MonadIO m =>
@@ -555,7 +556,7 @@ synthesize :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out 
            => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
            -> FuncConstraints -> BlockedModels -> [Name] -> [Name] -> m SynthRes
 synthesize con ghci lrs evals meas_ex fc blk_mdls to_be for_funcs = do
-    liftIO . putStrLn $ "all fc = " ++ printFCs fc
+    liftIO . putStrLn $ "all fc = " ++ printFCs lrs fc
     liaSynth con ghci lrs evals meas_ex fc blk_mdls to_be for_funcs
 
 updateEvals :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> FuncConstraints -> Evals Bool -> m (Evals Bool)
@@ -742,6 +743,10 @@ lhStateToPreFC i (ExecRes { conc_args = inArg
 
 abstractedMod :: Abstracted -> Maybe T.Text
 abstractedMod = nameModule . funcName . abstract
+
+hasPreArgError :: CounterExample -> Bool
+hasPreArgError (DirectCounter _ _) = False
+hasPreArgError (CallsCounter _ calls_f _) = hasArgError $ real calls_f
 
 hasAbstractedArgError :: CounterExample -> Bool
 hasAbstractedArgError (DirectCounter _ as) = any (hasArgError . real) as

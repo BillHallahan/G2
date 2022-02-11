@@ -68,7 +68,7 @@ primDefs' b = [ ("==#", Prim Eq $ tyIntIntBool b)
               , ("divInt#", Prim Quot tyIntIntInt)
               , ("modInt#", Prim Mod tyIntIntInt)
               , ("quotInt#", Prim Quot tyIntIntInt)
-              , ("remInt#", Prim Mod tyIntIntInt)
+              , ("remInt#", Prim Rem tyIntIntInt)
 
               , ("==##", Prim Eq $ tyDoubleDoubleBool b)
               , ("/=##", Prim Neq $ tyDoubleDoubleBool b)
@@ -97,6 +97,7 @@ primDefs' b = [ ("==#", Prim Eq $ tyIntIntBool b)
               , ("geFloat#", Prim Ge $ tyFloatFloatBool b)
 
               , ("quotInteger#", Prim Quot tyIntIntInt)
+              , ("remInteger#", Prim Rem tyIntIntInt)
 
               , ("eqChar#", Prim Eq $ tyCharCharBool b )
               , ("neChar#", Prim Neq $ tyCharCharBool b )

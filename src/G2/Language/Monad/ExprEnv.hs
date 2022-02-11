@@ -1,9 +1,10 @@
 module G2.Language.Monad.ExprEnv ( memberE
-                                           , lookupE
-                                           , insertE
-                                           , mapE
-                                           , mapME
-                                           , mapWithKeyME ) where
+                                 , lookupE
+                                 , insertE
+                                 , insertSymbolicE
+                                 , mapE
+                                 , mapME
+                                 , mapWithKeyME ) where
 
 import G2.Language
 
@@ -15,34 +16,40 @@ import Prelude hiding ( filter
                       , map
                       , null)
 
-liftEE :: ExState s m => (ExprEnv -> a) -> m a
+liftEE :: ExprEnvM s m => (ExprEnv -> a) -> m a
 liftEE f = return . f =<< exprEnv
 
-memberE :: ExState s m => Name -> m Bool
+memberE :: ExprEnvM s m => Name -> m Bool
 memberE n = liftEE (E.member n)
 
-lookupE :: ExState s m => Name -> m (Maybe Expr)
+lookupE :: ExprEnvM s m => Name -> m (Maybe Expr)
 lookupE n = liftEE (E.lookup n)
 
-insertE :: ExState s m => Name -> Expr -> m ()
+insertE :: ExprEnvM s m => Name -> Expr -> m ()
 insertE n e = do
     eenv <- exprEnv
     let eenv' = E.insert n e eenv
     putExprEnv eenv'
 
-mapE :: ExState s m => (Expr -> Expr) -> m ()
+insertSymbolicE :: ExprEnvM s m => Id -> m ()
+insertSymbolicE i = do
+    eenv <- exprEnv
+    let eenv' = E.insertSymbolic i eenv
+    putExprEnv eenv'
+
+mapE :: ExprEnvM s m => (Expr -> Expr) -> m ()
 mapE f = do
     eenv <- exprEnv
     let eenv' = E.map f eenv
     putExprEnv eenv'
 
-mapME :: ExState s m => (Expr -> m Expr) -> m ()
+mapME :: ExprEnvM s m => (Expr -> m Expr) -> m ()
 mapME f = do
     eenv <- exprEnv
     eenv' <- E.mapM f eenv
     putExprEnv eenv'
 
-mapWithKeyME :: ExState s m => (Name -> Expr -> m Expr) -> m ()
+mapWithKeyME :: ExprEnvM s m => (Name -> Expr -> m Expr) -> m ()
 mapWithKeyME f = do
     eenv <- exprEnv
     eenv' <- E.mapWithKeyM f eenv
