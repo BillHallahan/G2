@@ -9,7 +9,6 @@ import G2.Language
 
 import GHC.Generics (Generic)
 import Data.Data (Typeable)
-import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Sequence as DS
@@ -21,8 +20,6 @@ data StateH = StateH {
     , discharge :: Maybe StateET
   }
   deriving (Eq, Generic)
-
-instance Hashable StateH
 
 instance Named StateH where
   names (StateH s h ims d) =
@@ -88,8 +85,6 @@ instance Named Marker where
 
 data Side = ILeft | IRight deriving (Eq, Show, Typeable, Generic)
 
-instance Hashable Side
-
 data IndMarker = IndMarker {
       ind_real_present :: (StateET, StateET)
     , ind_used_present :: (StateET, StateET)
@@ -101,8 +96,6 @@ data IndMarker = IndMarker {
     , ind_fresh_name :: Name
   }
   deriving (Eq, Generic)
-
-instance Hashable IndMarker
 
 -- TODO shouldn't need present scrutinees
 instance Named IndMarker where
@@ -196,8 +189,6 @@ data Lemma = Lemma { lemma_name :: String
                    , lemma_rhs_origin :: String
                    , lemma_to_be_proven :: [(StateH, StateH)] }
                    deriving (Eq, Generic)
-
-instance Hashable Lemma
 
 instance Named Lemma where
   names (Lemma _ s1 s2 _ _ sh) = names s1 DS.>< names s2 DS.>< names sh

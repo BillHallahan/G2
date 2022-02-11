@@ -610,10 +610,10 @@ verifyLoop' solver tactics ns lemmas b config folder_root k states = do
     proof_lemma_list <- mapM td states
 
     let new_obligations = concatMap fst $ catMaybes proof_lemma_list
-        new_lemmas = HS.unions . map snd $ catMaybes proof_lemma_list
+        new_lemmas = concatMap snd $ catMaybes proof_lemma_list
 
-    let res = if | null proof_lemma_list -> Proven $ HS.toList new_lemmas
-                 | all isJust proof_lemma_list -> ContinueWith new_obligations $ HS.toList new_lemmas
+    let res = if | null proof_lemma_list -> Proven new_lemmas
+                 | all isJust proof_lemma_list -> ContinueWith new_obligations new_lemmas
                  | otherwise -> CounterexampleFound
     return (res, b', k)
 
@@ -623,7 +623,7 @@ applyTacticToLabeledStates tactic lbl1 lbl2 solver ns lemmas fresh_names (sh1, s
         tactic solver ns lemmas fresh_names (sh1', sh2) (latest sh1', latest sh2)
     | Just sh2' <- digInStateH lbl2 $ appendH sh2 s2 =
         tactic solver ns lemmas fresh_names (sh1, sh2') (latest sh1, latest sh2')
-    | otherwise = return . NoProof $ HS.empty
+    | otherwise = return . NoProof $ []
 
 digInStateH :: String -> StateH -> Maybe StateH
 digInStateH lbl sh
@@ -682,15 +682,15 @@ adjustStateH (sh1, sh2) (n1, n2) (s1, s2) =
 -- the Bool value for EFail is True if a cycle has been found
 data TacticEnd = EFail Bool
                | EDischarge
-               | EContinue (HS.HashSet Lemma) (StateH, StateH)
+               | EContinue [Lemma] (StateH, StateH)
 
 getRemaining :: TacticEnd -> [(StateH, StateH)] -> [(StateH, StateH)]
 getRemaining (EContinue _ sh_pair) acc = sh_pair:acc
 getRemaining _ acc = acc
 
-getLemmas :: TacticEnd -> HS.HashSet Lemma
+getLemmas :: TacticEnd -> [Lemma]
 getLemmas (EContinue lemmas _) = lemmas
-getLemmas _ = HS.empty
+getLemmas _ = []
 
 hasFail :: [TacticEnd] -> Bool
 hasFail [] = False
@@ -712,7 +712,7 @@ trySolver solver ns _ _ _ (s1, s2) | statePairReadyForSolver (s1, s2) = do
   case res of
     S.UNSAT () -> return $ Success Nothing
     _ -> return $ Failure False
-trySolver _ _ _ _ _ _ = return $ NoProof HS.empty
+trySolver _ _ _ _ _ _ = return $ NoProof []
 
 -- TODO apply all tactics sequentially in a single run
 -- make StateH adjustments between each application, if necessary
@@ -724,7 +724,7 @@ applyTactics :: S.Solver solver =>
                 [Tactic solver] ->
                 HS.HashSet Name ->
                 Lemmas ->
-                HS.HashSet Lemma ->
+                [Lemma] ->
                 [Name] ->
                 (StateH, StateH) ->
                 (StateET, StateET) ->
@@ -733,7 +733,7 @@ applyTactics solver (tac:tacs) ns lemmas gen_lemmas fresh_names (sh1, sh2) (s1, 
   tr <- tac solver ns lemmas fresh_names (sh1, sh2) (s1, s2)
   case tr of
     Failure b -> return $ EFail b
-    NoProof new_lemmas -> applyTactics solver tacs ns lemmas (HS.union new_lemmas gen_lemmas) fresh_names (sh1, sh2) (s1, s2)
+    NoProof new_lemmas -> applyTactics solver tacs ns lemmas (new_lemmas ++ gen_lemmas) fresh_names (sh1, sh2) (s1, s2)
     Success res -> case res of
       Nothing -> return EDischarge
       Just (n1, n2, s1', s2') -> do
@@ -753,7 +753,7 @@ tryDischarge :: S.Solver solver =>
                 [Name] ->
                 StateH ->
                 StateH ->
-                W.WriterT [Marker] IO (Maybe ([(StateH, StateH)], HS.HashSet Lemma))
+                W.WriterT [Marker] IO (Maybe ([(StateH, StateH)], [Lemma]))
 tryDischarge solver tactics ns lemmas fresh_names sh1 sh2 =
   let s1 = latest sh1
       s2 = latest sh2
@@ -780,11 +780,11 @@ tryDischarge solver tactics ns lemmas fresh_names sh1 sh2 =
       -}
       -- TODO no more limitations on when induction can be used here
       let states = map (stateWrap s1 s2) obs
-      res <- mapM (applyTactics solver tactics ns lemmas HS.empty fresh_names (sh1, sh2)) states
+      res <- mapM (applyTactics solver tactics ns lemmas [] fresh_names (sh1, sh2)) states
       -- list of remaining obligations in StateH form
       -- TODO I think non-ready ones can stay as they are
       let res' = foldr getRemaining [] res
-          new_lemmas = HS.unions $ map getLemmas res
+          new_lemmas = concatMap getLemmas res
       if hasFail res then do
         --W.liftIO $ putStrLn "X?"
         if hasSolverFail res
