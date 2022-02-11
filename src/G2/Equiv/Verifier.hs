@@ -321,15 +321,6 @@ allTactics = [
 allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
 allNewLemmaTactics = map applyTacticToLabeledStates [tryEquality, tryCoinduction]
 
--- TODO don't return UNSAT if there are latent obligations
--- TODO don't lose lemmas if all active ones proven
-adjustStepRes :: StepRes -> [(StateH, StateH)] -> StepRes
-adjustStepRes CounterexampleFound _ = CounterexampleFound
-adjustStepRes (Proven lemmas) [] = Proven lemmas
-adjustStepRes (Proven lemmas) states = ContinueWith states lemmas
-adjustStepRes (ContinueWith states lemmas) states' =
-  ContinueWith (states ++ states') lemmas
-
 -- negative loop iteration count means there's no limit
 -- TODO if states is empty but n = 0, we'll get Unknown rather than UNSAT
 -- added (null states) check to deal with that
@@ -345,9 +336,8 @@ verifyLoop :: S.Solver solver =>
               String ->
               Int ->
               Int ->
-              Int ->
               W.WriterT [Marker] IO (S.Result () ())
-verifyLoop solver ns lemmas states b config sym_ids folder_root k m n | (n /= 0) || (null states) = do
+verifyLoop solver ns lemmas states b config sym_ids folder_root k n | (n /= 0) || (null states) = do
   W.liftIO $ putStrLn "<Loop Iteration>"
   W.liftIO $ putStrLn $ show n
   --let min_depth = minDepth ns sym_ids states
@@ -363,9 +353,7 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k m n | (n /= 0)
       W.liftIO $ putStrLn $ "<<Min Sum Depth>> " ++ show min_sum_depth
   -- TODO alternating iterations for this too?
   -- Didn't test on much, but no apparent benefit
-  (b', k', proven_lemmas, lemmas') <- {-if m `mod` 2 == 0
-                                      then return (b, k, [], lemmas)
-                                      else -}verifyLoopPropLemmas solver allTactics ns lemmas b config folder_root k
+  (b', k', proven_lemmas, lemmas') <- verifyLoopPropLemmas solver allTactics ns lemmas b config folder_root k
 
   -- W.liftIO $ putStrLn $ "prop_lemmas': " ++ show (length prop_lemmas')
   --W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length proven_lemmas)
@@ -374,34 +362,20 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k m n | (n /= 0)
 
   -- p02 went from about 50s to 1:50 when I added this
   -- No improvement for p03fin
-  (b'', k'', proven_lemmas', lemmas'') <- {-if m `mod` 2 == 0
-                                          then return (b', k', proven_lemmas, lemmas')
-                                          else -}verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas lemmas' b' config folder_root k'
+  (b'', k'', proven_lemmas', lemmas'') <- verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas lemmas' b' config folder_root k'
   -- TODO I think the lemmas should be the unresolved ones
   -- TODO what to do with disproven lemmas?
   -- No noticeable time change for p02 with this added, still 1:50
-  (pl_sr, b''', k''') <- {-if m `mod` 2 == 0
-                         then return (ContinueWith states $ proposed_lemmas lemmas'', b'', k'')
-                         else -}verifyWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas' lemmas'' b'' config folder_root k'' states
+  (pl_sr, b''', k''') <- verifyWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas' lemmas'' b'' config folder_root k'' states
 
   case pl_sr of
       CounterexampleFound -> return $ S.SAT ()
-      Proven _ -> return $ S.UNSAT ()
+      Proven -> return $ S.UNSAT ()
       ContinueWith pl_new_obs pl_lemmas -> do
-          -- TODO make the distinction between active and latent here
-          -- do I need an active-latent distinction for lemmas?
-          -- if a newly-proven lemma isn't used before, it goes to waste
-          -- TODO make sure current lemma preservation is sound
-          let (active, latent) = if True-- m `mod` 2 == 0
-                                 then (states, [])
-                                 else partition
-                                      (\sh_pair -> min_max_depth == stateMaxDepth ns sym_ids sh_pair)
-                                      pl_new_obs
-          (sr, b'''', k'''') <- verifyLoopWithSymEx solver allTactics ns lemmas'' b''' config folder_root k''' active
-          case adjustStepRes sr latent of
+          (sr, b'''', k'''') <- verifyLoopWithSymEx solver allTactics ns lemmas'' b''' config folder_root k''' states
+          case sr of
               ContinueWith new_obligations new_lemmas -> do
                   let n' = if n > 0 then n - 1 else n
-                      m' = m + 1
                   --W.liftIO $ putStrLn $ show $ length new_obligations
                   --W.liftIO $ putStrLn $ "length new_lemmas = " ++ show (length $ pl_lemmas ++ new_lemmas)
 
@@ -414,9 +388,9 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k m n | (n /= 0)
                   --               W.liftIO $ putStrLn "----"
                   --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
                   --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) $ HS.toList new_lemmas
-                  verifyLoop solver ns final_lemmas new_obligations b'''' config sym_ids folder_root k'''' m' n'
+                  verifyLoop solver ns final_lemmas new_obligations b'''' config sym_ids folder_root k'''' n'
               CounterexampleFound -> return $ S.SAT ()
-              Proven _ -> do
+              Proven -> do
                   W.liftIO $ putStrLn $ "proposed = " ++ show (length $ proposedLemmas lemmas)
                   -- mapM (\l@(Lemma le1 le2 _) -> do
                   --               let pg = mkPrettyGuide l
@@ -457,7 +431,7 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k m n | (n /= 0)
 
 data StepRes = CounterexampleFound
              | ContinueWith [(StateH, StateH)] [Lemma]
-             | Proven [Lemma]
+             | Proven
 
 verifyLoopPropLemmas :: S.Solver solver =>
                         solver
@@ -487,8 +461,7 @@ verifyLoopPropLemmas solver tactics ns lemmas b config folder_root k = do
     where
       partitionLemmas (p, c, d, n) ((CounterexampleFound, lem):xs) = partitionLemmas (p, c, lem:d, n) xs
       partitionLemmas (p, c, d, n) ((ContinueWith _ new_lem, lem):xs) = partitionLemmas (p, lem:c, d, new_lem ++ n) xs
-      -- TODO does nothing with lemmas for Proven
-      partitionLemmas (p, c, d, n) ((Proven _, lem):xs) = partitionLemmas (lem:p, c, d, n) xs
+      partitionLemmas (p, c, d, n) ((Proven, lem):xs) = partitionLemmas (lem:p, c, d, n) xs
       partitionLemmas r [] = r
 
 verifyLoopPropLemmas' :: S.Solver solver =>
@@ -510,7 +483,7 @@ verifyLoopPropLemmas' solver tactics ns lemmas config folder_root
     lem <- case sr of
                   CounterexampleFound -> {-trace "COUNTEREXAMPLE verifyLemma"-} return $ l { lemma_to_be_proven = [] }
                   ContinueWith states' lemmas -> return $ l { lemma_to_be_proven = states' }
-                  Proven _ -> do
+                  Proven -> do
                       let pg = mkPrettyGuide l
                       {-
                       CM.liftIO $ putStrLn "---- Just Proved ----"
@@ -614,7 +587,7 @@ verifyLoop' solver tactics ns lemmas b config folder_root k states = do
     let new_obligations = concatMap fst $ catMaybes proof_lemma_list
         new_lemmas = concatMap snd $ catMaybes proof_lemma_list
 
-    let res = if | null proof_lemma_list -> Proven new_lemmas
+    let res = if | null proof_lemma_list -> Proven
                  | all isJust proof_lemma_list -> ContinueWith new_obligations new_lemmas
                  | otherwise -> CounterexampleFound
     return (res, b', k)
@@ -936,7 +909,7 @@ checkRule config init_state bindings total finite print_summary iterations rule 
   (res, w) <- W.runWriterT $ verifyLoop solver ns
              emptyLemmas
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config sym_ids "" 0 0 iterations
+             bindings'' config sym_ids "" 0 iterations
   -- UNSAT for good, SAT for bad
   if print_summary /= NoSummary then do
     putStrLn "--- SUMMARY ---"

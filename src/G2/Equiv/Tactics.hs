@@ -476,8 +476,9 @@ syncSymbolic s1 s2 =
   let f (E.SymbObj _) e2 = e2
       f e1 _ = e1
       h1 = E.unionWith f (expr_env s1) (expr_env s2)
-      h2 = E.unionWith f (expr_env s2) (expr_env s1)
-  in (s1 { expr_env = h1 }, s2 { expr_env = h2 })
+      -- TODO I don't think we really need two separate unions
+      --h2 = E.unionWith f (expr_env s2) (expr_env s1)
+  in (s1 { expr_env = h1 }, s2 { expr_env = h1 })
 
 obligationWrap :: HS.HashSet (Expr, Expr) -> Maybe PathCond
 obligationWrap obligations =
