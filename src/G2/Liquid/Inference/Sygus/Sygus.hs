@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
-module G2.Liquid.Inference.Sygus.Sygus where
+module G2.Liquid.Inference.Sygus.Sygus (generateSygusProblem) where
 
 import G2.Language as G2
 import G2.Liquid.Helpers
@@ -91,8 +91,8 @@ buildGramArgs sa = SortedVar (smt_var sa) (smtSortToSygusSort $ smt_sort sa)
 
 buildGrammar :: SynthSpec -> GrammarDef
 buildGrammar sy_spec =
-    -- forceVarInGrammar (buildGramArgs $ sy_rets sy_spec)
-    --                   (map buildGramArgs $ sy_args sy_spec)
+    forceVarInGrammar (map buildGramArgs $ sy_rets sy_spec)
+                      (map buildGramArgs $ sy_args sy_spec)
                       (buildGrammar' sy_spec)
 
 buildGrammar' :: SynthSpec -> GrammarDef
@@ -139,7 +139,7 @@ constraintsToSygus eenv tenv meas meas_ex evals si fc =
                     (ifNotNull mkSygusOr (TermLit (LitBool False)))
                     mkSygusNot
                     mkSygusImplies
-                    (\s -> TermCall (ISymb s))
+                    (\s ts -> if null ts then TermIdent (ISymb s) else TermCall (ISymb s) ts)
                     (\_ _ -> TermLit . LitBool)
                     (\n i b ->
                         if b then
@@ -206,14 +206,14 @@ smtSortToSygusSort s = error $ "smtSortToSygusSort: unsupported sort" ++ "\n" ++
 
 -- Adjusts a grammar to force using a given GTerm
 
-forceVarInGrammar :: SortedVar -- ^ The variable to force
+forceVarInGrammar :: [SortedVar] -- ^ Force using at least one of these variables
                   -> [SortedVar]  -- ^ All other variables
                   -> GrammarDef
                   -> GrammarDef
-forceVarInGrammar var params (GrammarDef sv grls) =
+forceVarInGrammar vars params (GrammarDef sv grls) =
     let
         prod_srt = mapMaybe (\grl@(GroupedRuleList grl_symb srt' _) ->
-                            if any (flip canProduceVar grl) (var:params)
+                            if any (flip canProduceVar grl) (vars ++ params)
                                 then Just grl_symb
                                 else Nothing ) grls
 
@@ -221,30 +221,30 @@ forceVarInGrammar var params (GrammarDef sv grls) =
 
         sv_reach = concatMap (grammarDefSortedVars reach) sv
 
-        (sv_final, grl_final) = elimNonTermGRL var (forceVarInGRLList var reach grls) sv_reach
+        (sv_final, grl_final) = elimNonTermGRL vars (forceVarInGRLList vars reach grls) sv_reach
     in
     GrammarDef sv_final grl_final
 
-forceVarInGRLList :: SortedVar -> [Symbol] -> [GroupedRuleList] -> [GroupedRuleList]
-forceVarInGRLList var reach grls =
+forceVarInGRLList :: [SortedVar] -> [Symbol] -> [GroupedRuleList] -> [GroupedRuleList]
+forceVarInGRLList vars reach grls =
     let
         fv_map = HM.fromList $ map (\n -> (toBf n, toBf $ forcedVarSymb n)) reach
 
     in
-    concatMap (forceVarInGRL var reach fv_map) grls
+    concatMap (forceVarInGRL vars reach fv_map) grls
     where
         toBf = BfIdentifier . ISymb
 
-forceVarInGRL :: SortedVar -> [Symbol] -> HM.HashMap BfTerm BfTerm -> GroupedRuleList -> [GroupedRuleList]
-forceVarInGRL (SortedVar sv_symb sv_srt) reach fv_map grl@(GroupedRuleList grl_symb grl_srt gtrms)
+forceVarInGRL :: [SortedVar] -> [Symbol] -> HM.HashMap BfTerm BfTerm -> GroupedRuleList -> [GroupedRuleList]
+forceVarInGRL vars reach fv_map grl@(GroupedRuleList grl_symb grl_srt gtrms)
     | grl_symb `elem` reach =
         let
-            bf_var = BfIdentifier (ISymb sv_symb)
-            fv_gtrms' = if sv_srt == grl_srt
-                                then GBfTerm bf_var:(filter (not . isClamp) $ elimVariable fv_gtrms)
-                                else filter (not . isClamp) $ elimVariable fv_gtrms
+            vars' = filter (\(SortedVar _ sv_sort) -> sv_sort == grl_srt) vars
+            bf_vars = map (\(SortedVar sv_symb _) -> GBfTerm $ BfIdentifier (ISymb sv_symb)) vars'
+            fv_gtrms' = filter (not . isClamp) $ elimVariable fv_gtrms
+
         in
-        [GroupedRuleList fv_symb grl_srt fv_gtrms', grl]
+        [GroupedRuleList fv_symb grl_srt (bf_vars ++ fv_gtrms'), grl]
     | otherwise = [grl]
     where
         fv_symb = forcedVarSymb grl_symb
@@ -259,10 +259,10 @@ elimVariable = filter (\t -> case t of
                             GVariable _ -> False
                             _ -> True)
 
-elimNonTermGRL :: SortedVar -> [GroupedRuleList] -> [SortedVar] -> ([SortedVar], [GroupedRuleList])
-elimNonTermGRL (SortedVar sv_n _) grls sv =
+elimNonTermGRL :: [SortedVar] -> [GroupedRuleList] -> [SortedVar] -> ([SortedVar], [GroupedRuleList])
+elimNonTermGRL sorted_v grls sv =
     let
-        has_term = hasTermFix (HS.singleton sv_n) grls
+        has_term = hasTermFix (HS.fromList $ map (\(SortedVar sv_n _) -> sv_n) sorted_v) grls
 
         sv' = filter (\(SortedVar n _) -> n `elem` has_term) sv
         grls' = map (elimRules has_term)
