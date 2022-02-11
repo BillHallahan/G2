@@ -264,7 +264,7 @@ instance Reducer EquivReducer () EquivTracker where
                                , track = EquivTracker et' m total' finite dcp fname
                                , expr_env = E.insertSymbolic v eenv }
                         b' = b { name_gen = ng' }
-                    in trace ("SYM FUNC " ++ show v ++ "\n" ++ show e) $
+                    in-- trace ("SYM FUNC " ++ show v ++ "\n" ++ show e) $
                     return (InProgress, [(s', ())], b', r)
     redRules r rv s b = return (NoProgress, [(s, rv)], b, r)
 

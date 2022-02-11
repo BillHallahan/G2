@@ -518,10 +518,12 @@ applySolver solver extraPC s1 s2 =
     in case (P.toList allPC) of
       [] -> return $ S.SAT ()
       _ -> do
+           {-
            putStrLn ("APPLY SOLVER " ++ (show $ folder_name $ track s1))
            putStrLn (show $ P.number $ path_conds s1)
            putStrLn (show $ folder_name $ track s2)
            putStrLn (show $ P.number $ path_conds s2)
+           -}
            S.check solver newState allPC
 
 -- extra filter on top of isJust for maybe_pairs

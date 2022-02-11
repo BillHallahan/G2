@@ -111,7 +111,7 @@ runSymExec solver config folder_root ns s1 s2 = do
       CurrExpr r1 e1 = curr_expr s1
       e1' = addStackTickIfNeeded ns (expr_env s1) e1
       s1' = s1 { track = t1, curr_expr = CurrExpr r1 e1' }
-  CM.liftIO $ putStrLn $ (show $ folder_name $ track s1) ++ " becomes " ++ (show $ folder_name t1)
+  CM.liftIO $ putStrLn $ (folder_name $ track s1) ++ " becomes " ++ (folder_name t1)
   (er1, bindings') <- CM.lift $ runG2ForRewriteV solver s1' (expr_env s2) (track s2) config' bindings
   CM.put (bindings', k + 1)
   let final_s1 = map final_state er1
@@ -124,7 +124,7 @@ runSymExec solver config folder_root ns s1 s2 = do
                         CurrExpr r2 e2 = curr_expr s2_
                         e2' = addStackTickIfNeeded ns (expr_env s2) e2
                         s2' = s2_ { track = t2, curr_expr = CurrExpr r2 e2' }
-                    CM.liftIO $ putStrLn $ (show $ folder_name $ track s2_) ++ " becomes " ++ (show $ folder_name t2)
+                    CM.liftIO $ putStrLn $ (folder_name $ track s2_) ++ " becomes " ++ (folder_name t2)
                     (er2, b_') <- CM.lift $ runG2ForRewriteV solver s2' (expr_env s1_) (track s1_) config'' b_
                     CM.put (b_', k_ + 1)
                     return $ map (\er2_ -> 
@@ -368,7 +368,7 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k m n | (n /= 0)
                                       else -}verifyLoopPropLemmas solver allTactics ns lemmas b config folder_root k
 
   -- W.liftIO $ putStrLn $ "prop_lemmas': " ++ show (length prop_lemmas')
-  W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length proven_lemmas)
+  --W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length proven_lemmas)
   -- W.liftIO $ putStrLn $ "continued_lemmas: " ++ show (length continued_lemmas)
   -- W.liftIO $ putStrLn $ "disproven_lemmas: " ++ show (length disproven_lemmas)
 
@@ -402,8 +402,8 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k m n | (n /= 0)
               ContinueWith new_obligations new_lemmas -> do
                   let n' = if n > 0 then n - 1 else n
                       m' = m + 1
-                  W.liftIO $ putStrLn $ show $ length new_obligations
-                  W.liftIO $ putStrLn $ "length new_lemmas = " ++ show (length $ pl_lemmas ++ new_lemmas)
+                  --W.liftIO $ putStrLn $ show $ length new_obligations
+                  --W.liftIO $ putStrLn $ "length new_lemmas = " ++ show (length $ pl_lemmas ++ new_lemmas)
 
                   final_lemmas <- foldM (flip (insertProposedLemma solver ns))
                                         lemmas''
@@ -501,20 +501,22 @@ verifyLoopPropLemmas' :: S.Solver solver =>
 verifyLoopPropLemmas' solver tactics ns lemmas config folder_root
                      l@(Lemma { lemma_lhs = is1, lemma_rhs = is2, lemma_to_be_proven = states }) = do
     (b, k) <- CM.get
-    W.liftIO $ putStrLn $ "k = " ++ show k
-    W.liftIO $ putStrLn $ lemma_name l
+    --W.liftIO $ putStrLn $ "k = " ++ show k
+    --W.liftIO $ putStrLn $ lemma_name l
     (sr, b', k') <- W.lift (verifyLoopWithSymEx solver tactics ns lemmas b config folder_root k states)
     CM.put (b', k')
     lem <- case sr of
-                  CounterexampleFound -> trace "COUNTEREXAMPLE verifyLemma" return $ l { lemma_to_be_proven = [] }
+                  CounterexampleFound -> {-trace "COUNTEREXAMPLE verifyLemma"-} return $ l { lemma_to_be_proven = [] }
                   ContinueWith states' lemmas -> return $ l { lemma_to_be_proven = states' }
                   Proven _ -> do
                       let pg = mkPrettyGuide l
+                      {-
                       CM.liftIO $ putStrLn "---- Just Proved ----"
                       CM.liftIO $ putStrLn $ lemma_name l
                       CM.liftIO $ putStrLn $ lemma_lhs_origin l ++ " " ++ lemma_rhs_origin l
                       CM.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env is1) is1
                       CM.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env is2) is2
+                      -}
                       return $ l { lemma_to_be_proven = [] }
     return (sr, lem)
 
@@ -533,11 +535,11 @@ verifyLoopWithSymEx solver tactics ns lemmas b config folder_root k states = do
     let current_states = map getLatest states
     (paired_states, (b', k')) <- W.liftIO $ CM.runStateT (mapM (uncurry (runSymExec solver config folder_root ns)) current_states) (b, k)
 
-    W.liftIO $ putStrLn "verifyLoopWithSymEx"
+    --W.liftIO $ putStrLn "verifyLoopWithSymEx"
     -- for every internal list, map with its corresponding original state
     let app_pair (sh1, sh2) (s1, s2) = (appendH sh1 s1, appendH sh2 s2)
         updated_hists = map (\(s, ps) -> map (app_pair s) ps) $ zip states paired_states
-    W.liftIO $ putStrLn $ show $ length $ concat updated_hists
+    --W.liftIO $ putStrLn $ show $ length $ concat updated_hists
 
     verifyLoop' solver tactics ns lemmas b' config folder_root k' (concat updated_hists)
 
@@ -557,7 +559,7 @@ verifyWithNewProvenLemmas solver nl_tactics ns proven_lemmas lemmas b config fol
     let rel_states = map (\pl -> (lemma_lhs_origin pl, lemma_rhs_origin pl)) proven_lemmas
         tactics = concatMap (\t -> map (uncurry t) rel_states) nl_tactics
 
-    W.liftIO $ putStrLn "verifyWithNewProvenLemmas"
+    --W.liftIO $ putStrLn "verifyWithNewProvenLemmas"
     verifyLoop' solver tactics ns lemmas b config folder_name k states
 
 verifyLemmasWithNewProvenLemmas :: S.Solver solver =>
@@ -575,7 +577,7 @@ verifyLemmasWithNewProvenLemmas solver nl_tactics ns proven_lemmas lemmas b conf
     let rel_states = map (\pl -> (lemma_lhs_origin pl, lemma_rhs_origin pl)) proven_lemmas
         tactics = concatMap (\t -> map (uncurry t) rel_states) nl_tactics
 
-    W.liftIO $ putStrLn "verifyLemmasWithNewProvenLemmas"
+    --W.liftIO $ putStrLn "verifyLemmasWithNewProvenLemmas"
     (b', k', new_proven_lemmas, lemmas') <-
           verifyLoopPropLemmas solver tactics ns lemmas b config folder_name k
     case null new_proven_lemmas of
@@ -599,7 +601,7 @@ verifyLoop' :: S.Solver solver =>
             -> [(StateH, StateH)]
             -> W.WriterT [Marker] IO (StepRes, Bindings, Int)
 verifyLoop' solver tactics ns lemmas b config folder_root k states = do
-    W.liftIO $ putStrLn "verifyLoop'"
+    --W.liftIO $ putStrLn "verifyLoop'"
     let (fresh_name, ng') = freshName (name_gen b)
         b' = b { name_gen = ng' }
  
@@ -759,19 +761,23 @@ tryDischarge solver tactics ns lemmas fresh_names sh1 sh2 =
     Nothing -> do
       let pg = mkPrettyGuide (s1, s2)
       W.tell [Marker (sh1, sh2) $ NotEquivalent (s1, s2)]
+      {-
       W.liftIO $ putStrLn $ "N! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
       W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s1) s1
       W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s2) s2
       W.liftIO $ mapM putStrLn $ exprTrace sh1 sh2
+      -}
       return Nothing
     Just obs -> do
       let pg = mkPrettyGuide (s1, s2)
       case obs of
         [] -> W.tell [Marker (sh1, sh2) $ NoObligations (s1, s2)]
         _ -> return ()
+      {-
       W.liftIO $ putStrLn $ "J! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
       W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s1) s1
       W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s2) s2
+      -}
       -- TODO no more limitations on when induction can be used here
       let states = map (stateWrap s1 s2) obs
       res <- mapM (applyTactics solver tactics ns lemmas [] fresh_names (sh1, sh2)) states
@@ -780,13 +786,13 @@ tryDischarge solver tactics ns lemmas fresh_names sh1 sh2 =
       let res' = foldr getRemaining [] res
           new_lemmas = concatMap getLemmas res
       if hasFail res then do
-        W.liftIO $ putStrLn "X?"
+        --W.liftIO $ putStrLn "X?"
         if hasSolverFail res
           then W.tell [Marker (sh1, sh2) $ SolverFail (s1, s2)]
           else return ()
         return Nothing
       else do
-        W.liftIO $ putStrLn $ "V? " ++ show (length res')
+        --W.liftIO $ putStrLn $ "V? " ++ show (length res')
         return $ Just (res', new_lemmas)
 
 -- TODO (9/27) check path constraint implication?
