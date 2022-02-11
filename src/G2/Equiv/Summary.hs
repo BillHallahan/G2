@@ -93,8 +93,9 @@ printPG pg ns sym_ids s =
       map_print = case map_str of
         "" -> ""
         _ -> "\nSymbolic Function Mappings:\n" ++ map_str
+      dc_print = "\nPath Length:  " ++ (show $ length $ dc_path $ track s)
   in label_str ++ "\n" ++ e_str ++ depth_str1 ++ depth_str2 ++
-     sym_print ++ var_print ++ map_print ++ "\n---"
+     sym_print ++ var_print ++ map_print ++ dc_print ++ "\n---"
 
 inlineVars :: HS.HashSet Name -> ExprEnv -> Expr -> Expr
 inlineVars ns eenv = inlineVars' HS.empty ns eenv
