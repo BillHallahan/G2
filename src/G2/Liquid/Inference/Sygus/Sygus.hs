@@ -59,7 +59,7 @@ generateSygusProblem ghci lrs evals meas_ex fc to_be_ns ns_synth = do
         to_be_consts = createToBeConsts si eval_ids
     constraints <- constraintsToSygus eenv tenv meas meas_ex eval_ids si fc
 
-    let cmds = [ SmtCmd (Sy.SetLogic "ALL")] ++ to_be_consts ++ grammar ++ constraints ++ [CheckSynth]
+    let cmds = [ SmtCmd (Sy.SetLogic "ALL"), clampIntDecl clampUpper] ++ to_be_consts ++ grammar ++ constraints ++ [CheckSynth]
 
     liftIO $ putStrLn "-------------\nSyGuS\n"
     liftIO . putStrLn . T.unpack . printSygus $ cmds
@@ -99,22 +99,29 @@ buildGrammar' :: SynthSpec -> GrammarDef
 buildGrammar' sy_spec =
     GrammarDef 
         [ SortedVar "B" (IdentSort (ISymb "Bool"))
+        , SortedVar "IClamp" (IdentSort (ISymb "Int"))
         , SortedVar "IConst" (IdentSort (ISymb "Int"))
         , SortedVar "I" (IdentSort (ISymb "Int"))]
         [ GroupedRuleList "B" (IdentSort (ISymb "Bool"))
             [ GVariable (IdentSort (ISymb "Bool"))
             , GConstant (IdentSort (ISymb "Bool"))
+            , GBfTerm (BfIdentifierBfs (ISymb "and") [BfIdentifier (ISymb "B"), BfIdentifier (ISymb "B")])
+            , GBfTerm (BfIdentifierBfs (ISymb "or") [BfIdentifier (ISymb "B"), BfIdentifier (ISymb "B")])
             , GBfTerm (BfIdentifierBfs (ISymb "=") [BfIdentifier (ISymb "I"), BfIdentifier (ISymb "I")])
             , GBfTerm (BfIdentifierBfs (ISymb ">") [BfIdentifier (ISymb "I"), BfIdentifier (ISymb "I")])
             , GBfTerm (BfIdentifierBfs (ISymb ">=") [BfIdentifier (ISymb "I"), BfIdentifier (ISymb "I")])
+            ]
+        , GroupedRuleList "IClamp" (IdentSort (ISymb "Int"))
+            [
+            GBfTerm (BfIdentifierBfs (ISymb clampIntSymb) [BfIdentifier (ISymb "IConst")])
             ]
         , GroupedRuleList "IConst" (IdentSort (ISymb "Int"))
             [ GConstant (IdentSort (ISymb "Int")) ]
         , GroupedRuleList "I" (IdentSort (ISymb "Int"))
             [ GVariable (IdentSort (ISymb "Int"))
-            , GConstant (IdentSort (ISymb "Int"))
+            , GBfTerm (BfIdentifierBfs (ISymb clampIntSymb) [BfIdentifier (ISymb "IConst")])
             , GBfTerm (BfIdentifierBfs (ISymb "+") [BfIdentifier (ISymb "I"), BfIdentifier (ISymb "I")])
-            , GBfTerm (BfIdentifierBfs (ISymb "*") [BfIdentifier (ISymb "IConst"), BfIdentifier (ISymb "I")])
+            , GBfTerm (BfIdentifierBfs (ISymb "*") [BfIdentifier (ISymb "IClamp"), BfIdentifier (ISymb "I")])
             ]
         ]
 
@@ -313,6 +320,55 @@ elimRulesBfT :: [Symbol] -> BfTerm -> Bool
 elimRulesBfT grls (BfIdentifier (ISymb i)) = i `elem` grls
 elimRulesBfT _ (BfLiteral _) = True
 elimRulesBfT grls (BfIdentifierBfs _ bfs) = all (elimRulesBfT grls) bfs
+
+
+-------------------------------
+-- define-fun
+-------------------------------
+
+-- We define a function safe-mod, which forces the denominator of mod to be positive.
+
+safeModSymb :: Symbol
+safeModSymb = "safe-mod"
+
+safeModDecl :: Cmd
+safeModDecl =
+    SmtCmd
+        . Sy.DefineFun safeModSymb [SortedVar "x" intSort, SortedVar "y" intSort] intSort
+            $ TermCall (ISymb "mod")
+                [ TermIdent (ISymb "x")
+                , TermCall (ISymb "+") [TermLit (LitNum 1), TermCall (ISymb "abs") [TermIdent (ISymb "y")]]
+                ]
+
+-- We define a function clamp, which forces (Constant sort) to fall only in a fixed range
+clampIntSymb :: Symbol
+clampIntSymb = clampSymb "int"
+
+clampIntDecl :: Integer -> Cmd
+clampIntDecl = clampDecl clampIntSymb intSort
+
+clampSymb :: Symbol -> Symbol
+clampSymb = (++) "clamp-"
+
+clampDecl :: Symbol -> Sy.Sort -> Integer -> Cmd
+clampDecl fn srt mx =
+    SmtCmd
+        . Sy.DefineFun fn [SortedVar "x" srt] srt
+        $ TermCall (ISymb "ite")
+            [ TermCall (ISymb "<") [TermLit $ LitNum mx, TermIdent (ISymb "x")]
+            , TermLit $ LitNum mx
+            , TermCall (ISymb "ite")
+                [ TermCall (ISymb "<") [TermIdent (ISymb "x"), TermLit $ LitNum 0]
+                , TermLit $ LitNum 0
+                , TermIdent (ISymb "x")
+                ]
+            ]
+
+clampUpper :: Num a => a
+clampUpper = 5
+
+intSort :: Sy.Sort
+intSort = IdentSort (ISymb "Int")
 
 -----------------------------------------------------
 
