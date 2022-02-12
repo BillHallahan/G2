@@ -312,6 +312,7 @@ allTactics :: S.Solver s => [Tactic s]
 allTactics = [
     tryEquality
   , tryCoinduction
+  , tryGuarded
   , generalizeFull
   --, inductionFull
   , trySolver
@@ -319,7 +320,7 @@ allTactics = [
   ]
 
 allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
-allNewLemmaTactics = map applyTacticToLabeledStates [tryEquality, tryCoinduction]
+allNewLemmaTactics = map applyTacticToLabeledStates [tryEquality, tryCoinduction, tryGuarded]
 
 -- negative loop iteration count means there's no limit
 -- TODO if states is empty but n = 0, we'll get Unknown rather than UNSAT
