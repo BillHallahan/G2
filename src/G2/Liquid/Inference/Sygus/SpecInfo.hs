@@ -27,6 +27,24 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
+data SynthRes = SynthEnv
+                  GeneratedSpecs -- ^ The synthesized specifications
+                  Size -- ^ The size that the synthesizer succeeded at
+                  SMTModel -- ^ An SMTModel corresponding to the new specifications
+                  BlockedModels -- ^ SMTModels that should be blocked in the future
+              | SynthFail FuncConstraints
+
+type Size = Integer
+
+-- Blocking Models directly
+data BlockedModels = Block { blocked :: HM.HashMap Size [(ModelNames, SMTModel)]
+                           , blocked_equiv :: HM.HashMap Size [(ModelNames, SMTModel)] -- ^ Models that should be blocked, and represent the same specification as a model in `blocked`
+                           }
+                     deriving (Show)
+
+data ModelNames = MNAll | MNOnly [Name] | MNOnlySMTNames [SMTName]
+                  deriving (Eq, Show, Read)
+
 type NMExprEnv = HM.HashMap (T.Text, Maybe T.Text) G2.Expr
 
 -- A list of functions that still must have specifications synthesized at a lower level

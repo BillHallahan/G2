@@ -10,6 +10,7 @@ import G2.Liquid.Types
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.FuncConstraint
 import G2.Liquid.Inference.G2Calls
+import G2.Liquid.Inference.GeneratedSpecs
 import G2.Liquid.Inference.PolyRef
 import G2.Liquid.Inference.Sygus.FCConverter
 import G2.Liquid.Inference.Sygus.SpecInfo
@@ -20,6 +21,7 @@ import Sygus.ParseSygus
 import Sygus.Print
 import Sygus.Syntax as Sy
 
+import Control.Exception
 import Control.Monad.IO.Class 
 import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
@@ -29,6 +31,10 @@ import qualified Data.Map as M
 import Data.Maybe
 import Data.Ratio
 import qualified Data.Text as T
+import System.Directory
+import qualified System.Process as P
+import System.IO
+import System.IO.Temp
 
 import Language.Haskell.Liquid.Types as LH hiding (SP, ms, isBool)
 import Language.Fixpoint.Types.Refinements as LH hiding (pAnd, pOr)
@@ -43,8 +49,12 @@ generateSygusProblem :: (InfConfigM m, ProgresserM m, MonadIO m) =>
                      -> FuncConstraints
                      -> ToBeNames
                      -> ToSynthNames
-                     -> m [Cmd]
+                     -> m SynthRes
 generateSygusProblem ghci lrs evals meas_ex fc to_be_ns ns_synth = do
+    infConfig <- infConfigM
+    MaxSize max_sz <- maxSynthSizeM
+    let clmp_int = 2 * max_sz
+
     -- Figure out the type of each of the functions we need to synthesize
     let eenv = buildNMExprEnv $ expr_env . state $ lr_state lrs
         tenv = type_env . state $ lr_state lrs
@@ -59,13 +69,16 @@ generateSygusProblem ghci lrs evals meas_ex fc to_be_ns ns_synth = do
         to_be_consts = createToBeConsts si eval_ids
     constraints <- constraintsToSygus eenv tenv meas meas_ex eval_ids si fc
 
-    let cmds = [ SmtCmd (Sy.SetLogic "ALL"), clampIntDecl clampUpper] ++ to_be_consts ++ grammar ++ constraints ++ [CheckSynth]
+    let cmds = [ SmtCmd (Sy.SetLogic "ALL"), clampIntDecl clmp_int] ++ to_be_consts ++ grammar ++ constraints ++ [CheckSynth]
 
     liftIO $ putStrLn "-------------\nSyGuS\n"
-    liftIO . putStrLn . T.unpack . printSygus $ cmds
+    let sygus = T.unpack . printSygus $ cmds
+    liftIO . putStrLn $ sygus
+    res <- runCVC4 infConfig sygus
     liftIO $ putStrLn "-------------"
-
-    return cmds
+    case fmap (fmap (getGeneratedSpecs clmp_int si)) res of
+        Right (Just r) -> return $ SynthEnv r max_sz undefined undefined
+        _ -> return $ SynthFail emptyFC
 
 -------------------------------
 -- Grammar
@@ -364,11 +377,126 @@ clampDecl fn srt mx =
                 ]
             ]
 
-clampUpper :: Num a => a
-clampUpper = 5
-
 intSort :: Sy.Sort
 intSort = IdentSort (ISymb "Int")
+
+-------------------------------
+-- Conversion to LH Specs
+-------------------------------
+
+getGeneratedSpecs :: Size -> M.Map Name SpecInfo -> [Cmd]  -> GeneratedSpecs
+getGeneratedSpecs max_sz m_si cmd =
+  let
+      lh_spec = M.map (\si -> buildSpecFromSygus max_sz si cmd) . M.filter (\si -> s_status si == Synth) $ m_si
+  in
+  M.foldrWithKey insertAssertGS emptyGS lh_spec
+
+buildSpecFromSygus :: Size -> SpecInfo -> [Cmd] -> [PolyBound LHF.Expr]
+buildSpecFromSygus max_sz si cmds = buildSpecFromSygus' max_sz si fs
+    where
+        fs = M.fromList
+           $ mapMaybe (\cmds -> case cmds of
+                                    SmtCmd (Sy.DefineFun n sv _ t) -> Just (n, t)
+                                    _ -> Nothing
+                      ) cmds
+
+buildSpecFromSygus' :: Size -> SpecInfo -> M.Map Sy.Symbol Term -> [PolyBound LH.Expr]
+buildSpecFromSygus' max_sz si fs =
+    let
+        -- post_ars = allPostSpecArgs si
+
+        build = buildSpec max_sz si fs
+        pre = map (mapPB build) $ s_syn_pre si
+        post = mapPB build $ s_syn_post si
+    in
+    pre ++ [post]
+
+
+buildSpec :: Size -> SpecInfo -> M.Map Sy.Symbol Term -> SynthSpec -> LH.Expr
+buildSpec max_sz si fs sy_sp@(SynthSpec { sy_name = sy_n })
+    | Just t <- M.lookup sy_n fs = buildSpec' t
+    | otherwise = error "buildSpec: spec not found"
+    where
+        buildSpec' (TermIdent (ISymb v)) =
+            case find (\ar -> smt_var ar == v) $ sy_args_and_ret sy_sp of
+                Just v' -> lh_rep v'
+                Nothing -> error "buildSpec: Variable not found"
+        buildSpec' (TermLit l) = litToLHConstant l
+        buildSpec' (TermCall (ISymb v) ts)
+            | clampIntSymb == v
+            , [TermLit l] <- ts = clampedInt max_sz l
+            -- EBin
+            | "+" <- v
+            , [t1, t2] <- ts = EBin LH.Plus (buildSpec' t1) (buildSpec' t2)
+            | "-" <- v
+            , [t1] <- ts = ENeg (buildSpec' t1)
+            | "-" <- v
+            , [t1, t2] <- ts = EBin LH.Minus (buildSpec' t1) (buildSpec' t2)
+            | "*" <- v
+            , [t1, t2] <- ts = EBin LH.Times (buildSpec' t1) (buildSpec' t2)
+            | "/" <- v
+            , [t1, t2] <- ts
+            , Just n1 <- getInteger t1
+            , Just n2 <- getInteger t2 = ECon . LHF.R $ fromRational (n1 % n2)
+            | "mod" <- v
+            , [t1, t2] <- ts = EBin LH.Mod (buildSpec' t1) (buildSpec' t2)
+            -- More EBin...
+            | "and" <- v = PAnd $ map (buildSpec') ts
+            | "or" <- v = POr $ map (buildSpec') ts
+            | "not" <- v, [t1] <- ts = PNot (buildSpec' t1)
+            | "=>" <- v
+            , [t1, t2] <- ts = PImp (buildSpec' t1) (buildSpec' t2)
+            -- PAtom
+            | "=" <- v
+            , [t1, t2] <- ts = PAtom LH.Eq (buildSpec' t1) (buildSpec' t2)
+            | ">" <- v 
+            , [t1, t2] <- ts = PAtom LH.Gt (buildSpec' t1) (buildSpec' t2)
+             | ">=" <- v 
+            , [t1, t2] <- ts = PAtom LH.Ge (buildSpec' t1) (buildSpec' t2)
+            | "<" <- v 
+            , [t1, t2] <- ts = PAtom LH.Lt (buildSpec' t1) (buildSpec' t2)
+           | "<=" <- v 
+            , [t1, t2] <- ts = PAtom LH.Le (buildSpec' t1) (buildSpec' t2)
+
+getInteger :: Term -> Maybe Integer
+getInteger (TermLit (LitNum n)) = Just n
+getInteger (TermCall (ISymb "-") [TermLit (LitNum n)]) = Just  (- n)
+getInteger _ = Nothing
+
+litToLHConstant :: Sy.Lit -> LH.Expr
+litToLHConstant (LitNum n) = ECon (I n)
+litToLHConstant (LitBool b) = if b then PTrue else PFalse
+litToLHConstant l = error $ "litToLHConstant: Unhandled literal " ++ show l
+
+clampedInt :: Size -> Sy.Lit -> LH.Expr
+clampedInt max_sz (LitNum n)
+    | n < 0 = ECon (LHF.I 0)
+    | n > max_sz = ECon (LHF.I max_sz)
+    | otherwise = ECon (LHF.I n)
+clampedInt _ _ = error $ "clampedInt: Unhandled literals"
+
+-------------------------------
+-- Calling SyGuS
+-------------------------------
+
+runCVC4 :: MonadIO m => InferenceConfig -> String -> m (Either SomeException (Maybe [Cmd]))
+runCVC4 infconfig sygus =
+    liftIO $ try (
+        withSystemTempFile ("cvc4_input.sy")
+        (\fp h -> do
+            hPutStr h sygus
+            -- We call hFlush to prevent hPutStr from buffering
+            hFlush h
+
+            toCommandOSX <- findExecutable "gtimeout" 
+            let toCommand = case toCommandOSX of
+                    Just c -> c          -- Mac
+                    Nothing -> "timeout" -- Linux
+
+            sol <- P.readProcess toCommand ([show (timeout_sygus infconfig), "cvc4", fp, "--lang=sygus2"]) ""
+
+            return . fmap (parse . lexSygus) $ stripPrefix "unsat" sol)
+        )
 
 -----------------------------------------------------
 

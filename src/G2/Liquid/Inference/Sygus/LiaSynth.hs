@@ -51,15 +51,6 @@ import Data.Maybe
 import qualified Data.Text as T
 import qualified Text.Builder as TB
 
-data SynthRes = SynthEnv
-                  GeneratedSpecs -- ^ The synthesized specifications
-                  Size -- ^ The size that the synthesizer succeeded at
-                  SMTModel -- ^ An SMTModel corresponding to the new specifications
-                  BlockedModels -- ^ SMTModels that should be blocked in the future
-              | SynthFail FuncConstraints
-
-type Size = Integer
-
 liaSynth :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
          => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
          -> FuncConstraints
@@ -383,14 +374,6 @@ synth' con ghci eenv tenv meas meas_ex evals m_si fc headers drop_if_unknown blk
 ------------------------------------
 
 ----------------------------------------------------------------------------
--- Blocking Models directly
-data BlockedModels = Block { blocked :: HM.HashMap Size [(ModelNames, SMTModel)]
-                           , blocked_equiv :: HM.HashMap Size [(ModelNames, SMTModel)] -- ^ Models that should be blocked, and represent the same specification as a model in `blocked`
-                           }
-                     deriving (Show)
-
-data ModelNames = MNAll | MNOnly [Name] | MNOnlySMTNames [SMTName]
-                  deriving (Eq, Show, Read)
 
 emptyBlockedModels :: BlockedModels
 emptyBlockedModels = Block HM.empty HM.empty
