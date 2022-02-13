@@ -444,6 +444,8 @@ buildSpec max_sz si fs sy_sp@(SynthSpec { sy_name = sy_n })
         buildSpec' (TermCall (ISymb v) ts)
             | clampIntSymb == v
             , [TermLit l] <- ts = clampedInt max_sz l
+            | clampIntSymb == v
+            , [TermCall (ISymb "-") [TermLit l]] <- ts = clampedInt max_sz (neg l)
             -- EBin
             | "+" <- v
             , [t1, t2] <- ts = EBin LH.Plus (buildSpec' t1) (buildSpec' t2)
@@ -476,6 +478,9 @@ buildSpec max_sz si fs sy_sp@(SynthSpec { sy_name = sy_n })
             , [t1, t2] <- ts = PAtom LH.Lt (buildSpec' t1) (buildSpec' t2)
            | "<=" <- v 
             , [t1, t2] <- ts = PAtom LH.Le (buildSpec' t1) (buildSpec' t2)
+        buildSpec' t = error $ "buildSpec': Unsupported term\n" ++ show t
+
+        neg (LitNum i) = LitNum (-i)
 
 getInteger :: Term -> Maybe Integer
 getInteger (TermLit (LitNum n)) = Just n
