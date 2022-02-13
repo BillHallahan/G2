@@ -573,7 +573,9 @@ synthesize con ghci lrs evals meas_ex fc blk_mdls blk_sygus to_be for_funcs = do
     liftIO . putStrLn $ "all fc = " ++ printFCs lrs fc
     sygus_r <- generateSygusProblem ghci lrs evals meas_ex fc blk_sygus to_be for_funcs
     case sygus_r of
-        SynthEnv {} -> return sygus_r
+        SynthEnv {} -> do
+            liftIO $ putStrLn "Got SyGuS solution"
+            return sygus_r
         _ -> liaSynth con ghci lrs evals meas_ex fc blk_mdls to_be for_funcs
 
 updateEvals :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> FuncConstraints -> Evals Bool -> m (Evals Bool)

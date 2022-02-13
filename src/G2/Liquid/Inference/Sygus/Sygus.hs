@@ -79,12 +79,16 @@ generateSygusProblem ghci lrs evals meas_ex fc blk_sygus to_be_ns ns_synth = do
     let sygus = T.unpack . printSygus $ cmds
     liftIO . putStrLn $ sygus
     -- res <- runCVC4 infConfig sygus
-    res <- runCVC4Streaming blk_sygus infConfig undefined sygus
+    res <- runCVC4Streaming blk_sygus infConfig (numSynthFuns cmds) sygus
+    liftIO $ putStrLn $ case res of Right _ -> "Right"; Left _ -> "Left"
     liftIO $ putStrLn "-------------"
     case res of
         Right r -> return $ SynthEnv (getGeneratedSpecs clmp_int si r)
                                      max_sz Nothing emptyBlockedModels (Just r)
         _ -> return $ SynthFail emptyFC
+
+numSynthFuns :: [Cmd] -> Int
+numSynthFuns = length . filter (\c -> case c of SynthFun {} -> True; _ -> False)
 
 -------------------------------
 -- Grammar
@@ -158,7 +162,7 @@ constraintsToSygus :: (InfConfigM m, ProgresserM m) =>
                    -> FuncConstraints
                    -> m [Cmd]
 constraintsToSygus eenv tenv meas meas_ex evals si fc =
-    return . map Constraint =<<
+    return . hashNub . map Constraint =<<
         convertConstraints 
                     convertExprToTerm
                     (ifNotNull mkSygusAnd (TermLit (LitBool True)))
@@ -180,6 +184,15 @@ constraintsToSygus eenv tenv meas meas_ex evals si fc =
         mkSygusOr = TermCall (ISymb "or") 
         mkSygusNot t = TermCall (ISymb "not") [t]
         mkSygusImplies t1 t2 = TermCall (ISymb "=>") [t1, t2]
+
+hashNub :: (Eq a, Hashable a) => [a] -> [a]
+hashNub = go HS.empty
+  where
+    go _ []     = []
+    go s (x:xs) =
+      if x `HS.member` s
+      then go s xs
+      else x : go (HS.insert x s) xs
 
 convertExprToTerm :: G2.Expr -> Term
 convertExprToTerm (Data (DataCon (Name n _ _ _) _))
@@ -378,7 +391,7 @@ clampDecl fn srt mx =
             , TermLit $ LitNum mx
             , TermCall (ISymb "ite")
                 [ TermCall (ISymb "<") [TermIdent (ISymb "x"), TermLit $ LitNum 0]
-                , TermLit $ LitNum 0
+                , TermLit $ LitNum (-mx)
                 , TermIdent (ISymb "x")
                 ]
             ]
@@ -476,7 +489,7 @@ litToLHConstant l = error $ "litToLHConstant: Unhandled literal " ++ show l
 
 clampedInt :: Size -> Sy.Lit -> LH.Expr
 clampedInt max_sz (LitNum n)
-    | n < 0 = ECon (LHF.I 0)
+    | n < -max_sz = ECon (LHF.I $ -max_sz)
     | n > max_sz = ECon (LHF.I max_sz)
     | otherwise = ECon (LHF.I n)
 clampedInt _ _ = error $ "clampedInt: Unhandled literals"
@@ -515,7 +528,7 @@ runCVC4Streaming seen infconfig grouped sygus =
                 -- --no-sygus-fair-max searches for functions that minimize the sum of the sizes of all functions
                 (inp, outp, errp, _) <- P.runInteractiveCommand
                                             $ timeout ++ " " ++ show (timeout_sygus infconfig)
-                                                ++ " cvc4 " ++ fp ++ " --lang=sygus2 --sygus-stream --no-sygus-fair-max"
+                                                ++ " cvc4 " ++ fp ++ " --lang=sygus2 --sygus-stream" -- --no-sygus-fair-max"
 
                 lnes <- checkIfSolution seen grouped outp
 
