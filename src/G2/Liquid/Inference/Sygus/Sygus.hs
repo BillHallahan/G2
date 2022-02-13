@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
@@ -74,10 +75,11 @@ generateSygusProblem ghci lrs evals meas_ex fc to_be_ns ns_synth = do
     liftIO $ putStrLn "-------------\nSyGuS\n"
     let sygus = T.unpack . printSygus $ cmds
     liftIO . putStrLn $ sygus
-    res <- runCVC4 infConfig sygus
+    -- res <- runCVC4 infConfig sygus
+    res <- runCVC4Streaming HS.empty infConfig undefined sygus
     liftIO $ putStrLn "-------------"
-    case fmap (fmap (getGeneratedSpecs clmp_int si)) res of
-        Right (Just r) -> return $ SynthEnv r max_sz undefined undefined
+    case fmap (getGeneratedSpecs clmp_int si) res of
+        Right r -> return $ SynthEnv r max_sz M.empty emptyBlockedModels
         _ -> return $ SynthFail emptyFC
 
 -------------------------------
@@ -488,15 +490,59 @@ runCVC4 infconfig sygus =
             -- We call hFlush to prevent hPutStr from buffering
             hFlush h
 
-            toCommandOSX <- findExecutable "gtimeout" 
-            let toCommand = case toCommandOSX of
-                    Just c -> c          -- Mac
-                    Nothing -> "timeout" -- Linux
+            toCommand <- timeOutCommand
 
             sol <- P.readProcess toCommand ([show (timeout_sygus infconfig), "cvc4", fp, "--lang=sygus2"]) ""
 
             return . fmap (parse . lexSygus) $ stripPrefix "unsat" sol)
         )
+
+runCVC4Streaming :: MonadIO m => HS.HashSet [Cmd] -> InferenceConfig -> Int -> String -> m (Either SomeException [Cmd])
+runCVC4Streaming seen infconfig grouped sygus =
+    liftIO $ try (
+        withSystemTempFile ("cvc4_input.sy")
+            (\fp h -> do
+                hPutStr h sygus
+                -- We call hFlush to prevent hPutStr from buffering
+                hFlush h
+
+                timeout <- timeOutCommand
+
+                -- --no-sygus-fair-max searches for functions that minimize the sum of the sizes of all functions
+                (inp, outp, errp, _) <- P.runInteractiveCommand
+                                            $ timeout ++ " " ++ show (timeout_sygus infconfig)
+                                                ++ " cvc4 " ++ fp ++ " --lang=sygus2 --sygus-stream --no-sygus-fair-max"
+
+                lnes <- checkIfSolution seen grouped outp
+
+                hClose inp
+                hClose outp
+                hClose errp
+
+                return lnes
+            )
+        )
+
+timeOutCommand :: IO String
+timeOutCommand = do
+    toCommandOSX <- findExecutable "gtimeout" 
+    let toCommand = case toCommandOSX of
+            Just c -> c          -- Mac
+            Nothing -> "timeout" -- Linux
+    return toCommand
+
+checkIfSolution :: HS.HashSet [Cmd] -> Int -> Handle -> IO [Cmd]
+checkIfSolution seen grouped h = do
+    sol <- getSolution grouped h
+    let sol' = concatMap (parse . lexSygus) $ sol
+    if not (HS.member sol' seen) then return sol' else checkIfSolution seen grouped h 
+
+getSolution :: Int -> Handle -> IO [String]
+getSolution 0 _ = return []
+getSolution !n h = do
+    lne <- hGetLine h
+    lnes <- getSolution (n - 1) h
+    return $ lne:lnes
 
 -----------------------------------------------------
 

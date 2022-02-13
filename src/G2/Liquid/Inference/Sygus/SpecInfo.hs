@@ -543,3 +543,35 @@ notLH ty
     | TyCon (Name n _ _ _) _ <- tyAppCenter ty = n /= "lh"
     | otherwise = True
 
+------------------------------------
+-- Handling Models
+------------------------------------
+
+----------------------------------------------------------------------------
+
+emptyBlockedModels :: BlockedModels
+emptyBlockedModels = Block HM.empty HM.empty
+
+insertBlockedModel :: Size -> ModelNames -> SMTModel -> BlockedModels -> BlockedModels
+insertBlockedModel sz mdl_nms mdl blk_mdls =
+    blk_mdls { blocked = HM.insertWith (++) sz [(mdl_nms, mdl)] (blocked blk_mdls) }
+
+insertEquivBlockedModel :: Size -> ModelNames -> SMTModel -> BlockedModels -> BlockedModels
+insertEquivBlockedModel sz mdl_nms mdl blk_mdls =
+    blk_mdls { blocked_equiv = HM.insertWith (++) sz [(mdl_nms, mdl)] (blocked_equiv blk_mdls) }
+
+lookupBlockedModels :: Size -> BlockedModels -> [(ModelNames, SMTModel)]
+lookupBlockedModels sz blk_mdls =
+    HM.lookupDefault [] sz (blocked blk_mdls) ++ HM.lookupDefault [] sz (blocked_equiv blk_mdls)
+
+lookupNonEquivBlockedModels :: Size -> BlockedModels -> [(ModelNames, SMTModel)]
+lookupNonEquivBlockedModels sz blk_mdls =
+    HM.lookupDefault [] sz (blocked blk_mdls)
+
+blockedHashMap :: BlockedModels -> HM.HashMap Size [(ModelNames, SMTModel)]
+blockedHashMap blk_mdls = HM.unionWith (++) (blocked blk_mdls) (blocked_equiv blk_mdls)
+
+unionBlockedModels :: BlockedModels -> BlockedModels -> BlockedModels
+unionBlockedModels bm1 bm2 =
+    Block { blocked = HM.unionWith (++) (blocked bm1) (blocked bm2)
+          , blocked_equiv = HM.unionWith (++) (blocked_equiv bm1) (blocked_equiv bm2) }
