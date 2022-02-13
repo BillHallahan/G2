@@ -15,12 +15,15 @@ import G2.Liquid.Inference.GeneratedSpecs
 import G2.Liquid.Inference.PolyRef
 import G2.Solver as Solver
 
+import qualified Sygus.Syntax as Sy
+
 import Language.Haskell.Liquid.Types as LH hiding (SP, ms, isBool)
 import Language.Fixpoint.Types.Refinements as LH hiding (pAnd, pOr)
 import qualified Language.Fixpoint.Types as LH
 
 import Control.Monad
 import Data.Coerce
+import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import qualified Data.Map as M
@@ -30,11 +33,15 @@ import qualified Data.Text as T
 data SynthRes = SynthEnv
                   GeneratedSpecs -- ^ The synthesized specifications
                   Size -- ^ The size that the synthesizer succeeded at
-                  SMTModel -- ^ An SMTModel corresponding to the new specifications
+                  (Maybe SMTModel) -- ^ An SMTModel corresponding to the new specifications
                   BlockedModels -- ^ SMTModels that should be blocked in the future
+                  (Maybe BlockedSygus) -- ^ A sygus model that should be blocked in the future
               | SynthFail FuncConstraints
 
 type Size = Integer
+
+type BlockedSygus = [Sy.Cmd]
+type BlockedSyguses = HS.HashSet [Sy.Cmd]
 
 -- Blocking Models directly
 data BlockedModels = Block { blocked :: HM.HashMap Size [(ModelNames, SMTModel)]

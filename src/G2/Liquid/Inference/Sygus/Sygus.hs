@@ -2,7 +2,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 
-module G2.Liquid.Inference.Sygus.Sygus (generateSygusProblem) where
+module G2.Liquid.Inference.Sygus.Sygus ( BlockedSygus
+                                       , BlockedSyguses
+                                       , generateSygusProblem) where
 
 import G2.Language as G2
 import G2.Liquid.Helpers
@@ -48,10 +50,11 @@ generateSygusProblem :: (InfConfigM m, ProgresserM m, MonadIO m) =>
                      -> Evals Bool
                      -> MeasureExs
                      -> FuncConstraints
+                     -> BlockedSyguses
                      -> ToBeNames
                      -> ToSynthNames
                      -> m SynthRes
-generateSygusProblem ghci lrs evals meas_ex fc to_be_ns ns_synth = do
+generateSygusProblem ghci lrs evals meas_ex fc blk_sygus to_be_ns ns_synth = do
     infConfig <- infConfigM
     MaxSize max_sz <- maxSynthSizeM
     let clmp_int = 2 * max_sz
@@ -76,10 +79,11 @@ generateSygusProblem ghci lrs evals meas_ex fc to_be_ns ns_synth = do
     let sygus = T.unpack . printSygus $ cmds
     liftIO . putStrLn $ sygus
     -- res <- runCVC4 infConfig sygus
-    res <- runCVC4Streaming HS.empty infConfig undefined sygus
+    res <- runCVC4Streaming blk_sygus infConfig undefined sygus
     liftIO $ putStrLn "-------------"
-    case fmap (getGeneratedSpecs clmp_int si) res of
-        Right r -> return $ SynthEnv r max_sz M.empty emptyBlockedModels
+    case res of
+        Right r -> return $ SynthEnv (getGeneratedSpecs clmp_int si r)
+                                     max_sz Nothing emptyBlockedModels (Just r)
         _ -> return $ SynthFail emptyFC
 
 -------------------------------

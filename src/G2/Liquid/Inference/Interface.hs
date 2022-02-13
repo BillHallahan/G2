@@ -148,7 +148,7 @@ iterativeInference :: (MonadIO m, SMTConverter con ast out io)
                    -> FuncConstraints
                    -> InfStack m (Either [CounterExample] GeneratedSpecs)
 iterativeInference con ghci m_modname lrs nls meas_ex gs fc = do
-    res <- inferenceL con ghci m_modname lrs nls emptyEvals meas_ex gs fc emptyFC emptyBlockedModels
+    res <- inferenceL con ghci m_modname lrs nls emptyEvals meas_ex gs fc emptyFC emptyBlockedModels S.empty
     case res of
         CEx cex -> return $ Left cex
         Env n_gs _ _ _ -> return $ Right n_gs
@@ -192,15 +192,16 @@ inferenceL :: (MonadIO m, SMTConverter con ast out io)
            -> FuncConstraints
            -> MaxSizeConstraints
            -> BlockedModels
+           -> BlockedSyguses
            -> InfStack m InferenceRes
-inferenceL con ghci m_modname lrs nls evals meas_ex senv fc max_fc blk_mdls = do
+inferenceL con ghci m_modname lrs nls evals meas_ex senv fc max_fc blk_mdls blk_sygus = do
     let (fs, sf, below_sf) = case nls of
                         (fs_:sf_:be) -> (fs_, sf_, be)
                         ([fs_])-> (fs_, [], [])
                         [] -> ([], [], [])
 
     startLevelTimer (case nls of fs:_ -> fs; [] -> [])
-    (resAtL, evals') <- inferenceB con ghci m_modname lrs nls evals meas_ex senv fc max_fc blk_mdls
+    (resAtL, evals') <- inferenceB con ghci m_modname lrs nls evals meas_ex senv fc max_fc blk_mdls blk_sygus
     endLevelTimer
 
     liftIO $ do
@@ -215,12 +216,12 @@ inferenceL con ghci m_modname lrs nls evals meas_ex senv fc max_fc blk_mdls = do
                 (_:nls') -> do
                     liftIO $ putStrLn "Down a level!"
                     let evals'' = foldr deleteEvalsForFunc evals' sf
-                    inf_res <- inferenceL con ghci m_modname lrs nls' evals'' meas_ex' senv' (unionFC fc n_fc) (unionFC max_fc n_mfc) emptyBlockedModels
+                    inf_res <- inferenceL con ghci m_modname lrs nls' evals'' meas_ex' senv' (unionFC fc n_fc) (unionFC max_fc n_mfc) emptyBlockedModels S.empty
                     case inf_res of
                         Raise r_meas_ex r_fc r_max_fc -> do
                             liftIO $ putStrLn "Up a level!"
                             
-                            inferenceL con ghci m_modname lrs nls evals' r_meas_ex senv r_fc r_max_fc blk_mdls
+                            inferenceL con ghci m_modname lrs nls evals' r_meas_ex senv r_fc r_max_fc blk_mdls blk_sygus
                         _ -> return inf_res
         _ -> return resAtL
 
@@ -236,8 +237,9 @@ inferenceB :: (MonadIO m, SMTConverter con ast out io)
            -> FuncConstraints
            -> MaxSizeConstraints
            -> BlockedModels
+           -> BlockedSyguses
            -> InfStack m (InferenceRes, Evals Bool)
-inferenceB con ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls = do
+inferenceB con ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls blk_sygus = do
     let (fs, sf, below_sf) = case nls of
                         (fs_:sf_:be) -> (fs_, sf_, be)
                         ([fs_])-> (fs_, [], [])
@@ -250,7 +252,7 @@ inferenceB con ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls = do
     evals' <- updateEvals curr_ghci lrs fc evals
     logEventEndM
     logEventStartM Synth
-    synth_gs <- lift . lift . lift $ synthesize con curr_ghci lrs evals' meas_ex (unionFC max_fc fc) blk_mdls (concat below_sf) sf
+    synth_gs <- lift . lift . lift $ synthesize con curr_ghci lrs evals' meas_ex (unionFC max_fc fc) blk_mdls blk_sygus (concat below_sf) sf
     logEventEndM
 
     liftIO $ do
@@ -259,7 +261,7 @@ inferenceB con ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls = do
         putStrLn "-------"
 
     case synth_gs of
-        SynthEnv envN sz smt_mdl blk_mdls' -> do
+        SynthEnv envN sz smt_mdl blk_mdls' m_blk_sygus -> do
             let gs' = unionDroppingGS gs envN
                 ghci' = addSpecsToGhcInfos ghci gs'
             liftIO $ do
@@ -276,29 +278,31 @@ inferenceB con ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls = do
                 Safe -> return $ (Env gs' fc max_fc meas_ex, evals')
                 Unsafe bad -> do
                     inf_config <- infConfigM
-                    ref <- tryToGen (nub bad) ((emptyFC, emptyBlockedModels), emptyFC)
-                              (\(fc1, bm1) (fc2, bm2) -> (fc1 `unionFC` fc2, bm1 `unionBlockedModels` bm2))
+                    ref <- tryToGen (nub bad) ((emptyFC, emptyBlockedModels, S.empty), emptyFC)
+                              (\(fc1, bm1, bs1) (fc2, bm2, bs2) -> (fc1 `unionFC` fc2, bm1 `unionBlockedModels` bm2, bs1 `S.union` bs2))
                               unionFC
                               [ (\n -> do
                                     logEventStartM (InfSE n)
                                     return $ Right (Nothing, emptyFC))
                               , refineUnsafe ghci m_modname lrs gs'
                               , if use_level_dec inf_config then searchBelowLevel ghci m_modname lrs res sf gs' else genEmp
-                              , if use_negated_models inf_config then adjModel lrs sz smt_mdl else incrCExAndTime ]
+                              , if use_negated_models inf_config then adjModel lrs sz smt_mdl else incrCExAndTime
+                              , if use_sygus_blocking inf_config then adjSygusBlocking m_blk_sygus  else genEmp ]
                               logEventEndM
 
                     case ref of
                         Left cex -> return $ (CEx cex, evals')
-                        Right ((viol_fc, new_blk_mdls), no_viol_fc) -> do
+                        Right ((viol_fc, new_blk_mdls, new_blk_sygus), no_viol_fc) -> do
                             let fc' = viol_fc `unionFC` no_viol_fc
                                 blk_mdls'' = blk_mdls' `unionBlockedModels` new_blk_mdls
+                                blk_sygus' = blk_sygus `S.union` new_blk_sygus
                             liftIO $ putStrLn "Before genMeasureExs"
                             logEventStartM UpdateMeasures
                             meas_ex' <- lift . lift . lift $ updateMeasureExs meas_ex lrs ghci fc'
                             logEventEndM
                             liftIO $ putStrLn "After genMeasureExs"
 
-                            inferenceB con ghci m_modname lrs nls evals' meas_ex' gs (unionFC fc fc') max_fc blk_mdls''
+                            inferenceB con ghci m_modname lrs nls evals' meas_ex' gs (unionFC fc fc') max_fc blk_mdls'' blk_sygus'
 
                 Crash e1 e2 -> error $ "inferenceB: LiquidHaskell crashed" ++ "\n" ++ show e1 ++ "\n" ++ e2
         SynthFail sf_fc -> do
@@ -343,7 +347,7 @@ tryToGen' n def join_ex (f:fs) = do
                 Left err -> return $ Left err
                 Right (r, ex2) -> return $ Right (r, ex1 `join_ex` ex2)
 
-genEmp :: Monad m => Name -> InfStack m (Either [CounterExample] (Maybe a, FuncConstraints))
+genEmp :: Monad m => Name -> InfStack m (Either l (Maybe a, FuncConstraints))
 genEmp _ = return $ Right (Nothing, emptyFC)
 
 refineUnsafeAll :: MonadIO m => 
@@ -360,9 +364,11 @@ refineUnsafeAll ghci m_modname lrs gs bad = do
         (cex@(_:_), _) -> return . Left $ concat cex
         ([], (new_fcs, no_viol_fcs)) -> 
             let
-                new_fcs' = unionsFC . map fst $ catMaybes new_fcs
+                new_fcs' = unionsFC . map fst3 $ catMaybes new_fcs
             in
             return . Right $ (if nullFC new_fcs' then Nothing else Just new_fcs', unionsFC no_viol_fcs)
+    where
+        fst3 (x, _, _) = x
 
 refineUnsafe :: MonadIO m => 
                 [GhcInfo]
@@ -370,7 +376,7 @@ refineUnsafe :: MonadIO m =>
              -> LiquidReadyState
              -> GeneratedSpecs
              -> Name
-             -> InfStack m (Either [CounterExample] (Maybe (FuncConstraints, BlockedModels), FuncConstraints))
+             -> InfStack m (Either [CounterExample] (Maybe (FuncConstraints, BlockedModels, BlockedSyguses), FuncConstraints))
 refineUnsafe ghci m_modname lrs gs bad = do
     let merged_se_ghci = addSpecsToGhcInfos ghci gs
 
@@ -395,7 +401,7 @@ refineUnsafe ghci m_modname lrs gs bad = do
             liftIO . putStrLn $ "new_fc' = " ++ printFCs lrs new_fc'
             return $ Right (if nullFC new_fc'
                                     then Nothing
-                                    else Just (new_fc', emptyBlockedModels), fromListFC no_viol)
+                                    else Just (new_fc', emptyBlockedModels, S.empty), fromListFC no_viol)
 
 searchBelowLevel :: MonadIO m =>
                     [GhcInfo]
@@ -405,7 +411,7 @@ searchBelowLevel :: MonadIO m =>
                  -> [Name]
                  -> GeneratedSpecs
                  -> Name
-                 -> InfStack m (Either [CounterExample] (Maybe (FuncConstraints, BlockedModels), FuncConstraints))
+                 -> InfStack m (Either [CounterExample] (Maybe (FuncConstraints, BlockedModels, BlockedSyguses), FuncConstraints))
 searchBelowLevel ghci m_modname lrs verify_res lev_below gs bad = do
     incrSearchBelowLog
     let called_by_res = calledByFunc lrs bad
@@ -416,17 +422,17 @@ searchBelowLevel ghci m_modname lrs verify_res lev_below gs bad = do
             case ref_sf of
                 Left cex -> return $ Left cex
                 Right (viol_fc_sf, no_viol_fc_sf) ->
-                    return $ Right (fmap (, emptyBlockedModels) viol_fc_sf, no_viol_fc_sf)
+                    return $ Right (fmap (, emptyBlockedModels, S.empty) viol_fc_sf, no_viol_fc_sf)
         Safe -> return $ Right (Nothing, emptyFC)
         Crash _ _ -> error "inferenceB: LiquidHaskell crashed"
 
 adjModel :: MonadIO m => 
             LiquidReadyState
          -> Size
-         -> SMTModel
+         -> Maybe SMTModel
          -> Name
-         -> InfStack m (Either a (Maybe (FuncConstraints, BlockedModels), FuncConstraints))
-adjModel lrs sz smt_mdl n = do
+         -> InfStack m (Either a (Maybe (FuncConstraints, BlockedModels, BlockedSyguses), FuncConstraints))
+adjModel lrs sz (Just smt_mdl) n = do
     incrNegatedModelLog
     liftIO $ putStrLn "adjModel repeated_fc"
     let clls = calledByFunc lrs n
@@ -435,7 +441,15 @@ adjModel lrs sz smt_mdl n = do
     liftIO . putStrLn $ "blocked models = " ++ show blk_mdls'
 
     _ <- incrCExAndTime n
-    return . Right $ (Just (emptyFC, blk_mdls'), emptyFC)
+    return . Right $ (Just (emptyFC, blk_mdls', S.empty), emptyFC)
+adjModel _ _ Nothing n = incrCExAndTime n
+
+adjSygusBlocking :: MonadIO m => 
+                    Maybe BlockedSygus
+                 -> Name
+                 -> InfStack m (Either a (Maybe (FuncConstraints, BlockedModels, BlockedSyguses), FuncConstraints))
+adjSygusBlocking (Just b_sy) _ = return . Right $ (Just (emptyFC, emptyBlockedModels, S.singleton b_sy), emptyFC)
+adjSygusBlocking Nothing n = genEmp n
 
 incrCExAndTime :: Monad m => Name -> InfStack m (Either a (Maybe b, FuncConstraints))
 incrCExAndTime (Name n m _ _) = do
@@ -554,11 +568,13 @@ updateMeasureExs meas_ex lrs ghci fcs =
 
 synthesize :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
            => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
-           -> FuncConstraints -> BlockedModels -> [Name] -> [Name] -> m SynthRes
-synthesize con ghci lrs evals meas_ex fc blk_mdls to_be for_funcs = do
+           -> FuncConstraints -> BlockedModels -> BlockedSyguses -> [Name] -> [Name] -> m SynthRes
+synthesize con ghci lrs evals meas_ex fc blk_mdls blk_sygus to_be for_funcs = do
     liftIO . putStrLn $ "all fc = " ++ printFCs lrs fc
-    _ <- generateSygusProblem ghci lrs evals meas_ex fc to_be for_funcs
-    liaSynth con ghci lrs evals meas_ex fc blk_mdls to_be for_funcs
+    sygus_r <- generateSygusProblem ghci lrs evals meas_ex fc blk_sygus to_be for_funcs
+    case sygus_r of
+        SynthEnv {} -> return sygus_r
+        _ -> liaSynth con ghci lrs evals meas_ex fc blk_mdls to_be for_funcs
 
 updateEvals :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> FuncConstraints -> Evals Bool -> m (Evals Bool)
 updateEvals ghci lrs fc evals = do

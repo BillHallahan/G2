@@ -310,7 +310,7 @@ synth con ghci eenv tenv meas meas_ex evals si fc blk_mdls sz = do
 
     res <- synth' con ghci eenv tenv meas meas_ex evals si' fc ex_assrts drop_if_unknown blk_mdls sz
     case res of
-        SynthEnv _ _ n_mdl _ -> do
+        SynthEnv _ _ (Just n_mdl) _ _ -> do
             new  <- checkModelIsNewFunc con si' n_mdl non_equiv_mdls
             case new of
                 Nothing -> return res
@@ -358,7 +358,7 @@ synth' con ghci eenv tenv meas meas_ex evals m_si fc headers drop_if_unknown blk
         SAT mdl' -> do
             let gs' = modelToGS m_si mdl'
             liftIO $ print gs'
-            return (SynthEnv gs' sz mdl' blk_mdls)
+            return (SynthEnv gs' sz (Just mdl') blk_mdls Nothing)
         UNSAT uc ->
             let
                 fc_uc = fromSingletonFC . NotFC . AndFC . map (nm_fc_map HM.!) $ HS.toList uc
