@@ -594,6 +594,7 @@ elimRedundant [] = []
 
 isCommutative :: Symbol -> Bool
 isCommutative "and" = True
+isCommutative "or" = True
 isCommutative "=" = True
 isCommutative "+" = True
 isCommutative _ = False
