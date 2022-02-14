@@ -1056,7 +1056,14 @@ f n = S n
 g :: Nat -> Nat
 g n = S n
 
+plus :: Nat -> Nat -> Nat
+plus a b = a + b
+
+badPlus :: Nat -> Nat -> Nat
+badPlus a b = S (a + b)
+
 {-# RULES
 "fg" f = g
 "fgBad" f = g . g
+"badPlus" plus = badPlus
   #-}

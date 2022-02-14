@@ -386,7 +386,27 @@ printDC pg ((BlockDC d i n):ds) str =
   in intercalate " " $ d_str:(pre_blanks ++ (str':post_blanks))
 printDC pg (_:ds) str = printDC pg ds str
 
--- TODO for both cycles and regular counterexamples
+-- TODO instead of interleaving DCs and lambdas, handle them separately
+-- extra stuff should be wrapped around the starting exprs for counterexamples
+-- inline the variable completely?
+-- I don't have the info needed for that
+-- TODO does the order stay the same?  No, it's backward
+-- earlier entries represent applications that are farther in
+printLams :: PrettyGuide ->
+             HS.HashSet Name ->
+             ExprEnv ->
+             [BlockInfo] ->
+             String ->
+             String
+printLams _ _ _ [] str = str
+printLams pg ns h ((BlockLam i):ds) str =
+  let arg = inlineVars ns h $ Var i
+      arg_str = printHaskellDirtyPG pg arg
+      str' = "(" ++ str ++ ") " ++ arg_str
+  in printLams pg ns h ds str'
+printLams pg ns h (_:ds) str = printLams pg ns h ds str
+
+-- for both cycles and regular counterexamples
 printCX :: PrettyGuide ->
            HS.HashSet Name ->
            [Id] ->
@@ -402,10 +422,12 @@ printCX pg ns sym_ids (sh1, sh2) (s1, s2) (q1', q2') end1_str end2_str =
       names2 = map trackName $ (latest sh2):history sh2
       e1 = inlineVars ns (expr_env q1') $ exprExtract s1
       e1_str = printHaskellPG pg q1' e1
+      e1_str' = printLams pg ns (expr_env q1') (dc_path $ track q1') e1_str
       e2 = inlineVars ns h $ exprExtract s2
       e2_str = printHaskellPG pg q2' e2
-      cx_str = e1_str ++ " = " ++ end1_str ++ " but " ++
-               e2_str ++ " = " ++ end2_str
+      e2_str' = printLams pg ns (expr_env q2') (dc_path $ track q2') e2_str
+      cx_str = e1_str' ++ " = " ++ end1_str ++ " but " ++
+               e2_str' ++ " = " ++ end2_str
       func_ids = map snd $ HM.toList $ higher_order $ track q2'
       sym_vars = varsFullList h ns $ sym_ids ++ func_ids
       sym_str = printVars pg ns q2' sym_vars
