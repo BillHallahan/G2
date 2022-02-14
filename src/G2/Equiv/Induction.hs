@@ -113,6 +113,7 @@ innerScrutineeStates s@(State { curr_expr = CurrExpr _ e }) =
 -- current expression as it really is, this function attempts to find matches
 -- with all of the different "inner scrutinees" on the right-hand side.  The
 -- left-hand present state's expression stays constant, though.
+-- TODO (2/14) this might not be sound anymore, but we stopped using it anyway
 moreRestrictiveIndRight :: S.Solver solver =>
                            solver ->
                            HS.HashSet Name ->
@@ -123,7 +124,7 @@ moreRestrictiveIndRight solver ns prev (s1, s2) =
   let prev1 = map (\(p1, p2) -> (p1, p2, innerScrutineeStates p2)) prev
       prev2 = [(p1, p2', p2) | (p1, p2, p2l) <- prev1, p2' <- p2l]
   in
-  return . eitherToMaybe =<< moreRestrictivePairAux solver ns prev2 (s1, s2)
+  return . eitherToMaybe =<< moreRestrictivePairAux solver (\_ _ -> True) ns prev2 (s1, s2)
 
 -- substitution happens on the left here; no right-side state returned
 inductionL :: S.Solver solver =>
