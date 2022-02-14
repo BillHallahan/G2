@@ -373,15 +373,18 @@ summarize mode pg ns sym_ids (Marker (sh1, sh2) m) =
   ++
   (tabsAfterNewLines $ summarizeAct pg ns sym_ids m)
 
-printDC :: PrettyGuide -> [(DataCon, Int, Int)] -> String -> String
+-- TODO printing in a completely linear order may not be satisfactory anymore
+-- TODO print lambda block info with applications to the fresh vars
+printDC :: PrettyGuide -> [BlockInfo] -> String -> String
 printDC _ [] str = str
-printDC pg ((d, i, n):ds) str =
+printDC pg ((BlockDC d i n):ds) str =
   let d_str = printHaskellDirtyPG pg $ Data d
       blanks = replicate n "_"
       str' = "(" ++ (printDC pg ds str) ++ ")"
       pre_blanks = replicate i "_"
       post_blanks = replicate (n - (i + 1)) "_"
   in intercalate " " $ d_str:(pre_blanks ++ (str':post_blanks))
+printDC pg (_:ds) str = printDC pg ds str
 
 -- TODO for both cycles and regular counterexamples
 printCX :: PrettyGuide ->

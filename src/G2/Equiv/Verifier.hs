@@ -577,10 +577,11 @@ verifyLoop' :: S.Solver solver =>
             -> W.WriterT [Marker] IO (StepRes, Bindings, Int)
 verifyLoop' solver tactics ns lemmas b config folder_root k states = do
     --W.liftIO $ putStrLn "verifyLoop'"
-    let (fresh_name, ng') = freshName (name_gen b)
-        b' = b { name_gen = ng' }
+    let (fn1, ng') = freshName (name_gen b)
+        (fn2, ng'') = freshName ng'
+        b' = b { name_gen = ng'' }
  
-        td (sh1, sh2) = tryDischarge solver tactics ns lemmas [fresh_name] sh1 sh2
+        td (sh1, sh2) = tryDischarge solver tactics ns lemmas [fn1, fn2] sh1 sh2
 
     proof_lemma_list <- mapM td states
 
@@ -606,13 +607,35 @@ digInStateH lbl sh
     | Just sh' <- backtrackOne sh = digInStateH lbl sh'
     | otherwise = Nothing
 
-updateDC :: EquivTracker -> [(DataCon, Int, Int)] -> EquivTracker
+updateDC :: EquivTracker -> [BlockInfo] -> EquivTracker
 updateDC et ds = et { dc_path = dc_path et ++ ds }
 
-stateWrap :: StateET -> StateET -> Obligation -> (StateET, StateET)
-stateWrap s1 s2 (Ob ds e1 e2) =
-  ( s1 { curr_expr = CurrExpr Evaluate e1, track = updateDC (track s1) ds }
-  , s2 { curr_expr = CurrExpr Evaluate e2, track = updateDC (track s2) ds } )
+-- TODO needs a new way to handle lambdas
+-- TODO need a name generator
+-- TODO need to insert the new variable as symbolic
+-- TODO does it matter that I use the same type on both sides?
+stateWrap :: Name -> StateET -> StateET -> Obligation -> (StateET, StateET)
+stateWrap _ s1 s2 (Ob ds e1 e2) =
+  let ds' = map (\(d, i, n) -> BlockDC d i n) ds
+  in
+  ( s1 { curr_expr = CurrExpr Evaluate e1, track = updateDC (track s1) ds' }
+  , s2 { curr_expr = CurrExpr Evaluate e2, track = updateDC (track s2) ds' } )
+stateWrap fresh_name s1 s2 (Lams ds e1@(Lam _ (Id _ t) _) e2) =
+  let ds' = map (\(d, i, n) -> BlockDC d i n) ds
+      fresh_id = Id fresh_name t
+      fresh_var = Var fresh_id
+      s1' = s1 {
+        curr_expr = CurrExpr Evaluate $ App e1 fresh_var
+      , track = updateDC (track s1) $ ds' ++ [BlockLam fresh_id]
+      , expr_env = E.insertSymbolic fresh_id $ expr_env s1
+      }
+      s2' = s2 {
+        curr_expr = CurrExpr Evaluate $ App e2 fresh_var
+      , track = updateDC (track s2) $ ds' ++ [BlockLam fresh_id]
+      , expr_env = E.insertSymbolic fresh_id $ expr_env s2
+      }
+  in (s1', s2')
+stateWrap _ _ _ (Lams _ _ _) = error "not a lambda"
 
 -- TODO debugging function
 stateHistory :: StateH -> StateH -> [(StateET, StateET)]
@@ -720,6 +743,7 @@ applyTactics _ _ _ _ gen_lemmas _ (sh1, sh2) (s1, s2) =
 -- TODO how do I handle the solver application in this version?
 -- Nothing output means failure now
 -- TODO printing
+-- TODO fresh_names must have at least two elements
 tryDischarge :: S.Solver solver =>
                 solver ->
                 [Tactic solver] ->
@@ -729,7 +753,7 @@ tryDischarge :: S.Solver solver =>
                 StateH ->
                 StateH ->
                 W.WriterT [Marker] IO (Maybe ([(StateH, StateH)], [Lemma]))
-tryDischarge solver tactics ns lemmas fresh_names sh1 sh2 =
+tryDischarge solver tactics ns lemmas (fn:fresh_names) sh1 sh2 =
   let s1 = latest sh1
       s2 = latest sh2
   in case getObligations ns s1 s2 of
@@ -754,7 +778,8 @@ tryDischarge solver tactics ns lemmas fresh_names sh1 sh2 =
       W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s2) s2
       -}
       -- TODO no more limitations on when induction can be used here
-      let states = map (stateWrap s1 s2) obs
+      -- TODO I really only need one fresh name that I can use for all obs
+      let states = map (stateWrap fn s1 s2) obs
       res <- mapM (applyTactics solver tactics ns lemmas [] fresh_names (sh1, sh2)) states
       -- list of remaining obligations in StateH form
       -- TODO I think non-ready ones can stay as they are
@@ -769,6 +794,7 @@ tryDischarge solver tactics ns lemmas fresh_names sh1 sh2 =
       else do
         --W.liftIO $ putStrLn $ "V? " ++ show (length res')
         return $ Just (res', new_lemmas)
+tryDischarge _ _ _ _ _ _ _ = error "Need more fresh names"
 
 -- TODO (9/27) check path constraint implication?
 -- TODO (9/30) alternate:  just substitute one scrutinee for the other

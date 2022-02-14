@@ -27,7 +27,10 @@ import Data.Maybe
 -- earlier DataCons in the list are farther out
 -- the first Int tag indicates which argument of the constructor this was
 -- the second one indicates the total number of arguments for that constructor
+-- TODO keep track of data constructors on the way
+-- the lambda pair at the end is necessarily the last thing
 data Obligation = Ob [(DataCon, Int, Int)] Expr Expr
+                | Lams [(DataCon, Int, Int)] Expr Expr
                   deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 instance Hashable Obligation
