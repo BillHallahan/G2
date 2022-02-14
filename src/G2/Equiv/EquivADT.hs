@@ -112,6 +112,8 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
                      | otherwise -> Nothing
     -- assume that all types line up between the two expressions
     (Type _, Type _) -> Just pairs
+    -- TODO new way of handling lambdas
+    (Lam _ _ _, Lam _ _ _) -> Just $ HS.insert (Lams [] e1 e2) pairs
     -- See note in `moreRestrictive` regarding comparing DataCons
     _
         | (Data d@(DataCon d1 _)):l1 <- unAppNoTicks e1
@@ -120,13 +122,15 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
                 let ep = uncurry (exprPairing ns s1 s2)
                     ep' hs p = ep p hs n1 n2
                     l = zip l1 l2
+                    extend i (Ob ds e1_ e2_) = Ob ((d, i, length l):ds) e1_ e2_
+                    extend i (Lams ds e1_ e2_) = Lams ((d, i, length l):ds) e1_ e2_
                     -- TODO inefficient list conversion
                     hl = map (\m -> case m of
                                Nothing -> Nothing
                                Just hs -> Just $ HS.toList hs) $ map (ep' HS.empty) l
                     hl' = map (\(i, m) -> case m of
                                 Nothing -> Nothing
-                                Just hs_l -> Just $ map (\(Ob ds e1_ e2_) -> Ob ((d, i, length l):ds) e1_ e2_) hs_l)
+                                Just hs_l -> Just $ map (extend i) hs_l)
                               (zip [0..] hl)
                 in
                 if any isNothing hl'

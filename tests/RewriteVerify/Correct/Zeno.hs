@@ -1058,4 +1058,5 @@ g n = S n
 
 {-# RULES
 "fg" f = g
+"fgBad" f = g . g
   #-}
