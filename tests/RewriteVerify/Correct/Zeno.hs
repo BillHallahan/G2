@@ -1048,3 +1048,14 @@ forceTreeBool (Node l _ r) b = case (forceTreeBool l b) of
 "prop78" forall xs . prop_78 xs = True
 "prop85" forall xs ys . prop_85 xs ys = True
   #-}
+
+-- TODO need a better way to handle lambdas; this gets SAT
+f :: Nat -> Nat
+f n = S n
+
+g :: Nat -> Nat
+g n = S n
+
+{-# RULES
+"fg" f = g
+  #-}

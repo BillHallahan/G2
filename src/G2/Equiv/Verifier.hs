@@ -102,7 +102,6 @@ runSymExec :: S.Solver solver =>
               StateET ->
               CM.StateT (Bindings, Int) IO [(StateET, StateET)]
 runSymExec solver config folder_root ns s1 s2 = do
-  CM.liftIO $ putStrLn "runSymExec"
   ct1 <- CM.liftIO $ getCurrentTime
   (bindings, k) <- CM.get
   let config' = config { logStates = logStatesFolder ("a" ++ show k) folder_root }
@@ -312,6 +311,7 @@ allTactics :: S.Solver s => [Tactic s]
 allTactics = [
     tryEquality
   , tryCoinduction
+  --, tryGuarded
   , generalizeFull
   --, inductionFull
   , trySolver
@@ -637,34 +637,6 @@ stateWrap fresh_name s1 s2 (Lams ds e1@(Lam _ (Id _ t) _) e2) =
   in (s1', s2')
 stateWrap _ _ _ (Lams _ _ _) = error "not a lambda"
 
--- TODO debugging function
-stateHistory :: StateH -> StateH -> [(StateET, StateET)]
-stateHistory sh1 sh2 =
-  let hist1 = (latest sh1):(history sh1)
-      hist2 = (latest sh2):(history sh2)
-  in reverse $ zip hist1 hist2
-
-exprTrace :: StateH -> StateH -> [String]
-exprTrace sh1 sh2 =
-  let s_hist = stateHistory sh1 sh2
-      s_pair (s1, s2) = [
-          printHaskellDirty (exprExtract s1)
-        , printHaskellDirty (exprExtract s2)
-        , show (E.symbolicIds $ expr_env s1)
-        , show (E.symbolicIds $ expr_env s2)
-        , show (track s1)
-        , show (track s2)
-        , show (length $ inductions sh1)
-        , show (length $ inductions sh2)
-        --, show (exprExtract s1)
-        --, show (exprExtract s2)
-        , "------"
-        ]
-  in concat $ map s_pair s_hist
-
-addDischarge :: StateET -> StateH -> StateH
-addDischarge s sh = sh { discharge = Just s }
-
 -- TODO what if n1 or n2 is negative?
 adjustStateH :: (StateH, StateH) ->
                 (Int, Int) ->
@@ -764,7 +736,6 @@ tryDischarge solver tactics ns lemmas (fn:fresh_names) sh1 sh2 =
       W.liftIO $ putStrLn $ "N! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
       W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s1) s1
       W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s2) s2
-      W.liftIO $ mapM putStrLn $ exprTrace sh1 sh2
       -}
       return Nothing
     Just obs -> do
