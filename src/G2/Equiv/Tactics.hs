@@ -16,7 +16,7 @@ module G2.Equiv.Tactics
     , tryEquality
     , moreRestrictiveEqual
     , tryCoinduction
-    , tryGuarded
+    --, tryGuarded
     , exprExtract
     , moreRestrictivePairAux
     , exprReadyForSolver
@@ -528,6 +528,24 @@ applySolver solver extraPC s1 s2 =
            -}
            S.check solver newState allPC
 
+-- unguarded:  nothing in SWHNF, dc present and past paths match
+-- guarded:  dc present and past paths match, present longer than past
+-- TODO checking this is superfluous for equality, it blocks SWHNF equality
+-- solution:  check if past and present are each other, reversed
+-- not the cleanest approach, but it'll allow SWHNF equality
+validCoinduction :: (StateET, StateET) -> (StateET, StateET) -> Bool
+validCoinduction (p1, p2) (q1, q2) =
+  let dcp1 = dc_path $ track p1
+      dcp2 = dc_path $ track p2
+      dcq1 = dc_path $ track q1
+      dcq2 = dc_path $ track q2
+      consistent = dcp1 == dcp2 && dcq1 == dcq2
+      unguarded = all (not . isSWHNF) [p1, p2, q1, q2]
+      guarded = length dcp1 < length dcq1
+      equality = (folder_name $ track p1) == (folder_name $ track q2) &&
+                 (folder_name $ track p2) == (folder_name $ track q1)
+  in consistent && (equality || guarded || unguarded)
+
 -- extra filter on top of isJust for maybe_pairs
 -- if restrictHelper end result is Just, try checking the corresponding PCs
 -- for True output, there needs to be an entry for which that check succeeds
@@ -546,8 +564,9 @@ moreRestrictivePairAux solver ns prev (s1, s2) | dc_path (track s1) == dc_path (
   let (s1', s2') = syncSymbolic s1 s2
       -- TODO might be better to enforce this higher up
       mr (p1, p2, pc) =
-          if dc_path (track p1) == dc_path (track p2) then
+          if validCoinduction (p1, p2) (s1', s2') then
             let
+                -- TODO it's only here that we deal with individual past-present combinations
                 hm_obs = let (p1', p2') = syncSymbolic p1 p2
                         in restrictHelper p2' s2' ns $
                         restrictHelper p1' s1' ns (Right (HM.empty, HS.empty))
@@ -717,15 +736,13 @@ coinductionFoldL :: S.Solver solver =>
                     (StateH, StateH) ->
                     (StateET, StateET) ->
                     W.WriterT [Marker] IO (Either [Lemma] (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
-coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) | not . isSWHNF $ inlineCurrExpr s1'
-                                                                 , not . isSWHNF $ inlineCurrExpr s2'  = do
-  let prev = prevFiltered (sh1, sh2)
-
+coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) = do
+  let prev = prevFull (sh1, sh2)
+  -- TODO this function not used outside coinduction
   res <- moreRestrictivePairWithLemmasOnFuncApps solver ns lemmas prev (s1', s2')
   case res of
     Right _ -> return res
     Left new_lems -> backtrack new_lems
-  | otherwise = backtrack []
   where
       (s1', s2') = syncSymbolic s1 s2
 
@@ -777,6 +794,7 @@ tryCoinduction solver ns lemmas _ (sh1, sh2) (s1, s2) = do
 -- TODO might be throwing away helpful lemmas
 -- could also be creating lemmas redundantly
 -- no need to check if present and past dc paths equal each other
+{-
 guardedFoldL :: S.Solver solver =>
                 solver ->
                 HS.HashSet Name ->
@@ -839,6 +857,7 @@ tryGuarded solver ns lemmas _ (sh1, sh2) (s1, s2) = do
           W.tell [Marker (sh1, sh2) $ Coinduction $ reverseCoMarker cmr]
           return $ Success Nothing
         Left r_lemmas -> return . NoProof $ l_lemmas ++ r_lemmas
+-}
 
 -------------------------------------------------------------------------------
 
