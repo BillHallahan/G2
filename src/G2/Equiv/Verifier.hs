@@ -102,7 +102,6 @@ runSymExec :: S.Solver solver =>
               StateET ->
               CM.StateT (Bindings, Int) IO [(StateET, StateET)]
 runSymExec solver config folder_root ns s1 s2 = do
-  --CM.liftIO $ putStrLn "runSymExec"
   ct1 <- CM.liftIO $ getCurrentTime
   (bindings, k) <- CM.get
   let config' = config { logStates = logStatesFolder ("a" ++ show k) folder_root }
