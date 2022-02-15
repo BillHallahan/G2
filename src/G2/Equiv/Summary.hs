@@ -373,8 +373,6 @@ summarize mode pg ns sym_ids (Marker (sh1, sh2) m) =
   ++
   (tabsAfterNewLines $ summarizeAct pg ns sym_ids m)
 
--- TODO printing in a completely linear order may not be satisfactory anymore
--- TODO print lambda block info with applications to the fresh vars
 printDC :: PrettyGuide -> [BlockInfo] -> String -> String
 printDC _ [] str = str
 printDC pg ((BlockDC d i n):ds) str =
@@ -386,12 +384,9 @@ printDC pg ((BlockDC d i n):ds) str =
   in intercalate " " $ d_str:(pre_blanks ++ (str':post_blanks))
 printDC pg (_:ds) str = printDC pg ds str
 
--- TODO instead of interleaving DCs and lambdas, handle them separately
--- extra stuff should be wrapped around the starting exprs for counterexamples
--- inline the variable completely?
--- I don't have the info needed for that
--- TODO does the order stay the same?  No, it's backward
--- earlier entries represent applications that are farther in
+-- instead of interleaving DCs and lambdas, we handle them separately
+-- for lambdas, we wrap applications around the starting exprs
+-- earlier list entries represent applications that are farther in
 printLams :: PrettyGuide ->
              HS.HashSet Name ->
              ExprEnv ->

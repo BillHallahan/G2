@@ -610,32 +610,27 @@ digInStateH lbl sh
 updateDC :: EquivTracker -> [BlockInfo] -> EquivTracker
 updateDC et ds = et { dc_path = dc_path et ++ ds }
 
--- TODO needs a new way to handle lambdas
--- TODO need a name generator
--- TODO need to insert the new variable as symbolic
 -- TODO does it matter that I use the same type on both sides?
 stateWrap :: Name -> StateET -> StateET -> Obligation -> (StateET, StateET)
-stateWrap _ s1 s2 (Ob ds e1 e2) =
+stateWrap fresh_name s1 s2 (Ob ds e1 e2) =
   let ds' = map (\(d, i, n) -> BlockDC d i n) ds
-  in
-  ( s1 { curr_expr = CurrExpr Evaluate e1, track = updateDC (track s1) ds' }
-  , s2 { curr_expr = CurrExpr Evaluate e2, track = updateDC (track s2) ds' } )
-stateWrap fresh_name s1 s2 (Lams ds e1@(Lam _ (Id _ t) _) e2) =
-  let ds' = map (\(d, i, n) -> BlockDC d i n) ds
-      fresh_id = Id fresh_name t
-      fresh_var = Var fresh_id
-      s1' = s1 {
-        curr_expr = CurrExpr Evaluate $ App e1 fresh_var
-      , track = updateDC (track s1) $ ds' ++ [BlockLam fresh_id]
-      , expr_env = E.insertSymbolic fresh_id $ expr_env s1
-      }
-      s2' = s2 {
-        curr_expr = CurrExpr Evaluate $ App e2 fresh_var
-      , track = updateDC (track s2) $ ds' ++ [BlockLam fresh_id]
-      , expr_env = E.insertSymbolic fresh_id $ expr_env s2
-      }
-  in (s1', s2')
-stateWrap _ _ _ (Lams _ _ _) = error "not a lambda"
+  in case (e1, e2) of
+    (Lam _ (Id _ t) _, Lam _ _ _) ->
+      let fresh_id = Id fresh_name t
+          fresh_var = Var fresh_id
+          s1' = s1 {
+            curr_expr = CurrExpr Evaluate $ App e1 fresh_var
+          , track = updateDC (track s1) $ ds' ++ [BlockLam fresh_id]
+          , expr_env = E.insertSymbolic fresh_id $ expr_env s1
+          }
+          s2' = s2 {
+            curr_expr = CurrExpr Evaluate $ App e2 fresh_var
+          , track = updateDC (track s2) $ ds' ++ [BlockLam fresh_id]
+          , expr_env = E.insertSymbolic fresh_id $ expr_env s2
+          }
+      in (s1', s2')
+    _ -> ( s1 { curr_expr = CurrExpr Evaluate e1, track = updateDC (track s1) ds' }
+         , s2 { curr_expr = CurrExpr Evaluate e2, track = updateDC (track s2) ds' } )
 
 -- TODO what if n1 or n2 is negative?
 adjustStateH :: (StateH, StateH) ->
@@ -748,8 +743,7 @@ tryDischarge solver tactics ns lemmas (fn:fresh_names) sh1 sh2 =
       W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s1) s1
       W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s2) s2
       -}
-      -- TODO no more limitations on when induction can be used here
-      -- TODO I really only need one fresh name that I can use for all obs
+      -- just like with tactics, we only need one fresh name here
       let states = map (stateWrap fn s1 s2) obs
       res <- mapM (applyTactics solver tactics ns lemmas [] fresh_names (sh1, sh2)) states
       -- list of remaining obligations in StateH form
@@ -757,13 +751,11 @@ tryDischarge solver tactics ns lemmas (fn:fresh_names) sh1 sh2 =
       let res' = foldr getRemaining [] res
           new_lemmas = concatMap getLemmas res
       if hasFail res then do
-        --W.liftIO $ putStrLn "X?"
         if hasSolverFail res
           then W.tell [Marker (sh1, sh2) $ SolverFail (s1, s2)]
           else return ()
         return Nothing
       else do
-        --W.liftIO $ putStrLn $ "V? " ++ show (length res')
         return $ Just (res', new_lemmas)
 tryDischarge _ _ _ _ _ _ _ = error "Need more fresh names"
 

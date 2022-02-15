@@ -27,10 +27,8 @@ import Data.Maybe
 -- earlier DataCons in the list are farther out
 -- the first Int tag indicates which argument of the constructor this was
 -- the second one indicates the total number of arguments for that constructor
--- TODO keep track of data constructors on the way
--- the lambda pair at the end is necessarily the last thing
+-- if there are lambdas, we handle them in Verifier
 data Obligation = Ob [(DataCon, Int, Int)] Expr Expr
-                | Lams [(DataCon, Int, Int)] Expr Expr
                   deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 instance Hashable Obligation
@@ -112,8 +110,6 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
                      | otherwise -> Nothing
     -- assume that all types line up between the two expressions
     (Type _, Type _) -> Just pairs
-    -- TODO new way of handling lambdas
-    (Lam _ _ _, Lam _ _ _) -> Just $ HS.insert (Lams [] e1 e2) pairs
     -- See note in `moreRestrictive` regarding comparing DataCons
     _
         | (Data d@(DataCon d1 _)):l1 <- unAppNoTicks e1
@@ -123,7 +119,6 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
                     ep' hs p = ep p hs n1 n2
                     l = zip l1 l2
                     extend i (Ob ds e1_ e2_) = Ob ((d, i, length l):ds) e1_ e2_
-                    extend i (Lams ds e1_ e2_) = Lams ((d, i, length l):ds) e1_ e2_
                     -- TODO inefficient list conversion
                     hl = map (\m -> case m of
                                Nothing -> Nothing
