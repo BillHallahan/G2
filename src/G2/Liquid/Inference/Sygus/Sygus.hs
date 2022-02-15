@@ -124,15 +124,21 @@ buildGrammar' sy_spec =
         [ SortedVar "B" (IdentSort (ISymb "Bool"))
         , SortedVar "IClamp" (IdentSort (ISymb "Int"))
         , SortedVar "IConst" (IdentSort (ISymb "Int"))
-        , SortedVar "I" (IdentSort (ISymb "Int"))]
-        [ GroupedRuleList "B" (IdentSort (ISymb "Bool"))
+        , SortedVar "I" (IdentSort (ISymb "Int"))
+        , SortedVar "SetI" (IdentSortSort (ISymb "Set") [IdentSort (ISymb "Int")])]
+        [ GroupedRuleList "B" (IdentSort (ISymb "Bool")) $
             [ GVariable (IdentSort (ISymb "Bool"))
             , GConstant (IdentSort (ISymb "Bool"))
+            , GBfTerm (BfIdentifierBfs (ISymb "not") [BfIdentifier (ISymb "B")])
             , GBfTerm (BfIdentifierBfs (ISymb "and") [BfIdentifier (ISymb "B"), BfIdentifier (ISymb "B")])
             , GBfTerm (BfIdentifierBfs (ISymb "or") [BfIdentifier (ISymb "B"), BfIdentifier (ISymb "B")])
             , GBfTerm (BfIdentifierBfs (ISymb "=") [BfIdentifier (ISymb "I"), BfIdentifier (ISymb "I")])
             , GBfTerm (BfIdentifierBfs (ISymb ">") [BfIdentifier (ISymb "I"), BfIdentifier (ISymb "I")])
             , GBfTerm (BfIdentifierBfs (ISymb ">=") [BfIdentifier (ISymb "I"), BfIdentifier (ISymb "I")])
+            ]
+            ++
+            [ GBfTerm (BfIdentifierBfs (ISymb "member") [BfIdentifier (ISymb "I"), BfIdentifier (ISymb "SetI")])
+            , GBfTerm (BfIdentifierBfs (ISymb "subset") [BfIdentifier (ISymb "SetI"), BfIdentifier (ISymb "SetI")])
             ]
         , GroupedRuleList "IClamp" (IdentSort (ISymb "Int"))
             [
@@ -146,6 +152,13 @@ buildGrammar' sy_spec =
             , GBfTerm (BfIdentifierBfs (ISymb "+") [BfIdentifier (ISymb "I"), BfIdentifier (ISymb "I")])
             , GBfTerm (BfIdentifierBfs (ISymb "*") [BfIdentifier (ISymb "IClamp"), BfIdentifier (ISymb "I")])
             ]
+        , GroupedRuleList "SetI" (IdentSortSort (ISymb "Set") [IdentSort (ISymb "Int")])
+            [ GVariable (IdentSortSort (ISymb "Set") [IdentSort (ISymb "Int")])
+            , GBfTerm (BfIdentifierBfs (ISymb "union") [BfIdentifier (ISymb "SetI"), BfIdentifier (ISymb "SetI")])
+            , GBfTerm (BfIdentifierBfs (ISymb "intersection") [BfIdentifier (ISymb "SetI"), BfIdentifier (ISymb "SetI")])
+            , GBfTerm (BfIdentifierBfs (ISymb "singleton") [BfIdentifier (ISymb "I")])
+            ]
+
         ]
 
 -------------------------------
@@ -195,11 +208,23 @@ hashNub = go HS.empty
       else x : go (HS.insert x s) xs
 
 convertExprToTerm :: G2.Expr -> Term
+convertExprToTerm (App (App (Data (DataCon (Name n _ _ _) _)) _) ls)
+    | Just is <- extractInts ls =
+        let
+            emp = TermCall (ISymb "as") [TermIdent (ISymb "emptyset"), TermCall (ISymb "Set") [TermIdent (ISymb "Int")]]
+        in
+        TermCall (ISymb "insert") $ map (TermLit . LitNum) is ++ [emp]
 convertExprToTerm (Data (DataCon (Name n _ _ _) _))
     | "True" <- n = TermLit $ LitBool True
-    | "False" <- n =TermLit $ LitBool False
+    | "False" <- n = TermLit $ LitBool False
 convertExprToTerm (Lit l) = litToTerm l
 convertExprToTerm e = error $ "convertExprToTerm: Unhandled Expr " ++ show e
+
+extractInts :: G2.Expr -> Maybe [Integer]
+extractInts (App (App (App (Data _ ) (Type _)) (App _ (Lit (LitInt i)))) xs) =
+    return . (i:) =<< extractInts xs
+extractInts (App (Data _) _) = Just []
+extractInts e = Nothing
 
 litToTerm :: G2.Lit -> Term
 litToTerm (LitInt i) = TermLit (LitNum i)
@@ -237,6 +262,7 @@ createToBeConsts'' f si (n, (i, b))
 smtSortToSygusSort :: Solver.Sort -> Sy.Sort
 smtSortToSygusSort SortBool = IdentSort (ISymb "Bool")
 smtSortToSygusSort SortInt = IdentSort (ISymb "Int")
+smtSortToSygusSort (SortArray s SortBool) = (IdentSortSort (ISymb "Set") [smtSortToSygusSort s])
 smtSortToSygusSort s = error $ "smtSortToSygusSort: unsupported sort" ++ "\n" ++ show s
 
 -------------------------------
