@@ -23,6 +23,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , SomeHalter (..)
                             , SomeOrderer (..)
 
+                            , BlockInfo (..)
                             , EquivTracker (..)
 
                             -- Reducers
@@ -395,6 +396,12 @@ instance (Solver solver, Simplifier simplifier) => Reducer (StdRed solver simpli
 
 data ConcSymReducer = ConcSymReducer
 
+data BlockInfo = BlockDC DataCon Int Int
+               | BlockLam Id
+               deriving (Show, Eq, Generic)
+
+instance Hashable BlockInfo
+
 -- Maps higher order function calls to symbolic replacements.
 -- This allows the same call to be replaced by the same Id consistently.
 -- relocated from Equiv.G2Calls
@@ -405,7 +412,7 @@ data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
                                  , saw_tick :: Maybe Int
                                  , total :: HS.HashSet Name
                                  , finite :: HS.HashSet Name
-                                 , dc_path :: [(DataCon, Int, Int)]
+                                 , dc_path :: [BlockInfo]
                                  , folder_name :: String } deriving (Show, Eq, Generic)
 
 instance Hashable EquivTracker
