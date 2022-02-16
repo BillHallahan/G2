@@ -269,7 +269,8 @@ instance Reducer EquivReducer () EquivTracker where
     redRules r rv s b = return (NoProgress, [(s, rv)], b, r)
 
 -- TODO not exhaustive
--- cyclic expressions count as total
+-- cyclic expressions do not count as total for now
+-- if a cycle never goes through a Data constructor, it's not total
 -- TODO reject Error and Undefined primitives
 totalExpr :: StateET ->
              HS.HashSet Name ->
@@ -285,7 +286,7 @@ totalExpr s@(State { expr_env = h, track = EquivTracker _ _ total _ _ _ }) ns n 
           , not $ HS.member m ns
           , not $ m `elem` n
           , Just e' <- E.lookup m h -> totalExpr s ns (m:n) e'
-          | (idName i) `elem` n -> True
+          | (idName i) `elem` n -> False
           | HS.member (idName i) ns -> False
           | otherwise -> error $ "unmapped variable " ++ show i ++ " " ++ (folder_name $ track s)
     App f a -> totalExpr s ns n f && totalExpr s ns n a
