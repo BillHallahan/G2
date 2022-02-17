@@ -451,7 +451,7 @@ validHigherOrder s1 s2 ns hm_hs =
 
 validTypes :: HM.HashMap Id Expr -> Bool
 validTypes hm =
-  all (\(i, e) -> e T..:: (T.typeOf $ Var i)) $ HM.toList hm
+  all (\((Id _ t), e) -> e T..:: t) $ HM.toList hm
 
 restrictHelper :: StateET ->
                   StateET ->
