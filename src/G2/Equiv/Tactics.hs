@@ -449,6 +449,10 @@ validHigherOrder s1 s2 ns hm_hs =
           _ -> hm_hs
   in all isRight $ map check zipped
 
+validTypes :: HM.HashMap Id Expr -> Bool
+validTypes hm =
+  all (\((Id _ t), e) -> e T..:: t) $ HM.toList hm
+
 restrictHelper :: StateET ->
                   StateET ->
                   HS.HashSet Name ->
@@ -457,7 +461,9 @@ restrictHelper :: StateET ->
 restrictHelper s1 s2 ns hm_hs =
   let res = restrictAux s1 s2 ns hm_hs
   in case res of
-    Right (hm, hs) -> if (validTotal s1 s2 ns hm) && (validHigherOrder s1 s2 ns res)
+    Right (hm, hs) -> if (validTotal s1 s2 ns hm) &&
+                         (validHigherOrder s1 s2 ns res) &&
+                         (validTypes hm)
                       then Right (hm, hs)
                       else Left Nothing
     _ -> res
