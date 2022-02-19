@@ -426,18 +426,24 @@ validTotal s1 s2 ns hm =
       check (i, e) = (not $ (idName i) `elem` total_hs) || (totalExpr s2 ns [] e)
   in all check hm_list
 
+-- TODO filter the fresh vars, only check the ones in the hash map
 validHigherOrder :: StateET ->
                     StateET ->
                     HS.HashSet Name ->
                     Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                     Bool
-validHigherOrder s1 s2 ns hm_hs =
+validHigherOrder s1 s2 ns hm_hs | Right (hm, hs) <- hm_hs =
   let -- empty these to avoid an infinite loop
       s1' = s1 { track = (track s1) { higher_order = HM.empty } }
       s2' = s2 { track = (track s2) { higher_order = HM.empty } }
       -- if the Id isn't present, the mapping isn't relevant
-      old_pairs = filter (\(_, i) -> E.member (idName i) (expr_env s1)) $ HM.toList $ higher_order $ track s1
-      new_pairs = filter (\(_, i) -> E.member (idName i) (expr_env s2)) $ HM.toList $ higher_order $ track s2
+      hm_ids = map fst $ HM.toList hm
+      mappings1 = HM.toList $ higher_order $ track s1
+      mappings1' = filter (\(_, i) -> i `elem` hm_ids) mappings1
+      mappings2 = HM.toList $ higher_order $ track s2
+      mappings2' = filter (\(_, i) -> i `elem` hm_ids) mappings2
+      old_pairs = filter (\(_, i) -> E.member (idName i) (expr_env s1)) mappings1'
+      new_pairs = filter (\(_, i) -> E.member (idName i) (expr_env s2)) mappings2'
       old_states = map (\(e, i) -> (s1' { curr_expr = CurrExpr Evaluate e },
                                     s1' { curr_expr = CurrExpr Evaluate (Var i) })) old_pairs
       new_states = map (\(e, i) -> (s2' { curr_expr = CurrExpr Evaluate e },
@@ -448,6 +454,7 @@ validHigherOrder s1 s2 ns hm_hs =
           Right res -> restrictHelper p2 q2 ns (Right res)
           _ -> hm_hs
   in all isRight $ map check zipped
+  | otherwise = False
 
 validTypes :: HM.HashMap Id Expr -> Bool
 validTypes hm =
@@ -535,13 +542,13 @@ applySolver solver extraPC s1 s2 =
 
 validCoinduction :: (StateET, StateET) -> (StateET, StateET) -> Bool
 validCoinduction (p1, p2) (q1, q2) =
-  let dcp1 = dc_path $ track p1
-      dcp2 = dc_path $ track p2
-      dcq1 = dc_path $ track q1
-      dcq2 = dc_path $ track q2
+  let dcp1 = length $ dc_path $ track p1
+      dcp2 = length $ dc_path $ track p2
+      dcq1 = length $ dc_path $ track q1
+      dcq2 = length $ dc_path $ track q2
       consistent = dcp1 == dcp2 && dcq1 == dcq2
       unguarded = all (not . isSWHNF) [p1, p2, q1, q2]
-      guarded = length dcp1 < length dcq1
+      guarded = dcp1 < dcq1
   in consistent && (guarded || unguarded)
 
 -- extra filter on top of isJust for maybe_pairs
@@ -560,7 +567,9 @@ moreRestrictivePairAux :: S.Solver solver =>
                           [(StateET, StateET, StateET)] ->
                           (StateET, StateET) ->
                           W.WriterT [Marker] IO (Either [Lemma] (PrevMatch EquivTracker))
-moreRestrictivePairAux solver valid ns prev (s1, s2) | dc_path (track s1) == dc_path (track s2) = do
+moreRestrictivePairAux solver valid ns prev (s1, s2) | length (dc_path (track s1)) == length (dc_path (track s2)) = do
+  --W.liftIO $ putStrLn $ "{" ++ (show $ map (folder_name . track . (\(a,_,_) -> a)) ((s1,s2,s2):prev)) ++ "}"
+  --W.liftIO $ putStrLn $ "{" ++ (show $ map (folder_name . track . (\(_,a,_) -> a)) ((s1,s2,s2):prev)) ++ "}"
   let (s1', s2') = syncSymbolic s1 s2
       -- TODO might be better to enforce this higher up
       mr (p1, p2, pc) =
@@ -590,7 +599,9 @@ moreRestrictivePairAux solver valid ns prev (s1, s2) | dc_path (track s1) == dc_
       mpc (PrevMatch _ (p1, p2) (hm, _) _) =
           andM [moreRestrictivePC solver p1 s1 hm, moreRestrictivePC solver p2 s2 hm]
 
+  --W.liftIO $ putStrLn $ show $ length possible_matches
   possible_matches' <- filterM mpc possible_matches
+  --W.liftIO $ putStrLn $ show $ length possible_matches'
   -- check obligations individually rather than as one big group
   res_list <- W.liftIO (findM (\pm -> isUnsat =<< checkObligations solver s1 s2 (snd . conditions $ pm)) (possible_matches'))
   return $ maybe (Left possible_lemmas') Right res_list
@@ -648,20 +659,28 @@ moreRestrictiveEqual solver ns lemmas s1 s2 = do
   let h1 = expr_env s1
       h2 = expr_env s2
       -- TODO should this be syncSymbolic?
-      s1' = s1 { expr_env = E.union h1 h2 }
-      s2' = s2 { expr_env = E.union h2 h1 }
+      --s1' = s1 { expr_env = E.union h1 h2 }
+      --s2' = s2 { expr_env = E.union h2 h1 }
+      (s1', s2') = syncSymbolic s1 s2
   -- TODO only attempt if dc paths are the same
-  if dc_path (track s1') /= dc_path (track s2') then return Nothing
+  --W.liftIO $ putStrLn $ "EQ? " ++ (folder_name $ track s1') ++ " " ++ (folder_name $ track s2')
+  if length (dc_path (track s1')) /= length (dc_path (track s2')) then return Nothing
   else do
     -- TODO no need to enforce dc path condition for this function
-    pm_maybe <- moreRestrictivePairWithLemmasPast solver (\_ _ -> True) ns lemmas [(s2', s1')] (s1, s2)
+    pm_maybe <- moreRestrictivePairWithLemmasPast solver (\_ _ -> True) ns lemmas [(s2', s1')] (s1', s2')
     case pm_maybe of
-      Left _ -> return Nothing
+      Left _ -> do
+        --W.liftIO $ putStrLn $ "BAD"
+        return Nothing
       Right (_, _, pm@(PrevMatch _ _ (hm, _) _)) ->
         -- TODO do something with the lemmas for logging later
         if all isIdentity $ HM.toList hm
-        then return $ Just pm
-        else return Nothing
+        then do
+          --W.liftIO $ putStrLn $ "GOOD"
+          return $ Just pm
+        else do
+          --W.liftIO $ putStrLn $ "NOT IDENTITY"
+          return Nothing
 
 -- This attempts to find a pair of equal expressions between the left and right
 -- sides.  The state used for the left side stays constant, but the recursion
@@ -1002,8 +1021,8 @@ mkProposedLemma lm_name or_s1 or_s2 s1 s2 =
 checkCycle :: S.Solver s => Tactic s
 checkCycle solver ns _ _ (sh1, sh2) (s1, s2) = do
   let (s1', s2') = syncSymbolic s1 s2
-      hist1 = filter (\p -> dc_path (track p) == dc_path (track s1')) $ history sh1
-      hist2 = filter (\p -> dc_path (track p) == dc_path (track s2')) $ history sh2
+      hist1 = filter (\p -> length (dc_path (track p)) == length (dc_path (track s1'))) $ history sh1
+      hist2 = filter (\p -> length (dc_path (track p)) == length (dc_path (track s2'))) $ history sh2
   mr1 <- mapM (moreRestrictiveSingle solver ns s1') hist1
   mr2 <- mapM (moreRestrictiveSingle solver ns s2') hist2
   let mr1_pairs = zip mr1 hist1
