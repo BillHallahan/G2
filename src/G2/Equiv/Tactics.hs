@@ -176,6 +176,16 @@ moreRestrictivePC solver s1 s2 hm = do
     S.UNSAT () -> return True
     _ -> return False
 
+-- TODO helper function to circumvent syncSymbolic
+lookupBoth :: Name -> ExprEnv -> ExprEnv -> Maybe Expr
+lookupBoth n h1 h2 = case E.lookup n h1 of
+  Nothing -> E.lookup n h2
+  m -> m
+
+isSymbolicBoth :: Name -> ExprEnv -> ExprEnv -> Bool
+isSymbolicBoth n h1 h2 =
+  (E.isSymbolic n h1) && (E.isSymbolic n h2)
+
 -- s1 is the old state, s2 is the new state
 -- If any recursively-defined functions or other expressions manage to slip
 -- through the cracks with the other mechanisms in place for avoiding infinite
@@ -192,8 +202,11 @@ moreRestrictivePC solver s1 s2 hm = do
 -- repeated inlinings of a variable are allowed as long as the expression on
 -- the opposite side is not the same as it was when a previous inlining of the
 -- same variable happened.
+-- TODO lookupConcOrSym would simplify things a bit
 moreRestrictive :: StateET ->
                    StateET ->
+                   ExprEnv ->
+                   ExprEnv ->
                    HS.HashSet Name ->
                    (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                    Bool -> -- indicates whether this is part of the "active expression"
@@ -202,38 +215,38 @@ moreRestrictive :: StateET ->
                    Expr ->
                    Expr ->
                    Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm active n1 n2 e1 e2 =
+moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) h1' h2' ns hm active n1 n2 e1 e2 =
   case (e1, e2) of
     -- ignore all Ticks
-    (Tick _ e1', _) -> moreRestrictive s1 s2 ns hm active n1 n2 e1' e2
-    (_, Tick _ e2') -> moreRestrictive s1 s2 ns hm active n1 n2 e1 e2'
+    (Tick _ e1', _) -> moreRestrictive s1 s2 h1' h2' ns hm active n1 n2 e1' e2
+    (_, Tick _ e2') -> moreRestrictive s1 s2 h1' h2' ns hm active n1 n2 e1 e2'
     (Var i, _) | m <- idName i
-               , not $ E.isSymbolic m h1
+               , not $ isSymbolicBoth m h1 h1'
                , not $ HS.member m ns
                , not $ (m, e2) `elem` n1
-               , Just e <- E.lookup m h1 ->
-                 moreRestrictive s1 s2 ns hm active ((m, e2):n1) n2 e e2
+               , Just e <- lookupBoth m h1 h1' ->
+                 moreRestrictive s1 s2 h1' h2' ns hm active ((m, e2):n1) n2 e e2
     (_, Var i) | m <- idName i
-               , not $ E.isSymbolic m h2
+               , not $ isSymbolicBoth m h2 h2'
                , not $ HS.member m ns
                , not $ (m, e1) `elem` n2
-               , Just e <- E.lookup m h2 ->
-                 moreRestrictive s1 s2 ns hm active n1 ((m, e1):n2) e1 e
+               , Just e <- lookupBoth m h2 h2' ->
+                 moreRestrictive s1 s2 h1' h2' ns hm active n1 ((m, e1):n2) e1 e
     (Var i1, Var i2) | HS.member (idName i1) ns
                      , idName i1 == idName i2 -> Right hm
                      | HS.member (idName i1) ns -> Left Nothing
                      | HS.member (idName i2) ns -> Left Nothing
-    (Var i, _) | E.isSymbolic (idName i) h1
+    (Var i, _) | isSymbolicBoth (idName i) h1 h1'
                , (hm', hs) <- hm
-               , Nothing <- HM.lookup i hm' -> Right (HM.insert i (inlineEquiv [] h2 ns e2) hm', hs)
-               | E.isSymbolic (idName i) h1
+               , Nothing <- HM.lookup i hm' -> Right (HM.insert i (inlineEquiv [] h2 h2' ns e2) hm', hs)
+               | isSymbolicBoth (idName i) h1 h1'
                , Just e <- HM.lookup i (fst hm)
-               , e == inlineEquiv [] h2 ns e2 -> Right hm
+               , e == inlineEquiv [] h2 h2' ns e2 -> Right hm
                -- this last case means there's a mismatch
-               | E.isSymbolic (idName i) h1 -> Left Nothing
+               | isSymbolicBoth (idName i) h1 h1' -> Left Nothing
                | not $ (idName i, e2) `elem` n1
                , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
-    (_, Var i) | E.isSymbolic (idName i) h2 -> Left Nothing -- sym replaces non-sym
+    (_, Var i) | isSymbolicBoth (idName i) h2 h2' -> Left Nothing -- sym replaces non-sym
                | not $ (idName i, e1) `elem` n2
                , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
     (App f1 a1, App f2 a2) | Right hm_fa <- moreResFA -> Right hm_fa
@@ -247,12 +260,20 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                                 let
                                     v_rep = HM.toList $ fst hm
                                     e1' = replaceVars e1 v_rep
-                                    h2' = E.mapConc (flip replaceVars v_rep) h2 -- foldr (\(Id n _, e) -> E.insert n e) h2 (HM.toList $ fst hm)
-                                    ls1 = s2 { expr_env = h2', curr_expr = CurrExpr Evaluate e1' }
+                                    -- TODO update mapConc usage
+                                    -- TODO might consolidate into one map
+                                    cs (E.Conc e_) = E.Conc e_
+                                    cs (E.Sym i_) = case E.lookupConcOrSym (idName i_) h2' of
+                                      Nothing -> E.Sym i_
+                                      Just c -> c
+                                    h2_ = E.mapConcOrSym cs h2
+                                    h2_' = E.mapConc (flip replaceVars v_rep) h2_ -- foldr (\(Id n _, e) -> E.insert n e) h2 (HM.toList $ fst hm)
+                                    ls1 = s2 { expr_env = h2_', curr_expr = CurrExpr Evaluate e1' }
                                     ls2 = s2 { curr_expr = CurrExpr Evaluate e2 }
 
-                                    in1 = inlineFull (HS.toList ns) (expr_env s1)
-                                    in2 = inlineFull (HS.toList ns) (expr_env s2)
+                                    -- TODO do these need any adjustments?
+                                    in1 = inlineFull (HS.toList ns) h1 h1'
+                                    in2 = inlineFull (HS.toList ns) h2 h2'
                                 in
                                 -- let pg = mkPrettyGuide (ls1, ls2) in
                                 -- trace ("LEMMA " ++ (folder_name $ track s2) ++ " " ++ (folder_name $ track s1)
@@ -263,8 +284,8 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                                 Left (Just $ mkProposedLemma "lemma" s1 s2 ls2 ls1)
         where
             moreResFA = do
-                hm_f <- moreRestrictive s1 s2 ns hm active n1 n2 f1 f2
-                moreRestrictive s1 s2 ns hm_f False n1 n2 a1 a2
+                hm_f <- moreRestrictive s1 s2 h1' h2' ns hm active n1 n2 f1 f2
+                moreRestrictive s1 s2 h1' h2' ns hm_f False n1 n2 a1 a2
     -- TODO ignoring lam use; these are never used seemingly
     -- TODO shouldn't lead to non-termination
     {-
@@ -277,19 +298,19 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
     -- expression pair fits both patterns, then discharging it in a way that
     -- does not add any extra proof obligations is preferable.
     (App _ _, _) | e1':_ <- unApp e1
-                 , (Prim _ _) <- inlineTop [] h1 e1'
+                 , (Prim _ _) <- inlineTop [] h1 h1' e1'
                  , T.isPrimType $ typeOf e1
                  , T.isPrimType $ typeOf e2
                  , isSWHNF $ (s2 { curr_expr = CurrExpr Evaluate e2 }) ->
                                   let (hm', hs) = hm
-                                  in Right (hm', HS.insert (inlineFull [] h1 e1, inlineFull [] h2 e2) hs)
+                                  in Right (hm', HS.insert (inlineFull [] h1 h1' e1, inlineFull [] h2 h2' e2) hs)
     (_, App _ _) | e2':_ <- unApp e2
-                 , (Prim _ _) <- inlineTop [] h1 e2'
+                 , (Prim _ _) <- inlineTop [] h1 h1' e2'
                  , T.isPrimType $ typeOf e2
                  , T.isPrimType $ typeOf e1
                  , isSWHNF $ (s1 { curr_expr = CurrExpr Evaluate e1 }) ->
                                   let (hm', hs) = hm
-                                  in Right (hm', HS.insert (inlineFull [] h1 e1, inlineFull [] h2 e2) hs)
+                                  in Right (hm', HS.insert (inlineFull [] h1 h1' e1, inlineFull [] h2 h2' e2) hs)
     -- We just compare the names of the DataCons, not the types of the DataCons.
     -- This is because (1) if two DataCons share the same name, they must share the
     -- same type, but (2) "the same type" may be represented in different syntactic
@@ -308,7 +329,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                 , i1 == i2 ->
                   let ns' = HS.insert (idName i1) ns
                   -- no need to insert twice over because they're equal
-                  in moreRestrictive s1 s2 ns' hm active n1 n2 b1 b2
+                  in moreRestrictive s1 s2 h1' h2' ns' hm active n1 n2 b1 b2
                 | otherwise -> Left Nothing
     -- ignore types, like in exprPairing
     (Type _, Type _) -> Right hm
@@ -319,11 +340,11 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
     (Let binds1 e1', Let binds2 e2') ->
                 let pairs = (e1', e2'):(zip (map snd binds1) (map snd binds2))
                     ins (i_, e_) h_ = E.insert (idName i_) e_ h_
-                    h1' = foldr ins h1 binds1
-                    h2' = foldr ins h2 binds2
-                    s1' = s1 { expr_env = h1' }
-                    s2' = s2 { expr_env = h2' }
-                    mf hm_ (e1_, e2_) = moreRestrictive s1' s2' ns hm_ active n1 n2 e1_ e2_
+                    h1_ = foldr ins h1 binds1
+                    h2_ = foldr ins h2 binds2
+                    s1' = s1 { expr_env = h1_ }
+                    s2' = s2 { expr_env = h2_ }
+                    mf hm_ (e1_, e2_) = moreRestrictive s1' s2' h1' h2' ns hm_ active n1 n2 e1_ e2_
                 in
                 if length binds1 == length binds2
                 then foldM mf hm pairs
@@ -333,18 +354,19 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
     (Case e1' i1 a1, Case e2' i2 a2)
                 | Right hm' <- b_mr ->
                   -- add the matched-on exprs to the envs beforehand
-                  let h1' = E.insert (idName i1) e1' h1
-                      h2' = E.insert (idName i2) e2' h2
-                      s1' = s1 { expr_env = h1' }
-                      s2' = s2 { expr_env = h2' }
-                      mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ False n1 n2 e1_ e2_
+                  -- TODO I think I can leave these E operations as they are
+                  let h1_ = E.insert (idName i1) e1' h1
+                      h2_ = E.insert (idName i2) e2' h2
+                      s1' = s1 { expr_env = h1_ }
+                      s2' = s2 { expr_env = h2_ }
+                      mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' h1' h2' ns hm_ False n1 n2 e1_ e2_
                       l = zip a1 a2
                   in foldM mf hm' l
                 | otherwise -> b_mr
                 where
-                    b_mr = moreRestrictive s1 s2 ns hm active n1 n2 e1' e2'
+                    b_mr = moreRestrictive s1 s2 h1' h2' ns hm active n1 n2 e1' e2'
     (Cast e1' c1, Cast e2' c2) | c1 == c2 ->
-        moreRestrictive s1 s2 ns hm active n1 n2 e1' e2'
+        moreRestrictive s1 s2 h1' h2' ns hm active n1 n2 e1' e2'
     _ -> Left Nothing
 
 replaceVars :: Expr -> [(Id, Expr)] -> Expr
@@ -352,32 +374,35 @@ replaceVars = foldr (\(Id n _, e) -> replaceVar n e)
 
 -- These helper functions have safeguards to avoid cyclic inlining.
 -- TODO remove ticks with this?
-inlineTop :: [Name] -> ExprEnv -> Expr -> Expr
-inlineTop acc h v@(Var (Id n _))
+-- TODO these need a second expr env too
+inlineTop :: [Name] -> ExprEnv -> ExprEnv -> Expr -> Expr
+inlineTop acc h h' v@(Var (Id n _))
     | n `elem` acc = v
-    | E.isSymbolic n h = v
-    | Just e <- E.lookup n h = inlineTop (n:acc) h e
-inlineTop acc h (Tick _ e) = inlineTop acc h e
-inlineTop _ _ e = e
+    | isSymbolicBoth n h h' = v
+    | Just e <- lookupBoth n h h' = inlineTop (n:acc) h h' e
+inlineTop acc h h' (Tick _ e) = inlineTop acc h h' e
+inlineTop _ _ _ e = e
 
-inlineFull :: [Name] -> ExprEnv -> Expr -> Expr
-inlineFull acc h v@(Var (Id n _))
+inlineFull :: [Name] -> ExprEnv -> ExprEnv -> Expr -> Expr
+inlineFull acc h h' v@(Var (Id n _))
     | n `elem` acc = v
-    | E.isSymbolic n h = v
-    | Just e <- E.lookup n h = inlineFull (n:acc) h e
-inlineFull acc h e = modifyChildren (inlineFull acc h) e
+    | isSymbolicBoth n h h' = v
+    | Just e <- lookupBoth n h h' = inlineFull (n:acc) h h' e
+inlineFull acc h h' e = modifyChildren (inlineFull acc h h') e
 
-inlineEquiv :: [Name] -> ExprEnv -> HS.HashSet Name -> Expr -> Expr
-inlineEquiv acc h ns v@(Var (Id n _))
+inlineEquiv :: [Name] -> ExprEnv -> ExprEnv -> HS.HashSet Name -> Expr -> Expr
+inlineEquiv acc h h' ns v@(Var (Id n _))
     | n `elem` acc = v
-    | E.isSymbolic n h = v
+    | isSymbolicBoth n h h' = v
     | HS.member n ns = v
-    | Just e <- E.lookup n h = inlineEquiv (n:acc) h ns e
-inlineEquiv acc h ns e = modifyChildren (inlineEquiv acc h ns) e
+    | Just e <- lookupBoth n h h' = inlineEquiv (n:acc) h h' ns e
+inlineEquiv acc h h' ns e = modifyChildren (inlineEquiv acc h h' ns) e
 
 -- ids are the same between both sides; no need to insert twice
 moreRestrictiveAlt :: StateET ->
                       StateET ->
+                      ExprEnv ->
+                      ExprEnv ->
                       HS.HashSet Name ->
                       (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                       Bool -> -- active expression
@@ -386,12 +411,12 @@ moreRestrictiveAlt :: StateET ->
                       Alt ->
                       Alt ->
                       Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-moreRestrictiveAlt s1 s2 ns hm active n1 n2 (Alt am1 e1) (Alt am2 e2) =
+moreRestrictiveAlt s1 s2 h1' h2' ns hm active n1 n2 (Alt am1 e1) (Alt am2 e2) =
   if altEquiv am1 am2 then
   case am1 of
     DataAlt _ t1 -> let ns' = foldr HS.insert ns $ map idName t1
-                    in moreRestrictive s1 s2 ns' hm active n1 n2 e1 e2
-    _ -> moreRestrictive s1 s2 ns hm active n1 n2 e1 e2
+                    in moreRestrictive s1 s2 h1' h2' ns' hm active n1 n2 e1 e2
+    _ -> moreRestrictive s1 s2 h1' h2' ns hm active n1 n2 e1 e2
   else Left Nothing
 
 -- check only the names for DataAlt
@@ -429,10 +454,12 @@ validTotal s1 s2 ns hm =
 -- TODO filter the fresh vars, only check the ones in the hash map
 validHigherOrder :: StateET ->
                     StateET ->
+                    ExprEnv ->
+                    ExprEnv ->
                     HS.HashSet Name ->
                     Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                     Bool
-validHigherOrder s1 s2 ns hm_hs | Right (hm, hs) <- hm_hs =
+validHigherOrder s1 s2 h1' h2' ns hm_hs | Right (hm, hs) <- hm_hs =
   let -- empty these to avoid an infinite loop
       s1' = s1 { track = (track s1) { higher_order = HM.empty } }
       s2' = s2 { track = (track s2) { higher_order = HM.empty } }
@@ -449,9 +476,11 @@ validHigherOrder s1 s2 ns hm_hs | Right (hm, hs) <- hm_hs =
       new_states = map (\(e, i) -> (s2' { curr_expr = CurrExpr Evaluate e },
                                     s2' { curr_expr = CurrExpr Evaluate (Var i) })) new_pairs
       zipped = [(p, q) | p <- old_states, q <- new_states]
+      -- only current expressions change between all these states
+      -- I can keep the other-side expr envs the same
       check ((p1, p2), (q1, q2)) =
-        case restrictHelper p1 q1 ns hm_hs of
-          Right res -> restrictHelper p2 q2 ns (Right res)
+        case restrictHelper p1 q1 h1' h2' ns hm_hs of
+          Right res -> restrictHelper p2 q2 h1' h2' ns (Right res)
           _ -> hm_hs
   in all isRight $ map check zipped
   | otherwise = False
@@ -462,14 +491,16 @@ validTypes hm =
 
 restrictHelper :: StateET ->
                   StateET ->
+                  ExprEnv ->
+                  ExprEnv ->
                   HS.HashSet Name ->
                   Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                   Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-restrictHelper s1 s2 ns hm_hs =
-  let res = restrictAux s1 s2 ns hm_hs
+restrictHelper s1 s2 h1' h2' ns hm_hs =
+  let res = restrictAux s1 s2 h1' h2' ns hm_hs
   in case res of
     Right (hm, hs) -> if (validTotal s1 s2 ns hm) &&
-                         (validHigherOrder s1 s2 ns res) &&
+                         (validHigherOrder s1 s2 h1' h2' ns res) &&
                          (validTypes hm)
                       then Right (hm, hs)
                       else Left Nothing
@@ -477,21 +508,25 @@ restrictHelper s1 s2 ns hm_hs =
 
 restrictAux :: StateET ->
                StateET ->
+               ExprEnv ->
+               ExprEnv ->
                HS.HashSet Name ->
                Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-restrictAux s1 s2 ns (Right hm) =
-  moreRestrictive s1 s2 ns hm True [] [] (exprExtract s1) (exprExtract s2)
-restrictAux _ _ _ left = left
+restrictAux s1 s2 h1' h2' ns (Right hm) =
+  moreRestrictive s1 s2 h1' h2' ns hm True [] [] (exprExtract s1) (exprExtract s2)
+restrictAux _ _ _ _ _ left = left
 
 syncSymbolic :: StateET -> StateET -> (StateET, StateET)
-syncSymbolic s1 s2 =
+syncSymbolic s1 s2 = (s1, s2)
+{-
   let f (E.SymbObj _) e2 = e2
       f e1 _ = e1
       h1 = E.unionWith f (expr_env s1) (expr_env s2)
       -- TODO I don't think we really need two separate unions
       h2 = E.unionWith f (expr_env s2) (expr_env s1)
   in (s1 { expr_env = h1 }, s2 { expr_env = h2 })
+-}
 
 obligationWrap :: HS.HashSet (Expr, Expr) -> Maybe PathCond
 obligationWrap obligations =
@@ -571,14 +606,18 @@ moreRestrictivePairAux solver valid ns prev (s1, s2) | length (dc_path (track s1
   --W.liftIO $ putStrLn $ "{" ++ (show $ map (folder_name . track . (\(a,_,_) -> a)) ((s1,s2,s2):prev)) ++ "}"
   --W.liftIO $ putStrLn $ "{" ++ (show $ map (folder_name . track . (\(_,a,_) -> a)) ((s1,s2,s2):prev)) ++ "}"
   let (s1', s2') = syncSymbolic s1 s2
+      hs1 = expr_env s1'
+      hs2 = expr_env s2'
       -- TODO might be better to enforce this higher up
       mr (p1, p2, pc) =
           if valid (p1, p2) (s1', s2') then
             let
                 -- TODO it's only here that we deal with individual past-present combinations
                 hm_obs = let (p1', p2') = syncSymbolic p1 p2
-                        in restrictHelper p2' s2' ns $
-                        restrictHelper p1' s1' ns (Right (HM.empty, HS.empty))
+                             hp1 = expr_env p1'
+                             hp2 = expr_env p2'
+                         in restrictHelper p2' s2' hp1 hs1 ns $
+                         restrictHelper p1' s1' hp2 hs2 ns (Right (HM.empty, HS.empty))
             in
               mapLeft (fmap (\l -> l { lemma_name = "past_1 = " ++ folder p1
                                                   ++ " present_1 = " ++ folder s1
@@ -622,10 +661,16 @@ moreRestrictivePair solver valid ns prev (s1, s2) =
   let prev' = map (\(p1, p2) -> (p1, p2, p2)) prev in
   moreRestrictivePairAux solver valid ns prev' (s1, s2)
 
-moreRestrictiveSingle :: S.Solver solver => solver -> HS.HashSet Name -> StateET -> StateET
-                      -> W.WriterT [Marker] IO (Either (Maybe Lemma) (HM.HashMap Id Expr))
-moreRestrictiveSingle solver ns s1 s2 = do
-    case restrictHelper s1 s2 ns $ Right (HM.empty, HS.empty) of
+moreRestrictiveSingle :: S.Solver solver =>
+                         solver ->
+                         HS.HashSet Name ->
+                         StateET ->
+                         StateET ->
+                         ExprEnv ->
+                         ExprEnv ->
+                         W.WriterT [Marker] IO (Either (Maybe Lemma) (HM.HashMap Id Expr))
+moreRestrictiveSingle solver ns s1 s2 h1' h2' = do
+    case restrictHelper s1 s2 h1' h2' ns $ Right (HM.empty, HS.empty) of
         (Left l) -> return $ Left l
         Right (hm, obs) -> do
             more_res_pc <- moreRestrictivePC solver s1 s2 hm
@@ -771,12 +816,13 @@ coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) = do
               Nothing -> return . Left $ new_lems_ ++ gen_lemmas
               Just sh2' -> coinductionFoldL solver ns lemmas
                                        (new_lems_ ++ gen_lemmas) (sh1, sh2') (s1, latest sh2')
-
+{-
       inlineCurrExpr s_@(State { expr_env = eenv, curr_expr = CurrExpr er cexpr}) =
           let
               cexpr' = inlineFull (HS.toList ns) eenv cexpr
           in
           s_ { curr_expr = CurrExpr er cexpr' }
+-}
 
 tryCoinduction :: S.Solver s => Tactic s
 tryCoinduction solver ns lemmas _ (sh1, sh2) (s1, s2) = do
@@ -873,34 +919,52 @@ filterProvenLemmas p lems@(Lemmas { proven_lemmas = prov }) = lems { proven_lemm
 -- searches for a subexpression `e'` of `state`'s current expression such that `e' <=_V lemma_l`.
 -- If it find such a subexpression, it adds state[e'[V(x)/x]] to the returned
 -- list of States.
-substLemma :: S.Solver solver => solver -> HS.HashSet Name -> StateET -> Lemmas -> W.WriterT [Marker] IO [(Lemma, StateET)]
-substLemma solver ns s =
-    mapMaybeM (\lem -> replaceMoreRestrictiveSubExpr solver ns lem s) . provenLemmas
+substLemma :: S.Solver solver =>
+              solver ->
+              HS.HashSet Name ->
+              StateET ->
+              ExprEnv ->
+              Lemmas ->
+              W.WriterT [Marker] IO [(Lemma, StateET)]
+substLemma solver ns s h' =
+    mapMaybeM (\lem -> replaceMoreRestrictiveSubExpr solver ns lem s h') . provenLemmas
 
-replaceMoreRestrictiveSubExpr :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> StateET
-                               -> W.WriterT [Marker] IO (Maybe (Lemma, StateET))
-replaceMoreRestrictiveSubExpr solver ns lemma s@(State { curr_expr = CurrExpr er _ }) = do
-    (e, replaced) <- CM.runStateT (replaceMoreRestrictiveSubExpr' solver ns lemma s $ exprExtract s) False
+replaceMoreRestrictiveSubExpr :: S.Solver solver =>
+                                 solver ->
+                                 HS.HashSet Name ->
+                                 Lemma ->
+                                 StateET ->
+                                 ExprEnv ->
+                                 W.WriterT [Marker] IO (Maybe (Lemma, StateET))
+replaceMoreRestrictiveSubExpr solver ns lemma s@(State { curr_expr = CurrExpr er _ }) h' = do
+    (e, replaced) <- CM.runStateT (replaceMoreRestrictiveSubExpr' solver ns lemma s h' $ exprExtract s) False
     return $ if replaced then Just (lemma, s { curr_expr = CurrExpr er e }) else Nothing
 
-replaceMoreRestrictiveSubExpr' :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> StateET -> Expr
-                               -> CM.StateT Bool (W.WriterT [Marker] IO) Expr
+replaceMoreRestrictiveSubExpr' :: S.Solver solver =>
+                                  solver ->
+                                  HS.HashSet Name ->
+                                  Lemma ->
+                                  StateET ->
+                                  ExprEnv ->
+                                  Expr ->
+                                  CM.StateT Bool (W.WriterT [Marker] IO) Expr
 replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma_rhs = rhs_s })
-                                         s2@(State { curr_expr = CurrExpr er _ }) e = do
+                                         s2@(State { curr_expr = CurrExpr er _ }) h' e = do
     replaced <- CM.get
     if not replaced then do
-        mr_sub <- CM.lift $ moreRestrictiveSingle solver ns lhs_s (s2 { curr_expr = CurrExpr Evaluate e })
+        mr_sub <- CM.lift $ moreRestrictiveSingle solver ns lhs_s (s2 { curr_expr = CurrExpr Evaluate e }) (expr_env rhs_s) h'
         case mr_sub of
             Right hm -> do
                 let v_rep = HM.toList hm
 
-                    rhs_e' = replaceVars (inlineFull (HS.toList ns) (expr_env rhs_s) $ exprExtract rhs_s) v_rep
+                    -- TODO make sure this modification is correct
+                    rhs_e' = replaceVars (inlineFull (HS.toList ns) (expr_env rhs_s) (expr_env lhs_s) $ exprExtract rhs_s) v_rep
 
                 CM.put True
                 return rhs_e'                 
             Left _ -> do
                 let ns' = foldr HS.insert ns (bind e)
-                modifyChildrenM (replaceMoreRestrictiveSubExpr' solver ns' lemma s2) e
+                modifyChildrenM (replaceMoreRestrictiveSubExpr' solver ns' lemma s2 h') e
     else return e
     where
         bind (Lam _ i _) = [idName i]
@@ -923,10 +987,10 @@ moreRestrictivePairWithLemmasOnFuncApps :: S.Solver solver =>
                                            W.WriterT [Marker] IO (Either [Lemma] (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
 moreRestrictivePairWithLemmasOnFuncApps solver valid ns =
     moreRestrictivePairWithLemmas'
-        (\s lem -> case unApp . modifyASTs stripTicks . inlineFull (HS.toList ns) (expr_env s) $ exprExtract s of
+        (\s s' lem -> case unApp . modifyASTs stripTicks . inlineFull (HS.toList ns) (expr_env s) (expr_env s') $ exprExtract s of
                     Var (Id f _):_ ->
                         let
-                            lem_vars = varNames $ inlineFull (HS.toList ns) (expr_env s) $ exprExtract (lemma_rhs lem)
+                            lem_vars = varNames $ inlineFull (HS.toList ns) (expr_env s) (expr_env s') $ exprExtract (lemma_rhs lem)
                         in
                         not $ f `elem` lem_vars
                     _ -> False)
@@ -946,10 +1010,10 @@ moreRestrictivePairWithLemmas :: S.Solver solver =>
                                  [(StateET, StateET)] ->
                                  (StateET, StateET) ->
                                  W.WriterT [Marker] IO (Either [Lemma] (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
-moreRestrictivePairWithLemmas = moreRestrictivePairWithLemmas' (\_ _ -> True)
+moreRestrictivePairWithLemmas = moreRestrictivePairWithLemmas' (\_ _ _ -> True)
 
 moreRestrictivePairWithLemmas' :: S.Solver solver =>
-                                  (StateET -> Lemma -> Bool) ->
+                                  (StateET -> StateET -> Lemma -> Bool) ->
                                   solver ->
                                   ((StateET, StateET) -> (StateET, StateET) -> Bool) ->
                                   HS.HashSet Name ->
@@ -959,8 +1023,8 @@ moreRestrictivePairWithLemmas' :: S.Solver solver =>
                                   W.WriterT [Marker] IO (Either [Lemma] (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
 moreRestrictivePairWithLemmas' app_state solver valid ns lemmas past (s1, s2) = do
     let (s1', s2') = syncSymbolic s1 s2
-    xs1 <- substLemma solver ns s1' $ filterProvenLemmas (app_state s1') lemmas
-    xs2 <- substLemma solver ns s2' $ filterProvenLemmas (app_state s2') lemmas
+    xs1 <- substLemma solver ns s1' (expr_env s2') $ filterProvenLemmas (app_state s1' s2') lemmas
+    xs2 <- substLemma solver ns s2' (expr_env s1') $ filterProvenLemmas (app_state s2' s1') lemmas
 
     let xs1' = (Nothing, s1'):(map (\(l, s) -> (Just l, s)) xs1)
         xs2' = (Nothing, s2'):(map (\(l, s) -> (Just l, s)) xs2)
@@ -993,8 +1057,8 @@ moreRestrictivePairWithLemmasPast :: S.Solver solver =>
                                      W.WriterT [Marker] IO (Either [Lemma] (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
 moreRestrictivePairWithLemmasPast solver valid ns lemmas past s_pair = do
     let (past1, past2) = unzip past
-    xs_past1 <- mapM (\s_ -> substLemma solver ns s_ lemmas) past1
-    xs_past2 <- mapM (\s_ -> substLemma solver ns s_ lemmas) past2
+    xs_past1 <- mapM (\(q1, q2) -> substLemma solver ns q1 (expr_env q2) lemmas) past
+    xs_past2 <- mapM (\(q1, q2) -> substLemma solver ns q2 (expr_env q1) lemmas) past
     let plain_past1 = map (\s_ -> (Nothing, s_)) past1
         plain_past2 = map (\s_ -> (Nothing, s_)) past2
         xs_past1' = plain_past1 ++ (map (\(l, s) -> (Just l, s)) $ concat xs_past1)
@@ -1005,15 +1069,38 @@ moreRestrictivePairWithLemmasPast solver valid ns lemmas past s_pair = do
         past' = [pair_past pair1 pair2 | pair1 <- xs_past1', pair2 <- xs_past2']
     moreRestrictivePairWithLemmas solver valid ns lemmas past' s_pair
 
+-- TODO I think this assertion is no longer needed
+-- I can do some sort of merge for the expression environments
+-- TODO this won't fetch new symbolic Ids for either side
 mkProposedLemma :: String -> StateET -> StateET -> StateET -> StateET -> ProposedLemma
 mkProposedLemma lm_name or_s1 or_s2 s1 s2 =
-    assert (map idName (E.symbolicIds (expr_env s1)) == map idName (E.symbolicIds (expr_env s2)))
+    let h1 = expr_env s1
+        h2 = expr_env s2
+        cs h (E.Conc e) = E.Conc e
+        cs h (E.Sym i) = case E.lookupConcOrSym (idName i) h of
+          Nothing -> E.Sym i
+          Just c -> c
+        -- TODO bad:  now only h2 mappings are preserved
+        --addMappings h n c = case E.lookupConcOrSym n h of
+        --  Nothing -> c
+        --  Just c' -> c'
+        h1' = E.mapConcOrSym (cs h2) h1
+        h2' = E.mapConcOrSym (cs h1) h2
+        -- TODO this is copied from syncSymbolic, and it's inefficient
+        f (E.SymbObj _) e2 = e2
+        f e1 _ = e1
+        h1'' = E.unionWith f h1' h2'
+        h2'' = E.unionWith f h2' h1'
+        s1' = s1 { expr_env = h1'' }
+        s2' = s2 { expr_env = h2'' }
+    in
+    assert (map idName (E.symbolicIds (expr_env s1')) == map idName (E.symbolicIds (expr_env s2')))
           Lemma { lemma_name = lm_name
-                , lemma_lhs = s1
-                , lemma_rhs = s2
+                , lemma_lhs = s1'
+                , lemma_rhs = s2'
                 , lemma_lhs_origin = folder_name . track $ or_s1
                 , lemma_rhs_origin = folder_name . track $ or_s2
-                , lemma_to_be_proven  =[(newStateH s1, newStateH s2)] }
+                , lemma_to_be_proven  =[(newStateH s1', newStateH s2')] }
 
 -- cycle detection
 -- TODO do I need to be careful about thrown-out Data constructors?
@@ -1021,10 +1108,18 @@ mkProposedLemma lm_name or_s1 or_s2 s1 s2 =
 checkCycle :: S.Solver s => Tactic s
 checkCycle solver ns _ _ (sh1, sh2) (s1, s2) = do
   let (s1', s2') = syncSymbolic s1 s2
-      hist1 = filter (\p -> length (dc_path (track p)) == length (dc_path (track s1'))) $ history sh1
-      hist2 = filter (\p -> length (dc_path (track p)) == length (dc_path (track s2'))) $ history sh2
-  mr1 <- mapM (moreRestrictiveSingle solver ns s1') hist1
-  mr2 <- mapM (moreRestrictiveSingle solver ns s2') hist2
+      hist1 = filter (\p -> dc_path (track p) == dc_path (track s1')) $ history sh1
+      hist2 = filter (\p -> dc_path (track p) == dc_path (track s2')) $ history sh2
+      --hist1' = map (\(p1, p2) -> (p1, expr_env p2)) (zip hist1 hist2)
+      --hist2' = map (\(p1, p2) -> (p2, expr_env p1)) (zip hist1 hist2)
+      hist1' = zip hist1 (map expr_env hist2)
+      hist2' = zip hist2 (map expr_env hist1)
+      h1' = expr_env s1'
+      h2' = expr_env s2'
+  -- TODO this relies on histories being the same length and having matching entries
+  -- I think I'm fine in that regard
+  mr1 <- mapM (\(p1, hp2) -> moreRestrictiveSingle solver ns s1' p1 h2' hp2) hist1'
+  mr2 <- mapM (\(p2, hp1) -> moreRestrictiveSingle solver ns s2' p2 h1' hp1) hist2'
   let mr1_pairs = zip mr1 hist1
       mr1_pair = find (isRight . fst) mr1_pairs
       mr2_pairs = zip mr2 hist2
