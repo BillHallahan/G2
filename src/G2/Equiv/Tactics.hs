@@ -78,6 +78,8 @@ import qualified Control.Monad.Writer.Lazy as W
 
 import Control.Exception
 
+import Debug.Trace
+
 -- the Bool value for Failure is True if a cycle has been found
 data TacticResult = Success (Maybe (Int, Int, StateET, StateET))
                   | NoProof [Lemma]
@@ -177,14 +179,25 @@ moreRestrictivePC solver s1 s2 hm = do
     _ -> return False
 
 -- TODO helper function to circumvent syncSymbolic
+-- for symbolic things, lookup returns the variable
 lookupBoth :: Name -> ExprEnv -> ExprEnv -> Maybe Expr
-lookupBoth n h1 h2 = case E.lookup n h1 of
+lookupBoth n h1 h2 = case E.lookupConcOrSym n h1 of
+  Just (E.Conc e) -> Just e
+  Just (E.Sym i) -> case E.lookup n h2 of
+                      Nothing -> Just $ Var i
+                      m -> m
   Nothing -> E.lookup n h2
-  m -> m
 
+-- TODO doesn't count as symbolic if it's unmapped
+-- condition we need:  n is symbolic in every env where it's mapped
 isSymbolicBoth :: Name -> ExprEnv -> ExprEnv -> Bool
 isSymbolicBoth n h1 h2 =
-  (E.isSymbolic n h1) && (E.isSymbolic n h2)
+  case trace (show n) $ E.lookupConcOrSym n h1 of
+    Just (E.Sym _) -> case E.lookupConcOrSym n h2 of
+                        Just (E.Conc _) -> trace ("CONC " ++ show n) False
+                        _ -> trace ("NOT CONC " ++ show n) True
+    Just (E.Conc _) -> trace ("CONC ON THIS SIDE " ++ show n) False
+    Nothing -> trace ("UNMAPPED " ++ show (isJust $ E.lookup n h2)) E.isSymbolic n h2
 
 -- s1 is the old state, s2 is the new state
 -- If any recursively-defined functions or other expressions manage to slip
@@ -577,13 +590,13 @@ applySolver solver extraPC s1 s2 =
 
 validCoinduction :: (StateET, StateET) -> (StateET, StateET) -> Bool
 validCoinduction (p1, p2) (q1, q2) =
-  let dcp1 = length $ dc_path $ track p1
-      dcp2 = length $ dc_path $ track p2
-      dcq1 = length $ dc_path $ track q1
-      dcq2 = length $ dc_path $ track q2
+  let dcp1 = dc_path $ track p1
+      dcp2 = dc_path $ track p2
+      dcq1 = dc_path $ track q1
+      dcq2 = dc_path $ track q2
       consistent = dcp1 == dcp2 && dcq1 == dcq2
       unguarded = all (not . isSWHNF) [p1, p2, q1, q2]
-      guarded = dcp1 < dcq1
+      guarded = length dcp1 < length dcq1
   in consistent && (guarded || unguarded)
 
 -- extra filter on top of isJust for maybe_pairs
@@ -602,20 +615,24 @@ moreRestrictivePairAux :: S.Solver solver =>
                           [(StateET, StateET, StateET)] ->
                           (StateET, StateET) ->
                           W.WriterT [Marker] IO (Either [Lemma] (PrevMatch EquivTracker))
-moreRestrictivePairAux solver valid ns prev (s1, s2) | length (dc_path (track s1)) == length (dc_path (track s2)) = do
+moreRestrictivePairAux solver valid ns past (s1, s2) | dc_path (track s1) == dc_path (track s2) = do
   --W.liftIO $ putStrLn $ "{" ++ (show $ map (folder_name . track . (\(a,_,_) -> a)) ((s1,s2,s2):prev)) ++ "}"
   --W.liftIO $ putStrLn $ "{" ++ (show $ map (folder_name . track . (\(_,a,_) -> a)) ((s1,s2,s2):prev)) ++ "}"
   let (s1', s2') = syncSymbolic s1 s2
       hs1 = expr_env s1'
       hs2 = expr_env s2'
+      -- TODO I need to keep track of the present pairs as well
+      -- TODO actually, can I sidestep that because one is always the real present?
+      prev = [(pair1, pair2) | pair1 <- past, pair2 <- past]
       -- TODO might be better to enforce this higher up
-      mr (p1, p2, pc) =
+      -- TODO does the "pc" on the left side matter?  I think it doesn't
+      mr ((p1, opp2, _), (opp1, p2, pc)) =
           if valid (p1, p2) (s1', s2') then
             let
                 -- TODO it's only here that we deal with individual past-present combinations
                 hm_obs = let (p1', p2') = syncSymbolic p1 p2
-                             hp1 = expr_env p1'
-                             hp2 = expr_env p2'
+                             hp1 = expr_env opp1
+                             hp2 = expr_env opp2
                          in restrictHelper p2' s2' hp1 hs1 ns $
                          restrictHelper p1' s1' hp2 hs2 ns (Right (HM.empty, HS.empty))
             in
@@ -709,7 +726,7 @@ moreRestrictiveEqual solver ns lemmas s1 s2 = do
       (s1', s2') = syncSymbolic s1 s2
   -- TODO only attempt if dc paths are the same
   --W.liftIO $ putStrLn $ "EQ? " ++ (folder_name $ track s1') ++ " " ++ (folder_name $ track s2')
-  if length (dc_path (track s1')) /= length (dc_path (track s2')) then return Nothing
+  if dc_path (track s1') /= dc_path (track s2') then return Nothing
   else do
     -- TODO no need to enforce dc path condition for this function
     pm_maybe <- moreRestrictivePairWithLemmasPast solver (\_ _ -> True) ns lemmas [(s2', s1')] (s1', s2')
@@ -802,7 +819,9 @@ coinductionFoldL :: S.Solver solver =>
                     (StateET, StateET) ->
                     W.WriterT [Marker] IO (Either [Lemma] (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
 coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) = do
-  let prev = prevFull (sh1, sh2)
+  --let prev = prevFull (sh1, sh2)
+  -- TODO reworking parts to keep state pairs with each other
+  let prev = zip (history sh1) (history sh2)
   -- TODO this function not used outside coinduction
   res <- moreRestrictivePairWithLemmasOnFuncApps solver validCoinduction ns lemmas prev (s1', s2')
   case res of
@@ -816,13 +835,6 @@ coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) = do
               Nothing -> return . Left $ new_lems_ ++ gen_lemmas
               Just sh2' -> coinductionFoldL solver ns lemmas
                                        (new_lems_ ++ gen_lemmas) (sh1, sh2') (s1, latest sh2')
-{-
-      inlineCurrExpr s_@(State { expr_env = eenv, curr_expr = CurrExpr er cexpr}) =
-          let
-              cexpr' = inlineFull (HS.toList ns) eenv cexpr
-          in
-          s_ { curr_expr = CurrExpr er cexpr' }
--}
 
 tryCoinduction :: S.Solver s => Tactic s
 tryCoinduction solver ns lemmas _ (sh1, sh2) (s1, s2) = do
@@ -891,6 +903,7 @@ insertProvenLemma lem lems = lems { proven_lemmas = lem:proven_lemmas lems }
 insertDisprovenLemma :: DisprovenLemma -> Lemmas -> Lemmas
 insertDisprovenLemma lem lems = lems { disproven_lemmas = lem:disproven_lemmas lems }
 
+-- TODO I need to adjust the usage here
 moreRestrictiveLemma :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> [Lemma] -> W.WriterT [Marker] IO Bool 
 moreRestrictiveLemma solver ns (Lemma { lemma_lhs = l1_1, lemma_rhs = l1_2 }) lems = do
     mr <- moreRestrictivePair solver (\_ _ -> True) ns

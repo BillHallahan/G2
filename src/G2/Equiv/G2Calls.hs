@@ -288,7 +288,9 @@ totalExpr s@(State { expr_env = h, track = EquivTracker _ _ total _ _ _ }) ns n 
           , Just e' <- E.lookup m h -> totalExpr s ns (m:n) e'
           | (idName i) `elem` n -> False
           | HS.member (idName i) ns -> False
-          | otherwise -> error $ "unmapped variable " ++ show i ++ " " ++ (folder_name $ track s)
+          -- TODO make a version that can see the other expr env
+          | otherwise -> False
+          -- | otherwise -> error $ "unmapped variable " ++ show i ++ " " ++ (folder_name $ track s)
     App f a -> totalExpr s ns n f && totalExpr s ns n a
     Data _ -> True
     Prim p _ -> not (p == Error || p == Undefined)
