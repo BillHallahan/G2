@@ -832,9 +832,9 @@ coinductionFoldL :: S.Solver solver =>
                     (StateET, StateET) ->
                     W.WriterT [Marker] IO (Either [Lemma] (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
 coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) = do
-  --let prev = prevFull (sh1, sh2)
+  let prev = prevFull (sh1, sh2)
   -- TODO reworking parts to keep state pairs with each other
-  let prev = zip (history sh1) (history sh2)
+  --let prev = zip (history sh1) (history sh2)
   -- TODO this function not used outside coinduction
   res <- moreRestrictivePairWithLemmasOnFuncApps solver validCoinduction ns lemmas prev (s1', s2')
   case res of
