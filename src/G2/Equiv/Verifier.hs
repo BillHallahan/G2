@@ -155,7 +155,7 @@ transferTrackerInfo s1 s2 =
         higher_order = higher_order t1
       , total = total t1
       , finite = finite t1
-      , opp_env = expr_env s1
+      --, opp_env = expr_env s1
       }
   in s2 { track = t2' }
 

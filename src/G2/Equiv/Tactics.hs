@@ -708,9 +708,6 @@ moreRestrictiveSingle :: S.Solver solver =>
                          StateET ->
                          W.WriterT [Marker] IO (Either (Maybe Lemma) (HM.HashMap Id Expr))
 moreRestrictiveSingle solver ns s1 s2 = do
-    let fs10 = Name "fs?" Nothing 21293 Nothing
-    W.liftIO $ putStrLn $ show (folder_name $ track s1, folder_name $ track s2)
-    W.liftIO $ putStrLn $ show (lookupBoth fs10 (expr_env s1) (opp_env $ track s1))
     case restrictHelper s1 s2 ns $ Right (HM.empty, HS.empty) of
         (Left l) -> return $ Left l
         Right (hm, obs) -> do
