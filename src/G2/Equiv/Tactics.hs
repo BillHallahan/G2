@@ -47,6 +47,7 @@ import G2.Language
 import qualified Control.Monad.State.Lazy as CM
 
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.Expr as X
 import G2.Language.Monad.AST
 import qualified G2.Language.Typing as T
 
@@ -481,18 +482,25 @@ validHigherOrder :: StateET ->
                     HS.HashSet Name ->
                     Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
                     Bool
-validHigherOrder s1 s2 ns hm_hs | Right (hm, hs) <- hm_hs =
+validHigherOrder s1 s2 ns hm_hs | Right (hm, _) <- hm_hs =
   let -- empty these to avoid an infinite loop
       s1' = s1 { track = (track s1) { higher_order = HM.empty } }
       s2' = s2 { track = (track s2) { higher_order = HM.empty } }
       -- if the Id isn't present, the mapping isn't relevant
       hm_ids = map fst $ HM.toList hm
+      -- TODO these conditions need to be looser
+      -- check if the things in hm_ids have mappings, not just that they're the output of mappings
+      -- TODO this new version doesn't cover inlining; I think it's too loose
+      -- TODO better idea:  the new approximations can't add mappings
+      -- if they do need to add mappings, disregard them
       mappings1 = HM.toList $ higher_order $ track s1
       mappings1' = filter (\(_, i) -> i `elem` hm_ids) mappings1
       mappings2 = HM.toList $ higher_order $ track s2
       mappings2' = filter (\(_, i) -> i `elem` hm_ids) mappings2
-      old_pairs = filter (\(_, i) -> E.member (idName i) (expr_env s1)) mappings1'
-      new_pairs = filter (\(_, i) -> E.member (idName i) (expr_env s2)) mappings2'
+      -- TODO this can't be used now that we have a new env system
+      -- also, I think it's not necessary anymore anyway
+      old_pairs = filter (\(_, i) -> (E.member (idName i) (expr_env s1)) || (E.member (idName i) (opp_env $ track s1))) mappings1
+      new_pairs = filter (\(_, i) -> (E.member (idName i) (expr_env s2)) || (E.member (idName i) (opp_env $ track s2))) mappings2
       old_states = map (\(e, i) -> (s1' { curr_expr = CurrExpr Evaluate e },
                                     s1' { curr_expr = CurrExpr Evaluate (Var i) })) old_pairs
       new_states = map (\(e, i) -> (s2' { curr_expr = CurrExpr Evaluate e },
@@ -502,7 +510,9 @@ validHigherOrder s1 s2 ns hm_hs | Right (hm, hs) <- hm_hs =
       -- I can keep the other-side expr envs the same
       check ((p1, p2), (q1, q2)) =
         case restrictHelper p1 q1 ns hm_hs of
-          Right res -> restrictHelper p2 q2 ns (Right res)
+          Right (hm', hs') -> if HM.size hm' == HM.size hm
+                              then restrictHelper p2 q2 ns (Right (hm', hs'))
+                              else Right (hm', hs')
           _ -> hm_hs
   in all isRight $ map check zipped
   | otherwise = False
@@ -520,7 +530,7 @@ restrictHelper s1 s2 ns hm_hs =
   let res = restrictAux s1 s2 ns hm_hs
   in case res of
     Right (hm, hs) -> if (validTotal s1 s2 ns hm) &&
-                         (validHigherOrder s1 s2 ns res) &&
+                         --(validHigherOrder s1 s2 ns res) &&
                          (validTypes hm)
                       then Right (hm, hs)
                       else Left Nothing
@@ -698,7 +708,9 @@ moreRestrictiveSingle :: S.Solver solver =>
                          StateET ->
                          W.WriterT [Marker] IO (Either (Maybe Lemma) (HM.HashMap Id Expr))
 moreRestrictiveSingle solver ns s1 s2 = do
+    let fs10 = Name "fs?" Nothing 21293 Nothing
     W.liftIO $ putStrLn $ show (folder_name $ track s1, folder_name $ track s2)
+    W.liftIO $ putStrLn $ show (lookupBoth fs10 (expr_env s1) (opp_env $ track s1))
     case restrictHelper s1 s2 ns $ Right (HM.empty, HS.empty) of
         (Left l) -> return $ Left l
         Right (hm, obs) -> do
@@ -1148,10 +1160,14 @@ checkCycle solver ns _ _ (sh1, sh2) (s1, s2) = do
   -- TODO doing extra opp_env stuff here for the past doesn't help
   mr1 <- mapM (\(p1, hp2) -> moreRestrictiveSingle solver ns s1' (p1 { track = (track p1) { opp_env = hp2 } })) hist1'
   mr2 <- mapM (\(p2, hp1) -> moreRestrictiveSingle solver ns s2' (p2 { track = (track p2) { opp_env = hp1 } })) hist2'
-  let mr1_pairs = zip mr1 hist1
-      mr1_pair = find (isRight . fst) mr1_pairs
+  let vh s (Left _, _) = False
+      vh s (Right hm, p) = validHigherOrder s p ns $ Right (hm, HS.empty)
+      mr1_pairs = zip mr1 hist1
+      mr1_pairs' = filter (vh s1') mr1_pairs
+      mr1_pair = find (isRight . fst) mr1_pairs'
       mr2_pairs = zip mr2 hist2
-      mr2_pair = find (isRight . fst) mr2_pairs
+      mr2_pairs' = filter (vh s2') mr2_pairs
+      mr2_pair = find (isRight . fst) mr2_pairs'
   case (isSWHNF s1', mr2_pair) of
     (True, Just (Right hm, p2)) -> do
       W.tell [Marker (sh1, sh2) $ CycleFound $ CycleMarker (s1, s2) p2 hm IRight]
