@@ -179,7 +179,7 @@ moreRestrictivePC solver s1 s2 hm = do
     S.UNSAT () -> return True
     _ -> return False
 
--- TODO helper function to circumvent syncSymbolic
+-- helper function to circumvent syncSymbolic
 -- for symbolic things, lookup returns the variable
 lookupBoth :: Name -> ExprEnv -> ExprEnv -> Maybe Expr
 lookupBoth n h1 h2 = case E.lookupConcOrSym n h1 of
@@ -551,14 +551,6 @@ syncSymbolic s1 s2 =
   let et1 = (track s1) { opp_env = expr_env s2 }
       et2 = (track s2) { opp_env = expr_env s1 }
   in (s1 { track = et1 }, s2 { track = et2 })
-{-
-  let f (E.SymbObj _) e2 = e2
-      f e1 _ = e1
-      h1 = E.unionWith f (expr_env s1) (expr_env s2)
-      -- TODO I don't think we really need two separate unions
-      h2 = E.unionWith f (expr_env s2) (expr_env s1)
-  in (s1 { expr_env = h1 }, s2 { expr_env = h2 })
--}
 
 -- the left one takes precedence
 envMerge :: ExprEnv -> ExprEnv -> ExprEnv
@@ -742,9 +734,9 @@ moreRestrictiveEqual solver ns lemmas s1 s2 = do
   let h1 = expr_env s1
       h2 = expr_env s2
       -- TODO should this be syncSymbolic?
-      s1' = s1 { expr_env = E.union h1 h2 }
-      s2' = s2 { expr_env = E.union h2 h1 }
-      --(s1', s2') = syncSymbolic s1 s2
+      --s1' = s1 { expr_env = E.union h1 h2 }
+      --s2' = s2 { expr_env = E.union h2 h1 }
+      (s1', s2') = syncSymbolic s1 s2
   -- TODO only attempt if dc paths are the same
   --W.liftIO $ putStrLn $ "EQ? " ++ (folder_name $ track s1') ++ " " ++ (folder_name $ track s2')
   if dc_path (track s1') /= dc_path (track s2') then return Nothing

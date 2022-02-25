@@ -397,6 +397,6 @@ generalizeFull solver ns _ (fresh_name:_) sh_pair s_pair = do
   gfold <- generalizeFold solver ns fresh_name sh_pair s_pair
   case gfold of
     Nothing -> return $ NoProof []
-    Just (s1, s2, q1, q2) -> let lem = trace ("GEN " ++ (folder_name $ track q1) ++ " " ++ (folder_name $ track q2)) mkProposedLemma "Generalization" s1 s2 q1 q2
+    Just (s1, s2, q1, q2) -> let lem = mkProposedLemma "Generalization" s1 s2 q1 q2
                              in return $ NoProof $ [lem]
 generalizeFull _ _ _ _ _ _ = return $ NoProof []
