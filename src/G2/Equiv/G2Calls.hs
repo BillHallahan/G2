@@ -5,7 +5,9 @@
 module G2.Equiv.G2Calls ( StateET
                         , emptyEquivTracker
                         , runG2ForRewriteV
-                        , totalExpr ) where
+                        , totalExpr
+                        , lookupBoth
+                        , isSymbolicBoth ) where
 
 import G2.Config
 import G2.Execution
@@ -272,20 +274,21 @@ instance Reducer EquivReducer () EquivTracker where
 -- cyclic expressions do not count as total for now
 -- if a cycle never goes through a Data constructor, it's not total
 -- TODO reject Error and Undefined primitives
+-- TODO move lookup and symbolic helpers in here
 totalExpr :: StateET ->
              HS.HashSet Name ->
              [Name] -> -- variables inlined previously
              Expr ->
              Bool
-totalExpr s@(State { expr_env = h, track = EquivTracker _ _ total _ _ _ _ }) ns n e =
+totalExpr s@(State { expr_env = h, track = EquivTracker _ _ total _ _ h' _ }) ns n e =
   case e of
     Tick _ e' -> totalExpr s ns n e'
     Var i | m <- idName i
-          , E.isSymbolic m h -> m `elem` total
+          , isSymbolicBoth m h h' -> m `elem` total
           | m <- idName i
           , not $ HS.member m ns
           , not $ m `elem` n
-          , Just e' <- E.lookup m h -> totalExpr s ns (m:n) e'
+          , Just e' <- lookupBoth m h h' -> totalExpr s ns (m:n) e'
           | (idName i) `elem` n -> False
           | HS.member (idName i) ns -> False
           -- TODO make a version that can see the other expr env
@@ -300,6 +303,27 @@ totalExpr s@(State { expr_env = h, track = EquivTracker _ _ total _ _ _ _ }) ns 
     Let _ _ -> False
     Case _ _ _ -> False
     _ -> False
+
+-- helper function to circumvent syncSymbolic
+-- for symbolic things, lookup returns the variable
+lookupBoth :: Name -> ExprEnv -> ExprEnv -> Maybe Expr
+lookupBoth n h1 h2 = case E.lookupConcOrSym n h1 of
+  Just (E.Conc e) -> Just e
+  Just (E.Sym i) -> case E.lookup n h2 of
+                      Nothing -> Just $ Var i
+                      m -> m
+  Nothing -> E.lookup n h2
+
+-- doesn't count as symbolic if it's unmapped
+-- condition we need:  n is symbolic in every env where it's mapped
+isSymbolicBoth :: Name -> ExprEnv -> ExprEnv -> Bool
+isSymbolicBoth n h1 h2 =
+  case E.lookupConcOrSym n h1 of
+    Just (E.Sym _) -> case E.lookupConcOrSym n h2 of
+                        Just (E.Conc _) -> False
+                        _ -> True
+    Just (E.Conc _) -> False
+    Nothing -> E.isSymbolic n h2
 
 -- doesn't need tick removal
 exprVarName :: Expr -> Maybe Name

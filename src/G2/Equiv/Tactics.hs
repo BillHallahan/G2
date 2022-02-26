@@ -47,7 +47,6 @@ import G2.Language
 import qualified Control.Monad.State.Lazy as CM
 
 import qualified G2.Language.ExprEnv as E
-import qualified G2.Language.Expr as X
 import G2.Language.Monad.AST
 import qualified G2.Language.Typing as T
 
@@ -178,27 +177,6 @@ moreRestrictivePC solver s1 s2 hm = do
   case res of
     S.UNSAT () -> return True
     _ -> return False
-
--- helper function to circumvent syncSymbolic
--- for symbolic things, lookup returns the variable
-lookupBoth :: Name -> ExprEnv -> ExprEnv -> Maybe Expr
-lookupBoth n h1 h2 = case E.lookupConcOrSym n h1 of
-  Just (E.Conc e) -> Just e
-  Just (E.Sym i) -> case E.lookup n h2 of
-                      Nothing -> Just $ Var i
-                      m -> m
-  Nothing -> E.lookup n h2
-
--- TODO doesn't count as symbolic if it's unmapped
--- condition we need:  n is symbolic in every env where it's mapped
-isSymbolicBoth :: Name -> ExprEnv -> ExprEnv -> Bool
-isSymbolicBoth n h1 h2 =
-  case E.lookupConcOrSym n h1 of
-    Just (E.Sym _) -> case E.lookupConcOrSym n h2 of
-                        Just (E.Conc _) -> False
-                        _ -> True
-    Just (E.Conc _) -> False
-    Nothing -> E.isSymbolic n h2
 
 -- s1 is the old state, s2 is the new state
 -- If any recursively-defined functions or other expressions manage to slip
