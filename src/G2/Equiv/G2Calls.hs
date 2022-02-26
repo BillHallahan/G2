@@ -274,7 +274,6 @@ instance Reducer EquivReducer () EquivTracker where
 -- cyclic expressions do not count as total for now
 -- if a cycle never goes through a Data constructor, it's not total
 -- TODO reject Error and Undefined primitives
--- TODO move lookup and symbolic helpers in here
 totalExpr :: StateET ->
              HS.HashSet Name ->
              [Name] -> -- variables inlined previously
@@ -291,9 +290,7 @@ totalExpr s@(State { expr_env = h, track = EquivTracker _ _ total _ _ h' _ }) ns
           , Just e' <- lookupBoth m h h' -> totalExpr s ns (m:n) e'
           | (idName i) `elem` n -> False
           | HS.member (idName i) ns -> False
-          -- TODO make a version that can see the other expr env
-          | otherwise -> False
-          -- | otherwise -> error $ "unmapped variable " ++ show i ++ " " ++ (folder_name $ track s)
+          | otherwise -> error $ "unmapped variable " ++ show i ++ " " ++ (folder_name $ track s)
     App f a -> totalExpr s ns n f && totalExpr s ns n a
     Data _ -> True
     Prim p _ -> not (p == Error || p == Undefined)
