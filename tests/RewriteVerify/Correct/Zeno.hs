@@ -1062,8 +1062,15 @@ plus a b = a + b
 badPlus :: Nat -> Nat -> Nat
 badPlus a b = S (a + b)
 
+xx :: Bool
+xx = xx
+
+yy :: Bool
+yy = yy
+
 {-# RULES
 "fg" f = g
 "fgBad" f = g . g
 "badPlus" plus = badPlus
+"contrived" xx = yy
   #-}
