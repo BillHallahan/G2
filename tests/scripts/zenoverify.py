@@ -12,38 +12,22 @@ def run_zeno(filename, thm, var_settings, timeout):
     end_time = time.monotonic();
     elapsed = end_time - start_time;
 
-    lines = res.splitlines()
+    # there's always an extra empty string at the end for now
+    lines = res.split("\n")
     depth1 = 0
     depth2 = 0
     cx_text = []
-    try:
-        # the numbers 4 and 5 are dependent on the initial printing
-        # if that printing changes, these need to change too
-        left_str = lines[4].decode('utf-8');
-        right_str = lines[5].decode('utf-8');
-        check_unsat = lines[-1].decode('utf-8');
-        depth1 = check_depth("Max", lines)
-        depth2 = check_depth("Sum", lines)
-        cx_idx = check_cx(lines)
-        if cx_idx < 0:
-            cx_text = lines[cx_idx:]
-            for i in range(len(cx_text)):
-                cx_text[i] = cx_text[i].decode('utf-8')
-        print(check_unsat);
-    except IndexError:
-        left_str = lines[4].decode('utf-8');
-        right_str = lines[5].decode('utf-8');
-        if res == "Timeout":
-            check_unsat = "Timeout";
-            depth1 = check_depth("Max", lines)
-            depth2 = check_depth("Sum", lines)
-            cx_idx = check_cx(lines)
-            if cx_idx < 0:
-                cx_text = lines[cx_idx:]
-                for i in range(len(cx_text)):
-                    cx_text[i] = cx_text[i].decode('utf-8')
-        else:
-            check_unsat = "";
+    # the numbers 4 and 5 are dependent on the initial printing
+    # if that printing changes, these need to change too
+    left_str = lines[4]
+    right_str = lines[5]
+    check_unsat = lines[-2]
+    depth1 = check_depth("Max", lines)
+    depth2 = check_depth("Sum", lines)
+    cx_idx = check_cx(lines)
+    if cx_idx < 0:
+        cx_text = lines[cx_idx:]
+    print(check_unsat);
     return {
         "left":left_str,
         "right":right_str,
@@ -54,21 +38,20 @@ def run_zeno(filename, thm, var_settings, timeout):
         "cx":cx_text
     }
 
-def call_zeno_process(filename, thm, var_settings, time):
+def call_zeno_process(filename, thm, var_settings, time_limit):
     try:
         args = ["dist/build/RewriteV/RewriteV", "tests/RewriteVerify/Correct/" + filename, thm]
-        #limit_settings = ["--", "--limit", "15"]
-        limit_settings = []
-        res = subprocess.run(args + var_settings + limit_settings, capture_output = True, timeout = time);
-        return res.stdout;
+        res = subprocess.run(args + var_settings, universal_newlines=True, capture_output=True, timeout=time_limit);
+        return res.stdout
     except subprocess.TimeoutExpired as TimeoutEx:
-        return (TimeoutEx.stdout.decode('utf-8') + "\nTimeout").encode('utf-8')
+        # extra line break at end to match the one from normal termination
+        return TimeoutEx.stdout.decode('utf-8') + "\nTimeout\n"
 
 # ver should be either "Max" or "Sum"
 def check_depth(ver, lines):
     depths = [0]
     for utf in lines:
-        line = utf.decode('utf-8')
+        line = utf
         if line[:17] == ("<<Min " + ver + " Depth>>"):
             depth_str = line[18:]
             depths.append(int(depth_str))
@@ -76,7 +59,7 @@ def check_depth(ver, lines):
 
 def check_cx(lines):
     for i in range(1, 1 + len(lines)):
-        line = lines[-i].decode('utf-8')
+        line = lines[-i]
         if "COUNTEREXAMPLE FOUND" in line:
             return -i
     return 0
@@ -974,8 +957,8 @@ def main():
     
     # TODO this is the real test suite
     # feel free to reduce the time from 180, but keep at least 150
-    t = 50
-    test_suite_csv(None, old_successes, t)
+    t = 30
+    test_suite_csv(None, ground_truth, t)
     #test_suite_csv("ZenoTrue", ground_truth, t)
     # test_suite_csv("ZenoAlteredTotal", totality_change(ground_truth), t)
     # TODO this is improper usage

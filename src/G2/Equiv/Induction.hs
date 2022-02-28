@@ -333,13 +333,15 @@ generalize solver ns fresh_name (s1, s2) | dc_path (track s1) == dc_path (track 
       scr_states2 = map (\e -> s2 { curr_expr = CurrExpr Evaluate e }) scr2
   res <- mapM (generalizeAux solver ns scr_states1) scr_states2
   -- TODO also may want to adjust the equivalence tracker
+  -- TODO sync here to get fresh id in opposite envs?
+  -- doesn't fix the issue with p27finA, but still worthwhile, possibly
   let res' = filter isJust res
   case res' of
     (Just pm):_ -> let (s1', s2') = present pm
                        e1' = exprExtract s1'
                        s1'' = adjustStateForGeneralization e1 fresh_name s1'
                        s2'' = adjustStateForGeneralization e2 fresh_name s2'
-                   in return $ Just (s1'', s2'')
+                   in return $ Just $ syncSymbolic s1'' s2''
     _ -> return Nothing
   | otherwise = return Nothing
 
@@ -394,6 +396,7 @@ generalizeFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
 -- TODO this uses the same fresh name that induction uses currently
 generalizeFull :: S.Solver s => Tactic s
 generalizeFull solver ns _ (fresh_name:_) sh_pair s_pair = do
+  --W.liftIO $ putStrLn "Generalize"
   gfold <- generalizeFold solver ns fresh_name sh_pair s_pair
   case gfold of
     Nothing -> return $ NoProof []

@@ -687,9 +687,8 @@ moreRestrictiveEqual :: S.Solver solver =>
                         StateET ->
                         W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
 moreRestrictiveEqual solver ns lemmas s1 s2 = do
-  let h1 = expr_env s1
-      h2 = expr_env s2
-      (s1', s2') = syncSymbolic s1 s2
+  --W.liftIO $ putStrLn $ "EE" ++ (folder_name $ track s1) ++ (folder_name $ track s2)
+  let (s1', s2') = syncSymbolic s1 s2
   if dc_path (track s1') /= dc_path (track s2') then return Nothing
   else do
     -- no need to enforce dc path condition for this function
@@ -745,7 +744,9 @@ equalFold solver ns lemmas (sh1, sh2) (s1, s2) = do
 
 tryEquality :: S.Solver s => Tactic s
 tryEquality solver ns lemmas _ sh_pair (s1, s2) = do
+  --W.liftIO $ putStrLn $ "Equality" ++ (folder_name $ track s1) ++ (folder_name $ track s2)
   res <- equalFold solver ns lemmas sh_pair (s1, s2)
+  --W.liftIO $ putStrLn "Done Equality"
   case res of
     Just (pm, sd) -> do
       let (q1, q2) = case sd of
@@ -792,6 +793,7 @@ coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) = do
 
 tryCoinduction :: S.Solver s => Tactic s
 tryCoinduction solver ns lemmas _ (sh1, sh2) (s1, s2) = do
+  --W.liftIO $ putStrLn $ "Coinduction" ++ (folder_name $ track s1) ++ (folder_name $ track s2)
   res_l <- coinductionFoldL solver ns lemmas [] (sh1, sh2) (s1, s2)
   case res_l of
     Right (lem_l, lem_r, pm) -> do
@@ -1067,6 +1069,7 @@ mkProposedLemma lm_name or_s1 or_s2 s1 s2 =
 -- that doesn't matter for checking latest states
 checkCycle :: S.Solver s => Tactic s
 checkCycle solver ns _ _ (sh1, sh2) (s1, s2) = do
+  --W.liftIO $ putStrLn $ "Cycle?" ++ (folder_name $ track s1) ++ (folder_name $ track s2)
   let (s1', s2') = syncSymbolic s1 s2
       hist1 = filter (\p -> dc_path (track p) == dc_path (track s1')) $ history sh1
       hist2 = filter (\p -> dc_path (track p) == dc_path (track s2')) $ history sh2
