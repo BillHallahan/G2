@@ -17,35 +17,17 @@ def run_zeno(filename, thm, var_settings, timeout):
     depth1 = 0
     depth2 = 0
     cx_text = []
-    try:
-        # the numbers 4 and 5 are dependent on the initial printing
-        # if that printing changes, these need to change too
-        left_str = lines[4]#.decode('utf-8');
-        right_str = lines[5]#.decode('utf-8');
-        check_unsat = lines[-2]#.decode('utf-8');
-        depth1 = check_depth("Max", lines)
-        depth2 = check_depth("Sum", lines)
-        cx_idx = check_cx(lines)
-        if cx_idx < 0:
-            cx_text = lines[cx_idx:]
-            #for i in range(len(cx_text)):
-            #    cx_text[i] = cx_text[i]#.decode('utf-8')
-        print(check_unsat);
-    except IndexError:
-        # TODO I think I don't actually need this except
-        left_str = lines[4]#.decode('utf-8');
-        right_str = lines[5]#.decode('utf-8');
-        if res == "Timeout":
-            check_unsat = "Timeout";
-            depth1 = check_depth("Max", lines)
-            depth2 = check_depth("Sum", lines)
-            cx_idx = check_cx(lines)
-            if cx_idx < 0:
-                cx_text = lines[cx_idx:]
-                #for i in range(len(cx_text)):
-                #    cx_text[i] = cx_text[i].decode('utf-8')
-        else:
-            check_unsat = "";
+    # the numbers 4 and 5 are dependent on the initial printing
+    # if that printing changes, these need to change too
+    left_str = lines[4]
+    right_str = lines[5]
+    check_unsat = lines[-2]
+    depth1 = check_depth("Max", lines)
+    depth2 = check_depth("Sum", lines)
+    cx_idx = check_cx(lines)
+    if cx_idx < 0:
+        cx_text = lines[cx_idx:]
+    print(check_unsat);
     return {
         "left":left_str,
         "right":right_str,
@@ -59,56 +41,17 @@ def run_zeno(filename, thm, var_settings, timeout):
 def call_zeno_process(filename, thm, var_settings, time_limit):
     try:
         args = ["dist/build/RewriteV/RewriteV", "tests/RewriteVerify/Correct/" + filename, thm]
-        #limit_settings = ["--", "--limit", "15"]
-        limit_settings = []
-        res = subprocess.run(args + var_settings + limit_settings, universal_newlines=True, capture_output=True, timeout=time_limit);
-        #res = subprocess.run(args + var_settings, bufsize=1, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True, timeout=time_limit);
-        # TODO I can't have a timeout with this version
-        # TODO no real concurrency is happening here
-        #res = subprocess.Popen(args + var_settings, bufsize=1, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
-        # TODO check_output is no better than run
-        #res = subprocess.check_output(args + var_settings, stderr=None, timeout=time_limit)
-        #res = res.decode('utf-8').split("\n")
-        #print(res.stdout)
+        res = subprocess.run(args + var_settings, universal_newlines=True, capture_output=True, timeout=time_limit);
         return res.stdout
-        '''
-        # TODO can get a work-around from stderr
-        while res.poll() is None and time.monotonic() < end_time:
-            # this includes a line break at the end
-            # TODO this stalls until a line is readily available
-            # that means it's no good for something that needs an external time limit
-            line = res.stdout.readline()
-            print("Line?", time.monotonic() - start_time)
-            if line:
-                # chop the line breaks off the end
-                res_lines.append(line[:-1])
-                print(line, end="")
-                print(time.monotonic() - start_time)
-        # TODO get any lingering lines?
-        print("Ran out of time or received result")
-        line = res.stdout.readline()
-        while line:
-            print("R", end = "")
-            res_lines.append(line[:-1])
-            line = res.stdout.readline()
-        print("Done copying lines")
-        if res.poll() is None:
-            # TODO terminate or kill?
-            res.terminate()
-        return (res_lines, time.monotonic() - start_time)
-        '''
     except subprocess.TimeoutExpired as TimeoutEx:
-        # TODO this shouldn't be needed anymore
-        #print("TX")
-        #print(TimeoutEx.stdout.decode('utf-8'))
+        # extra line break at end to match the one from normal termination
         return TimeoutEx.stdout.decode('utf-8') + "\nTimeout\n"
-        #return (TimeoutEx.stdout.decode('utf-8') + "\nTimeout").encode('utf-8')
 
 # ver should be either "Max" or "Sum"
 def check_depth(ver, lines):
     depths = [0]
     for utf in lines:
-        line = utf#.decode('utf-8')
+        line = utf
         if line[:17] == ("<<Min " + ver + " Depth>>"):
             depth_str = line[18:]
             depths.append(int(depth_str))
@@ -116,7 +59,7 @@ def check_depth(ver, lines):
 
 def check_cx(lines):
     for i in range(1, 1 + len(lines)):
-        line = lines[-i]#.decode('utf-8')
+        line = lines[-i]
         if "COUNTEREXAMPLE FOUND" in line:
             return -i
     return 0
@@ -1014,7 +957,7 @@ def main():
     
     # TODO this is the real test suite
     # feel free to reduce the time from 180, but keep at least 150
-    t = 15
+    t = 30
     test_suite_csv(None, ground_truth, t)
     #test_suite_csv("ZenoTrue", ground_truth, t)
     # test_suite_csv("ZenoAlteredTotal", totality_change(ground_truth), t)

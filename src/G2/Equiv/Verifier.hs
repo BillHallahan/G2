@@ -342,7 +342,7 @@ verifyLoop :: S.Solver solver =>
               W.WriterT [Marker] IO (S.Result () ())
 verifyLoop solver ns lemmas states b config sym_ids folder_root k n | (n /= 0) || (null states) = do
   W.liftIO $ putStrLn "<Loop Iteration>"
-  W.liftIO $ putStrLn $ trace (show n) (show n)
+  W.liftIO $ putStrLn $ show n
   --let min_depth = minDepth ns sym_ids states
   --W.liftIO $ putStrLn $ "<<Current Min Depth>> " ++ show min_depth
   -- TODO use these instead in the Python script
