@@ -56,6 +56,8 @@ import G2.Lib.Printers
 
 import qualified Control.Monad.Writer.Lazy as W
 
+import System.IO
+
 -- 9/27 notes
 -- TODO have a list of every single state, not just the stopping ones
 -- The value of discharge should be the previously-encountered state pair that
@@ -352,6 +354,7 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k n | (n /= 0) |
     _ -> do
       W.liftIO $ putStrLn $ "<<Min Max Depth>> " ++ show min_max_depth
       W.liftIO $ putStrLn $ "<<Min Sum Depth>> " ++ show min_sum_depth
+  W.liftIO $ hFlush stdout
   -- TODO alternating iterations for this too?
   -- Didn't test on much, but no apparent benefit
   (b', k', proven_lemmas, lemmas') <- verifyLoopPropLemmas solver allTactics ns lemmas b config folder_root k
