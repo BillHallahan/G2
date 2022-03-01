@@ -314,7 +314,6 @@ allTactics :: S.Solver s => [Tactic s]
 allTactics = [
     tryEquality
   , tryCoinduction
-  --, tryGuarded
   , generalizeFull
   --, inductionFull
   , trySolver
