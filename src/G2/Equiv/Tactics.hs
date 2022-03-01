@@ -236,7 +236,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                -- this last case means there's a mismatch
                | isSymbolicBoth (idName i) h1 h1' -> Left Nothing
                | not $ (idName i, e2) `elem` n1
-               , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
+               , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i) ++ " " ++ (folder_name $ track s1) ++ " " ++ (folder_name $ track s2)
     (_, Var i) | isSymbolicBoth (idName i) h2 h2' -> Left Nothing -- sym replaces non-sym
                | not $ (idName i, e1) `elem` n2
                , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
@@ -903,30 +903,71 @@ replaceMoreRestrictiveSubExpr :: S.Solver solver =>
                                  StateET ->
                                  W.WriterT [Marker] IO (Maybe (Lemma, StateET))
 replaceMoreRestrictiveSubExpr solver ns lemma s@(State { curr_expr = CurrExpr er _ }) = do
-    (e, replaced) <- CM.runStateT (replaceMoreRestrictiveSubExpr' solver ns lemma s $ exprExtract s) False
-    return $ if replaced then Just (lemma, s { curr_expr = CurrExpr er e }) else Nothing
+    (e, replaced) <- CM.runStateT (replaceMoreRestrictiveSubExpr' solver ns lemma s $ exprExtract s) Nothing
+    case replaced of
+      Nothing -> return Nothing
+      Just new_vars -> let new_ids = map fst new_vars
+                           h = foldr E.insertSymbolic (expr_env s) new_ids
+                           new_total = map (idName . fst) $ filter snd new_vars
+                           total' = foldr HS.insert (total $ track s) new_total
+                           track' = (track s) {
+                             total = total'
+                           , folder_name = (folder_name $ track s) ++ "_" ++ (folder_name $ track $ lemma_lhs lemma) ++ "_" ++ (folder_name $ track $ lemma_rhs lemma)
+                           }
+                           s' = s {
+                             curr_expr = CurrExpr er e
+                           , expr_env = h
+                           , track = track'
+                           }
+                       in return $ Just (lemma, s')
 
+{-
+If a symbolic variable is on the RHS of a lemma but not the LHS, add it to the
+expression environment of the state receiving the substitution.
+No need to carry over concretized ones because of inlineFull.
+Get all of the symbolic IDs that are not in v_rep from the lemma RHS.
+Keep track of totality info (and finiteness) for variables that get migrated.
+No need to come up with fresh names?
+If the variable is concrete in one location but symbolic in another, making the
+substitution from the symbolic place to the concrete place is still valid.
+If it's unmapped, put it in as symbolic.
+If it's concrete or symbolic, just leave it as it is.
+TODO this does not cover finiteness info
+-}
 replaceMoreRestrictiveSubExpr' :: S.Solver solver =>
                                   solver ->
                                   HS.HashSet Name ->
                                   Lemma ->
                                   StateET ->
                                   Expr ->
-                                  CM.StateT Bool (W.WriterT [Marker] IO) Expr
+                                  CM.StateT (Maybe [(Id, Bool)]) (W.WriterT [Marker] IO) Expr
 replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma_rhs = rhs_s })
                                          s2@(State { curr_expr = CurrExpr er _ }) e = do
     replaced <- CM.get
-    if not replaced then do
+    if isNothing replaced then do
+        --W.liftIO $ print $ "Trying Lemma " ++ (folder_name $ track lhs_s) ++ (folder_name $ track rhs_s)
+        --W.liftIO $ print $ lookupBoth (Name "fs?" Nothing 21568 Nothing) (expr_env lhs_s) (opp_env $ track lhs_s)
+        --W.liftIO $ print $ lookupBoth (Name "fs?" Nothing 21568 Nothing) (expr_env rhs_s) (opp_env $ track rhs_s)
         mr_sub <- CM.lift $ moreRestrictiveSingle solver ns lhs_s (s2 { curr_expr = CurrExpr Evaluate e })
+        --W.liftIO $ print $ "Tried Lemma " ++ (folder_name $ track lhs_s) ++ (folder_name $ track rhs_s)
         case mr_sub of
             Right hm -> do
                 let v_rep = HM.toList hm
-
+                    -- TODO do I need both sides?
+                    ids_l = E.symbolicIds $ opp_env $ track rhs_s
+                    ids_r = E.symbolicIds $ expr_env rhs_s
+                    ids = nub (ids_l ++ ids_r)
+                    new_ids = filter (\(Id n _) -> not (E.member n (expr_env s2) || E.member n (opp_env $ track s2))) ids
+                    new_info = map (\(Id n _) -> n `elem` (total $ track rhs_s)) new_ids
                     -- TODO make sure this modification is correct
-                    rhs_e' = replaceVars (inlineFull (HS.toList ns) (expr_env rhs_s) (expr_env lhs_s) $ exprExtract rhs_s) v_rep
-
-                CM.put True
-                return rhs_e'                 
+                    -- should it be opp_env instead of the LHS?
+                    rhs_e' = replaceVars (inlineFull (HS.toList ns) (expr_env rhs_s) (opp_env $ track rhs_s) $ exprExtract rhs_s) v_rep
+                --W.liftIO $ putStr "VREP "
+                --W.liftIO $ print v_rep
+                --W.liftIO $ print $ inlineFull (HS.toList ns) (expr_env lhs_s) (opp_env $ track lhs_s) (exprExtract lhs_s)
+                --W.liftIO $ print $ inlineFull (HS.toList ns) (expr_env rhs_s) (opp_env $ track rhs_s) (exprExtract rhs_s)
+                CM.put $ Just $ zip new_ids new_info
+                return rhs_e'
             Left _ -> do
                 let ns' = foldr HS.insert ns (bind e)
                 modifyChildrenM (replaceMoreRestrictiveSubExpr' solver ns' lemma s2) e
@@ -996,6 +1037,16 @@ moreRestrictivePairWithLemmas' app_state solver valid ns lemmas past (s1, s2) = 
         pairs = [ (pair1, pair2) | pair1 <- xs1', pair2 <- xs2' ]
 
     rp <- mapM (\((l1, s1_), (l2, s2_)) -> do
+            {-
+            W.liftIO $ putStr "L1 "
+            W.liftIO $ print $ fmap (folder_name . track . lemma_lhs) l1
+            W.liftIO $ putStr "R1 "
+            W.liftIO $ print $ fmap (folder_name . track . lemma_rhs) l1
+            W.liftIO $ putStr "L2 "
+            W.liftIO $ print $ fmap (folder_name . track . lemma_lhs) l2
+            W.liftIO $ putStr "R2 "
+            W.liftIO $ print $ fmap (folder_name . track . lemma_rhs) l2
+            -}
             mrp <- moreRestrictivePair solver valid ns past (s1_, s2_)
             -- TODO use synced or non-synced?
             let l1' = case l1 of
