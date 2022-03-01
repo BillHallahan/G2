@@ -396,7 +396,6 @@ generalizeFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
 -- TODO this uses the same fresh name that induction uses currently
 generalizeFull :: S.Solver s => Tactic s
 generalizeFull solver ns _ (fresh_name:_) sh_pair s_pair = do
-  --W.liftIO $ putStrLn "Generalize"
   gfold <- generalizeFold solver ns fresh_name sh_pair s_pair
   case gfold of
     Nothing -> return $ NoProof []

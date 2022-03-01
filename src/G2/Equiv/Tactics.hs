@@ -687,7 +687,6 @@ moreRestrictiveEqual :: S.Solver solver =>
                         StateET ->
                         W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
 moreRestrictiveEqual solver ns lemmas s1 s2 = do
-  --W.liftIO $ putStrLn $ "EE" ++ (folder_name $ track s1) ++ (folder_name $ track s2)
   let (s1', s2') = syncSymbolic s1 s2
   if dc_path (track s1') /= dc_path (track s2') then return Nothing
   else do
@@ -744,9 +743,7 @@ equalFold solver ns lemmas (sh1, sh2) (s1, s2) = do
 
 tryEquality :: S.Solver s => Tactic s
 tryEquality solver ns lemmas _ sh_pair (s1, s2) = do
-  --W.liftIO $ putStrLn $ "Equality" ++ (folder_name $ track s1) ++ (folder_name $ track s2)
   res <- equalFold solver ns lemmas sh_pair (s1, s2)
-  --W.liftIO $ putStrLn "Done Equality"
   case res of
     Just (pm, sd) -> do
       let (q1, q2) = case sd of
@@ -793,7 +790,6 @@ coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) = do
 
 tryCoinduction :: S.Solver s => Tactic s
 tryCoinduction solver ns lemmas _ (sh1, sh2) (s1, s2) = do
-  --W.liftIO $ putStrLn $ "Coinduction" ++ (folder_name $ track s1) ++ (folder_name $ track s2)
   res_l <- coinductionFoldL solver ns lemmas [] (sh1, sh2) (s1, s2)
   case res_l of
     Right (lem_l, lem_r, pm) -> do
@@ -903,30 +899,59 @@ replaceMoreRestrictiveSubExpr :: S.Solver solver =>
                                  StateET ->
                                  W.WriterT [Marker] IO (Maybe (Lemma, StateET))
 replaceMoreRestrictiveSubExpr solver ns lemma s@(State { curr_expr = CurrExpr er _ }) = do
-    (e, replaced) <- CM.runStateT (replaceMoreRestrictiveSubExpr' solver ns lemma s $ exprExtract s) False
-    return $ if replaced then Just (lemma, s { curr_expr = CurrExpr er e }) else Nothing
+    (e, replaced) <- CM.runStateT (replaceMoreRestrictiveSubExpr' solver ns lemma s $ exprExtract s) Nothing
+    case replaced of
+      Nothing -> return Nothing
+      Just new_vars -> let new_ids = map fst new_vars
+                           h = foldr E.insertSymbolic (expr_env s) new_ids
+                           new_total = map (idName . fst) $ filter snd new_vars
+                           total' = foldr HS.insert (total $ track s) new_total
+                           track' = (track s) { total = total' }
+                           s' = s {
+                             curr_expr = CurrExpr er e
+                           , expr_env = h
+                           , track = track'
+                           }
+                       in return $ Just (lemma, s')
 
+{-
+If a symbolic variable is on the RHS of a lemma but not the LHS, add it to the
+expression environment of the state receiving the substitution.
+No need to carry over concretized ones because of inlineFull.
+Get all of the symbolic IDs that are not in v_rep from the lemma RHS.
+Keep track of totality info for variables that get migrated.
+If the variable is concrete in one location but symbolic in another, making the
+substitution from the symbolic place to the concrete place is still valid.
+If it's unmapped, put it in as symbolic.
+If it's concrete or symbolic, just leave it as it is.
+This implementation does not cover finiteness information.
+-}
 replaceMoreRestrictiveSubExpr' :: S.Solver solver =>
                                   solver ->
                                   HS.HashSet Name ->
                                   Lemma ->
                                   StateET ->
                                   Expr ->
-                                  CM.StateT Bool (W.WriterT [Marker] IO) Expr
+                                  CM.StateT (Maybe [(Id, Bool)]) (W.WriterT [Marker] IO) Expr
 replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma_rhs = rhs_s })
                                          s2@(State { curr_expr = CurrExpr er _ }) e = do
     replaced <- CM.get
-    if not replaced then do
+    if isNothing replaced then do
         mr_sub <- CM.lift $ moreRestrictiveSingle solver ns lhs_s (s2 { curr_expr = CurrExpr Evaluate e })
         case mr_sub of
             Right hm -> do
                 let v_rep = HM.toList hm
-
+                    -- TODO do I need both sides?
+                    ids_l = E.symbolicIds $ opp_env $ track rhs_s
+                    ids_r = E.symbolicIds $ expr_env rhs_s
+                    ids = nub (ids_l ++ ids_r)
+                    new_ids = filter (\(Id n _) -> not (E.member n (expr_env s2) || E.member n (opp_env $ track s2))) ids
+                    new_info = map (\(Id n _) -> n `elem` (total $ track rhs_s)) new_ids
                     -- TODO make sure this modification is correct
-                    rhs_e' = replaceVars (inlineFull (HS.toList ns) (expr_env rhs_s) (expr_env lhs_s) $ exprExtract rhs_s) v_rep
-
-                CM.put True
-                return rhs_e'                 
+                    -- should it be opp_env instead of the LHS?
+                    rhs_e' = replaceVars (inlineFull (HS.toList ns) (expr_env rhs_s) (opp_env $ track rhs_s) $ exprExtract rhs_s) v_rep
+                CM.put $ Just $ zip new_ids new_info
+                return rhs_e'
             Left _ -> do
                 let ns' = foldr HS.insert ns (bind e)
                 modifyChildrenM (replaceMoreRestrictiveSubExpr' solver ns' lemma s2) e
