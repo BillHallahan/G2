@@ -919,13 +919,12 @@ If a symbolic variable is on the RHS of a lemma but not the LHS, add it to the
 expression environment of the state receiving the substitution.
 No need to carry over concretized ones because of inlineFull.
 Get all of the symbolic IDs that are not in v_rep from the lemma RHS.
-Keep track of totality info (and finiteness) for variables that get migrated.
-No need to come up with fresh names?
+Keep track of totality info for variables that get migrated.
 If the variable is concrete in one location but symbolic in another, making the
 substitution from the symbolic place to the concrete place is still valid.
 If it's unmapped, put it in as symbolic.
 If it's concrete or symbolic, just leave it as it is.
-TODO this does not cover finiteness info
+This implementation does not cover finiteness information.
 -}
 replaceMoreRestrictiveSubExpr' :: S.Solver solver =>
                                   solver ->
