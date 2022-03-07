@@ -240,46 +240,53 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
     (_, Var i) | isSymbolicBoth (idName i) h2 h2' -> Left Nothing -- sym replaces non-sym
                | not $ (idName i, e1) `elem` n2
                , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
+    -- TODO cover Case statements here too?
+    -- TODO this version is wrong; what do I compare for cases?
     (App f1 a1, App f2 a2) | Right hm_fa <- moreResFA -> Right hm_fa
                            | Left (Just _) <- moreResFA -> moreResFA
-                           | not (hasFuncType e1)
-                           , not (hasFuncType e2)
-                           , not active
-                           , Var (Id m1 _):_ <- unApp (modifyASTs stripTicks e1)
-                           , Var (Id m2 _):_ <- unApp (modifyASTs stripTicks e2)
-                           , nameOcc m1 == nameOcc m2 ->
-                                let
-                                    v_rep = HM.toList $ fst hm
-                                    e1' = replaceVars e1 v_rep
-                                    -- TODO consolidate into one map
-                                    -- cs doesn't get unmapped things from the other side
-                                    cs (E.Conc e_) = E.Conc e_
-                                    cs (E.Sym i_) = case E.lookupConcOrSym (idName i_) h2' of
-                                      Nothing -> E.Sym i_
-                                      Just c -> c
-                                    --h2_ = E.mapConcOrSym cs h2
-                                    -- TODO changing this from h2 didn't help
-                                    h2_ = envMerge (E.mapConcOrSym cs h2) h2'
-                                    h2_' = E.mapConc (flip replaceVars v_rep) h2_ -- foldr (\(Id n _, e) -> E.insert n e) h2 (HM.toList $ fst hm)
-                                    et' = (track s2) { opp_env = E.empty }
-                                    ls1 = s2 { expr_env = h2_', curr_expr = CurrExpr Evaluate e1', track = et' }
-                                    ls2 = s2 { expr_env = h2_, curr_expr = CurrExpr Evaluate e2, track = et' }
+      where
+        moreResFA = do
+            hm_f <- moreRestrictive s1 s2 ns hm active n1 n2 f1 f2
+            moreRestrictive s1 s2 ns hm_f False n1 n2 a1 a2
+    -- TODO adjust ordering?
+    _ | not (hasFuncType e1)
+      , not (hasFuncType e2)
+      , not active
+      , matchingAppsOrCases e1 e2 ->
+      --, Just e1_ <- appOrCase e1
+      --, Just e2_ <- appOrCase e2
+      --, e1_ == e2_ ->
+      --, Var (Id m1 _):_ <- unApp (modifyASTs stripTicks e1)
+      --, Var (Id m2 _):_ <- unApp (modifyASTs stripTicks e2)
+      --, nameOcc m1 == nameOcc m2 ->
+        let
+            v_rep = HM.toList $ fst hm
+            e1' = replaceVars e1 v_rep
+            -- TODO consolidate into one map
+            -- cs doesn't get unmapped things from the other side
+            cs (E.Conc e_) = E.Conc e_
+            cs (E.Sym i_) = case E.lookupConcOrSym (idName i_) h2' of
+              Nothing -> E.Sym i_
+              Just c -> c
+            --h2_ = E.mapConcOrSym cs h2
+            -- TODO changing this from h2 didn't help
+            h2_ = envMerge (E.mapConcOrSym cs h2) h2'
+            h2_' = E.mapConc (flip replaceVars v_rep) h2_ -- foldr (\(Id n _, e) -> E.insert n e) h2 (HM.toList $ fst hm)
+            et' = (track s2) { opp_env = E.empty }
+            ls1 = s2 { expr_env = h2_', curr_expr = CurrExpr Evaluate e1', track = et' }
+            ls2 = s2 { expr_env = h2_, curr_expr = CurrExpr Evaluate e2, track = et' }
 
-                                    -- TODO do these need any adjustments?
-                                    in1 = inlineFull (HS.toList ns) h1 h1'
-                                    in2 = inlineFull (HS.toList ns) h2 h2'
-                                in
-                                -- let pg = mkPrettyGuide (ls1, ls2) in
-                                -- trace ("LEMMA " ++ (folder_name $ track s2) ++ " " ++ (folder_name $ track s1)
-                                --                 ++ " -\ncurr_expr s1 = " ++ printHaskellDirtyPG pg (in1 $ exprExtract s1)
-                                --                 ++ "\ncurr_expr s2 = " ++ printHaskellDirtyPG pg (in2 $ exprExtract s2)
-                                --                 ++ "\ne1 = " ++  printHaskellDirtyPG pg (in1 e1)
-                                --                 ++ "\ne2 = " ++ printHaskellDirtyPG pg (in2 e2))
-                                Left (Just $ mkProposedLemma "lemma" s1 s2 ls2 ls1)
-        where
-            moreResFA = do
-                hm_f <- moreRestrictive s1 s2 ns hm active n1 n2 f1 f2
-                moreRestrictive s1 s2 ns hm_f False n1 n2 a1 a2
+            -- TODO do these need any adjustments?
+            in1 = inlineFull (HS.toList ns) h1 h1'
+            in2 = inlineFull (HS.toList ns) h2 h2'
+        in
+        -- let pg = mkPrettyGuide (ls1, ls2) in
+        -- trace ("LEMMA " ++ (folder_name $ track s2) ++ " " ++ (folder_name $ track s1)
+        --                 ++ " -\ncurr_expr s1 = " ++ printHaskellDirtyPG pg (in1 $ exprExtract s1)
+        --                 ++ "\ncurr_expr s2 = " ++ printHaskellDirtyPG pg (in2 $ exprExtract s2)
+        --                 ++ "\ne1 = " ++  printHaskellDirtyPG pg (in1 e1)
+        --                 ++ "\ne2 = " ++ printHaskellDirtyPG pg (in2 e2))
+        Left (Just $ mkProposedLemma "lemma" s1 s2 ls2 ls1)
     -- TODO ignoring lam use; these are never used seemingly
     -- TODO shouldn't lead to non-termination
     {-
@@ -362,6 +369,20 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
     (Cast e1' c1, Cast e2' c2) | c1 == c2 ->
         moreRestrictive s1 s2 ns hm active n1 n2 e1' e2'
     _ -> Left Nothing
+
+-- TODO bad name?
+appOrCase :: Expr -> Maybe Expr
+appOrCase e = case modifyASTs stripTicks e of
+  Case e' _ _ -> Just e'
+  e' | (Var v):_ <- unApp e' -> Just $ Var v
+  _ -> Nothing
+
+matchingAppsOrCases :: Expr -> Expr -> Bool
+matchingAppsOrCases (Case _ _ _) (Case _ _ _) = True
+matchingAppsOrCases e1 e2 | Var (Id m1 _):_ <- unApp (modifyASTs stripTicks e1)
+                          , Var (Id m2 _):_ <- unApp (modifyASTs stripTicks e2)
+                          , nameOcc m1 == nameOcc m2 = True
+matchingAppsOrCases _ _ = False
 
 replaceVars :: Expr -> [(Id, Expr)] -> Expr
 replaceVars = foldr (\(Id n _, e) -> replaceVar n e)
