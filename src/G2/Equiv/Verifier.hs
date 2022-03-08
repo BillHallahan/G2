@@ -98,12 +98,13 @@ would be awakened soonest should be awakened immediately.
 runSymExec :: S.Solver solver =>
               solver ->
               Config ->
+              Bool ->
               String ->
               HS.HashSet Name ->
               StateET ->
               StateET ->
               CM.StateT (Bindings, Int) IO [(StateET, StateET)]
-runSymExec solver config folder_root ns s1 s2 = do
+runSymExec solver config sync folder_root ns s1 s2 = do
   ct1 <- CM.liftIO $ getCurrentTime
   (bindings, k) <- CM.get
   let config' = config { logStates = logStatesFolder ("a" ++ show k) folder_root }
@@ -118,7 +119,7 @@ runSymExec solver config folder_root ns s1 s2 = do
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
                     (b_, k_) <- CM.get
-                    let s2_ = transferTrackerInfo s1_ (snd $ syncSymbolic s1_ s2)
+                    let s2_ = transferInfo sync s1_ (snd $ syncSymbolic s1_ s2)
                     ct2 <- CM.liftIO $ getCurrentTime
                     let config'' = config { logStates = logStatesFolder ("b" ++ show k_) folder_root }
                         t2 = (track s2_) { folder_name = logStatesET ("b" ++ show k_) folder_root }
@@ -131,7 +132,7 @@ runSymExec solver config folder_root ns s1 s2 = do
                     return $ map (\er2_ -> 
                                     let
                                         s2_' = final_state er2_
-                                        s1_' = transferTrackerInfo s2_' (snd $ syncSymbolic s2_' s1_)
+                                        s1_' = transferInfo sync s2_' (snd $ syncSymbolic s2_' s1_)
                                     in
                                     (addStamps k $ prepareState s1_', addStamps k_ $ prepareState s2_')
                                  ) er2) final_s1
@@ -146,6 +147,12 @@ pathCondsConsistent solver (s1, s2) = do
   case res of
     S.UNSAT () -> return False
     _ -> return True
+
+-- info goes from left to right for expression environment too
+transferInfo :: Bool -> StateET -> StateET -> StateET
+transferInfo True s1 s2 =
+  transferTrackerInfo s1 (s2 { expr_env = expr_env s1 })
+transferInfo False s1 s2 = transferTrackerInfo s1 s2
 
 -- Don't share expr env and path constraints between sides
 -- info goes from left to right
@@ -334,12 +341,13 @@ verifyLoop :: S.Solver solver =>
               [(StateH, StateH)] ->
               Bindings ->
               Config ->
+              Bool ->
               [Id] ->
               String ->
               Int ->
               Int ->
               W.WriterT [Marker] IO (S.Result () ())
-verifyLoop solver ns lemmas states b config sym_ids folder_root k n | (n /= 0) || (null states) = do
+verifyLoop solver ns lemmas states b config sync sym_ids folder_root k n | (n /= 0) || (null states) = do
   W.liftIO $ putStrLn "<Loop Iteration>"
   W.liftIO $ putStrLn $ show n
   --let min_depth = minDepth ns sym_ids states
@@ -356,7 +364,7 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k n | (n /= 0) |
   W.liftIO $ hFlush stdout
   -- TODO alternating iterations for this too?
   -- Didn't test on much, but no apparent benefit
-  (b', k', proven_lemmas, lemmas') <- verifyLoopPropLemmas solver allTactics ns lemmas b config folder_root k
+  (b', k', proven_lemmas, lemmas') <- verifyLoopPropLemmas solver allTactics ns lemmas b config sync folder_root k
 
   -- W.liftIO $ putStrLn $ "prop_lemmas': " ++ show (length prop_lemmas')
   --W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length proven_lemmas)
@@ -365,7 +373,7 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k n | (n /= 0) |
 
   -- p02 went from about 50s to 1:50 when I added this
   -- No improvement for p03fin
-  (b'', k'', proven_lemmas', lemmas'') <- verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas lemmas' b' config folder_root k'
+  (b'', k'', proven_lemmas', lemmas'') <- verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas lemmas' b' config sync folder_root k'
   -- TODO I think the lemmas should be the unresolved ones
   -- TODO what to do with disproven lemmas?
   -- No noticeable time change for p02 with this added, still 1:50
@@ -375,7 +383,7 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k n | (n /= 0) |
       CounterexampleFound -> return $ S.SAT ()
       Proven -> return $ S.UNSAT ()
       ContinueWith pl_new_obs pl_lemmas -> do
-          (sr, b'''', k'''') <- verifyLoopWithSymEx solver allTactics ns lemmas'' b''' config folder_root k''' states
+          (sr, b'''', k'''') <- verifyLoopWithSymEx solver allTactics ns lemmas'' b''' config sync folder_root k''' states
           case sr of
               ContinueWith new_obligations new_lemmas -> do
                   let n' = if n > 0 then n - 1 else n
@@ -391,7 +399,7 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k n | (n /= 0) |
                   --               W.liftIO $ putStrLn "----"
                   --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
                   --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) $ HS.toList new_lemmas
-                  verifyLoop solver ns final_lemmas new_obligations b'''' config sym_ids folder_root k'''' n'
+                  verifyLoop solver ns final_lemmas new_obligations b'''' config sync sym_ids folder_root k'''' n'
               CounterexampleFound -> return $ S.SAT ()
               Proven -> do
                   W.liftIO $ putStrLn $ "proposed = " ++ show (length $ proposedLemmas lemmas)
@@ -443,12 +451,13 @@ verifyLoopPropLemmas :: S.Solver solver =>
                      -> Lemmas
                      -> Bindings
                      -> Config
+                     -> Bool
                      -> String
                      -> Int
                      -> (W.WriterT [Marker] IO) (Bindings, Int, [ProvenLemma], Lemmas)
-verifyLoopPropLemmas solver tactics ns lemmas b config folder_root k = do
+verifyLoopPropLemmas solver tactics ns lemmas b config sync folder_root k = do
     let prop_lemmas = proposedLemmas lemmas
-        verify_lemma = verifyLoopPropLemmas' solver tactics ns lemmas config folder_root
+        verify_lemma = verifyLoopPropLemmas' solver tactics ns lemmas config sync folder_root
     (prop_lemmas', (b', k')) <- CM.runStateT (mapM verify_lemma prop_lemmas) (b, k)
 
     let (proven_lemmas, continued_lemmas, disproven_lemmas, new_lemmas) = partitionLemmas ([], [], [], []) prop_lemmas'
@@ -473,15 +482,16 @@ verifyLoopPropLemmas' :: S.Solver solver =>
                       -> HS.HashSet Name
                       -> Lemmas
                       -> Config
+                      -> Bool
                       -> String
                       -> ProposedLemma
                       -> CM.StateT (Bindings, Int)  (W.WriterT [Marker] IO) (StepRes, Lemma)
-verifyLoopPropLemmas' solver tactics ns lemmas config folder_root
+verifyLoopPropLemmas' solver tactics ns lemmas config sync folder_root
                      l@(Lemma { lemma_lhs = is1, lemma_rhs = is2, lemma_to_be_proven = states }) = do
     (b, k) <- CM.get
     --W.liftIO $ putStrLn $ "k = " ++ show k
     --W.liftIO $ putStrLn $ lemma_name l
-    (sr, b', k') <- W.lift (verifyLoopWithSymEx solver tactics ns lemmas b config folder_root k states)
+    (sr, b', k') <- W.lift (verifyLoopWithSymEx solver tactics ns lemmas b config sync folder_root k states)
     CM.put (b', k')
     lem <- case sr of
                   CounterexampleFound -> {-trace "COUNTEREXAMPLE verifyLemma"-} return $ l { lemma_to_be_proven = [] }
@@ -505,13 +515,14 @@ verifyLoopWithSymEx :: S.Solver solver =>
                     -> Lemmas
                     -> Bindings
                     -> Config
+                    -> Bool
                     -> String
                     -> Int
                     -> [(StateH, StateH)]
                     -> W.WriterT [Marker] IO (StepRes, Bindings, Int)
-verifyLoopWithSymEx solver tactics ns lemmas b config folder_root k states = do
+verifyLoopWithSymEx solver tactics ns lemmas b config sync folder_root k states = do
     let current_states = map getLatest states
-    (paired_states, (b', k')) <- W.liftIO $ CM.runStateT (mapM (uncurry (runSymExec solver config folder_root ns)) current_states) (b, k)
+    (paired_states, (b', k')) <- W.liftIO $ CM.runStateT (mapM (uncurry (runSymExec solver config sync folder_root ns)) current_states) (b, k)
 
     --W.liftIO $ putStrLn "verifyLoopWithSymEx"
     -- for every internal list, map with its corresponding original state
@@ -548,23 +559,24 @@ verifyLemmasWithNewProvenLemmas :: S.Solver solver =>
                                 -> Lemmas
                                 -> Bindings
                                 -> Config
+                                -> Bool
                                 -> String
                                 -> Int
                                 -> W.WriterT [Marker] IO (Bindings, Int, [ProvenLemma], Lemmas)
-verifyLemmasWithNewProvenLemmas solver nl_tactics ns proven_lemmas lemmas b config folder_name k = do
+verifyLemmasWithNewProvenLemmas solver nl_tactics ns proven_lemmas lemmas b config sync folder_name k = do
     let rel_states = map (\pl -> (lemma_lhs_origin pl, lemma_rhs_origin pl)) proven_lemmas
         tactics = concatMap (\t -> map (uncurry t) rel_states) nl_tactics
 
     --W.liftIO $ putStrLn "verifyLemmasWithNewProvenLemmas"
     (b', k', new_proven_lemmas, lemmas') <-
-          verifyLoopPropLemmas solver tactics ns lemmas b config folder_name k
+          verifyLoopPropLemmas solver tactics ns lemmas b config sync folder_name k
     case null new_proven_lemmas of
         True -> return (b', k', proven_lemmas, lemmas')
         False ->
             let
                 proven_lemmas' = new_proven_lemmas ++ proven_lemmas
             in
-            verifyLemmasWithNewProvenLemmas solver nl_tactics ns proven_lemmas' lemmas' b' config folder_name k'
+            verifyLemmasWithNewProvenLemmas solver nl_tactics ns proven_lemmas' lemmas' b' config sync folder_name k'
 
 
 verifyLoop' :: S.Solver solver =>
@@ -854,6 +866,7 @@ printCX ((Marker hist m):ms) pg ns sym_ids init_pair = case m of
   _ -> printCX ms pg ns sym_ids init_pair
 
 checkRule :: Config ->
+             Bool ->
              State t ->
              Bindings ->
              [DT.Text] -> -- ^ names of forall'd variables required to be total
@@ -862,7 +875,7 @@ checkRule :: Config ->
              Int ->
              RewriteRule ->
              IO (S.Result () ())
-checkRule config init_state bindings total finite print_summary iterations rule = do
+checkRule config sync init_state bindings total finite print_summary iterations rule = do
   let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
       (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
       sym_ids = ru_bndrs rule
@@ -901,7 +914,7 @@ checkRule config init_state bindings total finite print_summary iterations rule 
   (res, w) <- W.runWriterT $ verifyLoop solver ns
              emptyLemmas
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config sym_ids "" 0 iterations
+             bindings'' config sync sym_ids "" 0 iterations
   -- UNSAT for good, SAT for bad
   if print_summary /= NoSummary then do
     putStrLn "--- SUMMARY ---"

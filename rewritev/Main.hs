@@ -55,6 +55,7 @@ runWithArgs :: [String] -> IO ()
 runWithArgs as = do
   let (src:entry:tail_args) = as
       (flags_nums, tail_vars) = partition isFlagOrNumber tail_args
+      sync = "--constant-sync" `elem` flags_nums
       print_summary = if | "--summarize" `elem` flags_nums -> NoHistory
                          | "--hist-summarize" `elem` flags_nums -> WithHistory
                          | otherwise -> NoSummary
@@ -83,7 +84,7 @@ runWithArgs as = do
       rule' = case rule of
               Just r -> r
               Nothing -> error "not found"
-  res <- checkRule config init_state bindings total finite print_summary limit rule'
+  res <- checkRule config sync init_state bindings total finite print_summary limit rule'
   print res
   return ()
 
