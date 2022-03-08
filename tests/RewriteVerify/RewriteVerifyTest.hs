@@ -29,7 +29,7 @@ findRule rule_list rule_name =
 
 acceptRule :: Config -> State t -> Bindings -> RewriteRule -> IO Bool
 acceptRule config init_state bindings rule = do
-  res <- checkRule config init_state bindings [] [] NoSummary 10 rule
+  res <- checkRule config False init_state bindings [] [] NoSummary 10 rule
   return (case res of
     S.SAT _ -> error "Satisfiable"
     S.UNSAT _ -> True
@@ -37,7 +37,7 @@ acceptRule config init_state bindings rule = do
 
 rejectRule :: Config -> State t -> Bindings -> RewriteRule -> IO Bool
 rejectRule config init_state bindings rule = do
-  res <- checkRule config init_state bindings [] [] NoSummary 10 rule
+  res <- checkRule config False init_state bindings [] [] NoSummary 10 rule
   return (case res of
     S.SAT _ -> True
     S.UNSAT _ -> error "Unsatisfiable"
