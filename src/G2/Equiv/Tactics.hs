@@ -377,12 +377,18 @@ appOrCase e = case modifyASTs stripTicks e of
   e' | (Var v):_ <- unApp e' -> Just $ Var v
   _ -> Nothing
 
+-- TODO shouldn't need to match apps with cases
+-- lemmas are between past and present, not left and right
 matchingAppsOrCases :: Expr -> Expr -> Bool
+{-
 matchingAppsOrCases (Case _ _ _) (Case _ _ _) = True
 matchingAppsOrCases e1 e2 | Var (Id m1 _):_ <- unApp (modifyASTs stripTicks e1)
                           , Var (Id m2 _):_ <- unApp (modifyASTs stripTicks e2)
                           , nameOcc m1 == nameOcc m2 = True
 matchingAppsOrCases _ _ = False
+-}
+matchingAppsOrCases e1 e2 =
+  (isJust $ appOrCase e1) && (isJust $ appOrCase e2)
 
 replaceVars :: Expr -> [(Id, Expr)] -> Expr
 replaceVars = foldr (\(Id n _, e) -> replaceVar n e)
@@ -988,6 +994,12 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma
 
 -- Tries to apply lemmas to expressions only in FAF form, and only if the function being applied can not be
 -- called in any way by the lemma.
+-- TODO this is the part that needs to change to allow lemmas on cases
+-- apply lemmas to the alts in these situations
+-- lemmas can be applied to any sub-exp, but not full exp
+-- need to modify this to add all alts?
+-- no need to add a list of alts, add the whole case statement
+-- then it can be applied to any sub-expression
 moreRestrictivePairWithLemmasOnFuncApps :: S.Solver solver =>
                                            solver ->
                                            ((StateET, StateET) -> (StateET, StateET) -> Bool) ->
@@ -1004,6 +1016,7 @@ moreRestrictivePairWithLemmasOnFuncApps solver valid ns =
                             lem_vars = varNames $ inlineFull (HS.toList ns) (expr_env s) (expr_env s') $ exprExtract (lemma_rhs lem)
                         in
                         not $ f `elem` lem_vars
+                    (Case _ _ _):[] -> True -- TODO not sound
                     _ -> False)
         solver valid ns
 --     | Var (Id f1 _):_ <- unApp $ exprExtract s1
