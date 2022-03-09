@@ -852,18 +852,27 @@ fetchCX ((Marker _ m):ms) = case m of
 -- If the Marker list is reversed from how it was when it was fetched, then
 -- we're guaranteed to get something that came from the main proof rather than
 -- a lemma.  Lemma examination happens first within iterations.
-printCX :: [Marker] ->
+writeCX :: [Marker] ->
            PrettyGuide ->
            HS.HashSet Name ->
            [Id] ->
            (State t, State t) ->
            String
-printCX [] _ _ _ _ = error "No Counterexample"
-printCX ((Marker hist m):ms) pg ns sym_ids init_pair = case m of
+writeCX [] _ _ _ _ = error "No Counterexample"
+writeCX ((Marker hist m):ms) pg ns sym_ids init_pair = case m of
   NotEquivalent s_pair -> showCX pg ns sym_ids hist init_pair s_pair
   SolverFail s_pair -> showCX pg ns sym_ids hist init_pair s_pair
   CycleFound cm -> showCycle pg ns sym_ids hist init_pair cm
-  _ -> printCX ms pg ns sym_ids init_pair
+  _ -> writeCX ms pg ns sym_ids init_pair
+
+-- TODO nothing forces this to align with the CX summary
+reducedGuide :: [Marker] -> PrettyGuide
+reducedGuide [] = error "No Counterexample"
+reducedGuide ((Marker _ m):ms) = case m of
+  NotEquivalent _ -> mkPrettyGuide m
+  SolverFail _ -> mkPrettyGuide m
+  CycleFound _ -> mkPrettyGuide m
+  _ -> reducedGuide ms
 
 checkRule :: Config ->
              Bool ->
@@ -916,19 +925,24 @@ checkRule config sync init_state bindings total finite print_summary iterations 
              [(rewrite_state_l'', rewrite_state_r'')]
              bindings'' config sync sym_ids "" 0 iterations
   -- UNSAT for good, SAT for bad
+  -- TODO I can speed things up for the CX if there's no summary
+  -- I only need a PrettyGuide for the CX marker
+  let pg = if print_summary == NoSummary
+           then reducedGuide (reverse w)
+           else mkPrettyGuide $ map (\(Marker _ m) -> m) w
   if print_summary /= NoSummary then do
     putStrLn "--- SUMMARY ---"
-    let pg = mkPrettyGuide $ map (\(Marker _ m) -> m) w
+    --let pg = mkPrettyGuide $ map (\(Marker _ m) -> m) w
     mapM (putStrLn . (summarize print_summary pg ns sym_ids)) w
     putStrLn "--- END OF SUMMARY ---"
   else return ()
   case res of
     S.SAT () -> do
-      let pg = mkPrettyGuide $ map (\(Marker _ m) -> m) w
+      --let pg = mkPrettyGuide $ map (\(Marker _ m) -> m) w
       putStrLn "--------------------"
       putStrLn "COUNTEREXAMPLE FOUND"
       putStrLn "--------------------"
-      putStrLn $ printCX (reverse w) pg ns sym_ids (rewrite_state_l, rewrite_state_r)
+      putStrLn $ writeCX (reverse w) pg ns sym_ids (rewrite_state_l, rewrite_state_r)
     _ -> return ()
   S.close solver
   return res

@@ -24,6 +24,7 @@ module G2.Equiv.Tactics
     , backtrackOne
     , prevFiltered
     , syncSymbolic
+    , syncEnvs
 
     , emptyLemmas
     , insertProposedLemma
@@ -526,6 +527,12 @@ envMerge env h =
   let f (E.SymbObj _) e2 = e2
       f e1 _ = e1
   in E.unionWith f env h
+
+syncEnvs :: StateET -> StateET -> (StateET, StateET)
+syncEnvs s1 s2 =
+  let h1 = envMerge (expr_env s1) (expr_env s2)
+      h2 = envMerge (expr_env s2) (expr_env s1)
+  in (s1 { expr_env = h1 }, s2 { expr_env = h2 })
 
 obligationWrap :: HS.HashSet (Expr, Expr) -> Maybe PathCond
 obligationWrap obligations =

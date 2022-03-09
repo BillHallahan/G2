@@ -456,7 +456,7 @@ showCX :: PrettyGuide ->
           String
 showCX pg ns sym_ids sh_pair s_pair (q1, q2) =
   -- main part showing contradiction
-  let (q1', q2') = syncSymbolic q1 q2
+  let (q1', q2') = syncEnvs q1 q2
       end1 = inlineVars ns (expr_env q1') $ exprExtract q1'
       end1_str = printDC pg (dc_path $ track q1') $ printHaskellPG pg q1' end1
       end2 = inlineVars ns (expr_env q2') $ exprExtract q2'
@@ -472,7 +472,7 @@ showCycle :: PrettyGuide ->
              String
 showCycle pg ns sym_ids sh_pair s_pair cm =
   let (q1, q2) = cycle_real_present cm
-      (q1', q2') = syncSymbolic q1 q2
+      (q1', q2') = syncEnvs q1 q2
       end1 = inlineVars ns (expr_env q1') $ exprExtract q1'
       end1_str = case cycle_side cm of
         ILeft -> "{HAS NON-TERMINATING PATH}"
@@ -490,21 +490,22 @@ showCycle pg ns sym_ids sh_pair s_pair cm =
 -- most Expr constructors will never appear in a concretization of an argument
 -- TODO don't need to care about ns or cycles if only applied to initial args?
 -- type arguments do not contribute to the depth of an expression
-exprDepth :: ExprEnv -> HS.HashSet Name -> [Name] -> Expr -> Int
-exprDepth h ns n e = case e of
-  Tick _ e' -> exprDepth h ns n e'
-  Var i | E.isSymbolic (idName i) h -> 0
+-- TODO this needs to take the opposite side into account
+exprDepth :: ExprEnv -> ExprEnv -> HS.HashSet Name -> [Name] -> Expr -> Int
+exprDepth h h' ns n e = case e of
+  Tick _ e' -> exprDepth h h' ns n e'
+  Var i | isSymbolicBoth (idName i) h h' -> 0
         | m <- idName i
         , not $ m `elem` ns
-        , Just e' <- E.lookup m h -> exprDepth h ns (m:n) e'
+        , Just e' <- lookupBoth m h h' -> exprDepth h h' ns (m:n) e'
         | not $ (idName i) `elem` ns -> error "unmapped variable"
   _ | d@(Data (DataCon _ _)):l <- unAppNoTicks e
     , not $ null (anonArgumentTypes d) ->
-      1 + (maximum $ 0:(map (exprDepth h ns n) l))
+      1 + (maximum $ 0:(map (exprDepth h h' ns n) l))
     | otherwise -> 0
 
 getDepth :: StateET -> HS.HashSet Name -> Id -> Int
-getDepth s ns i = exprDepth (expr_env s) ns [] (Var i)
+getDepth s ns i = exprDepth (expr_env s) (opp_env $ track s) ns [] (Var i)
 
 minArgDepth :: HS.HashSet Name -> [Id] -> StateET -> Int
 minArgDepth ns sym_ids s = case sym_ids of
