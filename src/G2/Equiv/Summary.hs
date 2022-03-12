@@ -295,6 +295,18 @@ summarizeCycleFound pg ns sym_ids (CycleMarker (s1, s2) p _ sd) =
   "\nPast State:\n" ++ (printPG pg ns sym_ids p) ++
   "\nSide: " ++ (sideName sd)
 
+-- TODO partly redundant with the function above
+summarizeIgnoreCycle :: PrettyGuide ->
+                        HS.HashSet Name ->
+                        [Id] ->
+                        CycleMarker ->
+                        String
+summarizeIgnoreCycle pg ns sym_ids (CycleMarker (s1, s2) p _ sd) =
+  "Disregarding Cycle:\n" ++
+  (summarizeStatePairTrack "Real Present" pg ns sym_ids s1 s2) ++
+  "\nPast State:\n" ++ (printPG pg ns sym_ids p) ++
+  "\nSide: " ++ (sideName sd)
+
 summarizeNoObligations :: PrettyGuide ->
                           HS.HashSet Name ->
                           [Id] ->
@@ -345,6 +357,7 @@ summarizeAct pg ns sym_ids m = case m of
   NotEquivalent s_pair -> summarizeNotEquivalent pg ns sym_ids s_pair
   SolverFail s_pair -> summarizeSolverFail pg ns sym_ids s_pair
   CycleFound cm -> summarizeCycleFound pg ns sym_ids cm
+  IgnoreCycle cm -> summarizeIgnoreCycle pg ns sym_ids cm
   Unresolved s_pair -> summarizeUnresolved pg ns sym_ids s_pair
 
 summarizeHistory :: PrettyGuide -> HS.HashSet Name -> [Id] -> StateH -> String

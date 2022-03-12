@@ -1138,7 +1138,32 @@ checkCycle solver ns _ _ (sh1, sh2) (s1, s2) = do
 -- TODO check for approximation in both directions with some past state
 -- TODO does it really need to be the same past state both ways?
 -- TODO need a new return value
+-- TODO do I need to check explicitly for non-SWHNF on the left side?
+checkNonterm :: S.Solver solver =>
+                solver ->
+                HS.HashSet Name ->
+                (StateH, StateH) ->
+                (StateET, StateET) ->
+                W.WriterT [Marker] IO (Maybe CycleMarker)
+checkNonterm solver ns (sh1, sh2) (s1, s2) = do
+  let (s1', s2') = syncSymbolic s1 s2
+      hist1 = filter (\p -> dc_path (track p) == dc_path (track s1')) $ history sh1
+  mr1 <- mapM (\p1 -> do
+    m1 <- moreRestrictiveSingle solver ns s1' p1
+    m2 <- moreRestrictiveSingle solver ns p1 s1'
+    return (m1, m2)) hist1
+  -- TODO the function consistency check doesn't matter anymore
+  -- this is for ignoring cases, not for finding counterexamples
+  let mr1_pairs = zip mr1 hist1
+      mr1_pair = find (\((m1, m2), _) -> isRight m1 && isRight m2) mr1_pairs
+  -- TODO should I hold onto the forward mapping rather than the backward?
+  case (isSWHNF s1', isSWHNF s2', mr1_pair) of
+    (False, True, Just ((Right hm, _), p1)) -> do
+      return $ Just $ CycleMarker (s1, s2) p1 hm ILeft
+    _ -> return Nothing
+
 checkNontermL :: S.Solver s => Tactic s
+{-
 checkNontermL solver ns _ _ (sh1, sh2) (s1, s2) = do
   let (s1', s2') = syncSymbolic s1 s2
       hist1 = filter (\p -> dc_path (track p) == dc_path (track s1')) $ history sh1
@@ -1166,14 +1191,30 @@ checkNontermL solver ns _ _ (sh1, sh2) (s1, s2) = do
       --W.tell [Marker (sh1, sh2) $ CycleFound $ CycleMarker (s1, s2) p1 hm ILeft]
       return $ Ignore ILeft
     _ -> return $ NoProof []
+-}
+
+-- TODO should there be lemma usage for cycle detection?
+checkNontermL solver ns _ _ sh_pair s_pair = do
+  res <- checkNonterm solver ns sh_pair s_pair
+  case res of
+    Nothing -> return $ NoProof []
+    Just cm -> do
+      W.tell [Marker sh_pair $ IgnoreCycle cm]
+      return $ Ignore ILeft
 
 -- TODO no need to swap sides for lemmas because they're not used
 -- this applies for both the input and output
 -- TODO will need to change if I add markers for this
+-- TODO general function for cycle marker swapping?
 checkNontermR :: S.Solver s => Tactic s
-checkNontermR solver ns lemmas fresh_names (sh1, sh2) (s1, s2) = do
-  swapped <- checkNontermL solver ns lemmas fresh_names (sh2, sh1) (s2, s1)
-  return $ case swapped of
-    NoProof l -> NoProof l
-    Ignore ILeft -> Ignore IRight
-    _ -> error "Invalid Output"
+checkNontermR solver ns _ _ (sh1, sh2) (s1, s2) = do
+  swapped <- checkNonterm solver ns (sh2, sh1) (s2, s1)
+  case swapped of
+    Nothing -> return $ NoProof []
+    Just cm -> do
+      let cm' = cm {
+        cycle_real_present = swap $ cycle_real_present cm
+      , cycle_side = IRight
+      }
+      W.tell [Marker (sh1, sh2) $ IgnoreCycle cm']
+      return $ Ignore IRight
