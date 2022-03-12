@@ -310,8 +310,30 @@ appendH sh s =
 replaceH :: StateH -> StateET -> StateH
 replaceH sh s = sh { latest = s }
 
-allTactics :: S.Solver s => [Tactic s]
-allTactics = [
+-- TODO True means partial correctness enabled
+-- TODO keep a log of how things have been discarded
+{-
+(3/12) Partial correctness options:
+1) Full equivalence regardless of which side terminates
+2) Equivalent as long as one side terminates
+3a) Equivalent as long as the left terminates
+3b) Equivalent as long as the right terminates
+4) Equivalent as long as both sides terminate
+5) Not equivalent
+In order to capture number 2, we would need to run the verifier twice over,
+once with left cycle elimination allowed but not right cycle elimination,
+and once with only right cycle elimination allowed.
+-}
+allTactics :: S.Solver s => Bool -> [Tactic s]
+allTactics True = [
+    tryEquality
+  , tryCoinduction
+  , generalizeFull
+  , trySolver
+  , checkNontermL
+  , checkNontermR
+  ]
+allTactics False = [
     tryEquality
   , tryCoinduction
   , generalizeFull
@@ -320,6 +342,7 @@ allTactics = [
   , checkCycle
   ]
 
+-- TODO does partial correctness suffice for lemmas too?
 allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
 allNewLemmaTactics = map applyTacticToLabeledStates [tryEquality, tryCoinduction]
 
@@ -334,12 +357,13 @@ verifyLoop :: S.Solver solver =>
               [(StateH, StateH)] ->
               Bindings ->
               Config ->
+              Bool ->
               [Id] ->
               String ->
               Int ->
               Int ->
               W.WriterT [Marker] IO (S.Result () ())
-verifyLoop solver ns lemmas states b config sym_ids folder_root k n | (n /= 0) || (null states) = do
+verifyLoop solver ns lemmas states b config partial sym_ids folder_root k n | (n /= 0) || (null states) = do
   W.liftIO $ putStrLn "<Loop Iteration>"
   W.liftIO $ putStrLn $ show n
   --let min_depth = minDepth ns sym_ids states
@@ -356,7 +380,8 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k n | (n /= 0) |
   W.liftIO $ hFlush stdout
   -- TODO alternating iterations for this too?
   -- Didn't test on much, but no apparent benefit
-  (b', k', proven_lemmas, lemmas') <- verifyLoopPropLemmas solver allTactics ns lemmas b config folder_root k
+  let tacs = allTactics partial
+  (b', k', proven_lemmas, lemmas') <- verifyLoopPropLemmas solver tacs ns lemmas b config folder_root k
 
   -- W.liftIO $ putStrLn $ "prop_lemmas': " ++ show (length prop_lemmas')
   --W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length proven_lemmas)
@@ -375,7 +400,7 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k n | (n /= 0) |
       CounterexampleFound -> return $ S.SAT ()
       Proven -> return $ S.UNSAT ()
       ContinueWith pl_new_obs pl_lemmas -> do
-          (sr, b'''', k'''') <- verifyLoopWithSymEx solver allTactics ns lemmas'' b''' config folder_root k''' states
+          (sr, b'''', k'''') <- verifyLoopWithSymEx solver tacs ns lemmas'' b''' config folder_root k''' states
           case sr of
               ContinueWith new_obligations new_lemmas -> do
                   let n' = if n > 0 then n - 1 else n
@@ -391,7 +416,7 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k n | (n /= 0) |
                   --               W.liftIO $ putStrLn "----"
                   --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
                   --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) $ HS.toList new_lemmas
-                  verifyLoop solver ns final_lemmas new_obligations b'''' config sym_ids folder_root k'''' n'
+                  verifyLoop solver ns final_lemmas new_obligations b'''' config partial sym_ids folder_root k'''' n'
               CounterexampleFound -> return $ S.SAT ()
               Proven -> do
                   W.liftIO $ putStrLn $ "proposed = " ++ show (length $ proposedLemmas lemmas)
@@ -702,6 +727,7 @@ applyTactics solver (tac:tacs) ns lemmas gen_lemmas fresh_names (sh1, sh2) (s1, 
   case tr of
     Failure b -> return $ EFail b
     NoProof new_lemmas -> applyTactics solver tacs ns lemmas (new_lemmas ++ gen_lemmas) fresh_names (sh1, sh2) (s1, s2)
+    Ignore _ -> return EDischarge
     Success res -> case res of
       Nothing -> return EDischarge
       Just (n1, n2, s1', s2') -> do
@@ -854,6 +880,7 @@ printCX ((Marker hist m):ms) pg ns sym_ids init_pair = case m of
   _ -> printCX ms pg ns sym_ids init_pair
 
 checkRule :: Config ->
+             Bool ->
              State t ->
              Bindings ->
              [DT.Text] -> -- ^ names of forall'd variables required to be total
@@ -862,7 +889,7 @@ checkRule :: Config ->
              Int ->
              RewriteRule ->
              IO (S.Result () ())
-checkRule config init_state bindings total finite print_summary iterations rule = do
+checkRule config partial init_state bindings total finite print_summary iterations rule = do
   let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
       (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
       sym_ids = ru_bndrs rule
@@ -901,7 +928,7 @@ checkRule config init_state bindings total finite print_summary iterations rule 
   (res, w) <- W.runWriterT $ verifyLoop solver ns
              emptyLemmas
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config sym_ids "" 0 iterations
+             bindings'' config partial sym_ids "" 0 iterations
   -- UNSAT for good, SAT for bad
   if print_summary /= NoSummary then do
     putStrLn "--- SUMMARY ---"

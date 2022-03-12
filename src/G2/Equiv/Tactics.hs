@@ -37,6 +37,9 @@ module G2.Equiv.Tactics
 
     , mkProposedLemma
     , checkCycle
+
+    , checkNontermL
+    , checkNontermR
     )
     where
 
@@ -81,9 +84,12 @@ import Control.Exception
 import Debug.Trace
 
 -- the Bool value for Failure is True if a cycle has been found
+-- TODO should I treat discarding as separate from verification?
+-- TODO Success doesn't need the argument anymore
 data TacticResult = Success (Maybe (Int, Int, StateET, StateET))
                   | NoProof [Lemma]
                   | Failure Bool
+                  | Ignore Side
 
 -- this takes a list of fresh names as input
 -- equality and coinduction don't need them
@@ -1124,3 +1130,50 @@ checkCycle solver ns _ _ (sh1, sh2) (s1, s2) = do
         W.tell [Marker (sh1, sh2) $ CycleFound $ CycleMarker (s1, s2) p1 hm ILeft]
         return $ Failure True
       _ -> return $ NoProof []
+
+-- TODO largely redundant with checkCycle
+-- this is supposed to be used for partial correctness
+-- TODO should I have a version that's limited to one side?
+-- TODO should I have a different marker than I do for cycles?
+-- TODO check for approximation in both directions with some past state
+-- TODO does it really need to be the same past state both ways?
+-- TODO need a new return value
+checkNontermL :: S.Solver s => Tactic s
+checkNontermL solver ns _ _ (sh1, sh2) (s1, s2) = do
+  let (s1', s2') = syncSymbolic s1 s2
+      hist1 = filter (\p -> dc_path (track p) == dc_path (track s1')) $ history sh1
+      --hist2 = filter (\p -> dc_path (track p) == dc_path (track s2')) $ history sh2
+  -- TODO this relies on histories being the same length and having matching entries
+  -- I think I'm fine in that regard
+  -- TODO not syncing the past states; does it matter?
+  -- the concretization I need to get is in the present
+  -- TODO doing extra opp_env stuff here for the past doesn't help
+  -- TODO should I undo the opp_env changes here?
+  mr1 <- mapM (\p1 -> do
+    m1 <- moreRestrictiveSingle solver ns s1' p1
+    m2 <- moreRestrictiveSingle solver ns p1 s1'
+    return (m1, m2)) hist1
+  --mr2 <- mapM (\(p2, hp1) -> moreRestrictiveSingle solver ns s2' p2) hist2
+  -- TODO the function consistency check doesn't matter anymore
+  -- this is for ignoring cases, not for finding counterexamples
+  let mr1_pairs = zip mr1 hist1
+      mr1_pair = find (\((m1, m2), _) -> isRight m1 && isRight m2) mr1_pairs
+      --mr2_pairs = zip mr2 hist2
+      --mr2_pairs' = filter (vh s2') mr2_pairs
+      --mr2_pair = find (isRight . fst) mr2_pairs'
+  case (isSWHNF s2', mr1_pair) of
+    (True, Just ((Right hm, _), p1)) -> do
+      --W.tell [Marker (sh1, sh2) $ CycleFound $ CycleMarker (s1, s2) p1 hm ILeft]
+      return $ Ignore ILeft
+    _ -> return $ NoProof []
+
+-- TODO no need to swap sides for lemmas because they're not used
+-- this applies for both the input and output
+-- TODO will need to change if I add markers for this
+checkNontermR :: S.Solver s => Tactic s
+checkNontermR solver ns lemmas fresh_names (sh1, sh2) (s1, s2) = do
+  swapped <- checkNontermL solver ns lemmas fresh_names (sh2, sh1) (s2, s1)
+  return $ case swapped of
+    NoProof l -> NoProof l
+    Ignore ILeft -> Ignore IRight
+    _ -> error "Invalid Output"
