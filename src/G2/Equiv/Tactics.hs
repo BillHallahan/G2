@@ -365,7 +365,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                   in foldM mf hm' l
                 | otherwise -> b_mr
                 where
-                    b_mr = moreRestrictive s1 s2 ns hm active n1 n2 e1' e2'
+                    b_mr = moreRestrictive s1 s2 ns hm False n1 n2 e1' e2'
     (Cast e1' c1, Cast e2' c2) | c1 == c2 ->
         moreRestrictive s1 s2 ns hm active n1 n2 e1' e2'
     _ -> Left Nothing
@@ -373,8 +373,9 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
 -- TODO bad name?
 appOrCase :: Expr -> Maybe Expr
 appOrCase e = case modifyASTs stripTicks e of
-  Case e' _ _ -> Just e'
-  e' | (Var v):_ <- unApp e' -> Just $ Var v
+  --Case e' _ _ -> Just e'
+  App _ _ -> Just e
+  --e' | (Var v):_ <- unApp e' -> Just $ Var v
   _ -> Nothing
 
 -- TODO shouldn't need to match apps with cases
@@ -1071,6 +1072,9 @@ moreRestrictivePairWithLemmas' app_state solver valid ns lemmas past (s1, s2) = 
         [] -> return . Left $ concat possible_lemmas
 
 -- TODO have a cleaner setup for these variations
+-- TODO undo some of the needless restructuring here
+-- TODO allow applications of lemmas to the present?
+-- maybe not while a lemma is applied to the past, to cut down on combinations
 moreRestrictivePairWithLemmasPast :: S.Solver solver =>
                                      solver ->
                                      ((StateET, StateET) -> (StateET, StateET) -> Bool) ->
