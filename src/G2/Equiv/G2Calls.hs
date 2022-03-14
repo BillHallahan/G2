@@ -92,6 +92,7 @@ type StateET = State EquivTracker
 
 data SymbolicSwapper = SymbolicSwapper E.ExprEnv EquivTracker
 
+-- TODO should these change to use both environments?  I don't think so
 instance Reducer SymbolicSwapper () EquivTracker where
     initReducer _ _ = ()
     redRules r@(SymbolicSwapper h_opp track_opp) rv
@@ -146,6 +147,7 @@ instance Reducer EnforceProgressR () EquivTracker where
 argCount :: Type -> Int
 argCount = length . spArgumentTypes . PresType
 
+-- TODO this should stay as lookup and not lookupBoth
 exprFullApp :: ExprEnv -> Expr -> Bool
 exprFullApp h e | (Tick (NamedLoc (Name p _ _ _)) f):args <- unApp e
                 , p == T.pack "REC" = exprFullApp h (mkApp $ f:args)

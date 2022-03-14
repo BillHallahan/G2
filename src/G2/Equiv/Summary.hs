@@ -100,6 +100,7 @@ printPG pg ns sym_ids s =
 inlineVars :: HS.HashSet Name -> ExprEnv -> Expr -> Expr
 inlineVars ns eenv = inlineVars' HS.empty ns eenv
 
+-- TODO look up in both environments
 inlineVars' :: HS.HashSet Name -> HS.HashSet Name -> ExprEnv -> Expr -> Expr
 inlineVars' seen ns eenv v@(Var (Id n _))
     | n `elem` ns = v
@@ -134,6 +135,7 @@ varsFull h ns e =
 varsFullList :: ExprEnv -> HS.HashSet Name -> [Id] -> [Id]
 varsFullList h ns ids = HS.toList $ varsFullRec ns h (HS.fromList ids) ids
 
+-- TODO use lookupBoth
 varsFullRec :: HS.HashSet Name -> ExprEnv -> HS.HashSet Id -> [Id] -> HS.HashSet Id
 varsFullRec ns h seen search
   | null search = seen
@@ -146,6 +148,7 @@ varsFullRec ns h seen search
         new_seen = HS.union (HS.fromList all_new) seen
     in varsFullRec ns h new_seen all_new
 
+-- TODO use lookupBoth?
 -- the terminal expression can have variables of its own that we should cover
 varChain :: ExprEnv -> HS.HashSet Name -> [Id] -> Id -> ([Id], ChainEnd)
 varChain h ns inlined i =
@@ -503,21 +506,21 @@ showCycle pg ns sym_ids sh_pair s_pair cm =
 -- most Expr constructors will never appear in a concretization of an argument
 -- TODO don't need to care about ns or cycles if only applied to initial args?
 -- type arguments do not contribute to the depth of an expression
-exprDepth :: ExprEnv -> HS.HashSet Name -> [Name] -> Expr -> Int
-exprDepth h ns n e = case e of
-  Tick _ e' -> exprDepth h ns n e'
-  Var i | E.isSymbolic (idName i) h -> 0
+exprDepth :: ExprEnv -> ExprEnv -> HS.HashSet Name -> [Name] -> Expr -> Int
+exprDepth h h' ns n e = case e of
+  Tick _ e' -> exprDepth h h' ns n e'
+  Var i | isSymbolicBoth (idName i) h h' -> 0
         | m <- idName i
         , not $ m `elem` ns
-        , Just e' <- E.lookup m h -> exprDepth h ns (m:n) e'
+        , Just e' <- lookupBoth m h h' -> exprDepth h h' ns (m:n) e'
         | not $ (idName i) `elem` ns -> error "unmapped variable"
   _ | d@(Data (DataCon _ _)):l <- unAppNoTicks e
     , not $ null (anonArgumentTypes d) ->
-      1 + (maximum $ 0:(map (exprDepth h ns n) l))
+      1 + (maximum $ 0:(map (exprDepth h h' ns n) l))
     | otherwise -> 0
 
 getDepth :: StateET -> HS.HashSet Name -> Id -> Int
-getDepth s ns i = exprDepth (expr_env s) ns [] (Var i)
+getDepth s ns i = exprDepth (expr_env s) (opp_env $ track s) ns [] (Var i)
 
 minArgDepth :: HS.HashSet Name -> [Id] -> StateET -> Int
 minArgDepth ns sym_ids s = case sym_ids of
@@ -532,6 +535,7 @@ maxArgDepth ns sym_ids s = case sym_ids of
 sumArgDepths :: HS.HashSet Name -> [Id] -> StateET -> Int
 sumArgDepths ns sym_ids s = foldr (+) 0 $ map (getDepth s ns) sym_ids
 
+-- TODO I might not need to check both lefts and rights anymore
 minDepthMetric :: (HS.HashSet Name -> [Id] -> StateET -> Int) ->
                   HS.HashSet Name ->
                   [Id] ->
