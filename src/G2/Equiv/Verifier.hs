@@ -343,8 +343,14 @@ allTactics False = [
   ]
 
 -- TODO does partial correctness suffice for lemmas too?
-allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
-allNewLemmaTactics = map applyTacticToLabeledStates [tryEquality, tryCoinduction]
+-- TODO need to allow lemma usage for non-termination checking
+-- these are the tactics for applying lemmas, not just for proving them
+allNewLemmaTactics :: S.Solver s => Bool -> [NewLemmaTactic s]
+allNewLemmaTactics partial =
+  let tacs = if partial
+             then [tryEquality, tryCoinduction, checkNontermL, checkNontermR]
+             else [tryEquality, tryCoinduction]
+  in map applyTacticToLabeledStates tacs
 
 -- negative loop iteration count means there's no limit
 -- TODO if states is empty but n = 0, we'll get Unknown rather than UNSAT
@@ -381,6 +387,7 @@ verifyLoop solver ns lemmas states b config partial sym_ids folder_root k n | (n
   -- TODO alternating iterations for this too?
   -- Didn't test on much, but no apparent benefit
   let tacs = allTactics partial
+      lemma_tacs = allNewLemmaTactics partial
   (b', k', proven_lemmas, lemmas') <- verifyLoopPropLemmas solver tacs ns lemmas b config folder_root k
 
   -- W.liftIO $ putStrLn $ "prop_lemmas': " ++ show (length prop_lemmas')
@@ -390,11 +397,11 @@ verifyLoop solver ns lemmas states b config partial sym_ids folder_root k n | (n
 
   -- p02 went from about 50s to 1:50 when I added this
   -- No improvement for p03fin
-  (b'', k'', proven_lemmas', lemmas'') <- verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas lemmas' b' config folder_root k'
+  (b'', k'', proven_lemmas', lemmas'') <- verifyLemmasWithNewProvenLemmas solver lemma_tacs ns proven_lemmas lemmas' b' config folder_root k'
   -- TODO I think the lemmas should be the unresolved ones
   -- TODO what to do with disproven lemmas?
   -- No noticeable time change for p02 with this added, still 1:50
-  (pl_sr, b''', k''') <- verifyWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas' lemmas'' b'' config folder_root k'' states
+  (pl_sr, b''', k''') <- verifyWithNewProvenLemmas solver lemma_tacs ns proven_lemmas' lemmas'' b'' config folder_root k'' states
 
   case pl_sr of
       CounterexampleFound -> return $ S.SAT ()
