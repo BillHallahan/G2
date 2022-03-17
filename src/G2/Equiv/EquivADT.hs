@@ -16,6 +16,7 @@ import qualified Data.HashMap.Lazy as HM
 import Control.Monad
 
 import G2.Execution.NormalForms
+import G2.Equiv.G2Calls
 
 import GHC.Generics (Generic)
 import Data.Data
@@ -70,8 +71,9 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
   case (e1, e2) of
     _ | e1 == e2 -> Just pairs
     -- ignore all Ticks
-    (Tick _ e1', _) -> exprPairing ns s1 s2 e1' e2 pairs n1 n2
-    (_, Tick _ e2') -> exprPairing ns s1 s2 e1 e2' pairs n1 n2
+    (Tick t1 e1', Tick t2 e2') | labeledErrorName t1 == labeledErrorName t2 -> exprPairing ns s1 s2 e1' e2' pairs n1 n2
+    (Tick t e1', _) | isNothing $ labeledErrorName t -> exprPairing ns s1 s2 e1' e2 pairs n1 n2
+    (_, Tick t e2') | isNothing $ labeledErrorName t -> exprPairing ns s1 s2 e1 e2' pairs n1 n2
     -- keeping track of inlined vars prevents looping
     (Var i1, Var i2) | (idName i1) `elem` n1
                      , (idName i2) `elem` n2 -> Just $ HS.insert (Ob [] e1 e2) pairs
