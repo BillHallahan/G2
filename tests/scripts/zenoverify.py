@@ -332,9 +332,11 @@ old_successes = [
     ("p82", [])
 ]
 
+# TODO I shouldn't need totality for anything that's walked on both sides
+# then again, walking order could interfere with things
 ground_truth = [
     ("p01", [n]),
-    ("p02", []), # slow
+    ("p02", []),
     ("p03fin", [n]),
     ("p03finB", [xs]),
     ("p04fin", []),
@@ -351,7 +353,7 @@ ground_truth = [
     ("p14", []),
     ("p15finA", [x]),
     ("p15finB", [xs]),
-    ("p16finA", [xs]), # extra slow, took about 2:10
+    ("p16finA", [xs]),
     ("p17", []),
     ("p18fin", []),
     ("p19", [n]),
@@ -359,10 +361,10 @@ ground_truth = [
     ("p21fin", []),
     ("p22", []),
     ("p23", []),
-    ("p24fin", [b]), # slow
-    ("p25fin", [a]), # slow
+    ("p24fin", [b]),
+    ("p25fin", [a]),
     ("p26finA", [x]),
-    ("p26finB", [x, xs]),
+    ("p26finB", [xs]),
     ("p27finA", [xs, ys]),
     ("p28finA", [xs]),
     ("p29finA", [xs]),
@@ -399,7 +401,7 @@ ground_truth = [
     ("p58", [n, xs, ys]),
     ("p59finA", [ys]),
     ("p60finB", []),
-    ("p61fin", []), # slow
+    ("p61fin", []),
     ("p62finA", []),
     ("p63finA", [n]),
     ("p64fin", []),
@@ -411,14 +413,14 @@ ground_truth = [
     ("p69finA", [m]),
     ("p70finC", [n]),
     ("p70finD", [m]),
-    ("p71finA", [y]),
-    ("p71finB", [x]),
+    ("p71finA", [y, xs]),
+    ("p71finB", [x, xs]),
     ("p72", [i]),
-    ("p73", [p, xs]), # slow, but only a little
+    ("p73", [p, xs]),
     ("p74", [i, xs]),
     ("p75fin", [m, xs]),
     ("p76finB", [m, xs]),
-    ("p76finC", [n]),
+    ("p76finC", [n, xs]),
     ("p77finA", [x]),
     ("p78finB", []),
     ("p79", [n]),
@@ -555,7 +557,7 @@ ground_truth_altered_finite = [
     ("p24fin", [b], 1),
     ("p25fin", [a], 1),
     ("p26finA", [x], 4),
-    ("p26finB", [x, xs], 3),
+    ("p26finB", [x, xs], 4),
     ("p27finA", [xs, ys], 6),
     ("p28finA", [xs], 3),
     ("p29finA", [xs], 3),
