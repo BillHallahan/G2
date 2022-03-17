@@ -1068,9 +1068,16 @@ xx = xx
 yy :: Bool
 yy = yy
 
+loop1 :: Nat -> Nat
+loop1 n = loop1 n
+
+loop2 :: Nat -> Nat
+loop2 _ = loop2 Z
+
 {-# RULES
 "fg" f = g
 "fgBad" f = g . g
 "badPlus" plus = badPlus
 "contrived" xx = yy
+"contrivedSync" forall n . walkNat n (loop1 n) = loop2 n
   #-}
