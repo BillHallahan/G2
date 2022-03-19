@@ -75,6 +75,8 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
     (Tick t1 e1', Tick t2 e2') | labeledErrorName t1 == labeledErrorName t2 -> exprPairing ns s1 s2 e1' e2' pairs n1 n2
     (Tick t e1', _) | isNothing $ labeledErrorName t -> exprPairing ns s1 s2 e1' e2 pairs n1 n2
     (_, Tick t e2') | isNothing $ labeledErrorName t -> exprPairing ns s1 s2 e1 e2' pairs n1 n2
+    -- We have two error labels that are different from each other
+    (Tick t1 e1', Tick t2 e2') -> Nothing
     -- keeping track of inlined vars prevents looping
     (Var i1, Var i2) | (idName i1) `elem` n1
                      , (idName i2) `elem` n2 -> Just $ HS.insert (Ob [] e1 e2) pairs
