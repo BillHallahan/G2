@@ -5,11 +5,17 @@
 
 module G2.Equiv.G2Calls ( StateET
                         , EquivTracker (..)
+                        , BlockInfo (..)
                         , emptyEquivTracker
                         , runG2ForRewriteV
                         , totalExpr
+
                         , isLabeledErrorName
-                        , labeledErrorName ) where
+                        , labeledErrorName
+                        , isLabeledError
+
+                        , lookupBoth
+                        , isSymbolicBoth ) where
 
 import G2.Config
 import G2.Execution
@@ -83,21 +89,28 @@ rewriteRedHaltOrd solver simplifier h_opp track_opp config =
     (case m_logger of
             Just logger -> SomeReducer (
                                 (StdRed share solver simplifier :<~
-                                        EnforceProgressR :<~ ConcSymReducer :<~ SymbolicSwapper h_opp track_opp) :<~? LabeledErrorsR) <~?
+                                        EnforceProgressR) :<~? LabeledErrorsR :<~ ConcSymReducer :<~ SymbolicSwapper h_opp track_opp) <~?
                                         (logger <~ SomeReducer EquivReducer)
             Nothing -> SomeReducer (
-                                (StdRed share solver simplifier :<~
-                                    EnforceProgressR :<~ ConcSymReducer :<~ SymbolicSwapper h_opp track_opp) :<~? LabeledErrorsR :<~?
+                                ((StdRed share solver simplifier :<~
+                                    EnforceProgressR) :<~? LabeledErrorsR :<~ ConcSymReducer :<~ SymbolicSwapper h_opp track_opp) :<~?
                                     EquivReducer)
      , SomeHalter
          (DiscardIfAcceptedTag state_name
          :<~> EnforceProgressH
-         :<~> SWHNFHalter)
+         :<~> SWHNFHalter
+         :<~> LabeledErrorsH)
      , SomeOrderer $ PickLeastUsedOrderer)
 
 type StateET = State EquivTracker
 
 data ConcSymReducer = ConcSymReducer
+
+data BlockInfo = BlockDC DataCon Int Int
+               | BlockLam Id
+               deriving (Show, Eq, Generic)
+
+instance Hashable BlockInfo
 
 -- Maps higher order function calls to symbolic replacements.
 -- This allows the same call to be replaced by the same Id consistently.
@@ -109,7 +122,8 @@ data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
                                  , saw_tick :: Maybe Int
                                  , total :: HS.HashSet Name
                                  , finite :: HS.HashSet Name
-                                 , dc_path :: [(DataCon, Int, Int)]
+                                 , dc_path :: [BlockInfo]
+                                 , opp_env :: ExprEnv
                                  , folder_name :: String } deriving (Show, Eq, Generic)
 
 instance Hashable EquivTracker
@@ -124,7 +138,7 @@ instance Reducer ConcSymReducer () EquivTracker where
                             , expr_env = eenv
                             , type_env = tenv
                             , path_conds = pc
-                            , track = EquivTracker et m total finite dcp fname })
+                            , track = EquivTracker et m total finite dcp opp fname })
                    b@(Bindings { name_gen = ng })
         | E.isSymbolic n eenv
         , Just (dc_symbs, ng') <- arbDC tenv ng t n total = do
@@ -142,7 +156,7 @@ instance Reducer ConcSymReducer () EquivTracker where
                                         foldr E.insertSymbolic
                                               (E.insert n e eenv)
                                               symbs'
-                                    , track = EquivTracker et m total' finite' dcp fname
+                                    , track = EquivTracker et m total' finite' dcp opp fname
                                     }) dc_symbs
                 b' =  b { name_gen = ng' }
                 -- only add to total if n was total
@@ -197,7 +211,7 @@ instance Reducer SymbolicSwapper () EquivTracker where
     redRules r@(SymbolicSwapper h_opp track_opp) rv
                   s@(State { curr_expr = CurrExpr _ e
                            , expr_env = h
-                           , track = EquivTracker et m tot fin dcp fname })
+                           , track = EquivTracker et m tot fin dcp opp fname })
                   b =
         case e of
             Var i@(Id n _) | E.isSymbolic n h ->
@@ -209,7 +223,7 @@ instance Reducer SymbolicSwapper () EquivTracker where
                             h' = foldr (\j -> E.insertSymbolic j) (E.insert n e' h) (L.nub vi)
                             total' = HS.union (HS.intersection (total track_opp) vi_hs) tot
                             finite' = HS.union (HS.intersection (finite track_opp) vi_hs) fin
-                            track' = EquivTracker et m total' finite' dcp fname
+                            track' = EquivTracker et m total' finite' dcp opp fname
                             s' = s {
                               expr_env = h'
                             , track = track'
@@ -226,9 +240,9 @@ instance Reducer EnforceProgressR () EquivTracker where
     initReducer _ _ = ()
     redRules r rv s@(State { curr_expr = CurrExpr _ e
                            , num_steps = n
-                           , track = EquivTracker et m total finite dcp fname })
+                           , track = EquivTracker et m total finite dcp opp fname })
                   b =
-        let s' = s { track = EquivTracker et (Just n) total finite dcp fname }
+        let s' = s { track = EquivTracker et (Just n) total finite dcp opp fname }
         in
         case (e, m) of
             (Tick (NamedLoc (Name p _ _ _)) _, Nothing) ->
@@ -259,6 +273,11 @@ labeledErrorName _ = Nothing
 freshLabeledError :: NameGen -> (Name, NameGen)
 freshLabeledError = freshSeededName labeledErrorNameSeed
 
+isLabeledError :: Expr -> Bool
+isLabeledError (Tick (NamedLoc n) (Prim Error _)) = isLabeledErrorName n
+isLabeledError (Tick (NamedLoc n) (Prim Undefined _)) = isLabeledErrorName n
+isLabeledError _ = False
+
 data LabeledErrorsR = LabeledErrorsR
 
 instance Reducer LabeledErrorsR () t where
@@ -266,10 +285,16 @@ instance Reducer LabeledErrorsR () t where
     redRules r rv s@(State { curr_expr = CurrExpr _ ce, exec_stack = stck }) b
         | isLabeledError ce = return (Finished, [(s { exec_stack = S.empty }, rv)], b, r)
         | otherwise = return (NoProgress, [(s, rv)], b, r)
-        where
-            isLabeledError (Tick (NamedLoc n) (Prim Error _)) = isLabeledErrorName n
-            isLabeledError (Tick (NamedLoc n) (Prim Undefined _)) = isLabeledErrorName n
-            isLabeledError _ = False
+
+data LabeledErrorsH = LabeledErrorsH
+
+instance Halter LabeledErrorsH () t where
+    initHalt _ _ = ()
+    updatePerStateHalt _ hv _ _ = hv
+    stopRed _ _ _ s@(State { curr_expr = CurrExpr _ ce, exec_stack = stck })
+        | isLabeledError ce = return Accept
+        | otherwise = return Continue
+    stepHalter _ hv _ _ _ = hv
 
 argCount :: Type -> Int
 argCount = length . spArgumentTypes . PresType
@@ -328,7 +353,7 @@ instance Halter EnforceProgressH () EquivTracker where
     stopRed _ _ _ s =
         let CurrExpr _ e = curr_expr s
             n' = num_steps s
-            EquivTracker _ m _ _ _ _ = track s
+            EquivTracker _ m _ _ _ _ _ = track s
             h = expr_env s
         in
         case m of
@@ -343,7 +368,7 @@ instance Halter EnforceProgressH () EquivTracker where
     stepHalter _ _ _ _ _ = ()
 
 emptyEquivTracker :: EquivTracker
-emptyEquivTracker = EquivTracker HM.empty Nothing HS.empty HS.empty [] ""
+emptyEquivTracker = EquivTracker HM.empty Nothing HS.empty HS.empty [] E.empty ""
 
 data EquivReducer = EquivReducer
 
@@ -352,7 +377,7 @@ instance Reducer EquivReducer () EquivTracker where
     redRules r _
                  s@(State { expr_env = eenv
                           , curr_expr = CurrExpr Evaluate e
-                          , track = EquivTracker et m total finite dcp fname })
+                          , track = EquivTracker et m total finite dcp opp fname })
                  b@(Bindings { name_gen = ng })
         | isSymFuncApp eenv (removeAllTicks e) =
             let
@@ -391,7 +416,7 @@ instance Reducer EquivReducer () EquivTracker where
                                  then HS.insert (idName v) total
                                  else total
                         s' = s { curr_expr = CurrExpr Evaluate (Var v)
-                               , track = EquivTracker et' m total' finite dcp fname
+                               , track = EquivTracker et' m total' finite dcp opp fname
                                , expr_env = E.insertSymbolic v eenv }
                         b' = b { name_gen = ng' }
                     in-- trace ("SYM FUNC " ++ show v ++ "\n" ++ show e) $
@@ -399,23 +424,24 @@ instance Reducer EquivReducer () EquivTracker where
     redRules r rv s b = return (NoProgress, [(s, rv)], b, r)
 
 -- TODO not exhaustive
--- cyclic expressions count as total
+-- cyclic expressions do not count as total for now
+-- if a cycle never goes through a Data constructor, it's not total
 -- TODO reject Error and Undefined primitives
 totalExpr :: StateET ->
              HS.HashSet Name ->
              [Name] -> -- variables inlined previously
              Expr ->
              Bool
-totalExpr s@(State { expr_env = h, track = EquivTracker _ _ total _ _ _ }) ns n e =
+totalExpr s@(State { expr_env = h, track = EquivTracker _ _ total _ _ h' _ }) ns n e =
   case e of
     Tick _ e' -> totalExpr s ns n e'
     Var i | m <- idName i
-          , E.isSymbolic m h -> m `elem` total
+          , isSymbolicBoth m h h' -> m `elem` total
           | m <- idName i
           , not $ HS.member m ns
           , not $ m `elem` n
-          , Just e' <- E.lookup m h -> totalExpr s ns (m:n) e'
-          | (idName i) `elem` n -> True
+          , Just e' <- lookupBoth m h h' -> totalExpr s ns (m:n) e'
+          | (idName i) `elem` n -> False
           | HS.member (idName i) ns -> False
           | otherwise -> error $ "unmapped variable " ++ show i ++ " " ++ (folder_name $ track s)
     App f a -> totalExpr s ns n f && totalExpr s ns n a
@@ -427,6 +453,27 @@ totalExpr s@(State { expr_env = h, track = EquivTracker _ _ total _ _ _ }) ns n 
     Let _ _ -> False
     Case _ _ _ -> False
     _ -> False
+
+-- helper function to circumvent syncSymbolic
+-- for symbolic things, lookup returns the variable
+lookupBoth :: Name -> ExprEnv -> ExprEnv -> Maybe Expr
+lookupBoth n h1 h2 = case E.lookupConcOrSym n h1 of
+  Just (E.Conc e) -> Just e
+  Just (E.Sym i) -> case E.lookup n h2 of
+                      Nothing -> Just $ Var i
+                      m -> m
+  Nothing -> E.lookup n h2
+
+-- doesn't count as symbolic if it's unmapped
+-- condition we need:  n is symbolic in every env where it's mapped
+isSymbolicBoth :: Name -> ExprEnv -> ExprEnv -> Bool
+isSymbolicBoth n h1 h2 =
+  case E.lookupConcOrSym n h1 of
+    Just (E.Sym _) -> case E.lookupConcOrSym n h2 of
+                        Just (E.Conc _) -> False
+                        _ -> True
+    Just (E.Conc _) -> False
+    Nothing -> E.isSymbolic n h2
 
 -- doesn't need tick removal
 exprVarName :: Expr -> Maybe Name
@@ -461,22 +508,23 @@ inlineVars' seen eenv (App e1 e2) = App (inlineVars' seen eenv e1) (inlineVars' 
 inlineVars' _ _ e = e
 
 instance ASTContainer EquivTracker Expr where
-    containedASTs (EquivTracker hm _ _ _ _ _) = HM.keys hm
-    modifyContainedASTs f (EquivTracker hm m total finite dcp fname) =
+    containedASTs (EquivTracker hm _ _ _ _ _ _) = HM.keys hm
+    modifyContainedASTs f (EquivTracker hm m total finite dcp opp fname) =
         (EquivTracker . HM.fromList . map (\(k, v) -> (f k, v)) $ HM.toList hm)
-        m total finite dcp fname
+        m total finite dcp opp fname
 
 instance ASTContainer EquivTracker Type where
-    containedASTs (EquivTracker hm _ _ _ _ _) = containedASTs $ HM.keys hm
-    modifyContainedASTs f (EquivTracker hm m total finite dcp fname) =
+    containedASTs (EquivTracker hm _ _ _ _ _ _) = containedASTs $ HM.keys hm
+    modifyContainedASTs f (EquivTracker hm m total finite dcp opp fname) =
         ( EquivTracker
         . HM.fromList
         . map (\(k, v) -> (modifyContainedASTs f k, modifyContainedASTs f v))
         $ HM.toList hm )
-        m total finite dcp fname
+        m total finite dcp opp fname
 
 -- TODO should names change in total and finite?
+-- TODO change names for dc path?
 instance Named EquivTracker where
-    names (EquivTracker hm _ _ _ _ _) = names hm
-    rename old new (EquivTracker hm m total finite dcp fname) =
-        EquivTracker (rename old new hm) m (rename old new total) (rename old new finite) dcp fname
+    names (EquivTracker hm _ _ _ _ _ _) = names hm
+    rename old new (EquivTracker hm m total finite dcp opp fname) =
+        EquivTracker (rename old new hm) m (rename old new total) (rename old new finite) dcp (rename old new opp) fname

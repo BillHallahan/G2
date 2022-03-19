@@ -93,8 +93,9 @@ printPG pg ns sym_ids s =
       map_print = case map_str of
         "" -> ""
         _ -> "\nSymbolic Function Mappings:\n" ++ map_str
+      dc_print = "\nPath Length:  " ++ (show $ length $ dc_path $ track s)
   in label_str ++ "\n" ++ e_str ++ depth_str1 ++ depth_str2 ++
-     sym_print ++ var_print ++ map_print ++ "\n---"
+     sym_print ++ var_print ++ map_print ++ dc_print ++ "\n---"
 
 inlineVars :: HS.HashSet Name -> ExprEnv -> Expr -> Expr
 inlineVars ns eenv = inlineVars' HS.empty ns eenv
@@ -372,17 +373,35 @@ summarize mode pg ns sym_ids (Marker (sh1, sh2) m) =
   ++
   (tabsAfterNewLines $ summarizeAct pg ns sym_ids m)
 
-printDC :: PrettyGuide -> [(DataCon, Int, Int)] -> String -> String
+printDC :: PrettyGuide -> [BlockInfo] -> String -> String
 printDC _ [] str = str
-printDC pg ((d, i, n):ds) str =
+printDC pg ((BlockDC d i n):ds) str =
   let d_str = printHaskellDirtyPG pg $ Data d
       blanks = replicate n "_"
       str' = "(" ++ (printDC pg ds str) ++ ")"
       pre_blanks = replicate i "_"
       post_blanks = replicate (n - (i + 1)) "_"
   in intercalate " " $ d_str:(pre_blanks ++ (str':post_blanks))
+printDC pg (_:ds) str = printDC pg ds str
 
--- TODO for both cycles and regular counterexamples
+-- instead of interleaving DCs and lambdas, we handle them separately
+-- for lambdas, we wrap applications around the starting exprs
+-- earlier list entries represent applications that are farther in
+printLams :: PrettyGuide ->
+             HS.HashSet Name ->
+             ExprEnv ->
+             [BlockInfo] ->
+             String ->
+             String
+printLams _ _ _ [] str = str
+printLams pg ns h ((BlockLam i):ds) str =
+  let arg = inlineVars ns h $ Var i
+      arg_str = printHaskellDirtyPG pg arg
+      str' = "(" ++ str ++ ") " ++ arg_str
+  in printLams pg ns h ds str'
+printLams pg ns h (_:ds) str = printLams pg ns h ds str
+
+-- for both cycles and regular counterexamples
 printCX :: PrettyGuide ->
            HS.HashSet Name ->
            [Id] ->
@@ -398,10 +417,12 @@ printCX pg ns sym_ids (sh1, sh2) (s1, s2) (q1', q2') end1_str end2_str =
       names2 = map trackName $ (latest sh2):history sh2
       e1 = inlineVars ns (expr_env q1') $ exprExtract s1
       e1_str = printHaskellPG pg q1' e1
+      e1_str' = printLams pg ns (expr_env q1') (dc_path $ track q1') e1_str
       e2 = inlineVars ns h $ exprExtract s2
       e2_str = printHaskellPG pg q2' e2
-      cx_str = e1_str ++ " = " ++ end1_str ++ " but " ++
-               e2_str ++ " = " ++ end2_str
+      e2_str' = printLams pg ns (expr_env q2') (dc_path $ track q2') e2_str
+      cx_str = e1_str' ++ " = " ++ end1_str ++ " but " ++
+               e2_str' ++ " = " ++ end2_str
       func_ids = map snd $ HM.toList $ higher_order $ track q2'
       sym_vars = varsFullList h ns $ sym_ids ++ func_ids
       sym_str = printVars pg ns q2' sym_vars
@@ -435,7 +456,7 @@ showCX :: PrettyGuide ->
           String
 showCX pg ns sym_ids sh_pair s_pair (q1, q2) =
   -- main part showing contradiction
-  let (q1', q2') = syncSymbolic q1 q2
+  let (q1', q2') = syncEnvs q1 q2
       end1 = inlineVars ns (expr_env q1') $ exprExtract q1'
       end1_str = printDC pg (dc_path $ track q1') $ printHaskellPG pg q1' end1
       end2 = inlineVars ns (expr_env q2') $ exprExtract q2'
@@ -451,7 +472,7 @@ showCycle :: PrettyGuide ->
              String
 showCycle pg ns sym_ids sh_pair s_pair cm =
   let (q1, q2) = cycle_real_present cm
-      (q1', q2') = syncSymbolic q1 q2
+      (q1', q2') = syncEnvs q1 q2
       end1 = inlineVars ns (expr_env q1') $ exprExtract q1'
       end1_str = case cycle_side cm of
         ILeft -> "{HAS NON-TERMINATING PATH}"
@@ -469,21 +490,22 @@ showCycle pg ns sym_ids sh_pair s_pair cm =
 -- most Expr constructors will never appear in a concretization of an argument
 -- TODO don't need to care about ns or cycles if only applied to initial args?
 -- type arguments do not contribute to the depth of an expression
-exprDepth :: ExprEnv -> HS.HashSet Name -> [Name] -> Expr -> Int
-exprDepth h ns n e = case e of
-  Tick _ e' -> exprDepth h ns n e'
-  Var i | E.isSymbolic (idName i) h -> 0
+-- TODO this needs to take the opposite side into account
+exprDepth :: ExprEnv -> ExprEnv -> HS.HashSet Name -> [Name] -> Expr -> Int
+exprDepth h h' ns n e = case e of
+  Tick _ e' -> exprDepth h h' ns n e'
+  Var i | isSymbolicBoth (idName i) h h' -> 0
         | m <- idName i
         , not $ m `elem` ns
-        , Just e' <- E.lookup m h -> exprDepth h ns (m:n) e'
+        , Just e' <- lookupBoth m h h' -> exprDepth h h' ns (m:n) e'
         | not $ (idName i) `elem` ns -> error "unmapped variable"
   _ | d@(Data (DataCon _ _)):l <- unAppNoTicks e
     , not $ null (anonArgumentTypes d) ->
-      1 + (maximum $ 0:(map (exprDepth h ns n) l))
+      1 + (maximum $ 0:(map (exprDepth h h' ns n) l))
     | otherwise -> 0
 
 getDepth :: StateET -> HS.HashSet Name -> Id -> Int
-getDepth s ns i = exprDepth (expr_env s) ns [] (Var i)
+getDepth s ns i = exprDepth (expr_env s) (opp_env $ track s) ns [] (Var i)
 
 minArgDepth :: HS.HashSet Name -> [Id] -> StateET -> Int
 minArgDepth ns sym_ids s = case sym_ids of

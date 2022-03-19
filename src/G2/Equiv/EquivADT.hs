@@ -28,6 +28,7 @@ import Data.Maybe
 -- earlier DataCons in the list are farther out
 -- the first Int tag indicates which argument of the constructor this was
 -- the second one indicates the total number of arguments for that constructor
+-- if there are lambdas, we handle them in Verifier
 data Obligation = Ob [(DataCon, Int, Int)] Expr Expr
                   deriving (Show, Eq, Read, Generic, Typeable, Data)
 
@@ -119,13 +120,14 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
                 let ep = uncurry (exprPairing ns s1 s2)
                     ep' hs p = ep p hs n1 n2
                     l = zip l1 l2
+                    extend i (Ob ds e1_ e2_) = Ob ((d, i, length l):ds) e1_ e2_
                     -- TODO inefficient list conversion
                     hl = map (\m -> case m of
                                Nothing -> Nothing
                                Just hs -> Just $ HS.toList hs) $ map (ep' HS.empty) l
                     hl' = map (\(i, m) -> case m of
                                 Nothing -> Nothing
-                                Just hs_l -> Just $ map (\(Ob ds e1_ e2_) -> Ob ((d, i, length l):ds) e1_ e2_) hs_l)
+                                Just hs_l -> Just $ map (extend i) hs_l)
                               (zip [0..] hl)
                 in
                 if any isNothing hl'

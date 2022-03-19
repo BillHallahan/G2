@@ -37,6 +37,8 @@ module G2.Language.ExprEnv
     , mapWithKey
     , mapWithKey'
     , mapConcWithKey
+    , mapConcOrSym
+    , mapConcOrSymWithKey
     , mapM
     , mapWithKeyM
     , filter
@@ -274,6 +276,20 @@ mapConcWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
         f' n (ExprObj e) = ExprObj $ f n e
         f' n s@(SymbObj _) = s
         f' _ n = n
+
+mapConcOrSym :: (ConcOrSym -> ConcOrSym) -> ExprEnv -> ExprEnv
+mapConcOrSym f = mapConcOrSymWithKey (\_ -> f)
+
+mapConcOrSymWithKey :: (Name -> ConcOrSym -> ConcOrSym) -> ExprEnv -> ExprEnv
+mapConcOrSymWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
+    where
+        g :: ConcOrSym -> EnvObj
+        g (Conc e) = ExprObj e
+        g (Sym i) = SymbObj i
+        f' :: Name -> EnvObj -> EnvObj
+        f' n (ExprObj e) = g $ f n $ Conc e
+        f' n (SymbObj i) = g $ f n $ Sym i
+        f' _ e = e
 
 mapM :: Monad m => (Expr -> m Expr) -> ExprEnv -> m ExprEnv
 mapM f eenv = return . ExprEnv =<< Pre.mapM f' (unwrapExprEnv eenv)

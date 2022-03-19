@@ -87,6 +87,12 @@ altMorse = f $ Cons Z $ streamTail altMorse
 -- (2/1) ex3a gets stuck even with state printing disabled
 -- same goes for ex3b, ex4, ex6a
 -- I get UNSAT for ex1, ex2, ex6b with state printing disabled
+{-
+(2/11)
+I get UNSAT for ex1, ex2, ex6b
+ex3a fails to terminate but doesn't get stuck
+Same for ex3b, ex4, ex6a
+-}
 {-# RULES
 "ex1" forall s . streamZip (streamOdd s, streamEven s) = s
 "ex2" zip31 (ozo, ozo) = feigenbaum

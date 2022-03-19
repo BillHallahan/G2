@@ -1048,3 +1048,36 @@ forceTreeBool (Node l _ r) b = case (forceTreeBool l b) of
 "prop78" forall xs . prop_78 xs = True
 "prop85" forall xs ys . prop_85 xs ys = True
   #-}
+
+-- TODO need a better way to handle lambdas; this gets SAT
+f :: Nat -> Nat
+f n = S n
+
+g :: Nat -> Nat
+g n = S n
+
+plus :: Nat -> Nat -> Nat
+plus a b = a + b
+
+badPlus :: Nat -> Nat -> Nat
+badPlus a b = S (a + b)
+
+xx :: Bool
+xx = xx
+
+yy :: Bool
+yy = yy
+
+loop1 :: Nat -> Nat
+loop1 n = loop1 n
+
+loop2 :: Nat -> Nat
+loop2 _ = loop2 Z
+
+{-# RULES
+"fg" f = g
+"fgBad" f = g . g
+"badPlus" plus = badPlus
+"contrived" xx = yy
+"contrivedSync" forall n . walkNat n (loop1 n) = loop2 n
+  #-}

@@ -12,38 +12,22 @@ def run_zeno(filename, thm, var_settings, timeout):
     end_time = time.monotonic();
     elapsed = end_time - start_time;
 
-    lines = res.splitlines()
+    # there's always an extra empty string at the end for now
+    lines = res.split("\n")
     depth1 = 0
     depth2 = 0
     cx_text = []
-    try:
-        # the numbers 4 and 5 are dependent on the initial printing
-        # if that printing changes, these need to change too
-        left_str = lines[4].decode('utf-8');
-        right_str = lines[5].decode('utf-8');
-        check_unsat = lines[-1].decode('utf-8');
-        depth1 = check_depth("Max", lines)
-        depth2 = check_depth("Sum", lines)
-        cx_idx = check_cx(lines)
-        if cx_idx < 0:
-            cx_text = lines[cx_idx:]
-            for i in range(len(cx_text)):
-                cx_text[i] = cx_text[i].decode('utf-8')
-        print(check_unsat);
-    except IndexError:
-        left_str = lines[4].decode('utf-8');
-        right_str = lines[5].decode('utf-8');
-        if res == "Timeout":
-            check_unsat = "Timeout";
-            depth1 = check_depth("Max", lines)
-            depth2 = check_depth("Sum", lines)
-            cx_idx = check_cx(lines)
-            if cx_idx < 0:
-                cx_text = lines[cx_idx:]
-                for i in range(len(cx_text)):
-                    cx_text[i] = cx_text[i].decode('utf-8')
-        else:
-            check_unsat = "";
+    # the numbers 4 and 5 are dependent on the initial printing
+    # if that printing changes, these need to change too
+    left_str = lines[4]
+    right_str = lines[5]
+    check_unsat = lines[-2]
+    depth1 = check_depth("Max", lines)
+    depth2 = check_depth("Sum", lines)
+    cx_idx = check_cx(lines)
+    if cx_idx < 0:
+        cx_text = lines[cx_idx:]
+    print(check_unsat);
     return {
         "left":left_str,
         "right":right_str,
@@ -54,21 +38,20 @@ def run_zeno(filename, thm, var_settings, timeout):
         "cx":cx_text
     }
 
-def call_zeno_process(filename, thm, var_settings, time):
+def call_zeno_process(filename, thm, var_settings, time_limit):
     try:
         args = ["dist/build/RewriteV/RewriteV", "tests/RewriteVerify/Correct/" + filename, thm]
-        #limit_settings = ["--", "--limit", "15"]
-        limit_settings = []
-        res = subprocess.run(args + var_settings + limit_settings, capture_output = True, timeout = time);
-        return res.stdout;
+        res = subprocess.run(args + var_settings, universal_newlines=True, capture_output=True, timeout=time_limit);
+        return res.stdout
     except subprocess.TimeoutExpired as TimeoutEx:
-        return (TimeoutEx.stdout.decode('utf-8') + "\nTimeout").encode('utf-8')
+        # extra line break at end to match the one from normal termination
+        return TimeoutEx.stdout.decode('utf-8') + "\nTimeout\n"
 
 # ver should be either "Max" or "Sum"
 def check_depth(ver, lines):
     depths = [0]
     for utf in lines:
-        line = utf.decode('utf-8')
+        line = utf
         if line[:17] == ("<<Min " + ver + " Depth>>"):
             depth_str = line[18:]
             depths.append(int(depth_str))
@@ -76,7 +59,7 @@ def check_depth(ver, lines):
 
 def check_cx(lines):
     for i in range(1, 1 + len(lines)):
-        line = lines[-i].decode('utf-8')
+        line = lines[-i]
         if "COUNTEREXAMPLE FOUND" in line:
             return -i
     return 0
@@ -349,11 +332,13 @@ old_successes = [
     ("p82", [])
 ]
 
+# TODO I shouldn't need totality for anything that's walked on both sides
+# then again, walking order could interfere with things
 ground_truth = [
     ("p01", [n]),
-    ("p02", []), # slow
+    ("p02", []),
     ("p03fin", [n]),
-    ("p03finB", [n, xs]),
+    ("p03finB", [xs]),
     ("p04fin", []),
     ("p05finE", [x, xs]),
     ("p05finF", [n, xs]),
@@ -368,7 +353,7 @@ ground_truth = [
     ("p14", []),
     ("p15finA", [x]),
     ("p15finB", [xs]),
-    ("p16finA", [xs]), # extra slow, took about 2:10
+    ("p16finA", [xs]),
     ("p17", []),
     ("p18fin", []),
     ("p19", [n]),
@@ -376,10 +361,10 @@ ground_truth = [
     ("p21fin", []),
     ("p22", []),
     ("p23", []),
-    ("p24fin", [b]), # slow
-    ("p25fin", [a]), # slow
+    ("p24fin", [b]),
+    ("p25fin", [a]),
     ("p26finA", [x]),
-    ("p26finB", [x, xs]),
+    ("p26finB", [xs]),
     ("p27finA", [xs, ys]),
     ("p28finA", [xs]),
     ("p29finA", [xs]),
@@ -416,7 +401,7 @@ ground_truth = [
     ("p58", [n, xs, ys]),
     ("p59finA", [ys]),
     ("p60finB", []),
-    ("p61fin", []), # slow
+    ("p61fin", []),
     ("p62finA", []),
     ("p63finA", [n]),
     ("p64fin", []),
@@ -428,14 +413,14 @@ ground_truth = [
     ("p69finA", [m]),
     ("p70finC", [n]),
     ("p70finD", [m]),
-    ("p71finA", [y]),
-    ("p71finB", [x]),
+    ("p71finA", [y, xs]),
+    ("p71finB", [x, xs]),
     ("p72", [i]),
-    ("p73", [p, xs]), # slow, but only a little
+    ("p73", [p, xs]),
     ("p74", [i, xs]),
     ("p75fin", [m, xs]),
     ("p76finB", [m, xs]),
-    ("p76finC", [n]),
+    ("p76finC", [n, xs]),
     ("p77finA", [x]),
     ("p78finB", []),
     ("p79", [n]),
@@ -555,7 +540,7 @@ ground_truth_all_total = [
 # TODO Instead of removing walkNatList calls, I could change to walkList
 ground_truth_altered_finite = [
     ("p03fin", [n], 4),
-    ("p03finB", [n, xs], 2),
+    ("p03finB", [xs], 3),
     ("p04fin", [], 1),
     ("p05finE", [x, xs], 4),
     ("p05finF", [n, xs], 4),
@@ -572,7 +557,7 @@ ground_truth_altered_finite = [
     ("p24fin", [b], 1),
     ("p25fin", [a], 1),
     ("p26finA", [x], 4),
-    ("p26finB", [x, xs], 3),
+    ("p26finB", [x, xs], 4),
     ("p27finA", [xs, ys], 6),
     ("p28finA", [xs], 3),
     ("p29finA", [xs], 3),
@@ -974,10 +959,11 @@ def main():
     
     # TODO this is the real test suite
     # feel free to reduce the time from 180, but keep at least 150
-    t = 180
+    t = 30
     test_suite_csv(None, ground_truth, t)
     #test_suite_csv("ZenoTrue", ground_truth, t)
     # test_suite_csv("ZenoAlteredTotal", totality_change(ground_truth), t)
+    # TODO this is improper usage
     # all_total_alt_finite = altered_total_for_finite(ground_truth_altered_finite)
     # test_suite_csv("ZenoAlteredFinite", make_altered_finite_list(all_total_alt_finite), t)
 

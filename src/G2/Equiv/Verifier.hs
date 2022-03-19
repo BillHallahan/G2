@@ -56,6 +56,8 @@ import G2.Lib.Printers
 
 import qualified Control.Monad.Writer.Lazy as W
 
+import System.IO
+
 -- 9/27 notes
 -- TODO have a list of every single state, not just the stopping ones
 -- The value of discharge should be the previously-encountered state pair that
@@ -96,13 +98,13 @@ would be awakened soonest should be awakened immediately.
 runSymExec :: S.Solver solver =>
               solver ->
               Config ->
+              Bool ->
               String ->
               HS.HashSet Name ->
               StateET ->
               StateET ->
               CM.StateT (Bindings, Int) IO [(StateET, StateET)]
-runSymExec solver config folder_root ns s1 s2 = do
-  CM.liftIO $ putStrLn "runSymExec"
+runSymExec solver config sync folder_root ns s1 s2 = do
   ct1 <- CM.liftIO $ getCurrentTime
   (bindings, k) <- CM.get
   let config' = config { logStates = logStatesFolder ("a" ++ show k) folder_root }
@@ -111,26 +113,26 @@ runSymExec solver config folder_root ns s1 s2 = do
       CurrExpr r1 e1 = curr_expr s1
       e1' = addStackTickIfNeeded ns (expr_env s1) e1
       s1' = s1 { track = t1, curr_expr = CurrExpr r1 e1' }
-  CM.liftIO $ putStrLn $ (folder_name $ track s1) ++ " becomes " ++ (folder_name t1)
+  --CM.liftIO $ putStrLn $ (folder_name $ track s1) ++ " becomes " ++ (folder_name t1)
   (er1, bindings') <- CM.lift $ runG2ForRewriteV solver s1' (expr_env s2) (track s2) config' bindings
   CM.put (bindings', k + 1)
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
                     (b_, k_) <- CM.get
-                    let s2_ = transferTrackerInfo s1_ s2-- (snd $ syncSymbolic s1_ s2)
+                    let s2_ = transferInfo sync s1_ (snd $ syncSymbolic s1_ s2)
                     ct2 <- CM.liftIO $ getCurrentTime
                     let config'' = config { logStates = logStatesFolder ("b" ++ show k_) folder_root }
                         t2 = (track s2_) { folder_name = logStatesET ("b" ++ show k_) folder_root }
                         CurrExpr r2 e2 = curr_expr s2_
                         e2' = addStackTickIfNeeded ns (expr_env s2) e2
                         s2' = s2_ { track = t2, curr_expr = CurrExpr r2 e2' }
-                    CM.liftIO $ putStrLn $ (folder_name $ track s2_) ++ " becomes " ++ (folder_name t2)
+                    --CM.liftIO $ putStrLn $ (folder_name $ track s2_) ++ " becomes " ++ (folder_name t2)
                     (er2, b_') <- CM.lift $ runG2ForRewriteV solver s2' (expr_env s1_) (track s1_) config'' b_
                     CM.put (b_', k_ + 1)
                     return $ map (\er2_ -> 
                                     let
                                         s2_' = final_state er2_
-                                        s1_' = transferTrackerInfo s2_' s1_-- (snd $ syncSymbolic s2_' s1_)
+                                        s1_' = transferInfo sync s2_' (snd $ syncSymbolic s2_' s1_)
                                     in
                                     (addStamps k $ prepareState s1_', addStamps k_ $ prepareState s2_')
                                  ) er2) final_s1
@@ -146,6 +148,12 @@ pathCondsConsistent solver (s1, s2) = do
     S.UNSAT () -> return False
     _ -> return True
 
+-- info goes from left to right for expression environment too
+transferInfo :: Bool -> StateET -> StateET -> StateET
+transferInfo True s1 s2 =
+  transferTrackerInfo s1 (s2 { expr_env = expr_env s1 })
+transferInfo False s1 s2 = transferTrackerInfo s1 s2
+
 -- Don't share expr env and path constraints between sides
 -- info goes from left to right
 transferTrackerInfo :: StateET -> StateET -> StateET
@@ -156,6 +164,7 @@ transferTrackerInfo s1 s2 =
         higher_order = higher_order t1
       , total = total t1
       , finite = finite t1
+      --, opp_env = expr_env s1
       }
   in s2 { track = t2' }
 
@@ -321,15 +330,6 @@ allTactics = [
 allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
 allNewLemmaTactics = map applyTacticToLabeledStates [tryEquality, tryCoinduction]
 
--- TODO don't return UNSAT if there are latent obligations
--- TODO don't lose lemmas if all active ones proven
-adjustStepRes :: StepRes -> [(StateH, StateH)] -> StepRes
-adjustStepRes CounterexampleFound _ = CounterexampleFound
-adjustStepRes (Proven lemmas) [] = Proven lemmas
-adjustStepRes (Proven lemmas) states = ContinueWith states lemmas
-adjustStepRes (ContinueWith states lemmas) states' =
-  ContinueWith (states ++ states') lemmas
-
 -- negative loop iteration count means there's no limit
 -- TODO if states is empty but n = 0, we'll get Unknown rather than UNSAT
 -- added (null states) check to deal with that
@@ -341,13 +341,13 @@ verifyLoop :: S.Solver solver =>
               [(StateH, StateH)] ->
               Bindings ->
               Config ->
+              Bool ->
               [Id] ->
               String ->
               Int ->
               Int ->
-              Int ->
               W.WriterT [Marker] IO (S.Result () ())
-verifyLoop solver ns lemmas states b config sym_ids folder_root k m n | (n /= 0) || (null states) = do
+verifyLoop solver ns lemmas states b config sync sym_ids folder_root k n | (n /= 0) || (null states) = do
   W.liftIO $ putStrLn "<Loop Iteration>"
   W.liftIO $ putStrLn $ show n
   --let min_depth = minDepth ns sym_ids states
@@ -361,11 +361,10 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k m n | (n /= 0)
     _ -> do
       W.liftIO $ putStrLn $ "<<Min Max Depth>> " ++ show min_max_depth
       W.liftIO $ putStrLn $ "<<Min Sum Depth>> " ++ show min_sum_depth
+  W.liftIO $ hFlush stdout
   -- TODO alternating iterations for this too?
   -- Didn't test on much, but no apparent benefit
-  (b', k', proven_lemmas, lemmas') <- {-if m `mod` 2 == 0
-                                      then return (b, k, [], lemmas)
-                                      else -}verifyLoopPropLemmas solver allTactics ns lemmas b config folder_root k
+  (b', k', proven_lemmas, lemmas') <- verifyLoopPropLemmas solver allTactics ns lemmas b config sync folder_root k
 
   -- W.liftIO $ putStrLn $ "prop_lemmas': " ++ show (length prop_lemmas')
   --W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length proven_lemmas)
@@ -374,34 +373,20 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k m n | (n /= 0)
 
   -- p02 went from about 50s to 1:50 when I added this
   -- No improvement for p03fin
-  (b'', k'', proven_lemmas', lemmas'') <- {-if m `mod` 2 == 0
-                                          then return (b', k', proven_lemmas, lemmas')
-                                          else -}verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas lemmas' b' config folder_root k'
+  (b'', k'', proven_lemmas', lemmas'') <- verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas lemmas' b' config sync folder_root k'
   -- TODO I think the lemmas should be the unresolved ones
   -- TODO what to do with disproven lemmas?
   -- No noticeable time change for p02 with this added, still 1:50
-  (pl_sr, b''', k''') <- {-if m `mod` 2 == 0
-                         then return (ContinueWith states $ proposed_lemmas lemmas'', b'', k'')
-                         else -}verifyWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas' lemmas'' b'' config folder_root k'' states
+  (pl_sr, b''', k''') <- verifyWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas' lemmas'' b'' config folder_root k'' states
 
   case pl_sr of
       CounterexampleFound -> return $ S.SAT ()
-      Proven _ -> return $ S.UNSAT ()
+      Proven -> return $ S.UNSAT ()
       ContinueWith pl_new_obs pl_lemmas -> do
-          -- TODO make the distinction between active and latent here
-          -- do I need an active-latent distinction for lemmas?
-          -- if a newly-proven lemma isn't used before, it goes to waste
-          -- TODO make sure current lemma preservation is sound
-          let (active, latent) = if True-- m `mod` 2 == 0
-                                 then (states, [])
-                                 else partition
-                                      (\sh_pair -> min_max_depth == stateMaxDepth ns sym_ids sh_pair)
-                                      pl_new_obs
-          (sr, b'''', k'''') <- verifyLoopWithSymEx solver allTactics ns lemmas'' b''' config folder_root k''' active
-          case adjustStepRes sr latent of
+          (sr, b'''', k'''') <- verifyLoopWithSymEx solver allTactics ns lemmas'' b''' config sync folder_root k''' states
+          case sr of
               ContinueWith new_obligations new_lemmas -> do
                   let n' = if n > 0 then n - 1 else n
-                      m' = m + 1
                   --W.liftIO $ putStrLn $ show $ length new_obligations
                   --W.liftIO $ putStrLn $ "length new_lemmas = " ++ show (length $ pl_lemmas ++ new_lemmas)
 
@@ -414,9 +399,9 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k m n | (n /= 0)
                   --               W.liftIO $ putStrLn "----"
                   --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
                   --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) $ HS.toList new_lemmas
-                  verifyLoop solver ns final_lemmas new_obligations b'''' config sym_ids folder_root k'''' m' n'
+                  verifyLoop solver ns final_lemmas new_obligations b'''' config sync sym_ids folder_root k'''' n'
               CounterexampleFound -> return $ S.SAT ()
-              Proven _ -> do
+              Proven -> do
                   W.liftIO $ putStrLn $ "proposed = " ++ show (length $ proposedLemmas lemmas)
                   -- mapM (\l@(Lemma le1 le2 _) -> do
                   --               let pg = mkPrettyGuide l
@@ -429,7 +414,8 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k m n | (n /= 0)
   | otherwise = do
     W.liftIO $ putStrLn $ "proposed = " ++ show (length $ proposedLemmas lemmas)
     W.liftIO $ putStrLn $ "proven = " ++ show (length $ provenLemmas lemmas) 
-    W.liftIO $ putStrLn $ "disproven = " ++ show (length $ disprovenLemmas lemmas) 
+    W.liftIO $ putStrLn $ "disproven = " ++ show (length $ disprovenLemmas lemmas)
+    {-
     mapM (\l@(Lemma { lemma_lhs = le1, lemma_rhs = le2}) -> do
                   let pg = mkPrettyGuide l
                   W.liftIO $ putStrLn "---- Proven ----"
@@ -446,6 +432,7 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k m n | (n /= 0)
                   W.liftIO $ putStrLn $ lemma_name l
                   W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
                   W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) (proposedLemmas lemmas)
+    -}
     -- TODO log some new things with the writer for unresolved obligations
     -- TODO the present states are somewhat redundant
     W.liftIO $ putStrLn $ "Unresolved Obligations: " ++ show (length states)
@@ -455,7 +442,7 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k m n | (n /= 0)
 
 data StepRes = CounterexampleFound
              | ContinueWith [(StateH, StateH)] [Lemma]
-             | Proven [Lemma]
+             | Proven
 
 verifyLoopPropLemmas :: S.Solver solver =>
                         solver
@@ -464,12 +451,13 @@ verifyLoopPropLemmas :: S.Solver solver =>
                      -> Lemmas
                      -> Bindings
                      -> Config
+                     -> Bool
                      -> String
                      -> Int
                      -> (W.WriterT [Marker] IO) (Bindings, Int, [ProvenLemma], Lemmas)
-verifyLoopPropLemmas solver tactics ns lemmas b config folder_root k = do
+verifyLoopPropLemmas solver tactics ns lemmas b config sync folder_root k = do
     let prop_lemmas = proposedLemmas lemmas
-        verify_lemma = verifyLoopPropLemmas' solver tactics ns lemmas config folder_root
+        verify_lemma = verifyLoopPropLemmas' solver tactics ns lemmas config sync folder_root
     (prop_lemmas', (b', k')) <- CM.runStateT (mapM verify_lemma prop_lemmas) (b, k)
 
     let (proven_lemmas, continued_lemmas, disproven_lemmas, new_lemmas) = partitionLemmas ([], [], [], []) prop_lemmas'
@@ -485,8 +473,7 @@ verifyLoopPropLemmas solver tactics ns lemmas b config folder_root k = do
     where
       partitionLemmas (p, c, d, n) ((CounterexampleFound, lem):xs) = partitionLemmas (p, c, lem:d, n) xs
       partitionLemmas (p, c, d, n) ((ContinueWith _ new_lem, lem):xs) = partitionLemmas (p, lem:c, d, new_lem ++ n) xs
-      -- TODO does nothing with lemmas for Proven
-      partitionLemmas (p, c, d, n) ((Proven _, lem):xs) = partitionLemmas (lem:p, c, d, n) xs
+      partitionLemmas (p, c, d, n) ((Proven, lem):xs) = partitionLemmas (lem:p, c, d, n) xs
       partitionLemmas r [] = r
 
 verifyLoopPropLemmas' :: S.Solver solver =>
@@ -495,20 +482,21 @@ verifyLoopPropLemmas' :: S.Solver solver =>
                       -> HS.HashSet Name
                       -> Lemmas
                       -> Config
+                      -> Bool
                       -> String
                       -> ProposedLemma
                       -> CM.StateT (Bindings, Int)  (W.WriterT [Marker] IO) (StepRes, Lemma)
-verifyLoopPropLemmas' solver tactics ns lemmas config folder_root
+verifyLoopPropLemmas' solver tactics ns lemmas config sync folder_root
                      l@(Lemma { lemma_lhs = is1, lemma_rhs = is2, lemma_to_be_proven = states }) = do
     (b, k) <- CM.get
     --W.liftIO $ putStrLn $ "k = " ++ show k
     --W.liftIO $ putStrLn $ lemma_name l
-    (sr, b', k') <- W.lift (verifyLoopWithSymEx solver tactics ns lemmas b config folder_root k states)
+    (sr, b', k') <- W.lift (verifyLoopWithSymEx solver tactics ns lemmas b config sync folder_root k states)
     CM.put (b', k')
     lem <- case sr of
                   CounterexampleFound -> {-trace "COUNTEREXAMPLE verifyLemma"-} return $ l { lemma_to_be_proven = [] }
                   ContinueWith states' lemmas -> return $ l { lemma_to_be_proven = states' }
-                  Proven _ -> do
+                  Proven -> do
                       let pg = mkPrettyGuide l
                       {-
                       CM.liftIO $ putStrLn "---- Just Proved ----"
@@ -527,13 +515,14 @@ verifyLoopWithSymEx :: S.Solver solver =>
                     -> Lemmas
                     -> Bindings
                     -> Config
+                    -> Bool
                     -> String
                     -> Int
                     -> [(StateH, StateH)]
                     -> W.WriterT [Marker] IO (StepRes, Bindings, Int)
-verifyLoopWithSymEx solver tactics ns lemmas b config folder_root k states = do
+verifyLoopWithSymEx solver tactics ns lemmas b config sync folder_root k states = do
     let current_states = map getLatest states
-    (paired_states, (b', k')) <- W.liftIO $ CM.runStateT (mapM (uncurry (runSymExec solver config folder_root ns)) current_states) (b, k)
+    (paired_states, (b', k')) <- W.liftIO $ CM.runStateT (mapM (uncurry (runSymExec solver config sync folder_root ns)) current_states) (b, k)
 
     --W.liftIO $ putStrLn "verifyLoopWithSymEx"
     -- for every internal list, map with its corresponding original state
@@ -570,23 +559,24 @@ verifyLemmasWithNewProvenLemmas :: S.Solver solver =>
                                 -> Lemmas
                                 -> Bindings
                                 -> Config
+                                -> Bool
                                 -> String
                                 -> Int
                                 -> W.WriterT [Marker] IO (Bindings, Int, [ProvenLemma], Lemmas)
-verifyLemmasWithNewProvenLemmas solver nl_tactics ns proven_lemmas lemmas b config folder_name k = do
+verifyLemmasWithNewProvenLemmas solver nl_tactics ns proven_lemmas lemmas b config sync folder_name k = do
     let rel_states = map (\pl -> (lemma_lhs_origin pl, lemma_rhs_origin pl)) proven_lemmas
         tactics = concatMap (\t -> map (uncurry t) rel_states) nl_tactics
 
     --W.liftIO $ putStrLn "verifyLemmasWithNewProvenLemmas"
     (b', k', new_proven_lemmas, lemmas') <-
-          verifyLoopPropLemmas solver tactics ns lemmas b config folder_name k
+          verifyLoopPropLemmas solver tactics ns lemmas b config sync folder_name k
     case null new_proven_lemmas of
         True -> return (b', k', proven_lemmas, lemmas')
         False ->
             let
                 proven_lemmas' = new_proven_lemmas ++ proven_lemmas
             in
-            verifyLemmasWithNewProvenLemmas solver nl_tactics ns proven_lemmas' lemmas' b' config folder_name k'
+            verifyLemmasWithNewProvenLemmas solver nl_tactics ns proven_lemmas' lemmas' b' config sync folder_name k'
 
 
 verifyLoop' :: S.Solver solver =>
@@ -602,17 +592,18 @@ verifyLoop' :: S.Solver solver =>
             -> W.WriterT [Marker] IO (StepRes, Bindings, Int)
 verifyLoop' solver tactics ns lemmas b config folder_root k states = do
     --W.liftIO $ putStrLn "verifyLoop'"
-    let (fresh_name, ng') = freshName (name_gen b)
-        b' = b { name_gen = ng' }
+    let (fn1, ng') = freshName (name_gen b)
+        (fn2, ng'') = freshName ng'
+        b' = b { name_gen = ng'' }
  
-        td (sh1, sh2) = tryDischarge solver tactics ns lemmas [fresh_name] sh1 sh2
+        td (sh1, sh2) = tryDischarge solver tactics ns lemmas [fn1, fn2] sh1 sh2
 
     proof_lemma_list <- mapM td states
 
     let new_obligations = concatMap fst $ catMaybes proof_lemma_list
         new_lemmas = concatMap snd $ catMaybes proof_lemma_list
 
-    let res = if | null proof_lemma_list -> Proven new_lemmas
+    let res = if | null proof_lemma_list -> Proven
                  | all isJust proof_lemma_list -> ContinueWith new_obligations new_lemmas
                  | otherwise -> CounterexampleFound
     return (res, b', k)
@@ -631,41 +622,30 @@ digInStateH lbl sh
     | Just sh' <- backtrackOne sh = digInStateH lbl sh'
     | otherwise = Nothing
 
-updateDC :: EquivTracker -> [(DataCon, Int, Int)] -> EquivTracker
+updateDC :: EquivTracker -> [BlockInfo] -> EquivTracker
 updateDC et ds = et { dc_path = dc_path et ++ ds }
 
-stateWrap :: StateET -> StateET -> Obligation -> (StateET, StateET)
-stateWrap s1 s2 (Ob ds e1 e2) =
-  ( s1 { curr_expr = CurrExpr Evaluate e1, track = updateDC (track s1) ds }
-  , s2 { curr_expr = CurrExpr Evaluate e2, track = updateDC (track s2) ds } )
-
--- TODO debugging function
-stateHistory :: StateH -> StateH -> [(StateET, StateET)]
-stateHistory sh1 sh2 =
-  let hist1 = (latest sh1):(history sh1)
-      hist2 = (latest sh2):(history sh2)
-  in reverse $ zip hist1 hist2
-
-exprTrace :: StateH -> StateH -> [String]
-exprTrace sh1 sh2 =
-  let s_hist = stateHistory sh1 sh2
-      s_pair (s1, s2) = [
-          printHaskellDirty (exprExtract s1)
-        , printHaskellDirty (exprExtract s2)
-        , show (E.symbolicIds $ expr_env s1)
-        , show (E.symbolicIds $ expr_env s2)
-        , show (track s1)
-        , show (track s2)
-        , show (length $ inductions sh1)
-        , show (length $ inductions sh2)
-        --, show (exprExtract s1)
-        --, show (exprExtract s2)
-        , "------"
-        ]
-  in concat $ map s_pair s_hist
-
-addDischarge :: StateET -> StateH -> StateH
-addDischarge s sh = sh { discharge = Just s }
+-- TODO does it matter that I use the same type on both sides?
+stateWrap :: Name -> StateET -> StateET -> Obligation -> (StateET, StateET)
+stateWrap fresh_name s1 s2 (Ob ds e1 e2) =
+  let ds' = map (\(d, i, n) -> BlockDC d i n) ds
+  in case (e1, e2) of
+    (Lam _ (Id _ t) _, Lam _ _ _) ->
+      let fresh_id = Id fresh_name t
+          fresh_var = Var fresh_id
+          s1' = s1 {
+            curr_expr = CurrExpr Evaluate $ App e1 fresh_var
+          , track = updateDC (track s1) $ ds' ++ [BlockLam fresh_id]
+          , expr_env = E.insertSymbolic fresh_id $ expr_env s1
+          }
+          s2' = s2 {
+            curr_expr = CurrExpr Evaluate $ App e2 fresh_var
+          , track = updateDC (track s2) $ ds' ++ [BlockLam fresh_id]
+          , expr_env = E.insertSymbolic fresh_id $ expr_env s2
+          }
+      in (s1', s2')
+    _ -> ( s1 { curr_expr = CurrExpr Evaluate e1, track = updateDC (track s1) ds' }
+         , s2 { curr_expr = CurrExpr Evaluate e2, track = updateDC (track s2) ds' } )
 
 -- TODO what if n1 or n2 is negative?
 adjustStateH :: (StateH, StateH) ->
@@ -745,6 +725,7 @@ applyTactics _ _ _ _ gen_lemmas _ (sh1, sh2) (s1, s2) =
 -- TODO how do I handle the solver application in this version?
 -- Nothing output means failure now
 -- TODO printing
+-- TODO fresh_names must have at least two elements
 tryDischarge :: S.Solver solver =>
                 solver ->
                 [Tactic solver] ->
@@ -754,7 +735,7 @@ tryDischarge :: S.Solver solver =>
                 StateH ->
                 StateH ->
                 W.WriterT [Marker] IO (Maybe ([(StateH, StateH)], [Lemma]))
-tryDischarge solver tactics ns lemmas fresh_names sh1 sh2 =
+tryDischarge solver tactics ns lemmas (fn:fresh_names) sh1 sh2 =
   let s1 = latest sh1
       s2 = latest sh2
   in case getObligations ns s1 s2 of
@@ -765,7 +746,6 @@ tryDischarge solver tactics ns lemmas fresh_names sh1 sh2 =
       W.liftIO $ putStrLn $ "N! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
       W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s1) s1
       W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s2) s2
-      W.liftIO $ mapM putStrLn $ exprTrace sh1 sh2
       -}
       return Nothing
     Just obs -> do
@@ -778,22 +758,21 @@ tryDischarge solver tactics ns lemmas fresh_names sh1 sh2 =
       W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s1) s1
       W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s2) s2
       -}
-      -- TODO no more limitations on when induction can be used here
-      let states = map (stateWrap s1 s2) obs
+      -- just like with tactics, we only need one fresh name here
+      let states = map (stateWrap fn s1 s2) obs
       res <- mapM (applyTactics solver tactics ns lemmas [] fresh_names (sh1, sh2)) states
       -- list of remaining obligations in StateH form
       -- TODO I think non-ready ones can stay as they are
       let res' = foldr getRemaining [] res
           new_lemmas = concatMap getLemmas res
       if hasFail res then do
-        --W.liftIO $ putStrLn "X?"
         if hasSolverFail res
           then W.tell [Marker (sh1, sh2) $ SolverFail (s1, s2)]
           else return ()
         return Nothing
       else do
-        --W.liftIO $ putStrLn $ "V? " ++ show (length res')
         return $ Just (res', new_lemmas)
+tryDischarge _ _ _ _ _ _ _ = error "Need more fresh names"
 
 -- TODO (9/27) check path constraint implication?
 -- TODO (9/30) alternate:  just substitute one scrutinee for the other
@@ -822,7 +801,7 @@ tickWrap ns h (Var (Id n _))
     , Just (E.Conc e) <- E.lookupConcOrSym n h = tickWrap ns h e 
 tickWrap ns h (Case e i a) = Case (tickWrap ns h e) i a
 tickWrap ns h (App e1 e2) = App (tickWrap ns h e1) e2
-tickWrap ns h (Tick nl e) = Tick nl (tickWrap ns h e)
+tickWrap ns h te@(Tick nl e) | not (isLabeledError te) = Tick nl (tickWrap ns h e)
 tickWrap _ _ e = Tick (NamedLoc loc_name) e
 
 includedName :: [DT.Text] -> Name -> Bool
@@ -873,20 +852,30 @@ fetchCX ((Marker _ m):ms) = case m of
 -- If the Marker list is reversed from how it was when it was fetched, then
 -- we're guaranteed to get something that came from the main proof rather than
 -- a lemma.  Lemma examination happens first within iterations.
-printCX :: [Marker] ->
+writeCX :: [Marker] ->
            PrettyGuide ->
            HS.HashSet Name ->
            [Id] ->
            (State t, State t) ->
            String
-printCX [] _ _ _ _ = error "No Counterexample"
-printCX ((Marker hist m):ms) pg ns sym_ids init_pair = case m of
+writeCX [] _ _ _ _ = error "No Counterexample"
+writeCX ((Marker hist m):ms) pg ns sym_ids init_pair = case m of
   NotEquivalent s_pair -> showCX pg ns sym_ids hist init_pair s_pair
   SolverFail s_pair -> showCX pg ns sym_ids hist init_pair s_pair
   CycleFound cm -> showCycle pg ns sym_ids hist init_pair cm
-  _ -> printCX ms pg ns sym_ids init_pair
+  _ -> writeCX ms pg ns sym_ids init_pair
+
+-- TODO nothing forces this to align with the CX summary
+reducedGuide :: [Marker] -> PrettyGuide
+reducedGuide [] = error "No Counterexample"
+reducedGuide ((Marker _ m):ms) = case m of
+  NotEquivalent _ -> mkPrettyGuide m
+  SolverFail _ -> mkPrettyGuide m
+  CycleFound _ -> mkPrettyGuide m
+  _ -> reducedGuide ms
 
 checkRule :: Config ->
+             Bool ->
              State t ->
              Bindings ->
              [DT.Text] -> -- ^ names of forall'd variables required to be total
@@ -895,7 +884,7 @@ checkRule :: Config ->
              Int ->
              RewriteRule ->
              IO (S.Result () ())
-checkRule config init_state bindings total finite print_summary iterations rule = do
+checkRule config sync init_state bindings total finite print_summary iterations rule = do
   let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
       (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
       sym_ids = ru_bndrs rule
@@ -904,8 +893,8 @@ checkRule config init_state bindings total finite print_summary iterations rule 
       finite_hs = foldr HS.insert HS.empty finite_names
       -- always include the finite names in total
       total_hs = foldr HS.insert finite_hs total_names
-      EquivTracker et m _ _ _ _ = emptyEquivTracker
-      start_equiv_tracker = EquivTracker et m total_hs finite_hs [] ""
+      EquivTracker et m _ _ _ _ _ = emptyEquivTracker
+      start_equiv_tracker = EquivTracker et m total_hs finite_hs [] E.empty ""
       -- the keys are the same between the old and new environments
       ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
       ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
@@ -934,21 +923,26 @@ checkRule config init_state bindings total finite print_summary iterations rule 
   (res, w) <- W.runWriterT $ verifyLoop solver ns
              emptyLemmas
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config sym_ids "" 0 0 iterations
+             bindings'' config sync sym_ids "" 0 iterations
   -- UNSAT for good, SAT for bad
+  -- TODO I can speed things up for the CX if there's no summary
+  -- I only need a PrettyGuide for the CX marker
+  let pg = if print_summary == NoSummary
+           then reducedGuide (reverse w)
+           else mkPrettyGuide $ map (\(Marker _ m) -> m) w
   if print_summary /= NoSummary then do
     putStrLn "--- SUMMARY ---"
-    let pg = mkPrettyGuide $ map (\(Marker _ m) -> m) w
+    --let pg = mkPrettyGuide $ map (\(Marker _ m) -> m) w
     mapM (putStrLn . (summarize print_summary pg ns sym_ids)) w
     putStrLn "--- END OF SUMMARY ---"
   else return ()
   case res of
     S.SAT () -> do
-      let pg = mkPrettyGuide $ map (\(Marker _ m) -> m) w
+      --let pg = mkPrettyGuide $ map (\(Marker _ m) -> m) w
       putStrLn "--------------------"
       putStrLn "COUNTEREXAMPLE FOUND"
       putStrLn "--------------------"
-      putStrLn $ printCX (reverse w) pg ns sym_ids (rewrite_state_l, rewrite_state_r)
+      putStrLn $ writeCX (reverse w) pg ns sym_ids (rewrite_state_l, rewrite_state_r)
     _ -> return ()
   S.close solver
   return res
