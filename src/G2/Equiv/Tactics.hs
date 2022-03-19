@@ -352,6 +352,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                 else Left Nothing
     -- TODO if scrutinee is symbolic var, make Alt vars symbolic?
     -- TODO id equality never checked; does it matter?
+    -- TODO imperfect heuristic:  see if scrutinees and alts work separately
     (Case e1' i1 a1, Case e2' i2 a2)
                 | Right hm' <- b_mr ->
                   -- add the matched-on exprs to the envs beforehand
@@ -362,7 +363,21 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                       s2' = s2 { expr_env = h2_ }
                       mf hm_ (e1_, e2_) = moreRestrictiveAlt s1' s2' ns hm_ False n1 n2 e1_ e2_
                       l = zip a1 a2
-                  in foldM mf hm' l
+                      alts_res = foldM mf hm l
+                  --in foldM mf hm' l
+                  -- TODO attempt to join the two
+                  -- TODO this could be inefficient
+                  in case alts_res of
+                    Left _ -> alts_res
+                    Right hm'' -> let (hmap1, hs1) = hm'
+                                      (hmap2, hs2) = hm''
+                                      hm_u1 = HM.union hmap1 hmap2
+                                      hm_u2 = HM.union hmap2 hmap1
+                                      hs_u = HS.union hs1 hs2
+                                  in
+                                  if hm_u1 == hm_u2
+                                  then Right (hm_u1, hs_u)
+                                  else trace "CREATED CASE LEMMA" $ Left $ Just $ makeCaseLemma hmap1 s1 s2 e1' e2'
                 | otherwise -> b_mr
                 where
                     b_mr = moreRestrictive s1 s2 ns hm False n1 n2 e1' e2'
@@ -370,12 +385,39 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
         moreRestrictive s1 s2 ns hm active n1 n2 e1' e2'
     _ -> Left Nothing
 
+-- TODO the inputs are the scrutinees
+makeCaseLemma :: HM.HashMap Id Expr ->
+                 StateET ->
+                 StateET ->
+                 Expr ->
+                 Expr ->
+                 Lemma
+makeCaseLemma hm s1 s2 e1 e2 =
+  let h2 = expr_env s2
+      h2' = opp_env $ track s2
+      v_rep = HM.toList hm
+      e1' = replaceVars e1 v_rep
+      -- TODO consolidate into one map
+      -- cs doesn't get unmapped things from the other side
+      cs (E.Conc e_) = E.Conc e_
+      cs (E.Sym i_) = case E.lookupConcOrSym (idName i_) h2' of
+        Nothing -> E.Sym i_
+        Just c -> c
+      --h2_ = E.mapConcOrSym cs h2
+      -- TODO changing this from h2 didn't help
+      h2_ = envMerge (E.mapConcOrSym cs h2) h2'
+      h2_' = E.mapConc (flip replaceVars v_rep) h2_ -- foldr (\(Id n _, e) -> E.insert n e) h2 (HM.toList $ fst hm)
+      et' = (track s2) { opp_env = E.empty }
+      ls1 = s2 { expr_env = h2_', curr_expr = CurrExpr Evaluate e1', track = et' }
+      ls2 = s2 { expr_env = h2_, curr_expr = CurrExpr Evaluate e2, track = et' }
+  in mkProposedLemma "lemma" s1 s2 ls2 ls1
+
 -- TODO bad name?
 appOrCase :: Expr -> Maybe Expr
 appOrCase e = case modifyASTs stripTicks e of
   --Case e' _ _ -> Just e'
-  App _ _ -> Just e
-  --e' | (Var v):_ <- unApp e' -> Just $ Var v
+  --App _ _ -> Just e
+  e' | (Var v):_ <- unApp e' -> Just $ Var v
   _ -> Nothing
 
 -- TODO shouldn't need to match apps with cases
