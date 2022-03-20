@@ -127,51 +127,59 @@ empty_config :: IO Config
 empty_config = getConfig []
 
 rvTest :: (Config -> State () -> Bindings -> RewriteRule -> IO Bool) ->
-          String -> [String] -> IO ()
-rvTest check src rule_names = do
-  proj <- guessProj src
-  config <- empty_config
-  (init_state, bindings) <- initialStateNoStartFunc [proj] [src] libs
-                            (TranslationConfig {simpl = True, load_rewrite_rules = True})
-                            config
-  let rules = map (findRule $ rewrite_rules bindings) rule_names
-  r <- doTimeout (30 * length rules) $ mapM (check config init_state bindings) rules
-  case r of
-      Nothing -> error "TIMEOUT"
-      Just r' | and r' -> return ()
-              | otherwise -> error "test failed"
+          String -> [String] -> TestTree
+rvTest check src rule_names =
+  withResource
+    (do
+        proj <- guessProj src
+        config <- empty_config
+        initialStateNoStartFunc [proj] [src] libs
+                  (TranslationConfig {simpl = True, load_rewrite_rules = True})
+                  config
+    )
+    (\_ -> return ())
+    (\isb -> testGroup ("Rules " ++ src)
+           $ map (\rule_name -> testCase ("Rule " ++ rule_name) $ do
+                    (init_state, bindings) <- isb
+                    config <- empty_config
+                    let rule = findRule (rewrite_rules bindings) rule_name
+                    r <- doTimeout 30 $ check config init_state bindings rule
+                    case r of
+                        Nothing -> error "TIMEOUT"
+                        Just r' | r' -> return ()
+                                | otherwise -> error "test failed") rule_names)
 
 rewriteVerifyTestsGood :: TestTree
 rewriteVerifyTestsGood =
-  testCase "RewriteRuleVerifyGood" $ rvTest acceptRule good_src good_names
+  rvTest acceptRule good_src good_names
 
 rewriteVerifyTestsBad :: TestTree
 rewriteVerifyTestsBad =
-  testCase "RewriteRuleVerifyBad" $ rvTest rejectRule bad_src bad_names
+  rvTest rejectRule bad_src bad_names
 
 coinductionTestsGood :: TestTree
 coinductionTestsGood =
-  testCase "CoinductionGood" $ rvTest acceptRule coinduction_good_src coinduction_good_names
+  rvTest acceptRule coinduction_good_src coinduction_good_names
 
 coinductionTestsBad :: TestTree
 coinductionTestsBad =
-  testCase "CoinductionBad" $ rvTest rejectRule coinduction_bad_src coinduction_bad_names
+  rvTest rejectRule coinduction_bad_src coinduction_bad_names
 
 higherOrderTestsGood :: TestTree
 higherOrderTestsGood =
-  testCase "HigherOrderGood" $ rvTest acceptRule higher_good_src higher_good_names
+  rvTest acceptRule higher_good_src higher_good_names
 
 higherOrderTestsBad :: TestTree
 higherOrderTestsBad =
-  testCase "HigherOrderBad" $ rvTest rejectRule higher_bad_src higher_bad_names
+  rvTest rejectRule higher_bad_src higher_bad_names
 
 treeTestsGood :: TestTree
 treeTestsGood =
-  testCase "TreeGood" $ rvTest acceptRule tree_good_src tree_good_names
+  rvTest acceptRule tree_good_src tree_good_names
 
 treeTestsBad :: TestTree
 treeTestsBad =
-  testCase "TreeBad" $ rvTest rejectRule tree_bad_src tree_bad_names
+  rvTest rejectRule tree_bad_src tree_bad_names
 
 rewriteTests :: TestTree
 rewriteTests = testGroup "Rewrite Tests"
