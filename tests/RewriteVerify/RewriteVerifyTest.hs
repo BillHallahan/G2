@@ -9,6 +9,7 @@ import G2.Interface
 import G2.Language
 import G2.Translation
 
+import G2.Equiv.Config
 import G2.Equiv.Verifier
 import G2.Equiv.Summary
 

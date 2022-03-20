@@ -20,6 +20,7 @@ import G2.Language
 import G2.Translation
 
 import G2.Liquid.Interface
+import G2.Equiv.Config
 import G2.Equiv.InitRewrite
 import G2.Equiv.EquivADT
 import G2.Equiv.Summary
