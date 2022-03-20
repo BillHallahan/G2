@@ -24,6 +24,7 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.Stack as S
 import G2.Solver
+import G2.Equiv.Config
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
@@ -50,9 +51,10 @@ runG2ForRewriteV :: Solver solver =>
                     E.ExprEnv ->
                     EquivTracker ->
                     Config ->
+                    RewriteVConfig ->
                     Bindings ->
                     IO ([ExecRes EquivTracker], Bindings)
-runG2ForRewriteV solver state h_opp track_opp config bindings = do
+runG2ForRewriteV solver state h_opp track_opp config rvc bindings = do
     --SomeSolver solver <- initSolver config
     let simplifier = IdSimplifier
         sym_config = PreserveAllMC
@@ -64,7 +66,7 @@ runG2ForRewriteV solver state h_opp track_opp config bindings = do
 
         state' = state { track = (track state) { saw_tick = Nothing } }
 
-    (in_out, bindings') <- case rewriteRedHaltOrd solver simplifier h_opp track_opp config of
+    (in_out, bindings') <- case rewriteRedHaltOrd solver simplifier h_opp track_opp config rvc of
                 (red, hal, ord) ->
                     runG2WithSomes red hal ord solver simplifier sym_config state' bindings
 
@@ -78,8 +80,9 @@ rewriteRedHaltOrd :: (Solver solver, Simplifier simplifier) =>
                      E.ExprEnv ->
                      EquivTracker ->
                      Config ->
+                     RewriteVConfig ->
                      (SomeReducer EquivTracker, SomeHalter EquivTracker, SomeOrderer EquivTracker)
-rewriteRedHaltOrd solver simplifier h_opp track_opp config =
+rewriteRedHaltOrd solver simplifier h_opp track_opp config (RVC { use_labeled_errors = use_labels }) =
     let
         share = sharing config
         state_name = Name "state" Nothing 0 Nothing
@@ -89,11 +92,11 @@ rewriteRedHaltOrd solver simplifier h_opp track_opp config =
     (case m_logger of
             Just logger -> SomeReducer (
                                 (StdRed share solver simplifier :<~
-                                        EnforceProgressR) :<~? LabeledErrorsR :<~ ConcSymReducer :<~ SymbolicSwapper h_opp track_opp) <~?
+                                        EnforceProgressR) :<~? LabeledErrorsR :<~ ConcSymReducer use_labels :<~ SymbolicSwapper h_opp track_opp) <~?
                                         (logger <~ SomeReducer EquivReducer)
             Nothing -> SomeReducer (
                                 ((StdRed share solver simplifier :<~
-                                    EnforceProgressR) :<~? LabeledErrorsR :<~ ConcSymReducer :<~ SymbolicSwapper h_opp track_opp) :<~?
+                                    EnforceProgressR) :<~? LabeledErrorsR :<~ ConcSymReducer use_labels :<~ SymbolicSwapper h_opp track_opp) :<~?
                                     EquivReducer)
      , SomeHalter
          (DiscardIfAcceptedTag state_name
@@ -104,7 +107,7 @@ rewriteRedHaltOrd solver simplifier h_opp track_opp config =
 
 type StateET = State EquivTracker
 
-data ConcSymReducer = ConcSymReducer
+data ConcSymReducer = ConcSymReducer UseLabeledErrors
 
 data BlockInfo = BlockDC DataCon Int Int
                | BlockLam Id
@@ -133,7 +136,7 @@ instance Hashable EquivTracker
 instance Reducer ConcSymReducer () EquivTracker where
     initReducer _ _ = ()
 
-    redRules red _
+    redRules red@(ConcSymReducer use_labels) _
                    s@(State { curr_expr = CurrExpr _ (Var i@(Id n t))
                             , expr_env = eenv
                             , type_env = tenv
@@ -141,7 +144,7 @@ instance Reducer ConcSymReducer () EquivTracker where
                             , track = EquivTracker et m total finite dcp opp fname })
                    b@(Bindings { name_gen = ng })
         | E.isSymbolic n eenv
-        , Just (dc_symbs, ng') <- arbDC tenv ng t n total = do
+        , Just (dc_symbs, ng') <- arbDC use_labels tenv ng t n total = do
             let new_names = map idName $ concat $ map snd dc_symbs
                 total' = if n `elem` total
                          then foldr HS.insert total new_names
@@ -168,13 +171,14 @@ instance Reducer ConcSymReducer () EquivTracker where
 -- | Build a case expression with one alt for each data constructor of the given type
 -- and symbolic arguments.  Thus, the case expression could evaluate to any value of the
 -- given type.
-arbDC :: TypeEnv
+arbDC :: UseLabeledErrors
+      -> TypeEnv
       -> NameGen
       -> Type
       -> Name
       -> HS.HashSet Name
       -> Maybe ([(Expr, [Id])], NameGen)
-arbDC tenv ng t n total
+arbDC use_labels tenv ng t n total
     | TyCon tn _:ts <- unTyApp t
     , Just adt <- M.lookup tn tenv =
         let
@@ -184,7 +188,9 @@ arbDC tenv ng t n total
             bound_ts = zip bound ts
 
             (err_lab, ng') = freshLabeledError ng
-            err = Tick (NamedLoc err_lab) (Prim Error TyBottom)
+            err = if use_labels == UseLabeledErrors
+                      then Tick (NamedLoc err_lab) (Prim Error TyBottom)
+                      else Prim Error TyBottom
 
             ty_apped_dcs = map (\dc -> mkApp $ Data dc:map Type ts) dcs
             ty_apped_dcs' = err:ty_apped_dcs

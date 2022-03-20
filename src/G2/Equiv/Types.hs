@@ -1,9 +1,11 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module G2.Equiv.Types ( module G2.Equiv.Types
+module G2.Equiv.Types ( module G2.Equiv.Config
+                      , module G2.Equiv.Types
                       , module G2.Equiv.G2Calls) where
 
+import G2.Equiv.Config
 import G2.Equiv.G2Calls
 import G2.Language
 
@@ -12,6 +14,9 @@ import Data.Data (Typeable)
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Sequence as DS
+
+
+-- States
 
 data StateH = StateH {
       latest :: StateET
