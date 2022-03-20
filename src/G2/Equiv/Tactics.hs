@@ -98,7 +98,7 @@ type Tactic s = s ->
                 W.WriterT [Marker] IO TacticResult
 
 stripTicks :: Expr -> Expr
-stripTicks t@(Tick (NamedLoc n) _) | isLabeledErrorName n = t
+stripTicks t@(Tick (NamedLoc n) _) = t
 stripTicks (Tick _ e) = e
 stripTicks e = e
 

@@ -91,11 +91,11 @@ rewriteRedHaltOrd solver simplifier h_opp track_opp config (RVC { use_labeled_er
     in
     (case m_logger of
             Just logger -> SomeReducer (
-                                (StdRed share solver simplifier :<~
+                                (StdRed share solver simplifier :<~?
                                         EnforceProgressR) :<~? LabeledErrorsR :<~ ConcSymReducer use_labels :<~ SymbolicSwapper h_opp track_opp) <~?
                                         (logger <~ SomeReducer EquivReducer)
             Nothing -> SomeReducer (
-                                ((StdRed share solver simplifier :<~
+                                ((StdRed share solver simplifier :<~?
                                     EnforceProgressR) :<~? LabeledErrorsR :<~ ConcSymReducer use_labels :<~ SymbolicSwapper h_opp track_opp) :<~?
                                     EquivReducer)
      , SomeHalter
@@ -298,7 +298,7 @@ instance Halter LabeledErrorsH () t where
     initHalt _ _ = ()
     updatePerStateHalt _ hv _ _ = hv
     stopRed _ _ _ s@(State { curr_expr = CurrExpr _ ce, exec_stack = stck })
-        | isLabeledError ce = return Accept
+        | isLabeledError ce, S.null stck = return Accept
         | otherwise = return Continue
     stepHalter _ hv _ _ _ = hv
 
