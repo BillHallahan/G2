@@ -235,7 +235,7 @@ library
                        -fno-ignore-asserts
                        -- -ddump-rule-rewrites
                        -- -ddump-splices
-                       -fprof-auto
+                       -- -fprof-auto
                        -- -fexternal-interpreter
   other-extensions:    CPP
   if flag(newLH)
@@ -314,7 +314,7 @@ executable RewriteV
                        , unordered-containers >= 0.2 && < 0.3
   default-language:    Haskell2010
   ghc-options:         -threaded -Wall
-                       -fprof-auto "-with-rtsopts=-p"
+                       -- -fprof-auto "-with-rtsopts=-p"
   hs-source-dirs:      rewritev
   main-is:             Main.hs
   other-modules:         ZenoSuite
