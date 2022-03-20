@@ -27,6 +27,9 @@ f x y =
 		A -> case y of
 				A -> A
 				_ -> B
+		_ -> case y of
+				A -> B
+				B -> B
 
 {-# RULES
 "badMaybeForce" forall x . maybeForce (Just x) = if x == x then maybeForce Nothing else x
