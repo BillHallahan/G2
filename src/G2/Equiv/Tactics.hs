@@ -377,7 +377,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                                   in
                                   if hm_u1 == hm_u2
                                   then Right (hm_u1, hs_u)
-                                  else trace "CREATED CASE LEMMA" $ Left $ Just $ makeCaseLemma hmap1 s1 s2 e1' e2'
+                                  else Left $ Just $ makeCaseLemma hmap1 s1 s2 e1' e2'
                 | otherwise -> b_mr
                 where
                     b_mr = moreRestrictive s1 s2 ns hm False n1 n2 e1' e2'
@@ -386,6 +386,9 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
     _ -> Left Nothing
 
 -- TODO the inputs are the scrutinees
+-- TODO does this generate too many lemmas?
+-- not every lemma generated gets used
+-- TODO substitution needs to happen in the present for this to be useful
 makeCaseLemma :: HM.HashMap Id Expr ->
                  StateET ->
                  StateET ->
@@ -396,7 +399,7 @@ makeCaseLemma hm s1 s2 e1 e2 =
   let h2 = expr_env s2
       h2' = opp_env $ track s2
       v_rep = HM.toList hm
-      e1' = replaceVars e1 v_rep
+      e1' = e1-- replaceVars e1 v_rep
       -- TODO consolidate into one map
       -- cs doesn't get unmapped things from the other side
       cs (E.Conc e_) = E.Conc e_
@@ -410,7 +413,9 @@ makeCaseLemma hm s1 s2 e1 e2 =
       et' = (track s2) { opp_env = E.empty }
       ls1 = s2 { expr_env = h2_', curr_expr = CurrExpr Evaluate e1', track = et' }
       ls2 = s2 { expr_env = h2_, curr_expr = CurrExpr Evaluate e2, track = et' }
-  in mkProposedLemma "lemma" s1 s2 ls2 ls1
+  in
+  trace ("CASE LEMMA " ++ (folder_name $ track s1) ++ (folder_name $ track s2)) $
+  mkProposedLemma "lemma" s1 s2 ls1 ls2
 
 -- TODO bad name?
 appOrCase :: Expr -> Maybe Expr
@@ -953,6 +958,7 @@ filterProvenLemmas p lems@(Lemmas { proven_lemmas = prov }) = lems { proven_lemm
 -- searches for a subexpression `e'` of `state`'s current expression such that `e' <=_V lemma_l`.
 -- If it find such a subexpression, it adds state[e'[V(x)/x]] to the returned
 -- list of States.
+-- TODO does mapMaybeM stop on the first success?  I think so
 substLemma :: S.Solver solver =>
               solver ->
               HS.HashSet Name ->
@@ -1059,8 +1065,8 @@ moreRestrictivePairWithLemmasOnFuncApps solver valid ns =
                             lem_vars = varNames $ inlineFull (HS.toList ns) (expr_env s) (expr_env s') $ exprExtract (lemma_rhs lem)
                         in
                         not $ f `elem` lem_vars
-                    (Case _ _ _):[] -> True -- TODO not sound
-                    _ -> False)
+                    --(Case _ _ _):[] -> True -- TODO not sound
+                    _ -> True)
         solver valid ns
 --     | Var (Id f1 _):_ <- unApp $ exprExtract s1
 --     , Var (Id f2 _):_ <- unApp $ exprExtract s2 = do
@@ -1079,6 +1085,7 @@ moreRestrictivePairWithLemmas :: S.Solver solver =>
                                  W.WriterT [Marker] IO (Either [Lemma] (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
 moreRestrictivePairWithLemmas = moreRestrictivePairWithLemmas' (\_ _ _ -> True)
 
+-- TODO is this performing redundant work by checking past-past combinations?
 moreRestrictivePairWithLemmas' :: S.Solver solver =>
                                   (StateET -> StateET -> Lemma -> Bool) ->
                                   solver ->
@@ -1117,6 +1124,8 @@ moreRestrictivePairWithLemmas' app_state solver valid ns lemmas past (s1, s2) = 
 -- TODO undo some of the needless restructuring here
 -- TODO allow applications of lemmas to the present?
 -- maybe not while a lemma is applied to the past, to cut down on combinations
+-- TODO make a list of alternate present state pairs
+-- one attempted substitution for each lemma or something else?
 moreRestrictivePairWithLemmasPast :: S.Solver solver =>
                                      solver ->
                                      ((StateET, StateET) -> (StateET, StateET) -> Bool) ->

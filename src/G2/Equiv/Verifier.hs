@@ -407,12 +407,12 @@ verifyLoop solver ns lemmas states b config sym_ids folder_root k n | (n /= 0) |
     W.liftIO $ putStrLn $ "proposed = " ++ show (length $ proposedLemmas lemmas)
     W.liftIO $ putStrLn $ "proven = " ++ show (length $ provenLemmas lemmas) 
     W.liftIO $ putStrLn $ "disproven = " ++ show (length $ disprovenLemmas lemmas)
-    {-
     mapM (\l@(Lemma { lemma_lhs = le1, lemma_rhs = le2}) -> do
                   let pg = mkPrettyGuide l
                   W.liftIO $ putStrLn "---- Proven ----"
                   W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
                   W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) (provenLemmas lemmas)
+    {-
     mapM (\l@(Lemma { lemma_lhs = le1, lemma_rhs = le2}) -> do
                   let pg = mkPrettyGuide l
                   W.liftIO $ putStrLn "---- Disproven ----"
