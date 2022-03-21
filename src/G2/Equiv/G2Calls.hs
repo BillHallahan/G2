@@ -273,7 +273,7 @@ isLabeledErrorName :: Name -> Bool
 isLabeledErrorName (Name n _ _ _) = n == labeledErrorStringSeed
 
 labeledErrorName :: Tickish -> Maybe Name
-labeledErrorName (NamedLoc n) = Just n
+labeledErrorName (NamedLoc n) | isLabeledErrorName n = Just n
 labeledErrorName _ = Nothing
 
 freshLabeledError :: NameGen -> (Name, NameGen)
