@@ -210,8 +210,9 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
       h2' = opp_env $ track s2
   in case (e1, e2) of
     -- ignore all Ticks
-    (Tick _ e1', _) -> moreRestrictive s1 s2 ns hm active n1 n2 e1' e2
-    (_, Tick _ e2') -> moreRestrictive s1 s2 ns hm active n1 n2 e1 e2'
+    (Tick t1 e1', Tick t2 e2') | labeledErrorName t1 == labeledErrorName t2 -> moreRestrictive s1 s2 ns hm active n1 n2 e1' e2'
+    (Tick t e1', _) | isNothing $ labeledErrorName t -> moreRestrictive s1 s2 ns hm active n1 n2 e1' e2
+    (_, Tick t e2') | isNothing $ labeledErrorName t -> moreRestrictive s1 s2 ns hm active n1 n2 e1 e2'
     (Var i, _) | m <- idName i
                , not $ isSymbolicBoth m h1 h1'
                , not $ HS.member m ns

@@ -158,6 +158,7 @@ varChain h ns inlined i =
 
 exprChain :: ExprEnv -> HS.HashSet Name -> [Id] -> Expr -> ([Id], ChainEnd)
 exprChain h ns inlined e = case e of
+  Tick _ (Prim Error _) -> (reverse inlined, Terminal e $ varsInExpr ns e)
   Tick _ e' -> exprChain h ns inlined e'
   Var i -> varChain h ns inlined i
   _ -> (reverse inlined, Terminal e $ varsInExpr ns e)
