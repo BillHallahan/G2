@@ -98,13 +98,13 @@ would be awakened soonest should be awakened immediately.
 runSymExec :: S.Solver solver =>
               solver ->
               Config ->
-              Bool ->
+              RewriteVConfig ->
               String ->
               HS.HashSet Name ->
               StateET ->
               StateET ->
               CM.StateT (Bindings, Int) IO [(StateET, StateET)]
-runSymExec solver config sync folder_root ns s1 s2 = do
+runSymExec solver config rcv@(RVC { sync = sync }) folder_root ns s1 s2 = do
   ct1 <- CM.liftIO $ getCurrentTime
   (bindings, k) <- CM.get
   let config' = config { logStates = logStatesFolder ("a" ++ show k) folder_root }
@@ -114,7 +114,7 @@ runSymExec solver config sync folder_root ns s1 s2 = do
       e1' = addStackTickIfNeeded ns (expr_env s1) e1
       s1' = s1 { track = t1, curr_expr = CurrExpr r1 e1' }
   --CM.liftIO $ putStrLn $ (folder_name $ track s1) ++ " becomes " ++ (folder_name t1)
-  (er1, bindings') <- CM.lift $ runG2ForRewriteV solver s1' (expr_env s2) (track s2) config' bindings
+  (er1, bindings') <- CM.lift $ runG2ForRewriteV solver s1' (expr_env s2) (track s2) config' rcv bindings
   CM.put (bindings', k + 1)
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
@@ -127,7 +127,7 @@ runSymExec solver config sync folder_root ns s1 s2 = do
                         e2' = addStackTickIfNeeded ns (expr_env s2) e2
                         s2' = s2_ { track = t2, curr_expr = CurrExpr r2 e2' }
                     --CM.liftIO $ putStrLn $ (folder_name $ track s2_) ++ " becomes " ++ (folder_name t2)
-                    (er2, b_') <- CM.lift $ runG2ForRewriteV solver s2' (expr_env s1_) (track s1_) config'' b_
+                    (er2, b_') <- CM.lift $ runG2ForRewriteV solver s2' (expr_env s1_) (track s1_) config'' rcv b_
                     CM.put (b_', k_ + 1)
                     return $ map (\er2_ -> 
                                     let
@@ -341,13 +341,13 @@ verifyLoop :: S.Solver solver =>
               [(StateH, StateH)] ->
               Bindings ->
               Config ->
-              Bool ->
+              RewriteVConfig ->
               [Id] ->
               String ->
               Int ->
               Int ->
               W.WriterT [Marker] IO (S.Result () ())
-verifyLoop solver ns lemmas states b config sync sym_ids folder_root k n | (n /= 0) || (null states) = do
+verifyLoop solver ns lemmas states b config rvc sym_ids folder_root k n | (n /= 0) || (null states) = do
   W.liftIO $ putStrLn "<Loop Iteration>"
   W.liftIO $ putStrLn $ show n
   --let min_depth = minDepth ns sym_ids states
@@ -364,7 +364,7 @@ verifyLoop solver ns lemmas states b config sync sym_ids folder_root k n | (n /=
   W.liftIO $ hFlush stdout
   -- TODO alternating iterations for this too?
   -- Didn't test on much, but no apparent benefit
-  (b', k', proven_lemmas, lemmas') <- verifyLoopPropLemmas solver allTactics ns lemmas b config sync folder_root k
+  (b', k', proven_lemmas, lemmas') <- verifyLoopPropLemmas solver allTactics ns lemmas b config rvc folder_root k
 
   -- W.liftIO $ putStrLn $ "prop_lemmas': " ++ show (length prop_lemmas')
   --W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length proven_lemmas)
@@ -373,7 +373,7 @@ verifyLoop solver ns lemmas states b config sync sym_ids folder_root k n | (n /=
 
   -- p02 went from about 50s to 1:50 when I added this
   -- No improvement for p03fin
-  (b'', k'', proven_lemmas', lemmas'') <- verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas lemmas' b' config sync folder_root k'
+  (b'', k'', proven_lemmas', lemmas'') <- verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics ns proven_lemmas lemmas' b' config rvc folder_root k'
   -- TODO I think the lemmas should be the unresolved ones
   -- TODO what to do with disproven lemmas?
   -- No noticeable time change for p02 with this added, still 1:50
@@ -383,7 +383,7 @@ verifyLoop solver ns lemmas states b config sync sym_ids folder_root k n | (n /=
       CounterexampleFound -> return $ S.SAT ()
       Proven -> return $ S.UNSAT ()
       ContinueWith pl_new_obs pl_lemmas -> do
-          (sr, b'''', k'''') <- verifyLoopWithSymEx solver allTactics ns lemmas'' b''' config sync folder_root k''' states
+          (sr, b'''', k'''') <- verifyLoopWithSymEx solver allTactics ns lemmas'' b''' config rvc folder_root k''' states
           case sr of
               ContinueWith new_obligations new_lemmas -> do
                   let n' = if n > 0 then n - 1 else n
@@ -399,7 +399,7 @@ verifyLoop solver ns lemmas states b config sync sym_ids folder_root k n | (n /=
                   --               W.liftIO $ putStrLn "----"
                   --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
                   --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) $ HS.toList new_lemmas
-                  verifyLoop solver ns final_lemmas new_obligations b'''' config sync sym_ids folder_root k'''' n'
+                  verifyLoop solver ns final_lemmas new_obligations b'''' config rvc sym_ids folder_root k'''' n'
               CounterexampleFound -> return $ S.SAT ()
               Proven -> do
                   W.liftIO $ putStrLn $ "proposed = " ++ show (length $ proposedLemmas lemmas)
@@ -451,13 +451,13 @@ verifyLoopPropLemmas :: S.Solver solver =>
                      -> Lemmas
                      -> Bindings
                      -> Config
-                     -> Bool
+                     -> RewriteVConfig
                      -> String
                      -> Int
                      -> (W.WriterT [Marker] IO) (Bindings, Int, [ProvenLemma], Lemmas)
-verifyLoopPropLemmas solver tactics ns lemmas b config sync folder_root k = do
+verifyLoopPropLemmas solver tactics ns lemmas b config rvc folder_root k = do
     let prop_lemmas = proposedLemmas lemmas
-        verify_lemma = verifyLoopPropLemmas' solver tactics ns lemmas config sync folder_root
+        verify_lemma = verifyLoopPropLemmas' solver tactics ns lemmas config rvc folder_root
     (prop_lemmas', (b', k')) <- CM.runStateT (mapM verify_lemma prop_lemmas) (b, k)
 
     let (proven_lemmas, continued_lemmas, disproven_lemmas, new_lemmas) = partitionLemmas ([], [], [], []) prop_lemmas'
@@ -482,16 +482,16 @@ verifyLoopPropLemmas' :: S.Solver solver =>
                       -> HS.HashSet Name
                       -> Lemmas
                       -> Config
-                      -> Bool
+                      -> RewriteVConfig
                       -> String
                       -> ProposedLemma
                       -> CM.StateT (Bindings, Int)  (W.WriterT [Marker] IO) (StepRes, Lemma)
-verifyLoopPropLemmas' solver tactics ns lemmas config sync folder_root
+verifyLoopPropLemmas' solver tactics ns lemmas config rvc folder_root
                      l@(Lemma { lemma_lhs = is1, lemma_rhs = is2, lemma_to_be_proven = states }) = do
     (b, k) <- CM.get
     --W.liftIO $ putStrLn $ "k = " ++ show k
     --W.liftIO $ putStrLn $ lemma_name l
-    (sr, b', k') <- W.lift (verifyLoopWithSymEx solver tactics ns lemmas b config sync folder_root k states)
+    (sr, b', k') <- W.lift (verifyLoopWithSymEx solver tactics ns lemmas b config rvc folder_root k states)
     CM.put (b', k')
     lem <- case sr of
                   CounterexampleFound -> {-trace "COUNTEREXAMPLE verifyLemma"-} return $ l { lemma_to_be_proven = [] }
@@ -515,14 +515,14 @@ verifyLoopWithSymEx :: S.Solver solver =>
                     -> Lemmas
                     -> Bindings
                     -> Config
-                    -> Bool
+                    -> RewriteVConfig
                     -> String
                     -> Int
                     -> [(StateH, StateH)]
                     -> W.WriterT [Marker] IO (StepRes, Bindings, Int)
-verifyLoopWithSymEx solver tactics ns lemmas b config sync folder_root k states = do
+verifyLoopWithSymEx solver tactics ns lemmas b config rvc folder_root k states = do
     let current_states = map getLatest states
-    (paired_states, (b', k')) <- W.liftIO $ CM.runStateT (mapM (uncurry (runSymExec solver config sync folder_root ns)) current_states) (b, k)
+    (paired_states, (b', k')) <- W.liftIO $ CM.runStateT (mapM (uncurry (runSymExec solver config rvc folder_root ns)) current_states) (b, k)
 
     --W.liftIO $ putStrLn "verifyLoopWithSymEx"
     -- for every internal list, map with its corresponding original state
@@ -559,24 +559,24 @@ verifyLemmasWithNewProvenLemmas :: S.Solver solver =>
                                 -> Lemmas
                                 -> Bindings
                                 -> Config
-                                -> Bool
+                                -> RewriteVConfig
                                 -> String
                                 -> Int
                                 -> W.WriterT [Marker] IO (Bindings, Int, [ProvenLemma], Lemmas)
-verifyLemmasWithNewProvenLemmas solver nl_tactics ns proven_lemmas lemmas b config sync folder_name k = do
+verifyLemmasWithNewProvenLemmas solver nl_tactics ns proven_lemmas lemmas b config rvc folder_name k = do
     let rel_states = map (\pl -> (lemma_lhs_origin pl, lemma_rhs_origin pl)) proven_lemmas
         tactics = concatMap (\t -> map (uncurry t) rel_states) nl_tactics
 
     --W.liftIO $ putStrLn "verifyLemmasWithNewProvenLemmas"
     (b', k', new_proven_lemmas, lemmas') <-
-          verifyLoopPropLemmas solver tactics ns lemmas b config sync folder_name k
+          verifyLoopPropLemmas solver tactics ns lemmas b config rvc folder_name k
     case null new_proven_lemmas of
         True -> return (b', k', proven_lemmas, lemmas')
         False ->
             let
                 proven_lemmas' = new_proven_lemmas ++ proven_lemmas
             in
-            verifyLemmasWithNewProvenLemmas solver nl_tactics ns proven_lemmas' lemmas' b' config sync folder_name k'
+            verifyLemmasWithNewProvenLemmas solver nl_tactics ns proven_lemmas' lemmas' b' config rvc folder_name k'
 
 
 verifyLoop' :: S.Solver solver =>
@@ -801,7 +801,7 @@ tickWrap ns h (Var (Id n _))
     , Just (E.Conc e) <- E.lookupConcOrSym n h = tickWrap ns h e 
 tickWrap ns h (Case e i a) = Case (tickWrap ns h e) i a
 tickWrap ns h (App e1 e2) = App (tickWrap ns h e1) e2
-tickWrap ns h (Tick nl e) = Tick nl (tickWrap ns h e)
+tickWrap ns h te@(Tick nl e) | not (isLabeledError te) = Tick nl (tickWrap ns h e)
 tickWrap _ _ e = Tick (NamedLoc loc_name) e
 
 includedName :: [DT.Text] -> Name -> Bool
@@ -875,6 +875,7 @@ reducedGuide ((Marker _ m):ms) = case m of
   _ -> reducedGuide ms
 
 checkRule :: Config ->
+             UseLabeledErrors ->
              Bool ->
              State t ->
              Bindings ->
@@ -884,7 +885,7 @@ checkRule :: Config ->
              Int ->
              RewriteRule ->
              IO (S.Result () ())
-checkRule config sync init_state bindings total finite print_summary iterations rule = do
+checkRule config use_labels sync init_state bindings total finite print_summary iterations rule = do
   let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
       (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
       sym_ids = ru_bndrs rule
@@ -914,6 +915,9 @@ checkRule config sync init_state bindings total finite print_summary iterations 
       
       rewrite_state_l'' = startingState start_equiv_tracker ns rewrite_state_l'
       rewrite_state_r'' = startingState start_equiv_tracker ns rewrite_state_r'
+
+      rvc = RVC { use_labeled_errors = use_labels, sync = sync }
+
   S.SomeSolver solver <- initSolver config
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
   putStrLn $ printHaskellDirty e_l'
@@ -923,7 +927,7 @@ checkRule config sync init_state bindings total finite print_summary iterations 
   (res, w) <- W.runWriterT $ verifyLoop solver ns
              emptyLemmas
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config sync sym_ids "" 0 iterations
+             bindings'' config rvc sym_ids "" 0 iterations
   -- UNSAT for good, SAT for bad
   -- TODO I can speed things up for the CX if there's no summary
   -- I only need a PrettyGuide for the CX marker
