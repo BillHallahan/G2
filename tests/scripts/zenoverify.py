@@ -596,6 +596,15 @@ ground_truth_altered_finite = [
     ("p85finC", [xs], 2)
 ]
 
+def unmodified_theorems():
+    ret = []
+    for i in range(1, 86):
+        if i < 10:
+            ret.append(("p0" + str(i), []))
+        else:
+            ret.append(("p" + str(i), []))
+    return ret
+
 # input lists must have same length and aligning entries
 def altered_total_for_finite(fin_suite, other_suite):
     alt_suite = []
@@ -730,6 +739,9 @@ def total_string(settings):
 
 def test_suite_csv(fname, suite, timeout = 25):
     return test_suite_general(suite, "TestZeno.hs", fname, timeout)
+
+def test_suite_unmodified(timeout = 25):
+    return test_suite_general(unmodified_theorems(), "EvalZeno.hs", None, timeout)
 
 # For tests that should not return unsat
 def test_suite_fail(suite, timeout = 25):
@@ -959,8 +971,9 @@ def main():
     
     # TODO this is the real test suite
     # feel free to reduce the time from 180, but keep at least 150
-    t = 30
-    test_suite_csv(None, ground_truth, t)
+    t = 60
+    #test_suite_csv(None, ground_truth, t)
+    test_suite_unmodified(t)
     #test_suite_csv("ZenoTrue", ground_truth, t)
     # test_suite_csv("ZenoAlteredTotal", totality_change(ground_truth), t)
     # TODO this is improper usage
