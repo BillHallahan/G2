@@ -596,6 +596,94 @@ ground_truth_altered_finite = [
     ("p85finC", [xs], 2)
 ]
 
+def unmodified_theorems():
+    ret = []
+    for i in range(1, 86):
+        if i < 10:
+            ret.append(("p0" + str(i), []))
+        else:
+            ret.append(("p" + str(i), []))
+    return ret
+
+# TODO new evaluation suite again
+# TODO use TestZeno or EvalZeno?  Just TestZeno for now
+modified_total = [
+    ("p01", [n]),
+    ("p19", [n]),
+    ("p32", [a, b]),
+    ("p34", [a]),
+    ("p43", [p, xs]),
+    ("p49", [xs, ys]),
+    ("p51", [xs]),
+    ("p56", [n, m]),
+    ("p58", [n, xs, ys]),
+    ("p72", [i]),
+    ("p73", [p, xs]),
+    ("p74", [i, xs]),
+    ("p79", [n]),
+    ("p83", [ys]),
+    ("p84", [ys])
+]
+
+modified_finite = [
+    ("p03fin", [n]),
+    ("p03finB", [xs]),
+    ("p04fin", []),
+    ("p05finE", [x, xs]),
+    ("p05finF", [n, xs]),
+    ("p06fin", []),
+    ("p07fin", []),
+    ("p08fin", []),
+    ("p10fin", []),
+    ("p15finA", [x]),
+    ("p15finB", [xs]),
+    ("p16finA", [xs]),
+    ("p18fin", []),
+    ("p20finA", []),
+    ("p21fin", []),
+    ("p24fin", [b]),
+    ("p25fin", [a]),
+    ("p26finA", [x]),
+    ("p26finB", [xs]),
+    ("p27finA", [xs, ys]),
+    ("p28finA", [xs]),
+    ("p29finA", [xs]),
+    ("p30finA", [xs]),
+    ("p37finB", [x]),
+    ("p37finC", [xs]),
+    ("p38finB", [xs]),
+    ("p48finB", []),
+    ("p52finA", []),
+    ("p53finA", []),
+    ("p54fin", [m]),
+    ("p57finA", [m, xs]),
+    ("p57finB", [n, xs]),
+    ("p59finA", [ys]),
+    ("p60finB", []),
+    ("p61fin", []),
+    ("p62finA", []),
+    ("p63finA", [n]),
+    ("p64fin", []),
+    ("p65finA", [m]),
+    ("p66fin", [p, xs]),
+    ("p68finA", [xs]),
+    ("p68finB", [n]),
+    ("p69finA", [m]),
+    ("p70finC", [n]),
+    ("p70finD", [m]),
+    ("p71finA", [y, xs]),
+    ("p71finB", [x, xs]),
+    ("p75fin", [m, xs]),
+    ("p76finB", [m, xs]),
+    ("p76finC", [n, xs]),
+    ("p77finA", [x]),
+    ("p78finB", []),
+    ("p81fin", [n, m, xs]),
+    ("p81finA", [n, m, xs]),
+    ("p85finB", [ys]),
+    ("p85finC", [xs])
+]
+
 # input lists must have same length and aligning entries
 def altered_total_for_finite(fin_suite, other_suite):
     alt_suite = []
@@ -730,6 +818,15 @@ def total_string(settings):
 
 def test_suite_csv(fname, suite, timeout = 25):
     return test_suite_general(suite, "TestZeno.hs", fname, timeout)
+
+def test_suite_unmodified(timeout = 25):
+    return test_suite_general(unmodified_theorems(), "EvalZeno.hs", None, timeout)
+
+def test_suite_total(timeout = 25):
+    return test_suite_general(modified_total, "TestZeno.hs", None, timeout)
+
+def test_suite_finite(timeout = 25):
+    return test_suite_general(modified_finite, "TestZeno.hs", None, timeout)
 
 # For tests that should not return unsat
 def test_suite_fail(suite, timeout = 25):
@@ -959,8 +1056,11 @@ def main():
     
     # TODO this is the real test suite
     # feel free to reduce the time from 180, but keep at least 150
-    t = 30
-    test_suite_csv(None, ground_truth, t)
+    t = 180
+    #test_suite_csv(None, ground_truth, t)
+    test_suite_csv("ZenoUnaltered", unmodified_theorems(), t)
+    test_suite_csv("ZenoTotal", modified_total, t)
+    test_suite_csv("ZenoFinite", modified_finite, t)
     #test_suite_csv("ZenoTrue", ground_truth, t)
     # test_suite_csv("ZenoAlteredTotal", totality_change(ground_truth), t)
     # TODO this is improper usage
