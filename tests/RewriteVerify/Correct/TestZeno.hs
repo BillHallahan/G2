@@ -574,21 +574,31 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 {-# RULES
 "p01" forall n xs . take n xs ++ drop n xs = xs
 "p02" forall n xs ys . count n xs + count n ys = count n (xs ++ ys)
+"p04" forall n xs . count n (n : xs) = S (count n xs)
+"p06" forall n m . n - (n + m) = Z
+"p07" forall n m . (n + m) - n = m
+"p08" forall k m n . (k + m) - (k + n) = m - n
 "p09" forall i j k . (i - j) - k = i - (j + k)
+"p10" forall m . m - m = Z
 "p11" forall xs . drop Z xs = xs
 "p12" forall f n xs . drop n (map f xs) = map f (drop n xs)
 "p13" forall n x xs . drop (S n) (x : xs) = drop n xs
 "p14" forall p xs ys . filter p (xs ++ ys) = (filter p xs) ++ (filter p ys)
+"p15" forall x xs . len (ins x xs) = S (len xs)
 "p17" forall n . n <= Z = n === Z
 "p19" forall n xs . len (drop n xs) = len xs - n
+"p20" forall xs . len (sort xs) = len xs
 "p22" forall a b c . max (max a b) c = max a (max b c)
 "p23" forall a b . max a b = max b a
+"p24" forall a b . (max a b) === a = b <= a
+"p25" forall a b . (max a b) === b = a <= b
 "p31" forall a b c . min (min a b) c = min a (min b c)
 "p32" forall a b . min a b = min b a
 "p33" forall a b . min a b === a = a <= b
 "p34" forall a b . min a b === b = b <= a
 "p35" forall xs . dropWhile (\_ -> False) xs = xs
 "p36" forall xs . takeWhile (\_ -> True) xs = xs
+"p38" forall n xs . count n (xs ++ [n]) = S (count n xs)
 "p39" forall n x xs . count n [x] + count n xs = count n (x:xs)
 "p40" forall xs . take Z xs = []
 "p41" forall f n xs . take n (map f xs) = map f (take n xs)
@@ -601,13 +611,20 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p49" forall xs ys . butlast (xs ++ ys) = butlastConcat xs ys
 "p50" forall xs . butlast xs = take (len xs - S Z) xs
 "p51" forall x xs . butlast (xs ++ [x]) = xs
+"p52" forall n xs . count n xs = count n (rev xs)
+"p53" forall n xs . count n xs = count n (sort xs)
+"p54" forall n m . (m + n) - n = m
 "p55" forall n xs ys . drop n (xs ++ ys) = drop n xs ++ drop (n - len xs) ys
 "p56" forall n m xs . drop n (drop m xs) = drop (n + m) xs
+"p57" forall n m xs . drop n (take m xs) = take (m - n) (drop n xs)
 "p58" forall n xs ys . drop n (zip xs ys) = zip (drop n xs) (drop n ys)
+"p61" forall xs ys . last (xs ++ ys) = lastOfTwo xs ys
+"p64" forall x xs . last (xs ++ [x]) = x
 "p67" forall xs . len (butlast xs) = len xs - S Z
 "p72" forall i xs . rev (drop i xs) = take (len xs - i) (rev xs)
 "p73" forall p xs . rev (filter p xs) = filter p (rev xs)
 "p74" forall i xs . rev (take i xs) = drop (len xs - i) (rev xs)
+"p75" forall n m xs . count n xs + count n [m] = count n (m : xs)
 "p79" forall m n k . (S m - n) - S k = (m - n) - k
 "p80" forall n xs ys . take n (xs ++ ys) = take n xs ++ take (n - len xs) ys
 "p81" forall n m xs . take n (drop m xs) = drop m (take (n + m) xs)
