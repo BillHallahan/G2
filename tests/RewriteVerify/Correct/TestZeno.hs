@@ -616,6 +616,37 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p84" forall xs ys zs . zip xs (ys ++ zs) = zip (take (len ys) xs) ys ++ zip (drop (len ys) xs) zs
   #-}
 
+-- TODO the theorems that don't fit the ordinary equivalence format
+-- they need to be in the same file as the rest of the suite
+{-# RULES
+"p03" forall n xs ys . prop_03 n xs ys = True
+"p05" forall n x xs . prop_05 n x xs = True
+"p16" forall x xs . prop_16 x xs = True
+"p18" forall i m . prop_18 i m = True
+"p21" forall n m . prop_21 n m = True
+"p26" forall x xs ys . prop_26 x xs ys = True
+"p27" forall x xs ys . prop_27 x xs ys = True
+"p28" forall x xs . prop_28 x xs = True
+"p29" forall x xs . prop_29 x xs = True
+"p30" forall x xs . prop_30 x xs = True
+"p37" forall x xs . prop_37 x xs = True
+"p48" forall xs . prop_48 xs = True
+"p59" forall xs ys . prop_59 xs ys = True
+"p60" forall xs ys . prop_60 xs ys = True
+"p62" forall xs x . prop_62 xs x = True
+"p63" forall n xs . prop_63 n xs = True
+"p65" forall i m . prop_65 i m = True
+"p66" forall p xs . prop_66 p xs = True
+"p68" forall n xs . prop_68 n xs = True
+"p69" forall n m . prop_69 n m = True
+"p70" forall m n . prop_70 m n = True
+"p71" forall x y xs . prop_71 x y xs = True
+"p76" forall n m xs . prop_76 n m xs = True
+"p77" forall x xs . prop_77 x xs = True
+"p78" forall xs . prop_78 xs = True
+"p85" forall xs ys . prop_85 xs ys = True
+  #-}
+
 -- TODO should the order be different for 26B, 27, 28, 37C, 60?
 -- TODO only really need the last nat total for p48; same for 62, 63
 -- TODO not sure about 71 and 76 now

@@ -820,7 +820,7 @@ def test_suite_csv(fname, suite, timeout = 25):
     return test_suite_general(suite, "TestZeno.hs", fname, timeout)
 
 def test_suite_unmodified(timeout = 25):
-    return test_suite_general(unmodified_theorems(), "EvalZeno.hs", None, timeout)
+    return test_suite_general(unmodified_theorems(), "TestZeno.hs", None, timeout)
 
 def test_suite_total(timeout = 25):
     return test_suite_general(modified_total, "TestZeno.hs", None, timeout)
