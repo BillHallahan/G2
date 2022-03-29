@@ -360,7 +360,8 @@ ground_truth = [
     ("p20finA", []),
     ("p21fin", []),
     ("p22", []),
-    ("p23", []),
+    ("p23", [a]),
+    ("p23", [b]),
     ("p24fin", [b]),
     ("p25fin", [a]),
     ("p26finA", [x]),
@@ -386,7 +387,7 @@ ground_truth = [
     ("p44", []),
     ("p45", []),
     ("p46", []),
-    ("p47", []),
+    ("p47", [a]),
     ("p48finB", []),
     ("p49", [xs, ys]),
     ("p50", []),
@@ -610,9 +611,12 @@ def unmodified_theorems():
 modified_total = [
     ("p01", [n]),
     ("p19", [n]),
+    ("p23", [a]),
+    ("p23", [b]),
     ("p32", [a, b]),
     ("p34", [a]),
     ("p43", [p, xs]),
+    ("p47", [a]),
     ("p49", [xs, ys]),
     ("p51", [xs]),
     ("p56", [n, m]),
@@ -1053,6 +1057,9 @@ def main():
     #csv_mat = bad_matrix(results_matrix(csv_matrix("ZenoAlteredFinite")))
     #lat = latex_table(csv_mat)
     #write_latex("EvaluationFinite", lat)
+
+    #lat = latex_table(results_matrix(csv_matrix("../resultsMar24/ZenoFinite")))
+    #write_latex("Evaluation1", lat)
     
     # TODO this is the real test suite
     # feel free to reduce the time from 180, but keep at least 150
