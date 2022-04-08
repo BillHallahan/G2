@@ -1080,4 +1080,5 @@ loop2 _ = loop2 Z
 "badPlus" plus = badPlus
 "contrived" xx = yy
 "contrivedSync" forall n . walkNat n (loop1 n) = loop2 n
+"plusZero" forall x . x + Z = x
   #-}
