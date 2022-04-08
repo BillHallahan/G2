@@ -75,9 +75,9 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
     (Tick t1 e1', Tick t2 e2') | labeledErrorName t1 == labeledErrorName t2 -> exprPairing ns s1 s2 e1' e2' pairs n1 n2
     (Tick t e1', _) | isNothing $ labeledErrorName t -> exprPairing ns s1 s2 e1' e2 pairs n1 n2
     (_, Tick t e2') | isNothing $ labeledErrorName t -> exprPairing ns s1 s2 e1 e2' pairs n1 n2
-    -- TODO ad-hoc solution; there may be a better way to handle this
-    (Tick _ _, _) | (Data (DataCon _ _)):_ <- unAppNoTicks e2 -> Nothing
-    (_, Tick _ _) | (Data (DataCon _ _)):_ <- unAppNoTicks e1 -> Nothing
+    -- catch mismatches between labeled errors and other SWHNF expressions
+    (Tick _ _, _) | isExprValueForm h2 (removeAllTicks e2) -> Nothing
+    (_, Tick _ _) | isExprValueForm h1 (removeAllTicks e1) -> Nothing
     -- We have two error labels that are different from each other
     (Tick t1 e1', Tick t2 e2') -> Nothing
     -- keeping track of inlined vars prevents looping
