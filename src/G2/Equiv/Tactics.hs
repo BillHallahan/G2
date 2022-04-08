@@ -1123,12 +1123,12 @@ checkCycle solver ns _ _ (sh1, sh2) (s1, s2) = do
       mr2_pairs = zip mr2 hist2
       mr2_pairs' = filter (vh s2') mr2_pairs
       mr2_pair = find (isRight . fst) mr2_pairs'
-  case (isSWHNF s1', mr2_pair) of
-    (True, Just (Right hm, p2)) -> do
+  case (isSWHNF s1', isSWHNF s2', mr2_pair) of
+    (True, False, Just (Right hm, p2)) -> do
       W.tell [Marker (sh1, sh2) $ CycleFound $ CycleMarker (s1, s2) p2 hm IRight]
       return $ Failure True
-    _ -> case (isSWHNF s2', mr1_pair) of
-      (True, Just (Right hm, p1)) -> do
+    _ -> case (isSWHNF s1', isSWHNF s2', mr1_pair) of
+      (False, True, Just (Right hm, p1)) -> do
         W.tell [Marker (sh1, sh2) $ CycleFound $ CycleMarker (s1, s2) p1 hm ILeft]
         return $ Failure True
       _ -> return $ NoProof []
