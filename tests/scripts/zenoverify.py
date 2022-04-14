@@ -688,6 +688,54 @@ modified_finite = [
     ("p85finC", [xs])
 ]
 
+# TODO These are the theorems we should run for the new evaluation
+modified_cycle = [
+    ("p03", [n, xs, ys]),
+    ("p04", [n, xs]),
+    ("p05", [n, x, xs]),
+    ("p06", [n, m]),
+    ("p07", [n, m]),
+    ("p08", [k, m, n]),
+    ("p10", [m]),
+    ("p15", [x, xs]),
+    ("p16", [x, xs]),
+    ("p18", [i, m]),
+    ("p20", [xs]),
+    ("p21", [n, m]),
+    ("p24", [a, b]),
+    ("p25", [a, b]),
+    ("p26", [x, xs, ys]),
+    ("p27", [x, xs, ys]),
+    ("p28", [x, xs]),
+    ("p29", [x, xs]),
+    ("p30", [x, xs]),
+    ("p37", [x, xs]),
+    ("p38", [n, xs]),
+    ("p48", [xs]),
+    ("p52", [n, xs]),
+    ("p53", [n, xs]),
+    ("p54", [n, m]),
+    ("p57", [n, m, xs]),
+    ("p59", [xs, ys]),
+    ("p60", [xs, ys]),
+    ("p61", [xs, ys]),
+    ("p62", [xs, x]),
+    ("p63", [n, xs]),
+    ("p64", [x, xs]),
+    ("p65", [i, m]),
+    ("p66", [p, xs]),
+    ("p68", [n, xs]),
+    ("p69", [n, m]),
+    ("p70", [m, n]),
+    ("p71", [x, y, xs]),
+    ("p75", [n, m, xs]),
+    ("p76", [n, m, xs]),
+    ("p77", [x, xs]),
+    ("p78", [xs]),
+    ("p81", [n, m, xs]),
+    ("p85", [xs, ys])
+]
+
 # input lists must have same length and aligning entries
 def altered_total_for_finite(fin_suite, other_suite):
     alt_suite = []
@@ -1058,16 +1106,20 @@ def main():
     #lat = latex_table(csv_mat)
     #write_latex("EvaluationFinite", lat)
 
-    #lat = latex_table(results_matrix(csv_matrix("../resultsMar24/ZenoFinite")))
-    #write_latex("Evaluation1", lat)
+    #lat = latex_table(results_matrix(csv_matrix("../resultsApr10/ZenoUnaltered")))
+    #write_latex("Evaluation2", lat)
     
     # TODO this is the real test suite
     # feel free to reduce the time from 180, but keep at least 150
     t = 180
     #test_suite_csv(None, ground_truth, t)
-    test_suite_csv("ZenoUnaltered", unmodified_theorems(), t)
-    test_suite_csv("ZenoTotal", modified_total, t)
-    test_suite_csv("ZenoFinite", modified_finite, t)
+    #test_suite_csv("ZenoUnaltered", unmodified_theorems(), t)
+    #test_suite_csv("ZenoTotal", modified_total, t)
+    #test_suite_csv("ZenoFinite", modified_finite, t)
+
+    test_suite_csv("ZenoCycle", modified_cycle, t)
+    #test_suite_csv(None, modified_cycle, t)
+
     #test_suite_csv("ZenoTrue", ground_truth, t)
     # test_suite_csv("ZenoAlteredTotal", totality_change(ground_truth), t)
     # TODO this is improper usage
