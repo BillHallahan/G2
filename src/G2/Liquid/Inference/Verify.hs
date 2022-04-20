@@ -57,7 +57,6 @@ import Language.Haskell.Liquid.Liquid ()
 import           Language.Haskell.Liquid.UX.Annotate (mkOutput)
 import Language.Haskell.Liquid.UX.Errors
 import Language.Haskell.Liquid.Types.RefType
-import Language.Haskell.Liquid.Model
 import qualified Language.Haskell.Liquid.UX.DiffCheck as DC
 
 data VerifyResult v = Safe
