@@ -287,22 +287,18 @@ liquidQueries infconfig cfg tgt info (Right dcs)
 liquidQuery   :: InferenceConfig -> Config -> FilePath -> GhcInfo -> Either [CoreBind] DC.DiffCheck -> IO (F.Result (Integer, Cinfo))
 #if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
 liquidQuery infconfig cfg tgt info edc = do
-  when False (dumpCs cgi)
-  -- whenLoud $ mapM_ putStrLn [ "****************** CGInfo ********************"
-                            -- , render (pprint cgi)                            ]
-  let tout = ST.terminationCheck (info' {cbs = cbs''})
-  timedAction names $ solveCs infconfig cfg tgt cgi info' names
+  undefined
 #else
 liquidQuery infconfig cfg tgt info edc = do
   when False (dumpCs cgi)
   timedAction names $ solveCs infconfig cfg tgt cgi info' names
-#endif
   where
     cgi    = {-# SCC "generateConstraints" #-} generateConstraints $! info' {cbs = cbs''}
     cbs''  = either id              DC.newBinds                        edc
     info'  = either (const info)    (\z -> info {spec = DC.newSpec z}) edc
     names  = either (const Nothing) (Just . map show . DC.checkedVars) edc
     oldOut = either (const mempty)  DC.oldOutput                       edc
+#endif
 
 
 dumpCs :: CGInfo -> IO ()
