@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Liquid.Inference.GeneratedSpecs ( GeneratedSpecs
@@ -230,7 +231,7 @@ insertMissingAssumeSpec (G2.Name n _ _ _) = map create
     where
         create ghci =
             let
-                defs = defVars ghci
+                defs = definedVars ghci
                 has_spec = map fst $ getAssumedSigs ghci
                 def_no_spec = filter (`notElem` has_spec) defs
 
@@ -256,7 +257,7 @@ insertMissingAssertSpec (G2.Name n _ _ _) = map create
     where
         create ghci =
             let
-                defs = defVars ghci
+                defs = definedVars ghci
                 has_spec = map fst $ getTySigs ghci
                 def_no_spec = filter (`notElem` has_spec) defs
 
@@ -282,10 +283,10 @@ genSpec ghcis (G2.Name n _ _ _) = foldr mappend Nothing $ map gen ghcis
     where
         gen ghci =
             let
-                defs = defVars ghci
+                defs = definedVars ghci
                 def_v = find (\v -> (T.pack . occNameString . nameOccName $ varName v) == n) defs
 
-                specs = gsTySigs (spec ghci)
+                specs = getTySigs ghci
             in
             case def_v of
                 Just v
@@ -295,3 +296,12 @@ genSpec ghcis (G2.Name n _ _ _) = foldr mappend Nothing $ map gen ghcis
 genSpec' :: GhcInfo -> Var -> SpecType
 genSpec' ghci v =
     S.evalState (refreshTy (ofType $ varType v)) $ initCGI (getConfig ghci) ghci
+
+definedVars :: GhcInfo -> [Var]
+#if MIN_VERSION_liquidhaskell(0,8,6)
+definedVars = giDefVars
+#else
+definedVars = defVars
+#endif
+
+
