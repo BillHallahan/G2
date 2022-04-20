@@ -310,6 +310,12 @@ liquidQuery infconfig cfg tgt info edc = do
   -- whenLoud $ mapM_ putStrLn [ "****************** CGInfo ********************"
                             -- , render (pprint cgi)                            ]
   timedAction names $ solveCs infconfig cfg tgt cgi info' names
+  where
+    cgi    = {-# SCC "generateConstraints" #-} generateConstraints $! info' {cbs = cbs''}
+    cbs''  = either id              DC.newBinds                        edc
+    info'  = either (const info)    (\z -> info {spec = DC.newSpec z}) edc
+    names  = either (const Nothing) (Just . map show . DC.checkedVars) edc
+    oldOut = either (const mempty)  DC.oldOutput                       edc
 #else
 liquidQuery infconfig cfg tgt info edc = do
   when False (dumpCs cgi)
