@@ -13,21 +13,14 @@ jobs:
 
     strategy:
       matrix:
-        compiler: [ '8.2.2', '8.6.5' ]
-        cabal: ['2.0.0.1','2.4']
-        include:
-          - compiler: '8.2.2'
-            cabal: '2.0.0.1'
-          - compiler: '8.6.5'
-            cabal: '2.4'
-
+        compiler: [ { ghc: '8.2.2', cabal: '2.0.0.1' }, { ghc: '8.6.5', cabal: '2.4' } ]
 
     steps:
     - uses: actions/checkout@v2
     - uses: actions/setup-haskell@v1
       with:
-        ghc-version: ${{ matrix.compiler }}
-        cabal-version: ${{ matrix.cabal }}
+        ghc-version: ${{ matrix.compiler.ghc }}
+        cabal-version: ${{ matrix.compiler.cabal }}
 
     # - name: Cache
     #   uses: actions/cache@v1
