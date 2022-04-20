@@ -19,9 +19,9 @@ import Data.Foldable
 import Data.List
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
-import Data.Monoid ((<>))
 
 import qualified Data.Sequence as S
+import Data.Semigroup
 
 import Debug.Trace
 
@@ -31,14 +31,16 @@ data MemConfig = MemConfig { search_names :: [Name]
                            , pres_func :: PreservingFunc }
                | PreserveAllMC
 
+instance Semigroup MemConfig where
+    (MemConfig { search_names = sn1, pres_func = pf1 }) <> (MemConfig { search_names = sn2, pres_func = pf2 }) =
+                MemConfig { search_names = sn1 ++ sn2
+                          , pres_func = \s b hs -> pf1 s b hs `HS.union` pf2 s b hs}
+    _ <> _ = PreserveAllMC
+
 instance Monoid MemConfig where
     mempty = MemConfig { search_names = [], pres_func = \ _ _ -> id }
 
-    mappend (MemConfig { search_names = sn1, pres_func = pf1 })
-            (MemConfig { search_names = sn2, pres_func = pf2 }) =
-                MemConfig { search_names = sn1 ++ sn2
-                          , pres_func = \s b hs -> pf1 s b hs `HS.union` pf2 s b hs}
-    mappend _ _ = PreserveAllMC
+    mappend = (<>)
 
 emptyMemConfig :: MemConfig
 emptyMemConfig = MemConfig { search_names = [], pres_func = \_ _ a -> a }
