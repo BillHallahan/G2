@@ -304,6 +304,12 @@ liquidQuery   :: InferenceConfig -> Config -> FilePath -> GhcInfo -> Either [Cor
 #if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
 liquidQuery infconfig cfg tgt info edc = do
   undefined
+#elif defined NEW_LH
+liquidQuery infconfig cfg tgt info edc = do
+  when False (dumpCs cgi)
+  -- whenLoud $ mapM_ putStrLn [ "****************** CGInfo ********************"
+                            -- , render (pprint cgi)                            ]
+  timedAction names $ solveCs infconfig cfg tgt cgi info' names
 #else
 liquidQuery infconfig cfg tgt info edc = do
   when False (dumpCs cgi)
