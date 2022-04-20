@@ -138,12 +138,20 @@ deleteAllAsserts :: GeneratedSpecs -> GeneratedSpecs
 deleteAllAsserts gs = gs { assert_specs = M.empty }
 
 modifyGsTySigs :: (Var -> SpecType -> SpecType) -> GhcInfo -> GhcInfo
-modifyGsTySigs f gi@(GI { spec = si@(SP { gsTySigs = tySigs }) }) =
-    gi { spec = si { gsTySigs = map (\(v, lst) -> (v, fmap (f v) lst)) tySigs }}
+modifyGsTySigs f ghci =
+    let
+        sigs = getTySigs ghci
+        sigs' = map (\(v, lst) -> (v, fmap (f v) lst)) sigs
+    in
+    putTySigs ghci sigs'
 
 modifyGsAsmSigs :: (Var -> SpecType -> SpecType) -> GhcInfo -> GhcInfo
-modifyGsAsmSigs f gi@(GI { spec = si@(SP { gsAsmSigs = tySigs }) }) =
-    gi { spec = si { gsAsmSigs = map (\(v, lst) -> (v, fmap (f v) lst)) tySigs }}
+modifyGsAsmSigs f ghci =
+    let
+        sigs = getAssumedSigs ghci
+        sigs' = map (\(v, lst) -> (v, fmap (f v) lst)) sigs
+    in
+    putAssumedSigs ghci sigs'
 
 addSpecsToGhcInfos :: [GhcInfo] -> GeneratedSpecs -> [GhcInfo]
 addSpecsToGhcInfos ghci gs = addAssumedSpecsToGhcInfos (addAssertedSpecsToGhcInfos ghci gs) gs

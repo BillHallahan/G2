@@ -4,6 +4,10 @@
 module G2.Liquid.Helpers ( MeasureSymbols (..)
                          , getGHCInfos
                          , funcSpecs
+                         , getTySigs
+                         , putTySigs
+                         , getAssumedSigs
+                         , putAssumedSigs
                          , findFuncSpec
                          , measureSpecs
                          , measureSymbols
@@ -44,16 +48,51 @@ getGHCInfos config proj fp lhlibs = do
     return ghci
     
 funcSpecs :: [GhcInfo] -> [(Var, LocSpecType)]
-#if MIN_VERSION_liquidhaskell(0,8,6)
-funcSpecs fs = concatMap (gsTySigs . gsSig . giSpec) fs -- Functions asserted in LH
-            ++ concatMap (gsAsmSigs . gsSig . giSpec) fs -- Functions assumed in LH
-#else
 funcSpecs fs =
     let
-        asserted = concatMap (gsTySigs . spec) fs -- Functions asserted in LH
-        assumed = concatMap (gsAsmSigs . spec) fs -- Functions assumed in LH
+        asserted = concatMap getTySigs fs
+        assumed = concatMap getAssumedSigs fs
     in
     asserted ++ assumed
+
+-- | Functions asserted in LH
+getTySigs :: GhcInfo -> [(Var, LocSpecType)]
+#if MIN_VERSION_liquidhaskell(0,8,6)
+getTySigs = gsTySigs . gsSig . giSpec
+#else
+getTySigs = gsTySigs . spec
+#endif
+
+putTySigs :: GhcInfo -> [(Var, LocSpecType)] -> GhcInfo
+#if MIN_VERSION_liquidhaskell(0,8,6)
+putTySigs gi@(GI {
+                    giSpec = sp@(SP { gsSig = sp_sig@(SpSig { giSpec = sp }) })
+                 }
+             ) new_ty_sigs = 
+    gi { giSpec = sp { gsSig = sp_sig { gsTySigs = new_ty_sigs } } }
+#else
+putTySigs gi@(GI { spec = sp }) new_ty_sigs = 
+    gi { spec = sp { gsTySigs = new_ty_sigs }}
+#endif
+
+-- | Functions assumed in LH
+getAssumedSigs :: GhcInfo -> [(Var, LocSpecType)]
+#if MIN_VERSION_liquidhaskell(0,8,6)
+getAssumedSigs = gsAsmSigs . gsSig . giSpec
+#else
+getAssumedSigs = gsAsmSigs . spec
+#endif
+
+putAssumedSigs :: GhcInfo -> [(Var, LocSpecType)] -> GhcInfo
+#if MIN_VERSION_liquidhaskell(0,8,6)
+putAssumedSigs gi@(GI {
+                    giSpec = sp@(SP { gsSig = sp_sig@(SpSig { giSpec = sp }) })
+                 }
+             ) new_ty_sigs = 
+    gi { giSpec = sp { gsSig = sp_sig { gsTySigs = new_ty_sigs } } }
+#else
+putAssumedSigs gi@(GI { spec = sp }) new_ty_sigs = 
+    gi { spec = sp { gsTySigs = new_ty_sigs }}
 #endif
 
 findFuncSpec :: [GhcInfo] -> G2.Name -> Maybe SpecType
