@@ -36,7 +36,7 @@ import G2.Liquid.Helpers
 import G2.Liquid.Inference.PolyRef
 
 import Language.Haskell.Liquid.Constraint.Init
-import Language.Haskell.Liquid.Types
+import Language.Haskell.Liquid.Types hiding (qualifiers)
 import Language.Haskell.Liquid.Types.Fresh
 import Language.Fixpoint.Types.Refinements
 import Language.Haskell.Liquid.Types.RefType
@@ -225,10 +225,10 @@ allEmptyPAnds = all (allPB (\e -> case e of
 insertMissingAssumeSpec :: G2.Name -> [GhcInfo] -> [GhcInfo]
 insertMissingAssumeSpec (G2.Name n _ _ _) = map create 
     where
-        create ghci@(GI { spec = spc } ) =
+        create ghci =
             let
                 defs = defVars ghci
-                has_spec = map fst . gsAsmSigs $ spec ghci
+                has_spec = map fst $ getAssumedSigs ghci
                 def_no_spec = filter (`notElem` has_spec) defs
 
                 def_v = find (\v -> (T.pack . occNameString . nameOccName $ varName v) == n) def_no_spec
@@ -238,17 +238,23 @@ insertMissingAssumeSpec (G2.Name n _ _ _) = map create
                     let
                         new_spec = dummyLoc $ genSpec' ghci v
                     in
-                    ghci { spec = spc { gsAsmSigs = (v, new_spec):gsAsmSigs spc } }
+                    insertAssumeSig v new_spec ghci
                 Nothing -> ghci
 
+insertAssumeSig :: Var -> LocSpecType -> GhcInfo -> GhcInfo
+insertAssumeSig v lst ghci =
+    let
+        spc = getAssumedSigs ghci
+    in
+    putAssumedSigs ghci ((v, lst):spc)
 
 insertMissingAssertSpec :: G2.Name -> [GhcInfo] -> [GhcInfo]
 insertMissingAssertSpec (G2.Name n _ _ _) = map create
     where
-        create ghci@(GI { spec = spc } ) =
+        create ghci =
             let
                 defs = defVars ghci
-                has_spec = map fst . gsTySigs $ spec ghci
+                has_spec = map fst $ getTySigs ghci
                 def_no_spec = filter (`notElem` has_spec) defs
 
                 def_v = find (\v -> (T.pack . occNameString . nameOccName $ varName v) == n) def_no_spec
@@ -258,8 +264,15 @@ insertMissingAssertSpec (G2.Name n _ _ _) = map create
                     let
                         new_spec = dummyLoc $ genSpec' ghci v
                     in
-                    ghci { spec = spc { gsTySigs = (v, new_spec):gsTySigs spc } }
+                    insertTySig v new_spec ghci
                 Nothing -> ghci
+
+insertTySig :: Var -> LocSpecType -> GhcInfo -> GhcInfo
+insertTySig v lst ghci =
+    let
+        spc = getTySigs ghci
+    in
+    putTySigs ghci ((v, lst):spc)
 
 genSpec :: [GhcInfo] -> G2.Name -> Maybe SpecType
 genSpec ghcis (G2.Name n _ _ _) = foldr mappend Nothing $ map gen ghcis
