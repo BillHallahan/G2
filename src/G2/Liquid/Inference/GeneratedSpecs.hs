@@ -299,7 +299,7 @@ genSpec' ghci v =
 
 definedVars :: GhcInfo -> [Var]
 #if MIN_VERSION_liquidhaskell(0,8,6)
-definedVars = giDefVars
+definedVars = giDefVars . giSrc
 #else
 definedVars = defVars
 #endif
