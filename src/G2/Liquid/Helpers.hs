@@ -4,10 +4,13 @@
 module G2.Liquid.Helpers ( MeasureSymbols (..)
                          , getGHCInfos
                          , funcSpecs
+                         
                          , getTySigs
                          , putTySigs
                          , getAssumedSigs
                          , putAssumedSigs
+                         , getQuantifiers
+                         , putQuantifiers
                          , findFuncSpec
                          , measureSpecs
                          , measureSymbols
@@ -24,6 +27,7 @@ import qualified Language.Haskell.Liquid.GHC.Interface as LHI
 import Language.Fixpoint.Types.Names
 import Language.Haskell.Liquid.Types hiding (Config, cls, names)
 import qualified Language.Haskell.Liquid.UX.Config as LHC
+import Language.Fixpoint.Types (Qualifier (..))
 
 import Data.List
 import qualified Data.Map as M
@@ -94,6 +98,26 @@ putAssumedSigs gi@(GI {
 putAssumedSigs gi@(GI { spec = sp }) new_ty_sigs = 
     gi { spec = sp { gsTySigs = new_ty_sigs }}
 #endif
+
+getQuantifiers :: GhcInfo -> [Qualifier]
+#if MIN_VERSION_liquidhaskell(0,8,6)
+getQuantifiers = gsQualifiers . gsQual . giSpec
+#else
+getQuantifiers = gsQualifiers . spec
+#endif
+
+putQuantifiers :: GhcInfo -> [Qualifier] -> GhcInfo
+#if MIN_VERSION_liquidhaskell(0,8,6)
+putQuantifiers gi@(GI {
+                    giSpec = sp@(SP { gsQual = quals })
+                 }
+             ) new_quals = 
+    gi { giSpec = sp { gsQual = quals { gsQualifiers = new_quals } } }
+#else
+putQuantifiers gi@(GI { spec = sp }) new_quals = 
+    gi { spec = sp { gsQualifiers = new_quals }}
+#endif
+
 
 findFuncSpec :: [GhcInfo] -> G2.Name -> Maybe SpecType
 findFuncSpec ghci g2_n =
