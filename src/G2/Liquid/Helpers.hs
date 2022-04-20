@@ -66,7 +66,7 @@ getTySigs = gsTySigs . spec
 putTySigs :: GhcInfo -> [(Var, LocSpecType)] -> GhcInfo
 #if MIN_VERSION_liquidhaskell(0,8,6)
 putTySigs gi@(GI {
-                    giSpec = sp@(SP { gsSig = sp_sig@(SpSig { giSpec = sp }) })
+                    giSpec = sp@(SP { gsSig = sp_sig })
                  }
              ) new_ty_sigs = 
     gi { giSpec = sp { gsSig = sp_sig { gsTySigs = new_ty_sigs } } }
@@ -86,7 +86,7 @@ getAssumedSigs = gsAsmSigs . spec
 putAssumedSigs :: GhcInfo -> [(Var, LocSpecType)] -> GhcInfo
 #if MIN_VERSION_liquidhaskell(0,8,6)
 putAssumedSigs gi@(GI {
-                    giSpec = sp@(SP { gsSig = sp_sig@(SpSig { giSpec = sp }) })
+                    giSpec = sp@(SP { gsSig = sp_sig })
                  }
              ) new_ty_sigs = 
     gi { giSpec = sp { gsSig = sp_sig { gsTySigs = new_ty_sigs } } }
