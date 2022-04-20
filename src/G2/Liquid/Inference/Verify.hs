@@ -85,9 +85,9 @@ tryHardToVerifyIgnoring ghci gs ignore = do
 
         putStrLn "---\nVerify"
         putStrLn "gsAsmSigs"
-        mapM_ (print . gsAsmSigs . spec) merged_ghci
+        mapM_ (print . getAssumedSigs) merged_ghci
         putStrLn "gsTySigs"
-        mapM_ (print . gsTySigs . spec) merged_ghci
+        mapM_ (print . getTySigs) merged_ghci
         putStrLn "---\nEnd Verify"
 
         res <- return . verifyVarToName =<< verify infconfig lhconfig merged_ghci
@@ -143,7 +143,7 @@ tryToVerify ghci = do
       putStrLn "-------------------------------"
       putStrLn "-------------------------------"
       putStrLn "tryToVerify"
-      mapM (print . gsTySigs . spec) ghci
+      mapM (print . getTySigs) ghci
       putStrLn "-------------------------------"
       putStrLn "-------------------------------"
 
@@ -223,11 +223,16 @@ liquidOne :: InferenceConfig -> GhcInfo -> IO (F.Result (Integer, Cinfo))
 liquidOne infconfig info = do
   -- whenNormal $ donePhase Loud "Extracted Core using GHC"
   let cfg   = getConfig info
+#if MIN_VERSION_liquidhaskell(0,8,6)
+  let tgt   = giTarget (giSrc info)
+  let cbs' = giCbs (giSrc info)
+#else
   let tgt   = target info
   -- whenLoud  $ do putStrLn $ showpp info
                  -- putStrLn "*************** Original CoreBinds ***************************"
                  -- putStrLn $ render $ pprintCBs (cbs info)
   let cbs' = cbs info -- scopeTr (cbs info)
+#endif
   -- whenNormal $ donePhase Loud "Transformed Core"
   -- whenLoud  $ do donePhase Loud "transformRecExpr"
   --                putStrLn "*************** Transform Rec Expr CoreBinds *****************"
@@ -237,7 +242,18 @@ liquidOne infconfig info = do
   edcs <- newPrune      cfg cbs' tgt info
   liquidQueries infconfig cfg      tgt info edcs
 
-#if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
+#if MIN_VERSION_liquidhaskell(0,8,6)
+newPrune :: Config -> [CoreBind] -> FilePath -> GhcInfo -> IO (Either [CoreBind] [DC.DiffCheck])
+newPrune cfg cbs tgt info
+  | not (null vs) = return . Right $ [DC.thin cbs sp vs]
+  | timeBinds cfg = return . Right $ [DC.thin cbs sp [v] | v <- exportedVars (giSrc info) ]
+  | diffcheck cfg = maybeEither cbs <$> DC.slice tgt cbs sp
+  | otherwise     = return $ Left (ignoreCoreBinds ignores cbs)
+  where
+    ignores       = gsIgnoreVars sp 
+    vs            = gsTgtVars    sp
+    sp            = giSpec       info
+#elif defined NEW_LH
 newPrune :: Config -> [CoreBind] -> FilePath -> GhcInfo -> IO (Either [CoreBind] [DC.DiffCheck])
 newPrune cfg cbs tgt info
   | not (null vs) = return . Right $ [DC.thin cbs sp vs]
@@ -320,7 +336,7 @@ solveCs :: InferenceConfig -> Config -> FilePath -> CGInfo -> GhcInfo -> Maybe [
 solveCs infconfig cfg tgt cgi info names = do
   finfo            <- cgInfoFInfo info cgi
   -- We only want qualifiers we have found with G2 Inference, so we have to force the correct set here
-  let finfo' = finfo { F.quals = (gsQualifiers . spec $ info) ++ if keep_quals infconfig then F.quals finfo else [] }
+  let finfo' = finfo { F.quals = (getQuantifiers $ info) ++ if keep_quals infconfig then F.quals finfo else [] }
   fres@(F.Result r sol _) <- solve (fixConfig tgt cfg) finfo'
   -- let resErr        = applySolution sol . cinfoError . snd <$> r
   -- resModel_        <- fmap (e2u cfg sol) <$> getModels info cfg resErr
