@@ -301,7 +301,7 @@ liquidQueries infconfig cfg tgt info (Right dcs)
   = mconcat <$> mapM (liquidQuery infconfig cfg tgt info . Right) dcs
 
 liquidQuery   :: InferenceConfig -> Config -> FilePath -> GhcInfo -> Either [CoreBind] DC.DiffCheck -> IO (F.Result (Integer, Cinfo))
-#if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
+#if MIN_VERSION_liquidhaskell(0,8,6)
 liquidQuery infconfig cfg tgt info edc = do
   undefined
 #elif defined NEW_LH
