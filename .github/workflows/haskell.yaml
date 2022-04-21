@@ -24,7 +24,7 @@ jobs:
         cabal-version: ${{ matrix.compiler.cabal }}
 
     - run: cabal v2-update
-    - run: cabal v2-freeze $CONFIG
+    - run: cabal v2-freeze
     - uses: actions/cache@v2
       with:
         path: |
