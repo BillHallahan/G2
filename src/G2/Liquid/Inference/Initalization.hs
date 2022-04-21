@@ -16,7 +16,7 @@ import G2.Liquid.Types
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.Verify
 
-import Language.Haskell.Liquid.Types as LH
+import Language.Haskell.Liquid.Types as LH hiding (measures)
 import qualified Language.Fixpoint.Types.Config as FP
 
 import qualified Data.Text as T
