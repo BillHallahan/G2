@@ -44,6 +44,7 @@ import CoreSyn
 #if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
 import qualified Language.Haskell.Liquid.Termination.Structural as ST
 import           Language.Haskell.Liquid.GHC.Misc (showCBs, ignoreCoreBinds)
+import qualified Data.HashSet as S
 #else
 import           Language.Haskell.Liquid.GHC.Misc (showCBs)
 #endif
@@ -306,7 +307,25 @@ liquidQueries infconfig cfg tgt info (Right dcs)
 liquidQuery   :: InferenceConfig -> Config -> FilePath -> GhcInfo -> Either [CoreBind] DC.DiffCheck -> IO (F.Result (Integer, Cinfo))
 #if MIN_VERSION_liquidhaskell(0,8,6)
 liquidQuery infconfig cfg tgt info edc = do
-  undefined
+  let names   = either (const Nothing) (Just . map show . DC.checkedVars)   edc
+  let oldOut  = either (const mempty)  DC.oldOutput                         edc
+  let info1   = either (const info)    (\z -> info {giSpec = DC.newSpec z}) edc
+  let cbs''   = either id              DC.newBinds                          edc
+  let info2   = info1 { giSrc = (giSrc info1) {giCbs = cbs''}}
+  let info3   = updGhcInfoTermVars info2 
+  let cgi     = {-# SCC "generateConstraints" #-} generateConstraints $! info3 
+  when False (dumpCs cgi)
+  -- whenLoud $ mapM_ putStrLn [ "****************** CGInfo ********************"
+                            -- , render (pprint cgi)                            ]
+  timedAction names $ solveCs infconfig cfg tgt cgi info3 names
+
+updGhcInfoTermVars    :: GhcInfo -> GhcInfo 
+updGhcInfoTermVars i  = updInfo i  (ST.terminationVars i) 
+  where 
+    updInfo   info vs = info { giSpec = updSpec   (giSpec info) vs }
+    updSpec   sp   vs = sp   { gsTerm = updSpTerm (gsTerm sp)   vs }
+    updSpTerm gsT  vs = gsT  { gsNonStTerm = S.fromList vs         } 
+
 #elif defined NEW_LH
 liquidQuery infconfig cfg tgt info edc = do
   when False (dumpCs cgi)
