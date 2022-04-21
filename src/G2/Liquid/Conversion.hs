@@ -462,6 +462,16 @@ convertLHExpr m bt t (EBin b e e') = do
                    , nDict
                    , e2
                    , e2' ]
+convertLHExpr m bt t (EIte b e e') = do
+    b2 <- convertLHExpr m bt t b
+    (e2, e2') <- correctTypes m bt t e e'
+
+    trueDC <- mkDCTrueM
+    falseDC <- mkDCFalseM
+
+    bnd <- freshIdN =<< tyBoolT
+
+    return $ Case b2 bnd [Alt (DataAlt trueDC []) e2, Alt (DataAlt trueDC []) e2']
 convertLHExpr m bt _ (ECst e s) = do
     t <- sortToType s
     convertLHExpr m bt (Just t) e
