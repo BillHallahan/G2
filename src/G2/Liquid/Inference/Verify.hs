@@ -254,7 +254,7 @@ newPrune cfg cbs tgt info
     vs            = gsTgtVars    (gsVars sp)
     sp            = giSpec       info
 
-exportedVars :: GhcSrc -> [Var]
+exportedVars :: GhcSrc -> [V.Var]
 exportedVars src = filter (isExportedVar src) (giDefVars src)
 #elif defined NEW_LH
 newPrune :: Config -> [CoreBind] -> FilePath -> GhcInfo -> IO (Either [CoreBind] [DC.DiffCheck])
