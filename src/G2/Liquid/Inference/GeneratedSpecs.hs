@@ -186,9 +186,9 @@ addQualifiersToGhcInfos gs = map (addQualifiersToGhcInfo gs)
 addQualifiersToGhcInfo :: GeneratedSpecs -> GhcInfo -> GhcInfo
 addQualifiersToGhcInfo gs ghci =
     let
-        old_quals = getQuantifiers ghci
+        old_quals = getQualifiers ghci
     in
-    putQuantifiers ghci (old_quals ++ qualifiers gs)
+    putQualifiers ghci (old_quals ++ qualifiers gs)
 
 addToSpecType :: [PolyBound Expr] -> SpecType -> SpecType
 addToSpecType _ rvar@(RVar {}) = rvar

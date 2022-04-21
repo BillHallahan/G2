@@ -351,7 +351,7 @@ solveCs :: InferenceConfig -> Config -> FilePath -> CGInfo -> GhcInfo -> Maybe [
 solveCs infconfig cfg tgt cgi info names = do
   finfo            <- cgInfoFInfo info cgi
   -- We only want qualifiers we have found with G2 Inference, so we have to force the correct set here
-  let finfo' = finfo { F.quals = (getQuantifiers $ info) ++ if keep_quals infconfig then F.quals finfo else [] }
+  let finfo' = finfo { F.quals = (getQualifiers $ info) ++ if keep_quals infconfig then F.quals finfo else [] }
   fres@(F.Result r sol _) <- solve (fixConfig tgt cfg) finfo'
   -- let resErr        = applySolution sol . cinfoError . snd <$> r
   -- resModel_        <- fmap (e2u cfg sol) <$> getModels info cfg resErr

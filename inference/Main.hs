@@ -10,6 +10,7 @@ import G2.Liquid.Inference.Initalization
 import G2.Liquid.Inference.Interface
 import G2.Liquid.Inference.QualifGen
 import G2.Liquid.Inference.Verify
+import G2.Liquid.Helpers
 import G2.Liquid.Types
 
 import Language.Fixpoint.Solver
@@ -67,10 +68,10 @@ checkQualifs f config = do
     ghcis <- ghcInfos Nothing lhconfig' [f]
     let ghcis' = map (\ghci ->
                         let
-                            spc = spec ghci
-                            spc' = spc { gsQualifiers = gsQualifiers spc ++ quals finfo }
+                            ghci_quals = getQualifiers ghci-- spc = spec ghci
+                            new_quals = ghci_quals ++ quals finfo 
                         in
-                        ghci { spec = spc' }) ghcis
+                        putQualifiers ghci new_quals) ghcis
 
     start <- getCurrentTime
     res <- doTimeout 360 $ verify infconfig lhconfig' ghcis'

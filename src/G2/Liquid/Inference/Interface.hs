@@ -82,7 +82,7 @@ inference' :: InferenceConfig
            -> [FilePath]
            -> IO (Either [CounterExample] GeneratedSpecs, Timer (Event Name), Counters)
 inference' infconfig config lhconfig ghci proj fp lhlibs = do
-    mapM_ (print . getQuantifiers) ghci
+    mapM_ (print . getQualifiers) ghci
 
     (lrs, g2config', infconfig', main_mod) <- getInitState proj fp lhlibs ghci infconfig config
     let nls = getNameLevels main_mod lrs

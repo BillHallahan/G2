@@ -9,8 +9,8 @@ module G2.Liquid.Helpers ( MeasureSymbols (..)
                          , putTySigs
                          , getAssumedSigs
                          , putAssumedSigs
-                         , getQuantifiers
-                         , putQuantifiers
+                         , getQualifiers
+                         , putQualifiers
                          , findFuncSpec
                          , measureSpecs
                          , measureSymbols
@@ -99,22 +99,22 @@ putAssumedSigs gi@(GI { spec = sp }) new_ty_sigs =
     gi { spec = sp { gsTySigs = new_ty_sigs }}
 #endif
 
-getQuantifiers :: GhcInfo -> [Qualifier]
+getQualifiers :: GhcInfo -> [Qualifier]
 #if MIN_VERSION_liquidhaskell(0,8,6)
-getQuantifiers = gsQualifiers . gsQual . giSpec
+getQualifiers = gsQualifiers . gsQual . giSpec
 #else
-getQuantifiers = gsQualifiers . spec
+getQualifiers = gsQualifiers . spec
 #endif
 
-putQuantifiers :: GhcInfo -> [Qualifier] -> GhcInfo
+putQualifiers :: GhcInfo -> [Qualifier] -> GhcInfo
 #if MIN_VERSION_liquidhaskell(0,8,6)
-putQuantifiers gi@(GI {
+putQualifiers gi@(GI {
                     giSpec = sp@(SP { gsQual = quals })
                  }
              ) new_quals = 
     gi { giSpec = sp { gsQual = quals { gsQualifiers = new_quals } } }
 #else
-putQuantifiers gi@(GI { spec = sp }) new_quals = 
+putQualifiers gi@(GI { spec = sp }) new_quals = 
     gi { spec = sp { gsQualifiers = new_quals }}
 #endif
 
