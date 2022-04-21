@@ -250,9 +250,12 @@ newPrune cfg cbs tgt info
   | diffcheck cfg = maybeEither cbs <$> DC.slice tgt cbs sp
   | otherwise     = return $ Left (ignoreCoreBinds ignores cbs)
   where
-    ignores       = gsIgnoreVars sp 
-    vs            = gsTgtVars    sp
+    ignores       = gsIgnoreVars (gsVars sp)
+    vs            = gsTgtVars    (gsVars sp)
     sp            = giSpec       info
+
+exportedVars :: GhcSrc -> [Var]
+exportedVars src = filter (isExportedVar src) (giDefVars src)
 #elif defined NEW_LH
 newPrune :: Config -> [CoreBind] -> FilePath -> GhcInfo -> IO (Either [CoreBind] [DC.DiffCheck])
 newPrune cfg cbs tgt info
