@@ -81,7 +81,7 @@ inference' :: InferenceConfig
            -> [FilePath]
            -> IO (Either [CounterExample] GeneratedSpecs, Timer (Event Name), Counters)
 inference' infconfig config lhconfig ghci proj fp lhlibs = do
-    mapM_ (print . gsQualifiers . spec) ghci
+    mapM_ (print . getQuantifiers) ghci
 
     (lrs, g2config', infconfig', main_mod) <- getInitState proj fp lhlibs ghci infconfig config
     let nls = getNameLevels main_mod lrs
@@ -374,7 +374,7 @@ refineUnsafe :: MonadIO m =>
 refineUnsafe ghci m_modname lrs gs bad = do
     let merged_se_ghci = addSpecsToGhcInfos ghci gs
 
-    liftIO $ mapM_ (print . gsTySigs . spec) merged_se_ghci
+    liftIO $ mapM_ (print . getTySigs) merged_se_ghci
 
     (res, no_viol) <- genNewConstraints merged_se_ghci m_modname lrs (nameOcc bad)
 
@@ -495,7 +495,7 @@ getCEx :: MonadIO m =>
 getCEx ghci m_modname lrs gs bad = do
     let merged_se_ghci = addSpecsToGhcInfos ghci gs
 
-    liftIO $ mapM_ (print . gsTySigs . spec) merged_se_ghci
+    liftIO $ mapM_ (print . getTySigs) merged_se_ghci
 
     let bad' = nub $ map nameOcc bad
 
