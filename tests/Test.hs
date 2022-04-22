@@ -267,9 +267,7 @@ liquidTests = testGroup "Liquid"
     , checkLiquid "tests/Liquid/Distance.lhs" "distance" 1000 [AtLeast 1]
 
     -- The below test generates a LiquidHaskell error with newer LiquidHaskell versions
-    #if !MIN_VERSION_liquidhaskell(0,8,6)
-    , checkLiquid "tests/Liquid/MultModules/CallZ.lhs" "callZ" 1000 [AtLeast 1]
-    #endif
+    -- , checkLiquid "tests/Liquid/MultModules/CallZ.lhs" "callZ" 1000 [AtLeast 1]
 
     , checkAbsLiquid "tests/Liquid/AddToEven.hs" "f" 2500
         [ AtLeast 1

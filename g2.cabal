@@ -329,7 +329,6 @@ test-suite test
                        , ghc
                        , hashable
                        , hpc
-                       , liquidhaskell
                        , tagged
                        , tasty >= 1.0 && < 2.0
                        , tasty-hunit >= 0.10 && < 0.10.0.3
