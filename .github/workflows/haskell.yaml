@@ -24,7 +24,7 @@ jobs:
         cabal-version: ${{ matrix.compiler.cabal }}
 
     - run: cabal update
-    - run: cabal freeze
+    - run: cabal freeze --enable-tests
     - uses: actions/cache@v2
       with:
         path: |
@@ -43,8 +43,8 @@ jobs:
     - name: Install dependencies
       run: |
         cabal update
-        cabal install --only-dependencies
         cabal configure --enable-tests
+        cabal install --only-dependencies
         cabal build
     - name: Build
       run: cabal build
