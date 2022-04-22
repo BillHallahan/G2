@@ -25,13 +25,13 @@ jobs:
 
     - run: cabal configure --enable-tests
     - run: cabal update
-    - run: cabal freeze --enable-tests
+    - run: cabal freeze
     - uses: actions/cache@v2
       with:
         path: |
           ${{ steps.setup-haskell-cabal.outputs.cabal-store }}
           dist-newstyle
-        key: ${{ runner.os }}-${{ matrix.compiler.ghc }}-${{ hashFiles('cabal.project.freeze') }}
+        key: cabal-${{ runner.os }}-${{ matrix.compiler.ghc }}-${{ hashFiles('cabal.project.freeze') }}
         restore-keys: |
           ${{ runner.os }}-${{ matrix.compiler.ghc }}-
 
