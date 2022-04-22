@@ -33,7 +33,7 @@ jobs:
           dist-newstyle
         key: cabal-${{ runner.os }}-${{ matrix.compiler.ghc }}-${{ hashFiles('cabal.project.freeze') }}
         restore-keys: |
-          ${{ runner.os }}-${{ matrix.compiler.ghc }}-
+          cabal-${{ runner.os }}-${{ matrix.compiler.ghc }}-
 
     - name: Install Z3
       uses: pavpanchekha/setup-z3@1.2.2
