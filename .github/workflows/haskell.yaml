@@ -23,6 +23,7 @@ jobs:
         ghc-version: ${{ matrix.compiler.ghc }}
         cabal-version: ${{ matrix.compiler.cabal }}
 
+    - run: cabal configure --enable-tests
     - run: cabal update
     - run: cabal freeze --enable-tests
     - uses: actions/cache@v2
@@ -42,9 +43,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        cabal update
-        cabal configure --enable-tests
-        cabal install --only-dependencies --enable-tests
+        cabal install --only-dependencies
         cabal build
     - name: Build
       run: cabal build
