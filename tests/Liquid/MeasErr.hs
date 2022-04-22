@@ -1,6 +1,6 @@
 module MeasErr where
 
-{-@ measure m  :: (Int, Int) -> Int @-}
+{-@ measure m @-}
 m :: (Int, Int) -> Int
 m (_, b)  = b
 
