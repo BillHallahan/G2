@@ -190,11 +190,11 @@ verify' infconfig cfg ghci = checkMany infconfig cfg mempty ghci
 
 ghcInfos :: Maybe HscEnv -> Config -> [FilePath] -> IO [GhcInfo]
 ghcInfos me cfg fp = do
-    #if MIN_VERSION_liquidhaskell(0,8,10)
+#if MIN_VERSION_liquidhaskell(0,8,10)
     (ghci, _) <- getTargetInfos me cfg fp
-    #else
+#else
     (ghci, _) <- getGhcInfos me cfg fp
-    #endif
+#endif
     return ghci
 
 defLHConfig :: [FilePath] -> [FilePath] -> IO Config
