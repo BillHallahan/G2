@@ -469,13 +469,16 @@ extractArgs in_ids cleaned tenv es =
             Just r' -> return . Just . $(toSymbArgsTuple in_ids cleaned tenv) $ conc_args r'
             Nothing -> return Nothing |]
 
--- | Returns a function to turn the first (length of InputIds) elements of a list into a tuple
+-- | If (length of InputIds) is greater than 1, returns a function to turn the first (length of InputIds) elements of
+-- a list into a tuple.
+-- Otherwise, simply returns the singular value directly.
 toSymbArgsTuple :: InputIds -> CleanedNames -> TypeEnvName -> Q Exp
 toSymbArgsTuple in_ids cleaned tenv_name = do
+    let mkTup = if length in_ids > 1 then tupE else head
     lst <- newName "lst"
 
     lamE [varP lst]
-        (tupE $ map (\(i, n) -> [| g2UnRep $(varE tenv_name) ($(varE lst) !! n) :: $(toTHType cleaned (Ty.typeOf i)) |]) $ zip in_ids ([0..] :: [Int]))
+        (mkTup $ map (\(i, n) -> [| g2UnRep $(varE tenv_name) ($(varE lst) !! n) :: $(toTHType cleaned (Ty.typeOf i)) |]) $ zip in_ids ([0..] :: [Int]))
 
 qqConfig :: IO Config
 qqConfig = do
