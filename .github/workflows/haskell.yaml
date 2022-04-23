@@ -23,8 +23,8 @@ jobs:
         ghc-version: ${{ matrix.compiler.ghc }}
         cabal-version: ${{ matrix.compiler.cabal }}
 
-    - run: cabal configure --enable-tests
     - run: cabal update
+    - run: cabal configure --enable-tests
     - run: cabal freeze
     - uses: actions/cache@v2
       with:
