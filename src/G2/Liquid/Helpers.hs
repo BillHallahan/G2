@@ -53,11 +53,11 @@ getGHCInfos config proj fp lhlibs = do
                          , ghcOptions = ["-v"]}
 
     -- GhcInfo
-    #if MIN_VERSION_liquidhaskell(0,8,10)
+#if MIN_VERSION_liquidhaskell(0,8,10)
     (ghci, _) <- LHI.getTargetInfos Nothing config' fp
-    #else
+#else
     (ghci, _) <- LHI.getGhcInfos Nothing config' fp
-    #endif
+#endif
 
     return ghci
     
