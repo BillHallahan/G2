@@ -874,17 +874,17 @@ reducedGuide ((Marker _ m):ms) = case m of
   CycleFound _ -> mkPrettyGuide m
   _ -> reducedGuide ms
 
-checkRule :: Config ->
-             UseLabeledErrors ->
-             Bool ->
-             State t ->
-             Bindings ->
-             [DT.Text] -> -- ^ names of forall'd variables required to be total
-             [DT.Text] -> -- ^ names of forall'd variables required to be total and finite
-             SummaryMode ->
-             Int ->
-             RewriteRule ->
-             IO (S.Result () ())
+checkRule :: Config
+          -> UseLabeledErrors
+          -> Bool
+          -> State t
+          -> Bindings
+          -> [DT.Text] -- ^ names of forall'd variables required to be total
+          -> [DT.Text] -- ^ names of forall'd variables required to be total and finite
+          -> SummaryMode
+          -> Int
+          -> RewriteRule
+          -> IO (S.Result () ())
 checkRule config use_labels sync init_state bindings total finite print_summary iterations rule = do
   let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
       (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule

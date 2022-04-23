@@ -34,12 +34,12 @@ data Obligation = Ob [(DataCon, Int, Int)] Expr Expr
 
 instance Hashable Obligation
 
-proofObligations :: HS.HashSet Name ->
-                    State t ->
-                    State t ->
-                    Expr ->
-                    Expr ->
-                    Maybe (HS.HashSet Obligation)
+proofObligations :: HS.HashSet Name
+                 -> State t
+                 -> State t
+                 -> Expr
+                 -> Expr
+                 ->  Maybe (HS.HashSet Obligation)
 proofObligations ns s1 s2 e1 e2 =
   exprPairing ns s1 s2 e1 e2 HS.empty [] []
 
@@ -59,15 +59,15 @@ unAppNoTicks e =
 
 -- TODO getting catch-all case from infEq with inf1 and inf2
 -- also getting two REC ticks on the variables at the beginning, which is wrong
-exprPairing :: HS.HashSet Name -> -- ^ vars that should not be inlined on either side
-               State t ->
-               State t ->
-               Expr ->
-               Expr ->
-               HS.HashSet Obligation -> -- ^ accumulator for output obligations
-               [Name] -> -- ^ variables inlined previously on the LHS
-               [Name] -> -- ^ variables inlined previously on the RHS
-               Maybe (HS.HashSet Obligation)
+exprPairing :: HS.HashSet Name -- ^ vars that should not be inlined on either side
+            -> State t
+            -> State t
+            -> Expr
+            -> Expr
+            -> HS.HashSet Obligation -- ^ accumulator for output obligations
+            -> [Name] -- ^ variables inlined previously on the LHS
+            -> [Name] -- ^ variables inlined previously on the RHS
+            -> Maybe (HS.HashSet Obligation)
 exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs n1 n2 =
   case (e1, e2) of
     _ | e1 == e2 -> Just pairs

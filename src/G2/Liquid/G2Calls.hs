@@ -137,7 +137,7 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
                                                      , func_calls_in_real = [] }
                                         ) m
                         False -> return NotAbstractRes
-            [] -> do undefined -- ^ We hit an error in a library function
+            [] -> do undefined -- We hit an error in a library function
                      return $ AbstractRes 
                               ( Abstracted { abstract = repTCsFC (type_classes s) $ abs_fc
                                            , real = repTCsFC (type_classes s) $ abs_fc { returns = Prim Error TyUnknown }

@@ -195,16 +195,16 @@ moreRestrictivePC solver s1 s2 hm = do
 -- repeated inlinings of a variable are allowed as long as the expression on
 -- the opposite side is not the same as it was when a previous inlining of the
 -- same variable happened.
-moreRestrictive :: StateET ->
-                   StateET ->
-                   HS.HashSet Name ->
-                   (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
-                   Bool -> -- indicates whether this is part of the "active expression"
-                   [(Name, Expr)] -> -- ^ variables inlined previously on the LHS
-                   [(Name, Expr)] -> -- ^ variables inlined previously on the RHS
-                   Expr ->
-                   Expr ->
-                   Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+moreRestrictive :: StateET
+                -> StateET
+                -> HS.HashSet Name
+                -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+                -> Bool -- ^ indicates whether this is part of the "active expression"
+                -> [(Name, Expr)] -- ^ variables inlined previously on the LHS
+                -> [(Name, Expr)] -- ^ variables inlined previously on the RHS
+                -> Expr
+                -> Expr
+                -> Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm active n1 n2 e1 e2 =
   let h1' = opp_env $ track s1
       h2' = opp_env $ track s2
@@ -395,16 +395,16 @@ inlineEquiv acc h h' ns v@(Var (Id n _))
 inlineEquiv acc h h' ns e = modifyChildren (inlineEquiv acc h h' ns) e
 
 -- ids are the same between both sides; no need to insert twice
-moreRestrictiveAlt :: StateET ->
-                      StateET ->
-                      HS.HashSet Name ->
-                      (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
-                      Bool -> -- active expression
-                      [(Name, Expr)] -> -- ^ variables inlined previously on the LHS
-                      [(Name, Expr)] -> -- ^ variables inlined previously on the RHS
-                      Alt ->
-                      Alt ->
-                      Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+moreRestrictiveAlt :: StateET
+                   -> StateET
+                   -> HS.HashSet Name
+                   -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+                   -> Bool -- ^ active expression?
+                   -> [(Name, Expr)] -- ^ variables inlined previously on the LHS
+                   -> [(Name, Expr)] -- ^ variables inlined previously on the RHS
+                   -> Alt
+                   -> Alt
+                   -> Either (Maybe Lemma) (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 moreRestrictiveAlt s1 s2 ns hm active n1 n2 (Alt am1 e1) (Alt am2 e2) =
   if altEquiv am1 am2 then
   case am1 of

@@ -202,10 +202,10 @@ mkSetForms prd max_sz s psi j k =
             if prd rets
                 then
                     []
-                    -- [ 
-                    --   [ s ++ "_a_set_sing_rhs_" ++ show j ++ "_t_" ++ show k
-                    --         ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..int_ars + int_rets]]
-                    -- | a <- [1..ars + rets + max_sz - 1]]
+                    {- [ 
+                      [ s ++ "_a_set_sing_rhs_" ++ show j ++ "_t_" ++ show k
+                            ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..int_ars + int_rets]]
+                    | a <- [1..ars + rets + max_sz - 1]] -}
                 else
                     []
 

@@ -1,6 +1,8 @@
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE PatternSynonyms #-}
 
 module G2.Liquid.Types ( LHOutput (..)
                        , CounterExample (..)
@@ -16,6 +18,14 @@ module G2.Liquid.Types ( LHOutput (..)
                        , Posts
                        , TyVarBags
                        , InstFuncs
+
+                       -- For compatibility with new LH versions
+                      #if MIN_VERSION_liquidhaskell(0,8,10)
+                       , GhcInfo, GhcSrc, GhcSpec
+                       , pattern GI, giSpec, giSrc
+                       , pattern SP, gsSig, gsData, gsQual, gsVars, gsTerm
+                       , pattern Src, giTarget, giCbs, giDefVars
+                      #endif
 
                        , tcValuesM
 
@@ -110,9 +120,64 @@ import G2.Language.TypeClasses
 
 import G2.Liquid.TCValues
 
+#if MIN_VERSION_liquidhaskell(0,8,10)
+import qualified Language.Haskell.Liquid.Types as LT (TargetInfo (..), TargetSrc (..), TargetSpec (..))
+#else
 import Language.Haskell.Liquid.Types (GhcInfo)
+#endif
+
 import Language.Haskell.Liquid.Constraint.Types
 import Language.Fixpoint.Types.Constraints
+
+-- LiquidHaskell renamed these types.
+-- This preserves compatibility with the old version of LiquidHaskell, and the new versions of LiquidHaskell.
+#if MIN_VERSION_liquidhaskell(0,8,10)
+type GhcInfo = LT.TargetInfo
+type GhcSrc = LT.TargetSrc
+type GhcSpec= LT.TargetSpec
+
+pattern GI{giSrc,giSpec} = LT.TargetInfo giSrc giSpec
+
+
+pattern Src
+  { giIncDir
+  , giTarget
+  , giTargetMod
+  , giCbs
+  , gsTcs
+  , gsCls
+  , giDerVars
+  , giImpVars
+  , giDefVars
+  , giUseVars
+  , gsExports
+  , gsFiTcs
+  , gsFiDcs
+  , gsPrimTcs
+  , gsQualImps
+  , gsAllImps
+  , gsTyThings
+  } = LT.TargetSrc giIncDir giTarget giTargetMod giCbs gsTcs gsCls giDerVars giImpVars
+                   giDefVars giUseVars gsExports gsFiTcs gsFiDcs gsPrimTcs gsQualImps
+                   gsAllImps gsTyThings
+
+
+
+
+pattern SP 
+  { gsSig
+  , gsQual
+  , gsData
+  , gsName
+  , gsVars
+  , gsTerm
+  , gsRefl
+  , gsLaws
+  , gsImps        
+  , gsConfig                  
+  } = LT.TargetSpec gsSig gsQual gsData gsName gsVars gsTerm gsRefl gsLaws gsImps gsConfig                  
+
+#endif
 
 data LHOutput = LHOutput { ghcI :: GhcInfo
                          , cgI :: CGInfo
