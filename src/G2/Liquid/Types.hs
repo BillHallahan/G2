@@ -20,12 +20,12 @@ module G2.Liquid.Types ( LHOutput (..)
                        , InstFuncs
 
                        -- For compatibility with new LH versions
-                      #if MIN_VERSION_liquidhaskell(0,8,10)
+                       #if MIN_VERSION_liquidhaskell(0,8,10)
                        , GhcInfo, GhcSrc, GhcSpec
                        , pattern GI, giSpec, giSrc
                        , pattern SP, gsSig, gsData, gsQual, gsVars, gsTerm
                        , pattern Src, giTarget, giCbs, giDefVars
-                      #endif
+                       #endif
 
                        , tcValuesM
 
