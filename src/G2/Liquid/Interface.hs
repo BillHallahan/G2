@@ -67,7 +67,7 @@ import G2.Solver hiding (solve)
 
 import G2.Lib.Printers
 
-import Language.Haskell.Liquid.Types hiding (Config, cls, names)
+import Language.Haskell.Liquid.Types hiding (Config, cls, names, measures)
 import qualified Language.Haskell.Liquid.Types.PrettyPrint as PPR
 import Language.Haskell.Liquid.UX.CmdLine
 

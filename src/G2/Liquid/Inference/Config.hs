@@ -224,7 +224,7 @@ adjustConfig main_mod (SimpleState { expr_env = eenv }) config infconfig ghci =
         pre = S.fromList
             . map (\(Name n m _ _) -> (n, m))
             . map (mkName . V.varName . fst)
-            $ concatMap (gsTySigs . spec) ghci
+            $ concatMap getTySigs ghci
 
         -- ns_mm = map (\(Name n m _ _) -> (n, m))
         --       -- . filter (\(Name n m _ _) -> not $ (n, m) `S.member` pre)

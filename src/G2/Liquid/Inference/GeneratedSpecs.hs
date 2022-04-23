@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Liquid.Inference.GeneratedSpecs ( GeneratedSpecs
@@ -36,7 +37,7 @@ import G2.Liquid.Helpers
 import G2.Liquid.Inference.PolyRef
 
 import Language.Haskell.Liquid.Constraint.Init
-import Language.Haskell.Liquid.Types
+import Language.Haskell.Liquid.Types hiding (qualifiers)
 import Language.Haskell.Liquid.Types.Fresh
 import Language.Fixpoint.Types.Refinements
 import Language.Haskell.Liquid.Types.RefType
@@ -138,12 +139,20 @@ deleteAllAsserts :: GeneratedSpecs -> GeneratedSpecs
 deleteAllAsserts gs = gs { assert_specs = M.empty }
 
 modifyGsTySigs :: (Var -> SpecType -> SpecType) -> GhcInfo -> GhcInfo
-modifyGsTySigs f gi@(GI { spec = si@(SP { gsTySigs = tySigs }) }) =
-    gi { spec = si { gsTySigs = map (\(v, lst) -> (v, fmap (f v) lst)) tySigs }}
+modifyGsTySigs f ghci =
+    let
+        sigs = getTySigs ghci
+        sigs' = map (\(v, lst) -> (v, fmap (f v) lst)) sigs
+    in
+    putTySigs ghci sigs'
 
 modifyGsAsmSigs :: (Var -> SpecType -> SpecType) -> GhcInfo -> GhcInfo
-modifyGsAsmSigs f gi@(GI { spec = si@(SP { gsAsmSigs = tySigs }) }) =
-    gi { spec = si { gsAsmSigs = map (\(v, lst) -> (v, fmap (f v) lst)) tySigs }}
+modifyGsAsmSigs f ghci =
+    let
+        sigs = getAssumedSigs ghci
+        sigs' = map (\(v, lst) -> (v, fmap (f v) lst)) sigs
+    in
+    putAssumedSigs ghci sigs'
 
 addSpecsToGhcInfos :: [GhcInfo] -> GeneratedSpecs -> [GhcInfo]
 addSpecsToGhcInfos ghci gs = addAssumedSpecsToGhcInfos (addAssertedSpecsToGhcInfos ghci gs) gs
@@ -175,8 +184,11 @@ addQualifiersToGhcInfos :: GeneratedSpecs -> [GhcInfo] -> [GhcInfo]
 addQualifiersToGhcInfos gs = map (addQualifiersToGhcInfo gs)
 
 addQualifiersToGhcInfo :: GeneratedSpecs -> GhcInfo -> GhcInfo
-addQualifiersToGhcInfo gs ghci@(GI { spec = sp@(SP { gsQualifiers = quals' })}) =
-    ghci { spec = sp { gsQualifiers = qualifiers gs ++ quals' }}
+addQualifiersToGhcInfo gs ghci =
+    let
+        old_quals = getQualifiers ghci
+    in
+    putQualifiers ghci (old_quals ++ qualifiers gs)
 
 addToSpecType :: [PolyBound Expr] -> SpecType -> SpecType
 addToSpecType _ rvar@(RVar {}) = rvar
@@ -217,10 +229,10 @@ allEmptyPAnds = all (allPB (\e -> case e of
 insertMissingAssumeSpec :: G2.Name -> [GhcInfo] -> [GhcInfo]
 insertMissingAssumeSpec (G2.Name n _ _ _) = map create 
     where
-        create ghci@(GI { spec = spc } ) =
+        create ghci =
             let
-                defs = defVars ghci
-                has_spec = map fst . gsAsmSigs $ spec ghci
+                defs = definedVars ghci
+                has_spec = map fst $ getAssumedSigs ghci
                 def_no_spec = filter (`notElem` has_spec) defs
 
                 def_v = find (\v -> (T.pack . occNameString . nameOccName $ varName v) == n) def_no_spec
@@ -230,17 +242,23 @@ insertMissingAssumeSpec (G2.Name n _ _ _) = map create
                     let
                         new_spec = dummyLoc $ genSpec' ghci v
                     in
-                    ghci { spec = spc { gsAsmSigs = (v, new_spec):gsAsmSigs spc } }
+                    insertAssumeSig v new_spec ghci
                 Nothing -> ghci
 
+insertAssumeSig :: Var -> LocSpecType -> GhcInfo -> GhcInfo
+insertAssumeSig v lst ghci =
+    let
+        spc = getAssumedSigs ghci
+    in
+    putAssumedSigs ghci ((v, lst):spc)
 
 insertMissingAssertSpec :: G2.Name -> [GhcInfo] -> [GhcInfo]
 insertMissingAssertSpec (G2.Name n _ _ _) = map create
     where
-        create ghci@(GI { spec = spc } ) =
+        create ghci =
             let
-                defs = defVars ghci
-                has_spec = map fst . gsTySigs $ spec ghci
+                defs = definedVars ghci
+                has_spec = map fst $ getTySigs ghci
                 def_no_spec = filter (`notElem` has_spec) defs
 
                 def_v = find (\v -> (T.pack . occNameString . nameOccName $ varName v) == n) def_no_spec
@@ -250,18 +268,25 @@ insertMissingAssertSpec (G2.Name n _ _ _) = map create
                     let
                         new_spec = dummyLoc $ genSpec' ghci v
                     in
-                    ghci { spec = spc { gsTySigs = (v, new_spec):gsTySigs spc } }
+                    insertTySig v new_spec ghci
                 Nothing -> ghci
+
+insertTySig :: Var -> LocSpecType -> GhcInfo -> GhcInfo
+insertTySig v lst ghci =
+    let
+        spc = getTySigs ghci
+    in
+    putTySigs ghci ((v, lst):spc)
 
 genSpec :: [GhcInfo] -> G2.Name -> Maybe SpecType
 genSpec ghcis (G2.Name n _ _ _) = foldr mappend Nothing $ map gen ghcis
     where
         gen ghci =
             let
-                defs = defVars ghci
+                defs = definedVars ghci
                 def_v = find (\v -> (T.pack . occNameString . nameOccName $ varName v) == n) defs
 
-                specs = gsTySigs (spec ghci)
+                specs = getTySigs ghci
             in
             case def_v of
                 Just v
@@ -271,3 +296,12 @@ genSpec ghcis (G2.Name n _ _ _) = foldr mappend Nothing $ map gen ghcis
 genSpec' :: GhcInfo -> Var -> SpecType
 genSpec' ghci v =
     S.evalState (refreshTy (ofType $ varType v)) $ initCGI (getConfig ghci) ghci
+
+definedVars :: GhcInfo -> [Var]
+#if MIN_VERSION_liquidhaskell(0,8,6)
+definedVars = giDefVars . giSrc
+#else
+definedVars = defVars
+#endif
+
+

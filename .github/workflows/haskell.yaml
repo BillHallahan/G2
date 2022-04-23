@@ -11,24 +11,29 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        compiler: [ { ghc: '8.2.2', cabal: '2.0.0.1' }, { ghc: '8.6.5', cabal: '2.4' } ]
+
     steps:
     - uses: actions/checkout@v2
     - uses: actions/setup-haskell@v1
+      id: setup-haskell-cabal
       with:
-        ghc-version: '8.2.2'
-        cabal-version: '2.0.0.1'
+        ghc-version: ${{ matrix.compiler.ghc }}
+        cabal-version: ${{ matrix.compiler.cabal }}
 
-    # - name: Cache
-    #   uses: actions/cache@v1
-    #   env:
-    #     cache-name: cache-cabal
-    #   with:
-    #     path: ~/.cabal
-    #     key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/*.cabal') }}-${{ hashFiles('**/cabal.project') }}
-    #     restore-keys: |
-    #       ${{ runner.os }}-build-${{ env.cache-name }}-
-    #       ${{ runner.os }}-build-
-    #       ${{ runner.os }}-
+    - run: cabal configure --enable-tests
+    - run: cabal update
+    - run: cabal freeze
+    - uses: actions/cache@v2
+      with:
+        path: |
+          ${{ steps.setup-haskell-cabal.outputs.cabal-store }}
+          dist-newstyle
+        key: cabal-${{ runner.os }}-${{ matrix.compiler.ghc }}-${{ hashFiles('cabal.project.freeze') }}
+        restore-keys: |
+          cabal-${{ runner.os }}-${{ matrix.compiler.ghc }}-
 
     - name: Install Z3
       uses: pavpanchekha/setup-z3@1.2.2
@@ -38,9 +43,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        cabal update
         cabal install --only-dependencies
-        cabal configure --enable-tests
         cabal build
     - name: Build
       run: cabal build

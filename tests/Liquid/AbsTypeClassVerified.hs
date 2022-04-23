@@ -4,8 +4,10 @@ module AbsTypeClassVerified where
 callF :: Int -> [Int]
 callF x = f x x
 
+{-@ class Test t where
+		f :: forall a . t -> a -> { xs:[a] | len xs == 1 }
+		g :: t -> Int @-}
 class Test t where
-    {-@ f :: t -> a -> { xs:[a] | len xs == 1 } @-}
     f :: t -> a -> [a]
     
     g :: t -> Int

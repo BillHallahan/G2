@@ -4,6 +4,13 @@
 module G2.Liquid.Helpers ( MeasureSymbols (..)
                          , getGHCInfos
                          , funcSpecs
+                         
+                         , getTySigs
+                         , putTySigs
+                         , getAssumedSigs
+                         , putAssumedSigs
+                         , getQualifiers
+                         , putQualifiers
                          , findFuncSpec
                          , measureSpecs
                          , measureSymbols
@@ -20,6 +27,7 @@ import qualified Language.Haskell.Liquid.GHC.Interface as LHI
 import Language.Fixpoint.Types.Names
 import Language.Haskell.Liquid.Types hiding (Config, cls, names)
 import qualified Language.Haskell.Liquid.UX.Config as LHC
+import Language.Fixpoint.Types (Qualifier (..))
 
 import Data.List
 import qualified Data.Map as M
@@ -44,17 +52,72 @@ getGHCInfos config proj fp lhlibs = do
     return ghci
     
 funcSpecs :: [GhcInfo] -> [(Var, LocSpecType)]
-#if MIN_VERSION_liquidhaskell(0,8,6)
-funcSpecs fs = concatMap (gsTySigs . gsSig . giSpec) fs -- Functions asserted in LH
-            ++ concatMap (gsAsmSigs . gsSig . giSpec) fs -- Functions assumed in LH
-#else
 funcSpecs fs =
     let
-        asserted = concatMap (gsTySigs . spec) fs -- Functions asserted in LH
-        assumed = concatMap (gsAsmSigs . spec) fs -- Functions assumed in LH
+        asserted = concatMap getTySigs fs
+        assumed = concatMap getAssumedSigs fs
     in
     asserted ++ assumed
+
+-- | Functions asserted in LH
+getTySigs :: GhcInfo -> [(Var, LocSpecType)]
+#if MIN_VERSION_liquidhaskell(0,8,6)
+getTySigs = gsTySigs . gsSig . giSpec
+#else
+getTySigs = gsTySigs . spec
 #endif
+
+putTySigs :: GhcInfo -> [(Var, LocSpecType)] -> GhcInfo
+#if MIN_VERSION_liquidhaskell(0,8,6)
+putTySigs gi@(GI {
+                    giSpec = sp@(SP { gsSig = sp_sig })
+                 }
+             ) new_ty_sigs = 
+    gi { giSpec = sp { gsSig = sp_sig { gsTySigs = new_ty_sigs } } }
+#else
+putTySigs gi@(GI { spec = sp }) new_ty_sigs = 
+    gi { spec = sp { gsTySigs = new_ty_sigs }}
+#endif
+
+-- | Functions assumed in LH
+getAssumedSigs :: GhcInfo -> [(Var, LocSpecType)]
+#if MIN_VERSION_liquidhaskell(0,8,6)
+getAssumedSigs = gsAsmSigs . gsSig . giSpec
+#else
+getAssumedSigs = gsAsmSigs . spec
+#endif
+
+putAssumedSigs :: GhcInfo -> [(Var, LocSpecType)] -> GhcInfo
+#if MIN_VERSION_liquidhaskell(0,8,6)
+putAssumedSigs gi@(GI {
+                    giSpec = sp@(SP { gsSig = sp_sig })
+                 }
+             ) new_ty_sigs = 
+    gi { giSpec = sp { gsSig = sp_sig { gsTySigs = new_ty_sigs } } }
+#else
+putAssumedSigs gi@(GI { spec = sp }) new_ty_sigs = 
+    gi { spec = sp { gsTySigs = new_ty_sigs }}
+#endif
+
+getQualifiers :: GhcInfo -> [Qualifier]
+#if MIN_VERSION_liquidhaskell(0,8,6)
+getQualifiers = gsQualifiers . gsQual . giSpec
+#else
+getQualifiers = gsQualifiers . spec
+#endif
+
+putQualifiers :: GhcInfo -> [Qualifier] -> GhcInfo
+#if MIN_VERSION_liquidhaskell(0,8,6)
+putQualifiers gi@(GI {
+                    giSpec = sp@(SP { gsQual = quals })
+                 }
+             ) new_quals = 
+    gi { giSpec = sp { gsQual = quals { gsQualifiers = new_quals } } }
+#else
+putQualifiers gi@(GI { spec = sp }) new_quals = 
+    gi { spec = sp { gsQualifiers = new_quals }}
+#endif
+
 
 findFuncSpec :: [GhcInfo] -> G2.Name -> Maybe SpecType
 findFuncSpec ghci g2_n =

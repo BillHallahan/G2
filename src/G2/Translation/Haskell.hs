@@ -236,7 +236,7 @@ envModSumModGuts hsc proj src tr_con =
       mod_graph <- getModuleGraph
 
       let msums = convertModuleGraph mod_graph
-      parsed_mods <- mapM parseModule mod_graph
+      parsed_mods <- mapM parseModule msums
       typed_mods <- mapM typecheckModule parsed_mods
       desug_mods <- mapM desugarModule typed_mods
       return . EnvModSumModGuts env msums $ map coreModule desug_mods

@@ -311,7 +311,10 @@ argsAndRetFromSpec :: (InfConfigM m, ProgresserM m) => TypeEnv -> TypeClasses ->
 argsAndRetFromSpec tenv tc ghci meas ars ts rty (RAllT { rt_ty = out }) =
     argsAndRetFromSpec tenv tc ghci meas ars ts rty out
 argsAndRetFromSpec tenv tc ghci meas ars (t:ts) rty rfun@(RFun { rt_in = i, rt_out = out}) = do
-    (Just out_symb, sa) <- mkSpecArgPB ghci tenv meas t rfun
+    (m_out_symb, sa) <- mkSpecArgPB ghci tenv meas t rfun
+    let out_symb = case m_out_symb of
+                      Just os -> os
+                      Nothing -> error "argsAndRetFromSpec: out_symb is Nothing"
     case i of
         RVar {} -> argsAndRetFromSpec tenv tc ghci meas ars ts rty out
         RFun {} -> argsAndRetFromSpec tenv tc ghci meas ars ts rty out
