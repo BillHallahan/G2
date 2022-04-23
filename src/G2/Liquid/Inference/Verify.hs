@@ -168,21 +168,21 @@ verify :: InferenceConfig -> Config ->  [GhcInfo] -> IO (VerifyResult V.Var)
 verify infconfig cfg ghci = do
     r <- verify' infconfig cfg ghci
     case F.resStatus r of
-        #if MIN_VERSION_liquidhaskell(0,8,10)
+#if MIN_VERSION_liquidhaskell(0,8,10)
         F.Safe _ -> return Safe
         F.Crash ci err -> return $ Crash ci err
         F.Unsafe _ bad -> do
           putStrLn $ "bad var = " ++ show (map (ci_var . snd) bad)
           putStrLn $ "bad loc = " ++ show (map (ci_loc . snd) bad)
           return . Unsafe . catMaybes $ map (ci_var . snd) bad
-        #else
+#else
         F.Safe -> return Safe
         F.Crash ci err -> return $ Crash ci err
         F.Unsafe bad -> do
           putStrLn $ "bad var = " ++ show (map (ci_var . snd) bad)
           putStrLn $ "bad loc = " ++ show (map (ci_loc . snd) bad)
           return . Unsafe . catMaybes $ map (ci_var . snd) bad
-        #endif
+#endif
 
 
 verify' :: InferenceConfig -> Config ->  [GhcInfo] -> IO (F.Result (Integer, Cinfo))
