@@ -6,6 +6,8 @@ import re
 import subprocess
 import time
 
+exe_name = str(subprocess.run(["cabal", "exec", "which", "RewriteV"], capture_output = True).stdout.decode('utf-8')).strip()
+
 def run_zeno(filename, thm, var_settings, timeout):
     start_time = time.monotonic();
     res = call_zeno_process(filename, thm, var_settings, timeout);
@@ -40,7 +42,7 @@ def run_zeno(filename, thm, var_settings, timeout):
 
 def call_zeno_process(filename, thm, var_settings, time_limit):
     try:
-        args = ["dist/build/RewriteV/RewriteV", "tests/RewriteVerify/Correct/" + filename, thm]
+        args = [exe_name, "tests/RewriteVerify/Correct/" + filename, thm]
         res = subprocess.run(args + var_settings, universal_newlines=True, capture_output=True, timeout=time_limit);
         return res.stdout
     except subprocess.TimeoutExpired as TimeoutEx:
@@ -1113,9 +1115,9 @@ def main():
     # feel free to reduce the time from 180, but keep at least 150
     t = 180
     #test_suite_csv(None, ground_truth, t)
-    #test_suite_csv("ZenoUnaltered", unmodified_theorems(), t)
-    #test_suite_csv("ZenoTotal", modified_total, t)
-    #test_suite_csv("ZenoFinite", modified_finite, t)
+    test_suite_csv("ZenoUnaltered", unmodified_theorems(), t)
+    test_suite_csv("ZenoTotal", modified_total, t)
+    test_suite_csv("ZenoFinite", modified_finite, t)
 
     test_suite_csv("ZenoCycle", modified_cycle, t)
     #test_suite_csv(None, modified_cycle, t)

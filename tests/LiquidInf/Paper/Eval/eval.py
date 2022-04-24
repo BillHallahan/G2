@@ -6,6 +6,8 @@ import re
 import subprocess
 import time
 
+exe_name = str(subprocess.run(["cabal", "exec", "which", "Inference"], capture_output = True).stdout.decode('utf-8')).strip()
+
 def run_infer(file, name, timeout, extra_opts=[]):
     # get info about the file
     (funcs, depth) = get_counts(file)
@@ -25,12 +27,12 @@ def run_infer(file, name, timeout, extra_opts=[]):
     timeout = "1";
 
     # run the test without extra fc
-    no_fc_start_time = time.perf_counter();
-    no_fc_res = call_infer_process(file, timeout, extra_opts + ["--no-use-extra-fc"])
-    no_fc_end_time = time.perf_counter();
-    no_fc_elapsed = no_fc_end_time - no_fc_start_time;
-    no_fc_check_safe = no_fc_res.splitlines()[-2].decode('utf-8');
-    no_fc_counts = get_opt_counts(no_fc_res);
+    # no_fc_start_time = time.perf_counter();
+    # no_fc_res = call_infer_process(file, timeout, extra_opts + ["--no-use-extra-fc"])
+    # no_fc_end_time = time.perf_counter();
+    # no_fc_elapsed = no_fc_end_time - no_fc_start_time;
+    # no_fc_check_safe = no_fc_res.splitlines()[-2].decode('utf-8');
+    # no_fc_counts = get_opt_counts(no_fc_res);
     (_, _, no_fc_counts, no_fc_elapsed) = call_with_timing(file, timeout, extra_opts + ["--no-use-extra-fc"])
 
     no_lev_dec_counts = empty_counts()
@@ -58,6 +60,9 @@ def call_with_timing(file, timeout, passed_args = []):
         check_safe = res.splitlines()[-2].decode('utf-8')
         counts = get_opt_counts(res)
     except IndexError:
+        counts = { "negated_model": None
+                 , "searched_below" : None
+                 , "loop_count" : None }
         if res == "Timeout":
             check_safe = "Timeout";
         else:
@@ -110,7 +115,8 @@ def call_infer_process(file, timeout, passed_args = []):
         if timeout_sygus_re and timeout_sygus_re.group(1):
             timeout_sygus = timeout_sygus_re.group(1);
 
-        args = ["gtimeout", timeout, "dist/build/Inference/Inference", file # ["gtimeout", timeout, "cabal", "run", "Inference", file
+
+        args = ["gtimeout", timeout, exe_name, file # ["gtimeout", timeout, "cabal", "run", "Inference", file
                , "--", "--timeout-sygus", timeout_sygus]
 
         res = subprocess.run(args + extra_args + passed_args, capture_output = True);
