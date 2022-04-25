@@ -8,7 +8,7 @@ data List a = Cons a (List a) | Nil
 main :: List Bool -> List Bool -> Int -> Bool
 main xs ys flag =
     case while xs cond1 loop1 (flag, 0, 0, 0, 0) of
-        (flag', t', s', a', b') -> case while2 ys cond2 loop2 (1 + (if flag >= 0 then t' - 2 * s' + 2 else 0), 0)  of
+        (flag', t', s', a', b') -> case while2 ys cond2 loop2 (if flag >= 0 then t' - 2 * s' + 2 else 1, 0)  of
                                         (x', y') ->  y' <= 4
 
 while :: List Bool -> (List Bool -> a -> Bool) -> (a -> a) -> a -> a
@@ -23,7 +23,7 @@ cond1 xs (flag, t, s, a, b) = isTrueCons xs
 
 {-@ loop1 :: (Int, Int, Int, Int, Int) -> (Int, Int, Int, Int, Int) @-}
 loop1 :: (Int, Int, Int, Int, Int) -> (Int, Int, Int, Int, Int)
-loop1 (flag, t, s, a, b) = (flag, t + b + 1 + (if flag >= 0 then a else 0), s + a + 1, a + 1, b + 1)
+loop1 (flag, t, s, a, b) = (flag, t + b + 1 + (if flag >= 0 then a + 1 else 0), s + a + 1, a + 1, b + 1)
 
 {-@ cond2 :: (Int, Int) -> Bool @-}
 cond2 :: (Int, Int) -> Bool
