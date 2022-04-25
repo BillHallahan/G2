@@ -301,15 +301,9 @@ convertSpecType cp m bt _ r (RApp {rt_tycon = c, rt_reft = ref, rt_args = as})
         return $ App (App an (App (Lam TermL i re) (Var r'))) argsPred
     | otherwise = mkTrueE
 convertSpecType _ _ _ _ _ (RAppTy { }) = mkTrueE
-    -- | Just  <- r = mkTrueE
-        -- t <- unsafeSpecTypeToType st
-        -- argsPred <- polyPredFunc2 [res] t m bt r'
-        -- return argsPred
-    -- | otherwise = mkTrueE
 convertSpecType _ _ _ _ _ st@(RFun {}) = error $ "RFun " ++ show st
 convertSpecType _ _ _ _ _ st@(RAllT {}) = error $ "RAllT " ++ show st
 convertSpecType _ _ _ _ _ st@(RAllP {}) = error $ "RAllP " ++ show st
-convertSpecType _ _ _ _ _ st@(RAllS {}) = error $ "RAllS " ++ show st
 convertSpecType _ _ _ _ _ st@(RAllE {}) = error $ "RAllE " ++ show st
 convertSpecType _ _ _ _ _ st@(REx {}) = error $ "REx " ++ show st
 convertSpecType _ _ _ _ _ st@(RExprArg {}) = error $ "RExprArg " ++ show st

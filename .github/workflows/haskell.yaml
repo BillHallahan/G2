@@ -13,18 +13,18 @@ jobs:
 
     strategy:
       matrix:
-        compiler: [ { ghc: '8.2.2', cabal: '2.0.0.1' }, { ghc: '8.6.5', cabal: '2.4' } ]
+        compiler: [ { ghc: '8.2.2', cabal: '3.0' }, { ghc: '8.6.5', cabal: '3.0' }, { ghc: '8.10.7', cabal: '3.6' } ]
 
     steps:
     - uses: actions/checkout@v2
-    - uses: actions/setup-haskell@v1
+    - uses: haskell/actions/setup@v2
       id: setup-haskell-cabal
       with:
         ghc-version: ${{ matrix.compiler.ghc }}
         cabal-version: ${{ matrix.compiler.cabal }}
 
-    - run: cabal configure --enable-tests
     - run: cabal update
+    - run: cabal configure --enable-tests
     - run: cabal freeze
     - uses: actions/cache@v2
       with:

@@ -34,10 +34,12 @@ module G2.Liquid.Inference.GeneratedSpecs ( GeneratedSpecs
 
 import qualified G2.Language as G2
 import G2.Liquid.Helpers
+import G2.Liquid.Types
 import G2.Liquid.Inference.PolyRef
 
 import Language.Haskell.Liquid.Constraint.Init
-import Language.Haskell.Liquid.Types hiding (qualifiers)
+import Language.Haskell.Liquid.Types hiding
+          (TargetInfo (..), TargetSrc (..), TargetSpec (..), GhcSpec (..), qualifiers)
 import Language.Haskell.Liquid.Types.Fresh
 import Language.Fixpoint.Types.Refinements
 import Language.Haskell.Liquid.Types.RefType

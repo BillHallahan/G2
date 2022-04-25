@@ -7,7 +7,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Liquid.Conversion
 import G2.Liquid.Helpers
 import G2.Liquid.Interface
-import G2.Liquid.Types
+import G2.Liquid.Types hiding (SP)
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.FuncConstraint
 import G2.Liquid.Inference.G2Calls
@@ -488,7 +488,6 @@ typeToSort (TyApp (TyCon (Name n _ _ _) _) t)
 typeToSort (TyCon (Name n _ _ _) _) 
     | n == "Int"  = Just SortInt
     | n == "Bool" = Just SortBool
-    -- | n == "Double"  = Just SortDouble
 typeToSort _ = Nothing
 
 getLHMeasureName :: [GhcInfo] -> Name -> LH.Symbol

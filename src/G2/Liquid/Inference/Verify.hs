@@ -12,13 +12,19 @@ module G2.Liquid.Inference.Verify ( VerifyResult (..)
 
 import qualified G2.Language.Syntax as G2
 import G2.Liquid.Helpers
+import G2.Liquid.Types
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.GeneratedSpecs
 import G2.Translation.Haskell
 
 import Data.Maybe
 import GHC
+#if MIN_VERSION_liquidhaskell(0,8,10)
 import Language.Haskell.Liquid.Types
+        hiding (TargetInfo (..), TargetSrc (..), TargetSpec (..), GhcSrc (..), GhcSpec (..))
+#else
+import Language.Haskell.Liquid.Types
+#endif
 import Language.Haskell.Liquid.UX.CmdLine
 import Text.PrettyPrint.HughesPJ
 import qualified Var as V
@@ -162,12 +168,21 @@ verify :: InferenceConfig -> Config ->  [GhcInfo] -> IO (VerifyResult V.Var)
 verify infconfig cfg ghci = do
     r <- verify' infconfig cfg ghci
     case F.resStatus r of
+#if MIN_VERSION_liquidhaskell(0,8,10)
+        F.Safe _ -> return Safe
+        F.Crash ci err -> return $ Crash ci err
+        F.Unsafe _ bad -> do
+          putStrLn $ "bad var = " ++ show (map (ci_var . snd) bad)
+          putStrLn $ "bad loc = " ++ show (map (ci_loc . snd) bad)
+          return . Unsafe . catMaybes $ map (ci_var . snd) bad
+#else
         F.Safe -> return Safe
         F.Crash ci err -> return $ Crash ci err
         F.Unsafe bad -> do
           putStrLn $ "bad var = " ++ show (map (ci_var . snd) bad)
           putStrLn $ "bad loc = " ++ show (map (ci_loc . snd) bad)
           return . Unsafe . catMaybes $ map (ci_var . snd) bad
+#endif
 
 
 verify' :: InferenceConfig -> Config ->  [GhcInfo] -> IO (F.Result (Integer, Cinfo))
@@ -175,7 +190,11 @@ verify' infconfig cfg ghci = checkMany infconfig cfg mempty ghci
 
 ghcInfos :: Maybe HscEnv -> Config -> [FilePath] -> IO [GhcInfo]
 ghcInfos me cfg fp = do
+#if MIN_VERSION_liquidhaskell(0,8,10)
+    (ghci, _) <- getTargetInfos me cfg fp
+#else
     (ghci, _) <- getGhcInfos me cfg fp
+#endif
     return ghci
 
 defLHConfig :: [FilePath] -> [FilePath] -> IO Config

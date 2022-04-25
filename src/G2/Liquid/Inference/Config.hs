@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -37,7 +38,11 @@ import G2.Liquid.Types
 import G2.Liquid.Inference.PolyRef
 import G2.Translation.Haskell
 
+#if MIN_VERSION_liquidhaskell(0,8,10)
+import G2.Liquid.Types (GhcInfo (..), GhcSpec (..))
+#else
 import Language.Haskell.Liquid.Types (GhcInfo (..), GhcSpec (..))
+#endif
 import qualified Language.Haskell.Liquid.Types as LH
 import Var as V
 
@@ -255,14 +260,8 @@ adjustConfigPostLH main_mod meas tcv (S.State { S.expr_env = eenv, S.known_value
         ref = refinable main_mod meas tcv ghci kv eenv
         
         ns_mm = map (\(Name n m _ _) -> (n, m))
-              -- . filter (\(Name n m _ _) -> not $ (n, m) `S.member` pre)
-              -- . filter (\(Name n _ _ _) -> n `notElem` [ "mapReduce" ])
-              -- . filter (\(Name n _ _ _) -> n `notElem` [ "mapReduce", "singleton", "concat", "append"
-              --                                          , "map", "replicate", "empty", "zipWith", "add"])
               . filter (\(Name n m _ _) -> (n, m) `elem` ref)
               $ E.keys eenv
-              -- . E.filter (not . tyVarNoMeas meas tcv)
-              -- $ E.filter (not . tyVarRetTy) eenv
 
     in
     config { counterfactual = Counterfactual . CFOnly $ S.fromList ns_mm }

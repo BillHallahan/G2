@@ -21,11 +21,17 @@ module G2.Liquid.Helpers ( MeasureSymbols (..)
                          , fillLHDictArgs ) where
 
 import G2.Language as G2
+import G2.Liquid.Types
 import G2.Translation.Haskell
 
 import qualified Language.Haskell.Liquid.GHC.Interface as LHI
 import Language.Fixpoint.Types.Names
-import Language.Haskell.Liquid.Types hiding (Config, cls, names)
+#if MIN_VERSION_liquidhaskell(0,8,10)
+import Language.Haskell.Liquid.Types hiding
+        (Config, TargetInfo (..), TargetSpec (..), GhcSpec (..), cls, names)
+#else
+import Language.Haskell.Liquid.Types
+#endif
 import qualified Language.Haskell.Liquid.UX.Config as LHC
 import Language.Fixpoint.Types (Qualifier (..))
 
@@ -47,7 +53,11 @@ getGHCInfos config proj fp lhlibs = do
                          , ghcOptions = ["-v"]}
 
     -- GhcInfo
+#if MIN_VERSION_liquidhaskell(0,8,10)
+    (ghci, _) <- LHI.getTargetInfos Nothing config' fp
+#else
     (ghci, _) <- LHI.getGhcInfos Nothing config' fp
+#endif
 
     return ghci
     
