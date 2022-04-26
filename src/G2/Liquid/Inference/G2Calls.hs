@@ -266,6 +266,9 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
     extra_ce <- extraMaxCExI (entry, mb_modname)
     extra_time <- extraMaxTimeI (entry, mb_modname)
 
+    time <- liftIO $ getCurrentTime
+    MaxSize max_sz <- maxSynthSizeI
+
     let
         ng = mkNameGen ()
 
@@ -283,7 +286,13 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
 
         timeout = timeout_se infconfig + extra_time
 
-        m_logger = getLogger config
+        log_mode = case logStates config of
+                        Log mode fp -> if max_sz >= 2 then Log mode (fp ++ show time) else NoLog
+                        NoLog -> NoLog
+
+
+
+        m_logger = getLogger (config { logStates = log_mode})
 
     liftIO $ putStrLn $ "ce num for " ++ T.unpack entry ++ " is " ++ show ce_num
     liftIO $ putStrLn $ "timeout for " ++ T.unpack entry ++ " is " ++ show timeout

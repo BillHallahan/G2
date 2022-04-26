@@ -465,7 +465,7 @@ convertLHExpr m bt t (EIte b e e') = do
 
     bnd <- freshIdN =<< tyBoolT
 
-    return $ Case b2 bnd [Alt (DataAlt trueDC []) e2, Alt (DataAlt trueDC []) e2']
+    return $ Case b2 bnd [Alt (DataAlt trueDC []) e2, Alt (DataAlt falseDC []) e2']
 convertLHExpr m bt _ (ECst e s) = do
     t <- sortToType s
     convertLHExpr m bt (Just t) e

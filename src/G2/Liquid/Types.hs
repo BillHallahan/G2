@@ -635,8 +635,8 @@ binT = do
     let lh' = L.TyCon lh L.TYPE
 
     return $ L.TyForAll (L.NamedTyBndr a) 
-                    (L.TyFun
-                        ord'
+                    -- (L.TyFun
+                        -- ord'
                         (L.TyFun
                             lh'
                             (L.TyFun
@@ -647,7 +647,7 @@ binT = do
                                 )
                             )
                         )
-                    )
+                    -- )
 
 lhLtE :: LHStateM L.Id
 lhLtE = do
