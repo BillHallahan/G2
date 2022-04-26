@@ -194,5 +194,7 @@ specFuncs = HS.fromList [ ("+", Just "GHC.Num")
 
                         , ("I#", Just "GHC.Types")
                         , ("True", Just "GHC.Types")
-                        , ("False", Just "GHC.Types")]
+                        , ("False", Just "GHC.Types")
+
+                        , ("$", Just "GHC.Base")]
 

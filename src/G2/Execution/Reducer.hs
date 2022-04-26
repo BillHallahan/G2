@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -22,12 +23,9 @@ module G2.Execution.Reducer ( Reducer (..)
                             , SomeHalter (..)
                             , SomeOrderer (..)
 
-                            , EquivTracker (..)
-
                             -- Reducers
                             , RCombiner (..)
                             , StdRed (..)
-                            , ConcSymReducer (..)
                             , NonRedPCRed (..)
                             , NonRedPCRedConst (..)
                             , TaggerRed (..)
@@ -92,6 +90,7 @@ import G2.Solver
 import G2.Lib.Printers
 
 import Data.Foldable
+import Data.Hashable
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
@@ -386,89 +385,6 @@ instance (Solver solver, Simplifier simplifier) => Reducer (StdRed solver simpli
         (r, s', b') <- stdReduce share solver simplifier s b
         
         return (if r == RuleIdentity then Finished else InProgress, s', b', stdr)
-
-data ConcSymReducer = ConcSymReducer
-
--- Maps higher order function calls to symbolic replacements.
--- This allows the same call to be replaced by the same Id consistently.
--- relocated from Equiv.G2Calls
-data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
-                                 , saw_tick :: Maybe Int
-                                 , total :: HS.HashSet Name
-                                 , finite :: HS.HashSet Name
-                                 , folder_name :: String } deriving (Show, Eq)
-
--- Forces a lone symbolic variable with a type corresponding to an ADT
--- to evaluate to some value of that ADT
-instance Reducer ConcSymReducer () EquivTracker where
-    initReducer _ _ = ()
-
-    redRules red _
-                   s@(State { curr_expr = CurrExpr _ (Var (Id n t))
-                            , expr_env = eenv
-                            , type_env = tenv
-                            , track = EquivTracker et m tot fin fname })
-                   b@(Bindings { name_gen = ng })
-        | E.isSymbolic n eenv
-        , Just (dc_symbs, ng') <- arbDC tenv ng t n tot = do
-            let new_names = map idName $ concat $ map snd dc_symbs
-                tot' = if n `elem` tot
-                         then foldr HS.insert tot new_names
-                         else tot
-                -- TODO finiteness carries over to sub-expressions too
-                fin' = if n `elem` fin
-                          then foldr HS.insert fin new_names
-                          else fin
-                xs = map (\(e, symbs') ->
-                                s   { curr_expr = CurrExpr Evaluate e
-                                    , expr_env =
-                                        foldr E.insertSymbolic
-                                              (E.insert n e eenv)
-                                              symbs'
-                                    , track = EquivTracker et m tot' fin' fname
-                                    }) dc_symbs
-                b' =  b { name_gen = ng' }
-                -- only add to tot if n was total
-                -- not all of these will be used on each branch
-                -- they're all fresh, though, so overlap is not a problem
-            return (InProgress, zip xs (repeat ()) , b', red)
-    redRules red _ s b = return (NoProgress, [(s, ())], b, red)
-
--- | Build a case expression with one alt for each data constructor of the given type
--- and symbolic arguments.  Thus, the case expression could evaluate to any value of the
--- given type.
-arbDC :: TypeEnv
-      -> NameGen
-      -> Type
-      -> Name
-      -> HS.HashSet Name
-      -> Maybe ([(Expr, [Id])], NameGen)
-arbDC tenv ng t n tot
-    | TyCon tn _:ts <- unTyApp t
-    , Just adt <- M.lookup tn tenv =
-        let
-            dcs = dataCon adt
-
-            bound = boundIds adt
-            bound_ts = zip bound ts
-
-            ty_apped_dcs = map (\dc -> mkApp $ Data dc:map Type ts) dcs
-            ty_apped_dcs' = (Prim Error TyBottom):ty_apped_dcs
-            (ng', dc_symbs) = 
-                L.mapAccumL
-                    (\ng_ dc ->
-                        let
-                            anon_ts = anonArgumentTypes dc
-                            re_anon = foldr (\(i, t') -> retype i t') anon_ts bound_ts
-                            (ars, ng_') = freshIds re_anon ng_
-                        in
-                        (ng_', (mkApp $ dc:map Var ars, ars))
-                    )
-                    ng
-                    (if n `elem` tot then ty_apped_dcs else ty_apped_dcs')
-        in
-        Just (dc_symbs, ng')
-    | otherwise = Nothing
 
 -- | Removes and reduces the values in a State's non_red_path_conds field. 
 data NonRedPCRed = NonRedPCRed

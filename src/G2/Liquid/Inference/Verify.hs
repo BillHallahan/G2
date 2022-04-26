@@ -12,13 +12,19 @@ module G2.Liquid.Inference.Verify ( VerifyResult (..)
 
 import qualified G2.Language.Syntax as G2
 import G2.Liquid.Helpers
+import G2.Liquid.Types
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.GeneratedSpecs
 import G2.Translation.Haskell
 
 import Data.Maybe
 import GHC
+#if MIN_VERSION_liquidhaskell(0,8,10)
 import Language.Haskell.Liquid.Types
+        hiding (TargetInfo (..), TargetSrc (..), TargetSpec (..), GhcSrc (..), GhcSpec (..))
+#else
+import Language.Haskell.Liquid.Types
+#endif
 import Language.Haskell.Liquid.UX.CmdLine
 import Text.PrettyPrint.HughesPJ
 import qualified Var as V
@@ -43,6 +49,7 @@ import CoreSyn
 #if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
 import qualified Language.Haskell.Liquid.Termination.Structural as ST
 import           Language.Haskell.Liquid.GHC.Misc (showCBs, ignoreCoreBinds)
+import qualified Data.HashSet as S
 #else
 import           Language.Haskell.Liquid.GHC.Misc (showCBs)
 #endif
@@ -84,9 +91,9 @@ tryHardToVerifyIgnoring ghci gs ignore = do
 
         putStrLn "---\nVerify"
         putStrLn "gsAsmSigs"
-        mapM_ (print . gsAsmSigs . spec) merged_ghci
+        mapM_ (print . getAssumedSigs) merged_ghci
         putStrLn "gsTySigs"
-        mapM_ (print . gsTySigs . spec) merged_ghci
+        mapM_ (print . getTySigs) merged_ghci
         putStrLn "---\nEnd Verify"
 
         res <- return . verifyVarToName =<< verify infconfig lhconfig merged_ghci
@@ -142,7 +149,7 @@ tryToVerify ghci = do
       putStrLn "-------------------------------"
       putStrLn "-------------------------------"
       putStrLn "tryToVerify"
-      mapM (print . gsTySigs . spec) ghci
+      mapM (print . getTySigs) ghci
       putStrLn "-------------------------------"
       putStrLn "-------------------------------"
 
@@ -160,12 +167,21 @@ verify :: InferenceConfig -> Config ->  [GhcInfo] -> IO (VerifyResult V.Var)
 verify infconfig cfg ghci = do
     r <- verify' infconfig cfg ghci
     case F.resStatus r of
+#if MIN_VERSION_liquidhaskell(0,8,10)
+        F.Safe _ -> return Safe
+        F.Crash ci err -> return $ Crash ci err
+        F.Unsafe _ bad -> do
+          putStrLn $ "bad var = " ++ show (map (ci_var . snd) bad)
+          putStrLn $ "bad loc = " ++ show (map (ci_loc . snd) bad)
+          return . Unsafe . catMaybes $ map (ci_var . snd) bad
+#else
         F.Safe -> return Safe
         F.Crash ci err -> return $ Crash ci err
         F.Unsafe bad -> do
           putStrLn $ "bad var = " ++ show (map (ci_var . snd) bad)
           putStrLn $ "bad loc = " ++ show (map (ci_loc . snd) bad)
           return . Unsafe . catMaybes $ map (ci_var . snd) bad
+#endif
 
 
 verify' :: InferenceConfig -> Config ->  [GhcInfo] -> IO (F.Result (Integer, Cinfo))
@@ -173,7 +189,11 @@ verify' infconfig cfg ghci = checkMany infconfig cfg mempty ghci
 
 ghcInfos :: Maybe HscEnv -> Config -> [FilePath] -> IO [GhcInfo]
 ghcInfos me cfg fp = do
+#if MIN_VERSION_liquidhaskell(0,8,10)
+    (ghci, _) <- getTargetInfos me cfg fp
+#else
     (ghci, _) <- getGhcInfos me cfg fp
+#endif
     return ghci
 
 defLHConfig :: [FilePath] -> [FilePath] -> IO Config
@@ -222,11 +242,16 @@ liquidOne :: InferenceConfig -> GhcInfo -> IO (F.Result (Integer, Cinfo))
 liquidOne infconfig info = do
   -- whenNormal $ donePhase Loud "Extracted Core using GHC"
   let cfg   = getConfig info
+#if MIN_VERSION_liquidhaskell(0,8,6)
+  let tgt   = giTarget (giSrc info)
+  let cbs' = giCbs (giSrc info)
+#else
   let tgt   = target info
   -- whenLoud  $ do putStrLn $ showpp info
                  -- putStrLn "*************** Original CoreBinds ***************************"
                  -- putStrLn $ render $ pprintCBs (cbs info)
   let cbs' = cbs info -- scopeTr (cbs info)
+#endif
   -- whenNormal $ donePhase Loud "Transformed Core"
   -- whenLoud  $ do donePhase Loud "transformRecExpr"
   --                putStrLn "*************** Transform Rec Expr CoreBinds *****************"
@@ -236,7 +261,21 @@ liquidOne infconfig info = do
   edcs <- newPrune      cfg cbs' tgt info
   liquidQueries infconfig cfg      tgt info edcs
 
-#if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
+#if MIN_VERSION_liquidhaskell(0,8,6)
+newPrune :: Config -> [CoreBind] -> FilePath -> GhcInfo -> IO (Either [CoreBind] [DC.DiffCheck])
+newPrune cfg cbs tgt info
+  | not (null vs) = return . Right $ [DC.thin cbs sp vs]
+  | timeBinds cfg = return . Right $ [DC.thin cbs sp [v] | v <- exportedVars (giSrc info) ]
+  | diffcheck cfg = maybeEither cbs <$> DC.slice tgt cbs sp
+  | otherwise     = return $ Left (ignoreCoreBinds ignores cbs)
+  where
+    ignores       = gsIgnoreVars (gsVars sp)
+    vs            = gsTgtVars    (gsVars sp)
+    sp            = giSpec       info
+
+exportedVars :: GhcSrc -> [V.Var]
+exportedVars src = filter (isExportedVar src) (giDefVars src)
+#elif defined NEW_LH
 newPrune :: Config -> [CoreBind] -> FilePath -> GhcInfo -> IO (Either [CoreBind] [DC.DiffCheck])
 newPrune cfg cbs tgt info
   | not (null vs) = return . Right $ [DC.thin cbs sp vs]
@@ -284,23 +323,50 @@ liquidQueries infconfig cfg tgt info (Right dcs)
   = mconcat <$> mapM (liquidQuery infconfig cfg tgt info . Right) dcs
 
 liquidQuery   :: InferenceConfig -> Config -> FilePath -> GhcInfo -> Either [CoreBind] DC.DiffCheck -> IO (F.Result (Integer, Cinfo))
-#if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
+#if MIN_VERSION_liquidhaskell(0,8,6)
+liquidQuery infconfig cfg tgt info edc = do
+  let names   = either (const Nothing) (Just . map show . DC.checkedVars)   edc
+  let oldOut  = either (const mempty)  DC.oldOutput                         edc
+  let info1   = either (const info)    (\z -> info {giSpec = DC.newSpec z}) edc
+  let cbs''   = either id              DC.newBinds                          edc
+  let info2   = info1 { giSrc = (giSrc info1) {giCbs = cbs''}}
+  let info3   = updGhcInfoTermVars info2 
+  let cgi     = {-# SCC "generateConstraints" #-} generateConstraints $! info3 
+  when False (dumpCs cgi)
+  -- whenLoud $ mapM_ putStrLn [ "****************** CGInfo ********************"
+                            -- , render (pprint cgi)                            ]
+  timedAction names $ solveCs infconfig cfg tgt cgi info3 names
+
+updGhcInfoTermVars    :: GhcInfo -> GhcInfo 
+updGhcInfoTermVars i  = updInfo i  (ST.terminationVars i) 
+  where 
+    updInfo   info vs = info { giSpec = updSpec   (giSpec info) vs }
+    updSpec   sp   vs = sp   { gsTerm = updSpTerm (gsTerm sp)   vs }
+    updSpTerm gsT  vs = gsT  { gsNonStTerm = S.fromList vs         } 
+
+#elif defined NEW_LH
 liquidQuery infconfig cfg tgt info edc = do
   when False (dumpCs cgi)
   -- whenLoud $ mapM_ putStrLn [ "****************** CGInfo ********************"
                             -- , render (pprint cgi)                            ]
-  let tout = ST.terminationCheck (info' {cbs = cbs''})
   timedAction names $ solveCs infconfig cfg tgt cgi info' names
-#else
-liquidQuery infconfig cfg tgt info edc = do
-  when False (dumpCs cgi)
-  timedAction names $ solveCs infconfig cfg tgt cgi info' names
-#endif
   where
     cgi    = {-# SCC "generateConstraints" #-} generateConstraints $! info' {cbs = cbs''}
     cbs''  = either id              DC.newBinds                        edc
     info'  = either (const info)    (\z -> info {spec = DC.newSpec z}) edc
     names  = either (const Nothing) (Just . map show . DC.checkedVars) edc
+    oldOut = either (const mempty)  DC.oldOutput                       edc
+#else
+liquidQuery infconfig cfg tgt info edc = do
+  when False (dumpCs cgi)
+  timedAction names $ solveCs infconfig cfg tgt cgi info' names
+  where
+    cgi    = {-# SCC "generateConstraints" #-} generateConstraints $! info' {cbs = cbs''}
+    cbs''  = either id              DC.newBinds                        edc
+    info'  = either (const info)    (\z -> info {spec = DC.newSpec z}) edc
+    names  = either (const Nothing) (Just . map show . DC.checkedVars) edc
+    oldOut = either (const mempty)  DC.oldOutput                       edc
+#endif
 
 
 dumpCs :: CGInfo -> IO ()
@@ -322,7 +388,7 @@ solveCs :: InferenceConfig -> Config -> FilePath -> CGInfo -> GhcInfo -> Maybe [
 solveCs infconfig cfg tgt cgi info names = do
   finfo            <- cgInfoFInfo info cgi
   -- We only want qualifiers we have found with G2 Inference, so we have to force the correct set here
-  let finfo' = finfo { F.quals = (gsQualifiers . spec $ info) ++ if keep_quals infconfig then F.quals finfo else [] }
+  let finfo' = finfo { F.quals = (getQualifiers $ info) ++ if keep_quals infconfig then F.quals finfo else [] }
   fres@(F.Result r sol _) <- solve (fixConfig tgt cfg) finfo'
   -- let resErr        = applySolution sol . cinfoError . snd <$> r
   -- resModel_        <- fmap (e2u cfg sol) <$> getModels info cfg resErr

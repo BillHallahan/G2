@@ -192,7 +192,7 @@ wrapExtractCalls clls = do
     case null clls of
         True -> do
             -- flse <- mkFalseE
-            return (Var existentialInstId) -- $ Assume Nothing flse (Prim Undefined (TyVar i))
+            return (Var existentialInstId)
         False -> return $ NonDet clls
 
 -- | Creates functions to, for each type (T a_1 ... a_n), create a nondeterministic value.

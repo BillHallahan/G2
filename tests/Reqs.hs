@@ -28,48 +28,41 @@ data TestErrors = BadArgCount [Int]
                 | Time deriving (Show)
 
 -- | Checks conditions on given expressions
-checkExprGen :: [[Expr]] -> Int -> [Reqs ([Expr] -> Bool)] -> [TestErrors]
-checkExprGen exprs i reqList =
+checkExprGen :: [[Expr]] -> [Reqs ([Expr] -> Bool)] -> [TestErrors]
+checkExprGen exprs reqList =
     let
-        argChecksAll = if and . map (\f -> all (givenLengthCheck i f) exprs) $ [f | RForAll f <- reqList]
+        argChecksAll = if and . map (\f -> all f exprs) $ [f | RForAll f <- reqList]
                         then []
                         else [ArgsForAllFailed]
-        argChecksEx = if and . map (\f -> any (givenLengthCheck i f) exprs) $ [f | RExists f <- reqList]
+        argChecksEx = if and . map (\f -> any f exprs) $ [f | RExists f <- reqList]
                         then []
                         else [ArgsExistFailed]
-        checkL = checkLengths exprs i reqList
+        checkL = checkLengths exprs reqList
     in
     argChecksAll ++ argChecksEx ++ checkL
 
-givenLengthCheck :: Int -> ([Expr] -> Bool) -> [Expr] -> Bool
-givenLengthCheck i f e = if length e == i then f e else False
 
-checkAbsLHExprGen :: [(State AbstractedInfo, [Expr], Expr)] -> Int -> [Reqs ([Expr] -> Expr -> [FuncCall] -> Bool)] -> [TestErrors] 
-checkAbsLHExprGen exprs i reqList =
+checkAbsLHExprGen :: [(State AbstractedInfo, [Expr], Expr)] -> [Reqs ([Expr] -> Expr -> [FuncCall] -> Bool)] -> [TestErrors] 
+checkAbsLHExprGen exprs reqList =
     let
         argChecksAll =
-            if and . map (\f -> all (\(s, es, e) -> lhGivenLengthCheck i f es e (map abstract . abs_calls $ track s)) exprs) $ [f | RForAll f <- reqList]
+            if and . map (\f -> all (\(s, es, e) -> f es e (map abstract . abs_calls $ track s)) exprs) $ [f | RForAll f <- reqList]
                 then []
                 else [ArgsForAllFailed]
         argChecksEx =
-            if and . map (\f -> any (\(s, es, e) -> lhGivenLengthCheck i f es e (map abstract . abs_calls $ track s)) exprs) $ [f | RExists f <- reqList]
+            if and . map (\f -> any (\(s, es, e) -> f es e (map abstract . abs_calls $ track s)) exprs) $ [f | RExists f <- reqList]
                 then []
                 else [ArgsExistFailed]
-        checkL = checkLengths (map (\(_, e, _) -> e) exprs) i reqList
+        checkL = checkLengths (map (\(_, e, _) -> e) exprs) reqList
     in
     argChecksAll ++ argChecksEx ++ checkL
 
-lhGivenLengthCheck :: Int -> ([Expr] -> Expr -> [FuncCall] -> Bool) -> [Expr] -> Expr -> [FuncCall] -> Bool
-lhGivenLengthCheck i f es e fc = if length es == i then f es e fc else False
-
-checkLengths :: [[Expr]] -> Int -> [Reqs c] -> [TestErrors]
-checkLengths exprs i reqList =
+checkLengths :: [[Expr]] -> [Reqs c] -> [TestErrors]
+checkLengths exprs reqList =
     let
         checkAtLeast = if and . map ((>=) (length exprs)) $ [x | AtLeast x <- reqList] then [] else [TooFew]
         checkAtMost = if and . map ((<=) (length exprs)) $ [x | AtMost x <- reqList] then [] else [TooMany]
         checkExactly = if and . map ((==) (length exprs)) $ [x | Exactly x <- reqList] then [] else [NotExactly]
-
-        checkArgCount = if and . map ((==) i . length) $ exprs then [] else [BadArgCount $ map length exprs]
     in
-    checkAtLeast ++ checkAtMost ++ checkExactly ++ checkArgCount
+    checkAtLeast ++ checkAtMost ++ checkExactly
 
