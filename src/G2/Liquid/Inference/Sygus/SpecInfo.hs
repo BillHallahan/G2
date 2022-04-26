@@ -6,7 +6,8 @@ import G2.Language as G2
 import qualified G2.Language.ExprEnv as E
 import G2.Liquid.Conversion
 import G2.Liquid.Helpers
-import G2.Liquid.Types
+import G2.Liquid.Interface
+import G2.Liquid.Types hiding (SP)
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.FuncConstraint
 import G2.Liquid.Inference.G2Calls
@@ -310,7 +311,10 @@ argsAndRetFromSpec :: (InfConfigM m, ProgresserM m) => TypeEnv -> TypeClasses ->
 argsAndRetFromSpec tenv tc ghci meas ars ts rty (RAllT { rt_ty = out }) =
     argsAndRetFromSpec tenv tc ghci meas ars ts rty out
 argsAndRetFromSpec tenv tc ghci meas ars (t:ts) rty rfun@(RFun { rt_in = i, rt_out = out}) = do
-    (Just out_symb, sa) <- mkSpecArgPB ghci tenv meas t rfun
+    (m_out_symb, sa) <- mkSpecArgPB ghci tenv meas t rfun
+    let out_symb = case m_out_symb of
+                      Just os -> os
+                      Nothing -> error "argsAndRetFromSpec: out_symb is Nothing"
     case i of
         RVar {} -> argsAndRetFromSpec tenv tc ghci meas ars ts rty out
         RFun {} -> argsAndRetFromSpec tenv tc ghci meas ars ts rty out
@@ -484,7 +488,6 @@ typeToSort (TyApp (TyCon (Name n _ _ _) _) t)
 typeToSort (TyCon (Name n _ _ _) _) 
     | n == "Int"  = Just SortInt
     | n == "Bool" = Just SortBool
-    -- | n == "Double"  = Just SortDouble
 typeToSort _ = Nothing
 
 getLHMeasureName :: [GhcInfo] -> Name -> LH.Symbol

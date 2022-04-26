@@ -3,6 +3,7 @@
 module G2.Equiv.Induction
     ( inductionFull
     , prevFiltered
+    , generalizeFull
     )
     where
 
@@ -38,6 +39,7 @@ import Debug.Trace
 import G2.Execution.NormalForms
 import Control.Monad
 
+import Data.Either.Extra
 import Data.Time
 
 import G2.Execution.Reducer
@@ -111,6 +113,7 @@ innerScrutineeStates s@(State { curr_expr = CurrExpr _ e }) =
 -- current expression as it really is, this function attempts to find matches
 -- with all of the different "inner scrutinees" on the right-hand side.  The
 -- left-hand present state's expression stays constant, though.
+-- TODO (2/14) this might not be sound anymore, but we stopped using it anyway
 moreRestrictiveIndRight :: S.Solver solver =>
                            solver ->
                            HS.HashSet Name ->
@@ -120,7 +123,8 @@ moreRestrictiveIndRight :: S.Solver solver =>
 moreRestrictiveIndRight solver ns prev (s1, s2) =
   let prev1 = map (\(p1, p2) -> (p1, p2, innerScrutineeStates p2)) prev
       prev2 = [(p1, p2', p2) | (p1, p2, p2l) <- prev1, p2' <- p2l]
-  in moreRestrictivePairAux solver ns prev2 (s1, s2)
+  in
+  return . eitherToMaybe =<< moreRestrictivePairAux solver (\_ _ -> True) ns prev2 (s1, s2)
 
 -- substitution happens on the left here; no right-side state returned
 inductionL :: S.Solver solver =>
@@ -169,6 +173,7 @@ inductionL solver ns prev (s1, s2) = do
 
 -- TODO check the criterion at a different level
 -- only attempt induction if we have recursion in the right spots in the present
+-- TODO be more generous instead; try induction whenever there's a Case
 caseRecursion :: Expr -> Bool
 caseRecursion (Tick _ e) = caseRecursion e
 caseRecursion (Case e _ _) =
@@ -227,15 +232,15 @@ inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2) = do
   let prev = prevFiltered (sh1, sh2)
   ind <- induction solver ns prev (s1, s2)
   case ind of
-    Nothing -> case history sh2 of
-      [] -> return Nothing
-      p2:_ -> inductionFoldL solver ns fresh_name (sh1, backtrackOne sh2) (s1, p2)
+    Nothing -> case backtrackOne sh2 of
+      Nothing -> return Nothing
+      Just sh2' -> inductionFoldL solver ns fresh_name (sh1, sh2') (s1, latest sh2')
     Just (s1', s2', im) -> do
       g <- generalize solver ns fresh_name (s1', s2')
       case g of
-        Nothing -> case history sh2 of
-          [] -> return Nothing
-          p2:_ -> inductionFoldL solver ns fresh_name (sh1, backtrackOne sh2) (s1, p2)
+        Nothing -> case backtrackOne sh2 of
+          Nothing -> return Nothing
+          Just sh2' -> inductionFoldL solver ns fresh_name (sh1, sh2') (s1, latest sh2')
         Just (s1'', s2'') -> return $ Just (length $ history sh2, s1'', s2'', im)
 
 -- TODO somewhat crude solution:  record how "far back" it needed to go
@@ -287,7 +292,8 @@ generalizeAux :: S.Solver solver =>
                  StateET ->
                  W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
 generalizeAux solver ns s1_list s2 = do
-  let check_equiv s1_ = moreRestrictiveEqual solver ns s1_ s2
+  -- TODO add lemmas here later?
+  let check_equiv s1_ = moreRestrictiveEqual solver ns emptyLemmas s1_ s2
   res <- mapM check_equiv s1_list
   let res' = filter isJust res
   case res' of
@@ -314,10 +320,7 @@ generalize :: S.Solver solver =>
               Name ->
               (StateET, StateET) ->
               W.WriterT [Marker] IO (Maybe (StateET, StateET))
-generalize solver ns fresh_name (s1, s2) = do
-  W.liftIO $ putStrLn $ "Starting G " ++ show fresh_name
-  W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s1
-  W.liftIO $ putStrLn $ printHaskellDirty $ exprExtract s2
+generalize solver ns fresh_name (s1, s2) | dc_path (track s1) == dc_path (track s2) = do
   -- expressions are ordered from outer to inner
   -- the largest ones are on the outside
   -- take the earliest array entry that works
@@ -329,24 +332,73 @@ generalize solver ns fresh_name (s1, s2) = do
       scr2 = innerScrutinees e2
       scr_states2 = map (\e -> s2 { curr_expr = CurrExpr Evaluate e }) scr2
   res <- mapM (generalizeAux solver ns scr_states1) scr_states2
-  W.liftIO $ putStrLn "Generalized"
   -- TODO also may want to adjust the equivalence tracker
+  -- TODO sync here to get fresh id in opposite envs?
+  -- doesn't fix the issue with p27finA, but still worthwhile, possibly
   let res' = filter isJust res
   case res' of
     (Just pm):_ -> let (s1', s2') = present pm
                        e1' = exprExtract s1'
                        s1'' = adjustStateForGeneralization e1 fresh_name s1'
                        s2'' = adjustStateForGeneralization e2 fresh_name s2'
-                   in return $ Just (s1'', s2'')
+                   in return $ Just $ syncSymbolic s1'' s2''
     _ -> return Nothing
+  | otherwise = return Nothing
 
 -- TODO does this throw off history logging?  I don't think so
 -- TODO might not matter with s1 and s2 naming
 -- TODO needs at least one fresh name
 inductionFull :: S.Solver s => Tactic s
-inductionFull solver ns (fresh_name:_) sh_pair s_pair = do
+inductionFull solver ns _ (fresh_name:_) sh_pair s_pair = do
   ifold <- inductionFold solver ns fresh_name sh_pair s_pair
   case ifold of
-    Nothing -> return NoProof
+    Nothing -> return $ NoProof []
     Just ((n1, n2), s1', s2') -> return $ Success (Just (n1, n2, s1', s2'))
-inductionFull _ _ _ _ _ = return NoProof
+inductionFull _ _ _ _ _ _ = return $ NoProof []
+
+-- TODO new functions for generalization without induction
+generalizeFoldL :: S.Solver solver =>
+                   solver ->
+                   HS.HashSet Name ->
+                   Name ->
+                   [StateET] ->
+                   StateET ->
+                   W.WriterT [Marker] IO (Maybe (StateET, StateET, StateET, StateET))
+generalizeFoldL solver ns fresh_name prev2 s1 = do
+  case prev2 of
+    [] -> return Nothing
+    p2:t -> do
+      gen <- generalize solver ns fresh_name (s1, p2)
+      case gen of
+        Just (s1', s2') -> return $ Just (s1, p2, s1', s2')
+        _ -> generalizeFoldL solver ns fresh_name t s1
+
+-- TODO make a new marker type for this?
+-- TODO make this more like equalFold?
+generalizeFold :: S.Solver solver =>
+                  solver ->
+                  HS.HashSet Name ->
+                  Name ->
+                  (StateH, StateH) ->
+                  (StateET, StateET) ->
+                  W.WriterT [Marker] IO (Maybe (StateET, StateET, StateET, StateET))
+generalizeFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
+  fl <- generalizeFoldL solver ns fresh_name (s2:history sh2) s1
+  case fl of
+    Just (q1, q2, q1', q2') -> return fl
+    Nothing -> do
+      fr <- generalizeFoldL solver ns fresh_name (s1:history sh1) s2
+      case fr of
+        Just (q2, q1, q2', q1') -> return $ Just (q1, q2, q1', q2')
+        Nothing -> return Nothing
+
+-- TODO this should come before induction in the list of tactics
+-- TODO this uses the same fresh name that induction uses currently
+generalizeFull :: S.Solver s => Tactic s
+generalizeFull solver ns _ (fresh_name:_) sh_pair s_pair = do
+  gfold <- generalizeFold solver ns fresh_name sh_pair s_pair
+  case gfold of
+    Nothing -> return $ NoProof []
+    Just (s1, s2, q1, q2) -> let lem = mkProposedLemma "Generalization" s1 s2 q1 q2
+                             in return $ NoProof $ [lem]
+generalizeFull _ _ _ _ _ _ = return $ NoProof []

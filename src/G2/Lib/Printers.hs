@@ -4,8 +4,11 @@ module G2.Lib.Printers ( PrettyGuide
                        , mkPrettyGuide
                        , updatePrettyGuide
 
+                       , printName
+
                        , printHaskell
                        , printHaskellDirty
+                       , printHaskellDirtyPG
                        , printHaskellPG
                        , mkUnsugaredExprHaskell
                        , mkTypeHaskell
@@ -18,7 +21,9 @@ module G2.Lib.Printers ( PrettyGuide
                        , pprExecStateStr
                        , pprExecEEnvStr
                        , printFuncCall
-                       , prettyState) where
+                       , prettyState
+
+                       , prettyGuideStr) where
 
 import G2.Execution.Memory
 import G2.Language.Expr
@@ -44,6 +49,9 @@ data Clean = Cleaned | Dirty deriving Eq
 mkIdHaskell :: PrettyGuide -> Id -> String
 mkIdHaskell pg (Id n _) = mkNameHaskell pg n
 
+printName :: PrettyGuide -> Name -> String
+printName = mkNameHaskell
+
 mkNameHaskell :: PrettyGuide -> Name -> String
 mkNameHaskell pg n
     | Just s <- lookupPG n pg = s
@@ -58,6 +66,9 @@ printHaskell = mkCleanExprHaskell (mkPrettyGuide ())
 
 printHaskellDirty :: Expr -> String
 printHaskellDirty = mkExprHaskell Dirty (mkPrettyGuide ())
+
+printHaskellDirtyPG :: PrettyGuide -> Expr -> String
+printHaskellDirtyPG = mkExprHaskell Dirty
 
 printHaskellPG :: PrettyGuide -> State t -> Expr -> String
 printHaskellPG = mkCleanExprHaskell
@@ -117,7 +128,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             | Data (DataCon n1 _) <- e1
             , nameOcc n1 == ":"
             , isCleaned =
-                if isLitChar e2 then printString a else printList pg a
+                if isLitChar e2 then printString pg a else printList pg a
 
             | isInfixable e1
             , isCleaned =
@@ -144,7 +155,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                        $ map (\(i, be) -> mkIdHaskell pg i ++ " = " ++ mkExprHaskell'' off be) binds 
             in
             "let " ++ binds' ++ " in " ++ mkExprHaskell'' off e
-        mkExprHaskell'' off (Tick nl e) = "TICK[" ++ (show nl) ++ "]{" ++ (mkExprHaskell'' off e) ++ "}"
+        mkExprHaskell'' off (Tick nl e) = "TICK[" ++ printTickish pg nl ++ "]{" ++ mkExprHaskell'' off e ++ "}"
         mkExprHaskell'' off (Assert m_fc e1 e2) =
             let
                 print_fc = maybe "" (\fc -> "(" ++ printFuncCallPG pg fc ++ ") ") m_fc
@@ -199,27 +210,42 @@ offset :: Int -> String
 offset i = duplicate "   " i
 
 printList :: PrettyGuide -> Expr -> String
-printList pg a = "[" ++ intercalate ", " (printList' pg a) ++ "]"
+printList pg a =
+    let (strs, b) = printList' pg a
+    in case b of
+        False -> "(" ++ intercalate ":" strs ++ ")"
+        _ -> "[" ++ intercalate ", " strs ++ "]"
 
-printList' :: PrettyGuide -> Expr -> [String]
-printList' pg (App (App _ e) e') = mkExprHaskell Cleaned pg e:printList' pg e'
-printList' _ _ = []
+printList' :: PrettyGuide -> Expr -> ([String], Bool)
+printList' pg (App (App e1 e) e') | Data (DataCon n1 _) <- e1
+                                  , nameOcc n1 == ":" =
+    let (strs, b) = printList' pg e'
+    in (mkExprHaskell Cleaned pg e:strs, b)
+printList' pg e | Data (DataCon n _) <- appCenter e
+                , nameOcc n == "[]" = ([], True)
+                | otherwise = ([mkExprHaskell Cleaned pg e], False)
 
-printString :: Expr -> String
-printString a =
+printString :: PrettyGuide -> Expr -> String
+printString pg a =
     let
-        str = printString' a
-    in
-    if all isPrint str then "\"" ++ str ++ "\""
-        else "[" ++ intercalate ", " (map stringToEnum str) ++ "]"
+        maybe_str = printString' a
+    in case maybe_str of
+        Just str -> if all isPrint str then "\"" ++ str ++ "\""
+                    else "[" ++ intercalate ", " (map stringToEnum str) ++ "]"
+        Nothing -> printList pg a
     where
         stringToEnum c
             | isPrint c = '\'':c:'\'':[]
             | otherwise = "toEnum " ++ show (ord c)
 
-printString' :: Expr -> String
-printString' (App (App _ (Lit (LitChar c))) e') = c:printString' e'
-printString' _ = []
+printString' :: Expr -> Maybe String
+printString' (App (App _ (Lit (LitChar c))) e') =
+    case printString' e' of
+        Nothing -> Nothing
+        Just str -> Just (c:str)
+printString' e | Data (DataCon n _) <- appCenter e
+               , nameOcc n == "[]" = Just []
+               | otherwise = Nothing
 
 isTuple :: Name -> Bool
 isTuple (Name n _ _ _) = T.head n == '(' && T.last n == ')'
@@ -306,12 +332,19 @@ mkTypeHaskellPG pg (TyVar i) = mkIdHaskell pg i
 mkTypeHaskellPG pg (TyFun t1 t2) = mkTypeHaskellPG pg t1 ++ " -> " ++ mkTypeHaskellPG pg t2
 mkTypeHaskellPG pg (TyCon n _) = mkNameHaskell pg n
 mkTypeHaskellPG pg (TyApp t1 t2) = "(" ++ mkTypeHaskellPG pg t1 ++ " " ++ mkTypeHaskellPG pg t2 ++ ")"
+mkTypeHaskellPG _ TYPE = "Type"
 mkTypeHaskellPG _ t = "Unsupported type in printer. " ++ show t
 
 duplicate :: String -> Int -> String
 duplicate _ 0 = ""
 duplicate s n = s ++ duplicate s (n - 1)
 
+printTickish :: PrettyGuide -> Tickish -> String
+printTickish _ (Breakpoint sp) = printLoc (start sp) ++ " - " ++ printLoc (end sp)
+printTickish pg (NamedLoc n) = mkNameHaskell pg n
+
+printLoc :: Loc -> String
+printLoc (Loc ln cl fl) = "(line " ++ show ln ++ " column " ++ show cl ++ " in " ++  fl ++ ")" 
 
 -------------------------------------------------------------------------------
 

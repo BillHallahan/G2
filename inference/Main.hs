@@ -2,15 +2,23 @@
 module Main (main) where
 
 import G2.Config as G2
+import G2.Interface
 import G2.Liquid.Interface
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.Initalization
 import G2.Liquid.Inference.Interface
 import G2.Liquid.Inference.Verify
+import G2.Liquid.Helpers
 
+import Language.Fixpoint.Solver
+import Language.Fixpoint.Types.Constraints
+import Language.Haskell.Liquid.Types as LH
+
+import Control.DeepSeq
 import qualified Data.Map as M
 import qualified Data.Text as T
+import Data.Time.Clock
 import System.Environment
 
 main :: IO ()
@@ -47,29 +55,29 @@ checkQualifs f config = do
     undefined
     -- qualifGen "qualif.hquals" 
     
-    -- finfo <- parseFInfo ["qualif.hquals"]
+    finfo <- parseFInfo ["qualif.hquals"]
 
-    -- let infconfig = mkInferenceConfig []
-    -- lhconfig <- quals finfo `deepseq` defLHConfig [] []
-    -- let lhconfig' = lhconfig { pruneUnsorted = True }
-    -- ghcis <- ghcInfos Nothing lhconfig' [f]
-    -- let ghcis' = map (\ghci ->
-    --                     let
-    --                         spc = spec ghci
-    --                         spc' = spc { gsQualifiers = gsQualifiers spc ++ quals finfo }
-    --                     in
-    --                     ghci { spec = spc' }) ghcis
+    let infconfig = mkInferenceConfig []
+    lhconfig <- quals finfo `deepseq` defLHConfig [] []
+    let lhconfig' = lhconfig { pruneUnsorted = True }
+    ghcis <- ghcInfos Nothing lhconfig' [f]
+    let ghcis' = map (\ghci ->
+                        let
+                            ghci_quals = getQualifiers ghci-- spc = spec ghci
+                            new_quals = ghci_quals ++ quals finfo 
+                        in
+                        putQualifiers ghci new_quals) ghcis
 
-    -- start <- getCurrentTime
-    -- res <- doTimeout 360 $ verify infconfig lhconfig' ghcis'
-    -- stop <- getCurrentTime
+    start <- getCurrentTime
+    res <- doTimeout 360 $ verify infconfig lhconfig' ghcis'
+    stop <- getCurrentTime
 
-    -- case res of -- print $ quals finfo
-    --     Just Safe -> do
-    --         putStrLn "Safe"
-    --         print (stop `diffUTCTime` start)
-    --     Just _ -> putStrLn "Unsafe"
-    --     Nothing -> putStrLn "Timeout"
+    case res of -- print $ quals finfo
+        Just Safe -> do
+            putStrLn "Safe"
+            print (stop `diffUTCTime` start)
+        Just _ -> putStrLn "Unsafe"
+        Nothing -> putStrLn "Timeout"
 
 callInference :: String -> InferenceConfig -> G2.Config -> IO ()
 callInference f infconfig config = do

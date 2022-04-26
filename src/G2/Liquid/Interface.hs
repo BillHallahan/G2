@@ -66,8 +66,7 @@ import G2.Solver hiding (solve)
 
 import G2.Lib.Printers
 
-import Language.Haskell.Liquid.Types hiding (Config, cls, names)
-import Language.Haskell.Liquid.UX.CmdLine
+import Language.Haskell.Liquid.UX.CmdLine (getOpts)
 
 import Control.Exception
 import Control.Monad.Extra

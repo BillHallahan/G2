@@ -81,8 +81,6 @@ import qualified Data.Text as T
 import System.FilePath
 import System.Directory
 
-import Debug.Trace
-
 -- Copying from Language.Typing so the thing we stuff into Ghc
 -- does not have to rely on Language.Typing, which depends on other things.
 mkG2TyApp :: [G2.Type] -> G2.Type
@@ -236,7 +234,7 @@ envModSumModGuts hsc proj src tr_con =
       mod_graph <- getModuleGraph
 
       let msums = convertModuleGraph mod_graph
-      parsed_mods <- mapM parseModule mod_graph
+      parsed_mods <- mapM parseModule msums
       typed_mods <- mapM typecheckModule parsed_mods
       desug_mods <- mapM desugarModule typed_mods
       return . EnvModSumModGuts env msums $ map coreModule desug_mods
@@ -564,8 +562,13 @@ switchModule m =
         Nothing -> Just m
 
 mkLit :: Literal -> G2.Lit
+#if __GLASGOW_HASKELL__ < 808
 mkLit (MachChar chr) = G2.LitChar chr
 mkLit (MachStr bstr) = G2.LitString (C.unpack bstr)
+#else
+mkLit (LitChar chr) = G2.LitChar chr
+mkLit (LitString bstr) = G2.LitString (C.unpack bstr)
+#endif
 
 #if __GLASGOW_HASKELL__ < 806
 mkLit (MachInt i) = G2.LitInt (fromInteger i)
@@ -582,8 +585,13 @@ mkLit (LitNumber LitNumWord i _) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumWord64 i _) = G2.LitInt (fromInteger i)
 #endif
 
+#if __GLASGOW_HASKELL__ < 808
 mkLit (MachFloat rat) = G2.LitFloat rat
 mkLit (MachDouble rat) = G2.LitDouble rat
+#else
+mkLit (LitFloat rat) = G2.LitFloat rat
+mkLit (LitDouble rat) = G2.LitDouble rat
+#endif
 mkLit _ = error "mkLit: unhandled Lit"
 -- mkLit (MachNullAddr) = error "mkLit: MachNullAddr"
 -- mkLit (MachLabel _ _ _ ) = error "mkLit: MachLabel"
@@ -606,7 +614,11 @@ mkAltMatch _ _ (DEFAULT) _ = G2.Default
 mkType :: G2.TypeNameMap -> Type -> G2.Type
 mkType tm (TyVarTy v) = G2.TyVar $ mkId tm v
 mkType tm (AppTy t1 t2) = G2.TyApp (mkType tm t1) (mkType tm t2)
+#if __GLASGOW_HASKELL__ < 808
 mkType tm (FunTy t1 t2) = G2.TyFun (mkType tm t1) (mkType tm t2)
+#else
+mkType tm (FunTy _ t1 t2) = G2.TyFun (mkType tm t1) (mkType tm t2)
+#endif
 mkType tm (ForAllTy b ty) = G2.TyForAll (mkTyBinder tm b) (mkType tm ty)
 mkType _ (LitTy _) = G2.TyBottom
 -- mkType _ (CastTy _ _) = error "mkType: CastTy"
@@ -692,7 +704,11 @@ mkDataName :: G2.NameMap -> DataCon -> G2.Name
 mkDataName nm datacon = (flip mkNameLookup nm . dataConName) datacon
 
 mkTyBinder :: G2.TypeNameMap -> TyVarBinder -> G2.TyBinder
+#if __GLASGOW_HASKELL__ < 808
 mkTyBinder tm (TvBndr v _) = G2.NamedTyBndr (mkId tm v)
+#else
+mkTyBinder tm (Bndr v _) = G2.NamedTyBndr (mkId tm v)
+#endif
 
 prim_list :: [String]
 prim_list = [">=", ">", "==", "/=", "<=", "<",

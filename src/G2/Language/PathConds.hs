@@ -69,7 +69,9 @@ import Data.Semigroup (Semigroup (..))
 -- Edges exist between any names that are in the same path constraint.
 -- Strongly connected components in the graph must be checked and solved together.
 newtype PathConds = PathConds (UF.UFMap (Maybe Name) PCGroup)
-                    deriving (Show, Eq, Read, Typeable, Data)
+                    deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+instance Hashable PathConds
 
 data PCGroup = PCGroup { pcs_contains :: HS.HashSet Id, pcs :: HS.HashSet HashedPathCond}
                deriving (Show, Eq, Read, Generic, Typeable, Data)
