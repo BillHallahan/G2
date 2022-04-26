@@ -44,6 +44,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Execution
 
 import G2.Initialization.MkCurrExpr
+import qualified G2.Initialization.Types as T (expr_env)
 
 import G2.Liquid.AddCFBranch
 import G2.Liquid.AddLHTC
@@ -66,8 +67,11 @@ import G2.Solver hiding (solve)
 
 import G2.Lib.Printers
 
-import Language.Haskell.Liquid.Types hiding (Config, cls, names)
+import Language.Haskell.Liquid.Types hiding (Config, cls, names, measures)
+import qualified Language.Haskell.Liquid.Types.PrettyPrint as PPR
 import Language.Haskell.Liquid.UX.CmdLine
+
+import qualified Language.Fixpoint.Types.PrettyPrint as FPP
 
 import Control.Exception
 import Control.Monad.Extra
@@ -77,7 +81,14 @@ import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
 
+import Var
+
+import G2.Language.KnownValues
+
+import Debug.Trace
 import G2.Language.Monad
+
+import Data.Maybe
 
 data LHReturn = LHReturn { calledFunc :: FuncInfo
                          , violating :: Maybe FuncInfo
