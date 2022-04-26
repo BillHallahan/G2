@@ -31,6 +31,7 @@ module G2.Liquid.Types ( LHOutput (..)
 
                        , mapAbstractedFCs
                        , mapAbstractedInfoFCs
+                       , mapAbstractedInfoCAFCs
                        , consLHState
                        , deconsLHState
                        , measuresM
@@ -199,18 +200,18 @@ newtype AnnotMap =
     deriving (Eq, Show, Read)
 
 -- Abstracted values
-data Abstracted = Abstracted { abstract :: L.FuncCall
-                             , real :: L.FuncCall
+data Abstracted = Abstracted { abstract :: L.CAFuncCall
+                             , real :: L.CAFuncCall
                              , hits_lib_err_in_real :: Bool
-                             , func_calls_in_real :: [L.FuncCall] }
+                             , func_calls_in_real :: [L.CAFuncCall] }
                              deriving (Eq, Show, Read)
 
 data AbstractedInfo = AbstractedInfo { init_call :: Abstracted
                                      , abs_violated :: Maybe Abstracted
                                      , abs_calls :: [Abstracted]
-                                     , ai_all_calls :: [L.FuncCall] }
+                                     , ai_all_calls :: [L.CAFuncCall] }
 
-mapAbstractedFCs :: (L.FuncCall -> L.FuncCall) ->  Abstracted -> Abstracted
+mapAbstractedFCs :: (L.CAFuncCall -> L.CAFuncCall) ->  Abstracted -> Abstracted
 mapAbstractedFCs f (Abstracted { abstract = a
                                , real = r
                                , hits_lib_err_in_real = err
@@ -221,7 +222,10 @@ mapAbstractedFCs f (Abstracted { abstract = a
                , func_calls_in_real = map f fcr}
 
 mapAbstractedInfoFCs :: (L.FuncCall -> L.FuncCall) ->  AbstractedInfo -> AbstractedInfo
-mapAbstractedInfoFCs f (AbstractedInfo { init_call = ic, abs_violated = av, abs_calls = ac, ai_all_calls= allc}) =
+mapAbstractedInfoFCs f = mapAbstractedInfoCAFCs (L.mapFCs f)
+
+mapAbstractedInfoCAFCs :: (L.CAFuncCall -> L.CAFuncCall) ->  AbstractedInfo -> AbstractedInfo
+mapAbstractedInfoCAFCs f (AbstractedInfo { init_call = ic, abs_violated = av, abs_calls = ac, ai_all_calls= allc}) =
     AbstractedInfo { init_call = mapAbstractedFCs f ic
                    , abs_violated = fmap (mapAbstractedFCs f) av
                    , abs_calls = map (mapAbstractedFCs f) ac

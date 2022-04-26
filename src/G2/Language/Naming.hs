@@ -206,6 +206,7 @@ class Named a where
     rename :: Name -> Name -> a -> a
     renames :: HM.HashMap Name Name -> a -> a
 
+    rename old new = renames (HM.singleton old new)
     renames hm e = HM.foldrWithKey (\k v -> rename k v) e hm
 
 instance Named Name where

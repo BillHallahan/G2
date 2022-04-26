@@ -44,9 +44,27 @@ mkPreCall :: (InfConfigM m, ProgresserM m) =>
           -> MeasureExs
           -> Evals (Integer, Bool)
           -> M.Map Name SpecInfo
-          -> FuncCall
+          -> CAFuncCall
           -> m form
-mkPreCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars })
+mkPreCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_si =
+    mkPreCall' convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_si . conc_fc
+
+mkPreCall' :: (InfConfigM m, ProgresserM m) => 
+              ConvertExpr form
+           -> AndF form
+           -> OrF form
+           -> Func form
+           -> KnownFunc form
+           -> ToBeFunc form
+           -> NMExprEnv 
+           -> TypeEnv 
+           -> Measures
+           -> MeasureExs
+           -> Evals (Integer, Bool)
+           -> M.Map Name SpecInfo
+           -> FuncCall
+           -> m form
+mkPreCall' convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars })
     | Just si <- M.lookup n m_si
     , Just (ev_i, ev_b) <- lookupEvals fc (pre_evals evals)
     , Just func_e <- HM.lookup (nameOcc n, nameModule n) eenv = do
@@ -103,15 +121,33 @@ mkPostCall :: (InfConfigM m, ProgresserM m) =>
            -> Func form
            -> KnownFunc form
            -> ToBeFunc form
-           -> NMExprEnv
-           -> TypeEnv
+           -> NMExprEnv 
+           -> TypeEnv 
            -> Measures
            -> MeasureExs
            -> Evals (Integer, Bool)
            -> M.Map Name SpecInfo
-           -> FuncCall
+           -> CAFuncCall
            -> m form
-mkPostCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars, returns = r })
+mkPostCall convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_si =
+    mkPostCall' convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_si . conc_fc
+
+mkPostCall' :: (InfConfigM m, ProgresserM m) => 
+               ConvertExpr form
+            -> AndF form
+            -> OrF form
+            -> Func form
+            -> KnownFunc form
+            -> ToBeFunc form
+            -> NMExprEnv
+            -> TypeEnv
+            -> Measures
+            -> MeasureExs
+            -> Evals (Integer, Bool)
+            -> M.Map Name SpecInfo
+            -> FuncCall
+            -> m form
+mkPostCall' convExpr andF orF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars, returns = r })
     | Just si <- M.lookup n m_si
     , Just (ev_i, ev_b) <- lookupEvals fc (post_evals evals)
     , Just func_e <- HM.lookup (nameOcc n, nameModule n) eenv = do

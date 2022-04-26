@@ -21,6 +21,7 @@ module G2.Lib.Printers ( PrettyGuide
                        , pprExecStateStr
                        , pprExecEEnvStr
                        , printFuncCall
+                       , printCAFuncCall
                        , prettyState
 
                        , prettyGuideStr) where
@@ -609,6 +610,18 @@ printFuncCallPG pg (FuncCall { funcName = Name f _ _ _, arguments = ars, returns
         r_str = mkDirtyExprHaskell pg r
     in
     "(" ++ call_str (Name f Nothing 0 Nothing) ++ " " ++ r_str ++ ")"
+
+printCAFuncCall :: CAFuncCall -> String
+printCAFuncCall = printCAFuncCallPG (mkPrettyGuide ())
+
+printCAFuncCallPG :: PrettyGuide -> CAFuncCall -> String
+printCAFuncCallPG pg (CAFuncCall { conc_fc = c_fc, abs_fc = a_fc, paths_fc = pc }) =
+    let
+        cfc_str = printFuncCallPG pg c_fc
+        abs_str = printFuncCallPG pg a_fc
+        paths_str = prettyPathConds pg pc
+    in
+    "(Concrete: " <> cfc_str <> "\nAbstract: " <> abs_str <> "\nPaths: " <> paths_str <> ")"
 
 -------------------------------------------------------------------------------
 -- Pretty Guide

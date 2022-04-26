@@ -80,7 +80,7 @@ checkAbstracted solver simplifier config init_id bindings er@(ExecRes{ final_sta
         abs_info = AbstractedInfo { init_call = fst abs_init
                                   , abs_violated = fmap fst abs_viol
                                   , abs_calls = abstracted'
-                                  , ai_all_calls = all_calls lht }
+                                  , ai_all_calls = map simpleCAFuncCall $ all_calls lht }
 
     return $ viol_er { final_state = s { track = abs_info
                                        , model = foldr HM.union (model s) (init_model:viol_model ++ models) }
@@ -131,16 +131,16 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
                 }] -> case not $ ce `eqUpToTypes` r of
                         True ->
                             return $ AbstractRes 
-                                        ( Abstracted { abstract = repTCsFC (type_classes s) $ abs_fc
-                                                     , real = repTCsFC (type_classes s) $ abs_fc { returns = ce }
+                                        ( Abstracted { abstract = simpleCAFuncCall . repTCsFC (type_classes s) $ abs_fc
+                                                     , real = simpleCAFuncCall . repTCsFC (type_classes s) $ abs_fc { returns = ce }
                                                      , hits_lib_err_in_real = t
                                                      , func_calls_in_real = [] }
                                         ) m
                         False -> return NotAbstractRes
             [] -> do undefined -- We hit an error in a library function
                      return $ AbstractRes 
-                              ( Abstracted { abstract = repTCsFC (type_classes s) $ abs_fc
-                                           , real = repTCsFC (type_classes s) $ abs_fc { returns = Prim Error TyUnknown }
+                              ( Abstracted { abstract = simpleCAFuncCall . repTCsFC (type_classes s) $ abs_fc
+                                           , real = simpleCAFuncCall . repTCsFC (type_classes s) $ abs_fc { returns = Prim Error TyUnknown }
                                            , hits_lib_err_in_real = True
                                            , func_calls_in_real = [] }
                               ) (model s)
@@ -187,10 +187,10 @@ getAbstracted solver simplifier share s bindings abs_fc@(FuncCall { funcName = n
                 }] -> do
                   let fs' = modelToExprEnv fs
                   (bindings'', gfc') <- reduceFuncCallMaybeList solver simplifier share bindings' fs' gfc
-                  return $ ( Abstracted { abstract = repTCsFC (type_classes s) abs_fc
-                                        , real = repTCsFC (type_classes s) $ abs_fc { returns = (inline (expr_env fs) HS.empty ce) }
+                  return $ ( Abstracted { abstract = simpleCAFuncCall $ repTCsFC (type_classes s) abs_fc
+                                        , real = simpleCAFuncCall . repTCsFC (type_classes s) $ abs_fc { returns = (inline (expr_env fs) HS.empty ce) }
                                         , hits_lib_err_in_real = hle
-                                        , func_calls_in_real = gfc' }
+                                        , func_calls_in_real = map simpleCAFuncCall gfc' }
                                 , m)
             _ -> error $ "checkAbstracted': Bad return from runG2WithSomes"
     | otherwise = error $ "getAbstracted: Bad lookup in runG2WithSomes"

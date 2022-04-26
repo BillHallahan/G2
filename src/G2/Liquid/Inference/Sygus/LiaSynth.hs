@@ -744,8 +744,12 @@ envToSMT meas_ex evals si fc =
     in
     (assrts, HM.fromList real_calls)
 
-envToSMT' :: MeasureExs -> Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncCall -> SMTName -> [(SMTAST, (SMTName, FuncConstraint))]
-envToSMT' meas_ex (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(FuncCall { funcName = f }) uc_n =
+envToSMT' :: MeasureExs -> Evals (Integer, Bool)  -> M.Map Name SpecInfo -> CAFuncCall -> SMTName -> [(SMTAST, (SMTName, FuncConstraint))]
+envToSMT' meas_ex (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si cafc uc_n =
+    let
+        fc = conc_fc cafc
+        f = funcName fc
+    in
     case M.lookup f m_si of
         Just si ->
             let
@@ -763,8 +767,8 @@ envToSMT' meas_ex (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(Fu
                 pre = pre_op $ Func (s_known_pre_name si) [VInt pre_i]
                 post = post_op $ Func (s_known_post_name si) [VInt post_i]
 
-                pre_real = pre_op_fc (Call Pre fc)
-                post_real = post_op_fc (Call Post fc)
+                pre_real = pre_op_fc (Call Pre cafc)
+                post_real = post_op_fc (Call Post cafc)
 
                 pre_name = "pre_" ++ uc_n
                 post_name = "post_" ++ uc_n

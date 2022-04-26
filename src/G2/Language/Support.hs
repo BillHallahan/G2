@@ -27,6 +27,7 @@ import G2.Language.TypeClasses
 import G2.Language.TypeEnv
 import G2.Language.Typing
 import G2.Language.PathConds hiding (map, filter)
+import qualified G2.Language.PathConds as PC
 import G2.Execution.RuleTypes
 
 import GHC.Generics (Generic)
@@ -44,7 +45,7 @@ import qualified Data.Text as T
 data State t = State { expr_env :: E.ExprEnv
                      , type_env :: TypeEnv
                      , curr_expr :: CurrExpr
-                     , path_conds :: PathConds -- ^ Path conditions, in SWHNF
+                     , path_conds :: PC.PathConds -- ^ Path conditions, in SWHNF
                      , non_red_path_conds :: [Expr] -- ^ Path conditions that still need further reduction
                      , true_assert :: Bool -- ^ Have we violated an assertion?
                      , assert_ids :: Maybe FuncCall
@@ -137,6 +138,31 @@ instance Hashable CEAction
 -- | A model is a mapping of symbolic variable names to `Expr`@s@,
 -- typically produced by a solver. 
 type Model = HM.HashMap Name Expr
+
+-- | A `CAFuncCall` contains both `conc_fc`- a `FuncCall` which may not contain
+-- any symbolic variables- and `abs_fc`- a `FuncCall` which may contain the
+-- symbolic variables in `symb_fc`, constrainted by the path constraints in `paths_fc`.
+-- An invariant is that `conc_fc` should be a concretization of `abs_fc`.
+data CAFuncCall = CAFuncCall { conc_fc :: FuncCall
+                             , abs_fc :: FuncCall
+                             , paths_fc :: PC.PathConds
+                             , symb_fc :: S.HashSet Id }
+                  deriving (Eq, Show, Read, Generic)
+
+-- | Given a concrete `FunctionCall`, creates a trivial `CAFuncCall`
+simpleCAFuncCall :: FuncCall -> CAFuncCall
+simpleCAFuncCall fc = CAFuncCall { conc_fc = fc
+                                 , abs_fc = fc
+                                 , paths_fc = PC.empty
+                                 , symb_fc = S.empty }
+
+mapFCs :: (FuncCall -> FuncCall) -> CAFuncCall -> CAFuncCall
+mapFCs f cafc@(CAFuncCall { conc_fc = cfc, abs_fc = afc }) = cafc { conc_fc = f cfc, abs_fc = f afc}
+
+instance Hashable CAFuncCall
+
+caFuncName :: CAFuncCall -> Name
+caFuncName = funcName . conc_fc
 
 -- | Replaces all of the names old in state with a name seeded by new_seed
 renameState :: Named t => Name -> Name -> State t -> Bindings -> (State t, Bindings)
@@ -360,3 +386,27 @@ instance Named Frame where
     renames hm (CurrExprFrame act e) = CurrExprFrame act (renames hm e)
     renames hm (AssumeFrame e) = AssumeFrame (renames hm e)
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
+
+instance ASTContainer CAFuncCall Expr where
+    containedASTs fc = containedASTs (conc_fc fc) <> containedASTs (abs_fc fc) <> containedASTs (paths_fc fc)
+    modifyContainedASTs f fc =
+        CAFuncCall { conc_fc = modifyContainedASTs f (conc_fc fc)
+                   , abs_fc = modifyContainedASTs f (abs_fc fc)
+                   , paths_fc = modifyContainedASTs f (paths_fc fc)
+                   , symb_fc = symb_fc fc }
+
+instance ASTContainer CAFuncCall Type where
+    containedASTs fc = containedASTs (conc_fc fc) <> containedASTs (abs_fc fc) <> containedASTs (paths_fc fc)
+    modifyContainedASTs f fc =
+        CAFuncCall { conc_fc = modifyContainedASTs f (conc_fc fc)
+                   , abs_fc = modifyContainedASTs f (abs_fc fc)
+                   , paths_fc = modifyContainedASTs f (paths_fc fc)
+                   , symb_fc = symb_fc fc }
+
+instance Named CAFuncCall where
+    names fc = names (conc_fc fc) <> names (abs_fc fc) <> names (paths_fc fc) <> names (symb_fc fc)
+    renames hm fc =
+        CAFuncCall { conc_fc = renames hm (conc_fc fc)
+                   , abs_fc = renames hm (abs_fc fc)
+                   , paths_fc = renames hm (paths_fc fc)
+                   , symb_fc = renames hm (symb_fc fc) }

@@ -544,7 +544,7 @@ updateMeasureExs meas_ex lrs ghci fcs =
     let
         es = concatMap (\fc ->
                     let
-                        clls = allCalls fc
+                        clls = allCalls' fc
                         vls = concatMap (\c -> returns c:arguments c) clls 
                         ex_poly = concat . concatMap extractValues . concatMap extractExprPolyBound $ vls
                     in
@@ -562,7 +562,7 @@ synthesize con ghci lrs evals meas_ex fc blk_mdls to_be for_funcs = do
 
 updateEvals :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> FuncConstraints -> Evals Bool -> m (Evals Bool)
 updateEvals ghci lrs fc evals = do
-    let cs = allCallsFC fc
+    let cs = allCallsFC' fc
 
     liftIO $ putStrLn "Before check func calls"
     evals' <- preEvals evals lrs ghci cs
@@ -575,8 +575,8 @@ updateEvals ghci lrs fc evals = do
 -- | Converts counterexamples into constraints that block the current specification set
 cexsToBlockingFC :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] -> CounterExample -> m (Either CounterExample FuncConstraint)
 cexsToBlockingFC _ _ (DirectCounter dfc fcs@(_:_))
-    | (_:_, _) <- partition (hasArgError . abstract) fcs = undefined
-    | isError (returns (abstract dfc)) = do
+    | (_:_, _) <- partition (hasArgError . conc_fc . abstract) fcs = undefined
+    | isError (returns . conc_fc $ abstract dfc) = do
         infconfig <- infConfigM
         let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 
@@ -596,8 +596,8 @@ cexsToBlockingFC _ _ (DirectCounter dfc fcs@(_:_))
             then return . Right $ ImpliesFC lhs rhs
             else error "cexsToBlockingFC: Unhandled"
 cexsToBlockingFC _ _ (CallsCounter dfc cfc fcs@(_:_))
-    | (_:_, _) <- partition (hasArgError . abstract) fcs = undefined
-    | isError (returns (abstract cfc)) = do
+    | (_:_, _) <- partition (hasArgError . conc_fc . abstract) fcs = undefined
+    | isError (returns . conc_fc $ abstract cfc) = do
         infconfig <- infConfigM
         let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 
@@ -621,41 +621,41 @@ cexsToBlockingFC _ _ (CallsCounter dfc cfc fcs@(_:_))
             then return . Right $ ImpliesFC lhs rhs
             else error "cexsToBlockingFC: Should be unreachable! Non-refinable function abstracted!"    
 cexsToBlockingFC lrs ghci cex@(DirectCounter dfc [])
-    | isError (returns (real dfc)) = do
-        if isExported lrs (funcName (real dfc))
+    | isError (returns . conc_fc . real $ dfc) = do
+        if isExported lrs (funcName . conc_fc . real $ dfc)
             then return . Left $ cex
             else return . Right . NotFC $ Call Pre (real dfc)
-    | isExported lrs (funcName (real dfc)) = do
-        post_ref <- checkPost ghci lrs (real dfc)
+    | isExported lrs (funcName . conc_fc . real $ dfc) = do
+        post_ref <- checkPost ghci lrs (conc_fc $ real dfc)
         case post_ref of
             True -> return $ Right (Call All (real dfc))
             False -> return . Left $ cex
     | otherwise = return $ Right (Call All (real dfc))
 cexsToBlockingFC lrs ghci cex@(CallsCounter dfc cfc [])
-    | any isError (arguments (abstract cfc)) = do
+    | any isError (arguments . conc_fc . abstract $ cfc) = do
         if
-            | isExported lrs (funcName (real dfc))
-            , isExported lrs (funcName (real cfc)) -> do
-                called_pr <- checkPre ghci lrs (real cfc) -- TODO: Shouldn't be changing this?
+            | isExported lrs (funcName . conc_fc . real $ dfc)
+            , isExported lrs (funcName . conc_fc . real $ cfc) -> do
+                called_pr <- checkPre ghci lrs (conc_fc $ real cfc) -- TODO: Shouldn't be changing this?
                 case called_pr of
                     True -> return . Right $ NotFC (Call Pre (real dfc))
                     False -> return . Left $ cex
-            | isExported lrs (funcName (real dfc)) -> do
-                called_pr <- checkPre ghci lrs (real cfc)
+            | isExported lrs (funcName . conc_fc . real $ dfc) -> do
+                called_pr <- checkPre ghci lrs (conc_fc $ real cfc)
                 case called_pr of
                     True -> return . Right $ NotFC (Call Pre (real dfc))
                     False -> return . Left $ cex
             | otherwise -> return . Right $ NotFC (Call Pre (real dfc))
     | otherwise = do
         if
-            | isExported lrs (funcName (real dfc))
-            , isExported lrs (funcName (real cfc)) -> do
-                called_pr <- checkPre ghci lrs (real cfc) -- TODO: Shouldn't be changing this?
+            | isExported lrs (funcName . conc_fc . real $ dfc)
+            , isExported lrs (funcName . conc_fc . real $ cfc) -> do
+                called_pr <- checkPre ghci lrs (conc_fc $ real cfc) -- TODO: Shouldn't be changing this?
                 case called_pr of
                     True -> return . Right $ ImpliesFC (Call Pre (real dfc)) (Call Pre (real cfc))
                     False -> return . Left $ cex
-            | isExported lrs (funcName (real dfc)) -> do
-                called_pr <- checkPre ghci lrs (real cfc)
+            | isExported lrs (funcName . conc_fc . real $ dfc) -> do
+                called_pr <- checkPre ghci lrs (conc_fc $ real cfc)
                 case called_pr of
                     True -> return . Right $ ImpliesFC (Call Pre (real dfc)) (Call Pre (real cfc))
                     False -> return . Left $ cex
@@ -677,16 +677,16 @@ cexsToExtraFC (CallsCounter dfc cfc fcs@(_:_)) = do
 
     let pre_real = maybeToList $ realToMaybeFC cfc
         as = mapMaybe realToMaybeFC fcs'
-        clls = if not . isError . returns . real $ cfc
+        clls = if not . isError . returns . conc_fc . real $ cfc
                   then [Call All $ real cfc]
                   else []
 
     return $ some_pre:clls ++ pre_real ++ as
 cexsToExtraFC (DirectCounter _ []) = return []
 cexsToExtraFC (CallsCounter dfc cfc [])
-    | isError (returns (real dfc)) = return []
-    | isError (returns (real cfc)) = return []
-    | any isError (arguments (real cfc)) = return []
+    | isError (returns . conc_fc . real $ dfc) = return []
+    | isError (returns . conc_fc . real $ cfc) = return []
+    | any isError (arguments . conc_fc . real $ cfc) = return []
     | otherwise =
         let
             call_all_dfc = Call All (real dfc)
@@ -702,9 +702,9 @@ noAbsStatesToCons' :: Id -> ExecRes AbstractedInfo -> [FuncConstraint]
 noAbsStatesToCons' i@(Id (Name _ m _ _) _) er =
     let
         pre_s = lhStateToPreFC i er
-        clls = filter (\fc -> nameModule (funcName fc) == m) 
+        clls = filter (\fc -> nameModule (caFuncName fc) == m) 
              . map (switchName (idName i))
-             . filter (not . hasArgError)
+             . filter (not . hasArgError . conc_fc)
              . func_calls_in_real
              . init_call
              . track
@@ -714,7 +714,7 @@ noAbsStatesToCons' i@(Id (Name _ m _ _) _) er =
         -- A function may return error because it was passed an erroring higher order function.
         -- In this case, it would be incorrect to add a constraint that the function itself calls error.
         -- Thus, we simply get rid of constraints that call error. 
-        callsCons = mapMaybe (\fc -> case isError (returns fc) of
+        callsCons = mapMaybe (\fc -> case isError . returns . conc_fc $ fc of
                                       True -> Nothing -- NotFC (Call Pre fc)
                                       False -> Just (Call All fc)) clls
         callsCons' = if hits_lib_err_in_real (init_call . track . final_state $ er)
@@ -723,15 +723,19 @@ noAbsStatesToCons' i@(Id (Name _ m _ _) _) er =
     in
     preCons ++ callsCons'
 
-switchName :: Name -> FuncCall -> FuncCall
-switchName n fc = if funcName fc == initiallyCalledFuncName then fc { funcName = n } else fc
+switchName :: Name -> CAFuncCall -> CAFuncCall
+switchName n fc = if caFuncName fc == initiallyCalledFuncName
+                        then fc { conc_fc = switch (conc_fc fc), abs_fc = switch (abs_fc fc) }
+                        else fc
+    where
+        switch f = f { funcName = n }
 
 --------------------------------------------------------------------
 
 realToMaybeFC :: Abstracted -> Maybe FuncConstraint
 realToMaybeFC a@(Abstracted { real = fc }) 
     | hits_lib_err_in_real a = Nothing
-    | isError (returns fc) = Just $ NotFC (Call Pre fc)
+    | isError . returns . conc_fc $ fc = Just $ NotFC (Call Pre fc)
     | otherwise = Just $ ImpliesFC (Call Pre fc) (Call Post fc)
 
 isExported :: LiquidReadyState -> Name -> Bool
@@ -740,18 +744,18 @@ isExported lrs (Name n m _ _) =
 
 lhStateToPreFC :: Id -> ExecRes AbstractedInfo -> FuncConstraint
 lhStateToPreFC i (ExecRes { conc_args = inArg
-                          , conc_out = ex}) = Call Pre (FuncCall (idName i) inArg ex)
+                          , conc_out = ex}) = Call Pre $ simpleCAFuncCall (FuncCall (idName i) inArg ex)
 
 abstractedMod :: Abstracted -> Maybe T.Text
-abstractedMod = nameModule . funcName . abstract
+abstractedMod = nameModule . caFuncName . abstract
 
 hasPreArgError :: CounterExample -> Bool
 hasPreArgError (DirectCounter _ _) = False
-hasPreArgError (CallsCounter _ calls_f _) = hasArgError $ real calls_f
+hasPreArgError (CallsCounter _ calls_f _) = hasArgError . conc_fc $ real calls_f
 
 hasAbstractedArgError :: CounterExample -> Bool
-hasAbstractedArgError (DirectCounter _ as) = any (hasArgError . real) as
-hasAbstractedArgError (CallsCounter _ _ as) = any (hasArgError . real) as
+hasAbstractedArgError (DirectCounter _ as) = any (hasArgError . conc_fc . real) as
+hasAbstractedArgError (CallsCounter _ _ as) = any (hasArgError . conc_fc . real) as
 
 hasArgError :: FuncCall -> Bool
 hasArgError = any isError . arguments

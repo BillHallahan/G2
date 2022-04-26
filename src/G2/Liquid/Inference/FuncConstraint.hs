@@ -23,7 +23,9 @@ module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
                                           , differenceFC
                                           , allCallNames
                                           , allCalls
+                                          , allCalls'
                                           , allCallsFC
+                                          , allCallsFC'
 
                                           , zeroOutUnq
 
@@ -53,7 +55,7 @@ newtype FuncConstraints = FuncConstraints (M.Map Name (HS.HashSet FuncConstraint
 
 data SpecPart = All | Pre | Post deriving (Eq, Show, Read, Generic)
 
-data FuncConstraint = Call SpecPart FuncCall
+data FuncConstraint = Call SpecPart CAFuncCall
                     | AndFC [FuncConstraint]
                     | OrFC [FuncConstraint]
                     | ImpliesFC FuncConstraint FuncConstraint
@@ -120,19 +122,25 @@ differenceFC (FuncConstraints fc1) (FuncConstraints fc2) =
                       fc1 fc2
 
 allCallNames :: FuncConstraint -> [Name]
-allCallNames = map funcName . allCalls
+allCallNames = map (funcName . conc_fc) . allCalls
 
-allCalls :: FuncConstraint -> [FuncCall]
+allCalls :: FuncConstraint -> [CAFuncCall]
 allCalls (Call _ fc) = [fc]
 allCalls (AndFC fcs) = concatMap allCalls fcs
 allCalls (OrFC fcs) = concatMap allCalls fcs
 allCalls (ImpliesFC fc1 fc2) = allCalls fc1 ++ allCalls fc2
 allCalls (NotFC fc) = allCalls fc
 
-allCallsFC :: FuncConstraints -> [FuncCall]
+allCalls' :: FuncConstraint -> [FuncCall]
+allCalls' = concatMap (\fc -> [conc_fc fc, abs_fc fc]) . allCalls
+
+allCallsFC :: FuncConstraints -> [CAFuncCall]
 allCallsFC = concatMap allCalls . toListFC
 
-allCallsByName :: FuncConstraints -> [FuncCall]
+allCallsFC' :: FuncConstraints -> [FuncCall]
+allCallsFC' = concatMap (\fc -> [conc_fc fc, abs_fc fc]) . allCallsFC
+
+allCallsByName :: FuncConstraints -> [CAFuncCall]
 allCallsByName = concatMap allCalls . toListFC
 
 printFCs :: LiquidReadyState -> FuncConstraints -> String
@@ -140,15 +148,11 @@ printFCs lrs fcs =
     intercalate "\n" . map (printFC (state . lr_state $ lrs)) $ toListFC fcs
 
 printFC :: State t -> FuncConstraint -> String
-printFC s (Call sp (FuncCall { funcName = Name f _ _ _, arguments = ars, returns = r})) =
-    let
-        call_str fn = printHaskell s . foldl (\a a' -> App a a') (Var (Id fn TyUnknown)) $ ars
-        r_str = printHaskell s r
-    in
+printFC s (Call sp (CAFuncCall { conc_fc = cfc })) =
     case sp of
-        Pre -> "(" ++ call_str (Name (f <> "_pre") Nothing 0 Nothing) ++ ")"
-        Post -> "(" ++ call_str (Name (f <> "_post") Nothing 0 Nothing) ++ " " ++ r_str ++ ")"
-        All -> "(" ++ call_str (Name f Nothing 0 Nothing) ++ " " ++ r_str ++ ")"
+        Pre -> "(" ++ printPreCall s cfc ++ ")"
+        Post -> "(" ++ printPostCall s cfc ++ ")"
+        All -> "(" ++ printAllCall s cfc ++ ")"
 printFC s (AndFC fcs) =
     case fcs of
         (f:fcs') -> foldr (\fc fcs'' -> fcs'' ++ " && " ++ printFC s fc) (printFC s f) fcs'
@@ -159,6 +163,26 @@ printFC s (OrFC fcs) =
         [] -> "False"
 printFC s (ImpliesFC fc1 fc2) = "(" ++ printFC s fc1 ++ ") => (" ++ printFC s fc2 ++ ")"
 printFC s (NotFC fc) = "not (" ++ printFC s fc ++ ")"
+
+printPreCall :: State t -> FuncCall -> String
+printPreCall s (FuncCall { funcName = Name f _ _ _, arguments = ars, returns = r}) =
+    printHaskell s . foldl (\a a' -> App a a') (Var (Id (Name (f <> "_pre") Nothing 0 Nothing) TyUnknown)) $ ars
+
+printPostCall :: State t -> FuncCall -> String
+printPostCall s (FuncCall { funcName = Name f _ _ _, arguments = ars, returns = r}) =
+    let
+        cll = printHaskell s . foldl (\a a' -> App a a') (Var (Id (Name (f <> "post") Nothing 0 Nothing) TyUnknown)) $ ars
+        r_str = printHaskell s r
+    in
+    cll ++ " " ++ r_str ++ ")"
+
+printAllCall :: State t -> FuncCall -> String
+printAllCall s (FuncCall { funcName = f, arguments = ars, returns = r}) =
+    let
+        cll = printHaskell s . foldl (\a a' -> App a a') (Var (Id f TyUnknown)) $ ars
+        r_str = printHaskell s r
+    in
+    cll ++ " " ++ r_str ++ ")"
 
 instance ASTContainer FuncConstraint Expr where
     containedASTs (Call sp fc) = containedASTs fc
