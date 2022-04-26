@@ -35,6 +35,7 @@ import qualified G2.Liquid.Types as G2LH
 import G2.Solver
 import G2.Translation
 
+import Language.Haskell.Liquid.Types hiding (Config, cls, names, measures)
 import Language.Haskell.Liquid.Types as LH
 
 import Control.Monad.IO.Class 
