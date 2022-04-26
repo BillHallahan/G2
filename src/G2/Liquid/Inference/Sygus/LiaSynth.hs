@@ -1267,7 +1267,7 @@ buildLIA_LH' si mv =
 
         eIte PTrue x _ = x
         eIte PFalse _ y = y
-        eIte _ _ _ = error "eIte: Should never have non-concrete bool"
+        eIte b e1 e2 = EIte b e1 e2
 
         pAnd xs =
             case any (== PFalse) xs of
