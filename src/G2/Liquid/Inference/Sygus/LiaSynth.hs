@@ -93,12 +93,12 @@ liaSynthOfSize sz m_si = do
                         s_syn_pre' =
                             map (mapPB
                                     (\psi ->
-                                        psi { sy_coeffs = mkCNF (>= 1) sz (fromInteger max_sz) (sy_name psi) psi }
+                                        psi { sy_coeffs = mkExprForm (>= 1) sz (fromInteger max_sz) (sy_name psi) psi }
                                     )
                                  ) (s_syn_pre si)
                         s_syn_post' =
                             mapPB (\psi -> 
-                                        psi { sy_coeffs = mkCNF (>= 1) sz (fromInteger max_sz) (sy_name psi) psi }
+                                        psi { sy_coeffs = mkExprForm (>= 1) sz (fromInteger max_sz) (sy_name psi) psi }
                                   ) (s_syn_post si)
                     in
                     si { s_syn_pre = s_syn_pre' -- (s_syn_pre si) { sy_coeffs = pre_c }
@@ -107,40 +107,51 @@ liaSynthOfSize sz m_si = do
     return m_si'
     where
 
-mkCNF :: (Int -> Bool) -> Integer -> Int -> String -> SynthSpec -> CNF
-mkCNF prd sz ms s psi_ =
-    (if length (set_sy_args psi_) + length (set_sy_rets psi_) == 0
+mkExprForm :: (Int -> Bool) -> Integer -> Int -> String -> SynthSpec -> ExprForm
+mkExprForm pred size ms seed synth_spec =
+    if length (set_sy_args synth_spec) + length (set_sy_rets synth_spec) == 0
         then
-          [ 
-              (
-                  s ++ "_c_coeff_act_" ++ show j
-              ,
-                   [ mkCoeffs prd s psi_ j k | k <- [1..sz] ] -- Ors
-              )
-          | j <-  [1..sz] ] -- Ands
-        else [])
-  ++
-    (if length (set_sy_args psi_) + length (set_sy_rets psi_) > 0
-        then
-            [ 
-                (
-                    s ++ "_c_set_act_" ++ show j
-                ,
-                     [ mkSetForms prd ms s psi_ j k | k <- [1..sz] ] -- Ors
-                )
-            | j <-  [1..sz] ] -- Ands
-        else [])
-  ++
-    (if length (bool_sy_args psi_) + length (bool_sy_rets psi_) > 0
-        then
-            [ 
-                (
-                    s ++ "_c_bool_act_" ++ show j
-                ,
-                     [ mkBoolForms prd sz ms s psi_ j k | k <- [1..sz] ] -- Ors
-                )
-            | j <-  [1..sz] ] -- Ands
-        else [])
+            (if size <= 1
+                then SEdge (seed ++ "_act1", [mkCoeffs pred seed synth_spec 0 0])
+                else SIte (seed ++ "_act1", [mkCoeffs pred (seed ++ "_b") synth_spec 0 0])
+                          (mkExprForm pred (size - 1) ms (seed ++ "_l") synth_spec)
+                          (mkExprForm pred (size - 1) ms (seed ++ "_r") synth_spec))
+        else SFalse
+
+
+-- mkSForms prd sz ms s psi_ =
+--     (if length (set_sy_args psi_) + length (set_sy_rets psi_) == 0
+--         then
+--           [ 
+--               (
+--                   s ++ "_c_coeff_act_" ++ show j
+--               ,
+--                    [ mkCoeffs prd s psi_ j k | k <- [1..sz] ] -- Ors
+--               )
+--           | j <-  [1..sz] ] -- Ands
+--         else [])
+--   ++
+--     (if length (set_sy_args psi_) + length (set_sy_rets psi_) > 0
+--         then
+--             [ 
+--                 (
+--                     s ++ "_c_set_act_" ++ show j
+--                 ,
+--                      [ mkSetForms prd ms s psi_ j k | k <- [1..sz] ] -- Ors
+--                 )
+--             | j <-  [1..sz] ] -- Ands
+--         else [])
+--   ++
+--     (if length (bool_sy_args psi_) + length (bool_sy_rets psi_) > 0
+--         then
+--             [ 
+--                 (
+--                     s ++ "_c_bool_act_" ++ show j
+--                 ,
+--                      [ mkBoolForms prd sz ms s psi_ j k | k <- [1..sz] ] -- Ors
+--                 )
+--             | j <-  [1..sz] ] -- Ands
+--         else [])
 
 
 mkCoeffs :: (Int -> Bool) -> String -> SynthSpec -> Integer -> Integer -> Forms
@@ -171,104 +182,104 @@ mkCoeffs prd s psi j k =
             | a <- [1..rets]]
         }
 
-mkSetForms :: (Int -> Bool) -> Int -> String -> SynthSpec -> Integer -> Integer -> Forms
-mkSetForms prd max_sz s psi j k =
-    let
-        int_ars = length (int_sy_args psi)
-        int_rets = length (int_sy_rets psi)
+-- mkSetForms :: (Int -> Bool) -> Int -> String -> SynthSpec -> Integer -> Integer -> Forms
+-- mkSetForms prd max_sz s psi j k =
+--     let
+--         int_ars = length (int_sy_args psi)
+--         int_rets = length (int_sy_rets psi)
 
-        ars = length (set_sy_args psi)
-        rets = length (set_sy_rets psi)
+--         ars = length (set_sy_args psi)
+--         rets = length (set_sy_rets psi)
 
-        max_sets = min (ars + rets + int_ars + int_rets) 2 -- + max_sz - 1
-    in
-    Set
-        { 
-          c_active = s ++ "_s_act_" ++ show j ++ "_t_" ++ show k
-        , c_op_branch1 = s ++ "_set_op1_" ++ show j ++ "_t_" ++ show k
-        , c_op_branch2 = s ++ "_set_op2_" ++ show j ++ "_t_" ++ show k
+--         max_sets = min (ars + rets + int_ars + int_rets) 2 -- + max_sz - 1
+--     in
+--     Set
+--         { 
+--           c_active = s ++ "_s_act_" ++ show j ++ "_t_" ++ show k
+--         , c_op_branch1 = s ++ "_set_op1_" ++ show j ++ "_t_" ++ show k
+--         , c_op_branch2 = s ++ "_set_op2_" ++ show j ++ "_t_" ++ show k
 
-        , int_sing_set_bools_lhs =
-            if prd rets
-                then
-                    [ 
-                      [ s ++ "_a_set_sing_lhs_" ++ show j ++ "_t_" ++ show k
-                            ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..int_ars + int_rets]]
-                    | a <- [1..max_sets]]
-                else
-                    []
+--         , int_sing_set_bools_lhs =
+--             if prd rets
+--                 then
+--                     [ 
+--                       [ s ++ "_a_set_sing_lhs_" ++ show j ++ "_t_" ++ show k
+--                             ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..int_ars + int_rets]]
+--                     | a <- [1..max_sets]]
+--                 else
+--                     []
 
-        , int_sing_set_bools_rhs =
-            if prd rets
-                then
-                    []
-                    {- [ 
-                      [ s ++ "_a_set_sing_rhs_" ++ show j ++ "_t_" ++ show k
-                            ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..int_ars + int_rets]]
-                    | a <- [1..ars + rets + max_sz - 1]] -}
-                else
-                    []
+--         , int_sing_set_bools_rhs =
+--             if prd rets
+--                 then
+--                     []
+--                     {- [ 
+--                       [ s ++ "_a_set_sing_rhs_" ++ show j ++ "_t_" ++ show k
+--                             ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..int_ars + int_rets]]
+--                     | a <- [1..ars + rets + max_sz - 1]] -}
+--                 else
+--                     []
 
-        , ars_bools_lhs =
-            if prd rets
-                then
-                    [ 
-                      [ s ++ "_a_set_lhs_" ++ show j ++ "_t_" ++ show k
-                            ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..ars]]
-                    | a <- [1..max_sets]]
-                else
-                    []
-        , rets_bools_lhs = 
-            [ [ s ++ "_r_set_lhs_" ++ show j ++ "_t_" ++ show k
-                            ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..rets]]
-            | a <- [1..ars + rets + max_sz - 1]]
+--         , ars_bools_lhs =
+--             if prd rets
+--                 then
+--                     [ 
+--                       [ s ++ "_a_set_lhs_" ++ show j ++ "_t_" ++ show k
+--                             ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..ars]]
+--                     | a <- [1..max_sets]]
+--                 else
+--                     []
+--         , rets_bools_lhs = 
+--             [ [ s ++ "_r_set_lhs_" ++ show j ++ "_t_" ++ show k
+--                             ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..rets]]
+--             | a <- [1..ars + rets + max_sz - 1]]
 
-        , ars_bools_rhs =
-            if prd rets
-                then
-                    [ [ s ++ "_a_set_rhs_" ++ show j ++ "_t_" ++ show k
-                            ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..ars]]
-                    | a <- [1..max_sets]]
-                else
-                    []
-        , rets_bools_rhs = 
-            [[ s ++ "_r_set_rhs_" ++ show j ++ "_t_" ++ show k
-                            ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..rets]]
-            | a <- [1..max_sets]]
-        }
+--         , ars_bools_rhs =
+--             if prd rets
+--                 then
+--                     [ [ s ++ "_a_set_rhs_" ++ show j ++ "_t_" ++ show k
+--                             ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..ars]]
+--                     | a <- [1..max_sets]]
+--                 else
+--                     []
+--         , rets_bools_rhs = 
+--             [[ s ++ "_r_set_rhs_" ++ show j ++ "_t_" ++ show k
+--                             ++ "_a_" ++ show a ++ "_int_" ++ show inter | inter <- [1..rets]]
+--             | a <- [1..max_sets]]
+--         }
 
-mkBoolForms :: (Int -> Bool) -> Integer -> Int -> String -> SynthSpec -> Integer -> Integer -> Forms
-mkBoolForms prd sz max_sz s psi j k =
-    let
-        ars = length (bool_sy_args psi)
-        rets = length (bool_sy_rets psi)
-    in
-    BoolForm
-        {
-          c_active = s ++ "_bool_act_" ++ show j ++ "_t_" ++ show k
-        , c_op_branch1 = s ++ "_bool_op1_" ++ show j ++ "_t_" ++ show k
-        , c_op_branch2 = s ++ "_bool_op2_" ++ show j ++ "_t_" ++ show k
+-- mkBoolForms :: (Int -> Bool) -> Integer -> Int -> String -> SynthSpec -> Integer -> Integer -> Forms
+-- mkBoolForms prd sz max_sz s psi j k =
+--     let
+--         ars = length (bool_sy_args psi)
+--         rets = length (bool_sy_rets psi)
+--     in
+--     BoolForm
+--         {
+--           c_active = s ++ "_bool_act_" ++ show j ++ "_t_" ++ show k
+--         , c_op_branch1 = s ++ "_bool_op1_" ++ show j ++ "_t_" ++ show k
+--         , c_op_branch2 = s ++ "_bool_op2_" ++ show j ++ "_t_" ++ show k
 
-        , ars_bools =
-            if prd rets
-                then
-                    [ s ++ "_a_bool_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
-                    | a <- [1..ars]]
-                else
-                    []
-        , rets_bools = 
-            [ s ++ "_r_bool_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
-            | a <- [1..rets]]
+--         , ars_bools =
+--             if prd rets
+--                 then
+--                     [ s ++ "_a_bool_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
+--                     | a <- [1..ars]]
+--                 else
+--                     []
+--         , rets_bools = 
+--             [ s ++ "_r_bool_" ++ show j ++ "_t_" ++ show k ++ "_a_" ++ show a
+--             | a <- [1..rets]]
 
-        , forms = concat
-                . map snd
-                $ mkCNF (const True) sz max_sz (s ++ "_bool_" ++ show j ++ "_t_" ++ show k ++ "_" )
-                        (psi { sy_args = filter (not . isBool . smt_sort) (sy_args psi)
-                             , sy_rets = filter (not . isBool . smt_sort) (sy_rets psi) })
-        }
-        where
-            isBool SortBool = True
-            isBool _ = False
+--         , forms = concat
+--                 . map snd
+--                 $ mkCNF (const True) sz max_sz (s ++ "_bool_" ++ show j ++ "_t_" ++ show k ++ "_" )
+--                         (psi { sy_args = filter (not . isBool . smt_sort) (sy_args psi)
+--                              , sy_rets = filter (not . isBool . smt_sort) (sy_rets psi) })
+--         }
+--         where
+--             isBool SortBool = True
+--             isBool _ = False
 
 synth :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
       => con
@@ -472,42 +483,43 @@ filterIrrelByConstruction = flip (foldr filterIrrelByConstruction')
 
 filterIrrelByConstruction' :: SynthSpec -> SMTModel -> SMTModel
 filterIrrelByConstruction' sys = 
-      filterClauseActiveBooleans sys
-    . filterCoeffActiveBooleans sys
-    . filterRelOpBranch sys
+      -- filterClauseActiveBooleans sys
+    -- . filterCoeffActiveBooleans sys
+    -- . 
+    filterRelOpBranch sys
 
 -- If the clause level boolean is set to true, we remove all the
 -- formula level active booleans, since the formulas are
 -- irrelevant.
-filterClauseActiveBooleans :: SynthSpec -> SMTModel -> SMTModel
-filterClauseActiveBooleans si mdl =
-    let
-        clauses = sy_coeffs si
-    in
-    foldr (\(cl_act, cfs) mdl_ -> if
-              | M.lookup cl_act mdl_ == Just (VBool True) ->
-                  foldr (\c -> M.delete (c_active c)) mdl_ cfs
-              | otherwise -> mdl_) mdl clauses
+-- filterClauseActiveBooleans :: SynthSpec -> SMTModel -> SMTModel
+-- filterClauseActiveBooleans si mdl =
+--     let
+--         clauses = sy_coeffs si
+--     in
+--     foldr (\(cl_act, cfs) mdl_ -> if
+--               | M.lookup cl_act mdl_ == Just (VBool True) ->
+--                   foldr (\c -> M.delete (c_active c)) mdl_ cfs
+--               | otherwise -> mdl_) mdl clauses
 
 -- If the formula level active booleans are set to false, we remove all the
 -- coefficients in the formula, since the formula is now irrelevant.
-filterCoeffActiveBooleans :: SynthSpec -> SMTModel -> SMTModel
-filterCoeffActiveBooleans si mdl =
-    let
-        clauses = sy_coeffs si
-        cffs = concatMap snd clauses
-    in
-    foldr (\cf mdl_ -> if
-              | M.lookup (c_active cf) mdl_ == Just (VBool False) ->
-                foldr M.delete mdl_ (coeffs cf)
-              | otherwise -> mdl_) mdl cffs
+-- filterCoeffActiveBooleans :: SynthSpec -> SMTModel -> SMTModel
+-- filterCoeffActiveBooleans si mdl =
+--     let
+--         clauses = sy_coeffs si
+--         cffs = allActiveControlsFromExprForm clauses
+--     in
+--     foldr (\cf mdl_ -> if
+--               | M.lookup (c_active cf) mdl_ == Just (VBool False) ->
+--                 foldr M.delete mdl_ (coeffs cf)
+--               | otherwise -> mdl_) mdl cffs
 
 
 filterRelOpBranch :: SynthSpec -> SMTModel -> SMTModel
 filterRelOpBranch si mdl =
     let
         clauses = sy_coeffs si
-        coeffs = concatMap snd clauses
+        coeffs = allFormsFromExprForm clauses
     in
     -- If we are not using a clause, we don't care about c_op_branch1 and c_op_branch2
     -- If we are using a clause but c_op_branch1 is true, we don't care about c_op_branch2
@@ -789,7 +801,7 @@ mkRetNonZero' si =
     in
     concatMap (\sys ->
               let
-                  cffs = sy_coeffs sys
+                  cffs = exprFormToClauses $ sy_coeffs sys
               in
               map
                   (\(act, cff) ->
@@ -844,54 +856,54 @@ mkCoeffRetNonZero cffs@(BoolForm {}) =
 -- (4) If the n^th "and" is deactivated (by it's boolean being false),
 -- then the n + 1^th "and" must also be deactivated 
 limitEquivModels :: M.Map Name SpecInfo -> [SMTHeader]
-limitEquivModels m_si =
-    let
-        a_si = filter (\si -> s_status si == Synth) $ M.elems m_si
-        -- (1)
-        clauses = concatMap allCNFs a_si
-        cl_imp_coeff = concatMap
-                          (\(cl_act, cffs) ->
-                            map (\cf -> V cl_act SortBool :=> ((:!) $ V (c_active cf) SortBool)) cffs
-                          ) clauses 
+limitEquivModels m_si = []
+    -- let
+    --     a_si = filter (\si -> s_status si == Synth) $ M.elems m_si
+    --     -- (1)
+    --     clauses = concatMap allCNFs a_si
+    --     cl_imp_coeff = concatMap
+    --                       (\(cl_act, cffs) ->
+    --                         map (\cf -> V cl_act SortBool :=> ((:!) $ V (c_active cf) SortBool)) cffs
+    --                       ) clauses 
 
-        -- (2)
-        cffs = concatMap snd clauses
-        coeff_act_imp_zero = concatMap
-                                 (\cf ->
-                                      map (\c -> ((:!) $ V (c_active cf) SortBool) :=> (V c SortInt := VInt 0)) (coeffs cf)
-                                 ) cffs
+    --     -- (2)
+    --     cffs = concatMap snd clauses
+    --     coeff_act_imp_zero = concatMap
+    --                              (\cf ->
+    --                                   map (\c -> ((:!) $ V (c_active cf) SortBool) :=> (V c SortInt := VInt 0)) (coeffs cf)
+    --                              ) cffs
 
-        -- (3)
-        or_acts = map (map (map fst) . allCNFsSeparated) a_si :: [[[SMTName]]]
-        or_neighbors_deact =
-            concatMap 
-              (concatMap 
-                (map (\(n1, n2) -> ((:!) $ V n2 SortBool) :=> ((:!) $ V n1 SortBool)) . neighbors)
-              ) $ or_acts
+    --     -- (3)
+    --     or_acts = map (map (map fst) . allCNFsSeparated) a_si :: [[[SMTName]]]
+    --     or_neighbors_deact =
+    --         concatMap 
+    --           (concatMap 
+    --             (map (\(n1, n2) -> ((:!) $ V n2 SortBool) :=> ((:!) $ V n1 SortBool)) . neighbors)
+    --           ) $ or_acts
 
-        -- (4)
-        and_neighbors_deact =  and_block (\case LIA {} -> True; _ -> False) a_si
-                            ++ and_block (\case Set {} -> True; _ -> False) a_si
-    in
-    map Solver.Assert $ cl_imp_coeff ++ coeff_act_imp_zero -- ++ or_neighbors_deact ++ and_neighbors_deact
-    where
-        neighbors [] = []
-        neighbors [_] = []
-        neighbors (x:xs@(y:_)) = (x, y):neighbors xs
+    --     -- (4)
+    --     and_neighbors_deact =  and_block (\case LIA {} -> True; _ -> False) a_si
+    --                         ++ and_block (\case Set {} -> True; _ -> False) a_si
+    -- in
+    -- map Solver.Assert $ cl_imp_coeff ++ coeff_act_imp_zero -- ++ or_neighbors_deact ++ and_neighbors_deact
+    -- where
+    --     neighbors [] = []
+    --     neighbors [_] = []
+    --     neighbors (x:xs@(y:_)) = (x, y):neighbors xs
 
-        and_block p a_si' = 
-            let
-                and_acts = concatMap (map (map snd) . allCNFsSeparated) a_si'
-            in
-            concatMap 
-              (concatMap 
-                  ( mapMaybe 
-                      (\(n1, n2) -> if p n1 && p n2
-                                        then Just (V (c_active n2) SortBool :=> V (c_active n1) SortBool)
-                                        else Nothing)
-                  . neighbors
-                  )
-              ) $ and_acts
+    --     and_block p a_si' = 
+    --         let
+    --             and_acts = concatMap (map (map snd) . allCNFsSeparated) a_si'
+    --         in
+    --         concatMap 
+    --           (concatMap 
+    --               ( mapMaybe 
+    --                   (\(n1, n2) -> if p n1 && p n2
+    --                                     then Just (V (c_active n2) SortBool :=> V (c_active n1) SortBool)
+    --                                     else Nothing)
+    --               . neighbors
+    --               )
+    --           ) $ and_acts
 
 softCoeffAssertZero :: M.Map Name SpecInfo -> [SMTHeader]
 softCoeffAssertZero = map (\n -> AssertSoft (V n SortInt := VInt 0) (Just "minimal_size")) . getCoeffs
@@ -914,7 +926,7 @@ maxCoeffConstraints' to_header max_c =
     . concatMap
         (\si ->
             let
-                cffs = concatMap coeffs . concatMap snd $ allPreCoeffs si ++ allPostCoeffs si
+                cffs = allPreCoeffs si ++ allPostCoeffs si
             in
             if s_status si == Synth
                 then map (\c -> (Neg (VInt (max_c si)) :<= V c SortInt)
@@ -1036,7 +1048,7 @@ getCoeffs :: M.Map Name SpecInfo -> [SMTName]
 getCoeffs = concatMap siGetCoeffs . M.elems
 
 sySpecGetCoeffsNoB :: SynthSpec -> [SMTName]
-sySpecGetCoeffsNoB = concatMap coeffsNoB . concatMap snd . sy_coeffs
+sySpecGetCoeffsNoB = concatMap coeffsNoB . allFormsFromExprForm . sy_coeffs
 
 siGetCoeffs :: SpecInfo -> [SMTName]
 siGetCoeffs si
@@ -1044,7 +1056,7 @@ siGetCoeffs si
     | otherwise = []
 
 sySpecGetCoeffs :: SynthSpec -> [SMTName]
-sySpecGetCoeffs = concatMap coeffs . concatMap snd . sy_coeffs
+sySpecGetCoeffs = allCoeffsFromExprForm . sy_coeffs
 
 getSetBools :: M.Map Name SpecInfo -> [SMTName]
 getSetBools = concatMap siGetSetBools . M.elems
@@ -1055,7 +1067,7 @@ siGetSetBools si
     | otherwise = []
 
 sySpecGetSetBools :: SynthSpec -> [SMTName]
-sySpecGetSetBools = concatMap setBools . concatMap snd . sy_coeffs
+sySpecGetSetBools = concatMap setBools . allFormsFromExprForm . sy_coeffs
 
 getBoolBools :: M.Map Name SpecInfo -> [SMTName]
 getBoolBools = concatMap siGetBoolBools . M.elems 
@@ -1066,7 +1078,7 @@ siGetBoolBools si
     | otherwise = []
 
 sySpecGetBoolBools :: SynthSpec -> [SMTName]
-sySpecGetBoolBools = concatMap boolBools . concatMap snd . sy_coeffs
+sySpecGetBoolBools = concatMap boolBools . allFormsFromExprForm . sy_coeffs
 
 ---
 
@@ -1080,7 +1092,7 @@ siGetOpBranches si
     | otherwise = []
 
 sySpecGetOpBranches :: SynthSpec -> [SMTName]
-sySpecGetOpBranches = concatMap sySpecGetOpBranchesForm . concatMap snd . sy_coeffs
+sySpecGetOpBranches = concatMap sySpecGetOpBranchesForm . allFormsFromExprForm . sy_coeffs
 
 sySpecGetOpBranchesForm :: Forms -> [SMTName]
 sySpecGetOpBranchesForm c@(BoolForm {}) =
@@ -1092,10 +1104,10 @@ sySpecGetActs :: SynthSpec -> [SMTName]
 sySpecGetActs sys = sySpecGetClauseActs sys ++ sySpecGetFuncActs sys
 
 sySpecGetClauseActs :: SynthSpec -> [SMTName]
-sySpecGetClauseActs = map fst . sy_coeffs
+sySpecGetClauseActs = allActiveControlsFromExprForm . sy_coeffs
 
 sySpecGetFuncActs :: SynthSpec -> [SMTName]
-sySpecGetFuncActs = concatMap formActives . concatMap snd . sy_coeffs
+sySpecGetFuncActs = concatMap formActives . allFormsFromExprForm . sy_coeffs
 
 getActs :: M.Map Name SpecInfo -> [SMTName]
 getActs si = getClauseActs si ++ getFuncActs si
@@ -1109,7 +1121,7 @@ getClauseActs m_si =
 
 siGetClauseActs :: SpecInfo -> [SMTName]
 siGetClauseActs si
-    | s_status si == Synth = map fst $ allCNFs si
+    | s_status si == Synth = allActiveControls si
     | otherwise = []
 
 getFuncActs :: M.Map Name SpecInfo -> [SMTName]
@@ -1118,7 +1130,7 @@ getFuncActs m_si =
 
 siGetFuncActs :: SpecInfo -> [SMTName]
 siGetFuncActs si
-    | s_status si == Synth = concatMap formActives . concatMap snd $ allCNFs si
+    | s_status si == Synth = concatMap formActives $ allForms si
     | otherwise = []
 
 formActives :: Forms -> [SMTName]
@@ -1389,13 +1401,19 @@ buildSpec :: Show b => Plus a
 buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_union mk_intersection mk_sing is_subset is_member vint cint vbool vset cemptyset cunivset sf =
     let
         all_coeffs = sy_coeffs sf
-        lin_ineqs = map (\(cl_act, cl) -> vbool cl_act:map toLinInEqs cl) all_coeffs
+        lin_ineqs = toEqs all_coeffs
     in
-    mk_and_sp . map mk_or $ lin_ineqs
+    mk_and_sp [lin_ineqs]
     where
         int_args = map smt_var (int_sy_args_and_ret sf)
         set_args = map smt_var (set_sy_args_and_ret sf)
         bool_args = map smt_var (bool_sy_args_and_ret sf)
+
+        toEqs (SIte frms frm1 frm2) = ite (clauseToLinInEqs frms) (toEqs frm1) (toEqs frm2)
+        toEqs (SEdge c) = clauseToLinInEqs c
+        toEqs (SFalse) = undefined
+
+        clauseToLinInEqs (act, frms) = mk_or $ vbool act:map toLinInEqs frms
 
         toLinInEqs (LIA { c_active = act
                         , c_op_branch1 = op_br1
@@ -1538,31 +1556,78 @@ allPostSynthSpec = extractValues . s_syn_post
 allSynthSpecPoly :: SpecInfo -> [PolyBound SynthSpec]
 allSynthSpecPoly si = s_syn_pre si ++ [s_syn_post si]
 
-allCNFs :: SpecInfo -> CNF
-allCNFs si = allPreCoeffs si ++ allPostCoeffs si
+-- allSForms :: SpecInfo -> SForm
+-- allSForms si = allPreCoeffs si ++ allPostCoeffs si
 
-allPreCoeffs :: SpecInfo -> CNF
-allPreCoeffs = concatMap sy_coeffs . allPreSynthSpec
+allActiveControls :: SpecInfo -> [SMTName]
+allActiveControls si = allActiveControlsPre si ++ allActiveControlsPost si
 
-allPostCoeffs :: SpecInfo -> CNF
-allPostCoeffs = concatMap sy_coeffs . allPostSynthSpec
+allActiveControlsPre :: SpecInfo -> [SMTName]
+allActiveControlsPre = concatMap (allActiveControlsFromExprForm . sy_coeffs) . allPreSynthSpec
+
+
+allActiveControlsPost :: SpecInfo -> [SMTName]
+allActiveControlsPost = concatMap (allActiveControlsFromExprForm . sy_coeffs) . allPostSynthSpec
+
+allActiveControlsFromExprForm :: ExprForm -> [SMTName]
+allActiveControlsFromExprForm (SIte c e1 e2) = allActiveControlsFromClause c:allActiveControlsFromExprForm e1 ++ allActiveControlsFromExprForm e2
+allActiveControlsFromExprForm (SEdge c) = [allActiveControlsFromClause c]
+allActiveControlsFromExprForm SFalse = []
+
+allActiveControlsFromClause :: Clause -> SMTName
+allActiveControlsFromClause = fst
+
+allForms :: SpecInfo -> [Forms]
+allForms si = allPreForms si ++ allPostForms si
+
+allPreForms :: SpecInfo -> [Forms]
+allPreForms = concatMap (allFormsFromExprForm . sy_coeffs) . allPreSynthSpec
+
+allPreCoeffs :: SpecInfo -> [SMTName]
+allPreCoeffs = concatMap (exprFormToCoeffs . sy_coeffs) . allPreSynthSpec
+
+allPostForms :: SpecInfo -> [Forms]
+allPostForms = concatMap (allFormsFromExprForm . sy_coeffs) . allPostSynthSpec
+
+allPostCoeffs :: SpecInfo -> [SMTName]
+allPostCoeffs = concatMap (exprFormToCoeffs . sy_coeffs) . allPostSynthSpec
 
 allPostSpecArgs :: SpecInfo -> [SpecArg]
 allPostSpecArgs = concatMap sy_args_and_ret . allPostSynthSpec
 
-allCNFsSeparated :: SpecInfo -> [CNF]
-allCNFsSeparated si = allPreCoeffsSeparated si ++ allPostCoeffsSeparated si
+exprFormToCoeffs :: ExprForm -> [SMTName]
+exprFormToCoeffs = concatMap clauseToCoeffs . exprFormToClauses
 
-allPreCoeffsSeparated :: SpecInfo -> [CNF]
-allPreCoeffsSeparated = map sy_coeffs . allPreSynthSpec
+clauseToCoeffs :: Clause -> [SMTName]
+clauseToCoeffs = concatMap coeffs . snd
 
-allPostCoeffsSeparated :: SpecInfo -> [CNF]
-allPostCoeffsSeparated = map sy_coeffs . allPostSynthSpec
+exprFormToClauses :: ExprForm -> [Clause]
+exprFormToClauses (SIte c e1 e2) = c:exprFormToClauses e1 ++ exprFormToClauses e2
+exprFormToClauses (SEdge c) = [c]
+exprFormToClauses SFalse = []
 
-allForms :: SpecInfo -> [Forms]
-allForms = concatMap allFormsFromForm
-         . concatMap snd
-         . allCNFs
+-- allCNFsSeparated :: SpecInfo -> [CNF]
+-- allCNFsSeparated si = allPreCoeffsSeparated si ++ allPostCoeffsSeparated si
+
+-- allPreCoeffsSeparated :: SpecInfo -> [CNF]
+-- allPreCoeffsSeparated = map sy_coeffs . allPreSynthSpec
+
+-- allPostCoeffsSeparated :: SpecInfo -> [CNF]
+-- allPostCoeffsSeparated = map sy_coeffs . allPostSynthSpec
+
+-- allForms :: SpecInfo -> [Forms]
+-- allForms = concatMap allFormsFromForm
+--          . concatMap snd
+--          . allCNFs
+
+allCoeffsFromExprForm :: ExprForm -> [SMTName]
+allCoeffsFromExprForm = concatMap coeffs . allFormsFromExprForm
+
+allFormsFromExprForm :: ExprForm -> [Forms]
+allFormsFromExprForm = concatMap allFormsFromClause . exprFormToClauses
+
+allFormsFromClause :: Clause -> [Forms]
+allFormsFromClause = snd
 
 allFormsFromForm :: Forms -> [Forms]
 allFormsFromForm frm@(BoolForm { forms = frms }) = frm:concatMap allFormsFromForm frms

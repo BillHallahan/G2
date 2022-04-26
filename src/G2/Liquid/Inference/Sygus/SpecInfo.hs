@@ -91,8 +91,11 @@ boolBools (Set {}) = []
 boolBools cf@(BoolForm {}) = ars_bools cf ++ rets_bools cf ++ concatMap boolBools (forms cf)
 
 
-type Clause = (SMTName, [Forms]) 
-type CNF = [Clause]
+-- type Clause = (SMTName, [Forms]) 
+type Clause = (SMTName, [Forms])
+-- type CNF = [Clause]
+data ExprForm = SIte Clause ExprForm ExprForm | SEdge Clause | SFalse deriving (Show)
+
 
 -- Internal Types
 data SpecInfo = SI { s_max_coeff :: Integer
@@ -140,7 +143,7 @@ data ToBeSpec = ToBeSpec { tb_name :: SMTName
 data SynthSpec = SynthSpec { sy_name :: SMTName
                            , sy_args :: [SpecArg]
                            , sy_rets :: [SpecArg]
-                           , sy_coeffs :: CNF }
+                           , sy_coeffs :: ExprForm }
                            deriving (Show)
 
 sy_args_and_ret :: SynthSpec -> [SpecArg]
@@ -297,7 +300,7 @@ buildSI tenv tc meas stat ghci f aty rty = do
                                     SynthSpec { sy_name = smt_f ++ "_synth_pre_" ++ show i ++ "_" ++ show j
                                               , sy_args = map (\(a, k) -> a { smt_var = "x_" ++ show k}) $ zip ars ([1..] :: [Integer])
                                               , sy_rets = map (\(r, k) -> r { smt_var = "x_r_" ++ show k}) $ zip rets ([1..] :: [Integer])
-                                              , sy_coeffs = []}
+                                              , sy_coeffs = SFalse }
                                   )  $ zipPB r_pb (uniqueIds r_pb)
                      ) $ zip (filter (not . null) $ L.inits outer_ars_pb) ([1..] :: [Integer])
            , s_syn_post = mkSynSpecPB (smt_f ++ "_synth_post_") arg_ns ret_pb
@@ -385,7 +388,7 @@ mkSynSpecPB smt_f arg_ns pb_sa =
             SynthSpec { sy_name = smt_f ++ show ui
                       , sy_args = arg_ns
                       , sy_rets = ret_ns
-                      , sy_coeffs = [] }
+                      , sy_coeffs = SFalse }
         )
         $ zipPB (uniqueIds pb_sa) pb_sa
 
