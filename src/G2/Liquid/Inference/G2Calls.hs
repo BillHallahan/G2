@@ -287,10 +287,8 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
         timeout = timeout_se infconfig + extra_time
 
         log_mode = case logStates config of
-                        Log mode fp -> if max_sz >= 2 then Log mode (fp ++ show time) else NoLog
+                        Log mode fp -> Log mode (fp ++ show time)
                         NoLog -> NoLog
-
-
 
         m_logger = getLogger (config { logStates = log_mode})
 
