@@ -627,16 +627,12 @@ binT :: LHStateM L.Type
 binT = do
     a <- freshIdN L.TYPE
     let tva = L.TyVar a
-    ord <- lhOrdTCM
     lh <- lhTCM
     bool <- tyBoolT
 
-    let ord' = L.TyCon ord L.TYPE
     let lh' = L.TyCon lh L.TYPE
 
     return $ L.TyForAll (L.NamedTyBndr a) 
-                    (L.TyFun
-                        ord'
                         (L.TyFun
                             lh'
                             (L.TyFun
@@ -647,7 +643,6 @@ binT = do
                                 )
                             )
                         )
-                    )
 
 lhLtE :: LHStateM L.Id
 lhLtE = do
