@@ -8,7 +8,6 @@ module G2.Liquid.AddTyVars ( addTyVarsEEnvTEnv
 
 import G2.Initialization.Types
 import G2.Language hiding (State (..), Bindings (..))
-import qualified G2.Language.KnownValues as KV
 import G2.Liquid.Types
 
 import qualified Data.HashMap.Lazy as HM
@@ -16,10 +15,6 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import Data.Text as T (pack)
-
-import Debug.Trace
-import Data.Monoid (Any (..))
-import qualified G2.Language.ExprEnv as E
 
 addTyVarsEEnvTEnv :: SimpleState -> (SimpleState, PhantomTyVars)
 addTyVarsEEnvTEnv s@(SimpleState { expr_env = eenv
@@ -42,8 +37,6 @@ addTyVarsEEnvTEnv s@(SimpleState { expr_env = eenv
 addTyVarsMeasures :: PhantomTyVars -> LHStateM ()
 addTyVarsMeasures PhantomTyVars { ph_new_maybe = new_mb, ph_unused_poly = unused_poly } = do
     meenv <- measuresM
-    kv <- knownValues
-    tenv <- typeEnv
     ng <- nameGen
     putMeasuresM (addTyVarsExpr unused_poly new_mb meenv ng meenv)
 
@@ -108,7 +101,7 @@ addNewMaybe new_mb@(NewMaybe { new_maybe = new_mb_t }) tenv =
 
 addTyVarsExpr :: ASTContainer m Expr => UnusedPoly -> NewMaybe -> ExprEnv -> NameGen -> m -> m
 addTyVarsExpr unused new_mb eenv ng =
-    modifyASTs (addTyVarsExprCase unused new_mb) . addTyVarsExprDC unused new_mb eenv ng . etaExpandDC eenv ng
+    modifyASTs (addTyVarsExprCase unused new_mb) . addTyVarsExprDC unused new_mb . etaExpandDC eenv ng
 
 etaExpandDC :: ASTContainer m Expr => ExprEnv -> NameGen -> m -> m
 etaExpandDC eenv ng = modifyAppedDatas (etaExpandDC' eenv ng) 
@@ -122,11 +115,11 @@ etaExpandDC' eenv ng dc ars =
     in
     e'
 
-addTyVarsExprDC :: ASTContainer m Expr => UnusedPoly -> NewMaybe -> ExprEnv -> NameGen -> m -> m
-addTyVarsExprDC unused new_mb eenv ng = modifyAppedDatas (addTyVarsExprDC' unused new_mb eenv ng)
+addTyVarsExprDC :: ASTContainer m Expr => UnusedPoly -> NewMaybe -> m -> m
+addTyVarsExprDC unused new_mb = modifyAppedDatas (addTyVarsExprDC' unused new_mb)
 
-addTyVarsExprDC' :: UnusedPoly -> NewMaybe -> ExprEnv -> NameGen -> DataCon -> [Expr] -> Expr
-addTyVarsExprDC' unused new_mb eenv ng dc@(DataCon n _) ars
+addTyVarsExprDC' :: UnusedPoly -> NewMaybe -> DataCon -> [Expr] -> Expr
+addTyVarsExprDC' unused new_mb dc@(DataCon n _) ars
     | Just is <- lookupUP n unused =
         let
             (ty_ars, expr_ars) = partition (isTypeExpr) ars
@@ -143,7 +136,7 @@ addTyVarsExprCase unused new_mb (Case e i as) =
 addTyVarsExprCase _ _ e = e
 
 addTyVarsAlt :: UnusedPoly -> NewMaybe -> Expr -> Alt -> Alt
-addTyVarsAlt unused new_mb case_e alt@(Alt (DataAlt dc@(DataCon n t) is) alt_e)
+addTyVarsAlt unused new_mb case_e (Alt (DataAlt dc@(DataCon n _) is) alt_e)
     | Just i <- lookupUP n unused = 
         let
             dc' = addTyVarDC unused new_mb dc
@@ -151,8 +144,8 @@ addTyVarsAlt unused new_mb case_e alt@(Alt (DataAlt dc@(DataCon n t) is) alt_e)
             ty_binds = reverse . unTyApp $ typeOf case_e
 
             n_str = "a_FILLING_IN_HERE"
-            new_is = map (\(n, tyi) -> Id (Name (T.pack $ n_str ++ show n) Nothing 0 Nothing) $ tyi) 
-                   . zip [0..]
+            new_is = map (\(l, tyi) -> Id (Name (T.pack $ n_str ++ show l) Nothing 0 Nothing) $ tyi) 
+                   . zip ([0..] :: [Int])
                    $ map (ty_binds !!) i
             is' = new_is ++ is
         in
@@ -204,12 +197,6 @@ mkNewMaybe kv ng =
     in
     (NewMaybe { new_maybe = n_m, new_maybe_bound = bnd, new_just = n_j, new_nothing = n_n }, ng')
 
-mkNewMaybeTy :: NewMaybe -> Type
-mkNewMaybeTy new_mb = TyCon (new_maybe new_mb) (TyFun TYPE TYPE)
-
-mkNewJust :: NewMaybe -> Expr
-mkNewJust = Data . mkNewJustDC
-
 mkNewJustDC :: NewMaybe -> DataCon
 mkNewJustDC new_mb =
     let
@@ -222,10 +209,6 @@ mkNewJustDC new_mb =
           $ TyApp (TyCon (new_maybe new_mb) TYPE) tya
     in
     DataCon n t
-
-
-mkNewNothing :: NewMaybe -> Expr
-mkNewNothing = Data . mkNewNothingDC
 
 mkNewNothingDC :: NewMaybe -> DataCon
 mkNewNothingDC new_mb =

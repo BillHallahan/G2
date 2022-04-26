@@ -25,14 +25,10 @@ module G2.Language.Monad.Primitives ( mkGeE
 import G2.Language.KnownValues
 import G2.Language.Primitives
 import G2.Language.Syntax
-import G2.Language.Support
 import G2.Language.Typing
 
 import G2.Language.Monad.ExprEnv
 import G2.Language.Monad.Support
-
-appExpr :: ExState s m => (ExprEnv -> Expr) -> m Expr
-appExpr f = return . f =<< exprEnv
 
 mkGeE :: ExState s m => m Expr
 mkGeE = appKVEEnv geFunc

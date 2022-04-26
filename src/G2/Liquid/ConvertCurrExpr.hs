@@ -17,8 +17,6 @@ import Control.Monad.Extra
 import qualified Data.Map as M
 import Data.Maybe
 
-import Debug.Trace
-
 -- | Returns (1) the Id of the new main function and (2) the functions that need counterfactual variants
 convertCurrExpr :: Id -> Bindings -> LHStateM (Id, [Name])
 convertCurrExpr ifi bindings = do
@@ -145,25 +143,20 @@ letLiftHigherOrder e = return . shiftLetsOutOfApps =<< insertInLamsE letLiftHigh
 
 letLiftHigherOrder' :: [Id] -> Expr -> LHStateM Expr
 letLiftHigherOrder' is e@(App _ _)
-    | Var i@(Id n t) <- appCenter e
+    | Var i <- appCenter e
     , i `elem` is = do
         ni <- freshIdN (typeOf e)
         e' <- modifyAppRHSE (letLiftHigherOrder' is) e
         return $ Let [(ni, e')] (Var ni)
     | d@(Data _) <- appCenter e = do
         let ars = passedArgs e
-        is <- freshIdsN $ map typeOf ars
+        f_is <- freshIdsN $ map typeOf ars
 
-        ars' <- mapM (letLiftHigherOrder' is) ars
+        ars' <- mapM (letLiftHigherOrder' f_is) ars
 
-        return . Let (zip is ars') . mkApp $ d:map Var is
+        return . Let (zip f_is ars') . mkApp $ d:map Var f_is
 letLiftHigherOrder' is e@(Lam _ _ _) = insertInLamsE (\is' -> letLiftHigherOrder' (is ++ is')) e
 letLiftHigherOrder' is e = modifyChildrenM (letLiftHigherOrder' is) e
-
-isFunc :: Type -> Bool
-isFunc (TyFun _ _) = True
-isFunc (TyForAll _ _) = True
-isFunc _ = False
 
 shiftLetsOutOfApps :: Expr -> Expr
 shiftLetsOutOfApps e@(App _ _) =
@@ -187,7 +180,7 @@ getLetsInApp (App e e') = getLetsInApp e ++ getLetsInApp e'
 getLetsInApp _ = []
 
 elimLetsInApp :: Expr -> Expr
-elimLetsInApp (Let b e) = elimLetsInApp e
+elimLetsInApp (Let _ e) = elimLetsInApp e
 elimLetsInApp (App e e') = App (elimLetsInApp e) (elimLetsInApp e')
 elimLetsInApp e = e
 

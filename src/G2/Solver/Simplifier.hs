@@ -5,13 +5,6 @@ module G2.Solver.Simplifier ( Simplifier (..)
                             , IdSimplifier (..)) where
 
 import G2.Language
-import qualified G2.Language.ExprEnv as E
-
-import Data.Hashable
-import qualified Data.HashMap.Lazy as HM
-import Data.List
-import Data.Maybe
-import Data.Tuple
 
 class Simplifier simplifier where
     -- | Simplifies a PC, by converting it to a form that is easier for the Solver's to handle

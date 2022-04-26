@@ -313,7 +313,6 @@ moveOutStatePieces tenv_name s = do
         tags_exp = liftDataT (tags s)
         track_exp = liftDataT (track s)
 
-        pc = path_conds s
         pc_exp = liftDataT . PC.toList $ path_conds s
 
     [| State { expr_env = $(expr_env_exp)

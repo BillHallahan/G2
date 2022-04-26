@@ -18,11 +18,9 @@ module G2.Data.Timer ( Timer
                      , logToSecs ) where
 
 import Control.Monad.IO.Class 
-import Control.Monad.Reader
 import Control.Monad.State.Lazy
 import Data.Ord
 import Data.List
-import qualified Data.Text as T
 import System.Clock
 
 type TimerLog label = [(label, TimeSpec)]
@@ -94,4 +92,4 @@ mapLabels :: (label1 -> label2) -> TimerLog label1 -> TimerLog label2
 mapLabels f = map (\(l, i) -> (f l, i))
 
 logToSecs :: TimerLog label -> [(label, Double)]
-logToSecs = map (\(l, s) -> (l, fromInteger (toNanoSecs s) / (10 ^ 9 :: Double))) 
+logToSecs = map (\(l, s) -> (l, fromInteger (toNanoSecs s) / (10 ^ (9 :: Int) :: Double))) 

@@ -7,7 +7,6 @@ module G2.Language.ArbValueGen ( ArbValueGen
                                , arbValueInfinite
                                , constArbValue ) where
 
-import G2.Language.AST
 import G2.Language.Expr
 import G2.Language.Support
 import G2.Language.Syntax
@@ -189,7 +188,6 @@ getADT m tenv av adt ts
             -- Finds the DataCon for adt with the least arguments
             min_dc = minimumBy (comparing (length . dataConArgs)) dcs
 
-            tyVIds = map TyVar ids
             m' = foldr (uncurry M.insert) m $ zip (map idName ids) ts
 
             (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite' m' t tenv av_) av $ dataConArgs min_dc

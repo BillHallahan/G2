@@ -18,13 +18,10 @@ module G2.Liquid.Inference.Sygus.SimplifySygus ( EliminatedSimple
 
 import Sygus.Syntax
 
-import Data.Coerce
 import Data.List
 import qualified Data.HashMap.Lazy as M
 import Data.Maybe
 import qualified Data.Set as S
-
-import Debug.Trace
 
 -- | Maps a tuple of a (1) function name and (2) function param to selector calls and variables
 -- with ADTs sorts
@@ -89,10 +86,10 @@ elimSimpleDTs' _ es cmd = (es, cmd)
 elimSimpleDTsSVs :: Symbol -> M.HashMap Symbol (Symbol, [SortedVar]) -> EliminatedSimple -> SortedVar -> (EliminatedSimple, [SortedVar])
 elimSimpleDTsSVs fn simple_srts es sv@(SortedVar symb srt)
     | IdentSort (ISymb isrt) <- srt
-    , Just (dt, params) <- M.lookup isrt simple_srts =
+    , Just (_, params) <- M.lookup isrt simple_srts =
         let
             new_sv = map (\(SortedVar n i) -> SortedVar (symb ++ "__" ++ n) i) params
-            es' = foldr (\(SortedVar n i) -> insertTermES (fn, symb ++ "__" ++ n) (TermCall (ISymb n) [TermIdent (ISymb symb)])) es params
+            es' = foldr (\(SortedVar n _) -> insertTermES (fn, symb ++ "__" ++ n) (TermCall (ISymb n) [TermIdent (ISymb symb)])) es params
         in
         (es', new_sv)
     | otherwise = (es, [sv])
@@ -100,14 +97,14 @@ elimSimpleDTsSVs fn simple_srts es sv@(SortedVar symb srt)
 elimSimpleDTsTerms :: M.HashMap Symbol (Symbol, [SortedVar]) -> Term -> Term
 elimSimpleDTsTerms _ t@(TermIdent _) = t
 elimSimpleDTsTerms _ t@(TermLit _) = t
-elimSimpleDTsTerms simple_srts t@(TermCall i ts) =
+elimSimpleDTsTerms simple_srts (TermCall i ts) =
     swapToIdent . TermCall i $ concatMap (elimSimpleDTsList simple_srts) ts
 elimSimpleDTsTerms simple_srts (TermExists sv t) =
     let
         (es, out_as) = mapAccumL
                             (\els (SortedVar n srt) ->
                                             case M.lookup (sortSymb srt) simple_srts of
-                                                Just (dt, as) ->
+                                                Just (_, as) ->
                                                     let
                                                         new_as = map (\(SortedVar s srt) -> SortedVar ("new__" ++ s) srt) as
                                                         els' = insertArgsES n new_as els
@@ -131,7 +128,7 @@ elimSimpleDTsList simple_srts t@(TermIdent (ISymb s))
     | s `S.member` getSimpleDTs simple_srts = []
     | otherwise = [t]
 elimSimpleDTsList _ t@(TermLit _) = [t]
-elimSimpleDTsList simple_srts t@(TermCall (ISymb s) ts)
+elimSimpleDTsList simple_srts (TermCall (ISymb s) ts)
     | s `S.member` getSimpleDTs simple_srts = ts
     | otherwise = [swapToIdent . TermCall (ISymb s) $ concatMap (elimSimpleDTsList simple_srts) ts]
 elimSimpleDTsList simple_srts te@(TermExists _ _) = [elimSimpleDTsTerms simple_srts te]
@@ -140,7 +137,7 @@ elimSimpleDTsList _ t = error $ "elimSimpleDTsList: Unhandled term " ++ show t
 elimExistentials :: EliminatedSimple -> Term -> Term
 elimExistentials es t@(TermIdent _) = t
 elimExistentials es t@(TermLit _) = t
-elimExistentials es t@(TermCall i ts) =
+elimExistentials es (TermCall i ts) =
     swapToIdent . TermCall i $ concatMap (elimExistentialsList es) ts
 elimExistentials _ t = error $ "elimExistentials: Unhandled term " ++ show t
 
@@ -151,7 +148,7 @@ elimExistentialsList es t@(TermIdent (ISymb s)) =
         Nothing -> [t]
 elimExistentialsList _ t@(TermLit _) = [t]
 elimExistentialsList es t@(TermCall i@(ISymb s) ts)
-    | Just s' <- lookupArgsES s es = ts
+    | Just _ <- lookupArgsES s es = ts
     | otherwise = [swapToIdent . TermCall i $ map (elimExistentials es) ts]
 elimExistentialsList _ t = error $ "elimExistentialsList: Unhandled term " ++ show t
 

@@ -9,7 +9,6 @@ module G2.Liquid.SpecialAsserts ( addSpecialAsserts
 
 import G2.Config
 import G2.Language
-import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.KnownValues as KV
 import G2.Language.Monad
 import G2.Liquid.Types
@@ -96,7 +95,7 @@ addErrorAssumes :: Config -> LHStateM ()
 addErrorAssumes config = mapWithKeyME (addErrorAssumes' (block_errors_method config) (block_errors_in config))
 
 addErrorAssumes' :: BlockErrorsMethod -> S.HashSet (T.Text, Maybe T.Text) -> Name -> Expr -> LHStateM Expr
-addErrorAssumes' be ns name@(Name n m _ _) e = do
+addErrorAssumes' be ns (Name n m _ _) e = do
     kv <- knownValues
     if (n, m) `S.member` ns then addErrorAssumes'' be kv (typeOf e) e else return e
 
@@ -113,16 +112,16 @@ addErrorAssumes'' be kv _ v@(Var (Id n t))
             rt = returnType $ PresType t
 
             lam_it = map (\as -> case as of
-                                    AnonType t -> (TermL, Id d t)
+                                    AnonType at -> (TermL, Id d at)
                                     NamedType i -> (TypeL, i)) ast
-        n <- trace ("ast = " ++ show ast ++ "\nrt = " ++ show rt) freshSeededStringN "t"
+        fr_n <- trace ("ast = " ++ show ast ++ "\nrt = " ++ show rt) freshSeededStringN "t"
  
         flse <- mkFalseE
 
         return . mkLams lam_it
                . Assume Nothing (Tick assumeErrorTickish flse) 
                . Tick arbErrorTickish
-               $ Let [(Id n TYPE, Type rt)] v
+               $ Let [(Id fr_n TYPE, Type rt)] v
 addErrorAssumes'' be kv (TyForAll _ t) (Lam u i e) = return . Lam u i =<< modifyChildrenM (addErrorAssumes'' be kv t) e
 addErrorAssumes'' be kv (TyFun _ t) (Lam u i e) = return . Lam u i =<< modifyChildrenM (addErrorAssumes'' be kv t) e
 addErrorAssumes'' be kv t e = modifyChildrenM (addErrorAssumes'' be kv t) e

@@ -43,7 +43,6 @@ import Control.Monad.State.Lazy as S
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
-import System.CPUTime
 import Data.Time.Clock
 
 data Event n = CExSE
@@ -129,15 +128,6 @@ withConfigs :: Monad m =>
             -> InfStack m a
 withConfigs f m = do
     mapStateT (mapStateT (mapStateT (withReaderT f))) m
-
-getConfigs :: InfConfigM m => m Configs
-getConfigs = do
-  g2_c <- g2ConfigM
-  lh_c <- lhConfigM
-  inf_c <- infConfigM
-  return $ Configs { g2_config = g2_c
-                   , lh_config = lh_c
-                   , inf_config = inf_c }
 
 -- Counters
 newCounter :: Counters

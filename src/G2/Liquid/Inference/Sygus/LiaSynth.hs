@@ -20,8 +20,6 @@ module G2.Liquid.Inference.Sygus.LiaSynth ( SynthRes (..)
 import G2.Data.Utils
 import G2.Language as G2
 import qualified G2.Language.ExprEnv as E
-import G2.Liquid.Conversion
-import G2.Liquid.Helpers
 import G2.Liquid.Interface
 import G2.Liquid.Types
 import G2.Liquid.Inference.Config
@@ -34,7 +32,6 @@ import G2.Liquid.Inference.Sygus.SpecInfo
 
 import G2.Solver as Solver
 
-import Control.Monad
 import Control.Monad.IO.Class 
 
 import Language.Haskell.Liquid.Types as LH hiding (SP, ms, isBool)
@@ -42,7 +39,6 @@ import Language.Fixpoint.Types.Refinements as LH hiding (pAnd, pOr)
 import qualified Language.Fixpoint.Types as LH
 import qualified Language.Fixpoint.Types as LHF
 
-import Data.Coerce
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.List as L
@@ -76,10 +72,6 @@ liaSynth con ghci lrs evals meas_ex fc blk_mdls to_be_ns ns_synth = do
     si <- buildSpecInfo eenv tenv tc meas ghci fc to_be_ns ns_synth
 
     liftIO . putStrLn $ "si = " ++ show si
-
-    let meas = lrsMeasures ghci lrs
-
-    MaxSize max_sz <- maxSynthSizeM
 
     synth con ghci eenv tenv meas meas_ex evals si fc blk_mdls 1
 
@@ -696,20 +688,6 @@ mkFuncEq vs s_sp ns_sp =
     in
     Func (sy_name s_sp) smt_vs := Func (sy_name ns_sp) smt_vs
 
--- Determines which function specs have been assigned different values in the two models.
-determineRelFuncs :: M.Map Name SpecInfo -> SMTModel -> SMTModel -> [Name]
-determineRelFuncs m_si mdl1 mdl2 =
-    let
-        diff = M.keys 
-             $ M.differenceWith (\v1 v2 -> case v1 == v2 of
-                                                True -> Nothing
-                                                False -> Just v1) mdl1 mdl2
-    in
-      M.keys
-    $ M.filter 
-        (\si -> any (\n -> n `elem` diff) . map fst $ siNamesForModel si)
-        m_si
-
 -- Determines which SynthSpecs have been assigned different values in the two models.
 determineRelSynthSpecs :: M.Map Name SpecInfo -> SMTModel -> SMTModel -> [SMTName]
 determineRelSynthSpecs m_si mdl1 mdl2 =
@@ -726,15 +704,15 @@ determineRelSynthSpecs m_si mdl1 mdl2 =
     $ M.elems m_si
 
 -- computing F_{Fixed}, i.e. what is the value of known specifications at known points 
-envToSMT :: MeasureExs -> Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncConstraints
+envToSMT :: Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncConstraints
          -> ([SMTHeader], HM.HashMap SMTName FuncConstraint)
-envToSMT meas_ex evals si fc =
+envToSMT evals si fc =
     let
         nm_fc = zip ["f" ++ show i | i <- ([1..] :: [Integer])]
               . L.nub
               $ allCallsFC fc
 
-        calls = concatMap (uncurry (flip (envToSMT' meas_ex evals si))) nm_fc
+        calls = concatMap (uncurry (flip (envToSMT' evals si))) nm_fc
 
         known_id_calls = map fst calls
         real_calls = map snd calls
@@ -744,8 +722,8 @@ envToSMT meas_ex evals si fc =
     in
     (assrts, HM.fromList real_calls)
 
-envToSMT' :: MeasureExs -> Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncCall -> SMTName -> [(SMTAST, (SMTName, FuncConstraint))]
-envToSMT' meas_ex (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(FuncCall { funcName = f }) uc_n =
+envToSMT' :: Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncCall -> SMTName -> [(SMTAST, (SMTName, FuncConstraint))]
+envToSMT' (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(FuncCall { funcName = f }) uc_n =
     case M.lookup f m_si of
         Just si ->
             let
@@ -771,12 +749,12 @@ envToSMT' meas_ex (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(Fu
 
                 -- In the case that we get an unsat core, we are only interested in knowing which specifications
                 -- that have already been chosen must be changed.  Thus, we only name those pieeces of the environment.
-                named = case s_status si of
-                            Known -> Named
-                            _ -> \x _ -> x
+                named_sp = case s_status si of
+                              Known -> Named
+                              _ -> \x _ -> x
             in
-            [ (named pre pre_name, (pre_name, pre_real))
-            , (named post post_name, (post_name, post_real))]
+            [ (named_sp pre pre_name, (pre_name, pre_real))
+            , (named_sp post post_name, (post_name, post_real))]
         Nothing -> error "envToSMT': function not found"
 
 mkRetNonZero :: M.Map Name SpecInfo -> [SMTHeader]
@@ -850,8 +828,8 @@ limitEquivModels m_si =
         -- (1)
         clauses = concatMap allCNFs a_si
         cl_imp_coeff = concatMap
-                          (\(cl_act, cffs) ->
-                            map (\cf -> V cl_act SortBool :=> ((:!) $ V (c_active cf) SortBool)) cffs
+                          (\(cl_act, cff) ->
+                            map (\cf -> V cl_act SortBool :=> ((:!) $ V (c_active cf) SortBool)) cff
                           ) clauses 
 
         -- (2)
@@ -962,7 +940,7 @@ nonMaxCoeffConstraints ghci eenv tenv meas meas_ex evals m_si fc = do
         var_op_hdrs = map (flip VarDecl SortBool . TB.text . T.pack) $ L.nub get_ops
 
         def_funs = concatMap defineLIAFuns $ M.elems m_si
-        (env_smt, nm_fc) = envToSMT meas_ex evals' m_si fc
+        (env_smt, nm_fc) = envToSMT evals' m_si fc
 
         ret_is_non_zero = mkRetNonZero m_si
 
@@ -1100,9 +1078,6 @@ sySpecGetFuncActs = concatMap formActives . concatMap snd . sy_coeffs
 getActs :: M.Map Name SpecInfo -> [SMTName]
 getActs si = getClauseActs si ++ getFuncActs si
 
-siGetActs :: SpecInfo -> [SMTName]
-siGetActs si = siGetClauseActs si ++ siGetFuncActs si
-
 getClauseActs :: M.Map Name SpecInfo -> [SMTName]
 getClauseActs m_si =
     concatMap siGetClauseActs $ M.elems m_si
@@ -1202,8 +1177,6 @@ buildLIA_SMT sf =
 buildLIA_LH :: SpecInfo -> SMTModel -> [PolyBound LHF.Expr]
 buildLIA_LH si mv = map (mapPB pAnd) {- . map (uncurry raiseSpecs) . zip synth_specs -} $  buildLIA_LH' si mv
     where
-        synth_specs = s_syn_pre si ++ [s_syn_post si]
-
         pAnd xs =
             case any (== PFalse) xs of
                 True -> PFalse
@@ -1326,40 +1299,6 @@ buildLIA_LH' si mv =
         eEmptySet = EApp (EVar "Set_empty") (ECon (I 0))
         eUnivSet = EVar ("Set_univ")
 
-raiseSpecs :: PolyBound SynthSpec -> PolyBound [LH.Expr] -> PolyBound [LH.Expr]
-raiseSpecs sy_sp pb =
-    let
-        symb_pb = mapPB (HS.unions . map (argsInExpr . lh_rep) . int_sy_args_and_ret) sy_sp
-        symb_es = filter (not . HS.null . fst) . map (\e -> (argsInExpr e, e)) . concat $ extractValues pb
-
-        null_pb = mapPB (filter (HS.null . argsInExpr)) pb
-    
-        r = snd $ L.mapAccumL
-                (\se spb ->
-                    let
-                        se' = map (\(xs, e_) -> (HS.difference xs spb, e_)) se
-                        (se_here, se_cont) = L.partition (HS.null . fst) se'
-                        e = map snd se_here
-                    in
-                    (se_cont, e))
-                symb_es symb_pb
-    in
-    zipWithPB (++) null_pb r 
-
-argsInExpr :: LH.Expr -> HS.HashSet LH.Symbol
-argsInExpr (EVar symb) = HS.singleton symb
-argsInExpr (ECon _) = HS.empty
-argsInExpr (EApp _ x) =
-    -- The left hand side of an EApp is a measure.
-    -- Since we are only looking for arguments, we do not collect it
-    argsInExpr x
-argsInExpr (EBin _ x y) = HS.union (argsInExpr x) (argsInExpr y)
-argsInExpr (PAtom _ x y) = HS.union (argsInExpr x) (argsInExpr y)
-argsInExpr (PAnd xs) = HS.unions (map argsInExpr xs)
-argsInExpr (POr xs) = HS.unions (map argsInExpr xs)
-argsInExpr e = error $ "argsInExpr: unhandled symbol " ++ show e
-
-
 buildSpec :: Show b => Plus a
           -> Mult a
           -> EqF a b
@@ -1413,8 +1352,6 @@ buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_unio
                                   )
                    ]
         toLinInEqs (Set { c_active = act
-                        , c_op_branch1 = op_br1
-                        , c_op_branch2 = op_br2 
 
                         , int_sing_set_bools_lhs = int_sing_bools_lhs
                         , int_sing_set_bools_rhs = int_sing_bools_rhs

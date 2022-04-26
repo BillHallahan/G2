@@ -27,7 +27,6 @@ import G2.Language
 import qualified Data.HashMap.Lazy as HM
 import Data.List
 import Data.Maybe
-import Debug.Trace
 
 type RefNamePolyBound = PolyBound String
 type ExprPolyBound = PolyBound [Expr]
@@ -82,7 +81,7 @@ extractExprPolyBound' e
         indirect' = map (uncurry substTypes) indirect
 
         direct_hm = foldr (HM.unionWith (++)) HM.empty
-                        $ map (\(i, e) -> uncurry HM.singleton (i, e:[])) direct'
+                        $ map (\(i, e_) -> uncurry HM.singleton (i, e_:[])) direct'
     in
     foldr (HM.unionWith (++)) direct_hm $ map (extractExprPolyBound' . adjustIndirectTypes) indirect'
     | otherwise = HM.empty
@@ -98,7 +97,7 @@ extractExprPolyBound' e
 
 substTypes :: Type -> Expr -> Expr
 substTypes t e
-    | t':ts <- unTyApp t
+    | _:ts <- unTyApp t
     , e':es <- unApp e =
         mkApp $ e':substTypes' ts es
 substTypes _ e = e
@@ -111,7 +110,7 @@ adjustIndirectTypes :: Expr -> Expr
 adjustIndirectTypes e
     | Data dc:es <- unApp e =
         let
-            (tyses, es') = partition (isType) es
+            tyses = filter (isType) es
             tyses' = map (\(Type t) -> t) tyses
 
             bound = leadingTyForAllBindings dc
@@ -132,7 +131,7 @@ adjustIndirectTypes e
 extractTypePolyBound :: Type -> TypePolyBound
 extractTypePolyBound t =
     let
-        (t':ts) = unTyApp t
+        (_:ts) = unTyApp t
     in
     PolyBound t $ map extractTypePolyBound ts
 

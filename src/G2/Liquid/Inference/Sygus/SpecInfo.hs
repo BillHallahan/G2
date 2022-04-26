@@ -232,9 +232,9 @@ buildSpecInfo eenv tenv tc meas ghci fc to_be_ns ns_synth = do
         s <- buildSI tenv tc meas Known ghci n at rt
         return $ M.insert n s m) si' known_ns_aty_rty
 
-    inf_config <- infConfigM
+    inf_con <- infConfigM
 
-    let si''' = if use_invs inf_config
+    let si''' = if use_invs inf_con
                     then conflateLoopNames . elimSyArgs $ si''
                     else si''
 
@@ -468,7 +468,7 @@ conflateLoopNames = M.map conflateLoopNames'
 
 conflateLoopNames' :: SpecInfo -> SpecInfo
 conflateLoopNames' si@(SI { s_syn_pre = pb_sy_pre@(_:_)
-                          , s_syn_post = pb_post@(PolyBound sy_post ps) })
+                          , s_syn_post = pb_post@(PolyBound sy_post _) })
     | take 4 (sy_name sy_post) == "loop" =
         let
             pb_pre = last pb_sy_pre

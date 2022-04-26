@@ -23,8 +23,6 @@ import qualified Data.Map as M
 import qualified Data.Sequence as S
 import Data.Semigroup
 
-import Debug.Trace
-
 type PreservingFunc = forall t . State t -> Bindings -> HS.HashSet Name -> HS.HashSet Name
 
 data MemConfig = MemConfig { search_names :: [Name]

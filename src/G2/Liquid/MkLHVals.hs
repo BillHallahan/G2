@@ -4,13 +4,10 @@ module G2.Liquid.MkLHVals (mkLHVals) where
 
 import G2.Language as Lang
 import G2.Language.KnownValues
-import G2.Language.Naming
 import qualified G2.Language.ExprEnv as E
 
 import qualified Data.HashSet as S
 import qualified Data.Text as T
-
-import Debug.Trace
 
 mkLHVals :: State t
          -> S.HashSet Name

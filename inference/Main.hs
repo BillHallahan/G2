@@ -8,10 +8,8 @@ import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.Initalization
 import G2.Liquid.Inference.Interface
-import G2.Liquid.Inference.QualifGen
 import G2.Liquid.Inference.Verify
 import G2.Liquid.Helpers
-import G2.Liquid.Types
 
 import Language.Fixpoint.Solver
 import Language.Fixpoint.Types.Constraints
@@ -22,10 +20,6 @@ import qualified Data.Map as M
 import qualified Data.Text as T
 import Data.Time.Clock
 import System.Environment
-
-import G2.Language
-
-import Language.Haskell.Liquid.GHC.Interface
 
 main :: IO ()
 main = do
@@ -50,7 +44,7 @@ main = do
                     printLHOut entry in_out
                     return ()
                 (_, Just _) -> do
-                    (ghci, lhconfig) <- getGHCI infconfig config [] [f] []
+                    (ghci, lhconfig) <- getGHCI infconfig [] [f] []
                     let c = Configs { g2_config = config, lh_config = lhconfig, inf_config = infconfig}
                     r <- runConfigs (tryToVerify ghci) c
                     print r
@@ -58,7 +52,8 @@ main = do
 
 checkQualifs :: String -> G2.Config -> IO ()
 checkQualifs f config = do
-    qualifGen "qualif.hquals" 
+    undefined
+    -- qualifGen "qualif.hquals" 
     
     finfo <- parseFInfo ["qualif.hquals"]
 
@@ -97,7 +92,7 @@ callInference f infconfig config = do
 
 checkFuncNums :: String -> InferenceConfig -> G2.Config -> IO ()
 checkFuncNums f infconfig config = do
-    (ghci, lhconfig) <- getGHCI infconfig config [] [f] []
+    (ghci, lhconfig) <- getGHCI infconfig [] [f] []
     (lrs, _, _, main_mod)  <- getInitState [] [f] [] ghci infconfig config
     let nls = getNameLevels main_mod lrs
 

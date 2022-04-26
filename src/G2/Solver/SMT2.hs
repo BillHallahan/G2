@@ -23,7 +23,6 @@ import G2.Solver.Solver
 import G2.Solver.Converters --It would be nice to not import this...
 
 import Control.Exception.Base (evaluate)
-import Data.List
 import Data.List.Utils (countElem)
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
@@ -94,7 +93,7 @@ instance SMTConverter Z3 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) w
             UNSAT () -> return $ UNSAT ()
             Unknown s -> return $ Unknown s
 
-    checkSatGetModelOrUnsatCore con hvals@(h_in, h_out, _) formula vs = do
+    checkSatGetModelOrUnsatCore _ (h_in, h_out, _) formula vs = do
         let formula' = "(set-option :produce-unsat-cores true)\n" <> TB.run formula
         T.putStrLn "\n\n checkSatGetModelOrUnsatCore"
         T.putStrLn formula'
@@ -426,7 +425,7 @@ getSMTAV avf (Config {smt = ConCVC4}) = do
 -- Ideally, this function should be called only once, and the same Handles should be used
 -- in all future calls
 getZ3ProcessHandles :: IO (Handle, Handle, ProcessHandle)
-getZ3ProcessHandles = getProcessHandles $ proc "z3" ["-smt2", "-in", "-t:90000"]
+getZ3ProcessHandles = getProcessHandles $ proc "z3" ["-smt2", "-in", "-t:10000"]
 
 getCVC4ProcessHandles :: IO (Handle, Handle, ProcessHandle)
 getCVC4ProcessHandles = getProcessHandles $ proc "cvc4" ["--lang", "smt2.6", "--produce-models"]
@@ -493,7 +492,7 @@ getModelZ3 h_in h_out ns = do
 getUnsatCoreZ3 :: Handle -> Handle -> IO [SMTName]
 getUnsatCoreZ3 h_in h_out = do
     hPutStr h_in "(get-unsat-core)\n"
-    r <- hWaitForInput h_out (-1)
+    _ <- hWaitForInput h_out (-1)
     out <- hGetLine h_out 
     putStrLn $ "unsat-core = " ++ out
     let out' = tail . init $ out -- drop opening and closing parens

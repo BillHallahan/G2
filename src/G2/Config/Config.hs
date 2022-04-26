@@ -24,10 +24,6 @@ import Data.List
 import qualified Data.Map as M
 import qualified Data.Text as T
 
-import System.Directory
-
-import G2.Language.Syntax
-
 data Mode = Regular | Liquid deriving (Eq, Show, Read)
 
 data LogMode = Log LogMethod String | NoLog deriving (Eq, Show, Read)
@@ -84,25 +80,16 @@ data Config = Config {
     , add_tyvars :: Bool
 }
 
--- mkConfigDef :: Config
--- mkConfigDef = mkConfig [] M.empty
-
-baseRoot :: IO FilePath
-baseRoot = do
-  g2Dir <- getHomeDirectory >>= \f -> return $ f ++ "/.g2"
-  return $ g2Dir ++ "/base-4.9.1.0"
-
-
 mkConfig :: String -> [String] -> M.Map String [String] -> Config
 mkConfig homedir as m = Config {
       mode = Regular
     , baseInclude = baseIncludeDef (strArg "base" as m id homedir)
     , base = baseDef (strArg "base" as m id homedir)
     , extraDefaultInclude = extraDefaultIncludePaths (strArg "extra-base-inc" as m id homedir)
-    , extraDefaultMods = extraDefaultPaths (strArg "extra-base" as m id homedir)
+    , extraDefaultMods = []
     , logStates = strArg "log-states" as m (Log Raw)
                         (strArg "log-pretty" as m (Log Pretty) NoLog)
-    , sharing = boolArg' "sharing" as m Sharing Sharing NoSharing
+    , sharing = boolArg' "sharing" as Sharing Sharing NoSharing
 
     , maxOutputs = strArg "max-outputs" as m (Just . read) Nothing
     , printCurrExpr = boolArg "print-ce" as m Off
@@ -120,7 +107,7 @@ mkConfig homedir as m = Config {
     , validate  = boolArg "validate" as m Off
     -- , baseLibs = [BasePrelude, BaseException]
 
-    , counterfactual = boolArg' "counterfactual" as m
+    , counterfactual = boolArg' "counterfactual" as
                         (Counterfactual CFAll) (Counterfactual CFAll) NotCounterfactual
     , only_top = boolArg "only-top" as m Off
     , block_errors_in = S.empty
@@ -148,10 +135,6 @@ baseSimple root =
 extraDefaultIncludePaths :: FilePath -> [FilePath]
 extraDefaultIncludePaths root =
     [ root ++ "/.g2/G2Stubs/src/" ] 
-
-extraDefaultPaths :: FilePath -> [FilePath]
-extraDefaultPaths root =
-    [ ] 
 
 smtSolverArg :: String -> SMTSolver
 smtSolverArg = smtSolverArg' . map toLower
@@ -188,8 +171,8 @@ boolArg s a m bd =
                 Just st -> strToBool st d
                 Nothing -> d
 
-boolArg' :: String -> [String] -> M.Map String [String] -> b -> b -> b -> b
-boolArg' s a m b_default b1 b2 =
+boolArg' :: String -> [String] -> b -> b -> b -> b
+boolArg' s a b_default b1 b2 =
     if "--" ++ s `elem` a 
         then b1
         else if "--no-" ++ s `elem` a 
@@ -222,16 +205,3 @@ strArg s a m f d =
 strToArg :: [String] -> (String -> a) -> a -> a
 strToArg [s] f _ = f s
 strToArg _ _ d = d
-
-strArgs :: String -> [String] -> M.Map String [String] -> (String -> a) -> [a] -> [a]
-strArgs s a m f d = 
-    case elemIndex ("--" ++ s) a of
-        Just i -> if i >= length a
-                      then error ("Invalid use of " ++ s)
-                      else [f (a !! (i + 1))]
-        Nothing -> case M.lookup s m of 
-                      Just st -> strsToArgs st f
-                      Nothing -> d
-
-strsToArgs :: [String] -> (String -> a) -> [a]
-strsToArgs =  flip map

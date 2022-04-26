@@ -1,46 +1,46 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Liquid.Inference.QualifGen (qualifGen) where
+module G2.Liquid.Inference.QualifGen () where -- qualifGen) where
 
-import G2.Language.Naming
-import G2.Liquid.Inference.Sygus
-import G2.Liquid.Helpers
+-- import G2.Language.Naming
+-- import G2.Liquid.Inference.Sygus
+-- import G2.Liquid.Helpers
 
-import Sygus.LexSygus
-import Sygus.ParseSygus
-import Sygus.Print
-import Sygus.Syntax
+-- import Sygus.LexSygus
+-- import Sygus.ParseSygus
+-- import Sygus.Print
+-- import Sygus.Syntax
 
-import Language.Fixpoint.Types.Constraints
-import qualified Language.Fixpoint.Types.Names as LH
-import Language.Fixpoint.Types.PrettyPrint
+-- import Language.Fixpoint.Types.Constraints
+-- import qualified Language.Fixpoint.Types.Names as LH
+-- import Language.Fixpoint.Types.PrettyPrint
 
-import qualified Data.HashMap.Lazy as HM
-import Data.List
-import qualified Data.Map as M
-import Data.Maybe
-import qualified Data.Text as T
-import Data.Tuple
+-- import qualified Data.HashMap.Lazy as HM
+-- import Data.List
+-- import qualified Data.Map as M
+-- import Data.Maybe
+-- import qualified Data.Text as T
+-- import Data.Tuple
 
--- | Mocking measures to generate Qualifs.
-data QMeasure = QMeasure { m_name :: String
-                         , m_in :: Sort
-                         , m_out :: Sort
-                         , triv_out :: Term }
+-- -- | Mocking measures to generate Qualifs.
+-- data QMeasure = QMeasure { m_name :: String
+--                          , m_in :: Sort
+--                          , m_out :: Sort
+--                          , triv_out :: Term }
 
--- Mocking datatypes
-data QDataType = QDataType { dt_smt_name :: String
-                           , dt_name :: String
-                           , dt_cons :: [String] }
+-- -- Mocking datatypes
+-- data QDataType = QDataType { dt_smt_name :: String
+--                            , dt_name :: String
+--                            , dt_cons :: [String] }
 
-data QualifConfig = QualifConfig { max_vars :: Int
-                                 , max_size :: Int
-                                 , datatypes :: [QDataType]
-                                 , measures :: [QMeasure] }
+-- data QualifConfig = QualifConfig { max_vars :: Int
+--                                  , max_size :: Int
+--                                  , datatypes :: [QDataType]
+--                                  , measures :: [QMeasure] }
 
-qualifGen :: FilePath -> IO ()
-qualifGen qualif_fp = undefined -- do
+-- qualifGen :: FilePath -> IO ()
+-- qualifGen qualif_fp = undefined -- do
 {-    let qc = QualifConfig 
                 { max_vars = 3
                 , max_size = 5
