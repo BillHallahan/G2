@@ -222,7 +222,7 @@ mapAbstractedFCs f (Abstracted { abstract = a
                , func_calls_in_real = map f fcr}
 
 mapAbstractedInfoFCs :: (L.FuncCall -> L.FuncCall) ->  AbstractedInfo -> AbstractedInfo
-mapAbstractedInfoFCs f = mapAbstractedInfoCAFCs (L.mapFCs f)
+mapAbstractedInfoFCs f = mapAbstractedInfoCAFCs (L.mapFuncCall f)
 
 mapAbstractedInfoCAFCs :: (L.CAFuncCall -> L.CAFuncCall) ->  AbstractedInfo -> AbstractedInfo
 mapAbstractedInfoCAFCs f (AbstractedInfo { init_call = ic, abs_violated = av, abs_calls = ac, ai_all_calls= allc}) =

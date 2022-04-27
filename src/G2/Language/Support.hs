@@ -154,8 +154,8 @@ simpleCAFuncCall fc = CAFuncCall { fcall = fc
                                  , symb_fc = S.empty }
 
 -- | Apply the given function to the `FuncCall` in the `CAFuncCall`.
-mapFC :: (FuncCall -> FuncCall) -> CAFuncCall -> CAFuncCall
-mapFC f cafc@(CAFuncCall { fcall = fc }) = cafc { fcall = f fc }
+mapFuncCall :: (FuncCall -> FuncCall) -> CAFuncCall -> CAFuncCall
+mapFuncCall f cafc@(CAFuncCall { fcall = fc }) = cafc { fcall = f fc }
 
 instance Hashable CAFuncCall
 

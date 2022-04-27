@@ -619,13 +619,12 @@ printCAFuncCall :: CAFuncCall -> String
 printCAFuncCall = printCAFuncCallPG (mkPrettyGuide ())
 
 printCAFuncCallPG :: PrettyGuide -> CAFuncCall -> String
-printCAFuncCallPG pg (CAFuncCall { conc_fc = c_fc, abs_fc = a_fc, paths_fc = pc }) =
+printCAFuncCallPG pg (CAFuncCall { fcall = fc, paths_fc = pc }) =
     let
-        cfc_str = printFuncCallPG pg c_fc
-        abs_str = printFuncCallPG pg a_fc
+        fc_str = printFuncCallPG pg fc
         paths_str = prettyPathConds pg pc
     in
-    "(Concrete: " <> cfc_str <> "\nAbstract: " <> abs_str <> "\nPaths: " <> paths_str <> ")"
+    "(Call: " <> fc_str <> "\nPaths: " <> paths_str <> ")"
 
 -------------------------------------------------------------------------------
 -- Pretty Guide

@@ -633,7 +633,7 @@ parseLHOut entry (ExecRes { final_state = s
              $ FuncCall { funcName = idName entry, arguments = inArg, returns = ex}
       viFunc = fmap (parseLHFuncTuple s) ais
 
-      abstr = map (parseLHFuncTuple s) . map (conc_fc . abstract) . abs_calls $ track s
+      abstr = map (parseLHFuncTuple s) . map (fcall . abstract) . abs_calls $ track s
   in
   LHReturn { calledFunc = called
            , violating = viFunc
@@ -642,17 +642,17 @@ parseLHOut entry (ExecRes { final_state = s
 counterExampleToLHReturn :: State t -> CounterExample -> LHReturn
 counterExampleToLHReturn s (DirectCounter fc abstr) =
     let
-        called = funcCallToFuncInfo (T.pack . printHaskell s) . conc_fc . abstract $ fc
-        abstr' = map (funcCallToFuncInfo (T.pack . printHaskell s) . conc_fc . abstract) abstr
+        called = funcCallToFuncInfo (T.pack . printHaskell s) . fcall . abstract $ fc
+        abstr' = map (funcCallToFuncInfo (T.pack . printHaskell s) . fcall . abstract) abstr
     in
     LHReturn { calledFunc = called
              , violating = Nothing
              , abstracted = abstr'}
 counterExampleToLHReturn s (CallsCounter fc viol_fc abstr) =
     let
-        called = funcCallToFuncInfo (T.pack . printHaskell s) . conc_fc . abstract $ fc
-        viol_called = funcCallToFuncInfo (T.pack . printHaskell s) . conc_fc . abstract $ viol_fc
-        abstr' = map (funcCallToFuncInfo (T.pack . printHaskell s) . conc_fc . abstract) abstr
+        called = funcCallToFuncInfo (T.pack . printHaskell s) . fcall . abstract $ fc
+        viol_called = funcCallToFuncInfo (T.pack . printHaskell s) . fcall . abstract $ viol_fc
+        abstr' = map (funcCallToFuncInfo (T.pack . printHaskell s) . fcall . abstract) abstr
     in
     LHReturn { calledFunc = called
              , violating = Just viol_called

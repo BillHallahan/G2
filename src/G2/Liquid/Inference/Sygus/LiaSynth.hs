@@ -725,7 +725,7 @@ envToSMT evals si fc =
 envToSMT' :: Evals (Integer, Bool)  -> M.Map Name SpecInfo -> CAFuncCall -> SMTName -> [(SMTAST, (SMTName, FuncConstraint))]
 envToSMT' (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si cafc uc_n =
     let
-        fc = conc_fc cafc
+        fc = fcall cafc
         f = funcName fc
     in
     case M.lookup f m_si of

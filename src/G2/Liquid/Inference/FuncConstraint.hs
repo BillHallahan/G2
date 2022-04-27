@@ -121,7 +121,7 @@ differenceFC (FuncConstraints fc1) (FuncConstraints fc2) =
                       fc1 fc2
 
 allCallNames :: FuncConstraint -> [Name]
-allCallNames = map (funcName . conc_fc) . allCalls
+allCallNames = map (caFuncName) . allCalls
 
 allCalls :: FuncConstraint -> [CAFuncCall]
 allCalls (Call _ fc) = [fc]
@@ -131,13 +131,13 @@ allCalls (ImpliesFC fc1 fc2) = allCalls fc1 ++ allCalls fc2
 allCalls (NotFC fc) = allCalls fc
 
 allCalls' :: FuncConstraint -> [FuncCall]
-allCalls' = concatMap (\fc -> [conc_fc fc, abs_fc fc]) . allCalls
+allCalls' = map fcall . allCalls
 
 allCallsFC :: FuncConstraints -> [CAFuncCall]
 allCallsFC = concatMap allCalls . toListFC
 
 allCallsFC' :: FuncConstraints -> [FuncCall]
-allCallsFC' = concatMap (\fc -> [conc_fc fc, abs_fc fc]) . allCallsFC
+allCallsFC' = map fcall . allCallsFC
 
 allCallsByName :: FuncConstraints -> [CAFuncCall]
 allCallsByName = concatMap allCalls . toListFC
@@ -147,7 +147,7 @@ printFCs lrs fcs =
     intercalate "\n" . map (printFC (state . lr_state $ lrs)) $ toListFC fcs
 
 printFC :: State t -> FuncConstraint -> String
-printFC s (Call sp (CAFuncCall { conc_fc = cfc })) =
+printFC s (Call sp (CAFuncCall { fcall = cfc })) =
     case sp of
         Pre -> "(" ++ printPreCall s cfc ++ ")"
         Post -> "(" ++ printPostCall s cfc ++ ")"

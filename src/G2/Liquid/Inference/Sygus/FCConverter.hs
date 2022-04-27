@@ -46,7 +46,7 @@ mkPreCall :: (InfConfigM m, ProgresserM m) =>
           -> CAFuncCall
           -> m form
 mkPreCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si =
-    mkPreCall' convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si . conc_fc
+    mkPreCall' convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si . fcall
 
 mkPreCall' :: (InfConfigM m, ProgresserM m) => 
               ConvertExpr form
@@ -127,7 +127,7 @@ mkPostCall :: (InfConfigM m, ProgresserM m) =>
            -> CAFuncCall
            -> m form
 mkPostCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si =
-    mkPostCall' convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si . conc_fc
+    mkPostCall' convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si . fcall
 
 mkPostCall' :: (InfConfigM m, ProgresserM m) => 
                ConvertExpr form
