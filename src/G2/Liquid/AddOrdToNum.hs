@@ -16,8 +16,6 @@ import G2.Language
 import G2.Language.Monad
 import G2.Liquid.Types
 
-import Debug.Trace
-
 -- | Adds an extra field to the Num dict, which contains the Ord
 -- dict for the corresponding type.  Updates all other code accordingly.
 -- Of course, there might be types that have a Num instance, but no Ord
@@ -56,10 +54,10 @@ addOrdToNumDictDec :: (Name -> LHStateM (Maybe Expr))
                    -> Type
                    -> Id
                    -> LHStateM ()
-addOrdToNumDictDec lookup insert t (Id n _) = do
+addOrdToNumDictDec lkup insert t (Id n _) = do
     ord <- ordTCM
 
-    me <- lookup n
+    me <- lkup n
 
     case me of
         Just e -> do

@@ -21,19 +21,14 @@ import G2.Liquid.Types
 import G2.Liquid.TyVarBags
 import G2.Solver
 
-import G2.Lib.Printers
-
 import Control.Monad
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
-import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 
 import Data.Monoid
 
-import Debug.Trace
-import Control.Exception
 -------------------------------
 -- Check Abstracted
 -------------------------------
@@ -60,8 +55,8 @@ checkAbstracted solver simplifier config init_id bindings er@(ExecRes{ final_sta
                                                                      , conc_args = inArg
                                                                      , conc_out = ex }) = do
     -- Get `Abstracted`s for the abstracted functions 
-    let check = checkAbstracted' solver simplifier (sharing config) s bindings
-    abstractedR <- mapM check (abstract_calls lht)
+    let chck = checkAbstracted' solver simplifier (sharing config) s bindings
+    abstractedR <- mapM chck (abstract_calls lht)
     let abstracted' = mapMaybe toAbstracted $ abstractedR
         models = mapMaybe toModel $ abstractedR
 
@@ -155,7 +150,7 @@ getAbstracted :: (Solver solver, Simplifier simplifier)
               -> Bindings
               -> FuncCall
               -> IO (Abstracted, Model)
-getAbstracted solver simplifier share s bindings abs_fc@(FuncCall { funcName = n, arguments = ars, returns = r })
+getAbstracted solver simplifier share s bindings abs_fc@(FuncCall { funcName = n, arguments = ars })
     | Just e <- E.lookup n $ expr_env s = do
         let 
             e' = mkApp $ Var (Id n (typeOf e)):ars
@@ -186,7 +181,7 @@ getAbstracted solver simplifier share s bindings abs_fc@(FuncCall { funcName = n
                     final_state = fs@(State { curr_expr = CurrExpr _ ce, track = (gfc, hle), model = m})
                 }] -> do
                   let fs' = modelToExprEnv fs
-                  (bindings'', gfc') <- reduceFuncCallMaybeList solver simplifier share bindings' fs' gfc
+                  (_, gfc') <- reduceFuncCallMaybeList solver simplifier share bindings' fs' gfc
                   return $ ( Abstracted { abstract = simpleCAFuncCall $ repTCsFC (type_classes s) abs_fc
                                         , real = simpleCAFuncCall . repTCsFC (type_classes s) $ abs_fc { returns = (inline (expr_env fs) HS.empty ce) }
                                         , hits_lib_err_in_real = hle
@@ -282,7 +277,7 @@ elimAssumesExcept :: ASTContainer m Expr => m -> m
 elimAssumesExcept = modifyASTs elimAssumesExcept'
 
 elimAssumesExcept' :: Expr -> Expr
-elimAssumesExcept' a@(Assume _ (Tick t _) e)
+elimAssumesExcept' (Assume _ (Tick t _) e)
     | t == assumeErrorTickish = Tick t e
     | otherwise = e
 elimAssumesExcept' (Assume _ _ e) = e
@@ -304,7 +299,7 @@ reduceCalls solver simplifier config bindings er = do
 reduceViolated :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Sharing -> Bindings -> ExecRes LHTracker -> IO (Bindings, ExecRes LHTracker)
 reduceViolated solver simplifier share bindings er@(ExecRes { final_state = s, violated = Just v }) = do
     let red = SomeReducer (StdRed share solver simplifier :<~| RedArbErrors)
-    (s', bindings', v') <- reduceFuncCall share red solver simplifier s bindings v
+    (s', bindings', v') <- reduceFuncCall red solver simplifier s bindings v
     -- putStrLn $ "v = " ++ show v
     -- putStrLn $ "v' = " ++ show v'
     return (bindings', er { final_state = s { expr_env = expr_env s' }, violated = Just v' })
@@ -317,7 +312,7 @@ reduceAbstracted solver simplifier share bindings
         fcs = abstract_calls lht
 
     ((_, bindings'), fcs') <- mapAccumM (\(s_, b_) fc -> do
-                                            (new_s, new_b, r_fc) <- reduceFuncCall share red solver simplifier s_ b_ fc
+                                            (new_s, new_b, r_fc) <- reduceFuncCall red solver simplifier s_ b_ fc
                                             return ((new_s, new_b), r_fc))
                             (s, bindings) fcs
 
@@ -343,7 +338,7 @@ reduceFuncCallMaybeList :: ( ASTContainer t Expr
 reduceFuncCallMaybeList solver simplifier share bindings s fcs = do
     let red = SomeReducer (StdRed share solver simplifier :<~| RedArbErrors)
     (b', fcs') <- mapAccumM (\b fc -> do
-                                  b_fc <- reduceFuncCallMaybe share red solver simplifier s b fc
+                                  b_fc <- reduceFuncCallMaybe red solver simplifier s b fc
                                   case b_fc of
                                       Just (b', fc') -> return (b', Just fc')
                                       Nothing -> return (b, Nothing)) bindings fcs
@@ -355,12 +350,12 @@ reduceFuncCall :: ( Solver solver
                   , ASTContainer t Type
                   , Show t
                   , Named t)
-               => Sharing -> SomeReducer t -> solver -> simp -> State t -> Bindings -> FuncCall -> IO (State t, Bindings, FuncCall)
-reduceFuncCall share red solver simplifier s bindings fc@(FuncCall { arguments = ars, returns = r }) = do
+               => SomeReducer t -> solver -> simp -> State t -> Bindings -> FuncCall -> IO (State t, Bindings, FuncCall)
+reduceFuncCall red solver simplifier s bindings fc@(FuncCall { arguments = ars, returns = r }) = do
     -- (bindings', red_ars) <- mapAccumM (reduceFCExpr share (red <~ SomeReducer (Logger "arg")) solver simplifier s) bindings ars
     -- (bindings'', red_r) <- reduceFCExpr share (red <~ SomeReducer (Logger "ret")) solver simplifier s bindings' r
-    ((s', bindings'), red_ars) <- mapAccumM (uncurry (reduceFCExpr share red solver simplifier)) (s, bindings) ars
-    ((s'', bindings''), red_r) <- reduceFCExpr share red solver simplifier s' bindings' r
+    ((s', bindings'), red_ars) <- mapAccumM (uncurry (reduceFCExpr red solver simplifier)) (s, bindings) ars
+    ((s'', bindings''), red_r) <- reduceFCExpr red solver simplifier s' bindings' r
 
     return (s'', bindings'', fc { arguments = red_ars, returns = red_r })
 
@@ -370,8 +365,8 @@ reduceFCExpr :: ( Solver solver
                 , ASTContainer t Type
                 , Show t
                 , Named t)
-             => Sharing -> SomeReducer t -> solver -> simp -> State t -> Bindings -> Expr -> IO ((State t, Bindings), Expr)
-reduceFCExpr share reducer solver simplifier s bindings e 
+             => SomeReducer t -> solver -> simp -> State t -> Bindings -> Expr -> IO ((State t, Bindings), Expr)
+reduceFCExpr reducer solver simplifier s bindings e 
     | not . isTypeClass (type_classes s) $ (typeOf e)
     , ds <- deepseq_walkers bindings
     , Just strict_e <-  mkStrict_maybe ds e  = do
@@ -411,53 +406,12 @@ reduceFuncCallMaybe :: ( Solver solver
                        , ASTContainer t Type
                        , Show t
                        , Named t)
-                    => Sharing -> SomeReducer t -> solver -> simp -> State t -> Bindings -> FuncCall -> IO (Maybe (Bindings, FuncCall))
-reduceFuncCallMaybe share red solver simplifier s bindings fc@(FuncCall { arguments = ars, returns = r }) = do
-    ((_, bindings'), red_ars)  <- mapAccumM (uncurry (reduceFCExpr share red solver simplifier)) (s, bindings) ars
-    ((_, bindings''), red_r) <- reduceFCExpr share red solver simplifier s bindings' r
+                    => SomeReducer t -> solver -> simp -> State t -> Bindings -> FuncCall -> IO (Maybe (Bindings, FuncCall))
+reduceFuncCallMaybe red solver simplifier s bindings fc@(FuncCall { arguments = ars, returns = r }) = do
+    ((_, bindings'), red_ars)  <- mapAccumM (uncurry (reduceFCExpr red solver simplifier)) (s, bindings) ars
+    ((_, bindings''), red_r) <- reduceFCExpr red solver simplifier s bindings' r
 
     return $ Just (bindings'', fc { arguments = red_ars, returns = red_r })
-
-reduceFCExprMaybe :: ( Solver solver
-                     , Simplifier simp
-                     , ASTContainer t Expr
-                     , ASTContainer t Type
-                     , Named t)
-                  => Sharing -> SomeReducer t -> solver -> simp -> State t -> Bindings -> Expr -> IO (Maybe (Bindings, Expr))
-reduceFCExprMaybe share reducer solver simplifier s bindings e 
-    | not . isTypeClass (type_classes s) $ (typeOf e)
-    , ds <- deepseq_walkers bindings
-    , Just strict_e <-  mkStrict_maybe ds e  = do
-        let 
-            e' = fillLHDictArgs ds strict_e
-
-        let s' = elimAssumes
-               . elimAsserts
-               . pickHead
-               . elimSymGens (arb_value_gen bindings)
-               . modelToExprEnv $
-                   s { curr_expr = CurrExpr Evaluate e'}
-
-        let pres = HS.fromList $ namesList s' ++ namesList bindings
-        (er, bindings') <- runG2WithSomes 
-                    reducer
-                    (SomeHalter SWHNFHalter)
-                    (SomeOrderer NextOrderer)
-                    solver simplifier
-                    (emptyMemConfig { pres_func = \_ _ _ -> pres })
-                    s' bindings
-
-        case er of
-            [er'] -> do
-                let (CurrExpr _ ce) = curr_expr . final_state $ er'
-                return $ Just (bindings { name_gen = name_gen bindings' }, ce)
-            [] -> return Nothing
-            _ -> error $ "reduceAbstracted: Bad reduction"
-    | isTypeClass (type_classes s) $ (typeOf e)
-    , TyCon n _:_ <- unTyApp (typeOf e)
-    , _:Type t:_ <- unApp e
-    , Just tc_dict <- typeClassInst (type_classes s) M.empty n t = return $ Just (bindings, tc_dict) 
-    | otherwise = return $ Just (bindings, redVar (expr_env s) e) 
 
 redVar :: E.ExprEnv -> Expr -> Expr
 redVar = redVar' HS.empty

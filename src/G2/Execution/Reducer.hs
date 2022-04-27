@@ -102,10 +102,6 @@ import Data.Time.Clock
 import System.Directory
 import System.Random
 
-import GHC.Generics (Generic)
-
-import Debug.Trace
-
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
 -- and to reorder states
@@ -304,8 +300,8 @@ instance (Reducer r1 rv1 t, Reducer r2 rv2 t) => Reducer (RCombiner r1 r2) (RC r
         (rr2, srv2, b', r2') <- redRules r2 rv2 s b
         (rr1, srv1, b'', r1') <- redRules r1 rv1 s b'
 
-        let srv2' = map (\(s, rv2_) -> (s, RC rv1 rv2_) ) srv2
-            srv1' = map (\(s, rv1_) -> (s, RC rv1_ rv2) ) srv1
+        let srv2' = map (\(s_, rv2_) -> (s_, RC rv1 rv2_) ) srv2
+            srv1' = map (\(s_, rv1_) -> (s_, RC rv1_ rv2) ) srv1
 
         return (progPrioritizer rr1 rr2, srv2' ++ srv1', b'', r1' :|: r2')
 
@@ -465,13 +461,12 @@ instance Reducer NonRedPCRedConst () t where
                               , exec_stack = stck
                               , non_red_path_conds = nr:nrs
                               , model = m })
-                      b@(Bindings { name_gen = ng
-                                  , higher_order_inst = inst }) = do
+                      b@(Bindings { name_gen = ng }) = do
         let stck' = Stck.push (CurrExprFrame AddPC cexpr) stck
 
         let cexpr' = CurrExpr Evaluate nr
 
-        let (higher_ord, not_higher_ord) = L.partition (isTyFun . typeOf) $ E.symbolicIds eenv
+        let higher_ord = L.filter (isTyFun . typeOf) $ E.symbolicIds eenv
             (ng', new_lam_is) = L.mapAccumL (\ng_ ts -> swap $ freshIds ts ng_) ng (map anonArgumentTypes higher_ord)
             (new_sym_gen, ng'') = freshIds (map returnType higher_ord) ng'
 
@@ -531,11 +526,11 @@ instance Show t => Reducer Logger [Int] t where
 data PrettyLogger = PrettyLogger String PrettyGuide
 
 instance Show t => Reducer PrettyLogger [Int] t where
-    initReducer _ s = []
+    initReducer _ _ = []
 
-    redRules l@(PrettyLogger fn pg) li s b = do
+    redRules (PrettyLogger fn pg) li s b = do
         let pg' = updatePrettyGuide (s { track = () }) pg
-        outputState fn li s b (\s _ -> prettyState pg' s)
+        outputState fn li s b (\s_ _ -> prettyState pg' s_)
         return (NoProgress, [(s, li)], b, PrettyLogger fn pg')
     
     updateWithAll _ [(_, l)] = [l]
@@ -582,7 +577,7 @@ data PredicateLogger = PredicateLogger { pred :: forall t . State t -> Bindings 
                                        , pred_output_path :: String }
 
 instance Show t => Reducer PredicateLogger [Int] t where
-    initReducer ll _ = []
+    initReducer _ _ = []
 
     redRules pl@(PredicateLogger p out) ll s b
         | p s b = do
@@ -760,7 +755,7 @@ data SwitchEveryNHalter = SwitchEveryNHalter Int
 instance Halter SwitchEveryNHalter Int t where
     initHalt (SwitchEveryNHalter sw) _ = sw
     updatePerStateHalt (SwitchEveryNHalter sw) _ _ _ = sw
-    stopRed _ i pr _ = return $ if i <= 0 then Switch else Continue
+    stopRed _ i _ _ = return $ if i <= 0 then Switch else Continue
     stepHalter _ i _ _ _ = i - 1
 
     updateHalterWithAll _ [] = []
@@ -898,10 +893,10 @@ instance Halter TimerHalter Int t where
     initHalt _ _ = 0
     updatePerStateHalt _ _ _ _ = 0
 
-    stopRed tr@(TimerHalter { init_time = it
-                            , max_seconds = ms
-                            , if_time_out = def })
-            v (Processed { accepted = acc }) s
+    stopRed (TimerHalter { init_time = it
+                         , max_seconds = ms
+                         , if_time_out = def })
+            v (Processed { accepted = acc }) _
         | v == 0
         , not (null acc) = do
             curr <- getCurrentTime
@@ -923,11 +918,13 @@ instance Halter TimerHalter Int t where
 data OnlyIf h = OnlyIf { run_only_if :: forall t . Processed (State t) -> State t -> Bool
                        , below :: h }
 
-data OnlyIfHV hv = OnlyIfHV { pred_holds :: Bool, below_hv :: hv }
+data OnlyIfHV hv = OnlyIfHV
+                            Bool -- ^ Did the predicate hold?
+                            hv -- ^ What is the current halter value of the underlying halter?
 
 instance Halter h hv t => Halter (OnlyIf h) (OnlyIfHV hv) t where
     initHalt h s = OnlyIfHV (run_only_if h (Processed [] []) s) $ initHalt (below h) s
-    updatePerStateHalt h (OnlyIfHV holds hv) pr s =
+    updatePerStateHalt h (OnlyIfHV _ hv) pr s =
         let
             holds' = run_only_if h pr s
             hv' = updatePerStateHalt (below h) hv pr s
@@ -1029,7 +1026,7 @@ data NextOrderer = NextOrderer
 
 instance Orderer NextOrderer () Int t where
     initPerStateOrder _ _ = ()
-    orderStates or _ _ _ = (0, or)
+    orderStates ord _ _ _ = (0, ord)
     updateSelected _ v _ _ = v
 
 -- | Continue execution on the state that has been picked the least in the past. 
@@ -1037,7 +1034,7 @@ data PickLeastUsedOrderer = PickLeastUsedOrderer
 
 instance Orderer PickLeastUsedOrderer Int Int t where
     initPerStateOrder _ _ = 0
-    orderStates or v _ _ = (v, or)
+    orderStates ord v _ _ = (v, ord)
     updateSelected _ v _ _ = v + 1
 
 -- | Floors and does bucket size
@@ -1056,7 +1053,7 @@ data CaseCountOrderer = CaseCountOrderer
 instance Orderer CaseCountOrderer Int Int t where
     initPerStateOrder _ _ = 0
 
-    orderStates or v _ _ = (v, or)
+    orderStates ord v _ _ = (v, ord)
 
     updateSelected _ v _ _ = v
 
@@ -1069,7 +1066,7 @@ data SymbolicADTOrderer = SymbolicADTOrderer
 
 instance Orderer SymbolicADTOrderer (HS.HashSet Name) Int t where
     initPerStateOrder _ = HS.fromList . map idName . E.symbolicIds . expr_env
-    orderStates or v _ _ = (HS.size v, or)
+    orderStates ord v _ _ = (HS.size v, ord)
 
     updateSelected _ v _ _ = v
 
@@ -1107,10 +1104,10 @@ instance MinOrderer ADTHeightOrderer (HS.HashSet Name, Bool) Int t where
     minStepOrderer _ (v, True) _ _ s =
         (v `HS.union` (HS.fromList . map idName . E.symbolicIds . expr_env $ s), False)
     minStepOrderer (ADTHeightOrderer _ (Just n)) (v, _) _ _ 
-                   s@(State { curr_expr = CurrExpr _ (Tick (NamedLoc n') (Var (Id vn _))) }) 
+                   (State { curr_expr = CurrExpr _ (Tick (NamedLoc n') (Var (Id vn _))) }) 
             | n == n' =
                 (HS.insert vn v, False)
-    minStepOrderer _ v _ _ s =
+    minStepOrderer _ v _ _ _ =
         v
 
 adtHeight :: Name -> State t -> Int
@@ -1162,10 +1159,10 @@ instance MinOrderer ADTSizeOrderer (HS.HashSet Name, Bool) Int t where
     minStepOrderer _ (v, True) _ _ s =
         (v `HS.union` (HS.fromList . map idName . E.symbolicIds . expr_env $ s), False)
     minStepOrderer (ADTSizeOrderer _ (Just n)) (v, _) _ _ 
-                   s@(State { curr_expr = CurrExpr _ (Tick (NamedLoc n') (Var (Id vn _))) }) 
+                   (State { curr_expr = CurrExpr _ (Tick (NamedLoc n') (Var (Id vn _))) }) 
             | n == n' =
                 (HS.insert vn v, False)
-    minStepOrderer _ v _ _ s =
+    minStepOrderer _ v _ _ _ =
         v
 
 adtSize :: Name -> State t -> Int
@@ -1198,7 +1195,7 @@ data PCSizeOrderer = PCSizeOrderer
 -- This avoids repeated operations on the hashset after rules that we know
 -- will not add symbolic variables.
 instance MinOrderer PCSizeOrderer () Int t where
-    minInitPerStateOrder _ s = ()
+    minInitPerStateOrder _ _ = ()
     minOrderStates ord@(PCSizeOrderer pref_height) _ _ s =
         let
             m = PC.number (path_conds s)
@@ -1450,10 +1447,6 @@ runReducerListSwitching red hal ord pr m binds =
         Just (x, m') -> switchState red hal ord pr x binds m'
         Nothing -> return (pr, binds)
 
-processedToState :: Processed (ExState rv hv sov t) -> Processed (State t)
-processedToState (Processed {accepted = app, discarded = dis}) =
-    Processed {accepted = map state app, discarded = map state dis}
-
 -- Uses the Orderer to determine which state to continue execution on.
 -- Returns that State, and a list of the rest of the states 
 minState :: (Orderer or sov b t)
@@ -1468,6 +1461,3 @@ minState ord pr m =
       Just (k, []) -> minState ord pr $ M.delete k m
       Nothing -> Nothing
 
-
-numStates :: M.Map b [ExState rv hv sov t] -> Int
-numStates = sum . map length . M.elems

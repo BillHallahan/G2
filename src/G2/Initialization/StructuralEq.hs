@@ -14,7 +14,6 @@ import qualified Data.Foldable as F
 import qualified Data.HashSet as S
 import Data.List
 import qualified Data.Map as M
-import Data.Maybe
 import qualified Data.Text as T
 
 -- | createStructEqFuncs
@@ -269,7 +268,7 @@ structEqCheck _ t _ _ = error $ "Unsupported type in structEqCheck" ++ show t
 
 dictForType :: ExState s m => [(Name, (Id, Id))] -> Type -> m Expr
 dictForType bm t
-    | tycon@(TyCon _ _) <- tyAppCenter t
+    | (TyCon _ _) <- tyAppCenter t
     , ts <- tyAppArgs t = do
     kv <- knownValues
     tc <- typeClasses

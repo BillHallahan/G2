@@ -11,8 +11,6 @@ import G2.Liquid.Types
 
 import qualified Data.Map as M
 
-import Debug.Trace
-
 -- | Adds the LiquidHaskell typeclass to all functions in the ExprEnv, and to
 -- the current expression.  This requires:
 --   1. Adding Lambda bindings for the LH TC

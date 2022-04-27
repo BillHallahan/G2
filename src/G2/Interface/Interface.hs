@@ -73,8 +73,6 @@ import qualified Data.Text as T
 
 import System.Timeout
 
-import G2.Lib.Printers
-
 type AssumeFunc = T.Text
 type AssertFunc = T.Text
 type ReachFunc = T.Text
@@ -333,7 +331,7 @@ initialStateNoStartFunc :: [FilePath]
                      -> Config
                      -> IO (State (), Bindings)
 initialStateNoStartFunc proj src libs transConfig config = do
-    (mb_modname, exg2) <- translateLoaded proj src libs transConfig config
+    (_, exg2) <- translateLoaded proj src libs transConfig config
 
     let simp_state = initSimpleState exg2
 

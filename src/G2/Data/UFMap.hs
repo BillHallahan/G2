@@ -30,7 +30,8 @@ module G2.Data.UFMap ( UFMap
 
                      , null
                      , keys
-                     , elems) where
+                     , elems
+                     , member) where
 
 import qualified G2.Data.UnionFind as UF
 
@@ -85,7 +86,7 @@ fromList xs =
                                             Nothing -> [] ) xs
         m = foldr (uncurry insert) empty xs_j
     in
-    foldr (\(ks, v) m' ->
+    foldr (\(ks, _) m' ->
                 case ks of
                     [] -> m'
                     (k:_) -> foldr (\k' -> join const k k') m' ks)
@@ -134,7 +135,7 @@ lookupWithRep k (UFMap uf m) =
     (r, M.lookup r m)
 
 lookupRep :: (Eq k, Hashable k) => k -> UFMap k v -> k
-lookupRep k (UFMap uf m) = UF.find k uf
+lookupRep k (UFMap uf _) = UF.find k uf
 
 (!) :: (Eq k, Hashable k) => UFMap k v -> k -> v
 uf ! k = case lookup k uf of
@@ -187,7 +188,7 @@ mergeJoiningWithKey :: (Eq k, Hashable k, Show k, Show v, Show v1, Show v2)
                     -> UFMap k v1
                     -> UFMap k v2
                     -> UFMap k v
-mergeJoiningWithKey fb f1 f2 fj1 fj2 j ufm1@(UFMap uf1 m1) ufm2@(UFMap uf2 m2) =
+mergeJoiningWithKey fb f1 f2 fj1 fj2 j (UFMap uf1 m1) (UFMap uf2 m2) =
     let
         j_uf = UF.unionOfUFs uf1 uf2
 

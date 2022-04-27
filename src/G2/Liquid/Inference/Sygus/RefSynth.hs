@@ -1,7 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Liquid.Inference.Sygus.RefSynth ( refSynth
+module G2.Liquid.Inference.Sygus.RefSynth ( -- refSynth
                                     
                                           -- , grammar
                                           -- , intRuleList
@@ -16,64 +16,64 @@ module G2.Liquid.Inference.Sygus.RefSynth ( refSynth
                                           -- , runCVC4Stream
                                           ) where
 
-import G2.Language.Expr
-import qualified G2.Language.ExprEnv as E
-import G2.Language.Naming
-import G2.Language.Support
-import G2.Language.Syntax as G2
-import G2.Language.TypeClasses
-import G2.Language.Typing
-import G2.Liquid.Conversion
-import G2.Liquid.Helpers
-import G2.Liquid.Interface
-import G2.Liquid.Types
-import G2.Liquid.Inference.Config
-import G2.Liquid.Inference.FuncConstraint
-import G2.Liquid.Inference.G2Calls
-import G2.Liquid.Inference.GeneratedSpecs
-import G2.Liquid.Inference.PolyRef
-import G2.Liquid.Inference.Sygus.SimplifySygus
-import G2.Liquid.Inference.Sygus.UnsatCoreElim
+-- import G2.Language.Expr
+-- import qualified G2.Language.ExprEnv as E
+-- import G2.Language.Naming
+-- import G2.Language.Support
+-- import G2.Language.Syntax as G2
+-- import G2.Language.TypeClasses
+-- import G2.Language.Typing
+-- import G2.Liquid.Conversion
+-- import G2.Liquid.Helpers
+-- import G2.Liquid.Interface
+-- import G2.Liquid.Types
+-- import G2.Liquid.Inference.Config
+-- import G2.Liquid.Inference.FuncConstraint
+-- import G2.Liquid.Inference.G2Calls
+-- import G2.Liquid.Inference.GeneratedSpecs
+-- import G2.Liquid.Inference.PolyRef
+-- import G2.Liquid.Inference.Sygus.SimplifySygus
+-- import G2.Liquid.Inference.Sygus.UnsatCoreElim
 
-import Sygus.LexSygus
-import Sygus.ParseSygus
-import Sygus.Print
-import Sygus.Syntax as Sy
-import Language.Haskell.Liquid.Types as LH
-import Language.Haskell.Liquid.Types.RefType
-import Language.Fixpoint.Types.Constraints
-import Language.Fixpoint.Types.Refinements as LH
-import qualified Language.Fixpoint.Types as LH
-import qualified Language.Fixpoint.Types as LHF
+-- import Sygus.LexSygus
+-- import Sygus.ParseSygus
+-- import Sygus.Print
+-- import Sygus.Syntax as Sy
+-- import Language.Haskell.Liquid.Types as LH
+-- import Language.Haskell.Liquid.Types.RefType
+-- import Language.Fixpoint.Types.Constraints
+-- import Language.Fixpoint.Types.Refinements as LH
+-- import qualified Language.Fixpoint.Types as LH
+-- import qualified Language.Fixpoint.Types as LHF
 
-import Control.Exception
-import Control.Monad.IO.Class
-import qualified Control.Monad.State as S
-import Data.Coerce
-import Data.List
-import Data.Hashable
-import qualified Data.HashMap.Lazy as HM
-import qualified Data.HashSet as HS
-import qualified Data.Map as M
-import Data.Maybe
-import Data.Monoid
-import Data.Ratio
-import qualified Data.Text as T
-import Data.Tuple
-import Data.Tuple.Extra
-import System.Directory
-import System.IO
-import System.IO.Temp
-import qualified System.Process as P
+-- import Control.Exception
+-- import Control.Monad.IO.Class
+-- import qualified Control.Monad.State as S
+-- import Data.Coerce
+-- import Data.List
+-- import Data.Hashable
+-- import qualified Data.HashMap.Lazy as HM
+-- import qualified Data.HashSet as HS
+-- import qualified Data.Map as M
+-- import Data.Maybe
+-- import Data.Monoid
+-- import Data.Ratio
+-- import qualified Data.Text as T
+-- import Data.Tuple
+-- import Data.Tuple.Extra
+-- import System.Directory
+-- import System.IO
+-- import System.IO.Temp
+-- import qualified System.Process as P
 
-import TyCon
-import qualified Var as V
+-- import TyCon
+-- import qualified Var as V
 
-import Debug.Trace
+-- import Debug.Trace
 
-refSynth :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> MeasureExs
-         -> FuncConstraints -> Name -> m (Maybe ([PolyBound LH.Expr], [Qualifier]))
-refSynth ghci lrs meas_ex fc n@(Name n' _ _ _) = undefined -- do
+-- refSynth :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> MeasureExs
+--          -> FuncConstraints -> Name -> m (Maybe ([PolyBound LH.Expr], [Qualifier]))
+-- refSynth ghci lrs meas_ex fc n@(Name n' _ _ _) = undefined -- do
 {-
     let eenv = expr_env . state $ lr_state lrs
         tc = type_classes . state $ lr_state lrs

@@ -47,7 +47,6 @@ import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
-import Data.Maybe
 import Data.Monoid hiding (All)
 
 newtype FuncConstraints = FuncConstraints (M.Map Name (HS.HashSet FuncConstraint))
@@ -185,7 +184,7 @@ printAllCall s (FuncCall { funcName = f, arguments = ars, returns = r}) =
     cll ++ " " ++ r_str ++ ")"
 
 instance ASTContainer FuncConstraint Expr where
-    containedASTs (Call sp fc) = containedASTs fc
+    containedASTs (Call _ fc) = containedASTs fc
     containedASTs (AndFC fcs) = containedASTs fcs
     containedASTs (OrFC fcs) = containedASTs fcs
     containedASTs (ImpliesFC fc1 fc2) = containedASTs fc1 ++ containedASTs fc2

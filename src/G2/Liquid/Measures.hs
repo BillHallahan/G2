@@ -9,7 +9,6 @@ import qualified  G2.Language.ExprEnv as E
 import G2.Language.Monad
 import G2.Liquid.Conversion
 import G2.Liquid.Types
-import Language.Fixpoint.SortCheck
 import Language.Haskell.Liquid.Types
 import G2.Translation.Haskell
 
@@ -20,8 +19,6 @@ import Data.Maybe
 import qualified GHC as GHC
 
 import qualified Data.HashMap.Lazy as HM
-
-import Debug.Trace
 
 -- | Creates measures from LH measure specifications.
 -- This is required to find all measures that are written in comments.
@@ -132,7 +129,7 @@ convertDefs :: [Type] -> Maybe Type -> LHDictMap -> BoundTypes -> Def SpecType G
 convertDefs [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})
     | TyCon _ _ <- tyAppCenter l_t
     , st_t <- tyAppArgs l_t
-    , dc'@(DataCon n t) <- mkData HM.empty HM.empty dc = do
+    , dc' <- mkData HM.empty HM.empty dc = do
     tenv <- typeEnv
     let 
         -- (TyCon tn _) = tyAppCenter $ returnType $ PresType t
@@ -165,7 +162,7 @@ fixNamesDC tenv (DataCon n t) =
         (TyCon tn _) = tyAppCenter $ returnType $ PresType t
     in
     case getDataConNameMod tenv tn n of
-        Just (DataCon n _) -> DataCon n (fixNamesType tenv t)
+        Just (DataCon dcn _) -> DataCon dcn (fixNamesType tenv t)
         Nothing -> error "fixNamesDC: Bad DC"
 
 fixNamesType :: TypeEnv -> Type -> Type

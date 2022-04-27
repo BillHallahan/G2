@@ -233,17 +233,25 @@ mapAbstractedInfoCAFCs f (AbstractedInfo { init_call = ic, abs_violated = av, ab
 
 instance L.ASTContainer Abstracted L.Expr where
     containedASTs ab = L.containedASTs (abstract ab) ++ L.containedASTs (real ab)
-    modifyContainedASTs f (Abstracted { abstract = a, real = r, hits_lib_err_in_real = err }) =
+    modifyContainedASTs f (Abstracted { abstract = a
+                                      , real = r
+                                      , hits_lib_err_in_real = err
+                                      , func_calls_in_real = fcir }) =
         Abstracted { abstract = L.modifyContainedASTs f a
                    , real = L.modifyContainedASTs f r
-                   , hits_lib_err_in_real = err}
+                   , hits_lib_err_in_real = err
+                   , func_calls_in_real = L.modifyContainedASTs f fcir}
 
 instance L.ASTContainer Abstracted L.Type where
     containedASTs ab = L.containedASTs (abstract ab) ++ L.containedASTs (real ab)
-    modifyContainedASTs f (Abstracted { abstract = a, real = r, hits_lib_err_in_real = err }) =
+    modifyContainedASTs f (Abstracted { abstract = a
+                                      , real = r
+                                      , hits_lib_err_in_real = err
+                                      , func_calls_in_real = fcir }) =
         Abstracted { abstract = L.modifyContainedASTs f a
                    , real = L.modifyContainedASTs f r
-                   , hits_lib_err_in_real = err }
+                   , hits_lib_err_in_real = err
+                   , func_calls_in_real = L.modifyContainedASTs f fcir }
 
 -- | See G2.Liquid.TyVarBags
 type TyVarBags = M.Map L.Name [L.Id]
@@ -353,6 +361,9 @@ instance FullState (LHState, L.Bindings) LHStateM where
     inputNames = readRecord $ L.input_names . snd
     fixedInputs = readRecord $ L.fixed_inputs . snd
 
+    pathConds = readRecord $ path_conds . fst
+    putPathConds = rep_path_condsM
+
 runLHStateM :: LHStateM a -> LHState -> L.Bindings -> (a, (LHState, L.Bindings))
 runLHStateM (LHStateM s) lh_s b = SM.runState s (lh_s, b)
 
@@ -420,6 +431,16 @@ rep_type_classesM tc = do
     (lh_s,b) <- SM.get
     let s = state lh_s
     let s' = s {L.type_classes = tc}
+    SM.put $ (lh_s {state = s'}, b)
+
+path_conds :: LHState -> L.PathConds
+path_conds = liftState L.path_conds
+
+rep_path_condsM :: L.PathConds -> LHStateM ()
+rep_path_condsM ce = do
+    (lh_s, b) <- SM.get
+    let s = state lh_s
+    let s' = s {L.path_conds = ce}
     SM.put $ (lh_s {state = s'}, b)
 
 liftLHState :: (LHState -> a) -> LHStateM a
@@ -518,7 +539,7 @@ insertTyVarBags n is = do
 
 lookupTyVarBags :: L.Name -> LHStateM (Maybe [L.Id])
 lookupTyVarBags n = do
-    (lh_s, b) <- SM.get
+    (lh_s, _) <- SM.get
     return $ M.lookup n (tyvar_bags lh_s)
 
 setTyVarBags :: TyVarBags -> LHStateM ()
@@ -537,7 +558,7 @@ insertInstFuncs n i = do
 
 lookupInstFuncs :: L.Name -> LHStateM (Maybe L.Id)
 lookupInstFuncs n = do
-    (lh_s, b) <- SM.get
+    (lh_s, _) <- SM.get
     return $ M.lookup n (inst_funcs lh_s)
 
 setInstFuncs :: M.Map L.Name L.Id -> LHStateM ()
@@ -719,7 +740,6 @@ ratioFuncT = do
     a <- freshIdN L.TYPE
     let tva = L.TyVar a
     integral <- return . KV.integralTC =<< knownValues
-    integerT <- tyIntegerT
 
     let integral' = L.TyCon integral L.TYPE
 

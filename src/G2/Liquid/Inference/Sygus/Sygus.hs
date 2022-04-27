@@ -4,7 +4,6 @@
 module G2.Liquid.Inference.Sygus.Sygus where
 
 import G2.Language as G2
-import G2.Liquid.Helpers
 import G2.Liquid.Interface
 import G2.Liquid.Types
 import G2.Liquid.Inference.Config
@@ -31,9 +30,6 @@ import Data.Ratio
 import qualified Data.Text as T
 
 import Language.Haskell.Liquid.Types as LH hiding (SP, ms, isBool)
-import Language.Fixpoint.Types.Refinements as LH hiding (pAnd, pOr)
-import qualified Language.Fixpoint.Types as LH
-import qualified Language.Fixpoint.Types as LHF
 
 generateSygusProblem :: (InfConfigM m, ProgresserM m, MonadIO m) =>
                         [GhcInfo]
@@ -185,7 +181,7 @@ createToBeConsts' f si = mapMaybe (createToBeConsts'' f si)
                        . HM.map HM.elems
 
 createToBeConsts'' :: (SpecInfo -> SMTName) -> M.Map Name SpecInfo -> (Name, (Integer, Bool)) -> Maybe Cmd
-createToBeConsts'' f si (n, (i, b))
+createToBeConsts'' f si (n, (i, _))
     | Just si' <- M.lookup n si
     , s_status si' == ToBeSynthed =
         Just $ DeclareVar (f si' ++ "__SYGUS_INT__" ++ show i) (IdentSort (ISymb "Bool"))
@@ -210,10 +206,10 @@ forceVarInGrammar :: SortedVar -- ^ The variable to force
                   -> [SortedVar]  -- ^ All other variables
                   -> GrammarDef
                   -> GrammarDef
-forceVarInGrammar var params (GrammarDef sv grls) =
+forceVarInGrammar vr params (GrammarDef sv grls) =
     let
-        prod_srt = mapMaybe (\grl@(GroupedRuleList grl_symb srt' _) ->
-                            if any (flip canProduceVar grl) (var:params)
+        prod_srt = mapMaybe (\grl@(GroupedRuleList grl_symb _ _) ->
+                            if any (flip canProduceVar grl) (vr:params)
                                 then Just grl_symb
                                 else Nothing ) grls
 
@@ -221,17 +217,17 @@ forceVarInGrammar var params (GrammarDef sv grls) =
 
         sv_reach = concatMap (grammarDefSortedVars reach) sv
 
-        (sv_final, grl_final) = elimNonTermGRL var (forceVarInGRLList var reach grls) sv_reach
+        (sv_final, grl_final) = elimNonTermGRL vr (forceVarInGRLList vr reach grls) sv_reach
     in
     GrammarDef sv_final grl_final
 
 forceVarInGRLList :: SortedVar -> [Symbol] -> [GroupedRuleList] -> [GroupedRuleList]
-forceVarInGRLList var reach grls =
+forceVarInGRLList vr reach grls =
     let
         fv_map = HM.fromList $ map (\n -> (toBf n, toBf $ forcedVarSymb n)) reach
 
     in
-    concatMap (forceVarInGRL var reach fv_map) grls
+    concatMap (forceVarInGRL vr reach fv_map) grls
     where
         toBf = BfIdentifier . ISymb
 
@@ -355,7 +351,7 @@ substsOnces :: (Eq a, Hashable a) => HM.HashMap a a -> [a] -> [[a]]
 substsOnces m = substsOnces' m []
 
 substsOnces' :: (Eq a, Hashable a) => HM.HashMap a a -> [a] -> [a] -> [[a]]
-substsOnces' m rv [] = []
+substsOnces' _ _ [] = []
 substsOnces' m rv (x:xs)
     | Just new <- HM.lookup x m = (reverse rv ++ new:xs):rst
     | otherwise = rst
@@ -370,8 +366,8 @@ grammarDefSortedVars symbs sv@(SortedVar n srt)
     | otherwise = [sv]
 
 canProduceVar :: SortedVar -> GroupedRuleList -> Bool
-canProduceVar var@(SortedVar symb sv_srt) (GroupedRuleList _ grl_srt gtrms)
-    | sv_srt == grl_srt = any (canProduceVarGTerm var) gtrms
+canProduceVar vr@(SortedVar _ sv_srt) (GroupedRuleList _ grl_srt gtrms)
+    | sv_srt == grl_srt = any (canProduceVarGTerm vr) gtrms
     | otherwise = False
 
 canProduceVarGTerm :: SortedVar -> GTerm -> Bool
@@ -415,5 +411,5 @@ containsSymbolBfTerm _ (BfLiteral _) = False
 
 containsSymbolIdent :: Symbol -> Identifier -> Bool
 containsSymbolIdent symb (ISymb symb') = symb == symb'
-containsSymbolIdent symb _ = False
+containsSymbolIdent _ _ = False
 

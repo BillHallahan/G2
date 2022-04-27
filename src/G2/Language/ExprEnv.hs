@@ -68,7 +68,6 @@ import Prelude hiding( filter
                      , mapM
                      , null)
 import qualified Prelude as Pre
-import Control.Monad hiding (mapM)
 import Data.Coerce
 import Data.Data (Data, Typeable)
 import Data.Hashable
@@ -274,7 +273,7 @@ mapConcWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
     where
         f' :: Name -> EnvObj -> EnvObj
         f' n (ExprObj e) = ExprObj $ f n e
-        f' n s@(SymbObj _) = s
+        f' _ s@(SymbObj _) = s
         f' _ n = n
 
 mapConcOrSym :: (ConcOrSym -> ConcOrSym) -> ExprEnv -> ExprEnv
