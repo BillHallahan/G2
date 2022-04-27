@@ -542,16 +542,21 @@ checkNewConstraints ghci lrs cexs = do
 updateMeasureExs :: (InfConfigM m, ProgresserM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> FuncConstraints -> m MeasureExs
 updateMeasureExs meas_ex lrs ghci fcs =
     let
-        es = concatMap (\fc ->
-                    let
-                        clls = allCalls' fc
-                        vls = concatMap (\c -> returns c:arguments c) clls 
-                        ex_poly = concat . concatMap extractValues . concatMap extractExprPolyBound $ vls
-                    in
-                    vls ++ ex_poly
-                ) (toListFC fcs)
+        es = concatMap updateExprs (toListFC fcs)
     in
     evalMeasures meas_ex lrs ghci es
+    where
+        updateExprs :: FuncConstraint -> [(Expr, PathConds, S.HashSet Id)]
+        updateExprs fc = concatMap updateExprs' $ allCalls fc
+
+        updateExprs' :: CAFuncCall -> [(Expr, PathConds, S.HashSet Id)]
+        updateExprs' ca_call =
+            let
+                cll = fcall ca_call
+                vls = returns cll:arguments cll
+                ex_poly = concat . concatMap extractValues . concatMap extractExprPolyBound $ vls
+            in
+            zip3 (vls ++ ex_poly) (repeat $ paths_fc ca_call) (repeat $ symb_fc ca_call)
 
 synthesize :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
            => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs

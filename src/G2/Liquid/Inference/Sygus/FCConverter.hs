@@ -281,7 +281,7 @@ adjustArgsWithCare inf_config n convExpr mx_meas tenv meas meas_ex t
     | otherwise = adjustArgs convExpr mx_meas tenv meas meas_ex t
 
 adjustLits :: G2.Expr -> G2.Expr
-adjustLits (App _ l@(Lit _)) = l
+adjustLits (App _ e) | isPrimType (typeOf e) = e
 adjustLits e = e
 
 validArgForSMT :: G2.Expr -> Bool

@@ -146,12 +146,23 @@ data CAFuncCall = CAFuncCall { fcall :: FuncCall
                              , symb_fc :: S.HashSet Id }
                   deriving (Eq, Show, Read, Generic)
 
--- | Given a concrete `FunctionCall`, creates a trivial `CAFuncCall`, assuming no symbolic variables
+-- | Given a concrete `FuncCall`, creates a trivial `CAFuncCall`, assuming no symbolic variables
 -- or path constraints.
 simpleCAFuncCall :: FuncCall -> CAFuncCall
 simpleCAFuncCall fc = CAFuncCall { fcall = fc
                                  , paths_fc = PC.empty
                                  , symb_fc = S.empty }
+
+-- | Construct a `CAFuncCall` based on the `PathConds` and symbolic ids in the `State t`,
+-- and the `FuncCall`.
+mkCAFuncCall :: State t -> FuncCall -> CAFuncCall
+mkCAFuncCall s fc =
+    let
+        var_names = map idName $ varIds fc
+    in
+    CAFuncCall { fcall = fc
+               , paths_fc = path_conds s
+               , symb_fc = S.filter (\(Id n _) -> n `elem` var_names) . S.fromList $ E.symbolicIds (expr_env s) }
 
 -- | Apply the given function to the `FuncCall` in the `CAFuncCall`.
 mapFuncCall :: (FuncCall -> FuncCall) -> CAFuncCall -> CAFuncCall

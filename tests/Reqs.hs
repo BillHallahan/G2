@@ -46,11 +46,11 @@ checkAbsLHExprGen :: [(State AbstractedInfo, [Expr], Expr)] -> [Reqs ([Expr] -> 
 checkAbsLHExprGen exprs reqList =
     let
         argChecksAll =
-            if and . map (\f -> all (\(s, es, e) -> f es e (map abstract . abs_calls $ track s)) exprs) $ [f | RForAll f <- reqList]
+            if and . map (\f -> all (\(s, es, e) -> f es e (map fcall . map abstract . abs_calls $ track s)) exprs) $ [f | RForAll f <- reqList]
                 then []
                 else [ArgsForAllFailed]
         argChecksEx =
-            if and . map (\f -> any (\(s, es, e) -> f es e (map abstract . abs_calls $ track s)) exprs) $ [f | RExists f <- reqList]
+            if and . map (\f -> any (\(s, es, e) -> f es e (map fcall . map abstract . abs_calls $ track s)) exprs) $ [f | RExists f <- reqList]
                 then []
                 else [ArgsExistFailed]
         checkL = checkLengths (map (\(_, e, _) -> e) exprs) reqList

@@ -170,7 +170,7 @@ printPreCall s (FuncCall { funcName = Name f _ _ _, arguments = ars, returns = r
 printPostCall :: State t -> FuncCall -> String
 printPostCall s (FuncCall { funcName = Name f _ _ _, arguments = ars, returns = r}) =
     let
-        cll = printHaskell s . foldl (\a a' -> App a a') (Var (Id (Name (f <> "post") Nothing 0 Nothing) TyUnknown)) $ ars
+        cll = printHaskell s . foldl (\a a' -> App a a') (Var (Id (Name (f <> "_post") Nothing 0 Nothing) TyUnknown)) $ ars
         r_str = printHaskell s r
     in
     cll ++ " " ++ r_str ++ ")"

@@ -132,7 +132,7 @@ runLHCore entry (mb_modname, exg2) ghci config = do
     let simplifier = IdSimplifier
 
     let (red, hal, ord) = lhReducerHalterOrderer config solver simplifier entry mb_modname cfn final_st
-    (exec_res, final_bindings) <- runLHG2 config red hal ord solver simplifier pres_names ifi final_st bindings
+    (exec_res, final_bindings) <- runLHG2 config (const True) red hal ord solver simplifier pres_names ifi final_st bindings
 
     close solver
 
@@ -380,6 +380,7 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
 
 runLHG2 :: (Solver solver, Simplifier simplifier)
         => Config
+        -> (Expr -> Bool) -- ^ A filter for the model before building the ExecRes.
         -> SomeReducer LHTracker
         -> SomeHalter LHTracker
         -> SomeOrderer LHTracker
@@ -390,10 +391,13 @@ runLHG2 :: (Solver solver, Simplifier simplifier)
         -> State LHTracker
         -> Bindings
         -> IO ([ExecRes AbstractedInfo], Bindings)
-runLHG2 config red hal ord solver simplifier pres_names init_id final_st bindings = do
+runLHG2 config model_filter red hal ord solver simplifier pres_names init_id final_st bindings = do
     let only_abs_st = addTicksToDeepSeqCases (deepseq_walkers bindings) final_st
-    (ret, final_bindings) <- runG2WithSomes red hal ord solver simplifier pres_names only_abs_st bindings
+    (ret, final_bindings) <- runG2ForLH model_filter red hal ord solver simplifier pres_names only_abs_st bindings
     let n_ret = map (\er -> er { final_state = putSymbolicExistentialInstInExprEnv (final_state er) }) ret
+
+    putStrLn "runLHG2"
+    mapM_ (print . model . final_state) n_ret
 
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length n_ret of
@@ -404,8 +408,11 @@ runLHG2 config red hal ord solver simplifier pres_names init_id final_st binding
                                   else er) n_ret
     let ret'' = filter (\(ExecRes {final_state = s}) -> mi == (abstractCallsNum s)) ret'
 
-    (bindings', ret''') <- mapAccumM (reduceCalls solver simplifier config) final_bindings ret''
-    ret'''' <- mapM (checkAbstracted solver simplifier config init_id bindings') ret'''
+    (bindings', ret''') <- mapAccumM (reduceCalls model_filter solver simplifier config) final_bindings ret''
+    ret'''' <- mapM (checkAbstracted model_filter solver simplifier config init_id bindings') ret'''
+
+    mapM_ (print . model . final_state) ret'''
+    mapM_ (print . model . final_state) ret''''
 
     let exec_res = 
           map (\(ExecRes { final_state = s
@@ -422,7 +429,6 @@ runLHG2 config red hal ord solver simplifier pres_names init_id final_st binding
                          , violated = ais})) ret''''
 
     return (exec_res, final_bindings)
-
 
 lhReducerHalterOrderer :: (Solver solver, Simplifier simplifier)
                        => Config

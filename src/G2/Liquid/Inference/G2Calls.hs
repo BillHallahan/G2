@@ -41,6 +41,7 @@ module G2.Liquid.Inference.G2Calls ( MeasureExs
 
 import G2.Config
 
+import G2.Data.Utils
 import G2.Execution
 import G2.Interface
 import G2.Language as G2
@@ -119,7 +120,7 @@ gatherAllowedCalls entry m lrs ghci infconfig config = do
 
     (_, red_calls) <- mapAccumM 
                                 (\b (fs, fc) -> do
-                                    (_, b', rfc) <- reduceFuncCall
+                                    (_, b', rfc) <- reduceFuncCall     (const True)
                                                                        fc_red
                                                                        solver
                                                                        simplifier
@@ -227,7 +228,7 @@ runLHInferenceCore entry m lrs ghci = do
         final_st' = swapHigherOrdForSymGen bindings final_st
 
     (red, hal, ord) <- inferenceReducerHalterOrderer infconfig g2config solver simplifier entry m cfn final_st'
-    (exec_res, final_bindings) <- liftIO $ runLHG2 g2config red hal ord solver simplifier pres_names ifi final_st' bindings
+    (exec_res, final_bindings) <- liftIO $ runLHG2 g2config (not . isPrimType . typeOf) red hal ord solver simplifier pres_names ifi final_st' bindings
 
     liftIO $ close solver
 
@@ -316,7 +317,7 @@ runLHCExSearch entry m lrs ghci = do
         final_st' = swapHigherOrdForSymGen bindings final_st
 
     (red, hal, ord) <- realCExReducerHalterOrderer infconfig g2config' entry m solver simplifier cfn
-    (exec_res, final_bindings) <- liftIO $ runLHG2 g2config' red hal ord solver simplifier pres_names ifi final_st' bindings
+    (exec_res, final_bindings) <- liftIO $ runLHG2 g2config' (not . isPrimType . typeOf) red hal ord solver simplifier pres_names ifi final_st' bindings
 
     liftIO $ close solver
 
@@ -609,7 +610,7 @@ type MeasureExs = HM.HashMap Expr (HM.HashMap [Name] Expr)
 
 type MaxMeasures = Int
 
-evalMeasures :: (InfConfigM m, ProgresserM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> [Expr] -> m MeasureExs
+evalMeasures :: (InfConfigM m, ProgresserM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> [(Expr, PathConds, HS.HashSet Id)] -> m MeasureExs
 evalMeasures init_meas lrs ghci es = do
     config <- g2ConfigM
     let config' = config { counterfactual = NotCounterfactual }
@@ -627,7 +628,7 @@ evalMeasures init_meas lrs ghci es = do
         tot_meas = E.filter (isTotal (type_env s)) meas
 
     SomeSolver solver <- liftIO $ initSolver config
-    meas_res <- foldM (evalMeasures' (final_s {type_env = type_env s}) final_b solver config' tot_meas tcv) init_meas $ filter (not . isError) es
+    meas_res <- foldM (evalMeasures' (final_s {type_env = type_env s}) final_b solver config' tot_meas tcv) init_meas $ filter (not . isError . fst3) es
     liftIO $ close solver
     return meas_res
     where
@@ -665,10 +666,15 @@ evalMeasures' :: ( InfConfigM m
                  , ASTContainer t Type
                  , Named t
                  , Solver solver
-                 , Show t) => State t -> Bindings -> solver -> Config -> Measures -> TCValues -> MeasureExs -> Expr -> m MeasureExs
-evalMeasures' s bindings solver config meas tcv init_meas e =  do
+                 , Show t) =>
+                    State t
+                 -> Bindings
+                 -> solver -> Config -> Measures -> TCValues -> MeasureExs -> (Expr, PathConds, HS.HashSet Id) -> m MeasureExs
+evalMeasures' s bindings solver config meas tcv init_meas (e, pc, symbs) =  do
     MaxSize max_meas <- maxSynthSizeM
-    let m_sts = evalMeasures'' (fromInteger max_meas) s bindings meas tcv e
+    let s' = s { expr_env = foldr E.insertSymbolic (expr_env s) symbs
+               , path_conds = pc }
+        m_sts = evalMeasures'' (fromInteger max_meas) s' bindings meas tcv e
 
     foldM (\meas_exs (ns, e_in, s_meas) -> do
         case HM.lookup ns =<< HM.lookup e_in meas_exs of

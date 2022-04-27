@@ -442,7 +442,7 @@ runG2Post :: ( Named t
              solver -> simplifier -> State t -> Bindings -> IO ([ExecRes t], Bindings)
 runG2Post red hal ord solver simplifier is bindings = do
     (exec_states, bindings') <- runExecution red hal ord is bindings
-    sol_states <- mapM (runG2Solving solver simplifier bindings') exec_states
+    sol_states <- mapM (runG2Solving (const True) solver simplifier bindings') exec_states
 
     return (catMaybes sol_states, bindings')
 
@@ -463,16 +463,24 @@ runG2Solving :: ( Named t
                 , ASTContainer t Type
                 , Solver solver
                 , Simplifier simplifier) =>
-                solver -> simplifier -> Bindings -> State t -> IO (Maybe (ExecRes t))
-runG2Solving solver simplifier bindings s@(State { known_values = kv })
+                   (Expr -> Bool)  -- ^ A filter for the model before building the ExecRes.
+                                   -- Allows returning solutions that still involve some
+                                   -- symbolic variables.
+                -> solver
+                -> simplifier
+                -> Bindings
+                -> State t
+                -> IO (Maybe (ExecRes t))
+runG2Solving model_filter solver simplifier bindings s@(State { known_values = kv })
     | true_assert s = do
         r <- solve solver s bindings (E.symbolicIds . expr_env $ s) (path_conds s)
 
         case r of
             SAT m -> do
                 let m' = reverseSimplification simplifier s bindings m
+                    m'' = HM.filter model_filter m
 
-                let s' = s { model = m' }
+                let s' = s { model = m'' }
 
                 let (es, e, ais) = subModel s' bindings
                     sm = ExecRes { final_state = s'
@@ -506,6 +514,6 @@ runG2 :: ( Named t
          solver -> simplifier -> MemConfig -> State t -> Bindings -> IO ([ExecRes t], Bindings)
 runG2 red hal ord solver simplifier mem is bindings = do
     (exec_states, bindings') <- runG2ThroughExecution red hal ord mem is bindings
-    sol_states <- mapM (runG2Solving solver simplifier bindings') exec_states
+    sol_states <- mapM (runG2Solving (const True) solver simplifier bindings') exec_states
 
     return (catMaybes sol_states, bindings')
