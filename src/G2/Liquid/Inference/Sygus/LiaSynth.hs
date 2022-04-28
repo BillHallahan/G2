@@ -986,6 +986,8 @@ constraintsToSMT eenv tenv meas meas_ex evals si fc =
     return . map (Solver.Assert) =<<
         convertConstraints 
                     convertExprToSMT
+                    pathConsToSMT
+                    (\is -> Forall (map (\n -> (n, SortInt)) is))
                     (ifNotNull mkSMTAnd (VBool True))
                     (ifNotNull mkSMTOr (VBool False))
                     (:!)

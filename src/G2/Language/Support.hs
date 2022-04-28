@@ -158,11 +158,11 @@ simpleCAFuncCall fc = CAFuncCall { fcall = fc
 mkCAFuncCall :: State t -> FuncCall -> CAFuncCall
 mkCAFuncCall s fc =
     let
-        var_names = map idName $ varIds fc
+        var_names = varIds fc <> varIdsInPCs (path_conds s)
     in
     CAFuncCall { fcall = fc
                , paths_fc = path_conds s
-               , symb_fc = S.filter (\(Id n _) -> n `elem` var_names) . S.fromList $ E.symbolicIds (expr_env s) }
+               , symb_fc = S.fromList var_names }
 
 -- | Apply the given function to the `FuncCall` in the `CAFuncCall`.
 mapFuncCall :: (FuncCall -> FuncCall) -> CAFuncCall -> CAFuncCall

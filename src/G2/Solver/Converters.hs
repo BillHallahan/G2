@@ -12,9 +12,10 @@
 module G2.Solver.Converters
     ( toSMTHeaders
     , toSolver
-    , exprToSMT --WOULD BE NICE NOT TO EXPORT THIS
-    , typeToSMT --WOULD BE NICE NOT TO EXPORT THIS
-    , toSolverAST --WOULD BE NICE NOT TO EXPORT THIS
+    , pathConsToSMT
+    , exprToSMT
+    , typeToSMT
+    , toSolverAST
     , sortName
     , smtastToExpr
     , modelAsExpr
@@ -94,6 +95,8 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     itor :: con -> ast -> ast
 
     ite :: con -> ast -> ast -> ast -> ast
+
+    smtForall :: con -> [(SMTName, Sort)] -> ast -> ast
 
     --values
     int :: con -> Integer -> ast
@@ -528,6 +531,8 @@ toSolverAST con (ItoR x) = itor con $ toSolverAST con x
 
 toSolverAST con (Ite x y z) =
     ite con (toSolverAST con x) (toSolverAST con y) (toSolverAST con z)
+
+toSolverAST con (Forall b x) = smtForall con b $ toSolverAST con x
 
 toSolverAST con (VInt i) = int con i
 toSolverAST con (VFloat f) = float con f

@@ -208,6 +208,13 @@ instance SMTConverter Z3 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) w
 
     ite _ = function3 "ite"
 
+    smtForall con b e =
+        let
+            binds = TB.intercalate " "
+                  $ map (\(n, s) -> "(" <> TB.string n <> " " <> sortName con s <> ")") b
+        in
+        "(forall (" <> binds <> ")" <> e <> ")"
+
     int _ x = if x >= 0 then showText x else "(- " <> showText (abs x) <> ")"
     float _ r = 
         "(/ " <> showText (numerator r) <> " " <> showText (denominator r) <> ")"

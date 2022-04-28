@@ -79,6 +79,8 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | Ite !SMTAST !SMTAST !SMTAST
             | SLet (SMTName, SMTAST) !SMTAST
 
+            | Forall [(SMTName, Sort)] !SMTAST
+
             | VInt Integer
             | VFloat Rational
             | VDouble Rational

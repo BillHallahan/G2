@@ -131,6 +131,8 @@ constraintsToSygus eenv tenv meas meas_ex evals si fc =
     return . map Constraint =<<
         convertConstraints 
                     convertExprToTerm
+                    undefined
+                    undefined
                     (ifNotNull mkSygusAnd (TermLit (LitBool True)))
                     (ifNotNull mkSygusOr (TermLit (LitBool False)))
                     mkSygusNot

@@ -31,6 +31,7 @@ module G2.Language.PathConds ( PathConds
                              , relatedSets
                              , scc
                              , varIdsInPC
+                             , varIdsInPCs
                              , varNamesInPC
                              , allIds
                              , toList
@@ -203,6 +204,9 @@ relatedSets (PathConds ufm) =
         c_ufm = UF.clear ufm
     in
     P.map (\(k, v) -> PathConds $ UF.insert k v c_ufm) $ HM.toList (UF.toSimpleMap ufm) 
+
+varIdsInPCs :: PathConds -> [Id]
+varIdsInPCs = concatMap varIdsInPC . toList
 
 varIdsInPC :: PathCond -> [Id]
 -- [AltCond]
