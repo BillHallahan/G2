@@ -754,9 +754,7 @@ isExported lrs (Name n m _ _) =
 
 lhStateToPreFC :: Id -> ExecRes (AbstractedInfo ConcAbsFuncCall) -> FuncConstraint
 lhStateToPreFC i (ExecRes { conc_args = inArg
-                          , conc_out = ex}) =
-    trace ("lhStateToPreFC\ninArg = " ++ show inArg ++ "\n ex = " ++ show ex)
-    Call Pre $ simpleConcAbsFuncCall (FuncCall (idName i) inArg ex)
+                          , conc_out = ex}) = Call Pre $ simpleConcAbsFuncCall (FuncCall (idName i) inArg ex)
 
 abstractedMod :: Abstracted ConcAbsFuncCall -> Maybe T.Text
 abstractedMod = nameModule . caFuncName . abstract

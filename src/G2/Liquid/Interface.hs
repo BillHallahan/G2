@@ -687,7 +687,6 @@ toConcState er@(ExecRes { final_state = s@(State { track = t })
             let
                 conc_fc = subVar m (expr_env s) (type_classes s) (fcall abs_fc)
             in
-            trace ("model = " ++ show m ++ "\nconc_fcall = " ++ show conc_fc ++ "\nabs_fc = " ++ show abs_fc)
             CAFuncCall { conc_fcall = conc_fc, abs_fcall = abs_fc }
 
         t' = fmap f t
