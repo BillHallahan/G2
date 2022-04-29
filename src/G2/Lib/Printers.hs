@@ -21,7 +21,7 @@ module G2.Lib.Printers ( PrettyGuide
                        , pprExecStateStr
                        , pprExecEEnvStr
                        , printFuncCall
-                       , printCAFuncCall
+                       , printAbsFuncCall
                        , prettyState
 
                        , prettyGuideStr) where
@@ -615,11 +615,11 @@ printFuncCallPG pg (FuncCall { funcName = Name f _ _ _, arguments = ars, returns
     in
     "(" ++ call_str (Name f Nothing 0 Nothing) ++ " " ++ r_str ++ ")"
 
-printCAFuncCall :: CAFuncCall -> String
-printCAFuncCall = printCAFuncCallPG (mkPrettyGuide ())
+printAbsFuncCall :: AbsFuncCall -> String
+printAbsFuncCall = printAbsFuncCallPG (mkPrettyGuide ())
 
-printCAFuncCallPG :: PrettyGuide -> CAFuncCall -> String
-printCAFuncCallPG pg (CAFuncCall { fcall = fc, paths_fc = pc }) =
+printAbsFuncCallPG :: PrettyGuide -> AbsFuncCall -> String
+printAbsFuncCallPG pg (AbsFuncCall { fcall = fc, paths_fc = pc }) =
     let
         fc_str = printFuncCallPG pg fc
         paths_str = prettyPathConds pg pc

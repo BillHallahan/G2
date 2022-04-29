@@ -189,7 +189,7 @@ runLHInferenceAll :: MonadIO m
                   -> [FilePath]
                   -> [FilePath]
                   -> [FilePath]
-                  -> m (([ExecRes AbstractedInfo], Bindings), Id)
+                  -> m (([(ExecRes (AbstractedInfo AbsFuncCall), Model)], Bindings), Id)
 runLHInferenceAll infconfig config func proj fp lhlibs = do
     -- Initialize LiquidHaskell
     (ghci, lhconfig) <- liftIO $ getGHCI infconfig proj fp lhlibs
@@ -213,7 +213,7 @@ runLHInferenceCore :: MonadIO m
                    -> Maybe T.Text
                    -> LiquidReadyState
                    -> [GhcInfo]
-                   -> InfStack m (([ExecRes AbstractedInfo], Bindings), Id)
+                   -> InfStack m (([(ExecRes (AbstractedInfo AbsFuncCall), Model)], Bindings), Id)
 runLHInferenceCore entry m lrs ghci = do
     g2config <- g2ConfigM
     infconfig <- infConfigM
@@ -299,7 +299,7 @@ runLHCExSearch :: MonadIO m
                -> Maybe T.Text
                -> LiquidReadyState
                -> [GhcInfo]
-               -> InfStack m (([ExecRes AbstractedInfo], Bindings), Id)
+               -> InfStack m (([(ExecRes (AbstractedInfo AbsFuncCall), Model)], Bindings), Id)
 runLHCExSearch entry m lrs ghci = do
     g2config <- g2ConfigM
     infconfig <- infConfigM

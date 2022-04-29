@@ -40,14 +40,54 @@ runG2ForLH :: ( Named t
               , Simplifier simplifier) =>
                  (Expr -> Bool) -- ^ A filter for the model before building the ExecRes.
               -> SomeReducer t -> SomeHalter t -> SomeOrderer t
-              -> solver -> simplifier -> MemConfig -> State t -> Bindings -> IO ([ExecRes t], Bindings)
+              -> solver -> simplifier -> MemConfig -> State t -> Bindings -> IO ([(ExecRes t, Model)], Bindings)
 runG2ForLH model_filter sred shal sord solver simplifier mem is bindings =
     case (sred, shal, sord) of
       (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
         (exec_states, bindings') <- runG2ThroughExecution red hal ord mem is bindings
-        sol_states <- mapM (runG2Solving model_filter solver simplifier bindings') exec_states
+        sol_states <- mapM (runG2SolvingWithFiltering model_filter solver simplifier bindings') exec_states
 
         return (catMaybes sol_states, bindings')
+
+runG2ForLH' :: ( Named t
+               , ASTContainer t Expr
+               , ASTContainer t Type
+               , Solver solver
+               , Simplifier simplifier) =>
+                  (Expr -> Bool) -- ^ A filter for the model before building the ExecRes.
+               -> SomeReducer t -> SomeHalter t -> SomeOrderer t
+               -> solver -> simplifier -> MemConfig -> State t -> Bindings -> IO ([ExecRes t], Bindings)
+runG2ForLH' model_filter sred shal sord solver simplifier mem is bindings = do
+    (er, b) <- runG2ForLH model_filter sred shal sord solver simplifier mem is bindings
+    return (map fst er, b)
+
+runG2SolvingWithFiltering :: ( Named t
+                             , ASTContainer t Expr
+                             , ASTContainer t Type
+                             , Solver solver
+                             , Simplifier simplifier) =>
+                                (Expr -> Bool)  -- ^ A filter for the model before building the ExecRes.
+                                                -- Allows returning solutions that still involve some
+                                                -- symbolic variables.
+                             -> solver
+                             -> simplifier
+                             -> Bindings
+                             -> State t
+                             -> IO (Maybe (ExecRes t, Model)) -- ^ States with (possibly) symbolic variables,
+                                                              -- and the full model without the filter function applied.
+runG2SolvingWithFiltering model_filter solver simplifier bindings s@(State { known_values = kv })
+    | true_assert s = do
+        r <- solve solver s bindings (E.symbolicIds . expr_env $ s) (path_conds s)
+
+        case r of
+            SAT m -> do
+                let m' = reverseSimplification simplifier s bindings m
+                    m'' = HM.filter model_filter m'
+                return $ Just (runG2SubstModel m'' s bindings, m')
+            UNSAT _ -> return Nothing
+            Unknown _ -> return Nothing
+
+    | otherwise = return Nothing
 
 -------------------------------
 -- Check Abstracted
@@ -58,10 +98,10 @@ runG2ForLH model_filter sred shal sord solver simplifier mem is bindings =
 -- | The result of a call to checkAbstracted'.  Either:
 -- (1) the function does need to be abstract, and we get the actual result of executing the function call. 
 -- (2) the function does not need to be abstract
-data AbstractedRes = AbstractRes Abstracted Model
+data AbstractedRes = AbstractRes (Abstracted AbsFuncCall) Model
                    | NotAbstractRes
 
-toAbstracted :: AbstractedRes -> Maybe Abstracted
+toAbstracted :: AbstractedRes -> Maybe (Abstracted AbsFuncCall)
 toAbstracted (AbstractRes a _) = Just a
 toAbstracted _ = Nothing
 
@@ -70,7 +110,7 @@ toModel (AbstractRes _ m) = Just m
 toModel _ = Nothing
 
 -- | Checks if abstracted functions actually had to be abstracted.
-checkAbstracted :: (Solver solver, Simplifier simplifier) => (Expr -> Bool) -> solver -> simplifier -> Config -> Id -> Bindings -> ExecRes LHTracker -> IO (ExecRes AbstractedInfo)
+checkAbstracted :: (Solver solver, Simplifier simplifier) => (Expr -> Bool) -> solver -> simplifier -> Config -> Id -> Bindings -> ExecRes LHTracker -> IO (ExecRes (AbstractedInfo AbsFuncCall))
 checkAbstracted model_filter solver simplifier config init_id bindings
         er@(ExecRes{ final_state = s@State { track = lht }
                    , conc_args = inArg
@@ -96,7 +136,7 @@ checkAbstracted model_filter solver simplifier config init_id bindings
         abs_info = AbstractedInfo { init_call = fst abs_init
                                   , abs_violated = fmap fst abs_viol
                                   , abs_calls = abstracted'
-                                  , ai_all_calls = map (mkCAFuncCall s) $ all_calls lht }
+                                  , ai_all_calls = map (mkAbsFuncCall s) $ all_calls lht }
 
     return $ viol_er { final_state = s { track = abs_info
                                        , model = foldr HM.union (model s) (init_model:viol_model ++ models) }
@@ -133,7 +173,7 @@ checkAbstracted' model_filter solver simplifier share s bindings abs_fc@(FuncCal
                       , track = False }
 
         let pres = HS.fromList $ namesList s' ++ namesList bindings
-        (er, _) <- runG2ForLH
+        (er, _) <- runG2ForLH'
                         model_filter
                         (SomeReducer (StdRed share solver simplifier :<~ HitsLibError))
                         (SomeHalter SWHNFHalter)
@@ -149,16 +189,16 @@ checkAbstracted' model_filter solver simplifier share s bindings abs_fc@(FuncCal
                 }] -> case not $ ce `eqUpToTypes` r of
                         True ->
                             return $ AbstractRes 
-                                        ( Abstracted { abstract = mkCAFuncCall fs . repTCsFC (type_classes s) $ abs_fc
-                                                     , real = mkCAFuncCall fs . repTCsFC (type_classes s) $ abs_fc { returns = ce }
+                                        ( Abstracted { abstract = mkAbsFuncCall fs . repTCsFC (type_classes s) $ abs_fc
+                                                     , real = mkAbsFuncCall fs . repTCsFC (type_classes s) $ abs_fc { returns = ce }
                                                      , hits_lib_err_in_real = t
                                                      , func_calls_in_real = [] }
                                         ) m
                         False -> return NotAbstractRes
             [] -> do undefined -- We hit an error in a library function
                      return $ AbstractRes 
-                              ( Abstracted { abstract = mkCAFuncCall s . repTCsFC (type_classes s) $ abs_fc
-                                           , real = mkCAFuncCall s . repTCsFC (type_classes s) $ abs_fc { returns = Prim Error TyUnknown }
+                              ( Abstracted { abstract = mkAbsFuncCall s . repTCsFC (type_classes s) $ abs_fc
+                                           , real = mkAbsFuncCall s . repTCsFC (type_classes s) $ abs_fc { returns = Prim Error TyUnknown }
                                            , hits_lib_err_in_real = True
                                            , func_calls_in_real = [] }
                               ) (model s)
@@ -173,7 +213,7 @@ getAbstracted :: (Solver solver, Simplifier simplifier)
               -> State LHTracker
               -> Bindings
               -> FuncCall
-              -> IO (Abstracted, Model)
+              -> IO (Abstracted AbsFuncCall, Model)
 getAbstracted model_filter solver simplifier share s bindings abs_fc@(FuncCall { funcName = n, arguments = ars })
     | Just e <- E.lookup n $ expr_env s = do
         let 
@@ -191,7 +231,7 @@ getAbstracted model_filter solver simplifier share s bindings abs_fc@(FuncCall {
                       , track = ([] :: [FuncCall], False)}
 
         let pres = HS.fromList $ namesList s' ++ namesList bindings
-        (er, bindings') <- runG2ForLH
+        (er, bindings') <- runG2ForLH'
                               model_filter 
                               (SomeReducer (StdRed share solver simplifier :<~ HitsLibErrorGatherer))
                               (SomeHalter SWHNFHalter)
@@ -207,10 +247,10 @@ getAbstracted model_filter solver simplifier share s bindings abs_fc@(FuncCall {
                 }] -> do
                   let fs' = modelToExprEnv fs
                   (_, gfc') <- reduceFuncCallMaybeList model_filter solver simplifier share bindings' fs' gfc
-                  return $ ( Abstracted { abstract = mkCAFuncCall fs $ repTCsFC (type_classes s) abs_fc
-                                        , real = mkCAFuncCall fs . repTCsFC (type_classes s) $ abs_fc { returns = (inline (expr_env fs) HS.empty ce) }
+                  return $ ( Abstracted { abstract = mkAbsFuncCall fs $ repTCsFC (type_classes s) abs_fc
+                                        , real = mkAbsFuncCall fs . repTCsFC (type_classes s) $ abs_fc { returns = (inline (expr_env fs) HS.empty ce) }
                                         , hits_lib_err_in_real = hle
-                                        , func_calls_in_real = map (mkCAFuncCall fs) gfc' }
+                                        , func_calls_in_real = map (mkAbsFuncCall fs) gfc' }
                                 , m)
             _ -> error $ "checkAbstracted': Bad return from runG2ForLH"
     | otherwise = error $ "getAbstracted: Bad lookup in runG2ForLH"
@@ -405,7 +445,7 @@ reduceFCExpr model_filter reducer solver simplifier s bindings e
                . modelToExprEnv $
                    s { curr_expr = CurrExpr Evaluate e'}
 
-        (er, bindings') <- runG2ForLH
+        (er, bindings') <- runG2ForLH'
                               model_filter
                               reducer
                               (SomeHalter SWHNFHalter)

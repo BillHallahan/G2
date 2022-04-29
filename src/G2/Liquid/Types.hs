@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -184,10 +185,10 @@ data LHOutput = LHOutput { ghcI :: GhcInfo
                          , cgI :: CGInfo
                          , solution :: FixSolution }
 
-data CounterExample = DirectCounter Abstracted [Abstracted]
-                    | CallsCounter Abstracted -- ^ The caller, abstracted result
-                                   Abstracted -- ^ The callee
-                                   [Abstracted]
+data CounterExample fc = DirectCounter (Abstracted fc) [Abstracted fc]
+                       | CallsCounter (Abstracted fc) -- ^ The caller, abstracted result
+                                      (Abstracted fc) -- ^ The callee
+                                      [Abstracted fc]
                     deriving (Eq, Show, Read)
 
 type Measures = L.ExprEnv
@@ -200,18 +201,24 @@ newtype AnnotMap =
     deriving (Eq, Show, Read)
 
 -- Abstracted values
-data Abstracted = Abstracted { abstract :: L.CAFuncCall
-                             , real :: L.CAFuncCall
-                             , hits_lib_err_in_real :: Bool
-                             , func_calls_in_real :: [L.CAFuncCall] }
-                             deriving (Eq, Show, Read)
+data Abstracted fc = Abstracted { abstract :: fc
+                               , real :: fc
+                               , hits_lib_err_in_real :: Bool
+                               , func_calls_in_real :: [fc] }
+                               deriving (Eq, Show, Read)
 
-data AbstractedInfo = AbstractedInfo { init_call :: Abstracted
-                                     , abs_violated :: Maybe Abstracted
-                                     , abs_calls :: [Abstracted]
-                                     , ai_all_calls :: [L.CAFuncCall] }
+data AbstractedInfo fc = AbstractedInfo { init_call :: Abstracted fc
+                                        , abs_violated :: Maybe (Abstracted fc)
+                                        , abs_calls :: [Abstracted fc]
+                                        , ai_all_calls :: [fc] }
 
-mapAbstractedFCs :: (L.CAFuncCall -> L.CAFuncCall) ->  Abstracted -> Abstracted
+instance Functor Abstracted where
+    fmap = mapAbstractedFCs
+
+instance Functor AbstractedInfo where
+    fmap = mapAbstractedInfoCAFCs
+
+mapAbstractedFCs :: (fc1 -> fc2) ->  Abstracted fc1 -> Abstracted fc2
 mapAbstractedFCs f (Abstracted { abstract = a
                                , real = r
                                , hits_lib_err_in_real = err
@@ -221,17 +228,17 @@ mapAbstractedFCs f (Abstracted { abstract = a
                , hits_lib_err_in_real = err
                , func_calls_in_real = map f fcr}
 
-mapAbstractedInfoFCs :: (L.FuncCall -> L.FuncCall) ->  AbstractedInfo -> AbstractedInfo
+mapAbstractedInfoFCs :: (L.FuncCall -> L.FuncCall) ->  AbstractedInfo (L.AbsFuncCall) -> AbstractedInfo (L.AbsFuncCall)
 mapAbstractedInfoFCs f = mapAbstractedInfoCAFCs (L.mapFuncCall f)
 
-mapAbstractedInfoCAFCs :: (L.CAFuncCall -> L.CAFuncCall) ->  AbstractedInfo -> AbstractedInfo
+mapAbstractedInfoCAFCs :: (f1 -> f2) ->  AbstractedInfo f1 -> AbstractedInfo f2
 mapAbstractedInfoCAFCs f (AbstractedInfo { init_call = ic, abs_violated = av, abs_calls = ac, ai_all_calls= allc}) =
     AbstractedInfo { init_call = mapAbstractedFCs f ic
                    , abs_violated = fmap (mapAbstractedFCs f) av
                    , abs_calls = map (mapAbstractedFCs f) ac
                    , ai_all_calls = map f allc }
 
-instance L.ASTContainer Abstracted L.Expr where
+instance L.ASTContainer fc L.Expr => L.ASTContainer (Abstracted fc) L.Expr where
     containedASTs ab = L.containedASTs (abstract ab) ++ L.containedASTs (real ab)
     modifyContainedASTs f (Abstracted { abstract = a
                                       , real = r
@@ -242,7 +249,7 @@ instance L.ASTContainer Abstracted L.Expr where
                    , hits_lib_err_in_real = err
                    , func_calls_in_real = L.modifyContainedASTs f fcir}
 
-instance L.ASTContainer Abstracted L.Type where
+instance L.ASTContainer fc L.Type => L.ASTContainer (Abstracted fc) L.Type where
     containedASTs ab = L.containedASTs (abstract ab) ++ L.containedASTs (real ab)
     modifyContainedASTs f (Abstracted { abstract = a
                                       , real = r

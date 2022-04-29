@@ -30,6 +30,8 @@ module G2.Liquid.Interface ( LiquidData (..)
                            , reqNames
 
                            , lhStateToCE
+                           , toConcState
+
                            , printLHOut
                            , printCE) where
 
@@ -101,7 +103,7 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: [FilePath] -> [FilePath] -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (([ExecRes AbstractedInfo], Bindings), Lang.Id)
+findCounterExamples :: [FilePath] -> [FilePath] -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (([ExecRes (AbstractedInfo AbsFuncCall)], Bindings), Lang.Id)
 findCounterExamples proj fp entry libs lhlibs config = do
     let config' = config { mode = Liquid }
 
@@ -120,7 +122,7 @@ findCounterExamples proj fp entry libs lhlibs config = do
 runLHCore :: T.Text -> (Maybe T.Text, ExtractedG2)
                     -> [GhcInfo]
                     -> Config
-                    -> IO (([ExecRes AbstractedInfo], Bindings), Lang.Id)
+                    -> IO (([ExecRes (AbstractedInfo AbsFuncCall)], Bindings), Lang.Id)
 runLHCore entry (mb_modname, exg2) ghci config = do
     LiquidData { ls_state = final_st
                , ls_bindings = bindings
@@ -136,7 +138,7 @@ runLHCore entry (mb_modname, exg2) ghci config = do
 
     close solver
 
-    return ((exec_res, final_bindings), ifi)
+    return ((map fst exec_res, final_bindings), ifi)
 
 {-# INLINE liquidStateWithCall #-}
 liquidStateWithCall :: T.Text -> (Maybe T.Text, ExtractedG2)
@@ -390,14 +392,12 @@ runLHG2 :: (Solver solver, Simplifier simplifier)
         -> Lang.Id
         -> State LHTracker
         -> Bindings
-        -> IO ([ExecRes AbstractedInfo], Bindings)
+        -> IO ([(ExecRes (AbstractedInfo AbsFuncCall), Model)], Bindings)
 runLHG2 config model_filter red hal ord solver simplifier pres_names init_id final_st bindings = do
     let only_abs_st = addTicksToDeepSeqCases (deepseq_walkers bindings) final_st
     (ret, final_bindings) <- runG2ForLH model_filter red hal ord solver simplifier pres_names only_abs_st bindings
-    let n_ret = map (\er -> er { final_state = putSymbolicExistentialInstInExprEnv (final_state er) }) ret
-
-    putStrLn "runLHG2"
-    mapM_ (print . model . final_state) n_ret
+    let (ret_exec_res, ret_mdls) = unzip ret
+    let n_ret = map (\er -> er { final_state = putSymbolicExistentialInstInExprEnv (final_state er) }) ret_exec_res
 
     -- We filter the returned states to only those with the minimal number of abstracted functions
     let mi = case length n_ret of
@@ -410,9 +410,6 @@ runLHG2 config model_filter red hal ord solver simplifier pres_names init_id fin
 
     (bindings', ret''') <- mapAccumM (reduceCalls model_filter solver simplifier config) final_bindings ret''
     ret'''' <- mapM (checkAbstracted model_filter solver simplifier config init_id bindings') ret'''
-
-    mapM_ (print . model . final_state) ret'''
-    mapM_ (print . model . final_state) ret''''
 
     let exec_res = 
           map (\(ExecRes { final_state = s
@@ -428,7 +425,7 @@ runLHG2 config model_filter red hal ord solver simplifier pres_names init_id fin
                          , conc_out = e
                          , violated = ais})) ret''''
 
-    return (exec_res, final_bindings)
+    return (zip exec_res ret_mdls, final_bindings)
 
 lhReducerHalterOrderer :: (Solver solver, Simplifier simplifier)
                        => Config
@@ -582,11 +579,11 @@ reqNames (State { expr_env = eenv
         pf _ (Bindings { deepseq_walkers = dsw }) a =
             S.fromList . map idName . M.elems $ M.filterWithKey (\n _ -> n `S.member` a) dsw
 
-printLHOut :: Lang.Id -> [ExecRes AbstractedInfo] -> IO ()
+printLHOut :: Lang.Id -> [ExecRes (AbstractedInfo AbsFuncCall)] -> IO ()
 printLHOut entry =
     mapM_ (\lhr -> do printParsedLHOut lhr; putStrLn "") . map (parseLHOut entry)
 
-printCE :: State t -> [CounterExample] -> IO ()
+printCE :: State t -> [CounterExample ConcAbsFuncCall] -> IO ()
 printCE s =
     mapM_ (\lhr -> do printParsedLHOut lhr; putStrLn "") . map (counterExampleToLHReturn s)
 
@@ -629,7 +626,7 @@ printFuncInfo :: FuncInfo -> IO ()
 printFuncInfo (FuncInfo {funcArgs = call, funcReturn = output}) =
     TI.putStrLn $ call `T.append` " = " `T.append` output
 
-parseLHOut :: Lang.Id -> ExecRes AbstractedInfo -> LHReturn
+parseLHOut :: Lang.Id -> ExecRes (AbstractedInfo AbsFuncCall) -> LHReturn
 parseLHOut entry (ExecRes { final_state = s
                           , conc_args = inArg
                           , conc_out = ex
@@ -645,20 +642,20 @@ parseLHOut entry (ExecRes { final_state = s
            , violating = viFunc
            , abstracted = abstr}
 
-counterExampleToLHReturn :: State t -> CounterExample -> LHReturn
+counterExampleToLHReturn :: State t -> CounterExample ConcAbsFuncCall -> LHReturn
 counterExampleToLHReturn s (DirectCounter fc abstr) =
     let
-        called = funcCallToFuncInfo (T.pack . printHaskell s) . fcall . abstract $ fc
-        abstr' = map (funcCallToFuncInfo (T.pack . printHaskell s) . fcall . abstract) abstr
+        called = funcCallToFuncInfo (T.pack . printHaskell s) . conc_fcall . abstract $ fc
+        abstr' = map (funcCallToFuncInfo (T.pack . printHaskell s) . conc_fcall . abstract) abstr
     in
     LHReturn { calledFunc = called
              , violating = Nothing
              , abstracted = abstr'}
 counterExampleToLHReturn s (CallsCounter fc viol_fc abstr) =
     let
-        called = funcCallToFuncInfo (T.pack . printHaskell s) . fcall . abstract $ fc
-        viol_called = funcCallToFuncInfo (T.pack . printHaskell s) . fcall . abstract $ viol_fc
-        abstr' = map (funcCallToFuncInfo (T.pack . printHaskell s) . fcall . abstract) abstr
+        called = funcCallToFuncInfo (T.pack . printHaskell s) . conc_fcall . abstract $ fc
+        viol_called = funcCallToFuncInfo (T.pack . printHaskell s) . conc_fcall . abstract $ viol_fc
+        abstr' = map (funcCallToFuncInfo (T.pack . printHaskell s) . conc_fcall . abstract) abstr
     in
     LHReturn { calledFunc = called
              , violating = Just viol_called
@@ -672,10 +669,35 @@ funcCallToFuncInfo t (FuncCall { funcName = f, arguments = inArg, returns = ret 
     in
     FuncInfo {func = nameOcc f, funcArgs = funcCall, funcReturn = funcOut}
 
-lhStateToCE :: ExecRes AbstractedInfo -> CounterExample
-lhStateToCE (ExecRes { final_state = State { track = t } })
-    | Just c <-  abs_violated t = CallsCounter (init_call t) c (abs_calls t)
+lhStateToCE :: ExecRes (AbstractedInfo AbsFuncCall) -> Model -> CounterExample ConcAbsFuncCall
+lhStateToCE er m = lhStateToCE' (toConcState er m)
+
+lhStateToCE' ::ExecRes (AbstractedInfo ConcAbsFuncCall) -> CounterExample ConcAbsFuncCall
+lhStateToCE' (ExecRes { final_state = State { track = t } })
+    | Just c <-  abs_violated t =
+        CallsCounter (init_call t) c (abs_calls t)
     | otherwise = DirectCounter (init_call t) (abs_calls t)
+
+toConcState :: ExecRes (AbstractedInfo AbsFuncCall) -> Model -> ExecRes (AbstractedInfo ConcAbsFuncCall)
+toConcState er@(ExecRes { final_state = s@(State { track = t })
+                        , conc_args = ars
+                        , conc_out = out }) m =
+    let
+        f abs_fc = 
+            let
+                conc_fc = subVar m (expr_env s) (type_classes s) (fcall abs_fc)
+            in
+            trace ("model = " ++ show m ++ "\nconc_fcall = " ++ show conc_fc ++ "\nabs_fc = " ++ show abs_fc)
+            CAFuncCall { conc_fcall = conc_fc, abs_fcall = abs_fc }
+
+        t' = fmap f t
+
+        ars' = subVar m (expr_env s) (type_classes s) ars
+        out' = subVar m (expr_env s) (type_classes s) out
+    in
+    er { final_state = s { track = t' }
+       , conc_args = ars'
+       , conc_out = out' }
 
 parseLHFuncTuple :: State t -> FuncCall -> FuncInfo
 parseLHFuncTuple s (FuncCall {funcName = n, arguments = ars, returns = out}) =

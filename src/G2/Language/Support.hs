@@ -139,39 +139,54 @@ instance Hashable CEAction
 -- typically produced by a solver. 
 type Model = HM.HashMap Name Expr
 
--- | A `CAFuncCall` contains `fcall`, a `FuncCall`, which may contain the
+-- | A `AbsFuncCall` contains `fcall`, a `FuncCall`, which may contain the
 -- symbolic variables in `symb_fc`, constrainted by the path constraints in `paths_fc`.
-data CAFuncCall = CAFuncCall { fcall :: FuncCall
-                             , paths_fc :: PC.PathConds
-                             , symb_fc :: S.HashSet Id }
+data AbsFuncCall = AbsFuncCall { fcall :: FuncCall
+                               , paths_fc :: PC.PathConds
+                               , symb_fc :: S.HashSet Id }
                   deriving (Eq, Show, Read, Generic)
 
--- | Given a concrete `FuncCall`, creates a trivial `CAFuncCall`, assuming no symbolic variables
+instance Hashable AbsFuncCall
+
+-- | Given a concrete `FuncCall`, creates a trivial `AbsFuncCall`, assuming no symbolic variables
 -- or path constraints.
-simpleCAFuncCall :: FuncCall -> CAFuncCall
-simpleCAFuncCall fc = CAFuncCall { fcall = fc
+simpleAbsFuncCall :: FuncCall -> AbsFuncCall
+simpleAbsFuncCall fc = AbsFuncCall { fcall = fc
                                  , paths_fc = PC.empty
                                  , symb_fc = S.empty }
 
--- | Construct a `CAFuncCall` based on the `PathConds` and symbolic ids in the `State t`,
+-- | Construct a `AbsFuncCall` based on the `PathConds` and symbolic ids in the `State t`,
 -- and the `FuncCall`.
-mkCAFuncCall :: State t -> FuncCall -> CAFuncCall
-mkCAFuncCall s fc =
+mkAbsFuncCall :: State t -> FuncCall -> AbsFuncCall
+mkAbsFuncCall s fc =
     let
         var_names = varIds fc <> varIdsInPCs (path_conds s)
     in
-    CAFuncCall { fcall = fc
+    AbsFuncCall { fcall = fc
                , paths_fc = path_conds s
                , symb_fc = S.fromList var_names }
 
--- | Apply the given function to the `FuncCall` in the `CAFuncCall`.
-mapFuncCall :: (FuncCall -> FuncCall) -> CAFuncCall -> CAFuncCall
-mapFuncCall f cafc@(CAFuncCall { fcall = fc }) = cafc { fcall = f fc }
+-- | Apply the given function to the `FuncCall` in the `AbsFuncCall`.
+mapFuncCall :: (FuncCall -> FuncCall) -> AbsFuncCall -> AbsFuncCall
+mapFuncCall f cafc@(AbsFuncCall { fcall = fc }) = cafc { fcall = f fc }
 
-instance Hashable CAFuncCall
+absFuncName :: AbsFuncCall -> Name
+absFuncName = funcName . fcall
 
-caFuncName :: CAFuncCall -> Name
-caFuncName = funcName . fcall
+-- | A pair of a concrete function call `conc_fcall`, and an abstract (partially symbolic) function call, `abs_fcall`.
+-- `conc_fcall` should be a concretization of `abs_fcall`.
+data ConcAbsFuncCall = CAFuncCall { conc_fcall :: FuncCall
+                                  , abs_fcall :: AbsFuncCall }
+                                  deriving (Eq, Show, Read, Generic)
+
+instance Hashable ConcAbsFuncCall
+
+simpleConcAbsFuncCall :: FuncCall -> ConcAbsFuncCall
+simpleConcAbsFuncCall fc = CAFuncCall { conc_fcall = fc
+                                      , abs_fcall = simpleAbsFuncCall fc }
+
+caFuncName :: ConcAbsFuncCall -> Name
+caFuncName = funcName . conc_fcall
 
 -- | Replaces all of the names old in state with a name seeded by new_seed
 renameState :: Named t => Name -> Name -> State t -> Bindings -> (State t, Bindings)
@@ -396,23 +411,42 @@ instance Named Frame where
     renames hm (AssumeFrame e) = AssumeFrame (renames hm e)
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
 
-instance ASTContainer CAFuncCall Expr where
+instance ASTContainer AbsFuncCall Expr where
     containedASTs fc = containedASTs (fcall fc) <> containedASTs (paths_fc fc)
     modifyContainedASTs f fc =
-        CAFuncCall { fcall = modifyContainedASTs f (fcall fc)
+        AbsFuncCall { fcall = modifyContainedASTs f (fcall fc)
                    , paths_fc = modifyContainedASTs f (paths_fc fc)
                    , symb_fc = symb_fc fc }
 
-instance ASTContainer CAFuncCall Type where
+instance ASTContainer AbsFuncCall Type where
     containedASTs fc = containedASTs (fcall fc) <> containedASTs (paths_fc fc)
     modifyContainedASTs f fc =
-        CAFuncCall { fcall = modifyContainedASTs f (fcall fc)
+        AbsFuncCall { fcall = modifyContainedASTs f (fcall fc)
                    , paths_fc = modifyContainedASTs f (paths_fc fc)
                    , symb_fc = symb_fc fc }
 
-instance Named CAFuncCall where
+instance Named AbsFuncCall where
     names fc = names (fcall fc) <> names (paths_fc fc) <> names (symb_fc fc)
     renames hm fc =
-        CAFuncCall { fcall = renames hm (fcall fc)
+        AbsFuncCall { fcall = renames hm (fcall fc)
                    , paths_fc = renames hm (paths_fc fc)
                    , symb_fc = renames hm (symb_fc fc) }
+
+instance ASTContainer ConcAbsFuncCall Expr where
+    containedASTs ca = containedASTs (conc_fcall ca) <> containedASTs (abs_fcall ca)
+    modifyContainedASTs f (CAFuncCall { conc_fcall = ccall, abs_fcall = acall }) =
+        CAFuncCall { conc_fcall = modifyContainedASTs f ccall
+                   , abs_fcall = modifyContainedASTs f acall }
+
+instance ASTContainer ConcAbsFuncCall Type where
+    containedASTs ca = containedASTs (conc_fcall ca) <> containedASTs (abs_fcall ca)
+    modifyContainedASTs f (CAFuncCall { conc_fcall = ccall, abs_fcall = acall }) =
+        CAFuncCall { conc_fcall = modifyContainedASTs f ccall
+                   , abs_fcall = modifyContainedASTs f acall }
+
+instance Named ConcAbsFuncCall where
+    names ca = names (conc_fcall ca) <> names (abs_fcall ca)
+    rename old new (CAFuncCall { conc_fcall = ccall, abs_fcall = acall }) =
+        CAFuncCall { conc_fcall = rename old new ccall
+                   , abs_fcall = rename old new acall }
+

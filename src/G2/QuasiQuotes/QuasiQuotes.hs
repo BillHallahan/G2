@@ -453,7 +453,7 @@ solveStates'' :: ( Named t
                  , Simplifier simplifier) => solver -> simplifier -> Bindings -> [State t] -> IO (Maybe (ExecRes t))
 solveStates'' _ _ _ [] = return Nothing
 solveStates'' sol simplifier b (s:xs) = do
-    m_ex_res <- runG2Solving (const True) sol simplifier b s
+    m_ex_res <- runG2Solving sol simplifier b s
     case m_ex_res of
         Just _ -> do
             return m_ex_res

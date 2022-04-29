@@ -41,7 +41,7 @@ main = do
                                     else callInference f infconfig config
                 (Just func', _) -> do
                     ((in_out, _), entry) <- runLHInferenceAll infconfig config (T.pack func') [] [f] []
-                    printLHOut entry in_out
+                    printLHOut entry (map fst in_out)
                     return ()
                 (_, Just _) -> do
                     (ghci, lhconfig) <- getGHCI infconfig [] [f] []

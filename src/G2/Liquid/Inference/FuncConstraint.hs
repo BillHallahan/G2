@@ -4,11 +4,8 @@
 
 module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
                                           , SpecPart (..)
-                                          -- , Polarity (..)
-                                          -- , Violated (..)
-                                          -- , Modification (..)
-                                          -- , BoolRel (..)
                                           , FuncConstraints
+
                                           , emptyFC
                                           , fromSingletonFC
                                           , fromListFC
@@ -23,9 +20,9 @@ module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
                                           , differenceFC
                                           , allCallNames
                                           , allCalls
-                                          , allCalls'
+                                          , allConcCalls
                                           , allCallsFC
-                                          , allCallsFC'
+                                          , allConcCallsFC
 
                                           , zeroOutUnq
 
@@ -54,7 +51,7 @@ newtype FuncConstraints = FuncConstraints (M.Map Name (HS.HashSet FuncConstraint
 
 data SpecPart = All | Pre | Post deriving (Eq, Show, Read, Generic)
 
-data FuncConstraint = Call SpecPart CAFuncCall
+data FuncConstraint = Call SpecPart ConcAbsFuncCall
                     | AndFC [FuncConstraint]
                     | OrFC [FuncConstraint]
                     | ImpliesFC FuncConstraint FuncConstraint
@@ -64,9 +61,11 @@ data FuncConstraint = Call SpecPart CAFuncCall
 instance Hashable SpecPart
 instance Hashable FuncConstraint
 
+-- | An empty `FuncConstraints`.
 emptyFC :: FuncConstraints
 emptyFC = FuncConstraints M.empty
 
+-- | A `FuncConstraint`s containing a single `FuncConstraint`.
 fromSingletonFC :: FuncConstraint -> FuncConstraints
 fromSingletonFC = flip insertFC emptyFC
 
@@ -106,6 +105,7 @@ unionsFC = foldr unionFC emptyFC
 mapFC :: (FuncConstraint -> FuncConstraint) -> FuncConstraints -> FuncConstraints
 mapFC f = coerce (M.map (HS.map f))
 
+-- | Filter all `FuncConstraint`s that satisfy the given predicate.
 filterFC :: (FuncConstraint -> Bool) -> FuncConstraints -> FuncConstraints
 filterFC p = coerce (M.map (HS.filter p))
 
@@ -120,26 +120,28 @@ differenceFC (FuncConstraints fc1) (FuncConstraints fc2) =
                                         False -> Just d)
                       fc1 fc2
 
+-- | Find the names of all function calls in the given `FuncConstraint`.
 allCallNames :: FuncConstraint -> [Name]
 allCallNames = map (caFuncName) . allCalls
 
-allCalls :: FuncConstraint -> [CAFuncCall]
+-- | Find all `ConcAbsFuncCall`s in the given `FuncConstraint`.
+allCalls :: FuncConstraint -> [ConcAbsFuncCall]
 allCalls (Call _ fc) = [fc]
 allCalls (AndFC fcs) = concatMap allCalls fcs
 allCalls (OrFC fcs) = concatMap allCalls fcs
 allCalls (ImpliesFC fc1 fc2) = allCalls fc1 ++ allCalls fc2
 allCalls (NotFC fc) = allCalls fc
 
-allCalls' :: FuncConstraint -> [FuncCall]
-allCalls' = map fcall . allCalls
+allConcCalls :: FuncConstraint -> [FuncCall]
+allConcCalls = map conc_fcall . allCalls
 
-allCallsFC :: FuncConstraints -> [CAFuncCall]
+allCallsFC :: FuncConstraints -> [ConcAbsFuncCall]
 allCallsFC = concatMap allCalls . toListFC
 
-allCallsFC' :: FuncConstraints -> [FuncCall]
-allCallsFC' = map fcall . allCallsFC
+allConcCallsFC :: FuncConstraints -> [FuncCall]
+allConcCallsFC = map conc_fcall . allCallsFC
 
-allCallsByName :: FuncConstraints -> [CAFuncCall]
+allCallsByName :: FuncConstraints -> [ConcAbsFuncCall]
 allCallsByName = concatMap allCalls . toListFC
 
 printFCs :: LiquidReadyState -> FuncConstraints -> String
@@ -147,7 +149,7 @@ printFCs lrs fcs =
     intercalate "\n" . map (printFC (state . lr_state $ lrs)) $ toListFC fcs
 
 printFC :: State t -> FuncConstraint -> String
-printFC s (Call sp (CAFuncCall { fcall = cfc })) =
+printFC s (Call sp (CAFuncCall { conc_fcall = cfc })) =
     case sp of
         Pre -> "(" ++ printPreCall s cfc ++ ")"
         Post -> "(" ++ printPostCall s cfc ++ ")"
