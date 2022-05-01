@@ -42,7 +42,7 @@ checkExprGen exprs reqList =
     argChecksAll ++ argChecksEx ++ checkL
 
 
-checkAbsLHExprGen :: [(State AbstractedInfo, [Expr], Expr)] -> [Reqs ([Expr] -> Expr -> [FuncCall] -> Bool)] -> [TestErrors] 
+checkAbsLHExprGen :: [(State (AbstractedInfo AbsFuncCall), [Expr], Expr)] -> [Reqs ([Expr] -> Expr -> [FuncCall] -> Bool)] -> [TestErrors] 
 checkAbsLHExprGen exprs reqList =
     let
         argChecksAll =

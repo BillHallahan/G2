@@ -27,7 +27,12 @@ module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
                                           , zeroOutUnq
 
                                           , printFCs
-                                          , printFC) where
+                                          , printConcFCs
+                                          , printAbsFCs
+
+                                          , printFC
+                                          , printConcFC
+                                          , printAbsFC) where
 
 import G2.Language.AST
 import G2.Language.Naming
@@ -144,26 +149,41 @@ allConcCallsFC = map conc_fcall . allCallsFC
 allCallsByName :: FuncConstraints -> [ConcAbsFuncCall]
 allCallsByName = concatMap allCalls . toListFC
 
-printFCs :: LiquidReadyState -> FuncConstraints -> String
-printFCs lrs fcs =
-    intercalate "\n" . map (printFC (state . lr_state $ lrs)) $ toListFC fcs
+printFCs :: (ConcAbsFuncCall -> FuncCall) -> LiquidReadyState -> FuncConstraints -> String
+printFCs f lrs fcs =
+    intercalate "\n" . map (printFC f (state . lr_state $ lrs)) $ toListFC fcs
 
-printFC :: State t -> FuncConstraint -> String
-printFC s (Call sp (CAFuncCall { conc_fcall = cfc })) =
+printConcFCs :: LiquidReadyState -> FuncConstraints -> String
+printConcFCs = printFCs conc_fcall
+
+printAbsFCs :: LiquidReadyState -> FuncConstraints -> String
+printAbsFCs = printFCs (fcall . abs_fcall)
+
+printFC :: (ConcAbsFuncCall -> FuncCall) -> State t -> FuncConstraint -> String
+printFC f s (Call sp ca_fc) =
+    let
+        cfc = f ca_fc
+    in
     case sp of
         Pre -> "(" ++ printPreCall s cfc ++ ")"
         Post -> "(" ++ printPostCall s cfc ++ ")"
         All -> "(" ++ printAllCall s cfc ++ ")"
-printFC s (AndFC fcs) =
+printFC f s (AndFC fcs) =
     case fcs of
-        (f:fcs') -> foldr (\fc fcs'' -> fcs'' ++ " && " ++ printFC s fc) (printFC s f) fcs'
+        (fc:fcs') -> foldr (\fc' fcs'' -> fcs'' ++ " && " ++ printFC f s fc') (printFC f s fc) fcs'
         [] -> "True"
-printFC s (OrFC fcs) =
+printFC f s (OrFC fcs) =
     case fcs of
-        (f:fcs') -> foldr (\fc fcs'' -> fcs'' ++ " || " ++ printFC s fc) (printFC s f) fcs'
+        (fc:fcs') -> foldr (\fc' fcs'' -> fcs'' ++ " || " ++ printFC f s fc') (printFC f s fc) fcs'
         [] -> "False"
-printFC s (ImpliesFC fc1 fc2) = "(" ++ printFC s fc1 ++ ") => (" ++ printFC s fc2 ++ ")"
-printFC s (NotFC fc) = "not (" ++ printFC s fc ++ ")"
+printFC f s (ImpliesFC fc1 fc2) = "(" ++ printFC f s fc1 ++ ") => (" ++ printFC f s fc2 ++ ")"
+printFC f s (NotFC fc) = "not (" ++ printFC f s fc ++ ")"
+
+printConcFC :: State t -> FuncConstraint -> String
+printConcFC = printFC conc_fcall
+
+printAbsFC :: State t -> FuncConstraint -> String
+printAbsFC = printFC (fcall . abs_fcall)
 
 printPreCall :: State t -> FuncCall -> String
 printPreCall s (FuncCall { funcName = Name f _ _ _, arguments = ars, returns = r}) =

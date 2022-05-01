@@ -152,8 +152,8 @@ instance Hashable AbsFuncCall
 -- or path constraints.
 simpleAbsFuncCall :: FuncCall -> AbsFuncCall
 simpleAbsFuncCall fc = AbsFuncCall { fcall = fc
-                                 , paths_fc = PC.empty
-                                 , symb_fc = S.empty }
+                                   , paths_fc = PC.empty
+                                   , symb_fc = S.empty }
 
 -- | Construct a `AbsFuncCall` based on the `PathConds` and symbolic ids in the `State t`,
 -- and the `FuncCall`.

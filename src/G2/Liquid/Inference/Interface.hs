@@ -305,7 +305,7 @@ inferenceB con ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls = do
 
                 Crash e1 e2 -> error $ "inferenceB: LiquidHaskell crashed" ++ "\n" ++ show e1 ++ "\n" ++ e2
         SynthFail sf_fc -> do
-            liftIO . putStrLn $ "synthfail fc = " ++ (printFCs lrs sf_fc)
+            liftIO . putStrLn $ "synthfail fc = " ++ (printConcFCs lrs sf_fc)
             return $ (Raise meas_ex fc (unionFC max_fc sf_fc), evals')
 
 tryToGen :: Monad m =>
@@ -395,7 +395,8 @@ refineUnsafe ghci m_modname lrs gs bad = do
     case new_fc of
         Left cex -> return $ Left cex
         Right new_fc' -> do
-            liftIO . putStrLn $ "new_fc' = " ++ printFCs lrs new_fc'
+            liftIO . putStrLn $ "new conc fc = " ++ printConcFCs lrs new_fc'
+            liftIO . putStrLn $ "new abs fc = " ++ printAbsFCs lrs new_fc'
             return $ Right (if nullFC new_fc'
                                     then Nothing
                                     else Just (new_fc', emptyBlockedModels), fromListFC no_viol)
@@ -519,7 +520,7 @@ getCEx ghci m_modname lrs gs bad = do
     case new_fc of
         Left cex -> return $ Left cex
         Right new_fc' -> do
-            liftIO . putStrLn $ "new_fc' = " ++ printFCs lrs new_fc'
+            liftIO . putStrLn $ "new_fc' = " ++ printConcFCs lrs new_fc'
             return $ Right new_fc'
 
 checkForCEx :: MonadIO m =>
@@ -567,7 +568,7 @@ synthesize :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out 
            => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
            -> FuncConstraints -> BlockedModels -> [Name] -> [Name] -> m SynthRes
 synthesize con ghci lrs evals meas_ex fc blk_mdls to_be for_funcs = do
-    liftIO . putStrLn $ "all fc = " ++ printFCs lrs fc
+    liftIO . putStrLn $ "all fc = " ++ printConcFCs lrs fc
     liaSynth con ghci lrs evals meas_ex fc blk_mdls to_be for_funcs
 
 updateEvals :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> FuncConstraints -> Evals Bool -> m (Evals Bool)

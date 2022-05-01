@@ -27,6 +27,7 @@ import G2.Liquid.Inference.FuncConstraint
 import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.GeneratedSpecs
 import G2.Liquid.Inference.PolyRef
+import G2.Liquid.Inference.Sygus.CheckAbstractFC
 import G2.Liquid.Inference.Sygus.FCConverter
 import G2.Liquid.Inference.Sygus.SpecInfo
 
@@ -313,6 +314,8 @@ synth con ghci eenv tenv meas meas_ex evals si fc blk_mdls sz = do
     case res of
         SynthEnv _ _ n_mdl _ -> do
             new  <- checkModelIsNewFunc con si' n_mdl non_equiv_mdls
+            liftIO $ putStrLn "genCounterexampleFromAbstractFC"
+            liftIO . print =<< mapM (genCounterexampleFromAbstractFC eenv tenv meas meas_ex (assignIds evals) si) (toListFC fc)
             case new of
                 Nothing -> return res
                 Just (_, eq_mdl) -> do
@@ -920,12 +923,6 @@ arrayConstants si =
           , Solver.Assert (falseArray := (mkSMTEmptyArray SortInt SortBool))]
       else []
 
-trueArray :: SMTAST
-trueArray = V "true_array" (SortArray SortInt SortBool)
-
-falseArray :: SMTAST
-falseArray = V "false_array" (SortArray SortInt SortBool)
-
 nonMaxCoeffConstraints :: (InfConfigM m, ProgresserM m) => [GhcInfo] -> NMExprEnv -> TypeEnv -> Measures -> MeasureExs -> Evals Bool  -> M.Map Name SpecInfo -> FuncConstraints
                        -> m ([SMTHeader], HM.HashMap SMTName FuncConstraint)
 nonMaxCoeffConstraints ghci eenv tenv meas meas_ex evals m_si fc = do
@@ -972,47 +969,6 @@ nonMaxCoeffConstraints ghci eenv tenv meas meas_ex evals m_si fc = do
           ++ [Comment "polymorphic access constraints"]
           ++ poly_access
         , nm_fc)
-
-constraintsToSMT :: (InfConfigM m, ProgresserM m) =>
-                     NMExprEnv
-                  -> TypeEnv
-                  -> Measures
-                  -> MeasureExs
-                  -> Evals (Integer, Bool)
-                  -> M.Map Name SpecInfo
-                  -> FuncConstraints
-                  -> m [SMTHeader]
-constraintsToSMT eenv tenv meas meas_ex evals si fc =
-    return . map (Solver.Assert) =<<
-        convertConstraints 
-                    convertExprToSMT
-                    pathConsToSMT
-                    (\is -> Forall (map (\n -> (n, SortInt)) is))
-                    (ifNotNull mkSMTAnd (VBool True))
-                    (ifNotNull mkSMTOr (VBool False))
-                    (:!)
-                    (:=>)
-                    Func
-                    (\n i _ -> Func n [VInt i])
-                    (\n i _ -> Func n [VInt i])
-                    eenv tenv meas meas_ex evals si fc
-    where
-        ifNotNull _ def [] = def
-        ifNotNull f _ xs = f xs
-
-convertExprToSMT :: G2.Expr -> SMTAST
-convertExprToSMT e = 
-    case e of
-        (App (App (Data (DataCon (Name n _ _ _) _)) _) ls)
-            | Just is <- extractInts ls ->
-                foldr (\i arr -> ArrayStore arr (VInt i) (VBool True)) falseArray is
-        _ -> exprToSMT e
-
-extractInts :: G2.Expr -> Maybe [Integer]
-extractInts (App (App (App (Data _ ) (Type _)) (App _ (Lit (LitInt i)))) xs) =
-    return . (i:) =<< extractInts xs
-extractInts (App (Data _) _) = Just []
-extractInts e = Nothing
 
 ---
 

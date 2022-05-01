@@ -1,7 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Liquid.Inference.Sygus.FCConverter ( NMExprEnv
-                                             , convertConstraints) where
+                                             , convertConstraints
+                                             , convertConstraint
+                                             , constraintsToSMT
+                                             , convertExprToSMT
+                                             , falseArray
+                                             , trueArray) where
 
 import G2.Language as G2
 import qualified G2.Language.PathConds as PC
@@ -11,6 +16,7 @@ import G2.Liquid.Inference.FuncConstraint
 import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.PolyRef
 import G2.Liquid.Inference.Sygus.SpecInfo
+import G2.Solver as Solver
 
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
@@ -18,6 +24,54 @@ import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
+
+constraintsToSMT :: (InfConfigM m, ProgresserM m) =>
+                     NMExprEnv
+                  -> TypeEnv
+                  -> Measures
+                  -> MeasureExs
+                  -> Evals (Integer, Bool)
+                  -> M.Map Name SpecInfo
+                  -> FuncConstraints
+                  -> m [SMTHeader]
+constraintsToSMT eenv tenv meas meas_ex evals si fc =
+    return . map (Solver.Assert) =<<
+        convertConstraints 
+                    convertExprToSMT
+                    pathConsToSMT
+                    (\is -> Forall (map (\n -> (n, SortInt)) is))
+                    (ifNotNull mkSMTAnd (VBool True))
+                    (ifNotNull mkSMTOr (VBool False))
+                    (:!)
+                    (:=>)
+                    Func
+                    (\n i _ _ -> Func n [VInt i])
+                    (\n i _ -> Func n [VInt i])
+                    eenv tenv meas meas_ex evals si fc
+    where
+        ifNotNull _ def [] = def
+        ifNotNull f _ xs = f xs
+
+convertExprToSMT :: G2.Expr -> SMTAST
+convertExprToSMT e = 
+    case e of
+        (App (App (Data (DataCon (Name n _ _ _) _)) _) ls)
+            | Just is <- extractInts ls ->
+                foldr (\i arr -> ArrayStore arr (VInt i) (VBool True)) falseArray is
+        _ -> exprToSMT e
+
+extractInts :: G2.Expr -> Maybe [Integer]
+extractInts (App (App (App (Data _ ) (Type _)) (App _ (Lit (LitInt i)))) xs) =
+    return . (i:) =<< extractInts xs
+extractInts (App (Data _) _) = Just []
+extractInts e = Nothing
+
+trueArray :: SMTAST
+trueArray = V "true_array" (SortArray SortInt SortBool)
+
+falseArray :: SMTAST
+falseArray = V "false_array" (SortArray SortInt SortBool)
+
 
 type ConvertExpr a = G2.Expr -> a
 type ConvertPC a = PC.PathCond -> a
@@ -28,7 +82,7 @@ type NotF a = a -> a
 type ImpliesF a = a -> a -> a
 
 type Func a = String -> [a] -> a
-type KnownFunc a = String -> Integer -> Bool -> a
+type KnownFunc a = String -> Integer -> Bool -> a -> a
 type ToBeFunc a = String -> Integer -> Bool -> a
 
 ------------------------------------
@@ -36,7 +90,8 @@ type ToBeFunc a = String -> Integer -> Bool -> a
 ------------------------------------
 
 mkPreCall :: (InfConfigM m, ProgresserM m) => 
-             ConvertExpr form
+             (ConcAbsFuncCall -> FuncCall)
+          -> ConvertExpr form
           -> AndF form
           -> Func form
           -> KnownFunc form
@@ -49,9 +104,9 @@ mkPreCall :: (InfConfigM m, ProgresserM m) =>
           -> M.Map Name SpecInfo
           -> ConcAbsFuncCall
           -> m form
-mkPreCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si (CAFuncCall { conc_fcall = fc@(FuncCall { funcName = n, arguments = ars }) })
-    | Just si <- M.lookup n m_si
-    , Just (ev_i, ev_b) <- lookupEvals fc (pre_evals evals)
+mkPreCall extract_fc convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si ca_fc
+    | fc@(FuncCall { funcName = n, arguments = ars }) <- extract_fc ca_fc
+    , Just si <- M.lookup n m_si
     , Just func_e <- HM.lookup (nameOcc n, nameModule n) eenv = do
         inf_config <- infConfigM
 
@@ -89,18 +144,22 @@ mkPreCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si (CA
                               ) $ extractValues si_re_rt_pb
                   ) . zip (s_syn_pre si) . filter (not . null) $ L.inits v_ars
 
+            (ev_i, ev_b) = case lookupEvals fc (pre_evals evals) of
+                                  Just ev -> ev
+                                  Nothing -> error "mkPreCall: Missing eval"
             sy_body = andF sy_body_p
-            fixed_body = knownF (s_known_pre_name si) ev_i ev_b
+            fixed_body = knownF (s_known_pre_name si) ev_i ev_b sy_body
             to_be_body = toBeF (s_to_be_pre_name si) ev_i ev_b
 
         case s_status si of
                 Synth -> return $ andF [fixed_body, sy_body]
                 ToBeSynthed -> return $ andF [fixed_body, to_be_body]
                 Known -> return $ fixed_body
-    | otherwise = error "mkPreCall: specification not found"
+    | otherwise = error $ "mkPreCall: specification not found" ++ show (ca_fc) ++ "\n" ++ show (M.keys m_si)
 
 mkPostCall :: (InfConfigM m, ProgresserM m) => 
-              ConvertExpr form
+              (ConcAbsFuncCall -> FuncCall) 
+           -> ConvertExpr form
            -> AndF form
            -> Func form
            -> KnownFunc form
@@ -113,9 +172,9 @@ mkPostCall :: (InfConfigM m, ProgresserM m) =>
            -> M.Map Name SpecInfo
            -> ConcAbsFuncCall
            -> m form
-mkPostCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si (CAFuncCall { conc_fcall = fc@(FuncCall { funcName = n, arguments = ars, returns = r })})
-    | Just si <- M.lookup n m_si
-    , Just (ev_i, ev_b) <- lookupEvals fc (post_evals evals)
+mkPostCall extract_fc convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si ca_fc
+    | fc@(FuncCall { funcName = n, arguments = ars, returns = r }) <- extract_fc ca_fc
+    , Just si <- M.lookup n m_si
     , Just func_e <- HM.lookup (nameOcc n, nameModule n) eenv = do
         inf_config <- infConfigM
 
@@ -132,6 +191,10 @@ mkPostCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si (C
                               Just smt_ret_e_ty' -> smt_ret_e_ty'
                               Nothing -> PolyBound ([], headValue smt_ret_ty) []
 
+            (ev_i, ev_b) = case lookupEvals fc (post_evals evals) of
+                                  Just ev -> ev
+                                  Nothing -> error "mkPostCall: Missing eval"
+
             sy_body = andF
                     . concatMap
                         (\(syn_p, r, rt) ->
@@ -142,7 +205,7 @@ mkPostCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si (C
                             map (\smt_r' -> funcF (sy_name syn_p) $ f_smt_ars ++ smt_r') smt_r)
                     . extractValues 
                     $ zipWithPB (\x (y, z) -> (x, y, z)) (s_syn_post si) smt_ret_e_ty
-            fixed_body = knownF (s_known_post_name si) ev_i ev_b
+            fixed_body = knownF (s_known_post_name si) ev_i ev_b sy_body
             to_be_body = toBeF (s_to_be_post_name si) ev_i ev_b
 
         case s_status si of
@@ -173,6 +236,7 @@ convertConstraints :: (InfConfigM m, ProgresserM m) =>
 convertConstraints convExpr convPC forallF andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si fc = do
     let fc' = toListFC fc
     mapM (convertConstraint 
+                    conc_fcall
                     convExpr
                     convPC
                     forallF
@@ -186,7 +250,8 @@ convertConstraints convExpr convPC forallF andF orF notF impF funcF knownF toBeF
                     eenv tenv meas meas_ex evals si) fc'
 
 convertConstraint :: (InfConfigM m, ProgresserM m) =>
-                     ConvertExpr form
+                     (ConcAbsFuncCall -> FuncCall)
+                  -> ConvertExpr form
                   -> ConvertPC form
                   -> ForallF form
                   -> AndF form
@@ -204,7 +269,7 @@ convertConstraint :: (InfConfigM m, ProgresserM m) =>
                   -> M.Map Name SpecInfo
                   -> FuncConstraint
                   -> m form
-convertConstraint convExpr convPC forallF andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si constraint =
+convertConstraint extract_fc convExpr convPC forallF andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si constraint =
     let
         -- all_calls = allCalls constraint
         -- all_symbs = HS.map nameToStr . HS.map idName . HS.filter (isPrimType . typeOf) . HS.unions . map symb_fc $ all_calls
@@ -212,7 +277,7 @@ convertConstraint convExpr convPC forallF andF orF notF impF funcF knownF toBeF 
         -- all_pc = foldr PC.union PC.empty $ map paths_fc all_calls
         -- expr_pc = andF . map convPC $ PC.toList all_pc
 
-        con_constraint = convertConstraint' convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si constraint
+        con_constraint = convertConstraint' extract_fc convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si constraint
     in
     con_constraint
     -- case null all_symbs of
@@ -220,7 +285,8 @@ convertConstraint convExpr convPC forallF andF orF notF impF funcF knownF toBeF 
     --     False -> return . forallF (HS.toList all_symbs) . impF expr_pc =<< con_constraint
 
 convertConstraint' :: (InfConfigM m, ProgresserM m) =>
-                      ConvertExpr form
+                      (ConcAbsFuncCall -> FuncCall)
+                   -> ConvertExpr form
                    -> AndF form
                    -> OrF form
                    -> NotF form
@@ -236,24 +302,24 @@ convertConstraint' :: (InfConfigM m, ProgresserM m) =>
                    -> M.Map Name SpecInfo
                    -> FuncConstraint
                    -> m form
-convertConstraint' convExpr andF orF _ impF funcF knownF toBeF eenv tenv meas meas_ex evals si (Call All fc) = do
-    pre <- mkPreCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals si fc
-    post <- mkPostCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals si fc
+convertConstraint' extract_fc convExpr andF orF _ impF funcF knownF toBeF eenv tenv meas meas_ex evals si (Call All fc) = do
+    pre <- mkPreCall extract_fc convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals si fc
+    post <- mkPostCall extract_fc convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals si fc
     return $ pre `impF` post
-convertConstraint' convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si (Call Pre fc) =
-    mkPreCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals si fc
-convertConstraint' convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si (Call Post fc) =
-    mkPostCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals si fc
-convertConstraint' convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si (AndFC fs) =
-    return . andF =<< mapM (convertConstraint' convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si) fs
-convertConstraint' convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si (OrFC fs) =
-    return . orF =<< mapM (convertConstraint' convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si) fs
-convertConstraint' convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si (ImpliesFC fc1 fc2) = do
-    lhs <- convertConstraint' convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si fc1
-    rhs <- convertConstraint' convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si fc2
+convertConstraint' extract_fc convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si (Call Pre fc) =
+    mkPreCall extract_fc convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals si fc
+convertConstraint' extract_fc convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si (Call Post fc) =
+    mkPostCall extract_fc convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals si fc
+convertConstraint' extract_fc convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si (AndFC fs) =
+    return . andF =<< mapM (convertConstraint' extract_fc convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si) fs
+convertConstraint' extract_fc convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si (OrFC fs) =
+    return . orF =<< mapM (convertConstraint' extract_fc convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si) fs
+convertConstraint' extract_fc convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si (ImpliesFC fc1 fc2) = do
+    lhs <- convertConstraint' extract_fc convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si fc1
+    rhs <- convertConstraint' extract_fc convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si fc2
     return $ lhs `impF` rhs
-convertConstraint' convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si (NotFC fc) =
-    return . notF =<< convertConstraint' convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si fc
+convertConstraint' extract_fc convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si (NotFC fc) =
+    return . notF =<< convertConstraint' extract_fc convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si fc
 
 adjustArgs :: ConvertExpr form -> Int -> TypeEnv -> Measures -> MeasureExs -> Type -> G2.Expr -> [form]
 adjustArgs convExpr mx_meas tenv meas meas_ex t =

@@ -138,7 +138,7 @@ constraintsToSygus eenv tenv meas meas_ex evals si fc =
                     mkSygusNot
                     mkSygusImplies
                     (\s -> TermCall (ISymb s))
-                    (\_ _ -> TermLit . LitBool)
+                    (\_ _ b _ -> TermLit . LitBool $ b)
                     (\n i b ->
                         if b then
                             TermIdent (ISymb $ n ++ "__SYGUS_INT__" ++ show i)

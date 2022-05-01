@@ -938,7 +938,7 @@ findCounterExamples' :: FilePath
                      -> [FilePath]
                      -> [FilePath]
                      -> Config
-                     -> IO (Maybe (Either SomeException [ExecRes AbstractedInfo]))
+                     -> IO (Maybe (Either SomeException [ExecRes (AbstractedInfo AbsFuncCall)]))
 findCounterExamples' fp entry libs lhlibs config =
     let
         proj = takeDirectory fp
