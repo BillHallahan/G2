@@ -23,6 +23,7 @@ import Language.Fixpoint.Types.Refinements as LH hiding (pAnd, pOr)
 
 import Control.Monad.IO.Class 
 
+import Data.Function
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.List
@@ -121,7 +122,7 @@ funcDefToSMTAST ghci m_si gs n | Just si <- f_si =
                                     spec_ars = init full_spec
                                     spec_ret = last full_spec
                                 in
-                                concatMap (uncurry funcDefToSMTAST') $ (si_ret, spec_ret):zip si_ars spec_ars
+                                concatMap (uncurry funcDefToSMTAST') . nubBy ((==) `on` sy_name . headValue . fst) $ (si_ret, spec_ret):zip si_ars spec_ars
                                | otherwise = error "funcDefToSMTAST: function not found"
     where
         f_si = M.lookup (zeroOutName n) m_si
@@ -151,13 +152,16 @@ lhExprToSMT _ (ECon (I i)) = VInt i
 lhExprToSMT spec_args (ENeg x) = Neg $ lhExprToSMT spec_args x
 lhExprToSMT spec_args (EBin LH.Plus x y) = lhExprToSMT spec_args x :+ lhExprToSMT spec_args y
 lhExprToSMT spec_args (EBin LH.Times x y) = lhExprToSMT spec_args x :* lhExprToSMT spec_args y
+lhExprToSMT spec_args (EIte b x y) =
+    (lhExprToSMT spec_args b :=> lhExprToSMT spec_args x) .&&. (((:!) (lhExprToSMT spec_args b)) :=> lhExprToSMT spec_args y)
 lhExprToSMT spec_args (PAtom LH.Gt x y) = lhExprToSMT spec_args x :> lhExprToSMT spec_args y
 lhExprToSMT spec_args (PAtom LH.Ge x y) = lhExprToSMT spec_args x :>= lhExprToSMT spec_args y
 lhExprToSMT spec_args (PAtom LH.Eq x y) = lhExprToSMT spec_args x := lhExprToSMT spec_args y
 lhExprToSMT spec_args PTrue = VBool True
 lhExprToSMT spec_args PFalse = VBool False
 lhExprToSMT spec_args (PAnd xs) = mkSMTAnd $ map (lhExprToSMT spec_args) xs 
-lhExprToSMT spec_args (POr xs) = mkSMTOr $ map (lhExprToSMT spec_args) xs 
+lhExprToSMT spec_args (POr xs) = mkSMTOr $ map (lhExprToSMT spec_args) xs
+lhExprToSMT spec_args (PIff x y) = lhExprToSMT spec_args x :<=> lhExprToSMT spec_args y
 lhExprToSMT _ e = error $ "lhExprToSMT: Unhandled expr " ++ show e
 
 existingPBExpr :: Name -> [GhcInfo] -> Maybe [PolyBound LH.Expr]
