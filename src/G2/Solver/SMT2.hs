@@ -268,7 +268,7 @@ instance SMTConverter CVC4 TB.Builder TB.Builder (Handle, Handle, ProcessHandle)
     checkSatGetModel _ (h_in, h_out, _) formula vs = do
         setUpFormulaCVC4 h_in (TB.run formula)
         -- putStrLn "\n\n checkSatGetModel"
-        -- putStrLn formula
+        -- T.putStrLn (TB.run formula)
         r <- checkSat' h_in h_out
         -- putStrLn $ "r =  " ++ show r
         case r of
@@ -494,7 +494,6 @@ getModelZ3 h_in h_out ns = do
         getModel' ((n, s):nss) = do
             hPutStr h_in ("(get-value (" ++ n ++ "))\n") -- hPutStr h_in ("(eval " ++ n ++ " :completion)\n")
             out <- getLinesMatchParens h_out
-            putStrLn $ "n = " ++ n ++ ", out = " ++ out
             _ <- evaluate (length out) --Forces reading/avoids problems caused by laziness
 
             return . (:) (n, out, s) =<< getModel' nss

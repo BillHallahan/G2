@@ -47,8 +47,6 @@ genCounterexampleFromAbstractFC con ghci eenv tenv meas meas_ex evals m_si gs fc
     case m_form_vs of
         Just (form, vs) -> do
             mdl <- liftIO $ solveConstraints con form vs
-            liftIO $ do
-                print mdl
             return $ fmap (foldr (uncurry replaceVar) (switchAbsFC fc) . HM.toList) mdl
         Nothing -> return Nothing
 
@@ -101,7 +99,7 @@ constraintToSMT eenv tenv meas meas_ex evals si fc =
                     (:=>)
                     Func
                     (\n _ _ -> id)
-                    (\n _ _ -> Func n [VInt 0])
+                    (\n i _ -> VBool True)
                     eenv tenv meas meas_ex evals si fc
     where
         ifNotNull _ def [] = def
@@ -132,7 +130,11 @@ funcDefToSMTAST ghci m_si gs n | Just si <- f_si =
         merge_specs spc = map (uncurry (zipWithMaybePB (\s1 s2 -> PAnd [maybe PTrue id s1, maybe PTrue id s2]))) . zip spc
 
 funcDefToSMTAST' :: PolyBound SynthSpec -> PolyBound LH.Expr -> [SMTHeader]
-funcDefToSMTAST' pb_sy_s = map (uncurry funcDefToSMTAST'') . extractValues . zipPB pb_sy_s
+funcDefToSMTAST' pb_sy_s = map (uncurry funcDefToSMTAST'') . extractValues . zipWithMaybePB merge pb_sy_s
+    where
+        merge (Just s) (Just e) = (s, e) 
+        merge (Just s) Nothing = (s, PTrue)
+        merge Nothing _ = error "funcDefToSMTAST': missing SynthSpec" 
 
 funcDefToSMTAST'' :: SynthSpec -> LH.Expr -> SMTHeader
 funcDefToSMTAST'' synth_spec e =
@@ -143,8 +145,10 @@ funcDefToSMTAST'' synth_spec e =
     DefineFun (sy_name synth_spec) (map (\sa -> (smt_var sa, smt_sort sa)) ars) SortBool body
 
 lhExprToSMT :: [SpecArg] -> LH.Expr -> SMTAST
-lhExprToSMT spec_args evar@(EVar s) | Just sa <- find (\sa_ -> lh_rep sa_ == evar) spec_args = V (smt_var sa) (smt_sort sa)
+lhExprToSMT spec_args evar@(EVar _) | Just sa <- find (\sa_ -> lh_rep sa_ == evar) spec_args = V (smt_var sa) (smt_sort sa)
+lhExprToSMT spec_args evar@(EApp _ _) | Just sa <- find (\sa_ -> lh_rep sa_ == evar) spec_args = V (smt_var sa) (smt_sort sa)
 lhExprToSMT _ (ECon (I i)) = VInt i
+lhExprToSMT spec_args (ENeg x) = Neg $ lhExprToSMT spec_args x
 lhExprToSMT spec_args (EBin LH.Plus x y) = lhExprToSMT spec_args x :+ lhExprToSMT spec_args y
 lhExprToSMT spec_args (EBin LH.Times x y) = lhExprToSMT spec_args x :* lhExprToSMT spec_args y
 lhExprToSMT spec_args (PAtom LH.Gt x y) = lhExprToSMT spec_args x :> lhExprToSMT spec_args y
