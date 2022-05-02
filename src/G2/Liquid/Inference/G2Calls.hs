@@ -24,6 +24,7 @@ module G2.Liquid.Inference.G2Calls ( MeasureExs
                                    , checkFuncCall
                                    , checkCounterexample
                                    
+                                   , updateEvals
                                    , emptyEvals
                                    , preEvals
                                    , postEvals
@@ -35,6 +36,7 @@ module G2.Liquid.Inference.G2Calls ( MeasureExs
                                    , deleteEvalsForFunc
                                    , printEvals
 
+                                   , updateMeasureExs
                                    , evalMeasures
                                    , formMeasureComps
                                    , chainReturnType) where
@@ -57,8 +59,10 @@ import G2.Liquid.LHReducers
 import G2.Liquid.TCValues
 import G2.Liquid.Types
 import G2.Liquid.TyVarBags
+import G2.Liquid.Inference.FuncConstraint (FuncConstraints, FuncConstraint, allCalls, allConcCallsFC, toListFC)
 import G2.Liquid.Inference.InfStack
 import G2.Liquid.Inference.Initalization
+import G2.Liquid.Inference.PolyRef
 import G2.Solver hiding (Assert)
 import G2.Translation
 
@@ -468,6 +472,18 @@ data Evals b = Evals { pre_evals :: PreEvals b
                      , post_evals :: PostEvals b }
                      deriving Show
 
+updateEvals :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> FuncConstraints -> Evals Bool -> m (Evals Bool)
+updateEvals ghci lrs fc evals = do
+    let cs = allConcCallsFC fc
+
+    liftIO $ putStrLn "Before check func calls"
+    evals' <- preEvals evals lrs ghci cs
+    liftIO $ putStrLn "After pre"
+    evals'' <- postEvals evals' lrs ghci cs
+    liftIO $ putStrLn "After check func calls"
+
+    return evals''
+
 emptyEvals :: Evals b
 emptyEvals = Evals { pre_evals = HM.empty, post_evals = HM.empty }
 
@@ -609,6 +625,26 @@ printEvals' f =
 type MeasureExs = HM.HashMap Expr (HM.HashMap [Name] Expr)
 
 type MaxMeasures = Int
+
+updateMeasureExs :: (InfConfigM m, ProgresserM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> FuncConstraints -> m MeasureExs
+updateMeasureExs meas_ex lrs ghci fcs =
+    let
+        es = concatMap updateExprs (toListFC fcs)
+    in
+    evalMeasures meas_ex lrs ghci es
+    where
+        updateExprs :: FuncConstraint -> [(Expr, PathConds, HS.HashSet Id)]
+        updateExprs fc = concatMap updateExprs'
+                       . concatMap (\ca -> [simpleAbsFuncCall (conc_fcall ca), abs_fcall ca]) $ allCalls fc
+
+        updateExprs' :: AbsFuncCall -> [(Expr, PathConds, HS.HashSet Id)]
+        updateExprs' ca_call =
+            let
+                cll = fcall ca_call
+                vls = returns cll:arguments cll
+                ex_poly = concat . concatMap extractValues . concatMap extractExprPolyBound $ vls
+            in
+            zip3 (vls ++ ex_poly) (repeat $ paths_fc ca_call) (repeat $ symb_fc ca_call)
 
 evalMeasures :: (InfConfigM m, ProgresserM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> [(Expr, PathConds, HS.HashSet Id)] -> m MeasureExs
 evalMeasures init_meas lrs ghci es = do

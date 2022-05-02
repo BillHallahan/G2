@@ -262,9 +262,11 @@ inferenceB con ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls = do
         putStrLn "-------"
 
     case synth_gs of
-        SynthEnv envN sz smt_mdl blk_mdls' -> do
+        SynthEnv envN sz smt_mdl blk_mdls' synth_fc sy_evals sy_meas_ex -> do
             let gs' = unionDroppingGS gs envN
                 ghci' = addSpecsToGhcInfos ghci gs'
+
+                fc' = fc `unionFC` synth_fc
             liftIO $ do
                 putStrLn "inferenceB"
                 putStrLn $ "fs = " ++ show fs
@@ -276,7 +278,7 @@ inferenceB con ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls = do
             let res' = filterNamesTo fs res
             
             case res' of
-                Safe -> return $ (Env gs' fc max_fc meas_ex, evals')
+                Safe -> return $ (Env gs' fc' max_fc sy_meas_ex, sy_evals)
                 Unsafe bad -> do
                     inf_con <- infConfigM
                     ref <- tryToGen (nub bad) ((emptyFC, emptyBlockedModels), emptyFC)
@@ -291,21 +293,21 @@ inferenceB con ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls = do
                               logEventEndM
 
                     case ref of
-                        Left cex -> return $ (CEx cex, evals')
+                        Left cex -> return $ (CEx cex, sy_evals)
                         Right ((viol_fc, new_blk_mdls), no_viol_fc) -> do
-                            let fc' = viol_fc `unionFC` no_viol_fc
+                            let viol_no_viol_fc = viol_fc `unionFC` no_viol_fc
                                 blk_mdls'' = blk_mdls' `unionBlockedModels` new_blk_mdls
                             liftIO $ putStrLn "Before genMeasureExs"
                             logEventStartM UpdateMeasures
-                            meas_ex' <- lift . lift . lift $ updateMeasureExs meas_ex lrs ghci fc'
+                            meas_ex' <- lift . lift . lift $ updateMeasureExs sy_meas_ex lrs ghci viol_no_viol_fc
                             logEventEndM
                             liftIO $ putStrLn "After genMeasureExs"
 
-                            inferenceB con ghci m_modname lrs nls evals' meas_ex' gs (unionFC fc fc') max_fc blk_mdls''
+                            inferenceB con ghci m_modname lrs nls sy_evals meas_ex' gs (fc' `unionFC` viol_no_viol_fc) max_fc blk_mdls''
 
                 Crash e1 e2 -> error $ "inferenceB: LiquidHaskell crashed" ++ "\n" ++ show e1 ++ "\n" ++ e2
         SynthFail sf_fc -> do
-            liftIO . putStrLn $ "synthfail fc = " ++ (printConcFCs lrs sf_fc)
+            liftIO . putStrLn $ "synthfail fc = " ++ (printConcFCs sf_fc)
             return $ (Raise meas_ex fc (unionFC max_fc sf_fc), evals')
 
 tryToGen :: Monad m =>
@@ -395,8 +397,8 @@ refineUnsafe ghci m_modname lrs gs bad = do
     case new_fc of
         Left cex -> return $ Left cex
         Right new_fc' -> do
-            liftIO . putStrLn $ "new conc fc = " ++ printConcFCs lrs new_fc'
-            liftIO . putStrLn $ "new abs fc = " ++ printAbsFCs lrs new_fc'
+            liftIO . putStrLn $ "new conc fc = " ++ printConcFCs new_fc'
+            liftIO . putStrLn $ "new abs fc = " ++ printAbsFCs new_fc'
             return $ Right (if nullFC new_fc'
                                     then Nothing
                                     else Just (new_fc', emptyBlockedModels), fromListFC no_viol)
@@ -520,7 +522,7 @@ getCEx ghci m_modname lrs gs bad = do
     case new_fc of
         Left cex -> return $ Left cex
         Right new_fc' -> do
-            liftIO . putStrLn $ "new_fc' = " ++ printConcFCs lrs new_fc'
+            liftIO . putStrLn $ "new_fc' = " ++ printConcFCs new_fc'
             return $ Right new_fc'
 
 checkForCEx :: MonadIO m =>
@@ -544,44 +546,12 @@ checkNewConstraints ghci lrs cexs = do
         res'@(_:_) -> return . Left $ res'
         _ -> return . Right . unionsFC . map fromSingletonFC $ (rights res) ++ if use_extra_fcs infconfig then res2 else []
 
-updateMeasureExs :: (InfConfigM m, ProgresserM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> FuncConstraints -> m MeasureExs
-updateMeasureExs meas_ex lrs ghci fcs =
-    let
-        es = concatMap updateExprs (toListFC fcs)
-    in
-    evalMeasures meas_ex lrs ghci es
-    where
-        updateExprs :: FuncConstraint -> [(Expr, PathConds, S.HashSet Id)]
-        updateExprs fc = concatMap updateExprs'
-                       . concatMap (\ca -> [simpleAbsFuncCall (conc_fcall ca), abs_fcall ca]) $ allCalls fc
-
-        updateExprs' :: AbsFuncCall -> [(Expr, PathConds, S.HashSet Id)]
-        updateExprs' ca_call =
-            let
-                cll = fcall ca_call
-                vls = returns cll:arguments cll
-                ex_poly = concat . concatMap extractValues . concatMap extractExprPolyBound $ vls
-            in
-            zip3 (vls ++ ex_poly) (repeat $ paths_fc ca_call) (repeat $ symb_fc ca_call)
-
 synthesize :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
            => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
            -> FuncConstraints -> BlockedModels -> [Name] -> [Name] -> m SynthRes
 synthesize con ghci lrs evals meas_ex fc blk_mdls to_be for_funcs = do
-    liftIO . putStrLn $ "all fc = " ++ printConcFCs lrs fc
+    liftIO . putStrLn $ "all fc = " ++ printConcFCs fc
     liaSynth con ghci lrs evals meas_ex fc blk_mdls to_be for_funcs
-
-updateEvals :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> FuncConstraints -> Evals Bool -> m (Evals Bool)
-updateEvals ghci lrs fc evals = do
-    let cs = allConcCallsFC fc
-
-    liftIO $ putStrLn "Before check func calls"
-    evals' <- preEvals evals lrs ghci cs
-    liftIO $ putStrLn "After pre"
-    evals'' <- postEvals evals' lrs ghci cs
-    liftIO $ putStrLn "After check func calls"
-
-    return evals''
 
 -- | Converts counterexamples into constraints that block the current specification set
 cexsToBlockingFC :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] -> CounterExample ConcAbsFuncCall -> m (Either (CounterExample ConcAbsFuncCall) FuncConstraint)

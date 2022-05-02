@@ -173,17 +173,16 @@ solveNumericConstraintsPC con pc = do
     let headers = toSMTHeaders pc
     let vs = map (\(n', srt) -> (nameToStr n', srt)) . HS.toList . pcVars $ pc
 
-    m <- solveConstraints con headers vs
-    return $ fmap modelAsExpr m
+    solveConstraints con headers vs
 
-solveConstraints :: SMTConverter con ast out io => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Maybe SMTModel)
+solveConstraints :: SMTConverter con ast out io => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Maybe Model)
 solveConstraints con headers vs = do
     let io = getIO con
     let formula = toSolver con headers
     r <- checkSatGetModel con io formula vs
-
+ 
     case r of
-        SAT m' -> return $ Just m'
+        SAT m' -> return . Just $ modelAsExpr m'
         _ -> return Nothing
 
 constraintsToModelOrUnsatCore :: SMTConverter con ast out io => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore)

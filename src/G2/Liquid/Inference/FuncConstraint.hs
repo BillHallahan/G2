@@ -149,59 +149,59 @@ allConcCallsFC = map conc_fcall . allCallsFC
 allCallsByName :: FuncConstraints -> [ConcAbsFuncCall]
 allCallsByName = concatMap allCalls . toListFC
 
-printFCs :: (ConcAbsFuncCall -> FuncCall) -> LiquidReadyState -> FuncConstraints -> String
-printFCs f lrs fcs =
-    intercalate "\n" . map (printFC f (state . lr_state $ lrs)) $ toListFC fcs
+printFCs :: (ConcAbsFuncCall -> FuncCall) -> FuncConstraints -> String
+printFCs f fcs =
+    intercalate "\n" . map (printFC f) $ toListFC fcs
 
-printConcFCs :: LiquidReadyState -> FuncConstraints -> String
+printConcFCs :: FuncConstraints -> String
 printConcFCs = printFCs conc_fcall
 
-printAbsFCs :: LiquidReadyState -> FuncConstraints -> String
+printAbsFCs :: FuncConstraints -> String
 printAbsFCs = printFCs (fcall . abs_fcall)
 
-printFC :: (ConcAbsFuncCall -> FuncCall) -> State t -> FuncConstraint -> String
-printFC f s (Call sp ca_fc) =
+printFC :: (ConcAbsFuncCall -> FuncCall) -> FuncConstraint -> String
+printFC f (Call sp ca_fc) =
     let
         cfc = f ca_fc
     in
     case sp of
-        Pre -> "(" ++ printPreCall s cfc ++ ")"
-        Post -> "(" ++ printPostCall s cfc ++ ")"
-        All -> "(" ++ printAllCall s cfc ++ ")"
-printFC f s (AndFC fcs) =
+        Pre -> "(" ++ printPreCall cfc ++ ")"
+        Post -> "(" ++ printPostCall cfc ++ ")"
+        All -> "(" ++ printAllCall cfc ++ ")"
+printFC f (AndFC fcs) =
     case fcs of
-        (fc:fcs') -> foldr (\fc' fcs'' -> fcs'' ++ " && " ++ printFC f s fc') (printFC f s fc) fcs'
+        (fc:fcs') -> foldr (\fc' fcs'' -> fcs'' ++ " && " ++ printFC f fc') (printFC f fc) fcs'
         [] -> "True"
-printFC f s (OrFC fcs) =
+printFC f (OrFC fcs) =
     case fcs of
-        (fc:fcs') -> foldr (\fc' fcs'' -> fcs'' ++ " || " ++ printFC f s fc') (printFC f s fc) fcs'
+        (fc:fcs') -> foldr (\fc' fcs'' -> fcs'' ++ " || " ++ printFC f fc') (printFC f fc) fcs'
         [] -> "False"
-printFC f s (ImpliesFC fc1 fc2) = "(" ++ printFC f s fc1 ++ ") => (" ++ printFC f s fc2 ++ ")"
-printFC f s (NotFC fc) = "not (" ++ printFC f s fc ++ ")"
+printFC f (ImpliesFC fc1 fc2) = "(" ++ printFC f fc1 ++ ") => (" ++ printFC f fc2 ++ ")"
+printFC f (NotFC fc) = "not (" ++ printFC f fc ++ ")"
 
-printConcFC :: State t -> FuncConstraint -> String
+printConcFC :: FuncConstraint -> String
 printConcFC = printFC conc_fcall
 
-printAbsFC :: State t -> FuncConstraint -> String
+printAbsFC :: FuncConstraint -> String
 printAbsFC = printFC (fcall . abs_fcall)
 
-printPreCall :: State t -> FuncCall -> String
-printPreCall s (FuncCall { funcName = Name f _ _ _, arguments = ars, returns = r}) =
-    printHaskell s . foldl (\a a' -> App a a') (Var (Id (Name (f <> "_pre") Nothing 0 Nothing) TyUnknown)) $ ars
+printPreCall :: FuncCall -> String
+printPreCall (FuncCall { funcName = Name f _ _ _, arguments = ars, returns = r}) =
+    printHaskellDirty . foldl (\a a' -> App a a') (Var (Id (Name (f <> "_pre") Nothing 0 Nothing) TyUnknown)) $ ars
 
-printPostCall :: State t -> FuncCall -> String
-printPostCall s (FuncCall { funcName = Name f _ _ _, arguments = ars, returns = r}) =
+printPostCall :: FuncCall -> String
+printPostCall (FuncCall { funcName = Name f _ _ _, arguments = ars, returns = r}) =
     let
-        cll = printHaskell s . foldl (\a a' -> App a a') (Var (Id (Name (f <> "_post") Nothing 0 Nothing) TyUnknown)) $ ars
-        r_str = printHaskell s r
+        cll = printHaskellDirty . foldl (\a a' -> App a a') (Var (Id (Name (f <> "_post") Nothing 0 Nothing) TyUnknown)) $ ars
+        r_str = printHaskellDirty r
     in
     cll ++ " " ++ r_str ++ ")"
 
-printAllCall :: State t -> FuncCall -> String
-printAllCall s (FuncCall { funcName = f, arguments = ars, returns = r}) =
+printAllCall :: FuncCall -> String
+printAllCall (FuncCall { funcName = f, arguments = ars, returns = r}) =
     let
-        cll = printHaskell s . foldl (\a a' -> App a a') (Var (Id f TyUnknown)) $ ars
-        r_str = printHaskell s r
+        cll = printHaskellDirty . foldl (\a a' -> App a a') (Var (Id f TyUnknown)) $ ars
+        r_str = printHaskellDirty r
     in
     cll ++ " " ++ r_str ++ ")"
 

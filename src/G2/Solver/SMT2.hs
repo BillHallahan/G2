@@ -25,6 +25,7 @@ import G2.Solver.Converters --It would be nice to not import this...
 import Control.Exception.Base (evaluate)
 import Data.List.Utils (countElem)
 import qualified Data.HashSet as HS
+import Data.List
 import qualified Data.Map as M
 import Data.Ratio
 import Data.Semigroup
@@ -78,9 +79,9 @@ instance SMTConverter Z3 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) w
     checkSatGetModel _ (h_in, h_out, _) formula vs = do
         setUpFormulaZ3 h_in (TB.run formula)
         -- putStrLn "\n\n checkSatGetModel"
-        -- putStrLn formula
+        T.putStrLn (TB.run formula)
         r <- checkSat' h_in h_out
-        -- putStrLn $ "r =  " ++ show r
+        putStrLn $ "r =  " ++ show r
         case r of
             SAT () -> do
                 mdl <- getModelZ3 h_in h_out vs
@@ -465,8 +466,9 @@ checkSat' h_in h_out = do
             return $ SAT ()
         else if out == "unsat" then
             return $ UNSAT ()
-        else
-            return (Unknown out)
+        else if "error" `isInfixOf` out
+            then error $ "checkSat': error from SMT solver:\n" ++ out
+            else return (Unknown out)
     else do
         return (Unknown "")
 
@@ -492,6 +494,7 @@ getModelZ3 h_in h_out ns = do
         getModel' ((n, s):nss) = do
             hPutStr h_in ("(get-value (" ++ n ++ "))\n") -- hPutStr h_in ("(eval " ++ n ++ " :completion)\n")
             out <- getLinesMatchParens h_out
+            putStrLn $ "n = " ++ n ++ ", out = " ++ out
             _ <- evaluate (length out) --Forces reading/avoids problems caused by laziness
 
             return . (:) (n, out, s) =<< getModel' nss

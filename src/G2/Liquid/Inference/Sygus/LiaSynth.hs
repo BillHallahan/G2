@@ -53,6 +53,9 @@ data SynthRes = SynthEnv
                   Size -- ^ The size that the synthesizer succeeded at
                   SMTModel -- ^ An SMTModel corresponding to the new specifications
                   BlockedModels -- ^ SMTModels that should be blocked in the future
+                  FuncConstraints -- ^ New function constraints to use in the future
+                  (Evals Bool)
+                  MeasureExs
               | SynthFail FuncConstraints
 
 type Size = Integer
@@ -74,7 +77,7 @@ liaSynth con ghci lrs evals meas_ex fc blk_mdls to_be_ns ns_synth = do
 
     liftIO . putStrLn $ "si = " ++ show si
 
-    synth con ghci eenv tenv meas meas_ex evals si fc blk_mdls 1
+    synth con ghci lrs eenv tenv meas meas_ex evals si fc emptyFC blk_mdls 1
 
 liaSynthOfSize :: (InfConfigM m, ProgresserM m) => Integer -> M.Map Name SpecInfo -> m (M.Map Name SpecInfo)
 liaSynthOfSize sz m_si = do
@@ -266,17 +269,19 @@ mkBoolForms prd sz max_sz s psi j k =
 synth :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
       => con
       -> [GhcInfo]
+      -> LiquidReadyState
       -> NMExprEnv
       -> TypeEnv
       -> Measures
       -> MeasureExs
       -> Evals Bool
       -> M.Map Name SpecInfo
-      -> FuncConstraints
+      -> FuncConstraints -- ^ The `FuncConstraints` initially passed into the synthesizer
+      -> FuncConstraints -- ^ New `FuncConstraints` discovered during the synthesis process
       -> BlockedModels
       -> Size
       -> m SynthRes
-synth con ghci eenv tenv meas meas_ex evals si fc blk_mdls sz = do
+synth con ghci lrs eenv tenv meas meas_ex evals si fc synth_fc blk_mdls sz = do
     si' <- liaSynthOfSize sz si
     let zero_coeff_hdrs = softCoeffAssertZero si' ++ softClauseActAssertZero si' -- ++ softFuncActAssertZero si'
         -- zero_coeff_hdrs = softFuncActAssertZero si' ++ softClauseActAssertZero si'
@@ -310,28 +315,43 @@ synth con ghci eenv tenv meas meas_ex evals si fc blk_mdls sz = do
 
     MaxSize max_sz <- maxSynthSizeM
 
-    res <- synth' con ghci eenv tenv meas meas_ex evals si' fc ex_assrts drop_if_unknown blk_mdls sz
+    evals' <- updateEvals ghci lrs synth_fc evals
+    meas_ex' <- updateMeasureExs meas_ex lrs ghci synth_fc
+    res <- synth' con ghci eenv tenv meas meas_ex' evals' si' fc synth_fc ex_assrts drop_if_unknown blk_mdls sz
     case res of
-        SynthEnv _ _ n_mdl _ -> do
-            new  <- checkModelIsNewFunc con si' n_mdl non_equiv_mdls
+        SynthEnv gs _ n_mdl _ _ _ _ -> do
+            mdl_new  <- checkModelIsNewFunc con si' n_mdl non_equiv_mdls
             liftIO $ putStrLn "genCounterexampleFromAbstractFC"
-            liftIO . print =<< mapM (genCounterexampleFromAbstractFC eenv tenv meas meas_ex (assignIds evals) si) (toListFC fc)
-            case new of
-                Nothing -> return res
-                Just (_, eq_mdl) -> do
-                    let sys = concatMap allSynthSpec $ M.elems si'
-                        rel_n_mdl = filterIrrelByConstruction sys n_mdl
-                        rel_eq_mdl = filterIrrelByConstruction sys eq_mdl
-
-                        mn = determineRelSynthSpecs si' rel_n_mdl rel_eq_mdl
-                        mdls' = foldr (\n -> insertEquivBlockedModel sz (MNOnlySMTNames [n]) n_mdl) blk_mdls mn
-
-                    liftIO . putStrLn $ "mn = " ++ show mn
-                    synth con ghci eenv tenv meas meas_ex evals si fc mdls' sz
+            new_fc <- return . fromListFC . catMaybes =<< mapM (genCounterexampleFromAbstractFC con ghci eenv tenv meas meas_ex' (assignIds evals') si gs) (toListFC fc)
+            case mdl_new of
+                Nothing | nullFC new_fc -> return res
+                _ -> do
+                    let blk_mdls' = maybe blk_mdls (\(_, eq_mdl) -> addEquivModel si' sz n_mdl eq_mdl blk_mdls) mdl_new
+                    liftIO $ do
+                        putStrLn "Conc"
+                        putStrLn . printConcFCs $ new_fc
+                    synth con ghci lrs eenv tenv meas meas_ex' evals' si fc (new_fc `unionFC` synth_fc) blk_mdls' sz
         SynthFail _
-            | sz < max_sz -> synth con ghci eenv tenv meas meas_ex evals si fc blk_mdls (sz + 1)
+            | sz < max_sz -> synth con ghci lrs eenv tenv meas meas_ex' evals' si fc synth_fc blk_mdls (sz + 1)
             | otherwise -> return res
-    
+  
+addEquivModel :: M.Map Name SpecInfo
+              -> Size
+              -> SMTModel -- ^ a newly synthesized model
+              -> SMTModel -- ^ a previous model, equivalent to the previously synthesized model
+              -> BlockedModels
+              -> BlockedModels
+addEquivModel si sz n_mdl eq_mdl blk_mdls =
+    let
+        sys = concatMap allSynthSpec $ M.elems si
+        rel_n_mdl = filterIrrelByConstruction sys n_mdl
+        rel_eq_mdl = filterIrrelByConstruction sys eq_mdl
+
+        mn = determineRelSynthSpecs si rel_n_mdl rel_eq_mdl
+    in
+    foldr (\n -> insertEquivBlockedModel sz (MNOnlySMTNames [n]) n_mdl) blk_mdls mn
+
+
 synth' :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
        => con
        -> [GhcInfo]
@@ -341,17 +361,18 @@ synth' :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
        -> MeasureExs
        -> Evals Bool
        -> M.Map Name SpecInfo
-       -> FuncConstraints
+       -> FuncConstraints -- ^ The `FuncConstraints` initially passed into the synthesizer
+       -> FuncConstraints -- ^ New `FuncConstraints` discovered during the synthesis process
        -> [SMTHeader]
        -> [SMTHeader]
        -> BlockedModels
        -> Size
        -> m SynthRes
-synth' con ghci eenv tenv meas meas_ex evals m_si fc headers drop_if_unknown blk_mdls sz = do
+synth' con ghci eenv tenv meas meas_ex evals m_si fc synth_fc headers drop_if_unknown blk_mdls sz = do
     let n_for_m = namesForModel m_si
     liftIO $ print m_si
     let consts = arrayConstants m_si
-    (constraints, nm_fc_map) <- nonMaxCoeffConstraints ghci eenv tenv meas meas_ex evals m_si fc
+    (constraints, nm_fc_map) <- nonMaxCoeffConstraints ghci eenv tenv meas meas_ex evals m_si (fc `unionFC` synth_fc)
     let hdrs = consts ++ constraints ++ headers ++ drop_if_unknown
 
     liftIO $ if not (null drop_if_unknown) then putStrLn "non empty drop_if_unknown" else return ()
@@ -362,7 +383,7 @@ synth' con ghci eenv tenv meas meas_ex evals m_si fc headers drop_if_unknown blk
         SAT mdl' -> do
             let gs' = modelToGS m_si mdl'
             liftIO $ print gs'
-            return (SynthEnv gs' sz mdl' blk_mdls)
+            return (SynthEnv gs' sz mdl' blk_mdls synth_fc evals meas_ex)
         UNSAT uc ->
             let
                 fc_uc = fromSingletonFC . NotFC . AndFC . map (nm_fc_map HM.!) $ HS.toList uc
@@ -370,7 +391,7 @@ synth' con ghci eenv tenv meas meas_ex evals m_si fc headers drop_if_unknown blk
             return (SynthFail fc_uc)
         Unknown _
             | not (null drop_if_unknown) ->
-                synth' con ghci eenv tenv meas meas_ex evals m_si fc headers [] blk_mdls sz
+                synth' con ghci eenv tenv meas meas_ex evals m_si fc synth_fc headers [] blk_mdls sz
             | otherwise -> error "synth': Unknown"
 
 ------------------------------------
