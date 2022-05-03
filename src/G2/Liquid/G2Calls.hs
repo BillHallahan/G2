@@ -30,6 +30,8 @@ import Data.Maybe
 
 import Data.Monoid
 
+import Debug.Trace
+
 -- | Allows calling G2 to both run execution and solving, while passing a predicate
 -- to filter the model.  This allows returning partially symbolic- and therefore more general-
 -- solutions, which can result in inference converging faster.
@@ -83,7 +85,12 @@ runG2SolvingWithFiltering model_filter solver simplifier bindings s@(State { kno
             SAT m -> do
                 let m' = reverseSimplification simplifier s bindings m
                     m'' = HM.filter model_filter m'
-                return $ Just (runG2SubstModel m'' s bindings, m')
+                    er = runG2SubstModel m'' s bindings
+                trace ("runG2SolvingWithFiltering" ++ "\ninArg = " ++ show (conc_args er)
+                                        ++ "\nout = " ++ show (conc_out er)
+                                        ++ "\ncurr_expr = " ++ show (curr_expr $ final_state er)
+                                        ++ "\nm' = " ++ show m'
+                                        ++ "\nm'' = " ++ show m'') return $ Just (er, m')
             UNSAT _ -> return Nothing
             Unknown _ -> return Nothing
 

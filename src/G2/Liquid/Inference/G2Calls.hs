@@ -424,7 +424,7 @@ checkCounterexample lrs ghci config cex@(FuncCall { funcName = Name n m _ _ }) =
     let s' = checkCounterexample' cex s
 
     SomeSolver solver <- initSolver config
-    (fsl, _) <- genericG2Call config' solver s' bindings
+    (fsl, _) <- genericG2Call (const True) config' solver s' bindings
     close solver
 
     -- We may return multiple states if any of the specifications contained a SymGen
@@ -562,7 +562,7 @@ checkPreOrPost' extract ars ld@(LiquidData { ls_state = s, ls_bindings = binding
     case checkFromMap ars (extract ld) cex s of
         Just s' -> do
             SomeSolver solver <- liftIO $ initSolver config
-            (fsl, _) <- liftIO $ genericG2Call config solver s' bindings
+            (fsl, _) <- liftIO $ genericG2Call (const True) config solver s' bindings
             liftIO $ close solver
 
             -- We may return multiple states if any of the specifications contained a SymGen
@@ -716,7 +716,7 @@ evalMeasures' s bindings solver config meas tcv init_meas (e, pc, symbs) =  do
         case HM.lookup ns =<< HM.lookup e_in meas_exs of
             Just _ -> return meas_exs
             Nothing -> do
-                (er, _) <- liftIO $ genericG2Call config solver s_meas bindings
+                (er, _) <- liftIO $ genericG2Call (not . isPrimType . typeOf) config solver s_meas bindings
                 case er of
                     [er'] -> 
                         let 
@@ -816,30 +816,36 @@ evalMeasuresCE s bindings tcv is e bound =
 genericG2Call :: ( ASTContainer t Expr
                  , ASTContainer t Type
                  , Named t
-                 , Solver solver) => Config -> solver -> State t -> Bindings -> IO ([ExecRes t], Bindings)
-genericG2Call config solver s bindings = do
+                 , Solver solver) =>
+                    (Expr -> Bool) -- ^ A filter for the model before building the ExecRes.
+                 -> Config -> solver -> State t -> Bindings -> IO ([ExecRes t], Bindings)
+genericG2Call model_filter config solver s bindings = do
     let simplifier = IdSimplifier
         share = sharing config
 
-    fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier))
-                           (SomeHalter SWHNFHalter)
-                           (SomeOrderer NextOrderer)
-                           solver simplifier PreserveAllMC s bindings
+    (exec_res_m, bindings') <- runG2ForLH model_filter
+                                          (SomeReducer (StdRed share solver simplifier))
+                                          (SomeHalter SWHNFHalter)
+                                          (SomeOrderer NextOrderer)
+                                          solver simplifier PreserveAllMC s bindings
 
-    return fslb
+    return (map fst exec_res_m, bindings')
 
 genericG2CallLogging :: ( ASTContainer t Expr
                         , ASTContainer t Type
                         , Named t
                         , Show t
-                        , Solver solver) => Config -> solver -> State t -> Bindings -> String -> IO ([ExecRes t], Bindings)
-genericG2CallLogging config solver s bindings lg = do
+                        , Solver solver) =>
+                           (Expr -> Bool) -- ^ A filter for the model before building the ExecRes.
+                        -> Config -> solver -> State t -> Bindings -> String -> IO ([ExecRes t], Bindings)
+genericG2CallLogging model_filter config solver s bindings lg = do
     let simplifier = IdSimplifier
         share = sharing config
 
-    fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier :<~ Logger lg))
-                           (SomeHalter SWHNFHalter)
-                           (SomeOrderer NextOrderer)
-                           solver simplifier PreserveAllMC s bindings
+    (exec_res_m, bindings') <- runG2ForLH model_filter
+                                          (SomeReducer (StdRed share solver simplifier :<~ Logger lg))
+                                          (SomeHalter SWHNFHalter)
+                                          (SomeOrderer NextOrderer)
+                                          solver simplifier PreserveAllMC s bindings
 
-    return fslb
+    return (map fst exec_res_m, bindings')

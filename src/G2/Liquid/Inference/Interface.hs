@@ -489,7 +489,7 @@ genNewConstraints ghci m lrs n = do
     let (exec_res', no_viol) = partition (true_assert . final_state . fst) exec_res
         
         allCCons = noAbsStatesToCons i
-                 . map (uncurry toConcState)
+                 -- . map (uncurry toConcState)
                  $ exec_res' ++ if use_extra_fcs infconfig then no_viol else []
     return $ (filter (not . hasPreArgError) $ map (uncurry lhStateToCE) exec_res', allCCons)
 
@@ -676,20 +676,22 @@ cexsToExtraFC (CallsCounter dfc cfc [])
         in
         return $ [call_all_dfc, call_all_cfc, imp_fc]
 
-noAbsStatesToCons :: Id -> [ExecRes (AbstractedInfo ConcAbsFuncCall)] -> [FuncConstraint]
-noAbsStatesToCons i = concatMap (noAbsStatesToCons' i) -- . filter (null . abs_calls . track . final_state)
+noAbsStatesToCons :: Id -> [(ExecRes (AbstractedInfo AbsFuncCall), Model)] -> [FuncConstraint]
+noAbsStatesToCons i = concatMap (uncurry (noAbsStatesToCons' i)) -- . filter (null . abs_calls . track . final_state)
 
-noAbsStatesToCons' :: Id -> ExecRes (AbstractedInfo ConcAbsFuncCall) -> [FuncConstraint]
-noAbsStatesToCons' i@(Id (Name _ m _ _) _) er =
+noAbsStatesToCons' :: Id -> ExecRes (AbstractedInfo AbsFuncCall) -> Model -> [FuncConstraint]
+noAbsStatesToCons' i@(Id (Name _ n_md _ _) _) er m =
     let
-        pre_s = lhStateToPreFC i er
-        clls = filter (\fc -> nameModule (caFuncName fc) == m) 
+        conc_er = toConcState er m
+
+        pre_s = lhStateToPreFC i er m
+        clls = filter (\fc -> nameModule (caFuncName fc) == n_md) 
              . map (switchName (idName i))
              . filter (not . hasArgError . conc_fcall)
              . func_calls_in_real
              . init_call
              . track
-             $ final_state er
+             $ final_state conc_er
 
         preCons = map (ImpliesFC pre_s . Call Pre) clls
         -- A function may return error because it was passed an erroring higher order function.
@@ -698,7 +700,7 @@ noAbsStatesToCons' i@(Id (Name _ m _ _) _) er =
         callsCons = mapMaybe (\fc -> case isError . returns . conc_fcall $ fc of
                                       True -> Nothing -- NotFC (Call Pre fc)
                                       False -> Just (Call All fc)) clls
-        callsCons' = if hits_lib_err_in_real (init_call . track . final_state $ er)
+        callsCons' = if hits_lib_err_in_real (init_call . track . final_state $ conc_er)
                                     then []
                                     else callsCons
     in
@@ -723,9 +725,19 @@ isExported :: LiquidReadyState -> Name -> Bool
 isExported lrs (Name n m _ _) =
     (n, m) `elem` map (\(Name n' m' _ _) -> (n', m')) (exported_funcs (lr_binding lrs))
 
-lhStateToPreFC :: Id -> ExecRes (AbstractedInfo ConcAbsFuncCall) -> FuncConstraint
-lhStateToPreFC i (ExecRes { conc_args = inArg
-                          , conc_out = ex}) = Call Pre $ simpleConcAbsFuncCall (FuncCall (idName i) inArg ex)
+lhStateToPreFC :: Id -> ExecRes (AbstractedInfo AbsFuncCall) -> Model -> FuncConstraint
+lhStateToPreFC i er@(ExecRes { final_state = a_s
+                             , conc_args = a_inArg
+                             , conc_out = a_out}) m =
+    let
+        ExecRes { final_state = c_s
+                , conc_args = c_inArg
+                , conc_out = c_out} = toConcState er m
+
+        acall = mkAbsFuncCall a_s $ FuncCall (idName i) a_inArg a_out
+    in
+    Call Pre $ CAFuncCall { conc_fcall = FuncCall (idName i) c_inArg c_out
+                          , abs_fcall = acall }
 
 abstractedMod :: Abstracted ConcAbsFuncCall -> Maybe T.Text
 abstractedMod = nameModule . caFuncName . abstract

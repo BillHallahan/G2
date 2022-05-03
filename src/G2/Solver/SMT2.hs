@@ -86,7 +86,7 @@ instance SMTConverter Z3 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) w
             SAT () -> do
                 mdl <- getModelZ3 h_in h_out vs
                 -- putStrLn "======"
-                -- putStrLn (show mdl)
+                putStrLn (show mdl)
                 let m = parseModel mdl
                 -- putStrLn $ "m = " ++ show m
                 -- putStrLn "======"
