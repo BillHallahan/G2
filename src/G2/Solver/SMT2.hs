@@ -35,6 +35,8 @@ import qualified Text.Builder as TB
 import System.IO
 import System.Process
 
+import Data.Time.Clock
+
 data Z3 = Z3 ArbValueFunc (Handle, Handle, ProcessHandle)
 data CVC4 = CVC4 ArbValueFunc (Handle, Handle, ProcessHandle)
 
@@ -79,14 +81,14 @@ instance SMTConverter Z3 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) w
     checkSatGetModel _ (h_in, h_out, _) formula vs = do
         setUpFormulaZ3 h_in (TB.run formula)
         -- putStrLn "\n\n checkSatGetModel"
-        T.putStrLn (TB.run formula)
+        -- T.putStrLn (TB.run formula)
         r <- checkSat' h_in h_out
-        putStrLn $ "r =  " ++ show r
+        -- putStrLn $ "r =  " ++ show r
         case r of
             SAT () -> do
                 mdl <- getModelZ3 h_in h_out vs
                 -- putStrLn "======"
-                putStrLn (show mdl)
+                -- putStrLn (show mdl)
                 let m = parseModel mdl
                 -- putStrLn $ "m = " ++ show m
                 -- putStrLn "======"
@@ -102,20 +104,21 @@ instance SMTConverter Z3 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) w
         setUpFormulaZ3 h_in formula'
         r <- checkSat' h_in h_out
         -- putStrLn $ "r =  " ++ show r
-        if r == SAT () then do
-            mdl <- getModelZ3 h_in h_out vs
-            -- putStrLn "======"
-            -- putStrLn $ "r = " ++ show r
-            -- putStrLn $ "mdl = " ++ show mdl
-            -- putStrLn (show mdl)
-            let m = parseModel mdl
-            -- putStrLn $ "m = " ++ show m
-            -- putStrLn "======"
-            return (SAT m)
-        else if r == UNSAT () then do
-            uc <- getUnsatCoreZ3 h_in h_out
-            return (UNSAT $ HS.fromList uc)
-        else return (Unknown "")
+        case r of
+            SAT () -> do
+                mdl <- getModelZ3 h_in h_out vs
+                -- putStrLn "======"
+                -- putStrLn $ "r = " ++ show r
+                -- putStrLn $ "mdl = " ++ show mdl
+                -- putStrLn (show mdl)
+                let m = parseModel mdl
+                -- putStrLn $ "m = " ++ show m
+                -- putStrLn "======"
+                return (SAT m)
+            UNSAT () -> do
+                uc <- getUnsatCoreZ3 h_in h_out
+                return (UNSAT $ HS.fromList uc)
+            Unknown s -> return $ Unknown s
 
     checkSatGetModelGetExpr con (h_in, h_out, _) formula _ vs eenv (CurrExpr _ e) = do
         setUpFormulaZ3 h_in (TB.run formula)
@@ -470,7 +473,7 @@ checkSat' h_in h_out = do
             then error $ "checkSat': error from SMT solver:\n" ++ out
             else return (Unknown out)
     else do
-        return (Unknown "")
+        return (Unknown "Timeout")
 
 parseModel :: [(SMTName, String, Sort)] -> SMTModel
 parseModel = foldr (\(n, s) -> M.insert n s) M.empty
