@@ -133,7 +133,7 @@ runLHCore entry (mb_modname, exg2) ghci config = do
     SomeSolver solver <- initSolver config
     let simplifier = IdSimplifier
 
-    let (red, hal, ord) = lhReducerHalterOrderer config solver simplifier entry mb_modname cfn final_st
+    let (red, hal, ord) = lhReducerHalterOrderer config simplifier entry mb_modname cfn final_st
     (exec_res, final_bindings) <- runLHG2 config (const True) red hal ord solver simplifier pres_names ifi final_st bindings
 
     close solver
@@ -409,7 +409,7 @@ runLHG2 config model_filter red hal ord solver simplifier pres_names init_id fin
     let ret'' = filter (\(ExecRes {final_state = s}) -> mi == (abstractCallsNum s)) ret'
 
     (bindings', ret''') <- mapAccumM (reduceCalls model_filter solver simplifier config) final_bindings ret''
-    ret'''' <- mapM (checkAbstracted model_filter solver simplifier config init_id bindings') ret'''
+    ret'''' <- mapM (uncurry (checkAbstracted model_filter solver simplifier config init_id bindings')) $ zip ret_mdls ret'''
 
     let exec_res = 
           map (\(ExecRes { final_state = s
@@ -427,16 +427,15 @@ runLHG2 config model_filter red hal ord solver simplifier pres_names init_id fin
 
     return (zip exec_res ret_mdls, final_bindings)
 
-lhReducerHalterOrderer :: (Solver solver, Simplifier simplifier)
+lhReducerHalterOrderer :: Simplifier simplifier
                        => Config
-                       -> solver
                        -> simplifier
                        -> T.Text
                        -> Maybe T.Text
                        -> CounterfactualName
                        -> State t
                        -> (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
-lhReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
+lhReducerHalterOrderer config simplifier entry mb_modname cfn st =
     let
         ng = mkNameGen ()
 
@@ -455,8 +454,8 @@ lhReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
         ( SomeReducer non_red
             <~| (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng ))
             <~| (case m_logger of
-                  Just logger -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed) <~ logger
-                  Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed))
+                  Just logger -> SomeReducer (StdRed share simplifier :<~| LHRed cfn :<~? ExistentialInstRed) <~ logger
+                  Nothing -> SomeReducer (StdRed share simplifier :<~| LHRed cfn :<~? ExistentialInstRed))
         , SomeHalter
                 (MaxOutputsHalter (maxOutputs config)
                   :<~> ZeroHalter (steps config)
@@ -469,8 +468,8 @@ lhReducerHalterOrderer config solver simplifier entry mb_modname cfn st =
         (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng)
             <~| (SomeReducer (non_red :<~| TaggerRed state_name ng))
             <~| (case m_logger of
-                  Just logger -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed) <~ logger
-                  Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed))
+                  Just logger -> SomeReducer (StdRed share simplifier :<~| LHRed cfn :<~? ExistentialInstRed) <~ logger
+                  Nothing -> SomeReducer (StdRed share simplifier :<~| LHRed cfn :<~? ExistentialInstRed))
         , SomeHalter
             (DiscardIfAcceptedTag state_name
               :<~> DiscardIfAcceptedTag abs_ret_name

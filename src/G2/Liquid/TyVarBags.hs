@@ -355,9 +355,9 @@ data ExistentialInstRed = ExistentialInstRed
 instance Reducer ExistentialInstRed () t where
     initReducer _ _ = ()
 
-    redRules r rv s@(State { expr_env = eenv
-                           , curr_expr = CurrExpr Evaluate e })
-                  b@(Bindings { name_gen = ng })
+    redRules r rv _ s@(State { expr_env = eenv
+                             , curr_expr = CurrExpr Evaluate e })
+                    b@(Bindings { name_gen = ng })
         | Var i <- e
         , i == existentialInstId =
             let
@@ -399,9 +399,8 @@ instance Reducer ExistentialInstRed () t where
                 s' = s { curr_expr = CurrExpr Return (Var i) }
             in
             return (InProgress, [(s', rv)], b, r)
-    redRules r rv s@(State { curr_expr = CurrExpr Return e
-                           , exec_stack = stck }) b
-
+    redRules r rv _ s@(State { curr_expr = CurrExpr Return e
+                             , exec_stack = stck }) b
         | Just (AssumeFrame _, stck') <- Stck.pop stck
         , Var i <- e
         , i == existentialInstId =
@@ -410,7 +409,7 @@ instance Reducer ExistentialInstRed () t where
         , Var i <- e
         , i == existentialInstId =
             return (InProgress, [(s { exec_stack = stck' }, rv)], b, r)
-    redRules r rv s b = return (NoProgress, [(s, rv)], b, r)
+    redRules r rv _ s b = return (NoProgress, [(s, rv)], b, r)
 
 addTicksToDeepSeqCases :: Walkers -> State t -> State t
 addTicksToDeepSeqCases w s@(State { expr_env = eenv }) =

@@ -11,10 +11,12 @@ module G2.Liquid.G2Calls ( GathererReducer (..)
                          , mapAccumM) where
 
 import G2.Config
+import G2.Data.Utils
 import G2.Execution
 import G2.Interface
 import G2.Language as G2
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.PathConds as PC
 import G2.Liquid.Helpers
 import G2.Liquid.LHReducers
 import G2.Liquid.SpecialAsserts
@@ -30,7 +32,7 @@ import Data.Maybe
 
 import Data.Monoid
 
-import Debug.Trace
+import G2.Lib.Printers
 
 -- | Allows calling G2 to both run execution and solving, while passing a predicate
 -- to filter the model.  This allows returning partially symbolic- and therefore more general-
@@ -46,7 +48,7 @@ runG2ForLH :: ( Named t
 runG2ForLH model_filter sred shal sord solver simplifier mem is bindings =
     case (sred, shal, sord) of
       (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
-        (exec_states, bindings') <- runG2ThroughExecution red hal ord mem is bindings
+        (exec_states, bindings') <- runG2ThroughExecution red hal ord solver mem is bindings
         sol_states <- mapM (runG2SolvingWithFiltering model_filter solver simplifier bindings') exec_states
 
         return (catMaybes sol_states, bindings')
@@ -86,11 +88,7 @@ runG2SolvingWithFiltering model_filter solver simplifier bindings s@(State { kno
                 let m' = reverseSimplification simplifier s bindings m
                     m'' = HM.filter model_filter m'
                     er = runG2SubstModel m'' s bindings
-                trace ("runG2SolvingWithFiltering" ++ "\ninArg = " ++ show (conc_args er)
-                                        ++ "\nout = " ++ show (conc_out er)
-                                        ++ "\ncurr_expr = " ++ show (curr_expr $ final_state er)
-                                        ++ "\nm' = " ++ show m'
-                                        ++ "\nm'' = " ++ show m'') return $ Just (er, m')
+                return $ Just (er, m')
             UNSAT _ -> return Nothing
             Unknown _ -> return Nothing
 
@@ -105,47 +103,64 @@ runG2SolvingWithFiltering model_filter solver simplifier bindings s@(State { kno
 -- | The result of a call to checkAbstracted'.  Either:
 -- (1) the function does need to be abstract, and we get the actual result of executing the function call. 
 -- (2) the function does not need to be abstract
-data AbstractedRes = AbstractRes (Abstracted AbsFuncCall) Model
+data AbstractedRes = AbstractRes (Abstracted AbsFuncCall) PathConds Model
                    | NotAbstractRes
 
 toAbstracted :: AbstractedRes -> Maybe (Abstracted AbsFuncCall)
-toAbstracted (AbstractRes a _) = Just a
+toAbstracted (AbstractRes a _ _) = Just a
 toAbstracted _ = Nothing
 
+toPC :: AbstractedRes -> Maybe PathConds
+toPC (AbstractRes _ pc _) = Just pc
+toPC _ = Nothing
+
 toModel :: AbstractedRes -> Maybe Model
-toModel (AbstractRes _ m) = Just m
+toModel (AbstractRes _ _ m) = Just m
 toModel _ = Nothing
 
 -- | Checks if abstracted functions actually had to be abstracted.
-checkAbstracted :: (Solver solver, Simplifier simplifier) => (Expr -> Bool) -> solver -> simplifier -> Config -> Id -> Bindings -> ExecRes LHTracker -> IO (ExecRes (AbstractedInfo AbsFuncCall))
-checkAbstracted model_filter solver simplifier config init_id bindings
+checkAbstracted :: (Solver solver, Simplifier simplifier)
+                => (Expr -> Bool)
+                -> solver
+                -> simplifier
+                -> Config
+                -> Id
+                -> Bindings
+                -> Model
+                -> ExecRes LHTracker
+                -> IO (ExecRes (AbstractedInfo AbsFuncCall))
+checkAbstracted model_filter solver simplifier config init_id bindings orig_model
         er@(ExecRes{ final_state = s@State { track = lht }
                    , conc_args = inArg
                    , conc_out = ex }) = do
     -- Get `Abstracted`s for the abstracted functions 
-    let chck = checkAbstracted' model_filter solver simplifier (sharing config) s bindings
+    let chck = checkAbstracted' model_filter solver simplifier (sharing config) s bindings orig_model
     abstractedR <- mapM chck (abstract_calls lht)
     let abstracted' = mapMaybe toAbstracted $ abstractedR
+        pcs = mapMaybe toPC $ abstractedR
         models = mapMaybe toModel $ abstractedR
 
     -- Get an `Abstracted` for the initial call
     let init_call = FuncCall (idName init_id) inArg ex
-    abs_init <- getAbstracted model_filter solver simplifier (sharing config) s bindings init_call
-    let init_model = snd abs_init
+    abs_init <- getAbstracted model_filter solver simplifier (sharing config) s bindings orig_model init_call
+    let init_pc = snd3 abs_init
+        init_model = thd3 abs_init
 
     -- Get an `Abstracted` for the violated function (if it exists)
     (bindings', viol_er) <- reduceViolated model_filter solver simplifier (sharing config) bindings er
     abs_viol <- case violated viol_er of
                   Just v -> return . Just =<<
-                              getAbstracted model_filter solver simplifier (sharing config) (final_state viol_er) bindings v
+                              getAbstracted model_filter solver simplifier (sharing config) (final_state viol_er) bindings orig_model v
                   Nothing -> return Nothing
-    let viol_model = maybeToList $ fmap snd abs_viol
-        abs_info = AbstractedInfo { init_call = fst abs_init
-                                  , abs_violated = fmap fst abs_viol
+    let viol_pc = maybeToList $ fmap snd3 abs_viol
+        viol_model = maybeToList $ fmap thd3 abs_viol
+        abs_info = AbstractedInfo { init_call = fst3 abs_init
+                                  , abs_violated = fmap fst3 abs_viol
                                   , abs_calls = abstracted'
                                   , ai_all_calls = map (mkAbsFuncCall s) $ all_calls lht }
 
     return $ viol_er { final_state = s { track = abs_info
+                                       , path_conds = foldr PC.union (path_conds s) (init_pc:viol_pc ++ pcs)
                                        , model = foldr HM.union (model s) (init_model:viol_model ++ models) }
                      }
 
@@ -156,9 +171,10 @@ checkAbstracted' :: (Solver solver, Simplifier simplifier)
                  -> Sharing
                  -> State LHTracker
                  -> Bindings
+                 -> Model
                  -> FuncCall
                  -> IO AbstractedRes
-checkAbstracted' model_filter solver simplifier share s bindings abs_fc@(FuncCall { funcName = n, arguments = ars, returns = r })
+checkAbstracted' model_filter solver simplifier share s bindings orig_model abs_fc@(FuncCall { funcName = n, arguments = ars, returns = r })
     | Just e <- E.lookup n $ expr_env s = do
         let 
             e' = mkApp $ Var (Id n (typeOf e)):ars
@@ -182,17 +198,18 @@ checkAbstracted' model_filter solver simplifier share s bindings abs_fc@(FuncCal
         let pres = HS.fromList $ namesList s' ++ namesList bindings
         (er, _) <- runG2ForLH'
                         model_filter
-                        (SomeReducer (StdRed share solver simplifier :<~ HitsLibError))
+                        (SomeReducer (StdRed share simplifier :<~ HitsLibError))
                         (SomeHalter SWHNFHalter)
                         (SomeOrderer NextOrderer)
-                        solver simplifier
+                        (ConcSolver orig_model solver)
+                        simplifier
                         (emptyMemConfig { pres_func = \_ _ _ -> pres })
                         s' bindings
 
         case er of
             [ExecRes
                 {
-                    final_state = fs@(State { curr_expr = CurrExpr _ ce, model = m, track = t})
+                    final_state = fs@(State { curr_expr = CurrExpr _ ce, path_conds = pc, model = m, track = t})
                 }] -> case not $ ce `eqUpToTypes` r of
                         True ->
                             return $ AbstractRes 
@@ -200,7 +217,7 @@ checkAbstracted' model_filter solver simplifier share s bindings abs_fc@(FuncCal
                                                      , real = mkAbsFuncCall fs . repTCsFC (type_classes s) $ abs_fc { returns = ce }
                                                      , hits_lib_err_in_real = t
                                                      , func_calls_in_real = [] }
-                                        ) m
+                                        ) pc m
                         False -> return NotAbstractRes
             [] -> do undefined -- We hit an error in a library function
                      return $ AbstractRes 
@@ -208,7 +225,7 @@ checkAbstracted' model_filter solver simplifier share s bindings abs_fc@(FuncCal
                                            , real = mkAbsFuncCall s . repTCsFC (type_classes s) $ abs_fc { returns = Prim Error TyUnknown }
                                            , hits_lib_err_in_real = True
                                            , func_calls_in_real = [] }
-                              ) (model s)
+                              ) (path_conds s) (model s)
             _ -> error $ "checkAbstracted': Bad return from runG2ForLH"
     | otherwise = error $ "checkAbstracted': Bad lookup in runG2ForLH"
 
@@ -219,9 +236,10 @@ getAbstracted :: (Solver solver, Simplifier simplifier)
               -> Sharing 
               -> State LHTracker
               -> Bindings
+              -> Model
               -> FuncCall
-              -> IO (Abstracted AbsFuncCall, Model)
-getAbstracted model_filter solver simplifier share s bindings abs_fc@(FuncCall { funcName = n, arguments = ars })
+              -> IO (Abstracted AbsFuncCall, PathConds, Model)
+getAbstracted model_filter solver simplifier share s bindings orig_model abs_fc@(FuncCall { funcName = n, arguments = ars })
     | Just e <- E.lookup n $ expr_env s = do
         let 
             e' = mkApp $ Var (Id n (typeOf e)):ars
@@ -240,17 +258,18 @@ getAbstracted model_filter solver simplifier share s bindings abs_fc@(FuncCall {
         let pres = HS.fromList $ namesList s' ++ namesList bindings
         (er, bindings') <- runG2ForLH'
                               model_filter 
-                              (SomeReducer (StdRed share solver simplifier :<~ HitsLibErrorGatherer))
+                              (SomeReducer (StdRed share simplifier :<~ HitsLibErrorGatherer))
                               (SomeHalter SWHNFHalter)
                               (SomeOrderer NextOrderer)
-                              solver simplifier
+                              (ConcSolver orig_model solver)
+                              simplifier
                               (emptyMemConfig { pres_func = \_ _ _ -> pres })
                               s' bindings
 
         case er of
             [ExecRes
                 {
-                    final_state = fs@(State { curr_expr = CurrExpr _ ce, track = (gfc, hle), model = m})
+                    final_state = fs@(State { curr_expr = CurrExpr _ ce, path_conds = pc, track = (gfc, hle), model = m})
                 }] -> do
                   let fs' = modelToExprEnv fs
                   (_, gfc') <- reduceFuncCallMaybeList model_filter solver simplifier share bindings' fs' gfc
@@ -258,8 +277,8 @@ getAbstracted model_filter solver simplifier share s bindings abs_fc@(FuncCall {
                                         , real = mkAbsFuncCall fs . repTCsFC (type_classes s) $ abs_fc { returns = (inline (expr_env fs) HS.empty ce) }
                                         , hits_lib_err_in_real = hle
                                         , func_calls_in_real = map (mkAbsFuncCall fs) gfc' }
-                                , m)
-            _ -> error $ "checkAbstracted': Bad return from runG2ForLH"
+                                , pc, m)
+            _ -> error $ "getAbstracted: Bad return from runG2ForLH"
     | otherwise = error $ "getAbstracted: Bad lookup in runG2ForLH"
 
 repTCsFC :: TypeClasses -> FuncCall -> FuncCall 
@@ -285,7 +304,7 @@ data HitsLibError = HitsLibError
 
 instance Reducer HitsLibError () Bool where
     initReducer _ _ = ()
-    redRules r _ s@(State { curr_expr = CurrExpr _ ce }) b =
+    redRules r _ _ s@(State { curr_expr = CurrExpr _ ce }) b =
         case ce of
             Tick t _ 
               | t == assumeErrorTickish ->
@@ -297,52 +316,61 @@ data GathererReducer = Gatherer
 instance Reducer GathererReducer () [FuncCall] where
     initReducer _ _ = ()
 
-    redRules gr _ s@(State { curr_expr = CurrExpr Evaluate (e@(Assume (Just fc) _ _))
-                           , track = tr
-                           }) b =
+    redRules gr _ _ s@(State { curr_expr = CurrExpr Evaluate (e@(Assume (Just fc) _ _))
+                             , track = tr
+                             }) b =
         let
           s' = s { curr_expr = CurrExpr Evaluate e
                  , track = fc:tr}
         in
         return (Finished, [(s', ())], b, gr) 
-    redRules gr _ s@(State { curr_expr = CurrExpr Evaluate (e@(G2.Assert (Just fc) _ _))
-                           , track = tr
-                           }) b =
+    redRules gr _ _ s@(State { curr_expr = CurrExpr Evaluate (e@(G2.Assert (Just fc) _ _))
+                             , track = tr
+                             }) b =
         let
           s' = s { curr_expr = CurrExpr Evaluate e
                  , track = fc:tr}
         in
         return (Finished, [(s', ())], b, gr) 
-    redRules gr _ s b = return (Finished, [(s, ())], b, gr)
+    redRules gr _ _ s b = return (Finished, [(s, ())], b, gr)
 
 data HitsLibErrorGathererReducer = HitsLibErrorGatherer
 
 instance Reducer HitsLibErrorGathererReducer () ([FuncCall], Bool) where
     initReducer _ _ = ()
 
-    redRules gr _ s@(State { curr_expr = CurrExpr Evaluate (e@(Assume (Just fc) _ _))
-                           , track = (tr, hle)
-                           }) b =
+    redRules gr _ _ s@(State { curr_expr = CurrExpr Evaluate (e@(Assume (Just fc) _ _))
+                             , track = (tr, hle)
+                             }) b =
         let
           s' = s { curr_expr = CurrExpr Evaluate e
                  , track = (fc:tr, hle)}
         in
         return (Finished, [(s', ())], b, gr) 
-    redRules gr _ s@(State { curr_expr = CurrExpr Evaluate (e@(G2.Assert (Just fc) _ _))
-                           , track = (tr, hle)
-                           }) b =
+    redRules gr _ _ s@(State { curr_expr = CurrExpr Evaluate (e@(G2.Assert (Just fc) _ _))
+                             , track = (tr, hle)
+                             }) b =
         let
           s' = s { curr_expr = CurrExpr Evaluate e
                  , track = (fc:tr, hle)}
         in
         return (Finished, [(s', ())], b, gr) 
-    redRules r _ s@(State { curr_expr = CurrExpr _ ce, track = (glc, _) }) b =
+    redRules r _ _ s@(State { curr_expr = CurrExpr _ ce, track = (glc, _) }) b =
         case ce of
             Tick t _ 
               | t == assumeErrorTickish ->
                   return (NoProgress, [(s { track = (glc, True) }, ())], b, r)
             _ -> return (NoProgress, [(s, ())], b, r)
 
+-- | Substitutes from the provided `Model` into the path constraints, before calling the underlying solver
+data ConcolicSolver solver = ConcSolver Model solver
+
+instance Solver solver => Solver (ConcolicSolver solver) where
+    check (ConcSolver mdl solver) s pc = do
+      print $ ppPathConds s { path_conds = foldr (uncurry replaceVar) pc $ HM.toList mdl }
+      check solver s . foldr (uncurry replaceVar) pc $ HM.toList mdl
+    solve (ConcSolver mdl solver) s b is pc = solve solver s b is . foldr (uncurry replaceVar) pc $ HM.toList mdl
+    close (ConcSolver _ solver) = close solver
 
 -- | Remove all @Assume@s from the given `Expr`, unless they have a particular @Tick@
 elimAssumesExcept :: ASTContainer m Expr => m -> m
@@ -370,7 +398,7 @@ reduceCalls model_filter solver simplifier config bindings er = do
 
 reduceViolated :: (Solver solver, Simplifier simplifier) => (Expr -> Bool) -> solver -> simplifier -> Sharing -> Bindings -> ExecRes LHTracker -> IO (Bindings, ExecRes LHTracker)
 reduceViolated model_filter solver simplifier share bindings er@(ExecRes { final_state = s, violated = Just v }) = do
-    let red = SomeReducer (StdRed share solver simplifier :<~| RedArbErrors)
+    let red = SomeReducer (StdRed share simplifier :<~| RedArbErrors)
     (s', bindings', v') <- reduceFuncCall model_filter red solver simplifier s bindings v
     -- putStrLn $ "v = " ++ show v
     -- putStrLn $ "v' = " ++ show v'
@@ -380,7 +408,7 @@ reduceViolated _ _ _ _ b er = return (b, er)
 reduceAbstracted :: (Solver solver, Simplifier simplifier) => (Expr -> Bool) -> solver -> simplifier -> Sharing -> Bindings -> ExecRes LHTracker -> IO (Bindings, ExecRes LHTracker)
 reduceAbstracted model_filter solver simplifier share bindings
                 er@(ExecRes { final_state = (s@State { track = lht}) }) = do
-    let red = SomeReducer (StdRed share solver simplifier :<~| RedArbErrors)
+    let red = SomeReducer (StdRed share simplifier :<~| RedArbErrors)
         fcs = abstract_calls lht
 
     ((_, bindings'), fcs') <- mapAccumM (\(s_, b_) fc -> do
@@ -408,7 +436,7 @@ reduceFuncCallMaybeList :: ( ASTContainer t Expr
                            , Solver solver
                            , Simplifier simplifier) => (Expr -> Bool) -> solver -> simplifier -> Sharing -> Bindings -> State t -> [FuncCall] -> IO (Bindings, [FuncCall])
 reduceFuncCallMaybeList model_filter solver simplifier share bindings s fcs = do
-    let red = SomeReducer (StdRed share solver simplifier :<~| RedArbErrors)
+    let red = SomeReducer (StdRed share simplifier :<~| RedArbErrors)
     (b', fcs') <- mapAccumM (\b fc -> do
                                   b_fc <- reduceFuncCallMaybe model_filter red solver simplifier s b fc
                                   case b_fc of

@@ -262,8 +262,8 @@ initCheckReaches s@(State { expr_env = eenv
                           , known_values = kv }) m_mod reaches =
     s {expr_env = checkReaches eenv kv reaches m_mod }
 
-initRedHaltOrd :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Config -> (SomeReducer (), SomeHalter (), SomeOrderer ())
-initRedHaltOrd solver simplifier config =
+initRedHaltOrd :: (Simplifier simplifier) => simplifier -> Config -> (SomeReducer (), SomeHalter (), SomeOrderer ())
+initRedHaltOrd simplifier config =
     let
         share = sharing config
 
@@ -275,8 +275,8 @@ initRedHaltOrd solver simplifier config =
     if higherOrderSolver config == AllFuncs
         then (SomeReducer (NonRedPCRed)
                  <~| (case m_logger of
-                        Just logger -> SomeReducer (StdRed share solver simplifier) <~ logger
-                        Nothing -> SomeReducer (StdRed share solver simplifier))
+                        Just logger -> SomeReducer (StdRed share simplifier) <~ logger
+                        Nothing -> SomeReducer (StdRed share simplifier))
              , SomeHalter
                  (SwitchEveryNHalter 20
                  :<~> MaxOutputsHalter (maxOutputs config)
@@ -285,8 +285,8 @@ initRedHaltOrd solver simplifier config =
              , SomeOrderer $ PickLeastUsedOrderer)
         else ( SomeReducer (NonRedPCRed :<~| TaggerRed state_name tr_ng)
                  <~| (case m_logger of
-                        Just logger -> SomeReducer (StdRed share solver simplifier) <~ logger
-                        Nothing -> SomeReducer (StdRed share solver simplifier))
+                        Just logger -> SomeReducer (StdRed share simplifier) <~ logger
+                        Nothing -> SomeReducer (StdRed share simplifier))
              , SomeHalter
                  (DiscardIfAcceptedTag state_name
                  :<~> SwitchEveryNHalter 20
@@ -395,7 +395,7 @@ runG2WithConfig state config bindings = do
     SomeSolver solver <- initSolver config
     let simplifier = IdSimplifier
 
-    (in_out, bindings') <- case initRedHaltOrd solver simplifier config of
+    (in_out, bindings') <- case initRedHaltOrd simplifier config of
                 (red, hal, ord) ->
                     runG2WithSomes red hal ord solver simplifier emptyMemConfig state bindings
 
@@ -442,7 +442,7 @@ runG2Post :: ( Named t
              , Simplifier simplifier) => r -> h -> or ->
              solver -> simplifier -> State t -> Bindings -> IO ([ExecRes t], Bindings)
 runG2Post red hal ord solver simplifier is bindings = do
-    (exec_states, bindings') <- runExecution red hal ord is bindings
+    (exec_states, bindings') <- runExecution red hal ord solver is bindings
     sol_states <- mapM (runG2Solving solver simplifier bindings') exec_states
 
     return (catMaybes sol_states, bindings')
@@ -453,11 +453,12 @@ runG2ThroughExecution ::
     , ASTContainer t Type
     , Reducer r rv t
     , Halter h hv t
-    , Orderer or sov b t) => r -> h -> or ->
+    , Orderer or sov b t
+    , Solver solver) => r -> h -> or -> solver ->
     MemConfig -> State t -> Bindings -> IO ([State t], Bindings)
-runG2ThroughExecution red hal ord mem is bindings = do
+runG2ThroughExecution red hal ord solver mem is bindings = do
     let (is', bindings') = runG2Pre mem is bindings
-    runExecution red hal ord is' bindings'
+    runExecution red hal ord solver is' bindings'
 
 runG2Solving :: ( Named t
                 , ASTContainer t Expr
@@ -520,7 +521,7 @@ runG2 :: ( Named t
          , Simplifier simplifier) => r -> h -> or ->
          solver -> simplifier -> MemConfig -> State t -> Bindings -> IO ([ExecRes t], Bindings)
 runG2 red hal ord solver simplifier mem is bindings = do
-    (exec_states, bindings') <- runG2ThroughExecution red hal ord mem is bindings
+    (exec_states, bindings') <- runG2ThroughExecution red hal ord solver mem is bindings
     sol_states <- mapM (runG2Solving solver simplifier bindings') exec_states
 
     return (catMaybes sol_states, bindings')

@@ -66,7 +66,7 @@ runG2ForRewriteV solver state h_opp track_opp config rvc bindings = do
 
         state' = state { track = (track state) { saw_tick = Nothing } }
 
-    (in_out, bindings') <- case rewriteRedHaltOrd solver simplifier h_opp track_opp config rvc of
+    (in_out, bindings') <- case rewriteRedHaltOrd simplifier h_opp track_opp config rvc of
                 (red, hal, ord) ->
                     runG2WithSomes red hal ord solver simplifier sym_config state' bindings
 
@@ -74,15 +74,14 @@ runG2ForRewriteV solver state h_opp track_opp config rvc bindings = do
 
     return (in_out, bindings')
 
-rewriteRedHaltOrd :: (Solver solver, Simplifier simplifier) =>
-                     solver ->
+rewriteRedHaltOrd :: Simplifier simplifier =>
                      simplifier ->
                      E.ExprEnv ->
                      EquivTracker ->
                      Config ->
                      RewriteVConfig ->
                      (SomeReducer EquivTracker, SomeHalter EquivTracker, SomeOrderer EquivTracker)
-rewriteRedHaltOrd solver simplifier h_opp track_opp config (RVC { use_labeled_errors = use_labels }) =
+rewriteRedHaltOrd simplifier h_opp track_opp config (RVC { use_labeled_errors = use_labels }) =
     let
         share = sharing config
         state_name = Name "state" Nothing 0 Nothing
@@ -91,11 +90,11 @@ rewriteRedHaltOrd solver simplifier h_opp track_opp config (RVC { use_labeled_er
     in
     (case m_logger of
             Just logger -> SomeReducer (
-                                (StdRed share solver simplifier :<~?
+                                (StdRed share simplifier :<~?
                                         EnforceProgressR) :<~? LabeledErrorsR :<~ ConcSymReducer use_labels :<~ SymbolicSwapper h_opp track_opp) <~?
                                         (logger <~ SomeReducer EquivReducer)
             Nothing -> SomeReducer (
-                                ((StdRed share solver simplifier :<~?
+                                ((StdRed share simplifier :<~?
                                     EnforceProgressR) :<~? LabeledErrorsR :<~ ConcSymReducer use_labels :<~ SymbolicSwapper h_opp track_opp) :<~?
                                     EquivReducer)
      , SomeHalter
@@ -136,7 +135,7 @@ instance Hashable EquivTracker
 instance Reducer ConcSymReducer () EquivTracker where
     initReducer _ _ = ()
 
-    redRules red@(ConcSymReducer use_labels) _
+    redRules red@(ConcSymReducer use_labels) _ _
                    s@(State { curr_expr = CurrExpr _ (Var i@(Id n t))
                             , expr_env = eenv
                             , type_env = tenv
@@ -166,7 +165,7 @@ instance Reducer ConcSymReducer () EquivTracker where
                 -- not all of these will be used on each branch
                 -- they're all fresh, though, so overlap is not a problem
             return (InProgress, zip xs (repeat ()) , b', red)
-    redRules red _ s b = return (NoProgress, [(s, ())], b, red)
+    redRules red _ _ s b = return (NoProgress, [(s, ())], b, red)
 
 -- | Build a case expression with one alt for each data constructor of the given type
 -- and symbolic arguments.  Thus, the case expression could evaluate to any value of the
@@ -214,7 +213,7 @@ data SymbolicSwapper = SymbolicSwapper E.ExprEnv EquivTracker
 
 instance Reducer SymbolicSwapper () EquivTracker where
     initReducer _ _ = ()
-    redRules r@(SymbolicSwapper h_opp track_opp) rv
+    redRules r@(SymbolicSwapper h_opp track_opp) rv _
                   s@(State { curr_expr = CurrExpr _ e
                            , expr_env = h
                            , track = EquivTracker et m tot fin dcp opp fname })
@@ -244,9 +243,9 @@ data EnforceProgressH = EnforceProgressH
 
 instance Reducer EnforceProgressR () EquivTracker where
     initReducer _ _ = ()
-    redRules r rv s@(State { curr_expr = CurrExpr _ e
-                           , num_steps = n
-                           , track = EquivTracker et m total finite dcp opp fname })
+    redRules r rv _ s@(State { curr_expr = CurrExpr _ e
+                             , num_steps = n
+                             , track = EquivTracker et m total finite dcp opp fname })
                   b =
         let s' = s { track = EquivTracker et (Just n) total finite dcp opp fname }
         in
@@ -288,7 +287,7 @@ data LabeledErrorsR = LabeledErrorsR
 
 instance Reducer LabeledErrorsR () t where
     initReducer _ _ = ()
-    redRules r rv s@(State { curr_expr = CurrExpr _ ce, exec_stack = stck }) b
+    redRules r rv _ s@(State { curr_expr = CurrExpr _ ce, exec_stack = stck }) b
         | isLabeledError ce = return (Finished, [(s { exec_stack = S.empty }, rv)], b, r)
         | otherwise = return (NoProgress, [(s, rv)], b, r)
 
@@ -380,7 +379,7 @@ data EquivReducer = EquivReducer
 
 instance Reducer EquivReducer () EquivTracker where
     initReducer _ _ = ()
-    redRules r _
+    redRules r _ _
                  s@(State { expr_env = eenv
                           , curr_expr = CurrExpr Evaluate e
                           , track = EquivTracker et m total finite dcp opp fname })
@@ -427,7 +426,7 @@ instance Reducer EquivReducer () EquivTracker where
                         b' = b { name_gen = ng' }
                     in-- trace ("SYM FUNC " ++ show v ++ "\n" ++ show e) $
                     return (InProgress, [(s', ())], b', r)
-    redRules r rv s b = return (NoProgress, [(s, rv)], b, r)
+    redRules r rv _ s b = return (NoProgress, [(s, rv)], b, r)
 
 -- TODO not exhaustive
 -- cyclic expressions do not count as total for now

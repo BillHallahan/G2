@@ -229,11 +229,11 @@ runExecutionQ s b config = do
     
     SomeSolver solver <- initSolverInfinite config
     let simplifier = IdSimplifier
-    case qqRedHaltOrd config solver simplifier of
+    case qqRedHaltOrd config simplifier of
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
             let (s'', b'') = runG2Pre emptyMemConfig s' b'
                 hal' = hal :<~> ZeroHalter 2000 :<~> LemmingsHalter
-            (xs, b''') <- runExecutionToProcessed red hal' ord s'' b''
+            (xs, b''') <- runExecutionToProcessed red hal' ord solver s'' b''
 
             case xs of
                 Processed { accepted = acc, discarded = [] } -> do
@@ -265,8 +265,8 @@ moduleName = "THTemp"
 functionName :: String
 functionName = "g2Expr"
 
-qqRedHaltOrd :: (Solver solver, Simplifier simplifier) => Config -> solver -> simplifier -> (SomeReducer (), SomeHalter (), SomeOrderer ())
-qqRedHaltOrd config solver simplifier =
+qqRedHaltOrd :: Simplifier simplifier => Config -> simplifier -> (SomeReducer (), SomeHalter (), SomeOrderer ())
+qqRedHaltOrd config simplifier =
     let
         share = sharing config
 
@@ -275,7 +275,7 @@ qqRedHaltOrd config solver simplifier =
     in
     ( SomeReducer
         (NonRedPCRed :<~| TaggerRed state_name tr_ng)
-            <~| (SomeReducer (StdRed share solver simplifier))
+            <~| (SomeReducer (StdRed share simplifier))
     , SomeHalter
         (DiscardIfAcceptedTag state_name 
         :<~> AcceptIfViolatedHalter)
@@ -414,7 +414,7 @@ executeAndSolveStates' b s = do
     config <- qqConfig
     SomeSolver solver <- initSolverInfinite config
     let simplifier = IdSimplifier
-    case qqRedHaltOrd config solver simplifier of
+    case qqRedHaltOrd config simplifier of
         (SomeReducer red, SomeHalter hal, _) -> do
             -- let hal' = hal :<~> ErrorHalter
             --                :<~> MaxOutputsHalter (Just 1)

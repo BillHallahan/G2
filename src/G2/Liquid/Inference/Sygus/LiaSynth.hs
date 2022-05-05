@@ -392,7 +392,7 @@ synth' con ghci eenv tenv meas meas_ex evals m_si fc synth_fc headers drop_if_un
         Unknown _
             | not (null drop_if_unknown) ->
                 synth' con ghci eenv tenv meas meas_ex evals m_si fc synth_fc headers [] blk_mdls sz
-            | otherwise -> error "synth': Unknown"
+            | otherwise -> error $ "synth': " ++ show mdl
 
 ------------------------------------
 -- Handling Models
