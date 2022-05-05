@@ -6,6 +6,8 @@ module G2.Liquid.Inference.GeneratedSpecs ( GeneratedSpecs
 
                                           , nullAssumeGS
 
+                                          , memberAssertGS
+
                                           , unionDroppingGS
                                           
                                           , insertAssumeGS
@@ -101,6 +103,9 @@ unionDroppingGS gs1 gs2 =
     GeneratedSpecs { assert_specs = M.union (assert_specs gs1) (assert_specs gs2)
                    , assume_specs = M.union (assume_specs gs1) (assume_specs gs2)
                    , qualifiers = qualifiers gs1 ++ qualifiers gs2}
+
+memberAssertGS :: G2.Name -> GeneratedSpecs -> Bool
+memberAssertGS n = M.member n . assert_specs
 
 lookupAssertGS :: G2.Name -> GeneratedSpecs -> Maybe [PolyBound Expr]
 lookupAssertGS n = M.lookup (zeroOutUnq n) . assert_specs

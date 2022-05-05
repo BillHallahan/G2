@@ -73,11 +73,11 @@ genCounterexampleFormula ghci eenv tenv meas meas_ex evals m_si gs fc = do
 
         func_defs = concatMap (funcDefToSMTAST ghci m_si gs) . nub $ map (funcName . fcall) all_calls
 
-    abs_fc <- constraintToSMT eenv tenv meas meas_ex evals m_si fc
-
-    case null all_symbs of
-        True -> return Nothing
-        False -> return $ Just (var_decls ++ func_defs ++ [Solver.Assert expr_pc, Solver.Assert $ (:!) abs_fc], zip (HS.toList all_symbs) (repeat SortInt))
+    case not (null all_symbs) && all (flip memberAssertGS gs . funcName . fcall) all_calls of
+        False -> return Nothing
+        True -> do
+            abs_fc <- constraintToSMT eenv tenv meas meas_ex evals m_si fc
+            return $ Just (var_decls ++ func_defs ++ [Solver.Assert expr_pc, Solver.Assert $ (:!) abs_fc], zip (HS.toList all_symbs) (repeat SortInt))
 
 constraintToSMT :: (InfConfigM m, ProgresserM m) =>
                    NMExprEnv
@@ -100,7 +100,12 @@ constraintToSMT eenv tenv meas meas_ex evals si fc =
                     (:=>)
                     Func
                     (\n _ _ -> id)
-                    (\n i _ -> VBool True)
+                    -- We cannot use an abstract FuncConstraint involving a function f with an unknown specification
+                    -- to generate counterexamples.  Suppose we are synthesizing at level N. f must be at a level > N.
+                    -- Then, we will generate a constraint that will not have to be satsified until a level > N,
+                    -- and we will repeatedly generate that constraint at every `genCounterexampleFromAbstractFC`
+                    -- check, resulting in an infinite loop.
+                    (error "constraintToSMT: use of unknown function specification")
                     eenv tenv meas meas_ex evals si fc
     where
         ifNotNull _ def [] = def
