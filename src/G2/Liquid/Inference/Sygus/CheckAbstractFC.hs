@@ -67,7 +67,9 @@ genCounterexampleFormula ghci eenv tenv meas meas_ex evals m_si gs fc = do
         all_symbs = HS.map nameToStr . HS.map idName . HS.filter (isPrimType . typeOf) . HS.unions . map symb_fc $ all_calls
         
         all_pc = foldr PC.union PC.empty $ map paths_fc all_calls
-        expr_pc = mkSMTAnd . map pathConsToSMT $ PC.toList all_pc
+        expr_pc = case PC.toList all_pc of
+                        [] -> []
+                        pc_list -> [Solver.Assert . mkSMTAnd $ map pathConsToSMT pc_list]
 
         var_decls = map (flip VarDecl SortInt . TB.string) . nub $ HS.toList all_symbs
 
@@ -77,7 +79,7 @@ genCounterexampleFormula ghci eenv tenv meas meas_ex evals m_si gs fc = do
         False -> return Nothing
         True -> do
             abs_fc <- constraintToSMT eenv tenv meas meas_ex evals m_si fc
-            return $ Just (var_decls ++ func_defs ++ [Solver.Assert expr_pc, Solver.Assert $ (:!) abs_fc], zip (HS.toList all_symbs) (repeat SortInt))
+            return $ Just (var_decls ++ func_defs ++ expr_pc ++ [Solver.Assert $ (:!) abs_fc], zip (HS.toList all_symbs) (repeat SortInt))
 
 constraintToSMT :: (InfConfigM m, ProgresserM m) =>
                    NMExprEnv
