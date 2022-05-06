@@ -6,6 +6,7 @@
 module G2.Liquid.Inference.Sygus.LiaSynth ( SynthRes (..)
                                           , Size
                                           , ModelNames (..)
+                                          , Interpolant
                                           , liaSynth
 
                                           , MaxSize
@@ -57,6 +58,9 @@ data SynthRes = SynthEnv
                   (Evals Bool)
                   MeasureExs
               | SynthFail FuncConstraints
+
+-- | An explanation of a synthesis failure
+type Interpolant = FuncConstraints
 
 type Size = Integer
 
@@ -331,7 +335,7 @@ synth con ghci lrs eenv tenv meas meas_ex evals si fc synth_fc blk_mdls sz = do
                         putStrLn "Conc"
                         putStrLn . printConcFCs $ new_fc
                     synth con ghci lrs eenv tenv meas meas_ex' evals' si fc (new_fc `unionFC` synth_fc) blk_mdls' sz
-        SynthFail _
+        SynthFail uc
             | sz < max_sz -> synth con ghci lrs eenv tenv meas meas_ex' evals' si fc synth_fc blk_mdls (sz + 1)
             | otherwise -> return res
   

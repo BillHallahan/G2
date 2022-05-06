@@ -130,10 +130,17 @@ getNameLevels main_mod =
        . getCallGraph
        . expr_env . G2LH.state . lr_state
 
-
 data InferenceRes = CEx [CounterExample ConcAbsFuncCall]
-                  | Env GeneratedSpecs FuncConstraints MaxSizeConstraints MeasureExs
-                  | Raise MeasureExs FuncConstraints MaxSizeConstraints
+                  | Env GeneratedSpecs
+                        FuncConstraints
+                        MaxSizeConstraints
+                        MeasureExs
+                        Size -- ^ The size that the synthesizer succeeded at
+                        SMTModel -- ^ An SMTModel corresponding to the new specifications
+                  | Raise MeasureExs
+                          FuncConstraints -- ^ `FuncConstraints` corresponding to verification requirements
+                          MaxSizeConstraints -- ^ `FuncConstraints` that might hold only due to the max synthesis size
+                          Interpolant -- ^ Newly generated `FuncConstraints` that block going down a bad path
                   deriving (Show)
 
 type NameLevels = [[Name]]
@@ -154,8 +161,8 @@ iterativeInference con ghci m_modname lrs nls meas_ex gs fc = do
     res <- inferenceL con ghci m_modname lrs nls emptyEvals meas_ex gs fc emptyFC emptyBlockedModels
     case res of
         CEx cex -> return $ Left cex
-        Env n_gs _ _ _ -> return $ Right n_gs
-        Raise _ r_fc _ -> do
+        Env n_gs _ _ _ _ _ -> return $ Right n_gs
+        Raise _ r_fc _ _ -> do
             incrMaxDepthI
             -- We might be missing some internal GHC types from our deep_seq walkers
             -- We filter them out to avoid an error
@@ -212,7 +219,7 @@ inferenceL con ghci m_modname lrs nls evals meas_ex senv fc max_fc blk_mdls = do
         putStrLn "-------"
 
     case resAtL of
-        Env senv' n_fc n_mfc meas_ex' -> 
+        Env senv' n_fc n_mfc meas_ex' sz smt_mdl -> 
             case nls of
                 [] -> return resAtL
                 (_:nls') -> do
@@ -220,10 +227,14 @@ inferenceL con ghci m_modname lrs nls evals meas_ex senv fc max_fc blk_mdls = do
                     let evals'' = foldr deleteEvalsForFunc evals' sf
                     inf_res <- inferenceL con ghci m_modname lrs nls' evals'' meas_ex' senv' (unionFC fc n_fc) (unionFC max_fc n_mfc) emptyBlockedModels
                     case inf_res of
-                        Raise r_meas_ex r_fc r_max_fc -> do
+                        Raise r_meas_ex r_fc r_max_fc interp -> do
                             liftIO $ putStrLn "Up a level!"
                             
-                            inferenceL con ghci m_modname lrs nls evals' r_meas_ex senv r_fc r_max_fc blk_mdls
+                            case nullFC interp of
+                                True -> do
+                                    new_blk_mdls <- getBlockedModel lrs sz smt_mdl
+                                    inferenceL con ghci m_modname lrs nls evals' r_meas_ex senv r_fc r_max_fc (new_blk_mdls `unionBlockedModels` blk_mdls)
+                                False -> inferenceL con ghci m_modname lrs nls evals' r_meas_ex senv r_fc (r_max_fc `unionFC` interp) blk_mdls
                         _ -> return inf_res
         _ -> return resAtL
 
@@ -278,7 +289,7 @@ inferenceB con ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls = do
             let res' = filterNamesTo fs res
             
             case res' of
-                Safe -> return $ (Env gs' fc' max_fc sy_meas_ex, sy_evals)
+                Safe -> return $ (Env gs' fc' max_fc sy_meas_ex sz smt_mdl, sy_evals)
                 Unsafe bad -> do
                     inf_con <- infConfigM
                     ref <- tryToGen (nub bad) ((emptyFC, emptyBlockedModels), emptyFC)
@@ -306,9 +317,7 @@ inferenceB con ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls = do
                             inferenceB con ghci m_modname lrs nls sy_evals meas_ex' gs (fc' `unionFC` viol_no_viol_fc) max_fc blk_mdls''
 
                 Crash e1 e2 -> error $ "inferenceB: LiquidHaskell crashed" ++ "\n" ++ show e1 ++ "\n" ++ e2
-        SynthFail sf_fc -> do
-            liftIO . putStrLn $ "synthfail fc = " ++ (printConcFCs sf_fc)
-            return $ (Raise meas_ex fc (unionFC max_fc sf_fc), evals')
+        SynthFail sf_fc | otherwise -> return $ (Raise meas_ex fc max_fc sf_fc, evals')
 
 tryToGen :: Monad m =>
             [n] -- ^ A list of values to produce results for
@@ -442,6 +451,15 @@ adjModel lrs sz smt_mdl n = do
 
     _ <- incrCExAndTime n
     return . Right $ (Just (emptyFC, blk_mdls'), emptyFC)
+
+getBlockedModel :: MonadIO m => LiquidReadyState -> Size -> SMTModel -> InfStack m BlockedModels
+getBlockedModel lrs sz smt_mdl = do
+    incrNegatedModelLog
+    liftIO $ putStrLn "getBlockedModel"
+    let blk_mdls' = insertBlockedModel sz MNAll smt_mdl emptyBlockedModels
+
+    liftIO . putStrLn $ "blocked models = " ++ show blk_mdls'
+    return blk_mdls'
 
 incrCExAndTime :: Monad m => Name -> InfStack m (Either a (Maybe b, FuncConstraints))
 incrCExAndTime (Name n m _ _) = do

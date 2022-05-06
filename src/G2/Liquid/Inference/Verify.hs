@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE CPP #-}
 
@@ -16,6 +17,8 @@ import G2.Liquid.Types
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.GeneratedSpecs
 import G2.Translation.Haskell
+
+import qualified Data.Text as T
 
 import Data.Maybe
 import GHC
@@ -153,7 +156,12 @@ tryToVerify ghci = do
       putStrLn "-------------------------------"
       putStrLn "-------------------------------"
 
-    return . verifyVarToName =<< liftIO (verify infconfig lhconfig ghci)
+    -- GHC introduces "Module" types/functions, which we don't want to generate specifications for.
+    return . filterUnsafe (not . isModule) . verifyVarToName =<< liftIO (verify infconfig lhconfig ghci)
+    where
+        filterUnsafe f (Unsafe fs) = Unsafe $ filter f fs
+        filterUnsafe _ r = r
+        isModule (G2.Name n _ _ _) = n `T.isPrefixOf` n && "Module" `T.isInfixOf` n 
 
 -- | Confirm that we have actually found exactly the needed specs
 checkGSCorrect :: InferenceConfig -> Config -> [GhcInfo] -> GeneratedSpecs -> IO (VerifyResult V.Var)
