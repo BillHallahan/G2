@@ -366,8 +366,7 @@ instance Reducer HitsLibErrorGathererReducer () ([FuncCall], Bool) where
 data ConcolicSolver solver = ConcSolver Model solver
 
 instance Solver solver => Solver (ConcolicSolver solver) where
-    check (ConcSolver mdl solver) s pc = do
-      print $ ppPathConds s { path_conds = foldr (uncurry replaceVar) pc $ HM.toList mdl }
+    check (ConcSolver mdl solver) s pc =
       check solver s . foldr (uncurry replaceVar) pc $ HM.toList mdl
     solve (ConcSolver mdl solver) s b is pc = solve solver s b is . foldr (uncurry replaceVar) pc $ HM.toList mdl
     close (ConcSolver _ solver) = close solver
