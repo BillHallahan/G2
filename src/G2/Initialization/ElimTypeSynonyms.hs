@@ -6,6 +6,7 @@ module G2.Initialization.ElimTypeSynonyms ( elimTypeSyms
 import G2.Language
 
 import qualified Data.Map as M
+import Debug.Trace
 
 elimTypeSyms :: ASTContainer m Type => TypeEnv -> m -> m
 elimTypeSyms tenv = modifyASTsFix (elimTypeSyms' tenv)

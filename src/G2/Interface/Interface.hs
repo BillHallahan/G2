@@ -80,7 +80,6 @@ type ReachFunc = T.Text
 type StartFunc = T.Text
 type ModuleName = Maybe T.Text 
 
-type MkArgTypes = IT.SimpleState -> [Type]
 type MkCurrExpr = TypeClasses -> NameGen -> ExprEnv -> TypeEnv -> Walkers
                      -> KnownValues -> Config -> (Expr, [Id], [Expr], NameGen)
 
@@ -174,9 +173,7 @@ initStateFromSimpleState :: IT.SimpleState
                          -> (State (), Bindings)
 initStateFromSimpleState s useAssert mkCurr argTys config =
     let
-        ts = argTys s
-
-        (s', ds_walkers) = runInitialization2 s ts
+        (s', ds_walkers) = runInitialization2 s argTys
         eenv' = IT.expr_env s'
         tenv' = IT.type_env s'
         ng' = IT.name_gen s'
