@@ -86,9 +86,11 @@ runWithArgs as = do
                             (TranslationConfig {simpl = True, load_rewrite_rules = True}) config
 
   let rule = find (\r -> tentry == ru_name r) (rewrite_rules bindings)
-      rule' = case rule of
-              Just r -> r
-              Nothing -> error "not found"
+  rule' <- case rule of
+             Just r -> return r
+             Nothing -> do
+               mapM (putStrLn . T.unpack . ru_name) $ rewrite_rules bindings
+               return $ error $ "rule " ++ entry ++ " not found"
   res <- checkRule config use_labels sync init_state bindings total finite print_summary limit rule'
   print res
   return ()
