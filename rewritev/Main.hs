@@ -32,9 +32,12 @@ import Control.Exception
 import Data.List
 import Data.Char
 
+import System.Directory
+import Control.Monad
+
 import ZenoSuite
 
-import Cabal -- .Distribution -- .Compat.Directory
+-- import Cabal -- .Distribution -- .Compat.Directory
 
 main :: IO ()
 main = do
@@ -54,6 +57,17 @@ isFlagOrNumber :: String -> Bool
 isFlagOrNumber ('-':'-':_) = True
 isFlagOrNumber (c:_) = isDigit c
 isFlagOrNumber _ = False
+
+-- TODO does not include the starting directory itself
+-- does this include too much?
+getDirsRecursive :: FilePath -> IO [FilePath]
+getDirsRecursive dir = do
+  -- TODO these are all simple isolated names
+  files <- listDirectory dir
+  let abs_files = map (\d -> dir </> d) files
+  abs_dirs <- filterM doesDirectoryExist abs_files
+  rec_dirs <- mapM getDirsRecursive abs_dirs
+  return $ abs_dirs ++ concat rec_dirs
 
 runWithArgs :: [String] -> IO ()
 runWithArgs as = do
@@ -78,10 +92,20 @@ runWithArgs as = do
   -- a cabal file is at that location
   print proj
   putStrLn "END PROJ"
+  proj' <- getDirsRecursive proj
+  print proj'
+  putStrLn "END FULL PROJ"
 
   -- TODO expand proj to a list of file paths
   -- what algorithm for doing that?
-  print $ listDirectory proj
+  -- TODO check which ones are directories, make absolute, add to proj
+  -- do this recursively until the bottom is reached
+  -- doesDirectoryExist will help with this
+  dirs <- listDirectory proj
+  dirs' <- getSearchPath
+  putStrLn "DIRS"
+  print dirs
+  putStrLn "END DIRS"
 
   -- TODO for now, total as long as there's an extra arg
   -- TODO finite variables
@@ -95,7 +119,7 @@ runWithArgs as = do
   config <- getConfig as
 
   let libs = maybeToList m_mapsrc
-  (init_state, bindings) <- initialStateNoStartFunc [proj] [src] libs
+  (init_state, bindings) <- initialStateNoStartFunc (proj:proj') [src] libs
                             (TranslationConfig {simpl = True, load_rewrite_rules = True}) config
 
   let rule = find (\r -> tentry == ru_name r) (rewrite_rules bindings)

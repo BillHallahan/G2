@@ -68,6 +68,7 @@ import Unique
 import Var as V
 
 import Control.Monad
+import Control.Monad.IO.Class
 
 import qualified Data.Array as A
 import qualified Data.ByteString.Char8 as C
@@ -135,12 +136,10 @@ loadProj hsc proj src gflags tr_con = do
 
     let beta_flags' = foldl' gopt_set init_beta_flags gen_flags
     -- TODO
-    {-
-    GHC.liftIO $ print "IMPORT PATHS"
-    GHC.liftIO $ print proj
-    GHC.liftIO $ print $ importPaths beta_flags'
-    GHC.liftIO $ print "END IMPORT PATHS"
-    -}
+    liftIO $ putStrLn "IMPORT PATHS"
+    liftIO $ print proj
+    liftIO $ print $ importPaths beta_flags'
+    liftIO $ putStrLn "END IMPORT PATHS"
     let dflags = beta_flags' { -- Profiling fails to load a profiler friendly version of the base
                                -- without this special casing for hscTarget, but we can't use HscInterpreted when we have certain unboxed types
                                hscTarget = if rtsIsProfiled 

@@ -308,6 +308,7 @@ executable RewriteV
                        , ghc
                        , text
                        , unordered-containers >= 0.2 && < 0.3
+                       , directory
   default-language:    Haskell2010
   ghc-options:         -threaded -Wall
                        -- -fprof-auto "-with-rtsopts=-p"
