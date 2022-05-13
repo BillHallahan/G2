@@ -134,6 +134,13 @@ loadProj hsc proj src gflags tr_con = do
     let init_beta_flags = gopt_unset beta_flags Opt_StaticArgumentTransformation
 
     let beta_flags' = foldl' gopt_set init_beta_flags gen_flags
+    -- TODO
+    {-
+    GHC.liftIO $ print "IMPORT PATHS"
+    GHC.liftIO $ print proj
+    GHC.liftIO $ print $ importPaths beta_flags'
+    GHC.liftIO $ print "END IMPORT PATHS"
+    -}
     let dflags = beta_flags' { -- Profiling fails to load a profiler friendly version of the base
                                -- without this special casing for hscTarget, but we can't use HscInterpreted when we have certain unboxed types
                                hscTarget = if rtsIsProfiled 
@@ -882,10 +889,14 @@ guessProj tgt = do
                     $ inits splits
 
   case potentialDirs of
-    (d : _) -> return d
+    (d : _) -> do
+      putStrLn $ "Cabal Found! " ++ show d
+      return d
     -- Unable to find a .cabal file at all, so we take the first one
     -- with the file loped off.
-    [] -> return $ takeDirectory absTgt
+    [] -> do
+      putStrLn "No Cabal Found!"
+      return $ takeDirectory absTgt
 
 dirContainsCabal :: FilePath -> IO Bool
 dirContainsCabal "" = return False

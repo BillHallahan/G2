@@ -34,6 +34,8 @@ import Data.Char
 
 import ZenoSuite
 
+import Cabal -- .Distribution -- .Compat.Directory
+
 main :: IO ()
 main = do
     as <- getArgs
@@ -69,6 +71,17 @@ runWithArgs as = do
         Just n -> read (tail_args !! (n + 1)) :: Int
 
   proj <- guessProj src
+  putStrLn "BEGIN PROJ"
+  -- TODO for test files, this is what I expect it to be
+  -- the file path goes up to G2
+  -- it looks right for primitive-simd also
+  -- a cabal file is at that location
+  print proj
+  putStrLn "END PROJ"
+
+  -- TODO expand proj to a list of file paths
+  -- what algorithm for doing that?
+  print $ listDirectory proj
 
   -- TODO for now, total as long as there's an extra arg
   -- TODO finite variables
