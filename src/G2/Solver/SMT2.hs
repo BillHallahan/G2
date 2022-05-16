@@ -208,6 +208,9 @@ instance SMTConverter Z3 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) w
 
     ite _ = function3 "ite"
 
+    fromCode _ = function1 "str.from_code"
+    toCode _ = function1 "str.to_code"
+
     int _ x = if x >= 0 then showText x else "(- " <> showText (abs x) <> ")"
     float _ r = 
         "(/ " <> showText (numerator r) <> " " <> showText (denominator r) <> ")"

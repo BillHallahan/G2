@@ -636,6 +636,12 @@ primTests = testGroup "Prims"
     , checkInputOutput "tests/Prim/Prim4.hs" "Prim4" "divIntegerTest" 1500 [AtLeast 1]
     , checkInputOutput "tests/Prim/Prim4.hs" "Prim4" "divIntegerTest2" 1500 [AtLeast 4]
     , checkInputOutput "tests/Prim/Prim4.hs" "Prim4" "divFloatTest" 1500 [AtLeast 1]
+
+    , checkInputOutput "tests/Prim/Chr.hs" "Chr" "lowerLetters" 9000 [AtLeast 1]
+    , checkInputOutput "tests/Prim/Chr.hs" "Chr" "allLetters" 9000 [AtLeast 1]
+    , checkInputOutput "tests/Prim/Chr.hs" "Chr" "lowerLetterCodes" 9000 [AtLeast 1]
+    , checkInputOutput "tests/Prim/Chr.hs" "Chr" "printBasedOnChr" 1500 [AtLeast 6]
+    , checkInputOutput "tests/Prim/Chr.hs" "Chr" "printBasedOnOrd" 1500 [AtLeast 6]
     ]
 
 -- To Do Tests

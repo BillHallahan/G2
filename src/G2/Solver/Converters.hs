@@ -95,6 +95,9 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
 
     ite :: con -> ast -> ast -> ast -> ast
 
+    fromCode :: con -> ast -> ast
+    toCode :: con -> ast -> ast
+
     --values
     int :: con -> Integer -> ast
     float :: con -> Rational -> ast
@@ -411,6 +414,8 @@ funcToSMT1Prim SqRt e = SqrtSMT (exprToSMT e)
 funcToSMT1Prim Not e = (:!) (exprToSMT e)
 funcToSMT1Prim IntToFloat e = ItoR (exprToSMT e)
 funcToSMT1Prim IntToDouble e = ItoR (exprToSMT e)
+funcToSMT1Prim Chr e = FromCode (exprToSMT e)
+funcToSMT1Prim OrdChar e = ToCode (exprToSMT e)
 funcToSMT1Prim err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 
 funcToSMT2Prim :: Primitive -> Expr -> Expr -> SMTAST
@@ -528,6 +533,9 @@ toSolverAST con (ItoR x) = itor con $ toSolverAST con x
 
 toSolverAST con (Ite x y z) =
     ite con (toSolverAST con x) (toSolverAST con y) (toSolverAST con z)
+
+toSolverAST con (FromCode chr) = fromCode con (toSolverAST con chr)
+toSolverAST con (ToCode chr) = toCode con (toSolverAST con chr)
 
 toSolverAST con (VInt i) = int con i
 toSolverAST con (VFloat f) = float con f
