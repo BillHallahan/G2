@@ -24,7 +24,7 @@ initWithLHS s b r =
       f_maybe = E.lookup f_name (expr_env s)
   in
   case f_maybe of
-    Nothing -> error "function name not found"
+    Nothing -> error $ "function " ++ (show f_name) ++  " not found"
     Just f -> let t = T.typeOf f
                   i = Id f_name t
                   v = Var i
