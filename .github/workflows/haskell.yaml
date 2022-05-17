@@ -39,6 +39,8 @@ jobs:
       uses: pavpanchekha/setup-z3@1.2.2
       with:
         version: '4.8.17'
+        architecture: 'x64'
+        distribution: 'glibc-2.31'
    
     - name: Getting custom base
       run: bash base_setup.sh
