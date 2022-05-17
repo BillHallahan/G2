@@ -99,6 +99,8 @@ primDefs' b = [ ("==#", Prim Eq $ tyIntIntBool b)
               , ("quotInteger#", Prim Quot tyIntIntInt)
               , ("remInteger#", Prim Rem tyIntIntInt)
 
+              , ("chr#", Prim Chr $ tyIntCharBool b )
+              , ("ord#", Prim OrdChar $ tyCharIntBool b )
               , ("eqChar#", Prim Eq $ tyCharCharBool b )
               , ("neChar#", Prim Neq $ tyCharCharBool b )
 
@@ -146,6 +148,12 @@ tyFloatFloatBool n = TyFun TyLitFloat $ TyFun TyLitFloat (TyCon n TYPE)
 
 tyFloatFloatFloat :: Type
 tyFloatFloatFloat = TyFun TyLitFloat $ TyFun TyLitFloat TyLitFloat
+
+tyIntCharBool :: Name -> Type
+tyIntCharBool n = TyFun TyLitInt $ TyFun TyLitChar (TyCon n TYPE)
+
+tyCharIntBool :: Name -> Type
+tyCharIntBool n = TyFun TyLitChar $ TyFun TyLitInt (TyCon n TYPE)
 
 tyCharCharBool :: Name -> Type
 tyCharCharBool n = TyFun TyLitChar $ TyFun TyLitChar (TyCon n TYPE)

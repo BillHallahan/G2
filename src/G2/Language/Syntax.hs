@@ -183,6 +183,8 @@ data Primitive = Ge
                | FromInteger
                | ToInteger
                | ToInt
+               | Chr
+               | OrdChar
                | Error
                | Undefined
                | BindFunc
