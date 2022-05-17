@@ -640,8 +640,8 @@ primTests = testGroup "Prims"
     , checkInputOutput "tests/Prim/Chr.hs" "Chr" "lowerLetters" 9000 [AtLeast 1]
     , checkInputOutput "tests/Prim/Chr.hs" "Chr" "allLetters" 9000 [AtLeast 1]
     , checkInputOutput "tests/Prim/Chr.hs" "Chr" "lowerLetterCodes" 9000 [AtLeast 1]
-    , checkInputOutput "tests/Prim/Chr.hs" "Chr" "printBasedOnChr" 1500 [AtLeast 6]
-    , checkInputOutput "tests/Prim/Chr.hs" "Chr" "printBasedOnOrd" 1500 [AtLeast 6]
+    , checkInputOutput "tests/Prim/Chr.hs" "Chr" "printBasedOnChr" 1500 [AtLeast 7]
+    , checkInputOutput "tests/Prim/Chr.hs" "Chr" "printBasedOnOrd" 1500 [AtLeast 7]
     ]
 
 -- To Do Tests

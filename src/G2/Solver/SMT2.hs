@@ -78,7 +78,7 @@ instance SMTConverter Z3 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) w
     checkSatGetModel _ (h_in, h_out, _) formula vs = do
         setUpFormulaZ3 h_in (TB.run formula)
         -- putStrLn "\n\n checkSatGetModel"
-        -- putStrLn formula
+        -- T.putStrLn (TB.run formula)
         r <- checkSat' h_in h_out
         -- putStrLn $ "r =  " ++ show r
         case r of
