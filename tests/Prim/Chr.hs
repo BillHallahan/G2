@@ -8,9 +8,6 @@ lowerLetters = map chr [97..97 + 25]
 allLetters :: [Char]
 allLetters = map chr $ [65..65 + 25] ++ [97..97 + 25]
 
-lowerLetterCodes :: [Int]
-lowerLetterCodes = map ord ['a'..'z']
-
 printBasedOnChr :: Int -> Int
 printBasedOnChr x
     | chr x == 'A' = x
