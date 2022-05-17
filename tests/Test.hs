@@ -410,7 +410,7 @@ testFileTests = testGroup "TestFiles"
         (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" [Exactly 0]
 
     , checkExpr "tests/TestFiles/CheckSq.hs" 400 "checkSq"
-        [AtLeast 2, RExists (\[x, _] -> isInt x (\x' -> x' == 3))]
+        [AtLeast 2, RExists (\[x, _] -> isInt x (\x' -> x' == 3 || x' == -3))]
 
     , checkExpr "tests/TestFiles/Defunc1.hs" 400 "f"
         [RExists defunc1Add1, RExists defunc1Multiply2, RExists defuncB, AtLeast 3]
