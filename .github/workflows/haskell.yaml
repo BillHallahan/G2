@@ -38,7 +38,7 @@ jobs:
     - name: Install Z3
       uses: pavpanchekha/setup-z3@1.2.2
       with:
-        version: 4.8.17
+        version: '4.8.17'
    
     - name: Getting custom base
       run: bash base_setup.sh
