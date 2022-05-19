@@ -136,10 +136,10 @@ loadProj hsc proj src gflags tr_con = do
 
     let beta_flags' = foldl' gopt_set init_beta_flags gen_flags
     -- TODO
-    liftIO $ putStrLn "IMPORT PATHS"
-    liftIO $ print proj
-    liftIO $ print $ importPaths beta_flags'
-    liftIO $ putStrLn "END IMPORT PATHS"
+    --liftIO $ putStrLn "IMPORT PATHS"
+    --liftIO $ print proj
+    --liftIO $ print $ importPaths beta_flags'
+    --liftIO $ putStrLn "END IMPORT PATHS"
     let dflags = beta_flags' { -- Profiling fails to load a profiler friendly version of the base
                                -- without this special casing for hscTarget, but we can't use HscInterpreted when we have certain unboxed types
                                hscTarget = if rtsIsProfiled 
