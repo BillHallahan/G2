@@ -47,11 +47,11 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     empty :: con -> out
     merge :: con -> out -> out -> out
 
-    checkSat :: con -> io -> out -> IO (Result () ())
-    checkSatGetModel :: con -> io -> out -> [(SMTName, Sort)] -> IO (Result SMTModel ())
-    checkSatGetModelOrUnsatCore :: con -> io -> out -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore)
+    checkSat :: con -> io -> out -> IO (Result () () ())
+    checkSatGetModel :: con -> io -> out -> [(SMTName, Sort)] -> IO (Result SMTModel () ())
+    checkSatGetModelOrUnsatCore :: con -> io -> out -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
     checkSatGetModelGetExpr :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> CurrExpr
-                            -> IO (Result SMTModel (), Maybe Expr)
+                            -> IO (Result SMTModel () (), Maybe Expr)
 
     assertSolver :: con -> ast -> out
     assertSoftSolver :: con -> ast -> Maybe T.Text -> out
@@ -95,6 +95,8 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
 
     ite :: con -> ast -> ast -> ast -> ast
 
+    distinct :: con -> [ast] -> ast
+
     fromCode :: con -> ast -> ast
     toCode :: con -> ast -> ast
 
@@ -125,25 +127,25 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     -- unsat cores
     named :: con -> ast -> SMTName -> ast
 
-checkConstraintsPC :: SMTConverter con ast out io => con -> PathConds -> IO (Result () ())
+checkConstraintsPC :: SMTConverter con ast out io => con -> PathConds -> IO (Result () () ())
 checkConstraintsPC con pc = do
     let headers = toSMTHeaders pc
     checkConstraints con headers
 
-checkConstraints :: SMTConverter con ast out io => con -> [SMTHeader] -> IO (Result () ())
+checkConstraints :: SMTConverter con ast out io => con -> [SMTHeader] -> IO (Result () () ())
 checkConstraints con headers = do
     let formula = toSolver con headers
 
     checkSat con (getIO con) formula
 
 -- | Checks if the constraints are satisfiable, and returns a model if they are
-checkModelPC :: SMTConverter con ast out io => ArbValueFunc -> con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model ())
+checkModelPC :: SMTConverter con ast out io => ArbValueFunc -> con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model () ())
 checkModelPC avf con s b is pc = return . liftCasts =<< checkModel' avf con s b is pc
 
 -- | We split based on whether we are evaluating a ADT or a literal.
 -- ADTs can be solved using our efficient addADTs, while literals require
 -- calling an SMT solver.
-checkModel' :: SMTConverter con ast out io => ArbValueFunc -> con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model ())
+checkModel' :: SMTConverter con ast out io => ArbValueFunc -> con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model () ())
 checkModel' _ _ s _ [] _ = do
     return (SAT $ model s)
 checkModel' avf con s b (i:is) pc
@@ -186,7 +188,7 @@ solveConstraints con headers vs = do
         SAT m' -> return $ Just m'
         _ -> return Nothing
 
-constraintsToModelOrUnsatCore :: SMTConverter con ast out io => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore)
+constraintsToModelOrUnsatCore :: SMTConverter con ast out io => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
 constraintsToModelOrUnsatCore con headers vs = do
     let io = getIO con
     let formula = toSolver con headers

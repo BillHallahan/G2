@@ -132,7 +132,7 @@ mkSMTAnd = SmtAnd
 mkSMTOr :: [SMTAST] -> SMTAST
 mkSMTOr = SmtOr
 
-isSat :: Result m u -> Bool
+isSat :: Result m u um -> Bool
 isSat (SAT _) = True
 isSat _ = False
 

@@ -35,15 +35,15 @@ adtSolverInfinite :: ADTSolver
 adtSolverInfinite = ADTSolver arbValueInfinite
 
 instance Solver ADTSolver where
-    check _ s = return .checkConsistency (known_values s) (expr_env s) (type_env s)
+    check _ s = return . checkConsistency (known_values s) (expr_env s) (type_env s)
     solve (ADTSolver avf) s b is = solveADTs avf s b (nub is) 
 
 -- | Attempts to detemine if the given PathConds are consistent.
 -- Returns Just True if they are, Just False if they are not,
 -- and Nothing if it can't decide.
-checkConsistency :: KnownValues -> ExprEnv -> TypeEnv -> PathConds -> Result () ()
+checkConsistency :: KnownValues -> ExprEnv -> TypeEnv -> PathConds -> Result () () ()
 checkConsistency kv eenv tenv pc =
-    maybe (Unknown "Non-ADT path constraints")
+    maybe (Unknown "Non-ADT path constraints" ())
           (\me -> if not (Pre.null me) then SAT () else UNSAT ())
           $ findConsistent kv eenv tenv pc
 
@@ -102,7 +102,7 @@ findConsistent'' kv tenv eenv pc =
             Just (cons', bi)
         _ -> Nothing
 
-solveADTs :: ArbValueFunc -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model ())
+solveADTs :: ArbValueFunc -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model () ())
 solveADTs avf s@(State { expr_env = eenv, model = m }) b [Id n t] pc
     | not $ E.isSymbolic n eenv
     , Just e <- E.lookup n eenv = return (SAT . liftCasts $ HM.insert n e m )
@@ -117,11 +117,11 @@ solveADTs avf s@(State { expr_env = eenv, model = m }) b [Id n t] pc
         case r of
             SAT m -> return (SAT $ liftCasts m)
             r' -> return r'
-solveADTs _ _ _ _ _ = return $ Unknown "Unhandled path constraints in ADTSolver"
+solveADTs _ _ _ _ _ = return $ Unknown "Unhandled path constraints in ADTSolver" ()
 
 -- | Determines an ADT based on the path conds.  The path conds form a witness.
 -- In particular, refer to findConsistent in Solver/ADTSolver.hs
-addADTs :: ArbValueFunc -> Name -> Name -> [Type] -> Kind -> State t -> Bindings -> PathConds -> (Result Model (), Bindings)
+addADTs :: ArbValueFunc -> Name -> Name -> [Type] -> Kind -> State t -> Bindings -> PathConds -> (Result Model () (), Bindings)
 addADTs avf n tn ts k s b pc
     | PC.null pc =
         let
