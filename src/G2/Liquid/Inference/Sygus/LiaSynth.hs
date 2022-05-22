@@ -714,11 +714,11 @@ envToSMT :: Evals (Integer, Bool)  -> M.Map Name SpecInfo -> Int -> FuncConstrai
          -> ([SMTHeader], HM.HashMap SMTName FuncConstraint)
 envToSMT evals si fresh fc =
     let
-        nm_fc = zip ["f" ++ show i | i <- ([1..] :: [Integer])]
+        nm_fc = zip ["f" ++ show i ++ "_" ++ show fresh | i <- ([1..] :: [Integer])]
               . L.nub
               $ allCallsFC fc
 
-        calls = concatMap (uncurry (flip (envToSMT' evals si fresh))) nm_fc
+        calls = concatMap (uncurry (flip (envToSMT' evals si))) nm_fc
 
         known_id_calls = map fst calls
         real_calls = map snd calls
@@ -728,8 +728,8 @@ envToSMT evals si fresh fc =
     in
     (assrts, HM.fromList real_calls)
 
-envToSMT' :: Evals (Integer, Bool)  -> M.Map Name SpecInfo -> Int -> FuncCall -> SMTName -> [(SMTAST, (SMTName, FuncConstraint))]
-envToSMT' (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fresh fc@(FuncCall { funcName = f }) uc_n =
+envToSMT' :: Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncCall -> SMTName -> [(SMTAST, (SMTName, FuncConstraint))]
+envToSMT' (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(FuncCall { funcName = f }) uc_n =
     case M.lookup f m_si of
         Just si ->
             let
@@ -750,8 +750,8 @@ envToSMT' (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fresh fc@(Func
                 pre_real = pre_op_fc (Call Pre fc)
                 post_real = post_op_fc (Call Post fc)
 
-                pre_name = "pre_" ++ uc_n ++ "_" ++ show fresh
-                post_name = "post_" ++ uc_n ++ "_" ++ show fresh
+                pre_name = "pre_" ++ uc_n
+                post_name = "post_" ++ uc_n
 
                 -- In the case that we get an unsat core, we are only interested in knowing which specifications
                 -- that have already been chosen must be changed.  Thus, we only name those pieeces of the environment.

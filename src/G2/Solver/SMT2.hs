@@ -62,6 +62,18 @@ instance SMTConverter Z3 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) w
     empty _ = ""  
     merge _ x y = x <> "\n" <> y
 
+    reset con = do
+        let (h_in, _, _) = getIO con
+        resetSolver h_in
+
+    setProduceUnsatCores con = do
+        let (h_in, _, _) = getIO con
+        T.hPutStrLn h_in "(set-option :produce-unsat-cores true)"
+
+    addFormula con form = do
+        let (h_in, _, _) = getIO con
+        T.hPutStrLn h_in (TB.run form)
+
     checkSat _ (h_in, h_out, _) formula = do
         -- putStrLn "checkSat"
         -- let formula = run formulaBldr
@@ -93,12 +105,12 @@ instance SMTConverter Z3 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) w
             UNSAT () -> return $ UNSAT ()
             Unknown s _ -> return $ Unknown s ()
 
-    checkSatGetModelOrUnsatCore _ (h_in, h_out, _) formula vs = do
-        let formula' = "(set-option :produce-unsat-cores true)\n" <> TB.run formula
+    checkSatGetModelOrUnsatCoreNoReset con (h_in, h_out, _) formula vs = do
+        let formula' = TB.run formula
         T.putStrLn "\n\n checkSatGetModelOrUnsatCore"
         T.putStrLn formula'
 
-        setUpFormulaZ3 h_in formula'
+        T.hPutStr h_in formula'
         r <- checkSat' h_in h_out
         -- putStrLn $ "r =  " ++ show r
         if r == SAT () then do
@@ -138,6 +150,14 @@ instance SMTConverter Z3 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) w
                 return (SAT m, Just expr)
             UNSAT () -> return (UNSAT (), Nothing)
             Unknown s _ -> return (Unknown s (), Nothing)
+
+    push con = do
+        let (h_in, _, _) = getIO con
+        T.hPutStrLn h_in "(push)"
+
+    pop con = do
+        let (h_in, _, _) = getIO con
+        T.hPutStrLn h_in "(push)"
 
     assertSolver _ = function1 "assert"
 
@@ -250,6 +270,16 @@ instance SMTConverter CVC4 TB.Builder TB.Builder (Handle, Handle, ProcessHandle)
     empty _ = "" 
     merge _ x y = x <> "\n" <> y
 
+    reset con = do
+        let (h_in, _, _) = getIO con
+        resetSolver h_in
+
+    setProduceUnsatCores _ = return ()
+
+    addFormula con form = do
+        let (h_in, _, _) = getIO con
+        T.hPutStrLn h_in (TB.run form)
+
     checkSat _ (h_in, h_out, _) formula = do
         -- putStrLn "checkSat"
         -- putStrLn formula
@@ -279,12 +309,12 @@ instance SMTConverter CVC4 TB.Builder TB.Builder (Handle, Handle, ProcessHandle)
             UNSAT _ ->  return $ UNSAT ()
             Unknown s _ -> return $ Unknown s ()
 
-    checkSatGetModelOrUnsatCore _ (h_in, h_out, _) formula vs = do
+    checkSatGetModelOrUnsatCoreNoReset _ (h_in, h_out, _) formula vs = do
         let formula' = TB.run formula
         T.putStrLn "\n\n checkSatGetModelOrUnsatCore"
         T.putStrLn formula'
 
-        setUpFormulaZ3 h_in formula'
+        T.hPutStr h_in formula'
         r <- checkSat' h_in h_out
         putStrLn $ "r =  " ++ show r
         if r == SAT () then do
@@ -324,6 +354,14 @@ instance SMTConverter CVC4 TB.Builder TB.Builder (Handle, Handle, ProcessHandle)
                 return (SAT m, Just expr)
             UNSAT _ -> return (UNSAT (), Nothing)
             Unknown s _ -> return (Unknown s (), Nothing)
+
+    push con = do
+        let (h_in, _, _) = getIO con
+        T.hPutStrLn h_in "(push)"
+
+    pop con = do
+        let (h_in, _, _) = getIO con
+        T.hPutStrLn h_in "(push)"
 
     assertSolver _ = function1 "assert"
 
@@ -474,16 +512,19 @@ getZ3ProcessHandles = getProcessHandles $ proc "z3" ["-smt2", "-in", "-t:10000"]
 getCVC4ProcessHandles :: IO (Handle, Handle, ProcessHandle)
 getCVC4ProcessHandles = getProcessHandles $ proc "cvc4" ["--lang", "smt2.6", "--produce-models", "--produce-unsat-cores"]
 
+resetSolver :: Handle -> IO ()
+resetSolver h_in = T.hPutStr h_in "(reset)"
+
 -- | setUpFormulaZ3
 -- Writes a function to Z3
 setUpFormulaZ3 :: Handle -> T.Text -> IO ()
 setUpFormulaZ3 h_in form = do
-    T.hPutStr h_in "(reset)"
+    resetSolver h_in
     T.hPutStr h_in form
 
 setUpFormulaCVC4 :: Handle -> T.Text -> IO ()
 setUpFormulaCVC4 h_in form = do
-    T.hPutStr h_in "(reset)"
+    resetSolver h_in
     -- hPutStr h_in "(set-logic ALL)\n"
     T.hPutStr h_in form
 

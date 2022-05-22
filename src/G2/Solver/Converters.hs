@@ -18,11 +18,14 @@ module G2.Solver.Converters
     , sortName
     , smtastToExpr
     , modelAsExpr
+
+    , addHeaders
     , checkConstraintsPC
     , checkModelPC
     , checkConstraints
     , solveConstraints
     , constraintsToModelOrUnsatCore
+    , constraintsToModelOrUnsatCoreNoReset
     , SMTConverter (..) ) where
 
 import qualified Data.HashMap.Lazy as HM
@@ -47,11 +50,24 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     empty :: con -> out
     merge :: con -> out -> out -> out
 
+    reset :: con -> IO ()
+    setProduceUnsatCores :: con -> IO ()
+
+    addFormula :: con -> out -> IO ()
+
+    checkSatGetModelOrUnsatCoreNoReset :: con -> io -> out -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
+
     checkSat :: con -> io -> out -> IO (Result () () ())
     checkSatGetModel :: con -> io -> out -> [(SMTName, Sort)] -> IO (Result SMTModel () ())
     checkSatGetModelOrUnsatCore :: con -> io -> out -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
+    checkSatGetModelOrUnsatCore con io out get = do
+        reset con
+        setProduceUnsatCores con
+        checkSatGetModelOrUnsatCoreNoReset  con io out get
+
     checkSatGetModelGetExpr :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> CurrExpr
                             -> IO (Result SMTModel () (), Maybe Expr)
+
 
     assertSolver :: con -> ast -> out
     assertSoftSolver :: con -> ast -> Maybe T.Text -> out
@@ -59,6 +75,11 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     declareFun :: con -> SMTName -> [Sort] -> Sort -> out 
     varDecl :: con -> SMTNameBldr -> ast -> out
 
+    -- Incremental
+    push :: con -> IO ()
+    pop :: con -> IO ()
+
+    -- Language
     setLogic :: con -> Logic -> out
 
     comment :: con -> String -> out
@@ -127,6 +148,11 @@ class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con ->
     -- unsat cores
     named :: con -> ast -> SMTName -> ast
 
+addHeaders :: SMTConverter con ast out io => con -> [SMTHeader] -> IO ()
+addHeaders con headers = do
+    let form = toSolver con headers
+    addFormula con form
+
 checkConstraintsPC :: SMTConverter con ast out io => con -> PathConds -> IO (Result () () ())
 checkConstraintsPC con pc = do
     let headers = toSMTHeaders pc
@@ -193,6 +219,12 @@ constraintsToModelOrUnsatCore con headers vs = do
     let io = getIO con
     let formula = toSolver con headers
     checkSatGetModelOrUnsatCore con io formula vs
+
+constraintsToModelOrUnsatCoreNoReset :: SMTConverter con ast out io => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
+constraintsToModelOrUnsatCoreNoReset con headers vs = do
+    let io = getIO con
+    let formula = toSolver con headers
+    checkSatGetModelOrUnsatCoreNoReset con io formula vs
 
 -- | Here we convert from a State, to an SMTHeader.  This SMTHeader can later
 -- be given to an SMT solver by using toSolver.
