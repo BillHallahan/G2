@@ -353,8 +353,8 @@ synth' con ghci eenv tenv meas meas_ex evals m_si fc headers drop_if_unknown blk
 
     liftIO $ if not (null drop_if_unknown) then putStrLn "non empty drop_if_unknown" else return ()
 
-    result <- liftIO $ solveSoftAsserts con hdrs n_for_m
-    -- result <- liftIO $ constraintsToModelOrUnsatCore con hdrs n_for_m
+    -- result <- liftIO $ solveSoftAsserts con hdrs n_for_m
+    result <- return . adjustRes =<< liftIO (constraintsToModelOrUnsatCore con hdrs n_for_m)
 
     case result of
         SAT mdl -> do
@@ -375,6 +375,10 @@ synth' con ghci eenv tenv meas meas_ex evals m_si fc headers drop_if_unknown blk
                 liftIO $ print gs'
                 return (SynthEnv gs' sz mdl blk_mdls)
             | otherwise -> error "synth': Unknown"
+    where
+        adjustRes (SAT m) = SAT m
+        adjustRes (UNSAT uc) = UNSAT uc
+        adjustRes (Unknown e ()) = Unknown e Nothing
 
 ------------------------------------
 -- Handling Models
