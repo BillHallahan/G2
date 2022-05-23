@@ -34,12 +34,12 @@ instance TrSolver solver => TrSolver (ADTNumericalSolver solver) where
         return (r, ADTNumericalSolver avf sol')
     closeTr (ADTNumericalSolver _ s) = closeTr s
 
-checkConsistency :: TrSolver solver => solver -> State t -> PathConds -> IO (Result () (), solver)
+checkConsistency :: TrSolver solver => solver -> State t -> PathConds -> IO (Result () () (), solver)
 checkConsistency solver s pc
     | PC.null pc = return (SAT (), solver)
     | otherwise = do
         checkTr solver s pc
 
-solve' :: TrSolver solver => ArbValueFunc -> solver -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model (), solver)
+solve' :: TrSolver solver => ArbValueFunc -> solver -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model () (), solver)
 solve' _ sol s b is pc = do
     solveTr sol s b is pc

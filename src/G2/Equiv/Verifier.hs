@@ -346,7 +346,7 @@ verifyLoop :: S.Solver solver =>
               String ->
               Int ->
               Int ->
-              W.WriterT [Marker] IO (S.Result () ())
+              W.WriterT [Marker] IO (S.Result () () ())
 verifyLoop solver ns lemmas states b config rvc sym_ids folder_root k n | (n /= 0) || (null states) = do
   W.liftIO $ putStrLn "<Loop Iteration>"
   W.liftIO $ putStrLn $ show n
@@ -438,7 +438,7 @@ verifyLoop solver ns lemmas states b config rvc sym_ids folder_root k n | (n /= 
     W.liftIO $ putStrLn $ "Unresolved Obligations: " ++ show (length states)
     let ob (sh1, sh2) = Marker (sh1, sh2) $ Unresolved (latest sh1, latest sh2)
     W.tell $ map ob states
-    return $ S.Unknown "Loop Iterations Exhausted"
+    return $ S.Unknown "Loop Iterations Exhausted" ()
 
 data StepRes = CounterexampleFound
              | ContinueWith [(StateH, StateH)] [Lemma]
@@ -884,7 +884,7 @@ checkRule :: Config
           -> SummaryMode
           -> Int
           -> RewriteRule
-          -> IO (S.Result () ())
+          -> IO (S.Result () () ())
 checkRule config use_labels sync init_state bindings total finite print_summary iterations rule = do
   let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
       (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule

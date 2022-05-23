@@ -486,7 +486,7 @@ runG2Solving solver simplifier bindings s@(State { known_values = kv })
 
                 return $ Just sm''
             UNSAT _ -> return Nothing
-            Unknown _ -> return Nothing
+            Unknown _ _ -> return Nothing
 
     | otherwise = return Nothing
 
