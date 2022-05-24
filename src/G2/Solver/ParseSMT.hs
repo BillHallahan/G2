@@ -154,13 +154,24 @@ stringExpr = do
 
 stringExpr' :: Parser Char
 stringExpr' = do
-    try parseHex <|> choice (alphaNum:char '\\':char ' ':map char ident)
+    try parseHex <|> try parseUni <|> choice (alphaNum:char '\\':char ' ':map char ident)
 
 parseHex :: Parser Char
 parseHex = do
     _ <- char '\\'
     _ <- char 'x'
     str <- many (choice . map char $ ['0'..'9'] ++ ['a'..'f'])
+    case readHex str of
+        [(c, _)] -> return $ chr c
+        _ -> error $ "stringExpr': Bad string"
+
+parseUni :: Parser Char
+parseUni = do
+    _ <- char '\\'
+    _ <- char 'u'
+    _ <- char '{'
+    str <- many (choice . map char $ ['0'..'9'] ++ ['a'..'f'])
+    _ <- char '}'
     case readHex str of
         [(c, _)] -> return $ chr c
         _ -> error $ "stringExpr': Bad string"

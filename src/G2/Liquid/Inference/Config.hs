@@ -64,13 +64,15 @@ data Progress =
              , ex_max_depth :: Int -- ^ Gives an extra budget for the depth limit
              , ex_max_time :: M.Map (T.Text, Maybe T.Text) NominalDiffTime -- ^ Gives an extra max bufget for time
              , max_synth_size :: MaxSize
+             , synth_fresh :: Int -- ^ An int to increment to get fresh names
              }
 
 newProgress :: Progress
 newProgress = Progress { ex_max_ce = M.empty
                        , ex_max_depth = 0
                        , ex_max_time = M.empty
-                       , max_synth_size = MaxSize 1 }
+                       , max_synth_size = MaxSize 1
+                       , synth_fresh = 0 }
 
 class Progresser p where
     extraMaxCEx ::  (T.Text, Maybe T.Text) -> p -> Int
@@ -84,6 +86,9 @@ class Progresser p where
 
     maxSynthSize :: p -> MaxSize
     incrMaxSynthSize :: p -> p
+
+    synthFresh :: p -> Int
+    incrSynthFresh :: p -> p
 
 instance Progresser Progress where
     extraMaxCEx n (Progress { ex_max_ce = m }) = M.findWithDefault 0 n m
@@ -100,6 +105,9 @@ instance Progresser Progress where
     maxSynthSize (Progress { max_synth_size = mss }) = mss
     incrMaxSynthSize p@(Progress { max_synth_size = mss }) = p { max_synth_size = incrMaxSize mss }
 
+    synthFresh (Progress { synth_fresh = syf }) = syf
+    incrSynthFresh p@(Progress { synth_fresh = syf }) = p { synth_fresh = syf + 1 }
+
 class Monad m => ProgresserM m where
     extraMaxCExM :: (T.Text, Maybe T.Text) -> m Int
     incrMaxCExM :: (T.Text, Maybe T.Text) -> m ()
@@ -112,6 +120,9 @@ class Monad m => ProgresserM m where
 
     maxSynthSizeM :: m MaxSize
     incrMaxSynthSizeM :: m ()
+
+    synthFreshM :: m Int
+    incrSynthFreshM :: m ()
 
 instance (Monad m, Progresser p) => ProgresserM (StateT p m) where
     extraMaxCExM n = gets (extraMaxCEx n)
@@ -126,6 +137,9 @@ instance (Monad m, Progresser p) => ProgresserM (StateT p m) where
     maxSynthSizeM = gets maxSynthSize
     incrMaxSynthSizeM = modify' incrMaxSynthSize
 
+    synthFreshM = gets synthFresh
+    incrSynthFreshM = modify' incrSynthFresh
+
 instance ProgresserM m => ProgresserM (ReaderT env m) where
     extraMaxCExM n = lift (extraMaxCExM n)
     incrMaxCExM n = lift (incrMaxCExM n)
@@ -138,6 +152,9 @@ instance ProgresserM m => ProgresserM (ReaderT env m) where
 
     maxSynthSizeM = lift maxSynthSizeM
     incrMaxSynthSizeM = lift incrMaxSynthSizeM
+
+    synthFreshM = lift synthFreshM
+    incrSynthFreshM = lift incrSynthFreshM
 
 runProgresser :: (Monad m, Progresser p) => StateT p m a -> p -> m a
 runProgresser = evalStateT

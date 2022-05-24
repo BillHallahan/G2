@@ -90,7 +90,7 @@ runG2SolvingWithFiltering model_filter solver simplifier bindings s@(State { kno
                     er = runG2SubstModel m'' s bindings
                 return $ Just (er, m')
             UNSAT _ -> return Nothing
-            Unknown _ -> return Nothing
+            Unknown _ _ -> return Nothing
 
     | otherwise = return Nothing
 

@@ -65,11 +65,23 @@ instance SMTConverter Z3 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) w
     empty _ = ""  
     merge _ x y = x <> "\n" <> y
 
+    reset con = do
+        let (h_in, _, _) = getIO con
+        resetSolver h_in
+
+    setProduceUnsatCores con = do
+        let (h_in, _, _) = getIO con
+        T.hPutStrLn h_in "(set-option :produce-unsat-cores true)"
+
+    addFormula con form = do
+        let (h_in, _, _) = getIO con
+        T.hPutStrLn h_in (TB.run form)
+
     checkSat _ (h_in, h_out, _) formula = do
         -- putStrLn "checkSat"
         -- let formula = run formulaBldr
-        -- TIO.putStrLn formula
         -- T.putStrLn (TB.run formula)
+        -- putStrLn formula
         
         setUpFormulaZ3 h_in (TB.run formula)
         r <- checkSat' h_in h_out
@@ -94,14 +106,14 @@ instance SMTConverter Z3 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) w
                 -- putStrLn "======"
                 return $ SAT m
             UNSAT () -> return $ UNSAT ()
-            Unknown s -> return $ Unknown s
+            Unknown s _ -> return $ Unknown s ()
 
-    checkSatGetModelOrUnsatCore _ (h_in, h_out, _) formula vs = do
-        let formula' = "(set-option :produce-unsat-cores true)\n" <> TB.run formula
+    checkSatGetModelOrUnsatCoreNoReset con (h_in, h_out, _) formula vs = do
+        let formula' = TB.run formula
         T.putStrLn "\n\n checkSatGetModelOrUnsatCore"
         T.putStrLn formula'
 
-        setUpFormulaZ3 h_in formula'
+        T.hPutStr h_in formula'
         r <- checkSat' h_in h_out
         -- putStrLn $ "r =  " ++ show r
         case r of
@@ -118,7 +130,7 @@ instance SMTConverter Z3 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) w
             UNSAT () -> do
                 uc <- getUnsatCoreZ3 h_in h_out
                 return (UNSAT $ HS.fromList uc)
-            Unknown s -> return $ Unknown s
+            Unknown s _ -> return $ Unknown s ()
 
     checkSatGetModelGetExpr con (h_in, h_out, _) formula _ vs eenv (CurrExpr _ e) = do
         setUpFormulaZ3 h_in (TB.run formula)
@@ -140,7 +152,15 @@ instance SMTConverter Z3 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) w
                 -- putStrLn (show expr)
                 return (SAT m, Just expr)
             UNSAT () -> return (UNSAT (), Nothing)
-            Unknown s -> return (Unknown s, Nothing)
+            Unknown s _ -> return (Unknown s (), Nothing)
+
+    push con = do
+        let (h_in, _, _) = getIO con
+        T.hPutStrLn h_in "(push)"
+
+    pop con = do
+        let (h_in, _, _) = getIO con
+        T.hPutStrLn h_in "(push)"
 
     assertSolver _ = function1 "assert"
 
@@ -219,6 +239,9 @@ instance SMTConverter Z3 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) w
         in
         "(forall (" <> binds <> ")" <> e <> ")"
 
+    fromCode _ = function1 "str.from_code"
+    toCode _ = function1 "str.to_code"
+
     int _ x = if x >= 0 then showText x else "(- " <> showText (abs x) <> ")"
     float _ r = 
         "(/ " <> showText (numerator r) <> " " <> showText (denominator r) <> ")"
@@ -255,7 +278,17 @@ instance SMTConverter CVC4 TB.Builder TB.Builder (Handle, Handle, ProcessHandle)
         hClose h_out
 
     empty _ = "" 
-    merge _ = (<>)
+    merge _ x y = x <> "\n" <> y
+
+    reset con = do
+        let (h_in, _, _) = getIO con
+        resetSolver h_in
+
+    setProduceUnsatCores _ = return ()
+
+    addFormula con form = do
+        let (h_in, _, _) = getIO con
+        T.hPutStrLn h_in (TB.run form)
 
     checkSat _ (h_in, h_out, _) formula = do
         -- putStrLn "checkSat"
@@ -284,7 +317,31 @@ instance SMTConverter CVC4 TB.Builder TB.Builder (Handle, Handle, ProcessHandle)
                 -- putStrLn "======"
                 return (SAT m)
             UNSAT _ ->  return $ UNSAT ()
-            Unknown s -> return $ Unknown s
+            Unknown s _ -> return $ Unknown s ()
+
+    checkSatGetModelOrUnsatCoreNoReset _ (h_in, h_out, _) formula vs = do
+        let formula' = TB.run formula
+        T.putStrLn "\n\n checkSatGetModelOrUnsatCore"
+        T.putStrLn formula'
+
+        T.hPutStr h_in formula'
+        r <- checkSat' h_in h_out
+        putStrLn $ "r =  " ++ show r
+        if r == SAT () then do
+            mdl <- getModelCVC4 h_in h_out vs
+            -- putStrLn "======"
+            -- putStrLn $ "r = " ++ show r
+            -- putStrLn $ "mdl = " ++ show mdl
+            -- putStrLn (show mdl)
+            let m = parseModel mdl
+            -- putStrLn $ "m = " ++ show m
+            -- putStrLn "======"
+            return (SAT m)
+        else if r == UNSAT () then do
+            uc <- getUnsatCoreCVC4 h_in h_out
+            return (UNSAT $ HS.fromList uc)
+        else do
+            return (Unknown "" ())
 
     checkSatGetModelGetExpr con (h_in, h_out, _) formula _ vs eenv (CurrExpr _ e) = do
         setUpFormulaCVC4 h_in (TB.run formula)
@@ -306,9 +363,27 @@ instance SMTConverter CVC4 TB.Builder TB.Builder (Handle, Handle, ProcessHandle)
                 -- putStrLn (show expr)
                 return (SAT m, Just expr)
             UNSAT _ -> return (UNSAT (), Nothing)
-            Unknown s -> return (Unknown s, Nothing)
+            Unknown s _ -> return (Unknown s (), Nothing)
+
+    push con = do
+        let (h_in, _, _) = getIO con
+        T.hPutStrLn h_in "(push)"
+
+    pop con = do
+        let (h_in, _, _) = getIO con
+        T.hPutStrLn h_in "(push)"
 
     assertSolver _ = function1 "assert"
+
+    defineFun con fn ars ret body =
+        "(define-fun " <> (TB.string fn) <> " ("
+            <> TB.intercalate " " (map (\(n, s) -> "(" <> TB.string n <> " " <> sortName con s <> ")") ars) <> ")"
+            <> " " <> sortName con ret <> " " <> toSolverAST con body <> ")"
+
+    declareFun con fn ars ret =
+        "(declare-fun " <> TB.string fn <> " ("
+            <> TB.intercalate " " (map (sortName con) ars) <> ")"
+            <> " " <> sortName con ret <> ")"
         
     varDecl _ n s = "(declare-const " <> n <> " " <> s <> ")"
     
@@ -324,9 +399,9 @@ instance SMTConverter CVC4 TB.Builder TB.Builder (Handle, Handle, ProcessHandle)
                 QF_UFLIA -> "QF_UFLIA"
                 _ -> "ALL"
         in
-        case lgc of
-            ALL -> ""
-            _ -> "(set-logic " <> s <> ")"
+        "(set-logic " <> s <> ")"
+
+    comment _ s = "; " <> TB.string s
 
     (.>=) _ = function2 ">="
     (.>) _ = function2 ">"
@@ -349,6 +424,10 @@ instance SMTConverter CVC4 TB.Builder TB.Builder (Handle, Handle, ProcessHandle)
     smtModulo _ = function2 "mod"
     smtSqrt _ x = "(^ " <> x <> " 0.5)" 
     neg _ = function1 "-"
+
+    smtFunc _ n [] = TB.string n
+    smtFunc _ n xs = "(" <> TB.string n <> " " <> TB.intercalate " " xs <>  ")"
+
     strLen _ = function1 "str.len"
 
     itor _ = function1 "to_real"
@@ -376,6 +455,8 @@ instance SMTConverter CVC4 TB.Builder TB.Builder (Handle, Handle, ProcessHandle)
         else
             TB.string n
     varName _ n _ = TB.string n
+
+    named _ ast n = "(! " <> ast <> " :named " <> TB.string n <> ")"
 
 {-# INLINE showText #-}
 showText :: Show a => a -> TB.Builder
@@ -439,23 +520,26 @@ getZ3ProcessHandles :: IO (Handle, Handle, ProcessHandle)
 getZ3ProcessHandles = getProcessHandles $ proc "z3" ["-smt2", "-in", "-t:10000"]
 
 getCVC4ProcessHandles :: IO (Handle, Handle, ProcessHandle)
-getCVC4ProcessHandles = getProcessHandles $ proc "cvc4" ["--lang", "smt2.6", "--produce-models"]
+getCVC4ProcessHandles = getProcessHandles $ proc "cvc4" ["--lang", "smt2.6", "--produce-models", "--produce-unsat-cores"]
+
+resetSolver :: Handle -> IO ()
+resetSolver h_in = T.hPutStr h_in "(reset)"
 
 -- | setUpFormulaZ3
 -- Writes a function to Z3
 setUpFormulaZ3 :: Handle -> T.Text -> IO ()
 setUpFormulaZ3 h_in form = do
-    T.hPutStr h_in "(reset)"
+    resetSolver h_in
     T.hPutStr h_in form
 
 setUpFormulaCVC4 :: Handle -> T.Text -> IO ()
 setUpFormulaCVC4 h_in form = do
-    T.hPutStr h_in "(reset)"
+    resetSolver h_in
     -- hPutStr h_in "(set-logic ALL)\n"
     T.hPutStr h_in form
 
 -- Checks if a formula, previously written by setUp formula, is SAT
-checkSat' :: Handle -> Handle -> IO (Result () ())
+checkSat' :: Handle -> Handle -> IO (Result () () ())
 checkSat' h_in h_out = do
     hPutStr h_in "(check-sat)\n"
 
@@ -469,11 +553,10 @@ checkSat' h_in h_out = do
             return $ SAT ()
         else if out == "unsat" then
             return $ UNSAT ()
-        else if "error" `isInfixOf` out
-            then error $ "checkSat': error from SMT solver:\n" ++ out
-            else return (Unknown out)
+        else
+            return (Unknown out ())
     else do
-        return (Unknown "Timeout")
+        return (Unknown "" ())
 
 parseModel :: [(SMTName, String, Sort)] -> SMTModel
 parseModel = foldr (\(n, s) -> M.insert n s) M.empty
@@ -512,6 +595,24 @@ getUnsatCoreZ3 h_in h_out = do
     case words out' of
         "error":_ -> error "getUnsatCoreZ3: Error producing unsat core"
         w -> return w
+
+getUnsatCoreCVC4 :: Handle -> Handle -> IO [SMTName]
+getUnsatCoreCVC4 h_in h_out = do
+    hPutStr h_in "(get-unsat-core)\n"
+    _ <- hWaitForInput h_out (-1)
+    opening_bracket <- hGetLine h_out
+    out <- getCore
+    putStrLn $ "unsat-core = " ++ show out
+
+    return out
+    where
+        getCore = do
+            _ <- hWaitForInput h_out (-1)
+            core <- hGetLine h_out
+            putStrLn $ "getCore " ++ show core
+            case core of
+                ")" -> return []
+                _ -> return . (:) core =<< getCore
 
 getModelCVC4 :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
 getModelCVC4 h_in h_out ns = do

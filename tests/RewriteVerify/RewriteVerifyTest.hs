@@ -181,6 +181,10 @@ treeTestsBad :: TestTree
 treeTestsBad =
   rvTest rejectRule tree_bad_src tree_bad_names
 
+typeSymsTestsGood :: TestTree
+typeSymsTestsGood =
+  rvTest acceptRule "tests/RewriteVerify/Correct/TypeSyms.hs" ["parBuffer"]
+
 rewriteTests :: TestTree
 rewriteTests = testGroup "Rewrite Tests"
         [ rewriteVerifyTestsGood
@@ -191,6 +195,7 @@ rewriteTests = testGroup "Rewrite Tests"
         , higherOrderTestsBad
         , treeTestsGood
         , treeTestsBad
+        , typeSymsTestsGood
         ]
 
 

@@ -157,6 +157,13 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             in
             "let " ++ binds' ++ " in " ++ mkExprHaskell'' off e
         mkExprHaskell'' off (Tick nl e) = "TICK[" ++ printTickish pg nl ++ "]{" ++ mkExprHaskell'' off e ++ "}"
+        mkExprHaskell'' off (Assume m_fc e1 e2) =
+            let
+                print_fc = maybe "" (\fc -> "(" ++ printFuncCallPG pg fc ++ ") ") m_fc
+            in
+            "assume " ++ print_fc
+                ++ "(" ++ mkExprHaskell'' off e1
+                ++ ") (" ++ mkExprHaskell'' off e2 ++ ")"
         mkExprHaskell'' off (Assert m_fc e1 e2) =
             let
                 print_fc = maybe "" (\fc -> "(" ++ printFuncCallPG pg fc ++ ") ") m_fc
@@ -164,6 +171,11 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             "assert " ++ print_fc
                 ++ "(" ++ mkExprHaskell'' off e1
                 ++ ") (" ++ mkExprHaskell'' off e2 ++ ")"
+        mkExprHaskell'' off (NonDet es) =
+            let
+                print_es = map (mkExprHaskell'' off) es
+            in
+            intercalate ("\n" ++ offset off ++ "[NonDet]\n") print_es 
         mkExprHaskell'' _ e = "e = " ++ show e ++ " NOT SUPPORTED"
 
         parenWrap :: Expr -> String -> String
@@ -318,6 +330,8 @@ mkPrimHaskell IntToDouble = "fromIntegral"
 mkPrimHaskell RationalToDouble = "fromRational"
 mkPrimHaskell FromInteger = "fromInteger"
 mkPrimHaskell ToInteger = "toInteger"
+mkPrimHaskell Chr = "chr"
+mkPrimHaskell OrdChar = "ord"
 mkPrimHaskell ToInt = "toInt"
 mkPrimHaskell Error = "error"
 mkPrimHaskell Undefined = "undefined"

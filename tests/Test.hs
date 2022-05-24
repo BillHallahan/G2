@@ -410,7 +410,7 @@ testFileTests = testGroup "TestFiles"
         (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" [Exactly 0]
 
     , checkExpr "tests/TestFiles/CheckSq.hs" 400 "checkSq"
-        [AtLeast 2, RExists (\[x, _] -> isInt x (\x' -> x' == 3))]
+        [AtLeast 2, RExists (\[x, _] -> isInt x (\x' -> x' == 3 || x' == -3))]
 
     , checkExpr "tests/TestFiles/Defunc1.hs" 400 "f"
         [RExists defunc1Add1, RExists defunc1Multiply2, RExists defuncB, AtLeast 3]
@@ -636,6 +636,11 @@ primTests = testGroup "Prims"
     , checkInputOutput "tests/Prim/Prim4.hs" "Prim4" "divIntegerTest" 1500 [AtLeast 1]
     , checkInputOutput "tests/Prim/Prim4.hs" "Prim4" "divIntegerTest2" 1500 [AtLeast 4]
     , checkInputOutput "tests/Prim/Prim4.hs" "Prim4" "divFloatTest" 1500 [AtLeast 1]
+
+    , checkInputOutput "tests/Prim/Chr.hs" "Chr" "lowerLetters" 9000 [AtLeast 1]
+    , checkInputOutput "tests/Prim/Chr.hs" "Chr" "allLetters" 9000 [AtLeast 1]
+    , checkInputOutput "tests/Prim/Chr.hs" "Chr" "printBasedOnChr" 1500 [AtLeast 7]
+    , checkInputOutput "tests/Prim/Chr.hs" "Chr" "printBasedOnOrd" 1500 [AtLeast 7]
     ]
 
 -- To Do Tests

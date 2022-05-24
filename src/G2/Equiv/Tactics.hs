@@ -550,7 +550,7 @@ checkObligations :: S.Solver solver =>
                     StateET ->
                     StateET ->
                     HS.HashSet (Expr, Expr) ->
-                    IO (S.Result () ())
+                    IO (S.Result () () ())
 checkObligations solver s1 s2 obligation_set | not $ HS.null obligation_set =
     case obligationWrap $ modifyASTs stripTicks obligation_set of
         Nothing -> applySolver solver P.empty s1 s2
@@ -563,7 +563,7 @@ applySolver :: S.Solver solver =>
                PathConds ->
                StateET ->
                StateET ->
-               IO (S.Result () ())
+               IO (S.Result () () ())
 applySolver solver extraPC s1 s2 =
     let unionEnv = E.union (expr_env s1) (expr_env s2)
         rightPC = P.toList $ path_conds s2

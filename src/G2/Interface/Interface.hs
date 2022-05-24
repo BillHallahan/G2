@@ -81,7 +81,6 @@ type ReachFunc = T.Text
 type StartFunc = T.Text
 type ModuleName = Maybe T.Text 
 
-type MkArgTypes = IT.SimpleState -> [Type]
 type MkCurrExpr = TypeClasses -> NameGen -> ExprEnv -> TypeEnv -> Walkers
                      -> KnownValues -> Config -> (Expr, [Id], [Expr], NameGen)
 
@@ -175,9 +174,7 @@ initStateFromSimpleState :: IT.SimpleState
                          -> (State (), Bindings)
 initStateFromSimpleState s useAssert mkCurr argTys config =
     let
-        ts = argTys s
-
-        (s', ds_walkers) = runInitialization2 s ts
+        (s', ds_walkers) = runInitialization2 s argTys
         eenv' = IT.expr_env s'
         tenv' = IT.type_env s'
         ng' = IT.name_gen s'
@@ -479,7 +476,7 @@ runG2Solving solver simplifier bindings s@(State { known_values = kv })
                 let m' = reverseSimplification simplifier s bindings m
                 return . Just $ runG2SubstModel m' s bindings
             UNSAT _ -> return Nothing
-            Unknown _ -> return Nothing
+            Unknown _ _ -> return Nothing
 
     | otherwise = return Nothing
 

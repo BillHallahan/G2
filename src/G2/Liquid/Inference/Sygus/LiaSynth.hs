@@ -377,26 +377,36 @@ synth' con ghci eenv tenv meas meas_ex evals m_si fc synth_fc headers drop_if_un
     liftIO $ print m_si
     let consts = arrayConstants m_si
     (constraints, nm_fc_map) <- nonMaxCoeffConstraints ghci eenv tenv meas meas_ex evals m_si (fc `unionFC` synth_fc)
-    let hdrs = consts ++ constraints ++ headers ++ drop_if_unknown
+    let hdrs = SetLogic ALL:consts ++ constraints ++ headers ++ drop_if_unknown
 
     liftIO $ if not (null drop_if_unknown) then putStrLn "non empty drop_if_unknown" else return ()
 
-    mdl <- liftIO $ constraintsToModelOrUnsatCore con hdrs n_for_m
+    -- result <- liftIO $ solveSoftAsserts con hdrs n_for_m
+    result <- return . adjustRes =<< liftIO (constraintsToModelOrUnsatCore con hdrs n_for_m)
 
-    case mdl of
-        SAT mdl' -> do
-            let gs' = modelToGS m_si mdl'
+    case result of
+        SAT mdl -> do
+            let gs' = modelToGS m_si mdl
             liftIO $ print gs'
-            return (SynthEnv gs' sz mdl' blk_mdls synth_fc evals meas_ex)
+            return (SynthEnv gs' sz mdl blk_mdls synth_fc evals meas_ex)
         UNSAT uc ->
             let
                 fc_uc = fromSingletonFC . NotFC . AndFC . map (nm_fc_map HM.!) $ HS.toList uc
             in
             return (SynthFail fc_uc)
-        Unknown _
+        Unknown _ maybe_mdl
             | not (null drop_if_unknown) ->
                 synth' con ghci eenv tenv meas meas_ex evals m_si fc synth_fc headers [] blk_mdls sz
-            | otherwise -> error $ "synth': " ++ show mdl
+            | Just mdl <- maybe_mdl -> do
+                liftIO $ putStrLn "Unknown model!"
+                let gs' = modelToGS m_si mdl
+                liftIO $ print gs'
+                return (SynthEnv gs' sz mdl blk_mdls synth_fc evals meas_ex)
+            | otherwise -> error "synth': Unknown"
+    where
+        adjustRes (SAT m) = SAT m
+        adjustRes (UNSAT uc) = UNSAT uc
+        adjustRes (Unknown e ()) = Unknown e Nothing
 
 ------------------------------------
 -- Handling Models
@@ -617,7 +627,7 @@ checkModelIsNewFunc' con si mdl1 mdl2 = do
     case r of
         SAT _ -> return True
         UNSAT _ -> return False
-        Unknown _ -> error "checkModelIsNewFunc': unknown result"
+        Unknown _ _ -> error "checkModelIsNewFunc': unknown result"
 
 defineModelLIAFuns :: SMTModel -> SpecInfo -> [SMTHeader]
 defineModelLIAFuns mdl si =
@@ -732,11 +742,11 @@ determineRelSynthSpecs m_si mdl1 mdl2 =
     $ M.elems m_si
 
 -- computing F_{Fixed}, i.e. what is the value of known specifications at known points 
-envToSMT :: Evals (Integer, Bool)  -> M.Map Name SpecInfo -> FuncConstraints
+envToSMT :: Evals (Integer, Bool)  -> M.Map Name SpecInfo -> Int -> FuncConstraints
          -> ([SMTHeader], HM.HashMap SMTName FuncConstraint)
-envToSMT evals si fc =
+envToSMT evals si fresh fc =
     let
-        nm_fc = zip ["f" ++ show i | i <- ([1..] :: [Integer])]
+        nm_fc = zip ["f" ++ show i ++ "_" ++ show fresh | i <- ([1..] :: [Integer])]
               . L.nub
               $ allCallsFC fc
 
@@ -951,6 +961,8 @@ arrayConstants si =
 nonMaxCoeffConstraints :: (InfConfigM m, ProgresserM m) => [GhcInfo] -> NMExprEnv -> TypeEnv -> Measures -> MeasureExs -> Evals Bool  -> M.Map Name SpecInfo -> FuncConstraints
                        -> m ([SMTHeader], HM.HashMap SMTName FuncConstraint)
 nonMaxCoeffConstraints ghci eenv tenv meas meas_ex evals m_si fc = do
+    synth_fresh <- synthFreshM
+    incrSynthFreshM
     let evals' = assignIds evals
         
         all_acts = getActs m_si
@@ -966,7 +978,7 @@ nonMaxCoeffConstraints ghci eenv tenv meas meas_ex evals m_si fc = do
         var_op_hdrs = map (flip VarDecl SortBool . TB.text . T.pack) $ L.nub get_ops
 
         def_funs = concatMap defineLIAFuns $ M.elems m_si
-        (env_smt, nm_fc) = envToSMT evals' m_si fc
+        (env_smt, nm_fc) = envToSMT evals' m_si synth_fresh fc
 
         ret_is_non_zero = mkRetNonZero m_si
 

@@ -235,7 +235,7 @@ buildSpecInfo eenv tenv tc meas ghci fc to_be_ns ns_synth = do
     inf_con <- infConfigM
 
     let si''' = if use_invs inf_con
-                    then conflateLoopNames . elimSyArgs $ si''
+                    then allCondsKnown . conflateLoopNames . elimSyArgs $ si''
                     else si''
 
     return si'''
@@ -478,6 +478,14 @@ conflateLoopNames' si = si
 
 conflateLoopNames'' :: PolyBound SynthSpec -> PolyBound SynthSpec -> PolyBound SynthSpec
 conflateLoopNames'' pb1 = mapPB (\(sy1, sy2) -> sy1 { sy_name = sy_name sy2} ) . zipPB pb1
+
+allCondsKnown ::  M.Map a SpecInfo -> M.Map a SpecInfo
+allCondsKnown = M.map allCondsKnown'
+
+allCondsKnown' :: SpecInfo -> SpecInfo
+allCondsKnown' si@(SI { s_syn_post = pb_post@(PolyBound sy_post _) })
+    | take 4 (sy_name sy_post) == "cond" = si { s_status = Known }
+allCondsKnown' si = si
 
 ----------------------------------------------------------------------------
 

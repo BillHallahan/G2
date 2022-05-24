@@ -81,6 +81,9 @@ data SMTAST = (:>=) !SMTAST !SMTAST
 
             | Forall [(SMTName, Sort)] !SMTAST
 
+            | FromCode !SMTAST
+            | ToCode !SMTAST
+
             | VInt Integer
             | VFloat Rational
             | VDouble Rational
@@ -131,7 +134,7 @@ mkSMTAnd = SmtAnd
 mkSMTOr :: [SMTAST] -> SMTAST
 mkSMTOr = SmtOr
 
-isSat :: Result m u -> Bool
+isSat :: Result m u um -> Bool
 isSat (SAT _) = True
 isSat _ = False
 
@@ -180,6 +183,9 @@ instance AST SMTAST where
     children (Ite x x' x'') = [x, x', x'']
     children (SLet (_, x) x') = [x, x']
 
+    children (FromCode x) = [x]
+    children (ToCode x) = [x]
+
     children _ = []
 
     modifyChildren f (x :>= y) = f x :>= f y
@@ -199,6 +205,9 @@ instance AST SMTAST where
     modifyChildren f (x :* y) = f x :* f y
     modifyChildren f (x :/ y) = f x :/ f y
     modifyChildren f (Neg x) = Neg (f x)
+
+    modifyChildren f (FromCode x) = FromCode (f x)
+    modifyChildren f (ToCode x) = ToCode (f x)
 
     modifyChildren f (Ite x x' x'') = Ite (f x) (f x') (f x'')
     modifyChildren f (SLet (n, x) x') = SLet (n, f x) (f x')
