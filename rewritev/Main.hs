@@ -95,8 +95,8 @@ runWithArgs as = do
   --print proj
   --putStrLn "END PROJ"
   proj' <- getDirsRecursive proj
-  --print proj'
-  --putStrLn "END FULL PROJ"
+  print proj'
+  putStrLn "END FULL PROJ"
 
   -- TODO expand proj to a list of file paths
   -- what algorithm for doing that?
