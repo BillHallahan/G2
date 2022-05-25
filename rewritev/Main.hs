@@ -37,9 +37,17 @@ import Control.Monad
 
 import ZenoSuite
 
---import Compat -- .Distribution -- .Simple.BuildToolDepends
+import Distribution.Simple.BuildToolDepends
 
-import Distribution.Simple.BuildToolDepends -- .Compat.Directory
+import Distribution.Types.GenericPackageDescription
+import Distribution.Types.CondTree
+import Distribution.Types.Library
+import Distribution.Types.BuildInfo
+import Distribution.PackageDescription.Parse
+import Distribution.Verbosity
+import qualified Distribution.ModuleName as MN
+import G2.Translation.Haskell
+import System.FilePath
 
 main :: IO ()
 main = do
@@ -87,27 +95,44 @@ runWithArgs as = do
         Just n -> read (tail_args !! (n + 1)) :: Int
 
   proj <- guessProj src
-  --putStrLn "BEGIN PROJ"
+  putStrLn "BEGIN PROJ"
   -- TODO for test files, this is what I expect it to be
   -- the file path goes up to G2
   -- it looks right for primitive-simd also
   -- a cabal file is at that location
-  --print proj
-  --putStrLn "END PROJ"
-  proj' <- getDirsRecursive proj
-  print proj'
-  putStrLn "END FULL PROJ"
+  print proj
+  putStrLn "END PROJ"
+  --proj' <- getDirsRecursive proj
+  --print proj'
+  --putStrLn "END FULL PROJ"
 
   -- TODO expand proj to a list of file paths
   -- what algorithm for doing that?
   -- TODO check which ones are directories, make absolute, add to proj
   -- do this recursively until the bottom is reached
   -- doesDirectoryExist will help with this
-  dirs <- listDirectory proj
-  dirs' <- getSearchPath
+  --dirs <- listDirectory proj
+  --dirs' <- getSearchPath
   --putStrLn "DIRS"
   --print dirs
-  putStrLn "END DIRS"
+  --putStrLn "END DIRS"
+
+  -- TODO this isn't a file path; it's just one name
+  cabal <- findCabal proj
+  let cab = case cabal of
+              Just c -> proj </> c
+              Nothing -> error "No Cabal"
+  putStrLn "BEGIN CABAL"
+  print cab
+  putStrLn "END CABAL"
+  gpd <- readGenericPackageDescription silent cab
+  let cn = case condLibrary gpd of
+             Just c@(CondNode _ _ _) -> c
+             Nothing -> error "No Library"
+  print $ hsSourceDirs $ libBuildInfo $ condTreeData cn
+  let paths = map MN.toFilePath $ exposedModules $ condTreeData cn
+      proj' = map (proj </>) paths
+  print proj'
 
   -- TODO for now, total as long as there's an extra arg
   -- TODO finite variables

@@ -162,6 +162,7 @@ library
 
                        , G2.Translation
                        , G2.Translation.Cabal.Cabal
+                       , G2.Translation.Haskell
   other-modules:         G2.Config.Config
                        , G2.Config.Interface
                        , G2.Config.ParseConfig
@@ -178,7 +179,6 @@ library
                        , G2.Solver.ParseSMT
                        , G2.Solver.SMT2
 
-                       , G2.Translation.Haskell
                        , G2.Translation.HaskellCheck
                        , G2.Translation.InjectSpecials
                        , G2.Translation.Interface
