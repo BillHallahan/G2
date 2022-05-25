@@ -9,7 +9,11 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
-module G2.Solver.SMT2 where
+module G2.Solver.SMT2 ( Z3
+                      , CVC4
+                      , SomeSMTSolver (..)
+                      , getSMT
+                      , getSMTAV) where
 
 import G2.Config.Config
 import G2.Language.ArbValueGen
@@ -131,29 +135,6 @@ instance SMTConverter Z3 where
         else do
             return (Unknown "" ())
 
-    checkSatGetModelGetExpr con formula _ vs eenv (CurrExpr _ e) = do
-        let (h_in, h_out, _) = getIOZ3 con
-        setUpFormulaZ3 h_in (TB.run $ toSolverText formula)
-        -- putStrLn "\n\n checkSatGetModelGetExpr"
-        -- putStrLn formula
-        r <- checkSat' h_in h_out
-        -- putStrLn $ "r =  " ++ show r
-        case r of
-            SAT () -> do
-                mdl <- getModelZ3 h_in h_out vs
-                -- putStrLn "======"
-                -- putStrLn formula
-                -- putStrLn ""
-                -- putStrLn (show mdl)
-                -- putStrLn "======"
-                let m = parseModel mdl
-
-                expr <- solveExpr h_in h_out con eenv e
-                -- putStrLn (show expr)
-                return (SAT m, Just expr)
-            UNSAT () -> return (UNSAT (), Nothing)
-            Unknown s _ -> return (Unknown s (), Nothing)
-
     push con = do
         let (h_in, _, _) = getIOZ3 con
         T.hPutStrLn h_in "(push)"
@@ -237,29 +218,6 @@ instance SMTConverter CVC4 where
             return (UNSAT $ HS.fromList uc)
         else do
             return (Unknown "" ())
-
-    checkSatGetModelGetExpr con formula _ vs eenv (CurrExpr _ e) = do
-        let (h_in, h_out, _) = getIOCVC4 con
-        setUpFormulaCVC4 h_in (TB.run $ toSolverText formula)
-        -- putStrLn "\n\n checkSatGetModelGetExpr"
-        -- putStrLn formula
-        r <- checkSat' h_in h_out
-        -- putStrLn $ "r =  " ++ show r
-        case r of
-            SAT _ -> do
-                mdl <- getModelCVC4 h_in h_out vs
-                -- putStrLn "======"
-                -- putStrLn formula
-                -- putStrLn ""
-                -- putStrLn (show mdl)
-                -- putStrLn "======"
-                let m = parseModel mdl
-
-                expr <- solveExpr h_in h_out con eenv e
-                -- putStrLn (show expr)
-                return (SAT m, Just expr)
-            UNSAT _ -> return (UNSAT (), Nothing)
-            Unknown s _ -> return (Unknown s (), Nothing)
 
     push con = do
         let (h_in, _, _) = getIOCVC4 con

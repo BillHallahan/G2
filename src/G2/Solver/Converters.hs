@@ -63,9 +63,6 @@ class Solver con => SMTConverter con where
         setProduceUnsatCores con
         checkSatGetModelOrUnsatCoreNoReset con out get
 
-    checkSatGetModelGetExpr :: con -> [SMTHeader] -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> CurrExpr
-                            -> IO (Result SMTModel () (), Maybe Expr)
-
     -- Incremental
     push :: con -> IO ()
     pop :: con -> IO ()
