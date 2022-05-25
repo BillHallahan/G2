@@ -56,7 +56,7 @@ data SynthRes = SynthEnv
 
 type Size = Integer
 
-liaSynth :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
+liaSynth :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con)
          => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
          -> FuncConstraints
          -> BlockedModels -- ^ SMT Models to block being returned by the synthesizer at various sizes
@@ -262,7 +262,7 @@ mkBoolForms prd sz max_sz s psi j k =
             isBool SortBool = True
             isBool _ = False
 
-synth :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
+synth :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con)
       => con
       -> [GhcInfo]
       -> NMExprEnv
@@ -329,7 +329,7 @@ synth con ghci eenv tenv meas meas_ex evals si fc blk_mdls sz = do
             | sz < max_sz -> synth con ghci eenv tenv meas meas_ex evals si fc blk_mdls (sz + 1)
             | otherwise -> return res
     
-synth' :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
+synth' :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con)
        => con
        -> [GhcInfo]
        -> NMExprEnv
@@ -559,7 +559,7 @@ blockModelWithFuns si s mdl =
 -- This avoids the need for non linear arithmetic, but allows us to quickly
 -- reject newly synthesized specifications that are identical to some previous
 -- specifications.
-checkModelIsNewFunc :: (MonadIO m, SMTConverter con ast out io) => con -> M.Map Name SpecInfo -> SMTModel -> [(ModelNames, SMTModel)] -> m (Maybe (ModelNames, SMTModel))
+checkModelIsNewFunc :: (MonadIO m, SMTConverter con) => con -> M.Map Name SpecInfo -> SMTModel -> [(ModelNames, SMTModel)] -> m (Maybe (ModelNames, SMTModel))
 checkModelIsNewFunc _ _ _ [] = return Nothing
 checkModelIsNewFunc con si mdl ((mdl_nm, mdl'):mdls) = do
     b' <- checkModelIsNewFunc' con si mdl mdl'
@@ -575,7 +575,7 @@ checkModelIsNewFunc con si mdl ((mdl_nm, mdl'):mdls) = do
                 putStrLn $ "diff 2 = " ++ show (M.toList mdl L.\\ M.toList mdl')
             return (Just (mdl_nm, mdl'))
 
-checkModelIsNewFunc' :: (MonadIO m, SMTConverter con ast out io) => con -> M.Map Name SpecInfo -> SMTModel -> SMTModel -> m Bool
+checkModelIsNewFunc' :: (MonadIO m, SMTConverter con) => con -> M.Map Name SpecInfo -> SMTModel -> SMTModel -> m Bool
 checkModelIsNewFunc' con si mdl1 mdl2 = do
     let e_si = M.elems $ M.filter (\si' -> s_status si' == Synth) si
 

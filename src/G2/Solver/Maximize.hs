@@ -11,7 +11,7 @@ import Data.List as L
 import qualified Data.Map as M
 import Text.Builder
 
-solveSoftAsserts :: SMTConverter con ast out io => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore (Maybe SMTModel))
+solveSoftAsserts :: SMTConverter con => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore (Maybe SMTModel))
 solveSoftAsserts con headers vs = do
     let (soft_asserts, other_headers) =
             partition (\h -> case h of AssertSoft _ _ -> True; _ -> False) $ elimSetLogic headers
@@ -29,7 +29,7 @@ solveSoftAsserts con headers vs = do
 type Minimum = Integer
 type Maximum = Integer
 
-solveSoftAsserts' :: SMTConverter con ast out io =>
+solveSoftAsserts' :: SMTConverter con =>
                      con
                   -> [(SMTName, Sort)]
                   -> Maybe SMTModel

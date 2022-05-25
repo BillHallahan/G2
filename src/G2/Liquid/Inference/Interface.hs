@@ -138,7 +138,7 @@ type NameLevels = [[Name]]
 
 type MaxSizeConstraints = FuncConstraints
 
-iterativeInference :: (MonadIO m, SMTConverter con ast out io)
+iterativeInference :: (MonadIO m, SMTConverter con)
                    => con
                    -> [GhcInfo]
                    -> Maybe T.Text
@@ -181,7 +181,7 @@ iterativeInference con ghci m_modname lrs nls meas_ex gs fc = do
                     iterativeInference con ghci m_modname lrs nls r_meas_ex' gs (unionFC fc' r_fc)
 
 
-inferenceL :: (MonadIO m, SMTConverter con ast out io)
+inferenceL :: (MonadIO m, SMTConverter con)
            => con
            -> [GhcInfo]
            -> Maybe T.Text
@@ -225,7 +225,7 @@ inferenceL con ghci m_modname lrs nls evals meas_ex senv fc max_fc blk_mdls = do
                         _ -> return inf_res
         _ -> return resAtL
 
-inferenceB :: (MonadIO m, SMTConverter con ast out io)
+inferenceB :: (MonadIO m, SMTConverter con)
            => con
            -> [GhcInfo]
            -> Maybe T.Text
@@ -553,7 +553,7 @@ updateMeasureExs meas_ex lrs ghci fcs =
     in
     evalMeasures meas_ex lrs ghci es
 
-synthesize :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
+synthesize :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con)
            => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
            -> FuncConstraints -> BlockedModels -> [Name] -> [Name] -> m SynthRes
 synthesize con ghci lrs evals meas_ex fc blk_mdls to_be for_funcs = do
