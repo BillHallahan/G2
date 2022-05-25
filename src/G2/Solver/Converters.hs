@@ -48,7 +48,16 @@ import G2.Solver.Solver
 class Solver con => SMTConverter con where
     closeIO :: con -> IO ()
 
+    killQuery :: con -> IO ()
+
     reset :: con -> IO ()
+
+    checkSatInstr :: con -> IO ()
+    maybeCheckSatResult :: con -> IO (Maybe (Result () () ()))
+
+    getModelInstrResult :: con -> [(SMTName, Sort)] -> IO SMTModel
+    getUnsatCoreInstrResult :: con -> IO UnsatCore
+
     setProduceUnsatCores :: con -> IO ()
 
     addFormula :: con -> [SMTHeader] -> IO ()

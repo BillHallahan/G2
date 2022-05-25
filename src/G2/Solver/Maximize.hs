@@ -1,15 +1,24 @@
-module G2.Solver.Maximize ( MaximizeSolver (..)
+module G2.Solver.Maximize ( MaximizeSolver
+                          , mkMaximizeSolver
                           , solveSoftAsserts) where
 
 import G2.Solver.Converters
 import G2.Solver.Language
 import G2.Solver.Solver
 
+import Control.Concurrent
+import Data.IORef
 import Data.List as L
 import qualified Data.Map as M
 import Text.Builder
 
-data MaximizeSolver con = MaxSolver con
+data MaximizeSolver con = MaxSolver (IORef (Maybe ThreadId)) (IORef (Maybe (Result () () ()))) con
+
+mkMaximizeSolver :: SMTConverter con => con -> IO (MaximizeSolver con)
+mkMaximizeSolver con = do
+    thread_ioref <- newIORef Nothing
+    res_ioref <- newIORef Nothing
+    return $ MaxSolver thread_ioref res_ioref con
 
 instance SMTConverter con => Solver (MaximizeSolver con) where
     check solver _ pc = checkConstraintsPC solver pc
@@ -17,23 +26,45 @@ instance SMTConverter con => Solver (MaximizeSolver con) where
     close = closeIO
 
 instance SMTConverter con => SMTConverter (MaximizeSolver con) where
-    closeIO (MaxSolver con) = closeIO con
+    closeIO (MaxSolver _ _ con) = closeIO con
 
-    reset (MaxSolver con) = reset con
+    reset (MaxSolver _ _ con) = reset con
 
-    setProduceUnsatCores (MaxSolver con) = setProduceUnsatCores con
+    killQuery (MaxSolver thread_ioref _ con) = do
+        maybe (return ()) killThread =<< readIORef thread_ioref
+        killQuery con
 
-    addFormula (MaxSolver con) form = addFormula con form
+    checkSatInstr (MaxSolver thread_ioref res_ioref con) = do
+        maybe (return ()) killThread =<< readIORef thread_ioref
+        writeIORef res_ioref Nothing
+        thread <- forkIO (do
+                            res <- solveSoftAsserts con [] []
+                            case res of
+                                SAT _ -> writeIORef res_ioref $ Just (SAT ())
+                                UNSAT _ -> writeIORef res_ioref $ Just (UNSAT ())
+                                Unknown err _ -> writeIORef res_ioref $ Just (Unknown err ())
+                            )
+        writeIORef thread_ioref (Just thread)
+        return ()
 
-    checkSatGetModelOrUnsatCoreNoReset (MaxSolver con) headers vs = do
+    maybeCheckSatResult (MaxSolver _ res_ioref _) = readIORef res_ioref
+
+    getModelInstrResult (MaxSolver _ _ con) = getModelInstrResult con
+    getUnsatCoreInstrResult (MaxSolver _ _ con) = getUnsatCoreInstrResult con
+
+    setProduceUnsatCores (MaxSolver _ _ con) = setProduceUnsatCores con
+
+    addFormula (MaxSolver _ _ con) form = addFormula con form
+
+    checkSatGetModelOrUnsatCoreNoReset (MaxSolver _ _ con) headers vs = do
         res <- solveSoftAsserts con headers vs
         case res of
             SAT mdl -> return (SAT mdl)
             UNSAT uc -> return (UNSAT uc)
             Unknown err _ -> return (Unknown err ())
 
-    -- We don't need to produce a model, so we can just ignore all soft assertions
-    checkSat (MaxSolver con) headers = checkSat con $ filter (\h -> case h of AssertSoft _ _ -> False; _ -> True) headers
+    -- We don't need to produce a model, because this resets, so we can just ignore all soft assertions
+    checkSat (MaxSolver _ _ con) headers = checkSat con $ filter (\h -> case h of AssertSoft _ _ -> False; _ -> True) headers
 
     checkSatGetModel con headers vs = do
         res <- solveSoftAsserts con headers vs
@@ -42,8 +73,8 @@ instance SMTConverter con => SMTConverter (MaximizeSolver con) where
             UNSAT _ -> return (UNSAT ())
             Unknown err _ -> return (Unknown err ())
 
-    push (MaxSolver con) = push con
-    pop (MaxSolver con) = pop con
+    push (MaxSolver _ _ con) = push con
+    pop (MaxSolver _ _ con) = pop con
 
 solveSoftAsserts :: SMTConverter con => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore (Maybe SMTModel))
 solveSoftAsserts con headers vs = do
