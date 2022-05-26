@@ -1,6 +1,5 @@
 module G2.Solver.Maximize ( MaximizeSolver
-                          , mkMaximizeSolver
-                          , solveSoftAsserts) where
+                          , mkMaximizeSolver) where
 
 import G2.Solver.Converters
 import G2.Solver.Language
@@ -12,33 +11,35 @@ import Data.List as L
 import qualified Data.Map as M
 import Text.Builder
 
-data MaximizeSolver con = MaxSolver (IORef (Maybe ThreadId)) (IORef (Maybe (Result () () ()))) con
+data MaximizeSolver con = MaxSolver (IORef (Maybe ThreadId)) (IORef (Maybe (Result () () ()))) (IORef [SMTHeader]) con
 
 mkMaximizeSolver :: SMTConverter con => con -> IO (MaximizeSolver con)
 mkMaximizeSolver con = do
     thread_ioref <- newIORef Nothing
     res_ioref <- newIORef Nothing
-    return $ MaxSolver thread_ioref res_ioref con
+    headers_io_ref <- newIORef []
+    return $ MaxSolver thread_ioref res_ioref headers_io_ref con
 
 instance SMTConverter con => Solver (MaximizeSolver con) where
     check solver _ pc = checkConstraintsPC solver pc
-    solve con = checkModelPC undefined con
+    solve (MaxSolver _ _ _ con) = solve con
     close = closeIO
 
 instance SMTConverter con => SMTConverter (MaximizeSolver con) where
-    closeIO (MaxSolver _ _ con) = closeIO con
-
-    reset (MaxSolver _ _ con) = reset con
-
-    killQuery (MaxSolver thread_ioref _ con) = do
+    closeIO (MaxSolver thread_ioref _ _ con) = do
         maybe (return ()) killThread =<< readIORef thread_ioref
-        killQuery con
+        closeIO con
 
-    checkSatInstr (MaxSolver thread_ioref res_ioref con) = do
+    reset (MaxSolver _ _ headers_io_ref con) = do
+        writeIORef headers_io_ref []
+        reset con
+
+    checkSatInstr (MaxSolver thread_ioref res_ioref headers_io_ref con) = do
         maybe (return ()) killThread =<< readIORef thread_ioref
         writeIORef res_ioref Nothing
+        added <- readIORef headers_io_ref
         thread <- forkIO (do
-                            res <- solveSoftAsserts con [] []
+                            res <- solveSoftAsserts con added []
                             case res of
                                 SAT _ -> writeIORef res_ioref $ Just (SAT ())
                                 UNSAT _ -> writeIORef res_ioref $ Just (UNSAT ())
@@ -47,34 +48,36 @@ instance SMTConverter con => SMTConverter (MaximizeSolver con) where
         writeIORef thread_ioref (Just thread)
         return ()
 
-    maybeCheckSatResult (MaxSolver _ res_ioref _) = readIORef res_ioref
+    maybeCheckSatResult (MaxSolver _ res_ioref _ _) = readIORef res_ioref
 
-    getModelInstrResult (MaxSolver _ _ con) = getModelInstrResult con
-    getUnsatCoreInstrResult (MaxSolver _ _ con) = getUnsatCoreInstrResult con
+    getModelInstrResult (MaxSolver _ _ _ con) = getModelInstrResult con
+    getUnsatCoreInstrResult (MaxSolver _ _ _ con) = getUnsatCoreInstrResult con
 
-    setProduceUnsatCores (MaxSolver _ _ con) = setProduceUnsatCores con
+    setProduceUnsatCores (MaxSolver _ _ _ con) = setProduceUnsatCores con
 
-    addFormula (MaxSolver _ _ con) form = addFormula con form
+    addFormula (MaxSolver _ _ headers_io_ref con) form = modifyIORef' headers_io_ref (form ++)
 
-    checkSatGetModelOrUnsatCoreNoReset (MaxSolver _ _ con) headers vs = do
-        res <- solveSoftAsserts con headers vs
+    checkSatGetModelOrUnsatCoreNoReset (MaxSolver _ _ headers_io_ref con) headers vs = do
+        added <- readIORef headers_io_ref
+        res <- solveSoftAsserts con (added ++ headers) vs
         case res of
             SAT mdl -> return (SAT mdl)
             UNSAT uc -> return (UNSAT uc)
             Unknown err _ -> return (Unknown err ())
 
     -- We don't need to produce a model, because this resets, so we can just ignore all soft assertions
-    checkSat (MaxSolver _ _ con) headers = checkSat con $ filter (\h -> case h of AssertSoft _ _ -> False; _ -> True) headers
+    checkSat (MaxSolver _ _ _ con) headers = checkSat con $ filter (\h -> case h of AssertSoft _ _ -> False; _ -> True) headers
 
-    checkSatGetModel con headers vs = do
-        res <- solveSoftAsserts con headers vs
+    checkSatGetModel con@(MaxSolver _ _ headers_io_ref _) headers vs = do
+        added <- readIORef headers_io_ref
+        res <- solveSoftAsserts con (added ++ headers) vs
         case res of
             SAT mdl -> return (SAT mdl)
             UNSAT _ -> return (UNSAT ())
             Unknown err _ -> return (Unknown err ())
 
-    push (MaxSolver _ _ con) = push con
-    pop (MaxSolver _ _ con) = pop con
+    push (MaxSolver _ _ _ con) = push con
+    pop (MaxSolver _ _ _ con) = pop con
 
 solveSoftAsserts :: SMTConverter con => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore (Maybe SMTModel))
 solveSoftAsserts con headers vs = do
@@ -109,11 +112,12 @@ solveSoftAsserts' con vs mb_mdl fresh min_ max_ = do
     putStrLn $ "min = " ++ show min_ ++ ", max = " ++ show max_ ++ ", target = " ++ show target
     push con
     res <- constraintsToModelOrUnsatCoreNoReset con [target_assert] ((totalVarName, SortInt):vs)
-    pop con
     case res of
         SAT mdl | Just (VInt new_min_) <- m_new_min
                 , new_min_ == max_ -> return $ SAT mdl
-                | Just (VInt new_min_) <- m_new_min -> solveSoftAsserts' con vs (Just mdl) (fresh + 1) (new_min_ + 1) max_
+                | Just (VInt new_min_) <- m_new_min -> do
+                    pop con
+                    solveSoftAsserts' con vs (Just mdl) (fresh + 1) (new_min_ + 1) max_
                 -- Should be unreachable because totalVarName should always be in the model
                 | otherwise -> error "solveSoftAsserts': Impossible case"
             where
@@ -123,7 +127,9 @@ solveSoftAsserts' con vs mb_mdl fresh min_ max_ = do
                  -- Should be unreachable, because if min_ is not 0, we have found a model.
                  -- But if min_ == max_ == 0, target == 0, and we hit the first case.
                  | min_ == max_ -> error "solveSoftAsserts': Impossible case"
-                 | otherwise -> solveSoftAsserts' con vs mb_mdl (fresh + 1) min_ (target - 1)
+                 | otherwise -> do
+                    pop con
+                    solveSoftAsserts' con vs mb_mdl (fresh + 1) min_ (target - 1)
         Unknown err _ -> return $ Unknown err mb_mdl
 
 totalVarName :: SMTName
