@@ -68,7 +68,7 @@ translateLoaded :: [FilePath]
 translateLoaded proj src libs tr_con config = do
   -- Stuff with the actual target
   let def_proj = extraDefaultInclude config
-  tar_ems <- envModSumModGuts (Just HscInterpreted) (def_proj ++ proj) src tr_con
+  tar_ems <- envModSumModGuts Nothing (def_proj ++ proj) src tr_con
   let imports = envModSumModGutsImports tar_ems
   extra_imp <- return . catMaybes =<< mapM (findImports (baseInclude config)) imports
 

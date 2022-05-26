@@ -132,12 +132,13 @@ runWithArgs as = do
              Nothing -> error "No Library"
   print $ hsSourceDirs $ libBuildInfo $ condTreeData cn
   -- TODO there were 8 before but we have 7 now
-  let sources = foldr (\l acc -> l:acc) [] cn
-      modules = concat $ map exposedModules sources
-      others = concat $ map (otherModules . libBuildInfo) sources
-      paths = map MN.toFilePath $
+  let libs = foldr (\l acc -> l:acc) [] cn
+      modules = concat $ map exposedModules libs
+      sources = concat $ map (hsSourceDirs . libBuildInfo) libs
+      others = concat $ map (otherModules . libBuildInfo) libs
+      paths = sources ++ (map MN.toFilePath $
               (exposedModules $ condTreeData cn) ++ modules ++ others ++
-              (otherModules $ libBuildInfo $ condTreeData cn)
+              (otherModules $ libBuildInfo $ condTreeData cn))
       proj' = map (proj </>) paths
   print proj'
 
