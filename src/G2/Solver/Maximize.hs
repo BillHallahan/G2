@@ -30,7 +30,9 @@ instance SMTConverter con => SMTConverter (MaximizeSolver con) where
         maybe (return ()) killThread =<< readIORef thread_ioref
         closeIO con
 
-    reset (MaxSolver _ _ headers_io_ref con) = do
+    reset (MaxSolver thread_ioref res_ioref headers_io_ref con) = do
+        maybe (return ()) killThread =<< readIORef thread_ioref
+        writeIORef res_ioref Nothing
         writeIORef headers_io_ref []
         reset con
 
@@ -66,11 +68,13 @@ instance SMTConverter con => SMTConverter (MaximizeSolver con) where
             Unknown err _ -> return (Unknown err ())
 
     -- We don't need to produce a model, because this resets, so we can just ignore all soft assertions
-    checkSat (MaxSolver _ _ _ con) headers = checkSat con $ filter (\h -> case h of AssertSoft _ _ -> False; _ -> True) headers
+    checkSat max_solver@(MaxSolver _ _ _ con) headers = do
+        reset max_solver
+        checkSat con $ filter (\h -> case h of AssertSoft _ _ -> False; _ -> True) headers
 
-    checkSatGetModel con@(MaxSolver _ _ headers_io_ref _) headers vs = do
-        added <- readIORef headers_io_ref
-        res <- solveSoftAsserts con (added ++ headers) vs
+    checkSatGetModel con@(MaxSolver _ _ _ _) headers vs = do
+        reset con
+        res <- solveSoftAsserts con headers vs
         case res of
             SAT mdl -> return (SAT mdl)
             UNSAT _ -> return (UNSAT ())
