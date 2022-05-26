@@ -41,12 +41,8 @@ instance SMTConverter con => SMTConverter (MaximizeSolver con) where
         writeIORef res_ioref Nothing
         added <- readIORef headers_io_ref
         thread <- forkIO (do
-                            res <- solveSoftAsserts con added []
-                            case res of
-                                SAT _ -> writeIORef res_ioref $ Just (SAT ())
-                                UNSAT _ -> writeIORef res_ioref $ Just (UNSAT ())
-                                Unknown err _ -> writeIORef res_ioref $ Just (Unknown err ())
-                            )
+                            res <- solveSoftAsserts con added
+                            writeIORef res_ioref (Just res))
         writeIORef thread_ioref (Just thread)
         return ()
 
@@ -61,10 +57,14 @@ instance SMTConverter con => SMTConverter (MaximizeSolver con) where
 
     checkSatGetModelOrUnsatCoreNoReset (MaxSolver _ _ headers_io_ref con) headers vs = do
         added <- readIORef headers_io_ref
-        res <- solveSoftAsserts con (added ++ headers) vs
+        res <- solveSoftAsserts con (added ++ headers)
         case res of
-            SAT mdl -> return (SAT mdl)
-            UNSAT uc -> return (UNSAT uc)
+            SAT _ -> do
+                mdl <- getModelInstrResult con vs
+                return (SAT mdl)
+            UNSAT _ -> do
+                uc <- getUnsatCoreInstrResult con
+                return (UNSAT uc)
             Unknown err _ -> return (Unknown err ())
 
     -- We don't need to produce a model, because this resets, so we can just ignore all soft assertions
@@ -74,17 +74,19 @@ instance SMTConverter con => SMTConverter (MaximizeSolver con) where
 
     checkSatGetModel con@(MaxSolver _ _ _ _) headers vs = do
         reset con
-        res <- solveSoftAsserts con headers vs
+        res <- solveSoftAsserts con headers
         case res of
-            SAT mdl -> return (SAT mdl)
+            SAT _ -> do
+                mdl <- getModelInstrResult con vs
+                return (SAT mdl)
             UNSAT _ -> return (UNSAT ())
             Unknown err _ -> return (Unknown err ())
 
     push (MaxSolver _ _ _ con) = push con
     pop (MaxSolver _ _ _ con) = pop con
 
-solveSoftAsserts :: SMTConverter con => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore (Maybe SMTModel))
-solveSoftAsserts con headers vs = do
+solveSoftAsserts :: SMTConverter con => con -> [SMTHeader] -> IO (Result () () ())
+solveSoftAsserts con headers = do
     let (soft_asserts, other_headers) =
             partition (\h -> case h of AssertSoft _ _ -> True; _ -> False) $ elimSetLogic headers
         set_logic = getSetLogic headers
@@ -95,46 +97,49 @@ solveSoftAsserts con headers vs = do
         var_decl = VarDecl (string totalVarName) SortInt
     setProduceUnsatCores con
     addHeaders con (set_logic ++ var_decl:other_headers ++ [new_assert])
-    solveSoftAsserts' con vs Nothing 0 0 (genericLength soft_asserts)
+    solveSoftAsserts' con Nothing 0 0 (genericLength soft_asserts)
 
 type Minimum = Integer
 type Maximum = Integer
 
 solveSoftAsserts' :: SMTConverter con =>
                      con
-                  -> [(SMTName, Sort)]
                   -> Maybe SMTModel
                   -> Int
                   -> Minimum
                   -> Maximum
-                  -> IO (Result SMTModel UnsatCore (Maybe SMTModel))
-solveSoftAsserts' con vs mb_mdl fresh min_ max_ = do
+                  -> IO (Result () () ())
+solveSoftAsserts' con mb_mdl fresh min_ max_ = do
     let (target_q, target_r) = (min_ + max_) `quotRem` 2
         target = target_q + target_r
         target_assert = Assert $ V totalVarName SortInt :>= VInt target
 
     putStrLn $ "min = " ++ show min_ ++ ", max = " ++ show max_ ++ ", target = " ++ show target
     push con
-    res <- constraintsToModelOrUnsatCoreNoReset con [target_assert] ((totalVarName, SortInt):vs)
+    res <- constraintsToModelOrUnsatCoreNoReset con [target_assert] [(totalVarName, SortInt)]
     case res of
         SAT mdl | Just (VInt new_min_) <- m_new_min
-                , new_min_ == max_ -> return $ SAT mdl
+                , new_min_ == max_ -> return $ SAT ()
                 | Just (VInt new_min_) <- m_new_min -> do
-                    pop con
-                    solveSoftAsserts' con vs (Just mdl) (fresh + 1) (new_min_ + 1) max_
+                    -- If we are increasing the minimum depth, we do NOT want to remove
+                    -- our previous limit assertion, so that if we later get a model, that
+                    -- limit assertion is still in place.
+                    solveSoftAsserts' con (Just mdl) (fresh + 1) (new_min_ + 1) max_
                 -- Should be unreachable because totalVarName should always be in the model
                 | otherwise -> error "solveSoftAsserts': Impossible case"
             where
                m_new_min = M.lookup totalVarName mdl
-        UNSAT uc | target == 0 -> return $ UNSAT uc
-                 | min_ == max_, Just mdl <- mb_mdl -> return $ SAT mdl
-                 -- Should be unreachable, because if min_ is not 0, we have found a model.
-                 -- But if min_ == max_ == 0, target == 0, and we hit the first case.
-                 | min_ == max_ -> error "solveSoftAsserts': Impossible case"
-                 | otherwise -> do
+        UNSAT _ | target == 0 -> return $ UNSAT ()
+                | min_ == max_ -> do
                     pop con
-                    solveSoftAsserts' con vs mb_mdl (fresh + 1) min_ (target - 1)
-        Unknown err _ -> return $ Unknown err mb_mdl
+                    return $ SAT ()
+                -- Should be unreachable, because if min_ is not 0, we have found a model.
+                -- But if min_ == max_ == 0, target == 0, and we hit the first case.
+                | min_ == max_ -> error "solveSoftAsserts': Impossible case"
+                | otherwise -> do
+                  pop con
+                  solveSoftAsserts' con mb_mdl (fresh + 1) min_ (target - 1)
+        Unknown err _ -> return $ Unknown err ()
 
 totalVarName :: SMTName
 totalVarName = "solveSoftAsserts_SUM_VAR"
