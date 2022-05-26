@@ -126,11 +126,18 @@ runWithArgs as = do
   print cab
   putStrLn "END CABAL"
   gpd <- readGenericPackageDescription silent cab
+  -- TODO traverse over the whole CondTree
   let cn = case condLibrary gpd of
              Just c@(CondNode _ _ _) -> c
              Nothing -> error "No Library"
   print $ hsSourceDirs $ libBuildInfo $ condTreeData cn
-  let paths = map MN.toFilePath $ exposedModules $ condTreeData cn
+  -- TODO there were 8 before but we have 7 now
+  let sources = foldr (\l acc -> l:acc) [] cn
+      modules = concat $ map exposedModules sources
+      others = concat $ map (otherModules . libBuildInfo) sources
+      paths = map MN.toFilePath $
+              (exposedModules $ condTreeData cn) ++ modules ++ others ++
+              (otherModules $ libBuildInfo $ condTreeData cn)
       proj' = map (proj </>) paths
   print proj'
 
