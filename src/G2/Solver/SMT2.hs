@@ -1,6 +1,7 @@
 -- | This defines an SMTConverter for the SMT2 language
 -- It provides methods to construct formulas, as well as feed them to an external solver
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
@@ -62,7 +63,14 @@ getIOZ3 (Z3 _ hhp) = hhp
 
 instance SMTConverter Z3 where
     closeIO (Z3 _ (h_in, h_out, ph)) = do
+#if MIN_VERSION_process(1,6,4)
         cleanupProcess (Just h_in, Just h_out, Nothing, ph)
+#else
+        T.hPutStrLn h_in "(exit)"
+        _ <- waitForProcess ph
+        hClose h_in
+        hClose h_out
+#endif
 
     reset con = do
         let (h_in, _, _) = getIOZ3 con
