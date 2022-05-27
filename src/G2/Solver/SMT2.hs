@@ -169,7 +169,7 @@ instance SMTConverter Z3 where
 
     pop con = do
         let (h_in, _, _) = getIOZ3 con
-        T.hPutStrLn h_in "(push)"
+        T.hPutStrLn h_in "(pop)"
 
 getIOCVC4 :: CVC4 -> (Handle, Handle, ProcessHandle)
 getIOCVC4 (CVC4 _ hhp) = hhp
@@ -279,7 +279,7 @@ instance SMTConverter CVC4 where
 
     pop con = do
         let (h_in, _, _) = getIOCVC4 con
-        T.hPutStrLn h_in "(push)"
+        T.hPutStrLn h_in "(pop)"
 
 -- | getProcessHandles
 -- Ideally, this function should be called only once, and the same Handles should be used
