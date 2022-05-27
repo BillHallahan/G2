@@ -62,10 +62,7 @@ getIOZ3 (Z3 _ hhp) = hhp
 
 instance SMTConverter Z3 where
     closeIO (Z3 _ (h_in, h_out, ph)) = do
-        T.hPutStrLn h_in "(exit)"
-        _ <- waitForProcess ph
-        hClose h_in
-        hClose h_out
+        cleanupProcess (Just h_in, Just h_out, Nothing, ph)
 
     reset con = do
         let (h_in, _, _) = getIOZ3 con

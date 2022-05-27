@@ -393,24 +393,22 @@ runConstraintsForSynth headers vs = do
     checkSatInstr z3_dir
     checkSatInstr z3_max
 
-    res <- waitForRes z3_dir z3_max vs
+    res <- waitForRes Nothing Nothing z3_dir z3_max vs
 
     closeIO z3_dir
     closeIO z3_max
 
     return res
 
-waitForRes :: (SMTConverter s1, SMTConverter s2) => s1 -> s2 -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
-waitForRes s1 s2 vs = do
+waitForRes :: (SMTConverter s1, SMTConverter s2) =>
+              Maybe (Result () () ()) -- ^ Nothing, or an unknown returned by Solver 1
+           -> Maybe (Result () () ()) -- ^ Nothing, or an unknown returned by Solver 2
+           -> s1
+           -> s2
+           -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
+waitForRes m_res1 m_res2 s1 s2 vs = do
     res1 <- maybe (maybeCheckSatResult s1) (return . Just) m_res1
     res2 <- maybe (maybeCheckSatResult s2) (return . Just) m_res2
-
-    case (m_res1, res1) of
-        (Nothing, Just _) -> print $ "unknown 1\n" ++ show res2
-        _ -> return ()
-    case (m_res2, res2) of
-        (Nothing, Just _) -> print $ "unknown 2\n" ++ show res1
-        _ -> return ()
 
     case (res1, res2) of
         (Just res1', _) | isSatOrUnsat res1' -> do
