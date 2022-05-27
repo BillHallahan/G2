@@ -402,8 +402,15 @@ runConstraintsForSynth headers vs = do
 
 waitForRes :: (SMTConverter s1, SMTConverter s2) => s1 -> s2 -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
 waitForRes s1 s2 vs = do
-    res1 <- maybeCheckSatResult s1
-    res2 <- maybeCheckSatResult s2
+    res1 <- maybe (maybeCheckSatResult s1) (return . Just) m_res1
+    res2 <- maybe (maybeCheckSatResult s2) (return . Just) m_res2
+
+    case (m_res1, res1) of
+        (Nothing, Just _) -> print $ "unknown 1\n" ++ show res2
+        _ -> return ()
+    case (m_res2, res2) of
+        (Nothing, Just _) -> print $ "unknown 2\n" ++ show res1
+        _ -> return ()
 
     case (res1, res2) of
         (Just res1', _) | isSatOrUnsat res1' -> do
@@ -416,7 +423,7 @@ waitForRes s1 s2 vs = do
             getModelOrUnsatCore s2 vs res2'
         (Just (Unknown err1 ()), Just (Unknown err2 ())) -> do
             return $ Unknown (err1 ++ "\n" ++ err2) ()
-        _ -> waitForRes s1 s2 vs
+        _ -> waitForRes res1 res2 s1 s2 vs
     where
         isSatOrUnsat (SAT _) = True
         isSatOrUnsat (UNSAT _) = True
