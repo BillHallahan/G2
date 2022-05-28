@@ -11,7 +11,7 @@
 -- (3) SMTASTs/Sorts to Exprs/Types
 module G2.Solver.Converters
     ( toSMTHeaders
-    , toSolver
+    , toSolverText
     , pathConsToSMT
     , exprToSMT
     , typeToSMT
@@ -33,7 +33,9 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Monoid
+import Data.Ratio
 import qualified Data.Text as T
+import qualified Text.Builder as TB
 
 import G2.Language hiding (Assert, vars)
 import qualified G2.Language.ExprEnv as E
@@ -44,136 +46,54 @@ import G2.Solver.Solver
 -- | Used to describe the specific output format required by various solvers
 -- By defining these functions, we can automatically convert from the SMTHeader and SMTAST
 -- datatypes, to a form understandable by the solver.
-class Solver con => SMTConverter con ast out io | con -> ast, con -> out, con -> io where
-    getIO :: con -> io
+class Solver con => SMTConverter con where
     closeIO :: con -> IO ()
 
-    empty :: con -> out
-    merge :: con -> out -> out -> out
-
     reset :: con -> IO ()
+
+    checkSatInstr :: con -> IO ()
+    maybeCheckSatResult :: con -> IO (Maybe (Result () () ()))
+
+    getModelInstrResult :: con -> [(SMTName, Sort)] -> IO SMTModel
+    getUnsatCoreInstrResult :: con -> IO UnsatCore
+
     setProduceUnsatCores :: con -> IO ()
 
-    addFormula :: con -> out -> IO ()
+    addFormula :: con -> [SMTHeader] -> IO ()
 
-    checkSatGetModelOrUnsatCoreNoReset :: con -> io -> out -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
+    checkSatGetModelOrUnsatCoreNoReset :: con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
 
-    checkSat :: con -> io -> out -> IO (Result () () ())
-    checkSatGetModel :: con -> io -> out -> [(SMTName, Sort)] -> IO (Result SMTModel () ())
-    checkSatGetModelOrUnsatCore :: con -> io -> out -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
-    checkSatGetModelOrUnsatCore con io out get = do
+    checkSat :: con -> [SMTHeader] -> IO (Result () () ())
+    checkSatGetModel :: con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel () ())
+    checkSatGetModelOrUnsatCore :: con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
+    checkSatGetModelOrUnsatCore con out get = do
         reset con
         setProduceUnsatCores con
-        checkSatGetModelOrUnsatCoreNoReset  con io out get
-
-    checkSatGetModelGetExpr :: con -> io -> out -> [SMTHeader] -> [(SMTName, Sort)] -> ExprEnv -> CurrExpr
-                            -> IO (Result SMTModel () (), Maybe Expr)
-
-
-    assertSolver :: con -> ast -> out
-    assertSoftSolver :: con -> ast -> Maybe T.Text -> out
-    defineFun :: con -> SMTName -> [(SMTName, Sort)] -> Sort -> SMTAST -> out 
-    declareFun :: con -> SMTName -> [Sort] -> Sort -> out 
-    varDecl :: con -> SMTNameBldr -> ast -> out
+        checkSatGetModelOrUnsatCoreNoReset con out get
 
     -- Incremental
     push :: con -> IO ()
     pop :: con -> IO ()
 
-    -- Language
-    setLogic :: con -> Logic -> out
+addHeaders :: SMTConverter con => con -> [SMTHeader] -> IO ()
+addHeaders = addFormula
 
-    comment :: con -> String -> out
-
-    (.>=) :: con -> ast -> ast -> ast
-    (.>) :: con -> ast -> ast -> ast
-    (.=) :: con -> ast -> ast -> ast
-    (./=) :: con -> ast -> ast -> ast
-    (.<) :: con -> ast -> ast -> ast
-    (.<=) :: con -> ast -> ast -> ast
-
-    smtAnd :: con -> [ast] -> ast
-    smtOr :: con -> [ast] -> ast
-    (.!) :: con -> ast -> ast
-    (.=>) :: con -> ast -> ast -> ast
-    (.<=>) :: con -> ast -> ast -> ast
-
-    (.+) :: con -> ast -> ast -> ast
-    (.-) :: con -> ast -> ast -> ast
-    (.*) :: con -> ast -> ast -> ast
-    (./) :: con -> ast -> ast -> ast
-    smtQuot :: con -> ast -> ast -> ast
-    smtModulo :: con -> ast -> ast -> ast
-    smtSqrt :: con -> ast -> ast
-    neg :: con -> ast -> ast
-
-    arrayStore :: con -> ast -> ast -> ast -> ast
-    arraySelect :: con -> ast -> ast -> ast
-
-    smtFunc :: con -> SMTName -> [ast] -> ast
-
-    strLen :: con -> ast -> ast
-    itor :: con -> ast -> ast
-
-    ite :: con -> ast -> ast -> ast -> ast
-
-    smtForall :: con -> [(SMTName, Sort)] -> ast -> ast
-    distinct :: con -> [ast] -> ast
-
-    fromCode :: con -> ast -> ast
-    toCode :: con -> ast -> ast
-
-    --values
-    int :: con -> Integer -> ast
-    float :: con -> Rational -> ast
-    double :: con -> Rational -> ast
-    char :: con -> Char -> ast
-    bool :: con -> Bool -> ast
-    constArray :: con
-               -> ast -- ^ value to put in array
-               -> ast -- ^ Index sort of array
-               -> ast -- ^ Val sort of array
-               -> ast
-    cons :: con -> SMTName -> [ast] -> Sort -> ast
-    var :: con -> SMTName -> ast -> ast
-
-    --sorts
-    sortInt :: con -> ast
-    sortFloat :: con -> ast
-    sortDouble :: con -> ast
-    sortChar :: con -> ast
-    sortBool :: con -> ast
-    sortArray :: con -> ast -> ast -> ast
-
-    varName :: con -> SMTName -> Sort -> ast
-
-    -- unsat cores
-    named :: con -> ast -> SMTName -> ast
-
-addHeaders :: SMTConverter con ast out io => con -> [SMTHeader] -> IO ()
-addHeaders con headers = do
-    let form = toSolver con headers
-    addFormula con form
-
-checkConstraintsPC :: SMTConverter con ast out io => con -> PathConds -> IO (Result () () ())
+checkConstraintsPC :: SMTConverter con => con -> PathConds -> IO (Result () () ())
 checkConstraintsPC con pc = do
     let headers = toSMTHeaders pc
     checkConstraints con headers
 
-checkConstraints :: SMTConverter con ast out io => con -> [SMTHeader] -> IO (Result () () ())
-checkConstraints con headers = do
-    let formula = toSolver con headers
-
-    checkSat con (getIO con) formula
+checkConstraints :: SMTConverter con => con -> [SMTHeader] -> IO (Result () () ())
+checkConstraints = checkSat
 
 -- | Checks if the constraints are satisfiable, and returns a model if they are
-checkModelPC :: SMTConverter con ast out io => ArbValueFunc -> con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model () ())
+checkModelPC :: SMTConverter con => ArbValueFunc -> con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model () ())
 checkModelPC avf con s b is pc = return . liftCasts =<< checkModel' avf con s b is pc
 
 -- | We split based on whether we are evaluating a ADT or a literal.
 -- ADTs can be solved using our efficient addADTs, while literals require
 -- calling an SMT solver.
-checkModel' :: SMTConverter con ast out io => ArbValueFunc -> con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model () ())
+checkModel' :: SMTConverter con => ArbValueFunc -> con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model () ())
 checkModel' _ _ s _ [] _ = do
     return (SAT $ model s)
 checkModel' avf con s b (i:is) pc
@@ -184,7 +104,7 @@ checkModel' avf con s b (i:is) pc
             Just m' -> checkModel' avf con (s {model = HM.union m' (model s)}) (b {arb_value_gen = av}) is pc
             Nothing -> return $ UNSAT ()
 
-getModelVal :: SMTConverter con ast out io => ArbValueFunc -> con -> State t -> Bindings -> Id -> PathConds -> IO (Maybe Model, ArbValueGen)
+getModelVal :: SMTConverter con => ArbValueFunc -> con -> State t -> Bindings -> Id -> PathConds -> IO (Maybe Model, ArbValueGen)
 getModelVal avf con s b (Id n _) pc = do
     let (Just (Var (Id n' t))) = E.lookup n (expr_env s)
      
@@ -198,34 +118,26 @@ getModelVal avf con s b (Id n _) pc = do
                     m <- solveNumericConstraintsPC con pc
                     return (m, arb_value_gen b)
 
-solveNumericConstraintsPC :: SMTConverter con ast out io => con -> PathConds -> IO (Maybe Model)
+solveNumericConstraintsPC :: SMTConverter con => con -> PathConds -> IO (Maybe Model)
 solveNumericConstraintsPC con pc = do
     let headers = toSMTHeaders pc
     let vs = map (\(n', srt) -> (nameToStr n', srt)) . HS.toList . pcVars $ pc
 
     solveConstraints con headers vs
 
-solveConstraints :: SMTConverter con ast out io => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Maybe Model)
+solveConstraints :: SMTConverter con => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Maybe Model)
 solveConstraints con headers vs = do
-    let io = getIO con
-    let formula = toSolver con headers
-    r <- checkSatGetModel con io formula vs
- 
+    r <- checkSatGetModel con headers vs
+
     case r of
         SAT m' -> return . Just $ modelAsExpr m'
         _ -> return Nothing
 
-constraintsToModelOrUnsatCore :: SMTConverter con ast out io => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
-constraintsToModelOrUnsatCore con headers vs = do
-    let io = getIO con
-    let formula = toSolver con headers
-    checkSatGetModelOrUnsatCore con io formula vs
+constraintsToModelOrUnsatCore :: SMTConverter con => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
+constraintsToModelOrUnsatCore = checkSatGetModelOrUnsatCore
 
-constraintsToModelOrUnsatCoreNoReset :: SMTConverter con ast out io => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
-constraintsToModelOrUnsatCoreNoReset con headers vs = do
-    let io = getIO con
-    let formula = toSolver con headers
-    checkSatGetModelOrUnsatCoreNoReset con io formula vs
+constraintsToModelOrUnsatCoreNoReset :: SMTConverter con => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
+constraintsToModelOrUnsatCoreNoReset = checkSatGetModelOrUnsatCoreNoReset
 
 -- | Here we convert from a State, to an SMTHeader.  This SMTHeader can later
 -- be given to an SMT solver by using toSolver.
@@ -512,92 +424,148 @@ typeToSMT (TyCon (Name "Bool" _ _ _) _) = SortBool
 typeToSMT (TyForAll (AnonTyBndr _) t) = typeToSMT t
 typeToSMT t = error $ "Unsupported type in typeToSMT: " ++ show t
 
-toSolver :: SMTConverter con ast out io => con -> [SMTHeader] -> out
-toSolver con [] = empty con
-toSolver con (Assert ast:xs) = 
-    merge con (assertSolver con $ toSolverAST con ast) (toSolver con xs)
-toSolver con (AssertSoft ast lab:xs) = 
-    merge con (assertSoftSolver con (toSolverAST con ast) lab) (toSolver con xs)
-toSolver con (DefineFun f ars ret body:xs) =
-    merge con (defineFun con f ars ret body) (toSolver con xs)
-toSolver con (DeclareFun f ars ret:xs) =
-    merge con (declareFun con f ars ret) (toSolver con xs)
-toSolver con (VarDecl n s:xs) = merge con (toSolverVarDecl con n s) (toSolver con xs)
-toSolver con (SetLogic lgc:xs) = merge con (toSolverSetLogic con lgc) (toSolver con xs)
-toSolver con (Comment c:xs) = merge con (comment con c) (toSolver con xs)
+merge :: TB.Builder -> TB.Builder -> TB.Builder
+merge x y = x <> "\n" <> y
 
-toSolverAST :: SMTConverter con ast out io => con -> SMTAST -> ast
-toSolverAST con (x :>= y) = (.>=) con (toSolverAST con x) (toSolverAST con y)
-toSolverAST con (x :> y) = (.>) con (toSolverAST con x) (toSolverAST con y)
-toSolverAST con (x := y) = (.=) con (toSolverAST con x) (toSolverAST con y)
-toSolverAST con (x :/= y) = (./=) con (toSolverAST con x) (toSolverAST con y)
-toSolverAST con (x :< y) = (.<) con (toSolverAST con x) (toSolverAST con y)
-toSolverAST con (x :<= y) = (.<=) con (toSolverAST con x) (toSolverAST con y)
+comment :: String -> TB.Builder
+comment s = "; " <> TB.string s
 
-toSolverAST con (SmtAnd [x]) = toSolverAST con x
-toSolverAST con (SmtAnd xs) = smtAnd con $ map (toSolverAST con) xs
-toSolverAST con (SmtOr [x]) = toSolverAST con x
-toSolverAST con (SmtOr xs) =  smtOr con $ map (toSolverAST con) xs
+assertSoftSolver :: TB.Builder -> Maybe T.Text -> TB.Builder
+assertSoftSolver ast Nothing = function1 "assert-soft" ast
+assertSoftSolver ast (Just lab) = "(assert-soft " <> ast <> " :id " <> TB.text lab <> ")"
 
-toSolverAST con ((:!) x) = (.!) con $ toSolverAST con x
-toSolverAST con (x :=> y) = (.=>) con (toSolverAST con x) (toSolverAST con y)
-toSolverAST con (x :<=> y) = (.<=>) con (toSolverAST con x) (toSolverAST con y)
+defineFun :: String -> [(String, Sort)] -> Sort -> SMTAST -> TB.Builder
+defineFun fn ars ret body =
+    "(define-fun " <> (TB.string fn) <> " ("
+        <> TB.intercalate " " (map (\(n, s) -> "(" <> TB.string n <> " " <> sortName s <> ")") ars) <> ")"
+        <> " (" <> sortName ret <> ") " <> toSolverAST body <> ")"
 
-toSolverAST con (x :+ y) = (.+) con (toSolverAST con x) (toSolverAST con y)
-toSolverAST con (x :- y) = (.-) con (toSolverAST con x) (toSolverAST con y)
-toSolverAST con (x :* y) = (.*) con (toSolverAST con x) (toSolverAST con y)
-toSolverAST con (x :/ y) = (./) con (toSolverAST con x) (toSolverAST con y)
-toSolverAST con (x `QuotSMT` y) = smtQuot con (toSolverAST con x) (toSolverAST con y)
-toSolverAST con (x `Modulo` y) = smtModulo con (toSolverAST con x) (toSolverAST con y)
-toSolverAST con (SqrtSMT x) = smtSqrt con $ toSolverAST con x
-toSolverAST con (Neg x) = neg con $ toSolverAST con x
+declareFun :: String -> [Sort] -> Sort -> TB.Builder
+declareFun fn ars ret =
+    "(declare-fun " <> TB.string fn <> " ("
+        <> TB.intercalate " " (map sortName ars) <> ")"
+        <> " (" <> sortName ret <> "))"
 
-toSolverAST con (ArrayConst v indS valS) =
-    constArray con (toSolverAST con v) (sortName con indS) (sortName con valS)
+toSolverText :: [SMTHeader] -> TB.Builder
+toSolverText [] = ""
+toSolverText (Assert ast:xs) = 
+    merge (function1 "assert" $ toSolverAST ast) (toSolverText xs)
+toSolverText (AssertSoft ast lab:xs) = 
+    merge (assertSoftSolver (toSolverAST ast) lab) (toSolverText xs)
+toSolverText (DefineFun f ars ret body:xs) =
+    merge (defineFun f ars ret body) (toSolverText xs)
+toSolverText (DeclareFun f ars ret:xs) =
+    merge (declareFun f ars ret) (toSolverText xs)
+toSolverText (VarDecl n s:xs) = merge (toSolverVarDecl n s) (toSolverText xs)
+toSolverText (SetLogic lgc:xs) = merge (toSolverSetLogic lgc) (toSolverText xs)
+toSolverText (Comment c:xs) = merge (comment c) (toSolverText xs)
 
-toSolverAST con (ArraySelect arr ind) =
-    arraySelect con (toSolverAST con arr) (toSolverAST con ind)
+toSolverAST :: SMTAST -> TB.Builder
+toSolverAST (x :>= y) = function2 ">=" (toSolverAST x) (toSolverAST y)
+toSolverAST (x :> y) = function2 ">" (toSolverAST x) (toSolverAST y)
+toSolverAST (x := y) = function2 "=" (toSolverAST x) (toSolverAST y)
+toSolverAST (x :/= y) = function1 "not" $ function2 "=" (toSolverAST x) (toSolverAST y)
+toSolverAST (x :< y) = function2 "<" (toSolverAST x) (toSolverAST y)
+toSolverAST (x :<= y) = function2 "<=" (toSolverAST x) (toSolverAST y)
 
-toSolverAST con (ArrayStore arr ind val) =
-    arrayStore con (toSolverAST con arr) (toSolverAST con ind) (toSolverAST con val)
+toSolverAST (SmtAnd [x]) = toSolverAST x
+toSolverAST (SmtAnd xs) = functionList "and" $ map (toSolverAST) xs
+toSolverAST (SmtOr [x]) = toSolverAST x
+toSolverAST (SmtOr xs) =  functionList "or" $ map (toSolverAST) xs
 
-toSolverAST con (Func n xs) = smtFunc con n $ map (toSolverAST con) xs
+toSolverAST ((:!) x) = function1 "not" $ toSolverAST x
+toSolverAST (x :=> y) = function2 "=>" (toSolverAST x) (toSolverAST y)
+toSolverAST (x :<=> y) = function2 "=" (toSolverAST x) (toSolverAST y)
 
-toSolverAST con (StrLen x) = strLen con $ toSolverAST con x
-toSolverAST con (ItoR x) = itor con $ toSolverAST con x
+toSolverAST (x :+ y) = function2 "+" (toSolverAST x) (toSolverAST y)
+toSolverAST (x :- y) = function2 "-" (toSolverAST x) (toSolverAST y)
+toSolverAST (x :* y) = function2 "*" (toSolverAST x) (toSolverAST y)
+toSolverAST (x :/ y) = function2 "/" (toSolverAST x) (toSolverAST y)
+toSolverAST (x `QuotSMT` y) = function2 "div" (toSolverAST x) (toSolverAST y)
+toSolverAST (x `Modulo` y) = function2 "mod" (toSolverAST x) (toSolverAST y)
+toSolverAST (SqrtSMT x) = "(^ " <> toSolverAST x <> " 0.5)"
+toSolverAST (Neg x) = function1 "-" $ toSolverAST x
 
-toSolverAST con (Ite x y z) =
-    ite con (toSolverAST con x) (toSolverAST con y) (toSolverAST con z)
+toSolverAST (ArrayConst v indS valS) =
+    let
+        sort_arr = "(Array " <> sortName indS <> " " <> sortName valS <> ")"
+    in
+    "((as const " <> sort_arr <> ") " <> (toSolverAST v) <> ")"
 
-toSolverAST con (Forall b x) = smtForall con b $ toSolverAST con x
+toSolverAST (ArraySelect arr ind) =
+    function2 "select" (toSolverAST arr) (toSolverAST ind)
 
-toSolverAST con (FromCode chr) = fromCode con (toSolverAST con chr)
-toSolverAST con (ToCode chr) = toCode con (toSolverAST con chr)
+toSolverAST (ArrayStore arr ind val) =
+    function3 "store" (toSolverAST arr) (toSolverAST ind) (toSolverAST val)
 
-toSolverAST con (VInt i) = int con i
-toSolverAST con (VFloat f) = float con f
-toSolverAST con (VDouble i) = double con i
-toSolverAST con (VChar c) = char con c
-toSolverAST con (VBool b) = bool con b
-toSolverAST con (V n s) = varName con n s
+toSolverAST (Func n xs) = smtFunc n $ map (toSolverAST) xs
 
-toSolverAST con (Named x n) = named con (toSolverAST con x) n
+toSolverAST (StrLen x) = function1 "str.len" $ toSolverAST x
+toSolverAST (ItoR x) = function1 "to_real" $ toSolverAST x
 
-toSolverAST _ ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
+toSolverAST (Ite x y z) =
+    function3 "ite" (toSolverAST x) (toSolverAST y) (toSolverAST z)
 
-toSolverVarDecl :: SMTConverter con ast out io => con -> SMTNameBldr -> Sort -> out
-toSolverVarDecl con n s = varDecl con n (sortName con s)
+toSolverAST (FromCode chr) = function1 "str.from_code" (toSolverAST chr)
+toSolverAST (ToCode chr) = function1 "str.to_code" (toSolverAST chr)
 
-sortName :: SMTConverter con ast out io => con -> Sort -> ast
-sortName con SortInt = sortInt con
-sortName con SortFloat = sortFloat con
-sortName con SortDouble = sortDouble con
-sortName con SortChar = sortChar con
-sortName con SortBool = sortBool con
-sortName con (SortArray ind val) = sortArray con (sortName con ind) (sortName con val)
+toSolverAST (VInt i) = if i >= 0 then showText i else "(- " <> showText (abs i) <> ")"
+toSolverAST (VFloat f) = "(/ " <> showText (numerator f) <> " " <> showText (denominator f) <> ")"
+toSolverAST (VDouble d) = "(/ " <> showText (numerator d) <> " " <> showText (denominator d) <> ")"
+toSolverAST (VChar c) = "\"" <> TB.string [c] <> "\""
+toSolverAST (VBool b) = if b then "true" else "false"
+toSolverAST (V n s) = TB.string n
 
-toSolverSetLogic :: SMTConverter con ast out io => con -> Logic -> out
-toSolverSetLogic = setLogic
+toSolverAST (Named x n) = "(! " <> toSolverAST x <> " :named " <> TB.string n <> ")"
+
+toSolverAST ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
+
+smtFunc :: String -> [TB.Builder] -> TB.Builder
+smtFunc n [] = TB.string n
+smtFunc n xs = "(" <> TB.string n <> " " <> TB.intercalate " " xs <>  ")"
+
+{-# INLINE showText #-}
+showText :: Show a => a -> TB.Builder
+showText = TB.string . show
+
+functionList :: TB.Builder -> [TB.Builder] -> TB.Builder
+functionList f xs = "(" <> f <> " " <> (TB.intercalate " " xs) <> ")" 
+
+function1 :: TB.Builder -> TB.Builder -> TB.Builder
+function1 f a = "(" <> f <> " " <> a <> ")"
+
+{-# INLINE function2 #-}
+function2 :: TB.Builder -> TB.Builder -> TB.Builder -> TB.Builder
+function2 f a b = "(" <> f <> " " <> a <> " " <> b <> ")"
+
+function3 :: TB.Builder -> TB.Builder -> TB.Builder -> TB.Builder -> TB.Builder
+function3 f a b c = "(" <> f <> " " <> a <> " " <> b <> " " <> c <> ")"
+
+toSolverVarDecl :: SMTNameBldr -> Sort -> TB.Builder
+toSolverVarDecl n s = "(declare-const " <> n <> " " <> sortName s <> ")"
+
+sortName :: Sort -> TB.Builder
+sortName SortInt = "Int"
+sortName SortFloat = "Real"
+sortName SortDouble = "Real"
+sortName SortChar = "String"
+sortName SortBool = "Bool"
+sortName (SortArray ind val) = "(Array " <> sortName ind <> " " <> sortName val <> ")"
+
+toSolverSetLogic :: Logic -> TB.Builder
+toSolverSetLogic lgc =
+    let
+        s = case lgc of
+            QF_LIA -> "QF_LIA"
+            QF_LRA -> "QF_LRA"
+            QF_LIRA -> "QF_LIRA"
+            QF_NIA -> "QF_NIA"
+            QF_NRA -> "QF_NRA"
+            QF_NIRA -> "QF_NIRA"
+            QF_UFLIA -> "QF_UFLIA"
+            _ -> "ALL"
+    in
+    "(set-logic " <> s <> ")"
 
 -- | Converts an `SMTAST` to an `Expr`.
 smtastToExpr :: SMTAST -> Expr

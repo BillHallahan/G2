@@ -64,7 +64,7 @@ type Interpolant = FuncConstraints
 
 type Size = Integer
 
-liaSynth :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
+liaSynth :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con)
          => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
          -> FuncConstraints
          -> BlockedModels -- ^ SMT Models to block being returned by the synthesizer at various sizes
@@ -270,7 +270,7 @@ mkBoolForms prd sz max_sz s psi j k =
             isBool SortBool = True
             isBool _ = False
 
-synth :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
+synth :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con)
       => con
       -> [GhcInfo]
       -> LiquidReadyState
@@ -355,8 +355,7 @@ addEquivModel si sz n_mdl eq_mdl blk_mdls =
     in
     foldr (\n -> insertEquivBlockedModel sz (MNOnlySMTNames [n]) n_mdl) blk_mdls mn
 
-
-synth' :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
+synth' :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con)
        => con
        -> [GhcInfo]
        -> NMExprEnv
@@ -381,8 +380,7 @@ synth' con ghci eenv tenv meas meas_ex evals m_si fc synth_fc headers drop_if_un
 
     liftIO $ if not (null drop_if_unknown) then putStrLn "non empty drop_if_unknown" else return ()
 
-    -- result <- liftIO $ solveSoftAsserts con hdrs n_for_m
-    result <- return . adjustRes =<< liftIO (constraintsToModelOrUnsatCore con hdrs n_for_m)
+    result <- return . adjustRes =<< liftIO (runConstraintsForSynth hdrs n_for_m)
 
     case result of
         SAT mdl -> do
@@ -407,6 +405,63 @@ synth' con ghci eenv tenv meas meas_ex evals m_si fc synth_fc headers drop_if_un
         adjustRes (SAT m) = SAT m
         adjustRes (UNSAT uc) = UNSAT uc
         adjustRes (Unknown e ()) = Unknown e Nothing
+
+runConstraintsForSynth :: [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
+runConstraintsForSynth headers vs = do
+    z3_dir <- getZ3
+    z3_max <- mkMaximizeSolver =<< getZ3
+
+    setProduceUnsatCores z3_dir
+    setProduceUnsatCores z3_max
+
+    addFormula z3_dir headers
+    addFormula z3_max headers
+
+    checkSatInstr z3_dir
+    checkSatInstr z3_max
+
+    res <- waitForRes Nothing Nothing z3_dir z3_max vs
+
+    closeIO z3_dir
+    closeIO z3_max
+
+    return res
+
+waitForRes :: (SMTConverter s1, SMTConverter s2) =>
+              Maybe (Result () () ()) -- ^ Nothing, or an unknown returned by Solver 1
+           -> Maybe (Result () () ()) -- ^ Nothing, or an unknown returned by Solver 2
+           -> s1
+           -> s2
+           -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
+waitForRes m_res1 m_res2 s1 s2 vs = do
+    res1 <- maybe (maybeCheckSatResult s1) (return . Just) m_res1
+    res2 <- maybe (maybeCheckSatResult s2) (return . Just) m_res2
+
+    case (res1, res2) of
+        (Just res1', _) | isSatOrUnsat res1' -> do
+            putStrLn $ "res1 = " ++ show res1
+            putStrLn $ "res2 = " ++ show res2
+            getModelOrUnsatCore s1 vs res1'
+        (_, Just res2') | isSatOrUnsat res2' -> do
+            putStrLn $ "res1 = " ++ show res1
+            putStrLn $ "res2 = " ++ show res2
+            getModelOrUnsatCore s2 vs res2'
+        (Just (Unknown err1 ()), Just (Unknown err2 ())) -> do
+            return $ Unknown (err1 ++ "\n" ++ err2) ()
+        _ -> waitForRes res1 res2 s1 s2 vs
+    where
+        isSatOrUnsat (SAT _) = True
+        isSatOrUnsat (UNSAT _) = True
+        isSatOrUnsat _ = False
+
+getModelOrUnsatCore :: SMTConverter smt => smt -> [(SMTName, Sort)] -> Result () () () -> IO (Result SMTModel UnsatCore ())
+getModelOrUnsatCore con vs (SAT ()) = do
+    mdl <- getModelInstrResult con vs
+    return (SAT mdl)
+getModelOrUnsatCore con vs (UNSAT ()) = do
+    uc <- getUnsatCoreInstrResult con
+    return (UNSAT uc)
+getModelOrUnsatCore con vs (Unknown err ()) = return (Unknown err ())
 
 ------------------------------------
 -- Handling Models
@@ -587,7 +642,7 @@ blockModelWithFuns si s mdl =
 -- This avoids the need for non linear arithmetic, but allows us to quickly
 -- reject newly synthesized specifications that are identical to some previous
 -- specifications.
-checkModelIsNewFunc :: (MonadIO m, SMTConverter con ast out io) => con -> M.Map Name SpecInfo -> SMTModel -> [(ModelNames, SMTModel)] -> m (Maybe (ModelNames, SMTModel))
+checkModelIsNewFunc :: (MonadIO m, SMTConverter con) => con -> M.Map Name SpecInfo -> SMTModel -> [(ModelNames, SMTModel)] -> m (Maybe (ModelNames, SMTModel))
 checkModelIsNewFunc _ _ _ [] = return Nothing
 checkModelIsNewFunc con si mdl ((mdl_nm, mdl'):mdls) = do
     b' <- checkModelIsNewFunc' con si mdl mdl'
@@ -603,7 +658,7 @@ checkModelIsNewFunc con si mdl ((mdl_nm, mdl'):mdls) = do
                 putStrLn $ "diff 2 = " ++ show (M.toList mdl L.\\ M.toList mdl')
             return (Just (mdl_nm, mdl'))
 
-checkModelIsNewFunc' :: (MonadIO m, SMTConverter con ast out io) => con -> M.Map Name SpecInfo -> SMTModel -> SMTModel -> m Bool
+checkModelIsNewFunc' :: (MonadIO m, SMTConverter con) => con -> M.Map Name SpecInfo -> SMTModel -> SMTModel -> m Bool
 checkModelIsNewFunc' con si mdl1 mdl2 = do
     let e_si = M.elems $ M.filter (\si' -> s_status si' == Synth) si
 

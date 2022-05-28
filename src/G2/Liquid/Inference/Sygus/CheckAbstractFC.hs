@@ -31,7 +31,7 @@ import qualified Data.Map as M
 
 import qualified Text.Builder as TB
 
-genCounterexampleFromAbstractFC :: (MonadIO m, InfConfigM m, ProgresserM m, SMTConverter con ast out io) =>
+genCounterexampleFromAbstractFC :: (MonadIO m, InfConfigM m, ProgresserM m, SMTConverter con) =>
                                    con
                                 -> [GhcInfo]
                                 -> NMExprEnv
