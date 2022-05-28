@@ -1,6 +1,7 @@
 -- | This defines an SMTConverter for the SMT2 language
 -- It provides methods to construct formulas, as well as feed them to an external solver
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
@@ -12,7 +13,7 @@
 module G2.Solver.SMT2 ( Z3
                       , CVC4
                       , SomeSMTSolver (..)
-                      , (<~~>)
+                      , getZ3
                       , getSMT
                       , getSMTAV) where
 
@@ -62,12 +63,14 @@ getIOZ3 (Z3 _ hhp) = hhp
 
 instance SMTConverter Z3 where
     closeIO (Z3 _ (h_in, h_out, ph)) = do
+#if MIN_VERSION_process(1,6,4)
+        cleanupProcess (Just h_in, Just h_out, Nothing, ph)
+#else
         T.hPutStrLn h_in "(exit)"
         _ <- waitForProcess ph
         hClose h_in
         hClose h_out
-
-    killQuery (Z3 _ (_, _, ph)) = interruptProcessGroupOf ph
+#endif
 
     reset con = do
         let (h_in, _, _) = getIOZ3 con
@@ -75,7 +78,7 @@ instance SMTConverter Z3 where
 
     checkSatInstr con = do
         let (h_in, _, _) = getIOZ3 con
-        T.hPutStr h_in "(check-sat)"
+        T.hPutStrLn h_in "(check-sat)"
 
     maybeCheckSatResult con = do
         let (_, h_out, _) = getIOZ3 con
@@ -171,7 +174,7 @@ instance SMTConverter Z3 where
 
     pop con = do
         let (h_in, _, _) = getIOZ3 con
-        T.hPutStrLn h_in "(push)"
+        T.hPutStrLn h_in "(pop)"
 
 getIOCVC4 :: CVC4 -> (Handle, Handle, ProcessHandle)
 getIOCVC4 (CVC4 _ hhp) = hhp
@@ -183,15 +186,13 @@ instance SMTConverter CVC4 where
         hClose h_in
         hClose h_out
 
-    killQuery (CVC4 _ (_, _, ph)) = interruptProcessGroupOf ph
-
     reset con = do
         let (h_in, _, _) = getIOCVC4 con
         T.hPutStr h_in "(reset)"
 
     checkSatInstr con = do
         let (h_in, _, _) = getIOCVC4 con
-        T.hPutStr h_in "(check-sat)"
+        T.hPutStrLn h_in "(check-sat)"
 
     maybeCheckSatResult con = do
         let (_, h_out, _) = getIOCVC4 con
@@ -283,119 +284,7 @@ instance SMTConverter CVC4 where
 
     pop con = do
         let (h_in, _, _) = getIOCVC4 con
-        T.hPutStrLn h_in "(push)"
-
-data LR = L | R
-
-data MergeConverters s1 s2 = MC (IORef LR) s1 s2
-
--- | Combine two SMT solvers together.
--- Tries both SMT solvers simultaneously, and returns results from whichever is faster.
-(<~~>) :: s1 -> s2 -> IO (MergeConverters s1 s2)
-s1 <~~> s2 = do
-    lr_ioref <- newIORef L
-    return $ MC lr_ioref s1 s2
-
-instance (SMTConverter s1, SMTConverter s2) => Solver (MergeConverters s1 s2) where
-    check solver _ pc = checkConstraintsPC solver pc
-    solve con = checkModelPC undefined con
-    close = closeIO
-
-instance (SMTConverter s1, SMTConverter s2) => SMTConverter (MergeConverters s1 s2) where
-    closeIO (MC _ s1 s2) = do
-        closeIO s1
-        closeIO s2
-
-    reset (MC _ s1 s2) = do
-        reset s1
-        reset s2
-
-    killQuery (MC _ s1 s2) = do
-        killQuery s1
-        killQuery s2
-
-    checkSatInstr (MC _ s1 s2) = do
-        checkSatInstr s1
-        checkSatInstr s2
-
-    maybeCheckSatResult (MC lr_ioref s1 s2) = do
-        res1 <- maybeCheckSatResult s1
-        case res1 of
-            Just _ -> do
-                writeIORef lr_ioref L
-                killQuery s2
-                return res1
-            Nothing -> do
-                res2 <- maybeCheckSatResult s2
-                case res2 of
-                    Just _ -> do
-                        writeIORef lr_ioref R
-                        killQuery s1
-                        return res2
-                    Nothing -> return Nothing
-
-    getModelInstrResult (MC lr_ioref s1 s2) vs = do
-        lr <- readIORef lr_ioref
-        case lr of
-            L -> getModelInstrResult s1 vs
-            R -> getModelInstrResult s2 vs
-
-    getUnsatCoreInstrResult (MC lr_ioref s1 s2) = do
-        lr <- readIORef lr_ioref
-        case lr of
-            L -> getUnsatCoreInstrResult s1
-            R -> getUnsatCoreInstrResult s2
-
-    setProduceUnsatCores (MC _ s1 s2) = do
-        setProduceUnsatCores s1
-        setProduceUnsatCores s2
-
-    addFormula (MC _ s1 s2) form = do
-        addFormula s1 form
-        addFormula s2 form
-
-    checkSatGetModelOrUnsatCoreNoReset mc headers vs = do
-        addFormula mc headers
-        checkSatInstr mc
-        res <- waitForRes mc
-        case res of
-            SAT () -> do
-                mdl <- getModelInstrResult mc vs
-                return (SAT mdl)
-            UNSAT () -> do
-                uc <- getUnsatCoreInstrResult mc
-                return $  UNSAT uc
-            Unknown err () -> return (Unknown err ())
-
-    checkSat mc headers = do
-        reset mc
-        addFormula mc headers
-        checkSatInstr mc
-        waitForRes mc
-
-    checkSatGetModel mc headers vs = do
-        res <- checkSat mc headers
-        case res of
-            SAT () -> do
-                mdl <- getModelInstrResult mc vs
-                return (SAT mdl)
-            UNSAT () -> return $  UNSAT ()
-            Unknown err () -> return (Unknown err ())
-
-    push (MC _ s1 s2) = do
-        push s1
-        push s2
-
-    pop (MC _ s1 s2) = do
-        pop s1
-        pop s2
-
-waitForRes :: (SMTConverter s1, SMTConverter s2) => MergeConverters s1 s2 -> IO (Result () () ())
-waitForRes mc = do
-    res <- maybeCheckSatResult mc
-    case res of
-        Just res' -> return res'
-        Nothing -> waitForRes mc
+        T.hPutStrLn h_in "(pop)"
 
 -- | getProcessHandles
 -- Ideally, this function should be called only once, and the same Handles should be used
@@ -417,6 +306,12 @@ getProcessHandles pr = do
     hSetBuffering h_in LineBuffering
 
     return (h_in, h_out, p)
+
+getZ3 :: IO Z3
+getZ3 = do
+    hhp@(h_in, _, _) <- getZ3ProcessHandles
+    hPutStr h_in "(set-option :pp.decimal true)"
+    return $ Z3 arbValue hhp
 
 getSMT :: Config -> IO SomeSMTSolver
 getSMT = getSMTAV arbValue

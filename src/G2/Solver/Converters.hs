@@ -48,8 +48,6 @@ import G2.Solver.Solver
 class Solver con => SMTConverter con where
     closeIO :: con -> IO ()
 
-    killQuery :: con -> IO ()
-
     reset :: con -> IO ()
 
     checkSatInstr :: con -> IO ()

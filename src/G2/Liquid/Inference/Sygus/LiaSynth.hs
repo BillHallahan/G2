@@ -353,8 +353,7 @@ synth' con ghci eenv tenv meas meas_ex evals m_si fc headers drop_if_unknown blk
 
     liftIO $ if not (null drop_if_unknown) then putStrLn "non empty drop_if_unknown" else return ()
 
-    -- result <- liftIO $ solveSoftAsserts con hdrs n_for_m
-    result <- return . adjustRes =<< liftIO (constraintsToModelOrUnsatCore con hdrs n_for_m)
+    result <- return . adjustRes =<< liftIO (runConstraintsForSynth hdrs n_for_m)
 
     case result of
         SAT mdl -> do
@@ -379,6 +378,63 @@ synth' con ghci eenv tenv meas meas_ex evals m_si fc headers drop_if_unknown blk
         adjustRes (SAT m) = SAT m
         adjustRes (UNSAT uc) = UNSAT uc
         adjustRes (Unknown e ()) = Unknown e Nothing
+
+runConstraintsForSynth :: [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
+runConstraintsForSynth headers vs = do
+    z3_dir <- getZ3
+    z3_max <- mkMaximizeSolver =<< getZ3
+
+    setProduceUnsatCores z3_dir
+    setProduceUnsatCores z3_max
+
+    addFormula z3_dir headers
+    addFormula z3_max headers
+
+    checkSatInstr z3_dir
+    checkSatInstr z3_max
+
+    res <- waitForRes Nothing Nothing z3_dir z3_max vs
+
+    closeIO z3_dir
+    closeIO z3_max
+
+    return res
+
+waitForRes :: (SMTConverter s1, SMTConverter s2) =>
+              Maybe (Result () () ()) -- ^ Nothing, or an unknown returned by Solver 1
+           -> Maybe (Result () () ()) -- ^ Nothing, or an unknown returned by Solver 2
+           -> s1
+           -> s2
+           -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
+waitForRes m_res1 m_res2 s1 s2 vs = do
+    res1 <- maybe (maybeCheckSatResult s1) (return . Just) m_res1
+    res2 <- maybe (maybeCheckSatResult s2) (return . Just) m_res2
+
+    case (res1, res2) of
+        (Just res1', _) | isSatOrUnsat res1' -> do
+            putStrLn $ "res1 = " ++ show res1
+            putStrLn $ "res2 = " ++ show res2
+            getModelOrUnsatCore s1 vs res1'
+        (_, Just res2') | isSatOrUnsat res2' -> do
+            putStrLn $ "res1 = " ++ show res1
+            putStrLn $ "res2 = " ++ show res2
+            getModelOrUnsatCore s2 vs res2'
+        (Just (Unknown err1 ()), Just (Unknown err2 ())) -> do
+            return $ Unknown (err1 ++ "\n" ++ err2) ()
+        _ -> waitForRes res1 res2 s1 s2 vs
+    where
+        isSatOrUnsat (SAT _) = True
+        isSatOrUnsat (UNSAT _) = True
+        isSatOrUnsat _ = False
+
+getModelOrUnsatCore :: SMTConverter smt => smt -> [(SMTName, Sort)] -> Result () () () -> IO (Result SMTModel UnsatCore ())
+getModelOrUnsatCore con vs (SAT ()) = do
+    mdl <- getModelInstrResult con vs
+    return (SAT mdl)
+getModelOrUnsatCore con vs (UNSAT ()) = do
+    uc <- getUnsatCoreInstrResult con
+    return (UNSAT uc)
+getModelOrUnsatCore con vs (Unknown err ()) = return (Unknown err ())
 
 ------------------------------------
 -- Handling Models
