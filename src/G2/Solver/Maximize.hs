@@ -6,19 +6,20 @@ import G2.Solver.Language
 import G2.Solver.Solver
 
 import Control.Concurrent
+import Control.Concurrent.MVar
 import Data.IORef
 import Data.List as L
 import qualified Data.Map as M
 import Text.Builder
 
-data MaximizeSolver con = MaxSolver (IORef (Maybe ThreadId)) (IORef (Maybe (Result () () ()))) (IORef [SMTHeader]) con
+data MaximizeSolver con = MaxSolver (MVar ThreadId) (MVar (Result () () ())) (IORef [SMTHeader]) con
 
 mkMaximizeSolver :: SMTConverter con => con -> IO (MaximizeSolver con)
 mkMaximizeSolver con = do
-    thread_ioref <- newIORef Nothing
-    res_ioref <- newIORef Nothing
+    thread_mvar <- newEmptyMVar
+    res_mvar <- newEmptyMVar
     headers_io_ref <- newIORef []
-    return $ MaxSolver thread_ioref res_ioref headers_io_ref con
+    return $ MaxSolver thread_mvar res_mvar headers_io_ref con
 
 instance SMTConverter con => Solver (MaximizeSolver con) where
     check solver _ pc = checkConstraintsPC solver pc
@@ -27,26 +28,26 @@ instance SMTConverter con => Solver (MaximizeSolver con) where
 
 instance SMTConverter con => SMTConverter (MaximizeSolver con) where
     closeIO (MaxSolver thread_ioref _ _ con) = do
-        maybe (return ()) killThread =<< readIORef thread_ioref
+        maybe (return ()) killThread =<< tryReadMVar thread_ioref
         closeIO con
 
-    reset (MaxSolver thread_ioref res_ioref headers_io_ref con) = do
-        maybe (return ()) killThread =<< readIORef thread_ioref
-        writeIORef res_ioref Nothing
+    reset (MaxSolver thread_mvar res_mvar headers_io_ref con) = do
+        maybe (return ()) killThread =<< tryReadMVar thread_mvar
+        _ <- tryTakeMVar thread_mvar
+        _ <- tryTakeMVar res_mvar
         writeIORef headers_io_ref []
         reset con
 
-    checkSatInstr (MaxSolver thread_ioref res_ioref headers_io_ref con) = do
-        maybe (return ()) killThread =<< readIORef thread_ioref
-        writeIORef res_ioref Nothing
+    checkSatInstr (MaxSolver thread_mvar res_mvar headers_io_ref con) = do
+        maybe (return ()) killThread =<< tryReadMVar thread_mvar
         added <- readIORef headers_io_ref
         thread <- forkIO (do
                             res <- solveSoftAsserts con added
-                            writeIORef res_ioref (Just res))
-        writeIORef thread_ioref (Just thread)
+                            definitelyPutMVar res_mvar res)
+        definitelyPutMVar thread_mvar thread
         return ()
 
-    maybeCheckSatResult (MaxSolver _ res_ioref _ _) = readIORef res_ioref
+    maybeCheckSatResult (MaxSolver _ res_ioref _ _) = tryReadMVar res_ioref
 
     getModelInstrResult (MaxSolver _ _ _ con) = getModelInstrResult con
     getUnsatCoreInstrResult (MaxSolver _ _ _ con) = getUnsatCoreInstrResult con
@@ -140,6 +141,13 @@ solveSoftAsserts' con mb_mdl fresh min_ max_ = do
                   pop con
                   solveSoftAsserts' con mb_mdl (fresh + 1) min_ (target - 1)
         Unknown err _ -> return $ Unknown err ()
+
+definitelyPutMVar :: MVar a -> a -> IO ()
+definitelyPutMVar mvar a = do
+    r <- tryPutMVar mvar a
+    case r of
+      True -> return ()
+      False -> modifyMVar_ mvar (\_ -> return a)
 
 totalVarName :: SMTName
 totalVarName = "solveSoftAsserts_SUM_VAR"
