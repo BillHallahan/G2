@@ -17,10 +17,10 @@ def run_infer(file, name, timeout, extra_opts=[]):
     # res = call_infer_process(file, timeout);
     # end_time = time.perf_counter();
     # elapsed = end_time - start_time;
-    (check_safe, res, counts, elapsed) = call_with_timing(file, timeout, extra_opts)
+    (check_safe, res, res_err, counts, elapsed) = call_with_timing(file, timeout, extra_opts)
 
     f = open("logs/" + name + ".txt", "w")
-    f.write(res.decode("utf-8") );
+    f.write(res.decode("utf-8") + "\n" + res_err.decode("utf-8"));
     f.close();
 
     # MAKES EVERYTHING AFTER THIS TIMEOUT QUICKLY
@@ -33,17 +33,17 @@ def run_infer(file, name, timeout, extra_opts=[]):
     # no_fc_elapsed = no_fc_end_time - no_fc_start_time;
     # no_fc_check_safe = no_fc_res.splitlines()[-2].decode('utf-8');
     # no_fc_counts = get_opt_counts(no_fc_res);
-    (_, _, no_fc_counts, no_fc_elapsed) = call_with_timing(file, timeout, extra_opts + ["--no-use-extra-fc"])
+    (_, _, _, no_fc_counts, no_fc_elapsed) = call_with_timing(file, timeout, extra_opts + ["--no-use-extra-fc"])
 
     no_lev_dec_counts = empty_counts()
     no_lev_dec_elapsed = None
     if counts["searched_below"] is not None and int(counts["searched_below"]) > 0:
-        (_, _, no_lev_dec_counts, no_lev_dec_elapsed) = call_with_timing(file, timeout, extra_opts + ["--no-use-level-dec"])
+        (_, _, _, no_lev_dec_counts, no_lev_dec_elapsed) = call_with_timing(file, timeout, extra_opts + ["--no-use-level-dec"])
 
     no_n_mdl_counts = empty_counts()
     no_n_mdl_elapsed = None
     if counts["negated_model"] is not None and int(counts["negated_model"]) > 0:
-        (_, _, no_n_mdl_counts, no_n_mdl_elapsed) = call_with_timing(file, timeout, extra_opts + ["--no-use-negated-models"])
+        (_, _, _, no_n_mdl_counts, no_n_mdl_elapsed) = call_with_timing(file, timeout, extra_opts + ["--no-use-negated-models"])
 
     return (check_safe, elapsed, funcs, depth, counts
                       , no_fc_elapsed, no_fc_counts
@@ -52,7 +52,7 @@ def run_infer(file, name, timeout, extra_opts=[]):
 
 def call_with_timing(file, timeout, passed_args = []):
     start_time = time.perf_counter();
-    res = call_infer_process(file, timeout, passed_args);
+    (res, res_err) = call_infer_process(file, timeout, passed_args);
     end_time = time.perf_counter();
     elapsed = end_time - start_time;
 
@@ -70,7 +70,7 @@ def call_with_timing(file, timeout, passed_args = []):
 
     elapsed = adj_time(check_safe, elapsed)
 
-    return (check_safe, res, counts, elapsed)
+    return (check_safe, res, res_err, counts, elapsed)
 
 def get_opt_counts(res):
     check_safe = res.splitlines()[-2].decode('utf-8')
@@ -120,7 +120,7 @@ def call_infer_process(file, timeout, passed_args = []):
                , "--", "--timeout-sygus", timeout_sygus]
 
         res = subprocess.run(args + extra_args + passed_args, capture_output = True);
-        return res.stdout;
+        return (res.stdout, res.stderr);
     except subprocess.TimeoutExpired:
         res.terminate()
         return "Timeout"

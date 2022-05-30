@@ -307,9 +307,9 @@ getProcessHandles pr = do
 
     return (h_in, h_out, p)
 
-getZ3 :: IO Z3
-getZ3 = do
-    hhp@(h_in, _, _) <- getZ3ProcessHandles
+getZ3 :: Int -> IO Z3
+getZ3 time_out = do
+    hhp@(h_in, _, _) <- getZ3ProcessHandles time_out
     hPutStr h_in "(set-option :pp.decimal true)"
     return $ Z3 arbValue hhp
 
@@ -321,7 +321,7 @@ getSMTInfinite = getSMTAV arbValueInfinite
 
 getSMTAV :: ArbValueFunc -> Config -> IO SomeSMTSolver
 getSMTAV avf (Config {smt = ConZ3}) = do
-    hhp@(h_in, _, _) <- getZ3ProcessHandles
+    hhp@(h_in, _, _) <- getZ3ProcessHandles 10000
     hPutStr h_in "(set-option :pp.decimal true)"
     return $ SomeSMTSolver (Z3 avf hhp)
 getSMTAV avf (Config {smt = ConCVC4}) = do
@@ -333,8 +333,8 @@ getSMTAV avf (Config {smt = ConCVC4}) = do
 -- returned handles to interact with Z3
 -- Ideally, this function should be called only once, and the same Handles should be used
 -- in all future calls
-getZ3ProcessHandles :: IO (Handle, Handle, ProcessHandle)
-getZ3ProcessHandles = getProcessHandles $ proc "z3" ["-smt2", "-in", "-t:10000"]
+getZ3ProcessHandles :: Int -> IO (Handle, Handle, ProcessHandle)
+getZ3ProcessHandles time_out = getProcessHandles $ proc "z3" ["-smt2", "-in", "-t:" ++ show time_out]
 
 getCVC4ProcessHandles :: IO (Handle, Handle, ProcessHandle)
 getCVC4ProcessHandles = getProcessHandles $ proc "cvc4" ["--lang", "smt2.6", "--produce-models", "--produce-unsat-cores"]
