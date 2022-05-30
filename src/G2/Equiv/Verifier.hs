@@ -874,6 +874,12 @@ reducedGuide ((Marker _ m):ms) = case m of
   CycleFound _ -> mkPrettyGuide m
   _ -> reducedGuide ms
 
+importantName1 :: Name
+importantName1 = Name "mapWord64X2" (Just "Data.Primitive.SIMD.Word64X2") 8214565720323805225 (Just (Span {start = Loc {line = 221, col = 1, file = "../hackage-libraries/primitive-simd-0.1.0.0/src-no-vec/Data/Primitive/SIMD/Word64X2.hs"}, end = Loc {line = 221, col = 12, file = "../hackage-libraries/primitive-simd-0.1.0.0/src-no-vec/Data/Primitive/SIMD/Word64X2.hs"}}))
+
+importantName2 :: Name
+importantName2 = Name "mapWord64X2" (Just "Data.Primitive.SIMD.Word64X2") 8214565720323805225 (Just (Span {start = Loc {line = 221, col = 1, file = "/Users/JCK/Documents/YaleResearch/HRR/G2/../hackage-libraries/primitive-simd-0.1.0.0/src-no-vec/Data/Primitive/SIMD/Word64X2.hs"}, end = Loc {line = 221, col = 12, file = "../hackage-libraries/primitive-simd-0.1.0.0/src-no-vec/Data/Primitive/SIMD/Word64X2.hs"}}))
+
 checkRule :: Config
           -> UseLabeledErrors
           -> Bool
@@ -920,6 +926,9 @@ checkRule config use_labels sync init_state bindings total finite print_summary 
 
   S.SomeSolver solver <- initSolver config
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
+  --putStrLn $ show $ E.lookup importantName1 $ expr_env init_state
+  --putStrLn $ show $ E.lookup importantName2 $ expr_env init_state
+  print $ E.namesByString "mapWord64X2" $ expr_env init_state
   putStrLn $ printHaskellDirty e_l'
   putStrLn $ printHaskellDirty e_r'
   putStrLn $ printHaskellDirty $ exprExtract $ latest rewrite_state_l''

@@ -44,6 +44,7 @@ module G2.Language.ExprEnv
     , filter
     , filterWithKey
     , filterToSymbolic
+    , namesByString
     , getIdFromName
     , funcsOfType
     , keys
@@ -173,6 +174,11 @@ isSymbolic n (ExprEnv eenv') =
     case M.lookup n eenv' of
         Just (SymbObj _) -> True
         _ -> False
+
+namesByString :: String -> ExprEnv -> [Name]
+namesByString str =
+    let str_t = T.pack str
+    in keys . (filterWithKey (\(Name t _ _ _) _ -> t == str_t))
 
 -- TODO -- This seems kinda too much like a special case to be here...
 occLookup :: T.Text -> Maybe T.Text -> ExprEnv -> Maybe Expr

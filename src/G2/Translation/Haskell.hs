@@ -536,8 +536,11 @@ mkNameLookup name nm =
     where
         occ = T.pack . occNameString . nameOccName $ name
         unq = getKey . nameUnique $ name
+        -- nameModule_maybe just takes the module name from within the Name
         mdl = case nameModule_maybe name of
-                  Nothing -> Nothing
+                  Nothing -> if (occNameString $ nameOccName name) == "mapWord64X2"
+                             then trace ("NMM! " ++ (occNameString $ nameOccName name)) Nothing
+                             else Nothing
                   Just md -> switchModule (T.pack . moduleNameString . moduleName $ md)
 
         sp = mkSpan $ getSrcSpan name
