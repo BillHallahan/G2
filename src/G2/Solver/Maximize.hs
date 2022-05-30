@@ -133,6 +133,9 @@ solveSoftAsserts' con mb_mdl fresh min_ max_ = do
         UNSAT _ | target == 0 -> return $ UNSAT ()
                 | min_ == max_ -> do
                     pop con
+                    -- get-model is only valid after a check-sat call that returns sat,
+                    -- so we must ensure that the last check-sat did indeed return sat.
+                    checkSatNoReset con []
                     return $ SAT ()
                 -- Should be unreachable, because if min_ is not 0, we have found a model.
                 -- But if min_ == max_ == 0, target == 0, and we hit the first case.

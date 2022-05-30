@@ -110,14 +110,14 @@ instance SMTConverter Z3 where
         let (h_in, _, _) = getIOZ3 con
         T.hPutStrLn h_in (TB.run $ toSolverText form)
 
-    checkSat con formula = do
+    checkSatNoReset con formula = do
         let (h_in, h_out, _) = getIOZ3 con
         -- putStrLn "checkSat"
         -- let formula = run formulaBldr
         -- T.putStrLn (TB.run formula)
         -- putStrLn formula
         
-        setUpFormulaZ3 h_in (TB.run $ toSolverText formula)
+        T.hPutStrLn h_in (TB.run $ toSolverText formula)
         r <- checkSat' h_in h_out
 
         -- putStrLn $ show r
@@ -222,12 +222,14 @@ instance SMTConverter CVC4 where
         let (h_in, _, _) = getIOCVC4 con
         T.hPutStrLn h_in (TB.run $ toSolverText form)
 
-    checkSat con formula = do
+    checkSatNoReset con formula = do
         let (h_in, h_out, _) = getIOCVC4 con
         -- putStrLn "checkSat"
+        -- let formula = run formulaBldr
+        -- T.putStrLn (TB.run formula)
         -- putStrLn formula
         
-        setUpFormulaCVC4 h_in (TB.run $ toSolverText formula)
+        T.hPutStrLn h_in (TB.run $ toSolverText formula)
         r <- checkSat' h_in h_out
 
         -- putStrLn $ show r

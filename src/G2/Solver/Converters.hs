@@ -60,9 +60,13 @@ class Solver con => SMTConverter con where
 
     addFormula :: con -> [SMTHeader] -> IO ()
 
+    checkSatNoReset :: con -> [SMTHeader] -> IO (Result () () ())
     checkSatGetModelOrUnsatCoreNoReset :: con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
 
     checkSat :: con -> [SMTHeader] -> IO (Result () () ())
+    checkSat con headers = do
+        reset con
+        checkSatNoReset con headers
     checkSatGetModel :: con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel () ())
     checkSatGetModelOrUnsatCore :: con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
     checkSatGetModelOrUnsatCore con out get = do
