@@ -413,7 +413,7 @@ searchBelowLevel ghci m_modname lrs verify_res lev_below gs bad = do
     case filterNamesTo called_by_res $ filterNamesTo lev_below verify_res of
         Unsafe bad_sf -> do
             liftIO $ putStrLn "About to run second run of CEx generation"
-            ref_sf <- withConfigs noCounterfactual $ refineUnsafeAll ghci m_modname lrs gs bad_sf
+            ref_sf <- withConfigs (limitedCounterfactual $ namesGS gs) $ refineUnsafeAll ghci m_modname lrs gs bad_sf
             case ref_sf of
                 Left cex -> return $ Left cex
                 Right (viol_fc_sf, no_viol_fc_sf) ->
@@ -467,8 +467,12 @@ filterNamesTo ns (Unsafe unsafe) =
         toOccMod (Name n m _ _) = (n, m)
 filterNamesTo _ vr = vr
 
-noCounterfactual :: Configs -> Configs
-noCounterfactual cfgs@(Configs { g2_config = g2_c }) = cfgs { g2_config = g2_c { counterfactual = NotCounterfactual } }
+limitedCounterfactual :: [Name] -> Configs -> Configs
+limitedCounterfactual ns cfgs@(Configs { g2_config = g2_c }) =
+    cfgs { g2_config = g2_c { counterfactual = Counterfactual
+                                             . CFOnly
+                                             . S.fromList
+                                             $ map (\(Name n m _ _) -> (n, m)) ns } }
 
 genNewConstraints :: MonadIO m => 
                      [GhcInfo]
