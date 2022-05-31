@@ -32,7 +32,22 @@ import Control.Exception
 import Data.List
 import Data.Char
 
+import System.Directory
+import Control.Monad
+
 import ZenoSuite
+
+import Distribution.Simple.BuildToolDepends
+
+import Distribution.Types.GenericPackageDescription
+import Distribution.Types.CondTree
+import Distribution.Types.Library
+import Distribution.Types.BuildInfo
+import Distribution.PackageDescription.Parse
+import Distribution.Verbosity
+import qualified Distribution.ModuleName as MN
+import G2.Translation.Haskell
+import System.FilePath
 
 main :: IO ()
 main = do
@@ -70,6 +85,23 @@ runWithArgs as = do
 
   proj <- guessProj src
 
+  cabal <- findCabal proj
+  let cab = case cabal of
+              Just c -> proj </> c
+              Nothing -> error "No Cabal"
+  gpd <- readGenericPackageDescription silent cab
+  let cn = case condLibrary gpd of
+             Just c@(CondNode _ _ _) -> c
+             Nothing -> error "No Library"
+  let libs = foldr (\l acc -> l:acc) [] cn
+      modules = concat $ map exposedModules libs
+      sources = concat $ map (hsSourceDirs . libBuildInfo) libs
+      others = concat $ map (otherModules . libBuildInfo) libs
+      paths = sources ++ (map MN.toFilePath $
+              (exposedModules $ condTreeData cn) ++ modules ++ others ++
+              (otherModules $ libBuildInfo $ condTreeData cn))
+      proj' = map (proj </>) paths
+
   -- TODO for now, total as long as there's an extra arg
   -- TODO finite variables
   let (finite_names, total_names) = partition finiteArg tail_vars
@@ -82,7 +114,7 @@ runWithArgs as = do
   config <- getConfig as
 
   let libs = maybeToList m_mapsrc
-  (init_state, bindings) <- initialStateNoStartFunc [proj] [src] libs
+  (init_state, bindings) <- initialStateNoStartFunc (proj:proj') [src] libs
                             (TranslationConfig {simpl = True, load_rewrite_rules = True}) config
 
   let rule = find (\r -> tentry == ru_name r) (rewrite_rules bindings)
