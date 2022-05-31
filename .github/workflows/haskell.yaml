@@ -16,8 +16,8 @@ jobs:
         compiler: [ { ghc: '8.2.2', cabal: '3.0' }, { ghc: '8.6.5', cabal: '3.0' }, { ghc: '8.10.7', cabal: '3.6' } ]
         test: [ test, inference-test ]
         exclude:
-          - compiler.ghc: '8.2.2'
-            test: inference-test
+          - matrix.compiler.ghc: '8.2.2'
+            matrix.test: inference-test
 
     steps:
     - uses: actions/checkout@v2
