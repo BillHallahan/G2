@@ -14,7 +14,10 @@ jobs:
     strategy:
       matrix:
         compiler: [ { ghc: '8.2.2', cabal: '3.0' }, { ghc: '8.6.5', cabal: '3.0' }, { ghc: '8.10.7', cabal: '3.6' } ]
-        testcall: [ 'test', 'inference-test' ]
+        test: [ test, inference-test ]
+        exclude:
+          - ghc: '8.2.2'
+            test: inference-test
 
     steps:
     - uses: actions/checkout@v2
@@ -53,4 +56,4 @@ jobs:
     - name: Build
       run: cabal build
     - name: Run tests
-      run: cabal ${{ testcall }}
+      run: cabal ${{ matrix.test }}
