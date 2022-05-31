@@ -84,7 +84,7 @@ posTests = testGroup "Tests"
             , posTestInference "tests_inference/test_files/Pos/Sets7.hs"
             , posTestInference "tests_inference/test_files/Pos/Sets8.hs"
             , posTestInference "tests_inference/test_files/Pos/Sets9.hs"
-            , posTestInference "tests_inference/test_files/Pos/Sets10.hs"
+            -- , posTestInference "tests_inference/test_files/Pos/Sets10.hs"
 
             , posTestInference "tests_inference/test_files/Pos/MeasComp1.hs" 
             , posTestInference "tests_inference/test_files/Pos/MeasComp2.hs"
