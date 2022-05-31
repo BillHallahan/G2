@@ -16,7 +16,7 @@ jobs:
         compiler: [ { ghc: '8.2.2', cabal: '3.0' }, { ghc: '8.6.5', cabal: '3.0' }, { ghc: '8.10.7', cabal: '3.6' } ]
         test: [ test, inference-test ]
         exclude:
-          - ghc: '8.2.2'
+          - compiler.ghc: '8.2.2'
             test: inference-test
 
     steps:
