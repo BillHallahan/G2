@@ -56,4 +56,4 @@ jobs:
     - name: Build
       run: cabal build
     - name: Run tests
-      run: cabal ${{ matrix.test }}
+      run: cabal test ${{ matrix.test }}
