@@ -73,7 +73,22 @@ posTests = testGroup "Tests"
             , posTestInference "tests_inference/test_files/Pos/Test40.hs"
             , posTestInference "tests_inference/test_files/Pos/Test41.hs"
             , posTestInference "tests_inference/test_files/Pos/Test42.hs"
-            , posTestInference "tests_inference/test_files/Pos/Test43.hs" ]
+            , posTestInference "tests_inference/test_files/Pos/Test43.hs"
+
+            , posTestInference "tests_inference/test_files/Pos/Sets1.hs"
+            , posTestInference "tests_inference/test_files/Pos/Sets2.hs"
+            , posTestInference "tests_inference/test_files/Pos/Sets3.hs"
+            , posTestInference "tests_inference/test_files/Pos/Sets4.hs"
+            , posTestInference "tests_inference/test_files/Pos/Sets5.hs"
+            , posTestInference "tests_inference/test_files/Pos/Sets6.hs"
+            , posTestInference "tests_inference/test_files/Pos/Sets7.hs"
+            , posTestInference "tests_inference/test_files/Pos/Sets8.hs"
+            , posTestInference "tests_inference/test_files/Pos/Sets9.hs"
+            , posTestInference "tests_inference/test_files/Pos/Sets10.hs"
+
+            , posTestInference "tests_inference/test_files/Pos/MeasComp1.hs" 
+            , posTestInference "tests_inference/test_files/Pos/MeasComp2.hs"
+            , posTestInference "tests_inference/test_files/Pos/MeasComp3.hs"  ]
 
 negTests :: TestTree
 negTests = testGroup "Tests"
