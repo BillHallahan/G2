@@ -888,7 +888,7 @@ freshSeededStrings t = freshSeededNames (map (\t' -> Name t' Nothing 0 Nothing) 
 
 freshSeededName :: Name -> NameGen -> (Name, NameGen)
 freshSeededName (Name n m _ l) (NameGen { max_uniq = hm }) =
-    (Name n m 0 l, NameGen (hm + 1))
+    (Name n m hm l, NameGen (hm + 1))
 
 freshSeededNames :: [Name] -> NameGen -> ([Name], NameGen)
 freshSeededNames [] r = ([], r)

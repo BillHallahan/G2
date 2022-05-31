@@ -43,7 +43,7 @@ data Name = Name T.Text (Maybe T.Text) Int (Maybe Span)
 
 -- | Disregards the Span
 instance Eq Name where
-    Name _ _ i _ == Name _ _ i' _ = i == i'
+    Name n _ i _ == Name n' _ i' _ = n == n' && i == i'
 
 -- | Disregards the Span
 instance Ord Name where
