@@ -3,6 +3,7 @@
 
 module G2.Liquid.Inference.GeneratedSpecs ( GeneratedSpecs
                                           , emptyGS
+                                          , namesGS
 
                                           , nullAssumeGS
 
@@ -65,6 +66,9 @@ emptyGS = GeneratedSpecs M.empty M.empty []
 
 nullAssumeGS :: GeneratedSpecs -> Bool
 nullAssumeGS = M.null . assume_specs
+
+namesGS :: GeneratedSpecs -> [G2.Name]
+namesGS = M.keys . assert_specs
 
 insertAssumeGS :: G2.Name -> [PolyBound Expr] -> GeneratedSpecs -> GeneratedSpecs
 insertAssumeGS n e gs =
