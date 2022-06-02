@@ -330,7 +330,7 @@ argsAndRetFromSpec _ _ _ _ _ _ _ st = error $ "argsAndRetFromSpec: unhandled Spe
 
 mkSpecArgPB :: (InfConfigM m, ProgresserM m) => [GhcInfo] -> TypeEnv -> Measures -> Type -> SpecType -> m (Maybe [SpecArg], PolyBound [SpecArg])
 mkSpecArgPB ghci tenv meas t st = do
-    MaxSize mx_meas <- maxSynthSizeM
+    MaxSize mx_meas <- maxSynthFormSizeM
     let t_pb = extractTypePolyBound t
 
         sy_pb = specTypeSymbolPB st

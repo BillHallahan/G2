@@ -50,7 +50,7 @@ mkPreCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc@
     , Just func_e <- HM.lookup (nameOcc n, nameModule n) eenv = do
         inf_con <- infConfigM
 
-        MaxSize mx_meas <- maxSynthSizeM
+        MaxSize mx_meas <- maxSynthFormSizeM
         let func_ts = argumentTypes func_e
 
             v_ars = filter (validArgForSMT . snd)
@@ -114,7 +114,7 @@ mkPostCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc
     , Just func_e <- HM.lookup (nameOcc n, nameModule n) eenv = do
         inf_con <- infConfigM
 
-        MaxSize mx_meas <- maxSynthSizeM
+        MaxSize mx_meas <- maxSynthFormSizeM
         let func_ts = argumentTypes func_e
 
             smt_ars = concatMap (uncurry (adjustArgsWithCare inf_con n convExpr (fromInteger mx_meas) tenv meas meas_ex))

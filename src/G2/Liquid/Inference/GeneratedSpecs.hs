@@ -30,6 +30,8 @@ module G2.Liquid.Inference.GeneratedSpecs ( GeneratedSpecs
                                           , deleteAllAssumes
                                           , deleteAllAsserts
 
+                                          , allExprs
+
                                           , genSpec
                                           , insertMissingAssertSpec ) where
 
@@ -283,6 +285,9 @@ insertTySig v lst ghci =
         spc = getTySigs ghci
     in
     putTySigs ghci ((v, lst):spc)
+
+allExprs :: GeneratedSpecs -> [Expr]
+allExprs gs = concatMap extractValues . concat $ M.elems (assume_specs gs) ++ M.elems (assert_specs gs)
 
 genSpec :: [GhcInfo] -> G2.Name -> Maybe SpecType
 genSpec ghcis (G2.Name n _ _ _) = foldr mappend Nothing $ map gen ghcis
