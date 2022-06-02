@@ -77,7 +77,9 @@ liaSynth con iter ghci lrs evals meas_ex fc blk_mdls to_be_ns ns_synth = do
 
     liftIO . putStrLn $ "si = " ++ show si
 
-    synth con iter ghci eenv tenv meas meas_ex evals si fc blk_mdls 1
+    MaxSize max_sz <- maxSynthFormSizeM
+
+    synth con iter ghci eenv tenv meas meas_ex evals si fc blk_mdls max_sz
 
 liaSynthOfSize :: (InfConfigM m, ProgresserM m) => Integer -> M.Map Name SpecInfo -> m (M.Map Name SpecInfo)
 liaSynthOfSize sz m_si = do
