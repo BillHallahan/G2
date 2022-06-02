@@ -6,6 +6,7 @@
 module G2.Liquid.Inference.Sygus.LiaSynth ( SynthRes (..)
                                           , Size
                                           , ModelNames (..)
+                                          , Iteration (..)
                                           , liaSynth
 
                                           , MaxSize
@@ -45,6 +46,7 @@ import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import qualified Text.Builder as TB
 
 data SynthRes = SynthEnv
@@ -56,12 +58,14 @@ data SynthRes = SynthEnv
 
 type Size = Integer
 
+data Iteration = FirstRound | AfterFirstRound
+
 liaSynth :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con)
-         => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
+         => con -> Iteration -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
          -> FuncConstraints
          -> BlockedModels -- ^ SMT Models to block being returned by the synthesizer at various sizes
          -> ToBeNames -> ToSynthNames -> m SynthRes
-liaSynth con ghci lrs evals meas_ex fc blk_mdls to_be_ns ns_synth = do
+liaSynth con iter ghci lrs evals meas_ex fc blk_mdls to_be_ns ns_synth = do
 
     -- Figure out the type of each of the functions we need to synthesize
     let eenv = buildNMExprEnv $ expr_env . state $ lr_state lrs
@@ -73,29 +77,30 @@ liaSynth con ghci lrs evals meas_ex fc blk_mdls to_be_ns ns_synth = do
 
     liftIO . putStrLn $ "si = " ++ show si
 
-    synth con ghci eenv tenv meas meas_ex evals si fc blk_mdls 1
+    synth con iter ghci eenv tenv meas meas_ex evals si fc blk_mdls 1
 
 liaSynthOfSize :: (InfConfigM m, ProgresserM m) => Integer -> M.Map Name SpecInfo -> m (M.Map Name SpecInfo)
 liaSynthOfSize sz m_si = do
     inf_c <- infConfigM
-    MaxSize max_sz <- maxSynthSizeM
+    MaxSize max_form_sz <- maxSynthFormSizeM
+    MaxSize max_coeff_sz <- maxSynthCoeffSizeM
     let m_si' =
             M.map (\si -> 
                     let
                         s_syn_pre' =
                             map (mapPB
                                     (\psi ->
-                                        psi { sy_coeffs = mkCNF (>= 1) sz (fromInteger max_sz) (sy_name psi) psi }
+                                        psi { sy_coeffs = mkCNF (>= 1) sz (fromInteger max_form_sz) (sy_name psi) psi }
                                     )
                                  ) (s_syn_pre si)
                         s_syn_post' =
                             mapPB (\psi -> 
-                                        psi { sy_coeffs = mkCNF (>= 1) sz (fromInteger max_sz) (sy_name psi) psi }
+                                        psi { sy_coeffs = mkCNF (>= 1) sz (fromInteger max_form_sz) (sy_name psi) psi }
                                   ) (s_syn_post si)
                     in
                     si { s_syn_pre = s_syn_pre' -- (s_syn_pre si) { sy_coeffs = pre_c }
                        , s_syn_post = s_syn_post' -- (s_syn_post si) { sy_coeffs = post_c }
-                       , s_max_coeff = if restrict_coeffs inf_c then 1 else 2 * sz }) m_si
+                       , s_max_coeff = if restrict_coeffs inf_c then 1 else max_coeff_sz }) m_si
     return m_si'
     where
 
@@ -264,6 +269,7 @@ mkBoolForms prd sz max_sz s psi j k =
 
 synth :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con)
       => con
+      -> Iteration
       -> [GhcInfo]
       -> NMExprEnv
       -> TypeEnv
@@ -275,7 +281,7 @@ synth :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con)
       -> BlockedModels
       -> Size
       -> m SynthRes
-synth con ghci eenv tenv meas meas_ex evals si fc blk_mdls sz = do
+synth con iter ghci eenv tenv meas meas_ex evals si fc blk_mdls sz = do
     si' <- liaSynthOfSize sz si
     let zero_coeff_hdrs = softCoeffAssertZero si' ++ softClauseActAssertZero si' -- ++ softFuncActAssertZero si'
         -- zero_coeff_hdrs = softFuncActAssertZero si' ++ softClauseActAssertZero si'
@@ -294,10 +300,11 @@ synth con ghci eenv tenv meas meas_ex evals si fc blk_mdls sz = do
         rel_non_equiv_mdls = map (uncurry (filterModelToRel si')) non_equiv_mdls
         fun_block_mdls = concatMap (uncurry (blockModelWithFuns si')) $ zip (map show ([0..] :: [Integer])) rel_non_equiv_mdls
 
-        ex_assrts =    [Comment "favor making coefficients 0"]
-                    ++ zero_coeff_hdrs
-                    ++ [Comment "enforce maximal and minimal values for coefficients"]
+        ex_assrts1 =   [Comment "enforce maximal and minimal values for coefficients"]
                     ++ max_coeffs_cons
+
+        ex_assrts2 =   [Comment "favor making coefficients 0"]
+                    ++ zero_coeff_hdrs
                     ++ [Comment "favor coefficients being -1, 0, or 1"]
                     ++ soft_coeff_cons
                     ++ [Comment "favor set booleans being false"]
@@ -305,9 +312,11 @@ synth con ghci eenv tenv meas meas_ex evals si fc blk_mdls sz = do
                     ++ [Comment "block spurious models"]
                     ++ block_mdls
 
+        ex_assrts = ex_assrts1 ++ ex_assrts2
+
         drop_if_unknown = [Comment "stronger blocking of spurious models"] ++ fun_block_mdls
 
-    MaxSize max_sz <- maxSynthSizeM
+    MaxSize max_sz <- maxSynthFormSizeM
 
     res <- synth' con ghci eenv tenv meas meas_ex evals si' fc ex_assrts drop_if_unknown blk_mdls sz
     case res of
@@ -324,9 +333,18 @@ synth con ghci eenv tenv meas meas_ex evals si fc blk_mdls sz = do
                         mdls' = foldr (\n -> insertEquivBlockedModel sz (MNOnlySMTNames [n]) n_mdl) blk_mdls mn
 
                     liftIO . putStrLn $ "mn = " ++ show mn
-                    synth con ghci eenv tenv meas meas_ex evals si fc mdls' sz
+                    synth con iter ghci eenv tenv meas meas_ex evals si fc mdls' sz
         SynthFail _
-            | sz < max_sz -> synth con ghci eenv tenv meas meas_ex evals si fc blk_mdls (sz + 1)
+            | sz < max_sz -> synth con iter ghci eenv tenv meas meas_ex evals si fc blk_mdls (sz + 1)
+            | FirstRound <- iter -> do
+                no_max_res <- synth' con ghci eenv tenv meas meas_ex evals si' fc ex_assrts2 drop_if_unknown blk_mdls sz
+                case no_max_res of
+                    SynthEnv gs _ _ _ -> do
+                        let lits = concatMap exprIntegers $ allExprs gs
+                            max_lit = maximum $ map abs lits
+                        setMaxSynthCoeffSizeM (MaxSize max_lit)
+                        return no_max_res
+                    _ -> return no_max_res
             | otherwise -> return res
     
 synth' :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con)
@@ -387,6 +405,7 @@ runConstraintsForSynth headers vs = do
     setProduceUnsatCores z3_dir
     setProduceUnsatCores z3_max
 
+    -- T.putStrLn (TB.run $ toSolverText headers)
     addFormula z3_dir headers
     addFormula z3_max headers
 
@@ -435,6 +454,28 @@ getModelOrUnsatCore con vs (UNSAT ()) = do
     uc <- getUnsatCoreInstrResult con
     return (UNSAT uc)
 getModelOrUnsatCore con vs (Unknown err ()) = return (Unknown err ())
+
+-- | Extract Integer literals from a LH expression
+exprIntegers :: LHF.Expr -> [Integer]
+exprIntegers (ESym _) = []
+exprIntegers (ECon (I i)) = [i]
+exprIntegers (ECon _) = []
+exprIntegers (EVar _) = []
+exprIntegers (EApp e1 e2) = exprIntegers e1 ++ exprIntegers e2
+exprIntegers (ENeg e) = exprIntegers e
+exprIntegers (EBin _ e1 e2) = exprIntegers e1 ++ exprIntegers e2
+exprIntegers (EIte e1 e2 e3) = exprIntegers e1 ++ exprIntegers e2 ++ exprIntegers e3
+exprIntegers (ECst e _) = exprIntegers e
+exprIntegers (ELam _ e) = exprIntegers e
+exprIntegers (ETApp e _) = exprIntegers e
+exprIntegers (ETAbs e _) = exprIntegers e
+exprIntegers (PAnd es) = concatMap exprIntegers es
+exprIntegers (POr es) = concatMap exprIntegers es
+exprIntegers (PNot e) = exprIntegers e
+exprIntegers (PImp e1 e2) = exprIntegers e1 ++ exprIntegers e2
+exprIntegers (PIff e1 e2) = exprIntegers e1 ++ exprIntegers e2
+exprIntegers (PAtom _ e1 e2) = exprIntegers e1 ++ exprIntegers e2
+exprIntegers _ = error "exprIntegers: unsupported"
 
 ------------------------------------
 -- Handling Models

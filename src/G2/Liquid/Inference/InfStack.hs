@@ -14,7 +14,7 @@ module G2.Liquid.Inference.InfStack ( InfStack
                                     , extraMaxDepthI
                                     , extraMaxCExI
                                     , extraMaxTimeI
-                                    , maxSynthSizeI
+                                    , setMaxSynthCoeffSizeI
 
                                     , logEventStartM
                                     , logEventEndM
@@ -108,11 +108,14 @@ extraMaxDepthI = lift . lift . lift $ gets extraMaxDepth
 extraMaxTimeI :: Monad m => (T.Text, Maybe T.Text) -> InfStack m NominalDiffTime
 extraMaxTimeI n = lift . lift . lift $ gets (extraMaxTime n)
 
-maxSynthSizeI :: Monad m => InfStack m MaxSize
-maxSynthSizeI = lift . lift . lift $ maxSynthSizeM
-
 incrMaxSynthSizeI :: Monad m => InfStack m ()
-incrMaxSynthSizeI = lift . lift . lift $ incrMaxSynthSizeM
+incrMaxSynthSizeI = do
+    lift . lift . lift $ incrMaxSynthFormSizeM
+    lift . lift . lift $ incrMaxSynthCoeffSizeM
+
+setMaxSynthCoeffSizeI :: Monad m => MaxSize -> InfStack m ()
+setMaxSynthCoeffSizeI max_size = do
+    lift . lift . lift $ setMaxSynthCoeffSizeM max_size
 
 startLevelTimer :: MonadIO m => [Name] -> InfStack m () 
 startLevelTimer = lift . logEventStartM . HS.fromList

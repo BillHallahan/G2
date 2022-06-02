@@ -667,7 +667,7 @@ evalMeasures' :: ( InfConfigM m
                  , Solver solver
                  , Show t) => State t -> Bindings -> solver -> Config -> Measures -> TCValues -> MeasureExs -> Expr -> m MeasureExs
 evalMeasures' s bindings solver config meas tcv init_meas e =  do
-    MaxSize max_meas <- maxSynthSizeM
+    MaxSize max_meas <- maxSynthFormSizeM
     let m_sts = evalMeasures'' (fromInteger max_meas) s bindings meas tcv e
 
     foldM (\meas_exs (ns, e_in, s_meas) -> do
