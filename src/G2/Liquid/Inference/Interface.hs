@@ -377,8 +377,6 @@ refineUnsafe :: MonadIO m =>
 refineUnsafe ghci m_modname lrs gs bad = do
     let merged_se_ghci = addSpecsToGhcInfos ghci gs
 
-    liftIO $ mapM_ (print . getTySigs) merged_se_ghci
-
     (res, no_viol) <- genNewConstraints merged_se_ghci m_modname lrs (nameOcc bad)
 
     liftIO $ do
