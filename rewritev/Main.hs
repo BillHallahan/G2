@@ -43,7 +43,7 @@ import Distribution.Types.GenericPackageDescription
 import Distribution.Types.CondTree
 import Distribution.Types.Library
 import Distribution.Types.BuildInfo
-import Distribution.PackageDescription.Parse
+import Distribution.PackageDescription.Parsec
 import Distribution.Verbosity
 import qualified Distribution.ModuleName as MN
 import G2.Translation.Haskell
