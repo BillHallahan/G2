@@ -561,7 +561,6 @@ synthesize :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con)
            => con -> Iteration -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
            -> FuncConstraints -> BlockedModels -> [Name] -> [Name] -> m SynthRes
 synthesize con iter ghci lrs evals meas_ex fc blk_mdls to_be for_funcs = do
-    liftIO . putStrLn $ "all fc = " ++ printFCs lrs fc
     liaSynth con iter ghci lrs evals meas_ex fc blk_mdls to_be for_funcs
 
 updateEvals :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> FuncConstraints -> Evals Bool -> m (Evals Bool)

@@ -366,7 +366,6 @@ synth' :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con)
        -> m SynthRes
 synth' con ghci eenv tenv meas meas_ex evals m_si fc headers drop_if_unknown blk_mdls sz = do
     let n_for_m = namesForModel m_si
-    liftIO $ print m_si
     let consts = arrayConstants m_si
     (constraints, nm_fc_map) <- nonMaxCoeffConstraints ghci eenv tenv meas meas_ex evals m_si fc
     let hdrs = SetLogic ALL:consts ++ constraints ++ headers ++ drop_if_unknown
