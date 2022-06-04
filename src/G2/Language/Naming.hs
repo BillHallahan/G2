@@ -82,7 +82,7 @@ nameLoc :: Name -> Maybe Span
 nameLoc (Name _ _ _ s) = s
 
 -- | Allows the creation of fresh `Name`s.
-data NameGen = NameGen { max_uniq :: Int }
+newtype NameGen = NameGen { max_uniq :: Int }
                 deriving (Show, Eq, Read, Typeable, Data)
 
 -- nameToStr relies on NameCleaner eliminating all '_', to preserve uniqueness

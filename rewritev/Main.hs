@@ -45,9 +45,7 @@ import Distribution.Types.Library
 import Distribution.Types.BuildInfo
 import Distribution.PackageDescription.Parsec
 import Distribution.Verbosity
-import qualified Distribution.ModuleName as MN
-import G2.Translation.Haskell
-import System.FilePath
+import G2.Translation.Cabal.Cabal
 
 main :: IO ()
 main = do
@@ -84,23 +82,7 @@ runWithArgs as = do
         Just n -> read (tail_args !! (n + 1)) :: Int
 
   proj <- guessProj src
-
-  cabal <- findCabal proj
-  let cab = case cabal of
-              Just c -> proj </> c
-              Nothing -> error "No Cabal"
-  gpd <- readGenericPackageDescription silent cab
-  let cn = case condLibrary gpd of
-             Just c@(CondNode _ _ _) -> c
-             Nothing -> error "No Library"
-  let libs = foldr (\l acc -> l:acc) [] cn
-      modules = concat $ map exposedModules libs
-      sources = concat $ map (hsSourceDirs . libBuildInfo) libs
-      others = concat $ map (otherModules . libBuildInfo) libs
-      paths = sources ++ (map MN.toFilePath $
-              (exposedModules $ condTreeData cn) ++ modules ++ others ++
-              (otherModules $ libBuildInfo $ condTreeData cn))
-      proj' = map (proj </>) paths
+  proj' <- fullDirs proj
 
   -- TODO for now, total as long as there's an extra arg
   -- TODO finite variables
