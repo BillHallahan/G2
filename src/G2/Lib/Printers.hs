@@ -323,6 +323,7 @@ mkPrimHaskell Quot = "quot"
 mkPrimHaskell Mod = "mod"
 mkPrimHaskell Rem = "rem"
 mkPrimHaskell Negate = "-"
+mkPrimHaskell Abs = "abs"
 mkPrimHaskell SqRt = "sqrt"
 mkPrimHaskell IntToFloat = "fromIntegral"
 mkPrimHaskell IntToDouble = "fromIntegral"
@@ -443,6 +444,8 @@ prettyPathCond pg (AltCond l e b) =
     if b then eq else "not (" ++ eq ++ ")"
 prettyPathCond pg (ExtCond e b) =
     if b then mkDirtyExprHaskell pg e else "not (" ++ mkDirtyExprHaskell pg e ++ ")"
+prettyPathCond pg (SoftPC pc) =
+    "soft (" ++ prettyPathCond pg pc ++ ")"
 prettyPathCond pg (AssumePC i l pc) =
     let
         pc' = map PC.unhashedPC $ HS.toList pc

@@ -55,6 +55,9 @@ evalPrim1 :: Primitive -> Lit -> Maybe Expr
 evalPrim1 Negate (LitInt x) = Just . Lit $ LitInt (-x)
 evalPrim1 Negate (LitFloat x) = Just . Lit $ LitFloat (-x)
 evalPrim1 Negate (LitDouble x) = Just . Lit $ LitDouble (-x)
+evalPrim1 Abs (LitInt x) = Just . Lit $ LitInt (abs x)
+evalPrim1 Abs (LitFloat x) = Just . Lit $ LitFloat (abs x)
+evalPrim1 Abs (LitDouble x) = Just . Lit $ LitDouble (abs x)
 evalPrim1 SqRt x = evalPrim1Floating (sqrt) x
 evalPrim1 IntToFloat (LitInt x) = Just . Lit $ LitFloat (fromIntegral x)
 evalPrim1 IntToDouble (LitInt x) = Just . Lit $ LitDouble (fromIntegral x)

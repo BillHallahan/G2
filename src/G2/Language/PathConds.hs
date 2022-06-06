@@ -107,6 +107,7 @@ unionMapMaybePCGroup f pcg =
 -- to assertion / assumptions made, or some externally coded factors.
 data PathCond = AltCond Lit Expr Bool -- ^ The expression and Lit must match
               | ExtCond Expr Bool -- ^ The expression must be a (true) boolean
+              | SoftPC PathCond -- ^ A `PathCond` to satisfy if possible, but which is not absolutely required.
               | AssumePC Id Integer (HS.HashSet HashedPathCond)
               deriving (Show, Eq, Read, Generic, Typeable, Data)
 
@@ -118,7 +119,8 @@ instance Hashable PathCond where
 
     hash (AltCond l e b) = (1 :: Int) `hashWithSalt` l `hashWithSalt` e `hashWithSalt` b
     hash (ExtCond e b) = (2 :: Int) `hashWithSalt` e `hashWithSalt` b
-    hash (AssumePC i n pc) = (3 :: Int) `hashWithSalt` i `hashWithSalt` n `hashWithSalt` pc -- hashAssumePC i n pc
+    hash (SoftPC pc) = (3 :: Int) `hashWithSalt` pc
+    hash (AssumePC i n pc) = (4 :: Int) `hashWithSalt` i `hashWithSalt` n `hashWithSalt` pc -- hashAssumePC i n pc
 
 {-# INLINE toUFMap #-}
 toUFMap :: PathConds -> UF.UFMap (Maybe Name) PCGroup
@@ -215,6 +217,7 @@ varIdsInPC :: PathCond -> [Id]
 -- See note [ChildrenNames] in Execution/Rules.hs
 varIdsInPC (AltCond _ e _) = varIds e
 varIdsInPC (ExtCond e _) = varIds e
+varIdsInPC (SoftPC pc) = varIdsInPC pc
 varIdsInPC (AssumePC i _ pc) = i:concatMap (varIdsInPC . unhashedPC) pc
 
 varNamesInPC :: PathCond -> [Name]
@@ -310,16 +313,19 @@ instance ASTContainer PathConds Type where
 instance ASTContainer PathCond Expr where
     containedASTs (ExtCond e _ )   = [e]
     containedASTs (AltCond _ e _) = [e]
+    containedASTs (SoftPC pc) = containedASTs pc
     containedASTs (AssumePC _ _ pc) = containedASTs pc
 
     modifyContainedASTs f (ExtCond e b) = ExtCond (modifyContainedASTs f e) b
     modifyContainedASTs f (AltCond a e b) =
         AltCond (modifyContainedASTs f a) (modifyContainedASTs f e) b
+    modifyContainedASTs f (SoftPC pc) = SoftPC $ modifyContainedASTs f pc
     modifyContainedASTs f (AssumePC i num pc) = AssumePC i num (modifyContainedASTs f pc)
 
 instance ASTContainer PathCond Type where
     containedASTs (ExtCond e _)   = containedASTs e
     containedASTs (AltCond e a _) = containedASTs e ++ containedASTs a
+    containedASTs (SoftPC pc) = containedASTs pc
     containedASTs (AssumePC i _ pc) = containedASTs i ++ containedASTs pc
 
     modifyContainedASTs f (ExtCond e b) = ExtCond e' b
@@ -327,6 +333,7 @@ instance ASTContainer PathCond Type where
     modifyContainedASTs f (AltCond e a b) = AltCond e' a' b
       where e' = modifyContainedASTs f e
             a' = modifyContainedASTs f a
+    modifyContainedASTs f (SoftPC pc) = SoftPC $ modifyContainedASTs f pc
     modifyContainedASTs f (AssumePC i num pc) = AssumePC (modifyContainedASTs f i) num (modifyContainedASTs f pc)
 
 instance Named PathConds where
@@ -373,14 +380,17 @@ instance Ided PCGroup where
 instance Named PathCond where
     names (AltCond _ e _) = names e
     names (ExtCond e _) = names e
+    names (SoftPC pc) = names pc
     names (AssumePC i _ pc) = names i <> names pc
 
     rename old new (AltCond l e b) = AltCond l (rename old new e) b
     rename old new (ExtCond e b) = ExtCond (rename old new e) b
+    rename old new (SoftPC pc) = SoftPC (rename old new pc)
     rename old new (AssumePC i num pc) = AssumePC (rename old new i) num (rename old new pc)
 
     renames hm (AltCond l e b) = AltCond l (renames hm e) b
     renames hm (ExtCond e b) = ExtCond (renames hm e) b
+    renames hm (SoftPC pc) = SoftPC (renames hm pc)
     renames hm (AssumePC i num pc) = AssumePC (renames hm i) num (renames hm pc)
 
 instance Ided PathConds where
@@ -389,6 +399,7 @@ instance Ided PathConds where
 instance Ided PathCond where
     ids (AltCond _ e _) = ids e
     ids (ExtCond e _) = ids e
+    ids (SoftPC pc) = ids pc
     ids (AssumePC i _ pc) = ids i ++ ids pc
 
 data HashedPathCond = HashedPC PathCond {-# UNPACK #-} !Int
