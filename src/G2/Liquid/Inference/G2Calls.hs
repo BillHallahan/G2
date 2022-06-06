@@ -283,14 +283,14 @@ runLHInferenceCore entry m lrs ghci = do
                , ls_counterfactual_name = cfn
                , ls_memconfig = pres_names } <- liftIO $ processLiquidReadyStateWithCall lrs ghci entry m g2config mempty
     SomeSolver solver <- liftIO $ initSolver g2config
-    let solver' = SpreadOutSolver max_coeff_sz solver
+    -- let solver' = SpreadOutSolver max_coeff_sz solver
     let simplifier = IdSimplifier
         final_st' = swapHigherOrdForSymGen bindings final_st
 
-    (red, hal, ord) <- inferenceReducerHalterOrderer infconfig g2config solver' simplifier entry m cfn final_st'
-    (exec_res, final_bindings) <- liftIO $ runLHG2 g2config red hal ord solver' simplifier pres_names ifi final_st' bindings
+    (red, hal, ord) <- inferenceReducerHalterOrderer infconfig g2config solver simplifier entry m cfn final_st'
+    (exec_res, final_bindings) <- liftIO $ runLHG2 g2config red hal ord solver simplifier pres_names ifi final_st' bindings
 
-    liftIO $ close solver'
+    liftIO $ close solver
 
     liftIO $ putStrLn "end runLHInferenceCore"
 
