@@ -31,8 +31,8 @@ ufMapQuickcheck =
         , testProperty "toList . fromList preserves stored values" prop_toList_fromList_values
         , testProperty "the toList function returns a list with at least as many elements as in the simple map" prop_toList_leq_simple_map
 
-        , testProperty "the unionWith function correctly preserves elements in the first UFMaps" prop_union_with_preserves_values1
-        , testProperty "the unionWith function correctly preserves elements in the second UFMaps" prop_union_with_preserves_values2
+        , testProperty "the unionWith function correctly preserves elements in the first UFMaps" prop_unionWith_preserves_values1
+        , testProperty "the unionWith function correctly preserves elements in the second UFMaps" prop_unionWith_preserves_values2
         ]
 
 prop_from_hs_to_hs :: [([Integer], Maybe Integer)] -> Property
@@ -206,11 +206,11 @@ prop_toList_leq_simple_map els ufm =
     in
     property $ length (toList ufm') >= HM.size (toSimpleMap ufm')
 
-prop_union_with_preserves_values1 :: Integer
+prop_unionWith_preserves_values1 :: Integer
                                   -> UFMap Integer (S.HashSet Integer)
                                   -> UFMap Integer (S.HashSet Integer)
                                   -> Property
-prop_union_with_preserves_values1 x ufm1 ufm2 =
+prop_unionWith_preserves_values1 x ufm1 ufm2 =
     let
         union = unionWith (<>) ufm1 ufm2
 
@@ -223,15 +223,15 @@ prop_union_with_preserves_values1 x ufm1 ufm2 =
     in
     not (S.null s1) || not (S.null s2) ==> property $ s1 `isSubsetOf` s2
 
-prop_union_with_preserves_values2 :: Integer
-                                  -> UFMap Integer (S.HashSet Integer)
-                                  -> UFMap Integer (S.HashSet Integer)
-                                  -> Property
-prop_union_with_preserves_values2 x ufm1 ufm2 =
+prop_unionWith_preserves_values2 :: Integer
+                                 -> UFMap Integer (S.HashSet Integer)
+                                 -> UFMap Integer (S.HashSet Integer)
+                                 -> Property
+prop_unionWith_preserves_values2 x ufm1 ufm2 =
     let
         union = unionWith (<>) ufm1 ufm2
 
-        s1 = case lookup x ufm1 of
+        s1 = case lookup x ufm2 of
                     Just s -> s
                     Nothing -> S.empty 
         s2 = case lookup x union of

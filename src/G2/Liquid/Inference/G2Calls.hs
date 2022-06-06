@@ -110,7 +110,8 @@ instance Solver solver => Solver (SpreadOutSolver solver) where
             pc_union = pc `PC.union` pc'
         in
         case null int_vs of
-            False -> solve solver s b is pc_union
+            False -> do
+                solve solver s b is pc_union
             True -> solve solver s b is pc
         where
             isInteger TyLitInt = True
