@@ -107,9 +107,10 @@ instance Solver solver => Solver (SpreadOutSolver solver) where
                        . inits $ reverse max_vs
 
             pc' = PC.fromList $ max_vs_eq ++ max_ord ++ soft_space
+            pc_union = pc `PC.union` pc'
         in
         case null int_vs of
-            False -> solve solver s b is (pc `PC.union` pc')
+            False -> solve solver s b is pc_union
             True -> solve solver s b is pc
         where
             isInteger TyLitInt = True
