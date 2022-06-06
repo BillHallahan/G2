@@ -212,7 +212,7 @@ prop_unionWith_preserves_values1 :: Integer
                                   -> Property
 prop_unionWith_preserves_values1 x ufm1 ufm2 =
     let
-        union = unionWith HS.union ufm1 ufm2
+        union = unionWith S.union ufm1 ufm2
 
         s1 = case lookup x ufm1 of
                     Just s -> s
@@ -229,7 +229,7 @@ prop_unionWith_preserves_values2 :: Integer
                                  -> Property
 prop_unionWith_preserves_values2 x ufm1 ufm2 =
     let
-        union = unionWith HS.union ufm1 ufm2
+        union = unionWith S.union ufm1 ufm2
 
         s1 = case lookup x ufm2 of
                     Just s -> s
