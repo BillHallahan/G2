@@ -63,6 +63,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | (:-) !SMTAST !SMTAST -- ^ Subtraction
             | (:*) !SMTAST !SMTAST
             | (:/) !SMTAST !SMTAST
+            | AbsSMT !SMTAST
             | SqrtSMT !SMTAST
             | QuotSMT !SMTAST !SMTAST
             | Modulo !SMTAST !SMTAST

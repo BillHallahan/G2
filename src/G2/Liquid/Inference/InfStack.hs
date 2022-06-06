@@ -14,6 +14,7 @@ module G2.Liquid.Inference.InfStack ( InfStack
                                     , extraMaxDepthI
                                     , extraMaxCExI
                                     , extraMaxTimeI
+                                    , maxSynthCoeffSizeI
                                     , setMaxSynthCoeffSizeI
 
                                     , logEventStartM
@@ -112,6 +113,9 @@ incrMaxSynthSizeI :: Monad m => InfStack m ()
 incrMaxSynthSizeI = do
     lift . lift . lift $ incrMaxSynthFormSizeM
     lift . lift . lift $ incrMaxSynthCoeffSizeM
+
+maxSynthCoeffSizeI :: Monad m => InfStack m MaxSize
+maxSynthCoeffSizeI = lift . lift . lift $ maxSynthCoeffSizeM
 
 setMaxSynthCoeffSizeI :: Monad m => MaxSize -> InfStack m ()
 setMaxSynthCoeffSizeI max_size = do

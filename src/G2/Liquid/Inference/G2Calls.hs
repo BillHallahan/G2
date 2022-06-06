@@ -15,6 +15,8 @@ module G2.Liquid.Inference.G2Calls ( MeasureExs
                                    , FCEvals
                                    , Evals (..)
 
+                                   , SpreadOutSolver (..)
+
                                    , gatherAllowedCalls
 
                                    , runLHInferenceAll
@@ -45,6 +47,7 @@ import G2.Execution
 import G2.Interface
 import G2.Language as G2
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.PathConds as PC
 import G2.Lib.Printers
 import G2.Liquid.Inference.Config
 import G2.Liquid.AddCFBranch
@@ -74,6 +77,61 @@ import Control.Monad
 import Control.Exception
 import Control.Monad.IO.Class
 import Data.Monoid
+
+-------------------------------------
+-- Solvers
+-------------------------------------
+
+-- | A solver that adds soft asserts to (try to) spread out integer values
+-- returned in a model.
+data SpreadOutSolver solver = SpreadOutSolver Integer solver
+
+instance Solver solver => Solver (SpreadOutSolver solver) where
+    check (SpreadOutSolver _ solver) s pc = check solver s pc
+    
+    solve (SpreadOutSolver mx_size solver) s b is pc =
+        let
+            int_vs = filter (isInteger . typeOf) is
+            max_vs = map (\i -> Id (Name "MAX_INT_ORD__??__" Nothing i Nothing) TyLitInt)
+                   . map fst
+                   $ zip [1..] int_vs
+
+            max_vs_eq = map (flip ExtCond True)
+                      $ map (\mv -> foldr1 or_expr $ map (\iv -> abs_expr (Var iv) `eq` Var mv) int_vs) max_vs
+            max_ord = map (flip ExtCond True) . map (\(x, y) -> Var x `le_expr` Var y) $ adj max_vs
+            soft_space = map SoftPC
+                       . map (flip ExtCond True)
+                       . map (\(v, vs) -> sum_vars vs `lt_expr` Var v)
+                       . map (\(v:vs) -> (v, vs))
+                       . filter (not . null)
+                       . inits $ reverse max_vs
+
+            pc' = PC.fromList $ max_vs_eq ++ max_ord ++ soft_space
+            pc_union = pc `PC.union` pc'
+        in
+        case null int_vs of
+            False -> do
+                solve solver s b is pc_union
+            True -> solve solver s b is pc
+        where
+            isInteger TyLitInt = True
+            isInteger _ = False
+
+            abs_expr x = App (Prim Abs TyUnknown) x
+            eq x y = App (App (Prim Eq TyUnknown) x) y
+            or_expr x y = App (App (Prim Or TyUnknown) x) y
+            le_expr x y = App (App (Prim Le TyUnknown) x) y
+            lt_expr x y = App (App (Prim Lt TyUnknown) x) y
+            plus_expr x y = App (App (Prim Plus TyUnknown) x) y
+            mult_expr x y = App (App (Prim Mult TyUnknown) x) y
+
+            sum_vars = foldr plus_expr (Lit (LitInt mx_size))
+                     . map (mult_expr (Lit (LitInt mx_size)))
+                     . map Var
+
+            adj xs = zip xs $ tail xs
+
+    close (SpreadOutSolver _ solver) = close solver
 
 -------------------------------------
 -- Generating Allowed Inputs/Outputs
@@ -214,6 +272,8 @@ runLHInferenceCore :: MonadIO m
                    -> [GhcInfo]
                    -> InfStack m (([ExecRes AbstractedInfo], Bindings), Id)
 runLHInferenceCore entry m lrs ghci = do
+    MaxSize max_coeff_sz <- maxSynthCoeffSizeI
+
     g2config <- g2ConfigM
     infconfig <- infConfigM
 
@@ -223,6 +283,7 @@ runLHInferenceCore entry m lrs ghci = do
                , ls_counterfactual_name = cfn
                , ls_memconfig = pres_names } <- liftIO $ processLiquidReadyStateWithCall lrs ghci entry m g2config mempty
     SomeSolver solver <- liftIO $ initSolver g2config
+    -- let solver' = SpreadOutSolver max_coeff_sz solver
     let simplifier = IdSimplifier
         final_st' = swapHigherOrdForSymGen bindings final_st
 

@@ -297,27 +297,32 @@ isCoreSort _ = False
 -------------------------------------------------------------------------------
 
 pathConsToSMTHeaders :: [PathCond] -> [SMTHeader]
-pathConsToSMTHeaders = map Assert . map pathConsToSMT
+pathConsToSMTHeaders = map pathConsToSMT
 
-pathConsToSMT :: PathCond -> SMTAST
-pathConsToSMT (AltCond l e b) =
+pathConsToSMT :: PathCond -> SMTHeader
+pathConsToSMT (SoftPC pc) = AssertSoft (pathConsToSMT' pc) Nothing
+pathConsToSMT pc = Assert (pathConsToSMT' pc) 
+
+pathConsToSMT' :: PathCond -> SMTAST
+pathConsToSMT' (AltCond l e b) =
     let
         exprSMT = exprToSMT e
         altSMT = altToSMT l e
     in
     if b then exprSMT := altSMT else (:!) (exprSMT := altSMT) 
-pathConsToSMT (ExtCond e b) =
+pathConsToSMT' (ExtCond e b) =
     let
         exprSMT = exprToSMT e
     in
     if b then exprSMT else (:!) exprSMT
-pathConsToSMT (AssumePC (Id n t) num pc) =
+pathConsToSMT' (AssumePC (Id n t) num pc) =
     let
         idSMT = V (nameToStr n) (typeToSMT t) -- exprToSMT (Var i)
         intSMT = VInt $ toInteger num -- exprToSMT (Lit (LitInt $ toInteger num))
-        pcSMT = map (pathConsToSMT . PC.unhashedPC) $ HS.toList pc
+        pcSMT = map (pathConsToSMT' . PC.unhashedPC) $ HS.toList pc
     in
     (idSMT := intSMT) :=> SmtAnd pcSMT
+pathConsToSMT' (SoftPC _) = error "pathConsToSMT': unsupported nesting of SoftPC."
 
 exprToSMT :: Expr -> SMTAST
 exprToSMT (Var (Id n t)) = V (nameToStr n) (typeToSMT t)
@@ -361,6 +366,7 @@ funcToSMT e l = error ("Unrecognized " ++ show e ++ " with args " ++ show l ++ "
 
 funcToSMT1Prim :: Primitive -> Expr -> SMTAST
 funcToSMT1Prim Negate a = Neg (exprToSMT a)
+funcToSMT1Prim Abs e = AbsSMT (exprToSMT e)
 funcToSMT1Prim SqRt e = SqrtSMT (exprToSMT e)
 funcToSMT1Prim Not e = (:!) (exprToSMT e)
 funcToSMT1Prim IntToFloat e = ItoR (exprToSMT e)
@@ -487,6 +493,7 @@ toSolverAST (x :* y) = function2 "*" (toSolverAST x) (toSolverAST y)
 toSolverAST (x :/ y) = function2 "/" (toSolverAST x) (toSolverAST y)
 toSolverAST (x `QuotSMT` y) = function2 "div" (toSolverAST x) (toSolverAST y)
 toSolverAST (x `Modulo` y) = function2 "mod" (toSolverAST x) (toSolverAST y)
+toSolverAST (AbsSMT x) = "(abs " <> toSolverAST x <> ")"
 toSolverAST (SqrtSMT x) = "(^ " <> toSolverAST x <> " 0.5)"
 toSolverAST (Neg x) = function1 "-" $ toSolverAST x
 

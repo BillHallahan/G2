@@ -460,7 +460,11 @@ runG2Solving :: ( Named t
                 , ASTContainer t Type
                 , Solver solver
                 , Simplifier simplifier) =>
-                solver -> simplifier -> Bindings -> State t -> IO (Maybe (ExecRes t))
+                   solver
+                -> simplifier
+                -> Bindings
+                -> State t
+                -> IO (Maybe (ExecRes t))
 runG2Solving solver simplifier bindings s@(State { known_values = kv })
     | true_assert s = do
         r <- solve solver s bindings (E.symbolicIds . expr_env $ s) (path_conds s)
@@ -468,27 +472,37 @@ runG2Solving solver simplifier bindings s@(State { known_values = kv })
         case r of
             SAT m -> do
                 let m' = reverseSimplification simplifier s bindings m
-
-                let s' = s { model = m' }
-
-                let (es, e, ais) = subModel s' bindings
-                    sm = ExecRes { final_state = s'
-                                 , conc_args = es
-                                 , conc_out = e
-                                 , violated = ais}
-
-                let sm' = runPostprocessing bindings sm
-
-                let sm'' = ExecRes { final_state = final_state sm'
-                                   , conc_args = fixed_inputs bindings ++ conc_args sm'
-                                   , conc_out = evalPrims kv (conc_out sm')
-                                   , violated = evalPrims kv (violated sm')}
-
-                return $ Just sm''
+                return . Just $ runG2SubstModel m' s bindings
             UNSAT _ -> return Nothing
             Unknown _ _ -> return Nothing
 
     | otherwise = return Nothing
+
+runG2SubstModel :: ( Named t
+                   , ASTContainer t Expr
+                   , ASTContainer t Type) =>
+                      Model
+                   -> State t
+                   -> Bindings
+                   -> ExecRes t
+runG2SubstModel m s@(State { known_values = kv }) bindings =
+    let
+        s' = s { model = m }
+
+        (es, e, ais) = subModel s' bindings
+        sm = ExecRes { final_state = s'
+                     , conc_args = es
+                     , conc_out = e
+                     , violated = ais}
+
+        sm' = runPostprocessing bindings sm
+
+        sm'' = ExecRes { final_state = final_state sm'
+                       , conc_args = fixed_inputs bindings ++ conc_args sm'
+                       , conc_out = evalPrims kv (conc_out sm')
+                       , violated = evalPrims kv (violated sm')}
+    in
+    sm''
 
 -- | Runs G2, returning both fully executed states,
 -- and states that have only been partially executed.

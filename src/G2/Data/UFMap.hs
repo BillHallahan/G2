@@ -170,10 +170,9 @@ filterWithKey :: (k -> v -> Bool) -> UFMap k v -> UFMap k v
 filterWithKey p (UFMap uf m) = UFMap uf $ M.filterWithKey p m
 
 unionWith :: (Eq k, Hashable k) => (v -> v -> v) -> UFMap k v -> UFMap k v -> UFMap k v
-unionWith f (UFMap uf1 m1) (UFMap uf2 m2) =
+unionWith f ufm1 (UFMap uf2 m2) =
     let
-        j_uf = UF.unionOfUFs uf1 uf2
-        ufm1' = UFMap j_uf m1
+        ufm1' = foldr (joinAll f) ufm1 (UF.toList uf2) 
     in
     M.foldrWithKey (insertWith f) ufm1' m2 
 

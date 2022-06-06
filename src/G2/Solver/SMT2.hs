@@ -128,7 +128,7 @@ instance SMTConverter Z3 where
         let (h_in, h_out, _) = getIOZ3 con
         setUpFormulaZ3 h_in (TB.run $ toSolverText formula)
         -- putStrLn "\n\n checkSatGetModel"
-        -- T.putStrLn (TB.run formula)
+        -- T.putStrLn (TB.run $ toSolverText formula)
         r <- checkSat' h_in h_out
         -- putStrLn $ "r =  " ++ show r
         case r of

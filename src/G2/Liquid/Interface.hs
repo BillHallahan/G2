@@ -393,36 +393,46 @@ runLHG2 :: (Solver solver, Simplifier simplifier)
 runLHG2 config red hal ord solver simplifier pres_names init_id final_st bindings = do
     let only_abs_st = addTicksToDeepSeqCases (deepseq_walkers bindings) final_st
     (ret, final_bindings) <- runG2WithSomes red hal ord solver simplifier pres_names only_abs_st bindings
-    let n_ret = map (\er -> er { final_state = putSymbolicExistentialInstInExprEnv (final_state er) }) ret
 
-    -- We filter the returned states to only those with the minimal number of abstracted functions
-    let mi = case length n_ret of
+    let ret' = onlyMinimalStates ret
+
+    cleanupResults solver simplifier config init_id final_st final_bindings ret'
+
+onlyMinimalStates :: [ExecRes LHTracker] -> [ExecRes LHTracker]
+onlyMinimalStates ers =
+    let
+        mi = case length ers of
                   0 -> 0
-                  _ -> minimum $ map (\(ExecRes {final_state = s}) -> abstractCallsNum s) n_ret
-    let ret' = map (\er -> if fmap funcName (violated er) == Just initiallyCalledFuncName
+                  _ -> minimum $ map (\(ExecRes {final_state = s}) -> abstractCallsNum s) ers
+    in
+    filter (\(ExecRes {final_state = s}) -> mi == (abstractCallsNum s)) ers
+
+cleanupResults :: (Solver solver, Simplifier simplifier) =>
+                  solver
+               -> simplifier
+               -> Config
+               -> Lang.Id
+               -> State LHTracker
+               -> Bindings
+               -> [ExecRes LHTracker]
+               -> IO ([ExecRes AbstractedInfo], Bindings)
+cleanupResults solver simplifier config init_id init_state bindings ers = do
+    let ers2 = map (\er -> er { final_state = putSymbolicExistentialInstInExprEnv (final_state er) }) ers
+        ers3 = map (\er -> if fmap funcName (violated er) == Just initiallyCalledFuncName
                                   then er { violated = Nothing }
-                                  else er) n_ret
-    let ret'' = filter (\(ExecRes {final_state = s}) -> mi == (abstractCallsNum s)) ret'
+                                  else er) ers2
 
-    (bindings', ret''') <- mapAccumM (reduceCalls solver simplifier config) final_bindings ret''
-    ret'''' <- mapM (checkAbstracted solver simplifier config init_id bindings') ret'''
-
-    let exec_res = 
-          map (\(ExecRes { final_state = s
-                         , conc_args = es
-                         , conc_out = e
-                         , violated = ais}) ->
-                (ExecRes { final_state =
+    (bindings', ers4) <- mapAccumM (reduceCalls solver simplifier config) bindings ers3
+    ers5 <- mapM (checkAbstracted solver simplifier config init_id bindings') ers4
+    let ers6 = 
+          map (\er@(ExecRes { final_state = s }) ->
+                (er { final_state =
                               s {track = 
-                                    mapAbstractedInfoFCs (subVarFuncCall (model s) (expr_env final_st) (type_classes s))
+                                    mapAbstractedInfoFCs (subVarFuncCall (model s) (expr_env init_state) (type_classes s))
                                     $ track s
                                 }
-                         , conc_args = es
-                         , conc_out = e
-                         , violated = ais})) ret''''
-
-    return (exec_res, final_bindings)
-
+                    })) ers5
+    return (ers6, bindings')
 
 lhReducerHalterOrderer :: (Solver solver, Simplifier simplifier)
                        => Config

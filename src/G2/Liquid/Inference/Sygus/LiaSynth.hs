@@ -400,8 +400,8 @@ synth' con ghci eenv tenv meas meas_ex evals m_si fc headers drop_if_unknown blk
 
 runConstraintsForSynth :: [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
 runConstraintsForSynth headers vs = do
-    z3_dir <- getZ3 50000
-    z3_max <- mkMaximizeSolver =<< getZ3 10000
+    z3_dir <- getZ3 80000
+    z3_max <- mkMaximizeSolver =<< getZ3 30000
 
     setProduceUnsatCores z3_dir
     setProduceUnsatCores z3_max
