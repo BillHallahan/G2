@@ -5,6 +5,8 @@
 
 module G2.Liquid.G2Calls ( GathererReducer (..)
                          , checkAbstracted
+                         , reduceAbstracted
+                         , reduceAllCalls
                          , reduceCalls
                          , reduceFuncCall
                          , mapAccumM) where
@@ -188,7 +190,7 @@ getAbstracted solver simplifier share s bindings abs_fc@(FuncCall { funcName = n
                                         , func_calls_in_real = gfc' }
                                 , m)
             _ -> error $ "checkAbstracted': Bad return from runG2WithSomes"
-    | otherwise = error $ "getAbstracted: Bad lookup in runG2WithSomes"
+    | otherwise = error $ "getAbstracted: Bad lookup in runG2WithSomes" ++ show n
 
 repTCsFC :: TypeClasses -> FuncCall -> FuncCall 
 repTCsFC tc fc = fc { arguments = map (repTCs tc) (arguments fc)
@@ -319,12 +321,15 @@ reduceAbstracted solver simplifier share bindings
     let red = SomeReducer (StdRed share solver simplifier :<~| RedArbErrors)
         fcs = abstract_calls lht
 
-    ((_, bindings'), fcs') <- mapAccumM (\(s_, b_) fc -> do
+    ((s', bindings'), fcs') <- mapAccumM (\(s_, b_) fc -> do
                                             (new_s, new_b, r_fc) <- reduceFuncCall red solver simplifier s_ b_ fc
                                             return ((new_s, new_b), r_fc))
                             (s, bindings) fcs
 
-    return (bindings', er { final_state = s { track = lht { abstract_calls = fcs' } }})
+    return (bindings', er { final_state = s { expr_env = foldr E.insertSymbolic (expr_env s) (E.symbolicIds $ expr_env s')
+                                            , path_conds = path_conds s'
+                                            , track = lht { abstract_calls = fcs' } }
+                          })
 
 reduceAllCalls :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Sharing -> Bindings -> ExecRes LHTracker -> IO (Bindings, ExecRes LHTracker)
 reduceAllCalls solver simplifier share bindings
@@ -398,8 +403,11 @@ reduceFCExpr reducer solver simplifier s bindings e
 
         case er of
             [er'] -> do
-                let (CurrExpr _ ce) = curr_expr . final_state $ er'
-                return ((s', bindings { name_gen = name_gen bindings' }), ce)
+                let fs = final_state er'
+                    (CurrExpr _ ce) = curr_expr fs
+                return ((s' { expr_env = foldr E.insertSymbolic (expr_env s') (E.symbolicIds $ expr_env fs)
+                            , path_conds = path_conds fs }
+                        , bindings { name_gen = name_gen bindings' }), ce)
             _ -> error $ "reduceFCExpr: Bad reduction"
     | isTypeClass (type_classes s) $ (typeOf e)
     , TyCon n _:_ <- unTyApp (typeOf e)
