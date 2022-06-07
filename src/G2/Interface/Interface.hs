@@ -456,8 +456,6 @@ runG2ThroughExecution red hal ord mem is bindings = do
     runExecution red hal ord is' bindings'
 
 runG2Solving :: ( Named t
-                , ASTContainer t Expr
-                , ASTContainer t Type
                 , Solver solver
                 , Simplifier simplifier) =>
                    solver
@@ -478,9 +476,7 @@ runG2Solving solver simplifier bindings s@(State { known_values = kv })
 
     | otherwise = return Nothing
 
-runG2SubstModel :: ( Named t
-                   , ASTContainer t Expr
-                   , ASTContainer t Type) =>
+runG2SubstModel :: Named t =>
                       Model
                    -> State t
                    -> Bindings

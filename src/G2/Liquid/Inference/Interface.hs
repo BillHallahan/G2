@@ -250,9 +250,7 @@ inferenceB con iter ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls =
 
     let curr_ghci = addSpecsToGhcInfos ghci gs
     logEventStartM UpdateEvals
-    liftIO $ putStrLn "about to updateEvals"
     evals' <- updateEvals curr_ghci lrs fc evals
-    liftIO $ putStrLn "done updateEvals"
     logEventEndM
     logEventStartM Synth
     synth_gs <- lift . lift . lift $ synthesize con iter curr_ghci lrs evals' meas_ex (unionFC max_fc fc) blk_mdls (concat below_sf) sf

@@ -28,8 +28,8 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Maybe
-
 import Data.Monoid
+import Data.Tuple.Extra
 
 -------------------------------
 -- Check Abstracted
@@ -57,30 +57,30 @@ checkAbstracted solver simplifier config init_id bindings er@(ExecRes{ final_sta
                                                                      , conc_args = inArg
                                                                      , conc_out = ex }) = do
     -- Get `Abstracted`s for the abstracted functions 
-    let chck = checkAbstracted' solver simplifier (sharing config) s bindings
-    abstractedR <- mapM chck (abstract_calls lht)
+    let chck = checkAbstracted' solver simplifier (sharing config)
+    ((s', bindings'), abstractedR) <- mapAccumM (uncurry chck) (s, bindings) (abstract_calls lht)
     let abstracted' = mapMaybe toAbstracted $ abstractedR
         models = mapMaybe toModel $ abstractedR
 
     -- Get an `Abstracted` for the initial call
     let init_call = FuncCall (idName init_id) inArg ex
-    abs_init <- getAbstracted solver simplifier (sharing config) s bindings init_call
-    let init_model = snd abs_init
+    (s'', abs_init, model_init) <- getAbstracted solver simplifier (sharing config) s' bindings' init_call
 
     -- Get an `Abstracted` for the violated function (if it exists)
-    (bindings', viol_er) <- reduceViolated solver simplifier (sharing config) bindings er
+    (bindings'', viol_er) <- reduceViolated solver simplifier (sharing config) bindings' (er { final_state = s'' })
     abs_viol <- case violated viol_er of
                   Just v -> return . Just =<<
-                              getAbstracted solver simplifier (sharing config) (final_state viol_er) bindings v
+                              getAbstracted solver simplifier (sharing config) (final_state viol_er) bindings'' v
                   Nothing -> return Nothing
-    let viol_model = maybeToList $ fmap snd abs_viol
-        abs_info = AbstractedInfo { init_call = fst abs_init
-                                  , abs_violated = fmap fst abs_viol
+    let viol_model = maybeToList $ fmap thd3 abs_viol
+        abs_info = AbstractedInfo { init_call = abs_init
+                                  , abs_violated = fmap snd3 abs_viol
                                   , abs_calls = abstracted'
                                   , ai_all_calls = all_calls lht }
+        fs = maybe (final_state viol_er) fst3 abs_viol
 
-    return $ viol_er { final_state = s { track = abs_info
-                                       , model = foldr HM.union (model s) (init_model:viol_model ++ models) }
+    return $ viol_er { final_state = fs { track = abs_info
+                                        , model = foldr HM.union (model s) (model_init:viol_model ++ models) }
                      }
 
 checkAbstracted' :: (Solver solver, Simplifier simplifier)
@@ -90,7 +90,7 @@ checkAbstracted' :: (Solver solver, Simplifier simplifier)
                  -> State LHTracker
                  -> Bindings
                  -> FuncCall
-                 -> IO AbstractedRes
+                 -> IO ((State LHTracker, Bindings), AbstractedRes)
 checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName = n, arguments = ars, returns = r })
     | Just e <- E.lookup n $ expr_env s = do
         let 
@@ -113,34 +113,32 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
                       , track = False }
 
         let pres = HS.fromList $ namesList s' ++ namesList bindings
-        (er, _) <- runG2WithSomes 
-                        (SomeReducer (StdRed share solver simplifier :<~ HitsLibError))
-                        (SomeHalter (SWHNFHalter :<~> AcceptOnlyOneHalter :<~> SwitchEveryNHalter 200))
-                        (SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTSizeOrderer 0 Nothing)))
-                        solver simplifier
-                        (emptyMemConfig { pres_func = \_ _ _ -> pres })
-                        s' bindings
+        (er, bindings') <- runG2WithSomes 
+                                (SomeReducer (StdRed share solver simplifier :<~ HitsLibError))
+                                (SomeHalter (SWHNFHalter :<~> AcceptOnlyOneHalter :<~> SwitchEveryNHalter 200))
+                                (SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTSizeOrderer 0 Nothing)))
+                                solver simplifier
+                                (emptyMemConfig { pres_func = \_ _ _ -> pres })
+                                s' bindings
 
         case er of
             [ExecRes
                 {
-                    final_state = (State { curr_expr = CurrExpr _ ce, model = m, track = t})
+                    final_state = fs@(State { curr_expr = CurrExpr _ ce, model = m, track = t})
                 }] -> case not $ ce `eqUpToTypes` r of
-                        True ->
-                            return $ AbstractRes 
+                        True -> do
+                            let ar = AbstractRes 
                                         ( Abstracted { abstract = repTCsFC (type_classes s) $ abs_fc
                                                      , real = repTCsFC (type_classes s) $ abs_fc { returns = ce }
                                                      , hits_lib_err_in_real = t
                                                      , func_calls_in_real = [] }
                                         ) m
-                        False -> return NotAbstractRes
-            [] -> do undefined -- We hit an error in a library function
-                     return $ AbstractRes 
-                              ( Abstracted { abstract = repTCsFC (type_classes s) $ abs_fc
-                                           , real = repTCsFC (type_classes s) $ abs_fc { returns = Prim Error TyUnknown }
-                                           , hits_lib_err_in_real = True
-                                           , func_calls_in_real = [] }
-                              ) (model s)
+                            return ( ( s { expr_env = foldr E.insertSymbolic (expr_env s) (E.symbolicIds $ expr_env fs)
+                                        , path_conds = path_conds fs }
+                                     , bindings'
+                                     )
+                                   , ar)
+                        False -> return ((s, bindings), NotAbstractRes)
             _ -> error $ "checkAbstracted': Bad return from runG2WithSomes"
     | otherwise = error $ "checkAbstracted': Bad lookup in runG2WithSomes"
 
@@ -151,7 +149,7 @@ getAbstracted :: (Solver solver, Simplifier simplifier)
               -> State LHTracker
               -> Bindings
               -> FuncCall
-              -> IO (Abstracted, Model)
+              -> IO (State LHTracker, Abstracted, Model)
 getAbstracted solver simplifier share s bindings abs_fc@(FuncCall { funcName = n, arguments = ars })
     | Just e <- E.lookup n $ expr_env s = do
         let 
@@ -184,11 +182,14 @@ getAbstracted solver simplifier share s bindings abs_fc@(FuncCall { funcName = n
                 }] -> do
                   let fs' = modelToExprEnv fs
                   (_, gfc') <- reduceFuncCallMaybeList solver simplifier share bindings' fs' gfc
-                  return $ ( Abstracted { abstract = repTCsFC (type_classes s) abs_fc
-                                        , real = repTCsFC (type_classes s) $ abs_fc { returns = (inline (expr_env fs) HS.empty ce) }
-                                        , hits_lib_err_in_real = hle
-                                        , func_calls_in_real = gfc' }
-                                , m)
+                  let ar = Abstracted { abstract = repTCsFC (type_classes s) abs_fc
+                                      , real = repTCsFC (type_classes s) $ abs_fc { returns = (inline (expr_env fs) HS.empty ce) }
+                                      , hits_lib_err_in_real = hle
+                                      , func_calls_in_real = gfc' }
+                  return ( s { expr_env = foldr E.insertSymbolic (expr_env s) (E.symbolicIds $ expr_env fs)
+                             , path_conds = path_conds fs }
+                         , ar
+                         , m)
             _ -> error $ "checkAbstracted': Bad return from runG2WithSomes"
     | otherwise = error $ "getAbstracted: Bad lookup in runG2WithSomes" ++ show n
 
@@ -312,7 +313,9 @@ reduceViolated solver simplifier share bindings er@(ExecRes { final_state = s, v
     (s', bindings', v') <- reduceFuncCall red solver simplifier s bindings v
     -- putStrLn $ "v = " ++ show v
     -- putStrLn $ "v' = " ++ show v'
-    return (bindings', er { final_state = s { expr_env = expr_env s' }, violated = Just v' })
+    return (bindings', er { final_state = s { expr_env = foldr E.insertSymbolic (expr_env s) (E.symbolicIds $ expr_env s')
+                                            , path_conds = path_conds s' }
+                          , violated = Just v' })
 reduceViolated _ _ _ b er = return (b, er) 
 
 reduceAbstracted :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Sharing -> Bindings -> ExecRes LHTracker -> IO (Bindings, ExecRes LHTracker)

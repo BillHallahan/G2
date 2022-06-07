@@ -44,6 +44,7 @@ module G2.Liquid.Inference.G2Calls ( MeasureExs
 import G2.Config
 
 import G2.Execution
+import G2.Execution.PrimitiveEval
 import G2.Interface
 import G2.Language as G2
 import qualified G2.Language.ExprEnv as E
@@ -172,45 +173,48 @@ cleanupResultsInference :: (Solver solver, Simplifier simplifier) =>
                         -> [ExecRes LHTracker]
                         -> IO ([ExecRes AbstractedInfo], Bindings)
 cleanupResultsInference solver simplifier config init_id init_state bindings ers = do
-    let n = Name "fs?" Nothing 118652 Nothing
-    putStrLn $ "n in ers = " ++ show (n `elem` G2.names ers)
     let ers2 = map (\er -> er { final_state = putSymbolicExistentialInstInExprEnv (final_state er) }) ers
-
-    (bindings', ers3) <- mapAccumM (reduceCallsInference solver simplifier config) bindings ers2
-    putStrLn $ "n in ers3 = " ++ show (n `elem` G2.names ers3)
+    (bindings', ers3) <- mapAccumM (reduceCalls solver simplifier config) bindings ers2
     ers4 <- mapM (checkAbstracted solver simplifier config init_id bindings') ers3
-    let ers5 = 
+    ers5 <- mapM (runG2SolvingInference solver simplifier config bindings') ers4
+    let ers6 = 
           map (\er@(ExecRes { final_state = s }) ->
                 (er { final_state =
                               s {track = 
-                                    mapAbstractedInfoFCs (subVarFuncCall (model s) (expr_env init_state) (type_classes s))
+                                    mapAbstractedInfoFCs (evalPrims (known_values s) . subVarFuncCall (model s) (expr_env s) (type_classes s))
                                     $ track s
                                 }
-                    })) ers4
-    return (ers5, bindings')
+                    })) ers5
+    print $ map (curr_expr . final_state) ers6
+    return (ers6, bindings')
 
-reduceCallsInference :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Config -> Bindings -> ExecRes LHTracker -> IO (Bindings, ExecRes LHTracker)
-reduceCallsInference solver simplifier config bindings er = do
-    let n = Name "fs?" Nothing 118652 Nothing
-    putStrLn $ "reduceCallsInference n in er = " ++ show (n `elem` G2.names er)
-    (bindings', er') <- reduceAbstracted solver simplifier (sharing config) bindings er
-    putStrLn $ "n in er' = " ++ show (n `elem` G2.names er')
-    er_solving <- runG2Solving solver simplifier bindings' (final_state er')
+inline :: ExprEnv -> Expr -> Expr
+inline eenv (Var (Id n _)) | Just (E.Conc e) <- E.lookupConcOrSym n eenv = inline eenv e
+inline eenv e = modifyChildren (inline eenv) e
+
+runG2SolvingInference :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Config -> Bindings -> ExecRes AbstractedInfo -> IO (ExecRes AbstractedInfo)
+runG2SolvingInference solver simplifier config bindings er = do
+    er_solving <- runG2Solving solver simplifier bindings (final_state er)
     case er_solving of
         Just er_solving' -> do
-            putStrLn $ "n in er_solving' = " ++ show (n `elem` G2.names er_solving')
             let er_solving'' = if fmap funcName (violated er_solving') == Just initiallyCalledFuncName
                                               then er_solving' { violated = Nothing }
                                               else er_solving'
-            reduceAllCalls solver simplifier (sharing config) bindings' er_solving''
+            return er_solving''
         Nothing -> error "reduceCallsInference: solving failed"
 
 earlyExecRes :: Bindings -> State t -> ExecRes t
 earlyExecRes b s@(State { expr_env = eenv, curr_expr = CurrExpr _ cexpr }) =
+    let
+        viol = assert_ids s
+        viol' = if fmap funcName viol == Just initiallyCalledFuncName
+                                              then Nothing
+                                              else viol
+    in
     ExecRes { final_state = s
             , conc_args = mapMaybe getArg $ input_names b
             , conc_out = cexpr
-            , violated = assert_ids s }
+            , violated = viol' }
     where
         getArg n = case E.lookup n eenv of
                                 Just e@(Lam _ _ _) -> Just . Var $ Id n (typeOf e)
