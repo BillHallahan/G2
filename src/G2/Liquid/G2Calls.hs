@@ -113,8 +113,8 @@ checkAbstracted' solver simplifier share s bindings abs_fc@(FuncCall { funcName 
         let pres = HS.fromList $ namesList s' ++ namesList bindings
         (er, _) <- runG2WithSomes 
                         (SomeReducer (StdRed share solver simplifier :<~ HitsLibError))
-                        (SomeHalter SWHNFHalter)
-                        (SomeOrderer NextOrderer)
+                        (SomeHalter (SWHNFHalter :<~> AcceptOnlyOneHalter :<~> SwitchEveryNHalter 200))
+                        (SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTSizeOrderer 0 Nothing)))
                         solver simplifier
                         (emptyMemConfig { pres_func = \_ _ _ -> pres })
                         s' bindings
@@ -169,8 +169,8 @@ getAbstracted solver simplifier share s bindings abs_fc@(FuncCall { funcName = n
         let pres = HS.fromList $ namesList s' ++ namesList bindings
         (er, bindings') <- runG2WithSomes 
                               (SomeReducer (StdRed share solver simplifier :<~ HitsLibErrorGatherer))
-                              (SomeHalter SWHNFHalter)
-                              (SomeOrderer NextOrderer)
+                              (SomeHalter (SWHNFHalter :<~> AcceptOnlyOneHalter :<~> SwitchEveryNHalter 200))
+                              (SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTSizeOrderer 0 Nothing)))
                               solver simplifier
                               (emptyMemConfig { pres_func = \_ _ _ -> pres })
                               s' bindings
@@ -271,6 +271,14 @@ instance Reducer HitsLibErrorGathererReducer () ([FuncCall], Bool) where
                   return (NoProgress, [(s { track = (glc, True) }, ())], b, r)
             _ -> return (NoProgress, [(s, ())], b, r)
 
+data AcceptOnlyOneHalter = AcceptOnlyOneHalter
+
+instance Halter AcceptOnlyOneHalter () t where
+    initHalt _ _ = ()
+    updatePerStateHalt _ hv _ _ = hv
+    discardOnStart _ _ pr _ = not . null $ accepted pr
+    stopRed _ _ _ _ = return Continue
+    stepHalter _ hv _ _ _ = hv
 
 -- | Remove all @Assume@s from the given `Expr`, unless they have a particular @Tick@
 elimAssumesExcept :: ASTContainer m Expr => m -> m
@@ -382,16 +390,17 @@ reduceFCExpr reducer solver simplifier s bindings e
 
         (er, bindings') <- runG2WithSomes 
                               reducer
-                              (SomeHalter SWHNFHalter)
-                              (SomeOrderer NextOrderer)
+                              (SomeHalter (AcceptOnlyOneHalter :<~> SWHNFHalter :<~> SwitchEveryNHalter 200))
+                              (SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTSizeOrderer 0 Nothing)))
                               solver simplifier
                               emptyMemConfig
                               s' bindings
+
         case er of
             [er'] -> do
                 let (CurrExpr _ ce) = curr_expr . final_state $ er'
                 return ((s', bindings { name_gen = name_gen bindings' }), ce)
-            _ -> error $ "reduceAbstracted: Bad reduction"
+            _ -> error $ "reduceFCExpr: Bad reduction"
     | isTypeClass (type_classes s) $ (typeOf e)
     , TyCon n _:_ <- unTyApp (typeOf e)
     , _:Type t:_ <- unApp e

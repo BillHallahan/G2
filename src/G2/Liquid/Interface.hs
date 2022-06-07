@@ -10,7 +10,11 @@ module G2.Liquid.Interface ( LiquidData (..)
                            , Abstracted (..)
                            , AbstractedInfo (..)
                            , findCounterExamples
+                           
                            , runLHG2
+                           , onlyMinimalStates
+                           , cleanupResults
+
                            , runLHCore
                            , liquidStateWithCall
                            , liquidStateWithCall'

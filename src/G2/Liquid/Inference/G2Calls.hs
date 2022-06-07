@@ -110,8 +110,7 @@ instance Solver solver => Solver (SpreadOutSolver solver) where
             pc_union = pc `PC.union` pc'
         in
         case null int_vs of
-            False -> do
-                solve solver s b is pc_union
+            False -> solve solver s b is pc_union
             True -> solve solver s b is pc
         where
             isInteger TyLitInt = True
@@ -132,6 +131,63 @@ instance Solver solver => Solver (SpreadOutSolver solver) where
             adj xs = zip xs $ tail xs
 
     close (SpreadOutSolver _ solver) = close solver
+
+-------------------------------------
+-- Calling G2
+-------------------------------------
+
+runLHG2Inference :: (Solver solver, Simplifier simplifier)
+                 => Config
+                 -> SomeReducer LHTracker
+                 -> SomeHalter LHTracker
+                 -> SomeOrderer LHTracker
+                 -> solver
+                 -> simplifier
+                 -> MemConfig
+                 -> Id
+                 -> State LHTracker
+                 -> Bindings
+                 -> IO ([ExecRes AbstractedInfo], Bindings)
+runLHG2Inference config red hal ord solver simplifier pres_names init_id final_st bindings = do
+    let only_abs_st = addTicksToDeepSeqCases (deepseq_walkers bindings) final_st
+    (ret, final_bindings) <- case (red, hal, ord) of
+                                (SomeReducer red', SomeHalter hal', SomeOrderer ord') ->
+                                    runG2ThroughExecution red' hal' ord' pres_names only_abs_st bindings
+    
+    ret' <- filterM (satState solver) ret
+    let ret'' = onlyMinimalStates $ map (earlyExecRes final_bindings) ret'
+
+    cleanupResults solver simplifier config init_id final_st final_bindings ret''
+
+earlyExecRes :: Bindings -> State t -> ExecRes t
+earlyExecRes b s@(State { expr_env = eenv, curr_expr = CurrExpr _ cexpr }) =
+    ExecRes { final_state = s
+            , conc_args = mapMaybe getArg $ input_names b
+            , conc_out = cexpr
+            , violated = assert_ids s }
+    where
+        getArg n = case E.lookup n eenv of
+                                Just e@(Lam _ _ _) -> Just . Var $ Id n (typeOf e)
+                                Just e -> Just e
+                                Nothing -> Nothing
+
+satState :: ( Named t
+            , ASTContainer t Expr
+            , ASTContainer t Type
+            , Solver solver) =>
+               solver
+            -> State t
+            -> IO Bool
+satState solver s
+    | true_assert s = do
+        r <- check solver s (path_conds s)
+
+        case r of
+            SAT _ -> return True
+            UNSAT _ -> return False
+            Unknown _ _ -> return False
+    | otherwise = return False
+
 
 -------------------------------------
 -- Generating Allowed Inputs/Outputs
@@ -288,7 +344,7 @@ runLHInferenceCore entry m lrs ghci = do
         final_st' = swapHigherOrdForSymGen bindings final_st
 
     (red, hal, ord) <- inferenceReducerHalterOrderer infconfig g2config solver simplifier entry m cfn final_st'
-    (exec_res, final_bindings) <- liftIO $ runLHG2 g2config red hal ord solver simplifier pres_names ifi final_st' bindings
+    (exec_res, final_bindings) <- liftIO $ runLHG2Inference g2config red hal ord solver simplifier pres_names ifi final_st' bindings
 
     liftIO $ close solver
 
@@ -377,7 +433,7 @@ runLHCExSearch entry m lrs ghci = do
         final_st' = swapHigherOrdForSymGen bindings final_st
 
     (red, hal, ord) <- realCExReducerHalterOrderer infconfig g2config' entry m solver simplifier cfn
-    (exec_res, final_bindings) <- liftIO $ runLHG2 g2config' red hal ord solver simplifier pres_names ifi final_st' bindings
+    (exec_res, final_bindings) <- liftIO $ runLHG2Inference g2config' red hal ord solver simplifier pres_names ifi final_st' bindings
 
     liftIO $ close solver
 
