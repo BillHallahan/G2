@@ -161,6 +161,7 @@ runLHG2Inference config red hal ord solver simplifier pres_names init_id final_s
     ret' <- filterM (satState solver) ret
     let ret'' = onlyMinimalStates $ map (earlyExecRes final_bindings) ret'
 
+    putStrLn "before cleanup"
     cleanupResultsInference solver simplifier config init_id final_st final_bindings ret''
 
 cleanupResultsInference :: (Solver solver, Simplifier simplifier) =>
@@ -175,8 +176,11 @@ cleanupResultsInference :: (Solver solver, Simplifier simplifier) =>
 cleanupResultsInference solver simplifier config init_id init_state bindings ers = do
     let ers2 = map (\er -> er { final_state = putSymbolicExistentialInstInExprEnv (final_state er) }) ers
     (bindings', ers3) <- mapAccumM (reduceCalls solver simplifier config) bindings ers2
+    putStrLn "after ers3"
     ers4 <- mapM (checkAbstracted solver simplifier config init_id bindings') ers3
+    putStrLn "after ers4"
     ers5 <- mapM (runG2SolvingInference solver simplifier config bindings') ers4
+    putStrLn "after ers5"
     let ers6 = 
           map (\er@(ExecRes { final_state = s }) ->
                 (er { final_state =
@@ -212,7 +216,7 @@ earlyExecRes b s@(State { expr_env = eenv, curr_expr = CurrExpr _ cexpr }) =
                                               else viol
     in
     ExecRes { final_state = s
-            , conc_args = mapMaybe getArg $ input_names b
+            , conc_args = fixed_inputs b ++ mapMaybe getArg (input_names b)
             , conc_out = cexpr
             , violated = viol' }
     where
