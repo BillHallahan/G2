@@ -174,8 +174,8 @@ cleanupResultsInference :: (Solver solver, Simplifier simplifier) =>
                         -> IO ([ExecRes AbstractedInfo], Bindings)
 cleanupResultsInference solver simplifier config init_id init_state bindings ers = do
     let ers2 = map (\er -> er { final_state = putSymbolicExistentialInstInExprEnv (final_state er) }) ers
-    (bindings', ers3) <- mapAccumM (reduceCalls solver simplifier config) bindings ers2
-    ers4 <- mapM (checkAbstracted solver simplifier config init_id bindings') ers3
+    (bindings', ers3) <- mapAccumM (reduceCalls runG2ThroughExecutionInference solver simplifier config) bindings ers2
+    ers4 <- mapM (checkAbstracted runG2ThroughExecutionInference solver simplifier config init_id bindings') ers3
     ers5 <- mapM (runG2SolvingInference solver simplifier config bindings') ers4
     let ers6 = 
           map (\er@(ExecRes { final_state = s }) ->
@@ -186,6 +186,12 @@ cleanupResultsInference solver simplifier config init_id init_state bindings ers
                                 }
                     })) ers5
     return (ers6, bindings')
+
+runG2ThroughExecutionInference :: G2Call solver simplifier
+runG2ThroughExecutionInference red hal ord _ _ pres s b = do
+    (fs, fb) <- case (red, hal, ord) of
+                        (SomeReducer red', SomeHalter hal', SomeOrderer ord') -> runG2ThroughExecution red' hal' ord' pres s b
+    return (map (earlyExecRes fb) fs, fb)
 
 runG2SolvingInference :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Config -> Bindings -> ExecRes AbstractedInfo -> IO (ExecRes AbstractedInfo)
 runG2SolvingInference solver simplifier config bindings er = do
@@ -278,7 +284,7 @@ gatherAllowedCalls entry m lrs ghci infconfig config = do
 
     (_, red_calls) <- mapAccumM 
                                 (\b (fs, fc) -> do
-                                    (_, b', rfc) <- reduceFuncCall
+                                    (_, b', rfc) <- reduceFuncCall runG2WithSomes
                                                                        fc_red
                                                                        solver
                                                                        simplifier

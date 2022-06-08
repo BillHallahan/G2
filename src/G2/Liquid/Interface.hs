@@ -426,8 +426,8 @@ cleanupResults solver simplifier config init_id init_state bindings ers = do
                                   then er { violated = Nothing }
                                   else er) ers2
 
-    (bindings', ers4) <- mapAccumM (reduceCalls solver simplifier config) bindings ers3
-    ers5 <- mapM (checkAbstracted solver simplifier config init_id bindings') ers4
+    (bindings', ers4) <- mapAccumM (reduceCalls runG2WithSomes solver simplifier config) bindings ers3
+    ers5 <- mapM (checkAbstracted runG2WithSomes solver simplifier config init_id bindings') ers4
     let ers6 = 
           map (\er@(ExecRes { final_state = s }) ->
                 (er { final_state =
