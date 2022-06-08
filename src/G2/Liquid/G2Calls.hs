@@ -12,6 +12,7 @@ module G2.Liquid.G2Calls ( GathererReducer (..)
                          , mapAccumM) where
 
 import G2.Config
+import G2.Data.Utils
 import G2.Execution
 import G2.Interface
 import G2.Language as G2
@@ -30,6 +31,8 @@ import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid
 import Data.Tuple.Extra
+
+import Data.Time.Clock
 
 -------------------------------
 -- Check Abstracted
@@ -64,20 +67,21 @@ checkAbstracted solver simplifier config init_id bindings er@(ExecRes{ final_sta
 
     -- Get an `Abstracted` for the initial call
     let init_call = FuncCall (idName init_id) inArg ex
-    (s'', abs_init, model_init) <- getAbstracted solver simplifier (sharing config) s' bindings' init_call
+    (s'', bindings'', abs_init, model_init) <- getAbstracted solver simplifier (sharing config) s' bindings' init_call
 
     -- Get an `Abstracted` for the violated function (if it exists)
-    (bindings'', viol_er) <- reduceViolated solver simplifier (sharing config) bindings' (er { final_state = s'' })
+    (bindings''', viol_er) <- reduceViolated solver simplifier (sharing config) bindings'' (er { final_state = s'' })
     abs_viol <- case violated viol_er of
                   Just v -> return . Just =<<
-                              getAbstracted solver simplifier (sharing config) (final_state viol_er) bindings'' v
+                              getAbstracted solver simplifier (sharing config) (final_state viol_er) bindings''' v
                   Nothing -> return Nothing
-    let viol_model = maybeToList $ fmap thd3 abs_viol
+    let viol_model = maybeToList $ fmap fth4 abs_viol
         abs_info = AbstractedInfo { init_call = abs_init
-                                  , abs_violated = fmap snd3 abs_viol
+                                  , abs_violated = fmap thd4 abs_viol
                                   , abs_calls = abstracted'
                                   , ai_all_calls = all_calls lht }
-        fs = maybe (final_state viol_er) fst3 abs_viol
+        fs = maybe (final_state viol_er) fst4 abs_viol
+        fb = maybe bindings''' snd4 abs_viol
 
     return $ viol_er { final_state = fs { track = abs_info
                                         , model = foldr HM.union (model s) (model_init:viol_model ++ models) }
@@ -149,7 +153,7 @@ getAbstracted :: (Solver solver, Simplifier simplifier)
               -> State LHTracker
               -> Bindings
               -> FuncCall
-              -> IO (State LHTracker, Abstracted, Model)
+              -> IO (State LHTracker, Bindings, Abstracted, Model)
 getAbstracted solver simplifier share s bindings abs_fc@(FuncCall { funcName = n, arguments = ars })
     | Just e <- E.lookup n $ expr_env s = do
         let 
@@ -181,13 +185,14 @@ getAbstracted solver simplifier share s bindings abs_fc@(FuncCall { funcName = n
                     final_state = fs@(State { curr_expr = CurrExpr _ ce, track = (gfc, hle), model = m})
                 }] -> do
                   let fs' = modelToExprEnv fs
-                  (_, gfc') <- reduceFuncCallMaybeList solver simplifier share bindings' fs' gfc
+                  (bindings'', gfc') <- reduceFuncCallMaybeList solver simplifier share bindings' fs' gfc
                   let ar = Abstracted { abstract = repTCsFC (type_classes s) abs_fc
                                       , real = repTCsFC (type_classes s) $ abs_fc { returns = (inline (expr_env fs) HS.empty ce) }
                                       , hits_lib_err_in_real = hle
                                       , func_calls_in_real = gfc' }
                   return ( s { expr_env = foldr E.insertSymbolic (expr_env s) (E.symbolicIds $ expr_env fs)
                              , path_conds = path_conds fs }
+                         , bindings''
                          , ar
                          , m)
             _ -> error $ "checkAbstracted': Bad return from runG2WithSomes"
