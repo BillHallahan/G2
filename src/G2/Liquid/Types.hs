@@ -129,6 +129,8 @@ import Language.Haskell.Liquid.Types (GhcInfo)
 import Language.Haskell.Liquid.Constraint.Types
 import Language.Fixpoint.Types.Constraints
 
+import Data.Monoid ((<>))
+
 -- LiquidHaskell renamed these types.
 -- This preserves compatibility with the old version of LiquidHaskell, and the new versions of LiquidHaskell.
 #if MIN_VERSION_liquidhaskell(0,8,10)
