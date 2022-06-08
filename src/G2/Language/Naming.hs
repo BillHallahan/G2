@@ -82,15 +82,13 @@ nameLoc :: Name -> Maybe Span
 nameLoc (Name _ _ _ s) = s
 
 -- | Allows the creation of fresh `Name`s.
-data NameGen = NameGen { max_uniq :: (HM.HashMap (T.Text, Maybe T.Text) Int)
-                       , dc_children :: (HM.HashMap Name [Name]) }
+newtype NameGen = NameGen { max_uniq :: Int }
                 deriving (Show, Eq, Read, Typeable, Data)
 
 -- nameToStr relies on NameCleaner eliminating all '_', to preserve uniqueness
 -- | Converts a name to a string, which is useful to interact with solvers.
 nameToStr :: Name -> String
-nameToStr (Name n (Just m) i _) = T.unpack n ++ "_m_" ++ T.unpack m ++ "_" ++ show i
-nameToStr (Name n Nothing i _) = T.unpack n ++ "_n__" ++ show i
+nameToStr (Name n _ i _) = T.unpack n ++ "_n__" ++ show i
 
 -- Similar to nameToStr, but converts a name to Builder
 nameToBuilder:: Name -> TB.Builder
@@ -128,11 +126,7 @@ mkNameGen nmd =
         allNames = toList $ names nmd
     in
     NameGen {
-          max_uniq = HM.fromListWith max $ map (\(Name n m i _) -> ((n, m), i + 1)) allNames
-            -- (foldr (\(Name n m i _) hm -> HM.insertWith max (n, m) (i + 1) hm) 
-            --     HM.empty allNames
-            -- )
-            , dc_children = HM.empty
+          max_uniq = foldr max 1 $ map (\(Name n m i _) -> i + 1) allNames
     }
 
 -- | Returns all @Var@ Ids in an ASTContainer
@@ -893,11 +887,8 @@ freshSeededStrings :: [T.Text] -> NameGen -> ([Name], NameGen)
 freshSeededStrings t = freshSeededNames (map (\t' -> Name t' Nothing 0 Nothing) t)
 
 freshSeededName :: Name -> NameGen -> (Name, NameGen)
-freshSeededName (Name n m _ l) (NameGen { max_uniq = hm, dc_children = chm }) =
-    (Name n m i' l, NameGen hm' chm)
-    where 
-        i' = HM.lookupDefault 0 (n, m) hm
-        hm' = HM.insert (n, m) (i' + 1) hm
+freshSeededName (Name n m _ l) (NameGen { max_uniq = hm }) =
+    (Name n m hm l, NameGen (hm + 1))
 
 freshSeededNames :: [Name] -> NameGen -> ([Name], NameGen)
 freshSeededNames [] r = ([], r)
@@ -945,32 +936,11 @@ freshVar t ngen =
 -- If this is called with different length ns's, the shorter will be the prefix
 -- of the longer
 childrenNames :: Name -> [Name] -> NameGen -> ([Name], NameGen)
-childrenNames n ns ng@(NameGen { dc_children = chm }) =
-    case HM.lookup n chm of
-        Just ens' -> childrenNamesExisting n ns ens' ng
-        Nothing -> childrenNamesNew n ns ng-- []
-
-childrenNamesExisting :: Name -> [Name] -> [Name] -> NameGen -> ([Name], NameGen)
-childrenNamesExisting n ns ens ng =
+childrenNames n ns ng =
     let
-        (fns, NameGen hm chm) = freshSeededNames (drop (length ens) ns) ng
-        ns' = ens ++ fns
-
-        chm' = HM.insert n ns' chm
+        (fns, NameGen hm) = freshSeededNames ns ng
     in
-    case length ns `compare` length ens of
-        LT -> (take (length ns) ens, ng)
-        EQ -> (ens, ng)
-        GT -> (ns', NameGen hm chm')
-
-childrenNamesNew :: Name -> [Name] -> NameGen -> ([Name], NameGen)
-childrenNamesNew n ns ng =
-    let
-        (fns, NameGen hm chm) = freshSeededNames ns ng
-        chm' = HM.insert n fns chm
-    in
-    (fns, NameGen hm chm')
-
+    (fns, NameGen hm)
 
 -- | Allows mapping, while passing a NameGen along
 mapNG :: (a -> NameGen -> (b, NameGen)) -> [a] -> NameGen -> ([b], NameGen)

@@ -163,6 +163,7 @@ library
 
                        , G2.Translation
                        , G2.Translation.Cabal.Cabal
+                       , G2.Translation.Haskell
   other-modules:         G2.Config.Config
                        , G2.Config.Interface
                        , G2.Config.ParseConfig
@@ -179,7 +180,6 @@ library
                        , G2.Solver.ParseSMT
                        , G2.Solver.SMT2
 
-                       , G2.Translation.Haskell
                        , G2.Translation.HaskellCheck
                        , G2.Translation.InjectSpecials
                        , G2.Translation.Interface
@@ -187,7 +187,7 @@ library
                        , G2.Translation.TransTypes
 
   build-depends:         array >= 0.5.1.1 && <= 0.5.4.0 
-                       , Cabal >= 2.0.1.0 && < 3.1
+                       , Cabal >= 3.0 && < 3.1
                        , base >= 4.8 && < 5
                        , bimap == 0.3.3
                        , bytestring >= 0.10.8.0 && <= 0.10.12.1
@@ -309,6 +309,8 @@ executable RewriteV
                        , ghc
                        , text
                        , unordered-containers >= 0.2 && < 0.3
+                       , directory
+                       , Cabal
   default-language:    Haskell2010
   ghc-options:         -threaded -Wall
                        -- -fprof-auto "-with-rtsopts=-p"

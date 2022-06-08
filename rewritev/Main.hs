@@ -32,7 +32,20 @@ import Control.Exception
 import Data.List
 import Data.Char
 
+import System.Directory
+import Control.Monad
+
 import ZenoSuite
+
+import Distribution.Simple.BuildToolDepends
+
+import Distribution.Types.GenericPackageDescription
+import Distribution.Types.CondTree
+import Distribution.Types.Library
+import Distribution.Types.BuildInfo
+import Distribution.PackageDescription.Parsec
+import Distribution.Verbosity
+import G2.Translation.Cabal.Cabal
 
 main :: IO ()
 main = do
@@ -69,6 +82,7 @@ runWithArgs as = do
         Just n -> read (tail_args !! (n + 1)) :: Int
 
   proj <- guessProj src
+  proj' <- fullDirs proj
 
   -- TODO for now, total as long as there's an extra arg
   -- TODO finite variables
@@ -82,7 +96,7 @@ runWithArgs as = do
   config <- getConfig as
 
   let libs = maybeToList m_mapsrc
-  (init_state, bindings) <- initialStateNoStartFunc [proj] [src] libs
+  (init_state, bindings) <- initialStateNoStartFunc (proj:proj') [src] libs
                             (TranslationConfig {simpl = True, load_rewrite_rules = True}) config
 
   let rule = find (\r -> tentry == ru_name r) (rewrite_rules bindings)
