@@ -59,14 +59,12 @@ checkAbstracted solver simplifier config init_id bindings er@(ExecRes{ final_sta
     -- Get `Abstracted`s for the abstracted functions 
     let chck = checkAbstracted' solver simplifier (sharing config)
     ((s', bindings'), abstractedR) <- mapAccumM (uncurry chck) (s, bindings) (abstract_calls lht)
-    putStrLn "after checkAbstracted"
     let abstracted' = mapMaybe toAbstracted $ abstractedR
         models = mapMaybe toModel $ abstractedR
 
     -- Get an `Abstracted` for the initial call
     let init_call = FuncCall (idName init_id) inArg ex
     (s'', abs_init, model_init) <- getAbstracted solver simplifier (sharing config) s' bindings' init_call
-    putStrLn "after getAbstracted"
 
     -- Get an `Abstracted` for the violated function (if it exists)
     (bindings'', viol_er) <- reduceViolated solver simplifier (sharing config) bindings' (er { final_state = s'' })
@@ -74,7 +72,6 @@ checkAbstracted solver simplifier config init_id bindings er@(ExecRes{ final_sta
                   Just v -> return . Just =<<
                               getAbstracted solver simplifier (sharing config) (final_state viol_er) bindings'' v
                   Nothing -> return Nothing
-    putStrLn "after abs_viol"
     let viol_model = maybeToList $ fmap thd3 abs_viol
         abs_info = AbstractedInfo { init_call = abs_init
                                   , abs_violated = fmap snd3 abs_viol
