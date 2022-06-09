@@ -129,6 +129,8 @@ import Language.Haskell.Liquid.Types (GhcInfo)
 import Language.Haskell.Liquid.Constraint.Types
 import Language.Fixpoint.Types.Constraints
 
+import Data.Monoid ((<>))
+
 -- LiquidHaskell renamed these types.
 -- This preserves compatibility with the old version of LiquidHaskell, and the new versions of LiquidHaskell.
 #if MIN_VERSION_liquidhaskell(0,8,10)
@@ -248,6 +250,26 @@ instance L.ASTContainer Abstracted L.Type where
                    , real = L.modifyContainedASTs f r
                    , hits_lib_err_in_real = err
                    , func_calls_in_real = L.modifyContainedASTs f fcir }
+
+instance L.Named Abstracted where
+    names a = L.names (abstract a) <> L.names (real a) <> L.names (func_calls_in_real a)
+    rename old new a = a { abstract = L.rename old new (abstract a)
+                         , real = L.rename old new (real a)
+                         , func_calls_in_real = L.rename old new (func_calls_in_real a) }
+    renames hm a = a { abstract = L.renames hm (abstract a)
+                     , real = L.renames hm (real a)
+                     , func_calls_in_real = L.renames hm (func_calls_in_real a) }
+
+instance L.Named AbstractedInfo where
+    names a = L.names (init_call a) <> L.names (abs_violated a) <> L.names (abs_calls a) <> L.names (ai_all_calls a)
+    rename old new a = AbstractedInfo { init_call = L.rename old new (init_call a)
+                                      , abs_violated = L.rename old new (abs_violated a)
+                                      , abs_calls = L.rename old new (abs_calls a)
+                                      , ai_all_calls = L.rename old new (ai_all_calls a) }
+    renames hm a = AbstractedInfo { init_call = L.renames hm (init_call a)
+                                  , abs_violated = L.renames hm (abs_violated a)
+                                  , abs_calls = L.renames hm (abs_calls a)
+                                  , ai_all_calls = L.renames hm (ai_all_calls a) }
 
 -- | See G2.Liquid.TyVarBags
 type TyVarBags = M.Map L.Name [L.Id]

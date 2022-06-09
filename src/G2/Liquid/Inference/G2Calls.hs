@@ -44,6 +44,7 @@ module G2.Liquid.Inference.G2Calls ( MeasureExs
 import G2.Config
 
 import G2.Execution
+import G2.Execution.PrimitiveEval
 import G2.Interface
 import G2.Language as G2
 import qualified G2.Language.ExprEnv as E
@@ -52,6 +53,7 @@ import G2.Lib.Printers
 import G2.Liquid.Inference.Config
 import G2.Liquid.AddCFBranch
 import G2.Liquid.Conversion
+import G2.Liquid.ConvertCurrExpr
 import G2.Liquid.G2Calls
 import G2.Liquid.Helpers
 import G2.Liquid.Interface
@@ -77,6 +79,8 @@ import Control.Monad
 import Control.Exception
 import Control.Monad.IO.Class
 import Data.Monoid
+
+import Data.Time.Clock
 
 -------------------------------------
 -- Solvers
@@ -110,8 +114,7 @@ instance Solver solver => Solver (SpreadOutSolver solver) where
             pc_union = pc `PC.union` pc'
         in
         case null int_vs of
-            False -> do
-                solve solver s b is pc_union
+            False -> solve solver s b is pc_union
             True -> solve solver s b is pc
         where
             isInteger TyLitInt = True
@@ -132,6 +135,110 @@ instance Solver solver => Solver (SpreadOutSolver solver) where
             adj xs = zip xs $ tail xs
 
     close (SpreadOutSolver _ solver) = close solver
+
+-------------------------------------
+-- Calling G2
+-------------------------------------
+
+runLHG2Inference :: (Solver solver, Simplifier simplifier)
+                 => Config
+                 -> SomeReducer LHTracker
+                 -> SomeHalter LHTracker
+                 -> SomeOrderer LHTracker
+                 -> solver
+                 -> simplifier
+                 -> MemConfig
+                 -> Id
+                 -> State LHTracker
+                 -> Bindings
+                 -> IO ([ExecRes AbstractedInfo], Bindings)
+runLHG2Inference config red hal ord solver simplifier pres_names init_id final_st bindings = do
+    let only_abs_st = addTicksToDeepSeqCases (deepseq_walkers bindings) final_st
+    (ret, final_bindings) <- case (red, hal, ord) of
+                                (SomeReducer red', SomeHalter hal', SomeOrderer ord') ->
+                                    runG2ThroughExecution red' hal' ord' pres_names only_abs_st bindings
+    
+    ret' <- filterM (satState solver) ret
+    let ret'' = onlyMinimalStates $ map (earlyExecRes final_bindings) ret'
+
+    cleanupResultsInference solver simplifier config init_id final_st final_bindings ret''
+
+cleanupResultsInference :: (Solver solver, Simplifier simplifier) =>
+                           solver
+                        -> simplifier
+                        -> Config
+                        -> Id
+                        -> State LHTracker
+                        -> Bindings
+                        -> [ExecRes LHTracker]
+                        -> IO ([ExecRes AbstractedInfo], Bindings)
+cleanupResultsInference solver simplifier config init_id init_state bindings ers = do
+    let ers2 = map (\er -> er { final_state = putSymbolicExistentialInstInExprEnv (final_state er) }) ers
+    (bindings', ers3) <- mapAccumM (reduceCalls runG2ThroughExecutionInference solver simplifier config) bindings ers2
+    ers4 <- mapM (checkAbstracted runG2ThroughExecutionInference solver simplifier config init_id bindings') ers3
+    ers5 <- mapM (runG2SolvingInference solver simplifier config bindings') ers4
+    let ers6 = 
+          map (\er@(ExecRes { final_state = s }) ->
+                (er { final_state =
+                              s {track = 
+                                    mapAbstractedInfoFCs (evalPrims (known_values s) . subVarFuncCall (model s) (expr_env s) (type_classes s))
+                                    $ track s
+                                }
+                    })) ers5
+    return (ers6, bindings')
+
+runG2ThroughExecutionInference :: G2Call solver simplifier
+runG2ThroughExecutionInference red hal ord _ _ pres s b = do
+    (fs, fb) <- case (red, hal, ord) of
+                        (SomeReducer red', SomeHalter hal', SomeOrderer ord') -> runG2ThroughExecution red' hal' ord' pres s b
+    return (map (earlyExecRes fb) fs, fb)
+
+runG2SolvingInference :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Config -> Bindings -> ExecRes AbstractedInfo -> IO (ExecRes AbstractedInfo)
+runG2SolvingInference solver simplifier config bindings er = do
+    er_solving <- runG2Solving solver simplifier bindings (final_state er)
+    case er_solving of
+        Just er_solving' -> do
+            let er_solving'' = if fmap funcName (violated er_solving') == Just initiallyCalledFuncName
+                                              then er_solving' { violated = Nothing }
+                                              else er_solving'
+            return er_solving''
+        Nothing -> error "reduceCallsInference: solving failed"
+
+earlyExecRes :: Bindings -> State t -> ExecRes t
+earlyExecRes b s@(State { expr_env = eenv, curr_expr = CurrExpr _ cexpr }) =
+    let
+        viol = assert_ids s
+        viol' = if fmap funcName viol == Just initiallyCalledFuncName
+                                              then Nothing
+                                              else viol
+    in
+    ExecRes { final_state = s
+            , conc_args = fixed_inputs b ++ mapMaybe getArg (input_names b)
+            , conc_out = cexpr
+            , violated = viol' }
+    where
+        getArg n = case E.lookup n eenv of
+                                Just e@(Lam _ _ _) -> Just . Var $ Id n (typeOf e)
+                                Just e -> Just e
+                                Nothing -> Nothing
+
+satState :: ( Named t
+            , ASTContainer t Expr
+            , ASTContainer t Type
+            , Solver solver) =>
+               solver
+            -> State t
+            -> IO Bool
+satState solver s
+    | true_assert s = do
+        r <- check solver s (path_conds s)
+
+        case r of
+            SAT _ -> return True
+            UNSAT _ -> return False
+            Unknown _ _ -> return False
+    | otherwise = return False
+
 
 -------------------------------------
 -- Generating Allowed Inputs/Outputs
@@ -177,7 +284,7 @@ gatherAllowedCalls entry m lrs ghci infconfig config = do
 
     (_, red_calls) <- mapAccumM 
                                 (\b (fs, fc) -> do
-                                    (_, b', rfc) <- reduceFuncCall
+                                    (_, b', rfc) <- reduceFuncCall runG2WithSomes
                                                                        fc_red
                                                                        solver
                                                                        simplifier
@@ -288,7 +395,7 @@ runLHInferenceCore entry m lrs ghci = do
         final_st' = swapHigherOrdForSymGen bindings final_st
 
     (red, hal, ord) <- inferenceReducerHalterOrderer infconfig g2config solver simplifier entry m cfn final_st'
-    (exec_res, final_bindings) <- liftIO $ runLHG2 g2config red hal ord solver simplifier pres_names ifi final_st' bindings
+    (exec_res, final_bindings) <- liftIO $ runLHG2Inference g2config red hal ord solver simplifier pres_names ifi final_st' bindings
 
     liftIO $ close solver
 
@@ -377,7 +484,7 @@ runLHCExSearch entry m lrs ghci = do
         final_st' = swapHigherOrdForSymGen bindings final_st
 
     (red, hal, ord) <- realCExReducerHalterOrderer infconfig g2config' entry m solver simplifier cfn
-    (exec_res, final_bindings) <- liftIO $ runLHG2 g2config' red hal ord solver simplifier pres_names ifi final_st' bindings
+    (exec_res, final_bindings) <- liftIO $ runLHG2Inference g2config' red hal ord solver simplifier pres_names ifi final_st' bindings
 
     liftIO $ close solver
 
@@ -606,6 +713,7 @@ checkPreOrPost' extract ars ld@(LiquidData { ls_state = s, ls_bindings = binding
     case checkFromMap ars (extract ld) cex s of
         Just s' -> do
             SomeSolver solver <- liftIO $ initSolver config
+            time <- liftIO $ getCurrentTime
             (fsl, _) <- liftIO $ genericG2Call config solver s' bindings
             liftIO $ close solver
 
@@ -856,7 +964,7 @@ genericG2CallLogging config solver s bindings lg = do
     let simplifier = IdSimplifier
         share = sharing config
 
-    fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier :<~ Logger lg))
+    fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier :<~ prettyLogger lg))
                            (SomeHalter SWHNFHalter)
                            (SomeOrderer NextOrderer)
                            solver simplifier PreserveAllMC s bindings
