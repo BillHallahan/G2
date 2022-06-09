@@ -13,6 +13,7 @@ import G2.Interface
 import G2.Liquid.Inference.Interface
 import G2.Liquid.Inference.Config
 
+import Data.Time.Clock
 import Data.Either
 
 -- Run with no arguments for default test cases.
@@ -68,7 +69,7 @@ posTests = testGroup "Tests"
             , posTestInference "tests_inference/test_files/Pos/Test35.hs"
             , posTestInference "tests_inference/test_files/Pos/Test36.hs"
             , posTestInference "tests_inference/test_files/Pos/Test37.hs"
-            , posTestInferenceWithTimeOut 240 "tests_inference/test_files/Pos/Test38.hs"
+            , posTestInferenceWithTimeOut 240 15 "tests_inference/test_files/Pos/Test38.hs"
             , posTestInference "tests_inference/test_files/Pos/Test39.hs"
             , posTestInference "tests_inference/test_files/Pos/Test40.hs"
             , posTestInference "tests_inference/test_files/Pos/Test41.hs"
@@ -99,18 +100,18 @@ negTests = testGroup "Tests"
             , negTestInference "tests_inference/test_files/Neg/Test5.hs"
             , negTestInference "tests_inference/test_files/Neg/Test6.hs" ]
 
-posTestInferenceWithTimeOut :: Int -> FilePath -> TestTree
-posTestInferenceWithTimeOut to fp = do
+posTestInferenceWithTimeOut :: Int -> NominalDiffTime -> FilePath -> TestTree
+posTestInferenceWithTimeOut to to_se fp = do
     testCase fp (do
         config <- G2.getConfig []
-        let infconfig = mkInferenceConfig []
+        let infconfig = (mkInferenceConfig []) { timeout_se = to_se }
         res <- doTimeout to $ inferenceCheck infconfig config [] [fp] []
 
         assertBool ("Inference for " ++ fp ++ " failed.") $ maybe False isRight res
         )
 
 posTestInference :: FilePath -> TestTree
-posTestInference = posTestInferenceWithTimeOut 90
+posTestInference = posTestInferenceWithTimeOut 90 5
 
 negTestInference :: FilePath -> TestTree
 negTestInference fp = do
