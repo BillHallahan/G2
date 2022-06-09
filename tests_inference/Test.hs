@@ -68,7 +68,7 @@ posTests = testGroup "Tests"
             , posTestInference "tests_inference/test_files/Pos/Test35.hs"
             , posTestInference "tests_inference/test_files/Pos/Test36.hs"
             , posTestInference "tests_inference/test_files/Pos/Test37.hs"
-            , posTestInference "tests_inference/test_files/Pos/Test38.hs"
+            , posTestInferenceWithTimeOut 180 "tests_inference/test_files/Pos/Test38.hs"
             , posTestInference "tests_inference/test_files/Pos/Test39.hs"
             , posTestInference "tests_inference/test_files/Pos/Test40.hs"
             , posTestInference "tests_inference/test_files/Pos/Test41.hs"
@@ -99,15 +99,18 @@ negTests = testGroup "Tests"
             , negTestInference "tests_inference/test_files/Neg/Test5.hs"
             , negTestInference "tests_inference/test_files/Neg/Test6.hs" ]
 
-posTestInference :: FilePath -> TestTree
-posTestInference fp = do
+posTestInferenceWithTimeOut :: Int -> FilePath -> TestTree
+posTestInferenceWithTimeOut to fp = do
     testCase fp (do
         config <- G2.getConfig []
         let infconfig = mkInferenceConfig []
-        res <- doTimeout 90 $ inferenceCheck infconfig config [] [fp] []
+        res <- doTimeout to $ inferenceCheck infconfig config [] [fp] []
 
         assertBool ("Inference for " ++ fp ++ " failed.") $ maybe False isRight res
         )
+
+posTestInference :: FilePath -> TestTree
+posTestInference = posTestInferenceWithTimeOut 90
 
 negTestInference :: FilePath -> TestTree
 negTestInference fp = do
