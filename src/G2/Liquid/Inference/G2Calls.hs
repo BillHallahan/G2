@@ -194,8 +194,11 @@ runG2ThroughExecutionInference red hal ord _ _ pres s b = do
     return (map (earlyExecRes fb) fs, fb)
 
 runG2SolvingInference :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Config -> Bindings -> ExecRes AbstractedInfo -> IO (ExecRes AbstractedInfo)
-runG2SolvingInference solver simplifier config bindings er = do
-    er_solving <- runG2Solving solver simplifier bindings (final_state er)
+runG2SolvingInference solver simplifier config bindings er@(ExecRes { final_state = s }) = do
+    let abs_resemble_real = softAbstractResembleReal s
+        pc_with_soft = PC.union abs_resemble_real (path_conds s)
+        s_with_soft_pc = s { path_conds = pc_with_soft }
+    er_solving <- runG2Solving solver simplifier bindings s_with_soft_pc
     case er_solving of
         Just er_solving' -> do
             let er_solving'' = if fmap funcName (violated er_solving') == Just initiallyCalledFuncName
@@ -239,6 +242,29 @@ satState solver s
             Unknown _ _ -> return False
     | otherwise = return False
 
+-- | Generate soft path constraints that encourage the `abstract` function call arguments
+-- to be the same as the `real` function call arguments.
+softAbstractResembleReal :: State AbstractedInfo -> PathConds
+softAbstractResembleReal =
+    foldr PC.union PC.empty . map softAbstractResembleReal' . abs_calls . track
+
+softAbstractResembleReal' :: Abstracted -> PathConds
+softAbstractResembleReal' abstracted =
+    let
+        ars_pairs = zip (arguments $ abstract abstracted) (arguments $ real abstracted)
+        ret_pair = (returns $ abstract abstracted, returns $ real abstracted)
+    in
+    foldr PC.union PC.empty . map PC.fromList $ map (uncurry softPair) (ret_pair:ars_pairs)
+
+softPair :: Expr -> Expr -> [PathCond]
+softPair v1@(Var (Id _ t1)) e2 | isPrimType t1 =
+    assert (t1 == typeOf e2)
+        [MinimizePC $ App (Prim Abs TyUnknown) (App (App (Prim Minus TyUnknown) v1) e2)]
+softPair e1 v2@(Var (Id _ t2)) | isPrimType t2 =
+    assert (typeOf e1 == t2)
+        [MinimizePC $ App (Prim Abs TyUnknown) (App (App (Prim Minus TyUnknown) e1) v2)]
+softPair (App e1 e2) (App e1' e2') = softPair e1 e1' ++ softPair e2 e2'
+softPair _ _ = []
 
 -------------------------------------
 -- Generating Allowed Inputs/Outputs
