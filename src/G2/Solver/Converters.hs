@@ -300,6 +300,7 @@ pathConsToSMTHeaders :: [PathCond] -> [SMTHeader]
 pathConsToSMTHeaders = map pathConsToSMT
 
 pathConsToSMT :: PathCond -> SMTHeader
+pathConsToSMT (MinimizePC e) = Minimize $ exprToSMT e
 pathConsToSMT (SoftPC pc) = AssertSoft (pathConsToSMT' pc) Nothing
 pathConsToSMT pc = Assert (pathConsToSMT' pc) 
 
@@ -322,6 +323,7 @@ pathConsToSMT' (AssumePC (Id n t) num pc) =
         pcSMT = map (pathConsToSMT' . PC.unhashedPC) $ HS.toList pc
     in
     (idSMT := intSMT) :=> SmtAnd pcSMT
+pathConsToSMT' (MinimizePC e) = error "pathConsToSMT': unsupported nesting of MinimizePC."
 pathConsToSMT' (SoftPC _) = error "pathConsToSMT': unsupported nesting of SoftPC."
 
 exprToSMT :: Expr -> SMTAST
@@ -462,6 +464,8 @@ toSolverText (Assert ast:xs) =
     merge (function1 "assert" $ toSolverAST ast) (toSolverText xs)
 toSolverText (AssertSoft ast lab:xs) = 
     merge (assertSoftSolver (toSolverAST ast) lab) (toSolverText xs)
+toSolverText (Minimize ast:xs) =
+    merge (function1 "minimize" $ toSolverAST ast) (toSolverText xs)
 toSolverText (DefineFun f ars ret body:xs) =
     merge (defineFun f ars ret body) (toSolverText xs)
 toSolverText (DeclareFun f ars ret:xs) =
