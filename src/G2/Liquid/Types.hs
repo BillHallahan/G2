@@ -34,6 +34,7 @@ module G2.Liquid.Types ( LHOutput (..)
                        , consLHState
                        , deconsLHState
                        , measuresM
+                       , lhKnownValuesM
                        , lhRenamedTCM
                        , assumptionsM
                        , postsM
@@ -46,6 +47,7 @@ module G2.Liquid.Types ( LHOutput (..)
                        , lookupMeasureM
                        , insertMeasureM
                        , mapMeasuresM
+                       , mapMeasuresWithKeyM
                        , putMeasuresM
                        , lookupAssumptionM
                        , insertAssumptionM
@@ -292,6 +294,7 @@ type InstFuncs = M.Map L.Name L.Id
 -- LiquidHaskell ASTs
 data LHState = LHState { state :: L.State [L.FuncCall]
                        , measures :: Measures
+                       , lh_known_values :: KV.KnownValues
                        , lh_tcs :: L.TypeClasses
                        , tcvalues :: TCValues
                        , assumptions :: Assumptions
@@ -301,10 +304,11 @@ data LHState = LHState { state :: L.State [L.FuncCall]
                        , inst_funcs :: InstFuncs
                        } deriving (Eq, Show, Read)
 
-consLHState :: L.State [L.FuncCall] -> Measures -> L.TypeClasses -> TCValues -> LHState
-consLHState s meas tc tcv =
+consLHState :: L.State [L.FuncCall] -> Measures -> KV.KnownValues -> L.TypeClasses -> TCValues -> LHState
+consLHState s meas kv tc tcv =
     LHState { state = s
             , measures = meas
+            , lh_known_values = kv
             , lh_tcs = tc
             , tcvalues = tcv
             , assumptions = M.empty
@@ -322,6 +326,11 @@ measuresM :: LHStateM Measures
 measuresM = do
     (lh_s, _) <- SM.get
     return $ measures lh_s
+
+lhKnownValuesM :: LHStateM KV.KnownValues
+lhKnownValuesM = do
+    (lh_s, _) <- SM.get
+    return $ lh_known_values lh_s
 
 lhRenamedTCM :: LHStateM L.TypeClasses
 lhRenamedTCM = do
@@ -483,6 +492,12 @@ mapMeasuresM :: (L.Expr -> LHStateM L.Expr) -> LHStateM ()
 mapMeasuresM f = do
     (s@(LHState { measures = meas }), b) <- SM.get
     meas' <- E.mapM f meas
+    SM.put $ (s { measures = meas' }, b)
+
+mapMeasuresWithKeyM :: (L.Name -> L.Expr -> LHStateM L.Expr) -> LHStateM ()
+mapMeasuresWithKeyM f = do
+    (s@(LHState { measures = meas }), b) <- SM.get
+    meas' <- E.mapWithKeyM f meas
     SM.put $ (s { measures = meas' }, b)
 
 putMeasuresM :: Measures -> LHStateM ()

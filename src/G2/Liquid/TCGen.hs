@@ -21,7 +21,7 @@ createLHState meenv mkv mtc s b =
     let
         (tcv, (s', b')) = runStateM (createTCValues mkv (type_env s)) s b
 
-        lh_s = consLHState s' meenv mtc tcv
+        lh_s = consLHState s' meenv mkv mtc tcv
     in
     execLHStateM (do
                     createLHTCFuncs

@@ -405,7 +405,7 @@ reduceFCExpr g2call reducer solver simplifier s bindings e
         let 
             e' = fillLHDictArgs ds strict_e
 
-        let s' = elimAssumes
+        let s' = elimAssumesExcept
                . elimAsserts
                . pickHead
                . elimSymGens (arb_value_gen bindings)

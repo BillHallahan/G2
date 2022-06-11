@@ -92,11 +92,14 @@ addTrueAssertsAll = mapWithKeyME (addTrueAssert'')
 -- | Blocks calling error in the functions specified in the block_errors_in in
 -- the Config, by wrapping the errors in Assume False.
 addErrorAssumes :: Config -> LHStateM ()
-addErrorAssumes config = mapWithKeyME (addErrorAssumes' (block_errors_method config) (block_errors_in config))
-
-addErrorAssumes' :: BlockErrorsMethod -> S.HashSet (T.Text, Maybe T.Text) -> Name -> Expr -> LHStateM Expr
-addErrorAssumes' be ns (Name n m _ _) e = do
+addErrorAssumes config = do
     kv <- knownValues
+    mapWithKeyME (addErrorAssumes' (block_errors_method config) (block_errors_in config) kv)
+    lh_kv <- lhKnownValuesM
+    mapMeasuresWithKeyM (addErrorAssumes' (block_errors_method config) (block_errors_in config) lh_kv)
+
+addErrorAssumes' :: BlockErrorsMethod -> S.HashSet (T.Text, Maybe T.Text) -> KnownValues -> Name -> Expr -> LHStateM Expr
+addErrorAssumes' be ns kv (Name n m _ _) e = do
     if (n, m) `S.member` ns then addErrorAssumes'' be kv (typeOf e) e else return e
 
 addErrorAssumes'' :: BlockErrorsMethod -> KnownValues -> Type -> Expr -> LHStateM Expr
