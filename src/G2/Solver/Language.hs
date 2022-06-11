@@ -219,11 +219,19 @@ instance AST Sort where
 
     modifyChildren _ s = s
 
+--                | DefineFun SMTName [(SMTName, Sort)] Sort !SMTAST
+
 instance ASTContainer SMTHeader SMTAST where
     containedASTs (Assert a) = [a]
+    containedASTs (AssertSoft a _) = [a]
+    containedASTs (Minimize a) = [a]
+    containedASTs (DefineFun _ _ _ a) = [a]
     containedASTs _ = []
 
     modifyContainedASTs f (Assert a) = Assert (f a)
+    modifyContainedASTs f (AssertSoft a lbl) = AssertSoft (f a) lbl
+    modifyContainedASTs f (Minimize a) = Minimize (f a)
+    modifyContainedASTs f (DefineFun n ars r a) = DefineFun n ars r (f a)
     modifyContainedASTs _ s = s
 
 instance ASTContainer SMTAST Sort where
