@@ -34,6 +34,7 @@ import Data.Maybe
 import Data.Monoid
 import Data.Tuple.Extra
 
+import G2.Lib.Printers
 import Data.Time.Clock
 
 -- | The function to actually use for Symbolic Execution
@@ -126,6 +127,7 @@ checkAbstracted' g2call solver simplifier share s bindings abs_fc@(FuncCall { fu
                     s { curr_expr = CurrExpr Evaluate strict_call
                       , track = False }
 
+
         let pres = HS.fromList $ namesList s' ++ namesList bindings
         (er, bindings') <- g2call 
                                 (SomeReducer (StdRed share solver simplifier :<~ HitsLibError))
@@ -183,7 +185,8 @@ getAbstracted g2call solver simplifier share s bindings abs_fc@(FuncCall { funcN
 
         let pres = HS.fromList $ namesList s' ++ namesList bindings
         (er, bindings') <- g2call 
-                              (SomeReducer (StdRed share solver simplifier :<~ HitsLibErrorGatherer))
+                              (SomeReducer (NonRedPCRed
+                                                :<~| (StdRed share solver simplifier :<~ HitsLibErrorGatherer)))
                               (SomeHalter (SWHNFHalter :<~> AcceptOnlyOneHalter :<~> SwitchEveryNHalter 200))
                               (SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTSizeOrderer 0 Nothing)))
                               solver simplifier
@@ -424,8 +427,8 @@ reduceFCExpr g2call reducer solver simplifier s bindings e
             [er'] -> do
                 let fs = final_state er'
                     (CurrExpr _ ce) = curr_expr fs
-                return ((s' { expr_env = foldr E.insertSymbolic (expr_env s') (E.symbolicIds $ expr_env fs)
-                            , path_conds = path_conds fs }
+                return ((s { expr_env = foldr E.insertSymbolic (expr_env s') (E.symbolicIds $ expr_env fs)
+                           , path_conds = path_conds fs }
                         , bindings { name_gen = name_gen bindings' }), ce)
             _ -> error $ "reduceFCExpr: Bad reduction"
     | isTypeClass (type_classes s) $ (typeOf e)

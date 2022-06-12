@@ -12,9 +12,11 @@ import G2.Config as G2
 import G2.Interface
 import G2.Liquid.Inference.Interface
 import G2.Liquid.Inference.Config
+import G2.Liquid.Inference.G2Calls
 
 import Data.Time.Clock
 import Data.Either
+import qualified Data.Text as T
 
 -- Run with no arguments for default test cases.
 -- All default test cases should pass.
@@ -28,7 +30,8 @@ main = do
 tests :: TestTree
 tests = testGroup "All Tests"
         [ posTests
-        , negTests ]
+        , negTests
+        , cexTests ]
 
 posTests :: TestTree
 posTests = testGroup "Tests"
@@ -100,6 +103,10 @@ negTests = testGroup "Tests"
             , negTestInference "tests_inference/test_files/Neg/Test5.hs"
             , negTestInference "tests_inference/test_files/Neg/Test6.hs" ]
 
+cexTests :: TestTree
+cexTests = testGroup "Tests"
+            [ cexTest "tests_inference/test_files/CEx/CEx1.hs" "zipWith"]
+
 posTestInferenceWithTimeOut :: Int -> NominalDiffTime -> FilePath -> TestTree
 posTestInferenceWithTimeOut to to_se fp = do
     testCase fp (do
@@ -121,4 +128,13 @@ negTestInference fp = do
         res <- doTimeout 90 $ inferenceCheck infconfig config [] [fp] []
 
         assertBool ("Inference for " ++ fp ++ " failed.") $ maybe False isLeft res
+        )
+
+cexTest :: FilePath -> String -> TestTree
+cexTest fp func =
+    testCase fp (do
+        config <- G2.getConfig []
+        let infconfig = (mkInferenceConfig []) { timeout_se = 10 }
+        res <- doTimeout 25 $ runLHInferenceAll infconfig config (T.pack func) [] [fp] []
+        assertBool ("Counterexample generation for " ++ func ++ " in " ++ fp ++ " failed.") $ maybe False (not . null . fst) res
         )

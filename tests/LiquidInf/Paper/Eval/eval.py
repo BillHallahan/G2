@@ -142,7 +142,7 @@ def adj_time(check_safe, time):
     else:
         return None;
 
-def test_pos_folder(folder, timeout, extra_opts=[]):
+def test_pos_folder(folder, timeout, extra_opts=[], skip = []):
     all_files = os.listdir(folder);
     num_files = count_files(all_files);
     safe_num = 0;
@@ -150,6 +150,8 @@ def test_pos_folder(folder, timeout, extra_opts=[]):
     log = []
 
     for file in all_files:
+        if file in skip:
+            continue;
         if file.endswith(".lhs") or file.endswith(".hs"):
             print(file);
 
