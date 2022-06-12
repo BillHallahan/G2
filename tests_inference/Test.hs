@@ -105,7 +105,8 @@ negTests = testGroup "Tests"
 
 cexTests :: TestTree
 cexTests = testGroup "Tests"
-            [ cexTest "tests_inference/test_files/CEx/CEx1.hs" "zipWith"]
+            [ cexTest "tests_inference/test_files/CEx/CEx1.hs" "zipWith"
+            , cexTest "tests_inference/test_files/CEx/CEx2.hs" "mapReduce" ]
 
 posTestInferenceWithTimeOut :: Int -> NominalDiffTime -> FilePath -> TestTree
 posTestInferenceWithTimeOut to to_se fp = do

@@ -185,7 +185,7 @@ getAbstracted g2call solver simplifier share s bindings abs_fc@(FuncCall { funcN
 
         let pres = HS.fromList $ namesList s' ++ namesList bindings
         (er, bindings') <- g2call 
-                              (SomeReducer (NonRedPCRed
+                              (SomeReducer ((NonRedPCRed :|: NonRedPCRedConst)
                                                 :<~| (StdRed share solver simplifier :<~ HitsLibErrorGatherer)))
                               (SomeHalter (SWHNFHalter :<~> AcceptOnlyOneHalter :<~> SwitchEveryNHalter 200))
                               (SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTSizeOrderer 0 Nothing)))
