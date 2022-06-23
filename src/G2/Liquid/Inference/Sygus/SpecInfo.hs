@@ -140,8 +140,17 @@ data ToBeSpec = ToBeSpec { tb_name :: SMTName
 data SynthSpec = SynthSpec { sy_name :: SMTName
                            , sy_args :: [SpecArg]
                            , sy_rets :: [SpecArg]
-                           , sy_coeffs :: CNF }
+                           , sy_body :: SynthBody }
                            deriving (Show)
+
+-- | How should we create the body of a function that we are synthesizing?
+data SynthBody = SynthCNF CNF -- ^ Use a CNF termplate
+               | SynthCall SMTName [(SMTName, Sort)] -- ^ Directly call another function, with the given name and arguments
+               deriving Show
+
+sy_coeffs :: SynthBody -> CNF
+sy_coeffs (SynthCNF cnf) = cnf
+sy_coeffs (SynthCall _ _) = []
 
 sy_args_and_ret :: SynthSpec -> [SpecArg]
 sy_args_and_ret si = sy_args si ++ sy_rets si
@@ -235,7 +244,7 @@ buildSpecInfo eenv tenv tc meas ghci fc to_be_ns ns_synth = do
     inf_con <- infConfigM
 
     let si''' = if use_invs inf_con
-                    then allCondsKnown . conflateLoopNames . elimSyArgs $ si''
+                    then allCondsKnown {- . createLoopCalls -} . conflateLoopNames .  elimSyArgs $ si''
                     else si''
 
     return si'''
@@ -297,7 +306,7 @@ buildSI tenv tc meas stat ghci f aty rty = do
                                     SynthSpec { sy_name = smt_f ++ "_synth_pre_" ++ show i ++ "_" ++ show j
                                               , sy_args = map (\(a, k) -> a { smt_var = "x_" ++ show k}) $ zip ars ([1..] :: [Integer])
                                               , sy_rets = map (\(r, k) -> r { smt_var = "x_r_" ++ show k}) $ zip rets ([1..] :: [Integer])
-                                              , sy_coeffs = []}
+                                              , sy_body = SynthCNF []}
                                   )  $ zipPB r_pb (uniqueIds r_pb)
                      ) $ zip (filter (not . null) $ L.inits outer_ars_pb) ([1..] :: [Integer])
            , s_syn_post = mkSynSpecPB (smt_f ++ "_synth_post_") arg_ns ret_pb
@@ -385,7 +394,7 @@ mkSynSpecPB smt_f arg_ns pb_sa =
             SynthSpec { sy_name = smt_f ++ show ui
                       , sy_args = arg_ns
                       , sy_rets = ret_ns
-                      , sy_coeffs = [] }
+                      , sy_body = SynthCNF [] }
         )
         $ zipPB (uniqueIds pb_sa) pb_sa
 
@@ -462,6 +471,23 @@ specialFunction (Name n _ _ _) | T.take 4 n == "loop" = True
                                | T.take 5 n == "while" = True
                                | T.take 5 n == "breakWhile" = True
                                | otherwise = False
+
+createLoopCalls :: M.Map a SpecInfo -> M.Map a SpecInfo
+createLoopCalls = M.map createLoopCalls'
+
+createLoopCalls' :: SpecInfo -> SpecInfo
+createLoopCalls' si@(SI { s_syn_pre = pb_sy_pre@(_:_)
+                          , s_syn_post = pb_post@(PolyBound sy_post _) })
+    | take 4 (sy_name sy_post) == "loop" =
+        let
+            pb_pre = last pb_sy_pre
+        in
+        si { s_syn_post = mapPB (uncurry createLoopCalls'') $ zipPB pb_pre pb_post }
+createLoopCalls' si = si
+
+createLoopCalls'' :: SynthSpec -> SynthSpec -> SynthSpec
+createLoopCalls'' pre post =
+    post { sy_body = SynthCall (sy_name pre) (map (\sa -> (smt_var sa, smt_sort sa)) $ sy_rets post) }
 
 conflateLoopNames ::  M.Map a SpecInfo -> M.Map a SpecInfo
 conflateLoopNames = M.map conflateLoopNames'

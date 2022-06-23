@@ -92,12 +92,12 @@ liaSynthOfSize sz m_si = do
                         s_syn_pre' =
                             map (mapPB
                                     (\psi ->
-                                        psi { sy_coeffs = mkCNF (>= 1) sz (fromInteger max_form_sz) (sy_name psi) psi }
+                                        psi { sy_body = SynthCNF $ mkCNF (>= 1) sz (fromInteger max_form_sz) (sy_name psi) psi }
                                     )
                                  ) (s_syn_pre si)
                         s_syn_post' =
                             mapPB (\psi -> 
-                                        psi { sy_coeffs = mkCNF (>= 1) sz (fromInteger max_form_sz) (sy_name psi) psi }
+                                        psi { sy_body = SynthCNF $ mkCNF (>= 1) sz (fromInteger max_form_sz) (sy_name psi) psi }
                                   ) (s_syn_post si)
                     in
                     si { s_syn_pre = s_syn_pre' -- (s_syn_pre si) { sy_coeffs = pre_c }
@@ -582,7 +582,7 @@ filterIrrelByConstruction' sys =
 filterClauseActiveBooleans :: SynthSpec -> SMTModel -> SMTModel
 filterClauseActiveBooleans si mdl =
     let
-        clauses = sy_coeffs si
+        clauses = sy_coeffs $ sy_body si
     in
     foldr (\(cl_act, cfs) mdl_ -> if
               | M.lookup cl_act mdl_ == Just (VBool True) ->
@@ -594,7 +594,7 @@ filterClauseActiveBooleans si mdl =
 filterCoeffActiveBooleans :: SynthSpec -> SMTModel -> SMTModel
 filterCoeffActiveBooleans si mdl =
     let
-        clauses = sy_coeffs si
+        clauses = sy_coeffs $ sy_body si
         cffs = concatMap snd clauses
     in
     foldr (\cf mdl_ -> if
@@ -606,7 +606,7 @@ filterCoeffActiveBooleans si mdl =
 filterRelOpBranch :: SynthSpec -> SMTModel -> SMTModel
 filterRelOpBranch si mdl =
     let
-        clauses = sy_coeffs si
+        clauses = sy_coeffs $ sy_body si
         coeffs = concatMap snd clauses
     in
     -- If we are not using a clause, we don't care about c_op_branch1 and c_op_branch2
@@ -734,6 +734,7 @@ buildLIA_SMT_fromModel mdl sf =
               vint VInt vbool vset
               falseArray
               trueArray
+              (\n -> Func n . map (uncurry V))
               sf 
     where
         vint n
@@ -875,7 +876,7 @@ mkRetNonZero' si =
     in
     concatMap (\sys ->
               let
-                  cffs = sy_coeffs sys
+                  cffs = sy_coeffs $ sy_body sys
               in
               map
                   (\(act, cff) ->
@@ -1124,7 +1125,7 @@ getCoeffs :: M.Map Name SpecInfo -> [SMTName]
 getCoeffs = concatMap siGetCoeffs . M.elems
 
 sySpecGetCoeffsNoB :: SynthSpec -> [SMTName]
-sySpecGetCoeffsNoB = concatMap coeffsNoB . concatMap snd . sy_coeffs
+sySpecGetCoeffsNoB = concatMap coeffsNoB . concatMap snd . sy_coeffs . sy_body
 
 siGetCoeffs :: SpecInfo -> [SMTName]
 siGetCoeffs si
@@ -1132,7 +1133,7 @@ siGetCoeffs si
     | otherwise = []
 
 sySpecGetCoeffs :: SynthSpec -> [SMTName]
-sySpecGetCoeffs = concatMap coeffs . concatMap snd . sy_coeffs
+sySpecGetCoeffs = concatMap coeffs . concatMap snd . sy_coeffs . sy_body
 
 getSetBools :: M.Map Name SpecInfo -> [SMTName]
 getSetBools = concatMap siGetSetBools . M.elems
@@ -1143,7 +1144,7 @@ siGetSetBools si
     | otherwise = []
 
 sySpecGetSetBools :: SynthSpec -> [SMTName]
-sySpecGetSetBools = concatMap setBools . concatMap snd . sy_coeffs
+sySpecGetSetBools = concatMap setBools . concatMap snd . sy_coeffs . sy_body
 
 getBoolBools :: M.Map Name SpecInfo -> [SMTName]
 getBoolBools = concatMap siGetBoolBools . M.elems 
@@ -1154,7 +1155,7 @@ siGetBoolBools si
     | otherwise = []
 
 sySpecGetBoolBools :: SynthSpec -> [SMTName]
-sySpecGetBoolBools = concatMap boolBools . concatMap snd . sy_coeffs
+sySpecGetBoolBools = concatMap boolBools . concatMap snd . sy_coeffs . sy_body
 
 ---
 
@@ -1168,7 +1169,7 @@ siGetOpBranches si
     | otherwise = []
 
 sySpecGetOpBranches :: SynthSpec -> [SMTName]
-sySpecGetOpBranches = concatMap sySpecGetOpBranchesForm . concatMap snd . sy_coeffs
+sySpecGetOpBranches = concatMap sySpecGetOpBranchesForm . concatMap snd . sy_coeffs . sy_body
 
 sySpecGetOpBranchesForm :: Forms -> [SMTName]
 sySpecGetOpBranchesForm c@(BoolForm {}) =
@@ -1180,10 +1181,10 @@ sySpecGetActs :: SynthSpec -> [SMTName]
 sySpecGetActs sys = sySpecGetClauseActs sys ++ sySpecGetFuncActs sys
 
 sySpecGetClauseActs :: SynthSpec -> [SMTName]
-sySpecGetClauseActs = map fst . sy_coeffs
+sySpecGetClauseActs = map fst . sy_coeffs . sy_body
 
 sySpecGetFuncActs :: SynthSpec -> [SMTName]
-sySpecGetFuncActs = concatMap formActives . concatMap snd . sy_coeffs
+sySpecGetFuncActs = concatMap formActives . concatMap snd . sy_coeffs . sy_body
 
 getActs :: M.Map Name SpecInfo -> [SMTName]
 getActs si = getClauseActs si ++ getFuncActs si
@@ -1278,6 +1279,7 @@ buildLIA_SMT sf =
               (flip V SortInt) VInt (flip V SortBool) (flip V $ SortArray SortInt SortBool)
               falseArray
               trueArray
+              (\n -> Func n . map (uncurry V))
               sf
 
 -- Get a list of all LIA formulas.  We raise these as high in a PolyBound as possible,
@@ -1297,6 +1299,11 @@ buildLIA_LH' si mv =
     let
         post_ars = allPostSpecArgs si
 
+        pre = map (mapPB (\psi -> build (all_sy_args_and_ret psi) psi)) $ s_syn_pre si
+        post = mapPB (build post_ars) $ s_syn_post si
+    in
+    pre ++ [post]
+    where
         build ars = buildSpec ePlus eTimes
                               bEq bIff bGt bGeq
                               eIte eIte id
@@ -1305,11 +1312,8 @@ buildLIA_LH' si mv =
                               bIsSubset bIsMember
                               (detVar ars) (ECon . I) (detBool ars)
                               (detSet ars) eEmptySet eUnivSet
-        pre = map (mapPB (\psi -> build (all_sy_args_and_ret psi) psi)) $ s_syn_pre si
-        post = mapPB (build post_ars) $ s_syn_post si
-    in
-    pre ++ [post]
-    where
+                              (resolve_call ars)
+
         detVar ars v 
             | Just (VInt c) <- M.lookup v mv = ECon (I c)
             | Just sa <- L.find (\sa_ -> v == smt_var sa_) ars = lh_rep sa
@@ -1409,6 +1413,20 @@ buildLIA_LH' si mv =
         eEmptySet = EApp (EVar "Set_empty") (ECon (I 0))
         eUnivSet = EVar ("Set_univ")
 
+
+        all_synth_spec = concatMap extractValues (s_syn_pre si) ++ extractValues (s_syn_post si)
+        resolve_call orig_ars c_n c_ars =
+            let
+                use_ars = map (\(v, _) -> case L.find (\sa_ -> v == smt_var sa_) orig_ars of
+                                            Just v' -> v'
+                                            Nothing -> error "resolve_call: argument not found") c_ars
+                use_spec = case L.find (\sy_s -> sy_name sy_s == c_n) all_synth_spec of
+                                Just sy_s -> sy_s
+                                Nothing -> error "resolve_call: SynthSpec not found"
+            in
+            build use_ars use_spec
+
+
 buildSpec :: Show b => Plus a
           -> Mult a
           -> EqF a b
@@ -1433,11 +1451,12 @@ buildSpec :: Show b => Plus a
           -> VSet a
           -> EmptySet a
           -> UniversalSet a
+          -> (SMTName -> [(SMTName, Sort)] -> c)
           -> SynthSpec
           -> c
-buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_union mk_intersection mk_sing is_subset is_member vint cint vbool vset cemptyset cunivset sf =
+buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_union mk_intersection mk_sing is_subset is_member vint cint vbool vset cemptyset cunivset _
+          sf@(SynthSpec { sy_body = SynthCNF all_coeffs }) =
     let
-        all_coeffs = sy_coeffs sf
         lin_ineqs = map (\(cl_act, cl) -> vbool cl_act:map toLinInEqs cl) all_coeffs
     in
     mk_and_sp . map mk_or $ lin_ineqs
@@ -1510,6 +1529,8 @@ buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_unio
             -- foldr mk_union cemptyset
             --        . map (\(b, s) -> ite_set b s cemptyset)
             --        $ zip (map vbool $ ars ++ rts) (map vset set_args)
+buildSpec plus mult eq eq_bool gt geq ite ite_set mk_and_sp mk_and mk_or mk_union mk_intersection mk_sing is_subset is_member vint cint vbool vset cemptyset cunivset res_call
+          (SynthSpec { sy_body = SynthCall call_f ars }) = res_call call_f ars
 
 
 ----------------------------------------------------------------------------
@@ -1589,10 +1610,10 @@ allCNFs :: SpecInfo -> CNF
 allCNFs si = allPreCoeffs si ++ allPostCoeffs si
 
 allPreCoeffs :: SpecInfo -> CNF
-allPreCoeffs = concatMap sy_coeffs . allPreSynthSpec
+allPreCoeffs = concatMap sy_coeffs . map sy_body . allPreSynthSpec
 
 allPostCoeffs :: SpecInfo -> CNF
-allPostCoeffs = concatMap sy_coeffs . allPostSynthSpec
+allPostCoeffs = concatMap sy_coeffs . map sy_body . allPostSynthSpec
 
 allPostSpecArgs :: SpecInfo -> [SpecArg]
 allPostSpecArgs = concatMap sy_args_and_ret . allPostSynthSpec
@@ -1601,10 +1622,10 @@ allCNFsSeparated :: SpecInfo -> [CNF]
 allCNFsSeparated si = allPreCoeffsSeparated si ++ allPostCoeffsSeparated si
 
 allPreCoeffsSeparated :: SpecInfo -> [CNF]
-allPreCoeffsSeparated = map sy_coeffs . allPreSynthSpec
+allPreCoeffsSeparated = map sy_coeffs . map sy_body . allPreSynthSpec
 
 allPostCoeffsSeparated :: SpecInfo -> [CNF]
-allPostCoeffsSeparated = map sy_coeffs . allPostSynthSpec
+allPostCoeffsSeparated = map sy_coeffs . map sy_body . allPostSynthSpec
 
 allForms :: SpecInfo -> [Forms]
 allForms = concatMap allFormsFromForm
