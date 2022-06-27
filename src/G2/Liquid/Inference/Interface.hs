@@ -47,6 +47,8 @@ import Data.List
 import Data.Maybe
 import qualified Data.Text as T
 
+import G2.Liquid.Inference.Parametric
+
 -- Run inference, with an extra, final check of correctness at the end.
 -- Assuming inference is working correctly, this check should neve fail.
 inferenceCheck :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO (Either [CounterExample] GeneratedSpecs)
@@ -117,6 +119,10 @@ getInitState proj fp lhlibs ghci infconfig config = do
     (main_mod, exg2) <- translateLoaded proj fp lhlibs transConfig g2config
 
     let (lrs, g2config', infconfig') = initStateAndConfig exg2 main_mod g2config infconfig ghci
+
+    case E.lookupNameMod "kmeans1" (Just "Combined") (expr_env . G2LH.state . lr_state $ lrs) of
+        Just (_, e) -> putStrLn $ "instantiating = " ++ show (instantiating e)
+        Nothing -> error "getInitState BAD!"
     return (lrs, g2config', infconfig', main_mod)
 
 getNameLevels :: Maybe T.Text -> LiquidReadyState -> NameLevels
