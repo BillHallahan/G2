@@ -33,6 +33,7 @@ module G2.Interface.Interface ( MkCurrExpr
                               , runG2Post
                               , runG2ThroughExecution
                               , runExecution
+                              , runG2SolvingResult
                               , runG2Solving
                               , runG2
                               , Config) where
@@ -455,26 +456,40 @@ runG2ThroughExecution red hal ord mem is bindings = do
     let (is', bindings') = runG2Pre mem is bindings
     runExecution red hal ord is' bindings'
 
-runG2Solving :: ( Named t
-                , Solver solver
-                , Simplifier simplifier) =>
-                   solver
-                -> simplifier
-                -> Bindings
-                -> State t
-                -> IO (Maybe (ExecRes t))
-runG2Solving solver simplifier bindings s@(State { known_values = kv })
+runG2SolvingResult :: ( Named t
+                      , Solver solver
+                      , Simplifier simplifier) =>
+                      solver
+                   -> simplifier
+                   -> Bindings
+                   -> State t
+                   -> IO (Result (ExecRes t) () ())
+runG2SolvingResult solver simplifier bindings s@(State { known_values = kv })
     | true_assert s = do
         r <- solve solver s bindings (E.symbolicIds . expr_env $ s) (path_conds s)
 
         case r of
             SAT m -> do
                 let m' = reverseSimplification simplifier s bindings m
-                return . Just $ runG2SubstModel m' s bindings
-            UNSAT _ -> return Nothing
-            Unknown _ _ -> return Nothing
+                return . SAT $ runG2SubstModel m' s bindings
+            UNSAT _ -> return $ UNSAT ()
+            Unknown s _ -> return $ Unknown s ()
 
-    | otherwise = return Nothing
+    | otherwise = return $ UNSAT ()
+
+runG2Solving :: ( Named t
+                , Solver solver
+                , Simplifier simplifier) =>
+                solver
+             -> simplifier
+             -> Bindings
+             -> State t
+             -> IO (Maybe (ExecRes t))
+runG2Solving solver simplifier bindings s = do
+    res <- runG2SolvingResult solver simplifier bindings s
+    case res of
+        SAT s -> return $ Just s
+        _ -> return Nothing
 
 runG2SubstModel :: Named t =>
                       Model
