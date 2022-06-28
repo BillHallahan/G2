@@ -104,10 +104,10 @@ checkModel' avf con s b (i:is) pc
     | otherwise =  do
         (m, av) <- getModelVal avf con s b i pc
         case m of
-            Just m' -> checkModel' avf con (s {model = HM.union m' (model s)}) (b {arb_value_gen = av}) is pc
-            Nothing -> return $ UNSAT ()
+            SAT m' -> checkModel' avf con (s {model = HM.union m' (model s)}) (b {arb_value_gen = av}) is pc
+            r -> return r
 
-getModelVal :: SMTConverter con => ArbValueFunc -> con -> State t -> Bindings -> Id -> PathConds -> IO (Maybe Model, ArbValueGen)
+getModelVal :: SMTConverter con => ArbValueFunc -> con -> State t -> Bindings -> Id -> PathConds -> IO (Result Model () (), ArbValueGen)
 getModelVal avf con s b (Id n _) pc = do
     let (Just (Var (Id n' t))) = E.lookup n (expr_env s)
      
@@ -116,26 +116,24 @@ getModelVal avf con s b (Id n _) pc = do
                     let
                         (e, av) = avf t (type_env s) (arb_value_gen b)
                     in
-                    return (Just $ HM.singleton n' e, av) 
+                    return (SAT $ HM.singleton n' e, av) 
                 False -> do
                     m <- solveNumericConstraintsPC con pc
                     return (m, arb_value_gen b)
 
-solveNumericConstraintsPC :: SMTConverter con => con -> PathConds -> IO (Maybe Model)
+solveNumericConstraintsPC :: SMTConverter con => con -> PathConds -> IO (Result Model () ())
 solveNumericConstraintsPC con pc = do
     let headers = toSMTHeaders pc
     let vs = map (\(n', srt) -> (nameToStr n', srt)) . HS.toList . pcVars $ pc
 
     m <- solveConstraints con headers vs
-    return $ fmap modelAsExpr m
+    case m of
+        SAT m' -> return . SAT $ modelAsExpr m'
+        UNSAT () -> return $ UNSAT ()
+        Unknown s () -> return $ Unknown s ()
 
-solveConstraints :: SMTConverter con => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Maybe SMTModel)
-solveConstraints con headers vs = do
-    r <- checkSatGetModel con headers vs
-
-    case r of
-        SAT m' -> return $ Just m'
-        _ -> return Nothing
+solveConstraints :: SMTConverter con => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel () ())
+solveConstraints con headers vs = checkSatGetModel con headers vs
 
 constraintsToModelOrUnsatCore :: SMTConverter con => con -> [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
 constraintsToModelOrUnsatCore = checkSatGetModelOrUnsatCore

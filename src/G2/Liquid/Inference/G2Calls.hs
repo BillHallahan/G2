@@ -198,14 +198,23 @@ runG2SolvingInference solver simplifier config bindings er@(ExecRes { final_stat
     let abs_resemble_real = softAbstractResembleReal s
         pc_with_soft = PC.union abs_resemble_real (path_conds s)
         s_with_soft_pc = s { path_conds = pc_with_soft }
-    er_solving <- runG2Solving solver simplifier bindings s_with_soft_pc
+    er_solving <- runG2SolvingResult solver simplifier bindings s_with_soft_pc
     case er_solving of
-        Just er_solving' -> do
+        SAT er_solving' -> do
             let er_solving'' = if fmap funcName (violated er_solving') == Just initiallyCalledFuncName
                                               then er_solving' { violated = Nothing }
                                               else er_solving'
             return er_solving''
-        Nothing -> error "reduceCallsInference: solving failed"
+        UNSAT _ -> error "runG2SolvingInference: solving failed"
+        Unknown _ _ -> do
+            er_solving_no_min <- runG2SolvingResult solver simplifier bindings s
+            case er_solving_no_min of
+                SAT er_solving_no_min' -> do
+                    let er_solving_no_min'' = if fmap funcName (violated er_solving_no_min') == Just initiallyCalledFuncName
+                                                      then er_solving_no_min' { violated = Nothing }
+                                                      else er_solving_no_min'
+                    return er_solving_no_min''
+                _ -> error "runG2SolvingInference: solving failed with no minimization"
 
 earlyExecRes :: Bindings -> State t -> ExecRes t
 earlyExecRes b s@(State { expr_env = eenv, curr_expr = CurrExpr _ cexpr }) =

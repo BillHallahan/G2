@@ -21,8 +21,9 @@ adtNumericalSolInfinite = ADTNumericalSolver arbValueInfinite
 
 instance Solver solver => Solver (ADTNumericalSolver solver) where
     check (ADTNumericalSolver _ sol) s pc = return . fst =<< checkConsistency (Tr sol) s pc
-    solve (ADTNumericalSolver avf sol) s b is pc =
-        return . (\(r, _) -> r) =<< solve' avf (Tr sol) s b is pc
+    solve (ADTNumericalSolver avf sol) s b is pc = do
+        (r, _) <- solve' avf (Tr sol) s b is pc
+        return r
     close (ADTNumericalSolver _ s) = close s
 
 instance TrSolver solver => TrSolver (ADTNumericalSolver solver) where
