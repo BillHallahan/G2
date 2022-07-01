@@ -41,6 +41,7 @@ import Language.Haskell.Liquid.Types as LH
 import Control.Monad.IO.Class 
 import Control.Monad.Reader
 import Data.Either
+import Data.Either.Extra
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as HM
 import Data.List
@@ -49,10 +50,10 @@ import qualified Data.Text as T
 
 -- Run inference, with an extra, final check of correctness at the end.
 -- Assuming inference is working correctly, this check should neve fail.
-inferenceCheck :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO (Either [CounterExample] GeneratedSpecs)
+inferenceCheck :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO (State [FuncCall], Either [CounterExample] GeneratedSpecs)
 inferenceCheck infconfig config proj fp lhlibs = do
     (ghci, lhconfig) <- getGHCI infconfig proj fp lhlibs
-    (res, _, loops) <- inference' infconfig config lhconfig ghci proj fp lhlibs
+    (s, res, _, loops) <- inference' infconfig config lhconfig ghci proj fp lhlibs
     print $ loop_count loops
     print . sum . HM.elems $ loop_count loops
     print $ searched_below loops
@@ -61,17 +62,17 @@ inferenceCheck infconfig config proj fp lhlibs = do
         Right gs -> do
             check_res <- checkGSCorrect infconfig lhconfig ghci gs
             case check_res of
-                Safe -> return res
+                Safe -> return (s, res)
                 _ -> error "inferenceCheck: Check failed"
-        _ -> return res
+        _ -> return (s, res)
 
-inference :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO (Either [CounterExample] GeneratedSpecs)
+inference :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO (State [FuncCall], Either [CounterExample] GeneratedSpecs)
 inference infconfig config proj fp lhlibs = do
     -- Initialize LiquidHaskell
     (ghci, lhconfig) <- getGHCI infconfig proj fp lhlibs
-    (res, timer, _) <- inference' infconfig config lhconfig ghci proj fp lhlibs
+    (s, res, timer, _) <- inference' infconfig config lhconfig ghci proj fp lhlibs
     print . logToSecs . sumLog . getLog $ timer
-    return res
+    return (s, res)
 
 inference' :: InferenceConfig
            -> G2.Config
@@ -80,7 +81,7 @@ inference' :: InferenceConfig
            -> [FilePath]
            -> [FilePath]
            -> [FilePath]
-           -> IO (Either [CounterExample] GeneratedSpecs, Timer (Event Name), Counters)
+           -> IO (State [FuncCall], Either [CounterExample] GeneratedSpecs, Timer (Event Name), Counters)
 inference' infconfig config lhconfig ghci proj fp lhlibs = do
     mapM_ (print . getQualifiers) ghci
 
@@ -101,7 +102,7 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
 
     print . logToSecs . orderLogBySpeed . sumLog . mapLabels (mapEvent (nameOcc)) . getLog $ ev_timer
     print . logToSecs . orderLogBySpeed . sumLog . mapLabels (mapEvent (const ())) . getLog $ ev_timer
-    return (res, ev_timer, loops)
+    return (G2LH.state . lr_state $ lrs, res, ev_timer, loops)
 
 getInitState :: [FilePath]
              -> [FilePath]
@@ -274,7 +275,7 @@ inferenceB con iter ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls =
             res <- tryToVerify ghci'
             logEventEndM
             let res' = filterNamesTo fs res
-            
+
             case res' of
                 Safe -> return $ (Env gs' fc max_fc meas_ex, evals')
                 Unsafe bad -> do

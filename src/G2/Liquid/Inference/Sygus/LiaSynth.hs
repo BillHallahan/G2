@@ -406,7 +406,7 @@ runConstraintsForSynth headers vs = do
     setProduceUnsatCores z3_dir
     setProduceUnsatCores z3_max
 
-    -- T.putStrLn (TB.run $ toSolverText headers)
+    T.putStrLn (TB.run $ toSolverText headers)
     addFormula z3_dir headers
     addFormula z3_max headers
 
