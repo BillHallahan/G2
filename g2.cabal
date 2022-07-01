@@ -299,7 +299,7 @@ executable QuasiQuote
                        , RegEx.RegEx
                        , RegEx.Test
 
-executable RewriteV
+executable Nebula
   -- other-modules:   
   -- other-extensions:
   build-depends:         g2
