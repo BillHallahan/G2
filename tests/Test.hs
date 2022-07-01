@@ -349,6 +349,7 @@ liquidTests = testGroup "Liquid"
     -- Higher Order Functions
     , checkLiquid "tests/Liquid/HigherOrder/IntFuncArg.hs" "caller" 1000 [AtLeast 1]
     , checkLiquid "tests/Liquid/HigherOrder/HigherOrderPre.hs" "test" 1000 [AtLeast 1]
+    , checkLiquid "tests/Liquid/HigherOrder/HigherOrder2.hs" "f" 2000 [Exactly 0]
 
     -- IO
     , checkLiquid "tests/Liquid/IO/IO1.hs" "f" 1000 [Exactly 0]

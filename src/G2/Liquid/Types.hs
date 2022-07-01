@@ -195,7 +195,11 @@ data CounterExample = DirectCounter Abstracted [Abstracted]
 
 type Measures = L.ExprEnv
 
-type Assumptions = M.Map L.Name L.Expr
+-- | Assumptions include:
+--  (1) a list of `(LamUse, Id)` used to refer to the expression arguments in the assumption
+--  (2) assumptions to wrap individual arguments (in particular, higher order arguments).
+--  (3) an assumption regarding the whole expression,
+type Assumptions = M.Map L.Name ([(L.LamUse, L.Id)], [L.Expr], L.Expr)
 type Posts = M.Map L.Name L.Expr
 
 newtype AnnotMap =
@@ -505,10 +509,10 @@ putMeasuresM meas = do
     (s, b) <- SM.get
     SM.put $ (s { measures = meas }, b)
 
-lookupAssumptionM :: L.Name -> LHStateM (Maybe L.Expr)
+lookupAssumptionM :: L.Name -> LHStateM (Maybe ([(L.LamUse, L.Id)], [L.Expr], L.Expr))
 lookupAssumptionM n = liftLHState (M.lookup n . assumptions)
 
-insertAssumptionM :: L.Name -> L.Expr -> LHStateM ()
+insertAssumptionM :: L.Name -> ([(L.LamUse, L.Id)], [L.Expr], L.Expr) -> LHStateM ()
 insertAssumptionM n e = do
     (lh_s, b) <- SM.get
     let assumpt = assumptions lh_s
@@ -518,7 +522,7 @@ insertAssumptionM n e = do
 mapAssumptionsM :: (L.Expr -> LHStateM L.Expr) -> LHStateM ()
 mapAssumptionsM f = do
     (s@(LHState { assumptions = assumpt }), b) <- SM.get
-    assumpt' <- mapM f assumpt
+    assumpt' <- mapM (modifyContainedASTsM f) assumpt
     SM.put $ (s { assumptions = assumpt' },b)
 
 lookupPostM :: L.Name -> LHStateM (Maybe L.Expr)

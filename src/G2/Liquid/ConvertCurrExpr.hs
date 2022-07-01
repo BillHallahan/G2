@@ -13,9 +13,11 @@ import qualified G2.Language.ExprEnv as E
 import G2.Liquid.Conversion
 import G2.Liquid.Types
 
+import Control.Exception
 import Control.Monad.Extra
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Tuple.Extra
 
 -- | Returns (1) the Id of the new main function and (2) the functions that need counterfactual variants
 convertCurrExpr :: Id -> Bindings -> LHStateM (Id, [Name])
@@ -210,10 +212,19 @@ addCurrExprAssumption ifi (Bindings {fixed_inputs = fi}) = do
     let (typs, ars) = span isType $ fi' ++ map Var is
 
     case assumpt of
-        Just assumpt' -> do
-            let appAssumpt = mkApp $ assumpt':typs ++ lh ++ ars
-            let ce' = Assume Nothing appAssumpt ce
-            putCurrExpr (CurrExpr er ce')
+        Just (is, higher_is, assumpt') -> do
+            let all_args = typs ++ lh ++ ars
+                appAssumpt = mkApp $ assumpt':all_args
+
+            inputs <- inputNames
+            let matching = zipWith (\n (i, hi) -> (n, i, hi)) inputs $ drop (length higher_is - length inputs) $ zip is higher_is
+                matching_higher = filter (hasFuncType . snd . snd3) matching
+                let_expr = Let (map (\(n, i, _) -> (snd i, Var (Id n . typeOf $ snd i))) matching_higher)
+
+            let ce' = let_expr $ foldr (uncurry replaceVar) ce (map (\(n, _, hi) -> (n, hi)) matching_higher)
+                assume_ce = Assume Nothing appAssumpt ce'
+
+            putCurrExpr (CurrExpr er assume_ce)
         Nothing -> return ()
 
 isType :: Expr -> Bool

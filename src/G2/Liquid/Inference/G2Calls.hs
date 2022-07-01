@@ -74,6 +74,7 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
+import Data.Tuple.Extra
 
 import Control.Monad
 import Control.Exception
@@ -715,7 +716,7 @@ checkPre ghci lrs fc = do
     checkPre' ld fc
 
 checkPre' :: (InfConfigM m, MonadIO m) => LiquidData -> FuncCall -> m Bool
-checkPre' = checkPreOrPost' (zeroOutKeys . ls_assumptions) arguments
+checkPre' = checkPreOrPost' (M.map thd3 . zeroOutKeys . ls_assumptions) arguments
 
 checkPost :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> FuncCall -> m Bool
 checkPost ghci lrs fc = do
