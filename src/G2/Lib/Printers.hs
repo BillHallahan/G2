@@ -175,6 +175,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                 print_es = map (mkExprHaskell'' off) es
             in
             intercalate ("\n" ++ offset off ++ "[NonDet]\n") print_es 
+        mkExprHaskell'' off (SymGen t) = "(symgen " ++ mkTypeHaskellPG pg t ++ ")"
         mkExprHaskell'' _ e = "e = " ++ show e ++ " NOT SUPPORTED"
 
         parenWrap :: Expr -> String -> String
