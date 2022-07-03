@@ -6,6 +6,7 @@
 
 module G2.Liquid.LHReducers ( LHRed (..)
                             , AllCallsRed (..)
+                            , HigherOrderCallsRed (..)
                             , RedArbErrors (..)
                             , NonRedAbstractReturns (..)
 
@@ -106,7 +107,8 @@ data LHTracker = LHTracker { abstract_calls :: [FuncCall]
                            , last_var :: Maybe Name
                            , annotations :: AnnotMap
 
-                           , all_calls :: [FuncCall]} deriving (Eq, Show)
+                           , all_calls :: [FuncCall]
+                           , higher_order_calls :: [FuncCall] } deriving (Eq, Show)
 
 minAbstractCalls :: [State LHTracker] -> Int
 minAbstractCalls xs =
@@ -118,36 +120,40 @@ abstractCallsNum :: State LHTracker -> Int
 abstractCallsNum = length . abstract_calls . track
 
 instance Named LHTracker where
-    names (LHTracker {abstract_calls = abs_c, last_var = n, annotations = anns, all_calls = ac}) = 
-        names abs_c <> names n <> names anns <> names ac
+    names (LHTracker {abstract_calls = abs_c, last_var = n, annotations = anns, all_calls = ac, higher_order_calls = hc}) = 
+        names abs_c <> names n <> names anns <> names ac <> names hc
     
-    rename old new (LHTracker {abstract_calls = abs_c, last_var = n, annotations = anns, all_calls = ac}) =
+    rename old new (LHTracker {abstract_calls = abs_c, last_var = n, annotations = anns, all_calls = ac, higher_order_calls = hc}) =
         LHTracker { abstract_calls = rename old new abs_c
                   , last_var = rename old new n
                   , annotations = rename old new anns
-                  , all_calls = rename old new ac }
+                  , all_calls = rename old new ac
+                  , higher_order_calls = rename old new hc }
     
-    renames hm (LHTracker {abstract_calls = abs_c, last_var = n, annotations = anns, all_calls = ac}) =
+    renames hm (LHTracker {abstract_calls = abs_c, last_var = n, annotations = anns, all_calls = ac, higher_order_calls = hc}) =
         LHTracker { abstract_calls = renames hm abs_c
                   , last_var = renames hm n
                   , annotations = renames hm anns
-                  , all_calls = renames hm ac }
+                  , all_calls = renames hm ac
+                  , higher_order_calls = renames hm hc }
 
 instance ASTContainer LHTracker Expr where
-    containedASTs (LHTracker {abstract_calls = abs_c, annotations = anns, all_calls = ac}) =
-        containedASTs abs_c ++ containedASTs anns ++ containedASTs ac
-    modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = anns, all_calls = ac}) =
+    containedASTs (LHTracker {abstract_calls = abs_c, annotations = anns, all_calls = ac, higher_order_calls = hc}) =
+        containedASTs abs_c ++ containedASTs anns ++ containedASTs ac ++ containedASTs hc
+    modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = anns, all_calls = ac, higher_order_calls = hc}) =
         lht { abstract_calls = modifyContainedASTs f abs_c
             , annotations = modifyContainedASTs f anns
-            , all_calls = modifyContainedASTs f ac}
+            , all_calls = modifyContainedASTs f ac
+            , higher_order_calls = modifyContainedASTs f hc}
 
 instance ASTContainer LHTracker Type where
-    containedASTs (LHTracker {abstract_calls = abs_c, annotations = anns, all_calls = ac}) =
-        containedASTs abs_c ++ containedASTs anns ++ containedASTs ac
-    modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = anns, all_calls = ac}) =
+    containedASTs (LHTracker {abstract_calls = abs_c, annotations = anns, all_calls = ac, higher_order_calls = hc}) =
+        containedASTs abs_c ++ containedASTs anns ++ containedASTs ac ++ containedASTs hc
+    modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = anns, all_calls = ac, higher_order_calls = hc}) =
         lht {abstract_calls = modifyContainedASTs f abs_c
             , annotations = modifyContainedASTs f anns
-            , all_calls = modifyContainedASTs f ac }
+            , all_calls = modifyContainedASTs f ac
+            , higher_order_calls = modifyContainedASTs f hc }
 
 data LHRed = LHRed Name
 
@@ -161,7 +167,7 @@ instance Reducer LHRed () LHTracker where
                          , zip s' (repeat ()), b, lhr)
             Nothing -> return (Finished, [(s, ())], b, lhr)
 
-data AllCallsRed  = AllCallsRed
+data AllCallsRed = AllCallsRed
 
 instance Reducer AllCallsRed () LHTracker where
     initReducer _ _ = ()
@@ -169,6 +175,18 @@ instance Reducer AllCallsRed () LHTracker where
     redRules lhr _ s@(State { curr_expr = CurrExpr Evaluate (Assert (Just fc) _ _) }) b =
         let
             lht = (track s) { all_calls = fc:all_calls (track s) }
+        in
+        return $ (Finished, [(s { track = lht } , ())], b, lhr)
+    redRules lhr _ s b = return $ (Finished, [(s, ())], b, lhr)
+
+data HigherOrderCallsRed = HigherOrderCallsRed
+
+instance Reducer HigherOrderCallsRed () LHTracker where
+    initReducer _ _ = ()
+
+    redRules lhr _ s@(State { curr_expr = CurrExpr Evaluate (Assume (Just fc) _ _) }) b =
+        let
+            lht = (track s) { higher_order_calls = fc:higher_order_calls (track s) }
         in
         return $ (Finished, [(s { track = lht } , ())], b, lhr)
     redRules lhr _ s b = return $ (Finished, [(s, ())], b, lhr)

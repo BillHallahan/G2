@@ -322,7 +322,8 @@ extractWithoutSpecs lrs@(LiquidReadyState { lr_state = s
     let track_state = lh_s' {track = LHTracker { abstract_calls = []
                                                , last_var = Nothing
                                                , annotations = annm
-                                               , all_calls = [] } }
+                                               , all_calls = []
+                                               , higher_order_calls = [] } }
 
     -- We replace certain function name lists in the final State with names
     -- mapping into the measures from the LHState.  These functions do not

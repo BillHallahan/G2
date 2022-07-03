@@ -323,8 +323,9 @@ reduceCalls :: (Solver solver, Simplifier simplifier) => G2Call solver simplifie
 reduceCalls g2call solver simplifier config bindings er = do
     (bindings', er') <- reduceAbstracted g2call solver simplifier (sharing config) bindings er
     (bindings'', er'') <- reduceAllCalls g2call solver simplifier (sharing config) bindings' er'
+    (bindings''', er''') <- reduceHigherOrderCalls g2call solver simplifier (sharing config) bindings'' er''
 
-    return (bindings'', er'')
+    return (bindings''', er''')
 
 reduceViolated :: (Solver solver, Simplifier simplifier) => G2Call solver simplifier -> solver -> simplifier -> Sharing -> Bindings -> ExecRes LHTracker -> IO (Bindings, ExecRes LHTracker)
 reduceViolated g2call solver simplifier share bindings er@(ExecRes { final_state = s, violated = Just v }) = do
@@ -360,9 +361,16 @@ reduceAllCalls g2call solver simplifier share bindings
 
     (s', bindings', fcs') <- reduceFuncCallMaybeList g2call solver simplifier share bindings s fcs
 
-    -- (bindings', fcs') <- mapAccumM (reduceFuncCallMaybe share red solver simplifier s) bindings fcs
-
     return (bindings', er { final_state = s' { track = lht { all_calls = fcs' } }})
+
+reduceHigherOrderCalls :: (Solver solver, Simplifier simplifier) => G2Call solver simplifier -> solver -> simplifier -> Sharing -> Bindings -> ExecRes LHTracker -> IO (Bindings, ExecRes LHTracker)
+reduceHigherOrderCalls g2call solver simplifier share bindings
+                er@(ExecRes { final_state = (s@State { track = lht}) }) = do
+    let fcs = higher_order_calls lht
+
+    (s', bindings', fcs') <- reduceFuncCallMaybeList g2call solver simplifier share bindings s fcs
+
+    return (bindings', er { final_state = s' { track = lht { higher_order_calls = fcs' } }})
 
 reduceFuncCallMaybeList :: ( ASTContainer t Expr
                            , ASTContainer t Type

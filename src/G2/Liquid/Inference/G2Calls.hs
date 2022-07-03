@@ -486,13 +486,14 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
                  :<~> timer_halter
                  :<~> lh_timer_halter
                  -- :<~> OnlyIf (\pr _ -> any true_assert (accepted pr)) timer_halter
+    let some_red = SomeReducer (StdRed share solver simplifier :<~ HigherOrderCallsRed :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~? ExistentialInstRed)
 
     return $
         (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng)
             <~| (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng))
             <~| (case m_logger of
-                  Just logger -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~? ExistentialInstRed) <~ logger
-                  Nothing -> SomeReducer (StdRed share solver simplifier :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~? ExistentialInstRed))
+                  Just logger -> some_red <~ logger
+                  Nothing -> some_red)
         , SomeHalter
             (DiscardIfAcceptedTag state_name :<~> halter)
         , SomeOrderer (ToOrderer $ IncrAfterN 2000 (QuotTrueAssert (OrdComb (+) (PCSizeOrderer 0) (ADTSizeOrderer 0 (Just instFuncTickName))))))

@@ -625,12 +625,12 @@ printFuncCall :: FuncCall -> String
 printFuncCall = printFuncCallPG (mkPrettyGuide ())
 
 printFuncCallPG :: PrettyGuide -> FuncCall -> String
-printFuncCallPG pg (FuncCall { funcName = Name f _ _ _, arguments = ars, returns = r}) =
+printFuncCallPG pg (FuncCall { funcName = f, arguments = ars, returns = r}) =
     let
         call_str fn = mkDirtyExprHaskell pg . foldl (\a a' -> App a a') (Var (Id fn TyUnknown)) $ ars
         r_str = mkDirtyExprHaskell pg r
     in
-    "(" ++ call_str (Name f Nothing 0 Nothing) ++ " " ++ r_str ++ ")"
+    "(" ++ call_str f ++ " " ++ r_str ++ ")"
 
 -------------------------------------------------------------------------------
 -- Pretty Guide

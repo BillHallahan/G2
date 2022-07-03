@@ -134,7 +134,7 @@ mergeSpecType st fn e = do
     -- Gather up LH TC's to use in Assertion
     dm@(DictMaps {lh_dicts = lhm}) <- dictMapFromIds is
 
-    higher_is <- handleHigherOrderSpecs CheckPre (Assert Nothing) lh dm (M.map typeOf lhm) is st
+    higher_is <- handleHigherOrderSpecs CheckPre mkHigherAssert lh dm (M.map typeOf lhm) is st
 
     let e' = foldl' App e higher_is
 
@@ -155,6 +155,8 @@ mergeSpecType st fn e = do
 
     return e'''
     where
+        mkHigherAssert spec _ _ ret = Assert Nothing spec (Var ret)
+        
         repAssertFC fc_ (Assert Nothing e1 e2) = Assert (Just fc_) e1 e2
         repAssertFC _ e_ = e_
 
@@ -171,10 +173,13 @@ createAssumption st e = do
     dm@(DictMaps {lh_dicts = lhm}) <- dictMapFromIds is
 
     assume <- convertAssumeSpecType dm (M.map typeOf lhm) is' st
-    higher_is <- handleHigherOrderSpecs CheckOnlyPost (Assume Nothing) lh dm (M.map typeOf lhm) is st
+    higher_is <- handleHigherOrderSpecs CheckOnlyPost mkHigherAssume lh dm (M.map typeOf lhm) is st
 
     let assume' = foldr (uncurry Lam) assume $ zip lu is
     return (zip lu is, higher_is, assume')
+    where
+        mkHigherAssume spec i ars ret =
+            Assume (Just $ FuncCall { funcName = idName i, arguments = map Var ars, returns = Var ret } ) spec (Var ret)
 
 createPost :: SpecType -> Expr -> LHStateM Expr
 createPost st e = do
@@ -310,7 +315,7 @@ convertSpecType _ _ _ _ _ st@(RExprArg {}) = error $ "RExprArg " ++ show st
 convertSpecType _ _ _ _ _ st@(RRTy {}) = error $ "RRTy " ++ show st
 convertSpecType _ _ _ _ _ st = error $ "Bad st = " ++ show st
 
-handleHigherOrderSpecs :: CheckPre -> (Expr -> Expr -> Expr) -> Name -> DictMaps -> BoundTypes -> [Id] -> SpecType -> LHStateM [Expr]
+handleHigherOrderSpecs :: CheckPre -> (Expr -> Id -> [Id] -> Id -> Expr) -> Name -> DictMaps -> BoundTypes -> [Id] -> SpecType -> LHStateM [Expr]
 handleHigherOrderSpecs check_pre wrap_spec lh dm bt (i:is) st | isTC lh $ typeOf i = do
     es <- handleHigherOrderSpecs check_pre wrap_spec lh dm bt is st
     return $ Var i:es
@@ -328,7 +333,7 @@ handleHigherOrderSpecs check_pre wrap_spec lh dm bt (i:is) (RFun {rt_bind = b, r
 
         let let_assert_spec = mkLams (zip (repeat TermL) ars)
                             . Let [(ret, mkApp $ Var i:map Var ars)]
-                            $ wrap_spec spec (Var ret)
+                            $ wrap_spec spec i ars ret -- (Var ret)
 
         return $ let_assert_spec:es
     | otherwise = do
