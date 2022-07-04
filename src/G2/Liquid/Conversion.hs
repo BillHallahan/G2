@@ -136,7 +136,7 @@ mergeSpecType st fn e = do
 
     higher_is <- handleHigherOrderSpecs CheckPre mkHigherAssert lh dm (M.map typeOf lhm) is st
 
-    let e' = foldl' App e higher_is
+    let e' = foldl' App e . map (\(i, hi) -> maybe (Var i) id hi) $ zip is higher_is
 
     -- Create a variable for the returned value
     -- We do not pass the LH TC to the assertion, since there is no matching
@@ -156,11 +156,11 @@ mergeSpecType st fn e = do
     return e'''
     where
         mkHigherAssert spec _ _ ret = Assert Nothing spec (Var ret)
-        
+
         repAssertFC fc_ (Assert Nothing e1 e2) = Assert (Just fc_) e1 e2
         repAssertFC _ e_ = e_
 
-createAssumption :: SpecType -> Expr -> LHStateM ([(LamUse, Id)], [Expr], Expr)
+createAssumption :: SpecType -> Expr -> LHStateM ([(LamUse, Id)], [Maybe Expr], Expr)
 createAssumption st e = do
     lh <- lhTCM
 
@@ -315,10 +315,10 @@ convertSpecType _ _ _ _ _ st@(RExprArg {}) = error $ "RExprArg " ++ show st
 convertSpecType _ _ _ _ _ st@(RRTy {}) = error $ "RRTy " ++ show st
 convertSpecType _ _ _ _ _ st = error $ "Bad st = " ++ show st
 
-handleHigherOrderSpecs :: CheckPre -> (Expr -> Id -> [Id] -> Id -> Expr) -> Name -> DictMaps -> BoundTypes -> [Id] -> SpecType -> LHStateM [Expr]
+handleHigherOrderSpecs :: CheckPre -> (Expr -> Id -> [Id] -> Id -> Expr) -> Name -> DictMaps -> BoundTypes -> [Id] -> SpecType -> LHStateM [Maybe Expr]
 handleHigherOrderSpecs check_pre wrap_spec lh dm bt (i:is) st | isTC lh $ typeOf i = do
     es <- handleHigherOrderSpecs check_pre wrap_spec lh dm bt is st
-    return $ Var i:es
+    return $ Nothing:es
 handleHigherOrderSpecs check_pre wrap_spec lh dm bt (i:is) (RFun {rt_bind = b, rt_in = fin, rt_out = fout })
     | hasFuncType i = do
         t <- unsafeSpecTypeToType fin
@@ -335,14 +335,14 @@ handleHigherOrderSpecs check_pre wrap_spec lh dm bt (i:is) (RFun {rt_bind = b, r
                             . Let [(ret, mkApp $ Var i:map Var ars)]
                             $ wrap_spec spec i ars ret -- (Var ret)
 
-        return $ let_assert_spec:es
+        return $ Just let_assert_spec:es
     | otherwise = do
         t <- unsafeSpecTypeToType fin
         let i' = convertSymbolT b t
 
         let bt' = M.insert (idName i') t bt
         es <- handleHigherOrderSpecs check_pre wrap_spec lh dm bt' is fout
-        return $ Var i:es
+        return $ Nothing:es
 handleHigherOrderSpecs _ _ _ _ _ [] _ = return []
 handleHigherOrderSpecs check_pre wrap_spec lh dm bt (i:is) (RAllT {rt_tvbind = RTVar (RTV v) _, rt_ty = rty}) = do
     let i' = mkIdUnsafe v
@@ -351,7 +351,7 @@ handleHigherOrderSpecs check_pre wrap_spec lh dm bt (i:is) (RAllT {rt_tvbind = R
     let bt' = M.insert (idName i') (typeOf i) bt
 
     es <- handleHigherOrderSpecs check_pre wrap_spec lh dm' bt' is rty
-    return $ Var i:es
+    return $ Nothing:es
 handleHigherOrderSpecs _ _ _ _ _ _ _ = error "handleHigherOrderSpecs: unhandled SpecType"
 
 polyPredFunc :: CheckPre -> [SpecType] -> Type -> DictMaps -> BoundTypes -> Id -> LHStateM Expr

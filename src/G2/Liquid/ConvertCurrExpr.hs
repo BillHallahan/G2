@@ -218,7 +218,7 @@ addCurrExprAssumption ifi (Bindings {fixed_inputs = fi}) = do
 
             inputs <- inputNames
             let matching = zipWith (\n (i, hi) -> (n, i, hi)) inputs $ drop (length higher_is - length inputs) $ zip is higher_is
-                matching_higher = filter (hasFuncType . snd . snd3) matching
+                matching_higher = mapMaybe (\(n, i, hi) -> maybe Nothing (Just . (n, i,)) hi) matching
                 let_expr = Let (map (\(n, i, _) -> (snd i, Var (Id n . typeOf $ snd i))) matching_higher)
 
             mapM_ (\(n, i, _) -> insertE n (Var (snd i))) matching_higher
