@@ -435,6 +435,7 @@ runLHInferenceCore entry m lrs ghci = do
 
     liftIO $ close solver
 
+    liftIO . print $ input_names final_bindings 
     liftIO $ putStrLn "end runLHInferenceCore"
 
     return ((exec_res, final_bindings), ifi)
@@ -579,29 +580,26 @@ realCExReducerHalterOrderer infconfig config entry modname solver simplifier  cf
 
 
 swapHigherOrdForSymGen :: Bindings -> State t -> State t
-swapHigherOrdForSymGen b s@(State { curr_expr = CurrExpr er e }) =
+swapHigherOrdForSymGen b s@(State { expr_env = eenv }) =
     let
         is = filter (isTyFun . typeOf) $ inputIds s b
 
-        e' = modify (swapForSG is) e
+        eenv' = foldr swapForSG eenv is
     in
-    s { curr_expr = CurrExpr er e' }
+    s { expr_env = eenv' }
 
-swapForSG :: [Id] -> Expr -> Expr
-swapForSG is e@(Var i)
-    | i `elem` is =
-        let
-            as = map (\at -> case at of
-                              NamedType i' -> (TypeL, i')
-                              AnonType t -> (TermL, Id (Name "x" Nothing 0 Nothing) t))
-               $ spArgumentTypes i
-            r = returnType i
+swapForSG :: Id -> ExprEnv -> ExprEnv
+swapForSG i eenv =
+    let
+        as = map (\at -> case at of
+                          NamedType i' -> (TypeL, i')
+                          AnonType t -> (TermL, Id (Name "x" Nothing 0 Nothing) t))
+           $ spArgumentTypes i
+        r = returnType i
 
-            sg_i = Id (Name "sym_gen" Nothing 0 Nothing) r
-        in
-        Let [(sg_i, SymGen r)] $ mkLams as (Var sg_i)
-    | otherwise = e
-swapForSG _ e = e
+        sg_i = Id (Name "sym_gen" Nothing 0 Nothing) r
+    in
+    E.insert (idName i) (Let [(sg_i, SymGen r)] $ mkLams as (Var sg_i)) eenv
 
 -------------------------------
 -- Checking Counterexamples

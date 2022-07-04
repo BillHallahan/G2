@@ -221,6 +221,8 @@ addCurrExprAssumption ifi (Bindings {fixed_inputs = fi}) = do
                 matching_higher = filter (hasFuncType . snd . snd3) matching
                 let_expr = Let (map (\(n, i, _) -> (snd i, Var (Id n . typeOf $ snd i))) matching_higher)
 
+            mapM_ (\(n, i, _) -> insertE n (Var (snd i))) matching_higher
+
             let ce' = let_expr $ foldr (uncurry replaceVar) ce (map (\(n, _, hi) -> (n, hi)) matching_higher)
                 assume_ce = Assume Nothing appAssumpt ce'
 
