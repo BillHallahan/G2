@@ -54,7 +54,7 @@ mkPreCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc@
         let func_ts = argumentTypes func_e
 
             v_ars = filter (validArgForSMT . snd)
-                  . filter (\(t, _) -> not (isTyFun t) && not (isTyVar t))
+                  . filter (\(t, _) -> not (isTyVar t))
                   $ zip func_ts ars
 
             sy_body_p =
@@ -118,7 +118,7 @@ mkPostCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc
         let func_ts = argumentTypes func_e
 
             smt_ars = concatMap (uncurry (adjustArgsWithCare inf_con n convExpr (fromInteger mx_meas) tenv meas meas_ex))
-                    . filter (\(t, _) -> not (isTyFun t) && not (isTyVar t))
+                    . filter (\(t, _) -> not (isTyVar t))
                     . filter (validArgForSMT . snd) $ zip func_ts ars
 
             smt_ret = extractExprPolyBoundWithRoot ret

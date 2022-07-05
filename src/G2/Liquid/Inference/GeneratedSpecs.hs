@@ -200,8 +200,9 @@ addQualifiersToGhcInfo gs ghci =
 
 addToSpecType :: [PolyBound Expr] -> SpecType -> SpecType
 addToSpecType _ rvar@(RVar {}) = rvar
-addToSpecType ees@(e:es) rfun@(RFun { rt_in = i, rt_out = out })
-    | not (isFunTy i) && not (isRVar i) = rfun { rt_in = addToSpecType [e] i, rt_out = addToSpecType es out }
+addToSpecType ees@(e@(PolyBound _ ps):es) rfun@(RFun { rt_in = i, rt_out = out })
+    | isFunTy i = rfun { rt_in = addToSpecType ps i, rt_out = addToSpecType es out }
+    | not (isRVar i) = rfun { rt_in = addToSpecType [e] i, rt_out = addToSpecType es out }
     | otherwise = rfun {rt_out = addToSpecType ees out }
 addToSpecType es rall@(RAllT { rt_ty = out }) =
     rall { rt_ty = addToSpecType es out }
@@ -217,8 +218,8 @@ addToSpecType _ st = error $ "addToSpecType: Unhandled SpecType " ++ show st
 
 zipSpecTypes :: [[PolyBound Expr]] -> [SpecType] -> [([PolyBound Expr], SpecType)]
 zipSpecTypes [] [] = []
-zipSpecTypes epbs (rfun@(RFun {}):sts) =
-    ([PolyBound PTrue []], rfun):zipSpecTypes epbs sts
+zipSpecTypes (epb:epbs) (rfun@(RFun {}):sts) =
+    (epb, rfun):zipSpecTypes epbs sts
 zipSpecTypes epbs (rvar@(RVar {}):sts) =
     ([PolyBound PTrue []], rvar):zipSpecTypes epbs sts
 zipSpecTypes (epb:epbs) (st@(RApp {}):sts) = (epb, st):zipSpecTypes epbs sts

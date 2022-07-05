@@ -35,7 +35,12 @@ tests = testGroup "All Tests"
 
 posTests :: TestTree
 posTests = testGroup "Tests"
-            [ posTestInference "tests_inference/test_files/Pos/Test1.hs" 
+            [ posTestInference "tests_inference/test_files/Pos/HigherOrder.hs"
+            , posTestInference "tests_inference/test_files/Pos/HigherOrder2.hs"
+            , posTestInference "tests_inference/test_files/Pos/HigherOrder3.hs"
+            , posTestInference "tests_inference/test_files/Pos/HigherOrder4.hs"
+
+            , posTestInference "tests_inference/test_files/Pos/Test1.hs" 
             , posTestInference "tests_inference/test_files/Pos/Test2.hs"
             , posTestInference "tests_inference/test_files/Pos/Test3.hs"
             , posTestInference "tests_inference/test_files/Pos/Test4.hs"
