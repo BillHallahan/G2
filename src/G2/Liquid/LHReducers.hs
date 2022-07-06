@@ -39,6 +39,7 @@ import G2.Language
 import qualified G2.Language.Stack as Stck
 import qualified G2.Language.ExprEnv as E
 import G2.Liquid.Annotations
+import G2.Liquid.Conversion
 import G2.Liquid.Helpers
 import G2.Liquid.SpecialAsserts
 
@@ -184,7 +185,7 @@ data HigherOrderCallsRed = HigherOrderCallsRed
 instance Reducer HigherOrderCallsRed () LHTracker where
     initReducer _ _ = ()
 
-    redRules lhr _ s@(State { curr_expr = CurrExpr Evaluate (Assume (Just fc) _ _) }) b =
+    redRules lhr _ s@(State { curr_expr = CurrExpr Evaluate (Tick (NamedLoc nl) (Assume (Just fc) _ _)) }) b | nl == higherOrderTickName=
         let
             lht = (track s) { higher_order_calls = fc:higher_order_calls (track s) }
         in

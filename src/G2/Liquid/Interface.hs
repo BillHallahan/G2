@@ -655,7 +655,7 @@ parseLHOut entry (ExecRes { final_state = s
            , abstracted = abstr}
 
 counterExampleToLHReturn :: State t -> CounterExample -> LHReturn
-counterExampleToLHReturn s (DirectCounter fc abstr) =
+counterExampleToLHReturn s (DirectCounter fc abstr _) =
     let
         called = funcCallToFuncInfo (T.pack . printHaskell s) . abstract $ fc
         abstr' = map (funcCallToFuncInfo (T.pack . printHaskell s) . abstract) abstr
@@ -663,7 +663,7 @@ counterExampleToLHReturn s (DirectCounter fc abstr) =
     LHReturn { calledFunc = called
              , violating = Nothing
              , abstracted = abstr'}
-counterExampleToLHReturn s (CallsCounter fc viol_fc abstr) =
+counterExampleToLHReturn s (CallsCounter fc viol_fc abstr _) =
     let
         called = funcCallToFuncInfo (T.pack . printHaskell s) . abstract $ fc
         viol_called = funcCallToFuncInfo (T.pack . printHaskell s) . abstract $ viol_fc
@@ -683,8 +683,8 @@ funcCallToFuncInfo t (FuncCall { funcName = f, arguments = inArg, returns = ret 
 
 lhStateToCE :: ExecRes AbstractedInfo -> CounterExample
 lhStateToCE (ExecRes { final_state = State { track = t } })
-    | Just c <-  abs_violated t = CallsCounter (init_call t) c (abs_calls t)
-    | otherwise = DirectCounter (init_call t) (abs_calls t)
+    | Just c <-  abs_violated t = CallsCounter (init_call t) c (abs_calls t) (ai_higher_order_calls t)
+    | otherwise = DirectCounter (init_call t) (abs_calls t) (ai_higher_order_calls t)
 
 parseLHFuncTuple :: State t -> FuncCall -> FuncInfo
 parseLHFuncTuple s (FuncCall {funcName = n, arguments = ars, returns = out}) =

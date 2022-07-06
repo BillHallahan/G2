@@ -9,6 +9,7 @@ module G2.Liquid.Inference.FuncConstraint ( FuncConstraint (..)
                                           -- , Modification (..)
                                           -- , BoolRel (..)
                                           , FuncConstraints
+                                          , HigherOrderFuncCall
                                           , emptyFC
                                           , fromSingletonFC
                                           , fromListFC
@@ -52,7 +53,7 @@ newtype FuncConstraints = FuncConstraints (M.Map Name (HS.HashSet FuncConstraint
 
 data SpecPart = All | Pre | Post deriving (Eq, Show, Read, Generic)
 
-data FuncConstraint = Call SpecPart FuncCall
+data FuncConstraint = Call SpecPart FuncCall [HigherOrderFuncCall]
                     | AndFC [FuncConstraint]
                     | OrFC [FuncConstraint]
                     | ImpliesFC FuncConstraint FuncConstraint
@@ -122,7 +123,7 @@ allCallNames :: FuncConstraint -> [Name]
 allCallNames = map funcName . allCalls
 
 allCalls :: FuncConstraint -> [FuncCall]
-allCalls (Call _ fc) = [fc]
+allCalls (Call _ fc _) = [fc]
 allCalls (AndFC fcs) = concatMap allCalls fcs
 allCalls (OrFC fcs) = concatMap allCalls fcs
 allCalls (ImpliesFC fc1 fc2) = allCalls fc1 ++ allCalls fc2
@@ -136,15 +137,19 @@ printFCs lrs fcs =
     intercalate "\n" . map (printFC (state . lr_state $ lrs)) $ toListFC fcs
 
 printFC :: State t -> FuncConstraint -> String
-printFC s (Call sp (FuncCall { funcName = Name f _ _ _, arguments = ars, returns = r})) =
+printFC s (Call sp (FuncCall { funcName = Name f _ _ _, arguments = ars, returns = r}) hclls) =
     let
         call_str fn = printHaskell s . foldl (\a a' -> App a a') (Var (Id fn TyUnknown)) $ ars
         r_str = printHaskell s r
+
+        hclls_str = case null hclls of
+                        True -> ""
+                        False -> ", higher_calls = " ++ intercalate ", " (map printFuncCall hclls)
     in
     case sp of
-        Pre -> "(" ++ call_str (Name (f <> "_pre") Nothing 0 Nothing) ++ ")"
-        Post -> "(" ++ call_str (Name (f <> "_post") Nothing 0 Nothing) ++ " " ++ r_str ++ ")"
-        All -> "(" ++ call_str (Name f Nothing 0 Nothing) ++ " " ++ r_str ++ ")"
+        Pre -> "(" ++ call_str (Name (f <> "_pre") Nothing 0 Nothing) ++ hclls_str ++ ")"
+        Post -> "(" ++ call_str (Name (f <> "_post") Nothing 0 Nothing) ++ " " ++ r_str ++ hclls_str ++ ")"
+        All -> "(" ++ call_str (Name f Nothing 0 Nothing) ++ " " ++ r_str ++ hclls_str ++ ")"
 printFC s (AndFC fcs) =
     case fcs of
         (f:fcs') -> foldr (\fc fcs'' -> fcs'' ++ " && " ++ printFC s fc) (printFC s f) fcs'
@@ -157,13 +162,13 @@ printFC s (ImpliesFC fc1 fc2) = "(" ++ printFC s fc1 ++ ") => (" ++ printFC s fc
 printFC s (NotFC fc) = "not (" ++ printFC s fc ++ ")"
 
 instance ASTContainer FuncConstraint Expr where
-    containedASTs (Call _ fc) = containedASTs fc
+    containedASTs (Call _ fc hcalls) = containedASTs fc ++ containedASTs hcalls
     containedASTs (AndFC fcs) = containedASTs fcs
     containedASTs (OrFC fcs) = containedASTs fcs
     containedASTs (ImpliesFC fc1 fc2) = containedASTs fc1 ++ containedASTs fc2
     containedASTs (NotFC fc) = containedASTs fc
 
-    modifyContainedASTs f (Call sp fc) = Call sp $ modifyContainedASTs f fc
+    modifyContainedASTs f (Call sp fc hcalls) = Call sp (modifyContainedASTs f fc) (modifyContainedASTs f hcalls)
     modifyContainedASTs f (AndFC fcs) = AndFC (modifyContainedASTs f fcs)
     modifyContainedASTs f (OrFC fcs) = OrFC (modifyContainedASTs f fcs)
     modifyContainedASTs f (ImpliesFC fc1 fc2) = ImpliesFC (modifyContainedASTs f fc1) (modifyContainedASTs f fc2)
@@ -175,19 +180,19 @@ instance Named FuncConstraints where
     renames hm (FuncConstraints fc) = FuncConstraints (renames hm fc)
 
 instance Named FuncConstraint where
-    names (Call _ fc) = names fc
+    names (Call _ fc hcalls) = names fc <> names hcalls
     names (AndFC fcs) = names fcs
     names (OrFC fcs) = names fcs
     names (ImpliesFC fc1 fc2) = names fc1 <> names fc2
     names (NotFC fc) = names fc
 
-    rename old new (Call sp fc) = Call sp (rename old new fc)
+    rename old new (Call sp fc hcalls) = Call sp (rename old new fc) (rename old new hcalls)
     rename old new (AndFC fcs) = AndFC (rename old new fcs)
     rename old new (OrFC fcs) = OrFC (rename old new fcs)
     rename old new (ImpliesFC fc1 fc2) = ImpliesFC (rename old new fc1) (rename old new fc2)
     rename old new (NotFC fc) = NotFC (rename old new fc)
 
-    renames hm (Call sp fc) = Call sp (renames hm fc)
+    renames hm (Call sp fc hcalls) = Call sp (renames hm fc) (renames hm hcalls)
     renames hm (AndFC fcs) = AndFC (renames hm fcs)
     renames hm (OrFC fcs) = OrFC (renames hm fcs)
     renames hm (ImpliesFC fc1 fc2) = ImpliesFC (renames hm fc1) (renames hm fc2)

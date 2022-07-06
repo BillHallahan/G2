@@ -223,11 +223,21 @@ addCurrExprAssumption ifi (Bindings {fixed_inputs = fi}) = do
 
             mapM_ (\(n, i, _) -> insertE n (Var (snd i))) matching_higher
 
-            let ce' = let_expr $ foldr (uncurry replaceVar) ce (map (\(n, _, hi) -> (n, hi)) matching_higher)
+            let ce' = let_expr
+                    . flip (foldr (uncurry replaceAssumeFC)) (map (\(n, (_, i), _) -> (idName i, n)) matching_higher)
+                    $ foldr (uncurry replaceVar) ce (map (\(n, _, hi) -> (n, hi)) matching_higher)
                 assume_ce = Assume Nothing appAssumpt ce'
 
             putCurrExpr (CurrExpr er assume_ce)
         Nothing -> return ()
+
+replaceAssumeFC :: ASTContainer m Expr => Name -> Name -> m -> m
+replaceAssumeFC old new = modifyASTs (replaceAssumeFC' old new)
+
+replaceAssumeFC' :: Name -> Name -> Expr -> Expr
+replaceAssumeFC' old new e@(Assume (Just fc) e1 e2) =
+    if funcName fc == old then Assume (Just (fc { funcName = new })) e1 e2 else e
+replaceAssumeFC' _ _ e = e
 
 isType :: Expr -> Bool
 isType (Type _) = True

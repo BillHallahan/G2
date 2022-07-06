@@ -13,7 +13,9 @@ module G2.Liquid.Conversion ( LHDictMap
                             , specTypeToType
                             , unsafeSpecTypeToType
                             , symbolName
-                            , lhTCDict') where
+                            , lhTCDict'
+
+                            , higherOrderTickName) where
 
 import G2.Language
 import qualified G2.Language.KnownValues as KV
@@ -179,7 +181,10 @@ createAssumption st e = do
     return (zip lu is, higher_is, assume')
     where
         mkHigherAssume spec i ars ret =
-            Assume (Just $ FuncCall { funcName = idName i, arguments = map Var ars, returns = Var ret } ) spec (Var ret)
+            Tick (NamedLoc higherOrderTickName) $ Assume (Just $ FuncCall { funcName = idName i, arguments = map Var ars, returns = Var ret } ) spec (Var ret)
+
+higherOrderTickName :: Name
+higherOrderTickName = Name "HIGHER_ORDER_FUNC" Nothing 0 Nothing
 
 createPost :: SpecType -> Expr -> LHStateM Expr
 createPost st e = do

@@ -6,6 +6,7 @@
 
 module G2.Liquid.Types ( LHOutput (..)
                        , CounterExample (..)
+                       , HigherOrderFuncCall
                        , Measures
                        , LHState (..)
                        , LHStateM (..)
@@ -187,10 +188,15 @@ data LHOutput = LHOutput { ghcI :: GhcInfo
                          , cgI :: CGInfo
                          , solution :: FixSolution }
 
-data CounterExample = DirectCounter Abstracted [Abstracted]
+type HigherOrderFuncCall = L.FuncCall
+
+data CounterExample = DirectCounter Abstracted
+                                    [Abstracted]
+                                    [HigherOrderFuncCall] -- ^ Symbolic higher order functions evaluated while creating the counterexample 
                     | CallsCounter Abstracted -- ^ The caller, abstracted result
                                    Abstracted -- ^ The callee
-                                   [Abstracted]
+                                  [Abstracted]
+                                  [HigherOrderFuncCall] -- ^ Symbolic higher order functions evaluated while creating the counterexample
                     deriving (Eq, Show, Read)
 
 type Measures = L.ExprEnv
@@ -216,7 +222,9 @@ data Abstracted = Abstracted { abstract :: L.FuncCall
 data AbstractedInfo = AbstractedInfo { init_call :: Abstracted
                                      , abs_violated :: Maybe Abstracted
                                      , abs_calls :: [Abstracted]
-                                     , ai_all_calls :: [L.FuncCall] }
+                                     , ai_all_calls :: [L.FuncCall]
+
+                                     , ai_higher_order_calls :: [L.FuncCall] }
 
 mapAbstractedFCs :: (L.FuncCall -> L.FuncCall) ->  Abstracted -> Abstracted
 mapAbstractedFCs f (Abstracted { abstract = a
@@ -229,11 +237,12 @@ mapAbstractedFCs f (Abstracted { abstract = a
                , func_calls_in_real = map f fcr}
 
 mapAbstractedInfoFCs :: (L.FuncCall -> L.FuncCall) ->  AbstractedInfo -> AbstractedInfo
-mapAbstractedInfoFCs f (AbstractedInfo { init_call = ic, abs_violated = av, abs_calls = ac, ai_all_calls= allc}) =
+mapAbstractedInfoFCs f (AbstractedInfo { init_call = ic, abs_violated = av, abs_calls = ac, ai_all_calls= allc, ai_higher_order_calls = a_higher}) =
     AbstractedInfo { init_call = mapAbstractedFCs f ic
                    , abs_violated = fmap (mapAbstractedFCs f) av
                    , abs_calls = map (mapAbstractedFCs f) ac
-                   , ai_all_calls = map f allc }
+                   , ai_all_calls = map f allc
+                   , ai_higher_order_calls = map f a_higher }
 
 instance L.ASTContainer Abstracted L.Expr where
     containedASTs ab = L.containedASTs (abstract ab) ++ L.containedASTs (real ab)
@@ -267,15 +276,17 @@ instance L.Named Abstracted where
                      , func_calls_in_real = L.renames hm (func_calls_in_real a) }
 
 instance L.Named AbstractedInfo where
-    names a = L.names (init_call a) <> L.names (abs_violated a) <> L.names (abs_calls a) <> L.names (ai_all_calls a)
+    names a = L.names (init_call a) <> L.names (abs_violated a) <> L.names (abs_calls a) <> L.names (ai_all_calls a) <> L.names (ai_higher_order_calls a)
     rename old new a = AbstractedInfo { init_call = L.rename old new (init_call a)
                                       , abs_violated = L.rename old new (abs_violated a)
                                       , abs_calls = L.rename old new (abs_calls a)
-                                      , ai_all_calls = L.rename old new (ai_all_calls a) }
+                                      , ai_all_calls = L.rename old new (ai_all_calls a)
+                                      , ai_higher_order_calls = L.rename old new (ai_higher_order_calls a) }
     renames hm a = AbstractedInfo { init_call = L.renames hm (init_call a)
                                   , abs_violated = L.renames hm (abs_violated a)
                                   , abs_calls = L.renames hm (abs_calls a)
-                                  , ai_all_calls = L.renames hm (ai_all_calls a) }
+                                  , ai_all_calls = L.renames hm (ai_all_calls a)
+                                  , ai_higher_order_calls = L.renames hm (ai_higher_order_calls a) }
 
 -- | See G2.Liquid.TyVarBags
 type TyVarBags = M.Map L.Name [L.Id]

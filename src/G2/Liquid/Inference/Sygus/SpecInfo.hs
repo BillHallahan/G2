@@ -27,8 +27,6 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
-import Debug.Trace
-
 type NMExprEnv = HM.HashMap (T.Text, Maybe T.Text) G2.Expr
 
 -- A list of functions that still must have specifications synthesized at a lower level
@@ -332,7 +330,7 @@ argsAndRetFromSpec tenv tc ghci meas ars (t:ts) rty st@(RFun { rt_in = rfun@(RFu
     (f_ars, f_ret) <- argsAndRetFromSpec tenv tc ghci meas ars ts' rty' rfun
     let f_ars_sa = map fst f_ars
         f_ars' = map (\(sa, pb) -> mapPB (AAndR (concat sa)) pb) $ zip (L.inits f_ars_sa) (map (mapPB aar_r) $ map snd f_ars ++ [f_ret])
-    trace ("rfun = " ++ show rfun ++ "\nf_ars = " ++ show f_ars) argsAndRetFromSpec tenv tc ghci meas (([], PolyBound mempty f_ars'):ars) ts rty out
+    argsAndRetFromSpec tenv tc ghci meas (([], PolyBound mempty f_ars'):ars) ts rty out
 argsAndRetFromSpec tenv tc ghci meas ars (t:ts) rty rfun@(RFun { rt_in = i, rt_out = out}) = do
     (m_out_symb, sa) <- mkSpecArgPB ghci tenv meas t rfun
     let out_symb = case m_out_symb of

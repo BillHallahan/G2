@@ -89,7 +89,8 @@ checkAbstracted g2call solver simplifier config init_id bindings er@(ExecRes{ fi
         abs_info = AbstractedInfo { init_call = abs_init
                                   , abs_violated = fmap thd4 abs_viol
                                   , abs_calls = abstracted'
-                                  , ai_all_calls = all_calls lht }
+                                  , ai_all_calls = all_calls lht
+                                  , ai_higher_order_calls = higher_order_calls lht }
         fs = maybe (final_state viol_er) fst4 abs_viol
         fb = maybe bindings''' snd4 abs_viol
 

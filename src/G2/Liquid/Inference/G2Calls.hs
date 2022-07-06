@@ -177,16 +177,37 @@ cleanupResultsInference solver simplifier config init_id init_state bindings ers
     let ers2 = map (\er -> er { final_state = putSymbolicExistentialInstInExprEnv (final_state er) }) ers
     (bindings', ers3) <- mapAccumM (reduceCalls runG2ThroughExecutionInference solver simplifier config) bindings ers2
     ers4 <- mapM (checkAbstracted runG2ThroughExecutionInference solver simplifier config init_id bindings') ers3
-    ers5 <- mapM (runG2SolvingInference solver simplifier config bindings') ers4
-    let ers6 = 
+    let ers5 = map (replaceHigherOrderNames (input_names bindings')) ers4
+    putStrLn "------------------ cleanupResultsInference ------------------"
+    putStrLn $ "input names = " ++ show (input_names bindings')
+    putStrLn $ "higher order names er4 = " ++ show (map (map funcName . ai_higher_order_calls . track . final_state) ers4)
+    putStrLn $ "higher order names er5 = " ++ show (map (map funcName . ai_higher_order_calls . track . final_state) ers5)
+    ers6 <- mapM (runG2SolvingInference solver simplifier config bindings') ers5
+    let ers7 = 
           map (\er@(ExecRes { final_state = s }) ->
                 (er { final_state =
                               s {track = 
                                     mapAbstractedInfoFCs (evalPrims (known_values s) . subVarFuncCall (model s) (expr_env s) (type_classes s))
                                     $ track s
                                 }
-                    })) ers5
-    return (ers6, bindings')
+                    })) ers6
+    return (ers7, bindings')
+
+replaceHigherOrderNames :: [Name] -> ExecRes AbstractedInfo -> ExecRes AbstractedInfo
+replaceHigherOrderNames input_names er@(ExecRes { final_state = s@(State { expr_env = eenv, track = t })}) =
+    let
+        higher = ai_higher_order_calls t
+
+        input_ids = filter (hasFuncType . (E.!) eenv) input_names
+        higher_num = zip input_ids (map (\i -> Name (T.pack $ show i) Nothing 0 Nothing) [1..])
+
+        higher' = map (\fc -> fc { funcName = lookupErr (funcName fc) higher_num }) higher
+    in
+    er { final_state = s { track = t { ai_higher_order_calls = higher' }}}
+    where
+        lookupErr x xs = case lookup x xs of
+                                Just v -> v
+                                Nothing -> error "replaceHigherOrderNames: missing function name"
 
 runG2ThroughExecutionInference :: G2Call solver simplifier
 runG2ThroughExecutionInference red hal ord _ _ pres s b = do
