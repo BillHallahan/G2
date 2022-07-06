@@ -77,8 +77,10 @@ import qualified Data.Text as T
 import Data.Tuple.Extra
 
 import Control.Monad
+import Control.Monad.Extra
 import Control.Exception
 import Control.Monad.IO.Class
+import Data.Function
 import Data.Monoid
 
 import Data.Time.Clock
@@ -175,13 +177,9 @@ cleanupResultsInference :: (Solver solver, Simplifier simplifier) =>
                         -> IO ([ExecRes AbstractedInfo], Bindings)
 cleanupResultsInference solver simplifier config init_id init_state bindings ers = do
     let ers2 = map (\er -> er { final_state = putSymbolicExistentialInstInExprEnv (final_state er) }) ers
-    (bindings', ers3) <- mapAccumM (reduceCalls runG2ThroughExecutionInference solver simplifier config) bindings ers2
-    ers4 <- mapM (checkAbstracted runG2ThroughExecutionInference solver simplifier config init_id bindings') ers3
-    let ers5 = map (replaceHigherOrderNames (input_names bindings')) ers4
-    putStrLn "------------------ cleanupResultsInference ------------------"
-    putStrLn $ "input names = " ++ show (input_names bindings')
-    putStrLn $ "higher order names er4 = " ++ show (map (map funcName . ai_higher_order_calls . track . final_state) ers4)
-    putStrLn $ "higher order names er5 = " ++ show (map (map funcName . ai_higher_order_calls . track . final_state) ers5)
+    let ers3 = map (replaceHigherOrderNames (idName init_id) (input_names bindings)) ers2
+    (bindings', ers4) <- mapAccumM (reduceCalls runG2ThroughExecutionInference solver simplifier config) bindings ers3
+    ers5 <- mapM (checkAbstracted runG2ThroughExecutionInference solver simplifier config init_id bindings') ers4
     ers6 <- mapM (runG2SolvingInference solver simplifier config bindings') ers5
     let ers7 = 
           map (\er@(ExecRes { final_state = s }) ->
@@ -193,21 +191,34 @@ cleanupResultsInference solver simplifier config init_id init_state bindings ers
                     })) ers6
     return (ers7, bindings')
 
-replaceHigherOrderNames :: [Name] -> ExecRes AbstractedInfo -> ExecRes AbstractedInfo
-replaceHigherOrderNames input_names er@(ExecRes { final_state = s@(State { expr_env = eenv, track = t })}) =
+replaceHigherOrderNames :: Name -> [Name] -> ExecRes LHTracker -> ExecRes LHTracker
+replaceHigherOrderNames init_name input_names er@(ExecRes { final_state = s@(State { expr_env = eenv, track = t })}) =
     let
-        higher = ai_higher_order_calls t
+        higher = higher_order_calls t
 
-        input_ids = filter (hasFuncType . (E.!) eenv) input_names
-        higher_num = zip input_ids (map (\i -> Name (T.pack $ show i) Nothing 0 Nothing) [1..])
+        input_names' = filter (hasFuncType . (E.!) eenv) input_names
+        higher_num_init = zip input_names' (map (higherOrderName (nameOcc init_name)) [1..])
+        higher_num_all = concatMap (\fc -> let
+                                        as = map nameFromVar $ filter hasFuncType (arguments fc)
+                                     in
+                                      zip as (map (higherOrderName (nameOcc $ funcName fc)) [1..]) )
+                       . map (\fc -> if nameOcc (funcName fc) == "INITIALLY_CALLED_FUNC" then fc { funcName = init_name } else fc)
+                       . nubBy ((==) `on` funcName) $ all_calls t
+        higher_num = higher_num_init ++ higher_num_all
 
         higher' = map (\fc -> fc { funcName = lookupErr (funcName fc) higher_num }) higher
     in
-    er { final_state = s { track = t { ai_higher_order_calls = higher' }}}
+    er { final_state = s { track = t { higher_order_calls = higher' }}}
     where
         lookupErr x xs = case lookup x xs of
                                 Just v -> v
-                                Nothing -> error "replaceHigherOrderNames: missing function name"
+                                Nothing -> error $ "replaceHigherOrderNames: missing function name" ++ "\nhigher_num = " ++ show xs ++ "\nx = " ++ show x 
+
+        nameFromVar (Var (Id n _)) = n
+        nameFromVar e = error $ "nameFromVar: not Var" ++ show e
+
+higherOrderName :: T.Text -> Int -> Name
+higherOrderName n i = Name n (Just "HIGHER_ORDER_??_") i Nothing
 
 runG2ThroughExecutionInference :: G2Call solver simplifier
 runG2ThroughExecutionInference red hal ord _ _ pres s b = do
@@ -694,26 +705,26 @@ data Evals b = Evals { pre_evals :: PreEvals b
 emptyEvals :: Evals b
 emptyEvals = Evals { pre_evals = HM.empty, post_evals = HM.empty }
 
-preEvals :: (InfConfigM m, MonadIO m) => Evals Bool -> LiquidReadyState -> [GhcInfo] -> [FuncCall] -> m (Evals Bool)
+preEvals :: (InfConfigM m, MonadIO m) => Evals Bool -> LiquidReadyState -> [GhcInfo] -> [(FuncCall, [HigherOrderFuncCall])] -> m (Evals Bool)
 preEvals evals@(Evals { pre_evals = pre }) lrs ghci fcs = do
     (pre', _) <- foldM (uncurry (runEvals checkPre' ghci lrs)) (pre, HM.empty) fcs
     return $ evals { pre_evals = pre' }
     -- return . HM.fromList =<< mapM (\fc -> return . (fc,) =<< checkPre lrs ghci fc) fcs
 
-postEvals :: (InfConfigM m, MonadIO m) => Evals Bool -> LiquidReadyState -> [GhcInfo] -> [FuncCall] -> m (Evals Bool)
+postEvals :: (InfConfigM m, MonadIO m) => Evals Bool -> LiquidReadyState -> [GhcInfo] -> [(FuncCall, [HigherOrderFuncCall])] -> m (Evals Bool)
 postEvals evals@(Evals { post_evals = post }) lrs ghci fcs = do
     (post', _) <- foldM (uncurry (runEvals checkPost' ghci lrs)) (post, HM.empty) fcs
     return $ evals { post_evals = post' }
 
 runEvals :: (InfConfigM m, MonadIO m) =>
-            (LiquidData -> FuncCall -> m Bool)
+            (LiquidData -> FuncCall -> [HigherOrderFuncCall] -> m Bool)
          -> [GhcInfo]
          -> LiquidReadyState
          -> FCEvals Bool
          -> HM.HashMap (T.Text, Maybe T.Text) LiquidData
-         -> FuncCall
+         -> (FuncCall, [HigherOrderFuncCall])
          -> m (FCEvals Bool, HM.HashMap (T.Text, Maybe T.Text) LiquidData)
-runEvals f ghci lrs hm ld_m fc =
+runEvals f ghci lrs hm ld_m (fc, hfc) =
     let
       n = zeroOutName $ funcName fc
       n_hm = maybe HM.empty id (HM.lookup n hm)
@@ -727,24 +738,59 @@ runEvals f ghci lrs hm ld_m fc =
                             Nothing -> do
                                 ld' <- checkPreOrPostLD ghci lrs fc
                                 return (ld', HM.insert nt ld' ld_m)
-        pr <- f ld fc
+        pr <- f ld fc hfc
         return $ (HM.insert n (HM.insert fc pr n_hm) hm, ld_m')
 
-checkPre :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> FuncCall -> m Bool
-checkPre ghci lrs fc = do
+checkPre :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> FuncCall -> [HigherOrderFuncCall] -> m Bool
+checkPre ghci lrs fc hfc = do
     ld <- checkPreOrPostLD ghci lrs fc
-    checkPre' ld fc
+    checkPre' ld fc hfc
 
-checkPre' :: (InfConfigM m, MonadIO m) => LiquidData -> FuncCall -> m Bool
-checkPre' = checkPreOrPost' (M.map thd3 . zeroOutKeys . ls_assumptions) arguments
+checkPre' :: (InfConfigM m, MonadIO m) => LiquidData -> FuncCall -> [HigherOrderFuncCall] -> m Bool
+checkPre' ld fc@(FuncCall { funcName = n }) hfc = do
+    r <- checkPreOrPost' (M.map thd3 . zeroOutKeys . ls_assumptions) arguments ld fc
+    case r of
+        False -> return False
+        True -> do
+            liftIO $ putStrLn $ "checkPre' higher of " ++ show n
+            let assumpts = M.lookup (zeroOutName n) . zeroOutKeys . ls_assumptions $ ld
+            case assumpts of
+                Just (_, higher_assumpts, _) -> do
+                    rs <- allM (checkPreHigherOrder ld (catMaybes higher_assumpts)) $ filter (\h -> nameOcc (funcName h) == nameOcc n) hfc
+                    liftIO $ print rs
+                    return rs
+                Nothing -> error "checkPre': assumptions not found"
 
-checkPost :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> FuncCall -> m Bool
-checkPost ghci lrs fc = do
+checkPreHigherOrder :: (InfConfigM m, MonadIO m) => LiquidData -> [Expr] -> HigherOrderFuncCall -> m Bool
+checkPreHigherOrder ld es fc@(FuncCall {funcName = (Name _ _ i _), arguments = as, returns = r }) = do
+    config <- g2ConfigM
+    SomeSolver solver <- liftIO $ initSolver config
+    time <- liftIO $ getCurrentTime
+    let e = es !! (i - 1)
+        e' = insertInLams (\_ in_e -> 
+                                case in_e of
+                                    Let [(b, _)] le -> Let [(b, r)] le
+                                    _ -> error "checkPreHigherOrder: unexpected expresssion form") e
+        s' = (ls_state ld) { curr_expr = CurrExpr Evaluate . modifyASTs repAssumeWithAssumption . mkApp $ e':as
+                           , true_assert = True }
+        bindings = ls_bindings ld
+    liftIO . putStrLn $ printHaskellDirty (mkApp $ e':as)
+    (fsl, _) <- liftIO $ genericG2Call config solver s' bindings
+    liftIO $ close solver
+
+    -- We may return multiple states if any of the specifications contained a SymGen
+    return $ any (currExprIsTrue . final_state) fsl
+    where
+        repAssumeWithAssumption (Assume _ e _) = e
+        repAssumeWithAssumption e = e 
+
+checkPost :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> FuncCall -> [HigherOrderFuncCall] -> m Bool
+checkPost ghci lrs fc hfc = do
     ld <- checkPreOrPostLD ghci lrs fc
-    checkPost' ld fc
+    checkPost' ld fc hfc
 
-checkPost' :: (InfConfigM m, MonadIO m) => LiquidData -> FuncCall -> m Bool
-checkPost' = checkPreOrPost' (zeroOutKeys . ls_posts) (\fc -> arguments fc ++ [returns fc])
+checkPost' :: (InfConfigM m, MonadIO m) => LiquidData -> FuncCall -> [HigherOrderFuncCall] -> m Bool
+checkPost' ld fc _ = checkPreOrPost' (zeroOutKeys . ls_posts) (\fc -> arguments fc ++ [returns fc]) ld fc
 
 zeroOutKeys :: M.Map Name v -> M.Map Name v
 zeroOutKeys = M.mapKeys zeroOutName

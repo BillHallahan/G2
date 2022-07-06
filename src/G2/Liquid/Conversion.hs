@@ -39,6 +39,10 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
+import G2.Lib.Printers
+import Debug.Trace
+import Data.List
+
 -- | A mapping of TyVar Name's, to Id's for the LH dict's
 type LHDictMap = M.Map Name Id
 
@@ -136,7 +140,8 @@ mergeSpecType st fn e = do
     -- Gather up LH TC's to use in Assertion
     dm@(DictMaps {lh_dicts = lhm}) <- dictMapFromIds is
 
-    higher_is <- handleHigherOrderSpecs CheckPre mkHigherAssert lh dm (M.map typeOf lhm) is st
+    trueE <- mkTrueE
+    higher_is <- handleHigherOrderSpecs CheckPre (mkHigherAssert trueE) lh dm (M.map typeOf lhm) is st
 
     let e' = foldl' App e . map (\(i, hi) -> maybe (Var i) id hi) $ zip is higher_is
 
@@ -157,7 +162,9 @@ mergeSpecType st fn e = do
 
     return e'''
     where
-        mkHigherAssert spec _ _ ret = Assert Nothing spec (Var ret)
+        -- We insert an extra, redundant assume to record information about the function being used as a higher order function
+        mkHigherAssert true spec i ars ret =
+            Tick (NamedLoc higherOrderTickName) . Assume (Just $ FuncCall { funcName = idName i, arguments = map Var ars, returns = Var ret }) true $ Assert Nothing spec (Var ret)
 
         repAssertFC fc_ (Assert Nothing e1 e2) = Assert (Just fc_) e1 e2
         repAssertFC _ e_ = e_

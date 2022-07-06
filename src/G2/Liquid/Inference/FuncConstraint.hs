@@ -120,16 +120,16 @@ differenceFC (FuncConstraints fc1) (FuncConstraints fc2) =
                       fc1 fc2
 
 allCallNames :: FuncConstraint -> [Name]
-allCallNames = map funcName . allCalls
+allCallNames = map funcName . map fst . allCalls
 
-allCalls :: FuncConstraint -> [FuncCall]
-allCalls (Call _ fc _) = [fc]
+allCalls :: FuncConstraint -> [(FuncCall, [HigherOrderFuncCall])]
+allCalls (Call _ fc hfc) = [(fc, hfc)]
 allCalls (AndFC fcs) = concatMap allCalls fcs
 allCalls (OrFC fcs) = concatMap allCalls fcs
 allCalls (ImpliesFC fc1 fc2) = allCalls fc1 ++ allCalls fc2
 allCalls (NotFC fc) = allCalls fc
 
-allCallsFC :: FuncConstraints -> [FuncCall]
+allCallsFC :: FuncConstraints -> [(FuncCall, [HigherOrderFuncCall])]
 allCallsFC = concatMap allCalls . toListFC
 
 printFCs :: LiquidReadyState -> FuncConstraints -> String

@@ -548,7 +548,7 @@ updateMeasureExs meas_ex lrs ghci fcs =
     let
         es = concatMap (\fc ->
                     let
-                        clls = allCalls fc
+                        clls = concatMap (\(mfc, hfc) -> mfc:hfc) $ allCalls fc
                         vls = concatMap (\c -> returns c:arguments c) clls 
                         ex_poly = concat . concatMap extractValues . concatMap extractExprPolyBound $ vls
                     in
@@ -629,7 +629,7 @@ cexsToBlockingFC lrs ghci cex@(DirectCounter dfc [] higher)
             then return . Left $ cex
             else return . Right . NotFC $ Call Pre (real dfc) higher
     | isExported lrs (funcName (real dfc)) = do
-        post_ref <- checkPost ghci lrs (real dfc)
+        post_ref <- checkPost ghci lrs (real dfc) higher
         case post_ref of
             True -> return $ Right (Call All (real dfc) higher)
             False -> return . Left $ cex
@@ -639,12 +639,12 @@ cexsToBlockingFC lrs ghci cex@(CallsCounter dfc cfc [] higher)
         if
             | isExported lrs (funcName (real dfc))
             , isExported lrs (funcName (real cfc)) -> do
-                called_pr <- checkPre ghci lrs (real cfc) -- TODO: Shouldn't be changing this?
+                called_pr <- checkPre ghci lrs (real cfc) higher -- TODO: Shouldn't be changing this?
                 case called_pr of
                     True -> return . Right $ NotFC (Call Pre (real dfc) higher)
                     False -> return . Left $ cex
             | isExported lrs (funcName (real dfc)) -> do
-                called_pr <- checkPre ghci lrs (real cfc)
+                called_pr <- checkPre ghci lrs (real cfc) higher
                 case called_pr of
                     True -> return . Right $ NotFC (Call Pre (real dfc) higher)
                     False -> return . Left $ cex
@@ -653,12 +653,12 @@ cexsToBlockingFC lrs ghci cex@(CallsCounter dfc cfc [] higher)
         if
             | isExported lrs (funcName (real dfc))
             , isExported lrs (funcName (real cfc)) -> do
-                called_pr <- checkPre ghci lrs (real cfc) -- TODO: Shouldn't be changing this?
+                called_pr <- checkPre ghci lrs (real cfc) higher -- TODO: Shouldn't be changing this?
                 case called_pr of
                     True -> return . Right $ ImpliesFC (Call Pre (real dfc) higher) (Call Pre (real cfc) higher)
                     False -> return . Left $ cex
             | isExported lrs (funcName (real dfc)) -> do
-                called_pr <- checkPre ghci lrs (real cfc)
+                called_pr <- checkPre ghci lrs (real cfc) higher
                 case called_pr of
                     True -> return . Right $ ImpliesFC (Call Pre (real dfc) higher) (Call Pre (real cfc) higher)
                     False -> return . Left $ cex

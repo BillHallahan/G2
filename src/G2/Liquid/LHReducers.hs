@@ -190,6 +190,12 @@ instance Reducer HigherOrderCallsRed () LHTracker where
             lht = (track s) { higher_order_calls = fc:higher_order_calls (track s) }
         in
         return $ (Finished, [(s { track = lht } , ())], b, lhr)
+    redRules lhr _ s@(State { curr_expr = CurrExpr Evaluate (Tick (NamedLoc nl) (Assume (Just fc) _ real_assert@(Assert _ _ _))) }) b | nl == higherOrderTickName=
+        let
+            lht = (track s) { higher_order_calls = fc:higher_order_calls (track s) }
+        in
+        return $ (Finished, [(s { curr_expr = CurrExpr Evaluate real_assert
+                                , track = lht } , ())], b, lhr)
     redRules lhr _ s b = return $ (Finished, [(s, ())], b, lhr)
 
 data RedArbErrors = RedArbErrors

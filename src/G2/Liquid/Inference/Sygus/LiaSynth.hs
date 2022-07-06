@@ -406,7 +406,7 @@ runConstraintsForSynth headers vs = do
     setProduceUnsatCores z3_dir
     setProduceUnsatCores z3_max
 
-    -- T.putStrLn (TB.run $ toSolverText headers)
+    T.putStrLn (TB.run $ toSolverText headers)
     addFormula z3_dir headers
     addFormula z3_max headers
 
@@ -818,6 +818,7 @@ envToSMT evals si fresh fc =
     let
         nm_fc = zip ["f" ++ show i ++ "_" ++ show fresh | i <- ([1..] :: [Integer])]
               . L.nub
+              . map fst
               $ allCallsFC fc
 
         calls = concatMap (uncurry (flip (envToSMT' evals si))) nm_fc

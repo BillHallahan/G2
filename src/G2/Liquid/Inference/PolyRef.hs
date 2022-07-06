@@ -12,6 +12,7 @@ module G2.Liquid.Inference.PolyRef ( PolyBound (.. )
                                    , extractTypePolyBound
 
                                    , headValue
+                                   , removeHead
                                    , extractValues
                                    , uniqueIds
                                    , mapPB
@@ -141,6 +142,9 @@ extractTypePolyBound t =
 
 headValue :: PolyBound v -> v
 headValue (PolyBound v _) = v
+
+removeHead :: PolyBound v -> [PolyBound v]
+removeHead (PolyBound _ vs) = vs
 
 extractValues :: PolyBound v -> [v]
 extractValues (PolyBound v ps) = v:concatMap extractValues ps
