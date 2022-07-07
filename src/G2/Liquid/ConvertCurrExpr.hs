@@ -221,8 +221,6 @@ addCurrExprAssumption ifi (Bindings {fixed_inputs = fi}) = do
                 matching_higher = mapMaybe (\(n, i, hi) -> maybe Nothing (Just . (n, i,)) hi) matching
                 let_expr = Let (map (\(n, i, _) -> (snd i, Var (Id n . typeOf $ snd i))) matching_higher)
 
-            mapM_ (\(n, i, _) -> insertE n (Var (snd i))) matching_higher
-
             let ce' = let_expr
                     . flip (foldr (uncurry replaceAssumeFC)) (map (\(n, (_, i), _) -> (idName i, n)) matching_higher)
                     $ foldr (uncurry replaceVar) ce (map (\(n, _, hi) -> (n, hi)) matching_higher)
