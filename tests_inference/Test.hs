@@ -125,7 +125,7 @@ posTestInferenceWithTimeOut to to_se fp = do
         )
 
 posTestInference :: FilePath -> TestTree
-posTestInference = posTestInferenceWithTimeOut 90 5
+posTestInference = posTestInferenceWithTimeOut 120 5
 
 negTestInference :: FilePath -> TestTree
 negTestInference fp = do
