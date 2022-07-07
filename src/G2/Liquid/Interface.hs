@@ -433,7 +433,7 @@ cleanupResults solver simplifier config init_id init_state bindings ers = do
           map (\er@(ExecRes { final_state = s }) ->
                 (er { final_state =
                               s {track = 
-                                    mapAbstractedInfoFCs (subVarFuncCall (model s) (expr_env init_state) (type_classes s))
+                                    mapAbstractedInfoFCs (subVarFuncCall True (model s) (expr_env init_state) (type_classes s))
                                     $ track s
                                 }
                     })) ers5
