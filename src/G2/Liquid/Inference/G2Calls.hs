@@ -759,7 +759,7 @@ checkPre' ld fc@(FuncCall { funcName = n }) hfc = do
                     rs <- allM (checkPreHigherOrder ld (catMaybes higher_assumpts)) $ filter (\h -> nameOcc (funcName h) == nameOcc n) hfc
                     liftIO $ print rs
                     return rs
-                Nothing -> error "checkPre': assumptions not found"
+                Nothing -> return True
 
 checkPreHigherOrder :: (InfConfigM m, MonadIO m) => LiquidData -> [Expr] -> HigherOrderFuncCall -> m Bool
 checkPreHigherOrder ld es fc@(FuncCall {funcName = (Name _ _ i _), arguments = as, returns = r }) = do

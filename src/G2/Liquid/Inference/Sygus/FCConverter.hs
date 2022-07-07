@@ -18,8 +18,6 @@ import Data.Maybe
 import qualified Data.Text as T
 import Data.Tuple.Extra
 
-import Debug.Trace
-
 type ConvertExpr a = G2.Expr -> a
 type AndF a = [a] -> a
 type OrF a = [a] -> a
@@ -168,10 +166,11 @@ mkHigherOrderCall :: (InfConfigM m, ProgresserM m) =>
                   -> Type -- ^ Return Type
                   -> FuncCall
                   -> m [form]
-mkHigherOrderCall convExpr funcF eenv tenv meas meas_ex pb_synth n ar_ts ret_t fc = do
+mkHigherOrderCall convExpr funcF eenv tenv meas meas_ex pb_synth@(_:_) n ar_ts ret_t fc = do
     pre <- mkPreSynthBody convExpr funcF eenv tenv meas meas_ex (init pb_synth) ar_ts fc []
     post <- mkPostSynthBody convExpr funcF eenv tenv meas meas_ex (last pb_synth) ar_ts ret_t fc
     return $ pre ++ post
+mkHigherOrderCall _ _ _ _ _ _ _ _ _ _ _ = return []
 
 formCalls :: (InfConfigM m, ProgresserM m) => ConvertExpr form -> Func form -> TypeEnv -> Measures -> MeasureExs -> Name -> [(Type, Expr)] -> PolyBound SynthSpec -> PolyBound [Expr] -> PolyBound Type -> m [form]
 formCalls convExpr funcF tenv meas meas_ex n v_ars si_pb re_pb rt_pb = do
@@ -180,7 +179,7 @@ formCalls convExpr funcF tenv meas meas_ex n v_ars si_pb re_pb rt_pb = do
     let smt_ars = concatMap (uncurry (adjustArgsWithCare inf_con n convExpr (fromInteger mx_meas) tenv meas meas_ex)) v_ars
         si_re_rt_pb = case filterPBByType snd $ zipPB re_pb rt_pb of
                   Just re_rt_pb -> zipWithPB (\x (y, z) -> (x, y, z)) si_pb re_rt_pb
-                  Nothing -> error "mkPreCall: impossible, the polybound should have already been filtered"
+                  Nothing -> zipWithPB (\x (y, z) -> (x, y, z)) si_pb $ PolyBound ([], headValue rt_pb) [] -- error $ "formCalls: impossible, the polybound should have already been filtered" ++ "\nsi_pb = " ++ show si_pb ++ "\nre_pb = " ++ show re_pb ++ "\nrt_pb = " ++ show rt_pb
     return $ concatMap (\(psi, re, rt) ->
                 let
                     f_smt_ars = if null (sy_args psi) then [] else smt_ars

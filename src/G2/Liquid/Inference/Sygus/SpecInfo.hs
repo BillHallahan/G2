@@ -328,8 +328,11 @@ argsAndRetFromSpec tenv tc ghci meas ars (t:ts) rty st@(RFun { rt_in = rfun@(RFu
         sy_pb = mkSpecArg (fromInteger mx_meas) ghci tenv meas out_symb t
     let (ts', rty') = generateRelTypes t
     (f_ars, f_ret) <- argsAndRetFromSpec tenv tc ghci meas ars ts' rty' rfun
-    let f_ars_sa = map fst f_ars
-        f_ars' = map (\(sa, pb) -> mapPB (AAndR (concat sa)) pb) $ zip (L.inits f_ars_sa) (map (mapPB aar_r) $ map snd f_ars ++ [f_ret])
+    let f_ret_list = case f_ret of
+                        PolyBound (AAndR { aar_a = [], aar_r = [] }) [] -> []
+                        _ -> [f_ret]
+        f_ars_sa = map fst f_ars
+        f_ars' = map (\(sa, pb) -> mapPB (AAndR (concat sa)) pb) $ zip (L.inits f_ars_sa) (map (mapPB aar_r) $ map snd f_ars ++ f_ret_list)
     argsAndRetFromSpec tenv tc ghci meas (([], PolyBound mempty f_ars'):ars) ts rty out
 argsAndRetFromSpec tenv tc ghci meas ars (t:ts) rty rfun@(RFun { rt_in = i, rt_out = out}) = do
     (m_out_symb, sa) <- mkSpecArgPB ghci tenv meas t rfun
