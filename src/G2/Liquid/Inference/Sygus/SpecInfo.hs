@@ -26,6 +26,7 @@ import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
+import Data.Semigroup (Semigroup (..))
 
 type NMExprEnv = HM.HashMap (T.Text, Maybe T.Text) G2.Expr
 
