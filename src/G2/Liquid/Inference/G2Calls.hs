@@ -212,7 +212,7 @@ replaceHigherOrderNames init_name input_names er@(ExecRes { final_state = s@(Sta
     where
         lookupErr x xs = case lookup x xs of
                                 Just v -> v
-                                Nothing -> error $ "replaceHigherOrderNames: missing function name" ++ "\nhigher_num = " ++ show xs ++ "\nx = " ++ show x 
+                                Nothing -> x -- error $ "replaceHigherOrderNames: missing function name" ++ "\nhigher_num = " ++ show xs ++ "\nx = " ++ show x 
 
         nameFromVar (Var (Id n _)) = n
         nameFromVar e = error $ "nameFromVar: not Var" ++ show e
@@ -486,6 +486,7 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
     extra_ce <- extraMaxCExI (entry, mb_modname)
     extra_time <- extraMaxTimeI (entry, mb_modname)
 
+    time <- liftIO $ getCurrentTime
     let
         ng = mkNameGen ()
 
@@ -503,6 +504,7 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
         timeout = timeout_se infconfig + extra_time
 
         m_logger = getLogger config
+        -- m_logger = if entry == "mapReduce" then Just (SomeReducer $ PrettyLogger ("a_mapReduce" ++ show time) (mkPrettyGuide ())) else getLogger config
 
     liftIO $ putStrLn $ "ce num for " ++ T.unpack entry ++ " is " ++ show ce_num
     liftIO $ putStrLn $ "timeout for " ++ T.unpack entry ++ " is " ++ show timeout
