@@ -336,7 +336,7 @@ liquidTests = testGroup "Liquid"
     , checkLiquid "tests/Liquid/Polymorphism/Poly1.hs" "f" 1000 [Exactly 0]
     , checkLiquid "tests/Liquid/Polymorphism/Poly2.hs" "f" 600 [Exactly 0]
 
-    , checkLiquid "tests/Liquid/Sets/Sets1.hs" "prop_union_assoc" 1800 [AtLeast 2]
+    , checkLiquid "tests/Liquid/Sets/Sets1.hs" "prop_union_assoc" 2200 [AtLeast 2]
     , checkLiquid "tests/Liquid/Sets/Sets1.hs" "prop_intersection_comm" 1000 [AtLeast 5]
     , checkLiquid "tests/Liquid/Sets/Sets2.hs" "badIdList" 1000 [AtLeast 1]
     , checkLiquid "tests/Liquid/Sets/Sets2.hs" "append" 1000 [AtLeast 1]
@@ -349,6 +349,7 @@ liquidTests = testGroup "Liquid"
     -- Higher Order Functions
     , checkLiquid "tests/Liquid/HigherOrder/IntFuncArg.hs" "caller" 1000 [AtLeast 1]
     , checkLiquid "tests/Liquid/HigherOrder/HigherOrderPre.hs" "test" 1000 [AtLeast 1]
+    , checkLiquid "tests/Liquid/HigherOrder/HigherOrder2.hs" "f" 2000 [Exactly 0]
 
     -- IO
     , checkLiquid "tests/Liquid/IO/IO1.hs" "f" 1000 [Exactly 0]

@@ -134,6 +134,21 @@ instance (ASTContainerM c t, ASTContainerM d t) => ASTContainerM (c, d) t where
         y' <- modifyContainedASTsM f y
         return (x', y')
 
+instance (ASTContainerM c t, ASTContainerM d t, ASTContainerM e t) => ASTContainerM (c, d, e) t where
+    modifyContainedASTsM f (x, y, z) = do
+        x' <- modifyContainedASTsM f x
+        y' <- modifyContainedASTsM f y
+        z' <- modifyContainedASTsM f z
+        return (x', y', z')
+
+instance ASTContainerM LamUse Expr where
+    {-# INLINE modifyContainedASTsM #-}
+    modifyContainedASTsM _ i = return i
+
+instance ASTContainerM LamUse Type where
+    {-# INLINE modifyContainedASTsM #-}
+    modifyContainedASTsM _ i = return i
+
 instance ASTContainerM Id Expr where
     {-# INLINE modifyContainedASTsM #-}
     modifyContainedASTsM _ i = return i

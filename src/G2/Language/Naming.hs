@@ -6,6 +6,7 @@
 module G2.Language.Naming
     ( nameOcc
     , nameModule
+    , nameUnique
     , nameTuple
     , nameLoc
     , NameGen
@@ -74,6 +75,9 @@ nameOcc (Name occ _ _ _) = occ
 
 nameModule :: Name -> Maybe T.Text
 nameModule (Name _ mb _ _) = mb
+
+nameUnique :: Name -> Int
+nameUnique (Name _ _ i _) = i
 
 nameTuple :: Name -> (T.Text, Maybe T.Text)
 nameTuple n = (nameOcc n, nameModule n)

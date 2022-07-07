@@ -27,7 +27,7 @@ subModel (State { expr_env = eenv
                 , model = m}) 
           (Bindings {input_names = inputNames}) = 
     let
-        ais' = fmap (subVarFuncCall m eenv tc) ais
+        ais' = fmap (subVarFuncCall False m eenv tc) ais
 
         -- We do not inline Lambdas, because higher order function arguments
         -- get preinserted into the model.
@@ -37,40 +37,40 @@ subModel (State { expr_env = eenv
                                 Just e -> Just e
                                 Nothing -> Nothing) inputNames
     in
-    subVar m eenv tc (is, cexpr, ais')
+    subVar False m eenv tc (is, cexpr, ais')
 
-subVarFuncCall :: Model -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall
-subVarFuncCall em eenv tc fc@(FuncCall {arguments = ars}) =
-    subVar em eenv tc $ fc {arguments = filter (not . isTC tc) ars}
+subVarFuncCall :: Bool -> Model -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall
+subVarFuncCall inLam em eenv tc fc@(FuncCall {arguments = ars}) =
+    subVar inLam em eenv tc $ fc {arguments = filter (not . isTC tc) ars}
 
-subVar :: (ASTContainer m Expr) => Model -> ExprEnv -> TypeClasses -> m -> m
-subVar em eenv tc = modifyContainedASTs (subVar' em eenv tc [])
+subVar :: (ASTContainer m Expr) => Bool -> Model -> ExprEnv -> TypeClasses -> m -> m
+subVar inLam em eenv tc = modifyContainedASTs (subVar' inLam em eenv tc [])
 
-subVar' :: Model -> ExprEnv -> TypeClasses -> [Id] -> Expr -> Expr
-subVar' em eenv tc is v@(Var i@(Id n _))
+subVar' :: Bool -> Model -> ExprEnv -> TypeClasses -> [Id] -> Expr -> Expr
+subVar' inLam em eenv tc is v@(Var i@(Id n _))
     | i `notElem` is
     , Just e <- HM.lookup n em =
-        subVar' em eenv tc (i:is) e
+        subVar' inLam em eenv tc (i:is) e
     | i `notElem` is
     , Just e <- E.lookup n eenv
-    , (isExprValueForm eenv e && notLam e) || isApp e || isVar e || isLitCase e =
-        subVar' em eenv tc (i:is) e
+    , (isExprValueForm eenv e && (notLam e || inLam)) || isApp e || isVar e || isLitCase e =
+        subVar' inLam em eenv tc (i:is) e
     | otherwise = v
-subVar' mdl eenv tc is cse@(Case e _ as) =
-    case subVar' mdl eenv tc is e of
+subVar' inLam mdl eenv tc is cse@(Case e _ as) =
+    case subVar' inLam mdl eenv tc is e of
         Lit l
             | Just (Alt _ ae) <- L.find (\(Alt (LitAlt l') _) -> l == l') as ->
-                subVar' mdl eenv tc is ae
+                subVar' inLam mdl eenv tc is ae
         _ -> cse
-subVar' em eenv tc is e = modifyChildren (subVar' em eenv tc is) e
-
-notLam :: Expr -> Bool
-notLam (Lam _ _ _) = False
-notLam _ = True
+subVar' inLam em eenv tc is e = modifyChildren (subVar' inLam em eenv tc is) e
 
 isApp :: Expr -> Bool
 isApp (App _ _) = True
 isApp _ = False
+
+notLam :: Expr -> Bool
+notLam (Lam _ _ _) = False
+notLam _ = True
 
 isVar :: Expr -> Bool
 isVar (Var _) = True

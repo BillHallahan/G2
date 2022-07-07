@@ -1,12 +1,12 @@
 #!/usr/bin/env python
-# Tests RewriteV on the Zeno suite
+# Tests Nebula on the Zeno suite
 
 import os
 import re
 import subprocess
 import time
 
-exe_name = str(subprocess.run(["cabal", "exec", "which", "RewriteV"], capture_output = True).stdout.decode('utf-8')).strip()
+exe_name = str(subprocess.run(["cabal", "exec", "which", "Nebula"], capture_output = True).stdout.decode('utf-8')).strip()
 
 def run_zeno(filename, thm, var_settings, timeout):
     start_time = time.monotonic();

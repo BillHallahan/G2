@@ -7,7 +7,7 @@ module G2.Equiv.G2Calls ( StateET
                         , EquivTracker (..)
                         , BlockInfo (..)
                         , emptyEquivTracker
-                        , runG2ForRewriteV
+                        , runG2ForNebula
                         , totalExpr
 
                         , isLabeledErrorName
@@ -45,16 +45,16 @@ import qualified Data.List as L
 import GHC.Generics (Generic)
 
 -- get names from symbolic ids in the state
-runG2ForRewriteV :: Solver solver =>
+runG2ForNebula :: Solver solver =>
                     solver ->
                     StateET ->
                     E.ExprEnv ->
                     EquivTracker ->
                     Config ->
-                    RewriteVConfig ->
+                    NebulaConfig ->
                     Bindings ->
                     IO ([ExecRes EquivTracker], Bindings)
-runG2ForRewriteV solver state h_opp track_opp config rvc bindings = do
+runG2ForNebula solver state h_opp track_opp config nc bindings = do
     --SomeSolver solver <- initSolver config
     let simplifier = IdSimplifier
         sym_config = PreserveAllMC
@@ -66,7 +66,7 @@ runG2ForRewriteV solver state h_opp track_opp config rvc bindings = do
 
         state' = state { track = (track state) { saw_tick = Nothing } }
 
-    (in_out, bindings') <- case rewriteRedHaltOrd solver simplifier h_opp track_opp config rvc of
+    (in_out, bindings') <- case rewriteRedHaltOrd solver simplifier h_opp track_opp config nc of
                 (red, hal, ord) ->
                     runG2WithSomes red hal ord solver simplifier sym_config state' bindings
 
@@ -80,9 +80,9 @@ rewriteRedHaltOrd :: (Solver solver, Simplifier simplifier) =>
                      E.ExprEnv ->
                      EquivTracker ->
                      Config ->
-                     RewriteVConfig ->
+                     NebulaConfig ->
                      (SomeReducer EquivTracker, SomeHalter EquivTracker, SomeOrderer EquivTracker)
-rewriteRedHaltOrd solver simplifier h_opp track_opp config (RVC { use_labeled_errors = use_labels }) =
+rewriteRedHaltOrd solver simplifier h_opp track_opp config (NC { use_labeled_errors = use_labels }) =
     let
         share = sharing config
         state_name = Name "state" Nothing 0 Nothing

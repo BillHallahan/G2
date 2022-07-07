@@ -175,6 +175,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                 print_es = map (mkExprHaskell'' off) es
             in
             intercalate ("\n" ++ offset off ++ "[NonDet]\n") print_es 
+        mkExprHaskell'' off (SymGen t) = "(symgen " ++ mkTypeHaskellPG pg t ++ ")"
         mkExprHaskell'' _ e = "e = " ++ show e ++ " NOT SUPPORTED"
 
         parenWrap :: Expr -> String -> String
@@ -624,12 +625,12 @@ printFuncCall :: FuncCall -> String
 printFuncCall = printFuncCallPG (mkPrettyGuide ())
 
 printFuncCallPG :: PrettyGuide -> FuncCall -> String
-printFuncCallPG pg (FuncCall { funcName = Name f _ _ _, arguments = ars, returns = r}) =
+printFuncCallPG pg (FuncCall { funcName = f, arguments = ars, returns = r}) =
     let
         call_str fn = mkDirtyExprHaskell pg . foldl (\a a' -> App a a') (Var (Id fn TyUnknown)) $ ars
         r_str = mkDirtyExprHaskell pg r
     in
-    "(" ++ call_str (Name f Nothing 0 Nothing) ++ " " ++ r_str ++ ")"
+    "(" ++ call_str f ++ " " ++ r_str ++ ")"
 
 -------------------------------------------------------------------------------
 -- Pretty Guide
