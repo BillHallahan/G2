@@ -754,12 +754,10 @@ checkPre' ld fc@(FuncCall { funcName = n }) hfc = do
     case r of
         False -> return False
         True -> do
-            liftIO $ putStrLn $ "checkPre' higher of " ++ show n
             let assumpts = M.lookup (zeroOutName n) . zeroOutKeys . ls_assumptions $ ld
             case assumpts of
                 Just (_, higher_assumpts, _) -> do
                     rs <- allM (checkPreHigherOrder ld (catMaybes higher_assumpts)) $ filter (\h -> nameOcc (funcName h) == nameOcc n) hfc
-                    liftIO $ print rs
                     return rs
                 Nothing -> return True
 
