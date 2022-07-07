@@ -230,7 +230,6 @@ def test_suite_general(suite, fname_in, fname_out, timeout = 25):
     sat_num = 0
     # index to ensure uniqueness
     k = 0
-    # TODO use these to report stats?
     min_max_depth_dict = {}
     min_sum_depth_dict = {}
     if fname_out is not None:
@@ -246,7 +245,7 @@ def test_suite_general(suite, fname_in, fname_out, timeout = 25):
         min_max_depth_dict[thm] = min_max_depth
         min_sum_depth_dict[thm] = min_sum_depth
         if fname_out is not None:
-            # TODO replace commas in anything else?
+            # replace commas with semicolons to work with CSV format
             l_str = d["left"].replace(",", ";")
             r_str = d["right"].replace(",", ";")
             file.write(thm + "," + l_str + "," + r_str + ",")

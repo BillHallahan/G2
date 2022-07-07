@@ -662,13 +662,6 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p85" forall xs ys . prop_85 xs ys = True
   #-}
 
--- TODO should the order be different for 26B, 27, 28, 37C, 60?
--- TODO only really need the last nat total for p48; same for 62, 63
--- TODO not sure about 71 and 76 now
--- TODO p03 should be phrased like the rest with a function application
--- TODO is p03finB really correct?
--- if n is infinity and xs is all-finite, left terminates and right doesn't
--- we need an extra walk of n on the left
 {-# RULES
 "p03fin" forall n xs ys . walkNatList xs (prop_03 n xs ys) = walkNatList xs True
 "p03finB" forall n xs ys . walkNat n (prop_03 n xs ys) = walkNat n (walkList xs True)
