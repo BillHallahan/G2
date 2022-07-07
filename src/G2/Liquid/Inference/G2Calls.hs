@@ -486,7 +486,7 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
     extra_ce <- extraMaxCExI (entry, mb_modname)
     extra_time <- extraMaxTimeI (entry, mb_modname)
 
-    time <- liftIO $ getCurrentTime
+    -- time <- liftIO $ getCurrentTime
     let
         ng = mkNameGen ()
 
