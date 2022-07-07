@@ -774,7 +774,6 @@ checkPreHigherOrder ld es fc@(FuncCall {funcName = (Name _ _ i _), arguments = a
         s' = (ls_state ld) { curr_expr = CurrExpr Evaluate . modifyASTs repAssumeWithAssumption . mkApp $ e':as
                            , true_assert = True }
         bindings = ls_bindings ld
-    liftIO . putStrLn $ printHaskellDirty (mkApp $ e':as)
     (fsl, _) <- liftIO $ genericG2Call config solver s' bindings
     liftIO $ close solver
 
