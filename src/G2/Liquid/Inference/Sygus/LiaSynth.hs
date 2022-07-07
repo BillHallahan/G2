@@ -818,6 +818,7 @@ envToSMT evals si fresh fc =
     let
         nm_fc = zip ["f" ++ show i ++ "_" ++ show fresh | i <- ([1..] :: [Integer])]
               . L.nub
+              . map fst
               $ allCallsFC fc
 
         calls = concatMap (uncurry (flip (envToSMT' evals si))) nm_fc
@@ -849,8 +850,8 @@ envToSMT' (Evals {pre_evals = pre_ev, post_evals = post_ev}) m_si fc@(FuncCall {
                 pre = pre_op $ Func (s_known_pre_name si) [VInt pre_i]
                 post = post_op $ Func (s_known_post_name si) [VInt post_i]
 
-                pre_real = pre_op_fc (Call Pre fc)
-                post_real = post_op_fc (Call Post fc)
+                pre_real = pre_op_fc (Call Pre fc [])
+                post_real = post_op_fc (Call Post fc [])
 
                 pre_name = "pre_" ++ uc_n
                 post_name = "post_" ++ uc_n

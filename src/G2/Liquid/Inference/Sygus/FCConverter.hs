@@ -15,6 +15,8 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
+import qualified Data.Text as T
+import Data.Tuple.Extra
 
 type ConvertExpr a = G2.Expr -> a
 type AndF a = [a] -> a
@@ -43,56 +45,63 @@ mkPreCall :: (InfConfigM m, ProgresserM m) =>
           -> Evals (Integer, Bool)
           -> M.Map Name SpecInfo
           -> FuncCall
+          -> [HigherOrderFuncCall]
           -> m form
-mkPreCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars })
+mkPreCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars }) hcalls
     | Just si <- M.lookup n m_si
     , Just (ev_i, ev_b) <- lookupEvals fc (pre_evals evals)
     , Just func_e <- HM.lookup (nameOcc n, nameModule n) eenv = do
-        inf_con <- infConfigM
-
-        MaxSize mx_meas <- maxSynthFormSizeM
-        let func_ts = argumentTypes func_e
-
-            v_ars = filter (validArgForSMT . snd)
-                  . filter (\(t, _) -> not (isTyFun t) && not (isTyVar t))
-                  $ zip func_ts ars
-
-            sy_body_p =
-                concatMap
-                    (\(si_pb, ts_es) ->
-                        let
-                            t_ars = init ts_es
-                            smt_ars = concat $ map (uncurry (adjustArgsWithCare inf_con n convExpr (fromInteger mx_meas) tenv meas meas_ex)) t_ars
-
-                            (l_rt, l_re) = last ts_es
-                            re_pb = extractExprPolyBoundWithRoot l_re
-                            rt_pb = extractTypePolyBound l_rt
-
-
-                            m_re_rt_pb = filterPBByType snd $ zipPB re_pb rt_pb
-                            si_re_rt_pb = case m_re_rt_pb of
-                                              Just re_rt_pb -> zipWithPB (\x (y, z) -> (x, y, z)) si_pb re_rt_pb
-                                              Nothing -> error "mkPreCall: impossible, the polybound should have already been filtered"
-                        in
-                        concatMap
-                            (\(psi, re, rt) ->
-                                let
-                                    f_smt_ars = if null (sy_args psi) then [] else smt_ars
-                                    smt_r = map (adjustArgs convExpr (fromInteger mx_meas) tenv meas meas_ex rt) re
-                                in
-                                map (\r -> funcF (sy_name psi) $ f_smt_ars ++ r) smt_r
-                              ) $ extractValues si_re_rt_pb
-                  ) . zip (s_syn_pre si) . filter (not . null) $ L.inits v_ars
-
-            sy_body = andF sy_body_p
-            fixed_body = knownF (s_known_pre_name si) ev_i ev_b
+        sy_body <- mkPreSynthBody convExpr funcF eenv tenv meas meas_ex (s_syn_pre si) (argumentTypes func_e) fc hcalls
+        let fixed_body = knownF (s_known_pre_name si) ev_i ev_b
             to_be_body = toBeF (s_to_be_pre_name si) ev_i ev_b
 
         case s_status si of
-                Synth -> return $ andF [fixed_body, sy_body]
+                Synth -> return . andF $ fixed_body:sy_body
                 ToBeSynthed -> return $ andF [fixed_body, to_be_body]
                 Known -> return $ fixed_body
     | otherwise = error "mkPreCall: specification not found"
+
+mkPreSynthBody :: (InfConfigM m, ProgresserM m) => 
+                  ConvertExpr form
+               -> Func form
+               -> NMExprEnv 
+               -> TypeEnv 
+               -> Measures
+               -> MeasureExs
+               -> [PolyBound SynthSpec]
+               -> [Type]
+               -> FuncCall
+               -> [HigherOrderFuncCall]
+               -> m [form]
+mkPreSynthBody convExpr funcF eenv tenv meas meas_ex pre_spec func_ts (FuncCall { funcName = n, arguments = ars }) hcalls = do
+        let v_ars = filter (validArgForSMT . thd3)
+                  . filter (\(_, t, _) -> not (isTyVar t))
+                  . assignNums 1
+                  $ zip func_ts ars
+
+        sy_body_p <- mapM (\(si_pb, ts_es) ->
+                                let
+                                    t_ars = map (\(_, t, e) -> (t, e)) $ init ts_es
+
+                                    (i, l_rt, l_re) = last ts_es
+                                    re_pb = extractExprPolyBoundWithRoot l_re
+                                    rt_pb = extractTypePolyBound l_rt
+
+                                in
+                                case (i, l_rt) of
+                                    (Just i', TyFun _ _) -> do -- error $ "HERE\npre_spec = " ++ show pre_spec ++ "\nts_es = " ++ show ts_es
+                                        let arg_tys = argumentTypes $ PresType l_rt
+                                            return_ty = returnType $ PresType l_rt
+                                            hcalls' = filter (\hfc -> nameOcc (funcName hfc) == nameOcc n && nameUnique (funcName hfc) == i') hcalls
+                                        clls <- mapM (mkHigherOrderCall convExpr funcF eenv tenv meas meas_ex (removeHead si_pb) n arg_tys return_ty) hcalls'
+                                        return $ concat clls
+                                    _ -> formCalls convExpr funcF tenv meas meas_ex n t_ars si_pb re_pb rt_pb
+                          ) . zip pre_spec . filter (not . null) $ L.inits v_ars
+        return $ concat sy_body_p
+        where
+            assignNums _ [] = []
+            assignNums i ((t@(TyFun _ _), e):ts) = (Just i, t, e):assignNums (i + 1) ts
+            assignNums i  ((t, e):ts) = (Nothing, t, e):assignNums i ts
 
 mkPostCall :: (InfConfigM m, ProgresserM m) => 
               ConvertExpr form
@@ -112,39 +121,72 @@ mkPostCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc
     | Just si <- M.lookup n m_si
     , Just (ev_i, ev_b) <- lookupEvals fc (post_evals evals)
     , Just func_e <- HM.lookup (nameOcc n, nameModule n) eenv = do
-        inf_con <- infConfigM
-
-        MaxSize mx_meas <- maxSynthFormSizeM
-        let func_ts = argumentTypes func_e
-
-            smt_ars = concatMap (uncurry (adjustArgsWithCare inf_con n convExpr (fromInteger mx_meas) tenv meas meas_ex))
-                    . filter (\(t, _) -> not (isTyFun t) && not (isTyVar t))
-                    . filter (validArgForSMT . snd) $ zip func_ts ars
-
-            smt_ret = extractExprPolyBoundWithRoot ret
-            smt_ret_ty = extractTypePolyBound (returnType func_e)
-            smt_ret_e_ty = case filterPBByType snd $ zipPB smt_ret smt_ret_ty of
-                              Just smt_ret_e_ty' -> smt_ret_e_ty'
-                              Nothing -> PolyBound ([], headValue smt_ret_ty) []
-
-            sy_body = andF
-                    . concatMap
-                        (\(syn_p, r, rt) ->
-                            let
-                                f_smt_ars = if null (sy_args syn_p) then [] else smt_ars
-                                smt_r = map (adjustArgs convExpr (fromInteger mx_meas) tenv meas meas_ex rt) $ r
-                            in
-                            map (\smt_r' -> funcF (sy_name syn_p) $ f_smt_ars ++ smt_r') smt_r)
-                    . extractValues 
-                    $ zipWithPB (\x (y, z) -> (x, y, z)) (s_syn_post si) smt_ret_e_ty
-            fixed_body = knownF (s_known_post_name si) ev_i ev_b
+        let fixed_body = knownF (s_known_post_name si) ev_i ev_b
             to_be_body = toBeF (s_to_be_post_name si) ev_i ev_b
 
+        sy_body <- mkPostSynthBody convExpr funcF eenv tenv meas meas_ex (s_syn_post si) (argumentTypes func_e) (returnType func_e) fc
         case s_status si of
-                Synth -> return $ andF [fixed_body, sy_body]
+                Synth -> return . andF $ fixed_body:sy_body
                 ToBeSynthed -> return $ andF [fixed_body, to_be_body]
                 Known -> return $ fixed_body
     | otherwise = error "mkPostCall: specification not found"
+
+mkPostSynthBody :: (InfConfigM m, ProgresserM m) => 
+                   ConvertExpr form
+                -> Func form
+                -> NMExprEnv
+                -> TypeEnv
+                -> Measures
+                -> MeasureExs
+                -> PolyBound SynthSpec
+                -> [Type]
+                -> Type
+                -> FuncCall
+                -> m [form]
+mkPostSynthBody convExpr funcF eenv tenv meas meas_ex post_spec func_ts ret_ty fc@(FuncCall { funcName = n, arguments = ars, returns = ret }) = do
+    let v_ars = filter (\(t, _) -> not (isTyVar t))
+              . filter (validArgForSMT . snd)
+              $ zip func_ts ars
+
+        smt_ret = extractExprPolyBoundWithRoot ret
+        smt_ret_ty = extractTypePolyBound ret_ty
+
+    formCalls convExpr funcF tenv meas meas_ex n v_ars post_spec smt_ret smt_ret_ty
+
+mkHigherOrderCall :: (InfConfigM m, ProgresserM m) =>
+                     ConvertExpr form
+                  -> Func form
+                  -> NMExprEnv
+                  -> TypeEnv
+                  -> Measures
+                  -> MeasureExs
+                  -> [PolyBound SynthSpec]
+                  -> Name
+                  -> [Type] -- ^ Argument types
+                  -> Type -- ^ Return Type
+                  -> FuncCall
+                  -> m [form]
+mkHigherOrderCall convExpr funcF eenv tenv meas meas_ex pb_synth@(_:_) n ar_ts ret_t fc = do
+    pre <- mkPreSynthBody convExpr funcF eenv tenv meas meas_ex (init pb_synth) ar_ts fc []
+    post <- mkPostSynthBody convExpr funcF eenv tenv meas meas_ex (last pb_synth) ar_ts ret_t fc
+    return $ pre ++ post
+mkHigherOrderCall _ _ _ _ _ _ _ _ _ _ _ = return []
+
+formCalls :: (InfConfigM m, ProgresserM m) => ConvertExpr form -> Func form -> TypeEnv -> Measures -> MeasureExs -> Name -> [(Type, Expr)] -> PolyBound SynthSpec -> PolyBound [Expr] -> PolyBound Type -> m [form]
+formCalls convExpr funcF tenv meas meas_ex n v_ars si_pb re_pb rt_pb = do
+    MaxSize mx_meas <- maxSynthFormSizeM
+    inf_con <- infConfigM
+    let smt_ars = concatMap (uncurry (adjustArgsWithCare inf_con n convExpr (fromInteger mx_meas) tenv meas meas_ex)) v_ars
+        si_re_rt_pb = case filterPBByType snd $ zipPB re_pb rt_pb of
+                  Just re_rt_pb -> zipWithPB (\x (y, z) -> (x, y, z)) si_pb re_rt_pb
+                  Nothing -> zipWithPB (\x (y, z) -> (x, y, z)) si_pb $ PolyBound ([], headValue rt_pb) [] -- error $ "formCalls: impossible, the polybound should have already been filtered" ++ "\nsi_pb = " ++ show si_pb ++ "\nre_pb = " ++ show re_pb ++ "\nrt_pb = " ++ show rt_pb
+    return $ concatMap (\(psi, re, rt) ->
+                let
+                    f_smt_ars = if null (sy_args psi) then [] else smt_ars
+                    smt_r = map (adjustArgs convExpr (fromInteger mx_meas) tenv meas meas_ex rt) re
+                in
+                map (\r -> funcF (sy_name psi) $ f_smt_ars ++ r) smt_r
+              ) $ extractValues si_re_rt_pb
 
 convertConstraints :: (InfConfigM m, ProgresserM m) =>
                       ConvertExpr form
@@ -193,13 +235,13 @@ convertConstraint :: (InfConfigM m, ProgresserM m) =>
                   -> M.Map Name SpecInfo
                   -> FuncConstraint
                   -> m form
-convertConstraint convExpr andF _ _ impF funcF knownF toBeF eenv tenv meas meas_ex evals si (Call All fc) = do
-    pre <- mkPreCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals si fc
+convertConstraint convExpr andF _ _ impF funcF knownF toBeF eenv tenv meas meas_ex evals si (Call All fc hcalls) = do
+    pre <- mkPreCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals si fc hcalls
     post <- mkPostCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals si fc
     return $ pre `impF` post
-convertConstraint convExpr andF _ _ _ funcF knownF toBeF eenv tenv meas meas_ex evals si (Call Pre fc) =
-    mkPreCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals si fc
-convertConstraint convExpr andF _ _ _ funcF knownF toBeF eenv tenv meas meas_ex evals si (Call Post fc) =
+convertConstraint convExpr andF _ _ _ funcF knownF toBeF eenv tenv meas meas_ex evals si (Call Pre fc hcalls) =
+    mkPreCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals si fc hcalls
+convertConstraint convExpr andF _ _ _ funcF knownF toBeF eenv tenv meas meas_ex evals si (Call Post fc _) =
     mkPostCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals si fc
 convertConstraint convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si (AndFC fs) =
     return . andF =<< mapM (convertConstraint convExpr andF orF notF impF funcF knownF toBeF eenv tenv meas meas_ex evals si) fs

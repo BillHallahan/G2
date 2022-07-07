@@ -322,7 +322,8 @@ extractWithoutSpecs lrs@(LiquidReadyState { lr_state = s
     let track_state = lh_s' {track = LHTracker { abstract_calls = []
                                                , last_var = Nothing
                                                , annotations = annm
-                                               , all_calls = [] } }
+                                               , all_calls = []
+                                               , higher_order_calls = [] } }
 
     -- We replace certain function name lists in the final State with names
     -- mapping into the measures from the LHState.  These functions do not
@@ -432,7 +433,7 @@ cleanupResults solver simplifier config init_id init_state bindings ers = do
           map (\er@(ExecRes { final_state = s }) ->
                 (er { final_state =
                               s {track = 
-                                    mapAbstractedInfoFCs (subVarFuncCall (model s) (expr_env init_state) (type_classes s))
+                                    mapAbstractedInfoFCs (subVarFuncCall True (model s) (expr_env init_state) (type_classes s))
                                     $ track s
                                 }
                     })) ers5
@@ -654,7 +655,7 @@ parseLHOut entry (ExecRes { final_state = s
            , abstracted = abstr}
 
 counterExampleToLHReturn :: State t -> CounterExample -> LHReturn
-counterExampleToLHReturn s (DirectCounter fc abstr) =
+counterExampleToLHReturn s (DirectCounter fc abstr _) =
     let
         called = funcCallToFuncInfo (T.pack . printHaskell s) . abstract $ fc
         abstr' = map (funcCallToFuncInfo (T.pack . printHaskell s) . abstract) abstr
@@ -662,7 +663,7 @@ counterExampleToLHReturn s (DirectCounter fc abstr) =
     LHReturn { calledFunc = called
              , violating = Nothing
              , abstracted = abstr'}
-counterExampleToLHReturn s (CallsCounter fc viol_fc abstr) =
+counterExampleToLHReturn s (CallsCounter fc viol_fc abstr _) =
     let
         called = funcCallToFuncInfo (T.pack . printHaskell s) . abstract $ fc
         viol_called = funcCallToFuncInfo (T.pack . printHaskell s) . abstract $ viol_fc
@@ -682,8 +683,8 @@ funcCallToFuncInfo t (FuncCall { funcName = f, arguments = inArg, returns = ret 
 
 lhStateToCE :: ExecRes AbstractedInfo -> CounterExample
 lhStateToCE (ExecRes { final_state = State { track = t } })
-    | Just c <-  abs_violated t = CallsCounter (init_call t) c (abs_calls t)
-    | otherwise = DirectCounter (init_call t) (abs_calls t)
+    | Just c <-  abs_violated t = CallsCounter (init_call t) c (abs_calls t) (ai_higher_order_calls t)
+    | otherwise = DirectCounter (init_call t) (abs_calls t) (ai_higher_order_calls t)
 
 parseLHFuncTuple :: State t -> FuncCall -> FuncInfo
 parseLHFuncTuple s (FuncCall {funcName = n, arguments = ars, returns = out}) =
