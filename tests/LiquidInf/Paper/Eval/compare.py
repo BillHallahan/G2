@@ -34,7 +34,8 @@ def main():
     # log = log_test
 
 
-    (log_compare, safe_compare, num_compare) = eval.test_pos_folder("tests/LiquidInf/Paper/Eval/Compare", "600", ["--use-invs"], skip = skip_list());
+    (log_compare, safe_compare, num_compare) = eval.test_pos_folder("tests/LiquidInf/Paper/Eval/Compare", "600", ["--use-invs"]);
+    # (log_compare, safe_compare, num_compare) = eval.test_pos_folder("tests/LiquidInf/Paper/Eval/Compare", "600", ["--use-invs"], skip = skip_list());
     print(str(safe_compare) + "/" + str(num_compare) + " Safe");
 
     eval.create_table(log_compare)

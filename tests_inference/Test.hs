@@ -121,7 +121,7 @@ posTestInferenceWithTimeOut to to_se fp = do
         let infconfig = (mkInferenceConfig []) { timeout_se = to_se }
         res <- doTimeout to $ inferenceCheck infconfig config [] [fp] []
 
-        assertBool ("Inference for " ++ fp ++ " failed.") $ maybe False isRight res
+        assertBool ("Inference for " ++ fp ++ " failed.") $ maybe False (isRight . snd) res
         )
 
 posTestInference :: FilePath -> TestTree
@@ -134,7 +134,7 @@ negTestInference fp = do
         let infconfig = mkInferenceConfig []
         res <- doTimeout 90 $ inferenceCheck infconfig config [] [fp] []
 
-        assertBool ("Inference for " ++ fp ++ " failed.") $ maybe False isLeft res
+        assertBool ("Inference for " ++ fp ++ " failed.") $ maybe False (isLeft . snd) res
         )
 
 cexTest :: FilePath -> String -> TestTree
