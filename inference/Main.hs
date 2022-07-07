@@ -81,11 +81,11 @@ checkQualifs f config = do
 
 callInference :: String -> InferenceConfig -> G2.Config -> IO ()
 callInference f infconfig config = do
-    gs <- inferenceCheck infconfig config [] [f] []
+    (s, gs) <- inferenceCheck infconfig config [] [f] []
     case gs of
         Left gs' -> do
             putStrLn "Counterexample"
-            print gs'
+            printCE s gs'
         Right gs' -> do
             putStrLn "Safe"
             print gs'

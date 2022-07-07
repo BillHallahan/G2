@@ -480,8 +480,10 @@ toSolverAST (x :/= y) = function1 "not" $ function2 "=" (toSolverAST x) (toSolve
 toSolverAST (x :< y) = function2 "<" (toSolverAST x) (toSolverAST y)
 toSolverAST (x :<= y) = function2 "<=" (toSolverAST x) (toSolverAST y)
 
+toSolverAST (SmtAnd []) = "true"
 toSolverAST (SmtAnd [x]) = toSolverAST x
 toSolverAST (SmtAnd xs) = functionList "and" $ map (toSolverAST) xs
+toSolverAST (SmtOr []) = "false"
 toSolverAST (SmtOr [x]) = toSolverAST x
 toSolverAST (SmtOr xs) =  functionList "or" $ map (toSolverAST) xs
 
