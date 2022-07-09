@@ -70,11 +70,8 @@ runWithArgs as = do
 
   proj <- guessProj src
 
-  -- TODO for now, total as long as there's an extra arg
-  -- TODO finite variables
   let (finite_names, total_names) = partition finiteArg tail_vars
       finite = map (T.pack . tail) finite_names
-      -- TODO don't need to add finite to this
       total = (map T.pack total_names) ++ finite
       m_mapsrc = mkMapSrc []
       tentry = T.pack entry
