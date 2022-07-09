@@ -84,6 +84,7 @@ posTests = testGroup "Tests"
             , posTestInference "tests_inference/test_files/Pos/Test42.hs"
             , posTestInference "tests_inference/test_files/Pos/Test43.hs"
             , posTestInference "tests_inference/test_files/Pos/Test44.hs"
+            , posTestInference "tests_inference/test_files/Pos/Test45.hs"
 
             , posTestInference "tests_inference/test_files/Pos/Sets1.hs"
             , posTestInference "tests_inference/test_files/Pos/Sets2.hs"
