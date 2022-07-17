@@ -328,7 +328,13 @@ argsAndRetFromSpec tenv tc ghci meas ars (t:ts) rty st@(RFun { rt_in = rfun@(RFu
                       Nothing -> error "argsAndRetFromSpec: out_symb is Nothing"
         sy_pb = mkSpecArg (fromInteger mx_meas) ghci tenv meas out_symb t
     let (ts', rty') = generateRelTypes t
-    (f_ars, f_ret) <- argsAndRetFromSpec tenv tc ghci meas ars ts' rty' rfun
+
+    -- We want all specs to have access to values to there left, so we pass ars in here.
+    -- But, we utimately want to have only the actual specs for the higher order function,
+    -- so we drop the specs that are passed in from the returned list.
+    (f_ars_all, f_ret) <- argsAndRetFromSpec tenv tc ghci meas ars ts' rty' rfun
+    let f_ars = drop (length ars) f_ars_all
+
     let f_ret_list = case f_ret of
                         PolyBound (AAndR { aar_a = [], aar_r = [] }) [] -> []
                         _ -> [f_ret]

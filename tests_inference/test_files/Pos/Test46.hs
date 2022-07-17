@@ -6,7 +6,7 @@ module Test46 ( List, test_nearest) where
 
 import Prelude hiding (zipWith)
 
-import Data.List (minimumBy)
+-- import Data.List (minimumBy)
 import qualified Data.List as L
 
 infixr 9 :+:
@@ -23,6 +23,7 @@ data List a = Emp
     size ((:+:) x xs) = 1 + size xs
   @-}
 
+
 {-@ invariant {v:List a | 0 <= size v} @-}
 
 zipWith   :: List Double -> List Double -> Double
@@ -36,7 +37,12 @@ nearest centers p = minKeyFuncList centers f
     f x1 x2 = compare (zipWith x1 p) (zipWith x2 p)
 
 minKeyFuncList :: [List Double] -> (List Double -> List Double -> Ordering) -> List Double
-minKeyFuncList xs f =  minimumBy f xs
+minKeyFuncList [] _ = error "minKeyFuncList: empty list"
+minKeyFuncList xs cmp = foldl1 minBy xs
+                        where
+                           minBy x y = case cmp x y of
+                                       GT -> y
+                                       _  -> x
 
 test_nearest = nearest [p] p
   where
