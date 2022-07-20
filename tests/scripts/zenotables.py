@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-# TODO code for CSV interpretation
-# don't put the header in here
+# code for CSV interpretation
+# header not included in output
 # everything in output is a string
 def csv_matrix(fname):
     file = open(fname + ".csv", "r")
@@ -9,7 +9,6 @@ def csv_matrix(fname):
     file.close()
     mat = []
     for line in lines[1:]:
-        # TODO swap out the semicolons?
         line_list = line.replace("\n", "").split(",")
         line_list[1] = line_list[1].replace(";", ",")
         line_list[2] = line_list[2].replace(";", ",")
@@ -155,7 +154,6 @@ def latex_table(mat):
         tabular += "c | "
     lines.append(tabular + "}")
     lines.append("\\hline")
-    # special layout of the first row?  No, just like the rest
     for row in mat:
         ln = ""
         ln += row[0]
@@ -163,7 +161,6 @@ def latex_table(mat):
             ln += " & " + entry
         ln += " \\\\ \\hline"
         lines.append(ln)
-    # wrap-up
     lines.append("\\end{tabular}")
     lines.append("\\end{center}")
     lines.append("\\end{figure}")
@@ -176,34 +173,6 @@ def write_latex(fname, lines):
     file.close()
 
 def main():
-    #test_suite_simple(custom_finite)
-    #test_suite(equivalences_all_total)
-    #test_suite(finite_long, 120)
-    #test_suite_fail(equivalences_should_fail)
-    #test_suite(more_finite)
-    #test_suite(old_successes, 150)
-    #test_suite_csv(ground_truth[:2], 30)
-    #test_suite_ground(totality_change(ground_truth))
-    #test_suite_ground([("p73", [p, xs])], 20)
-    #test_suite_ground(old_successes, 60)
-    #print(len(totality_change(ground_truth)))
-    #print(len(make_altered_finite_list(ground_truth_altered_finite)))
-
-    # TODO this is the toy example I used for testing the new file writing
-    #test_suite_csv("CX", [("p01", [])], 30)
-    #test_suite_csv("CX", [("p45", [])], 30)
-
-    # TODO this is the code for moving CSV results to LaTeX
-    #print(csv_matrix("CX"))
-    #print(num_total(csv_matrix("outcomes")[0]))
-    #print(results_matrix(csv_matrix("ZenoAlteredTotal")))
-    #lat = latex_table(results_matrix(csv_matrix("ZenoAlteredTotal")))
-    #write_latex("LatexTest", lat)
-    #csv_mat = good_matrix(results_matrix(csv_matrix("ZenoTrue")))
-    #csv_mat = bad_matrix(results_matrix(csv_matrix("ZenoAlteredFinite")))
-    #lat = latex_table(csv_mat)
-    #write_latex("EvaluationFinite", lat)
-
-    #lat = latex_table(results_matrix(csv_matrix("../resultsApr10/ZenoUnaltered")))
-    #write_latex("Evaluation2", lat)
-    pass
+    for group in ["ZenoUnaltered", "ZenoTotal", "ZenoFinite", "ZenoCycle"]:
+        lat = latex_table(results_matrix(csv_matrix(group)))
+        write_latex("Results" + group, lat)
