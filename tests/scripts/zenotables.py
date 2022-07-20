@@ -176,3 +176,6 @@ def main():
     for group in ["ZenoUnaltered", "ZenoTotal", "ZenoFinite", "ZenoCycle"]:
         lat = latex_table(results_matrix(csv_matrix(group)))
         write_latex("Results" + group, lat)
+
+if __name__ == "__main__":
+    main()
