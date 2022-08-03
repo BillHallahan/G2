@@ -92,11 +92,6 @@ printFuncCalls config entry b =
 
         let funcOut = printHaskell s $ (conc_out execr)
 
-        ppStatePiece (printExprEnv config)  "expr_env" $ ppExprEnv s
-        ppStatePiece (printRelExprEnv config) "rel expr_env" $ ppRelExprEnv s b
-        ppStatePiece (printCurrExpr config) "curr_expr" $ ppCurrExpr s
-        ppStatePiece (printPathCons config) "path_cons" $ ppPathConds s
-
         putStrLn $ funcCall ++ " = " ++ funcOut)
 
 ppStatePiece :: Bool -> String -> String -> IO ()
