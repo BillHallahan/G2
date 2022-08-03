@@ -14,6 +14,7 @@ import G2.Liquid.Types
 import Language.Haskell.Liquid.Liquid()
 import Language.Haskell.Liquid.Constraint.Types hiding (ghcI)
 import Language.Haskell.Liquid.Types hiding (Loc, names)
+import Language.Haskell.Liquid.Types.RefType
 
 import G2.Translation.Haskell
 
