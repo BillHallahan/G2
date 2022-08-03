@@ -35,6 +35,7 @@ import G2.Solver as Solver
 
 import Control.Monad.IO.Class 
 
+import Language.Haskell.Liquid.Types as LH hiding (SP, ms, isBool)
 import Language.Fixpoint.Types.Refinements as LH hiding (pAnd, pOr)
 import qualified Language.Fixpoint.Types as LH
 import qualified Language.Fixpoint.Types as LHF
