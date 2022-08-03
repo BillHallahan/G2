@@ -70,6 +70,7 @@ import G2.Solver hiding (solve)
 
 import G2.Lib.Printers
 
+import Language.Haskell.Liquid.Types hiding (Config, cls, names, measures)
 import Language.Haskell.Liquid.UX.CmdLine hiding (config)
 
 import Control.Exception
