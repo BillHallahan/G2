@@ -464,7 +464,7 @@ runG2SolvingResult :: ( Named t
                    -> Bindings
                    -> State t
                    -> IO (Result (ExecRes t) () ())
-runG2SolvingResult solver simplifier bindings s@(State { known_values = kv })
+runG2SolvingResult solver simplifier bindings s
     | true_assert s = do
         r <- solve solver s bindings (E.symbolicIds . expr_env $ s) (path_conds s)
 
@@ -473,7 +473,7 @@ runG2SolvingResult solver simplifier bindings s@(State { known_values = kv })
                 let m' = reverseSimplification simplifier s bindings m
                 return . SAT $ runG2SubstModel m' s bindings
             UNSAT _ -> return $ UNSAT ()
-            Unknown s _ -> return $ Unknown s ()
+            Unknown reason _ -> return $ Unknown reason ()
 
     | otherwise = return $ UNSAT ()
 
@@ -488,7 +488,7 @@ runG2Solving :: ( Named t
 runG2Solving solver simplifier bindings s = do
     res <- runG2SolvingResult solver simplifier bindings s
     case res of
-        SAT s -> return $ Just s
+        SAT m -> return $ Just m
         _ -> return Nothing
 
 runG2SubstModel :: Named t =>

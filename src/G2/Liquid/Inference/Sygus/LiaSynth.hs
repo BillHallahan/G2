@@ -449,10 +449,10 @@ getModelOrUnsatCore :: SMTConverter smt => smt -> [(SMTName, Sort)] -> Result ()
 getModelOrUnsatCore con vs (SAT ()) = do
     mdl <- getModelInstrResult con vs
     return (SAT mdl)
-getModelOrUnsatCore con vs (UNSAT ()) = do
+getModelOrUnsatCore con _ (UNSAT ()) = do
     uc <- getUnsatCoreInstrResult con
     return (UNSAT uc)
-getModelOrUnsatCore con vs (Unknown err ()) = return (Unknown err ())
+getModelOrUnsatCore _ _ (Unknown err ()) = return (Unknown err ())
 
 -- | Extract Integer literals from a LH expression
 exprIntegers :: LHF.Expr -> [Integer]
@@ -1106,7 +1106,7 @@ constraintsToSMT eenv tenv meas meas_ex evals si fc =
 convertExprToSMT :: G2.Expr -> SMTAST
 convertExprToSMT e = 
     case e of
-        (App (App (Data (DataCon (Name n _ _ _) _)) _) ls)
+        (App (App (Data (DataCon _ _)) _) ls)
             | Just is <- extractInts ls ->
                 foldr (\i arr -> ArrayStore arr (VInt i) (VBool True)) falseArray is
         _ -> exprToSMT e
@@ -1115,7 +1115,7 @@ extractInts :: G2.Expr -> Maybe [Integer]
 extractInts (App (App (App (Data _ ) (Type _)) (App _ (Lit (LitInt i)))) xs) =
     return . (i:) =<< extractInts xs
 extractInts (App (Data _) _) = Just []
-extractInts e = Nothing
+extractInts _ = Nothing
 
 ---
 

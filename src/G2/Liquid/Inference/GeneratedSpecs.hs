@@ -43,7 +43,9 @@ import G2.Liquid.Inference.PolyRef
 import Language.Haskell.Liquid.Constraint.Init
 import Language.Haskell.Liquid.Types hiding
           (TargetInfo (..), TargetSrc (..), TargetSpec (..), GhcSpec (..), qualifiers)
+import Language.Haskell.Liquid.Types.Fresh
 import Language.Fixpoint.Types.Refinements
+import Language.Haskell.Liquid.Types.RefType
 import Language.Fixpoint.Types (Qualifier (..))
 
 import qualified Control.Monad.State as S

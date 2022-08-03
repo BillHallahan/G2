@@ -14,7 +14,6 @@ import G2.Liquid.Types
 import Language.Haskell.Liquid.Liquid()
 import Language.Haskell.Liquid.Constraint.Types hiding (ghcI)
 import Language.Haskell.Liquid.Types hiding (Loc, names)
-import Language.Haskell.Liquid.Types.RefType
 
 import G2.Translation.Haskell
 
@@ -26,8 +25,6 @@ import Data.Maybe
 import qualified Data.Text as T
 
 import SrcLoc
-
-import Debug.Trace
 
 lookupAnnot :: Name -> AnnotMap -> Maybe [(Maybe T.Text, Expr)]
 lookupAnnot (Name _ _ _ (Just s)) =
@@ -118,7 +115,7 @@ pickOneA :: [(t, Annot t1)] -> [(t, Annot t1)]
 pickOneA xas = case (rs, ds, ls, us) of
                  (x:_, _, _, _) -> [x]
                  (_, x:_, _, _) -> [x]
-                 (_, _, _:_, _) -> trace ("Loc") []
+                 (_, _, _:_, _) -> []
                  (_, _, _, x:_) -> [x]
 
                  -- (_, x:_, _, _) -> [x]
