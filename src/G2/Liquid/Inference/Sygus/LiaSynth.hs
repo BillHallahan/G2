@@ -35,7 +35,6 @@ import G2.Solver as Solver
 
 import Control.Monad.IO.Class 
 
-import Language.Haskell.Liquid.Types as LH hiding (SP, ms, isBool)
 import Language.Fixpoint.Types.Refinements as LH hiding (pAnd, pOr)
 import qualified Language.Fixpoint.Types as LH
 import qualified Language.Fixpoint.Types as LHF
@@ -46,7 +45,6 @@ import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
 import qualified Text.Builder as TB
 
 data SynthRes = SynthEnv

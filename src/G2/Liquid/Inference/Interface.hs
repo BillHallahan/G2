@@ -35,13 +35,11 @@ import qualified G2.Liquid.Types as G2LH
 import G2.Solver
 import G2.Translation
 
-import Language.Haskell.Liquid.Types hiding (Config, cls, names, measures)
 import Language.Haskell.Liquid.Types as LH
 
 import Control.Monad.IO.Class 
 import Control.Monad.Reader
 import Data.Either
-import Data.Either.Extra
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as HM
 import Data.List
@@ -197,10 +195,10 @@ inferenceL :: (MonadIO m, SMTConverter con)
            -> BlockedModels
            -> InfStack m InferenceRes
 inferenceL con iter ghci m_modname lrs nls evals meas_ex senv fc max_fc blk_mdls = do
-    let (fs, sf, below_sf) = case nls of
-                        (fs_:sf_:be) -> (fs_, sf_, be)
-                        ([fs_])-> (fs_, [], [])
-                        [] -> ([], [], [])
+    let sf = case nls of
+                        (_:sf_:_) -> sf_
+                        ([_])-> []
+                        [] -> []
 
     startLevelTimer (case nls of fs_:_ -> fs_; [] -> [])
     (resAtL, evals') <- inferenceB con iter ghci m_modname lrs nls evals meas_ex senv fc max_fc blk_mdls

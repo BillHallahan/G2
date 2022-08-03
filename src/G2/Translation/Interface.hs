@@ -4,7 +4,6 @@ module G2.Translation.Interface ( translateLoaded
 import DynFlags
 
 import Control.Monad.Extra
-import qualified Data.HashSet as HS
 import Data.List
 import Data.Maybe
 import qualified Data.Text as T
@@ -134,7 +133,7 @@ translateLoadedD proj src libs tr_con = do
   (nm, tnm, libs_g2) <- mapM readFileExtractedG2 libs >>= return . mergeFileExtractedG2s
 
   -- Now do the target file
-  (nm2, tnm2, tgt_g2) <- hskToG2ViaCgGutsFromFile (Just HscInterpreted) proj src nm tnm tr_con
+  (_, _, tgt_g2) <- hskToG2ViaCgGutsFromFile (Just HscInterpreted) proj src nm tnm tr_con
 
   -- Combine the library g2 and extracted g2s
   -- Also do absVarLoc!

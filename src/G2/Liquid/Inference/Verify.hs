@@ -15,7 +15,6 @@ import G2.Liquid.Helpers
 import G2.Liquid.Types
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.GeneratedSpecs
-import G2.Translation.Haskell
 
 import Data.Maybe
 import GHC
@@ -60,9 +59,6 @@ import Language.Haskell.Liquid.Liquid ()
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
 
-import           Language.Haskell.Liquid.UX.Annotate (mkOutput)
-import Language.Haskell.Liquid.UX.Errors
-import Language.Haskell.Liquid.Types.RefType
 import qualified Language.Haskell.Liquid.UX.DiffCheck as DC
 
 data VerifyResult v = Safe

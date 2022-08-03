@@ -66,8 +66,6 @@ import G2.Liquid.Inference.Initalization
 import G2.Solver hiding (Assert)
 import G2.Translation
 
-import Language.Haskell.Liquid.Types hiding (Config, hs)
-
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import Data.List

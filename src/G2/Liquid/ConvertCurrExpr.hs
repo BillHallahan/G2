@@ -13,11 +13,9 @@ import qualified G2.Language.ExprEnv as E
 import G2.Liquid.Conversion
 import G2.Liquid.Types
 
-import Control.Exception
 import Control.Monad.Extra
 import qualified Data.Map as M
 import Data.Maybe
-import Data.Tuple.Extra
 
 -- | Returns (1) the Id of the new main function and (2) the functions that need counterfactual variants
 convertCurrExpr :: Id -> Bindings -> LHStateM (Id, [Name])
