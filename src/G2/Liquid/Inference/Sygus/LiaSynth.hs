@@ -35,7 +35,7 @@ import G2.Solver as Solver
 
 import Control.Monad.IO.Class 
 
-import Language.Haskell.Liquid.Types as LH hiding (SP, ms, isBool)
+import Language.Haskell.Liquid.Types as LH hiding (SP, ms, isBool, diff, fresh)
 import Language.Fixpoint.Types.Refinements as LH hiding (pAnd, pOr)
 import qualified Language.Fixpoint.Types as LH
 import qualified Language.Fixpoint.Types as LHF
@@ -606,7 +606,7 @@ filterRelOpBranch :: SynthSpec -> SMTModel -> SMTModel
 filterRelOpBranch si mdl =
     let
         clauses = sy_coeffs si
-        coeffs = concatMap snd clauses
+        coeff_nms = concatMap snd clauses
     in
     -- If we are not using a clause, we don't care about c_op_branch1 and c_op_branch2
     -- If we are using a clause but c_op_branch1 is true, we don't care about c_op_branch2
@@ -615,7 +615,7 @@ filterRelOpBranch si mdl =
                   M.delete (c_op_branch2 form) $ M.delete (c_op_branch1 form) mdl_
               | M.lookup (c_op_branch1 form) mdl == Just (VBool True) ->
                   M.delete (c_op_branch2 form) mdl_
-              | otherwise -> mdl) mdl coeffs
+              | otherwise -> mdl) mdl coeff_nms
 
 -- | Create specification definitions corresponding to previously rejected models,
 -- and add assertions that the new synthesized specification definition must

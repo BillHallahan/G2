@@ -274,10 +274,10 @@ buildSI tenv tc meas stat ghci f aty rty = do
 
     (outer_ars_pb, ret_pb) <- argsAndRetFromSpec tenv tc ghci meas [] aty rty fspec
     let outer_ars = map fst outer_ars_pb
-        ret = headValue ret_pb
+        ret_v = headValue ret_pb
 
         arg_ns = map (\(a, i) -> a { smt_var = "x_" ++ show i } ) $ zip (concat outer_ars) ([1..] :: [Integer])
-        ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show i }) $ zip (aar_r ret) ([1..] :: [Integer])
+        ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show i }) $ zip (aar_r ret_v) ([1..] :: [Integer])
 
     return $ 
         SI { s_max_coeff = 0

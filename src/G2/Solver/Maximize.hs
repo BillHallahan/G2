@@ -6,7 +6,6 @@ import G2.Solver.Language
 import G2.Solver.Solver
 
 import Control.Concurrent
-import Control.Concurrent.MVar
 import Data.IORef
 import Data.List as L
 import qualified Data.Map as M
@@ -54,7 +53,7 @@ instance SMTConverter con => SMTConverter (MaximizeSolver con) where
 
     setProduceUnsatCores (MaxSolver _ _ _ con) = setProduceUnsatCores con
 
-    addFormula (MaxSolver _ _ headers_io_ref con) form = modifyIORef' headers_io_ref (form ++)
+    addFormula (MaxSolver _ _ headers_io_ref _) form = modifyIORef' headers_io_ref (form ++)
 
     checkSatGetModelOrUnsatCoreNoReset (MaxSolver _ _ headers_io_ref con) headers vs = do
         added <- readIORef headers_io_ref
@@ -135,7 +134,7 @@ solveSoftAsserts' con mb_mdl fresh min_ max_ = do
                     pop con
                     -- get-model is only valid after a check-sat call that returns sat,
                     -- so we must ensure that the last check-sat did indeed return sat.
-                    checkSatNoReset con []
+                    _ <- checkSatNoReset con []
                     return $ SAT ()
                 -- Should be unreachable, because if min_ is not 0, we have found a model.
                 -- But if min_ == max_ == 0, target == 0, and we hit the first case.
