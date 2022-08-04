@@ -167,9 +167,9 @@ genG2UnRepClause' tyVarNum dcNme fieldTypes = do
             let guardRet = return (guardPat, ret)
 
             clause pats (guardedB [guardRet]) []
-        fnt -> do
+        fnt@(fnt_h:_) -> do
             tenv <- newName "tenv_unrep"
-            let pats = varP tenv:[varP expr]
+            let pats = if usesTEnvUnRep (snd fnt_h) then varP tenv:[varP expr] else wildP:[varP expr]
 
             ret <- appsE $ conE dcNme:map (newFieldUnRep tenv) fnt
             let guardRet = return (guardPat, ret)
@@ -194,6 +194,12 @@ newFieldUnRep _ (x, (_, ConT n))
     | nameBase n == "Char#" = [| charPrimFromLit $(varE x) |]
 newFieldUnRep tenv (x, _) = do
     varE 'g2UnRep `appE` varE tenv `appE` varE x
+
+usesTEnvUnRep :: StrictType -> Bool
+usesTEnvUnRep (_, ConT n) =
+    let nb = nameBase n in
+    not (nb == "Int#" || nb == "Float#" || nb == "Double#" || nb == "Char#")
+usesTEnvUnRep _ = True
 
 genG2Type :: TH.Name -> Q Dec
 genG2Type tyConName = funD 'g2Type [genG2TypeClause tyConName]

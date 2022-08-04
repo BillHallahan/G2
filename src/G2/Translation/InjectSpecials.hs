@@ -115,7 +115,6 @@ mkPrimTuples' n | n < 0 = []
                             ns = if n == 0 then [] else map (\i -> Name "a" m i Nothing) [0..n]
                             rt_ns = if n == 0 then [] else map (\i -> Name "rt_" m i Nothing) [0..n]
                             tv = map (TyVar . flip Id TYPE) ns
-                            rt_tv = map (TyVar . flip Id TYPE) ns
 
                             t = foldr (TyFun) (mkFullAppedTyCon tn tv TYPE) tv
                             t' = foldr (\n' -> TyForAll (NamedTyBndr (Id n' TYPE))) t ns
