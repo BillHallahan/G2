@@ -43,8 +43,6 @@ import GHC as GHC
 import Name
 import Var as V
 
-import Debug.Trace
-
 -- | Interface with LH
 getGHCInfos :: LHC.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO [GhcInfo]
 getGHCInfos config proj fp lhlibs = do
@@ -149,8 +147,8 @@ namesEq :: GHC.Name -> G2.Name -> Bool
 namesEq ghc_n (Name n m _ _) =
     T.pack (occNameString $ nameOccName ghc_n) == n
         && (case nameModule_maybe ghc_n of
-                Just mod ->
-                    Just (T.pack . moduleNameString . moduleName $ mod) == m
+                Just m' ->
+                    Just (T.pack . moduleNameString . moduleName $ m') == m
                 Nothing -> m == Nothing)
 
 measureSpecs :: [GhcInfo] -> [Measure SpecType GHC.DataCon]

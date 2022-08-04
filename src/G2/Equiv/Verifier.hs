@@ -12,14 +12,11 @@ import G2.Config
 
 import G2.Interface
 
-import Control.Exception
 import qualified Control.Monad.State.Lazy as CM
 
 import qualified G2.Language.ExprEnv as E
-import qualified G2.Language.Typing as T
 import qualified G2.Language.CallGraph as G
 
-import Data.List
 import Data.Maybe
 import qualified Data.Text as DT
 
@@ -35,20 +32,15 @@ import G2.Equiv.Tactics
 import G2.Equiv.Induction
 import G2.Equiv.Summary
 
-import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import G2.Execution.Memory
 import Data.Monoid (Any (..))
 
-import Debug.Trace
-
-import G2.Execution.NormalForms
 import qualified G2.Language.Stack as Stck
 import Control.Monad
 
 import Data.Time
 
-import G2.Execution.Reducer
 import G2.Lib.Printers
 
 -- TODO reader / writer monad source consulted
@@ -162,8 +154,8 @@ transferTrackerInfo s1 s2 =
       t2 = track s2
       t2' = t2 {
         higher_order = higher_order t1
-      , total = total t1
-      , finite = finite t1
+      , total_vars = total_vars t1
+      , finite_vars = finite_vars t1
       --, opp_env = expr_env s1
       }
   in s2 { track = t2' }
@@ -740,24 +732,12 @@ tryDischarge solver tactics ns lemmas (fn:fresh_names) sh1 sh2 =
       s2 = latest sh2
   in case getObligations ns s1 s2 of
     Nothing -> do
-      let pg = mkPrettyGuide (s1, s2)
       W.tell [Marker (sh1, sh2) $ NotEquivalent (s1, s2)]
-      {-
-      W.liftIO $ putStrLn $ "N! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
-      W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s1) s1
-      W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s2) s2
-      -}
       return Nothing
     Just obs -> do
-      let pg = mkPrettyGuide (s1, s2)
       case obs of
         [] -> W.tell [Marker (sh1, sh2) $ NoObligations (s1, s2)]
         _ -> return ()
-      {-
-      W.liftIO $ putStrLn $ "J! " ++ (show $ folder_name $ track s1) ++ " " ++ (show $ folder_name $ track s2)
-      W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s1) s1
-      W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env s2) s2
-      -}
       -- just like with tactics, we only need one fresh name here
       let states = map (stateWrap fn s1 s2) obs
       res <- mapM (applyTactics solver tactics ns lemmas [] fresh_names (sh1, sh2)) states
@@ -838,16 +818,6 @@ cleanState state bindings =
   let sym_config = addSearchNames (input_names bindings)
                    $ addSearchNames (M.keys $ deepseq_walkers bindings) emptyMemConfig
   in markAndSweepPreserving sym_config state bindings
-
--- TODO get the first one in the list, which was created last
--- TODO lemmas could cause problems for this
-fetchCX :: [Marker] -> (StateET, StateET)
-fetchCX [] = error "No Counterexample"
-fetchCX ((Marker _ m):ms) = case m of
-  NotEquivalent s_pair -> s_pair
-  SolverFail s_pair -> s_pair
-  CycleFound cm -> cycle_real_present cm
-  _ -> fetchCX ms
 
 -- If the Marker list is reversed from how it was when it was fetched, then
 -- we're guaranteed to get something that came from the main proof rather than

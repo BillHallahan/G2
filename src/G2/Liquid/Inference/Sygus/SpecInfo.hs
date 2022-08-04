@@ -6,7 +6,6 @@ import G2.Language as G2
 import qualified G2.Language.ExprEnv as E
 import G2.Liquid.Conversion
 import G2.Liquid.Helpers
-import G2.Liquid.Interface
 import G2.Liquid.Types hiding (SP)
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.FuncConstraint
@@ -275,10 +274,10 @@ buildSI tenv tc meas stat ghci f aty rty = do
 
     (outer_ars_pb, ret_pb) <- argsAndRetFromSpec tenv tc ghci meas [] aty rty fspec
     let outer_ars = map fst outer_ars_pb
-        ret = headValue ret_pb
+        ret_v = headValue ret_pb
 
         arg_ns = map (\(a, i) -> a { smt_var = "x_" ++ show i } ) $ zip (concat outer_ars) ([1..] :: [Integer])
-        ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show i }) $ zip (aar_r ret) ([1..] :: [Integer])
+        ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show i }) $ zip (aar_r ret_v) ([1..] :: [Integer])
 
     return $ 
         SI { s_max_coeff = 0
@@ -321,12 +320,7 @@ instance Monoid ArgsAndRet where
 argsAndRetFromSpec :: (InfConfigM m, ProgresserM m) => TypeEnv -> TypeClasses -> [GhcInfo] -> Measures -> [([SpecArg], PolyBound ArgsAndRet)] -> [Type] -> Type -> SpecType -> m ([([SpecArg], PolyBound ArgsAndRet)], PolyBound ArgsAndRet)
 argsAndRetFromSpec tenv tc ghci meas ars ts rty (RAllT { rt_ty = out }) =
     argsAndRetFromSpec tenv tc ghci meas ars ts rty out
-argsAndRetFromSpec tenv tc ghci meas ars (t:ts) rty st@(RFun { rt_in = rfun@(RFun {}), rt_out = out}) = do
-    MaxSize mx_meas <- maxSynthFormSizeM
-    let out_symb = case outer . headValue $ specTypeSymbolPB st of
-                      Just os -> os
-                      Nothing -> error "argsAndRetFromSpec: out_symb is Nothing"
-        sy_pb = mkSpecArg (fromInteger mx_meas) ghci tenv meas out_symb t
+argsAndRetFromSpec tenv tc ghci meas ars (t:ts) rty (RFun { rt_in = rfun@(RFun {}), rt_out = out}) = do
     let (ts', rty') = generateRelTypes t
     (f_ars, f_ret) <- argsAndRetFromSpec tenv tc ghci meas ars ts' rty' rfun
     let f_ret_list = case f_ret of
@@ -511,7 +505,7 @@ allCondsKnown ::  M.Map a SpecInfo -> M.Map a SpecInfo
 allCondsKnown = M.map allCondsKnown'
 
 allCondsKnown' :: SpecInfo -> SpecInfo
-allCondsKnown' si@(SI { s_syn_post = pb_post@(PolyBound sy_post _) })
+allCondsKnown' si@(SI { s_syn_post = (PolyBound sy_post _) })
     | take 4 (sy_name sy_post) == "cond" = si { s_status = Known }
 allCondsKnown' si = si
 

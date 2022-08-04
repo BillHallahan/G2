@@ -56,10 +56,6 @@ data Config = Config {
     , logStates :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
     , sharing :: Sharing
     , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
-    , printCurrExpr :: Bool -- ^ Controls whether the curr expr is printed
-    , printExprEnv :: Bool -- ^ Controls whether the expr env is printed
-    , printRelExprEnv :: Bool -- ^ Controls whether the portion of the expr env relevant to the curr expr and path constraints is printed
-    , printPathCons :: Bool -- ^ Controls whether path constraints are printed
     , returnsTrue :: Bool -- ^ If True, shows only those inputs that do not return True
     , higherOrderSolver :: HigherOrderSolver -- ^ How to try and solve higher order functions
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
@@ -92,10 +88,6 @@ mkConfig homedir as m = Config {
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing
 
     , maxOutputs = strArg "max-outputs" as m (Just . read) Nothing
-    , printCurrExpr = boolArg "print-ce" as m Off
-    , printExprEnv = boolArg "print-eenv" as m Off
-    , printPathCons = boolArg "print-pc" as m Off
-    , printRelExprEnv = boolArg "print-rel-eenv" as m Off
     , returnsTrue = boolArg "returns-true" as m Off
     , higherOrderSolver = strArg "higher-order" as m higherOrderSolArg SingleFunc
     , smt = strArg "smt" as m smtSolverArg ConZ3

@@ -19,10 +19,6 @@ module G2.Solver.SMT2 ( Z3
 
 import G2.Config.Config
 import G2.Language.ArbValueGen
-import G2.Language.Expr
-import G2.Language.Support
-import G2.Language.Syntax hiding (Assert)
-import G2.Language.Typing
 import G2.Solver.Language
 import G2.Solver.ParseSMT
 import G2.Solver.Solver
@@ -31,9 +27,7 @@ import G2.Solver.Converters --It would be nice to not import this...
 import Control.Exception.Base (evaluate)
 import Data.List.Utils (countElem)
 import qualified Data.HashSet as HS
-import Data.IORef
 import qualified Data.Map as M
-import Data.Ratio
 import Data.Semigroup
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -359,7 +353,7 @@ checkSat' :: Handle -> Handle -> IO (Result () () ())
 checkSat' h_in h_out = do
     hPutStr h_in "(check-sat)\n"
 
-    r <- hWaitForInput h_out (-1)
+    _ <- hWaitForInput h_out (-1)
     checkSatReadResult h_out
 
 checkSatReadResult :: Handle -> IO (Result () () ())
@@ -417,7 +411,8 @@ getUnsatCoreCVC4 :: Handle -> Handle -> IO [SMTName]
 getUnsatCoreCVC4 h_in h_out = do
     hPutStr h_in "(get-unsat-core)\n"
     _ <- hWaitForInput h_out (-1)
-    opening_bracket <- hGetLine h_out
+    -- Read in the opening bracket
+    _ <- hGetLine h_out
     out <- getCore
     putStrLn $ "unsat-core = " ++ show out
 
@@ -461,27 +456,3 @@ getLinesMatchParens' h_out n = do
     else do
         out' <- getLinesMatchParens' h_out n'
         return $ out ++ out'
-
-solveExpr :: SMTConverter con => Handle -> Handle -> con -> ExprEnv -> Expr -> IO Expr
-solveExpr h_in h_out con eenv e = do
-    let vs = map (\i -> Var i) $ symbVars eenv e
-    vs' <- solveExpr' h_in h_out con vs
-    let vs'' = map smtastToExpr vs'
-    
-    return $ foldr (uncurry replaceASTs) e (zip vs vs'')
-
-solveExpr'  :: SMTConverter con => Handle -> Handle -> con -> [Expr] -> IO [SMTAST]
-solveExpr' _ _ _ [] = return []
-solveExpr' h_in h_out con (v:vs) = do
-    v' <- solveExpr'' h_in h_out con v
-    vs' <- solveExpr' h_in h_out con vs
-    return (v':vs')
-
-solveExpr'' :: SMTConverter con => Handle -> Handle -> con -> Expr -> IO SMTAST
-solveExpr'' h_in h_out con e = do
-    let smte = toSolverAST $ exprToSMT e
-    T.hPutStr h_in ("(eval " <> TB.run smte <> " :completion)\n")
-    out <- getLinesMatchParens h_out
-    _ <- evaluate (length out)
-
-    return $ parseToSMTAST out (typeToSMT . typeOf $ e)

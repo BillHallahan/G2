@@ -35,7 +35,7 @@ import G2.Solver as Solver
 
 import Control.Monad.IO.Class 
 
-import Language.Haskell.Liquid.Types as LH hiding (SP, ms, isBool)
+import Language.Haskell.Liquid.Types as LH hiding (SP, ms, isBool, diff, fresh)
 import Language.Fixpoint.Types.Refinements as LH hiding (pAnd, pOr)
 import qualified Language.Fixpoint.Types as LH
 import qualified Language.Fixpoint.Types as LHF
@@ -46,7 +46,6 @@ import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
 import qualified Text.Builder as TB
 
 data SynthRes = SynthEnv
@@ -451,10 +450,10 @@ getModelOrUnsatCore :: SMTConverter smt => smt -> [(SMTName, Sort)] -> Result ()
 getModelOrUnsatCore con vs (SAT ()) = do
     mdl <- getModelInstrResult con vs
     return (SAT mdl)
-getModelOrUnsatCore con vs (UNSAT ()) = do
+getModelOrUnsatCore con _ (UNSAT ()) = do
     uc <- getUnsatCoreInstrResult con
     return (UNSAT uc)
-getModelOrUnsatCore con vs (Unknown err ()) = return (Unknown err ())
+getModelOrUnsatCore _ _ (Unknown err ()) = return (Unknown err ())
 
 -- | Extract Integer literals from a LH expression
 exprIntegers :: LHF.Expr -> [Integer]
@@ -607,7 +606,7 @@ filterRelOpBranch :: SynthSpec -> SMTModel -> SMTModel
 filterRelOpBranch si mdl =
     let
         clauses = sy_coeffs si
-        coeffs = concatMap snd clauses
+        coeff_nms = concatMap snd clauses
     in
     -- If we are not using a clause, we don't care about c_op_branch1 and c_op_branch2
     -- If we are using a clause but c_op_branch1 is true, we don't care about c_op_branch2
@@ -616,7 +615,7 @@ filterRelOpBranch si mdl =
                   M.delete (c_op_branch2 form) $ M.delete (c_op_branch1 form) mdl_
               | M.lookup (c_op_branch1 form) mdl == Just (VBool True) ->
                   M.delete (c_op_branch2 form) mdl_
-              | otherwise -> mdl) mdl coeffs
+              | otherwise -> mdl) mdl coeff_nms
 
 -- | Create specification definitions corresponding to previously rejected models,
 -- and add assertions that the new synthesized specification definition must
@@ -1108,7 +1107,7 @@ constraintsToSMT eenv tenv meas meas_ex evals si fc =
 convertExprToSMT :: G2.Expr -> SMTAST
 convertExprToSMT e = 
     case e of
-        (App (App (Data (DataCon (Name n _ _ _) _)) _) ls)
+        (App (App (Data (DataCon _ _)) _) ls)
             | Just is <- extractInts ls ->
                 foldr (\i arr -> ArrayStore arr (VInt i) (VBool True)) falseArray is
         _ -> exprToSMT e
@@ -1117,7 +1116,7 @@ extractInts :: G2.Expr -> Maybe [Integer]
 extractInts (App (App (App (Data _ ) (Type _)) (App _ (Lit (LitInt i)))) xs) =
     return . (i:) =<< extractInts xs
 extractInts (App (Data _) _) = Just []
-extractInts e = Nothing
+extractInts _ = Nothing
 
 ---
 

@@ -83,8 +83,6 @@ import Control.Monad.IO.Class
 import Data.Function
 import Data.Monoid
 
-import Data.Time.Clock
-
 -------------------------------------
 -- Solvers
 -------------------------------------
@@ -164,23 +162,22 @@ runLHG2Inference config red hal ord solver simplifier pres_names init_id final_s
     ret' <- filterM (satState solver) ret
     let ret'' = onlyMinimalStates $ map (earlyExecRes final_bindings) ret'
 
-    cleanupResultsInference solver simplifier config init_id final_st final_bindings ret''
+    cleanupResultsInference solver simplifier config init_id final_bindings ret''
 
 cleanupResultsInference :: (Solver solver, Simplifier simplifier) =>
                            solver
                         -> simplifier
                         -> Config
                         -> Id
-                        -> State LHTracker
                         -> Bindings
                         -> [ExecRes LHTracker]
                         -> IO ([ExecRes AbstractedInfo], Bindings)
-cleanupResultsInference solver simplifier config init_id init_state bindings ers = do
+cleanupResultsInference solver simplifier config init_id bindings ers = do
     let ers2 = map (\er -> er { final_state = putSymbolicExistentialInstInExprEnv (final_state er) }) ers
     let ers3 = map (replaceHigherOrderNames (idName init_id) (input_names bindings)) ers2
     (bindings', ers4) <- mapAccumM (reduceCalls runG2ThroughExecutionInference solver simplifier config) bindings ers3
     ers5 <- mapM (checkAbstracted runG2ThroughExecutionInference solver simplifier config init_id bindings') ers4
-    ers6 <- mapM (runG2SolvingInference solver simplifier config bindings') ers5
+    ers6 <- mapM (runG2SolvingInference solver simplifier bindings') ers5
     let ers7 = 
           map (\er@(ExecRes { final_state = s }) ->
                 (er { final_state =
@@ -226,8 +223,8 @@ runG2ThroughExecutionInference red hal ord _ _ pres s b = do
                         (SomeReducer red', SomeHalter hal', SomeOrderer ord') -> runG2ThroughExecution red' hal' ord' pres s b
     return (map (earlyExecRes fb) fs, fb)
 
-runG2SolvingInference :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Config -> Bindings -> ExecRes AbstractedInfo -> IO (ExecRes AbstractedInfo)
-runG2SolvingInference solver simplifier config bindings er@(ExecRes { final_state = s }) = do
+runG2SolvingInference :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Bindings -> ExecRes AbstractedInfo -> IO (ExecRes AbstractedInfo)
+runG2SolvingInference solver simplifier bindings (ExecRes { final_state = s }) = do
     let abs_resemble_real = softAbstractResembleReal s
         pc_with_soft = PC.union abs_resemble_real (path_conds s)
         s_with_soft_pc = s { path_conds = pc_with_soft }
@@ -670,8 +667,7 @@ checkCounterexample' fc@(FuncCall { funcName = n }) s@(State { expr_env = eenv, 
     in
     s { curr_expr = CurrExpr Evaluate e'
       , true_assert = True }
-    | otherwise = error $ "checkCounterexample': Name not found " ++ show n ++ "\n similar in eenv = "
-                                      ++ show (E.keys $ E.filterWithKey (\(Name on _ _ _) _ -> on == nameOcc n ) eenv)
+    | otherwise = error $ "checkCounterexample': Name not found " ++ show n
 
 toJustSpec :: KnownValues -> FuncCall -> [Id] -> Expr -> Expr
 toJustSpec _ (FuncCall { arguments = ars, returns = ret }) is (Let [(b, _)] (Assert _ e _)) =
@@ -762,10 +758,9 @@ checkPre' ld fc@(FuncCall { funcName = n }) hfc = do
                 Nothing -> return True
 
 checkPreHigherOrder :: (InfConfigM m, MonadIO m) => LiquidData -> [Expr] -> HigherOrderFuncCall -> m Bool
-checkPreHigherOrder ld es fc@(FuncCall {funcName = (Name _ _ i _), arguments = as, returns = r }) = do
+checkPreHigherOrder ld es (FuncCall {funcName = (Name _ _ i _), arguments = as, returns = r }) = do
     config <- g2ConfigM
     SomeSolver solver <- liftIO $ initSolver config
-    time <- liftIO $ getCurrentTime
     let e = es !! (i - 1)
         e' = insertInLams (\_ in_e -> 
                                 case in_e of
@@ -789,7 +784,7 @@ checkPost ghci lrs fc hfc = do
     checkPost' ld fc hfc
 
 checkPost' :: (InfConfigM m, MonadIO m) => LiquidData -> FuncCall -> [HigherOrderFuncCall] -> m Bool
-checkPost' ld fc _ = checkPreOrPost' (zeroOutKeys . ls_posts) (\fc -> arguments fc ++ [returns fc]) ld fc
+checkPost' ld fc _ = checkPreOrPost' (zeroOutKeys . ls_posts) (\fc_ -> arguments fc_ ++ [returns fc_]) ld fc
 
 zeroOutKeys :: M.Map Name v -> M.Map Name v
 zeroOutKeys = M.mapKeys zeroOutName
@@ -814,7 +809,6 @@ checkPreOrPost' extract ars ld@(LiquidData { ls_state = s, ls_bindings = binding
     case checkFromMap ars (extract ld) cex s of
         Just s' -> do
             SomeSolver solver <- liftIO $ initSolver config
-            time <- liftIO $ getCurrentTime
             (fsl, _) <- liftIO $ genericG2Call config solver s' bindings
             liftIO $ close solver
 

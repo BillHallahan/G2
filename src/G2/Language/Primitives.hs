@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Language.Primitives ( primStr
-                              , strToPrim
+module G2.Language.Primitives ( strToPrim
                               , mkGe
                               , mkGt
                               , mkEq
@@ -39,39 +38,6 @@ import G2.Language.KnownValues as KV
 import G2.Language.Syntax
 
 import qualified Data.Text as T
-
-primStr :: Primitive -> T.Text
-primStr Ge = ">="
-primStr Gt = ">"
-primStr Eq = "=="
-primStr Neq = "/="
-primStr Lt = "<"
-primStr Le = "<="
-primStr And = "&&"
-primStr Or = "||"
-primStr Not = "not"
-primStr Implies = "implies"
-primStr Iff = "iff"
-primStr Plus = "+"
-primStr Minus = "-"
-primStr Mult = "*"
-primStr Div = "/"
-primStr DivInt = "/"
-primStr Quot = "quot"
-primStr Mod = "mod"
-primStr Rem = "rem"
-primStr Negate = "negate"
-primStr Abs = "abs"
-primStr SqRt = "sqrt"
-primStr IntToFloat = "fromIntegral"
-primStr IntToDouble = "fromIntegral"
-primStr RationalToDouble = "rationalToDouble"
-primStr FromInteger = "fromInteger"
-primStr ToInteger = "toInteger"
-primStr ToInt = "toInt"
-primStr Error = "error"
-primStr Undefined = "undefined"
-primStr BindFunc = "BindFunc"
 
 strToPrim :: T.Text -> Maybe Primitive
 strToPrim "not" = Just Not

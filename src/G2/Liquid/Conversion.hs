@@ -30,7 +30,7 @@ import Language.Fixpoint.Types.Names
 import Language.Fixpoint.Types.Sorts
 import qualified Language.Fixpoint.Types.Refinements as Ref
 import Language.Fixpoint.Types.Refinements hiding (Expr, I)
-import Language.Haskell.Liquid.Types hiding (spec)
+import Language.Haskell.Liquid.Types
 
 import Data.Coerce
 import Data.Foldable
@@ -38,10 +38,6 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
-
-import G2.Lib.Printers
-import Debug.Trace
-import Data.List
 
 -- | A mapping of TyVar Name's, to Id's for the LH dict's
 type LHDictMap = M.Map Name Id
@@ -163,8 +159,8 @@ mergeSpecType st fn e = do
     return e'''
     where
         -- We insert an extra, redundant assume to record information about the function being used as a higher order function
-        mkHigherAssert true spec i ars ret =
-            Tick (NamedLoc higherOrderTickName) . Assume (Just $ FuncCall { funcName = idName i, arguments = map Var ars, returns = Var ret }) true $ Assert Nothing spec (Var ret)
+        mkHigherAssert true_dc spec i ars ret =
+            Tick (NamedLoc higherOrderTickName) . Assume (Just $ FuncCall { funcName = idName i, arguments = map Var ars, returns = Var ret }) true_dc $ Assert Nothing spec (Var ret)
 
         repAssertFC fc_ (Assert Nothing e1 e2) = Assert (Just fc_) e1 e2
         repAssertFC _ e_ = e_
@@ -489,13 +485,13 @@ convertLHExpr m bt _ (ECst e s) = do
 convertLHExpr m bt _ (PAnd es) = do
     es' <- mapM (convertLHExpr m bt Nothing) es
 
-    true <- mkTrueE
+    trueE <- mkTrueE
     an <- lhAndE
 
     case es' of
-        [] -> return $ true
+        [] -> return $ trueE
         [e] -> return e
-        _ -> return $ foldr (\e -> App (App an e)) true es'
+        _ -> return $ foldr (\e -> App (App an e)) trueE es'
 convertLHExpr m bt _ (POr es) = do
     es' <- mapM (convertLHExpr m bt Nothing) es
 

@@ -13,11 +13,9 @@ import qualified G2.Language.ExprEnv as E
 import G2.Liquid.Conversion
 import G2.Liquid.Types
 
-import Control.Exception
 import Control.Monad.Extra
 import qualified Data.Map as M
 import Data.Maybe
-import Data.Tuple.Extra
 
 -- | Returns (1) the Id of the new main function and (2) the functions that need counterfactual variants
 convertCurrExpr :: Id -> Bindings -> LHStateM (Id, [Name])
@@ -175,6 +173,7 @@ shiftLetsOutOfApps' a@(App _ _) =
     case b of
         [] -> a
         _ -> Let b $ elimLetsInApp a
+shiftLetsOutOfApps' _ = error "shiftLetsOutOfApps': must be passed an App"
 
 getLetsInApp :: Expr -> Binds
 getLetsInApp (Let b e) = b ++ getLetsInApp e
@@ -212,12 +211,12 @@ addCurrExprAssumption ifi (Bindings {fixed_inputs = fi}) = do
     let (typs, ars) = span isType $ fi' ++ map Var is
 
     case assumpt of
-        Just (is, higher_is, assumpt') -> do
+        Just (assumpt_is, higher_is, assumpt') -> do
             let all_args = typs ++ lh ++ ars
                 appAssumpt = mkApp $ assumpt':all_args
 
             inputs <- inputNames
-            let matching = zipWith (\n (i, hi) -> (n, i, hi)) inputs $ drop (length higher_is - length inputs) $ zip is higher_is
+            let matching = zipWith (\n (i, hi) -> (n, i, hi)) inputs $ drop (length higher_is - length inputs) $ zip assumpt_is higher_is
                 matching_higher = mapMaybe (\(n, i, hi) -> maybe Nothing (Just . (n, i,)) hi) matching
                 let_expr = Let (map (\(n, i, _) -> (snd i, Var (Id n . typeOf $ snd i))) matching_higher)
 

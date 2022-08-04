@@ -90,7 +90,6 @@ import G2.Solver
 import G2.Lib.Printers
 
 import Data.Foldable
-import Data.Hashable
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M

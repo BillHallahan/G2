@@ -26,7 +26,6 @@ import G2.Language.KnownValues (KnownValues)
 import G2.Language.Naming
 import G2.Language.Syntax
 import G2.Language.Typing
-import G2.Language.TypeEnv
 
 import Data.Coerce
 import Data.Data (Data, Typeable)

@@ -46,18 +46,15 @@ import Language.Haskell.Liquid.Types hiding
 import Language.Haskell.Liquid.Types.Fresh
 import Language.Fixpoint.Types.Refinements
 import Language.Haskell.Liquid.Types.RefType
-import Language.Fixpoint.Types
+import Language.Fixpoint.Types (Qualifier (..))
 
 import qualified Control.Monad.State as S
-import Data.Coerce
 import Data.List
 import qualified Data.Text as T
 import qualified Data.Map as M
 
 import Name (nameOccName, occNameString)
 import Var
-
-import Debug.Trace
 
 data GeneratedSpecs = GeneratedSpecs { assert_specs :: M.Map G2.Name [PolyBound Expr]
                                      , assume_specs :: M.Map G2.Name [PolyBound Expr]
@@ -149,18 +146,18 @@ deleteAllAsserts gs = gs { assert_specs = M.empty }
 modifyGsTySigs :: (Var -> SpecType -> SpecType) -> GhcInfo -> GhcInfo
 modifyGsTySigs f ghci =
     let
-        sigs = getTySigs ghci
-        sigs' = map (\(v, lst) -> (v, fmap (f v) lst)) sigs
+        ty_sigs = getTySigs ghci
+        ty_sigs' = map (\(v, lst) -> (v, fmap (f v) lst)) ty_sigs
     in
-    putTySigs ghci sigs'
+    putTySigs ghci ty_sigs'
 
 modifyGsAsmSigs :: (Var -> SpecType -> SpecType) -> GhcInfo -> GhcInfo
 modifyGsAsmSigs f ghci =
     let
-        sigs = getAssumedSigs ghci
-        sigs' = map (\(v, lst) -> (v, fmap (f v) lst)) sigs
+        ty_sigs = getAssumedSigs ghci
+        ty_sigs' = map (\(v, lst) -> (v, fmap (f v) lst)) ty_sigs
     in
-    putAssumedSigs ghci sigs'
+    putAssumedSigs ghci ty_sigs'
 
 addSpecsToGhcInfos :: [GhcInfo] -> GeneratedSpecs -> [GhcInfo]
 addSpecsToGhcInfos ghci gs = addAssumedSpecsToGhcInfos (addAssertedSpecsToGhcInfos ghci gs) gs
@@ -240,9 +237,9 @@ insertMissingAssumeSpec (G2.Name n _ _ _) = map create
     where
         create ghci =
             let
-                defs = definedVars ghci
+                def_vs = definedVars ghci
                 has_spec = map fst $ getAssumedSigs ghci
-                def_no_spec = filter (`notElem` has_spec) defs
+                def_no_spec = filter (`notElem` has_spec) def_vs  
 
                 def_v = find (\v -> (T.pack . occNameString . nameOccName $ varName v) == n) def_no_spec
             in
@@ -266,9 +263,9 @@ insertMissingAssertSpec (G2.Name n _ _ _) = map create
     where
         create ghci =
             let
-                defs = definedVars ghci
+                def_vs = definedVars ghci
                 has_spec = map fst $ getTySigs ghci
-                def_no_spec = filter (`notElem` has_spec) defs
+                def_no_spec = filter (`notElem` has_spec) def_vs
 
                 def_v = find (\v -> (T.pack . occNameString . nameOccName $ varName v) == n) def_no_spec
             in
@@ -295,8 +292,8 @@ genSpec ghcis (G2.Name n _ _ _) = foldr mappend Nothing $ map gen ghcis
     where
         gen ghci =
             let
-                defs = definedVars ghci
-                def_v = find (\v -> (T.pack . occNameString . nameOccName $ varName v) == n) defs
+                def_vs = definedVars ghci
+                def_v = find (\v -> (T.pack . occNameString . nameOccName $ varName v) == n) def_vs
 
                 specs = getTySigs ghci
             in
