@@ -32,17 +32,10 @@ import Control.Exception
 import Data.List
 import Data.Char
 
-import ZenoSuite
-
 main :: IO ()
 main = do
     as <- getArgs
-
-    if length as == 1 then
-        let n = read (head as) :: Int
-        in ZenoSuite.suite n
-    else
-        runWithArgs as
+    runWithArgs as
 
 finiteArg :: String -> Bool
 finiteArg ('_':_) = True
