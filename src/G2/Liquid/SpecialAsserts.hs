@@ -7,7 +7,7 @@ module G2.Liquid.SpecialAsserts ( addSpecialAsserts
                                 , arbErrorTickish
                                 , assumeErrorTickish) where
 
-import G2.Config
+import G2.Liquid.Config
 import G2.Language
 import qualified G2.Language.KnownValues as KV
 import G2.Language.Monad
@@ -91,7 +91,7 @@ addTrueAssertsAll = mapWithKeyME (addTrueAssert'')
 --- [BlockErrors]
 -- | Blocks calling error in the functions specified in the block_errors_in in
 -- the Config, by wrapping the errors in Assume False.
-addErrorAssumes :: Config -> LHStateM ()
+addErrorAssumes :: LHConfig -> LHStateM ()
 addErrorAssumes config = do
     kv <- knownValues
     mapWithKeyME (addErrorAssumes' (block_errors_method config) (block_errors_in config) kv)

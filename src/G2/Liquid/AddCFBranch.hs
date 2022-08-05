@@ -13,6 +13,7 @@ import G2.Config.Config
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad
+import G2.Liquid.Config
 import G2.Liquid.Types
 import G2.Liquid.TyVarBags
 

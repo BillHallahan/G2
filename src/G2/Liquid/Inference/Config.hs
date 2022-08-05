@@ -16,6 +16,7 @@ module G2.Liquid.Inference.Config (
                                   , InfConfig (..)
                                   , runConfigs
 
+                                  , getAllConfigsForInf
                                   , mkInferenceConfig
                                   , adjustConfig
                                   , adjustConfigPostLH
@@ -31,6 +32,7 @@ import G2.Language ( ExprEnv
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.Support as S
 import G2.Language.Typing
+import G2.Liquid.Config
 import G2.Liquid.Conversion
 import G2.Liquid.Helpers
 import G2.Liquid.TCValues
@@ -52,6 +54,9 @@ import qualified Data.HashSet as S
 import qualified Data.Map as M
 import qualified Data.Text as T
 import Data.Time.Clock
+import Options.Applicative
+import System.Directory
+
 
 -------------------------------
 -- Progresser
@@ -190,36 +195,43 @@ incrMaxSize incr (MaxSize sz) = MaxSize (sz + incr)
 -------------------------------
 
 data Configs = Configs { g2_config :: Config
-                       , lh_config :: LH.Config
+                       , g2lh_config :: LHConfig -- ^ Configurations for running G2 in LH mode
+                       , lh_config :: LH.Config -- ^ LiquidHaskell configuration settings
                        , inf_config :: InferenceConfig }
 
 class InfConfig c where
     g2Config :: c -> Config
+    g2lhConfig :: c -> LHConfig
     lhConfig :: c -> LH.Config
     infConfig :: c -> InferenceConfig
 
 class Monad m => InfConfigM m where
     g2ConfigM :: m Config
+    g2lhConfigM :: m LHConfig
     lhConfigM :: m LH.Config
     infConfigM :: m InferenceConfig
 
 instance InfConfig Configs where
     g2Config = g2_config
+    g2lhConfig = g2lh_config
     lhConfig = lh_config
     infConfig = inf_config
 
 instance InfConfig env => InfConfig (ReaderT env m a) where
     g2Config = return . g2Config =<< ask
+    g2lhConfig = return . g2lhConfig =<< ask
     lhConfig = return . lhConfig =<< ask
     infConfig = return . infConfig =<< ask
 
 instance (Monad m, InfConfig env) => InfConfigM (ReaderT env m) where 
     g2ConfigM = return . g2Config =<< ask 
+    g2lhConfigM = return . g2lhConfig =<< ask
     lhConfigM = return . lhConfig =<< ask 
     infConfigM = return . infConfig =<< ask 
 
 instance InfConfigM m => InfConfigM (StateT env m) where
     g2ConfigM = lift g2ConfigM
+    g2lhConfigM = lift g2lhConfigM
     lhConfigM = lift lhConfigM
     infConfigM = lift infConfigM
 
@@ -245,14 +257,69 @@ data InferenceConfig =
                     , timeout_se :: NominalDiffTime
                     , timeout_sygus :: NominalDiffTime }
 
+getAllConfigsForInf :: IO (String, Bool, Config, LHConfig, InferenceConfig, Maybe String)
+getAllConfigsForInf = do
+    homedir <- getHomeDirectory
+    execParser (mkAllConfigsForInf homedir)
+
+mkAllConfigsForInf :: String -> ParserInfo (String, Bool, Config, LHConfig, InferenceConfig, Maybe String)
+mkAllConfigsForInf homedir =
+    info (((,,,,,) <$> getFileName
+                <*> flag False True (long "count" <> help "count the number of functions in the file")
+                <*> mkConfig homedir
+                <*> mkLHConfig
+                <*> mkInferenceConfig
+                <*> mkFuncCheck) <**> helper)
+          ( fullDesc
+          <> progDesc "Automatically infers specifications to verify code using LiquidHaskell."
+          <> header "The G2 Symbolic Execution Engine" )
+
+getFileName :: Parser String
+getFileName = argument str (metavar "FILE")
+
 runConfigs :: InfConfig env => ReaderT env m a -> env -> m a
 runConfigs = runReaderT
 
-mkInferenceConfig :: [String] -> InferenceConfig
-mkInferenceConfig as =
+mkInferenceConfig :: Parser InferenceConfig
+mkInferenceConfig = InferenceConfig
+    <$> switch (long "keep-quals" <> help "allow qualifiers to be generated and used during inference")
+    <*> pure S.empty
+    <*> option auto (long "max-ce"
+                   <> metavar "M"
+                   <> value 5
+                   <> help "the initial maximal number of counterexamples to return from any symbolic execution call")
+    <*> pure S.empty
+    <*> pure S.empty
+    <*> flag False True (long "restrict-coeffs-1" <> help "restrict coefficients to -1, 0, 1")
+    <*> switch (long "no-extra-fcs" <> help "do not generate extra (non-blocking) constraints")
+    <*> switch (long "no-level-dec" <> help "do not use level descent")
+    <*> switch (long "no-negated-models" <> help "do not use negated models")
+    <*> flag False True (long "use-invs" <> help "use invariant mode (benchmarking only)")
+    <*> option auto (long "timeout-se"
+                   <> metavar "T"
+                   <> value 5
+                   <> help "timeout for symbolic execution")
+    <*> option auto (long "timeout-sygus"
+                   <> metavar "T"
+                   <> value 5
+                   <> help "timeout for synthesis")
+
+mkFuncCheck :: Parser (Maybe String)
+mkFuncCheck =
+    option (eitherReader (Right . Just))
+            ( long "liquid-func"
+            <> metavar "FUNC"
+            <> value Nothing
+            <> help "a function to directly run symbolic execution on")
+
+
+mkInferenceConfigDirect :: [String] -> InferenceConfig
+mkInferenceConfigDirect as =
     InferenceConfig { keep_quals = boolArg "keep-quals" as M.empty On
                     , modules = S.empty
                     , max_ce = strArg "max-ce" as M.empty read 5
+                    , pre_refined = S.empty
+                    , refinable_funcs = S.empty
                     , restrict_coeffs = boolArg "restrict-coeffs" as M.empty Off
                     , use_extra_fcs = boolArg "use-extra-fc" as M.empty On
                     , use_level_dec = boolArg "use-level-dec" as M.empty On
@@ -261,8 +328,8 @@ mkInferenceConfig as =
                     , timeout_se = strArg "timeout-se" as M.empty (fromInteger . read) 5
                     , timeout_sygus = strArg "timeout-sygus" as M.empty (fromInteger . read) 10 }
 
-adjustConfig :: Maybe T.Text -> SimpleState -> Config -> InferenceConfig -> [GhcInfo] -> (Config, InferenceConfig)
-adjustConfig main_mod (SimpleState { expr_env = eenv }) config infconfig ghci =
+adjustConfig :: Maybe T.Text -> SimpleState -> Config -> LHConfig -> InferenceConfig -> [GhcInfo] -> (Config, LHConfig, InferenceConfig)
+adjustConfig main_mod (SimpleState { expr_env = eenv }) config lhconfig infconfig ghci =
     let
         -- ref = refinable main_mod meas tcv eenv
 
@@ -286,16 +353,16 @@ adjustConfig main_mod (SimpleState { expr_env = eenv }) config infconfig ghci =
                     . filter (\(Name _ m _ _) -> m /= main_mod)
                     $ E.keys eenv
     
-        config' = config { only_top = True
-                         , block_errors_in = S.fromList ns_not_main }
+        lhconfig' = lhconfig { only_top = True
+                             , block_errors_in = S.fromList ns_not_main }
 
         infconfig' = infconfig { modules = S.singleton main_mod
                                , pre_refined = pre }
     in
-    (config', infconfig')
+    (config, lhconfig', infconfig')
 
-adjustConfigPostLH :: Maybe T.Text -> Measures -> TCValues -> S.State t -> [GhcInfo] -> Config -> Config
-adjustConfigPostLH main_mod meas tcv (S.State { S.expr_env = eenv, S.known_values = kv }) ghci config =
+adjustConfigPostLH :: Maybe T.Text -> Measures -> TCValues -> S.State t -> [GhcInfo] -> LHConfig -> LHConfig
+adjustConfigPostLH main_mod meas tcv (S.State { S.expr_env = eenv, S.known_values = kv }) ghci lhconfig =
     let
         ref = refinable main_mod meas tcv ghci kv eenv
         
@@ -304,7 +371,7 @@ adjustConfigPostLH main_mod meas tcv (S.State { S.expr_env = eenv, S.known_value
               $ E.keys eenv
 
     in
-    config { counterfactual = Counterfactual . CFOnly $ S.fromList ns_mm }
+    lhconfig { counterfactual = Counterfactual . CFOnly $ S.fromList ns_mm }
 
 refinable :: Maybe T.Text -> Measures -> TCValues -> [GhcInfo] -> S.KnownValues -> ExprEnv -> [(T.Text, Maybe T.Text)]
 refinable main_mod meas tcv ghci kv eenv = 

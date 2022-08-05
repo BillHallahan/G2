@@ -23,32 +23,12 @@ import G2.Liquid.Interface
 main :: IO ()
 main = do
   as <- getArgs
-
-  let m_liquid_file = mkLiquid as
-  let m_liquid_func = mkLiquidFunc as
-
-  let libs = maybeToList $ mkMapSrc as
-  let lhlibs = maybeToList $ mkLiquidLibs as
-
-  case (m_liquid_file, m_liquid_func) of
-      (Just lhfile, Just lhfun) -> do
-        let m_idir = mIDir as
-            proj = maybe (takeDirectory lhfile) id m_idir
-        runSingleLHFun proj lhfile lhfun libs lhlibs as
-      _ -> do
-        runWithArgs as
-
-runSingleLHFun :: FilePath -> FilePath -> String -> [FilePath] -> [FilePath] -> [String] -> IO ()
-runSingleLHFun proj lhfile lhfun libs lhlibs ars = do
-  config <- getConfig ars
-  _ <- doTimeout (timeLimit config) $ do
-    ((in_out, _), entry) <- findCounterExamples [proj] [lhfile] (T.pack lhfun) libs lhlibs config
-    printLHOut entry in_out
-  return ()
+  runWithArgs as
 
 runWithArgs :: [String] -> IO ()
 runWithArgs as = do
-  let (src:entry:tail_args) = as
+  let (_:_:tail_args) = as
+  (src, entry, config) <- getConfig as
 
   proj <- guessProj src
 
@@ -64,7 +44,6 @@ runWithArgs as = do
 
   let libs = maybeToList m_mapsrc
 
-  config <- getConfig as
   _ <- doTimeout (timeLimit config) $ do
     ((in_out, b), entry_f@(Id (Name _ mb_modname _ _) _)) <-
         runG2FromFile [proj] [src] libs (fmap T.pack m_assume)
