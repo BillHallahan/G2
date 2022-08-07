@@ -850,11 +850,9 @@ checkRule :: Config
           -> Bindings
           -> [DT.Text] -- ^ names of forall'd variables required to be total
           -> [DT.Text] -- ^ names of forall'd variables required to be total and finite
-          -> SummaryMode
-          -> Int
           -> RewriteRule
           -> IO (S.Result () () ())
-checkRule config nc init_state bindings total finite print_summary iterations rule = do
+checkRule config nc init_state bindings total finite rule = do
   let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
       (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
       sym_ids = ru_bndrs rule
@@ -894,17 +892,17 @@ checkRule config nc init_state bindings total finite print_summary iterations ru
   (res, w) <- W.runWriterT $ verifyLoop solver ns
              emptyLemmas
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config nc sym_ids "" 0 iterations
+             bindings'' config nc sym_ids "" 0 (limit nc)
   -- UNSAT for good, SAT for bad
   -- TODO I can speed things up for the CX if there's no summary
   -- I only need a PrettyGuide for the CX marker
-  let pg = if print_summary == NoSummary
+  let pg = if (print_summary nc) == NoSummary
            then reducedGuide (reverse w)
            else mkPrettyGuide $ map (\(Marker _ m) -> m) w
-  if print_summary /= NoSummary then do
+  if print_summary nc /= NoSummary then do
     putStrLn "--- SUMMARY ---"
     --let pg = mkPrettyGuide $ map (\(Marker _ m) -> m) w
-    mapM (putStrLn . (summarize print_summary pg ns sym_ids)) w
+    mapM (putStrLn . (summarize (print_summary nc) pg ns sym_ids)) w
     putStrLn "--- END OF SUMMARY ---"
   else return ()
   case res of

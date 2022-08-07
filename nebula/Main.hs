@@ -66,7 +66,7 @@ runWithArgs as = do
       rule' = case rule of
               Just r -> r
               Nothing -> error "not found"
-  res <- checkRule config nebula_config init_state bindings total finite (print_summary nebula_config) (limit nebula_config) rule'
+  res <- checkRule config nebula_config init_state bindings total finite rule'
   print res
   return ()
 
