@@ -3,6 +3,7 @@ module G2.Config.Interface where
 import G2.Config.Config
 
 import qualified Data.Map.Lazy as M
+import Data.Monoid ((<>))
 import Options.Applicative
 import System.Directory
 
