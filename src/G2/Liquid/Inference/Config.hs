@@ -292,11 +292,11 @@ mkInferenceConfig = InferenceConfig
                    <> help "the initial maximal number of counterexamples to return from any symbolic execution call")
     <*> pure S.empty
     <*> pure S.empty
-    <*> flag False True (long "restrict-coeffs-1" <> help "restrict coefficients to -1, 0, 1")
-    <*> switch (long "no-extra-fcs" <> help "do not generate extra (non-blocking) constraints")
-    <*> switch (long "no-level-dec" <> help "do not use level descent")
-    <*> switch (long "no-negated-models" <> help "do not use negated models")
-    <*> flag False True (long "use-invs" <> help "use invariant mode (benchmarking only)")
+    <*> switch (long "restrict-coeffs-1" <> help "restrict coefficients to -1, 0, 1")
+    <*> flag True False (long "no-extra-fcs" <> help "do not generate extra (non-blocking) constraints")
+    <*> flag True False (long "no-level-dec" <> help "do not use level descent")
+    <*> flag True False (long "no-negated-models" <> help "do not use negated models")
+    <*> switch (long "use-invs" <> help "use invariant mode (benchmarking only)")
     <*> option (maybeReader (Just . fromInteger . read)) (long "timeout-se"
                    <> metavar "T"
                    <> value 5

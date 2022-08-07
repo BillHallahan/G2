@@ -26,7 +26,7 @@ main :: IO ()
 main = do
     (f, count, config, g2lhconfig, infconfig, func) <- getAllConfigsForInf
 
-    case (func) of
+    case func of
         Nothing -> do
                     if count
                             then checkFuncNums f infconfig config g2lhconfig
