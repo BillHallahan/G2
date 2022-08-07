@@ -14,6 +14,7 @@ import G2.Config
 
 import G2.Interface
 import G2.Language as G2
+import G2.Liquid.Config
 import G2.Liquid.Interface
 
 import Control.Exception
@@ -42,6 +43,8 @@ import G2.Translation
 import InputOutputTest
 import Reqs
 import TestUtils
+
+import qualified Data.Map.Lazy as M
 
 -- Run with no arguments for default test cases.
 -- All default test cases should pass.
@@ -325,13 +328,17 @@ liquidTests = testGroup "Liquid"
         , RForAll (\_ _ [ _ ]  -> True)]
 
     , checkLiquidWithConfig "tests/Liquid/NestedLength.hs" "nested" [AtLeast 1]
-                            (do config <- mkConfigTestIO; return $ config {add_tyvars = True})
+                            (mkConfigTestIO)
+                            (return $ (mkLHConfigDirect [] M.empty) { add_tyvars = True })
     , checkLiquidWithConfig "tests/Liquid/AddTyVars.hs" "f" [AtLeast 1]
-                            (do config <- mkConfigTestIO; return $ config {add_tyvars = True, steps = 400}) 
+                            (do config <- mkConfigTestIO; return $ config {steps = 400}) 
+                            (return $ (mkLHConfigDirect [] M.empty) { add_tyvars = True })
     , checkLiquidWithConfig "tests/Liquid/AddTyVars.hs" "g" [AtLeast 1]
-                            (do config <- mkConfigTestIO; return $ config {add_tyvars = True, steps = 400}) 
+                            (do config <- mkConfigTestIO; return $ config {steps = 400}) 
+                            (return $ (mkLHConfigDirect [] M.empty) { add_tyvars = True })
     , checkLiquidWithConfig "tests/Liquid/AddTyVars.hs" "h" [AtLeast 1]
-                            (do config <- mkConfigTestIO; return $ config {add_tyvars = True, steps = 400}) 
+                            (do config <- mkConfigTestIO; return $ config {steps = 400}) 
+                            (return $ (mkLHConfigDirect [] M.empty) { add_tyvars = True })
 
     , checkLiquid "tests/Liquid/Polymorphism/Poly1.hs" "f" 1000 [Exactly 0]
     , checkLiquid "tests/Liquid/Polymorphism/Poly2.hs" "f" 600 [Exactly 0]
@@ -839,39 +846,50 @@ testFileWithConfig src m_assume m_assert m_reaches entry config = do
 
 checkLiquidWithNoCutOff :: FilePath -> String -> Int -> [Reqs ([Expr] -> Bool)] -> TestTree
 checkLiquidWithNoCutOff fp entry stps reqList = do
+    let lhconfig = mkLHConfigDirect [] M.empty
     checkLiquidWithConfig fp entry reqList
         (do config <- mkConfigTestIO
-            return $ config {steps = stps, cut_off = stps})
+            return $ config { steps = stps })
+        (return lhconfig { cut_off = stps })
 
 checkLiquid :: FilePath -> String -> Int -> [Reqs ([Expr] -> Bool)] -> TestTree
 checkLiquid fp entry stps reqList = do
+    let lhconfig = mkLHConfigDirect [] M.empty
     checkLiquidWithConfig  fp entry reqList
         (do config <- mkConfigTestIO
-            return $ config {steps = stps})
+            return $ config { steps = stps })
+        (return lhconfig)
 
 checkLiquidWithSet :: FilePath -> String -> Int -> [Reqs ([Expr] -> Bool)] -> TestTree
 checkLiquidWithSet fp entry stps reqList = do
+    let lhconfig = mkLHConfigDirect [] M.empty
     checkLiquidWithConfig  fp entry reqList
         (do config <- mkConfigTestWithSetIO
-            return $ config {steps = stps})
+            return $ config { steps = stps })
+        (return lhconfig)
 
 checkLiquidWithCutOff :: FilePath -> String -> Int -> Int -> [Reqs ([Expr] -> Bool)] -> TestTree
 checkLiquidWithCutOff fp entry stps co reqList = do
+    let lhconfig = mkLHConfigDirect [] M.empty
     checkLiquidWithConfig fp entry reqList
         (do config <- mkConfigTestIO
-            return $ config {steps = stps, cut_off = co})
+            return $ config { steps = stps })
+        (return lhconfig { cut_off = co })
 
 checkLiquidWithMap :: FilePath -> String -> Int -> [Reqs ([Expr] -> Bool)] -> TestTree
 checkLiquidWithMap fp entry stps reqList = do
+    let lhconfig = mkLHConfigDirect [] M.empty
     checkLiquidWithConfig fp entry reqList
         (do config <- mkConfigTestWithMapIO
             return $ config {steps = stps} )
+        (return lhconfig)
 
-checkLiquidWithConfig :: FilePath -> String -> [Reqs ([Expr] -> Bool)] -> IO Config -> TestTree
-checkLiquidWithConfig fp entry reqList config_f = 
+checkLiquidWithConfig :: FilePath -> String -> [Reqs ([Expr] -> Bool)] -> IO Config -> IO LHConfig -> TestTree
+checkLiquidWithConfig fp entry reqList config_f lhconfig_f = 
     testCase fp (do
         config <- config_f
-        res <- findCounterExamples' fp (T.pack entry) [] [] config
+        lhconfig <- lhconfig_f
+        res <- findCounterExamples' fp (T.pack entry) [] [] config lhconfig
 
         let (ch, r) = case res of
                     Nothing -> (False, Right [Time])
@@ -890,9 +908,11 @@ checkLiquidWithConfig fp entry reqList config_f =
 
 checkAbsLiquid :: FilePath -> String -> Int -> [Reqs ([Expr] -> Expr -> [FuncCall] -> Bool)] -> TestTree
 checkAbsLiquid fp entry stps reqList = do
+    let lhconfig = mkLHConfigDirect [] M.empty
     checkAbsLiquidWithConfig fp entry reqList
         (do config <- mkConfigTestIO
             return $ config {steps = stps} )
+        (return lhconfig)
 
 checkAbsLiquidWithConfig :: FilePath
                          -> String
@@ -901,11 +921,13 @@ checkAbsLiquidWithConfig :: FilePath
                          -> [FuncCall]
                          -> Bool)]
                          -> IO Config
+                         -> IO LHConfig
                          -> TestTree
-checkAbsLiquidWithConfig fp entry reqList config_f = do
+checkAbsLiquidWithConfig fp entry reqList config_f lhconfig_f = do
     testCase fp (do
         config <- config_f
-        res <- findCounterExamples' fp (T.pack entry) [] [] config
+        lhconfig <- lhconfig_f
+        res <- findCounterExamples' fp (T.pack entry) [] [] config lhconfig
 
         let (ch, r) = case res of
                     Nothing -> (False, Right [])
@@ -944,13 +966,14 @@ findCounterExamples' :: FilePath
                      -> [FilePath]
                      -> [FilePath]
                      -> Config
+                     -> LHConfig
                      -> IO (Maybe (Either SomeException [ExecRes AbstractedInfo]))
-findCounterExamples' fp entry libs lhlibs config =
+findCounterExamples' fp entry libs lhlibs config lhconfig =
     let
         proj = takeDirectory fp
     in
     doTimeout (timeLimit config)
-        $ try (return . fst. fst =<< findCounterExamples [proj] [fp] entry libs lhlibs config)
+        $ try (return . fst. fst =<< findCounterExamples [proj] [fp] entry libs lhlibs config lhconfig)
 
 errors :: [Expr] -> Bool
 errors e =

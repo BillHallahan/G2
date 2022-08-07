@@ -2,12 +2,17 @@ module G2.Config.Interface where
 
 import G2.Config.Config
 
+import qualified Data.Map.Lazy as M
 import Options.Applicative
 import System.Directory
 
-
 configName :: FilePath
 configName = "g2.cfg"
+
+getConfigDirect :: IO Config
+getConfigDirect = do
+    homedir <- getHomeDirectory
+    return $ mkConfigDirect homedir [] M.empty
 
 getConfig :: [String] -> IO (String, String, Config)
 getConfig ars = do

@@ -845,8 +845,7 @@ reducedGuide ((Marker _ m):ms) = case m of
   _ -> reducedGuide ms
 
 checkRule :: Config
-          -> UseLabeledErrors
-          -> Bool
+          -> NebulaConfig
           -> State t
           -> Bindings
           -> [DT.Text] -- ^ names of forall'd variables required to be total
@@ -855,7 +854,7 @@ checkRule :: Config
           -> Int
           -> RewriteRule
           -> IO (S.Result () () ())
-checkRule config use_labels sync init_state bindings total finite print_summary iterations rule = do
+checkRule config nc init_state bindings total finite print_summary iterations rule = do
   let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
       (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
       sym_ids = ru_bndrs rule
@@ -885,8 +884,6 @@ checkRule config use_labels sync init_state bindings total finite print_summary 
       
       rewrite_state_l'' = startingState start_equiv_tracker ns rewrite_state_l'
       rewrite_state_r'' = startingState start_equiv_tracker ns rewrite_state_r'
-
-      nc = NC { use_labeled_errors = use_labels, sync = sync }
 
   S.SomeSolver solver <- initSolver config
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"

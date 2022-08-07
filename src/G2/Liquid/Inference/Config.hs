@@ -18,6 +18,7 @@ module G2.Liquid.Inference.Config (
 
                                   , getAllConfigsForInf
                                   , mkInferenceConfig
+                                  , mkInferenceConfigDirect
                                   , adjustConfig
                                   , adjustConfigPostLH
 

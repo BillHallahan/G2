@@ -333,7 +333,6 @@ executable Nebula
                        -- -fprof-auto "-with-rtsopts=-p"
   hs-source-dirs:      nebula
   main-is:             Main.hs
-  other-modules:         ZenoSuite
 
 test-suite test
   build-depends:         g2
