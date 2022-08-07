@@ -297,11 +297,11 @@ mkInferenceConfig = InferenceConfig
     <*> switch (long "no-level-dec" <> help "do not use level descent")
     <*> switch (long "no-negated-models" <> help "do not use negated models")
     <*> flag False True (long "use-invs" <> help "use invariant mode (benchmarking only)")
-    <*> option auto (long "timeout-se"
+    <*> option (maybeReader (Just . fromInteger . read)) (long "timeout-se"
                    <> metavar "T"
                    <> value 5
                    <> help "timeout for symbolic execution")
-    <*> option auto (long "timeout-sygus"
+    <*> option (maybeReader (Just . fromInteger . read)) (long "timeout-sygus"
                    <> metavar "T"
                    <> value 5
                    <> help "timeout for synthesis")
