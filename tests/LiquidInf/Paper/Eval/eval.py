@@ -120,7 +120,7 @@ def call_infer_process(file, timeout, passed_args = []):
 
 
         args = ["gtimeout", timeout, exe_name, file # ["gtimeout", timeout, "cabal", "run", "Inference", file
-               , "--", "--timeout-sygus", timeout_sygus]
+               , "--timeout-sygus", timeout_sygus]
 
         res = subprocess.run(args + extra_args + passed_args, capture_output = True);
         return (res.stdout, res.stderr);
