@@ -284,7 +284,7 @@ runConfigs = runReaderT
 
 mkInferenceConfig :: Parser InferenceConfig
 mkInferenceConfig = InferenceConfig
-    <$> switch (long "keep-quals" <> help "allow qualifiers to be generated and used during inference")
+    <$> flag True False (long "keep-quals" <> help "allow qualifiers to be generated and used during inference")
     <*> pure S.empty
     <*> option auto (long "max-ce"
                    <> metavar "M"
