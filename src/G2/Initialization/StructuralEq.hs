@@ -12,6 +12,7 @@ import G2.Language.KnownValues
 
 import qualified Data.Foldable as F
 import qualified Data.HashSet as S
+import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
 import qualified Data.Text as T
@@ -49,11 +50,11 @@ createStructEqFuncs ts = do
     -- For efficiency, we only generate structural equality when it's needed
     let types = concatMap tcaNames $ filter isTyFun ts ++ (nubBy (.::.) $ argTypesTEnv tenv)
         fix_types = genReqTypes tenv S.empty types
-    let tenv' = M.filterWithKey (\n _ -> n `elem` fix_types) tenv
+    let tenv' = HM.filterWithKey (\n _ -> n `elem` fix_types) tenv
 
     insertT adtn (DataTyCon {bound_ids = [Id tyvn TYPE], data_cons = [dc]})
 
-    let (tenvK, tenvV) = unzip $ M.toList tenv'
+    let (tenvK, tenvV) = unzip $ HM.toList tenv'
 
     -- Create names for the new functions
     let ns = map (\(Name n _ _ _) -> Name ("structEq" `T.append` n) Nothing 0 Nothing) tenvK
@@ -63,7 +64,7 @@ createStructEqFuncs ts = do
     tc <- typeClasses
     tci <- freshIdN TYPE
 
-    ins <- genInsts tcn nsT t dc $ M.toList tenv'
+    ins <- genInsts tcn nsT t dc $ HM.toList tenv'
 
     let tc' = insertClass tcn (Class { insts = ins, typ_ids = [tci], superclasses = [] }) tc
     putTypeClasses tc'
@@ -78,7 +79,7 @@ genReqTypes tenv explored (n:ns) =
       else genReqTypes tenv explored' ns'
   where
     explored' = S.insert n explored
-    tenv_hits = case M.lookup n tenv of
+    tenv_hits = case HM.lookup n tenv of
         Nothing -> []
         Just r -> tcaNames r
     ns' = tenv_hits ++ ns

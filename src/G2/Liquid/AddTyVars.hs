@@ -12,7 +12,6 @@ import G2.Liquid.Types
 
 import qualified Data.HashMap.Lazy as HM
 import Data.List
-import qualified Data.Map as M
 import Data.Maybe
 import Data.Text as T (pack)
 
@@ -44,7 +43,7 @@ addTyVarsMeasures PhantomTyVars { ph_unused_poly = unused_poly } = do
 getUnusedPoly :: TypeEnv -> UnusedPoly 
 getUnusedPoly tenv =
     let
-        adts = M.elems tenv
+        adts = HM.elems tenv
     in
     foldr unionUP emptyUP $ map getUnusedPoly' adts
 
@@ -80,7 +79,7 @@ getTypeInds is t =
 -- Adjust TypeEnv
 -------------------------------
 addTyVarsTypeEnv :: UnusedPoly -> TypeEnv -> TypeEnv
-addTyVarsTypeEnv unused = M.map (addTyVarADT unused) 
+addTyVarsTypeEnv unused = HM.map (addTyVarADT unused) 
 
 addTyVarADT :: UnusedPoly -> AlgDataTy -> AlgDataTy
 addTyVarADT unused dtc@(DataTyCon { data_cons = dcs }) =
@@ -93,7 +92,7 @@ addNewMaybe new_mb@(NewMaybe { new_maybe = new_mb_t }) tenv =
         dtc = DataTyCon { bound_ids = [Id (new_maybe_bound new_mb) TYPE]
                         , data_cons = [mkNewJustDC new_mb, mkNewNothingDC new_mb] }
     in
-    M.insert new_mb_t dtc tenv
+    HM.insert new_mb_t dtc tenv
 
 -------------------------------
 -- Adjust Expr

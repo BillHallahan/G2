@@ -16,7 +16,6 @@ import G2.Language.Typing
 import Control.Monad
 
 import qualified Data.HashMap.Lazy as HM
-import qualified Data.Map.Lazy as M
 import qualified Data.Text as T
 
 import GHC.Exts
@@ -86,8 +85,8 @@ genG2RepClause' tyConName tvs dcNme fieldTypes = do
                     `appE` litE (integerL $ toInteger $ length fieldTypes)
                     `appE` qqNameToQExp qqTyConName
                     `appE` qqNameToQExp qqName
-                    `appE` (varE 'qqMap `appE` varE cleaned `appE` [|M.keys $(varE tenv)|])
-                    `appE` (varE 'qqMap `appE` varE cleaned `appE` [|map dcName . concatMap dataCon . M.elems $ $(varE tenv)|])
+                    `appE` (varE 'qqMap `appE` varE cleaned `appE` [|HM.keys $(varE tenv)|])
+                    `appE` (varE 'qqMap `appE` varE cleaned `appE` [|map dcName . concatMap dataCon . HM.elems $ $(varE tenv)|])
                     `appE` varE tenv)
 
         tys = map (\tyv -> conE 'Type

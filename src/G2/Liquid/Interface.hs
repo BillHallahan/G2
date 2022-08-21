@@ -77,6 +77,7 @@ import Control.Exception
 import Control.Monad.Extra
 import Data.List
 import qualified Data.HashSet as S
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
@@ -567,7 +568,7 @@ reqNames (State { expr_env = eenv
                    ]
           ++
           Lang.namesList 
-            (M.filterWithKey 
+            (HM.filterWithKey 
                 (\k _ -> k == eqTC kv || k == numTC kv || k == ordTC kv || k == integralTC kv || k == fractionalTC kv || k == structEqTC kv) 
                 (toMap tc)
             )

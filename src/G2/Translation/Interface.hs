@@ -3,6 +3,7 @@ module G2.Translation.Interface ( translateLoaded ) where
 import DynFlags
 
 import Control.Monad.Extra
+import qualified Data.HashMap.Lazy as HM
 import Data.List
 import Data.Maybe
 import qualified Data.Text as T
@@ -80,7 +81,7 @@ translateLoaded proj src libs tr_con config = do
   (lib_transs, lib_nm, lib_tnm) <- translateLibs b_nm b_tnm tr_con config (Just HscInterpreted) libs
   let lib_exp = exg2_exports lib_transs
 
-  let base_tys' = base_tys ++ specialTypes
+  let base_tys' = base_tys `HM.union` specialTypes
   let base_prog' = addPrimsToBase base_tys' base_prog
   let base_trans' = base_exg2 { exg2_binds = base_prog', exg2_tycons = base_tys' }
 

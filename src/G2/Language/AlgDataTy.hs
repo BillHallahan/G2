@@ -11,9 +11,6 @@ import Data.Hashable
 
 import G2.Language.Syntax
 
-
-type ProgramType = (Name, AlgDataTy)
-
 -- | Algebraic data types are types constructed with parametrization of some
 -- names over types, and a list of data constructors for said type.
 data AlgDataTy = DataTyCon { bound_ids :: [Id]

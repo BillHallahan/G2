@@ -38,7 +38,7 @@ module G2.Translation.Haskell
     , findCabal
     ) where
 
-import qualified G2.Language.TypeEnv as G2 (AlgDataTy (..), ProgramType)
+import qualified G2.Language.TypeEnv as G2 (AlgDataTy (..))
 import qualified G2.Language.Syntax as G2
 -- import qualified G2.Language.Typing as G2
 import qualified G2.Translation.TransTypes as G2
@@ -330,9 +330,9 @@ modGutsClosureToG2 nm tm mgcc tr_con =
   -- Do the tycons
   let raw_tycons = G2.mgcc_tycons mgcc ++ typeEnvTyCons (G2.mgcc_type_env mgcc) in
   let (nm3, tm2, tycons) = foldr (\tc (nm', tm', tcs) ->
-                                  let ((nm'', tm''), mb_t) = mkTyCon nm' tm' tc in
-                                    (nm'', tm'', maybeToList mb_t ++ tcs))
-                                (nm2, tm, [])
+                                  let ((nm'', tm''), n, mb_t) = mkTyCon nm' tm' tc in
+                                    (nm'', tm'', maybe tcs (\t -> HM.insert n t tcs) mb_t))
+                                (nm2, tm, HM.empty)
                                 raw_tycons in
   -- Do the class
   let classes = map (mkClass nm3 tm2) $ G2.mgcc_cls_insts mgcc in
@@ -433,7 +433,7 @@ mergeExtractedG2s (g2:g2s) =
     G2.ExtractedG2
       { G2.exg2_mod_names = G2.exg2_mod_names g2 ++ G2.exg2_mod_names g2' -- order matters
       , G2.exg2_binds = G2.exg2_binds g2 `HM.union` G2.exg2_binds g2'
-      , G2.exg2_tycons = G2.exg2_tycons g2 ++ G2.exg2_tycons g2'
+      , G2.exg2_tycons = G2.exg2_tycons g2 `HM.union` G2.exg2_tycons g2'
       , G2.exg2_classes = G2.exg2_classes g2 ++ G2.exg2_classes g2'
       , G2.exg2_exports = G2.exg2_exports g2 ++ G2.exg2_exports g2'
       , G2.exg2_deps = G2.exg2_deps g2 ++ G2.exg2_deps g2'
@@ -637,10 +637,10 @@ mkType tm (TyConApp tc ts)
     , n == "TYPE" = G2.TYPE
     | otherwise = mkG2TyCon (mkTyConName tm tc) (map (mkType tm) ts) (mkType tm $ tyConKind tc) 
 
-mkTyCon :: G2.NameMap -> G2.TypeNameMap -> TyCon -> ((G2.NameMap, G2.TypeNameMap), Maybe G2.ProgramType)
+mkTyCon :: G2.NameMap -> G2.TypeNameMap -> TyCon -> ((G2.NameMap, G2.TypeNameMap), G2.Name, Maybe G2.AlgDataTy)
 mkTyCon nm tm t = case dcs of
-                        Just dcs' -> ((nm'', tm''), Just (n, dcs'))
-                        Nothing -> ((nm'', tm''), Nothing)
+                        Just dcs' -> ((nm'', tm''), n, Just dcs')
+                        Nothing -> ((nm'', tm''), n, Nothing)
   where
     n@(G2.Name n' m _ _) = flip mkNameLookup tm . tyConName $ t
     tm' = HM.insert (n', m) n tm

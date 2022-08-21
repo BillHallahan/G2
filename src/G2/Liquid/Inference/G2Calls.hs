@@ -913,7 +913,7 @@ isTotal tenv = getAll . evalASTs isTotal'
     where
         isTotal' (Case i _ as)
             | TyCon n _:_ <- unTyApp (typeOf i)
-            , Just adt <- M.lookup n tenv =
+            , Just adt <- HM.lookup n tenv =
                 All (length (dataCon adt) == length (filter isDataAlt as))
         isTotal' (Case _ _ _) = All False
         isTotal' _ = All True

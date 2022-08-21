@@ -14,8 +14,8 @@ import G2.Language
 _MAX_TUPLE :: Int
 _MAX_TUPLE = 62
 
-specialTypes :: [ProgramType]
-specialTypes = map (uncurry specialTypes') specials ++ mkPrimTuples _MAX_TUPLE
+specialTypes :: HM.HashMap Name AlgDataTy
+specialTypes = HM.fromList $ map (uncurry specialTypes') specials ++ mkPrimTuples _MAX_TUPLE
 
 specialTypes' :: (T.Text, Maybe T.Text, [Name]) -> [(T.Text, Maybe T.Text, [Type])] -> (Name, AlgDataTy)
 specialTypes' (n, m, ns) dcn = 
@@ -37,14 +37,14 @@ specialDC ns tn (n, m, ts) =
 
 specialTypeNames :: HM.HashMap (T.Text, Maybe T.Text) Name
 specialTypeNames = -- HM.fromList $ map (\(n, m, _) -> ((n, m), Name n m 0 Nothing)) specialTypeNames'
-      HM.fromList . map (\nm@(Name n m _ _) -> ((n, m), nm)) $ map fst specialTypes
+      HM.fromList . map (\nm@(Name n m _ _) -> ((n, m), nm)) $ HM.keys specialTypes
 
 specialConstructors :: HM.HashMap (T.Text, Maybe T.Text) Name
 specialConstructors =
     HM.fromList $ map (\(DataCon nm@(Name n m _ _) _)-> ((n, m), nm)) specialConstructors'
 
 specialConstructors' :: [DataCon]
-specialConstructors' = concatMap (data_cons . snd) specialTypes -- map (\(n, m, _) -> (n, m)) $ concatMap snd specials
+specialConstructors' = concatMap data_cons $ HM.elems specialTypes -- map (\(n, m, _) -> (n, m)) $ concatMap snd specials
 
 aName :: Name
 aName = Name "a" Nothing 0 Nothing
@@ -93,7 +93,7 @@ mkTuples ls rs m n | n < 0 = []
                         -- ((s, m, []), [(s, m, [])]) : mkTuples (n - 1)
                         ((s, m, ns), [(s, m, tv)]) : mkTuples ls rs m (n - 1)
 
-mkPrimTuples :: Int -> [ProgramType]
+mkPrimTuples :: Int -> [(Name, AlgDataTy)]
 mkPrimTuples k =
     let
         dcn = mkPrimTuples' k

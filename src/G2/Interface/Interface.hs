@@ -68,7 +68,6 @@ import qualified G2.Language.Stack as Stack
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
-import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
@@ -304,8 +303,8 @@ initSolver' avf config = do
     let con' = GroupRelated avf (UndefinedHigherOrder :?> (ADTNumericalSolver avf con))
     return (SomeSolver con')
 
-mkTypeEnv :: [ProgramType] -> TypeEnv
-mkTypeEnv = M.fromList . map (\(n, dcs) -> (n, dcs))
+mkTypeEnv :: HM.HashMap Name AlgDataTy -> TypeEnv
+mkTypeEnv = id
 
 {-# INLINE initialStateFromFileSimple #-}
 initialStateFromFileSimple :: [FilePath]

@@ -34,7 +34,6 @@ import Data.Char
 import Data.List as L
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
-import qualified Data.Map as M
 import qualified Data.Text as T
 
 data Clean = Cleaned | Dirty deriving Eq
@@ -518,7 +517,7 @@ pprExecEEnvStr eenv = injNewLine kv_strs
 pprTEnvStr :: TypeEnv -> String
 pprTEnvStr tenv = injNewLine kv_strs
   where
-    kv_strs = map show $ M.toList tenv
+    kv_strs = map show $ HM.toList tenv
 
 pprModelStr :: Model -> String
 pprModelStr m = injNewLine kv_strs
@@ -547,7 +546,7 @@ pprPathsStr paths = injNewLine cond_strs
 pprTCStr :: TypeClasses -> String
 pprTCStr tc = injNewLine cond_strs
   where
-    cond_strs = map show $ M.toList $ toMap tc
+    cond_strs = map show $ HM.toList $ toMap tc
 
 pprInputIdsStr :: InputIds -> String
 pprInputIdsStr i = injNewLine id_strs

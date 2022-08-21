@@ -28,7 +28,6 @@ import Data.Data
 import Data.Foldable
 import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
-import qualified Data.Map as M
 import qualified Data.Text as T
 
 data QQName = QQName T.Text (Maybe T.Text)
@@ -57,7 +56,7 @@ qqNameToName0 :: QQName -> G2.Name
 qqNameToName0 (QQName n m) = Name n m 0 Nothing
 
 qqAlgDataTyLookup :: QQName -> QQMap -> TypeEnv -> Maybe AlgDataTy
-qqAlgDataTyLookup qqn qqm tenv = flip M.lookup tenv =<< HM.lookup qqn qqm
+qqAlgDataTyLookup qqn qqm tenv = flip HM.lookup tenv =<< HM.lookup qqn qqm
 
 qqDataConLookup :: QQName -> QQName -> QQMap -> QQMap -> TypeEnv -> Maybe DataCon
 qqDataConLookup qqtn qqdcn type_nm_qqm dc_nm_qqm tenv

@@ -10,7 +10,7 @@ import G2.Liquid.TCValues
 import G2.Liquid.Types
 
 import Data.Foldable
-import qualified Data.Map as M
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 
 -- | Creates an LHState.  This involves building a TCValue, and
@@ -88,8 +88,8 @@ type PredFunc = LHDictMap -> Name -> AlgDataTy -> DataCon -> [Id] -> LHStateM [A
 
 createLHTCFuncs :: LHStateM ()
 createLHTCFuncs = do
-    lhm <- mapM (uncurry initalizeLHTC) . M.toList =<< typeEnv
-    let lhm' = M.fromList lhm
+    lhm <- mapM (uncurry initalizeLHTC) . HM.toList =<< typeEnv
+    let lhm' = HM.fromList lhm
 
     -- createLHTCFuncs' relies on the standard TypeClass lookup functions to get access to
     -- LH Dicts.  So it is important that, before calling it, we set up the TypeClass correctly
@@ -108,7 +108,7 @@ createLHTCFuncs = do
     putTypeClasses tc'
 
     -- Now, we do the work of actually generating all the code/functions for the typeclass
-    mapM_ (uncurry (createLHTCFuncs' lhm')) . M.toList =<< typeEnv
+    mapM_ (uncurry (createLHTCFuncs' lhm')) . HM.toList =<< typeEnv
 
 initalizeLHTC :: Name -> AlgDataTy -> LHStateM (Name, Id)
 initalizeLHTC n adt = do
@@ -198,7 +198,7 @@ createLHTCFuncs' lhm n adt = do
     let e' = foldr (Lam TermL) e lhd
     let e'' = foldr (Lam TypeL) e' bi
 
-    let fn = M.lookup n lhm
+    let fn = HM.lookup n lhm
 
     case fn of
         Just fn' -> do
@@ -263,7 +263,7 @@ createFunc cf n adt = do
     d1 <- freshIdN (TyCon n TYPE)
     d2 <- freshIdN (TyCon n TYPE)
 
-    let m = M.fromList $ zip (map idName bi) lhbi
+    let m = HM.fromList $ zip (map idName bi) lhbi
     e <- mkFirstCase cf m d1 d2 n adt
 
     let e' = mkLams (map (TypeL,) bi ++ map (TermL,) lhbi ++ [(TermL, d1), (TermL, d2)]) e
@@ -449,15 +449,15 @@ lhPPFunc n adt = do
         t = foldl' TyApp (TyCon n k) (map TyVar bi)
     d <- freshIdN t -- (TyCon n TYPE)
 
-    let lhm = M.fromList $ zip (map idName bi) lhbi
-    let fnm = M.fromList $ zip (map idName bi) fs
+    let lhm = HM.fromList $ zip (map idName bi) lhbi
+    let fnm = HM.fromList $ zip (map idName bi) fs
     e <- lhPPCase lhm fnm adt d
 
     let e' = mkLams (map (TypeL,) bi ++ map (TermL,) lhbi ++ map (TermL,) fs ++ [(TermL, d)]) e
 
     return e'
 
-type PPFuncMap = M.Map Name Id
+type PPFuncMap = HM.HashMap Name Id
 
 lhPPCase :: LHDictMap -> PPFuncMap -> AlgDataTy -> Id -> LHStateM Expr
 lhPPCase lhm fnm (DataTyCon { data_cons = dcs }) i = do
@@ -498,7 +498,7 @@ lhPPCall lhm fnm t
         return . mkApp $ lhv:[Type t, dict] ++ undefs -- ++ [Var i]
 
     | TyVar (Id n _) <- t
-    , Just f <- M.lookup n fnm = return $ Var f -- App (Var f) (Var i)
+    , Just f <- HM.lookup n fnm = return $ Var f -- App (Var f) (Var i)
     | TyVar _ <- tyAppCenter t = do
         i <- freshIdN t
         return . Lam TermL i =<< mkTrueE

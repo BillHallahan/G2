@@ -14,7 +14,7 @@ import G2.Liquid.Conversion
 import G2.Liquid.Types
 
 import Control.Monad.Extra
-import qualified Data.Map as M
+import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
 
 -- | Returns (1) the Id of the new main function and (2) the functions that need counterfactual variants
@@ -205,7 +205,7 @@ addCurrExprAssumption ifi (Bindings {fixed_inputs = fi}) = do
     eenv <- exprEnv
     inames <- inputNames
 
-    lh <- mapM (lhTCDict' M.empty) $ mapMaybe typeType fi'
+    lh <- mapM (lhTCDict' HM.empty) $ mapMaybe typeType fi'
 
     let is = catMaybes (map (E.getIdFromName eenv) inames)   
     let (typs, ars) = span isType $ fi' ++ map Var is
