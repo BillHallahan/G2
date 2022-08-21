@@ -10,7 +10,6 @@ import qualified Data.Text as T
 import System.Directory
 
 import G2.Config
-import G2.Language
 import G2.Translation.Haskell
 import G2.Translation.InjectSpecials
 import G2.Translation.PrimInject
@@ -76,7 +75,6 @@ translateLoaded proj src libs tr_con config = do
   let base_prog = exg2_binds base_exg2
       base_tys = exg2_tycons base_exg2
       b_exp = exg2_exports base_exg2
-
 
   (lib_transs, lib_nm, lib_tnm) <- translateLibs b_nm b_tnm tr_con config (Just HscInterpreted) libs
   let lib_exp = exg2_exports lib_transs

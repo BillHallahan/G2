@@ -19,10 +19,6 @@ module G2.Translation.Haskell
     , envModSumModGutsImports
 
     , mergeExtractedG2s
-    , mkIOString
-    , prim_list
-    , mkRawCore
-    , rawDump
     , mkExpr
     , mkId
     , mkIdUnsafe
@@ -58,7 +54,6 @@ import IdInfo
 import InstEnv
 import Literal
 import Name
-import Outputable
 import Pair
 import SrcLoc
 import TidyPgm
@@ -95,25 +90,6 @@ mkG2TyCon :: G2.Name
         -> G2.Type
 mkG2TyCon n ts k = mkG2TyApp $ G2.TyCon n k:ts
 
-
-mkIOString :: (Outputable a) => a -> IO String
-mkIOString obj = runGhc (Just libdir) $ do
-    dflags <- getSessionDynFlags
-    return (showPpr dflags obj)
-
-mkRawCore :: FilePath -> IO CoreModule
-mkRawCore fp = runGhc (Just libdir) $ do
-    _ <- setSessionDynFlags =<< getSessionDynFlags
-    -- compileToCoreModule fp
-    compileToCoreSimplified fp
-
-rawDump :: FilePath -> IO ()
-rawDump fp = do
-  core <- mkRawCore fp
-  str <- mkIOString core
-  putStrLn str
-
-
 equivMods :: HM.HashMap T.Text T.Text
 equivMods = HM.fromList
             [ ("GHC.Classes2", "GHC.Classes")
@@ -125,7 +101,6 @@ equivMods = HM.fromList
             , ("GHC.Magic2", "GHC.Magic")
             , ("GHC.CString2", "GHC.CString")
             , ("Data.Map.Base", "Data.Map")]
-
 
 loadProj ::  Maybe HscTarget -> [FilePath] -> [FilePath] -> [GeneralFlag] -> G2.TranslationConfig -> Ghc SuccessFlag
 loadProj hsc proj src gflags tr_con = do
@@ -651,14 +626,14 @@ mkTyCon nm tm t = case dcs of
 
     bv = map (mkId tm) $ tyConTyVars t
 
-    (nm'', tm'', dcs, dcsf) =
+    (nm'', tm'', dcs) =
         case isAlgTyCon t of 
             True -> case algTyConRhs t of
                             DataTyCon { data_cons = dc } -> 
                                 ( nm'
                                 , tm'
                                 , Just $ G2.DataTyCon bv $ map (mkData nm' tm) dc
-                                , Just $ map (mkId tm'' . dataConWorkId) dc)
+                                )
                             NewTyCon { data_con = dc
                                      , nt_rhs = rhst} -> 
                                      ( nm'
@@ -666,14 +641,14 @@ mkTyCon nm tm t = case dcs of
                                      , Just $ G2.NewTyCon { G2.bound_ids = bv
                                                           , G2.data_con = mkData nm' tm dc
                                                           , G2.rep_type = mkType tm rhst}
-                                     , Just $ [(mkId tm'' . dataConWorkId) dc])
+                                     )
                             AbstractTyCon {} -> error "Unhandled TyCon AbstractTyCon"
                             -- TupleTyCon {} -> error "Unhandled TyCon TupleTyCon"
                             TupleTyCon { data_con = dc } ->
                               ( nm'
                               , tm'
                               , Just $ G2.DataTyCon bv $ [mkData nm' tm dc]
-                              , Nothing)
+                              )
                             SumTyCon {} -> error "Unhandled TyCon SumTyCon"
             False -> case isTypeSynonymTyCon t of
                     True -> 
@@ -683,8 +658,8 @@ mkTyCon nm tm t = case dcs of
                             tv' = map (mkId tm) tv
                         in
                         (nm, tm', Just $ G2.TypeSynonym { G2.bound_ids = tv'
-                                                        , G2.synonym_of = st'}, Nothing)
-                    False -> (nm, tm, Nothing, Nothing)
+                                                        , G2.synonym_of = st'})
+                    False -> (nm, tm, Nothing)
     -- dcs = if isDataTyCon t then map mkData . data_cons . algTyConRhs $ t else []
 
 mkTyConName :: G2.TypeNameMap -> TyCon -> G2.Name
@@ -711,12 +686,6 @@ mkTyBinder tm (TvBndr v _) = G2.NamedTyBndr (mkId tm v)
 #else
 mkTyBinder tm (Bndr v _) = G2.NamedTyBndr (mkId tm v)
 #endif
-
-prim_list :: [String]
-prim_list = [">=", ">", "==", "/=", "<=", "<",
-             "&&", "||", "not",
-             "+", "-", "*", "/", "implies", "negate", "error", "iff" ]
-
 
 mkCoercion :: G2.TypeNameMap -> Coercion -> G2.Coercion
 mkCoercion tm c =
