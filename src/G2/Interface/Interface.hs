@@ -238,7 +238,7 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
                              , exg2_exports = es
                              , exg2_rules = rs }) =
     let
-        eenv = mkExprEnv prog
+        eenv = E.fromExprMap prog
         tenv = mkTypeEnv prog_typ
         tc = initTypeClasses cls
         kv = initKnownValues eenv tenv tc
@@ -303,9 +303,6 @@ initSolver' avf config = do
     SomeSMTSolver con <- getSMTAV avf config
     let con' = GroupRelated avf (UndefinedHigherOrder :?> (ADTNumericalSolver avf con))
     return (SomeSolver con')
-
-mkExprEnv :: [(Id, Expr)] -> E.ExprEnv
-mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e))
 
 mkTypeEnv :: [ProgramType] -> TypeEnv
 mkTypeEnv = M.fromList . map (\(n, dcs) -> (n, dcs))

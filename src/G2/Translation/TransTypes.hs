@@ -96,7 +96,7 @@ emptyCgGutsClosure =
 
 data ExtractedG2 = ExtractedG2
   { exg2_mod_names :: [(FilePath, T.Text)]
-  , exg2_binds :: [(G2.Id, G2.Expr)]
+  , exg2_binds :: HM.HashMap G2.Name G2.Expr
   , exg2_tycons :: [G2.ProgramType]
   , exg2_classes :: [(G2.Name, G2.Id, [G2.Id], [(G2.Type, G2.Id)])]
   , exg2_exports :: [ExportedName]
@@ -108,7 +108,7 @@ emptyExtractedG2 :: ExtractedG2
 emptyExtractedG2 =
   ExtractedG2
     { exg2_mod_names = []
-    , exg2_binds = []
+    , exg2_binds = HM.empty
     , exg2_tycons = []
     , exg2_classes = []
     , exg2_exports = []

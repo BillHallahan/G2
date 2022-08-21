@@ -78,6 +78,7 @@ import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
+import Data.Tuple.Extra
 import System.FilePath
 import System.Directory
 
@@ -323,8 +324,8 @@ modGutsClosureToG2 nm tm mgcc tr_con =
   -- Do the binds
   let (nm2, binds) = foldr (\b (nm', bs) ->
                               let (nm'', bs') = mkBinds nm' tm breaks b in
-                                (nm'', bs ++ bs'))
-                           (nm, [])
+                                (nm'', bs `HM.union` bs'))
+                           (nm, HM.empty)
                            (G2.mgcc_binds mgcc) in
   -- Do the tycons
   let raw_tycons = G2.mgcc_tycons mgcc ++ typeEnvTyCons (G2.mgcc_type_env mgcc) in
@@ -431,7 +432,7 @@ mergeExtractedG2s (g2:g2s) =
   let g2' = mergeExtractedG2s g2s in
     G2.ExtractedG2
       { G2.exg2_mod_names = G2.exg2_mod_names g2 ++ G2.exg2_mod_names g2' -- order matters
-      , G2.exg2_binds = G2.exg2_binds g2 ++ G2.exg2_binds g2'
+      , G2.exg2_binds = G2.exg2_binds g2 `HM.union` G2.exg2_binds g2'
       , G2.exg2_tycons = G2.exg2_tycons g2 ++ G2.exg2_tycons g2'
       , G2.exg2_classes = G2.exg2_classes g2 ++ G2.exg2_classes g2'
       , G2.exg2_exports = G2.exg2_exports g2 ++ G2.exg2_exports g2'
@@ -441,19 +442,20 @@ mergeExtractedG2s (g2:g2s) =
 ----------------
 -- Translating the individual components in CoreSyn, etc into G2 Core
 
-mkBinds :: G2.NameMap -> G2.TypeNameMap -> Maybe ModBreaks -> CoreBind -> (G2.NameMap, [(G2.Id, G2.Expr)])
+mkBinds :: G2.NameMap -> G2.TypeNameMap -> Maybe ModBreaks -> CoreBind -> (G2.NameMap, HM.HashMap G2.Name G2.Expr)
 mkBinds nm tm mb (NonRec var expr) = 
     let
         (i, nm') = mkIdUpdatingNM var nm tm
     in
-    (nm', [(i, mkExpr nm' tm mb expr)])
+    (nm', HM.singleton (G2.idName i) (mkExpr nm' tm mb expr))
 mkBinds nm tm mb (Rec ves) =
-    mapAccumR (\nm' (v, e) ->
-                let
-                    (i, nm'') = mkIdUpdatingNM v nm' tm
-                in
-                (nm'', (i, mkExpr nm'' tm mb e))
-            ) nm ves
+    second (HM.fromList) $
+        mapAccumR (\nm' (v, e) ->
+                    let
+                        (i, nm'') = mkIdUpdatingNM v nm' tm
+                    in
+                    (nm'', (G2.idName i, mkExpr nm'' tm mb e))
+                ) nm ves
 
 mkExpr :: G2.NameMap -> G2.TypeNameMap -> Maybe ModBreaks -> CoreExpr -> G2.Expr
 mkExpr nm tm _ (Var var) = G2.Var (mkIdLookup var nm tm)
@@ -758,15 +760,9 @@ availInfoNames (AvailTC n ns _) = mkName n:map mkName ns
 
 -- | absVarLoc'
 -- Switches all file paths in Var namesand Ticks to be absolute
-absVarLoc :: G2.Program -> IO G2.Program
-absVarLoc = 
-    mapM 
-        (mapM (\(i, e) -> do 
-                    e' <- absVarLoc' e
-                    return (i, e')
-              )
-        )
-
+absVarLoc :: HM.HashMap G2.Name G2.Expr -> IO (HM.HashMap G2.Name G2.Expr)
+absVarLoc = mapM absVarLoc'
+        
 absVarLoc' :: G2.Expr -> IO G2.Expr
 absVarLoc' (G2.Var (G2.Id (G2.Name n m i (Just s)) t)) = do
     return $ G2.Var $ G2.Id (G2.Name n m i (Just $ s)) t

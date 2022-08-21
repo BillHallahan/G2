@@ -234,7 +234,7 @@ library
                        -fno-ignore-asserts
                        -- -ddump-rule-rewrites
                        -- -ddump-splices
-                       -- -fprof-auto
+                       -fprof-auto
                        -- -fexternal-interpreter
   other-extensions:    CPP
   if flag(newLH)
@@ -350,7 +350,7 @@ test-suite test
                        , UnionFindTests
                        , RewriteVerify.RewriteVerifyTest
   ghc-options:         -Wall
-                       -- -fprof-auto "-with-rtsopts=-p"
+                       -fprof-auto "-with-rtsopts=-p"
                        -threaded
   type:                exitcode-stdio-1.0
 

@@ -16,6 +16,7 @@ import G2.Language.Syntax
 import G2.Language.Typing
 import G2.Language.TypeEnv
 
+import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Text as T
 
@@ -162,19 +163,18 @@ tyCharCharBool n = TyFun TyLitChar $ TyFun TyLitChar (TyCon n TYPE)
 boolName :: [ProgramType] -> Maybe Name
 boolName = find ((==) "Bool" . nameOcc) . map fst
 
-replaceFromPD :: [ProgramType] -> Id -> Expr -> (Id, Expr)
-replaceFromPD pt i@(Id n _) e =
+replaceFromPD :: [ProgramType] -> Name -> Expr -> Expr
+replaceFromPD pt n e =
     let
         e' = fmap snd $ find ((==) (nameOcc n) . fst) (primDefs pt)
     in
-    (i, maybe e id e')
+    maybe e id e'
 
+addPrimsToBase :: [ProgramType] -> HM.HashMap Name Expr -> HM.HashMap Name Expr
+addPrimsToBase pt prims = HM.mapWithKey (replaceFromPD pt) prims
 
-addPrimsToBase :: [ProgramType] -> Program -> Program
-addPrimsToBase pt prims = map (map (uncurry (replaceFromPD pt))) prims
-
-mergeProgs :: Program -> Program -> Program
-mergeProgs prog prims = prog ++ prims
+mergeProgs :: HM.HashMap Name Expr -> HM.HashMap Name Expr -> HM.HashMap Name Expr
+mergeProgs prog prims = prog `HM.union` prims
 
 -- The prog is used to change the names of types in the prog' and primTys
 mergeProgTys :: [ProgramType] -> [ProgramType] -> [ProgramType]

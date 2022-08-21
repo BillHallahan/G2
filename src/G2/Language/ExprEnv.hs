@@ -54,6 +54,7 @@ module G2.Language.ExprEnv
     , toList
     , toExprList
     , fromExprList
+    , fromExprMap
     , toHashMap
     ) where
 
@@ -369,6 +370,9 @@ toExprList env@(ExprEnv env') =
 
 fromExprList :: [(Name, Expr)] -> ExprEnv
 fromExprList = ExprEnv . M.fromList . L.map (\(n, e) -> (n, ExprObj e))
+
+fromExprMap :: M.HashMap Name Expr -> ExprEnv
+fromExprMap = ExprEnv . M.map ExprObj
 
 toExprMap :: ExprEnv -> M.HashMap Name Expr
 toExprMap env = M.mapWithKey (\k _ -> env ! k) $ unwrapExprEnv env
