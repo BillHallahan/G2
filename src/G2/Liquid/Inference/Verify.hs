@@ -192,11 +192,11 @@ ghcInfos me cfg fp = do
 #endif
     return ghci
 
-defLHConfig :: [FilePath] -> [FilePath] -> IO Config
-defLHConfig  proj lhlibs = do
+defLHConfig :: [FilePath] -> IO Config
+defLHConfig  proj = do
     config <- getOpts []
-    return config { idirs = idirs config ++ proj ++ lhlibs
-                  , files = files config ++ lhlibs
+    return config { idirs = idirs config ++ proj
+                  , files = files config
                   , ghcOptions = ["-v"]}
 
 ---------------------------------------------------------------------------

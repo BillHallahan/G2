@@ -54,7 +54,7 @@ checkInputOutput'' :: [FilePath]
                    -> IO (Bool, [ExecRes ()])
 checkInputOutput'' src md entry req config = do
     let proj = map takeDirectory src
-    (mb_modname, exg2) <- translateLoaded proj src [] simplTranslationConfig config
+    (mb_modname, exg2) <- translateLoaded proj src simplTranslationConfig config
 
     let (init_state, bindings) = initStateWithCall exg2 False (T.pack entry) mb_modname (mkCurrExpr Nothing Nothing) mkArgTys config
     
@@ -91,7 +91,7 @@ checkInputOutputLH' proj src md entry req config = try (checkInputOutputLH'' pro
 
 checkInputOutputLH'' :: [FilePath] -> [FilePath] -> String -> String -> [Reqs String] -> Config -> IO Bool
 checkInputOutputLH'' proj src md entry req config = do
-    ((r, _), _) <- findCounterExamples proj src (T.pack entry) [] [] config
+    ((r, _), _) <- findCounterExamples proj src (T.pack entry) config
 
     let chAll = checkExprAll req
 

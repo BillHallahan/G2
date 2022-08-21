@@ -40,11 +40,11 @@ main = do
                                     then checkFuncNums f infconfig config
                                     else callInference f infconfig config
                 (Just func', _) -> do
-                    ((in_out, _), entry) <- runLHInferenceAll infconfig config (T.pack func') [] [f] []
+                    ((in_out, _), entry) <- runLHInferenceAll infconfig config (T.pack func') [] [f]
                     printLHOut entry in_out
                     return ()
                 (_, Just _) -> do
-                    (ghci, lhconfig) <- getGHCI infconfig [] [f] []
+                    (ghci, lhconfig) <- getGHCI infconfig [] [f]
                     let c = Configs { g2_config = config, lh_config = lhconfig, inf_config = infconfig}
                     r <- runConfigs (tryToVerify ghci) c
                     print r
@@ -58,7 +58,7 @@ checkQualifs f config = do
     finfo <- parseFInfo ["qualif.hquals"]
 
     let infconfig = mkInferenceConfig []
-    lhconfig <- quals finfo `deepseq` defLHConfig [] []
+    lhconfig <- quals finfo `deepseq` defLHConfig []
     let lhconfig' = lhconfig { pruneUnsorted = True }
     ghcis <- ghcInfos Nothing lhconfig' [f]
     let ghcis' = map (\ghci ->
@@ -81,7 +81,7 @@ checkQualifs f config = do
 
 callInference :: String -> InferenceConfig -> G2.Config -> IO ()
 callInference f infconfig config = do
-    (s, gs) <- inferenceCheck infconfig config [] [f] []
+    (s, gs) <- inferenceCheck infconfig config [] [f]
     case gs of
         Left gs' -> do
             putStrLn "Counterexample"
@@ -92,8 +92,8 @@ callInference f infconfig config = do
 
 checkFuncNums :: String -> InferenceConfig -> G2.Config -> IO ()
 checkFuncNums f infconfig config = do
-    (ghci, lhconfig) <- getGHCI infconfig [] [f] []
-    (lrs, _, _, main_mod)  <- getInitState [] [f] [] ghci infconfig config
+    (ghci, lhconfig) <- getGHCI infconfig [] [f]
+    (lrs, _, _, main_mod)  <- getInitState [] [f] ghci infconfig config
     let nls = getNameLevels main_mod lrs
 
     print nls

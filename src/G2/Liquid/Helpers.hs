@@ -44,10 +44,10 @@ import Name
 import Var as V
 
 -- | Interface with LH
-getGHCInfos :: LHC.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO [GhcInfo]
-getGHCInfos config proj fp lhlibs = do
-    let config' = config {idirs = idirs config ++ proj ++ lhlibs
-                         , files = files config ++ lhlibs
+getGHCInfos :: LHC.Config -> [FilePath] -> [FilePath] -> IO [GhcInfo]
+getGHCInfos config proj fp = do
+    let config' = config {idirs = idirs config ++ proj
+                         , files = files config
                          , ghcOptions = ["-v"]}
 
     -- GhcInfo

@@ -417,16 +417,15 @@ runLHInferenceAll :: MonadIO m
                   -> T.Text
                   -> [FilePath]
                   -> [FilePath]
-                  -> [FilePath]
                   -> m (([ExecRes AbstractedInfo], Bindings), Id)
-runLHInferenceAll infconfig config func proj fp lhlibs = do
+runLHInferenceAll infconfig config func proj fp = do
     -- Initialize LiquidHaskell
-    (ghci, lhconfig) <- liftIO $ getGHCI infconfig proj fp lhlibs
+    (ghci, lhconfig) <- liftIO $ getGHCI infconfig proj fp
 
     let g2config = config { mode = Liquid
                           , steps = 2000 }
         transConfig = simplTranslationConfig { simpl = False }
-    (main_mod, exg2) <- liftIO $ translateLoaded proj fp lhlibs transConfig g2config
+    (main_mod, exg2) <- liftIO $ translateLoaded proj fp transConfig g2config
 
     let (lrs, g2config', infconfig') = initStateAndConfig exg2 main_mod g2config infconfig ghci
 

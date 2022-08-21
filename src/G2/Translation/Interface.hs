@@ -29,20 +29,6 @@ translateBase tr_con config extra hsc = do
 
   translateLibPairs specialConstructors specialTypeNames tr_con config emptyExtractedG2 hsc base_inc bases
 
-
-translateLibs :: NameMap
-  -> TypeNameMap
-  -> TranslationConfig
-  -> Config
-  -> Maybe HscTarget
-  -> [FilePath]
-  -> IO (ExtractedG2, NameMap, TypeNameMap)
-translateLibs nm tm tr_con config hsc fs = do
-  -- If we are not given anything, then we have to guess the project
-  let inc = map (dropWhileEnd (/= '/')) fs
-  translateLibPairs nm tm tr_con config emptyExtractedG2 hsc inc fs
-
-
 translateLibPairs :: NameMap
   -> TypeNameMap
   -> TranslationConfig
@@ -59,11 +45,10 @@ translateLibPairs nm tnm tr_con config exg2 hsc inc_paths (f: fs) = do
 
 translateLoaded :: [FilePath]
   -> [FilePath]
-  -> [FilePath]
   -> TranslationConfig
   -> Config
   -> IO (Maybe T.Text, ExtractedG2)
-translateLoaded proj src libs tr_con config = do
+translateLoaded proj src tr_con config = do
   -- Stuff with the actual target
   let def_proj = extraDefaultInclude config
   tar_ems <- envModSumModGuts (Just HscInterpreted) (def_proj ++ proj) src tr_con
@@ -76,23 +61,18 @@ translateLoaded proj src libs tr_con config = do
       base_tys = exg2_tycons base_exg2
       b_exp = exg2_exports base_exg2
 
-  (lib_transs, lib_nm, lib_tnm) <- translateLibs b_nm b_tnm tr_con config (Just HscInterpreted) libs
-  let lib_exp = exg2_exports lib_transs
-
   let base_tys' = base_tys `HM.union` specialTypes
   let base_prog' = addPrimsToBase base_tys' base_prog
   let base_trans' = base_exg2 { exg2_binds = base_prog', exg2_tycons = base_tys' }
 
-  let merged_lib = mergeExtractedG2s ([base_trans', lib_transs])
-
   -- Now the stuff with the actual target
-  (_, _, exg2) <- hskToG2ViaEMS tr_con tar_ems lib_nm lib_tnm
+  (_, _, exg2) <- hskToG2ViaEMS tr_con tar_ems b_nm b_tnm
   let mb_modname = lookup (head src) $ exg2_mod_names exg2
   let h_exp = exg2_exports exg2
 
   -- putStrLn $ "exg2_deps = " ++ show (exg2_deps exg2)
 
-  let merged_exg2 = mergeExtractedG2s [exg2, merged_lib]
+  let merged_exg2 = mergeExtractedG2s [exg2, base_trans']
       merged_prog = exg2_binds merged_exg2
       merged_tys = exg2_tycons merged_exg2
       merged_cls = exg2_classes merged_exg2
@@ -107,7 +87,7 @@ translateLoaded proj src libs tr_con config = do
   let final_exg2 = merged_exg2 { exg2_binds = final_prog
                                , exg2_tycons = final_tys
                                , exg2_classes = final_merged_cls
-                               , exg2_exports = b_exp ++ lib_exp ++ h_exp
+                               , exg2_exports = b_exp ++ h_exp
                                , exg2_rules = final_rules}
 
   return (mb_modname, final_exg2)

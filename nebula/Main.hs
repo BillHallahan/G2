@@ -73,13 +73,11 @@ runWithArgs as = do
   let (finite_names, total_names) = partition finiteArg tail_vars
       finite = map (T.pack . tail) finite_names
       total = (map T.pack total_names) ++ finite
-      m_mapsrc = mkMapSrc []
       tentry = T.pack entry
 
   config <- getConfig as
 
-  let libs = maybeToList m_mapsrc
-  (init_state, bindings) <- initialStateNoStartFunc [proj] [src] libs
+  (init_state, bindings) <- initialStateNoStartFunc [proj] [src]
                             (TranslationConfig {simpl = True, load_rewrite_rules = True}) config
 
   let rule = find (\r -> tentry == ru_name r) (rewrite_rules bindings)
@@ -89,6 +87,3 @@ runWithArgs as = do
   res <- checkRule config use_labels sync init_state bindings total finite print_summary limit rule'
   print res
   return ()
-
-mkMapSrc :: [String] -> Maybe String
-mkMapSrc a = strArg "mapsrc" a M.empty Just Nothing

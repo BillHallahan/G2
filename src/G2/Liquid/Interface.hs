@@ -95,19 +95,19 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: [FilePath] -> [FilePath] -> T.Text -> [FilePath] -> [FilePath] -> Config -> IO (([ExecRes AbstractedInfo], Bindings), Lang.Id)
-findCounterExamples proj fp entry libs lhlibs config = do
+findCounterExamples :: [FilePath] -> [FilePath] -> T.Text -> Config -> IO (([ExecRes AbstractedInfo], Bindings), Lang.Id)
+findCounterExamples proj fp entry config = do
     let config' = config { mode = Liquid }
 
     lh_config <- getOpts []
 
-    ghci <- try $ getGHCInfos lh_config proj fp lhlibs :: IO (Either SomeException [GhcInfo])
+    ghci <- try $ getGHCInfos lh_config proj fp :: IO (Either SomeException [GhcInfo])
     
     let ghci' = case ghci of
                   Right g_c -> g_c
                   Left e -> error $ "ERROR OCCURRED IN LIQUIDHASKELL\n" ++ show e
 
-    tgt_trans <- translateLoaded proj fp libs (simplTranslationConfig { simpl = False }) config'
+    tgt_trans <- translateLoaded proj fp (simplTranslationConfig { simpl = False }) config'
 
     runLHCore entry tgt_trans ghci' config'
 

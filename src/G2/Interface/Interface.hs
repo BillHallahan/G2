@@ -309,23 +309,21 @@ mkTypeEnv = id
 {-# INLINE initialStateFromFileSimple #-}
 initialStateFromFileSimple :: [FilePath]
                    -> [FilePath]
-                   -> [FilePath]
                    -> StartFunc
                    -> (Id -> MkCurrExpr)
                    -> (Expr -> MkArgTypes)
                    -> Config
                    -> IO (State (), Id, Bindings)
-initialStateFromFileSimple proj src libs f mkCurr argTys config =
-    initialStateFromFile proj src libs Nothing False f mkCurr argTys simplTranslationConfig config
+initialStateFromFileSimple proj src f mkCurr argTys config =
+    initialStateFromFile proj src Nothing False f mkCurr argTys simplTranslationConfig config
 
 initialStateNoStartFunc :: [FilePath]
-                     -> [FilePath]
                      -> [FilePath]
                      -> TranslationConfig
                      -> Config
                      -> IO (State (), Bindings)
-initialStateNoStartFunc proj src libs transConfig config = do
-    (_, exg2) <- translateLoaded proj src libs transConfig config
+initialStateNoStartFunc proj src transConfig config = do
+    (_, exg2) <- translateLoaded proj src transConfig config
 
     let simp_state = initSimpleState exg2
 
@@ -338,7 +336,6 @@ initialStateNoStartFunc proj src libs transConfig config = do
 
 initialStateFromFile :: [FilePath]
                      -> [FilePath]
-                     -> [FilePath]
                      -> Maybe ReachFunc
                      -> Bool
                      -> StartFunc
@@ -347,8 +344,8 @@ initialStateFromFile :: [FilePath]
                      -> TranslationConfig
                      -> Config
                      -> IO (State (), Id, Bindings)
-initialStateFromFile proj src libs m_reach def_assert f mkCurr argTys transConfig config = do
-    (mb_modname, exg2) <- translateLoaded proj src libs transConfig config
+initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig config = do
+    (mb_modname, exg2) <- translateLoaded proj src transConfig config
 
     let simp_state = initSimpleState exg2
         (ie, fe) = case findFunc f mb_modname (IT.expr_env simp_state) of
@@ -365,7 +362,6 @@ initialStateFromFile proj src libs m_reach def_assert f mkCurr argTys transConfi
 
 runG2FromFile :: [FilePath]
               -> [FilePath]
-              -> [FilePath]
               -> Maybe AssumeFunc
               -> Maybe AssertFunc
               -> Maybe ReachFunc
@@ -374,8 +370,8 @@ runG2FromFile :: [FilePath]
               -> TranslationConfig
               -> Config
               -> IO (([ExecRes ()], Bindings), Id)
-runG2FromFile proj src libs m_assume m_assert m_reach def_assert f transConfig config = do
-    (init_state, entry_f, bindings) <- initialStateFromFile proj src libs
+runG2FromFile proj src m_assume m_assert m_reach def_assert f transConfig config = do
+    (init_state, entry_f, bindings) <- initialStateFromFile proj src
                                     m_reach def_assert f (mkCurrExpr m_assume m_assert) (mkArgTys)
                                     transConfig config
 
