@@ -832,7 +832,6 @@ testFileWithConfig src m_assume m_assert m_reaches entry config = do
             $ runG2FromFile 
                 [proj]
                 [src]
-                []
                 (fmap T.pack m_assume)
                 (fmap T.pack m_assert)
                 (fmap T.pack m_reaches)
@@ -889,7 +888,7 @@ checkLiquidWithConfig fp entry reqList config_f lhconfig_f =
     testCase fp (do
         config <- config_f
         lhconfig <- lhconfig_f
-        res <- findCounterExamples' fp (T.pack entry) [] [] config lhconfig
+        res <- findCounterExamples' fp (T.pack entry) config lhconfig
 
         let (ch, r) = case res of
                     Nothing -> (False, Right [Time])
@@ -927,7 +926,7 @@ checkAbsLiquidWithConfig fp entry reqList config_f lhconfig_f = do
     testCase fp (do
         config <- config_f
         lhconfig <- lhconfig_f
-        res <- findCounterExamples' fp (T.pack entry) [] [] config lhconfig
+        res <- findCounterExamples' fp (T.pack entry) config lhconfig
 
         let (ch, r) = case res of
                     Nothing -> (False, Right [])
@@ -963,17 +962,15 @@ checkFnIO f testName = do
 
 findCounterExamples' :: FilePath
                      -> T.Text
-                     -> [FilePath]
-                     -> [FilePath]
                      -> Config
                      -> LHConfig
                      -> IO (Maybe (Either SomeException [ExecRes AbstractedInfo]))
-findCounterExamples' fp entry libs lhlibs config lhconfig =
+findCounterExamples' fp entry config lhconfig =
     let
         proj = takeDirectory fp
     in
     doTimeout (timeLimit config)
-        $ try (return . fst. fst =<< findCounterExamples [proj] [fp] entry libs lhlibs config lhconfig)
+        $ try (return . fst. fst =<< findCounterExamples [proj] [fp] entry config lhconfig)
 
 errors :: [Expr] -> Bool
 errors e =

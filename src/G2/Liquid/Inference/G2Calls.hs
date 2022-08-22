@@ -421,16 +421,15 @@ runLHInferenceAll :: MonadIO m
                   -> T.Text
                   -> [FilePath]
                   -> [FilePath]
-                  -> [FilePath]
                   -> m (([ExecRes AbstractedInfo], Bindings), Id)
-runLHInferenceAll infconfig config g2lhconfig func proj fp lhlibs = do
+runLHInferenceAll infconfig config g2lhconfig func proj fp = do
     -- Initialize LiquidHaskell
-    (ghci, lhconfig) <- liftIO $ getGHCI infconfig proj fp lhlibs
+    (ghci, lhconfig) <- liftIO $ getGHCI infconfig proj fp
 
     let g2config = config { mode = Liquid
                           , steps = 2000 }
         transConfig = simplTranslationConfig { simpl = False }
-    (main_mod, exg2) <- liftIO $ translateLoaded proj fp lhlibs transConfig g2config
+    (main_mod, exg2) <- liftIO $ translateLoaded proj fp transConfig g2config
 
     let (lrs, g2config', g2lhconfig', infconfig') = initStateAndConfig exg2 main_mod g2config g2lhconfig infconfig ghci
 
@@ -921,7 +920,7 @@ isTotal tenv = getAll . evalASTs isTotal'
     where
         isTotal' (Case i _ as)
             | TyCon n _:_ <- unTyApp (typeOf i)
-            , Just adt <- M.lookup n tenv =
+            , Just adt <- HM.lookup n tenv =
                 All (length (dataCon adt) == length (filter isDataAlt as))
         isTotal' (Case _ _ _) = All False
         isTotal' _ = All True

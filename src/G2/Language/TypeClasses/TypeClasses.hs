@@ -31,7 +31,7 @@ import Data.Coerce
 import Data.Data (Data, Typeable)
 import Data.Hashable
 import Data.List
-import qualified Data.Map as M
+import qualified Data.HashMap.Lazy as M
 import Data.Maybe
 import Data.Monoid ((<>))
 import qualified Data.Sequence as S
@@ -42,7 +42,7 @@ data Class = Class { insts :: [(Type, Id)], typ_ids :: [Id], superclasses :: [(T
 
 instance Hashable Class
 
-type TCType = M.Map Name Class
+type TCType = M.HashMap Name Class
 newtype TypeClasses = TypeClasses TCType
                       deriving (Show, Eq, Read, Typeable, Data, Generic)
 
@@ -102,7 +102,7 @@ lookupTCDictsTypes tc = fmap (map fst) . flip lookupTCDicts tc
 lookupTCClass :: Name -> TypeClasses -> Maybe Class
 lookupTCClass n = M.lookup n . coerce
 
-tcWithNameMap :: Name -> [Id] -> M.Map Name Id
+tcWithNameMap :: Name -> [Id] -> M.HashMap Name Id
 tcWithNameMap n =
     M.fromList
         . map (\i -> (forType $ typeOf i, i))
@@ -128,7 +128,7 @@ tyConAppName _ = Nothing
 -- Given a TypeClass name, a type that you want an instance of that typeclass
 -- for, and a mapping of TyVar name's to Id's for those types instances of
 -- the typeclass, returns an instance of the typeclass, if possible 
-typeClassInst :: TypeClasses -> M.Map Name Id -> Name -> Type -> Maybe Expr 
+typeClassInst :: TypeClasses -> M.HashMap Name Id -> Name -> Type -> Maybe Expr 
 typeClassInst tc m tcn t
     | tca@(TyCon _ _) <- tyAppCenter t
     , ts <- tyAppArgs t
@@ -191,7 +191,7 @@ satisfyingTC  tc ts i t =
                     Just i' -> Var i'
                     Nothing -> error "No typeclass found.") tcReq
 
-toMap :: TypeClasses -> M.Map Name Class
+toMap :: TypeClasses -> M.HashMap Name Class
 toMap = coerce
 
 instance ASTContainer TypeClasses Expr where

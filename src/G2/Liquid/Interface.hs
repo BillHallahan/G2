@@ -78,6 +78,7 @@ import Control.Exception
 import Control.Monad.Extra
 import Data.List
 import qualified Data.HashSet as S
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
@@ -95,19 +96,19 @@ data FuncInfo = FuncInfo { func :: T.Text
 -- | findCounterExamples
 -- Given (several) LH sources, and a string specifying a function name,
 -- attempt to find counterexamples to the functions liquid type
-findCounterExamples :: [FilePath] -> [FilePath] -> T.Text -> [FilePath] -> [FilePath] -> Config -> LHConfig -> IO (([ExecRes AbstractedInfo], Bindings), Lang.Id)
-findCounterExamples proj fp entry libs lhlibs config lhconfig = do
+findCounterExamples :: [FilePath] -> [FilePath] -> T.Text -> Config -> LHConfig -> IO (([ExecRes AbstractedInfo], Bindings), Lang.Id)
+findCounterExamples proj fp entry config lhconfig = do
     let config' = config { mode = Liquid }
 
     lh_config <- getOpts []
 
-    ghci <- try $ getGHCInfos lh_config proj fp lhlibs :: IO (Either SomeException [GhcInfo])
+    ghci <- try $ getGHCInfos lh_config proj fp :: IO (Either SomeException [GhcInfo])
     
     let ghci' = case ghci of
                   Right g_c -> g_c
                   Left e -> error $ "ERROR OCCURRED IN LIQUIDHASKELL\n" ++ show e
 
-    tgt_trans <- translateLoaded proj fp libs (simplTranslationConfig { simpl = False }) config'
+    tgt_trans <- translateLoaded proj fp (simplTranslationConfig { simpl = False }) config'
 
     runLHCore entry tgt_trans ghci' config' lhconfig
 
@@ -575,7 +576,7 @@ reqNames (State { expr_env = eenv
                    ]
           ++
           Lang.namesList 
-            (M.filterWithKey 
+            (HM.filterWithKey 
                 (\k _ -> k == eqTC kv || k == numTC kv || k == ordTC kv || k == integralTC kv || k == fractionalTC kv || k == structEqTC kv) 
                 (toMap tc)
             )

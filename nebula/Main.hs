@@ -53,13 +53,11 @@ runWithArgs as = do
   proj <- guessProj src
 
   let finite = []
-      m_mapsrc = mkMapSrc []
       tentry = T.pack entry
 
   config <- getConfigDirect
 
-  let libs = maybeToList m_mapsrc
-  (init_state, bindings) <- initialStateNoStartFunc [proj] [src] libs
+  (init_state, bindings) <- initialStateNoStartFunc [proj] [src]
                             (TranslationConfig {simpl = True, load_rewrite_rules = True}) config
 
   let rule = find (\r -> tentry == ru_name r) (rewrite_rules bindings)
@@ -69,6 +67,3 @@ runWithArgs as = do
   res <- checkRule config nebula_config init_state bindings total finite rule'
   print res
   return ()
-
-mkMapSrc :: [String] -> Maybe String
-mkMapSrc a = strArg "mapsrc" a M.empty Just Nothing

@@ -18,6 +18,7 @@ import G2.Language.Typing
 import Data.Foldable
 import Data.List
 import qualified Data.HashSet as HS
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 
 import qualified Data.Sequence as S
@@ -86,7 +87,7 @@ markAndSweepPreserving' mc (state@State { expr_env = eenv
     isActive = (flip HS.member) active'
 
     eenv' = E.filterWithKey (\n _ -> isActive n) eenv
-    tenv' = M.filterWithKey (\n _ -> isActive n) tenv
+    tenv' = HM.filterWithKey (\n _ -> isActive n) tenv
 
     dsw' = M.filterWithKey (\n _ -> isActive n) dsw
 
@@ -99,7 +100,7 @@ activeNames tenv eenv explored nss
     | n S.:< ns <- S.viewl nss =
         let
             explored' = HS.insert n explored
-            tenv_hits = case M.lookup n tenv of
+            tenv_hits = case HM.lookup n tenv of
                 Nothing -> S.empty
                 Just r -> names r
             eenv_hits = case E.lookup n eenv of

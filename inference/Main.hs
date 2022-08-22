@@ -32,7 +32,7 @@ main = do
                             then checkFuncNums f infconfig config g2lhconfig
                             else callInference f infconfig config g2lhconfig
         Just func' -> do
-            ((in_out, _), entry) <- runLHInferenceAll infconfig config g2lhconfig (T.pack func') [] [f] []
+            ((in_out, _), entry) <- runLHInferenceAll infconfig config g2lhconfig (T.pack func') [] [f]
             printLHOut entry in_out
             return ()
 
@@ -67,7 +67,7 @@ main = do
 
 callInference :: String -> InferenceConfig -> G2.Config -> LHConfig -> IO ()
 callInference f infconfig config lhconfig = do
-    (s, gs) <- inferenceCheck infconfig config lhconfig [] [f] []
+    (s, gs) <- inferenceCheck infconfig config lhconfig [] [f]
     case gs of
         Left gs' -> do
             putStrLn "Counterexample"
@@ -78,8 +78,8 @@ callInference f infconfig config lhconfig = do
 
 checkFuncNums :: String -> InferenceConfig -> G2.Config -> LHConfig -> IO ()
 checkFuncNums f infconfig config g2lhconfig = do
-    (ghci, lhconfig) <- getGHCI infconfig [] [f] []
-    (lrs, _, _, _, main_mod)  <- getInitState [] [f] [] ghci infconfig config g2lhconfig
+    (ghci, lhconfig) <- getGHCI infconfig [] [f]
+    (lrs, _, _, _, main_mod)  <- getInitState [] [f] ghci infconfig config g2lhconfig
     let nls = getNameLevels main_mod lrs
 
     print nls

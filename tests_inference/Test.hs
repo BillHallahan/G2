@@ -123,7 +123,7 @@ posTestInferenceWithTimeOut to to_se fp = do
         config <- G2.getConfigDirect
         let infconfig = (mkInferenceConfigDirect []) { timeout_se = to_se }
         let lhconfig = mkLHConfigDirect [] M.empty
-        res <- doTimeout to $ inferenceCheck infconfig config lhconfig [] [fp] []
+        res <- doTimeout to $ inferenceCheck infconfig config lhconfig [] [fp]
 
         assertBool ("Inference for " ++ fp ++ " failed.") $ maybe False (isRight . snd) res
         )
@@ -137,7 +137,7 @@ negTestInference fp = do
         config <- G2.getConfigDirect
         let infconfig = mkInferenceConfigDirect []
         let lhconfig = mkLHConfigDirect [] M.empty
-        res <- doTimeout 90 $ inferenceCheck infconfig config lhconfig [] [fp] []
+        res <- doTimeout 90 $ inferenceCheck infconfig config lhconfig [] [fp]
 
         assertBool ("Inference for " ++ fp ++ " failed.") $ maybe False (isLeft . snd) res
         )
@@ -148,6 +148,6 @@ cexTest fp func =
         config <- G2.getConfigDirect
         let infconfig = (mkInferenceConfigDirect []) { timeout_se = 10 }
         let lhconfig = mkLHConfigDirect [] M.empty
-        res <- doTimeout 25 $ runLHInferenceAll infconfig config lhconfig (T.pack func) [] [fp] []
+        res <- doTimeout 25 $ runLHInferenceAll infconfig config lhconfig (T.pack func) [] [fp]
         assertBool ("Counterexample generation for " ++ func ++ " in " ++ fp ++ " failed.") $ maybe False (not . null . fst) res
         )

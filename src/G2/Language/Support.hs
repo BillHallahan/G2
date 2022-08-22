@@ -144,7 +144,7 @@ renameState old new_seed s b =
     let (new, ng') = freshSeededName new_seed (name_gen b)
     in (State { expr_env = rename old new (expr_env s)
              , type_env =
-                  M.mapKeys (\k -> if k == old then new else k)
+                  HM.mapKeys (\k -> if k == old then new else k)
                   $ rename old new (type_env s)
              , curr_expr = rename old new (curr_expr s)
              , path_conds = rename old new (path_conds s)
@@ -176,7 +176,7 @@ instance Named t => Named (State t) where
     rename old new s =
         State { expr_env = rename old new (expr_env s)
                , type_env =
-                    M.mapKeys (\k -> if k == old then new else k)
+                    HM.mapKeys (\k -> if k == old then new else k)
                     $ rename old new (type_env s)
                , curr_expr = rename old new (curr_expr s)
                , path_conds = rename old new (path_conds s)
@@ -195,7 +195,7 @@ instance Named t => Named (State t) where
     renames hm s =
         State { expr_env = renames hm (expr_env s)
                , type_env =
-                    M.mapKeys (renames hm)
+                    HM.mapKeys (renames hm)
                     $ renames hm (type_env s)
                , curr_expr = renames hm (curr_expr s)
                , path_conds = renames hm (path_conds s)

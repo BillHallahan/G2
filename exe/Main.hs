@@ -38,15 +38,11 @@ runWithArgs as = do
   let m_reaches = mReaches tail_args
   let m_retsTrue = mReturnsTrue tail_args
 
-  let m_mapsrc = mkMapSrc tail_args
-
   let tentry = T.pack entry
-
-  let libs = maybeToList m_mapsrc
 
   _ <- doTimeout (timeLimit config) $ do
     ((in_out, b), entry_f@(Id (Name _ mb_modname _ _) _)) <-
-        runG2FromFile [proj] [src] libs (fmap T.pack m_assume)
+        runG2FromFile [proj] [src] (fmap T.pack m_assume)
                   (fmap T.pack m_assert) (fmap T.pack m_reaches) 
                   (isJust m_assert || isJust m_reaches || m_retsTrue) 
                   tentry simplTranslationConfig config
@@ -102,9 +98,3 @@ mkLiquid a = strArg "liquid" a M.empty Just Nothing
 
 mkLiquidFunc :: [String] -> Maybe String
 mkLiquidFunc a = strArg "liquid-func" a M.empty Just Nothing
-
-mkMapSrc :: [String] -> Maybe String
-mkMapSrc a = strArg "mapsrc" a M.empty Just Nothing
-
-mkLiquidLibs :: [String] -> Maybe String
-mkLiquidLibs a = strArg "liquid-libs" a M.empty Just Nothing

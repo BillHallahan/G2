@@ -49,10 +49,10 @@ import qualified Data.Text as T
 
 -- Run inference, with an extra, final check of correctness at the end.
 -- Assuming inference is working correctly, this check should neve fail.
-inferenceCheck :: InferenceConfig -> G2.Config -> LHConfig -> [FilePath] -> [FilePath] -> [FilePath] -> IO (State [FuncCall], Either [CounterExample] GeneratedSpecs)
-inferenceCheck infconfig config g2lhconfig proj fp lhlibs = do
-    (ghci, lhconfig) <- getGHCI infconfig proj fp lhlibs
-    (s, res, _, loops) <- inference' infconfig config g2lhconfig lhconfig ghci proj fp lhlibs
+inferenceCheck :: InferenceConfig -> G2.Config -> LHConfig ->  [FilePath] -> [FilePath] -> IO (State [FuncCall], Either [CounterExample] GeneratedSpecs)
+inferenceCheck infconfig config g2lhconfig proj fp = do
+    (ghci, lhconfig) <- getGHCI infconfig proj fp
+    (s, res, _, loops) <- inference' infconfig config g2lhconfig lhconfig ghci proj fp
     print $ loop_count loops
     print . sum . HM.elems $ loop_count loops
     print $ searched_below loops
@@ -65,11 +65,11 @@ inferenceCheck infconfig config g2lhconfig proj fp lhlibs = do
                 _ -> error "inferenceCheck: Check failed"
         _ -> return (s, res)
 
-inference :: InferenceConfig -> G2.Config -> LHConfig -> [FilePath] -> [FilePath] -> [FilePath] -> IO (State [FuncCall], Either [CounterExample] GeneratedSpecs)
-inference infconfig config g2lhconfig proj fp lhlibs = do
+inference :: InferenceConfig -> G2.Config -> LHConfig ->  [FilePath] -> [FilePath] -> IO (State [FuncCall], Either [CounterExample] GeneratedSpecs)
+inference infconfig config g2lhconfig proj fp = do
     -- Initialize LiquidHaskell
-    (ghci, lhconfig) <- getGHCI infconfig proj fp lhlibs
-    (s, res, timer, _) <- inference' infconfig config g2lhconfig lhconfig ghci proj fp lhlibs
+    (ghci, lhconfig) <- getGHCI infconfig proj fp
+    (s, res, timer, _) <- inference' infconfig config g2lhconfig lhconfig ghci proj fp
     print . logToSecs . sumLog . getLog $ timer
     return (s, res)
 
@@ -80,12 +80,11 @@ inference' :: InferenceConfig
            -> [GhcInfo]
            -> [FilePath]
            -> [FilePath]
-           -> [FilePath]
            -> IO (State [FuncCall], Either [CounterExample] GeneratedSpecs, Timer (Event Name), Counters)
-inference' infconfig config g2lhconfig lhconfig ghci proj fp lhlibs = do
+inference' infconfig config g2lhconfig lhconfig ghci proj fp = do
     mapM_ (print . getQualifiers) ghci
 
-    (lrs, g2config', g2lhconfig', infconfig', main_mod) <- getInitState proj fp lhlibs ghci infconfig config g2lhconfig
+    (lrs, g2config', g2lhconfig', infconfig', main_mod) <- getInitState proj fp ghci infconfig config g2lhconfig
     let nls = getNameLevels main_mod lrs
 
     putStrLn $ "nls = " ++ show nls
@@ -106,17 +105,16 @@ inference' infconfig config g2lhconfig lhconfig ghci proj fp lhlibs = do
 
 getInitState :: [FilePath]
              -> [FilePath]
-             -> [FilePath]
              -> [GhcInfo]
              -> InferenceConfig
              -> G2.Config
              -> LHConfig
              -> IO (LiquidReadyState, G2.Config, LHConfig, InferenceConfig, Maybe T.Text)
-getInitState proj fp lhlibs ghci infconfig config lhconfig  = do
+getInitState proj fp ghci infconfig config lhconfig = do
     let g2config = config { mode = Liquid
                           , steps = 2000 }
         transConfig = simplTranslationConfig { simpl = False }
-    (main_mod, exg2) <- translateLoaded proj fp lhlibs transConfig g2config
+    (main_mod, exg2) <- translateLoaded proj fp transConfig g2config
 
     let (lrs, g2config', lhconfig', infconfig') = initStateAndConfig exg2 main_mod g2config lhconfig infconfig ghci
     return (lrs, g2config', lhconfig', infconfig', main_mod)

@@ -17,7 +17,7 @@ type BoundName = Name
 createDeepSeqWalks :: ExprEnv -> TypeEnv -> NameGen -> (ExprEnv, NameGen, Walkers)
 createDeepSeqWalks eenv tenv ng =
     let
-        tenv' = M.toList tenv
+        tenv' = HM.toList tenv
     in
     createFuncs eenv ng tenv' M.empty (createDeepSeqName . fst) createDeepSeqStore (createDeepSeqExpr tenv)
 
@@ -128,7 +128,7 @@ createDeepSeqDataConCase2 :: TypeEnv -> Walkers -> [(Name, Id)] -> RenameMap -> 
 createDeepSeqDataConCase2 _ _ _ _ [] ng e = (e, ng)
 createDeepSeqDataConCase2 tenv w ti rm (i:is) ng e
     | t@(TyCon n _) <- typeOf i 
-    , Just (NewTyCon {rep_type = rt}) <- M.lookup n tenv =
+    , Just (NewTyCon {rep_type = rt}) <- HM.lookup n tenv =
     let
         (i', ng') = freshId rt ng
 

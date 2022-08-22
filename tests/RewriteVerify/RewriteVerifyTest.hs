@@ -125,10 +125,6 @@ tree_bad_names = [ "badSize"
 tree_bad_src :: String
 tree_bad_src = "tests/RewriteVerify/Incorrect/TreeIncorrect.hs"
 
--- no need for general mkMapSrc
-libs :: [String]
-libs = maybeToList $ strArg "mapsrc" [] M.empty Just Nothing
-
 empty_config :: IO Config
 empty_config = getConfigDirect
 
@@ -139,7 +135,7 @@ rvTest check src rule_names =
     (do
         proj <- guessProj src
         config <- empty_config
-        initialStateNoStartFunc [proj] [src] libs
+        initialStateNoStartFunc [proj] [src]
                   (TranslationConfig {simpl = True, load_rewrite_rules = True})
                   config
     )

@@ -21,6 +21,6 @@ runSingleLHFun libs lhlibs = do
   (src, func, config, lhconfig) <- getLHConfig
   let proj = takeDirectory src
   _ <- doTimeout (timeLimit config) $ do
-    ((in_out, _), entry) <- findCounterExamples [proj] [src] (T.pack func) libs lhlibs config lhconfig
+    ((in_out, _), entry) <- findCounterExamples [proj] [src] (T.pack func) config lhconfig
     printLHOut entry in_out
   return ()
