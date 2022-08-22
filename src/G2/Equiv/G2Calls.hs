@@ -32,7 +32,6 @@ import qualified Data.HashSet as HS
 import qualified Data.Text as T
 
 import Data.Hashable
-import qualified Data.Map as M
 import qualified Data.List as L
 
 import GHC.Generics (Generic)
@@ -172,7 +171,7 @@ arbDC :: UseLabeledErrors
       -> Maybe ([(Expr, [Id])], NameGen)
 arbDC use_labels tenv ng t n total
     | TyCon tn _:ts <- unTyApp t
-    , Just adt <- M.lookup tn tenv =
+    , Just adt <- HM.lookup tn tenv =
         let
             dcs = dataCon adt
 

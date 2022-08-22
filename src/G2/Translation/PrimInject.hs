@@ -16,6 +16,7 @@ import G2.Language.Syntax
 import G2.Language.Typing
 import G2.Language.TypeEnv
 
+import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Text as T
 
@@ -31,10 +32,10 @@ primInjectT (TyCon (Name "Double#" _ _ _) _) = TyLitDouble
 primInjectT (TyCon (Name "Char#" _ _ _) _) = TyLitChar
 primInjectT t = t
 
-dataInject :: (ASTContainer t Expr) => t -> [ProgramType] -> t
+dataInject :: (ASTContainer t Expr) => t -> HM.HashMap Name AlgDataTy -> t
 dataInject prog progTy = 
     let
-        dcNames = concatMap (\(_, dc) -> map conName (dataCon dc)) $ progTy
+        dcNames = concatMap (map conName . dataCon) $ progTy
     in
     modifyASTs (dataInject' dcNames) prog
 
@@ -49,7 +50,7 @@ dataInject' _ e = e
 conName :: DataCon -> (Name, [Type])
 conName (DataCon n t) = (n, anonArgumentTypes $ t)
 
-primDefs :: [ProgramType] -> [(T.Text, Expr)]
+primDefs :: HM.HashMap Name AlgDataTy -> [(T.Text, Expr)]
 primDefs pt = case boolName pt of
                 Just n -> primDefs' n
                 Nothing -> error "Bool type not found"
@@ -159,24 +160,23 @@ tyCharIntBool n = TyFun TyLitChar $ TyFun TyLitInt (TyCon n TYPE)
 tyCharCharBool :: Name -> Type
 tyCharCharBool n = TyFun TyLitChar $ TyFun TyLitChar (TyCon n TYPE)
 
-boolName :: [ProgramType] -> Maybe Name
-boolName = find ((==) "Bool" . nameOcc) . map fst
+boolName :: HM.HashMap Name AlgDataTy -> Maybe Name
+boolName = find ((==) "Bool" . nameOcc) . HM.keys
 
-replaceFromPD :: [ProgramType] -> Id -> Expr -> (Id, Expr)
-replaceFromPD pt i@(Id n _) e =
+replaceFromPD :: HM.HashMap Name AlgDataTy -> Name -> Expr -> Expr
+replaceFromPD pt n e =
     let
         e' = fmap snd $ find ((==) (nameOcc n) . fst) (primDefs pt)
     in
-    (i, maybe e id e')
+    maybe e id e'
 
+addPrimsToBase :: HM.HashMap Name AlgDataTy -> HM.HashMap Name Expr -> HM.HashMap Name Expr
+addPrimsToBase pt prims = HM.mapWithKey (replaceFromPD pt) prims
 
-addPrimsToBase :: [ProgramType] -> Program -> Program
-addPrimsToBase pt prims = map (map (uncurry (replaceFromPD pt))) prims
-
-mergeProgs :: Program -> Program -> Program
-mergeProgs prog prims = prog ++ prims
+mergeProgs :: HM.HashMap Name Expr -> HM.HashMap Name Expr -> HM.HashMap Name Expr
+mergeProgs prog prims = prog `HM.union` prims
 
 -- The prog is used to change the names of types in the prog' and primTys
-mergeProgTys :: [ProgramType] -> [ProgramType] -> [ProgramType]
+mergeProgTys :: [(Name, AlgDataTy)] -> [(Name, AlgDataTy)] -> [(Name, AlgDataTy)]
 mergeProgTys progTys primTys =
     progTys ++ primTys  

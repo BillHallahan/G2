@@ -191,10 +191,9 @@ suite n = do
       ri = rule_inputs !! (n - 1)
       texts = map (T.pack . fst) ri
       totals = map (\(_, v) -> map T.pack v) ri
-      libs = maybeToList $ strArg "mapsrc" [] M.empty Just Nothing
   proj <- guessProj src
   config <- getConfig [src]
-  (init_state, bindings) <- initialStateNoStartFunc [proj] [src] libs
+  (init_state, bindings) <- initialStateNoStartFunc [proj] [src]
                             (TranslationConfig {simpl = True, load_rewrite_rules = True}) config
   let rule_maybes = map (\t -> find (\r -> t == ru_name r) (rewrite_rules bindings)) texts
       rules = map fromJust rule_maybes

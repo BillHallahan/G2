@@ -10,7 +10,7 @@ import G2.Language.TypeEnv
 import G2.Language.Typing (PresType (..), tyAppCenter, returnType)
 
 import Data.List
-import qualified Data.Map as M
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 
 initKnownValues :: E.ExprEnv -> TypeEnv -> TypeClasses -> KnownValues
@@ -112,13 +112,13 @@ exprWithStrName eenv s =
 
 typeWithStrName :: TypeEnv -> T.Text -> Name
 typeWithStrName tenv s =
-  case M.toList $ M.filterWithKey (\(Name n _ _ _) _ -> n == s) tenv of
+  case HM.toList $ HM.filterWithKey (\(Name n _ _ _) _ -> n == s) tenv of
     (n, _):_ -> n
     _ -> error $ "No type found in typeWithStrName " ++ (show $ T.unpack s)
 
 dcWithStrName :: TypeEnv -> T.Text -> T.Text -> Name
 dcWithStrName tenv ts dcs =
-  case concatMap dataCon . M.elems $ M.filterWithKey (\(Name n _ _ _) _ -> n == ts) tenv of
+  case concatMap dataCon . HM.elems $ HM.filterWithKey (\(Name n _ _ _) _ -> n == ts) tenv of
     [] -> error $ "No type found in typeWithStrName [" ++
                   (show $ T.unpack ts) ++ "] [" ++ (show $ T.unpack dcs) ++ "]"
     dc -> dcWithStrName' dc dcs

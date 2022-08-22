@@ -29,7 +29,6 @@ import G2.Solver
 import Control.Monad
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
-import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid
 
@@ -216,7 +215,7 @@ repTCs :: TypeClasses -> Expr -> Expr
 repTCs tc e
     | isTypeClass tc $ (typeOf e)
     , TyCon n _:t:_ <- unTyApp (typeOf e)
-    , Just tc_dict <- typeClassInst tc M.empty n t = tc_dict
+    , Just tc_dict <- typeClassInst tc HM.empty n t = tc_dict
     | otherwise = e
 
 
@@ -438,7 +437,7 @@ reduceFCExpr g2call reducer solver simplifier s bindings e
     | isTypeClass (type_classes s) $ (typeOf e)
     , TyCon n _:_ <- unTyApp (typeOf e)
     , _:Type t:_ <- unApp e
-    , Just tc_dict <- typeClassInst (type_classes s) M.empty n t = 
+    , Just tc_dict <- typeClassInst (type_classes s) HM.empty n t = 
           return $ ((s, bindings), tc_dict) 
     | otherwise = return ((s, bindings), redVar (expr_env s) e) 
 
