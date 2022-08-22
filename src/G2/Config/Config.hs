@@ -22,6 +22,7 @@ import Data.List
 import qualified Data.Map as M
 import Data.Monoid ((<>))
 import Options.Applicative
+import Text.Read
 
 data Mode = Regular | Liquid deriving (Eq, Show, Read)
 
@@ -120,7 +121,7 @@ mkLogMode =
 
 mkMaxOutputs :: Parser (Maybe Int)
 mkMaxOutputs =
-    option auto
+    option (maybeReader (Just . readMaybe))
             ( long "max-outputs"
             <> metavar "MAX"
             <> value Nothing
