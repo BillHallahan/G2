@@ -845,17 +845,14 @@ reducedGuide ((Marker _ m):ms) = case m of
   _ -> reducedGuide ms
 
 checkRule :: Config
-          -> UseLabeledErrors
-          -> Bool
+          -> NebulaConfig
           -> State t
           -> Bindings
           -> [DT.Text] -- ^ names of forall'd variables required to be total
           -> [DT.Text] -- ^ names of forall'd variables required to be total and finite
-          -> SummaryMode
-          -> Int
           -> RewriteRule
           -> IO (S.Result () () ())
-checkRule config use_labels sync init_state bindings total finite print_summary iterations rule = do
+checkRule config nc init_state bindings total finite rule = do
   let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
       (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
       sym_ids = ru_bndrs rule
@@ -886,8 +883,6 @@ checkRule config use_labels sync init_state bindings total finite print_summary 
       rewrite_state_l'' = startingState start_equiv_tracker ns rewrite_state_l'
       rewrite_state_r'' = startingState start_equiv_tracker ns rewrite_state_r'
 
-      nc = NC { use_labeled_errors = use_labels, sync = sync }
-
   S.SomeSolver solver <- initSolver config
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
   putStrLn $ printHaskellDirty e_l'
@@ -897,17 +892,17 @@ checkRule config use_labels sync init_state bindings total finite print_summary 
   (res, w) <- W.runWriterT $ verifyLoop solver ns
              emptyLemmas
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config nc sym_ids "" 0 iterations
+             bindings'' config nc sym_ids "" 0 (limit nc)
   -- UNSAT for good, SAT for bad
   -- TODO I can speed things up for the CX if there's no summary
   -- I only need a PrettyGuide for the CX marker
-  let pg = if print_summary == NoSummary
+  let pg = if (print_summary nc) == NoSummary
            then reducedGuide (reverse w)
            else mkPrettyGuide $ map (\(Marker _ m) -> m) w
-  if print_summary /= NoSummary then do
+  if print_summary nc /= NoSummary then do
     putStrLn "--- SUMMARY ---"
     --let pg = mkPrettyGuide $ map (\(Marker _ m) -> m) w
-    mapM (putStrLn . (summarize print_summary pg ns sym_ids)) w
+    mapM (putStrLn . (summarize (print_summary nc) pg ns sym_ids)) w
     putStrLn "--- END OF SUMMARY ---"
   else return ()
   case res of

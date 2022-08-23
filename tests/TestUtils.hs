@@ -15,7 +15,7 @@ mkConfigTestIO :: IO Config
 mkConfigTestIO = do
     homedir <- getHomeDirectory
     return $
-        (mkConfig homedir [] M.empty)
+        (mkConfigDirect homedir [] M.empty)
             { higherOrderSolver = AllFuncs
             , timeLimit = 120
             -- , baseInclude = [ "./base-4.9.1.0/Control/Exception/"

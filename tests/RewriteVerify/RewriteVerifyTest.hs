@@ -30,7 +30,7 @@ findRule rule_list rule_name =
 
 acceptRule :: Config -> State t -> Bindings -> RewriteRule -> IO Bool
 acceptRule config init_state bindings rule = do
-  res <- checkRule config UseLabeledErrors False init_state bindings [] [] NoSummary 10 rule
+  res <- checkRule config nebulaConfig init_state bindings [] [] rule
   return (case res of
     S.SAT _ -> error "Satisfiable"
     S.UNSAT _ -> True
@@ -38,11 +38,17 @@ acceptRule config init_state bindings rule = do
 
 rejectRule :: Config -> State t -> Bindings -> RewriteRule -> IO Bool
 rejectRule config init_state bindings rule = do
-  res <- checkRule config UseLabeledErrors False init_state bindings [] [] NoSummary 10 rule
+  res <- checkRule config nebulaConfig init_state bindings [] [] rule
   return (case res of
     S.SAT _ -> True
     S.UNSAT _ -> error "Unsatisfiable"
     _ -> error "Failed to Produce a Result")
+
+nebulaConfig :: NebulaConfig
+nebulaConfig = NC { limit = 10
+                  , print_summary = NoSummary
+                  , use_labeled_errors = UseLabeledErrors
+                  , sync = False}
 
 good_names :: [String]
 good_names = [ "addOneCommutative"
@@ -120,7 +126,7 @@ tree_bad_src :: String
 tree_bad_src = "tests/RewriteVerify/Incorrect/TreeIncorrect.hs"
 
 empty_config :: IO Config
-empty_config = getConfig []
+empty_config = getConfigDirect
 
 rvTest :: (Config -> State () -> Bindings -> RewriteRule -> IO Bool) ->
           String -> [String] -> TestTree

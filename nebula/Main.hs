@@ -32,17 +32,10 @@ import Control.Exception
 import Data.List
 import Data.Char
 
-import ZenoSuite
-
 main :: IO ()
 main = do
     as <- getArgs
-
-    if length as == 1 then
-        let n = read (head as) :: Int
-        in ZenoSuite.suite n
-    else
-        runWithArgs as
+    runWithArgs as
 
 finiteArg :: String -> Bool
 finiteArg ('_':_) = True
@@ -55,27 +48,14 @@ isFlagOrNumber _ = False
 
 runWithArgs :: [String] -> IO ()
 runWithArgs as = do
-  let (src:entry:tail_args) = as
-      (flags_nums, tail_vars) = partition isFlagOrNumber tail_args
-      sync = "--constant-sync" `elem` flags_nums
-      print_summary = if | "--summarize" `elem` flags_nums -> NoHistory
-                         | "--hist-summarize" `elem` flags_nums -> WithHistory
-                         | otherwise -> NoSummary
-      use_labels = if "--no-labeled-errors" `elem` flags_nums
-                        then NoLabeledErrors
-                        else UseLabeledErrors
-      limit = case elemIndex "--limit" tail_args of
-        Nothing -> -1
-        Just n -> read (tail_args !! (n + 1)) :: Int
+  (src, entry, total, nebula_config) <- getNebulaConfig
 
   proj <- guessProj src
 
-  let (finite_names, total_names) = partition finiteArg tail_vars
-      finite = map (T.pack . tail) finite_names
-      total = (map T.pack total_names) ++ finite
+  let finite = []
       tentry = T.pack entry
 
-  config <- getConfig as
+  config <- getConfigDirect
 
   (init_state, bindings) <- initialStateNoStartFunc [proj] [src]
                             (TranslationConfig {simpl = True, load_rewrite_rules = True}) config
@@ -84,6 +64,6 @@ runWithArgs as = do
       rule' = case rule of
               Just r -> r
               Nothing -> error "not found"
-  res <- checkRule config use_labels sync init_state bindings total finite print_summary limit rule'
+  res <- checkRule config nebula_config init_state bindings total finite rule'
   print res
   return ()

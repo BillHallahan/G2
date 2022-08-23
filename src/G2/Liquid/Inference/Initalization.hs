@@ -10,6 +10,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Translation
 
 import G2.Liquid.AddTyVars
+import G2.Liquid.Config
 import G2.Liquid.Interface
 import G2.Liquid.Types
 import G2.Liquid.Inference.Config
@@ -20,24 +21,24 @@ import qualified Language.Fixpoint.Types.Config as FP
 
 import qualified Data.Text as T
 
-initStateAndConfig :: ExtractedG2 -> Maybe T.Text -> G2.Config -> InferenceConfig -> [GhcInfo]
-                   -> (LiquidReadyState, G2.Config, InferenceConfig)
-initStateAndConfig exg2 main_mod g2config infconfig ghci = 
+initStateAndConfig :: ExtractedG2 -> Maybe T.Text -> G2.Config -> LHConfig -> InferenceConfig -> [GhcInfo]
+                   -> (LiquidReadyState, G2.Config, LHConfig, InferenceConfig)
+initStateAndConfig exg2 main_mod g2config lhconfig infconfig ghci = 
     let
         simp_s = initSimpleState exg2
-        (g2config', infconfig') = adjustConfig main_mod simp_s g2config infconfig ghci
+        (g2config', lhconfig', infconfig') = adjustConfig main_mod simp_s g2config lhconfig infconfig ghci
 
-        lrs = createStateForInference simp_s g2config' ghci
+        lrs = createStateForInference simp_s g2config' lhconfig' ghci
 
         lh_s = lr_state lrs
-        g2config'' = adjustConfigPostLH main_mod (measures lh_s) (tcvalues lh_s) (state lh_s) ghci g2config'
+        lhconfig'' = adjustConfigPostLH main_mod (measures lh_s) (tcvalues lh_s) (state lh_s) ghci lhconfig'
     in
-    (lrs, g2config'', infconfig')
+    (lrs, g2config', lhconfig'', infconfig')
 
-createStateForInference :: SimpleState -> G2.Config -> [GhcInfo] -> LiquidReadyState
-createStateForInference simp_s config ghci =
+createStateForInference :: SimpleState -> G2.Config -> LHConfig -> [GhcInfo] -> LiquidReadyState
+createStateForInference simp_s config lhconfig ghci =
     let
-        (simp_s', ph_tyvars) = if add_tyvars config
+        (simp_s', ph_tyvars) = if add_tyvars lhconfig
                                 then fmap Just $ addTyVarsEEnvTEnv simp_s
                                 else (simp_s, Nothing)
         (s, b) = initStateFromSimpleState simp_s' True 
@@ -45,7 +46,7 @@ createStateForInference simp_s config ghci =
                     (E.higherOrderExprs . IT.expr_env)
                     config
     in
-    createLiquidReadyState s b ghci ph_tyvars config
+    createLiquidReadyState s b ghci ph_tyvars lhconfig
 
 getGHCI :: InferenceConfig -> [FilePath] -> [FilePath] -> IO ([GhcInfo], LH.Config)
 getGHCI infconfig proj fp = do

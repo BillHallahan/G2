@@ -33,6 +33,7 @@ import qualified Data.Text as DT
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 
+import G2.Equiv.Config
 import G2.Equiv.InitRewrite
 import G2.Equiv.EquivADT
 import G2.Equiv.G2Calls
@@ -49,8 +50,6 @@ import Data.Time
 
 import G2.Execution.Reducer
 import G2.Lib.Printers
-
-data SummaryMode = NoHistory | WithHistory | NoSummary deriving Eq
 
 sideName :: Side -> String
 sideName ILeft = "Left"

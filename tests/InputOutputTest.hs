@@ -6,6 +6,7 @@ import Test.Tasty
 import Test.Tasty.HUnit
 
 import Control.Exception
+import qualified Data.Map.Lazy as M
 import qualified Data.Text as T
 import System.FilePath
 
@@ -13,6 +14,7 @@ import G2.Config
 import G2.Initialization.MkCurrExpr
 import G2.Interface
 import G2.Language
+import G2.Liquid.Config
 import G2.Liquid.Interface
 import G2.Translation
 
@@ -91,7 +93,8 @@ checkInputOutputLH' proj src md entry req config = try (checkInputOutputLH'' pro
 
 checkInputOutputLH'' :: [FilePath] -> [FilePath] -> String -> String -> [Reqs String] -> Config -> IO Bool
 checkInputOutputLH'' proj src md entry req config = do
-    ((r, _), _) <- findCounterExamples proj src (T.pack entry) config
+    let lhconfig = mkLHConfigDirect [] M.empty
+    ((r, _), _) <- findCounterExamples proj src (T.pack entry) config lhconfig
 
     let chAll = checkExprAll req
 
