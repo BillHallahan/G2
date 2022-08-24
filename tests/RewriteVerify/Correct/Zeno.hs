@@ -572,7 +572,6 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 
 -- swapped side for 04
 {-# RULES
-"prop01" forall n l . prop_01 n l = True
 "p01" forall n xs . take n xs ++ drop n xs = xs
 "p02" forall n xs ys . count n xs + count n ys = count n (xs ++ ys)
 "p03" forall n xs ys . count n xs <= count n (xs ++ ys) = True
@@ -694,6 +693,12 @@ p59fin xs ys runs forever
 RESULTS 11/17
 p01fin n xs runs forever
 p01finA n xs runs forever
+
+RESULTS 12/17
+p24finB hits the limit
+
+RESULTS 12/23
+p54finA hits the limit
 -}
 
 {-# RULES
@@ -716,14 +721,16 @@ p01finA n xs runs forever
 "p21fin" forall n m . prop_21 n m = walkNat n True
 "p24fin" forall a b . (max a b) === a = walkNat a (b <= a)
 "p24finA" forall a b . walkNat a ((max a b) === a) = walkNat a (b <= a)
+"p24finB" forall a b . (max a b) === a = walkNat b (b <= a)
 "p25fin" forall a b . (max a b) === b = walkNat b (a <= b)
 "p26fin" forall x xs ys . prop_26 x xs ys = walkNat x True
 "p38fin" forall n xs . count n (xs ++ [n]) = walkNat n (walkNatList xs (S (count n xs)))
 "p38finA" forall n xs . count n (xs ++ [n]) = walkNat n (S (count n xs))
 "p48fin" forall xs . prop_48 xs = walkList xs True
 "p54fin" forall n m . (m + n) - n = walkNat n m
+"p54finA" forall n m . (m + n) - n = walkNat m m
 "p57fin" forall n m xs . drop n (take m xs) = walkNat m (take (m - n) (drop n xs))
-"p59fin" forall xs ys . prop_59 xs ys = walkList xs True
+"p59fin" forall xs ys . walkList xs (prop_59 xs ys) = walkList xs True
 "p61fin" forall xs ys . last (xs ++ ys) = walkList xs (lastOfTwo xs ys)
 "p64fin" forall x xs . last (xs ++ [x]) = walkList xs x
 "p65fin" forall i m . prop_65 i m = walkNat i (walkNat m True)
@@ -772,6 +779,70 @@ Uncertain ones where the walking may need to be different:
 "p77fin" forall x xs . prop_77 x xs = walkList xs True
   #-}
 
+{-
+TODO copied from new-theorems branch
+
+ RESULTS 1/2
+ No outcome seen for p72fin
+
+ RESULTS 1/3
+ No outcome seen for p05finD
+ No outcome seen for p37finA
+ No outcome seen for p39fin
+ No outcome seen for p52fin
+ No outcome seen for p53fin
+ No outcome seen for p70finB
+ No outcome seen for p76finA
+
+ RESULTS 1/6
+ No outcome seen for p85finE after waiting for 2 minutes
+
+ RESULTS 1/7
+ No outcome seen for p85finE after waiting 2:30
+ No outcome seen for p48finA after waiting at least 2:10
+ No outcome seen for p60finA after waiting 2 minutes
+ -}
+{-# RULES
+"p05finD" forall n x xs . prop_05 n x xs = walkNat x True
+"p16finA" forall x xs . walkNat x (prop_16 x xs) = walkNat x True
+"p37finA" forall x xs . prop_37 x xs = walkNatList xs True
+"p48finA" forall xs . prop_48 xs = walkLastNat xs True
+"p39fin" forall n x xs . count n [x] + count n xs = walkNat x (count n (x:xs))
+"p52fin" forall n xs . walkNatList xs (count n xs) = count n (rev xs)
+"p53fin" forall n xs . walkNatList xs (count n xs) = count n (sort xs)
+"p60finA" forall xs ys . prop_60 xs ys = walkLastNat ys True
+"p70finB" forall m n . prop_70 m n = walkNat n True
+"p72fin" forall i xs . walkList xs (rev (drop i xs)) = take (len xs - i) (rev xs)
+"p76finA" forall n m xs . prop_76 n m xs = walkNat n True
+"p85finD" forall xs ys . prop_85 xs ys = walkTwoLists (xs, ys) True
+"p85finE" forall xs ys . walkList xs (prop_85 xs ys) = walkList xs True
+  #-}
+
+{-
+TODO swapped sides for p26imp, p59imp, p60imp, p62imp
+Also swapped p85imp for type issues
+
+RESULTS 1/4
+No outcome seen for p26imp, waited 2 minutes
+p48imp reached iteration limit 10, also reached 20 without result
+p59imp gets stuck right after starting a2, seemingly
+p60imp gets stuck right after starting a8
+p62imp gets stuck right after starting a8
+No outcome seen for p63imp, waited 2 minutes
+p70imp reached iteration limit 10, but got UNSAT with limit 20
+p85 gets stuck right after starting a2
+-}
+{-# RULES
+"p26imp" forall x xs ys . (x `elem` xs) && (x `elem` (xs ++ ys)) = x `elem` xs
+"p48imp" forall xs . not (null xs) = (not (null xs)) && (butlast xs ++ [last xs] =:= xs)
+"p59imp" forall xs ys . (ys =:= []) && (last (xs ++ ys) =:= last xs) = ys =:= []
+"p60imp" forall xs ys . (not (null ys)) && (last (xs ++ ys) =:= last ys) = not (null ys)
+"p62imp" forall xs x . (not (null xs)) && (last (x:xs) =:= last xs) = not (null xs)
+"p63imp" forall n xs . n < len xs = (n < len xs) && (last (drop n xs) =:= last xs)
+"p70imp" forall m n . m <= n = (m <= n) && (m <= S n)
+"p85imp" forall xs ys . (len xs =:= len ys) && (zip (rev xs) (rev ys) =:= rev (zip xs ys)) = len xs =:= len ys
+  #-}
+
 -- TODO alternative finiteness approach
 walkNat :: Nat -> a -> a
 walkNat Z a = a
@@ -781,10 +852,24 @@ walkList :: [a] -> b -> b
 walkList [] a = a
 walkList (_:xs) a = walkList xs a
 
+-- TODO new walking functions for more complex situations
+walkTwoLists :: ([a], [b]) -> c -> c
+walkTwoLists ([], []) a = a
+walkTwoLists ([], ys) a = walkList ys a
+walkTwoLists (xs, []) a = walkList xs a
+walkTwoLists (x:xs, y:ys) a = walkTwoLists (xs, ys) a
+
+walkLastNat :: [Nat] -> a -> a
+walkLastNat xs a = case xs of
+  [] -> a
+  y:ys -> case ys of
+    [] -> walkNat y a
+    _ -> walkLastNat ys a
+
 walkNatList :: [Nat] -> a -> a
 walkNatList xs a = case xs of
   [] -> a
-  y:ys -> walkNatList ys (walkNat y a)
+  y:ys -> walkNat y $ walkNatList ys a
 
 -- everything else that follows is not part of the official test suite
 inf1 :: Nat
@@ -859,6 +944,10 @@ cycle x = x:(cycle x)
 "unitEq" forall x . nop x = ()
 "cycleEq" forall x y . (cycle x) ++ [y] = cycle x
 "unitCycle" forall y . (cycle ()) ++ [y] = cycle ()
+"addTwo" forall n . S (S Z) + n = S (S (S Z))
+"addThree" forall n . S (S (S Z)) + n = S (S (S Z))
+"addThreeR" forall n . n + S (S (S Z)) = S (S (S Z))
+"addThreeBoth" forall n . n + S (S (S Z)) = S Z + S (S Z)
   #-}
 
 -- TODO forcing functions, make sure these work
@@ -958,4 +1047,38 @@ forceTreeBool (Node l _ r) b = case (forceTreeBool l b) of
 "prop77" forall x xs . prop_77 x xs = True
 "prop78" forall xs . prop_78 xs = True
 "prop85" forall xs ys . prop_85 xs ys = True
+  #-}
+
+-- TODO need a better way to handle lambdas; this gets SAT
+f :: Nat -> Nat
+f n = S n
+
+g :: Nat -> Nat
+g n = S n
+
+plus :: Nat -> Nat -> Nat
+plus a b = a + b
+
+badPlus :: Nat -> Nat -> Nat
+badPlus a b = S (a + b)
+
+xx :: Bool
+xx = xx
+
+yy :: Bool
+yy = yy
+
+loop1 :: Nat -> Nat
+loop1 n = loop1 n
+
+loop2 :: Nat -> Nat
+loop2 _ = loop2 Z
+
+{-# RULES
+"fg" f = g
+"fgBad" f = g . g
+"badPlus" plus = badPlus
+"contrived" xx = yy
+"contrivedSync" forall n . walkNat n (loop1 n) = loop2 n
+"plusZero" forall x . x + Z = x
   #-}

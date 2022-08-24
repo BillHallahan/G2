@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE TupleSections #-}
 
 module G2.Data.UFMap ( UFMap
@@ -29,7 +30,8 @@ module G2.Data.UFMap ( UFMap
 
                      , null
                      , keys
-                     , elems) where
+                     , elems
+                     , member) where
 
 import qualified G2.Data.UnionFind as UF
 
@@ -50,11 +52,15 @@ import Text.Read
 import qualified Text.Read.Lex as L
 import GHC.Read
 
+import GHC.Generics (Generic)
+
 import Test.Tasty.QuickCheck
 
 data UFMap k v = UFMap { joined :: UF.UnionFind k
                        , store :: M.HashMap k v }
-                       deriving (Typeable, Data)
+                       deriving (Typeable, Data, Generic)
+
+instance (Eq k, Hashable k, Hashable v) => Hashable (UFMap k v)
 
 empty :: UFMap k v
 empty = UFMap UF.empty M.empty
@@ -80,7 +86,7 @@ fromList xs =
                                             Nothing -> [] ) xs
         m = foldr (uncurry insert) empty xs_j
     in
-    foldr (\(ks, v) m' ->
+    foldr (\(ks, _) m' ->
                 case ks of
                     [] -> m'
                     (k:_) -> foldr (\k' -> join const k k') m' ks)
@@ -129,7 +135,7 @@ lookupWithRep k (UFMap uf m) =
     (r, M.lookup r m)
 
 lookupRep :: (Eq k, Hashable k) => k -> UFMap k v -> k
-lookupRep k (UFMap uf m) = UF.find k uf
+lookupRep k (UFMap uf _) = UF.find k uf
 
 (!) :: (Eq k, Hashable k) => UFMap k v -> k -> v
 uf ! k = case lookup k uf of
@@ -164,10 +170,9 @@ filterWithKey :: (k -> v -> Bool) -> UFMap k v -> UFMap k v
 filterWithKey p (UFMap uf m) = UFMap uf $ M.filterWithKey p m
 
 unionWith :: (Eq k, Hashable k) => (v -> v -> v) -> UFMap k v -> UFMap k v -> UFMap k v
-unionWith f (UFMap uf1 m1) (UFMap uf2 m2) =
+unionWith f ufm1 (UFMap uf2 m2) =
     let
-        j_uf = UF.unionOfUFs uf1 uf2
-        ufm1' = UFMap j_uf m1
+        ufm1' = foldr (joinAll f) ufm1 (UF.toList uf2) 
     in
     M.foldrWithKey (insertWith f) ufm1' m2 
 
@@ -182,7 +187,7 @@ mergeJoiningWithKey :: (Eq k, Hashable k, Show k, Show v, Show v1, Show v2)
                     -> UFMap k v1
                     -> UFMap k v2
                     -> UFMap k v
-mergeJoiningWithKey fb f1 f2 fj1 fj2 j ufm1@(UFMap uf1 m1) ufm2@(UFMap uf2 m2) =
+mergeJoiningWithKey fb f1 f2 fj1 fj2 j (UFMap uf1 m1) (UFMap uf2 m2) =
     let
         j_uf = UF.unionOfUFs uf1 uf2
 

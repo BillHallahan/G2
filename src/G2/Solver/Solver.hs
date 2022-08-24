@@ -22,22 +22,20 @@ import qualified G2.Language.PathConds as PC
 import Data.List
 import qualified Data.HashMap.Lazy as HM
 
-import Debug.Trace
-
 -- | The result of a Solver query
-data Result m u = SAT m
-                | UNSAT u
-                | Unknown String
-                deriving (Show, Eq)
+data Result m u um = SAT m
+                   | UNSAT u
+                   | Unknown String um
+                   deriving (Show, Eq)
 
 -- | Defines an interface to interact with Solvers
 class Solver solver where
     -- | Checks if the given `PathConds` are satisfiable.
-    check :: forall t . solver -> State t -> PathConds -> IO (Result () ())
+    check :: forall t . solver -> State t -> PathConds -> IO (Result () () ())
     
     -- | Checks if the given `PathConds` are satisfiable, and, if yes, gives a `Model`
     -- The model must contain, at a minimum, a value for each passed `Id`
-    solve :: forall t . solver -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model ())
+    solve :: forall t . solver -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model () ())
 
     -- | Cleans up when the solver is no longer needed.  Default implementation
     -- does nothing
@@ -51,12 +49,12 @@ class Solver solver where
 class TrSolver solver where
     -- | Checks if the given `PathConds` are satisfiable.
     -- Allows modifying the solver, to track some state.
-    checkTr :: forall t . solver -> State t -> PathConds -> IO (Result () (), solver)
+    checkTr :: forall t . solver -> State t -> PathConds -> IO (Result () () (), solver)
     
     -- | Checks if the given `PathConds` are satisfiable, and, if yes, gives a `Model`
     -- The model must contain, at a minimum, a value for each passed `Id`
     -- Allows modifying the solver, to track some state.
-    solveTr :: forall t . solver -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model (), solver)
+    solveTr :: forall t . solver -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model () (), solver)
 
     -- | Cleans up when the solver is no longer needed.  Default implementation
     -- does nothing
@@ -88,11 +86,11 @@ groupRelatedFinite = GroupRelated arbValue
 groupRelatedInfinite :: a -> GroupRelated a
 groupRelatedInfinite = GroupRelated arbValueInfinite
 
-checkRelated :: TrSolver a => a -> State t -> PathConds -> IO (Result () (), a)
+checkRelated :: TrSolver a => a -> State t -> PathConds -> IO (Result () () (), a)
 checkRelated solver s pc =
     checkRelated' solver s $ PC.relatedSets pc
 
-checkRelated' :: TrSolver a => a -> State t -> [PathConds] -> IO (Result () (), a)
+checkRelated' :: TrSolver a => a -> State t -> [PathConds] -> IO (Result () () (), a)
 checkRelated' sol _ [] = return (SAT (), sol)
 checkRelated' sol s (p:ps) = do
     (c, sol') <- checkTr sol s p
@@ -100,11 +98,11 @@ checkRelated' sol s (p:ps) = do
         SAT _ -> checkRelated' sol' s ps
         r -> return (r, sol')
 
-solveRelated :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> [Id] -> PathConds -> IO (Result  Model (), a)
+solveRelated :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model () (), a)
 solveRelated avf sol s b is pc = do
     solveRelated' avf sol s b HM.empty is $ PC.relatedSets pc
 
-solveRelated' :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> Model -> [Id] -> [PathConds] -> IO (Result Model (), a)
+solveRelated' :: TrSolver a => ArbValueFunc -> a -> State t -> Bindings -> Model -> [Id] -> [PathConds] -> IO (Result Model () (), a)
 solveRelated' avf sol s b m is [] =
     let 
         is' = filter (\i -> not $ idName i `HM.member` m) is
@@ -148,28 +146,28 @@ instance TrSolver solver => TrSolver (GroupRelated solver) where
 data CombineSolvers a b = a :<? b -- ^ a :<? b - Try solver b.  If it returns Unknown, try solver a
                         | a :?> b -- ^ a :>? b - Try solver a.  If it returns Unknown, try solver b
 
-checkWithEither :: (TrSolver a, TrSolver b) => a -> b -> State t -> PathConds -> IO (Result () (), CombineSolvers a b)
+checkWithEither :: (TrSolver a, TrSolver b) => a -> b -> State t -> PathConds -> IO (Result () () (), CombineSolvers a b)
 checkWithEither a b s pc = do
     (ra, a') <- checkTr a s pc 
     case ra of
         SAT _ -> return (ra, a' :?> b)
         UNSAT _ -> return (ra, a' :?> b)
-        Unknown ua -> do
+        Unknown ua _ -> do
             (rb, b') <- checkTr b s pc
             case rb of
-                Unknown ub -> return $ (Unknown $ ua ++ ",\n" ++ ub, a' :?> b')
+                Unknown ub _ -> return $ (Unknown (ua ++ ",\n" ++ ub) (), a' :?> b')
                 rb' -> return (rb', a' :?> b')
 
-solveWithEither :: (TrSolver a, TrSolver b) => a -> b -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model (), CombineSolvers a b)
+solveWithEither :: (TrSolver a, TrSolver b) => a -> b -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model () (), CombineSolvers a b)
 solveWithEither a b s binds is pc = do
     ra <- solveTr a s binds is pc 
     case ra of
         (SAT m, a') -> return (SAT m, a' :?> b)
         (UNSAT u, a') -> return (UNSAT u, a' :?> b)
-        (Unknown ua, a') -> do
+        (Unknown ua _, a') -> do
             rb <- solveTr b s binds is pc
             case rb of
-                (Unknown ub, b') -> return $ (Unknown $ ua ++ ",\n" ++ ub, a' :?> b')
+                (Unknown ub (), b') -> return $ (Unknown (ua ++ ",\n" ++ ub) (), a' :?> b')
                 (r, b') -> return (r, a' :?> b')
 
 -- | Fills in unused higher order functions with undefined
@@ -182,11 +180,11 @@ instance Solver UndefinedHigherOrder where
         in
         case f of
             [Id _ (TyFun _ _)] -> return $ SAT ()
-            _ -> return $ Unknown "UndefinedHigherOrder"
+            _ -> return $ Unknown "UndefinedHigherOrder" ()
 
     solve _ _ _ [i@(Id _ (TyFun _ _))] _ =
         return $ SAT (HM.singleton (idName i) (Prim Undefined TyBottom))
-    solve _ _ _ _ _ = return (Unknown "UndefinedHigherOrder")
+    solve _ _ _ _ _ = return (Unknown "UndefinedHigherOrder" ())
 
 instance (Solver a, Solver b) => Solver (CombineSolvers a b) where
     check (a :<? b) s pc = return . fst =<< checkWithEither (Tr b) (Tr a) s pc
@@ -226,14 +224,14 @@ instance (TrSolver a, TrSolver b) => TrSolver (CombineSolvers a b) where
         closeTr a
         closeTr b
 
-instance (ASTContainer m e, ASTContainer u e) => ASTContainer (Result m u) e where
+instance (ASTContainer m e, ASTContainer u e) => ASTContainer (Result m u um) e where
     containedASTs (SAT m) = containedASTs m
     containedASTs (UNSAT u) = containedASTs u
-    containedASTs (Unknown _) = []
+    containedASTs (Unknown _ _) = []
 
     modifyContainedASTs f (SAT m) = SAT (modifyContainedASTs f m)
     modifyContainedASTs f (UNSAT u) = UNSAT (modifyContainedASTs f u)
-    modifyContainedASTs _ u@(Unknown _) = u
+    modifyContainedASTs _ u@(Unknown _ _) = u
 
 -- A solver that returns unknown on all but the most trivial (empty) PCs
 data UnknownSolver = UnknownSolver
@@ -241,7 +239,7 @@ data UnknownSolver = UnknownSolver
 instance Solver UnknownSolver where
     check _ _ pc
         | PC.null pc = return (SAT ())
-        | otherwise = return (Unknown "unknown")
+        | otherwise = return (Unknown "unknown" ())
     solve _ _ _ _ pc
         | PC.null pc = return (SAT HM.empty)
-        | otherwise = return (Unknown "unknown")
+        | otherwise = return (Unknown "unknown" ())

@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -15,7 +16,9 @@ module G2.Liquid.Inference.Config (
                                   , InfConfig (..)
                                   , runConfigs
 
+                                  , getAllConfigsForInf
                                   , mkInferenceConfig
+                                  , mkInferenceConfigDirect
                                   , adjustConfig
                                   , adjustConfigPostLH
 
@@ -30,6 +33,7 @@ import G2.Language ( ExprEnv
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.Support as S
 import G2.Language.Typing
+import G2.Liquid.Config
 import G2.Liquid.Conversion
 import G2.Liquid.Helpers
 import G2.Liquid.TCValues
@@ -37,7 +41,11 @@ import G2.Liquid.Types
 import G2.Liquid.Inference.PolyRef
 import G2.Translation.Haskell
 
+#if MIN_VERSION_liquidhaskell(0,8,10)
+import G2.Liquid.Types (GhcInfo (..), GhcSpec (..))
+#else
 import Language.Haskell.Liquid.Types (GhcInfo (..), GhcSpec (..))
+#endif
 import qualified Language.Haskell.Liquid.Types as LH
 import Var as V
 
@@ -45,8 +53,12 @@ import Control.Monad.Reader
 import Control.Monad.State.Lazy
 import qualified Data.HashSet as S
 import qualified Data.Map as M
+import Data.Monoid ((<>))
 import qualified Data.Text as T
 import Data.Time.Clock
+import Options.Applicative
+import System.Directory
+
 
 -------------------------------
 -- Progresser
@@ -58,14 +70,18 @@ data Progress =
     Progress { ex_max_ce :: M.Map (T.Text, Maybe T.Text) Int -- ^ Gives an extra budget for maximum ce number
              , ex_max_depth :: Int -- ^ Gives an extra budget for the depth limit
              , ex_max_time :: M.Map (T.Text, Maybe T.Text) NominalDiffTime -- ^ Gives an extra max bufget for time
-             , max_synth_size :: MaxSize
+             , max_synth_form_size :: MaxSize
+             , max_synth_coeff_size :: MaxSize
+             , synth_fresh :: Int -- ^ An int to increment to get fresh names
              }
 
 newProgress :: Progress
 newProgress = Progress { ex_max_ce = M.empty
                        , ex_max_depth = 0
                        , ex_max_time = M.empty
-                       , max_synth_size = MaxSize 1 }
+                       , max_synth_form_size = MaxSize 1
+                       , max_synth_coeff_size = MaxSize 2
+                       , synth_fresh = 0 }
 
 class Progresser p where
     extraMaxCEx ::  (T.Text, Maybe T.Text) -> p -> Int
@@ -77,8 +93,15 @@ class Progresser p where
     extraMaxTime :: (T.Text, Maybe T.Text) -> p -> NominalDiffTime
     incrMaxTime :: (T.Text, Maybe T.Text) -> p -> p
 
-    maxSynthSize :: p -> MaxSize
-    incrMaxSynthSize :: p -> p
+    maxSynthFormSize :: p -> MaxSize
+    incrMaxSynthFormSize :: p -> p
+
+    maxSynthCoeffSize :: p -> MaxSize
+    incrMaxSynthCoeffSize :: p -> p
+    setMaxSynthCoeffSize :: MaxSize -> p -> p
+
+    synthFresh :: p -> Int
+    incrSynthFresh :: p -> p
 
 instance Progresser Progress where
     extraMaxCEx n (Progress { ex_max_ce = m }) = M.findWithDefault 0 n m
@@ -92,8 +115,16 @@ instance Progresser Progress where
     incrMaxTime n p@(Progress { ex_max_time = m }) =
         p { ex_max_time = M.insertWith (+) n 4 m }
 
-    maxSynthSize (Progress { max_synth_size = mss }) = mss
-    incrMaxSynthSize p@(Progress { max_synth_size = mss }) = p { max_synth_size = incrMaxSize mss }
+    maxSynthFormSize (Progress { max_synth_form_size = mss }) = mss
+    incrMaxSynthFormSize p@(Progress { max_synth_form_size = mss }) = p { max_synth_form_size = incrMaxSize 1 mss }
+
+    maxSynthCoeffSize (Progress { max_synth_coeff_size = mss }) = mss
+    incrMaxSynthCoeffSize p@(Progress { max_synth_coeff_size = mss }) = p { max_synth_coeff_size = incrMaxSize 2 mss }
+    setMaxSynthCoeffSize max_size p = p { max_synth_coeff_size = max_size }
+
+
+    synthFresh (Progress { synth_fresh = syf }) = syf
+    incrSynthFresh p@(Progress { synth_fresh = syf }) = p { synth_fresh = syf + 1 }
 
 class Monad m => ProgresserM m where
     extraMaxCExM :: (T.Text, Maybe T.Text) -> m Int
@@ -105,8 +136,15 @@ class Monad m => ProgresserM m where
     extraMaxTimeM :: (T.Text, Maybe T.Text) -> m NominalDiffTime
     incrMaxTimeM :: (T.Text, Maybe T.Text) -> m ()
 
-    maxSynthSizeM :: m MaxSize
-    incrMaxSynthSizeM :: m ()
+    maxSynthFormSizeM :: m MaxSize
+    incrMaxSynthFormSizeM :: m ()
+
+    maxSynthCoeffSizeM :: m MaxSize
+    incrMaxSynthCoeffSizeM :: m ()
+    setMaxSynthCoeffSizeM :: MaxSize -> m ()
+
+    synthFreshM :: m Int
+    incrSynthFreshM :: m ()
 
 instance (Monad m, Progresser p) => ProgresserM (StateT p m) where
     extraMaxCExM n = gets (extraMaxCEx n)
@@ -118,8 +156,15 @@ instance (Monad m, Progresser p) => ProgresserM (StateT p m) where
     extraMaxTimeM n = gets (extraMaxTime n)
     incrMaxTimeM n = modify' (incrMaxTime n)
 
-    maxSynthSizeM = gets maxSynthSize
-    incrMaxSynthSizeM = modify' incrMaxSynthSize
+    maxSynthFormSizeM = gets maxSynthFormSize
+    incrMaxSynthFormSizeM = modify' incrMaxSynthFormSize
+
+    maxSynthCoeffSizeM = gets maxSynthCoeffSize
+    incrMaxSynthCoeffSizeM = modify' incrMaxSynthCoeffSize
+    setMaxSynthCoeffSizeM max_size = modify' (setMaxSynthCoeffSize max_size)
+
+    synthFreshM = gets synthFresh
+    incrSynthFreshM = modify' incrSynthFresh
 
 instance ProgresserM m => ProgresserM (ReaderT env m) where
     extraMaxCExM n = lift (extraMaxCExM n)
@@ -131,50 +176,64 @@ instance ProgresserM m => ProgresserM (ReaderT env m) where
     extraMaxTimeM n = lift (extraMaxTimeM n)
     incrMaxTimeM n = lift (incrMaxTimeM n)
 
-    maxSynthSizeM = lift maxSynthSizeM
-    incrMaxSynthSizeM = lift incrMaxSynthSizeM
+    maxSynthFormSizeM = lift maxSynthFormSizeM
+    incrMaxSynthFormSizeM = lift incrMaxSynthFormSizeM
+
+    maxSynthCoeffSizeM = lift maxSynthCoeffSizeM
+    incrMaxSynthCoeffSizeM = lift incrMaxSynthCoeffSizeM
+    setMaxSynthCoeffSizeM max_size = lift (setMaxSynthCoeffSizeM max_size)
+
+    synthFreshM = lift synthFreshM
+    incrSynthFreshM = lift incrSynthFreshM
 
 runProgresser :: (Monad m, Progresser p) => StateT p m a -> p -> m a
 runProgresser = evalStateT
 
-incrMaxSize :: MaxSize -> MaxSize
-incrMaxSize (MaxSize sz) = MaxSize (sz + 1)
+incrMaxSize :: Integer -> MaxSize -> MaxSize
+incrMaxSize incr (MaxSize sz) = MaxSize (sz + incr)
 
 -------------------------------
 -- Configurations
 -------------------------------
 
 data Configs = Configs { g2_config :: Config
-                       , lh_config :: LH.Config
+                       , g2lh_config :: LHConfig -- ^ Configurations for running G2 in LH mode
+                       , lh_config :: LH.Config -- ^ LiquidHaskell configuration settings
                        , inf_config :: InferenceConfig }
 
 class InfConfig c where
     g2Config :: c -> Config
+    g2lhConfig :: c -> LHConfig
     lhConfig :: c -> LH.Config
     infConfig :: c -> InferenceConfig
 
 class Monad m => InfConfigM m where
     g2ConfigM :: m Config
+    g2lhConfigM :: m LHConfig
     lhConfigM :: m LH.Config
     infConfigM :: m InferenceConfig
 
 instance InfConfig Configs where
     g2Config = g2_config
+    g2lhConfig = g2lh_config
     lhConfig = lh_config
     infConfig = inf_config
 
 instance InfConfig env => InfConfig (ReaderT env m a) where
     g2Config = return . g2Config =<< ask
+    g2lhConfig = return . g2lhConfig =<< ask
     lhConfig = return . lhConfig =<< ask
     infConfig = return . infConfig =<< ask
 
 instance (Monad m, InfConfig env) => InfConfigM (ReaderT env m) where 
     g2ConfigM = return . g2Config =<< ask 
+    g2lhConfigM = return . g2lhConfig =<< ask
     lhConfigM = return . lhConfig =<< ask 
     infConfigM = return . infConfig =<< ask 
 
 instance InfConfigM m => InfConfigM (StateT env m) where
     g2ConfigM = lift g2ConfigM
+    g2lhConfigM = lift g2lhConfigM
     lhConfigM = lift lhConfigM
     infConfigM = lift infConfigM
 
@@ -200,14 +259,69 @@ data InferenceConfig =
                     , timeout_se :: NominalDiffTime
                     , timeout_sygus :: NominalDiffTime }
 
+getAllConfigsForInf :: IO (String, Bool, Config, LHConfig, InferenceConfig, Maybe String)
+getAllConfigsForInf = do
+    homedir <- getHomeDirectory
+    execParser (mkAllConfigsForInf homedir)
+
+mkAllConfigsForInf :: String -> ParserInfo (String, Bool, Config, LHConfig, InferenceConfig, Maybe String)
+mkAllConfigsForInf homedir =
+    info (((,,,,,) <$> getFileName
+                <*> flag False True (long "count" <> help "count the number of functions in the file")
+                <*> mkConfig homedir
+                <*> mkLHConfig
+                <*> mkInferenceConfig
+                <*> mkFuncCheck) <**> helper)
+          ( fullDesc
+          <> progDesc "Automatically infers specifications to verify code using LiquidHaskell."
+          <> header "The G2 Symbolic Execution Engine" )
+
+getFileName :: Parser String
+getFileName = argument str (metavar "FILE")
+
 runConfigs :: InfConfig env => ReaderT env m a -> env -> m a
 runConfigs = runReaderT
 
-mkInferenceConfig :: [String] -> InferenceConfig
-mkInferenceConfig as =
+mkInferenceConfig :: Parser InferenceConfig
+mkInferenceConfig = InferenceConfig
+    <$> flag True False (long "keep-quals" <> help "allow qualifiers to be generated and used during inference")
+    <*> pure S.empty
+    <*> option auto (long "max-ce"
+                   <> metavar "M"
+                   <> value 5
+                   <> help "the initial maximal number of counterexamples to return from any symbolic execution call")
+    <*> pure S.empty
+    <*> pure S.empty
+    <*> switch (long "restrict-coeffs-1" <> help "restrict coefficients to -1, 0, 1")
+    <*> flag True False (long "no-extra-fcs" <> help "do not generate extra (non-blocking) constraints")
+    <*> flag True False (long "no-level-dec" <> help "do not use level descent")
+    <*> flag True False (long "no-negated-models" <> help "do not use negated models")
+    <*> switch (long "use-invs" <> help "use invariant mode (benchmarking only)")
+    <*> option (maybeReader (Just . fromInteger . read)) (long "timeout-se"
+                   <> metavar "T"
+                   <> value 5
+                   <> help "timeout for symbolic execution")
+    <*> option (maybeReader (Just . fromInteger . read)) (long "timeout-sygus"
+                   <> metavar "T"
+                   <> value 5
+                   <> help "timeout for synthesis")
+
+mkFuncCheck :: Parser (Maybe String)
+mkFuncCheck =
+    option (eitherReader (Right . Just))
+            ( long "liquid-func"
+            <> metavar "FUNC"
+            <> value Nothing
+            <> help "a function to directly run symbolic execution on")
+
+
+mkInferenceConfigDirect :: [String] -> InferenceConfig
+mkInferenceConfigDirect as =
     InferenceConfig { keep_quals = boolArg "keep-quals" as M.empty On
                     , modules = S.empty
                     , max_ce = strArg "max-ce" as M.empty read 5
+                    , pre_refined = S.empty
+                    , refinable_funcs = S.empty
                     , restrict_coeffs = boolArg "restrict-coeffs" as M.empty Off
                     , use_extra_fcs = boolArg "use-extra-fc" as M.empty On
                     , use_level_dec = boolArg "use-level-dec" as M.empty On
@@ -216,15 +330,15 @@ mkInferenceConfig as =
                     , timeout_se = strArg "timeout-se" as M.empty (fromInteger . read) 5
                     , timeout_sygus = strArg "timeout-sygus" as M.empty (fromInteger . read) 10 }
 
-adjustConfig :: Maybe T.Text -> SimpleState -> Config -> InferenceConfig -> [GhcInfo] -> (Config, InferenceConfig)
-adjustConfig main_mod (SimpleState { expr_env = eenv }) config infconfig ghci =
+adjustConfig :: Maybe T.Text -> SimpleState -> Config -> LHConfig -> InferenceConfig -> [GhcInfo] -> (Config, LHConfig, InferenceConfig)
+adjustConfig main_mod (SimpleState { expr_env = eenv }) config lhconfig infconfig ghci =
     let
         -- ref = refinable main_mod meas tcv eenv
 
         pre = S.fromList
             . map (\(Name n m _ _) -> (n, m))
             . map (mkName . V.varName . fst)
-            $ concatMap (gsTySigs . spec) ghci
+            $ concatMap getTySigs ghci
 
         -- ns_mm = map (\(Name n m _ _) -> (n, m))
         --       -- . filter (\(Name n m _ _) -> not $ (n, m) `S.member` pre)
@@ -241,31 +355,25 @@ adjustConfig main_mod (SimpleState { expr_env = eenv }) config infconfig ghci =
                     . filter (\(Name _ m _ _) -> m /= main_mod)
                     $ E.keys eenv
     
-        config' = config { only_top = True
-                         , block_errors_in = S.fromList ns_not_main }
+        lhconfig' = lhconfig { only_top = True
+                             , block_errors_in = S.fromList ns_not_main }
 
         infconfig' = infconfig { modules = S.singleton main_mod
                                , pre_refined = pre }
     in
-    (config', infconfig')
+    (config, lhconfig', infconfig')
 
-adjustConfigPostLH :: Maybe T.Text -> Measures -> TCValues -> S.State t -> [GhcInfo] -> Config -> Config
-adjustConfigPostLH main_mod meas tcv (S.State { S.expr_env = eenv, S.known_values = kv }) ghci config =
+adjustConfigPostLH :: Maybe T.Text -> Measures -> TCValues -> S.State t -> [GhcInfo] -> LHConfig -> LHConfig
+adjustConfigPostLH main_mod meas tcv (S.State { S.expr_env = eenv, S.known_values = kv }) ghci lhconfig =
     let
         ref = refinable main_mod meas tcv ghci kv eenv
         
         ns_mm = map (\(Name n m _ _) -> (n, m))
-              -- . filter (\(Name n m _ _) -> not $ (n, m) `S.member` pre)
-              -- . filter (\(Name n _ _ _) -> n `notElem` [ "mapReduce" ])
-              -- . filter (\(Name n _ _ _) -> n `notElem` [ "mapReduce", "singleton", "concat", "append"
-              --                                          , "map", "replicate", "empty", "zipWith", "add"])
               . filter (\(Name n m _ _) -> (n, m) `elem` ref)
               $ E.keys eenv
-              -- . E.filter (not . tyVarNoMeas meas tcv)
-              -- $ E.filter (not . tyVarRetTy) eenv
 
     in
-    config { counterfactual = Counterfactual . CFOnly $ S.fromList ns_mm }
+    lhconfig { counterfactual = Counterfactual . CFOnly $ S.fromList ns_mm }
 
 refinable :: Maybe T.Text -> Measures -> TCValues -> [GhcInfo] -> S.KnownValues -> ExprEnv -> [(T.Text, Maybe T.Text)]
 refinable main_mod meas tcv ghci kv eenv = 

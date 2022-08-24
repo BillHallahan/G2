@@ -33,6 +33,7 @@ module G2.Interface.Interface ( MkCurrExpr
                               , runG2Post
                               , runG2ThroughExecution
                               , runExecution
+                              , runG2SolvingResult
                               , runG2Solving
                               , runG2
                               , Config) where
@@ -67,13 +68,10 @@ import qualified G2.Language.Stack as Stack
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
-import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
 import System.Timeout
-
-import G2.Lib.Printers
 
 type AssumeFunc = T.Text
 type AssertFunc = T.Text
@@ -82,7 +80,6 @@ type ReachFunc = T.Text
 type StartFunc = T.Text
 type ModuleName = Maybe T.Text 
 
-type MkArgTypes = IT.SimpleState -> [Type]
 type MkCurrExpr = TypeClasses -> NameGen -> ExprEnv -> TypeEnv -> Walkers
                      -> KnownValues -> Config -> (Expr, [Id], [Expr], NameGen)
 
@@ -176,9 +173,7 @@ initStateFromSimpleState :: IT.SimpleState
                          -> (State (), Bindings)
 initStateFromSimpleState s useAssert mkCurr argTys config =
     let
-        ts = argTys s
-
-        (s', ds_walkers) = runInitialization2 s ts
+        (s', ds_walkers) = runInitialization2 s argTys
         eenv' = IT.expr_env s'
         tenv' = IT.type_env s'
         ng' = IT.name_gen s'
@@ -242,7 +237,7 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
                              , exg2_exports = es
                              , exg2_rules = rs }) =
     let
-        eenv = mkExprEnv prog
+        eenv = E.fromExprMap prog
         tenv = mkTypeEnv prog_typ
         tc = initTypeClasses cls
         kv = initKnownValues eenv tenv tc
@@ -308,32 +303,27 @@ initSolver' avf config = do
     let con' = GroupRelated avf (UndefinedHigherOrder :?> (ADTNumericalSolver avf con))
     return (SomeSolver con')
 
-mkExprEnv :: [(Id, Expr)] -> E.ExprEnv
-mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e))
-
-mkTypeEnv :: [ProgramType] -> TypeEnv
-mkTypeEnv = M.fromList . map (\(n, dcs) -> (n, dcs))
+mkTypeEnv :: HM.HashMap Name AlgDataTy -> TypeEnv
+mkTypeEnv = id
 
 {-# INLINE initialStateFromFileSimple #-}
 initialStateFromFileSimple :: [FilePath]
-                   -> [FilePath]
                    -> [FilePath]
                    -> StartFunc
                    -> (Id -> MkCurrExpr)
                    -> (Expr -> MkArgTypes)
                    -> Config
                    -> IO (State (), Id, Bindings)
-initialStateFromFileSimple proj src libs f mkCurr argTys config =
-    initialStateFromFile proj src libs Nothing False f mkCurr argTys simplTranslationConfig config
+initialStateFromFileSimple proj src f mkCurr argTys config =
+    initialStateFromFile proj src Nothing False f mkCurr argTys simplTranslationConfig config
 
 initialStateNoStartFunc :: [FilePath]
-                     -> [FilePath]
                      -> [FilePath]
                      -> TranslationConfig
                      -> Config
                      -> IO (State (), Bindings)
-initialStateNoStartFunc proj src libs transConfig config = do
-    (mb_modname, exg2) <- translateLoaded proj src libs transConfig config
+initialStateNoStartFunc proj src transConfig config = do
+    (_, exg2) <- translateLoaded proj src transConfig config
 
     let simp_state = initSimpleState exg2
 
@@ -346,7 +336,6 @@ initialStateNoStartFunc proj src libs transConfig config = do
 
 initialStateFromFile :: [FilePath]
                      -> [FilePath]
-                     -> [FilePath]
                      -> Maybe ReachFunc
                      -> Bool
                      -> StartFunc
@@ -355,8 +344,8 @@ initialStateFromFile :: [FilePath]
                      -> TranslationConfig
                      -> Config
                      -> IO (State (), Id, Bindings)
-initialStateFromFile proj src libs m_reach def_assert f mkCurr argTys transConfig config = do
-    (mb_modname, exg2) <- translateLoaded proj src libs transConfig config
+initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig config = do
+    (mb_modname, exg2) <- translateLoaded proj src transConfig config
 
     let simp_state = initSimpleState exg2
         (ie, fe) = case findFunc f mb_modname (IT.expr_env simp_state) of
@@ -373,7 +362,6 @@ initialStateFromFile proj src libs m_reach def_assert f mkCurr argTys transConfi
 
 runG2FromFile :: [FilePath]
               -> [FilePath]
-              -> [FilePath]
               -> Maybe AssumeFunc
               -> Maybe AssertFunc
               -> Maybe ReachFunc
@@ -382,8 +370,8 @@ runG2FromFile :: [FilePath]
               -> TranslationConfig
               -> Config
               -> IO (([ExecRes ()], Bindings), Id)
-runG2FromFile proj src libs m_assume m_assert m_reach def_assert f transConfig config = do
-    (init_state, entry_f, bindings) <- initialStateFromFile proj src libs
+runG2FromFile proj src m_assume m_assert m_reach def_assert f transConfig config = do
+    (init_state, entry_f, bindings) <- initialStateFromFile proj src
                                     m_reach def_assert f (mkCurrExpr m_assume m_assert) (mkArgTys)
                                     transConfig config
 
@@ -460,40 +448,64 @@ runG2ThroughExecution red hal ord mem is bindings = do
     let (is', bindings') = runG2Pre mem is bindings
     runExecution red hal ord is' bindings'
 
-runG2Solving :: ( Named t
-                , ASTContainer t Expr
-                , ASTContainer t Type
-                , Solver solver
-                , Simplifier simplifier) =>
-                solver -> simplifier -> Bindings -> State t -> IO (Maybe (ExecRes t))
-runG2Solving solver simplifier bindings s@(State { known_values = kv })
+runG2SolvingResult :: ( Named t
+                      , Solver solver
+                      , Simplifier simplifier) =>
+                      solver
+                   -> simplifier
+                   -> Bindings
+                   -> State t
+                   -> IO (Result (ExecRes t) () ())
+runG2SolvingResult solver simplifier bindings s
     | true_assert s = do
         r <- solve solver s bindings (E.symbolicIds . expr_env $ s) (path_conds s)
 
         case r of
             SAT m -> do
                 let m' = reverseSimplification simplifier s bindings m
+                return . SAT $ runG2SubstModel m' s bindings
+            UNSAT _ -> return $ UNSAT ()
+            Unknown reason _ -> return $ Unknown reason ()
 
-                let s' = s { model = m' }
+    | otherwise = return $ UNSAT ()
 
-                let (es, e, ais) = subModel s' bindings
-                    sm = ExecRes { final_state = s'
-                                 , conc_args = es
-                                 , conc_out = e
-                                 , violated = ais}
+runG2Solving :: ( Named t
+                , Solver solver
+                , Simplifier simplifier) =>
+                solver
+             -> simplifier
+             -> Bindings
+             -> State t
+             -> IO (Maybe (ExecRes t))
+runG2Solving solver simplifier bindings s = do
+    res <- runG2SolvingResult solver simplifier bindings s
+    case res of
+        SAT m -> return $ Just m
+        _ -> return Nothing
 
-                let sm' = runPostprocessing bindings sm
+runG2SubstModel :: Named t =>
+                      Model
+                   -> State t
+                   -> Bindings
+                   -> ExecRes t
+runG2SubstModel m s@(State { known_values = kv }) bindings =
+    let
+        s' = s { model = m }
 
-                let sm'' = ExecRes { final_state = final_state sm'
-                                   , conc_args = fixed_inputs bindings ++ conc_args sm'
-                                   , conc_out = evalPrims kv (conc_out sm')
-                                   , violated = evalPrims kv (violated sm')}
+        (es, e, ais) = subModel s' bindings
+        sm = ExecRes { final_state = s'
+                     , conc_args = es
+                     , conc_out = e
+                     , violated = ais}
 
-                return $ Just sm''
-            UNSAT _ -> return Nothing
-            Unknown _ -> return Nothing
+        sm' = runPostprocessing bindings sm
 
-    | otherwise = return Nothing
+        sm'' = ExecRes { final_state = final_state sm'
+                       , conc_args = fixed_inputs bindings ++ conc_args sm'
+                       , conc_out = evalPrims kv (conc_out sm')
+                       , violated = evalPrims kv (violated sm')}
+    in
+    sm''
 
 -- | Runs G2, returning both fully executed states,
 -- and states that have only been partially executed.

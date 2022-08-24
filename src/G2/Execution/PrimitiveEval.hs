@@ -8,6 +8,8 @@ import G2.Language.Expr
 import G2.Language.Support
 import G2.Language.Syntax
 
+import Data.Char
+
 evalPrims :: ASTContainer m Expr => KnownValues -> m -> m
 evalPrims kv = modifyContainedASTs (evalPrims' kv . simplifyCasts)
 
@@ -53,9 +55,14 @@ evalPrim1 :: Primitive -> Lit -> Maybe Expr
 evalPrim1 Negate (LitInt x) = Just . Lit $ LitInt (-x)
 evalPrim1 Negate (LitFloat x) = Just . Lit $ LitFloat (-x)
 evalPrim1 Negate (LitDouble x) = Just . Lit $ LitDouble (-x)
+evalPrim1 Abs (LitInt x) = Just . Lit $ LitInt (abs x)
+evalPrim1 Abs (LitFloat x) = Just . Lit $ LitFloat (abs x)
+evalPrim1 Abs (LitDouble x) = Just . Lit $ LitDouble (abs x)
 evalPrim1 SqRt x = evalPrim1Floating (sqrt) x
 evalPrim1 IntToFloat (LitInt x) = Just . Lit $ LitFloat (fromIntegral x)
 evalPrim1 IntToDouble (LitInt x) = Just . Lit $ LitDouble (fromIntegral x)
+evalPrim1 Chr (LitInt x) = Just . Lit $ LitChar (chr $ fromInteger x)
+evalPrim1 OrdChar (LitChar x) = Just . Lit $ LitInt (toInteger $ ord x)
 evalPrim1 _ _ = Nothing
 
 evalPrim2 :: KnownValues -> Primitive -> Lit -> Lit -> Maybe Expr

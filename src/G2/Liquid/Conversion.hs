@@ -13,7 +13,9 @@ module G2.Liquid.Conversion ( LHDictMap
                             , specTypeToType
                             , unsafeSpecTypeToType
                             , symbolName
-                            , lhTCDict') where
+                            , lhTCDict'
+
+                            , higherOrderTickName) where
 
 import G2.Language
 import qualified G2.Language.KnownValues as KV
@@ -37,22 +39,20 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
-import Debug.Trace
-
 -- | A mapping of TyVar Name's, to Id's for the LH dict's
-type LHDictMap = M.Map Name Id
+type LHDictMap = HM.HashMap Name Id
 
 -- | A mapping of TyVar Name's, to Id's for the Num dict's
-type NumDictMap = M.Map Name Id
+type NumDictMap = HM.HashMap Name Id
 
 -- | A mapping of TyVar Name's, to Id's for the Integral dict's
-type IntegralDictMap = M.Map Name Id
+type IntegralDictMap = HM.HashMap Name Id
 
 -- | A mapping of TyVar Name's, to Id's for the Fractional dict's
-type FractionalDictMap = M.Map Name Id
+type FractionalDictMap = HM.HashMap Name Id
 
 -- | A mapping of TyVar Name's, to Id's for the Ord dict's
-type OrdDictMap = M.Map Name Id
+type OrdDictMap = HM.HashMap Name Id
 
 -- | A collection of all DictMaps required to convert LH refinement types to G2 `Expr`@s@
 data DictMaps = DictMaps { lh_dicts :: LHDictMap
@@ -68,30 +68,30 @@ copyIds n1 n2 dm@(DictMaps { lh_dicts = lhd
                            , fractional_dicts = frac
                            , ord_dicts = od }) =
     let
-        dm2 = case M.lookup n1 lhd of
-                Just lh -> dm { lh_dicts = M.insert n2 lh lhd }
+        dm2 = case HM.lookup n1 lhd of
+                Just lh -> dm { lh_dicts = HM.insert n2 lh lhd }
                 Nothing -> dm
 
-        dm3 = case M.lookup n1 nd of
-                Just num -> dm2 { num_dicts = M.insert n2 num nd }
+        dm3 = case HM.lookup n1 nd of
+                Just num -> dm2 { num_dicts = HM.insert n2 num nd }
                 Nothing -> dm2
 
-        dm4 = case M.lookup n1 ind of
-                Just int -> dm3 { integral_dicts = M.insert n2 int ind }
+        dm4 = case HM.lookup n1 ind of
+                Just int -> dm3 { integral_dicts = HM.insert n2 int ind }
                 Nothing -> dm3
 
-        dm5 = case M.lookup n1 frac of
-                Just fr -> dm4 { fractional_dicts = M.insert n2 fr frac }
+        dm5 = case HM.lookup n1 frac of
+                Just fr -> dm4 { fractional_dicts = HM.insert n2 fr frac }
                 Nothing -> dm4
 
-        dm6 = case M.lookup n1 od of
-                Just ord -> dm5 { ord_dicts = M.insert n2 ord od }
+        dm6 = case HM.lookup n1 od of
+                Just ord -> dm5 { ord_dicts = HM.insert n2 ord od }
                 Nothing -> dm5
     in
     dm6
 
 -- | A mapping of variable names to the corresponding types
-type BoundTypes = M.Map Name Type
+type BoundTypes = HM.HashMap Name Type
 
 mergeLHSpecState :: [(Var.Var, LocSpecType)] -> LHStateM ()
 mergeLHSpecState = mapM_ (uncurry mergeLHSpecState')
@@ -136,16 +136,17 @@ mergeSpecType st fn e = do
     -- Gather up LH TC's to use in Assertion
     dm@(DictMaps {lh_dicts = lhm}) <- dictMapFromIds is
 
-    higher_is <- handleHigherOrderSpecs lh dm (M.map typeOf lhm) is st
+    trueE <- mkTrueE
+    higher_is <- handleHigherOrderSpecs CheckPre (mkHigherAssert trueE) lh dm (HM.map typeOf lhm) is st
 
-    let e' = foldl' App e higher_is
+    let e' = foldl' App e . map (\(i, hi) -> maybe (Var i) id hi) $ zip is higher_is
 
     -- Create a variable for the returned value
     -- We do not pass the LH TC to the assertion, since there is no matching
     -- lambda for it in the LH Spec
     r <- freshIdN (typeOf e')
     let is' = filter (not . isTC lh . typeOf) is
-    assert <- convertAssertSpecType dm (M.map typeOf lhm) is' r st
+    assert <- convertAssertSpecType dm (HM.map typeOf lhm) is' r st
 
     let fc = FuncCall { funcName = fn 
                       , arguments = map Var is
@@ -157,10 +158,14 @@ mergeSpecType st fn e = do
 
     return e'''
     where
-        repAssertFC fc_ (Assert Nothing e1 e2) = Assert (Just fc_) e1 e2
-        repAssertFC _ e = e
+        -- We insert an extra, redundant assume to record information about the function being used as a higher order function
+        mkHigherAssert true_dc spec i ars ret =
+            Tick (NamedLoc higherOrderTickName) . Assume (Just $ FuncCall { funcName = idName i, arguments = map Var ars, returns = Var ret }) true_dc $ Assert Nothing spec (Var ret)
 
-createAssumption :: SpecType -> Expr -> LHStateM Expr
+        repAssertFC fc_ (Assert Nothing e1 e2) = Assert (Just fc_) e1 e2
+        repAssertFC _ e_ = e_
+
+createAssumption :: SpecType -> Expr -> LHStateM ([(LamUse, Id)], [Maybe Expr], Expr)
 createAssumption st e = do
     lh <- lhTCM
 
@@ -172,9 +177,17 @@ createAssumption st e = do
     let is' = filter (not . isTC lh . typeOf) is
     dm@(DictMaps {lh_dicts = lhm}) <- dictMapFromIds is
 
-    assume <- convertAssumeSpecType dm (M.map typeOf lhm) is' st
+    assume <- convertAssumeSpecType dm (HM.map typeOf lhm) is' st
+    higher_is <- handleHigherOrderSpecs CheckOnlyPost mkHigherAssume lh dm (HM.map typeOf lhm) is st
 
-    return . foldr (uncurry Lam) assume $ zip lu is
+    let assume' = foldr (uncurry Lam) assume $ zip lu is
+    return (zip lu is, higher_is, assume')
+    where
+        mkHigherAssume spec i ars ret =
+            Tick (NamedLoc higherOrderTickName) $ Assume (Just $ FuncCall { funcName = idName i, arguments = map Var ars, returns = Var ret } ) spec (Var ret)
+
+higherOrderTickName :: Name
+higherOrderTickName = Name "HIGHER_ORDER_FUNC" Nothing 0 Nothing
 
 createPost :: SpecType -> Expr -> LHStateM Expr
 createPost st e = do
@@ -189,7 +202,7 @@ createPost st e = do
     let is' = filter (not . isTC lh . typeOf) is
     dm@(DictMaps {lh_dicts = lhm}) <- dictMapFromIds is
 
-    pst <- convertPostSpecType dm (M.map typeOf lhm) is' r st
+    pst <- convertPostSpecType dm (HM.map typeOf lhm) is' r st
 
     return . foldr (uncurry Lam) pst $ zip (lu ++ [TermL]) (is ++ [r])
 
@@ -245,14 +258,14 @@ convertPostSpecType m bt is r st =
 -- otherwise it does not.  This allows us to use this same function to
 -- translate both for assumptions and assertions
 convertSpecType :: CheckPre -> DictMaps -> BoundTypes -> [Id] -> Maybe Id -> SpecType -> LHStateM Expr
-convertSpecType cp m bt _ r (RVar {rt_var = (RTV v), rt_reft = ref})
+convertSpecType _ m bt _ r (RVar {rt_var = (RTV v), rt_reft = ref})
     | Just r' <- r = do
         let symb = reftSymbol $ ur_reft ref
         let i = mkIdUnsafe v
 
         let symbId = convertSymbolT symb (TyVar i)
 
-        let bt' = M.insert (idName symbId) (typeOf symbId) bt
+        let bt' = HM.insert (idName symbId) (typeOf symbId) bt
 
         re <- convertLHExpr m bt' Nothing (reftExpr $ ur_reft ref)
 
@@ -262,7 +275,7 @@ convertSpecType cp m bt (i:is) r (RFun {rt_bind = b, rt_in = fin, rt_out = fout 
     t <- unsafeSpecTypeToType fin
     let i' = convertSymbolT b t
 
-    let bt' = M.insert (idName i') t bt
+    let bt' = HM.insert (idName i') t bt
 
     e <- convertSpecType cp m bt' is r fout
 
@@ -281,7 +294,7 @@ convertSpecType cp m bt (i:is) r (RAllT {rt_tvbind = RTVar (RTV v) _, rt_ty = rt
 
 
     let m' = copyIds (idName i) (idName i') m
-    let bt' = M.insert (idName i') (typeOf i) bt
+    let bt' = HM.insert (idName i') (typeOf i) bt
 
     e <- convertSpecType cp m' bt' is r rty
     return $ App (Lam TypeL i' e) (Var i)
@@ -291,7 +304,7 @@ convertSpecType cp m bt _ r (RApp {rt_tycon = c, rt_reft = ref, rt_args = as})
         ty <- return . maybe (error "Error in convertSpecType") id =<< rTyConType c as
         let i = convertSymbolT symb ty
 
-        let bt' = M.insert (idName i) ty bt
+        let bt' = HM.insert (idName i) ty bt
 
         argsPred <- polyPredFunc cp as ty m bt' r'
         re <- convertLHExpr m bt' Nothing (reftExpr $ ur_reft ref)
@@ -301,59 +314,53 @@ convertSpecType cp m bt _ r (RApp {rt_tycon = c, rt_reft = ref, rt_args = as})
         return $ App (App an (App (Lam TermL i re) (Var r'))) argsPred
     | otherwise = mkTrueE
 convertSpecType _ _ _ _ _ (RAppTy { }) = mkTrueE
-    -- | Just  <- r = mkTrueE
-        -- t <- unsafeSpecTypeToType st
-        -- argsPred <- polyPredFunc2 [res] t m bt r'
-        -- return argsPred
-    -- | otherwise = mkTrueE
 convertSpecType _ _ _ _ _ st@(RFun {}) = error $ "RFun " ++ show st
 convertSpecType _ _ _ _ _ st@(RAllT {}) = error $ "RAllT " ++ show st
 convertSpecType _ _ _ _ _ st@(RAllP {}) = error $ "RAllP " ++ show st
-convertSpecType _ _ _ _ _ st@(RAllS {}) = error $ "RAllS " ++ show st
 convertSpecType _ _ _ _ _ st@(RAllE {}) = error $ "RAllE " ++ show st
 convertSpecType _ _ _ _ _ st@(REx {}) = error $ "REx " ++ show st
 convertSpecType _ _ _ _ _ st@(RExprArg {}) = error $ "RExprArg " ++ show st
 convertSpecType _ _ _ _ _ st@(RRTy {}) = error $ "RRTy " ++ show st
 convertSpecType _ _ _ _ _ st = error $ "Bad st = " ++ show st
 
-handleHigherOrderSpecs :: Name -> DictMaps -> BoundTypes -> [Id] -> SpecType -> LHStateM [Expr]
-handleHigherOrderSpecs lh dm bt (i:is) st | isTC lh $ typeOf i = do
-    es <- handleHigherOrderSpecs lh dm bt is st
-    return $ Var i:es
-handleHigherOrderSpecs lh dm bt (i:is) (RFun {rt_bind = b, rt_in = fin, rt_out = fout })
+handleHigherOrderSpecs :: CheckPre -> (Expr -> Id -> [Id] -> Id -> Expr) -> Name -> DictMaps -> BoundTypes -> [Id] -> SpecType -> LHStateM [Maybe Expr]
+handleHigherOrderSpecs check_pre wrap_spec lh dm bt (i:is) st | isTC lh $ typeOf i = do
+    es <- handleHigherOrderSpecs check_pre wrap_spec lh dm bt is st
+    return $ Nothing:es
+handleHigherOrderSpecs check_pre wrap_spec lh dm bt (i:is) (RFun {rt_bind = b, rt_in = fin, rt_out = fout })
     | hasFuncType i = do
         t <- unsafeSpecTypeToType fin
         let i' = convertSymbolT b t
 
-        let bt' = M.insert (idName i') t bt
-        es <- handleHigherOrderSpecs lh dm bt' is fout
+        let bt' = HM.insert (idName i') t bt
+        es <- handleHigherOrderSpecs check_pre wrap_spec lh dm bt' is fout
 
         ars <- freshIdsN (anonArgumentTypes i)
         ret <- freshIdN (returnType i)
-        spec <- convertSpecType CheckPre dm bt' ars (Just ret) fin
+        spec <- convertSpecType check_pre dm bt' ars (Just ret) fin
 
         let let_assert_spec = mkLams (zip (repeat TermL) ars)
                             . Let [(ret, mkApp $ Var i:map Var ars)]
-                            $ Assert Nothing spec (Var ret)
+                            $ wrap_spec spec i ars ret -- (Var ret)
 
-        return $ let_assert_spec:es
+        return $ Just let_assert_spec:es
     | otherwise = do
         t <- unsafeSpecTypeToType fin
         let i' = convertSymbolT b t
 
-        let bt' = M.insert (idName i') t bt
-        es <- handleHigherOrderSpecs lh dm bt' is fout
-        return $ Var i:es
-handleHigherOrderSpecs lh dm bt [] _ = return []
-handleHigherOrderSpecs lh dm bt (i:is) (RAllT {rt_tvbind = RTVar (RTV v) _, rt_ty = rty}) = do
+        let bt' = HM.insert (idName i') t bt
+        es <- handleHigherOrderSpecs check_pre wrap_spec lh dm bt' is fout
+        return $ Nothing:es
+handleHigherOrderSpecs _ _ _ _ _ [] _ = return []
+handleHigherOrderSpecs check_pre wrap_spec lh dm bt (i:is) (RAllT {rt_tvbind = RTVar (RTV v) _, rt_ty = rty}) = do
     let i' = mkIdUnsafe v
 
     let dm' = copyIds (idName i) (idName i') dm
-    let bt' = M.insert (idName i') (typeOf i) bt
+    let bt' = HM.insert (idName i') (typeOf i) bt
 
-    es <- handleHigherOrderSpecs lh dm' bt' is rty
-    return $ Var i:es
-handleHigherOrderSpecs lh dm bt _ st = error "handleHigherOrderSpecs: unhandled SpecType"
+    es <- handleHigherOrderSpecs check_pre wrap_spec lh dm' bt' is rty
+    return $ Nothing:es
+handleHigherOrderSpecs _ _ _ _ _ _ _ = error "handleHigherOrderSpecs: unhandled SpecType"
 
 polyPredFunc :: CheckPre -> [SpecType] -> Type -> DictMaps -> BoundTypes -> Id -> LHStateM Expr
 polyPredFunc cp as ty m bt b = do
@@ -462,19 +469,29 @@ convertLHExpr m bt t (EBin b e e') = do
                    , nDict
                    , e2
                    , e2' ]
+convertLHExpr m bt t (EIte b e e') = do
+    b2 <- convertLHExpr m bt t b
+    (e2, e2') <- correctTypes m bt t e e'
+
+    trueDC <- mkDCTrueM
+    falseDC <- mkDCFalseM
+
+    bnd <- freshIdN =<< tyBoolT
+
+    return $ Case b2 bnd [Alt (DataAlt trueDC []) e2, Alt (DataAlt falseDC []) e2']
 convertLHExpr m bt _ (ECst e s) = do
     t <- sortToType s
     convertLHExpr m bt (Just t) e
 convertLHExpr m bt _ (PAnd es) = do
     es' <- mapM (convertLHExpr m bt Nothing) es
 
-    true <- mkTrueE
+    trueE <- mkTrueE
     an <- lhAndE
 
     case es' of
-        [] -> return $ true
+        [] -> return $ trueE
         [e] -> return e
-        _ -> return $ foldr (\e -> App (App an e)) true es'
+        _ -> return $ foldr (\e -> App (App an e)) trueE es'
 convertLHExpr m bt _ (POr es) = do
     es' <- mapM (convertLHExpr m bt Nothing) es
 
@@ -518,7 +535,7 @@ convertSetExpr meas dm bt rt e
         e1' <- convertLHExpr dm bt rt e1
         tyI <- tyIntegerT
         t <- if typeOf e1' == tyI then tyIntT else return $ typeOf e1'
-        e1'' <- if typeOf e1' == tyI then correctType dm bt t e1' else return e1'
+        e1'' <- if typeOf e1' == tyI then correctType dm t e1' else return e1'
         return . Just $ mkApp ([ Var (Id f_nm (typeOf f_e))
                                , Type t
                                , e1''])
@@ -527,9 +544,8 @@ convertSetExpr meas dm bt rt e
     , Just (f_nm, f_e) <- E.lookupNameMod nm nm_mod meas = do
         e1' <- convertLHExpr dm bt rt e1
         e2' <- convertLHExpr dm bt rt e2
-        let t1 = typeOf e1'
-            TyApp _ t2 = typeOf e2'
-        e1'' <- correctType dm bt t2 e1'
+        let TyApp _ t2 = typeOf e2'
+        e1'' <- correctType dm t2 e1'
         let t = typeOf e1''
         ord <- ordDict dm t
         return . Just $ mkApp ([ Var (Id f_nm (typeOf f_e))
@@ -581,11 +597,10 @@ convertSetExpr meas dm bt rt e
                             "Set_cap" -> Just ("intersection", Just "Data.Set.Internal")
                             "Set_sub" -> Just ("isSubsetOf", Just "Data.Set.Internal")
                             _ -> Nothing
-convertSetExpr _ _ _ _ _ = return Nothing
 
 unEApp :: Ref.Expr -> [Ref.Expr]
 unEApp (EApp f a) = unEApp f ++ [a]
-unEApp expr = [expr]
+unEApp e = [e]
 
 convertBop :: Bop -> LHStateM Expr
 convertBop Ref.Plus = convertBop' lhPlusM
@@ -651,9 +666,6 @@ correctTypes m bt mt re re' = do
     may_ratio_e' <- maybeRatioFromInteger m e'
     fromRationalF <- lhFromRationalM
 
-    maybe_nfiDict <- maybeNumFromIntegral m retT
-    maybe_nfiDict' <- maybeNumFromIntegral m retT'
-
     if | t == t' -> return (e, e')
        | retT /= tyI
        , retT' == tyI
@@ -694,10 +706,9 @@ correctTypes m bt mt re re' = do
                                 ++ "\nretT' = " ++ show retT'
                                 ++ "\nm = " ++ show m
 
-correctType :: DictMaps -> BoundTypes -> Type -> Expr -> LHStateM Expr
-correctType m bt t e = do
+correctType :: DictMaps -> Type -> Expr -> LHStateM Expr
+correctType m t e = do
     fIntgr <- lhFromIntegerM
-    tIntgr <- lhToIntegerM
     tyI <- tyIntegerT
 
     let t' = typeOf e
@@ -723,18 +734,6 @@ maybeRatioFromInteger m e = do
         , typeOf e == tyI  ->
             return . Just $ mkApp [Var toRatioF, Type (typeOf e), iDict, e, App dcIntegerE (Lit (LitInt 1))]
        | otherwise -> return Nothing
-
-
-maybeNumFromIntegral :: DictMaps -> Type -> LHStateM (Maybe Expr)
-maybeNumFromIntegral m t = do
-    may_iDict <- maybeIntegralDict m t
-
-    intExReal <- return . mkIntegralExtactReal =<< knownValues
-    realExNum <- return . mkRealExtractNum =<< knownValues
-
-    case may_iDict of
-        Just iDict -> return . Just $ App realExNum (App intExReal iDict)
-        Nothing -> return Nothing
 
 convertSymbolT :: Symbol -> Type -> Id
 convertSymbolT s = Id (symbolName s)
@@ -771,7 +770,7 @@ symbolName s =
 
 convertEVar :: Name -> BoundTypes -> Maybe Type -> LHStateM Expr
 convertEVar nm@(Name n md _ _) bt mt
-    | Just t <-  M.lookup nm bt = return $ Var (Id nm t)
+    | Just t <- HM.lookup nm bt = return $ Var (Id nm t)
     | otherwise = do
         meas <- measuresM
         tenv <- typeEnv
@@ -923,8 +922,8 @@ lhTCDict' m t = do
 
 maybeOrdDict :: DictMaps -> Type -> LHStateM (Maybe Expr)
 maybeOrdDict m t = do
-    ord <- lhOrdTCM
-    tc <- typeClassInstTC (ord_dicts m) ord t
+    ordTC <- lhOrdTCM
+    tc <- typeClassInstTC (ord_dicts m) ordTC t
     case tc of
         Just _ -> return tc
         Nothing -> do
@@ -968,10 +967,3 @@ maybeFractionalDict :: DictMaps -> Type -> LHStateM (Maybe Expr)
 maybeFractionalDict m t = do
     integral <- return . KV.fractionalTC =<< knownValues
     typeClassInstTC (fractional_dicts m) integral t
-
-fractionalDict :: DictMaps -> Type -> LHStateM Expr
-fractionalDict m t = do
-    tc <- maybeFractionalDict m t
-    case tc of
-        Just e -> return e
-        Nothing ->  error $ "No fractional dict\n" ++ show t ++ "\n" ++ show m

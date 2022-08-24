@@ -35,15 +35,15 @@ adtSolverInfinite :: ADTSolver
 adtSolverInfinite = ADTSolver arbValueInfinite
 
 instance Solver ADTSolver where
-    check _ s = return .checkConsistency (known_values s) (expr_env s) (type_env s)
+    check _ s = return . checkConsistency (known_values s) (expr_env s) (type_env s)
     solve (ADTSolver avf) s b is = solveADTs avf s b (nub is) 
 
 -- | Attempts to detemine if the given PathConds are consistent.
 -- Returns Just True if they are, Just False if they are not,
 -- and Nothing if it can't decide.
-checkConsistency :: KnownValues -> ExprEnv -> TypeEnv -> PathConds -> Result () ()
+checkConsistency :: KnownValues -> ExprEnv -> TypeEnv -> PathConds -> Result () () ()
 checkConsistency kv eenv tenv pc =
-    maybe (Unknown "Non-ADT path constraints")
+    maybe (Unknown "Non-ADT path constraints" ())
           (\me -> if not (Pre.null me) then SAT () else UNSAT ())
           $ findConsistent kv eenv tenv pc
 
@@ -67,7 +67,7 @@ findConsistent' kv eenv tenv pc =
 
         -- Adding Coercions
         pcNT = fmap (pcInCastType tenv) . head' $ toList pc
-        cons = findConsistent'' kv tenv eenv pc'
+        cons = findConsistent'' tenv eenv pc'
     in
     case cons of
         Just (cons', bi) ->
@@ -79,8 +79,8 @@ findConsistent' kv eenv tenv pc =
             if any isExtCond pc' || pcNT == Just (tyBool kv) then Nothing else Just (cons'', bi)
         Nothing -> Nothing
 
-findConsistent'' :: KnownValues -> TypeEnv -> ExprEnv -> [PathCond] -> Maybe ([Expr], [(Id, Type)])
-findConsistent'' kv tenv eenv pc =
+findConsistent'' :: TypeEnv -> ExprEnv -> [PathCond] -> Maybe ([Expr], [(Id, Type)])
+findConsistent'' tenv eenv pc =
     let
         is = nub . map (\(Id n t') -> Id n (typeStripCastType tenv t')) $ concatMap varIdsInPC pc
 
@@ -102,7 +102,7 @@ findConsistent'' kv tenv eenv pc =
             Just (cons', bi)
         _ -> Nothing
 
-solveADTs :: ArbValueFunc -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model ())
+solveADTs :: ArbValueFunc -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model () ())
 solveADTs avf s@(State { expr_env = eenv, model = m }) b [Id n t] pc
     | not $ E.isSymbolic n eenv
     , Just e <- E.lookup n eenv = return (SAT . liftCasts $ HM.insert n e m )
@@ -115,13 +115,13 @@ solveADTs avf s@(State { expr_env = eenv, model = m }) b [Id n t] pc
         let (r, _) = addADTs avf n tn ts k s b pc
 
         case r of
-            SAT m -> return (SAT $ liftCasts m)
+            SAT sat_m -> return (SAT $ liftCasts sat_m)
             r' -> return r'
-solveADTs _ _ _ _ _ = return $ Unknown "Unhandled path constraints in ADTSolver"
+solveADTs _ _ _ _ _ = return $ Unknown "Unhandled path constraints in ADTSolver" ()
 
 -- | Determines an ADT based on the path conds.  The path conds form a witness.
 -- In particular, refer to findConsistent in Solver/ADTSolver.hs
-addADTs :: ArbValueFunc -> Name -> Name -> [Type] -> Kind -> State t -> Bindings -> PathConds -> (Result Model (), Bindings)
+addADTs :: ArbValueFunc -> Name -> Name -> [Type] -> Kind -> State t -> Bindings -> PathConds -> (Result Model () (), Bindings)
 addADTs avf n tn ts k s b pc
     | PC.null pc =
         let

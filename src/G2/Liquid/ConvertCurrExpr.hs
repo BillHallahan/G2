@@ -14,10 +14,8 @@ import G2.Liquid.Conversion
 import G2.Liquid.Types
 
 import Control.Monad.Extra
-import qualified Data.Map as M
+import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
-
-import Debug.Trace
 
 -- | Returns (1) the Id of the new main function and (2) the functions that need counterfactual variants
 convertCurrExpr :: Id -> Bindings -> LHStateM (Id, [Name])
@@ -145,25 +143,20 @@ letLiftHigherOrder e = return . shiftLetsOutOfApps =<< insertInLamsE letLiftHigh
 
 letLiftHigherOrder' :: [Id] -> Expr -> LHStateM Expr
 letLiftHigherOrder' is e@(App _ _)
-    | Var i@(Id n t) <- appCenter e
+    | Var i <- appCenter e
     , i `elem` is = do
         ni <- freshIdN (typeOf e)
         e' <- modifyAppRHSE (letLiftHigherOrder' is) e
         return $ Let [(ni, e')] (Var ni)
     | d@(Data _) <- appCenter e = do
         let ars = passedArgs e
-        is <- freshIdsN $ map typeOf ars
+        f_is <- freshIdsN $ map typeOf ars
 
-        ars' <- mapM (letLiftHigherOrder' is) ars
+        ars' <- mapM (letLiftHigherOrder' f_is) ars
 
-        return . Let (zip is ars') . mkApp $ d:map Var is
+        return . Let (zip f_is ars') . mkApp $ d:map Var f_is
 letLiftHigherOrder' is e@(Lam _ _ _) = insertInLamsE (\is' -> letLiftHigherOrder' (is ++ is')) e
 letLiftHigherOrder' is e = modifyChildrenM (letLiftHigherOrder' is) e
-
-isFunc :: Type -> Bool
-isFunc (TyFun _ _) = True
-isFunc (TyForAll _ _) = True
-isFunc _ = False
 
 shiftLetsOutOfApps :: Expr -> Expr
 shiftLetsOutOfApps e@(App _ _) =
@@ -180,6 +173,7 @@ shiftLetsOutOfApps' a@(App _ _) =
     case b of
         [] -> a
         _ -> Let b $ elimLetsInApp a
+shiftLetsOutOfApps' _ = error "shiftLetsOutOfApps': must be passed an App"
 
 getLetsInApp :: Expr -> Binds
 getLetsInApp (Let b e) = b ++ getLetsInApp e
@@ -187,7 +181,7 @@ getLetsInApp (App e e') = getLetsInApp e ++ getLetsInApp e'
 getLetsInApp _ = []
 
 elimLetsInApp :: Expr -> Expr
-elimLetsInApp (Let b e) = elimLetsInApp e
+elimLetsInApp (Let _ e) = elimLetsInApp e
 elimLetsInApp (App e e') = App (elimLetsInApp e) (elimLetsInApp e')
 elimLetsInApp e = e
 
@@ -211,17 +205,36 @@ addCurrExprAssumption ifi (Bindings {fixed_inputs = fi}) = do
     eenv <- exprEnv
     inames <- inputNames
 
-    lh <- mapM (lhTCDict' M.empty) $ mapMaybe typeType fi'
+    lh <- mapM (lhTCDict' HM.empty) $ mapMaybe typeType fi'
 
     let is = catMaybes (map (E.getIdFromName eenv) inames)   
     let (typs, ars) = span isType $ fi' ++ map Var is
 
     case assumpt of
-        Just assumpt' -> do
-            let appAssumpt = mkApp $ assumpt':typs ++ lh ++ ars
-            let ce' = Assume Nothing appAssumpt ce
-            putCurrExpr (CurrExpr er ce')
+        Just (assumpt_is, higher_is, assumpt') -> do
+            let all_args = typs ++ lh ++ ars
+                appAssumpt = mkApp $ assumpt':all_args
+
+            inputs <- inputNames
+            let matching = zipWith (\n (i, hi) -> (n, i, hi)) inputs $ drop (length higher_is - length inputs) $ zip assumpt_is higher_is
+                matching_higher = mapMaybe (\(n, i, hi) -> maybe Nothing (Just . (n, i,)) hi) matching
+                let_expr = Let (map (\(n, i, _) -> (snd i, Var (Id n . typeOf $ snd i))) matching_higher)
+
+            let ce' = let_expr
+                    . flip (foldr (uncurry replaceAssumeFC)) (map (\(n, (_, i), _) -> (idName i, n)) matching_higher)
+                    $ foldr (uncurry replaceVar) ce (map (\(n, _, hi) -> (n, hi)) matching_higher)
+                assume_ce = Assume Nothing appAssumpt ce'
+
+            putCurrExpr (CurrExpr er assume_ce)
         Nothing -> return ()
+
+replaceAssumeFC :: ASTContainer m Expr => Name -> Name -> m -> m
+replaceAssumeFC old new = modifyASTs (replaceAssumeFC' old new)
+
+replaceAssumeFC' :: Name -> Name -> Expr -> Expr
+replaceAssumeFC' old new e@(Assume (Just fc) e1 e2) =
+    if funcName fc == old then Assume (Just (fc { funcName = new })) e1 e2 else e
+replaceAssumeFC' _ _ e = e
 
 isType :: Expr -> Bool
 isType (Type _) = True

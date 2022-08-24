@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -13,14 +14,18 @@ module G2.Language.Stack
     , filter) where
 
 import Prelude hiding (null, filter)
+import GHC.Generics (Generic)
 import Data.Data (Data, Typeable)
+import Data.Hashable
 import qualified Data.List as L
 
 import G2.Language.AST
 import G2.Language.Naming
 import G2.Language.Syntax
 
-newtype Stack a = Stack [a] deriving (Show, Eq, Read, Typeable, Data)
+newtype Stack a = Stack [a] deriving (Show, Eq, Read, Generic, Typeable, Data)
+
+instance Hashable a => Hashable (Stack a)
 
 -- | Get an empty `Stack`.
 empty :: Stack a

@@ -10,16 +10,13 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 
 import Data.List
-import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
-
-import Debug.Trace
 
 mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> Id
            -> TypeClasses -> NameGen -> ExprEnv -> TypeEnv -> Walkers
            -> KnownValues -> Config -> (Expr, [Id], [Expr], NameGen)
-mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv tenv walkers kv config =
+mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv _ walkers kv config =
     case E.lookup (idName f) eenv of
         Just ex ->
             let
@@ -33,7 +30,7 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv tenv walkers
                 -- -- We refind the type of f, because type synonyms get replaced during the initializaton,
                 -- -- after we first got the type of f.
                 -- app_ex = foldl' App var_ex $ typsE ++ var_ids
-                (app_ex, is, typsE, ng') = mkMainExpr tenv tc kv ng var_ex
+                (app_ex, is, typsE, ng') = mkMainExpr tc kv ng var_ex
                 var_ids = map Var is
 
                 -- strict_app_ex = app_ex
@@ -53,8 +50,8 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv tenv walkers
             (let_ex, is, typsE, ng'')
         Nothing -> error "mkCurrExpr: Bad Name"
 
-mkMainExpr :: TypeEnv -> TypeClasses -> KnownValues -> NameGen -> Expr -> (Expr, [Id], [Expr], NameGen)
-mkMainExpr tenv tc kv ng ex =
+mkMainExpr :: TypeClasses -> KnownValues -> NameGen -> Expr -> (Expr, [Id], [Expr], NameGen)
+mkMainExpr tc kv ng ex =
     let
         typs = spArgumentTypes ex
 
@@ -65,27 +62,6 @@ mkMainExpr tenv tc kv ng ex =
         app_ex = foldl' App ex $ typsE ++ var_ids
     in
     (app_ex, is, typsE, ng')
-    -- case returnType app_ex of
-    --     return_ty
-    --         | TyCon n _:_ <- unTyApp return_ty
-    --         , Just (NewTyCon { rep_type = rep_ty@(TyFun _ _) }) <- M.lookup n tenv -> 
-    --             let
-    --                 app_ex' = Cast app_ex (return_ty :~ rep_ty)
-    --                 (app_ex'', is', typsE', ng'') = mkMainExpr tenv tc kv ng' app_ex'
-    --             in
-    --             (app_ex'', is ++ is', typsE, ng'')
-    --     _ -> (app_ex, is, typsE, ng')
-
-mkStrictInAppCasts :: Walkers -> Expr -> Expr
-mkStrictInAppCasts w (App e1 e2)
-    | hasCast e1 = App (mkStrictInAppCasts w e1) e2
-mkStrictInAppCasts w (Cast e c) = Cast (mkStrictInAppCasts w e) c
-mkStrictInAppCasts w e = mkStrict w e
-
-hasCast :: Expr -> Bool
-hasCast (App e _) = hasCast e
-hasCast (Cast _ _) = True
-hasCast _ = False
 
 mkInputs :: NameGen -> [Type] -> ([Expr], [Id], NameGen)
 mkInputs ng [] = ([], [], ng)
@@ -131,20 +107,6 @@ findFunc s m_mod eenv =
                 [] -> Right $ "No function with name " ++ (T.unpack s) ++ " in module " ++ (T.unpack m)
                 _ -> Right $ "Multiple functions with same name " ++ (T.unpack s) ++
                              " in module " ++ (T.unpack m)
-
--- Get the types of the inputs to the function being symbolically executed.
-gatherInputTypes :: TypeEnv -> Type -> [ArgType]
-gatherInputTypes tenv t =
-    let
-        ts = spArgumentTypes (PresType t)
-    in
-    -- If a newtype is being returned and wrapping a function type, we make
-    -- sure to also get the arguments of that wrapped function
-    case unTyApp . returnType $ PresType t of
-        TyCon n _:_
-            | Just (NewTyCon { rep_type = rt@(TyFun _ _) }) <- M.lookup n tenv -> 
-                ts ++ gatherInputTypes tenv rt 
-        _ -> ts
 
 instantiateArgTypes :: TypeClasses -> KnownValues -> Expr -> ([Expr], [Type])
 instantiateArgTypes tc kv e =

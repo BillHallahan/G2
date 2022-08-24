@@ -5,7 +5,6 @@ module G2.Liquid.Simplify ( simplify
                           , furtherSimplifyCurrExpr ) where
 
 import G2.Language
-import G2.Language.CallGraph
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.Simplification as GSimp
 import G2.Language.Monad
@@ -14,8 +13,6 @@ import G2.Liquid.Types
 import qualified Data.HashSet as HS
 import Data.Monoid ((<>))
 import qualified Data.Text as T
-
-import Debug.Trace
 
 -- | The LH translation generates certain redundant Expr's over and over again.
 -- Here we stamp them out.
@@ -125,8 +122,6 @@ removeRedundantAsserts' (Name n m _ _) e
 -- | Environments for inlining
 inlineEnv :: LHStateM ExprEnv
 inlineEnv = do
-    cg <- return . getCallGraph =<< exprEnv
-
     tcv <- tcValuesM
     lh_tc_n <- lhTCM
     lhnum_tc_n <- lhNumTCM
@@ -199,5 +194,7 @@ specFuncs = HS.fromList [ ("+", Just "GHC.Num")
 
                         , ("I#", Just "GHC.Types")
                         , ("True", Just "GHC.Types")
-                        , ("False", Just "GHC.Types")]
+                        , ("False", Just "GHC.Types")
+
+                        , ("$", Just "GHC.Base")]
 

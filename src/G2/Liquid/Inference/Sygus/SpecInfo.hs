@@ -6,8 +6,7 @@ import G2.Language as G2
 import qualified G2.Language.ExprEnv as E
 import G2.Liquid.Conversion
 import G2.Liquid.Helpers
-import G2.Liquid.Interface
-import G2.Liquid.Types
+import G2.Liquid.Types hiding (SP)
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.FuncConstraint
 import G2.Liquid.Inference.G2Calls
@@ -26,6 +25,7 @@ import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
+import Data.Semigroup (Semigroup (..))
 
 type NMExprEnv = HM.HashMap (T.Text, Maybe T.Text) G2.Expr
 
@@ -94,7 +94,6 @@ boolBools cf@(BoolForm {}) = ars_bools cf ++ rets_bools cf ++ concatMap boolBool
 type Clause = (SMTName, [Forms]) 
 type CNF = [Clause]
 
--- Internal Types
 data SpecInfo = SI { s_max_coeff :: Integer
                    
                    -- A function that is used to record the value of the function at known points,
@@ -232,10 +231,10 @@ buildSpecInfo eenv tenv tc meas ghci fc to_be_ns ns_synth = do
         s <- buildSI tenv tc meas Known ghci n at rt
         return $ M.insert n s m) si' known_ns_aty_rty
 
-    inf_config <- infConfigM
+    inf_con <- infConfigM
 
-    let si''' = if use_invs inf_config
-                    then conflateLoopNames . elimSyArgs $ si''
+    let si''' = if use_invs inf_con
+                    then allCondsKnown . conflateLoopNames . elimSyArgs $ si''
                     else si''
 
     return si'''
@@ -245,13 +244,16 @@ buildSpecInfo eenv tenv tc meas ghci fc to_be_ns ns_synth = do
 relNameTypePairs :: NMExprEnv -> Name -> (Name, ([Type], Type))
 relNameTypePairs eenv n =
     case HM.lookup (nameOcc n, nameModule n) eenv of
-        Just e' -> (n, generateRelTypes e')
+        Just e' -> (n, generateRelTypesFromExpr e')
         Nothing -> error $ "synthesize: No expr found"
 
-generateRelTypes :: G2.Expr -> ([Type], Type)
-generateRelTypes e =
+generateRelTypesFromExpr :: G2.Expr -> ([Type], Type)
+generateRelTypesFromExpr = generateRelTypes . inTyForAlls . typeOf
+
+generateRelTypes :: Type -> ([Type], Type)
+generateRelTypes t =
     let
-        ty_e = PresType $ inTyForAlls (typeOf e)
+        ty_e = PresType t
         arg_ty_c = filter (not . isTYPE)
                  . filter (notLH)
                  $ argumentTypes ty_e
@@ -272,10 +274,10 @@ buildSI tenv tc meas stat ghci f aty rty = do
 
     (outer_ars_pb, ret_pb) <- argsAndRetFromSpec tenv tc ghci meas [] aty rty fspec
     let outer_ars = map fst outer_ars_pb
-        ret = headValue ret_pb
+        ret_v = headValue ret_pb
 
         arg_ns = map (\(a, i) -> a { smt_var = "x_" ++ show i } ) $ zip (concat outer_ars) ([1..] :: [Integer])
-        ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show i }) $ zip ret ([1..] :: [Integer])
+        ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show i }) $ zip (aar_r ret_v) ([1..] :: [Integer])
 
     return $ 
         SI { s_max_coeff = 0
@@ -293,25 +295,45 @@ buildSI tenv tc meas stat ghci f aty rty = do
                                 ars = concatMap fst (init ars_pb)
                                 r_pb = snd (last ars_pb)
                             in
-                            mapPB (\(rets, j) ->
+                            mapPB (\(AAndR { aar_a = ex_a, aar_r = rets }, j) ->
                                     SynthSpec { sy_name = smt_f ++ "_synth_pre_" ++ show i ++ "_" ++ show j
-                                              , sy_args = map (\(a, k) -> a { smt_var = "x_" ++ show k}) $ zip ars ([1..] :: [Integer])
+                                              , sy_args = map (\(a, k) -> a { smt_var = "x_" ++ show k}) $ zip (ars ++ ex_a) ([1..] :: [Integer])
                                               , sy_rets = map (\(r, k) -> r { smt_var = "x_r_" ++ show k}) $ zip rets ([1..] :: [Integer])
                                               , sy_coeffs = []}
                                   )  $ zipPB r_pb (uniqueIds r_pb)
                      ) $ zip (filter (not . null) $ L.inits outer_ars_pb) ([1..] :: [Integer])
-           , s_syn_post = mkSynSpecPB (smt_f ++ "_synth_post_") arg_ns ret_pb
+           , s_syn_post = mkSynSpecPB (smt_f ++ "_synth_post_") arg_ns (mapPB aar_r ret_pb)
 
            , s_type_pre = aty
            , s_type_post = rty
 
            , s_status = stat }
 
-argsAndRetFromSpec :: (InfConfigM m, ProgresserM m) => TypeEnv -> TypeClasses -> [GhcInfo] -> Measures -> [([SpecArg], PolyBound [SpecArg])] -> [Type] -> Type -> SpecType -> m ([([SpecArg], PolyBound [SpecArg])], PolyBound [SpecArg])
+data ArgsAndRet = AAndR { aar_a :: [SpecArg], aar_r :: [SpecArg] } deriving Show
+
+instance Semigroup ArgsAndRet where
+    AAndR { aar_a = a1, aar_r = r1 } <> AAndR { aar_a = a2, aar_r = r2 } = AAndR { aar_a = a1 <> a2, aar_r = r1 <> r2 }
+
+instance Monoid ArgsAndRet where
+    mempty = AAndR { aar_a = [], aar_r = [] }
+
+argsAndRetFromSpec :: (InfConfigM m, ProgresserM m) => TypeEnv -> TypeClasses -> [GhcInfo] -> Measures -> [([SpecArg], PolyBound ArgsAndRet)] -> [Type] -> Type -> SpecType -> m ([([SpecArg], PolyBound ArgsAndRet)], PolyBound ArgsAndRet)
 argsAndRetFromSpec tenv tc ghci meas ars ts rty (RAllT { rt_ty = out }) =
     argsAndRetFromSpec tenv tc ghci meas ars ts rty out
+argsAndRetFromSpec tenv tc ghci meas ars (t:ts) rty (RFun { rt_in = rfun@(RFun {}), rt_out = out}) = do
+    let (ts', rty') = generateRelTypes t
+    (f_ars, f_ret) <- argsAndRetFromSpec tenv tc ghci meas ars ts' rty' rfun
+    let f_ret_list = case f_ret of
+                        PolyBound (AAndR { aar_a = [], aar_r = [] }) [] -> []
+                        _ -> [f_ret]
+        f_ars_sa = map fst f_ars
+        f_ars' = map (\(sa, pb) -> mapPB (AAndR (concat sa)) pb) $ zip (L.inits f_ars_sa) (map (mapPB aar_r) $ map snd f_ars ++ f_ret_list)
+    argsAndRetFromSpec tenv tc ghci meas (([], PolyBound mempty f_ars'):ars) ts rty out
 argsAndRetFromSpec tenv tc ghci meas ars (t:ts) rty rfun@(RFun { rt_in = i, rt_out = out}) = do
-    (Just out_symb, sa) <- mkSpecArgPB ghci tenv meas t rfun
+    (m_out_symb, sa) <- mkSpecArgPB ghci tenv meas t rfun
+    let out_symb = case m_out_symb of
+                      Just os -> os
+                      Nothing -> error "argsAndRetFromSpec: out_symb is Nothing"
     case i of
         RVar {} -> argsAndRetFromSpec tenv tc ghci meas ars ts rty out
         RFun {} -> argsAndRetFromSpec tenv tc ghci meas ars ts rty out
@@ -325,9 +347,9 @@ argsAndRetFromSpec tenv _ ghci meas ars _ rty rvar@(RVar {}) = do
 argsAndRetFromSpec _ _ _ _ _ [] _ st@(RFun {}) = error $ "argsAndRetFromSpec: RFun with empty type list " ++ show st
 argsAndRetFromSpec _ _ _ _ _ _ _ st = error $ "argsAndRetFromSpec: unhandled SpecType " ++ show st
 
-mkSpecArgPB :: (InfConfigM m, ProgresserM m) => [GhcInfo] -> TypeEnv -> Measures -> Type -> SpecType -> m (Maybe [SpecArg], PolyBound [SpecArg])
+mkSpecArgPB :: (InfConfigM m, ProgresserM m) => [GhcInfo] -> TypeEnv -> Measures -> Type -> SpecType -> m (Maybe [SpecArg], PolyBound ArgsAndRet)
 mkSpecArgPB ghci tenv meas t st = do
-    MaxSize mx_meas <- maxSynthSizeM
+    MaxSize mx_meas <- maxSynthFormSizeM
     let t_pb = extractTypePolyBound t
 
         sy_pb = specTypeSymbolPB st
@@ -341,7 +363,7 @@ mkSpecArgPB ghci tenv meas t st = do
         out_symb = outer $ headValue sy_pb
         out_spec_arg = fmap (\os -> mkSpecArg (fromInteger mx_meas) ghci tenv meas os t) out_symb
     
-    return (out_spec_arg, mapPB (uncurry (mkSpecArg (fromInteger mx_meas) ghci tenv meas)) t_sy_pb')
+    return (out_spec_arg, mapPB (ret . uncurry (mkSpecArg (fromInteger mx_meas) ghci tenv meas)) t_sy_pb')
 
 
 mkSpecArg :: Int -> [GhcInfo] -> TypeEnv -> Measures -> LH.Symbol -> Type -> [SpecArg]
@@ -373,6 +395,9 @@ mkSpecArg mx_meas ghci tenv meas symb t =
                                     , smt_var = "tbd"
                                     , smt_sort = srt'}) $ typeToSort rt') app_meas'
 
+ret :: [SpecArg] -> ArgsAndRet
+ret sa = AAndR { aar_a = [], aar_r = sa }
+
 mkSynSpecPB :: String -> [SpecArg] -> PolyBound [SpecArg] -> PolyBound SynthSpec
 mkSynSpecPB smt_f arg_ns pb_sa =
     mapPB (\(ui, sa) ->
@@ -391,7 +416,7 @@ filterPBByType f = filterPB (\(PolyBound v _) ->
                                 let
                                     t = f v
                                 in
-                                not (isTyVar t) && not (isTyFun t))
+                                not (isTyVar t))
 
 ----------------------------------------------------------------------------
 -- Manipulate Evals
@@ -465,7 +490,7 @@ conflateLoopNames = M.map conflateLoopNames'
 
 conflateLoopNames' :: SpecInfo -> SpecInfo
 conflateLoopNames' si@(SI { s_syn_pre = pb_sy_pre@(_:_)
-                          , s_syn_post = pb_post@(PolyBound sy_post ps) })
+                          , s_syn_post = pb_post@(PolyBound sy_post _) })
     | take 4 (sy_name sy_post) == "loop" =
         let
             pb_pre = last pb_sy_pre
@@ -476,6 +501,14 @@ conflateLoopNames' si = si
 conflateLoopNames'' :: PolyBound SynthSpec -> PolyBound SynthSpec -> PolyBound SynthSpec
 conflateLoopNames'' pb1 = mapPB (\(sy1, sy2) -> sy1 { sy_name = sy_name sy2} ) . zipPB pb1
 
+allCondsKnown ::  M.Map a SpecInfo -> M.Map a SpecInfo
+allCondsKnown = M.map allCondsKnown'
+
+allCondsKnown' :: SpecInfo -> SpecInfo
+allCondsKnown' si@(SI { s_syn_post = (PolyBound sy_post _) })
+    | take 4 (sy_name sy_post) == "cond" = si { s_status = Known }
+allCondsKnown' si = si
+
 ----------------------------------------------------------------------------
 
 typeToSort :: Type -> Maybe Sort
@@ -485,7 +518,6 @@ typeToSort (TyApp (TyCon (Name n _ _ _) _) t)
 typeToSort (TyCon (Name n _ _ _) _) 
     | n == "Int"  = Just SortInt
     | n == "Bool" = Just SortBool
-    -- | n == "Double"  = Just SortDouble
 typeToSort _ = Nothing
 
 getLHMeasureName :: [GhcInfo] -> Name -> LH.Symbol

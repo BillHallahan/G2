@@ -17,7 +17,9 @@ import G2.Language.Naming
 import G2.Language.Support
 import G2.Language.Syntax
 import G2.Language.Typing
+import G2.Liquid.Config
 import G2.Liquid.ConvertCurrExpr
+import G2.Liquid.Helpers
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.FuncConstraint as FC
 import G2.Liquid.Inference.G2Calls
@@ -25,7 +27,6 @@ import G2.Liquid.Inference.InfStack
 import G2.Liquid.Inference.Initalization
 import G2.Liquid.Inference.PolyRef
 import G2.Liquid.Inference.Sygus
-import G2.Liquid.Inference.Sygus.Sygus
 import G2.Liquid.Inference.GeneratedSpecs
 import G2.Liquid.Inference.Verify
 import G2.Liquid.Interface
@@ -48,10 +49,10 @@ import qualified Data.Text as T
 
 -- Run inference, with an extra, final check of correctness at the end.
 -- Assuming inference is working correctly, this check should neve fail.
-inferenceCheck :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO (Either [CounterExample] GeneratedSpecs)
-inferenceCheck infconfig config proj fp lhlibs = do
-    (ghci, lhconfig) <- getGHCI infconfig config proj fp lhlibs
-    (res, _, loops) <- inference' infconfig config lhconfig ghci proj fp lhlibs
+inferenceCheck :: InferenceConfig -> G2.Config -> LHConfig ->  [FilePath] -> [FilePath] -> IO (State [FuncCall], Either [CounterExample] GeneratedSpecs)
+inferenceCheck infconfig config g2lhconfig proj fp = do
+    (ghci, lhconfig) <- getGHCI infconfig proj fp
+    (s, res, _, loops) <- inference' infconfig config g2lhconfig lhconfig ghci proj fp
     print $ loop_count loops
     print . sum . HM.elems $ loop_count loops
     print $ searched_below loops
@@ -60,35 +61,35 @@ inferenceCheck infconfig config proj fp lhlibs = do
         Right gs -> do
             check_res <- checkGSCorrect infconfig lhconfig ghci gs
             case check_res of
-                Safe -> return res
+                Safe -> return (s, res)
                 _ -> error "inferenceCheck: Check failed"
-        _ -> return res
+        _ -> return (s, res)
 
-inference :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO (Either [CounterExample] GeneratedSpecs)
-inference infconfig config proj fp lhlibs = do
+inference :: InferenceConfig -> G2.Config -> LHConfig ->  [FilePath] -> [FilePath] -> IO (State [FuncCall], Either [CounterExample] GeneratedSpecs)
+inference infconfig config g2lhconfig proj fp = do
     -- Initialize LiquidHaskell
-    (ghci, lhconfig) <- getGHCI infconfig config proj fp lhlibs
-    (res, timer, _) <- inference' infconfig config lhconfig ghci proj fp lhlibs
+    (ghci, lhconfig) <- getGHCI infconfig proj fp
+    (s, res, timer, _) <- inference' infconfig config g2lhconfig lhconfig ghci proj fp
     print . logToSecs . sumLog . getLog $ timer
-    return res
+    return (s, res)
 
 inference' :: InferenceConfig
            -> G2.Config
+           -> LHConfig
            -> LH.Config
            -> [GhcInfo]
            -> [FilePath]
            -> [FilePath]
-           -> [FilePath]
-           -> IO (Either [CounterExample] GeneratedSpecs, Timer (Event Name), Counters)
-inference' infconfig config lhconfig ghci proj fp lhlibs = do
-    mapM_ (print . gsQualifiers . spec) ghci
+           -> IO (State [FuncCall], Either [CounterExample] GeneratedSpecs, Timer (Event Name), Counters)
+inference' infconfig config g2lhconfig lhconfig ghci proj fp = do
+    mapM_ (print . getQualifiers) ghci
 
-    (lrs, g2config', infconfig', main_mod) <- getInitState proj fp lhlibs ghci infconfig config
+    (lrs, g2config', g2lhconfig', infconfig', main_mod) <- getInitState proj fp ghci infconfig config g2lhconfig
     let nls = getNameLevels main_mod lrs
 
     putStrLn $ "nls = " ++ show nls
 
-    let configs = Configs { g2_config = g2config', lh_config = lhconfig, inf_config = infconfig'}
+    let configs = Configs { g2_config = g2config', g2lh_config = g2lhconfig', lh_config = lhconfig, inf_config = infconfig'}
         prog = newProgress
 
     SomeSMTSolver solver <- getSMT g2config'
@@ -100,23 +101,23 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
 
     print . logToSecs . orderLogBySpeed . sumLog . mapLabels (mapEvent (nameOcc)) . getLog $ ev_timer
     print . logToSecs . orderLogBySpeed . sumLog . mapLabels (mapEvent (const ())) . getLog $ ev_timer
-    return (res, ev_timer, loops)
+    return (G2LH.state . lr_state $ lrs, res, ev_timer, loops)
 
 getInitState :: [FilePath]
-             -> [FilePath]
              -> [FilePath]
              -> [GhcInfo]
              -> InferenceConfig
              -> G2.Config
-             -> IO (LiquidReadyState, G2.Config, InferenceConfig, Maybe T.Text)
-getInitState proj fp lhlibs ghci infconfig config = do
+             -> LHConfig
+             -> IO (LiquidReadyState, G2.Config, LHConfig, InferenceConfig, Maybe T.Text)
+getInitState proj fp ghci infconfig config lhconfig = do
     let g2config = config { mode = Liquid
                           , steps = 2000 }
         transConfig = simplTranslationConfig { simpl = False }
-    (main_mod, exg2) <- translateLoaded proj fp lhlibs transConfig g2config
+    (main_mod, exg2) <- translateLoaded proj fp transConfig g2config
 
-    let (lrs, g2config', infconfig') = initStateAndConfig exg2 main_mod g2config infconfig ghci
-    return (lrs, g2config', infconfig', main_mod)
+    let (lrs, g2config', lhconfig', infconfig') = initStateAndConfig exg2 main_mod g2config lhconfig infconfig ghci
+    return (lrs, g2config', lhconfig', infconfig', main_mod)
 
 getNameLevels :: Maybe T.Text -> LiquidReadyState -> NameLevels
 getNameLevels main_mod =
@@ -137,7 +138,7 @@ type NameLevels = [[Name]]
 
 type MaxSizeConstraints = FuncConstraints
 
-iterativeInference :: (MonadIO m, SMTConverter con ast out io)
+iterativeInference :: (MonadIO m, SMTConverter con)
                    => con
                    -> [GhcInfo]
                    -> Maybe T.Text
@@ -148,16 +149,16 @@ iterativeInference :: (MonadIO m, SMTConverter con ast out io)
                    -> FuncConstraints
                    -> InfStack m (Either [CounterExample] GeneratedSpecs)
 iterativeInference con ghci m_modname lrs nls meas_ex gs fc = do
-    res <- inferenceL con ghci m_modname lrs nls emptyEvals meas_ex gs fc emptyFC emptyBlockedModels
+    res <- inferenceL con FirstRound ghci m_modname lrs nls emptyEvals meas_ex gs fc emptyFC emptyBlockedModels
     case res of
         CEx cex -> return $ Left cex
         Env n_gs _ _ _ -> return $ Right n_gs
-        Raise r_meas_ex r_fc _ -> do
+        Raise _ r_fc _ -> do
             incrMaxDepthI
             -- We might be missing some internal GHC types from our deep_seq walkers
             -- We filter them out to avoid an error
             let eenv = expr_env . G2LH.state $ lr_state lrs
-                check = filter (\n -> 
+                chck = filter (\n -> 
                                   case E.lookup n eenv of
                                       Just e -> isJust $ 
                                               mkStrict_maybe 
@@ -165,10 +166,10 @@ iterativeInference con ghci m_modname lrs nls meas_ex gs fc = do
                                               (Var (Id (Name "" Nothing 0 Nothing) (returnType e)))
                                       Nothing -> False) (head nls)
             liftIO . putStrLn $ "head nls =  " ++ show (head nls)
-            liftIO . putStrLn $ "iterativeInference check =  " ++ show check
+            liftIO . putStrLn $ "iterativeInference check =  " ++ show chck
 
             logEventStartM CExSE
-            ref <- getCEx ghci m_modname lrs gs check
+            ref <- getCEx ghci m_modname lrs gs chck
             logEventEndM
             case ref of
                 Left cex -> return $ Left cex
@@ -180,8 +181,9 @@ iterativeInference con ghci m_modname lrs nls meas_ex gs fc = do
                     iterativeInference con ghci m_modname lrs nls r_meas_ex' gs (unionFC fc' r_fc)
 
 
-inferenceL :: (MonadIO m, SMTConverter con ast out io)
+inferenceL :: (MonadIO m, SMTConverter con)
            => con
+           -> Iteration
            -> [GhcInfo]
            -> Maybe T.Text
            -> LiquidReadyState
@@ -193,14 +195,14 @@ inferenceL :: (MonadIO m, SMTConverter con ast out io)
            -> MaxSizeConstraints
            -> BlockedModels
            -> InfStack m InferenceRes
-inferenceL con ghci m_modname lrs nls evals meas_ex senv fc max_fc blk_mdls = do
-    let (fs, sf, below_sf) = case nls of
-                        (fs_:sf_:be) -> (fs_, sf_, be)
-                        ([fs_])-> (fs_, [], [])
-                        [] -> ([], [], [])
+inferenceL con iter ghci m_modname lrs nls evals meas_ex senv fc max_fc blk_mdls = do
+    let sf = case nls of
+                        (_:sf_:_) -> sf_
+                        ([_])-> []
+                        [] -> []
 
-    startLevelTimer (case nls of fs:_ -> fs; [] -> [])
-    (resAtL, evals') <- inferenceB con ghci m_modname lrs nls evals meas_ex senv fc max_fc blk_mdls
+    startLevelTimer (case nls of fs_:_ -> fs_; [] -> [])
+    (resAtL, evals') <- inferenceB con iter ghci m_modname lrs nls evals meas_ex senv fc max_fc blk_mdls
     endLevelTimer
 
     liftIO $ do
@@ -215,17 +217,18 @@ inferenceL con ghci m_modname lrs nls evals meas_ex senv fc max_fc blk_mdls = do
                 (_:nls') -> do
                     liftIO $ putStrLn "Down a level!"
                     let evals'' = foldr deleteEvalsForFunc evals' sf
-                    inf_res <- inferenceL con ghci m_modname lrs nls' evals'' meas_ex' senv' (unionFC fc n_fc) (unionFC max_fc n_mfc) emptyBlockedModels
+                    inf_res <- inferenceL con FirstRound ghci m_modname lrs nls' evals'' meas_ex' senv' (unionFC fc n_fc) (unionFC max_fc n_mfc) emptyBlockedModels
                     case inf_res of
                         Raise r_meas_ex r_fc r_max_fc -> do
                             liftIO $ putStrLn "Up a level!"
                             
-                            inferenceL con ghci m_modname lrs nls evals' r_meas_ex senv r_fc r_max_fc blk_mdls
+                            inferenceL con AfterFirstRound ghci m_modname lrs nls evals' r_meas_ex senv r_fc r_max_fc blk_mdls
                         _ -> return inf_res
         _ -> return resAtL
 
-inferenceB :: (MonadIO m, SMTConverter con ast out io)
+inferenceB :: (MonadIO m, SMTConverter con)
            => con
+           -> Iteration
            -> [GhcInfo]
            -> Maybe T.Text
            -> LiquidReadyState
@@ -237,7 +240,7 @@ inferenceB :: (MonadIO m, SMTConverter con ast out io)
            -> MaxSizeConstraints
            -> BlockedModels
            -> InfStack m (InferenceRes, Evals Bool)
-inferenceB con ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls = do
+inferenceB con iter ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls = do
     let (fs, sf, below_sf) = case nls of
                         (fs_:sf_:be) -> (fs_, sf_, be)
                         ([fs_])-> (fs_, [], [])
@@ -250,7 +253,7 @@ inferenceB con ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls = do
     evals' <- updateEvals curr_ghci lrs fc evals
     logEventEndM
     logEventStartM Synth
-    synth_gs <- lift . lift . lift $ synthesize con curr_ghci lrs evals' meas_ex (unionFC max_fc fc) blk_mdls (concat below_sf) sf
+    synth_gs <- lift . lift . lift $ synthesize con iter curr_ghci lrs evals' meas_ex (unionFC max_fc fc) blk_mdls (concat below_sf) sf
     logEventEndM
 
     liftIO $ do
@@ -271,11 +274,11 @@ inferenceB con ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls = do
             res <- tryToVerify ghci'
             logEventEndM
             let res' = filterNamesTo fs res
-            
+
             case res' of
                 Safe -> return $ (Env gs' fc max_fc meas_ex, evals')
                 Unsafe bad -> do
-                    inf_config <- infConfigM
+                    inf_con <- infConfigM
                     ref <- tryToGen (nub bad) ((emptyFC, emptyBlockedModels), emptyFC)
                               (\(fc1, bm1) (fc2, bm2) -> (fc1 `unionFC` fc2, bm1 `unionBlockedModels` bm2))
                               unionFC
@@ -283,8 +286,8 @@ inferenceB con ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls = do
                                     logEventStartM (InfSE n)
                                     return $ Right (Nothing, emptyFC))
                               , refineUnsafe ghci m_modname lrs gs'
-                              , if use_level_dec inf_config then searchBelowLevel ghci m_modname lrs res sf gs' else genEmp
-                              , if use_negated_models inf_config then adjModel lrs sz smt_mdl else incrCExAndTime ]
+                              , if use_level_dec inf_con then searchBelowLevel ghci m_modname lrs res sf gs' else genEmp
+                              , if use_negated_models inf_con then adjModel lrs sz smt_mdl else incrCExAndTime ]
                               logEventEndM
 
                     case ref of
@@ -298,7 +301,7 @@ inferenceB con ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls = do
                             logEventEndM
                             liftIO $ putStrLn "After genMeasureExs"
 
-                            inferenceB con ghci m_modname lrs nls evals' meas_ex' gs (unionFC fc fc') max_fc blk_mdls''
+                            inferenceB con AfterFirstRound ghci m_modname lrs nls evals' meas_ex' gs (unionFC fc fc') max_fc blk_mdls''
 
                 Crash e1 e2 -> error $ "inferenceB: LiquidHaskell crashed" ++ "\n" ++ show e1 ++ "\n" ++ e2
         SynthFail sf_fc -> do
@@ -374,8 +377,6 @@ refineUnsafe :: MonadIO m =>
 refineUnsafe ghci m_modname lrs gs bad = do
     let merged_se_ghci = addSpecsToGhcInfos ghci gs
 
-    liftIO $ mapM_ (print . gsTySigs . spec) merged_se_ghci
-
     (res, no_viol) <- genNewConstraints merged_se_ghci m_modname lrs (nameOcc bad)
 
     liftIO $ do
@@ -412,7 +413,7 @@ searchBelowLevel ghci m_modname lrs verify_res lev_below gs bad = do
     case filterNamesTo called_by_res $ filterNamesTo lev_below verify_res of
         Unsafe bad_sf -> do
             liftIO $ putStrLn "About to run second run of CEx generation"
-            ref_sf <- withConfigs noCounterfactual $ refineUnsafeAll ghci m_modname lrs gs bad_sf
+            ref_sf <- withConfigs (limitedCounterfactual $ namesGS gs) $ refineUnsafeAll ghci m_modname lrs gs bad_sf
             case ref_sf of
                 Left cex -> return $ Left cex
                 Right (viol_fc_sf, no_viol_fc_sf) ->
@@ -466,8 +467,12 @@ filterNamesTo ns (Unsafe unsafe) =
         toOccMod (Name n m _ _) = (n, m)
 filterNamesTo _ vr = vr
 
-noCounterfactual :: Configs -> Configs
-noCounterfactual cfgs@(Configs { g2_config = g2_c }) = cfgs { g2_config = g2_c { counterfactual = NotCounterfactual } }
+limitedCounterfactual :: [Name] -> Configs -> Configs
+limitedCounterfactual ns cfgs@(Configs { g2lh_config = g2lh_c }) =
+    cfgs { g2lh_config = g2lh_c { counterfactual = Counterfactual
+                                                 . CFOnly
+                                                 . S.fromList
+                                                 $ map (\(Name n m _ _) -> (n, m)) ns } }
 
 genNewConstraints :: MonadIO m => 
                      [GhcInfo]
@@ -483,7 +488,7 @@ genNewConstraints ghci m lrs n = do
     let (exec_res', no_viol) = partition (true_assert . final_state) exec_res
         
         allCCons = noAbsStatesToCons i $ exec_res' ++ if use_extra_fcs infconfig then no_viol else []
-    return $ (filter (not . hasPreArgError) $ map (lhStateToCE i) exec_res', allCCons)
+    return $ (filter (not . hasPreArgError) $ map lhStateToCE exec_res', allCCons)
 
 getCEx :: MonadIO m =>
           [GhcInfo]
@@ -495,7 +500,7 @@ getCEx :: MonadIO m =>
 getCEx ghci m_modname lrs gs bad = do
     let merged_se_ghci = addSpecsToGhcInfos ghci gs
 
-    liftIO $ mapM_ (print . gsTySigs . spec) merged_se_ghci
+    liftIO $ mapM_ (print . getTySigs) merged_se_ghci
 
     let bad' = nub $ map nameOcc bad
 
@@ -525,9 +530,9 @@ checkForCEx :: MonadIO m =>
             -> InfStack m [CounterExample]
 checkForCEx ghci m lrs n = do
     liftIO . putStrLn $ "Checking CEx for " ++ T.unpack n
-    ((exec_res, _), i) <- runLHCExSearch n m lrs ghci
+    ((exec_res, _), _) <- runLHCExSearch n m lrs ghci
     let exec_res' = filter (true_assert . final_state) exec_res
-    return $ map (lhStateToCE i) exec_res'
+    return $ map lhStateToCE exec_res'
 
 checkNewConstraints :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> [CounterExample] -> m (Either [CounterExample] FuncConstraints)
 checkNewConstraints ghci lrs cexs = do
@@ -543,7 +548,7 @@ updateMeasureExs meas_ex lrs ghci fcs =
     let
         es = concatMap (\fc ->
                     let
-                        clls = allCalls fc
+                        clls = concatMap (\(mfc, hfc) -> mfc:hfc) $ allCalls fc
                         vls = concatMap (\c -> returns c:arguments c) clls 
                         ex_poly = concat . concatMap extractValues . concatMap extractExprPolyBound $ vls
                     in
@@ -552,12 +557,11 @@ updateMeasureExs meas_ex lrs ghci fcs =
     in
     evalMeasures meas_ex lrs ghci es
 
-synthesize :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con ast out io)
-           => con -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
+synthesize :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con)
+           => con -> Iteration -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
            -> FuncConstraints -> BlockedModels -> [Name] -> [Name] -> m SynthRes
-synthesize con ghci lrs evals meas_ex fc blk_mdls to_be for_funcs = do
-    liftIO . putStrLn $ "all fc = " ++ printFCs lrs fc
-    liaSynth con ghci lrs evals meas_ex fc blk_mdls to_be for_funcs
+synthesize con iter ghci lrs evals meas_ex fc blk_mdls to_be for_funcs = do
+    liaSynth con iter ghci lrs evals meas_ex fc blk_mdls to_be for_funcs
 
 updateEvals :: (InfConfigM m, MonadIO m) => [GhcInfo] -> LiquidReadyState -> FuncConstraints -> Evals Bool -> m (Evals Bool)
 updateEvals ghci lrs fc evals = do
@@ -573,36 +577,36 @@ updateEvals ghci lrs fc evals = do
 
 -- | Converts counterexamples into constraints that block the current specification set
 cexsToBlockingFC :: (InfConfigM m, MonadIO m) => LiquidReadyState -> [GhcInfo] -> CounterExample -> m (Either CounterExample FuncConstraint)
-cexsToBlockingFC _ _ (DirectCounter dfc fcs@(_:_))
+cexsToBlockingFC _ _ (DirectCounter dfc fcs@(_:_) higher)
     | (_:_, _) <- partition (hasArgError . abstract) fcs = undefined
     | isError (returns (abstract dfc)) = do
         infconfig <- infConfigM
         let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 
         let rhs = OrFC $ map (\(Abstracted { abstract = fc }) -> 
-                        ImpliesFC (Call Pre fc) (NotFC (Call Post fc))) fcs'
+                        ImpliesFC (Call Pre fc higher) (NotFC (Call Post fc higher))) fcs'
 
-        return . Right $ ImpliesFC (Call Pre (abstract dfc)) rhs
+        return . Right $ ImpliesFC (Call Pre (abstract dfc) higher) rhs
     | otherwise = do
         infconfig <- infConfigM
         let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 
-        let lhs = AndFC [Call Pre (abstract dfc), NotFC (Call Post (abstract dfc))]
+        let lhs = AndFC [Call Pre (abstract dfc) higher, NotFC (Call Post (abstract dfc) higher)]
             rhs = OrFC $ map (\(Abstracted { abstract = fc }) -> 
-                        ImpliesFC (Call Pre fc) (NotFC (Call Post fc))) fcs'
+                        ImpliesFC (Call Pre fc higher) (NotFC (Call Post fc higher))) fcs'
 
         if not . null $ fcs'
             then return . Right $ ImpliesFC lhs rhs
             else error "cexsToBlockingFC: Unhandled"
-cexsToBlockingFC _ _ (CallsCounter dfc cfc fcs@(_:_))
+cexsToBlockingFC _ _ (CallsCounter dfc cfc fcs@(_:_) higher)
     | (_:_, _) <- partition (hasArgError . abstract) fcs = undefined
     | isError (returns (abstract cfc)) = do
         infconfig <- infConfigM
         let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 
-        let lhs = Call Pre (abstract dfc)
+        let lhs = Call Pre (abstract dfc) higher
             rhs = OrFC $ map (\(Abstracted { abstract = fc }) -> 
-                                ImpliesFC (Call Pre fc) (NotFC (Call Post fc))) fcs'
+                                ImpliesFC (Call Pre fc higher) (NotFC (Call Post fc higher))) fcs'
 
         if not . null $ fcs' 
             then return . Right $ ImpliesFC lhs rhs
@@ -612,85 +616,85 @@ cexsToBlockingFC _ _ (CallsCounter dfc cfc fcs@(_:_))
         infconfig <- infConfigM
         let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 
-        let lhs = AndFC [Call Pre (abstract dfc), NotFC (Call Pre (abstract cfc))]
+        let lhs = AndFC [Call Pre (abstract dfc) higher, NotFC (Call Pre (abstract cfc) higher)]
             rhs = OrFC $ map (\(Abstracted { abstract = fc }) -> 
-                                ImpliesFC (Call Pre fc) (NotFC (Call Post fc))) fcs'
+                                ImpliesFC (Call Pre fc higher) (NotFC (Call Post fc higher))) fcs'
 
         if not . null $ fcs' 
             then return . Right $ ImpliesFC lhs rhs
             else error "cexsToBlockingFC: Should be unreachable! Non-refinable function abstracted!"    
-cexsToBlockingFC lrs ghci cex@(DirectCounter dfc [])
+cexsToBlockingFC lrs ghci cex@(DirectCounter dfc [] higher)
     | isError (returns (real dfc)) = do
         if isExported lrs (funcName (real dfc))
             then return . Left $ cex
-            else return . Right . NotFC $ Call Pre (real dfc)
+            else return . Right . NotFC $ Call Pre (real dfc) higher
     | isExported lrs (funcName (real dfc)) = do
-        post_ref <- checkPost ghci lrs (real dfc)
+        post_ref <- checkPost ghci lrs (real dfc) higher
         case post_ref of
-            True -> return $ Right (Call All (real dfc))
+            True -> return $ Right (Call All (real dfc) higher)
             False -> return . Left $ cex
-    | otherwise = return $ Right (Call All (real dfc))
-cexsToBlockingFC lrs ghci cex@(CallsCounter dfc cfc [])
+    | otherwise = return $ Right (Call All (real dfc) higher)
+cexsToBlockingFC lrs ghci cex@(CallsCounter dfc cfc [] higher)
     | any isError (arguments (abstract cfc)) = do
         if
             | isExported lrs (funcName (real dfc))
             , isExported lrs (funcName (real cfc)) -> do
-                called_pr <- checkPre ghci lrs (real cfc) -- TODO: Shouldn't be changing this?
+                called_pr <- checkPre ghci lrs (real cfc) higher -- TODO: Shouldn't be changing this?
                 case called_pr of
-                    True -> return . Right $ NotFC (Call Pre (real dfc))
+                    True -> return . Right $ NotFC (Call Pre (real dfc) higher)
                     False -> return . Left $ cex
             | isExported lrs (funcName (real dfc)) -> do
-                called_pr <- checkPre ghci lrs (real cfc)
+                called_pr <- checkPre ghci lrs (real cfc) higher
                 case called_pr of
-                    True -> return . Right $ NotFC (Call Pre (real dfc))
+                    True -> return . Right $ NotFC (Call Pre (real dfc) higher)
                     False -> return . Left $ cex
-            | otherwise -> return . Right $ NotFC (Call Pre (real dfc))
+            | otherwise -> return . Right $ NotFC (Call Pre (real dfc) higher)
     | otherwise = do
         if
             | isExported lrs (funcName (real dfc))
             , isExported lrs (funcName (real cfc)) -> do
-                called_pr <- checkPre ghci lrs (real cfc) -- TODO: Shouldn't be changing this?
+                called_pr <- checkPre ghci lrs (real cfc) higher -- TODO: Shouldn't be changing this?
                 case called_pr of
-                    True -> return . Right $ ImpliesFC (Call Pre (real dfc)) (Call Pre (real cfc))
+                    True -> return . Right $ ImpliesFC (Call Pre (real dfc) higher) (Call Pre (real cfc) higher)
                     False -> return . Left $ cex
             | isExported lrs (funcName (real dfc)) -> do
-                called_pr <- checkPre ghci lrs (real cfc)
+                called_pr <- checkPre ghci lrs (real cfc) higher
                 case called_pr of
-                    True -> return . Right $ ImpliesFC (Call Pre (real dfc)) (Call Pre (real cfc))
+                    True -> return . Right $ ImpliesFC (Call Pre (real dfc) higher) (Call Pre (real cfc) higher)
                     False -> return . Left $ cex
             | otherwise -> do
-                return . Right $ ImpliesFC (Call Pre (real dfc)) (Call Pre (real cfc))
+                return . Right $ ImpliesFC (Call Pre (real dfc) higher) (Call Pre (real cfc) higher)
 
 -- Function constraints that don't block the current specification set, but which must be true
 -- (i.e. the actual input and output for abstracted functions)
 cexsToExtraFC :: InfConfigM m => CounterExample -> m [FuncConstraint]
-cexsToExtraFC (DirectCounter dfc fcs@(_:_)) = do
+cexsToExtraFC (DirectCounter dfc fcs@(_:_) higher) = do
     infconfig <- infConfigM
-    let some_pre = ImpliesFC (Call Pre $ real dfc) $  OrFC (map (\fc -> Call Pre (real fc)) fcs)
+    let some_pre = ImpliesFC (Call Pre (real dfc) higher) $  OrFC (map (\fc -> Call Pre (real fc) higher) fcs)
         fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
-    return $ some_pre:mapMaybe realToMaybeFC fcs'
-cexsToExtraFC (CallsCounter dfc cfc fcs@(_:_)) = do
+    return $ some_pre:mapMaybe (realToMaybeFC higher) fcs'
+cexsToExtraFC (CallsCounter dfc cfc fcs@(_:_) higher) = do
     infconfig <- infConfigM
-    let some_pre = ImpliesFC (Call Pre $ real dfc) $  OrFC (map (\fc -> Call Pre (real fc)) fcs)
+    let some_pre = ImpliesFC (Call Pre (real dfc) higher) $  OrFC (map (\fc -> Call Pre (real fc) higher) fcs)
     let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 
-    let pre_real = maybeToList $ realToMaybeFC cfc
-        as = mapMaybe realToMaybeFC fcs'
+    let pre_real = maybeToList $ (realToMaybeFC higher) cfc
+        as = mapMaybe (realToMaybeFC higher) fcs'
         clls = if not . isError . returns . real $ cfc
-                  then [Call All $ real cfc]
+                  then [Call All (real cfc) higher]
                   else []
 
     return $ some_pre:clls ++ pre_real ++ as
-cexsToExtraFC (DirectCounter _ []) = return []
-cexsToExtraFC (CallsCounter dfc cfc [])
+cexsToExtraFC (DirectCounter _ [] _) = return []
+cexsToExtraFC (CallsCounter dfc cfc [] higher)
     | isError (returns (real dfc)) = return []
     | isError (returns (real cfc)) = return []
     | any isError (arguments (real cfc)) = return []
     | otherwise =
         let
-            call_all_dfc = Call All (real dfc)
-            call_all_cfc = Call All (real cfc)
-            imp_fc = ImpliesFC (Call Pre $ real dfc) (Call Pre $ real cfc)
+            call_all_dfc = Call All (real dfc) higher
+            call_all_cfc = Call All (real cfc) higher
+            imp_fc = ImpliesFC (Call Pre (real dfc) higher) (Call Pre (real cfc) higher)
         in
         return $ [call_all_dfc, call_all_cfc, imp_fc]
 
@@ -700,6 +704,8 @@ noAbsStatesToCons i = concatMap (noAbsStatesToCons' i) -- . filter (null . abs_c
 noAbsStatesToCons' :: Id -> ExecRes AbstractedInfo -> [FuncConstraint]
 noAbsStatesToCons' i@(Id (Name _ m _ _) _) er =
     let
+        higher_calls = erHigherOrder er
+
         pre_s = lhStateToPreFC i er
         clls = filter (\fc -> nameModule (funcName fc) == m) 
              . map (switchName (idName i))
@@ -709,13 +715,13 @@ noAbsStatesToCons' i@(Id (Name _ m _ _) _) er =
              . track
              $ final_state er
 
-        preCons = map (ImpliesFC pre_s . Call Pre) clls
+        preCons = map (ImpliesFC pre_s . flip (Call Pre) higher_calls) clls
         -- A function may return error because it was passed an erroring higher order function.
         -- In this case, it would be incorrect to add a constraint that the function itself calls error.
         -- Thus, we simply get rid of constraints that call error. 
         callsCons = mapMaybe (\fc -> case isError (returns fc) of
                                       True -> Nothing -- NotFC (Call Pre fc)
-                                      False -> Just (Call All fc)) clls
+                                      False -> Just (Call All fc higher_calls)) clls
         callsCons' = if hits_lib_err_in_real (init_call . track . final_state $ er)
                                     then []
                                     else callsCons
@@ -727,30 +733,30 @@ switchName n fc = if funcName fc == initiallyCalledFuncName then fc { funcName =
 
 --------------------------------------------------------------------
 
-realToMaybeFC :: Abstracted -> Maybe FuncConstraint
-realToMaybeFC a@(Abstracted { real = fc }) 
+realToMaybeFC :: [HigherOrderFuncCall] -> Abstracted -> Maybe FuncConstraint
+realToMaybeFC higher a@(Abstracted { real = fc }) 
     | hits_lib_err_in_real a = Nothing
-    | isError (returns fc) = Just $ NotFC (Call Pre fc)
-    | otherwise = Just $ ImpliesFC (Call Pre fc) (Call Post fc)
+    | isError (returns fc) = Just $ NotFC (Call Pre fc higher)
+    | otherwise = Just $ ImpliesFC (Call Pre fc higher) (Call Post fc higher)
 
 isExported :: LiquidReadyState -> Name -> Bool
 isExported lrs (Name n m _ _) =
     (n, m) `elem` map (\(Name n' m' _ _) -> (n', m')) (exported_funcs (lr_binding lrs))
 
 lhStateToPreFC :: Id -> ExecRes AbstractedInfo -> FuncConstraint
-lhStateToPreFC i (ExecRes { conc_args = inArg
-                          , conc_out = ex}) = Call Pre (FuncCall (idName i) inArg ex)
+lhStateToPreFC i er@(ExecRes { conc_args = inArg
+                             , conc_out = ex}) = Call Pre (FuncCall (idName i) inArg ex) (erHigherOrder er)
 
 abstractedMod :: Abstracted -> Maybe T.Text
 abstractedMod = nameModule . funcName . abstract
 
 hasPreArgError :: CounterExample -> Bool
-hasPreArgError (DirectCounter _ _) = False
-hasPreArgError (CallsCounter _ calls_f _) = hasArgError $ real calls_f
+hasPreArgError (DirectCounter _ _ _) = False
+hasPreArgError (CallsCounter _ calls_f _ _) = hasArgError $ real calls_f
 
 hasAbstractedArgError :: CounterExample -> Bool
-hasAbstractedArgError (DirectCounter _ as) = any (hasArgError . real) as
-hasAbstractedArgError (CallsCounter _ _ as) = any (hasArgError . real) as
+hasAbstractedArgError (DirectCounter _ as _) = any (hasArgError . real) as
+hasAbstractedArgError (CallsCounter _ _ as _) = any (hasArgError . real) as
 
 hasArgError :: FuncCall -> Bool
 hasArgError = any isError . arguments
@@ -759,3 +765,6 @@ isError :: Expr -> Bool
 isError (Prim Error _) = True
 isError (Prim Undefined _) = True
 isError _ = False
+
+erHigherOrder :: ExecRes AbstractedInfo -> [HigherOrderFuncCall]
+erHigherOrder = ai_higher_order_calls . track . final_state

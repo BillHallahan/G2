@@ -4,23 +4,21 @@ module G2.Lib.Printers ( PrettyGuide
                        , mkPrettyGuide
                        , updatePrettyGuide
 
+                       , printName
+
                        , printHaskell
                        , printHaskellDirty
+                       , printHaskellDirtyPG
                        , printHaskellPG
                        , mkUnsugaredExprHaskell
                        , mkTypeHaskell
                        , mkTypeHaskellPG
-                       , ppExprEnv
-                       , ppRelExprEnv
-                       , ppCurrExpr
-                       , ppPathConds
-                       , ppPathCond
                        , pprExecStateStr
-                       , pprExecEEnvStr
                        , printFuncCall
-                       , prettyState) where
+                       , prettyState
 
-import G2.Execution.Memory
+                       , prettyGuideStr) where
+
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
@@ -36,15 +34,15 @@ import Data.Char
 import Data.List as L
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
-import qualified Data.Map as M
 import qualified Data.Text as T
-
-import Debug.Trace
 
 data Clean = Cleaned | Dirty deriving Eq
 
 mkIdHaskell :: PrettyGuide -> Id -> String
 mkIdHaskell pg (Id n _) = mkNameHaskell pg n
+
+printName :: PrettyGuide -> Name -> String
+printName = mkNameHaskell
 
 mkNameHaskell :: PrettyGuide -> Name -> String
 mkNameHaskell pg n
@@ -60,6 +58,9 @@ printHaskell = mkCleanExprHaskell (mkPrettyGuide ())
 
 printHaskellDirty :: Expr -> String
 printHaskellDirty = mkExprHaskell Dirty (mkPrettyGuide ())
+
+printHaskellDirtyPG :: PrettyGuide -> Expr -> String
+printHaskellDirtyPG = mkExprHaskell Dirty
 
 printHaskellPG :: PrettyGuide -> State t -> Expr -> String
 printHaskellPG = mkCleanExprHaskell
@@ -119,7 +120,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             | Data (DataCon n1 _) <- e1
             , nameOcc n1 == ":"
             , isCleaned =
-                if isLitChar e2 then printString a else printList pg a
+                if isLitChar e2 then printString pg a else printList pg a
 
             | isInfixable e1
             , isCleaned =
@@ -135,7 +136,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
         mkExprHaskell'' off (App e1 ea@(App _ _)) = mkExprHaskell'' off e1 ++ " (" ++ mkExprHaskell'' off ea ++ ")"
         mkExprHaskell'' off (App e1 e2) = mkExprHaskell'' off e1 ++ " " ++ mkExprHaskell'' off e2
         mkExprHaskell'' _ (Data d) = mkDataConHaskell pg d
-        mkExprHaskell'' off (Case e bndr@(Id bndr_name _) ae) =
+        mkExprHaskell'' off (Case e bndr ae) =
                "case " ++ parenWrap e (mkExprHaskell'' off e) ++ " of\n" 
             ++ intercalate "\n" (map (mkAltHaskell (off + 2) cleaned pg bndr) ae)
         mkExprHaskell'' _ (Type t) = "@" ++ mkTypeHaskellPG pg t
@@ -143,10 +144,17 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
         mkExprHaskell'' off (Let binds e) =
             let
                 binds' = intercalate (offset off ++ "\n")
-                       $ map (\(i, e) -> mkIdHaskell pg i ++ " = " ++ mkExprHaskell'' off e) binds 
+                       $ map (\(i, be) -> mkIdHaskell pg i ++ " = " ++ mkExprHaskell'' off be) binds 
             in
             "let " ++ binds' ++ " in " ++ mkExprHaskell'' off e
-        mkExprHaskell'' off (Tick nl e) = "TICK[" ++ (show nl) ++ "]{" ++ (mkExprHaskell'' off e) ++ "}"
+        mkExprHaskell'' off (Tick nl e) = "TICK[" ++ printTickish pg nl ++ "]{" ++ mkExprHaskell'' off e ++ "}"
+        mkExprHaskell'' off (Assume m_fc e1 e2) =
+            let
+                print_fc = maybe "" (\fc -> "(" ++ printFuncCallPG pg fc ++ ") ") m_fc
+            in
+            "assume " ++ print_fc
+                ++ "(" ++ mkExprHaskell'' off e1
+                ++ ") (" ++ mkExprHaskell'' off e2 ++ ")"
         mkExprHaskell'' off (Assert m_fc e1 e2) =
             let
                 print_fc = maybe "" (\fc -> "(" ++ printFuncCallPG pg fc ++ ") ") m_fc
@@ -154,6 +162,12 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             "assert " ++ print_fc
                 ++ "(" ++ mkExprHaskell'' off e1
                 ++ ") (" ++ mkExprHaskell'' off e2 ++ ")"
+        mkExprHaskell'' off (NonDet es) =
+            let
+                print_es = map (mkExprHaskell'' off) es
+            in
+            intercalate ("\n" ++ offset off ++ "[NonDet]\n") print_es 
+        mkExprHaskell'' _ (SymGen t) = "(symgen " ++ mkTypeHaskellPG pg t ++ ")"
         mkExprHaskell'' _ e = "e = " ++ show e ++ " NOT SUPPORTED"
 
         parenWrap :: Expr -> String -> String
@@ -163,28 +177,28 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
         parenWrap _ s = s
 
 mkAltHaskell :: Int -> Clean -> PrettyGuide -> Id -> Alt -> String
-mkAltHaskell off cleaned pg bndr@(Id bndr_name _) (Alt am e) =
+mkAltHaskell off cleaned pg i_bndr@(Id bndr_name _) (Alt am e) =
     let
         needs_bndr = bndr_name `elem` names e
     in
-    offset off ++ mkAltMatchHaskell (if needs_bndr then Just bndr else Nothing) am ++ " -> " ++ mkExprHaskell' off cleaned pg e
+    offset off ++ mkAltMatchHaskell (if needs_bndr then Just i_bndr else Nothing) am ++ " -> " ++ mkExprHaskell' off cleaned pg e
     where
         mkAltMatchHaskell :: Maybe Id -> AltMatch -> String
         mkAltMatchHaskell m_bndr (DataAlt dc@(DataCon n _) [id1, id2]) | isInfixableName n =
             let
-                am = mkIdHaskell pg id1 ++ " " ++ mkDataConHaskell pg dc ++ " " ++ mkIdHaskell pg id2
+                pr_am = mkIdHaskell pg id1 ++ " " ++ mkDataConHaskell pg dc ++ " " ++ mkIdHaskell pg id2
             in
             case m_bndr of
-                Just bndr -> mkIdHaskell pg bndr ++ "@(" ++ am ++ ")" 
-                Nothing -> am
+                Just bndr -> mkIdHaskell pg bndr ++ "@(" ++ pr_am ++ ")" 
+                Nothing -> pr_am
         mkAltMatchHaskell m_bndr (DataAlt dc ids) =
             let
-                am = mkDataConHaskell pg dc ++ " " ++ intercalate " "  (map (mkIdHaskell pg) ids)
+                pr_am = mkDataConHaskell pg dc ++ " " ++ intercalate " "  (map (mkIdHaskell pg) ids)
             in
             case m_bndr of
-                Just bndr | not (L.null ids) -> mkIdHaskell pg bndr ++ "@(" ++ am ++ ")"
+                Just bndr | not (L.null ids) -> mkIdHaskell pg bndr ++ "@(" ++ pr_am ++ ")"
                           | otherwise -> mkIdHaskell pg bndr
-                Nothing -> am
+                Nothing -> pr_am
         mkAltMatchHaskell m_bndr (LitAlt l) =
             case m_bndr of
                 Just bndr -> mkIdHaskell pg bndr ++ "@" ++ mkLitHaskell l
@@ -201,27 +215,42 @@ offset :: Int -> String
 offset i = duplicate "   " i
 
 printList :: PrettyGuide -> Expr -> String
-printList pg a = "[" ++ intercalate ", " (printList' pg a) ++ "]"
+printList pg a =
+    let (strs, b) = printList' pg a
+    in case b of
+        False -> "(" ++ intercalate ":" strs ++ ")"
+        _ -> "[" ++ intercalate ", " strs ++ "]"
 
-printList' :: PrettyGuide -> Expr -> [String]
-printList' pg (App (App _ e) e') = mkExprHaskell Cleaned pg e:printList' pg e'
-printList' _ _ = []
+printList' :: PrettyGuide -> Expr -> ([String], Bool)
+printList' pg (App (App e1 e) e') | Data (DataCon n1 _) <- e1
+                                  , nameOcc n1 == ":" =
+    let (strs, b) = printList' pg e'
+    in (mkExprHaskell Cleaned pg e:strs, b)
+printList' pg e | Data (DataCon n _) <- appCenter e
+                , nameOcc n == "[]" = ([], True)
+                | otherwise = ([mkExprHaskell Cleaned pg e], False)
 
-printString :: Expr -> String
-printString a =
+printString :: PrettyGuide -> Expr -> String
+printString pg a =
     let
-        str = printString' a
-    in
-    if all isPrint str then "\"" ++ str ++ "\""
-        else "[" ++ intercalate ", " (map stringToEnum str) ++ "]"
+        maybe_str = printString' a
+    in case maybe_str of
+        Just str -> if all isPrint str then "\"" ++ str ++ "\""
+                    else "[" ++ intercalate ", " (map stringToEnum str) ++ "]"
+        Nothing -> printList pg a
     where
         stringToEnum c
             | isPrint c = '\'':c:'\'':[]
             | otherwise = "toEnum " ++ show (ord c)
 
-printString' :: Expr -> String
-printString' (App (App _ (Lit (LitChar c))) e') = c:printString' e'
-printString' _ = []
+printString' :: Expr -> Maybe String
+printString' (App (App _ (Lit (LitChar c))) e') =
+    case printString' e' of
+        Nothing -> Nothing
+        Just str -> Just (c:str)
+printString' e | Data (DataCon n _) <- appCenter e
+               , nameOcc n == "[]" = Just []
+               | otherwise = Nothing
 
 isTuple :: Name -> Bool
 isTuple (Name n _ _ _) = T.head n == '(' && T.last n == ')'
@@ -287,12 +316,15 @@ mkPrimHaskell Quot = "quot"
 mkPrimHaskell Mod = "mod"
 mkPrimHaskell Rem = "rem"
 mkPrimHaskell Negate = "-"
+mkPrimHaskell Abs = "abs"
 mkPrimHaskell SqRt = "sqrt"
 mkPrimHaskell IntToFloat = "fromIntegral"
 mkPrimHaskell IntToDouble = "fromIntegral"
 mkPrimHaskell RationalToDouble = "fromRational"
 mkPrimHaskell FromInteger = "fromInteger"
 mkPrimHaskell ToInteger = "toInteger"
+mkPrimHaskell Chr = "chr"
+mkPrimHaskell OrdChar = "ord"
 mkPrimHaskell ToInt = "toInt"
 mkPrimHaskell Error = "error"
 mkPrimHaskell Undefined = "undefined"
@@ -308,12 +340,19 @@ mkTypeHaskellPG pg (TyVar i) = mkIdHaskell pg i
 mkTypeHaskellPG pg (TyFun t1 t2) = mkTypeHaskellPG pg t1 ++ " -> " ++ mkTypeHaskellPG pg t2
 mkTypeHaskellPG pg (TyCon n _) = mkNameHaskell pg n
 mkTypeHaskellPG pg (TyApp t1 t2) = "(" ++ mkTypeHaskellPG pg t1 ++ " " ++ mkTypeHaskellPG pg t2 ++ ")"
+mkTypeHaskellPG _ TYPE = "Type"
 mkTypeHaskellPG _ t = "Unsupported type in printer. " ++ show t
 
 duplicate :: String -> Int -> String
 duplicate _ 0 = ""
 duplicate s n = s ++ duplicate s (n - 1)
 
+printTickish :: PrettyGuide -> Tickish -> String
+printTickish _ (Breakpoint sp) = printLoc (start sp) ++ " - " ++ printLoc (end sp)
+printTickish pg (NamedLoc n) = mkNameHaskell pg n
+
+printLoc :: Loc -> String
+printLoc (Loc ln cl fl) = "(line " ++ show ln ++ " column " ++ show cl ++ " in " ++  fl ++ ")" 
 
 -------------------------------------------------------------------------------
 
@@ -398,6 +437,10 @@ prettyPathCond pg (AltCond l e b) =
     if b then eq else "not (" ++ eq ++ ")"
 prettyPathCond pg (ExtCond e b) =
     if b then mkDirtyExprHaskell pg e else "not (" ++ mkDirtyExprHaskell pg e ++ ")"
+prettyPathCond pg (SoftPC pc) =
+    "soft (" ++ prettyPathCond pg pc ++ ")"
+prettyPathCond pg (MinimizePC e) =
+    "minimize (" ++ mkDirtyExprHaskell pg e ++ ")"
 prettyPathCond pg (AssumePC i l pc) =
     let
         pc' = map PC.unhashedPC $ HS.toList pc
@@ -408,49 +451,9 @@ prettyNonRedPaths :: PrettyGuide -> [Expr] -> String
 prettyNonRedPaths pg = intercalate "\n" . map (mkDirtyExprHaskell pg)
 
 -------------------------------------------------------------------------------
-ppExprEnv :: State t -> String
-ppExprEnv = ppExprEnvPG (mkPrettyGuide ())
-
-ppExprEnvPG :: PrettyGuide -> State t -> String
-ppExprEnvPG pg s@(State {expr_env = eenv}) =
-    let
-        eenvs = HM.toList $ E.map' (mkUnsugaredExprHaskell s) eenv
-    in
-    intercalate "\n" $ map (\(n, es) -> mkNameHaskell pg n ++ " = " ++ es) eenvs
-
--- | ppRelExprEnv
--- Prints all variable definitions from the expression environment,
--- that are required to understand the curr expr and path constraints
-ppRelExprEnv :: State t -> Bindings -> String
-ppRelExprEnv = ppRelExprEnvPG (mkPrettyGuide ())
-
-ppRelExprEnvPG :: PrettyGuide -> State t -> Bindings -> String
-ppRelExprEnvPG pg s b =
-    let
-        (s', _) = markAndSweep s b
-    in
-    ppExprEnvPG pg s'
-
-ppCurrExpr :: State t -> String
-ppCurrExpr s@(State {curr_expr = CurrExpr _ e}) = mkUnsugaredExprHaskell s e
-
-ppPathConds :: State t -> String
-ppPathConds s@(State {path_conds = pc}) = intercalate "\n" $ PC.map' (ppPathCond s) pc
-
-ppPathCond :: State t -> PathCond -> String
-ppPathCond s (AltCond l e b) =
-  mkLitHaskell l ++ (if b then " == " else " /= ") ++ mkUnsugaredExprHaskell s e
-ppPathCond s (ExtCond e b) =
-    let
-        es = mkUnsugaredExprHaskell s e
-    in
-    if b then es else "not (" ++ es ++ ")"
 
 injNewLine :: [String] -> String
 injNewLine strs = intercalate "\n" strs
-
-injTuple :: [String] -> String
-injTuple strs = "(" ++ (intercalate "," strs) ++ ")"
 
 -- | More raw version of state dumps.
 pprExecStateStr :: Show t => State t -> Bindings -> String
@@ -514,7 +517,7 @@ pprExecEEnvStr eenv = injNewLine kv_strs
 pprTEnvStr :: TypeEnv -> String
 pprTEnvStr tenv = injNewLine kv_strs
   where
-    kv_strs = map show $ M.toList tenv
+    kv_strs = map show $ HM.toList tenv
 
 pprModelStr :: Model -> String
 pprModelStr m = injNewLine kv_strs
@@ -543,7 +546,7 @@ pprPathsStr paths = injNewLine cond_strs
 pprTCStr :: TypeClasses -> String
 pprTCStr tc = injNewLine cond_strs
   where
-    cond_strs = map show $ M.toList $ toMap tc
+    cond_strs = map show $ HM.toList $ toMap tc
 
 pprInputIdsStr :: InputIds -> String
 pprInputIdsStr i = injNewLine id_strs
@@ -551,17 +554,7 @@ pprInputIdsStr i = injNewLine id_strs
     id_strs = map show i
 
 pprPathCondStr :: PathCond -> String
-pprPathCondStr (AltCond am expr b) = injTuple acc_strs
-  where
-    am_str = show am
-    expr_str = show expr
-    b_str = show b
-    acc_strs = [am_str, expr_str, b_str]
-pprPathCondStr (ExtCond am b) = injTuple acc_strs
-  where
-    am_str = show am
-    b_str = show b
-    acc_strs = [am_str, b_str]
+pprPathCondStr = show
 
 pprCleanedNamesStr :: CleanedNames -> String
 pprCleanedNamesStr = injNewLine . map show . HM.toList
@@ -570,12 +563,12 @@ printFuncCall :: FuncCall -> String
 printFuncCall = printFuncCallPG (mkPrettyGuide ())
 
 printFuncCallPG :: PrettyGuide -> FuncCall -> String
-printFuncCallPG pg (FuncCall { funcName = Name f _ _ _, arguments = ars, returns = r}) =
+printFuncCallPG pg (FuncCall { funcName = f, arguments = ars, returns = r}) =
     let
         call_str fn = mkDirtyExprHaskell pg . foldl (\a a' -> App a a') (Var (Id fn TyUnknown)) $ ars
         r_str = mkDirtyExprHaskell pg r
     in
-    "(" ++ call_str (Name f Nothing 0 Nothing) ++ " " ++ r_str ++ ")"
+    "(" ++ call_str f ++ " " ++ r_str ++ ")"
 
 -------------------------------------------------------------------------------
 -- Pretty Guide

@@ -26,6 +26,7 @@ type SMTName = String
 -- | These define the kinds of top level calls we give to the SMT solver.
 data SMTHeader = Assert !SMTAST
                | AssertSoft !SMTAST (Maybe T.Text)
+               | Minimize !SMTAST
                | DefineFun SMTName [(SMTName, Sort)] Sort !SMTAST
                | DeclareFun SMTName [Sort] Sort
                | VarDecl SMTNameBldr Sort
@@ -63,6 +64,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | (:-) !SMTAST !SMTAST -- ^ Subtraction
             | (:*) !SMTAST !SMTAST
             | (:/) !SMTAST !SMTAST
+            | AbsSMT !SMTAST
             | SqrtSMT !SMTAST
             | QuotSMT !SMTAST !SMTAST
             | Modulo !SMTAST !SMTAST
@@ -78,6 +80,9 @@ data SMTAST = (:>=) !SMTAST !SMTAST
 
             | Ite !SMTAST !SMTAST !SMTAST
             | SLet (SMTName, SMTAST) !SMTAST
+
+            | FromCode !SMTAST
+            | ToCode !SMTAST
 
             | VInt Integer
             | VFloat Rational
@@ -129,7 +134,7 @@ mkSMTAnd = SmtAnd
 mkSMTOr :: [SMTAST] -> SMTAST
 mkSMTOr = SmtOr
 
-isSat :: Result m u -> Bool
+isSat :: Result m u um -> Bool
 isSat (SAT _) = True
 isSat _ = False
 
@@ -178,6 +183,9 @@ instance AST SMTAST where
     children (Ite x x' x'') = [x, x', x'']
     children (SLet (_, x) x') = [x, x']
 
+    children (FromCode x) = [x]
+    children (ToCode x) = [x]
+
     children _ = []
 
     modifyChildren f (x :>= y) = f x :>= f y
@@ -198,6 +206,9 @@ instance AST SMTAST where
     modifyChildren f (x :/ y) = f x :/ f y
     modifyChildren f (Neg x) = Neg (f x)
 
+    modifyChildren f (FromCode x) = FromCode (f x)
+    modifyChildren f (ToCode x) = ToCode (f x)
+
     modifyChildren f (Ite x x' x'') = Ite (f x) (f x') (f x'')
     modifyChildren f (SLet (n, x) x') = SLet (n, f x) (f x')
 
@@ -208,11 +219,19 @@ instance AST Sort where
 
     modifyChildren _ s = s
 
+--                | DefineFun SMTName [(SMTName, Sort)] Sort !SMTAST
+
 instance ASTContainer SMTHeader SMTAST where
     containedASTs (Assert a) = [a]
+    containedASTs (AssertSoft a _) = [a]
+    containedASTs (Minimize a) = [a]
+    containedASTs (DefineFun _ _ _ a) = [a]
     containedASTs _ = []
 
     modifyContainedASTs f (Assert a) = Assert (f a)
+    modifyContainedASTs f (AssertSoft a lbl) = AssertSoft (f a) lbl
+    modifyContainedASTs f (Minimize a) = Minimize (f a)
+    modifyContainedASTs f (DefineFun n ars r a) = DefineFun n ars r (f a)
     modifyContainedASTs _ s = s
 
 instance ASTContainer SMTAST Sort where

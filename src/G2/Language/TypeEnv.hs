@@ -36,13 +36,13 @@ import G2.Language.Typing
 import G2.Language.AlgDataTy
 
 import Data.List
-import qualified Data.Map as M
+import qualified Data.HashMap.Lazy as M
 import Data.Maybe
 
 -- | The type environment maps names of types to their appropriate types. However
 -- our primary interest with these is for dealing with algebraic data types,
 -- and we only store those information accordingly.
-type TypeEnv = M.Map Name AlgDataTy
+type TypeEnv = M.HashMap Name AlgDataTy
 
 nameModMatch :: Name -> TypeEnv -> Maybe Name
 nameModMatch (Name n m _ _) = find (\(Name n' m' _ _) -> n == n' && m == m' ) . M.keys

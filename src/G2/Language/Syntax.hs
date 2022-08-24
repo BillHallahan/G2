@@ -12,11 +12,6 @@ import Data.Data
 import Data.Hashable
 import qualified Data.Text as T
 
--- | The native GHC definition states that a `Program` is a list of `Binds`.
--- This is used only in the initial stages of the translation from GHC Core.
--- We quickly shift to using a `State`.
-type Program = [Binds]
-
 -- | Binds `Id`s to `Expr`s, primarily in @let@ `Expr`s
 type Binds = [(Id, Expr)]
 
@@ -176,6 +171,7 @@ data Primitive = Ge
                | Mod
                | Rem
                | Negate
+               | Abs
                | SqRt
                | IntToFloat
                | IntToDouble
@@ -183,6 +179,8 @@ data Primitive = Ge
                | FromInteger
                | ToInteger
                | ToInt
+               | Chr
+               | OrdChar
                | Error
                | Undefined
                | BindFunc

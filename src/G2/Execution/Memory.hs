@@ -18,12 +18,11 @@ import G2.Language.Typing
 import Data.Foldable
 import Data.List
 import qualified Data.HashSet as HS
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
-import Data.Monoid ((<>))
 
 import qualified Data.Sequence as S
-
-import Debug.Trace
+import Data.Semigroup
 
 type PreservingFunc = forall t . State t -> Bindings -> HS.HashSet Name -> HS.HashSet Name
 
@@ -31,14 +30,16 @@ data MemConfig = MemConfig { search_names :: [Name]
                            , pres_func :: PreservingFunc }
                | PreserveAllMC
 
+instance Semigroup MemConfig where
+    (MemConfig { search_names = sn1, pres_func = pf1 }) <> (MemConfig { search_names = sn2, pres_func = pf2 }) =
+                MemConfig { search_names = sn1 ++ sn2
+                          , pres_func = \s b hs -> pf1 s b hs `HS.union` pf2 s b hs}
+    _ <> _ = PreserveAllMC
+
 instance Monoid MemConfig where
     mempty = MemConfig { search_names = [], pres_func = \ _ _ -> id }
 
-    mappend (MemConfig { search_names = sn1, pres_func = pf1 })
-            (MemConfig { search_names = sn2, pres_func = pf2 }) =
-                MemConfig { search_names = sn1 ++ sn2
-                          , pres_func = \s b hs -> pf1 s b hs `HS.union` pf2 s b hs}
-    mappend _ _ = PreserveAllMC
+    mappend = (<>)
 
 emptyMemConfig :: MemConfig
 emptyMemConfig = MemConfig { search_names = [], pres_func = \_ _ a -> a }
@@ -86,7 +87,7 @@ markAndSweepPreserving' mc (state@State { expr_env = eenv
     isActive = (flip HS.member) active'
 
     eenv' = E.filterWithKey (\n _ -> isActive n) eenv
-    tenv' = M.filterWithKey (\n _ -> isActive n) tenv
+    tenv' = HM.filterWithKey (\n _ -> isActive n) tenv
 
     dsw' = M.filterWithKey (\n _ -> isActive n) dsw
 
@@ -99,7 +100,7 @@ activeNames tenv eenv explored nss
     | n S.:< ns <- S.viewl nss =
         let
             explored' = HS.insert n explored
-            tenv_hits = case M.lookup n tenv of
+            tenv_hits = case HM.lookup n tenv of
                 Nothing -> S.empty
                 Just r -> names r
             eenv_hits = case E.lookup n eenv of

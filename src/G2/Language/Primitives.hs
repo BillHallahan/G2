@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Language.Primitives ( primStr
-                              , strToPrim
+module G2.Language.Primitives ( strToPrim
                               , mkGe
                               , mkGt
                               , mkEq
@@ -37,41 +36,8 @@ module G2.Language.Primitives ( primStr
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues as KV
 import G2.Language.Syntax
-import G2.Language.Typing
 
-import Data.Foldable
 import qualified Data.Text as T
-
-primStr :: Primitive -> T.Text
-primStr Ge = ">="
-primStr Gt = ">"
-primStr Eq = "=="
-primStr Neq = "/="
-primStr Lt = "<"
-primStr Le = "<="
-primStr And = "&&"
-primStr Or = "||"
-primStr Not = "not"
-primStr Implies = "implies"
-primStr Iff = "iff"
-primStr Plus = "+"
-primStr Minus = "-"
-primStr Mult = "*"
-primStr Div = "/"
-primStr DivInt = "/"
-primStr Quot = "quot"
-primStr Mod = "mod"
-primStr Negate = "negate"
-primStr SqRt = "sqrt"
-primStr IntToFloat = "fromIntegral"
-primStr IntToDouble = "fromIntegral"
-primStr RationalToDouble = "rationalToDouble"
-primStr FromInteger = "fromInteger"
-primStr ToInteger = "toInteger"
-primStr ToInt = "toInt"
-primStr Error = "error"
-primStr Undefined = "undefined"
-primStr BindFunc = "BindFunc"
 
 strToPrim :: T.Text -> Maybe Primitive
 strToPrim "not" = Just Not
@@ -90,6 +56,7 @@ strToPrim "quot" = Just Quot
 strToPrim "/" = Just Div
 strToPrim "mod" = Just Mod
 strToPrim "negate" = Just Negate
+strToPrim "abs" = Just Abs
 strToPrim "sqrt" = Just SqRt
 strToPrim "error" = Just Error
 strToPrim "implies" = Just Implies
@@ -104,9 +71,6 @@ mkGt kv eenv = eenv E.! (gtFunc kv)
 
 mkEq :: KnownValues -> E.ExprEnv -> Expr
 mkEq kv eenv = eenv E.! (eqFunc kv)
-
-mkEq' :: KnownValues -> Expr
-mkEq' kv = Var (Id (eqFunc kv) TyBottom)
 
 mkNeq :: KnownValues -> E.ExprEnv -> Expr
 mkNeq kv eenv = eenv E.! (neqFunc kv)

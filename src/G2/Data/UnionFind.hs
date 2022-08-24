@@ -131,6 +131,10 @@ instance (Eq k, Hashable k, Read k) => Read (UnionFind k) where
                        return (fromList x)
     readListPrec = readListPrecDefault 
 
+instance (Eq k, Hashable k) => Hashable (UnionFind k) where
+    hashWithSalt i = hashWithSalt i . toList
+
+
 instance (Arbitrary k, Eq k, Hashable k) => Arbitrary (UnionFind k) where
     arbitrary = do       
         ks <- arbitrary

@@ -34,11 +34,13 @@ library
                        , G2.Data.UnionFind
                        , G2.Data.Utils
 
+                       , G2.Equiv.Config
                        , G2.Equiv.InitRewrite
                        , G2.Equiv.EquivADT
                        , G2.Equiv.G2Calls
                        , G2.Equiv.Verifier
                        , G2.Equiv.Tactics
+                       , G2.Equiv.Types
                        , G2.Equiv.Induction
                        , G2.Equiv.Summary
 
@@ -107,6 +109,7 @@ library
                        , G2.Liquid.AddOrdToNum
                        , G2.Liquid.AddTyVars
                        , G2.Liquid.Annotations
+                       , G2.Liquid.Config
                        , G2.Liquid.Conversion
                        , G2.Liquid.ConvertCurrExpr
                        , G2.Liquid.Helpers
@@ -148,6 +151,7 @@ library
 
                        , G2.Solver
                        , G2.Solver.Interface
+                       , G2.Solver.Maximize
                        , G2.Solver.Simplifier
                        , G2.Solver.Solver
 
@@ -183,41 +187,41 @@ library
                        , G2.Translation.PrimInject
                        , G2.Translation.TransTypes
 
-  build-depends:         array >= 0.5.1.1 && <= 0.5.3.0 
-                       , Cabal >= 2.0.1.0 && < 2.5
+  build-depends:         array >= 0.5.1.1 && <= 0.5.4.0 
+                       , Cabal >= 2.0.1.0 && < 3.1
                        , base >= 4.8 && < 5
                        , bimap == 0.3.3
-                       , bytestring >= 0.10.8.0 && <= 0.10.8.2
+                       , bytestring >= 0.10.8.0 && <= 0.10.12.1
                        , clock >= 0.8 && < 0.9
                        , concurrent-extra >= 0.7
                        , containers >= 0.5 && < 0.7
-                       , directory >= 1.3.0.2 && <= 1.3.3.2
+                       , directory >= 1.3.0.2 && <= 1.3.6.2
                        , extra >= 1.6.14 && <= 1.6.17
                        , filepath >= 1.4 && <= 1.5
                        , ghc-paths >= 0.1 && < 0.2
-                       , ghc (>= 8.2.2 && < 8.4) || (>= 8.6 && < 8.7)
+                       , ghc (>= 8.2.2 && < 8.4) || (>= 8.6 && < 8.7) || (>= 8.10 && < 8.11)
                        , hashable >= 1.2.6.0 && <= 1.3.0.0
-                       , hpc >= 0.6.0.0 && < 0.6.1
                        , HTTP >= 4000.3.0 && < 4001.0
                        , language-sygus >= 0.1.1.2 && < 0.2
-                       , liquidhaskell >= 0.8.2.2 && <= 8.6.2
-                       , liquid-fixpoint == 0.7.0.7
+                       , liquidhaskell >= 0.8.2.2 && <= 8.10.7
+                       , liquid-fixpoint >= 0.7.0.7 && < 0.9
                        , MissingH >= 1.4.0.0 && < 1.5
                        , mtl >= 2.2 && < 2.3
                        , random == 1.1
                        , reducers >= 3.12 && < 3.13
                        , regex-compat >= 0.95 && < 0.96
-                       , regex-base >= 0.93 && < 0.94
+                       , regex-base >= 0.93 && < 0.94.0.2
                        , parsec >= 3.1 && < 3.2
-                       , pretty >= 1.1 && < 1.2
+                       , pretty >= 1.1 && < 1.4
                        , process >=1.6 && < 1.7
+                       , optparse-applicative >=0.17.0.0 && < 0.18.0.0
                        , split >= 0.2.3 && < 0.2.4
                        , tasty-quickcheck >= 0.10.1.1 && < 0.11
-                       , template-haskell >= 2.12.0.0 && <= 2.14.0.0
+                       , template-haskell >= 2.12.0.0 && <= 2.18.0.0
                        , temporary-rc >= 1.2 && < 1.3
-                       , text >= 1.2.3.1 && <= 1.2.4.0
+                       , text >= 1.2.3.1 && <= 2.0
                        , text-builder >= 0.6.6.1
-                       , time >= 1.6 && <= 1.9.3
+                       , time >= 1.6 && <= 1.13
                        , unordered-containers >= 0.2.10.0 && < 0.3
 
                        -- For LH
@@ -225,8 +229,7 @@ library
 
   if impl(ghc < 8.6)
     build-depends:       text == 1.2.3.1
-  if impl(ghc >= 8.6)
-    build-depends:       text == 1.2.4.0
+                       , liquid-fixpoint >= 0.7.0.7 && <= 0.8.0.2
 
   default-language:    Haskell2010
   ghc-options:         -Wall
@@ -249,7 +252,6 @@ executable G2
                        , containers
                        , filepath >= 1.4 && <= 1.5
                        , ghc
-                       , hpc >= 0.6.0.0 && < 0.6.1
                        , text
                        , unordered-containers >= 0.2 && < 0.3
   default-language:    Haskell2010
@@ -257,6 +259,23 @@ executable G2
                        -- -fprof-auto "-with-rtsopts=-p"
                        -- -fexternal-interpreter -opti+RTS -opti-p
   hs-source-dirs:      exe
+  main-is:             Main.hs
+
+executable G2LH
+  -- other-modules:   
+  -- other-extensions:
+  build-depends:         g2
+                       , base >= 4.8 && < 5
+                       , containers
+                       , filepath >= 1.4 && <= 1.5
+                       , ghc
+                       , text
+                       , unordered-containers >= 0.2 && < 0.3
+  default-language:    Haskell2010
+  ghc-options:         -threaded -Wall
+                       -- -fprof-auto "-with-rtsopts=-p"
+                       -- -fexternal-interpreter -opti+RTS -opti-p
+  hs-source-dirs:      lh
   main-is:             Main.hs
 
 executable Inference
@@ -280,7 +299,7 @@ executable QuasiQuote
   -- other-extensions:    
   build-depends:         g2
                        , base >= 4.8 && < 5
-                       , time >= 1.6 && <= 1.9.3
+                       , time
   default-language:    Haskell2010
   ghc-options:         -Wall
                        -- -ddump-splices
@@ -299,7 +318,7 @@ executable QuasiQuote
                        , RegEx.RegEx
                        , RegEx.Test
 
-executable RewriteV
+executable Nebula
   -- other-modules:   
   -- other-extensions:
   build-depends:         g2
@@ -307,15 +326,13 @@ executable RewriteV
                        , containers
                        , filepath >= 1.4 && <= 1.5
                        , ghc
-                       , hpc >= 0.6.0.0 && < 0.6.1
                        , text
                        , unordered-containers >= 0.2 && < 0.3
   default-language:    Haskell2010
   ghc-options:         -threaded -Wall
                        -- -fprof-auto "-with-rtsopts=-p"
-  hs-source-dirs:      rewritev
+  hs-source-dirs:      nebula
   main-is:             Main.hs
-  other-modules:         ZenoSuite
 
 test-suite test
   build-depends:         g2
@@ -326,13 +343,12 @@ test-suite test
                        , ghc-paths
                        , ghc
                        , hashable
-                       , hpc
                        , tagged
                        , tasty >= 1.0 && < 2.0
                        , tasty-hunit >= 0.10 && < 0.10.0.3
                        , tasty-quickcheck
                        , text
-                       , time >= 1.6
+                       , time
                        , unordered-containers
   default-language:    Haskell2010
   hs-source-dirs:      tests
@@ -351,6 +367,31 @@ test-suite test
                        , UFMapTests
                        , UnionFindTests
                        , RewriteVerify.RewriteVerifyTest
+  ghc-options:         -Wall
+                       -- -fprof-auto "-with-rtsopts=-p"
+                       -threaded
+  type:                exitcode-stdio-1.0
+
+test-suite inference-test
+  build-depends:         g2
+                       , base >= 4.8 && < 5
+                       , containers
+                       , directory
+                       , filepath
+                       , ghc-paths
+                       , ghc
+                       , hashable
+                       , tagged
+                       , tasty >= 1.0 && < 2.0
+                       , tasty-hunit >= 0.10 && < 0.10.0.3
+                       , tasty-quickcheck
+                       , text
+                       , time
+                       , unordered-containers
+  default-language:    Haskell2010
+  hs-source-dirs:      tests_inference
+  main-is:             Test.hs
+  -- other-modules:       
   ghc-options:         -Wall
                        -- -fprof-auto "-with-rtsopts=-p"
                        -threaded

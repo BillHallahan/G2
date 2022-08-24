@@ -251,6 +251,14 @@ instance ASTContainer Expr Type where
         Assert (modifyContainedASTs f is) (modifyContainedASTs f e) (modifyContainedASTs f e')
     modifyContainedASTs _ e = e
 
+instance ASTContainer LamUse Expr where
+  containedASTs _ = []
+  modifyContainedASTs _ i = i
+
+instance ASTContainer LamUse Type where
+  containedASTs _ = []
+  modifyContainedASTs _ i = i
+
 instance ASTContainer Id Expr where
   containedASTs (Id _ _) = []
 

@@ -31,10 +31,9 @@ import G2.Liquid.Types
 
 import Control.Monad
 import qualified Data.HashSet as S
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map.Lazy as M
 import qualified Data.Text as T
-
-import Debug.Trace
 
 -- | The bag and instantiation functions rely on each other, so we have to make them together
 createBagAndInstFuncs :: [Name] -- ^ Which types do we need bag functions for?
@@ -44,12 +43,12 @@ createBagAndInstFuncs bag_func_ns inst_func_ns = do
     tenv <- typeEnv
     
     let bag_func_ns' = relNames tenv S.empty bag_func_ns
-        bag_tenv = M.filterWithKey (\n _ -> n `S.member` bag_func_ns') tenv
+        bag_tenv = HM.filterWithKey (\n _ -> n `S.member` bag_func_ns') tenv
     bag_names <- assignBagFuncNames bag_tenv
     setTyVarBags bag_names
 
     let inst_func_ns' = relNames tenv S.empty inst_func_ns
-        inst_tenv = M.filterWithKey (\n _ -> n `S.member` inst_func_ns') tenv
+        inst_tenv = HM.filterWithKey (\n _ -> n `S.member` inst_func_ns') tenv
     inst_names <- assignInstFuncNames inst_tenv
     setInstFuncs inst_names
 
@@ -63,7 +62,7 @@ relNames tenv rel (n:ns) =
       then relNames tenv rel ns
       else relNames tenv (S.insert n rel) ns'
   where
-    ns' = case M.lookup n tenv of
+    ns' = case HM.lookup n tenv of
         Nothing -> ns
         Just r -> namesList r ++ ns
 
@@ -71,7 +70,7 @@ createBagFuncs :: TyVarBags -- ^ Which types do we need bag functions for?
                -> TypeEnv
                -> LHStateM ()
 createBagFuncs func_names tenv = do
-    mapM_ (uncurry (createBagFunc func_names)) (M.toList tenv)
+    mapM_ (uncurry (createBagFunc func_names)) (HM.toList tenv)
 
 -- | Creates a mapping of type names to bag creation function names 
 assignBagFuncNames :: ExState s m => TypeEnv -> m TyVarBags
@@ -91,7 +90,7 @@ assignBagFuncNames tenv =
                             return $ Id n_fn t)
                         $ zip [0 :: Int ..] bi
                 return (n, fn)
-            )(M.toList tenv)
+            ) (HM.toList tenv)
 
 createBagFunc :: TyVarBags -> Name -> AlgDataTy -> LHStateM ()
 createBagFunc func_names tn adt
@@ -134,7 +133,7 @@ createBagFuncCase func_names adt_i tyvar_id bi (NewTyCon { bound_ids = adt_bi
     let rt' = foldr (uncurry retype) rt $ zip adt_bi (map TyVar bi)
         cst = Cast (Var adt_i) (typeOf adt_i :~ rt')
     clls <- extractTyVarCall func_names todo_emp tyvar_id cst
-    wrapExtractCalls tyvar_id clls
+    wrapExtractCalls clls
 createBagFuncCase _ _ _ _ (TypeSynonym {}) =
     error "creatBagFuncCase: TypeSynonyms unsupported"
 
@@ -176,12 +175,11 @@ extractTyVarCall func_names is_fs i e
         nds' <- mapM (extractTyVarCall func_names is_fs i) nds
         return (concat nds')
     | TyFun _ _ <- t = do
-        let is_ars = leadingTyForAllBindings $ PresType t
-            ars_ty = anonArgumentTypes $ PresType t
+        let ars_ty = anonArgumentTypes $ PresType t
             tvs = tyVarIds . returnType $ PresType t
 
-        inst_funcs <- getInstFuncs
-        inst_ars <- mapM (instTyVarCall' inst_funcs is_fs) ars_ty
+        inst_fs <- getInstFuncs
+        inst_ars <- mapM (instTyVarCall' inst_fs is_fs) ars_ty
         let call_f = mkApp $ e:inst_ars
 
         cll <- if i `elem` tvs then extractTyVarCall func_names is_fs i call_f else return []
@@ -190,12 +188,12 @@ extractTyVarCall func_names is_fs i e
     where
         t = typeOf e
 
-wrapExtractCalls :: ExState s m => Id -> [Expr] -> m Expr
-wrapExtractCalls i clls = do
+wrapExtractCalls :: ExState s m => [Expr] -> m Expr
+wrapExtractCalls clls = do
     case null clls of
         True -> do
             -- flse <- mkFalseE
-            return (Var existentialInstId) -- $ Assume Nothing flse (Prim Undefined (TyVar i))
+            return (Var existentialInstId)
         False -> return $ NonDet clls
 
 -- | Creates functions to, for each type (T a_1 ... a_n), create a nondeterministic value.
@@ -205,7 +203,7 @@ createInstFuncs :: InstFuncs -- ^ Which types do we need instantiation functions
                 -> TypeEnv
                 -> LHStateM ()
 createInstFuncs func_names tenv = do
-    mapM_ (uncurry (createInstFunc func_names)) (M.toList tenv)
+    mapM_ (uncurry (createInstFunc func_names)) (HM.toList tenv)
 
 -- | Creates a mapping of type names to instantatiation function names 
 assignInstFuncNames :: ExState s m => TypeEnv -> m InstFuncs
@@ -221,23 +219,22 @@ assignInstFuncNames tenv =
                             (foldr (\i -> TyFun (TyVar i)) adt_i bi) bi
 
                 return (tn, Id fn t)
-            )(M.toList tenv)
+            ) (HM.toList tenv)
 
 createInstFunc :: InstFuncs -> Name -> AlgDataTy -> LHStateM ()
 createInstFunc func_names tn adt
     | Just fn <- M.lookup tn func_names = do
         bi <- freshIdsN $ map (const TYPE) (bound_ids adt)
-        inst_funcs <- freshIdsN $ map TyVar bi
+        inst_fs <- freshIdsN $ map TyVar bi
 
-        cse <- createInstFunc' func_names (zip bi inst_funcs) adt
-        let e = mkLams (map (TypeL,) bi) $ mkLams (map (TermL,) inst_funcs) cse
+        cse <- createInstFunc' func_names (zip bi inst_fs) adt
+        let e = mkLams (map (TypeL,) bi) $ mkLams (map (TermL,) inst_fs) cse
 
         insertE (idName fn) e
     | otherwise = error "createInstFunc: type not found"
 
 createInstFunc' :: InstFuncs -> [(Id, Id)] -> AlgDataTy -> LHStateM Expr
-createInstFunc' func_names is_fs (DataTyCon { bound_ids = bi
-                                            , data_cons = dcs }) = do
+createInstFunc' func_names is_fs (DataTyCon { data_cons = dcs }) = do
     dc' <- mapM (\dc -> do
             let apped_dc = mkApp (Data dc:map (Type . TyVar . fst) is_fs)
                 ars_ty = anonArgumentTypes dc
@@ -252,7 +249,7 @@ createInstFunc' func_names is_fs (DataTyCon { bound_ids = bi
             e' <- foldM wrapPrimsInCase e vrs
             return $ Let (zip bnds ars) e') dcs
     return (NonDet dc')
-createInstFunc' func_names is_fs (NewTyCon { rep_type = rt }) = do
+createInstFunc' _ _ (NewTyCon { rep_type = _ }) = do
     -- rt_val <- instTyVarCall' func_names is_fs rt
     return $ Cast undefined undefined
 createInstFunc' _ _ _ = error "createInstFunc': unhandled datatype"
@@ -369,24 +366,24 @@ instance Reducer ExistentialInstRed () t where
                        , curr_expr = CurrExpr Return e }
             in
             return (InProgress, [(s', rv)], b, r)
-        | Case (Var i) bnd ([Alt (DataAlt _ params) (Tick (NamedLoc n) e)]) <- e
+        | Case (Var i) bnd ([Alt (DataAlt _ params) (Tick (NamedLoc n) ae)]) <- e
         , i == existentialInstId
         , n == existentialCaseName =
             let
                 (n_bnd, ng') = freshSeededName (idName bnd) ng
-                (n_params, ng'') = freshSeededNames (map idName params) ng
+                (n_params, ng'') = freshSeededNames (map idName params) ng'
 
                 eenv' = E.insertSymbolic postSeqExistentialInstId eenv
-                eenv'' = foldr (\n -> E.insert n (Var existentialInstId)) eenv' n_params
+                eenv'' = foldr (\en -> E.insert en (Var existentialInstId)) eenv' n_params
 
-                n_e = rename (idName bnd) n_bnd $ foldr (uncurry rename) e (zip (map idName params) n_params)
+                n_e = rename (idName bnd) n_bnd $ foldr (uncurry rename) ae (zip (map idName params) n_params)
             in 
             return ( InProgress
                    , [(s { expr_env = eenv''
                          , curr_expr = CurrExpr Evaluate n_e }, rv)]
                    , b { name_gen = ng'' }
                    , r)
-        | Case (Var i) bnd ([Alt _ (Tick (NamedLoc n) e)]) <- e
+        | Case (Var i) _ ([Alt _ (Tick (NamedLoc n) ae)]) <- e
         , i == existentialInstId
         , n == existentialCaseName =
             let
@@ -394,7 +391,7 @@ instance Reducer ExistentialInstRed () t where
             in 
             return ( InProgress
                    , [(s { expr_env = eenv'
-                         , curr_expr = CurrExpr Evaluate e }, rv)]
+                         , curr_expr = CurrExpr Evaluate ae }, rv)]
                    , b
                    , r)
         | Case (Var i) _ _ <- e
@@ -403,8 +400,7 @@ instance Reducer ExistentialInstRed () t where
                 s' = s { curr_expr = CurrExpr Return (Var i) }
             in
             return (InProgress, [(s', rv)], b, r)
-    redRules r rv s@(State { expr_env = eenv
-                           , curr_expr = CurrExpr Return e
+    redRules r rv s@(State { curr_expr = CurrExpr Return e
                            , exec_stack = stck }) b
 
         | Just (AssumeFrame _, stck') <- Stck.pop stck

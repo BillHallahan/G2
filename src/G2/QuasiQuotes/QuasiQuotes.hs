@@ -30,6 +30,7 @@ import qualified Control.Concurrent.Lock as Lock
 
 import Data.Data
 import qualified Data.HashSet as HS
+import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
@@ -120,7 +121,7 @@ parseHaskellQ str = do
                     in
                     return (foldr (\n -> lamE [n]) [| return (Nothing :: Maybe $(tup_t)) |] ns_pat
                                   , [| return [] :: IO [State ()] |]
-                                  , M.empty
+                                  , HM.empty
                                   , b')
         NonCompleted s b -> do
             let 
@@ -196,7 +197,7 @@ parseHaskellIO mods qext = do
                 projs <- cabalSrcDirs cabal'
                 config <- qqConfig
 
-                translateLoaded projs [filepath] []
+                translateLoaded projs [filepath]
                     simplTranslationConfig
                     config)
     return exG2
@@ -313,7 +314,6 @@ moveOutStatePieces tenv_name s = do
         tags_exp = liftDataT (tags s)
         track_exp = liftDataT (track s)
 
-        pc = path_conds s
         pc_exp = liftDataT . PC.toList $ path_conds s
 
     [| State { expr_env = $(expr_env_exp)
@@ -469,16 +469,19 @@ extractArgs in_ids cleaned tenv es =
             Just r' -> return . Just . $(toSymbArgsTuple in_ids cleaned tenv) $ conc_args r'
             Nothing -> return Nothing |]
 
--- | Returns a function to turn the first (length of InputIds) elements of a list into a tuple
+-- | If (length of InputIds) is greater than 1, returns a function to turn the first (length of InputIds) elements of
+-- a list into a tuple.
+-- Otherwise, simply returns the singular value directly.
 toSymbArgsTuple :: InputIds -> CleanedNames -> TypeEnvName -> Q Exp
 toSymbArgsTuple in_ids cleaned tenv_name = do
+    let mkTup = if length in_ids > 1 then tupE else head
     lst <- newName "lst"
 
     lamE [varP lst]
-        (tupE $ map (\(i, n) -> [| g2UnRep $(varE tenv_name) ($(varE lst) !! n) :: $(toTHType cleaned (Ty.typeOf i)) |]) $ zip in_ids ([0..] :: [Int]))
+        (mkTup $ map (\(i, n) -> [| g2UnRep $(varE tenv_name) ($(varE lst) !! n) :: $(toTHType cleaned (Ty.typeOf i)) |]) $ zip in_ids ([0..] :: [Int]))
 
 qqConfig :: IO Config
 qqConfig = do
   homedir <- getHomeDirectory
-  let config = mkConfig homedir [] M.empty
+  let config = mkConfigDirect homedir [] M.empty
   return $ config { extraDefaultMods = [homedir ++ "/.g2/G2Stubs/src/G2/QuasiQuotes/G2Rep.hs"] }

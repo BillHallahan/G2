@@ -6,51 +6,56 @@ import re
 import subprocess
 import time
 
+exe_name = str(subprocess.run(["cabal", "exec", "which", "Inference"], capture_output = True).stdout.decode('utf-8')).strip()
+
 def run_infer(file, name, timeout, extra_opts=[]):
-    # get info about the file
-    (funcs, depth) = get_counts(file)
+    if not os.path.exists("logs/" + name + ".txt"):
+        # get info about the file
+        (funcs, depth) = get_counts(file)
 
-    # actual run the test
-    # start_time = time.perf_counter();
-    # res = call_infer_process(file, timeout);
-    # end_time = time.perf_counter();
-    # elapsed = end_time - start_time;
-    (check_safe, res, counts, elapsed) = call_with_timing(file, timeout, extra_opts)
+        # actual run the test
+        # start_time = time.perf_counter();
+        # res = call_infer_process(file, timeout);
+        # end_time = time.perf_counter();
+        # elapsed = end_time - start_time;
+        (check_safe, res, res_err, counts, elapsed) = call_with_timing(file, timeout, extra_opts)
 
-    f = open("logs/" + name + ".txt", "w")
-    f.write(res.decode("utf-8") );
-    f.close();
+        f = open("logs/" + name + ".txt", "w")
+        f.write(res.decode("utf-8") + "\n" + res_err.decode("utf-8"));
+        f.close();
 
-    # MAKES EVERYTHING AFTER THIS TIMEOUT QUICKLY
-    timeout = "1";
+        # MAKES EVERYTHING AFTER THIS TIMEOUT QUICKLY
+        timeout = "1";
 
-    # run the test without extra fc
-    no_fc_start_time = time.perf_counter();
-    no_fc_res = call_infer_process(file, timeout, extra_opts + ["--no-use-extra-fc"])
-    no_fc_end_time = time.perf_counter();
-    no_fc_elapsed = no_fc_end_time - no_fc_start_time;
-    no_fc_check_safe = no_fc_res.splitlines()[-2].decode('utf-8');
-    no_fc_counts = get_opt_counts(no_fc_res);
-    (_, _, no_fc_counts, no_fc_elapsed) = call_with_timing(file, timeout, extra_opts + ["--no-use-extra-fc"])
+        # run the test without extra fc
+        # no_fc_start_time = time.perf_counter();
+        # no_fc_res = call_infer_process(file, timeout, extra_opts + ["--no-use-extra-fc"])
+        # no_fc_end_time = time.perf_counter();
+        # no_fc_elapsed = no_fc_end_time - no_fc_start_time;
+        # no_fc_check_safe = no_fc_res.splitlines()[-2].decode('utf-8');
+        # no_fc_counts = get_opt_counts(no_fc_res);
+        (_, _, _, no_fc_counts, no_fc_elapsed) = call_with_timing(file, timeout, extra_opts + ["--no-use-extra-fc"])
 
-    no_lev_dec_counts = empty_counts()
-    no_lev_dec_elapsed = None
-    if counts["searched_below"] is not None and int(counts["searched_below"]) > 0:
-        (_, _, no_lev_dec_counts, no_lev_dec_elapsed) = call_with_timing(file, timeout, extra_opts + ["--no-use-level-dec"])
+        no_lev_dec_counts = empty_counts()
+        no_lev_dec_elapsed = None
+        if counts["searched_below"] is not None and int(counts["searched_below"]) > 0:
+            (_, _, _, no_lev_dec_counts, no_lev_dec_elapsed) = call_with_timing(file, timeout, extra_opts + ["--no-use-level-dec"])
 
-    no_n_mdl_counts = empty_counts()
-    no_n_mdl_elapsed = None
-    if counts["negated_model"] is not None and int(counts["negated_model"]) > 0:
-        (_, _, no_n_mdl_counts, no_n_mdl_elapsed) = call_with_timing(file, timeout, extra_opts + ["--no-use-negated-models"])
+        no_n_mdl_counts = empty_counts()
+        no_n_mdl_elapsed = None
+        if counts["negated_model"] is not None and int(counts["negated_model"]) > 0:
+            (_, _, _, no_n_mdl_counts, no_n_mdl_elapsed) = call_with_timing(file, timeout, extra_opts + ["--no-use-negated-models"])
 
-    return (check_safe, elapsed, funcs, depth, counts
-                      , no_fc_elapsed, no_fc_counts
-                      , no_lev_dec_elapsed, no_lev_dec_counts
-                      , no_n_mdl_elapsed, no_n_mdl_counts);
+        return (check_safe, elapsed, funcs, depth, counts
+                          , no_fc_elapsed, no_fc_counts
+                          , no_lev_dec_elapsed, no_lev_dec_counts
+                          , no_n_mdl_elapsed, no_n_mdl_counts);
+    else:
+        None
 
 def call_with_timing(file, timeout, passed_args = []):
     start_time = time.perf_counter();
-    res = call_infer_process(file, timeout, passed_args);
+    (res, res_err) = call_infer_process(file, timeout, passed_args);
     end_time = time.perf_counter();
     elapsed = end_time - start_time;
 
@@ -58,6 +63,9 @@ def call_with_timing(file, timeout, passed_args = []):
         check_safe = res.splitlines()[-2].decode('utf-8')
         counts = get_opt_counts(res)
     except IndexError:
+        counts = { "negated_model": None
+                 , "searched_below" : None
+                 , "loop_count" : None }
         if res == "Timeout":
             check_safe = "Timeout";
         else:
@@ -65,7 +73,7 @@ def call_with_timing(file, timeout, passed_args = []):
 
     elapsed = adj_time(check_safe, elapsed)
 
-    return (check_safe, res, counts, elapsed)
+    return (check_safe, res, res_err, counts, elapsed)
 
 def get_opt_counts(res):
     check_safe = res.splitlines()[-2].decode('utf-8')
@@ -110,11 +118,12 @@ def call_infer_process(file, timeout, passed_args = []):
         if timeout_sygus_re and timeout_sygus_re.group(1):
             timeout_sygus = timeout_sygus_re.group(1);
 
-        args = ["gtimeout", timeout, "dist/build/Inference/Inference", file # ["gtimeout", timeout, "cabal", "run", "Inference", file
-               , "--", "--timeout-sygus", timeout_sygus]
+
+        args = ["gtimeout", timeout, exe_name, file # ["gtimeout", timeout, "cabal", "run", "Inference", file
+               , "--timeout-sygus", timeout_sygus]
 
         res = subprocess.run(args + extra_args + passed_args, capture_output = True);
-        return res.stdout;
+        return (res.stdout, res.stderr);
     except subprocess.TimeoutExpired:
         res.terminate()
         return "Timeout"
@@ -133,7 +142,7 @@ def adj_time(check_safe, time):
     else:
         return None;
 
-def test_pos_folder(folder, timeout, extra_opts=[]):
+def test_pos_folder(folder, timeout, extra_opts=[], skip = []):
     all_files = os.listdir(folder);
     num_files = count_files(all_files);
     safe_num = 0;
@@ -141,27 +150,31 @@ def test_pos_folder(folder, timeout, extra_opts=[]):
     log = []
 
     for file in all_files:
+        if file in skip:
+            continue;
         if file.endswith(".lhs") or file.endswith(".hs"):
             print(file);
 
-            (check_safe, elapsed, funcs, depth, counts
-                       , no_fc_elapsed, no_fc_counts
-                       , no_lev_dec_elapsed, no_lev_dex_count
-                       , no_n_mdl_elapsed, no_n_mdl_count) = run_infer(os.path.join(folder, file), file, timeout, extra_opts);
+            res = run_infer(os.path.join(folder, file), file, timeout, extra_opts);
+            if res is not None:
+                (check_safe, elapsed, funcs, depth, counts
+                           , no_fc_elapsed, no_fc_counts
+                           , no_lev_dec_elapsed, no_lev_dex_count
+                           , no_n_mdl_elapsed, no_n_mdl_count) = res
 
-            if check_safe == "Safe":
-                print("\tSafe - " + str(elapsed) + "s");
-                safe_num += 1
-            elif check_safe == "Timeout":
-                print("\tTimeout")
-            else:
-                # print("check_safe =" + repr(check_safe) + "|")
-                print("\tUnsafe")
+                if check_safe == "Safe":
+                    print("\tSafe - " + str(elapsed) + "s");
+                    safe_num += 1
+                elif check_safe == "Timeout":
+                    print("\tTimeout")
+                else:
+                    # print("check_safe =" + repr(check_safe) + "|")
+                    print("\tUnsafe")
 
-            log.append((file, elapsed, funcs, depth, counts
-                            , no_fc_elapsed, no_fc_counts
-                            , no_lev_dec_elapsed, no_lev_dex_count
-                            , no_n_mdl_elapsed, no_n_mdl_count))
+                log.append((file, elapsed, funcs, depth, counts
+                                , no_fc_elapsed, no_fc_counts
+                                , no_lev_dec_elapsed, no_lev_dex_count
+                                , no_n_mdl_elapsed, no_n_mdl_count))
 
     return (log, safe_num, num_files)
 
@@ -287,6 +300,11 @@ def val_or_NA(val):
     else:
         return "N/A"
 
+def skip_list():
+    return  [ "Queen.hs"
+            , "Soli.hs"
+            , "Twice.hs"]
+
 def main():
     try:
         os.mkdir("logs");
@@ -311,10 +329,14 @@ def main():
     (log_inv, safe_inv, num_inv) = test_pos_folder("tests/LiquidInf/Paper/Eval/Prop_LIA_Invented", "240");
     print(str(safe_inv) + "/" + str(num_inv) + " Safe");
 
+    (log_sato, safe_sato, num_sato) = test_pos_folder("tests/LiquidInf/Paper/Eval/Sato", "240", skip = skip_list());
+    print(str(safe_sato) + "/" + str(num_sato) + " Safe");
+
     (log_kmeans, safe_kmeans, num_kmeans) = test_pos_folder("tests/LiquidInf/Paper/Eval", "1080");
     print(str(safe_kmeans) + "/" + str(num_kmeans) + " Safe");
 
-    log = log_book + log_book_sets + log_hw + log_inv + log_kmeans
+
+    log = log_book + log_book_sets + log_hw + log_inv + log_sato + log_kmeans
 
     create_table(log)
     create_simple_table(log)

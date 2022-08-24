@@ -20,6 +20,8 @@ import G2.Translation
 import G2.Liquid.Interface
 import G2.Equiv.InitRewrite
 import G2.Equiv.EquivADT
+import G2.Equiv.Summary
+import G2.Equiv.Types
 import G2.Equiv.Verifier
 
 import Control.Exception
@@ -189,13 +191,12 @@ suite n = do
       ri = rule_inputs !! (n - 1)
       texts = map (T.pack . fst) ri
       totals = map (\(_, v) -> map T.pack v) ri
-      libs = maybeToList $ strArg "mapsrc" [] M.empty Just Nothing
   proj <- guessProj src
   config <- getConfig [src]
-  (init_state, bindings) <- initialStateNoStartFunc [proj] [src] libs
+  (init_state, bindings) <- initialStateNoStartFunc [proj] [src]
                             (TranslationConfig {simpl = True, load_rewrite_rules = True}) config
   let rule_maybes = map (\t -> find (\r -> t == ru_name r) (rewrite_rules bindings)) texts
       rules = map fromJust rule_maybes
-  res <- mapM (\(r, t) -> checkRule config init_state bindings t [] False 10 r) (zip rules totals)
+  res <- mapM (\(r, t) -> checkRule config UseLabeledErrors False init_state bindings t [] NoSummary 10 r) (zip rules totals)
   print $ zip ri res
   return ()

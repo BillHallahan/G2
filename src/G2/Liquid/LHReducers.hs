@@ -6,6 +6,7 @@
 
 module G2.Liquid.LHReducers ( LHRed (..)
                             , AllCallsRed (..)
+                            , HigherOrderCallsRed (..)
                             , RedArbErrors (..)
                             , NonRedAbstractReturns (..)
 
@@ -13,7 +14,6 @@ module G2.Liquid.LHReducers ( LHRed (..)
                             , LHSWHNFHalter (..)
                             , LHLimitByAcceptedOrderer (..)
                             , LHLimitByAcceptedHalter
-                            , LHLimitByAcceptedOrderer
                             , LHAbsHalter (..)
                             , LHMaxOutputsHalter (..)
                             , LHMaxOutputsButTryHalter (..)
@@ -39,11 +39,10 @@ import G2.Language
 import qualified G2.Language.Stack as Stck
 import qualified G2.Language.ExprEnv as E
 import G2.Liquid.Annotations
+import G2.Liquid.Conversion
 import G2.Liquid.Helpers
 import G2.Liquid.SpecialAsserts
 
-import Data.Foldable
-import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
 import Data.List
 import Data.List.Extra
@@ -54,9 +53,6 @@ import Data.Ord
 import Data.Semigroup
 import qualified Data.Text as T
 import Data.Time.Clock
-
-import Debug.Trace
-import G2.Lib.Printers
 
 -- lhReduce
 -- When reducing for LH, we change the rule for evaluating Var f.
@@ -112,7 +108,8 @@ data LHTracker = LHTracker { abstract_calls :: [FuncCall]
                            , last_var :: Maybe Name
                            , annotations :: AnnotMap
 
-                           , all_calls :: [FuncCall]} deriving (Eq, Show)
+                           , all_calls :: [FuncCall]
+                           , higher_order_calls :: [FuncCall] } deriving (Eq, Show)
 
 minAbstractCalls :: [State LHTracker] -> Int
 minAbstractCalls xs =
@@ -124,36 +121,40 @@ abstractCallsNum :: State LHTracker -> Int
 abstractCallsNum = length . abstract_calls . track
 
 instance Named LHTracker where
-    names (LHTracker {abstract_calls = abs_c, last_var = n, annotations = anns, all_calls = ac}) = 
-        names abs_c <> names n <> names anns <> names ac
+    names (LHTracker {abstract_calls = abs_c, last_var = n, annotations = anns, all_calls = ac, higher_order_calls = hc}) = 
+        names abs_c <> names n <> names anns <> names ac <> names hc
     
-    rename old new (LHTracker {abstract_calls = abs_c, last_var = n, annotations = anns, all_calls = ac}) =
+    rename old new (LHTracker {abstract_calls = abs_c, last_var = n, annotations = anns, all_calls = ac, higher_order_calls = hc}) =
         LHTracker { abstract_calls = rename old new abs_c
                   , last_var = rename old new n
                   , annotations = rename old new anns
-                  , all_calls = rename old new ac }
+                  , all_calls = rename old new ac
+                  , higher_order_calls = rename old new hc }
     
-    renames hm (LHTracker {abstract_calls = abs_c, last_var = n, annotations = anns, all_calls = ac}) =
+    renames hm (LHTracker {abstract_calls = abs_c, last_var = n, annotations = anns, all_calls = ac, higher_order_calls = hc}) =
         LHTracker { abstract_calls = renames hm abs_c
                   , last_var = renames hm n
                   , annotations = renames hm anns
-                  , all_calls = renames hm ac }
+                  , all_calls = renames hm ac
+                  , higher_order_calls = renames hm hc }
 
 instance ASTContainer LHTracker Expr where
-    containedASTs (LHTracker {abstract_calls = abs_c, annotations = anns, all_calls = ac}) =
-        containedASTs abs_c ++ containedASTs anns ++ containedASTs ac
-    modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = anns, all_calls = ac}) =
+    containedASTs (LHTracker {abstract_calls = abs_c, annotations = anns, all_calls = ac, higher_order_calls = hc}) =
+        containedASTs abs_c ++ containedASTs anns ++ containedASTs ac ++ containedASTs hc
+    modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = anns, all_calls = ac, higher_order_calls = hc}) =
         lht { abstract_calls = modifyContainedASTs f abs_c
             , annotations = modifyContainedASTs f anns
-            , all_calls = modifyContainedASTs f ac}
+            , all_calls = modifyContainedASTs f ac
+            , higher_order_calls = modifyContainedASTs f hc}
 
 instance ASTContainer LHTracker Type where
-    containedASTs (LHTracker {abstract_calls = abs_c, annotations = anns, all_calls = ac}) =
-        containedASTs abs_c ++ containedASTs anns ++ containedASTs ac
-    modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = anns, all_calls = ac}) =
+    containedASTs (LHTracker {abstract_calls = abs_c, annotations = anns, all_calls = ac, higher_order_calls = hc}) =
+        containedASTs abs_c ++ containedASTs anns ++ containedASTs ac ++ containedASTs hc
+    modifyContainedASTs f lht@(LHTracker {abstract_calls = abs_c, annotations = anns, all_calls = ac, higher_order_calls = hc}) =
         lht {abstract_calls = modifyContainedASTs f abs_c
             , annotations = modifyContainedASTs f anns
-            , all_calls = modifyContainedASTs f ac }
+            , all_calls = modifyContainedASTs f ac
+            , higher_order_calls = modifyContainedASTs f hc }
 
 data LHRed = LHRed Name
 
@@ -167,7 +168,7 @@ instance Reducer LHRed () LHTracker where
                          , zip s' (repeat ()), b, lhr)
             Nothing -> return (Finished, [(s, ())], b, lhr)
 
-data AllCallsRed  = AllCallsRed
+data AllCallsRed = AllCallsRed
 
 instance Reducer AllCallsRed () LHTracker where
     initReducer _ _ = ()
@@ -177,6 +178,24 @@ instance Reducer AllCallsRed () LHTracker where
             lht = (track s) { all_calls = fc:all_calls (track s) }
         in
         return $ (Finished, [(s { track = lht } , ())], b, lhr)
+    redRules lhr _ s b = return $ (Finished, [(s, ())], b, lhr)
+
+data HigherOrderCallsRed = HigherOrderCallsRed
+
+instance Reducer HigherOrderCallsRed () LHTracker where
+    initReducer _ _ = ()
+
+    redRules lhr _ s@(State { curr_expr = CurrExpr Evaluate (Tick (NamedLoc nl) (Assume (Just fc) _ _)) }) b | nl == higherOrderTickName=
+        let
+            lht = (track s) { higher_order_calls = fc:higher_order_calls (track s) }
+        in
+        return $ (Finished, [(s { track = lht } , ())], b, lhr)
+    redRules lhr _ s@(State { curr_expr = CurrExpr Evaluate (Tick (NamedLoc nl) (Assume (Just fc) _ real_assert@(Assert _ _ _))) }) b | nl == higherOrderTickName=
+        let
+            lht = (track s) { higher_order_calls = fc:higher_order_calls (track s) }
+        in
+        return $ (Finished, [(s { curr_expr = CurrExpr Evaluate real_assert
+                                , track = lht } , ())], b, lhr)
     redRules lhr _ s b = return $ (Finished, [(s, ())], b, lhr)
 
 data RedArbErrors = RedArbErrors
@@ -242,7 +261,7 @@ data LHLimitByAcceptedOrderer = LHLimitByAcceptedOrderer
 instance Orderer LHLimitByAcceptedOrderer () Int LHTracker where
     initPerStateOrder _ _ = ()
 
-    orderStates or _ _ s = (num_steps s, or)
+    orderStates ord _ _ s = (num_steps s, ord)
 
     updateSelected _ _ _ _ = ()
 
@@ -273,7 +292,7 @@ instance Halter LHAbsHalter Int LHTracker where
                                         True -> Just . length . abstract_calls . track $ s
                                         False -> Nothing) acc
 
-    stopRed _ hv pr s =
+    stopRed _ hv _ s =
         return $ if length (abstract_calls $ track s) > hv
             then Discard
             else Continue
@@ -315,9 +334,9 @@ instance Halter LHMaxOutputsButTryHalter () LHTracker where
             && ( abstractCallsNum s >= m || length dis' >= tal || min_abs == 0 )
         where
             min_abs = minAbstractCalls acc
-            acc' = filter (\s -> abstractCallsNum s == min_abs) acc
+            acc' = filter (\acc_s -> abstractCallsNum acc_s == min_abs) acc
 
-            dis' = filter (\s -> abstractCallsNum s < min_abs) dis
+            dis' = filter (\dis_s -> abstractCallsNum dis_s < min_abs) dis
 
     stepHalter _ hv _ _ _ = hv
 
@@ -356,7 +375,7 @@ data SBInfo = SBInfo { accepted_lt_num :: Int
 instance Halter SearchedBelowHalter SBInfo LHTracker where
     initHalt _ _ = SBInfo { accepted_lt_num = 0, discarded_lt_num = 0}
 
-    updatePerStateHalt _ hv (Processed { accepted = acc, discarded = dis }) _ =
+    updatePerStateHalt _ _ (Processed { accepted = acc, discarded = dis }) _ =
         SBInfo { accepted_lt_num = length acc'
                , discarded_lt_num = length dis_less_than_min }
         where
@@ -366,7 +385,9 @@ instance Halter SearchedBelowHalter SBInfo LHTracker where
 
             dis_less_than_min = filter (\s -> abstractCallsNum s < min_abs || abstractCallsNum s == 0) dis
 
-    stopRed sbh (SBInfo { accepted_lt_num = length_acc, discarded_lt_num = length_dis_ltm } ) (Processed { accepted = acc }) s
+    stopRed sbh (SBInfo { accepted_lt_num = length_acc
+                        , discarded_lt_num = length_dis_ltm } )
+                _ _
         | length_acc >= found_at_least sbh
         , length_dis_ltm >= discarded_at_least sbh = return Discard
 
@@ -374,8 +395,6 @@ instance Halter SearchedBelowHalter SBInfo LHTracker where
         , length_dis_ltm >= discarded_at_most sbh = return Discard
 
         | otherwise = return Continue
-        where
-            min_abs = minAbstractCalls acc
             
     stepHalter _ hv _ _ _ = hv
 
@@ -392,15 +411,15 @@ instance Halter LHTimerHalter Int t where
     initHalt _ _ = 0
     updatePerStateHalt _ _ _ _ = 0
 
-    stopRed tr@(LHTimerHalter { lh_init_time = it
-                              , lh_max_seconds = ms })
-            v (Processed { accepted = acc }) s
+    stopRed (LHTimerHalter { lh_init_time = it
+                           , lh_max_seconds = ms })
+            v (Processed { accepted = acc }) _
         | v == 0
         , any true_assert acc = do
             curr <- getCurrentTime
-            let diff = diffUTCTime curr it
+            let t_diff = diffUTCTime curr it
 
-            if diff > ms
+            if t_diff > ms
                 then return Discard
                 else return Continue
         | otherwise = return Continue
@@ -459,7 +478,6 @@ instance Reducer NonRedAbstractReturns () LHTracker where
                               , curr_expr = cexpr
                               , exec_stack = stck
                               , track = LHTracker { abstract_calls = afs }
-                              , model = m
                               , true_assert = True })
                       b@(Bindings { deepseq_walkers = ds})
         | Just af <- firstJust (absRetToRed eenv ds) afs = do

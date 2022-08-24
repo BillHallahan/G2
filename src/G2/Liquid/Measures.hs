@@ -9,28 +9,24 @@ import qualified  G2.Language.ExprEnv as E
 import G2.Language.Monad
 import G2.Liquid.Conversion
 import G2.Liquid.Types
-import Language.Fixpoint.SortCheck
 import Language.Haskell.Liquid.Types
 import G2.Translation.Haskell
 
 import Control.Monad.Extra
 
-import qualified Data.Map as M
 import Data.Maybe
 import qualified GHC as GHC
 
 import qualified Data.HashMap.Lazy as HM
 
-import Debug.Trace
-
 -- | Creates measures from LH measure specifications.
 -- This is required to find all measures that are written in comments.
 createMeasures :: [Measure SpecType GHC.DataCon] -> LHStateM ()
 createMeasures meas = do
-    nt <- return . M.fromList =<< mapMaybeM measureTypeMappings meas
+    nt <- return . HM.fromList =<< mapMaybeM measureTypeMappings meas
     meas' <- mapMaybeM (convertMeasure nt) =<< filterM allTypesKnown meas
     
-    filterMeasures (M.keys nt)
+    filterMeasures (HM.keys nt)
 
     meenv <- measuresM
     let eenvk = E.keys meenv
@@ -113,7 +109,7 @@ convertMeasure bt (M {name = n, sort = srt, eqns = eq}) = do
     lam_i <- mapM freshIdN stArgs
     cb <- freshIdN (head stArgs)
     
-    alts <- mapMaybeM (convertDefs stArgs stRet (M.fromList as_t) bt) eq
+    alts <- mapMaybeM (convertDefs stArgs stRet (HM.fromList as_t) bt) eq
     fls <- mkFalseE
     let defTy = maybe TyUnknown (returnType . PresType) st
         defAlt = Alt Default $ Assume Nothing fls (Prim Undefined defTy)
@@ -132,7 +128,7 @@ convertDefs :: [Type] -> Maybe Type -> LHDictMap -> BoundTypes -> Def SpecType G
 convertDefs [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})
     | TyCon _ _ <- tyAppCenter l_t
     , st_t <- tyAppArgs l_t
-    , dc'@(DataCon n t) <- mkData HM.empty HM.empty dc = do
+    , dc' <- mkData HM.empty HM.empty dc = do
     tenv <- typeEnv
     let 
         -- (TyCon tn _) = tyAppCenter $ returnType $ PresType t
@@ -153,7 +149,7 @@ convertDefs [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})
 
     let is = map (uncurry Id) nt
 
-    e <- mkExprFromBody ret m (M.union bt $ M.fromList nt) b
+    e <- mkExprFromBody ret m (HM.union bt $ HM.fromList nt) b
     
     return $ Just $ Alt (DataAlt dc'' is) e -- [1]
     | otherwise = return Nothing
@@ -165,7 +161,7 @@ fixNamesDC tenv (DataCon n t) =
         (TyCon tn _) = tyAppCenter $ returnType $ PresType t
     in
     case getDataConNameMod tenv tn n of
-        Just (DataCon n _) -> DataCon n (fixNamesType tenv t)
+        Just (DataCon dcn _) -> DataCon dcn (fixNamesType tenv t)
         Nothing -> error "fixNamesDC: Bad DC"
 
 fixNamesType :: TypeEnv -> Type -> Type
@@ -186,13 +182,13 @@ mkExprFromBody ret m bt (R s e) = do
         t = maybe (error "mkExprFromBody: ret type unknown") id ret
         i = Id s_nm t
 
-        bt' = M.insert s_nm t bt
+        bt' = HM.insert s_nm t bt
     g2_e <- convertLHExpr (mkDictMaps m) bt' ret e
     return . Let [(i, SymGen t)] . Assume Nothing g2_e $ Var i 
 
 mkDictMaps :: LHDictMap -> DictMaps
 mkDictMaps ldm = DictMaps { lh_dicts = ldm
-                          , num_dicts = M.empty
-                          , integral_dicts = M.empty
-                          , fractional_dicts = M.empty
-                          , ord_dicts = M.empty}
+                          , num_dicts = HM.empty
+                          , integral_dicts = HM.empty
+                          , fractional_dicts = HM.empty
+                          , ord_dicts = HM.empty}

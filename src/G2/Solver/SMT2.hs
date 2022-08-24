@@ -1,6 +1,7 @@
 -- | This defines an SMTConverter for the SMT2 language
 -- It provides methods to construct formulas, as well as feed them to an external solver
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
@@ -9,25 +10,24 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
-module G2.Solver.SMT2 where
+module G2.Solver.SMT2 ( Z3
+                      , CVC4
+                      , SomeSMTSolver (..)
+                      , getZ3
+                      , getSMT
+                      , getSMTAV) where
 
 import G2.Config.Config
 import G2.Language.ArbValueGen
-import G2.Language.Expr
-import G2.Language.Support
-import G2.Language.Syntax hiding (Assert)
-import G2.Language.Typing
 import G2.Solver.Language
 import G2.Solver.ParseSMT
 import G2.Solver.Solver
 import G2.Solver.Converters --It would be nice to not import this...
 
 import Control.Exception.Base (evaluate)
-import Data.List
 import Data.List.Utils (countElem)
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
-import Data.Ratio
 import Data.Semigroup
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -39,8 +39,8 @@ data Z3 = Z3 ArbValueFunc (Handle, Handle, ProcessHandle)
 data CVC4 = CVC4 ArbValueFunc (Handle, Handle, ProcessHandle)
 
 data SomeSMTSolver where
-    SomeSMTSolver :: forall con ast out io 
-                   . SMTConverter con ast out io => con -> SomeSMTSolver
+    SomeSMTSolver :: forall con
+                   . SMTConverter con => con -> SomeSMTSolver
 
 instance Solver Z3 where
     check solver _ pc = checkConstraintsPC solver pc
@@ -52,34 +52,77 @@ instance Solver CVC4 where
     solve con@(CVC4 avf _) = checkModelPC avf con
     close = closeIO
 
-instance SMTConverter Z3 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) where
-    getIO (Z3 _ hhp) = hhp
+getIOZ3 :: Z3 -> (Handle, Handle, ProcessHandle)
+getIOZ3 (Z3 _ hhp) = hhp
+
+instance SMTConverter Z3 where
     closeIO (Z3 _ (h_in, h_out, ph)) = do
+#if MIN_VERSION_process(1,6,4)
+        cleanupProcess (Just h_in, Just h_out, Nothing, ph)
+#else
         T.hPutStrLn h_in "(exit)"
         _ <- waitForProcess ph
         hClose h_in
         hClose h_out
+#endif
 
-    empty _ = ""  
-    merge _ x y = x <> "\n" <> y
+    reset con = do
+        let (h_in, _, _) = getIOZ3 con
+        T.hPutStr h_in "(reset)"
 
-    checkSat _ (h_in, h_out, _) formula = do
+    checkSatInstr con = do
+        let (h_in, _, _) = getIOZ3 con
+        T.hPutStrLn h_in "(check-sat)"
+
+    maybeCheckSatResult con = do
+        let (_, h_out, _) = getIOZ3 con
+        r <- hReady h_out
+        case r of
+            True -> return . Just =<< checkSatReadResult h_out
+            False -> return Nothing
+
+    getModelInstrResult con vs = do
+        let (h_in, h_out, _) = getIOZ3 con
+        mdl <- getModelZ3 h_in h_out vs
+        -- putStrLn "======"
+        -- putStrLn (show mdl)
+        let m = parseModel mdl
+        -- putStrLn $ "m = " ++ show m
+        -- putStrLn "======"
+        return m
+
+    getUnsatCoreInstrResult con = do
+        let (h_in, h_out, _) = getIOZ3 con
+        uc <- getUnsatCoreZ3 h_in h_out
+        return (HS.fromList uc)
+
+    setProduceUnsatCores con = do
+        let (h_in, _, _) = getIOZ3 con
+        T.hPutStrLn h_in "(set-option :produce-unsat-cores true)"
+
+    addFormula con form = do
+        let (h_in, _, _) = getIOZ3 con
+        T.hPutStrLn h_in (TB.run $ toSolverText form)
+
+    checkSatNoReset con formula = do
+        let (h_in, h_out, _) = getIOZ3 con
         -- putStrLn "checkSat"
         -- let formula = run formulaBldr
-        -- TIO.putStrLn formula
+        -- T.putStrLn (TB.run formula)
         -- putStrLn formula
         
-        setUpFormulaZ3 h_in (TB.run formula)
+        T.hPutStrLn h_in (TB.run $ toSolverText formula)
         r <- checkSat' h_in h_out
 
         -- putStrLn $ show r
 
         return r
 
-    checkSatGetModel _ (h_in, h_out, _) formula vs = do
-        setUpFormulaZ3 h_in (TB.run formula)
+    checkSatGetModel con formula vs = do
+        let (h_in, h_out, _) = getIOZ3 con
+        setUpFormulaZ3 h_in (TB.run $ toSolverText formula)
         -- putStrLn "\n\n checkSatGetModel"
-        -- putStrLn formula
+        -- T.putStrLn (TB.run $ toSolverText formula)
         r <- checkSat' h_in h_out
         -- putStrLn $ "r =  " ++ show r
         case r of
@@ -92,14 +135,15 @@ instance SMTConverter Z3 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) w
                 -- putStrLn "======"
                 return $ SAT m
             UNSAT () -> return $ UNSAT ()
-            Unknown s -> return $ Unknown s
+            Unknown s _ -> return $ Unknown s ()
 
-    checkSatGetModelOrUnsatCore con hvals@(h_in, h_out, _) formula vs = do
-        let formula' = "(set-option :produce-unsat-cores true)\n" <> TB.run formula
+    checkSatGetModelOrUnsatCoreNoReset con formula vs = do
+        let (h_in, h_out, _) = getIOZ3 con
+        let formula' = TB.run $ toSolverText formula
         T.putStrLn "\n\n checkSatGetModelOrUnsatCore"
         T.putStrLn formula'
 
-        setUpFormulaZ3 h_in formula'
+        T.hPutStr h_in formula'
         r <- checkSat' h_in h_out
         -- putStrLn $ "r =  " ++ show r
         if r == SAT () then do
@@ -115,151 +159,80 @@ instance SMTConverter Z3 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) w
         else if r == UNSAT () then do
             uc <- getUnsatCoreZ3 h_in h_out
             return (UNSAT $ HS.fromList uc)
-        else return (Unknown "")
+        else do
+            return (Unknown "" ())
 
-    checkSatGetModelGetExpr con (h_in, h_out, _) formula _ vs eenv (CurrExpr _ e) = do
-        setUpFormulaZ3 h_in (TB.run formula)
-        -- putStrLn "\n\n checkSatGetModelGetExpr"
-        -- putStrLn formula
-        r <- checkSat' h_in h_out
-        -- putStrLn $ "r =  " ++ show r
-        case r of
-            SAT () -> do
-                mdl <- getModelZ3 h_in h_out vs
-                -- putStrLn "======"
-                -- putStrLn formula
-                -- putStrLn ""
-                -- putStrLn (show mdl)
-                -- putStrLn "======"
-                let m = parseModel mdl
+    push con = do
+        let (h_in, _, _) = getIOZ3 con
+        T.hPutStrLn h_in "(push)"
 
-                expr <- solveExpr h_in h_out con eenv e
-                -- putStrLn (show expr)
-                return (SAT m, Just expr)
-            UNSAT () -> return (UNSAT (), Nothing)
-            Unknown s -> return (Unknown s, Nothing)
+    pop con = do
+        let (h_in, _, _) = getIOZ3 con
+        T.hPutStrLn h_in "(pop)"
 
-    assertSolver _ = function1 "assert"
+getIOCVC4 :: CVC4 -> (Handle, Handle, ProcessHandle)
+getIOCVC4 (CVC4 _ hhp) = hhp
 
-    assertSoftSolver _ ast Nothing = function1 "assert-soft" ast
-    assertSoftSolver _ ast (Just lab) = "(assert-soft " <> ast <> " :id " <> TB.text lab <> ")"
-
-    defineFun con fn ars ret body =
-        "(define-fun " <> (TB.string fn) <> " ("
-            <> TB.intercalate " " (map (\(n, s) -> "(" <> TB.string n <> " " <> sortName con s <> ")") ars) <> ")"
-            <> " (" <> sortName con ret <> ") " <> toSolverAST con body <> ")"
-
-    declareFun con fn ars ret =
-        "(declare-fun " <> TB.string fn <> " ("
-            <> TB.intercalate " " (map (sortName con) ars) <> ")"
-            <> " (" <> sortName con ret <> "))"
-
-    varDecl _ n s = "(declare-const " <> n <> " " <> s <> ")"
-    
-    setLogic _ lgc =
-        let 
-            s = case lgc of
-                QF_LIA -> "QF_LIA"
-                QF_LRA -> "QF_LRA"
-                QF_LIRA -> "QF_LIRA"
-                QF_NIA -> "QF_NIA"
-                QF_NRA -> "QF_NRA"
-                QF_NIRA -> "QF_NIRA"
-                QF_UFLIA -> "QF_UFLIA"
-                _ -> "ALL"
-        in
-        case lgc of
-            ALL -> ""
-            _ -> "(set-logic " <> s <> ")"
-
-    comment _ s = "; " <> TB.string s
-
-    (.>=) _ = function2 ">="
-    (.>) _ = function2 ">"
-    (.=) _ = function2 "="
-    (./=) _ x = function1 "not" . function2 "=" x
-    (.<=) _ = function2 "<="
-    (.<) _ = function2 "<"
-
-    smtAnd _ = functionList "and"
-    smtOr _ = functionList "or"
-    (.!) _ = function1 "not"
-    (.=>) _ = function2 "=>"
-    (.<=>) _ = function2 "="
-
-    (.+) _ = function2 "+"
-    (.-) _ = function2 "-"
-    (.*) _ = function2 "*"
-    (./) _ = function2 "/"
-    smtQuot _ = function2 "div"
-    smtModulo _ = function2 "mod"
-    smtSqrt _ x = "(^ " <> x <> " 0.5)"
-    neg _ = function1 "-"
-
-    smtFunc _ n [] = TB.string n
-    smtFunc _ n xs = "(" <> TB.string n <> " " <> TB.intercalate " " xs <>  ")"
-
-    strLen _ = function1 "str.len"
-
-    arrayStore _ = function3 "store"
-    arraySelect _ = function2 "select"
-
-    itor _ = function1 "to_real"
-
-
-    ite _ = function3 "ite"
-
-    int _ x = if x >= 0 then showText x else "(- " <> showText (abs x) <> ")"
-    float _ r = 
-        "(/ " <> showText (numerator r) <> " " <> showText (denominator r) <> ")"
-    double _ r =
-        "(/ " <> showText (numerator r) <> " " <> showText (denominator r) <> ")"
-    char _ c = "\"" <> TB.string [c] <> "\""
-    bool _ b = if b then "true" else "false"
-    constArray con v indSrt valSrt =
-        "((as const " <> sortArray con indSrt valSrt <> ") " <> v <> ")"
-    var _ n = function1 (TB.string n)
-
-    sortInt _ = "Int"
-    sortFloat _ = "Real"
-    sortDouble _ = "Real"
-    sortChar _ = "String"
-    sortBool _ = "Bool"
-    sortArray _ ind val = "(Array " <> ind <> " " <> val <> ")"
-
-    cons _ n asts _ =
-        if not (null asts) then
-            "(" <> TB.string n <> " "<> (TB.intercalate " " asts) <> ")" 
-        else
-            TB.string n
-    varName _ n _ = TB.string n
-
-    named _ ast n = "(! " <> ast <> " :named " <> TB.string n <> ")"
-
-instance SMTConverter CVC4 TB.Builder TB.Builder (Handle, Handle, ProcessHandle) where
-    getIO (CVC4 _ hhp) = hhp
+instance SMTConverter CVC4 where
     closeIO (CVC4 _ (h_in, h_out, ph)) = do
         hPutStrLn h_in "(exit)"
         _ <- waitForProcess ph
         hClose h_in
         hClose h_out
 
-    empty _ = "" 
-    merge _ = (<>)
+    reset con = do
+        let (h_in, _, _) = getIOCVC4 con
+        T.hPutStr h_in "(reset)"
 
-    checkSat _ (h_in, h_out, _) formula = do
+    checkSatInstr con = do
+        let (h_in, _, _) = getIOCVC4 con
+        T.hPutStrLn h_in "(check-sat)"
+
+    maybeCheckSatResult con = do
+        let (_, h_out, _) = getIOCVC4 con
+        r <- hReady h_out
+        case r of
+            True -> return . Just =<< checkSatReadResult h_out
+            False -> return Nothing
+
+    getModelInstrResult con vs = do
+        let (h_in, h_out, _) = getIOCVC4 con
+        mdl <- getModelCVC4 h_in h_out vs
+        -- putStrLn "======"
+        -- putStrLn (show mdl)
+        let m = parseModel mdl
+        -- putStrLn $ "m = " ++ show m
+        -- putStrLn "======"
+        return m
+
+    getUnsatCoreInstrResult con = do
+        let (h_in, h_out, _) = getIOCVC4 con
+        uc <- getUnsatCoreCVC4 h_in h_out
+        return (HS.fromList uc)
+
+    setProduceUnsatCores _ = return ()
+
+    addFormula con form = do
+        let (h_in, _, _) = getIOCVC4 con
+        T.hPutStrLn h_in (TB.run $ toSolverText form)
+
+    checkSatNoReset con formula = do
+        let (h_in, h_out, _) = getIOCVC4 con
         -- putStrLn "checkSat"
+        -- let formula = run formulaBldr
+        -- T.putStrLn (TB.run formula)
         -- putStrLn formula
         
-        setUpFormulaCVC4 h_in (TB.run formula)
+        T.hPutStrLn h_in (TB.run $ toSolverText formula)
         r <- checkSat' h_in h_out
 
         -- putStrLn $ show r
 
         return r
 
-    checkSatGetModel _ (h_in, h_out, _) formula vs = do
-        setUpFormulaCVC4 h_in (TB.run formula)
+    checkSatGetModel con formula vs = do
+        let (h_in, h_out, _) = getIOCVC4 con
+        setUpFormulaCVC4 h_in (TB.run $ toSolverText formula)
         -- putStrLn "\n\n checkSatGetModel"
         -- putStrLn formula
         r <- checkSat' h_in h_out
@@ -274,115 +247,40 @@ instance SMTConverter CVC4 TB.Builder TB.Builder (Handle, Handle, ProcessHandle)
                 -- putStrLn "======"
                 return (SAT m)
             UNSAT _ ->  return $ UNSAT ()
-            Unknown s -> return $ Unknown s
+            Unknown s _ -> return $ Unknown s ()
 
-    checkSatGetModelGetExpr con (h_in, h_out, _) formula _ vs eenv (CurrExpr _ e) = do
-        setUpFormulaCVC4 h_in (TB.run formula)
-        -- putStrLn "\n\n checkSatGetModelGetExpr"
-        -- putStrLn formula
+    checkSatGetModelOrUnsatCoreNoReset con formula vs = do
+        let (h_in, h_out, _) = getIOCVC4 con
+        let formula' = TB.run $ toSolverText formula
+        T.putStrLn "\n\n checkSatGetModelOrUnsatCore"
+        T.putStrLn formula'
+
+        T.hPutStr h_in formula'
         r <- checkSat' h_in h_out
-        -- putStrLn $ "r =  " ++ show r
-        case r of
-            SAT _ -> do
-                mdl <- getModelCVC4 h_in h_out vs
-                -- putStrLn "======"
-                -- putStrLn formula
-                -- putStrLn ""
-                -- putStrLn (show mdl)
-                -- putStrLn "======"
-                let m = parseModel mdl
+        putStrLn $ "r =  " ++ show r
+        if r == SAT () then do
+            mdl <- getModelCVC4 h_in h_out vs
+            -- putStrLn "======"
+            -- putStrLn $ "r = " ++ show r
+            -- putStrLn $ "mdl = " ++ show mdl
+            -- putStrLn (show mdl)
+            let m = parseModel mdl
+            -- putStrLn $ "m = " ++ show m
+            -- putStrLn "======"
+            return (SAT m)
+        else if r == UNSAT () then do
+            uc <- getUnsatCoreCVC4 h_in h_out
+            return (UNSAT $ HS.fromList uc)
+        else do
+            return (Unknown "" ())
 
-                expr <- solveExpr h_in h_out con eenv e
-                -- putStrLn (show expr)
-                return (SAT m, Just expr)
-            UNSAT _ -> return (UNSAT (), Nothing)
-            Unknown s -> return (Unknown s, Nothing)
+    push con = do
+        let (h_in, _, _) = getIOCVC4 con
+        T.hPutStrLn h_in "(push)"
 
-    assertSolver _ = function1 "assert"
-        
-    varDecl _ n s = "(declare-const " <> n <> " " <> s <> ")"
-    
-    setLogic _ lgc =
-        let 
-            s = case lgc of
-                QF_LIA -> "QF_LIA"
-                QF_LRA -> "QF_LRA"
-                QF_LIRA -> "QF_LIRA"
-                QF_NIA -> "QF_NIA"
-                QF_NRA -> "QF_NRA"
-                QF_NIRA -> "QF_NIRA"
-                QF_UFLIA -> "QF_UFLIA"
-                _ -> "ALL"
-        in
-        case lgc of
-            ALL -> ""
-            _ -> "(set-logic " <> s <> ")"
-
-    (.>=) _ = function2 ">="
-    (.>) _ = function2 ">"
-    (.=) _ = function2 "="
-    (./=) _ = \x -> function1 "not" . function2 "=" x
-    (.<=) _ = function2 "<="
-    (.<) _ = function2 "<"
-
-    smtAnd _ = functionList "and"
-    smtOr _ = functionList "or"
-    (.!) _ = function1 "not"
-    (.=>) _ = function2 "=>"
-    (.<=>) _ = function2 "="
-
-    (.+) _ = function2 "+"
-    (.-) _ = function2 "-"
-    (.*) _ = function2 "*"
-    (./) _ = function2 "/"
-    smtQuot _ = function2 "div"
-    smtModulo _ = function2 "mod"
-    smtSqrt _ x = "(^ " <> x <> " 0.5)" 
-    neg _ = function1 "-"
-    strLen _ = function1 "str.len"
-
-    itor _ = function1 "to_real"
-
-    ite _ = function3 "ite"
-
-    int _ x = if x >= 0 then showText x else "(- " <> showText (abs x) <> ")"
-    float _ r = 
-        "(/ " <> showText (numerator r) <> " " <> showText (denominator r) <> ")"
-    double _ r =
-        "(/ " <> showText (numerator r) <> " " <> showText (denominator r) <> ")"
-    char _ c = "\"" <> TB.string [c] <> "\""
-    bool _ b = if b then "true" else "false"
-    var _ n = function1 (TB.string n)
-
-    sortInt _ = "Int"
-    sortFloat _ = "Real"
-    sortDouble _ = "Real"
-    sortChar _ = "String"
-    sortBool _ = "Bool"
-
-    cons _ n asts _ =
-        if not (null asts) then
-            "(" <> TB.string n <> " " <> (TB.intercalate " " asts) <> ")" 
-        else
-            TB.string n
-    varName _ n _ = TB.string n
-
-{-# INLINE showText #-}
-showText :: Show a => a -> TB.Builder
-showText = TB.string . show
-
-functionList :: TB.Builder -> [TB.Builder] -> TB.Builder
-functionList f xs = "(" <> f <> " " <> (TB.intercalate " " xs) <> ")" 
-
-function1 :: TB.Builder -> TB.Builder -> TB.Builder
-function1 f a = "(" <> f <> " " <> a <> ")"
-
-{-# INLINE function2 #-}
-function2 :: TB.Builder -> TB.Builder -> TB.Builder -> TB.Builder
-function2 f a b = "(" <> f <> " " <> a <> " " <> b <> ")"
-
-function3 :: TB.Builder -> TB.Builder -> TB.Builder -> TB.Builder -> TB.Builder
-function3 f a b c = "(" <> f <> " " <> a <> " " <> b <> " " <> c <> ")"
+    pop con = do
+        let (h_in, _, _) = getIOCVC4 con
+        T.hPutStrLn h_in "(pop)"
 
 -- | getProcessHandles
 -- Ideally, this function should be called only once, and the same Handles should be used
@@ -405,6 +303,12 @@ getProcessHandles pr = do
 
     return (h_in, h_out, p)
 
+getZ3 :: Int -> IO Z3
+getZ3 time_out = do
+    hhp@(h_in, _, _) <- getZ3ProcessHandles time_out
+    hPutStr h_in "(set-option :pp.decimal true)"
+    return $ Z3 arbValue hhp
+
 getSMT :: Config -> IO SomeSMTSolver
 getSMT = getSMTAV arbValue
 
@@ -413,7 +317,7 @@ getSMTInfinite = getSMTAV arbValueInfinite
 
 getSMTAV :: ArbValueFunc -> Config -> IO SomeSMTSolver
 getSMTAV avf (Config {smt = ConZ3}) = do
-    hhp@(h_in, _, _) <- getZ3ProcessHandles
+    hhp@(h_in, _, _) <- getZ3ProcessHandles 10000
     hPutStr h_in "(set-option :pp.decimal true)"
     return $ SomeSMTSolver (Z3 avf hhp)
 getSMTAV avf (Config {smt = ConCVC4}) = do
@@ -425,11 +329,11 @@ getSMTAV avf (Config {smt = ConCVC4}) = do
 -- returned handles to interact with Z3
 -- Ideally, this function should be called only once, and the same Handles should be used
 -- in all future calls
-getZ3ProcessHandles :: IO (Handle, Handle, ProcessHandle)
-getZ3ProcessHandles = getProcessHandles $ proc "z3" ["-smt2", "-in", "-t:90000"]
+getZ3ProcessHandles :: Int -> IO (Handle, Handle, ProcessHandle)
+getZ3ProcessHandles time_out = getProcessHandles $ proc "z3" ["-smt2", "-in", "-t:" ++ show time_out]
 
 getCVC4ProcessHandles :: IO (Handle, Handle, ProcessHandle)
-getCVC4ProcessHandles = getProcessHandles $ proc "cvc4" ["--lang", "smt2.6", "--produce-models"]
+getCVC4ProcessHandles = getProcessHandles $ proc "cvc4" ["--lang", "smt2.6", "--produce-models", "--produce-unsat-cores"]
 
 -- | setUpFormulaZ3
 -- Writes a function to Z3
@@ -445,24 +349,25 @@ setUpFormulaCVC4 h_in form = do
     T.hPutStr h_in form
 
 -- Checks if a formula, previously written by setUp formula, is SAT
-checkSat' :: Handle -> Handle -> IO (Result () ())
+checkSat' :: Handle -> Handle -> IO (Result () () ())
 checkSat' h_in h_out = do
     hPutStr h_in "(check-sat)\n"
 
-    r <- hWaitForInput h_out (-1)
-    if r then do
-        out <- hGetLine h_out
-        -- putStrLn $ "Z3 out: " ++ out
-        _ <- evaluate (length out)
+    _ <- hWaitForInput h_out (-1)
+    checkSatReadResult h_out
 
-        if out == "sat" then
-            return $ SAT ()
-        else if out == "unsat" then
-            return $ UNSAT ()
-        else
-            return (Unknown out)
-    else do
-        return (Unknown "")
+checkSatReadResult :: Handle -> IO (Result () () ())
+checkSatReadResult h_out = do
+    out <- hGetLine h_out
+    -- putStrLn $ "Z3 out: " ++ out
+    _ <- evaluate (length out)
+
+    if out == "sat" then
+        return $ SAT ()
+    else if out == "unsat" then
+        return $ UNSAT ()
+    else
+        return (Unknown out ())
 
 parseModel :: [(SMTName, String, Sort)] -> SMTModel
 parseModel = foldr (\(n, s) -> M.insert n s) M.empty
@@ -493,7 +398,7 @@ getModelZ3 h_in h_out ns = do
 getUnsatCoreZ3 :: Handle -> Handle -> IO [SMTName]
 getUnsatCoreZ3 h_in h_out = do
     hPutStr h_in "(get-unsat-core)\n"
-    r <- hWaitForInput h_out (-1)
+    _ <- hWaitForInput h_out (-1)
     out <- hGetLine h_out 
     putStrLn $ "unsat-core = " ++ out
     let out' = tail . init $ out -- drop opening and closing parens
@@ -501,6 +406,25 @@ getUnsatCoreZ3 h_in h_out = do
     case words out' of
         "error":_ -> error "getUnsatCoreZ3: Error producing unsat core"
         w -> return w
+
+getUnsatCoreCVC4 :: Handle -> Handle -> IO [SMTName]
+getUnsatCoreCVC4 h_in h_out = do
+    hPutStr h_in "(get-unsat-core)\n"
+    _ <- hWaitForInput h_out (-1)
+    -- Read in the opening bracket
+    _ <- hGetLine h_out
+    out <- getCore
+    putStrLn $ "unsat-core = " ++ show out
+
+    return out
+    where
+        getCore = do
+            _ <- hWaitForInput h_out (-1)
+            core <- hGetLine h_out
+            putStrLn $ "getCore " ++ show core
+            case core of
+                ")" -> return []
+                _ -> return . (:) core =<< getCore
 
 getModelCVC4 :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]
 getModelCVC4 h_in h_out ns = do
@@ -532,27 +456,3 @@ getLinesMatchParens' h_out n = do
     else do
         out' <- getLinesMatchParens' h_out n'
         return $ out ++ out'
-
-solveExpr :: SMTConverter con TB.Builder out io => Handle -> Handle -> con -> ExprEnv -> Expr -> IO Expr
-solveExpr h_in h_out con eenv e = do
-    let vs = map (\i -> Var i) $ symbVars eenv e
-    vs' <- solveExpr' h_in h_out con vs
-    let vs'' = map smtastToExpr vs'
-    
-    return $ foldr (uncurry replaceASTs) e (zip vs vs'')
-
-solveExpr'  :: SMTConverter con TB.Builder out io => Handle -> Handle -> con -> [Expr] -> IO [SMTAST]
-solveExpr' _ _ _ [] = return []
-solveExpr' h_in h_out con (v:vs) = do
-    v' <- solveExpr'' h_in h_out con v
-    vs' <- solveExpr' h_in h_out con vs
-    return (v':vs')
-
-solveExpr'' :: SMTConverter con TB.Builder out io => Handle -> Handle -> con -> Expr -> IO SMTAST
-solveExpr'' h_in h_out con e = do
-    let smte = toSolverAST con $ exprToSMT e
-    T.hPutStr h_in ("(eval " <> TB.run smte <> " :completion)\n")
-    out <- getLinesMatchParens h_out
-    _ <- evaluate (length out)
-
-    return $ parseToSMTAST out (typeToSMT . typeOf $ e)

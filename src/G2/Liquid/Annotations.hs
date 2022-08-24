@@ -27,8 +27,6 @@ import qualified Data.Text as T
 
 import SrcLoc
 
-import Debug.Trace
-
 lookupAnnot :: Name -> AnnotMap -> Maybe [(Maybe T.Text, Expr)]
 lookupAnnot (Name _ _ _ (Just s)) =
     HM.lookup s . unAnnotMap
@@ -69,7 +67,7 @@ valToExpr' locM spn@(Span {start = stloc}) (n, ast) = do
             let ai = leadingLamUsesIds e'
             dm <- dictMapFromIds (map snd ai)
 
-            ce <- convertSpecType CheckPre dm M.empty (map snd ai) (Just i) ast
+            ce <- convertSpecType CheckPre dm HM.empty (map snd ai) (Just i) ast
             let ce' = addIds ce (ai ++ [(TermL, i)])
 
             insertAnnotM spn n ce'
@@ -118,7 +116,7 @@ pickOneA :: [(t, Annot t1)] -> [(t, Annot t1)]
 pickOneA xas = case (rs, ds, ls, us) of
                  (x:_, _, _, _) -> [x]
                  (_, x:_, _, _) -> [x]
-                 (_, _, _:_, _) -> trace ("Loc") []
+                 (_, _, _:_, _) -> []
                  (_, _, _, x:_) -> [x]
 
                  -- (_, x:_, _, _) -> [x]

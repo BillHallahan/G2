@@ -19,10 +19,6 @@ module G2.Translation.Haskell
     , envModSumModGutsImports
 
     , mergeExtractedG2s
-    , mkIOString
-    , prim_list
-    , mkRawCore
-    , rawDump
     , mkExpr
     , mkId
     , mkIdUnsafe
@@ -38,7 +34,7 @@ module G2.Translation.Haskell
     , findCabal
     ) where
 
-import qualified G2.Language.TypeEnv as G2 (AlgDataTy (..), ProgramType)
+import qualified G2.Language.TypeEnv as G2 (AlgDataTy (..))
 import qualified G2.Language.Syntax as G2
 -- import qualified G2.Language.Typing as G2
 import qualified G2.Translation.TransTypes as G2
@@ -58,7 +54,6 @@ import IdInfo
 import InstEnv
 import Literal
 import Name
-import Outputable
 import Pair
 import SrcLoc
 import TidyPgm
@@ -78,10 +73,9 @@ import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
+import Data.Tuple.Extra
 import System.FilePath
 import System.Directory
-
-import Debug.Trace
 
 -- Copying from Language.Typing so the thing we stuff into Ghc
 -- does not have to rely on Language.Typing, which depends on other things.
@@ -96,25 +90,6 @@ mkG2TyCon :: G2.Name
         -> G2.Type
 mkG2TyCon n ts k = mkG2TyApp $ G2.TyCon n k:ts
 
-
-mkIOString :: (Outputable a) => a -> IO String
-mkIOString obj = runGhc (Just libdir) $ do
-    dflags <- getSessionDynFlags
-    return (showPpr dflags obj)
-
-mkRawCore :: FilePath -> IO CoreModule
-mkRawCore fp = runGhc (Just libdir) $ do
-    _ <- setSessionDynFlags =<< getSessionDynFlags
-    -- compileToCoreModule fp
-    compileToCoreSimplified fp
-
-rawDump :: FilePath -> IO ()
-rawDump fp = do
-  core <- mkRawCore fp
-  str <- mkIOString core
-  putStrLn str
-
-
 equivMods :: HM.HashMap T.Text T.Text
 equivMods = HM.fromList
             [ ("GHC.Classes2", "GHC.Classes")
@@ -126,7 +101,6 @@ equivMods = HM.fromList
             , ("GHC.Magic2", "GHC.Magic")
             , ("GHC.CString2", "GHC.CString")
             , ("Data.Map.Base", "Data.Map")]
-
 
 loadProj ::  Maybe HscTarget -> [FilePath] -> [FilePath] -> [GeneralFlag] -> G2.TranslationConfig -> Ghc SuccessFlag
 loadProj hsc proj src gflags tr_con = do
@@ -208,8 +182,7 @@ hskToG2ViaCgGuts nm tm pairs tr_con = do
 cgGutsModDetailsClosureToModGutsClosure :: G2.CgGutsClosure -> G2.ModDetailsClosure -> G2.ModGutsClosure
 cgGutsModDetailsClosureToModGutsClosure cg md =
   G2.ModGutsClosure
-    { G2.mgcc_filepath = G2.cgcc_filepath cg
-    , G2.mgcc_mod_name = G2.cgcc_mod_name cg
+    { G2.mgcc_mod_name = G2.cgcc_mod_name cg
     , G2.mgcc_binds = G2.cgcc_binds cg
     , G2.mgcc_tycons = G2.cgcc_tycons cg
     , G2.mgcc_breaks = G2.cgcc_breaks cg
@@ -236,7 +209,7 @@ envModSumModGuts hsc proj src tr_con =
       mod_graph <- getModuleGraph
 
       let msums = convertModuleGraph mod_graph
-      parsed_mods <- mapM parseModule mod_graph
+      parsed_mods <- mapM parseModule msums
       typed_mods <- mapM typecheckModule parsed_mods
       desug_mods <- mapM desugarModule typed_mods
       return . EnvModSumModGuts env msums $ map coreModule desug_mods
@@ -246,28 +219,27 @@ envModSumModGutsImports (EnvModSumModGuts _ ms _) = concatMap (map (\(_, L _ m) 
 
 mkCgGutsModDetailsClosuresFromEMS :: G2.TranslationConfig -> EnvModSumModGuts -> IO [( G2.CgGutsClosure, G2.ModDetailsClosure)]
 #if __GLASGOW_HASKELL__ < 806
-mkCgGutsModDetailsClosuresFromEMS tr_con (EnvModSumModGuts env msums modgutss) = do
+mkCgGutsModDetailsClosuresFromEMS tr_con (EnvModSumModGuts env _ modgutss) = do
   simplgutss <- mapM (if G2.simpl tr_con then hscSimplify env else return . id) modgutss
   tidys <- mapM (tidyProgram env) simplgutss
-  let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure msums (mg_binds mg) cg
+  let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure (mg_binds mg) cg
                                           , mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
   return pairs
 #else
-mkCgGutsModDetailsClosuresFromEMS tr_con (EnvModSumModGuts env msums modgutss) = do
+mkCgGutsModDetailsClosuresFromEMS tr_con (EnvModSumModGuts env _ modgutss) = do
   simplgutss <- mapM (if G2.simpl tr_con then hscSimplify env [] else return . id) modgutss
   tidys <- mapM (tidyProgram env) simplgutss
-  let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure msums (mg_binds mg) cg
+  let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure (mg_binds mg) cg
                                       , mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
   return pairs
 #endif
 
 -- | The core program in the CgGuts does not include local rules after tidying.
 -- As such, we pass in the CoreProgram from the ModGuts
-mkCgGutsClosure :: [ModSummary] -> CoreProgram -> CgGuts -> G2.CgGutsClosure
-mkCgGutsClosure msums bndrs cgguts =
+mkCgGutsClosure :: CoreProgram -> CgGuts -> G2.CgGutsClosure
+mkCgGutsClosure bndrs cgguts =
   G2.CgGutsClosure
-    { G2.cgcc_filepath = modFilePath msums (cg_module cgguts)
-    , G2.cgcc_mod_name = Just $ moduleNameString $ moduleName $ cg_module cgguts
+    { G2.cgcc_mod_name = Just $ moduleNameString $ moduleName $ cg_module cgguts
     , G2.cgcc_binds = cg_binds cgguts
     , G2.cgcc_breaks = cg_modBreaks cgguts
     , G2.cgcc_tycons = cg_tycons cgguts
@@ -325,15 +297,15 @@ modGutsClosureToG2 nm tm mgcc tr_con =
   -- Do the binds
   let (nm2, binds) = foldr (\b (nm', bs) ->
                               let (nm'', bs') = mkBinds nm' tm breaks b in
-                                (nm'', bs ++ bs'))
-                           (nm, [])
+                                (nm'', bs `HM.union` bs'))
+                           (nm, HM.empty)
                            (G2.mgcc_binds mgcc) in
   -- Do the tycons
   let raw_tycons = G2.mgcc_tycons mgcc ++ typeEnvTyCons (G2.mgcc_type_env mgcc) in
   let (nm3, tm2, tycons) = foldr (\tc (nm', tm', tcs) ->
-                                  let ((nm'', tm''), mb_t) = mkTyCon nm' tm' tc in
-                                    (nm'', tm'', maybeToList mb_t ++ tcs))
-                                (nm2, tm, [])
+                                  let ((nm'', tm''), n, mb_t) = mkTyCon nm' tm' tc in
+                                    (nm'', tm'', maybe tcs (\t -> HM.insert n t tcs) mb_t))
+                                (nm2, tm, HM.empty)
                                 raw_tycons in
   -- Do the class
   let classes = map (mkClass nm3 tm2) $ G2.mgcc_cls_insts mgcc in
@@ -348,10 +320,7 @@ modGutsClosureToG2 nm tm mgcc tr_con =
   let deps = fmap T.pack $ G2.mgcc_deps mgcc in
     (nm3, tm2,
         G2.ExtractedG2
-          { G2.exg2_mod_names = fmap (G2.mgcc_filepath mgcc,) 
-                              . maybeToList 
-                              . fmap T.pack
-                              $ G2.mgcc_mod_name mgcc
+          { G2.exg2_mod_names = [fmap T.pack $ G2.mgcc_mod_name mgcc]
           , G2.exg2_binds = binds
           , G2.exg2_tycons = tycons
           , G2.exg2_classes = classes
@@ -366,7 +335,7 @@ mkModGutsClosuresFromFile :: Maybe HscTarget
   -> G2.TranslationConfig
   -> IO [G2.ModGutsClosure]
 mkModGutsClosuresFromFile hsc proj src tr_con = do
-  (env, msums, modgutss) <- runGhc (Just libdir) $ do
+  (env, modgutss) <- runGhc (Just libdir) $ do
       _ <- loadProj hsc proj src [] tr_con
       env <- getSession
 
@@ -377,13 +346,13 @@ mkModGutsClosuresFromFile hsc proj src tr_con = do
 
       typed_mods <- mapM typecheckModule parsed_mods
       desug_mods <- mapM desugarModule typed_mods
-      return (env, msums, map coreModule desug_mods)
+      return (env, map coreModule desug_mods)
 
   if G2.simpl tr_con then do
     simpls <- mapM (hscSimplifyC env) modgutss
-    mapM (mkModGutsClosure msums env) simpls
+    mapM (mkModGutsClosure env) simpls
   else do
-    mapM (mkModGutsClosure msums env) modgutss
+    mapM (mkModGutsClosure env) modgutss
 
 {-# INLINE convertModuleGraph #-}
 convertModuleGraph :: ModuleGraph -> [ModSummary]
@@ -403,13 +372,12 @@ hscSimplifyC env = hscSimplify env []
 
 
 -- This one will need to do the Tidy program stuff
-mkModGutsClosure :: [ModSummary] -> HscEnv -> ModGuts -> IO G2.ModGutsClosure
-mkModGutsClosure msums env modguts = do
+mkModGutsClosure :: HscEnv -> ModGuts -> IO G2.ModGutsClosure
+mkModGutsClosure env modguts = do
   (cgguts, moddets) <- tidyProgram env modguts
   return
     G2.ModGutsClosure
-      { G2.mgcc_filepath = modFilePath msums (mg_module modguts)
-      , G2.mgcc_mod_name = Just $ moduleNameString $ moduleName $ cg_module cgguts
+      { G2.mgcc_mod_name = Just $ moduleNameString $ moduleName $ cg_module cgguts
       , G2.mgcc_binds = cg_binds cgguts
       , G2.mgcc_tycons = cg_tycons cgguts
       , G2.mgcc_breaks = cg_modBreaks cgguts
@@ -420,12 +388,6 @@ mkModGutsClosure msums env modguts = do
       , G2.mgcc_rules = mg_rules modguts
       }
 
-modFilePath :: [ModSummary] -> Module -> FilePath
-modFilePath msums m =
-    case fmap msHsFilePath $ find (\ms -> ms_mod ms == m) msums of
-        Just fp -> fp
-        Nothing -> error "modFilePath: FilePath not found"
-
 -- Merging, order matters!
 mergeExtractedG2s :: [G2.ExtractedG2] -> G2.ExtractedG2
 mergeExtractedG2s [] = G2.emptyExtractedG2
@@ -433,8 +395,8 @@ mergeExtractedG2s (g2:g2s) =
   let g2' = mergeExtractedG2s g2s in
     G2.ExtractedG2
       { G2.exg2_mod_names = G2.exg2_mod_names g2 ++ G2.exg2_mod_names g2' -- order matters
-      , G2.exg2_binds = G2.exg2_binds g2 ++ G2.exg2_binds g2'
-      , G2.exg2_tycons = G2.exg2_tycons g2 ++ G2.exg2_tycons g2'
+      , G2.exg2_binds = G2.exg2_binds g2 `HM.union` G2.exg2_binds g2'
+      , G2.exg2_tycons = G2.exg2_tycons g2 `HM.union` G2.exg2_tycons g2'
       , G2.exg2_classes = G2.exg2_classes g2 ++ G2.exg2_classes g2'
       , G2.exg2_exports = G2.exg2_exports g2 ++ G2.exg2_exports g2'
       , G2.exg2_deps = G2.exg2_deps g2 ++ G2.exg2_deps g2'
@@ -443,19 +405,20 @@ mergeExtractedG2s (g2:g2s) =
 ----------------
 -- Translating the individual components in CoreSyn, etc into G2 Core
 
-mkBinds :: G2.NameMap -> G2.TypeNameMap -> Maybe ModBreaks -> CoreBind -> (G2.NameMap, [(G2.Id, G2.Expr)])
+mkBinds :: G2.NameMap -> G2.TypeNameMap -> Maybe ModBreaks -> CoreBind -> (G2.NameMap, HM.HashMap G2.Name G2.Expr)
 mkBinds nm tm mb (NonRec var expr) = 
     let
         (i, nm') = mkIdUpdatingNM var nm tm
     in
-    (nm', [(i, mkExpr nm' tm mb expr)])
+    (nm', HM.singleton (G2.idName i) (mkExpr nm' tm mb expr))
 mkBinds nm tm mb (Rec ves) =
-    mapAccumR (\nm' (v, e) ->
-                let
-                    (i, nm'') = mkIdUpdatingNM v nm' tm
-                in
-                (nm'', (i, mkExpr nm'' tm mb e))
-            ) nm ves
+    second (HM.fromList) $
+        mapAccumR (\nm' (v, e) ->
+                    let
+                        (i, nm'') = mkIdUpdatingNM v nm' tm
+                    in
+                    (nm'', (G2.idName i, mkExpr nm'' tm mb e))
+                ) nm ves
 
 mkExpr :: G2.NameMap -> G2.TypeNameMap -> Maybe ModBreaks -> CoreExpr -> G2.Expr
 mkExpr nm tm _ (Var var) = G2.Var (mkIdLookup var nm tm)
@@ -564,8 +527,13 @@ switchModule m =
         Nothing -> Just m
 
 mkLit :: Literal -> G2.Lit
+#if __GLASGOW_HASKELL__ < 808
 mkLit (MachChar chr) = G2.LitChar chr
 mkLit (MachStr bstr) = G2.LitString (C.unpack bstr)
+#else
+mkLit (LitChar chr) = G2.LitChar chr
+mkLit (LitString bstr) = G2.LitString (C.unpack bstr)
+#endif
 
 #if __GLASGOW_HASKELL__ < 806
 mkLit (MachInt i) = G2.LitInt (fromInteger i)
@@ -582,8 +550,13 @@ mkLit (LitNumber LitNumWord i _) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumWord64 i _) = G2.LitInt (fromInteger i)
 #endif
 
+#if __GLASGOW_HASKELL__ < 808
 mkLit (MachFloat rat) = G2.LitFloat rat
 mkLit (MachDouble rat) = G2.LitDouble rat
+#else
+mkLit (LitFloat rat) = G2.LitFloat rat
+mkLit (LitDouble rat) = G2.LitDouble rat
+#endif
 mkLit _ = error "mkLit: unhandled Lit"
 -- mkLit (MachNullAddr) = error "mkLit: MachNullAddr"
 -- mkLit (MachLabel _ _ _ ) = error "mkLit: MachLabel"
@@ -606,7 +579,11 @@ mkAltMatch _ _ (DEFAULT) _ = G2.Default
 mkType :: G2.TypeNameMap -> Type -> G2.Type
 mkType tm (TyVarTy v) = G2.TyVar $ mkId tm v
 mkType tm (AppTy t1 t2) = G2.TyApp (mkType tm t1) (mkType tm t2)
+#if __GLASGOW_HASKELL__ < 808
 mkType tm (FunTy t1 t2) = G2.TyFun (mkType tm t1) (mkType tm t2)
+#else
+mkType tm (FunTy _ t1 t2) = G2.TyFun (mkType tm t1) (mkType tm t2)
+#endif
 mkType tm (ForAllTy b ty) = G2.TyForAll (mkTyBinder tm b) (mkType tm ty)
 mkType _ (LitTy _) = G2.TyBottom
 -- mkType _ (CastTy _ _) = error "mkType: CastTy"
@@ -623,10 +600,10 @@ mkType tm (TyConApp tc ts)
     , n == "TYPE" = G2.TYPE
     | otherwise = mkG2TyCon (mkTyConName tm tc) (map (mkType tm) ts) (mkType tm $ tyConKind tc) 
 
-mkTyCon :: G2.NameMap -> G2.TypeNameMap -> TyCon -> ((G2.NameMap, G2.TypeNameMap), Maybe G2.ProgramType)
+mkTyCon :: G2.NameMap -> G2.TypeNameMap -> TyCon -> ((G2.NameMap, G2.TypeNameMap), G2.Name, Maybe G2.AlgDataTy)
 mkTyCon nm tm t = case dcs of
-                        Just dcs' -> ((nm'', tm''), Just (n, dcs'))
-                        Nothing -> ((nm'', tm''), Nothing)
+                        Just dcs' -> ((nm'', tm''), n, Just dcs')
+                        Nothing -> ((nm'', tm''), n, Nothing)
   where
     n@(G2.Name n' m _ _) = flip mkNameLookup tm . tyConName $ t
     tm' = HM.insert (n', m) n tm
@@ -637,14 +614,14 @@ mkTyCon nm tm t = case dcs of
 
     bv = map (mkId tm) $ tyConTyVars t
 
-    (nm'', tm'', dcs, dcsf) =
+    (nm'', tm'', dcs) =
         case isAlgTyCon t of 
             True -> case algTyConRhs t of
                             DataTyCon { data_cons = dc } -> 
                                 ( nm'
                                 , tm'
                                 , Just $ G2.DataTyCon bv $ map (mkData nm' tm) dc
-                                , Just $ map (mkId tm'' . dataConWorkId) dc)
+                                )
                             NewTyCon { data_con = dc
                                      , nt_rhs = rhst} -> 
                                      ( nm'
@@ -652,14 +629,14 @@ mkTyCon nm tm t = case dcs of
                                      , Just $ G2.NewTyCon { G2.bound_ids = bv
                                                           , G2.data_con = mkData nm' tm dc
                                                           , G2.rep_type = mkType tm rhst}
-                                     , Just $ [(mkId tm'' . dataConWorkId) dc])
+                                     )
                             AbstractTyCon {} -> error "Unhandled TyCon AbstractTyCon"
                             -- TupleTyCon {} -> error "Unhandled TyCon TupleTyCon"
                             TupleTyCon { data_con = dc } ->
                               ( nm'
                               , tm'
                               , Just $ G2.DataTyCon bv $ [mkData nm' tm dc]
-                              , Nothing)
+                              )
                             SumTyCon {} -> error "Unhandled TyCon SumTyCon"
             False -> case isTypeSynonymTyCon t of
                     True -> 
@@ -669,8 +646,8 @@ mkTyCon nm tm t = case dcs of
                             tv' = map (mkId tm) tv
                         in
                         (nm, tm', Just $ G2.TypeSynonym { G2.bound_ids = tv'
-                                                        , G2.synonym_of = st'}, Nothing)
-                    False -> (nm, tm, Nothing, Nothing)
+                                                        , G2.synonym_of = st'})
+                    False -> (nm, tm, Nothing)
     -- dcs = if isDataTyCon t then map mkData . data_cons . algTyConRhs $ t else []
 
 mkTyConName :: G2.TypeNameMap -> TyCon -> G2.Name
@@ -692,13 +669,11 @@ mkDataName :: G2.NameMap -> DataCon -> G2.Name
 mkDataName nm datacon = (flip mkNameLookup nm . dataConName) datacon
 
 mkTyBinder :: G2.TypeNameMap -> TyVarBinder -> G2.TyBinder
+#if __GLASGOW_HASKELL__ < 808
 mkTyBinder tm (TvBndr v _) = G2.NamedTyBndr (mkId tm v)
-
-prim_list :: [String]
-prim_list = [">=", ">", "==", "/=", "<=", "<",
-             "&&", "||", "not",
-             "+", "-", "*", "/", "implies", "negate", "error", "iff" ]
-
+#else
+mkTyBinder tm (Bndr v _) = G2.NamedTyBndr (mkId tm v)
+#endif
 
 mkCoercion :: G2.TypeNameMap -> Coercion -> G2.Coercion
 mkCoercion tm c =
@@ -742,15 +717,9 @@ availInfoNames (AvailTC n ns _) = mkName n:map mkName ns
 
 -- | absVarLoc'
 -- Switches all file paths in Var namesand Ticks to be absolute
-absVarLoc :: G2.Program -> IO G2.Program
-absVarLoc = 
-    mapM 
-        (mapM (\(i, e) -> do 
-                    e' <- absVarLoc' e
-                    return (i, e')
-              )
-        )
-
+absVarLoc :: HM.HashMap G2.Name G2.Expr -> IO (HM.HashMap G2.Name G2.Expr)
+absVarLoc = mapM absVarLoc'
+        
 absVarLoc' :: G2.Expr -> IO G2.Expr
 absVarLoc' (G2.Var (G2.Id (G2.Name n m i (Just s)) t)) = do
     return $ G2.Var $ G2.Id (G2.Name n m i (Just $ s)) t

@@ -14,7 +14,8 @@ module G2.Liquid.Inference.InfStack ( InfStack
                                     , extraMaxDepthI
                                     , extraMaxCExI
                                     , extraMaxTimeI
-                                    , maxSynthSizeI
+                                    , maxSynthCoeffSizeI
+                                    , setMaxSynthCoeffSizeI
 
                                     , logEventStartM
                                     , logEventEndM
@@ -43,7 +44,6 @@ import Control.Monad.State.Lazy as S
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Text as T
-import System.CPUTime
 import Data.Time.Clock
 
 data Event n = CExSE
@@ -109,11 +109,17 @@ extraMaxDepthI = lift . lift . lift $ gets extraMaxDepth
 extraMaxTimeI :: Monad m => (T.Text, Maybe T.Text) -> InfStack m NominalDiffTime
 extraMaxTimeI n = lift . lift . lift $ gets (extraMaxTime n)
 
-maxSynthSizeI :: Monad m => InfStack m MaxSize
-maxSynthSizeI = lift . lift . lift $ maxSynthSizeM
-
 incrMaxSynthSizeI :: Monad m => InfStack m ()
-incrMaxSynthSizeI = lift . lift . lift $ incrMaxSynthSizeM
+incrMaxSynthSizeI = do
+    lift . lift . lift $ incrMaxSynthFormSizeM
+    lift . lift . lift $ incrMaxSynthCoeffSizeM
+
+maxSynthCoeffSizeI :: Monad m => InfStack m MaxSize
+maxSynthCoeffSizeI = lift . lift . lift $ maxSynthCoeffSizeM
+
+setMaxSynthCoeffSizeI :: Monad m => MaxSize -> InfStack m ()
+setMaxSynthCoeffSizeI max_size = do
+    lift . lift . lift $ setMaxSynthCoeffSizeM max_size
 
 startLevelTimer :: MonadIO m => [Name] -> InfStack m () 
 startLevelTimer = lift . logEventStartM . HS.fromList
@@ -129,15 +135,6 @@ withConfigs :: Monad m =>
             -> InfStack m a
 withConfigs f m = do
     mapStateT (mapStateT (mapStateT (withReaderT f))) m
-
-getConfigs :: InfConfigM m => m Configs
-getConfigs = do
-  g2_c <- g2ConfigM
-  lh_c <- lhConfigM
-  inf_c <- infConfigM
-  return $ Configs { g2_config = g2_c
-                   , lh_config = lh_c
-                   , inf_config = inf_c }
 
 -- Counters
 newCounter :: Counters
