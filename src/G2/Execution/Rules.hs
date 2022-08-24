@@ -915,37 +915,36 @@ liftBind bindsLHS bindsRHS eenv expr ngen = (eenv', expr', ngen', new)
 
 -- change literal rule to only match on arguments
 retReplaceSymbFunc' :: State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
-retReplaceSymbFunc' state@(State { expr_env = eenv
-                            , type_env = tenv
-                            , known_values = kv
-                            , type_classes = tc
-                            , exec_stack = stck })
+retReplaceSymbFunc' s@(State { expr_env = eenv
+                             , type_env = tenv
+                             , known_values = kv })
                    ng ce
+
     -- DC-SPLIT
-    --                        vvvvvv   this could be a tyapp
-    | Var sId@(Id n (TyFun t1@(TyCon tname tkind) t2)) <- ce
+    | Var (Id n (TyFun t1@(TyCon tname _) t2)) <- ce
     , E.isSymbolic n eenv
     , Just dcs <- TE.getDataCons tname tenv
     = let
         (x, ng') = freshId t1 ng
         (x', ng'') = freshId t1 ng'
-        (alts, symIds, ng''') = foldr (\dc@(DataCon _ dcty) (alts, symIds, ng) ->
-            let (argIds, ng') = genArgIds dc ng
-                altMatch = DataAlt dc argIds
-                (fi, ng'') = freshSeededId (Name "symFun" Nothing 0 Nothing) (mkTyFun $ fst (argTypes dcty) ++ [t2]) ng'
-                args = map Var argIds
-            in (Alt altMatch (mkApp (Var fi : args)) : alts, fi : symIds, ng'')
-            ) ([], [], ng'') dcs
+        (alts, symIds, ng''') =
+            foldr (\dc@(DataCon _ dcty) (as, sids, ng1) ->
+                        let (argIds, ng1') = genArgIds dc ng1
+                            data_alt = DataAlt dc argIds
+                            (fi, ng1'') = freshSeededId (Name "symFun" Nothing 0 Nothing) (mkTyFun $ fst (argTypes dcty) ++ [t2]) ng1'
+                            vargs = map Var argIds
+                        in (Alt data_alt (mkApp (Var fi : vargs)) : as, fi : sids, ng1'')
+                        ) ([], [], ng'') dcs
         -- alts = map (\dc -> Alt (Alt)) dcs
         e = Lam TermL x $ Case (Var x) x' alts
         eenv' = foldr E.insertSymbolic eenv symIds
         eenv'' = E.insert n e eenv'
-        (constState, ng'''') = mkFuncConst state n t1 t2 ng'''
-    in Just (RuleReturnReplaceSymbFunc, [state {
+        (constState, ng'''') = mkFuncConst s n t1 t2 ng'''
+    in Just (RuleReturnReplaceSymbFunc, [s {
         curr_expr = CurrExpr Return e,
-        -- symbolic_ids = symIds ++ L.delete sId (symbolic_ids state),
         expr_env = eenv''
     }, constState], ng'''')
+
     -- FUNC-APP
     | Var (Id n (TyFun t1@(TyFun _ _) t2)) <- ce
     , E.isSymbolic n eenv
@@ -961,12 +960,12 @@ retReplaceSymbFunc' state@(State { expr_env = eenv
         -- eenv'' = E.insertSymbolic (idName fId) fId eenv'
         eenv'' = E.insertSymbolic fId eenv'
         eenv''' = E.insert n e eenv''
-        (constState, ng'''') = mkFuncConst state n t1 t2 ng'''
-    in Just (RuleReturnReplaceSymbFunc, [state {
+        (constState, ng'''') = mkFuncConst s n t1 t2 ng'''
+    in Just (RuleReturnReplaceSymbFunc, [s {
         curr_expr = CurrExpr Return e,
-        -- symbolic_ids = xIds ++ (fId:symbolic_ids state),
         expr_env = eenv'''
     }, constState], ng'''')
+
     -- LIT-SPLIT
     | App (Var (Id n (TyFun t1 t2))) ea <- ce
     , isPrimType t1
@@ -983,30 +982,30 @@ retReplaceSymbFunc' state@(State { expr_env = eenv
             Alt (DataAlt falseDc []) (App (Var f2Id) x)]
         eenv' = foldr E.insertSymbolic eenv [f1Id, f2Id]
         eenv'' = E.insert n e eenv'
-    in Just (RuleReturnReplaceSymbFunc, [state {
+    in Just (RuleReturnReplaceSymbFunc, [s {
         -- because we are always going down true branch
         curr_expr = CurrExpr Return (Var f1Id),
         expr_env = eenv''
     }], ng')
     | otherwise = Nothing
-    where
-        argTypes :: Type -> ([Type], Type)
-        argTypes (TyFun t1 t2) = let (args, ret) = argTypes t2 in (t1 : args, ret)
-        argTypes t = ([], t)
 
-        genArgIds :: DataCon -> NameGen -> ([Id], NameGen)
-        genArgIds (DataCon _ dcty) ng =
-            let (argTys, _) = argTypes dcty
-            in foldr (\ty (ids, ng) -> let (id, ng') = freshId ty ng in ((id:ids), ng')) ([], ng) argTys
+argTypes :: Type -> ([Type], Type)
+argTypes (TyFun t1 t2) = let (ars_ty, ret_ty) = argTypes t2 in (t1 : ars_ty, ret_ty)
+argTypes t = ([], t)
+
+genArgIds :: DataCon -> NameGen -> ([Id], NameGen)
+genArgIds (DataCon _ dcty) ng =
+    let (argTys, _) = argTypes dcty
+    in foldr (\ty (is, ng') -> let (i, ng'') = freshId ty ng' in ((i:is), ng'')) ([], ng) argTys
 
 mkFuncConst :: State t -> Name -> Type -> Type -> NameGen -> (State t, NameGen)
-mkFuncConst state@(State { expr_env = eenv } ) n t1 t2 ng =
+mkFuncConst s@(State { expr_env = eenv } ) n t1 t2 ng =
     let
         (fId:xId:[], ng') = freshIds [t2, t1] ng
         eenv' = foldr E.insertSymbolic eenv [fId]
         e = Lam TermL xId $ Var fId
         eenv'' = E.insert n e eenv'
-    in (state {
+    in (s {
         curr_expr = CurrExpr Return e,
         -- symbolic_ids = fId:symbolic_ids state,
         expr_env = eenv''

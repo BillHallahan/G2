@@ -27,7 +27,7 @@ subModel (State { expr_env = eenv
                 , model = m}) 
           (Bindings {input_names = inputNames}) = 
     let
-        ais' = fmap (subVarFuncCall False m eenv tc) ais
+        ais' = fmap (subVarFuncCall True m eenv tc) ais
 
         -- We do not inline Lambdas, because higher order function arguments
         -- get preinserted into the model.
@@ -37,7 +37,7 @@ subModel (State { expr_env = eenv
                                 Just e -> Just e
                                 Nothing -> Nothing) inputNames
     in
-    subVar False m eenv tc (is, cexpr, ais')
+    subVar True m eenv tc (is, cexpr, ais')
 
 subVarFuncCall :: Bool -> Model -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall
 subVarFuncCall inLam em eenv tc fc@(FuncCall {arguments = ars}) =
