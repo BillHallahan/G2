@@ -22,12 +22,12 @@ import Control.Exception
 
 import System.Process
 
-validateStates :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> [ExecRes t] -> IO Bool
+validateStates :: Named t => [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> [ExecRes t] -> IO Bool
 validateStates proj src modN entry chAll ghflags in_out = do
     return . all id =<< mapM (runCheck proj src modN entry chAll ghflags) in_out
 
 -- Compile with GHC, and check that the output we got is correct for the input
-runCheck :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> ExecRes t -> IO Bool
+runCheck :: Named t => [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> ExecRes t -> IO Bool
 runCheck proj src modN entry chAll gflags (ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
     (v, chAllR) <- runGhc (Just libdir) (runCheck' proj src modN entry chAll gflags s ars out)
 
@@ -42,7 +42,7 @@ runCheck proj src modN entry chAll gflags (ExecRes {final_state = s, conc_args =
 
     return $ v'' && and chAllR''
 
-runCheck' :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> State t -> [Expr] -> Expr -> Ghc (HValue, [HValue])
+runCheck' :: Named t => [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> State t -> [Expr] -> Expr -> Ghc (HValue, [HValue])
 runCheck' proj src modN entry chAll gflags s ars out = do
         _ <- loadProj Nothing proj src gflags simplTranslationConfig
 
@@ -59,8 +59,11 @@ runCheck' proj src modN entry chAll gflags s ars out = do
 
         let Left (v, _) = findFunc (T.pack entry) (Just $ T.pack modN) (expr_env s)
         let e = mkApp $ Var v:ars
-        let arsStr = printHaskell s e
-        let outStr = printHaskell s out
+        -- We pass a v to the PrettyGuide first to ensure that v is given a name
+        -- that does not involve a tick.
+        let pg = updatePrettyGuide s $ mkPrettyGuide v
+        let arsStr = printHaskellPG pg s e
+        let outStr = printHaskellPG pg s out
 
         let outType = mkTypeHaskell (typeOf out)
 

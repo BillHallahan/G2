@@ -61,7 +61,7 @@ subVar' inLam mdl eenv tc is cse@(Case e _ as) =
         Lit l
             | Just (Alt _ ae) <- L.find (\(Alt (LitAlt l') _) -> l == l') as ->
                 subVar' inLam mdl eenv tc is ae
-        _ -> cse
+        _ -> modifyChildren (subVar' inLam mdl eenv tc is) cse
 subVar' inLam em eenv tc is e = modifyChildren (subVar' inLam em eenv tc is) e
 
 isApp :: Expr -> Bool
