@@ -15,6 +15,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Solver.Converters
 import G2.Solver.Solver
 
+import Data.Function
 import qualified Data.List as L
 import Data.Maybe (mapMaybe)
 import qualified Data.HashMap.Lazy as HM
@@ -37,7 +38,9 @@ subModel (State { expr_env = eenv
                                 Just e -> Just e
                                 Nothing -> Nothing) inputNames
     in
-    simplifyLams $ subVar True m eenv tc (is, cexpr, ais')
+    untilEq (simplifyLams . pushCaseAppArgIn) $ subVar True m eenv tc (is, cexpr, ais')
+    where
+        untilEq f x = let x' = f x in if x == x' then x' else untilEq f x'
 
 subVarFuncCall :: Bool -> Model -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall
 subVarFuncCall inLam em eenv tc fc@(FuncCall {arguments = ars}) =
@@ -83,3 +86,14 @@ isLitCase _ = False
 isTC :: TypeClasses -> Expr -> Bool
 isTC tc (Var (Id _ (TyCon n _))) = isTypeClassNamed n tc
 isTC _ _ = False
+
+-- | Rewrites a case statement returning a function type, and applied to a variable argument,
+-- so that the variable argument is moved into each branch of the case statement.
+-- This composes with `simplifyLams` to get better simplication for symbolic function concretizations.
+pushCaseAppArgIn :: ASTContainer c Expr => c -> c
+pushCaseAppArgIn = modifyASTs pushCaseAppArgIn'
+
+pushCaseAppArgIn' :: Expr -> Expr
+pushCaseAppArgIn' (App (Case scrut bind as) v@(Var _)) =
+    Case scrut bind $ map (\(Alt am e) -> Alt am (App e v) ) as
+pushCaseAppArgIn' e = e
