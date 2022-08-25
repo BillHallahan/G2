@@ -61,7 +61,9 @@ runCheck' proj src modN entry chAll gflags s ars out = do
         let e = mkApp $ Var v:ars
         -- We pass a v to the PrettyGuide first to ensure that v is given a name
         -- that does not involve a tick.
-        let pg = updatePrettyGuide s $ mkPrettyGuide v
+        let pg = updatePrettyGuide (map idName $ varIds e)
+               . updatePrettyGuide (map idName $ varIds out)
+               $ mkPrettyGuide $ varIds v
         let arsStr = printHaskellPG pg s e
         let outStr = printHaskellPG pg s out
 
