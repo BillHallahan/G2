@@ -37,7 +37,7 @@ subModel (State { expr_env = eenv
                                 Just e -> Just e
                                 Nothing -> Nothing) inputNames
     in
-    subVar True m eenv tc (is, cexpr, ais')
+    simplifyLams $ subVar True m eenv tc (is, cexpr, ais')
 
 subVarFuncCall :: Bool -> Model -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall
 subVarFuncCall inLam em eenv tc fc@(FuncCall {arguments = ars}) =

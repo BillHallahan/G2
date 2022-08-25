@@ -142,7 +142,8 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             | otherwise = mkExprHaskell'' off ea ++ " " ++ mkExprHaskell'' off e3
 
         mkExprHaskell'' off (App e1 ea@(App _ _)) = mkExprHaskell'' off e1 ++ " (" ++ mkExprHaskell'' off ea ++ ")"
-        mkExprHaskell'' off (App e1 e2) = mkExprHaskell'' off e1 ++ " " ++ mkExprHaskell'' off e2
+        mkExprHaskell'' off (App e1 e2) =
+            parenWrap e1 (mkExprHaskell'' off e1) ++ " " ++ mkExprHaskell'' off e2
         mkExprHaskell'' _ (Data d) = mkDataConHaskell pg d
         mkExprHaskell'' off (Case e bndr ae) =
                "case " ++ parenWrap e (mkExprHaskell'' off e) ++ " of\n" 

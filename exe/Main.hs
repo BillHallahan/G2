@@ -60,7 +60,7 @@ runWithArgs as = do
 printFuncCalls :: Config -> Id -> Bindings -> [ExecRes t] -> IO ()
 printFuncCalls config entry b =
     mapM_ (\execr@(ExecRes { final_state = s}) -> do
-        let pg = mkPrettyGuide (varIds $ conc_args execr)
+        let pg = mkPrettyGuide (exprNames $ conc_args execr)
         let funcCall = printHaskellPG pg s
                      . foldl (\a a' -> App a a') (Var entry) $ (conc_args execr)
 
