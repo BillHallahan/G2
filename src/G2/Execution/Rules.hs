@@ -921,7 +921,8 @@ retReplaceSymbFunc' s@(State { expr_env = eenv
                    ng ce
 
     -- DC-SPLIT
-    | Var (Id n (TyFun t1@(TyCon tname _) t2)) <- ce
+    | Var (Id n (TyFun t1 t2)) <- ce
+    , TyCon tname _:_ <- unTyApp t1 
     , E.isSymbolic n eenv
     , Just dcs <- TE.getDataCons tname tenv
     = let
@@ -990,8 +991,7 @@ retReplaceSymbFunc' s@(State { expr_env = eenv
     | otherwise = Nothing
 
 argTypes :: Type -> ([Type], Type)
-argTypes (TyFun t1 t2) = let (ars_ty, ret_ty) = argTypes t2 in (t1 : ars_ty, ret_ty)
-argTypes t = ([], t)
+argTypes t = (anonArgumentTypes $ PresType t, returnType $ PresType t)
 
 genArgIds :: DataCon -> NameGen -> ([Id], NameGen)
 genArgIds (DataCon _ dcty) ng =
