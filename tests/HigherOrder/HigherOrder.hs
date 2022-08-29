@@ -26,9 +26,6 @@ sf f s = f s == f (streamTail s)
 thirdOrder :: ((Bool -> Bool) -> Bool) -> Bool
 thirdOrder f = f (\b -> case b of { True -> False; False -> True })
 
-tupleTest :: ((Int, Int) -> (Int, Int)) -> Bool
-tupleTest f = let (a,b) = f (3,6) in a <= b
-
 data IntPair = IntPair Int Int
 
 tupleTestMono :: (IntPair -> IntPair) -> Bool
