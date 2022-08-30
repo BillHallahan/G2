@@ -41,7 +41,7 @@ charGenInit = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9']
 -- will give a different value the next time arbValue is called with
 -- the same Type.
 arbValue :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValue t = arbValue' getFiniteADT HM.empty t
+arbValue = arbValue' getFiniteADT HM.empty
 
 
 -- | arbValue
@@ -190,7 +190,7 @@ getADT m tenv av adt ts
 
             m' = foldr (uncurry HM.insert) m $ zip (map idName ids) ts
 
-            (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite' m' t tenv av_) av $ dataConArgs min_dc
+            (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite' m' (applyTypeHashMap m' t) tenv av_) av $ dataConArgs min_dc
         in
         (mkApp $ Data min_dc:map Type ts ++ es, av')
     | otherwise = (Prim Undefined TyBottom, av)
