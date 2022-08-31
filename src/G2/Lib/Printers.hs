@@ -193,6 +193,14 @@ mkAltHaskell off cleaned pg i_bndr@(Id bndr_name _) (Alt am e) =
     offset off ++ mkAltMatchHaskell (if needs_bndr then Just i_bndr else Nothing) am ++ " -> " ++ mkExprHaskell' off cleaned pg e
     where
         mkAltMatchHaskell :: Maybe Id -> AltMatch -> String
+        mkAltMatchHaskell m_bndr (DataAlt dc@(DataCon n _) ids) | isTuple n =
+            let
+                pr_am = printTuple pg $ mkApp (Data dc:map Var ids)
+            in
+            case m_bndr of
+                Just bndr | not (L.null ids) -> mkIdHaskell pg bndr ++ "@" ++ pr_am ++ ""
+                          | otherwise -> mkIdHaskell pg bndr
+                Nothing -> pr_am
         mkAltMatchHaskell m_bndr (DataAlt dc@(DataCon n _) [id1, id2]) | isInfixableName n =
             let
                 pr_am = mkIdHaskell pg id1 ++ " " ++ mkDataConHaskell pg dc ++ " " ++ mkIdHaskell pg id2
@@ -262,11 +270,11 @@ printString' e | Data (DataCon n _) <- appCenter e
                | otherwise = Nothing
 
 isTuple :: Name -> Bool
-isTuple (Name n _ _ _) = T.head n == '(' && T.last n == ')'
+isTuple (Name n _ _ _) = fmap fst (T.uncons n) == Just '(' && fmap snd (T.unsnoc n) == Just ')'
                      && T.all (\c -> c == '(' || c == ')' || c == ',') n
 
 isPrimTuple :: Name -> Bool
-isPrimTuple (Name n _ _ _) = T.head n == '(' && T.last n == ')'
+isPrimTuple (Name n _ _ _) = fmap fst (T.uncons n) == Just '(' && fmap snd (T.unsnoc n) == Just ')'
                      && T.all (\c -> c == '(' || c == ')' || c == ',' || c == '#') n
                      && T.any (\c -> c == '#') n
 
