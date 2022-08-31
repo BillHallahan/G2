@@ -922,17 +922,23 @@ retReplaceSymbFunc' s@(State { expr_env = eenv
 
     -- DC-SPLIT
     | Var (Id n (TyFun t1 t2)) <- ce
-    , TyCon tname _:_ <- unTyApp t1 
+    , TyCon tname _:ts <- unTyApp t1 
     , E.isSymbolic n eenv
-    , Just dcs <- TE.getDataCons tname tenv
+    , Just alg_data_ty <- HM.lookup tname tenv
     = let
+        ty_map = HM.fromList $ zip (map idName bound) ts
+
+        dcs = applyTypeHashMap ty_map $ dataCon alg_data_ty
+        bound = applyTypeHashMap ty_map $ bound_ids alg_data_ty
+
         (x, ng') = freshId t1 ng
         (x', ng'') = freshId t1 ng'
         (alts, symIds, ng''') =
             foldr (\dc@(DataCon _ dcty) (as, sids, ng1) ->
                         let (argIds, ng1') = genArgIds dc ng1
                             data_alt = DataAlt dc argIds
-                            (fi, ng1'') = freshSeededId (Name "symFun" Nothing 0 Nothing) (mkTyFun $ fst (argTypes dcty) ++ [t2]) ng1'
+                            sym_fun_ty = mkTyFun $ fst (argTypes dcty) ++ [t2]
+                            (fi, ng1'') = freshSeededId (Name "symFun" Nothing 0 Nothing) sym_fun_ty ng1'
                             vargs = map Var argIds
                         in (Alt data_alt (mkApp (Var fi : vargs)) : as, fi : sids, ng1'')
                         ) ([], [], ng'') dcs

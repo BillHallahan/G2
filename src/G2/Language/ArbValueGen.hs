@@ -41,8 +41,7 @@ charGenInit = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9']
 -- will give a different value the next time arbValue is called with
 -- the same Type.
 arbValue :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValue = arbValue' getFiniteADT HM.empty
-
+arbValue t tenv = arbValue' getFiniteADT HM.empty t tenv
 
 -- | arbValue
 -- Allows the generation of arbitrary values of the given type.
@@ -58,10 +57,10 @@ constArbValue = constArbValue' getFiniteADT HM.empty
 -- will give a different value the next time arbValue is called with
 -- the same Type.
 arbValueInfinite :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValueInfinite t = arbValueInfinite' HM.empty t
+arbValueInfinite t = arbValueInfinite' cutOffVal HM.empty t
 
-arbValueInfinite' :: HM.HashMap Name Type -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
-arbValueInfinite' = arbValue' getADT
+arbValueInfinite' :: Int -> HM.HashMap Name Type -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
+arbValueInfinite' cutoff = arbValue' (getADT cutoff)
 
 arbValue' :: GetADT
           -> HM.HashMap Name Type -- ^ Maps TyVar's to Types
@@ -159,27 +158,37 @@ constArbValue' _ _ t _ av = (Prim Undefined t, av)
 
 type GetADT = HM.HashMap Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
 
--- Generates an arbitrary value of the given ADT,
--- but will return something containing @(Prim Undefined)@ instead of an infinite Expr
+-- | Generates an arbitrary value of the given ADT,
+-- but will return something containing @(Prim Undefined)@ instead of an infinite Expr.
 getFiniteADT :: HM.HashMap Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
 getFiniteADT m tenv av adt ts =
     let
-        (e, av') = getADT m tenv av adt ts
+        (e, av') = getADT cutOffVal m tenv av adt ts
     in 
     (cutOff [] e, av')
+
+-- | How long to go before cutting off finite ADTs?
+cutOffVal :: Int
+cutOffVal = 3
 
 cutOff :: [Name] -> Expr -> Expr
 cutOff ns a@(App _ _)
     | Data (DataCon n _) <- appCenter a =
-        case length (filter (== n) ns) > 3 of
+        case length (filter (== n) ns) > cutOffVal of
             True -> Prim Undefined TyBottom
             False -> mapArgs (cutOff (n:ns)) a
 cutOff _ e = e
 
 -- | Generates an arbitrary value of the given AlgDataTy
--- If there is no such finite value, this may return an infinite Expr
-getADT :: HM.HashMap Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
-getADT m tenv av adt ts 
+-- If there is no such finite value, this may return an infinite Expr.
+--
+-- Has a bit of a hack: will update the ArbValueGen, but only for a limited number of loops.
+-- This is to ensure that an ArbValueGen is eventually returned.
+-- To see why this is needed, suppose we are returning an infinitely large Expr.
+-- This Expr will be returned lazily.  But the return of the ArbValueGen is not lazy-
+-- so we must just cut off and return at some point.
+getADT :: Int -> HM.HashMap Name Type -> TypeEnv -> ArbValueGen -> AlgDataTy -> [Type] -> (Expr, ArbValueGen)
+getADT cutoff m tenv av adt ts 
     | dcs <- dataCon adt
     , _:_ <- dcs =
         let
@@ -190,7 +199,9 @@ getADT m tenv av adt ts
 
             m' = foldr (uncurry HM.insert) m $ zip (map idName ids) ts
 
-            (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite' m' (applyTypeHashMap m' t) tenv av_) av $ dataConArgs min_dc
+            (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite' (cutoff - 1) m' (applyTypeHashMap m' t) tenv av_) av $ dataConArgs min_dc
+
+            final_av = if cutoff >= 0 then av' else av
         in
-        (mkApp $ Data min_dc:map Type ts ++ es, av')
+        (mkApp $ Data min_dc:map Type ts ++ es, final_av)
     | otherwise = (Prim Undefined TyBottom, av)
