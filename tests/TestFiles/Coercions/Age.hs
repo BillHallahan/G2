@@ -1,4 +1,4 @@
-module NewType1 ( Age
+module NewType1 ( Age (..)
                 , born
                 , diffAge
                 , yearPasses
@@ -10,7 +10,7 @@ module NewType1 ( Age
                 , yearAfter
                 , yearBefore2) where
 
-newtype Age = Age Int
+newtype Age = Age Int deriving Eq
 newtype Years = Years Int
 
 born :: Age

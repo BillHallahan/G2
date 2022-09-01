@@ -140,7 +140,13 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                "case " ++ parenWrap e (mkExprHaskell'' off e) ++ " of\n" 
             ++ intercalate "\n" (map (mkAltHaskell (off + 2) cleaned pg bndr) ae)
         mkExprHaskell'' _ (Type t) = "@" ++ mkTypeHaskellPG pg t
-        mkExprHaskell'' off (Cast e (_ :~ t)) = "((coerce " ++ mkExprHaskell'' off e ++ ") :: " ++ mkTypeHaskellPG pg t ++ ")"
+        mkExprHaskell'' off (Cast e (t1 :~ t2)) =
+            let
+                e_str = mkExprHaskell'' off e
+                t1_str = mkTypeHaskellPG pg t1
+                t2_str = mkTypeHaskellPG pg t2
+            in
+            "((coerce (" ++ e_str ++ " :: " ++ t1_str ++ ")) :: " ++ t2_str ++ ")"
         mkExprHaskell'' off (Let binds e) =
             let
                 binds' = intercalate (offset off ++ "\n")
