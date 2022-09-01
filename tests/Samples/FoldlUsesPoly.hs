@@ -4,7 +4,7 @@ import Prelude hiding (length, foldl, max, min)
 
 data CList a = Nil | Cons a (CList a) deriving (Eq, Ord)
 
-data Pair a b = Pair a b
+data Pair a b = Pair a b deriving Eq
 
 getNth :: CList a -> Int -> a
 getNth (Cons x _)  0 = x 

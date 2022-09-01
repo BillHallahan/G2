@@ -62,12 +62,14 @@ runCheck' proj src modN entry chAll gflags s ars out = do
         let arsStr = printHaskell s e
         let outStr = printHaskell s out
 
-        let outType = mkTypeHaskell (typeOf out)
+        let arsType = mkTypeHaskell (typeOf e)
+            outType = mkTypeHaskell (typeOf out)
 
         let chck = case outStr == "error" of
                         False -> "try (evaluate (" ++ arsStr ++ " == " ++ "("
                                         ++ outStr ++ " :: " ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
-                        True -> "try (evaluate (" ++ arsStr ++ " == " ++ arsStr ++ ")) :: IO (Either SomeException Bool)"
+                        True -> "try (evaluate ( (" ++ arsStr ++ " :: " ++ arsType ++
+                                                        ") == " ++ arsStr ++ ")) :: IO (Either SomeException Bool)"
 
         v' <- compileExpr chck
 
