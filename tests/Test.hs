@@ -153,14 +153,14 @@ sampleTests = testGroup "Samples"
     , checkExprReaches "tests/Samples/GetNthErr.hs" 800 Nothing Nothing (Just "error") "getNth"
         [AtLeast 8, RForAll errors]
 
-    , checkExpr "tests/Samples/FoldlUses.hs" 1600 "sum" [AtLeast 3]
-    , checkExpr "tests/Samples/FoldlUses.hs" 1000 "dotProd" [AtLeast 3]
+    , checkInputOutputs "tests/Samples/FoldlUses.hs" [ ("sum", 1600, [AtLeast 3])
+                                                     , ("dotProd", 1000, [AtLeast 3]) ]
 
-    , checkInputOutput "tests/Samples/FoldlUsesPoly.hs" "sumMinAndMax" 600 [AtLeast 10]
-    , checkInputOutput "tests/Samples/FoldlUsesPoly.hs" "maxes" 400 [AtLeast 10]
-    , checkInputOutput "tests/Samples/FoldlUsesPoly.hs" "switchInt" 400 [AtLeast 1]
-    , checkInputOutput "tests/Samples/FoldlUsesPoly.hs" "getInInt" 400 [AtLeast 1]
-    , checkInputOutput "tests/Samples/FoldlUsesPoly.hs" "switchP" 400 [AtLeast 1]
+    , checkInputOutputs "tests/Samples/FoldlUsesPoly.hs" [ ("sumMinAndMax", 600, [AtLeast 10])
+                                                         , ("maxes", 400, [AtLeast 10])
+                                                         , ("switchInt", 400, [AtLeast 1])
+                                                         , ("getInInt", 400, [AtLeast 1])
+                                                         , ("switchP", 400, [AtLeast 1]) ]
     ]
 
 liquidTests :: TestTree
@@ -489,12 +489,12 @@ testFileTests = testGroup "TestFiles"
                                                           , ("f", 400, [AtLeast 1])
                                                           , ("f", 400, [AtLeast 1])
                                                           , ("g", 400, [AtLeast 1]) ]
-    , checkInputOutput "tests/TestFiles/Error/Undefined1.hs" "undefined1" 400 [AtLeast 1]
-    , checkInputOutput "tests/TestFiles/Error/Undefined1.hs" "undefined2" 400 [AtLeast 1]
+    , checkInputOutputs "tests/TestFiles/Error/Undefined1.hs" [ ("undefined1", 400, [AtLeast 1])
+                                                              , ("undefined2", 400, [AtLeast 1])]
     , checkInputOutput "tests/TestFiles/Error/IrrefutError.hs" "f" 400 [AtLeast 2]
 
-    , checkExpr "tests/TestFiles/BadNames1.hs" 400 "abs'" [Exactly 2]
-    , checkExpr "tests/TestFiles/BadNames1.hs" 400 "xswitch" [AtLeast 10]
+    , checkInputOutputs "tests/TestFiles/BadNames1.hs" [ ("abs'", 400, [Exactly 2])
+                                                       , ("xswitch", 400, [AtLeast 10]) ]
 
     , checkExpr "tests/TestFiles/PolyDataTy1.hs" 400 "f"
         [Exactly 2, RExists (\[x, _, y] -> x == y), RExists (\[_, App _ x, y] -> x == y)]
