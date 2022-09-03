@@ -22,8 +22,8 @@ foldl :: (Int -> Int -> Int) -> Int -> CList -> Int
 foldl f acc Nil         = acc 
 foldl f acc (Cons x xs) = foldl f (f acc x) xs 
 
-sum :: CList -> Int 
-sum xs        = foldl add 0 is 
+sum_foldl :: CList -> Int 
+sum_foldl xs        = foldl add 0 is 
   where 
     add acc i = acc + getNth xs i
     is        = range 0 (length xs)

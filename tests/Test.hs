@@ -153,7 +153,7 @@ sampleTests = testGroup "Samples"
     , checkExprReaches "tests/Samples/GetNthErr.hs" 800 Nothing Nothing (Just "error") "getNth"
         [AtLeast 8, RForAll errors]
 
-    , checkInputOutputs "tests/Samples/FoldlUses.hs" [ ("sum", 1600, [AtLeast 3])
+    , checkInputOutputs "tests/Samples/FoldlUses.hs" [ ("sum_foldl", 1600, [AtLeast 3])
                                                      , ("dotProd", 1000, [AtLeast 3]) ]
 
     , checkInputOutputs "tests/Samples/FoldlUsesPoly.hs" [ ("sumMinAndMax", 600, [AtLeast 10])
