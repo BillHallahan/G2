@@ -28,20 +28,20 @@ initStateAndConfig exg2 main_mod g2config lhconfig infconfig ghci =
         simp_s = initSimpleState exg2
         (g2config', lhconfig', infconfig') = adjustConfig main_mod simp_s g2config lhconfig infconfig ghci
 
-        lrs = createStateForInference simp_s g2config' lhconfig' ghci
+        lrs = createStateForInference simp_s main_mod g2config' lhconfig' ghci
 
         lh_s = lr_state lrs
         lhconfig'' = adjustConfigPostLH main_mod (measures lh_s) (tcvalues lh_s) (state lh_s) ghci lhconfig'
     in
     (lrs, g2config', lhconfig'', infconfig')
 
-createStateForInference :: SimpleState -> G2.Config -> LHConfig -> [GhcInfo] -> LiquidReadyState
-createStateForInference simp_s config lhconfig ghci =
+createStateForInference :: SimpleState -> Maybe T.Text -> G2.Config -> LHConfig -> [GhcInfo] -> LiquidReadyState
+createStateForInference simp_s main_mod config lhconfig ghci =
     let
         (simp_s', ph_tyvars) = if add_tyvars lhconfig
                                 then fmap Just $ addTyVarsEEnvTEnv simp_s
                                 else (simp_s, Nothing)
-        (s, b) = initStateFromSimpleState simp_s' True 
+        (s, b) = initStateFromSimpleState simp_s' main_mod True 
                     (\_ ng _ _ _ _ _ -> (Prim Undefined TyBottom, [], [], ng))
                     (E.higherOrderExprs . IT.expr_env)
                     config
