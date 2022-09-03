@@ -72,7 +72,7 @@ switchP = switch
 switchInt :: Pair Int Int -> Pair Int Int
 switchInt = switchP
 
-data Holds a = H a
+data Holds a = H a deriving Eq
 
 class In f where
     getIn :: f a -> f a
