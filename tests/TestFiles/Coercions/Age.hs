@@ -1,9 +1,10 @@
 module NewType1 ( Age (..)
+                , Years (..)
                 , born
                 , diffAge
                 , yearPasses
                 , age
-                , Year
+                , Year (..)
                 , YearTracker (..)
                 , oneAD
                 , yearBefore
@@ -11,7 +12,7 @@ module NewType1 ( Age (..)
                 , yearBefore2) where
 
 newtype Age = Age Int deriving Eq
-newtype Years = Years Int
+newtype Years = Years Int deriving Eq
 
 born :: Age
 born = Age 0
@@ -25,8 +26,8 @@ diffAge (Age a1) (Age a2) = Years (a1 - a2)
 age :: Age -> Int
 age (Age a) = a
 
-newtype Year = Year Int
-data YearTracker = AD Year | BC Year
+newtype Year = Year Int deriving Eq
+data YearTracker = AD Year | BC Year deriving Eq
 
 oneAD :: YearTracker
 oneAD = AD (Year 1)

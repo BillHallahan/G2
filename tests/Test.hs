@@ -524,62 +524,21 @@ testFileTests = testGroup "TestFiles"
     , checkExpr "tests/TestFiles/Deriving/DerivingComp.hs" 800 "eq" [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
     , checkExpr "tests/TestFiles/Deriving/DerivingComp.hs" 800 "lt" [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
 
-    , checkExpr "tests/TestFiles/Coercions/Age.hs" 400 "born"
-        [ Exactly 1
-        , RForAll (\[x] -> inCast x 
-                            (\x' -> appNthArgIs x' (Lit (LitInt 0) ==) 1) 
-                            (\(t1 :~ t2) -> isIntT t1 && typeNameIs t2 "Age"))]
-    , checkExpr "tests/TestFiles/Coercions/Age.hs" 400 "yearPasses"
-        [ AtLeast 1
-        , RForAll (\[x, y] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "Age")
-                           && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "Age") )]
-    , checkExpr "tests/TestFiles/Coercions/Age.hs" 400 "age"
-        [ AtLeast 1
-        , RForAll (\[x, y] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "Age") && isInt y (const True))]
-    , checkExpr "tests/TestFiles/Coercions/Age.hs" 400 "diffAge"
-        [ AtLeast 1
-        , RForAll (\[x, y, z] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "Age") 
-                              && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "Age")
-                              && inCast z (const True) (\(_ :~ t2) -> typeNameIs t2 "Years"))]
-    , checkExpr "tests/TestFiles/Coercions/Age.hs" 400 "yearBefore" [ AtLeast 5 ]
-    , checkExpr "tests/TestFiles/Coercions/NewType1.hs" 400 "add1N4"
-        [ Exactly 1
-        , RForAll (\[x, y] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "N4") 
-                           && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "N4"))]
-    , checkExpr "tests/TestFiles/Coercions/NewType1.hs" 400 "f"
-        [ Exactly 1
-        , RForAll (\[x, y] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "NewX") && dcHasName "X" y)]
-    , checkExpr "tests/TestFiles/Coercions/NewType1.hs" 400 "g"
-        [ Exactly 1
-        , RForAll (\[x, y] -> dcHasName "X" x && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "NewX"))]
+    , checkInputOutputs "tests/TestFiles/Coercions/Age.hs" [ ("born", 400, [Exactly 1])
+                                                           , ("yearPasses", 400, [AtLeast 1])
+                                                           , ("age", 400, [AtLeast 1])
+                                                           , ("diffAge", 400, [AtLeast 1])
+                                                           , ("yearBefore", 400, [AtLeast 5])]
+    , checkInputOutputs "tests/TestFiles/Coercions/NewType1.hs" [ ("add1N4", 400, [Exactly 1])
+                                                           , ("f", 400, [Exactly 1])
+                                                           , ("g", 400, [Exactly 1])
+                                                           , ("mapWInt", 400, [AtLeast 2])
+                                                           , ("appLeftFloat", 400, [AtLeast 2])
+                                                           , ("getLIntFloat", 400, [AtLeast 2])
+                                                           , ("getRIntFloat", 400, [AtLeast 2])
+                                                           , ("getCIntFloatDouble", 400, [AtLeast 2])
+                                                           , ("getRIntFloatX", 400, [AtLeast 2])]
 
-    , checkExpr "tests/TestFiles/Coercions/NewType1.hs" 400 "mapWInt"
-        [ AtLeast 2
-        , RForAll (\[_, x, y] -> isError y
-                             || (inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "W")
-                             &&  inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "W"))) ]
-
-    , checkExpr "tests/TestFiles/Coercions/NewType1.hs" 400 "appLeftFloat"
-        [ AtLeast 2
-        , RExists (\[_, _, y] -> inCast y (\y' -> dcInAppHasName "L" y' 3) (const True))
-        , RExists (\[_, _, y] -> inCast y (\y' -> dcInAppHasName "R" y' 3) (const True))]
-    , checkExpr "tests/TestFiles/Coercions/NewType1.hs" 400 "getLIntFloat"
-        [ AtLeast 2
-        , RExists (\[_, y] -> isInt y (const True))
-        , RExists (\[_, y] -> isError y)]
-    , checkExpr "tests/TestFiles/Coercions/NewType1.hs" 400 "getRIntFloat"
-        [ AtLeast 2
-        , RExists (\[_, y] -> isFloat y (const True))
-        , RExists (\[_, y] -> isError y)]
-    , checkExpr "tests/TestFiles/Coercions/NewType1.hs" 400 "getCIntFloatDouble"
-        [ AtLeast 2
-        , RExists (\[_, y] -> isFloat y (const True))
-        , RExists (\[_, y] -> isError y)]
-    , checkExpr "tests/TestFiles/Coercions/NewType1.hs" 400 "getRIntFloatX'"
-        [ AtLeast 2
-        , RExists (\[x, y] -> inCast x (\x' -> dcInAppHasName "TR" x' 4) (const True)
-                          && isInt y (const True))
-        , RExists (\[_, y] -> isError y)]
     , checkInputOutput "tests/TestFiles/Coercions/BadCoerce.hs" "f" 400 [AtLeast 1]
     , checkExpr "tests/TestFiles/Expr.hs" 400 "leadingLams" [AtLeast 5, RForAll (\[_, y] -> noUndefined y)]
 
