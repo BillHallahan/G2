@@ -530,14 +530,14 @@ testFileTests = testGroup "TestFiles"
                                                            , ("diffAge", 400, [AtLeast 1])
                                                            , ("yearBefore", 400, [AtLeast 5])]
     , checkInputOutputs "tests/TestFiles/Coercions/NewType1.hs" [ ("add1N4", 400, [Exactly 1])
-                                                           , ("f", 400, [Exactly 1])
-                                                           , ("g", 400, [Exactly 1])
-                                                           , ("mapWInt", 400, [AtLeast 2])
-                                                           , ("appLeftFloat", 400, [AtLeast 2])
-                                                           , ("getLIntFloat", 400, [AtLeast 2])
-                                                           , ("getRIntFloat", 400, [AtLeast 2])
-                                                           , ("getCIntFloatDouble", 400, [AtLeast 2])
-                                                           , ("getRIntFloatX'", 400, [AtLeast 2])]
+                                                                , ("f", 400, [Exactly 1])
+                                                                , ("g", 400, [Exactly 1])
+                                                                , ("mapWInt", 400, [AtLeast 2])
+                                                                , ("appLeftFloat", 400, [AtLeast 2])
+                                                                , ("getLIntFloat", 400, [AtLeast 2])
+                                                                , ("getRIntFloat", 400, [AtLeast 2])
+                                                                , ("getCIntFloatDouble", 400, [AtLeast 2])
+                                                                , ("getRIntFloatX'", 400, [AtLeast 2])]
 
     , checkInputOutput "tests/TestFiles/Coercions/BadCoerce.hs" "f" 400 [AtLeast 1]
     , checkExpr "tests/TestFiles/Expr.hs" 400 "leadingLams" [AtLeast 5, RForAll (\[_, y] -> noUndefined y)]

@@ -1,15 +1,15 @@
-module NewType1 ( Age (..)
-                , Years (..)
-                , born
-                , diffAge
-                , yearPasses
-                , age
-                , Year (..)
-                , YearTracker (..)
-                , oneAD
-                , yearBefore
-                , yearAfter
-                , yearBefore2) where
+module Age ( Age (..)
+           , Years (..)
+           , born
+           , diffAge
+           , yearPasses
+           , age
+           , Year (..)
+           , YearTracker (..)
+           , oneAD
+           , yearBefore
+           , yearAfter
+           , yearBefore2) where
 
 newtype Age = Age Int deriving Eq
 newtype Years = Years Int deriving Eq
