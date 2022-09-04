@@ -537,7 +537,7 @@ testFileTests = testGroup "TestFiles"
                                                            , ("getLIntFloat", 400, [AtLeast 2])
                                                            , ("getRIntFloat", 400, [AtLeast 2])
                                                            , ("getCIntFloatDouble", 400, [AtLeast 2])
-                                                           , ("getRIntFloatX", 400, [AtLeast 2])]
+                                                           , ("getRIntFloatX'", 400, [AtLeast 2])]
 
     , checkInputOutput "tests/TestFiles/Coercions/BadCoerce.hs" "f" 400 [AtLeast 1]
     , checkExpr "tests/TestFiles/Expr.hs" 400 "leadingLams" [AtLeast 5, RForAll (\[_, y] -> noUndefined y)]
