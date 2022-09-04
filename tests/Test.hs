@@ -138,29 +138,29 @@ sampleTests = testGroup "Samples"
     , checkExprAssumeAssert "tests/Samples/McCarthy91.hs" 1000 (Just "greaterThanNot10Less") Nothing "mccarthy"
         [Exactly 0]
 
-    , checkExpr "tests/Samples/GetNth.hs" 600 "getNth" [AtLeast 10, RForAll getNthTest]
-    , checkExpr "tests/Samples/GetNthPoly.hs" 600 "getNthInt" [AtLeast 10, RForAll getNthErrTest]
-    , checkExpr "tests/Samples/GetNthPoly.hs" 600 "getNthX" [AtLeast 10, RForAll getNthErrGenTest]
-    , checkExpr "tests/Samples/GetNthPoly.hs" 600 "getNthPeano" [AtLeast 10, RForAll getNthErrGenTest]
-    , checkExpr "tests/Samples/GetNthPoly.hs" 600 "getNthCListInt" [AtLeast 10, RForAll getNthErrGenTest2']
-    , checkExpr "tests/Samples/GetNthPoly.hs" 600 "getNthCListX" [AtLeast 10, RForAll getNthErrGenTest2]
-    , checkExpr "tests/Samples/GetNthPoly.hs" 1000 "getNth" [AtLeast 10]
+    , checkInputOutput "tests/Samples/GetNth.hs" "getNth" 600 [AtLeast 10]
+    , checkInputOutputs "tests/Samples/GetNthPoly.hs" [ ("getNthInt", 600, [AtLeast 10])
+                                                      , ("getNthX", 600, [AtLeast 10])
+                                                      , ("getNthPeano", 600, [AtLeast 10])
+                                                      , ("getNthCListInt", 600, [AtLeast 10])
+                                                      , ("getNthCListX", 600, [AtLeast 10])
+                                                      , ("getNth", 1000, [AtLeast 10])
 
-    , checkExpr "tests/Samples/GetNthPoly.hs" 1000 "cfmapInt" [AtLeast 10, RForAll cfmapTest]
-    , checkExpr "tests/Samples/GetNthPoly.hs" 1600 "cfmapIntX" [AtLeast 10, RForAll cfmapTest]
-    , checkExpr "tests/Samples/GetNthPoly.hs" 600 "cfmapIntCListInt" [AtLeast 2, RForAll cfmapTest]
+                                                      , ("cfmapInt", 1000, [AtLeast 10])
+                                                      , ("cfmapIntX", 1600, [AtLeast 10])
+                                                      , ("cfmapIntCListInt", 600, [AtLeast 2]) ]
 
     , checkExprReaches "tests/Samples/GetNthErr.hs" 800 Nothing Nothing (Just "error") "getNth"
         [AtLeast 8, RForAll errors]
 
-    , checkExpr "tests/Samples/FoldlUses.hs" 1600 "sum" [AtLeast 3]
-    , checkExpr "tests/Samples/FoldlUses.hs" 1000 "dotProd" [AtLeast 3]
+    , checkInputOutputs "tests/Samples/FoldlUses.hs" [ ("sum_foldl", 1600, [AtLeast 3])
+                                                     , ("dotProd", 1000, [AtLeast 3]) ]
 
-    , checkExpr "tests/Samples/FoldlUsesPoly.hs" 600 "sumMinAndMax" [AtLeast 10]
-    , checkExpr "tests/Samples/FoldlUsesPoly.hs" 400 "maxes" [AtLeast 10]
-    , checkExpr "tests/Samples/FoldlUsesPoly.hs" 400 "switchInt" [AtLeast 1]
-    , checkExpr "tests/Samples/FoldlUsesPoly.hs" 400 "getInInt" [AtLeast 1]
-    , checkExpr "tests/Samples/FoldlUsesPoly.hs" 400 "switchP" [AtLeast 1]
+    , checkInputOutputs "tests/Samples/FoldlUsesPoly.hs" [ ("sumMinAndMax", 600, [AtLeast 10])
+                                                         , ("maxes", 400, [AtLeast 10])
+                                                         , ("switchInt", 400, [AtLeast 1])
+                                                         , ("getInInt", 400, [AtLeast 1])
+                                                         , ("switchP", 400, [AtLeast 1]) ]
     ]
 
 liquidTests :: TestTree
@@ -343,7 +343,7 @@ liquidTests = testGroup "Liquid"
     , checkLiquid "tests/Liquid/Polymorphism/Poly1.hs" "f" 1000 [Exactly 0]
     , checkLiquid "tests/Liquid/Polymorphism/Poly2.hs" "f" 600 [Exactly 0]
 
-    , checkLiquid "tests/Liquid/Sets/Sets1.hs" "prop_union_assoc" 2200 [AtLeast 2]
+    , checkLiquid "tests/Liquid/Sets/Sets1.hs" "prop_union_assoc" 2000 [AtLeast 2]
     , checkLiquid "tests/Liquid/Sets/Sets1.hs" "prop_intersection_comm" 1000 [AtLeast 5]
     , checkLiquid "tests/Liquid/Sets/Sets2.hs" "badIdList" 1000 [AtLeast 1]
     , checkLiquid "tests/Liquid/Sets/Sets2.hs" "append" 1000 [AtLeast 1]
@@ -422,11 +422,11 @@ testFileTests = testGroup "TestFiles"
 
     , checkExpr "tests/TestFiles/Defunc1.hs" 400 "f"
         [RExists defunc1Add1, RExists defunc1Multiply2, RExists defuncB, AtLeast 3]
-    , checkExpr "tests/TestFiles/Defunc1.hs" 400 "x" [AtLeast 1]
-    , checkExpr "tests/TestFiles/Defunc1.hs" 600 "mapYInt" [AtLeast 1]
-    , checkExpr "tests/TestFiles/Defunc1.hs" 600 "makeMoney" [AtLeast 2]
-    , checkExpr "tests/TestFiles/Defunc1.hs" 1600 "compZZ" [AtLeast 2, RForAll (\[_, _, _, x] -> getBoolB x not)]
-    , checkExpr "tests/TestFiles/Defunc1.hs" 1600 "compZZ2" [AtLeast 2, RForAll (\[_, _, _, x] -> getBoolB x not)]
+    , checkInputOutputs "tests/TestFiles/Defunc1.hs" [ ("x", 400, [AtLeast 1])
+                                                     , ("mapYInt", 600, [AtLeast 1])
+                                                     , ("makeMoney", 600, [AtLeast 2])
+                                                     , ("compZZ", 1600, [AtLeast 2])
+                                                     , ("compZZ2", 1600, [AtLeast 2]) ]
 
     , checkExpr "tests/TestFiles/Defunc2.hs" 400 "funcMap" [RForAll defunc2Check, AtLeast 30]
 
@@ -484,17 +484,17 @@ testFileTests = testGroup "TestFiles"
         [ RExists (\[App _ (Lit (LitInt x)), App _ (Lit (LitInt y))] -> x == 4 && y == 1)
         , RExists (\[App _ (Lit (LitInt x)), App _ (Lit (LitInt y))] -> x /= 4 && y == 1) ]
     
-    , checkExpr "tests/TestFiles/Error/Error1.hs" 400 "f" [AtLeast 1, RForAll(errors)]
-    , checkExpr "tests/TestFiles/Error/Error1.hs" 400 "g" [AtLeast 1, RForAll(errors)]
-    , checkExpr "tests/TestFiles/Error/Error2.hs" 400 "f" [AtLeast 1, RForAll(errors)]
-    , checkExpr "tests/TestFiles/Error/Error3.hs" 400 "f" [AtLeast 1, RForAll(errors)]
-    , checkExpr "tests/TestFiles/Error/Error3.hs" 400 "g" [AtLeast 1, RForAll(not . errors)]
-    , checkExpr "tests/TestFiles/Error/Undefined1.hs" 400 "undefined1" [AtLeast 1, RForAll(errors)]
-    , checkExpr "tests/TestFiles/Error/Undefined1.hs" 400 "undefined2" [AtLeast 1, RForAll(errors)]
-    , checkExpr "tests/TestFiles/Error/IrrefutError.hs" 400 "f" [AtLeast 2, RExists(errors)]
+    , checkInputOutputs "tests/TestFiles/Error/Error1.hs" [ ("f", 400, [AtLeast 1])
+                                                          , ("g", 400, [AtLeast 1])
+                                                          , ("f", 400, [AtLeast 1])
+                                                          , ("f", 400, [AtLeast 1])
+                                                          , ("g", 400, [AtLeast 1]) ]
+    , checkInputOutputs "tests/TestFiles/Error/Undefined1.hs" [ ("undefined1", 400, [AtLeast 1])
+                                                              , ("undefined2", 400, [AtLeast 1])]
+    , checkInputOutput "tests/TestFiles/Error/IrrefutError.hs" "f" 400 [AtLeast 2]
 
-    , checkExpr "tests/TestFiles/BadNames1.hs" 400 "abs'" [Exactly 2]
-    , checkExpr "tests/TestFiles/BadNames1.hs" 400 "xswitch" [AtLeast 10]
+    , checkInputOutputs "tests/TestFiles/BadNames1.hs" [ ("abs'", 400, [Exactly 2])
+                                                       , ("xswitch", 400, [AtLeast 10]) ]
 
     , checkExpr "tests/TestFiles/PolyDataTy1.hs" 400 "f"
         [Exactly 2, RExists (\[x, _, y] -> x == y), RExists (\[_, App _ x, y] -> x == y)]
@@ -524,79 +524,39 @@ testFileTests = testGroup "TestFiles"
     , checkExpr "tests/TestFiles/Deriving/DerivingComp.hs" 800 "eq" [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
     , checkExpr "tests/TestFiles/Deriving/DerivingComp.hs" 800 "lt" [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
 
-    , checkExpr "tests/TestFiles/Coercions/Age.hs" 400 "born"
-        [ Exactly 1
-        , RForAll (\[x] -> inCast x 
-                            (\x' -> appNthArgIs x' (Lit (LitInt 0) ==) 1) 
-                            (\(t1 :~ t2) -> isIntT t1 && typeNameIs t2 "Age"))]
-    , checkExpr "tests/TestFiles/Coercions/Age.hs" 400 "yearPasses"
-        [ AtLeast 1
-        , RForAll (\[x, y] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "Age")
-                           && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "Age") )]
-    , checkExpr "tests/TestFiles/Coercions/Age.hs" 400 "age"
-        [ AtLeast 1
-        , RForAll (\[x, y] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "Age") && isInt y (const True))]
-    , checkExpr "tests/TestFiles/Coercions/Age.hs" 400 "diffAge"
-        [ AtLeast 1
-        , RForAll (\[x, y, z] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "Age") 
-                              && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "Age")
-                              && inCast z (const True) (\(_ :~ t2) -> typeNameIs t2 "Years"))]
-    , checkExpr "tests/TestFiles/Coercions/Age.hs" 400 "yearBefore" [ AtLeast 5 ]
-    , checkExpr "tests/TestFiles/Coercions/NewType1.hs" 400 "add1N4"
-        [ Exactly 1
-        , RForAll (\[x, y] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "N4") 
-                           && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "N4"))]
-    , checkExpr "tests/TestFiles/Coercions/NewType1.hs" 400 "f"
-        [ Exactly 1
-        , RForAll (\[x, y] -> inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "NewX") && dcHasName "X" y)]
-    , checkExpr "tests/TestFiles/Coercions/NewType1.hs" 400 "g"
-        [ Exactly 1
-        , RForAll (\[x, y] -> dcHasName "X" x && inCast y (const True) (\(_ :~ t2) -> typeNameIs t2 "NewX"))]
+    , checkInputOutputs "tests/TestFiles/Coercions/Age.hs" [ ("born", 400, [Exactly 1])
+                                                           , ("yearPasses", 400, [AtLeast 1])
+                                                           , ("age", 400, [AtLeast 1])
+                                                           , ("diffAge", 400, [AtLeast 1])
+                                                           , ("yearBefore", 400, [AtLeast 5])]
+    , checkInputOutputs "tests/TestFiles/Coercions/NewType1.hs" [ ("add1N4", 400, [Exactly 1])
+                                                                , ("f", 400, [Exactly 1])
+                                                                , ("g", 400, [Exactly 1])
+                                                                , ("mapWInt", 400, [AtLeast 2])
+                                                                , ("appLeftFloat", 400, [AtLeast 2])
+                                                                , ("getLIntFloat", 400, [AtLeast 2])
+                                                                , ("getRIntFloat", 400, [AtLeast 2])
+                                                                , ("getCIntFloatDouble", 400, [AtLeast 2])
+                                                                , ("getRIntFloatX'", 400, [AtLeast 2])]
 
-    , checkExpr "tests/TestFiles/Coercions/NewType1.hs" 400 "mapWInt"
-        [ AtLeast 2
-        , RForAll (\[_, x, y] -> isError y
-                             || (inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "W")
-                             &&  inCast x (const True) (\(_ :~ t2) -> typeNameIs t2 "W"))) ]
-
-    , checkExpr "tests/TestFiles/Coercions/NewType1.hs" 400 "appLeftFloat"
-        [ AtLeast 2
-        , RExists (\[_, _, y] -> inCast y (\y' -> dcInAppHasName "L" y' 3) (const True))
-        , RExists (\[_, _, y] -> inCast y (\y' -> dcInAppHasName "R" y' 3) (const True))]
-    , checkExpr "tests/TestFiles/Coercions/NewType1.hs" 400 "getLIntFloat"
-        [ AtLeast 2
-        , RExists (\[_, y] -> isInt y (const True))
-        , RExists (\[_, y] -> isError y)]
-    , checkExpr "tests/TestFiles/Coercions/NewType1.hs" 400 "getRIntFloat"
-        [ AtLeast 2
-        , RExists (\[_, y] -> isFloat y (const True))
-        , RExists (\[_, y] -> isError y)]
-    , checkExpr "tests/TestFiles/Coercions/NewType1.hs" 400 "getCIntFloatDouble"
-        [ AtLeast 2
-        , RExists (\[_, y] -> isFloat y (const True))
-        , RExists (\[_, y] -> isError y)]
-    , checkExpr "tests/TestFiles/Coercions/NewType1.hs" 400 "getRIntFloatX'"
-        [ AtLeast 2
-        , RExists (\[x, y] -> inCast x (\x' -> dcInAppHasName "TR" x' 4) (const True)
-                          && isInt y (const True))
-        , RExists (\[_, y] -> isError y)]
-    , checkInputOutput "tests/TestFiles/Coercions/BadCoerce.hs" "BadCoerce" "f" 400 [AtLeast 1]
+    , checkInputOutput "tests/TestFiles/Coercions/BadCoerce.hs" "f" 400 [AtLeast 1]
     , checkExpr "tests/TestFiles/Expr.hs" 400 "leadingLams" [AtLeast 5, RForAll (\[_, y] -> noUndefined y)]
 
     , checkExprAssume "tests/TestFiles/Subseq.hs" 1200 (Just "assume") "subseqTest" [AtLeast 1]
 
-    , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "con" 300 [AtLeast 10]
-    , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "eq" 700 [AtLeast 10]
-    , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "eqGt1" 700 [AtLeast 10]
-    , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "capABC" 150 [AtLeast 10]
-    , checkInputOutput "tests/TestFiles/Strings/Strings1.hs" "Strings1" "appendEq" 500 [AtLeast 5]
+    , checkInputOutputs "tests/TestFiles/Strings/Strings1.hs" [ ("con", 300, [AtLeast 10])
+                                                              , ("eq", 700, [AtLeast 10])
+                                                              , ("eqGt1", 700, [AtLeast 10])
+                                                              , ("capABC", 150, [AtLeast 10])
+                                                              , ("appendEq", 500, [AtLeast 5]) ]
+
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
 
     , checkExpr "tests/TestFiles/Sets/SetInsert.hs" 700 "prop" [AtLeast 3]
     
-    , checkInputOutput "tests/TestFiles/BadDC.hs" "BadDC" "f" 400 [AtLeast 5]
-    , checkInputOutput "tests/TestFiles/BadDC.hs" "BadDC" "g" 400 [AtLeast 3]
+    , checkInputOutputs "tests/TestFiles/BadDC.hs" [ ("f", 400, [AtLeast 5])
+                                                   , ("g", 400, [AtLeast 3]) ]
     -- , checkInputOutput "tests/TestFiles/BadBool.hs" "BadBool" "f" 1400 [AtLeast 1]
     -- , checkExprAssumeAssert "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2
     --     [ AtLeast 2
@@ -609,46 +569,49 @@ testFileTests = testGroup "TestFiles"
 baseTests ::  TestTree
 baseTests = testGroup "Base"
     [
-      checkInputOutput "tests/Samples/Peano.hs" "Peano" "add" 400 [AtLeast 4]
-    , checkInputOutput "tests/BaseTests/ListTests.hs" "ListTests" "test" 1000 [AtLeast 1]
-    , checkInputOutput "tests/BaseTests/ListTests.hs" "ListTests" "maxMap" 1000 [AtLeast 4]
-    , checkInputOutput "tests/BaseTests/ListTests.hs" "ListTests" "minTest" 1000 [AtLeast 2]
-    , checkInputOutput "tests/BaseTests/ListTests.hs" "ListTests" "foldrTest2" 1000 [AtLeast 1]
-    , checkInputOutput "tests/BaseTests/Tuples.hs" "Tuples" "addTupleElems" 1000 [AtLeast 2]
+      checkInputOutput "tests/Samples/Peano.hs" "add" 400 [AtLeast 4]
 
-    , checkInputOutput "tests/BaseTests/MaybeTest.hs" "MaybeTest" "headMaybeInt" 1000 [AtLeast 2]
-    , checkInputOutput "tests/BaseTests/MaybeTest.hs" "MaybeTest" "sumN" 1000 [AtLeast 6]
-    , checkInputOutput "tests/BaseTests/MaybeTest.hs" "MaybeTest" "lengthN" 1000 [AtLeast 6]
+    , checkInputOutputs "tests/BaseTests/ListTests.hs" [ ("test", 1000, [AtLeast 1])
+                                                       , ("maxMap", 1000, [AtLeast 4])
+                                                       , ("minTest", 1000, [AtLeast 2])
+                                                       , ("foldrTest2", 1000, [AtLeast 1]) ]
 
-    , checkInputOutput "tests/BaseTests/Other.hs" "Other" "check4VeryEasy2" 600 [AtLeast 1]
+    , checkInputOutput "tests/BaseTests/Tuples.hs" "addTupleElems" 1000 [AtLeast 2]
+
+    , checkInputOutputs "tests/BaseTests/MaybeTest.hs" [ ("headMaybeInt", 1000, [AtLeast 2])
+                                                       , ("sumN", 1000, [AtLeast 6])
+                                                       , ("lengthN", 1000, [AtLeast 6]) ]
+
+    , checkInputOutput "tests/BaseTests/Other.hs" "check4VeryEasy2" 600 [AtLeast 1]
     ]
 
 primTests :: TestTree
 primTests = testGroup "Prims"
     [
-      checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "quotI1" 1000 [AtLeast 4]
-    , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "quotI2" 1000 [AtLeast 4]
-    , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "remI1" 1000 [AtLeast 4]
-    , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "remI2" 1000 [AtLeast 3]
-    , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "remI3" 1000 [AtLeast 1]
-    , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "remI4" 1000 [AtLeast 1]
+      checkInputOutputs "tests/Prim/Prim2.hs" [ ("quotI1", 1000, [AtLeast 4])
+                                              , ("quotI2", 1000, [AtLeast 4])
+                                              , ("remI1", 1000, [AtLeast 4])
+                                              , ("remI2", 1000, [AtLeast 3])
+                                              , ("remI3", 1000, [AtLeast 1])
+                                              , ("remI4", 1000, [AtLeast 1])
 
-    , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "p1List" 300000 [AtLeast 1]
-    , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "p2List" 700000 [AtLeast 1]
-    , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "integerToFloatList" 150000 [AtLeast 1]
+                                              , ("p1List", 300000, [AtLeast 1])
+                                              , ("p2List", 700000, [AtLeast 1])
 
-    , checkInputOutput "tests/Prim/Prim3.hs" "Prim3" "int2FloatTest" 1000 [AtLeast 1]
-    , checkInputOutput "tests/Prim/Prim3.hs" "Prim3" "int2DoubleTest" 1000 [AtLeast 1]
+                                              , ("integerToFloatList", 150000, [AtLeast 1]) ]
 
-    , checkInputOutput "tests/Prim/Prim4.hs" "Prim4" "divIntTest" 1500 [AtLeast 4]
-    , checkInputOutput "tests/Prim/Prim4.hs" "Prim4" "divIntegerTest" 1500 [AtLeast 1]
-    , checkInputOutput "tests/Prim/Prim4.hs" "Prim4" "divIntegerTest2" 1500 [AtLeast 4]
-    , checkInputOutput "tests/Prim/Prim4.hs" "Prim4" "divFloatTest" 1500 [AtLeast 1]
+    , checkInputOutputs "tests/Prim/Prim3.hs" [ ("int2FloatTest", 1000, [AtLeast 1])
+                                              , ("int2DoubleTest", 1000, [AtLeast 1]) ]
 
-    , checkInputOutput "tests/Prim/Chr.hs" "Chr" "lowerLetters" 9000 [AtLeast 1]
-    , checkInputOutput "tests/Prim/Chr.hs" "Chr" "allLetters" 9000 [AtLeast 1]
-    , checkInputOutput "tests/Prim/Chr.hs" "Chr" "printBasedOnChr" 1500 [AtLeast 7]
-    , checkInputOutput "tests/Prim/Chr.hs" "Chr" "printBasedOnOrd" 1500 [AtLeast 7]
+    , checkInputOutputs "tests/Prim/Prim4.hs" [ ("divIntTest", 1500, [AtLeast 4])
+                                              , ("divIntegerTest", 1500, [AtLeast 1])
+                                              , ("divIntegerTest2", 1500, [AtLeast 4])
+                                              , ("divFloatTest", 1500, [AtLeast 1]) ]
+
+    , checkInputOutputs "tests/Prim/Chr.hs" [ ("lowerLetters", 9000, [AtLeast 1])
+                                            , ("allLetters", 9000, [AtLeast 1])
+                                            , ("printBasedOnChr", 1500, [AtLeast 7])
+                                            , ("printBasedOnOrd", 1500, [AtLeast 7]) ]
     ]
 
 -- To Do Tests
@@ -688,14 +651,15 @@ todoTests = testGroup "To Do"
 
     , checkExpr "tests/TestFiles/TypeClass/TypeClass5.hs" 800 "run" [AtLeast 1]
     , checkExpr "tests/TestFiles/TypeClass/TypeClass5.hs" 800 "run2" [AtLeast 0]
-    , checkInputOutput "tests/Prim/Prim2.hs" "Prim2" "sqrtList" 10000 [AtLeast 1]
+    , checkInputOutput "tests/Prim/Prim2.hs" "sqrtList" 10000 [AtLeast 1]
     
-    , checkInputOutput "tests/BaseTests/MaybeTest.hs" "MaybeTest" "average" 2000 [AtLeast 6]
-    , checkInputOutput "tests/BaseTests/MaybeTest.hs" "MaybeTest" "averageF" 2000 [AtLeast 6]
-    , checkInputOutput "tests/BaseTests/MaybeTest.hs" "MaybeTest" "maybeAvg" 200 [AtLeast 6]
+    , checkInputOutputs "tests/BaseTests/MaybeTest.hs" [ ("average", 2000, [AtLeast 6])
+                                                       , ("averageF", 2000, [AtLeast 6])
+                                                       , ("maybeAvg", 200, [AtLeast 6])
+                                                       ]
 
-    , checkInputOutput "tests/Prim/Prim3.hs" "Prim3" "float2IntTest" 1000 [AtLeast 1]
-    , checkInputOutput "tests/Prim/Prim3.hs" "Prim3" "double2IntTest" 1000 [AtLeast 1]
+    , checkInputOutputs "tests/Prim/Prim3.hs" [ ("float2IntTest", 1000, [AtLeast 1])
+                                              , ("double2IntTest", 1000, [AtLeast 1])]
     ]
 
 data ToDo = RunMain

@@ -52,22 +52,27 @@ runCheck' proj src modN entry chAll gflags s ars out = do
         let exN = mkModuleName "Control.Exception"
         let exImD = simpleImportDecl exN
 
+        let coerceN = mkModuleName "Data.Coerce"
+        let coerceImD = simpleImportDecl coerceN
+
         let mdN = mkModuleName modN
         let imD = simpleImportDecl mdN
 
-        setContext [IIDecl prImD, IIDecl exImD, IIDecl imD]
+        setContext [IIDecl prImD, IIDecl exImD, IIDecl coerceImD, IIDecl imD]
 
         let Left (v, _) = findFunc (T.pack entry) (Just $ T.pack modN) (expr_env s)
         let e = mkApp $ Var v:ars
         let arsStr = printHaskell s e
         let outStr = printHaskell s out
 
-        let outType = mkTypeHaskell (typeOf out)
+        let arsType = mkTypeHaskell (typeOf e)
+            outType = mkTypeHaskell (typeOf out)
 
         let chck = case outStr == "error" of
                         False -> "try (evaluate (" ++ arsStr ++ " == " ++ "("
                                         ++ outStr ++ " :: " ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
-                        True -> "try (evaluate (" ++ arsStr ++ " == " ++ arsStr ++ ")) :: IO (Either SomeException Bool)"
+                        True -> "try (evaluate ( (" ++ arsStr ++ " :: " ++ arsType ++
+                                                        ") == " ++ arsStr ++ ")) :: IO (Either SomeException Bool)"
 
         v' <- compileExpr chck
 

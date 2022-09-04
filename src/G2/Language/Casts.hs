@@ -66,7 +66,7 @@ splitCast ng (Cast e ((TyForAll (NamedTyBndr ni) t2) :~ (TyForAll (NamedTyBndr n
                         e
                         (Cast (Var i) (t1 :~ t1'))
                     )
-                    (t2 :~ t2')
+                    (rename (idName ni) (idName i) t2 :~ rename (idName ni') (idName i) t2')
                 )
     in
     (e', ng')
