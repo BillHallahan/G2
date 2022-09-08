@@ -65,6 +65,7 @@ def call_with_timing(file, timeout, passed_args = []):
     except IndexError:
         counts = { "negated_model": None
                  , "searched_below" : None
+                 , "backtracks": None
                  , "loop_count" : None }
         if res == "Timeout":
             check_safe = "Timeout";
@@ -80,20 +81,24 @@ def get_opt_counts(res):
     if check_safe == "Safe":
         negated_model = res.splitlines()[-3].decode('utf-8')
         searched_below = res.splitlines()[-4].decode('utf-8')
-        loop_count = res.splitlines()[-5].decode('utf-8')
+        backtrack_count = res.splitlines()[-5].decode('utf-8')
+        loop_count = res.splitlines()[-6].decode('utf-8')
 
         counts = { "negated_model": negated_model
                  , "searched_below" : searched_below
+                 , "backtracks": backtrack_count
                  , "loop_count" : loop_count }
     else:
         counts = { "negated_model": None
                  , "searched_below" : None
+                 , "backtracks": None
                  , "loop_count" : None }
     return counts
 
 def empty_counts():
     return { "negated_model": None
            , "searched_below" : None
+           , "backtracks": None
            , "loop_count" : None }
 
 
@@ -225,6 +230,7 @@ def create_table(log):
             p_time = "timeout"
 
         p_loop_count = val_or_NA(counts["loop_count"])
+        p_backtracks = val_or_NA(counts["backtracks"])
         p_searched_below = val_or_NA(counts["searched_below"])
         p_negated_model = val_or_NA(counts["negated_model"])
 
@@ -244,6 +250,7 @@ def create_table(log):
             p_no_n_mdl_elapsed = "-"
 
         p_no_fc_loop_count = val_or_NA(no_fc_counts["loop_count"])
+        p_no_fc_loop_count = val_or_NA(no_fc_counts["backtracks"])
         p_no_fc_searched_below = val_or_NA(no_fc_counts["searched_below"])
         p_no_fc_negated_model = val_or_NA(no_fc_counts["negated_model"])
 
@@ -257,10 +264,10 @@ def create_table(log):
     print("\\end{tabular}");
 
 def create_simple_table(log):
-    print("\\begin{tabular}{| l | c | c | c | c | c | c |}");
+    print("\\begin{tabular}{| l | c | c | c | c | c | c | c |}");
     print("\\hline");
-    print(" &  &  &  & & \# Level & \# Negated \\\\ \\hline");
-    print("File & Functions & Levels & Time (s) & \# Loops & Decensions & Models \\\\ \\hline");
+    print(" &  &  &  & & & \# Level & \# Negated \\\\ \\hline");
+    print("File & Functions & Levels & Time (s) & \# Loops & \# Backtracks & Decensions & Models \\\\ \\hline");
 
     for (file, elapsed, funcs, depth, counts
              , no_fc_time, no_fc_counts
@@ -273,6 +280,7 @@ def create_simple_table(log):
             p_time = "timeout"
 
         p_loop_count = val_or_NA(counts["loop_count"])
+        p_backtracks = val_or_NA(counts["backtracks"])
         p_searched_below = val_or_NA(counts["searched_below"])
         p_negated_model = val_or_NA(counts["negated_model"])
 
@@ -282,12 +290,14 @@ def create_simple_table(log):
             p_no_fc_time = "timeout"
 
         p_no_fc_loop_count = val_or_NA(no_fc_counts["loop_count"])
+        p_no_fcbacktracks = val_or_NA(no_fc_counts["backtracks"])
         p_no_fc_searched_below = val_or_NA(no_fc_counts["searched_below"])
         p_no_fc_negated_model = val_or_NA(no_fc_counts["negated_model"])
 
         print(file_clean  + " & " + funcs + " & " + depth + " & "
                                   + p_time + " & " # + p_no_fc_time + " & "
                                   + p_loop_count + " & " # + p_no_fc_loop_count + " & "
+                                  + p_backtracks + " & " # + p_no_fc_loop_count + " & "
                                   + p_searched_below + " & " # + p_no_fc_searched_below + " & "
                                   + p_negated_model # + " & " + p_no_fc_negated_model
                                   + "\\\\ \\hline");
