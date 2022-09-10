@@ -31,6 +31,7 @@ module G2.Liquid.Inference.InfStack ( InfStack
 
                                     , Counters (..)
                                     , incrLoopCountLog
+                                    , incrBackTrackLog
                                     , incrSearchBelowLog
                                     , incrNegatedModelLog ) where
 
@@ -63,6 +64,7 @@ mapEvent _ UpdateMeasures = UpdateMeasures
 mapEvent _ UpdateEvals = UpdateEvals
 
 data Counters = Counters { loop_count :: HM.HashMap (HS.HashSet Name) Int
+                         , backtracks :: Int
                          , searched_below :: Int
                          , negated_models :: Int }
 
@@ -138,7 +140,7 @@ withConfigs f m = do
 
 -- Counters
 newCounter :: Counters
-newCounter = Counters { loop_count = HM.empty, searched_below = 0, negated_models = 0 }
+newCounter = Counters { loop_count = HM.empty, backtracks = 0, searched_below = 0, negated_models = 0 }
 
 incrLoopCountLog :: Monad m => [Name] -> InfStack m ()
 incrLoopCountLog ns =
@@ -150,6 +152,10 @@ incrLoopCountLog ns =
                                                            Nothing -> Just 0) hs_ns lcs
                             }
                     )
+incrBackTrackLog :: Monad m => InfStack m ()
+incrBackTrackLog =
+    lift . lift $ S.modify (\c@(Counters { backtracks = i }) -> c { backtracks = i + 1 })
+
 
 incrSearchBelowLog :: Monad m => InfStack m ()
 incrSearchBelowLog =
