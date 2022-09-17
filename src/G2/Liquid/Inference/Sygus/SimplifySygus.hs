@@ -106,7 +106,7 @@ elimSimpleDTsTerms simple_srts (TermExists sv t) =
                                             case M.lookup (sortSymb srt) simple_srts of
                                                 Just (_, as) ->
                                                     let
-                                                        new_as = map (\(SortedVar s srt) -> SortedVar ("new__" ++ s) srt) as
+                                                        new_as = map (\(SortedVar s srt') -> SortedVar ("new__" ++ s) srt') as
                                                         els' = insertArgsES n new_as els
                                                     in
                                                     (els', new_as)
@@ -135,8 +135,8 @@ elimSimpleDTsList simple_srts te@(TermExists _ _) = [elimSimpleDTsTerms simple_s
 elimSimpleDTsList _ t = error $ "elimSimpleDTsList: Unhandled term " ++ show t
 
 elimExistentials :: EliminatedSimple -> Term -> Term
-elimExistentials es t@(TermIdent _) = t
-elimExistentials es t@(TermLit _) = t
+elimExistentials _ t@(TermIdent _) = t
+elimExistentials _ t@(TermLit _) = t
 elimExistentials es (TermCall i ts) =
     swapToIdent . TermCall i $ concatMap (elimExistentialsList es) ts
 elimExistentials _ t = error $ "elimExistentials: Unhandled term " ++ show t
@@ -147,7 +147,7 @@ elimExistentialsList es t@(TermIdent (ISymb s)) =
         Just as -> map (\(SortedVar i _) -> TermIdent $ ISymb i) as
         Nothing -> [t]
 elimExistentialsList _ t@(TermLit _) = [t]
-elimExistentialsList es t@(TermCall i@(ISymb s) ts)
+elimExistentialsList es (TermCall i@(ISymb s) ts)
     | Just _ <- lookupArgsES s es = ts
     | otherwise = [swapToIdent . TermCall i $ map (elimExistentials es) ts]
 elimExistentialsList _ t = error $ "elimExistentialsList: Unhandled term " ++ show t

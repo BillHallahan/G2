@@ -17,6 +17,7 @@ import G2.Language.Naming
 import G2.Language.Support
 import G2.Language.Syntax
 import G2.Language.Typing
+import G2.Liquid.Config
 import G2.Liquid.ConvertCurrExpr
 import G2.Liquid.Helpers
 import G2.Liquid.Inference.Config
@@ -35,13 +36,11 @@ import qualified G2.Liquid.Types as G2LH
 import G2.Solver
 import G2.Translation
 
-import Language.Haskell.Liquid.Types hiding (Config, cls, names, measures)
 import Language.Haskell.Liquid.Types as LH
 
 import Control.Monad.IO.Class 
 import Control.Monad.Reader
 import Data.Either
-import Data.Either.Extra
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as HM
 import Data.List
@@ -50,12 +49,13 @@ import qualified Data.Text as T
 
 -- Run inference, with an extra, final check of correctness at the end.
 -- Assuming inference is working correctly, this check should neve fail.
-inferenceCheck :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO (State [FuncCall], Either [CounterExample] GeneratedSpecs)
-inferenceCheck infconfig config proj fp lhlibs = do
-    (ghci, lhconfig) <- getGHCI infconfig proj fp lhlibs
-    (s, res, _, loops) <- inference' infconfig config lhconfig ghci proj fp lhlibs
+inferenceCheck :: InferenceConfig -> G2.Config -> LHConfig ->  [FilePath] -> [FilePath] -> IO (State [FuncCall], Either [CounterExample] GeneratedSpecs)
+inferenceCheck infconfig config g2lhconfig proj fp = do
+    (ghci, lhconfig) <- getGHCI infconfig proj fp
+    (s, res, _, loops) <- inference' infconfig config g2lhconfig lhconfig ghci proj fp
     print $ loop_count loops
     print . sum . HM.elems $ loop_count loops
+    print $ backtracks loops
     print $ searched_below loops
     print $ negated_models loops
     case res of
@@ -66,31 +66,31 @@ inferenceCheck infconfig config proj fp lhlibs = do
                 _ -> error "inferenceCheck: Check failed"
         _ -> return (s, res)
 
-inference :: InferenceConfig -> G2.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO (State [FuncCall], Either [CounterExample] GeneratedSpecs)
-inference infconfig config proj fp lhlibs = do
+inference :: InferenceConfig -> G2.Config -> LHConfig ->  [FilePath] -> [FilePath] -> IO (State [FuncCall], Either [CounterExample] GeneratedSpecs)
+inference infconfig config g2lhconfig proj fp = do
     -- Initialize LiquidHaskell
-    (ghci, lhconfig) <- getGHCI infconfig proj fp lhlibs
-    (s, res, timer, _) <- inference' infconfig config lhconfig ghci proj fp lhlibs
+    (ghci, lhconfig) <- getGHCI infconfig proj fp
+    (s, res, timer, _) <- inference' infconfig config g2lhconfig lhconfig ghci proj fp
     print . logToSecs . sumLog . getLog $ timer
     return (s, res)
 
 inference' :: InferenceConfig
            -> G2.Config
+           -> LHConfig
            -> LH.Config
            -> [GhcInfo]
            -> [FilePath]
            -> [FilePath]
-           -> [FilePath]
            -> IO (State [FuncCall], Either [CounterExample] GeneratedSpecs, Timer (Event Name), Counters)
-inference' infconfig config lhconfig ghci proj fp lhlibs = do
+inference' infconfig config g2lhconfig lhconfig ghci proj fp = do
     mapM_ (print . getQualifiers) ghci
 
-    (lrs, g2config', infconfig', main_mod) <- getInitState proj fp lhlibs ghci infconfig config
+    (lrs, g2config', g2lhconfig', infconfig', main_mod) <- getInitState proj fp ghci infconfig config g2lhconfig
     let nls = getNameLevels main_mod lrs
 
     putStrLn $ "nls = " ++ show nls
 
-    let configs = Configs { g2_config = g2config', lh_config = lhconfig, inf_config = infconfig'}
+    let configs = Configs { g2_config = g2config', g2lh_config = g2lhconfig', lh_config = lhconfig, inf_config = infconfig'}
         prog = newProgress
 
     SomeSMTSolver solver <- getSMT g2config'
@@ -106,19 +106,19 @@ inference' infconfig config lhconfig ghci proj fp lhlibs = do
 
 getInitState :: [FilePath]
              -> [FilePath]
-             -> [FilePath]
              -> [GhcInfo]
              -> InferenceConfig
              -> G2.Config
-             -> IO (LiquidReadyState, G2.Config, InferenceConfig, Maybe T.Text)
-getInitState proj fp lhlibs ghci infconfig config = do
+             -> LHConfig
+             -> IO (LiquidReadyState, G2.Config, LHConfig, InferenceConfig, Maybe T.Text)
+getInitState proj fp ghci infconfig config lhconfig = do
     let g2config = config { mode = Liquid
                           , steps = 2000 }
         transConfig = simplTranslationConfig { simpl = False }
-    (main_mod, exg2) <- translateLoaded proj fp lhlibs transConfig g2config
+    (main_mod, exg2) <- translateLoaded proj fp transConfig g2config
 
-    let (lrs, g2config', infconfig') = initStateAndConfig exg2 main_mod g2config infconfig ghci
-    return (lrs, g2config', infconfig', main_mod)
+    let (lrs, g2config', lhconfig', infconfig') = initStateAndConfig exg2 main_mod g2config lhconfig infconfig ghci
+    return (lrs, g2config', lhconfig', infconfig', main_mod)
 
 getNameLevels :: Maybe T.Text -> LiquidReadyState -> NameLevels
 getNameLevels main_mod =
@@ -197,10 +197,10 @@ inferenceL :: (MonadIO m, SMTConverter con)
            -> BlockedModels
            -> InfStack m InferenceRes
 inferenceL con iter ghci m_modname lrs nls evals meas_ex senv fc max_fc blk_mdls = do
-    let (fs, sf, below_sf) = case nls of
-                        (fs_:sf_:be) -> (fs_, sf_, be)
-                        ([fs_])-> (fs_, [], [])
-                        [] -> ([], [], [])
+    let sf = case nls of
+                        (_:sf_:_) -> sf_
+                        ([_])-> []
+                        [] -> []
 
     startLevelTimer (case nls of fs_:_ -> fs_; [] -> [])
     (resAtL, evals') <- inferenceB con iter ghci m_modname lrs nls evals meas_ex senv fc max_fc blk_mdls
@@ -307,6 +307,7 @@ inferenceB con iter ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls =
                 Crash e1 e2 -> error $ "inferenceB: LiquidHaskell crashed" ++ "\n" ++ show e1 ++ "\n" ++ e2
         SynthFail sf_fc -> do
             liftIO . putStrLn $ "synthfail fc = " ++ (printFCs lrs sf_fc)
+            incrBackTrackLog
             return $ (Raise meas_ex fc (unionFC max_fc sf_fc), evals')
 
 tryToGen :: Monad m =>
@@ -469,11 +470,11 @@ filterNamesTo ns (Unsafe unsafe) =
 filterNamesTo _ vr = vr
 
 limitedCounterfactual :: [Name] -> Configs -> Configs
-limitedCounterfactual ns cfgs@(Configs { g2_config = g2_c }) =
-    cfgs { g2_config = g2_c { counterfactual = Counterfactual
-                                             . CFOnly
-                                             . S.fromList
-                                             $ map (\(Name n m _ _) -> (n, m)) ns } }
+limitedCounterfactual ns cfgs@(Configs { g2lh_config = g2lh_c }) =
+    cfgs { g2lh_config = g2lh_c { counterfactual = Counterfactual
+                                                 . CFOnly
+                                                 . S.fromList
+                                                 $ map (\(Name n m _ _) -> (n, m)) ns } }
 
 genNewConstraints :: MonadIO m => 
                      [GhcInfo]

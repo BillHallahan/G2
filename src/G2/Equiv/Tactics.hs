@@ -8,9 +8,6 @@ module G2.Equiv.Tactics
     , Tactic
 
     , Lemmas (..)
-    , ProposedLemma
-    , ProvenLemma
-    , DisprovenLemma
 
     , isSWHNF
     , tryEquality
@@ -51,11 +48,9 @@ import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad.AST
 import qualified G2.Language.Typing as T
 
-import GHC.Generics (Generic)
 import Data.List
 import Data.Maybe
 import Data.Tuple
-import Data.Hashable
 import qualified Data.HashSet as HS
 import qualified G2.Solver as S
 
@@ -70,16 +65,11 @@ import qualified Data.HashMap.Lazy as HM
 import Data.Monoid ((<>))
 
 import G2.Execution.NormalForms
-import Control.Monad
 import Control.Monad.Extra
-
-import G2.Execution.Reducer
 
 import qualified Control.Monad.Writer.Lazy as W
 
 import Control.Exception
-
-import Debug.Trace
 
 -- the Bool value for Failure is True if a cycle has been found
 data TacticResult = Success (Maybe (Int, Int, StateET, StateET))
@@ -266,10 +256,6 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                                     et' = (track s2) { opp_env = E.empty }
                                     ls1 = s2 { expr_env = h2_', curr_expr = CurrExpr Evaluate e1', track = et' }
                                     ls2 = s2 { expr_env = h2_, curr_expr = CurrExpr Evaluate e2, track = et' }
-
-                                    -- TODO do these need any adjustments?
-                                    in1 = inlineFull (HS.toList ns) h1 h1'
-                                    in2 = inlineFull (HS.toList ns) h2 h2'
                                 in
                                 -- let pg = mkPrettyGuide (ls1, ls2) in
                                 -- trace ("LEMMA " ++ (folder_name $ track s2) ++ " " ++ (folder_name $ track s1)
@@ -426,14 +412,6 @@ altEquiv (LitAlt l1) (LitAlt l2) = l1 == l2
 altEquiv Default Default = True
 altEquiv _ _ = False
 
-validMap :: State t -> State t -> HM.HashMap Id Expr -> Bool
-validMap s1 s2 hm =
-  let hm_list = HM.toList hm
-      check (_, e) = (not $ isSWHNF $ s1 { curr_expr = CurrExpr Evaluate e })
-                  || (not $ isSWHNF $ s2 { curr_expr = CurrExpr Evaluate e })
-                  || isPrimType (typeOf e)
-  in all check hm_list
-
 validTotal :: StateET ->
               StateET ->
               HS.HashSet Name ->
@@ -441,7 +419,7 @@ validTotal :: StateET ->
               Bool
 validTotal s1 s2 ns hm =
   let hm_list = HM.toList hm
-      total_hs = total $ track s1
+      total_hs = total_vars $ track s1
       check (i, e) = (not $ (idName i) `elem` total_hs) || (totalExpr s2 ns [] e)
   in all check hm_list
 
@@ -913,8 +891,8 @@ replaceMoreRestrictiveSubExpr solver ns lemma s@(State { curr_expr = CurrExpr er
       Just new_vars -> let new_ids = map fst new_vars
                            h = foldr E.insertSymbolic (expr_env s) new_ids
                            new_total = map (idName . fst) $ filter snd new_vars
-                           total' = foldr HS.insert (total $ track s) new_total
-                           track' = (track s) { total = total' }
+                           total' = foldr HS.insert (total_vars $ track s) new_total
+                           track' = (track s) { total_vars = total' }
                            s' = s {
                              curr_expr = CurrExpr er e
                            , expr_env = h
@@ -954,7 +932,7 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma
                     ids_r = E.symbolicIds $ expr_env rhs_s
                     ids = nub (ids_l ++ ids_r)
                     new_ids = filter (\(Id n _) -> not (E.member n (expr_env s2) || E.member n (opp_env $ track s2))) ids
-                    new_info = map (\(Id n _) -> n `elem` (total $ track rhs_s)) new_ids
+                    new_info = map (\(Id n _) -> n `elem` (total_vars $ track rhs_s)) new_ids
                     -- TODO make sure this modification is correct
                     -- should it be opp_env instead of the LHS?
                     rhs_e' = replaceVars (inlineFull (HS.toList ns) (expr_env rhs_s) (opp_env $ track rhs_s) $ exprExtract rhs_s) v_rep
@@ -1074,7 +1052,7 @@ mkProposedLemma :: String -> StateET -> StateET -> StateET -> StateET -> Propose
 mkProposedLemma lm_name or_s1 or_s2 s1 s2 =
     let h1 = expr_env s1
         h2 = expr_env s2
-        cs h (E.Conc e) = E.Conc e
+        cs _ (E.Conc e) = E.Conc e
         cs h (E.Sym i) = case E.lookupConcOrSym (idName i) h of
           Nothing -> E.Sym i
           Just c -> c
@@ -1115,7 +1093,7 @@ checkCycle solver ns _ _ (sh1, sh2) (s1, s2) = do
   -- TODO doing extra opp_env stuff here for the past doesn't help
   mr1 <- mapM (\(p1, hp2) -> moreRestrictiveSingle solver ns s1' (p1 { track = (track p1) { opp_env = hp2 } })) hist1'
   mr2 <- mapM (\(p2, hp1) -> moreRestrictiveSingle solver ns s2' (p2 { track = (track p2) { opp_env = hp1 } })) hist2'
-  let vh s (Left _, _) = False
+  let vh _ (Left _, _) = False
       vh s (Right hm, p) = validHigherOrder s p ns $ Right (hm, HS.empty)
       mr1_pairs = zip mr1 hist1
       mr1_pairs' = filter (vh s1') mr1_pairs

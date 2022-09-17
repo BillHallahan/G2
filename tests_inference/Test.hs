@@ -10,12 +10,14 @@ import Test.Tasty.HUnit
 
 import G2.Config as G2
 import G2.Interface
+import G2.Liquid.Config
 import G2.Liquid.Inference.Interface
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.G2Calls
 
 import Data.Time.Clock
 import Data.Either
+import qualified Data.Map.Lazy as M
 import qualified Data.Text as T
 
 -- Run with no arguments for default test cases.
@@ -118,9 +120,10 @@ cexTests = testGroup "Tests"
 posTestInferenceWithTimeOut :: Int -> NominalDiffTime -> FilePath -> TestTree
 posTestInferenceWithTimeOut to to_se fp = do
     testCase fp (do
-        config <- G2.getConfig []
-        let infconfig = (mkInferenceConfig []) { timeout_se = to_se }
-        res <- doTimeout to $ inferenceCheck infconfig config [] [fp] []
+        config <- G2.getConfigDirect
+        let infconfig = (mkInferenceConfigDirect []) { timeout_se = to_se }
+        let lhconfig = mkLHConfigDirect [] M.empty
+        res <- doTimeout to $ inferenceCheck infconfig config lhconfig [] [fp]
 
         assertBool ("Inference for " ++ fp ++ " failed.") $ maybe False (isRight . snd) res
         )
@@ -131,9 +134,10 @@ posTestInference = posTestInferenceWithTimeOut 120 5
 negTestInference :: FilePath -> TestTree
 negTestInference fp = do
     testCase fp (do
-        config <- G2.getConfig []
-        let infconfig = mkInferenceConfig []
-        res <- doTimeout 90 $ inferenceCheck infconfig config [] [fp] []
+        config <- G2.getConfigDirect
+        let infconfig = mkInferenceConfigDirect []
+        let lhconfig = mkLHConfigDirect [] M.empty
+        res <- doTimeout 90 $ inferenceCheck infconfig config lhconfig [] [fp]
 
         assertBool ("Inference for " ++ fp ++ " failed.") $ maybe False (isLeft . snd) res
         )
@@ -141,8 +145,9 @@ negTestInference fp = do
 cexTest :: FilePath -> String -> TestTree
 cexTest fp func =
     testCase fp (do
-        config <- G2.getConfig []
-        let infconfig = (mkInferenceConfig []) { timeout_se = 10 }
-        res <- doTimeout 25 $ runLHInferenceAll infconfig config (T.pack func) [] [fp] []
+        config <- G2.getConfigDirect
+        let infconfig = (mkInferenceConfigDirect []) { timeout_se = 10 }
+        let lhconfig = mkLHConfigDirect [] M.empty
+        res <- doTimeout 25 $ runLHInferenceAll infconfig config lhconfig (T.pack func) [] [fp]
         assertBool ("Counterexample generation for " ++ func ++ " in " ++ fp ++ " failed.") $ maybe False (not . null . fst) res
         )

@@ -1,6 +1,6 @@
 module BadNames1 where
 
-data X' = X' X' | Y' | Z'
+data X' = X' X' | Y' | Z' deriving Eq
 
 abs' :: Int -> Int
 abs' x

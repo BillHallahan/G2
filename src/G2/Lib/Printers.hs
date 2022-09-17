@@ -13,19 +13,12 @@ module G2.Lib.Printers ( PrettyGuide
                        , mkUnsugaredExprHaskell
                        , mkTypeHaskell
                        , mkTypeHaskellPG
-                       , ppExprEnv
-                       , ppRelExprEnv
-                       , ppCurrExpr
-                       , ppPathConds
-                       , ppPathCond
                        , pprExecStateStr
-                       , pprExecEEnvStr
                        , printFuncCall
                        , prettyState
 
                        , prettyGuideStr) where
 
-import G2.Execution.Memory
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
@@ -41,7 +34,6 @@ import Data.Char
 import Data.List as L
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
-import qualified Data.Map as M
 import qualified Data.Text as T
 
 data Clean = Cleaned | Dirty deriving Eq
@@ -148,7 +140,13 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                "case " ++ parenWrap e (mkExprHaskell'' off e) ++ " of\n" 
             ++ intercalate "\n" (map (mkAltHaskell (off + 2) cleaned pg bndr) ae)
         mkExprHaskell'' _ (Type t) = "@" ++ mkTypeHaskellPG pg t
-        mkExprHaskell'' off (Cast e (_ :~ t)) = "((coerce " ++ mkExprHaskell'' off e ++ ") :: " ++ mkTypeHaskellPG pg t ++ ")"
+        mkExprHaskell'' off (Cast e (t1 :~ t2)) =
+            let
+                e_str = mkExprHaskell'' off e
+                t1_str = mkTypeHaskellPG pg t1
+                t2_str = mkTypeHaskellPG pg t2
+            in
+            "((coerce (" ++ e_str ++ " :: " ++ t1_str ++ ")) :: " ++ t2_str ++ ")"
         mkExprHaskell'' off (Let binds e) =
             let
                 binds' = intercalate (offset off ++ "\n")
@@ -175,7 +173,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                 print_es = map (mkExprHaskell'' off) es
             in
             intercalate ("\n" ++ offset off ++ "[NonDet]\n") print_es 
-        mkExprHaskell'' off (SymGen t) = "(symgen " ++ mkTypeHaskellPG pg t ++ ")"
+        mkExprHaskell'' _ (SymGen t) = "(symgen " ++ mkTypeHaskellPG pg t ++ ")"
         mkExprHaskell'' _ e = "e = " ++ show e ++ " NOT SUPPORTED"
 
         parenWrap :: Expr -> String -> String
@@ -348,6 +346,8 @@ mkTypeHaskellPG pg (TyVar i) = mkIdHaskell pg i
 mkTypeHaskellPG pg (TyFun t1 t2) = mkTypeHaskellPG pg t1 ++ " -> " ++ mkTypeHaskellPG pg t2
 mkTypeHaskellPG pg (TyCon n _) = mkNameHaskell pg n
 mkTypeHaskellPG pg (TyApp t1 t2) = "(" ++ mkTypeHaskellPG pg t1 ++ " " ++ mkTypeHaskellPG pg t2 ++ ")"
+mkTypeHaskellPG pg (TyForAll (AnonTyBndr t1) t2) = mkTypeHaskellPG pg t1 ++ " -> " ++ mkTypeHaskellPG pg t2
+mkTypeHaskellPG pg (TyForAll (NamedTyBndr i) t) = "forall " ++ mkIdHaskell pg i ++ " . " ++ mkTypeHaskellPG pg t
 mkTypeHaskellPG _ TYPE = "Type"
 mkTypeHaskellPG _ t = "Unsupported type in printer. " ++ show t
 
@@ -447,6 +447,8 @@ prettyPathCond pg (ExtCond e b) =
     if b then mkDirtyExprHaskell pg e else "not (" ++ mkDirtyExprHaskell pg e ++ ")"
 prettyPathCond pg (SoftPC pc) =
     "soft (" ++ prettyPathCond pg pc ++ ")"
+prettyPathCond pg (MinimizePC e) =
+    "minimize (" ++ mkDirtyExprHaskell pg e ++ ")"
 prettyPathCond pg (AssumePC i l pc) =
     let
         pc' = map PC.unhashedPC $ HS.toList pc
@@ -457,55 +459,9 @@ prettyNonRedPaths :: PrettyGuide -> [Expr] -> String
 prettyNonRedPaths pg = intercalate "\n" . map (mkDirtyExprHaskell pg)
 
 -------------------------------------------------------------------------------
-ppExprEnv :: State t -> String
-ppExprEnv = ppExprEnvPG (mkPrettyGuide ())
-
-ppExprEnvPG :: PrettyGuide -> State t -> String
-ppExprEnvPG pg s@(State {expr_env = eenv}) =
-    let
-        eenvs = HM.toList $ E.map' (mkUnsugaredExprHaskell s) eenv
-    in
-    intercalate "\n" $ map (\(n, es) -> mkNameHaskell pg n ++ " = " ++ es) eenvs
-
--- | ppRelExprEnv
--- Prints all variable definitions from the expression environment,
--- that are required to understand the curr expr and path constraints
-ppRelExprEnv :: State t -> Bindings -> String
-ppRelExprEnv = ppRelExprEnvPG (mkPrettyGuide ())
-
-ppRelExprEnvPG :: PrettyGuide -> State t -> Bindings -> String
-ppRelExprEnvPG pg s b =
-    let
-        (s', _) = markAndSweep s b
-    in
-    ppExprEnvPG pg s'
-
-ppCurrExpr :: State t -> String
-ppCurrExpr s@(State {curr_expr = CurrExpr _ e}) = mkUnsugaredExprHaskell s e
-
-ppPathConds :: State t -> String
-ppPathConds s@(State {path_conds = pc}) = intercalate "\n" $ PC.map' (ppPathCond s) pc
-
-ppPathCond :: State t -> PathCond -> String
-ppPathCond s (AltCond l e b) =
-  mkLitHaskell l ++ (if b then " == " else " /= ") ++ mkUnsugaredExprHaskell s e
-ppPathCond s (ExtCond e b) =
-    let
-        es = mkUnsugaredExprHaskell s e
-    in
-    if b then es else "not (" ++ es ++ ")"
-ppPathCond s (AssumePC i l h_pc) =
-    let
-        pc = map PC.unhashedPC $ HS.toList h_pc
-    in
-    mkIdHaskell (mkPrettyGuide ()) i ++ " = " ++ show l
-        ++ "=> (" ++ intercalate "\nand " (map (ppPathCond s) pc) ++ ")"
 
 injNewLine :: [String] -> String
 injNewLine strs = intercalate "\n" strs
-
-injTuple :: [String] -> String
-injTuple strs = "(" ++ (intercalate "," strs) ++ ")"
 
 -- | More raw version of state dumps.
 pprExecStateStr :: Show t => State t -> Bindings -> String
@@ -569,7 +525,7 @@ pprExecEEnvStr eenv = injNewLine kv_strs
 pprTEnvStr :: TypeEnv -> String
 pprTEnvStr tenv = injNewLine kv_strs
   where
-    kv_strs = map show $ M.toList tenv
+    kv_strs = map show $ HM.toList tenv
 
 pprModelStr :: Model -> String
 pprModelStr m = injNewLine kv_strs
@@ -598,7 +554,7 @@ pprPathsStr paths = injNewLine cond_strs
 pprTCStr :: TypeClasses -> String
 pprTCStr tc = injNewLine cond_strs
   where
-    cond_strs = map show $ M.toList $ toMap tc
+    cond_strs = map show $ HM.toList $ toMap tc
 
 pprInputIdsStr :: InputIds -> String
 pprInputIdsStr i = injNewLine id_strs
@@ -606,17 +562,7 @@ pprInputIdsStr i = injNewLine id_strs
     id_strs = map show i
 
 pprPathCondStr :: PathCond -> String
-pprPathCondStr (AltCond am expr b) = injTuple acc_strs
-  where
-    am_str = show am
-    expr_str = show expr
-    b_str = show b
-    acc_strs = [am_str, expr_str, b_str]
-pprPathCondStr (ExtCond am b) = injTuple acc_strs
-  where
-    am_str = show am
-    b_str = show b
-    acc_strs = [am_str, b_str]
+pprPathCondStr = show
 
 pprCleanedNamesStr :: CleanedNames -> String
 pprCleanedNamesStr = injNewLine . map show . HM.toList

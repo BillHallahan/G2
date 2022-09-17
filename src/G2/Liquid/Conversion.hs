@@ -30,7 +30,7 @@ import Language.Fixpoint.Types.Names
 import Language.Fixpoint.Types.Sorts
 import qualified Language.Fixpoint.Types.Refinements as Ref
 import Language.Fixpoint.Types.Refinements hiding (Expr, I)
-import Language.Haskell.Liquid.Types hiding (spec)
+import Language.Haskell.Liquid.Types
 
 import Data.Coerce
 import Data.Foldable
@@ -39,24 +39,20 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
-import G2.Lib.Printers
-import Debug.Trace
-import Data.List
-
 -- | A mapping of TyVar Name's, to Id's for the LH dict's
-type LHDictMap = M.Map Name Id
+type LHDictMap = HM.HashMap Name Id
 
 -- | A mapping of TyVar Name's, to Id's for the Num dict's
-type NumDictMap = M.Map Name Id
+type NumDictMap = HM.HashMap Name Id
 
 -- | A mapping of TyVar Name's, to Id's for the Integral dict's
-type IntegralDictMap = M.Map Name Id
+type IntegralDictMap = HM.HashMap Name Id
 
 -- | A mapping of TyVar Name's, to Id's for the Fractional dict's
-type FractionalDictMap = M.Map Name Id
+type FractionalDictMap = HM.HashMap Name Id
 
 -- | A mapping of TyVar Name's, to Id's for the Ord dict's
-type OrdDictMap = M.Map Name Id
+type OrdDictMap = HM.HashMap Name Id
 
 -- | A collection of all DictMaps required to convert LH refinement types to G2 `Expr`@s@
 data DictMaps = DictMaps { lh_dicts :: LHDictMap
@@ -72,30 +68,30 @@ copyIds n1 n2 dm@(DictMaps { lh_dicts = lhd
                            , fractional_dicts = frac
                            , ord_dicts = od }) =
     let
-        dm2 = case M.lookup n1 lhd of
-                Just lh -> dm { lh_dicts = M.insert n2 lh lhd }
+        dm2 = case HM.lookup n1 lhd of
+                Just lh -> dm { lh_dicts = HM.insert n2 lh lhd }
                 Nothing -> dm
 
-        dm3 = case M.lookup n1 nd of
-                Just num -> dm2 { num_dicts = M.insert n2 num nd }
+        dm3 = case HM.lookup n1 nd of
+                Just num -> dm2 { num_dicts = HM.insert n2 num nd }
                 Nothing -> dm2
 
-        dm4 = case M.lookup n1 ind of
-                Just int -> dm3 { integral_dicts = M.insert n2 int ind }
+        dm4 = case HM.lookup n1 ind of
+                Just int -> dm3 { integral_dicts = HM.insert n2 int ind }
                 Nothing -> dm3
 
-        dm5 = case M.lookup n1 frac of
-                Just fr -> dm4 { fractional_dicts = M.insert n2 fr frac }
+        dm5 = case HM.lookup n1 frac of
+                Just fr -> dm4 { fractional_dicts = HM.insert n2 fr frac }
                 Nothing -> dm4
 
-        dm6 = case M.lookup n1 od of
-                Just ord -> dm5 { ord_dicts = M.insert n2 ord od }
+        dm6 = case HM.lookup n1 od of
+                Just ord -> dm5 { ord_dicts = HM.insert n2 ord od }
                 Nothing -> dm5
     in
     dm6
 
 -- | A mapping of variable names to the corresponding types
-type BoundTypes = M.Map Name Type
+type BoundTypes = HM.HashMap Name Type
 
 mergeLHSpecState :: [(Var.Var, LocSpecType)] -> LHStateM ()
 mergeLHSpecState = mapM_ (uncurry mergeLHSpecState')
@@ -141,7 +137,7 @@ mergeSpecType st fn e = do
     dm@(DictMaps {lh_dicts = lhm}) <- dictMapFromIds is
 
     trueE <- mkTrueE
-    higher_is <- handleHigherOrderSpecs CheckPre (mkHigherAssert trueE) lh dm (M.map typeOf lhm) is st
+    higher_is <- handleHigherOrderSpecs CheckPre (mkHigherAssert trueE) lh dm (HM.map typeOf lhm) is st
 
     let e' = foldl' App e . map (\(i, hi) -> maybe (Var i) id hi) $ zip is higher_is
 
@@ -150,7 +146,7 @@ mergeSpecType st fn e = do
     -- lambda for it in the LH Spec
     r <- freshIdN (typeOf e')
     let is' = filter (not . isTC lh . typeOf) is
-    assert <- convertAssertSpecType dm (M.map typeOf lhm) is' r st
+    assert <- convertAssertSpecType dm (HM.map typeOf lhm) is' r st
 
     let fc = FuncCall { funcName = fn 
                       , arguments = map Var is
@@ -163,8 +159,8 @@ mergeSpecType st fn e = do
     return e'''
     where
         -- We insert an extra, redundant assume to record information about the function being used as a higher order function
-        mkHigherAssert true spec i ars ret =
-            Tick (NamedLoc higherOrderTickName) . Assume (Just $ FuncCall { funcName = idName i, arguments = map Var ars, returns = Var ret }) true $ Assert Nothing spec (Var ret)
+        mkHigherAssert true_dc spec i ars ret =
+            Tick (NamedLoc higherOrderTickName) . Assume (Just $ FuncCall { funcName = idName i, arguments = map Var ars, returns = Var ret }) true_dc $ Assert Nothing spec (Var ret)
 
         repAssertFC fc_ (Assert Nothing e1 e2) = Assert (Just fc_) e1 e2
         repAssertFC _ e_ = e_
@@ -181,8 +177,8 @@ createAssumption st e = do
     let is' = filter (not . isTC lh . typeOf) is
     dm@(DictMaps {lh_dicts = lhm}) <- dictMapFromIds is
 
-    assume <- convertAssumeSpecType dm (M.map typeOf lhm) is' st
-    higher_is <- handleHigherOrderSpecs CheckOnlyPost mkHigherAssume lh dm (M.map typeOf lhm) is st
+    assume <- convertAssumeSpecType dm (HM.map typeOf lhm) is' st
+    higher_is <- handleHigherOrderSpecs CheckOnlyPost mkHigherAssume lh dm (HM.map typeOf lhm) is st
 
     let assume' = foldr (uncurry Lam) assume $ zip lu is
     return (zip lu is, higher_is, assume')
@@ -206,7 +202,7 @@ createPost st e = do
     let is' = filter (not . isTC lh . typeOf) is
     dm@(DictMaps {lh_dicts = lhm}) <- dictMapFromIds is
 
-    pst <- convertPostSpecType dm (M.map typeOf lhm) is' r st
+    pst <- convertPostSpecType dm (HM.map typeOf lhm) is' r st
 
     return . foldr (uncurry Lam) pst $ zip (lu ++ [TermL]) (is ++ [r])
 
@@ -269,7 +265,7 @@ convertSpecType _ m bt _ r (RVar {rt_var = (RTV v), rt_reft = ref})
 
         let symbId = convertSymbolT symb (TyVar i)
 
-        let bt' = M.insert (idName symbId) (typeOf symbId) bt
+        let bt' = HM.insert (idName symbId) (typeOf symbId) bt
 
         re <- convertLHExpr m bt' Nothing (reftExpr $ ur_reft ref)
 
@@ -279,7 +275,7 @@ convertSpecType cp m bt (i:is) r (RFun {rt_bind = b, rt_in = fin, rt_out = fout 
     t <- unsafeSpecTypeToType fin
     let i' = convertSymbolT b t
 
-    let bt' = M.insert (idName i') t bt
+    let bt' = HM.insert (idName i') t bt
 
     e <- convertSpecType cp m bt' is r fout
 
@@ -298,7 +294,7 @@ convertSpecType cp m bt (i:is) r (RAllT {rt_tvbind = RTVar (RTV v) _, rt_ty = rt
 
 
     let m' = copyIds (idName i) (idName i') m
-    let bt' = M.insert (idName i') (typeOf i) bt
+    let bt' = HM.insert (idName i') (typeOf i) bt
 
     e <- convertSpecType cp m' bt' is r rty
     return $ App (Lam TypeL i' e) (Var i)
@@ -308,7 +304,7 @@ convertSpecType cp m bt _ r (RApp {rt_tycon = c, rt_reft = ref, rt_args = as})
         ty <- return . maybe (error "Error in convertSpecType") id =<< rTyConType c as
         let i = convertSymbolT symb ty
 
-        let bt' = M.insert (idName i) ty bt
+        let bt' = HM.insert (idName i) ty bt
 
         argsPred <- polyPredFunc cp as ty m bt' r'
         re <- convertLHExpr m bt' Nothing (reftExpr $ ur_reft ref)
@@ -336,7 +332,7 @@ handleHigherOrderSpecs check_pre wrap_spec lh dm bt (i:is) (RFun {rt_bind = b, r
         t <- unsafeSpecTypeToType fin
         let i' = convertSymbolT b t
 
-        let bt' = M.insert (idName i') t bt
+        let bt' = HM.insert (idName i') t bt
         es <- handleHigherOrderSpecs check_pre wrap_spec lh dm bt' is fout
 
         ars <- freshIdsN (anonArgumentTypes i)
@@ -352,7 +348,7 @@ handleHigherOrderSpecs check_pre wrap_spec lh dm bt (i:is) (RFun {rt_bind = b, r
         t <- unsafeSpecTypeToType fin
         let i' = convertSymbolT b t
 
-        let bt' = M.insert (idName i') t bt
+        let bt' = HM.insert (idName i') t bt
         es <- handleHigherOrderSpecs check_pre wrap_spec lh dm bt' is fout
         return $ Nothing:es
 handleHigherOrderSpecs _ _ _ _ _ [] _ = return []
@@ -360,7 +356,7 @@ handleHigherOrderSpecs check_pre wrap_spec lh dm bt (i:is) (RAllT {rt_tvbind = R
     let i' = mkIdUnsafe v
 
     let dm' = copyIds (idName i) (idName i') dm
-    let bt' = M.insert (idName i') (typeOf i) bt
+    let bt' = HM.insert (idName i') (typeOf i) bt
 
     es <- handleHigherOrderSpecs check_pre wrap_spec lh dm' bt' is rty
     return $ Nothing:es
@@ -489,13 +485,13 @@ convertLHExpr m bt _ (ECst e s) = do
 convertLHExpr m bt _ (PAnd es) = do
     es' <- mapM (convertLHExpr m bt Nothing) es
 
-    true <- mkTrueE
+    trueE <- mkTrueE
     an <- lhAndE
 
     case es' of
-        [] -> return $ true
+        [] -> return $ trueE
         [e] -> return e
-        _ -> return $ foldr (\e -> App (App an e)) true es'
+        _ -> return $ foldr (\e -> App (App an e)) trueE es'
 convertLHExpr m bt _ (POr es) = do
     es' <- mapM (convertLHExpr m bt Nothing) es
 
@@ -774,7 +770,7 @@ symbolName s =
 
 convertEVar :: Name -> BoundTypes -> Maybe Type -> LHStateM Expr
 convertEVar nm@(Name n md _ _) bt mt
-    | Just t <-  M.lookup nm bt = return $ Var (Id nm t)
+    | Just t <- HM.lookup nm bt = return $ Var (Id nm t)
     | otherwise = do
         meas <- measuresM
         tenv <- typeEnv

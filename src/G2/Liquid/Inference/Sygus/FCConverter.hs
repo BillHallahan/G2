@@ -15,7 +15,6 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
-import qualified Data.Text as T
 import Data.Tuple.Extra
 
 type ConvertExpr a = G2.Expr -> a
@@ -47,7 +46,7 @@ mkPreCall :: (InfConfigM m, ProgresserM m) =>
           -> FuncCall
           -> [HigherOrderFuncCall]
           -> m form
-mkPreCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars }) hcalls
+mkPreCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc@(FuncCall { funcName = n }) hcalls
     | Just si <- M.lookup n m_si
     , Just (ev_i, ev_b) <- lookupEvals fc (pre_evals evals)
     , Just func_e <- HM.lookup (nameOcc n, nameModule n) eenv = do
@@ -93,7 +92,7 @@ mkPreSynthBody convExpr funcF eenv tenv meas meas_ex pre_spec func_ts (FuncCall 
                                         let arg_tys = argumentTypes $ PresType l_rt
                                             return_ty = returnType $ PresType l_rt
                                             hcalls' = filter (\hfc -> nameOcc (funcName hfc) == nameOcc n && nameUnique (funcName hfc) == i') hcalls
-                                        clls <- mapM (mkHigherOrderCall convExpr funcF eenv tenv meas meas_ex (removeHead si_pb) n arg_tys return_ty) hcalls'
+                                        clls <- mapM (mkHigherOrderCall convExpr funcF eenv tenv meas meas_ex (removeHead si_pb) arg_tys return_ty) hcalls'
                                         return $ concat clls
                                     _ -> formCalls convExpr funcF tenv meas meas_ex n t_ars si_pb re_pb rt_pb
                           ) . zip pre_spec . filter (not . null) $ L.inits v_ars
@@ -117,14 +116,14 @@ mkPostCall :: (InfConfigM m, ProgresserM m) =>
            -> M.Map Name SpecInfo
            -> FuncCall
            -> m form
-mkPostCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars, returns = ret })
+mkPostCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc@(FuncCall { funcName = n })
     | Just si <- M.lookup n m_si
     , Just (ev_i, ev_b) <- lookupEvals fc (post_evals evals)
     , Just func_e <- HM.lookup (nameOcc n, nameModule n) eenv = do
         let fixed_body = knownF (s_known_post_name si) ev_i ev_b
             to_be_body = toBeF (s_to_be_post_name si) ev_i ev_b
 
-        sy_body <- mkPostSynthBody convExpr funcF eenv tenv meas meas_ex (s_syn_post si) (argumentTypes func_e) (returnType func_e) fc
+        sy_body <- mkPostSynthBody convExpr funcF tenv meas meas_ex (s_syn_post si) (argumentTypes func_e) (returnType func_e) fc
         case s_status si of
                 Synth -> return . andF $ fixed_body:sy_body
                 ToBeSynthed -> return $ andF [fixed_body, to_be_body]
@@ -134,7 +133,6 @@ mkPostCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc
 mkPostSynthBody :: (InfConfigM m, ProgresserM m) => 
                    ConvertExpr form
                 -> Func form
-                -> NMExprEnv
                 -> TypeEnv
                 -> Measures
                 -> MeasureExs
@@ -143,7 +141,7 @@ mkPostSynthBody :: (InfConfigM m, ProgresserM m) =>
                 -> Type
                 -> FuncCall
                 -> m [form]
-mkPostSynthBody convExpr funcF eenv tenv meas meas_ex post_spec func_ts ret_ty fc@(FuncCall { funcName = n, arguments = ars, returns = ret }) = do
+mkPostSynthBody convExpr funcF tenv meas meas_ex post_spec func_ts ret_ty (FuncCall { funcName = n, arguments = ars, returns = ret }) = do
     let v_ars = filter (\(t, _) -> not (isTyVar t))
               . filter (validArgForSMT . snd)
               $ zip func_ts ars
@@ -161,16 +159,15 @@ mkHigherOrderCall :: (InfConfigM m, ProgresserM m) =>
                   -> Measures
                   -> MeasureExs
                   -> [PolyBound SynthSpec]
-                  -> Name
                   -> [Type] -- ^ Argument types
                   -> Type -- ^ Return Type
                   -> FuncCall
                   -> m [form]
-mkHigherOrderCall convExpr funcF eenv tenv meas meas_ex pb_synth@(_:_) n ar_ts ret_t fc = do
+mkHigherOrderCall convExpr funcF eenv tenv meas meas_ex pb_synth@(_:_) ar_ts ret_t fc = do
     pre <- mkPreSynthBody convExpr funcF eenv tenv meas meas_ex (init pb_synth) ar_ts fc []
-    post <- mkPostSynthBody convExpr funcF eenv tenv meas meas_ex (last pb_synth) ar_ts ret_t fc
+    post <- mkPostSynthBody convExpr funcF tenv meas meas_ex (last pb_synth) ar_ts ret_t fc
     return $ pre ++ post
-mkHigherOrderCall _ _ _ _ _ _ _ _ _ _ _ = return []
+mkHigherOrderCall _ _ _ _ _ _ _ _ _ _ = return []
 
 formCalls :: (InfConfigM m, ProgresserM m) => ConvertExpr form -> Func form -> TypeEnv -> Measures -> MeasureExs -> Name -> [(Type, Expr)] -> PolyBound SynthSpec -> PolyBound [Expr] -> PolyBound Type -> m [form]
 formCalls convExpr funcF tenv meas meas_ex n v_ars si_pb re_pb rt_pb = do

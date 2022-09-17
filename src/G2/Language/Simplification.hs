@@ -78,12 +78,12 @@ caseOfKnownCons (Case e i as)
             es' = drop tfa_count es
         in
         foldr (uncurry replaceVar) (replaceVar (idName i) e ae) (zip (map idName is) es')
-    | Lit l:es <- unApp e
-    , Just (Alt (LitAlt l') ae) <- find (matchingLitAlt l) as = replaceVar (idName i) e ae
+    | Lit l:_ <- unApp e
+    , Just (Alt (LitAlt _) ae) <- find (matchingLitAlt l) as = replaceVar (idName i) e ae
     
-    | Data _:es <- unApp e
+    | Data _:_ <- unApp e
     , Just (Alt Default ae) <- find (\(Alt am _) -> am == Default) as = replaceVar (idName i) e ae
-    | Lit l:es <- unApp e
+    | Lit l:_ <- unApp e
     , Just (Alt Default ae) <- find (\(Alt am _) -> am == Default) as = replaceVar (idName i) e ae
 
 caseOfKnownCons e = modifyChildren caseOfKnownCons e

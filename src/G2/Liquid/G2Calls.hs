@@ -29,13 +29,8 @@ import G2.Solver
 import Control.Monad
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
-import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid
-import Data.Tuple.Extra
-
-import G2.Lib.Printers
-import Data.Time.Clock
 
 -- | The function to actually use for Symbolic Execution
 type G2Call solver simplifier =
@@ -76,8 +71,8 @@ checkAbstracted g2call solver simplifier config init_id bindings er@(ExecRes{ fi
         models = mapMaybe toModel $ abstractedR
 
     -- Get an `Abstracted` for the initial call
-    let init_call = FuncCall (idName init_id) inArg ex
-    (s'', bindings'', abs_init, model_init) <- getAbstracted g2call solver simplifier (sharing config) s' bindings' init_call
+    let init_call_fc = FuncCall (idName init_id) inArg ex
+    (s'', bindings'', abs_init, model_init) <- getAbstracted g2call solver simplifier (sharing config) s' bindings' init_call_fc
 
     -- Get an `Abstracted` for the violated function (if it exists)
     (bindings''', viol_er) <- reduceViolated g2call solver simplifier (sharing config) bindings'' (er { final_state = s'' })
@@ -92,7 +87,6 @@ checkAbstracted g2call solver simplifier config init_id bindings er@(ExecRes{ fi
                                   , ai_all_calls = all_calls lht
                                   , ai_higher_order_calls = higher_order_calls lht }
         fs = maybe (final_state viol_er) fst4 abs_viol
-        fb = maybe bindings''' snd4 abs_viol
 
     return $ viol_er { final_state = fs { track = abs_info
                                         , model = foldr HM.union (model s) (model_init:viol_model ++ models) }
@@ -221,7 +215,7 @@ repTCs :: TypeClasses -> Expr -> Expr
 repTCs tc e
     | isTypeClass tc $ (typeOf e)
     , TyCon n _:t:_ <- unTyApp (typeOf e)
-    , Just tc_dict <- typeClassInst tc M.empty n t = tc_dict
+    , Just tc_dict <- typeClassInst tc HM.empty n t = tc_dict
     | otherwise = e
 
 
@@ -443,7 +437,7 @@ reduceFCExpr g2call reducer solver simplifier s bindings e
     | isTypeClass (type_classes s) $ (typeOf e)
     , TyCon n _:_ <- unTyApp (typeOf e)
     , _:Type t:_ <- unApp e
-    , Just tc_dict <- typeClassInst (type_classes s) M.empty n t = 
+    , Just tc_dict <- typeClassInst (type_classes s) HM.empty n t = 
           return $ ((s, bindings), tc_dict) 
     | otherwise = return ((s, bindings), redVar (expr_env s) e) 
 
