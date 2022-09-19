@@ -113,9 +113,9 @@ sampleTests = testGroup "Samples"
         , RForAll allabs2NonNeg
         , AtLeast 4]
     , checkExpr "tests/Samples/HigherOrderMath.hs" 600 "fixed" [ RExists abs2NonNeg
-                                                                 , RExists squareRes
-                                                                 , RExists fourthPowerRes
-                                                                 , AtLeast 4]
+                                                               , RExists squareRes
+                                                               , RExists fourthPowerRes
+                                                               , AtLeast 4]
     , checkExprAssumeAssert "tests/Samples/HigherOrderMath.hs" 600 (Just "isTrue2") Nothing "sameFloatArgLarger"
         [ RExists addRes
         , RExists subRes
@@ -287,7 +287,7 @@ liquidTests = testGroup "Liquid"
     , checkLiquid "tests/Liquid/ListTests.lhs" "prop_concat_1" 1500 [AtLeast 1]
     , checkAbsLiquid "tests/Liquid/ListTests2.lhs" "prop_map" 2000
         [ AtLeast 2
-        , RForAll (\[_, _, f, _] _ [(FuncCall { funcName = Name n _ _ _, arguments = [_, _, _, _, f', _] }) ] -> n == "map") ]
+        , RForAll (\_ _ [(FuncCall { funcName = Name n _ _ _ }) ] -> n == "map") ]
     , checkAbsLiquid "tests/Liquid/ListTests2.lhs" "prop_size" 2000
         [ AtLeast 1
         , RForAll (\[] _ [(FuncCall { funcName = Name n _ _ _, returns = r }) ]
@@ -396,7 +396,7 @@ liquidTests = testGroup "Liquid"
     , checkAbsLiquid "tests/Liquid/Polymorphism/Poly15.hs" "call" 1000 [ AtLeast 1]
     , checkAbsLiquid "tests/Liquid/Polymorphism/Poly16.hs" "call" 1000 
         [ AtLeast 1
-        , RForAll (\ _ _ [ FuncCall { arguments = [_, _, a] } ] -> case a of Prim _ _ -> False; _ -> True )]
+        , RForAll (\ _ _ [ FuncCall { arguments = [_, _, ar] } ] -> case ar of Prim _ _ -> False; _ -> True )]
     , checkAbsLiquid "tests/Liquid/Polymorphism/Poly17.hs" "empty2" 1000 [ AtLeast 1]
     , checkAbsLiquid "tests/Liquid/Polymorphism/Poly18.hs" "f" 500 [ AtLeast 1]
     ]
@@ -428,7 +428,7 @@ testFileTests = testGroup "TestFiles"
                                                      , ("compZZ", 1600, [AtLeast 2])
                                                      , ("compZZ2", 1600, [AtLeast 2]) ]
 
-    , checkExpr "tests/TestFiles/Defunc2.hs" 400 "funcMap" [RForAll defunc2Check, AtLeast 30]
+    , checkInputOutput "tests/TestFiles/Defunc2.hs" "funcMap" 400 [AtLeast 30]
 
     , checkExpr "tests/TestFiles/MultCase.hs" 400 "f"
         [ RExists (\[App _ (Lit (LitInt x)), y] -> x == 2 && getBoolB y id)
@@ -519,10 +519,10 @@ testFileTests = testGroup "TestFiles"
         , RExists (\[x, y] -> appNthArgIs x (dcHasName "C") 2 && appNthArgIs y (dcHasName "A") 2)
         , Exactly 3]
 
-    , checkExpr "tests/TestFiles/Deriving/DerivingSimple.hs" 400 "eq" [AtLeast  2, RForAll (\[_, _, x] -> isBool x)]
-    , checkExpr "tests/TestFiles/Deriving/DerivingSimple.hs" 400 "lt" [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
-    , checkExpr "tests/TestFiles/Deriving/DerivingComp.hs" 800 "eq" [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
-    , checkExpr "tests/TestFiles/Deriving/DerivingComp.hs" 800 "lt" [AtLeast 2, RForAll (\[_, _, x] -> isBool x)]
+    , checkInputOutputs "tests/TestFiles/Deriving/DerivingSimple.hs" [ ("eq", 400, [AtLeast  2])
+                                                                     , ("lt", 400, [AtLeast 2]) ]
+    , checkInputOutputs "tests/TestFiles/Deriving/DerivingComp.hs" [ ("eq", 800, [AtLeast 2])
+                                                                   , ("lt", 800, [AtLeast 2]) ]
 
     , checkInputOutputs "tests/TestFiles/Coercions/Age.hs" [ ("born", 400, [Exactly 1])
                                                            , ("yearPasses", 400, [AtLeast 1])
@@ -540,7 +540,7 @@ testFileTests = testGroup "TestFiles"
                                                                 , ("getRIntFloatX'", 400, [AtLeast 2])]
 
     , checkInputOutput "tests/TestFiles/Coercions/BadCoerce.hs" "f" 400 [AtLeast 1]
-    , checkExpr "tests/TestFiles/Expr.hs" 400 "leadingLams" [AtLeast 5, RForAll (\[_, y] -> noUndefined y)]
+    , checkInputOutput "tests/TestFiles/Expr.hs" "leadingLams" 400 [AtLeast 5]
 
     , checkExprAssume "tests/TestFiles/Subseq.hs" 1200 (Just "assume") "subseqTest" [AtLeast 1]
 
@@ -553,7 +553,7 @@ testFileTests = testGroup "TestFiles"
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
 
-    , checkExpr "tests/TestFiles/Sets/SetInsert.hs" 700 "prop" [AtLeast 3]
+    , checkInputOutput "tests/TestFiles/Sets/SetInsert.hs" "prop" 700 [AtLeast 3]
     
     , checkInputOutputs "tests/TestFiles/BadDC.hs" [ ("f", 400, [AtLeast 5])
                                                    , ("g", 400, [AtLeast 3]) ]
