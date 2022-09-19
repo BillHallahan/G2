@@ -553,7 +553,7 @@ testFileTests = testGroup "TestFiles"
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
         [AtLeast 5, RExists (\[_, _, r] -> dcHasName "True" r)]
 
-    , checkInputOutput "tests/TestFiles/Sets/SetInsert.hs" "prop" 700 [AtLeast 3]
+    , checkExpr "tests/TestFiles/Sets/SetInsert.hs" 700 "prop" [AtLeast 3]
     
     , checkInputOutputs "tests/TestFiles/BadDC.hs" [ ("f", 400, [AtLeast 5])
                                                    , ("g", 400, [AtLeast 3]) ]
