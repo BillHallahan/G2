@@ -2,6 +2,7 @@ module Defunc2 where
 
 data IList = I Int IList 
            | INil
+           deriving Eq
 
 data FList = F (Int -> Int) FList
            | FNil
