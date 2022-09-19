@@ -28,12 +28,12 @@ validateStates :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [G
 validateStates proj src modN entry chAll gflags in_out = do
     return . all id =<< runGhc (Just libdir) (do
         loadToCheck proj src modN gflags
-        mapM (runCheck proj src modN entry chAll gflags) in_out)
+        mapM (runCheck modN entry chAll) in_out)
 
 -- Compile with GHC, and check that the output we got is correct for the input
-runCheck :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> ExecRes t -> Ghc Bool
-runCheck proj src modN entry chAll gflags (ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
-    (v, chAllR) <- runCheck' proj src modN entry chAll gflags s ars out
+runCheck :: String -> String -> [String] -> ExecRes t -> Ghc Bool
+runCheck modN entry chAll (ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
+    (v, chAllR) <- runCheck' modN entry chAll s ars out
 
     v' <- liftIO $ (unsafeCoerce v :: IO (Either SomeException Bool))
     let outStr = printHaskell s out
@@ -46,8 +46,8 @@ runCheck proj src modN entry chAll gflags (ExecRes {final_state = s, conc_args =
 
     return $ v'' && and chAllR''
 
-runCheck' :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> State t -> [Expr] -> Expr -> Ghc (HValue, [HValue])
-runCheck' proj src modN entry chAll gflags s ars out = do
+runCheck' :: String -> String -> [String] -> State t -> [Expr] -> Expr -> Ghc (HValue, [HValue])
+runCheck' modN entry chAll s ars out = do
     let Left (v, _) = findFunc (T.pack entry) (Just $ T.pack modN) (expr_env s)
     let e = mkApp $ Var v:ars
     let arsStr = printHaskell s e
