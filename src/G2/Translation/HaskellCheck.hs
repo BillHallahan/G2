@@ -56,8 +56,6 @@ runCheck' proj src modN entry chAll gflags s ars out = do
     let arsType = mkTypeHaskell (typeOf e)
         outType = mkTypeHaskell (typeOf out)
 
-    liftIO . putStrLn $ "About to check " ++ arsStr ++ " == " ++ outStr
-
     let chck = case outStr == "error" of
                     False -> "try (evaluate (" ++ arsStr ++ " == " ++ "("
                                     ++ outStr ++ " :: " ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
@@ -71,8 +69,6 @@ runCheck' proj src modN entry chAll gflags s ars out = do
     let chAllStr' = map (\str -> "try (evaluate (" ++ str ++ ")) :: IO (Either SomeException Bool)") chAllStr
 
     chAllR <- mapM compileExpr chAllStr'
-
-    liftIO . putStrLn $ "About to return"
 
     return $ (v', chAllR)
 
