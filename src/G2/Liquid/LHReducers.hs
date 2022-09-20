@@ -12,7 +12,7 @@ module G2.Liquid.LHReducers ( LHRed (..)
 
                             , LHAcceptIfViolatedHalter (..)
                             , LHSWHNFHalter (..)
-                            , LHLimitByAcceptedOrderer (..)
+                            , LHLimitByAcceptedOrderer
                             , LHLimitByAcceptedHalter
                             , LHAbsHalter (..)
                             , LHMaxOutputsHalter (..)

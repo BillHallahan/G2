@@ -34,8 +34,6 @@ module G2.Execution.Reducer ( Reducer (..)
                             , getLogger
                             , PrettyLogger (..)
                             , LimLogger (..)
-                            , PredicateLogger (..)
-                            , OnlyPath (..)
 
                             , (<~)
                             , (<~?)
@@ -49,10 +47,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , DiscardIfAcceptedTag (..)
                             , MaxOutputsHalter (..)
                             , SwitchEveryNHalter (..)
-                            , BranchAdjSwitchEveryNHalter (..)
-                            , RecursiveCutOff (..)
                             , VarLookupLimit (..)
-                            , BranchAdjVarLookupLimit (..)
                             , TimerHalter (if_time_out)
                             , timerHalter
                             , OnlyIf (..)
@@ -63,19 +58,11 @@ module G2.Execution.Reducer ( Reducer (..)
                             , NextOrderer (..)
                             , PickLeastUsedOrderer (..)
                             , BucketSizeOrderer (..)
-                            , CaseCountOrderer (..)
-                            , SymbolicADTOrderer (..)
                             , ADTHeightOrderer (..)
                             , ADTSizeOrderer (..)
                             , PCSizeOrderer (..)
                             , IncrAfterN (..)
                             , QuotTrueAssert (..)
-                            , RandomOrderer (..)
-                            , mkRandomOrderer
-                            , getRandomOrderer
-                            , WeightedRandomOrderer
-                            , mkWeightedRandomOrderer
-                            , getWeightedRandomOrderer
 
                             , runReducer ) where
 
@@ -99,7 +86,6 @@ import qualified Data.List as L
 import Data.Tuple
 import Data.Time.Clock
 import System.Directory
-import System.Random
 
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
@@ -571,39 +557,6 @@ instance Show t => Reducer LimLogger LLTracker t where
 
     onAccept _ _ ll = putStrLn $ "Accepted on path " ++ show (ll_offset ll)
 
-
-data PredicateLogger = PredicateLogger { pred :: forall t . State t -> Bindings -> Bool
-                                       , pred_output_path :: String }
-
-instance Show t => Reducer PredicateLogger [Int] t where
-    initReducer _ _ = []
-
-    redRules pl@(PredicateLogger p out) ll s b
-        | p s b = do
-            outputState out ll s b pprExecStateStr
-            return (NoProgress, [(s, ll)], b, pl)
-        | otherwise =
-            return (NoProgress, [(s, ll)], b, pl)
-    
-    updateWithAll _ [(_, l)] = [l]
-    updateWithAll _ ss = map (\(l, i) -> l ++ [i]) $ zip (map snd ss) [1..]
-
-
--- | A Reducer to block states not on a given path 
-data OnlyPath = OnlyPath [Int] -- ^ The path to accept
-
-instance Reducer OnlyPath [Int] t where
-    initReducer _ _ = []
-
-    redRules ll@(OnlyPath down) off s b
-        | down `L.isPrefixOf` off || off `L.isPrefixOf` down =
-            return (NoProgress, [(s, off)], b, ll)
-        | otherwise = return (Finished, [], b, ll)
-    
-    updateWithAll _ [(_, l)] = [l]
-    updateWithAll _ ss = map (\(llt, i) -> llt ++ [i]) $ zip (map snd ss) [1..]
-
-
 outputState :: String -> [Int] -> State t -> Bindings -> (State t -> Bindings -> String) -> IO ()
 outputState dn is s b printer = do
     fn <- getFile dn is "state" s
@@ -764,79 +717,6 @@ instance Halter SwitchEveryNHalter Int t where
             c' = c `quot` len
         in
         replicate len c'
-
--- | Switches execution every n steps, where n is divided every time
--- a case split happens, by the number of states.
--- That is, if n is 2100, and the case splits into 3 states, each new state will
--- will then get only 700 steps
-data BranchAdjSwitchEveryNHalter = BranchAdjSwitchEveryNHalter { switch_def :: Int
-                                                               , switch_min :: Int }
-
-data SwitchingPerState = SwitchingPerState { switch_at :: Int -- ^ Max number of steps
-                                           , counter :: Int -- ^ Current step counter
-                                           }
-
-instance Halter BranchAdjSwitchEveryNHalter SwitchingPerState t where
-    initHalt (BranchAdjSwitchEveryNHalter { switch_def = sw }) _ =
-        SwitchingPerState { switch_at = sw, counter = sw }
-    updatePerStateHalt _ sps@(SwitchingPerState { switch_at = sw }) _ _ =
-        sps { counter = sw }
-    stopRed _ (SwitchingPerState { counter = i }) _ _ =
-        return $ if i <= 0 then Switch else Continue
-    stepHalter (BranchAdjSwitchEveryNHalter { switch_min = mi })
-               sps@(SwitchingPerState { switch_at = sa, counter = i }) _ xs _ =
-        let
-            new_sa = max mi (sa `div` length xs)
-            new_i = min (i - 1) new_sa
-        in
-        sps { switch_at = new_sa, counter = new_i}
-
-data BranchAdjVarLookupLimit = BranchAdjVarLookupLimit { var_switch_def :: Int
-                                                       , var_switch_min :: Int }
-
-instance Halter BranchAdjVarLookupLimit SwitchingPerState t where
-    initHalt (BranchAdjVarLookupLimit { var_switch_def = sw }) _ =
-        SwitchingPerState { switch_at = sw, counter = sw }
-    updatePerStateHalt _ sps@(SwitchingPerState { switch_at = sw }) _ _ =
-        sps { counter = sw }
-    stopRed _ (SwitchingPerState { counter = i }) _ _ =
-        return $ if i <= 0 then Switch else Continue
-
-    stepHalter (BranchAdjVarLookupLimit { var_switch_min = mi })
-               sps@(SwitchingPerState { switch_at = sa, counter = i }) _ xs
-               (State { curr_expr = CurrExpr Evaluate (Var _) }) =
-        let
-            new_sa = max mi (sa `div` length xs)
-            new_i = min (i - 1) new_sa
-        in
-        sps { switch_at = new_sa, counter = new_i}
-    stepHalter _ sps _ _ _ = sps
-
-
--- Cutoff recursion after n recursive calls
-data RecursiveCutOff = RecursiveCutOff Int
-
-instance Halter RecursiveCutOff (HM.HashMap SpannedName Int) t where
-    initHalt _ _ = HM.empty
-    updatePerStateHalt _ hv _ _ = hv
-
-    stopRed (RecursiveCutOff co) hv _ (State { curr_expr = CurrExpr _ (Var (Id n _)) }) =
-        case HM.lookup (SpannedName n) hv of
-            Just i
-                | i > co -> return Discard
-                | otherwise -> return Continue
-            Nothing -> return Continue
-    stopRed _ _ _ _ = return Continue
-
-    stepHalter _ hv _ _ s@(State { curr_expr = CurrExpr _ (Var (Id n _)) })
-        | not $ E.isSymbolic n (expr_env s) =
-            case HM.lookup sn hv of
-                Just i -> HM.insert sn (i + 1) hv
-                Nothing -> HM.insert sn 1 hv
-        | otherwise = hv
-        where
-            sn = SpannedName n
-    stepHalter _ hv _ _ _ = hv
 
 -- | If the Name, disregarding the Unique, in the DiscardIfAcceptedTag
 -- matches a Tag in the Accepted State list,
@@ -1046,32 +926,6 @@ instance MinOrderer BucketSizeOrderer Int Int t where
 
     minUpdateSelected _ v _ _ = v + 1
 
--- | Order by the number of PCs
-data CaseCountOrderer = CaseCountOrderer
-
-instance Orderer CaseCountOrderer Int Int t where
-    initPerStateOrder _ _ = 0
-
-    orderStates ord v _ _ = (v, ord)
-
-    updateSelected _ v _ _ = v
-
-    stepOrderer _ v _ _ (State { curr_expr = CurrExpr _ (Case _ _ _) }) = v + 1
-    stepOrderer _ v _ _ _ = v
-
-
--- Orders by the smallest symbolic ADTs
-data SymbolicADTOrderer = SymbolicADTOrderer
-
-instance Orderer SymbolicADTOrderer (HS.HashSet Name) Int t where
-    initPerStateOrder _ = HS.fromList . map idName . E.symbolicIds . expr_env
-    orderStates ord v _ _ = (HS.size v, ord)
-
-    updateSelected _ v _ _ = v
-
-    stepOrderer _ v _ _ s =
-        v `HS.union` (HS.fromList . map idName . E.symbolicIds . expr_env $ s)
-
 -- Orders by the size (in terms of height) of (previously) symbolic ADT.
 -- In particular, aims to first execute those states with a height closest to
 -- the specified height.
@@ -1204,47 +1058,6 @@ instance MinOrderer PCSizeOrderer () Int t where
     minUpdateSelected _ v _ _ = v
 
     minStepOrderer _ d _ _ _ = d
-
-data RandomOrderer = RandomOrderer StdGen
-
-instance MinOrderer RandomOrderer () Int t where
-    minInitPerStateOrder _ _ = ()
-
-    minOrderStates (RandomOrderer gen) _ _ _ =
-        let
-            (v, gen') = randomR (0, 1000) gen
-        in
-        (v, RandomOrderer gen')
-
-    minUpdateSelected _ v _ _ = v
-
-mkRandomOrderer :: Int -> RandomOrderer
-mkRandomOrderer = RandomOrderer . mkStdGen
-
-getRandomOrderer :: IO RandomOrderer
-getRandomOrderer = return . RandomOrderer =<< getStdGen
-
-type WeightFunction t = Processed (State t) -> State t -> Int -> Int
-
-data WeightedRandomOrderer t =
-    WeightedRandomOrderer (WeightFunction t) StdGen
-
-instance Orderer (WeightedRandomOrderer t) () Int t where
-    initPerStateOrder _ _ = ()
-
-    orderStates (WeightedRandomOrderer f gen) _ pr s =
-        let
-            (v, gen') = randomR (0, 1000) gen
-        in
-        (f pr s v, WeightedRandomOrderer f gen')
-
-    updateSelected _ v _ _ = v
-
-mkWeightedRandomOrderer :: WeightFunction t -> Int -> WeightedRandomOrderer t
-mkWeightedRandomOrderer f = WeightedRandomOrderer f . mkStdGen
-
-getWeightedRandomOrderer :: WeightFunction t -> IO (WeightedRandomOrderer t)
-getWeightedRandomOrderer f = return . WeightedRandomOrderer f =<< getStdGen
 
 -- Wraps an existing Orderer, and increases it's value by 1, every time
 -- it doesn't change after N steps 
