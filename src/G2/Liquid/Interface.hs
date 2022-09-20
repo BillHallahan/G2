@@ -20,7 +20,6 @@ module G2.Liquid.Interface ( LiquidData (..)
                            , liquidStateWithCall'
                            , liquidStateFromSimpleStateWithCall
                            , liquidStateFromSimpleStateWithCall'
-                           , liquidStateFromSimpleState
 
                            , cleanReadyState
                            , fromLiquidNoCleaning
@@ -187,23 +186,6 @@ liquidStateFromSimpleStateWithCall' simp_s ghci entry mb_m config lhconfig memco
         (s, i, bindings') = initStateFromSimpleStateWithCall simp_s' True entry mb_m mkCurr argTys config
     
     fromLiquidReadyState s i bindings' ghci ph_tyvars lhconfig memconfig
-
-{-# INLINE liquidStateFromSimpleState #-}
-liquidStateFromSimpleState :: SimpleState
-                            -> [GhcInfo]
-                            -> Config
-                            -> LHConfig
-                            -> MemConfig
-                            -> MkCurrExpr
-                            -> MkArgTypes
-                            -> IO LiquidData
-liquidStateFromSimpleState simp_s ghci config lhconfig memconfig mkCurr argTys = do
-    let (simp_s', ph_tyvars) = if add_tyvars lhconfig
-                                  then fmap Just $ addTyVarsEEnvTEnv simp_s
-                                  else (simp_s, Nothing)
-        (s, bindings') = initStateFromSimpleState simp_s' True mkCurr argTys config
-    
-    fromLiquidReadyState s (Id (Name "" Nothing 0 Nothing) TyUnknown) bindings' ghci ph_tyvars lhconfig memconfig
 
 {-# INLINE fromLiquidReadyState #-}
 fromLiquidReadyState :: State ()

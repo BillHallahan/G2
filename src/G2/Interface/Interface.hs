@@ -7,9 +7,7 @@ module G2.Interface.Interface ( MkCurrExpr
                               , doTimeout
                               , maybeDoTimeout
 
-                              , initState
                               , initStateWithCall
-                              , initState'
                               , initStateWithCall'
                               , initStateFromSimpleState
                               , initStateFromSimpleState'
@@ -114,17 +112,7 @@ initStateWithCall exg2 useAssert f m_mod mkCurr argTys config =
                         Left ie' -> ie'
                         Right errs -> error errs
     in
-    initStateFromSimpleState s useAssert (mkCurr ie) (argTys fe) config
-
-{-# INLINE initState #-}
-initState :: ExtractedG2 -> Bool
-          -> MkCurrExpr -> MkArgTypes
-          -> Config -> (State (), Bindings)
-initState exg2 useAssert mkCurr argTys config =
-    let
-        s = initSimpleState exg2
-    in
-    initStateFromSimpleState s useAssert mkCurr argTys config
+    initStateFromSimpleState s m_mod useAssert (mkCurr ie) (argTys fe) config
 
 {-# INLINE initStateWithCall' #-}
 initStateWithCall' :: ExtractedG2
@@ -136,15 +124,6 @@ initStateWithCall' :: ExtractedG2
                    -> (State (), Bindings)
 initStateWithCall' exg2 =
     initStateWithCall exg2 False
-
-{-# INLINE initState' #-}
-initState' :: ExtractedG2
-           -> MkCurrExpr
-           -> MkArgTypes
-           -> Config
-           -> (State (), Bindings)
-initState' exg2 mkCurr =
-    initState exg2 False mkCurr
 
 {-# INLINE initStateFromSimpleStateWithCall #-}
 initStateFromSimpleStateWithCall :: IT.SimpleState
@@ -161,17 +140,18 @@ initStateFromSimpleStateWithCall simp_s useAssert f m_mod mkCurr argTys config =
                         Left ie' -> ie'
                         Right errs -> error errs
     
-        (s, b) = initStateFromSimpleState simp_s useAssert (mkCurr ie) (argTys fe) config
+        (s, b) = initStateFromSimpleState simp_s m_mod useAssert (mkCurr ie) (argTys fe) config
     in
     (s, ie, b)
 
 initStateFromSimpleState :: IT.SimpleState
+                         -> Maybe T.Text
                          -> Bool
                          -> MkCurrExpr
                          -> MkArgTypes
                          -> Config
                          -> (State (), Bindings)
-initStateFromSimpleState s useAssert mkCurr argTys config =
+initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     let
         (s', ds_walkers) = runInitialization2 s argTys
         eenv' = IT.expr_env s'
@@ -205,7 +185,7 @@ initStateFromSimpleState s useAssert mkCurr argTys config =
     , arb_value_gen = arbValueInit
     , cleaned_names = HM.empty
     , input_names = map idName is
-    , higher_order_inst = S.fromList $ IT.exports s
+    , higher_order_inst = S.filter (\n -> nameModule n == m_mod) . S.fromList $ IT.exports s
     , rewrite_rules = IT.rewrite_rules s
     , name_gen = ng''
     , exported_funcs = IT.exports s })
@@ -226,7 +206,7 @@ initStateFromSimpleState' s sf m_mod =
                           Left ie' -> ie'
                           Right errs -> error errs
     in
-    initStateFromSimpleState s False (mkCurrExpr Nothing Nothing ie) (mkArgTys fe)
+    initStateFromSimpleState s m_mod False (mkCurrExpr Nothing Nothing ie) (mkArgTys fe)
 
 {-# INLINE initSimpleState #-}
 initSimpleState :: ExtractedG2
@@ -323,11 +303,11 @@ initialStateNoStartFunc :: [FilePath]
                      -> Config
                      -> IO (State (), Bindings)
 initialStateNoStartFunc proj src transConfig config = do
-    (_, exg2) <- translateLoaded proj src transConfig config
+    (m_mod, exg2) <- translateLoaded proj src transConfig config
 
     let simp_state = initSimpleState exg2
 
-        (init_s, bindings) = initStateFromSimpleState simp_state False
+        (init_s, bindings) = initStateFromSimpleState simp_state m_mod False
                                  (\_ ng _ _ _ _ _ -> (Prim Undefined TyBottom, [], [], ng))
                                  (E.higherOrderExprs . IT.expr_env)
                                  config
@@ -352,7 +332,7 @@ initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig con
                         Left ie' -> ie'
                         Right errs -> error errs
 
-        (init_s, bindings) = initStateFromSimpleState simp_state def_assert
+        (init_s, bindings) = initStateFromSimpleState simp_state mb_modname def_assert
                                                   (mkCurr ie) (argTys fe) config
     -- let (init_s, ent_f, bindings) = initState exg2 def_assert
     --                                 f mb_modname mkCurr argTys config

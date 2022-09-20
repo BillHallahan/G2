@@ -1,6 +1,6 @@
 {-@ LIQUID "--no-termination" @-}
 
-module SetInsert (prop) where
+module SetInsert (Set (..), prop) where
 
 import Data.Set
 

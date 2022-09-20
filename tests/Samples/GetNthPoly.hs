@@ -8,7 +8,7 @@ data IList = ICons Int IList
 
 data X = X deriving (Eq)
 
-data Peano = Succ Peano | Zero
+data Peano = Succ Peano | Zero deriving Eq
 
 -- data E a b = L a | B a
 

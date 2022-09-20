@@ -21,7 +21,7 @@ data X = X (Int -> Int)
 x :: X -> Int
 x (X g) = g 4
 
-newtype Dollars = Dollars Int
+newtype Dollars = Dollars Int deriving Eq
 
 deskJob :: Dollars -> Dollars
 deskJob (Dollars d) = Dollars (d + 100)
@@ -32,7 +32,7 @@ mowLawn (Dollars d) = Dollars (d + 10)
 makeMoney :: (Dollars -> Dollars) -> Dollars -> Dollars
 makeMoney w d = w d
 
-newtype Y a = Y a
+newtype Y a = Y a deriving Eq
 
 mapY :: (a -> a) -> Y a -> Y a
 mapY f (Y x) = Y (f x)

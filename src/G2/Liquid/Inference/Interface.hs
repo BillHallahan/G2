@@ -55,6 +55,7 @@ inferenceCheck infconfig config g2lhconfig proj fp = do
     (s, res, _, loops) <- inference' infconfig config g2lhconfig lhconfig ghci proj fp
     print $ loop_count loops
     print . sum . HM.elems $ loop_count loops
+    print $ backtracks loops
     print $ searched_below loops
     print $ negated_models loops
     case res of
@@ -306,6 +307,7 @@ inferenceB con iter ghci m_modname lrs nls evals meas_ex gs fc max_fc blk_mdls =
                 Crash e1 e2 -> error $ "inferenceB: LiquidHaskell crashed" ++ "\n" ++ show e1 ++ "\n" ++ e2
         SynthFail sf_fc -> do
             liftIO . putStrLn $ "synthfail fc = " ++ (printFCs lrs sf_fc)
+            incrBackTrackLog
             return $ (Raise meas_ex fc (unionFC max_fc sf_fc), evals')
 
 tryToGen :: Monad m =>
