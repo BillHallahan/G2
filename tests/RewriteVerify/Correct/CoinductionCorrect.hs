@@ -201,3 +201,19 @@ simpleForce zs = case zs of
 "walkRight" forall m . subNat m m = forceNat m Z
 "walkBoth" forall m . forceNat m (subNat m m) = forceNat m Z
   #-}
+
+-- TODO unsoundness discovered on 9/26/22
+infNat1 :: Nat
+infNat1 = S infNat1
+
+infNat2 :: Nat
+infNat2 = S infNat2
+
+apply :: (a -> b) -> a -> b
+apply f x = f x
+
+{-# RULES
+"symFuncInfExpr" forall p . lmap p [infNat1] = lmap p [infNat2]
+"simpleBad" forall p . apply p (S Z) = apply p Z
+"simpleBadNat" forall (p :: Nat -> Nat) . apply p (S Z) = apply p Z
+  #-}
