@@ -202,7 +202,8 @@ simpleForce zs = case zs of
 "walkBoth" forall m . forceNat m (subNat m m) = forceNat m Z
   #-}
 
--- TODO unsoundness discovered on 9/26/22
+-- tests relating to polymorphic functions and variables
+-- the output should be SAT for all three of these rewrite rules
 infNat1 :: Nat
 infNat1 = S infNat1
 

@@ -333,8 +333,7 @@ recursionInCase (State { curr_expr = CurrExpr _ e }) =
             p == T.pack "REC" -- && containsCase sk
         _ -> False
 
--- TODO used by EquivADT and Tactics
--- TODO could a variable type be concretizable in some situations?
+-- used by EquivADT and Tactics
 concretizable :: Type -> Bool
 concretizable (TyVar _) = False
 concretizable (TyForAll _ _) = False
@@ -345,9 +344,10 @@ concretizable TYPE = False
 concretizable TyUnknown = False
 concretizable _ = True
 
--- TODO do I need to check that the unTyApp length is at least 2?
 typeFullApp :: Type -> Bool
-typeFullApp t@(TyApp _ _) = 1 + argCount t == (length $ TY.unTyApp t)
+typeFullApp t@(TyApp _ _) =
+    let c_unapp = length $ TY.unTyApp t
+    in c_unapp >= 2 && 1 + argCount t == c_unapp
 typeFullApp _ = False
 
 instance Halter EnforceProgressH () EquivTracker where
