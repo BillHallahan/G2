@@ -10,6 +10,7 @@ module G2.Equiv.G2Calls ( StateET
                         , runG2ForNebula
                         , totalExpr
                         , argCount
+                        , concretizable
 
                         , isLabeledErrorName
                         , labeledErrorName
@@ -24,6 +25,7 @@ import G2.Interface
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.Stack as S
+import qualified G2.Language.Typing as TY
 import G2.Solver
 import G2.Equiv.Config
 
@@ -330,6 +332,23 @@ recursionInCase (State { curr_expr = CurrExpr _ e }) =
         Tick (NamedLoc (Name p _ _ _)) _ ->
             p == T.pack "REC" -- && containsCase sk
         _ -> False
+
+-- TODO used by EquivADT and Tactics
+-- TODO could a variable type be concretizable in some situations?
+concretizable :: Type -> Bool
+concretizable (TyVar _) = False
+concretizable (TyForAll _ _) = False
+concretizable (TyFun _ _) = False
+concretizable t@(TyApp _ _) =
+  typeFullApp t && (concretizable $ last $ TY.unTyApp t)
+concretizable TYPE = False
+concretizable TyUnknown = False
+concretizable _ = True
+
+-- TODO do I need to check that the unTyApp length is at least 2?
+typeFullApp :: Type -> Bool
+typeFullApp t@(TyApp _ _) = 1 + argCount t == (length $ TY.unTyApp t)
+typeFullApp _ = False
 
 instance Halter EnforceProgressH () EquivTracker where
     initHalt _ _ = ()
