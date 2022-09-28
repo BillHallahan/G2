@@ -113,12 +113,6 @@ isSWHNF (State { expr_env = h, curr_expr = CurrExpr _ e }) =
     _ -> isExprValueForm h e'
 
 -- TODO might need to make this more general
--- this won't cover polymorphic function types as it is now
-isPolymorphic :: Type -> Bool
-isPolymorphic (TyVar _) = True
-isPolymorphic (TyForAll _ _) = True
-isPolymorphic _ = False
-
 -- functions themselves cannot be concretized as the implementation is now
 concretizable :: Type -> Bool
 concretizable (TyVar _) = False

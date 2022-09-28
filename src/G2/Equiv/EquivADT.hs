@@ -85,6 +85,7 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
     (Var i1, Var i2) | (idName i1) `elem` n1
                      , (idName i2) `elem` n2 -> Just $ HS.insert (Ob [] e1 e2) pairs
                      -- TODO (9/27/22) ad-hoc fix for polymorphic variables
+                     -- we know at this point that the variables are not the same
                      | not (concretizable $ T.typeOf e1) -> Nothing
     (Var i, _) | E.isSymbolic (idName i) h1 -> Just $ HS.insert (Ob [] e1 e2) pairs
                | m <- idName i
@@ -145,13 +146,18 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
         | otherwise -> Just $ HS.insert (Ob [] e1 e2) pairs
 
 -- TODO copied from other file
+-- TODO could a variable type be concretizable in some situations?
 concretizable :: Type -> Bool
 concretizable (TyVar _) = False
 concretizable (TyForAll _ _) = False
 concretizable (TyFun _ _) = False
--- TODO this is bad, but it might be unreachable in the current setup
-concretizable (TyApp t1 t2) = concretizable t1 && concretizable t2
-concretizable (TyCon _ _) = error "TODO"
+concretizable t@(TyApp _ _) =
+  typeFullApp t && (concretizable $ last $ T.unTyApp t)
 concretizable TYPE = False
 concretizable TyUnknown = False
 concretizable _ = True
+
+-- TODO do I need to check that the unTyApp length is at least 2?
+typeFullApp :: Type -> Bool
+typeFullApp t@(TyApp _ _) = 1 + argCount t == (length $ T.unTyApp t)
+typeFullApp _ = False

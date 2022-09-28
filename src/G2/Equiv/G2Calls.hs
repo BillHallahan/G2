@@ -9,6 +9,7 @@ module G2.Equiv.G2Calls ( StateET
                         , emptyEquivTracker
                         , runG2ForNebula
                         , totalExpr
+                        , argCount
 
                         , isLabeledErrorName
                         , labeledErrorName
