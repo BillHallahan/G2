@@ -85,9 +85,11 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
     (Var i1, Var i2) | (idName i1) `elem` n1
                      , (idName i2) `elem` n2 -> Just $ HS.insert (Ob [] e1 e2) pairs
                      -- reject distinct polymorphic variables as inequivalent
-                     -- we know at this point that the variables are not the same
                      -- this works for function variables too
-                     | not (concretizable $ T.typeOf e1) -> Nothing
+                     | E.isSymbolic (idName i1) h1
+                     , E.isSymbolic (idName i2) h2
+                     , idName i1 /= idName i2
+                     , not (concretizable $ T.typeOf e1) -> Nothing
     (Var i, _) | E.isSymbolic (idName i) h1 -> Just $ HS.insert (Ob [] e1 e2) pairs
                | m <- idName i
                , not $ m `elem` ns
