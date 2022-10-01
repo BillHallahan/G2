@@ -295,8 +295,10 @@ instance Halter LabeledErrorsH () t where
         | otherwise = return Continue
     stepHalter _ hv _ _ _ = hv
 
+-- this does not account for type arguments
 argCount :: Type -> Int
-argCount = length . spArgumentTypes . PresType
+argCount (TyApp _ t) = 1 + argCount t
+argCount _ = 0
 
 exprFullApp :: ExprEnv -> Expr -> Bool
 exprFullApp h e | (Tick (NamedLoc (Name p _ _ _)) f):as <- unApp e
