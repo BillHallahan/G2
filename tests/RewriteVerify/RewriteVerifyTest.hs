@@ -104,7 +104,10 @@ higher_good_src :: String
 higher_good_src = "tests/RewriteVerify/Correct/HigherOrderCorrect.hs"
 
 higher_bad_names :: [String]
-higher_bad_names = [ "direct" ]
+higher_bad_names = [ "direct"
+                   , "symFuncInfExpr"
+                   , "symFuncPoly"
+                   , "symFuncNat" ]
 
 higher_bad_src :: String
 higher_bad_src = "tests/RewriteVerify/Incorrect/HigherOrderIncorrect.hs"
