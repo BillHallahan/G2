@@ -297,8 +297,7 @@ instance Halter LabeledErrorsH () t where
 
 -- this does not account for type arguments
 argCount :: Type -> Int
-argCount (TyApp _ t) = 1 + argCount t
-argCount _ = 0
+argCount = length . spArgumentTypes . PresType
 
 exprFullApp :: ExprEnv -> Expr -> Bool
 exprFullApp h e | (Tick (NamedLoc (Name p _ _ _)) f):as <- unApp e
@@ -346,10 +345,14 @@ concretizable TYPE = False
 concretizable TyUnknown = False
 concretizable _ = True
 
+argCountType :: Type -> Int
+argCountType (TyApp _ t) = 1 + argCountType t
+argCountType _ = 0
+
 typeFullApp :: Type -> Bool
 typeFullApp t@(TyApp _ _) =
     let c_unapp = length $ TY.unTyApp t
-    in c_unapp >= 2 && 1 + argCount t == c_unapp
+    in c_unapp >= 2 && 1 + argCountType t == c_unapp
 typeFullApp _ = False
 
 instance Halter EnforceProgressH () EquivTracker where
