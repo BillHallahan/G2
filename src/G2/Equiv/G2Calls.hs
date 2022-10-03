@@ -340,20 +340,10 @@ concretizable (TyVar _) = False
 concretizable (TyForAll _ _) = False
 concretizable (TyFun _ _) = False
 concretizable t@(TyApp _ _) =
-  typeFullApp t && (concretizable $ last $ TY.unTyApp t)
+  concretizable $ last $ TY.unTyApp t
 concretizable TYPE = False
 concretizable TyUnknown = False
 concretizable _ = True
-
-argCountType :: Type -> Int
-argCountType (TyApp _ t) = 1 + argCountType t
-argCountType _ = 0
-
-typeFullApp :: Type -> Bool
-typeFullApp t@(TyApp _ _) =
-    let c_unapp = length $ TY.unTyApp t
-    in c_unapp >= 2 && 1 + argCountType t == c_unapp
-typeFullApp _ = False
 
 instance Halter EnforceProgressH () EquivTracker where
     initHalt _ _ = ()
