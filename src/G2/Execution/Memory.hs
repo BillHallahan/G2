@@ -22,7 +22,6 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 
 import qualified Data.Sequence as S
-import Data.Semigroup
 
 type PreservingFunc = forall t . State t -> Bindings -> HS.HashSet Name -> HS.HashSet Name
 

@@ -62,7 +62,6 @@ import G2.Equiv.Types
 import Data.Either
 import Data.Either.Extra
 import qualified Data.HashMap.Lazy as HM
-import Data.Monoid ((<>))
 
 import G2.Execution.NormalForms
 import Control.Monad.Extra
@@ -436,18 +435,8 @@ validHigherOrder s1 s2 ns hm_hs | Right (hm, _) <- hm_hs =
       s1' = s1 { track = (track s1) { higher_order = HM.empty } }
       s2' = s2 { track = (track s2) { higher_order = HM.empty } }
       -- if the Id isn't present, the mapping isn't relevant
-      hm_ids = map fst $ HM.toList hm
-      -- TODO these conditions need to be looser
-      -- check if the things in hm_ids have mappings, not just that they're the output of mappings
-      -- TODO this new version doesn't cover inlining; I think it's too loose
-      -- TODO better idea:  the new approximations can't add mappings
-      -- if they do need to add mappings, disregard them
       mappings1 = HM.toList $ higher_order $ track s1
-      mappings1' = filter (\(_, i) -> i `elem` hm_ids) mappings1
       mappings2 = HM.toList $ higher_order $ track s2
-      mappings2' = filter (\(_, i) -> i `elem` hm_ids) mappings2
-      -- TODO this can't be used now that we have a new env system
-      -- also, I think it's not necessary anymore anyway
       old_pairs = filter (\(_, i) -> (E.member (idName i) (expr_env s1)) || (E.member (idName i) (opp_env $ track s1))) mappings1
       new_pairs = filter (\(_, i) -> (E.member (idName i) (expr_env s2)) || (E.member (idName i) (opp_env $ track s2))) mappings2
       old_states = map (\(e, i) -> (s1' { curr_expr = CurrExpr Evaluate e },
@@ -607,9 +596,9 @@ moreRestrictivePairAux solver valid ns prev (s1, s2) | dc_path (track s1) == dc_
 
       folder = folder_name . track
       -- As a heuristic, take only lemmas where both sides are not in SWHNF
-      possible_lemmas' = filter (\(Lemma { lemma_lhs = s1, lemma_rhs = s2 }) ->
-                                              not (isSWHNF s1)
-                                           && not (isSWHNF s2))
+      possible_lemmas' = filter (\(Lemma { lemma_lhs = s1_, lemma_rhs = s2_ }) ->
+                                              not (isSWHNF s1_)
+                                           && not (isSWHNF s2_))
                        $ catMaybes possible_lemmas
 
       mpc (PrevMatch _ (p1, p2) (hm, _) _) =
@@ -650,8 +639,8 @@ moreRestrictiveSingle solver ns s1 s2 = do
             case more_res_pc of
                 False -> return $ Left Nothing
                 True -> do
-                    obs <- W.liftIO (checkObligations solver s1 s2 obs)
-                    case isUnsat obs of
+                    obs' <- W.liftIO (checkObligations solver s1 s2 obs)
+                    case isUnsat obs' of
                         True -> return (Right hm)
                         False -> return $ Left Nothing
     where
@@ -921,7 +910,7 @@ replaceMoreRestrictiveSubExpr' :: S.Solver solver =>
                                   Expr ->
                                   CM.StateT (Maybe [(Id, Bool)]) (W.WriterT [Marker] IO) Expr
 replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma_rhs = rhs_s })
-                                         s2@(State { curr_expr = CurrExpr er _ }) e = do
+                                         s2 e = do
     replaced <- CM.get
     if isNothing replaced then do
         mr_sub <- CM.lift $ moreRestrictiveSingle solver ns lhs_s (s2 { curr_expr = CurrExpr Evaluate e })
@@ -931,8 +920,8 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma
                     -- TODO do I need both sides?
                     ids_l = E.symbolicIds $ opp_env $ track rhs_s
                     ids_r = E.symbolicIds $ expr_env rhs_s
-                    ids = nub (ids_l ++ ids_r)
-                    new_ids = filter (\(Id n _) -> not (E.member n (expr_env s2) || E.member n (opp_env $ track s2))) ids
+                    ids_both = nub (ids_l ++ ids_r)
+                    new_ids = filter (\(Id n _) -> not (E.member n (expr_env s2) || E.member n (opp_env $ track s2))) ids_both
                     new_info = map (\(Id n _) -> n `elem` (total_vars $ track rhs_s)) new_ids
                     -- TODO make sure this modification is correct
                     -- should it be opp_env instead of the LHS?
@@ -998,7 +987,7 @@ moreRestrictivePairWithLemmas' :: S.Solver solver =>
                                   [(StateET, StateET)] ->
                                   (StateET, StateET) ->
                                   W.WriterT [Marker] IO (Either [Lemma] (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
-moreRestrictivePairWithLemmas' app_state solver valid ns lemmas past (s1, s2) = do
+moreRestrictivePairWithLemmas' app_state solver valid ns lemmas past_list (s1, s2) = do
     let (s1', s2') = syncSymbolic s1 s2
     xs1 <- substLemma solver ns s1' $ filterProvenLemmas (app_state s1' s2') lemmas
     xs2 <- substLemma solver ns s2' $ filterProvenLemmas (app_state s2' s1') lemmas
@@ -1008,7 +997,7 @@ moreRestrictivePairWithLemmas' app_state solver valid ns lemmas past (s1, s2) = 
         pairs = [ (pair1, pair2) | pair1 <- xs1', pair2 <- xs2' ]
 
     rp <- mapM (\((l1, s1_), (l2, s2_)) -> do
-            mrp <- moreRestrictivePair solver valid ns past (s1_, s2_)
+            mrp <- moreRestrictivePair solver valid ns past_list (s1_, s2_)
             -- TODO use synced or non-synced?
             let l1' = case l1 of
                   Nothing -> Nothing
@@ -1032,10 +1021,10 @@ moreRestrictivePairWithLemmasPast :: S.Solver solver =>
                                      [(StateET, StateET)] ->
                                      (StateET, StateET) ->
                                      W.WriterT [Marker] IO (Either [Lemma] (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
-moreRestrictivePairWithLemmasPast solver valid ns lemmas past s_pair = do
-    let (past1, past2) = unzip past
-    xs_past1 <- mapM (\(q1, q2) -> substLemma solver ns q1 lemmas) past
-    xs_past2 <- mapM (\(q1, q2) -> substLemma solver ns q2 lemmas) past
+moreRestrictivePairWithLemmasPast solver valid ns lemmas past_list s_pair = do
+    let (past1, past2) = unzip past_list
+    xs_past1 <- mapM (\(q1, _) -> substLemma solver ns q1 lemmas) past_list
+    xs_past2 <- mapM (\(_, q2) -> substLemma solver ns q2 lemmas) past_list
     let plain_past1 = map (\s_ -> (Nothing, s_)) past1
         plain_past2 = map (\s_ -> (Nothing, s_)) past2
         xs_past1' = plain_past1 ++ (map (\(l, s) -> (Just l, s)) $ concat xs_past1)
@@ -1043,8 +1032,8 @@ moreRestrictivePairWithLemmasPast solver valid ns lemmas past s_pair = do
         -- TODO is it fine to sync after lemma usage rather than before?
         -- TODO also record the lemmas used somehow?
         pair_past (_, p1) (_, p2) = syncSymbolic p1 p2
-        past' = [pair_past pair1 pair2 | pair1 <- xs_past1', pair2 <- xs_past2']
-    moreRestrictivePairWithLemmas solver valid ns lemmas past' s_pair
+        past_list' = [pair_past pair1 pair2 | pair1 <- xs_past1', pair2 <- xs_past2']
+    moreRestrictivePairWithLemmas solver valid ns lemmas past_list' s_pair
 
 -- TODO I think this assertion is no longer needed
 -- I can do some sort of merge for the expression environments

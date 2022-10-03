@@ -60,10 +60,8 @@ import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import Data.Maybe
-import Data.Monoid (Monoid (..))
 import Prelude hiding (map, filter, null)
 import qualified Prelude as P (map)
-import Data.Semigroup (Semigroup (..))
 
 -- | Conceptually, the path constraints are a graph, with (Maybe Name)'s Nodes.
 -- Edges exist between any names that are in the same path constraint.

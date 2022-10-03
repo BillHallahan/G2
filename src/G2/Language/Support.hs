@@ -35,7 +35,6 @@ import Data.Hashable
 import qualified Data.Map as M
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
-import Data.Monoid ((<>))
 import qualified Data.Text as T
 
 -- | The State is passed around in G2. It can be utilized to

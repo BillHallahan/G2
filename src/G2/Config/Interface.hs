@@ -3,7 +3,6 @@ module G2.Config.Interface where
 import G2.Config.Config
 
 import qualified Data.Map.Lazy as M
-import Data.Monoid ((<>))
 import Options.Applicative
 import System.Directory
 
@@ -15,8 +14,8 @@ getConfigDirect = do
     homedir <- getHomeDirectory
     return $ mkConfigDirect homedir [] M.empty
 
-getConfig :: [String] -> IO (String, String, Maybe String, Maybe String, Config)
-getConfig ars = do
+getConfig :: IO (String, String, Maybe String, Maybe String, Config)
+getConfig = do
     homedir <- getHomeDirectory
     execParser (mkConfigInfo homedir)
 
