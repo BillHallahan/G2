@@ -365,13 +365,13 @@ verifyLoop solver ns lemmas states b config nc sym_ids folder_root k n | (n /= 0
   -- TODO I think the lemmas should be the unresolved ones
   -- TODO what to do with disproven lemmas?
   -- No noticeable time change for p02 with this added, still 1:50
-  (pl_sr, b''', k''') <- verifyWithNewProvenLemmas solver allNewLemmaTactics ns proven' lemmas'' b'' k'' states
+  (pl_sr, b''') <- verifyWithNewProvenLemmas solver allNewLemmaTactics ns proven' lemmas'' b'' states
 
   case pl_sr of
       CounterexampleFound -> return $ S.SAT ()
       Proven -> return $ S.UNSAT ()
       ContinueWith _ pl_lemmas -> do
-          (sr, b'''', k'''') <- verifyLoopWithSymEx solver allTactics ns lemmas'' b''' config nc folder_root k''' states
+          (sr, b'''', k''') <- verifyLoopWithSymEx solver allTactics ns lemmas'' b''' config nc folder_root k'' states
           case sr of
               ContinueWith new_obligations new_lemmas -> do
                   let n' = if n > 0 then n - 1 else n
@@ -387,7 +387,7 @@ verifyLoop solver ns lemmas states b config nc sym_ids folder_root k n | (n /= 0
                   --               W.liftIO $ putStrLn "----"
                   --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
                   --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) $ HS.toList new_lemmas
-                  verifyLoop solver ns final_lemmas new_obligations b'''' config nc sym_ids folder_root k'''' n'
+                  verifyLoop solver ns final_lemmas new_obligations b'''' config nc sym_ids folder_root k''' n'
               CounterexampleFound -> return $ S.SAT ()
               Proven -> do
                   W.liftIO $ putStrLn $ "proposed = " ++ show (length $ proposedLemmas lemmas)
@@ -509,7 +509,8 @@ verifyLoopWithSymEx solver tactics ns lemmas b config nc folder_root k states = 
         updated_hists = map (\(s, ps) -> map (app_pair s) ps) $ zip states paired_states
     --W.liftIO $ putStrLn $ show $ length $ concat updated_hists
 
-    verifyLoop' solver tactics ns lemmas b' k' (concat updated_hists)
+    (res, b'') <- verifyLoop' solver tactics ns lemmas b' (concat updated_hists)
+    return (res, b'', k')
 
 verifyWithNewProvenLemmas :: S.Solver solver =>
                              solver
@@ -518,15 +519,14 @@ verifyWithNewProvenLemmas :: S.Solver solver =>
                           -> [ProvenLemma]
                           -> Lemmas
                           -> Bindings
-                          -> Int
                           -> [(StateH, StateH)]
-                          -> W.WriterT [Marker] IO (StepRes, Bindings, Int)
-verifyWithNewProvenLemmas solver nl_tactics ns proven lemmas b k states = do
+                          -> W.WriterT [Marker] IO (StepRes, Bindings)
+verifyWithNewProvenLemmas solver nl_tactics ns proven lemmas b states = do
     let rel_states = map (\pl -> (lemma_lhs_origin pl, lemma_rhs_origin pl)) proven
         tactics = concatMap (\t -> map (uncurry t) rel_states) nl_tactics
 
     --W.liftIO $ putStrLn "verifyWithNewProvenLemmas"
-    verifyLoop' solver tactics ns lemmas b k states
+    verifyLoop' solver tactics ns lemmas b states
 
 verifyLemmasWithNewProvenLemmas :: S.Solver solver =>
                                    solver
@@ -562,10 +562,9 @@ verifyLoop' :: S.Solver solver =>
             -> HS.HashSet Name
             -> Lemmas
             -> Bindings
-            -> Int
             -> [(StateH, StateH)]
-            -> W.WriterT [Marker] IO (StepRes, Bindings, Int)
-verifyLoop' solver tactics ns lemmas b k states = do
+            -> W.WriterT [Marker] IO (StepRes, Bindings)
+verifyLoop' solver tactics ns lemmas b states = do
     --W.liftIO $ putStrLn "verifyLoop'"
     let (fn1, ng') = freshName (name_gen b)
         (fn2, ng'') = freshName ng'
@@ -581,7 +580,7 @@ verifyLoop' solver tactics ns lemmas b k states = do
     let res = if | null proof_lemma_list -> Proven
                  | all isJust proof_lemma_list -> ContinueWith new_obligations new_lemmas
                  | otherwise -> CounterexampleFound
-    return (res, b', k)
+    return (res, b')
 
 applyTacticToLabeledStates :: Tactic solver -> String -> String -> Tactic solver
 applyTacticToLabeledStates tactic lbl1 lbl2 solver ns lemmas fresh_names (sh1, sh2) (s1, s2)
