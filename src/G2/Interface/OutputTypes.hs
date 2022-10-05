@@ -5,6 +5,8 @@ module G2.Interface.OutputTypes ( ExecRes (..)) where
 
 import G2.Language
 
+import Data.Monoid ((<>))
+
 -- | A fully executed State
 data ExecRes t = ExecRes { final_state :: State t
                          , conc_args :: [Expr]

@@ -75,6 +75,7 @@ import Data.Hashable
 import qualified Data.List as L
 import qualified Data.HashMap.Lazy as M
 import Data.Maybe
+import Data.Monoid ((<>))
 import qualified Data.Sequence as S
 import qualified Data.Text as T
 import qualified Data.Traversable as Trav

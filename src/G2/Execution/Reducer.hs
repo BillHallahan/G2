@@ -94,6 +94,7 @@ import qualified Data.HashSet as HS
 import qualified Data.HashMap.Strict as HM
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Monoid ((<>))
 import qualified Data.List as L
 import Data.Tuple
 import Data.Time.Clock

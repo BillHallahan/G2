@@ -5,6 +5,7 @@ module G2.Equiv.Config ( NebulaConfig (..)
                        , mkNebulaConfigInfo
                        , mkNebulaConfig) where
 
+import Data.Monoid ((<>))
 import qualified Data.Text as T
 import Options.Applicative
 

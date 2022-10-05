@@ -28,6 +28,7 @@ import Control.Exception.Base (evaluate)
 import Data.List.Utils (countElem)
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
+import Data.Semigroup
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Text.Builder as TB
