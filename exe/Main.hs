@@ -28,7 +28,7 @@ main = do
 runWithArgs :: [String] -> IO ()
 runWithArgs as = do
   let (_:_:tail_args) = as
-  (src, entry, m_assume, m_assert, config) <- getConfig as
+  (src, entry, m_assume, m_assert, config) <- getConfig
 
   proj <- guessProj src
 

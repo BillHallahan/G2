@@ -304,7 +304,7 @@ genSpec ghcis (G2.Name n _ _ _) = foldr mappend Nothing $ map gen ghcis
 
 genSpec' :: GhcInfo -> Var -> SpecType
 genSpec' ghci v =
-    S.evalState (refreshTy (ofType $ varType v)) $ initCGI (getConfig ghci) ghci
+    S.evalState (refreshTy (ofType $ varType v)) $ initCGI getConfig ghci
 
 definedVars :: GhcInfo -> [Var]
 #if MIN_VERSION_liquidhaskell(0,8,6)
