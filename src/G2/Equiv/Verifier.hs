@@ -555,7 +555,6 @@ verifyLemmasWithNewProvenLemmas solver nl_tactics ns proven lemmas b config nc f
             in
             verifyLemmasWithNewProvenLemmas solver nl_tactics ns proven' lemmas' b' config nc fld_name k'
 
--- TODO is k needed?
 verifyLoop' :: S.Solver solver =>
                solver
             -> [Tactic solver]

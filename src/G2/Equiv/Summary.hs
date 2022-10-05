@@ -125,8 +125,8 @@ varsFullRec ns h seen search
         new_seen = HS.union (HS.fromList all_new) seen
     in varsFullRec ns h new_seen all_new
 
--- the terminal expression can have variables of its own that we should cover
--- TODO seemingly, they're not needed
+-- the terminal expression can have variables of its own
+-- seemingly, they're not needed for anything
 varChain :: ExprEnv -> HS.HashSet Name -> [Id] -> Id -> ([Id], ChainEnd)
 varChain h ns inlined i =
   if i `elem` inlined then (reverse inlined, Cycle i)
