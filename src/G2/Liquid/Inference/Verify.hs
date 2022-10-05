@@ -237,7 +237,7 @@ liquidOne :: InferenceConfig -> GhcInfo -> IO (F.Result (Integer, Cinfo))
 --------------------------------------------------------------------------------
 liquidOne infconfig info = do
   -- whenNormal $ donePhase Loud "Extracted Core using GHC"
-  let cfg   = getConfig
+  let cfg   = getConfig info
 #if MIN_VERSION_liquidhaskell(0,8,6)
   let tgt   = giTarget (giSrc info)
   let cbs' = giCbs (giSrc info)
