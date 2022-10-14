@@ -9,6 +9,8 @@ module G2.Equiv.G2Calls ( StateET
                         , emptyEquivTracker
                         , runG2ForNebula
                         , totalExpr
+                        , argCount
+                        , concretizable
 
                         , isLabeledErrorName
                         , labeledErrorName
@@ -24,6 +26,7 @@ import G2.Language
 import G2.Lib.Printers
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.Stack as S
+import qualified G2.Language.Typing as TY
 import G2.Solver
 import G2.Equiv.Config
 
@@ -297,6 +300,7 @@ instance Halter LabeledErrorsH () t where
         | otherwise = return Continue
     stepHalter _ hv _ _ _ = hv
 
+-- this does not account for type arguments
 argCount :: Type -> Int
 argCount = length . spArgumentTypes . PresType
 
@@ -336,6 +340,17 @@ recursionInCase (State { curr_expr = CurrExpr _ e }) =
         _ -> False
 
 data EnforceProgressH = EnforceProgressH
+
+-- used by EquivADT and Tactics
+concretizable :: Type -> Bool
+concretizable (TyVar _) = False
+concretizable (TyForAll _ _) = False
+concretizable (TyFun _ _) = False
+concretizable t@(TyApp _ _) =
+  concretizable $ last $ TY.unTyApp t
+concretizable TYPE = False
+concretizable TyUnknown = False
+concretizable _ = True
 
 instance Halter EnforceProgressH () EquivTracker where
     initHalt _ _ = ()

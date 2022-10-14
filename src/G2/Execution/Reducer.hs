@@ -32,7 +32,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , nonRedPCRedConst
                             , taggerRed
                             , getLogger
-                            , logger
+                            , simpleLogger
                             , prettyLogger
                             , limLogger
 
@@ -349,14 +349,6 @@ SomeReducer r1 .<~? SomeReducer r2 = SomeReducer (r1 <~? r2)
 (.<~|) :: Monad m => SomeReducer m t -> SomeReducer m t -> SomeReducer m t
 SomeReducer r1 .<~| SomeReducer r2 = SomeReducer (r1 <~| r2)
 
-initReducerGen :: Reducer m rv1 t -> Reducer m rv2 t -> State t -> RC rv1 rv2
-initReducerGen r1 r2 s =
-    let
-        rv1 = initReducer r1 s
-        rv2 = initReducer r2 s
-    in
-    RC rv1 rv2
-
 updateWithAllPair :: ([(State t, rv1)] -> [rv1]) -> ([(State t, rv2)] -> [rv2]) -> [(State t, RC rv1 rv2)] -> [RC rv1 rv2]
 updateWithAllPair update1 update2 srv =
                 let
@@ -470,7 +462,7 @@ nonRedPCRedConstFunc _
                               , exec_stack = stck
                               , non_red_path_conds = nr:nrs
                               , model = m })
-                     b@(Bindings { name_gen = ng, higher_order_inst = inst }) = do
+                     b@(Bindings { name_gen = ng }) = do
     let stck' = Stck.push (CurrExprFrame AddPC cexpr) stck
 
     let cexpr' = CurrExpr Evaluate nr
@@ -512,13 +504,13 @@ taggerRedStep n _ s@(State {tags = ts}) b@(Bindings { name_gen = ng }) =
 
 getLogger :: (MonadIO m, Show t) => Config -> Maybe (Reducer (SM.StateT PrettyGuide m) [Int] t)
 getLogger config = case logStates config of
-                        Log Raw fp -> Just (logger fp)
+                        Log Raw fp -> Just (simpleLogger fp)
                         Log Pretty fp -> Just (prettyLogger fp)
                         NoLog -> Nothing
 
 -- | A Reducer to producer logging output 
-logger :: (MonadIO m, Show t) => FilePath -> Reducer m [Int] t
-logger fn =
+simpleLogger :: (MonadIO m, Show t) => FilePath -> Reducer m [Int] t
+simpleLogger fn =
     (mkSimpleReducer (const [])
                      (\li s b -> do
                         liftIO $ outputState fn li s b pprExecStateStr
@@ -554,7 +546,7 @@ limLogger :: Show t => LimLogger -> Reducer IO LLTracker t
 limLogger ll@(LimLogger { after_n = aft, down_path = down }) =
     (mkSimpleReducer (const $ LLTracker { ll_count = every_n ll, ll_offset = []}) rr)
         { updateWithAll = updateWithAllLL
-        , onAccept = \_ ll -> putStrLn $ "Accepted on path " ++ show (ll_offset ll)}
+        , onAccept = \_ llt -> putStrLn $ "Accepted on path " ++ show (ll_offset llt)}
     where
         rr llt@(LLTracker { ll_count = 0, ll_offset = off }) s b
             | down `L.isPrefixOf` off || off `L.isPrefixOf` down

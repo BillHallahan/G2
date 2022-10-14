@@ -9,11 +9,8 @@ module G2.Equiv.EquivADT (
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.Typing as T
 import qualified Data.HashSet as HS
-
-import qualified Data.HashMap.Lazy as HM
-
-import Control.Monad
 
 import G2.Execution.NormalForms
 import G2.Equiv.G2Calls
@@ -79,10 +76,16 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
     (Tick _ _, _) | isExprValueForm h2 (removeAllTicks e2) -> Nothing
     (_, Tick _ _) | isExprValueForm h1 (removeAllTicks e1) -> Nothing
     -- We have two error labels that are different from each other
-    (Tick t1 e1', Tick t2 e2') -> Nothing
+    (Tick _ _, Tick _ _) -> Nothing
     -- keeping track of inlined vars prevents looping
     (Var i1, Var i2) | (idName i1) `elem` n1
                      , (idName i2) `elem` n2 -> Just $ HS.insert (Ob [] e1 e2) pairs
+                     -- reject distinct polymorphic variables as inequivalent
+                     -- this works for function variables too
+                     | E.isSymbolic (idName i1) h1
+                     , E.isSymbolic (idName i2) h2
+                     , idName i1 /= idName i2
+                     , not (concretizable $ T.typeOf e1) -> Nothing
     (Var i, _) | E.isSymbolic (idName i) h1 -> Just $ HS.insert (Ob [] e1 e2) pairs
                | m <- idName i
                , not $ m `elem` ns

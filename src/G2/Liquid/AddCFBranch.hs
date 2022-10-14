@@ -9,7 +9,6 @@ module G2.Liquid.AddCFBranch ( CounterfactualName
                              , instFuncTickName
                              , existentialInstId ) where
 
-import G2.Config.Config
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad

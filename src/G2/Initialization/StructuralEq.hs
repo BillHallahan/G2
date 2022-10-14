@@ -14,7 +14,6 @@ import qualified Data.Foldable as F
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as HM
 import Data.List
-import qualified Data.Map as M
 import qualified Data.Text as T
 
 -- | createStructEqFuncs

@@ -11,13 +11,8 @@ module G2.Equiv.Induction
 
 import G2.Language
 
-import G2.Config
-
-import G2.Interface
-
 import qualified G2.Language.ExprEnv as E
 
-import Data.List
 import Data.Maybe
 import Data.Tuple
 import qualified Data.Text as DT
@@ -25,25 +20,13 @@ import qualified Data.Text as DT
 import qualified Data.HashSet as HS
 import qualified G2.Solver as S
 
-import G2.Equiv.InitRewrite
-import G2.Equiv.EquivADT
 import G2.Equiv.G2Calls
 import G2.Equiv.Tactics
 
 import qualified Data.HashMap.Lazy as HM
-import G2.Execution.Memory
 import Data.Monoid (Any (..))
 
-import Debug.Trace
-
-import G2.Execution.NormalForms
-import Control.Monad
-
 import Data.Either.Extra
-import Data.Time
-
-import G2.Execution.Reducer
-import G2.Lib.Printers
 
 import qualified Control.Monad.Writer.Lazy as W
 
@@ -69,9 +52,9 @@ empty_name = Name (DT.pack "") Nothing 1 Nothing
 -- the output list includes entries for case statements with no stamp
 readStamps :: Expr -> [Name]
 readStamps (Tick _ e) = readStamps e
-readStamps (Case e i a) =
+readStamps (Case e _ a) =
   case a of
-    (Alt am1 a1):_ -> case a1 of
+    (Alt _ a1):_ -> case a1 of
       Tick (NamedLoc n) _ -> n:(readStamps e)
       _ -> empty_name:(readStamps e)
     _ -> error "Empty Alt List"
@@ -92,7 +75,7 @@ replaceScrutinee _ _ e = e
 scrutineeDepth :: Expr -> Expr -> Int
 scrutineeDepth e1 e2 | e1 == e2 = 0
 scrutineeDepth e1 (Tick _ e) = scrutineeDepth e1 e
-scrutineeDepth e1 (Case e i a) = 1 + scrutineeDepth e1 e
+scrutineeDepth e1 (Case e _ _) = 1 + scrutineeDepth e1 e
 scrutineeDepth _ _ = error "Not Contained"
 
 -- the depths do not need to be the same
@@ -338,7 +321,6 @@ generalize solver ns fresh_name (s1, s2) | dc_path (track s1) == dc_path (track 
   let res' = filter isJust res
   case res' of
     (Just pm):_ -> let (s1', s2') = present pm
-                       e1' = exprExtract s1'
                        s1'' = adjustStateForGeneralization e1 fresh_name s1'
                        s2'' = adjustStateForGeneralization e2 fresh_name s2'
                    in return $ Just $ syncSymbolic s1'' s2''
@@ -385,7 +367,7 @@ generalizeFold :: S.Solver solver =>
 generalizeFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
   fl <- generalizeFoldL solver ns fresh_name (s2:history sh2) s1
   case fl of
-    Just (q1, q2, q1', q2') -> return fl
+    Just _ -> return fl
     Nothing -> do
       fr <- generalizeFoldL solver ns fresh_name (s1:history sh1) s2
       case fr of
