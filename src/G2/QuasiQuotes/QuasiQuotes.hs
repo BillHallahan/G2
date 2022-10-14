@@ -27,6 +27,7 @@ import G2.QuasiQuotes.Support
 import G2.QuasiQuotes.Parser
 
 import qualified Control.Concurrent.Lock as Lock
+import Control.Monad.IO.Class
 
 import Data.Data
 import qualified Data.HashSet as HS
@@ -266,17 +267,16 @@ moduleName = "THTemp"
 functionName :: String
 functionName = "g2Expr"
 
-qqRedHaltOrd :: (Solver solver, Simplifier simplifier) => Config -> solver -> simplifier -> (SomeReducer (), SomeHalter (), SomeOrderer ())
+qqRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) => Config -> solver -> simplifier -> (SomeReducer m (), SomeHalter (), SomeOrderer ())
 qqRedHaltOrd config solver simplifier =
     let
         share = sharing config
 
-        tr_ng = mkNameGen ()
         state_name = G2.Name "state" Nothing 0 Nothing
     in
     ( SomeReducer
-        (NonRedPCRed :<~| TaggerRed state_name tr_ng)
-            <~| (SomeReducer (StdRed share solver simplifier))
+        (nonRedPCRed <~| taggerRed state_name)
+            .<~| (SomeReducer (stdRed share solver simplifier))
     , SomeHalter
         (DiscardIfAcceptedTag state_name 
         :<~> AcceptIfViolatedHalter)

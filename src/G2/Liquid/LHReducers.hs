@@ -4,11 +4,11 @@
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module G2.Liquid.LHReducers ( LHRed (..)
-                            , AllCallsRed (..)
-                            , HigherOrderCallsRed (..)
-                            , RedArbErrors (..)
-                            , NonRedAbstractReturns (..)
+module G2.Liquid.LHReducers ( lhRed
+                            , allCallsRed
+                            , higherOrderCallsRed
+                            , redArbErrors
+                            , nonRedAbstractReturnsRed
 
                             , LHAcceptIfViolatedHalter (..)
                             , LHSWHNFHalter (..)
@@ -156,60 +156,52 @@ instance ASTContainer LHTracker Type where
             , all_calls = modifyContainedASTs f ac
             , higher_order_calls = modifyContainedASTs f hc }
 
-data LHRed = LHRed Name
+lhRed :: Monad m => Name -> Reducer m () LHTracker
+lhRed cfn = mkSimpleReducer (const ()) rr
+    where
+        rr _ s b = do
+            case lhReduce cfn s of
+                Just (_, s') -> 
+                    return $ ( InProgress
+                             , zip s' (repeat ()), b)
+                Nothing -> return (Finished, [(s, ())], b)
 
-instance Reducer LHRed () LHTracker where
-    initReducer _ _ = ()
-
-    redRules lhr@(LHRed cfn) _ s b = do
-        case lhReduce cfn s of
-            Just (_, s') -> 
-                return $ ( InProgress
-                         , zip s' (repeat ()), b, lhr)
-            Nothing -> return (Finished, [(s, ())], b, lhr)
-
-data AllCallsRed = AllCallsRed
-
-instance Reducer AllCallsRed () LHTracker where
-    initReducer _ _ = ()
-
-    redRules lhr _ s@(State { curr_expr = CurrExpr Evaluate (Assert (Just fc) _ _) }) b =
-        let
-            lht = (track s) { all_calls = fc:all_calls (track s) }
-        in
-        return $ (Finished, [(s { track = lht } , ())], b, lhr)
-    redRules lhr _ s b = return $ (Finished, [(s, ())], b, lhr)
-
-data HigherOrderCallsRed = HigherOrderCallsRed
-
-instance Reducer HigherOrderCallsRed () LHTracker where
-    initReducer _ _ = ()
-
-    redRules lhr _ s@(State { curr_expr = CurrExpr Evaluate (Tick (NamedLoc nl) (Assume (Just fc) _ _)) }) b | nl == higherOrderTickName=
-        let
-            lht = (track s) { higher_order_calls = fc:higher_order_calls (track s) }
-        in
-        return $ (Finished, [(s { track = lht } , ())], b, lhr)
-    redRules lhr _ s@(State { curr_expr = CurrExpr Evaluate (Tick (NamedLoc nl) (Assume (Just fc) _ real_assert@(Assert _ _ _))) }) b | nl == higherOrderTickName=
-        let
-            lht = (track s) { higher_order_calls = fc:higher_order_calls (track s) }
-        in
-        return $ (Finished, [(s { curr_expr = CurrExpr Evaluate real_assert
-                                , track = lht } , ())], b, lhr)
-    redRules lhr _ s b = return $ (Finished, [(s, ())], b, lhr)
-
-data RedArbErrors = RedArbErrors
-
-instance Reducer RedArbErrors () t where
-    initReducer _ _ = ()
-
-    redRules r _ s@(State { curr_expr = CurrExpr er (Tick tick (Let [(_, Type t)] _)) }) b 
-        | tick == arbErrorTickish =
+allCallsRed :: Monad m => Reducer m () LHTracker
+allCallsRed = mkSimpleReducer (const ()) rr
+    where
+        rr _ s@(State { curr_expr = CurrExpr Evaluate (Assert (Just fc) _ _) }) b =
             let
-                (arb, _) = arbValue t (type_env s) (arb_value_gen b)
+                lht = (track s) { all_calls = fc:all_calls (track s) }
             in
-            return (InProgress, [(s { curr_expr = CurrExpr er arb }, ())], b, r)
-    redRules r _ s b = return (Finished, [(s, ())], b, r)
+            return $ (Finished, [(s { track = lht } , ())], b)
+        rr _ s b = return $ (Finished, [(s, ())], b)
+
+higherOrderCallsRed :: Monad m => Reducer m () LHTracker
+higherOrderCallsRed = mkSimpleReducer (const ()) rr
+    where
+        rr _ s@(State { curr_expr = CurrExpr Evaluate (Tick (NamedLoc nl) (Assume (Just fc) _ _)) }) b | nl == higherOrderTickName=
+            let
+                lht = (track s) { higher_order_calls = fc:higher_order_calls (track s) }
+            in
+            return $ (Finished, [(s { track = lht } , ())], b)
+        rr _ s@(State { curr_expr = CurrExpr Evaluate (Tick (NamedLoc nl) (Assume (Just fc) _ real_assert@(Assert _ _ _))) }) b | nl == higherOrderTickName=
+            let
+                lht = (track s) { higher_order_calls = fc:higher_order_calls (track s) }
+            in
+            return $ (Finished, [(s { curr_expr = CurrExpr Evaluate real_assert
+                                    , track = lht } , ())], b)
+        rr _ s b = return $ (Finished, [(s, ())], b)
+
+redArbErrors :: Monad m => Reducer m () t
+redArbErrors = mkSimpleReducer (const ()) rr
+    where
+        rr _ s@(State { curr_expr = CurrExpr er (Tick tick (Let [(_, Type t)] _)) }) b 
+            | tick == arbErrorTickish =
+                let
+                    (arb, _) = arbValue t (type_env s) (arb_value_gen b)
+                in
+                return (InProgress, [(s { curr_expr = CurrExpr er arb }, ())], b)
+        rr _ s b = return (Finished, [(s, ())], b)
 
 limitByAccepted :: Int -> (LHLimitByAcceptedHalter, LHLimitByAcceptedOrderer)
 limitByAccepted i = (LHLimitByAcceptedHalter i, LHLimitByAcceptedOrderer)
@@ -469,29 +461,31 @@ instance (Orderer ord sov b LHTracker, Show b) => Orderer (LHLeastAbstracted ord
             _ -> Nothing
 
 -- | Reduces any non-SWHNF values being returned by an abstracted function
-data NonRedAbstractReturns = NonRedAbstractReturns
+nonRedAbstractReturnsRed :: Monad m => Reducer m () LHTracker
+nonRedAbstractReturnsRed =
+    mkSimpleReducer (const ())
+                    nonRedAbstractReturnsRedStep
 
-instance Reducer NonRedAbstractReturns () LHTracker where
-    initReducer _ _ = ()
+nonRedAbstractReturnsRedStep :: Monad m => RedRules m () LHTracker
+nonRedAbstractReturnsRedStep _ 
+                  s@(State { expr_env = eenv
+                           , curr_expr = cexpr
+                           , exec_stack = stck
+                           , track = LHTracker { abstract_calls = afs }
+                           , true_assert = True })
+                  b@(Bindings { deepseq_walkers = ds})
+    | Just af <- firstJust (absRetToRed eenv ds) afs = do
+        let stck' = Stck.push (CurrExprFrame NoAction cexpr) stck
+            cexpr' = CurrExpr Evaluate af
 
-    redRules nrpr _  s@(State { expr_env = eenv
-                              , curr_expr = cexpr
-                              , exec_stack = stck
-                              , track = LHTracker { abstract_calls = afs }
-                              , true_assert = True })
-                      b@(Bindings { deepseq_walkers = ds})
-        | Just af <- firstJust (absRetToRed eenv ds) afs = do
-            let stck' = Stck.push (CurrExprFrame NoAction cexpr) stck
-                cexpr' = CurrExpr Evaluate af
+        let s' = s { curr_expr = cexpr'
+                   , exec_stack = stck'
+                   }
 
-            let s' = s { curr_expr = cexpr'
-                       , exec_stack = stck'
-                       }
-
-            return (InProgress, [(s', ())], b, nrpr)
-        | otherwise = do
-            return (Finished, [(s, ())], b, nrpr)
-    redRules nrpr _ s b = return (Finished, [(s, ())], b, nrpr)
+        return (InProgress, [(s', ())], b)
+    | otherwise = do
+        return (Finished, [(s, ())], b)
+nonRedAbstractReturnsRedStep _ s b = return (Finished, [(s, ())], b)
 
 absRetToRed :: ExprEnv -> Walkers -> FuncCall -> Maybe Expr
 absRetToRed eenv ds (FuncCall { returns = r })
