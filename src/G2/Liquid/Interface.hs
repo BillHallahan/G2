@@ -368,7 +368,7 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
 runLHG2 :: (MonadIO m, Solver solver, Simplifier simplifier)
         => Config
         -> SomeReducer m LHTracker
-        -> SomeHalter LHTracker
+        -> SomeHalter m LHTracker
         -> SomeOrderer LHTracker
         -> solver
         -> simplifier
@@ -430,13 +430,14 @@ lhReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
                        -> Maybe T.Text
                        -> CounterfactualName
                        -> State t
-                       -> (SomeReducer (SM.StateT PrettyGuide m) LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
+                       -> ( SomeReducer (SM.StateT PrettyGuide m) LHTracker
+                          , SomeHalter (SM.StateT PrettyGuide m) LHTracker
+                          , SomeOrderer LHTracker)
 lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st =
     let
 
         share = sharing config
 
-        (limHalt, limOrd) = limitByAccepted (cut_off lhconfig)
         state_name = Name "state" Nothing 0 Nothing
 
         abs_ret_name = Name "abs_ret" Nothing 0 Nothing
@@ -452,13 +453,13 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
                   Just logger -> SomeReducer (stdRed share solver simplifier <~| lhRed cfn <~? existentialInstRed) .<~ logger
                   Nothing -> SomeReducer (stdRed share solver simplifier <~| lhRed cfn <~? existentialInstRed))
         , SomeHalter
-                (MaxOutputsHalter (maxOutputs config)
-                  :<~> ZeroHalter (steps config)
-                  :<~> LHAbsHalter entry mb_modname (expr_env st)
-                  :<~> limHalt
-                  :<~> SwitchEveryNHalter (switch_after lhconfig)
-                  :<~> LHAcceptIfViolatedHalter)
-        , SomeOrderer limOrd)
+                (maxOutputsHalter (maxOutputs config)
+                  <~> zeroHalter (steps config)
+                  <~> lhAbsHalter entry mb_modname (expr_env st)
+                  <~> lhLimitByAcceptedHalter (cut_off lhconfig)
+                  <~> switchEveryNHalter (switch_after lhconfig)
+                  <~> lhAcceptIfViolatedHalter)
+        , SomeOrderer LHLimitByAcceptedOrderer)
     else
         (SomeReducer (nonRedAbstractReturnsRed <~| taggerRed abs_ret_name)
             .<~| (SomeReducer (non_red <~| taggerRed state_name))
@@ -466,15 +467,15 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
                   Just logger -> SomeReducer (stdRed share solver simplifier <~| lhRed cfn <~? existentialInstRed) .<~ logger
                   Nothing -> SomeReducer (stdRed share solver simplifier <~| lhRed cfn <~? existentialInstRed))
         , SomeHalter
-            (DiscardIfAcceptedTag state_name
-              :<~> DiscardIfAcceptedTag abs_ret_name
-              :<~> MaxOutputsHalter (maxOutputs config)
-              :<~> ZeroHalter (steps config)
-              :<~> LHAbsHalter entry mb_modname (expr_env st)
-              :<~> limHalt
-              :<~> SwitchEveryNHalter (switch_after lhconfig)
-              :<~> LHAcceptIfViolatedHalter)
-        , SomeOrderer limOrd)
+            (discardIfAcceptedTagHalter state_name
+              <~> discardIfAcceptedTagHalter abs_ret_name
+              <~> maxOutputsHalter (maxOutputs config)
+              <~> zeroHalter (steps config)
+              <~> lhAbsHalter entry mb_modname (expr_env st)
+              <~> lhLimitByAcceptedHalter (cut_off lhconfig)
+              <~> switchEveryNHalter (switch_after lhconfig)
+              <~> lhAcceptIfViolatedHalter)
+        , SomeOrderer LHLimitByAcceptedOrderer)
 
 initializeLHData :: [GhcInfo] -> Maybe PhantomTyVars -> LHConfig -> LHStateM ()
 initializeLHData ghcInfos m_ph_tyvars config = do

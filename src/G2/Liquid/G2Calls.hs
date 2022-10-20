@@ -39,7 +39,7 @@ type G2Call solver simplifier =
                  , Named t
                  , ASTContainer t Expr
                  , ASTContainer t Type) =>
-        SomeReducer m t -> SomeHalter t -> SomeOrderer t -> solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
+        SomeReducer m t -> SomeHalter m t -> SomeOrderer t -> solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
 
 -------------------------------
 -- Check Abstracted
@@ -128,7 +128,7 @@ checkAbstracted' g2call solver simplifier share s bindings abs_fc@(FuncCall { fu
         let pres = HS.fromList $ namesList s' ++ namesList bindings
         (er, bindings') <- g2call 
                                 (SomeReducer (stdRed share solver simplifier <~ hitsLibError))
-                                (SomeHalter (SWHNFHalter :<~> AcceptOnlyOneHalter :<~> SwitchEveryNHalter 200))
+                                (SomeHalter (swhnfHalter <~> acceptOnlyOneHalter <~> switchEveryNHalter 200))
                                 (SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTSizeOrderer 0 Nothing)))
                                 solver simplifier
                                 (emptyMemConfig { pres_func = \_ _ _ -> pres })
@@ -184,7 +184,7 @@ getAbstracted g2call solver simplifier share s bindings abs_fc@(FuncCall { funcN
         (er, bindings') <- g2call 
                               (SomeReducer ((nonRedPCRed .|. nonRedPCRedConst)
                                                 <~| (stdRed share solver simplifier <~ hitsLibErrorGatherer)))
-                              (SomeHalter (SWHNFHalter :<~> AcceptOnlyOneHalter :<~> SwitchEveryNHalter 200))
+                              (SomeHalter (swhnfHalter <~> acceptOnlyOneHalter <~> switchEveryNHalter 200))
                               (SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTSizeOrderer 0 Nothing)))
                               solver simplifier
                               (emptyMemConfig { pres_func = \_ _ _ -> pres })
@@ -291,14 +291,13 @@ hitsLibErrorGatherer = mkSimpleReducer
                       return (NoProgress, [(s { track = (glc, True) }, ())], b)
                 _ -> return (NoProgress, [(s, ())], b)
 
-data AcceptOnlyOneHalter = AcceptOnlyOneHalter
-
-instance Halter AcceptOnlyOneHalter () t where
-    initHalt _ _ = ()
-    updatePerStateHalt _ hv _ _ = hv
-    discardOnStart _ _ pr _ = not . null $ accepted pr
-    stopRed _ _ _ _ = return Continue
-    stepHalter _ hv _ _ _ = hv
+acceptOnlyOneHalter :: Monad m => Halter m () t
+acceptOnlyOneHalter =
+    (mkSimpleHalter (const ())
+                    (\hv _ _ -> hv)
+                    (\_ _ _ -> return Continue) 
+                    (\hv _ _ _ -> hv))
+        { discardOnStart = \_ pr _ -> not . null $ accepted pr}
 
 -- | Remove all @Assume@s from the given `Expr`, unless they have a particular @Tick@
 elimAssumesExcept :: ASTContainer m Expr => m -> m
@@ -425,7 +424,7 @@ reduceFCExpr g2call reducer solver simplifier s bindings e
 
         (er, bindings') <- g2call 
                               reducer
-                              (SomeHalter (AcceptOnlyOneHalter :<~> SWHNFHalter :<~> SwitchEveryNHalter 200))
+                              (SomeHalter (acceptOnlyOneHalter <~> swhnfHalter <~> switchEveryNHalter 200))
                               (SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTSizeOrderer 0 Nothing)))
                               solver simplifier
                               emptyMemConfig

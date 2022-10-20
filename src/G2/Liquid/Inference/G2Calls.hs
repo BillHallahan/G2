@@ -146,7 +146,7 @@ instance Solver solver => Solver (SpreadOutSolver solver) where
 runLHG2Inference :: (MonadIO m, Solver solver, Simplifier simplifier)
                  => Config
                  -> SomeReducer m LHTracker
-                 -> SomeHalter LHTracker
+                 -> SomeHalter m LHTracker
                  -> SomeOrderer LHTracker
                  -> solver
                  -> simplifier
@@ -382,7 +382,9 @@ gatherReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
                            -> LHConfig
                            -> solver
                            -> simplifier
-                           -> IO (SomeReducer (SM.StateT PrettyGuide m) [FuncCall], SomeHalter [FuncCall], SomeOrderer [FuncCall])
+                           -> IO ( SomeReducer (SM.StateT PrettyGuide m) [FuncCall]
+                                 , SomeHalter (SM.StateT PrettyGuide m) [FuncCall]
+                                 , SomeOrderer [FuncCall])
 gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
     let
         share = sharing config
@@ -391,7 +393,7 @@ gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
 
         m_logger = fmap SomeReducer $ getLogger config
 
-    timer_halter <- timerHalter (timeout_se infconfig * 3)
+    timer_halter <- stdTimerHalter (timeout_se infconfig * 3)
 
     return
         (SomeReducer (nonRedPCRed <~| taggerRed state_name)
@@ -399,11 +401,10 @@ gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
                     Just logger -> SomeReducer (stdRed share solver simplifier <~ gathererReducer) .<~ logger
                     Nothing -> SomeReducer (stdRed share solver simplifier <~ gathererReducer))
         , SomeHalter
-            (DiscardIfAcceptedTag state_name
-              -- :<~> searched_below
-              :<~> SwitchEveryNHalter (switch_after lhconfig)
-              :<~> SWHNFHalter
-              :<~> timer_halter)
+            (discardIfAcceptedTagHalter state_name
+              <~> switchEveryNHalter (switch_after lhconfig)
+              <~> swhnfHalter
+              <~> timer_halter)
         , SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTSizeOrderer 0 Nothing)))
 
 -------------------------------
@@ -483,7 +484,9 @@ inferenceReducerHalterOrderer :: (MonadIO m, MonadIO m_run, Solver solver, Simpl
                               -> Maybe T.Text
                               -> Name
                               -> State LHTracker
-                              -> InfStack m (SomeReducer (SM.StateT PrettyGuide m_run) LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
+                              -> InfStack m ( SomeReducer (SM.StateT PrettyGuide m_run) LHTracker
+                                            , SomeHalter  (SM.StateT PrettyGuide m_run) LHTracker
+                                            , SomeOrderer LHTracker)
 inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry mb_modname cfn st = do
     extra_ce <- extraMaxCExI (entry, mb_modname)
     extra_time <- extraMaxTimeI (entry, mb_modname)
@@ -495,11 +498,8 @@ inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry 
         state_name = Name "state" Nothing 0 Nothing
         abs_ret_name = Name "abs_ret" Nothing 0 Nothing
 
-        -- searched_below = SearchedBelowHalter { found_at_least = 3
-        --                                      , discarded_at_least = 6
-        --                                      , discarded_at_most = 15 }
         ce_num = max_ce infconfig + extra_ce
-        lh_max_outputs = LHMaxOutputsHalter ce_num
+        lh_max_outputs = lhMaxOutputsHalter ce_num
 
         timeout = timeout_se infconfig + extra_time
 
@@ -509,18 +509,15 @@ inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry 
     liftIO $ putStrLn $ "ce num for " ++ T.unpack entry ++ " is " ++ show ce_num
     liftIO $ putStrLn $ "timeout for " ++ T.unpack entry ++ " is " ++ show timeout
     
-    timer_halter <- liftIO $ timerHalter (timeout * 2)
-    lh_timer_halter <- liftIO $ lhTimerHalter timeout
+    timer_halter <- liftIO $ stdTimerHalter (timeout * 2)
+    lh_timer_halter <- liftIO $ lhStdTimerHalter timeout
 
-    let halter =      LHAbsHalter entry mb_modname (expr_env st)
-                 :<~> lh_max_outputs
-                 :<~> SwitchEveryNHalter (switch_after lhconfig)
-                 -- :<~> LHLimitSameAbstractedHalter 5
-                 :<~> LHSWHNFHalter
-                 -- :<~> LHAcceptIfViolatedHalter
-                 :<~> timer_halter
-                 :<~> lh_timer_halter
-                 -- :<~> OnlyIf (\pr _ -> any true_assert (accepted pr)) timer_halter
+    let halter =      lhAbsHalter entry mb_modname (expr_env st)
+                 <~> lh_max_outputs
+                 <~> switchEveryNHalter (switch_after lhconfig)
+                 <~> lhSWHNFHalter
+                 <~> timer_halter
+                 <~> lh_timer_halter
     let some_red = SomeReducer (stdRed share solver simplifier
                              <~ higherOrderCallsRed
                              <~ allCallsRed
@@ -535,7 +532,7 @@ inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry 
                     Just logger -> some_red .<~ logger
                     Nothing -> some_red)
         , SomeHalter
-            (DiscardIfAcceptedTag state_name :<~> halter)
+            (discardIfAcceptedTagHalter state_name <~> halter)
         , SomeOrderer (ToOrderer $ IncrAfterN 2000 (QuotTrueAssert (OrdComb (+) (PCSizeOrderer 0) (ADTSizeOrderer 0 (Just instFuncTickName))))))
 
 runLHCExSearch :: MonadIO m
@@ -577,7 +574,9 @@ realCExReducerHalterOrderer :: (MonadIO m, MonadIO m_run, Solver solver, Simplif
                             -> solver
                             -> simplifier
                             -> Name
-                            -> InfStack m (SomeReducer (SM.StateT PrettyGuide m_run) LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
+                            -> InfStack m ( SomeReducer (SM.StateT PrettyGuide m_run) LHTracker
+                                          , SomeHalter (SM.StateT PrettyGuide m_run) LHTracker
+                                          , SomeOrderer LHTracker)
 realCExReducerHalterOrderer infconfig config lhconfig entry modname solver simplifier  cfn = do
     extra_ce <- extraMaxCExI (entry, modname)
     extra_depth <- extraMaxDepthI
@@ -590,22 +589,18 @@ realCExReducerHalterOrderer infconfig config lhconfig entry modname solver simpl
         state_name = Name "state" Nothing 0 Nothing
         abs_ret_name = Name "abs_ret" Nothing 0 Nothing
 
-        -- searched_below = SearchedBelowHalter { found_at_least = 3
-        --                                      , discarded_at_least = 6
-        --                                      , discarded_at_most = 15 }
         ce_num = max_ce infconfig + extra_ce
-        lh_max_outputs = LHMaxOutputsHalter ce_num
+        lh_max_outputs = lhMaxOutputsHalter ce_num
 
         m_logger = fmap SomeReducer $ getLogger config
 
-    timer_halter <- liftIO $ timerHalter (timeout_se infconfig)
+    timer_halter <- liftIO $ stdTimerHalter (timeout_se infconfig)
 
     let halter =      lh_max_outputs
-                 :<~> SwitchEveryNHalter (switch_after lhconfig)
-                 :<~> ZeroHalter (0 + extra_depth)
-                 :<~> LHAcceptIfViolatedHalter
-                 :<~> timer_halter
-                 -- :<~> OnlyIf (\pr _ -> any true_assert (accepted pr)) timer_halter
+                 <~> switchEveryNHalter (switch_after lhconfig)
+                 <~> zeroHalter (0 + extra_depth)
+                 <~> lhAcceptIfViolatedHalter
+                 <~> timer_halter
 
     return $
         (SomeReducer (nonRedAbstractReturnsRed <~| taggerRed abs_ret_name)
@@ -614,7 +609,7 @@ realCExReducerHalterOrderer infconfig config lhconfig entry modname solver simpl
                       Just logger -> SomeReducer (stdRed share solver simplifier <~| lhRed cfn) .<~ logger
                       Nothing -> SomeReducer (stdRed share solver simplifier <~| lhRed cfn))
         , SomeHalter
-            (DiscardIfAcceptedTag state_name :<~> halter)
+            (discardIfAcceptedTagHalter state_name <~> halter)
         , SomeOrderer (ToOrderer $ IncrAfterN 1000 (ADTSizeOrderer 0 Nothing)))
 
 
@@ -1053,7 +1048,7 @@ genericG2Call config solver s bindings = do
         share = sharing config
 
     fslb <- runG2WithSomes (SomeReducer (stdRed share solver simplifier))
-                           (SomeHalter SWHNFHalter)
+                           (SomeHalter swhnfHalter)
                            (SomeOrderer NextOrderer)
                            solver simplifier PreserveAllMC s bindings
 
@@ -1076,7 +1071,7 @@ genericG2CallLogging config solver s bindings lg = do
         share = sharing config
 
     fslb <- runG2WithSomes (SomeReducer (stdRed share solver simplifier <~ prettyLogger lg))
-                           (SomeHalter SWHNFHalter)
+                           (SomeHalter swhnfHalter)
                            (SomeOrderer NextOrderer)
                            solver simplifier PreserveAllMC s bindings
 

@@ -79,7 +79,9 @@ rewriteRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                      EquivTracker ->
                      Config ->
                      NebulaConfig ->
-                     (SomeReducer (SM.StateT PrettyGuide m) EquivTracker, SomeHalter EquivTracker, SomeOrderer EquivTracker)
+                     ( SomeReducer (SM.StateT PrettyGuide m) EquivTracker
+                     , SomeHalter (SM.StateT PrettyGuide m) EquivTracker
+                     , SomeOrderer EquivTracker)
 rewriteRedHaltOrd solver simplifier h_opp track_opp config (NC { use_labeled_errors = use_labels }) =
     let
         share = sharing config
@@ -97,10 +99,10 @@ rewriteRedHaltOrd solver simplifier h_opp track_opp config (NC { use_labeled_err
                                     enforceProgressRed) <~? labeledErrorsRed <~ concSymReducer use_labels <~ symbolicSwapperRed h_opp track_opp) <~?
                                     equivReducer)
      , SomeHalter
-         (DiscardIfAcceptedTag state_name
-         :<~> EnforceProgressH
-         :<~> SWHNFHalter
-         :<~> LabeledErrorsH)
+         (discardIfAcceptedTagHalter state_name
+         <~> enforceProgressHalter
+         <~> swhnfHalter
+         <~> labeledErrorsHalter)
      , SomeOrderer $ PickLeastUsedOrderer)
 
 type StateET = State EquivTracker
@@ -289,16 +291,16 @@ labeledErrorsRed = mkSimpleReducer
             | isLabeledError ce = return (Finished, [(s { exec_stack = S.empty }, rv)], b)
             | otherwise = return (NoProgress, [(s, rv)], b)
 
+labeledErrorsHalter :: Monad m => Halter m () t
+labeledErrorsHalter = mkSimpleHalter (const ())
+                                     (\hv _ _ -> hv)
+                                     stop
+                                     (\hv _ _ _ -> hv)
+    where
+        stop _ _ (State { curr_expr = CurrExpr _ ce, exec_stack = stck })
+            | isLabeledError ce, S.null stck = return Accept
+            | otherwise = return Continue
 
-data LabeledErrorsH = LabeledErrorsH
-
-instance Halter LabeledErrorsH () t where
-    initHalt _ _ = ()
-    updatePerStateHalt _ hv _ _ = hv
-    stopRed _ _ _ (State { curr_expr = CurrExpr _ ce, exec_stack = stck })
-        | isLabeledError ce, S.null stck = return Accept
-        | otherwise = return Continue
-    stepHalter _ hv _ _ _ = hv
 
 -- this does not account for type arguments
 argCount :: Type -> Int
@@ -339,8 +341,6 @@ recursionInCase (State { curr_expr = CurrExpr _ e }) =
             p == T.pack "REC" -- && containsCase sk
         _ -> False
 
-data EnforceProgressH = EnforceProgressH
-
 -- used by EquivADT and Tactics
 concretizable :: Type -> Bool
 concretizable (TyVar _) = False
@@ -352,25 +352,28 @@ concretizable TYPE = False
 concretizable TyUnknown = False
 concretizable _ = True
 
-instance Halter EnforceProgressH () EquivTracker where
-    initHalt _ _ = ()
-    updatePerStateHalt _ _ _ _ = ()
-    stopRed _ _ _ s =
-        let CurrExpr _ e = curr_expr s
-            n' = num_steps s
-            EquivTracker _ m _ _ _ _ _ = track s
-            h = expr_env s
-        in
-        case m of
-            Nothing -> return Continue
-            -- Execution needs to take strictly more than one step beyond the
-            -- point when it reaches the Tick because the act of unwrapping the
-            -- expression inside the Tick counts as one step.
-            Just n0 -> do
-                if (isExecValueForm s) || (exprFullApp h e) || (recursionInCase s)
-                       then return (if n' > n0 + 1 then Accept else Continue)
-                       else return Continue
-    stepHalter _ _ _ _ _ = ()
+enforceProgressHalter :: Monad m => Halter m () EquivTracker
+enforceProgressHalter = mkSimpleHalter
+                            (const ())
+                            (\_ _ _ -> ())
+                            stop
+                            (\_ _ _ _ -> ())
+    where
+        stop _ _ s =
+            let CurrExpr _ e = curr_expr s
+                n' = num_steps s
+                EquivTracker _ m _ _ _ _ _ = track s
+                h = expr_env s
+            in
+            case m of
+                Nothing -> return Continue
+                -- Execution needs to take strictly more than one step beyond the
+                -- point when it reaches the Tick because the act of unwrapping the
+                -- expression inside the Tick counts as one step.
+                Just n0 -> do
+                    if (isExecValueForm s) || (exprFullApp h e) || (recursionInCase s)
+                           then return (if n' > n0 + 1 then Accept else Continue)
+                           else return Continue
 
 emptyEquivTracker :: EquivTracker
 emptyEquivTracker = EquivTracker HM.empty Nothing HS.empty HS.empty [] E.empty ""
