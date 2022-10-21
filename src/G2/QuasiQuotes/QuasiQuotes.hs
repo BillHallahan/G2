@@ -418,7 +418,7 @@ executeAndSolveStates' b s = do
     case qqRedHaltOrd config solver simplifier of
         (SomeReducer red, SomeHalter hal, _) -> do
             let hal' = hal <~> errorHalter <~> varLookupLimitHalter 3 <~> maxOutputsHalter (Just 1)
-                ord = ToOrderer (IncrAfterN 2000 (ADTHeightOrderer 0 Nothing) :<-> BucketSizeOrderer 6)
+                ord = IncrAfterN 2000 (ADTHeightOrderer 0 Nothing) :<-> BucketSizeOrderer 6
             (res, _) <- runG2Post (red) hal' ord solver simplifier s b
 
             case res of

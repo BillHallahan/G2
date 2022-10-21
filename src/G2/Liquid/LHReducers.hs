@@ -16,7 +16,6 @@ module G2.Liquid.LHReducers ( lhRed
                             , lhLimitByAcceptedHalter
                             , lhAbsHalter
                             , lhMaxOutputsHalter
-                            , LHLeastAbstracted (..)
                             , LHTracker (..)
 
                             , lhStdTimerHalter
@@ -319,46 +318,6 @@ lhTimerHalter ms ce = do
         step v _ _ _
             | v >= ce = 0
             | otherwise = v + 1
-
--- | Tries to consider the same number of states with each abstracted functions
-data LHLeastAbstracted ord = LHLeastAbstracted (S.HashSet Name) ord
-
-instance (Orderer ord sov b LHTracker, Show b) => Orderer (LHLeastAbstracted ord) sov (Maybe Name, b) LHTracker where
-    initPerStateOrder (LHLeastAbstracted _ ord) = initPerStateOrder ord
-
-    orderStates (LHLeastAbstracted ns ord) sov pr s =
-        let
-            (b, ord') = orderStates ord sov pr s
-            fns = fmap funcName . listToMaybe . abstract_calls . track $ s
-        in
-        ((fns, b), LHLeastAbstracted ns ord')
-
-    updateSelected (LHLeastAbstracted _ ord) = updateSelected ord
-
-    stepOrderer (LHLeastAbstracted _ ord) = stepOrderer ord
-
-    getState (LHLeastAbstracted cf_func ord) pr m =
-        let
-            abs_f = map (fmap funcName)
-                  . map (\s -> case abstract_calls . track $ s of
-                            (n:_) -> Just n
-                            _ -> Nothing)
-                  $ accepted pr ++ discarded pr
-
-            num_abs = S.map (\n -> (n, length $ filter ((==) n) abs_f))
-                    . S.insert Nothing
-                    $ S.map Just cf_func
-
-            min_func = map fst . sortBy (comparing snd) $ S.toList num_abs
-
-            ms = filter (not . M.null . snd)
-               $ map (\n -> (n, M.filterWithKey (\(n', _) _ -> n == n') m)) min_func
-        in
-        case ms of
-            (n, m'):_ 
-                | Just (b, s) <- getState ord pr $ M.mapKeys snd m' ->
-                   Just ((n, b), s)
-            _ -> Nothing
 
 -- | Reduces any non-SWHNF values being returned by an abstracted function
 nonRedAbstractReturnsRed :: Monad m => Reducer m () LHTracker

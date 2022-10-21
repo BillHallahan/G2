@@ -129,7 +129,7 @@ checkAbstracted' g2call solver simplifier share s bindings abs_fc@(FuncCall { fu
         (er, bindings') <- g2call 
                                 (SomeReducer (stdRed share solver simplifier <~ hitsLibError))
                                 (SomeHalter (swhnfHalter <~> acceptOnlyOneHalter <~> switchEveryNHalter 200))
-                                (SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTSizeOrderer 0 Nothing)))
+                                (SomeOrderer (IncrAfterN 2000 (ADTSizeOrderer 0 Nothing)))
                                 solver simplifier
                                 (emptyMemConfig { pres_func = \_ _ _ -> pres })
                                 s' bindings
@@ -185,7 +185,7 @@ getAbstracted g2call solver simplifier share s bindings abs_fc@(FuncCall { funcN
                               (SomeReducer ((nonRedPCRed .|. nonRedPCRedConst)
                                                 <~| (stdRed share solver simplifier <~ hitsLibErrorGatherer)))
                               (SomeHalter (swhnfHalter <~> acceptOnlyOneHalter <~> switchEveryNHalter 200))
-                              (SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTSizeOrderer 0 Nothing)))
+                              (SomeOrderer (IncrAfterN 2000 (ADTSizeOrderer 0 Nothing)))
                               solver simplifier
                               (emptyMemConfig { pres_func = \_ _ _ -> pres })
                               s' bindings
@@ -425,7 +425,7 @@ reduceFCExpr g2call reducer solver simplifier s bindings e
         (er, bindings') <- g2call 
                               reducer
                               (SomeHalter (acceptOnlyOneHalter <~> swhnfHalter <~> switchEveryNHalter 200))
-                              (SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTSizeOrderer 0 Nothing)))
+                              (SomeOrderer (IncrAfterN 2000 (ADTSizeOrderer 0 Nothing)))
                               solver simplifier
                               emptyMemConfig
                               s' bindings

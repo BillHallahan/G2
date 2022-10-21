@@ -10,8 +10,6 @@
 module G2.Execution.Reducer ( Reducer (..)
                             , Halter (..)
                             , Orderer (..)
-                            , MinOrderer (..)
-                            , ToOrderer (..)
 
                             , Processed (..)
                             , mapProcessed
@@ -235,32 +233,8 @@ class Ord b => Orderer or sov b t | or -> sov, or -> b where
     stepOrderer :: or -> sov -> Processed (State t) -> [State t] -> State t -> sov 
     stepOrderer _ sov _ _ _ = sov
 
-    getState :: forall s . or -> Processed (State t) -> M.Map b [s] -> Maybe (b, [s])
-    getState _ _ = M.lookupMin
-
-class Ord b => MinOrderer or sov b t | or -> sov, or -> b where
-    -- | Initializing the per state ordering value 
-    minInitPerStateOrder :: or -> State t -> sov
-
-    -- | Assigns each state some value of an ordered type, and then proceeds with execution on the
-    -- state assigned the minimal value
-    minOrderStates :: or -> sov -> Processed (State t) -> State t -> (b, or)
-
-    -- | Run on the selected state, to update it's sov field
-    minUpdateSelected :: or -> sov -> Processed (State t) -> State t -> sov
-
-    -- | Run on the state at each step, to update it's sov field
-    minStepOrderer :: or -> sov -> Processed (State t) -> [State t] -> State t -> sov 
-    minStepOrderer _ sov _ _ _ = sov
-
-newtype ToOrderer min_ord = ToOrderer min_ord
-
-instance (MinOrderer min_ord sov b t, Ord b) => Orderer (ToOrderer min_ord) sov b t where
-    initPerStateOrder (ToOrderer min_ord) = minInitPerStateOrder min_ord
-    orderStates (ToOrderer min_ord) sov pr = fmap ToOrderer . minOrderStates min_ord sov pr
-    updateSelected (ToOrderer min_ord) = minUpdateSelected min_ord
-    stepOrderer (ToOrderer min_ord) = minStepOrderer min_ord
-    getState _ _ = M.lookupMin
+getState :: M.Map b [s] -> Maybe (b, [s])
+getState = M.lookupMin
 
 data SomeReducer m t where
     SomeReducer :: forall m rv t . Reducer m rv t -> SomeReducer m t
@@ -787,78 +761,77 @@ timerHalter ms def ce = do
 
 -- Orderer things
 
--- | Does not respect getState, but simply uses the default Ord instance
 data OCombiner o1 o2 = o1 :<-> o2 deriving (Eq, Show, Read)
 
-instance (MinOrderer or1 sov1 b1 t, MinOrderer or2 sov2 b2 t)
-      => MinOrderer (OCombiner or1 or2) (C sov1 sov2) (b1, b2) t where
+instance (Orderer or1 sov1 b1 t, Orderer or2 sov2 b2 t)
+      => Orderer (OCombiner or1 or2) (C sov1 sov2) (b1, b2) t where
   
     -- | Initializing the per state ordering value 
-    minInitPerStateOrder (or1 :<-> or2) s =
+    initPerStateOrder (or1 :<-> or2) s =
       let
-          sov1 = minInitPerStateOrder or1 s
-          sov2 = minInitPerStateOrder or2 s
+          sov1 = initPerStateOrder or1 s
+          sov2 = initPerStateOrder or2 s
       in
       C sov1 sov2
 
     -- | Assigns each state some value of an ordered type, and then proceeds with execution on the
     -- state assigned the minimal value
-    minOrderStates (or1 :<-> or2) (C sov1 sov2) pr s =
+    orderStates (or1 :<-> or2) (C sov1 sov2) pr s =
       let
-          (sov1', or1') = minOrderStates or1 sov1 pr s
-          (sov2', or2') = minOrderStates or2 sov2 pr s
+          (sov1', or1') = orderStates or1 sov1 pr s
+          (sov2', or2') = orderStates or2 sov2 pr s
       in
       ((sov1', sov2'), or1' :<-> or2')
 
     -- | Run on the selected state, to update it's sov field
-    minUpdateSelected (or1 :<-> or2) (C sov1 sov2) proc s = 
+    updateSelected (or1 :<-> or2) (C sov1 sov2) proc s = 
       let
-          sov1' = minUpdateSelected or1 sov1 proc s
-          sov2' = minUpdateSelected or2 sov2 proc s
+          sov1' = updateSelected or1 sov1 proc s
+          sov2' = updateSelected or2 sov2 proc s
       in
       C sov1' sov2'
 
-    minStepOrderer (or1 :<-> or2) (C sov1 sov2) proc xs s =
+    stepOrderer (or1 :<-> or2) (C sov1 sov2) proc xs s =
         let
-            sov1' = minStepOrderer or1 sov1 proc xs s
-            sov2' = minStepOrderer or2 sov2 proc xs s
+            sov1' = stepOrderer or1 sov1 proc xs s
+            sov2' = stepOrderer or2 sov2 proc xs s
         in
         C sov1' sov2'
 
 data FlexOrdCombiner v1 v2 v3 or1 or2 = OrdComb (v1 -> v2 -> v3) or1 or2
 
-instance (MinOrderer or1 sov1 v1 t, MinOrderer or2 sov2 v2 t, Ord v3)
-      => MinOrderer (FlexOrdCombiner v1 v2 v3 or1 or2) (C sov1 sov2) v3 t where
+instance (Orderer or1 sov1 v1 t, Orderer or2 sov2 v2 t, Ord v3)
+      => Orderer (FlexOrdCombiner v1 v2 v3 or1 or2) (C sov1 sov2) v3 t where
 
     -- | Initializing the per state ordering value 
-    minInitPerStateOrder (OrdComb _ or1 or2) s =
+    initPerStateOrder (OrdComb _ or1 or2) s =
       let
-          sov1 = minInitPerStateOrder or1 s
-          sov2 = minInitPerStateOrder or2 s
+          sov1 = initPerStateOrder or1 s
+          sov2 = initPerStateOrder or2 s
       in
       C sov1 sov2
 
     -- | Assigns each state some value of an ordered type, and then proceeds with execution on the
     -- state assigned the minimal value
-    minOrderStates (OrdComb f or1 or2) (C sov1 sov2) pr s =
+    orderStates (OrdComb f or1 or2) (C sov1 sov2) pr s =
       let
-          (sov1', or1') = minOrderStates or1 sov1 pr s
-          (sov2', or2') = minOrderStates or2 sov2 pr s
+          (sov1', or1') = orderStates or1 sov1 pr s
+          (sov2', or2') = orderStates or2 sov2 pr s
       in
       (f sov1' sov2', OrdComb f or1' or2')
 
     -- | Run on the selected state, to update it's sov field
-    minUpdateSelected (OrdComb _ or1 or2) (C sov1 sov2) proc s = 
+    updateSelected (OrdComb _ or1 or2) (C sov1 sov2) proc s = 
       let
-          sov1' = minUpdateSelected or1 sov1 proc s
-          sov2' = minUpdateSelected or2 sov2 proc s
+          sov1' = updateSelected or1 sov1 proc s
+          sov2' = updateSelected or2 sov2 proc s
       in
       C sov1' sov2'
 
-    minStepOrderer (OrdComb _ or1 or2) (C sov1 sov2) proc xs s =
+    stepOrderer (OrdComb _ or1 or2) (C sov1 sov2) proc xs s =
         let
-            sov1' = minStepOrderer or1 sov1 proc xs s
-            sov2' = minStepOrderer or2 sov2 proc xs s
+            sov1' = stepOrderer or1 sov1 proc xs s
+            sov2' = stepOrderer or2 sov2 proc xs s
         in
         C sov1' sov2'
 
@@ -880,12 +853,12 @@ instance Orderer PickLeastUsedOrderer Int Int t where
 -- | Floors and does bucket size
 data BucketSizeOrderer = BucketSizeOrderer Int
 
-instance MinOrderer BucketSizeOrderer Int Int t where
-    minInitPerStateOrder _ _ = 0
+instance Orderer BucketSizeOrderer Int Int t where
+    initPerStateOrder _ _ = 0
 
-    minOrderStates ord@(BucketSizeOrderer b) v _ _ = (floor (fromIntegral v / fromIntegral b :: Float), ord)
+    orderStates ord@(BucketSizeOrderer b) v _ _ = (floor (fromIntegral v / fromIntegral b :: Float), ord)
 
-    minUpdateSelected _ v _ _ = v + 1
+    updateSelected _ v _ _ = v + 1
 
 -- Orders by the size (in terms of height) of (previously) symbolic ADT.
 -- In particular, aims to first execute those states with a height closest to
@@ -903,25 +876,25 @@ data ADTHeightOrderer = ADTHeightOrderer
 -- back to false.
 -- This avoids repeated operations on the hashset after rules that we know
 -- will not add symbolic variables.
-instance MinOrderer ADTHeightOrderer (HS.HashSet Name, Bool) Int t where
-    minInitPerStateOrder _ s = (HS.fromList . map idName . E.symbolicIds . expr_env $ s, False)
-    minOrderStates ord@(ADTHeightOrderer pref_height _) (v, _) _ s =
+instance Orderer ADTHeightOrderer (HS.HashSet Name, Bool) Int t where
+    initPerStateOrder _ s = (HS.fromList . map idName . E.symbolicIds . expr_env $ s, False)
+    orderStates ord@(ADTHeightOrderer pref_height _) (v, _) _ s =
         let
             m = maximum $ (-1):(HS.toList $ HS.map (flip adtHeight s) v)
             h = abs (pref_height - m)
         in
         (h, ord)
-    minUpdateSelected _ v _ _ = v
+    updateSelected _ v _ _ = v
 
-    minStepOrderer _ (v, _) _ _
+    stepOrderer _ (v, _) _ _
                   (State { curr_expr = CurrExpr _ (SymGen _) }) = (v, True)
-    minStepOrderer _ (v, True) _ _ s =
+    stepOrderer _ (v, True) _ _ s =
         (v `HS.union` (HS.fromList . map idName . E.symbolicIds . expr_env $ s), False)
-    minStepOrderer (ADTHeightOrderer _ (Just n)) (v, _) _ _ 
+    stepOrderer (ADTHeightOrderer _ (Just n)) (v, _) _ _ 
                    (State { curr_expr = CurrExpr _ (Tick (NamedLoc n') (Var (Id vn _))) }) 
             | n == n' =
                 (HS.insert vn v, False)
-    minStepOrderer _ v _ _ _ =
+    stepOrderer _ v _ _ _ =
         v
 
 adtHeight :: Name -> State t -> Int
@@ -958,26 +931,25 @@ data ADTSizeOrderer = ADTSizeOrderer
 -- back to false.
 -- This avoids repeated operations on the hashset after rules that we know
 -- will not add symbolic variables.
-instance MinOrderer ADTSizeOrderer (HS.HashSet Name, Bool) Int t where
-    minInitPerStateOrder _ s = (HS.fromList . map idName . E.symbolicIds . expr_env $ s, False)
-    minOrderStates ord@(ADTSizeOrderer pref_height _) (v, _) _ s =
+instance Orderer ADTSizeOrderer (HS.HashSet Name, Bool) Int t where
+    initPerStateOrder _ s = (HS.fromList . map idName . E.symbolicIds . expr_env $ s, False)
+    orderStates ord@(ADTSizeOrderer pref_height _) (v, _) _ s =
         let
             m = sum (HS.toList $ HS.map (flip adtSize s) v)
             h = abs (pref_height - m)
         in
         (h, ord)
-    minUpdateSelected _ v _ _ = v
+    updateSelected _ v _ _ = v
 
-    minStepOrderer _ (v, _) _ _
+    stepOrderer _ (v, _) _ _
                   (State { curr_expr = CurrExpr _ (SymGen _) }) = (v, True)
-    minStepOrderer _ (v, True) _ _ s =
+    stepOrderer _ (v, True) _ _ s =
         (v `HS.union` (HS.fromList . map idName . E.symbolicIds . expr_env $ s), False)
-    minStepOrderer (ADTSizeOrderer _ (Just n)) (v, _) _ _ 
+    stepOrderer (ADTSizeOrderer _ (Just n)) (v, _) _ _ 
                    (State { curr_expr = CurrExpr _ (Tick (NamedLoc n') (Var (Id vn _))) }) 
             | n == n' =
                 (HS.insert vn v, False)
-    minStepOrderer _ v _ _ _ =
-        v
+    stepOrderer _ v _ _ _ = v
 
 adtSize :: Name -> State t -> Int
 adtSize n s@(State { expr_env = eenv })
@@ -1008,17 +980,17 @@ data PCSizeOrderer = PCSizeOrderer
 -- back to false.
 -- This avoids repeated operations on the hashset after rules that we know
 -- will not add symbolic variables.
-instance MinOrderer PCSizeOrderer () Int t where
-    minInitPerStateOrder _ _ = ()
-    minOrderStates ord@(PCSizeOrderer pref_height) _ _ s =
+instance Orderer PCSizeOrderer () Int t where
+    initPerStateOrder _ _ = ()
+    orderStates ord@(PCSizeOrderer pref_height) _ _ s =
         let
             m = PC.number (path_conds s)
             h = abs (pref_height - m)
         in
         (h, ord)
-    minUpdateSelected _ v _ _ = v
+    updateSelected _ v _ _ = v
 
-    minStepOrderer _ d _ _ _ = d
+    stepOrderer _ d _ _ _ = d
 
 -- Wraps an existing Orderer, and increases it's value by 1, every time
 -- it doesn't change after N steps 
@@ -1028,19 +1000,19 @@ data IncrAfterNTr sov = IncrAfterNTr { steps_since_change :: Int
                                      , incr_by :: Int
                                      , underlying :: sov }
 
-instance (Eq sov, Enum b, MinOrderer ord sov b t) => MinOrderer (IncrAfterN ord) (IncrAfterNTr sov) b t where
-    minInitPerStateOrder (IncrAfterN _ ord) s =
+instance (Eq sov, Enum b, Orderer ord sov b t) => Orderer (IncrAfterN ord) (IncrAfterNTr sov) b t where
+    initPerStateOrder (IncrAfterN _ ord) s =
         IncrAfterNTr { steps_since_change = 0
                      , incr_by = 0
-                     , underlying = minInitPerStateOrder ord s }
-    minOrderStates (IncrAfterN n ord) sov pr s =
+                     , underlying = initPerStateOrder ord s }
+    orderStates (IncrAfterN n ord) sov pr s =
         let
-            (b, ord') = minOrderStates ord (underlying sov) pr s
+            (b, ord') = orderStates ord (underlying sov) pr s
         in
         (succNTimes (incr_by sov) b, IncrAfterN n ord')
-    minUpdateSelected (IncrAfterN _ ord) sov pr s =
-        sov { underlying = minUpdateSelected ord (underlying sov) pr s }
-    minStepOrderer (IncrAfterN ma ord) sov pr xs s
+    updateSelected (IncrAfterN _ ord) sov pr s =
+        sov { underlying = updateSelected ord (underlying sov) pr s }
+    stepOrderer (IncrAfterN ma ord) sov pr xs s
         | steps_since_change sov >= ma =
             sov' { incr_by = incr_by sov' + 1
                  , steps_since_change = 0 }
@@ -1050,7 +1022,7 @@ instance (Eq sov, Enum b, MinOrderer ord sov b t) => MinOrderer (IncrAfterN ord)
             sov' { steps_since_change = steps_since_change sov' + 1}
         where
             under = underlying sov
-            under' = minStepOrderer ord under pr xs s
+            under' = stepOrderer ord under pr xs s
             sov' = sov { underlying = under' }
 
 
@@ -1062,15 +1034,15 @@ succNTimes x b
 -- Wraps an existing orderer, and divides its value by 2 if true_assert is true
 data QuotTrueAssert ord = QuotTrueAssert ord
 
-instance (Integral b, MinOrderer ord sov b t) => MinOrderer (QuotTrueAssert ord) sov b t where
-    minInitPerStateOrder (QuotTrueAssert ord) = minInitPerStateOrder ord
-    minOrderStates (QuotTrueAssert ord) sov pr s =
+instance (Integral b, Orderer ord sov b t) => Orderer (QuotTrueAssert ord) sov b t where
+    initPerStateOrder (QuotTrueAssert ord) = initPerStateOrder ord
+    orderStates (QuotTrueAssert ord) sov pr s =
         let
-            (b, ord') = minOrderStates ord sov pr s
+            (b, ord') = orderStates ord sov pr s
         in
         (if true_assert s then b `quot` 2 else b, QuotTrueAssert ord')
-    minUpdateSelected (QuotTrueAssert ord) = minUpdateSelected ord
-    minStepOrderer (QuotTrueAssert ord) = minStepOrderer ord 
+    updateSelected (QuotTrueAssert ord) = updateSelected ord
+    stepOrderer (QuotTrueAssert ord) = stepOrderer ord 
 
 --------
 --------
@@ -1229,7 +1201,7 @@ minState :: (Orderer or sov b t)
          -> M.Map b [ExState rv hv sov t]
          -> Maybe ((ExState rv hv sov t), M.Map b [ExState rv hv sov t])
 minState ord pr m =
-    case getState ord pr m of
+    case getState m of
       Just (k, x:[]) -> Just (x, M.delete k m)
       Just (k, x:xs) -> Just (x, M.insert k xs m)
       Just (k, []) -> minState ord pr $ M.delete k m
