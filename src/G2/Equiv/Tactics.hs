@@ -234,7 +234,10 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                | not $ (idName i, e1) `elem` n2
                , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
     (App f1 a1, App f2 a2) | Right hm_fa <- moreResFA -> Right hm_fa
-                           | Left (Just _) <- moreResFA -> moreResFA
+                           -- TODO (10/28/22) better lemma handling
+                           -- don't just choose the minimal conflicting expressions
+                           -- if we can make the lemma larger, make it larger
+                           -- otherwise, keep the lemma as it was
                            | not (hasFuncType e1)
                            , not (hasFuncType e2)
                            , not active
@@ -265,6 +268,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                                 --                 ++ "\ne1 = " ++  printHaskellDirtyPG pg (in1 e1)
                                 --                 ++ "\ne2 = " ++ printHaskellDirtyPG pg (in2 e2))
                                 Left (Just $ mkProposedLemma "lemma" s1 s2 ls2 ls1)
+                            | Left (Just _) <- moreResFA -> moreResFA
         where
             moreResFA = do
                 hm_f <- moreRestrictive s1 s2 ns hm active n1 n2 f1 f2

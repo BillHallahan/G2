@@ -1082,3 +1082,14 @@ loop2 _ = loop2 Z
 "contrivedSync" forall n . walkNat n (loop1 n) = loop2 n
 "plusZero" forall x . x + Z = x
   #-}
+
+-- TODO (10/28/22) testing for Zeno theorems
+-- can verify p80Z and p80Znil here
+{-# RULES
+"p55Z" forall xs ys . drop Z (xs ++ ys) = drop Z xs ++ drop (Z - len xs) ys
+"p55nil" forall n xs . drop n (xs ++ []) = drop n xs ++ drop (n - len xs) []
+"p55Znil" forall xs . drop Z (xs ++ []) = drop Z xs ++ drop (Z - len xs) []
+"p80Z" forall xs ys . take Z (xs ++ ys) = take Z xs ++ take (Z - len xs) ys
+"p80nil" forall n xs . take n (xs ++ []) = take n xs ++ take (n - len xs) []
+"p80Znil" forall xs . take Z (xs ++ []) = take Z xs ++ take (Z - len xs) []
+  #-}
