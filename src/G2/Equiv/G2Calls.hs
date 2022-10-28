@@ -103,7 +103,7 @@ rewriteRedHaltOrd solver simplifier h_opp track_opp config (NC { use_labeled_err
          <~> enforceProgressHalter
          <~> swhnfHalter
          <~> labeledErrorsHalter)
-     , SomeOrderer $ PickLeastUsedOrderer)
+     , SomeOrderer $ pickLeastUsedOrderer)
 
 type StateET = State EquivTracker
 

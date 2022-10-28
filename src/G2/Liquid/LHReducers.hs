@@ -12,7 +12,7 @@ module G2.Liquid.LHReducers ( lhRed
 
                             , lhAcceptIfViolatedHalter
                             , lhSWHNFHalter
-                            , LHLimitByAcceptedOrderer (..)
+                            , lhLimitByAcceptedOrderer
                             , lhLimitByAcceptedHalter
                             , lhAbsHalter
                             , lhMaxOutputsHalter
@@ -238,15 +238,8 @@ lhLimitByAcceptedHalter co =
             return $ if num_steps s > nAcc + co then Switch else Continue
 
 -- | Runs the state that had the fewest number of rules applied.
-data LHLimitByAcceptedOrderer = LHLimitByAcceptedOrderer
- 
-instance Orderer LHLimitByAcceptedOrderer () Int LHTracker where
-    initPerStateOrder _ _ = ()
-
-    orderStates ord _ _ s = (num_steps s, ord)
-
-    updateSelected _ _ _ _ = ()
-
+lhLimitByAcceptedOrderer :: Orderer () Int t
+lhLimitByAcceptedOrderer = mkSimpleOrderer (const ()) (\_ _ -> num_steps) (\_ _ _ -> ())
 
 allMin :: Ord b => (a -> b) -> [a] -> [a]
 allMin f xs =

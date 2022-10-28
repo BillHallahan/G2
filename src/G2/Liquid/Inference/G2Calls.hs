@@ -405,7 +405,7 @@ gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
               <~> switchEveryNHalter (switch_after lhconfig)
               <~> swhnfHalter
               <~> timer_halter)
-        , SomeOrderer (IncrAfterN 2000 (ADTSizeOrderer 0 Nothing)))
+        , SomeOrderer (incrAfterN 2000 (adtSizeOrderer 0 Nothing)))
 
 -------------------------------
 -- Direct Counterexamples Calls
@@ -533,7 +533,7 @@ inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry 
                     Nothing -> some_red)
         , SomeHalter
             (discardIfAcceptedTagHalter state_name <~> halter)
-        , SomeOrderer (IncrAfterN 2000 (QuotTrueAssert (OrdComb (+) (PCSizeOrderer 0) (ADTSizeOrderer 0 (Just instFuncTickName))))))
+        , SomeOrderer (incrAfterN 2000 (quotTrueAssert (ordComb (+) (pcSizeOrderer 0) (adtSizeOrderer 0 (Just instFuncTickName))))))
 
 runLHCExSearch :: MonadIO m
                => T.Text
@@ -610,7 +610,7 @@ realCExReducerHalterOrderer infconfig config lhconfig entry modname solver simpl
                       Nothing -> SomeReducer (stdRed share solver simplifier <~| lhRed cfn))
         , SomeHalter
             (discardIfAcceptedTagHalter state_name <~> halter)
-        , SomeOrderer (IncrAfterN 1000 (ADTSizeOrderer 0 Nothing)))
+        , SomeOrderer (incrAfterN 1000 (adtSizeOrderer 0 Nothing)))
 
 
 swapHigherOrdForSymGen :: Bindings -> State t -> State t
@@ -1049,7 +1049,7 @@ genericG2Call config solver s bindings = do
 
     fslb <- runG2WithSomes (SomeReducer (stdRed share solver simplifier))
                            (SomeHalter swhnfHalter)
-                           (SomeOrderer NextOrderer)
+                           (SomeOrderer nextOrderer)
                            solver simplifier PreserveAllMC s bindings
 
     return fslb
@@ -1072,7 +1072,7 @@ genericG2CallLogging config solver s bindings lg = do
 
     fslb <- runG2WithSomes (SomeReducer (stdRed share solver simplifier <~ prettyLogger lg))
                            (SomeHalter swhnfHalter)
-                           (SomeOrderer NextOrderer)
+                           (SomeOrderer nextOrderer)
                            solver simplifier PreserveAllMC s bindings
 
     return fslb

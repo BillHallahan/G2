@@ -265,7 +265,7 @@ initRedHaltOrd solver simplifier config =
                  <~> maxOutputsHalter (maxOutputs config)
                  <~> zeroHalter (steps config)
                  <~> acceptIfViolatedHalter)
-             , SomeOrderer $ PickLeastUsedOrderer)
+             , SomeOrderer $ pickLeastUsedOrderer)
         else ( SomeReducer (nonRedPCRed <~| taggerRed state_name)
                  .<~| (case m_logger of
                         Just logger -> SomeReducer (stdRed share solver simplifier) .<~ logger
@@ -276,7 +276,7 @@ initRedHaltOrd solver simplifier config =
                  <~> maxOutputsHalter (maxOutputs config) 
                  <~> zeroHalter (steps config)
                  <~> acceptIfViolatedHalter)
-             , SomeOrderer $ PickLeastUsedOrderer)
+             , SomeOrderer $ pickLeastUsedOrderer)
 
 initSolver :: Config -> IO SomeSolver
 initSolver = initSolver' arbValue
@@ -413,9 +413,9 @@ runG2Post :: ( MonadIO m
              , Named t
              , ASTContainer t Expr
              , ASTContainer t Type
-             , Orderer or sov b t
              , Solver solver
-             , Simplifier simplifier) => Reducer m rv t -> Halter m hv t -> or ->
+             , Simplifier simplifier
+             , Ord b) => Reducer m rv t -> Halter m hv t -> Orderer sov b t ->
              solver -> simplifier -> State t -> Bindings -> m ([ExecRes t], Bindings)
 runG2Post red hal ord solver simplifier is bindings = do
     (exec_states, bindings') <- runExecution red hal ord is bindings
@@ -428,7 +428,7 @@ runG2ThroughExecution ::
     , Named t
     , ASTContainer t Expr
     , ASTContainer t Type
-    , Orderer or sov b t) => Reducer m rv t -> Halter m hv t -> or ->
+    , Ord b) => Reducer m rv t -> Halter m hv t -> Orderer sov b t ->
     MemConfig -> State t -> Bindings -> m ([State t], Bindings)
 runG2ThroughExecution red hal ord mem is bindings = do
     let (is', bindings') = runG2Pre mem is bindings
@@ -500,9 +500,9 @@ runG2 :: ( MonadIO m
          , Named t
          , ASTContainer t Expr
          , ASTContainer t Type
-         , Orderer or sov b t
          , Solver solver
-         , Simplifier simplifier) => Reducer m rv t -> Halter m hv t -> or ->
+         , Simplifier simplifier
+         , Ord b) => Reducer m rv t -> Halter m hv t -> Orderer sov b t ->
          solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
 runG2 red hal ord solver simplifier mem is bindings = do
     (exec_states, bindings') <- runG2ThroughExecution red hal ord mem is bindings

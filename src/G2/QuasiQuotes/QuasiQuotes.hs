@@ -281,7 +281,7 @@ qqRedHaltOrd config solver simplifier =
     , SomeHalter
         (discardIfAcceptedTagHalter state_name 
         <~> acceptIfViolatedHalter)
-    , SomeOrderer NextOrderer)
+    , SomeOrderer nextOrderer)
 
 addAssume :: State t -> Bindings -> (State t, Bindings)
 addAssume s@(State { curr_expr = CurrExpr er e }) b@(Bindings { name_gen = ng }) =
@@ -418,7 +418,7 @@ executeAndSolveStates' b s = do
     case qqRedHaltOrd config solver simplifier of
         (SomeReducer red, SomeHalter hal, _) -> do
             let hal' = hal <~> errorHalter <~> varLookupLimitHalter 3 <~> maxOutputsHalter (Just 1)
-                ord = IncrAfterN 2000 (ADTHeightOrderer 0 Nothing) :<-> BucketSizeOrderer 6
+                ord = incrAfterN 2000 (adtHeightOrderer 0 Nothing) <-> bucketSizeOrderer 6
             (res, _) <- runG2Post (red) hal' ord solver simplifier s b
 
             case res of

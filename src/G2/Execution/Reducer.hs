@@ -56,16 +56,17 @@ module G2.Execution.Reducer ( Reducer (..)
                             , timerHalter
 
                             -- Orderers
-                            , OCombiner (..)
-                            , FlexOrdCombiner (..)
-                            , NextOrderer (..)
-                            , PickLeastUsedOrderer (..)
-                            , BucketSizeOrderer (..)
-                            , ADTHeightOrderer (..)
-                            , ADTSizeOrderer (..)
-                            , PCSizeOrderer (..)
-                            , IncrAfterN (..)
-                            , QuotTrueAssert (..)
+                            , mkSimpleOrderer
+                            , (<->)
+                            , ordComb
+                            , nextOrderer
+                            , pickLeastUsedOrderer
+                            , bucketSizeOrderer
+                            , adtHeightOrderer
+                            , adtSizeOrderer
+                            , pcSizeOrderer
+                            , incrAfterN
+                            , quotTrueAssert
 
                             , runReducer ) where
 
@@ -215,23 +216,34 @@ mkStoppingHalter stop =
                 stop
                 (\_ _ _ _ -> ())
 
+
+type InitOrderer sov t = State t -> sov
+type OrderStates sov b t = sov -> Processed (State t) -> State t -> b
+type UpdateSelected sov t = sov -> Processed (State t) -> State t -> sov
+
 -- | Picks an order to evaluate the states, to allow prioritizing some over others 
 -- The type parameter or is used to disambiguate between different producers.
 -- To create a new reducer, define some new type, and use it as or.
-class Ord b => Orderer or sov b t | or -> sov, or -> b where
+data Orderer sov b t = Orderer {
     -- | Initializing the per state ordering value 
-    initPerStateOrder :: or -> State t -> sov
+      initPerStateOrder :: InitOrderer sov t
 
     -- | Assigns each state some value of an ordered type, and then proceeds with execution on the
     -- state assigned the minimal value
-    orderStates :: or -> sov -> Processed (State t) -> State t -> (b, or)
+    , orderStates :: OrderStates sov b t
 
     -- | Run on the selected state, to update it's sov field
-    updateSelected :: or -> sov -> Processed (State t) -> State t -> sov
+    , updateSelected :: UpdateSelected sov t
 
     -- | Run on the state at each step, to update it's sov field
-    stepOrderer :: or -> sov -> Processed (State t) -> [State t] -> State t -> sov 
-    stepOrderer _ sov _ _ _ = sov
+    , stepOrderer :: sov -> Processed (State t) -> [State t] -> State t -> sov 
+    }
+
+mkSimpleOrderer :: InitOrderer sov t -> OrderStates sov b t -> UpdateSelected sov t -> Orderer sov b t
+mkSimpleOrderer initial order update = Orderer { initPerStateOrder = initial
+                                               , orderStates = order
+                                               , updateSelected = update
+                                               , stepOrderer = \sov _ _ _ -> sov}
 
 getState :: M.Map b [s] -> Maybe (b, [s])
 getState = M.lookupMin
@@ -243,7 +255,7 @@ data SomeHalter m t where
     SomeHalter :: forall m hv t . Halter m hv t -> SomeHalter m t
 
 data SomeOrderer t where
-    SomeOrderer :: forall or sov b t . Orderer or sov b t => or -> SomeOrderer t
+    SomeOrderer :: forall sov b t . Ord b => Orderer sov b t -> SomeOrderer t
 
 ----------------------------------------------------
 -- Combines reducers in various ways
@@ -760,142 +772,126 @@ timerHalter ms def ce = do
             | otherwise = v + 1
 
 -- Orderer things
-
-data OCombiner o1 o2 = o1 :<-> o2 deriving (Eq, Show, Read)
-
-instance (Orderer or1 sov1 b1 t, Orderer or2 sov2 b2 t)
-      => Orderer (OCombiner or1 or2) (C sov1 sov2) (b1, b2) t where
-  
+(<->) :: Orderer sov1 b1 t -> Orderer sov2 b2 t -> Orderer (C sov1 sov2) (b1, b2) t
+or1 <-> or2 = Orderer {
     -- | Initializing the per state ordering value 
-    initPerStateOrder (or1 :<-> or2) s =
-      let
-          sov1 = initPerStateOrder or1 s
-          sov2 = initPerStateOrder or2 s
-      in
-      C sov1 sov2
+      initPerStateOrder = \s ->
+          let
+              sov1 = initPerStateOrder or1 s
+              sov2 = initPerStateOrder or2 s
+          in
+          C sov1 sov2
 
     -- | Assigns each state some value of an ordered type, and then proceeds with execution on the
     -- state assigned the minimal value
-    orderStates (or1 :<-> or2) (C sov1 sov2) pr s =
-      let
-          (sov1', or1') = orderStates or1 sov1 pr s
-          (sov2', or2') = orderStates or2 sov2 pr s
-      in
-      ((sov1', sov2'), or1' :<-> or2')
+    , orderStates = \(C sov1 sov2) pr s ->
+          let
+              sov1' = orderStates or1 sov1 pr s
+              sov2' = orderStates or2 sov2 pr s
+          in
+          (sov1', sov2')
 
     -- | Run on the selected state, to update it's sov field
-    updateSelected (or1 :<-> or2) (C sov1 sov2) proc s = 
-      let
-          sov1' = updateSelected or1 sov1 proc s
-          sov2' = updateSelected or2 sov2 proc s
-      in
-      C sov1' sov2'
+    , updateSelected = \(C sov1 sov2) proc s -> 
+          let
+              sov1' = updateSelected or1 sov1 proc s
+              sov2' = updateSelected or2 sov2 proc s
+          in
+          C sov1' sov2'
 
-    stepOrderer (or1 :<-> or2) (C sov1 sov2) proc xs s =
-        let
-            sov1' = stepOrderer or1 sov1 proc xs s
-            sov2' = stepOrderer or2 sov2 proc xs s
-        in
-        C sov1' sov2'
+    , stepOrderer = \(C sov1 sov2) proc xs s ->
+            let
+                sov1' = stepOrderer or1 sov1 proc xs s
+                sov2' = stepOrderer or2 sov2 proc xs s
+            in
+            C sov1' sov2'
+    }
 
-data FlexOrdCombiner v1 v2 v3 or1 or2 = OrdComb (v1 -> v2 -> v3) or1 or2
-
-instance (Orderer or1 sov1 v1 t, Orderer or2 sov2 v2 t, Ord v3)
-      => Orderer (FlexOrdCombiner v1 v2 v3 or1 or2) (C sov1 sov2) v3 t where
-
+ordComb :: (v1 -> v2 -> v3) -> Orderer sov1 v1 t  -> Orderer sov2 v2 t -> Orderer(C sov1 sov2) v3 t
+ordComb f or1 or2 = Orderer {
     -- | Initializing the per state ordering value 
-    initPerStateOrder (OrdComb _ or1 or2) s =
-      let
-          sov1 = initPerStateOrder or1 s
-          sov2 = initPerStateOrder or2 s
-      in
-      C sov1 sov2
+      initPerStateOrder = \s ->
+          let
+              sov1 = initPerStateOrder or1 s
+              sov2 = initPerStateOrder or2 s
+          in
+          C sov1 sov2
 
     -- | Assigns each state some value of an ordered type, and then proceeds with execution on the
     -- state assigned the minimal value
-    orderStates (OrdComb f or1 or2) (C sov1 sov2) pr s =
-      let
-          (sov1', or1') = orderStates or1 sov1 pr s
-          (sov2', or2') = orderStates or2 sov2 pr s
-      in
-      (f sov1' sov2', OrdComb f or1' or2')
+    , orderStates = \(C sov1 sov2) pr s ->
+          let
+              sov1' = orderStates or1 sov1 pr s
+              sov2' = orderStates or2 sov2 pr s
+          in
+          f sov1' sov2'
 
     -- | Run on the selected state, to update it's sov field
-    updateSelected (OrdComb _ or1 or2) (C sov1 sov2) proc s = 
-      let
-          sov1' = updateSelected or1 sov1 proc s
-          sov2' = updateSelected or2 sov2 proc s
-      in
-      C sov1' sov2'
+    , updateSelected = \(C sov1 sov2) proc s ->
+          let
+              sov1' = updateSelected or1 sov1 proc s
+              sov2' = updateSelected or2 sov2 proc s
+          in
+          C sov1' sov2'
 
-    stepOrderer (OrdComb _ or1 or2) (C sov1 sov2) proc xs s =
-        let
-            sov1' = stepOrderer or1 sov1 proc xs s
-            sov2' = stepOrderer or2 sov2 proc xs s
-        in
-        C sov1' sov2'
+    , stepOrderer = \(C sov1 sov2) proc xs s ->
+          let
+              sov1' = stepOrderer or1 sov1 proc xs s
+              sov2' = stepOrderer or2 sov2 proc xs s
+          in
+          C sov1' sov2'
+    }
 
-data NextOrderer = NextOrderer
-
-instance Orderer NextOrderer () Int t where
-    initPerStateOrder _ _ = ()
-    orderStates ord _ _ _ = (0, ord)
-    updateSelected _ v _ _ = v
+nextOrderer :: Orderer () Int t
+nextOrderer = mkSimpleOrderer (const ()) (\_ _ _ -> 0) (\v _ _ -> v)
 
 -- | Continue execution on the state that has been picked the least in the past. 
-data PickLeastUsedOrderer = PickLeastUsedOrderer
-
-instance Orderer PickLeastUsedOrderer Int Int t where
-    initPerStateOrder _ _ = 0
-    orderStates ord v _ _ = (v, ord)
-    updateSelected _ v _ _ = v + 1
+pickLeastUsedOrderer :: Orderer Int Int t
+pickLeastUsedOrderer = mkSimpleOrderer (const 0) (\v _ _ -> v) (\v _ _ -> v + 1)
 
 -- | Floors and does bucket size
-data BucketSizeOrderer = BucketSizeOrderer Int
+bucketSizeOrderer :: Int -> Orderer Int Int t
+bucketSizeOrderer b =
+    mkSimpleOrderer (const 0)
+                    (\v _ _ -> floor (fromIntegral v / fromIntegral b :: Float))
+                    (\v _ _ -> v + 1)
 
-instance Orderer BucketSizeOrderer Int Int t where
-    initPerStateOrder _ _ = 0
-
-    orderStates ord@(BucketSizeOrderer b) v _ _ = (floor (fromIntegral v / fromIntegral b :: Float), ord)
-
-    updateSelected _ v _ _ = v + 1
-
--- Orders by the size (in terms of height) of (previously) symbolic ADT.
+-- | Orders by the size (in terms of height) of (previously) symbolic ADT.
 -- In particular, aims to first execute those states with a height closest to
 -- the specified height.
-data ADTHeightOrderer = ADTHeightOrderer
-                            Int -- ^ What height should we prioritize?
-                            (Maybe Name) -- ^ If we see a tick with the specified Name, add it to the set
+adtHeightOrderer :: Int -> Maybe Name -> Orderer (HS.HashSet Name, Bool) Int t
+adtHeightOrderer pref_height mn =
+    (mkSimpleOrderer initial
+                    order
+                    (\v _ _ -> v))
+                    { stepOrderer = step }
+    where
+        -- Normally, each state tracks the names of currently symbolic variables,
+        -- but here we want all variables that were ever symbolic.
+        -- To track this, we use a HashSet.
+        -- The tracked bool is to speed up adjusting this hashset- if it is set to false,
+        -- we do not update the hashset.  If it is set to true,
+        -- after the next step the hashset will be updated, and the bool will be set
+        -- back to false.
+        -- This avoids repeated operations on the hashset after rules that we know
+        -- will not add symbolic variables.
+        initial s = (HS.fromList . map idName . E.symbolicIds . expr_env $ s, False)
+        order (v, _) _ s =
+            let
+                m = maximum $ (-1):(HS.toList $ HS.map (flip adtHeight s) v)
+                h = abs (pref_height - m)
+            in
+            h
 
--- Normally, each state tracks the names of currently symbolic variables,
--- but here we want all variables that were ever symbolic.
--- To track this, we use a HashSet.
--- The tracked bool is to speed up adjusting this hashset- if it is set to false,
--- we do not update the hashset.  If it is set to true,
--- after the next step the hashset will be updated, and the bool will be set
--- back to false.
--- This avoids repeated operations on the hashset after rules that we know
--- will not add symbolic variables.
-instance Orderer ADTHeightOrderer (HS.HashSet Name, Bool) Int t where
-    initPerStateOrder _ s = (HS.fromList . map idName . E.symbolicIds . expr_env $ s, False)
-    orderStates ord@(ADTHeightOrderer pref_height _) (v, _) _ s =
-        let
-            m = maximum $ (-1):(HS.toList $ HS.map (flip adtHeight s) v)
-            h = abs (pref_height - m)
-        in
-        (h, ord)
-    updateSelected _ v _ _ = v
-
-    stepOrderer _ (v, _) _ _
-                  (State { curr_expr = CurrExpr _ (SymGen _) }) = (v, True)
-    stepOrderer _ (v, True) _ _ s =
-        (v `HS.union` (HS.fromList . map idName . E.symbolicIds . expr_env $ s), False)
-    stepOrderer (ADTHeightOrderer _ (Just n)) (v, _) _ _ 
-                   (State { curr_expr = CurrExpr _ (Tick (NamedLoc n') (Var (Id vn _))) }) 
-            | n == n' =
-                (HS.insert vn v, False)
-    stepOrderer _ v _ _ _ =
-        v
+        step (v, _) _ _
+                      (State { curr_expr = CurrExpr _ (SymGen _) }) = (v, True)
+        step(v, True) _ _ s =
+            (v `HS.union` (HS.fromList . map idName . E.symbolicIds . expr_env $ s), False)
+        step (v, _) _ _ 
+                       (State { curr_expr = CurrExpr _ (Tick (NamedLoc n') (Var (Id vn _))) }) 
+                | Just n <- mn, n == n' =
+                    (HS.insert vn v, False)
+        step  v _ _ _ = v
 
 adtHeight :: Name -> State t -> Int
 adtHeight n s@(State { expr_env = eenv })
@@ -915,41 +911,41 @@ adtHeight' e s =
                         Var (Id n _) -> adtHeight n s
                         _ -> 0) es
 
--- Orders by the combined size of (previously) symbolic ADT.
+-- | Orders by the combined size of (previously) symbolic ADT.
 -- In particular, aims to first execute those states with a combined ADT size closest to
 -- the specified zize.
-data ADTSizeOrderer = ADTSizeOrderer
-                            Int -- ^ What size should we prioritize?
-                            (Maybe Name) -- ^ If we see a tick with the specified Name, add it to the set
+adtSizeOrderer :: Int -> Maybe Name -> Orderer (HS.HashSet Name, Bool) Int t
+adtSizeOrderer pref_height mn =
+    (mkSimpleOrderer initial
+                    order
+                    (\v _ _ -> v))
+                    { stepOrderer = step }
+    where
+        -- Normally, each state tracks the names of currently symbolic variables,
+        -- but here we want all variables that were ever symbolic.
+        -- To track this, we use a HashSet.
+        -- The tracked bool is to speed up adjusting this hashset- if it is set to false,
+        -- we do not update the hashset.  If it is set to true,
+        -- after the next step the hashset will be updated, and the bool will be set
+        -- back to false.
+        -- This avoids repeated operations on the hashset after rules that we know
+        -- will not add symbolic variables.
+        initial s = (HS.fromList . map idName . E.symbolicIds . expr_env $ s, False)
+        order (v, _) _ s =
+            let
+                m = sum (HS.toList $ HS.map (flip adtSize s) v)
+                h = abs (pref_height - m)
+            in
+            h
 
--- Normally, each state tracks the names of currently symbolic variables,
--- but here we want all variables that were ever symbolic.
--- To track this, we use a HashSet.
--- The tracked bool is to speed up adjusting this hashset- if it is set to false,
--- we do not update the hashset.  If it is set to true,
--- after the next step the hashset will be updated, and the bool will be set
--- back to false.
--- This avoids repeated operations on the hashset after rules that we know
--- will not add symbolic variables.
-instance Orderer ADTSizeOrderer (HS.HashSet Name, Bool) Int t where
-    initPerStateOrder _ s = (HS.fromList . map idName . E.symbolicIds . expr_env $ s, False)
-    orderStates ord@(ADTSizeOrderer pref_height _) (v, _) _ s =
-        let
-            m = sum (HS.toList $ HS.map (flip adtSize s) v)
-            h = abs (pref_height - m)
-        in
-        (h, ord)
-    updateSelected _ v _ _ = v
-
-    stepOrderer _ (v, _) _ _
-                  (State { curr_expr = CurrExpr _ (SymGen _) }) = (v, True)
-    stepOrderer _ (v, True) _ _ s =
-        (v `HS.union` (HS.fromList . map idName . E.symbolicIds . expr_env $ s), False)
-    stepOrderer (ADTSizeOrderer _ (Just n)) (v, _) _ _ 
-                   (State { curr_expr = CurrExpr _ (Tick (NamedLoc n') (Var (Id vn _))) }) 
-            | n == n' =
-                (HS.insert vn v, False)
-    stepOrderer _ v _ _ _ = v
+        step (v, _) _ _
+                      (State { curr_expr = CurrExpr _ (SymGen _) }) = (v, True)
+        step (v, True) _ _ s =
+            (v `HS.union` (HS.fromList . map idName . E.symbolicIds . expr_env $ s), False)
+        step (v, _) _ _
+                       (State { curr_expr = CurrExpr _ (Tick (NamedLoc n') (Var (Id vn _))) }) 
+                | Just n <- mn, n == n' = (HS.insert vn v, False)
+        step v _ _ _ = v
 
 adtSize :: Name -> State t -> Int
 adtSize n s@(State { expr_env = eenv })
@@ -969,89 +965,82 @@ adtSize' e s =
                         Var (Id n _) -> adtSize n s
                         _ -> 0) es
 
-
--- Orders by the number of Path Constraints
-data PCSizeOrderer = PCSizeOrderer
-                            Int -- ^ What size should we prioritize?
-
--- The tracked bool is to speed up adjusting this hashset- if it is set to false,
--- we do not update the hashset.  If it is set to true,
--- after the next step the hashset will be updated, and the bool will be set
--- back to false.
--- This avoids repeated operations on the hashset after rules that we know
--- will not add symbolic variables.
-instance Orderer PCSizeOrderer () Int t where
-    initPerStateOrder _ _ = ()
-    orderStates ord@(PCSizeOrderer pref_height) _ _ s =
-        let
-            m = PC.number (path_conds s)
-            h = abs (pref_height - m)
-        in
-        (h, ord)
-    updateSelected _ v _ _ = v
-
-    stepOrderer _ d _ _ _ = d
-
--- Wraps an existing Orderer, and increases it's value by 1, every time
--- it doesn't change after N steps 
-data IncrAfterN ord = IncrAfterN Int ord
+-- | Orders by the number of Path Constraints
+pcSizeOrderer :: Int  -- ^ What size should we prioritize?
+              -> Orderer () Int t
+pcSizeOrderer pref_height = mkSimpleOrderer (const ())
+                                            order
+                                            (\v _ _ -> v)
+    where
+        order _ _ s =
+            let
+                m = PC.number (path_conds s)
+                h = abs (pref_height - m)
+            in
+            h
 
 data IncrAfterNTr sov = IncrAfterNTr { steps_since_change :: Int
                                      , incr_by :: Int
                                      , underlying :: sov }
 
-instance (Eq sov, Enum b, Orderer ord sov b t) => Orderer (IncrAfterN ord) (IncrAfterNTr sov) b t where
-    initPerStateOrder (IncrAfterN _ ord) s =
-        IncrAfterNTr { steps_since_change = 0
-                     , incr_by = 0
-                     , underlying = initPerStateOrder ord s }
-    orderStates (IncrAfterN n ord) sov pr s =
-        let
-            (b, ord') = orderStates ord (underlying sov) pr s
-        in
-        (succNTimes (incr_by sov) b, IncrAfterN n ord')
-    updateSelected (IncrAfterN _ ord) sov pr s =
-        sov { underlying = updateSelected ord (underlying sov) pr s }
-    stepOrderer (IncrAfterN ma ord) sov pr xs s
-        | steps_since_change sov >= ma =
-            sov' { incr_by = incr_by sov' + 1
-                 , steps_since_change = 0 }
-        | under /= under' =
-            sov' { steps_since_change = 0 }
-        | otherwise =
-            sov' { steps_since_change = steps_since_change sov' + 1}
-        where
-            under = underlying sov
-            under' = stepOrderer ord under pr xs s
-            sov' = sov { underlying = under' }
+-- | Wraps an existing Orderer, and increases it's value by 1, every time
+-- it doesn't change after N steps 
+incrAfterN :: (Eq sov, Enum b) => Int -> Orderer sov b t -> Orderer (IncrAfterNTr sov) b t
+incrAfterN n ord = (mkSimpleOrderer initial order update) { stepOrderer = step }
+    where
+        initial s =
+            IncrAfterNTr { steps_since_change = 0
+                         , incr_by = 0
+                         , underlying = initPerStateOrder ord s }
 
+        order sov pr s =
+            let
+                b = orderStates ord (underlying sov) pr s
+            in
+            succNTimes (incr_by sov) b
+
+        update sov pr s =
+            sov { underlying = updateSelected ord (underlying sov) pr s }
+
+        step sov pr xs s
+            | steps_since_change sov >= n =
+                sov' { incr_by = incr_by sov' + 1
+                     , steps_since_change = 0 }
+            | under /= under' =
+                sov' { steps_since_change = 0 }
+            | otherwise =
+                sov' { steps_since_change = steps_since_change sov' + 1}
+            where
+                under = underlying sov
+                under' = stepOrderer ord under pr xs s
+                sov' = sov { underlying = under' }
 
 succNTimes :: Enum b => Int -> b -> b
 succNTimes x b
     | x <= 0 = b
     | otherwise = succNTimes (x - 1) (succ b)
 
--- Wraps an existing orderer, and divides its value by 2 if true_assert is true
-data QuotTrueAssert ord = QuotTrueAssert ord
-
-instance (Integral b, Orderer ord sov b t) => Orderer (QuotTrueAssert ord) sov b t where
-    initPerStateOrder (QuotTrueAssert ord) = initPerStateOrder ord
-    orderStates (QuotTrueAssert ord) sov pr s =
-        let
-            (b, ord') = orderStates ord sov pr s
-        in
-        (if true_assert s then b `quot` 2 else b, QuotTrueAssert ord')
-    updateSelected (QuotTrueAssert ord) = updateSelected ord
-    stepOrderer (QuotTrueAssert ord) = stepOrderer ord 
+-- | Wraps an existing orderer, and divides its value by 2 if true_assert is true
+quotTrueAssert :: Integral b => Orderer sov b t -> Orderer sov b t
+quotTrueAssert ord = (mkSimpleOrderer (initPerStateOrder ord)
+                                      order
+                                      (updateSelected ord))
+                                      { stepOrderer = stepOrderer ord}
+    where
+        order sov pr s =
+            let
+                b = orderStates ord sov pr s
+            in
+            if true_assert s then b `quot` 2 else b
 
 --------
 --------
 
 -- | Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
-runReducer :: (MonadIO m, Orderer or sov b t) =>
+runReducer :: (MonadIO m, Ord b) =>
               Reducer m rv t
            -> Halter m hv t
-           -> or
+           -> Orderer sov b t
            -> State t
            -> Bindings
            -> m (Processed (State t), Bindings)
@@ -1065,10 +1054,10 @@ runReducer red hal ord s b = do
     (states, b') <- runReducer' red hal ord pr s' b M.empty
     return (states, b')
 
-runReducer' :: (MonadIO m, Orderer or sov b t) 
+runReducer' :: (MonadIO m, Ord b)
             => Reducer m rv t
             -> Halter m hv t
-            -> or 
+            -> Orderer sov b t
             -> Processed (State t) 
             -> ExState rv hv sov t 
             -> Bindings
@@ -1099,12 +1088,12 @@ runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_
                     Nothing -> return (pr', b)
             | hc == Switch ->
                 let
-                    (k, ord') = orderStates ord (order_val rs') pr (state rs)
+                    k = orderStates ord (order_val rs') pr (state rs)
                     rs' = rs { order_val = updateSelected ord (order_val rs) pr (state rs) }
 
                     Just (rs'', xs') = minState ord pr (M.insertWith (++) k [rs'] xs)
                 in
-                switchState red hal ord' pr rs'' b xs'
+                switchState red hal ord pr rs'' b xs'
             | otherwise -> do
                 (_, reduceds, b') <- redRules red r_val s b
                 let reduceds' = map (\(r, rv) -> (r {num_steps = num_steps r + 1}, rv)) reduceds
@@ -1132,22 +1121,22 @@ runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_
                 case mod_info of
                     (s_h:ss_tail) -> do
                         let 
-                            (ord', b_ss_tail) =
-                                L.mapAccumR (\e_ord s' ->
+                            b_ss_tail =
+                                L.map (\s' ->
                                     let
-                                        (n_b, n_ord) = orderStates e_ord (order_val s') pr (state s')
+                                        n_b = orderStates ord (order_val s') pr (state s')
                                     in
-                                    (n_ord, (n_b, s'))) ord ss_tail
+                                    (n_b, s')) ss_tail
 
                             xs' = foldr (\(or_b, s') -> M.insertWith (++) or_b [s']) xs b_ss_tail
 
-                        runReducer' red hal ord' pr s_h b' xs'
+                        runReducer' red hal ord pr s_h b' xs'
                     [] -> runReducerList red hal ord pr xs b' 
 
-switchState :: (MonadIO m, Orderer or sov b t)
+switchState :: (MonadIO m, Ord b)
             => Reducer m rv t
             -> Halter m hv t
-            -> or
+            -> Orderer sov b t
             -> Processed (State t) 
             -> ExState rv hv sov t 
             -> Bindings
@@ -1162,10 +1151,10 @@ switchState red hal ord  pr rs b xs
         rs' = rs { halter_val = updatePerStateHalt hal (halter_val rs) pr (state rs) }
 
 -- To be used when we we need to select a state without switching 
-runReducerList :: (MonadIO m, Orderer or sov b t) 
+runReducerList :: (MonadIO m, Ord b)
                => Reducer m rv t 
                -> Halter m hv t
-               -> or 
+               -> Orderer sov b t 
                -> Processed (State t)
                -> M.Map b [ExState rv hv sov t]
                -> Bindings
@@ -1180,10 +1169,10 @@ runReducerList red hal ord pr m binds =
         Nothing -> return (pr, binds)
 
 -- To be used when we are possibly switching states 
-runReducerListSwitching :: (MonadIO m, Orderer or sov b t) 
+runReducerListSwitching :: (MonadIO m, Ord b)
                         => Reducer m rv t 
                         -> Halter m hv t
-                        -> or 
+                        -> Orderer sov b t
                         -> Processed (State t)
                         -> M.Map b [ExState rv hv sov t]
                         -> Bindings
@@ -1195,8 +1184,8 @@ runReducerListSwitching red hal ord pr m binds =
 
 -- Uses the Orderer to determine which state to continue execution on.
 -- Returns that State, and a list of the rest of the states 
-minState :: (Orderer or sov b t)
-         => or
+minState :: Ord b
+         => Orderer sov b t
          -> Processed (State t)
          -> M.Map b [ExState rv hv sov t]
          -> Maybe ((ExState rv hv sov t), M.Map b [ExState rv hv sov t])

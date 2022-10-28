@@ -459,7 +459,7 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
                   <~> lhLimitByAcceptedHalter (cut_off lhconfig)
                   <~> switchEveryNHalter (switch_after lhconfig)
                   <~> lhAcceptIfViolatedHalter)
-        , SomeOrderer LHLimitByAcceptedOrderer)
+        , SomeOrderer lhLimitByAcceptedOrderer)
     else
         (SomeReducer (nonRedAbstractReturnsRed <~| taggerRed abs_ret_name)
             .<~| (SomeReducer (non_red <~| taggerRed state_name))
@@ -475,7 +475,7 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
               <~> lhLimitByAcceptedHalter (cut_off lhconfig)
               <~> switchEveryNHalter (switch_after lhconfig)
               <~> lhAcceptIfViolatedHalter)
-        , SomeOrderer LHLimitByAcceptedOrderer)
+        , SomeOrderer lhLimitByAcceptedOrderer)
 
 initializeLHData :: [GhcInfo] -> Maybe PhantomTyVars -> LHConfig -> LHStateM ()
 initializeLHData ghcInfos m_ph_tyvars config = do
