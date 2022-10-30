@@ -113,7 +113,7 @@ liquidTests = testGroup "Liquid"
     , checkLiquid "tests_lh/Liquid/ConcatList.hs" "concat3" 800 [AtLeast 2]
     , checkLiquid "tests_lh/Liquid/ConcatList.hs" "concat5" 1600 [AtLeast 1]
 
-    , checkLiquid "tests_lh/Liquid/tests_lh/Group3.lhs" "f" 2200 [AtLeast 1]
+    , checkLiquid "tests_lh/Liquid/Tests/Group3.lhs" "f" 2200 [AtLeast 1]
 
     , checkLiquid "tests_lh/Liquid/Nonused.hs" "g" 2000 [AtLeast 1]
 
