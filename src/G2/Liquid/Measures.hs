@@ -52,7 +52,7 @@ filterMeasures' pre_meenv nt = do
     return fil_meenv
 
 allTypesKnown :: Measure SpecType GHC.DataCon -> LHStateM Bool
-#if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
+#if MIN_VERSION_liquidhaskell(0,8,6)
 allTypesKnown (M {msSort = srt}) = do
 #else
 allTypesKnown (M {sort = srt}) = do
@@ -61,7 +61,7 @@ allTypesKnown (M {sort = srt}) = do
     return $ isJust st
 
 measureTypeMappings :: Measure SpecType GHC.DataCon -> LHStateM (Maybe (Name, Type))
-#if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
+#if MIN_VERSION_liquidhaskell(0,8,6)
 measureTypeMappings (M {msName = n, msSort = srt}) = do
 #else
 measureTypeMappings (M {name = n, sort = srt}) = do
@@ -85,7 +85,7 @@ addLHDictToType lh t =
     mapInTyForAlls (\t' -> foldr TyFun t' lhD) t
 
 convertMeasure :: BoundTypes -> Measure SpecType GHC.DataCon -> LHStateM (Maybe (Name, Expr))
-#if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
+#if MIN_VERSION_liquidhaskell(0,8,6)
 convertMeasure bt (M {msName = n, msSort = srt, msEqns = eq}) = do
 #else
 convertMeasure bt (M {name = n, sort = srt, eqns = eq}) = do

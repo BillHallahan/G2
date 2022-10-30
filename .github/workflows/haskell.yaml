@@ -14,10 +14,10 @@ jobs:
     strategy:
       matrix:
         compiler: [ { ghc: '8.2.2', cabal: '3.0' }, { ghc: '8.6.5', cabal: '3.0' }, { ghc: '8.10.7', cabal: '3.6' } ]
-        test: [ test, inference-test ]
+        test: [ test, test-lh ]
         exclude:
           - compiler: { ghc: '8.2.2', cabal: '3.0' }
-            test: inference-test
+            test: test-lh
 
     steps:
     - uses: actions/checkout@v2
