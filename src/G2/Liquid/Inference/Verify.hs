@@ -45,7 +45,7 @@ import qualified Language.Fixpoint.Types as F
 import qualified Language.Fixpoint.Types.Errors as F (FixResult (..))
 import CoreSyn
 
-#if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
+#if MIN_VERSION_liquidhaskell(0,8,6)
 import qualified Language.Haskell.Liquid.Termination.Structural as ST
 import           Language.Haskell.Liquid.GHC.Misc (showCBs, ignoreCoreBinds)
 import qualified Data.HashSet as S
@@ -271,17 +271,6 @@ newPrune cfg cbs tgt info
 
 exportedVars :: GhcSrc -> [V.Var]
 exportedVars src = filter (isExportedVar src) (giDefVars src)
-#elif defined NEW_LH
-newPrune :: Config -> [CoreBind] -> FilePath -> GhcInfo -> IO (Either [CoreBind] [DC.DiffCheck])
-newPrune cfg cbs tgt info
-  | not (null vs) = return . Right $ [DC.thin cbs sp vs]
-  | timeBinds cfg = return . Right $ [DC.thin cbs sp [v] | v <- exportedVars info ]
-  | diffcheck cfg = maybeEither cbs <$> DC.slice tgt cbs sp
-  | otherwise     = return $ Left (ignoreCoreBinds ignores cbs)
-  where
-    ignores       = gsIgnoreVars sp 
-    vs            = gsTgtVars    sp
-    sp            = spec       info
 #else
 newPrune :: Config -> [CoreBind] -> FilePath -> GhcInfo -> IO (Either [CoreBind] [DC.DiffCheck])
 newPrune cfg cbs tgt info
@@ -339,19 +328,6 @@ updGhcInfoTermVars i  = updInfo i  (ST.terminationVars i)
     updInfo   info vs = info { giSpec = updSpec   (giSpec info) vs }
     updSpec   sp   vs = sp   { gsTerm = updSpTerm (gsTerm sp)   vs }
     updSpTerm gsT  vs = gsT  { gsNonStTerm = S.fromList vs         } 
-
-#elif defined NEW_LH
-liquidQuery infconfig cfg tgt info edc = do
-  when False (dumpCs cgi)
-  -- whenLoud $ mapM_ putStrLn [ "****************** CGInfo ********************"
-                            -- , render (pprint cgi)                            ]
-  timedAction names $ solveCs infconfig cfg tgt cgi info' names
-  where
-    cgi    = {-# SCC "generateConstraints" #-} generateConstraints $! info' {cbs = cbs''}
-    cbs''  = either id              DC.newBinds                        edc
-    info'  = either (const info)    (\z -> info {spec = DC.newSpec z}) edc
-    names  = either (const Nothing) (Just . map show . DC.checkedVars) edc
-    oldOut = either (const mempty)  DC.oldOutput                       edc
 #else
 liquidQuery infconfig cfg tgt info edc = do
   when False (dumpCs cgi)

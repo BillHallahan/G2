@@ -18,8 +18,6 @@ import G2.Interface
 import G2.Language
 import G2.Translation
 
-import G2.Liquid.Interface
-
 main :: IO ()
 main = do
   as <- getArgs
