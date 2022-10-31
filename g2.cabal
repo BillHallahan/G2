@@ -19,7 +19,10 @@ cabal-version:       1.24
 
 Flag support-lh
   Description:   Build modules for reasoning about LiquidHaskell
-  Default:       True
+  if impl(ghc < 9)
+    Default:       True
+  else
+    Default:       False
 
 source-repository head
     type:       git
