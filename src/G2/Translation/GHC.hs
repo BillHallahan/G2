@@ -106,7 +106,7 @@ import CoreSyn
 import DataCon
 import DynFlags
 import FastString
-import GHC hiding(AnnExpr' (..))
+import GHC hiding (AnnKeywordId (..), AnnExpr' (..))
 import GHC.Paths
 import HscMain
 import HscTypes
