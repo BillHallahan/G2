@@ -106,14 +106,14 @@ import CoreSyn
 import DataCon
 import DynFlags
 import FastString
-import GHC
+import GHC hiding(AnnExpr' (..))
 import GHC.Paths
 import HscMain
 import HscTypes
 import IdInfo
 import InstEnv
 import Literal
-import Name
+import Name hiding (varName)
 import Pair
 import SrcLoc
 import TidyPgm
