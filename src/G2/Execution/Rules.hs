@@ -360,16 +360,16 @@ removeTypes [] _ = []
 
 -- | DEFAULT `Alt`s.
 matchDefaultAlts :: [Alt] -> [Alt]
-matchDefaultAlts alts = [a | a @ (Alt Default _) <- alts]
+matchDefaultAlts alts = [a | a@(Alt Default _) <- alts]
 
 -- | Match data constructor based `Alt`s.
 matchDataAlts :: DataCon -> [Alt] -> [Alt]
 matchDataAlts (DataCon n _) alts =
-  [a | a @ (Alt (DataAlt (DataCon n' _) _) _) <- alts, n == n']
+  [a | a@(Alt (DataAlt (DataCon n' _) _) _) <- alts, n == n']
 
 -- | Match literal constructor based `Alt`s.
 matchLitAlts :: Lit -> [Alt] -> [Alt]
-matchLitAlts lit alts = [a | a @ (Alt (LitAlt alit) _) <- alts, lit == alit]
+matchLitAlts lit alts = [a | a@(Alt (LitAlt alit) _) <- alts, lit == alit]
 
 liftCaseBinds :: [(Id, Expr)] -> Expr -> Expr
 liftCaseBinds [] expr = expr
@@ -385,7 +385,7 @@ litAlts alts = [(lit, aexpr) | Alt (LitAlt lit) aexpr <- alts]
 
 -- | DEFAULT `Alt`s.
 defaultAlts :: [Alt] -> [Alt]
-defaultAlts alts = [a | a @ (Alt Default _) <- alts]
+defaultAlts alts = [a | a@(Alt Default _) <- alts]
 
 -- | Lift positive datacon `State`s from symbolic alt matching. This in
 -- part involves erasing all of the parameters from the environment by rename

@@ -125,6 +125,7 @@ library
 
                        , G2.Translation
                        , G2.Translation.Cabal.Cabal
+                       , G2.Translation.GHC
   if flag(support-lh)
       exposed-modules: 
                            G2.Liquid.AddCFBranch
@@ -190,36 +191,36 @@ library
                        , G2.Translation.TransTypes
 
   build-depends:         array >= 0.5.1.1 && <= 0.5.4.0 
-                       , Cabal >= 2.0.1.0 && < 3.1
-                       , base >= 4.8 && < 5
+                       , Cabal >= 2.0.1.0 && < 3.7
+                       , base >= 4.8 && < 4.18
                        , bimap == 0.3.3
-                       , bytestring >= 0.10.8.0 && <= 0.10.12.1
+                       , bytestring >= 0.10.8.0 && < 0.11.4
                        , clock >= 0.8 && < 0.9
                        , concurrent-extra >= 0.7
                        , containers >= 0.5 && < 0.7
                        , directory >= 1.3.0.2 && <= 1.3.6.2
-                       , extra >= 1.6.14 && <= 1.6.17
+                       , extra >= 1.6.14 && < 1.7.13
                        , filepath >= 1.4 && <= 1.5
                        , ghc-paths >= 0.1 && < 0.2
-                       , ghc (>= 8.2.2 && < 8.4) || (>= 8.6 && < 8.7) || (>= 8.10 && < 8.11)
-                       , hashable >= 1.2.6.0 && <= 1.3.0.0
+                       , ghc (>= 8.2.2 && < 8.4) || (>= 8.6 && < 8.7) || (>= 8.10 && < 9.3)
+                       , hashable >= 1.2.6.0 && <= 1.4.1.0
                        , HTTP >= 4000.3.0 && < 4001.0
-                       , language-sygus >= 0.1.1.2 && < 0.2
+                       , language-sygus >= 0.1.1.3 && < 0.2
                        , MissingH >= 1.4.0.0 && < 1.5
                        , mtl >= 2.2 && < 2.3
                        , random == 1.1
                        , reducers >= 3.12 && < 3.13
                        , regex-compat >= 0.95 && < 0.96
-                       , regex-base >= 0.93 && < 0.94.0.2
+                       , regex-base >= 0.93 && < 0.94.0.3
                        , parsec >= 3.1 && < 3.2
                        , pretty >= 1.1 && < 1.4
                        , process >=1.6 && < 1.7
                        , optparse-applicative >=0.17.0.0 && < 0.18.0.0
                        , split >= 0.2.3 && < 0.2.4
                        , tasty-quickcheck >= 0.10.1.1 && < 0.11
-                       , template-haskell >= 2.12.0.0 && <= 2.18.0.0
+                       , template-haskell >= 2.12.0.0 && <= 2.19.0.0
                        , temporary-rc >= 1.2 && < 1.3
-                       , text >= 1.2.3.1 && <= 2.0
+                       , text >= 1.2.3.1 && <= 2.1
                        , text-builder >= 0.6.6.1
                        , time >= 1.6 && <= 1.13
                        , unordered-containers >= 0.2.10.0 && < 0.3
