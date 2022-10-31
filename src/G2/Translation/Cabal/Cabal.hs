@@ -11,7 +11,9 @@ import Distribution.PackageDescription.Parse
 #endif
 
 import Distribution.Verbosity
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import Distribution.Utils.Path
+#endif
 
 -- | Takes the filepath to a Cabal file, and returns a list of FilePaths to red
 -- from.
