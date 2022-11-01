@@ -17,14 +17,14 @@ jobs:
                     { ghc: '8.6.5', cabal: '3.0' },
                     { ghc: '8.10.7', cabal: '3.6' },
                     { ghc: '9.2.4', cabal: '3.6' } ]
-        test: [ test, test-lh ]
+        test: [ { test: test, lh: '-support-lh' }, { test: test-lh, lh: 'support-lh' } ]
         exclude:
           - compiler: { ghc: '8.2.2', cabal: '3.0' }
-            test: test-lh
+            test: { test: test-lh }
           - compiler: { ghc: '8.6.5', cabal: '3.0' }
-            test: test-lh
+            test: { test: test-lh }
           - compiler: { ghc: '9.2.4', cabal: '3.6' }
-            test: test-lh
+            test: { test: test-lh }
 
     steps:
     - uses: actions/checkout@v2
@@ -35,10 +35,7 @@ jobs:
         cabal-version: ${{ matrix.compiler.cabal }}
 
     - run: cabal update
-    - run: cabal configure --enable-tests -f -support-lh
-      if: fromJSON(${{ matrix.test != 'test-lh' }})
-    - run: cabal configure --enable-tests -f support-lh
-      if: fromJSON(${{ matrix.test == 'test-lh' }})
+    - run: cabal configure --enable-tests -f ${{ matrix.test.lh }}
     - run: cabal freeze
     - uses: actions/cache@v2
       with:
@@ -66,4 +63,4 @@ jobs:
     - name: Build
       run: cabal build
     - name: Run tests
-      run: cabal run ${{ matrix.test }}
+      run: cabal run ${{ matrix.test.yrst }}
