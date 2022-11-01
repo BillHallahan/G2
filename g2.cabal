@@ -19,7 +19,7 @@ cabal-version:       1.24
 
 Flag support-lh
   Description:   Build modules for reasoning about LiquidHaskell
-  Default:       true
+  Default:       True
 
 source-repository head
     type:       git
@@ -126,7 +126,7 @@ library
                        , G2.Translation
                        , G2.Translation.Cabal.Cabal
                        , G2.Translation.GHC
-  if flag(support-lh) && impl(ghc < 9.0.0)
+  if flag(support-lh) && impl(ghc < 9)
       exposed-modules: 
                            G2.Liquid.AddCFBranch
                          , G2.Liquid.AddLHTC
@@ -225,13 +225,10 @@ library
                        , time >= 1.6 && <= 1.13
                        , unordered-containers >= 0.2.10.0 && < 0.3
   
-  if flag(support-lh) && impl(ghc < 9.0.0)
-    build-depends:       liquidhaskell (== 0.8.10.7)
+  if flag(support-lh) && impl(ghc < 9)
+    build-depends:       liquidhaskell == 0.8.10.7
                        , liquid-fixpoint >= 0.7.0.7 && < 0.9
                        , Diff == 0.3.4
-
-  if flag(support-lh) && impl(ghc > 8.10)
-    build-depends:       liquidhaskell == 0.8.10.7
 
   if impl(ghc < 8.7)
     build-depends:       text == 1.2.3.1
@@ -245,7 +242,7 @@ library
                        -- -fprof-auto
                        -- -fexternal-interpreter
   other-extensions:    CPP
-  if flag(support-lh) && impl(ghc < 9.0.0)
+  if flag(support-lh) && impl(ghc < 9)
     cpp-options: -DSUPPORT_LH
 
   hs-source-dirs:      src
@@ -268,7 +265,7 @@ executable G2
   main-is:             Main.hs
 
 executable G2LH
-  if flag(support-lh) && impl(ghc < 9.0.0)
+  if flag(support-lh) && impl(ghc < 9)
     buildable:         True
   else
     buildable:         False
@@ -289,7 +286,7 @@ executable G2LH
   main-is:             Main.hs
 
 executable Inference
-  if flag(support-lh) && impl(ghc < 9.0.0)
+  if flag(support-lh) && impl(ghc < 9)
     buildable:         True
   else
     buildable:         False
@@ -387,7 +384,7 @@ test-suite test
   type:                exitcode-stdio-1.0
 
 test-suite test-lh
-  if flag(support-lh) && impl(ghc < 9.0.0)
+  if flag(support-lh) && impl(ghc < 9)
     buildable:         True
   else
     buildable:         False
