@@ -35,10 +35,12 @@ jobs:
         cabal-version: ${{ matrix.compiler.cabal }}
 
     - run: cabal update
-    - run: cabal configure --enable-tests -f -support-lh
-      if: ${{ matrix.test != test-lh }} == 'true'
-    - run: cabal configure --enable-tests -f support-lh
-      if: ${{ matrix.test == test-lh }} == 'true'
+    - run:  |
+      if ${{ matrix.test != test-lh }} == 'true'; then
+        cabal configure --enable-tests -f -support-lh
+      else
+        cabal configure --enable-tests -f support-lh
+      fi
     - run: cabal freeze
     - uses: actions/cache@v2
       with:
