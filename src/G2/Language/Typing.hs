@@ -290,11 +290,11 @@ retype' key new (TyVar test) = if key == test then new else TyVar test
 retype' key new ty = modifyChildren (retype' key new) ty
 
 retypeRespectingTyForAll :: (ASTContainer m Type, Show m) => Id -> Type -> m -> m
-retypeRespectingTyForAll key new e = modifyContainedASTs (retypeRespectingTyForAll' key new) $ e
+retypeRespectingTyForAll key new = modifyContainedASTs (retypeRespectingTyForAll' key new)
 
 retypeRespectingTyForAll' :: Id -> Type -> Type -> Type
 retypeRespectingTyForAll' i _ t@(TyForAll (NamedTyBndr ni) _) | i == ni = t
-retypeRespectingTyForAll' key new (TyVar test) = if key == test then new else TyVar test
+retypeRespectingTyForAll' key new (TyVar test) = if idName key == idName test then new else TyVar test
 retypeRespectingTyForAll' key new ty = modifyChildren (retypeRespectingTyForAll' key new) ty
 
 tyVarRename :: (ASTContainer t Type) => M.Map Name Type -> t -> t
