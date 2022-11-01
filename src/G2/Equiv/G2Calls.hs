@@ -77,12 +77,15 @@ rewriteRedHaltOrd :: (Solver solver, Simplifier simplifier) =>
                      Config ->
                      NebulaConfig ->
                      (SomeReducer EquivTracker, SomeHalter EquivTracker, SomeOrderer EquivTracker)
-rewriteRedHaltOrd solver simplifier h_opp track_opp config (NC { use_labeled_errors = use_labels }) =
+rewriteRedHaltOrd solver simplifier h_opp track_opp config nc@(NC { use_labeled_errors = use_labels }) =
     let
         share = sharing config
         state_name = Name "state" Nothing 0 Nothing
 
-        m_logger = getLogger config
+        m_logger = case log_states nc of
+                        Log Raw fp -> Just (SomeReducer (Logger fp))
+                        Log Pretty fp -> Just (SomeReducer (prettyLogger fp))
+                        NoLog -> Nothing
     in
     (case m_logger of
             Just logger -> SomeReducer (
