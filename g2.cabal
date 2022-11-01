@@ -230,7 +230,7 @@ library
                        , liquid-fixpoint >= 0.7.0.7 && < 0.9
                        , Diff == 0.3.4
 
-  if impl(ghc > 8.10) && impl(ghc < 9)
+  if impl(ghc > 8.10) && flag(support-lh)
     build-depends:       liquidhaskell == 0.8.10.7
 
   if impl(ghc < 8.6)
