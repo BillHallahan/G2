@@ -230,7 +230,7 @@ library
                        , liquid-fixpoint >= 0.7.0.7 && < 0.9
                        , Diff == 0.3.4
 
-  if impl(ghc < 8.7)
+  if impl(ghc < 8.6)
     build-depends:       text == 1.2.3.1
                        , liquid-fixpoint >= 0.7.0.7 && <= 0.8.0.2
 
