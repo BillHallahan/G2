@@ -610,10 +610,12 @@ mkType tm (TyConApp tc ts)
     | isFunTyCon tc
     , length ts == 2 =
         case ts of
-            (t1:t2:[]) -> G2.TyFun (mkType tm t1) (mkType tm t2)
+            [t1, t2] -> G2.TyFun (mkType tm t1) (mkType tm t2)
             _ -> error "mkType: non-arity 2 FunTyCon from GHC"
     | G2.Name "Type" _ _ _ <- mkName $ tyConName tc = G2.TYPE
     | G2.Name "TYPE" _ _ _ <- mkName $ tyConName tc = G2.TYPE
+    | G2.Name "->" _ _ _ <- mkName $ tyConName tc
+    , [_, _, t1, t2] <- ts = G2.TyFun (mkType tm t1) (mkType tm t2)
     | otherwise = mkG2TyCon (mkTyConName tm tc) (map (mkType tm) ts) (mkType tm $ tyConKind tc) 
 
 mkTyCon :: G2.NameMap -> G2.TypeNameMap -> TyCon -> ((G2.NameMap, G2.TypeNameMap), G2.Name, Maybe G2.AlgDataTy)
