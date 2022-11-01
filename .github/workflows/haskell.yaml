@@ -21,7 +21,7 @@ jobs:
         exclude:
           - compiler: { ghc: '8.2.2', cabal: '3.0' }
             test: test-lh
-          - compiler: { ghc: '8.6.5', cabal: '3.0' }
+          - compiler: { ghc: '8.6.5', cabal: '3.6' }
             test: test-lh
           - compiler: { ghc: '9.2.4', cabal: '3.6' }
             test: test-lh
@@ -35,12 +35,10 @@ jobs:
         cabal-version: ${{ matrix.compiler.cabal }}
 
     - run: cabal update
-    - run: |
-        if ${{ (matrix.test == test-lh) }} == 'true'; then
-          cabal configure --enable-tests -f support-lh
-        else
-          cabal configure --enable-tests -f -support-lh
-        fi
+    - run: cabal configure --enable-tests -f -support-lh
+      if: fromJSON(${{ matrix.test != 'test-lh' }})
+    - run: cabal configure --enable-tests -f support-lh
+      if: fromJSON(${{ matrix.test == test-lh }})
     - run: cabal freeze
     - uses: actions/cache@v2
       with:
