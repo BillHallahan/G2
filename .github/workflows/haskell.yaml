@@ -36,9 +36,9 @@ jobs:
 
     - run: cabal update
     - run: cabal configure --enable-tests -f -support-lh
-      if: fromJSON(${{ matrix.test != 'test-lh' }})
+      if: ${{ matrix.test != test-lh }}
     - run: cabal configure --enable-tests -f support-lh
-      if: fromJSON(${{ matrix.test == test-lh }})
+      if: ${{ matrix.test == test-lh }}
     - run: cabal freeze
     - uses: actions/cache@v2
       with:
