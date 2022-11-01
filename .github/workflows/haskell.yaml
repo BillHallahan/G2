@@ -36,11 +36,11 @@ jobs:
 
     - run: cabal update
     - run: |
-      if ${{ (matrix.test == test-lh) }} == 'true'; then
-        cabal configure --enable-tests -f support-lh
-      else
-        cabal configure --enable-tests -f -support-lh
-      fi
+        if ${{ (matrix.test == test-lh) }} == 'true'; then
+          cabal configure --enable-tests -f support-lh
+        else
+          cabal configure --enable-tests -f -support-lh
+        fi
     - run: cabal freeze
     - uses: actions/cache@v2
       with:
