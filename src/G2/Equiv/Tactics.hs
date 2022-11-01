@@ -876,6 +876,23 @@ substLemma :: S.Solver solver =>
 substLemma solver ns s =
     mapMaybeM (\lem -> replaceMoreRestrictiveSubExpr solver ns lem s) . provenLemmas
 
+-- TODO discards all lemmas used except the final one
+-- TODO needs a safeguard against divergence
+substLemmaLoop :: S.Solver solver =>
+                  Int ->
+                  solver ->
+                  HS.HashSet Name ->
+                  StateET ->
+                  Lemmas ->
+                  W.WriterT [Marker] IO [(Lemma, StateET)]
+substLemmaLoop 0 _ _ _ _ =
+    return []
+substLemmaLoop i solver ns s lems = do
+    W.liftIO $ putStrLn $ "substLemmaLoop " ++ show i
+    lem_states <- substLemma solver ns s lems
+    lem_state_lists <- mapM ((flip $ substLemmaLoop (i - 1) solver ns) lems . snd) lem_states
+    return $ concat (lem_states:lem_state_lists)
+
 replaceMoreRestrictiveSubExpr :: S.Solver solver =>
                                  solver ->
                                  HS.HashSet Name ->
@@ -997,8 +1014,8 @@ moreRestrictivePairWithLemmas' :: S.Solver solver =>
                                   W.WriterT [Marker] IO (Either [Lemma] (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
 moreRestrictivePairWithLemmas' app_state solver valid ns lemmas past_list (s1, s2) = do
     let (s1', s2') = syncSymbolic s1 s2
-    xs1 <- substLemma solver ns s1' $ filterProvenLemmas (app_state s1' s2') lemmas
-    xs2 <- substLemma solver ns s2' $ filterProvenLemmas (app_state s2' s1') lemmas
+    xs1 <- substLemmaLoop 3 solver ns s1' $ filterProvenLemmas (app_state s1' s2') lemmas
+    xs2 <- substLemmaLoop 3 solver ns s2' $ filterProvenLemmas (app_state s2' s1') lemmas
 
     let xs1' = (Nothing, s1'):(map (\(l, s) -> (Just l, s)) xs1)
         xs2' = (Nothing, s2'):(map (\(l, s) -> (Just l, s)) xs2)
@@ -1031,8 +1048,8 @@ moreRestrictivePairWithLemmasPast :: S.Solver solver =>
                                      W.WriterT [Marker] IO (Either [Lemma] (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
 moreRestrictivePairWithLemmasPast solver valid ns lemmas past_list s_pair = do
     let (past1, past2) = unzip past_list
-    xs_past1 <- mapM (\(q1, _) -> substLemma solver ns q1 lemmas) past_list
-    xs_past2 <- mapM (\(_, q2) -> substLemma solver ns q2 lemmas) past_list
+    xs_past1 <- mapM (\(q1, _) -> substLemmaLoop 3 solver ns q1 lemmas) past_list
+    xs_past2 <- mapM (\(_, q2) -> substLemmaLoop 3 solver ns q2 lemmas) past_list
     let plain_past1 = map (\s_ -> (Nothing, s_)) past1
         plain_past2 = map (\s_ -> (Nothing, s_)) past2
         xs_past1' = plain_past1 ++ (map (\(l, s) -> (Just l, s)) $ concat xs_past1)
