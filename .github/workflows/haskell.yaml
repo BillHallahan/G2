@@ -21,7 +21,7 @@ jobs:
         exclude:
           - compiler: { ghc: '8.2.2', cabal: '3.0' }
             test: test-lh
-          - compiler: { ghc: '8.6.5', cabal: '3.6' }
+          - compiler: { ghc: '8.6.5', cabal: '3.0' }
             test: test-lh
           - compiler: { ghc: '9.2.4', cabal: '3.6' }
             test: test-lh
