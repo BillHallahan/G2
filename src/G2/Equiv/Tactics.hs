@@ -876,27 +876,42 @@ substLemma :: S.Solver solver =>
 substLemma solver ns s =
     mapMaybeM (\lem -> replaceMoreRestrictiveSubExpr solver ns lem s) . provenLemmas
 
+-- TODO is this the right way to construct output lists?
+substLemmaLoopAux :: S.Solver solver =>
+                     Int
+                  -> solver
+                  -> HS.HashSet Name
+                  -> Lemmas
+                  -> (Lemma, StateET)
+                  -> W.WriterT [Marker] IO [([Lemma], StateET)]
+substLemmaLoopAux i solver ns lems (lem, s) = do
+    sll <- substLemmaLoop (i - 1) solver ns s lems
+    return $ map (\(l, s') -> (lem:l, s')) sll
+
 -- TODO discards all lemmas used except the final one
 -- TODO needs a safeguard against divergence
+-- TODO join lemmas from new iteration with lemmas from prior ones
 substLemmaLoop :: S.Solver solver =>
                   Int ->
                   solver ->
                   HS.HashSet Name ->
                   StateET ->
                   Lemmas ->
-                  W.WriterT [Marker] IO [(Lemma, StateET)]
+                  W.WriterT [Marker] IO [([Lemma], StateET)]
 substLemmaLoop 0 _ _ _ _ =
     return []
 substLemmaLoop i solver ns s lems = do
     W.liftIO $ putStrLn $ "substLemmaLoop " ++ show i
     W.liftIO $ putStrLn $ "Proven " ++ show (length $ provenLemmas lems)
     lem_states <- substLemma solver ns s lems
-    lem_state_lists <- mapM ((flip $ substLemmaLoop (i - 1) solver ns) lems . snd) lem_states
-    if null $ concat lem_state_lists then return []
+    let lem_states' = map (\(l, s') -> ([l], s')) lem_states
+    --lem_state_lists <- mapM ((flip $ substLemmaLoop (i - 1) solver ns) lems . snd) lem_states
+    lem_state_lists <- mapM (substLemmaLoopAux i solver ns lems) lem_states
+    if null lem_state_lists then return []
     else do
-      W.liftIO $ putStrLn $ "New " ++ show (length $ concat lem_state_lists) ++ " from " ++ show (i - 1)
+      W.liftIO $ putStrLn $ "New " ++ show (length lem_state_lists) ++ " from " ++ show (i - 1)
       W.liftIO $ mapM (putStrLn . folder_name . track . snd) $ concat lem_state_lists
-    return $ concat (lem_states:lem_state_lists)
+    return $ lem_states' ++ concat lem_state_lists
 
 replaceMoreRestrictiveSubExpr :: S.Solver solver =>
                                  solver ->
@@ -1009,6 +1024,8 @@ moreRestrictivePairWithLemmas :: S.Solver solver =>
                                  W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
 moreRestrictivePairWithLemmas = moreRestrictivePairWithLemmas' (\_ _ _ -> True)
 
+-- TODO link with lemmas that have been used previously
+-- TODO ([Lemma], StateET) might be what I need
 moreRestrictivePairWithLemmas' :: S.Solver solver =>
                                   (StateET -> StateET -> Lemma -> Bool) ->
                                   solver ->
@@ -1023,19 +1040,24 @@ moreRestrictivePairWithLemmas' app_state solver valid ns lemmas past_list (s1, s
     xs1 <- substLemmaLoop 2 solver ns s1' $ filterProvenLemmas (app_state s1' s2') lemmas
     xs2 <- substLemmaLoop 2 solver ns s2' $ filterProvenLemmas (app_state s2' s1') lemmas
 
-    let xs1' = (Nothing, s1'):(map (\(l, s) -> (Just l, s)) xs1)
-        xs2' = (Nothing, s2'):(map (\(l, s) -> (Just l, s)) xs2)
+    let xs1' = ([], s1'):xs1
+        xs2' = ([], s2'):xs2
         pairs = [ (pair1, pair2) | pair1 <- xs1', pair2 <- xs2' ]
 
     rp <- mapM (\((l1, s1_), (l2, s2_)) -> do
             mrp <- moreRestrictivePair solver valid ns past_list (s1_, s2_)
             -- TODO use synced or non-synced?
+            -- TODO losing state information
+            let l1' = map (\l -> (s1', l)) l1
+            let l2' = map (\l -> (s2', l)) l2
+            {-
             let l1' = case l1 of
                   Nothing -> []
                   Just lem1 -> [(s1', lem1)]
                 l2' = case l2 of
                   Nothing -> []
                   Just lem2 -> [(s2', lem2)]
+            -}
             return $ fmap (l1', l2', ) mrp) pairs
     let (possible_lemmas, possible_matches) = partitionEithers rp
 
