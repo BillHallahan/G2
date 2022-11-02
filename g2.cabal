@@ -259,7 +259,8 @@ executable G2
                        , unordered-containers >= 0.2 && < 0.3
   default-language:    Haskell2010
   ghc-options:         -threaded -Wall
-                       -- -fprof-auto "-with-rtsopts=-p"
+                      --  -fprof-auto "-with-rtsopts=+RTS -xc"
+                      --  -fprof-auto "-with-rtsopts=-p"
                        -- -fexternal-interpreter -opti+RTS -opti-p
   hs-source-dirs:      exe
   main-is:             Main.hs
