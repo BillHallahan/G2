@@ -80,7 +80,7 @@ printPG pg ns sym_ids s =
      sym_print ++ var_print ++ map_print ++ dc_print ++ "\n---"
 
 inlineVars :: HS.HashSet Name -> ExprEnv -> Expr -> Expr
-inlineVars ns eenv = inlineVars' HS.empty ns eenv
+inlineVars = inlineVars' HS.empty
 
 inlineVars' :: HS.HashSet Name -> HS.HashSet Name -> ExprEnv -> Expr -> Expr
 inlineVars' seen ns eenv v@(Var (Id n _))
@@ -228,6 +228,18 @@ summarizeInduction pg ns sym_ids im@(IndMarker {
   "New Variable Name: " ++
   (printHaskellDirtyPG pg $ Var $ Id (ind_fresh_name im) $ typeOf $ exprExtract s1')
 
+-- TODO this could be cleaner
+summarizeLemma :: String
+               -> PrettyGuide
+               -> HS.HashSet Name
+               -> [Id]
+               -> (StateET, Lemma)
+               -> String
+summarizeLemma str pg ns sym_ids (s, lem) =
+  "\n" ++ str ++ " Lemma:\n" ++ printLemma pg ns sym_ids lem ++
+  "\n" ++ str ++ " Before Lemma Usage:\n" ++ printPG pg ns sym_ids s
+
+-- TODO allow for multiple lemmas to be shown
 summarizeCoinduction :: PrettyGuide -> HS.HashSet Name -> [Id] -> CoMarker -> String
 summarizeCoinduction pg ns sym_ids (CoMarker {
                              co_used_present = (q1, q2)
@@ -239,16 +251,20 @@ summarizeCoinduction pg ns sym_ids (CoMarker {
   --(summarizeStatePairTrack "Real Present" pg ns sym_ids s1 s2) ++ "\n" ++
   (summarizeStatePairTrack "Used Present" pg ns sym_ids q1 q2) ++ "\n" ++
   (summarizeStatePairTrack "Past" pg ns sym_ids p1 p2) ++
+  (intercalate "\n" $ map (summarizeLemma "Left" pg ns sym_ids) lemma_l) ++
+  (intercalate "\n" $ map (summarizeLemma "Right" pg ns sym_ids) lemma_r)
+  {-
   (case lemma_l of
-    Nothing -> ""
-    Just (s1', lem_l) ->
+    [] -> ""
+    (s1', lem_l):_ ->
       "\nLeft Lemma:\n" ++ printLemma pg ns sym_ids lem_l ++
       "\nLeft Before Lemma Usage:\n" ++ printPG pg ns sym_ids s1') ++
   (case lemma_r of
-    Nothing -> ""
-    Just (s2', lem_r) ->
+    [] -> ""
+    (s2', lem_r):_ ->
       "\nRight Lemma:\n" ++ printLemma pg ns sym_ids lem_r ++
       "\nRight Before Lemma Usage:\n" ++ printPG pg ns sym_ids s2')
+  -}
 
 -- variables:  find all names used in here
 -- look them up, find a fixed point
@@ -307,10 +323,10 @@ summarizeStatePair :: String ->
                       String
 summarizeStatePair str pg ns sym_ids (s1, s2) =
   str ++ ":\n" ++
-  (trackName s1) ++ ", " ++
-  (trackName s2) ++ "\n" ++
-  (printPG pg ns sym_ids s1) ++ "\n" ++
-  (printPG pg ns sym_ids s2)
+  trackName s1 ++ ", " ++
+  trackName s2 ++ "\n" ++
+  printPG pg ns sym_ids s1 ++ "\n" ++
+  printPG pg ns sym_ids s2
 
 summarizeAct :: PrettyGuide -> HS.HashSet Name -> [Id] -> ActMarker -> String
 summarizeAct pg ns sym_ids m = case m of
@@ -353,7 +369,7 @@ printDC :: PrettyGuide -> [BlockInfo] -> String -> String
 printDC _ [] str = str
 printDC pg ((BlockDC d i n):ds) str =
   let d_str = printHaskellDirtyPG pg $ Data d
-      str' = "(" ++ (printDC pg ds str) ++ ")"
+      str' = "(" ++ printDC pg ds str ++ ")"
       pre_blanks = replicate i "_"
       post_blanks = replicate (n - (i + 1)) "_"
   in intercalate " " $ d_str:(pre_blanks ++ (str':post_blanks))

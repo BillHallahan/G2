@@ -125,12 +125,13 @@ instance Named IndMarker where
     }
 
 -- states paired with lemmas show what the state was before lemma usage
+-- TODO allow for multiple to be used at once
 data CoMarker = CoMarker {
     co_real_present :: (StateET, StateET)
   , co_used_present :: (StateET, StateET)
   , co_past :: (StateET, StateET)
-  , lemma_used_left :: Maybe (StateET, Lemma)
-  , lemma_used_right :: Maybe (StateET, Lemma)
+  , lemma_used_left :: [(StateET, Lemma)]
+  , lemma_used_right :: [(StateET, Lemma)]
 }
 
 instance Named CoMarker where

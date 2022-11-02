@@ -756,7 +756,7 @@ coinductionFoldL :: S.Solver solver =>
                     [Lemma] ->
                     (StateH, StateH) ->
                     (StateET, StateET) ->
-                    W.WriterT [Marker] IO (Either [Lemma] (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
+                    W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
 coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) = do
   let prev = prevFull (sh1, sh2)
   res <- moreRestrictivePairWithLemmasOnFuncApps solver validCoinduction ns lemmas prev (s1', s2')
@@ -889,8 +889,13 @@ substLemmaLoop 0 _ _ _ _ =
     return []
 substLemmaLoop i solver ns s lems = do
     W.liftIO $ putStrLn $ "substLemmaLoop " ++ show i
+    W.liftIO $ putStrLn $ "Proven " ++ show (length $ provenLemmas lems)
     lem_states <- substLemma solver ns s lems
     lem_state_lists <- mapM ((flip $ substLemmaLoop (i - 1) solver ns) lems . snd) lem_states
+    if null $ concat lem_state_lists then return []
+    else do
+      W.liftIO $ putStrLn $ "New " ++ show (length $ concat lem_state_lists) ++ " from " ++ show (i - 1)
+      W.liftIO $ mapM (putStrLn . folder_name . track . snd) $ concat lem_state_lists
     return $ concat (lem_states:lem_state_lists)
 
 replaceMoreRestrictiveSubExpr :: S.Solver solver =>
@@ -926,6 +931,7 @@ substitution from the symbolic place to the concrete place is still valid.
 If it's unmapped, put it in as symbolic.
 If it's concrete or symbolic, just leave it as it is.
 This implementation does not cover finiteness information.
+TODO more old id-bool list with new one
 -}
 replaceMoreRestrictiveSubExpr' :: S.Solver solver =>
                                   solver ->
@@ -975,7 +981,7 @@ moreRestrictivePairWithLemmasOnFuncApps :: S.Solver solver =>
                                            Lemmas ->
                                            [(StateET, StateET)] ->
                                            (StateET, StateET) ->
-                                           W.WriterT [Marker] IO (Either [Lemma] (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
+                                           W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
 moreRestrictivePairWithLemmasOnFuncApps solver valid ns =
     moreRestrictivePairWithLemmas'
         (\s s' lem -> case unApp . modifyASTs stripTicks . inlineFull (HS.toList ns) (expr_env s) (expr_env s') $ exprExtract s of
@@ -1000,7 +1006,7 @@ moreRestrictivePairWithLemmas :: S.Solver solver =>
                                  Lemmas ->
                                  [(StateET, StateET)] ->
                                  (StateET, StateET) ->
-                                 W.WriterT [Marker] IO (Either [Lemma] (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
+                                 W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
 moreRestrictivePairWithLemmas = moreRestrictivePairWithLemmas' (\_ _ _ -> True)
 
 moreRestrictivePairWithLemmas' :: S.Solver solver =>
@@ -1011,11 +1017,11 @@ moreRestrictivePairWithLemmas' :: S.Solver solver =>
                                   Lemmas ->
                                   [(StateET, StateET)] ->
                                   (StateET, StateET) ->
-                                  W.WriterT [Marker] IO (Either [Lemma] (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
+                                  W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
 moreRestrictivePairWithLemmas' app_state solver valid ns lemmas past_list (s1, s2) = do
     let (s1', s2') = syncSymbolic s1 s2
-    xs1 <- substLemmaLoop 3 solver ns s1' $ filterProvenLemmas (app_state s1' s2') lemmas
-    xs2 <- substLemmaLoop 3 solver ns s2' $ filterProvenLemmas (app_state s2' s1') lemmas
+    xs1 <- substLemmaLoop 2 solver ns s1' $ filterProvenLemmas (app_state s1' s2') lemmas
+    xs2 <- substLemmaLoop 2 solver ns s2' $ filterProvenLemmas (app_state s2' s1') lemmas
 
     let xs1' = (Nothing, s1'):(map (\(l, s) -> (Just l, s)) xs1)
         xs2' = (Nothing, s2'):(map (\(l, s) -> (Just l, s)) xs2)
@@ -1025,11 +1031,11 @@ moreRestrictivePairWithLemmas' app_state solver valid ns lemmas past_list (s1, s
             mrp <- moreRestrictivePair solver valid ns past_list (s1_, s2_)
             -- TODO use synced or non-synced?
             let l1' = case l1 of
-                  Nothing -> Nothing
-                  Just lem1 -> Just (s1', lem1)
+                  Nothing -> []
+                  Just lem1 -> [(s1', lem1)]
                 l2' = case l2 of
-                  Nothing -> Nothing
-                  Just lem2 -> Just (s2', lem2)
+                  Nothing -> []
+                  Just lem2 -> [(s2', lem2)]
             return $ fmap (l1', l2', ) mrp) pairs
     let (possible_lemmas, possible_matches) = partitionEithers rp
 
@@ -1045,11 +1051,11 @@ moreRestrictivePairWithLemmasPast :: S.Solver solver =>
                                      Lemmas ->
                                      [(StateET, StateET)] ->
                                      (StateET, StateET) ->
-                                     W.WriterT [Marker] IO (Either [Lemma] (Maybe (StateET, Lemma), Maybe (StateET, Lemma), PrevMatch EquivTracker))
+                                     W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
 moreRestrictivePairWithLemmasPast solver valid ns lemmas past_list s_pair = do
     let (past1, past2) = unzip past_list
-    xs_past1 <- mapM (\(q1, _) -> substLemmaLoop 3 solver ns q1 lemmas) past_list
-    xs_past2 <- mapM (\(_, q2) -> substLemmaLoop 3 solver ns q2 lemmas) past_list
+    xs_past1 <- mapM (\(q1, _) -> substLemmaLoop 2 solver ns q1 lemmas) past_list
+    xs_past2 <- mapM (\(_, q2) -> substLemmaLoop 2 solver ns q2 lemmas) past_list
     let plain_past1 = map (\s_ -> (Nothing, s_)) past1
         plain_past2 = map (\s_ -> (Nothing, s_)) past2
         xs_past1' = plain_past1 ++ (map (\(l, s) -> (Just l, s)) $ concat xs_past1)
