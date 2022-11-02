@@ -918,11 +918,11 @@ evalMeasures init_meas lrs ghci es = do
 isTotal :: TypeEnv -> Expr -> Bool
 isTotal tenv = getAll . evalASTs isTotal'
     where
-        isTotal' (Case i _ as)
+        isTotal' (Case i _ _ as)
             | TyCon n _:_ <- unTyApp (typeOf i)
             , Just adt <- HM.lookup n tenv =
                 All (length (dataCon adt) == length (filter isDataAlt as))
-        isTotal' (Case _ _ _) = All False
+        isTotal' (Case _ _ _ _) = All False
         isTotal' _ = All True
 
         isDataAlt (G2.Alt (DataAlt _ _) _) = True

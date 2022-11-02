@@ -51,8 +51,8 @@ stdReduce' share solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }
     , share == NoSharing = return $ evalVarNoSharing s ng i
     | App e1 e2 <- ce = return $ evalApp s ng e1 e2
     | Let b e <- ce = return $ evalLet s ng b e
-    | Case e i a <- ce = do
-        let (r, xs, ng') = evalCase s ng e i a
+    | Case e i t a <- ce = do
+        let (r, xs, ng') = evalCase s ng e i t a
         xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
         return (r, xs', ng')
     | Cast e c <- ce = return $ evalCast s ng e c
@@ -73,7 +73,7 @@ stdReduce' _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
     | isError ce
     , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], ng)
     | Just rs <- retReplaceSymbFunc s ng ce = return rs
-    | Just (CaseFrame i a, stck') <- frstck = return $ retCaseFrame s ng ce i a stck'
+    | Just (CaseFrame i t a, stck') <- frstck = return $ retCaseFrame s ng ce i t a stck'
     | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ng ce c stck'
     | Lam u i e <- ce = return $ retLam s ng u i e
     | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ng ce e stck'
@@ -250,10 +250,10 @@ evalLet s@(State { expr_env = eenv })
                      , ng')
 
 -- | Handle the Case forms of Evaluate.
-evalCase :: State t -> NameGen -> Expr -> Id -> [Alt] -> (Rule, [NewPC t], NameGen)
+evalCase :: State t -> NameGen -> Expr -> Id -> Type -> [Alt] -> (Rule, [NewPC t], NameGen)
 evalCase s@(State { expr_env = eenv
                   , exec_stack = stck })
-         ng mexpr bind alts
+         ng mexpr bind t alts
   -- Is the current expression able to match with a literal based `Alt`? If
   -- so, we do the cvar binding, and proceed with evaluation of the body.
   | (Lit lit) <- unsafeElimOuterCast mexpr
@@ -340,7 +340,7 @@ evalCase s@(State { expr_env = eenv
   -- is only done when the matching expression is NOT in value form. Value
   -- forms should be handled by other RuleEvalCase* rules.
   | not (isExprValueForm eenv mexpr) =
-      let frame = CaseFrame bind alts
+      let frame = CaseFrame bind t alts
       in ( RuleEvalCaseNonVal
          , [newPCEmpty $ s { expr_env = eenv
                            , curr_expr = CurrExpr Evaluate mexpr
@@ -549,7 +549,7 @@ liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
 
             ((s', ng''), dcs'') = L.mapAccumL (concretizeSym bi maybeC) (s, ng') dcs'
 
-            mexpr' = createCaseExpr newId dcs''
+            mexpr' = createCaseExpr newId (typeOf i) dcs''
             binds = [(cvar, mexpr')]
             aexpr' = liftCaseBinds binds aexpr
 
@@ -607,14 +607,14 @@ concretizeSym bi maybeC (s, ng) dc@(DataCon _ ts) =
         eenv = foldr E.insertSymbolic (expr_env s) newParams
     in ((s {expr_env = eenv} , ng'), dc''')
 
-createCaseExpr :: Id -> [Expr] -> Expr
-createCaseExpr _ [e] = e
-createCaseExpr newId es@(_:_) =
+createCaseExpr :: Id -> Type -> [Expr] -> Expr
+createCaseExpr _ _ [e] = e
+createCaseExpr newId t es@(_:_) =
     let
         -- We assume that PathCond restricting newId's range is added elsewhere
         (_, alts) = bindExprToNum (\num e -> Alt (LitAlt (LitInt num)) e) es
-    in Case (Var newId) newId alts
-createCaseExpr _ [] = error "No exprs"
+    in Case (Var newId) newId t alts
+createCaseExpr _ _ [] = error "No exprs"
 
 bindExprToNum :: (Integer -> a -> b) -> [a] -> (Integer, [b])
 bindExprToNum f es = L.mapAccumL (\num e -> (num + 1, f num e)) 1 es
@@ -729,10 +729,10 @@ retApplyFrame s@(State { expr_env = eenv }) ng e1 e2 stck'
         , [s { curr_expr = CurrExpr Evaluate (App e1 e2)
              , exec_stack = stck' }], ng)
 
-retCaseFrame :: State t -> NameGen -> Expr -> Id -> [Alt] -> S.Stack Frame -> (Rule, [State t], NameGen)
-retCaseFrame s b e i a stck =
+retCaseFrame :: State t -> NameGen -> Expr -> Id -> Type -> [Alt] -> S.Stack Frame -> (Rule, [State t], NameGen)
+retCaseFrame s b e i t a stck =
     ( RuleReturnECase
-    , [s { curr_expr = CurrExpr Evaluate (Case e i a)
+    , [s { curr_expr = CurrExpr Evaluate (Case e i t a)
          , exec_stack = stck }]
     , b)
 

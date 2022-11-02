@@ -199,8 +199,7 @@ instance Typed Expr where
             TypeL -> TyForAll (NamedTyBndr b) (typeOf' m e)
             TermL -> TyFun (typeOf' m b) (typeOf' m e)
     typeOf' m (Let _ expr) = typeOf' m expr
-    typeOf' m (Case _ _ (a:_)) = typeOf' m a
-    typeOf' _ (Case _ _ []) = TyBottom
+    typeOf' _ (Case _ _ t _) = t
     typeOf' _ (Type _) = TYPE
     typeOf' m (Cast _ (_ :~ t')) = tyVarRename m t'
     typeOf' m (Coercion (_ :~ t')) = tyVarRename m t'

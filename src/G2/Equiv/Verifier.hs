@@ -153,7 +153,7 @@ transferTrackerInfo s1 s2 =
   in s2 { track = t2' }
 
 frameWrap :: Frame -> Expr -> Expr
-frameWrap (CaseFrame i alts) e = Case e i alts
+frameWrap (CaseFrame i t alts) e = Case e i t alts
 frameWrap (ApplyFrame e') e = App e e'
 frameWrap (UpdateFrame _) e = e
 frameWrap (CastFrame co) e = Cast e co
@@ -265,15 +265,15 @@ stampName x k =
 -- only stamp strings should contain a colon
 insertStamps :: Int -> Int -> Expr -> Expr
 insertStamps x k (Tick nl e) = Tick nl (insertStamps x k e)
-insertStamps x k (Case e i a) =
+insertStamps x k (Case e i t a) =
   case a of
     (Alt am1 a1):as -> case a1 of
         Tick (NamedLoc (Name n _ _ _)) _ | str <- DT.unpack n
                                          , ':' `elem` str ->
-          Case (insertStamps (x + 1) k e) i a
+          Case (insertStamps (x + 1) k e) i t a
         _ -> let sn = stampName x k
                  a1' = Alt am1 (Tick (NamedLoc sn) a1)
-             in Case (insertStamps (x + 1) k e) i (a1':as)
+             in Case (insertStamps (x + 1) k e) i t (a1':as)
     _ -> error "Empty Alt List"
 insertStamps _ _ e = e
 
@@ -753,7 +753,7 @@ tickWrap :: HS.HashSet Name -> ExprEnv -> Expr -> Expr
 tickWrap ns h (Var (Id n _))
     | not (n `HS.member` ns)
     , Just (E.Conc e) <- E.lookupConcOrSym n h = tickWrap ns h e 
-tickWrap ns h (Case e i a) = Case (tickWrap ns h e) i a
+tickWrap ns h (Case e i t a) = Case (tickWrap ns h e) i t a
 tickWrap ns h (App e1 e2) = App (tickWrap ns h e1) e2
 tickWrap ns h te@(Tick nl e) | not (isLabeledError te) = Tick nl (tickWrap ns h e)
 tickWrap _ _ e = Tick (NamedLoc loc_name) e
@@ -785,7 +785,7 @@ forceFinite w i e =
   let e' = mkStrict w $ Var i
       i' = Id unused_name (typeOf $ Var i)
       a = Alt Default e
-  in Case e' i' [a]
+  in Case e' i' (typeOf e) [a]
 
 cleanState :: State t -> Bindings -> (State t, Bindings)
 cleanState state bindings =

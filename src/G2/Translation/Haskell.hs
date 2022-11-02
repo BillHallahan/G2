@@ -421,7 +421,7 @@ mkExpr _ _ _ (Lit lit) = G2.Lit (mkLit lit)
 mkExpr nm tm mb (App fxpr axpr) = G2.App (mkExpr nm tm mb fxpr) (mkExpr nm tm mb axpr)
 mkExpr nm tm mb (Lam var expr) = G2.Lam (mkLamUse var) (mkId tm var) (mkExpr nm tm mb expr)
 mkExpr nm tm mb (Let bnd expr) = G2.Let (mkBind nm tm mb bnd) (mkExpr nm tm mb expr)
-mkExpr nm tm mb (Case mxpr var _ alts) = G2.Case (mkExpr nm tm mb mxpr) (mkId tm var) (mkAlts nm tm mb alts)
+mkExpr nm tm mb (Case mxpr var t alts) = G2.Case (mkExpr nm tm mb mxpr) (mkId tm var) (mkType tm t) (mkAlts nm tm mb alts)
 mkExpr nm tm mb (Cast expr c) =  G2.Cast (mkExpr nm tm mb expr) (mkCoercion tm c)
 mkExpr _  tm _ (Coercion c) = G2.Coercion (mkCoercion tm c)
 mkExpr nm tm mb (Tick t expr) =
@@ -762,10 +762,10 @@ absVarLoc' (G2.Let b e) = do
                ) b
     e' <- absVarLoc' e
     return $ G2.Let b' e'
-absVarLoc' (G2.Case e i as) = do
+absVarLoc' (G2.Case e i t as) = do
     e' <- absVarLoc' e
     as' <- mapM (\(G2.Alt a ae) -> return . G2.Alt a =<< absVarLoc' ae) as
-    return $ G2.Case e' i as'
+    return $ G2.Case e' i t as'
 absVarLoc' (G2.Cast e c) = do
     e' <- absVarLoc' e
     return $ G2.Cast e' c

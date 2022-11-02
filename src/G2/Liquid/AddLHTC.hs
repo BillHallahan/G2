@@ -109,12 +109,12 @@ addLHTCExprEnvNextLams (Let b e) = do
     (e', m) <- addLHTCExprEnvNextLams e
 
     return (Let b' e', foldr HM.union HM.empty (m:ms))
-addLHTCExprEnvNextLams (Case e i a) = do
+addLHTCExprEnvNextLams (Case e i t a) = do
     (e', m) <- addLHTCExprEnvNextLams e
 
     (a', ms) <- return . unzip =<< mapM addLHTCExprEnvNextLamsAlt a
 
-    return (Case e' i a', foldr HM.union HM.empty (m:ms))
+    return (Case e' i t a', foldr HM.union HM.empty (m:ms))
 addLHTCExprEnvNextLams e@(Type _) = return (e, HM.empty)
 addLHTCExprEnvNextLams (Cast e c) = do
     (e', m) <- addLHTCExprEnvNextLams e

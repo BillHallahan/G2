@@ -114,7 +114,7 @@ convertMeasure bt (M {name = n, sort = srt, eqns = eq}) = do
     let defTy = maybe TyUnknown (returnType . PresType) st
         defAlt = Alt Default $ Assume Nothing fls (Prim Undefined defTy)
 
-    let e = mkLams (as' ++ map (TermL,) lam_i) $ Case (Var (head lam_i)) cb (defAlt:alts) 
+    let e = mkLams (as' ++ map (TermL,) lam_i) $ Case (Var (head lam_i)) cb defTy (defAlt:alts) 
     
     case st of -- [1]
         Just _ -> return $ Just (n', e)

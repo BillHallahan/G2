@@ -72,7 +72,11 @@ createDeepSeqCase1 tenv w ti n rm bn (DataTyCon {data_cons = dc}) ng =
 
         (alts, ng''') = createDeepSeqDataConCase1Alts tenv w ti n caseB rm bn ng'' dc
 
-        c = Case (Var i) caseB alts
+        dc_t = case dc of
+                (d:_) -> typeOf d
+                _ -> TyBottom
+
+        c = Case (Var i) caseB dc_t alts
     in
     (Lam TermL i c, ng''')
 createDeepSeqCase1 _ w ti n rm bn (NewTyCon {rep_type = t}) ng =
@@ -90,7 +94,7 @@ createDeepSeqCase1 _ w ti n rm bn (NewTyCon {rep_type = t}) ng =
 
         alt = Alt Default e'
 
-        c = Case cast caseB [alt]
+        c = Case cast caseB t' [alt]
     in
     (Lam TermL i c, ng''')
 createDeepSeqCase1 _ _ _ _ _ _ _ _ = error "createDeepSeqCase1: bad argument passed"
@@ -140,7 +144,7 @@ createDeepSeqDataConCase2 tenv w ti rm (i:is) ng e
 
         (ae, ng''') = createDeepSeqDataConCase2 tenv w ti rm is ng'' (App e viCast)
     in
-    (Case bCast i' [Alt Default ae], ng''')
+    (Case bCast i' (typeOf e) [Alt Default ae], ng''')
     | otherwise =
         let
             (i', ng') = freshId (typeOf i) ng
@@ -149,7 +153,7 @@ createDeepSeqDataConCase2 tenv w ti rm (i:is) ng e
 
             (ae, ng''') = createDeepSeqDataConCase2 tenv w ti rm is ng'' (App e (Var i'))
         in
-        (Case b i' [Alt Default ae], ng''')
+        (Case b i' (typeOf ae) [Alt Default ae], ng''')
 
 -- Calling a higher order function
 deepSeqFuncCall :: Walkers -> NameGen -> [(Name, Id)] -> RenameMap -> Expr -> (Expr, NameGen)
@@ -179,12 +183,14 @@ deepSeqFunc w ng ti rm e
             cll = mkApp $ Var a_in:map Var f_is
             let_cll = Let (zip f_is $ map SymGen tys) cll
 
+            ds_type = typeOf ds_cll
+
             (ds_cll, ng''') = deepSeqFuncCall w ng'' ti rm let_cll
-            (bnd, ng'''') = freshId (typeOf ds_cll) ng'''
+            (bnd, ng'''') = freshId ds_type ng'''
 
             (lam_ids, ng''''') = freshIds tys ng''''
 
-            cse = Case ds_cll bnd [Alt Default $ mkLams (zip (repeat TermL) lam_ids) (Var bnd)]
+            cse = Case ds_cll bnd ds_type [Alt Default $ mkLams (zip (repeat TermL) lam_ids) (Var bnd)]
         in
         Just (Lam TermL a_in cse, ng''''')
     | (TyVar (Id n _)) <- typeOf e

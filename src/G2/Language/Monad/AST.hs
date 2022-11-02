@@ -44,9 +44,9 @@ instance ASTM Expr where
     modifyChildrenM f (Let bind e) = do
         bind' <- modifyContainedASTsM f bind
         return . Let bind' =<< f e
-    modifyChildrenM f (Case m b as) = do
+    modifyChildrenM f (Case m b t as) = do
         m' <- f m
-        return . Case m' b =<< modifyContainedASTsM f as
+        return . Case m' b t =<< modifyContainedASTsM f as
     modifyChildrenM  f (Cast e c) = do
         e' <- f e
         return $ Cast e' c
@@ -97,11 +97,12 @@ instance ASTContainerM Expr Type where
         bnd' <- modifyContainedASTsM f bnd
         e' <- modifyContainedASTsM f e
         return $ Let bnd' e'
-    modifyContainedASTsM f (Case m i as) = do
+    modifyContainedASTsM f (Case m i t as) = do
         m' <- modifyContainedASTsM f m
         i' <- modifyContainedASTsM f i
+        t' <- f t
         as' <- modifyContainedASTsM f as
-        return $ Case m' i' as'
+        return $ Case m' i' t' as'
     modifyContainedASTsM f (Type t) = return . Type =<< f t
     modifyContainedASTsM f (Cast e c) = do
         e' <- modifyContainedASTsM f e
