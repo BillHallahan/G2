@@ -6,7 +6,7 @@
 module Main where
 
 import Test.Tasty
-import Test.Tasty.HUnit
+import Test.Tasty.HUnit ( testCase, assertBool, assertFailure )
 import Test.Tasty.Options
 import Test.Tasty.Runners
 
@@ -366,6 +366,13 @@ primTests = testGroup "Prims"
                                               , ("divIntegerTest", 1500, [AtLeast 1])
                                               , ("divIntegerTest2", 1500, [AtLeast 4])
                                               , ("divFloatTest", 1500, [AtLeast 1]) ]
+
+    , checkInputOutputs "tests/Prim/DataTag.hs" [ ("dataToTag1", 1000, [Exactly 1])
+                                                , ("dataToTag2", 1000, [AtLeast 4])
+                                                , ("tagToEnum1", 1000, [AtLeast 1])
+                                                , ("tagToEnum3", 1000, [AtLeast 4]) ]
+
+    , checkExpr "tests/Prim/DataTag.hs" 1000 "tagToEnum2" [Exactly 1, RForAll (\[r] -> isError r)]
 
     , checkInputOutputs "tests/Prim/Chr.hs" [ ("lowerLetters", 9000, [AtLeast 1])
                                             , ("allLetters", 9000, [AtLeast 1])

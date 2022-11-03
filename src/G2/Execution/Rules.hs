@@ -138,6 +138,7 @@ evalVarNoSharing s@(State { expr_env = eenv })
 -- to evaluate the function call
 evalApp :: State t -> NameGen -> Expr -> Expr -> (Rule, [State t], NameGen)
 evalApp s@(State { expr_env = eenv
+                 , type_env = tenv
                  , known_values = kv
                  , exec_stack = stck })
         ng e1 e2
@@ -149,18 +150,18 @@ evalApp s@(State { expr_env = eenv
              , curr_expr = CurrExpr Return (mkTrue kv) }]
         , ng)
     | ac@(Prim Error _) <- appCenter e1 = (RuleError, [s { curr_expr = CurrExpr Return ac }], ng)
-    | isExprValueForm eenv (App e1 e2) =
-        ( RuleReturnAppSWHNF
-        , [s { curr_expr = CurrExpr Return (App e1 e2) }]
-        , ng)
     | (Prim prim ty):ar <- unApp (App e1 e2) = 
         let
             ar' = map (lookupForPrim eenv) ar
             appP = mkApp (Prim prim ty : ar')
-            exP = evalPrims kv appP
+            exP = evalPrims tenv kv appP
         in
         ( RuleEvalPrimToNorm
         , [s { curr_expr = CurrExpr Return exP }]
+        , ng)
+    | isExprValueForm eenv (App e1 e2) =
+        ( RuleReturnAppSWHNF
+        , [s { curr_expr = CurrExpr Return (App e1 e2) }]
         , ng)
     | otherwise =
         let

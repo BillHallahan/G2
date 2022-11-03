@@ -176,16 +176,25 @@ data Primitive = Ge
                | Negate
                | Abs
                | SqRt
+               
+               | DataToTag
+               | TagToEnum
+
                | IntToFloat
                | IntToDouble
                | RationalToDouble
                | FromInteger
                | ToInteger
                | ToInt
+               
                | Chr
                | OrdChar
+               
+               
                | Error
                | Undefined
+
+
                | BindFunc
                deriving (Show, Eq, Read, Generic, Typeable, Data)
 

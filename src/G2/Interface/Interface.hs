@@ -468,7 +468,7 @@ runG2SubstModel :: Named t =>
                    -> State t
                    -> Bindings
                    -> ExecRes t
-runG2SubstModel m s@(State { known_values = kv }) bindings =
+runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
     let
         s' = s { model = m }
 
@@ -482,8 +482,8 @@ runG2SubstModel m s@(State { known_values = kv }) bindings =
 
         sm'' = ExecRes { final_state = final_state sm'
                        , conc_args = fixed_inputs bindings ++ conc_args sm'
-                       , conc_out = evalPrims kv (conc_out sm')
-                       , violated = evalPrims kv (violated sm')}
+                       , conc_out = evalPrims tenv kv (conc_out sm')
+                       , violated = evalPrims tenv kv (violated sm')}
     in
     sm''
 

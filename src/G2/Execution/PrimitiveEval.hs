@@ -1,55 +1,57 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module G2.Execution.PrimitiveEval (evalPrims, evalPrim) where
+module G2.Execution.PrimitiveEval (evalPrims) where
 
 import G2.Language.AST
 import G2.Language.Expr
 import G2.Language.Support
 import G2.Language.Syntax
+import G2.Language.Typing
 
+import Control.Exception
 import Data.Char
+import qualified Data.HashMap.Lazy as M
+import qualified Data.List as L
 
-evalPrims :: ASTContainer m Expr => KnownValues -> m -> m
-evalPrims kv = modifyContainedASTs (evalPrims' kv . simplifyCasts)
+evalPrims :: ASTContainer m Expr => TypeEnv -> KnownValues -> m -> m
+evalPrims tenv kv = modifyContainedASTs (evalPrims' tenv kv . simplifyCasts)
 
-evalPrim :: KnownValues -> Expr -> Expr
-evalPrim kv a@(App _ _) =
+evalPrims' :: TypeEnv -> KnownValues -> Expr -> Expr
+evalPrims' tenv kv a@(App x y) =
     case unApp a of
-        [p@(Prim _ _), l@(Lit _)] -> evalPrim' kv [p, l]
-        [p@(Prim _ _), l1@(Lit _), l2@(Lit _)] -> evalPrim' kv [p, l1, l2]
-        _ -> a
-evalPrim _ e = e
+        [p@(Prim _ _), l] -> evalPrim' tenv kv [p, evalPrims' tenv kv l]
+        [p@(Prim _ _), l1, l2] ->
+            evalPrim' tenv kv [p, evalPrims' tenv kv l1, evalPrims' tenv kv l2]
+        _ -> App (evalPrims' tenv kv x) (evalPrims' tenv kv y)
+evalPrims' tenv kv e = modifyChildren (evalPrims' tenv kv) e
 
-
-evalPrims' :: KnownValues -> Expr -> Expr
-evalPrims' kv a@(App x y) =
-    case unApp a of
-        [p@(Prim _ _), l] -> evalPrim' kv [p, evalPrims' kv l]
-        [p@(Prim _ _), l1, l2] -> evalPrim' kv [p, evalPrims' kv l1, evalPrims' kv l2]
-        _ -> App (evalPrims' kv x) (evalPrims' kv y)
-evalPrims' kv e = modifyChildren (evalPrims' kv) e
-
-evalPrim' :: KnownValues -> [Expr] -> Expr
-evalPrim' kv xs
+evalPrim' :: TypeEnv -> KnownValues -> [Expr] -> Expr
+evalPrim' tenv kv xs
     | [Prim p _, x] <- xs
-    , Lit x' <- getLit x =
+    , Lit x' <- x =
         case evalPrim1 p x' of
             Just e -> e
             Nothing -> mkApp xs
 
     | [Prim p _, x, y] <- xs
-    , Lit x' <- getLit x
-    , Lit y' <- getLit y =
+    , Lit x' <- x
+    , Lit y' <- y =
         case evalPrim2 kv p x' y' of
             Just e -> e
             Nothing -> mkApp xs
 
-    | otherwise = mkApp xs
+    | [Prim p _, Type t, dc_e] <- xs, Data dc:_ <- unApp dc_e =
+        case evalTypeDCPrim2 tenv p t dc of
+            Just e -> e
+            Nothing -> mkApp xs
 
-getLit :: Expr -> Expr
-getLit l@(Lit _) = l
-getLit x = x
+    | [Prim p _, Type t, Lit (LitInt l)] <- xs =
+        case evalTypeLitPrim2 tenv p t l of
+            Just e -> e
+            Nothing -> mkApp xs
+
+    | otherwise = mkApp xs
 
 evalPrim1 :: Primitive -> Lit -> Maybe Expr
 evalPrim1 Negate (LitInt x) = Just . Lit $ LitInt (-x)
@@ -74,10 +76,38 @@ evalPrim2 kv Le x y = evalPrim2NumBool (<=) kv x y
 evalPrim2 _ Plus x y = evalPrim2Num (+) x y
 evalPrim2 _ Minus x y = evalPrim2Num (-) x y
 evalPrim2 _ Mult x y = evalPrim2Num (*) x y
-evalPrim2 _ Div x y = if isZero y then error "Have Div _ 0" else evalPrim2Fractional (/) x y
+evalPrim2 _  Div x y = if isZero y then error "Have Div _ 0" else evalPrim2Fractional (/) x y
 evalPrim2 _ Quot x y = if isZero y then error "Have Quot _ 0" else evalPrim2Integral quot x y
-evalPrim2 _ Mod x y = evalPrim2Integral (mod) x y
+evalPrim2 _ Mod x y = evalPrim2Integral mod x y
 evalPrim2 _ _ _ _ = Nothing
+
+evalTypeDCPrim2 :: TypeEnv -> Primitive -> Type -> DataCon -> Maybe Expr
+evalTypeDCPrim2 tenv DataToTag t dc =
+    case unTyApp t of
+        TyCon n _:_ | Just adt <- M.lookup n tenv ->
+            let
+                dcs = dataCon adt
+            in
+            fmap (Lit . LitInt . fst) . L.find ((==) dc . snd) $ zip [1..] dcs
+        _ -> error "evalTypeDCPrim2: Unsupported Primitive Op"
+evalTypeDCPrim2 _ _ _ _ = Nothing
+
+evalTypeLitPrim2 :: TypeEnv -> Primitive -> Type -> Integer -> Maybe Expr
+evalTypeLitPrim2 tenv TagToEnum t i =
+    case unTyApp t of
+        TyCon n _:_ | Just adt <- M.lookup n tenv ->
+            let
+                dcs = dataCon adt
+            in
+            maybe (Just $ Prim Error TyBottom) (Just . Data)
+                                        $ ith dcs (fromInteger i)
+        _ -> error "evalTypeLitPrim2: Unsupported Primitive Op"
+evalTypeLitPrim2 _ _ _ _ = Nothing
+
+ith :: [a] -> Integer -> Maybe a
+ith (x:_) 0 = Just x
+ith (_:xs) n = assert (n > 0) ith xs (n - 1)
+ith _ _ = Nothing
 
 isZero :: Lit -> Bool
 isZero (LitInt 0) = True

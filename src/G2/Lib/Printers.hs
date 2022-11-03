@@ -324,18 +324,27 @@ mkPrimHaskell Rem = "rem"
 mkPrimHaskell Negate = "-"
 mkPrimHaskell Abs = "abs"
 mkPrimHaskell SqRt = "sqrt"
+
+mkPrimHaskell DataToTag = "prim_dataToTag#"
+mkPrimHaskell TagToEnum = "prim_tagToEnum#"
+
+
 mkPrimHaskell IntToFloat = "fromIntegral"
 mkPrimHaskell IntToDouble = "fromIntegral"
 mkPrimHaskell RationalToDouble = "fromRational"
 mkPrimHaskell FromInteger = "fromInteger"
 mkPrimHaskell ToInteger = "toInteger"
+
 mkPrimHaskell Chr = "chr"
 mkPrimHaskell OrdChar = "ord"
+
 mkPrimHaskell ToInt = "toInt"
+
 mkPrimHaskell Error = "error"
 mkPrimHaskell Undefined = "undefined"
 mkPrimHaskell Implies = "undefined"
 mkPrimHaskell Iff = "undefined"
+
 mkPrimHaskell BindFunc = "undefined"
 
 mkTypeHaskell :: Type -> String
