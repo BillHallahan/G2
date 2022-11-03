@@ -74,7 +74,11 @@ equivMods = HM.fromList
             [ ("GHC.Classes2", "GHC.Classes")
             , ("GHC.Types2", "GHC.Types")
             , ("GHC.Integer2", "GHC.Integer")
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+            , ("GHC.Integer.Type2", "GHC.Num.Integer")
+#else
             , ("GHC.Integer.Type2", "GHC.Integer.Type")
+#endif
             , ("GHC.Prim2", "GHC.Prim")
             , ("GHC.Tuple2", "GHC.Tuple")
             , ("GHC.Magic2", "GHC.Magic")
