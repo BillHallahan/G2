@@ -46,7 +46,7 @@ checkInputOutput' src tests = do
                 testGroup
                 src
                 $ map (\test@(entry, _, _) -> do
-                        testCase (src ++ entry) ( do
+                        testCase (src ++ " " ++ entry) ( do
                                 (mb_modname, exg2) <- loadedExG2
                                 config <- mkConfigTestIO
                                 r <- doTimeout (timeLimit config)

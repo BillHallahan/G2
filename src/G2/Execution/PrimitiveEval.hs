@@ -166,7 +166,7 @@ evalPrimSymbolic eenv tenv ng kv e
                         $ L.find ((==) alt_dc . snd) num_dcs) alt_p
         in
         Just (Var ret, E.insertSymbolic ret eenv, new_pc, ng')
-    | [Prim TagToEnum _, Type t, v@(Var (Id _ TyLitInt))] <- unApp e =
+    | [Prim TagToEnum _, Type t, pe] <- unApp e =
         case unTyApp t of
             TyCon n _:_ | Just adt <- M.lookup n tenv ->
                 let
@@ -174,7 +174,7 @@ evalPrimSymbolic eenv tenv ng kv e
                     dcs = dataCon adt
                     alts = zipWith (\l dc -> Alt (LitAlt (LitInt l)) (Data dc)) [0..] dcs
                 in
-                Just (Case v b t alts, E.insertSymbolic b eenv, [], ng')
+                Just (Case pe b t alts, E.insertSymbolic b eenv, [], ng')
             _ -> error "evalTypeLitPrim2: Unsupported Primitive Op"
     | otherwise = Nothing
     where

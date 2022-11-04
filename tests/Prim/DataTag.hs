@@ -29,3 +29,8 @@ tagToEnum3 :: Int -> Maybe ABCD
 tagToEnum3 (I# x) = if isTrue# (x >=# 0#) && isTrue# (x <=# 4#)
                             then Just (tagToEnum# x)
                             else Nothing
+
+tagToEnum4 :: Int -> Maybe ABCD
+tagToEnum4 (I# x) = if isTrue# (x >=# 0#) && isTrue# (x <=# 3#)
+                            then Just (tagToEnum# (1# +# x))
+                            else Nothing
