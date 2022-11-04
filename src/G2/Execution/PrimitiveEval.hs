@@ -144,7 +144,8 @@ evalPrim1Floating _ _ = Nothing
 -- | Evaluate certain primitives applied to symbolic expressions, when possible
 evalPrimSymbolic :: ExprEnv -> TypeEnv -> NameGen -> KnownValues -> Expr -> Maybe (Expr, ExprEnv, [PathCond], NameGen)
 evalPrimSymbolic eenv tenv ng kv e
-    | [Prim DataToTag _, Type t, cse] <- unApp e
+    | [Prim DataToTag _, type_t, cse] <- unApp e
+    , Type t <- dig eenv type_t
     , Case v@(Var (Id n _)) _ _ alts <- cse
     , TyCon tn _:_ <- unTyApp t
     , Just adt <- M.lookup tn tenv =
@@ -170,9 +171,10 @@ evalPrimSymbolic eenv tenv ng kv e
     -- We thus need special handling so that, in G2, we don't try to convert to Bool via a TagToEnum
     -- (which has type Int# -> a).  Instead, we simply return the Bool directly.
     | tBool <- tyBool kv
-    , [Prim TagToEnum _, Type t, pe] <- unApp e
-    , typeOf pe == tBool = Just (pe, eenv, [], ng)
-    | [Prim TagToEnum _, Type t, pe] <- unApp e =
+    , [Prim TagToEnum _, _, pe] <- unApp e
+    , typeOf (dig eenv pe) == tBool = Just (pe, eenv, [], ng)
+    | [Prim TagToEnum _, type_t, pe] <- unApp e
+    , Type t <- dig eenv type_t =
         case unTyApp t of
             TyCon n _:_ | Just adt <- M.lookup n tenv ->
                 let
@@ -186,3 +188,7 @@ evalPrimSymbolic eenv tenv ng kv e
     | otherwise = Nothing
     where
         eq e1 = App (App (mkEqPrimType (typeOf e1) kv) e1)
+
+dig :: ExprEnv -> Expr -> Expr
+dig eenv (Var (Id n _)) | Just (E.Conc e) <- E.lookupConcOrSym n eenv = dig eenv e
+dig _ e = e
