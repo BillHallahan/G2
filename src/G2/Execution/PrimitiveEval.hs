@@ -141,7 +141,7 @@ evalPrim1Floating f (LitFloat x) = Just . Lit . LitFloat . toRational $ f (fromR
 evalPrim1Floating f (LitDouble x)  = Just . Lit . LitDouble . toRational $ f (fromRational x :: Double)
 evalPrim1Floating _ _ = Nothing
 
--- ^ Evaluate certain primitives applied to symbolic expressions, when possible
+-- | Evaluate certain primitives applied to symbolic expressions, when possible
 evalPrimSymbolic :: ExprEnv -> TypeEnv -> NameGen -> KnownValues -> Expr -> Maybe (Expr, ExprEnv, [PathCond], NameGen)
 evalPrimSymbolic eenv tenv ng kv e
     | [Prim DataToTag _, Type t, cse] <- unApp e
@@ -179,8 +179,9 @@ evalPrimSymbolic eenv tenv ng kv e
                     (b, ng') = freshId TyLitInt ng 
                     dcs = dataCon adt
                     alts = zipWith (\l dc -> Alt (LitAlt (LitInt l)) (Data dc)) [0..] dcs
+                    alt_d = Alt Default (Prim Error t)
                 in
-                Just (Case pe b t alts, E.insertSymbolic b eenv, [], ng')
+                Just (Case pe b t (alt_d:alts), E.insertSymbolic b eenv, [], ng')
             _ -> error "evalTypeLitPrim2: Unsupported Primitive Op"
     | otherwise = Nothing
     where
