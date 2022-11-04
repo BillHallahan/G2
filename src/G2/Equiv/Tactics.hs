@@ -877,6 +877,9 @@ substLemma solver ns s =
     mapMaybeM (\lem -> replaceMoreRestrictiveSubExpr solver ns lem s) . provenLemmas
 
 -- TODO is this the right way to construct output lists?
+-- I don't think it is
+-- the first lemma used always appears at the front
+-- I want to see the back for now
 substLemmaLoopAux :: S.Solver solver =>
                      Int
                   -> solver
@@ -886,7 +889,7 @@ substLemmaLoopAux :: S.Solver solver =>
                   -> W.WriterT [Marker] IO [([Lemma], StateET)]
 substLemmaLoopAux i solver ns lems (lem, s) = do
     sll <- substLemmaLoop (i - 1) solver ns s lems
-    return $ map (\(l, s') -> (lem:l, s')) sll
+    return $ map (\(l, s') -> (l ++ [lem], s')) sll
 
 -- TODO discards all lemmas used except the final one
 -- TODO needs a safeguard against divergence
@@ -901,16 +904,19 @@ substLemmaLoop :: S.Solver solver =>
 substLemmaLoop 0 _ _ _ _ =
     return []
 substLemmaLoop i solver ns s lems = do
-    W.liftIO $ putStrLn $ "substLemmaLoop " ++ show i
-    W.liftIO $ putStrLn $ "Proven " ++ show (length $ provenLemmas lems)
+    --W.liftIO $ putStrLn $ "substLemmaLoop " ++ show i
+    --W.liftIO $ putStrLn $ "Proven " ++ show (length $ provenLemmas lems)
     lem_states <- substLemma solver ns s lems
     let lem_states' = map (\(l, s') -> ([l], s')) lem_states
     --lem_state_lists <- mapM ((flip $ substLemmaLoop (i - 1) solver ns) lems . snd) lem_states
+    --W.liftIO $ putStrLn $ "Single " ++ show i ++ " " ++ show (length lem_states)
+    --W.liftIO $ mapM (print . curr_expr . lemma_lhs . fst) lem_states
+    --W.liftIO $ mapM (print . curr_expr . snd) lem_states
     lem_state_lists <- mapM (substLemmaLoopAux i solver ns lems) lem_states
-    if null lem_state_lists then return []
+    {- if null lem_state_lists then return []
     else do
       W.liftIO $ putStrLn $ "New " ++ show (length lem_state_lists) ++ " from " ++ show (i - 1)
-      W.liftIO $ mapM (putStrLn . folder_name . track . snd) $ concat lem_state_lists
+      W.liftIO $ mapM (print . map (curr_expr . lemma_lhs) . fst) $ concat lem_state_lists -}
     return $ lem_states' ++ concat lem_state_lists
 
 replaceMoreRestrictiveSubExpr :: S.Solver solver =>
@@ -1046,6 +1052,20 @@ moreRestrictivePairWithLemmas' app_state solver valid ns lemmas past_list (s1, s
 
     rp <- mapM (\((l1, s1_), (l2, s2_)) -> do
             mrp <- moreRestrictivePair solver valid ns past_list (s1_, s2_)
+            if length l1 == 2 {- || length l2 == 2 -} then do
+              W.liftIO $ putStrLn $ "Check " ++ (show $ length l1) ++ " " ++ (show $ length l2)
+              W.liftIO $ print $ map (curr_expr . lemma_lhs) l1
+              W.liftIO $ print $ map (curr_expr . lemma_lhs) l2
+              -- TODO s1_ and s2_ are not the states I care about?
+              -- one is left, one is right
+              -- which states are the past states?
+              -- TODO there isn't a single past state I can isolate here
+              W.liftIO $ print $ curr_expr s1_
+              --W.liftIO $ print $ curr_expr s2_
+              W.liftIO $ case mrp of
+                Left _ -> putStrLn "Left"
+                Right _ -> putStrLn "Right"
+            else return ()
             -- TODO use synced or non-synced?
             -- TODO losing state information
             let l1' = map (\l -> (s1', l)) l1
