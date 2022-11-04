@@ -68,8 +68,8 @@ specials = [ (( "[]"
            -- , (("Char", Just "GHC.Types"), [("C#", Just "GHC.Types", [TyLitChar])])
            -- , (("String", Just "GHC.Types"), [])
 
-           , (("Bool", Just "GHC.Types", []), [ ("True", Just "GHC.Types", [])
-                                              , ("False", Just "GHC.Types", [])])
+           , (("Bool", Just "GHC.Types", []), [ ("False", Just "GHC.Types", [])
+                                              , ("True", Just "GHC.Types", [])])
 
            -- , (("Ordering", Just "GHC.Types"), [ ("EQ", Just "GHC.Types", [])
            --                                    , ("LT", Just "GHC.Types", [])

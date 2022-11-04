@@ -373,7 +373,8 @@ primTests = testGroup "Prims"
                                                 , ("tagToEnum1", 1000, [AtLeast 1])
                                                 , ("tagToEnum3", 1000, [AtLeast 4])
                                                 , ("tagToEnum4", 1000, [AtLeast 4])
-                                                , ("tagToEnum5", 1000, [AtLeast 4]) ]
+                                                , ("tagToEnum5", 1000, [Exactly 1])
+                                                , ("tagToEnum6", 1000, [AtLeast 4]) ]
 
     , checkExpr "tests/Prim/DataTag.hs" 1000 "tagToEnum2" [Exactly 1, RForAll (\[r] -> isError r)]
 

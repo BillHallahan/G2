@@ -35,8 +35,11 @@ tagToEnum4 (I# x) = if isTrue# (x >=# 0#) && isTrue# (x <=# 3#)
                             then Just (tagToEnum# (1# +# x))
                             else Nothing
 
-tagToEnum5 :: Int -> Maybe Bool
-tagToEnum5 (I# x) = if isTrue# (x >=# 0#) && isTrue# (x <=# 1#)
+tagToEnum5 :: (Bool, Bool)
+tagToEnum5 = (tagToEnum# 0#, tagToEnum# 1#)
+
+tagToEnum6 :: Int -> Maybe Bool
+tagToEnum6 (I# x) = if isTrue# (x >=# 0#) && isTrue# (x <=# 1#)
                             then Just (tagToEnum# x)
                             else Nothing
 

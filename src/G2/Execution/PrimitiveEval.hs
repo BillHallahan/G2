@@ -171,7 +171,7 @@ evalPrimSymbolic eenv tenv ng kv e
     -- (which has type Int# -> a).  Instead, we simply return the Bool directly.
     | tBool <- tyBool kv
     , [Prim TagToEnum _, Type t, pe] <- unApp e
-    , typeOf e == tBool = Just (pe, eenv, [], ng)
+    , typeOf pe == tBool = Just (pe, eenv, [], ng)
     | [Prim TagToEnum _, Type t, pe] <- unApp e =
         case unTyApp t of
             TyCon n _:_ | Just adt <- M.lookup n tenv ->
