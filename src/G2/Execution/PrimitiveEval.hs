@@ -1,10 +1,12 @@
 {-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE FlexibleContexts #-}
 
-module G2.Execution.PrimitiveEval (evalPrims) where
+module G2.Execution.PrimitiveEval (evalPrims, maybeEvalPrim, evalPrimSymbolic) where
 
 import G2.Language.AST
 import G2.Language.Expr
+import G2.Language.Naming
+import G2.Language.Primitives
 import G2.Language.Support
 import G2.Language.Syntax
 import G2.Language.Typing
@@ -13,6 +15,8 @@ import Control.Exception
 import Data.Char
 import qualified Data.HashMap.Lazy as M
 import qualified Data.List as L
+import Data.Maybe
+import qualified G2.Language.ExprEnv as E
 
 evalPrims :: ASTContainer m Expr => TypeEnv -> KnownValues -> m -> m
 evalPrims tenv kv = modifyContainedASTs (evalPrims' tenv kv . simplifyCasts)
@@ -27,31 +31,27 @@ evalPrims' tenv kv a@(App x y) =
 evalPrims' tenv kv e = modifyChildren (evalPrims' tenv kv) e
 
 evalPrim' :: TypeEnv -> KnownValues -> [Expr] -> Expr
-evalPrim' tenv kv xs
+evalPrim' tenv kv xs = fromMaybe (mkApp xs) (maybeEvalPrim' tenv kv xs)
+
+maybeEvalPrim :: TypeEnv -> KnownValues -> Expr -> Maybe Expr
+maybeEvalPrim tenv kv = maybeEvalPrim' tenv kv . unApp
+
+maybeEvalPrim' :: TypeEnv -> KnownValues -> [Expr] -> Maybe Expr
+maybeEvalPrim' tenv kv xs
     | [Prim p _, x] <- xs
-    , Lit x' <- x =
-        case evalPrim1 p x' of
-            Just e -> e
-            Nothing -> mkApp xs
+    , Lit x' <- x = evalPrim1 p x'
 
     | [Prim p _, x, y] <- xs
     , Lit x' <- x
-    , Lit y' <- y =
-        case evalPrim2 kv p x' y' of
-            Just e -> e
-            Nothing -> mkApp xs
+    , Lit y' <- y = evalPrim2 kv p x' y'
 
     | [Prim p _, Type t, dc_e] <- xs, Data dc:_ <- unApp dc_e =
-        case evalTypeDCPrim2 tenv p t dc of
-            Just e -> e
-            Nothing -> mkApp xs
+        evalTypeDCPrim2 tenv p t dc
 
     | [Prim p _, Type t, Lit (LitInt l)] <- xs =
-        case evalTypeLitPrim2 tenv p t l of
-            Just e -> e
-            Nothing -> mkApp xs
+        evalTypeLitPrim2 tenv p t l
 
-    | otherwise = mkApp xs
+    | otherwise = Nothing
 
 evalPrim1 :: Primitive -> Lit -> Maybe Expr
 evalPrim1 Negate (LitInt x) = Just . Lit $ LitInt (-x)
@@ -140,3 +140,42 @@ evalPrim1Floating :: (forall a . Floating a => a -> a) -> Lit -> Maybe Expr
 evalPrim1Floating f (LitFloat x) = Just . Lit . LitFloat . toRational $ f (fromRational x :: Double)
 evalPrim1Floating f (LitDouble x)  = Just . Lit . LitDouble . toRational $ f (fromRational x :: Double)
 evalPrim1Floating _ _ = Nothing
+
+-- ^ Evaluate certain primitives applied to symbolic expressions, when possible
+evalPrimSymbolic :: ExprEnv -> TypeEnv -> NameGen -> KnownValues -> Expr -> Maybe (Expr, ExprEnv, [PathCond], NameGen)
+evalPrimSymbolic eenv tenv ng kv e
+    | [Prim DataToTag _, Type t, cse] <- unApp e
+    , Case v@(Var (Id n _)) _ _ alts <- cse
+    , TyCon tn _:_ <- unTyApp t
+    , Just adt <- M.lookup tn tenv =
+        let
+            alt_p = map (\(Alt (LitAlt l) e) ->
+                            let
+                                Data dc = head $ unApp e
+                            in
+                            (l, dc)) alts
+
+            dcs = dataCon adt
+            num_dcs = zip (map (Lit . LitInt) [0..]) dcs
+
+            (ret, ng') = freshId TyLitInt ng 
+
+            new_pc = map (`ExtCond` True)
+                   $ mapMaybe (\(alt_l, alt_dc) ->
+                            fmap (\(nn, n_dc) -> eq v (Lit alt_l) `eq` eq (Var ret) nn)
+                        $ L.find ((==) alt_dc . snd) num_dcs) alt_p
+        in
+        Just (Var ret, E.insertSymbolic ret eenv, new_pc, ng')
+    | [Prim TagToEnum _, Type t, v@(Var (Id _ TyLitInt))] <- unApp e =
+        case unTyApp t of
+            TyCon n _:_ | Just adt <- M.lookup n tenv ->
+                let
+                    (b, ng') = freshId TyLitInt ng 
+                    dcs = dataCon adt
+                    alts = zipWith (\l dc -> Alt (LitAlt (LitInt l)) (Data dc)) [0..] dcs
+                in
+                Just (Case v b t alts, E.insertSymbolic b eenv, [], ng')
+            _ -> error "evalTypeLitPrim2: Unsupported Primitive Op"
+    | otherwise = Nothing
+    where
+        eq e1 = App (App (mkEqPrimType (typeOf e1) kv) e1)

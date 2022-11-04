@@ -49,7 +49,10 @@ stdReduce' share solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }
     , share == Sharing = return $ evalVarSharing s ng i
     | Var i <- ce
     , share == NoSharing = return $ evalVarNoSharing s ng i
-    | App e1 e2 <- ce = return $ evalApp s ng e1 e2
+    | App e1 e2 <- ce = do
+        let (r, xs, ng') = evalApp s ng e1 e2
+        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
+        return (r, xs', ng')
     | Let b e <- ce = return $ evalLet s ng b e
     | Case e i t a <- ce = do
         let (r, xs, ng') = evalCase s ng e i t a
@@ -136,7 +139,7 @@ evalVarNoSharing s@(State { expr_env = eenv })
 --    (2) We have a symbolic value, and no evaluation is possible, so we return
 -- If we do not have a primitive operator, we go into the center of the apps,
 -- to evaluate the function call
-evalApp :: State t -> NameGen -> Expr -> Expr -> (Rule, [State t], NameGen)
+evalApp :: State t -> NameGen -> Expr -> Expr -> (Rule, [NewPC t], NameGen)
 evalApp s@(State { expr_env = eenv
                  , type_env = tenv
                  , known_values = kv
@@ -146,10 +149,16 @@ evalApp s@(State { expr_env = eenv
     , Var i1 <- findSym v
     , v2 <- e2 =
         ( RuleBind
-        , [s { expr_env = E.insert (idName i1) v2 eenv
-             , curr_expr = CurrExpr Return (mkTrue kv) }]
+        , [newPCEmpty $ s { expr_env = E.insert (idName i1) v2 eenv
+                          , curr_expr = CurrExpr Return (mkTrue kv) }]
         , ng)
-    | ac@(Prim Error _) <- appCenter e1 = (RuleError, [s { curr_expr = CurrExpr Return ac }], ng)
+    | ac@(Prim Error _) <- appCenter e1 =
+        (RuleError, [newPCEmpty $ s { curr_expr = CurrExpr Return ac }], ng)
+    | Just (e, eenv', pc, ng') <- evalPrimSymbolic eenv tenv ng kv (App e1 e2) =
+        ( RuleEvalPrimToNorm
+        , [ (newPCEmpty $ s { expr_env = eenv'
+                            , curr_expr = CurrExpr Return e }) { new_pcs = pc} ]
+        , ng')
     | (Prim prim ty):ar <- unApp (App e1 e2) = 
         let
             ar' = map (lookupForPrim eenv) ar
@@ -157,11 +166,11 @@ evalApp s@(State { expr_env = eenv
             exP = evalPrims tenv kv appP
         in
         ( RuleEvalPrimToNorm
-        , [s { curr_expr = CurrExpr Return exP }]
+        , [newPCEmpty $ s { curr_expr = CurrExpr Return exP }]
         , ng)
     | isExprValueForm eenv (App e1 e2) =
         ( RuleReturnAppSWHNF
-        , [s { curr_expr = CurrExpr Return (App e1 e2) }]
+        , [newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2) }]
         , ng)
     | otherwise =
         let
@@ -169,8 +178,8 @@ evalApp s@(State { expr_env = eenv
             stck' = S.push frame stck
         in
         ( RuleEvalApp e2
-        , [s { curr_expr = CurrExpr Evaluate e1
-             , exec_stack = stck' }]
+        , [newPCEmpty $ s { curr_expr = CurrExpr Evaluate e1
+                          , exec_stack = stck' }]
         , ng)
     where
         findSym v@(Var (Id n _))

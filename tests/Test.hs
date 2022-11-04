@@ -368,7 +368,8 @@ primTests = testGroup "Prims"
                                               , ("divFloatTest", 1500, [AtLeast 1]) ]
 
     , checkInputOutputs "tests/Prim/DataTag.hs" [ ("dataToTag1", 1000, [Exactly 1])
-                                                , ("dataToTag2", 1000, [AtLeast 4])
+                                                , ("dataToTag2", 1000, [AtLeast 1])
+                                                , ("dataToTag3", 1000, [Exactly 5])
                                                 , ("tagToEnum1", 1000, [AtLeast 1])
                                                 , ("tagToEnum3", 1000, [AtLeast 4]) ]
 
