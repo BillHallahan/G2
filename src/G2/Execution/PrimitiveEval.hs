@@ -166,6 +166,12 @@ evalPrimSymbolic eenv tenv ng kv e
                         $ L.find ((==) alt_dc . snd) num_dcs) alt_p
         in
         Just (Var ret, E.insertSymbolic ret eenv, new_pc, ng')
+    -- G2 uses actual Bools in primitive comparisons, whereas GHC uses 0# and 1#.
+    -- We thus need special handling so that, in G2, we don't try to convert to Bool via a TagToEnum
+    -- (which has type Int# -> a).  Instead, we simply return the Bool directly.
+    | tBool <- tyBool kv
+    , [Prim TagToEnum _, Type t, pe] <- unApp e
+    , typeOf e == tBool = Just (pe, eenv, [], ng)
     | [Prim TagToEnum _, Type t, pe] <- unApp e =
         case unTyApp t of
             TyCon n _:_ | Just adt <- M.lookup n tenv ->
