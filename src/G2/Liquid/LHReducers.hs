@@ -185,12 +185,12 @@ data HigherOrderCallsRed = HigherOrderCallsRed
 instance Reducer HigherOrderCallsRed () LHTracker where
     initReducer _ _ = ()
 
-    redRules lhr _ s@(State { curr_expr = CurrExpr Evaluate (Tick (NamedLoc nl) (Assume (Just fc) _ _)) }) b | nl == higherOrderTickName=
+    redRules lhr _ s@(State { curr_expr = CurrExpr Evaluate (Tick (NamedLoc nl) (Assume (Just fc) _ _)) }) b | nl == higherOrderTickName =
         let
             lht = (track s) { higher_order_calls = fc:higher_order_calls (track s) }
         in
         return $ (Finished, [(s { track = lht } , ())], b, lhr)
-    redRules lhr _ s@(State { curr_expr = CurrExpr Evaluate (Tick (NamedLoc nl) (Assume (Just fc) _ real_assert@(Assert _ _ _))) }) b | nl == higherOrderTickName=
+    redRules lhr _ s@(State { curr_expr = CurrExpr Evaluate (Tick (NamedLoc nl) (Assume (Just fc) _ real_assert@(Assert _ _ _))) }) b | nl == higherOrderTickName =
         let
             lht = (track s) { higher_order_calls = fc:higher_order_calls (track s) }
         in

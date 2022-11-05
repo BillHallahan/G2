@@ -47,6 +47,7 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 import qualified Text.Builder as TB
+import qualified Data.Text.IO as T
 
 data SynthRes = SynthEnv
                   GeneratedSpecs -- ^ The synthesized specifications
@@ -409,7 +410,7 @@ runConstraintsForSynth headers vs = do
             liftIO $ setProduceUnsatCores z3_dir
             liftIO $ setProduceUnsatCores z3_max
 
-            -- T.putStrLn (TB.run $ toSolverText headers)
+            liftIO $ T.putStrLn (TB.run $ toSolverText headers)
             liftIO $ addFormula z3_dir headers
             liftIO $ addFormula z3_max headers
 
