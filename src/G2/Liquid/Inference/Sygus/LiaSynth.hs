@@ -371,7 +371,7 @@ synth' con ghci eenv tenv meas meas_ex evals m_si fc headers drop_if_unknown blk
 
     liftIO $ if not (null drop_if_unknown) then putStrLn "non empty drop_if_unknown" else return ()
 
-    result <- return . adjustRes =<< liftIO (runConstraintsForSynth hdrs n_for_m)
+    result <- return . adjustRes =<< runConstraintsForSynth hdrs n_for_m
 
     case result of
         SAT mdl -> do
@@ -397,35 +397,41 @@ synth' con ghci eenv tenv meas meas_ex evals m_si fc headers drop_if_unknown blk
         adjustRes (UNSAT uc) = UNSAT uc
         adjustRes (Unknown e ()) = Unknown e Nothing
 
-runConstraintsForSynth :: [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
+runConstraintsForSynth :: (InfConfigM m, MonadIO m)
+                       => [SMTHeader] -> [(SMTName, Sort)] -> m (Result SMTModel UnsatCore ())
 runConstraintsForSynth headers vs = do
-    z3_dir <- getZ3 100000
-    z3_max <- mkMaximizeSolver =<< getZ3 50000
+    inf_con <- infConfigM
 
-    setProduceUnsatCores z3_dir
-    setProduceUnsatCores z3_max
+    z3_dir <- liftIO $ getZ3 100000
+    z3_max <-liftIO $ mkMaximizeSolver =<< getZ3 50000
+
+    liftIO $ setProduceUnsatCores z3_dir
+    liftIO $ setProduceUnsatCores z3_max
 
     -- T.putStrLn (TB.run $ toSolverText headers)
-    addFormula z3_dir headers
-    addFormula z3_max headers
+    liftIO $ addFormula z3_dir headers
+    liftIO $ addFormula z3_max headers
 
-    checkSatInstr z3_dir
-    checkSatInstr z3_max
+    liftIO $ checkSatInstr z3_dir
+    liftIO $ checkSatInstr z3_max
+    
+    res <- if use_binary_minimization inf_con
+                then liftIO $ waitForRes2 Nothing Nothing z3_dir z3_max vs
+                else liftIO $ waitForRes z3_dir vs
 
-    res <- waitForRes Nothing Nothing z3_dir z3_max vs
-
-    closeIO z3_dir
-    closeIO z3_max
+    liftIO $ closeIO z3_dir
+    liftIO $ closeIO z3_max
 
     return res
 
-waitForRes :: (SMTConverter s1, SMTConverter s2) =>
-              Maybe (Result () () ()) -- ^ Nothing, or an unknown returned by Solver 1
-           -> Maybe (Result () () ()) -- ^ Nothing, or an unknown returned by Solver 2
-           -> s1
-           -> s2
-           -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
-waitForRes m_res1 m_res2 s1 s2 vs = do
+waitForRes2 :: (SMTConverter s1, SMTConverter s2) =>
+               Maybe (Result () () ()) -- ^ Nothing, or an unknown returned by Solver 1
+            -> Maybe (Result () () ()) -- ^ Nothing, or an unknown returned by Solver 2
+            -> s1
+            -> s2
+            -> [(SMTName, Sort)]
+            -> IO (Result SMTModel UnsatCore ())
+waitForRes2 m_res1 m_res2 s1 s2 vs = do
     res1 <- maybe (maybeCheckSatResult s1) (return . Just) m_res1
     res2 <- maybe (maybeCheckSatResult s2) (return . Just) m_res2
 
@@ -440,11 +446,22 @@ waitForRes m_res1 m_res2 s1 s2 vs = do
             getModelOrUnsatCore s2 vs res2'
         (Just (Unknown err1 ()), Just (Unknown err2 ())) -> do
             return $ Unknown (err1 ++ "\n" ++ err2) ()
-        _ -> waitForRes res1 res2 s1 s2 vs
+        _ -> waitForRes2 res1 res2 s1 s2 vs
     where
         isSatOrUnsat (SAT _) = True
         isSatOrUnsat (UNSAT _) = True
         isSatOrUnsat _ = False
+
+waitForRes :: SMTConverter s =>
+              s
+           -> [(SMTName, Sort)]
+           -> IO (Result SMTModel UnsatCore ())
+waitForRes s vs = do
+    res <- maybeCheckSatResult s
+
+    case res of
+        Just res' -> getModelOrUnsatCore s vs res'
+        _ -> waitForRes s vs
 
 getModelOrUnsatCore :: SMTConverter smt => smt -> [(SMTName, Sort)] -> Result () () () -> IO (Result SMTModel UnsatCore ())
 getModelOrUnsatCore con vs (SAT ()) = do
