@@ -187,7 +187,7 @@ addLHTCExprPasses'' m es (e:es')
         as <- addLHTCExprPasses'' m [] es'
         return $ reverse es ++ e:as
 
--- We want to add a LH Dict Type argument to Var's, but not DataCons or Lambdas.
+-- We want to add a LH Dict Type argument to Var's and Cases, but not DataCons or Lambdas.
 -- That is: function calls need to be passed the LH Dict but it
 -- doesn't need to be passed around in DataCons
 addLHDictToTypes :: ASTContainerM e Expr => HM.HashMap Name Id -> e -> LHStateM e
@@ -195,6 +195,9 @@ addLHDictToTypes m = modifyASTsM (addLHDictToTypes' m)
 
 addLHDictToTypes' :: HM.HashMap Name Id -> Expr -> LHStateM Expr
 addLHDictToTypes' m (Var (Id n t)) = return . Var . Id n =<< addLHDictToTypes'' m t
+addLHDictToTypes' m (Case e i t a) = do
+    t' <- addLHDictToTypes'' m t
+    return $ Case e i t' a
 addLHDictToTypes' _ e = return e
 
 addLHDictToTypes'' :: HM.HashMap Name Id -> Type -> LHStateM Type
