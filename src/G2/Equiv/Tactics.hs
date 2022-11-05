@@ -891,9 +891,14 @@ substLemmaLoopAux i solver ns lems (lem, s) = do
     sll <- substLemmaLoop (i - 1) solver ns s lems
     return $ map (\(l, s') -> (l ++ [lem], s')) sll
 
+isCase :: CurrExpr -> Bool
+isCase (CurrExpr _ (Case _ _ _)) = True
+isCase _ = False
+
 -- TODO discards all lemmas used except the final one
 -- TODO needs a safeguard against divergence
 -- TODO join lemmas from new iteration with lemmas from prior ones
+-- do I ever get substs done on Case statements?  Yes
 substLemmaLoop :: S.Solver solver =>
                   Int ->
                   solver ->
@@ -912,6 +917,7 @@ substLemmaLoop i solver ns s lems = do
     --W.liftIO $ putStrLn $ "Single " ++ show i ++ " " ++ show (length lem_states)
     --W.liftIO $ mapM (print . curr_expr . lemma_lhs . fst) lem_states
     --W.liftIO $ mapM (print . curr_expr . snd) lem_states
+    W.liftIO $ mapM (print . isCase . curr_expr . snd) lem_states
     lem_state_lists <- mapM (substLemmaLoopAux i solver ns lems) lem_states
     {- if null lem_state_lists then return []
     else do
@@ -953,6 +959,7 @@ If it's unmapped, put it in as symbolic.
 If it's concrete or symbolic, just leave it as it is.
 This implementation does not cover finiteness information.
 TODO more old id-bool list with new one
+TODO What to test to see where the problem is?
 -}
 replaceMoreRestrictiveSubExpr' :: S.Solver solver =>
                                   solver ->
@@ -964,7 +971,7 @@ replaceMoreRestrictiveSubExpr' :: S.Solver solver =>
 replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma_rhs = rhs_s })
                                          s2 e = do
     replaced <- CM.get
-    if isNothing replaced then do
+    if True then do
         mr_sub <- CM.lift $ moreRestrictiveSingle solver ns lhs_s (s2 { curr_expr = CurrExpr Evaluate e })
         case mr_sub of
             Right hm -> do
@@ -1052,8 +1059,12 @@ moreRestrictivePairWithLemmas' app_state solver valid ns lemmas past_list (s1, s
 
     rp <- mapM (\((l1, s1_), (l2, s2_)) -> do
             mrp <- moreRestrictivePair solver valid ns past_list (s1_, s2_)
-            if length l1 == 2 {- || length l2 == 2 -} then do
+            if length l1 == 2 && isCase (curr_expr s1_) {- || length l2 == 2 -} then do
               W.liftIO $ putStrLn $ "Check " ++ (show $ length l1) ++ " " ++ (show $ length l2)
+              W.liftIO $ print $ map lemma_lhs_origin l1
+              W.liftIO $ print $ map lemma_rhs_origin l1
+              W.liftIO $ putStrLn $ folder_name $ track s1_
+              W.liftIO $ putStrLn $ folder_name $ track s1'
               W.liftIO $ print $ map (curr_expr . lemma_lhs) l1
               W.liftIO $ print $ map (curr_expr . lemma_lhs) l2
               -- TODO s1_ and s2_ are not the states I care about?
@@ -1061,6 +1072,7 @@ moreRestrictivePairWithLemmas' app_state solver valid ns lemmas past_list (s1, s
               -- which states are the past states?
               -- TODO there isn't a single past state I can isolate here
               W.liftIO $ print $ curr_expr s1_
+              W.liftIO $ print $ curr_expr s1'
               --W.liftIO $ print $ curr_expr s2_
               W.liftIO $ case mrp of
                 Left _ -> putStrLn "Left"
