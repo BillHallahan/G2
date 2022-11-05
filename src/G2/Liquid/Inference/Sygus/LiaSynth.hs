@@ -401,29 +401,39 @@ runConstraintsForSynth :: (InfConfigM m, MonadIO m)
                        => [SMTHeader] -> [(SMTName, Sort)] -> m (Result SMTModel UnsatCore ())
 runConstraintsForSynth headers vs = do
     inf_con <- infConfigM
+    if use_binary_minimization inf_con
+        then do
+            z3_dir <- liftIO $ getZ3 100000
+            z3_max <-liftIO $ mkMaximizeSolver =<< getZ3 50000
 
-    z3_dir <- liftIO $ getZ3 100000
-    z3_max <-liftIO $ mkMaximizeSolver =<< getZ3 50000
+            liftIO $ setProduceUnsatCores z3_dir
+            liftIO $ setProduceUnsatCores z3_max
 
-    liftIO $ setProduceUnsatCores z3_dir
-    liftIO $ setProduceUnsatCores z3_max
+            -- T.putStrLn (TB.run $ toSolverText headers)
+            liftIO $ addFormula z3_dir headers
+            liftIO $ addFormula z3_max headers
 
-    -- T.putStrLn (TB.run $ toSolverText headers)
-    liftIO $ addFormula z3_dir headers
-    liftIO $ addFormula z3_max headers
+            liftIO $ checkSatInstr z3_dir
+            liftIO $ checkSatInstr z3_max
+            
+            res <- liftIO $ waitForRes2 Nothing Nothing z3_dir z3_max vs
 
-    liftIO $ checkSatInstr z3_dir
-    liftIO $ checkSatInstr z3_max
-    
-    res <- if use_binary_minimization inf_con
-                then liftIO $ waitForRes2 Nothing Nothing z3_dir z3_max vs
-                else liftIO $ waitForRes z3_dir vs
+            liftIO $ closeIO z3_dir
+            liftIO $ closeIO z3_max
 
-    liftIO $ closeIO z3_dir
-    liftIO $ closeIO z3_max
+            return res
+        else do
+            z3_dir <- liftIO $ getZ3 100000
 
-    return res
+            liftIO $ setProduceUnsatCores z3_dir
+            liftIO $ addFormula z3_dir headers
+            liftIO $ checkSatInstr z3_dir
+            
+            res <- liftIO $ waitForRes z3_dir vs
 
+            liftIO $ closeIO z3_dir
+
+            return res
 waitForRes2 :: (SMTConverter s1, SMTConverter s2) =>
                Maybe (Result () () ()) -- ^ Nothing, or an unknown returned by Solver 1
             -> Maybe (Result () () ()) -- ^ Nothing, or an unknown returned by Solver 2
