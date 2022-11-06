@@ -318,7 +318,10 @@ allTactics = [
   ]
 
 allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
-allNewLemmaTactics = map applyTacticToLabeledStates [tryEquality, tryCoinductionAll]
+allNewLemmaTactics = [
+    applyTacticToLabeledStates tryEquality
+  , (\str1 str2 -> tryCoinductionAll)
+  ]
 
 -- negative loop iteration count means there's no limit
 -- TODO if states is empty but n = 0, we'll get Unknown rather than UNSAT
@@ -408,11 +411,13 @@ verifyLoop solver ns lemmas states b config nc sym_ids folder_root k n | (n /= 0
     mapM (\l@(Lemma { lemma_lhs = le1, lemma_rhs = le2}) -> do
                   let pg = mkPrettyGuide l
                   W.liftIO $ putStrLn "---- Proven ----"
+                  W.liftIO $ putStrLn $ lemma_name l
                   W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
                   W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) (provenLemmas lemmas)
     mapM (\l@(Lemma { lemma_lhs = le1, lemma_rhs = le2}) -> do
                   let pg = mkPrettyGuide l
                   W.liftIO $ putStrLn "---- Disproven ----"
+                  W.liftIO $ putStrLn $ lemma_name l
                   W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
                   W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) (disprovenLemmas lemmas)
     mapM (\l@(Lemma { lemma_lhs = le1, lemma_rhs = le2}) -> do
@@ -531,7 +536,10 @@ verifyWithNewProvenLemmas solver nl_tactics ns proven lemmas b states = do
     -- lemma substitutions can happen on the backtrack state
     -- double substitutions are allowed there
     -- all of the past states on the opposite side can be covered with it
-    W.liftIO $ putStrLn $ "Trying " ++ show (map lemma_lhs_origin proven) ++
+    W.liftIO $ putStrLn $ "Trying " ++
+               show (map lemma_lhs_origin proven) ++
+               show (map lemma_rhs_origin proven) ++
+               show (map lemma_name proven) ++
                " on " ++ show (map (\(sh1, sh2) -> (folder_name $ track $ latest sh1, folder_name $ track $ latest sh2)) states)
     verifyLoop' solver tactics ns lemmas b states
 
