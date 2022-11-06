@@ -2,7 +2,7 @@
 
 module Main (main) where
 
-import DynFlags
+import G2.Translation.GHC (GeneralFlag(Opt_Hpc))
 
 import System.Environment
 import System.FilePath

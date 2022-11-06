@@ -1056,7 +1056,7 @@ instance Orderer CaseCountOrderer Int Int t where
 
     updateSelected _ v _ _ = v
 
-    stepOrderer _ v _ _ (State { curr_expr = CurrExpr _ (Case _ _ _) }) = v + 1
+    stepOrderer _ v _ _ (State { curr_expr = CurrExpr _ (Case _ _ _ _) }) = v + 1
     stepOrderer _ v _ _ _ = v
 
 

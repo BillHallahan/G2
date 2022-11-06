@@ -16,7 +16,8 @@ floodConstantsChecking :: [(Name, Expr)] -> State t -> Maybe (State t)
 floodConstantsChecking ne s =
     case floodConstants ne s of
         Just s' ->
-            if all (pathCondMaybeSatisfiable (known_values s')) (PC.toList $ path_conds s')
+            if all (pathCondMaybeSatisfiable (type_env s') (known_values s'))
+                   (PC.toList $ path_conds s')
                 then Just s'
                 else Nothing
         Nothing -> Nothing
@@ -57,12 +58,12 @@ floodConstantList _ _ = Nothing
 -- Attempts to determine if a PathCond is satisfiable.  A return value of False
 -- means the PathCond is definitely unsatisfiable.  A return value of True means
 -- the PathCond may or may not be satisfiable. 
-pathCondMaybeSatisfiable :: KnownValues -> PathCond -> Bool
-pathCondMaybeSatisfiable _ (AltCond l1 (Lit l2) b) = (l1 == l2) == b
-pathCondMaybeSatisfiable _ (AltCond _ _ _) = True
-pathCondMaybeSatisfiable kv (ExtCond e b) =
+pathCondMaybeSatisfiable :: TypeEnv -> KnownValues -> PathCond -> Bool
+pathCondMaybeSatisfiable _ _ (AltCond l1 (Lit l2) b) = (l1 == l2) == b
+pathCondMaybeSatisfiable _ _ (AltCond _ _ _) = True
+pathCondMaybeSatisfiable tenv kv (ExtCond e b) =
     let
-        r = evalPrims kv e
+        r = evalPrims tenv kv e
         
         tr = mkBool kv True
         fal = mkBool kv False

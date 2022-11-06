@@ -109,12 +109,12 @@ addLHTCExprEnvNextLams (Let b e) = do
     (e', m) <- addLHTCExprEnvNextLams e
 
     return (Let b' e', foldr HM.union HM.empty (m:ms))
-addLHTCExprEnvNextLams (Case e i a) = do
+addLHTCExprEnvNextLams (Case e i t a) = do
     (e', m) <- addLHTCExprEnvNextLams e
 
     (a', ms) <- return . unzip =<< mapM addLHTCExprEnvNextLamsAlt a
 
-    return (Case e' i a', foldr HM.union HM.empty (m:ms))
+    return (Case e' i t a', foldr HM.union HM.empty (m:ms))
 addLHTCExprEnvNextLams e@(Type _) = return (e, HM.empty)
 addLHTCExprEnvNextLams (Cast e c) = do
     (e', m) <- addLHTCExprEnvNextLams e
@@ -187,7 +187,7 @@ addLHTCExprPasses'' m es (e:es')
         as <- addLHTCExprPasses'' m [] es'
         return $ reverse es ++ e:as
 
--- We want to add a LH Dict Type argument to Var's, but not DataCons or Lambdas.
+-- We want to add a LH Dict Type argument to Var's and Cases, but not DataCons or Lambdas.
 -- That is: function calls need to be passed the LH Dict but it
 -- doesn't need to be passed around in DataCons
 addLHDictToTypes :: ASTContainerM e Expr => HM.HashMap Name Id -> e -> LHStateM e
@@ -195,6 +195,9 @@ addLHDictToTypes m = modifyASTsM (addLHDictToTypes' m)
 
 addLHDictToTypes' :: HM.HashMap Name Id -> Expr -> LHStateM Expr
 addLHDictToTypes' m (Var (Id n t)) = return . Var . Id n =<< addLHDictToTypes'' m t
+addLHDictToTypes' m (Case e i t a) = do
+    t' <- addLHDictToTypes'' m t
+    return $ Case e i t' a
 addLHDictToTypes' _ e = return e
 
 addLHDictToTypes'' :: HM.HashMap Name Id -> Type -> LHStateM Type

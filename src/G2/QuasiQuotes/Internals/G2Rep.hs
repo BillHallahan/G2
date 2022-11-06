@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -53,23 +54,43 @@ derivingG2Rep' ty = do
                                                  , genG2UnRep (length tvs) cs
                                                  , genG2Type tyConName]]
     where
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+        apply t (PlainTV name _)    = appT t (varT name)
+        apply t (KindedTV name _ _) = appT t (varT name)
+
+        mkCxt (PlainTV name _) = conT ''G2Rep `appT` varT name
+        mkCxt (KindedTV name _ _) = conT ''G2Rep `appT` varT name
+#else
         apply t (PlainTV name)    = appT t (varT name)
         apply t (KindedTV name _) = appT t (varT name)
 
         mkCxt (PlainTV name) = conT ''G2Rep `appT` varT name
         mkCxt (KindedTV name _) = conT ''G2Rep `appT` varT name
+#endif
 
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+genG2Rep :: TH.Name -> [TyVarBndr ()] -> [Con] -> Q Dec
+#else
 genG2Rep :: TH.Name -> [TyVarBndr] -> [Con] -> Q Dec
+#endif
 genG2Rep tyConName tvs cs = funD 'g2Rep (map (genG2RepClause tyConName tvs) cs)
 
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+genG2RepClause :: TH.Name -> [TyVarBndr ()] -> Con -> Q Clause
+#else
 genG2RepClause :: TH.Name -> [TyVarBndr] -> Con -> Q Clause
+#endif
 genG2RepClause tyConName tvs (NormalC name fieldTypes) =
     genG2RepClause' tyConName tvs name fieldTypes
 genG2RepClause tyConName tvs (InfixC st1 n st2) =
     genG2RepClause' tyConName tvs n [st1, st2]
 genG2RepClause _ _ con = error $ "genG2RepClause: Unhandled case." ++ show con 
 
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+genG2RepClause' :: TH.Name -> [TyVarBndr ()] -> TH.Name -> [StrictType] -> Q Clause
+#else
 genG2RepClause' :: TH.Name -> [TyVarBndr] -> TH.Name -> [StrictType] -> Q Clause
+#endif
 genG2RepClause' tyConName tvs dcNme fieldTypes = do
     tenv <- newName "tenv_rep"
     cleaned <- newName "cleaned"
@@ -101,8 +122,13 @@ genG2RepClause' tyConName tvs dcNme fieldTypes = do
 
     clause pats body []
     where
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+        tyVBToType (PlainTV name _) = varT name
+        tyVBToType (KindedTV name _ _) = varT name
+#else
         tyVBToType (PlainTV name) = varT name
         tyVBToType (KindedTV name _) = varT name
+#endif
 
 -- | Looks up a `DataCon` with the given type and data constructor name.
 -- Falls back to creating a data constructor from scratch, if the data constructor

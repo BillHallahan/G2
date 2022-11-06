@@ -98,7 +98,7 @@ initialTrack eenv (Var (Id n _)) =
 initialTrack eenv (App e e') = initialTrack eenv e + initialTrack eenv e'
 initialTrack eenv (Lam _ _ e) = initialTrack eenv e
 initialTrack eenv (Let b e) = initialTrack eenv e + (getSum $ evalContainedASTs (Sum . initialTrack eenv) b)
-initialTrack eenv (Case e _ a) = initialTrack eenv e + (getMax $ evalContainedASTs (Max . initialTrack eenv) a)
+initialTrack eenv (Case e _ _ a) = initialTrack eenv e + (getMax $ evalContainedASTs (Max . initialTrack eenv) a)
 initialTrack eenv (Cast e _) = initialTrack eenv e
 initialTrack eenv (Assume _ _ e) = initialTrack eenv e
 initialTrack eenv (Assert _ _ e) = initialTrack eenv e
@@ -185,12 +185,12 @@ data HigherOrderCallsRed = HigherOrderCallsRed
 instance Reducer HigherOrderCallsRed () LHTracker where
     initReducer _ _ = ()
 
-    redRules lhr _ s@(State { curr_expr = CurrExpr Evaluate (Tick (NamedLoc nl) (Assume (Just fc) _ _)) }) b | nl == higherOrderTickName=
+    redRules lhr _ s@(State { curr_expr = CurrExpr Evaluate (Tick (NamedLoc nl) (Assume (Just fc) _ _)) }) b | nl == higherOrderTickName =
         let
             lht = (track s) { higher_order_calls = fc:higher_order_calls (track s) }
         in
         return $ (Finished, [(s { track = lht } , ())], b, lhr)
-    redRules lhr _ s@(State { curr_expr = CurrExpr Evaluate (Tick (NamedLoc nl) (Assume (Just fc) _ real_assert@(Assert _ _ _))) }) b | nl == higherOrderTickName=
+    redRules lhr _ s@(State { curr_expr = CurrExpr Evaluate (Tick (NamedLoc nl) (Assume (Just fc) _ real_assert@(Assert _ _ _))) }) b | nl == higherOrderTickName =
         let
             lht = (track s) { higher_order_calls = fc:higher_order_calls (track s) }
         in

@@ -73,7 +73,7 @@ addOrdToNumCase :: Expr -> LHStateM Expr
 addOrdToNumCase = modifyASTsM addOrdToNumCase'
 
 addOrdToNumCase' :: Expr -> LHStateM Expr
-addOrdToNumCase' ce@(Case e i@(Id _ t) a@[Alt (DataAlt dc is) ae])
+addOrdToNumCase' ce@(Case e i@(Id _ t) ct a@[Alt (DataAlt dc is) ae])
     | (TyCon n ts) <- tyAppCenter t = do
         num <- numTCM
         ord <- ordTCM
@@ -83,8 +83,8 @@ addOrdToNumCase' ce@(Case e i@(Id _ t) a@[Alt (DataAlt dc is) ae])
         if num == n then do
             ordI <- freshIdN ordT
             let is' = is ++ [ordI]
-            return (Case e i [Alt (DataAlt dc is') ae])
-        else return (Case e i a)
+            return (Case e i ct [Alt (DataAlt dc is') ae])
+        else return (Case e i ct a)
     | otherwise = return ce
 addOrdToNumCase' e = return e
 
@@ -98,10 +98,10 @@ changeNumType' num d@(Data dc)
     | (TyCon n _) <- tyAppCenter $ returnType dc
     , num == n = return . Data =<< changeNumTypeDC dc
     | otherwise = return d
-changeNumType' num ce@(Case e i@(Id n _) [Alt (DataAlt dc is) ae])
+changeNumType' num ce@(Case e i@(Id n _) ct [Alt (DataAlt dc is) ae])
     | num == n = do
         dc' <- changeNumTypeDC dc
-        return (Case e i [Alt (DataAlt dc' is) ae])
+        return (Case e i ct [Alt (DataAlt dc' is) ae])
     | otherwise = return ce
 changeNumType' _ e = return e
 
@@ -154,7 +154,7 @@ ordDictFunc = do
     binds <- freshIdsN numA
     let cOrdBIs = last binds
 
-    let e = Lam TermL lamI $ Case (Var lamI) caseI [Alt (DataAlt numDC' binds) (Var cOrdBIs)]
+    let e = Lam TermL lamI $ Case (Var lamI) caseI (typeOf cOrdBIs) [Alt (DataAlt numDC' binds) (Var cOrdBIs)]
 
     (Id n _) <- lhNumOrdM
     insertE n e

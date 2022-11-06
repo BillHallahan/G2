@@ -130,8 +130,8 @@ addTyVarsExprDC' unused dc@(DataCon n _) ars
     | otherwise = mkApp $ Data dc:ars
 
 addTyVarsExprCase :: UnusedPoly -> Expr -> Expr
-addTyVarsExprCase unused (Case e i as) =
-    Case e i $ map (addTyVarsAlt unused e) as
+addTyVarsExprCase unused (Case e i t as) =
+    Case e i t $ map (addTyVarsAlt unused e) as
 addTyVarsExprCase _ e = e
 
 addTyVarsAlt :: UnusedPoly -> Expr -> Alt -> Alt

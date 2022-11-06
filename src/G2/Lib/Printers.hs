@@ -136,7 +136,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
         mkExprHaskell'' off (App e1 ea@(App _ _)) = mkExprHaskell'' off e1 ++ " (" ++ mkExprHaskell'' off ea ++ ")"
         mkExprHaskell'' off (App e1 e2) = mkExprHaskell'' off e1 ++ " " ++ mkExprHaskell'' off e2
         mkExprHaskell'' _ (Data d) = mkDataConHaskell pg d
-        mkExprHaskell'' off (Case e bndr ae) =
+        mkExprHaskell'' off (Case e bndr _ ae) =
                "case " ++ parenWrap e (mkExprHaskell'' off e) ++ " of\n" 
             ++ intercalate "\n" (map (mkAltHaskell (off + 2) cleaned pg bndr) ae)
         mkExprHaskell'' _ (Type t) = "@" ++ mkTypeHaskellPG pg t
@@ -177,7 +177,7 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
         mkExprHaskell'' _ e = "e = " ++ show e ++ " NOT SUPPORTED"
 
         parenWrap :: Expr -> String -> String
-        parenWrap (Case _ _ _) s = "(" ++ s ++ ")"
+        parenWrap (Case _ _ _ _) s = "(" ++ s ++ ")"
         parenWrap (Let _ _) s = "(" ++ s ++ ")"
         parenWrap (Tick _ e) s = parenWrap e s
         parenWrap _ s = s
@@ -324,18 +324,27 @@ mkPrimHaskell Rem = "rem"
 mkPrimHaskell Negate = "-"
 mkPrimHaskell Abs = "abs"
 mkPrimHaskell SqRt = "sqrt"
+
+mkPrimHaskell DataToTag = "prim_dataToTag#"
+mkPrimHaskell TagToEnum = "prim_tagToEnum#"
+
+
 mkPrimHaskell IntToFloat = "fromIntegral"
 mkPrimHaskell IntToDouble = "fromIntegral"
 mkPrimHaskell RationalToDouble = "fromRational"
 mkPrimHaskell FromInteger = "fromInteger"
 mkPrimHaskell ToInteger = "toInteger"
+
 mkPrimHaskell Chr = "chr"
 mkPrimHaskell OrdChar = "ord"
+
 mkPrimHaskell ToInt = "toInt"
+
 mkPrimHaskell Error = "error"
 mkPrimHaskell Undefined = "undefined"
 mkPrimHaskell Implies = "undefined"
 mkPrimHaskell Iff = "undefined"
+
 mkPrimHaskell BindFunc = "undefined"
 
 mkTypeHaskell :: Type -> String
@@ -410,7 +419,7 @@ prettyStack :: PrettyGuide -> Stack Frame -> String
 prettyStack pg = intercalate "\n" . map (prettyFrame pg) . toList
 
 prettyFrame :: PrettyGuide -> Frame -> String
-prettyFrame pg (CaseFrame i as) =
+prettyFrame pg (CaseFrame i _ as) =
     "case frame: bindee:" ++ mkIdHaskell pg i ++ "\n" ++ intercalate "\n" (map (mkAltHaskell 1 Dirty pg i) as)
 prettyFrame pg (ApplyFrame e) = "apply frame: " ++ mkDirtyExprHaskell pg e
 prettyFrame pg (UpdateFrame n) = "update frame: " ++ mkNameHaskell pg n

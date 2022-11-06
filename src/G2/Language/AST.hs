@@ -164,7 +164,7 @@ instance AST Expr where
     children (App f a) = [f, a]
     children (Lam _ _ e) = [e]
     children (Let bind e) = e : containedASTs bind
-    children (Case m _ as) = m : map (\(Alt _ e) -> e) as
+    children (Case m _ _ as) = m : map (\(Alt _ e) -> e) as
     children (Cast e _) = [e]
     children (Coercion _) = []
     children (Type _) = []
@@ -177,7 +177,7 @@ instance AST Expr where
     modifyChildren f (App fx ax) = App (f fx) (f ax)
     modifyChildren f (Lam u b e) = Lam u b (f e)
     modifyChildren f (Let bind e) = Let (modifyContainedASTs f bind) (f e)
-    modifyChildren f (Case m b as) = Case (f m) b (mapAlt f as)
+    modifyChildren f (Case m b t as) = Case (f m) b t (mapAlt f as)
       where
         mapAlt :: (Expr -> Expr) -> [Alt] -> [Alt]
         mapAlt g alts = map (\(Alt ac e) -> Alt ac (g e)) alts
@@ -222,7 +222,7 @@ instance ASTContainer Expr Type where
     containedASTs (App e1 e2) = containedASTs e1 ++ containedASTs e2
     containedASTs (Lam _ b e) = containedASTs b ++ containedASTs e
     containedASTs (Let bnd e) = containedASTs bnd ++ containedASTs e
-    containedASTs (Case e i as) = containedASTs e ++ containedASTs i ++ containedASTs as
+    containedASTs (Case e i t as) = containedASTs e ++ containedASTs i ++ containedASTs t ++ containedASTs as
     containedASTs (Cast e c) = containedASTs e ++ containedASTs c
     containedASTs (Coercion c) = containedASTs c
     containedASTs (Type t) = [t]
@@ -239,7 +239,7 @@ instance ASTContainer Expr Type where
     modifyContainedASTs f (App fx ax) = App (modifyContainedASTs f fx) (modifyContainedASTs f ax)
     modifyContainedASTs f (Lam u b e) = Lam u (modifyContainedASTs f b)(modifyContainedASTs f e)
     modifyContainedASTs f (Let bnd e) = Let (modifyContainedASTs f bnd) (modifyContainedASTs f e)
-    modifyContainedASTs f (Case m i as) = Case (modifyContainedASTs f m) (modifyContainedASTs f i) (modifyContainedASTs f as) 
+    modifyContainedASTs f (Case m i t as) = Case (modifyContainedASTs f m) (modifyContainedASTs f i) (f t) (modifyContainedASTs f as) 
     modifyContainedASTs f (Type t) = Type (f t)
     modifyContainedASTs f (Cast e c) = Cast (modifyContainedASTs f e) (modifyContainedASTs f c)
     modifyContainedASTs f (Coercion c) = Coercion (modifyContainedASTs f c)

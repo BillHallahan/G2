@@ -129,7 +129,10 @@ data Expr = Var Id
           | App Expr Expr
           | Lam LamUse Id Expr
           | Let Binds Expr
-          | Case Expr Id [Alt]
+          | Case Expr -- ^ Scrutinee
+                 Id -- ^ Bindee
+                 Type -- ^ Type of the case expression
+                 [Alt] -- ^ Alternatives
           | Type Type
           | Cast Expr Coercion
           | Coercion Coercion
@@ -173,16 +176,25 @@ data Primitive = Ge
                | Negate
                | Abs
                | SqRt
+               
+               | DataToTag
+               | TagToEnum
+
                | IntToFloat
                | IntToDouble
                | RationalToDouble
                | FromInteger
                | ToInteger
                | ToInt
+               
                | Chr
                | OrdChar
+               
+               
                | Error
                | Undefined
+
+
                | BindFunc
                deriving (Show, Eq, Read, Generic, Typeable, Data)
 

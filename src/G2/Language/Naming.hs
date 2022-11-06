@@ -159,7 +159,7 @@ exprTopNames (Var var) = [idName var]
 exprTopNames (Data dc) = dataConName dc
 exprTopNames (Lam _ b _) = [idName b]
 exprTopNames (Let kvs _) = map (idName . fst) kvs
-exprTopNames (Case _ cvar as) = idName cvar :
+exprTopNames (Case _ cvar _ as) = idName cvar :
                                 concatMap (\(Alt am _) -> altMatchNames am)
                                           as
 exprTopNames (Assume (Just is) _ _) = [funcName is]
@@ -239,7 +239,7 @@ instance Named Expr where
             go (Data d) = names d
             go (Lam _ i _) = names i
             go (Let b _) = foldr (<>) S.empty $ map (names . fst) b
-            go (Case _ i a) = names i <> (foldr (<>) S.empty $ map (names . altMatch) a)
+            go (Case _ i t a) = names i <> names t <> (foldr (<>) S.empty $ map (names . altMatch) a)
             go (Type t) = names t
             go (Cast _ c) = names c
             go (Coercion c) = names c
@@ -258,8 +258,8 @@ instance Named Expr where
         go (Let b e) =
             let b' = map (\(n, e') -> (rename old new n, e')) b
             in Let b' e
-        go (Case e i a) =
-            Case e (rename old new i) (map goAlt a)
+        go (Case e i t a) =
+            Case e (rename old new i) (rename old new t) (map goAlt a)
         go (Type t) = Type (rename old new t)
         go (Cast e c) = Cast e (rename old new c)
         go (Coercion c) = Coercion (rename old new c)
@@ -281,7 +281,7 @@ instance Named Expr where
             go (Let b e) = 
                 let b' = map (\(n, e') -> (renames hm n, e')) b
                 in Let b' e
-            go (Case e i a) = Case e (renames hm i) (map goAlt a)
+            go (Case e i t a) = Case e (renames hm i) (renames hm t) (map goAlt a)
             go (Type t) = Type (renames hm t)
             go (Cast e c) = Cast e (renames hm c)
             go (Coercion c) = Coercion (renames hm c)
@@ -307,7 +307,7 @@ renameExpr' old new (Var i) = Var (renameExprId old new i)
 renameExpr' old new (Data d) = Data (renameExprDataCon old new d)
 renameExpr' old new (Lam u i e) = Lam u (renameExprId old new i) e
 renameExpr' old new (Let b e) = Let (map (\(b', e') -> (renameExprId old new b', e')) b) e
-renameExpr' old new (Case e i a) = Case e (renameExprId old new i) $ map (renameExprAlt old new) a
+renameExpr' old new (Case e i t a) = Case e (renameExprId old new i) t $ map (renameExprAlt old new) a
 renameExpr' old new (Assume is e e') = Assume (fmap (rename old new) is) e e'
 renameExpr' old new (Assert is e e') = Assert (fmap (rename old new) is) e e'
 renameExpr' _ _ e = e
@@ -320,7 +320,7 @@ renameVars' :: Name -> Name -> Expr -> Expr
 renameVars' old new (Var i) = Var (renameExprId old new i)
 renameVars' old new (Lam u i e) = Lam u (renameExprId old new i) e
 renameVars' old new (Let b e) = Let (map (\(b', e') -> (renameExprId old new b', e')) b) e
-renameVars' old new (Case e i a) = Case e (renameExprId old new i) $ map (renameExprAltIds old new) a
+renameVars' old new (Case e i t a) = Case e (renameExprId old new i) t $ map (renameExprAltIds old new) a
 renameVars' old new (Assert is e e') = Assert (fmap (rename old new) is) e e'
 renameVars' _ _ e = e
 
@@ -356,7 +356,7 @@ renamesExprs' hm (Var i) = Var (renamesExprId hm i)
 renamesExprs' hm (Data d) = Data (renamesExprDataCon hm d)
 renamesExprs' hm (Lam u i e) = Lam u (renamesExprId hm i) e
 renamesExprs' hm (Let b e) = Let (map (\(b', e') -> (renamesExprId hm b', e')) b) e
-renamesExprs' hm (Case e i a) = Case e (renamesExprId hm i) $ map (renamesExprAlt hm) a
+renamesExprs' hm (Case e i t a) = Case e (renamesExprId hm i) t $ map (renamesExprAlt hm) a
 renamesExprs' hm (Assume is e e') = Assume (fmap (renames hm) is) e e'
 renamesExprs' hm (Assert is e e') = Assert (fmap (renames hm) is) e e'
 renamesExprs' _ e = e

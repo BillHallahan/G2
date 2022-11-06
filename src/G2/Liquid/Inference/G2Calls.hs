@@ -183,7 +183,8 @@ cleanupResultsInference solver simplifier config init_id bindings ers = do
           map (\er@(ExecRes { final_state = s }) ->
                 (er { final_state =
                               s {track = 
-                                    mapAbstractedInfoFCs (evalPrims (known_values s) . subVarFuncCall True (model s) (expr_env s) (type_classes s))
+                                    mapAbstractedInfoFCs (evalPrims (type_env s) (known_values s)
+                                                         . subVarFuncCall True (model s) (expr_env s) (type_classes s))
                                     $ track s
                                 }
                     })) ers6
@@ -918,11 +919,11 @@ evalMeasures init_meas lrs ghci es = do
 isTotal :: TypeEnv -> Expr -> Bool
 isTotal tenv = getAll . evalASTs isTotal'
     where
-        isTotal' (Case i _ as)
+        isTotal' (Case i _ _ as)
             | TyCon n _:_ <- unTyApp (typeOf i)
             , Just adt <- HM.lookup n tenv =
                 All (length (dataCon adt) == length (filter isDataAlt as))
-        isTotal' (Case _ _ _) = All False
+        isTotal' (Case _ _ _ _) = All False
         isTotal' _ = All True
 
         isDataAlt (G2.Alt (DataAlt _ _) _) = True

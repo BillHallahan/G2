@@ -126,8 +126,8 @@ createBagFuncCase func_names adt_i tyvar_id bi (DataTyCon { bound_ids = adt_bi
     bindee <- freshIdN (typeOf adt_i)
     let ty_map = zip adt_bi (map TyVar bi)
     alts <- mapM (createBagFuncCaseAlt func_names tyvar_id ty_map) dc
-
-    return $ Case (Var adt_i) bindee alts
+            
+    return $ Case (Var adt_i) bindee (typeOf $ head alts) alts
 createBagFuncCase func_names adt_i tyvar_id bi (NewTyCon { bound_ids = adt_bi
                                                          , rep_type = rt }) = do
     let rt' = foldr (uncurry retype) rt $ zip adt_bi (map TyVar bi)
@@ -311,7 +311,7 @@ wrapPrimsInCase :: ExState s m => Expr -> Expr -> m Expr
 wrapPrimsInCase e e'
     | isPrimType t = do
         i <- freshIdN t
-        return $ Case e' i [Alt Default e]
+        return $ Case e' i (typeOf e) [Alt Default e]
     | otherwise = return e
     where
         t = typeOf e'
@@ -366,7 +366,7 @@ instance Reducer ExistentialInstRed () t where
                        , curr_expr = CurrExpr Return e }
             in
             return (InProgress, [(s', rv)], b, r)
-        | Case (Var i) bnd ([Alt (DataAlt _ params) (Tick (NamedLoc n) ae)]) <- e
+        | Case (Var i) bnd _ ([Alt (DataAlt _ params) (Tick (NamedLoc n) ae)]) <- e
         , i == existentialInstId
         , n == existentialCaseName =
             let
@@ -383,7 +383,7 @@ instance Reducer ExistentialInstRed () t where
                          , curr_expr = CurrExpr Evaluate n_e }, rv)]
                    , b { name_gen = ng'' }
                    , r)
-        | Case (Var i) _ ([Alt _ (Tick (NamedLoc n) ae)]) <- e
+        | Case (Var i) _ _ ([Alt _ (Tick (NamedLoc n) ae)]) <- e
         , i == existentialInstId
         , n == existentialCaseName =
             let
@@ -394,7 +394,7 @@ instance Reducer ExistentialInstRed () t where
                          , curr_expr = CurrExpr Evaluate ae }, rv)]
                    , b
                    , r)
-        | Case (Var i) _ _ <- e
+        | Case (Var i) _ _ _ <- e
         , i == existentialInstId =
             let
                 s' = s { curr_expr = CurrExpr Return (Var i) }
@@ -424,6 +424,6 @@ addTicksToDeepSeqCases' n eenv =
         Nothing -> eenv
 
 addTicksToDeepSeqCases'' :: Expr -> Expr
-addTicksToDeepSeqCases'' (Case e i (Alt am ae:as)) =
-    Case e i $ Alt am (Tick (NamedLoc existentialCaseName) ae):as
+addTicksToDeepSeqCases'' (Case e i t (Alt am ae:as)) =
+    Case e i t $ Alt am (Tick (NamedLoc existentialCaseName) ae):as
 addTicksToDeepSeqCases'' e = e
