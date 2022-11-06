@@ -670,24 +670,23 @@ cexsToBlockingFC lrs ghci cex@(CallsCounter dfc cfc [] higher)
 -- Function constraints that don't block the current specification set, but which must be true
 -- (i.e. the actual input and output for abstracted functions)
 cexsToExtraFC :: InfConfigM m => CounterExample -> m [FuncConstraint]
-cexsToExtraFC (DirectCounter dfc fcs@(_:_) higher) = do
+cexsToExtraFC (DirectCounter dfc fcs@(_:_) []) = do
     infconfig <- infConfigM
-    let some_pre = ImpliesFC (Call Pre (real dfc) higher) $  OrFC (map (\fc -> Call Pre (real fc) higher) fcs)
+    let some_pre = ImpliesFC (Call Pre (real dfc) []) $  OrFC (map (\fc -> Call Pre (real fc) []) fcs)
         fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
-    return $ some_pre:mapMaybe (realToMaybeFC higher) fcs'
-cexsToExtraFC (CallsCounter dfc cfc fcs@(_:_) higher) = do
+    return $ some_pre:mapMaybe (realToMaybeFC []) fcs'
+cexsToExtraFC (CallsCounter dfc cfc fcs@(_:_) []) = do
     infconfig <- infConfigM
-    let some_pre = ImpliesFC (Call Pre (real dfc) higher) $  OrFC (map (\fc -> Call Pre (real fc) higher) fcs)
+    let some_pre = ImpliesFC (Call Pre (real dfc) []) $  OrFC (map (\fc -> Call Pre (real fc) []) fcs)
     let fcs' = filter (\fc -> abstractedMod fc `S.member` modules infconfig) fcs
 
-    let pre_real = maybeToList $ (realToMaybeFC higher) cfc
-        as = mapMaybe (realToMaybeFC higher) fcs'
+    let pre_real = maybeToList $ (realToMaybeFC []) cfc
+        as = mapMaybe (realToMaybeFC []) fcs'
         clls = if not . isError . returns . real $ cfc
-                  then [Call All (real cfc) higher]
+                  then [Call All (real cfc) []]
                   else []
 
     return $ some_pre:clls ++ pre_real ++ as
-cexsToExtraFC (DirectCounter _ [] _) = return []
 cexsToExtraFC (CallsCounter dfc cfc [] higher)
     | isError (returns (real dfc)) = return []
     | isError (returns (real cfc)) = return []
@@ -699,6 +698,9 @@ cexsToExtraFC (CallsCounter dfc cfc [] higher)
             imp_fc = ImpliesFC (Call Pre (real dfc) higher) (Call Pre (real cfc) higher)
         in
         return $ [call_all_dfc, call_all_cfc, imp_fc]
+cexsToExtraFC (DirectCounter _ [] _) = return []
+cexsToExtraFC (DirectCounter _ _ (_:_)) = return []
+cexsToExtraFC (CallsCounter _ _ (_:_) (_:_)) = return []
 
 noAbsStatesToCons :: Id -> [ExecRes AbstractedInfo] -> [FuncConstraint]
 noAbsStatesToCons i = concatMap (noAbsStatesToCons' i) -- . filter (null . abs_calls . track . final_state)
