@@ -41,6 +41,8 @@ import Control.Monad
 
 import G2.Lib.Printers
 
+import Debug.Trace
+
 -- TODO reader / writer monad source consulted
 -- https://mmhaskell.com/monads/reader-writer
 
@@ -316,7 +318,7 @@ allTactics = [
   ]
 
 allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
-allNewLemmaTactics = map applyTacticToLabeledStates [tryEquality, tryCoinduction]
+allNewLemmaTactics = map applyTacticToLabeledStates [tryEquality, tryCoinductionAll]
 
 -- negative loop iteration count means there's no limit
 -- TODO if states is empty but n = 0, we'll get Unknown rather than UNSAT
@@ -355,7 +357,7 @@ verifyLoop solver ns lemmas states b config nc sym_ids folder_root k n | (n /= 0
   (b', k', proven, lemmas') <- verifyLoopPropLemmas solver allTactics ns lemmas b config nc folder_root k
 
   -- W.liftIO $ putStrLn $ "prop_lemmas': " ++ show (length prop_lemmas')
-  --W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length proven_lemmas)
+  W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length $ proven_lemmas lemmas')
   -- W.liftIO $ putStrLn $ "continued_lemmas: " ++ show (length continued_lemmas)
   -- W.liftIO $ putStrLn $ "disproven_lemmas: " ++ show (length disproven_lemmas)
 
@@ -524,6 +526,13 @@ verifyWithNewProvenLemmas solver nl_tactics ns proven lemmas b states = do
         tactics = concatMap (\t -> map (uncurry t) rel_states) nl_tactics
 
     --W.liftIO $ putStrLn "verifyWithNewProvenLemmas"
+    -- the new lemma tactics backtrack in the way I would want
+    -- the lemma I want applied to b22 originated in b22
+    -- lemma substitutions can happen on the backtrack state
+    -- double substitutions are allowed there
+    -- all of the past states on the opposite side can be covered with it
+    W.liftIO $ putStrLn $ "Trying " ++ show (map lemma_lhs_origin proven) ++
+               " on " ++ show (map (\(sh1, sh2) -> (folder_name $ track $ latest sh1, folder_name $ track $ latest sh2)) states)
     verifyLoop' solver tactics ns lemmas b states
 
 verifyLemmasWithNewProvenLemmas :: S.Solver solver =>
@@ -579,11 +588,57 @@ verifyLoop' solver tactics ns lemmas b states = do
                  | otherwise -> CounterexampleFound
     return (res, b')
 
+-- the states I want are contained in the history
+-- a8, a90, b9, b22
+-- that exact combination is never tried with the lemma, though
+-- that's because the combination I want is four past states
+-- the present for sh1,sh2' is a100+, b91
+-- TODO try more combinations
 applyTacticToLabeledStates :: Tactic solver -> String -> String -> Tactic solver
 applyTacticToLabeledStates tactic lbl1 lbl2 solver ns lemmas fresh_names (sh1, sh2) (s1, s2)
     | Just sh1' <- digInStateH lbl1 $ appendH sh1 s1 =
+        trace ("BACKL1 " ++ (show $ folder_name $ track $ latest sh1') ++ " " ++
+                          (show $ folder_name $ track $ latest sh1) ++ " " ++
+                          (show $ folder_name $ track $ latest sh2) ++ " " ++
+                          (show $ folder_name $ track s1) ++ " " ++
+                          (show $ folder_name $ track s2) ++ " " ++
+                          lbl1 ++ " " ++ lbl2 ++ " " ++
+                          (show $ map (folder_name . track) $ history sh1') ++ " " ++
+                          (show $ map (folder_name . track) $ history sh1) ++ " " ++
+                          (show $ map (folder_name . track) $ history sh2)) $
         tactic solver ns lemmas fresh_names (sh1', sh2) (latest sh1', latest sh2)
-    | Just sh2' <- digInStateH lbl2 $ appendH sh2 s2 =
+    | Just sh1' <- digInStateH lbl2 $ appendH sh1 s1 =
+        trace ("BACKL2 " ++ (show $ folder_name $ track $ latest sh1') ++ " " ++
+                          (show $ folder_name $ track $ latest sh1) ++ " " ++
+                          (show $ folder_name $ track $ latest sh2) ++ " " ++
+                          (show $ folder_name $ track s1) ++ " " ++
+                          (show $ folder_name $ track s2) ++ " " ++
+                          lbl1 ++ " " ++ lbl2 ++ " " ++
+                          (show $ map (folder_name . track) $ history sh1') ++ " " ++
+                          (show $ map (folder_name . track) $ history sh1) ++ " " ++
+                          (show $ map (folder_name . track) $ history sh2)) $
+        tactic solver ns lemmas fresh_names (sh1', sh2) (latest sh1', latest sh2)
+    | Just sh2' <- digInStateH lbl1 $ appendH sh2 s2 =
+        trace ("BACKR1 " ++ (show $ folder_name $ track $ latest sh2') ++ " " ++
+                          (show $ folder_name $ track $ latest sh1) ++ " " ++
+                          (show $ folder_name $ track $ latest sh2) ++ " " ++
+                          (show $ folder_name $ track s1) ++ " " ++
+                          (show $ folder_name $ track s2) ++ " " ++
+                          lbl1 ++ " " ++ lbl2 ++ " " ++
+                          (show $ map (folder_name . track) $ history sh2') ++ " " ++
+                          (show $ map (folder_name . track) $ history sh1) ++ " " ++
+                          (show $ map (folder_name . track) $ history sh2)) $
+        tactic solver ns lemmas fresh_names (sh1, sh2') (latest sh1, latest sh2')
+      | Just sh2' <- digInStateH lbl2 $ appendH sh2 s2 =
+        trace ("BACKR2 " ++ (show $ folder_name $ track $ latest sh2') ++ " " ++
+                          (show $ folder_name $ track $ latest sh1) ++ " " ++
+                          (show $ folder_name $ track $ latest sh2) ++ " " ++
+                          (show $ folder_name $ track s1) ++ " " ++
+                          (show $ folder_name $ track s2) ++ " " ++
+                          lbl1 ++ " " ++ lbl2 ++ " " ++
+                          (show $ map (folder_name . track) $ history sh2') ++ " " ++
+                          (show $ map (folder_name . track) $ history sh1) ++ " " ++
+                          (show $ map (folder_name . track) $ history sh2)) $
         tactic solver ns lemmas fresh_names (sh1, sh2') (latest sh1, latest sh2')
     | otherwise = return . NoProof $ []
 

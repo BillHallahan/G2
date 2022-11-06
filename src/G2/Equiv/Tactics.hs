@@ -13,6 +13,7 @@ module G2.Equiv.Tactics
     , tryEquality
     , moreRestrictiveEqual
     , tryCoinduction
+    , tryCoinductionAll
     , exprExtract
     , moreRestrictivePairAux
     , exprReadyForSolver
@@ -70,6 +71,8 @@ import Control.Monad.Extra
 import qualified Control.Monad.Writer.Lazy as W
 
 import Control.Exception
+
+import Debug.Trace
 
 -- the Bool value for Failure is True if a cycle has been found
 data TacticResult = Success (Maybe (Int, Int, StateET, StateET))
@@ -578,6 +581,10 @@ validCoinduction (p1, p2) (q1, q2) =
 -- TODO first pair is "current," second pair is the match from the past
 -- TODO the third entry in a prev triple is the original for left or right
 -- TODO do I still need the dc path check at the start here?
+-- TODO see if we ever get a8,a90,b9,b22
+-- that combination does get hit at least sometimes
+-- whether the right lemmas are being used is another question
+-- not getting target hit after trying b22 lemma
 moreRestrictivePairAux :: S.Solver solver =>
                           solver ->
                           ((StateET, StateET) -> (StateET, StateET) -> Bool) ->
@@ -589,10 +596,16 @@ moreRestrictivePairAux solver valid ns prev (s1, s2) | dc_path (track s1) == dc_
   let (s1', s2') = syncSymbolic s1 s2
       mr (p1, p2, pc) =
           if valid (p1, p2) (s1', s2') then
-            let hm_obs = let (p1', p2') = syncSymbolic p1 p2
+            let hm_obs = let (p1', p2') = if target
+                                          then trace "TARGET HIT" $ syncSymbolic p1 p2
+                                          else syncSymbolic p1 p2
                          in restrictHelper p2' s2' ns $
                          restrictHelper p1' s1' ns (Right (HM.empty, HS.empty))
+                target = folder p1 == "/a8" && folder p2 == "/b9" &&
+                         folder s1 == "/a90" && folder s2 == "/b22"
+                --target_str = if target then "TARGET HIT" else ""
             in
+              --trace target_str $
               mapLeft (fmap (\l -> l { lemma_name = "past_1 = " ++ folder p1
                                                   ++ " present_1 = " ++ folder s1
                                                   ++ " past_2 = " ++ folder p2
@@ -801,6 +814,25 @@ tryCoinduction solver ns lemmas _ (sh1, sh2) (s1, s2) = do
           return $ Success Nothing
         Left r_lemmas -> return . NoProof $ l_lemmas ++ r_lemmas
 
+-- TODO allow all past-present combinations to be covered
+-- keep the right fixed, iterate through all lefts
+-- this is the dual of coinductionFoldL, in a way
+tryCoinductionAll :: S.Solver s => Tactic s
+tryCoinductionAll solver ns lemmas fresh (sh1, sh2) (s1, s2) = do
+  res_l <- tryCoinduction solver ns lemmas fresh (sh1, sh2) (s1, s2)
+  case res_l of
+    Success _ -> return res_l
+    NoProof lems ->
+      case backtrackOne sh1 of
+        Nothing -> return res_l
+        Just sh1' -> do
+          res_l' <- tryCoinductionAll solver ns lemmas fresh (sh1', sh2) (latest sh1', s2)
+          case res_l' of
+            Success _ -> return res_l'
+            NoProof lems' -> return $ NoProof $ lems ++ lems'
+            _ -> error "Error from Coinduction"
+    _ -> error "Error from Coinduction"
+
 -------------------------------------------------------------------------------
 
 data Lemmas = Lemmas { proposed_lemmas :: [ProposedLemma]
@@ -917,7 +949,7 @@ substLemmaLoop i solver ns s lems = do
     --W.liftIO $ putStrLn $ "Single " ++ show i ++ " " ++ show (length lem_states)
     --W.liftIO $ mapM (print . curr_expr . lemma_lhs . fst) lem_states
     --W.liftIO $ mapM (print . curr_expr . snd) lem_states
-    W.liftIO $ mapM (print . isCase . curr_expr . snd) lem_states
+    --W.liftIO $ mapM (print . isCase . curr_expr . snd) lem_states
     lem_state_lists <- mapM (substLemmaLoopAux i solver ns lems) lem_states
     {- if null lem_state_lists then return []
     else do
@@ -1059,6 +1091,7 @@ moreRestrictivePairWithLemmas' app_state solver valid ns lemmas past_list (s1, s
 
     rp <- mapM (\((l1, s1_), (l2, s2_)) -> do
             mrp <- moreRestrictivePair solver valid ns past_list (s1_, s2_)
+            {-
             if length l1 == 2 && isCase (curr_expr s1_) {- || length l2 == 2 -} then do
               W.liftIO $ putStrLn $ "Check " ++ (show $ length l1) ++ " " ++ (show $ length l2)
               W.liftIO $ print $ map lemma_lhs_origin l1
@@ -1078,6 +1111,7 @@ moreRestrictivePairWithLemmas' app_state solver valid ns lemmas past_list (s1, s
                 Left _ -> putStrLn "Left"
                 Right _ -> putStrLn "Right"
             else return ()
+            -}
             -- TODO use synced or non-synced?
             -- TODO losing state information
             let l1' = map (\l -> (s1', l)) l1
