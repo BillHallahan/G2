@@ -410,7 +410,7 @@ runConstraintsForSynth headers vs = do
             liftIO $ setProduceUnsatCores z3_dir
             liftIO $ setProduceUnsatCores z3_max
 
-            liftIO $ T.putStrLn (TB.run $ toSolverText headers)
+            -- liftIO $ T.putStrLn (TB.run $ toSolverText headers)
             liftIO $ addFormula z3_dir headers
             liftIO $ addFormula z3_max headers
 
