@@ -111,8 +111,7 @@ changeNumTypeDC (DataCon n t) = do
     return (DataCon n t')
 
 changeNumTypeType :: Maybe Id -> Type -> LHStateM Type
-changeNumTypeType _ (TyForAll b@(NamedTyBndr i) t) = return . TyForAll b =<< changeNumTypeType (Just i) t
-changeNumTypeType i (TyForAll b t) = return . TyForAll b =<< changeNumTypeType i t
+changeNumTypeType _ (TyForAll i t) = return . TyForAll i =<< changeNumTypeType (Just i) t
 changeNumTypeType i (TyFun t t') = return . TyFun t =<< changeNumTypeType i t'
 changeNumTypeType i t = do
     ord <- ordTCM

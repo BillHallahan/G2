@@ -113,7 +113,7 @@ primDefs' b = [ ("==#", Prim Eq $ tyIntIntBool b)
               , ("rationalToDouble#", Prim RationalToDouble (TyFun TyLitInt $ TyFun TyLitInt TyLitDouble))
               , ("fromIntToDouble", Prim IntToDouble (TyFun TyLitInt TyLitDouble))
 
-              , ("dataToTag##", Prim DataToTag (TyForAll (NamedTyBndr a) (TyFun (TyVar a) TyLitInt)))
+              , ("dataToTag##", Prim DataToTag (TyForAll a (TyFun (TyVar a) TyLitInt)))
               , ("tagToEnum#", 
                     Lam TypeL a
                         . Lam TermL (y tyvarA)
@@ -121,7 +121,7 @@ primDefs' b = [ ("==#", Prim Eq $ tyIntIntBool b)
                             [ Alt Default
                                    $ App
                                         (App
-                                            (Prim TagToEnum (TyForAll (NamedTyBndr a) (TyFun TyLitInt tyvarA)))
+                                            (Prim TagToEnum (TyForAll a (TyFun TyLitInt tyvarA)))
                                             (Var a))
                                         (Var $ y tyvarA)
 

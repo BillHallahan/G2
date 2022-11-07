@@ -47,7 +47,7 @@ addTypeLams e =
 
 addTypeLams' :: Type -> Expr -> LHStateM Expr
 addTypeLams' (TyForAll _ t) (Lam TypeL i e) = return . Lam TypeL i =<< addTypeLams' t e
-addTypeLams' (TyForAll (NamedTyBndr i) t) e =
+addTypeLams' (TyForAll i t) e =
     return . Lam TypeL i =<< addTypeLams' t (App e (Type (TyVar i)))
 addTypeLams' _ e = return e
 
@@ -201,12 +201,12 @@ addLHDictToTypes' m (Case e i t a) = do
 addLHDictToTypes' _ e = return e
 
 addLHDictToTypes'' :: HM.HashMap Name Id -> Type -> LHStateM Type
-addLHDictToTypes'' m t@(TyForAll (NamedTyBndr _) _) = addLHDictToTypes''' m [] t
+addLHDictToTypes'' m t@(TyForAll _ _) = addLHDictToTypes''' m [] t
 addLHDictToTypes'' m t = modifyChildrenM (addLHDictToTypes'' m) t
 
 addLHDictToTypes''' :: HM.HashMap Name Id -> [Id] -> Type -> LHStateM Type
-addLHDictToTypes''' m is (TyForAll (NamedTyBndr b) t) =
-    return . TyForAll (NamedTyBndr b) =<< addLHDictToTypes''' m (b:is) t
+addLHDictToTypes''' m is (TyForAll b t) =
+    return . TyForAll b =<< addLHDictToTypes''' m (b:is) t
 addLHDictToTypes''' m is t = do
     lh <- lhTCM
     let is' = reverse is

@@ -239,13 +239,6 @@ altMatch (Alt am _) = am
 altExpr :: Alt -> Expr
 altExpr (Alt _ e) = e
 
--- | Used in the `TyForAll`, to bind an `Id` to a `Type`
-data TyBinder = AnonTyBndr Type
-              | NamedTyBndr Id
-              deriving (Show, Eq, Read, Generic, Typeable, Data, Ord)
-
-instance Hashable TyBinder
-
 data Coercion = Type :~ Type deriving (Eq, Show, Read, Generic, Typeable, Data)
 
 instance Hashable Coercion
@@ -267,7 +260,7 @@ data Type = TyVar Id
           | TyFun Type Type
           | TyApp Type Type
           | TyCon Name Kind
-          | TyForAll TyBinder Type
+          | TyForAll Id Type
           | TyBottom
           | TYPE
           | TyUnknown

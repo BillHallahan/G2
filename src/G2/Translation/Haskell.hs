@@ -690,11 +690,11 @@ mkData nm tm datacon = G2.DataCon name ty
 mkDataName :: G2.NameMap -> DataCon -> G2.Name
 mkDataName nm datacon = (flip mkNameLookup nm . dataConName) datacon
 
-mkTyBinder :: G2.TypeNameMap -> TyVarBinder -> G2.TyBinder
+mkTyBinder :: G2.TypeNameMap -> TyVarBinder -> G2.Id
 #if __GLASGOW_HASKELL__ < 808
-mkTyBinder tm (TvBndr v _) = G2.NamedTyBndr (mkId tm v)
+mkTyBinder tm (TvBndr v _) = mkId tm v
 #else
-mkTyBinder tm (Bndr v _) = G2.NamedTyBndr (mkId tm v)
+mkTyBinder tm (Bndr v _) = mkId tm v
 #endif
 
 mkCoercion :: G2.TypeNameMap -> Coercion -> G2.Coercion

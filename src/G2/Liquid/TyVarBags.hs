@@ -85,7 +85,7 @@ assignBagFuncNames tenv =
                 fn <- mapM
                         (\(i, tbi) -> do
                             n_fn <- freshSeededNameN (mkName i)
-                            let t = foldr (\ntb -> TyForAll (NamedTyBndr ntb))
+                            let t = foldr (\ntb -> TyForAll ntb)
                                     (TyFun (returnType dc) (TyVar tbi)) bi
                             return $ Id n_fn t)
                         $ zip [0 :: Int ..] bi
@@ -215,7 +215,7 @@ assignInstFuncNames tenv =
                 fn <- freshSeededNameN (Name (n `T.append` "_inst_") m 0 Nothing)
 
                 let adt_i = mkFullAppedTyCon tn (map TyVar bi) TYPE
-                let t = foldr (\ntb -> TyForAll (NamedTyBndr ntb)) 
+                let t = foldr (\ntb -> TyForAll ntb)
                             (foldr (\i -> TyFun (TyVar i)) adt_i bi) bi
 
                 return (tn, Id fn t)

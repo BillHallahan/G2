@@ -52,11 +52,6 @@ instance Ided AltMatch where
     ids (DataAlt dc i) = ids dc ++ i
     ids _ = []
 
-instance Ided TyBinder where
-    {-# INLINE ids #-}
-    ids (AnonTyBndr t) = ids t
-    ids (NamedTyBndr i) = ids i
-
 instance Ided Coercion where
     {-# INLINE ids #-}
     ids (t1 :~ t2) = ids t1 ++ ids t2

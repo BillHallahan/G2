@@ -197,7 +197,7 @@ instance Typed Expr where
         appTypeOf M.empty t as
     typeOf' m (Lam u b e) =
         case u of
-            TypeL -> TyForAll (NamedTyBndr b) (typeOf' m e)
+            TypeL -> TyForAll b (typeOf' m e)
             TermL -> TyFun (typeOf' m b) (typeOf' m e)
     typeOf' m (Let _ expr) = typeOf' m expr
     typeOf' _ (Case _ _ t _) = t
@@ -223,12 +223,12 @@ appCenter (App a _) = appCenter a
 appCenter e = e
 
 appTypeOf :: M.Map Name Type -> Type -> [Expr] -> Type
-appTypeOf m (TyForAll (NamedTyBndr i) t) (Type t':es) =
+appTypeOf m (TyForAll i t) (Type t':es) =
     let
         m' = M.insert (idName i) (tyVarRename m t') m
     in
     appTypeOf m' t es
-appTypeOf m (TyForAll (NamedTyBndr _) t) (_:es) = appTypeOf m t es
+appTypeOf m (TyForAll _ t) (_:es) = appTypeOf m t es
 appTypeOf m (TyFun _ t) (_:es) = appTypeOf m t es
 appTypeOf m t [] = tyVarRename m t
 appTypeOf m (TyVar (Id n _)) es =
@@ -252,8 +252,7 @@ instance Typed Type where
             ((TyApp t1' _), _) -> t1'
             _ -> error $ "Overapplied Type\n" ++ show t1 ++ "\n" ++ show t2 ++ "\n\n" ++ show ft ++ "\n" ++ show at
     typeOf' _ (TyCon _ t) = t
-    typeOf' m (TyForAll (NamedTyBndr b) t) = TyApp (typeOf b) (typeOf' m t)
-    typeOf' m (TyForAll _ t) = typeOf' m t
+    typeOf' m (TyForAll b t) = TyApp (typeOf b) (typeOf' m t)
     typeOf' _ TyLitInt = TYPE
     typeOf' _ TyLitFloat = TYPE
     typeOf' _ TyLitDouble = TYPE
@@ -293,7 +292,7 @@ retypeRespectingTyForAll :: (ASTContainer m Type, Show m) => Id -> Type -> m -> 
 retypeRespectingTyForAll key new = modifyContainedASTs (retypeRespectingTyForAll' key new)
 
 retypeRespectingTyForAll' :: Id -> Type -> Type -> Type
-retypeRespectingTyForAll' i _ t@(TyForAll (NamedTyBndr ni) _) | i == ni = t
+retypeRespectingTyForAll' i _ t@(TyForAll ni _) | i == ni = t
 retypeRespectingTyForAll' key new (TyVar test) = if idName key == idName test then new else TyVar test
 retypeRespectingTyForAll' key new ty = modifyChildren (retypeRespectingTyForAll' key new) ty
 
@@ -333,20 +332,7 @@ specializes' m (TyApp t1 t2) (TyApp t1' t2') = do
     m' <- specializes' m t1 t1'
     specializes' m' t2 t2'
 specializes' m (TyCon n _) (TyCon n' _) = if n == n' then Just m else Nothing
-specializes' m (TyFun t1 t2) (TyForAll (AnonTyBndr t1') t2') = do
-    m' <- specializes' m t1 t1'
-    specializes' m' t2 t2'
-specializes' m (TyFun t1 t2) (TyForAll (NamedTyBndr _) t2') =
-  specializes' m (TyFun t1 t2) t2'
-specializes' m (TyForAll (AnonTyBndr t1) t2) (TyFun t1' t2') = do
-    m' <- specializes' m t1 t1'
-    specializes' m' t2 t2'
-specializes' m (TyForAll (AnonTyBndr t1) t2) (TyForAll (AnonTyBndr t1') t2') = do
-    m' <- specializes' m t1 t1'
-    specializes' m' t2 t2'
-specializes' m (TyForAll (AnonTyBndr t1) t2) (TyForAll (NamedTyBndr _) t2') =
-  specializes' m (TyForAll (AnonTyBndr t1) t2) t2'
-specializes' m (TyForAll (NamedTyBndr (Id _ t1)) t2) (TyForAll (NamedTyBndr (Id _ t1')) t2') = do
+specializes' m (TyForAll (Id _ t1) t2) (TyForAll  (Id _ t1') t2') = do
     m' <- specializes' m t1 t1'
     specializes' m' t2 t2'
 specializes' m t (TyForAll _ t') =
@@ -473,8 +459,7 @@ argumentTypes :: Typed t => t -> [Type]
 argumentTypes = argumentTypes' . typeOf
 
 argumentTypes' :: Type -> [Type]
-argumentTypes' (TyForAll (AnonTyBndr t1) t2) = t1:argumentTypes' t2
-argumentTypes' (TyForAll (NamedTyBndr _) t2) = TYPE:argumentTypes' t2
+argumentTypes' (TyForAll _ t2) = TYPE:argumentTypes' t2
 argumentTypes' (TyFun t1 t2) = t1:argumentTypes' t2
 argumentTypes' _ = []
 
@@ -490,8 +475,7 @@ spArgumentTypes :: Typed t => t -> [ArgType]
 spArgumentTypes = spArgumentTypes' . typeOf
 
 spArgumentTypes' :: Type -> [ArgType]
-spArgumentTypes' (TyForAll (AnonTyBndr t1) t2) = AnonType t1:spArgumentTypes' t2
-spArgumentTypes' (TyForAll (NamedTyBndr i) t2) = NamedType i:spArgumentTypes' t2
+spArgumentTypes' (TyForAll i t2) = NamedType i:spArgumentTypes' t2
 spArgumentTypes' (TyFun t1 t2) = AnonType t1:spArgumentTypes' t2
 spArgumentTypes' _ = []
 
@@ -499,15 +483,14 @@ leadingTyForAllBindings :: Typed t => t -> [Id]
 leadingTyForAllBindings = leadingTyForAllBindings' . typeOf
 
 leadingTyForAllBindings' :: Type -> [Id]
-leadingTyForAllBindings' (TyForAll (NamedTyBndr i) t) = i:leadingTyForAllBindings' t
+leadingTyForAllBindings' (TyForAll i t) = i:leadingTyForAllBindings' t
 leadingTyForAllBindings' _ = []
 
 tyForAllBindings :: Typed t => t -> [Id]
 tyForAllBindings = tyForAllBindings' . typeOf
 
 tyForAllBindings' :: Type -> [Id]
-tyForAllBindings' (TyForAll (NamedTyBndr i) t) = i:tyForAllBindings' t
-tyForAllBindings' (TyForAll _ t) = tyForAllBindings' t
+tyForAllBindings' (TyForAll i t) = i:tyForAllBindings' t
 tyForAllBindings' (TyFun t t') = tyForAllBindings' t ++ tyForAllBindings t'
 tyForAllBindings' _ = []
 
@@ -534,7 +517,7 @@ polyIds = fst . splitTyForAlls
 
 -- | Turns TyForAll types into a list of type ids
 splitTyForAlls :: Type -> ([Id], Type)
-splitTyForAlls (TyForAll (NamedTyBndr i) t) =
+splitTyForAlls (TyForAll i t) =
     let
         (i', t') = splitTyForAlls t
     in
@@ -561,7 +544,7 @@ numTypeArgs :: Typed t => t -> Int
 numTypeArgs = numTypeArgs' . typeOf
 
 numTypeArgs' :: Type -> Int
-numTypeArgs' (TyForAll (NamedTyBndr _) t) = 1 + numTypeArgs' t
+numTypeArgs' (TyForAll _ t) = 1 + numTypeArgs' t
 numTypeArgs' _ = 0
 
 -- | Converts nested TyApps into a list of Expr-level Types
