@@ -416,7 +416,7 @@ convertLHExpr m bt rt eapp@(EApp e e') = do
 
             case (ctArgE, f_ar_ts) of
                 (_, Just f_ar_ts') -> do
-                    let specTo = concatMap (map snd) $ map M.toList $ map (snd . uncurry specializes) $ zip ts f_ar_ts'
+                    let specTo = concatMap (map snd) $ map M.toList $ map (fromJust . uncurry specializes) $ zip ts f_ar_ts'
                         te = map Type specTo
 
                     tcs <- mapM (lhTCDict m) ts
