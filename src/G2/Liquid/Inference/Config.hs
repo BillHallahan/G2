@@ -53,6 +53,7 @@ import Control.Monad.Reader
 import Control.Monad.State.Lazy
 import qualified Data.HashSet as S
 import qualified Data.Map as M
+import Data.Maybe (isJust)
 import Data.Monoid ((<>))
 import qualified Data.Text as T
 import Data.Time.Clock
@@ -404,7 +405,7 @@ tyVarNoMeas meas tcv ghci e =
         rel_t = extractValues . extractTypePolyBound $ returnType e
         rel_meas = E.filter (\e -> 
                             case filter notLH . argumentTypes . PresType . inTyForAlls $ typeOf e of
-                                  [t] -> any (\t' -> fst $ t' `specializes` t) rel_t
+                                  [t] -> any (\t' -> isJust $ t' `specializes` t) rel_t
                                   _ -> False ) meas'
     in
     E.null rel_meas

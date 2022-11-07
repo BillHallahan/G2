@@ -430,7 +430,7 @@ substHigherOrder eenv m ns ce =
     substHigherOrder' [(eenv, m, ce)] higherOrdSub
     where
         genSubstitutable v i
-            | (True, bm) <- specializes (typeOf v) (typeOf i) =
+            | Just bm <- specializes (typeOf v) (typeOf i) =
                 let
                     bnds = map idName $ leadingTyForAllBindings i
                     tys = mapMaybe (\b -> fmap Type $ M.lookup b bm) bnds

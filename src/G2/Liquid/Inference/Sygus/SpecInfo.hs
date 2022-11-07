@@ -383,17 +383,21 @@ mkSpecArg mx_meas ghci tenv meas symb t =
             in
             mapMaybe
                 (\(mn, (at, rt)) ->
-                    let
-                        (_, vm) = t `specializes` at
-                        rt' = applyTypeMap vm rt
-                    in
-                    fmap (\srt' ->
+                    let vm = t `specializes` at in
+                    case vm of
+                        Just vm' ->
                             let
-                                lh_mn = map (getLHMeasureName ghci) mn
+                                
+                                rt' = applyTypeMap vm' rt
                             in
-                            SpecArg { lh_rep = foldr EApp (EVar symb) $ map EVar lh_mn
-                                    , smt_var = "tbd"
-                                    , smt_sort = srt'}) $ typeToSort rt') app_meas'
+                            fmap (\srt' ->
+                                    let
+                                        lh_mn = map (getLHMeasureName ghci) mn
+                                    in
+                                    SpecArg { lh_rep = foldr EApp (EVar symb) $ map EVar lh_mn
+                                            , smt_var = "tbd"
+                                            , smt_sort = srt'}) $ typeToSort rt'
+                        Nothing -> Nothing) app_meas'
 
 ret :: [SpecArg] -> ArgsAndRet
 ret sa = AAndR { aar_a = [], aar_r = sa }

@@ -76,6 +76,7 @@ import qualified G2.Language.KnownValues as KV
 import G2.Language.Syntax
 
 import qualified Data.Map as M
+import Data.Maybe
 import qualified Data.List as L
 import Data.Monoid hiding (Alt)
 
@@ -306,7 +307,7 @@ tyVarRename' _ t = t
 -- | Returns if the first type given is a specialization of the second,
 -- i.e. if given t1, t2, returns true iff t1 :: t2
 (.::) :: Typed t => t -> Type -> Bool
-t1 .:: t2 = fst $ specializes (typeOf t1) t2
+t1 .:: t2 = isJust $ specializes (typeOf t1) t2
 {-# INLINE (.::) #-}
 
 -- | Checks if the first type is equivalent to the second type.
@@ -315,60 +316,46 @@ t1 .:: t2 = fst $ specializes (typeOf t1) t2
 t1 .::. t2 = PresType t1 .:: t2 && PresType t2 .:: t1
 {-# INLINE (.::.) #-}
 
-specializes :: Type -> Type -> (Bool, M.Map Name Type)
+specializes :: Type -> Type -> Maybe (M.Map Name Type)
 specializes = specializes' M.empty
 
-specializes' :: M.Map Name Type -> Type -> Type -> (Bool, M.Map Name Type)
-specializes' m _ TYPE = (True, m)
+specializes' :: M.Map Name Type -> Type -> Type -> Maybe (M.Map Name Type)
+specializes' m _ TYPE = Just m
 specializes' m t (TyVar (Id n _)) =
     case M.lookup n m of
-        Just (TyVar _) -> (True, m)
-        Just t' -> specializes' m t t'
-        Nothing -> (True, M.insert n t m)
-specializes' m (TyFun t1 t2) (TyFun t1' t2') =
-    let
-        (b1, m') = specializes' m t1 t1'
-        (b2, m'') = specializes' m' t2 t2'
-    in
-    (b1 && b2, m'')
-specializes' m (TyApp t1 t2) (TyApp t1' t2') =
-    let
-        (b1, m') = specializes' m t1 t1'
-        (b2, m'') = specializes' m' t2 t2'
-    in
-    (b1 && b2, m'')
-specializes' m (TyCon n _) (TyCon n' _) = (n == n', m)
-specializes' m (TyFun t1 t2) (TyForAll (AnonTyBndr t1') t2') =
-  let
-      (b1, m') = specializes' m t1 t1'
-      (b2, m'') = specializes' m' t2 t2'
-  in (b1 && b2, m'')
+        Just t' | t == t' -> Just m
+                | otherwise -> Nothing
+        Nothing -> Just (M.insert n t m)
+specializes' m (TyFun t1 t2) (TyFun t1' t2') = do
+    m' <- specializes' m t1 t1'
+    specializes' m' t2 t2'
+specializes' m (TyApp t1 t2) (TyApp t1' t2') = do
+    m' <- specializes' m t1 t1'
+    specializes' m' t2 t2'
+specializes' m (TyCon n _) (TyCon n' _) = if n == n' then Just m else Nothing
+specializes' m (TyFun t1 t2) (TyForAll (AnonTyBndr t1') t2') = do
+    m' <- specializes' m t1 t1'
+    specializes' m' t2 t2'
 specializes' m (TyFun t1 t2) (TyForAll (NamedTyBndr _) t2') =
   specializes' m (TyFun t1 t2) t2'
-specializes' m (TyForAll (AnonTyBndr t1) t2) (TyFun t1' t2') =
-  let
-      (b1, m') = specializes' m t1 t1'
-      (b2, m'') = specializes' m' t2 t2'
-  in (b1 && b2, m'')
-specializes' m (TyForAll (AnonTyBndr t1) t2) (TyForAll (AnonTyBndr t1') t2') =
-  let
-      (b1, m') = specializes' m t1 t1'
-      (b2, m'') = specializes' m' t2 t2'
-  in (b1 && b2, m'')
+specializes' m (TyForAll (AnonTyBndr t1) t2) (TyFun t1' t2') = do
+    m' <- specializes' m t1 t1'
+    specializes' m' t2 t2'
+specializes' m (TyForAll (AnonTyBndr t1) t2) (TyForAll (AnonTyBndr t1') t2') = do
+    m' <- specializes' m t1 t1'
+    specializes' m' t2 t2'
 specializes' m (TyForAll (AnonTyBndr t1) t2) (TyForAll (NamedTyBndr _) t2') =
   specializes' m (TyForAll (AnonTyBndr t1) t2) t2'
-specializes' m (TyForAll (NamedTyBndr (Id _ t1)) t2) (TyForAll (NamedTyBndr (Id _ t1')) t2') =
-  let
-      (b1, m') = specializes' m t1 t1'
-      (b2, m'') = specializes' m' t2 t2'
-  in (b1 && b2, m'')
+specializes' m (TyForAll (NamedTyBndr (Id _ t1)) t2) (TyForAll (NamedTyBndr (Id _ t1')) t2') = do
+    m' <- specializes' m t1 t1'
+    specializes' m' t2 t2'
 specializes' m t (TyForAll _ t') =
   specializes' m t t'
-specializes' m TyUnknown _ = (True, m)
-specializes' m _ TyUnknown = (True, m)
-specializes' m TyBottom _ = (True, m)
-specializes' m _ TyBottom = (False, m)
-specializes' m t1 t2 = (t1 == t2, m)
+specializes' m TyUnknown _ = Just m
+specializes' m _ TyUnknown = Just m
+specializes' m TyBottom _ = Just m
+specializes' _ _ TyBottom = Nothing
+specializes' m t1 t2 = if t1 == t2 then Just m else Nothing
 
 applyTypeMap :: ASTContainer e Type => M.Map Name Type -> e -> e
 applyTypeMap m = modifyASTs (applyTypeMap' m)

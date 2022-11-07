@@ -6,6 +6,8 @@ import Prelude hiding (either, maybe)
 
 import G2.Language
 
+import Data.Maybe (isNothing)
+
 import Test.Tasty
 import Test.Tasty.HUnit
 
@@ -27,6 +29,7 @@ typingTests =
 
     , testCase "Specializes false test 1" $ assertBool ".:: failed" specFalseTest1
     , testCase "Specializes false test 2" $ assertBool ".:: failed" specFalseTest2
+    , testCase "Specializes false test 3" $ assertBool ".:: failed" specFalseTest3
     ]
 
 test1 :: Bool
@@ -85,6 +88,16 @@ specFalseTest1 = not $ Var (Id (Name "x1" Nothing 0 Nothing) a) .:: int
 
 specFalseTest2 :: Bool
 specFalseTest2 = not $ f3 .:: typeOf f2
+
+specFalseTest3 :: Bool
+specFalseTest3 =
+    let
+        c = Id (Name "c" Nothing 0 Nothing) TYPE
+
+        t1 = TyFun (TyVar aid) (TyVar bid)
+        t2 = TyFun (TyVar c) (TyVar c)
+    in
+    isNothing $ t1 `specializes` t2 
 
 -- Typed Expr's
 x1 :: Expr
