@@ -320,6 +320,7 @@ allTactics = [
 allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
 allNewLemmaTactics = [
     applyTacticToLabeledStates tryEquality
+  --, applyTacticToLabeledStates tryCoinduction
   , (\str1 str2 -> tryCoinductionAll)
   ]
 
@@ -541,6 +542,9 @@ verifyWithNewProvenLemmas solver nl_tactics ns proven lemmas b states = do
                show (map lemma_rhs_origin proven) ++
                show (map lemma_name proven) ++
                " on " ++ show (map (\(sh1, sh2) -> (folder_name $ track $ latest sh1, folder_name $ track $ latest sh2)) states)
+    W.liftIO $ print $ map ((map (folder_name . track)) . history . fst) states
+    W.liftIO $ print $ map ((map (folder_name . track)) . history . snd) states
+    W.liftIO $ putStrLn "END VWNPL"
     verifyLoop' solver tactics ns lemmas b states
 
 verifyLemmasWithNewProvenLemmas :: S.Solver solver =>

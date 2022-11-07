@@ -772,6 +772,10 @@ coinductionFoldL :: S.Solver solver =>
                     W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
 coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) = do
   let prev = prevFull (sh1, sh2)
+  W.liftIO $ putStrLn "CFL"
+  W.liftIO $ print $ map (folder_name . track . fst) prev
+  W.liftIO $ print $ map (folder_name . track . snd) prev
+  W.liftIO $ putStrLn "END CFL"
   res <- moreRestrictivePairWithLemmasOnFuncApps solver validCoinduction ns lemmas prev (s1', s2')
   case res of
     Right _ -> return res
@@ -1091,27 +1095,28 @@ moreRestrictivePairWithLemmas' app_state solver valid ns lemmas past_list (s1, s
 
     rp <- mapM (\((l1, s1_), (l2, s2_)) -> do
             mrp <- moreRestrictivePair solver valid ns past_list (s1_, s2_)
-            {-
-            if length l1 == 2 && isCase (curr_expr s1_) {- || length l2 == 2 -} then do
+            if {-length l1 == 2 &&-} isCase (curr_expr s1_) {-&& length l2 == 0-} then do
               W.liftIO $ putStrLn $ "Check " ++ (show $ length l1) ++ " " ++ (show $ length l2)
               W.liftIO $ print $ map lemma_lhs_origin l1
               W.liftIO $ print $ map lemma_rhs_origin l1
-              W.liftIO $ putStrLn $ folder_name $ track s1_
-              W.liftIO $ putStrLn $ folder_name $ track s1'
-              W.liftIO $ print $ map (curr_expr . lemma_lhs) l1
-              W.liftIO $ print $ map (curr_expr . lemma_lhs) l2
+              W.liftIO $ print $ map (folder_name . track) [s1_, s2_, s1', s2']
+              W.liftIO $ print $ map (folder_name . track . fst) past_list
+              W.liftIO $ print $ map (folder_name . track . snd) past_list
+              --W.liftIO $ print $ map (curr_expr . lemma_lhs) l1
+              --W.liftIO $ print $ map (curr_expr . lemma_lhs) l2
+              W.liftIO $ print $ map lemma_name l1
+              W.liftIO $ print $ map lemma_name l2
               -- TODO s1_ and s2_ are not the states I care about?
               -- one is left, one is right
               -- which states are the past states?
               -- TODO there isn't a single past state I can isolate here
-              W.liftIO $ print $ curr_expr s1_
-              W.liftIO $ print $ curr_expr s1'
+              --W.liftIO $ print $ curr_expr s1_
+              --W.liftIO $ print $ curr_expr s1'
               --W.liftIO $ print $ curr_expr s2_
               W.liftIO $ case mrp of
                 Left _ -> putStrLn "Left"
                 Right _ -> putStrLn "Right"
             else return ()
-            -}
             -- TODO use synced or non-synced?
             -- TODO losing state information
             let l1' = map (\l -> (s1', l)) l1
