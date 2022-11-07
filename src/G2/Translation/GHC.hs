@@ -12,6 +12,7 @@ module G2.Translation.GHC ( module GHC
                           , module GHC.Core.TyCon
                           , module GHC.Data.FastString
                           , module GHC.Data.Pair
+                          , module GHC.Driver.Config.Tidy
                           , module GHC.Driver.Main
                           , module GHC.Driver.Session
                           , module GHC.Iface.Tidy
@@ -53,6 +54,7 @@ import GHC.Core.TyCo.Rep
 import GHC.Core.TyCon
 import GHC.Data.FastString
 import GHC.Data.Pair
+import GHC.Driver.Config.Tidy
 import GHC.Driver.Main
 import GHC.Driver.Session
 import GHC.Iface.Tidy
