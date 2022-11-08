@@ -816,7 +816,7 @@ integralT = do
 
     let integral' = L.TyCon integral L.TYPE
 
-    return $ L.TyForAl a
+    return $ L.TyForAll a
                     (L.TyFun
                         integral'
                         (L.TyFun
