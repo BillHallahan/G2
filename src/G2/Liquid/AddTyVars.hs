@@ -203,7 +203,7 @@ mkNewJustDC new_mb =
 
         a = new_maybe_bound new_mb
         tya = TyVar (Id a TYPE)
-        t = TyForAll (NamedTyBndr (Id a TYPE))
+        t = TyForAll (Id a TYPE)
           . TyFun tya
           $ TyApp (TyCon (new_maybe new_mb) TYPE) tya
     in
@@ -216,7 +216,7 @@ mkNewNothingDC new_mb =
 
         a = new_maybe_bound new_mb
         tya = TyVar (Id a TYPE)
-        t = TyForAll (NamedTyBndr (Id a TYPE))
+        t = TyForAll (Id a TYPE)
           $ TyApp (TyCon (new_maybe new_mb) TYPE) tya
     in
     DataCon n t

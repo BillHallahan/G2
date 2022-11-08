@@ -431,7 +431,6 @@ typeToSMT TyLitDouble = SortDouble
 typeToSMT TyLitFloat = SortFloat
 typeToSMT TyLitChar = SortChar
 typeToSMT (TyCon (Name "Bool" _ _ _) _) = SortBool
-typeToSMT (TyForAll (AnonTyBndr _) t) = typeToSMT t
 typeToSMT t = error $ "Unsupported type in typeToSMT: " ++ show t
 
 merge :: TB.Builder -> TB.Builder -> TB.Builder

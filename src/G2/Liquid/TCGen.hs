@@ -128,7 +128,7 @@ lhtcT n adt = do
             )
 
     let t' = foldr TyFun t $ map (TyApp (TyCon lh (TyFun TYPE TYPE)) . TyVar) bi
-    let t'' = foldr TyForAll t' $ map NamedTyBndr bi
+    let t'' = foldr TyForAll t' bi
     return t''
 
 lhName :: T.Text -> Name -> LHStateM Name
@@ -320,7 +320,7 @@ eqLHFuncCall ldm i1 i2
         b <- tyBoolT
 
         lhd <- lhTCDict' ldm t
-        let lhv = App (Var $ Id lhe (TyForAll (NamedTyBndr i) (TyFun (typeOf lhd) (TyFun (TyVar i) (TyFun (TyVar i) b))))) (Type t)
+        let lhv = App (Var $ Id lhe (TyForAll i (TyFun (typeOf lhd) (TyFun (TyVar i) (TyFun (TyVar i) b))))) (Type t)
 
         return $ foldl' App (App lhv lhd) [Var i1, Var i2]
 
@@ -332,7 +332,7 @@ eqLHFuncCall ldm i1 i2
 
         lhd <- lhTCDict' ldm t
 
-        let lhv = App (Var (Id lhe (TyForAll (NamedTyBndr i) (TyFun (typeOf lhd) (TyFun (TyVar i) (TyFun (TyVar i) b)))))) (Type t)
+        let lhv = App (Var (Id lhe (TyForAll i (TyFun (typeOf lhd) (TyFun (TyVar i) (TyFun (TyVar i) b)))))) (Type t)
         return $ App (App (App lhv lhd) (Var i1)) (Var i2)
 
     | TyFun _ _ <- t = mkTrueE
@@ -562,7 +562,7 @@ createExtractors'' lh i j n = do
 
     b <- freshIdN TYPE
     let d = DataCon lh (TyForAll 
-                            (NamedTyBndr b) 
+                            b
                             (TyFun
                                 (TyVar b) 
                                 (TyApp (TyCon lh (TyApp TYPE TYPE)) (TyVar b))

@@ -302,7 +302,7 @@ structEqFuncType kv n =
         dict = structEqTC kv
         bool = L.tyBool kv
     in
-    TyForAll (NamedTyBndr i)
+    TyForAll i
         (TyFun (TyCon dict TYPE) 
             (TyFun (TyVar i) 
                 (TyFun (TyVar i) bool)

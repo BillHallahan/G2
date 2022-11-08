@@ -309,17 +309,6 @@ instance ASTContainer Alt Type where
     modifyContainedASTs f (Alt a e) =
         Alt (modifyContainedASTs f a) (modifyContainedASTs f e)
 
-instance ASTContainer TyBinder Expr where
-    containedASTs _ = []
-    modifyContainedASTs _ b = b
-
-instance ASTContainer TyBinder Type where
-    containedASTs (AnonTyBndr t) = [t]
-    containedASTs (NamedTyBndr i) = containedASTs i
-
-    modifyContainedASTs f (AnonTyBndr t) = AnonTyBndr (f t)
-    modifyContainedASTs f (NamedTyBndr i) = NamedTyBndr (modifyContainedASTs f i)
-
 instance ASTContainer Coercion Expr where
     containedASTs _ = []
     modifyContainedASTs _ c = c

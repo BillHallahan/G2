@@ -157,11 +157,6 @@ instance ASTContainerM Id Expr where
 instance ASTContainerM Id Type where
     modifyContainedASTsM f (Id n t) = return . Id n =<< f t
 
-instance ASTContainerM TyBinder Type where
-    modifyContainedASTsM f (AnonTyBndr t) = return . AnonTyBndr =<< f t
-    modifyContainedASTsM f (NamedTyBndr i) =
-        return . NamedTyBndr =<< modifyContainedASTsM f i
-
 instance ASTContainerM DataCon Expr where
     {-# INLINE modifyContainedASTsM #-}
     modifyContainedASTsM _ dc = return dc

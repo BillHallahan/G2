@@ -179,7 +179,7 @@ typeNames = evalASTs typeTopNames
 typeTopNames :: Type -> [Name]
 typeTopNames (TyVar i) = [idName i]
 typeTopNames (TyCon n _) = [n]
-typeTopNames (TyForAll (NamedTyBndr v) _) = [idName v]
+typeTopNames (TyForAll v _) = [idName v]
 typeTopNames _ = []
 
 doRename :: Named a => Name -> NameGen -> a -> (a, NameGen)
@@ -381,7 +381,7 @@ instance Named Type where
         where
             go (TyVar i) = idNamesInType i
             go (TyCon n _) = S.singleton n
-            go (TyForAll b _) = tyBinderNamesInType b
+            go (TyForAll b _) = idNamesInType b
             go _ = S.empty
 
     rename old new = modify go
@@ -389,7 +389,7 @@ instance Named Type where
         go :: Type -> Type
         go (TyVar i) = TyVar (renameIdInType old new i)
         go (TyCon n ts) = TyCon (rename old new n) ts
-        go (TyForAll tb t) = TyForAll (renameTyBinderInType old new tb) t
+        go (TyForAll tb t) = TyForAll (renameIdInType old new tb) t
         go t = t
 
     renames hm = modify go
@@ -397,28 +397,16 @@ instance Named Type where
         go :: Type -> Type
         go (TyVar i) = TyVar (renamesIdInType hm i)
         go (TyCon n ts) = TyCon (renames hm n) ts
-        go (TyForAll tb t) = TyForAll (renamesTyBinderInType hm tb) t
+        go (TyForAll tb t) = TyForAll (renamesIdInType hm tb) t
         go t = t
 
--- We don't want both modify and go to recurse on the Type's in TyBinders or Ids
+-- We don't want both modify and go to recurse on the Type's in Ids
 -- so we introduce functions to collect or rename only the Names directly in those types
-tyBinderNamesInType :: TyBinder -> S.Seq Name
-tyBinderNamesInType (NamedTyBndr i) = idNamesInType i
-tyBinderNamesInType _ = S.empty
-
 idNamesInType :: Id -> S.Seq Name
 idNamesInType (Id n _) = S.singleton n
 
-renameTyBinderInType :: Name -> Name -> TyBinder -> TyBinder
-renameTyBinderInType old new (NamedTyBndr i) = NamedTyBndr $ renameIdInType old new i
-renameTyBinderInType _ _ tyb = tyb
-
 renameIdInType :: Name -> Name -> Id -> Id
 renameIdInType old new (Id n t) = Id (rename old new n) t
-
-renamesTyBinderInType :: HM.HashMap Name Name -> TyBinder -> TyBinder
-renamesTyBinderInType hm (NamedTyBndr i) = NamedTyBndr $ renamesIdInType hm i
-renamesTyBinderInType _ tyb = tyb
 
 renamesIdInType :: HM.HashMap Name Name -> Id -> Id
 renamesIdInType hm (Id n t) = Id (renames hm n) t
@@ -459,16 +447,6 @@ instance Named AltMatch where
     renames hm (DataAlt dc i) =
         DataAlt (renames hm dc) (renames hm i)
     renames _ am = am
-
-instance Named TyBinder where
-    names (AnonTyBndr t) = names t
-    names (NamedTyBndr i) = names i
-
-    rename old new (AnonTyBndr t) = AnonTyBndr (rename old new t)
-    rename old new (NamedTyBndr i) = NamedTyBndr (rename old new i)
-
-    renames hm (AnonTyBndr t) = AnonTyBndr (renames hm t)
-    renames hm (NamedTyBndr i) = NamedTyBndr (renames hm i)
 
 instance Named Coercion where
     names (t1 :~ t2) = names t1 <> names t2

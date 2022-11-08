@@ -69,7 +69,7 @@ funcAppTest :: Bool
 funcAppTest = typeOf (App (App idDef (Type int)) x1) == int
 
 funcTest :: Bool
-funcTest = idDef .:: (TyForAll (NamedTyBndr aid) (TyFun a a))
+funcTest = idDef .:: (TyForAll aid (TyFun a a))
 
 tyAppKindTest :: Bool
 tyAppKindTest = typeOf (TyApp either a) == TyFun TYPE TYPE
@@ -109,16 +109,16 @@ f1 = Var $ Id (Name "f1" Nothing 0 Nothing) (TyFun int int)
 f2 :: Expr
 f2 = Var $ Id (Name "f2" Nothing 0 Nothing)
                 (TyForAll
-                    (NamedTyBndr bid)
+                    bid
                     (TyFun b b)
                 )
 
 f3 :: Expr
 f3 = Var $ Id (Name "f3" Nothing 0 Nothing)
                 (TyForAll
-                    (NamedTyBndr bid)
+                    bid
                     (TyForAll
-                        (NamedTyBndr aid)
+                        aid
                         (TyFun b a)
                     )
                 )
@@ -127,7 +127,7 @@ just :: Expr
 just = Data $ DataCon 
                     (Name "Just" Nothing 0 Nothing) 
                     (TyForAll 
-                        (NamedTyBndr aid) 
+                        aid 
                         (TyFun a (TyApp maybe a))
                     )
 

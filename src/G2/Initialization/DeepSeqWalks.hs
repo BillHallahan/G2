@@ -36,7 +36,7 @@ createDeepSeqStore (n, adt) n' w =
         base = TyFun (TyCon n dc_t) (TyCon n dc_t)
 
         t = foldr TyFun base (bn ++ bnf)
-        t' = foldr TyForAll t $ map NamedTyBndr bi
+        t' = foldr TyForAll t bi
         i = Id n' t'
     in
     M.insert n i w
@@ -125,7 +125,7 @@ bindTypes rm e =
     foldl' App e tb
 
 tyForAllIds :: Type -> [Id]
-tyForAllIds (TyForAll (NamedTyBndr i) t) = i:tyForAllIds t
+tyForAllIds (TyForAll i t) = i:tyForAllIds t
 tyForAllIds _ = []
 
 createDeepSeqDataConCase2 :: TypeEnv -> Walkers -> [(Name, Id)] -> RenameMap -> [Id] -> NameGen -> Expr -> (Expr, NameGen)
