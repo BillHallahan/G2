@@ -310,7 +310,7 @@ replaceH sh s = sh { latest = s }
 allTactics :: S.Solver s => [Tactic s]
 allTactics = [
     tryEquality
-  , tryCoinduction
+  , tryCoinductionAll
   , generalizeFull
   --, inductionFull
   , trySolver
@@ -320,8 +320,8 @@ allTactics = [
 allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
 allNewLemmaTactics = [
     applyTacticToLabeledStates tryEquality
-  --, applyTacticToLabeledStates tryCoinduction
-  , (\str1 str2 -> tryCoinductionAll)
+  , applyTacticToLabeledStates tryCoinduction
+  --, (\_ _ -> tryCoinductionAll)
   ]
 
 -- negative loop iteration count means there's no limit
@@ -372,6 +372,8 @@ verifyLoop solver ns lemmas states b config nc sym_ids folder_root k n | (n /= 0
   -- TODO what to do with disproven lemmas?
   -- No noticeable time change for p02 with this added, still 1:50
   (pl_sr, b''') <- verifyWithNewProvenLemmas solver allNewLemmaTactics ns proven' lemmas'' b'' states
+  W.liftIO $ putStrLn "Ending VWNPL"
+  -- all of the "Check" statements aren't happening where I expect
 
   case pl_sr of
       CounterexampleFound -> return $ S.SAT ()
@@ -518,6 +520,9 @@ verifyLoopWithSymEx solver tactics ns lemmas b config nc folder_root k states = 
     (res, b'') <- verifyLoop' solver tactics ns lemmas b' (concat updated_hists)
     return (res, b'', k')
 
+-- TODO is this function's setup throwing things off?
+-- am I losing the combinations that I want because of it?
+-- it looks like the answer is no; it still fails
 verifyWithNewProvenLemmas :: S.Solver solver =>
                              solver
                           -> [NewLemmaTactic solver]
@@ -546,6 +551,7 @@ verifyWithNewProvenLemmas solver nl_tactics ns proven lemmas b states = do
     W.liftIO $ print $ map ((map (folder_name . track)) . history . snd) states
     W.liftIO $ putStrLn "END VWNPL"
     verifyLoop' solver tactics ns lemmas b states
+    --verifyLoop' solver [tryCoinductionAll] ns lemmas b states
 
 verifyLemmasWithNewProvenLemmas :: S.Solver solver =>
                                    solver

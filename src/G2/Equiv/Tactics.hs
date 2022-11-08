@@ -597,7 +597,13 @@ moreRestrictivePairAux solver valid ns prev (s1, s2) | dc_path (track s1) == dc_
       mr (p1, p2, pc) =
           if valid (p1, p2) (s1', s2') then
             let hm_obs = let (p1', p2') = if target
-                                          then trace "TARGET HIT" $ syncSymbolic p1 p2
+                                          then
+                                            trace ("TARGET HIT" ++
+                                                  " " ++ folder p1 ++
+                                                  " " ++ folder p2 ++
+                                                  " " ++ folder s1 ++
+                                                  " " ++ folder s2)
+                                            $ syncSymbolic p1 p2
                                           else syncSymbolic p1 p2
                          in restrictHelper p2' s2' ns $
                          restrictHelper p1' s1' ns (Right (HM.empty, HS.empty))
@@ -772,10 +778,12 @@ coinductionFoldL :: S.Solver solver =>
                     W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
 coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) = do
   let prev = prevFull (sh1, sh2)
+  {-
   W.liftIO $ putStrLn "CFL"
   W.liftIO $ print $ map (folder_name . track . fst) prev
   W.liftIO $ print $ map (folder_name . track . snd) prev
   W.liftIO $ putStrLn "END CFL"
+  -}
   res <- moreRestrictivePairWithLemmasOnFuncApps solver validCoinduction ns lemmas prev (s1', s2')
   case res of
     Right _ -> return res
@@ -821,10 +829,33 @@ tryCoinduction solver ns lemmas _ (sh1, sh2) (s1, s2) = do
 -- TODO allow all past-present combinations to be covered
 -- keep the right fixed, iterate through all lefts
 -- this is the dual of coinductionFoldL, in a way
+-- is this doing redundant work?  Yes, it is
+-- it only needs to do one coinductionFoldL per iteration but does two
+-- changing this didn't seem to make things faster
 tryCoinductionAll :: S.Solver s => Tactic s
 tryCoinductionAll solver ns lemmas fresh (sh1, sh2) (s1, s2) = do
-  res_l <- tryCoinduction solver ns lemmas fresh (sh1, sh2) (s1, s2)
+  res_l <- coinductionFoldL solver ns lemmas [] (sh1, sh2) (s1, s2)
   case res_l of
+    Right (lem_l, lem_r, pm) -> do
+      let cml = CoMarker {
+        co_real_present = (s1, s2)
+      , co_used_present = present pm
+      , co_past = past pm
+      , lemma_used_left = lem_l
+      , lemma_used_right = lem_r
+      }
+      W.tell [Marker (sh1, sh2) $ Coinduction cml]
+      return $ Success Nothing
+    Left lems ->
+      case backtrackOne sh1 of
+        Nothing -> return $ NoProof lems
+        Just sh1' -> do
+          res_l' <- tryCoinductionAll solver ns lemmas fresh (sh1', sh2) (latest sh1', s2)
+          case res_l' of
+            Success _ -> return res_l'
+            NoProof lems' -> return $ NoProof $ lems ++ lems'
+            _ -> error "Error from Coinduction"
+    {-
     Success _ -> return res_l
     NoProof lems ->
       case backtrackOne sh1 of
@@ -836,6 +867,7 @@ tryCoinductionAll solver ns lemmas fresh (sh1, sh2) (s1, s2) = do
             NoProof lems' -> return $ NoProof $ lems ++ lems'
             _ -> error "Error from Coinduction"
     _ -> error "Error from Coinduction"
+    -}
 
 -------------------------------------------------------------------------------
 
@@ -1075,6 +1107,7 @@ moreRestrictivePairWithLemmas = moreRestrictivePairWithLemmas' (\_ _ _ -> True)
 
 -- TODO link with lemmas that have been used previously
 -- TODO ([Lemma], StateET) might be what I need
+-- these past lists are weird because they're for lemmas
 moreRestrictivePairWithLemmas' :: S.Solver solver =>
                                   (StateET -> StateET -> Lemma -> Bool) ->
                                   solver ->
@@ -1095,7 +1128,7 @@ moreRestrictivePairWithLemmas' app_state solver valid ns lemmas past_list (s1, s
 
     rp <- mapM (\((l1, s1_), (l2, s2_)) -> do
             mrp <- moreRestrictivePair solver valid ns past_list (s1_, s2_)
-            if {-length l1 == 2 &&-} isCase (curr_expr s1_) {-&& length l2 == 0-} then do
+            if length l1 == 2 && isCase (curr_expr s1_) && length l2 == 0 then do
               W.liftIO $ putStrLn $ "Check " ++ (show $ length l1) ++ " " ++ (show $ length l2)
               W.liftIO $ print $ map lemma_lhs_origin l1
               W.liftIO $ print $ map lemma_rhs_origin l1
