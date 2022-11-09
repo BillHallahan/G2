@@ -1,8 +1,9 @@
 {-# LANGUAGE BangPatterns, DeriveGeneric #-}
 
-module G2.Liquid.Inference.UnionPoly () where
+module G2.Liquid.Inference.UnionPoly (sharedTyConsEE) where
 
 import G2.Language
+import qualified G2.Language.ExprEnv as E
 
 import GHC.Generics (Generic)
 import Data.Hashable
@@ -24,6 +25,9 @@ instance Hashable ArgOrRet
 -- The position in the argument refers to
 -- (1) an additional argument count, in the case of a higher order function
 -- (2) a path through ADT constructors
+
+sharedTyConsEE :: [Name] -> ExprEnv -> HM.HashMap FuncPos Name
+sharedTyConsEE ns = foldr HM.union HM.empty . E.map' sharedTyCons . E.filterWithKey (\n _ -> n `elem` ns)
 
 sharedTyCons :: Expr
              -> HM.HashMap FuncPos Name -- Positions in functions to correspond TyVar Names
