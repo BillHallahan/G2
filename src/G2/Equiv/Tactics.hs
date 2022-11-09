@@ -944,14 +944,16 @@ filterProvenLemmas p lems@(Lemmas { proven_lemmas = prov }) = lems { proven_lemm
 -- searches for a subexpression `e'` of `state`'s current expression such that `e' <=_V lemma_l`.
 -- If it find such a subexpression, it adds state[e'[V(x)/x]] to the returned
 -- list of States.
+-- s_other does not receive the substitution
 substLemma :: S.Solver solver =>
               solver ->
               HS.HashSet Name ->
               StateET ->
+              StateET ->
               Lemmas ->
               W.WriterT [Marker] IO [(Lemma, StateET)]
-substLemma solver ns s =
-    mapMaybeM (\lem -> replaceMoreRestrictiveSubExpr solver ns lem s) . provenLemmas
+substLemma solver ns s_other s =
+    mapMaybeM (\lem -> replaceMoreRestrictiveSubExpr solver ns lem s_other s) . provenLemmas
 
 -- TODO is this the right way to construct output lists?
 -- I don't think it is
@@ -961,11 +963,12 @@ substLemmaLoopAux :: S.Solver solver =>
                      Int
                   -> solver
                   -> HS.HashSet Name
+                  -> StateET
                   -> Lemmas
                   -> (Lemma, StateET)
                   -> W.WriterT [Marker] IO [([Lemma], StateET)]
-substLemmaLoopAux i solver ns lems (lem, s) = do
-    sll <- substLemmaLoop (i - 1) solver ns s lems
+substLemmaLoopAux i solver ns s_other lems (lem, s) = do
+    sll <- substLemmaLoop (i - 1) solver ns s_other s lems
     return $ map (\(l, s') -> (l ++ [lem], s')) sll
 
 isCase :: CurrExpr -> Bool
@@ -981,35 +984,39 @@ substLemmaLoop :: S.Solver solver =>
                   solver ->
                   HS.HashSet Name ->
                   StateET ->
+                  StateET ->
                   Lemmas ->
                   W.WriterT [Marker] IO [([Lemma], StateET)]
-substLemmaLoop 0 _ _ _ _ =
+substLemmaLoop 0 _ _ _ _ _ =
     return []
-substLemmaLoop i solver ns s lems = do
+substLemmaLoop i solver ns s_other s lems = do
     --W.liftIO $ putStrLn $ "substLemmaLoop " ++ show i
     --W.liftIO $ putStrLn $ "Proven " ++ show (length $ provenLemmas lems)
-    lem_states <- substLemma solver ns s lems
+    lem_states <- substLemma solver ns s_other s lems
     let lem_states' = map (\(l, s') -> ([l], s')) lem_states
     --lem_state_lists <- mapM ((flip $ substLemmaLoop (i - 1) solver ns) lems . snd) lem_states
     --W.liftIO $ putStrLn $ "Single " ++ show i ++ " " ++ show (length lem_states)
     --W.liftIO $ mapM (print . curr_expr . lemma_lhs . fst) lem_states
     --W.liftIO $ mapM (print . curr_expr . snd) lem_states
     --W.liftIO $ mapM (print . isCase . curr_expr . snd) lem_states
-    lem_state_lists <- mapM (substLemmaLoopAux i solver ns lems) lem_states
+    lem_state_lists <- mapM (substLemmaLoopAux i solver ns s_other lems) lem_states
     {- if null lem_state_lists then return []
     else do
       W.liftIO $ putStrLn $ "New " ++ show (length lem_state_lists) ++ " from " ++ show (i - 1)
       W.liftIO $ mapM (print . map (curr_expr . lemma_lhs) . fst) $ concat lem_state_lists -}
     return $ lem_states' ++ concat lem_state_lists
 
+-- s_other is the state that does not receive the substitution
 replaceMoreRestrictiveSubExpr :: S.Solver solver =>
                                  solver ->
                                  HS.HashSet Name ->
                                  Lemma ->
                                  StateET ->
+                                 StateET ->
                                  W.WriterT [Marker] IO (Maybe (Lemma, StateET))
-replaceMoreRestrictiveSubExpr solver ns lemma s@(State { curr_expr = CurrExpr er _ }) = do
-    (e, replaced) <- CM.runStateT (replaceMoreRestrictiveSubExpr' solver ns lemma s $ exprExtract s) Nothing
+replaceMoreRestrictiveSubExpr solver ns lemma s_other s@(State { curr_expr = CurrExpr er _ }) = do
+    let sound = lemmaSound ns s s_other lemma
+    (e, replaced) <- CM.runStateT (replaceMoreRestrictiveSubExpr' solver ns lemma s_other s sound $ exprExtract s) Nothing
     case replaced of
       Nothing -> return Nothing
       Just new_vars -> let new_ids = map fst new_vars
@@ -1038,18 +1045,25 @@ This implementation does not cover finiteness information.
 TODO more old id-bool list with new one
 TODO What to test to see where the problem is?
 TODO allow for recursive modification?
+TODO (11/9/22) rework to do soundness checks in here?
+This would need to keep track of the state not getting the substitution
+TODO s1 is the state that does not receive the substitution
+TODO incorporate a soundness check here
+don't attempt substitution until a valid sub-expression is reached
 -}
 replaceMoreRestrictiveSubExpr' :: S.Solver solver =>
                                   solver ->
                                   HS.HashSet Name ->
                                   Lemma ->
                                   StateET ->
+                                  StateET ->
+                                  Bool ->
                                   Expr ->
                                   CM.StateT (Maybe [(Id, Bool)]) (W.WriterT [Marker] IO) Expr
 replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma_rhs = rhs_s })
-                                         s2 e = do
+                                         s1 s2 sound e = do
     replaced <- CM.get
-    if True then do
+    if isNothing replaced then do
         mr_sub <- CM.lift $ moreRestrictiveSingle solver ns lhs_s (s2 { curr_expr = CurrExpr Evaluate e })
         case mr_sub of
             Right hm -> do
@@ -1069,7 +1083,8 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma
                 return rhs_e'
             Left _ -> do
                 let ns' = foldr HS.insert ns (bind e)
-                modifyChildrenM (replaceMoreRestrictiveSubExpr' solver ns' lemma s2) e
+                    sound' = lemmaSound ns' s2 s1 lemma
+                modifyChildrenM (replaceMoreRestrictiveSubExpr' solver ns' lemma s1 s2 (sound || sound')) e
     else return e
     where
         bind (Lam _ i _) = [idName i]
@@ -1079,6 +1094,19 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma
 
         altBind (Alt (DataAlt _ is) _) = map idName is
         altBind _ = []
+
+-- TODO just a template
+-- in this one, s is the state receiving the substitution
+-- all that matters from s' is the expression environment
+lemmaSound :: HS.HashSet Name -> StateET -> StateET -> Lemma -> Bool
+lemmaSound ns s s' lem =
+  case unApp . modifyASTs stripTicks . inlineFull (HS.toList ns) (expr_env s) (expr_env s') $ exprExtract s of
+    Var (Id f _):_ ->
+        let
+            lem_vars = varNames $ inlineFull (HS.toList ns) (expr_env s) (expr_env s') $ exprExtract (lemma_rhs lem)
+        in
+        not $ f `elem` lem_vars
+    _ -> False
 
 -- Tries to apply lemmas to expressions only in FAF form, and only if the function being applied can not be
 -- called in any way by the lemma.
@@ -1092,13 +1120,14 @@ moreRestrictivePairWithLemmasOnFuncApps :: S.Solver solver =>
                                            W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
 moreRestrictivePairWithLemmasOnFuncApps solver valid ns =
     moreRestrictivePairWithLemmas'
-        (\s s' lem -> case unApp . modifyASTs stripTicks . inlineFull (HS.toList ns) (expr_env s) (expr_env s') $ exprExtract s of
+        (\_ _ _ -> True)
+        {-(\s s' lem -> case unApp . modifyASTs stripTicks . inlineFull (HS.toList ns) (expr_env s) (expr_env s') $ exprExtract s of
                     Var (Id f _):_ ->
                         let
                             lem_vars = varNames $ inlineFull (HS.toList ns) (expr_env s) (expr_env s') $ exprExtract (lemma_rhs lem)
                         in
                         not $ f `elem` lem_vars
-                    _ -> False)
+                    _ -> False)-}
         solver valid ns
 --     | Var (Id f1 _):_ <- unApp $ exprExtract s1
 --     , Var (Id f2 _):_ <- unApp $ exprExtract s2 = do
@@ -1134,8 +1163,8 @@ moreRestrictivePairWithLemmas' :: S.Solver solver =>
                                   W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
 moreRestrictivePairWithLemmas' app_state solver valid ns lemmas past_list (s1, s2) = do
     let (s1', s2') = syncSymbolic s1 s2
-    xs1 <- substLemmaLoop 2 solver ns s1' $ filterProvenLemmas (app_state s1' s2') lemmas
-    xs2 <- substLemmaLoop 2 solver ns s2' $ filterProvenLemmas (app_state s2' s1') lemmas
+    xs1 <- substLemmaLoop 2 solver ns s2' s1' $ filterProvenLemmas (app_state s1' s2') lemmas
+    xs2 <- substLemmaLoop 2 solver ns s1' s2' $ filterProvenLemmas (app_state s2' s1') lemmas
 
     let xs1' = ([], s1'):xs1
         xs2' = ([], s2'):xs2
@@ -1221,8 +1250,8 @@ moreRestrictivePairWithLemmasPast :: S.Solver solver =>
                                      W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
 moreRestrictivePairWithLemmasPast solver valid ns lemmas past_list s_pair = do
     let (past1, past2) = unzip past_list
-    xs_past1 <- mapM (\(q1, _) -> substLemmaLoop 2 solver ns q1 lemmas) past_list
-    xs_past2 <- mapM (\(_, q2) -> substLemmaLoop 2 solver ns q2 lemmas) past_list
+    xs_past1 <- mapM (\(q1, q2) -> substLemmaLoop 2 solver ns q2 q1 lemmas) past_list
+    xs_past2 <- mapM (\(q1, q2) -> substLemmaLoop 2 solver ns q1 q2 lemmas) past_list
     let plain_past1 = map (\s_ -> (Nothing, s_)) past1
         plain_past2 = map (\s_ -> (Nothing, s_)) past2
         xs_past1' = plain_past1 ++ (map (\(l, s) -> (Just l, s)) $ concat xs_past1)
