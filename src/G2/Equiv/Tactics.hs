@@ -610,13 +610,17 @@ moreRestrictivePairAux solver valid ns prev (s1, s2) | dc_path (track s1) == dc_
                 target = folder p1 == "/a8" && folder p2 == "/b9" &&
                          folder s1 == "/a90" && folder s2 == "/b22"
                 --target_str = if target then "TARGET HIT" else ""
+                hm_obs_ = case hm_obs of
+                  Left lems -> Left $ zip lems [1..length lems]
+                  Right hmo -> Right hmo
             in
               --trace target_str $
-              mapLeft (fmap (\l -> l { lemma_name = "past_1 = " ++ folder p1
+              mapLeft (fmap (\(l, i) -> l { lemma_name = "Lem" ++ show i
+                                                  ++ " past_1 = " ++ folder p1
                                                   ++ " present_1 = " ++ folder s1
                                                   ++ " past_2 = " ++ folder p2
                                                   ++ " present_2 = " ++ folder s2  }))
-            $ fmap (\hm_obs' -> PrevMatch (s1, s2) (p1, p2) hm_obs' pc) hm_obs
+            $ fmap (\hm_obs' -> PrevMatch (s1, s2) (p1, p2) hm_obs' pc) hm_obs_
           else Left []
       
       (possible_lemmas, possible_matches) = partitionEithers $ map mr prev
@@ -746,6 +750,7 @@ equalFold solver ns lemmas (sh1, sh2) (s1, s2) = do
 
 tryEquality :: S.Solver s => Tactic s
 tryEquality solver ns lemmas _ sh_pair (s1, s2) = do
+  W.liftIO $ putStrLn "TryEquality"
   res <- equalFold solver ns lemmas sh_pair (s1, s2)
   case res of
     Just (pm, sd) -> do
@@ -778,12 +783,15 @@ coinductionFoldL :: S.Solver solver =>
                     W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
 coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) = do
   let prev = prevFull (sh1, sh2)
-  {-
-  W.liftIO $ putStrLn "CFL"
-  W.liftIO $ print $ map (folder_name . track . fst) prev
-  W.liftIO $ print $ map (folder_name . track . snd) prev
-  W.liftIO $ putStrLn "END CFL"
-  -}
+  if (folder_name $ track s1) == "/a90" &&
+     (folder_name $ track s2) == "/b22" then do
+    W.liftIO $ putStrLn "CFL"
+    W.liftIO $ print $ map (folder_name . track) [s1, s2]
+    W.liftIO $ print $ map lemma_name $ proven_lemmas lemmas
+    W.liftIO $ print $ map (folder_name . track . fst) prev
+    W.liftIO $ print $ map (folder_name . track . snd) prev
+    W.liftIO $ putStrLn "END CFL"
+  else return ()
   res <- moreRestrictivePairWithLemmasOnFuncApps solver validCoinduction ns lemmas prev (s1', s2')
   case res of
     Right _ -> return res
@@ -834,6 +842,7 @@ tryCoinduction solver ns lemmas _ (sh1, sh2) (s1, s2) = do
 -- changing this didn't seem to make things faster
 tryCoinductionAll :: S.Solver s => Tactic s
 tryCoinductionAll solver ns lemmas fresh (sh1, sh2) (s1, s2) = do
+  W.liftIO $ putStrLn "TCA"
   res_l <- coinductionFoldL solver ns lemmas [] (sh1, sh2) (s1, s2)
   case res_l of
     Right (lem_l, lem_r, pm) -> do
@@ -1028,6 +1037,7 @@ If it's concrete or symbolic, just leave it as it is.
 This implementation does not cover finiteness information.
 TODO more old id-bool list with new one
 TODO What to test to see where the problem is?
+TODO allow for recursive modification?
 -}
 replaceMoreRestrictiveSubExpr' :: S.Solver solver =>
                                   solver ->
@@ -1054,6 +1064,8 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma
                     -- should it be opp_env instead of the LHS?
                     rhs_e' = replaceVars (inlineFull (HS.toList ns) (expr_env rhs_s) (opp_env $ track rhs_s) $ exprExtract rhs_s) v_rep
                 CM.put $ Just $ zip new_ids new_info
+                -- this doesn't help with lemma application, seemingly
+                --modifyChildrenM (replaceMoreRestrictiveSubExpr' solver ns lemma s2) rhs_e'
                 return rhs_e'
             Left _ -> do
                 let ns' = foldr HS.insert ns (bind e)
@@ -1108,6 +1120,9 @@ moreRestrictivePairWithLemmas = moreRestrictivePairWithLemmas' (\_ _ _ -> True)
 -- TODO link with lemmas that have been used previously
 -- TODO ([Lemma], StateET) might be what I need
 -- these past lists are weird because they're for lemmas
+-- TODO (11/9/22) this version of Check is never being hit
+-- I never have the lemma I want together with a90/b22
+-- reducing to needing only one of the present states does not help
 moreRestrictivePairWithLemmas' :: S.Solver solver =>
                                   (StateET -> StateET -> Lemma -> Bool) ->
                                   solver ->
@@ -1126,9 +1141,35 @@ moreRestrictivePairWithLemmas' app_state solver valid ns lemmas past_list (s1, s
         xs2' = ([], s2'):xs2
         pairs = [ (pair1, pair2) | pair1 <- xs1', pair2 <- xs2' ]
 
+    -- never hitting these states when using lemmas
+    -- still, I see a90/b22 in the Trying print statement
+    -- can hit one but not both seemingly
+    -- never having double lemma uses in that situation?
+    -- I can get double Lem2 sometimes, but not in the right situation?
+    -- TODO s1' and s2' are the original states
+    -- I can get double Lem2 with a90/b185
+    -- the approximation fails then
+    -- the lemma doesn't do enough rewriting, I think
+    -- why no double Lem2 with b22?
+    -- never having b22 used here after Lem2 proven
+    -- b22 is in the state histories
+    if {-(folder_name $ track s1') == "/a90" ||-}
+       (folder_name $ track s2') == "b22" then do
+        W.liftIO $ putStrLn "MRPWL'"
+        W.liftIO $ print $ map (folder_name . track) [s1', s2']
+        W.liftIO $ print $ map (\((l1, _), (l2, _)) -> (map lemma_name l1, map lemma_name l2)) pairs
+    else return ()
+    W.liftIO $ putStrLn "Proven App State"
+    W.liftIO $ print $ map lemma_name $ proven_lemmas $ filterProvenLemmas (app_state s1' s2') lemmas
+
     rp <- mapM (\((l1, s1_), (l2, s2_)) -> do
             mrp <- moreRestrictivePair solver valid ns past_list (s1_, s2_)
-            if length l1 == 2 && isCase (curr_expr s1_) && length l2 == 0 then do
+            let target_lems = replicate 2 "Lem2 past_1 = /a0 present_1 = /a20 past_2 = /b9 present_2 = /b22"
+            if (map lemma_name l2) == target_lems &&
+               --isCase (curr_expr s1_) && l2 == [] &&
+               (folder_name (track s1_) == "/a90" ||
+               folder_name (track s2_) == "/b22")
+               then do
               W.liftIO $ putStrLn $ "Check " ++ (show $ length l1) ++ " " ++ (show $ length l2)
               W.liftIO $ print $ map lemma_lhs_origin l1
               W.liftIO $ print $ map lemma_rhs_origin l1

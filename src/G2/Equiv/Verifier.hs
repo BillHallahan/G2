@@ -310,7 +310,8 @@ replaceH sh s = sh { latest = s }
 allTactics :: S.Solver s => [Tactic s]
 allTactics = [
     tryEquality
-  , tryCoinductionAll
+  , tryCoinduction
+  --, tryCoinductionAll
   , generalizeFull
   --, inductionFull
   , trySolver
@@ -320,8 +321,8 @@ allTactics = [
 allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
 allNewLemmaTactics = [
     applyTacticToLabeledStates tryEquality
-  , applyTacticToLabeledStates tryCoinduction
-  --, (\_ _ -> tryCoinductionAll)
+  --, applyTacticToLabeledStates tryCoinduction
+  , (\_ _ -> tryCoinductionAll)
   ]
 
 -- negative loop iteration count means there's no limit
