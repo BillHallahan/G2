@@ -163,6 +163,7 @@ library
                          , G2.Liquid.Inference.Sygus.SimplifySygus
                          , G2.Liquid.Inference.Sygus.SpecInfo
                          , G2.Liquid.Inference.Sygus.Sygus
+                         , G2.Liquid.Inference.UnionPoly
                          , G2.Liquid.Inference.Verify
                          , G2.Liquid.Inference.GeneratedSpecs
                          , G2.Liquid.Inference.QualifGen
