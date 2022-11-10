@@ -581,10 +581,6 @@ validCoinduction (p1, p2) (q1, q2) =
 -- TODO first pair is "current," second pair is the match from the past
 -- TODO the third entry in a prev triple is the original for left or right
 -- TODO do I still need the dc path check at the start here?
--- TODO see if we ever get a8,a90,b9,b22
--- that combination does get hit at least sometimes
--- whether the right lemmas are being used is another question
--- not getting target hit after trying b22 lemma
 moreRestrictivePairAux :: S.Solver solver =>
                           solver ->
                           ((StateET, StateET) -> (StateET, StateET) -> Bool) ->
@@ -599,9 +595,6 @@ moreRestrictivePairAux solver valid ns prev (s1, s2) | dc_path (track s1) == dc_
             let hm_obs = let (p1', p2') = syncSymbolic p1 p2
                          in restrictHelper p2' s2' ns $
                          restrictHelper p1' s1' ns (Right (HM.empty, HS.empty))
-                target = folder p1 == "/a8" && folder p2 == "/b9" &&
-                         folder s1 == "/a90" && folder s2 == "/b22"
-                --target_str = if target then "TARGET HIT" else ""
                 hm_obs_ = case hm_obs of
                   Left lems -> Left $ zip lems [1..length lems]
                   Right hmo -> Right hmo
@@ -1117,12 +1110,6 @@ moreRestrictivePairWithLemmas :: S.Solver solver =>
                                  W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
 moreRestrictivePairWithLemmas = moreRestrictivePairWithLemmas' (\_ _ _ -> True)
 
--- TODO link with lemmas that have been used previously
--- TODO ([Lemma], StateET) might be what I need
--- these past lists are weird because they're for lemmas
--- TODO (11/9/22) this version of Check is never being hit
--- I never have the lemma I want together with a90/b22
--- reducing to needing only one of the present states does not help
 moreRestrictivePairWithLemmas' :: S.Solver solver =>
                                   (StateET -> StateET -> Lemma -> Bool) ->
                                   solver ->
@@ -1147,14 +1134,6 @@ moreRestrictivePairWithLemmas' app_state solver valid ns lemmas past_list (s1, s
             -- TODO losing state information
             let l1' = map (\l -> (s1', l)) l1
             let l2' = map (\l -> (s2', l)) l2
-            {-
-            let l1' = case l1 of
-                  Nothing -> []
-                  Just lem1 -> [(s1', lem1)]
-                l2' = case l2 of
-                  Nothing -> []
-                  Just lem2 -> [(s2', lem2)]
-            -}
             return $ fmap (l1', l2', ) mrp) pairs
     let (possible_lemmas, possible_matches) = partitionEithers rp
 

@@ -1083,8 +1083,8 @@ loop2 _ = loop2 Z
 "plusZero" forall x . x + Z = x
   #-}
 
--- TODO (10/28/22) testing for Zeno theorems
--- can verify p80Z and p80Znil here
+-- simpler versions of theorems that Nebula couldn't verify
+-- at the time of the paper's submission
 {-# RULES
 "p55Z" forall xs ys . drop Z (xs ++ ys) = drop Z xs ++ drop (Z - len xs) ys
 "p55nil" forall n xs . drop n (xs ++ []) = drop n xs ++ drop (n - len xs) []
