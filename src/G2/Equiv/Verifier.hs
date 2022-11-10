@@ -41,8 +41,6 @@ import Control.Monad
 
 import G2.Lib.Printers
 
-import Debug.Trace
-
 -- TODO reader / writer monad source consulted
 -- https://mmhaskell.com/monads/reader-writer
 
@@ -311,19 +309,13 @@ allTactics :: S.Solver s => [Tactic s]
 allTactics = [
     tryEquality
   , tryCoinduction
-  --, tryCoinductionAll
   , generalizeFull
-  --, inductionFull
   , trySolver
   , checkCycle
   ]
 
 allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
-allNewLemmaTactics = [
-    applyTacticToLabeledStates tryEquality
-  , applyTacticToLabeledStates tryCoinduction
-  --, (\_ _ -> tryCoinductionAll)
-  ]
+allNewLemmaTactics = map applyTacticToLabeledStates [tryEquality, tryCoinduction]
 
 -- negative loop iteration count means there's no limit
 -- TODO if states is empty but n = 0, we'll get Unknown rather than UNSAT
@@ -371,7 +363,6 @@ verifyLoop solver ns lemmas states b config nc sym_ids folder_root k n | (n /= 0
   (b'', k'', proven', lemmas'') <- verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics ns proven lemmas' b' config nc folder_root k'
   -- TODO I think the lemmas should be the unresolved ones
   -- TODO what to do with disproven lemmas?
-  -- No noticeable time change for p02 with this added, still 1:50
   (pl_sr, b''') <- verifyWithNewProvenLemmas solver allNewLemmaTactics ns proven' lemmas'' b'' states
 
   case pl_sr of
@@ -519,9 +510,6 @@ verifyLoopWithSymEx solver tactics ns lemmas b config nc folder_root k states = 
     (res, b'') <- verifyLoop' solver tactics ns lemmas b' (concat updated_hists)
     return (res, b'', k')
 
--- TODO is this function's setup throwing things off?
--- am I losing the combinations that I want because of it?
--- it looks like the answer is no; it still fails
 verifyWithNewProvenLemmas :: S.Solver solver =>
                              solver
                           -> [NewLemmaTactic solver]
@@ -535,14 +523,7 @@ verifyWithNewProvenLemmas solver nl_tactics ns proven lemmas b states = do
     let rel_states = map (\pl -> (lemma_lhs_origin pl, lemma_rhs_origin pl)) proven
         tactics = concatMap (\t -> map (uncurry t) rel_states) nl_tactics
 
-    --W.liftIO $ putStrLn "verifyWithNewProvenLemmas"
-    -- the new lemma tactics backtrack in the way I would want
-    -- the lemma I want applied to b22 originated in b22
-    -- lemma substitutions can happen on the backtrack state
-    -- double substitutions are allowed there
-    -- all of the past states on the opposite side can be covered with it
     verifyLoop' solver tactics ns lemmas b states
-    --verifyLoop' solver [tryCoinductionAll] ns lemmas b states
 
 verifyLemmasWithNewProvenLemmas :: S.Solver solver =>
                                    solver
@@ -597,12 +578,6 @@ verifyLoop' solver tactics ns lemmas b states = do
                  | otherwise -> CounterexampleFound
     return (res, b')
 
--- the states I want are contained in the history
--- a8, a90, b9, b22
--- that exact combination is never tried with the lemma, though
--- that's because the combination I want is four past states
--- the present for sh1,sh2' is a100+, b91
--- TODO try more combinations
 applyTacticToLabeledStates :: Tactic solver -> String -> String -> Tactic solver
 applyTacticToLabeledStates tactic lbl1 lbl2 solver ns lemmas fresh_names (sh1, sh2) (s1, s2)
     | Just sh1' <- digInStateH lbl1 $ appendH sh1 s1 =
