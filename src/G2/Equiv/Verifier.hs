@@ -321,8 +321,8 @@ allTactics = [
 allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
 allNewLemmaTactics = [
     applyTacticToLabeledStates tryEquality
-  --, applyTacticToLabeledStates tryCoinduction
-  , (\_ _ -> tryCoinductionAll)
+  , applyTacticToLabeledStates tryCoinduction
+  --, (\_ _ -> tryCoinductionAll)
   ]
 
 -- negative loop iteration count means there's no limit
@@ -373,8 +373,6 @@ verifyLoop solver ns lemmas states b config nc sym_ids folder_root k n | (n /= 0
   -- TODO what to do with disproven lemmas?
   -- No noticeable time change for p02 with this added, still 1:50
   (pl_sr, b''') <- verifyWithNewProvenLemmas solver allNewLemmaTactics ns proven' lemmas'' b'' states
-  W.liftIO $ putStrLn "Ending VWNPL"
-  -- all of the "Check" statements aren't happening where I expect
 
   case pl_sr of
       CounterexampleFound -> return $ S.SAT ()
@@ -543,14 +541,6 @@ verifyWithNewProvenLemmas solver nl_tactics ns proven lemmas b states = do
     -- lemma substitutions can happen on the backtrack state
     -- double substitutions are allowed there
     -- all of the past states on the opposite side can be covered with it
-    W.liftIO $ putStrLn $ "Trying " ++
-               show (map lemma_lhs_origin proven) ++
-               show (map lemma_rhs_origin proven) ++
-               show (map lemma_name proven) ++
-               " on " ++ show (map (\(sh1, sh2) -> (folder_name $ track $ latest sh1, folder_name $ track $ latest sh2)) states)
-    W.liftIO $ print $ map ((map (folder_name . track)) . history . fst) states
-    W.liftIO $ print $ map ((map (folder_name . track)) . history . snd) states
-    W.liftIO $ putStrLn "END VWNPL"
     verifyLoop' solver tactics ns lemmas b states
     --verifyLoop' solver [tryCoinductionAll] ns lemmas b states
 
@@ -616,48 +606,12 @@ verifyLoop' solver tactics ns lemmas b states = do
 applyTacticToLabeledStates :: Tactic solver -> String -> String -> Tactic solver
 applyTacticToLabeledStates tactic lbl1 lbl2 solver ns lemmas fresh_names (sh1, sh2) (s1, s2)
     | Just sh1' <- digInStateH lbl1 $ appendH sh1 s1 =
-        trace ("BACKL1 " ++ (show $ folder_name $ track $ latest sh1') ++ " " ++
-                          (show $ folder_name $ track $ latest sh1) ++ " " ++
-                          (show $ folder_name $ track $ latest sh2) ++ " " ++
-                          (show $ folder_name $ track s1) ++ " " ++
-                          (show $ folder_name $ track s2) ++ " " ++
-                          lbl1 ++ " " ++ lbl2 ++ " " ++
-                          (show $ map (folder_name . track) $ history sh1') ++ " " ++
-                          (show $ map (folder_name . track) $ history sh1) ++ " " ++
-                          (show $ map (folder_name . track) $ history sh2)) $
         tactic solver ns lemmas fresh_names (sh1', sh2) (latest sh1', latest sh2)
     | Just sh1' <- digInStateH lbl2 $ appendH sh1 s1 =
-        trace ("BACKL2 " ++ (show $ folder_name $ track $ latest sh1') ++ " " ++
-                          (show $ folder_name $ track $ latest sh1) ++ " " ++
-                          (show $ folder_name $ track $ latest sh2) ++ " " ++
-                          (show $ folder_name $ track s1) ++ " " ++
-                          (show $ folder_name $ track s2) ++ " " ++
-                          lbl1 ++ " " ++ lbl2 ++ " " ++
-                          (show $ map (folder_name . track) $ history sh1') ++ " " ++
-                          (show $ map (folder_name . track) $ history sh1) ++ " " ++
-                          (show $ map (folder_name . track) $ history sh2)) $
         tactic solver ns lemmas fresh_names (sh1', sh2) (latest sh1', latest sh2)
     | Just sh2' <- digInStateH lbl1 $ appendH sh2 s2 =
-        trace ("BACKR1 " ++ (show $ folder_name $ track $ latest sh2') ++ " " ++
-                          (show $ folder_name $ track $ latest sh1) ++ " " ++
-                          (show $ folder_name $ track $ latest sh2) ++ " " ++
-                          (show $ folder_name $ track s1) ++ " " ++
-                          (show $ folder_name $ track s2) ++ " " ++
-                          lbl1 ++ " " ++ lbl2 ++ " " ++
-                          (show $ map (folder_name . track) $ history sh2') ++ " " ++
-                          (show $ map (folder_name . track) $ history sh1) ++ " " ++
-                          (show $ map (folder_name . track) $ history sh2)) $
         tactic solver ns lemmas fresh_names (sh1, sh2') (latest sh1, latest sh2')
       | Just sh2' <- digInStateH lbl2 $ appendH sh2 s2 =
-        trace ("BACKR2 " ++ (show $ folder_name $ track $ latest sh2') ++ " " ++
-                          (show $ folder_name $ track $ latest sh1) ++ " " ++
-                          (show $ folder_name $ track $ latest sh2) ++ " " ++
-                          (show $ folder_name $ track s1) ++ " " ++
-                          (show $ folder_name $ track s2) ++ " " ++
-                          lbl1 ++ " " ++ lbl2 ++ " " ++
-                          (show $ map (folder_name . track) $ history sh2') ++ " " ++
-                          (show $ map (folder_name . track) $ history sh1) ++ " " ++
-                          (show $ map (folder_name . track) $ history sh2)) $
         tactic solver ns lemmas fresh_names (sh1, sh2') (latest sh1, latest sh2')
     | otherwise = return . NoProof $ []
 

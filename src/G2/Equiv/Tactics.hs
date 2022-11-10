@@ -596,15 +596,7 @@ moreRestrictivePairAux solver valid ns prev (s1, s2) | dc_path (track s1) == dc_
   let (s1', s2') = syncSymbolic s1 s2
       mr (p1, p2, pc) =
           if valid (p1, p2) (s1', s2') then
-            let hm_obs = let (p1', p2') = if target
-                                          then
-                                            trace ("TARGET HIT" ++
-                                                  " " ++ folder p1 ++
-                                                  " " ++ folder p2 ++
-                                                  " " ++ folder s1 ++
-                                                  " " ++ folder s2)
-                                            $ syncSymbolic p1 p2
-                                          else syncSymbolic p1 p2
+            let hm_obs = let (p1', p2') = syncSymbolic p1 p2
                          in restrictHelper p2' s2' ns $
                          restrictHelper p1' s1' ns (Right (HM.empty, HS.empty))
                 target = folder p1 == "/a8" && folder p2 == "/b9" &&
@@ -750,7 +742,6 @@ equalFold solver ns lemmas (sh1, sh2) (s1, s2) = do
 
 tryEquality :: S.Solver s => Tactic s
 tryEquality solver ns lemmas _ sh_pair (s1, s2) = do
-  W.liftIO $ putStrLn "TryEquality"
   res <- equalFold solver ns lemmas sh_pair (s1, s2)
   case res of
     Just (pm, sd) -> do
@@ -783,15 +774,6 @@ coinductionFoldL :: S.Solver solver =>
                     W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
 coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) = do
   let prev = prevFull (sh1, sh2)
-  if (folder_name $ track s1) == "/a90" &&
-     (folder_name $ track s2) == "/b22" then do
-    W.liftIO $ putStrLn "CFL"
-    W.liftIO $ print $ map (folder_name . track) [s1, s2]
-    W.liftIO $ print $ map lemma_name $ proven_lemmas lemmas
-    W.liftIO $ print $ map (folder_name . track . fst) prev
-    W.liftIO $ print $ map (folder_name . track . snd) prev
-    W.liftIO $ putStrLn "END CFL"
-  else return ()
   res <- moreRestrictivePairWithLemmasOnFuncApps solver validCoinduction ns lemmas prev (s1', s2')
   case res of
     Right _ -> return res
@@ -842,7 +824,6 @@ tryCoinduction solver ns lemmas _ (sh1, sh2) (s1, s2) = do
 -- changing this didn't seem to make things faster
 tryCoinductionAll :: S.Solver s => Tactic s
 tryCoinductionAll solver ns lemmas fresh (sh1, sh2) (s1, s2) = do
-  W.liftIO $ putStrLn "TCA"
   res_l <- coinductionFoldL solver ns lemmas [] (sh1, sh2) (s1, s2)
   case res_l of
     Right (lem_l, lem_r, pm) -> do
@@ -990,20 +971,10 @@ substLemmaLoop :: S.Solver solver =>
 substLemmaLoop 0 _ _ _ _ _ =
     return []
 substLemmaLoop i solver ns s_other s lems = do
-    --W.liftIO $ putStrLn $ "substLemmaLoop " ++ show i
-    --W.liftIO $ putStrLn $ "Proven " ++ show (length $ provenLemmas lems)
     lem_states <- substLemma solver ns s_other s lems
     let lem_states' = map (\(l, s') -> ([l], s')) lem_states
     --lem_state_lists <- mapM ((flip $ substLemmaLoop (i - 1) solver ns) lems . snd) lem_states
-    --W.liftIO $ putStrLn $ "Single " ++ show i ++ " " ++ show (length lem_states)
-    --W.liftIO $ mapM (print . curr_expr . lemma_lhs . fst) lem_states
-    --W.liftIO $ mapM (print . curr_expr . snd) lem_states
-    --W.liftIO $ mapM (print . isCase . curr_expr . snd) lem_states
     lem_state_lists <- mapM (substLemmaLoopAux i solver ns s_other lems) lem_states
-    {- if null lem_state_lists then return []
-    else do
-      W.liftIO $ putStrLn $ "New " ++ show (length lem_state_lists) ++ " from " ++ show (i - 1)
-      W.liftIO $ mapM (print . map (curr_expr . lemma_lhs) . fst) $ concat lem_state_lists -}
     return $ lem_states' ++ concat lem_state_lists
 
 -- s_other is the state that does not receive the substitution
@@ -1170,56 +1141,8 @@ moreRestrictivePairWithLemmas' app_state solver valid ns lemmas past_list (s1, s
         xs2' = ([], s2'):xs2
         pairs = [ (pair1, pair2) | pair1 <- xs1', pair2 <- xs2' ]
 
-    -- never hitting these states when using lemmas
-    -- still, I see a90/b22 in the Trying print statement
-    -- can hit one but not both seemingly
-    -- never having double lemma uses in that situation?
-    -- I can get double Lem2 sometimes, but not in the right situation?
-    -- TODO s1' and s2' are the original states
-    -- I can get double Lem2 with a90/b185
-    -- the approximation fails then
-    -- the lemma doesn't do enough rewriting, I think
-    -- why no double Lem2 with b22?
-    -- never having b22 used here after Lem2 proven
-    -- b22 is in the state histories
-    if {-(folder_name $ track s1') == "/a90" ||-}
-       (folder_name $ track s2') == "b22" then do
-        W.liftIO $ putStrLn "MRPWL'"
-        W.liftIO $ print $ map (folder_name . track) [s1', s2']
-        W.liftIO $ print $ map (\((l1, _), (l2, _)) -> (map lemma_name l1, map lemma_name l2)) pairs
-    else return ()
-    W.liftIO $ putStrLn "Proven App State"
-    W.liftIO $ print $ map lemma_name $ proven_lemmas $ filterProvenLemmas (app_state s1' s2') lemmas
-
     rp <- mapM (\((l1, s1_), (l2, s2_)) -> do
             mrp <- moreRestrictivePair solver valid ns past_list (s1_, s2_)
-            let target_lems = replicate 2 "Lem2 past_1 = /a0 present_1 = /a20 past_2 = /b9 present_2 = /b22"
-            if (map lemma_name l2) == target_lems &&
-               --isCase (curr_expr s1_) && l2 == [] &&
-               (folder_name (track s1_) == "/a90" ||
-               folder_name (track s2_) == "/b22")
-               then do
-              W.liftIO $ putStrLn $ "Check " ++ (show $ length l1) ++ " " ++ (show $ length l2)
-              W.liftIO $ print $ map lemma_lhs_origin l1
-              W.liftIO $ print $ map lemma_rhs_origin l1
-              W.liftIO $ print $ map (folder_name . track) [s1_, s2_, s1', s2']
-              W.liftIO $ print $ map (folder_name . track . fst) past_list
-              W.liftIO $ print $ map (folder_name . track . snd) past_list
-              --W.liftIO $ print $ map (curr_expr . lemma_lhs) l1
-              --W.liftIO $ print $ map (curr_expr . lemma_lhs) l2
-              W.liftIO $ print $ map lemma_name l1
-              W.liftIO $ print $ map lemma_name l2
-              -- TODO s1_ and s2_ are not the states I care about?
-              -- one is left, one is right
-              -- which states are the past states?
-              -- TODO there isn't a single past state I can isolate here
-              --W.liftIO $ print $ curr_expr s1_
-              --W.liftIO $ print $ curr_expr s1'
-              --W.liftIO $ print $ curr_expr s2_
-              W.liftIO $ case mrp of
-                Left _ -> putStrLn "Left"
-                Right _ -> putStrLn "Right"
-            else return ()
             -- TODO use synced or non-synced?
             -- TODO losing state information
             let l1' = map (\l -> (s1', l)) l1
