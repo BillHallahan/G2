@@ -951,6 +951,7 @@ substLemmaLoop i solver ns s_other s lems = do
     return $ lem_states' ++ concat lem_state_lists
 
 -- s_other is the state that does not receive the substitution
+-- TODO Is this out of date now?
 replaceMoreRestrictiveSubExpr :: S.Solver solver =>
                                  solver ->
                                  HS.HashSet Name ->
@@ -994,6 +995,10 @@ This would need to keep track of the state not getting the substitution
 TODO s1 is the state that does not receive the substitution
 TODO incorporate a soundness check here
 don't attempt substitution until a valid sub-expression is reached
+TODO is the use of ns' here problematic?
+It's unlikely, given the unmapped variable is xs
+That's a symbolic variable
+TODO I may need to carry over names from s1 in some additional way
 -}
 replaceMoreRestrictiveSubExpr' :: S.Solver solver =>
                                   solver ->
@@ -1042,6 +1047,9 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma
 -- TODO just a template
 -- in this one, s is the state receiving the substitution
 -- all that matters from s' is the expression environment
+-- TODO Is this the source of the unmapped variable error?
+-- TODO varNames itself is probably not the source
+-- TODO do I really need s' if I have opp_env?
 lemmaSound :: HS.HashSet Name -> StateET -> StateET -> Lemma -> Bool
 lemmaSound ns s s' lem =
   case unApp . modifyASTs stripTicks . inlineFull (HS.toList ns) (expr_env s) (expr_env s') $ exprExtract s of
