@@ -233,7 +233,15 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                -- this last case means there's a mismatch
                | isSymbolicBoth (idName i) h1 h1' -> Left []
                | not $ (idName i, e2) `elem` n1
-               , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
+               -- TODO unmapped xs not contained in any env here
+               -- both folder names are b221
+               -- don't see b221 after iteration 6; must appear on 7
+               -- no error within 10 iterations with lemmas disabled
+               , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i) ++
+                                                          "\n" ++ (show $ lookupBoth (idName i) h1 h1') ++
+                                                          "\n" ++ (show $ lookupBoth (idName i) h2 h2') ++
+                                                          "\n" ++ (folder_name $ track s1) ++
+                                                          "\n" ++ (folder_name $ track s2)
     (_, Var i) | isSymbolicBoth (idName i) h2 h2' -> Left [] -- sym replaces non-sym
                | not $ (idName i, e1) `elem` n2
                , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
@@ -262,7 +270,8 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                                     h2_' = E.mapConc (flip replaceVars v_rep) h2_ -- foldr (\(Id n _, e) -> E.insert n e) h2 (HM.toList $ fst hm)
                                     et' = (track s2) { opp_env = E.empty }
                                     ls1 = s2 { expr_env = h2_', curr_expr = CurrExpr Evaluate e1', track = et' }
-                                    ls2 = s2 { expr_env = h2_, curr_expr = CurrExpr Evaluate e2, track = et' }
+                                    -- changing this from h2_ to h2_' removes error but slows things down?
+                                    ls2 = s2 { expr_env = h2_', curr_expr = CurrExpr Evaluate e2, track = et' }
                                 in
                                 -- let pg = mkPrettyGuide (ls1, ls2) in
                                 -- trace ("LEMMA " ++ (folder_name $ track s2) ++ " " ++ (folder_name $ track s1)
@@ -1051,11 +1060,11 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma
 -- TODO varNames itself is probably not the source
 -- TODO do I really need s' if I have opp_env?
 lemmaSound :: HS.HashSet Name -> StateET -> StateET -> Lemma -> Bool
-lemmaSound ns s s' lem =
-  case unApp . modifyASTs stripTicks . inlineFull (HS.toList ns) (expr_env s) (expr_env s') $ exprExtract s of
+lemmaSound ns s _ lem =
+  case unApp . modifyASTs stripTicks . inlineFull (HS.toList ns) (expr_env s) (opp_env $ track s) $ exprExtract s of
     Var (Id f _):_ ->
         let
-            lem_vars = varNames $ inlineFull (HS.toList ns) (expr_env s) (expr_env s') $ exprExtract (lemma_rhs lem)
+            lem_vars = varNames $ inlineFull (HS.toList ns) (expr_env s) (opp_env $ track s) $ exprExtract (lemma_rhs lem)
         in
         not $ f `elem` lem_vars
     _ -> False

@@ -582,11 +582,11 @@ applyTacticToLabeledStates :: Tactic solver -> String -> String -> Tactic solver
 applyTacticToLabeledStates tactic lbl1 lbl2 solver ns lemmas fresh_names (sh1, sh2) (s1, s2)
     | Just sh1' <- digInStateH lbl1 $ appendH sh1 s1 =
         tactic solver ns lemmas fresh_names (sh1', sh2) (latest sh1', latest sh2)
-    | Just sh1' <- digInStateH lbl2 $ appendH sh1 s1 =
+    {-| Just sh1' <- digInStateH lbl2 $ appendH sh1 s1 =
         tactic solver ns lemmas fresh_names (sh1', sh2) (latest sh1', latest sh2)
     | Just sh2' <- digInStateH lbl1 $ appendH sh2 s2 =
-        tactic solver ns lemmas fresh_names (sh1, sh2') (latest sh1, latest sh2')
-      | Just sh2' <- digInStateH lbl2 $ appendH sh2 s2 =
+        tactic solver ns lemmas fresh_names (sh1, sh2') (latest sh1, latest sh2')-}
+    | Just sh2' <- digInStateH lbl2 $ appendH sh2 s2 =
         tactic solver ns lemmas fresh_names (sh1, sh2') (latest sh1, latest sh2')
     | otherwise = return . NoProof $ []
 
