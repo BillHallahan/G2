@@ -933,27 +933,29 @@ substLemmaLoopAux :: S.Solver solver =>
                   -> HS.HashSet Name
                   -> Lemmas
                   -> (Lemma, StateET)
-                  -> W.WriterT [Marker] IO [([Lemma], StateET)]
+                  -> W.WriterT [Marker] IO [([(Lemma, StateET)], StateET)]
 substLemmaLoopAux i solver ns lems (lem, s) = do
     sll <- substLemmaLoop (i - 1) solver ns s lems
-    return $ map (\(l, s') -> (l ++ [lem], s')) sll
+    -- TODO is this change correct?
+    return $ map (\(l, s') -> (l ++ [(lem, s)], s')) sll
 
 -- TODO discards all lemmas used except the final one
 -- TODO needs a safeguard against divergence
 -- TODO join lemmas from new iteration with lemmas from prior ones
 -- do I ever get substs done on Case statements?  Yes
+-- TODO where is "state before lemma application" info lost?
 substLemmaLoop :: S.Solver solver =>
                   Int ->
                   solver ->
                   HS.HashSet Name ->
                   StateET ->
                   Lemmas ->
-                  W.WriterT [Marker] IO [([Lemma], StateET)]
+                  W.WriterT [Marker] IO [([(Lemma, StateET)], StateET)]
 substLemmaLoop 0 _ _ _ _ =
     return []
 substLemmaLoop i solver ns s lems = do
     lem_states <- substLemma solver ns s lems
-    let lem_states' = map (\(l, s') -> ([l], s')) lem_states
+    let lem_states' = map (\(l, s') -> ([(l, s)], s')) lem_states
     --lem_state_lists <- mapM ((flip $ substLemmaLoop (i - 1) solver ns) lems . snd) lem_states
     lem_state_lists <- mapM (substLemmaLoopAux i solver ns lems) lem_states
     return $ lem_states' ++ concat lem_state_lists
@@ -1127,8 +1129,9 @@ moreRestrictivePairWithLemmas' app_state solver num_lemmas valid ns lemmas past_
             mrp <- moreRestrictivePair solver valid ns past_list (s1_, s2_)
             -- TODO use synced or non-synced?
             -- TODO losing state information
-            let l1' = map (\l -> (s1', l)) l1
-            let l2' = map (\l -> (s2', l)) l2
+            -- the underscore states here are ones with substs applied
+            let l1' = map swap l1
+            let l2' = map swap l2
             return $ fmap (l1', l2', ) mrp) pairs
     let (possible_lemmas, possible_matches) = partitionEithers rp
 
