@@ -268,11 +268,16 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                                     -- TODO changing this from h2 didn't help
                                     h2_ = envMerge (E.mapConcOrSym cs h2) h2'
                                     h2_' = E.mapConc (flip replaceVars v_rep) h2_ -- foldr (\(Id n _, e) -> E.insert n e) h2 (HM.toList $ fst hm)
+                                    -- this h2_alt gives an error for p80
+                                    -- only when h2_ is first for envMerge, that is
+                                    -- with the order swapped, p55 gives an error
+                                    -- something is in h2_' that isn't in h2_alt
+                                    h2_alt = envMerge h2_' h2_
                                     et' = (track s2) { opp_env = E.empty }
                                     ls1 = s2 { expr_env = h2_', curr_expr = CurrExpr Evaluate e1', track = et' }
                                     -- changing this from h2_ to h2_' removes error but slows things down?
                                     -- changing it back to h2_ removes the error for p55 and reintroduces for p80
-                                    ls2 = s2 { expr_env = h2_, curr_expr = CurrExpr Evaluate e2, track = et' }
+                                    ls2 = s2 { expr_env = h2_alt, curr_expr = CurrExpr Evaluate e2, track = et' }
                                 in
                                 -- let pg = mkPrettyGuide (ls1, ls2) in
                                 -- trace ("LEMMA " ++ (folder_name $ track s2) ++ " " ++ (folder_name $ track s1)
@@ -509,9 +514,11 @@ syncSymbolic s1 s2 =
   in (s1 { track = et1 }, s2 { track = et2 })
 
 -- the left one takes precedence
+-- TODO are any RedirObj mappings present?
 envMerge :: ExprEnv -> ExprEnv -> ExprEnv
 envMerge env h =
   let f (E.SymbObj _) e2 = e2
+      f (E.RedirObj _) _ = error "RedirObj"
       f e1 _ = e1
   in E.unionWith f env h
 
