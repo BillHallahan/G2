@@ -271,7 +271,8 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                                     et' = (track s2) { opp_env = E.empty }
                                     ls1 = s2 { expr_env = h2_', curr_expr = CurrExpr Evaluate e1', track = et' }
                                     -- changing this from h2_ to h2_' removes error but slows things down?
-                                    ls2 = s2 { expr_env = h2_', curr_expr = CurrExpr Evaluate e2, track = et' }
+                                    -- changing it back to h2_ removes the error for p55 and reintroduces for p80
+                                    ls2 = s2 { expr_env = h2_, curr_expr = CurrExpr Evaluate e2, track = et' }
                                 in
                                 -- let pg = mkPrettyGuide (ls1, ls2) in
                                 -- trace ("LEMMA " ++ (folder_name $ track s2) ++ " " ++ (folder_name $ track s1)
@@ -860,9 +861,8 @@ insertProposedLemma solver ns lem lems@(Lemmas { proposed_lemmas = prop_lems
                                                , disproven_lemmas = disproven_lems }) = do
     same_as_proposed <- equivLemma solver ns lem prop_lems
     implied_by_proven <- moreRestrictiveLemma solver ns lem proven_lems
-    -- TODO does this mean "implies disproven?"
-    implied_by_disproven <- anyM (\dl -> moreRestrictiveLemma solver ns dl [lem]) disproven_lems
-    case same_as_proposed || implied_by_proven  || implied_by_disproven of
+    implies_disproven <- anyM (\dl -> moreRestrictiveLemma solver ns dl [lem]) disproven_lems
+    case same_as_proposed || implied_by_proven || implies_disproven of
         True -> do
           --W.liftIO $ putStrLn $ "DISCARDED " ++ lemma_name lem
           return lems
@@ -937,7 +937,10 @@ substLemmaLoopAux :: S.Solver solver =>
 substLemmaLoopAux i solver ns lems (lem, s) = do
     sll <- substLemmaLoop (i - 1) solver ns s lems
     -- TODO is this change correct?
-    return $ map (\(l, s') -> (l ++ [(lem, s)], s')) sll
+    -- have no-substs version come before partial-subst
+    -- TODO this eliminates no-substs too
+    -- single-lemma uses have it correct now
+    return $ map (\(l, s') -> ((lem,s):l, s')) sll
 
 -- TODO discards all lemmas used except the final one
 -- TODO needs a safeguard against divergence
@@ -955,6 +958,9 @@ substLemmaLoop 0 _ _ _ _ =
     return []
 substLemmaLoop i solver ns s lems = do
     lem_states <- substLemma solver ns s lems
+    -- TODO this setup doesn't capture the partway results
+    -- now it gets two different states, but in a bad way
+    -- one has both subs, one has one sub, but neither is original
     let lem_states' = map (\(l, s') -> ([(l, s)], s')) lem_states
     --lem_state_lists <- mapM ((flip $ substLemmaLoop (i - 1) solver ns) lems . snd) lem_states
     lem_state_lists <- mapM (substLemmaLoopAux i solver ns lems) lem_states
