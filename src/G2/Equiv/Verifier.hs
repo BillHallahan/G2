@@ -353,10 +353,10 @@ verifyLoop solver ns lemmas states b config nc sym_ids folder_root k n | (n /= 0
   -- Didn't test on much, but no apparent benefit
   (b', k', proven, lemmas') <- verifyLoopPropLemmas solver allTactics ns lemmas b config nc folder_root k
 
-  -- W.liftIO $ putStrLn $ "prop_lemmas': " ++ show (length prop_lemmas')
+  W.liftIO $ putStrLn $ "proposed_lemmas: " ++ show (length $ proposed_lemmas lemmas')
   W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length $ proven_lemmas lemmas')
   -- W.liftIO $ putStrLn $ "continued_lemmas: " ++ show (length continued_lemmas)
-  -- W.liftIO $ putStrLn $ "disproven_lemmas: " ++ show (length disproven_lemmas)
+  W.liftIO $ putStrLn $ "disproven_lemmas: " ++ show (length $ disproven_lemmas lemmas')
 
   -- p02 went from about 50s to 1:50 when I added this
   -- No improvement for p03fin
@@ -522,7 +522,16 @@ verifyWithNewProvenLemmas :: S.Solver solver =>
 verifyWithNewProvenLemmas solver nl_tactics ns proven lemmas b states = do
     let rel_states = map (\pl -> (lemma_lhs_origin pl, lemma_rhs_origin pl)) proven
         tactics = concatMap (\t -> map (uncurry t) rel_states) nl_tactics
-
+    {-
+    W.liftIO $ putStrLn $ "Trying " ++
+               show (map lemma_lhs_origin proven) ++
+               show (map lemma_rhs_origin proven) ++
+               show (map lemma_name proven) ++
+               " on " ++ show (map (\(sh1, sh2) -> (folder_name $ track $ latest sh1, folder_name $ track $ latest sh2)) states)
+    W.liftIO $ print $ map ((map (folder_name . track)) . history . fst) states
+    W.liftIO $ print $ map ((map (folder_name . track)) . history . snd) states
+    W.liftIO $ putStrLn "END VWNPL"
+    -}
     verifyLoop' solver tactics ns lemmas b states
 
 verifyLemmasWithNewProvenLemmas :: S.Solver solver =>

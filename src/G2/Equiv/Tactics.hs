@@ -860,9 +860,12 @@ insertProposedLemma solver ns lem lems@(Lemmas { proposed_lemmas = prop_lems
                                                , disproven_lemmas = disproven_lems }) = do
     same_as_proposed <- equivLemma solver ns lem prop_lems
     implied_by_proven <- moreRestrictiveLemma solver ns lem proven_lems
+    -- TODO does this mean "implies disproven?"
     implied_by_disproven <- anyM (\dl -> moreRestrictiveLemma solver ns dl [lem]) disproven_lems
     case same_as_proposed || implied_by_proven  || implied_by_disproven of
-        True -> return lems
+        True -> do
+          --W.liftIO $ putStrLn $ "DISCARDED " ++ lemma_name lem
+          return lems
         False -> return lems { proposed_lemmas = lem:prop_lems }
 
 proposedLemmas :: Lemmas -> [ProposedLemma]
