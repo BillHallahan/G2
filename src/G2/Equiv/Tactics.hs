@@ -291,13 +291,29 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                                     -- with the order swapped, p55 gives an error
                                     -- something is in h2_' that isn't in h2_alt
                                     h2_alt = envMerge h2_' h2_
-                                    et' = trace ("DIFF " ++ (show $ E.size $ E.difference h2_alt h2_')) $ (track s2) { opp_env = E.empty }
+                                    et' = (track s2) { opp_env = E.empty }
+                                    -- TODO get all names from the two new current expressions
+                                    -- filter out the ones that are in ns or in the envs
+                                    -- make them symbolic
+                                    -- does this risk losing totality info?  Spurious counterexamples?
+                                    -- TODO use varIds to retrieve from them
+                                    -- TODO which env to use?
+                                    -- TODO how is totality info handled normally in this function?
+                                    ids1 = varIds e1'
+                                    ids1' = filter (\(Id n _) -> not $ HS.member n ns) ids1
+                                    ids1'' = filter (\(Id n _) -> not $ E.member n h2_alt) ids1'
+                                    ids2 = varIds e2
+                                    ids2' = filter (\(Id n _) -> not $ HS.member n ns) ids2
+                                    ids2'' = filter (\(Id n _) -> not $ E.member n h2_alt) ids2'
+                                    ids = nub $ ids1'' ++ ids2''
+                                    h_lem1 = foldr E.insertSymbolic h2_' ids
+                                    h_lem2 = foldr E.insertSymbolic h2_ ids
                                     -- making the expr env here h2_alt is wrong
                                     -- removes p80 error but throws off lemmas
-                                    ls1 = s2 { expr_env = h2_', curr_expr = CurrExpr Evaluate e1', track = et' }
+                                    ls1 = s2 { expr_env = h_lem1, curr_expr = CurrExpr Evaluate e1', track = et' }
                                     -- changing this from h2_ to h2_' removes error but slows things down?
                                     -- changing it back to h2_ removes the error for p55 and reintroduces for p80
-                                    ls2 = s2 { expr_env = h2_alt, curr_expr = CurrExpr Evaluate e2, track = et' }
+                                    ls2 = s2 { expr_env = h_lem2, curr_expr = CurrExpr Evaluate e2, track = et' }
                                 in
                                 -- let pg = mkPrettyGuide (ls1, ls2) in
                                 -- trace ("LEMMA " ++ (folder_name $ track s2) ++ " " ++ (folder_name $ track s1)
@@ -439,7 +455,7 @@ moreRestrictiveAlt :: StateET
 moreRestrictiveAlt s1 s2 ns hm active n1 n2 (Alt am1 e1) (Alt am2 e2) =
   if altEquiv am1 am2 then
   case am1 of
-    DataAlt _ t1 -> let ns' = trace ("PROBLEM? " ++ (show $ problemName `elem` (map idName t1))) $ foldr HS.insert ns $ map idName t1
+    DataAlt _ t1 -> let ns' = {-trace ("PROBLEM? " ++ (show $ problemName `elem` (map idName t1))) $-} foldr HS.insert ns $ map idName t1
                     in moreRestrictive s1 s2 ns' hm active n1 n2 e1 e2
     _ -> moreRestrictive s1 s2 ns hm active n1 n2 e1 e2
   else Left []
