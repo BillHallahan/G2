@@ -308,9 +308,8 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                                     ids2' = filter (\(Id n _) -> not $ E.member n h2_) ids2
                                     -- ids1'' and ids2'' are both empty every time for p80
                                     ids = nub $ ids1' ++ ids2'
-                                    -- this is empty every time for p80 right now
-                                    lengths = map length [ids1, ids1', ids2, ids2', ids]
-                                    h_lem1 = trace ("IDS " ++ (show lengths)) $ foldr E.insertSymbolic h2_' ids
+                                    --lengths = map length [ids1, ids1', ids2, ids2', ids]
+                                    h_lem1 = {-trace ("IDS " ++ (show lengths)) $-} foldr E.insertSymbolic h2_' ids
                                     h_lem2 = foldr E.insertSymbolic h2_ ids
                                     -- making the expr env here h2_alt is wrong
                                     -- removes p80 error but throws off lemmas
@@ -1011,8 +1010,9 @@ substLemmaLoop i solver ns s lems = do
     -- now it gets two different states, but in a bad way
     -- one has both subs, one has one sub, but neither is original
     let lem_states' = map (\(l, s') -> ([(l, s)], s')) lem_states
+        lems_used = lems { proven_lemmas = nub $ map fst lem_states }
     --lem_state_lists <- mapM ((flip $ substLemmaLoop (i - 1) solver ns) lems . snd) lem_states
-    lem_state_lists <- mapM (substLemmaLoopAux i solver ns lems) lem_states
+    lem_state_lists <- mapM (substLemmaLoopAux i solver ns lems_used) lem_states
     return $ lem_states' ++ concat lem_state_lists
 
 -- TODO Is this out of date now?
