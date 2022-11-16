@@ -299,14 +299,18 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                                     -- TODO use varIds to retrieve from them
                                     -- TODO which env to use?
                                     -- TODO how is totality info handled normally in this function?
+                                    -- evidently, this isn't catching the important xs variable
                                     ids1 = varIds e1'
-                                    ids1' = filter (\(Id n _) -> not $ HS.member n ns) ids1
-                                    ids1'' = filter (\(Id n _) -> not $ E.member n h2_alt) ids1'
+                                    --ids1' = filter (\(Id n _) -> not $ HS.member n ns) ids1
+                                    ids1' = filter (\(Id n _) -> not $ E.member n h2_') ids1
                                     ids2 = varIds e2
-                                    ids2' = filter (\(Id n _) -> not $ HS.member n ns) ids2
-                                    ids2'' = filter (\(Id n _) -> not $ E.member n h2_alt) ids2'
-                                    ids = nub $ ids1'' ++ ids2''
-                                    h_lem1 = foldr E.insertSymbolic h2_' ids
+                                    --ids2' = filter (\(Id n _) -> not $ HS.member n ns) ids2
+                                    ids2' = filter (\(Id n _) -> not $ E.member n h2_) ids2
+                                    -- ids1'' and ids2'' are both empty every time for p80
+                                    ids = nub $ ids1' ++ ids2'
+                                    -- this is empty every time for p80 right now
+                                    lengths = map length [ids1, ids1', ids2, ids2', ids]
+                                    h_lem1 = trace ("IDS " ++ (show lengths)) $ foldr E.insertSymbolic h2_' ids
                                     h_lem2 = foldr E.insertSymbolic h2_ ids
                                     -- making the expr env here h2_alt is wrong
                                     -- removes p80 error but throws off lemmas
