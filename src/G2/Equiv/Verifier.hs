@@ -72,9 +72,6 @@ logStatesFolder pre fr = Log Pretty $ fr ++ "/" ++ pre
 logStatesET :: String -> String -> String
 logStatesET pre fr = fr ++ "/" ++ pre
 
-problemName :: Name
-problemName = Name "xs" Nothing 6989586621679024315 Nothing
-
 {-
 TODO 1/25
 If some states are significantly farther ahead than others in terms of
@@ -107,10 +104,6 @@ runSymExec solver config nc@(NC { sync = sy }) folder_root ns s1 s2 = do
       e1' = addStackTickIfNeeded ns (expr_env s1) e1
       s1' = s1 { track = t1, curr_expr = CurrExpr r1 e1' }
   --CM.liftIO $ putStrLn $ (folder_name $ track s1) ++ " becomes " ++ (folder_name t1)
-  --CM.liftIO $ putStrLn $ show $ E.member problemName $ expr_env s1
-  --CM.liftIO $ putStrLn $ show $ E.member problemName $ expr_env s1'
-  --CM.liftIO $ putStrLn $ show $ E.member problemName $ opp_env $ track s1
-  --CM.liftIO $ putStrLn $ show $ E.member problemName $ opp_env $ track s1'
   (er1, bindings') <- CM.lift $ runG2ForNebula solver s1' (expr_env s2) (track s2) config' nc bindings
   CM.put (bindings', k + 1)
   let final_s1 = map final_state er1
@@ -123,12 +116,6 @@ runSymExec solver config nc@(NC { sync = sy }) folder_root ns s1 s2 = do
                         e2' = addStackTickIfNeeded ns (expr_env s2) e2
                         s2' = s2_ { track = t2, curr_expr = CurrExpr r2 e2' }
                     --CM.liftIO $ putStrLn $ (folder_name $ track s2_) ++ " becomes " ++ (folder_name t2)
-                    --CM.liftIO $ putStrLn $ show $ E.member problemName $ expr_env s2
-                    --CM.liftIO $ putStrLn $ show $ E.member problemName $ expr_env s2_
-                    --CM.liftIO $ putStrLn $ show $ E.member problemName $ expr_env s2'
-                    --CM.liftIO $ putStrLn $ show $ E.member problemName $ opp_env $ track s2
-                    --CM.liftIO $ putStrLn $ show $ E.member problemName $ opp_env $ track s2_
-                    --CM.liftIO $ putStrLn $ show $ E.member problemName $ opp_env $ track s2'
                     (er2, b_') <- CM.lift $ runG2ForNebula solver s2' (expr_env s1_) (track s1_) config'' nc b_
                     CM.put (b_', k_ + 1)
                     return $ map (\er2_ -> 

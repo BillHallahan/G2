@@ -173,16 +173,6 @@ moreRestrictivePC solver s1 s2 hm = do
     S.UNSAT () -> return True
     _ -> return False
 
--- same number, but rest of name not constant
-problemId80 :: Id
-problemId80 = Id (Name "xs" Nothing 6989586621679024315 Nothing) (TyApp (TyCon (Name "[]" (Just "GHC.Types") 0 Nothing) (TyFun TYPE TYPE)) (TyVar (Id (Name "a" Nothing 6989586621679029046 (Just (Span {start = Loc {line = 628, col = 1, file = "tests/RewriteVerify/Correct/TestZeno.hs"}, end = Loc {line = 628, col = 77, file = "tests/RewriteVerify/Correct/TestZeno.hs"}}))) TYPE)))
-
-problemId55 :: Id
-problemId55 = Id (Name "xs" Nothing 6989586621679024315 Nothing) (TyApp (TyCon (Name "[]" (Just "GHC.Types") 0 Nothing) (TyFun TYPE TYPE)) (TyVar (Id (Name "a" Nothing 6989586621679028912 (Just (Span {start = Loc {line = 616, col = 1, file = "tests/RewriteVerify/Correct/TestZeno.hs"}, end = Loc {line = 616, col = 77, file = "tests/RewriteVerify/Correct/TestZeno.hs"}}))) TYPE)))
-
-problemName :: Name
-problemName = Name "xs" Nothing 6989586621679024315 Nothing
-
 -- s1 is the old state, s2 is the new state
 -- If any recursively-defined functions or other expressions manage to slip
 -- through the cracks with the other mechanisms in place for avoiding infinite
