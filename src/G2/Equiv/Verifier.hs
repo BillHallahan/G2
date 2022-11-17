@@ -449,8 +449,8 @@ verifyLoopPropLemmas solver tactics ns lemmas b config nc folder_root k = do
 
     let (proven, continued_lemmas, disproven, new_lemmas) = partitionLemmas ([], [], [], []) prop_lemmas'
         lemmas' = replaceProposedLemmas continued_lemmas lemmas
-        lemmas'' = foldr insertProvenLemma lemmas' proven
-        lemmas''' = foldr insertDisprovenLemma lemmas'' disproven
+    lemmas'' <- foldM (insertProvenLemma solver ns) lemmas' proven
+    lemmas''' <- foldM (insertDisprovenLemma solver ns) lemmas'' disproven
 
     lemmas'''' <- foldM (flip (insertProposedLemma solver ns))
                           lemmas'''

@@ -901,9 +901,7 @@ insertProposedLemma solver ns lem lems@(Lemmas { proposed_lemmas = prop_lems
     implied_by_proven <- moreRestrictiveLemma solver ns lem proven_lems
     implies_disproven <- anyM (\dl -> moreRestrictiveLemma solver ns dl [lem]) disproven_lems
     case same_as_proposed || implied_by_proven || implies_disproven of
-        True -> do
-          --W.liftIO $ putStrLn $ "DISCARDED " ++ lemma_name lem
-          return lems
+        True -> return lems
         False -> return lems { proposed_lemmas = lem:prop_lems }
 
 proposedLemmas :: Lemmas -> [ProposedLemma]
@@ -918,11 +916,40 @@ disprovenLemmas = disproven_lemmas
 replaceProposedLemmas :: [ProposedLemma] -> Lemmas -> Lemmas
 replaceProposedLemmas pl lems = lems { proposed_lemmas = pl }
 
-insertProvenLemma :: ProvenLemma -> Lemmas -> Lemmas
-insertProvenLemma lem lems = lems { proven_lemmas = lem:proven_lemmas lems }
+-- TODO proactively confirm lemmas implied by this?
+-- this might be redundant with the verifier's work
+insertProvenLemma :: S.Solver solver =>
+                     solver
+                  -> HS.HashSet Name
+                  -> Lemmas
+                  -> ProvenLemma
+                  -> W.WriterT [Marker] IO Lemmas
+insertProvenLemma solver ns lems lem = do
+  let prop_lems = proposed_lemmas lems
+  (extra_proven, still_prop) <- partitionM (\l -> moreRestrictiveLemma solver ns l [lem]) prop_lems
+  return $ lems {
+      proposed_lemmas = still_prop
+    , proven_lemmas = lem:(extra_proven ++ proven_lemmas lems)
+  }
 
-insertDisprovenLemma :: DisprovenLemma -> Lemmas -> Lemmas
-insertDisprovenLemma lem lems = lems { disproven_lemmas = lem:disproven_lemmas lems }
+-- TODO remove lemmas that imply the disproven lemma
+-- TODO have some sort of marker for this event?
+insertDisprovenLemma :: S.Solver solver =>
+                        solver
+                     -> HS.HashSet Name
+                     -> Lemmas
+                     -> DisprovenLemma
+                     -> W.WriterT [Marker] IO Lemmas
+insertDisprovenLemma solver ns lems lem = do
+  -- remove ones that imply the newly disproven lemma
+  -- the one implied is the more specific one
+  -- the one doing the implying is the more general one
+  let prop_lems = proposed_lemmas lems
+  (extra_disproven, still_prop) <- partitionM (\l -> moreRestrictiveLemma solver ns lem [l]) prop_lems
+  return $ lems {
+      proposed_lemmas = still_prop
+    , disproven_lemmas = lem:(extra_disproven ++ disproven_lemmas lems)
+  }
 
 moreRestrictiveLemma :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> [Lemma] -> W.WriterT [Marker] IO Bool 
 moreRestrictiveLemma solver ns (Lemma { lemma_lhs = l1_1, lemma_rhs = l1_2 }) lems = do
