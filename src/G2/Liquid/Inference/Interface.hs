@@ -27,6 +27,7 @@ import G2.Liquid.Inference.InfStack
 import G2.Liquid.Inference.Initalization
 import G2.Liquid.Inference.PolyRef
 import G2.Liquid.Inference.Sygus
+import G2.Liquid.Inference.UnionPoly
 import G2.Liquid.Inference.GeneratedSpecs
 import G2.Liquid.Inference.Verify
 import G2.Liquid.Interface
@@ -89,6 +90,8 @@ inference' infconfig config g2lhconfig lhconfig ghci proj fp = do
     let nls = getNameLevels main_mod lrs
 
     putStrLn $ "nls = " ++ show nls
+
+    putStrLn $ "shared = " ++ show (sharedTyConsEE (concat nls) (expr_env . G2LH.state . lr_state $ lrs))
 
     let configs = Configs { g2_config = g2config', g2lh_config = g2lhconfig', lh_config = lhconfig, inf_config = infconfig'}
         prog = newProgress

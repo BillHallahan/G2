@@ -74,7 +74,7 @@ addLHTCExprEnvLams is e = do
     lh <- lhTCM
 
     let is' = reverse is
-    let is'' = map (TyApp (TyCon lh (TyApp TYPE TYPE)) . TyVar) $ is'
+    let is'' = map (TyApp (TyCon lh (TyFun TYPE TYPE)) . TyVar) $ is'
     is''' <- freshIdsN is''
 
     -- Lambdas may be nested in an Expr (for example, if the lambda is in a Let)
@@ -210,7 +210,7 @@ addLHDictToTypes''' m is (TyForAll b t) =
 addLHDictToTypes''' m is t = do
     lh <- lhTCM
     let is' = reverse is
-    let dictT = map (TyApp (TyCon lh (TyApp TYPE TYPE)) . TyVar) is'
+    let dictT = map (TyApp (TyCon lh (TyFun TYPE TYPE)) . TyVar) is'
 
     -- The recursive step in addLHDictToTypes'' only kicks in when it is not
     -- at a TyForAll.  So we have to perform recursion here, on the type nested
@@ -225,7 +225,7 @@ lhTCDict m t = do
     tc <- typeClassInstTC m lh t
     case tc of
         Just e -> return $ dropAppedLH e
-        Nothing -> return $ Var (Id (Name "bad2" Nothing 0 Nothing) (TyCon lh TYPE))
+        Nothing -> return $ Var (Id (Name "bad2" Nothing 0 Nothing) (TyCon lh (TyFun TYPE TYPE)))
     where
         -- typeClassInstTC adds any needed LH Dict arguments for us.
         -- Unfortunately, the LH Dicts are then added AGAIN, by addLHTCExprEnvPasses

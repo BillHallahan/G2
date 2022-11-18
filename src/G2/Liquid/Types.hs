@@ -703,7 +703,7 @@ binT = do
     lh <- lhTCM
     bool <- tyBoolT
 
-    let lh' = L.TyCon lh L.TYPE
+    let lh' = L.TyCon lh (L.TyFun L.TYPE L.TYPE)
 
     return $ L.TyForAll a
                         (L.TyFun
