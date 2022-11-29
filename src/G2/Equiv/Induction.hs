@@ -206,24 +206,25 @@ induction solver ns prev (s1, s2) | caseRecursion (exprExtract s1)
 -- varies between attempts.
 inductionFoldL :: S.Solver solver =>
                   solver ->
+                  Int ->
                   HS.HashSet Name ->
                   Name ->
                   (StateH, StateH) ->
                   (StateET, StateET) ->
                   W.WriterT [Marker] IO (Maybe (Int, StateET, StateET, IndMarker))
-inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2) = do
+inductionFoldL solver num_lemmas ns fresh_name (sh1, sh2) (s1, s2) = do
   let prev = prevFiltered (sh1, sh2)
   ind <- induction solver ns prev (s1, s2)
   case ind of
     Nothing -> case backtrackOne sh2 of
       Nothing -> return Nothing
-      Just sh2' -> inductionFoldL solver ns fresh_name (sh1, sh2') (s1, latest sh2')
+      Just sh2' -> inductionFoldL solver num_lemmas ns fresh_name (sh1, sh2') (s1, latest sh2')
     Just (s1', s2', im) -> do
       g <- generalize solver ns fresh_name (s1', s2')
       case g of
         Nothing -> case backtrackOne sh2 of
           Nothing -> return Nothing
-          Just sh2' -> inductionFoldL solver ns fresh_name (sh1, sh2') (s1, latest sh2')
+          Just sh2' -> inductionFoldL solver num_lemmas ns fresh_name (sh1, sh2') (s1, latest sh2')
         Just (s1'', s2'') -> return $ Just (length $ history sh2, s1'', s2'', im)
 
 -- TODO somewhat crude solution:  record how "far back" it needed to go
@@ -239,13 +240,14 @@ inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2) = do
 -- requirement instead?
 inductionFold :: S.Solver solver =>
                  solver ->
+                 Int ->
                  HS.HashSet Name ->
                  Name ->
                  (StateH, StateH) ->
                  (StateET, StateET) ->
                  W.WriterT [Marker] IO (Maybe ((Int, Int), StateET, StateET))
-inductionFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
-  fl <- inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2)
+inductionFold solver num_lemmas ns fresh_name (sh1, sh2) (s1, s2) = do
+  fl <- inductionFoldL solver num_lemmas ns fresh_name (sh1, sh2) (s1, s2)
   case fl of
     Just (nl, s1l, s2l, iml) -> do
       W.liftIO $ putStrLn $ "IL " ++ show (map (folder_name . track) [s1, s2, s1l, s2l])
@@ -256,7 +258,7 @@ inductionFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
       W.tell $ [Marker (sh1, sh2) $ Induction iml']
       return $ Just ((0, (length $ history sh2) - nl), s1l, s2l)
     Nothing -> do
-      fr <- inductionFoldL solver ns fresh_name (sh2, sh1) (s2, s1)
+      fr <- inductionFoldL solver num_lemmas ns fresh_name (sh2, sh1) (s2, s1)
       case fr of
         Just (nr, s2r, s1r, imr) -> do
           W.liftIO $ putStrLn $ "IR " ++ show (map (folder_name . track) [s1, s2, s1r, s2r])
@@ -276,7 +278,7 @@ generalizeAux :: S.Solver solver =>
                  W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
 generalizeAux solver ns s1_list s2 = do
   -- TODO add lemmas here later?
-  let check_equiv s1_ = moreRestrictiveEqual solver ns emptyLemmas s1_ s2
+  let check_equiv s1_ = moreRestrictiveEqual solver 0 ns emptyLemmas s1_ s2
   res <- mapM check_equiv s1_list
   let res' = filter isJust res
   case res' of
@@ -331,12 +333,12 @@ generalize solver ns fresh_name (s1, s2) | dc_path (track s1) == dc_path (track 
 -- TODO might not matter with s1 and s2 naming
 -- TODO needs at least one fresh name
 inductionFull :: S.Solver s => Tactic s
-inductionFull solver ns _ (fresh_name:_) sh_pair s_pair = do
-  ifold <- inductionFold solver ns fresh_name sh_pair s_pair
+inductionFull solver num_lemmas ns _ (fresh_name:_) sh_pair s_pair = do
+  ifold <- inductionFold solver num_lemmas ns fresh_name sh_pair s_pair
   case ifold of
     Nothing -> return $ NoProof []
     Just ((n1, n2), s1', s2') -> return $ Success (Just (n1, n2, s1', s2'))
-inductionFull _ _ _ _ _ _ = return $ NoProof []
+inductionFull _ _ _ _ _ _ _ = return $ NoProof []
 
 -- TODO new functions for generalization without induction
 generalizeFoldL :: S.Solver solver =>
@@ -377,10 +379,10 @@ generalizeFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
 -- TODO this should come before induction in the list of tactics
 -- TODO this uses the same fresh name that induction uses currently
 generalizeFull :: S.Solver s => Tactic s
-generalizeFull solver ns _ (fresh_name:_) sh_pair s_pair = do
+generalizeFull solver _ ns _ (fresh_name:_) sh_pair s_pair = do
   gfold <- generalizeFold solver ns fresh_name sh_pair s_pair
   case gfold of
     Nothing -> return $ NoProof []
     Just (s1, s2, q1, q2) -> let lem = mkProposedLemma "Generalization" s1 s2 q1 q2
                              in return $ NoProof $ [lem]
-generalizeFull _ _ _ _ _ _ = return $ NoProof []
+generalizeFull _ _ _ _ _ _ _ = return $ NoProof []

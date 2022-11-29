@@ -80,7 +80,9 @@ data TacticResult = Success (Maybe (Int, Int, StateET, StateET))
 -- this takes a list of fresh names as input
 -- equality and coinduction don't need them
 -- induction just needs one
+-- TODO all tactics now take a lemma count
 type Tactic s = s ->
+                Int ->
                 HS.HashSet Name ->
                 Lemmas ->
                 [Name] ->
@@ -686,17 +688,18 @@ isIdentity _ = False
 -- needs to be enforced, won't just happen naturally
 moreRestrictiveEqual :: S.Solver solver =>
                         solver ->
+                        Int ->
                         HS.HashSet Name ->
                         Lemmas ->
                         StateET ->
                         StateET ->
                         W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-moreRestrictiveEqual solver ns lemmas s1 s2 = do
+moreRestrictiveEqual solver num_lemmas ns lemmas s1 s2 = do
   let (s1', s2') = syncSymbolic s1 s2
   if dc_path (track s1') /= dc_path (track s2') then return Nothing
   else do
     -- no need to enforce dc path condition for this function
-    pm_maybe <- moreRestrictivePairWithLemmasPast solver 2 (\_ _ -> True) ns lemmas [(s2', s1')] (s1', s2')
+    pm_maybe <- moreRestrictivePairWithLemmasPast solver num_lemmas (\_ _ -> True) ns lemmas [(s2', s1')] (s1', s2')
     case pm_maybe of
       Left _ -> return Nothing
       Right (_, _, pm@(PrevMatch _ _ (hm, _) _)) ->
@@ -709,19 +712,20 @@ moreRestrictiveEqual solver ns lemmas s1 s2 = do
 -- iterates through all of the states in the right side's history.
 equalFoldL :: S.Solver solver =>
               solver ->
+              Int ->
               HS.HashSet Name ->
               Lemmas ->
               [StateET] ->
               StateET ->
               W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-equalFoldL solver ns lemmas prev2 s1 = do
+equalFoldL solver num_lemmas ns lemmas prev2 s1 = do
   case prev2 of
     [] -> return Nothing
     p2:t -> do
-      mre <- moreRestrictiveEqual solver ns lemmas s1 p2
+      mre <- moreRestrictiveEqual solver num_lemmas ns lemmas s1 p2
       case mre of
         Just pm -> return $ Just pm
-        _ -> equalFoldL solver ns lemmas t s1
+        _ -> equalFoldL solver num_lemmas ns lemmas t s1
 
 -- TODO clean up code
 -- This tries all of the allowable combinations for equality checking.  First
@@ -731,24 +735,25 @@ equalFoldL solver ns lemmas prev2 s1 = do
 -- states.
 equalFold :: S.Solver solver =>
              solver ->
+             Int ->
              HS.HashSet Name ->
              Lemmas ->
              (StateH, StateH) ->
              (StateET, StateET) ->
              W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker, Side))
-equalFold solver ns lemmas (sh1, sh2) (s1, s2) = do
-  pm_l <- equalFoldL solver ns lemmas (s2:history sh2) s1
+equalFold solver num_lemmas ns lemmas (sh1, sh2) (s1, s2) = do
+  pm_l <- equalFoldL solver num_lemmas ns lemmas (s2:history sh2) s1
   case pm_l of
     Just pm -> return $ Just (pm, ILeft)
     _ -> do
-      pm_r <- equalFoldL solver ns lemmas (s1:history sh1) s2
+      pm_r <- equalFoldL solver num_lemmas ns lemmas (s1:history sh1) s2
       case pm_r of
         Just pm' -> return $ Just (pm', IRight)
         _ -> return Nothing
 
 tryEquality :: S.Solver s => Tactic s
-tryEquality solver ns lemmas _ sh_pair (s1, s2) = do
-  res <- equalFold solver ns lemmas sh_pair (s1, s2)
+tryEquality solver num_lemmas ns lemmas _ sh_pair (s1, s2) = do
+  res <- equalFold solver num_lemmas ns lemmas sh_pair (s1, s2)
   case res of
     Just (pm, sd) -> do
       let (q1, q2) = case sd of
@@ -772,15 +777,16 @@ backtrackOne sh =
 -- all of the possible options for the right-hand present state.
 coinductionFoldL :: S.Solver solver =>
                     solver ->
+                    Int ->
                     HS.HashSet Name ->
                     Lemmas ->
                     [Lemma] ->
                     (StateH, StateH) ->
                     (StateET, StateET) ->
                     W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
-coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) = do
+coinductionFoldL solver num_lemmas ns lemmas gen_lemmas (sh1, sh2) (s1, s2) = do
   let prev = prevFull (sh1, sh2)
-  res <- moreRestrictivePairWithLemmasOnFuncApps solver validCoinduction ns lemmas prev (s1', s2')
+  res <- moreRestrictivePairWithLemmasOnFuncApps solver num_lemmas validCoinduction ns lemmas prev (s1', s2')
   case res of
     Right _ -> return res
     Left new_lems -> backtrack new_lems
@@ -790,12 +796,12 @@ coinductionFoldL solver ns lemmas gen_lemmas (sh1, sh2) (s1, s2) = do
       backtrack new_lems_ =
           case backtrackOne sh2 of
               Nothing -> return . Left $ new_lems_ ++ gen_lemmas
-              Just sh2' -> coinductionFoldL solver ns lemmas
+              Just sh2' -> coinductionFoldL solver num_lemmas ns lemmas
                                        (new_lems_ ++ gen_lemmas) (sh1, sh2') (s1, latest sh2')
 
 tryCoinduction :: S.Solver s => Tactic s
-tryCoinduction solver ns lemmas _ (sh1, sh2) (s1, s2) = do
-  res_l <- coinductionFoldL solver ns lemmas [] (sh1, sh2) (s1, s2)
+tryCoinduction solver num_lemmas ns lemmas _ (sh1, sh2) (s1, s2) = do
+  res_l <- coinductionFoldL solver num_lemmas ns lemmas [] (sh1, sh2) (s1, s2)
   case res_l of
     Right (lem_l, lem_r, pm) -> do
       let cml = CoMarker {
@@ -808,7 +814,7 @@ tryCoinduction solver ns lemmas _ (sh1, sh2) (s1, s2) = do
       W.tell [Marker (sh1, sh2) $ Coinduction cml]
       return $ Success Nothing
     Left l_lemmas -> do
-      res_r <- coinductionFoldL solver ns lemmas [] (sh2, sh1) (s2, s1)
+      res_r <- coinductionFoldL solver num_lemmas ns lemmas [] (sh2, sh1) (s2, s1)
       case res_r of
         Right (lem_l', lem_r', pm') -> do
           let cmr = CoMarker {
@@ -829,8 +835,8 @@ tryCoinduction solver ns lemmas _ (sh1, sh2) (s1, s2) = do
 -- it only needs to do one coinductionFoldL per iteration but does two
 -- changing this didn't seem to make things faster
 tryCoinductionAll :: S.Solver s => Tactic s
-tryCoinductionAll solver ns lemmas fresh (sh1, sh2) (s1, s2) = do
-  res_l <- coinductionFoldL solver ns lemmas [] (sh1, sh2) (s1, s2)
+tryCoinductionAll solver num_lemmas ns lemmas fresh (sh1, sh2) (s1, s2) = do
+  res_l <- coinductionFoldL solver num_lemmas ns lemmas [] (sh1, sh2) (s1, s2)
   case res_l of
     Right (lem_l, lem_r, pm) -> do
       let cml = CoMarker {
@@ -846,7 +852,7 @@ tryCoinductionAll solver ns lemmas fresh (sh1, sh2) (s1, s2) = do
       case backtrackOne sh1 of
         Nothing -> return $ NoProof lems
         Just sh1' -> do
-          res_l' <- tryCoinductionAll solver ns lemmas fresh (sh1', sh2) (latest sh1', s2)
+          res_l' <- tryCoinductionAll solver num_lemmas ns lemmas fresh (sh1', sh2) (latest sh1', s2)
           case res_l' of
             Success _ -> return res_l'
             NoProof lems' -> return $ NoProof $ lems ++ lems'
@@ -1096,14 +1102,15 @@ lemmaSound ns s lem =
 -- called in any way by the lemma.
 moreRestrictivePairWithLemmasOnFuncApps :: S.Solver solver =>
                                            solver ->
+                                           Int ->
                                            ((StateET, StateET) -> (StateET, StateET) -> Bool) ->
                                            HS.HashSet Name ->
                                            Lemmas ->
                                            [(StateET, StateET)] ->
                                            (StateET, StateET) ->
                                            W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
-moreRestrictivePairWithLemmasOnFuncApps solver valid ns =
-    moreRestrictivePairWithLemmas' (\_ _ _ -> True) solver 2 valid ns
+moreRestrictivePairWithLemmasOnFuncApps solver num_lemmas valid ns =
+    moreRestrictivePairWithLemmas' (\_ _ _ -> True) solver num_lemmas valid ns
 --     | Var (Id f1 _):_ <- unApp $ exprExtract s1
 --     , Var (Id f2 _):_ <- unApp $ exprExtract s2 = do
 --         moreRestrictivePairWithLemmas solver ns lemmas past (s1, s2)
@@ -1212,7 +1219,7 @@ mkProposedLemma lm_name or_s1 or_s2 s1 s2 =
 -- TODO do I need to be careful about thrown-out Data constructors?
 -- that doesn't matter for checking latest states
 checkCycle :: S.Solver s => Tactic s
-checkCycle solver ns _ _ (sh1, sh2) (s1, s2) = do
+checkCycle solver _ ns _ _ (sh1, sh2) (s1, s2) = do
   --W.liftIO $ putStrLn $ "Cycle?" ++ (folder_name $ track s1) ++ (folder_name $ track s2)
   let (s1', s2') = syncSymbolic s1 s2
       hist1 = filter (\p -> dc_path (track p) == dc_path (track s1')) $ history sh1
