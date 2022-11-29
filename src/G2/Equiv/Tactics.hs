@@ -80,7 +80,7 @@ data TacticResult = Success (Maybe (Int, Int, StateET, StateET))
 -- this takes a list of fresh names as input
 -- equality and coinduction don't need them
 -- induction just needs one
--- TODO all tactics now take a lemma count
+-- all tactics now take a lemma count
 type Tactic s = s ->
                 Int ->
                 HS.HashSet Name ->
@@ -232,10 +232,6 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                -- this last case means there's a mismatch
                | isSymbolicBoth (idName i) h1 h1' -> Left []
                | not $ (idName i, e2) `elem` n1
-               -- TODO unmapped xs not contained in any env here
-               -- both folder names are b221
-               -- don't see b221 after iteration 6; must appear on 7
-               -- no error within 10 iterations with lemmas disabled
                , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
     (_, Var i) | isSymbolicBoth (idName i) h2 h2' -> Left [] -- sym replaces non-sym
                | not $ (idName i, e1) `elem` n2
@@ -264,19 +260,14 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                                     h2_ = envMerge (E.mapConcOrSym cs h2) h2'
                                     h2_' = E.mapConc (flip replaceVars v_rep) h2_ -- foldr (\(Id n _, e) -> E.insert n e) h2 (HM.toList $ fst hm)
                                     et' = (track s2) { opp_env = E.empty }
-                                    -- TODO get all names from the two new current expressions
-                                    -- filter out the ones that are in ns or in the envs
+                                    -- get all names from the two new current expressions
+                                    -- filter out the ones that are in the envs (ns doesn't matter)
                                     -- make them symbolic
-                                    -- does this risk losing totality info?  Spurious counterexamples?
-                                    -- TODO use varIds to retrieve from them
-                                    -- TODO how is totality info handled normally in this function?
+                                    -- risk of lost totality info, spurious counterexamples
                                     ids1 = varIds e1'
-                                    --ids1' = filter (\(Id n _) -> not $ HS.member n ns) ids1
                                     ids1' = filter (\(Id n _) -> not $ E.member n h2_') ids1
                                     ids2 = varIds e2
-                                    --ids2' = filter (\(Id n _) -> not $ HS.member n ns) ids2
                                     ids2' = filter (\(Id n _) -> not $ E.member n h2_) ids2
-                                    -- ids1'' and ids2'' are both empty every time for p80
                                     ids_both = nub $ ids1' ++ ids2'
                                     h_lem1 = foldr E.insertSymbolic h2_' ids_both
                                     h_lem2 = foldr E.insertSymbolic h2_ ids_both
@@ -828,12 +819,9 @@ tryCoinduction solver num_lemmas ns lemmas _ (sh1, sh2) (s1, s2) = do
           return $ Success Nothing
         Left r_lemmas -> return . NoProof $ l_lemmas ++ r_lemmas
 
--- TODO allow all past-present combinations to be covered
+-- allow all past-present combinations to be covered
 -- keep the right fixed, iterate through all lefts
 -- this is the dual of coinductionFoldL, in a way
--- is this doing redundant work?  Yes, it is
--- it only needs to do one coinductionFoldL per iteration but does two
--- changing this didn't seem to make things faster
 tryCoinductionAll :: S.Solver s => Tactic s
 tryCoinductionAll solver num_lemmas ns lemmas fresh (sh1, sh2) (s1, s2) = do
   res_l <- coinductionFoldL solver num_lemmas ns lemmas [] (sh1, sh2) (s1, s2)
@@ -890,7 +878,7 @@ disprovenLemmas = disproven_lemmas
 replaceProposedLemmas :: [ProposedLemma] -> Lemmas -> Lemmas
 replaceProposedLemmas pl lems = lems { proposed_lemmas = pl }
 
--- TODO proactively confirm lemmas implied by this?
+-- proactively confirm lemmas implied by this
 -- this might be redundant with the verifier's work
 insertProvenLemma :: S.Solver solver =>
                      solver
@@ -906,7 +894,7 @@ insertProvenLemma solver ns lems lem = do
     , proven_lemmas = lem:(extra_proven ++ proven_lemmas lems)
   }
 
--- TODO remove lemmas that imply the disproven lemma
+-- remove lemmas that imply the disproven lemma
 -- TODO have some sort of marker for this event?
 insertDisprovenLemma :: S.Solver solver =>
                         solver
@@ -915,7 +903,6 @@ insertDisprovenLemma :: S.Solver solver =>
                      -> DisprovenLemma
                      -> W.WriterT [Marker] IO Lemmas
 insertDisprovenLemma solver ns lems lem = do
-  -- remove ones that imply the newly disproven lemma
   -- the one implied is the more specific one
   -- the one doing the implying is the more general one
   let prop_lems = proposed_lemmas lems
