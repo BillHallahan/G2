@@ -84,7 +84,6 @@ If the number of iterations for a branch to remain dormant is fixed at the time
 when the branch's evaluation halts, we have the guarantee we need.
 If, at any time, every single branch has been marked as dormant, the ones that
 would be awakened soonest should be awakened immediately.
-TODO look for the name here
 -}
 runSymExec :: S.Solver solver =>
               solver ->
@@ -354,10 +353,10 @@ verifyLoop solver ns lemmas states b config nc sym_ids folder_root k n | (n /= 0
   -- Didn't test on much, but no apparent benefit
   (b', k', proven, lemmas') <- verifyLoopPropLemmas solver allTactics ns lemmas b config nc folder_root k
 
-  W.liftIO $ putStrLn $ "proposed_lemmas: " ++ show (length $ proposed_lemmas lemmas')
-  W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length $ proven_lemmas lemmas')
+  -- W.liftIO $ putStrLn $ "proposed_lemmas: " ++ show (length $ proposed_lemmas lemmas')
+  -- W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length $ proven_lemmas lemmas')
   -- W.liftIO $ putStrLn $ "continued_lemmas: " ++ show (length continued_lemmas)
-  W.liftIO $ putStrLn $ "disproven_lemmas: " ++ show (length $ disproven_lemmas lemmas')
+  -- W.liftIO $ putStrLn $ "disproven_lemmas: " ++ show (length $ disproven_lemmas lemmas')
 
   -- p02 went from about 50s to 1:50 when I added this
   -- No improvement for p03fin
@@ -402,6 +401,7 @@ verifyLoop solver ns lemmas states b config nc sym_ids folder_root k n | (n /= 0
     W.liftIO $ putStrLn $ "proposed = " ++ show (length $ proposedLemmas lemmas)
     W.liftIO $ putStrLn $ "proven = " ++ show (length $ provenLemmas lemmas) 
     W.liftIO $ putStrLn $ "disproven = " ++ show (length $ disprovenLemmas lemmas)
+    {-
     mapM (\l@(Lemma { lemma_lhs = le1, lemma_rhs = le2}) -> do
                   let pg = mkPrettyGuide l
                   W.liftIO $ putStrLn "---- Proven ----"
@@ -420,6 +420,7 @@ verifyLoop solver ns lemmas states b config nc sym_ids folder_root k n | (n /= 0
                   W.liftIO $ putStrLn $ lemma_name l
                   W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
                   W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) (proposedLemmas lemmas)
+    -}
     -- TODO log some new things with the writer for unresolved obligations
     -- TODO the present states are somewhat redundant
     W.liftIO $ putStrLn $ "Unresolved Obligations: " ++ show (length states)
@@ -523,16 +524,6 @@ verifyWithNewProvenLemmas :: S.Solver solver =>
 verifyWithNewProvenLemmas solver nl_tactics ns proven lemmas b states = do
     let rel_states = map (\pl -> (lemma_lhs_origin pl, lemma_rhs_origin pl)) proven
         tactics = concatMap (\t -> map (uncurry t) rel_states) nl_tactics
-    {-
-    W.liftIO $ putStrLn $ "Trying " ++
-               show (map lemma_lhs_origin proven) ++
-               show (map lemma_rhs_origin proven) ++
-               show (map lemma_name proven) ++
-               " on " ++ show (map (\(sh1, sh2) -> (folder_name $ track $ latest sh1, folder_name $ track $ latest sh2)) states)
-    W.liftIO $ print $ map ((map (folder_name . track)) . history . fst) states
-    W.liftIO $ print $ map ((map (folder_name . track)) . history . snd) states
-    W.liftIO $ putStrLn "END VWNPL"
-    -}
     verifyLoop' solver tactics ns lemmas b states
 
 verifyLemmasWithNewProvenLemmas :: S.Solver solver =>
@@ -592,10 +583,6 @@ applyTacticToLabeledStates :: Tactic solver -> String -> String -> Tactic solver
 applyTacticToLabeledStates tactic lbl1 lbl2 solver ns lemmas fresh_names (sh1, sh2) (s1, s2)
     | Just sh1' <- digInStateH lbl1 $ appendH sh1 s1 =
         tactic solver ns lemmas fresh_names (sh1', sh2) (latest sh1', latest sh2)
-    {-| Just sh1' <- digInStateH lbl2 $ appendH sh1 s1 =
-        tactic solver ns lemmas fresh_names (sh1', sh2) (latest sh1', latest sh2)
-    | Just sh2' <- digInStateH lbl1 $ appendH sh2 s2 =
-        tactic solver ns lemmas fresh_names (sh1, sh2') (latest sh1, latest sh2')-}
     | Just sh2' <- digInStateH lbl2 $ appendH sh2 s2 =
         tactic solver ns lemmas fresh_names (sh1, sh2') (latest sh1, latest sh2')
     | otherwise = return . NoProof $ []

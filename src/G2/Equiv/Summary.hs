@@ -239,7 +239,6 @@ summarizeLemma str pg ns sym_ids (s, lem) =
   "\n" ++ str ++ " Lemma:\n" ++ printLemma pg ns sym_ids lem ++
   "\n" ++ str ++ " Before Lemma Usage:\n" ++ printPG pg ns sym_ids s
 
--- TODO allow for multiple lemmas to be shown
 summarizeCoinduction :: PrettyGuide -> HS.HashSet Name -> [Id] -> CoMarker -> String
 summarizeCoinduction pg ns sym_ids (CoMarker {
                              co_used_present = (q1, q2)

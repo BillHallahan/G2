@@ -72,8 +72,6 @@ import qualified Control.Monad.Writer.Lazy as W
 
 import Control.Exception
 
-import Debug.Trace
-
 -- the Bool value for Failure is True if a cycle has been found
 data TacticResult = Success (Maybe (Int, Int, StateET, StateET))
                   | NoProof [Lemma]
@@ -189,9 +187,6 @@ moreRestrictivePC solver s1 s2 hm = do
 -- repeated inlinings of a variable are allowed as long as the expression on
 -- the opposite side is not the same as it was when a previous inlining of the
 -- same variable happened.
--- TODO got an unmapped variable error from p80
--- I must be doing something wrong with variable names for lemmas
--- p80 passed before, though
 moreRestrictive :: StateET
                 -> StateET
                 -> HS.HashSet Name
@@ -239,17 +234,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                -- both folder names are b221
                -- don't see b221 after iteration 6; must appear on 7
                -- no error within 10 iterations with lemmas disabled
-               , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i) ++
-                                                          "\n" ++ (show $ lookupBoth (idName i) h1 h1') ++
-                                                          "\n" ++ (show $ lookupBoth (idName i) h2 h2') ++
-                                                          "\n" ++ (folder_name $ track s1) ++
-                                                          "\n" ++ (folder_name $ track s2) ++
-                                                          "\n" ++ (show $ curr_expr s1) ++
-                                                          "\n" ++ (show $ curr_expr s2) ++
-                                                          "\nSIZES:\n" ++ (show $ E.size h1) ++
-                                                          "\n" ++ (show $ E.size h1') ++
-                                                          "\n" ++ (show $ E.size h2) ++
-                                                          "\n" ++ (show $ E.size h2')
+               , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
     (_, Var i) | isSymbolicBoth (idName i) h2 h2' -> Left [] -- sym replaces non-sym
                | not $ (idName i, e1) `elem` n2
                , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
@@ -276,20 +261,13 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                                     -- TODO changing this from h2 didn't help
                                     h2_ = envMerge (E.mapConcOrSym cs h2) h2'
                                     h2_' = E.mapConc (flip replaceVars v_rep) h2_ -- foldr (\(Id n _, e) -> E.insert n e) h2 (HM.toList $ fst hm)
-                                    -- this h2_alt gives an error for p80
-                                    -- only when h2_ is first for envMerge, that is
-                                    -- with the order swapped, p55 gives an error
-                                    -- something is in h2_' that isn't in h2_alt
-                                    h2_alt = envMerge h2_' h2_
                                     et' = (track s2) { opp_env = E.empty }
                                     -- TODO get all names from the two new current expressions
                                     -- filter out the ones that are in ns or in the envs
                                     -- make them symbolic
                                     -- does this risk losing totality info?  Spurious counterexamples?
                                     -- TODO use varIds to retrieve from them
-                                    -- TODO which env to use?
                                     -- TODO how is totality info handled normally in this function?
-                                    -- evidently, this isn't catching the important xs variable
                                     ids1 = varIds e1'
                                     --ids1' = filter (\(Id n _) -> not $ HS.member n ns) ids1
                                     ids1' = filter (\(Id n _) -> not $ E.member n h2_') ids1
@@ -297,15 +275,10 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                                     --ids2' = filter (\(Id n _) -> not $ HS.member n ns) ids2
                                     ids2' = filter (\(Id n _) -> not $ E.member n h2_) ids2
                                     -- ids1'' and ids2'' are both empty every time for p80
-                                    ids = nub $ ids1' ++ ids2'
-                                    --lengths = map length [ids1, ids1', ids2, ids2', ids]
-                                    h_lem1 = {-trace ("IDS " ++ (show lengths)) $-} foldr E.insertSymbolic h2_' ids
-                                    h_lem2 = foldr E.insertSymbolic h2_ ids
-                                    -- making the expr env here h2_alt is wrong
-                                    -- removes p80 error but throws off lemmas
+                                    ids_both = nub $ ids1' ++ ids2'
+                                    h_lem1 = foldr E.insertSymbolic h2_' ids_both
+                                    h_lem2 = foldr E.insertSymbolic h2_ ids_both
                                     ls1 = s2 { expr_env = h_lem1, curr_expr = CurrExpr Evaluate e1', track = et' }
-                                    -- changing this from h2_ to h2_' removes error but slows things down?
-                                    -- changing it back to h2_ removes the error for p55 and reintroduces for p80
                                     ls2 = s2 { expr_env = h_lem2, curr_expr = CurrExpr Evaluate e2, track = et' }
                                 in
                                 -- let pg = mkPrettyGuide (ls1, ls2) in
@@ -433,8 +406,6 @@ inlineEquiv acc h h' ns v@(Var (Id n _))
 inlineEquiv acc h h' ns e = modifyChildren (inlineEquiv acc h h' ns) e
 
 -- ids are the same between both sides; no need to insert twice
--- TODO this check becomes true at times in final iteration before error on p80
--- likewise for p55 in the error scenario
 moreRestrictiveAlt :: StateET
                    -> StateET
                    -> HS.HashSet Name
@@ -448,7 +419,7 @@ moreRestrictiveAlt :: StateET
 moreRestrictiveAlt s1 s2 ns hm active n1 n2 (Alt am1 e1) (Alt am2 e2) =
   if altEquiv am1 am2 then
   case am1 of
-    DataAlt _ t1 -> let ns' = {-trace ("PROBLEM? " ++ (show $ problemName `elem` (map idName t1))) $-} foldr HS.insert ns $ map idName t1
+    DataAlt _ t1 -> let ns' = foldr HS.insert ns $ map idName t1
                     in moreRestrictive s1 s2 ns' hm active n1 n2 e1 e2
     _ -> moreRestrictive s1 s2 ns hm active n1 n2 e1 e2
   else Left []
@@ -545,11 +516,9 @@ syncSymbolic s1 s2 =
   in (s1 { track = et1 }, s2 { track = et2 })
 
 -- the left one takes precedence
--- TODO are any RedirObj mappings present?
 envMerge :: ExprEnv -> ExprEnv -> ExprEnv
 envMerge env h =
   let f (E.SymbObj _) e2 = e2
-      f (E.RedirObj _) _ = error "RedirObj"
       f e1 _ = e1
   in E.unionWith f env h
 
@@ -644,7 +613,6 @@ moreRestrictivePairAux solver valid ns prev (s1, s2) | dc_path (track s1) == dc_
                   Left lems -> Left $ zip lems [1..length lems]
                   Right hmo -> Right hmo
             in
-              --trace target_str $
               mapLeft (fmap (\(l, i) -> l { lemma_name = "Lem" ++ show i
                                                   ++ " past_1 = " ++ folder p1
                                                   ++ " present_1 = " ++ folder s1
@@ -1067,18 +1035,6 @@ substitution from the symbolic place to the concrete place is still valid.
 If it's unmapped, put it in as symbolic.
 If it's concrete or symbolic, just leave it as it is.
 This implementation does not cover finiteness information.
-TODO more old id-bool list with new one
-TODO What to test to see where the problem is?
-TODO allow for recursive modification?
-TODO (11/9/22) rework to do soundness checks in here?
-This would need to keep track of the state not getting the substitution
-TODO s1 is the state that does not receive the substitution
-TODO incorporate a soundness check here
-don't attempt substitution until a valid sub-expression is reached
-TODO is the use of ns' here problematic?
-It's unlikely, given the unmapped variable is xs
-That's a symbolic variable
-TODO I may need to carry over names from s1 in some additional way
 -}
 replaceMoreRestrictiveSubExpr' :: S.Solver solver =>
                                   solver ->
@@ -1106,8 +1062,6 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma
                     -- should it be opp_env instead of the LHS?
                     rhs_e' = replaceVars (inlineFull (HS.toList ns) (expr_env rhs_s) (opp_env $ track rhs_s) $ exprExtract rhs_s) v_rep
                 CM.put $ Just $ zip new_ids new_info
-                -- this doesn't help with lemma application, seemingly
-                --modifyChildrenM (replaceMoreRestrictiveSubExpr' solver ns lemma s2) rhs_e'
                 return rhs_e'
             Left _ -> do
                 let ns' = foldr HS.insert ns (bind e)
@@ -1123,12 +1077,11 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma
         altBind (Alt (DataAlt _ is) _) = map idName is
         altBind _ = []
 
--- TODO just a template
--- in this one, s is the state receiving the substitution
--- all that matters from s' is the expression environment
--- TODO Is this the source of the unmapped variable error?
--- TODO varNames itself is probably not the source
--- TODO do I really need s' if I have opp_env?
+-- This is a looser version of the lemma soundness check from the paper.
+-- Instead of checking that the expression receiving the substitution is
+-- a suitable function application at the outermost level, we simply look
+-- for a sub-expression that fits that mold.  Substitutions can only
+-- happen within sub-expressions that satisfy the conditions.
 lemmaSound :: HS.HashSet Name -> StateET -> Lemma -> Bool
 lemmaSound ns s lem =
   case unApp . modifyASTs stripTicks . inlineFull (HS.toList ns) (expr_env s) (opp_env $ track s) $ exprExtract s of
@@ -1150,16 +1103,7 @@ moreRestrictivePairWithLemmasOnFuncApps :: S.Solver solver =>
                                            (StateET, StateET) ->
                                            W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
 moreRestrictivePairWithLemmasOnFuncApps solver valid ns =
-    moreRestrictivePairWithLemmas'
-        (\_ _ _ -> True)
-        {-(\s s' lem -> case unApp . modifyASTs stripTicks . inlineFull (HS.toList ns) (expr_env s) (expr_env s') $ exprExtract s of
-                    Var (Id f _):_ ->
-                        let
-                            lem_vars = varNames $ inlineFull (HS.toList ns) (expr_env s) (expr_env s') $ exprExtract (lemma_rhs lem)
-                        in
-                        not $ f `elem` lem_vars
-                    _ -> False)-}
-        solver 2 valid ns
+    moreRestrictivePairWithLemmas' (\_ _ _ -> True) solver 2 valid ns
 --     | Var (Id f1 _):_ <- unApp $ exprExtract s1
 --     , Var (Id f2 _):_ <- unApp $ exprExtract s2 = do
 --         moreRestrictivePairWithLemmas solver ns lemmas past (s1, s2)
@@ -1200,7 +1144,6 @@ moreRestrictivePairWithLemmas' app_state solver num_lemmas valid ns lemmas past_
     rp <- mapM (\((l1, s1_), (l2, s2_)) -> do
             mrp <- moreRestrictivePair solver valid ns past_list (s1_, s2_)
             -- TODO use synced or non-synced?
-            -- TODO losing state information
             -- the underscore states here are ones with substs applied
             let l1' = map swap l1
             let l2' = map swap l2
