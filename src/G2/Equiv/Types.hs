@@ -59,6 +59,8 @@ data ActMarker = Induction IndMarker
                | NotEquivalent (StateET, StateET)
                | SolverFail (StateET, StateET)
                | CycleFound CycleMarker
+               | LemmaProvenEarly (Lemma, Lemma)
+               | LemmaDisprovenEarly (Lemma, Lemma)
                | Unresolved (StateET, StateET)
 
 instance Named ActMarker where
@@ -69,6 +71,8 @@ instance Named ActMarker where
   names (NotEquivalent s_pair) = names s_pair
   names (SolverFail s_pair) = names s_pair
   names (CycleFound cm) = names cm
+  names (LemmaProvenEarly l_pair) = names l_pair
+  names (LemmaDisprovenEarly l_pair) = names l_pair
   names (Unresolved s_pair) = names s_pair
   rename old new m = case m of
     Induction im -> Induction $ rename old new im

@@ -889,13 +889,16 @@ insertProvenLemma :: S.Solver solver =>
 insertProvenLemma solver ns lems lem = do
   let prop_lems = proposed_lemmas lems
   (extra_proven, still_prop) <- partitionM (\l -> moreRestrictiveLemma solver ns l [lem]) prop_lems
+  let extra_pairs = map (\l -> LemmaProvenEarly (lem, l)) extra_proven
+      markers = map (Marker . head . lemma_to_be_proven) extra_proven
+  W.tell $ map (\(m, a) -> m a) $ zip markers extra_pairs
   return $ lems {
       proposed_lemmas = still_prop
     , proven_lemmas = lem:(extra_proven ++ proven_lemmas lems)
   }
 
 -- remove lemmas that imply the disproven lemma
--- TODO have some sort of marker for this event?
+-- for every discarded lemma, add a marker
 insertDisprovenLemma :: S.Solver solver =>
                         solver
                      -> HS.HashSet Name
@@ -907,6 +910,10 @@ insertDisprovenLemma solver ns lems lem = do
   -- the one doing the implying is the more general one
   let prop_lems = proposed_lemmas lems
   (extra_disproven, still_prop) <- partitionM (\l -> moreRestrictiveLemma solver ns lem [l]) prop_lems
+  let extra_pairs = map (\l -> LemmaDisprovenEarly (lem, l)) extra_disproven
+      -- all unresolved lemmas should have a non-empty singleton list
+      markers = map (Marker . head . lemma_to_be_proven) extra_disproven
+  W.tell $ map (\(m, a) -> m a) $ zip markers extra_pairs
   return $ lems {
       proposed_lemmas = still_prop
     , disproven_lemmas = lem:(extra_disproven ++ disproven_lemmas lems)
@@ -949,32 +956,9 @@ substLemma :: S.Solver solver =>
 substLemma solver ns s =
     mapMaybeM (\lem -> replaceMoreRestrictiveSubExpr solver ns lem s) . provenLemmas
 
--- TODO is this the right way to construct output lists?
--- I don't think it is
--- the first lemma used always appears at the front
--- I want to see the back for now
-{-
-substLemmaLoopAux :: S.Solver solver =>
-                     Int
-                  -> solver
-                  -> HS.HashSet Name
-                  -> Lemmas
-                  -> StateET
-                  -> (Lemma, StateET)
-                  -> W.WriterT [Marker] IO [([(Lemma, StateET)], StateET)]
-substLemmaLoopAux i solver ns lems s_old (lem, s) = do
-    sll <- substLemmaLoop (i - 1) solver ns s lems
-    -- TODO is this change correct?
-    -- have no-substs version come before partial-subst
-    -- TODO this eliminates no-substs too
-    -- single-lemma uses have it correct now
-    return $ map (\(l, s') -> ((lem, s_old):l, s')) sll
--}
-
--- TODO needs a safeguard against divergence
--- TODO join lemmas from new iteration with lemmas from prior ones
--- do I ever get substs done on Case statements?  Yes
--- TODO where is "state before lemma application" info lost?
+-- int counter is a safeguard against divergence
+-- optimization:  lemmas that go unused in one iteration are removed for
+-- the next iteration; lost opportunities possible but not observed yet
 substLemmaLoopAux :: S.Solver solver =>
                      Int ->
                      solver ->
@@ -987,12 +971,8 @@ substLemmaLoopAux 0 _ _ _ _ _ =
     return []
 substLemmaLoopAux i solver ns lems past_lems s = do
     lem_states <- substLemma solver ns s lems
-    -- TODO this setup doesn't capture the partway results
-    -- now it gets two different states, but in a bad way
-    -- one has both subs, one has one sub, but neither is original
     let lem_states' = map (\(l, s') -> ((l, s):past_lems, s')) lem_states
         lems_used = lems { proven_lemmas = nub $ map fst lem_states }
-    --lem_state_lists <- mapM ((flip $ substLemmaLoop (i - 1) solver ns) lems . snd) lem_states
     lem_state_lists <- mapM (uncurry (substLemmaLoopAux (i - 1) solver ns lems_used)) lem_states'
     return $ lem_states' ++ concat lem_state_lists
 
@@ -1006,7 +986,6 @@ substLemmaLoop :: S.Solver solver =>
 substLemmaLoop i solver ns s lems =
     substLemmaLoopAux i solver ns lems [] s
 
--- TODO Is this out of date now?
 replaceMoreRestrictiveSubExpr :: S.Solver solver =>
                                  solver ->
                                  HS.HashSet Name ->

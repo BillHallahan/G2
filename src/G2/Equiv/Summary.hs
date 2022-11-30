@@ -228,14 +228,13 @@ summarizeInduction pg ns sym_ids im@(IndMarker {
   "New Variable Name: " ++
   (printHaskellDirtyPG pg $ Var $ Id (ind_fresh_name im) $ typeOf $ exprExtract s1')
 
--- TODO this could be cleaner
-summarizeLemma :: String
-               -> PrettyGuide
-               -> HS.HashSet Name
-               -> [Id]
-               -> (StateET, Lemma)
-               -> String
-summarizeLemma str pg ns sym_ids (s, lem) =
+summarizeLemmaSubst :: String
+                    -> PrettyGuide
+                    -> HS.HashSet Name
+                    -> [Id]
+                    -> (StateET, Lemma)
+                    -> String
+summarizeLemmaSubst str pg ns sym_ids (s, lem) =
   "\n" ++ str ++ " Lemma:\n" ++ printLemma pg ns sym_ids lem ++
   "\n" ++ str ++ " Before Lemma Usage:\n" ++ printPG pg ns sym_ids s
 
@@ -250,20 +249,8 @@ summarizeCoinduction pg ns sym_ids (CoMarker {
   --(summarizeStatePairTrack "Real Present" pg ns sym_ids s1 s2) ++ "\n" ++
   (summarizeStatePairTrack "Used Present" pg ns sym_ids q1 q2) ++ "\n" ++
   (summarizeStatePairTrack "Past" pg ns sym_ids p1 p2) ++
-  (intercalate "\n" $ map (summarizeLemma "Left" pg ns sym_ids) lemma_l) ++
-  (intercalate "\n" $ map (summarizeLemma "Right" pg ns sym_ids) lemma_r)
-  {-
-  (case lemma_l of
-    [] -> ""
-    (s1', lem_l):_ ->
-      "\nLeft Lemma:\n" ++ printLemma pg ns sym_ids lem_l ++
-      "\nLeft Before Lemma Usage:\n" ++ printPG pg ns sym_ids s1') ++
-  (case lemma_r of
-    [] -> ""
-    (s2', lem_r):_ ->
-      "\nRight Lemma:\n" ++ printLemma pg ns sym_ids lem_r ++
-      "\nRight Before Lemma Usage:\n" ++ printPG pg ns sym_ids s2')
-  -}
+  (intercalate "\n" $ map (summarizeLemmaSubst "Left" pg ns sym_ids) lemma_l) ++
+  (intercalate "\n" $ map (summarizeLemmaSubst "Right" pg ns sym_ids) lemma_r)
 
 -- variables:  find all names used in here
 -- look them up, find a fixed point
@@ -307,6 +294,20 @@ summarizeSolverFail :: PrettyGuide ->
                        String
 summarizeSolverFail = summarizeStatePair "SOLVER FAIL"
 
+summarizeLemmaProvenEarly :: PrettyGuide ->
+                             HS.HashSet Name ->
+                             [Id] ->
+                             (Lemma, Lemma) ->
+                             String
+summarizeLemmaProvenEarly = summarizeLemmaPair "Lemma Superseded"
+
+summarizeLemmaDisprovenEarly :: PrettyGuide ->
+                                HS.HashSet Name ->
+                                [Id] ->
+                                (Lemma, Lemma) ->
+                                String
+summarizeLemmaDisprovenEarly = summarizeLemmaPair "Lemma Discarded"
+
 summarizeUnresolved :: PrettyGuide ->
                        HS.HashSet Name ->
                        [Id] ->
@@ -327,6 +328,20 @@ summarizeStatePair str pg ns sym_ids (s1, s2) =
   printPG pg ns sym_ids s1 ++ "\n" ++
   printPG pg ns sym_ids s2
 
+-- we care principally about l2 here
+summarizeLemmaPair :: String ->
+                      PrettyGuide ->
+                      HS.HashSet Name ->
+                      [Id] ->
+                      (Lemma, Lemma) ->
+                      String
+summarizeLemmaPair str pg ns sym_ids (l1, l2) =
+  str ++ ":\n" ++
+  lemma_lhs_origin l2 ++ ", " ++
+  lemma_rhs_origin l2 ++ "\n" ++
+  printLemma pg ns sym_ids l1 ++ "\n" ++
+  printLemma pg ns sym_ids l2
+
 summarizeAct :: PrettyGuide -> HS.HashSet Name -> [Id] -> ActMarker -> String
 summarizeAct pg ns sym_ids m = case m of
   Induction im -> summarizeInduction pg ns sym_ids im
@@ -336,6 +351,8 @@ summarizeAct pg ns sym_ids m = case m of
   NotEquivalent s_pair -> summarizeNotEquivalent pg ns sym_ids s_pair
   SolverFail s_pair -> summarizeSolverFail pg ns sym_ids s_pair
   CycleFound cm -> summarizeCycleFound pg ns sym_ids cm
+  LemmaProvenEarly lp -> summarizeLemmaProvenEarly pg ns sym_ids lp
+  LemmaDisprovenEarly lp -> summarizeLemmaDisprovenEarly pg ns sym_ids lp
   Unresolved s_pair -> summarizeUnresolved pg ns sym_ids s_pair
 
 summarizeHistory :: PrettyGuide -> HS.HashSet Name -> [Id] -> StateH -> String
