@@ -3,6 +3,7 @@
 module G2.Liquid.Inference.UnionPoly (sharedTyConsEE) where
 
 import qualified G2.Data.UFMap as UF
+import qualified G2.Data.UnionFind as UFind
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad.AST
@@ -33,7 +34,7 @@ instance Hashable ArgOrRet
 -- (1) an additional argument count, in the case of a higher order function
 -- (2) a path through ADT constructors
 
-sharedTyConsEE :: [Name] -> ExprEnv -> HM.HashMap Name (UF.UFMap Name Type)
+sharedTyConsEE :: [Name] -> ExprEnv -> UFind.UnionFind Name
 sharedTyConsEE ns eenv =
     let
         f_eenv = E.filterWithKey (\n _ -> n `elem` ns) eenv
@@ -42,7 +43,7 @@ sharedTyConsEE ns eenv =
         rep_eenv =  E.map (repVars tys) f_eenv
         rep_eenv' = elimTyForAll . elimTypes $ rep_eenv
 
-        union_poly = E.map' (fromMaybe UF.empty . checkType) rep_eenv'
+        union_poly = mconcat . map UF.joinedKeys . HM.elems $ E.map' (fromMaybe UF.empty . checkType) rep_eenv'
     in
     trace ("tys = " ++ show tys ++ "\nrep_eenv = " ++ show rep_eenv ++ "\nrep_eenv' = " ++ show rep_eenv' ++ "\nunion_poly = " ++ show union_poly) union_poly -- foldr HM.union HM.empty . E.map' sharedTyCons $ f_eenv
 
