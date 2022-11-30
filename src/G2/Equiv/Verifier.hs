@@ -66,6 +66,7 @@ statePairReadyForSolver (s1, s2) =
 
 -- don't log when the base folder name is empty
 logStatesFolder :: String -> LogMode -> LogMode
+logStatesFolder pre (Log _ "") = NoLog
 logStatesFolder pre (Log method n) = Log method $ n ++ "/" ++ pre
 logStatesFolder _ NoLog = NoLog
 
@@ -327,11 +328,10 @@ verifyLoop :: S.Solver solver =>
               Config ->
               NebulaConfig ->
               [Id] ->
-              String ->
               Int ->
               Int ->
               W.WriterT [Marker] IO (S.Result () () ())
-verifyLoop solver num_lemmas ns lemmas states b config nc sym_ids folder_root k n | (n /= 0) || (null states) = do
+verifyLoop solver num_lemmas ns lemmas states b config nc sym_ids k n | (n /= 0) || (null states) = do
   W.liftIO $ putStrLn "<Loop Iteration>"
   W.liftIO $ putStrLn $ show n
   --let min_depth = minDepth ns sym_ids states
@@ -348,7 +348,7 @@ verifyLoop solver num_lemmas ns lemmas states b config nc sym_ids folder_root k 
   W.liftIO $ hFlush stdout
   -- TODO alternating iterations for this too?
   -- Didn't test on much, but no apparent benefit
-  (b', k', proven, lemmas') <- verifyLoopPropLemmas solver allTactics num_lemmas ns lemmas b config nc folder_root k
+  (b', k', proven, lemmas') <- verifyLoopPropLemmas solver allTactics num_lemmas ns lemmas b config nc k
 
   -- W.liftIO $ putStrLn $ "proposed_lemmas: " ++ show (length $ proposed_lemmas lemmas')
   -- W.liftIO $ putStrLn $ "proven_lemmas: " ++ show (length $ proven_lemmas lemmas')
@@ -357,7 +357,7 @@ verifyLoop solver num_lemmas ns lemmas states b config nc sym_ids folder_root k 
 
   -- p02 went from about 50s to 1:50 when I added this
   -- No improvement for p03fin
-  (b'', k'', proven', lemmas'') <- verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics num_lemmas ns proven lemmas' b' config nc folder_root k'
+  (b'', k'', proven', lemmas'') <- verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics num_lemmas ns proven lemmas' b' config nc k'
   -- TODO I think the lemmas should be the unresolved ones
   -- TODO what to do with disproven lemmas?
   (pl_sr, b''') <- verifyWithNewProvenLemmas solver allNewLemmaTactics num_lemmas ns proven' lemmas'' b'' states
@@ -366,7 +366,7 @@ verifyLoop solver num_lemmas ns lemmas states b config nc sym_ids folder_root k 
       CounterexampleFound -> return $ S.SAT ()
       Proven -> return $ S.UNSAT ()
       ContinueWith _ pl_lemmas -> do
-          (sr, b'''', k''') <- verifyLoopWithSymEx solver allTactics num_lemmas ns lemmas'' b''' config nc folder_root k'' states
+          (sr, b'''', k''') <- verifyLoopWithSymEx solver allTactics num_lemmas ns lemmas'' b''' config nc k'' states
           case sr of
               ContinueWith new_obligations new_lemmas -> do
                   let n' = if n > 0 then n - 1 else n
@@ -382,7 +382,7 @@ verifyLoop solver num_lemmas ns lemmas states b config nc sym_ids folder_root k 
                   --               W.liftIO $ putStrLn "----"
                   --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
                   --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) $ HS.toList new_lemmas
-                  verifyLoop solver num_lemmas ns final_lemmas new_obligations b'''' config nc sym_ids folder_root k''' n'
+                  verifyLoop solver num_lemmas ns final_lemmas new_obligations b'''' config nc sym_ids k''' n'
               CounterexampleFound -> return $ S.SAT ()
               Proven -> do
                   W.liftIO $ putStrLn $ "proposed = " ++ show (length $ proposedLemmas lemmas)
@@ -440,9 +440,9 @@ verifyLoopPropLemmas :: S.Solver solver =>
                      -> NebulaConfig
                      -> Int
                      -> (W.WriterT [Marker] IO) (Bindings, Int, [ProvenLemma], Lemmas)
-verifyLoopPropLemmas solver tactics num_lemmas ns lemmas b config nc folder_root k = do
+verifyLoopPropLemmas solver tactics num_lemmas ns lemmas b config nc k = do
     let prop_lemmas = proposedLemmas lemmas
-        verify_lemma = verifyLoopPropLemmas' solver tactics num_lemmas ns lemmas config nc folder_root
+        verify_lemma = verifyLoopPropLemmas' solver tactics num_lemmas ns lemmas config nc
     (prop_lemmas', (b', k')) <- CM.runStateT (mapM verify_lemma prop_lemmas) (b, k)
 
     let (proven, continued_lemmas, disproven, new_lemmas) = partitionLemmas ([], [], [], []) prop_lemmas'
@@ -471,12 +471,12 @@ verifyLoopPropLemmas' :: S.Solver solver =>
                       -> NebulaConfig
                       -> ProposedLemma
                       -> CM.StateT (Bindings, Int)  (W.WriterT [Marker] IO) (StepRes, Lemma)
-verifyLoopPropLemmas' solver tactics num_lemmas ns lemmas config nc folder_root
+verifyLoopPropLemmas' solver tactics num_lemmas ns lemmas config nc
                      l@(Lemma { lemma_to_be_proven = states }) = do
     (b, k) <- CM.get
     --W.liftIO $ putStrLn $ "k = " ++ show k
     --W.liftIO $ putStrLn $ lemma_name l
-    (sr, b', k') <- W.lift (verifyLoopWithSymEx solver tactics num_lemmas ns lemmas b config nc folder_root k states)
+    (sr, b', k') <- W.lift (verifyLoopWithSymEx solver tactics num_lemmas ns lemmas b config nc k states)
     CM.put (b', k')
     lem <- case sr of
                   CounterexampleFound -> {-trace "COUNTEREXAMPLE verifyLemma"-} return $ l { lemma_to_be_proven = [] }
@@ -496,7 +496,7 @@ verifyLoopWithSymEx :: S.Solver solver =>
                     -> Int
                     -> [(StateH, StateH)]
                     -> W.WriterT [Marker] IO (StepRes, Bindings, Int)
-verifyLoopWithSymEx solver tactics num_lemmas ns lemmas b config nc folder_root k states = do
+verifyLoopWithSymEx solver tactics num_lemmas ns lemmas b config nc k states = do
     let current_states = map getLatest states
     (paired_states, (b', k')) <- W.liftIO $ CM.runStateT (mapM (uncurry (runSymExec solver config nc ns)) current_states) (b, k)
 
@@ -534,23 +534,22 @@ verifyLemmasWithNewProvenLemmas :: S.Solver solver =>
                                 -> Bindings
                                 -> Config
                                 -> NebulaConfig
-                                -> String
                                 -> Int
                                 -> W.WriterT [Marker] IO (Bindings, Int, [ProvenLemma], Lemmas)
-verifyLemmasWithNewProvenLemmas solver nl_tactics num_lemmas ns proven lemmas b config nc fld_name k = do
+verifyLemmasWithNewProvenLemmas solver nl_tactics num_lemmas ns proven lemmas b config nc k = do
     let rel_states = map (\pl -> (lemma_lhs_origin pl, lemma_rhs_origin pl)) proven
         tactics = concatMap (\t -> map (uncurry t) rel_states) nl_tactics
 
     --W.liftIO $ putStrLn "verifyLemmasWithNewProvenLemmas"
     (b', k', new_proven, lemmas') <-
-          verifyLoopPropLemmas solver tactics num_lemmas ns lemmas b config nc fld_name k
+          verifyLoopPropLemmas solver tactics num_lemmas ns lemmas b config nc k
     case null new_proven of
         True -> return (b', k', proven, lemmas')
         False ->
             let
                 proven' = new_proven ++ proven
             in
-            verifyLemmasWithNewProvenLemmas solver nl_tactics num_lemmas ns proven' lemmas' b' config nc fld_name k'
+            verifyLemmasWithNewProvenLemmas solver nl_tactics num_lemmas ns proven' lemmas' b' config nc k'
 
 verifyLoop' :: S.Solver solver =>
                solver
@@ -873,7 +872,7 @@ checkRule config nc init_state bindings total finite rule = do
   (res, w) <- W.runWriterT $ verifyLoop solver (num_lemmas nc) ns
              emptyLemmas
              [(rewrite_state_l'', rewrite_state_r'')]
-             bindings'' config nc sym_ids "" 0 (limit nc)
+             bindings'' config nc sym_ids 0 (limit nc)
   -- UNSAT for good, SAT for bad
   -- TODO I can speed things up for the CX if there's no summary
   -- I only need a PrettyGuide for the CX marker
