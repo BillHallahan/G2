@@ -1,7 +1,8 @@
-{-# LANGUAGE BangPatterns, DeriveGeneric, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, DeriveGeneric, FlexibleContexts, OverloadedStrings #-}
 
 module G2.Liquid.Inference.UnionPoly (sharedTyConsEE) where
 
+import qualified G2.Data.UFMap as UF
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad.AST
@@ -11,9 +12,9 @@ import G2.Language.Monad.Support
 import GHC.Generics (Generic)
 import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
+import Data.Maybe
 
 import Debug.Trace
-import G2.Language.Monad (freshNameN)
 
 data FuncPos = FuncPos Name -- ^ The function name
                        ArgOrRet -- ^ The position in the function type
@@ -32,17 +33,18 @@ instance Hashable ArgOrRet
 -- (1) an additional argument count, in the case of a higher order function
 -- (2) a path through ADT constructors
 
-sharedTyConsEE :: [Name] -> ExprEnv -> HM.HashMap Name Type -- HM.HashMap FuncPos Name
+sharedTyConsEE :: [Name] -> ExprEnv -> HM.HashMap Name (UF.UFMap Name Type)
 sharedTyConsEE ns eenv =
     let
         f_eenv = E.filterWithKey (\n _ -> n `elem` ns) eenv
         tys = fst $ runNamingM (mapM assignTyConNames (E.map' typeOf f_eenv)) (mkNameGen f_eenv)
 
-        rep_eenv = E.map (repVars tys) f_eenv
+        rep_eenv =  E.map (repVars tys) f_eenv
+        rep_eenv' = elimTyForAll . elimTypes $ rep_eenv
 
-        union_poly = E.map' checkType rep_eenv 
+        union_poly = E.map' (fromMaybe UF.empty . checkType) rep_eenv'
     in
-    trace ("tys = " ++ show tys ++ "\nrep_eenv = " ++ show rep_eenv ++ "\nunion_poly = " ++ show union_poly) tys -- foldr HM.union HM.empty . E.map' sharedTyCons $ f_eenv
+    trace ("tys = " ++ show tys ++ "\nrep_eenv = " ++ show rep_eenv ++ "\nrep_eenv' = " ++ show rep_eenv' ++ "\nunion_poly = " ++ show union_poly) union_poly -- foldr HM.union HM.empty . E.map' sharedTyCons $ f_eenv
 
 assignTyConNames :: Type -> NameGenM Type
 assignTyConNames = modifyASTsM assignTyConNames'
@@ -59,6 +61,20 @@ repVars tys = modifyASTs (repVars' tys)
 repVars' :: HM.HashMap Name Type -> Expr -> Expr
 repVars' tys (Var (Id n _)) | Just t <- HM.lookup n tys = Var (Id n t)
 repVars' _ e = e
+
+elimTyForAll :: ASTContainer m Type => m -> m
+elimTyForAll = modifyASTs elimTyForAll'
+
+elimTyForAll' :: Type -> Type
+elimTyForAll' (TyForAll _ t) = elimTyForAll' t
+elimTyForAll' t = t
+
+elimTypes :: ASTContainer m Expr => m -> m
+elimTypes = modifyASTs elimTypes'
+
+elimTypes' :: Expr -> Expr
+elimTypes' (App e (Type _)) = elimTypes' e
+elimTypes' e = e
 
 sharedTyCons :: Expr
              -> HM.HashMap FuncPos Name -- Positions in functions to correspond TyVar Names
