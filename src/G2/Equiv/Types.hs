@@ -82,6 +82,8 @@ instance Named ActMarker where
     NotEquivalent s_pair -> NotEquivalent $ rename old new s_pair
     SolverFail s_pair -> SolverFail $ rename old new s_pair
     CycleFound cm -> CycleFound $ rename old new cm
+    LemmaProvenEarly lp -> LemmaProvenEarly $ rename old new lp
+    LemmaDisprovenEarly lp -> LemmaDisprovenEarly $ rename old new lp
     Unresolved s_pair -> Unresolved $ rename old new s_pair
 
 data Marker = Marker (StateH, StateH) ActMarker
