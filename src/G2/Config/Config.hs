@@ -9,6 +9,9 @@ module G2.Config.Config ( Mode (..)
                         , BoolDef (..)
                         , mkConfig
                         , mkConfigDirect
+
+                        , mkLogMode
+                        
                         , strArg
                         , boolArg
                         , boolArg'

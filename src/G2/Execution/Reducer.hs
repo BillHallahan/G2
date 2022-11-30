@@ -430,7 +430,7 @@ substHigherOrder eenv m ns ce =
     substHigherOrder' [(eenv, m, ce)] higherOrdSub
     where
         genSubstitutable v i
-            | (True, bm) <- specializes (typeOf v) (typeOf i) =
+            | Just bm <- specializes (typeOf v) (typeOf i) =
                 let
                     bnds = map idName $ leadingTyForAllBindings i
                     tys = mapMaybe (\b -> fmap Type $ M.lookup b bm) bnds
@@ -1056,7 +1056,7 @@ instance Orderer CaseCountOrderer Int Int t where
 
     updateSelected _ v _ _ = v
 
-    stepOrderer _ v _ _ (State { curr_expr = CurrExpr _ (Case _ _ _) }) = v + 1
+    stepOrderer _ v _ _ (State { curr_expr = CurrExpr _ (Case _ _ _ _) }) = v + 1
     stepOrderer _ v _ _ _ = v
 
 

@@ -48,6 +48,7 @@ nebulaConfig :: NebulaConfig
 nebulaConfig = NC { limit = 10
                   , print_summary = NoSummary
                   , use_labeled_errors = UseLabeledErrors
+                  , log_states = NoLog
                   , sync = False}
 
 good_names :: [String]

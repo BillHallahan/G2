@@ -1,10 +1,6 @@
 module G2.Translation.TransTypes where
 
-import CoreSyn
--- import GHC
-import HscTypes
-import InstEnv
-import TyCon
+import G2.Translation.GHC
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T

@@ -52,7 +52,7 @@ empty_name = Name (DT.pack "") Nothing 1 Nothing
 -- the output list includes entries for case statements with no stamp
 readStamps :: Expr -> [Name]
 readStamps (Tick _ e) = readStamps e
-readStamps (Case e _ a) =
+readStamps (Case e _ _ a) =
   case a of
     (Alt _ a1):_ -> case a1 of
       Tick (NamedLoc n) _ -> n:(readStamps e)
@@ -62,20 +62,20 @@ readStamps _ = []
 
 innerScrutinees :: Expr -> [Expr]
 innerScrutinees (Tick _ e) = innerScrutinees e
-innerScrutinees e@(Case e' _ _) = e:(innerScrutinees e')
+innerScrutinees e@(Case e' _ _ _) = e:(innerScrutinees e')
 innerScrutinees e = [e]
 
 replaceScrutinee :: Expr -> Expr -> Expr -> Expr
 replaceScrutinee e1 e2 e | e1 == e = e2
 replaceScrutinee e1 e2 (Tick nl e) = Tick nl (replaceScrutinee e1 e2 e)
-replaceScrutinee e1 e2 (Case e i a) = Case (replaceScrutinee e1 e2 e) i a
+replaceScrutinee e1 e2 (Case e i t a) = Case (replaceScrutinee e1 e2 e) i t a
 replaceScrutinee _ _ e = e
 
 -- checking for depth of first expression within second
 scrutineeDepth :: Expr -> Expr -> Int
 scrutineeDepth e1 e2 | e1 == e2 = 0
 scrutineeDepth e1 (Tick _ e) = scrutineeDepth e1 e
-scrutineeDepth e1 (Case e _ _) = 1 + scrutineeDepth e1 e
+scrutineeDepth e1 (Case e _ _ _) = 1 + scrutineeDepth e1 e
 scrutineeDepth _ _ = error "Not Contained"
 
 -- the depths do not need to be the same
@@ -159,7 +159,7 @@ inductionL solver ns prev (s1, s2) = do
 -- TODO be more generous instead; try induction whenever there's a Case
 caseRecursion :: Expr -> Bool
 caseRecursion (Tick _ e) = caseRecursion e
-caseRecursion (Case e _ _) =
+caseRecursion (Case e _ _ _) =
   (getAny . evalASTs (\e' -> Any $ caseRecHelper e')) e
 caseRecursion _ = False
 

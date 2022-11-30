@@ -56,7 +56,7 @@ subVar' inLam em eenv tc is v@(Var i@(Id n _))
     , (isExprValueForm eenv e && (notLam e || inLam)) || isApp e || isVar e || isLitCase e =
         subVar' inLam em eenv tc (i:is) e
     | otherwise = v
-subVar' inLam mdl eenv tc is cse@(Case e _ as) =
+subVar' inLam mdl eenv tc is cse@(Case e _ _ as) =
     case subVar' inLam mdl eenv tc is e of
         Lit l
             | Just (Alt _ ae) <- L.find (\(Alt (LitAlt l') _) -> l == l') as ->
@@ -77,7 +77,7 @@ isVar (Var _) = True
 isVar _ = False
 
 isLitCase :: Expr -> Bool
-isLitCase (Case e _ _) = isPrimType (typeOf e)
+isLitCase (Case e _ _ _) = isPrimType (typeOf e)
 isLitCase _ = False
 
 isTC :: TypeClasses -> Expr -> Bool

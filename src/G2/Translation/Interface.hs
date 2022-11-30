@@ -1,6 +1,6 @@
-module G2.Translation.Interface ( translateLoaded ) where
+{-# LANGUAGE CPP #-}
 
-import DynFlags
+module G2.Translation.Interface ( translateLoaded ) where
 
 import Control.Monad.Extra
 import qualified Data.HashMap.Lazy as HM
@@ -10,6 +10,7 @@ import qualified Data.Text as T
 import System.Directory
 
 import G2.Config
+import G2.Translation.GHC
 import G2.Translation.Haskell
 import G2.Translation.InjectSpecials
 import G2.Translation.PrimInject
@@ -51,7 +52,11 @@ translateLoaded :: [FilePath]
 translateLoaded proj src tr_con config = do
   -- Stuff with the actual target
   let def_proj = extraDefaultInclude config
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+  tar_ems <- envModSumModGuts (Just Interpreter) (def_proj ++ proj) src tr_con
+#else
   tar_ems <- envModSumModGuts (Just HscInterpreted) (def_proj ++ proj) src tr_con
+#endif
   let imports = envModSumModGutsImports tar_ems
   extra_imp <- return . catMaybes =<< mapM (findImports (baseInclude config)) imports
 

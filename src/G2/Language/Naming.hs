@@ -159,7 +159,7 @@ exprTopNames (Var var) = [idName var]
 exprTopNames (Data dc) = dataConName dc
 exprTopNames (Lam _ b _) = [idName b]
 exprTopNames (Let kvs _) = map (idName . fst) kvs
-exprTopNames (Case _ cvar as) = idName cvar :
+exprTopNames (Case _ cvar _ as) = idName cvar :
                                 concatMap (\(Alt am _) -> altMatchNames am)
                                           as
 exprTopNames (Assume (Just is) _ _) = [funcName is]
@@ -179,7 +179,7 @@ typeNames = evalASTs typeTopNames
 typeTopNames :: Type -> [Name]
 typeTopNames (TyVar i) = [idName i]
 typeTopNames (TyCon n _) = [n]
-typeTopNames (TyForAll (NamedTyBndr v) _) = [idName v]
+typeTopNames (TyForAll v _) = [idName v]
 typeTopNames _ = []
 
 doRename :: Named a => Name -> NameGen -> a -> (a, NameGen)
@@ -239,7 +239,7 @@ instance Named Expr where
             go (Data d) = names d
             go (Lam _ i _) = names i
             go (Let b _) = foldr (<>) S.empty $ map (names . fst) b
-            go (Case _ i a) = names i <> (foldr (<>) S.empty $ map (names . altMatch) a)
+            go (Case _ i t a) = names i <> names t <> (foldr (<>) S.empty $ map (names . altMatch) a)
             go (Type t) = names t
             go (Cast _ c) = names c
             go (Coercion c) = names c
@@ -258,8 +258,8 @@ instance Named Expr where
         go (Let b e) =
             let b' = map (\(n, e') -> (rename old new n, e')) b
             in Let b' e
-        go (Case e i a) =
-            Case e (rename old new i) (map goAlt a)
+        go (Case e i t a) =
+            Case e (rename old new i) (rename old new t) (map goAlt a)
         go (Type t) = Type (rename old new t)
         go (Cast e c) = Cast e (rename old new c)
         go (Coercion c) = Coercion (rename old new c)
@@ -281,7 +281,7 @@ instance Named Expr where
             go (Let b e) = 
                 let b' = map (\(n, e') -> (renames hm n, e')) b
                 in Let b' e
-            go (Case e i a) = Case e (renames hm i) (map goAlt a)
+            go (Case e i t a) = Case e (renames hm i) (renames hm t) (map goAlt a)
             go (Type t) = Type (renames hm t)
             go (Cast e c) = Cast e (renames hm c)
             go (Coercion c) = Coercion (renames hm c)
@@ -307,7 +307,7 @@ renameExpr' old new (Var i) = Var (renameExprId old new i)
 renameExpr' old new (Data d) = Data (renameExprDataCon old new d)
 renameExpr' old new (Lam u i e) = Lam u (renameExprId old new i) e
 renameExpr' old new (Let b e) = Let (map (\(b', e') -> (renameExprId old new b', e')) b) e
-renameExpr' old new (Case e i a) = Case e (renameExprId old new i) $ map (renameExprAlt old new) a
+renameExpr' old new (Case e i t a) = Case e (renameExprId old new i) t $ map (renameExprAlt old new) a
 renameExpr' old new (Assume is e e') = Assume (fmap (rename old new) is) e e'
 renameExpr' old new (Assert is e e') = Assert (fmap (rename old new) is) e e'
 renameExpr' _ _ e = e
@@ -320,7 +320,7 @@ renameVars' :: Name -> Name -> Expr -> Expr
 renameVars' old new (Var i) = Var (renameExprId old new i)
 renameVars' old new (Lam u i e) = Lam u (renameExprId old new i) e
 renameVars' old new (Let b e) = Let (map (\(b', e') -> (renameExprId old new b', e')) b) e
-renameVars' old new (Case e i a) = Case e (renameExprId old new i) $ map (renameExprAltIds old new) a
+renameVars' old new (Case e i t a) = Case e (renameExprId old new i) t $ map (renameExprAltIds old new) a
 renameVars' old new (Assert is e e') = Assert (fmap (rename old new) is) e e'
 renameVars' _ _ e = e
 
@@ -356,7 +356,7 @@ renamesExprs' hm (Var i) = Var (renamesExprId hm i)
 renamesExprs' hm (Data d) = Data (renamesExprDataCon hm d)
 renamesExprs' hm (Lam u i e) = Lam u (renamesExprId hm i) e
 renamesExprs' hm (Let b e) = Let (map (\(b', e') -> (renamesExprId hm b', e')) b) e
-renamesExprs' hm (Case e i a) = Case e (renamesExprId hm i) $ map (renamesExprAlt hm) a
+renamesExprs' hm (Case e i t a) = Case e (renamesExprId hm i) t $ map (renamesExprAlt hm) a
 renamesExprs' hm (Assume is e e') = Assume (fmap (renames hm) is) e e'
 renamesExprs' hm (Assert is e e') = Assert (fmap (renames hm) is) e e'
 renamesExprs' _ e = e
@@ -381,7 +381,7 @@ instance Named Type where
         where
             go (TyVar i) = idNamesInType i
             go (TyCon n _) = S.singleton n
-            go (TyForAll b _) = tyBinderNamesInType b
+            go (TyForAll b _) = idNamesInType b
             go _ = S.empty
 
     rename old new = modify go
@@ -389,7 +389,7 @@ instance Named Type where
         go :: Type -> Type
         go (TyVar i) = TyVar (renameIdInType old new i)
         go (TyCon n ts) = TyCon (rename old new n) ts
-        go (TyForAll tb t) = TyForAll (renameTyBinderInType old new tb) t
+        go (TyForAll tb t) = TyForAll (renameIdInType old new tb) t
         go t = t
 
     renames hm = modify go
@@ -397,28 +397,16 @@ instance Named Type where
         go :: Type -> Type
         go (TyVar i) = TyVar (renamesIdInType hm i)
         go (TyCon n ts) = TyCon (renames hm n) ts
-        go (TyForAll tb t) = TyForAll (renamesTyBinderInType hm tb) t
+        go (TyForAll tb t) = TyForAll (renamesIdInType hm tb) t
         go t = t
 
--- We don't want both modify and go to recurse on the Type's in TyBinders or Ids
+-- We don't want both modify and go to recurse on the Type's in Ids
 -- so we introduce functions to collect or rename only the Names directly in those types
-tyBinderNamesInType :: TyBinder -> S.Seq Name
-tyBinderNamesInType (NamedTyBndr i) = idNamesInType i
-tyBinderNamesInType _ = S.empty
-
 idNamesInType :: Id -> S.Seq Name
 idNamesInType (Id n _) = S.singleton n
 
-renameTyBinderInType :: Name -> Name -> TyBinder -> TyBinder
-renameTyBinderInType old new (NamedTyBndr i) = NamedTyBndr $ renameIdInType old new i
-renameTyBinderInType _ _ tyb = tyb
-
 renameIdInType :: Name -> Name -> Id -> Id
 renameIdInType old new (Id n t) = Id (rename old new n) t
-
-renamesTyBinderInType :: HM.HashMap Name Name -> TyBinder -> TyBinder
-renamesTyBinderInType hm (NamedTyBndr i) = NamedTyBndr $ renamesIdInType hm i
-renamesTyBinderInType _ tyb = tyb
 
 renamesIdInType :: HM.HashMap Name Name -> Id -> Id
 renamesIdInType hm (Id n t) = Id (renames hm n) t
@@ -459,16 +447,6 @@ instance Named AltMatch where
     renames hm (DataAlt dc i) =
         DataAlt (renames hm dc) (renames hm i)
     renames _ am = am
-
-instance Named TyBinder where
-    names (AnonTyBndr t) = names t
-    names (NamedTyBndr i) = names i
-
-    rename old new (AnonTyBndr t) = AnonTyBndr (rename old new t)
-    rename old new (NamedTyBndr i) = NamedTyBndr (rename old new i)
-
-    renames hm (AnonTyBndr t) = AnonTyBndr (renames hm t)
-    renames hm (NamedTyBndr i) = NamedTyBndr (renames hm i)
 
 instance Named Coercion where
     names (t1 :~ t2) = names t1 <> names t2

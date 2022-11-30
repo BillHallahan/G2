@@ -371,7 +371,7 @@ polyPredFunc cp as ty m bt b = do
 
     let ar1 = Type (typeOf b)
         ars = [dict] ++ as' ++ [Var b]
-        t = TyForAll (NamedTyBndr b) $ foldr1 TyFun $ map typeOf ars ++ [bool]
+        t = TyForAll b $ foldr1 TyFun $ map typeOf ars ++ [bool]
 
     lhPP <- lhPPM
     
@@ -416,7 +416,7 @@ convertLHExpr m bt rt eapp@(EApp e e') = do
 
             case (ctArgE, f_ar_ts) of
                 (_, Just f_ar_ts') -> do
-                    let specTo = concatMap (map snd) $ map M.toList $ map (snd . uncurry specializes) $ zip ts f_ar_ts'
+                    let specTo = concatMap (map snd) $ map M.toList $ map (fromJust . uncurry specializes) $ zip ts f_ar_ts'
                         te = map Type specTo
 
                     tcs <- mapM (lhTCDict m) ts
@@ -440,7 +440,7 @@ convertLHExpr m bt t (ENeg e) = do
     a <- freshIdN TYPE
     let tva = TyVar a
     let negate' = Var $ Id neg 
-                        (TyForAll (NamedTyBndr a)
+                        (TyForAll a
                             (TyFun
                                 (TyApp (TyCon num (TyApp TYPE TYPE)) tva)
                                 (TyFun
@@ -478,7 +478,7 @@ convertLHExpr m bt t (EIte b e e') = do
 
     bnd <- freshIdN =<< tyBoolT
 
-    return $ Case b2 bnd [Alt (DataAlt trueDC []) e2, Alt (DataAlt falseDC []) e2']
+    return $ Case b2 bnd (typeOf e2) [Alt (DataAlt trueDC []) e2, Alt (DataAlt falseDC []) e2']
 convertLHExpr m bt _ (ECst e s) = do
     t <- sortToType s
     convertLHExpr m bt (Just t) e
@@ -617,7 +617,7 @@ convertBop' f = do
     n <- f
     a <- freshIdN TYPE
     let tva = TyVar a
-    return $ Var $ Id n (TyForAll (NamedTyBndr a)
+    return $ Var $ Id n (TyForAll a
                             (TyFun
                                 (TyApp (TyCon num (TyApp TYPE TYPE)) tva)
                                 (TyFun
@@ -820,7 +820,7 @@ specTypeToType (RFun {rt_in = fin, rt_out = fout}) = do
 specTypeToType (RAllT {rt_tvbind = RTVar (RTV v) _, rt_ty = rty}) = do
     let i = mkIdUnsafe v
     t <- specTypeToType rty
-    return $ fmap (TyForAll (NamedTyBndr i)) t
+    return $ fmap (TyForAll i) t
 specTypeToType (RApp {rt_tycon = c, rt_args = as}) = rTyConType c as
 specTypeToType (RAppTy {rt_arg = arg, rt_res = res}) = do
     argT <- specTypeToType arg
@@ -876,7 +876,7 @@ convertBrel' f = do
     b <- tyBoolT
     let tva = TyVar a
         t = TyForAll 
-                (NamedTyBndr a)
+                a
                 (TyFun
                     (TyCon lh TYPE)
                     (TyFun 

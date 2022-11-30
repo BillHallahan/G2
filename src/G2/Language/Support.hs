@@ -116,7 +116,7 @@ naiveLookup :: T.Text -> E.ExprEnv -> [(Name, Expr)]
 naiveLookup key = filter (\(Name occ _ _ _, _) -> occ == key) . E.toExprList
 
 -- | These are stack frames.  They are used to guide evaluation.
-data Frame = CaseFrame Id [Alt]
+data Frame = CaseFrame Id Type [Alt]
            | ApplyFrame Expr
            | UpdateFrame Name
            | CastFrame Coercion
@@ -301,14 +301,14 @@ instance ASTContainer CurrExpr Type where
     modifyContainedASTs f (CurrExpr er e) = CurrExpr er (modifyContainedASTs f e)
 
 instance ASTContainer Frame Expr where
-    containedASTs (CaseFrame _ a) = containedASTs a
+    containedASTs (CaseFrame _ _ a) = containedASTs a
     containedASTs (ApplyFrame e) = [e]
     containedASTs (CurrExprFrame _ e) = containedASTs e
     containedASTs (AssumeFrame e) = [e]
     containedASTs (AssertFrame _ e) = [e]
     containedASTs _ = []
 
-    modifyContainedASTs f (CaseFrame i a) = CaseFrame i (modifyContainedASTs f a)
+    modifyContainedASTs f (CaseFrame i t a) = CaseFrame i t (modifyContainedASTs f a)
     modifyContainedASTs f (ApplyFrame e) = ApplyFrame (f e)
     modifyContainedASTs f (CurrExprFrame act e) = CurrExprFrame act (modifyContainedASTs f e)
     modifyContainedASTs f (AssumeFrame e) = AssumeFrame (f e)
@@ -316,15 +316,15 @@ instance ASTContainer Frame Expr where
     modifyContainedASTs _ fr = fr
 
 instance ASTContainer Frame Type where
-    containedASTs (CaseFrame i a) = containedASTs i ++ containedASTs a
+    containedASTs (CaseFrame i t a) = containedASTs i ++ containedASTs t ++ containedASTs a
     containedASTs (ApplyFrame e) = containedASTs e
     containedASTs (CurrExprFrame _ e) = containedASTs e
     containedASTs (AssumeFrame e) = containedASTs e
     containedASTs (AssertFrame _ e) = containedASTs e
     containedASTs _ = []
 
-    modifyContainedASTs f (CaseFrame i a) =
-        CaseFrame (modifyContainedASTs f i) (modifyContainedASTs f a)
+    modifyContainedASTs f (CaseFrame i t a) =
+        CaseFrame (modifyContainedASTs f i) (f t) (modifyContainedASTs f a)
     modifyContainedASTs f (ApplyFrame e) = ApplyFrame (modifyContainedASTs f e)
     modifyContainedASTs f (CurrExprFrame act e) = CurrExprFrame act (modifyContainedASTs f e)
     modifyContainedASTs f (AssumeFrame e) = AssumeFrame (modifyContainedASTs f e)
@@ -337,7 +337,7 @@ instance Named CurrExpr where
     renames hm (CurrExpr er e) = CurrExpr er $ renames hm e
 
 instance Named Frame where
-    names (CaseFrame i a) = names i <> names a
+    names (CaseFrame i t a) = names i <> names t <> names a
     names (ApplyFrame e) = names e
     names (UpdateFrame n) = names n
     names (CastFrame c) = names c
@@ -345,7 +345,7 @@ instance Named Frame where
     names (AssumeFrame e) = names e
     names (AssertFrame is e) = names is <> names e
 
-    rename old new (CaseFrame i a) = CaseFrame (rename old new i) (rename old new a)
+    rename old new (CaseFrame i t a) = CaseFrame (rename old new i) (rename old new t) (rename old new a)
     rename old new (ApplyFrame e) = ApplyFrame (rename old new e)
     rename old new (UpdateFrame n) = UpdateFrame (rename old new n)
     rename old new (CastFrame c) = CastFrame (rename old new c)
@@ -353,7 +353,7 @@ instance Named Frame where
     rename old new (AssumeFrame e) = AssumeFrame (rename old new e)
     rename old new (AssertFrame is e) = AssertFrame (rename old new is) (rename old new e)
 
-    renames hm (CaseFrame i a) = CaseFrame (renames hm i) (renames hm a)
+    renames hm (CaseFrame i t a) = CaseFrame (renames hm i) (renames hm t) (renames hm a)
     renames hm (ApplyFrame e) = ApplyFrame (renames hm e)
     renames hm (UpdateFrame n) = UpdateFrame (renames hm n)
     renames hm (CastFrame c) = CastFrame (renames hm c)

@@ -351,7 +351,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                 else Left []
     -- TODO if scrutinee is symbolic var, make Alt vars symbolic?
     -- TODO id equality never checked; does it matter?
-    (Case e1' i1 a1, Case e2' i2 a2)
+    (Case e1' i1 _ a1, Case e2' i2 _ a2)
                 | Right hm' <- b_mr ->
                   -- add the matched-on exprs to the envs beforehand
                   -- TODO I think I can leave these E operations as they are
@@ -1055,7 +1055,7 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma
     else return e
     where
         bind (Lam _ i _) = [idName i]
-        bind (Case _ i as) = idName i:concatMap altBind as
+        bind (Case _ i _ as) = idName i:concatMap altBind as
         bind (Let b _) = map (idName . fst) b
         bind _ = []
 
