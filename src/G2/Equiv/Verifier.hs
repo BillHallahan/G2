@@ -66,9 +66,12 @@ statePairReadyForSolver (s1, s2) =
 
 -- don't log when the base folder name is empty
 logStatesFolder :: String -> LogMode -> LogMode
-logStatesFolder pre (Log _ "") = NoLog
 logStatesFolder pre (Log method n) = Log method $ n ++ "/" ++ pre
 logStatesFolder _ NoLog = NoLog
+
+logStatesET :: String -> LogMode -> String
+logStatesET pre (Log _ n) = n ++ "/" ++ pre
+logStatesET pre NoLog = "/" ++ pre
 
 {-
 TODO 1/25
@@ -94,7 +97,7 @@ runSymExec :: S.Solver solver =>
 runSymExec solver config nc@(NC { sync = sy }) ns s1 s2 = do
   (bindings, k) <- CM.get
   let nc' = nc { log_states = logStatesFolder ("a" ++ show k) (log_states nc) }
-      t1 = track s1
+      t1 = (track s1) { folder_name = logStatesET ("a" ++ show k) (log_states nc) }
       -- TODO always Evaluate here?
       CurrExpr r1 e1 = curr_expr s1
       e1' = addStackTickIfNeeded ns (expr_env s1) e1
@@ -107,7 +110,7 @@ runSymExec solver config nc@(NC { sync = sy }) ns s1 s2 = do
                     (b_, k_) <- CM.get
                     let s2_ = transferInfo sy s1_ (snd $ syncSymbolic s1_ s2)
                     let nc'' = nc { log_states = logStatesFolder ("b" ++ show k_) (log_states nc) }
-                        t2 = track s2_
+                        t2 = (track s2_) { folder_name = logStatesET ("b" ++ show k_) (log_states nc) }
                         CurrExpr r2 e2 = curr_expr s2_
                         e2' = addStackTickIfNeeded ns (expr_env s2) e2
                         s2' = s2_ { track = t2, curr_expr = CurrExpr r2 e2' }
