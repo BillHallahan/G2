@@ -953,26 +953,49 @@ substLemma solver ns s =
 -- I don't think it is
 -- the first lemma used always appears at the front
 -- I want to see the back for now
+{-
 substLemmaLoopAux :: S.Solver solver =>
                      Int
                   -> solver
                   -> HS.HashSet Name
                   -> Lemmas
+                  -> StateET
                   -> (Lemma, StateET)
                   -> W.WriterT [Marker] IO [([(Lemma, StateET)], StateET)]
-substLemmaLoopAux i solver ns lems (lem, s) = do
+substLemmaLoopAux i solver ns lems s_old (lem, s) = do
     sll <- substLemmaLoop (i - 1) solver ns s lems
     -- TODO is this change correct?
     -- have no-substs version come before partial-subst
     -- TODO this eliminates no-substs too
     -- single-lemma uses have it correct now
-    return $ map (\(l, s') -> ((lem,s):l, s')) sll
+    return $ map (\(l, s') -> ((lem, s_old):l, s')) sll
+-}
 
--- TODO discards all lemmas used except the final one
 -- TODO needs a safeguard against divergence
 -- TODO join lemmas from new iteration with lemmas from prior ones
 -- do I ever get substs done on Case statements?  Yes
 -- TODO where is "state before lemma application" info lost?
+substLemmaLoopAux :: S.Solver solver =>
+                     Int ->
+                     solver ->
+                     HS.HashSet Name ->
+                     Lemmas ->
+                     [(Lemma, StateET)] ->
+                     StateET ->
+                     W.WriterT [Marker] IO [([(Lemma, StateET)], StateET)]
+substLemmaLoopAux 0 _ _ _ _ _ =
+    return []
+substLemmaLoopAux i solver ns lems past_lems s = do
+    lem_states <- substLemma solver ns s lems
+    -- TODO this setup doesn't capture the partway results
+    -- now it gets two different states, but in a bad way
+    -- one has both subs, one has one sub, but neither is original
+    let lem_states' = map (\(l, s') -> ((l, s):past_lems, s')) lem_states
+        lems_used = lems { proven_lemmas = nub $ map fst lem_states }
+    --lem_state_lists <- mapM ((flip $ substLemmaLoop (i - 1) solver ns) lems . snd) lem_states
+    lem_state_lists <- mapM (uncurry (substLemmaLoopAux (i - 1) solver ns lems_used)) lem_states'
+    return $ lem_states' ++ concat lem_state_lists
+
 substLemmaLoop :: S.Solver solver =>
                   Int ->
                   solver ->
@@ -980,18 +1003,8 @@ substLemmaLoop :: S.Solver solver =>
                   StateET ->
                   Lemmas ->
                   W.WriterT [Marker] IO [([(Lemma, StateET)], StateET)]
-substLemmaLoop 0 _ _ _ _ =
-    return []
-substLemmaLoop i solver ns s lems = do
-    lem_states <- substLemma solver ns s lems
-    -- TODO this setup doesn't capture the partway results
-    -- now it gets two different states, but in a bad way
-    -- one has both subs, one has one sub, but neither is original
-    let lem_states' = map (\(l, s') -> ([(l, s)], s')) lem_states
-        lems_used = lems { proven_lemmas = nub $ map fst lem_states }
-    --lem_state_lists <- mapM ((flip $ substLemmaLoop (i - 1) solver ns) lems . snd) lem_states
-    lem_state_lists <- mapM (substLemmaLoopAux i solver ns lems_used) lem_states
-    return $ lem_states' ++ concat lem_state_lists
+substLemmaLoop i solver ns s lems =
+    substLemmaLoopAux i solver ns lems [] s
 
 -- TODO Is this out of date now?
 replaceMoreRestrictiveSubExpr :: S.Solver solver =>
