@@ -1067,6 +1067,12 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma
 -- a suitable function application at the outermost level, we simply look
 -- for a sub-expression that fits that mold.  Substitutions can only
 -- happen within sub-expressions that satisfy the conditions.
+-- This is still just as safe as the original soundness check.  The
+-- original soundness check serves to prevent lemmas from reversing
+-- evaluation steps so that a substitution does not trick Nebula into
+-- thinking that it has reached a cycle when it has not.  If we confirm
+-- that evaluation steps are not being reversed within a sub-expression,
+-- that same guarantee should extend to the expression as a whole.
 lemmaSound :: HS.HashSet Name -> StateET -> Lemma -> Bool
 lemmaSound ns s lem =
   case unApp . modifyASTs stripTicks . inlineFull (HS.toList ns) (expr_env s) (opp_env $ track s) $ exprExtract s of

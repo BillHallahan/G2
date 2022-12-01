@@ -129,6 +129,17 @@ tree_bad_names = [ "badSize"
 tree_bad_src :: String
 tree_bad_src = "tests/RewriteVerify/Incorrect/TreeIncorrect.hs"
 
+multi_lemma_good_names :: [String]
+multi_lemma_good_names = [ "p55Z"
+                         , "p55nil"
+                         , "p55Znil"
+                         , "p80Z"
+                         , "p80nil"
+                         , "p80Znil" ]
+
+multi_lemma_good_src :: String
+multi_lemma_good_src = "tests/RewriteVerify/Correct/Zeno.hs"
+
 empty_config :: IO Config
 empty_config = getConfigDirect
 
@@ -191,6 +202,10 @@ typeSymsTestsGood :: TestTree
 typeSymsTestsGood =
   rvTest acceptRule "tests/RewriteVerify/Correct/TypeSyms.hs" ["parBuffer"]
 
+multiLemmaTestsGood :: TestTree
+multiLemmaTestsGood =
+  rvTest acceptRule multi_lemma_good_src multi_lemma_good_names
+
 rewriteTests :: TestTree
 rewriteTests = testGroup "Rewrite Tests"
         [ rewriteVerifyTestsGood
@@ -202,6 +217,7 @@ rewriteTests = testGroup "Rewrite Tests"
         , treeTestsGood
         , treeTestsBad
         , typeSymsTestsGood
+        , multiLemmaTestsGood
         ]
 
 
