@@ -46,6 +46,7 @@ rejectRule config init_state bindings rule = do
 
 nebulaConfig :: NebulaConfig
 nebulaConfig = NC { limit = 10
+                  , num_lemmas = 2
                   , print_summary = NoSummary
                   , use_labeled_errors = UseLabeledErrors
                   , log_states = NoLog
