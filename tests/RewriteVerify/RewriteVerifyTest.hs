@@ -161,7 +161,7 @@ rvTest check src rule_names =
                     (init_state, bindings) <- isb
                     config <- empty_config
                     let rule = findRule (rewrite_rules bindings) rule_name
-                    r <- doTimeout 75 $ check config init_state bindings rule
+                    r <- doTimeout 180 $ check config init_state bindings rule
                     case r of
                         Nothing -> error "TIMEOUT"
                         Just r' | r' -> return ()
