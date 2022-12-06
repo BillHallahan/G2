@@ -12,6 +12,7 @@ import G2.Liquid.Inference.FuncConstraint
 import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.GeneratedSpecs
 import G2.Liquid.Inference.PolyRef
+import G2.Liquid.Inference.UnionPoly
 import G2.Solver as Solver
 
 import Language.Haskell.Liquid.Types as LH hiding (SP, ms, isBool)
@@ -199,10 +200,11 @@ buildSpecInfo :: (InfConfigM m, ProgresserM m) =>
               -> Measures
               -> [GhcInfo]
               -> FuncConstraints
+              -> UnionedTypes
               -> ToBeNames
               -> ToSynthNames
               -> m (M.Map Name SpecInfo)
-buildSpecInfo eenv tenv tc meas ghci fc to_be_ns ns_synth = do
+buildSpecInfo eenv tenv tc meas ghci fc ut to_be_ns ns_synth = do
     -- Compensate for zeroed out names in FuncConstraints
     let ns_synth' = map zeroOutName ns_synth
 

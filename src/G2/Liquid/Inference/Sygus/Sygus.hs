@@ -10,6 +10,7 @@ import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.FuncConstraint
 import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.PolyRef
+import G2.Liquid.Inference.UnionPoly
 import G2.Liquid.Inference.Sygus.FCConverter
 import G2.Liquid.Inference.Sygus.SpecInfo
 import G2.Solver as Solver
@@ -37,17 +38,18 @@ generateSygusProblem :: (InfConfigM m, ProgresserM m, MonadIO m) =>
                      -> Evals Bool
                      -> MeasureExs
                      -> FuncConstraints
+                     -> UnionedTypes
                      -> ToBeNames
                      -> ToSynthNames
                      -> m [Cmd]
-generateSygusProblem ghci lrs evals meas_ex fc to_be_ns ns_synth = do
+generateSygusProblem ghci lrs evals meas_ex fc ut to_be_ns ns_synth = do
     -- Figure out the type of each of the functions we need to synthesize
     let eenv = buildNMExprEnv $ expr_env . state $ lr_state lrs
         tenv = type_env . state $ lr_state lrs
         tc = type_classes . state $ lr_state lrs
         meas = lrsMeasures ghci lrs
 
-    si <- buildSpecInfo eenv tenv tc meas ghci fc to_be_ns ns_synth
+    si <- buildSpecInfo eenv tenv tc meas ghci fc ut to_be_ns ns_synth
 
     let grammar = buildGrammars si
 

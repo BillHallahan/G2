@@ -1,6 +1,6 @@
-{-# LANGUAGE BangPatterns, DeriveGeneric, FlexibleContexts, OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
 
-module G2.Liquid.Inference.UnionPoly (sharedTyConsEE) where
+module G2.Liquid.Inference.UnionPoly (UnionedTypes, sharedTyConsEE, lookupUT) where
 
 import qualified G2.Data.UFMap as UF
 import qualified G2.Data.UnionFind as UFind
@@ -10,31 +10,15 @@ import G2.Language.Monad.AST
 import G2.Language.Monad.Naming
 import G2.Language.Monad.Support
 
-import GHC.Generics (Generic)
-import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
 
-import Debug.Trace
+newtype UnionedTypes = UT (HM.HashMap Name Type) deriving Show
 
-data FuncPos = FuncPos Name -- ^ The function name
-                       ArgOrRet -- ^ The position in the function type
-                       [Int] -- ^ Position in the argument/return
-               deriving (Eq, Show, Generic)
+lookupUT :: Name -> UnionedTypes -> Maybe Type
+lookupUT n (UT ut) = HM.lookup n ut
 
-instance Hashable FuncPos
-
-data ArgOrRet = Arg Int
-              | Ret
-              deriving (Eq, Show, Generic)
-
-instance Hashable ArgOrRet
-
--- The position in the argument refers to
--- (1) an additional argument count, in the case of a higher order function
--- (2) a path through ADT constructors
-
-sharedTyConsEE :: [Name] -> ExprEnv -> UFind.UnionFind Name
+sharedTyConsEE :: [Name] -> ExprEnv -> UnionedTypes
 sharedTyConsEE ns eenv =
     let
         f_eenv = E.filterWithKey (\n _ -> n `elem` ns) eenv
@@ -44,8 +28,10 @@ sharedTyConsEE ns eenv =
         rep_eenv' = elimTyForAll . elimTypes $ rep_eenv
 
         union_poly = mconcat . map UF.joinedKeys . HM.elems $ E.map' (fromMaybe UF.empty . checkType) rep_eenv'
+
+        union_tys = fmap (renameFromUnion union_poly) tys
     in
-    trace ("tys = " ++ show tys ++ "\nrep_eenv = " ++ show rep_eenv ++ "\nrep_eenv' = " ++ show rep_eenv' ++ "\nunion_poly = " ++ show union_poly) union_poly -- foldr HM.union HM.empty . E.map' sharedTyCons $ f_eenv
+    UT union_tys
 
 assignTyConNames :: Type -> NameGenM Type
 assignTyConNames = modifyASTsM assignTyConNames'
@@ -77,27 +63,9 @@ elimTypes' :: Expr -> Expr
 elimTypes' (App e (Type _)) = elimTypes' e
 elimTypes' e = e
 
-sharedTyCons :: Expr
-             -> HM.HashMap FuncPos Name -- Positions in functions to correspond TyVar Names
-sharedTyCons e@(App _ _) | Var (Id n t):as <- unApp e =
-    let hm = stcExprType 0 n t as in
-    case HM.null hm of
-        False -> trace ("sharedTyCons'\ne = " ++ show e ++ "\nhm = " ++ show hm) hm <> HM.unions (map sharedTyCons as)
-        True -> hm
-sharedTyCons e = evalChildren sharedTyCons e
+renameFromUnion :: UFind.UnionFind Name -> Type -> Type
+renameFromUnion uf = modifyASTs (renameFromUnion' uf )
 
-stcExprType :: Int -> Name -> Type -> [Expr] -> HM.HashMap FuncPos Name
-stcExprType !k func_name (TyForAll _ t) (Type _:es) = stcExprType k func_name t es
-stcExprType !k func_name (TyFun t1 t2) (e:es) =
-    stcTypeType 0 (Arg k) [] func_name t1 (typeOf e) `HM.union` stcExprType (k + 1) func_name t2 es
-stcExprType !k func_name t [e] = stcTypeType 0 Ret [] func_name t (typeOf e)
-stcExprType _ _ _ _ = HM.empty
-
-stcTypeType :: Int -> ArgOrRet -> [Int] -> Name -> Type -> Type -> HM.HashMap FuncPos Name
-stcTypeType k ar pos func_name (TyVar (Id n _)) _ =
-    HM.singleton (FuncPos func_name ar $ reverse pos) n
-stcTypeType !k ar pos func_name (TyFun t1 t2) (TyFun t1' t2') =
-    stcTypeType 0 ar (k:pos) func_name t1 t1' `HM.union` stcTypeType (k + 1) ar pos func_name t2 t2'
-stcTypeType !k ar pos func_name (TyApp t1 t2) (TyApp t1' t2') =
-    stcTypeType 0 ar (k:pos) func_name t1 t1' `HM.union` stcTypeType (k + 1) ar pos func_name t2 t2'
-stcTypeType _ _ _ _ _ _ = HM.empty
+renameFromUnion' :: UFind.UnionFind Name -> Type -> Type
+renameFromUnion' uf (TyVar (Id n k)) = TyVar (Id (UFind.find n uf) k)
+renameFromUnion' _ t = t
