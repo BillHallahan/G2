@@ -282,10 +282,12 @@ unify t@(TyVar (Id n1 _)) (TyVar (Id n2 _)) uf
             Just (t, uf') -> Just (t, UF.join (\_ _ -> t) n1 n2 uf')
             Nothing -> Nothing
     | otherwise = Just (t, UF.join (error "unify: impossible, no need to join") n1 n2 uf)
-unify (TyVar (Id n _)) t uf =
-    Just (t, UF.insert n t uf)
-unify t (TyVar (Id n _)) uf =
-    Just (t, UF.insert n t uf)
+unify (TyVar (Id n _)) t uf
+    | Just t1 <- UF.lookup n uf = unify t1 t uf
+    | otherwise = Just (t, UF.insert n t uf)
+unify t (TyVar (Id n _)) uf
+    | Just t2 <- UF.lookup n uf = unify t t2 uf
+    | otherwise = Just (t, UF.insert n t uf)
 unify (TyFun t1 t2) (TyFun t1' t2') uf = do
     (ft1, uf') <- unify t1 t1' uf
     (ft2, uf'') <- unify t2 t2' uf'

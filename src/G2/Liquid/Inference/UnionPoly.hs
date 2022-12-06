@@ -26,14 +26,17 @@ sharedTyConsEE ns eenv =
 
         rep_eenv =  E.map (repVars tys) f_eenv
         rep_eenv' = elimTyForAll . elimTypes $ rep_eenv
+        rep_eenv'' = fst $ runNamingM (E.mapM assignTyConNames rep_eenv') (mkNameGen rep_eenv')
 
-        union_poly = mconcat . map UF.joinedKeys . HM.elems $ E.map' (fromMaybe UF.empty . checkType) rep_eenv'
+        union_poly = mconcat . map UF.joinedKeys . HM.elems
+                   . E.map' (fromMaybe UF.empty . checkType)
+                   $ rep_eenv''
 
         union_tys = fmap (renameFromUnion union_poly) tys
     in
     UT $ HM.mapKeys (\(Name n m _ l) -> Name n m 0 l) union_tys
 
-assignTyConNames :: Type -> NameGenM Type
+assignTyConNames :: ASTContainerM m Type => m -> NameGenM m
 assignTyConNames = modifyASTsM assignTyConNames'
 
 assignTyConNames' :: Type -> NameGenM Type

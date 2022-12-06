@@ -29,9 +29,6 @@ import Data.Maybe
 import qualified Data.Text as T
 import Data.Semigroup (Semigroup (..))
 
-import Debug.Trace
-import Options.Applicative (argument)
-
 type NMExprEnv = HM.HashMap (T.Text, Maybe T.Text) G2.Expr
 
 -- A list of functions that still must have specifications synthesized at a lower level
@@ -309,10 +306,9 @@ buildSI tenv tc meas uts stat ghci f aty rty = do
                             let
                                 ut_pb = extractTypePolyBound ut_ar
 
-                                ars = concatMap fst (init ars_pb)
+                                ars = map fst (init ars_pb)
                                 r_pb = snd (last ars_pb)
                             in
-                            trace ("ut_pb = " ++ show ut_pb)
                             mapPB (\(AAndR { aar_a = ex_a, aar_r = rets }, t, j) ->
                                     let
                                         TyVar (Id ut_n _):_ = unTyApp t
@@ -321,12 +317,12 @@ buildSI tenv tc meas uts stat ghci f aty rty = do
                                           (HM.lookup ut_n smt_names)
                                     in
                                     SynthSpec { sy_name = smt_f ++ nme
-                                              , sy_args = zipWith (\a k -> a { smt_var = "x_" ++ show k}) (take count $ ars ++ ex_a) ([1..] :: [Integer])
+                                              , sy_args = zipWith (\a k -> a { smt_var = "x_" ++ show k}) (concat (take count ars) ++ ex_a) ([1..] :: [Integer])
                                               , sy_rets = zipWith (\r k -> r { smt_var = "x_r_" ++ show k}) rets ([1..] :: [Integer])
                                               , sy_coeffs = []}
                                   )  $ zip3PB r_pb ut_pb (uniqueIds r_pb)
                      ) (filter (not . null) $ L.inits outer_ars_pb) ut_a' ([1..] :: [Integer])
-           , s_syn_post = mkSynSpecPB smt_f arg_ns (mapPB aar_r ret_pb) smt_names ut_r
+           , s_syn_post = mkSynSpecPB smt_f outer_ars (mapPB aar_r ret_pb) smt_names ut_r
 
            , s_type_pre = aty
            , s_type_post = rty
@@ -427,8 +423,8 @@ mkSpecArg mx_meas ghci tenv meas symb t =
 ret :: [SpecArg] -> ArgsAndRet
 ret sa = AAndR { aar_a = [], aar_r = sa }
 
-mkSynSpecPB :: String -> [SpecArg] -> PolyBound [SpecArg] -> HM.HashMap Name (SMTName, Int) -> Type -> PolyBound SynthSpec
-mkSynSpecPB smt_f arg_ns pb_sa smt_names ut =
+mkSynSpecPB :: String -> [[SpecArg]] -> PolyBound [SpecArg] -> HM.HashMap Name (SMTName, Int) -> Type -> PolyBound SynthSpec
+mkSynSpecPB smt_f ars pb_sa smt_names ut =
     let
         ut_pb = extractTypePolyBound ut
     in
@@ -438,10 +434,11 @@ mkSynSpecPB smt_f arg_ns pb_sa smt_names ut =
                 (nme, count) = fromMaybe
                     ("_synth_post_filler", 0)
                     (HM.lookup ut_n smt_names)
+                arg_ns = zipWith (\a i -> a { smt_var = "x_" ++ show i } ) (concat . take count $ ars) ([1..] :: [Integer])
                 ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show ui ++ "_" ++ show i }) $ zip sa ([1..] :: [Integer])
             in
             SynthSpec { sy_name = smt_f ++ nme -- smt_f ++ show ui
-                      , sy_args = take count arg_ns
+                      , sy_args = arg_ns
                       , sy_rets = ret_ns
                       , sy_coeffs = [] }
         )
