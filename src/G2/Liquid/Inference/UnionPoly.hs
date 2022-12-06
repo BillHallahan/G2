@@ -16,7 +16,7 @@ import Data.Maybe
 newtype UnionedTypes = UT (HM.HashMap Name Type) deriving Show
 
 lookupUT :: Name -> UnionedTypes -> Maybe Type
-lookupUT n (UT ut) = HM.lookup n ut
+lookupUT (Name n m _ l) (UT ut) = HM.lookup (Name n m 0 l) ut
 
 sharedTyConsEE :: [Name] -> ExprEnv -> UnionedTypes
 sharedTyConsEE ns eenv =
@@ -31,7 +31,7 @@ sharedTyConsEE ns eenv =
 
         union_tys = fmap (renameFromUnion union_poly) tys
     in
-    UT union_tys
+    UT $ HM.mapKeys (\(Name n m _ l) -> Name n m 0 l) union_tys
 
 assignTyConNames :: Type -> NameGenM Type
 assignTyConNames = modifyASTsM assignTyConNames'
