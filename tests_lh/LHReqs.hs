@@ -1,7 +1,7 @@
-module Reqs ( Reqs (..)
-            , TestErrors (..)
-            , checkExprGen
-            , checkAbsLHExprGen ) where
+module LHReqs ( Reqs (..)
+              , TestErrors (..)
+              , checkExprGen
+              , checkAbsLHExprGen ) where
 
 import G2.Language
 import G2.Liquid.Interface

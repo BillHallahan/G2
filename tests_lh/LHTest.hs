@@ -10,7 +10,7 @@ import Test.Tasty.HUnit
 
 import GetNthTest
 import PeanoTest
-import Reqs
+import LHReqs
 import TestUtils
 
 import G2.Config as G2

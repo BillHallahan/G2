@@ -467,6 +467,7 @@ assignNamesAndArgCount' ar_count hm (TyFun t1 t2) = do
 assignNamesAndArgCount' ar_count hm (TyApp t1 t2) = do
     hm' <- assignNamesAndArgCount' ar_count hm t1
     assignNamesAndArgCount' ar_count hm' t2
+assignNamesAndArgCount' ar_count hm (TyForAll _ t) = assignNamesAndArgCount' ar_count hm t
 assignNamesAndArgCount' _ hm _ = return hm
 
 ----------------------------------------------------------------------------
