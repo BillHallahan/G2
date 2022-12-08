@@ -288,7 +288,7 @@ buildSI tenv tc meas uts stat ghci f aty rty = do
                 Nothing -> error $ "buildSI: Missing UnionedType " ++ show f
         smt_names = assignNamesAndArgCount ut
         (ut_a, ut_r) = generateRelTypes ut
-        ut_a' = reverse . take (length outer_ars_pb) . reverse $ filter (not . isTyFun) ut_a
+        ut_a' = reverse . take (length outer_ars_pb) $ reverse ut_a
 
 
     return $
@@ -304,22 +304,29 @@ buildSI tenv tc meas uts stat ghci f aty rty = do
            , s_syn_pre =
                 zipWith3 (\ars_pb ut_ar i ->
                             let
-                                ut_pb = extractTypePolyBound ut_ar
+                                ut_pb = extractTypeAppAndFuncPolyBound ut_ar
 
                                 ars = map fst (init ars_pb)
                                 r_pb = snd (last ars_pb)
                             in
                             mapPB (\(AAndR { aar_a = ex_a, aar_r = rets }, t, j) ->
-                                    let
-                                        TyVar (Id ut_n _):_ = unTyApp t
-                                        (nme, count) = fromMaybe
-                                          ("_synth_pre_filler_" ++ show i ++ "_" ++ show j, 0)
-                                          (HM.lookup ut_n smt_names)
-                                    in
-                                    SynthSpec { sy_name = smt_f ++ nme
-                                              , sy_args = zipWith (\a k -> a { smt_var = "x_" ++ show k}) (concat (take count ars) ++ ex_a) ([1..] :: [Integer])
-                                              , sy_rets = zipWith (\r k -> r { smt_var = "x_r_" ++ show k}) rets ([1..] :: [Integer])
-                                              , sy_coeffs = []}
+                                case unTyApp t of
+                                    TyVar (Id ut_n _):_ ->
+                                        let
+                                            (nme, count) = fromMaybe
+                                                ("_synth_pre_filler_" ++ show i ++ "_" ++ show j, 0)
+                                                (HM.lookup ut_n smt_names)
+                                        in
+                                        SynthSpec { sy_name = smt_f ++ nme
+                                                  , sy_args = zipWith (\a k -> a { smt_var = "x_" ++ show k}) (concat (take count ars) ++ ex_a) ([1..] :: [Integer])
+                                                  , sy_rets = zipWith (\r k -> r { smt_var = "x_r_" ++ show k}) rets ([1..] :: [Integer])
+                                                  , sy_coeffs = []}
+                                    TyFun _ _:_ ->
+                                            SynthSpec { sy_name = smt_f ++ "_synth_pre_filler_" ++ show i ++ "_" ++ show j
+                                                    , sy_args = []
+                                                    , sy_rets = []
+                                                    , sy_coeffs = []}
+                                    _ -> error "buildSI: unsupported Type"
                                   )  $ zip3PB r_pb ut_pb (uniqueIds r_pb)
                      ) (filter (not . null) $ L.inits outer_ars_pb) ut_a' ([1..] :: [Integer])
            , s_syn_post = mkSynSpecPB smt_f outer_ars (mapPB aar_r ret_pb) smt_names ut_r

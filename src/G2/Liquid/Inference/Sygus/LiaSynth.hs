@@ -412,7 +412,7 @@ runConstraintsForSynth headers vs = do
             liftIO $ setProduceUnsatCores z3_dir
             liftIO $ setProduceUnsatCores z3_max
 
-            liftIO $ T.putStrLn (TB.run $ toSolverText headers)
+            -- liftIO $ T.putStrLn (TB.run $ toSolverText headers)
             liftIO $ addFormula z3_dir headers
             liftIO $ addFormula z3_max headers
 
@@ -437,6 +437,7 @@ runConstraintsForSynth headers vs = do
             liftIO $ closeIO z3_dir
 
             return res
+
 waitForRes2 :: (SMTConverter s1, SMTConverter s2) =>
                Maybe (Result () () ()) -- ^ Nothing, or an unknown returned by Solver 1
             -> Maybe (Result () () ()) -- ^ Nothing, or an unknown returned by Solver 2
