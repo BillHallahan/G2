@@ -10,8 +10,10 @@ import G2.Language.Monad.AST
 import G2.Language.Monad.Naming
 import G2.Language.Monad.Support
 
+import Control.Monad
 import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
+import Debug.Trace
 
 newtype UnionedTypes = UT (HM.HashMap Name Type) deriving Show
 
@@ -25,8 +27,8 @@ sharedTyConsEE ns eenv =
         tys = fst $ runNamingM (mapM assignTyConNames (E.map' typeOf f_eenv)) (mkNameGen f_eenv)
 
         rep_eenv =  E.map (repVars tys) f_eenv
-        rep_eenv' = elimTyForAll . elimTypes $ rep_eenv
-        rep_eenv'' = fst $ runNamingM (E.mapM assignTyConNames rep_eenv') (mkNameGen rep_eenv')
+        rep_eenv' =  elimTypes $ rep_eenv
+        rep_eenv'' = fst $ runNamingM (E.mapM (assignTyConNames >=> elimTyForAll) rep_eenv') (mkNameGen rep_eenv')
 
         union_poly = mconcat . map UF.joinedKeys . HM.elems
                    . E.map' (fromMaybe UF.empty . checkType)
@@ -52,12 +54,14 @@ repVars' :: HM.HashMap Name Type -> Expr -> Expr
 repVars' tys (Var (Id n _)) | Just t <- HM.lookup n tys = Var (Id n t)
 repVars' _ e = e
 
-elimTyForAll :: ASTContainer m Type => m -> m
-elimTyForAll = modifyASTs elimTyForAll'
+elimTyForAll :: ASTContainerM m Type => m -> NameGenM m
+elimTyForAll = modifyASTsM elimTyForAll'
 
-elimTyForAll' :: Type -> Type
-elimTyForAll' (TyForAll _ t) = elimTyForAll' t
-elimTyForAll' t = t
+elimTyForAll' :: Type -> NameGenM Type
+elimTyForAll' (TyForAll (Id n _) t) = do
+    n' <- freshSeededNameN n
+    elimTyForAll' (rename n n' t)
+elimTyForAll' t = return t
 
 elimTypes :: ASTContainer m Expr => m -> m
 elimTypes = modifyASTs elimTypes'
