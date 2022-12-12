@@ -1083,6 +1083,23 @@ loop2 _ = loop2 Z
 "plusZero" forall x . x + Z = x
   #-}
 
+-- discussion at OOPSLA
+
+listA :: [()]
+listA = ():():listA
+
+listB :: [()]
+listB = ():():():listB
+
+listC :: [()]
+listC = ():():():():():():():listC
+
+listD :: [()]
+listD = ():():():():():():():():():():():listD
+
+listE :: [()]
+listE = ():():():():():():():():():():():():listE
+
 -- simpler versions of theorems that Nebula couldn't verify
 -- at the time of the paper's submission
 {-# RULES
@@ -1092,4 +1109,7 @@ loop2 _ = loop2 Z
 "p80Z" forall xs ys . take Z (xs ++ ys) = take Z xs ++ take (Z - len xs) ys
 "p80nil" forall n xs . take n (xs ++ []) = take n xs ++ take (n - len xs) []
 "p80Znil" forall xs . take Z (xs ++ []) = take Z xs ++ take (Z - len xs) []
+"ab" listA = listB
+"bc" listB = listC
+"de" listD = listE
   #-}

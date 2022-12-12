@@ -45,7 +45,7 @@ rejectRule config init_state bindings rule = do
     _ -> error "Failed to Produce a Result")
 
 nebulaConfig :: NebulaConfig
-nebulaConfig = NC { limit = 10
+nebulaConfig = NC { limit = 20
                   , num_lemmas = 2
                   , print_summary = NoSummary
                   , use_labeled_errors = UseLabeledErrors
