@@ -12,6 +12,7 @@ import GetNthTest
 import PeanoTest
 import LHReqs
 import TestUtils
+import UnionPoly
 
 import G2.Config as G2
 import G2.Interface
@@ -43,7 +44,9 @@ tests = testGroup "All Tests"
         [ liquidTests
         , posInfTests
         , negInfTests
-        , cexInfTests ]
+        , cexInfTests
+        
+        , unionPolyTests ]
 
 liquidTests :: TestTree
 liquidTests = testGroup "Liquid" 

@@ -13,7 +13,6 @@ import G2.Language.Monad.Support
 import Control.Monad
 import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
-import Debug.Trace
 
 newtype UnionedTypes = UT (HM.HashMap Name Type) deriving Show
 
@@ -27,8 +26,10 @@ sharedTyConsEE ns eenv =
         tys = fst $ runNamingM (mapM assignTyConNames (E.map' typeOf f_eenv)) (mkNameGen f_eenv)
 
         rep_eenv =  E.map (repVars tys) f_eenv
-        rep_eenv' =  elimTypes $ rep_eenv
-        rep_eenv'' = fst $ runNamingM (E.mapM (assignTyConNames >=> elimTyForAll) rep_eenv') (mkNameGen rep_eenv')
+        rep_eenv' = elimTypes $ rep_eenv
+        rep_eenv'' = adjustLetTypes
+                   . fst
+                   $ runNamingM (E.mapM (assignTyConNames >=> elimTyForAll) rep_eenv') (mkNameGen rep_eenv')
 
         union_poly = mconcat . map UF.joinedKeys . HM.elems
                    . E.map' (fromMaybe UF.empty . checkType)
@@ -69,6 +70,21 @@ elimTypes = modifyASTs elimTypes'
 elimTypes' :: Expr -> Expr
 elimTypes' (App e (Type _)) = elimTypes' e
 elimTypes' e = e
+
+adjustLetTypes :: ASTContainer m Expr => m -> m
+adjustLetTypes = modifyASTs adjustLetTypes'
+
+adjustLetTypes' :: Expr -> Expr
+adjustLetTypes' (Let ie e) =
+    let
+        ie' = map (\(Id n _, le) -> (Id n (typeOf le), le)) ie
+        f ((i_old, _), (i_new, _)) fe = modifyASTs (rv (idName i_old) (Var i_new)) fe
+    in
+    foldr f (Let ie' e) (zip ie ie')
+    where
+        rv old new (Var (Id n _)) | n == old = new
+        rv _ _ re = re
+adjustLetTypes' e = e
 
 renameFromUnion :: UFind.UnionFind Name -> Type -> Type
 renameFromUnion uf = modifyASTs (renameFromUnion' uf )

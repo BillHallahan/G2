@@ -412,6 +412,7 @@ test-suite test-lh
                        , PeanoTest
                        , Reqs
                        , TestUtils
+                       , UnionPoly
   ghc-options:         -Wall
                        -- -fprof-auto "-with-rtsopts=-p"
                        -threaded
