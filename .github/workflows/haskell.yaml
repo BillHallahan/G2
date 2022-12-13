@@ -9,7 +9,7 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
 
     strategy:
       matrix:
@@ -27,7 +27,7 @@ jobs:
             test: { test: test-lh }
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
     - uses: haskell/actions/setup@v2
       id: setup-haskell-cabal
       with:
