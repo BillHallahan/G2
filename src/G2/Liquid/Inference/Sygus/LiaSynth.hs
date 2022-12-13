@@ -727,7 +727,10 @@ checkModelIsNewFunc' con si mdl1 mdl2 = do
     case r of
         SAT _ -> return True
         UNSAT _ -> return False
-        Unknown _ _ -> error "checkModelIsNewFunc': unknown result"
+        -- If we get a result of Unknown, we might as well optimistically assume that the model is new
+        Unknown _ _ -> do
+            liftIO $ putStrLn "checkModelIsNewFunc' unknown result"
+            return True
 
 defineModelLIAFuns :: SMTModel -> SpecInfo -> [SMTHeader]
 defineModelLIAFuns mdl si =
