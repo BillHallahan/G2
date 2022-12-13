@@ -16,7 +16,8 @@ unionPolyTests =
     testGroup "UnionPoly"
     [
       testCase "Let unification" $ assertBool "Polymorphic unification failed with lets" letTest
-    , testCase "Lambda unification" $ assertBool "Polymorphic unification failed with lambdas" lambdaTest
+    , testCase "Lambda unification 1" $ assertBool "Polymorphic unification failed with lambdas" lambdaTest1
+    , testCase "Lambda unification 2" $ assertBool "Polymorphic unification failed with lambdas" lambdaTest2
     ]
 
 letTest :: Bool
@@ -56,13 +57,13 @@ letExprEnv f g =
     in
     E.fromList [(f, f_e), (g, g_e)]
 
-lambdaTest :: Bool
-lambdaTest =
+lambdaTest1 :: Bool
+lambdaTest1 =
     let
         f = defName "f"
         g = defName "g"
         h = defName "h"
-        eenv = lambdaExprEnv f g h
+        eenv = lambdaExprEnv1 f g h
 
         ut = sharedTyConsEE [f, g, h] eenv
     in
@@ -70,8 +71,8 @@ lambdaTest =
         Just (TyFun t1@(TyVar _) t2) -> t1 == t2 
         _ -> False
 
-lambdaExprEnv :: Name -> Name -> Name -> ExprEnv
-lambdaExprEnv f g h =
+lambdaExprEnv1 :: Name -> Name -> Name -> ExprEnv
+lambdaExprEnv1 f g h =
     let
         a = defName "a"
         a_id = Id a TYPE
@@ -80,7 +81,7 @@ lambdaExprEnv f g h =
         int = defName "Int"
         int_ty = TyCon int TYPE
 
-        g_id = Id g . TyForAll a_id $ TyFun a_ty a_ty
+        g_id = Id g . TyForAll a_id $ TyFun (TyFun a_ty a_ty) a_ty
         h_id = Id h $ TyFun int_ty int_ty
 
         j_id = Id (defName "j") (TyFun a_ty a_ty)
@@ -89,6 +90,49 @@ lambdaExprEnv f g h =
         g_e = Lam TypeL a_id . Lam TermL j_id $ App (App (Var g_id) (Type a_ty)) (Var j_id)
         h_e = Lam TermL x_id $ Var x_id
         f_e = App (App (Var g_id) (Type int_ty)) . Lam TermL x_id $ App (Var h_id) (Var x_id)
+    in
+    E.fromList [(f, f_e), (g, g_e), (h, h_e)]
+
+lambdaTest2 :: Bool
+lambdaTest2 =
+    let
+        f = defName "f"
+        g = defName "g"
+        h = defName "h"
+        eenv = lambdaExprEnv2 f g h
+
+        ut = sharedTyConsEE [f, g, h] eenv
+    in
+    case lookupUT h ut of
+        Just (TyFun t1@(TyVar _) t2) -> t1 == t2 
+        _ -> False
+
+lambdaExprEnv2 :: Name -> Name -> Name -> ExprEnv
+lambdaExprEnv2 f g h =
+    let
+        a = defName "a"
+        a_id = Id a TYPE
+        a_ty = TyVar a_id
+
+        int = defName "Int"
+        int_ty = TyCon int TYPE
+
+        g_id = Id g . TyForAll a_id . TyFun (TyFun int_ty int_ty) $ TyFun (TyFun a_ty a_ty) a_ty
+        h_id = Id h $ TyFun int_ty int_ty
+
+        j_id = Id (defName "j") (TyFun int_ty int_ty)
+        k_id = Id (defName "k") (TyFun a_ty a_ty)
+        x_id = Id (defName "x") int_ty
+        y_id = Id (defName "y") a_ty
+
+        bind_id = Id (defName "bind") (TyForAll a_id (TyFun a_ty a_ty))
+
+        g_e = Lam TypeL a_id
+            . Lam TermL j_id
+            . Lam TermL k_id $ App (App (App (Var g_id) (Type a_ty)) (Var j_id)) (Var k_id)
+        h_e = Lam TermL x_id $ Var x_id
+        f_e = Let [(bind_id, Lam TypeL a_id $ Lam TermL y_id (Var y_id))]
+            . App (App (App (Var g_id) (Type int_ty)) (App (Var bind_id) (Type int_ty))) $ Var h_id
     in
     E.fromList [(f, f_e), (g, g_e), (h, h_e)]
 

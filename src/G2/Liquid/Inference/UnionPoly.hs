@@ -69,6 +69,7 @@ elimTypes :: ASTContainer m Expr => m -> m
 elimTypes = modifyASTs elimTypes'
 
 elimTypes' :: Expr -> Expr
+elimTypes' (Lam TypeL _ e) = elimTypes' e
 elimTypes' (App e (Type _)) = elimTypes' e
 elimTypes' e = e
 
