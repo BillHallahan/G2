@@ -28,7 +28,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - run: apt-get install build-essential curl libffi-dev libffi6 libgmp-dev libgmp10 libncurses-dev libncurses5 libtinfo5
+    - run: sudo apt-get install build-essential curl libffi-dev libffi6 libgmp-dev libgmp10 libncurses-dev libncurses5 libtinfo5
     - run: curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
     - run: ghcup install ghc ${{ matrix.compiler.ghc }}
     - run: ghcup install cabal ${{ matrix.compiler.cabal }}
