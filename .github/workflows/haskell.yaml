@@ -27,6 +27,7 @@ jobs:
             test: { test: test-lh }
 
     steps:
+    - run: which gmake
     - uses: actions/checkout@v2
     - uses: haskell/actions/setup@v2
       id: setup-haskell-cabal
