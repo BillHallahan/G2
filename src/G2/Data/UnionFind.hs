@@ -21,6 +21,7 @@ import Data.Hashable
 import qualified Data.HashMap.Lazy as M
 import qualified Data.HashSet as S
 import Data.IORef
+import Data.Semigroup (Semigroup (..))
 
 import System.IO.Unsafe
 
