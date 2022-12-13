@@ -28,11 +28,16 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - uses: haskell/actions/setup@v2
-      id: setup-haskell-cabal
-      with:
-        ghc-version: ${{ matrix.compiler.ghc }}
-        cabal-version: ${{ matrix.compiler.cabal }}
+    - run: curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
+    - run: ghcup install ghc ${{ matrix.compiler.ghc }}
+    - run: ghcup install cabal ${{ matrix.compiler.cabal }}
+    - run: ghcup set ghc ${{ matrix.compiler.ghc }}
+    - run: ghcup set cabal ${{ matrix.compiler.cabal }}
+    # - uses: haskell/actions/setup@v2
+    #   id: setup-haskell-cabal
+    #   with:
+    #     ghc-version: ${{ matrix.compiler.ghc }}
+    #     cabal-version: ${{ matrix.compiler.cabal }}
 
     - run: cabal update
     - run: cabal configure --enable-tests -f ${{ matrix.test.lh }}
