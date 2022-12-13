@@ -27,7 +27,8 @@ sharedTyConsEE ns eenv =
 
         rep_eenv =  E.map (repVars tys) f_eenv
         rep_eenv' = elimTypes $ rep_eenv
-        rep_eenv'' = adjustLetTypes
+        rep_eenv'' = substLams
+                   . adjustLetTypes
                    . fst
                    $ runNamingM (E.mapM (assignTyConNames >=> elimTyForAll) rep_eenv') (mkNameGen rep_eenv')
 
@@ -78,13 +79,21 @@ adjustLetTypes' :: Expr -> Expr
 adjustLetTypes' (Let ie e) =
     let
         ie' = map (\(Id n _, le) -> (Id n (typeOf le), le)) ie
-        f ((i_old, _), (i_new, _)) fe = modifyASTs (rv (idName i_old) (Var i_new)) fe
+        f ((i_old, _), (i_new, _)) fe = modifyASTs (repVar (idName i_old) (Var i_new)) fe
     in
     foldr f (Let ie' e) (zip ie ie')
-    where
-        rv old new (Var (Id n _)) | n == old = new
-        rv _ _ re = re
 adjustLetTypes' e = e
+
+substLams :: ASTContainer m Expr => m -> m
+substLams = modifyASTs substLams'
+
+substLams' :: Expr -> Expr
+substLams' (Lam use i e) = Lam use i $ modifyASTs (repVar (idName i) (Var i)) e
+substLams' e = e
+
+repVar :: Name -> Expr -> Expr -> Expr
+repVar old new (Var (Id n _)) | n == old = new
+repVar _ _ re = re
 
 renameFromUnion :: UFind.UnionFind Name -> Type -> Type
 renameFromUnion uf = modifyASTs (renameFromUnion' uf )
