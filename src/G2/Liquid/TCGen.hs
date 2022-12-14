@@ -123,7 +123,7 @@ lhtcT n adt = do
     let ct = foldl' TyApp (TyCon n TYPE) $ map TyVar bi
 
     let t = (TyApp 
-                (TyCon lh TYPE) 
+                (TyCon lh (TyFun TYPE TYPE)) 
                 ct
             )
 
@@ -236,7 +236,7 @@ lhDCType = do
                                         (TyFun
                                             TyUnknown
                                             (TyApp 
-                                                (TyCon lh TYPE) 
+                                                (TyCon lh (TyFun TYPE TYPE)) 
                                                 (TyVar n)
                                             )
                                         )
@@ -258,7 +258,7 @@ createFunc cf n adt = do
     let bi = bound_ids adt
 
     lh <- lhTCM
-    lhbi <- mapM (freshIdN . TyApp (TyCon lh TYPE) . TyVar) bi
+    lhbi <- mapM (freshIdN . TyApp (TyCon lh (TyFun TYPE TYPE)) . TyVar) bi
 
     d1 <- freshIdN (TyCon n TYPE)
     d2 <- freshIdN (TyCon n TYPE)
@@ -399,7 +399,7 @@ createOrdFunc pr n adt = do
     let bi = bound_ids adt
 
     lh <- lhTCM
-    lhbi <- mapM (freshIdN . TyApp (TyCon lh TYPE) . TyVar) bi
+    lhbi <- mapM (freshIdN . TyApp (TyCon lh (TyFun TYPE TYPE)) . TyVar) bi
 
     d1 <- freshIdN (TyCon n TYPE)
     d2 <- freshIdN (TyCon n TYPE)
@@ -446,7 +446,7 @@ lhPPFunc n adt = do
     let bi = bound_ids adt
 
     lh <- lhTCM
-    lhbi <- mapM (freshIdN . TyApp (TyCon lh TYPE) . TyVar) bi
+    lhbi <- mapM (freshIdN . TyApp (TyCon lh (TyFun TYPE TYPE)) . TyVar) bi
 
     b <- tyBoolT
     fs <- mapM (\v -> freshIdN (TyFun (TyVar v) b)) bi
@@ -557,15 +557,15 @@ createExtractors'' lh i j n = do
 
     bi <- freshIdsN $ replicate i TyUnknown
 
-    li <- freshIdN (TyCon lh (TyApp TYPE TYPE)) 
-    ci <- freshIdN (TyCon lh (TyApp TYPE TYPE))
+    li <- freshIdN (TyCon lh (TyFun TYPE TYPE)) 
+    ci <- freshIdN (TyCon lh (TyFun TYPE TYPE))
 
     b <- freshIdN TYPE
     let d = DataCon lh (TyForAll 
                             b
                             (TyFun
                                 (TyVar b) 
-                                (TyApp (TyCon lh (TyApp TYPE TYPE)) (TyVar b))
+                                (TyApp (TyCon lh (TyFun TYPE TYPE)) (TyVar b))
                             )
                         )
     let vi = bi !! j

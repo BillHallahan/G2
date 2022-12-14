@@ -10,6 +10,7 @@ module G2.Liquid.Inference.PolyRef ( PolyBound (.. )
                                    , extractExprPolyBoundWithRoot
                                    , extractExprPolyBound
                                    , extractTypePolyBound
+                                   , extractTypeAppAndFuncPolyBound
 
                                    , headValue
                                    , removeHead
@@ -135,6 +136,20 @@ extractTypePolyBound t =
         (_:ts) = unTyApp t
     in
     PolyBound t $ map extractTypePolyBound ts
+
+-- | Unrolls TyApp'ed and TyFunc'ed args, while also keeping them in the base type
+extractTypeAppAndFuncPolyBound :: Type -> TypePolyBound
+extractTypeAppAndFuncPolyBound t@(TyApp _ _) =
+    let
+        (_:ts) = unTyApp t
+    in
+    PolyBound t $ map extractTypePolyBound ts
+extractTypeAppAndFuncPolyBound t@(TyFun _ _) =
+    let
+        ts = splitTyFuns t
+    in
+    PolyBound t $ map extractTypePolyBound ts
+extractTypeAppAndFuncPolyBound t = PolyBound t []
 
 -------------------------------
 -- Generic PolyBound functions

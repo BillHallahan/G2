@@ -163,6 +163,7 @@ library
                          , G2.Liquid.Inference.Sygus.SimplifySygus
                          , G2.Liquid.Inference.Sygus.SpecInfo
                          , G2.Liquid.Inference.Sygus.Sygus
+                         , G2.Liquid.Inference.UnionPoly
                          , G2.Liquid.Inference.Verify
                          , G2.Liquid.Inference.GeneratedSpecs
                          , G2.Liquid.Inference.QualifGen
@@ -406,11 +407,12 @@ test-suite test-lh
                        , unordered-containers
   default-language:    Haskell2010
   hs-source-dirs:      tests_lh, tests
-  main-is:             Test.hs
+  main-is:             LHTest.hs
   other-modules:         GetNthTest
                        , PeanoTest
                        , Reqs
                        , TestUtils
+                       , UnionPoly
   ghc-options:         -Wall
                        -- -fprof-auto "-with-rtsopts=-p"
                        -threaded

@@ -28,6 +28,7 @@ import G2.Liquid.Inference.FuncConstraint
 import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.GeneratedSpecs
 import G2.Liquid.Inference.PolyRef
+import G2.Liquid.Inference.UnionPoly
 import G2.Liquid.Inference.Sygus.FCConverter
 import G2.Liquid.Inference.Sygus.SpecInfo
 
@@ -63,9 +64,10 @@ data Iteration = FirstRound | AfterFirstRound
 liaSynth :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con)
          => con -> Iteration -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
          -> FuncConstraints
+         -> UnionedTypes
          -> BlockedModels -- ^ SMT Models to block being returned by the synthesizer at various sizes
          -> ToBeNames -> ToSynthNames -> m SynthRes
-liaSynth con iter ghci lrs evals meas_ex fc blk_mdls to_be_ns ns_synth = do
+liaSynth con iter ghci lrs evals meas_ex fc ut blk_mdls to_be_ns ns_synth = do
 
     -- Figure out the type of each of the functions we need to synthesize
     let eenv = buildNMExprEnv $ expr_env . state $ lr_state lrs
@@ -73,7 +75,7 @@ liaSynth con iter ghci lrs evals meas_ex fc blk_mdls to_be_ns ns_synth = do
         tc = type_classes . state $ lr_state lrs
         meas = lrsMeasures ghci lrs
 
-    si <- buildSpecInfo eenv tenv tc meas ghci fc to_be_ns ns_synth
+    si <- buildSpecInfo eenv tenv tc meas ghci fc ut to_be_ns ns_synth
 
     liftIO . putStrLn $ "si = " ++ show si
 
@@ -435,6 +437,7 @@ runConstraintsForSynth headers vs = do
             liftIO $ closeIO z3_dir
 
             return res
+
 waitForRes2 :: (SMTConverter s1, SMTConverter s2) =>
                Maybe (Result () () ()) -- ^ Nothing, or an unknown returned by Solver 1
             -> Maybe (Result () () ()) -- ^ Nothing, or an unknown returned by Solver 2
@@ -724,7 +727,10 @@ checkModelIsNewFunc' con si mdl1 mdl2 = do
     case r of
         SAT _ -> return True
         UNSAT _ -> return False
-        Unknown _ _ -> error "checkModelIsNewFunc': unknown result"
+        -- If we get a result of Unknown, we might as well optimistically assume that the model is new
+        Unknown _ _ -> do
+            liftIO $ putStrLn "checkModelIsNewFunc' unknown result"
+            return True
 
 defineModelLIAFuns :: SMTModel -> SpecInfo -> [SMTHeader]
 defineModelLIAFuns mdl si =

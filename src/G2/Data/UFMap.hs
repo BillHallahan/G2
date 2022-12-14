@@ -30,6 +30,7 @@ module G2.Data.UFMap ( UFMap
 
                      , null
                      , keys
+                     , joinedKeys
                      , elems
                      , member) where
 
@@ -232,6 +233,9 @@ keys = S.toList . keysSet
 keysSet :: (Eq k, Hashable k) => UFMap k v -> S.HashSet k
 keysSet uf =
     (foldr S.union S.empty . UF.toSet . joined $ uf) `S.union` (M.keysSet . store $ uf)
+
+joinedKeys :: UFMap k v -> UF.UnionFind k
+joinedKeys = joined
 
 elems :: UFMap k v -> [v]
 elems = M.elems . store
