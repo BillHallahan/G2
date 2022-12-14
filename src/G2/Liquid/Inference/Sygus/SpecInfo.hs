@@ -317,7 +317,7 @@ buildSI tenv tc meas uts stat ghci f aty rty = do
                                                 ("_synth_pre_filler_" ++ show i ++ "_" ++ show j, 0)
                                                 (HM.lookup ut_n smt_names)
                                         in
-                                        SynthSpec { sy_name = smt_f ++ nme
+                                        SynthSpec { sy_name = smt_f ++ "_pre" ++ nme
                                                   , sy_args = zipWith (\a k -> a { smt_var = "x_" ++ show k}) (concat (take count ars) ++ ex_a) ([1..] :: [Integer])
                                                   , sy_rets = zipWith (\r k -> r { smt_var = "x_r_" ++ show k}) rets ([1..] :: [Integer])
                                                   , sy_coeffs = []}
@@ -444,7 +444,7 @@ mkSynSpecPB smt_f ars pb_sa smt_names ut =
                 arg_ns = zipWith (\a i -> a { smt_var = "x_" ++ show i } ) (concat . take count $ ars) ([1..] :: [Integer])
                 ret_ns = map (\(r, i) -> r { smt_var = "x_r_" ++ show ui ++ "_" ++ show i }) $ zip sa ([1..] :: [Integer])
             in
-            SynthSpec { sy_name = smt_f ++ nme -- smt_f ++ show ui
+            SynthSpec { sy_name = smt_f ++ "_post" ++ nme -- smt_f ++ show ui
                       , sy_args = arg_ns
                       , sy_rets = ret_ns
                       , sy_coeffs = [] }
