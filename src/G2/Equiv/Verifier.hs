@@ -151,7 +151,6 @@ transferTrackerInfo s1 s2 =
       t2' = t2 {
         higher_order = higher_order t1
       , total_vars = total_vars t1
-      , finite_vars = finite_vars t1
       --, opp_env = expr_env s1
       }
   in s2 { track = t2' }
@@ -812,29 +811,21 @@ checkRule :: Config
           -> State t
           -> Bindings
           -> [DT.Text] -- ^ names of forall'd variables required to be total
-          -> [DT.Text] -- ^ names of forall'd variables required to be total and finite
           -> RewriteRule
           -> IO (S.Result () () ())
-checkRule config nc init_state bindings total finite rule = do
+checkRule config nc init_state bindings total rule = do
   let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
       (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
       sym_ids = ru_bndrs rule
       total_names = filter (includedName total) (map idName sym_ids)
-      finite_names = filter (includedName finite) (map idName sym_ids)
-      finite_hs = foldr HS.insert HS.empty finite_names
-      -- always include the finite names in total
-      total_hs = foldr HS.insert finite_hs total_names
-      EquivTracker et m _ _ _ _ _ = emptyEquivTracker
-      start_equiv_tracker = EquivTracker et m total_hs finite_hs [] E.empty ""
+      total_hs = foldr HS.insert HS.empty total_names
+      EquivTracker et m _ _ _ _ = emptyEquivTracker
+      start_equiv_tracker = EquivTracker et m total_hs [] E.empty ""
       -- the keys are the same between the old and new environments
       ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
       ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
       -- no need for two separate name sets
       ns = HS.filter (\n -> not (E.isSymbolic n $ expr_env rewrite_state_l)) $ HS.union ns_l ns_r
-      -- TODO wrap both sides with forcings for finite vars
-      -- get the finite vars first
-      -- TODO a little redundant with the earlier stuff
-      finite_ids = filter ((includedName finite) . idName) sym_ids
       walkers = deepseq_walkers bindings''
       e_l = exprExtract rewrite_state_l
       (rewrite_state_l',_) = cleanState (rewrite_state_l { curr_expr = CurrExpr Evaluate e_l }) bindings

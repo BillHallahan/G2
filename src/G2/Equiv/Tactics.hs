@@ -1118,7 +1118,6 @@ moreRestrictivePairWithLemmas' app_state solver num_lems valid ns lemmas past_li
 
     rp <- mapM (\((l1, s1_), (l2, s2_)) -> do
             mrp <- moreRestrictivePair solver valid ns past_list (s1_, s2_)
-            -- TODO use synced or non-synced?
             -- the underscore states here are ones with substs applied
             let l1' = map swap l1
             let l2' = map swap l2
