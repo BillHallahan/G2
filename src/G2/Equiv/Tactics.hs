@@ -258,16 +258,12 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                                 let
                                     v_rep = HM.toList $ fst hm
                                     e1' = replaceVars e1 v_rep
-                                    -- TODO consolidate into one map
-                                    -- cs doesn't get unmapped things from the other side
                                     cs (E.Conc e_) = E.Conc e_
                                     cs (E.Sym i_) = case E.lookupConcOrSym (idName i_) h2' of
                                       Nothing -> E.Sym i_
                                       Just c -> c
-                                    --h2_ = E.mapConcOrSym cs h2
-                                    -- TODO changing this from h2 didn't help
                                     h2_ = envMerge (E.mapConcOrSym cs h2) h2'
-                                    h2_' = E.mapConc (flip replaceVars v_rep) h2_ -- foldr (\(Id n _, e) -> E.insert n e) h2 (HM.toList $ fst hm)
+                                    h2_' = E.mapConc (flip replaceVars v_rep) h2_
                                     et' = (track s2) { opp_env = E.empty }
                                     ids1 = varIds e1'
                                     ids1' = filter (\(Id n _) -> not $ E.member n h2_') ids1
@@ -338,10 +334,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                 | otherwise -> Left []
     -- ignore types, like in exprPairing
     (Type _, Type _) -> Right hm
-    -- new Let handling
-    -- TODO does this not account for bindings properly?
-    -- TODO only works properly if both binding lists are the same length
-    -- I can just discard cases where they aren't for now
+    -- only works if both binding lists are the same length
     (Let binds1 e1', Let binds2 e2') ->
                 let pairs = (e1', e2'):(zip (map snd binds1) (map snd binds2))
                     ins (i_, e_) h_ = E.insert (idName i_) e_ h_
@@ -354,12 +347,9 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                 if length binds1 == length binds2
                 then foldM mf hm pairs
                 else Left []
-    -- TODO if scrutinee is symbolic var, make Alt vars symbolic?
-    -- TODO id equality never checked; does it matter?
+    -- id equality never checked directly, but it's covered indirectly
     (Case e1' i1 _ a1, Case e2' i2 _ a2)
                 | Right hm' <- b_mr ->
-                  -- add the matched-on exprs to the envs beforehand
-                  -- TODO I think I can leave these E operations as they are
                   let h1_ = E.insert (idName i1) e1' h1
                       h2_ = E.insert (idName i2) e2' h2
                       s1' = s1 { expr_env = h1_ }
@@ -378,8 +368,6 @@ replaceVars :: Expr -> [(Id, Expr)] -> Expr
 replaceVars = foldr (\(Id n _, e) -> replaceVar n e)
 
 -- These helper functions have safeguards to avoid cyclic inlining.
--- TODO remove ticks with this?
--- TODO these need a second expr env too
 inlineTop :: [Name] -> ExprEnv -> ExprEnv -> Expr -> Expr
 inlineTop acc h h' v@(Var (Id n _))
     | n `elem` acc = v
@@ -506,7 +494,6 @@ restrictAux s1 s2 ns (Right hm) =
   moreRestrictive s1 s2 ns hm True [] [] (exprExtract s1) (exprExtract s2)
 restrictAux _ _ _ left = left
 
--- TODO change the opp envs?
 syncSymbolic :: StateET -> StateET -> (StateET, StateET)
 syncSymbolic s1 s2 =
   let et1 = (track s1) { opp_env = expr_env s2 }
@@ -564,14 +551,7 @@ applySolver solver extraPC s1 s2 =
         newState = s1 { expr_env = unionEnv, path_conds = extraPC }
     in case (P.toList allPC) of
       [] -> return $ S.SAT ()
-      _ -> do
-           {-
-           putStrLn ("APPLY SOLVER " ++ (show $ folder_name $ track s1))
-           putStrLn (show $ P.number $ path_conds s1)
-           putStrLn (show $ folder_name $ track s2)
-           putStrLn (show $ P.number $ path_conds s2)
-           -}
-           S.check solver newState allPC
+      _ -> S.check solver newState allPC
 
 validCoinduction :: (StateET, StateET) -> (StateET, StateET) -> Bool
 validCoinduction (p1, p2) (q1, q2) =
@@ -591,7 +571,7 @@ validCoinduction (p1, p2) (q1, q2) =
 -- return Nothing if there was no discharge
 -- if there are multiple, just return the first
 -- TODO first pair is "current," second pair is the match from the past
--- TODO the third entry in a prev triple is the original for left or right
+-- the third entry in a prev triple is the original for left or right
 -- TODO do I still need the dc path check at the start here?
 moreRestrictivePairAux :: S.Solver solver =>
                           solver ->
@@ -674,7 +654,6 @@ moreRestrictiveSingle solver ns s1 s2 = do
         isUnsat (S.UNSAT _) = True
         isUnsat _ = False
 
--- TODO tick adjusting here?
 isIdentity :: (Id, Expr) -> Bool
 isIdentity (i1, Tick _ e2) = isIdentity (i1, e2)
 isIdentity (i1, (Var i2)) = i1 == i2
@@ -723,7 +702,6 @@ equalFoldL solver num_lems ns lemmas prev2 s1 = do
         Just pm -> return $ Just pm
         _ -> equalFoldL solver num_lems ns lemmas t s1
 
--- TODO clean up code
 -- This tries all of the allowable combinations for equality checking.  First
 -- it tries matching the left-hand present state with all of the previously
 -- encountered right-hand states.  If all of those fail, it tries matching the

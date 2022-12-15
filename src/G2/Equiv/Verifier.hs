@@ -41,7 +41,7 @@ import Control.Monad
 
 import G2.Lib.Printers
 
--- TODO reader / writer monad source consulted
+-- reader / writer monad source consulted
 -- https://mmhaskell.com/monads/reader-writer
 
 import qualified Control.Monad.Writer.Lazy as W
@@ -318,8 +318,8 @@ allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
 allNewLemmaTactics = map applyTacticToLabeledStates [tryEquality, tryCoinduction]
 
 -- negative loop iteration count means there's no limit
--- TODO if states is empty but n = 0, we'll get Unknown rather than UNSAT
--- added (null states) check to deal with that
+-- The (null states) check ensures that we return UNSAT rather than
+-- Unknown when states is empty and n = 0.
 -- TODO (2/5) first attempt at slowing down execution for states that are ahead
 verifyLoop :: S.Solver solver =>
               solver ->
@@ -337,12 +337,9 @@ verifyLoop :: S.Solver solver =>
 verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) || (null states) = do
   W.liftIO $ putStrLn "<Loop Iteration>"
   W.liftIO $ putStrLn $ show n
-  --let min_depth = minDepth ns sym_ids states
-  --W.liftIO $ putStrLn $ "<<Current Min Depth>> " ++ show min_depth
-  -- TODO use these instead in the Python script
+  -- this printing allows our Python script to report depth stats
   let min_max_depth = minMaxDepth ns sym_ids states
       min_sum_depth = minSumDepth ns sym_ids states
-  -- TODO don't print if state list is empty
   case states of
     [] -> return ()
     _ -> do
@@ -788,14 +785,6 @@ startingState et ns s =
 unused_name :: Name
 unused_name = Name (DT.pack "UNUSED") Nothing 0 Nothing
 
--- TODO may not use this finiteness-forcing method at all
-forceFinite :: Walkers -> Id -> Expr -> Expr
-forceFinite w i e =
-  let e' = mkStrict w $ Var i
-      i' = Id unused_name (typeOf $ Var i)
-      a = Alt Default e
-  in Case e' i' (typeOf e) [a]
-
 cleanState :: State t -> Bindings -> (State t, Bindings)
 cleanState state bindings =
   let sym_config = addSearchNames (input_names bindings)
@@ -857,19 +846,17 @@ checkRule config nc init_state bindings total finite rule = do
       finite_ids = filter ((includedName finite) . idName) sym_ids
       walkers = deepseq_walkers bindings''
       e_l = exprExtract rewrite_state_l
-      e_l' = foldr (forceFinite walkers) e_l finite_ids
-      (rewrite_state_l',_) = cleanState (rewrite_state_l { curr_expr = CurrExpr Evaluate e_l' }) bindings
+      (rewrite_state_l',_) = cleanState (rewrite_state_l { curr_expr = CurrExpr Evaluate e_l }) bindings
       e_r = exprExtract rewrite_state_r
-      e_r' = foldr (forceFinite walkers) e_r finite_ids
-      (rewrite_state_r',_) = cleanState (rewrite_state_r { curr_expr = CurrExpr Evaluate e_r' }) bindings
+      (rewrite_state_r',_) = cleanState (rewrite_state_r { curr_expr = CurrExpr Evaluate e_r }) bindings
       
       rewrite_state_l'' = startingState start_equiv_tracker ns rewrite_state_l'
       rewrite_state_r'' = startingState start_equiv_tracker ns rewrite_state_r'
 
   S.SomeSolver solver <- initSolver config
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
-  putStrLn $ printHaskellDirty e_l'
-  putStrLn $ printHaskellDirty e_r'
+  putStrLn $ printHaskellDirty e_l
+  putStrLn $ printHaskellDirty e_r
   putStrLn $ printHaskellDirty $ exprExtract $ latest rewrite_state_l''
   putStrLn $ printHaskellDirty $ exprExtract $ latest rewrite_state_r''
   (res, w) <- W.runWriterT $ verifyLoop solver (num_lemmas nc) ns
