@@ -13,6 +13,7 @@ import Options.Applicative
 
 -- Config options
 data NebulaConfig = NC { limit :: Int
+                       , num_lemmas :: Int
                        , print_summary :: SummaryMode
                        , use_labeled_errors :: UseLabeledErrors
                        , log_states :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
@@ -47,6 +48,10 @@ mkNebulaConfig = NC
                    <> metavar "N"
                    <> value (-1)
                    <> help "how many iterations the equivalence checker should go through before giving up")
+        <*> option auto (long "num_lemmas"
+                   <> metavar "L"
+                   <> value 2
+                   <> help "how many lemmas can be applied to an expression simultaneously")
         <*> mkSummaryMode
         <*> flag UseLabeledErrors NoLabeledErrors (long "no-labeled-errors" <> help "disable labeled errors, treating all errors as equivalent")
         <*> mkLogMode

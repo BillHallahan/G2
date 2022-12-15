@@ -1082,3 +1082,34 @@ loop2 _ = loop2 Z
 "contrivedSync" forall n . walkNat n (loop1 n) = loop2 n
 "plusZero" forall x . x + Z = x
   #-}
+
+-- discussion at OOPSLA
+
+listA :: [()]
+listA = ():():listA
+
+listB :: [()]
+listB = ():():():listB
+
+listC :: [()]
+listC = ():():():():():():():listC
+
+listD :: [()]
+listD = ():():():():():():():():():():():listD
+
+listE :: [()]
+listE = ():():():():():():():():():():():():listE
+
+-- simpler versions of theorems that Nebula couldn't verify
+-- at the time of the paper's submission
+{-# RULES
+"p55Z" forall xs ys . drop Z (xs ++ ys) = drop Z xs ++ drop (Z - len xs) ys
+"p55nil" forall n xs . drop n (xs ++ []) = drop n xs ++ drop (n - len xs) []
+"p55Znil" forall xs . drop Z (xs ++ []) = drop Z xs ++ drop (Z - len xs) []
+"p80Z" forall xs ys . take Z (xs ++ ys) = take Z xs ++ take (Z - len xs) ys
+"p80nil" forall n xs . take n (xs ++ []) = take n xs ++ take (n - len xs) []
+"p80Znil" forall xs . take Z (xs ++ []) = take Z xs ++ take (Z - len xs) []
+"ab" listA = listB
+"bc" listB = listC
+"de" listD = listE
+  #-}
