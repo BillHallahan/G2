@@ -1020,6 +1020,14 @@ substitution from the symbolic place to the concrete place is still valid.
 If it's unmapped, put it in as symbolic.
 If it's concrete or symbolic, just leave it as it is.
 This implementation does not cover finiteness information.
+The Bool argument of this function is used to determine whether a lemma
+substitution can be applied soundly at the current location.  If an
+expression is in FAF with no nested applications of the function at the
+outermost layer, substitutions are sound.  Any sub-expression of an FAF
+expression like this can also receive substitutions soundly.  If the
+recursion has ever passed through a sub-expression that fits the FAF
+format, then the Bool argument carries that information down to lower
+recursive calls.
 -}
 replaceMoreRestrictiveSubExpr' :: S.Solver solver =>
                                   solver ->
