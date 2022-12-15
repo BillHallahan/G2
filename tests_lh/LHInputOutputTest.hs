@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module InputOutputTest ( checkInputOutputLH ) where
+module LHInputOutputTest ( checkInputOutputLH ) where
 
 import Test.Tasty
 import Test.Tasty.HUnit

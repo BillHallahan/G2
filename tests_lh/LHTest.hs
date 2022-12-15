@@ -10,8 +10,9 @@ import Test.Tasty.HUnit
 
 import GetNthTest
 import PeanoTest
-import Reqs
+import LHReqs
 import TestUtils
+import UnionPoly
 
 import G2.Config as G2
 import G2.Interface
@@ -43,7 +44,9 @@ tests = testGroup "All Tests"
         [ liquidTests
         , posInfTests
         , negInfTests
-        , cexInfTests ]
+        , cexInfTests
+        
+        , unionPolyTests ]
 
 liquidTests :: TestTree
 liquidTests = testGroup "Liquid" 
@@ -335,6 +338,10 @@ posInfTests = testGroup "Tests"
             , posTestInference "tests_lh/test_files/Pos/Test43.hs"
             , posTestInference "tests_lh/test_files/Pos/Test44.hs"
             , posTestInference "tests_lh/test_files/Pos/Test45.hs"
+            , posTestInference "tests_lh/test_files/Pos/Test46.hs"
+            , posTestInference "tests_lh/test_files/Pos/Test47.hs"
+            , posTestInference "tests_lh/test_files/Pos/Test48.hs"
+            , posTestInference "tests_lh/test_files/Pos/Test49.hs"
 
             , posTestInference "tests_lh/test_files/Pos/Sets1.hs"
             , posTestInference "tests_lh/test_files/Pos/Sets2.hs"

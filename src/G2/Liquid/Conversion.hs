@@ -442,7 +442,7 @@ convertLHExpr m bt t (ENeg e) = do
     let negate' = Var $ Id neg 
                         (TyForAll a
                             (TyFun
-                                (TyApp (TyCon num (TyApp TYPE TYPE)) tva)
+                                (TyApp (TyCon num (TyFun TYPE TYPE)) tva)
                                 (TyFun
                                     tva
                                     tva
@@ -619,7 +619,7 @@ convertBop' f = do
     let tva = TyVar a
     return $ Var $ Id n (TyForAll a
                             (TyFun
-                                (TyApp (TyCon num (TyApp TYPE TYPE)) tva)
+                                (TyApp (TyCon num (TyFun TYPE TYPE)) tva)
                                 (TyFun
                                     tva
                                     (TyFun 
@@ -878,7 +878,7 @@ convertBrel' f = do
         t = TyForAll 
                 a
                 (TyFun
-                    (TyCon lh TYPE)
+                    (TyCon lh (TyFun TYPE TYPE))
                     (TyFun 
                         tva 
                         (TyFun tva b)
