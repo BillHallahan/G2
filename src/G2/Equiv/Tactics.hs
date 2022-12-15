@@ -189,6 +189,15 @@ moreRestrictivePC solver s1 s2 hm = do
 -- repeated inlinings of a variable are allowed as long as the expression on
 -- the opposite side is not the same as it was when a previous inlining of the
 -- same variable happened.
+-- When we make the two sides for a new lemma, if the two expressions
+-- contain any variables that aren't present in the expression environment,
+-- we add them to the expression environment as non-total symbolic
+-- variables.  This can happen if an expression for a lemma is a
+-- sub-expression of a Case branch, a Let statement, or a lambda expression
+-- body.  It is possible that we may lose information about the variables
+-- because of these insertions, but this cannot lead to spurious
+-- counterexamples because these insertions apply only to lemmas and lemmas
+-- are not used for counterexample generation.
 moreRestrictive :: StateET
                 -> StateET
                 -> HS.HashSet Name
@@ -260,10 +269,6 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                                     h2_ = envMerge (E.mapConcOrSym cs h2) h2'
                                     h2_' = E.mapConc (flip replaceVars v_rep) h2_ -- foldr (\(Id n _, e) -> E.insert n e) h2 (HM.toList $ fst hm)
                                     et' = (track s2) { opp_env = E.empty }
-                                    -- get all names from the two new current expressions
-                                    -- filter out the ones that are in the envs (ns doesn't matter)
-                                    -- make them symbolic
-                                    -- risk of lost totality info, spurious counterexamples
                                     ids1 = varIds e1'
                                     ids1' = filter (\(Id n _) -> not $ E.member n h2_') ids1
                                     ids2 = varIds e2
