@@ -113,12 +113,14 @@ data BlockInfo = BlockDC DataCon Int Int
 
 instance Hashable BlockInfo
 
+instance Named BlockInfo where
+    names (BlockDC dc n1 n2) = names dc
+    names (BlockLam i) = names i
+    rename old new (BlockDC dc n1 n2) = BlockDC (rename old new dc) n1 n2
+    rename old new (BlockLam i) = BlockLam (rename old new i)
+
 -- Maps higher order function calls to symbolic replacements.
 -- This allows the same call to be replaced by the same Id consistently.
--- relocated from Equiv.G2Calls
--- TODO dormant is 0 if execution can happen now
--- at what point do dormant values get assigned?
--- EquivTracker probably the wrong level for handling this
 data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
                                  , saw_tick :: Maybe Int
                                  , total_vars :: HS.HashSet Name
@@ -401,17 +403,6 @@ instance Reducer EquivReducer () EquivTracker where
                         (v, ng') = freshId (typeOf e) ng
                         et' = HM.insert e' v et
                         -- carry over totality if function and all args are total
-                        -- unApp, make sure every arg is a total symbolic var
-                        -- these are exprs originally
-                        {-
-                        es = map exprVarName $ unApp e'
-                        all_vars = all isJust es
-                        es' = map (\(Just n) -> n) $ filter isJust es
-                        all_sym = all (\x -> E.isSymbolic x eenv) es'
-                        -}
-                        -- TODO I could use totalExpr here
-                        -- TODO do I have access to ns here?
-                        -- TODO do I still want all_sym?
                         all_total = all (totalExpr s HS.empty []) $ unApp e'
                         total' = if all_total
                                  then HS.insert (idName v) total
@@ -424,10 +415,9 @@ instance Reducer EquivReducer () EquivTracker where
                     return (InProgress, [(s', ())], b', r)
     redRules r rv s b = return (NoProgress, [(s, rv)], b, r)
 
--- TODO not exhaustive
+-- not exhaustive, but totality is undecidable in general
 -- cyclic expressions do not count as total for now
 -- if a cycle never goes through a Data constructor, it's not total
--- TODO reject Error and Undefined primitives
 totalExpr :: StateET ->
              HS.HashSet Name ->
              [Name] -> -- variables inlined previously
@@ -518,9 +508,7 @@ instance ASTContainer EquivTracker Type where
         $ HM.toList hm )
         m total finite dcp opp fname
 
--- TODO should names change in total and finite?
--- TODO change names for dc path?
 instance Named EquivTracker where
     names (EquivTracker hm _ _ _ _ _ _) = names hm
     rename old new (EquivTracker hm m total finite dcp opp fname) =
-        EquivTracker (rename old new hm) m (rename old new total) (rename old new finite) dcp (rename old new opp) fname
+        EquivTracker (rename old new hm) m (rename old new total) (rename old new finite) (rename old new dcp) (rename old new opp) fname

@@ -332,12 +332,13 @@ generalize solver ns fresh_name (s1, s2) | dc_path (track s1) == dc_path (track 
 -- TODO does this throw off history logging?  I don't think so
 -- TODO might not matter with s1 and s2 naming
 -- TODO needs at least one fresh name
+-- TODO no longer gives backtracking info
 inductionFull :: S.Solver s => Tactic s
 inductionFull solver num_lemmas ns _ (fresh_name:_) sh_pair s_pair = do
   ifold <- inductionFold solver num_lemmas ns fresh_name sh_pair s_pair
   case ifold of
     Nothing -> return $ NoProof []
-    Just ((n1, n2), s1', s2') -> return $ Success (Just (n1, n2, s1', s2'))
+    Just ((n1, n2), s1', s2') -> return $ Success
 inductionFull _ _ _ _ _ _ _ = return $ NoProof []
 
 -- TODO new functions for generalization without induction

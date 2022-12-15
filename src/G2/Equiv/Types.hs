@@ -51,7 +51,6 @@ data PrevMatch t = PrevMatch {
 }
 
 -- TODO new constructor for lemma proving
--- also have one for lemma application
 data ActMarker = Induction IndMarker
                | Coinduction CoMarker
                | Equality EqualMarker

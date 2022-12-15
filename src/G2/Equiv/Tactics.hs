@@ -73,7 +73,7 @@ import qualified Control.Monad.Writer.Lazy as W
 import Control.Exception
 
 -- the Bool value for Failure is True if a cycle has been found
-data TacticResult = Success (Maybe (Int, Int, StateET, StateET))
+data TacticResult = Success
                   | NoProof [Lemma]
                   | Failure Bool
 
@@ -287,14 +287,6 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
             moreResFA = do
                 hm_f <- moreRestrictive s1 s2 ns hm active n1 n2 f1 f2
                 moreRestrictive s1 s2 ns hm_f False n1 n2 a1 a2
-    -- TODO ignoring lam use; these are never used seemingly
-    -- TODO shouldn't lead to non-termination
-    {-
-    (App (Lam _ i b) a, _) -> let e1' = replaceASTs (Var i) a b
-                              in trace ("LAM L" ++ show i) $ moreRestrictive s1 s2 ns hm n1 n2 e1' e2
-    (_, App (Lam _ i b) a) -> let e2' = replaceASTs (Var i) a b
-                              in trace ("LAM R" ++ show i) $ moreRestrictive s1 s2 ns hm n1 n2 e1 e2'
-    -}
     -- These two cases should come after the main App-App case.  If an
     -- expression pair fits both patterns, then discharging it in a way that
     -- does not add any extra proof obligations is preferable.
@@ -434,8 +426,10 @@ validTotal s1 s2 ns hm =
       check (i, e) = (not $ (idName i) `elem` total_hs) || (totalExpr s2 ns [] e)
   in all check hm_list
 
--- TODO filter the fresh vars, only check the ones in the hash map
--- TODO make sure this is sufficient to catch all the counterexamples we want
+-- This function helps us to avoid certain spurious counterexamples when
+-- dealing with symbolic functions.  Specifically, it detects apparent
+-- counterexamples that are invalid because they map expressions with
+-- differently-concretized symbolic function mappings to each other.
 validHigherOrder :: StateET ->
                     StateET ->
                     HS.HashSet Name ->
@@ -734,7 +728,7 @@ tryEquality solver num_lems ns lemmas _ sh_pair (s1, s2) = do
                        ILeft -> present pm
                        IRight -> swap $ present pm
       W.tell $ [Marker sh_pair $ Equality $ EqualMarker (s1, s2) (q1, q2)]
-      return $ Success Nothing
+      return Success
     _ -> return (NoProof [])
 
 backtrackOne :: StateH -> Maybe StateH
@@ -786,7 +780,7 @@ tryCoinduction solver num_lems ns lemmas _ (sh1, sh2) (s1, s2) = do
       , lemma_used_right = lem_r
       }
       W.tell [Marker (sh1, sh2) $ Coinduction cml]
-      return $ Success Nothing
+      return Success
     Left l_lemmas -> do
       res_r <- coinductionFoldL solver num_lems ns lemmas [] (sh2, sh1) (s2, s1)
       case res_r of
@@ -799,7 +793,7 @@ tryCoinduction solver num_lems ns lemmas _ (sh1, sh2) (s1, s2) = do
           , lemma_used_right = lem_r'
           }
           W.tell [Marker (sh1, sh2) $ Coinduction $ reverseCoMarker cmr]
-          return $ Success Nothing
+          return Success
         Left r_lemmas -> return . NoProof $ l_lemmas ++ r_lemmas
 
 -- allow all past-present combinations to be covered
@@ -818,14 +812,14 @@ tryCoinductionAll solver num_lems ns lemmas fresh (sh1, sh2) (s1, s2) = do
       , lemma_used_right = lem_r
       }
       W.tell [Marker (sh1, sh2) $ Coinduction cml]
-      return $ Success Nothing
+      return Success
     Left lems ->
       case backtrackOne sh1 of
         Nothing -> return $ NoProof lems
         Just sh1' -> do
           res_l' <- tryCoinductionAll solver num_lems ns lemmas fresh (sh1', sh2) (latest sh1', s2)
           case res_l' of
-            Success _ -> return res_l'
+            Success -> return res_l'
             NoProof lems' -> return $ NoProof $ lems ++ lems'
             _ -> error "Error from Coinduction"
 
@@ -1034,8 +1028,6 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma
                     ids_both = nub (ids_l ++ ids_r)
                     new_ids = filter (\(Id n _) -> not (E.member n (expr_env s2) || E.member n (opp_env $ track s2))) ids_both
                     new_info = map (\(Id n _) -> n `elem` (total_vars $ track rhs_s)) new_ids
-                    -- TODO make sure this modification is correct
-                    -- should it be opp_env instead of the LHS?
                     rhs_e' = replaceVars (inlineFull (HS.toList ns) (expr_env rhs_s) (opp_env $ track rhs_s) $ exprExtract rhs_s) v_rep
                 CM.put $ Just $ zip new_ids new_info
                 return rhs_e'
@@ -1202,8 +1194,7 @@ checkCycle solver _ ns _ _ (sh1, sh2) (s1, s2) = do
       hist2 = filter (\p -> dc_path (track p) == dc_path (track s2')) $ history sh2
       hist1' = zip hist1 (map expr_env hist2)
       hist2' = zip hist2 (map expr_env hist1)
-  -- TODO this relies on histories being the same length and having matching entries
-  -- I think I'm fine in that regard
+  -- histories must have the same length and have matching entries
   -- TODO not syncing the past states; does it matter?
   -- the concretization I need to get is in the present
   -- TODO doing extra opp_env stuff here for the past doesn't help

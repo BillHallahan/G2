@@ -320,7 +320,6 @@ allNewLemmaTactics = map applyTacticToLabeledStates [tryEquality, tryCoinduction
 -- negative loop iteration count means there's no limit
 -- The (null states) check ensures that we return UNSAT rather than
 -- Unknown when states is empty and n = 0.
--- TODO (2/5) first attempt at slowing down execution for states that are ahead
 verifyLoop :: S.Solver solver =>
               solver ->
               Int ->
@@ -346,8 +345,6 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
       W.liftIO $ putStrLn $ "<<Min Max Depth>> " ++ show min_max_depth
       W.liftIO $ putStrLn $ "<<Min Sum Depth>> " ++ show min_sum_depth
   W.liftIO $ hFlush stdout
-  -- TODO alternating iterations for this too?
-  -- Didn't test on much, but no apparent benefit
   (b', k', proven, lemmas') <- verifyLoopPropLemmas solver allTactics num_lems ns lemmas b config nc k
 
   -- W.liftIO $ putStrLn $ "proposed_lemmas: " ++ show (length $ proposed_lemmas lemmas')
@@ -355,8 +352,6 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
   -- W.liftIO $ putStrLn $ "continued_lemmas: " ++ show (length continued_lemmas)
   -- W.liftIO $ putStrLn $ "disproven_lemmas: " ++ show (length $ disproven_lemmas lemmas')
 
-  -- p02 went from about 50s to 1:50 when I added this
-  -- No improvement for p03fin
   (b'', k'', proven', lemmas'') <- verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics num_lems ns proven lemmas' b' config nc k'
   -- TODO I think the lemmas should be the unresolved ones
   -- TODO what to do with disproven lemmas?
@@ -660,13 +655,13 @@ trySolver solver _ _ _ _ _ (s1, s2) | statePairReadyForSolver (s1, s2) = do
       e2 = exprExtract s2
   res <- W.liftIO $ checkObligations solver s1 s2 (HS.fromList [(e1, e2)])
   case res of
-    S.UNSAT () -> return $ Success Nothing
+    S.UNSAT () -> return Success
     _ -> return $ Failure False
 trySolver _ _ _ _ _ _ _ = return $ NoProof []
 
 -- TODO apply all tactics sequentially in a single run
 -- make StateH adjustments between each application, if necessary
--- if Success is ever empty, it's done
+-- if Success ever appears, it's done
 -- TODO adjust the output in any way when no tactics remaining?  Yes
 -- TODO include the old version in the history or not?
 applyTactics :: S.Solver solver =>
@@ -685,11 +680,7 @@ applyTactics solver (tac:tacs) num_lems ns lemmas gen_lemmas fresh_names (sh1, s
   case tr of
     Failure b -> return $ EFail b
     NoProof new_lemmas -> applyTactics solver tacs num_lems ns lemmas (new_lemmas ++ gen_lemmas) fresh_names (sh1, sh2) (s1, s2)
-    Success res -> case res of
-      Nothing -> return EDischarge
-      Just (n1, n2, s1', s2') -> do
-        let (sh1', sh2') = adjustStateH (sh1, sh2) (n1, n2) (s1', s2')
-        applyTactics solver tacs num_lems ns lemmas gen_lemmas fresh_names (sh1', sh2') (s1', s2')
+    Success -> return EDischarge
 applyTactics _ _ _ _ _ gen_lemmas _ (sh1, sh2) (s1, s2) =
     return $ EContinue gen_lemmas (replaceH sh1 s1, replaceH sh2 s2)
 

@@ -174,7 +174,6 @@ printMappings pg s =
   let mapping_list = HM.toList $ higher_order $ track s
   in intercalate "\n" $ map (printMapping pg) mapping_list
 
--- TODO may need some adjustment
 -- TODO would be better to use trackName with all of these
 printLemma :: PrettyGuide -> HS.HashSet Name -> [Id] -> Lemma -> String
 printLemma pg ns sym_ids (Lemma{
@@ -494,10 +493,8 @@ showCycle pg ns sym_ids sh_pair s_pair cm =
   in
   (printCX pg ns sym_ids sh_pair s_pair (q1', q2') end1_str end2_str) ++ mapping_print
 
--- most Expr constructors will never appear in a concretization of an argument
--- TODO don't need to care about ns or cycles if only applied to initial args?
 -- type arguments do not contribute to the depth of an expression
--- TODO this needs to take the opposite side into account
+-- this takes the opposite side's expression environment into account
 exprDepth :: ExprEnv -> ExprEnv -> HS.HashSet Name -> [Name] -> Expr -> Int
 exprDepth h h' ns n e = case e of
   Tick _ e' -> exprDepth h h' ns n e'
