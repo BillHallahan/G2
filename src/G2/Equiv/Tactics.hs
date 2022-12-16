@@ -105,7 +105,6 @@ exprExtract :: State t -> Expr
 exprExtract (State { curr_expr = CurrExpr _ e }) = e
 
 -- A Var counts as being in EVF if it's symbolic or if it's unmapped.
--- TODO remove ticks recursively?
 isSWHNF :: State t -> Bool
 isSWHNF (State { expr_env = h, curr_expr = CurrExpr _ e }) =
   let e' = modifyASTs stripTicks e
@@ -875,7 +874,6 @@ moreRestrictiveLemma solver ns (Lemma { lemma_lhs = l1_1, lemma_rhs = l1_2 }) le
         Left _ -> return False
         Right _ -> return True
 
--- TODO Is this correct?  See moreRestrictiveEqual
 equivLemma :: S.Solver solver => solver -> HS.HashSet Name -> Lemma -> [Lemma] -> W.WriterT [Marker] IO Bool 
 equivLemma solver ns (Lemma { lemma_lhs = l1_1, lemma_rhs = l1_2 }) lems = do
     anyM (\(Lemma { lemma_lhs = l2_1, lemma_rhs = l2_2 }) -> do
@@ -989,7 +987,6 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma
         case mr_sub of
             Right hm -> do
                 let v_rep = HM.toList hm
-                    -- TODO do I need both sides?
                     ids_l = E.symbolicIds $ opp_env $ track rhs_s
                     ids_r = E.symbolicIds $ expr_env rhs_s
                     ids_both = nub (ids_l ++ ids_r)
@@ -1098,9 +1095,12 @@ moreRestrictivePairWithLemmasPast solver num_lems ns lemmas past_list s_pair = d
         past_list' = [pair_past pair1 pair2 | pair1 <- xs_past1', pair2 <- xs_past2']
     moreRestrictivePairWithLemmas solver num_lems (\_ _ -> True) ns lemmas past_list' s_pair
 
--- I can do some sort of merge for the expression environments
--- TODO this won't fetch new symbolic Ids for either side
-mkProposedLemma :: String -> StateET -> StateET -> StateET -> StateET -> ProposedLemma
+mkProposedLemma :: String
+                -> StateET
+                -> StateET
+                -> StateET
+                -> StateET
+                -> ProposedLemma
 mkProposedLemma lm_name or_s1 or_s2 s1 s2 =
     let h1 = expr_env s1
         h2 = expr_env s2
@@ -1110,10 +1110,8 @@ mkProposedLemma lm_name or_s1 or_s2 s1 s2 =
           Just c -> c
         h1' = E.mapConcOrSym (cs h2) h1
         h2' = E.mapConcOrSym (cs h1) h2
-        -- TODO this is copied from syncSymbolic, and it's inefficient
         f (E.SymbObj _) e2 = e2
         f e1 _ = e1
-        -- TODO not sure why this is necessary or helpful
         h1'' = E.unionWith f h1' h2'
         h2'' = E.unionWith f h2' h1'
         s1' = s1 { expr_env = h1'' }

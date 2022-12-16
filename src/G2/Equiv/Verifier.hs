@@ -172,24 +172,15 @@ wrcHelper n e = case e of
 
 -- Creating a new expression environment lets us use the existing reachability
 -- functions.
--- TODO does the expr env really need to keep track of Lets above this?
 -- look inside the bindings and inside the body for recursion
--- TODO I should merge this process with the other wrapping?
--- TODO do I need an extra process for some other recursive structure?
 wrapLetRec :: ExprEnv -> Expr -> Expr
 wrapLetRec h (Let binds e) =
   let binds1 = map (\(i, e_) -> (idName i, e_)) binds
       fresh_name = Name (DT.pack "FRESH") Nothing 0 Nothing
       h' = foldr (\(n_, e_) h_ -> E.insert n_ e_ h_) h ((fresh_name, e):binds1)
-      -- TODO this might be doing more work than is necessary
       wrap_cg = wrapAllRecursion (G.getCallGraph h') h'
       binds2 = map (\(n_, e_) -> (n_, wrap_cg n_ e_)) binds1
-      -- TODO will Tick insertions accumulate?
-      -- TODO doesn't work, again because nothing reaches fresh_name
-      -- should I even need wrapping like this within the body?
       e' = foldr (wrapIfCorecursive (G.getCallGraph h') h' fresh_name) e (map fst binds1)
-      -- TODO do I need to do this twice over like this?
-      -- doesn't fix the problem of getting stuck
       e'' = wrapLetRec h' $ modifyChildren (wrapLetRec h') e'
       binds3 = map ((wrapLetRec h') . modifyChildren (wrapLetRec h')) (map snd binds2)
       binds4 = zip (map fst binds) binds3
@@ -564,7 +555,10 @@ digInStateH lbl sh
 updateDC :: EquivTracker -> [BlockInfo] -> EquivTracker
 updateDC et ds = et { dc_path = dc_path et ++ ds }
 
--- TODO does it matter that I use the same type on both sides?
+-- It is not a problem that this function uses the type variable from only
+-- the first lambda.  If the two StateET inputs come from corresponding
+-- points in symbolic execution, the type variables from the two lambdas
+-- must align with each other.
 stateWrap :: Name -> StateET -> StateET -> Obligation -> (StateET, StateET)
 stateWrap fresh_name s1 s2 (Ob ds e1 e2) =
   let ds' = map (\(d, i, n) -> BlockDC d i n) ds
@@ -609,7 +603,7 @@ hasSolverFail [] = False
 hasSolverFail ((EFail False):_) = True
 hasSolverFail (_:es) = hasSolverFail es
 
--- TODO do all of the solver obligations need to be covered together?
+-- covers all of the solver obligations at once
 trySolver :: S.Solver s => Tactic s
 trySolver solver _ _ _ _ _ (s1, s2) | statePairReadyForSolver (s1, s2) = do
   let e1 = exprExtract s1
@@ -643,9 +637,11 @@ applyTactics solver (tac:tacs) num_lems ns lemmas gen_lemmas fresh_names (sh1, s
 applyTactics _ _ _ _ _ gen_lemmas _ (sh1, sh2) (s1, s2) =
     return $ EContinue gen_lemmas (replaceH sh1 s1, replaceH sh2 s2)
 
--- TODO how do I handle the solver application in this version?
--- Nothing output means failure now
--- TODO fresh_names must have at least two elements
+-- Nothing output means failure
+-- fresh_names must have at least two elements
+-- the first name is for stateWrap, the second is for the tactics
+-- the only tactic left that uses fresh names is generalizeFull
+-- still, there may be new tactics in the future that use fresh names
 tryDischarge :: S.Solver solver =>
                 solver ->
                 [Tactic solver] ->
@@ -671,7 +667,6 @@ tryDischarge solver tactics num_lems ns lemmas (fn:fresh_names) sh1 sh2 =
       let states = map (stateWrap fn s1 s2) obs
       res <- mapM (applyTactics solver tactics num_lems ns lemmas [] fresh_names (sh1, sh2)) states
       -- list of remaining obligations in StateH form
-      -- TODO I think non-ready ones can stay as they are
       let res' = foldr getRemaining [] res
           new_lemmas = concatMap getLemmas res
       if hasFail res then do
@@ -682,10 +677,6 @@ tryDischarge solver tactics num_lems ns lemmas (fn:fresh_names) sh1 sh2 =
       else do
         return $ Just (res', new_lemmas)
 tryDischarge _ _ _ _ _ _ _ _ = error "Need more fresh names"
-
--- TODO (9/27) check path constraint implication?
--- TODO (9/30) alternate:  just substitute one scrutinee for the other
--- put a non-symbolic variable there?
 
 getObligations :: HS.HashSet Name ->
                   State t ->
