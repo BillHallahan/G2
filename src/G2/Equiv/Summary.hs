@@ -174,7 +174,6 @@ printMappings pg s =
   let mapping_list = HM.toList $ higher_order $ track s
   in intercalate "\n" $ map (printMapping pg) mapping_list
 
--- TODO would be better to use trackName with all of these
 printLemma :: PrettyGuide -> HS.HashSet Name -> [Id] -> Lemma -> String
 printLemma pg ns sym_ids (Lemma{
                    lemma_name = n

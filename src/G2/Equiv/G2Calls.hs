@@ -241,16 +241,13 @@ instance Reducer EnforceProgressR () EquivTracker where
                            , track = EquivTracker et m total dcp opp fname })
                   b =
         let s' = s { track = EquivTracker et (Just n) total dcp opp fname }
+            need_more = case m of
+                            Nothing -> True
+                            Just n0 -> n > n0 + 1
         in
-        case (e, m) of
-            (Tick (NamedLoc (Name p _ _ _)) _, Nothing) ->
-                if p == T.pack "STACK"
-                then return (InProgress, [(s', ())], b, r)
-                else return (NoProgress, [(s, ())], b, r)
-            -- TODO condense these into one case?
-            -- then again, it might not matter at all here
-            (Tick (NamedLoc (Name p _ _ _)) _, Just n0) ->
-                if p == T.pack "STACK" && n > n0 + 1
+        case e of
+            Tick (NamedLoc (Name p _ _ _)) _ ->
+                if p == T.pack "STACK" && need_more
                 then return (InProgress, [(s', ())], b, r)
                 else return (NoProgress, [(s, ())], b, r)
             _ -> return (NoProgress, [(s, rv)], b, r)
