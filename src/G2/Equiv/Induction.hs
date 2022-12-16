@@ -6,14 +6,11 @@ module G2.Equiv.Induction
     )
     where
 
--- TODO may not need all imports
-
 import G2.Language
 
 import qualified G2.Language.ExprEnv as E
 
 import Data.Maybe
-import Data.Tuple
 
 import qualified Data.HashSet as HS
 import qualified G2.Solver as S
@@ -84,8 +81,6 @@ generalize solver ns fresh_name (s1, s2) | dc_path (track s1) == dc_path (track 
       scr_states2 = map (\e -> s2 { curr_expr = CurrExpr Evaluate e }) scr2
   res <- mapM (generalizeAux solver ns scr_states1) scr_states2
   -- TODO also may want to adjust the equivalence tracker
-  -- TODO sync here to get fresh id in opposite envs?
-  -- doesn't fix the issue with p27finA, but still worthwhile, possibly
   let res' = filter isJust res
   case res' of
     (Just pm):_ -> let (s1', s2') = present pm
@@ -95,7 +90,6 @@ generalize solver ns fresh_name (s1, s2) | dc_path (track s1) == dc_path (track 
     _ -> return Nothing
   | otherwise = return Nothing
 
--- TODO new functions for generalization without induction
 generalizeFoldL :: S.Solver solver =>
                    solver ->
                    HS.HashSet Name ->
@@ -113,7 +107,6 @@ generalizeFoldL solver ns fresh_name prev2 s1 = do
         _ -> generalizeFoldL solver ns fresh_name t s1
 
 -- TODO make a new marker type for this?
--- TODO make this more like equalFold?
 generalizeFold :: S.Solver solver =>
                   solver ->
                   HS.HashSet Name ->
@@ -131,8 +124,6 @@ generalizeFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
         Just (q2, q1, q2', q1') -> return $ Just (q1, q2, q1', q2')
         Nothing -> return Nothing
 
--- TODO this should come before induction in the list of tactics
--- TODO this uses the same fresh name that induction uses currently
 generalizeFull :: S.Solver s => Tactic s
 generalizeFull solver _ ns _ (fresh_name:_) sh_pair s_pair = do
   gfold <- generalizeFold solver ns fresh_name sh_pair s_pair

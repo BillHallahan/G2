@@ -69,8 +69,6 @@ import Control.Monad.Extra
 
 import qualified Control.Monad.Writer.Lazy as W
 
-import Control.Exception
-
 -- the Bool value for Failure is True if a cycle has been found
 data TacticResult = Success
                   | NoProof [Lemma]
@@ -1074,7 +1072,6 @@ moreRestrictivePairWithLemmas solver num_lems valid ns lemmas past_list (s1, s2)
         x:_ -> return $ Right x
         [] -> return . Left $ concat possible_lemmas
 
--- TODO have a cleaner setup for these variations
 moreRestrictivePairWithLemmasPast :: S.Solver solver =>
                                      solver ->
                                      Int ->
