@@ -1126,9 +1126,6 @@ mkProposedLemma lm_name or_s1 or_s2 s1 s2 =
               , lemma_rhs_origin = folder_name . track $ or_s2
               , lemma_to_be_proven  =[(newStateH s1', newStateH s2')] }
 
--- cycle detection
--- TODO do I need to be careful about thrown-out Data constructors?
--- that doesn't matter for checking latest states
 checkCycle :: S.Solver s => Tactic s
 checkCycle solver _ ns _ _ (sh1, sh2) (s1, s2) = do
   --W.liftIO $ putStrLn $ "Cycle?" ++ (folder_name $ track s1) ++ (folder_name $ track s2)
@@ -1138,9 +1135,6 @@ checkCycle solver _ ns _ _ (sh1, sh2) (s1, s2) = do
       hist1' = zip hist1 (map expr_env hist2)
       hist2' = zip hist2 (map expr_env hist1)
   -- histories must have the same length and have matching entries
-  -- TODO not syncing the past states; does it matter?
-  -- the concretization I need to get is in the present
-  -- TODO doing extra opp_env stuff here for the past doesn't help
   mr1 <- mapM (\(p1, hp2) -> moreRestrictiveSingle solver ns s1' (p1 { track = (track p1) { opp_env = hp2 } })) hist1'
   mr2 <- mapM (\(p2, hp1) -> moreRestrictiveSingle solver ns s2' (p2 { track = (track p2) { opp_env = hp1 } })) hist2'
   let vh _ (Left _, _) = False

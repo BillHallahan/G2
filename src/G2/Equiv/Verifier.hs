@@ -48,13 +48,6 @@ import qualified Control.Monad.Writer.Lazy as W
 
 import System.IO
 
--- 9/27 notes
--- TODO have a list of every single state, not just the stopping ones
--- The value of discharge should be the previously-encountered state pair that
--- was used to discharge this branch, if the branch has been discharged.
--- TODO requiring finiteness for forceIdempotent makes verifier get stuck
--- same goes for p10 in Zeno
-
 statePairReadyForSolver :: (State t, State t) -> Bool
 statePairReadyForSolver (s1, s2) =
   let h1 = expr_env s1
@@ -73,19 +66,6 @@ logStatesET :: String -> LogMode -> String
 logStatesET pre (Log _ n) = n ++ "/" ++ pre
 logStatesET pre NoLog = "/" ++ pre
 
-{-
-TODO 1/25
-If some states are significantly farther ahead than others in terms of
-expression depth, mark them as "dormant" for one loop iteration, or a variable
-number of iterations.  This will allow states with low depths to "catch up" so
-that we get better results in terms of the expression depth covered by the
-entire attempted proof.  Whatever the system is for delaying evaluation of some
-branches, we need it to uphold a non-starvation guarantee.
-If the number of iterations for a branch to remain dormant is fixed at the time
-when the branch's evaluation halts, we have the guarantee we need.
-If, at any time, every single branch has been marked as dormant, the ones that
-would be awakened soonest should be awakened immediately.
--}
 runSymExec :: S.Solver solver =>
               solver ->
               Config ->
@@ -98,7 +78,6 @@ runSymExec solver config nc@(NC { sync = sy }) ns s1 s2 = do
   (bindings, k) <- CM.get
   let nc' = nc { log_states = logStatesFolder ("a" ++ show k) (log_states nc) }
       t1 = (track s1) { folder_name = logStatesET ("a" ++ show k) (log_states nc) }
-      -- TODO always Evaluate here?
       CurrExpr r1 e1 = curr_expr s1
       e1' = addStackTickIfNeeded ns (expr_env s1) e1
       s1' = s1 { track = t1, curr_expr = CurrExpr r1 e1' }
@@ -352,8 +331,6 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
   -- W.liftIO $ putStrLn $ "disproven_lemmas: " ++ show (length $ disproven_lemmas lemmas')
 
   (b'', k'', proven', lemmas'') <- verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics num_lems ns proven lemmas' b' config nc k'
-  -- TODO I think the lemmas should be the unresolved ones
-  -- TODO what to do with disproven lemmas?
   (pl_sr, b''') <- verifyWithNewProvenLemmas solver allNewLemmaTactics num_lems ns proven' lemmas'' b'' states
 
   case pl_sr of
@@ -412,8 +389,6 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
                   W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
                   W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) (proposedLemmas lemmas)
     -}
-    -- TODO log some new things with the writer for unresolved obligations
-    -- TODO the present states are somewhat redundant
     W.liftIO $ putStrLn $ "Unresolved Obligations: " ++ show (length states)
     let ob (sh1, sh2) = Marker (sh1, sh2) $ Unresolved (latest sh1, latest sh2)
     W.tell $ map ob states
@@ -634,7 +609,6 @@ hasSolverFail [] = False
 hasSolverFail ((EFail False):_) = True
 hasSolverFail (_:es) = hasSolverFail es
 
--- TODO put in a different file?
 -- TODO do all of the solver obligations need to be covered together?
 trySolver :: S.Solver s => Tactic s
 trySolver solver _ _ _ _ _ (s1, s2) | statePairReadyForSolver (s1, s2) = do
@@ -646,11 +620,9 @@ trySolver solver _ _ _ _ _ (s1, s2) | statePairReadyForSolver (s1, s2) = do
     _ -> return $ Failure False
 trySolver _ _ _ _ _ _ _ = return $ NoProof []
 
--- TODO apply all tactics sequentially in a single run
+-- apply all tactics sequentially in a single run
 -- make StateH adjustments between each application, if necessary
 -- if Success ever appears, it's done
--- TODO adjust the output in any way when no tactics remaining?  Yes
--- TODO include the old version in the history or not?
 applyTactics :: S.Solver solver =>
                 solver ->
                 [Tactic solver] ->
@@ -673,7 +645,6 @@ applyTactics _ _ _ _ _ gen_lemmas _ (sh1, sh2) (s1, s2) =
 
 -- TODO how do I handle the solver application in this version?
 -- Nothing output means failure now
--- TODO printing
 -- TODO fresh_names must have at least two elements
 tryDischarge :: S.Solver solver =>
                 solver ->
