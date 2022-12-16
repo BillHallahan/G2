@@ -1045,7 +1045,7 @@ moreRestrictivePairWithLemmasOnFuncApps :: S.Solver solver =>
                                            (StateET, StateET) ->
                                            W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
 moreRestrictivePairWithLemmasOnFuncApps solver num_lems valid ns =
-    moreRestrictivePairWithLemmas' solver num_lems valid ns
+    moreRestrictivePairWithLemmas solver num_lems valid ns
 
 moreRestrictivePairWithLemmas :: S.Solver solver =>
                                  solver ->
@@ -1056,18 +1056,7 @@ moreRestrictivePairWithLemmas :: S.Solver solver =>
                                  [(StateET, StateET)] ->
                                  (StateET, StateET) ->
                                  W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
-moreRestrictivePairWithLemmas = moreRestrictivePairWithLemmas'
-
-moreRestrictivePairWithLemmas' :: S.Solver solver =>
-                                  solver ->
-                                  Int ->
-                                  ((StateET, StateET) -> (StateET, StateET) -> Bool) ->
-                                  HS.HashSet Name ->
-                                  Lemmas ->
-                                  [(StateET, StateET)] ->
-                                  (StateET, StateET) ->
-                                  W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
-moreRestrictivePairWithLemmas' solver num_lems valid ns lemmas past_list (s1, s2) = do
+moreRestrictivePairWithLemmas solver num_lems valid ns lemmas past_list (s1, s2) = do
     let (s1', s2') = syncSymbolic s1 s2
     xs1 <- substLemmaLoop num_lems solver ns s1' lemmas
     xs2 <- substLemmaLoop num_lems solver ns s2' lemmas
@@ -1105,12 +1094,10 @@ moreRestrictivePairWithLemmasPast solver num_lems ns lemmas past_list s_pair = d
         plain_past2 = map (\s_ -> (Nothing, s_)) past2
         xs_past1' = plain_past1 ++ (map (\(l, s) -> (Just l, s)) $ concat xs_past1)
         xs_past2' = plain_past2 ++ (map (\(l, s) -> (Just l, s)) $ concat xs_past2)
-        -- TODO is it fine to sync after lemma usage rather than before?
         pair_past (_, p1) (_, p2) = syncSymbolic p1 p2
         past_list' = [pair_past pair1 pair2 | pair1 <- xs_past1', pair2 <- xs_past2']
     moreRestrictivePairWithLemmas solver num_lems (\_ _ -> True) ns lemmas past_list' s_pair
 
--- TODO I think this assertion is no longer needed
 -- I can do some sort of merge for the expression environments
 -- TODO this won't fetch new symbolic Ids for either side
 mkProposedLemma :: String -> StateET -> StateET -> StateET -> StateET -> ProposedLemma
@@ -1132,13 +1119,12 @@ mkProposedLemma lm_name or_s1 or_s2 s1 s2 =
         s1' = s1 { expr_env = h1'' }
         s2' = s2 { expr_env = h2'' }
     in
-    assert (map idName (E.symbolicIds (expr_env s1')) == map idName (E.symbolicIds (expr_env s2')))
-          Lemma { lemma_name = lm_name
-                , lemma_lhs = s1'
-                , lemma_rhs = s2'
-                , lemma_lhs_origin = folder_name . track $ or_s1
-                , lemma_rhs_origin = folder_name . track $ or_s2
-                , lemma_to_be_proven  =[(newStateH s1', newStateH s2')] }
+        Lemma { lemma_name = lm_name
+              , lemma_lhs = s1'
+              , lemma_rhs = s2'
+              , lemma_lhs_origin = folder_name . track $ or_s1
+              , lemma_rhs_origin = folder_name . track $ or_s2
+              , lemma_to_be_proven  =[(newStateH s1', newStateH s2')] }
 
 -- cycle detection
 -- TODO do I need to be careful about thrown-out Data constructors?
