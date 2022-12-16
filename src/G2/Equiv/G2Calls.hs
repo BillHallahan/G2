@@ -114,7 +114,7 @@ data BlockInfo = BlockDC DataCon Int Int
 instance Hashable BlockInfo
 
 instance Named BlockInfo where
-    names (BlockDC dc n1 n2) = names dc
+    names (BlockDC dc _ _) = names dc
     names (BlockLam i) = names i
     rename old new (BlockDC dc n1 n2) = BlockDC (rename old new dc) n1 n2
     rename old new (BlockLam i) = BlockLam (rename old new i)
@@ -405,7 +405,7 @@ instance Reducer EquivReducer () EquivTracker where
                                , track = EquivTracker et' m total' dcp opp fname
                                , expr_env = E.insertSymbolic v eenv }
                         b' = b { name_gen = ng' }
-                    in-- trace ("SYM FUNC " ++ show v ++ "\n" ++ show e) $
+                    in
                     return (InProgress, [(s', ())], b', r)
     redRules r rv s b = return (NoProgress, [(s, rv)], b, r)
 

@@ -611,18 +611,6 @@ stateWrap fresh_name s1 s2 (Ob ds e1 e2) =
     _ -> ( s1 { curr_expr = CurrExpr Evaluate e1, track = updateDC (track s1) ds' }
          , s2 { curr_expr = CurrExpr Evaluate e2, track = updateDC (track s2) ds' } )
 
--- TODO what if n1 or n2 is negative?
-adjustStateH :: (StateH, StateH) ->
-                (Int, Int) ->
-                (StateET, StateET) ->
-                (StateH, StateH)
-adjustStateH (sh1, sh2) (n1, n2) (s1, s2) =
-  let hist1 = drop n1 $ history sh1
-      hist2 = drop n2 $ history sh2
-      sh1' = sh1 { history = hist1, latest = s1 }
-      sh2' = sh2 { history = hist2, latest = s2 }
-  in (sh1', sh2')
-
 -- the Bool value for EFail is True if a cycle has been found
 data TacticEnd = EFail Bool
                | EDischarge
@@ -772,9 +760,6 @@ startingState et ns s =
     }
   in newStateH s'
 
-unused_name :: Name
-unused_name = Name (DT.pack "UNUSED") Nothing 0 Nothing
-
 cleanState :: State t -> Bindings -> (State t, Bindings)
 cleanState state bindings =
   let sym_config = addSearchNames (input_names bindings)
@@ -797,7 +782,16 @@ writeCX ((Marker hist m):ms) pg ns sym_ids init_pair = case m of
   CycleFound cm -> showCycle pg ns sym_ids hist init_pair cm
   _ -> writeCX ms pg ns sym_ids init_pair
 
--- TODO nothing forces this to align with the CX summary
+-- This function relies on the assumption that, if symbolic execution for
+-- the main expression pair hits a counterexample, that counterexample
+-- will be the final counterexample in the Marker list (alternatively, the
+-- first counterexample in the reversed list that this takes as input).
+-- Lemma  counterexamples appear in the same list and are not distinguished
+-- in any special way, but, in each loop iteration, lemma execution happens
+-- before execution on the main expression pair.  If the main execution
+-- hits a counterexample, the iteration when it happens will be the final
+-- loop iteration, so we have an indirect guarantee that the counterexample
+-- covered here will not be one from a lemma.
 reducedGuide :: [Marker] -> PrettyGuide
 reducedGuide [] = error "No Counterexample"
 reducedGuide ((Marker _ m):ms) = case m of
@@ -826,7 +820,6 @@ checkRule config nc init_state bindings total rule = do
       ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
       -- no need for two separate name sets
       ns = HS.filter (\n -> not (E.isSymbolic n $ expr_env rewrite_state_l)) $ HS.union ns_l ns_r
-      walkers = deepseq_walkers bindings''
       e_l = exprExtract rewrite_state_l
       (rewrite_state_l',_) = cleanState (rewrite_state_l { curr_expr = CurrExpr Evaluate e_l }) bindings
       e_r = exprExtract rewrite_state_r
@@ -845,9 +838,6 @@ checkRule config nc init_state bindings total rule = do
              emptyLemmas
              [(rewrite_state_l'', rewrite_state_r'')]
              bindings'' config nc sym_ids 0 (limit nc)
-  -- UNSAT for good, SAT for bad
-  -- TODO I can speed things up for the CX if there's no summary
-  -- I only need a PrettyGuide for the CX marker
   let pg = if (print_summary nc) == NoSummary
            then reducedGuide (reverse w)
            else mkPrettyGuide $ map (\(Marker _ am) -> am) w

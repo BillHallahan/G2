@@ -13,7 +13,6 @@ module G2.Equiv.Tactics
     , tryEquality
     , moreRestrictiveEqual
     , tryCoinduction
-    , tryCoinductionAll
     , exprExtract
     , moreRestrictivePairAux
     , exprReadyForSolver
@@ -472,9 +471,7 @@ restrictHelper :: StateET ->
 restrictHelper s1 s2 ns hm_hs =
   let res = restrictAux s1 s2 ns hm_hs
   in case res of
-    Right (hm, hs) -> if (validTotal s1 s2 ns hm) &&
-                         --(validHigherOrder s1 s2 ns res) &&
-                         (validTypes hm)
+    Right (hm, hs) -> if (validTotal s1 s2 ns hm) && (validTypes hm)
                       then Right (hm, hs)
                       else Left []
     _ -> res
@@ -668,7 +665,7 @@ moreRestrictiveEqual solver num_lems ns lemmas s1 s2 = do
   if dc_path (track s1') /= dc_path (track s2') then return Nothing
   else do
     -- no need to enforce dc path condition for this function
-    pm_maybe <- moreRestrictivePairWithLemmasPast solver num_lems (\_ _ -> True) ns lemmas [(s2', s1')] (s1', s2')
+    pm_maybe <- moreRestrictivePairWithLemmasPast solver num_lems ns lemmas [(s2', s1')] (s1', s2')
     case pm_maybe of
       Left _ -> return Nothing
       Right (_, _, pm@(PrevMatch _ _ (hm, _) _)) ->
@@ -796,33 +793,6 @@ tryCoinduction solver num_lems ns lemmas _ (sh1, sh2) (s1, s2) = do
           return Success
         Left r_lemmas -> return . NoProof $ l_lemmas ++ r_lemmas
 
--- allow all past-present combinations to be covered
--- keep the right fixed, iterate through all lefts
--- this is the dual of coinductionFoldL, in a way
-tryCoinductionAll :: S.Solver s => Tactic s
-tryCoinductionAll solver num_lems ns lemmas fresh (sh1, sh2) (s1, s2) = do
-  res_l <- coinductionFoldL solver num_lems ns lemmas [] (sh1, sh2) (s1, s2)
-  case res_l of
-    Right (lem_l, lem_r, pm) -> do
-      let cml = CoMarker {
-        co_real_present = (s1, s2)
-      , co_used_present = present pm
-      , co_past = past pm
-      , lemma_used_left = lem_l
-      , lemma_used_right = lem_r
-      }
-      W.tell [Marker (sh1, sh2) $ Coinduction cml]
-      return Success
-    Left lems ->
-      case backtrackOne sh1 of
-        Nothing -> return $ NoProof lems
-        Just sh1' -> do
-          res_l' <- tryCoinductionAll solver num_lems ns lemmas fresh (sh1', sh2) (latest sh1', s2)
-          case res_l' of
-            Success -> return res_l'
-            NoProof lems' -> return $ NoProof $ lems ++ lems'
-            _ -> error "Error from Coinduction"
-
 -------------------------------------------------------------------------------
 
 data Lemmas = Lemmas { proposed_lemmas :: [ProposedLemma]
@@ -914,9 +884,6 @@ equivLemma solver ns (Lemma { lemma_lhs = l1_1, lemma_rhs = l1_2 }) lems = do
                     case (mr1, mr2) of
                         (Right _, Right _) -> return True
                         _ -> return False) lems
-
-filterProvenLemmas :: (Lemma -> Bool) -> Lemmas -> Lemmas
-filterProvenLemmas p lems@(Lemmas { proven_lemmas = prov }) = lems { proven_lemmas = filter p prov }
 
 -- TODO: Does substLemma need to do something more to check correctness of path constraints?
 -- `substLemma state lemmas` tries to apply each proven lemma in `lemmas` to `state`.
@@ -1078,13 +1045,7 @@ moreRestrictivePairWithLemmasOnFuncApps :: S.Solver solver =>
                                            (StateET, StateET) ->
                                            W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
 moreRestrictivePairWithLemmasOnFuncApps solver num_lems valid ns =
-    moreRestrictivePairWithLemmas' (\_ _ _ -> True) solver num_lems valid ns
---     | Var (Id f1 _):_ <- unApp $ exprExtract s1
---     , Var (Id f2 _):_ <- unApp $ exprExtract s2 = do
---         moreRestrictivePairWithLemmas solver ns lemmas past (s1, s2)
---     | otherwise = do
---         mrp <- moreRestrictivePair solver ns past (s1, s2)
---         return $ fmap (Nothing, Nothing,) mrp
+    moreRestrictivePairWithLemmas' solver num_lems valid ns
 
 moreRestrictivePairWithLemmas :: S.Solver solver =>
                                  solver ->
@@ -1095,10 +1056,9 @@ moreRestrictivePairWithLemmas :: S.Solver solver =>
                                  [(StateET, StateET)] ->
                                  (StateET, StateET) ->
                                  W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
-moreRestrictivePairWithLemmas = moreRestrictivePairWithLemmas' (\_ _ _ -> True)
+moreRestrictivePairWithLemmas = moreRestrictivePairWithLemmas'
 
 moreRestrictivePairWithLemmas' :: S.Solver solver =>
-                                  (StateET -> StateET -> Lemma -> Bool) ->
                                   solver ->
                                   Int ->
                                   ((StateET, StateET) -> (StateET, StateET) -> Bool) ->
@@ -1107,10 +1067,10 @@ moreRestrictivePairWithLemmas' :: S.Solver solver =>
                                   [(StateET, StateET)] ->
                                   (StateET, StateET) ->
                                   W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
-moreRestrictivePairWithLemmas' app_state solver num_lems valid ns lemmas past_list (s1, s2) = do
+moreRestrictivePairWithLemmas' solver num_lems valid ns lemmas past_list (s1, s2) = do
     let (s1', s2') = syncSymbolic s1 s2
-    xs1 <- substLemmaLoop num_lems solver ns s1' $ filterProvenLemmas (app_state s1' s2') lemmas
-    xs2 <- substLemmaLoop num_lems solver ns s2' $ filterProvenLemmas (app_state s2' s1') lemmas
+    xs1 <- substLemmaLoop num_lems solver ns s1' lemmas
+    xs2 <- substLemmaLoop num_lems solver ns s2' lemmas
 
     let xs1' = ([], s1'):xs1
         xs2' = ([], s2'):xs2
@@ -1132,13 +1092,12 @@ moreRestrictivePairWithLemmas' app_state solver num_lems valid ns lemmas past_li
 moreRestrictivePairWithLemmasPast :: S.Solver solver =>
                                      solver ->
                                      Int ->
-                                     ((StateET, StateET) -> (StateET, StateET) -> Bool) ->
                                      HS.HashSet Name ->
                                      Lemmas ->
                                      [(StateET, StateET)] ->
                                      (StateET, StateET) ->
                                      W.WriterT [Marker] IO (Either [Lemma] ([(StateET, Lemma)], [(StateET, Lemma)], PrevMatch EquivTracker))
-moreRestrictivePairWithLemmasPast solver num_lems valid ns lemmas past_list s_pair = do
+moreRestrictivePairWithLemmasPast solver num_lems ns lemmas past_list s_pair = do
     let (past1, past2) = unzip past_list
     xs_past1 <- mapM (\(q1, _) -> substLemmaLoop num_lems solver ns q1 lemmas) past_list
     xs_past2 <- mapM (\(_, q2) -> substLemmaLoop num_lems solver ns q2 lemmas) past_list
@@ -1147,10 +1106,9 @@ moreRestrictivePairWithLemmasPast solver num_lems valid ns lemmas past_list s_pa
         xs_past1' = plain_past1 ++ (map (\(l, s) -> (Just l, s)) $ concat xs_past1)
         xs_past2' = plain_past2 ++ (map (\(l, s) -> (Just l, s)) $ concat xs_past2)
         -- TODO is it fine to sync after lemma usage rather than before?
-        -- TODO also record the lemmas used somehow?
         pair_past (_, p1) (_, p2) = syncSymbolic p1 p2
         past_list' = [pair_past pair1 pair2 | pair1 <- xs_past1', pair2 <- xs_past2']
-    moreRestrictivePairWithLemmas solver num_lems valid ns lemmas past_list' s_pair
+    moreRestrictivePairWithLemmas solver num_lems (\_ _ -> True) ns lemmas past_list' s_pair
 
 -- TODO I think this assertion is no longer needed
 -- I can do some sort of merge for the expression environments
