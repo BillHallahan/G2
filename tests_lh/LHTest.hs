@@ -342,6 +342,7 @@ posInfTests = testGroup "Tests"
             , posTestInference "tests_lh/test_files/Pos/Test47.hs"
             , posTestInference "tests_lh/test_files/Pos/Test48.hs"
             , posTestInference "tests_lh/test_files/Pos/Test49.hs"
+            , posTestInference "tests_lh/test_files/Pos/Test50.hs"
 
             , posTestInference "tests_lh/test_files/Pos/Sets1.hs"
             , posTestInference "tests_lh/test_files/Pos/Sets2.hs"
