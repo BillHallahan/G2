@@ -31,14 +31,13 @@ sharedTyConsEE' ns eenv = do
 
     let rep_eenv = E.map (repVars tys) f_eenv
         rep_eenv' = elimTypes rep_eenv
+    -- We want to try and be clever with passed in functions/lamdas to unify types when required,
+    -- but we can do too much if we unify non-function types or inner lambdas.
+    -- This is very much a heuristic.
     rep_eenv'' <-   E.mapM (scrambleNonFuncLams >=> scrambleNonFuncLets)
                   . substLams
                   . adjustLetTypes
                 =<< E.mapM (assignTyConNames >=> elimTyForAll) rep_eenv'
-
-    -- We want to try and be clever with passed in functions/lamdas to unify types when required,
-    -- but we can do too much if we unify non-function types
-    -- This is very much a heuristic.
 
     let union_poly = mconcat . map UF.joinedKeys . HM.elems
                    . E.map' (fromMaybe UF.empty . checkType)
