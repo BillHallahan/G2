@@ -21,22 +21,20 @@ import qualified Data.Sequence as DS
 data StateH = StateH {
       latest :: StateET
     , history :: [StateET]
-    , inductions :: [IndMarker]
     , discharge :: Maybe StateET
   }
   deriving (Eq, Generic)
 
 instance Named StateH where
-  names (StateH s h ims d) =
-    names s DS.>< names h DS.>< names ims DS.>< names d
-  rename old new (StateH s h ims d) =
-    StateH (rename old new s) (rename old new h) (rename old new ims) (rename old new d)
+  names (StateH s h d) =
+    names s DS.>< names h DS.>< names d
+  rename old new (StateH s h d) =
+    StateH (rename old new s) (rename old new h) (rename old new d)
 
 newStateH :: StateET -> StateH
 newStateH s = StateH {
     latest = s
   , history = []
-  , inductions = []
   , discharge = Nothing
   }
 
@@ -51,8 +49,7 @@ data PrevMatch t = PrevMatch {
 }
 
 -- TODO new constructor for lemma proving
-data ActMarker = Induction IndMarker
-               | Coinduction CoMarker
+data ActMarker = Coinduction CoMarker
                | Equality EqualMarker
                | NoObligations (StateET, StateET)
                | NotEquivalent (StateET, StateET)
@@ -63,7 +60,6 @@ data ActMarker = Induction IndMarker
                | Unresolved (StateET, StateET)
 
 instance Named ActMarker where
-  names (Induction im) = names im
   names (Coinduction cm) = names cm
   names (Equality em) = names em
   names (NoObligations s_pair) = names s_pair
@@ -74,7 +70,6 @@ instance Named ActMarker where
   names (LemmaDisprovenEarly l_pair) = names l_pair
   names (Unresolved s_pair) = names s_pair
   rename old new m = case m of
-    Induction im -> Induction $ rename old new im
     Coinduction cm -> Coinduction $ rename old new cm
     Equality em -> Equality $ rename old new em
     NoObligations s_pair -> NoObligations $ rename old new s_pair
@@ -106,28 +101,6 @@ data IndMarker = IndMarker {
     , ind_fresh_name :: Name
   }
   deriving (Eq, Generic)
-
--- TODO shouldn't need present scrutinees
-instance Named IndMarker where
-  names im =
-    let (s1, s2) = ind_real_present im
-        (q1, q2) = ind_used_present im
-        (p1, p2) = ind_past im
-        (s1', s2') = ind_result im
-        (r1, r2) = ind_past_scrutinees im
-        states = [s1, s2, q1, q2, p1, p2, s1', s2', r1, r2]
-    in foldr (DS.><) DS.empty $ map names states
-  rename old new im =
-    let r = rename old new
-    in im {
-      ind_real_present = r $ ind_real_present im
-    , ind_used_present = r $ ind_used_present im
-    , ind_past = r $ ind_past im
-    , ind_result = r $ ind_result im
-    , ind_present_scrutinees = rename old new $ ind_present_scrutinees im
-    , ind_past_scrutinees = r $ ind_past_scrutinees im
-    , ind_fresh_name = rename old new $ ind_fresh_name im
-    }
 
 -- states paired with lemmas show what the state was before lemma usage
 data CoMarker = CoMarker {

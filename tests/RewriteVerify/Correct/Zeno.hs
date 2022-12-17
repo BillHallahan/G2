@@ -364,7 +364,7 @@ prop_44 x xs ys
 prop_45 x y xs ys
   = (zip (x:xs) (y:ys) =:= (x, y) : zip xs ys)
 
--- TODO giving me problems
+-- this doesn't type-check
 {-
 prop_46 xs
   = (zip [] xs =:= [])
@@ -749,7 +749,7 @@ p54finA hits the limit
   #-}
 
 {-
-TODO non-equivalence theorems I hadn't covered before
+non-equivalence theorems that aren't covered above
 Uncertain ones where the walking may need to be different:
 27
 28
@@ -780,7 +780,7 @@ Uncertain ones where the walking may need to be different:
   #-}
 
 {-
-TODO copied from new-theorems branch
+copied from new-theorems branch
 
  RESULTS 1/2
  No outcome seen for p72fin
@@ -819,7 +819,7 @@ TODO copied from new-theorems branch
   #-}
 
 {-
-TODO swapped sides for p26imp, p59imp, p60imp, p62imp
+swapped sides for p26imp, p59imp, p60imp, p62imp
 Also swapped p85imp for type issues
 
 RESULTS 1/4
@@ -843,7 +843,7 @@ p85 gets stuck right after starting a2
 "p85imp" forall xs ys . (len xs =:= len ys) && (zip (rev xs) (rev ys) =:= rev (zip xs ys)) = len xs =:= len ys
   #-}
 
--- TODO alternative finiteness approach
+-- alternative finiteness approach
 walkNat :: Nat -> a -> a
 walkNat Z a = a
 walkNat (S x) a = walkNat x a
@@ -852,7 +852,7 @@ walkList :: [a] -> b -> b
 walkList [] a = a
 walkList (_:xs) a = walkList xs a
 
--- TODO new walking functions for more complex situations
+-- new walking functions for more complex situations
 walkTwoLists :: ([a], [b]) -> c -> c
 walkTwoLists ([], []) a = a
 walkTwoLists ([], ys) a = walkList ys a
@@ -950,19 +950,6 @@ cycle x = x:(cycle x)
 "addThreeBoth" forall n . n + S (S (S Z)) = S Z + S (S Z)
   #-}
 
--- TODO forcing functions, make sure these work
-forceNat :: Nat -> Nat
-forceNat Z = Z
-forceNat (S n) = (forceNat n) + (S Z)
-
-forceTree :: Tree a -> Tree a
-forceTree Leaf = Leaf
-forceTree (Node (!l) x (!r)) = Node (forceTree l) x (forceTree r)
-
-forceList :: [a] -> [a]
-forceList [] = []
-forceList (h:(!t)) = h:(forceList t)
-
 -- TODO these will help with implications
 -- TODO will this really have the intended effect?
 forceNatBool :: Nat -> Bool -> Bool
@@ -983,13 +970,6 @@ forceListBool (_:(!t)) b = forceListBool t b
 forceNatListBool :: [Nat] -> Bool -> Bool
 forceNatListBool [] b = b
 forceNatListBool (h:(!t)) b = forceNatBool h (forceNatListBool t b)
-
--- TODO not sure about correctness of this
-forceTreeBool :: Tree a -> Bool -> Bool
-forceTreeBool Leaf b = b
-forceTreeBool (Node l _ r) b = case (forceTreeBool l b) of
-  True -> forceTreeBool r b
-  False -> forceTreeBool r b
 
 -- TODO implications and other things I couldn't handle before
 {-# RULES
@@ -1019,7 +999,7 @@ forceTreeBool (Node l _ r) b = case (forceTreeBool l b) of
 "p78b" forall xs . prop_78 xs = forceNatListBool xs True
   #-}
 
--- TODO the theorems that don't fit the ordinary equivalence format
+-- the theorems that don't fit the ordinary equivalence format
 {-# RULES
 "prop03" forall n xs ys . prop_03 n xs ys = True
 "prop05" forall n x xs . prop_05 n x xs = True
@@ -1049,7 +1029,7 @@ forceTreeBool (Node l _ r) b = case (forceTreeBool l b) of
 "prop85" forall xs ys . prop_85 xs ys = True
   #-}
 
--- TODO need a better way to handle lambdas; this gets SAT
+-- tests for lambda equivalence and inequivalence
 f :: Nat -> Nat
 f n = S n
 

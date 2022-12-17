@@ -267,7 +267,6 @@ appendH sh s =
   StateH {
     latest = s
   , history = (latest sh):(history sh)
-  , inductions = inductions sh
   , discharge = discharge sh
   }
 
