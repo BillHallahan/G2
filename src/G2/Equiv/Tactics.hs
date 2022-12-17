@@ -38,8 +38,6 @@ module G2.Equiv.Tactics
     )
     where
 
--- TODO may not need all imports
-
 import G2.Language
 
 import qualified Control.Monad.State.Lazy as CM
