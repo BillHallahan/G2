@@ -1,7 +1,6 @@
 module G2.Translation.HaskellCheck ( validateStates
                                    , runHPC) where
 
-import DynFlags
 import GHC hiding (Name)
 import GHC.Paths
 
@@ -22,28 +21,58 @@ import Control.Exception
 
 import System.Process
 
+import Control.Monad.IO.Class
+
 validateStates :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> [ExecRes t] -> IO Bool
-validateStates proj src modN entry chAll ghflags in_out = do
-    return . all id =<< mapM (runCheck proj src modN entry chAll ghflags) in_out
+validateStates proj src modN entry chAll gflags in_out = do
+    return . all id =<< runGhc (Just libdir) (do
+        loadToCheck proj src modN gflags
+        mapM (runCheck modN entry chAll) in_out)
 
 -- Compile with GHC, and check that the output we got is correct for the input
-runCheck :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> ExecRes t -> IO Bool
-runCheck proj src modN entry chAll gflags (ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
-    (v, chAllR) <- runGhc (Just libdir) (runCheck' proj src modN entry chAll gflags s ars out)
+runCheck :: String -> String -> [String] -> ExecRes t -> Ghc Bool
+runCheck modN entry chAll (ExecRes {final_state = s, conc_args = ars, conc_out = out}) = do
+    (v, chAllR) <- runCheck' modN entry chAll s ars out
 
-    v' <- unsafeCoerce v :: IO (Either SomeException Bool)
+    v' <- liftIO $ (unsafeCoerce v :: IO (Either SomeException Bool))
     let outStr = printHaskell s out
     let v'' = case v' of
                     Left _ -> outStr == "error"
                     Right b -> b && outStr /= "error"
 
-    chAllR' <- unsafeCoerce chAllR :: IO [Either SomeException Bool]
+    chAllR' <- liftIO $ (unsafeCoerce chAllR :: IO [Either SomeException Bool])
     let chAllR'' = rights chAllR'
 
     return $ v'' && and chAllR''
 
-runCheck' :: [FilePath] -> [FilePath] -> String -> String -> [String] -> [GeneralFlag] -> State t -> [Expr] -> Expr -> Ghc (HValue, [HValue])
-runCheck' proj src modN entry chAll gflags s ars out = do
+runCheck' :: String -> String -> [String] -> State t -> [Expr] -> Expr -> Ghc (HValue, [HValue])
+runCheck' modN entry chAll s ars out = do
+    let Left (v, _) = findFunc (T.pack entry) (Just $ T.pack modN) (expr_env s)
+    let e = mkApp $ Var v:ars
+    let arsStr = printHaskell s e
+    let outStr = printHaskell s out
+
+    let arsType = mkTypeHaskell (typeOf e)
+        outType = mkTypeHaskell (typeOf out)
+
+    let chck = case outStr == "error" of
+                    False -> "try (evaluate (" ++ arsStr ++ " == " ++ "("
+                                    ++ outStr ++ " :: " ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
+                    True -> "try (evaluate ( (" ++ arsStr ++ " :: " ++ arsType ++
+                                                    ") == " ++ arsStr ++ ")) :: IO (Either SomeException Bool)"
+
+    v' <- compileExpr chck
+
+    let chArgs = ars ++ [out] 
+    let chAllStr = map (\f -> printHaskell s $ mkApp ((simpVar $ T.pack f):chArgs)) chAll
+    let chAllStr' = map (\str -> "try (evaluate (" ++ str ++ ")) :: IO (Either SomeException Bool)") chAllStr
+
+    chAllR <- mapM compileExpr chAllStr'
+
+    return $ (v', chAllR)
+
+loadToCheck :: [FilePath] -> [FilePath] -> String -> [GeneralFlag] -> Ghc ()
+loadToCheck proj src modN gflags = do
         _ <- loadProj Nothing proj src gflags simplTranslationConfig
 
         let prN = mkModuleName "Prelude"
@@ -52,32 +81,13 @@ runCheck' proj src modN entry chAll gflags s ars out = do
         let exN = mkModuleName "Control.Exception"
         let exImD = simpleImportDecl exN
 
+        let coerceN = mkModuleName "Data.Coerce"
+        let coerceImD = simpleImportDecl coerceN
+
         let mdN = mkModuleName modN
         let imD = simpleImportDecl mdN
 
-        setContext [IIDecl prImD, IIDecl exImD, IIDecl imD]
-
-        let Left (v, _) = findFunc (T.pack entry) (Just $ T.pack modN) (expr_env s)
-        let e = mkApp $ Var v:ars
-        let arsStr = printHaskell s e
-        let outStr = printHaskell s out
-
-        let outType = mkTypeHaskell (typeOf out)
-
-        let chck = case outStr == "error" of
-                        False -> "try (evaluate (" ++ arsStr ++ " == " ++ "("
-                                        ++ outStr ++ " :: " ++ outType ++ ")" ++ ")) :: IO (Either SomeException Bool)"
-                        True -> "try (evaluate (" ++ arsStr ++ " == " ++ arsStr ++ ")) :: IO (Either SomeException Bool)"
-
-        v' <- compileExpr chck
-
-        let chArgs = ars ++ [out] 
-        let chAllStr = map (\f -> printHaskell s $ mkApp ((simpVar $ T.pack f):chArgs)) chAll
-        let chAllStr' = map (\str -> "try (evaluate (" ++ str ++ ")) :: IO (Either SomeException Bool)") chAllStr
-
-        chAllR <- mapM compileExpr chAllStr'
-
-        return $ (v', chAllR)
+        setContext [IIDecl prImD, IIDecl exImD, IIDecl coerceImD, IIDecl imD]
 
 simpVar :: T.Text -> Expr
 simpVar s = Var (Id (Name s Nothing 0 Nothing) TyBottom)

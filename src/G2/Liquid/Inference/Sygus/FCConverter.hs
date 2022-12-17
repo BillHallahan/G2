@@ -15,7 +15,6 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
-import qualified Data.Text as T
 import Data.Tuple.Extra
 
 type ConvertExpr a = G2.Expr -> a
@@ -47,7 +46,7 @@ mkPreCall :: (InfConfigM m, ProgresserM m) =>
           -> FuncCall
           -> [HigherOrderFuncCall]
           -> m form
-mkPreCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars }) hcalls
+mkPreCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc@(FuncCall { funcName = n }) hcalls
     | Just si <- M.lookup n m_si
     , Just (ev_i, ev_b) <- lookupEvals fc (pre_evals evals)
     , Just func_e <- HM.lookup (nameOcc n, nameModule n) eenv = do
@@ -119,7 +118,7 @@ mkPostCall :: (InfConfigM m, ProgresserM m) =>
            -> M.Map Name SpecInfo
            -> FuncCall
            -> m form
-mkPostCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc@(FuncCall { funcName = n, arguments = ars, returns = ret })
+mkPostCall convExpr andF funcF knownF toBeF eenv tenv meas meas_ex evals m_si fc@(FuncCall { funcName = n })
     | Just si <- M.lookup n m_si
     , Just (ev_i, ev_b) <- lookupEvals fc (post_evals evals)
     , Just func_e <- HM.lookup (nameOcc n, nameModule n) eenv = do
@@ -189,7 +188,7 @@ formCalls convExpr funcF tenv meas meas_ex n v_ars si_pb re_pb rt_pb = do
                     f_smt_ars = if null (sy_args psi) then [] else smt_ars
                     smt_r = map (adjustArgs convExpr (fromInteger mx_meas) tenv meas meas_ex rt) re
                 in
-                map (\r -> funcF (sy_name psi) $ f_smt_ars ++ r) smt_r
+                map (\r -> funcF (sy_name psi) $ take (length (sy_args psi)) f_smt_ars ++ take (length (sy_rets psi)) r) smt_r
               ) $ extractValues si_re_rt_pb
 
 convertConstraints :: (InfConfigM m, ProgresserM m) =>

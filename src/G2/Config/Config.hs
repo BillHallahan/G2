@@ -2,27 +2,30 @@ module G2.Config.Config ( Mode (..)
                         , LogMode (..)
                         , LogMethod (..)
                         , Sharing (..)
-                        , Counterfactual (..)
-                        , CFModules (..)
                         , SMTSolver (..)
                         , HigherOrderSolver (..)
-                        , BlockErrorsMethod (..)
                         , IncludePath
                         , Config (..)
                         , BoolDef (..)
                         , mkConfig
+                        , mkConfigDirect
+
+                        , mkLogMode
+                        
                         , strArg
                         , boolArg
+                        , boolArg'
 
                         , baseDef
                         , baseSimple) where
 
 
 import Data.Char
-import qualified Data.HashSet as S
 import Data.List
 import qualified Data.Map as M
-import qualified Data.Text as T
+import Data.Monoid ((<>))
+import Options.Applicative
+import Text.Read
 
 data Mode = Regular | Liquid deriving (Eq, Show, Read)
 
@@ -33,17 +36,10 @@ data LogMethod = Raw | Pretty deriving (Eq, Show, Read)
 -- | Do we use sharing to only reduce variables once?
 data Sharing = Sharing | NoSharing deriving (Eq, Show, Read)
 
-data Counterfactual = Counterfactual CFModules | NotCounterfactual deriving (Eq, Show, Read)
-
-data CFModules = CFAll | CFOnly (S.HashSet (T.Text, Maybe T.Text)) deriving (Eq, Show, Read)
-
 data SMTSolver = ConZ3 | ConCVC4 deriving (Eq, Show, Read)
 
 data HigherOrderSolver = AllFuncs
                        | SingleFunc deriving (Eq, Show, Read)
-
-data BlockErrorsMethod = ArbBlock
-                       | AssumeBlock deriving (Eq, Show, Read)
 
 type IncludePath = FilePath
 
@@ -56,32 +52,108 @@ data Config = Config {
     , logStates :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
     , sharing :: Sharing
     , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
-    , printCurrExpr :: Bool -- ^ Controls whether the curr expr is printed
-    , printExprEnv :: Bool -- ^ Controls whether the expr env is printed
-    , printRelExprEnv :: Bool -- ^ Controls whether the portion of the expr env relevant to the curr expr and path constraints is printed
-    , printPathCons :: Bool -- ^ Controls whether path constraints are printed
     , returnsTrue :: Bool -- ^ If True, shows only those inputs that do not return True
     , higherOrderSolver :: HigherOrderSolver -- ^ How to try and solve higher order functions
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
     , steps :: Int -- ^ How many steps to take when running States
-    , cut_off :: Int -- ^ How many steps to take after finding an equally good equiv state, in LH mode
-    , switch_after :: Int --- ^ How many steps to take in a single step, in LH mode
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
     , timeLimit :: Int -- ^ Seconds
-    , validate :: Bool -- ^ If True, HPC is run on G2's output, to measure code coverage.  TODO: Currently doesn't work
-    -- , baseLibs :: [BaseLib]
-
-    -- LiquidHaskell options
-    , counterfactual :: Counterfactual -- ^ Which functions should be able to generate abstract counterexamples
-    , only_top :: Bool -- ^ Only try to find counterexamples in the very first function definition, or directly called functions?
-    , block_errors_in :: (S.HashSet (T.Text, Maybe T.Text)) -- ^ Prevents calls from errors occuring in the indicated functions
-    , block_errors_method :: BlockErrorsMethod -- ^ Should errors be blocked with an Assume or with an arbitrarily inserted value
-    , reduce_abs :: Bool
-    , add_tyvars :: Bool
+    , validate :: Bool -- ^ If True, run on G2's input, and check against expected output.
 }
 
-mkConfig :: String -> [String] -> M.Map String [String] -> Config
-mkConfig homedir as m = Config {
+mkConfig :: String -> Parser Config
+mkConfig homedir = Config Regular
+    <$> mkBaseInclude homedir
+    <*> mkBase homedir
+    <*> mkExtraDefault homedir
+    <*> pure []
+    <*> mkLogMode
+    <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
+    <*> mkMaxOutputs
+    <*> switch (long "returns-true" <> help "assert that the function returns true, show only those outputs which return false")
+    <*> mkHigherOrder
+    <*> mkSMTSolver
+    <*> option auto (long "n"
+                   <> metavar "N"
+                   <> value 1000
+                   <> help "how many steps to take when running states")
+    <*> flag True False (long "no-strict" <> help "do not evaluate the output strictly")
+    <*> option auto (long "time"
+                   <> metavar "T"
+                   <> value 600
+                   <> help "time limit, in seconds")
+    <*> switch (long "validate" <> help "use GHC to automatically compile and run on generated inputs, and check that generated outputs are correct")
+
+mkBaseInclude :: String -> Parser [IncludePath]
+mkBaseInclude homedir =
+    option (eitherReader (Right . baseIncludeDef))
+            ( long "base"
+            <> metavar "FILE"
+            <> value (baseIncludeDef homedir)
+            <> help "where to look for base files")
+
+mkBase :: String -> Parser [IncludePath]
+mkBase homedir =
+    option (eitherReader (Right . baseDef))
+            ( long "base-def"
+            <> metavar "FILE"
+            <> value (baseDef homedir)
+            <> help "where to look for base files")
+
+mkExtraDefault :: String -> Parser [IncludePath]
+mkExtraDefault homedir =
+    option (eitherReader (Right . extraDefaultIncludePaths))
+            ( long "extra-def"
+            <> metavar "FILE"
+            <> value (extraDefaultIncludePaths homedir)
+            <> help "where to look for base files")
+
+mkLogMode :: Parser LogMode
+mkLogMode =
+    (option (eitherReader (Right . Log Raw))
+            (long "log-states"
+            <> metavar "FOLDER"
+            <> value NoLog
+            <> help "log all states with raw printing"))
+    <|>
+    (option (eitherReader (Right . Log Pretty))
+            (long "log-pretty"
+            <> metavar "FOLDER"
+            <> value NoLog
+            <> help "log all states with pretty printing"))
+
+mkMaxOutputs :: Parser (Maybe Int)
+mkMaxOutputs =
+    option (maybeReader (Just . readMaybe))
+            ( long "max-outputs"
+            <> metavar "MAX"
+            <> value Nothing
+            <> help "the maximum number of input/output pairs to output")
+
+mkHigherOrder :: Parser HigherOrderSolver
+mkHigherOrder =
+    option (eitherReader (\s -> case s of
+                                    "all" -> Right AllFuncs
+                                    "single" -> Right SingleFunc
+                                    _ -> Left "Unsupported higher order function handling"))
+            ( long "higher-order"
+            <> metavar "HANDLING"
+            <> value SingleFunc
+            <> help "either all or single, to specify whether all possible higher order instantiations should be searched for, or just a single instantiation")
+
+mkSMTSolver :: Parser SMTSolver
+mkSMTSolver =
+    option (eitherReader (\s -> case s of
+                                    "z3" -> Right ConZ3
+                                    "cvc4" -> Right ConCVC4
+                                    _ -> Left "Unsupported SMT solver"))
+            ( long "smt"
+            <> metavar "SMT-SOLVER"
+            <> value ConZ3
+            <> help "either z3 or cvc4, to select the solver to use")
+
+mkConfigDirect :: String -> [String] -> M.Map String [String] -> Config
+mkConfigDirect homedir as m = Config {
       mode = Regular
     , baseInclude = baseIncludeDef (strArg "base" as m id homedir)
     , base = baseDef (strArg "base" as m id homedir)
@@ -92,28 +164,13 @@ mkConfig homedir as m = Config {
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing
 
     , maxOutputs = strArg "max-outputs" as m (Just . read) Nothing
-    , printCurrExpr = boolArg "print-ce" as m Off
-    , printExprEnv = boolArg "print-eenv" as m Off
-    , printPathCons = boolArg "print-pc" as m Off
-    , printRelExprEnv = boolArg "print-rel-eenv" as m Off
     , returnsTrue = boolArg "returns-true" as m Off
     , higherOrderSolver = strArg "higher-order" as m higherOrderSolArg SingleFunc
     , smt = strArg "smt" as m smtSolverArg ConZ3
     , steps = strArg "n" as m read 1000
-    , cut_off = strArg "cut-off" as m read 600
-    , switch_after = strArg "switch-after" as m read 300
     , strict = boolArg "strict" as m On
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off
-    -- , baseLibs = [BasePrelude, BaseException]
-
-    , counterfactual = boolArg' "counterfactual" as
-                        (Counterfactual CFAll) (Counterfactual CFAll) NotCounterfactual
-    , only_top = boolArg "only-top" as m Off
-    , block_errors_in = S.empty
-    , block_errors_method = AssumeBlock
-    , reduce_abs = boolArg "reduce-abs" as m On
-    , add_tyvars = boolArg "add-tyvars" as m Off
 }
 
 baseIncludeDef :: FilePath -> [FilePath]

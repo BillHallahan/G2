@@ -14,7 +14,6 @@ import G2.Translation.Haskell
 
 import Control.Monad.Extra
 
-import qualified Data.Map as M
 import Data.Maybe
 import qualified GHC as GHC
 
@@ -24,10 +23,10 @@ import qualified Data.HashMap.Lazy as HM
 -- This is required to find all measures that are written in comments.
 createMeasures :: [Measure SpecType GHC.DataCon] -> LHStateM ()
 createMeasures meas = do
-    nt <- return . M.fromList =<< mapMaybeM measureTypeMappings meas
+    nt <- return . HM.fromList =<< mapMaybeM measureTypeMappings meas
     meas' <- mapMaybeM (convertMeasure nt) =<< filterM allTypesKnown meas
     
-    filterMeasures (M.keys nt)
+    filterMeasures (HM.keys nt)
 
     meenv <- measuresM
     let eenvk = E.keys meenv
@@ -53,7 +52,7 @@ filterMeasures' pre_meenv nt = do
     return fil_meenv
 
 allTypesKnown :: Measure SpecType GHC.DataCon -> LHStateM Bool
-#if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
+#if MIN_VERSION_liquidhaskell(0,8,6)
 allTypesKnown (M {msSort = srt}) = do
 #else
 allTypesKnown (M {sort = srt}) = do
@@ -62,7 +61,7 @@ allTypesKnown (M {sort = srt}) = do
     return $ isJust st
 
 measureTypeMappings :: Measure SpecType GHC.DataCon -> LHStateM (Maybe (Name, Type))
-#if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
+#if MIN_VERSION_liquidhaskell(0,8,6)
 measureTypeMappings (M {msName = n, msSort = srt}) = do
 #else
 measureTypeMappings (M {name = n, sort = srt}) = do
@@ -86,7 +85,7 @@ addLHDictToType lh t =
     mapInTyForAlls (\t' -> foldr TyFun t' lhD) t
 
 convertMeasure :: BoundTypes -> Measure SpecType GHC.DataCon -> LHStateM (Maybe (Name, Expr))
-#if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
+#if MIN_VERSION_liquidhaskell(0,8,6)
 convertMeasure bt (M {msName = n, msSort = srt, msEqns = eq}) = do
 #else
 convertMeasure bt (M {name = n, sort = srt, eqns = eq}) = do
@@ -110,12 +109,12 @@ convertMeasure bt (M {name = n, sort = srt, eqns = eq}) = do
     lam_i <- mapM freshIdN stArgs
     cb <- freshIdN (head stArgs)
     
-    alts <- mapMaybeM (convertDefs stArgs stRet (M.fromList as_t) bt) eq
+    alts <- mapMaybeM (convertDefs stArgs stRet (HM.fromList as_t) bt) eq
     fls <- mkFalseE
     let defTy = maybe TyUnknown (returnType . PresType) st
         defAlt = Alt Default $ Assume Nothing fls (Prim Undefined defTy)
 
-    let e = mkLams (as' ++ map (TermL,) lam_i) $ Case (Var (head lam_i)) cb (defAlt:alts) 
+    let e = mkLams (as' ++ map (TermL,) lam_i) $ Case (Var (head lam_i)) cb defTy (defAlt:alts) 
     
     case st of -- [1]
         Just _ -> return $ Just (n', e)
@@ -150,7 +149,7 @@ convertDefs [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})
 
     let is = map (uncurry Id) nt
 
-    e <- mkExprFromBody ret m (M.union bt $ M.fromList nt) b
+    e <- mkExprFromBody ret m (HM.union bt $ HM.fromList nt) b
     
     return $ Just $ Alt (DataAlt dc'' is) e -- [1]
     | otherwise = return Nothing
@@ -183,13 +182,13 @@ mkExprFromBody ret m bt (R s e) = do
         t = maybe (error "mkExprFromBody: ret type unknown") id ret
         i = Id s_nm t
 
-        bt' = M.insert s_nm t bt
+        bt' = HM.insert s_nm t bt
     g2_e <- convertLHExpr (mkDictMaps m) bt' ret e
     return . Let [(i, SymGen t)] . Assume Nothing g2_e $ Var i 
 
 mkDictMaps :: LHDictMap -> DictMaps
 mkDictMaps ldm = DictMaps { lh_dicts = ldm
-                          , num_dicts = M.empty
-                          , integral_dicts = M.empty
-                          , fractional_dicts = M.empty
-                          , ord_dicts = M.empty}
+                          , num_dicts = HM.empty
+                          , integral_dicts = HM.empty
+                          , fractional_dicts = HM.empty
+                          , ord_dicts = HM.empty}

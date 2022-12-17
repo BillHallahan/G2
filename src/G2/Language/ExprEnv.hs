@@ -25,6 +25,7 @@ module G2.Language.ExprEnv
     , insertSymbolic
     , insertExprs
     , redirect
+    , difference
     , union
     , union'
     , unionWith
@@ -54,6 +55,7 @@ module G2.Language.ExprEnv
     , toList
     , toExprList
     , fromExprList
+    , fromExprMap
     , toHashMap
     ) where
 
@@ -209,6 +211,10 @@ insertExprs kvs scope = foldr (uncurry insert) scope kvs
 -- | Maps the two `Name`@s@ so that they point to the same value
 redirect :: Name -> Name -> ExprEnv -> ExprEnv
 redirect n n' = ExprEnv . M.insert n (RedirObj n') . unwrapExprEnv
+
+difference :: ExprEnv -> ExprEnv -> ExprEnv
+difference (ExprEnv m1) (ExprEnv m2) =
+    ExprEnv $ M.difference m1 m2
 
 union :: ExprEnv -> ExprEnv -> ExprEnv
 union (ExprEnv eenv) (ExprEnv eenv') = ExprEnv $ eenv `M.union` eenv'
@@ -369,6 +375,9 @@ toExprList env@(ExprEnv env') =
 
 fromExprList :: [(Name, Expr)] -> ExprEnv
 fromExprList = ExprEnv . M.fromList . L.map (\(n, e) -> (n, ExprObj e))
+
+fromExprMap :: M.HashMap Name Expr -> ExprEnv
+fromExprMap = ExprEnv . M.map ExprObj
 
 toExprMap :: ExprEnv -> M.HashMap Name Expr
 toExprMap env = M.mapWithKey (\k _ -> env ! k) $ unwrapExprEnv env

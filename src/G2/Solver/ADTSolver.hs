@@ -67,7 +67,7 @@ findConsistent' kv eenv tenv pc =
 
         -- Adding Coercions
         pcNT = fmap (pcInCastType tenv) . head' $ toList pc
-        cons = findConsistent'' kv tenv eenv pc'
+        cons = findConsistent'' tenv eenv pc'
     in
     case cons of
         Just (cons', bi) ->
@@ -79,8 +79,8 @@ findConsistent' kv eenv tenv pc =
             if any isExtCond pc' || pcNT == Just (tyBool kv) then Nothing else Just (cons'', bi)
         Nothing -> Nothing
 
-findConsistent'' :: KnownValues -> TypeEnv -> ExprEnv -> [PathCond] -> Maybe ([Expr], [(Id, Type)])
-findConsistent'' kv tenv eenv pc =
+findConsistent'' :: TypeEnv -> ExprEnv -> [PathCond] -> Maybe ([Expr], [(Id, Type)])
+findConsistent'' tenv eenv pc =
     let
         is = nub . map (\(Id n t') -> Id n (typeStripCastType tenv t')) $ concatMap varIdsInPC pc
 
@@ -115,7 +115,7 @@ solveADTs avf s@(State { expr_env = eenv, model = m }) b [Id n t] pc
         let (r, _) = addADTs avf n tn ts k s b pc
 
         case r of
-            SAT m -> return (SAT $ liftCasts m)
+            SAT sat_m -> return (SAT $ liftCasts sat_m)
             r' -> return r'
 solveADTs _ _ _ _ _ = return $ Unknown "Unhandled path constraints in ADTSolver" ()
 

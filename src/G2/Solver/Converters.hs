@@ -321,7 +321,7 @@ pathConsToSMT' (AssumePC (Id n t) num pc) =
         pcSMT = map (pathConsToSMT' . PC.unhashedPC) $ HS.toList pc
     in
     (idSMT := intSMT) :=> SmtAnd pcSMT
-pathConsToSMT' (MinimizePC e) = error "pathConsToSMT': unsupported nesting of MinimizePC."
+pathConsToSMT' (MinimizePC _) = error "pathConsToSMT': unsupported nesting of MinimizePC."
 pathConsToSMT' (SoftPC _) = error "pathConsToSMT': unsupported nesting of SoftPC."
 
 exprToSMT :: Expr -> SMTAST
@@ -431,7 +431,6 @@ typeToSMT TyLitDouble = SortDouble
 typeToSMT TyLitFloat = SortFloat
 typeToSMT TyLitChar = SortChar
 typeToSMT (TyCon (Name "Bool" _ _ _) _) = SortBool
-typeToSMT (TyForAll (AnonTyBndr _) t) = typeToSMT t
 typeToSMT t = error $ "Unsupported type in typeToSMT: " ++ show t
 
 merge :: TB.Builder -> TB.Builder -> TB.Builder
@@ -529,7 +528,7 @@ toSolverAST (VFloat f) = "(/ " <> showText (numerator f) <> " " <> showText (den
 toSolverAST (VDouble d) = "(/ " <> showText (numerator d) <> " " <> showText (denominator d) <> ")"
 toSolverAST (VChar c) = "\"" <> TB.string [c] <> "\""
 toSolverAST (VBool b) = if b then "true" else "false"
-toSolverAST (V n s) = TB.string n
+toSolverAST (V n _) = TB.string n
 
 toSolverAST (Named x n) = "(! " <> toSolverAST x <> " :named " <> TB.string n <> ")"
 
@@ -566,6 +565,7 @@ sortName SortDouble = "Real"
 sortName SortChar = "String"
 sortName SortBool = "Bool"
 sortName (SortArray ind val) = "(Array " <> sortName ind <> " " <> sortName val <> ")"
+sortName _ = error "sortName: unsupported Sort"
 
 toSolverSetLogic :: Logic -> TB.Builder
 toSolverSetLogic lgc =
@@ -600,6 +600,7 @@ sortToType (SortFloat) = TyLitFloat
 sortToType (SortDouble) = TyLitDouble
 sortToType (SortChar) = TyLitChar
 sortToType (SortBool) = TyCon (Name "Bool" Nothing 0 Nothing) TYPE
+sortToType _ = error "Conversion of this Sort to a Type not supported."
 
 -- | Coverts an `SMTModel` to a `Model`.
 modelAsExpr :: SMTModel -> Model

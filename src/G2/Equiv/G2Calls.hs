@@ -9,6 +9,8 @@ module G2.Equiv.G2Calls ( StateET
                         , emptyEquivTracker
                         , runG2ForNebula
                         , totalExpr
+                        , argCount
+                        , concretizable
 
                         , isLabeledErrorName
                         , labeledErrorName
@@ -23,23 +25,16 @@ import G2.Interface
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.Stack as S
+import qualified G2.Language.Typing as TY
 import G2.Solver
 import G2.Equiv.Config
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
-import Data.Text ()
-
-import Debug.Trace
 
 import qualified Data.Text as T
 
-import qualified G2.Language.Stack as Stck
-
 import Data.Hashable
-import Data.Maybe
-import G2.Execution.NormalForms
-import qualified Data.Map as M
 import qualified Data.List as L
 
 import GHC.Generics (Generic)
@@ -82,12 +77,15 @@ rewriteRedHaltOrd :: (Solver solver, Simplifier simplifier) =>
                      Config ->
                      NebulaConfig ->
                      (SomeReducer EquivTracker, SomeHalter EquivTracker, SomeOrderer EquivTracker)
-rewriteRedHaltOrd solver simplifier h_opp track_opp config (NC { use_labeled_errors = use_labels }) =
+rewriteRedHaltOrd solver simplifier h_opp track_opp config nc@(NC { use_labeled_errors = use_labels }) =
     let
         share = sharing config
         state_name = Name "state" Nothing 0 Nothing
 
-        m_logger = getLogger config
+        m_logger = case log_states nc of
+                        Log Raw fp -> Just (SomeReducer (Logger fp))
+                        Log Pretty fp -> Just (SomeReducer (prettyLogger fp))
+                        NoLog -> Nothing
     in
     (case m_logger of
             Just logger -> SomeReducer (
@@ -123,8 +121,8 @@ instance Hashable BlockInfo
 -- EquivTracker probably the wrong level for handling this
 data EquivTracker = EquivTracker { higher_order :: HM.HashMap Expr Id
                                  , saw_tick :: Maybe Int
-                                 , total :: HS.HashSet Name
-                                 , finite :: HS.HashSet Name
+                                 , total_vars :: HS.HashSet Name
+                                 , finite_vars :: HS.HashSet Name
                                  , dc_path :: [BlockInfo]
                                  , opp_env :: ExprEnv
                                  , folder_name :: String } deriving (Show, Eq, Generic)
@@ -137,10 +135,9 @@ instance Reducer ConcSymReducer () EquivTracker where
     initReducer _ _ = ()
 
     redRules red@(ConcSymReducer use_labels) _
-                   s@(State { curr_expr = CurrExpr _ (Var i@(Id n t))
+                   s@(State { curr_expr = CurrExpr _ (Var (Id n t))
                             , expr_env = eenv
                             , type_env = tenv
-                            , path_conds = pc
                             , track = EquivTracker et m total finite dcp opp fname })
                    b@(Bindings { name_gen = ng })
         | E.isSymbolic n eenv
@@ -180,7 +177,7 @@ arbDC :: UseLabeledErrors
       -> Maybe ([(Expr, [Id])], NameGen)
 arbDC use_labels tenv ng t n total
     | TyCon tn _:ts <- unTyApp t
-    , Just adt <- M.lookup tn tenv =
+    , Just adt <- HM.lookup tn tenv =
         let
             dcs = dataCon adt
 
@@ -199,7 +196,7 @@ arbDC use_labels tenv ng t n total
                     (\ng_ dc ->
                         let
                             anon_ts = anonArgumentTypes dc
-                            re_anon = foldr (\(i, t) -> retype i t) anon_ts bound_ts
+                            re_anon = foldr (\(i, ty) -> retype i ty) anon_ts bound_ts
                             (ars, ng_') = freshIds re_anon ng_
                         in
                         (ng_', (mkApp $ dc:map Var ars, ars))
@@ -220,15 +217,14 @@ instance Reducer SymbolicSwapper () EquivTracker where
                            , track = EquivTracker et m tot fin dcp opp fname })
                   b =
         case e of
-            Var i@(Id n _) | E.isSymbolic n h ->
-                let cos = E.lookupConcOrSym n h_opp
-                in case cos of
+            Var (Id n _) | E.isSymbolic n h ->
+                case E.lookupConcOrSym n h_opp of
                     Just (E.Conc e') ->
                         let vi = varIds e'
                             vi_hs = HS.fromList $ map idName vi
                             h' = foldr (\j -> E.insertSymbolic j) (E.insert n e' h) (L.nub vi)
-                            total' = HS.union (HS.intersection (total track_opp) vi_hs) tot
-                            finite' = HS.union (HS.intersection (finite track_opp) vi_hs) fin
+                            total' = HS.union (HS.intersection (total_vars track_opp) vi_hs) tot
+                            finite' = HS.union (HS.intersection (finite_vars track_opp) vi_hs) fin
                             track' = EquivTracker et m total' finite' dcp opp fname
                             s' = s {
                               expr_env = h'
@@ -288,7 +284,7 @@ data LabeledErrorsR = LabeledErrorsR
 
 instance Reducer LabeledErrorsR () t where
     initReducer _ _ = ()
-    redRules r rv s@(State { curr_expr = CurrExpr _ ce, exec_stack = stck }) b
+    redRules r rv s@(State { curr_expr = CurrExpr _ ce }) b
         | isLabeledError ce = return (Finished, [(s { exec_stack = S.empty }, rv)], b, r)
         | otherwise = return (NoProgress, [(s, rv)], b, r)
 
@@ -297,17 +293,18 @@ data LabeledErrorsH = LabeledErrorsH
 instance Halter LabeledErrorsH () t where
     initHalt _ _ = ()
     updatePerStateHalt _ hv _ _ = hv
-    stopRed _ _ _ s@(State { curr_expr = CurrExpr _ ce, exec_stack = stck })
+    stopRed _ _ _ (State { curr_expr = CurrExpr _ ce, exec_stack = stck })
         | isLabeledError ce, S.null stck = return Accept
         | otherwise = return Continue
     stepHalter _ hv _ _ _ = hv
 
+-- this does not account for type arguments
 argCount :: Type -> Int
 argCount = length . spArgumentTypes . PresType
 
 exprFullApp :: ExprEnv -> Expr -> Bool
-exprFullApp h e | (Tick (NamedLoc (Name p _ _ _)) f):args <- unApp e
-                , p == T.pack "REC" = exprFullApp h (mkApp $ f:args)
+exprFullApp h e | (Tick (NamedLoc (Name p _ _ _)) f):as <- unApp e
+                , p == T.pack "REC" = exprFullApp h (mkApp $ f:as)
 exprFullApp h e | (Var (Id n t)):_ <- unApp e
                 -- We require that the variable be the center of a function
                 -- application, have at least one argument, and not map to a variable for two reasons:
@@ -330,28 +327,26 @@ isVar (Tick _ e) = isVar e
 isVar (Var _) = True
 isVar _ = False
 
-containsCase :: Stck.Stack Frame -> Bool
-containsCase sk =
-    case Stck.pop sk of
-        Nothing -> False
-        Just (CaseFrame _ _, _) -> True
-        Just (_, sk') -> containsCase sk'
-
 -- induction only works if both states in a pair satisfy this
 -- there's no harm in stopping here for just one, though
 -- TODO removing the Case requirement doesn't fix forceIdempotent
 recursionInCase :: State t -> Bool
-recursionInCase (State { curr_expr = CurrExpr _ e, exec_stack = sk }) =
+recursionInCase (State { curr_expr = CurrExpr _ e }) =
     case e of
         Tick (NamedLoc (Name p _ _ _)) _ ->
             p == T.pack "REC" -- && containsCase sk
         _ -> False
 
-loneSymVar :: State t -> Bool
-loneSymVar (State { curr_expr = CurrExpr _ e, expr_env = h }) =
-    case e of
-        Var i -> E.isSymbolic (idName i) h
-        _ -> False
+-- used by EquivADT and Tactics
+concretizable :: Type -> Bool
+concretizable (TyVar _) = False
+concretizable (TyForAll _ _) = False
+concretizable (TyFun _ _) = False
+concretizable t@(TyApp _ _) =
+  concretizable $ last $ TY.unTyApp t
+concretizable TYPE = False
+concretizable TyUnknown = False
+concretizable _ = True
 
 instance Halter EnforceProgressH () EquivTracker where
     initHalt _ _ = ()
@@ -457,7 +452,7 @@ totalExpr s@(State { expr_env = h, track = EquivTracker _ _ total _ _ h' _ }) ns
     Lam _ _ _ -> False
     Type _ -> True
     Let _ _ -> False
-    Case _ _ _ -> False
+    Case _ _ _ _ -> False
     _ -> False
 
 -- helper function to circumvent syncSymbolic
@@ -480,11 +475,6 @@ isSymbolicBoth n h1 h2 =
                         _ -> True
     Just (E.Conc _) -> False
     Nothing -> E.isSymbolic n h2
-
--- doesn't need tick removal
-exprVarName :: Expr -> Maybe Name
-exprVarName (Var i) = Just $ idName i
-exprVarName _ = Nothing
 
 isSymFuncApp :: ExprEnv -> Expr -> Bool
 isSymFuncApp eenv e

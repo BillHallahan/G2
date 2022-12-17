@@ -81,10 +81,13 @@ rep_type_classesM tc = do
     SM.put $ s {type_classes = tc}
 
 instance ASTContainer SimpleState Expr where
-    containedASTs s =  containedASTs (expr_env s)
-    modifyContainedASTs f s = s { expr_env = modifyContainedASTs f (expr_env s) }
+    containedASTs s =  containedASTs (expr_env s) ++ containedASTs  (rewrite_rules s)
+    modifyContainedASTs f s = s { expr_env = modifyContainedASTs f (expr_env s)
+                                , rewrite_rules = modifyContainedASTs f (rewrite_rules s) }
 
 instance ASTContainer SimpleState Type where
-    containedASTs s =  containedASTs (expr_env s) ++ containedASTs (type_env s)
+    containedASTs s =
+        containedASTs (expr_env s) ++ containedASTs (type_env s) ++ containedASTs  (rewrite_rules s)
     modifyContainedASTs f s = s { expr_env = modifyContainedASTs f (expr_env s)
-                                , type_env = modifyContainedASTs f (type_env s) }
+                                , type_env = modifyContainedASTs f (type_env s)
+                                , rewrite_rules = modifyContainedASTs f (rewrite_rules s) }

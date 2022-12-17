@@ -52,6 +52,7 @@ import qualified G2.Language.PathConds as PC
 import G2.Lib.Printers
 import G2.Liquid.Inference.Config
 import G2.Liquid.AddCFBranch
+import G2.Liquid.Config
 import G2.Liquid.Conversion
 import G2.Liquid.ConvertCurrExpr
 import G2.Liquid.G2Calls
@@ -82,8 +83,6 @@ import Control.Exception
 import Control.Monad.IO.Class
 import Data.Function
 import Data.Monoid
-
-import Data.Time.Clock
 
 -------------------------------------
 -- Solvers
@@ -164,28 +163,28 @@ runLHG2Inference config red hal ord solver simplifier pres_names init_id final_s
     ret' <- filterM (satState solver) ret
     let ret'' = onlyMinimalStates $ map (earlyExecRes final_bindings) ret'
 
-    cleanupResultsInference solver simplifier config init_id final_st final_bindings ret''
+    cleanupResultsInference solver simplifier config init_id final_bindings ret''
 
 cleanupResultsInference :: (Solver solver, Simplifier simplifier) =>
                            solver
                         -> simplifier
                         -> Config
                         -> Id
-                        -> State LHTracker
                         -> Bindings
                         -> [ExecRes LHTracker]
                         -> IO ([ExecRes AbstractedInfo], Bindings)
-cleanupResultsInference solver simplifier config init_id init_state bindings ers = do
+cleanupResultsInference solver simplifier config init_id bindings ers = do
     let ers2 = map (\er -> er { final_state = putSymbolicExistentialInstInExprEnv (final_state er) }) ers
     let ers3 = map (replaceHigherOrderNames (idName init_id) (input_names bindings)) ers2
     (bindings', ers4) <- mapAccumM (reduceCalls runG2ThroughExecutionInference solver simplifier config) bindings ers3
     ers5 <- mapM (checkAbstracted runG2ThroughExecutionInference solver simplifier config init_id bindings') ers4
-    ers6 <- mapM (runG2SolvingInference solver simplifier config bindings') ers5
+    ers6 <- mapM (runG2SolvingInference solver simplifier bindings') ers5
     let ers7 = 
           map (\er@(ExecRes { final_state = s }) ->
                 (er { final_state =
                               s {track = 
-                                    mapAbstractedInfoFCs (evalPrims (known_values s) . subVarFuncCall True (model s) (expr_env s) (type_classes s))
+                                    mapAbstractedInfoFCs (evalPrims (type_env s) (known_values s)
+                                                         . subVarFuncCall True (model s) (expr_env s) (type_classes s))
                                     $ track s
                                 }
                     })) ers6
@@ -226,8 +225,8 @@ runG2ThroughExecutionInference red hal ord _ _ pres s b = do
                         (SomeReducer red', SomeHalter hal', SomeOrderer ord') -> runG2ThroughExecution red' hal' ord' pres s b
     return (map (earlyExecRes fb) fs, fb)
 
-runG2SolvingInference :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Config -> Bindings -> ExecRes AbstractedInfo -> IO (ExecRes AbstractedInfo)
-runG2SolvingInference solver simplifier config bindings er@(ExecRes { final_state = s }) = do
+runG2SolvingInference :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Bindings -> ExecRes AbstractedInfo -> IO (ExecRes AbstractedInfo)
+runG2SolvingInference solver simplifier bindings (ExecRes { final_state = s }) = do
     let abs_resemble_real = softAbstractResembleReal s
         pc_with_soft = PC.union abs_resemble_real (path_conds s)
         s_with_soft_pc = s { path_conds = pc_with_soft }
@@ -322,14 +321,15 @@ gatherAllowedCalls :: T.Text
                    -> [GhcInfo]
                    -> InferenceConfig
                    -> Config
+                   -> LHConfig
                    -> IO [FuncCall]
-gatherAllowedCalls entry m lrs ghci infconfig config = do
+gatherAllowedCalls entry m lrs ghci infconfig config lhconfig = do
     let config' = config -- { only_top = False }
 
     LiquidData { ls_state = s
                , ls_bindings = bindings
                , ls_memconfig = pres_names } <-
-                    processLiquidReadyStateWithCall lrs ghci entry m config' mempty
+                    processLiquidReadyStateWithCall lrs ghci entry m config' lhconfig mempty
 
     let (s', bindings') = (s, bindings) -- execStateM addTrueAssertsAll s bindings
 
@@ -339,7 +339,7 @@ gatherAllowedCalls entry m lrs ghci infconfig config = do
                s' { true_assert = True
                   , track = [] :: [FuncCall] }
 
-    (red, hal, ord) <- gatherReducerHalterOrderer infconfig config' solver simplifier
+    (red, hal, ord) <- gatherReducerHalterOrderer infconfig config' lhconfig solver simplifier
     (exec_res, bindings'') <- runG2WithSomes red hal ord solver simplifier pres_names s'' bindings'
 
     putStrLn $ "length exec_res = " ++ show (length exec_res)
@@ -378,10 +378,11 @@ repCFBranch' e = e
 gatherReducerHalterOrderer :: (Solver solver, Simplifier simplifier)
                            => InferenceConfig
                            -> Config
+                           -> LHConfig
                            -> solver
                            -> simplifier
                            -> IO (SomeReducer [FuncCall], SomeHalter [FuncCall], SomeOrderer [FuncCall])
-gatherReducerHalterOrderer infconfig config solver simplifier = do
+gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
     let
         ng = mkNameGen ()
 
@@ -401,7 +402,7 @@ gatherReducerHalterOrderer infconfig config solver simplifier = do
         , SomeHalter
             (DiscardIfAcceptedTag state_name
               -- :<~> searched_below
-              :<~> SwitchEveryNHalter (switch_after config)
+              :<~> SwitchEveryNHalter (switch_after lhconfig)
               :<~> SWHNFHalter
               :<~> timer_halter)
         , SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTSizeOrderer 0 Nothing)))
@@ -417,23 +418,23 @@ gatherReducerHalterOrderer infconfig config solver simplifier = do
 runLHInferenceAll :: MonadIO m
                   => InferenceConfig
                   -> Config
+                  -> LHConfig
                   -> T.Text
                   -> [FilePath]
                   -> [FilePath]
-                  -> [FilePath]
                   -> m (([ExecRes AbstractedInfo], Bindings), Id)
-runLHInferenceAll infconfig config func proj fp lhlibs = do
+runLHInferenceAll infconfig config g2lhconfig func proj fp = do
     -- Initialize LiquidHaskell
-    (ghci, lhconfig) <- liftIO $ getGHCI infconfig proj fp lhlibs
+    (ghci, lhconfig) <- liftIO $ getGHCI infconfig proj fp
 
     let g2config = config { mode = Liquid
                           , steps = 2000 }
         transConfig = simplTranslationConfig { simpl = False }
-    (main_mod, exg2) <- liftIO $ translateLoaded proj fp lhlibs transConfig g2config
+    (main_mod, exg2) <- liftIO $ translateLoaded proj fp transConfig g2config
 
-    let (lrs, g2config', infconfig') = initStateAndConfig exg2 main_mod g2config infconfig ghci
+    let (lrs, g2config', g2lhconfig', infconfig') = initStateAndConfig exg2 main_mod g2config g2lhconfig infconfig ghci
 
-    let configs = Configs { g2_config = g2config', lh_config = lhconfig, inf_config = infconfig'}
+    let configs = Configs { g2_config = g2config', g2lh_config = g2lhconfig', lh_config = lhconfig, inf_config = infconfig'}
 
     execInfStack configs newProgress (runLHInferenceCore func main_mod lrs ghci)
 
@@ -450,19 +451,20 @@ runLHInferenceCore entry m lrs ghci = do
     MaxSize max_coeff_sz <- maxSynthCoeffSizeI
 
     g2config <- g2ConfigM
+    lhconfig <- g2lhConfigM
     infconfig <- infConfigM
 
     LiquidData { ls_state = final_st
                , ls_bindings = bindings
                , ls_id = ifi
                , ls_counterfactual_name = cfn
-               , ls_memconfig = pres_names } <- liftIO $ processLiquidReadyStateWithCall lrs ghci entry m g2config mempty
+               , ls_memconfig = pres_names } <- liftIO $ processLiquidReadyStateWithCall lrs ghci entry m g2config lhconfig mempty
     SomeSolver solver <- liftIO $ initSolver g2config
     -- let solver' = SpreadOutSolver max_coeff_sz solver
     let simplifier = IdSimplifier
         final_st' = swapHigherOrdForSymGen bindings final_st
 
-    (red, hal, ord) <- inferenceReducerHalterOrderer infconfig g2config solver simplifier entry m cfn final_st'
+    (red, hal, ord) <- inferenceReducerHalterOrderer infconfig g2config lhconfig solver simplifier entry m cfn final_st'
     (exec_res, final_bindings) <- liftIO $ runLHG2Inference g2config red hal ord solver simplifier pres_names ifi final_st' bindings
 
     liftIO $ close solver
@@ -475,6 +477,7 @@ runLHInferenceCore entry m lrs ghci = do
 inferenceReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
                               => InferenceConfig
                               -> Config
+                              -> LHConfig
                               -> solver
                               -> simplifier
                               -> T.Text
@@ -482,7 +485,7 @@ inferenceReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifie
                               -> Name
                               -> State LHTracker
                               -> InfStack m (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
-inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modname cfn st = do
+inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry mb_modname cfn st = do
     extra_ce <- extraMaxCExI (entry, mb_modname)
     extra_time <- extraMaxTimeI (entry, mb_modname)
 
@@ -514,7 +517,7 @@ inferenceReducerHalterOrderer infconfig config solver simplifier entry mb_modnam
 
     let halter =      LHAbsHalter entry mb_modname (expr_env st)
                  :<~> lh_max_outputs
-                 :<~> SwitchEveryNHalter (switch_after config)
+                 :<~> SwitchEveryNHalter (switch_after lhconfig)
                  -- :<~> LHLimitSameAbstractedHalter 5
                  :<~> LHSWHNFHalter
                  -- :<~> LHAcceptIfViolatedHalter
@@ -541,22 +544,23 @@ runLHCExSearch :: MonadIO m
                -> InfStack m (([ExecRes AbstractedInfo], Bindings), Id)
 runLHCExSearch entry m lrs ghci = do
     g2config <- g2ConfigM
+    lhconfig <- g2lhConfigM
     infconfig <- infConfigM
 
-    let g2config' = g2config { counterfactual = NotCounterfactual
+    let lhconfig' = lhconfig { counterfactual = NotCounterfactual
                              , only_top = False}
 
     LiquidData { ls_state = final_st
                , ls_bindings = bindings
                , ls_id = ifi
                , ls_counterfactual_name = cfn
-               , ls_memconfig = pres_names } <- liftIO $ processLiquidReadyStateWithCall lrs ghci entry m g2config' mempty
-    SomeSolver solver <- liftIO $ initSolver g2config'
+               , ls_memconfig = pres_names } <- liftIO $ processLiquidReadyStateWithCall lrs ghci entry m g2config lhconfig' mempty
+    SomeSolver solver <- liftIO $ initSolver g2config
     let simplifier = IdSimplifier
         final_st' = swapHigherOrdForSymGen bindings final_st
 
-    (red, hal, ord) <- realCExReducerHalterOrderer infconfig g2config' entry m solver simplifier cfn
-    (exec_res, final_bindings) <- liftIO $ runLHG2Inference g2config' red hal ord solver simplifier pres_names ifi final_st' bindings
+    (red, hal, ord) <- realCExReducerHalterOrderer infconfig g2config lhconfig' entry m solver simplifier cfn
+    (exec_res, final_bindings) <- liftIO $ runLHG2Inference g2config red hal ord solver simplifier pres_names ifi final_st' bindings
 
     liftIO $ close solver
 
@@ -565,13 +569,14 @@ runLHCExSearch entry m lrs ghci = do
 realCExReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
                             => InferenceConfig
                             -> Config
+                            -> LHConfig
                             -> T.Text
                             -> Maybe T.Text
                             -> solver
                             -> simplifier
                             -> Name
                             -> InfStack m (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
-realCExReducerHalterOrderer infconfig config entry modname solver simplifier  cfn = do
+realCExReducerHalterOrderer infconfig config lhconfig entry modname solver simplifier  cfn = do
     extra_ce <- extraMaxCExI (entry, modname)
     extra_depth <- extraMaxDepthI
 
@@ -596,7 +601,7 @@ realCExReducerHalterOrderer infconfig config entry modname solver simplifier  cf
     timer_halter <- liftIO $ timerHalter (timeout_se infconfig)
 
     let halter =      lh_max_outputs
-                 :<~> SwitchEveryNHalter (switch_after config)
+                 :<~> SwitchEveryNHalter (switch_after lhconfig)
                  :<~> ZeroHalter (0 + extra_depth)
                  :<~> LHAcceptIfViolatedHalter
                  :<~> timer_halter
@@ -643,20 +648,20 @@ swapForSG i eenv =
 -- This allows us to check if a found counterexample violates a user-provided specifications,
 -- or a synthesized specification.
 -- Returns True if the original Assertions are True (i.e. not violated)
-checkFuncCall :: LiquidReadyState -> [GhcInfo] -> Config -> FuncCall -> IO Bool
+checkFuncCall :: LiquidReadyState -> [GhcInfo] -> Config -> LHConfig -> FuncCall -> IO Bool
 checkFuncCall = checkCounterexample
 
-checkCounterexample :: LiquidReadyState -> [GhcInfo] -> Config -> FuncCall -> IO Bool
-checkCounterexample lrs ghci config cex@(FuncCall { funcName = Name n m _ _ }) = do
-    let config' = config { counterfactual = NotCounterfactual }
+checkCounterexample :: LiquidReadyState -> [GhcInfo] -> Config -> LHConfig -> FuncCall -> IO Bool
+checkCounterexample lrs ghci config lhconfig cex@(FuncCall { funcName = Name n m _ _ }) = do
+    let lhconfig' = lhconfig { counterfactual = NotCounterfactual }
     -- We use the same function to instantiate this state as in runLHInferenceCore, so all the names line up
     LiquidData { ls_state = s
-               , ls_bindings = bindings } <- processLiquidReadyStateWithCall lrs ghci n m config' mempty
+               , ls_bindings = bindings } <- processLiquidReadyStateWithCall lrs ghci n m config lhconfig' mempty
 
     let s' = checkCounterexample' cex s
 
     SomeSolver solver <- initSolver config
-    (fsl, _) <- genericG2Call config' solver s' bindings
+    (fsl, _) <- genericG2Call config solver s' bindings
     close solver
 
     -- We may return multiple states if any of the specifications contained a SymGen
@@ -670,8 +675,7 @@ checkCounterexample' fc@(FuncCall { funcName = n }) s@(State { expr_env = eenv, 
     in
     s { curr_expr = CurrExpr Evaluate e'
       , true_assert = True }
-    | otherwise = error $ "checkCounterexample': Name not found " ++ show n ++ "\n similar in eenv = "
-                                      ++ show (E.keys $ E.filterWithKey (\(Name on _ _ _) _ -> on == nameOcc n ) eenv)
+    | otherwise = error $ "checkCounterexample': Name not found " ++ show n
 
 toJustSpec :: KnownValues -> FuncCall -> [Id] -> Expr -> Expr
 toJustSpec _ (FuncCall { arguments = ars, returns = ret }) is (Let [(b, _)] (Assert _ e _)) =
@@ -762,10 +766,9 @@ checkPre' ld fc@(FuncCall { funcName = n }) hfc = do
                 Nothing -> return True
 
 checkPreHigherOrder :: (InfConfigM m, MonadIO m) => LiquidData -> [Expr] -> HigherOrderFuncCall -> m Bool
-checkPreHigherOrder ld es fc@(FuncCall {funcName = (Name _ _ i _), arguments = as, returns = r }) = do
+checkPreHigherOrder ld es (FuncCall {funcName = (Name _ _ i _), arguments = as, returns = r }) = do
     config <- g2ConfigM
     SomeSolver solver <- liftIO $ initSolver config
-    time <- liftIO $ getCurrentTime
     let e = es !! (i - 1)
         e' = insertInLams (\_ in_e -> 
                                 case in_e of
@@ -789,7 +792,7 @@ checkPost ghci lrs fc hfc = do
     checkPost' ld fc hfc
 
 checkPost' :: (InfConfigM m, MonadIO m) => LiquidData -> FuncCall -> [HigherOrderFuncCall] -> m Bool
-checkPost' ld fc _ = checkPreOrPost' (zeroOutKeys . ls_posts) (\fc -> arguments fc ++ [returns fc]) ld fc
+checkPost' ld fc _ = checkPreOrPost' (zeroOutKeys . ls_posts) (\fc_ -> arguments fc_ ++ [returns fc_]) ld fc
 
 zeroOutKeys :: M.Map Name v -> M.Map Name v
 zeroOutKeys = M.mapKeys zeroOutName
@@ -801,9 +804,10 @@ checkPreOrPostLD :: (InfConfigM m, MonadIO m)
                  => [GhcInfo] -> LiquidReadyState -> FuncCall -> m LiquidData
 checkPreOrPostLD lrs ghci (FuncCall { funcName = Name n m _ _ }) = do
     config <- g2ConfigM
-    let config' = config { counterfactual = NotCounterfactual }
+    lhconfig <- g2lhConfigM
+    let lhconfig' = lhconfig { counterfactual = NotCounterfactual }
     -- We use the same function to instantiate this state as in runLHInferenceCore, so all the names line up
-    liftIO $ processLiquidReadyStateWithCall ghci lrs n m config' mempty
+    liftIO $ processLiquidReadyStateWithCall ghci lrs n m config lhconfig' mempty
 
 checkPreOrPost' :: (InfConfigM m, MonadIO m)
                => (LiquidData -> M.Map Name Expr) -> (FuncCall -> [Expr]) -> LiquidData -> FuncCall -> m Bool
@@ -814,7 +818,6 @@ checkPreOrPost' extract ars ld@(LiquidData { ls_state = s, ls_bindings = binding
     case checkFromMap ars (extract ld) cex s of
         Just s' -> do
             SomeSolver solver <- liftIO $ initSolver config
-            time <- liftIO $ getCurrentTime
             (fsl, _) <- liftIO $ genericG2Call config solver s' bindings
             liftIO $ close solver
 
@@ -882,7 +885,6 @@ type MaxMeasures = Int
 evalMeasures :: (InfConfigM m, ProgresserM m, MonadIO m) => MeasureExs -> LiquidReadyState -> [GhcInfo] -> [Expr] -> m MeasureExs
 evalMeasures init_meas lrs ghci es = do
     config <- g2ConfigM
-    let config' = config { counterfactual = NotCounterfactual }
 
     let memc = emptyMemConfig { pres_func = presMeasureNames }
     LiquidData { ls_state = s
@@ -897,7 +899,7 @@ evalMeasures init_meas lrs ghci es = do
         tot_meas = E.filter (isTotal (type_env s)) meas
 
     SomeSolver solver <- liftIO $ initSolver config
-    meas_res <- foldM (evalMeasures' (final_s {type_env = type_env s}) final_b solver config' tot_meas tcv) init_meas $ filter (not . isError) es
+    meas_res <- foldM (evalMeasures' (final_s {type_env = type_env s}) final_b solver config tot_meas tcv) init_meas $ filter (not . isError) es
     liftIO $ close solver
     return meas_res
     where
@@ -917,11 +919,11 @@ evalMeasures init_meas lrs ghci es = do
 isTotal :: TypeEnv -> Expr -> Bool
 isTotal tenv = getAll . evalASTs isTotal'
     where
-        isTotal' (Case i _ as)
+        isTotal' (Case i _ _ as)
             | TyCon n _:_ <- unTyApp (typeOf i)
-            , Just adt <- M.lookup n tenv =
+            , Just adt <- HM.lookup n tenv =
                 All (length (dataCon adt) == length (filter isDataAlt as))
-        isTotal' (Case _ _ _) = All False
+        isTotal' (Case _ _ _ _) = All False
         isTotal' _ = All True
 
         isDataAlt (G2.Alt (DataAlt _ _) _) = True
@@ -1006,7 +1008,7 @@ chainReturnType t ne =
     foldM (\(t', vms) et -> 
                 case filter notLH . anonArgumentTypes $ PresType et of
                     [at]
-                        | (True, vm) <- t' `specializes` at -> Just (applyTypeMap vm . returnType $ PresType et, vm:vms)
+                        | Just vm <- t' `specializes` at -> Just (applyTypeMap vm . returnType $ PresType et, vm:vms)
                     _ ->  Nothing) (t, []) (map typeOf $ reverse ne)
 
 notLH :: Type -> Bool

@@ -12,8 +12,8 @@ import G2.Language.KnownValues
 
 import qualified Data.Foldable as F
 import qualified Data.HashSet as S
+import qualified Data.HashMap.Lazy as HM
 import Data.List
-import qualified Data.Map as M
 import qualified Data.Text as T
 
 -- | createStructEqFuncs
@@ -49,11 +49,11 @@ createStructEqFuncs ts = do
     -- For efficiency, we only generate structural equality when it's needed
     let types = concatMap tcaNames $ filter isTyFun ts ++ (nubBy (.::.) $ argTypesTEnv tenv)
         fix_types = genReqTypes tenv S.empty types
-    let tenv' = M.filterWithKey (\n _ -> n `elem` fix_types) tenv
+    let tenv' = HM.filterWithKey (\n _ -> n `elem` fix_types) tenv
 
     insertT adtn (DataTyCon {bound_ids = [Id tyvn TYPE], data_cons = [dc]})
 
-    let (tenvK, tenvV) = unzip $ M.toList tenv'
+    let (tenvK, tenvV) = unzip $ HM.toList tenv'
 
     -- Create names for the new functions
     let ns = map (\(Name n _ _ _) -> Name ("structEq" `T.append` n) Nothing 0 Nothing) tenvK
@@ -63,7 +63,7 @@ createStructEqFuncs ts = do
     tc <- typeClasses
     tci <- freshIdN TYPE
 
-    ins <- genInsts tcn nsT t dc $ M.toList tenv'
+    ins <- genInsts tcn nsT t dc $ HM.toList tenv'
 
     let tc' = insertClass tcn (Class { insts = ins, typ_ids = [tci], superclasses = [] }) tc
     putTypeClasses tc'
@@ -78,7 +78,7 @@ genReqTypes tenv explored (n:ns) =
       else genReqTypes tenv explored' ns'
   where
     explored' = S.insert n explored
-    tenv_hits = case M.lookup n tenv of
+    tenv_hits = case HM.lookup n tenv of
         Nothing -> []
         Just r -> tcaNames r
     ns' = tenv_hits ++ ns
@@ -98,10 +98,11 @@ genExtractor t dc = do
     tb <- tyBoolT
     tyvn <- freshSeededStringN "a"
     let tyvn' = TyVar (Id tyvn TYPE)
-    fi <- freshIdN $ TyFun tyvn' (TyFun tyvn' tb)
+        ret_t = TyFun tyvn' (TyFun tyvn' tb)
+    fi <- freshIdN ret_t
 
     let alt = Alt (DataAlt dc [fi]) $ Var fi
-    let e = Lam TypeL (Id tyvn TYPE) $ Lam TermL lami $ Case (Var lami) ci $ [alt]
+    let e = Lam TypeL (Id tyvn TYPE) $ Lam TermL lami $ Case (Var lami) ci ret_t $ [alt]
 
     extractN <- freshSeededStringN "structEq"
 
@@ -194,7 +195,9 @@ createStructEqFuncDC t bt bd bm dc = do
 
     alts <- mapM (createStructEqFuncDCAlt (Var lam2I) t bm) dc
 
-    let e = Lam TermL lam1I $ Lam TermL lam2I $ Case (Var lam1I) b1 alts
+    boolT <- tyBoolT
+
+    let e = Lam TermL lam1I $ Lam TermL lam2I $ Case (Var lam1I) b1 boolT alts
     let e' = mkLams (map (TermL,) bd) e
     return $ mkLams (map (TypeL,) bt) e'
 
@@ -212,7 +215,9 @@ createStructEqFuncDCAlt e2 t bm dc@(DataCon _ _) = do
     let alt2 = Alt (DataAlt dc bs2) sEqCheck
     let altD = Alt Default false
 
-    return $ Alt (DataAlt dc bs) (Case e2 b [alt2, altD])
+    boolT <- tyBoolT
+
+    return $ Alt (DataAlt dc bs) (Case e2 b boolT [alt2, altD])
 
 boundChecks :: ExState s m => [Id] -> [Id] -> [(Name, (Id, Id))] -> m Expr
 boundChecks is1 is2 bm = do
@@ -297,7 +302,7 @@ structEqFuncType kv n =
         dict = structEqTC kv
         bool = L.tyBool kv
     in
-    TyForAll (NamedTyBndr i)
+    TyForAll i
         (TyFun (TyCon dict TYPE) 
             (TyFun (TyVar i) 
                 (TyFun (TyVar i) bool)

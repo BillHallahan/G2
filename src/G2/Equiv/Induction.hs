@@ -11,13 +11,8 @@ module G2.Equiv.Induction
 
 import G2.Language
 
-import G2.Config
-
-import G2.Interface
-
 import qualified G2.Language.ExprEnv as E
 
-import Data.List
 import Data.Maybe
 import Data.Tuple
 import qualified Data.Text as DT
@@ -25,25 +20,13 @@ import qualified Data.Text as DT
 import qualified Data.HashSet as HS
 import qualified G2.Solver as S
 
-import G2.Equiv.InitRewrite
-import G2.Equiv.EquivADT
 import G2.Equiv.G2Calls
 import G2.Equiv.Tactics
 
 import qualified Data.HashMap.Lazy as HM
-import G2.Execution.Memory
 import Data.Monoid (Any (..))
 
-import Debug.Trace
-
-import G2.Execution.NormalForms
-import Control.Monad
-
 import Data.Either.Extra
-import Data.Time
-
-import G2.Execution.Reducer
-import G2.Lib.Printers
 
 import qualified Control.Monad.Writer.Lazy as W
 
@@ -69,9 +52,9 @@ empty_name = Name (DT.pack "") Nothing 1 Nothing
 -- the output list includes entries for case statements with no stamp
 readStamps :: Expr -> [Name]
 readStamps (Tick _ e) = readStamps e
-readStamps (Case e i a) =
+readStamps (Case e _ _ a) =
   case a of
-    (Alt am1 a1):_ -> case a1 of
+    (Alt _ a1):_ -> case a1 of
       Tick (NamedLoc n) _ -> n:(readStamps e)
       _ -> empty_name:(readStamps e)
     _ -> error "Empty Alt List"
@@ -79,20 +62,20 @@ readStamps _ = []
 
 innerScrutinees :: Expr -> [Expr]
 innerScrutinees (Tick _ e) = innerScrutinees e
-innerScrutinees e@(Case e' _ _) = e:(innerScrutinees e')
+innerScrutinees e@(Case e' _ _ _) = e:(innerScrutinees e')
 innerScrutinees e = [e]
 
 replaceScrutinee :: Expr -> Expr -> Expr -> Expr
 replaceScrutinee e1 e2 e | e1 == e = e2
 replaceScrutinee e1 e2 (Tick nl e) = Tick nl (replaceScrutinee e1 e2 e)
-replaceScrutinee e1 e2 (Case e i a) = Case (replaceScrutinee e1 e2 e) i a
+replaceScrutinee e1 e2 (Case e i t a) = Case (replaceScrutinee e1 e2 e) i t a
 replaceScrutinee _ _ e = e
 
 -- checking for depth of first expression within second
 scrutineeDepth :: Expr -> Expr -> Int
 scrutineeDepth e1 e2 | e1 == e2 = 0
 scrutineeDepth e1 (Tick _ e) = scrutineeDepth e1 e
-scrutineeDepth e1 (Case e i a) = 1 + scrutineeDepth e1 e
+scrutineeDepth e1 (Case e _ _ _) = 1 + scrutineeDepth e1 e
 scrutineeDepth _ _ = error "Not Contained"
 
 -- the depths do not need to be the same
@@ -176,7 +159,7 @@ inductionL solver ns prev (s1, s2) = do
 -- TODO be more generous instead; try induction whenever there's a Case
 caseRecursion :: Expr -> Bool
 caseRecursion (Tick _ e) = caseRecursion e
-caseRecursion (Case e _ _) =
+caseRecursion (Case e _ _ _) =
   (getAny . evalASTs (\e' -> Any $ caseRecHelper e')) e
 caseRecursion _ = False
 
@@ -223,24 +206,25 @@ induction solver ns prev (s1, s2) | caseRecursion (exprExtract s1)
 -- varies between attempts.
 inductionFoldL :: S.Solver solver =>
                   solver ->
+                  Int ->
                   HS.HashSet Name ->
                   Name ->
                   (StateH, StateH) ->
                   (StateET, StateET) ->
                   W.WriterT [Marker] IO (Maybe (Int, StateET, StateET, IndMarker))
-inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2) = do
+inductionFoldL solver num_lemmas ns fresh_name (sh1, sh2) (s1, s2) = do
   let prev = prevFiltered (sh1, sh2)
   ind <- induction solver ns prev (s1, s2)
   case ind of
     Nothing -> case backtrackOne sh2 of
       Nothing -> return Nothing
-      Just sh2' -> inductionFoldL solver ns fresh_name (sh1, sh2') (s1, latest sh2')
+      Just sh2' -> inductionFoldL solver num_lemmas ns fresh_name (sh1, sh2') (s1, latest sh2')
     Just (s1', s2', im) -> do
       g <- generalize solver ns fresh_name (s1', s2')
       case g of
         Nothing -> case backtrackOne sh2 of
           Nothing -> return Nothing
-          Just sh2' -> inductionFoldL solver ns fresh_name (sh1, sh2') (s1, latest sh2')
+          Just sh2' -> inductionFoldL solver num_lemmas ns fresh_name (sh1, sh2') (s1, latest sh2')
         Just (s1'', s2'') -> return $ Just (length $ history sh2, s1'', s2'', im)
 
 -- TODO somewhat crude solution:  record how "far back" it needed to go
@@ -256,13 +240,14 @@ inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2) = do
 -- requirement instead?
 inductionFold :: S.Solver solver =>
                  solver ->
+                 Int ->
                  HS.HashSet Name ->
                  Name ->
                  (StateH, StateH) ->
                  (StateET, StateET) ->
                  W.WriterT [Marker] IO (Maybe ((Int, Int), StateET, StateET))
-inductionFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
-  fl <- inductionFoldL solver ns fresh_name (sh1, sh2) (s1, s2)
+inductionFold solver num_lemmas ns fresh_name (sh1, sh2) (s1, s2) = do
+  fl <- inductionFoldL solver num_lemmas ns fresh_name (sh1, sh2) (s1, s2)
   case fl of
     Just (nl, s1l, s2l, iml) -> do
       W.liftIO $ putStrLn $ "IL " ++ show (map (folder_name . track) [s1, s2, s1l, s2l])
@@ -273,7 +258,7 @@ inductionFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
       W.tell $ [Marker (sh1, sh2) $ Induction iml']
       return $ Just ((0, (length $ history sh2) - nl), s1l, s2l)
     Nothing -> do
-      fr <- inductionFoldL solver ns fresh_name (sh2, sh1) (s2, s1)
+      fr <- inductionFoldL solver num_lemmas ns fresh_name (sh2, sh1) (s2, s1)
       case fr of
         Just (nr, s2r, s1r, imr) -> do
           W.liftIO $ putStrLn $ "IR " ++ show (map (folder_name . track) [s1, s2, s1r, s2r])
@@ -293,7 +278,7 @@ generalizeAux :: S.Solver solver =>
                  W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
 generalizeAux solver ns s1_list s2 = do
   -- TODO add lemmas here later?
-  let check_equiv s1_ = moreRestrictiveEqual solver ns emptyLemmas s1_ s2
+  let check_equiv s1_ = moreRestrictiveEqual solver 0 ns emptyLemmas s1_ s2
   res <- mapM check_equiv s1_list
   let res' = filter isJust res
   case res' of
@@ -338,7 +323,6 @@ generalize solver ns fresh_name (s1, s2) | dc_path (track s1) == dc_path (track 
   let res' = filter isJust res
   case res' of
     (Just pm):_ -> let (s1', s2') = present pm
-                       e1' = exprExtract s1'
                        s1'' = adjustStateForGeneralization e1 fresh_name s1'
                        s2'' = adjustStateForGeneralization e2 fresh_name s2'
                    in return $ Just $ syncSymbolic s1'' s2''
@@ -349,12 +333,12 @@ generalize solver ns fresh_name (s1, s2) | dc_path (track s1) == dc_path (track 
 -- TODO might not matter with s1 and s2 naming
 -- TODO needs at least one fresh name
 inductionFull :: S.Solver s => Tactic s
-inductionFull solver ns _ (fresh_name:_) sh_pair s_pair = do
-  ifold <- inductionFold solver ns fresh_name sh_pair s_pair
+inductionFull solver num_lemmas ns _ (fresh_name:_) sh_pair s_pair = do
+  ifold <- inductionFold solver num_lemmas ns fresh_name sh_pair s_pair
   case ifold of
     Nothing -> return $ NoProof []
     Just ((n1, n2), s1', s2') -> return $ Success (Just (n1, n2, s1', s2'))
-inductionFull _ _ _ _ _ _ = return $ NoProof []
+inductionFull _ _ _ _ _ _ _ = return $ NoProof []
 
 -- TODO new functions for generalization without induction
 generalizeFoldL :: S.Solver solver =>
@@ -385,7 +369,7 @@ generalizeFold :: S.Solver solver =>
 generalizeFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
   fl <- generalizeFoldL solver ns fresh_name (s2:history sh2) s1
   case fl of
-    Just (q1, q2, q1', q2') -> return fl
+    Just _ -> return fl
     Nothing -> do
       fr <- generalizeFoldL solver ns fresh_name (s1:history sh1) s2
       case fr of
@@ -395,10 +379,10 @@ generalizeFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
 -- TODO this should come before induction in the list of tactics
 -- TODO this uses the same fresh name that induction uses currently
 generalizeFull :: S.Solver s => Tactic s
-generalizeFull solver ns _ (fresh_name:_) sh_pair s_pair = do
+generalizeFull solver _ ns _ (fresh_name:_) sh_pair s_pair = do
   gfold <- generalizeFold solver ns fresh_name sh_pair s_pair
   case gfold of
     Nothing -> return $ NoProof []
     Just (s1, s2, q1, q2) -> let lem = mkProposedLemma "Generalization" s1 s2 q1 q2
                              in return $ NoProof $ [lem]
-generalizeFull _ _ _ _ _ _ = return $ NoProof []
+generalizeFull _ _ _ _ _ _ _ = return $ NoProof []

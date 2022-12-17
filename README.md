@@ -7,21 +7,15 @@ It is capable of generating assertion failure counterexamples and solving for hi
 ---
 
 #### Dependencies
-* GHC 8.2.2: https://www.haskell.org/ghc/
-* Custom Haskell Standard Library: https://github.com/AntonXue/base-4.9.1.0
+* GHC 8.2.2, 8.6.5, or 8.10.7: https://www.haskell.org/ghc/
+* Custom Haskell Standard Library: https://github.com/BillHallahan/base-4.9.1.0
 * Z3 SMT Solver: https://github.com/Z3Prover/z3
 
 ---
 #### Setup:
-1) Install GHC 8.2.2 (other GHC 8 versions might also work)
-2) Install Z3
-3) Either:
-
-  a) Pull the Custom Haskell Standard Library into ~/.g2 by running `bash base_setup.sh` 
-
-  b) Manually pull the base library.  Add a file to the G2 folder, called g2.cfg that contains:
-		`base = /path/to/custom/library`
-
+1) Install GHC 8.2.2, 8.6.5, or 8.10.7.
+2) Install Z3.  Ensure Z3 is in your system's path.
+3) Pull the Custom Haskell Standard Library into ~/.g2 by running `bash base_setup.sh`.
 
 ---
 #### Command line:
@@ -32,7 +26,7 @@ It is capable of generating assertion failure counterexamples and solving for hi
 
 ###### LiquidHaskell:
 
-`cabal run G2 -- --liquid ./tests/Liquid/Peano.hs --liquid-func add`
+`cabal run G2LH ./tests/Liquid/Peano.hs add`
 
 ###### Arguments:
 

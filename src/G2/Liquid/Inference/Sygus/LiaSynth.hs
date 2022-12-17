@@ -28,6 +28,7 @@ import G2.Liquid.Inference.FuncConstraint
 import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.GeneratedSpecs
 import G2.Liquid.Inference.PolyRef
+import G2.Liquid.Inference.UnionPoly
 import G2.Liquid.Inference.Sygus.FCConverter
 import G2.Liquid.Inference.Sygus.SpecInfo
 
@@ -35,7 +36,7 @@ import G2.Solver as Solver
 
 import Control.Monad.IO.Class 
 
-import Language.Haskell.Liquid.Types as LH hiding (SP, ms, isBool)
+import Language.Haskell.Liquid.Types as LH hiding (SP, ms, isBool, diff, fresh)
 import Language.Fixpoint.Types.Refinements as LH hiding (pAnd, pOr)
 import qualified Language.Fixpoint.Types as LH
 import qualified Language.Fixpoint.Types as LHF
@@ -46,8 +47,8 @@ import qualified Data.List as L
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
 import qualified Text.Builder as TB
+import qualified Data.Text.IO as T
 
 data SynthRes = SynthEnv
                   GeneratedSpecs -- ^ The synthesized specifications
@@ -63,9 +64,10 @@ data Iteration = FirstRound | AfterFirstRound
 liaSynth :: (InfConfigM m, ProgresserM m, MonadIO m, SMTConverter con)
          => con -> Iteration -> [GhcInfo] -> LiquidReadyState -> Evals Bool -> MeasureExs
          -> FuncConstraints
+         -> UnionedTypes
          -> BlockedModels -- ^ SMT Models to block being returned by the synthesizer at various sizes
          -> ToBeNames -> ToSynthNames -> m SynthRes
-liaSynth con iter ghci lrs evals meas_ex fc blk_mdls to_be_ns ns_synth = do
+liaSynth con iter ghci lrs evals meas_ex fc ut blk_mdls to_be_ns ns_synth = do
 
     -- Figure out the type of each of the functions we need to synthesize
     let eenv = buildNMExprEnv $ expr_env . state $ lr_state lrs
@@ -73,7 +75,7 @@ liaSynth con iter ghci lrs evals meas_ex fc blk_mdls to_be_ns ns_synth = do
         tc = type_classes . state $ lr_state lrs
         meas = lrsMeasures ghci lrs
 
-    si <- buildSpecInfo eenv tenv tc meas ghci fc to_be_ns ns_synth
+    si <- buildSpecInfo eenv tenv tc meas ghci fc ut to_be_ns ns_synth
 
     liftIO . putStrLn $ "si = " ++ show si
 
@@ -372,7 +374,7 @@ synth' con ghci eenv tenv meas meas_ex evals m_si fc headers drop_if_unknown blk
 
     liftIO $ if not (null drop_if_unknown) then putStrLn "non empty drop_if_unknown" else return ()
 
-    result <- return . adjustRes =<< liftIO (runConstraintsForSynth hdrs n_for_m)
+    result <- return . adjustRes =<< runConstraintsForSynth hdrs n_for_m
 
     case result of
         SAT mdl -> do
@@ -398,35 +400,52 @@ synth' con ghci eenv tenv meas meas_ex evals m_si fc headers drop_if_unknown blk
         adjustRes (UNSAT uc) = UNSAT uc
         adjustRes (Unknown e ()) = Unknown e Nothing
 
-runConstraintsForSynth :: [SMTHeader] -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
+runConstraintsForSynth :: (InfConfigM m, MonadIO m)
+                       => [SMTHeader] -> [(SMTName, Sort)] -> m (Result SMTModel UnsatCore ())
 runConstraintsForSynth headers vs = do
-    z3_dir <- getZ3 100000
-    z3_max <- mkMaximizeSolver =<< getZ3 50000
+    inf_con <- infConfigM
+    if use_binary_minimization inf_con
+        then do
+            z3_dir <- liftIO $ getZ3 100000
+            z3_max <-liftIO $ mkMaximizeSolver =<< getZ3 50000
 
-    setProduceUnsatCores z3_dir
-    setProduceUnsatCores z3_max
+            liftIO $ setProduceUnsatCores z3_dir
+            liftIO $ setProduceUnsatCores z3_max
 
-    -- T.putStrLn (TB.run $ toSolverText headers)
-    addFormula z3_dir headers
-    addFormula z3_max headers
+            -- liftIO $ T.putStrLn (TB.run $ toSolverText headers)
+            liftIO $ addFormula z3_dir headers
+            liftIO $ addFormula z3_max headers
 
-    checkSatInstr z3_dir
-    checkSatInstr z3_max
+            liftIO $ checkSatInstr z3_dir
+            liftIO $ checkSatInstr z3_max
+            
+            res <- liftIO $ waitForRes2 Nothing Nothing z3_dir z3_max vs
 
-    res <- waitForRes Nothing Nothing z3_dir z3_max vs
+            liftIO $ closeIO z3_dir
+            liftIO $ closeIO z3_max
 
-    closeIO z3_dir
-    closeIO z3_max
+            return res
+        else do
+            z3_dir <- liftIO $ getZ3 100000
 
-    return res
+            liftIO $ setProduceUnsatCores z3_dir
+            liftIO $ addFormula z3_dir headers
+            liftIO $ checkSatInstr z3_dir
+            
+            res <- liftIO $ waitForRes z3_dir vs
 
-waitForRes :: (SMTConverter s1, SMTConverter s2) =>
-              Maybe (Result () () ()) -- ^ Nothing, or an unknown returned by Solver 1
-           -> Maybe (Result () () ()) -- ^ Nothing, or an unknown returned by Solver 2
-           -> s1
-           -> s2
-           -> [(SMTName, Sort)] -> IO (Result SMTModel UnsatCore ())
-waitForRes m_res1 m_res2 s1 s2 vs = do
+            liftIO $ closeIO z3_dir
+
+            return res
+
+waitForRes2 :: (SMTConverter s1, SMTConverter s2) =>
+               Maybe (Result () () ()) -- ^ Nothing, or an unknown returned by Solver 1
+            -> Maybe (Result () () ()) -- ^ Nothing, or an unknown returned by Solver 2
+            -> s1
+            -> s2
+            -> [(SMTName, Sort)]
+            -> IO (Result SMTModel UnsatCore ())
+waitForRes2 m_res1 m_res2 s1 s2 vs = do
     res1 <- maybe (maybeCheckSatResult s1) (return . Just) m_res1
     res2 <- maybe (maybeCheckSatResult s2) (return . Just) m_res2
 
@@ -441,20 +460,31 @@ waitForRes m_res1 m_res2 s1 s2 vs = do
             getModelOrUnsatCore s2 vs res2'
         (Just (Unknown err1 ()), Just (Unknown err2 ())) -> do
             return $ Unknown (err1 ++ "\n" ++ err2) ()
-        _ -> waitForRes res1 res2 s1 s2 vs
+        _ -> waitForRes2 res1 res2 s1 s2 vs
     where
         isSatOrUnsat (SAT _) = True
         isSatOrUnsat (UNSAT _) = True
         isSatOrUnsat _ = False
 
+waitForRes :: SMTConverter s =>
+              s
+           -> [(SMTName, Sort)]
+           -> IO (Result SMTModel UnsatCore ())
+waitForRes s vs = do
+    res <- maybeCheckSatResult s
+
+    case res of
+        Just res' -> getModelOrUnsatCore s vs res'
+        _ -> waitForRes s vs
+
 getModelOrUnsatCore :: SMTConverter smt => smt -> [(SMTName, Sort)] -> Result () () () -> IO (Result SMTModel UnsatCore ())
 getModelOrUnsatCore con vs (SAT ()) = do
     mdl <- getModelInstrResult con vs
     return (SAT mdl)
-getModelOrUnsatCore con vs (UNSAT ()) = do
+getModelOrUnsatCore con _ (UNSAT ()) = do
     uc <- getUnsatCoreInstrResult con
     return (UNSAT uc)
-getModelOrUnsatCore con vs (Unknown err ()) = return (Unknown err ())
+getModelOrUnsatCore _ _ (Unknown err ()) = return (Unknown err ())
 
 -- | Extract Integer literals from a LH expression
 exprIntegers :: LHF.Expr -> [Integer]
@@ -607,7 +637,7 @@ filterRelOpBranch :: SynthSpec -> SMTModel -> SMTModel
 filterRelOpBranch si mdl =
     let
         clauses = sy_coeffs si
-        coeffs = concatMap snd clauses
+        coeff_nms = concatMap snd clauses
     in
     -- If we are not using a clause, we don't care about c_op_branch1 and c_op_branch2
     -- If we are using a clause but c_op_branch1 is true, we don't care about c_op_branch2
@@ -616,7 +646,7 @@ filterRelOpBranch si mdl =
                   M.delete (c_op_branch2 form) $ M.delete (c_op_branch1 form) mdl_
               | M.lookup (c_op_branch1 form) mdl == Just (VBool True) ->
                   M.delete (c_op_branch2 form) mdl_
-              | otherwise -> mdl) mdl coeffs
+              | otherwise -> mdl) mdl coeff_nms
 
 -- | Create specification definitions corresponding to previously rejected models,
 -- and add assertions that the new synthesized specification definition must
@@ -697,7 +727,10 @@ checkModelIsNewFunc' con si mdl1 mdl2 = do
     case r of
         SAT _ -> return True
         UNSAT _ -> return False
-        Unknown _ _ -> error "checkModelIsNewFunc': unknown result"
+        -- If we get a result of Unknown, we might as well optimistically assume that the model is new
+        Unknown _ _ -> do
+            liftIO $ putStrLn "checkModelIsNewFunc' unknown result"
+            return True
 
 defineModelLIAFuns :: SMTModel -> SpecInfo -> [SMTHeader]
 defineModelLIAFuns mdl si =
@@ -1108,7 +1141,7 @@ constraintsToSMT eenv tenv meas meas_ex evals si fc =
 convertExprToSMT :: G2.Expr -> SMTAST
 convertExprToSMT e = 
     case e of
-        (App (App (Data (DataCon (Name n _ _ _) _)) _) ls)
+        (App (App (Data (DataCon _ _)) _) ls)
             | Just is <- extractInts ls ->
                 foldr (\i arr -> ArrayStore arr (VInt i) (VBool True)) falseArray is
         _ -> exprToSMT e
@@ -1117,7 +1150,7 @@ extractInts :: G2.Expr -> Maybe [Integer]
 extractInts (App (App (App (Data _ ) (Type _)) (App _ (Lit (LitInt i)))) xs) =
     return . (i:) =<< extractInts xs
 extractInts (App (Data _) _) = Just []
-extractInts e = Nothing
+extractInts _ = Nothing
 
 ---
 

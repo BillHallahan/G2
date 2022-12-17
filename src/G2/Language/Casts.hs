@@ -53,7 +53,7 @@ splitCast ng (Cast e ((TyFun t1 t2) :~ (TyFun t1' t2'))) =
                 )
     in
     (e', ng')
-splitCast ng (Cast e ((TyForAll (NamedTyBndr ni) t2) :~ (TyForAll (NamedTyBndr ni') t2'))) =
+splitCast ng (Cast e ((TyForAll ni t2) :~ (TyForAll ni' t2'))) =
     let
         t1 = typeOf ni
         t1' = typeOf ni'
@@ -66,7 +66,7 @@ splitCast ng (Cast e ((TyForAll (NamedTyBndr ni) t2) :~ (TyForAll (NamedTyBndr n
                         e
                         (Cast (Var i) (t1 :~ t1'))
                     )
-                    (t2 :~ t2')
+                    (rename (idName ni) (idName i) t2 :~ rename (idName ni') (idName i) t2')
                 )
     in
     (e', ng')
@@ -97,7 +97,7 @@ liftCasts' a@(App _ _) =  liftCasts'' a
 liftCasts' e = e
 
 liftCasts'' :: Expr-> Expr
-liftCasts'' (App (Cast f (TyForAll (NamedTyBndr b1) t1 :~ TyForAll (NamedTyBndr b2) t2)) e@(Type t)) =
+liftCasts'' (App (Cast f (TyForAll b1 t1 :~ TyForAll b2 t2)) e@(Type t)) =
     let
         t1' = retype b1 t t1
         t2' = retype b2 t t2

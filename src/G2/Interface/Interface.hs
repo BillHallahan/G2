@@ -7,9 +7,7 @@ module G2.Interface.Interface ( MkCurrExpr
                               , doTimeout
                               , maybeDoTimeout
 
-                              , initState
                               , initStateWithCall
-                              , initState'
                               , initStateWithCall'
                               , initStateFromSimpleState
                               , initStateFromSimpleState'
@@ -68,7 +66,6 @@ import qualified G2.Language.Stack as Stack
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
-import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
@@ -115,17 +112,7 @@ initStateWithCall exg2 useAssert f m_mod mkCurr argTys config =
                         Left ie' -> ie'
                         Right errs -> error errs
     in
-    initStateFromSimpleState s useAssert (mkCurr ie) (argTys fe) config
-
-{-# INLINE initState #-}
-initState :: ExtractedG2 -> Bool
-          -> MkCurrExpr -> MkArgTypes
-          -> Config -> (State (), Bindings)
-initState exg2 useAssert mkCurr argTys config =
-    let
-        s = initSimpleState exg2
-    in
-    initStateFromSimpleState s useAssert mkCurr argTys config
+    initStateFromSimpleState s m_mod useAssert (mkCurr ie) (argTys fe) config
 
 {-# INLINE initStateWithCall' #-}
 initStateWithCall' :: ExtractedG2
@@ -137,15 +124,6 @@ initStateWithCall' :: ExtractedG2
                    -> (State (), Bindings)
 initStateWithCall' exg2 =
     initStateWithCall exg2 False
-
-{-# INLINE initState' #-}
-initState' :: ExtractedG2
-           -> MkCurrExpr
-           -> MkArgTypes
-           -> Config
-           -> (State (), Bindings)
-initState' exg2 mkCurr =
-    initState exg2 False mkCurr
 
 {-# INLINE initStateFromSimpleStateWithCall #-}
 initStateFromSimpleStateWithCall :: IT.SimpleState
@@ -162,17 +140,18 @@ initStateFromSimpleStateWithCall simp_s useAssert f m_mod mkCurr argTys config =
                         Left ie' -> ie'
                         Right errs -> error errs
     
-        (s, b) = initStateFromSimpleState simp_s useAssert (mkCurr ie) (argTys fe) config
+        (s, b) = initStateFromSimpleState simp_s m_mod useAssert (mkCurr ie) (argTys fe) config
     in
     (s, ie, b)
 
 initStateFromSimpleState :: IT.SimpleState
+                         -> Maybe T.Text
                          -> Bool
                          -> MkCurrExpr
                          -> MkArgTypes
                          -> Config
                          -> (State (), Bindings)
-initStateFromSimpleState s useAssert mkCurr argTys config =
+initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     let
         (s', ds_walkers) = runInitialization2 s argTys
         eenv' = IT.expr_env s'
@@ -206,7 +185,7 @@ initStateFromSimpleState s useAssert mkCurr argTys config =
     , arb_value_gen = arbValueInit
     , cleaned_names = HM.empty
     , input_names = map idName is
-    , higher_order_inst = S.fromList $ IT.exports s
+    , higher_order_inst = S.filter (\n -> nameModule n == m_mod) . S.fromList $ IT.exports s
     , rewrite_rules = IT.rewrite_rules s
     , name_gen = ng''
     , exported_funcs = IT.exports s })
@@ -227,7 +206,7 @@ initStateFromSimpleState' s sf m_mod =
                           Left ie' -> ie'
                           Right errs -> error errs
     in
-    initStateFromSimpleState s False (mkCurrExpr Nothing Nothing ie) (mkArgTys fe)
+    initStateFromSimpleState s m_mod False (mkCurrExpr Nothing Nothing ie) (mkArgTys fe)
 
 {-# INLINE initSimpleState #-}
 initSimpleState :: ExtractedG2
@@ -238,7 +217,7 @@ initSimpleState (ExtractedG2 { exg2_binds = prog
                              , exg2_exports = es
                              , exg2_rules = rs }) =
     let
-        eenv = mkExprEnv prog
+        eenv = E.fromExprMap prog
         tenv = mkTypeEnv prog_typ
         tc = initTypeClasses cls
         kv = initKnownValues eenv tenv tc
@@ -304,36 +283,31 @@ initSolver' avf config = do
     let con' = GroupRelated avf (UndefinedHigherOrder :?> (ADTNumericalSolver avf con))
     return (SomeSolver con')
 
-mkExprEnv :: [(Id, Expr)] -> E.ExprEnv
-mkExprEnv = E.fromExprList . map (\(i, e) -> (idName i, e))
-
-mkTypeEnv :: [ProgramType] -> TypeEnv
-mkTypeEnv = M.fromList . map (\(n, dcs) -> (n, dcs))
+mkTypeEnv :: HM.HashMap Name AlgDataTy -> TypeEnv
+mkTypeEnv = id
 
 {-# INLINE initialStateFromFileSimple #-}
 initialStateFromFileSimple :: [FilePath]
-                   -> [FilePath]
                    -> [FilePath]
                    -> StartFunc
                    -> (Id -> MkCurrExpr)
                    -> (Expr -> MkArgTypes)
                    -> Config
                    -> IO (State (), Id, Bindings)
-initialStateFromFileSimple proj src libs f mkCurr argTys config =
-    initialStateFromFile proj src libs Nothing False f mkCurr argTys simplTranslationConfig config
+initialStateFromFileSimple proj src f mkCurr argTys config =
+    initialStateFromFile proj src Nothing False f mkCurr argTys simplTranslationConfig config
 
 initialStateNoStartFunc :: [FilePath]
-                     -> [FilePath]
                      -> [FilePath]
                      -> TranslationConfig
                      -> Config
                      -> IO (State (), Bindings)
-initialStateNoStartFunc proj src libs transConfig config = do
-    (_, exg2) <- translateLoaded proj src libs transConfig config
+initialStateNoStartFunc proj src transConfig config = do
+    (m_mod, exg2) <- translateLoaded proj src transConfig config
 
     let simp_state = initSimpleState exg2
 
-        (init_s, bindings) = initStateFromSimpleState simp_state False
+        (init_s, bindings) = initStateFromSimpleState simp_state m_mod False
                                  (\_ ng _ _ _ _ _ -> (Prim Undefined TyBottom, [], [], ng))
                                  (E.higherOrderExprs . IT.expr_env)
                                  config
@@ -341,7 +315,6 @@ initialStateNoStartFunc proj src libs transConfig config = do
     return (init_s, bindings)
 
 initialStateFromFile :: [FilePath]
-                     -> [FilePath]
                      -> [FilePath]
                      -> Maybe ReachFunc
                      -> Bool
@@ -351,15 +324,15 @@ initialStateFromFile :: [FilePath]
                      -> TranslationConfig
                      -> Config
                      -> IO (State (), Id, Bindings)
-initialStateFromFile proj src libs m_reach def_assert f mkCurr argTys transConfig config = do
-    (mb_modname, exg2) <- translateLoaded proj src libs transConfig config
+initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig config = do
+    (mb_modname, exg2) <- translateLoaded proj src transConfig config
 
     let simp_state = initSimpleState exg2
         (ie, fe) = case findFunc f mb_modname (IT.expr_env simp_state) of
                         Left ie' -> ie'
                         Right errs -> error errs
 
-        (init_s, bindings) = initStateFromSimpleState simp_state def_assert
+        (init_s, bindings) = initStateFromSimpleState simp_state mb_modname def_assert
                                                   (mkCurr ie) (argTys fe) config
     -- let (init_s, ent_f, bindings) = initState exg2 def_assert
     --                                 f mb_modname mkCurr argTys config
@@ -369,7 +342,6 @@ initialStateFromFile proj src libs m_reach def_assert f mkCurr argTys transConfi
 
 runG2FromFile :: [FilePath]
               -> [FilePath]
-              -> [FilePath]
               -> Maybe AssumeFunc
               -> Maybe AssertFunc
               -> Maybe ReachFunc
@@ -378,8 +350,8 @@ runG2FromFile :: [FilePath]
               -> TranslationConfig
               -> Config
               -> IO (([ExecRes ()], Bindings), Id)
-runG2FromFile proj src libs m_assume m_assert m_reach def_assert f transConfig config = do
-    (init_state, entry_f, bindings) <- initialStateFromFile proj src libs
+runG2FromFile proj src m_assume m_assert m_reach def_assert f transConfig config = do
+    (init_state, entry_f, bindings) <- initialStateFromFile proj src
                                     m_reach def_assert f (mkCurrExpr m_assume m_assert) (mkArgTys)
                                     transConfig config
 
@@ -464,7 +436,7 @@ runG2SolvingResult :: ( Named t
                    -> Bindings
                    -> State t
                    -> IO (Result (ExecRes t) () ())
-runG2SolvingResult solver simplifier bindings s@(State { known_values = kv })
+runG2SolvingResult solver simplifier bindings s
     | true_assert s = do
         r <- solve solver s bindings (E.symbolicIds . expr_env $ s) (path_conds s)
 
@@ -473,7 +445,7 @@ runG2SolvingResult solver simplifier bindings s@(State { known_values = kv })
                 let m' = reverseSimplification simplifier s bindings m
                 return . SAT $ runG2SubstModel m' s bindings
             UNSAT _ -> return $ UNSAT ()
-            Unknown s _ -> return $ Unknown s ()
+            Unknown reason _ -> return $ Unknown reason ()
 
     | otherwise = return $ UNSAT ()
 
@@ -488,7 +460,7 @@ runG2Solving :: ( Named t
 runG2Solving solver simplifier bindings s = do
     res <- runG2SolvingResult solver simplifier bindings s
     case res of
-        SAT s -> return $ Just s
+        SAT m -> return $ Just m
         _ -> return Nothing
 
 runG2SubstModel :: Named t =>
@@ -496,7 +468,7 @@ runG2SubstModel :: Named t =>
                    -> State t
                    -> Bindings
                    -> ExecRes t
-runG2SubstModel m s@(State { known_values = kv }) bindings =
+runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
     let
         s' = s { model = m }
 
@@ -510,8 +482,8 @@ runG2SubstModel m s@(State { known_values = kv }) bindings =
 
         sm'' = ExecRes { final_state = final_state sm'
                        , conc_args = fixed_inputs bindings ++ conc_args sm'
-                       , conc_out = evalPrims kv (conc_out sm')
-                       , violated = evalPrims kv (violated sm')}
+                       , conc_out = evalPrims tenv kv (conc_out sm')
+                       , violated = evalPrims tenv kv (violated sm')}
     in
     sm''
 

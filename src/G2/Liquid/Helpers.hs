@@ -43,13 +43,11 @@ import GHC as GHC
 import Name
 import Var as V
 
-import Debug.Trace
-
 -- | Interface with LH
-getGHCInfos :: LHC.Config -> [FilePath] -> [FilePath] -> [FilePath] -> IO [GhcInfo]
-getGHCInfos config proj fp lhlibs = do
-    let config' = config {idirs = idirs config ++ proj ++ lhlibs
-                         , files = files config ++ lhlibs
+getGHCInfos :: LHC.Config -> [FilePath] -> [FilePath] -> IO [GhcInfo]
+getGHCInfos config proj fp = do
+    let config' = config {idirs = idirs config ++ proj
+                         , files = files config
                          , ghcOptions = ["-v"]}
 
     -- GhcInfo
@@ -149,8 +147,8 @@ namesEq :: GHC.Name -> G2.Name -> Bool
 namesEq ghc_n (Name n m _ _) =
     T.pack (occNameString $ nameOccName ghc_n) == n
         && (case nameModule_maybe ghc_n of
-                Just mod ->
-                    Just (T.pack . moduleNameString . moduleName $ mod) == m
+                Just m' ->
+                    Just (T.pack . moduleNameString . moduleName $ m') == m
                 Nothing -> m == Nothing)
 
 measureSpecs :: [GhcInfo] -> [Measure SpecType GHC.DataCon]
@@ -166,7 +164,7 @@ measureSymbols :: [GhcInfo] -> MeasureSymbols
 measureSymbols = MeasureSymbols . measureNames
 
 measureNames :: [GhcInfo] -> [Symbol]
-#if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
+#if MIN_VERSION_liquidhaskell(0,8,6)
 measureNames = map (val . msName) . measureSpecs
 #else
 measureNames = map (val . name) . measureSpecs

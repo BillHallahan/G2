@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -16,7 +17,6 @@ import G2.Language.Typing
 import Control.Monad
 
 import qualified Data.HashMap.Lazy as HM
-import qualified Data.Map.Lazy as M
 import qualified Data.Text as T
 
 import GHC.Exts
@@ -54,23 +54,43 @@ derivingG2Rep' ty = do
                                                  , genG2UnRep (length tvs) cs
                                                  , genG2Type tyConName]]
     where
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+        apply t (PlainTV name _)    = appT t (varT name)
+        apply t (KindedTV name _ _) = appT t (varT name)
+
+        mkCxt (PlainTV name _) = conT ''G2Rep `appT` varT name
+        mkCxt (KindedTV name _ _) = conT ''G2Rep `appT` varT name
+#else
         apply t (PlainTV name)    = appT t (varT name)
         apply t (KindedTV name _) = appT t (varT name)
 
         mkCxt (PlainTV name) = conT ''G2Rep `appT` varT name
         mkCxt (KindedTV name _) = conT ''G2Rep `appT` varT name
+#endif
 
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+genG2Rep :: TH.Name -> [TyVarBndr ()] -> [Con] -> Q Dec
+#else
 genG2Rep :: TH.Name -> [TyVarBndr] -> [Con] -> Q Dec
+#endif
 genG2Rep tyConName tvs cs = funD 'g2Rep (map (genG2RepClause tyConName tvs) cs)
 
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+genG2RepClause :: TH.Name -> [TyVarBndr ()] -> Con -> Q Clause
+#else
 genG2RepClause :: TH.Name -> [TyVarBndr] -> Con -> Q Clause
+#endif
 genG2RepClause tyConName tvs (NormalC name fieldTypes) =
     genG2RepClause' tyConName tvs name fieldTypes
 genG2RepClause tyConName tvs (InfixC st1 n st2) =
     genG2RepClause' tyConName tvs n [st1, st2]
 genG2RepClause _ _ con = error $ "genG2RepClause: Unhandled case." ++ show con 
 
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+genG2RepClause' :: TH.Name -> [TyVarBndr ()] -> TH.Name -> [StrictType] -> Q Clause
+#else
 genG2RepClause' :: TH.Name -> [TyVarBndr] -> TH.Name -> [StrictType] -> Q Clause
+#endif
 genG2RepClause' tyConName tvs dcNme fieldTypes = do
     tenv <- newName "tenv_rep"
     cleaned <- newName "cleaned"
@@ -86,8 +106,8 @@ genG2RepClause' tyConName tvs dcNme fieldTypes = do
                     `appE` litE (integerL $ toInteger $ length fieldTypes)
                     `appE` qqNameToQExp qqTyConName
                     `appE` qqNameToQExp qqName
-                    `appE` (varE 'qqMap `appE` varE cleaned `appE` [|M.keys $(varE tenv)|])
-                    `appE` (varE 'qqMap `appE` varE cleaned `appE` [|map dcName . concatMap dataCon . M.elems $ $(varE tenv)|])
+                    `appE` (varE 'qqMap `appE` varE cleaned `appE` [|HM.keys $(varE tenv)|])
+                    `appE` (varE 'qqMap `appE` varE cleaned `appE` [|map dcName . concatMap dataCon . HM.elems $ $(varE tenv)|])
                     `appE` varE tenv)
 
         tys = map (\tyv -> conE 'Type
@@ -102,8 +122,13 @@ genG2RepClause' tyConName tvs dcNme fieldTypes = do
 
     clause pats body []
     where
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+        tyVBToType (PlainTV name _) = varT name
+        tyVBToType (KindedTV name _ _) = varT name
+#else
         tyVBToType (PlainTV name) = varT name
         tyVBToType (KindedTV name _) = varT name
+#endif
 
 -- | Looks up a `DataCon` with the given type and data constructor name.
 -- Falls back to creating a data constructor from scratch, if the data constructor
@@ -120,9 +145,8 @@ qqDataConLookupFallBack tyv_n arg_n qqtn qqdc type_nm_qqm dc_nm_qqm tenv
             n = G2.Name "unknown" Nothing 0 Nothing
             i = Id n TYPE
 
-            ntb = NamedTyBndr i
             t = mkTyFun $ replicate (arg_n + 1) (TyCon n TYPE)
-            t' = foldr TyForAll t (replicate tyv_n ntb)
+            t' = foldr TyForAll t (replicate tyv_n i)
         in
         DataCon (qqNameToName0 qqdc) t'
 
@@ -167,9 +191,9 @@ genG2UnRepClause' tyVarNum dcNme fieldTypes = do
             let guardRet = return (guardPat, ret)
 
             clause pats (guardedB [guardRet]) []
-        fnt -> do
+        fnt@(fnt_h:_) -> do
             tenv <- newName "tenv_unrep"
-            let pats = varP tenv:[varP expr]
+            let pats = if usesTEnvUnRep (snd fnt_h) then varP tenv:[varP expr] else wildP:[varP expr]
 
             ret <- appsE $ conE dcNme:map (newFieldUnRep tenv) fnt
             let guardRet = return (guardPat, ret)
@@ -194,6 +218,12 @@ newFieldUnRep _ (x, (_, ConT n))
     | nameBase n == "Char#" = [| charPrimFromLit $(varE x) |]
 newFieldUnRep tenv (x, _) = do
     varE 'g2UnRep `appE` varE tenv `appE` varE x
+
+usesTEnvUnRep :: StrictType -> Bool
+usesTEnvUnRep (_, ConT n) =
+    let nb = nameBase n in
+    not (nb == "Int#" || nb == "Float#" || nb == "Double#" || nb == "Char#")
+usesTEnvUnRep _ = True
 
 genG2Type :: TH.Name -> Q Dec
 genG2Type tyConName = funD 'g2Type [genG2TypeClause tyConName]

@@ -16,6 +16,7 @@ import G2.Language.Syntax
 import G2.Language.Typing
 import G2.Language.TypeEnv
 
+import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Text as T
 
@@ -31,10 +32,10 @@ primInjectT (TyCon (Name "Double#" _ _ _) _) = TyLitDouble
 primInjectT (TyCon (Name "Char#" _ _ _) _) = TyLitChar
 primInjectT t = t
 
-dataInject :: (ASTContainer t Expr) => t -> [ProgramType] -> t
+dataInject :: (ASTContainer t Expr) => t -> HM.HashMap Name AlgDataTy -> t
 dataInject prog progTy = 
     let
-        dcNames = concatMap (\(_, dc) -> map conName (dataCon dc)) $ progTy
+        dcNames = concatMap (map conName . dataCon) $ progTy
     in
     modifyASTs (dataInject' dcNames) prog
 
@@ -49,7 +50,7 @@ dataInject' _ e = e
 conName :: DataCon -> (Name, [Type])
 conName (DataCon n t) = (n, anonArgumentTypes $ t)
 
-primDefs :: [ProgramType] -> [(T.Text, Expr)]
+primDefs :: HM.HashMap Name AlgDataTy -> [(T.Text, Expr)]
 primDefs pt = case boolName pt of
                 Just n -> primDefs' n
                 Nothing -> error "Bool type not found"
@@ -112,6 +113,20 @@ primDefs' b = [ ("==#", Prim Eq $ tyIntIntBool b)
               , ("rationalToDouble#", Prim RationalToDouble (TyFun TyLitInt $ TyFun TyLitInt TyLitDouble))
               , ("fromIntToDouble", Prim IntToDouble (TyFun TyLitInt TyLitDouble))
 
+              , ("dataToTag##", Prim DataToTag (TyForAll a (TyFun (TyVar a) TyLitInt)))
+              , ("tagToEnum#", 
+                    Lam TypeL a
+                        . Lam TermL (y tyvarA)
+                            $ Case (Var (y tyvarA)) (binder tyvarA) tyvarA 
+                            [ Alt Default
+                                   $ App
+                                        (App
+                                            (Prim TagToEnum (TyForAll a (TyFun TyLitInt tyvarA)))
+                                            (Var a))
+                                        (Var $ y tyvarA)
+
+                            ])
+
               , ("absentErr", Prim Error TyBottom)
               , ("error", Prim Error TyBottom)
               , ("errorWithoutStackTrace", Prim Error TyBottom)
@@ -122,6 +137,21 @@ primDefs' b = [ ("==#", Prim Eq $ tyIntIntBool b)
               , ("toEnumError", Prim Error TyBottom)
               , ("ratioZeroDenominatorError", Prim Error TyBottom)
               , ("undefined", Prim Error TyBottom)]
+
+a :: Id
+a = Id (Name "a" Nothing 0 Nothing) TYPE
+
+tyvarA :: Type
+tyvarA = TyVar a
+
+x :: Type -> Id
+x = Id (Name "x" Nothing 0 Nothing)
+
+y :: Type -> Id
+y = Id (Name "y" Nothing 0 Nothing)
+
+binder :: Type -> Id
+binder = Id (Name "b" Nothing 0 Nothing)
 
 tyIntInt :: Type
 tyIntInt = TyFun TyLitInt TyLitInt
@@ -159,24 +189,23 @@ tyCharIntBool n = TyFun TyLitChar $ TyFun TyLitInt (TyCon n TYPE)
 tyCharCharBool :: Name -> Type
 tyCharCharBool n = TyFun TyLitChar $ TyFun TyLitChar (TyCon n TYPE)
 
-boolName :: [ProgramType] -> Maybe Name
-boolName = find ((==) "Bool" . nameOcc) . map fst
+boolName :: HM.HashMap Name AlgDataTy -> Maybe Name
+boolName = find ((==) "Bool" . nameOcc) . HM.keys
 
-replaceFromPD :: [ProgramType] -> Id -> Expr -> (Id, Expr)
-replaceFromPD pt i@(Id n _) e =
+replaceFromPD :: HM.HashMap Name AlgDataTy -> Name -> Expr -> Expr
+replaceFromPD pt n e =
     let
         e' = fmap snd $ find ((==) (nameOcc n) . fst) (primDefs pt)
     in
-    (i, maybe e id e')
+    maybe e id e'
 
+addPrimsToBase :: HM.HashMap Name AlgDataTy -> HM.HashMap Name Expr -> HM.HashMap Name Expr
+addPrimsToBase pt prims = HM.mapWithKey (replaceFromPD pt) prims
 
-addPrimsToBase :: [ProgramType] -> Program -> Program
-addPrimsToBase pt prims = map (map (uncurry (replaceFromPD pt))) prims
-
-mergeProgs :: Program -> Program -> Program
-mergeProgs prog prims = prog ++ prims
+mergeProgs :: HM.HashMap Name Expr -> HM.HashMap Name Expr -> HM.HashMap Name Expr
+mergeProgs prog prims = prog `HM.union` prims
 
 -- The prog is used to change the names of types in the prog' and primTys
-mergeProgTys :: [ProgramType] -> [ProgramType] -> [ProgramType]
+mergeProgTys :: [(Name, AlgDataTy)] -> [(Name, AlgDataTy)] -> [(Name, AlgDataTy)]
 mergeProgTys progTys primTys =
     progTys ++ primTys  

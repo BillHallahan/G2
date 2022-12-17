@@ -30,6 +30,7 @@ import qualified Control.Concurrent.Lock as Lock
 
 import Data.Data
 import qualified Data.HashSet as HS
+import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
@@ -120,7 +121,7 @@ parseHaskellQ str = do
                     in
                     return (foldr (\n -> lamE [n]) [| return (Nothing :: Maybe $(tup_t)) |] ns_pat
                                   , [| return [] :: IO [State ()] |]
-                                  , M.empty
+                                  , HM.empty
                                   , b')
         NonCompleted s b -> do
             let 
@@ -196,7 +197,7 @@ parseHaskellIO mods qext = do
                 projs <- cabalSrcDirs cabal'
                 config <- qqConfig
 
-                translateLoaded projs [filepath] []
+                translateLoaded projs [filepath]
                     simplTranslationConfig
                     config)
     return exG2
@@ -482,5 +483,5 @@ toSymbArgsTuple in_ids cleaned tenv_name = do
 qqConfig :: IO Config
 qqConfig = do
   homedir <- getHomeDirectory
-  let config = mkConfig homedir [] M.empty
+  let config = mkConfigDirect homedir [] M.empty
   return $ config { extraDefaultMods = [homedir ++ "/.g2/G2Stubs/src/G2/QuasiQuotes/G2Rep.hs"] }

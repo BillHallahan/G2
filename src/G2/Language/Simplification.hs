@@ -62,15 +62,15 @@ inlineFunc eenv e =
 
 -- | Inline the functions in the ExprEnv, if they are the bindee in a Case expression
 inlineFuncInCase :: E.ExprEnv -> Expr -> Expr
-inlineFuncInCase eenv c@(Case (Var (Id n _)) i as)
+inlineFuncInCase eenv c@(Case (Var (Id n _)) i t as)
     | Just e <- E.lookup n eenv =
-        inlineFuncInCase eenv $ Case e i as
+        inlineFuncInCase eenv $ Case e i t as
     | otherwise = c
 inlineFuncInCase eenv e =
     modifyChildren (inlineFuncInCase eenv) e
 
 caseOfKnownCons :: Expr -> Expr
-caseOfKnownCons (Case e i as)
+caseOfKnownCons (Case e i _ as)
     | Data (DataCon n t):es <- unApp e
     , Just (Alt (DataAlt _ is) ae) <- find (matchingDataAlt n) as =
         let
@@ -78,12 +78,12 @@ caseOfKnownCons (Case e i as)
             es' = drop tfa_count es
         in
         foldr (uncurry replaceVar) (replaceVar (idName i) e ae) (zip (map idName is) es')
-    | Lit l:es <- unApp e
-    , Just (Alt (LitAlt l') ae) <- find (matchingLitAlt l) as = replaceVar (idName i) e ae
+    | Lit l:_ <- unApp e
+    , Just (Alt (LitAlt _) ae) <- find (matchingLitAlt l) as = replaceVar (idName i) e ae
     
-    | Data _:es <- unApp e
+    | Data _:_ <- unApp e
     , Just (Alt Default ae) <- find (\(Alt am _) -> am == Default) as = replaceVar (idName i) e ae
-    | Lit l:es <- unApp e
+    | Lit l:_ <- unApp e
     , Just (Alt Default ae) <- find (\(Alt am _) -> am == Default) as = replaceVar (idName i) e ae
 
 caseOfKnownCons e = modifyChildren caseOfKnownCons e

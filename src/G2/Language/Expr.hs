@@ -107,7 +107,7 @@ eqUpToTypes (Let b e) (Let b' e') =
         be_eq = all (\((Id n _, be), (Id n' _, be')) -> n == n' && be `eqUpToTypes` be') $ zip b b'
     in
     be_eq && e `eqUpToTypes` e'
-eqUpToTypes (Case _ _ _) (Case _ _ _) = error "Case not supported"
+eqUpToTypes (Case _ _ _ _) (Case _ _ _ _) = error "Case not supported"
 eqUpToTypes (Type _) (Type _) = True
 eqUpToTypes (Cast e _) (Cast e' _) = e `eqUpToTypes` e'
 eqUpToTypes (Coercion _) (Coercion _) = True
@@ -257,8 +257,8 @@ replaceVar' :: Name -> Expr -> Expr -> Expr
 replaceVar' n e v@(Var (Id n' _)) =
     if n == n' then e else v
 replaceVar' n _ le@(Lam _ (Id n' _) _) | n == n' = le
-replaceVar' n e (Case b i@(Id n' _) as) | n == n' = Case (replaceVar n e b) i as
-replaceVar' n e (Case b i as) = Case (replaceVar' n e b) i (map repAlt as)
+replaceVar' n e (Case b i@(Id n' _) t as) | n == n' = Case (replaceVar n e b) i t as
+replaceVar' n e (Case b i t as) = Case (replaceVar' n e b) i t (map repAlt as)
     where
         repAlt a@(Alt (DataAlt _ is) _)
             | n `elem` map idName is = a
@@ -568,7 +568,7 @@ etaExpandTo' eenv ng n e = (addLamApps fn (typeOf e) e, ng')
 
         addLamApps :: [Name] -> Type -> Expr -> Expr
         addLamApps [] _ e' = e'
-        addLamApps (_:ns) (TyForAll (NamedTyBndr b) t') e' =
+        addLamApps (_:ns) (TyForAll b t') e' =
             Lam TypeL b (App (addLamApps ns t' e') (Type (TyVar b)))
         addLamApps (ln:ns) (TyFun t t') e' =
             Lam TermL (Id ln t) (App (addLamApps ns t' e') (Var (Id ln t)))
