@@ -31,7 +31,7 @@ specialDC ns tn (n, m, ts) =
         tv = map (TyVar . flip Id TYPE) ns
 
         t = foldr (TyFun) (mkFullAppedTyCon tn tv TYPE) ts
-        t' = foldr (\n' -> TyForAll (NamedTyBndr (Id n' TYPE))) t ns
+        t' = foldr (\n' -> TyForAll (Id n' TYPE)) t ns
     in
     DataCon (Name n m 0 Nothing) t'
 
@@ -68,8 +68,8 @@ specials = [ (( "[]"
            -- , (("Char", Just "GHC.Types"), [("C#", Just "GHC.Types", [TyLitChar])])
            -- , (("String", Just "GHC.Types"), [])
 
-           , (("Bool", Just "GHC.Types", []), [ ("True", Just "GHC.Types", [])
-                                              , ("False", Just "GHC.Types", [])])
+           , (("Bool", Just "GHC.Types", []), [ ("False", Just "GHC.Types", [])
+                                              , ("True", Just "GHC.Types", [])])
 
            -- , (("Ordering", Just "GHC.Types"), [ ("EQ", Just "GHC.Types", [])
            --                                    , ("LT", Just "GHC.Types", [])
@@ -117,8 +117,8 @@ mkPrimTuples' n | n < 0 = []
                             tv = map (TyVar . flip Id TYPE) ns
 
                             t = foldr (TyFun) (mkFullAppedTyCon tn tv TYPE) tv
-                            t' = foldr (\n' -> TyForAll (NamedTyBndr (Id n' TYPE))) t ns
-                            t'' = foldr (\n' -> TyForAll (NamedTyBndr (Id n' TYPE))) t' rt_ns
+                            t' = foldr (\n' -> TyForAll (Id n' TYPE)) t ns
+                            t'' = foldr (\n' -> TyForAll (Id n' TYPE)) t' rt_ns
                             dc = DataCon (Name s m 0 Nothing) t''
                         in
                         -- ((s, m, []), [(s, m, [])]) : mkTuples (n - 1)

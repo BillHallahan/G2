@@ -62,15 +62,15 @@ inlineFunc eenv e =
 
 -- | Inline the functions in the ExprEnv, if they are the bindee in a Case expression
 inlineFuncInCase :: E.ExprEnv -> Expr -> Expr
-inlineFuncInCase eenv c@(Case (Var (Id n _)) i as)
+inlineFuncInCase eenv c@(Case (Var (Id n _)) i t as)
     | Just e <- E.lookup n eenv =
-        inlineFuncInCase eenv $ Case e i as
+        inlineFuncInCase eenv $ Case e i t as
     | otherwise = c
 inlineFuncInCase eenv e =
     modifyChildren (inlineFuncInCase eenv) e
 
 caseOfKnownCons :: Expr -> Expr
-caseOfKnownCons (Case e i as)
+caseOfKnownCons (Case e i _ as)
     | Data (DataCon n t):es <- unApp e
     , Just (Alt (DataAlt _ is) ae) <- find (matchingDataAlt n) as =
         let

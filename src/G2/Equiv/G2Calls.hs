@@ -460,7 +460,7 @@ totalExpr s@(State { expr_env = h, track = EquivTracker _ _ total _ _ h' _ }) ns
     Lam _ _ _ -> False
     Type _ -> True
     Let _ _ -> False
-    Case _ _ _ -> False
+    Case _ _ _ _ -> False
     _ -> False
 
 -- helper function to circumvent syncSymbolic

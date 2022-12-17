@@ -26,7 +26,7 @@ It is capable of generating assertion failure counterexamples and solving for hi
 
 ###### LiquidHaskell:
 
-`cabal run G2 -- --liquid ./tests/Liquid/Peano.hs --liquid-func add`
+`cabal run G2LH ./tests/Liquid/Peano.hs add`
 
 ###### Arguments:
 

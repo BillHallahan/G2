@@ -1,10 +1,8 @@
 module Reqs ( Reqs (..)
             , TestErrors (..)
-            , checkExprGen
-            , checkAbsLHExprGen ) where
+            , checkExprGen ) where
 
 import G2.Language
-import G2.Liquid.Interface
 
 -- | Requirements
 -- We use these to define checks on tests returning function inputs
@@ -38,22 +36,6 @@ checkExprGen exprs reqList =
                         then []
                         else [ArgsExistFailed]
         checkL = checkLengths exprs reqList
-    in
-    argChecksAll ++ argChecksEx ++ checkL
-
-
-checkAbsLHExprGen :: [(State AbstractedInfo, [Expr], Expr)] -> [Reqs ([Expr] -> Expr -> [FuncCall] -> Bool)] -> [TestErrors] 
-checkAbsLHExprGen exprs reqList =
-    let
-        argChecksAll =
-            if and . map (\f -> all (\(s, es, e) -> f es e (map abstract . abs_calls $ track s)) exprs) $ [f | RForAll f <- reqList]
-                then []
-                else [ArgsForAllFailed]
-        argChecksEx =
-            if and . map (\f -> any (\(s, es, e) -> f es e (map abstract . abs_calls $ track s)) exprs) $ [f | RExists f <- reqList]
-                then []
-                else [ArgsExistFailed]
-        checkL = checkLengths (map (\(_, e, _) -> e) exprs) reqList
     in
     argChecksAll ++ argChecksEx ++ checkL
 

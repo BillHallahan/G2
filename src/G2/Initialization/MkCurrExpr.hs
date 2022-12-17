@@ -144,7 +144,7 @@ pickForTyVar kv ts
 
 
 instantiateTCDict :: TypeClasses -> [(Id, Type)] -> Type -> Maybe Expr
-instantiateTCDict tc it (TyApp (TyCon n _) (TyVar i)) =
+instantiateTCDict tc it tyapp@(TyApp _ (TyVar i)) | TyCon n _ <- tyAppCenter tyapp =
     return . Var =<< lookupTCDict tc n =<< lookup i it
 instantiateTCDict _ _ _ = Nothing
 

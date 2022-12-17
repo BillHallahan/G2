@@ -32,7 +32,7 @@ instance Ided Expr where
             go (Data d) = ids d
             go (Lam _ i _) = ids i
             go (Let b _) = concatMap (ids . fst) b
-            go (Case _ i a) = ids i ++ concatMap (ids . altMatch) a
+            go (Case _ i t a) = ids i ++ ids t ++ concatMap (ids . altMatch) a
             go (Type t) = ids t
             go _ = []
 
@@ -51,11 +51,6 @@ instance Ided AltMatch where
     {-# INLINE ids #-}
     ids (DataAlt dc i) = ids dc ++ i
     ids _ = []
-
-instance Ided TyBinder where
-    {-# INLINE ids #-}
-    ids (AnonTyBndr t) = ids t
-    ids (NamedTyBndr i) = ids i
 
 instance Ided Coercion where
     {-# INLINE ids #-}

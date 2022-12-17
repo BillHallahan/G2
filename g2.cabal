@@ -17,9 +17,9 @@ build-type:          Simple
 extra-source-files:  README.md
 cabal-version:       1.24
 
-Flag newLH
-  Description:   Assume we have a new version of LH
-  Default:       False
+Flag support-lh
+  Description:   Build modules for reasoning about LiquidHaskell
+  Default:       True
 
 source-repository head
     type:       git
@@ -104,45 +104,6 @@ library
 
                        , G2.Lib.Printers
 
-                       , G2.Liquid.AddCFBranch
-                       , G2.Liquid.AddLHTC
-                       , G2.Liquid.AddOrdToNum
-                       , G2.Liquid.AddTyVars
-                       , G2.Liquid.Annotations
-                       , G2.Liquid.Config
-                       , G2.Liquid.Conversion
-                       , G2.Liquid.ConvertCurrExpr
-                       , G2.Liquid.Helpers
-                       , G2.Liquid.Interface
-                       , G2.Liquid.LHReducers
-                       , G2.Liquid.Measures
-                       , G2.Liquid.MkLHVals
-                       , G2.Liquid.Simplify
-                       , G2.Liquid.SpecialAsserts
-                       , G2.Liquid.TCGen
-                       , G2.Liquid.TCValues
-                       , G2.Liquid.Types
-                       , G2.Liquid.TyVarBags
-                       , G2.Liquid.G2Calls
-                       , G2.Liquid.Inference.Config
-                       , G2.Liquid.Inference.FuncConstraint
-                       , G2.Liquid.Inference.G2Calls
-                       , G2.Liquid.Inference.InfStack
-                       , G2.Liquid.Inference.Initalization
-                       , G2.Liquid.Inference.Interface
-                       , G2.Liquid.Inference.PolyRef
-                       , G2.Liquid.Inference.Sygus.UnsatCoreElim
-                       , G2.Liquid.Inference.Sygus
-                       , G2.Liquid.Inference.Sygus.FCConverter
-                       , G2.Liquid.Inference.Sygus.RefSynth
-                       , G2.Liquid.Inference.Sygus.LiaSynth
-                       , G2.Liquid.Inference.Sygus.SimplifySygus
-                       , G2.Liquid.Inference.Sygus.SpecInfo
-                       , G2.Liquid.Inference.Sygus.Sygus
-                       , G2.Liquid.Inference.Verify
-                       , G2.Liquid.Inference.GeneratedSpecs
-                       , G2.Liquid.Inference.QualifGen
-
                        , G2.Postprocessing.Interface
 
                        , G2.Preprocessing.AdjustTypes
@@ -164,6 +125,49 @@ library
 
                        , G2.Translation
                        , G2.Translation.Cabal.Cabal
+                       , G2.Translation.GHC
+  if flag(support-lh) && impl(ghc < 9)
+      exposed-modules: 
+                           G2.Liquid.AddCFBranch
+                         , G2.Liquid.AddLHTC
+                         , G2.Liquid.AddOrdToNum
+                         , G2.Liquid.AddTyVars
+                         , G2.Liquid.Annotations
+                         , G2.Liquid.Config
+                         , G2.Liquid.Conversion
+                         , G2.Liquid.ConvertCurrExpr
+                         , G2.Liquid.Helpers
+                         , G2.Liquid.Interface
+                         , G2.Liquid.LHReducers
+                         , G2.Liquid.Measures
+                         , G2.Liquid.MkLHVals
+                         , G2.Liquid.Simplify
+                         , G2.Liquid.SpecialAsserts
+                         , G2.Liquid.TCGen
+                         , G2.Liquid.TCValues
+                         , G2.Liquid.Types
+                         , G2.Liquid.TyVarBags
+                         , G2.Liquid.G2Calls
+                         , G2.Liquid.Inference.Config
+                         , G2.Liquid.Inference.FuncConstraint
+                         , G2.Liquid.Inference.G2Calls
+                         , G2.Liquid.Inference.InfStack
+                         , G2.Liquid.Inference.Initalization
+                         , G2.Liquid.Inference.Interface
+                         , G2.Liquid.Inference.PolyRef
+                         , G2.Liquid.Inference.Sygus.UnsatCoreElim
+                         , G2.Liquid.Inference.Sygus
+                         , G2.Liquid.Inference.Sygus.FCConverter
+                         , G2.Liquid.Inference.Sygus.RefSynth
+                         , G2.Liquid.Inference.Sygus.LiaSynth
+                         , G2.Liquid.Inference.Sygus.SimplifySygus
+                         , G2.Liquid.Inference.Sygus.SpecInfo
+                         , G2.Liquid.Inference.Sygus.Sygus
+                         , G2.Liquid.Inference.UnionPoly
+                         , G2.Liquid.Inference.Verify
+                         , G2.Liquid.Inference.GeneratedSpecs
+                         , G2.Liquid.Inference.QualifGen
+
   other-modules:         G2.Config.Config
                        , G2.Config.Interface
                        , G2.Config.ParseConfig
@@ -188,46 +192,46 @@ library
                        , G2.Translation.TransTypes
 
   build-depends:         array >= 0.5.1.1 && <= 0.5.4.0 
-                       , Cabal >= 2.0.1.0 && < 3.1
-                       , base >= 4.8 && < 5
+                       , Cabal >= 2.0.1.0 && < 3.7
+                       , base >= 4.8 && < 4.18
                        , bimap == 0.3.3
-                       , bytestring >= 0.10.8.0 && <= 0.10.12.1
+                       , bytestring >= 0.10.8.0 && < 0.11.4
                        , clock >= 0.8 && < 0.9
                        , concurrent-extra >= 0.7
                        , containers >= 0.5 && < 0.7
                        , directory >= 1.3.0.2 && <= 1.3.6.2
-                       , extra >= 1.6.14 && <= 1.6.17
+                       , extra >= 1.6.14 && < 1.7.13
                        , filepath >= 1.4 && <= 1.5
                        , ghc-paths >= 0.1 && < 0.2
-                       , ghc (>= 8.2.2 && < 8.4) || (>= 8.6 && < 8.7) || (>= 8.10 && < 8.11)
-                       , hashable >= 1.2.6.0 && <= 1.3.0.0
+                       , ghc (>= 8.2.2 && < 8.4) || (>= 8.6 && < 8.7) || (>= 8.10 && < 9.3)
+                       , hashable >= 1.2.6.0 && <= 1.4.1.0
                        , HTTP >= 4000.3.0 && < 4001.0
-                       , language-sygus >= 0.1.1.2 && < 0.2
-                       , liquidhaskell >= 0.8.2.2 && <= 8.10.7
-                       , liquid-fixpoint >= 0.7.0.7 && < 0.9
+                       , language-sygus >= 0.1.1.3 && < 0.2
                        , MissingH >= 1.4.0.0 && < 1.5
                        , mtl >= 2.2 && < 2.3
                        , random == 1.1
                        , reducers >= 3.12 && < 3.13
                        , regex-compat >= 0.95 && < 0.96
-                       , regex-base >= 0.93 && < 0.94.0.2
+                       , regex-base >= 0.93 && < 0.94.0.3
                        , parsec >= 3.1 && < 3.2
                        , pretty >= 1.1 && < 1.4
                        , process >=1.6 && < 1.7
-                       , optparse-applicative >=0.17.0.0 && < 0.18.0.0
+                       , optparse-applicative >=0.15.0.0 && < 0.18.0.0
                        , split >= 0.2.3 && < 0.2.4
                        , tasty-quickcheck >= 0.10.1.1 && < 0.11
-                       , template-haskell >= 2.12.0.0 && <= 2.18.0.0
+                       , template-haskell >= 2.12.0.0 && <= 2.19.0.0
                        , temporary-rc >= 1.2 && < 1.3
-                       , text >= 1.2.3.1 && <= 2.0
+                       , text >= 1.2.3.1 && <= 2.1
                        , text-builder >= 0.6.6.1
                        , time >= 1.6 && <= 1.13
                        , unordered-containers >= 0.2.10.0 && < 0.3
-
-                       -- For LH
+  
+  if flag(support-lh) && impl(ghc < 9)
+    build-depends:       liquidhaskell == 0.8.10.2
+                       , liquid-fixpoint >= 0.7.0.7 && < 0.9
                        , Diff == 0.3.4
 
-  if impl(ghc < 8.6)
+  if flag(support-lh) && impl(ghc < 8.6)
     build-depends:       text == 1.2.3.1
                        , liquid-fixpoint >= 0.7.0.7 && <= 0.8.0.2
 
@@ -239,8 +243,8 @@ library
                        -- -fprof-auto
                        -- -fexternal-interpreter
   other-extensions:    CPP
-  if flag(newLH)
-    cpp-options: -DNEW_LH
+  if flag(support-lh) && impl(ghc < 9)
+    cpp-options: -DSUPPORT_LH
 
   hs-source-dirs:      src
 
@@ -256,12 +260,17 @@ executable G2
                        , unordered-containers >= 0.2 && < 0.3
   default-language:    Haskell2010
   ghc-options:         -threaded -Wall
-                       -- -fprof-auto "-with-rtsopts=-p"
+                      --  -fprof-auto "-with-rtsopts=+RTS -xc"
+                      --  -fprof-auto "-with-rtsopts=-p"
                        -- -fexternal-interpreter -opti+RTS -opti-p
   hs-source-dirs:      exe
   main-is:             Main.hs
 
 executable G2LH
+  if flag(support-lh) && impl(ghc < 9)
+    buildable:         True
+  else
+    buildable:         False
   -- other-modules:   
   -- other-extensions:
   build-depends:         g2
@@ -279,6 +288,10 @@ executable G2LH
   main-is:             Main.hs
 
 executable Inference
+  if flag(support-lh) && impl(ghc < 9)
+    buildable:         True
+  else
+    buildable:         False
   -- other-modules:   
   -- other-extensions:    
   build-depends:         g2
@@ -372,7 +385,11 @@ test-suite test
                        -threaded
   type:                exitcode-stdio-1.0
 
-test-suite inference-test
+test-suite test-lh
+  if flag(support-lh) && impl(ghc < 9)
+    buildable:         True
+  else
+    buildable:         False
   build-depends:         g2
                        , base >= 4.8 && < 5
                        , containers
@@ -389,9 +406,13 @@ test-suite inference-test
                        , time
                        , unordered-containers
   default-language:    Haskell2010
-  hs-source-dirs:      tests_inference
-  main-is:             Test.hs
-  -- other-modules:       
+  hs-source-dirs:      tests_lh, tests
+  main-is:             LHTest.hs
+  other-modules:         GetNthTest
+                       , PeanoTest
+                       , Reqs
+                       , TestUtils
+                       , UnionPoly
   ghc-options:         -Wall
                        -- -fprof-auto "-with-rtsopts=-p"
                        -threaded

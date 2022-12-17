@@ -113,6 +113,20 @@ primDefs' b = [ ("==#", Prim Eq $ tyIntIntBool b)
               , ("rationalToDouble#", Prim RationalToDouble (TyFun TyLitInt $ TyFun TyLitInt TyLitDouble))
               , ("fromIntToDouble", Prim IntToDouble (TyFun TyLitInt TyLitDouble))
 
+              , ("dataToTag##", Prim DataToTag (TyForAll a (TyFun (TyVar a) TyLitInt)))
+              , ("tagToEnum#", 
+                    Lam TypeL a
+                        . Lam TermL (y tyvarA)
+                            $ Case (Var (y tyvarA)) (binder tyvarA) tyvarA 
+                            [ Alt Default
+                                   $ App
+                                        (App
+                                            (Prim TagToEnum (TyForAll a (TyFun TyLitInt tyvarA)))
+                                            (Var a))
+                                        (Var $ y tyvarA)
+
+                            ])
+
               , ("absentErr", Prim Error TyBottom)
               , ("error", Prim Error TyBottom)
               , ("errorWithoutStackTrace", Prim Error TyBottom)
@@ -123,6 +137,21 @@ primDefs' b = [ ("==#", Prim Eq $ tyIntIntBool b)
               , ("toEnumError", Prim Error TyBottom)
               , ("ratioZeroDenominatorError", Prim Error TyBottom)
               , ("undefined", Prim Error TyBottom)]
+
+a :: Id
+a = Id (Name "a" Nothing 0 Nothing) TYPE
+
+tyvarA :: Type
+tyvarA = TyVar a
+
+x :: Type -> Id
+x = Id (Name "x" Nothing 0 Nothing)
+
+y :: Type -> Id
+y = Id (Name "y" Nothing 0 Nothing)
+
+binder :: Type -> Id
+binder = Id (Name "b" Nothing 0 Nothing)
 
 tyIntInt :: Type
 tyIntInt = TyFun TyLitInt TyLitInt

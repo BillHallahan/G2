@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module InputOutputTest ( checkInputOutput
-                       , checkInputOutputs
-                       , checkInputOutputLH ) where
+                       , checkInputOutputs ) where
 
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -18,8 +17,6 @@ import G2.Config
 import G2.Initialization.MkCurrExpr
 import G2.Interface
 import G2.Language
-import G2.Liquid.Config
-import G2.Liquid.Interface
 import G2.Translation
 
 import Reqs
@@ -49,7 +46,7 @@ checkInputOutput' src tests = do
                 testGroup
                 src
                 $ map (\test@(entry, _, _) -> do
-                        testCase (src ++ entry) ( do
+                        testCase (src ++ " " ++ entry) ( do
                                 (mb_modname, exg2) <- loadedExG2
                                 config <- mkConfigTestIO
                                 r <- doTimeout (timeLimit config)
@@ -84,40 +81,6 @@ checkInputOutput'' src exg2 mb_modname config (entry, stps, req) = do
     let chEx = checkExprInOutCount io req
     
     return $ (mr && chEx, r)
-
-------------
-
-checkInputOutputLH :: [FilePath] -> [FilePath] -> String -> String -> Int -> [Reqs String] ->  IO TestTree
-checkInputOutputLH proj src md entry stps req = checkInputOutputLHWithConfig proj src md entry req
-                                                      (do config <- mkConfigTestIO
-                                                          return $ config {steps = stps})
-
-checkInputOutputLHWithConfig :: [FilePath] -> [FilePath] -> String -> String -> [Reqs String] -> IO Config -> IO TestTree
-checkInputOutputLHWithConfig proj src md entry req config_f = do
-    config <- config_f
-    r <- doTimeout (timeLimit config) $ checkInputOutputLH' proj src md entry req config
-
-    let b = case r of
-            Just (Right b') -> b'
-            _ -> False
-
-    return . testCase (show src) $ assertBool ("Input/Output for file " ++ show src ++ " failed on function " ++ entry ++ ".") b
-
-checkInputOutputLH' :: [FilePath] -> [FilePath] -> String -> String -> [Reqs String] -> Config -> IO (Either SomeException Bool)
-checkInputOutputLH' proj src md entry req config = try (checkInputOutputLH'' proj src md entry req config)
-
-checkInputOutputLH'' :: [FilePath] -> [FilePath] -> String -> String -> [Reqs String] -> Config -> IO Bool
-checkInputOutputLH'' proj src md entry req config = do
-    let lhconfig = mkLHConfigDirect [] M.empty
-    ((r, _), _) <- findCounterExamples proj src (T.pack entry) config lhconfig
-
-    let chAll = checkExprAll req
-
-    mr <- validateStates proj src md entry chAll [] r
-    let io = map (\(ExecRes { conc_args = i', conc_out = o}) -> i' ++ [o]) r
-
-    let chEx = checkExprInOutCount io req
-    return $ mr && chEx
 
 ------------
 

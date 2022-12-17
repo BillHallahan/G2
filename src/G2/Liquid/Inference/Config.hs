@@ -53,6 +53,7 @@ import Control.Monad.Reader
 import Control.Monad.State.Lazy
 import qualified Data.HashSet as S
 import qualified Data.Map as M
+import Data.Maybe (isJust)
 import Data.Monoid ((<>))
 import qualified Data.Text as T
 import Data.Time.Clock
@@ -254,6 +255,9 @@ data InferenceConfig =
                     , use_level_dec :: Bool
                     , use_negated_models :: Bool
 
+                    , use_binary_minimization :: Bool -- ^ In parallel to the SMT's solvers minimization support,
+                                                      --   use a binary search to minimize synthesis solutions
+
                     , use_invs :: Bool
                    
                     , timeout_se :: NominalDiffTime
@@ -296,6 +300,7 @@ mkInferenceConfig = InferenceConfig
     <*> flag True False (long "no-extra-fcs" <> help "do not generate extra (non-blocking) constraints")
     <*> flag True False (long "no-level-dec" <> help "do not use level descent")
     <*> flag True False (long "no-negated-models" <> help "do not use negated models")
+    <*> flag True False (long "no-binary-min" <> help "use binary minimization during synthesis")
     <*> switch (long "use-invs" <> help "use invariant mode (benchmarking only)")
     <*> option (maybeReader (Just . fromInteger . read)) (long "timeout-se"
                    <> metavar "T"
@@ -326,6 +331,7 @@ mkInferenceConfigDirect as =
                     , use_extra_fcs = boolArg "use-extra-fc" as M.empty On
                     , use_level_dec = boolArg "use-level-dec" as M.empty On
                     , use_negated_models = boolArg "use-negated-models" as M.empty On
+                    , use_binary_minimization = True
                     , use_invs = boolArg "use-invs" as M.empty Off
                     , timeout_se = strArg "timeout-se" as M.empty (fromInteger . read) 5
                     , timeout_sygus = strArg "timeout-sygus" as M.empty (fromInteger . read) 10 }
@@ -399,7 +405,7 @@ tyVarNoMeas meas tcv ghci e =
         rel_t = extractValues . extractTypePolyBound $ returnType e
         rel_meas = E.filter (\e -> 
                             case filter notLH . argumentTypes . PresType . inTyForAlls $ typeOf e of
-                                  [t] -> any (\t' -> fst $ t' `specializes` t) rel_t
+                                  [t] -> any (\t' -> isJust $ t' `specializes` t) rel_t
                                   _ -> False ) meas'
     in
     E.null rel_meas

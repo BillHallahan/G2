@@ -5,6 +5,7 @@
 {-# OPTIONS_GHC -fno-warn-orphans -fno-full-laziness #-}
 
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module G2.Data.UnionFind ( UnionFind
                          , empty
@@ -20,6 +21,7 @@ import Data.Hashable
 import qualified Data.HashMap.Lazy as M
 import qualified Data.HashSet as S
 import Data.IORef
+import Data.Semigroup (Semigroup (..))
 
 import System.IO.Unsafe
 
@@ -134,8 +136,14 @@ instance (Eq k, Hashable k, Read k) => Read (UnionFind k) where
 instance (Eq k, Hashable k) => Hashable (UnionFind k) where
     hashWithSalt i = hashWithSalt i . toList
 
+instance (Eq k, Hashable k) => Semigroup (UnionFind k) where
+    (<>) = unionOfUFs
+
+instance (Eq k, Hashable k) => Monoid (UnionFind k) where
+    mempty = empty
 
 instance (Arbitrary k, Eq k, Hashable k) => Arbitrary (UnionFind k) where
+    arbitrary :: (Arbitrary k, Eq k, Hashable k) => Gen (UnionFind k)
     arbitrary = do       
         ks <- arbitrary
 

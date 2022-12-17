@@ -2,7 +2,7 @@
 
 module Main (main) where
 
-import DynFlags
+import G2.Translation.GHC (GeneralFlag(Opt_Hpc))
 
 import System.Environment
 import System.FilePath
@@ -17,8 +17,6 @@ import G2.Config
 import G2.Interface
 import G2.Language
 import G2.Translation
-
-import G2.Liquid.Interface
 
 main :: IO ()
 main = do

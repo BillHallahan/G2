@@ -197,7 +197,7 @@ addCurrExprAssumption ifi (Bindings {fixed_inputs = fi}) = do
     (CurrExpr er ce) <- currExpr
 
     lh_tc_n <- lhTCM
-    let lh_tc = TyCon lh_tc_n TYPE
+    let lh_tc = TyCon lh_tc_n (TyFun TYPE TYPE)
     let fi' = filter (\e -> tyAppCenter (typeOf e) /= lh_tc) fi
 
     assumpt <- lookupAssumptionM (idName ifi)
