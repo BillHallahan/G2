@@ -950,8 +950,8 @@ cycle x = x:(cycle x)
 "addThreeBoth" forall n . n + S (S (S Z)) = S Z + S (S Z)
   #-}
 
--- TODO these will help with implications
--- TODO will this really have the intended effect?
+-- alternate way of dealing with implications
+-- too far removed from the original formulation to be useful for testing
 forceNatBool :: Nat -> Bool -> Bool
 forceNatBool Z b = b
 forceNatBool (S (!n)) b = forceNatBool n b
@@ -971,7 +971,6 @@ forceNatListBool :: [Nat] -> Bool -> Bool
 forceNatListBool [] b = b
 forceNatListBool (h:(!t)) b = forceNatBool h (forceNatListBool t b)
 
--- TODO implications and other things I couldn't handle before
 {-# RULES
 "p01a" forall n xs . prop_01 n xs = forceNatBool n (forceListBool xs True)
 "p05a" forall n x xs . prop_05 n x xs = forceNatBool n (forceListBool xs True)

@@ -158,9 +158,7 @@ moreRestrictivePC solver s1 s2 hm = do
       neg_conj = ExtCond (App (Prim Not TyUnknown) conj_old) True
   res <- if null old_conds
          then return $ S.UNSAT ()
-         else if null new_conds' -- old_conds not null
-         -- TODO applySolver uses states' path constraints directly
-         -- Are the conditions from this being satisfied trivially?
+         else if null new_conds'
          then W.liftIO $ applySolver solver (P.insert neg_conj P.empty) s1 s2
          else W.liftIO $ applySolver solver (P.insert neg_imp P.empty) s1 s2
   case res of
@@ -532,8 +530,8 @@ applySolver solver extraPC s1 s2 =
     let unionEnv = E.union (expr_env s1) (expr_env s2)
         rightPC = P.toList $ path_conds s2
         unionPC = foldr P.insert (path_conds s1) rightPC
+        -- adding extraPC in here may be redundant
         allPC = foldr P.insert unionPC (P.toList extraPC)
-        -- TODO what if I use extraPC here instead of allPC?
         newState = s1 { expr_env = unionEnv, path_conds = extraPC }
     in case (P.toList allPC) of
       [] -> return $ S.SAT ()
@@ -558,7 +556,6 @@ validCoinduction (p1, p2) (q1, q2) =
 -- if there are multiple, just return the first
 -- first pair is "current," second pair is the match from the past
 -- the third entry in a prev triple is the original for left or right
--- TODO do I still need the dc path check at the start here?
 moreRestrictivePairAux :: S.Solver solver =>
                           solver ->
                           ((StateET, StateET) -> (StateET, StateET) -> Bool) ->
