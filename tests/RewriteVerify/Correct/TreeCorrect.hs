@@ -89,7 +89,7 @@ posNegPath (BBranch i l r) =
 "pnd" forall bt . listLength (posNegPath bt) = posNegDistance bt
   #-}
 
--- TODO trying to isolate the problem
+-- trying to isolate the problem
 data TripleTree = TLeaf
                 | TBranch TripleTree TripleTree TripleTree
 
@@ -137,7 +137,7 @@ fastFib n = case fastFibHelper [1,0] (n - 1) of
 "fib" slowFib = fastFib
   #-}
 
--- TODO testing multi-way branching issues
+-- testing multi-way branching issues
 data QuadTree = QLeaf
               | QBranch QuadTree QuadTree QuadTree QuadTree
 

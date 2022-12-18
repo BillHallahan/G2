@@ -1,6 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
 
--- TODO change the module name?
 module Zeno where
 
 import Prelude
@@ -365,7 +364,6 @@ prop_44 x xs ys
 prop_45 x y xs ys
   = (zip (x:xs) (y:ys) =:= (x, y) : zip xs ys)
 
--- TODO giving me problems
 {-
 prop_46 xs
   = (zip [] xs =:= [])
@@ -635,7 +633,7 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p84" forall xs ys zs . zip xs (ys ++ zs) = zip (take (len ys) xs) ys ++ zip (drop (len ys) xs) zs
   #-}
 
--- TODO the theorems that don't fit the ordinary equivalence format
+-- the theorems that don't fit the ordinary equivalence format
 {-# RULES
 "p03" forall n xs ys . prop_03 n xs ys = True
 "p05" forall n x xs . prop_05 n x xs = True
@@ -678,7 +676,7 @@ walkNatList xs a = case xs of
   [] -> a
   y:ys -> walkNat y $ walkNatList ys a
 
--- TODO double-sided finiteness
+-- double-sided finiteness
 -- (3/18) double-sided p07fin and p08fin do not pass
 -- double-sided p06fin and p10fin do pass
 {-# RULES

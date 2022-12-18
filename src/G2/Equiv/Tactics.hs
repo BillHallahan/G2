@@ -556,7 +556,7 @@ validCoinduction (p1, p2) (q1, q2) =
 -- return the previous state pair that was used for the discharge
 -- return Nothing if there was no discharge
 -- if there are multiple, just return the first
--- TODO first pair is "current," second pair is the match from the past
+-- first pair is "current," second pair is the match from the past
 -- the third entry in a prev triple is the original for left or right
 -- TODO do I still need the dc path check at the start here?
 moreRestrictivePairAux :: S.Solver solver =>
