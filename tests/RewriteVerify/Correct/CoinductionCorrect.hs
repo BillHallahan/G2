@@ -175,10 +175,10 @@ makeCycle x = x:(makeCycle x)
 infInt :: [Int]
 infInt = [1..]
 
--- TODO Restricting the type of [1..] to [Int] makes the verifier stop getting
--- stuck on infiniteInts, but the verifier still runs forever on the rule as it
--- is now.  Making symbolic execution stop more often did cause the verifier to
--- return UNSAT for it, though.
+-- (12/18) At some point in the past, making symbolic execution stop more
+-- often caused Nebula to return UNSAT for infiniteInts rather than running
+-- forever.  This may have been unsound.  The Int type annotation is no
+-- longer necessary to keep Nebula from getting stuck on infiniteInts.
 {-# RULES
 "infiniteInts" len infInt = lenDouble infInt
 "onlyOnes" makeCycle 1 = cyclic
