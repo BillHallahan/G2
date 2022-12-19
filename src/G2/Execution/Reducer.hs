@@ -156,6 +156,7 @@ data Reducer m rv t = Reducer {
         , onAccept :: State t -> rv -> m ()
     }
 
+{-# INLINE mkSimpleReducer #-}
 mkSimpleReducer :: Monad m => InitReducer rv t -> RedRules m rv t -> Reducer m rv t
 mkSimpleReducer init_red red_rules =
     Reducer {
@@ -200,6 +201,7 @@ data Halter m hv t = Halter {
     , updateHalterWithAll :: [(State t, hv)] -> [hv]
     } 
 
+{-# INLINE mkSimpleHalter #-}
 mkSimpleHalter :: Monad m => InitHalter hv t -> UpdatePerStateHalt hv t -> StopRed m hv t -> StepHalter hv t -> Halter m hv t
 mkSimpleHalter initial update stop step = Halter { initHalt = initial
                                                  , updatePerStateHalt = update
@@ -208,6 +210,7 @@ mkSimpleHalter initial update stop step = Halter { initHalt = initial
                                                  , stepHalter = step
                                                  , updateHalterWithAll = map snd }
 
+{-# INLINE mkStoppingHalter #-}
 mkStoppingHalter :: Monad m => StopRed m () t -> Halter m () t
 mkStoppingHalter stop =
             mkSimpleHalter
@@ -265,6 +268,7 @@ data SomeOrderer t where
 -- because this could lead to undecidable instances
 data RC a b = RC a b
 
+{-# INLINE (<~) #-}
 (<~) :: Monad m => Reducer m rv1 t -> Reducer m rv2 t -> Reducer m (RC rv1 rv2) t
 r1 <~ r2 =
     Reducer { initReducer = \s -> RC (initReducer r1 s) (initReducer r2 s)
@@ -282,6 +286,7 @@ r1 <~ r2 =
                 onAccept r2 s rv2
             }
 
+{-# INLINE (<~?) #-}
 (<~?) :: Monad m => Reducer m rv1 t -> Reducer m rv2 t -> Reducer m (RC rv1 rv2) t
 r1 <~? r2 =
     Reducer { initReducer = \s -> RC (initReducer r1 s) (initReducer r2 s)
@@ -303,6 +308,7 @@ r1 <~? r2 =
                 onAccept r2 s rv2
             }
 
+{-# INLINE (<~|) #-}
 (<~|) :: Monad m => Reducer m rv1 t -> Reducer m rv2 t -> Reducer m (RC rv1 rv2) t
 r1 <~| r2 =
     Reducer { initReducer = \s -> RC (initReducer r1 s) (initReducer r2 s)
@@ -324,6 +330,7 @@ r1 <~| r2 =
                 onAccept r2 s rv2
             }
 
+{-# INLINE (.|.) #-}
 (.|.) :: Monad m => Reducer m rv1 t -> Reducer m rv2 t -> Reducer m (RC rv1 rv2) t
 r1 .|. r2 =
     Reducer { initReducer = \s -> RC (initReducer r1 s) (initReducer r2 s)
@@ -344,12 +351,15 @@ r1 .|. r2 =
                 onAccept r2 s rv2
             }
 
+{-# INLINE (.<~) #-}
 (.<~) :: Monad m => SomeReducer m t -> SomeReducer m t -> SomeReducer m t
 SomeReducer r1 .<~ SomeReducer r2 = SomeReducer (r1 <~ r2)
 
+{-# INLINE (.<~?) #-}
 (.<~?) :: Monad m => SomeReducer m t -> SomeReducer m t -> SomeReducer m t
 SomeReducer r1 .<~? SomeReducer r2 = SomeReducer (r1 <~? r2)
 
+{-# INLINE (.<~|) #-}
 (.<~|) :: Monad m => SomeReducer m t -> SomeReducer m t -> SomeReducer m t
 SomeReducer r1 .<~| SomeReducer r2 = SomeReducer (r1 <~| r2)
 
@@ -368,7 +378,7 @@ redRulesToStatesAux :: Monad m =>  Reducer m rv t -> rv -> Bindings -> (State t,
 redRulesToStatesAux r rv1 b (is, rv2) = do
         (rr_, is', b') <- redRules r rv1 is b
         return (b', (rr_, map (\(is'', rv1') -> (is'', RC rv1' rv2) ) is'))
-    
+
 redRulesToStates :: Monad m => Reducer m rv t -> rv -> [(State t, rv2)] -> Bindings -> m (ReducerRes, [(State t, RC rv rv2)], Bindings)
 redRulesToStates r rv1 s b = do
     let redRulesToStatesAux' = redRulesToStatesAux r rv1
@@ -380,6 +390,7 @@ redRulesToStates r rv1 s b = do
 
     return $ (rf, concat s', b')
 
+{-#INLINE stdRed #-}
 stdRed :: (MonadIO m, Solver solver, Simplifier simplifier) => Sharing -> solver -> simplifier -> Reducer m () t
 stdRed share solver simplifier =
         mkSimpleReducer (\_ -> ())
@@ -390,6 +401,7 @@ stdRed share solver simplifier =
                         )
 
 -- | Removes and reduces the values in a State's non_red_path_conds field. 
+{-#INLINE nonRedPCRed #-}
 nonRedPCRed :: Monad m => Reducer m () t
 nonRedPCRed = mkSimpleReducer (\_ -> ())
                               nonRedPCRedFunc
@@ -492,6 +504,7 @@ nonRedPCRedConstFunc _
     return (InProgress, [(s', ())], b { name_gen = ng'' })
 nonRedPCRedConstFunc _ s b = return (Finished, [(s, ())], b)
 
+{-# INLINE taggerRed #-}
 taggerRed :: Monad m => Name -> Reducer m () t
 taggerRed n = mkSimpleReducer (const ()) (taggerRedStep n)
 
@@ -656,6 +669,7 @@ h1 <~> h2 =
                 in
                 map (uncurry C) $ zip shv1' shv2'
             }
+{-# INLINE (<~>) #-}
 
 swhnfHalter :: Monad m => Halter m () t
 swhnfHalter = mkStoppingHalter stop
@@ -744,9 +758,11 @@ varLookupLimitHalter lim = mkSimpleHalter
         step l _ _ (State { curr_expr = CurrExpr Evaluate (Var _) }) = l - 1
         step l _ _ _ = l
 
+{-# INLINE stdTimerHalter #-}
 stdTimerHalter :: (MonadIO m, MonadIO m_run) => NominalDiffTime -> m (Halter m_run Int t)
 stdTimerHalter ms = timerHalter ms Discard 10
 
+{-# INLINE timerHalter #-}
 timerHalter :: (MonadIO m, MonadIO m_run) => NominalDiffTime -> HaltC -> Int -> m (Halter m_run Int t)
 timerHalter ms def ce = do
     curr <- liftIO $ getCurrentTime
@@ -1142,7 +1158,7 @@ switchState :: (MonadIO m, Ord b)
             -> Bindings
             -> M.Map b [ExState rv hv sov t] 
             -> m (Processed (State t), Bindings)
-switchState red hal ord  pr rs b xs
+switchState red hal ord pr rs b xs
     | not $ discardOnStart hal (halter_val rs') pr (state rs') =
         runReducer' red hal ord pr rs' b xs
     | otherwise =

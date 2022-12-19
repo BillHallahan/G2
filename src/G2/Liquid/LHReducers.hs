@@ -152,6 +152,7 @@ instance ASTContainer LHTracker Type where
             , all_calls = modifyContainedASTs f ac
             , higher_order_calls = modifyContainedASTs f hc }
 
+{-# INLINE lhRed #-}
 lhRed :: Monad m => Name -> Reducer m () LHTracker
 lhRed cfn = mkSimpleReducer (const ()) rr
     where
@@ -162,6 +163,7 @@ lhRed cfn = mkSimpleReducer (const ()) rr
                              , zip s' (repeat ()), b)
                 Nothing -> return (Finished, [(s, ())], b)
 
+{-# INLINE allCallsRed #-}
 allCallsRed :: Monad m => Reducer m () LHTracker
 allCallsRed = mkSimpleReducer (const ()) rr
     where
@@ -172,6 +174,7 @@ allCallsRed = mkSimpleReducer (const ()) rr
             return $ (Finished, [(s { track = lht } , ())], b)
         rr _ s b = return $ (Finished, [(s, ())], b)
 
+{-# INLINE higherOrderCallsRed #-}
 higherOrderCallsRed :: Monad m => Reducer m () LHTracker
 higherOrderCallsRed = mkSimpleReducer (const ()) rr
     where
@@ -188,6 +191,7 @@ higherOrderCallsRed = mkSimpleReducer (const ()) rr
                                     , track = lht } , ())], b)
         rr _ s b = return $ (Finished, [(s, ())], b)
 
+{-# INLINE redArbErrors #-}
 redArbErrors :: Monad m => Reducer m () t
 redArbErrors = mkSimpleReducer (const ()) rr
     where
@@ -313,6 +317,7 @@ lhTimerHalter ms ce = do
             | otherwise = v + 1
 
 -- | Reduces any non-SWHNF values being returned by an abstracted function
+{-# INLINE nonRedAbstractReturnsRed #-}
 nonRedAbstractReturnsRed :: Monad m => Reducer m () LHTracker
 nonRedAbstractReturnsRed =
     mkSimpleReducer (const ())

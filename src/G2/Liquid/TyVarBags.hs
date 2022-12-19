@@ -351,6 +351,7 @@ putSymbolicExistentialInstInExprEnv s@(State { expr_env = eenv }) =
                         eenv
       }
 
+{-# INLINE existentialInstRed #-}
 existentialInstRed :: Monad m => Reducer m () t
 existentialInstRed = mkSimpleReducer (const ()) existInstRedRules
 
