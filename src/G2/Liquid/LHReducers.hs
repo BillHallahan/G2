@@ -253,6 +253,7 @@ allMin f xs =
     filter (\s -> minT == (f s)) xs
 
 -- | Halt if we abstract more calls than some other already accepted state
+{-# INLINE lhAbsHalter #-}
 lhAbsHalter :: Monad m => T.Text -> Maybe T.Text -> ExprEnv -> Halter m Int LHTracker
 lhAbsHalter entry modn eenv = mkSimpleHalter initial update stop step
     where
@@ -278,6 +279,7 @@ lhAbsHalter entry modn eenv = mkSimpleHalter initial update stop step
 
         step hv _ _ _ = hv
 
+{-# INLINE lhMaxOutputsHalter #-}
 lhMaxOutputsHalter :: Monad m => Int -> Halter m Int LHTracker
 lhMaxOutputsHalter mx = (mkSimpleHalter
                             (const mx)
@@ -290,9 +292,11 @@ lhMaxOutputsHalter mx = (mkSimpleHalter
                 min_abs = minAbstractCalls acc
                 acc' = filter (\s -> abstractCallsNum s == min_abs) acc
 
+{-# INLINE lhStdTimerHalter #-}
 lhStdTimerHalter :: (MonadIO m, MonadIO m_run) => NominalDiffTime -> m (Halter m_run Int t)
 lhStdTimerHalter ms = lhTimerHalter ms 10
 
+{-# INLINE lhTimerHalter #-}
 lhTimerHalter :: (MonadIO m, MonadIO m_run) => NominalDiffTime -> Int -> m (Halter m_run Int t)
 lhTimerHalter ms ce = do
     curr <- liftIO $ getCurrentTime

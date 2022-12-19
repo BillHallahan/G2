@@ -143,6 +143,20 @@ instance Solver solver => Solver (SpreadOutSolver solver) where
 -- Calling G2
 -------------------------------------
 
+
+{-# SPECIALISE
+    runLHG2Inference :: (Solver solver, Simplifier simplifier)
+                    => Config
+                    -> SomeReducer (SM.StateT PrettyGuide IO) LHTracker
+                    -> SomeHalter (SM.StateT PrettyGuide IO) LHTracker
+                    -> SomeOrderer LHTracker
+                    -> solver
+                    -> simplifier
+                    -> MemConfig
+                    -> Id
+                    -> State LHTracker
+                    -> Bindings
+                    -> SM.StateT PrettyGuide IO ([ExecRes AbstractedInfo], Bindings) #-}
 runLHG2Inference :: (MonadIO m, Solver solver, Simplifier simplifier)
                  => Config
                  -> SomeReducer m LHTracker
@@ -416,6 +430,15 @@ gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
 -- needlessly repeatedly reading and compiling the code.  But it's to have an "end-to-end"
 -- function to just running the symbolic execution, for debugging.
 
+{-# SPECIALISE
+    runLHInferenceAll :: InferenceConfig
+                      -> Config
+                      -> LHConfig
+                      -> T.Text
+                      -> [FilePath]
+                      -> [FilePath]
+                      -> IO (([ExecRes AbstractedInfo], Bindings), Id)
+ #-}
 runLHInferenceAll :: MonadIO m
                   => InferenceConfig
                   -> Config
@@ -466,7 +489,8 @@ runLHInferenceCore entry m lrs ghci = do
         final_st' = swapHigherOrdForSymGen bindings final_st
 
     (red, hal, ord) <- inferenceReducerHalterOrderer infconfig g2config lhconfig solver simplifier entry m cfn final_st'
-    (exec_res, final_bindings) <- SM.evalStateT (runLHG2Inference g2config red hal ord solver simplifier pres_names ifi final_st' bindings) (mkPrettyGuide ())
+    -- liftIO is important so that we specialize runLHG2Inference
+    (exec_res, final_bindings) <- liftIO $ SM.evalStateT (runLHG2Inference g2config red hal ord solver simplifier pres_names ifi final_st' bindings) (mkPrettyGuide ())
 
     liftIO $ close solver
 
@@ -560,7 +584,8 @@ runLHCExSearch entry m lrs ghci = do
         final_st' = swapHigherOrdForSymGen bindings final_st
 
     (red, hal, ord) <- realCExReducerHalterOrderer infconfig g2config lhconfig' entry m solver simplifier cfn
-    (exec_res, final_bindings) <- SM.evalStateT (runLHG2Inference g2config red hal ord solver simplifier pres_names ifi final_st' bindings) (mkPrettyGuide ())
+    -- liftIO is important so that we specialize runLHG2Inference
+    (exec_res, final_bindings) <- liftIO $ SM.evalStateT (runLHG2Inference g2config red hal ord solver simplifier pres_names ifi final_st' bindings) (mkPrettyGuide ())
 
     liftIO $ close solver
 
