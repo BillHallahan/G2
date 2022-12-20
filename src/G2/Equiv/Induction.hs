@@ -35,13 +35,18 @@ replaceScrutinee _ _ e = e
 
 generalizeAux :: S.Solver solver =>
                  solver ->
+                 Int ->
                  HS.HashSet Name ->
+                 Lemmas ->
                  [StateET] ->
                  StateET ->
                  W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-generalizeAux solver ns s1_list s2 = do
-  -- TODO add lemmas here later?
-  let check_equiv s1_ = moreRestrictiveEqual solver 0 ns emptyLemmas s1_ s2
+generalizeAux solver num_lems ns lemmas s1_list s2 = do
+  -- Originally, this equality check did not allow for lemma usage
+  -- because it was supposed to check only for syntactic equality.
+  -- However, there do not seem to be any soundness issues with
+  -- enabling lemma usage here to make the tactic more powerful.
+  let check_equiv s1_ = moreRestrictiveEqual solver num_lems ns lemmas s1_ s2
   res <- mapM check_equiv s1_list
   let res' = filter isJust res
   case res' of
@@ -64,11 +69,13 @@ adjustStateForGeneralization e_old fresh_name s =
 -- replace the largest sub-expression possible with a fresh symbolic var
 generalize :: S.Solver solver =>
               solver ->
+              Int ->
               HS.HashSet Name ->
+              Lemmas ->
               Name ->
               (StateET, StateET) ->
               W.WriterT [Marker] IO (Maybe (StateET, StateET))
-generalize solver ns fresh_name (s1, s2) | dc_path (track s1) == dc_path (track s2) = do
+generalize solver num_lems ns lemmas fresh_name (s1, s2) | dc_path (track s1) == dc_path (track s2) = do
   -- expressions are ordered from outer to inner
   -- the largest ones are on the outside
   -- take the earliest array entry that works
@@ -79,8 +86,9 @@ generalize solver ns fresh_name (s1, s2) | dc_path (track s1) == dc_path (track 
       e2 = exprExtract s2
       scr2 = innerScrutinees e2
       scr_states2 = map (\e -> s2 { curr_expr = CurrExpr Evaluate e }) scr2
-  res <- mapM (generalizeAux solver ns scr_states1) scr_states2
+  res <- mapM (generalizeAux solver num_lems ns lemmas scr_states1) scr_states2
   -- TODO also may want to adjust the equivalence tracker
+  -- TODO I forget what adjustments I had in mind when I wrote that
   let res' = filter isJust res
   case res' of
     (Just pm):_ -> let (s1', s2') = present pm
@@ -92,41 +100,44 @@ generalize solver ns fresh_name (s1, s2) | dc_path (track s1) == dc_path (track 
 
 generalizeFoldL :: S.Solver solver =>
                    solver ->
+                   Int ->
                    HS.HashSet Name ->
+                   Lemmas ->
                    Name ->
                    [StateET] ->
                    StateET ->
                    W.WriterT [Marker] IO (Maybe (StateET, StateET, StateET, StateET))
-generalizeFoldL solver ns fresh_name prev2 s1 = do
+generalizeFoldL solver num_lems ns lemmas fresh_name prev2 s1 = do
   case prev2 of
     [] -> return Nothing
     p2:t -> do
-      gen <- generalize solver ns fresh_name (s1, p2)
+      gen <- generalize solver num_lems ns lemmas fresh_name (s1, p2)
       case gen of
         Just (s1', s2') -> return $ Just (s1, p2, s1', s2')
-        _ -> generalizeFoldL solver ns fresh_name t s1
+        _ -> generalizeFoldL solver num_lems ns lemmas fresh_name t s1
 
--- TODO make a new marker type for this?
 generalizeFold :: S.Solver solver =>
                   solver ->
+                  Int ->
                   HS.HashSet Name ->
+                  Lemmas ->
                   Name ->
                   (StateH, StateH) ->
                   (StateET, StateET) ->
                   W.WriterT [Marker] IO (Maybe (StateET, StateET, StateET, StateET))
-generalizeFold solver ns fresh_name (sh1, sh2) (s1, s2) = do
-  fl <- generalizeFoldL solver ns fresh_name (s2:history sh2) s1
+generalizeFold solver num_lems ns lemmas fresh_name (sh1, sh2) (s1, s2) = do
+  fl <- generalizeFoldL solver num_lems ns lemmas fresh_name (s2:history sh2) s1
   case fl of
     Just _ -> return fl
     Nothing -> do
-      fr <- generalizeFoldL solver ns fresh_name (s1:history sh1) s2
+      fr <- generalizeFoldL solver num_lems ns lemmas fresh_name (s1:history sh1) s2
       case fr of
         Just (q2, q1, q2', q1') -> return $ Just (q1, q2, q1', q2')
         Nothing -> return Nothing
 
 generalizeFull :: S.Solver s => Tactic s
-generalizeFull solver _ ns _ (fresh_name:_) sh_pair s_pair = do
-  gfold <- generalizeFold solver ns fresh_name sh_pair s_pair
+generalizeFull solver num_lems ns lemmas (fresh_name:_) sh_pair s_pair = do
+  gfold <- generalizeFold solver num_lems ns lemmas fresh_name sh_pair s_pair
   case gfold of
     Nothing -> return $ NoProof []
     Just (s1, s2, q1, q2) -> let lem = mkProposedLemma "Generalization" s1 s2 q1 q2
