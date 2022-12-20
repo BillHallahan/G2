@@ -87,8 +87,7 @@ generalize solver num_lems ns lemmas fresh_name (s1, s2) | dc_path (track s1) ==
       scr2 = innerScrutinees e2
       scr_states2 = map (\e -> s2 { curr_expr = CurrExpr Evaluate e }) scr2
   res <- mapM (generalizeAux solver num_lems ns lemmas scr_states1) scr_states2
-  -- TODO also may want to adjust the equivalence tracker
-  -- TODO I forget what adjustments I had in mind when I wrote that
+  -- no equiv tracker changes seem to be necessary
   let res' = filter isJust res
   case res' of
     (Just pm):_ -> let (s1', s2') = present pm
