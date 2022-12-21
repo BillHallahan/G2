@@ -27,6 +27,7 @@ import G2.QuasiQuotes.Support
 import G2.QuasiQuotes.Parser
 
 import qualified Control.Concurrent.Lock as Lock
+import Control.Monad.IO.Class
 
 import Data.Data
 import qualified Data.HashSet as HS
@@ -233,7 +234,7 @@ runExecutionQ s b config = do
     case qqRedHaltOrd config solver simplifier of
         (SomeReducer red, SomeHalter hal, SomeOrderer ord) -> do
             let (s'', b'') = runG2Pre emptyMemConfig s' b'
-                hal' = hal :<~> ZeroHalter 2000 :<~> LemmingsHalter
+                hal' = hal <~> zeroHalter 2000 <~> lemmingsHalter
             (xs, b''') <- runExecutionToProcessed red hal' ord s'' b''
 
             case xs of
@@ -248,14 +249,15 @@ runExecutionQ s b config = do
         _ = False
 
 -- | As soon as one States has been discarded, discard all States
-data LemmingsHalter = LemmingsHalter
-
-instance Halter LemmingsHalter () t where
-    initHalt _ _ = ()
-    updatePerStateHalt _ _ _ _ = ()
-    discardOnStart _ _ pr _ = not . null . discarded $ pr
-    stopRed _ _ _ _ = return Continue
-    stepHalter _ _ _ _ _ = ()
+lemmingsHalter :: Monad m => Halter m () t
+lemmingsHalter =
+        (mkSimpleHalter
+                (const ())
+                (\_ _ _ -> ())
+                (\_ _ _ -> return Continue)
+                (\_ _ _ _ -> ())) { discardOnStart = discard }
+    where
+        discard _ pr _ = not . null . discarded $ pr
 
 fileName :: String
 fileName = "THTemp.hs"
@@ -266,21 +268,20 @@ moduleName = "THTemp"
 functionName :: String
 functionName = "g2Expr"
 
-qqRedHaltOrd :: (Solver solver, Simplifier simplifier) => Config -> solver -> simplifier -> (SomeReducer (), SomeHalter (), SomeOrderer ())
+qqRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) => Config -> solver -> simplifier -> (SomeReducer m (), SomeHalter m (), SomeOrderer ())
 qqRedHaltOrd config solver simplifier =
     let
         share = sharing config
 
-        tr_ng = mkNameGen ()
         state_name = G2.Name "state" Nothing 0 Nothing
     in
     ( SomeReducer
-        (NonRedPCRed :<~| TaggerRed state_name tr_ng)
-            <~| (SomeReducer (StdRed share solver simplifier))
+        (nonRedPCRed <~| taggerRed state_name)
+            .<~| (SomeReducer (stdRed share solver simplifier))
     , SomeHalter
-        (DiscardIfAcceptedTag state_name 
-        :<~> AcceptIfViolatedHalter)
-    , SomeOrderer NextOrderer)
+        (discardIfAcceptedTagHalter state_name 
+        <~> acceptIfViolatedHalter)
+    , SomeOrderer nextOrderer)
 
 addAssume :: State t -> Bindings -> (State t, Bindings)
 addAssume s@(State { curr_expr = CurrExpr er e }) b@(Bindings { name_gen = ng }) =
@@ -395,16 +396,15 @@ type StateExp = Q Exp
 type StateListExp = Q Exp
 type BindingsExp = Q Exp
 
-data ErrorHalter = ErrorHalter
-
-instance Halter ErrorHalter () t where
-    initHalt _ _ = ()
-    updatePerStateHalt _ _ _ _ = ()
-
-    stopRed _ _ _ (State { curr_expr = CurrExpr _ (G2.Prim Error _)}) = return Discard
-    stopRed _ _ _ _ = return Continue
-
-    stepHalter _ _ _ _ _ = ()
+errorHalter :: Monad m => Halter m () t
+errorHalter = mkSimpleHalter
+                    (const ())
+                    (\_ _ _ -> ())
+                    stop
+                    (\_ _ _ _ -> ())
+    where
+        stop _ _ (State { curr_expr = CurrExpr _ (G2.Prim Error _)}) = return Discard
+        stop _ _ _ = return Continue
 
 executeAndSolveStates :: StateExp -> BindingsExp -> Q Exp
 executeAndSolveStates s b = do
@@ -417,17 +417,9 @@ executeAndSolveStates' b s = do
     let simplifier = IdSimplifier
     case qqRedHaltOrd config solver simplifier of
         (SomeReducer red, SomeHalter hal, _) -> do
-            -- let hal' = hal :<~> ErrorHalter
-            --                :<~> MaxOutputsHalter (Just 1)
-            --                :<~> BranchAdjSwitchEveryNHalter 2000 20
-                           -- :<~> SwitchEveryNHalter 2000
-            let hal' = hal :<~> ErrorHalter :<~> VarLookupLimit 3 :<~> MaxOutputsHalter (Just 1)
-            -- (res, _) <- runG2Post red hal' PickLeastUsedOrderer solver s b
-            -- (res, _) <- runG2Post (red :<~ Logger "qq") hal' ((IncrAfterN 2000 SymbolicADTOrderer)
-                                          -- :<-> BucketSizeOrderer 6) solver s b
-                ord = ToOrderer (IncrAfterN 2000 (ADTHeightOrderer 0 Nothing) :<-> BucketSizeOrderer 6)
+            let hal' = hal <~> errorHalter <~> varLookupLimitHalter 3 <~> maxOutputsHalter (Just 1)
+                ord = incrAfterN 2000 (adtHeightOrderer 0 Nothing) <-> bucketSizeOrderer 6
             (res, _) <- runG2Post (red) hal' ord solver simplifier s b
-            -- (res, _) <- runG2Post (red) hal' (BucketSizeOrderer 3) solver s b
 
             case res of
                 exec_res:_ -> return $ Just exec_res

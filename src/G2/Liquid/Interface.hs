@@ -75,6 +75,8 @@ import Language.Haskell.Liquid.UX.CmdLine hiding (config)
 
 import Control.Exception
 import Control.Monad.Extra
+import Control.Monad.IO.Class
+import qualified Control.Monad.State as SM
 import Data.List
 import qualified Data.HashSet as S
 import qualified Data.HashMap.Lazy as HM
@@ -111,11 +113,12 @@ findCounterExamples proj fp entry config lhconfig = do
 
     runLHCore entry tgt_trans ghci' config' lhconfig
 
-runLHCore :: T.Text -> (Maybe T.Text, ExtractedG2)
-                    -> [GhcInfo]
-                    -> Config
-                    -> LHConfig
-                    -> IO (([ExecRes AbstractedInfo], Bindings), Lang.Id)
+runLHCore :: T.Text
+          -> (Maybe T.Text, ExtractedG2)
+          -> [GhcInfo]
+          -> Config
+          -> LHConfig
+          -> IO (([ExecRes AbstractedInfo], Bindings), Lang.Id)
 runLHCore entry (mb_modname, exg2) ghci config lhconfig = do
     LiquidData { ls_state = final_st
                , ls_bindings = bindings
@@ -127,7 +130,7 @@ runLHCore entry (mb_modname, exg2) ghci config lhconfig = do
     let simplifier = IdSimplifier
 
     let (red, hal, ord) = lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn final_st
-    (exec_res, final_bindings) <- runLHG2 config red hal ord solver simplifier pres_names ifi final_st bindings
+    (exec_res, final_bindings) <- SM.evalStateT (runLHG2 config red hal ord solver simplifier pres_names ifi final_st bindings) (mkPrettyGuide ())
 
     close solver
 
@@ -362,10 +365,10 @@ processLiquidReadyStateWithCall lrs@(LiquidReadyState { lr_state = lhs@(LHState 
 
     processLiquidReadyStateCleaning lrs' ie ghci lhconfig memconfig
 
-runLHG2 :: (Solver solver, Simplifier simplifier)
+runLHG2 :: (MonadIO m, Solver solver, Simplifier simplifier)
         => Config
-        -> SomeReducer LHTracker
-        -> SomeHalter LHTracker
+        -> SomeReducer m LHTracker
+        -> SomeHalter m LHTracker
         -> SomeOrderer LHTracker
         -> solver
         -> simplifier
@@ -373,7 +376,7 @@ runLHG2 :: (Solver solver, Simplifier simplifier)
         -> Lang.Id
         -> State LHTracker
         -> Bindings
-        -> IO ([ExecRes AbstractedInfo], Bindings)
+        -> m ([ExecRes AbstractedInfo], Bindings)
 runLHG2 config red hal ord solver simplifier pres_names init_id final_st bindings = do
     let only_abs_st = addTicksToDeepSeqCases (deepseq_walkers bindings) final_st
     (ret, final_bindings) <- runG2WithSomes red hal ord solver simplifier pres_names only_abs_st bindings
@@ -391,7 +394,7 @@ onlyMinimalStates ers =
     in
     filter (\(ExecRes {final_state = s}) -> mi == (abstractCallsNum s)) ers
 
-cleanupResults :: (Solver solver, Simplifier simplifier) =>
+cleanupResults :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                   solver
                -> simplifier
                -> Config
@@ -399,15 +402,15 @@ cleanupResults :: (Solver solver, Simplifier simplifier) =>
                -> State LHTracker
                -> Bindings
                -> [ExecRes LHTracker]
-               -> IO ([ExecRes AbstractedInfo], Bindings)
+               -> m ([ExecRes AbstractedInfo], Bindings)
 cleanupResults solver simplifier config init_id init_state bindings ers = do
     let ers2 = map (\er -> er { final_state = putSymbolicExistentialInstInExprEnv (final_state er) }) ers
         ers3 = map (\er -> if fmap funcName (violated er) == Just initiallyCalledFuncName
                                   then er { violated = Nothing }
                                   else er) ers2
 
-    (bindings', ers4) <- mapAccumM (reduceCalls runG2WithSomes solver simplifier config) bindings ers3
-    ers5 <- mapM (checkAbstracted runG2WithSomes solver simplifier config init_id bindings') ers4
+    (bindings', ers4) <- liftIO $ mapAccumM (reduceCalls runG2WithSomes solver simplifier config) bindings ers3
+    ers5 <- liftIO $ mapM (checkAbstracted runG2WithSomes solver simplifier config init_id bindings') ers4
     let ers6 = 
           map (\er@(ExecRes { final_state = s }) ->
                 (er { final_state =
@@ -418,7 +421,7 @@ cleanupResults solver simplifier config init_id init_state bindings ers = do
                     })) ers5
     return (ers6, bindings')
 
-lhReducerHalterOrderer :: (Solver solver, Simplifier simplifier)
+lhReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
                        => Config
                        -> LHConfig
                        -> solver
@@ -427,52 +430,52 @@ lhReducerHalterOrderer :: (Solver solver, Simplifier simplifier)
                        -> Maybe T.Text
                        -> CounterfactualName
                        -> State t
-                       -> (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
+                       -> ( SomeReducer (SM.StateT PrettyGuide m) LHTracker
+                          , SomeHalter (SM.StateT PrettyGuide m) LHTracker
+                          , SomeOrderer LHTracker)
 lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st =
     let
-        ng = mkNameGen ()
 
         share = sharing config
 
-        (limHalt, limOrd) = limitByAccepted (cut_off lhconfig)
         state_name = Name "state" Nothing 0 Nothing
 
         abs_ret_name = Name "abs_ret" Nothing 0 Nothing
 
-        non_red = NonRedPCRed :|: NonRedPCRedConst
+        non_red = nonRedPCRed .|. nonRedPCRedConst
 
-        m_logger = getLogger config
+        m_logger = fmap SomeReducer $ getLogger config
     in
     if higherOrderSolver config == AllFuncs then
         ( SomeReducer non_red
-            <~| (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng ))
-            <~| (case m_logger of
-                  Just logger -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed) <~ logger
-                  Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed))
+            .<~| (SomeReducer (nonRedAbstractReturnsRed <~| taggerRed abs_ret_name))
+            .<~| (case m_logger of
+                  Just logger -> SomeReducer (stdRed share solver simplifier <~| lhRed cfn <~? existentialInstRed) .<~ logger
+                  Nothing -> SomeReducer (stdRed share solver simplifier <~| lhRed cfn <~? existentialInstRed))
         , SomeHalter
-                (MaxOutputsHalter (maxOutputs config)
-                  :<~> ZeroHalter (steps config)
-                  :<~> LHAbsHalter entry mb_modname (expr_env st)
-                  :<~> limHalt
-                  :<~> SwitchEveryNHalter (switch_after lhconfig)
-                  :<~> LHAcceptIfViolatedHalter)
-        , SomeOrderer limOrd)
+                (maxOutputsHalter (maxOutputs config)
+                  <~> zeroHalter (steps config)
+                  <~> lhAbsHalter entry mb_modname (expr_env st)
+                  <~> lhLimitByAcceptedHalter (cut_off lhconfig)
+                  <~> switchEveryNHalter (switch_after lhconfig)
+                  <~> lhAcceptIfViolatedHalter)
+        , SomeOrderer lhLimitByAcceptedOrderer)
     else
-        (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng)
-            <~| (SomeReducer (non_red :<~| TaggerRed state_name ng))
-            <~| (case m_logger of
-                  Just logger -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed) <~ logger
-                  Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn :<~? ExistentialInstRed))
+        (SomeReducer (nonRedAbstractReturnsRed <~| taggerRed abs_ret_name)
+            .<~| (SomeReducer (non_red <~| taggerRed state_name))
+            .<~| (case m_logger of
+                  Just logger -> SomeReducer (stdRed share solver simplifier <~| lhRed cfn <~? existentialInstRed) .<~ logger
+                  Nothing -> SomeReducer (stdRed share solver simplifier <~| lhRed cfn <~? existentialInstRed))
         , SomeHalter
-            (DiscardIfAcceptedTag state_name
-              :<~> DiscardIfAcceptedTag abs_ret_name
-              :<~> MaxOutputsHalter (maxOutputs config)
-              :<~> ZeroHalter (steps config)
-              :<~> LHAbsHalter entry mb_modname (expr_env st)
-              :<~> limHalt
-              :<~> SwitchEveryNHalter (switch_after lhconfig)
-              :<~> LHAcceptIfViolatedHalter)
-        , SomeOrderer limOrd)
+            (discardIfAcceptedTagHalter state_name
+              <~> discardIfAcceptedTagHalter abs_ret_name
+              <~> maxOutputsHalter (maxOutputs config)
+              <~> zeroHalter (steps config)
+              <~> lhAbsHalter entry mb_modname (expr_env st)
+              <~> lhLimitByAcceptedHalter (cut_off lhconfig)
+              <~> switchEveryNHalter (switch_after lhconfig)
+              <~> lhAcceptIfViolatedHalter)
+        , SomeOrderer lhLimitByAcceptedOrderer)
 
 initializeLHData :: [GhcInfo] -> Maybe PhantomTyVars -> LHConfig -> LHStateM ()
 initializeLHData ghcInfos m_ph_tyvars config = do
