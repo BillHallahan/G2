@@ -29,7 +29,7 @@ import G2.Equiv.InitRewrite
 import G2.Equiv.EquivADT
 import G2.Equiv.G2Calls
 import G2.Equiv.Tactics
-import G2.Equiv.Induction
+import G2.Equiv.Generalize
 import G2.Equiv.Summary
 
 import qualified Data.Map as M

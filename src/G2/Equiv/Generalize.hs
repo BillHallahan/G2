@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Equiv.Induction
+module G2.Equiv.Generalize
     ( prevFiltered
     , generalizeFull
     )
