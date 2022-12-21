@@ -29,7 +29,7 @@ import G2.Equiv.InitRewrite
 import G2.Equiv.EquivADT
 import G2.Equiv.G2Calls
 import G2.Equiv.Tactics
-import G2.Equiv.Induction
+import G2.Equiv.Generalize
 import G2.Equiv.Summary
 
 import qualified Data.Map as M
@@ -41,19 +41,12 @@ import Control.Monad
 
 import G2.Lib.Printers
 
--- TODO reader / writer monad source consulted
+-- reader / writer monad source consulted
 -- https://mmhaskell.com/monads/reader-writer
 
 import qualified Control.Monad.Writer.Lazy as W
 
 import System.IO
-
--- 9/27 notes
--- TODO have a list of every single state, not just the stopping ones
--- The value of discharge should be the previously-encountered state pair that
--- was used to discharge this branch, if the branch has been discharged.
--- TODO requiring finiteness for forceIdempotent makes verifier get stuck
--- same goes for p10 in Zeno
 
 statePairReadyForSolver :: (State t, State t) -> Bool
 statePairReadyForSolver (s1, s2) =
@@ -73,19 +66,6 @@ logStatesET :: String -> LogMode -> String
 logStatesET pre (Log _ n) = n ++ "/" ++ pre
 logStatesET pre NoLog = "/" ++ pre
 
-{-
-TODO 1/25
-If some states are significantly farther ahead than others in terms of
-expression depth, mark them as "dormant" for one loop iteration, or a variable
-number of iterations.  This will allow states with low depths to "catch up" so
-that we get better results in terms of the expression depth covered by the
-entire attempted proof.  Whatever the system is for delaying evaluation of some
-branches, we need it to uphold a non-starvation guarantee.
-If the number of iterations for a branch to remain dormant is fixed at the time
-when the branch's evaluation halts, we have the guarantee we need.
-If, at any time, every single branch has been marked as dormant, the ones that
-would be awakened soonest should be awakened immediately.
--}
 runSymExec :: S.Solver solver =>
               solver ->
               Config ->
@@ -98,7 +78,6 @@ runSymExec solver config nc@(NC { sync = sy }) ns s1 s2 = do
   (bindings, k) <- CM.get
   let nc' = nc { log_states = logStatesFolder ("a" ++ show k) (log_states nc) }
       t1 = (track s1) { folder_name = logStatesET ("a" ++ show k) (log_states nc) }
-      -- TODO always Evaluate here?
       CurrExpr r1 e1 = curr_expr s1
       e1' = addStackTickIfNeeded ns (expr_env s1) e1
       s1' = s1 { track = t1, curr_expr = CurrExpr r1 e1' }
@@ -151,7 +130,6 @@ transferTrackerInfo s1 s2 =
       t2' = t2 {
         higher_order = higher_order t1
       , total_vars = total_vars t1
-      , finite_vars = finite_vars t1
       --, opp_env = expr_env s1
       }
   in s2 { track = t2' }
@@ -194,24 +172,15 @@ wrcHelper n e = case e of
 
 -- Creating a new expression environment lets us use the existing reachability
 -- functions.
--- TODO does the expr env really need to keep track of Lets above this?
 -- look inside the bindings and inside the body for recursion
--- TODO I should merge this process with the other wrapping?
--- TODO do I need an extra process for some other recursive structure?
 wrapLetRec :: ExprEnv -> Expr -> Expr
 wrapLetRec h (Let binds e) =
   let binds1 = map (\(i, e_) -> (idName i, e_)) binds
       fresh_name = Name (DT.pack "FRESH") Nothing 0 Nothing
       h' = foldr (\(n_, e_) h_ -> E.insert n_ e_ h_) h ((fresh_name, e):binds1)
-      -- TODO this might be doing more work than is necessary
       wrap_cg = wrapAllRecursion (G.getCallGraph h') h'
       binds2 = map (\(n_, e_) -> (n_, wrap_cg n_ e_)) binds1
-      -- TODO will Tick insertions accumulate?
-      -- TODO doesn't work, again because nothing reaches fresh_name
-      -- should I even need wrapping like this within the body?
       e' = foldr (wrapIfCorecursive (G.getCallGraph h') h' fresh_name) e (map fst binds1)
-      -- TODO do I need to do this twice over like this?
-      -- doesn't fix the problem of getting stuck
       e'' = wrapLetRec h' $ modifyChildren (wrapLetRec h') e'
       binds3 = map ((wrapLetRec h') . modifyChildren (wrapLetRec h')) (map snd binds2)
       binds4 = zip (map fst binds) binds3
@@ -298,7 +267,6 @@ appendH sh s =
   StateH {
     latest = s
   , history = (latest sh):(history sh)
-  , inductions = inductions sh
   , discharge = discharge sh
   }
 
@@ -318,9 +286,8 @@ allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
 allNewLemmaTactics = map applyTacticToLabeledStates [tryEquality, tryCoinduction]
 
 -- negative loop iteration count means there's no limit
--- TODO if states is empty but n = 0, we'll get Unknown rather than UNSAT
--- added (null states) check to deal with that
--- TODO (2/5) first attempt at slowing down execution for states that are ahead
+-- The (null states) check ensures that we return UNSAT rather than
+-- Unknown when states is empty and n = 0.
 verifyLoop :: S.Solver solver =>
               solver ->
               Int ->
@@ -337,20 +304,15 @@ verifyLoop :: S.Solver solver =>
 verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) || (null states) = do
   W.liftIO $ putStrLn "<Loop Iteration>"
   W.liftIO $ putStrLn $ show n
-  --let min_depth = minDepth ns sym_ids states
-  --W.liftIO $ putStrLn $ "<<Current Min Depth>> " ++ show min_depth
-  -- TODO use these instead in the Python script
+  -- this printing allows our Python script to report depth stats
   let min_max_depth = minMaxDepth ns sym_ids states
       min_sum_depth = minSumDepth ns sym_ids states
-  -- TODO don't print if state list is empty
   case states of
     [] -> return ()
     _ -> do
       W.liftIO $ putStrLn $ "<<Min Max Depth>> " ++ show min_max_depth
       W.liftIO $ putStrLn $ "<<Min Sum Depth>> " ++ show min_sum_depth
   W.liftIO $ hFlush stdout
-  -- TODO alternating iterations for this too?
-  -- Didn't test on much, but no apparent benefit
   (b', k', proven, lemmas') <- verifyLoopPropLemmas solver allTactics num_lems ns lemmas b config nc k
 
   -- W.liftIO $ putStrLn $ "proposed_lemmas: " ++ show (length $ proposed_lemmas lemmas')
@@ -358,11 +320,7 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
   -- W.liftIO $ putStrLn $ "continued_lemmas: " ++ show (length continued_lemmas)
   -- W.liftIO $ putStrLn $ "disproven_lemmas: " ++ show (length $ disproven_lemmas lemmas')
 
-  -- p02 went from about 50s to 1:50 when I added this
-  -- No improvement for p03fin
   (b'', k'', proven', lemmas'') <- verifyLemmasWithNewProvenLemmas solver allNewLemmaTactics num_lems ns proven lemmas' b' config nc k'
-  -- TODO I think the lemmas should be the unresolved ones
-  -- TODO what to do with disproven lemmas?
   (pl_sr, b''') <- verifyWithNewProvenLemmas solver allNewLemmaTactics num_lems ns proven' lemmas'' b'' states
 
   case pl_sr of
@@ -421,8 +379,6 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
                   W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
                   W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) (proposedLemmas lemmas)
     -}
-    -- TODO log some new things with the writer for unresolved obligations
-    -- TODO the present states are somewhat redundant
     W.liftIO $ putStrLn $ "Unresolved Obligations: " ++ show (length states)
     let ob (sh1, sh2) = Marker (sh1, sh2) $ Unresolved (latest sh1, latest sh2)
     W.tell $ map ob states
@@ -598,7 +554,10 @@ digInStateH lbl sh
 updateDC :: EquivTracker -> [BlockInfo] -> EquivTracker
 updateDC et ds = et { dc_path = dc_path et ++ ds }
 
--- TODO does it matter that I use the same type on both sides?
+-- It is not a problem that this function uses the type variable from only
+-- the first lambda.  If the two StateET inputs come from corresponding
+-- points in symbolic execution, the type variables from the two lambdas
+-- must align with each other.
 stateWrap :: Name -> StateET -> StateET -> Obligation -> (StateET, StateET)
 stateWrap fresh_name s1 s2 (Ob ds e1 e2) =
   let ds' = map (\(d, i, n) -> BlockDC d i n) ds
@@ -619,18 +578,6 @@ stateWrap fresh_name s1 s2 (Ob ds e1 e2) =
       in (s1', s2')
     _ -> ( s1 { curr_expr = CurrExpr Evaluate e1, track = updateDC (track s1) ds' }
          , s2 { curr_expr = CurrExpr Evaluate e2, track = updateDC (track s2) ds' } )
-
--- TODO what if n1 or n2 is negative?
-adjustStateH :: (StateH, StateH) ->
-                (Int, Int) ->
-                (StateET, StateET) ->
-                (StateH, StateH)
-adjustStateH (sh1, sh2) (n1, n2) (s1, s2) =
-  let hist1 = drop n1 $ history sh1
-      hist2 = drop n2 $ history sh2
-      sh1' = sh1 { history = hist1, latest = s1 }
-      sh2' = sh2 { history = hist2, latest = s2 }
-  in (sh1', sh2')
 
 -- the Bool value for EFail is True if a cycle has been found
 data TacticEnd = EFail Bool
@@ -655,23 +602,20 @@ hasSolverFail [] = False
 hasSolverFail ((EFail False):_) = True
 hasSolverFail (_:es) = hasSolverFail es
 
--- TODO put in a different file?
--- TODO do all of the solver obligations need to be covered together?
+-- covers all of the solver obligations at once
 trySolver :: S.Solver s => Tactic s
 trySolver solver _ _ _ _ _ (s1, s2) | statePairReadyForSolver (s1, s2) = do
   let e1 = exprExtract s1
       e2 = exprExtract s2
   res <- W.liftIO $ checkObligations solver s1 s2 (HS.fromList [(e1, e2)])
   case res of
-    S.UNSAT () -> return $ Success Nothing
+    S.UNSAT () -> return Success
     _ -> return $ Failure False
 trySolver _ _ _ _ _ _ _ = return $ NoProof []
 
--- TODO apply all tactics sequentially in a single run
+-- apply all tactics sequentially in a single run
 -- make StateH adjustments between each application, if necessary
--- if Success is ever empty, it's done
--- TODO adjust the output in any way when no tactics remaining?  Yes
--- TODO include the old version in the history or not?
+-- if Success ever appears, it's done
 applyTactics :: S.Solver solver =>
                 solver ->
                 [Tactic solver] ->
@@ -688,18 +632,15 @@ applyTactics solver (tac:tacs) num_lems ns lemmas gen_lemmas fresh_names (sh1, s
   case tr of
     Failure b -> return $ EFail b
     NoProof new_lemmas -> applyTactics solver tacs num_lems ns lemmas (new_lemmas ++ gen_lemmas) fresh_names (sh1, sh2) (s1, s2)
-    Success res -> case res of
-      Nothing -> return EDischarge
-      Just (n1, n2, s1', s2') -> do
-        let (sh1', sh2') = adjustStateH (sh1, sh2) (n1, n2) (s1', s2')
-        applyTactics solver tacs num_lems ns lemmas gen_lemmas fresh_names (sh1', sh2') (s1', s2')
+    Success -> return EDischarge
 applyTactics _ _ _ _ _ gen_lemmas _ (sh1, sh2) (s1, s2) =
     return $ EContinue gen_lemmas (replaceH sh1 s1, replaceH sh2 s2)
 
--- TODO how do I handle the solver application in this version?
--- Nothing output means failure now
--- TODO printing
--- TODO fresh_names must have at least two elements
+-- Nothing output means failure
+-- fresh_names must have at least two elements
+-- the first name is for stateWrap, the second is for the tactics
+-- the only tactic left that uses fresh names is generalizeFull
+-- still, there may be new tactics in the future that use fresh names
 tryDischarge :: S.Solver solver =>
                 solver ->
                 [Tactic solver] ->
@@ -725,7 +666,6 @@ tryDischarge solver tactics num_lems ns lemmas (fn:fresh_names) sh1 sh2 =
       let states = map (stateWrap fn s1 s2) obs
       res <- mapM (applyTactics solver tactics num_lems ns lemmas [] fresh_names (sh1, sh2)) states
       -- list of remaining obligations in StateH form
-      -- TODO I think non-ready ones can stay as they are
       let res' = foldr getRemaining [] res
           new_lemmas = concatMap getLemmas res
       if hasFail res then do
@@ -736,10 +676,6 @@ tryDischarge solver tactics num_lems ns lemmas (fn:fresh_names) sh1 sh2 =
       else do
         return $ Just (res', new_lemmas)
 tryDischarge _ _ _ _ _ _ _ _ = error "Need more fresh names"
-
--- TODO (9/27) check path constraint implication?
--- TODO (9/30) alternate:  just substitute one scrutinee for the other
--- put a non-symbolic variable there?
 
 getObligations :: HS.HashSet Name ->
                   State t ->
@@ -785,17 +721,6 @@ startingState et ns s =
     }
   in newStateH s'
 
-unused_name :: Name
-unused_name = Name (DT.pack "UNUSED") Nothing 0 Nothing
-
--- TODO may not use this finiteness-forcing method at all
-forceFinite :: Walkers -> Id -> Expr -> Expr
-forceFinite w i e =
-  let e' = mkStrict w $ Var i
-      i' = Id unused_name (typeOf $ Var i)
-      a = Alt Default e
-  in Case e' i' (typeOf e) [a]
-
 cleanState :: State t -> Bindings -> (State t, Bindings)
 cleanState state bindings =
   let sym_config = addSearchNames (input_names bindings)
@@ -818,7 +743,16 @@ writeCX ((Marker hist m):ms) pg ns sym_ids init_pair = case m of
   CycleFound cm -> showCycle pg ns sym_ids hist init_pair cm
   _ -> writeCX ms pg ns sym_ids init_pair
 
--- TODO nothing forces this to align with the CX summary
+-- This function relies on the assumption that, if symbolic execution for
+-- the main expression pair hits a counterexample, that counterexample
+-- will be the final counterexample in the Marker list (alternatively, the
+-- first counterexample in the reversed list that this takes as input).
+-- Lemma  counterexamples appear in the same list and are not distinguished
+-- in any special way, but, in each loop iteration, lemma execution happens
+-- before execution on the main expression pair.  If the main execution
+-- hits a counterexample, the iteration when it happens will be the final
+-- loop iteration, so we have an indirect guarantee that the counterexample
+-- covered here will not be one from a lemma.
 reducedGuide :: [Marker] -> PrettyGuide
 reducedGuide [] = error "No Counterexample"
 reducedGuide ((Marker _ m):ms) = case m of
@@ -832,53 +766,39 @@ checkRule :: Config
           -> State t
           -> Bindings
           -> [DT.Text] -- ^ names of forall'd variables required to be total
-          -> [DT.Text] -- ^ names of forall'd variables required to be total and finite
           -> RewriteRule
           -> IO (S.Result () () ())
-checkRule config nc init_state bindings total finite rule = do
+checkRule config nc init_state bindings total rule = do
   let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
       (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
       sym_ids = ru_bndrs rule
       total_names = filter (includedName total) (map idName sym_ids)
-      finite_names = filter (includedName finite) (map idName sym_ids)
-      finite_hs = foldr HS.insert HS.empty finite_names
-      -- always include the finite names in total
-      total_hs = foldr HS.insert finite_hs total_names
-      EquivTracker et m _ _ _ _ _ = emptyEquivTracker
-      start_equiv_tracker = EquivTracker et m total_hs finite_hs [] E.empty ""
+      total_hs = foldr HS.insert HS.empty total_names
+      EquivTracker et m _ _ _ _ = emptyEquivTracker
+      start_equiv_tracker = EquivTracker et m total_hs [] E.empty ""
       -- the keys are the same between the old and new environments
       ns_l = HS.fromList $ E.keys $ expr_env rewrite_state_l
       ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
       -- no need for two separate name sets
       ns = HS.filter (\n -> not (E.isSymbolic n $ expr_env rewrite_state_l)) $ HS.union ns_l ns_r
-      -- TODO wrap both sides with forcings for finite vars
-      -- get the finite vars first
-      -- TODO a little redundant with the earlier stuff
-      finite_ids = filter ((includedName finite) . idName) sym_ids
-      walkers = deepseq_walkers bindings''
       e_l = exprExtract rewrite_state_l
-      e_l' = foldr (forceFinite walkers) e_l finite_ids
-      (rewrite_state_l',_) = cleanState (rewrite_state_l { curr_expr = CurrExpr Evaluate e_l' }) bindings
+      (rewrite_state_l',_) = cleanState (rewrite_state_l { curr_expr = CurrExpr Evaluate e_l }) bindings
       e_r = exprExtract rewrite_state_r
-      e_r' = foldr (forceFinite walkers) e_r finite_ids
-      (rewrite_state_r',_) = cleanState (rewrite_state_r { curr_expr = CurrExpr Evaluate e_r' }) bindings
+      (rewrite_state_r',_) = cleanState (rewrite_state_r { curr_expr = CurrExpr Evaluate e_r }) bindings
       
       rewrite_state_l'' = startingState start_equiv_tracker ns rewrite_state_l'
       rewrite_state_r'' = startingState start_equiv_tracker ns rewrite_state_r'
 
   S.SomeSolver solver <- initSolver config
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
-  putStrLn $ printHaskellDirty e_l'
-  putStrLn $ printHaskellDirty e_r'
+  putStrLn $ printHaskellDirty e_l
+  putStrLn $ printHaskellDirty e_r
   putStrLn $ printHaskellDirty $ exprExtract $ latest rewrite_state_l''
   putStrLn $ printHaskellDirty $ exprExtract $ latest rewrite_state_r''
   (res, w) <- W.runWriterT $ verifyLoop solver (num_lemmas nc) ns
              emptyLemmas
              [(rewrite_state_l'', rewrite_state_r'')]
              bindings'' config nc sym_ids 0 (limit nc)
-  -- UNSAT for good, SAT for bad
-  -- TODO I can speed things up for the CX if there's no summary
-  -- I only need a PrettyGuide for the CX marker
   let pg = if (print_summary nc) == NoSummary
            then reducedGuide (reverse w)
            else mkPrettyGuide $ map (\(Marker _ am) -> am) w
