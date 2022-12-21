@@ -21,8 +21,7 @@ main = do
 
   proj <- guessProj src
 
-  let finite = []
-      tentry = T.pack entry
+  let tentry = T.pack entry
 
   config <- getConfigDirect
 
@@ -33,6 +32,6 @@ main = do
       rule' = case rule of
               Just r -> r
               Nothing -> error "not found"
-  res <- checkRule config nebula_config init_state bindings total finite rule'
+  res <- checkRule config nebula_config init_state bindings total rule'
   print res
   return ()

@@ -30,7 +30,7 @@ findRule rule_list rule_name =
 
 acceptRule :: Config -> State t -> Bindings -> RewriteRule -> IO Bool
 acceptRule config init_state bindings rule = do
-  res <- checkRule config nebulaConfig init_state bindings [] [] rule
+  res <- checkRule config nebulaConfig init_state bindings [] rule
   return (case res of
     S.SAT _ -> error "Satisfiable"
     S.UNSAT _ -> True
@@ -38,7 +38,7 @@ acceptRule config init_state bindings rule = do
 
 rejectRule :: Config -> State t -> Bindings -> RewriteRule -> IO Bool
 rejectRule config init_state bindings rule = do
-  res <- checkRule config nebulaConfig init_state bindings [] [] rule
+  res <- checkRule config nebulaConfig init_state bindings [] rule
   return (case res of
     S.SAT _ -> True
     S.UNSAT _ -> error "Unsatisfiable"
@@ -114,7 +114,6 @@ higher_bad_names = [ "direct"
 higher_bad_src :: String
 higher_bad_src = "tests/RewriteVerify/Incorrect/HigherOrderIncorrect.hs"
 
--- TODO also add some of the tree rewrite rules
 tree_good_names :: [String]
 tree_good_names = [ -- "doubleTree"
                     -- "doubleTreeOriginal"

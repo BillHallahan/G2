@@ -104,7 +104,6 @@ rule_names4 = [
     , "p84"
     ]
 
--- TODO
 rule_names5 :: [String]
 rule_names5 = [
       "p44"
