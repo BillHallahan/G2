@@ -21,16 +21,16 @@ tests :: TestTree
 tests = testGroup "All Tests"
         [ nqueensTests
         , arithmeticsTests
-        , deBruijnTests
+        -- , deBruijnTests
         , regexTests ]
 
 nqueensTests :: TestTree
 nqueensTests = testGroup "N Queens"
   [ qqTestCase "4 Queens" (queensTestN 4) (allQueensSafe 4)
-  , qqTestCase "4 Queens" (queensTestN 5) (allQueensSafe 5)
-  , qqTestCase "4 Queens" (queensTestN 6) (allQueensSafe 6)
-  , qqTestCase "4 Queens" (queensTestN 7) (allQueensSafe 7)
-  , qqTestCase "4 Queens" (queensTestN 8) (allQueensSafe 8) ]
+  , qqTestCase "5 Queens" (queensTestN 5) (allQueensSafe 5)
+  , qqTestCase "6 Queens" (queensTestN 6) (allQueensSafe 6)
+  , qqTestCase "7 Queens" (queensTestN 7) (allQueensSafe 7)
+  , qqTestCase "8 Queens" (queensTestN 8) (allQueensSafe 8) ]
 
 arithmeticsTests :: TestTree
 arithmeticsTests = testGroup "Arithmetic"
