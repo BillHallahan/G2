@@ -15,13 +15,13 @@ import RegEx.RegEx
 
 import G2.Interface
 
--- import Evaluations hiding (productSumTest)
+import qualified Evaluations as E
 
 tests :: TestTree
 tests = testGroup "All Tests"
         [ nqueensTests
         , arithmeticsTests
-        -- , deBruijnTests
+        , deBruijnTests
         , regexTests ]
 
 nqueensTests :: TestTree

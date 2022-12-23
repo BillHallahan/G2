@@ -5,6 +5,8 @@ module DeBruijn.Test where
 import DeBruijn.Interpreter
 import G2.QuasiQuotes.QuasiQuotes
 
+import RegEx.RegEx as R
+
 solveDeBruijn :: [([Expr], Expr)] -> IO (Maybe Expr)
 solveDeBruijn =
     [g2| \(es :: [([Expr], Expr)]) -> ?(func :: Expr) |
