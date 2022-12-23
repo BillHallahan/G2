@@ -5,6 +5,22 @@ module Arithmetics.Test where
 import Arithmetics.Interpreter
 import G2.QuasiQuotes.QuasiQuotes
 
+badProg :: Stmts
+badProg =
+  [
+    Assign "k" (I 1),
+    Assign "i" (I 0),
+    -- Assign "j" (I 0),
+    Assign "n" (I 5),
+    While (Or (Lt (Var "i") (Var "n"))
+              (Eq (Var "i") (Var "n")))
+          [ Assign "i" (Add (Var "i") (I 1))
+          , Assign "j" (Add (Var "j") (Var "i"))
+          ],
+    Assign "z" (Add (Var "k") (Add (Var "i") (Var "j"))),
+    Assert (Lt (Mul (Var "n") (I 2)) (Var "z"))
+  ]
+
 productTest :: IO (Maybe (AExpr, AExpr))
 productTest =
   [g2| \(a :: Int) -> ?(s1 :: AExpr)
@@ -18,17 +34,22 @@ envTest :: BExpr -> IO (Maybe Env)
 envTest = [g2|\(b :: BExpr) -> ?(env :: Env) |
                 evalB env b |]
 
+searchBadEnv :: Stmts -> IO (Maybe Env)
+searchBadEnv =
+  [g2| \(stmts :: Stmts) -> ?(env :: Env) |
+        evalStmts env stmts == Nothing|]
+
 assertViolation :: Stmts -> IO (Maybe Env)
 assertViolation = [g2|\(stmts :: Stmts) -> ?(env :: Env) |
                        evalStmts env stmts == Nothing|]
 
-productSumTest :: IO (Maybe Env)
-productSumTest =
-    envTest $ And
-                ((Eq 
-                    (Mul (Var "x") (Var "y"))
-                    (Add (Var "x") (Var "y"))))
-                (Lt (I 0) (Var "x"))
+productSumProg :: BExpr
+productSumProg =
+    And
+      ((Eq 
+          (Mul (Var "x") (Var "y"))
+          (Add (Var "x") (Var "y"))))
+      (Lt (I 0) (Var "x"))
 
 
 productSumAssertTest :: IO (Maybe Env)

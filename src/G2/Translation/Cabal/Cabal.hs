@@ -25,8 +25,11 @@ cabalSrcDirs fp = do
 genericPackageDescriptionSrcDirs :: GenericPackageDescription -> [FilePath]
 genericPackageDescriptionSrcDirs (GenericPackageDescription
                                             { condLibrary = cl
-                                            , condExecutables = ce }) = do
-    maybe [] (condTreeSrcDirs libSrcDirs) cl ++ concatMap (condTreeSrcDirs execSrcDirs . snd) ce
+                                            , condExecutables = ce
+                                            , condTestSuites = ts }) = do
+       maybe [] (condTreeSrcDirs libSrcDirs) cl
+    ++ concatMap (condTreeSrcDirs execSrcDirs . snd) ce
+    ++ concatMap (condTreeSrcDirs testSrcDirs . snd) ts
 
 condTreeSrcDirs :: (a -> [FilePath]) -> CondTree v c a -> [FilePath]
 condTreeSrcDirs f (CondNode { condTreeData = t }) = f t
@@ -36,6 +39,9 @@ libSrcDirs = buildInfoSrcDirs . libBuildInfo
 
 execSrcDirs :: Executable -> [FilePath]
 execSrcDirs = buildInfoSrcDirs . buildInfo
+
+testSrcDirs :: TestSuite -> [FilePath]
+testSrcDirs = buildInfoSrcDirs . testBuildInfo
 
 buildInfoSrcDirs :: BuildInfo -> [FilePath]
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
