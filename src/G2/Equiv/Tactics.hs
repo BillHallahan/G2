@@ -849,7 +849,7 @@ insertDisprovenLemma solver ns lems lem = do
   -- the one doing the implying is the more general one
   let prop_lems = proposed_lemmas lems
   (extra_disproven, still_prop) <- partitionM (\l -> moreRestrictiveLemma solver ns lem [l]) prop_lems
-  let extra_pairs = map (\l -> LemmaDisprovenEarly (lem, l)) extra_disproven
+  let extra_pairs = map (\l -> LemmaRejectedEarly (lem, l)) extra_disproven
       -- all unresolved lemmas should have a non-empty singleton list
       markers = map (Marker . head . lemma_to_be_proven) extra_disproven
   W.tell $ map (\(m, a) -> m a) $ zip markers extra_pairs

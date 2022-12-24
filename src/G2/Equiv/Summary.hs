@@ -274,12 +274,12 @@ summarizeLemmaProvenEarly :: PrettyGuide ->
                              String
 summarizeLemmaProvenEarly = summarizeLemmaPair "Lemma Superseded"
 
-summarizeLemmaDisprovenEarly :: PrettyGuide ->
+summarizeLemmaRejectedEarly :: PrettyGuide ->
                                 HS.HashSet Name ->
                                 [Id] ->
                                 (Lemma, Lemma) ->
                                 String
-summarizeLemmaDisprovenEarly = summarizeLemmaPair "Lemma Discarded"
+summarizeLemmaRejectedEarly = summarizeLemmaPair "Lemma Discarded"
 
 summarizeUnresolved :: PrettyGuide ->
                        HS.HashSet Name ->
@@ -324,7 +324,7 @@ summarizeAct pg ns sym_ids m = case m of
   SolverFail s_pair -> summarizeSolverFail pg ns sym_ids s_pair
   CycleFound cm -> summarizeCycleFound pg ns sym_ids cm
   LemmaProvenEarly lp -> summarizeLemmaProvenEarly pg ns sym_ids lp
-  LemmaDisprovenEarly lp -> summarizeLemmaDisprovenEarly pg ns sym_ids lp
+  LemmaRejectedEarly lp -> summarizeLemmaRejectedEarly pg ns sym_ids lp
   Unresolved s_pair -> summarizeUnresolved pg ns sym_ids s_pair
 
 summarizeHistory :: PrettyGuide -> HS.HashSet Name -> [Id] -> StateH -> String

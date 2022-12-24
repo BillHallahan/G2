@@ -48,15 +48,17 @@ data PrevMatch t = PrevMatch {
   , container :: State t
 }
 
--- TODO new constructor for lemma proving
 data ActMarker = Coinduction CoMarker
                | Equality EqualMarker
                | NoObligations (StateET, StateET)
                | NotEquivalent (StateET, StateET)
                | SolverFail (StateET, StateET)
                | CycleFound CycleMarker
+               | LemmaProposed Lemma
+               | LemmaProven Lemma
+               | LemmaRejected Lemma
                | LemmaProvenEarly (Lemma, Lemma)
-               | LemmaDisprovenEarly (Lemma, Lemma)
+               | LemmaRejectedEarly (Lemma, Lemma)
                | Unresolved (StateET, StateET)
 
 instance Named ActMarker where
@@ -66,8 +68,11 @@ instance Named ActMarker where
   names (NotEquivalent s_pair) = names s_pair
   names (SolverFail s_pair) = names s_pair
   names (CycleFound cm) = names cm
+  names (LemmaProposed lem) = names lem
+  names (LemmaProven lem) = names lem
+  names (LemmaRejected lem) = names lem
   names (LemmaProvenEarly l_pair) = names l_pair
-  names (LemmaDisprovenEarly l_pair) = names l_pair
+  names (LemmaRejectedEarly l_pair) = names l_pair
   names (Unresolved s_pair) = names s_pair
   rename old new m = case m of
     Coinduction cm -> Coinduction $ rename old new cm
@@ -77,7 +82,7 @@ instance Named ActMarker where
     SolverFail s_pair -> SolverFail $ rename old new s_pair
     CycleFound cm -> CycleFound $ rename old new cm
     LemmaProvenEarly lp -> LemmaProvenEarly $ rename old new lp
-    LemmaDisprovenEarly lp -> LemmaDisprovenEarly $ rename old new lp
+    LemmaRejectedEarly lp -> LemmaRejectedEarly $ rename old new lp
     Unresolved s_pair -> Unresolved $ rename old new s_pair
 
 data Marker = Marker (StateH, StateH) ActMarker
