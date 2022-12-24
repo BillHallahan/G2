@@ -9,7 +9,7 @@ import RegEx.RegEx as R
 
 sd :: () -> IO (Maybe Expr)
 sd =
-    [g2| \(e :: ()) -> ?(func :: Expr) | eval (App func num1) == num1 |]
+    [g2| \(e :: ()) -> ?(func :: Expr) | eval [] (App func num1) == num1 |]
 
 af :: Expr -> Bool
-af func = (eval (App func num1)) == num1
+af func = (eval [] (App func num1)) == num1

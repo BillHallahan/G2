@@ -20,10 +20,10 @@ import qualified Evaluations as E
 
 tests :: TestTree
 tests = testGroup "All Tests"
-        [ simpleTests
-        , nqueensTests
+        [ -- simpleTests
+          nqueensTests
         , arithmeticsTests
-        , deBruijnTests
+        -- , deBruijnTests
         , regexTests ]
 
 simpleTests :: TestTree

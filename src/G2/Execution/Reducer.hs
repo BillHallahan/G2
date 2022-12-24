@@ -33,6 +33,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , simpleLogger
                             , prettyLogger
                             , limLogger
+                            , LimLogger (..)
 
                             , (<~)
                             , (<~?)
@@ -552,26 +553,29 @@ prettyLogger fp =
 -- | A Reducer to producer limited logging output.
 data LimLogger =
     LimLogger { every_n :: Int -- Output a state every n steps
-              , after_n :: Int -- Only begin outputing after passing a certain n
+              , after_n :: Int -- Only begin outputting after passing a certain n
+              , before_n :: Maybe Int -- Only output before a certain n
               , down_path :: [Int] -- Output states that have gone down or are going down the given path prefix
               , lim_output_path :: String
               }
 
 data LLTracker = LLTracker { ll_count :: Int, ll_offset :: [Int]}
 
-limLogger :: Show t => LimLogger -> Reducer IO LLTracker t
-limLogger ll@(LimLogger { after_n = aft, down_path = down }) =
+limLogger :: (MonadIO m, Show t) => LimLogger -> Reducer m LLTracker t
+limLogger ll@(LimLogger { after_n = aft, before_n = bfr, down_path = down }) =
     (mkSimpleReducer (const $ LLTracker { ll_count = every_n ll, ll_offset = []}) rr)
         { updateWithAll = updateWithAllLL
-        , onAccept = \_ llt -> putStrLn $ "Accepted on path " ++ show (ll_offset llt)}
+        , onAccept = \_ llt -> liftIO . putStrLn $ "Accepted on path " ++ show (ll_offset llt)}
     where
         rr llt@(LLTracker { ll_count = 0, ll_offset = off }) s b
             | down `L.isPrefixOf` off || off `L.isPrefixOf` down
-            , length (rules s) >= aft = do
-                outputState (lim_output_path ll) off s b pprExecStateStr
+            , aft <= length_rules && maybe True (length_rules <=) bfr = do
+                liftIO $ outputState (lim_output_path ll) off s b pprExecStateStr
                 return (NoProgress, [(s, llt { ll_count = every_n ll })], b)
             | otherwise =
                 return (NoProgress, [(s, llt { ll_count = every_n ll })], b)
+            where
+                length_rules = length (rules s)
         rr llt@(LLTracker {ll_count = n}) s b =
             return (NoProgress, [(s, llt { ll_count = n - 1 })], b)
 
