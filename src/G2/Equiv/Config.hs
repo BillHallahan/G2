@@ -19,7 +19,14 @@ data NebulaConfig = NC { limit :: Int
                        , log_states :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
                        , sync :: Bool }
 
-data SummaryMode = NoHistory | WithHistory | NoSummary deriving Eq
+data SummaryMode = SM { have_summary :: Bool
+                      , have_history :: Bool
+                      , have_lemma_details :: Bool }
+
+noSummary :: SummaryMode
+noSummary = SM False False False
+
+-- data SummaryMode = NoHistory | WithHistory | NoSummary deriving Eq
 
 data UseLabeledErrors = UseLabeledErrors | NoLabeledErrors deriving (Eq, Show, Read)
 
@@ -59,10 +66,18 @@ mkNebulaConfig = NC
 
 mkSummaryMode :: Parser SummaryMode
 mkSummaryMode =
-    (flag NoSummary NoHistory
+    (flag noSummary (SM True False False)
             (long "summarize"
             <> help "provide a summary with no history"))
     <|>
-    (flag NoSummary WithHistory
+    (flag noSummary (SM True True False)
             (long "hist-summarize"
             <> help "provide a summary with history"))
+    <|>
+    (flag noSummary (SM True False True)
+            (long "lemmas-summarize"
+            <> help "provide a summary with all lemma results"))
+    <|>
+    (flag noSummary (SM True True True)
+            (long "lemmas-hist-summarize"
+            <> help "provide a summary with history and lemma results"))

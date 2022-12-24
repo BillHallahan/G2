@@ -799,10 +799,10 @@ checkRule config nc init_state bindings total rule = do
              emptyLemmas
              [(rewrite_state_l'', rewrite_state_r'')]
              bindings'' config nc sym_ids 0 (limit nc)
-  let pg = if (print_summary nc) == NoSummary
-           then reducedGuide (reverse w)
-           else mkPrettyGuide $ map (\(Marker _ am) -> am) w
-  if print_summary nc /= NoSummary then do
+  let pg = if have_summary $ print_summary nc
+           then mkPrettyGuide $ map (\(Marker _ am) -> am) w
+           else reducedGuide (reverse w)
+  if have_summary $ print_summary nc then do
     putStrLn "--- SUMMARY ---"
     _ <- mapM (putStrLn . (summarize (print_summary nc) pg ns sym_ids)) w
     putStrLn "--- END OF SUMMARY ---"
