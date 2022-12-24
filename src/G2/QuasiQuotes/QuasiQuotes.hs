@@ -47,9 +47,6 @@ import System.IO
 import System.IO.Temp
 import System.IO.Unsafe
 
-import qualified Control.Monad.State as SM
-import G2.Lib.Printers
-
 g2 :: QuasiQuoter
 g2 = QuasiQuoter { quoteExp = parseHaskellQ
                  , quotePat = error "g2: No QuasiQuoter for patterns."
