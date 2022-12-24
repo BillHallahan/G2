@@ -421,6 +421,8 @@ test-suite test-g2q
                        , NQueens.Test
                        , RegEx.RegEx
                        , RegEx.Test
+                       , Simple.Simple1
+                       , Simple.SimpleTest1
   ghc-options:         -Wall
                        -- -fprof-auto "-with-rtsopts=-p"
                        -threaded

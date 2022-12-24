@@ -12,6 +12,7 @@ import Lambda.Test
 import NQueens.Test
 import RegEx.Test
 import RegEx.RegEx
+import Simple.SimpleTest1
 
 import G2.Interface
 
@@ -19,10 +20,15 @@ import qualified Evaluations as E
 
 tests :: TestTree
 tests = testGroup "All Tests"
-        [ nqueensTests
+        [ simpleTests
+        , nqueensTests
         , arithmeticsTests
         , deBruijnTests
         , regexTests ]
+
+simpleTests :: TestTree
+simpleTests = testGroup "Simple"
+  [ qqTestCase "Simple 1" (sd ()) af ]
 
 nqueensTests :: TestTree
 nqueensTests = testGroup "N Queens"
