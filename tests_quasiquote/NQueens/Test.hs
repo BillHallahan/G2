@@ -1,6 +1,6 @@
 {-# LANGUAGE QuasiQuotes #-}
 
-module NQueens.Test where
+module NQueens.Test (queensTestN, allQueensSafe) where
 
 import NQueens.Encoding
 import G2.QuasiQuotes.QuasiQuotes

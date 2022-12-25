@@ -144,7 +144,7 @@ parseHaskellQ str = do
 
 
     let tenv_exp = liftDataT tenv `sigE` [t| TypeEnv |]
-        bindings_exp = liftDataT (bindings_final { name_gen = mkNameGen ()})
+        bindings_exp = liftDataT bindings_final
 
     letE [ valD (varP state_name) (normalB state_exp) []
          , valD (varP tenv_name) (normalB tenv_exp) []
@@ -419,7 +419,7 @@ executeAndSolveStates' b s = do
         (SomeReducer red, SomeHalter hal, _) -> do
             let hal' = hal <~> errorHalter <~> varLookupLimitHalter 3 <~> maxOutputsHalter (Just 1)
                 ord = incrAfterN 2000 (adtHeightOrderer 0 Nothing) <-> bucketSizeOrderer 6
-            (res, _) <- runG2Post (red) hal' ord solver simplifier s b
+            (res, _) <- runG2Post red hal' ord solver simplifier s b
 
             case res of
                 exec_res:_ -> return $ Just exec_res
