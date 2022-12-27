@@ -25,6 +25,7 @@ module G2.Language.ExprEnv
     , insertSymbolic
     , insertExprs
     , redirect
+    , difference
     , union
     , union'
     , unionWith
@@ -210,6 +211,10 @@ insertExprs kvs scope = foldr (uncurry insert) scope kvs
 -- | Maps the two `Name`@s@ so that they point to the same value
 redirect :: Name -> Name -> ExprEnv -> ExprEnv
 redirect n n' = ExprEnv . M.insert n (RedirObj n') . unwrapExprEnv
+
+difference :: ExprEnv -> ExprEnv -> ExprEnv
+difference (ExprEnv m1) (ExprEnv m2) =
+    ExprEnv $ M.difference m1 m2
 
 union :: ExprEnv -> ExprEnv -> ExprEnv
 union (ExprEnv eenv) (ExprEnv eenv') = ExprEnv $ eenv `M.union` eenv'

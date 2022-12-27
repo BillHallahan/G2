@@ -96,10 +96,12 @@ symGenIfZero' e eenv tenv kv tc ng =
 
         trueDC = mkDCTrue kv tenv
 
+        ret_t = returnType e
+
         e' = mkLams ars
-                $ Case eq i
+                $ Case eq i ret_t
                     [ Alt Default (mkApp (e:map (Var . snd) ars))
-                    , Alt (DataAlt trueDC []) (SymGen (returnType e))]
+                    , Alt (DataAlt trueDC []) (SymGen ret_t)]
     in
     (e', ng'')
 

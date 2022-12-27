@@ -2,7 +2,7 @@
 
 module Main (main) where
 
-import DynFlags
+import G2.Translation.GHC (GeneralFlag(Opt_Hpc))
 
 import System.Environment
 import System.FilePath
@@ -18,8 +18,6 @@ import G2.Interface
 import G2.Language
 import G2.Translation
 
-import G2.Liquid.Interface
-
 main :: IO ()
 main = do
   as <- getArgs
@@ -28,7 +26,7 @@ main = do
 runWithArgs :: [String] -> IO ()
 runWithArgs as = do
   let (_:_:tail_args) = as
-  (src, entry, m_assume, m_assert, config) <- getConfig as
+  (src, entry, m_assume, m_assert, config) <- getConfig
 
   proj <- guessProj src
 

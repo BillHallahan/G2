@@ -182,7 +182,7 @@ formCalls convExpr funcF tenv meas meas_ex n v_ars si_pb re_pb rt_pb = do
                     f_smt_ars = if null (sy_args psi) then [] else smt_ars
                     smt_r = map (adjustArgs convExpr (fromInteger mx_meas) tenv meas meas_ex rt) re
                 in
-                map (\r -> funcF (sy_name psi) $ f_smt_ars ++ r) smt_r
+                map (\r -> funcF (sy_name psi) $ take (length (sy_args psi)) f_smt_ars ++ take (length (sy_rets psi)) r) smt_r
               ) $ extractValues si_re_rt_pb
 
 convertConstraints :: (InfConfigM m, ProgresserM m) =>

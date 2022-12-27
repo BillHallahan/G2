@@ -123,12 +123,12 @@ lhtcT n adt = do
     let ct = foldl' TyApp (TyCon n TYPE) $ map TyVar bi
 
     let t = (TyApp 
-                (TyCon lh TYPE) 
+                (TyCon lh (TyFun TYPE TYPE)) 
                 ct
             )
 
     let t' = foldr TyFun t $ map (TyApp (TyCon lh (TyFun TYPE TYPE)) . TyVar) bi
-    let t'' = foldr TyForAll t' $ map NamedTyBndr bi
+    let t'' = foldr TyForAll t' bi
     return t''
 
 lhName :: T.Text -> Name -> LHStateM Name
@@ -236,7 +236,7 @@ lhDCType = do
                                         (TyFun
                                             TyUnknown
                                             (TyApp 
-                                                (TyCon lh TYPE) 
+                                                (TyCon lh (TyFun TYPE TYPE)) 
                                                 (TyVar n)
                                             )
                                         )
@@ -258,7 +258,7 @@ createFunc cf n adt = do
     let bi = bound_ids adt
 
     lh <- lhTCM
-    lhbi <- mapM (freshIdN . TyApp (TyCon lh TYPE) . TyVar) bi
+    lhbi <- mapM (freshIdN . TyApp (TyCon lh (TyFun TYPE TYPE)) . TyVar) bi
 
     d1 <- freshIdN (TyCon n TYPE)
     d2 <- freshIdN (TyCon n TYPE)
@@ -273,10 +273,12 @@ createFunc cf n adt = do
 mkFirstCase :: PredFunc -> LHDictMap -> Id -> Id -> Name -> AlgDataTy -> LHStateM Expr
 mkFirstCase f ldm d1 d2 n adt@(DataTyCon { data_cons = dcs }) = do
     caseB <- freshIdN (typeOf d1)
-    return . Case (Var d1) caseB =<< mapM (mkFirstCase' f ldm d2 n adt) dcs
+    boolT <- tyBoolT
+    return . Case (Var d1) caseB boolT =<< mapM (mkFirstCase' f ldm d2 n adt) dcs
 mkFirstCase f ldm d1 d2 n adt@(NewTyCon { data_con = dc }) = do
     caseB <- freshIdN (typeOf d1)
-    return . Case (Var d1) caseB . (:[]) =<< mkFirstCase' f ldm d2 n adt dc
+    boolT <- tyBoolT
+    return . Case (Var d1) caseB boolT . (:[]) =<< mkFirstCase' f ldm d2 n adt dc
 mkFirstCase _ _ _ _ _ _ = error "mkFirstCase: Unsupported AlgDataTy"
 
 mkFirstCase' :: PredFunc -> LHDictMap -> Id -> Name -> AlgDataTy -> DataCon -> LHStateM Alt
@@ -291,7 +293,9 @@ mkSecondCase f ldm d2 n adt dc ba1 = do
 
     alts <- f ldm n adt dc ba1
 
-    return $ Case (Var d2) caseB alts
+    boolT <- tyBoolT
+
+    return $ Case (Var d2) caseB boolT alts
 
 lhEqFunc :: PredFunc
 lhEqFunc ldm _ _ dc ba1 = do
@@ -316,7 +320,7 @@ eqLHFuncCall ldm i1 i2
         b <- tyBoolT
 
         lhd <- lhTCDict' ldm t
-        let lhv = App (Var $ Id lhe (TyForAll (NamedTyBndr i) (TyFun (typeOf lhd) (TyFun (TyVar i) (TyFun (TyVar i) b))))) (Type t)
+        let lhv = App (Var $ Id lhe (TyForAll i (TyFun (typeOf lhd) (TyFun (TyVar i) (TyFun (TyVar i) b))))) (Type t)
 
         return $ foldl' App (App lhv lhd) [Var i1, Var i2]
 
@@ -328,7 +332,7 @@ eqLHFuncCall ldm i1 i2
 
         lhd <- lhTCDict' ldm t
 
-        let lhv = App (Var (Id lhe (TyForAll (NamedTyBndr i) (TyFun (typeOf lhd) (TyFun (TyVar i) (TyFun (TyVar i) b)))))) (Type t)
+        let lhv = App (Var (Id lhe (TyForAll i (TyFun (typeOf lhd) (TyFun (TyVar i) (TyFun (TyVar i) b)))))) (Type t)
         return $ App (App (App lhv lhd) (Var i1)) (Var i2)
 
     | TyFun _ _ <- t = mkTrueE
@@ -359,12 +363,14 @@ lhNeFunc ldm _ _ dc ba1 = do
     trueDC <- mkDCTrueM
     falseDC <- mkDCFalseM
 
+    tBool <- tyBoolT
+
     pr <- mapM (uncurry (eqLHFuncCall ldm)) $ zip ba1 ba2
     let pr' = foldr (\e -> App (App an e)) true pr
 
     b <- freshIdN =<< tyBoolT
-    let pr'' = Case pr' b [ Alt (DataAlt trueDC []) false
-                          , Alt (DataAlt falseDC []) true ]
+    let pr'' = Case pr' b tBool [ Alt (DataAlt trueDC []) false
+                                , Alt (DataAlt falseDC []) true ]
 
     return [ Alt Default false
            , Alt (DataAlt dc ba2) pr''] 
@@ -393,7 +399,7 @@ createOrdFunc pr n adt = do
     let bi = bound_ids adt
 
     lh <- lhTCM
-    lhbi <- mapM (freshIdN . TyApp (TyCon lh TYPE) . TyVar) bi
+    lhbi <- mapM (freshIdN . TyApp (TyCon lh (TyFun TYPE TYPE)) . TyVar) bi
 
     d1 <- freshIdN (TyCon n TYPE)
     d2 <- freshIdN (TyCon n TYPE)
@@ -431,16 +437,16 @@ mkPrimOrdCases pr t i1 i2 dc = do
                 ) 
                 (Var b2)
 
-    let c2 = Case (Var i2) i2' [Alt (DataAlt dc [b2]) eq]
+    let c2 = Case (Var i2) i2' b [Alt (DataAlt dc [b2]) eq]
 
-    return $ Case (Var i1) i1' [Alt (DataAlt dc [b1]) c2]
+    return $ Case (Var i1) i1' b [Alt (DataAlt dc [b1]) c2]
 
 lhPPFunc :: Name -> AlgDataTy -> LHStateM Expr
 lhPPFunc n adt = do
     let bi = bound_ids adt
 
     lh <- lhTCM
-    lhbi <- mapM (freshIdN . TyApp (TyCon lh TYPE) . TyVar) bi
+    lhbi <- mapM (freshIdN . TyApp (TyCon lh (TyFun TYPE TYPE)) . TyVar) bi
 
     b <- tyBoolT
     fs <- mapM (\v -> freshIdN (TyFun (TyVar v) b)) bi
@@ -462,8 +468,9 @@ type PPFuncMap = HM.HashMap Name Id
 lhPPCase :: LHDictMap -> PPFuncMap -> AlgDataTy -> Id -> LHStateM Expr
 lhPPCase lhm fnm (DataTyCon { data_cons = dcs }) i = do
     ci <- freshIdN (typeOf i)
+    tBool <- tyBoolT
 
-    return . Case (Var i) ci =<< mapM (lhPPAlt lhm fnm) dcs
+    return . Case (Var i) ci tBool =<< mapM (lhPPAlt lhm fnm) dcs
 lhPPCase lhm fnm (NewTyCon { rep_type = rt }) i = do
     pp <- lhPPCall lhm fnm rt
     let c = Cast (Var i) (typeOf i :~ rt)
@@ -550,18 +557,19 @@ createExtractors'' lh i j n = do
 
     bi <- freshIdsN $ replicate i TyUnknown
 
-    li <- freshIdN (TyCon lh (TyApp TYPE TYPE)) 
-    ci <- freshIdN (TyCon lh (TyApp TYPE TYPE))
+    li <- freshIdN (TyCon lh (TyFun TYPE TYPE)) 
+    ci <- freshIdN (TyCon lh (TyFun TYPE TYPE))
 
     b <- freshIdN TYPE
     let d = DataCon lh (TyForAll 
-                            (NamedTyBndr b) 
+                            b
                             (TyFun
                                 (TyVar b) 
-                                (TyApp (TyCon lh (TyApp TYPE TYPE)) (TyVar b))
+                                (TyApp (TyCon lh (TyFun TYPE TYPE)) (TyVar b))
                             )
                         )
-    let c = Case (Var li) ci [Alt (DataAlt d bi) (Var $ bi !! j)]
+    let vi = bi !! j
+        c = Case (Var li) ci (typeOf vi) [Alt (DataAlt d bi) (Var vi)]
     let e = Lam TypeL a $ Lam TermL li c
 
     insertMeasureM n e 

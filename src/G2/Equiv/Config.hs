@@ -5,14 +5,18 @@ module G2.Equiv.Config ( NebulaConfig (..)
                        , mkNebulaConfigInfo
                        , mkNebulaConfig) where
 
+import G2.Config.Config
+
 import Data.Monoid ((<>))
 import qualified Data.Text as T
 import Options.Applicative
 
 -- Config options
 data NebulaConfig = NC { limit :: Int
+                       , num_lemmas :: Int
                        , print_summary :: SummaryMode
                        , use_labeled_errors :: UseLabeledErrors
+                       , log_states :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
                        , sync :: Bool }
 
 data SummaryMode = NoHistory | WithHistory | NoSummary deriving Eq
@@ -44,16 +48,21 @@ mkNebulaConfig = NC
                    <> metavar "N"
                    <> value (-1)
                    <> help "how many iterations the equivalence checker should go through before giving up")
+        <*> option auto (long "num_lemmas"
+                   <> metavar "L"
+                   <> value 2
+                   <> help "how many lemmas can be applied to an expression simultaneously")
         <*> mkSummaryMode
         <*> flag UseLabeledErrors NoLabeledErrors (long "no-labeled-errors" <> help "disable labeled errors, treating all errors as equivalent")
+        <*> mkLogMode
         <*> flag False True (long "sync" <> help "sync the left and right expressions prior to symbolic execution")
 
 mkSummaryMode :: Parser SummaryMode
 mkSummaryMode =
     (flag NoSummary NoHistory
             (long "summarize"
-            <> help "log all states with raw printing"))
+            <> help "provide a summary with no history"))
     <|>
     (flag NoSummary WithHistory
             (long "hist-summarize"
-            <> help "log all states with pretty printing"))
+            <> help "provide a summary with history"))

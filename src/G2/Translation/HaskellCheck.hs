@@ -1,7 +1,6 @@
 module G2.Translation.HaskellCheck ( validateStates
                                    , runHPC) where
 
-import DynFlags
 import GHC hiding (Name)
 import GHC.Paths
 

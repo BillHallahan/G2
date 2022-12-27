@@ -79,7 +79,7 @@ nonterm3 b = nonterm1 b
 "nontermNegation" forall b . nonterm1 b = not (nonterm1 b)
   #-}
 
--- TODO more diagnosis attempts
+-- more diagnosis attempts
 
 listConcat :: [[a]] -> [a]
 listConcat [] = []
@@ -101,7 +101,7 @@ doubleLength :: [a] -> Int
 doubleLength [] = 1
 doubleLength (_:t) = doubleLength t + doubleLength t
 
--- TODO forceConcat is actually invalid
+-- forceConcat is actually invalid
 -- With the crHelper change in place, exp gets UNSAT.  So does double.
 {-# RULES
 "mapLength" forall f l . listLength (intMap f l) = listLength l
@@ -111,7 +111,7 @@ doubleLength (_:t) = doubleLength t + doubleLength t
 "double" forall x xs . doubleLength (x:xs) = 2 * doubleLength xs
   #-}
 
--- TODO Nats instead of Ints
+-- Nats instead of Ints
 data Nat = Z
          | S Nat
 
@@ -175,16 +175,16 @@ makeCycle x = x:(makeCycle x)
 infInt :: [Int]
 infInt = [1..]
 
--- TODO Restricting the type of [1..] to [Int] makes the verifier stop getting
--- stuck on infiniteInts, but the verifier still runs forever on the rule as it
--- is now.  Making symbolic execution stop more often did cause the verifier to
--- return UNSAT for it, though.
+-- (12/18) At some point in the past, making symbolic execution stop more
+-- often caused Nebula to return UNSAT for infiniteInts rather than running
+-- forever.  This may have been unsound.  The Int type annotation is no
+-- longer necessary to keep Nebula from getting stuck on infiniteInts.
 {-# RULES
 "infiniteInts" len infInt = lenDouble infInt
 "onlyOnes" makeCycle 1 = cyclic
   #-}
 
--- TODO not valid because it doesn't use bang patterns
+-- not valid because it doesn't use bang patterns
 simpleForce :: [a] -> [a]
 simpleForce zs = case zs of
   [] -> []

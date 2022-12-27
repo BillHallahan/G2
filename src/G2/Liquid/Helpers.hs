@@ -164,7 +164,7 @@ measureSymbols :: [GhcInfo] -> MeasureSymbols
 measureSymbols = MeasureSymbols . measureNames
 
 measureNames :: [GhcInfo] -> [Symbol]
-#if MIN_VERSION_liquidhaskell(0,8,6) || defined NEW_LH
+#if MIN_VERSION_liquidhaskell(0,8,6)
 measureNames = map (val . msName) . measureSpecs
 #else
 measureNames = map (val . name) . measureSpecs

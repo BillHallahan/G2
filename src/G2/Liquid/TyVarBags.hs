@@ -9,7 +9,7 @@
 
 module G2.Liquid.TyVarBags ( TyVarBags
                            , InstFuncs
-                           , ExistentialInstRed (..)
+                           , existentialInstRed
                            , createBagAndInstFuncs
 
                            , extractTyVarCall
@@ -85,7 +85,7 @@ assignBagFuncNames tenv =
                 fn <- mapM
                         (\(i, tbi) -> do
                             n_fn <- freshSeededNameN (mkName i)
-                            let t = foldr (\ntb -> TyForAll (NamedTyBndr ntb))
+                            let t = foldr (\ntb -> TyForAll ntb)
                                     (TyFun (returnType dc) (TyVar tbi)) bi
                             return $ Id n_fn t)
                         $ zip [0 :: Int ..] bi
@@ -126,8 +126,8 @@ createBagFuncCase func_names adt_i tyvar_id bi (DataTyCon { bound_ids = adt_bi
     bindee <- freshIdN (typeOf adt_i)
     let ty_map = zip adt_bi (map TyVar bi)
     alts <- mapM (createBagFuncCaseAlt func_names tyvar_id ty_map) dc
-
-    return $ Case (Var adt_i) bindee alts
+            
+    return $ Case (Var adt_i) bindee (typeOf $ head alts) alts
 createBagFuncCase func_names adt_i tyvar_id bi (NewTyCon { bound_ids = adt_bi
                                                          , rep_type = rt }) = do
     let rt' = foldr (uncurry retype) rt $ zip adt_bi (map TyVar bi)
@@ -215,7 +215,7 @@ assignInstFuncNames tenv =
                 fn <- freshSeededNameN (Name (n `T.append` "_inst_") m 0 Nothing)
 
                 let adt_i = mkFullAppedTyCon tn (map TyVar bi) TYPE
-                let t = foldr (\ntb -> TyForAll (NamedTyBndr ntb)) 
+                let t = foldr (\ntb -> TyForAll ntb)
                             (foldr (\i -> TyFun (TyVar i)) adt_i bi) bi
 
                 return (tn, Id fn t)
@@ -311,7 +311,7 @@ wrapPrimsInCase :: ExState s m => Expr -> Expr -> m Expr
 wrapPrimsInCase e e'
     | isPrimType t = do
         i <- freshIdN t
-        return $ Case e' i [Alt Default e]
+        return $ Case e' i (typeOf e) [Alt Default e]
     | otherwise = return e
     where
         t = typeOf e'
@@ -351,67 +351,64 @@ putSymbolicExistentialInstInExprEnv s@(State { expr_env = eenv }) =
                         eenv
       }
 
-data ExistentialInstRed = ExistentialInstRed
+{-# INLINE existentialInstRed #-}
+existentialInstRed :: Monad m => Reducer m () t
+existentialInstRed = mkSimpleReducer (const ()) existInstRedRules
 
-instance Reducer ExistentialInstRed () t where
-    initReducer _ _ = ()
+existInstRedRules :: Monad m => RedRules m () t
+existInstRedRules rv s@(State { expr_env = eenv
+                              , curr_expr = CurrExpr Evaluate e })
+                     b@(Bindings { name_gen = ng })
+    | Var i <- e
+    , i == existentialInstId =
+        let
+            s' = s { expr_env = E.insertSymbolic i eenv
+                   , curr_expr = CurrExpr Return e }
+        in
+        return (InProgress, [(s', rv)], b)
+    | Case (Var i) bnd _ ([Alt (DataAlt _ params) (Tick (NamedLoc n) ae)]) <- e
+    , i == existentialInstId
+    , n == existentialCaseName =
+        let
+            (n_bnd, ng') = freshSeededName (idName bnd) ng
+            (n_params, ng'') = freshSeededNames (map idName params) ng'
 
-    redRules r rv s@(State { expr_env = eenv
-                           , curr_expr = CurrExpr Evaluate e })
-                  b@(Bindings { name_gen = ng })
-        | Var i <- e
-        , i == existentialInstId =
-            let
-                s' = s { expr_env = E.insertSymbolic i eenv
-                       , curr_expr = CurrExpr Return e }
-            in
-            return (InProgress, [(s', rv)], b, r)
-        | Case (Var i) bnd ([Alt (DataAlt _ params) (Tick (NamedLoc n) ae)]) <- e
-        , i == existentialInstId
-        , n == existentialCaseName =
-            let
-                (n_bnd, ng') = freshSeededName (idName bnd) ng
-                (n_params, ng'') = freshSeededNames (map idName params) ng'
+            eenv' = E.insertSymbolic postSeqExistentialInstId eenv
+            eenv'' = foldr (\en -> E.insert en (Var existentialInstId)) eenv' n_params
+            n_e = rename (idName bnd) n_bnd $ foldr (uncurry rename) ae (zip (map idName params) n_params)
+        in 
+        return ( InProgress
+               , [(s { expr_env = eenv''
+                     , curr_expr = CurrExpr Evaluate n_e }, rv)]
+               , b { name_gen = ng'' })
+    | Case (Var i) _ _ ([Alt _ (Tick (NamedLoc n) ae)]) <- e
+    , i == existentialInstId
+    , n == existentialCaseName =
+        let
+            eenv' = E.insertSymbolic postSeqExistentialInstId eenv
+        in 
+        return ( InProgress
+               , [(s { expr_env = eenv'
+                     , curr_expr = CurrExpr Evaluate ae }, rv)]
+               , b)
+    | Case (Var i) _ _ _ <- e
+    , i == existentialInstId =
+        let
+            s' = s { curr_expr = CurrExpr Return (Var i) }
+        in
+        return (InProgress, [(s', rv)], b)
+existInstRedRules rv s@(State { curr_expr = CurrExpr Return e
+                              , exec_stack = stck }) b
 
-                eenv' = E.insertSymbolic postSeqExistentialInstId eenv
-                eenv'' = foldr (\en -> E.insert en (Var existentialInstId)) eenv' n_params
-
-                n_e = rename (idName bnd) n_bnd $ foldr (uncurry rename) ae (zip (map idName params) n_params)
-            in 
-            return ( InProgress
-                   , [(s { expr_env = eenv''
-                         , curr_expr = CurrExpr Evaluate n_e }, rv)]
-                   , b { name_gen = ng'' }
-                   , r)
-        | Case (Var i) _ ([Alt _ (Tick (NamedLoc n) ae)]) <- e
-        , i == existentialInstId
-        , n == existentialCaseName =
-            let
-                eenv' = E.insertSymbolic postSeqExistentialInstId eenv
-            in 
-            return ( InProgress
-                   , [(s { expr_env = eenv'
-                         , curr_expr = CurrExpr Evaluate ae }, rv)]
-                   , b
-                   , r)
-        | Case (Var i) _ _ <- e
-        , i == existentialInstId =
-            let
-                s' = s { curr_expr = CurrExpr Return (Var i) }
-            in
-            return (InProgress, [(s', rv)], b, r)
-    redRules r rv s@(State { curr_expr = CurrExpr Return e
-                           , exec_stack = stck }) b
-
-        | Just (AssumeFrame _, stck') <- Stck.pop stck
-        , Var i <- e
-        , i == existentialInstId =
-            return (InProgress, [(s { exec_stack = stck' }, rv)], b, r)
-        | Just (AssertFrame _ _, stck') <- Stck.pop stck
-        , Var i <- e
-        , i == existentialInstId =
-            return (InProgress, [(s { exec_stack = stck' }, rv)], b, r)
-    redRules r rv s b = return (NoProgress, [(s, rv)], b, r)
+    | Just (AssumeFrame _, stck') <- Stck.pop stck
+    , Var i <- e
+    , i == existentialInstId =
+        return (InProgress, [(s { exec_stack = stck' }, rv)], b)
+    | Just (AssertFrame _ _, stck') <- Stck.pop stck
+    , Var i <- e
+    , i == existentialInstId =
+        return (InProgress, [(s { exec_stack = stck' }, rv)], b)
+existInstRedRules rv s b = return (NoProgress, [(s, rv)], b)
 
 addTicksToDeepSeqCases :: Walkers -> State t -> State t
 addTicksToDeepSeqCases w s@(State { expr_env = eenv }) =
@@ -424,6 +421,6 @@ addTicksToDeepSeqCases' n eenv =
         Nothing -> eenv
 
 addTicksToDeepSeqCases'' :: Expr -> Expr
-addTicksToDeepSeqCases'' (Case e i (Alt am ae:as)) =
-    Case e i $ Alt am (Tick (NamedLoc existentialCaseName) ae):as
+addTicksToDeepSeqCases'' (Case e i t (Alt am ae:as)) =
+    Case e i t $ Alt am (Tick (NamedLoc existentialCaseName) ae):as
 addTicksToDeepSeqCases'' e = e

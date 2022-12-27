@@ -703,9 +703,9 @@ binT = do
     lh <- lhTCM
     bool <- tyBoolT
 
-    let lh' = L.TyCon lh L.TYPE
+    let lh' = L.TyCon lh (L.TyFun L.TYPE L.TYPE)
 
-    return $ L.TyForAll (L.NamedTyBndr a) 
+    return $ L.TyForAll a
                         (L.TyFun
                             lh'
                             (L.TyFun
@@ -769,7 +769,7 @@ numT = do
 
     let num' = L.TyCon num L.TYPE
 
-    return $ L.TyForAll (L.NamedTyBndr a) 
+    return $ L.TyForAll a
                     (L.TyFun
                         num'
                         (L.TyFun
@@ -791,7 +791,7 @@ ratioFuncT = do
 
     let integral' = L.TyCon integral L.TYPE
 
-    return $ L.TyForAll (L.NamedTyBndr a) 
+    return $ L.TyForAll a
                     (L.TyFun
                         integral'
                         (L.TyFun
@@ -816,7 +816,7 @@ integralT = do
 
     let integral' = L.TyCon integral L.TYPE
 
-    return $ L.TyForAll (L.NamedTyBndr a) 
+    return $ L.TyForAll a
                     (L.TyFun
                         integral'
                         (L.TyFun
@@ -840,7 +840,7 @@ fractionalT = do
 
     let fractional' = L.TyCon fractional L.TYPE
 
-    return $ L.TyForAll (L.NamedTyBndr a) 
+    return $ L.TyForAll a
                     (L.TyFun
                         fractional'
                         (L.TyFun

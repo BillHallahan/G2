@@ -39,28 +39,7 @@ import qualified G2.Language.Syntax as G2
 -- import qualified G2.Language.Typing as G2
 import qualified G2.Translation.TransTypes as G2
 
-import Avail
-import qualified Class as C
-import Coercion
-import CoreSyn
-import DataCon
-import DynFlags
-import FastString
-import GHC
-import GHC.Paths
-import HscMain
-import HscTypes
-import IdInfo
-import InstEnv
-import Literal
-import Name
-import Pair
-import SrcLoc
-import TidyPgm
-import TyCon
-import TyCoRep
-import Unique
-import Var as V
+import G2.Translation.GHC
 
 import Control.Monad
 
@@ -95,7 +74,11 @@ equivMods = HM.fromList
             [ ("GHC.Classes2", "GHC.Classes")
             , ("GHC.Types2", "GHC.Types")
             , ("GHC.Integer2", "GHC.Integer")
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+            , ("GHC.Integer.Type2", "GHC.Num.Integer")
+#else
             , ("GHC.Integer.Type2", "GHC.Integer.Type")
+#endif
             , ("GHC.Prim2", "GHC.Prim")
             , ("GHC.Tuple2", "GHC.Tuple")
             , ("GHC.Magic2", "GHC.Magic")
@@ -112,11 +95,19 @@ loadProj hsc proj src gflags tr_con = do
     let beta_flags' = foldl' gopt_set init_beta_flags gen_flags
     let dflags = beta_flags' { -- Profiling fails to load a profiler friendly version of the base
                                -- without this special casing for hscTarget, but we can't use HscInterpreted when we have certain unboxed types
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+                               backend = if hostIsProfiled 
+                                                then Interpreter
+                                                else case hsc of
+                                                    Just hsc' -> hsc'
+                                                    _ -> backend beta_flags'
+#else
                                hscTarget = if rtsIsProfiled 
                                                 then HscInterpreted
                                                 else case hsc of
                                                     Just hsc' -> hsc'
                                                     _ -> hscTarget beta_flags'
+#endif
                              , ghcLink = LinkInMemory
                              , ghcMode = CompManager
 
@@ -253,7 +244,11 @@ mkModDetailsClosure deps moddet =
     { G2.mdcc_cls_insts = md_insts moddet
     , G2.mdcc_type_env = md_types moddet
     , G2.mdcc_exports = exportedNames moddet
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+    , G2.mdcc_deps = map (moduleNameString . gwib_mod) $ dep_mods deps
+#else
     , G2.mdcc_deps = map (moduleNameString . fst) $ dep_mods deps
+#endif
     }
 
 
@@ -384,7 +379,11 @@ mkModGutsClosure env modguts = do
       , G2.mgcc_cls_insts = md_insts moddets
       , G2.mgcc_type_env = md_types moddets
       , G2.mgcc_exports = exportedNames moddets
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+      , G2.mgcc_deps = map (moduleNameString . gwib_mod) $ dep_mods $ mg_deps modguts
+#else
       , G2.mgcc_deps = map (moduleNameString . fst) $ dep_mods $ mg_deps modguts
+#endif
       , G2.mgcc_rules = mg_rules modguts
       }
 
@@ -426,7 +425,7 @@ mkExpr _ _ _ (Lit lit) = G2.Lit (mkLit lit)
 mkExpr nm tm mb (App fxpr axpr) = G2.App (mkExpr nm tm mb fxpr) (mkExpr nm tm mb axpr)
 mkExpr nm tm mb (Lam var expr) = G2.Lam (mkLamUse var) (mkId tm var) (mkExpr nm tm mb expr)
 mkExpr nm tm mb (Let bnd expr) = G2.Let (mkBind nm tm mb bnd) (mkExpr nm tm mb expr)
-mkExpr nm tm mb (Case mxpr var _ alts) = G2.Case (mkExpr nm tm mb mxpr) (mkId tm var) (mkAlts nm tm mb alts)
+mkExpr nm tm mb (Case mxpr var t alts) = G2.Case (mkExpr nm tm mb mxpr) (mkId tm var) (mkType tm t) (mkAlts nm tm mb alts)
 mkExpr nm tm mb (Cast expr c) =  G2.Cast (mkExpr nm tm mb expr) (mkCoercion tm c)
 mkExpr _  tm _ (Coercion c) = G2.Coercion (mkCoercion tm c)
 mkExpr nm tm mb (Tick t expr) =
@@ -435,7 +434,11 @@ mkExpr nm tm mb (Tick t expr) =
         Nothing -> mkExpr nm tm mb expr
 mkExpr _ tm _ (Type ty) = G2.Type (mkType tm ty)
 
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+createTickish :: Maybe ModBreaks -> GenTickish i -> Maybe G2.Tickish
+#else
 createTickish :: Maybe ModBreaks -> Tickish i -> Maybe G2.Tickish
+#endif
 createTickish (Just mb) (Breakpoint {breakpointId = bid}) =
     case mkSpan $ modBreaks_locs mb A.! bid of
         Just s -> Just $ G2.Breakpoint $ s
@@ -448,16 +451,16 @@ mkLamUse v
     | otherwise = G2.TermL
 
 mkId :: G2.TypeNameMap -> Id -> G2.Id
-mkId tm vid = G2.Id ((mkName . V.varName) vid) ((mkType tm . varType) vid)
+mkId tm vid = G2.Id ((mkName . varName) vid) ((mkType tm . varType) vid)
 
 -- Makes an Id, not respecting UniqueIds
 mkIdUnsafe :: Id -> G2.Id
-mkIdUnsafe vid = G2.Id ((mkName . V.varName) vid) (mkType HM.empty . varType $ vid)
+mkIdUnsafe vid = G2.Id ((mkName . varName) vid) (mkType HM.empty . varType $ vid)
 
 mkIdLookup :: Id -> G2.NameMap -> G2.TypeNameMap -> G2.Id
 mkIdLookup i nm tm =
     let
-        n = mkNameLookup (V.varName i) nm
+        n = mkNameLookup (varName i) nm
         t = mkType tm . varType $ i
     in
     G2.Id n t
@@ -465,7 +468,7 @@ mkIdLookup i nm tm =
 mkIdUpdatingNM :: Id -> G2.NameMap -> G2.TypeNameMap -> (G2.Id, G2.NameMap)
 mkIdUpdatingNM vid nm tm =
     let
-        n@(G2.Name n' m _ _) = flip mkNameLookup nm . V.varName $ vid
+        n@(G2.Name n' m _ _) = flip mkNameLookup nm . varName $ vid
         i = G2.Id n ((mkType tm . varType) vid)
 
         nm' = HM.insert (n', m) n nm
@@ -502,7 +505,11 @@ mkNameLookup name nm =
         sp = mkSpan $ getSrcSpan name
 
 mkSpan :: SrcSpan -> Maybe G2.Span
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+mkSpan (RealSrcSpan s _) = Just $ mkRealSpan s
+#else
 mkSpan (RealSrcSpan s) = Just $ mkRealSpan s
+#endif
 mkSpan _ = Nothing
 
 mkRealSpan :: RealSrcSpan -> G2.Span
@@ -541,13 +548,20 @@ mkLit (MachInt64 i) = G2.LitInt (fromInteger i)
 mkLit (MachWord i) = G2.LitInt (fromInteger i)
 mkLit (MachWord64 i) = G2.LitInt (fromInteger i)
 mkLit (LitInteger i _) = G2.LitInteger (fromInteger i)
-#else
+#elif __GLASGOW_HASKELL__ < 902
 mkLit (LitNumber LitNumInteger i _) = G2.LitInteger (fromInteger i)
 mkLit (LitNumber LitNumNatural i _) = G2.LitInteger (fromInteger i)
 mkLit (LitNumber LitNumInt i _) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumInt64 i _) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumWord i _) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumWord64 i _) = G2.LitInt (fromInteger i)
+#else
+mkLit (LitNumber LitNumInteger i) = G2.LitInteger (fromInteger i)
+mkLit (LitNumber LitNumNatural i) = G2.LitInteger (fromInteger i)
+mkLit (LitNumber LitNumInt i) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumInt64 i) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumWord i) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumWord64 i) = G2.LitInt (fromInteger i)
 #endif
 
 #if __GLASGOW_HASKELL__ < 808
@@ -569,20 +583,26 @@ mkAlts :: G2.NameMap -> G2.TypeNameMap -> Maybe ModBreaks -> [CoreAlt] -> [G2.Al
 mkAlts nm tm mb = map (mkAlt nm tm mb)
 
 mkAlt :: G2.NameMap -> G2.TypeNameMap -> Maybe ModBreaks -> CoreAlt -> G2.Alt
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+mkAlt nm tm mb (Alt acon prms expr) = G2.Alt (mkAltMatch nm tm acon prms) (mkExpr nm tm mb expr)
+#else
 mkAlt nm tm mb (acon, prms, expr) = G2.Alt (mkAltMatch nm tm acon prms) (mkExpr nm tm mb expr)
+#endif
 
 mkAltMatch :: G2.NameMap -> G2.TypeNameMap -> AltCon -> [Var] -> G2.AltMatch
 mkAltMatch nm tm (DataAlt dcon) params = G2.DataAlt (mkData nm tm dcon) (map (mkId tm) params)
 mkAltMatch _ _ (LitAlt lit) _ = G2.LitAlt (mkLit lit)
-mkAltMatch _ _ (DEFAULT) _ = G2.Default
+mkAltMatch _ _ DEFAULT _ = G2.Default
 
 mkType :: G2.TypeNameMap -> Type -> G2.Type
 mkType tm (TyVarTy v) = G2.TyVar $ mkId tm v
 mkType tm (AppTy t1 t2) = G2.TyApp (mkType tm t1) (mkType tm t2)
 #if __GLASGOW_HASKELL__ < 808
 mkType tm (FunTy t1 t2) = G2.TyFun (mkType tm t1) (mkType tm t2)
-#else
+#elif __GLASGOW_HASKELL__ < 902
 mkType tm (FunTy _ t1 t2) = G2.TyFun (mkType tm t1) (mkType tm t2)
+#else
+mkType tm (FunTy _ _ t1 t2) = G2.TyFun (mkType tm t1) (mkType tm t2)
 #endif
 mkType tm (ForAllTy b ty) = G2.TyForAll (mkTyBinder tm b) (mkType tm ty)
 mkType _ (LitTy _) = G2.TyBottom
@@ -594,10 +614,12 @@ mkType tm (TyConApp tc ts)
     | isFunTyCon tc
     , length ts == 2 =
         case ts of
-            (t1:t2:[]) -> G2.TyFun (mkType tm t1) (mkType tm t2)
+            [t1, t2] -> G2.TyFun (mkType tm t1) (mkType tm t2)
             _ -> error "mkType: non-arity 2 FunTyCon from GHC"
-    | G2.Name n _ _ _ <- mkName $ tyConName tc
-    , n == "TYPE" = G2.TYPE
+    | G2.Name "Type" _ _ _ <- mkName $ tyConName tc = G2.TYPE
+    | G2.Name "TYPE" _ _ _ <- mkName $ tyConName tc = G2.TYPE
+    | G2.Name "->" _ _ _ <- mkName $ tyConName tc
+    , [_, _, t1, t2] <- ts = G2.TyFun (mkType tm t1) (mkType tm t2)
     | otherwise = mkG2TyCon (mkTyConName tm tc) (map (mkType tm) ts) (mkType tm $ tyConKind tc) 
 
 mkTyCon :: G2.NameMap -> G2.TypeNameMap -> TyCon -> ((G2.NameMap, G2.TypeNameMap), G2.Name, Maybe G2.AlgDataTy)
@@ -668,11 +690,11 @@ mkData nm tm datacon = G2.DataCon name ty
 mkDataName :: G2.NameMap -> DataCon -> G2.Name
 mkDataName nm datacon = (flip mkNameLookup nm . dataConName) datacon
 
-mkTyBinder :: G2.TypeNameMap -> TyVarBinder -> G2.TyBinder
+mkTyBinder :: G2.TypeNameMap -> TyVarBinder -> G2.Id
 #if __GLASGOW_HASKELL__ < 808
-mkTyBinder tm (TvBndr v _) = G2.NamedTyBndr (mkId tm v)
+mkTyBinder tm (TvBndr v _) = mkId tm v
 #else
-mkTyBinder tm (Bndr v _) = G2.NamedTyBndr (mkId tm v)
+mkTyBinder tm (Bndr v _) = mkId tm v
 #endif
 
 mkCoercion :: G2.TypeNameMap -> Coercion -> G2.Coercion
@@ -684,10 +706,10 @@ mkCoercion tm c =
 
 mkClass :: G2.NameMap -> G2.TypeNameMap -> ClsInst -> (G2.Name, G2.Id, [G2.Id], [(G2.Type, G2.Id)])
 mkClass nm tm (ClsInst { is_cls = c, is_dfun = dfun }) =
-    ( flip mkNameLookup tm . C.className $ c
+    ( flip mkNameLookup tm . className $ c
     , mkId tm dfun
-    , map (mkId tm) $ C.classTyVars c
-    , zip (map (mkType tm) $ C.classSCTheta c) (map (\i -> mkIdLookup i nm tm) $ C.classAllSelIds c) )
+    , map (mkId tm) $ classTyVars c
+    , zip (map (mkType tm) $ classSCTheta c) (map (\i -> mkIdLookup i nm tm) $ classAllSelIds c) )
 
 
 mkRewriteRule :: G2.NameMap -> G2.TypeNameMap -> Maybe ModBreaks -> CoreRule -> Maybe G2.RewriteRule
@@ -712,8 +734,17 @@ exportedNames :: ModDetails -> [G2.ExportedName]
 exportedNames = concatMap availInfoNames . md_exports
 
 availInfoNames :: AvailInfo -> [G2.ExportedName]
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+availInfoNames (Avail n) = [greNameToName n]
+availInfoNames (AvailTC n ns) = mkName n:map greNameToName ns
+
+greNameToName :: GreName -> G2.Name
+greNameToName (NormalGreName n) = mkName n
+greNameToName (FieldGreName fl) = mkName $ flSelector fl
+#else
 availInfoNames (Avail n) = [mkName n]
 availInfoNames (AvailTC n ns _) = mkName n:map mkName ns
+#endif
 
 -- | absVarLoc'
 -- Switches all file paths in Var namesand Ticks to be absolute
@@ -735,10 +766,10 @@ absVarLoc' (G2.Let b e) = do
                ) b
     e' <- absVarLoc' e
     return $ G2.Let b' e'
-absVarLoc' (G2.Case e i as) = do
+absVarLoc' (G2.Case e i t as) = do
     e' <- absVarLoc' e
     as' <- mapM (\(G2.Alt a ae) -> return . G2.Alt a =<< absVarLoc' ae) as
-    return $ G2.Case e' i as'
+    return $ G2.Case e' i t as'
 absVarLoc' (G2.Cast e c) = do
     e' <- absVarLoc' e
     return $ G2.Cast e' c

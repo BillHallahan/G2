@@ -81,6 +81,7 @@ import Control.Monad
 import Control.Monad.Extra
 import Control.Exception
 import Control.Monad.IO.Class
+import qualified Control.Monad.State as SM
 import Data.Function
 import Data.Monoid
 
@@ -142,10 +143,24 @@ instance Solver solver => Solver (SpreadOutSolver solver) where
 -- Calling G2
 -------------------------------------
 
-runLHG2Inference :: (Solver solver, Simplifier simplifier)
+
+{-# SPECIALISE
+    runLHG2Inference :: (Solver solver, Simplifier simplifier)
+                    => Config
+                    -> SomeReducer (SM.StateT PrettyGuide IO) LHTracker
+                    -> SomeHalter (SM.StateT PrettyGuide IO) LHTracker
+                    -> SomeOrderer LHTracker
+                    -> solver
+                    -> simplifier
+                    -> MemConfig
+                    -> Id
+                    -> State LHTracker
+                    -> Bindings
+                    -> SM.StateT PrettyGuide IO ([ExecRes AbstractedInfo], Bindings) #-}
+runLHG2Inference :: (MonadIO m, Solver solver, Simplifier simplifier)
                  => Config
-                 -> SomeReducer LHTracker
-                 -> SomeHalter LHTracker
+                 -> SomeReducer m LHTracker
+                 -> SomeHalter m LHTracker
                  -> SomeOrderer LHTracker
                  -> solver
                  -> simplifier
@@ -153,7 +168,7 @@ runLHG2Inference :: (Solver solver, Simplifier simplifier)
                  -> Id
                  -> State LHTracker
                  -> Bindings
-                 -> IO ([ExecRes AbstractedInfo], Bindings)
+                 -> m ([ExecRes AbstractedInfo], Bindings)
 runLHG2Inference config red hal ord solver simplifier pres_names init_id final_st bindings = do
     let only_abs_st = addTicksToDeepSeqCases (deepseq_walkers bindings) final_st
     (ret, final_bindings) <- case (red, hal, ord) of
@@ -165,25 +180,26 @@ runLHG2Inference config red hal ord solver simplifier pres_names init_id final_s
 
     cleanupResultsInference solver simplifier config init_id final_bindings ret''
 
-cleanupResultsInference :: (Solver solver, Simplifier simplifier) =>
+cleanupResultsInference :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                            solver
                         -> simplifier
                         -> Config
                         -> Id
                         -> Bindings
                         -> [ExecRes LHTracker]
-                        -> IO ([ExecRes AbstractedInfo], Bindings)
+                        -> m ([ExecRes AbstractedInfo], Bindings)
 cleanupResultsInference solver simplifier config init_id bindings ers = do
     let ers2 = map (\er -> er { final_state = putSymbolicExistentialInstInExprEnv (final_state er) }) ers
     let ers3 = map (replaceHigherOrderNames (idName init_id) (input_names bindings)) ers2
-    (bindings', ers4) <- mapAccumM (reduceCalls runG2ThroughExecutionInference solver simplifier config) bindings ers3
-    ers5 <- mapM (checkAbstracted runG2ThroughExecutionInference solver simplifier config init_id bindings') ers4
-    ers6 <- mapM (runG2SolvingInference solver simplifier bindings') ers5
+    (bindings', ers4) <- liftIO $ mapAccumM (reduceCalls runG2ThroughExecutionInference solver simplifier config) bindings ers3
+    ers5 <- liftIO $ mapM (checkAbstracted runG2ThroughExecutionInference solver simplifier config init_id bindings') ers4
+    ers6 <- liftIO $ mapM (runG2SolvingInference solver simplifier bindings') ers5
     let ers7 = 
           map (\er@(ExecRes { final_state = s }) ->
                 (er { final_state =
                               s {track = 
-                                    mapAbstractedInfoFCs (evalPrims (known_values s) . subVarFuncCall True (model s) (expr_env s) (type_classes s))
+                                    mapAbstractedInfoFCs (evalPrims (type_env s) (known_values s)
+                                                         . subVarFuncCall True (model s) (expr_env s) (type_classes s))
                                     $ track s
                                 }
                     })) ers6
@@ -224,12 +240,12 @@ runG2ThroughExecutionInference red hal ord _ _ pres s b = do
                         (SomeReducer red', SomeHalter hal', SomeOrderer ord') -> runG2ThroughExecution red' hal' ord' pres s b
     return (map (earlyExecRes fb) fs, fb)
 
-runG2SolvingInference :: (Solver solver, Simplifier simplifier) => solver -> simplifier -> Bindings -> ExecRes AbstractedInfo -> IO (ExecRes AbstractedInfo)
+runG2SolvingInference :: (MonadIO m, Solver solver, Simplifier simplifier) => solver -> simplifier -> Bindings -> ExecRes AbstractedInfo -> m (ExecRes AbstractedInfo)
 runG2SolvingInference solver simplifier bindings (ExecRes { final_state = s }) = do
     let abs_resemble_real = softAbstractResembleReal s
         pc_with_soft = PC.union abs_resemble_real (path_conds s)
         s_with_soft_pc = s { path_conds = pc_with_soft }
-    er_solving <- runG2SolvingResult solver simplifier bindings s_with_soft_pc
+    er_solving <- liftIO $ runG2SolvingResult solver simplifier bindings s_with_soft_pc
     case er_solving of
         SAT er_solving' -> do
             let er_solving'' = if fmap funcName (violated er_solving') == Just initiallyCalledFuncName
@@ -238,7 +254,7 @@ runG2SolvingInference solver simplifier bindings (ExecRes { final_state = s }) =
             return er_solving''
         UNSAT _ -> error "runG2SolvingInference: solving failed"
         Unknown _ _ -> do
-            er_solving_no_min <- runG2SolvingResult solver simplifier bindings s
+            er_solving_no_min <- liftIO $ runG2SolvingResult solver simplifier bindings s
             case er_solving_no_min of
                 SAT er_solving_no_min' -> do
                     let er_solving_no_min'' = if fmap funcName (violated er_solving_no_min') == Just initiallyCalledFuncName
@@ -265,16 +281,17 @@ earlyExecRes b s@(State { expr_env = eenv, curr_expr = CurrExpr _ cexpr }) =
                                 Just e -> Just e
                                 Nothing -> Nothing
 
-satState :: ( Named t
+satState :: ( MonadIO m
+            , Named t
             , ASTContainer t Expr
             , ASTContainer t Type
             , Solver solver) =>
                solver
             -> State t
-            -> IO Bool
+            -> m Bool
 satState solver s
     | true_assert s = do
-        r <- check solver s (path_conds s)
+        r <- liftIO $ check solver s (path_conds s)
 
         case r of
             SAT _ -> return True
@@ -339,7 +356,7 @@ gatherAllowedCalls entry m lrs ghci infconfig config lhconfig = do
                   , track = [] :: [FuncCall] }
 
     (red, hal, ord) <- gatherReducerHalterOrderer infconfig config' lhconfig solver simplifier
-    (exec_res, bindings'') <- runG2WithSomes red hal ord solver simplifier pres_names s'' bindings'
+    (exec_res, bindings'') <- SM.evalStateT (runG2WithSomes red hal ord solver simplifier pres_names s'' bindings') (mkPrettyGuide ())
 
     putStrLn $ "length exec_res = " ++ show (length exec_res)
 
@@ -347,7 +364,7 @@ gatherAllowedCalls entry m lrs ghci infconfig config lhconfig = do
                               let fs = final_state er in
                               map (fs,) $ track fs) exec_res
 
-        fc_red = SomeReducer (StdRed (sharing config') solver simplifier)
+        fc_red = SomeReducer (stdRed (sharing config') solver simplifier)
 
     (_, red_calls) <- mapAccumM 
                                 (\b (fs, fc) -> do
@@ -374,37 +391,36 @@ repCFBranch' nd@(NonDet (e:_))
 repCFBranch' (Let b (Assert fc ae1 ae2)) = Let b $ Assume fc ae1 ae2
 repCFBranch' e = e
 
-gatherReducerHalterOrderer :: (Solver solver, Simplifier simplifier)
+gatherReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
                            => InferenceConfig
                            -> Config
                            -> LHConfig
                            -> solver
                            -> simplifier
-                           -> IO (SomeReducer [FuncCall], SomeHalter [FuncCall], SomeOrderer [FuncCall])
+                           -> IO ( SomeReducer (SM.StateT PrettyGuide m) [FuncCall]
+                                 , SomeHalter (SM.StateT PrettyGuide m) [FuncCall]
+                                 , SomeOrderer [FuncCall])
 gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
     let
-        ng = mkNameGen ()
-
         share = sharing config
 
         state_name = Name "state" Nothing 0 Nothing
 
-        m_logger = getLogger config
+        m_logger = fmap SomeReducer $ getLogger config
 
-    timer_halter <- timerHalter (timeout_se infconfig * 3)
+    timer_halter <- stdTimerHalter (timeout_se infconfig * 3)
 
     return
-        (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng)
-            <~| (case m_logger of
-                  Just logger -> SomeReducer (StdRed share solver simplifier :<~ Gatherer) <~ logger
-                  Nothing -> SomeReducer (StdRed share solver simplifier :<~ Gatherer))
+        (SomeReducer (nonRedPCRed <~| taggerRed state_name)
+            .<~| (case m_logger of
+                    Just logger -> SomeReducer (stdRed share solver simplifier <~ gathererReducer) .<~ logger
+                    Nothing -> SomeReducer (stdRed share solver simplifier <~ gathererReducer))
         , SomeHalter
-            (DiscardIfAcceptedTag state_name
-              -- :<~> searched_below
-              :<~> SwitchEveryNHalter (switch_after lhconfig)
-              :<~> SWHNFHalter
-              :<~> timer_halter)
-        , SomeOrderer (ToOrderer $ IncrAfterN 2000 (ADTSizeOrderer 0 Nothing)))
+            (discardIfAcceptedTagHalter state_name
+              <~> switchEveryNHalter (switch_after lhconfig)
+              <~> swhnfHalter
+              <~> timer_halter)
+        , SomeOrderer (incrAfterN 2000 (adtSizeOrderer 0 Nothing)))
 
 -------------------------------
 -- Direct Counterexamples Calls
@@ -414,6 +430,15 @@ gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
 -- needlessly repeatedly reading and compiling the code.  But it's to have an "end-to-end"
 -- function to just running the symbolic execution, for debugging.
 
+{-# SPECIALISE
+    runLHInferenceAll :: InferenceConfig
+                      -> Config
+                      -> LHConfig
+                      -> T.Text
+                      -> [FilePath]
+                      -> [FilePath]
+                      -> IO (([ExecRes AbstractedInfo], Bindings), Id)
+ #-}
 runLHInferenceAll :: MonadIO m
                   => InferenceConfig
                   -> Config
@@ -464,7 +489,8 @@ runLHInferenceCore entry m lrs ghci = do
         final_st' = swapHigherOrdForSymGen bindings final_st
 
     (red, hal, ord) <- inferenceReducerHalterOrderer infconfig g2config lhconfig solver simplifier entry m cfn final_st'
-    (exec_res, final_bindings) <- liftIO $ runLHG2Inference g2config red hal ord solver simplifier pres_names ifi final_st' bindings
+    -- liftIO is important so that we specialize runLHG2Inference
+    (exec_res, final_bindings) <- liftIO $ SM.evalStateT (runLHG2Inference g2config red hal ord solver simplifier pres_names ifi final_st' bindings) (mkPrettyGuide ())
 
     liftIO $ close solver
 
@@ -473,7 +499,7 @@ runLHInferenceCore entry m lrs ghci = do
 
     return ((exec_res, final_bindings), ifi)
 
-inferenceReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
+inferenceReducerHalterOrderer :: (MonadIO m, MonadIO m_run, Solver solver, Simplifier simplifier)
                               => InferenceConfig
                               -> Config
                               -> LHConfig
@@ -483,57 +509,56 @@ inferenceReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifie
                               -> Maybe T.Text
                               -> Name
                               -> State LHTracker
-                              -> InfStack m (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
+                              -> InfStack m ( SomeReducer (SM.StateT PrettyGuide m_run) LHTracker
+                                            , SomeHalter  (SM.StateT PrettyGuide m_run) LHTracker
+                                            , SomeOrderer LHTracker)
 inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry mb_modname cfn st = do
     extra_ce <- extraMaxCExI (entry, mb_modname)
     extra_time <- extraMaxTimeI (entry, mb_modname)
 
     -- time <- liftIO $ getCurrentTime
     let
-        ng = mkNameGen ()
-
         share = sharing config
 
         state_name = Name "state" Nothing 0 Nothing
         abs_ret_name = Name "abs_ret" Nothing 0 Nothing
 
-        -- searched_below = SearchedBelowHalter { found_at_least = 3
-        --                                      , discarded_at_least = 6
-        --                                      , discarded_at_most = 15 }
         ce_num = max_ce infconfig + extra_ce
-        lh_max_outputs = LHMaxOutputsHalter ce_num
+        lh_max_outputs = lhMaxOutputsHalter ce_num
 
         timeout = timeout_se infconfig + extra_time
 
-        m_logger = getLogger config
+        m_logger = fmap SomeReducer $ getLogger config
         -- m_logger = if entry == "mapReduce" then Just (SomeReducer $ PrettyLogger ("a_mapReduce" ++ show time) (mkPrettyGuide ())) else getLogger config
 
     liftIO $ putStrLn $ "ce num for " ++ T.unpack entry ++ " is " ++ show ce_num
     liftIO $ putStrLn $ "timeout for " ++ T.unpack entry ++ " is " ++ show timeout
     
-    timer_halter <- liftIO $ timerHalter (timeout * 2)
-    lh_timer_halter <- liftIO $ lhTimerHalter timeout
+    timer_halter <- liftIO $ stdTimerHalter (timeout * 2)
+    lh_timer_halter <- liftIO $ lhStdTimerHalter timeout
 
-    let halter =      LHAbsHalter entry mb_modname (expr_env st)
-                 :<~> lh_max_outputs
-                 :<~> SwitchEveryNHalter (switch_after lhconfig)
-                 -- :<~> LHLimitSameAbstractedHalter 5
-                 :<~> LHSWHNFHalter
-                 -- :<~> LHAcceptIfViolatedHalter
-                 :<~> timer_halter
-                 :<~> lh_timer_halter
-                 -- :<~> OnlyIf (\pr _ -> any true_assert (accepted pr)) timer_halter
-    let some_red = SomeReducer (StdRed share solver simplifier :<~ HigherOrderCallsRed :<~ AllCallsRed :<~| RedArbErrors :<~| LHRed cfn :<~? ExistentialInstRed)
+    let halter =      lhAbsHalter entry mb_modname (expr_env st)
+                 <~> lh_max_outputs
+                 <~> switchEveryNHalter (switch_after lhconfig)
+                 <~> lhSWHNFHalter
+                 <~> timer_halter
+                 <~> lh_timer_halter
+    let some_red = SomeReducer (stdRed share solver simplifier
+                             <~ higherOrderCallsRed
+                             <~ allCallsRed
+                             <~| redArbErrors
+                             <~| lhRed cfn
+                             <~? existentialInstRed)
 
     return $
-        (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng)
-            <~| (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng))
-            <~| (case m_logger of
-                  Just logger -> some_red <~ logger
-                  Nothing -> some_red)
+        (SomeReducer (nonRedAbstractReturnsRed <~| taggerRed abs_ret_name)
+            .<~| (SomeReducer (nonRedPCRed <~| taggerRed state_name))
+            .<~| (case m_logger of
+                    Just logger -> some_red .<~ logger
+                    Nothing -> some_red)
         , SomeHalter
-            (DiscardIfAcceptedTag state_name :<~> halter)
-        , SomeOrderer (ToOrderer $ IncrAfterN 2000 (QuotTrueAssert (OrdComb (+) (PCSizeOrderer 0) (ADTSizeOrderer 0 (Just instFuncTickName))))))
+            (discardIfAcceptedTagHalter state_name <~> halter)
+        , SomeOrderer (incrAfterN 2000 (quotTrueAssert (ordComb (+) (pcSizeOrderer 0) (adtSizeOrderer 0 (Just instFuncTickName))))))
 
 runLHCExSearch :: MonadIO m
                => T.Text
@@ -559,13 +584,14 @@ runLHCExSearch entry m lrs ghci = do
         final_st' = swapHigherOrdForSymGen bindings final_st
 
     (red, hal, ord) <- realCExReducerHalterOrderer infconfig g2config lhconfig' entry m solver simplifier cfn
-    (exec_res, final_bindings) <- liftIO $ runLHG2Inference g2config red hal ord solver simplifier pres_names ifi final_st' bindings
+    -- liftIO is important so that we specialize runLHG2Inference
+    (exec_res, final_bindings) <- liftIO $ SM.evalStateT (runLHG2Inference g2config red hal ord solver simplifier pres_names ifi final_st' bindings) (mkPrettyGuide ())
 
     liftIO $ close solver
 
     return ((exec_res, final_bindings), ifi)
 
-realCExReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
+realCExReducerHalterOrderer :: (MonadIO m, MonadIO m_run, Solver solver, Simplifier simplifier)
                             => InferenceConfig
                             -> Config
                             -> LHConfig
@@ -574,7 +600,9 @@ realCExReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
                             -> solver
                             -> simplifier
                             -> Name
-                            -> InfStack m (SomeReducer LHTracker, SomeHalter LHTracker, SomeOrderer LHTracker)
+                            -> InfStack m ( SomeReducer (SM.StateT PrettyGuide m_run) LHTracker
+                                          , SomeHalter (SM.StateT PrettyGuide m_run) LHTracker
+                                          , SomeOrderer LHTracker)
 realCExReducerHalterOrderer infconfig config lhconfig entry modname solver simplifier  cfn = do
     extra_ce <- extraMaxCExI (entry, modname)
     extra_depth <- extraMaxDepthI
@@ -582,39 +610,33 @@ realCExReducerHalterOrderer infconfig config lhconfig entry modname solver simpl
     liftIO . putStrLn $ "extra_depth = " ++ show extra_depth
 
     let
-        ng = mkNameGen ()
-
         share = sharing config
 
         state_name = Name "state" Nothing 0 Nothing
         abs_ret_name = Name "abs_ret" Nothing 0 Nothing
 
-        -- searched_below = SearchedBelowHalter { found_at_least = 3
-        --                                      , discarded_at_least = 6
-        --                                      , discarded_at_most = 15 }
         ce_num = max_ce infconfig + extra_ce
-        lh_max_outputs = LHMaxOutputsHalter ce_num
+        lh_max_outputs = lhMaxOutputsHalter ce_num
 
-        m_logger = getLogger config
+        m_logger = fmap SomeReducer $ getLogger config
 
-    timer_halter <- liftIO $ timerHalter (timeout_se infconfig)
+    timer_halter <- liftIO $ stdTimerHalter (timeout_se infconfig)
 
     let halter =      lh_max_outputs
-                 :<~> SwitchEveryNHalter (switch_after lhconfig)
-                 :<~> ZeroHalter (0 + extra_depth)
-                 :<~> LHAcceptIfViolatedHalter
-                 :<~> timer_halter
-                 -- :<~> OnlyIf (\pr _ -> any true_assert (accepted pr)) timer_halter
+                 <~> switchEveryNHalter (switch_after lhconfig)
+                 <~> zeroHalter (0 + extra_depth)
+                 <~> lhAcceptIfViolatedHalter
+                 <~> timer_halter
 
     return $
-        (SomeReducer (NonRedAbstractReturns :<~| TaggerRed abs_ret_name ng)
-            <~| (SomeReducer (NonRedPCRed :<~| TaggerRed state_name ng))
-            <~| (case m_logger of
-                  Just logger -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn) <~ logger
-                  Nothing -> SomeReducer (StdRed share solver simplifier :<~| LHRed cfn))
+        (SomeReducer (nonRedAbstractReturnsRed <~| taggerRed abs_ret_name)
+            .<~| (SomeReducer (nonRedPCRed <~| taggerRed state_name))
+            .<~| (case m_logger of
+                      Just logger -> SomeReducer (stdRed share solver simplifier <~| lhRed cfn) .<~ logger
+                      Nothing -> SomeReducer (stdRed share solver simplifier <~| lhRed cfn))
         , SomeHalter
-            (DiscardIfAcceptedTag state_name :<~> halter)
-        , SomeOrderer (ToOrderer $ IncrAfterN 1000 (ADTSizeOrderer 0 Nothing)))
+            (discardIfAcceptedTagHalter state_name <~> halter)
+        , SomeOrderer (incrAfterN 1000 (adtSizeOrderer 0 Nothing)))
 
 
 swapHigherOrdForSymGen :: Bindings -> State t -> State t
@@ -918,11 +940,11 @@ evalMeasures init_meas lrs ghci es = do
 isTotal :: TypeEnv -> Expr -> Bool
 isTotal tenv = getAll . evalASTs isTotal'
     where
-        isTotal' (Case i _ as)
+        isTotal' (Case i _ _ as)
             | TyCon n _:_ <- unTyApp (typeOf i)
             , Just adt <- HM.lookup n tenv =
                 All (length (dataCon adt) == length (filter isDataAlt as))
-        isTotal' (Case _ _ _) = All False
+        isTotal' (Case _ _ _ _) = All False
         isTotal' _ = All True
 
         isDataAlt (G2.Alt (DataAlt _ _) _) = True
@@ -1007,7 +1029,7 @@ chainReturnType t ne =
     foldM (\(t', vms) et -> 
                 case filter notLH . anonArgumentTypes $ PresType et of
                     [at]
-                        | (True, vm) <- t' `specializes` at -> Just (applyTypeMap vm . returnType $ PresType et, vm:vms)
+                        | Just vm <- t' `specializes` at -> Just (applyTypeMap vm . returnType $ PresType et, vm:vms)
                     _ ->  Nothing) (t, []) (map typeOf $ reverse ne)
 
 notLH :: Type -> Bool
@@ -1042,33 +1064,41 @@ evalMeasuresCE s bindings tcv is e bound =
 -------------------------------
 -- Generic
 -------------------------------
-genericG2Call :: ( ASTContainer t Expr
+genericG2Call :: ( MonadIO m
+                 , ASTContainer t Expr
                  , ASTContainer t Type
                  , Named t
-                 , Solver solver) => Config -> solver -> State t -> Bindings -> IO ([ExecRes t], Bindings)
+                 , Solver solver) => Config -> solver -> State t -> Bindings -> m ([ExecRes t], Bindings)
 genericG2Call config solver s bindings = do
     let simplifier = IdSimplifier
         share = sharing config
 
-    fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier))
-                           (SomeHalter SWHNFHalter)
-                           (SomeOrderer NextOrderer)
+    fslb <- runG2WithSomes (SomeReducer (stdRed share solver simplifier))
+                           (SomeHalter swhnfHalter)
+                           (SomeOrderer nextOrderer)
                            solver simplifier PreserveAllMC s bindings
 
     return fslb
 
-genericG2CallLogging :: ( ASTContainer t Expr
+genericG2CallLogging :: ( MonadIO m
+                        , ASTContainer t Expr
                         , ASTContainer t Type
                         , Named t
                         , Show t
-                        , Solver solver) => Config -> solver -> State t -> Bindings -> String -> IO ([ExecRes t], Bindings)
+                        , Solver solver) =>
+                        Config
+                     -> solver
+                     -> State t
+                     -> Bindings
+                     -> String
+                     -> (SM.StateT PrettyGuide m) ([ExecRes t], Bindings)
 genericG2CallLogging config solver s bindings lg = do
     let simplifier = IdSimplifier
         share = sharing config
 
-    fslb <- runG2WithSomes (SomeReducer (StdRed share solver simplifier :<~ prettyLogger lg))
-                           (SomeHalter SWHNFHalter)
-                           (SomeOrderer NextOrderer)
+    fslb <- runG2WithSomes (SomeReducer (stdRed share solver simplifier <~ prettyLogger lg))
+                           (SomeHalter swhnfHalter)
+                           (SomeOrderer nextOrderer)
                            solver simplifier PreserveAllMC s bindings
 
     return fslb

@@ -104,7 +104,6 @@ rule_names4 = [
     , "p84"
     ]
 
--- TODO
 rule_names5 :: [String]
 rule_names5 = [
       "p44"
@@ -192,7 +191,7 @@ suite n = do
       texts = map (T.pack . fst) ri
       totals = map (\(_, v) -> map T.pack v) ri
   proj <- guessProj src
-  config <- getConfig [src]
+  config <- getConfig
   (init_state, bindings) <- initialStateNoStartFunc [proj] [src]
                             (TranslationConfig {simpl = True, load_rewrite_rules = True}) config
   let rule_maybes = map (\t -> find (\r -> t == ru_name r) (rewrite_rules bindings)) texts

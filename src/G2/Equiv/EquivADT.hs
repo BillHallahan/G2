@@ -9,11 +9,8 @@ module G2.Equiv.EquivADT (
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.Typing as T
 import qualified Data.HashSet as HS
-
-import qualified Data.HashMap.Lazy as HM
-
-import Control.Monad
 
 import G2.Execution.NormalForms
 import G2.Equiv.G2Calls
@@ -23,8 +20,9 @@ import Data.Data
 import Data.Hashable
 import Data.Maybe
 
--- the bool is True if guarded coinduction can be used
--- TODO do I need all of these typeclasses?
+-- The information that comes before the Expr pair is used for checking
+-- the validity of guarded coinduction and also for counterexample
+-- summarization in the event of a SAT output.
 -- earlier DataCons in the list are farther out
 -- the first Int tag indicates which argument of the constructor this was
 -- the second one indicates the total number of arguments for that constructor
@@ -57,8 +55,6 @@ unAppNoTicks e =
     e':t -> (removeTicks e'):t
     _ -> e_list
 
--- TODO getting catch-all case from infEq with inf1 and inf2
--- also getting two REC ticks on the variables at the beginning, which is wrong
 exprPairing :: HS.HashSet Name -- ^ vars that should not be inlined on either side
             -> State t
             -> State t
@@ -79,10 +75,16 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
     (Tick _ _, _) | isExprValueForm h2 (removeAllTicks e2) -> Nothing
     (_, Tick _ _) | isExprValueForm h1 (removeAllTicks e1) -> Nothing
     -- We have two error labels that are different from each other
-    (Tick t1 e1', Tick t2 e2') -> Nothing
+    (Tick _ _, Tick _ _) -> Nothing
     -- keeping track of inlined vars prevents looping
     (Var i1, Var i2) | (idName i1) `elem` n1
                      , (idName i2) `elem` n2 -> Just $ HS.insert (Ob [] e1 e2) pairs
+                     -- reject distinct polymorphic variables as inequivalent
+                     -- this works for function variables too
+                     | E.isSymbolic (idName i1) h1
+                     , E.isSymbolic (idName i2) h2
+                     , idName i1 /= idName i2
+                     , not (concretizable $ T.typeOf e1) -> Nothing
     (Var i, _) | E.isSymbolic (idName i) h1 -> Just $ HS.insert (Ob [] e1 e2) pairs
                | m <- idName i
                , not $ m `elem` ns
@@ -100,19 +102,6 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
                   , isExprValueForm h2 (removeAllTicks e2) -> Nothing
     (_, Prim p _) | (p == Error || p == Undefined)
                   , isExprValueForm h1 (removeAllTicks e1) -> Nothing
-    -- TODO test equivalence of functions and arguments?
-    -- Might cause the verifier to miss some important things
-    -- doesn't seem to help with int-nat difference
-    -- on top of that, it breaks expNat, even with these constraints
-    {-
-    (App f1 a1, App f2 a2)
-                  | (Var i1):l1 <- unApp e1
-                  , (Var i2):l2 <- unApp e2
-                  , (idName i1) `elem` ns
-                  , (idName i2) `elem` ns
-                  , Just pairs' <- exprPairing ns s1 s2 a1 a2 pairs n1 n2 ->
-                    exprPairing ns s1 s2 f1 f2 pairs' n1 n2
-    -}
     (Lit l1, Lit l2) | l1 == l2 -> Just pairs
                      | otherwise -> Nothing
     -- assume that all types line up between the two expressions
@@ -126,17 +115,13 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
                     ep' hs p = ep p hs n1 n2
                     l = zip l1 l2
                     extend i (Ob ds e1_ e2_) = Ob ((d, i, length l):ds) e1_ e2_
-                    -- TODO inefficient list conversion
-                    hl = map (\m -> case m of
-                               Nothing -> Nothing
-                               Just hs -> Just $ HS.toList hs) $ map (ep' HS.empty) l
-                    hl' = map (\(i, m) -> case m of
-                                Nothing -> Nothing
-                                Just hs_l -> Just $ map (extend i) hs_l)
-                              (zip [0..] hl)
+                    make_exts (i, l_pair) = case ep' HS.empty l_pair of
+                      Nothing -> Nothing
+                      Just hs -> Just $ map (extend i) $ HS.toList hs
+                    hl = map make_exts $ zip [0..] l
                 in
-                if any isNothing hl'
+                if any isNothing hl
                 then Nothing
-                else Just $ HS.union pairs $ HS.fromList $ concat (map fromJust hl')
+                else Just $ HS.union pairs $ HS.fromList $ concat (map fromJust hl)
                 else Nothing
         | otherwise -> Just $ HS.insert (Ob [] e1 e2) pairs

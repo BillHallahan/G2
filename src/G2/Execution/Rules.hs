@@ -50,10 +50,13 @@ stdReduce' share solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }
     , share == Sharing = return $ evalVarSharing s ng i
     | Var i <- ce
     , share == NoSharing = return $ evalVarNoSharing s ng i
-    | App e1 e2 <- ce = return $ evalApp s ng e1 e2
+    | App e1 e2 <- ce = do
+        let (r, xs, ng') = evalApp s ng e1 e2
+        xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
+        return (r, xs', ng')
     | Let b e <- ce = return $ evalLet s ng b e
-    | Case e i a <- ce = do
-        let (r, xs, ng') = evalCase s ng e i a
+    | Case e i t a <- ce = do
+        let (r, xs, ng') = evalCase s ng e i t a
         xs' <- mapMaybeM (reduceNewPC solver simplifier) xs
         return (r, xs', ng')
     | Cast e c <- ce = return $ evalCast s ng e c
@@ -73,8 +76,8 @@ stdReduce' _ solver simplifier s@(State { curr_expr = CurrExpr Return ce
     | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
     | isError ce
     , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], ng)
-    | Just rs <- retReplaceSymbFunc' s ng ce = return rs
-    | Just (CaseFrame i a, stck') <- frstck = return $ retCaseFrame s ng ce i a stck'
+    | Just rs <- retReplaceSymbFunc s ng ce = return rs
+    | Just (CaseFrame i t a, stck') <- frstck = return $ retCaseFrame s ng ce i t a stck'
     | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ng ce c stck'
     | Lam u i e <- ce = return $ retLam s ng u i e
     | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ng ce e stck'
@@ -137,8 +140,9 @@ evalVarNoSharing s@(State { expr_env = eenv })
 --    (2) We have a symbolic value, and no evaluation is possible, so we return
 -- If we do not have a primitive operator, we go into the center of the apps,
 -- to evaluate the function call
-evalApp :: State t -> NameGen -> Expr -> Expr -> (Rule, [State t], NameGen)
+evalApp :: State t -> NameGen -> Expr -> Expr -> (Rule, [NewPC t], NameGen)
 evalApp s@(State { expr_env = eenv
+                 , type_env = tenv
                  , known_values = kv
                  , exec_stack = stck })
         ng e1 e2
@@ -146,22 +150,28 @@ evalApp s@(State { expr_env = eenv
     , Var i1 <- findSym v
     , v2 <- e2 =
         ( RuleBind
-        , [s { expr_env = E.insert (idName i1) v2 eenv
-             , curr_expr = CurrExpr Return (mkTrue kv) }]
+        , [newPCEmpty $ s { expr_env = E.insert (idName i1) v2 eenv
+                          , curr_expr = CurrExpr Return (mkTrue kv) }]
         , ng)
-    | ac@(Prim Error _) <- appCenter e1 = (RuleError, [s { curr_expr = CurrExpr Return ac }], ng)
-    | isExprValueForm eenv (App e1 e2) =
-        ( RuleReturnAppSWHNF
-        , [s { curr_expr = CurrExpr Return (App e1 e2) }]
-        , ng)
+    | ac@(Prim Error _) <- appCenter e1 =
+        (RuleError, [newPCEmpty $ s { curr_expr = CurrExpr Return ac }], ng)
+    | Just (e, eenv', pc, ng') <- evalPrimSymbolic eenv tenv ng kv (App e1 e2) =
+        ( RuleEvalPrimToNorm
+        , [ (newPCEmpty $ s { expr_env = eenv'
+                            , curr_expr = CurrExpr Return e }) { new_pcs = pc} ]
+        , ng')
     | (Prim prim ty):ar <- unApp (App e1 e2) = 
         let
             ar' = map (lookupForPrim eenv) ar
             appP = mkApp (Prim prim ty : ar')
-            exP = evalPrims kv appP
+            exP = evalPrims tenv kv appP
         in
         ( RuleEvalPrimToNorm
-        , [s { curr_expr = CurrExpr Return exP }]
+        , [newPCEmpty $ s { curr_expr = CurrExpr Return exP }]
+        , ng)
+    | isExprValueForm eenv (App e1 e2) =
+        ( RuleReturnAppSWHNF
+        , [newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2) }]
         , ng)
     | otherwise =
         let
@@ -169,8 +179,8 @@ evalApp s@(State { expr_env = eenv
             stck' = S.push frame stck
         in
         ( RuleEvalApp e2
-        , [s { curr_expr = CurrExpr Evaluate e1
-             , exec_stack = stck' }]
+        , [newPCEmpty $ s { curr_expr = CurrExpr Evaluate e1
+                          , exec_stack = stck' }]
         , ng)
     where
         findSym v@(Var (Id n _))
@@ -251,10 +261,10 @@ evalLet s@(State { expr_env = eenv })
                      , ng')
 
 -- | Handle the Case forms of Evaluate.
-evalCase :: State t -> NameGen -> Expr -> Id -> [Alt] -> (Rule, [NewPC t], NameGen)
+evalCase :: State t -> NameGen -> Expr -> Id -> Type -> [Alt] -> (Rule, [NewPC t], NameGen)
 evalCase s@(State { expr_env = eenv
                   , exec_stack = stck })
-         ng mexpr bind alts
+         ng mexpr bind t alts
   -- Is the current expression able to match with a literal based `Alt`? If
   -- so, we do the cvar binding, and proceed with evaluation of the body.
   | (Lit lit) <- unsafeElimOuterCast mexpr
@@ -341,7 +351,7 @@ evalCase s@(State { expr_env = eenv
   -- is only done when the matching expression is NOT in value form. Value
   -- forms should be handled by other RuleEvalCase* rules.
   | not (isExprValueForm eenv mexpr) =
-      let frame = CaseFrame bind alts
+      let frame = CaseFrame bind t alts
       in ( RuleEvalCaseNonVal
          , [newPCEmpty $ s { expr_env = eenv
                            , curr_expr = CurrExpr Evaluate mexpr
@@ -361,16 +371,16 @@ removeTypes [] _ = []
 
 -- | DEFAULT `Alt`s.
 matchDefaultAlts :: [Alt] -> [Alt]
-matchDefaultAlts alts = [a | a @ (Alt Default _) <- alts]
+matchDefaultAlts alts = [a | a@(Alt Default _) <- alts]
 
 -- | Match data constructor based `Alt`s.
 matchDataAlts :: DataCon -> [Alt] -> [Alt]
 matchDataAlts (DataCon n _) alts =
-  [a | a @ (Alt (DataAlt (DataCon n' _) _) _) <- alts, n == n']
+  [a | a@(Alt (DataAlt (DataCon n' _) _) _) <- alts, n == n']
 
 -- | Match literal constructor based `Alt`s.
 matchLitAlts :: Lit -> [Alt] -> [Alt]
-matchLitAlts lit alts = [a | a @ (Alt (LitAlt alit) _) <- alts, lit == alit]
+matchLitAlts lit alts = [a | a@(Alt (LitAlt alit) _) <- alts, lit == alit]
 
 liftCaseBinds :: [(Id, Expr)] -> Expr -> Expr
 liftCaseBinds [] expr = expr
@@ -386,7 +396,7 @@ litAlts alts = [(lit, aexpr) | Alt (LitAlt lit) aexpr <- alts]
 
 -- | DEFAULT `Alt`s.
 defaultAlts :: [Alt] -> [Alt]
-defaultAlts alts = [a | a @ (Alt Default _) <- alts]
+defaultAlts alts = [a | a@(Alt Default _) <- alts]
 
 -- | Lift positive datacon `State`s from symbolic alt matching. This in
 -- part involves erasing all of the parameters from the environment by rename
@@ -550,7 +560,7 @@ liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
 
             ((s', ng''), dcs'') = L.mapAccumL (concretizeSym bi maybeC) (s, ng') dcs'
 
-            mexpr' = createCaseExpr newId dcs''
+            mexpr' = createCaseExpr newId (typeOf i) dcs''
             binds = [(cvar, mexpr')]
             aexpr' = liftCaseBinds binds aexpr
 
@@ -608,14 +618,14 @@ concretizeSym bi maybeC (s, ng) dc@(DataCon _ ts) =
         eenv = foldr E.insertSymbolic (expr_env s) newParams
     in ((s {expr_env = eenv} , ng'), dc''')
 
-createCaseExpr :: Id -> [Expr] -> Expr
-createCaseExpr _ [e] = e
-createCaseExpr newId es@(_:_) =
+createCaseExpr :: Id -> Type -> [Expr] -> Expr
+createCaseExpr _ _ [e] = e
+createCaseExpr newId t es@(_:_) =
     let
         -- We assume that PathCond restricting newId's range is added elsewhere
         (_, alts) = bindExprToNum (\num e -> Alt (LitAlt (LitInt num)) e) es
-    in Case (Var newId) newId alts
-createCaseExpr _ [] = error "No exprs"
+    in Case (Var newId) newId t alts
+createCaseExpr _ _ [] = error "No exprs"
 
 bindExprToNum :: (Integer -> a -> b) -> [a] -> (Integer, [b])
 bindExprToNum f es = L.mapAccumL (\num e -> (num + 1, f num e)) 1 es
@@ -730,10 +740,10 @@ retApplyFrame s@(State { expr_env = eenv }) ng e1 e2 stck'
         , [s { curr_expr = CurrExpr Evaluate (App e1 e2)
              , exec_stack = stck' }], ng)
 
-retCaseFrame :: State t -> NameGen -> Expr -> Id -> [Alt] -> S.Stack Frame -> (Rule, [State t], NameGen)
-retCaseFrame s b e i a stck =
+retCaseFrame :: State t -> NameGen -> Expr -> Id -> Type -> [Alt] -> S.Stack Frame -> (Rule, [State t], NameGen)
+retCaseFrame s b e i t a stck =
     ( RuleReturnECase
-    , [s { curr_expr = CurrExpr Evaluate (Case e i a)
+    , [s { curr_expr = CurrExpr Evaluate (Case e i t a)
          , exec_stack = stck }]
     , b)
 
@@ -897,22 +907,6 @@ liftBind bindsLHS bindsRHS eenv expr ngen = (eenv', expr', ngen', new)
 
     eenv' = E.insert new bindsRHS eenv
 
-
--- retReplaceSymbFunc' :: State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
--- retReplaceSymbFunc' s@(State { expr_env = eenv
---                             , known_values = kv
---                             , type_classes = tc
---                             , exec_stack = stck })
---                    ng ce
---     | (Var (Id f idt):_) <- unApp ce
---     , E.isSymbolic f eenv
---     , isTyFun idt
---     = let
---         t = typeOf ce
---     in Just (RuleReturnReplaceSymbFunc, [], ng)
---     | otherwise = Nothing
-                
-
 -- change literal rule to only match on arguments
 retReplaceSymbFunc' :: State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
 retReplaceSymbFunc' s@(State { expr_env = eenv
@@ -943,7 +937,7 @@ retReplaceSymbFunc' s@(State { expr_env = eenv
                         in (Alt data_alt (mkApp (Var fi : vargs)) : as, fi : sids, ng1'')
                         ) ([], [], ng'') dcs
         -- alts = map (\dc -> Alt (Alt)) dcs
-        e = Lam TermL x $ Case (Var x) x' alts
+        e = Lam TermL x $ Case (Var x) x' t2 alts
         eenv' = foldr E.insertSymbolic eenv symIds
         eenv'' = E.insert n e eenv'
         (constState, ng'''') = mkFuncConst s n t1 t2 ng'''
@@ -984,9 +978,9 @@ retReplaceSymbFunc' s@(State { expr_env = eenv
         eqT1 = mkEqPrimType t1 kv
         (f1Id:f2Id:xId:discrimId:[], ng') = freshIds [t2, TyFun t1 t2, t1, boolTy] ng
         x = Var xId
-        e = Lam TermL xId $ Case (mkApp [eqT1, x, ea]) discrimId [
-            Alt (DataAlt trueDc []) (Var f1Id),
-            Alt (DataAlt falseDc []) (App (Var f2Id) x)]
+        e = Lam TermL xId $ Case (mkApp [eqT1, x, ea]) discrimId t2
+           [ Alt (DataAlt trueDc []) (Var f1Id)
+           , Alt (DataAlt falseDc []) (App (Var f2Id) x)]
         eenv' = foldr E.insertSymbolic eenv [f1Id, f2Id]
         eenv'' = E.insert n e eenv'
     in Just (RuleReturnReplaceSymbFunc, [s {

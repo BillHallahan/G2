@@ -312,9 +312,6 @@ getZ3 time_out = do
 getSMT :: Config -> IO SomeSMTSolver
 getSMT = getSMTAV arbValue
 
-getSMTInfinite :: Config -> IO SomeSMTSolver
-getSMTInfinite = getSMTAV arbValueInfinite
-
 getSMTAV :: ArbValueFunc -> Config -> IO SomeSMTSolver
 getSMTAV avf (Config {smt = ConZ3}) = do
     hhp@(h_in, _, _) <- getZ3ProcessHandles 10000

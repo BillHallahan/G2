@@ -30,7 +30,7 @@ findRule rule_list rule_name =
 
 acceptRule :: Config -> State t -> Bindings -> RewriteRule -> IO Bool
 acceptRule config init_state bindings rule = do
-  res <- checkRule config nebulaConfig init_state bindings [] [] rule
+  res <- checkRule config nebulaConfig init_state bindings [] rule
   return (case res of
     S.SAT _ -> error "Satisfiable"
     S.UNSAT _ -> True
@@ -38,16 +38,18 @@ acceptRule config init_state bindings rule = do
 
 rejectRule :: Config -> State t -> Bindings -> RewriteRule -> IO Bool
 rejectRule config init_state bindings rule = do
-  res <- checkRule config nebulaConfig init_state bindings [] [] rule
+  res <- checkRule config nebulaConfig init_state bindings [] rule
   return (case res of
     S.SAT _ -> True
     S.UNSAT _ -> error "Unsatisfiable"
     _ -> error "Failed to Produce a Result")
 
 nebulaConfig :: NebulaConfig
-nebulaConfig = NC { limit = 10
+nebulaConfig = NC { limit = 20
+                  , num_lemmas = 2
                   , print_summary = NoSummary
                   , use_labeled_errors = UseLabeledErrors
+                  , log_states = NoLog
                   , sync = False}
 
 good_names :: [String]
@@ -104,12 +106,14 @@ higher_good_src :: String
 higher_good_src = "tests/RewriteVerify/Correct/HigherOrderCorrect.hs"
 
 higher_bad_names :: [String]
-higher_bad_names = [ "direct" ]
+higher_bad_names = [ "direct"
+                   , "symFuncInfExpr"
+                   , "symFuncPoly"
+                   , "symFuncNat" ]
 
 higher_bad_src :: String
 higher_bad_src = "tests/RewriteVerify/Incorrect/HigherOrderIncorrect.hs"
 
--- TODO also add some of the tree rewrite rules
 tree_good_names :: [String]
 tree_good_names = [ -- "doubleTree"
                     -- "doubleTreeOriginal"
@@ -124,6 +128,17 @@ tree_bad_names = [ "badSize"
 
 tree_bad_src :: String
 tree_bad_src = "tests/RewriteVerify/Incorrect/TreeIncorrect.hs"
+
+multi_lemma_good_names :: [String]
+multi_lemma_good_names = [ "p55Z"
+                         , "p55nil"
+                         , "p55Znil"
+                         , "p80Z"
+                         , "p80nil"
+                         , "p80Znil" ]
+
+multi_lemma_good_src :: String
+multi_lemma_good_src = "tests/RewriteVerify/Correct/Zeno.hs"
 
 empty_config :: IO Config
 empty_config = getConfigDirect
@@ -145,7 +160,7 @@ rvTest check src rule_names =
                     (init_state, bindings) <- isb
                     config <- empty_config
                     let rule = findRule (rewrite_rules bindings) rule_name
-                    r <- doTimeout 30 $ check config init_state bindings rule
+                    r <- doTimeout 180 $ check config init_state bindings rule
                     case r of
                         Nothing -> error "TIMEOUT"
                         Just r' | r' -> return ()
@@ -187,6 +202,10 @@ typeSymsTestsGood :: TestTree
 typeSymsTestsGood =
   rvTest acceptRule "tests/RewriteVerify/Correct/TypeSyms.hs" ["parBuffer"]
 
+multiLemmaTestsGood :: TestTree
+multiLemmaTestsGood =
+  rvTest acceptRule multi_lemma_good_src multi_lemma_good_names
+
 rewriteTests :: TestTree
 rewriteTests = testGroup "Rewrite Tests"
         [ rewriteVerifyTestsGood
@@ -198,6 +217,7 @@ rewriteTests = testGroup "Rewrite Tests"
         , treeTestsGood
         , treeTestsBad
         , typeSymsTestsGood
+        , multiLemmaTestsGood
         ]
 
 

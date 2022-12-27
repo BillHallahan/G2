@@ -15,8 +15,8 @@ getConfigDirect = do
     homedir <- getHomeDirectory
     return $ mkConfigDirect homedir [] M.empty
 
-getConfig :: [String] -> IO (String, String, Maybe String, Maybe String, Config)
-getConfig ars = do
+getConfig :: IO (String, String, Maybe String, Maybe String, Config)
+getConfig = do
     homedir <- getHomeDirectory
     execParser (mkConfigInfo homedir)
 
