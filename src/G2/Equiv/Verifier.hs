@@ -18,6 +18,7 @@ import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.CallGraph as G
 
 import Data.Maybe
+import Data.List
 import qualified Data.Text as DT
 
 import qualified Data.HashSet as HS
@@ -379,9 +380,21 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
                   W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
                   W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) (proposedLemmas lemmas)
     -}
+    -- TODO one option is to insert every lemma marker at the end
+    -- not sure if it would be better to mix them with everything else
+    -- TODO need a StateH for every lemma?
     W.liftIO $ putStrLn $ "Unresolved Obligations: " ++ show (length states)
     let ob (sh1, sh2) = Marker (sh1, sh2) $ Unresolved (latest sh1, latest sh2)
+        pr l = LMarker $ LemmaProposed l
+        pv l = LMarker $ LemmaProven l
+        rj l = LMarker $ LemmaRejected l
+        un l = LMarker $ LemmaUnresolved l
+        un_lemmas = (proposedLemmas lemmas \\ provenLemmas lemmas) \\ disprovenLemmas lemmas
     W.tell $ map ob states
+    W.tell $ map pr $ proposedLemmas lemmas
+    W.tell $ map pv $ provenLemmas lemmas
+    W.tell $ map rj $ disprovenLemmas lemmas
+    W.tell $ map un un_lemmas
     return $ S.Unknown "Loop Iterations Exhausted" ()
 
 data StepRes = CounterexampleFound
@@ -742,6 +755,8 @@ writeCX ((Marker hist m):ms) pg ns sym_ids init_pair = case m of
   SolverFail s_pair -> showCX pg ns sym_ids hist init_pair s_pair
   CycleFound cm -> showCycle pg ns sym_ids hist init_pair cm
   _ -> writeCX ms pg ns sym_ids init_pair
+writeCX (_:ms) pg ns sym_ids init_pair =
+  writeCX ms pg ns sym_ids init_pair
 
 -- This function relies on the assumption that, if symbolic execution for
 -- the main expression pair hits a counterexample, that counterexample
@@ -760,6 +775,7 @@ reducedGuide ((Marker _ m):ms) = case m of
   SolverFail _ -> mkPrettyGuide m
   CycleFound _ -> mkPrettyGuide m
   _ -> reducedGuide ms
+reducedGuide (_:ms) = reducedGuide ms
 
 checkRule :: Config
           -> NebulaConfig
@@ -800,7 +816,7 @@ checkRule config nc init_state bindings total rule = do
              [(rewrite_state_l'', rewrite_state_r'')]
              bindings'' config nc sym_ids 0 (limit nc)
   let pg = if have_summary $ print_summary nc
-           then mkPrettyGuide $ map (\(Marker _ am) -> am) w
+           then mkPrettyGuide w-- $ map (\(Marker _ am) -> am) w
            else reducedGuide (reverse w)
   if have_summary $ print_summary nc then do
     putStrLn "--- SUMMARY ---"

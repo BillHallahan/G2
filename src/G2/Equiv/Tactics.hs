@@ -829,8 +829,8 @@ insertProvenLemma solver ns lems lem = do
   let prop_lems = proposed_lemmas lems
   (extra_proven, still_prop) <- partitionM (\l -> moreRestrictiveLemma solver ns l [lem]) prop_lems
   let extra_pairs = map (\l -> LemmaProvenEarly (lem, l)) extra_proven
-      markers = map (Marker . head . lemma_to_be_proven) extra_proven
-  W.tell $ map (\(m, a) -> m a) $ zip markers extra_pairs
+      markers = map LMarker extra_pairs
+  W.tell markers
   return $ lems {
       proposed_lemmas = still_prop
     , proven_lemmas = lem:(extra_proven ++ proven_lemmas lems)
@@ -849,10 +849,8 @@ insertDisprovenLemma solver ns lems lem = do
   -- the one doing the implying is the more general one
   let prop_lems = proposed_lemmas lems
   (extra_disproven, still_prop) <- partitionM (\l -> moreRestrictiveLemma solver ns lem [l]) prop_lems
-  let extra_pairs = map (\l -> LemmaRejectedEarly (lem, l)) extra_disproven
-      -- all unresolved lemmas should have a non-empty singleton list
-      markers = map (Marker . head . lemma_to_be_proven) extra_disproven
-  W.tell $ map (\(m, a) -> m a) $ zip markers extra_pairs
+  -- all unresolved lemmas should have a non-empty singleton list
+  W.tell $ map (\l -> LMarker $ LemmaRejectedEarly (lem, l)) extra_disproven
   return $ lems {
       proposed_lemmas = still_prop
     , disproven_lemmas = lem:(extra_disproven ++ disproven_lemmas lems)
