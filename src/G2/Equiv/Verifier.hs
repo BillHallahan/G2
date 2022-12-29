@@ -338,12 +338,6 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
                   final_lemmas <- foldM (flip (insertProposedLemma solver ns))
                                         lemmas''
                                         (pl_lemmas ++ new_lemmas)
-
-                  -- mapM (\l@(le1, le2) -> do
-                  --               let pg = mkPrettyGuide l
-                  --               W.liftIO $ putStrLn "----"
-                  --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
-                  --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) $ HS.toList new_lemmas
                   verifyLoop solver num_lems ns final_lemmas new_obligations b'''' config nc sym_ids k''' n'
               CounterexampleFound -> do
                   let un l = LMarker $ LemmaUnresolved l
@@ -355,11 +349,6 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
                       un_lemmas = (proposedLemmas lemmas \\ provenLemmas lemmas) \\ disprovenLemmas lemmas
                   W.tell $ map un un_lemmas
                   W.liftIO $ putStrLn $ "proposed = " ++ show (length $ proposedLemmas lemmas)
-                  -- mapM (\l@(Lemma le1 le2 _) -> do
-                  --               let pg = mkPrettyGuide l
-                  --               W.liftIO $ putStrLn "----"
-                  --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
-                  --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) $ proposedLemmas lemmas
                   W.liftIO $ putStrLn $ "proven = " ++ show (length $ provenLemmas lemmas) 
                   W.liftIO $ putStrLn $ "disproven = " ++ show (length $ disprovenLemmas lemmas) 
                   return $ S.UNSAT ()
@@ -367,26 +356,6 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
     W.liftIO $ putStrLn $ "proposed = " ++ show (length $ proposedLemmas lemmas)
     W.liftIO $ putStrLn $ "proven = " ++ show (length $ provenLemmas lemmas) 
     W.liftIO $ putStrLn $ "disproven = " ++ show (length $ disprovenLemmas lemmas)
-    {-
-    mapM (\l@(Lemma { lemma_lhs = le1, lemma_rhs = le2}) -> do
-                  let pg = mkPrettyGuide l
-                  W.liftIO $ putStrLn "---- Proven ----"
-                  W.liftIO $ putStrLn $ lemma_name l
-                  W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
-                  W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) (provenLemmas lemmas)
-    mapM (\l@(Lemma { lemma_lhs = le1, lemma_rhs = le2}) -> do
-                  let pg = mkPrettyGuide l
-                  W.liftIO $ putStrLn "---- Disproven ----"
-                  W.liftIO $ putStrLn $ lemma_name l
-                  W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
-                  W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) (disprovenLemmas lemmas)
-    mapM (\l@(Lemma { lemma_lhs = le1, lemma_rhs = le2}) -> do
-                  let pg = mkPrettyGuide l
-                  W.liftIO $ putStrLn "---- Proposed ----"
-                  W.liftIO $ putStrLn $ lemma_name l
-                  W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
-                  W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) (proposedLemmas lemmas)
-    -}
     -- TODO one option is to insert every lemma marker at the end
     -- not sure if it would be better to mix them with everything else
     -- TODO need a StateH for every lemma?
