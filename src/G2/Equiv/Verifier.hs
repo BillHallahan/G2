@@ -345,8 +345,15 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
                   --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
                   --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) $ HS.toList new_lemmas
                   verifyLoop solver num_lems ns final_lemmas new_obligations b'''' config nc sym_ids k''' n'
-              CounterexampleFound -> return $ S.SAT ()
+              CounterexampleFound -> do
+                  let un l = LMarker $ LemmaUnresolved l
+                      un_lemmas = (proposedLemmas lemmas \\ provenLemmas lemmas) \\ disprovenLemmas lemmas
+                  W.tell $ map un un_lemmas
+                  return $ S.SAT ()
               Proven -> do
+                  let un l = LMarker $ LemmaUnresolved l
+                      un_lemmas = (proposedLemmas lemmas \\ provenLemmas lemmas) \\ disprovenLemmas lemmas
+                  W.tell $ map un un_lemmas
                   W.liftIO $ putStrLn $ "proposed = " ++ show (length $ proposedLemmas lemmas)
                   -- mapM (\l@(Lemma le1 le2 _) -> do
                   --               let pg = mkPrettyGuide l
@@ -383,17 +390,13 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
     -- TODO one option is to insert every lemma marker at the end
     -- not sure if it would be better to mix them with everything else
     -- TODO need a StateH for every lemma?
+    -- TODO this is only shown when loop iterations run out
+    -- TODO this also doesn't show how much progress has been made on that lemma
     W.liftIO $ putStrLn $ "Unresolved Obligations: " ++ show (length states)
     let ob (sh1, sh2) = Marker (sh1, sh2) $ Unresolved (latest sh1, latest sh2)
-        pr l = LMarker $ LemmaProposed l
-        pv l = LMarker $ LemmaProven l
-        rj l = LMarker $ LemmaRejected l
         un l = LMarker $ LemmaUnresolved l
         un_lemmas = (proposedLemmas lemmas \\ provenLemmas lemmas) \\ disprovenLemmas lemmas
     W.tell $ map ob states
-    W.tell $ map pr $ proposedLemmas lemmas
-    W.tell $ map pv $ provenLemmas lemmas
-    W.tell $ map rj $ disprovenLemmas lemmas
     W.tell $ map un un_lemmas
     return $ S.Unknown "Loop Iterations Exhausted" ()
 
