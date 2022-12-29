@@ -2,7 +2,7 @@
 -- see http://haskell.org/cabal/users-guide/
 
 name:                g2
-version:             0.1.0.1
+version:             0.1.0.2
 synopsis:            Haskell symbolic execution engine.
 description:         A Haskell symbolic execution engine.
                      
@@ -103,6 +103,8 @@ library
                        , G2.Language.Typing
 
                        , G2.Lib.Printers
+
+                       , G2.Nebula
 
                        , G2.Postprocessing.Interface
 
