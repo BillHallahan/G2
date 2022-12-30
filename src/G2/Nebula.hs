@@ -12,9 +12,19 @@ import qualified G2.Language.ExprEnv as E
 import qualified G2.Solver as S
 import G2.Translation
 
+import Data.IORef
+import System.IO.Unsafe
 import Data.List
 import qualified Data.Text as T
 import Options.Applicative
+
+-- | During symbolic execution, we need to know definitions, types, etc.
+-- from previously compiled modules.  We also need to avoid reusing the same
+-- names.  We use `compiledModules` to store both previously compiled modules
+-- and existing Expression/Type Name maps.
+compiledModules :: IORef (Maybe (ExtractedG2, NameMap, TypeNameMap))
+compiledModules = unsafePerformIO $ newIORef Nothing
+{-# NOINLINE compiledModules #-}
 
 plugin :: Plugin
 plugin = defaultPlugin { installCoreToDos = install }
@@ -40,12 +50,16 @@ nebulaPluginPass' m_entry nebula_config env modguts = do
     let tconfig = (TranslationConfig {simpl = False, load_rewrite_rules = True})
         ems = EnvModSumModGuts env [] [modguts]
 
-    (base_exg2, b_nm, b_tnm) <- translateBase tconfig config [] Nothing
+    prev_comp <- readIORef compiledModules
+    (prev_exg2, prev_nm, prev_tnm) <- case prev_comp of
+                                        Just prev -> return prev
+                                        Nothing -> translateBase tconfig config [] Nothing
 
-    (_, _, exg2) <- hskToG2ViaEMS tconfig ems b_nm b_tnm
+    (new_nm, new_tm, exg2) <- hskToG2ViaEMS tconfig ems prev_nm prev_tnm
 
-    let merged_exg2 = mergeExtractedG2s [exg2, base_exg2]
+    let merged_exg2 = mergeExtractedG2s [exg2, prev_exg2]
         injected_exg2 = specialInject merged_exg2
+    writeIORef compiledModules $ Just (merged_exg2, new_nm, new_tm)
 
     let simp_state = initSimpleState injected_exg2
 
