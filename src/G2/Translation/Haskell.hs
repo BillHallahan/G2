@@ -715,6 +715,7 @@ mkClass nm tm (ClsInst { is_cls = c, is_dfun = dfun }) =
 
 mkRewriteRule :: G2.NameMap -> G2.TypeNameMap -> Maybe ModBreaks -> CoreRule -> Maybe G2.RewriteRule
 mkRewriteRule nm tm breaks (Rule { ru_name = n
+                                 , ru_origin = mdl
                                  , ru_fn = fn
                                  , ru_rough = rough
                                  , ru_bndrs = bndrs
@@ -722,6 +723,7 @@ mkRewriteRule nm tm breaks (Rule { ru_name = n
                                  , ru_rhs = rhs }) =
     let
         r = G2.RewriteRule { G2.ru_name = T.pack $ unpackFS n
+                           , G2.ru_module = T.pack . moduleNameString $ moduleName mdl
                            , G2.ru_head = mkNameLookup fn nm
                            , G2.ru_rough = map (fmap (flip mkNameLookup nm)) rough
                            , G2.ru_bndrs = map (mkId tm) bndrs

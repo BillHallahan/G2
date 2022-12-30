@@ -64,7 +64,10 @@ nebulaPluginPass' m_entry nebula_config env modguts = do
                           Nothing -> error "not found"
             _ <- checkRulePrinting config nebula_config init_state bindings total rule'
             return ()
-        Nothing -> mapM_ (checkRule config nebula_config init_state bindings total) (rewrite_rules bindings)
+        Nothing -> do
+            let mod_name = T.pack . moduleNameString . moduleName . mg_module $ modguts
+            mapM_ (checkRulePrinting config nebula_config init_state bindings total)
+                $ filter (\r -> L.ru_module r == mod_name) (rewrite_rules bindings)
 
 checkRulePrinting :: Config
                   -> NebulaConfig

@@ -472,12 +472,14 @@ instance Named RewriteRule where
         h S.<| names rs <> names b <> names as <> names rhs
 
     rename old new (RewriteRule { ru_name = n
+                                , ru_module = mdl
                                 , ru_head = h
                                 , ru_rough = rs
                                 , ru_bndrs = b
                                 , ru_args = as
                                 , ru_rhs = rhs}) =
         RewriteRule { ru_name = n
+                    , ru_module = mdl
                     , ru_head = rename old new h
                     , ru_rough = rename old new rs
                     , ru_bndrs = rename old new b
@@ -485,12 +487,14 @@ instance Named RewriteRule where
                     , ru_rhs = rename old new rhs}
 
     renames hm (RewriteRule { ru_name = n
+                            , ru_module = mdl
                             , ru_head = h
                             , ru_rough = rs
                             , ru_bndrs = b
                             , ru_args = as
                             , ru_rhs = rhs}) =
         RewriteRule { ru_name = n
+                    , ru_module = mdl
                     , ru_head = renames hm h
                     , ru_rough = renames hm rs
                     , ru_bndrs = renames hm b

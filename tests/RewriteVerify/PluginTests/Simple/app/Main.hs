@@ -1,5 +1,6 @@
 module Main where
 
+import Nat
 
 f :: Int -> Int
 f x = x
@@ -14,6 +15,7 @@ one x = 1
 {-# RULES
 "fg" forall x . f x = g x
 "f_one" forall x . f x = one x
+"fg_toint" forall x . f (toInt x) = g (toInt x)
   #-}
 
 main :: IO ()
