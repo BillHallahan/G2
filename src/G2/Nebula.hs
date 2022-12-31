@@ -1,6 +1,12 @@
+{-# LANGUAGE CPP #-}
+
 module G2.Nebula (plugin) where
 
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+import Ghc.Plugins
+#else
 import GhcPlugins
+#endif
 
 import G2.Config
 import G2.Equiv.Config
