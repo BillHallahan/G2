@@ -1,0 +1,56 @@
+name: Nebula Plugin
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-20.04
+
+    strategy:
+      matrix:
+        compiler: [ { ghc: '8.2.2', cabal: '3.0' },
+                    { ghc: '8.6.5', cabal: '3.0' },
+                    { ghc: '8.10.7', cabal: '3.6' },
+                    { ghc: '9.2.4', cabal: '3.6' } ]
+    steps:
+    - uses: actions/checkout@v3
+    - uses: haskell/actions/setup@v2
+      id: setup-haskell-cabal
+      with:
+        ghc-version: ${{ matrix.compiler.ghc }}
+        cabal-version: ${{ matrix.compiler.cabal }}
+
+    - run: cabal update
+    - run: cabal configure --enable-tests -f -support-lh
+    - run: cabal freeze
+    - uses: actions/cache@v2
+      with:
+        path: |
+          ${{ steps.setup-haskell-cabal.outputs.cabal-store }}
+          dist-newstyle
+        key: cabal-${{ runner.os }}-${{ matrix.compiler.ghc }}-${{ hashFiles('cabal.project.freeze') }}
+        restore-keys: |
+          cabal-${{ runner.os }}-${{ matrix.compiler.ghc }}-
+
+    - name: Install Z3
+      uses: pavpanchekha/setup-z3@0.2.0
+      with:
+        version: '4.8.17'
+        architecture: 'x64'
+        distribution: 'glibc-2.31'
+   
+    - name: Getting custom base
+      run: bash base_setup.sh
+
+    - name: Install dependencies
+      run: |
+        cabal install --only-dependencies
+    - name: Build
+      run: cabal build test-nebula-plugin
+    - name: Run tests
+      run: cabal run test-nebula-plugin
