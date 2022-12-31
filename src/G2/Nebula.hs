@@ -91,8 +91,12 @@ checkRulePrinting :: Config
                   -> RewriteRule
                   -> IO (S.Result () () ())
 checkRulePrinting config nebula_config init_state bindings total rule = do
-    putStrLn $ "Checking " ++ (T.unpack $ L.ru_name rule)
+    let rule_name = T.unpack $ L.ru_name rule
+    putStrLn $ "Checking " ++ rule_name
     res <- checkRule config nebula_config init_state bindings total rule
-    print res
+    case res of
+        S.SAT _ -> putStrLn $ rule_name ++ " - counterexample found"
+        S.UNSAT _ -> putStrLn $ rule_name ++ " - verified"
+        S.Unknown _ _ -> putStrLn $ rule_name ++ " - unknown result"
     return res
 
