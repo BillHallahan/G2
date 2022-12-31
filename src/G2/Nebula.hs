@@ -3,7 +3,7 @@
 module G2.Nebula (plugin) where
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
-import Ghc.Plugins
+import GHC.Plugins
 #else
 import GhcPlugins
 #endif
