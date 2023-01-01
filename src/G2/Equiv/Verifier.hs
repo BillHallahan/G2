@@ -356,11 +356,6 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
     W.liftIO $ putStrLn $ "proposed = " ++ show (length $ proposedLemmas lemmas)
     W.liftIO $ putStrLn $ "proven = " ++ show (length $ provenLemmas lemmas) 
     W.liftIO $ putStrLn $ "disproven = " ++ show (length $ disprovenLemmas lemmas)
-    -- TODO one option is to insert every lemma marker at the end
-    -- not sure if it would be better to mix them with everything else
-    -- TODO need a StateH for every lemma?
-    -- TODO this is only shown when loop iterations run out
-    -- TODO this also doesn't show how much progress has been made on that lemma
     W.liftIO $ putStrLn $ "Unresolved Obligations: " ++ show (length states)
     let ob (sh1, sh2) = Marker (sh1, sh2) $ Unresolved (latest sh1, latest sh2)
         un l = LMarker $ LemmaUnresolved l
