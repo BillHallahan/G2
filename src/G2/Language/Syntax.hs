@@ -281,6 +281,7 @@ instance Hashable Tickish
 
 -- | Represents a rewrite rule
 data RewriteRule = RewriteRule { ru_name :: T.Text
+                               , ru_module :: T.Text
                                , ru_head :: Name
                                , ru_rough :: [Maybe Name]
                                , ru_bndrs :: [Id]
