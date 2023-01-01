@@ -95,7 +95,6 @@ instance Named LemmaMarker where
     LemmaRejectedEarly lp -> LemmaRejectedEarly $ rename old new lp
     LemmaUnresolved l -> LemmaUnresolved $ rename old new l
 
--- TODO stratify the two kinds of markers
 data Marker = Marker (StateH, StateH) ActMarker
             | LMarker LemmaMarker
 
