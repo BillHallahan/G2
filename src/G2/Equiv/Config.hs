@@ -26,8 +26,6 @@ data SummaryMode = SM { have_summary :: Bool
 noSummary :: SummaryMode
 noSummary = SM False False False
 
--- data SummaryMode = NoHistory | WithHistory | NoSummary deriving Eq
-
 data UseLabeledErrors = UseLabeledErrors | NoLabeledErrors deriving (Eq, Show, Read)
 
 getNebulaConfig :: IO (String, String, [T.Text], NebulaConfig)
