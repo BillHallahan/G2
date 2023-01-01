@@ -196,6 +196,6 @@ suite n = do
                             (TranslationConfig {simpl = True, load_rewrite_rules = True}) config
   let rule_maybes = map (\t -> find (\r -> t == ru_name r) (rewrite_rules bindings)) texts
       rules = map fromJust rule_maybes
-  res <- mapM (\(r, t) -> checkRule config UseLabeledErrors False init_state bindings t [] NoSummary 10 r) (zip rules totals)
+  res <- mapM (\(r, t) -> checkRule config UseLabeledErrors False init_state bindings t [] (SM False False False) 10 r) (zip rules totals)
   print $ zip ri res
   return ()
