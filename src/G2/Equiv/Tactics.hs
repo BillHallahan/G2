@@ -14,7 +14,6 @@ module G2.Equiv.Tactics
     , moreRestrictiveEqual
     , tryCoinduction
     , exprExtract
-    , moreRestrictivePairAux
     , exprReadyForSolver
     , checkObligations
     , applySolver
@@ -803,7 +802,9 @@ insertProposedLemma solver ns lem lems@(Lemmas { proposed_lemmas = prop_lems
     implies_disproven <- anyM (\dl -> moreRestrictiveLemma solver ns dl [lem]) disproven_lems
     case same_as_proposed || implied_by_proven || implies_disproven of
         True -> return lems
-        False -> return lems { proposed_lemmas = lem:prop_lems }
+        False -> do
+          W.tell [LMarker $ LemmaProposed lem]
+          return lems { proposed_lemmas = lem:prop_lems }
 
 proposedLemmas :: Lemmas -> [ProposedLemma]
 proposedLemmas = proposed_lemmas
@@ -826,11 +827,10 @@ insertProvenLemma :: S.Solver solver =>
                   -> ProvenLemma
                   -> W.WriterT [Marker] IO Lemmas
 insertProvenLemma solver ns lems lem = do
+  W.tell [LMarker $ LemmaProven lem]
   let prop_lems = proposed_lemmas lems
   (extra_proven, still_prop) <- partitionM (\l -> moreRestrictiveLemma solver ns l [lem]) prop_lems
-  let extra_pairs = map (\l -> LemmaProvenEarly (lem, l)) extra_proven
-      markers = map (Marker . head . lemma_to_be_proven) extra_proven
-  W.tell $ map (\(m, a) -> m a) $ zip markers extra_pairs
+  W.tell $ map (\l -> LMarker $ LemmaProvenEarly (lem, l)) extra_proven
   return $ lems {
       proposed_lemmas = still_prop
     , proven_lemmas = lem:(extra_proven ++ proven_lemmas lems)
@@ -845,14 +845,12 @@ insertDisprovenLemma :: S.Solver solver =>
                      -> DisprovenLemma
                      -> W.WriterT [Marker] IO Lemmas
 insertDisprovenLemma solver ns lems lem = do
+  W.tell [LMarker $ LemmaRejected lem]
   -- the one implied is the more specific one
   -- the one doing the implying is the more general one
   let prop_lems = proposed_lemmas lems
   (extra_disproven, still_prop) <- partitionM (\l -> moreRestrictiveLemma solver ns lem [l]) prop_lems
-  let extra_pairs = map (\l -> LemmaDisprovenEarly (lem, l)) extra_disproven
-      -- all unresolved lemmas should have a non-empty singleton list
-      markers = map (Marker . head . lemma_to_be_proven) extra_disproven
-  W.tell $ map (\(m, a) -> m a) $ zip markers extra_pairs
+  W.tell $ map (\l -> LMarker $ LemmaRejectedEarly (lem, l)) extra_disproven
   return $ lems {
       proposed_lemmas = still_prop
     , disproven_lemmas = lem:(extra_disproven ++ disproven_lemmas lems)
