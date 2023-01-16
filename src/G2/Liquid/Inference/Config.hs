@@ -263,14 +263,15 @@ data InferenceConfig =
                     , timeout_se :: NominalDiffTime
                     , timeout_sygus :: NominalDiffTime }
 
-getAllConfigsForInf :: IO (String, Bool, Config, LHConfig, InferenceConfig, Maybe String)
+getAllConfigsForInf :: IO (String, Bool, Bool, Config, LHConfig, InferenceConfig, Maybe String)
 getAllConfigsForInf = do
     homedir <- getHomeDirectory
     execParser (mkAllConfigsForInf homedir)
 
-mkAllConfigsForInf :: String -> ParserInfo (String, Bool, Config, LHConfig, InferenceConfig, Maybe String)
+mkAllConfigsForInf :: String -> ParserInfo (String, Bool, Bool, Config, LHConfig, InferenceConfig, Maybe String)
 mkAllConfigsForInf homedir =
-    info (((,,,,,) <$> getFileName
+    info (((,,,,,,) <$> getFileName
+                <*> flag False True (long "to-horn" <> help "output problem as SMT horn clauses")
                 <*> flag False True (long "count" <> help "count the number of functions in the file")
                 <*> mkConfig homedir
                 <*> mkLHConfig

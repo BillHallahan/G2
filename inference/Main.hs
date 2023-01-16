@@ -9,6 +9,7 @@ import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.G2Calls
 import G2.Liquid.Inference.Initalization
 import G2.Liquid.Inference.Interface
+import G2.Liquid.Inference.ToSMTHorn
 import G2.Liquid.Inference.Verify
 import G2.Liquid.Helpers
 
@@ -24,13 +25,14 @@ import System.Environment
 
 main :: IO ()
 main = do
-    (f, count, config, g2lhconfig, infconfig, func) <- getAllConfigsForInf
+    (f, tohorn, count, config, g2lhconfig, infconfig, func) <- getAllConfigsForInf
 
     case func of
-        Nothing -> do
-                    if count
-                            then checkFuncNums f infconfig config g2lhconfig
-                            else callInference f infconfig config g2lhconfig
+        Nothing | count -> checkFuncNums f infconfig config g2lhconfig
+                | tohorn -> do
+                    (ghci, lhconfig) <- getGHCI infconfig [] [f]
+                    toSMTHorn infconfig lhconfig ghci
+                | otherwise -> callInference f infconfig config g2lhconfig
         Just func' -> do
             ((in_out, _), entry) <- runLHInferenceAll infconfig config g2lhconfig (T.pack func') [] [f]
             printLHOut entry in_out
