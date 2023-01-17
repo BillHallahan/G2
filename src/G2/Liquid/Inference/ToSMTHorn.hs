@@ -33,18 +33,19 @@ getFInfo infconfig cfg ghci = do
     finfo <- simplifyFInfo LHC.defConfig orig_finfo
     let senv = F.bs finfo
         wf = F.ws finfo
+    putStrLn "hornCons"
+    mapM_ hornCons wf
+    let ghc_types_pkvars = ghcTypesPKVars $ HM.elems wf
+        cleaned_wf = elimPKVarsWF ghc_types_pkvars wf
+        cleaned_senv = elimPKVars ghc_types_pkvars senv
+        cleaned_cm = map (elimPKVars ghc_types_pkvars) $ HM.elems $ F.cm finfo
+        clauses = map (toHorn cleaned_senv) cleaned_cm
     putStrLn "wf"
     mapM_ (\(kvar, wfc) ->
                     putStrLn $ "kvar = " ++ show kvar
                 ++ "\nwrft = " ++ show (F.wrft wfc)
-                ++ "\nwinfo = " ++ show (F.wrft wfc)) $ HM.toList wf
-    putStrLn "hornCons"
-    mapM_ hornCons wf
+                ++ "\nwinfo = " ++ show (F.wrft wfc)) $ HM.toList cleaned_wf
     putStrLn "toHorn"
-    let ghc_types_pkvars = ghcTypesPKVars $ HM.elems wf
-        cleaned_senv = elimPKVars ghc_types_pkvars senv
-        cleaned_cm = map (elimPKVars ghc_types_pkvars) $ HM.elems $ F.cm finfo
-        clauses = map (toHorn cleaned_senv) cleaned_cm
     print $ map (\(f, _, _) -> f) clauses
     putStrLn "toHorn rhs"
     print $ map (\(_, r, _) -> r) clauses
@@ -58,6 +59,9 @@ ghcTypesPKVars = HS.fromList . mapMaybe go
     where
         go F.WfC { F.wrft = (_, sort, n) } | sortNameHasPrefix "GHC.Types" sort = Just n
         go _ = Nothing
+
+elimPKVarsWF :: HS.HashSet F.KVar -> HM.HashMap F.KVar a -> HM.HashMap F.KVar a
+elimPKVarsWF kvars = HM.filterWithKey (\kvar _ -> not $ HS.member kvar kvars)
 
 elimPKVars  :: Visitable t => HS.HashSet F.KVar -> t -> t
 elimPKVars kvars = mapExpr (elimPKVarsExpr kvars)
@@ -87,7 +91,7 @@ toHorn bind subC =
         m = mconcat ms
         rhs_smt = toSMTAST m rhs
 
-        forall = ForAll (HM.elems m)
+        forall = ForAll (concatMap HM.elems ms)
     in
     (foralls, rhs, forall (SmtAnd lhs_smt :=> rhs_smt))
 
@@ -122,7 +126,7 @@ toSMTAST' m sort (F.EVar v) | Just (fv, _) <- HM.lookup (F.symbolSafeString v) m
 toSMTAST' _ _ (F.ECon (F.I i)) = VInt i
 toSMTAST' m sort (F.EBin op e1 e2) =
     toSMTASTOp op (toSMTAST' m sort e1) (toSMTAST' m sort e2)
-toSMTAST' m _ (F.ECst (F.EVar v) s) = V (F.symbolSafeString v) (lhSortToSMTSort s)
+toSMTAST' m _ (F.ECst v@(F.EVar _) s) = toSMTAST' m (lhSortToSMTSort s) v
 toSMTAST' m _ (F.ECst e s) = toSMTAST' m (lhSortToSMTSort s) e
 
 -- Handle measures
@@ -163,11 +167,13 @@ toSMTASTOp op = error $ "toSMTASTOp: unsupported " ++ show op
 lhSortToSMTSort :: F.Sort -> Sort
 lhSortToSMTSort F.FInt = SortInt
 lhSortToSMTSort (F.FObj s) = SortVar (F.symbolSafeString s)
-lhSortToSMTSort eapp | F.FTC h:es <- F.unFApp eapp=
+lhSortToSMTSort eapp | F.FTC h:es <- F.unFApp eapp =
     let
-        h_symb = F.symbol h
+        h_symb = F.symbolSafeString $ F.symbol h
     in
-    SortDC (F.symbolSafeString h_symb) $ map lhSortToSMTSort es
+    case h_symb of
+        "bool" -> SortBool
+        _ -> SortDC h_symb $ map lhSortToSMTSort es
 lhSortToSMTSort sort = error $ "lhSortToSMTSort: unsupported " ++ show sort
 
 predictSort :: HM.HashMap SMTName (SMTName, Sort) -> F.Expr -> Maybe Sort
