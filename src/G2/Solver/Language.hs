@@ -95,6 +95,9 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | ItoR !SMTAST -- ^ Integer to real conversion
 
             | Named !SMTAST SMTName -- ^ Name a piece of the SMTAST, allowing it to be returned in unsat cores
+            
+            | ForAll [(SMTName, SMTAST)] SMTAST
+            | Exists [(SMTName, SMTAST)] SMTAST
             deriving (Show, Eq)
 
 -- | Every `SMTAST` has a `Sort`
