@@ -532,7 +532,15 @@ toSolverAST (V n _) = TB.string n
 
 toSolverAST (Named x n) = "(! " <> toSolverAST x <> " :named " <> TB.string n <> ")"
 
+toSolverAST (ForAll binds e) =
+    "(forall (" <> TB.intercalate " " (map (uncurry toSolverBinds) binds) <> ") " <> toSolverAST e <> ")"
+toSolverAST (Exists binds e) =
+    "(exists (" <> TB.intercalate " " (map (uncurry toSolverBinds) binds) <> ") " <> toSolverAST e <> ")"
+
 toSolverAST ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
+
+toSolverBinds :: SMTName -> Sort -> TB.Builder 
+toSolverBinds n s = "(" <> TB.string n <> " " <> sortName s <> ")" 
 
 smtFunc :: String -> [TB.Builder] -> TB.Builder
 smtFunc n [] = TB.string n
@@ -565,6 +573,9 @@ sortName SortDouble = "Real"
 sortName SortChar = "String"
 sortName SortBool = "Bool"
 sortName (SortArray ind val) = "(Array " <> sortName ind <> " " <> sortName val <> ")"
+sortName (SortVar n) = TB.string n
+sortName (SortDC n []) = TB.string n
+sortName (SortDC n xs) = "(" <> TB.string n <> " " <> TB.intercalate " " (map sortName xs) <> ")"
 sortName _ = error "sortName: unsupported Sort"
 
 toSolverSetLogic :: Logic -> TB.Builder

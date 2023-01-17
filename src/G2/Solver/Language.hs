@@ -96,8 +96,8 @@ data SMTAST = (:>=) !SMTAST !SMTAST
 
             | Named !SMTAST SMTName -- ^ Name a piece of the SMTAST, allowing it to be returned in unsat cores
             
-            | ForAll [(SMTName, SMTAST)] SMTAST
-            | Exists [(SMTName, SMTAST)] SMTAST
+            | ForAll [(SMTName, Sort)] SMTAST
+            | Exists [(SMTName, Sort)] SMTAST
             deriving (Show, Eq)
 
 -- | Every `SMTAST` has a `Sort`
@@ -108,6 +108,8 @@ data Sort = SortInt
           | SortBool
           | SortArray Sort Sort
           | SortFunc [Sort] Sort
+          | SortVar SMTName
+          | SortDC SMTName [Sort]
           deriving (Show, Eq, Ord, Generic)
 
 instance Hashable Sort

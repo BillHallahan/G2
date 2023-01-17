@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module G2.Liquid.Inference.ToSMTHorn (toSMTHorn) where
 
 import G2.Liquid.Inference.Config
@@ -11,10 +13,14 @@ import Language.Fixpoint.Solver
 import qualified Language.Fixpoint.Types as F
 import Language.Haskell.Liquid.Types
         hiding (TargetInfo (..), TargetSrc (..), TargetSpec (..), GhcSrc (..), GhcSpec (..))
+import Language.Fixpoint.Types.Visitor
 
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as HS
+import Data.List
+import Data.Maybe
 import qualified Data.Text as T
-import Language.Haskell.Liquid.Constraint.Types (SubC(lhs))
+import qualified Text.Builder as TB
 
 toSMTHorn :: InferenceConfig -> Config ->  [GhcInfo] -> IO ()
 toSMTHorn infconfig cfg ghci = do
@@ -35,10 +41,30 @@ getFInfo infconfig cfg ghci = do
     putStrLn "hornCons"
     mapM_ hornCons wf
     putStrLn "toHorn"
-    let clauses = map (toHorn senv) (HM.elems $ F.cm finfo)
-    print $ map (\(f, r, _) -> (f, r)) clauses
-    print clauses
+    let ghc_types_pkvars = ghcTypesPKVars $ HM.elems wf
+        cleaned_senv = elimPKVars ghc_types_pkvars senv
+        cleaned_cm = map (elimPKVars ghc_types_pkvars) $ HM.elems $ F.cm finfo
+        clauses = map (toHorn cleaned_senv) cleaned_cm
+    print $ map (\(f, _, _) -> f) clauses
+    putStrLn "toHorn rhs"
+    print $ map (\(_, r, _) -> r) clauses
+    putStrLn "SMT"
+    let smt_headers = map (Assert . (\(_, _, smt) -> smt)) clauses
+    putStrLn . T.unpack . TB.run $ toSolverText smt_headers
     return finfo
+
+ghcTypesPKVars :: [F.WfC a] -> HS.HashSet F.KVar
+ghcTypesPKVars = HS.fromList . mapMaybe go
+    where
+        go F.WfC { F.wrft = (_, sort, n) } | sortNameHasPrefix "GHC.Types" sort = Just n
+        go _ = Nothing
+
+elimPKVars  :: Visitable t => HS.HashSet F.KVar -> t -> t
+elimPKVars kvars = mapExpr (elimPKVarsExpr kvars)
+
+elimPKVarsExpr :: HS.HashSet F.KVar -> F.Expr -> F.Expr
+elimPKVarsExpr pkvars (F.PKVar v _) | HS.member v pkvars = F.PTrue
+elimPKVarsExpr _ e = e
 
 hornCons :: F.WfC Cinfo -> IO ()
 hornCons (F.WfC { F.wenv = env, F.wrft = rft, F.winfo = info }) = do
@@ -53,32 +79,61 @@ toHorn bind subC =
         -- lhs = F.clhs subC
         rhs = F._crhs subC
         foralls = filter (not . F.isFunctionSortedReft . snd)
+                . filter (not . sortNameHasPrefix "GHC.Types" . F.sr_sort . snd)
                 . filter (\(_, rr) -> F.sr_sort rr /= F.FTC (F.strFTyCon))
                 $ map (`F.lookupBindEnv` bind) (elemsIBindEnv env)
 
-        lhs_smt = map rrToSMTAST $ map snd foralls -- ++ [lhs]
-        m = mconcat $ map (sortedReftToMap . snd) foralls
-        rhs_smt = toSMTAST m rhs -- rrToSMTAST rhs
+        (lhs_smt, ms) = unzip $ map (uncurry rrToSMTAST) . zip [1..] $ map snd foralls -- ++ [lhs]
+        m = mconcat ms
+        rhs_smt = toSMTAST m rhs
+
+        forall = ForAll (HM.elems m)
     in
-    (foralls, rhs, SmtAnd lhs_smt :=> rhs_smt)
+    (foralls, rhs, forall (SmtAnd lhs_smt :=> rhs_smt))
 
+sortNameHasPrefix :: String -> F.Sort -> Bool
+sortNameHasPrefix prefix eapp | F.FTC h:_ <- F.unFApp eapp =
+    let
+        h_symb = F.symbol h
+    in
+    isPrefixOf prefix (F.symbolSafeString h_symb)
+sortNameHasPrefix _ _ = False
 
-rrToSMTAST :: F.SortedReft -> SMTAST
-rrToSMTAST rr = toSMTAST (sortedReftToMap rr) (F.expr rr)
+rrToSMTAST :: Int -> F.SortedReft -> (SMTAST, HM.HashMap SMTName (SMTName, Sort))
+rrToSMTAST i rr =
+    let
+        m = sortedReftToMap i rr
+    in
+    (toSMTAST m (F.expr rr), m)
 
-sortedReftToMap :: F.SortedReft -> HM.HashMap SMTName Sort
-sortedReftToMap (F.RR { F.sr_sort = sort, F.sr_reft = F.Reft (sym, _) }) =
-    HM.singleton (F.symbolSafeString sym) (lhSortToSMTSort sort) 
+sortedReftToMap :: Int -> F.SortedReft -> HM.HashMap SMTName (SMTName, Sort)
+sortedReftToMap i (F.RR { F.sr_sort = sort, F.sr_reft = F.Reft (sym, _) }) =
+    let
+        nme = F.symbolSafeString sym
+    in
+    HM.singleton nme (nme ++ "_G2_" ++ show i, lhSortToSMTSort sort)
 
-toSMTAST :: HM.HashMap SMTName Sort -> F.Expr -> SMTAST
+toSMTAST :: HM.HashMap SMTName (SMTName, Sort) -> F.Expr -> SMTAST
 toSMTAST m = toSMTAST' m SortBool
 
-toSMTAST' :: HM.HashMap SMTName Sort -> Sort -> F.Expr -> SMTAST
-toSMTAST' m sort (F.EVar v) = V (F.symbolSafeString v) sort
+toSMTAST' :: HM.HashMap SMTName (SMTName, Sort) -> Sort -> F.Expr -> SMTAST
+toSMTAST' m sort (F.EVar v) | Just (fv, _) <- HM.lookup (F.symbolSafeString v) m = V fv sort
+                            | otherwise = V (F.symbolSafeString v) sort
 toSMTAST' _ _ (F.ECon (F.I i)) = VInt i
 toSMTAST' m sort (F.EBin op e1 e2) =
     toSMTASTOp op (toSMTAST' m sort e1) (toSMTAST' m sort e2)
+toSMTAST' m _ (F.ECst (F.EVar v) s) = V (F.symbolSafeString v) (lhSortToSMTSort s)
 toSMTAST' m _ (F.ECst e s) = toSMTAST' m (lhSortToSMTSort s) e
+
+-- Handle measures
+toSMTAST' m _ eapp@(F.EApp
+                    (F.EApp
+                        (F.ECst (F.EVar "apply") _)
+                        (F.ECst (F.EVar meas) _)
+                    ) 
+                    (F.ECst arg@(F.EVar _) arg_s)
+              ) = Func (F.symbolSafeString meas) [toSMTAST' m (lhSortToSMTSort arg_s) arg]
+
 toSMTAST' m _ (F.PAtom atom e1 e2) =
     let
         sort = case (predictSort m e1, predictSort m e2) of
@@ -88,14 +143,17 @@ toSMTAST' m _ (F.PAtom atom e1 e2) =
     in
     toSMTASTAtom atom (toSMTAST' m sort e1) (toSMTAST' m sort e2)
 toSMTAST' _ _ (F.PAnd []) = VBool True
+toSMTAST' m _ (F.PAnd xs) = SmtAnd $ map (toSMTAST' m SortBool) xs
 toSMTAST' m _ (F.PNot e) = (:!) (toSMTAST' m SortBool e)
 toSMTAST' m _ pkvar@(F.PKVar k (F.Su subst)) | [(_, arg)] <- HM.toList subst =
                         Func (F.symbolSafeString . F.kv $ k) [toSMTAST' m SortInt arg]
+
 toSMTAST' _ sort e = error $ "toSMTAST: unsupported " ++ show e ++ "\n" ++ show sort
 
 toSMTASTAtom :: F.Brel -> SMTAST -> SMTAST -> SMTAST
 toSMTASTAtom (F.Eq) = (:=)
 toSMTASTAtom (F.Gt) = (:>)
+toSMTASTAtom (F.Ge) = (:>=)
 toSMTASTAtom atom = error $ "toSMTASTAtom: unsupported " ++ show atom
 
 toSMTASTOp :: F.Bop -> SMTAST -> SMTAST -> SMTAST
@@ -104,11 +162,17 @@ toSMTASTOp op = error $ "toSMTASTOp: unsupported " ++ show op
 
 lhSortToSMTSort :: F.Sort -> Sort
 lhSortToSMTSort F.FInt = SortInt
+lhSortToSMTSort (F.FObj s) = SortVar (F.symbolSafeString s)
+lhSortToSMTSort eapp | F.FTC h:es <- F.unFApp eapp=
+    let
+        h_symb = F.symbol h
+    in
+    SortDC (F.symbolSafeString h_symb) $ map lhSortToSMTSort es
 lhSortToSMTSort sort = error $ "lhSortToSMTSort: unsupported " ++ show sort
 
-predictSort :: HM.HashMap SMTName Sort -> F.Expr -> Maybe Sort
+predictSort :: HM.HashMap SMTName (SMTName, Sort) -> F.Expr -> Maybe Sort
 predictSort _ (F.ESym _) = Nothing
-predictSort m (F.EVar v) = HM.lookup (F.symbolSafeString v) m
+predictSort m (F.EVar v) = snd <$> HM.lookup (F.symbolSafeString v) m
 predictSort _ (F.PAtom _ _ _) = Just SortBool
 predictSort _ (F.PAnd _) = Just SortBool
 predictSort _ (F.PNot _) = Just SortBool
