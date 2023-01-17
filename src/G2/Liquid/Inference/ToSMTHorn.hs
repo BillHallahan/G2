@@ -5,7 +5,9 @@ import G2.Liquid.Inference.Verify
 import G2.Liquid.Types
 import G2.Solver
 
+import qualified Language.Fixpoint.Types.Config as LHC
 import Language.Fixpoint.Types.Environments ( elemsIBindEnv )
+import Language.Fixpoint.Solver
 import qualified Language.Fixpoint.Types as F
 import Language.Haskell.Liquid.Types
         hiding (TargetInfo (..), TargetSrc (..), TargetSpec (..), GhcSrc (..), GhcSpec (..))
@@ -19,9 +21,10 @@ toSMTHorn infconfig cfg ghci = do
     getFInfo infconfig cfg ghci
     return ()
 
-getFInfo :: InferenceConfig -> Config ->  [GhcInfo] -> IO (F.FInfo Cinfo)
+getFInfo :: InferenceConfig -> Config ->  [GhcInfo] -> IO (F.SInfo Cinfo)
 getFInfo infconfig cfg ghci = do
-    (_, finfo) <- verify' infconfig cfg ghci
+    (_, orig_finfo) <- verify' infconfig cfg ghci
+    finfo <- simplifyFInfo LHC.defConfig orig_finfo
     let senv = F.bs finfo
         wf = F.ws finfo
     putStrLn "wf"
@@ -33,7 +36,7 @@ getFInfo infconfig cfg ghci = do
     mapM_ hornCons wf
     putStrLn "toHorn"
     let clauses = map (toHorn senv) (HM.elems $ F.cm finfo)
-    print $ map (\(f, l, r, _) -> (f, l, r)) clauses
+    print $ map (\(f, r, _) -> (f, r)) clauses
     print clauses
     return finfo
 
@@ -44,19 +47,20 @@ hornCons (F.WfC { F.wenv = env, F.wrft = rft, F.winfo = info }) = do
     print rft
     print info
 
-toHorn :: F.BindEnv -> F.SubC Cinfo -> ([(F.Symbol, F.SortedReft)], F.SortedReft, F.SortedReft, SMTAST)
+toHorn :: F.BindEnv -> F.SimpC Cinfo -> ([(F.Symbol, F.SortedReft)], F.Expr, SMTAST)
 toHorn bind subC =
-    let env = F.senv subC
-        lhs = F.slhs subC
-        rhs = F.srhs subC
+    let env = F._cenv subC
+        -- lhs = F.clhs subC
+        rhs = F._crhs subC
         foralls = filter (not . F.isFunctionSortedReft . snd)
                 . filter (\(_, rr) -> F.sr_sort rr /= F.FTC (F.strFTyCon))
                 $ map (`F.lookupBindEnv` bind) (elemsIBindEnv env)
 
-        lhs_smt = map rrToSMTAST $ map snd foralls ++ [lhs]
-        rhs_smt = rrToSMTAST rhs
+        lhs_smt = map rrToSMTAST $ map snd foralls -- ++ [lhs]
+        m = mconcat $ map (sortedReftToMap . snd) foralls
+        rhs_smt = toSMTAST m rhs -- rrToSMTAST rhs
     in
-    (foralls, lhs, rhs, SmtAnd lhs_smt :=> rhs_smt)
+    (foralls, rhs, SmtAnd lhs_smt :=> rhs_smt)
 
 
 rrToSMTAST :: F.SortedReft -> SMTAST
@@ -85,14 +89,18 @@ toSMTAST' m _ (F.PAtom atom e1 e2) =
     toSMTASTAtom atom (toSMTAST' m sort e1) (toSMTAST' m sort e2)
 toSMTAST' _ _ (F.PAnd []) = VBool True
 toSMTAST' m _ (F.PNot e) = (:!) (toSMTAST' m SortBool e)
-toSMTAST' m _ pkvar@(F.PKVar kv (F.Su subst)) = error $ "pkvar" ++ show pkvar ++ "\nkv = " ++ show kv ++ "\nsubst = " ++ show subst
+toSMTAST' m _ pkvar@(F.PKVar k (F.Su subst)) | [(_, arg)] <- HM.toList subst =
+                        Func (F.symbolSafeString . F.kv $ k) [toSMTAST' m SortInt arg]
 toSMTAST' _ sort e = error $ "toSMTAST: unsupported " ++ show e ++ "\n" ++ show sort
 
 toSMTASTAtom :: F.Brel -> SMTAST -> SMTAST -> SMTAST
 toSMTASTAtom (F.Eq) = (:=)
+toSMTASTAtom (F.Gt) = (:>)
+toSMTASTAtom atom = error $ "toSMTASTAtom: unsupported " ++ show atom
 
 toSMTASTOp :: F.Bop -> SMTAST -> SMTAST -> SMTAST
 toSMTASTOp F.Plus = (:+)
+toSMTASTOp op = error $ "toSMTASTOp: unsupported " ++ show op
 
 lhSortToSMTSort :: F.Sort -> Sort
 lhSortToSMTSort F.FInt = SortInt
