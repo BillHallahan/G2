@@ -22,8 +22,6 @@ import Data.Maybe
 import qualified Data.Text as T
 import qualified Text.Builder as TB
 
-import Debug.Trace
-
 toSMTHorn :: InferenceConfig -> Config ->  [GhcInfo] -> IO ()
 toSMTHorn infconfig cfg ghci = do
     getFInfo infconfig cfg ghci
@@ -88,21 +86,20 @@ toHorn bind subC =
     let env = F._cenv subC
         -- lhs = F.clhs subC
         rhs = F._crhs subC
+
         foralls = filter (not . F.isFunctionSortedReft . snd)
                 . filter (not . sortNameHasPrefix "GHC.Types" . F.sr_sort . snd)
                 . filter (\(_, rr) -> F.sr_sort rr /= F.FTC (F.strFTyCon))
                 $ map (`F.lookupBindEnv` bind) (elemsIBindEnv env)
-        foralls_unfilter = map (`F.lookupBindEnv` bind) (elemsIBindEnv env)
 
-        (lhs_smt, ms) = unzip
+        ms = mconcat $ map (\(i, (n, sr)) -> sortedReftToMap i n sr)  $ zip [1..] foralls
+        (lhs_smt, ms') = unzip
                       . map (\(smt, smts, m') -> (SmtAnd (smt:smts), m'))
-                      $ map (uncurry rrToSMTAST) . zip [1..] $ map snd foralls -- ++ [lhs]
-        m = mconcat ms
-        (rhs_smt, rhs_smts, rhs_m) = toSMTAST m rhs
+                      $ map (\(i, (n, sr)) -> rrToSMTAST ms sr) $ zip [1..] foralls -- ++ [lhs]
+        (rhs_smt, rhs_smts, rhs_m) = toSMTAST (mconcat ms') rhs
 
-        forall = ForAll (concatMap HM.elems $ rhs_m:ms)
+        forall = ForAll . nub . concatMap HM.elems $ rhs_m:ms'
     in
-    trace ("foralls = " ++ show foralls_unfilter ++ "\nlhs_smt = " ++ show lhs_smt ++ "\nrhs_smt = " ++ show rhs_smt)
     (foralls, rhs, forall (SmtAnd (lhs_smt ++ rhs_smts) :=> rhs_smt))
 
 sortNameHasPrefix :: String -> F.Sort -> Bool
@@ -113,20 +110,23 @@ sortNameHasPrefix prefix eapp | F.FTC h:_ <- F.unFApp eapp =
     isPrefixOf prefix (F.symbolSafeString h_symb)
 sortNameHasPrefix _ _ = False
 
-rrToSMTAST :: Int -> F.SortedReft -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Sort))
-rrToSMTAST i rr =
+rrToSMTAST :: HM.HashMap SMTName (SMTName, Sort) -> F.SortedReft -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Sort))
+rrToSMTAST m rr =
     let
-        m = sortedReftToMap i rr
         (smt, smts, m') = toSMTAST m (F.expr rr)
     in
     (smt, smts, HM.union m m')
 
-sortedReftToMap :: Int -> F.SortedReft -> HM.HashMap SMTName (SMTName, Sort)
-sortedReftToMap i (F.RR { F.sr_sort = sort, F.sr_reft = F.Reft (sym, _) }) =
+sortedReftToMap :: Int -> F.Symbol -> F.SortedReft -> HM.HashMap SMTName (SMTName, Sort)
+sortedReftToMap i symb1 (F.RR { F.sr_sort = sort, F.sr_reft = F.Reft (symb2, _) }) =
     let
-        nme = F.symbolSafeString sym
+        nme1 = F.symbolSafeString symb1
+        nme2 = F.symbolSafeString symb2
+        smt_nme = nme2 ++ "_G2_" ++ show i
+
+        smt_sort = lhSortToSMTSort sort
     in
-    HM.singleton nme (nme ++ "_G2_" ++ show i, lhSortToSMTSort sort)
+    HM.fromList [(nme1, (smt_nme, smt_sort)), (nme2, (smt_nme, smt_sort))]
 
 toSMTAST :: HM.HashMap SMTName (SMTName, Sort) -> F.Expr -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Sort))
 toSMTAST m e =
@@ -147,9 +147,9 @@ appRep e =
 
         meas_apps = map (\(me, n) -> F.EApp me (F.EVar n)) . HM.toList $ apps_rep
 
-        names = HM.fromList . map (\kv@(k, _) -> (k, kv)) $ map (,SortInt) . map F.symbolSafeString $ HM.elems apps_rep
+        ns = HM.fromList . map (\kv@(k, _) -> (k, kv)) $ map (,SortInt) . map F.symbolSafeString $ HM.elems apps_rep
     in
-    (repExpr apps_rep e, meas_apps, names)
+    (repExpr apps_rep e, meas_apps, ns)
     where
         relApp (F.EApp (F.EApp _ _) _) = True
         relApp _ = False
@@ -189,6 +189,7 @@ toSMTAST' m _ (F.PAtom atom e1 e2) =
                 (Nothing, Nothing) -> error $ "toSMTAST': cannot calculate sort\n" ++ show e1 ++ "\n" ++ show e2
     in
     toSMTASTAtom atom (toSMTAST' m sort e1) (toSMTAST' m sort e2)
+toSMTAST' _ _ (F.POr []) = VBool False
 toSMTAST' _ _ (F.PAnd []) = VBool True
 toSMTAST' m _ (F.PAnd xs) = SmtAnd $ map (toSMTAST' m SortBool) xs
 toSMTAST' m _ (F.PNot e) = (:!) (toSMTAST' m SortBool e)
@@ -199,6 +200,7 @@ toSMTAST' _ sort e = error $ "toSMTAST: unsupported " ++ show e ++ "\n" ++ show 
 
 toSMTASTAtom :: F.Brel -> SMTAST -> SMTAST -> SMTAST
 toSMTASTAtom (F.Eq) = (:=)
+toSMTASTAtom (F.Ne) = (:/=)
 toSMTASTAtom (F.Gt) = (:>)
 toSMTASTAtom (F.Ge) = (:>=)
 toSMTASTAtom atom = error $ "toSMTASTAtom: unsupported " ++ show atom
