@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TupleSections #-}
 
 module G2.Liquid.Inference.ToSMTHorn (toSMTHorn) where
 
@@ -13,7 +13,7 @@ import Language.Fixpoint.Solver
 import qualified Language.Fixpoint.Types as F
 import Language.Haskell.Liquid.Types
         hiding (TargetInfo (..), TargetSrc (..), TargetSpec (..), GhcSrc (..), GhcSpec (..))
-import Language.Fixpoint.Types.Visitor
+import Language.Fixpoint.Types.Visitor as V
 
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
@@ -21,6 +21,8 @@ import Data.List
 import Data.Maybe
 import qualified Data.Text as T
 import qualified Text.Builder as TB
+
+import Debug.Trace
 
 toSMTHorn :: InferenceConfig -> Config ->  [GhcInfo] -> IO ()
 toSMTHorn infconfig cfg ghci = do
@@ -40,6 +42,10 @@ getFInfo infconfig cfg ghci = do
         cleaned_senv = elimPKVars ghc_types_pkvars senv
         cleaned_cm = map (elimPKVars ghc_types_pkvars) $ HM.elems $ F.cm finfo
         clauses = map (toHorn cleaned_senv) cleaned_cm
+    putStrLn "gLits"
+    print $ F.gLits finfo
+    putStrLn "dLits"
+    print $ F.dLits finfo
     putStrLn "wf"
     mapM_ (\(kvar, wfc) ->
                     putStrLn $ "kvar = " ++ show kvar
@@ -86,14 +92,18 @@ toHorn bind subC =
                 . filter (not . sortNameHasPrefix "GHC.Types" . F.sr_sort . snd)
                 . filter (\(_, rr) -> F.sr_sort rr /= F.FTC (F.strFTyCon))
                 $ map (`F.lookupBindEnv` bind) (elemsIBindEnv env)
+        foralls_unfilter = map (`F.lookupBindEnv` bind) (elemsIBindEnv env)
 
-        (lhs_smt, ms) = unzip $ map (uncurry rrToSMTAST) . zip [1..] $ map snd foralls -- ++ [lhs]
+        (lhs_smt, ms) = unzip
+                      . map (\(smt, smts, m') -> (SmtAnd (smt:smts), m'))
+                      $ map (uncurry rrToSMTAST) . zip [1..] $ map snd foralls -- ++ [lhs]
         m = mconcat ms
-        rhs_smt = toSMTAST m rhs
+        (rhs_smt, rhs_smts, rhs_m) = toSMTAST m rhs
 
-        forall = ForAll (concatMap HM.elems ms)
+        forall = ForAll (concatMap HM.elems $ rhs_m:ms)
     in
-    (foralls, rhs, forall (SmtAnd lhs_smt :=> rhs_smt))
+    trace ("foralls = " ++ show foralls_unfilter ++ "\nlhs_smt = " ++ show lhs_smt ++ "\nrhs_smt = " ++ show rhs_smt)
+    (foralls, rhs, forall (SmtAnd (lhs_smt ++ rhs_smts) :=> rhs_smt))
 
 sortNameHasPrefix :: String -> F.Sort -> Bool
 sortNameHasPrefix prefix eapp | F.FTC h:_ <- F.unFApp eapp =
@@ -103,12 +113,13 @@ sortNameHasPrefix prefix eapp | F.FTC h:_ <- F.unFApp eapp =
     isPrefixOf prefix (F.symbolSafeString h_symb)
 sortNameHasPrefix _ _ = False
 
-rrToSMTAST :: Int -> F.SortedReft -> (SMTAST, HM.HashMap SMTName (SMTName, Sort))
+rrToSMTAST :: Int -> F.SortedReft -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Sort))
 rrToSMTAST i rr =
     let
         m = sortedReftToMap i rr
+        (smt, smts, m') = toSMTAST m (F.expr rr)
     in
-    (toSMTAST m (F.expr rr), m)
+    (smt, smts, HM.union m m')
 
 sortedReftToMap :: Int -> F.SortedReft -> HM.HashMap SMTName (SMTName, Sort)
 sortedReftToMap i (F.RR { F.sr_sort = sort, F.sr_reft = F.Reft (sym, _) }) =
@@ -117,8 +128,37 @@ sortedReftToMap i (F.RR { F.sr_sort = sort, F.sr_reft = F.Reft (sym, _) }) =
     in
     HM.singleton nme (nme ++ "_G2_" ++ show i, lhSortToSMTSort sort)
 
-toSMTAST :: HM.HashMap SMTName (SMTName, Sort) -> F.Expr -> SMTAST
-toSMTAST m = toSMTAST' m SortBool
+toSMTAST :: HM.HashMap SMTName (SMTName, Sort) -> F.Expr -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Sort))
+toSMTAST m e =
+    let
+        (e', es, m') = appRep e
+    in
+    (toSMTAST' m SortBool e', map (toSMTAST' m SortBool) es, m')
+
+appRep :: F.Expr -> (F.Expr, [F.Expr], HM.HashMap SMTName (SMTName, Sort))
+appRep e =
+    let
+        apps_rep = HM.fromList
+                 . filter (relApp . fst)
+                 . zip (V.eapps e)
+                 . map F.symbol
+                 . map ("__G2__meas_r__" ++)
+                 $ map show [0..]
+
+        meas_apps = map (\(me, n) -> F.EApp me (F.EVar n)) . HM.toList $ apps_rep
+
+        names = HM.fromList . map (\kv@(k, _) -> (k, kv)) $ map (,SortInt) . map F.symbolSafeString $ HM.elems apps_rep
+    in
+    (repExpr apps_rep e, meas_apps, names)
+    where
+        relApp (F.EApp (F.EApp _ _) _) = True
+        relApp _ = False
+
+repExpr :: Visitable e => HM.HashMap F.Expr F.Symbol -> e -> e
+repExpr hm = mapExpr go
+    where
+        go e | Just r <- HM.lookup e hm = F.ECst (F.EVar r) F.FInt
+             | otherwise = e
 
 toSMTAST' :: HM.HashMap SMTName (SMTName, Sort) -> Sort -> F.Expr -> SMTAST
 toSMTAST' m sort (F.EVar v) | Just (fv, _) <- HM.lookup (F.symbolSafeString v) m = V fv sort
@@ -132,11 +172,14 @@ toSMTAST' m _ (F.ECst e s) = toSMTAST' m (lhSortToSMTSort s) e
 -- Handle measures
 toSMTAST' m _ eapp@(F.EApp
                     (F.EApp
-                        (F.ECst (F.EVar "apply") _)
-                        (F.ECst (F.EVar meas) _)
-                    ) 
-                    (F.ECst arg@(F.EVar _) arg_s)
-              ) = Func (F.symbolSafeString meas) [toSMTAST' m (lhSortToSMTSort arg_s) arg]
+                        (F.EApp
+                            (F.ECst (F.EVar "apply") _)
+                            (F.ECst (F.EVar meas) _)
+                        ) 
+                        (F.ECst arg1@(F.EVar _) arg_s)
+                    )
+                    arg2
+              ) = Func (F.symbolSafeString meas) [toSMTAST' m (lhSortToSMTSort arg_s) arg1, toSMTAST' m SortInt arg2]
 
 toSMTAST' m _ (F.PAtom atom e1 e2) =
     let
@@ -174,6 +217,8 @@ lhSortToSMTSort eapp | F.FTC h:es <- F.unFApp eapp =
     case h_symb of
         "bool" -> SortBool
         _ -> SortDC h_symb $ map lhSortToSMTSort es
+lhSortToSMTSort (F.FAbs _ _) = SortVar "FAbs" 
+lhSortToSMTSort (F.FFunc _ _) = SortVar "FFunc" 
 lhSortToSMTSort sort = error $ "lhSortToSMTSort: unsupported " ++ show sort
 
 predictSort :: HM.HashMap SMTName (SMTName, Sort) -> F.Expr -> Maybe Sort
