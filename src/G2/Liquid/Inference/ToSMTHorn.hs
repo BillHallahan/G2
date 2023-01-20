@@ -22,6 +22,8 @@ import Data.Maybe
 import qualified Data.Text as T
 import qualified Text.Builder as TB
 
+import Debug.Trace
+
 toSMTHorn :: InferenceConfig -> Config ->  [GhcInfo] -> IO ()
 toSMTHorn infconfig cfg ghci = do
     getFInfo infconfig cfg ghci
@@ -32,29 +34,29 @@ getFInfo infconfig cfg ghci = do
     (_, orig_finfo) <- verify' infconfig cfg ghci
     finfo <- simplifyFInfo LHC.defConfig orig_finfo
     let senv = F.bs finfo
-        wf = F.ws finfo
+        ws = F.ws finfo
     putStrLn "hornCons"
-    mapM_ hornCons wf
-    let ghc_types_pkvars = ghcTypesPKVars $ HM.elems wf
-        cleaned_wf = elimPKVarsWF ghc_types_pkvars wf
+    mapM_ hornCons ws
+    let ghc_types_pkvars = ghcTypesPKVars $ HM.elems ws
+        
+        cleaned_wf = elimPKVarsWF ghc_types_pkvars ws
+        wf_decl = map wfDecl $ HM.elems cleaned_wf
+
         cleaned_senv = elimPKVars ghc_types_pkvars senv
         cleaned_cm = map (elimPKVars ghc_types_pkvars) $ HM.elems $ F.cm finfo
         clauses = map (toHorn cleaned_senv) cleaned_cm
-    putStrLn "gLits"
-    print $ F.gLits finfo
-    putStrLn "dLits"
-    print $ F.dLits finfo
-    putStrLn "wf"
-    mapM_ (\(kvar, wfc) ->
-                    putStrLn $ "kvar = " ++ show kvar
-                ++ "\nwrft = " ++ show (F.wrft wfc)
-                ++ "\nwinfo = " ++ show (F.wrft wfc)) $ HM.toList cleaned_wf
+    putStrLn "ws"
+    print ws
+    -- mapM_ (\(kvar, wfc) ->
+    --                 putStrLn $ "kvar = " ++ show kvar
+    --             ++ "\nwrft = " ++ show (F.wrft wfc)
+    --             ++ "\nwinfo = " ++ show (F.wrft wfc)) $ HM.toList ws
     putStrLn "toHorn"
     print $ map (\(f, _, _) -> f) clauses
     putStrLn "toHorn rhs"
     print $ map (\(_, r, _) -> r) clauses
     putStrLn "SMT"
-    let smt_headers = map (Assert . (\(_, _, smt) -> smt)) clauses
+    let smt_headers = wf_decl ++ map (Assert . (\(_, _, smt) -> smt)) clauses
     putStrLn . T.unpack . TB.run $ toSolverText smt_headers
     return finfo
 
@@ -74,6 +76,13 @@ elimPKVarsExpr :: HS.HashSet F.KVar -> F.Expr -> F.Expr
 elimPKVarsExpr pkvars (F.PKVar v _) | HS.member v pkvars = F.PTrue
 elimPKVarsExpr _ e = e
 
+wfDecl :: F.WfC a -> SMTHeader
+wfDecl wfc =
+    let
+        (_, s, kvar) = F.wrft wfc
+    in
+    DeclareFun (F.symbolSafeString $ F.kv kvar) [lhSortToSMTSort s] SortBool
+
 hornCons :: F.WfC Cinfo -> IO ()
 hornCons (F.WfC { F.wenv = env, F.wrft = rft, F.winfo = info }) = do
     putStrLn "----"
@@ -87,16 +96,17 @@ toHorn bind subC =
         -- lhs = F.clhs subC
         rhs = F._crhs subC
 
-        foralls = filter (not . F.isFunctionSortedReft . snd)
+        foralls = filter (\(n, _) -> n /= "GHC.Types.True" && n /= "GHC.Types.False")
+                . filter (not . F.isFunctionSortedReft . snd)
                 . filter (not . sortNameHasPrefix "GHC.Types" . F.sr_sort . snd)
                 . filter (\(_, rr) -> F.sr_sort rr /= F.FTC (F.strFTyCon))
                 $ map (`F.lookupBindEnv` bind) (elemsIBindEnv env)
 
         ms = mconcat $ map (\(i, (n, sr)) -> sortedReftToMap i n sr)  $ zip [1..] foralls
         (lhs_smt, ms') = unzip
-                      . map (\(smt, smts, m') -> (SmtAnd (smt:smts), m'))
-                      $ map (\(i, (n, sr)) -> rrToSMTAST ms sr) $ zip [1..] foralls -- ++ [lhs]
-        (rhs_smt, rhs_smts, rhs_m) = toSMTAST (mconcat ms') rhs
+                      . map (\(smt, smts, m) -> (SmtAnd (smt:smts), m))
+                      $ map (\(i, (n, sr)) -> rrToSMTAST (show i) ms sr) $ zip [1..] foralls -- ++ [lhs]
+        (rhs_smt, rhs_smts, rhs_m) = toSMTAST "rhs_val" (mconcat ms') rhs
 
         forall = ForAll . nub . concatMap HM.elems $ rhs_m:ms'
     in
@@ -110,10 +120,10 @@ sortNameHasPrefix prefix eapp | F.FTC h:_ <- F.unFApp eapp =
     isPrefixOf prefix (F.symbolSafeString h_symb)
 sortNameHasPrefix _ _ = False
 
-rrToSMTAST :: HM.HashMap SMTName (SMTName, Sort) -> F.SortedReft -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Sort))
-rrToSMTAST m rr =
+rrToSMTAST :: String -> HM.HashMap SMTName (SMTName, Sort) -> F.SortedReft -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Sort))
+rrToSMTAST fresh m rr =
     let
-        (smt, smts, m') = toSMTAST m (F.expr rr)
+        (smt, smts, m') = toSMTAST fresh m (F.expr rr)
     in
     (smt, smts, HM.union m m')
 
@@ -128,24 +138,24 @@ sortedReftToMap i symb1 (F.RR { F.sr_sort = sort, F.sr_reft = F.Reft (symb2, _) 
     in
     HM.fromList [(nme1, (smt_nme, smt_sort)), (nme2, (smt_nme, smt_sort))]
 
-toSMTAST :: HM.HashMap SMTName (SMTName, Sort) -> F.Expr -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Sort))
-toSMTAST m e =
+toSMTAST :: String -> HM.HashMap SMTName (SMTName, Sort) -> F.Expr -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Sort))
+toSMTAST fresh m e =
     let
-        (e', es, m') = appRep e
+        (e', es, m') = appRep fresh e
     in
     (toSMTAST' m SortBool e', map (toSMTAST' m SortBool) es, m')
 
-appRep :: F.Expr -> (F.Expr, [F.Expr], HM.HashMap SMTName (SMTName, Sort))
-appRep e =
+appRep :: String -> F.Expr -> (F.Expr, [F.Expr], HM.HashMap SMTName (SMTName, Sort))
+appRep fresh e =
     let
         apps_rep = HM.fromList
                  . filter (relApp . fst)
                  . zip (V.eapps e)
                  . map F.symbol
-                 . map ("__G2__meas_r__" ++)
+                 . map (\i -> "__G2__meas_r__" ++ fresh ++ "__" ++ i)
                  $ map show [0..]
 
-        meas_apps = map (\(me, n) -> F.EApp me (F.EVar n)) . HM.toList $ apps_rep
+        meas_apps = map (\(me, n) -> F.EApp me (F.EVar n)) $ HM.toList apps_rep
 
         ns = HM.fromList . map (\kv@(k, _) -> (k, kv)) $ map (,SortInt) . map F.symbolSafeString $ HM.elems apps_rep
     in
