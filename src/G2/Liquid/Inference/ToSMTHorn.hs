@@ -99,6 +99,7 @@ toHorn bind subC =
         foralls = filter (\(n, _) -> n /= "GHC.Types.True" && n /= "GHC.Types.False")
                 . filter (not . F.isFunctionSortedReft . snd)
                 . filter (not . sortNameHasPrefix "GHC.Types" . F.sr_sort . snd)
+                . filter (not . sortNameHasPrefix "GHC.Num" . F.sr_sort . snd)
                 . filter (\(_, rr) -> F.sr_sort rr /= F.FTC (F.strFTyCon))
                 $ map (`F.lookupBindEnv` bind) (elemsIBindEnv env)
 
