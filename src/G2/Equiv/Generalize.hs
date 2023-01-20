@@ -138,3 +138,47 @@ generalizeFull solver num_lems ns lemmas (fresh_name:_) sh_pair s_pair = do
     Just (s1, s2, q1, q2) -> let lem = mkProposedLemma "Generalization" s1 s2 q1 q2
                              in return $ NoProof $ [lem]
 generalizeFull _ _ _ _ _ _ _ = return $ NoProof []
+
+-- TODO new tactics, somewhat like generalization
+-- make lemmas from arbitrary sub-expression pairs
+-- should these lemmas have access to history?
+
+-- notes from 1/19/23
+{-
+The goal is to allow Nebula to handle theorems like p47 from the Zeno
+suite.  Simply increasing the number of lemmas that can be applied at once
+is not sufficient.  For p47, the expressions that would need to be paired
+with each other for lemmas do not align nicely.  The mirror function
+rearranges the symbolic variables in an inconvenient way.
+
+A new possible system for generating lemmas is to search for pairs of
+sub-expressions of the same type between the two sides.  Most combinations
+would be useless, so, presumably, we would require two paired
+sub-expressions to have at least one non-concretized symbolic variable in
+common.
+
+For p47 at least, a lemma system like this may not be sufficient.  For
+p47, the useful lemmas that would be formed by this are equivalent to the
+original rule.  This wouldn't present an opportunity for coinduction
+because lemmas don't have access to the histories of the state pairs that
+spawn them.
+
+It is possible that we could create a new kind of lemma that uses the
+history of the state pair that spawned it in a sound way.  It could be an
+"alternative proof obligation" or something like that.
+
+However, the mere existence of a sub-expression that reduces to something
+that looks like the original expression doesn't necessarily give us
+anything valuable.  That sub-expression could be unreachable.  I would
+need a more thorough set of requirements for soundness.
+
+If I break up function application obligations, it might be sound, but
+that won't work directly for p47 because of mirror.
+-}
+
+-- TODO do I have functions like this already?
+-- get the list of symbolic variables contained in an expression
+-- there is printVars in the summary file
+-- varsFullList and varsFull, also varsInExpr
+getSymVars :: Expr -> [Name]
+getSymVars = error "TODO"
