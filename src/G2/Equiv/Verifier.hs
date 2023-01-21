@@ -748,6 +748,10 @@ putStrLnIfNonEmpty :: String -> IO ()
 putStrLnIfNonEmpty "" = return ()
 putStrLnIfNonEmpty s = putStrLn s
 
+isUnresolved :: Marker -> Bool
+isUnresolved (Marker _ (Unresolved _)) = True
+isUnresolved _ = False
+
 checkRule :: Config
           -> NebulaConfig
           -> State t
@@ -786,13 +790,15 @@ checkRule config nc init_state bindings total rule = do
              emptyLemmas
              [(rewrite_state_l'', rewrite_state_r'')]
              bindings'' config nc sym_ids 0 (limit nc)
+  let w' = if just_unresolved $ print_summary nc
+           then filter isUnresolved w
+           else w
   let pg = if have_summary $ print_summary nc
-           then mkPrettyGuide w-- $ map (\(Marker _ am) -> am) w
-           else reducedGuide (reverse w)
-  -- TODO leave out the ones that are just empty strings
+           then mkPrettyGuide w'-- $ map (\(Marker _ am) -> am) w
+           else reducedGuide (reverse w')
   if have_summary $ print_summary nc then do
     putStrLn "--- SUMMARY ---"
-    _ <- mapM (putStrLnIfNonEmpty . (summarize (print_summary nc) pg ns sym_ids)) w
+    _ <- mapM (putStrLnIfNonEmpty . (summarize (print_summary nc) pg ns sym_ids)) w'
     putStrLn "--- END OF SUMMARY ---"
   else return ()
   case res of

@@ -186,6 +186,46 @@ something like "max a b = max b a" as a lemma for p47?
 It seems that the answer is no.  For p47, there's no point when we have
 "max a b" on one side when "max b a" is on the other side.  The mirror
 function really throws everything off.
+
+For p58, on the right-hand side, we keep getting more and more successors
+along with more and more list elements.  This keeps us hung up evaluating
+drop forever.  More specifically, the drop application in the scrutinee
+of the outermost case statement gets stuck evaluating forever.
+
+Why can't a lemma take care of the issue?  I should be able to apply two
+lemmas here to get the approximation that I want, one for the outermost
+drop application and one for the inner drop application.
+
+A lot of the unresolved lemmas that I'm seeing aren't actually true.  All
+of them involve drop, but they're trying to prove equivalences that are
+not correct.  More importantly, the things that I want to line up with
+lemmas aren't equivalent to each other.  For the outer drop application,
+things are equivalent, but they aren't for the inner one.
+
+Actually, I could prove this with only one lemma, but that lemma isn't
+being generated, I think.  I want something like this:
+
+drop1 a (S fs9) (fs12:fs17) = drop1 a fs9 fs17
+
+If I applied that to the outer drop application in b9, I could get a
+correspondence between b2 and b9.  What would cause Nebula to generate
+that lemma?  It would be good to have a general approach that isn't
+overfitted to p58.
+
+Effectively, this lemma would just be undoing evaluation steps, wouldn't
+it?  Is that a problem?  Would it be unsound to use lemmas like this?
+This would be unguarded coinduction rather than guarded coinduction.
+Neither b2 nor b9 is in SWHNF, but the left-hand states would both be in
+SWHNF because they're [].  That throws off unguarded coinduction.  Are
+b2 and b9 in distinct blocks?  They shouldn't be in distinct blocks since
+no constructors are getting removed on the left-hand side.  The left side
+is just stuck at [] with no change.
+
+There will never be any new blocks formed for this theorem on the
+unresolved branches that I can see.  This puts me in an awkward
+situation.  I need to do guarded coinduction because of the left side,
+but the inability to make new blocks makes it impossible to do guarded
+coinduction at all.
 -}
 
 -- TODO do I have functions like this already?
