@@ -614,6 +614,7 @@ moreRestrictivePair solver valid ns prev (s1, s2) =
   let prev' = map (\(p1, p2) -> (p1, p2, p2)) prev in
   moreRestrictivePairAux solver valid ns prev' (s1, s2)
 
+-- TODO incorporate lemmas here too?
 moreRestrictiveSingle :: S.Solver solver =>
                          solver ->
                          HS.HashSet Name ->
@@ -1114,6 +1115,7 @@ mkProposedLemma lm_name or_s1 or_s2 s1 s2 =
               , lemma_rhs_origin = folder_name . track $ or_s2
               , lemma_to_be_proven  =[(newStateH s1', newStateH s2')] }
 
+-- TODO incorporate lemmas into this?
 checkCycle :: S.Solver s => Tactic s
 checkCycle solver _ ns _ _ (sh1, sh2) (s1, s2) = do
   --W.liftIO $ putStrLn $ "Cycle?" ++ (folder_name $ track s1) ++ (folder_name $ track s2)
