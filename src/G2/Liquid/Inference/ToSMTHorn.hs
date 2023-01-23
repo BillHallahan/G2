@@ -19,6 +19,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.List
 import Data.Maybe
+import Data.Ord
 import qualified Data.Text as T
 import qualified Text.Builder as TB
 
@@ -79,9 +80,10 @@ elimPKVarsExpr _ e = e
 wfDecl :: F.WfC a -> SMTHeader
 wfDecl wfc =
     let
+        env = F.wenv wfc
         (_, s, kvar) = F.wrft wfc
     in
-    DeclareFun (F.symbolSafeString $ F.kv kvar) [lhSortToSMTSort s] SortBool
+    DeclareFun (F.symbolSafeString $ F.kv kvar) (replicate (length $ F.elemsIBindEnv env) SortInt ++ [lhSortToSMTSort s]) SortBool
 
 hornCons :: F.WfC Cinfo -> IO ()
 hornCons (F.WfC { F.wenv = env, F.wrft = rft, F.winfo = info }) = do
@@ -99,6 +101,7 @@ toHorn bind subC =
         foralls = filter (\(n, _) -> n /= "GHC.Types.True" && n /= "GHC.Types.False")
                 . filter (not . F.isFunctionSortedReft . snd)
                 . filter (not . sortNameHasPrefix "GHC.Types" . F.sr_sort . snd)
+                . filter (not . sortNameHasPrefix "GHC.Classes.Ord" . F.sr_sort . snd)
                 . filter (not . sortNameHasPrefix "GHC.Num" . F.sr_sort . snd)
                 . filter (\(_, rr) -> F.sr_sort rr /= F.FTC (F.strFTyCon))
                 $ map (`F.lookupBindEnv` bind) (elemsIBindEnv env)
@@ -204,8 +207,11 @@ toSMTAST' _ _ (F.POr []) = VBool False
 toSMTAST' _ _ (F.PAnd []) = VBool True
 toSMTAST' m _ (F.PAnd xs) = SmtAnd $ map (toSMTAST' m SortBool) xs
 toSMTAST' m _ (F.PNot e) = (:!) (toSMTAST' m SortBool e)
-toSMTAST' m _ pkvar@(F.PKVar k (F.Su subst)) | [(_, arg)] <- HM.toList subst =
-                        Func (F.symbolSafeString . F.kv $ k) [toSMTAST' m SortInt arg]
+toSMTAST' m _ pkvar@(F.PKVar k (F.Su subst)) =
+    let
+        args = map snd . sortBy (comparing fst) $ HM.toList subst
+    in
+    Func (F.symbolSafeString . F.kv $ k) $ map (toSMTAST' m SortInt) args
 
 toSMTAST' _ sort e = error $ "toSMTAST: unsupported " ++ show e ++ "\n" ++ show sort
 
