@@ -222,6 +222,20 @@ unresolved branches that I can see.  This puts me in an awkward
 situation.  I need to do guarded coinduction because of the left side,
 but the inability to make new blocks makes it impossible to do guarded
 coinduction at all.
+
+TODO p58 is misclassified.  It requires finiteness.  Check the other
+theorems that are listed as requiring totality but not finiteness.
+
+p47:  genuine, I think
+p58:  n infinite, xs infinite, ys empty
+p72
+p73
+p74
+p83
+p84
+
+I can get a relatively high depth for p04fin.  Is this another situation
+like what I had for p58?
 -}
 
 -- TODO do I have functions like this already?

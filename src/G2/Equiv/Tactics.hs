@@ -665,6 +665,7 @@ moreRestrictivePairWithLemmasPast solver num_lems ns lemmas past_list s_pair = d
 -- CounterExample Generation
 -------------------------------------------------------------------------------
 
+-- TODO incorporate lemmas into this?
 checkCycle :: S.Solver s => Tactic s
 checkCycle solver _ ns _ _ (sh1, sh2) (s1, s2) = do
   --W.liftIO $ putStrLn $ "Cycle?" ++ (folder_name $ track s1) ++ (folder_name $ track s2)
