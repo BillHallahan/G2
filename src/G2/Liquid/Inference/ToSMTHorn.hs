@@ -170,7 +170,6 @@ appRep meas fresh e =
 
         ns = HM.fromList . map (\kv@(k, _) -> (k, kv)) $ map (,SortInt) . map F.symbolSafeString $ HM.elems apps_rep
     in
-    trace ("apps_rep = " ++ show apps_rep)
     (repExpr apps_rep e, meas_apps, ns)
     where
         relApp (F.EApp (F.EApp _ (F.ECst (F.EVar n) _)) _) | n `elem` meas = True
@@ -193,6 +192,7 @@ mapExprTD f = go
                 F.ECst e t -> F.ECst (go e) t
                 F.PAnd ps -> F.PAnd $ map go ps
                 F.POr ps -> F.POr $ map go ps
+                F.PNot p -> F.PNot (go p)
                 F.PImp p1 p2 -> F.PImp (go p1) (go p2)
                 F.PIff p1 p2 -> F.PIff (go p1) (go p2)
                 F.PAtom r e1 e2 -> F.PAtom r (go e1) (go e2)
@@ -200,7 +200,7 @@ mapExprTD f = go
                 e@F.EVar {} -> e
                 e@F.ESym {} -> e
                 e@F.ECon {} -> e
-                _ -> error "mapExprTD"
+                e -> error $ "mapExprTD: unsupported " ++ show e
 
 toSMTAST' :: HM.HashMap SMTName (SMTName, Sort) -> Sort -> F.Expr -> SMTAST
 toSMTAST' m sort (F.EVar v) | Just (fv, _) <- HM.lookup (F.symbolSafeString v) m = V fv sort
@@ -222,7 +222,11 @@ toSMTAST' m _ eapp@(F.EApp
                     )
                     arg2
               ) = Func (F.symbolSafeString meas) [toSMTAST' m (lhSortToSMTSort arg_s) arg1, toSMTAST' m SortInt arg2]
-toSMTAST' m _ eapp | (func, xs@(_:_)) <- F.splitEApp eapp = error $ "toSMTAST': eapp = " ++ show eapp ++ "\nfunc = " ++ show func ++ "\nxs = " ++ show xs
+toSMTAST' m _ eapp@(F.EApp {}) | (F.ECst (F.EVar f) _:es) <- splitApplyApp eapp =
+    Func (F.symbolSafeString f) $ map (toSMTAST' m (error "expected ECst")) es
+toSMTAST' m _ eapp@(F.EApp {}) | (F.EVar f:es) <- splitApplyApp eapp =
+    Func (F.symbolSafeString f) $ map (toSMTAST' m (error "expected ECst")) es
+    -- error $ "toSMTAST': \neapp = " ++ show eapp ++ "\nes = " ++ show es -- (func, xs@(_:_)) <- F.splitEApp eapp = error $ "toSMTAST': eapp = " ++ show eapp ++ "\nfunc = " ++ show func ++ "\nxs = " ++ show xs
 
 toSMTAST' m _ (F.PAtom atom e1 e2) =
     let
@@ -237,7 +241,7 @@ toSMTAST' _ _ (F.PAnd []) = VBool True
 toSMTAST' m _ (F.PAnd xs) = SmtAnd $ map (toSMTAST' m SortBool) xs
 toSMTAST' m _ (F.PNot e) = (:!) (toSMTAST' m SortBool e)
 toSMTAST' m _ (F.PIff e1 e2) = toSMTAST' m SortBool e1 :<=> toSMTAST' m SortBool e2
-toSMTAST' m _ pkvar@(F.PKVar k (F.Su subst)) =
+toSMTAST' m _ (F.PKVar k (F.Su subst)) =
     let
         args = map snd . sortBy (comparing fst) $ HM.toList subst
     in
@@ -245,7 +249,14 @@ toSMTAST' m _ pkvar@(F.PKVar k (F.Su subst)) =
 
 toSMTAST' _ sort e = error $ "toSMTAST: unsupported " ++ show e ++ "\n" ++ show sort
 
+splitApplyApp :: F.Expr -> [F.Expr]
+splitApplyApp eapp | (F.ECst (F.EVar "apply") _, h:xs) <- F.splitEApp eapp = splitApplyApp h ++ xs
+splitApplyApp eapp | (h, xs@(_:_)) <- F.splitEApp eapp = h:xs
+splitApplyApp (F.ECst e _) = splitApplyApp e 
+splitApplyApp e = [e]
+
 toSMTASTAtom :: F.Brel -> SMTAST -> SMTAST -> SMTAST
+toSMTASTAtom (F.Ueq) = (:=)
 toSMTASTAtom (F.Eq) = (:=)
 toSMTASTAtom (F.Ne) = (:/=)
 toSMTASTAtom (F.Gt) = (:>)
@@ -256,6 +267,7 @@ toSMTASTAtom atom = error $ "toSMTASTAtom: unsupported " ++ show atom
 
 toSMTASTOp :: F.Bop -> SMTAST -> SMTAST -> SMTAST
 toSMTASTOp F.Plus = (:+)
+toSMTASTOp F.Minus = (:-)
 toSMTASTOp op = error $ "toSMTASTOp: unsupported " ++ show op
 
 lhSortToSMTSort :: F.Sort -> Sort
@@ -275,6 +287,7 @@ lhSortToSMTSort sort = error $ "lhSortToSMTSort: unsupported " ++ show sort
 predictSort :: HM.HashMap SMTName (SMTName, Sort) -> F.Expr -> Maybe Sort
 predictSort _ (F.ESym _) = Nothing
 predictSort m (F.EVar v) = snd <$> HM.lookup (F.symbolSafeString v) m
+predictSort _ (F.ECst _ s) = Just $ lhSortToSMTSort s
 predictSort _ (F.PAtom _ _ _) = Just SortBool
 predictSort _ (F.PAnd _) = Just SortBool
 predictSort _ (F.PNot _) = Just SortBool
