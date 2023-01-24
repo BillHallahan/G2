@@ -31,6 +31,7 @@ module G2.Equiv.Tactics
 
     , A.mkProposedLemma
     , checkCycle
+    , subExprCycle
     )
     where
 
@@ -213,6 +214,29 @@ moreRestrictiveSingle solver ns s1 s2 = do
 -------------------------------------------------------------------------------
 -- Equality
 -------------------------------------------------------------------------------
+-- TODO prototype for scrutinee cycle counterexamples
+-- check that the leading alt is the same for both
+moreRestrictiveSingleScrutinees :: S.Solver solver =>
+                                   solver ->
+                                   HS.HashSet Name ->
+                                   StateET ->
+                                   StateET ->
+                                   W.WriterT [Marker] IO (Either [Lemma] (HM.HashMap Id Expr))
+moreRestrictiveSingleScrutinees solver ns s1 s2 = do
+    case (exprExtract s1, exprExtract s2) of
+        (Case e1 _ _ ((Alt _ a1):_), Case e2 _ _ ((Alt _ a2):_)) -> do
+            case (a1, a2) of
+                (Tick t1 _, Tick t2 _) | t1 == t2 -> do
+                    let s1' = s1 { curr_expr = CurrExpr Evaluate e1 }
+                        s2' = s2 { curr_expr = CurrExpr Evaluate e2 }
+                    moreRestrictiveSingle solver ns s1' s2'
+                _ -> return $ Left []
+        _ -> return $ Left []
+
+isIdentity :: (Id, Expr) -> Bool
+isIdentity (i1, Tick _ e2) = isIdentity (i1, e2)
+isIdentity (i1, (Var i2)) = i1 == i2
+isIdentity _ = False
 
 -- approximation should be the identity map
 -- needs to be enforced, won't just happen naturally
@@ -666,6 +690,10 @@ moreRestrictivePairWithLemmasPast solver num_lems ns lemmas past_list s_pair = d
 -------------------------------------------------------------------------------
 
 -- TODO incorporate lemmas into this?
+-- TODO different way to improve this
+-- if a sub-expression on the main evaluation path has a cycle,
+-- then the whole expression will fail to reach SWHNF
+-- needs to line up with
 checkCycle :: S.Solver s => Tactic s
 checkCycle solver _ ns _ _ (sh1, sh2) (s1, s2) = do
   --W.liftIO $ putStrLn $ "Cycle?" ++ (folder_name $ track s1) ++ (folder_name $ track s2)
@@ -728,3 +756,39 @@ validHigherOrder s1 s2 ns hm_hs | Right (hm, _) <- hm_hs =
           _ -> hm_hs
   in all isRight $ map check zipped
   | otherwise = False
+
+-- TODO might combine this with checkCycle eventually
+-- TODO copied code
+subExprCycle :: S.Solver s => Tactic s
+subExprCycle solver _ ns _ _ (sh1, sh2) (s1, s2) = do
+  -- get scrutinees that are on the main evaluation path
+  -- I have a function like that in Generalize
+  -- TODO there used to be a function for reading stamps
+  -- need to check for stamp equality with past states
+  -- be specific about the scrutinee to be examined when looking at past
+  -- first step:  just extract the scrutinee at the outermost layer
+  let (s1', s2') = syncSymbolic s1 s2
+      hist1 = filter (\p -> dc_path (track p) == dc_path (track s1')) $ history sh1
+      hist2 = filter (\p -> dc_path (track p) == dc_path (track s2')) $ history sh2
+      hist1' = zip hist1 (map expr_env hist2)
+      hist2' = zip hist2 (map expr_env hist1)
+  -- histories must have the same length and have matching entries
+  mr1 <- mapM (\(p1, hp2) -> moreRestrictiveSingleScrutinees solver ns s1' (p1 { track = (track p1) { opp_env = hp2 } })) hist1'
+  mr2 <- mapM (\(p2, hp1) -> moreRestrictiveSingleScrutinees solver ns s2' (p2 { track = (track p2) { opp_env = hp1 } })) hist2'
+  let vh _ (Left _, _) = False
+      vh s (Right hm, p) = validHigherOrder s p ns $ Right (hm, HS.empty)
+      mr1_pairs = zip mr1 hist1
+      mr1_pairs' = filter (vh s1') mr1_pairs
+      mr1_pair = find (isRight . fst) mr1_pairs'
+      mr2_pairs = zip mr2 hist2
+      mr2_pairs' = filter (vh s2') mr2_pairs
+      mr2_pair = find (isRight . fst) mr2_pairs'
+  case (isSWHNF s1', isSWHNF s2', mr2_pair) of
+    (True, False, Just (Right hm, p2)) -> do
+      W.tell [Marker (sh1, sh2) $ CycleFound $ CycleMarker (s1, s2) p2 hm IRight]
+      return $ Failure True
+    _ -> case (isSWHNF s1', isSWHNF s2', mr1_pair) of
+      (False, True, Just (Right hm, p1)) -> do
+        W.tell [Marker (sh1, sh2) $ CycleFound $ CycleMarker (s1, s2) p1 hm ILeft]
+        return $ Failure True
+      _ -> return $ NoProof []
