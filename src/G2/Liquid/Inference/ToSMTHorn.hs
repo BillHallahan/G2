@@ -10,6 +10,7 @@ import G2.Solver
 import qualified Language.Fixpoint.Types.Config as LHC
 import Language.Fixpoint.Types.Environments ( elemsIBindEnv )
 import Language.Fixpoint.Solver
+import Language.Fixpoint.SortCheck
 import qualified Language.Fixpoint.Types as F
 import Language.Haskell.Liquid.Types
         hiding (TargetInfo (..), TargetSrc (..), TargetSpec (..), GhcSrc (..), GhcSpec (..))
@@ -176,12 +177,24 @@ appRep meas fresh e =
 
         meas_apps = map (\(me, n) -> F.EApp me (F.EVar n)) $ HM.toList apps_rep
 
-        ns = HM.fromList . map (\kv@(k, _) -> (k, kv)) $ map (,SortInt) . map F.symbolSafeString $ HM.elems apps_rep
+        ns = HM.fromList
+           . map (\kv@(k, _) -> (k, kv))
+           . map (\(e, s) -> (s, lhSortToSMTSort $ getSort e))
+           . map (\(e, s) -> (e, F.symbolSafeString s))
+           $ HM.toList apps_rep
     in
     (repExpr apps_rep e, meas_apps, ns)
     where
         relApp (F.EApp (F.EApp _ (F.ECst (F.EVar n) _)) _) | n `elem` meas = True
         relApp _ = False
+
+getSort :: F.Expr -> F.Sort
+getSort eapp@(F.EApp e _) =
+    case getSort e of
+        F.FFunc _ s -> s
+        s -> s
+getSort (F.ECst _ s) = s
+getSort e = error $ "getSort: Unsupported" ++ show e
 
 repExpr ::  HM.HashMap F.Expr F.Symbol -> F.Expr -> F.Expr
 repExpr hm = mapExprTD go
