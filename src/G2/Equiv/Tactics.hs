@@ -216,6 +216,7 @@ moreRestrictiveSingle solver ns s1 s2 = do
 -------------------------------------------------------------------------------
 -- TODO prototype for scrutinee cycle counterexamples
 -- check that the leading alt is the same for both
+-- recursive now
 moreRestrictiveSingleScrutinees :: S.Solver solver =>
                                    solver ->
                                    HS.HashSet Name ->
@@ -229,7 +230,10 @@ moreRestrictiveSingleScrutinees solver ns s1 s2 = do
                 (Tick t1 _, Tick t2 _) | t1 == t2 -> do
                     let s1' = s1 { curr_expr = CurrExpr Evaluate e1 }
                         s2' = s2 { curr_expr = CurrExpr Evaluate e2 }
-                    moreRestrictiveSingle solver ns s1' s2'
+                    res <- moreRestrictiveSingle solver ns s1' s2'
+                    case res of
+                      Left _ -> moreRestrictiveSingleScrutinees solver ns s1' s2'
+                      Right _ -> return res
                 _ -> return $ Left []
         _ -> return $ Left []
 
