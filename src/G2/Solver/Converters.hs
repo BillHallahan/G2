@@ -455,6 +455,21 @@ declareFun fn ars ret =
         <> TB.intercalate " " (map sortName ars) <> ")"
         <> " (" <> sortName ret <> "))"
 
+declareData :: String -> [SMTName] -> [(SMTName, [(SMTName, Sort)])] -> TB.Builder
+declareData tn poly dcs =
+    let
+        poly_str = TB.intercalate " " $ map TB.string poly
+        dcs_str = map (uncurry declareDataDC) dcs
+    in
+    "(declare-datatypes (" <> poly_str <> ") ((" <> TB.string tn <>  " " <> TB.intercalate " " dcs_str <> ")))"
+
+declareDataDC :: SMTName -> [(SMTName, Sort)] -> TB.Builder
+declareDataDC dc ars =
+    let
+        args_str = map (\(n, sort) -> "(" <> TB.string n <> " " <> sortName sort <> ")") ars
+    in
+    "(" <> TB.string dc <> " " <> TB.intercalate " " args_str <> ")"
+
 toSolverText :: [SMTHeader] -> TB.Builder
 toSolverText [] = ""
 toSolverText (Assert ast:xs) = 
@@ -463,6 +478,8 @@ toSolverText (AssertSoft ast lab:xs) =
     merge (assertSoftSolver (toSolverAST ast) lab) (toSolverText xs)
 toSolverText (Minimize ast:xs) =
     merge (function1 "minimize" $ toSolverAST ast) (toSolverText xs)
+toSolverText (DeclareData tn poly dcs:xs) =
+    merge (declareData tn poly dcs) (toSolverText xs)
 toSolverText (DefineFun f ars ret body:xs) =
     merge (defineFun f ars ret body) (toSolverText xs)
 toSolverText (DeclareFun f ars ret:xs) =

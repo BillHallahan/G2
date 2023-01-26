@@ -27,6 +27,7 @@ type SMTName = String
 data SMTHeader = Assert !SMTAST
                | AssertSoft !SMTAST (Maybe T.Text)
                | Minimize !SMTAST
+               | DeclareData SMTName [SMTName] [(SMTName, [(SMTName, Sort)])]
                | DefineFun SMTName [(SMTName, Sort)] Sort !SMTAST
                | DeclareFun SMTName [Sort] Sort
                | VarDecl SMTNameBldr Sort

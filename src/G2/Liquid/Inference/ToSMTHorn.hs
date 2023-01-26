@@ -4,7 +4,7 @@ module G2.Liquid.Inference.ToSMTHorn (toSMTHorn) where
 
 import G2.Liquid.Inference.Config
 import G2.Liquid.Inference.Verify
-import G2.Liquid.Types ( GhcInfo, gsData, giSpec )
+import G2.Liquid.Types ( GhcInfo, gsData, giSrc, giSpec )
 import G2.Solver
 
 import qualified Language.Fixpoint.Types.Config as LHC
@@ -13,7 +13,7 @@ import Language.Fixpoint.Solver
 import Language.Fixpoint.SortCheck
 import qualified Language.Fixpoint.Types as F
 import Language.Haskell.Liquid.Types
-        hiding (TargetInfo (..), TargetSrc (..), TargetSpec (..), GhcSrc (..), GhcSpec (..))
+        hiding (TargetInfo (..), GhcSrc (..), GhcSpec (..), gsData)
 import Language.Fixpoint.Types.Visitor as V
 
 import qualified Data.HashMap.Lazy as HM
@@ -24,6 +24,10 @@ import Data.Ord
 import qualified Data.Text as T
 import qualified Text.Builder as TB
 
+import DataCon
+import Name
+import Var as V
+
 import Debug.Trace
 
 toSMTHorn :: InferenceConfig -> Config ->  [GhcInfo] -> IO ()
@@ -33,8 +37,18 @@ toSMTHorn infconfig cfg ghci = do
 
 getFInfo :: InferenceConfig -> Config ->  [GhcInfo] -> IO (F.SInfo Cinfo)
 getFInfo infconfig cfg ghci = do
-    let meas = measureSpecs ghci
-    print meas
+    putStrLn "TyCon"
+    mapM_ (print . gsTcs . giSrc) ghci
+    -- mapM_ (print . gsTconsP . gsName . giSpec) $ ghci
+
+    let meas = measureNames ghci
+        meas_spec = measureSpecs ghci
+        meas_decl = measureDecl meas_spec
+
+    let data_decl = map (gsCtors . gsData . giSpec) $ ghci
+        
+        type_decl = smtTypeDecl meas_spec
+    print type_decl
 
     (_, orig_finfo) <- verify' infconfig cfg ghci
     finfo <- simplifyFInfo LHC.defConfig orig_finfo
@@ -46,6 +60,8 @@ getFInfo infconfig cfg ghci = do
         
         cleaned_wf = elimPKVarsWF ghc_types_pkvars ws
         cleaned_senv = elimPKVars ghc_types_pkvars senv
+
+        data_dc = toSMTData data_decl
 
         wf_decl = map (wfDecl cleaned_senv) $ HM.elems cleaned_wf
 
@@ -62,12 +78,15 @@ getFInfo infconfig cfg ghci = do
             putStrLn $ "foralls = " ++ show f
             putStrLn $ "rhs = " ++ show r) clauses
     putStrLn "SMT"
-    let smt_headers = wf_decl ++ map (Assert . (\(_, _, smt) -> smt)) clauses
+    let smt_headers = type_decl ++ data_dc ++ meas_decl ++ wf_decl ++ map (Assert . (\(_, _, smt) -> smt)) clauses
     putStrLn . T.unpack . TB.run $ toSolverText smt_headers
     return finfo
     where
-        measureSpecs :: [GhcInfo] -> [F.Symbol]
-        measureSpecs = map (F.symbol . msName) . concatMap (gsMeasures . gsData . giSpec)
+        measureNames :: [GhcInfo] -> [F.Symbol]
+        measureNames = map (F.symbol . msName) . measureSpecs
+
+        measureSpecs :: [GhcInfo] -> [Measure SpecType DataCon]
+        measureSpecs = concatMap (gsMeasures . gsData . giSpec)
 
 
 ghcTypesPKVars :: [F.WfC a] -> HS.HashSet F.KVar
@@ -102,6 +121,76 @@ hornCons (F.WfC { F.wenv = env, F.wrft = rft, F.winfo = info }) = do
     print $ elemsIBindEnv env
     print rft
     print info
+
+smtTypeDecl :: [Measure SpecType DataCon] -> [SMTHeader]
+smtTypeDecl ms =
+    let
+        ms_def = filter (isJust . measArg) ms
+        all_types = groupBy (\m1 -> cmpEq . comparing measArg m1) $ sortBy (comparing measArg) ms
+    in
+    mapMaybe toSMTDataSort' all_types
+    where
+
+        cmpEq EQ = True
+        cmpEq _ = False
+
+toSMTDataSort' :: [Measure SpecType DataCon] -> Maybe SMTHeader
+toSMTDataSort' ms@(m:_) =
+    let
+        mdc = measArg m
+        ret_types = map (\m -> (F.symbolSafeString . F.val $ msName m, last . toSMTDataSort . msSort $ m)) ms
+    in
+    case mdc of
+        Just dc ->
+            let
+                n = F.symbolSafeString . tyConName . dataConTyCon $ dc
+                dc_decl = ret_types -- [(n, zipWith (\i (mn, st) -> (\i -> mn, st)) [0 :: Integer ..] ret_types)]
+
+                ty_vars = dataConUnivTyVars dc
+                ty_vars_n = map (nameStableString . V.varName) ty_vars
+            in
+            Just $ DeclareData n ty_vars_n [(n, dc_decl)]
+        Nothing -> Nothing
+toSMTDataSort' [] = Nothing
+
+measArg :: Measure ty a -> Maybe a
+measArg m = case msEqns m of
+                [] -> Nothing
+                (h:_) -> Just $ ctor h
+
+
+measureDecl :: [Measure SpecType DataCon] -> [SMTHeader]
+measureDecl = map measureDecl'
+
+measureDecl' :: Measure SpecType DataCon -> SMTHeader
+measureDecl' (M { msName = n, msSort = st }) =
+    DeclareFun (F.symbolSafeString $ F.symbol n) (toSMTDataSort st) SortBool
+
+toSMTData :: [[(Var, LocSpecType)]] -> [SMTHeader]
+toSMTData = map (uncurry toSMTData') . concat
+
+toSMTData' :: Var -> LocSpecType -> SMTHeader
+toSMTData' v st = DeclareFun (F.symbolSafeString $ F.symbol v) (toSMTDataSort $ F.val st) SortBool
+
+toSMTDataSort :: SpecType -> [Sort]
+toSMTDataSort (RVar {rt_var = (RTV v)}) =
+    let
+        n = nameStableString $ V.varName v
+    in
+    [SortVar n]
+toSMTDataSort (RAllP { rt_ty = rty}) = toSMTDataSort rty
+toSMTDataSort (RAllT { rt_ty = rty}) = toSMTDataSort rty
+toSMTDataSort (RFun {rt_in = fin, rt_out = fout }) = toSMTDataSort fin ++ toSMTDataSort fout
+toSMTDataSort (RApp { rt_tycon = c, rt_args = as }) =
+    let
+        n = F.symbolSafeString . tyConName $ rtc_tc c
+        es = concatMap toSMTDataSort as
+    in
+    case n of
+        "GHC.Types.Int" -> [SortInt]
+        "GHC.Types.Bool" -> [SortBool]
+        _ -> [SortDC n es]
+toSMTDataSort st = error $ "toSMTDataSort: " ++ show st
 
 toHorn :: [F.Symbol] -> F.BindEnv -> F.SimpC Cinfo -> ([(F.Symbol, F.SortedReft)], F.Expr, SMTAST)
 toHorn meas bind subC =
@@ -311,6 +400,7 @@ toSMTASTOp op = error $ "toSMTASTOp: unsupported " ++ show op
 
 lhSortToSMTSort :: F.Sort -> Sort
 lhSortToSMTSort F.FInt = SortInt
+lhSortToSMTSort (F.FObj s) = SortVar (F.symbolSafeString s)
 lhSortToSMTSort (F.FObj s) = SortVar (F.symbolSafeString s)
 lhSortToSMTSort eapp | F.FTC h:es <- F.unFApp eapp =
     let
