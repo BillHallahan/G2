@@ -281,7 +281,7 @@ allTactics = [
   , generalizeFull
   , trySolver
   , checkCycle
-  , subExprCycle
+  --, subExprCycle
   ]
 
 allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
