@@ -31,7 +31,7 @@ module G2.Equiv.Tactics
 
     , A.mkProposedLemma
     , checkCycle
-    , subExprCycle
+    --, subExprCycle
     )
     where
 
@@ -211,31 +211,29 @@ moreRestrictiveSingle solver ns s1 s2 = do
                         S.UNSAT _ -> return (Right hm)
                         _ -> return $ Left []
 
--------------------------------------------------------------------------------
--- Equality
--------------------------------------------------------------------------------
--- TODO prototype for scrutinee cycle counterexamples
--- check that the leading alt is the same for both
--- recursive now
-moreRestrictiveSingleScrutinees :: S.Solver solver =>
-                                   solver ->
-                                   HS.HashSet Name ->
-                                   StateET ->
-                                   StateET ->
-                                   W.WriterT [Marker] IO (Either [Lemma] (HM.HashMap Id Expr))
-moreRestrictiveSingleScrutinees solver ns s1 s2 = do
-    case (exprExtract s1, exprExtract s2) of
+-- covers both main expressions and scrutinees
+-- in theory, functions could also be covered with this
+-- however, I don't have stamps for functions, so I can't do it now
+moreRestrictiveSingleSubExprs :: S.Solver solver =>
+                                 solver ->
+                                 HS.HashSet Name ->
+                                 StateET ->
+                                 StateET ->
+                                 W.WriterT [Marker] IO (Either [Lemma] (HM.HashMap Id Expr))
+moreRestrictiveSingleSubExprs solver ns s1 s2 = do
+  res <- moreRestrictiveSingle solver ns s1 s2
+  case res of
+    Right _ -> return res
+    Left _ -> do
+      case (exprExtract s1, exprExtract s2) of
         (Case e1 _ _ ((Alt _ a1):_), Case e2 _ _ ((Alt _ a2):_)) -> do
-            case (a1, a2) of
-                (Tick t1 _, Tick t2 _) | t1 == t2 -> do
-                    let s1' = s1 { curr_expr = CurrExpr Evaluate e1 }
-                        s2' = s2 { curr_expr = CurrExpr Evaluate e2 }
-                    res <- moreRestrictiveSingle solver ns s1' s2'
-                    case res of
-                      Left _ -> moreRestrictiveSingleScrutinees solver ns s1' s2'
-                      Right _ -> return res
-                _ -> return $ Left []
-        _ -> return $ Left []
+          case (a1, a2) of
+            (Tick t1 _, Tick t2 _) | t1 == t2 -> do
+              let s1' = s1 { curr_expr = CurrExpr Evaluate e1 }
+                  s2' = s2 { curr_expr = CurrExpr Evaluate e2 }
+              moreRestrictiveSingleSubExprs solver ns s1' s2'
+            _ -> return res
+        _ -> return res
 
 isIdentity :: (Id, Expr) -> Bool
 isIdentity (i1, Tick _ e2) = isIdentity (i1, e2)
@@ -694,10 +692,8 @@ moreRestrictivePairWithLemmasPast solver num_lems ns lemmas past_list s_pair = d
 -------------------------------------------------------------------------------
 
 -- TODO incorporate lemmas into this?
--- TODO different way to improve this
 -- if a sub-expression on the main evaluation path has a cycle,
 -- then the whole expression will fail to reach SWHNF
--- needs to line up with
 checkCycle :: S.Solver s => Tactic s
 checkCycle solver _ ns _ _ (sh1, sh2) (s1, s2) = do
   --W.liftIO $ putStrLn $ "Cycle?" ++ (folder_name $ track s1) ++ (folder_name $ track s2)
@@ -777,8 +773,8 @@ subExprCycle solver _ ns _ _ (sh1, sh2) (s1, s2) = do
       hist1' = zip hist1 (map expr_env hist2)
       hist2' = zip hist2 (map expr_env hist1)
   -- histories must have the same length and have matching entries
-  mr1 <- mapM (\(p1, hp2) -> moreRestrictiveSingleScrutinees solver ns s1' (p1 { track = (track p1) { opp_env = hp2 } })) hist1'
-  mr2 <- mapM (\(p2, hp1) -> moreRestrictiveSingleScrutinees solver ns s2' (p2 { track = (track p2) { opp_env = hp1 } })) hist2'
+  mr1 <- mapM (\(p1, hp2) -> moreRestrictiveSingleSubExprs solver ns s1' (p1 { track = (track p1) { opp_env = hp2 } })) hist1'
+  mr2 <- mapM (\(p2, hp1) -> moreRestrictiveSingleSubExprs solver ns s2' (p2 { track = (track p2) { opp_env = hp1 } })) hist2'
   let vh _ (Left _, _) = False
       vh s (Right hm, p) = validHigherOrder s p ns $ Right (hm, HS.empty)
       mr1_pairs = zip mr1 hist1
