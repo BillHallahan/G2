@@ -211,7 +211,7 @@ measureApps bind subC =
                             (F.ECst (F.EVar meas) meas_s@(F.FFunc _ ret_s))
                         ) 
                         (F.ECst arg1@(F.EVar _) arg_s)
-              ) = trace ("-----\nmeas = " ++ show meas ++ "\nmeas_s = " ++ show meas_s) Just (meas, [(monoMeasName meas arg_s, arg_s, ret_s)])
+              ) = Just (meas, [(monoMeasName meas arg_s, arg_s, ret_s)])
         toMeasSymb _ = Nothing
 
 funcEApps :: F.BindEnv -> F.SimpC Cinfo -> [F.Symbol]
@@ -241,13 +241,35 @@ measureDecl :: MeasureAppSorts -> [Measure SpecType DataCon] -> [SMTHeader]
 measureDecl mas = concatMap (measureDecl' mas)
 
 measureDecl' :: MeasureAppSorts -> Measure SpecType DataCon -> [SMTHeader]
-measureDecl' mas (M { msName = mn, msSort = st }) =
+measureDecl' mas (M { msName = mn, msSort = st, msEqns = defs }) =
     case HM.lookup (F.val mn) mas of
-        Just mns -> map (\(n, arg_sort, ret_sort) ->
-            DeclareFun n [lhSortToSMTSort arg_sort, lhSortToSMTSort ret_sort] SortBool) mns
+        Just mns -> concatMap
+                        (\(n, arg_sort, ret_sort) ->
+                            DeclareFun n [lhSortToSMTSort arg_sort, lhSortToSMTSort ret_sort] SortBool:measureDef defs) mns
         Nothing -> [DeclareFun (F.symbolSafeString $ F.symbol mn) (toSMTDataSort st) SortBool]
     where
         repSort s1 (_:s2) = lhSortToSMTSort s1:s2
+
+measureDef :: [Def SpecType DataCon] -> [SMTHeader]
+measureDef = map measureDef'
+
+measureDef' :: Def SpecType DataCon -> SMTHeader
+measureDef' (Def { binds = binds, body = bdy, ctor = dc }) =
+    let
+        (lhs, rhs, ms) = measureDefBody bdy
+
+        bind_vs = map (\(b, s) -> (F.symbolSafeString b, maybe (SortDC "BAD" []) (head . toSMTDataSort) s)) binds
+        dc_n = tyConName $ dataConTyCon dc
+        dc_smt = Func (F.symbolSafeString dc_n) $ map (uncurry V) bind_vs
+    in
+    Assert $ ForAll bind_vs (SmtAnd (dc_smt:rhs) :=> lhs)
+
+measureDefBody :: Body -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Sort))
+measureDefBody (E e) = measureDefExpr e
+measureDefBody (P e) = measureDefExpr e
+
+measureDefExpr :: F.Expr -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Sort))
+measureDefExpr = toSMTAST [] "fresh" HM.empty
 
 toSMTData :: [(Var, LocSpecType)] -> [SMTHeader]
 toSMTData = map (uncurry toSMTData')
