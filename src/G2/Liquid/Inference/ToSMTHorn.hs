@@ -29,6 +29,7 @@ import Name
 import Var as V
 
 import Debug.Trace
+import G2.Liquid.Inference.Sygus.SpecInfo (Forms(BoolForm))
 
 toSMTHorn :: InferenceConfig -> Config ->  [GhcInfo] -> IO ()
 toSMTHorn infconfig cfg ghci = do
@@ -78,7 +79,8 @@ getFInfo infconfig cfg ghci = do
             putStrLn $ "foralls = " ++ show f
             putStrLn $ "rhs = " ++ show r) clauses
     putStrLn "SMT"
-    let smt_headers = type_decl ++ data_dc ++ meas_decl ++ wf_decl ++ map (Assert . (\(_, _, smt) -> smt)) clauses
+    let smt_headers = type_decl ++ callStack ++ kindRep ++ classesNum ++ classesOrd ++ tycon_dd ++ trName ++ mod_dd ++ srcLoc ++ char
+                        ++ data_dc ++ meas_decl ++ wf_decl ++ map (Assert . (\(_, _, smt) -> smt)) clauses
     putStrLn . T.unpack . TB.run $ toSolverText smt_headers
     return finfo
     where
@@ -86,7 +88,25 @@ getFInfo infconfig cfg ghci = do
         measureNames = map (F.symbol . msName) . measureSpecs
 
         measureSpecs :: [GhcInfo] -> [Measure SpecType DataCon]
-        measureSpecs = concatMap (gsMeasures . gsData . giSpec)
+        measureSpecs = filter (not . irrelName . F.symbolSafeString . F.val . msName)
+                     . concatMap (gsMeasures . gsData . giSpec)
+
+        irrelName :: String -> Bool
+        irrelName "head" = True
+        irrelName "tail" = True
+        irrelName "isJust" = True
+        irrelName "fromJust" = True
+        irrelName _ = False
+
+        classesNum = [DeclareData "GHC.Num.Num" ["num_var_sort"] [("GHC.Num.Num", [("num_var", SortVar "num_var_sort")])]]
+        classesOrd = [DeclareData "GHC.Classes.Ord" ["ord_var_sort"] [("GHC.Classes.Ord", [("ord_var", SortVar "ord_var_sort")])]]
+        trName = [DeclareData "GHC.Types.TrName" [] [("GHC.Types.TrName", [])]]
+        mod_dd = [DeclareData "GHC.Types.Module" [] [("GHC.Types.Module", [])]]
+        tycon_dd = [DeclareData "GHC.Types.TyCon" [] [("GHC.Types.TyCon", [])]]
+        callStack = [DeclareData "GHC.Stack.Types.CallStack" [] [("GHC.Stack.Types.CallStack", [])]]
+        kindRep = [DeclareData "GHC.Types.KindRep" [] [("GHC.Types.KindRep", [])]]
+        srcLoc = [DeclareData "GHC.Stack.Types.SrcLoc" [] [("GHC.Stack.Types.SrcLoc", [])]]
+        char = [DeclareData "Char" [] [("Char", [("char_v", SortInt)])]]
 
 
 ghcTypesPKVars :: [F.WfC a] -> HS.HashSet F.KVar
@@ -149,7 +169,11 @@ toSMTDataSort' ms@(m:_) =
                 ty_vars = dataConUnivTyVars dc
                 ty_vars_n = map (nameStableString . V.varName) ty_vars
             in
-            Just $ DeclareData n ty_vars_n [(n, dc_decl)]
+            case n of
+                "Tuple" ->
+                    let n' = n ++ show (length ty_vars_n) in
+                    Just $ DeclareData n' ty_vars_n [(n', dc_decl)]
+                _ -> Just $ DeclareData n ty_vars_n [(n, dc_decl)]
         Nothing -> Nothing
 toSMTDataSort' [] = Nothing
 
@@ -189,6 +213,7 @@ toSMTDataSort (RApp { rt_tycon = c, rt_args = as }) =
     case n of
         "GHC.Types.Int" -> [SortInt]
         "GHC.Types.Bool" -> [SortBool]
+        "Tuple" -> [SortDC (n ++ show (length as)) es]
         _ -> [SortDC n es]
 toSMTDataSort st = error $ "toSMTDataSort: " ++ show st
 
@@ -199,11 +224,11 @@ toHorn meas bind subC =
         rhs = F._crhs subC
 
         foralls_binds = map (`F.lookupBindEnv` bind) (elemsIBindEnv env)
-        foralls = filter (\(n, _) -> n /= "GHC.Types.True" && n /= "GHC.Types.False")
-                . filter (not . F.isFunctionSortedReft . snd)
-                . filter (not . sortNameHasPrefix "GHC.Types" . F.sr_sort . snd)
-                . filter (not . sortNameHasPrefix "GHC.Classes.Ord" . F.sr_sort . snd)
-                . filter (not . sortNameHasPrefix "GHC.Num" . F.sr_sort . snd)
+        foralls = -- filter (\(n, _) -> n /= "GHC.Types.True" && n /= "GHC.Types.False")
+                  filter (not . F.isFunctionSortedReft . snd)
+                -- . filter (not . sortNameHasPrefix "GHC.Types" . F.sr_sort . snd)
+                -- . filter (not . sortNameHasPrefix "GHC.Classes.Ord" . F.sr_sort . snd)
+                -- . filter (not . sortNameHasPrefix "GHC.Num" . F.sr_sort . snd)
                 . filter (\(_, rr) -> F.sr_sort rr /= F.FTC (F.strFTyCon))
                 $ foralls_binds
 
@@ -375,7 +400,7 @@ toSMTAST' m _ (F.PKVar k (F.Su subst)) =
     in
     Func (F.symbolSafeString . F.kv $ k) $ map (toSMTAST' m SortInt) args
 
-toSMTAST' _ sort e = error $ "toSMTAST: unsupported " ++ show e ++ "\n" ++ show sort
+toSMTAST' _ sort e = error $ "toSMTAST': unsupported " ++ show e ++ "\n" ++ show sort
 
 splitApplyApp :: F.Expr -> [F.Expr]
 splitApplyApp eapp | (F.ECst (F.EVar "apply") _, h:xs) <- F.splitEApp eapp = splitApplyApp h ++ xs
@@ -408,10 +433,16 @@ lhSortToSMTSort eapp | F.FTC h:es <- F.unFApp eapp =
     in
     case h_symb of
         "bool" -> SortBool
+        "Str" -> SortDC listCons [SortDC "Char" []]
+        "Tuple" -> let h_symb' = h_symb ++ show (length es) in
+                    SortDC h_symb' $ map lhSortToSMTSort es
         _ -> SortDC h_symb $ map lhSortToSMTSort es
 lhSortToSMTSort (F.FAbs _ _) = SortVar "FAbs" 
 lhSortToSMTSort (F.FFunc _ _) = SortVar "FFunc" 
 lhSortToSMTSort sort = error $ "lhSortToSMTSort: unsupported " ++ show sort
+
+listCons :: String
+listCons = "fix$36$$91$$93$"
 
 predictSort :: HM.HashMap SMTName (SMTName, Sort) -> F.Expr -> Maybe Sort
 predictSort _ (F.ESym _) = Nothing
