@@ -25,6 +25,7 @@ import qualified Data.Text as T
 import qualified Text.Builder as TB
 
 import DataCon
+import GHC
 import Name
 import Var as V
 
@@ -68,13 +69,14 @@ getFInfo infconfig cfg ghci = do
 
         used_eapps = concatMap (funcEApps cleaned_senv) cleaned_cm
 
-        data_dc = toSMTData . filter (\(v, _) -> F.symbol v `elem` used_eapps) $ concat data_decl
+        data_dc = toSMTData {- . filter (\(v, _) -> F.symbol v `elem` used_eapps) -} $ concat data_decl
 
     putStrLn "used_eapps"
     print used_eapps
 
     let meas_apps = mconcat $ map (measureApps cleaned_senv) cleaned_cm
-        meas_decl = measureDecl meas_apps $ filter (\M { msName = n } -> F.val n `elem` used_eapps) meas_spec
+        used_meas = filter (\M { msName = n } -> F.val n `elem` used_eapps) meas_spec
+        meas_decl = measureDecl meas_apps used_meas
 
     putStrLn "measureApps"
     print meas_apps
@@ -91,7 +93,10 @@ getFInfo infconfig cfg ghci = do
             putStrLn $ "rhs = " ++ show r) clauses
     putStrLn "SMT"
     let smt_headers = type_decl ++ callStack ++ kindRep ++ classesNum ++ classesOrd ++ tycon_dd ++ trName ++ mod_dd ++ srcLoc ++ char
-                        ++ data_dc ++ meas_decl ++ wf_decl ++ map (Assert . (\(_, _, smt) -> smt)) clauses
+                        ++ [Comment "Data"]
+                        ++ data_dc
+                        ++ [Comment "Measures"]
+                        ++ meas_decl ++ wf_decl ++ map (Assert . (\(_, _, smt) -> smt)) clauses
     putStrLn . T.unpack . TB.run $ toSolverText smt_headers
     return finfo
     where
@@ -99,7 +104,7 @@ getFInfo infconfig cfg ghci = do
         measureNames = map (F.symbol . msName) . measureSpecs
 
         measureSpecs :: [GhcInfo] -> [Measure SpecType DataCon]
-        measureSpecs = filter (not . irrelName . F.symbolSafeString . F.val . msName)
+        measureSpecs = filter (not . irrelName . symbolStringCon . F.val . msName)
                      . concatMap (gsMeasures . gsData . giSpec)
 
         irrelName :: String -> Bool
@@ -144,7 +149,7 @@ wfDecl bind wfc =
         bound_sorts = map (F.sr_sort . snd)  $ sortBy (comparing fst) bound
         (_, s, kvar) = F.wrft wfc
     in
-    DeclareFun (F.symbolSafeString $ F.kv kvar) ([lhSortToSMTSort s] ++ map lhSortToSMTSort bound_sorts) SortBool
+    DeclareFun (symbolStringCon $ F.kv kvar) ([lhSortToSMTSort s] ++ map lhSortToSMTSort bound_sorts) SortBool
 
 hornCons :: F.WfC Cinfo -> IO ()
 hornCons (F.WfC { F.wenv = env, F.wrft = rft, F.winfo = info }) = do
@@ -169,12 +174,12 @@ toSMTDataSort' :: [Measure SpecType DataCon] -> Maybe SMTHeader
 toSMTDataSort' ms@(m:_) =
     let
         mdc = measArg m
-        ret_types = map (\m -> (F.symbolSafeString . F.val $ msName m, last . toSMTDataSort . msSort $ m)) ms
+        ret_types = map (\m -> (symbolStringCon . F.val $ msName m, last . toSMTDataSort . msSort $ m)) ms
     in
     case mdc of
         Just dc ->
             let
-                n = F.symbolSafeString . tyConName . dataConTyCon $ dc
+                n = symbolStringCon . tyConName . dataConTyCon $ dc
                 dc_decl = ret_types -- [(n, zipWith (\i (mn, st) -> (\i -> mn, st)) [0 :: Integer ..] ret_types)]
 
                 ty_vars = dataConUnivTyVars dc
@@ -245,37 +250,66 @@ measureDecl' mas (M { msName = mn, msSort = st, msEqns = defs }) =
     case HM.lookup (F.val mn) mas of
         Just mns -> concatMap
                         (\(n, arg_sort, ret_sort) ->
-                            DeclareFun n [lhSortToSMTSort arg_sort, lhSortToSMTSort ret_sort] SortBool:measureDef defs) mns
-        Nothing -> [DeclareFun (F.symbolSafeString $ F.symbol mn) (toSMTDataSort st) SortBool]
+                            let
+                                def_clauses = measureDef n st arg_sort defs
+                            in
+                            DeclareFun n [lhSortToSMTSort arg_sort, lhSortToSMTSort ret_sort] SortBool:def_clauses) mns
+        Nothing -> [DeclareFun (symbolStringCon $ F.symbol mn) (toSMTDataSort st) SortBool]
     where
         repSort s1 (_:s2) = lhSortToSMTSort s1:s2
 
-measureDef :: [Def SpecType DataCon] -> [SMTHeader]
-measureDef = map measureDef'
+measureDef :: String -> SpecType -> F.Sort -> [Def SpecType DataCon] -> [SMTHeader]
+measureDef n st arg_srt = map (measureDef' n st arg_srt)
 
-measureDef' :: Def SpecType DataCon -> SMTHeader
-measureDef' (Def { binds = binds, body = bdy, ctor = dc }) =
+measureDef' :: String -> SpecType -> F.Sort -> Def SpecType DataCon -> SMTHeader
+measureDef' n st lh_arg_srt def@(Def { binds = binds, body = bdy, ctor = dc }) =
     let
+        dc_n = dataConName dc
+        mdl = case nameModule_maybe dc_n of
+                  Nothing -> ""
+                  Just md -> (moduleNameString . moduleName $ md) ++ "."
+
         (lhs, rhs, ms) = measureDefBody bdy
 
-        bind_vs = map (\(b, s) -> (F.symbolSafeString b, maybe (SortDC "BAD" []) (head . toSMTDataSort) s)) binds
-        dc_n = tyConName $ dataConTyCon dc
-        dc_smt = Func (F.symbolSafeString dc_n) $ map (uncurry V) bind_vs
-    in
-    Assert $ ForAll bind_vs (SmtAnd (dc_smt:rhs) :=> lhs)
+        arg_srt = case lhSortToSMTSort lh_arg_srt of
+                    SortDC _ xs -> xs
+                    _ -> error "measureDef': unsupported"
+        arg_poly_srt = case toSMTDataSort st of
+                    [SortDC _ xs, _] -> xs
+                    _ -> error "measureDef': unsupported"
+        ret_srt = last $ toSMTDataSort st
 
-measureDefBody :: Body -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Sort))
+        bind_vs = if isTuple (occNameString . nameOccName $ dc_n)
+                    then zipWith (\(b, _) s -> (symbolStringCon b, s)) binds arg_srt
+                    else map (\(b, s) -> (symbolStringCon b, maybe (SortDC "BAD" []) (head . toSMTDataSort) s)) binds
+        
+        dc_use_n = conString $ mdl ++ (occNameString . nameOccName $ dc_n)
+        dc_smt = Func dc_use_n $ map (uncurry V) bind_vs
+
+        extra_vs = map (\(n, _) -> (n, ret_srt)) $ HM.elems ms
+    in
+    case trace ("------\nn = " ++ show n ++ "\nbinds = " ++ show binds ++ "\narg_srt = " ++ show arg_srt ++ "\narg_poly_srt = " ++ show arg_poly_srt) bind_vs ++ extra_vs of
+        [] -> Assert $ SmtAnd rhs :=> Func n [dc_smt, lhs]
+        vs -> Assert $ ForAll vs (SmtAnd rhs :=> Func n [dc_smt, lhs])
+    where
+        isTuple [] = True
+        isTuple ('(':xs) = isTuple xs
+        isTuple (')':xs) = isTuple xs
+        isTuple (',':xs) = isTuple xs
+        isTuple _ = False
+
+measureDefBody :: Body -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Maybe Sort))
 measureDefBody (E e) = measureDefExpr e
 measureDefBody (P e) = measureDefExpr e
 
-measureDefExpr :: F.Expr -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Sort))
+measureDefExpr :: F.Expr -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Maybe Sort))
 measureDefExpr = toSMTAST [] "fresh" HM.empty
 
 toSMTData :: [(Var, LocSpecType)] -> [SMTHeader]
 toSMTData = map (uncurry toSMTData')
 
 toSMTData' :: Var -> LocSpecType -> SMTHeader
-toSMTData' v st = DeclareFun (F.symbolSafeString $ F.symbol v) (toSMTDataSort $ F.val st) SortBool
+toSMTData' v st = DeclareFun (symbolStringCon $ F.symbol v) (toSMTDataSort $ F.val st) SortBool
 
 toSMTDataSort :: SpecType -> [Sort]
 toSMTDataSort (RVar {rt_var = (RTV v)}) =
@@ -288,7 +322,7 @@ toSMTDataSort (RAllT { rt_ty = rty}) = toSMTDataSort rty
 toSMTDataSort (RFun {rt_in = fin, rt_out = fout }) = toSMTDataSort fin ++ toSMTDataSort fout
 toSMTDataSort (RApp { rt_tycon = c, rt_args = as }) =
     let
-        n = F.symbolSafeString . tyConName $ rtc_tc c
+        n = symbolStringCon . tyConName $ rtc_tc c
         es = concatMap toSMTDataSort as
     in
     case n of
@@ -320,7 +354,12 @@ toHorn meas bind subC =
                       $ map (\(i, (n, sr)) -> rrToSMTAST meas (show i) ms sr) $ zip [1..] foralls -- ++ [lhs]
         (rhs_smt, rhs_smts, rhs_m) = toSMTAST meas "rhs_val" (mconcat ms') rhs
 
-        forall = ForAll . nub . concatMap HM.elems $ rhs_m:ms'
+        forall = ForAll
+               . nub
+               . fmap (fmap fromJust)
+               . filter (isJust . snd)
+               . concatMap HM.elems
+               $ rhs_m:ms'
     in
     (foralls, rhs, forall (SmtAnd (lhs_smt ++ rhs_smts) :=> rhs_smt))
 
@@ -329,17 +368,17 @@ sortNameHasPrefix prefix eapp | F.FTC h:_ <- F.unFApp eapp =
     let
         h_symb = F.symbol h
     in
-    isPrefixOf prefix (F.symbolSafeString h_symb)
+    isPrefixOf prefix (symbolStringCon h_symb)
 sortNameHasPrefix _ _ = False
 
-rrToSMTAST :: [F.Symbol] -> String -> HM.HashMap SMTName (SMTName, Sort) -> F.SortedReft -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Sort))
+rrToSMTAST :: [F.Symbol] -> String -> HM.HashMap SMTName (SMTName, Maybe Sort) -> F.SortedReft -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Maybe Sort))
 rrToSMTAST meas fresh m rr =
     let
         (smt, smts, m') = toSMTAST meas fresh m (F.expr rr)
     in
     (smt, smts, HM.union m m')
 
-sortedReftToMap :: Int -> F.Symbol -> HM.HashMap SMTName (SMTName, Sort) -> F.SortedReft -> HM.HashMap SMTName (SMTName, Sort)
+sortedReftToMap :: Int -> F.Symbol -> HM.HashMap SMTName (SMTName, Maybe Sort) -> F.SortedReft -> HM.HashMap SMTName (SMTName, Maybe Sort)
 sortedReftToMap i symb1 m (F.RR { F.sr_sort = sort, F.sr_reft = F.Reft (symb2, _) })
     | Just smt_nme_srt <- HM.lookup nme1 m =
     --    trace ("---\nnme1 = " ++ nme1 ++ "\nnme2 = " ++ nme2 ++ "\nsmt_nme_srt = " ++ show smt_nme_srt)
@@ -347,21 +386,21 @@ sortedReftToMap i symb1 m (F.RR { F.sr_sort = sort, F.sr_reft = F.Reft (symb2, _
     | otherwise =
         let
             smt_nme = nme2 ++ "_G2_" ++ show i
-            smt_sort = lhSortToSMTSort sort
+            smt_sort = Just $ lhSortToSMTSort sort
         in
         HM.insert nme1 (smt_nme, smt_sort) $ HM.insert nme2 (smt_nme, smt_sort) m
     where
-        nme1 = F.symbolSafeString symb1
-        nme2 = F.symbolSafeString symb2
+        nme1 = symbolStringCon symb1
+        nme2 = symbolStringCon symb2
 
-toSMTAST :: [F.Symbol] -> String -> HM.HashMap SMTName (SMTName, Sort) -> F.Expr -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Sort))
+toSMTAST :: [F.Symbol] -> String -> HM.HashMap SMTName (SMTName, Maybe Sort) -> F.Expr -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Maybe Sort))
 toSMTAST meas fresh m e =
     let
         (e', es, m') = appRep meas fresh e
     in
     (toSMTAST' m SortBool e', map (toSMTAST' m SortBool) es, m')
 
-appRep :: [F.Symbol] -> String -> F.Expr -> (F.Expr, [F.Expr], HM.HashMap SMTName (SMTName, Sort))
+appRep :: [F.Symbol] -> String -> F.Expr -> (F.Expr, [F.Expr], HM.HashMap SMTName (SMTName, Maybe Sort))
 appRep meas fresh e =
     let
         apps_rep = HM.fromList
@@ -375,8 +414,8 @@ appRep meas fresh e =
 
         ns = HM.fromList
            . map (\kv@(k, _) -> (k, kv))
-           . map (\(e, s) -> (s, lhSortToSMTSort $ getSort e))
-           . map (\(e, s) -> (e, F.symbolSafeString s))
+           . map (\(e, s) -> (s, fmap lhSortToSMTSort $ getSort e))
+           . map (\(e, s) -> (e, symbolStringCon s))
            $ HM.toList apps_rep
     in
     (repExpr apps_rep e, meas_apps, ns)
@@ -384,13 +423,13 @@ appRep meas fresh e =
         relApp (F.EApp (F.EApp _ (F.ECst (F.EVar n) _)) _) | n `elem` meas = True
         relApp _ = False
 
-getSort :: F.Expr -> F.Sort
+getSort :: F.Expr -> Maybe F.Sort
 getSort eapp@(F.EApp e _) =
     case getSort e of
-        F.FFunc _ s -> s
+        Just (F.FFunc _ s) -> Just s
         s -> s
-getSort (F.ECst _ s) = s
-getSort e = error $ "getSort: Unsupported" ++ show e
+getSort (F.ECst _ s) = Just s
+getSort e = Nothing
 
 repExpr ::  HM.HashMap F.Expr F.Symbol -> F.Expr -> F.Expr
 repExpr hm = mapExprTD go
@@ -437,9 +476,9 @@ topEApps F.ESym {} = []
 topEApps F.ECon {} = []
 topEApps e = error $ "mapExprTD: unsupported " ++ show e
 
-toSMTAST' :: HM.HashMap SMTName (SMTName, Sort) -> Sort -> F.Expr -> SMTAST
-toSMTAST' m sort (F.EVar v) | Just (fv, _) <- HM.lookup (F.symbolSafeString v) m = V fv sort
-                            | otherwise = V (F.symbolSafeString v) sort
+toSMTAST' :: HM.HashMap SMTName (SMTName, Maybe Sort) -> Sort -> F.Expr -> SMTAST
+toSMTAST' m sort (F.EVar v) | Just (fv, _) <- HM.lookup (symbolStringCon v) m = V fv sort
+                            | otherwise = V (symbolStringCon v) sort
 toSMTAST' _ _ (F.ESym (F.SL v)) = V (T.unpack v) SortInt
 toSMTAST' _ _ (F.ECon (F.I i)) = VInt i
 toSMTAST' m sort (F.EBin op e1 e2) =
@@ -459,9 +498,9 @@ toSMTAST' m _ eapp@(F.EApp
                     arg2
               ) = Func (monoMeasName meas arg_s) [toSMTAST' m (lhSortToSMTSort arg_s) arg1, toSMTAST' m SortInt arg2]
 toSMTAST' m _ eapp@(F.EApp {}) | (F.ECst (F.EVar f) _:es) <- splitApplyApp eapp =
-    Func (F.symbolSafeString f) $ map (toSMTAST' m (error "expected ECst")) es
+    Func (symbolStringCon f) $ map (toSMTAST' m (SortDC "UNKNOWN" [])) es
 toSMTAST' m _ eapp@(F.EApp {}) | (F.EVar f:es) <- splitApplyApp eapp =
-    Func (F.symbolSafeString f) $ map (toSMTAST' m (error "expected ECst")) es
+    Func (symbolStringCon f) $ map (toSMTAST' m (SortDC "UNKNOWN" [])) es
     -- error $ "toSMTAST': \neapp = " ++ show eapp ++ "\nes = " ++ show es -- (func, xs@(_:_)) <- F.splitEApp eapp = error $ "toSMTAST': eapp = " ++ show eapp ++ "\nfunc = " ++ show func ++ "\nxs = " ++ show xs
 
 toSMTAST' m _ (F.PAtom atom e1 e2) =
@@ -481,14 +520,14 @@ toSMTAST' m _ (F.PKVar k (F.Su subst)) =
     let
         args = map snd . sortBy (comparing fst) $ HM.toList subst
     in
-    Func (F.symbolSafeString . F.kv $ k) $ map (toSMTAST' m SortInt) args
+    Func (symbolStringCon . F.kv $ k) $ map (toSMTAST' m SortInt) args
 
 toSMTAST' _ sort e = error $ "toSMTAST': unsupported " ++ show e ++ "\n" ++ show sort
 
 monoMeasName :: F.Symbol -> F.Sort -> String
 monoMeasName meas sort =
     let
-        meas_str = F.symbolSafeString meas
+        meas_str = symbolStringCon meas
         sort_str = sortMeasName $ F.unFApp sort
     in
     meas_str ++ "_" ++ sort_str
@@ -496,9 +535,9 @@ monoMeasName meas sort =
 sortMeasName :: [F.Sort] -> String
 sortMeasName [] = ""
 sortMeasName [F.FTC ftycon] =
-    F.symbolSafeString (F.val $ F.fTyconSymbol ftycon)
+    symbolStringCon (F.val $ F.fTyconSymbol ftycon)
 sortMeasName (F.FTC ftycon:xs) =
-    F.symbolSafeString (F.val $ F.fTyconSymbol ftycon) ++ "_" ++ sortMeasName xs
+    symbolStringCon (F.val $ F.fTyconSymbol ftycon) ++ "_" ++ sortMeasName xs
 sortMeasName (fapp@F.FApp {}:xs) = sortMeasName (F.unFApp fapp) ++ "_" ++ sortMeasName xs
 sortMeasName sort = error $ "sortMeasName: unsupported " ++ show sort
 
@@ -525,11 +564,11 @@ toSMTASTOp op = error $ "toSMTASTOp: unsupported " ++ show op
 
 lhSortToSMTSort :: F.Sort -> Sort
 lhSortToSMTSort F.FInt = SortInt
-lhSortToSMTSort (F.FObj s) = SortVar (F.symbolSafeString s)
-lhSortToSMTSort (F.FObj s) = SortVar (F.symbolSafeString s)
+lhSortToSMTSort (F.FObj s) = SortVar (symbolStringCon s)
+lhSortToSMTSort (F.FObj s) = SortVar (symbolStringCon s)
 lhSortToSMTSort eapp | F.FTC h:es <- F.unFApp eapp =
     let
-        h_symb = F.symbolSafeString $ F.symbol h
+        h_symb = symbolStringCon $ F.symbol h
     in
     case h_symb of
         "bool" -> SortBool
@@ -543,11 +582,11 @@ lhSortToSMTSort (F.FFunc _ _) = SortVar "FFunc"
 lhSortToSMTSort sort = error $ "lhSortToSMTSort: unsupported " ++ show sort
 
 listCons :: String
-listCons = "fix$36$$91$$93$"
+listCons = conString "[]"
 
-predictSort :: HM.HashMap SMTName (SMTName, Sort) -> F.Expr -> Maybe Sort
+predictSort :: HM.HashMap SMTName (SMTName, Maybe Sort) -> F.Expr -> Maybe Sort
 predictSort _ (F.ESym _) = Nothing
-predictSort m (F.EVar v) = snd <$> HM.lookup (F.symbolSafeString v) m
+predictSort m (F.EVar v) = snd =<< (HM.lookup (symbolStringCon v) m)
 predictSort _ (F.ECst _ s) = Just $ lhSortToSMTSort s
 predictSort _ (F.PAtom _ _ _) = Just SortBool
 predictSort _ (F.PAnd _) = Just SortBool
@@ -558,3 +597,18 @@ giInfo :: F.SubC Cinfo -> String
 giInfo sc =
   "F.SubC Cinfo " ++ "\n_senv = " ++ show (elemsIBindEnv $ F.senv sc) ++ "\nslhs = " ++ show (F.slhs sc) ++ "\nsrhs = " ++ show (F.srhs sc)
                       ++ "\n_sid = " ++ show (F.sid sc) ++ "\n_stag = " ++ show (F.stag sc) ++ "\n_sinfo = " ++ show (F.sinfo sc)
+
+symbolStringCon :: F.Symbol -> String
+symbolStringCon = conString . F.symbolString
+
+conString :: String -> String
+conString = concatMap conString'
+
+conString' :: Char -> String
+conString' '(' = "_open_paren_"
+conString' ')' = "_close_paren_"
+conString' '[' = "_open_bracket_"
+conString' ']' = "_close_bracket_"
+conString' ':' = "_colon_"
+conString' '#' = "_ns_"
+conString' x = [x]
