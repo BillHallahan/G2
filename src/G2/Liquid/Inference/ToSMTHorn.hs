@@ -251,25 +251,25 @@ measureDecl' mas (M { msName = mn, msSort = st, msEqns = defs }) =
         Just mns -> concatMap
                         (\(n, arg_sort, ret_sort) ->
                             let
-                                def_clauses = measureDef n st arg_sort defs
+                                def_clauses = measureDef (F.val mn) n st arg_sort defs
                             in
                             DeclareFun n [lhSortToSMTSort arg_sort, lhSortToSMTSort ret_sort] SortBool:def_clauses) mns
         Nothing -> [DeclareFun (symbolStringCon $ F.symbol mn) (toSMTDataSort st) SortBool]
     where
         repSort s1 (_:s2) = lhSortToSMTSort s1:s2
 
-measureDef :: String -> SpecType -> F.Sort -> [Def SpecType DataCon] -> [SMTHeader]
-measureDef n st arg_srt = map (measureDef' n st arg_srt)
+measureDef :: F.Symbol -> String -> SpecType -> F.Sort -> [Def SpecType DataCon] -> [SMTHeader]
+measureDef orig_n n st arg_srt = map (measureDef' orig_n n st arg_srt)
 
-measureDef' :: String -> SpecType -> F.Sort -> Def SpecType DataCon -> SMTHeader
-measureDef' n st lh_arg_srt def@(Def { binds = binds, body = bdy, ctor = dc }) =
+measureDef' :: F.Symbol -> String -> SpecType -> F.Sort -> Def SpecType DataCon -> SMTHeader
+measureDef' orig_n n st lh_arg_srt def@(Def { binds = binds, body = bdy, ctor = dc }) =
     let
         dc_n = dataConName dc
         mdl = case nameModule_maybe dc_n of
                   Nothing -> ""
                   Just md -> (moduleNameString . moduleName $ md) ++ "."
 
-        (lhs, rhs, ms) = measureDefBody bdy
+        (lhs, rhs, ms) = measureDefBody orig_n n bdy
 
         arg_srt = case lhSortToSMTSort lh_arg_srt of
                     SortDC _ xs -> xs
@@ -290,7 +290,7 @@ measureDef' n st lh_arg_srt def@(Def { binds = binds, body = bdy, ctor = dc }) =
         extra_vs = map (\(n, _) -> (n, ret_srt)) $ HM.elems ms
         vs = ("RET_LH_G2", lhSortToSMTSort lh_arg_srt):bind_vs ++ extra_vs
     in
-    trace ("------\nn = " ++ show n ++ "\nbinds = " ++ show binds ++ "\narg_srt = " ++ show arg_srt ++ "\narg_poly_srt = " ++ show arg_poly_srt)
+    trace ("------\norig_n = " ++ show orig_n ++ "\nn = " ++ show n ++ "\nbinds = " ++ show binds ++ "\narg_srt = " ++ show arg_srt ++ "\narg_poly_srt = " ++ show arg_poly_srt)
         Assert $ ForAll vs (SmtAnd (dc_smt:rhs) :=> Func n [ret_dc, lhs])
     where
         isTuple [] = True
@@ -299,12 +299,12 @@ measureDef' n st lh_arg_srt def@(Def { binds = binds, body = bdy, ctor = dc }) =
         isTuple (',':xs) = isTuple xs
         isTuple _ = False
 
-measureDefBody :: Body -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Maybe Sort))
-measureDefBody (E e) = measureDefExpr e
-measureDefBody (P e) = measureDefExpr e
+measureDefBody :: F.Symbol -> String -> Body -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Maybe Sort))
+measureDefBody orig_n n (E e) = measureDefExpr orig_n n e
+measureDefBody orig_n n (P e) = measureDefExpr orig_n n e
 
-measureDefExpr :: F.Expr -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Maybe Sort))
-measureDefExpr = toSMTAST [] "fresh" HM.empty
+measureDefExpr :: F.Symbol -> String -> F.Expr -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Maybe Sort))
+measureDefExpr orig_n n = toSMTAST [] "fresh" (HM.fromList [(symbolStringCon orig_n, (n, Nothing))])
 
 toSMTData :: [(Var, LocSpecType)] -> [SMTHeader]
 toSMTData = map (uncurry toSMTData')
@@ -499,9 +499,19 @@ toSMTAST' m _ eapp@(F.EApp
                     arg2
               ) = Func (monoMeasName meas arg_s) [toSMTAST' m (lhSortToSMTSort arg_s) arg1, toSMTAST' m SortInt arg2]
 toSMTAST' m _ eapp@(F.EApp {}) | (F.ECst (F.EVar f) _:es) <- splitApplyApp eapp =
-    Func (symbolStringCon f) $ map (toSMTAST' m (SortDC "UNKNOWN" [])) es
+    let
+        f_str = symbolStringCon f
+    in
+    case HM.lookup f_str m of
+        Just (f', _) -> Func f' $ map (toSMTAST' m (SortDC "UNKNOWN" [])) es
+        Nothing -> Func f_str $ map (toSMTAST' m (SortDC "UNKNOWN" [])) es
 toSMTAST' m _ eapp@(F.EApp {}) | (F.EVar f:es) <- splitApplyApp eapp =
-    Func (symbolStringCon f) $ map (toSMTAST' m (SortDC "UNKNOWN" [])) es
+    let
+        f_str = symbolStringCon f
+    in
+    case HM.lookup f_str m of
+        Just (f', _) -> Func f' $ map (toSMTAST' m (SortDC "UNKNOWN" [])) es
+        Nothing -> Func f_str $ map (toSMTAST' m (SortDC "UNKNOWN" [])) es
     -- error $ "toSMTAST': \neapp = " ++ show eapp ++ "\nes = " ++ show es -- (func, xs@(_:_)) <- F.splitEApp eapp = error $ "toSMTAST': eapp = " ++ show eapp ++ "\nfunc = " ++ show func ++ "\nxs = " ++ show xs
 
 toSMTAST' m _ (F.PAtom atom e1 e2) =
