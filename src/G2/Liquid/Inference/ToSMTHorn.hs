@@ -346,7 +346,7 @@ toHorn meas bind subC =
                 -- . filter (not . sortNameHasPrefix "GHC.Types" . F.sr_sort . snd)
                 -- . filter (not . sortNameHasPrefix "GHC.Classes.Ord" . F.sr_sort . snd)
                 -- . filter (not . sortNameHasPrefix "GHC.Num" . F.sr_sort . snd)
-                . filter (\(_, rr) -> F.sr_sort rr /= F.FTC (F.strFTyCon))
+                -- . filter (\(_, rr) -> F.sr_sort rr /= F.FTC (F.strFTyCon))
                 $ foralls_binds
 
         ms = foldr (\(i, (n, sr)) m -> sortedReftToMap i n m sr) HM.empty $ zip [1..] foralls
@@ -480,7 +480,11 @@ topEApps e = error $ "mapExprTD: unsupported " ++ show e
 toSMTAST' :: HM.HashMap SMTName (SMTName, Maybe Sort) -> Sort -> F.Expr -> SMTAST
 toSMTAST' m sort (F.EVar v) | Just (fv, _) <- HM.lookup (symbolStringCon v) m = V fv sort
                             | otherwise = V (symbolStringCon v) sort
-toSMTAST' _ _ (F.ESym (F.SL v)) = V (T.unpack v) SortInt
+toSMTAST' _ _ (F.ESym (F.SL v)) =
+    let
+        list = symbolStringCon "[]"
+    in
+    Func list [VInt $ toInteger (T.length v)]
 toSMTAST' _ _ (F.ECon (F.I i)) = VInt i
 toSMTAST' m sort (F.EBin op e1 e2) =
     toSMTASTOp op (toSMTAST' m sort e1) (toSMTAST' m sort e2)
