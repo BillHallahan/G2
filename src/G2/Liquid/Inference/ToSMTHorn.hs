@@ -460,7 +460,7 @@ mapExprTD f = go
                 e -> error $ "mapExprTD: unsupported " ++ show e
 
 topEApps :: F.Expr -> [F.Expr]
-topEApps eapp@(F.EApp _ _) = [eapp]
+topEApps eapp@(F.EApp _ _) = [eapp] ++ concat (mapRightEApp topEApps eapp)
 topEApps (F.ENeg e) = topEApps e
 topEApps (F.EBin b e1 e2) = topEApps e1 ++ topEApps e2
 topEApps (F.EIte p e1 e2) = topEApps p ++ topEApps e1 ++ topEApps e2
@@ -476,6 +476,10 @@ topEApps F.EVar {} = []
 topEApps F.ESym {} = []
 topEApps F.ECon {} = []
 topEApps e = error $ "mapExprTD: unsupported " ++ show e
+
+mapRightEApp :: (F.Expr -> a) -> F.Expr -> [a]
+mapRightEApp f (F.EApp e1 e2) = f e2:mapRightEApp f e1
+mapRightEApp _ _ = []
 
 toSMTAST' :: HM.HashMap SMTName (SMTName, Maybe Sort) -> Sort -> F.Expr -> SMTAST
 toSMTAST' m sort (F.EVar v) | Just (fv, _) <- HM.lookup (symbolStringCon v) m = V fv sort
@@ -549,6 +553,7 @@ monoMeasName meas sort =
 
 sortMeasName :: [F.Sort] -> String
 sortMeasName [] = ""
+sortMeasName [F.FInt] = "Int"
 sortMeasName [F.FTC ftycon] =
     symbolStringCon (F.val $ F.fTyconSymbol ftycon)
 sortMeasName (F.FTC ftycon:xs) =
