@@ -284,13 +284,14 @@ measureDef' n st lh_arg_srt def@(Def { binds = binds, body = bdy, ctor = dc }) =
                     else map (\(b, s) -> (symbolStringCon b, maybe (SortDC "BAD" []) (head . toSMTDataSort) s)) binds
         
         dc_use_n = conString $ mdl ++ (occNameString . nameOccName $ dc_n)
-        dc_smt = Func dc_use_n $ map (uncurry V) bind_vs
+        ret_dc = V "RET_LH_G2" (lhSortToSMTSort lh_arg_srt)
+        dc_smt = Func dc_use_n $ map (uncurry V) bind_vs ++ [ret_dc]
 
         extra_vs = map (\(n, _) -> (n, ret_srt)) $ HM.elems ms
+        vs = ("RET_LH_G2", lhSortToSMTSort lh_arg_srt):bind_vs ++ extra_vs
     in
-    case trace ("------\nn = " ++ show n ++ "\nbinds = " ++ show binds ++ "\narg_srt = " ++ show arg_srt ++ "\narg_poly_srt = " ++ show arg_poly_srt) bind_vs ++ extra_vs of
-        [] -> Assert $ SmtAnd rhs :=> Func n [dc_smt, lhs]
-        vs -> Assert $ ForAll vs (SmtAnd rhs :=> Func n [dc_smt, lhs])
+    trace ("------\nn = " ++ show n ++ "\nbinds = " ++ show binds ++ "\narg_srt = " ++ show arg_srt ++ "\narg_poly_srt = " ++ show arg_poly_srt)
+        Assert $ ForAll vs (SmtAnd (dc_smt:rhs) :=> Func n [ret_dc, lhs])
     where
         isTuple [] = True
         isTuple ('(':xs) = isTuple xs
@@ -609,6 +610,7 @@ conString' '(' = "_open_paren_"
 conString' ')' = "_close_paren_"
 conString' '[' = "_open_bracket_"
 conString' ']' = "_close_bracket_"
+conString' ',' = "_comma_"
 conString' ':' = "_colon_"
 conString' '#' = "_ns_"
 conString' x = [x]
