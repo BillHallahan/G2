@@ -272,7 +272,12 @@ measureDecl' mas (M { msName = mn, msSort = st, msEqns = defs }) =
                                 def_clauses = measureDef (F.val mn) n st arg_sort defs
                             in
                             DeclareFun n [lhSortToSMTSort arg_sort, lhSortToSMTSort ret_sort] SortBool:def_clauses) mns
-        Nothing -> [DeclareFun (symbolStringCon $ F.symbol mn) (toSMTDataSort st) SortBool]
+        Nothing ->
+            let
+                srt = toSMTDataSort st
+                n = monoMeasName (F.symbol mn) srt
+            in
+            [DeclareFun n srt SortBool]
     where
         repSort s1 (_:s2) = lhSortToSMTSort s1:s2
 
@@ -446,7 +451,9 @@ appRep meas fresh e =
     trace ("-------\ne = " ++ show e ++ "\nmeas_apps = " ++ show meas_apps)
     (repExpr apps_rep e, meas_apps, ns)
     where
-        relApp eapp | (F.ECst (F.EVar "apply") s, es) <- F.splitEApp eapp = length (splitFFunc s) == length es
+        -- relApp eapp | (F.ECst (F.EVar "apply") s, es) <- F.splitEApp eapp = length (splitFFunc s) == length es
+        relApp eapp | (F.ECst (F.EVar "strLen") _, _) <- F.splitEApp eapp = True
+        relApp eapp | (F.ECst _ s, es) <- F.splitEApp eapp = length (splitFFunc s) == length es
         relApp _ = False
 
 getSort :: F.Expr -> Maybe F.Sort
