@@ -281,7 +281,6 @@ allTactics = [
   , generalizeFull
   , trySolver
   , checkCycle
-  --, subExprCycle
   ]
 
 allNewLemmaTactics :: S.Solver s => [NewLemmaTactic s]
@@ -753,10 +752,6 @@ isUnresolved :: Marker -> Bool
 isUnresolved (Marker _ (Unresolved _)) = True
 isUnresolved _ = False
 
--- TODO I must have broken the PrettyGuide for cycle counterexamples
--- it was bad with unresolved-hist-summarize but fine without it
--- also bad for unresolved-summarize, but not summarize or hist-summarize
--- eliminating the "just unresolved" optimization fixed it
 checkRule :: Config
           -> NebulaConfig
           -> State t
@@ -795,15 +790,15 @@ checkRule config nc init_state bindings total rule = do
              emptyLemmas
              [(rewrite_state_l'', rewrite_state_r'')]
              bindings'' config nc sym_ids 0 (limit nc)
-  --let w' = if just_unresolved $ print_summary nc
-  --         then filter isUnresolved w
-  --         else w
   let pg = if have_summary $ print_summary nc
            then mkPrettyGuide w-- $ map (\(Marker _ am) -> am) w
            else reducedGuide (reverse w)
+  let w' = if only_unresolved $ print_summary nc
+           then filter isUnresolved w
+           else w
   if have_summary $ print_summary nc then do
     putStrLn "--- SUMMARY ---"
-    _ <- mapM (putStrLnIfNonEmpty . (summarize (print_summary nc) pg ns sym_ids)) w
+    _ <- mapM (putStrLnIfNonEmpty . (summarize (print_summary nc) pg ns sym_ids)) w'
     putStrLn "--- END OF SUMMARY ---"
   else return ()
   case res of

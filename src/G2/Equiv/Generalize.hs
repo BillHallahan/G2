@@ -240,6 +240,14 @@ p84
 
 I can get a relatively high depth for p04fin.  Is this another situation
 like what I had for p58?
+
+(1/30) Can I use something like my new technique for finding cycle
+counterexamples to help with p47?  I can't just look for cycles within
+scrutinees.
+
+I think p04 is an easier target.  I can see the spots where lemma
+substitution would be helpful, but the things that get generated as
+lemma candidates aren't really true.
 -}
 
 -- TODO do I have functions like this already?

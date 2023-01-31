@@ -24,7 +24,7 @@ data NebulaConfig = NC { limit :: Int
 data SummaryMode = SM { have_summary :: Bool
                       , have_history :: Bool
                       , have_lemma_details :: Bool
-                      , just_unresolved :: Bool }
+                      , only_unresolved :: Bool }
 
 noSummary :: SummaryMode
 noSummary = SM False False False False
