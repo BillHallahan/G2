@@ -75,9 +75,13 @@ getFInfo infconfig cfg ghci = do
 
     let meas_apps = mconcat $ map (measureApps cleaned_senv) cleaned_cm
         used_meas = filter (\M { msName = n } -> F.val n `elem` used_eapps) meas_spec
+        used_meas_dc = usedMeasureDC meas_apps used_meas
         meas_decl = measureDecl meas_apps used_meas
 
-        data_dc = toSMTData meas_apps {- . filter (\(v, _) -> F.symbol v `elem` used_eapps) -} $ concat data_decl
+        data_dc = toSMTData (HM.unionWith (\xs ys -> nub $ xs ++ ys) meas_apps used_meas_dc) {- . filter (\(v, _) -> F.symbol v `elem` used_eapps) -} $ concat data_decl
+
+    putStrLn "used_meas_dc"
+    print used_meas_dc
 
     putStrLn "measureApps"
     print meas_apps
@@ -232,6 +236,23 @@ measureApps bind subC =
         ret (F.FFunc _ r) = ret r
         ret r = r
 
+usedMeasureDC :: AppSorts -> [Measure SpecType DataCon] -> AppSorts
+usedMeasureDC app_sorts = mconcat . (app_sorts:) . map (usedMeasureDC' app_sorts) 
+
+usedMeasureDC' :: AppSorts -> Measure SpecType DataCon -> AppSorts
+usedMeasureDC' app_sorts (M { msName = mn, msSort = st, msEqns = defs }) =
+    case HM.lookup (F.val mn) app_sorts of
+        Just mns -> mconcat $ map
+                        (\(n, [arg_sort], ret_sort) ->
+                            case F.unFApp arg_sort of
+                                (_:es) -> HM.fromListWith (\xs ys -> nub $ xs ++ ys)
+                                        $ map (\d ->
+                                                    let
+                                                        use_n = monoMeasNameStr (dcString $ ctor d) $ map lhSortToSMTSort (es ++ [ret_sort])
+                                                    in
+                                                    (F.symbol (dcString $ ctor d), [(use_n, es, ret_sort)])) defs
+                                [] -> error "usedMeasureDC': unsupported") mns
+        Nothing -> HM.empty
 
 splitFFunc :: F.Sort -> [F.Sort]
 splitFFunc (F.FFunc s1 s2) = s1:splitFFunc s2
@@ -287,11 +308,9 @@ measureDef orig_n n st arg_srt = map (measureDef' orig_n n st arg_srt)
 measureDef' :: F.Symbol -> String -> SpecType -> F.Sort -> Def SpecType DataCon -> SMTHeader
 measureDef' orig_n n st lh_arg_srt def@(Def { binds = binds, body = bdy, ctor = dc }) =
     let
-        dc_n = dataConName dc
+        real_dc_n = occNameString . nameOccName $ dataConName dc
+        dc_n = dcString dc
         dc_tycon_n = tyConName $ dataConTyCon dc
-        mdl = case nameModule_maybe dc_n of
-                  Nothing -> ""
-                  Just md -> (moduleNameString . moduleName $ md) ++ "."
 
         arg_srt = case lhSortToSMTSort lh_arg_srt of
                     SortDC _ xs -> xs
@@ -301,12 +320,12 @@ measureDef' orig_n n st lh_arg_srt def@(Def { binds = binds, body = bdy, ctor = 
                     _ -> error "measureDef': unsupported"
         ret_srt = last $ toSMTDataSort st
 
-        bind_vs = if isTuple (occNameString . nameOccName $ dc_n)
+        bind_vs = if isTuple real_dc_n
                     then zipWith (\(b, _) s -> (symbolStringCon b, s)) binds arg_srt
                     else map (\(b, s) -> (symbolStringCon b, maybe (SortDC "BAD" []) (head . toSMTDataSort) s)) binds
         bind_srts = map snd bind_vs
         
-        dc_use_n = monoMeasNameStr (mdl ++ (occNameString . nameOccName $ dc_n)) (bind_srts ++ [SortVar $ F.symbolString dc_tycon_n])
+        dc_use_n = monoMeasNameStr dc_n (bind_srts ++ [SortVar $ F.symbolString dc_tycon_n])
         ret_dc = V "RET_LH_G2" (lhSortToSMTSort lh_arg_srt)
         dc_smt = Func dc_use_n $ map (uncurry V) bind_vs ++ [ret_dc]
 
@@ -325,6 +344,16 @@ measureDef' orig_n n st lh_arg_srt def@(Def { binds = binds, body = bdy, ctor = 
         isTuple (',':xs) = isTuple xs
         isTuple _ = False
 
+dcString :: DataCon -> String
+dcString dc =
+    let
+        dc_n = dataConName dc
+        mdl = case nameModule_maybe dc_n of
+                  Nothing -> ""
+                  Just md -> (moduleNameString . moduleName $ md) ++ "."
+    in
+    mdl ++ (occNameString . nameOccName $ dc_n)
+
 measureDefBody :: HM.HashMap SMTName (SMTName, Maybe Sort) -> Body -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Maybe Sort))
 measureDefBody m (E e) = measureDefExpr m e
 measureDefBody m (P e) = measureDefExpr m e
@@ -338,7 +367,11 @@ toSMTData app_sorts = concatMap (uncurry (toSMTData' app_sorts))
 toSMTData' :: AppSorts -> Var -> LocSpecType -> [SMTHeader]
 toSMTData' app_sorts v st =
         case HM.lookup (F.symbol v) app_sorts of
-            Just as -> map (\(n, _, _) -> DeclareFun n (toSMTDataSort $ F.val st) SortBool) as
+            Just as -> map (\(n, arg_srt, ret_srt) ->
+                                let
+                                    srt = map lhSortToSMTSort $ arg_srt ++ [ret_srt]
+                                in
+                                DeclareFun n srt SortBool) as
             Nothing -> [] -- [DeclareFun (symbolStringCon $ F.symbol v) (toSMTDataSort $ F.val st) SortBool]
 
 toSMTDataSort :: SpecType -> [Sort]
