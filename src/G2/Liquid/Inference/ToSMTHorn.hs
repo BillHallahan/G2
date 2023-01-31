@@ -252,8 +252,6 @@ usedMeasureDC' app_sorts (M { msName = mn, msSort = st, msEqns = defs }) =
                                                         tycon = F.symbolString . tyConName . dataConTyCon $ ctor d
                                                         use_n = monoMeasNameStr (dcString $ ctor d) $ map lhSortToSMTSort es ++ [SortVar tycon]
                                                     in
-                                                    trace ("----\ndcString $ ctor d = " ++ show (dcString $ ctor d)
-                                                            ++ "\nes = " ++ show es ++ "\nret_sort" ++ show ret_sort ++ "\ntycon = " ++ show tycon ++ "\nuse_n = " ++ show use_n)
                                                     (F.symbol (dcString $ ctor d), [(use_n, es, ret_sort)])) defs
                                 [] -> error "usedMeasureDC': unsupported") mns
         Nothing -> HM.empty
@@ -279,8 +277,7 @@ allEApps bind subC =
         -- lhs = F.clhs subC
         rhs = F._crhs subC
 
-        forall_expr = map (\(F.Reft (_, e)) -> e)
-                    . map (F.sr_reft . snd)
+        forall_expr = map F.expr
                     $ map (`F.lookupBindEnv` bind) (elemsIBindEnv env)
     in
     concatMap topEApps $ rhs:forall_expr
@@ -327,7 +324,7 @@ measureDef' orig_n n st lh_arg_srt def@(Def { binds = binds, body = bdy, ctor = 
         bind_vs = if isTuple real_dc_n
                     then zipWith (\(b, _) s -> (symbolStringCon b, s)) binds arg_srt
                     else map (\(b, s) -> (symbolStringCon b, maybe (SortDC "BAD" []) (head . toSMTDataSort) s)) binds
-        bind_srts = map snd bind_vs
+        bind_srts = if isTuple real_dc_n then map snd bind_vs else map snd bind_vs ++ arg_srt
         
         dc_use_n = monoMeasNameStr dc_n (bind_srts ++ [SortVar $ F.symbolString dc_tycon_n])
         ret_dc = V "RET_LH_G2" (lhSortToSMTSort lh_arg_srt)
@@ -339,7 +336,7 @@ measureDef' orig_n n st lh_arg_srt def@(Def { binds = binds, body = bdy, ctor = 
         vs_m = HM.fromList $ (symbolStringCon orig_n, (n, Nothing)):(map (\(v, s) -> (v, (v, Just s))) vs)
         (lhs, rhs, ms) = measureDefBody vs_m bdy
     in
-    trace ("------\norig_n = " ++ show orig_n ++ "\nn = " ++ show n ++ "\nbinds = " ++ show binds ++ "\narg_srt = " ++ show arg_srt ++ "\nret_srt = " ++ show ret_srt ++ "\ndc_us_n = " ++ show dc_use_n)
+    trace ("------\norig_n = " ++ show orig_n ++ "\narg_srt = " ++ show arg_srt ++ "\ndc_n = " ++ show dc_n ++ "\nbinds = " ++ show binds ++ "\nbind_srts = " ++ show bind_srts ++ "\ndc_tycon_n = " ++ show dc_tycon_n  ++ "\ndc_us_n = " ++ show dc_use_n)
         Assert $ ForAll vs (SmtAnd (dc_smt:rhs) :=> Func n [ret_dc, lhs])
     where
         isTuple [] = True
