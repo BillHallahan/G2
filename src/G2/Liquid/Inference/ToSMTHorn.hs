@@ -593,7 +593,7 @@ toSMTAST' m _ eapp@(F.EApp {}) | (F.ECst (F.EVar f) _:es) <- splitApplyApp eapp
         f_str = symbolStringCon f
     in
     case HM.lookup f_str m of
-        Just (f', _) -> Func (monoMeasNameStr f' arg_s) $ map (toSMTAST' m (SortDC "UNKNOWN" [])) es
+        Just (f', _) -> Func f' $ map (toSMTAST' m (SortDC "UNKNOWN" [])) es
         Nothing -> Func (monoMeasName f arg_s) $ map (toSMTAST' m (SortDC "UNKNOWN" [])) es
 toSMTAST' m _ eapp@(F.EApp {}) | (F.EVar f:es) <- splitApplyApp eapp
                                , m_arg_s <- map (predictSort m) es
@@ -603,7 +603,7 @@ toSMTAST' m _ eapp@(F.EApp {}) | (F.EVar f:es) <- splitApplyApp eapp
         f_str = symbolStringCon f
     in
     case HM.lookup f_str m of
-        Just (f', _) -> Func (monoMeasNameStr f' arg_s) $ map (toSMTAST' m (SortDC "UNKNOWN" [])) es
+        Just (f', _) -> Func f' $ map (toSMTAST' m (SortDC "UNKNOWN" [])) es
         Nothing -> Func (monoMeasName f arg_s) $ map (toSMTAST' m (SortDC "UNKNOWN" [])) es
     -- error $ "toSMTAST': \neapp = " ++ show eapp ++ "\nes = " ++ show es -- (func, xs@(_:_)) <- F.splitEApp eapp = error $ "toSMTAST': eapp = " ++ show eapp ++ "\nfunc = " ++ show func ++ "\nxs = " ++ show xs
 toSMTAST' m _ eapp@(F.EApp {}) =
