@@ -72,7 +72,7 @@ getFInfo infconfig cfg ghci = do
     putStrLn "used_eapps"
     print used_eapps
 
-    let meas_apps = mconcat $ map (measureApps senv) (HM.elems $ F.cm finfo)
+    let meas_apps = foldr (HM.unionWith (\xs ys -> nub $ xs ++ ys)) HM.empty $ map (measureApps senv) (HM.elems $ F.cm finfo)
         used_meas = filter (\M { msName = n } -> F.val n `elem` used_eapps) meas_spec
         used_meas_dc = usedMeasureDC meas_apps used_meas
         meas_decl = measureDecl meas_apps used_meas
@@ -86,6 +86,8 @@ getFInfo infconfig cfg ghci = do
 
     putStrLn "measureApps"
     print meas_apps
+
+    print $ map (\(n, l) -> (n, length l)) $ HM.toList comb_apps
 
     putStrLn "ws"
     print ws
@@ -238,12 +240,13 @@ measureApps bind subC =
         ret r = r
 
 usedMeasureDC :: AppSorts -> [Measure SpecType DataCon] -> AppSorts
-usedMeasureDC app_sorts = mconcat . (app_sorts:) . map (usedMeasureDC' app_sorts) 
+usedMeasureDC app_sorts = foldr (HM.unionWith (\xs ys -> nubBy (\(n1, _, _) (n2, _, _) -> n1 == n2) $ xs ++ ys)) HM.empty . (app_sorts:) . map (usedMeasureDC' app_sorts) 
 
 usedMeasureDC' :: AppSorts -> Measure SpecType DataCon -> AppSorts
 usedMeasureDC' app_sorts (M { msName = mn, msSort = st, msEqns = defs }) =
     case HM.lookup (F.val mn) app_sorts of
-        Just mns -> mconcat $ map
+        Just mns -> foldr (HM.unionWith (\xs ys -> nub $ xs ++ ys)) HM.empty
+                    $ map
                         (\(n, [arg_sort], ret_sort) ->
                             case F.unFApp arg_sort of
                                 (_:es) -> HM.fromListWith (\xs ys -> nub $ xs ++ ys)
