@@ -93,10 +93,10 @@ getFInfo infconfig cfg ghci = do
     --                 putStrLn $ "kvar = " ++ show kvar
     --             ++ "\nwrft = " ++ show (F.wrft wfc)
     --             ++ "\nwinfo = " ++ show (F.wrft wfc)) $ HM.toList ws
-    putStrLn "toHorn"
-    mapM_ (\(f, r, _) -> do
-            putStrLn $ "foralls = " ++ show f
-            putStrLn $ "rhs = " ++ show r) clauses
+    -- putStrLn "toHorn"
+    -- mapM_ (\(f, r, _) -> do
+    --         putStrLn $ "foralls = " ++ show f
+    --         putStrLn $ "rhs = " ++ show r) clauses
     putStrLn "SMT"
     let smt_headers = type_decl ++ callStack ++ kindRep ++ classesNum ++ classesOrd ++ tycon_dd ++ trName ++ mod_dd ++ srcLoc ++ char
                         ++ [Comment "Data"]
@@ -249,8 +249,8 @@ usedMeasureDC' app_sorts (M { msName = mn, msSort = st, msEqns = defs }) =
                                 (_:es) -> HM.fromListWith (\xs ys -> nub $ xs ++ ys)
                                         $ map (\d ->
                                                     let
-                                                        use_n = monoMeasNameStr (dcString $ ctor d) $ map lhSortToSMTSort (es ++ [ret_sort])
-                                                        tycon = tyConName . dataConTyCon $ ctor d
+                                                        tycon = F.symbolString . tyConName . dataConTyCon $ ctor d
+                                                        use_n = monoMeasNameStr (dcString $ ctor d) $ map lhSortToSMTSort es ++ [SortVar tycon]
                                                     in
                                                     trace ("----\ndcString $ ctor d = " ++ show (dcString $ ctor d)
                                                             ++ "\nes = " ++ show es ++ "\nret_sort" ++ show ret_sort ++ "\ntycon = " ++ show tycon ++ "\nuse_n = " ++ show use_n)
