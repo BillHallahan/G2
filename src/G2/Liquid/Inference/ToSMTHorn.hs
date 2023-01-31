@@ -72,7 +72,7 @@ getFInfo infconfig cfg ghci = do
     putStrLn "used_eapps"
     print used_eapps
 
-    let meas_apps = mconcat $ map (measureApps cleaned_senv) cleaned_cm
+    let meas_apps = mconcat $ map (measureApps senv) (HM.elems $ F.cm finfo)
         used_meas = filter (\M { msName = n } -> F.val n `elem` used_eapps) meas_spec
         used_meas_dc = usedMeasureDC meas_apps used_meas
         meas_decl = measureDecl meas_apps used_meas
@@ -232,7 +232,7 @@ measureApps bind subC =
         --                 ) 
         --                 (F.ECst arg1@(F.EVar _) arg_s)
         --       ) = Just (meas, [(monoMeasName meas arg_s, arg_s, ret_s)])
-        toMeasSymb _ = Nothing
+        toMeasSymb meas = trace ("-----\nmeas = " ++ show meas) Nothing
 
         ret (F.FFunc _ r) = ret r
         ret r = r
@@ -250,7 +250,10 @@ usedMeasureDC' app_sorts (M { msName = mn, msSort = st, msEqns = defs }) =
                                         $ map (\d ->
                                                     let
                                                         use_n = monoMeasNameStr (dcString $ ctor d) $ map lhSortToSMTSort (es ++ [ret_sort])
+                                                        tycon = tyConName . dataConTyCon $ ctor d
                                                     in
+                                                    trace ("----\ndcString $ ctor d = " ++ show (dcString $ ctor d)
+                                                            ++ "\nes = " ++ show es ++ "\nret_sort" ++ show ret_sort ++ "\ntycon = " ++ show tycon ++ "\nuse_n = " ++ show use_n)
                                                     (F.symbol (dcString $ ctor d), [(use_n, es, ret_sort)])) defs
                                 [] -> error "usedMeasureDC': unsupported") mns
         Nothing -> HM.empty
@@ -370,10 +373,23 @@ toSMTData' app_sorts v st =
         case HM.lookup (F.symbol v) app_sorts of
             Just as -> map (\(n, arg_srt, ret_srt) ->
                                 let
-                                    srt = map lhSortToSMTSort $ arg_srt ++ [ret_srt]
+                                    poly = map nameStableString $ specTypeToPoly $ F.val st
+                                    lh_srt = map lhSortToSMTSort $ arg_srt ++ [ret_srt]
+                                    poly_srt = zip poly lh_srt
+
+                                    dc_poly_srt = toSMTDataSort $ F.val st
+                                    dc_srt = map (flip (foldr (uncurry repPoly)) poly_srt) dc_poly_srt
                                 in
-                                DeclareFun n srt SortBool) as
+                                trace ("----\ntoSMTData':\npoly = " ++ show poly ++ "\nlh_srt = " ++ show lh_srt ++ "\ndc_poly_srt = " ++ show dc_poly_srt)
+                                DeclareFun n dc_srt SortBool) as
             Nothing -> [] -- [DeclareFun (symbolStringCon $ F.symbol v) (toSMTDataSort $ F.val st) SortBool]
+
+repPoly :: String -> Sort -> Sort -> Sort
+repPoly n rep SortInt = SortInt
+repPoly n rep v@(SortVar vn) | n == vn = rep
+                             | otherwise = v
+repPoly n rep (SortDC dc xs) = SortDC dc (map (repPoly n rep) xs)
+repPoly _ _ s = error $ "repPoly: unhandled " ++ show s
 
 toSMTDataSort :: SpecType -> [Sort]
 toSMTDataSort (RVar {rt_var = (RTV v)}) =
@@ -396,6 +412,10 @@ toSMTDataSort (RApp { rt_tycon = c, rt_args = as }) =
         "Tuple" -> [SortDC (n ++ show (length as)) es]
         _ -> [SortDC n es]
 toSMTDataSort st = error $ "toSMTDataSort: " ++ show st
+
+specTypeToPoly :: SpecType -> [Name]
+specTypeToPoly (RAllT { rt_tvbind = RTVar (RTV v) _, rt_ty = rty }) = V.varName v:specTypeToPoly rty
+specTypeToPoly _ = []
 
 toHorn :: F.BindEnv -> F.SimpC Cinfo -> ([(F.Symbol, F.SortedReft)], F.Expr, SMTAST)
 toHorn bind subC =
