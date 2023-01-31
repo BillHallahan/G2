@@ -44,8 +44,7 @@ getFInfo infconfig cfg ghci = do
     mapM_ (print . gsTcs . giSrc) ghci
     -- mapM_ (print . gsTconsP . gsName . giSpec) $ ghci
 
-    let meas = measureNames ghci
-        meas_spec = measureSpecs ghci
+    let meas_spec = measureSpecs ghci
 
     let data_decl = map (gsCtors . gsData . giSpec) $ ghci
         
@@ -66,7 +65,7 @@ getFInfo infconfig cfg ghci = do
         wf_decl = map (wfDecl cleaned_senv) $ HM.elems cleaned_wf
 
         cleaned_cm = map (elimPKVars ghc_types_pkvars) $ HM.elems $ F.cm finfo
-        clauses = map (toHorn meas cleaned_senv) cleaned_cm
+        clauses = map (toHorn cleaned_senv) cleaned_cm
 
         used_eapps = concatMap (funcEApps cleaned_senv) cleaned_cm
 
@@ -78,7 +77,9 @@ getFInfo infconfig cfg ghci = do
         used_meas_dc = usedMeasureDC meas_apps used_meas
         meas_decl = measureDecl meas_apps used_meas
 
-        data_dc = toSMTData (HM.unionWith (\xs ys -> nub $ xs ++ ys) meas_apps used_meas_dc) {- . filter (\(v, _) -> F.symbol v `elem` used_eapps) -} $ concat data_decl
+        comb_apps = HM.unionWith (\xs ys -> nub $ xs ++ ys) meas_apps used_meas_dc
+
+        data_dc = toSMTData  comb_apps {- . filter (\(v, _) -> F.symbol v `elem` used_eapps) -} $ concat data_decl
 
     putStrLn "used_meas_dc"
     print used_meas_dc
@@ -358,8 +359,8 @@ measureDefBody :: HM.HashMap SMTName (SMTName, Maybe Sort) -> Body -> (SMTAST, [
 measureDefBody m (E e) = measureDefExpr m e
 measureDefBody m (P e) = measureDefExpr m e
 
-measureDefExpr :: HM.HashMap SMTName (SMTName, Maybe Sort) -> F.Expr -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Maybe Sort))
-measureDefExpr = toSMTAST [] "fresh"
+measureDefExpr ::  HM.HashMap SMTName (SMTName, Maybe Sort) -> F.Expr -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Maybe Sort))
+measureDefExpr = toSMTAST "fresh"
 
 toSMTData :: AppSorts -> [(Var, LocSpecType)] -> [SMTHeader]
 toSMTData app_sorts = concatMap (uncurry (toSMTData' app_sorts))
@@ -396,8 +397,8 @@ toSMTDataSort (RApp { rt_tycon = c, rt_args = as }) =
         _ -> [SortDC n es]
 toSMTDataSort st = error $ "toSMTDataSort: " ++ show st
 
-toHorn :: [F.Symbol] -> F.BindEnv -> F.SimpC Cinfo -> ([(F.Symbol, F.SortedReft)], F.Expr, SMTAST)
-toHorn meas bind subC =
+toHorn :: F.BindEnv -> F.SimpC Cinfo -> ([(F.Symbol, F.SortedReft)], F.Expr, SMTAST)
+toHorn bind subC =
     let env = F._cenv subC
         -- lhs = F.clhs subC
         rhs = F._crhs subC
@@ -414,8 +415,8 @@ toHorn meas bind subC =
         ms = foldr (\(i, (n, sr)) m -> sortedReftToMap i n m sr) HM.empty $ zip [1..] foralls
         (lhs_smt, ms') = unzip
                       . map (\(smt, smts, m) -> (SmtAnd (smt:smts), m))
-                      $ map (\(i, (n, sr)) -> rrToSMTAST meas (show i) ms sr) $ zip [1..] foralls -- ++ [lhs]
-        (rhs_smt, rhs_smts, rhs_m) = toSMTAST meas "rhs_val" (mconcat ms') rhs
+                      $ map (\(i, (n, sr)) -> rrToSMTAST (show i) ms sr) $ zip [1..] foralls -- ++ [lhs]
+        (rhs_smt, rhs_smts, rhs_m) = toSMTAST "rhs_val" (mconcat ms') rhs
 
         forall = ForAll
                . nub
@@ -434,10 +435,10 @@ sortNameHasPrefix prefix eapp | F.FTC h:_ <- F.unFApp eapp =
     isPrefixOf prefix (symbolStringCon h_symb)
 sortNameHasPrefix _ _ = False
 
-rrToSMTAST :: [F.Symbol] -> String -> HM.HashMap SMTName (SMTName, Maybe Sort) -> F.SortedReft -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Maybe Sort))
-rrToSMTAST meas fresh m rr =
+rrToSMTAST :: String -> HM.HashMap SMTName (SMTName, Maybe Sort) -> F.SortedReft -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Maybe Sort))
+rrToSMTAST fresh m rr =
     let
-        (smt, smts, m') = toSMTAST meas fresh m (F.expr rr)
+        (smt, smts, m') = toSMTAST fresh m (F.expr rr)
     in
     (smt, smts, HM.union m m')
 
@@ -456,17 +457,17 @@ sortedReftToMap i symb1 m (F.RR { F.sr_sort = sort, F.sr_reft = F.Reft (symb2, _
         nme1 = symbolStringCon symb1
         nme2 = symbolStringCon symb2
 
-toSMTAST :: [F.Symbol] -> String -> HM.HashMap SMTName (SMTName, Maybe Sort) -> F.Expr -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Maybe Sort))
-toSMTAST meas fresh m e =
+toSMTAST :: String -> HM.HashMap SMTName (SMTName, Maybe Sort) -> F.Expr -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Maybe Sort))
+toSMTAST fresh m e =
     let
-        (e', es, m') = appRep meas fresh e
+        (e', es, m') = appRep fresh e
 
         union_m = m `HM.union` m'
     in
     (toSMTAST' union_m SortBool e', map (toSMTAST' union_m SortBool) es, m')
 
-appRep :: [F.Symbol] -> String -> F.Expr -> (F.Expr, [F.Expr], HM.HashMap SMTName (SMTName, Maybe Sort))
-appRep meas fresh e =
+appRep :: String -> F.Expr -> (F.Expr, [F.Expr], HM.HashMap SMTName (SMTName, Maybe Sort))
+appRep fresh e =
     let
         apps_rep = HM.fromList
                  . filter (relApp . fst)
