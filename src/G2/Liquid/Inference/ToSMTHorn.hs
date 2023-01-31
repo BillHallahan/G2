@@ -343,7 +343,6 @@ measureDef' orig_n n st lh_arg_srt def@(Def { binds = binds, body = bdy, ctor = 
         vs_m = HM.fromList $ (symbolStringCon orig_n, (n, Nothing)):(map (\(v, s) -> (v, (v, Just s))) vs)
         (lhs, rhs, ms) = measureDefBody vs_m bdy
     in
-    trace ("-------\nvs = " ++ show vs ++ "\nbind_vs = " ++ show bind_vs ++ "\nbinds = " ++ show binds)
     Assert $ ForAll vs (SmtAnd (dc_smt:rhs) :=> Func n [ret_dc, lhs])
     where
         isTuple [] = True
