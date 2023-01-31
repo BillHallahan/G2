@@ -234,7 +234,7 @@ measureApps bind subC =
         --                 ) 
         --                 (F.ECst arg1@(F.EVar _) arg_s)
         --       ) = Just (meas, [(monoMeasName meas arg_s, arg_s, ret_s)])
-        toMeasSymb meas = trace ("-----\nmeas = " ++ show meas) Nothing
+        toMeasSymb meas = Nothing
 
         ret (F.FFunc _ r) = ret r
         ret r = r
@@ -326,8 +326,12 @@ measureDef' orig_n n st lh_arg_srt def@(Def { binds = binds, body = bdy, ctor = 
 
         bind_vs = if isTuple real_dc_n
                     then zipWith (\(b, _) s -> (symbolStringCon b, s)) binds arg_srt
-                    else map (\(b, s) -> (symbolStringCon b, maybe (SortDC "BAD" []) (head . toSMTDataSort) s)) binds
-        bind_srts = if isTuple real_dc_n then map snd bind_vs else map snd bind_vs ++ arg_srt
+                    else if isLen n then zipWith (\(b, _) s -> (symbolStringCon b, s)) binds [head arg_srt, SortDC "_open_bracket__close_bracket_" [head arg_srt]]
+                        else map (\(b, s) -> (symbolStringCon b, maybe (SortDC "BAD" []) (head . toSMTDataSort) s)) binds
+        bind_srts = if isTuple real_dc_n
+                        then map snd bind_vs else
+                            if isLen n then arg_srt
+                                else map snd bind_vs ++ arg_srt
         
         dc_use_n = monoMeasNameStr dc_n (bind_srts ++ [SortVar $ F.symbolString dc_tycon_n])
         ret_dc = V "RET_LH_G2" (lhSortToSMTSort lh_arg_srt)
@@ -339,14 +343,17 @@ measureDef' orig_n n st lh_arg_srt def@(Def { binds = binds, body = bdy, ctor = 
         vs_m = HM.fromList $ (symbolStringCon orig_n, (n, Nothing)):(map (\(v, s) -> (v, (v, Just s))) vs)
         (lhs, rhs, ms) = measureDefBody vs_m bdy
     in
-    trace ("------\norig_n = " ++ show orig_n ++ "\narg_srt = " ++ show arg_srt ++ "\ndc_n = " ++ show dc_n ++ "\nbinds = " ++ show binds ++ "\nbind_srts = " ++ show bind_srts ++ "\ndc_tycon_n = " ++ show dc_tycon_n  ++ "\ndc_us_n = " ++ show dc_use_n)
-        Assert $ ForAll vs (SmtAnd (dc_smt:rhs) :=> Func n [ret_dc, lhs])
+    trace ("-------\nvs = " ++ show vs ++ "\nbind_vs = " ++ show bind_vs ++ "\nbinds = " ++ show binds)
+    Assert $ ForAll vs (SmtAnd (dc_smt:rhs) :=> Func n [ret_dc, lhs])
     where
         isTuple [] = True
         isTuple ('(':xs) = isTuple xs
         isTuple (')':xs) = isTuple xs
         isTuple (',':xs) = isTuple xs
         isTuple _ = False
+
+        isLen ('l':'e':'n':_) = True
+        isLen _ = False
 
 dcString :: DataCon -> String
 dcString dc =
@@ -380,7 +387,6 @@ toSMTData' app_sorts v st =
                                     dc_poly_srt = toSMTDataSort $ F.val st
                                     dc_srt = map (flip (foldr (uncurry repPoly)) poly_srt) dc_poly_srt
                                 in
-                                trace ("----\ntoSMTData':\npoly = " ++ show poly ++ "\nlh_srt = " ++ show lh_srt ++ "\ndc_poly_srt = " ++ show dc_poly_srt)
                                 DeclareFun n dc_srt SortBool) as
             Nothing -> [] -- [DeclareFun (symbolStringCon $ F.symbol v) (toSMTDataSort $ F.val st) SortBool]
 
@@ -510,7 +516,7 @@ appRep fresh e =
         relApp eapp | (F.ECst (F.EVar "strLen") _, _) <- F.splitEApp eapp = True
         relApp eapp | (F.ECst _ s, es) <- F.splitEApp eapp = length (splitFFunc s) == length es
         relApp eapp | (F.EVar _, es) <- F.splitEApp eapp = True
-        relApp eapp = trace ("--------\napps_rep eapp = " ++ show eapp) False
+        relApp eapp = False
 
 getSort :: F.Expr -> Maybe F.Sort
 getSort eapp@(F.EApp e _) =
