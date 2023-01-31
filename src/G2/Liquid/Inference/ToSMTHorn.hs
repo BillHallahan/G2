@@ -489,7 +489,8 @@ appRep fresh e =
         -- relApp eapp | (F.ECst (F.EVar "apply") s, es) <- F.splitEApp eapp = length (splitFFunc s) == length es
         relApp eapp | (F.ECst (F.EVar "strLen") _, _) <- F.splitEApp eapp = True
         relApp eapp | (F.ECst _ s, es) <- F.splitEApp eapp = length (splitFFunc s) == length es
-        relApp _ = False
+        relApp eapp | (F.EVar _, es) <- F.splitEApp eapp = True
+        relApp eapp = trace ("--------\napps_rep eapp = " ++ show eapp) False
 
 getSort :: F.Expr -> Maybe F.Sort
 getSort eapp@(F.EApp e _) =
