@@ -242,7 +242,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                            -- collect all suitable pairs for potential lemmas
                            | not (hasFuncType e1)
                            , not (hasFuncType e2)
-                           , not active
+                           --, not active
                            , Var (Id m1 _):_ <- unApp (modifyASTs stripTicks e1)
                            , Var (Id m2 _):_ <- unApp (modifyASTs stripTicks e2)
                            , nameOcc m1 == nameOcc m2

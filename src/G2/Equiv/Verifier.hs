@@ -752,6 +752,17 @@ isUnresolved :: Marker -> Bool
 isUnresolved (Marker _ (Unresolved _)) = True
 isUnresolved _ = False
 
+-- TODO all lemma filtering should happen here
+-- earliest state is at the back
+isFromLemma :: Marker -> Bool
+isFromLemma (LMarker _) = True
+isFromLemma (Marker (sh1, sh2) _) =
+  case (reverse $ history sh1, reverse $ history sh2) of
+    (s1:_, s2:_) -> let f1 = folder_name $ track s1
+                        f2 = folder_name $ track s2
+                    in f1 /= "" || f2 /= ""
+    _ -> False
+
 checkRule :: Config
           -> NebulaConfig
           -> State t
@@ -795,7 +806,9 @@ checkRule config nc init_state bindings total rule = do
            else reducedGuide (reverse w)
   let w' = if only_unresolved $ print_summary nc
            then filter isUnresolved w
-           else w
+           else if have_lemma_details $ print_summary nc
+           then w
+           else filter (not . isFromLemma) w
   if have_summary $ print_summary nc then do
     putStrLn "--- SUMMARY ---"
     _ <- mapM (putStrLnIfNonEmpty . (summarize (print_summary nc) pg ns sym_ids)) w'

@@ -248,6 +248,15 @@ scrutinees.
 I think p04 is an easier target.  I can see the spots where lemma
 substitution would be helpful, but the things that get generated as
 lemma candidates aren't really true.
+The lemmas for count applications won't align with each other, and the
+natural numbers won't be equivalent either.
+I need a completely different approach, because I can't carve out pairs of
+sub-expressions in corresponding locations that are equivalent.
+On second thought, would things work out if I got rid of the main-path
+requirement for lemma generation and usage?
+It works if I get rid of that requirement, but it slows Nebula down
+considerably.  Perhaps I can make lemma usage more generous while still
+imposing some restrictions.
 -}
 
 -- TODO do I have functions like this already?
