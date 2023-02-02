@@ -76,6 +76,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | ArraySelect !SMTAST !SMTAST
 
             | Func SMTName ![SMTAST] -- ^ Interpreted function
+            | AsSortedFunc SMTName Sort ![SMTAST] -- ^ Interpreted function
 
             | StrLen !SMTAST
 

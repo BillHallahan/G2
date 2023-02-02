@@ -530,6 +530,11 @@ toSolverAST (ArrayStore arr ind val) =
     function3 "store" (toSolverAST arr) (toSolverAST ind) (toSolverAST val)
 
 toSolverAST (Func n xs) = smtFunc n $ map (toSolverAST) xs
+toSolverAST (AsSortedFunc n s xs) =
+    let
+        as_n = "(as " <> TB.string n <> " " <> sortName s <> ")" 
+    in
+    smtFunc (T.unpack $ TB.run as_n) $ map toSolverAST xs
 
 toSolverAST (StrLen x) = function1 "str.len" $ toSolverAST x
 toSolverAST (ItoR x) = function1 "to_real" $ toSolverAST x

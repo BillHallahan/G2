@@ -322,7 +322,8 @@ measureDef' type_to_meas orig_n n st lh_arg_srt def@(Def { binds = binds, body =
         dc_n = dcString dc
         dc_tycon_n = tyConName $ dataConTyCon dc
 
-        arg_srt = case lhSortToSMTSort lh_arg_srt of
+        dc_arg_srt = lhSortToSMTSort lh_arg_srt
+        arg_srt = case dc_arg_srt of
                     SortDC _ xs -> xs
                     _ -> error "measureDef': unsupported"
         arg_poly_srt = case toSMTDataSort st of
@@ -350,7 +351,7 @@ measureDef' type_to_meas orig_n n st lh_arg_srt def@(Def { binds = binds, body =
         (lhs, rhs, ms) = measureDefBody vs_m bdy
 
         meas_srt = HM.lookup (symbolStringCon dc_tycon_n) type_to_meas
-        meas_link = maybe [] (measLink (symbolStringCon orig_n) n (symbolStringCon dc_tycon_n)) meas_srt
+        meas_link = maybe [] (measLink (symbolStringCon orig_n) n (symbolStringCon dc_tycon_n) dc_arg_srt) meas_srt
     in
     Assert (ForAll vs (SmtAnd (dc_smt:rhs) :=> Func n [ret_dc, lhs])):meas_link
     where
@@ -363,16 +364,16 @@ measureDef' type_to_meas orig_n n st lh_arg_srt def@(Def { binds = binds, body =
         isLen ('l':'e':'n':_) = True
         isLen _ = False
 
-measLink :: String -> String -> String -> [(String, Sort)] -> [SMTHeader]
-measLink orig_n new_n dc_n type_to_meas
+measLink :: String -> String -> String -> Sort -> [(String, Sort)] -> [SMTHeader]
+measLink orig_n new_n dc_n dc_sort type_to_meas
     | Just (srt, i) <- lookup orig_n $ zipWith (\(n, s) i -> (n, (s, i))) type_to_meas [1..] =
         let
             bnds = map (\(n, s) -> ("x_" ++ n, s)) type_to_meas
-            dc = Func dc_n $ map (uncurry V) bnds
+            dc = AsSortedFunc dc_n dc_sort $ map (uncurry V) bnds
             var = V ("x_" ++ orig_n) srt
         in
         [Assert $ ForAll bnds (Func new_n [dc, var])] 
-measLink _ _ _ _ = []
+measLink _ _ _ _ _ = []
 
 dcString :: DataCon -> String
 dcString dc =
