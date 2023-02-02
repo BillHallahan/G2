@@ -370,9 +370,13 @@ measLink orig_n new_n dc_n dc_sort type_to_meas
         let
             bnds = map (\(n, s) -> ("x_" ++ n, s)) type_to_meas
             dc = AsSortedFunc dc_n dc_sort $ map (uncurry V) bnds
-            var = V ("x_" ++ orig_n) srt
+            var_x = V ("x_" ++ orig_n) srt
+            var_y = V ("y_" ++ orig_n) srt
         in
-        [Assert $ ForAll bnds (Func new_n [dc, var])] 
+        -- The measure must return the value in the data constructor
+        [ Assert $ ForAll bnds (Func new_n [dc, var_x])
+        -- If the measure returns a value, it must be the value in the data constructor
+        , Assert $ ForAll (("y_" ++ orig_n, srt):bnds) (Func new_n [dc, var_y] :=> (var_x := var_y))] 
 measLink _ _ _ _ _ = []
 
 dcString :: DataCon -> String
