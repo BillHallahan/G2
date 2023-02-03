@@ -433,7 +433,12 @@ toSMTData' meas app_sorts v st =
             Nothing -> [] -- [DeclareFun (symbolStringCon $ F.symbol v) (toSMTDataSort $ F.val st) SortBool]
 
 linkDataConsToMeasure :: [Measure SpecType DataCon] -> [SMTHeader]
-linkDataConsToMeasure ms = trace (show ms) []
+linkDataConsToMeasure (m@(M { msEqns = eqns }):ms) | ds <- map ctor eqns =
+    let
+        dc_matched_eqs = map (\d -> find (\d' -> ctor d' == d) eqns) ds
+    in
+    trace (show dc_matched_eqs) []
+linkDataConsToMeasure _ = []
 
 repPoly :: String -> Sort -> Sort -> Sort
 repPoly n rep SortInt = SortInt
