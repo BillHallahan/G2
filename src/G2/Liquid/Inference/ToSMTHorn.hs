@@ -173,15 +173,11 @@ smtTypeDecl :: [Measure SpecType DataCon] -> ([SMTHeader], TypeToMeasure)
 smtTypeDecl ms =
     let
         ms_def = filter (isJust . measArg) ms
-        all_types = groupBy (\m1 -> cmpEq . comparing measArg m1) $ sortBy (comparing measArg) ms
+        all_types = groupMeasByType ms
 
         (headers, type_to_meas) = unzip $ mapMaybe toSMTDataSort' all_types
     in
     (headers, HM.fromList type_to_meas)
-    where
-
-        cmpEq EQ = True
-        cmpEq _ = False
 
 toSMTDataSort' :: [Measure SpecType DataCon] -> Maybe (SMTHeader, (String, [(String, Sort)]))
 toSMTDataSort' ms@(m:_) =
@@ -208,11 +204,16 @@ toSMTDataSort' ms@(m:_) =
         Nothing -> Nothing
 toSMTDataSort' [] = Nothing
 
+groupMeasByType :: [Measure SpecType DataCon] -> [[Measure SpecType DataCon]]
+groupMeasByType = groupBy (\m1 -> cmpEq . comparing measArg m1) . sortBy (comparing measArg)
+    where
+        cmpEq EQ = True
+        cmpEq _ = False
+
 measArg :: Measure ty a -> Maybe a
 measArg m = case msEqns m of
                 [] -> Nothing
                 (h:_) -> Just $ ctor h
-
 
 type AppSorts = HM.HashMap F.Symbol [(String, [F.Sort], F.Sort)]
 
@@ -293,10 +294,13 @@ allEApps bind subC =
     concatMap topEApps $ rhs:forall_expr
 
 measureDecl :: TypeToMeasure -> AppSorts -> [Measure SpecType DataCon] -> [SMTHeader]
-measureDecl type_to_meas mas = concatMap (measureDecl' type_to_meas mas)
+measureDecl type_to_meas mas = concatMap (measureDecl' type_to_meas mas) . groupMeasByType
 
-measureDecl' :: TypeToMeasure -> AppSorts -> Measure SpecType DataCon -> [SMTHeader]
-measureDecl' type_to_meas mas (M { msName = mn, msSort = st, msEqns = defs }) =
+measureDecl' :: TypeToMeasure -> AppSorts -> [Measure SpecType DataCon] -> [SMTHeader]
+measureDecl' type_to_meas mas = concatMap (measureDecl'' type_to_meas mas)
+
+measureDecl'' :: TypeToMeasure -> AppSorts -> Measure SpecType DataCon -> [SMTHeader]
+measureDecl'' type_to_meas mas (M { msName = mn, msSort = st, msEqns = defs }) =
     case HM.lookup (F.val mn) mas of
         Just mns -> concatMap
                         (\(n, [arg_sort], ret_sort) ->
@@ -304,7 +308,7 @@ measureDecl' type_to_meas mas (M { msName = mn, msSort = st, msEqns = defs }) =
                                 def_clauses = measureDef type_to_meas (F.val mn) n st arg_sort defs
                                 link = measLink type_to_meas (F.val mn) n arg_sort (ctor $ head defs)
                             in
-                            DeclareFun n [lhSortToSMTSort arg_sort, lhSortToSMTSort ret_sort] SortBool:link) mns
+                            DeclareFun n [lhSortToSMTSort arg_sort, lhSortToSMTSort ret_sort] SortBool:def_clauses ++ link) mns
         Nothing ->
             let
                 srt = toSMTDataSort st
@@ -426,7 +430,7 @@ toSMTData' meas app_sorts v st =
                                     dc_srt = map (flip (foldr (uncurry repPoly)) poly_srt) dc_poly_srt
 
                                     tc_name = symbolStringCon . tyConName . dataConTyCon
-                                    link_meas = linkDataConsToMeasure $ filter (\m -> fmap tc_name (measArg m) == Just ret_srt_nme) meas
+                                    link_meas = [] -- linkDataConsToMeasure $ filter (\m -> fmap tc_name (measArg m) == Just ret_srt_nme) meas
                                 in
                                 -- trace ("link_meas = " ++ show link_meas ++ "\nx = " ++ show (map (\m -> fmap tc_name (measArg m)) meas) ++ "\nret_srt_nme = " ++ show ret_srt_nme)
                                 DeclareFun n dc_srt SortBool:link_meas) as
