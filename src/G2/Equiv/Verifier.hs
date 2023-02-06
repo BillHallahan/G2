@@ -723,6 +723,7 @@ cleanState state bindings =
 -- If the Marker list is reversed from how it was when it was fetched, then
 -- we're guaranteed to get something that came from the main proof rather than
 -- a lemma.  Lemma examination happens first within iterations.
+-- TODO I shouldn't need to search the reversed list multiple times over
 writeCX :: [Marker] ->
            PrettyGuide ->
            HS.HashSet Name ->
@@ -742,12 +743,13 @@ writeCX (_:ms) pg ns sym_ids init_pair =
 -- the main expression pair hits a counterexample, that counterexample
 -- will be the final counterexample in the Marker list (alternatively, the
 -- first counterexample in the reversed list that this takes as input).
--- Lemma  counterexamples appear in the same list and are not distinguished
+-- Lemma counterexamples appear in the same list and are not distinguished
 -- in any special way, but, in each loop iteration, lemma execution happens
 -- before execution on the main expression pair.  If the main execution
 -- hits a counterexample, the iteration when it happens will be the final
 -- loop iteration, so we have an indirect guarantee that the counterexample
 -- covered here will not be one from a lemma.
+{-
 reducedGuide :: [Marker] -> PrettyGuide
 reducedGuide [] = error "No Counterexample"
 reducedGuide ((Marker _ m):ms) = case m of
@@ -756,6 +758,19 @@ reducedGuide ((Marker _ m):ms) = case m of
   CycleFound _ -> mkPrettyGuide m
   _ -> reducedGuide ms
 reducedGuide (_:ms) = reducedGuide ms
+-}
+
+getMarkerCX :: [Marker] -> [Marker]
+getMarkerCX [] = []
+getMarkerCX (mk@(Marker _ m):ms) =
+  if isFromLemma mk
+  then getMarkerCX ms
+  else case m of
+    NotEquivalent _ -> [mk]
+    SolverFail _ -> [mk]
+    CycleFound _ -> [mk]
+    _ -> getMarkerCX ms
+getMarkerCX (_:ms) = getMarkerCX ms
 
 putStrLnIfNonEmpty :: String -> IO ()
 putStrLnIfNonEmpty "" = return ()
@@ -816,14 +831,14 @@ checkRule config nc init_state bindings total rule = do
              emptyLemmas
              [(rewrite_state_l'', rewrite_state_r'')]
              bindings'' config nc sym_ids 0 (limit nc)
-  let pg = if have_summary $ print_summary nc
-           then mkPrettyGuide w-- $ map (\(Marker _ am) -> am) w
-           else reducedGuide (reverse w)
   let w' = if only_unresolved $ print_summary nc
            then filter isUnresolved w
            else if have_lemma_details $ print_summary nc
            then w
            else filter (not . isFromLemma) w
+  let pg = if have_summary $ print_summary nc
+           then mkPrettyGuide $ (getMarkerCX $ reverse w) ++ w'-- $ map (\(Marker _ am) -> am) w
+           else mkPrettyGuide $ getMarkerCX $ reverse w
   if have_summary $ print_summary nc then do
     putStrLn "--- SUMMARY ---"
     _ <- mapM (putStrLnIfNonEmpty . (summarize (print_summary nc) pg ns sym_ids)) w'
