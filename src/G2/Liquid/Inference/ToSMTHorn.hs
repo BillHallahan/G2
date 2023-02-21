@@ -80,7 +80,7 @@ getFInfo infconfig cfg ghci = do
 
         comb_apps = HM.unionWith (\xs ys -> nub $ xs ++ ys) meas_apps used_meas_dc
 
-        data_dc = toSMTData meas_spec comb_apps {- . filter (\(v, _) -> F.symbol v `elem` used_eapps) -} $ concat data_decl
+        data_dc = toSMTData type_to_meas used_meas comb_apps {- . filter (\(v, _) -> F.symbol v `elem` used_eapps) -} $ concat data_decl
 
     putStrLn "used_meas_dc"
     print used_meas_dc
@@ -305,7 +305,7 @@ measureDecl'' type_to_meas mas (M { msName = mn, msSort = st, msEqns = defs }) =
         Just mns -> concatMap
                         (\(n, [arg_sort], ret_sort) ->
                             let
-                                def_clauses = measureDef type_to_meas (F.val mn) n st arg_sort defs
+                                def_clauses = [] -- measureDef type_to_meas (F.val mn) n st arg_sort defs
                                 link = measLink type_to_meas (F.val mn) n arg_sort (ctor $ head defs)
                             in
                             DeclareFun n [lhSortToSMTSort arg_sort, lhSortToSMTSort ret_sort] SortBool:def_clauses ++ link) mns
@@ -318,17 +318,18 @@ measureDecl'' type_to_meas mas (M { msName = mn, msSort = st, msEqns = defs }) =
     where
         repSort s1 (_:s2) = lhSortToSMTSort s1:s2
 
-measureDef :: TypeToMeasure -> F.Symbol -> String -> SpecType -> F.Sort -> [Def SpecType DataCon] -> [SMTHeader]
-measureDef type_to_meas orig_n n st arg_srt = concatMap (measureDef' type_to_meas orig_n n st arg_srt)
+-- measureDef :: TypeToMeasure -> F.Symbol -> String -> SpecType -> F.Sort -> [Def SpecType DataCon] -> [SMTHeader]
+-- measureDef type_to_meas orig_n n st arg_srt = concatMap (measureDef' type_to_meas orig_n n st arg_srt)
 
-measureDef' :: TypeToMeasure -> F.Symbol -> String -> SpecType -> F.Sort -> Def SpecType DataCon -> [SMTHeader]
+measureDef' :: TypeToMeasure -> F.Symbol -> String -> SpecType -> Sort -> Def SpecType DataCon
+            -> ((SMTName, Sort), [(SMTName, Sort)], [(SMTName, Sort)], SMTAST, [SMTAST])-- [SMTHeader]
 measureDef' type_to_meas orig_n n st lh_arg_srt def@(Def { binds = binds, body = bdy, ctor = dc }) =
     let
         real_dc_n = occNameString . nameOccName $ dataConName dc
         dc_n = dcString dc
         dc_tycon_n = tyConName $ dataConTyCon dc
 
-        dc_arg_srt = lhSortToSMTSort lh_arg_srt
+        dc_arg_srt = lh_arg_srt
         arg_srt = case dc_arg_srt of
                     SortDC _ xs -> xs
                     _ -> error "measureDef': unsupported"
@@ -347,17 +348,18 @@ measureDef' type_to_meas orig_n n st lh_arg_srt def@(Def { binds = binds, body =
                                 else map snd bind_vs ++ arg_srt
         
         dc_use_n = monoMeasNameStr dc_n (bind_srts ++ [SortVar $ F.symbolString dc_tycon_n])
-        ret_dc = V "RET_LH_G2" (lhSortToSMTSort lh_arg_srt)
+        ret_dc = V "RET_LH_G2" lh_arg_srt
         dc_smt = Func dc_use_n $ map (uncurry V) bind_vs ++ [ret_dc]
 
         extra_vs = map (\(n, _) -> (n, ret_srt)) $ HM.elems ms
-        vs = ("RET_LH_G2", lhSortToSMTSort lh_arg_srt):bind_vs ++ extra_vs
+        vs = ("RET_LH_G2", lh_arg_srt):bind_vs ++ extra_vs
 
         vs_m = HM.fromList $ (symbolStringCon orig_n, (n, Nothing)):(map (\(v, s) -> (v, (v, Just s))) vs)
         (lhs, rhs, ms) = measureDefBody vs_m bdy
     in
-    [ Assert (ForAll vs (SmtAnd (dc_smt:rhs) :=> Func n [ret_dc, lhs]))
-    , Assert (ForAll vs (SmtAnd [dc_smt, Func n [ret_dc, lhs]] :=> SmtAnd rhs))]
+    (("RET_LH_G2", lh_arg_srt), bind_vs, extra_vs, lhs, rhs)
+    -- [ Assert (ForAll vs (SmtAnd (dc_smt:rhs) :=> Func n [ret_dc, lhs]))
+    -- , Assert (ForAll vs (SmtAnd [dc_smt, Func n [ret_dc, lhs]] :=> SmtAnd rhs))]
     where
         isTuple [] = True
         isTuple ('(':xs) = isTuple xs
@@ -410,11 +412,11 @@ measureDefBody m (P e) = measureDefExpr m e
 measureDefExpr ::  HM.HashMap SMTName (SMTName, Maybe Sort) -> F.Expr -> (SMTAST, [SMTAST], HM.HashMap SMTName (SMTName, Maybe Sort))
 measureDefExpr = toSMTAST "fresh"
 
-toSMTData :: [Measure SpecType DataCon] -> AppSorts -> [(Var, LocSpecType)] -> [SMTHeader]
-toSMTData meas app_sorts = concatMap (uncurry (toSMTData' meas app_sorts))
+toSMTData :: TypeToMeasure -> [Measure SpecType DataCon] -> AppSorts -> [(Var, LocSpecType)] -> [SMTHeader]
+toSMTData type_to_meas meas app_sorts = concatMap (uncurry (toSMTData' type_to_meas meas app_sorts))
 
-toSMTData' :: [Measure SpecType DataCon] -> AppSorts -> Var -> LocSpecType -> [SMTHeader]
-toSMTData' meas app_sorts v st =
+toSMTData' :: TypeToMeasure -> [Measure SpecType DataCon] -> AppSorts -> Var -> LocSpecType -> [SMTHeader]
+toSMTData' type_to_meas meas app_sorts v st =
         case HM.lookup (F.symbol v) app_sorts of
             Just as -> concatMap (\(n, arg_srt, ret_srt) ->
                                 let
@@ -430,19 +432,41 @@ toSMTData' meas app_sorts v st =
                                     dc_srt = map (flip (foldr (uncurry repPoly)) poly_srt) dc_poly_srt
 
                                     tc_name = symbolStringCon . tyConName . dataConTyCon
-                                    link_meas = [] -- linkDataConsToMeasure $ filter (\m -> fmap tc_name (measArg m) == Just ret_srt_nme) meas
+                                    link_meas = linkDataConsToMeasure type_to_meas v n arg_srt $ filter (\m -> fmap tc_name (measArg m) == Just ret_srt_nme) meas
                                 in
                                 -- trace ("link_meas = " ++ show link_meas ++ "\nx = " ++ show (map (\m -> fmap tc_name (measArg m)) meas) ++ "\nret_srt_nme = " ++ show ret_srt_nme)
                                 DeclareFun n dc_srt SortBool:link_meas) as
             Nothing -> [] -- [DeclareFun (symbolStringCon $ F.symbol v) (toSMTDataSort $ F.val st) SortBool]
 
-linkDataConsToMeasure :: [Measure SpecType DataCon] -> [SMTHeader]
-linkDataConsToMeasure (m@(M { msEqns = eqns }):ms) | ds <- map ctor eqns =
+linkDataConsToMeasure :: TypeToMeasure -> Var -> String -> [F.Sort] -> [Measure SpecType DataCon] -> [SMTHeader]
+linkDataConsToMeasure type_to_meas v n arg_srt (m@(M { msName = mn, msSort = st, msEqns = eqns }):ms) | ds <- map ctor eqns =
     let
-        dc_matched_eqs = map (\d -> find (\d' -> ctor d' == d) eqns) ds
+        dc_matched_eqs = filter (relDC (F.symbolString $ F.symbol v))
+                       . catMaybes
+                       $ map (\d -> find (\d' -> ctor d' == d) eqns) ds
+        meas_def = map (measureDef' type_to_meas (F.val mn) n st (head $ toSMTDataSort st)) dc_matched_eqs
+
+        meas_md = nub $ concatMap (\(_, _, md, smt, _) -> md) meas_def
+        meas_eq = map (\(_, _, md, smt, _) -> smt) meas_def
+        -- eqs = map (toSMTAST "link_dc" HM.empty . (\(E e) -> e) . body) $ catMaybes dc_matched_eqs 
     in
-    trace (show dc_matched_eqs) []
-linkDataConsToMeasure _ = []
+    -- trace ("v = " ++ show v ++ "\ndc_matched_eqs = " ++ show dc_matched_eqs ++ "\nmeas_def = " ++ show meas_def)
+    case meas_md of
+        [] -> [Assert $ Func n meas_eq]
+        _ -> [Assert . ForAll meas_md $ Func n (map (uncurry V) meas_md) :=> Func n meas_eq]
+linkDataConsToMeasure _ _ _ _ _ = []
+
+-- measureDef' :: TypeToMeasure -> F.Symbol -> String -> SpecType -> F.Sort -> Def SpecType DataCon
+            -- -> ([(SMTName, Sort)], SMTAST, [SMTAST])-- [SMTHeader]
+
+relDC :: SMTName -> Def SpecType DataCon -> Bool
+relDC n (Def { ctor = dc }) =
+    let
+        real_dc_n = occNameString . nameOccName $ dataConName dc
+        dc_n = dcString dc
+        dc_tycon_n = tyConName $ dataConTyCon dc
+    in
+    dc_n == n
 
 repPoly :: String -> Sort -> Sort -> Sort
 repPoly n rep SortInt = SortInt
