@@ -577,8 +577,8 @@ toHorn bind subC =
         rhs = F._crhs subC
 
         foralls_binds = map (`F.lookupBindEnv` bind) (elemsIBindEnv env)
-        foralls = -- filter (\(n, _) -> n /= "GHC.Types.True" && n /= "GHC.Types.False")
-                  filter (not . F.isFunctionSortedReft . snd)
+        foralls =   filter (\(n, _) -> n /= "GHC.Types.True" && n /= "GHC.Types.False")
+                  . filter (not . F.isFunctionSortedReft . snd)
                 -- . filter (not . sortNameHasPrefix "GHC.Types" . F.sr_sort . snd)
                 -- . filter (not . sortNameHasPrefix "GHC.Classes.Ord" . F.sr_sort . snd)
                 -- . filter (not . sortNameHasPrefix "GHC.Num" . F.sr_sort . snd)
@@ -625,6 +625,7 @@ sortedReftToMap i symb1 m (F.RR { F.sr_sort = sort, F.sr_reft = F.Reft (symb2, _
             smt_nme = nme2 ++ "_G2_" ++ show i
             smt_sort = Just $ lhSortToSMTSort sort
         in
+        trace ("------\nnme1 = " ++ show nme1 ++ "\nnme2 = " ++ show nme2 ++ "\nsmt_nme = " ++ show smt_nme ++ "\nsmt_sort = " ++ show smt_sort)
         HM.insert nme1 (smt_nme, smt_sort) $ HM.insert nme2 (smt_nme, smt_sort) m
     where
         nme1 = symbolStringCon symb1
@@ -725,11 +726,11 @@ mapRightEApp _ _ = []
 toSMTAST' :: HM.HashMap SMTName (SMTName, Maybe Sort) -> Sort -> F.Expr -> SMTAST
 toSMTAST' m sort (F.EVar v) | Just (fv, _) <- HM.lookup (symbolStringCon v) m = V fv sort
                             | otherwise = V (symbolStringCon v) sort
-toSMTAST' _ _ (F.ESym (F.SL v)) =
+toSMTAST' _ sort (F.ESym (F.SL v)) =
     let
         list = symbolStringCon "[]"
     in
-    Func list [VInt $ toInteger (T.length v)]
+    AsSortedFunc list sort [VInt $ toInteger (T.length v)]
 toSMTAST' _ _ (F.ECon (F.I i)) = VInt i
 toSMTAST' m sort (F.EBin op e1 e2) =
     toSMTASTOp op (toSMTAST' m sort e1) (toSMTAST' m sort e2)
@@ -852,7 +853,6 @@ toSMTASTOp op = error $ "toSMTASTOp: unsupported " ++ show op
 
 lhSortToSMTSort :: F.Sort -> Sort
 lhSortToSMTSort F.FInt = SortInt
-lhSortToSMTSort (F.FObj s) = SortVar (symbolStringCon s)
 lhSortToSMTSort (F.FObj s) = SortVar (symbolStringCon s)
 lhSortToSMTSort eapp | F.FTC h:es <- F.unFApp eapp =
     let
