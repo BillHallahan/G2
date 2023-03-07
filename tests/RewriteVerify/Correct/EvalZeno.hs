@@ -679,6 +679,9 @@ walkNatList xs a = case xs of
 -- double-sided finiteness
 -- (3/18) double-sided p07fin and p08fin do not pass
 -- double-sided p06fin and p10fin do pass
+-- TODO this is not identical to the suite in EvalZeno
+-- For some things in the past, I assumed that it was
+-- TODO I changed props 65 and 69 without realizing the intent of the design here
 {-# RULES
 "p03finA" forall n xs ys . walkNatList xs (prop_03 n xs ys) = walkNatList xs True
 "p03finB" forall n xs ys . walkNat n (prop_03 n xs ys) = walkNat n (walkList xs True)
@@ -718,11 +721,11 @@ walkNatList xs a = case xs of
 "p62fin" forall xs x . walkNatList xs (prop_62 xs x) = walkNatList xs True
 "p63fin" forall n xs . walkNatList xs (prop_63 n xs) = walkNatList xs True
 "p64fin" forall x xs . walkList xs (last (xs ++ [x])) = walkList xs x
-"p65fin" forall i m . prop_65 i m = walkNat i True
+"p65fin" forall i m . walkNat i (prop_65 i m) = walkNat i True
 "p66fin" forall p xs . walkList xs (prop_66 p xs) = walkList xs True
 "p68finA" forall n xs . walkNat n (walkList xs (prop_68 n xs)) = walkNat n $ walkList xs True
 "p68finB" forall n xs . walkNatList xs (prop_68 n xs) = walkNatList xs True
-"p69fin" forall n m . prop_69 n m = walkNat n True
+"p69fin" forall n m . walkNat n (prop_69 n m) = walkNat n True
 "p70finA" forall m n . walkNat m (prop_70 m n) = walkNat m True
 "p70finB" forall m n . walkNat n (prop_70 m n) = walkNat n True
 "p71finA" forall x y xs . walkNat x (walkNatList xs (prop_71 x y xs)) = walkNat x $ walkNatList xs True
