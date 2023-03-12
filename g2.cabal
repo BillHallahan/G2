@@ -228,19 +228,10 @@ library
                        , time >= 1.6 && <= 1.13
                        , unordered-containers >= 0.2.10.0 && < 0.3
   
-  if flag(support-lh) && impl(ghc < 9)
-    build-depends:       liquidhaskell == 0.8.10.2
-                       , liquid-fixpoint >= 0.7.0.7 && < 0.9
-                       , Diff == 0.3.4
-
   if flag(support-lh) && impl(ghc < 9.2)
-    build-depends:       liquidhaskell == 0.9.0.2.1
-                       , liquid-fixpoint >= 0.9 && < 0.10
+    build-depends:       liquidhaskell >= 0.8.10.2 && <= 0.9.0.2.1
+                       , liquid-fixpoint >= 0.7.0.7 && < 0.10
                        , Diff == 0.3.4
-
-  if flag(support-lh) && impl(ghc < 8.6)
-    build-depends:       text == 1.2.3.1
-                       , liquid-fixpoint >= 0.7.0.7 && <= 0.8.0.2
 
   default-language:    Haskell2010
   ghc-options:         -Wall
