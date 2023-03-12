@@ -47,7 +47,12 @@ import G2.Liquid.Types (GhcInfo (..), GhcSpec (..))
 import Language.Haskell.Liquid.Types (GhcInfo (..), GhcSpec (..))
 #endif
 import qualified Language.Haskell.Liquid.Types as LH
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+import GHC.Types.Var as V
+#else
 import Var as V
+#endif
 
 import Control.Monad.Reader
 import Control.Monad.State.Lazy

@@ -128,7 +128,7 @@ library
                        , G2.Translation
                        , G2.Translation.Cabal.Cabal
                        , G2.Translation.GHC
-  if flag(support-lh) && impl(ghc < 9)
+  if flag(support-lh) && impl(ghc < 9.2)
       exposed-modules: 
                            G2.Liquid.AddCFBranch
                          , G2.Liquid.AddLHTC
@@ -233,6 +233,11 @@ library
                        , liquid-fixpoint >= 0.7.0.7 && < 0.9
                        , Diff == 0.3.4
 
+  if flag(support-lh) && impl(ghc < 9.2)
+    build-depends:       liquidhaskell == 0.9.0.2.1
+                       , liquid-fixpoint >= 0.9 && < 0.10
+                       , Diff == 0.3.4
+
   if flag(support-lh) && impl(ghc < 8.6)
     build-depends:       text == 1.2.3.1
                        , liquid-fixpoint >= 0.7.0.7 && <= 0.8.0.2
@@ -270,7 +275,7 @@ executable G2
   main-is:             Main.hs
 
 executable G2LH
-  if flag(support-lh) && impl(ghc < 9)
+  if flag(support-lh) && impl(ghc < 9.2)
     buildable:         True
   else
     buildable:         False
@@ -291,7 +296,7 @@ executable G2LH
   main-is:             Main.hs
 
 executable Inference
-  if flag(support-lh) && impl(ghc < 9)
+  if flag(support-lh) && impl(ghc < 9.2)
     buildable:         True
   else
     buildable:         False
@@ -367,7 +372,7 @@ test-suite test
   type:                exitcode-stdio-1.0
 
 test-suite test-lh
-  if flag(support-lh) && impl(ghc < 9)
+  if flag(support-lh) && impl(ghc < 9.2)
     buildable:         True
   else
     buildable:         False

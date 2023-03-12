@@ -16,22 +16,28 @@ module G2.Translation.GHC ( module GHC
                           , module GHC.Driver.Session
                           , module GHC.Iface.Tidy
                           , module GHC.Paths
-                          , module GHC.Platform.Ways
                           , module GHC.Types.Avail
                           , module GHC.Types.Id.Info
                           , module GHC.Types.Literal
                           , module GHC.Types.Name
                           , module GHC.Types.SrcLoc
-                          , module GHC.Types.Tickish
-                          , module GHC.Types.TypeEnv
                           , module GHC.Types.Unique
                           , module GHC.Types.Var
+                          , module GHC.Unit.Types
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
+                          , module GHC.Platform.Ways
+                          , module GHC.Types.Tickish
+                          , module GHC.Types.TypeEnv
                           , module GHC.Unit.Module.Deps
                           , module GHC.Unit.Module.ModDetails
                           , module GHC.Unit.Module.ModGuts
-                          , module GHC.Unit.Types
-                          
-                          , HscTarget) where
+
+                          , HscTarget
+#else
+                          , module GHC.Driver.Types
+                          , module GHC.Driver.Ways
+#endif
+                          ) where
 
 import GHC
 import GHC.Core ( Alt (..)
@@ -43,7 +49,12 @@ import GHC.Core ( Alt (..)
                 , CoreProgram
                 , CoreRule (..)
                 , Expr (..)
-                
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
+#else
+                , Tickish (..)
+#endif
+
                 , bindersOf)
 import GHC.Core.Class (classAllSelIds, className, classSCTheta, classTyVars)
 import GHC.Core.Coercion
@@ -57,22 +68,29 @@ import GHC.Driver.Main
 import GHC.Driver.Session
 import GHC.Iface.Tidy
 import GHC.Paths
-import GHC.Platform.Ways
 import GHC.Types.Avail
 import GHC.Types.Id.Info
 import GHC.Types.Literal
 import GHC.Types.Name hiding (varName)
 import GHC.Types.SrcLoc
-import GHC.Types.Tickish
-import GHC.Types.TypeEnv
 import GHC.Types.Unique
 import GHC.Types.Var
+import GHC.Unit.Types
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
+import GHC.Platform.Ways
+import GHC.Types.Tickish
+import GHC.Types.TypeEnv
 import GHC.Unit.Module.Deps
 import GHC.Unit.Module.ModDetails
 import GHC.Unit.Module.ModGuts
-import GHC.Unit.Types
 
 type HscTarget = Backend
+#else
+import GHC.Driver.Types
+import GHC.Driver.Ways
+#endif
+
 
 #else
 

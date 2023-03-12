@@ -53,8 +53,14 @@ import Data.List
 import qualified Data.Text as T
 import qualified Data.Map as M
 
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+import GHC.Types.Name (nameOccName, occNameString)
+import GHC.Types.Var as V
+#else
 import Name (nameOccName, occNameString)
-import Var
+import Var as V
+#endif
+
 
 data GeneratedSpecs = GeneratedSpecs { assert_specs :: M.Map G2.Name [PolyBound Expr]
                                      , assume_specs :: M.Map G2.Name [PolyBound Expr]

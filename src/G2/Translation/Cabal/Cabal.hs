@@ -11,7 +11,7 @@ import Distribution.PackageDescription.Parse
 #endif
 
 import Distribution.Verbosity
-#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
 import Distribution.Utils.Path
 #endif
 
@@ -44,7 +44,7 @@ testSrcDirs :: TestSuite -> [FilePath]
 testSrcDirs = buildInfoSrcDirs . testBuildInfo
 
 buildInfoSrcDirs :: BuildInfo -> [FilePath]
-#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,2,0)
 buildInfoSrcDirs (BuildInfo { hsSourceDirs = sd }) = map getSymbolicPath sd
 #else
 buildInfoSrcDirs (BuildInfo { hsSourceDirs = sd }) = sd

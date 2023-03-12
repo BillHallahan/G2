@@ -26,16 +26,30 @@ import Language.Haskell.Liquid.Types
 #endif
 import Language.Haskell.Liquid.UX.CmdLine
 import Text.PrettyPrint.HughesPJ
-import qualified Var as V
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+import GHC.Core
+import GHC.Types.Var as V
+import GHC.Driver.Types
+
+import Liquid.GHC.Interface
+import Liquid.GHC.Misc
+#else
+import CoreSyn
+import HscTypes (SourceError)
+import Var as V
+
+import Language.Haskell.Liquid.GHC.Interface
+import           Language.Haskell.Liquid.GHC.Misc (showCBs, ignoreCoreBinds)
+#endif
+
 ---------------------------------------------------------------------------
 ---------------------------------------------------------------------------
 -- Copied from LiquidHaskell (because checkMany not exported)
 import Control.Monad (when)
 import Control.Monad.IO.Class 
 import qualified Control.Exception as Ex
-import HscTypes (SourceError)
 import Language.Haskell.Liquid.UX.Tidy
-import Language.Haskell.Liquid.GHC.Interface
 import Language.Haskell.Liquid.Constraint.Generate
 import Language.Haskell.Liquid.Constraint.ToFixpoint
 import Language.Haskell.Liquid.Constraint.Types
@@ -43,11 +57,9 @@ import Language.Haskell.Liquid.Misc
 import Language.Fixpoint.Solver
 import qualified Language.Fixpoint.Types as F
 import qualified Language.Fixpoint.Types.Errors as F (FixResult (..))
-import CoreSyn
 
 #if MIN_VERSION_liquidhaskell(0,8,6)
 import qualified Language.Haskell.Liquid.Termination.Structural as ST
-import           Language.Haskell.Liquid.GHC.Misc (showCBs, ignoreCoreBinds)
 import qualified Data.HashSet as S
 #else
 import           Language.Haskell.Liquid.GHC.Misc (showCBs)
@@ -163,7 +175,14 @@ verify :: InferenceConfig -> Config ->  [GhcInfo] -> IO (VerifyResult V.Var)
 verify infconfig cfg ghci = do
     r <- verify' infconfig cfg ghci
     case F.resStatus r of
-#if MIN_VERSION_liquidhaskell(0,8,10)
+#if MIN_VERSION_liquidhaskell(0,9,0)
+        F.Safe _ -> return Safe
+        F.Crash ci err -> return $ Crash (map fst ci) err
+        F.Unsafe _ bad -> do
+          putStrLn $ "bad var = " ++ show (map (ci_var . snd) bad)
+          putStrLn $ "bad loc = " ++ show (map (ci_loc . snd) bad)
+          return . Unsafe . catMaybes $ map (ci_var . snd) bad
+#elif MIN_VERSION_liquidhaskell(0,8,10)
         F.Safe _ -> return Safe
         F.Crash ci err -> return $ Crash ci err
         F.Unsafe _ bad -> do
@@ -361,7 +380,11 @@ solveCs infconfig cfg tgt cgi info names = do
   finfo            <- cgInfoFInfo info cgi
   -- We only want qualifiers we have found with G2 Inference, so we have to force the correct set here
   let finfo' = finfo { F.quals = (getQualifiers $ info) ++ if keep_quals infconfig then F.quals finfo else [] }
+#if MIN_VERSION_liquidhaskell(0,9,0)
+  fres@(F.Result r sol _ _) <- solve (fixConfig tgt cfg) finfo'
+#else
   fres@(F.Result r sol _) <- solve (fixConfig tgt cfg) finfo'
+#endif
   -- let resErr        = applySolution sol . cinfoError . snd <$> r
   -- resModel_        <- fmap (e2u cfg sol) <$> getModels info cfg resErr
   -- let resModel      = resModel_  `addErrors` (e2u cfg sol <$> logErrors cgi)
