@@ -230,7 +230,7 @@ library
   
   if flag(support-lh) && impl(ghc < 9.2)
     build-depends:       liquidhaskell >= 0.8.10.2 && <= 0.9.0.2.1
-                       , liquid-fixpoint >= 0.7.0.7 && < 0.10
+                       , liquid-fixpoint >= 0.8.10.7 && < 0.10
                        , Diff == 0.3.4
 
   default-language:    Haskell2010
