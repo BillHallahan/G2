@@ -380,7 +380,11 @@ solveCs infconfig cfg tgt cgi info names = do
   finfo            <- cgInfoFInfo info cgi
   -- We only want qualifiers we have found with G2 Inference, so we have to force the correct set here
   let finfo' = finfo { F.quals = (getQualifiers $ info) ++ if keep_quals infconfig then F.quals finfo else [] }
+#if MIN_VERSION_liquid_fixpoint(0,9,0)
   fres@(F.Result r sol _ _) <- solve (fixConfig tgt cfg) finfo'
+#else
+  fres@(F.Result r sol _) <- solve (fixConfig tgt cfg) finfo'
+#endif
   -- let resErr        = applySolution sol . cinfoError . snd <$> r
   -- resModel_        <- fmap (e2u cfg sol) <$> getModels info cfg resErr
   -- let resModel      = resModel_  `addErrors` (e2u cfg sol <$> logErrors cgi)
