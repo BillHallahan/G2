@@ -1,9 +1,17 @@
-module DataRefTest where
+{-# LANGUAGE CPP #-}
 
+module Liquid.DataRefTest where
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,0,0)
+import Prelude hiding (Either (..))
+
+data Either a b = Left a | Right b
+#else
 import Prelude hiding (Maybe (..), Either (..))
 
 data Maybe a = Just a | Nothing
 data Either a b = Left a | Right b
+#endif
 
 {-@ addMaybe :: Maybe Int -> y:Int -> Maybe {z:Int | z > y} @-}
 addMaybe :: Maybe Int -> Int -> Maybe Int
