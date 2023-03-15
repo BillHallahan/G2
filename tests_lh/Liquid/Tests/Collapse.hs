@@ -11,8 +11,8 @@ data List a = Emp
 {-@ type ListN a N  = {v:List a | size v = N} @-}
 
 {-@ measure size      :: List a -> Int
-    size (Emp)        = 0
-    size ((:+:) x xs) = 1 + size xs
+        size (Emp)        = 0
+        size ((:+:) x xs) = 1 + size xs
   @-}
 
 {-@ collapse  :: (v -> v -> v) -> M.Map k (List v) -> M.Map k v @-}
