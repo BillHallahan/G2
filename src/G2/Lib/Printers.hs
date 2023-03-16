@@ -51,7 +51,7 @@ mkNameHaskell pg n
 
 mkUnsugaredExprHaskell :: State t -> Expr -> String
 mkUnsugaredExprHaskell (State {known_values = kv, type_classes = tc}) =
-    mkExprHaskell Cleaned (mkPrettyGuide ()) . modifyFix (mkCleanExprHaskell' kv tc)
+    mkExprHaskell Cleaned (mkPrettyGuide ()) . modifyMaybe (mkCleanExprHaskell' kv tc)
 
 printHaskell :: State t -> Expr -> String
 printHaskell = mkCleanExprHaskell (mkPrettyGuide ())
@@ -67,27 +67,27 @@ printHaskellPG = mkCleanExprHaskell
 
 mkCleanExprHaskell :: PrettyGuide -> State t -> Expr -> String
 mkCleanExprHaskell pg (State {known_values = kv, type_classes = tc}) = 
-    mkExprHaskell Cleaned pg . modifyFix (mkCleanExprHaskell' kv tc)
+    mkExprHaskell Cleaned pg . modifyMaybe (mkCleanExprHaskell' kv tc)
 
-mkCleanExprHaskell' :: KnownValues -> TypeClasses -> Expr -> Expr
+mkCleanExprHaskell' :: KnownValues -> TypeClasses -> Expr -> Maybe Expr
 mkCleanExprHaskell' kv tc e
     | (App (Data (DataCon n _)) e') <- e
-    , n == dcInt kv || n == dcFloat kv || n == dcDouble kv || n == dcInteger kv || n == dcChar kv = e'
+    , n == dcInt kv || n == dcFloat kv || n == dcDouble kv || n == dcInteger kv || n == dcChar kv = Just e'
 
     | (App e' e'') <- e
     , t <- typeOf e'
-    , isTypeClass tc t = e''
+    , isTypeClass tc t = Just e''
 
     | (App e' e'') <- e
     , t <- typeOf e''
-    , isTypeClass tc t = e'
+    , isTypeClass tc t = Just e'
 
     | (App e' e'') <- e
-    , isTypeClass tc (returnType e'') = e'
+    , isTypeClass tc (returnType e'') = Just e'
 
-    | App e' (Type _) <- e = e'
+    | App e' (Type _) <- e = Just e'
 
-    | otherwise = e
+    | otherwise = Nothing
 
 mkDirtyExprHaskell :: PrettyGuide -> Expr -> String
 mkDirtyExprHaskell = mkExprHaskell Dirty

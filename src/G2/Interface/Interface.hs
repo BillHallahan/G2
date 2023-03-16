@@ -242,6 +242,13 @@ initCheckReaches s@(State { expr_env = eenv
                           , known_values = kv }) m_mod reaches =
     s {expr_env = checkReaches eenv kv reaches m_mod }
 
+{-# SPECIALIZE 
+    initRedHaltOrd :: (Solver solver, Simplifier simplifier) =>
+                      solver
+                   -> simplifier
+                   -> Config
+                   -> (SomeReducer (SM.StateT PrettyGuide IO) (), SomeHalter (SM.StateT PrettyGuide IO) (), SomeOrderer ())
+    #-}
 initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                   solver
                -> simplifier
@@ -379,6 +386,20 @@ runG2WithConfig state config bindings = do
 
     return (in_out, bindings')
 
+
+{-# SPECIALIZE 
+    runG2WithSomes :: ( Solver solver
+                      , Simplifier simplifier)
+                => SomeReducer (SM.StateT PrettyGuide IO) ()
+                -> SomeHalter (SM.StateT PrettyGuide IO) ()
+                -> SomeOrderer ()
+                -> solver
+                -> simplifier
+                -> MemConfig
+                -> State ()
+                -> Bindings
+                -> SM.StateT PrettyGuide IO ([ExecRes ()], Bindings)
+    #-}
 runG2WithSomes :: ( MonadIO m
                   , Named t
                   , ASTContainer t Expr
