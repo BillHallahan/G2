@@ -19,8 +19,8 @@ data List a = Emp
               deriving (Eq, Ord, Show)
 
 {-@ measure size      :: List a -> Int
-    size (Emp)        = 0
-    size ((:+:) x xs) = 1
+        size (Emp)        = 0
+        size ((:+:) x xs) = 1
   @-}
 
 {-@ invariant {v:List a | 0 <= size v} @-}

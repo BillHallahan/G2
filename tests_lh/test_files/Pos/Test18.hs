@@ -7,7 +7,7 @@ module Combined (C, f) where
 data C a =  C
 
 {-@ measure c :: C (C a) -> Int
-    c C = 1
+        c C = 1
   @-}
     
 {-@ f :: k:Nat -> C (C a) -> Maybe {v:Int | v = k} @-}

@@ -61,7 +61,7 @@ translateLoaded :: [FilePath]
 translateLoaded proj src tr_con config = do
   -- Stuff with the actual target
   let def_proj = extraDefaultInclude config
-#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
   tar_ems <- envModSumModGutsFromFile (Just Interpreter) (def_proj ++ proj) src tr_con
 #else
   tar_ems <- envModSumModGutsFromFile (Just HscInterpreted) (def_proj ++ proj) src tr_con

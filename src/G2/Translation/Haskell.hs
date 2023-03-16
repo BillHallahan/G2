@@ -96,12 +96,19 @@ loadProj hsc proj src gflags tr_con = do
     let beta_flags' = foldl' gopt_set init_beta_flags gen_flags
     let dflags = beta_flags' { -- Profiling fails to load a profiler friendly version of the base
                                -- without this special casing for hscTarget, but we can't use HscInterpreted when we have certain unboxed types
-#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
                                backend = if hostIsProfiled 
                                                 then Interpreter
                                                 else case hsc of
                                                     Just hsc' -> hsc'
                                                     _ -> backend beta_flags'
+#elif MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+                               hscTarget = if hostIsProfiled 
+                                                then HscInterpreted
+                                                else case hsc of
+                                                    Just hsc' -> hsc'
+                                                    _ -> hscTarget beta_flags'
+
 #else
                                hscTarget = if rtsIsProfiled 
                                                 then HscInterpreted
@@ -435,7 +442,7 @@ mkExpr nm tm mb (Tick t expr) =
         Nothing -> mkExpr nm tm mb expr
 mkExpr _ tm _ (Type ty) = G2.Type (mkType tm ty)
 
-#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
 createTickish :: Maybe ModBreaks -> GenTickish i -> Maybe G2.Tickish
 #else
 createTickish :: Maybe ModBreaks -> Tickish i -> Maybe G2.Tickish
@@ -549,7 +556,7 @@ mkLit (MachInt64 i) = G2.LitInt (fromInteger i)
 mkLit (MachWord i) = G2.LitInt (fromInteger i)
 mkLit (MachWord64 i) = G2.LitInt (fromInteger i)
 mkLit (LitInteger i _) = G2.LitInteger (fromInteger i)
-#elif __GLASGOW_HASKELL__ < 902
+#elif __GLASGOW_HASKELL__ <= 810
 mkLit (LitNumber LitNumInteger i _) = G2.LitInteger (fromInteger i)
 mkLit (LitNumber LitNumNatural i _) = G2.LitInteger (fromInteger i)
 mkLit (LitNumber LitNumInt i _) = G2.LitInt (fromInteger i)
@@ -584,7 +591,7 @@ mkAlts :: G2.NameMap -> G2.TypeNameMap -> Maybe ModBreaks -> [CoreAlt] -> [G2.Al
 mkAlts nm tm mb = map (mkAlt nm tm mb)
 
 mkAlt :: G2.NameMap -> G2.TypeNameMap -> Maybe ModBreaks -> CoreAlt -> G2.Alt
-#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
 mkAlt nm tm mb (Alt acon prms expr) = G2.Alt (mkAltMatch nm tm acon prms) (mkExpr nm tm mb expr)
 #else
 mkAlt nm tm mb (acon, prms, expr) = G2.Alt (mkAltMatch nm tm acon prms) (mkExpr nm tm mb expr)
@@ -600,7 +607,7 @@ mkType tm (TyVarTy v) = G2.TyVar $ mkId tm v
 mkType tm (AppTy t1 t2) = G2.TyApp (mkType tm t1) (mkType tm t2)
 #if __GLASGOW_HASKELL__ < 808
 mkType tm (FunTy t1 t2) = G2.TyFun (mkType tm t1) (mkType tm t2)
-#elif __GLASGOW_HASKELL__ < 902
+#elif __GLASGOW_HASKELL__ <= 810
 mkType tm (FunTy _ t1 t2) = G2.TyFun (mkType tm t1) (mkType tm t2)
 #else
 mkType tm (FunTy _ _ t1 t2) = G2.TyFun (mkType tm t1) (mkType tm t2)
@@ -737,7 +744,7 @@ exportedNames :: ModDetails -> [G2.ExportedName]
 exportedNames = concatMap availInfoNames . md_exports
 
 availInfoNames :: AvailInfo -> [G2.ExportedName]
-#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
 availInfoNames (Avail n) = [greNameToName n]
 availInfoNames (AvailTC n ns) = mkName n:map greNameToName ns
 

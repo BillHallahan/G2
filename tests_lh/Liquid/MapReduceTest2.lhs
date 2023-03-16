@@ -28,8 +28,8 @@ data List a = Emp
               deriving (Eq, Ord, Show)
 
 {-@ measure size      :: List a -> Int
-    size (Emp)        = 0
-    size ((:+:) x xs) = 1
+        size (Emp)        = 0
+        size ((:+:) x xs) = 1
   @-}
 
 {-@ map :: (Int -> List Int) -> x:List Int -> List (List Int) @-}
@@ -37,8 +37,8 @@ map f Emp        = Emp
 map f (x :+: xs) = f x :+: Emp
 
 {-@ measure si      :: List (List a) -> Int
-    si (Emp) = 0
-    si ((:+:) x xs) = size x
+        si (Emp) = 0
+        si ((:+:) x xs) = size x
   @-}
 
 {-@ concat ::  x:List (List Int) -> {y:List Int| size y = si x} @-}

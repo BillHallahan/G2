@@ -3,8 +3,8 @@ module HigherOrder2 where
 data X = X | Y
 
 {-@ measure isY :: X -> Bool
-isY X = False
-isY Y = True
+        isY X = False
+        isY Y = True
 @-}
 
 {-@ f :: (X -> Int) -> Int@-}

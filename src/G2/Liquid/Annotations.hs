@@ -1,4 +1,4 @@
-{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE CPP, MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module G2.Liquid.Annotations ( AnnotMap
@@ -25,7 +25,11 @@ import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+import GHC.Types.SrcLoc
+#else
 import SrcLoc
+#endif
 
 lookupAnnot :: Name -> AnnotMap -> Maybe [(Maybe T.Text, Expr)]
 lookupAnnot (Name _ _ _ (Just s)) =

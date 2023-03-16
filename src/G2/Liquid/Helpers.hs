@@ -24,7 +24,11 @@ import G2.Language as G2
 import G2.Liquid.Types
 import G2.Translation.Haskell
 
+#if MIN_VERSION_liquidhaskell(0,9,0)
+import qualified Liquid.GHC.Interface as LHI
+#else
 import qualified Language.Haskell.Liquid.GHC.Interface as LHI
+#endif
 import Language.Fixpoint.Types.Names
 #if MIN_VERSION_liquidhaskell(0,8,10)
 import Language.Haskell.Liquid.Types hiding
@@ -40,8 +44,13 @@ import qualified Data.Map as M
 import qualified Data.Text as T
 
 import GHC as GHC
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+import GHC.Types.Name
+import GHC.Types.Var as V
+#else
 import Name
 import Var as V
+#endif
 
 -- | Interface with LH
 getGHCInfos :: LHC.Config -> [FilePath] -> [FilePath] -> IO [GhcInfo]
