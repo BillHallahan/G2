@@ -20,7 +20,7 @@ data List a = Emp
 
 {-@ measure size      :: List a -> Int
         size (Emp)        = 0
-    size (C x) = 1
+        size (C x) = 1
   @-}
 
 {-@ invariant {v:List a | 0 <= size v} @-}
