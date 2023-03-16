@@ -33,8 +33,8 @@ l3     = 3 :+: 2 :+: 1 :+: l0
 l0     = Emp :: List Int
 
 {-@ measure sizeXs          :: List (List a) -> Int
-    sizeXs (Emp)            = 0
-    sizeXs ((:+:) xs xss)   = size xs + sizeXs xss
+        sizeXs (Emp)            = 0
+        sizeXs ((:+:) xs xss)   = size xs + sizeXs xss
   @-}
 
 length            :: List a -> Int

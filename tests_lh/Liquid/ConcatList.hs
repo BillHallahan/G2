@@ -9,13 +9,13 @@ data List a = Emp
               deriving (Eq, Ord, Show)
 
 {-@ measure size      :: List a -> Int
-        size (Emp)        = 0
-        size ((:+:) x xs) = 1 + size xs
+      size (Emp)        = 0
+      size ((:+:) x xs) = 1 + size xs
   @-}
 
 {-@ measure sizeXs          :: List (List a) -> Int
-    sizeXs (Emp)            = 0
-    sizeXs ((:+:) xs xss)   = size xs + sizeXs xss
+      sizeXs (Emp)            = 0
+      sizeXs ((:+:) xs xss)   = size xs + sizeXs xss
   @-}
 
 
@@ -41,13 +41,13 @@ die :: String -> a
 die _ = undefined
 
 {-@ measure size1      :: List a -> Int
-    size1 (Emp)        = 0
-    size1 ((:+:) x xs) = 1 + 2
+      size1 (Emp)        = 0
+      size1 ((:+:) x xs) = 1 + 2
   @-}
 
 {-@ measure sizeXs1          :: List (List a) -> Int
-    sizeXs1 (Emp)            = 0
-    sizeXs1 ((:+:) xs xss)   = size1 xs
+      sizeXs1 (Emp)            = 0
+      sizeXs1 ((:+:) xs xss)   = size1 xs
   @-}
 
 {-@ concat4                  :: { xss : List (List a) | sizeXs1 xss > 0 } 

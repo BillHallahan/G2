@@ -31,7 +31,7 @@ data List a = Emp
 data X = X
 
 {-@ measure size2      :: X -> Int
-    size2 X        = 0
+        size2 X        = 0
   @-}
 
 group    :: (Int, Int) -> M.Map Int X

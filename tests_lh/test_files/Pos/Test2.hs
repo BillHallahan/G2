@@ -13,8 +13,8 @@ data M a = Emp
          deriving (Eq, Ord, Show)
 
 {-@ measure size      :: M a -> Int
-    size (Emp) = 0
-    size (C x) = 1
+        size (Emp) = 0
+        size (C x) = 1
   @-}
 
 {-@ invariant {v:M a | 0 <= size v} @-}
