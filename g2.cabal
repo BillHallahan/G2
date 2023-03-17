@@ -307,8 +307,8 @@ executable Inference
                        , time
   default-language:    Haskell2010
   ghc-options:         -threaded -Wall
-                      --  -O1
-                      --  -fprof-auto "-with-rtsopts=-p"
+                       -- -O1
+                       -- -fprof-auto "-with-rtsopts=-p"
   hs-source-dirs:      inference
   main-is:             Main.hs
 

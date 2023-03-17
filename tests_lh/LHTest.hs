@@ -555,7 +555,7 @@ findCounterExamples' fp entry config lhconfig =
 
 posTestInferenceWithTimeOut :: Int -> NominalDiffTime -> FilePath -> TestTree
 posTestInferenceWithTimeOut to to_se fp = do
-    testCase fp (do
+    testCase ("Inference " ++ fp) (do
         config <- G2.getConfigDirect
         let infconfig = (mkInferenceConfigDirect []) { timeout_se = to_se }
         let lhconfig = mkLHConfigDirect [] M.empty
@@ -569,7 +569,7 @@ posTestInference = posTestInferenceWithTimeOut 120 5
 
 negTestInference :: FilePath -> TestTree
 negTestInference fp = do
-    testCase fp (do
+    testCase ("Inference " ++ fp) (do
         config <- G2.getConfigDirect
         let infconfig = mkInferenceConfigDirect []
         let lhconfig = mkLHConfigDirect [] M.empty
@@ -580,7 +580,7 @@ negTestInference fp = do
 
 cexTest :: FilePath -> String -> TestTree
 cexTest fp func =
-    testCase fp (do
+    testCase ("Inference " ++ fp) (do
         config <- G2.getConfigDirect
         let infconfig = (mkInferenceConfigDirect []) { timeout_se = 10 }
         let lhconfig = mkLHConfigDirect [] M.empty

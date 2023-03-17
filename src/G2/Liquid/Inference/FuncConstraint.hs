@@ -43,9 +43,9 @@ import Data.Coerce
 import GHC.Generics (Generic)
 import Data.Hashable
 import qualified Data.HashSet as HS
-import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashMap.Strict as HM
 import Data.List
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 import Data.Monoid hiding (All)
 
 newtype FuncConstraints = FuncConstraints (M.Map Name (HS.HashSet FuncConstraint))
