@@ -65,8 +65,8 @@ the *size*, i.e. number of elements of a `List`:
 
 \begin{code}
 {-@ measure size      :: List a -> Int
-    size (Emp)        = 0
-    size ((:+:) x xs) = 1 + size xs
+      size (Emp)        = 0
+      size ((:+:) x xs) = 1 + size xs
   @-}
 
 {-@ invariant {v:List a | 0 <= size v} @-}

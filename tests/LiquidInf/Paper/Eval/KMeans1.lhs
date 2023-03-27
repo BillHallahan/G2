@@ -71,8 +71,8 @@ the *size*, i.e. number of elements of a `List`:
 
 \begin{code}
 {-@ measure size      :: List a -> Int
-    size (Emp)        = 0
-    size ((:+:) x xs) = 1 + size xs
+        size (Emp)        = 0
+        size ((:+:) x xs) = 1 + size xs
   @-}
 
 {-@ invariant {v:List a | 0 <= size v} @-}
@@ -193,8 +193,8 @@ or specification (types, measures) that you need.
 
 \begin{code}
 {-@ measure sizeXs          :: List (List a) -> Int
-    sizeXs (Emp)            = 0
-    sizeXs ((:+:) xs xss)   = size xs + sizeXs xss
+        sizeXs (Emp)            = 0
+        sizeXs ((:+:) xs xss)   = size xs + sizeXs xss
   @-}
 
 concat Emp = Emp

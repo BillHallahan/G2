@@ -89,10 +89,7 @@ inference' infconfig config g2lhconfig lhconfig ghci proj fp = do
     (lrs, g2config', g2lhconfig', infconfig', main_mod) <- getInitState proj fp ghci infconfig config g2lhconfig
     let nls = getNameLevels main_mod lrs
 
-    putStrLn $ "nls = " ++ show nls
-
     let ut = sharedTyConsEE (concat nls) (expr_env . G2LH.state . lr_state $ lrs)
-    putStrLn $ "ut = " ++ show ut
 
     let configs = Configs { g2_config = g2config', g2lh_config = g2lhconfig', lh_config = lhconfig, inf_config = infconfig'}
         prog = newProgress
@@ -128,9 +125,9 @@ getNameLevels :: Maybe T.Text -> LiquidReadyState -> NameLevels
 getNameLevels main_mod =
     filter (not . null)
        . map nub
-       . map (filter (\(Name _ m _ _) -> m == main_mod))
        . nameLevels
        . getCallGraph
+       . E.filterWithKey (\(Name _ m _ _) _ -> m == main_mod)
        . expr_env . G2LH.state . lr_state
 
 
@@ -172,7 +169,6 @@ iterativeInference con ghci m_modname lrs nls meas_ex gs fc ut = do
                                               (Var (Id (Name "" Nothing 0 Nothing) (returnType e)))
                                       Nothing -> False) (head nls)
             liftIO . putStrLn $ "head nls =  " ++ show (head nls)
-            liftIO . putStrLn $ "iterativeInference check =  " ++ show chck
 
             logEventStartM CExSE
             ref <- getCEx ghci m_modname lrs gs chck
