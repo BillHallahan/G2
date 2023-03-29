@@ -1370,6 +1370,9 @@ buildLIA_LH' si mv =
         ePlus x (ECon (I 0)) = x
         ePlus x (ENeg y) = EBin LH.Minus x y
         ePlus (ENeg x) y = EBin LH.Minus y x
+        ePlus (ENeg x) y = EBin LH.Minus y x
+        ePlus x (EBin LH.Times (ECon (I i)) y) | i < 0 = EBin LH.Minus x (EBin LH.Times (ECon (I $ - i)) y)
+        ePlus (EBin LH.Times (ECon (I i)) x) y | i < 0 = EBin LH.Minus y (EBin LH.Times (ECon (I $ - i)) x)
         ePlus x y = EBin LH.Plus x y
 
         eIte PTrue x _ = x
@@ -1393,6 +1396,8 @@ buildLIA_LH' si mv =
             | x == eUnivSet
             , y == eUnivSet = PTrue
             | x == eUnivSet || y == eUnivSet = PFalse
+            | EBin LH.Minus e1 e2 <- x
+            , ECon (I 0) <- y = PAtom LH.Eq e1 e2
             | otherwise = PAtom LH.Eq x y
 
         bIff x y
@@ -1404,12 +1409,16 @@ buildLIA_LH' si mv =
             if x > y then PTrue else PFalse
         bGt x y
             | x == y = PFalse
+            | EBin LH.Minus e1 e2 <- x
+            , ECon (I 0) <- y = PAtom LH.Gt e1 e2
             | otherwise = PAtom LH.Gt x y
 
         bGeq (ECon (I x)) (ECon (I y)) =
             if x >= y then PTrue else PFalse
         bGeq x y
             | x == y = PTrue
+            | EBin LH.Minus e1 e2 <- x
+            , ECon (I 0) <- y = PAtom LH.Ge e1 e2
             | otherwise = PAtom LH.Ge x y
 
         eUnion x y
