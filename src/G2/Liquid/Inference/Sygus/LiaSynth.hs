@@ -1368,6 +1368,8 @@ buildLIA_LH' si mv =
 
         ePlus (ECon (I 0)) x = x
         ePlus x (ECon (I 0)) = x
+        ePlus x (ENeg y) = EBin LH.Minus x y
+        ePlus (ENeg x) y = EBin LH.Minus y x
         ePlus x y = EBin LH.Plus x y
 
         eIte PTrue x _ = x
