@@ -63,6 +63,7 @@ tests :: TestTree
 tests = testGroup "Tests"
         [ sampleTests
         , testFileTests
+        , extensionTests
         , baseTests
         , primTests
         , exprTests
@@ -323,6 +324,18 @@ testFileTests = testGroup "TestFiles"
     --     , RExists (\[x, _] -> x /= Lit (LitInt 0))]
     -- , checkExprAssumeAssert "tests/TestFiles/HigherOrderList.hs" 400 Nothing Nothing "g" [AtLeast  10] 
     
+    ]
+
+extensionTests :: TestTree
+extensionTests = testGroup "Extensions"
+    [
+      checkInputOutputs "tests/TestFiles/Extensions/PatternSynonyms1.hs" [ ("isNineInt", 400, [AtLeast 2])
+                                                                         , ("isNineInteger", 400, [AtLeast 2])
+                                                                         , ("isNineFloat", 400, [AtLeast 2])
+                                                                         , ("isFunc", 400, [AtLeast 2])
+                                                                         , ("funcArg", 400, [AtLeast 2])
+                                                                         
+                                                                         , ("consArrow", 400, [AtLeast 2]) ]
     ]
 
 baseTests ::  TestTree
