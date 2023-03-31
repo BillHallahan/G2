@@ -37,6 +37,9 @@ module G2.Translation.GHC ( module GHC
                           , module GHC.Driver.Types
                           , module GHC.Driver.Ways
 #endif
+#if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
+                          , module GHC.Driver.Config.Tidy
+#endif
                           ) where
 
 import GHC
@@ -76,6 +79,10 @@ import GHC.Types.SrcLoc
 import GHC.Types.Unique
 import GHC.Types.Var
 import GHC.Unit.Types
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
+import GHC.Driver.Config.Tidy
+#endif
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
 import GHC.Platform.Ways

@@ -128,7 +128,11 @@ loadProj hsc proj src gflags tr_con = do
         dflags' = setIncludePaths proj dflags
 
     _ <- setSessionDynFlags dflags'
+#if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
+    targets <- mapM (\s -> guessTarget s Nothing Nothing) src
+#else
     targets <- mapM (flip guessTarget Nothing) src
+#endif
     _ <- setTargets targets
     load LoadAllTargets
 
@@ -227,7 +231,14 @@ mkCgGutsModDetailsClosures tr_con env modgutss = do
 #else
 mkCgGutsModDetailsClosures tr_con env modgutss = do
   simplgutss <- mapM (if G2.simpl tr_con then hscSimplify env [] else return . id) modgutss
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
+  tidy_opts <- initTidyOpts env
+  tidys <- mapM (tidyProgram tidy_opts) simplgutss
+#else
   tidys <- mapM (tidyProgram env) simplgutss
+#endif
+
   let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure (mg_binds mg) cg
                                       , mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
   return pairs
@@ -249,14 +260,10 @@ mkCgGutsClosure bndrs cgguts =
 mkModDetailsClosure :: Dependencies -> ModDetails -> G2.ModDetailsClosure
 mkModDetailsClosure deps moddet =
   G2.ModDetailsClosure
-    { G2.mdcc_cls_insts = md_insts moddet
+    { G2.mdcc_cls_insts = getClsInst moddet
     , G2.mdcc_type_env = md_types moddet
     , G2.mdcc_exports = exportedNames moddet
-#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
-    , G2.mdcc_deps = map (moduleNameString . gwib_mod) $ dep_mods deps
-#else
-    , G2.mdcc_deps = map (moduleNameString . fst) $ dep_mods deps
-#endif
+    , G2.mdcc_deps = getModuleNames deps
     }
 
 
@@ -377,23 +384,40 @@ hscSimplifyC env = hscSimplify env []
 -- This one will need to do the Tidy program stuff
 mkModGutsClosure :: HscEnv -> ModGuts -> IO G2.ModGutsClosure
 mkModGutsClosure env modguts = do
+#if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
+  tidy_opts <- initTidyOpts env
+  (cgguts, moddets) <- tidyProgram tidy_opts modguts
+#else
   (cgguts, moddets) <- tidyProgram env modguts
+#endif
   return
     G2.ModGutsClosure
       { G2.mgcc_mod_name = Just $ moduleNameString $ moduleName $ cg_module cgguts
       , G2.mgcc_binds = cg_binds cgguts
       , G2.mgcc_tycons = cg_tycons cgguts
       , G2.mgcc_breaks = cg_modBreaks cgguts
-      , G2.mgcc_cls_insts = md_insts moddets
+      , G2.mgcc_cls_insts = getClsInst moddets
       , G2.mgcc_type_env = md_types moddets
       , G2.mgcc_exports = exportedNames moddets
-#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
-      , G2.mgcc_deps = map (moduleNameString . gwib_mod) $ dep_mods $ mg_deps modguts
-#else
-      , G2.mgcc_deps = map (moduleNameString . fst) $ dep_mods $ mg_deps modguts
-#endif
+      , G2.mgcc_deps = getModuleNames $ mg_deps modguts
       , G2.mgcc_rules = mg_rules modguts
       }
+
+getClsInst :: ModDetails -> [ClsInst]
+#if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
+getClsInst = instEnvElts . md_insts
+#else
+getClsInst = md_insts
+#endif
+
+getModuleNames :: Dependencies -> [String]
+#if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
+getModuleNames = map moduleNameString . dep_sig_mods
+#elif MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+getModuleNames = map (moduleNameString . gwib_mod) . dep_mods
+#else
+getModuleNames = map (moduleNameString . fst) . dep_mods
+#endif
 
 -- Merging, order matters!
 mergeExtractedG2s :: [G2.ExtractedG2] -> G2.ExtractedG2
@@ -563,9 +587,14 @@ mkLit (LitNumber LitNumInt i _) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumInt64 i _) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumWord i _) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumWord64 i _) = G2.LitInt (fromInteger i)
-#else
+#elif __GLASGOW_HASKELL__ <= 902
 mkLit (LitNumber LitNumInteger i) = G2.LitInteger (fromInteger i)
 mkLit (LitNumber LitNumNatural i) = G2.LitInteger (fromInteger i)
+mkLit (LitNumber LitNumInt i) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumInt64 i) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumWord i) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumWord64 i) = G2.LitInt (fromInteger i)
+#else
 mkLit (LitNumber LitNumInt i) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumInt64 i) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumWord i) = G2.LitInt (fromInteger i)
