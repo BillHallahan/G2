@@ -41,7 +41,12 @@ specialTypeNames = -- HM.fromList $ map (\(n, m, _) -> ((n, m), Name n m 0 Nothi
 
 specialConstructors :: HM.HashMap (T.Text, Maybe T.Text) Name
 specialConstructors =
-    HM.fromList $ map (\(DataCon nm@(Name n m _ _) _)-> ((n, m), nm)) specialConstructors'
+    -- GHC 9.4 on use different constructors than our base for Integers, so we add a special mapping
+    -- for those constructor (via `integerConstructor` to adjust Names accordingly)
+    HM.fromList $ integerConstructor:map (\(DataCon nm@(Name n m _ _) _)-> ((n, m), nm)) specialConstructors'
+
+integerConstructor :: ((T.Text, Maybe T.Text), Name)
+integerConstructor = (("IS", Just "GHC.Num.Integer"), Name "Z#" (Just "GHC.Num.Integer") 0 Nothing)
 
 specialConstructors' :: [DataCon]
 specialConstructors' = concatMap data_cons $ HM.elems specialTypes -- map (\(n, m, _) -> (n, m)) $ concatMap snd specials
