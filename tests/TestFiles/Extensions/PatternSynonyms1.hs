@@ -23,7 +23,7 @@ isNineFloat :: Float -> Bool
 isNineFloat NineFloat = True
 isNineFloat _ = False
 
-data Ty = App String [Ty]
+data Ty = App String [Ty] deriving Eq
 
 pattern Int = App "Int" []
 pattern Arrow t1 t2 = App "->" [t1, t2]
