@@ -102,7 +102,7 @@ mkBase homedir =
 
 mkExtraDefault :: String -> Parser [IncludePath]
 mkExtraDefault homedir =
-    option (eitherReader (Right . extraDefaultIncludePaths))
+    option (eitherReader (\v -> Right (v:extraDefaultIncludePaths homedir)))
             ( long "extra-def"
             <> metavar "FILE"
             <> value (extraDefaultIncludePaths homedir)

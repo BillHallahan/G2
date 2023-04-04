@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE CPP, FlexibleContexts #-}
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -24,7 +24,11 @@ import qualified G2.Language.ExprEnv as E
 import G2.Liquid.Types
 import G2.Translation.Haskell
 
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+import qualified GHC.Types.Var as Var
+#else
 import qualified Var as Var
+#endif
 
 import Language.Fixpoint.Types.Names
 import Language.Fixpoint.Types.Sorts
@@ -119,6 +123,7 @@ mergeLHSpecState' v lst = do
         Nothing -> return ()
 
 convertVar :: Name -> Bool
+convertVar (Name "fromInteger" _ _ _) = False
 convertVar (Name "error" _ _ _) = False
 convertVar (Name "patError" _ _ _) = False
 convertVar (Name "." _ _ _) = False

@@ -10,6 +10,7 @@ module G2.Language.AST
     , modify
     , modifyMonoid
     , modifyFix
+    , modifyMaybe
     , modifyContainedFix
     , modifyFixMonoid
     , eval
@@ -71,6 +72,16 @@ modifyFix f t = go t
     where
         go t' = let t'' = f t'
                 in if t' == t'' then modifyChildren go t'' else go t''
+
+-- | Runs the given function f on the node t repeatedly, until f t = Nothing, then does the
+-- same on all decendants of t recursively.
+modifyMaybe :: AST t => (t -> Maybe t) -> t -> t
+modifyMaybe f = go
+    where
+        go t = let mt = f t in
+                case mt of
+                    Just v -> go v
+                    Nothing -> modifyChildren go t
 
 -- | Runs the given function f on the node t, t until t = f t
 modifyContainedFix :: (AST t, Eq t, Show t) => (t -> t) -> t -> t

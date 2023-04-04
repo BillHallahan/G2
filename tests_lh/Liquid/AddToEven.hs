@@ -25,8 +25,8 @@ data List a = Emp
               deriving (Eq, Ord, Show)
 
 {-@ measure size      :: List a -> Int
-    size (Emp)        = 0
-    size ((:+:) x xs) = 1 + size xs
+        size (Emp)        = 0
+        size ((:+:) x xs) = 1 + size xs
   @-}
 
 {-@ zipWith :: (a -> b -> c) -> v1:List a -> {v2:List b | size v1 > 0 => size v2 > 0} -> List c @-}

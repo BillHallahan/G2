@@ -18,8 +18,8 @@ data List a = Emp
               deriving (Eq, Ord, Show)
 
 {-@ measure size      :: List a -> Int
-    size (Emp)        = 0
-    size ((:+:) x xs) = 1 + size xs
+        size (Emp)        = 0
+        size ((:+:) x xs) = 1 + size xs
   @-}
 
 
@@ -33,8 +33,8 @@ l3     = 3 :+: 2 :+: 1 :+: l0
 l0     = Emp :: List Int
 
 {-@ measure sizeXs          :: List (List a) -> Int
-    sizeXs (Emp)            = 0
-    sizeXs ((:+:) xs xss)   = size xs + sizeXs xss
+        sizeXs (Emp)            = 0
+        sizeXs ((:+:) xs xss)   = size xs + sizeXs xss
   @-}
 
 length            :: List a -> Int

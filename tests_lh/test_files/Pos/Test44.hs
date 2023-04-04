@@ -13,8 +13,8 @@ data List a = Emp
             | C a (List a)
 
 {-@ measure size      :: List a -> Int
-    size (Emp)        = 0
-    size (C x xs) = 1 + size xs @-}
+        size (Emp)        = 0
+        size (C x xs) = 1 + size xs @-}
 
 {-@ invariant {v:List a | 0 <= size v} @-}
 

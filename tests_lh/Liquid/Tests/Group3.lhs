@@ -15,8 +15,8 @@ data List a = Emp
 -- instance Targetable a => Targetable (List a)
 
 {-@ measure size      :: List a -> Int
-    size (Emp)        = 0
-    size ((:+:) x xs) = 1 + size xs
+        size (Emp)        = 0
+        size ((:+:) x xs) = 1 + size xs
   @-}
 
 -- foldr :: (a -> b -> b) -> b -> List a -> b
@@ -31,7 +31,7 @@ data List a = Emp
 data X = X
 
 {-@ measure size2      :: X -> Int
-    size2 X        = 0
+        size2 X        = 0
   @-}
 
 group    :: (Int, Int) -> M.Map Int X

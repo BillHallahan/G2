@@ -7,8 +7,8 @@ module Combined (EC, f) where
 data EC a = E | C
 
 {-@ measure size :: EC a -> Bool
-    size E = True
-    size C = False
+        size E = True
+        size C = False
   @-}
 
 s :: EC a -> Bool

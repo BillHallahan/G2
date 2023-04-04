@@ -8,7 +8,7 @@ import G2.Language
 import qualified Data.HashMap.Lazy as HM
 
 elimTypeSyms :: ASTContainer m Type => TypeEnv -> m -> m
-elimTypeSyms tenv = modifyASTsFix (elimTypeSyms' tenv)
+elimTypeSyms tenv = modifyASTs (elimTypeSyms' tenv)
 
 elimTypeSyms' :: TypeEnv -> Type -> Type
 elimTypeSyms' tenv t
@@ -16,7 +16,8 @@ elimTypeSyms' tenv t
     , ts <- tyAppArgs t
     , Just (TypeSynonym { bound_ids = is, synonym_of = st }) <- HM.lookup n tenv
     , length ts == length is =
-    foldr (uncurry replaceASTs) st $ zip (map TyVar is) ts
+    -- We recursively call elimTypeSyms, in case a type synonym  maps directly to a type synonym
+    elimTypeSyms' tenv $ foldr (uncurry replaceASTs) st $ zip (map TyVar is) ts
 elimTypeSyms' _ t = t
 
 elimTypeSymsTEnv :: TypeEnv -> TypeEnv

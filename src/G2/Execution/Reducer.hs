@@ -392,6 +392,7 @@ redRulesToStates r rv1 s b = do
     return $ (rf, concat s', b')
 
 {-#INLINE stdRed #-}
+{-# SPECIALIZE stdRed :: (Solver solver, Simplifier simplifier) => Sharing -> solver -> simplifier -> Reducer IO () t #-}
 stdRed :: (MonadIO m, Solver solver, Simplifier simplifier) => Sharing -> solver -> simplifier -> Reducer m () t
 stdRed share solver simplifier =
         mkSimpleReducer (\_ -> ())
@@ -1050,6 +1051,22 @@ quotTrueAssert ord = (mkSimpleOrderer (initPerStateOrder ord)
 --------
 --------
 
+{-# SPECIALIZE runReducer :: Ord b =>
+                             Reducer IO rv t
+                          -> Halter IO hv t
+                          -> Orderer sov b t
+                          -> State t
+                          -> Bindings
+                          -> IO (Processed (State t), Bindings)
+    #-}
+{-# SPECIALIZE runReducer :: Ord b =>
+                             Reducer (SM.StateT PrettyGuide IO) rv t
+                          -> Halter (SM.StateT PrettyGuide IO) hv t
+                          -> Orderer sov b t
+                          -> State t
+                          -> Bindings
+                          -> SM.StateT PrettyGuide IO (Processed (State t), Bindings)
+    #-}
 -- | Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
 runReducer :: (MonadIO m, Ord b) =>
               Reducer m rv t

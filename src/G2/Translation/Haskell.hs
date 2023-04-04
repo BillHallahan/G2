@@ -96,12 +96,19 @@ loadProj hsc proj src gflags tr_con = do
     let beta_flags' = foldl' gopt_set init_beta_flags gen_flags
     let dflags = beta_flags' { -- Profiling fails to load a profiler friendly version of the base
                                -- without this special casing for hscTarget, but we can't use HscInterpreted when we have certain unboxed types
-#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
                                backend = if hostIsProfiled 
                                                 then Interpreter
                                                 else case hsc of
                                                     Just hsc' -> hsc'
                                                     _ -> backend beta_flags'
+#elif MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+                               hscTarget = if hostIsProfiled 
+                                                then HscInterpreted
+                                                else case hsc of
+                                                    Just hsc' -> hsc'
+                                                    _ -> hscTarget beta_flags'
+
 #else
                                hscTarget = if rtsIsProfiled 
                                                 then HscInterpreted
@@ -121,7 +128,11 @@ loadProj hsc proj src gflags tr_con = do
         dflags' = setIncludePaths proj dflags
 
     _ <- setSessionDynFlags dflags'
+#if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
+    targets <- mapM (\s -> guessTarget s Nothing Nothing) src
+#else
     targets <- mapM (flip guessTarget Nothing) src
+#endif
     _ <- setTargets targets
     load LoadAllTargets
 
@@ -220,7 +231,14 @@ mkCgGutsModDetailsClosures tr_con env modgutss = do
 #else
 mkCgGutsModDetailsClosures tr_con env modgutss = do
   simplgutss <- mapM (if G2.simpl tr_con then hscSimplify env [] else return . id) modgutss
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
+  tidy_opts <- initTidyOpts env
+  tidys <- mapM (tidyProgram tidy_opts) simplgutss
+#else
   tidys <- mapM (tidyProgram env) simplgutss
+#endif
+
   let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure (mg_binds mg) cg
                                       , mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
   return pairs
@@ -242,14 +260,10 @@ mkCgGutsClosure bndrs cgguts =
 mkModDetailsClosure :: Dependencies -> ModDetails -> G2.ModDetailsClosure
 mkModDetailsClosure deps moddet =
   G2.ModDetailsClosure
-    { G2.mdcc_cls_insts = md_insts moddet
+    { G2.mdcc_cls_insts = getClsInst moddet
     , G2.mdcc_type_env = md_types moddet
     , G2.mdcc_exports = exportedNames moddet
-#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
-    , G2.mdcc_deps = map (moduleNameString . gwib_mod) $ dep_mods deps
-#else
-    , G2.mdcc_deps = map (moduleNameString . fst) $ dep_mods deps
-#endif
+    , G2.mdcc_deps = getModuleNames deps
     }
 
 
@@ -370,23 +384,40 @@ hscSimplifyC env = hscSimplify env []
 -- This one will need to do the Tidy program stuff
 mkModGutsClosure :: HscEnv -> ModGuts -> IO G2.ModGutsClosure
 mkModGutsClosure env modguts = do
+#if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
+  tidy_opts <- initTidyOpts env
+  (cgguts, moddets) <- tidyProgram tidy_opts modguts
+#else
   (cgguts, moddets) <- tidyProgram env modguts
+#endif
   return
     G2.ModGutsClosure
       { G2.mgcc_mod_name = Just $ moduleNameString $ moduleName $ cg_module cgguts
       , G2.mgcc_binds = cg_binds cgguts
       , G2.mgcc_tycons = cg_tycons cgguts
       , G2.mgcc_breaks = cg_modBreaks cgguts
-      , G2.mgcc_cls_insts = md_insts moddets
+      , G2.mgcc_cls_insts = getClsInst moddets
       , G2.mgcc_type_env = md_types moddets
       , G2.mgcc_exports = exportedNames moddets
-#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
-      , G2.mgcc_deps = map (moduleNameString . gwib_mod) $ dep_mods $ mg_deps modguts
-#else
-      , G2.mgcc_deps = map (moduleNameString . fst) $ dep_mods $ mg_deps modguts
-#endif
+      , G2.mgcc_deps = getModuleNames $ mg_deps modguts
       , G2.mgcc_rules = mg_rules modguts
       }
+
+getClsInst :: ModDetails -> [ClsInst]
+#if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
+getClsInst = instEnvElts . md_insts
+#else
+getClsInst = md_insts
+#endif
+
+getModuleNames :: Dependencies -> [String]
+#if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
+getModuleNames = map moduleNameString . dep_sig_mods
+#elif MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+getModuleNames = map (moduleNameString . gwib_mod) . dep_mods
+#else
+getModuleNames = map (moduleNameString . fst) . dep_mods
+#endif
 
 -- Merging, order matters!
 mergeExtractedG2s :: [G2.ExtractedG2] -> G2.ExtractedG2
@@ -435,7 +466,7 @@ mkExpr nm tm mb (Tick t expr) =
         Nothing -> mkExpr nm tm mb expr
 mkExpr _ tm _ (Type ty) = G2.Type (mkType tm ty)
 
-#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
 createTickish :: Maybe ModBreaks -> GenTickish i -> Maybe G2.Tickish
 #else
 createTickish :: Maybe ModBreaks -> Tickish i -> Maybe G2.Tickish
@@ -549,16 +580,21 @@ mkLit (MachInt64 i) = G2.LitInt (fromInteger i)
 mkLit (MachWord i) = G2.LitInt (fromInteger i)
 mkLit (MachWord64 i) = G2.LitInt (fromInteger i)
 mkLit (LitInteger i _) = G2.LitInteger (fromInteger i)
-#elif __GLASGOW_HASKELL__ < 902
+#elif __GLASGOW_HASKELL__ <= 810
 mkLit (LitNumber LitNumInteger i _) = G2.LitInteger (fromInteger i)
 mkLit (LitNumber LitNumNatural i _) = G2.LitInteger (fromInteger i)
 mkLit (LitNumber LitNumInt i _) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumInt64 i _) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumWord i _) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumWord64 i _) = G2.LitInt (fromInteger i)
-#else
+#elif __GLASGOW_HASKELL__ <= 902
 mkLit (LitNumber LitNumInteger i) = G2.LitInteger (fromInteger i)
 mkLit (LitNumber LitNumNatural i) = G2.LitInteger (fromInteger i)
+mkLit (LitNumber LitNumInt i) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumInt64 i) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumWord i) = G2.LitInt (fromInteger i)
+mkLit (LitNumber LitNumWord64 i) = G2.LitInt (fromInteger i)
+#else
 mkLit (LitNumber LitNumInt i) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumInt64 i) = G2.LitInt (fromInteger i)
 mkLit (LitNumber LitNumWord i) = G2.LitInt (fromInteger i)
@@ -584,7 +620,7 @@ mkAlts :: G2.NameMap -> G2.TypeNameMap -> Maybe ModBreaks -> [CoreAlt] -> [G2.Al
 mkAlts nm tm mb = map (mkAlt nm tm mb)
 
 mkAlt :: G2.NameMap -> G2.TypeNameMap -> Maybe ModBreaks -> CoreAlt -> G2.Alt
-#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
 mkAlt nm tm mb (Alt acon prms expr) = G2.Alt (mkAltMatch nm tm acon prms) (mkExpr nm tm mb expr)
 #else
 mkAlt nm tm mb (acon, prms, expr) = G2.Alt (mkAltMatch nm tm acon prms) (mkExpr nm tm mb expr)
@@ -600,7 +636,7 @@ mkType tm (TyVarTy v) = G2.TyVar $ mkId tm v
 mkType tm (AppTy t1 t2) = G2.TyApp (mkType tm t1) (mkType tm t2)
 #if __GLASGOW_HASKELL__ < 808
 mkType tm (FunTy t1 t2) = G2.TyFun (mkType tm t1) (mkType tm t2)
-#elif __GLASGOW_HASKELL__ < 902
+#elif __GLASGOW_HASKELL__ <= 810
 mkType tm (FunTy _ t1 t2) = G2.TyFun (mkType tm t1) (mkType tm t2)
 #else
 mkType tm (FunTy _ _ t1 t2) = G2.TyFun (mkType tm t1) (mkType tm t2)
@@ -737,7 +773,7 @@ exportedNames :: ModDetails -> [G2.ExportedName]
 exportedNames = concatMap availInfoNames . md_exports
 
 availInfoNames :: AvailInfo -> [G2.ExportedName]
-#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
 availInfoNames (Avail n) = [greNameToName n]
 availInfoNames (AvailTC n ns) = mkName n:map greNameToName ns
 
