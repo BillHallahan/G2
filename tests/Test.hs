@@ -159,6 +159,9 @@ sampleTests = testGroup "Samples"
                                                          , ("switchInt", 400, [AtLeast 1])
                                                          , ("getInInt", 400, [AtLeast 1])
                                                          , ("switchP", 400, [AtLeast 1]) ]
+
+    , checkInputOutput "tests/Samples/NQueens.hs" "allQueensSafe" 2000 [AtLeast 14]
+
     ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
