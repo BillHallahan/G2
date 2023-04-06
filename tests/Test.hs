@@ -159,6 +159,9 @@ sampleTests = testGroup "Samples"
                                                          , ("switchInt", 400, [AtLeast 1])
                                                          , ("getInInt", 400, [AtLeast 1])
                                                          , ("switchP", 400, [AtLeast 1]) ]
+
+    , checkInputOutput "tests/Samples/NQueens.hs" "allQueensSafe" 2000 [AtLeast 14]
+
     ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
@@ -255,6 +258,13 @@ testFileTests = testGroup "TestFiles"
 
     , checkInputOutputs "tests/TestFiles/BadNames1.hs" [ ("abs'", 400, [Exactly 2])
                                                        , ("xswitch", 400, [AtLeast 10]) ]
+
+    , checkInputOutputs "tests/TestFiles/ListCallStack.hs" [ ("indexOf", 400, [AtLeast 2]) 
+                                                           , ("headOf", 400, [AtLeast 2])
+                                                           , ("tailOf", 400, [AtLeast 2])
+                                                           , ("lastOf", 400, [AtLeast 2])
+                                                           , ("initOf", 400, [AtLeast 2])
+                                                           , ("cycleOf", 400, [AtLeast 2]) ]
 
     , checkExpr "tests/TestFiles/PolyDataTy1.hs" 400 "f"
         [Exactly 2, RExists (\[x, _, y] -> x == y), RExists (\[_, App _ x, y] -> x == y)]
