@@ -13,8 +13,8 @@ import Distribution.PackageDescription.Parse
 #endif
 
 import Distribution.Verbosity
-#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
-import Distribution.Utils.Path
+#if MIN_VERSION_Cabal(3,6,0)
+import Distribution.Utils.Path ( getSymbolicPath )
 #endif
 
 -- | Takes the filepath to a Cabal file, and returns a list of FilePaths to red
@@ -46,7 +46,7 @@ testSrcDirs :: TestSuite -> [FilePath]
 testSrcDirs = buildInfoSrcDirs . testBuildInfo
 
 buildInfoSrcDirs :: BuildInfo -> [FilePath]
-#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+#if MIN_VERSION_Cabal(3,6,0)
 buildInfoSrcDirs (BuildInfo { hsSourceDirs = sd }) = map getSymbolicPath sd
 #else
 buildInfoSrcDirs (BuildInfo { hsSourceDirs = sd }) = sd
