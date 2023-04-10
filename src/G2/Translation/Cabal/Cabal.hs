@@ -4,7 +4,7 @@ module G2.Translation.Cabal.Cabal (cabalSrcDirs) where
 
 import Distribution.PackageDescription
 
-#if MIN_VERSION_Cabal(3,10,0)
+#if MIN_VERSION_Cabal(3,8,0)
 import Distribution.Simple.PackageDescription
 #elif MIN_VERSION_Cabal(2,2,0)
 import Distribution.PackageDescription.Parsec
