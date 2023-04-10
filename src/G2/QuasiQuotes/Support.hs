@@ -68,7 +68,8 @@ toTHType :: CleanedNames -> G2.Type -> Q TH.Type
 toTHType cleaned (TyFun t1 t2) = appT (appT arrowT $ toTHType cleaned t1) (toTHType cleaned t2)
 toTHType cleaned (TyApp t1 t2) = appT (toTHType cleaned t1) (toTHType cleaned t2)
 toTHType cleaned t@(TyCon n _)
-    | nameOcc (renames cleaned n) == "[]" = listT
+    | nameOcc (renames cleaned n) == "List" = listT -- GHC 9.6 on
+    | nameOcc (renames cleaned n) == "[]" = listT -- pre GHC 9.6
     | Just i <- tupleNum . nameOcc $ renames cleaned n = tupleT i
     | otherwise = do
         tn <- lookupTypeName . T.unpack . nameOcc $ renames cleaned n

@@ -4,7 +4,9 @@ module G2.Translation.Cabal.Cabal (cabalSrcDirs) where
 
 import Distribution.PackageDescription
 
-#if MIN_VERSION_Cabal(2,2,0)
+#if MIN_VERSION_Cabal(3,10,0)
+import Distribution.Simple.PackageDescription
+#elif MIN_VERSION_Cabal(2,2,0)
 import Distribution.PackageDescription.Parsec
 #else
 import Distribution.PackageDescription.Parse
@@ -44,7 +46,7 @@ testSrcDirs :: TestSuite -> [FilePath]
 testSrcDirs = buildInfoSrcDirs . testBuildInfo
 
 buildInfoSrcDirs :: BuildInfo -> [FilePath]
-#if MIN_VERSION_GLASGOW_HASKELL(9,2,2,0)
+#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 buildInfoSrcDirs (BuildInfo { hsSourceDirs = sd }) = map getSymbolicPath sd
 #else
 buildInfoSrcDirs (BuildInfo { hsSourceDirs = sd }) = sd
