@@ -353,7 +353,9 @@ mkTypeHaskell = mkTypeHaskellPG (mkPrettyGuide ())
 mkTypeHaskellPG :: PrettyGuide -> Type -> String
 mkTypeHaskellPG pg (TyVar i) = mkIdHaskell pg i
 mkTypeHaskellPG pg (TyFun t1 t2) = mkTypeHaskellPG pg t1 ++ " -> " ++ mkTypeHaskellPG pg t2
-mkTypeHaskellPG pg (TyCon n _) = mkNameHaskell pg n
+mkTypeHaskellPG pg (TyCon n _) | nameOcc n == "List"
+                               , nameModule n == Just "GHC.Types" = "[]"
+                               | otherwise = mkNameHaskell pg n
 mkTypeHaskellPG pg (TyApp t1 t2) = "(" ++ mkTypeHaskellPG pg t1 ++ " " ++ mkTypeHaskellPG pg t2 ++ ")"
 mkTypeHaskellPG pg (TyForAll i t) = "forall " ++ mkIdHaskell pg i ++ " . " ++ mkTypeHaskellPG pg t
 mkTypeHaskellPG _ TYPE = "Type"
