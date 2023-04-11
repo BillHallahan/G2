@@ -402,7 +402,7 @@ primTests = testGroup "Prims"
     , checkExpr "tests/Prim/DataTag.hs" 1000 "tagToEnum2" [Exactly 1, RForAll (\[r] -> isError r)]
 
     , checkInputOutputs "tests/Prim/Chr.hs" [ ("lowerLetters", 9000, [AtLeast 1])
-                                            , ("allLetters", 9000, [AtLeast 1])
+                                            , ("allLetters", 20000, [AtLeast 1])
                                             , ("printBasedOnChr", 1500, [AtLeast 7])
                                             , ("printBasedOnOrd", 1500, [AtLeast 7]) ]
     ]
