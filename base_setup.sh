@@ -3,10 +3,11 @@ stubs_commit=3908605
 
 get_base() {
 	printf "Updating $2\n"
-    cd "$2"
 	if [ ! -d $2 ] ; then
 	    git clone $1 $2 &> /dev/null
+        cd "$2"
 	else
+        cd "$2"
 		git checkout master &> /dev/null
 	    git pull $1 &> /dev/null
 	fi
