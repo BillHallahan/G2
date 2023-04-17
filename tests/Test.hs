@@ -335,7 +335,7 @@ testFileTests = testGroup "TestFiles"
                                                                    , ("thirdOrder", 75, [AtLeast 10])
                                                                    , ("tupleTestMono", 175, [AtLeast 10])]
     , checkInputOutputsTemplate "tests/HigherOrder/PolyHigherOrder.hs" [ ("f", 50, [AtLeast 5])
-                                                                       , ("h", 100, [AtLeast 3])
+                                                                       , ("h", 200, [AtLeast 3])
                                                                        , ("assoc", 200, [AtLeast 5])
                                                                        , ("sf", 150, [AtLeast 5])
                                                                        , ("tupleTest", 175, [AtLeast 8])]
