@@ -74,7 +74,7 @@ mkCleanExprHaskell' kv tc e
     | (App (Data (DataCon n _)) e') <- e
     , n == dcInt kv || n == dcFloat kv || n == dcDouble kv || n == dcInteger kv || n == dcChar kv = Just e'
 
-    | Case scrut i t as <- e = Case scrut i t (map elimPrimDC as)
+    | Case scrut i t as <- e = Just $ Case scrut i t (map elimPrimDC as)
 
     | (App e' e'') <- e
     , t <- typeOf e'
