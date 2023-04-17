@@ -11,6 +11,7 @@ import G2.Config
 import G2.Execution.Interface
 import G2.Execution.Memory
 import G2.Execution.Reducer
+import G2.Execution.Rules
 import G2.Initialization.MkCurrExpr
 import G2.Interface
 import G2.Language as G2
@@ -278,7 +279,7 @@ qqRedHaltOrd config solver simplifier =
     in
     ( SomeReducer
         (nonRedPCRed <~| taggerRed state_name)
-            .<~| (SomeReducer (stdRed share solver simplifier))
+            .<~| (SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier))
     , SomeHalter
         (discardIfAcceptedTagHalter state_name 
         <~> acceptIfViolatedHalter)

@@ -450,8 +450,8 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
         ( SomeReducer non_red
             .<~| (SomeReducer (nonRedAbstractReturnsRed <~| taggerRed abs_ret_name))
             .<~| (case m_logger of
-                  Just logger -> SomeReducer (stdRed share solver simplifier <~| lhRed cfn <~? existentialInstRed) .<~ logger
-                  Nothing -> SomeReducer (stdRed share solver simplifier <~| lhRed cfn <~? existentialInstRed))
+                  Just logger -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier <~| lhRed cfn <~? existentialInstRed) .<~ logger
+                  Nothing -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier <~| lhRed cfn <~? existentialInstRed))
         , SomeHalter
                 (maxOutputsHalter (maxOutputs config)
                   <~> zeroHalter (steps config)
@@ -464,8 +464,8 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
         (SomeReducer (nonRedAbstractReturnsRed <~| taggerRed abs_ret_name)
             .<~| (SomeReducer (non_red <~| taggerRed state_name))
             .<~| (case m_logger of
-                  Just logger -> SomeReducer (stdRed share solver simplifier <~| lhRed cfn <~? existentialInstRed) .<~ logger
-                  Nothing -> SomeReducer (stdRed share solver simplifier <~| lhRed cfn <~? existentialInstRed))
+                  Just logger -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier <~| lhRed cfn <~? existentialInstRed) .<~ logger
+                  Nothing -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier <~| lhRed cfn <~? existentialInstRed))
         , SomeHalter
             (discardIfAcceptedTagHalter state_name
               <~> discardIfAcceptedTagHalter abs_ret_name

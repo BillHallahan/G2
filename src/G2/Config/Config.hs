@@ -39,7 +39,8 @@ data Sharing = Sharing | NoSharing deriving (Eq, Show, Read)
 data SMTSolver = ConZ3 | ConCVC4 deriving (Eq, Show, Read)
 
 data HigherOrderSolver = AllFuncs
-                       | SingleFunc deriving (Eq, Show, Read)
+                       | SingleFunc
+                       | SymbolicFunc deriving (Eq, Show, Read)
 
 type IncludePath = FilePath
 
@@ -135,6 +136,7 @@ mkHigherOrder =
     option (eitherReader (\s -> case s of
                                     "all" -> Right AllFuncs
                                     "single" -> Right SingleFunc
+                                    "symbolic" -> Right SymbolicFunc
                                     _ -> Left "Unsupported higher order function handling"))
             ( long "higher-order"
             <> metavar "HANDLING"

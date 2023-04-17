@@ -49,8 +49,11 @@ runCheck' :: String -> String -> [String] -> State t -> [Expr] -> Expr -> Ghc (H
 runCheck' modN entry chAll s ars out = do
     let Left (v, _) = findFunc (T.pack entry) (Just $ T.pack modN) (expr_env s)
     let e = mkApp $ Var v:ars
-    let arsStr = printHaskell s e
-    let outStr = printHaskell s out
+    let pg = updatePrettyGuide (exprNames e)
+           . updatePrettyGuide (exprNames out)
+           $ mkPrettyGuide $ varIds v
+    let arsStr = printHaskellPG pg s e
+    let outStr = printHaskellPG pg s out
 
     let arsType = mkTypeHaskell (typeOf e)
         outType = mkTypeHaskell (typeOf out)
@@ -64,7 +67,7 @@ runCheck' modN entry chAll s ars out = do
     v' <- compileExpr chck
 
     let chArgs = ars ++ [out] 
-    let chAllStr = map (\f -> printHaskell s $ mkApp ((simpVar $ T.pack f):chArgs)) chAll
+    let chAllStr = map (\f -> printHaskellPG pg s $ mkApp ((simpVar $ T.pack f):chArgs)) chAll
     let chAllStr' = map (\str -> "try (evaluate (" ++ str ++ ")) :: IO (Either SomeException Bool)") chAllStr
 
     chAllR <- mapM compileExpr chAllStr'

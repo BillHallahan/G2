@@ -64,6 +64,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , insertInLams
                         , maybeInsertInLams
                         , inLams
+                        , simplifyLams
                         , flattenLets
                         , replaceASTs
                         , args
@@ -398,6 +399,13 @@ maybeInsertInLams' f xs e = f (reverse xs) e
 inLams :: Expr -> Expr
 inLams (Lam _ _ e) = inLams e
 inLams e = e
+
+simplifyLams :: ASTContainer c Expr => c -> c
+simplifyLams = modifyASTs simplifyLams'
+
+simplifyLams' :: Expr -> Expr
+simplifyLams' (App (Lam _ i e1) e2) = replaceASTs (Var i) e2 e1
+simplifyLams' e = e
 
 leadingLamUsesIds :: Expr -> [(LamUse, Id)]
 leadingLamUsesIds (Lam u i e) = (u, i):leadingLamUsesIds e

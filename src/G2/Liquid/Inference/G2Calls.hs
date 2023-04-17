@@ -365,7 +365,7 @@ gatherAllowedCalls entry m lrs ghci infconfig config lhconfig = do
                               let fs = final_state er in
                               map (fs,) $ track fs) exec_res
 
-        fc_red = SomeReducer (stdRed (sharing config') solver simplifier)
+        fc_red = SomeReducer (stdRed (sharing config') retReplaceSymbFuncVar solver simplifier)
 
     (_, red_calls) <- mapAccumM 
                                 (\b (fs, fc) -> do
@@ -414,8 +414,8 @@ gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
     return
         (SomeReducer (nonRedPCRed <~| taggerRed state_name)
             .<~| (case m_logger of
-                    Just logger -> SomeReducer (stdRed share solver simplifier <~ gathererReducer) .<~ logger
-                    Nothing -> SomeReducer (stdRed share solver simplifier <~ gathererReducer))
+                    Just logger -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier <~ gathererReducer) .<~ logger
+                    Nothing -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier <~ gathererReducer))
         , SomeHalter
             (discardIfAcceptedTagHalter state_name
               <~> switchEveryNHalter (switch_after lhconfig)
@@ -544,7 +544,7 @@ inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry 
                  <~> lhSWHNFHalter
                  <~> timer_halter
                  <~> lh_timer_halter
-    let some_red = SomeReducer (stdRed share solver simplifier
+    let some_red = SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier
                              <~ higherOrderCallsRed
                              <~ allCallsRed
                              <~| redArbErrors
@@ -633,8 +633,8 @@ realCExReducerHalterOrderer infconfig config lhconfig entry modname solver simpl
         (SomeReducer (nonRedAbstractReturnsRed <~| taggerRed abs_ret_name)
             .<~| (SomeReducer (nonRedPCRed <~| taggerRed state_name))
             .<~| (case m_logger of
-                      Just logger -> SomeReducer (stdRed share solver simplifier <~| lhRed cfn) .<~ logger
-                      Nothing -> SomeReducer (stdRed share solver simplifier <~| lhRed cfn))
+                      Just logger -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier <~| lhRed cfn) .<~ logger
+                      Nothing -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier <~| lhRed cfn))
         , SomeHalter
             (discardIfAcceptedTagHalter state_name <~> halter)
         , SomeOrderer (incrAfterN 1000 (adtSizeOrderer 0 Nothing)))
@@ -1074,7 +1074,7 @@ genericG2Call config solver s bindings = do
     let simplifier = IdSimplifier
         share = sharing config
 
-    fslb <- runG2WithSomes (SomeReducer (stdRed share solver simplifier))
+    fslb <- runG2WithSomes (SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier))
                            (SomeHalter swhnfHalter)
                            (SomeOrderer nextOrderer)
                            solver simplifier PreserveAllMC s bindings
@@ -1097,7 +1097,7 @@ genericG2CallLogging config solver s bindings lg = do
     let simplifier = IdSimplifier
         share = sharing config
 
-    fslb <- runG2WithSomes (SomeReducer (stdRed share solver simplifier <~ prettyLogger lg))
+    fslb <- runG2WithSomes (SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier <~ prettyLogger lg))
                            (SomeHalter swhnfHalter)
                            (SomeOrderer nextOrderer)
                            solver simplifier PreserveAllMC s bindings

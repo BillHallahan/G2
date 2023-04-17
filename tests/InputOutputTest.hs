@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module InputOutputTest ( checkInputOutput
-                       , checkInputOutputs ) where
+                       , checkInputOutputs
+                       , checkInputOutputsTemplate ) where
 
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -24,21 +25,29 @@ import TestUtils
 
 checkInputOutput :: FilePath -> String -> Int -> [Reqs String] -> TestTree
 checkInputOutput src entry stps req = do
-    checkInputOutput' src [(entry, stps, req)]
+    checkInputOutput' mkConfigTestIO src [(entry, stps, req)]
 
 checkInputOutputs :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputs src tests = do
-    checkInputOutput' src tests
+    checkInputOutput' mkConfigTestIO src tests
 
-checkInputOutput' :: FilePath
+checkInputOutputsTemplate :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsTemplate src tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymbolicFunc }))
+        src
+        tests
+
+checkInputOutput' :: IO Config
+                  -> FilePath
                   -> [(String, Int, [Reqs String])]
                   -> TestTree
-checkInputOutput' src tests = do
+checkInputOutput' io_config src tests = do
     let proj = takeDirectory src
     
     withResource
         (do 
-            config <- mkConfigTestIO
+            config <- io_config
             translateLoaded [proj] [src] simplTranslationConfig config
         )
         (\_ -> return ())
@@ -48,7 +57,7 @@ checkInputOutput' src tests = do
                 $ map (\test@(entry, _, _) -> do
                         testCase (src ++ " " ++ entry) ( do
                                 (mb_modname, exg2) <- loadedExG2
-                                config <- mkConfigTestIO
+                                config <- io_config
                                 r <- doTimeout (timeLimit config)
                                                (try (checkInputOutput'' [src] exg2 mb_modname config test)
                                                     :: IO (Either SomeException (Bool, [ExecRes ()])))

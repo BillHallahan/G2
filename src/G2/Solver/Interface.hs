@@ -15,6 +15,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Solver.Converters
 import G2.Solver.Solver
 
+import Data.Function
 import qualified Data.List as L
 import Data.Maybe (mapMaybe)
 import qualified Data.HashMap.Lazy as HM
@@ -27,9 +28,9 @@ subModel (State { expr_env = eenv
                 , model = m}) 
           (Bindings {input_names = inputNames}) = 
     let
-        ais' = fmap (subVarFuncCall False m eenv tc) ais
+        ais' = fmap (subVarFuncCall True m eenv tc) ais
 
-        -- We do not inline Lambdas, because higher order function arguments
+        -- We do not inline all Lambdas, because higher order function arguments
         -- get preinserted into the model.
         -- See [Higher-Order Model] in G2.Execution.Reducers
         is = mapMaybe (\n -> case E.lookup n eenv of
@@ -37,7 +38,9 @@ subModel (State { expr_env = eenv
                                 Just e -> Just e
                                 Nothing -> Nothing) inputNames
     in
-    subVar False m eenv tc (is, cexpr, ais')
+    untilEq (simplifyLams . pushCaseAppArgIn) $ subVar False m eenv tc (is, cexpr, ais')
+    where
+        untilEq f x = let x' = f x in if x == x' then x' else untilEq f x'
 
 subVarFuncCall :: Bool -> Model -> ExprEnv -> TypeClasses -> FuncCall -> FuncCall
 subVarFuncCall inLam em eenv tc fc@(FuncCall {arguments = ars}) =
@@ -53,7 +56,9 @@ subVar' inLam em eenv tc is v@(Var i@(Id n _))
         subVar' inLam em eenv tc (i:is) e
     | i `notElem` is
     , Just e <- E.lookup n eenv
-    , (isExprValueForm eenv e && (notLam e || inLam)) || isApp e || isVar e || isLitCase e =
+    -- We want to inline a lambda only if inLam is true (we want to inline all lambdas),
+    -- or if it's module is Nothing (and its name is likely uninteresting/unknown to the user)
+    , (isExprValueForm eenv e && (notLam e || inLam || nameModule n == Nothing)) || isApp e || isVar e || isLitCase e =
         subVar' inLam em eenv tc (i:is) e
     | otherwise = v
 subVar' inLam mdl eenv tc is cse@(Case e _ _ as) =
@@ -61,7 +66,7 @@ subVar' inLam mdl eenv tc is cse@(Case e _ _ as) =
         Lit l
             | Just (Alt _ ae) <- L.find (\(Alt (LitAlt l') _) -> l == l') as ->
                 subVar' inLam mdl eenv tc is ae
-        _ -> cse
+        _ -> modifyChildren (subVar' inLam mdl eenv tc is) cse
 subVar' inLam em eenv tc is e = modifyChildren (subVar' inLam em eenv tc is) e
 
 isApp :: Expr -> Bool
@@ -83,3 +88,14 @@ isLitCase _ = False
 isTC :: TypeClasses -> Expr -> Bool
 isTC tc (Var (Id _ (TyCon n _))) = isTypeClassNamed n tc
 isTC _ _ = False
+
+-- | Rewrites a case statement returning a function type, and applied to a variable argument,
+-- so that the variable argument is moved into each branch of the case statement.
+-- This composes with `simplifyLams` to get better simplication for symbolic function concretizations.
+pushCaseAppArgIn :: ASTContainer c Expr => c -> c
+pushCaseAppArgIn = modifyASTs pushCaseAppArgIn'
+
+pushCaseAppArgIn' :: Expr -> Expr
+pushCaseAppArgIn' (App (Case scrut bind t as) v@(Var _)) =
+    Case scrut bind t $ map (\(Alt am e) -> Alt am (App e v) ) as
+pushCaseAppArgIn' e = e
