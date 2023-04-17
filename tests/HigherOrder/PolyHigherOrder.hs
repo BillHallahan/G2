@@ -5,7 +5,6 @@ data List a = Cons a (List a) | EmptyList
 f :: (List Bool -> List Bool) -> List Bool -> Bool
 f g l = case g l of
     Cons True l -> True
-    -- _ -> False
     Cons False l -> False
     EmptyList -> True
 

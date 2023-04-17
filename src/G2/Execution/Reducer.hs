@@ -392,12 +392,12 @@ redRulesToStates r rv1 s b = do
     return $ (rf, concat s', b')
 
 {-#INLINE stdRed #-}
-{-# SPECIALIZE stdRed :: (Solver solver, Simplifier simplifier) => Sharing -> solver -> simplifier -> Reducer IO () t #-}
-stdRed :: (MonadIO m, Solver solver, Simplifier simplifier) => Sharing -> solver -> simplifier -> Reducer m () t
-stdRed share solver simplifier =
+{-# SPECIALIZE stdRed :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> Reducer IO () t #-}
+stdRed :: (MonadIO m, Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> Reducer m () t
+stdRed share symb_func_eval solver simplifier =
         mkSimpleReducer (\_ -> ())
                         (\_ s b -> do
-                            (r, s', b') <- liftIO $ stdReduce share solver simplifier s b
+                            (r, s', b') <- liftIO $ stdReduce share symb_func_eval solver simplifier s b
 
                             return (if r == RuleIdentity then Finished else InProgress, s', b')
                         )

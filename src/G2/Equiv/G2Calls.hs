@@ -91,11 +91,11 @@ rewriteRedHaltOrd solver simplifier h_opp track_opp config (NC { use_labeled_err
     in
     (case m_logger of
             Just logger -> SomeReducer (
-                                (stdRed share solver simplifier <~?
+                                (stdRed share retReplaceSymbFuncVar solver simplifier <~?
                                         enforceProgressRed) <~? labeledErrorsRed <~ concSymReducer use_labels <~ symbolicSwapperRed h_opp track_opp) .<~?
                                         (logger .<~ SomeReducer equivReducer)
             Nothing -> SomeReducer (
-                                ((stdRed share solver simplifier <~?
+                                ((stdRed share retReplaceSymbFuncVar solver simplifier <~?
                                     enforceProgressRed) <~? labeledErrorsRed <~ concSymReducer use_labels <~ symbolicSwapperRed h_opp track_opp) <~?
                                     equivReducer)
      , SomeHalter

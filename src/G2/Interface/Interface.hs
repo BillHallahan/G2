@@ -49,6 +49,7 @@ import G2.Preprocessing.Interface
 
 import G2.Execution.Interface
 import G2.Execution.Reducer
+import G2.Execution.Rules
 import G2.Execution.PrimitiveEval
 import G2.Execution.Memory
 
@@ -262,25 +263,38 @@ initRedHaltOrd solver simplifier config =
 
         m_logger = fmap SomeReducer $ getLogger config
     in
-    if higherOrderSolver config == AllFuncs
-        then (SomeReducer (nonRedPCRed)
+    case higherOrderSolver config of
+        AllFuncs ->
+            (SomeReducer (nonRedPCRed)
                  .<~| (case m_logger of
-                        Just logger -> SomeReducer (stdRed share solver simplifier) .<~ logger
-                        Nothing -> SomeReducer (stdRed share solver simplifier))
+                        Just logger -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier) .<~ logger
+                        Nothing -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier))
              , SomeHalter
                  (switchEveryNHalter 20
                  <~> maxOutputsHalter (maxOutputs config)
                  <~> zeroHalter (steps config)
                  <~> acceptIfViolatedHalter)
              , SomeOrderer $ pickLeastUsedOrderer)
-        else ( SomeReducer (nonRedPCRed <~| taggerRed state_name)
+        SingleFunc ->
+            ( SomeReducer (nonRedPCRed <~| taggerRed state_name)
                  .<~| (case m_logger of
-                        Just logger -> SomeReducer (stdRed share solver simplifier) .<~ logger
-                        Nothing -> SomeReducer (stdRed share solver simplifier))
+                        Just logger -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier) .<~ logger
+                        Nothing -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier))
              , SomeHalter
                  (discardIfAcceptedTagHalter state_name
                  <~> switchEveryNHalter 20
                  <~> maxOutputsHalter (maxOutputs config) 
+                 <~> zeroHalter (steps config)
+                 <~> acceptIfViolatedHalter)
+             , SomeOrderer $ pickLeastUsedOrderer)
+        SymbolicFunc ->
+            (SomeReducer (nonRedPCRed)
+                 .<~| (case m_logger of
+                        Just logger -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier) .<~ logger
+                        Nothing -> SomeReducer (stdRed share retReplaceSymbFuncTemplate solver simplifier))
+             , SomeHalter
+                 (switchEveryNHalter 20
+                 <~> maxOutputsHalter (maxOutputs config)
                  <~> zeroHalter (steps config)
                  <~> acceptIfViolatedHalter)
              , SomeOrderer $ pickLeastUsedOrderer)
