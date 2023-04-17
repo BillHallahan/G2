@@ -74,7 +74,7 @@ mkCleanExprHaskell' kv tc e
     | (App (Data (DataCon n _)) e') <- e
     , n == dcInt kv || n == dcFloat kv || n == dcDouble kv || n == dcInteger kv || n == dcChar kv = Just e'
 
-    | Case scrut i t [a] <- e = Case scrut i t . singleton <$> elimPrimDC a
+    | Case scrut i t [a] <- e = Case scrut i t . (:[]) <$> elimPrimDC a
 
     | (App e' e'') <- e
     , t <- typeOf e'
@@ -95,7 +95,7 @@ elimPrimDC :: Alt -> Maybe Alt
 elimPrimDC (Alt (DataAlt (DataCon (Name n _ _ _) t) is) e)
     | n == "I#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" =
                         Just $ Alt (DataAlt (DataCon (Name "" Nothing 0 Nothing) t) is) e
-elimPrimDC a = Nothing
+elimPrimDC _ = Nothing
 
 mkDirtyExprHaskell :: PrettyGuide -> Expr -> String
 mkDirtyExprHaskell = mkExprHaskell Dirty
