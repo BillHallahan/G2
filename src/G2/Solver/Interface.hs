@@ -30,7 +30,7 @@ subModel (State { expr_env = eenv
     let
         ais' = fmap (subVarFuncCall True m eenv tc) ais
 
-        -- We do not inline Lambdas, because higher order function arguments
+        -- We do not inline all Lambdas, because higher order function arguments
         -- get preinserted into the model.
         -- See [Higher-Order Model] in G2.Execution.Reducers
         is = mapMaybe (\n -> case E.lookup n eenv of
@@ -38,7 +38,7 @@ subModel (State { expr_env = eenv
                                 Just e -> Just e
                                 Nothing -> Nothing) inputNames
     in
-    untilEq (simplifyLams . pushCaseAppArgIn) $ subVar True m eenv tc (is, cexpr, ais')
+    untilEq (simplifyLams . pushCaseAppArgIn) $ subVar False m eenv tc (is, cexpr, ais')
     where
         untilEq f x = let x' = f x in if x == x' then x' else untilEq f x'
 
@@ -56,7 +56,9 @@ subVar' inLam em eenv tc is v@(Var i@(Id n _))
         subVar' inLam em eenv tc (i:is) e
     | i `notElem` is
     , Just e <- E.lookup n eenv
-    , (isExprValueForm eenv e && (notLam e || inLam)) || isApp e || isVar e || isLitCase e =
+    -- We want to inline a lambda only if inLam is true (we want to inline all lambdas),
+    -- or if it's module is Nothing (and its name is likely uninteresting/unknown to the user)
+    , (isExprValueForm eenv e && (notLam e || inLam || nameModule n == Nothing)) || isApp e || isVar e || isLitCase e =
         subVar' inLam em eenv tc (i:is) e
     | otherwise = v
 subVar' inLam mdl eenv tc is cse@(Case e _ _ as) =

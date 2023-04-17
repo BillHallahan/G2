@@ -290,7 +290,7 @@ initRedHaltOrd solver simplifier config =
         SymbolicFunc ->
             (SomeReducer (nonRedPCRed)
                  .<~| (case m_logger of
-                        Just logger -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier) .<~ logger
+                        Just logger -> SomeReducer (stdRed share retReplaceSymbFuncTemplate solver simplifier) .<~ logger
                         Nothing -> SomeReducer (stdRed share retReplaceSymbFuncTemplate solver simplifier))
              , SomeHalter
                  (switchEveryNHalter 20
