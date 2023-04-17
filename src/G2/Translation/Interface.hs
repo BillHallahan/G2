@@ -1,6 +1,8 @@
 {-# LANGUAGE CPP #-}
 
-module G2.Translation.Interface ( translateLoaded ) where
+module G2.Translation.Interface ( translateBase
+                                , translateLoaded
+                                , specialInject ) where
 
 import Control.Monad.Extra
 import qualified Data.HashMap.Lazy as HM
@@ -28,7 +30,14 @@ translateBase tr_con config extra hsc = do
   let base_inc = baseInclude config
   let bases = nub $ base config ++ extra
 
-  translateLibPairs specialConstructors specialTypeNames tr_con config emptyExtractedG2 hsc base_inc bases
+  (base_exg2, b_nm, b_tnm) <- translateLibPairs specialConstructors specialTypeNames tr_con config emptyExtractedG2 hsc base_inc bases
+
+  let base_prog = exg2_binds base_exg2
+      base_tys = exg2_tycons base_exg2
+
+  let base_tys' = base_tys `HM.union` specialTypes
+  let base_prog' = addPrimsToBase base_tys' base_prog
+  return (base_exg2 { exg2_binds = base_prog', exg2_tycons = base_tys' }, b_nm, b_tnm)
 
 translateLibPairs :: NameMap
   -> TypeNameMap
@@ -52,50 +61,47 @@ translateLoaded :: [FilePath]
 translateLoaded proj src tr_con config = do
   -- Stuff with the actual target
   let def_proj = extraDefaultInclude config
-#if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
-  tar_ems <- envModSumModGuts (Just Interpreter) (def_proj ++ proj) src tr_con
+#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+  tar_ems <- envModSumModGutsFromFile (Just interpreterBackend) (def_proj ++ proj) src tr_con
+#elif MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
+  tar_ems <- envModSumModGutsFromFile (Just Interpreter) (def_proj ++ proj) src tr_con
 #else
-  tar_ems <- envModSumModGuts (Just HscInterpreted) (def_proj ++ proj) src tr_con
+  tar_ems <- envModSumModGutsFromFile (Just HscInterpreted) (def_proj ++ proj) src tr_con
 #endif
   let imports = envModSumModGutsImports tar_ems
   extra_imp <- return . catMaybes =<< mapM (findImports (baseInclude config)) imports
 
   -- Stuff with the base library
   (base_exg2, b_nm, b_tnm) <- translateBase tr_con config extra_imp Nothing
-  let base_prog = exg2_binds base_exg2
-      base_tys = exg2_tycons base_exg2
-      b_exp = exg2_exports base_exg2
-
-  let base_tys' = base_tys `HM.union` specialTypes
-  let base_prog' = addPrimsToBase base_tys' base_prog
-  let base_trans' = base_exg2 { exg2_binds = base_prog', exg2_tycons = base_tys' }
 
   -- Now the stuff with the actual target
   (_, _, exg2) <- hskToG2ViaEMS tr_con tar_ems b_nm b_tnm
   let mb_modname = head $ exg2_mod_names exg2
-  let h_exp = exg2_exports exg2
 
-  -- putStrLn $ "exg2_deps = " ++ show (exg2_deps exg2)
-
-  let merged_exg2 = mergeExtractedG2s [exg2, base_trans']
-      merged_prog = exg2_binds merged_exg2
-      merged_tys = exg2_tycons merged_exg2
-      merged_cls = exg2_classes merged_exg2
-
-  -- final injection phase
-  let (near_final_prog, final_tys, final_rules) = primInject $ dataInject (merged_prog, merged_tys, exg2_rules merged_exg2) merged_tys
-
-  let final_merged_cls = primInject merged_cls
+  let merged_exg2 = mergeExtractedG2s [exg2, base_exg2]
+  let injected_exg2@ExtractedG2 { exg2_binds = near_final_prog } = specialInject merged_exg2
 
   final_prog <- absVarLoc near_final_prog
 
-  let final_exg2 = merged_exg2 { exg2_binds = final_prog
-                               , exg2_tycons = final_tys
-                               , exg2_classes = final_merged_cls
-                               , exg2_exports = b_exp ++ h_exp
-                               , exg2_rules = final_rules}
+  let final_exg2 = injected_exg2 { exg2_binds = final_prog }
 
   return (mb_modname, final_exg2)
+
+specialInject :: ExtractedG2 -> ExtractedG2
+specialInject exg2 =
+    let
+        prog = exg2_binds exg2
+        tys = exg2_tycons exg2
+        rules = exg2_rules exg2
+        cls = exg2_classes exg2
+    
+        (prog', tys', rules') = primInject $ dataInject (prog, tys, rules) tys
+        cls' = primInject cls
+    in
+    exg2 { exg2_binds = prog'
+         , exg2_tycons = tys'
+         , exg2_rules = rules'
+         , exg2_classes = cls' }
 
 findImports :: [FilePath] -> FilePath -> IO (Maybe FilePath)
 findImports roots fp = do

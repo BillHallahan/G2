@@ -18,6 +18,7 @@ import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.CallGraph as G
 
 import Data.Maybe
+import Data.List
 import qualified Data.Text as DT
 
 import qualified Data.HashSet as HS
@@ -337,21 +338,17 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
                   final_lemmas <- foldM (flip (insertProposedLemma solver ns))
                                         lemmas''
                                         (pl_lemmas ++ new_lemmas)
-
-                  -- mapM (\l@(le1, le2) -> do
-                  --               let pg = mkPrettyGuide l
-                  --               W.liftIO $ putStrLn "----"
-                  --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
-                  --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) $ HS.toList new_lemmas
                   verifyLoop solver num_lems ns final_lemmas new_obligations b'''' config nc sym_ids k''' n'
-              CounterexampleFound -> return $ S.SAT ()
+              CounterexampleFound -> do
+                  let un l = LMarker $ LemmaUnresolved l
+                      un_lemmas = (proposedLemmas lemmas \\ provenLemmas lemmas) \\ disprovenLemmas lemmas
+                  W.tell $ map un un_lemmas
+                  return $ S.SAT ()
               Proven -> do
+                  let un l = LMarker $ LemmaUnresolved l
+                      un_lemmas = (proposedLemmas lemmas \\ provenLemmas lemmas) \\ disprovenLemmas lemmas
+                  W.tell $ map un un_lemmas
                   W.liftIO $ putStrLn $ "proposed = " ++ show (length $ proposedLemmas lemmas)
-                  -- mapM (\l@(Lemma le1 le2 _) -> do
-                  --               let pg = mkPrettyGuide l
-                  --               W.liftIO $ putStrLn "----"
-                  --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
-                  --               W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) $ proposedLemmas lemmas
                   W.liftIO $ putStrLn $ "proven = " ++ show (length $ provenLemmas lemmas) 
                   W.liftIO $ putStrLn $ "disproven = " ++ show (length $ disprovenLemmas lemmas) 
                   return $ S.UNSAT ()
@@ -359,29 +356,12 @@ verifyLoop solver num_lems ns lemmas states b config nc sym_ids k n | (n /= 0) |
     W.liftIO $ putStrLn $ "proposed = " ++ show (length $ proposedLemmas lemmas)
     W.liftIO $ putStrLn $ "proven = " ++ show (length $ provenLemmas lemmas) 
     W.liftIO $ putStrLn $ "disproven = " ++ show (length $ disprovenLemmas lemmas)
-    {-
-    mapM (\l@(Lemma { lemma_lhs = le1, lemma_rhs = le2}) -> do
-                  let pg = mkPrettyGuide l
-                  W.liftIO $ putStrLn "---- Proven ----"
-                  W.liftIO $ putStrLn $ lemma_name l
-                  W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
-                  W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) (provenLemmas lemmas)
-    mapM (\l@(Lemma { lemma_lhs = le1, lemma_rhs = le2}) -> do
-                  let pg = mkPrettyGuide l
-                  W.liftIO $ putStrLn "---- Disproven ----"
-                  W.liftIO $ putStrLn $ lemma_name l
-                  W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
-                  W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) (disprovenLemmas lemmas)
-    mapM (\l@(Lemma { lemma_lhs = le1, lemma_rhs = le2}) -> do
-                  let pg = mkPrettyGuide l
-                  W.liftIO $ putStrLn "---- Proposed ----"
-                  W.liftIO $ putStrLn $ lemma_name l
-                  W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le1) le1
-                  W.liftIO $ putStrLn $ printPG pg ns (E.symbolicIds $ expr_env le2) le2) (proposedLemmas lemmas)
-    -}
     W.liftIO $ putStrLn $ "Unresolved Obligations: " ++ show (length states)
     let ob (sh1, sh2) = Marker (sh1, sh2) $ Unresolved (latest sh1, latest sh2)
+        un l = LMarker $ LemmaUnresolved l
+        un_lemmas = (proposedLemmas lemmas \\ provenLemmas lemmas) \\ disprovenLemmas lemmas
     W.tell $ map ob states
+    W.tell $ map un un_lemmas
     return $ S.Unknown "Loop Iterations Exhausted" ()
 
 data StepRes = CounterexampleFound
@@ -742,6 +722,8 @@ writeCX ((Marker hist m):ms) pg ns sym_ids init_pair = case m of
   SolverFail s_pair -> showCX pg ns sym_ids hist init_pair s_pair
   CycleFound cm -> showCycle pg ns sym_ids hist init_pair cm
   _ -> writeCX ms pg ns sym_ids init_pair
+writeCX (_:ms) pg ns sym_ids init_pair =
+  writeCX ms pg ns sym_ids init_pair
 
 -- This function relies on the assumption that, if symbolic execution for
 -- the main expression pair hits a counterexample, that counterexample
@@ -760,6 +742,7 @@ reducedGuide ((Marker _ m):ms) = case m of
   SolverFail _ -> mkPrettyGuide m
   CycleFound _ -> mkPrettyGuide m
   _ -> reducedGuide ms
+reducedGuide (_:ms) = reducedGuide ms
 
 checkRule :: Config
           -> NebulaConfig
@@ -799,10 +782,10 @@ checkRule config nc init_state bindings total rule = do
              emptyLemmas
              [(rewrite_state_l'', rewrite_state_r'')]
              bindings'' config nc sym_ids 0 (limit nc)
-  let pg = if (print_summary nc) == NoSummary
-           then reducedGuide (reverse w)
-           else mkPrettyGuide $ map (\(Marker _ am) -> am) w
-  if print_summary nc /= NoSummary then do
+  let pg = if have_summary $ print_summary nc
+           then mkPrettyGuide w-- $ map (\(Marker _ am) -> am) w
+           else reducedGuide (reverse w)
+  if have_summary $ print_summary nc then do
     putStrLn "--- SUMMARY ---"
     _ <- mapM (putStrLn . (summarize (print_summary nc) pg ns sym_ids)) w
     putStrLn "--- END OF SUMMARY ---"

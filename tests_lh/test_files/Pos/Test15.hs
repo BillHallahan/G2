@@ -7,8 +7,8 @@ module Combined (C, f) where
 data C a = Emp | C a
 
 {-@ measure isC :: C a -> Int
-    isC Emp = 0
-    isC (C x) = 1
+        isC Emp = 0
+        isC (C x) = 1
   @-}
 
 {-@ invariant {v:C a | 0 <= isC v} @-}

@@ -58,6 +58,7 @@ g2 = QuasiQuoter { quoteExp = parseHaskellQ
 -- aquired/released by each quasiquoter's compilation
 oneByOne :: IORef Lock.Lock
 oneByOne = unsafePerformIO $ newIORef =<< Lock.new
+{-# NOINLINE oneByOne #-}
 
 acquireIORefLock :: IO ()
 acquireIORefLock = do

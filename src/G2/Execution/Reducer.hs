@@ -392,6 +392,7 @@ redRulesToStates r rv1 s b = do
     return $ (rf, concat s', b')
 
 {-#INLINE stdRed #-}
+{-# SPECIALIZE stdRed :: (Solver solver, Simplifier simplifier) => Sharing -> solver -> simplifier -> Reducer IO () t #-}
 stdRed :: (MonadIO m, Solver solver, Simplifier simplifier) => Sharing -> solver -> simplifier -> Reducer m () t
 stdRed share solver simplifier =
         mkSimpleReducer (\_ -> ())
@@ -796,7 +797,6 @@ timerHalter ms def ce = do
 -- Orderer things
 (<->) :: Orderer sov1 b1 t -> Orderer sov2 b2 t -> Orderer (C sov1 sov2) (b1, b2) t
 or1 <-> or2 = Orderer {
-    -- | Initializing the per state ordering value 
       initPerStateOrder = \s ->
           let
               sov1 = initPerStateOrder or1 s
@@ -804,8 +804,6 @@ or1 <-> or2 = Orderer {
           in
           C sov1 sov2
 
-    -- | Assigns each state some value of an ordered type, and then proceeds with execution on the
-    -- state assigned the minimal value
     , orderStates = \(C sov1 sov2) pr s ->
           let
               sov1' = orderStates or1 sov1 pr s
@@ -813,7 +811,6 @@ or1 <-> or2 = Orderer {
           in
           (sov1', sov2')
 
-    -- | Run on the selected state, to update it's sov field
     , updateSelected = \(C sov1 sov2) proc s ->
           let
               sov1' = updateSelected or1 sov1 proc s
@@ -831,7 +828,6 @@ or1 <-> or2 = Orderer {
 
 ordComb :: (v1 -> v2 -> v3) -> Orderer sov1 v1 t  -> Orderer sov2 v2 t -> Orderer(C sov1 sov2) v3 t
 ordComb f or1 or2 = Orderer {
-    -- | Initializing the per state ordering value 
       initPerStateOrder = \s ->
           let
               sov1 = initPerStateOrder or1 s
@@ -839,8 +835,6 @@ ordComb f or1 or2 = Orderer {
           in
           C sov1 sov2
 
-    -- | Assigns each state some value of an ordered type, and then proceeds with execution on the
-    -- state assigned the minimal value
     , orderStates = \(C sov1 sov2) pr s ->
           let
               sov1' = orderStates or1 sov1 pr s
@@ -848,7 +842,6 @@ ordComb f or1 or2 = Orderer {
           in
           f sov1' sov2'
 
-    -- | Run on the selected state, to update it's sov field
     , updateSelected = \(C sov1 sov2) proc s ->
           let
               sov1' = updateSelected or1 sov1 proc s
@@ -1058,6 +1051,22 @@ quotTrueAssert ord = (mkSimpleOrderer (initPerStateOrder ord)
 --------
 --------
 
+{-# SPECIALIZE runReducer :: Ord b =>
+                             Reducer IO rv t
+                          -> Halter IO hv t
+                          -> Orderer sov b t
+                          -> State t
+                          -> Bindings
+                          -> IO (Processed (State t), Bindings)
+    #-}
+{-# SPECIALIZE runReducer :: Ord b =>
+                             Reducer (SM.StateT PrettyGuide IO) rv t
+                          -> Halter (SM.StateT PrettyGuide IO) hv t
+                          -> Orderer sov b t
+                          -> State t
+                          -> Bindings
+                          -> SM.StateT PrettyGuide IO (Processed (State t), Bindings)
+    #-}
 -- | Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
 runReducer :: (MonadIO m, Ord b) =>
               Reducer m rv t

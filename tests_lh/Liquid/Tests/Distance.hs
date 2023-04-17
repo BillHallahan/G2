@@ -14,8 +14,8 @@ data List a = Emp
 {-@ type ListX a Xs = {v:List a | size v = size Xs} @-}
 
 {-@ measure size      :: List a -> Int
-    size (Emp)        = 0
-    size ((:+:) x xs) = 1 + size xs
+        size (Emp)        = 0
+        size ((:+:) x xs) = 1 + size xs
   @-}
 
 {-@ zipWith :: (a -> b -> c) -> xs:List a -> ListX b xs -> ListX c xs @-}

@@ -48,15 +48,12 @@ data PrevMatch t = PrevMatch {
   , container :: State t
 }
 
--- TODO new constructor for lemma proving
 data ActMarker = Coinduction CoMarker
                | Equality EqualMarker
                | NoObligations (StateET, StateET)
                | NotEquivalent (StateET, StateET)
                | SolverFail (StateET, StateET)
                | CycleFound CycleMarker
-               | LemmaProvenEarly (Lemma, Lemma)
-               | LemmaDisprovenEarly (Lemma, Lemma)
                | Unresolved (StateET, StateET)
 
 instance Named ActMarker where
@@ -66,8 +63,6 @@ instance Named ActMarker where
   names (NotEquivalent s_pair) = names s_pair
   names (SolverFail s_pair) = names s_pair
   names (CycleFound cm) = names cm
-  names (LemmaProvenEarly l_pair) = names l_pair
-  names (LemmaDisprovenEarly l_pair) = names l_pair
   names (Unresolved s_pair) = names s_pair
   rename old new m = case m of
     Coinduction cm -> Coinduction $ rename old new cm
@@ -76,17 +71,41 @@ instance Named ActMarker where
     NotEquivalent s_pair -> NotEquivalent $ rename old new s_pair
     SolverFail s_pair -> SolverFail $ rename old new s_pair
     CycleFound cm -> CycleFound $ rename old new cm
-    LemmaProvenEarly lp -> LemmaProvenEarly $ rename old new lp
-    LemmaDisprovenEarly lp -> LemmaDisprovenEarly $ rename old new lp
     Unresolved s_pair -> Unresolved $ rename old new s_pair
 
+data LemmaMarker = LemmaProposed Lemma
+                 | LemmaProven Lemma
+                 | LemmaRejected Lemma
+                 | LemmaProvenEarly (Lemma, Lemma)
+                 | LemmaRejectedEarly (Lemma, Lemma)
+                 | LemmaUnresolved Lemma
+
+instance Named LemmaMarker where
+  names (LemmaProposed l) = names l
+  names (LemmaProven l) = names l
+  names (LemmaRejected l) = names l
+  names (LemmaProvenEarly l_pair) = names l_pair
+  names (LemmaRejectedEarly l_pair) = names l_pair
+  names (LemmaUnresolved l) = names l
+  rename old new lm = case lm of
+    LemmaProposed l -> LemmaProposed $ rename old new l
+    LemmaProven l -> LemmaProven $ rename old new l
+    LemmaRejected l -> LemmaRejected $ rename old new l
+    LemmaProvenEarly lp -> LemmaProvenEarly $ rename old new lp
+    LemmaRejectedEarly lp -> LemmaRejectedEarly $ rename old new lp
+    LemmaUnresolved l -> LemmaUnresolved $ rename old new l
+
 data Marker = Marker (StateH, StateH) ActMarker
+            | LMarker LemmaMarker
 
 instance Named Marker where
   names (Marker (sh1, sh2) m) =
     names sh1 DS.>< names sh2 DS.>< names m
+  names (LMarker lm) = names lm
   rename old new (Marker (sh1, sh2) m) =
     Marker (rename old new sh1, rename old new sh2) $ rename old new m
+  rename old new (LMarker lm) =
+    LMarker $ rename old new lm
 
 data Side = ILeft | IRight deriving (Eq, Show, Typeable, Generic)
 

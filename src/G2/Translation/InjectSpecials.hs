@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP, OverloadedStrings #-}
 
 module G2.Translation.InjectSpecials
   ( specialTypes
@@ -41,7 +41,12 @@ specialTypeNames = -- HM.fromList $ map (\(n, m, _) -> ((n, m), Name n m 0 Nothi
 
 specialConstructors :: HM.HashMap (T.Text, Maybe T.Text) Name
 specialConstructors =
-    HM.fromList $ map (\(DataCon nm@(Name n m _ _) _)-> ((n, m), nm)) specialConstructors'
+    -- GHC 9.4 on use different constructors than our base for Integers, so we add a special mapping
+    -- for those constructor (via `integerConstructor` to adjust Names accordingly)
+    HM.fromList $ integerConstructor:map (\(DataCon nm@(Name n m _ _) _)-> ((n, m), nm)) specialConstructors'
+
+integerConstructor :: ((T.Text, Maybe T.Text), Name)
+integerConstructor = (("IS", Just "GHC.Num.Integer"), Name "Z#" (Just "GHC.Num.Integer") 0 Nothing)
 
 specialConstructors' :: [DataCon]
 specialConstructors' = concatMap data_cons $ HM.elems specialTypes -- map (\(n, m, _) -> (n, m)) $ concatMap snd specials
@@ -52,16 +57,23 @@ aName = Name "a" Nothing 0 Nothing
 aTyVar :: Type
 aTyVar = TyVar (Id aName TYPE)
 
+listTypeStr :: T.Text
+#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+listTypeStr = "List"
+#else
+listTypeStr = "[]"
+#endif
+
 listName :: Name
-listName = Name "[]" (Just "GHC.Types") 0 Nothing
+listName = Name listTypeStr (Just "GHC.Types") 0 Nothing
 
 specials :: [((T.Text, Maybe T.Text, [Name]), [(T.Text, Maybe T.Text, [Type])])]
-specials = [ (( "[]"
+specials =
+           [ (( listTypeStr
               , Just "GHC.Types", [aName])
               , [ ("[]", Just "GHC.Types", [])
                 , (":", Just "GHC.Types", [aTyVar, mkFullAppedTyCon listName [aTyVar] TYPE])]
              )
-
            -- , (("Int", Just "GHC.Types"), [("I#", Just "GHC.Types", [TyLitInt])])
            -- , (("Float", Just "GHC.Types"), [("F#", Just "GHC.Types", [TyLitFloat])])
            -- , (("Double", Just "GHC.Types"), [("D#", Just "GHC.Types", [TyLitDouble])])
@@ -76,7 +88,11 @@ specials = [ (( "[]"
            --                                    , ("GT", Just "GHC.Types", [])])
            ]
            ++
+#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+           mkTuples "(" ")" (Just "GHC.Tuple.Prim") _MAX_TUPLE
+#else
            mkTuples "(" ")" (Just "GHC.Tuple") _MAX_TUPLE
+#endif
            -- ++
            -- mkTuples "(#" "#)" (Just "GHC.Prim") _MAX_TUPLE
 

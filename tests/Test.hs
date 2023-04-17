@@ -63,6 +63,7 @@ tests :: TestTree
 tests = testGroup "Tests"
         [ sampleTests
         , testFileTests
+        , extensionTests
         , baseTests
         , primTests
         , exprTests
@@ -158,6 +159,9 @@ sampleTests = testGroup "Samples"
                                                          , ("switchInt", 400, [AtLeast 1])
                                                          , ("getInInt", 400, [AtLeast 1])
                                                          , ("switchP", 400, [AtLeast 1]) ]
+
+    , checkInputOutput "tests/Samples/NQueens.hs" "allQueensSafe" 2000 [AtLeast 14]
+
     ]
 
 -- Tests that are intended to ensure a specific feature works, but that are not neccessarily interesting beyond that
@@ -255,6 +259,13 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputs "tests/TestFiles/BadNames1.hs" [ ("abs'", 400, [Exactly 2])
                                                        , ("xswitch", 400, [AtLeast 10]) ]
 
+    , checkInputOutputs "tests/TestFiles/ListCallStack.hs" [ ("indexOf", 400, [AtLeast 2]) 
+                                                           , ("headOf", 400, [AtLeast 2])
+                                                           , ("tailOf", 400, [AtLeast 2])
+                                                           , ("lastOf", 400, [AtLeast 2])
+                                                           , ("initOf", 400, [AtLeast 2])
+                                                           , ("cycleOf", 400, [AtLeast 2]) ]
+
     , checkExpr "tests/TestFiles/PolyDataTy1.hs" 400 "f"
         [Exactly 2, RExists (\[x, _, y] -> x == y), RExists (\[_, App _ x, y] -> x == y)]
     , checkExpr "tests/TestFiles/PolyDataTy1.hs" 400 "getFstXIntInt"
@@ -325,6 +336,18 @@ testFileTests = testGroup "TestFiles"
     
     ]
 
+extensionTests :: TestTree
+extensionTests = testGroup "Extensions"
+    [
+      checkInputOutputs "tests/TestFiles/Extensions/PatternSynonyms1.hs" [ ("isNineInt", 400, [AtLeast 2])
+                                                                         , ("isNineInteger", 400, [AtLeast 2])
+                                                                         , ("isNineFloat", 400, [AtLeast 2])
+                                                                         , ("isFunc", 400, [AtLeast 2])
+                                                                         , ("funcArg", 400, [AtLeast 2])
+                                                                         
+                                                                         , ("consArrow", 400, [AtLeast 2]) ]
+    ]
+
 baseTests ::  TestTree
 baseTests = testGroup "Base"
     [
@@ -379,7 +402,7 @@ primTests = testGroup "Prims"
     , checkExpr "tests/Prim/DataTag.hs" 1000 "tagToEnum2" [Exactly 1, RForAll (\[r] -> isError r)]
 
     , checkInputOutputs "tests/Prim/Chr.hs" [ ("lowerLetters", 9000, [AtLeast 1])
-                                            , ("allLetters", 9000, [AtLeast 1])
+                                            , ("allLetters", 20000, [AtLeast 1])
                                             , ("printBasedOnChr", 1500, [AtLeast 7])
                                             , ("printBasedOnOrd", 1500, [AtLeast 7]) ]
     ]

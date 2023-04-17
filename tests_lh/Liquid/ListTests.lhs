@@ -31,8 +31,8 @@ data ListI = EmpI
            deriving (Eq, Ord, Show)
 
 {-@ measure sizeI      :: ListI -> Int
-    sizeI (EmpI)        = 0
-    sizeI (CI x xs) = 1 + sizeI xs
+        sizeI (EmpI)        = 0
+        sizeI (CI x xs) = 1 + sizeI xs
   @-}
 
 {-@ type TRUE = {v:Bool | v} @-}
@@ -65,8 +65,8 @@ data List a = Emp
               deriving (Eq, Ord, Show)
 
 {-@ measure size      :: List a -> Int
-    size (Emp)        = 0
-    size ((:+:) x xs) = 1 + size xs
+        size (Emp)        = 0
+        size ((:+:) x xs) = 1 + size xs
   @-}
 
 {-@ type ListN a N  = {v:List a | size v = N} @-}

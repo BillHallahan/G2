@@ -121,8 +121,11 @@ eqUpToTypes _ _ = False
 
 -- | Unravels the application spine.
 unApp :: Expr -> [Expr]
-unApp (App f a) = unApp f ++ [a]
-unApp expr = [expr]
+unApp = unApp' []
+
+unApp' :: [Expr] -> Expr -> [Expr]
+unApp' xs (App f a) = unApp' (a:xs) f
+unApp' xs e = e:xs
 
 -- | Turns the Expr list into an Application
 --

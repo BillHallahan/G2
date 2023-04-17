@@ -2,6 +2,7 @@ module G2.Equiv.Config ( NebulaConfig (..)
                        , SummaryMode (..)
                        , UseLabeledErrors (..)
                        , getNebulaConfig
+                       , getNebulaConfigPlugin
                        , mkNebulaConfigInfo
                        , mkNebulaConfig) where
 
@@ -10,6 +11,7 @@ import G2.Config.Config
 import Data.Monoid ((<>))
 import qualified Data.Text as T
 import Options.Applicative
+import Text.Read
 
 -- Config options
 data NebulaConfig = NC { limit :: Int
@@ -19,12 +21,25 @@ data NebulaConfig = NC { limit :: Int
                        , log_states :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
                        , sync :: Bool }
 
-data SummaryMode = NoHistory | WithHistory | NoSummary deriving Eq
+data SummaryMode = SM { have_summary :: Bool
+                      , have_history :: Bool
+                      , have_lemma_details :: Bool }
+
+noSummary :: SummaryMode
+noSummary = SM False False False
 
 data UseLabeledErrors = UseLabeledErrors | NoLabeledErrors deriving (Eq, Show, Read)
 
 getNebulaConfig :: IO (String, String, [T.Text], NebulaConfig)
 getNebulaConfig = execParser mkNebulaConfigInfo
+
+getNebulaConfigPlugin :: [String] -> ParserResult (Maybe String, NebulaConfig)
+getNebulaConfigPlugin =
+    execParserPure defaultPrefs $
+        info (((,) <$> maybeGetRuleName <*> mkNebulaConfig) <**> helper)
+              ( fullDesc
+              <> progDesc "Equivalence Checking for Haskell Rewrite Rules"
+              <> header "The Nebula Equivalence Checker" )
 
 mkNebulaConfigInfo :: ParserInfo (String, String, [T.Text], NebulaConfig)
 mkNebulaConfigInfo =
@@ -38,6 +53,10 @@ getFileName = argument str (metavar "FILE")
 
 getRuleName :: Parser String
 getRuleName = argument str (metavar "RULE")
+
+maybeGetRuleName :: Parser (Maybe String)
+maybeGetRuleName =
+    argument (maybeReader (Just . Just)) (metavar "RULE" <> value Nothing)
 
 getTotal :: Parser [T.Text]
 getTotal = many (argument (maybeReader (Just . T.pack)) (metavar "TOTAL"))
@@ -59,10 +78,18 @@ mkNebulaConfig = NC
 
 mkSummaryMode :: Parser SummaryMode
 mkSummaryMode =
-    (flag NoSummary NoHistory
+    (flag noSummary (SM True False False)
             (long "summarize"
             <> help "provide a summary with no history"))
     <|>
-    (flag NoSummary WithHistory
+    (flag noSummary (SM True True False)
             (long "hist-summarize"
             <> help "provide a summary with history"))
+    <|>
+    (flag noSummary (SM True False True)
+            (long "lemmas-summarize"
+            <> help "provide a summary with all lemma results"))
+    <|>
+    (flag noSummary (SM True True True)
+            (long "lemmas-hist-summarize"
+            <> help "provide a summary with history and lemma results"))

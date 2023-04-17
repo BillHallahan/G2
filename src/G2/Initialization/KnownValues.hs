@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP, OverloadedStrings #-}
 
 module G2.Initialization.KnownValues (initKnownValues) where
 
@@ -44,9 +44,15 @@ initKnownValues eenv tenv tc =
 
     , tyRational = typeWithStrName tenv "Rational"
 
+#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+    , tyList = typeWithStrName tenv "List"
+    , dcCons = dcWithStrName tenv "List" ":"
+    , dcEmpty = dcWithStrName tenv "List" "[]"
+#else
     , tyList = typeWithStrName tenv "[]"
     , dcCons = dcWithStrName tenv "[]" ":"
     , dcEmpty = dcWithStrName tenv "[]" "[]"
+#endif
 
     , tyMaybe = typeWithStrName tenv "Maybe"
     , dcJust = dcWithStrName tenv "Maybe" "Just"
@@ -119,7 +125,7 @@ typeWithStrName tenv s =
 dcWithStrName :: TypeEnv -> T.Text -> T.Text -> Name
 dcWithStrName tenv ts dcs =
   case concatMap dataCon . HM.elems $ HM.filterWithKey (\(Name n _ _ _) _ -> n == ts) tenv of
-    [] -> error $ "No type found in typeWithStrName [" ++
+    [] -> error $ "No type found in dcWithStrName [" ++
                   (show $ T.unpack ts) ++ "] [" ++ (show $ T.unpack dcs) ++ "]"
     dc -> dcWithStrName' dc dcs
 

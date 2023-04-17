@@ -156,7 +156,8 @@ instance Solver solver => Solver (SpreadOutSolver solver) where
                     -> Id
                     -> State LHTracker
                     -> Bindings
-                    -> SM.StateT PrettyGuide IO ([ExecRes AbstractedInfo], Bindings) #-}
+                    -> SM.StateT PrettyGuide IO ([ExecRes AbstractedInfo], Bindings)
+    #-}
 runLHG2Inference :: (MonadIO m, Solver solver, Simplifier simplifier)
                  => Config
                  -> SomeReducer m LHTracker

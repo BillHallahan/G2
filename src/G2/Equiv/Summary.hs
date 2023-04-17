@@ -4,6 +4,7 @@ module G2.Equiv.Summary
   ( SummaryMode (..)
   , summarize
   , summarizeAct
+  , summarizeLemmaMarker
   , printPG
   , showCX
   , showCycle
@@ -201,6 +202,16 @@ summarizeStatePairTrack str pg ns sym_ids s1 s2 =
   (printPG pg ns sym_ids s1) ++ "\n" ++
   (printPG pg ns sym_ids s2)
 
+summarizeLemma :: String
+               -> PrettyGuide
+               -> HS.HashSet Name
+               -> [Id]
+               -> Lemma
+               -> String
+summarizeLemma str pg ns sym_ids lem =
+  str ++ ":\n" ++
+  printLemma pg ns sym_ids lem
+
 summarizeLemmaSubst :: String
                     -> PrettyGuide
                     -> HS.HashSet Name
@@ -267,6 +278,27 @@ summarizeSolverFail :: PrettyGuide ->
                        String
 summarizeSolverFail = summarizeStatePair "SOLVER FAIL"
 
+summarizeLemmaProposed :: PrettyGuide ->
+                          HS.HashSet Name ->
+                          [Id] ->
+                          Lemma ->
+                          String
+summarizeLemmaProposed = summarizeLemma "Lemma Proposed"
+
+summarizeLemmaProven :: PrettyGuide ->
+                        HS.HashSet Name ->
+                        [Id] ->
+                        Lemma ->
+                        String
+summarizeLemmaProven = summarizeLemma "Lemma Proven"
+
+summarizeLemmaRejected :: PrettyGuide ->
+                          HS.HashSet Name ->
+                          [Id] ->
+                          Lemma ->
+                          String
+summarizeLemmaRejected = summarizeLemma "Lemma Rejected"
+
 summarizeLemmaProvenEarly :: PrettyGuide ->
                              HS.HashSet Name ->
                              [Id] ->
@@ -274,12 +306,19 @@ summarizeLemmaProvenEarly :: PrettyGuide ->
                              String
 summarizeLemmaProvenEarly = summarizeLemmaPair "Lemma Superseded"
 
-summarizeLemmaDisprovenEarly :: PrettyGuide ->
-                                HS.HashSet Name ->
-                                [Id] ->
-                                (Lemma, Lemma) ->
-                                String
-summarizeLemmaDisprovenEarly = summarizeLemmaPair "Lemma Discarded"
+summarizeLemmaRejectedEarly :: PrettyGuide ->
+                               HS.HashSet Name ->
+                               [Id] ->
+                               (Lemma, Lemma) ->
+                               String
+summarizeLemmaRejectedEarly = summarizeLemmaPair "Lemma Discarded"
+
+summarizeLemmaUnresolved :: PrettyGuide ->
+                            HS.HashSet Name ->
+                            [Id] ->
+                            Lemma ->
+                            String
+summarizeLemmaUnresolved = summarizeLemma "Lemma Unresolved"
 
 summarizeUnresolved :: PrettyGuide ->
                        HS.HashSet Name ->
@@ -315,7 +354,12 @@ summarizeLemmaPair str pg ns sym_ids (l1, l2) =
   printLemma pg ns sym_ids l1 ++ "\n" ++
   printLemma pg ns sym_ids l2
 
-summarizeAct :: PrettyGuide -> HS.HashSet Name -> [Id] -> ActMarker -> String
+-- TODO s_mode not used for now
+summarizeAct :: PrettyGuide
+             -> HS.HashSet Name
+             -> [Id]
+             -> ActMarker
+             -> String
 summarizeAct pg ns sym_ids m = case m of
   Coinduction cm -> summarizeCoinduction pg ns sym_ids cm
   Equality em -> summarizeEquality pg ns sym_ids em
@@ -323,9 +367,20 @@ summarizeAct pg ns sym_ids m = case m of
   NotEquivalent s_pair -> summarizeNotEquivalent pg ns sym_ids s_pair
   SolverFail s_pair -> summarizeSolverFail pg ns sym_ids s_pair
   CycleFound cm -> summarizeCycleFound pg ns sym_ids cm
-  LemmaProvenEarly lp -> summarizeLemmaProvenEarly pg ns sym_ids lp
-  LemmaDisprovenEarly lp -> summarizeLemmaDisprovenEarly pg ns sym_ids lp
   Unresolved s_pair -> summarizeUnresolved pg ns sym_ids s_pair
+
+summarizeLemmaMarker :: PrettyGuide
+                     -> HS.HashSet Name
+                     -> [Id]
+                     -> LemmaMarker
+                     -> String
+summarizeLemmaMarker pg ns sym_ids lm = case lm of
+  LemmaProposed l -> summarizeLemmaProposed pg ns sym_ids l
+  LemmaProven l -> summarizeLemmaProven pg ns sym_ids l
+  LemmaRejected l -> summarizeLemmaRejected pg ns sym_ids l
+  LemmaProvenEarly lp -> summarizeLemmaProvenEarly pg ns sym_ids lp
+  LemmaRejectedEarly lp -> summarizeLemmaRejectedEarly pg ns sym_ids lp
+  LemmaUnresolved l -> summarizeLemmaUnresolved pg ns sym_ids l
 
 summarizeHistory :: PrettyGuide -> HS.HashSet Name -> [Id] -> StateH -> String
 summarizeHistory pg ns sym_ids =
@@ -346,12 +401,16 @@ summarize s_mode pg ns sym_ids (Marker (sh1, sh2) m) =
   (intercalate " -> " $ (reverse names1)) ++
   "\nRight Path: " ++
   (intercalate " -> " $ (reverse names2)) ++ "\n" ++
-  (if s_mode == WithHistory
+  (if have_history s_mode
       then "Left:\n\t" ++ tabsAfterNewLines (summarizeHistory pg ns sym_ids sh1)
             ++ "\nRight:\n\t" ++ tabsAfterNewLines (summarizeHistory pg ns sym_ids sh2) ++ "\n"
       else "")
   ++
   (tabsAfterNewLines $ summarizeAct pg ns sym_ids m)
+summarize s_mode pg ns sym_ids (LMarker lm) =
+  if have_lemma_details s_mode
+  then "***\n" ++ (tabsAfterNewLines $ summarizeLemmaMarker pg ns sym_ids lm)
+  else ""
 
 printDC :: PrettyGuide -> [BlockInfo] -> String -> String
 printDC _ [] str = str
