@@ -103,7 +103,7 @@ loadProj hsc proj src gflags tr_con = do
                                backend = case hsc of
                                             Just hsc' -> hsc'
                                             _ -> backend beta_flags'
-#elif MIN_VERSION_GLASGOW_HASKELL(9,4,0,0)
+#elif MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
                                backend = if hostIsProfiled 
                                                 then Interpreter
                                                 else case hsc of
