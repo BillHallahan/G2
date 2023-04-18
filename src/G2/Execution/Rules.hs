@@ -759,15 +759,29 @@ retCastFrame s ng e c stck =
     , ng)
 
 retCurrExpr :: State t -> Expr -> CEAction -> CurrExpr -> S.Stack Frame -> (Rule, [NewPC t])
-retCurrExpr s e1 AddPC e2 stck = 
+retCurrExpr s@(State { expr_env = eenv }) e1 (ProveEq e2) orig_ce stck
+    | Data dc1:es1 <- unApp e1
+    , Data dc2:es2 <- unApp e2
+    , dc1 == dc2 =
+        let
+            es = zip es1 es2
+        in
+        ( RuleReturnCurrExprFr
+        , [NewPC { state = s { curr_expr = orig_ce
+                             , non_red_path_conds = es ++ non_red_path_conds s
+                             , exec_stack = stck}
+                , new_pcs = []
+                , concretized = [] }] )
+          
+    | otherwise = assert (isExprValueForm eenv e1 || isExprValueForm  eenv e2) error "retCurrExpr ProveEq"
+    -- ( RuleReturnCurrExprFr
+    -- , [NewPC { state = s { curr_expr = e2
+    --                      , exec_stack = stck}
+    --          , new_pcs = [ExtCond e1 True]
+    --          , concretized = []}] )
+retCurrExpr s _ NoAction orig_ce stck = 
     ( RuleReturnCurrExprFr
-    , [NewPC { state = s { curr_expr = e2
-                         , exec_stack = stck}
-             , new_pcs = [ExtCond e1 True]
-             , concretized = []}] )
-retCurrExpr s _ NoAction e2 stck = 
-    ( RuleReturnCurrExprFr
-    , [NewPC { state = s { curr_expr = e2
+    , [NewPC { state = s { curr_expr = orig_ce
                          , exec_stack = stck}
              , new_pcs = []
              , concretized = []}] )
@@ -1033,25 +1047,15 @@ retReplaceSymbFuncVar s@(State { expr_env = eenv
     , E.isSymbolic f eenv
     , isTyFun idt
     , t <- typeOf ce
-    , not (isTyFun t)
-    , Just eq_tc <- concreteSatStructEq kv tc t =
+    , not (isTyFun t) =
         let
             (new_sym, ng') = freshSeededString "sym" ng
             new_sym_id = Id new_sym t
-
-            s_eq_f = KV.structEqFunc kv
-
-            nrpc_e = mkApp $ 
-                           [ Var (Id s_eq_f TyUnknown)
-                           , Type t
-                           , eq_tc
-                           , Var new_sym_id
-                           , ce ]
         in
         Just (RuleReturnReplaceSymbFunc, 
             [s { expr_env = E.insertSymbolic new_sym_id eenv
                , curr_expr = CurrExpr Return (Var new_sym_id)
-               , non_red_path_conds = non_red_path_conds s ++ [nrpc_e] }]
+               , non_red_path_conds = non_red_path_conds s ++ [(ce, Var new_sym_id)] }]
             , ng')
     | otherwise = Nothing
 

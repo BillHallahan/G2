@@ -413,12 +413,12 @@ nonRedPCRedFunc _
                 s@(State { expr_env = eenv
                          , curr_expr = cexpr
                          , exec_stack = stck
-                         , non_red_path_conds = nr:nrs
+                         , non_red_path_conds = (nre1, nre2):nrs
                          , model = m })
                 b@(Bindings { higher_order_inst = inst }) = do
-    let stck' = Stck.push (CurrExprFrame AddPC cexpr) stck
+    let stck' = Stck.push (CurrExprFrame (ProveEq nre2) cexpr) stck
 
-    let cexpr' = CurrExpr Evaluate nr
+    let cexpr' = CurrExpr Evaluate nre1
 
     let eenv_si_ces = substHigherOrder eenv m inst cexpr'
 
@@ -478,12 +478,12 @@ nonRedPCRedConstFunc _
                      s@(State { expr_env = eenv
                               , curr_expr = cexpr
                               , exec_stack = stck
-                              , non_red_path_conds = nr:nrs
+                              , non_red_path_conds = (nre1, nre2):nrs
                               , model = m })
                      b@(Bindings { name_gen = ng }) = do
-    let stck' = Stck.push (CurrExprFrame AddPC cexpr) stck
+    let stck' = Stck.push (CurrExprFrame (ProveEq nre2) cexpr) stck
 
-    let cexpr' = CurrExpr Evaluate nr
+    let cexpr' = CurrExpr Evaluate nre1
 
     let higher_ord = L.filter (isTyFun . typeOf) $ E.symbolicIds eenv
         (ng', new_lam_is) = L.mapAccumL (\ng_ ts -> swap $ freshIds ts ng_) ng (map anonArgumentTypes higher_ord)

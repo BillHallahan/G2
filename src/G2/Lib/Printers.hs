@@ -482,8 +482,8 @@ prettyPathCond pg (AssumePC i l pc) =
     in
     mkIdHaskell pg i ++ " = " ++ show l ++ "=> (" ++ intercalate "\nand " (map (prettyPathCond pg) pc') ++ ")"
 
-prettyNonRedPaths :: PrettyGuide -> [Expr] -> String
-prettyNonRedPaths pg = intercalate "\n" . map (mkDirtyExprHaskell pg)
+prettyNonRedPaths :: PrettyGuide -> [(Expr, Expr)] -> String
+prettyNonRedPaths pg = intercalate "\n" . map (\(e1, e2) -> mkDirtyExprHaskell pg e1 ++ " == " ++ mkDirtyExprHaskell pg e2)
 
 -------------------------------------------------------------------------------
 
