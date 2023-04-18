@@ -90,7 +90,7 @@ equivMods = HM.fromList
             , ("GHC.CString2", "GHC.CString")
             , ("Data.Map.Base", "Data.Map")]
 
-loadProj ::  Maybe HscTarget -> [FilePath] -> [FilePath] -> [GeneralFlag] -> G2.TranslationConfig -> Ghc SuccessFlag
+loadProj :: Maybe HscTarget -> [FilePath] -> [FilePath] -> [GeneralFlag] -> G2.TranslationConfig -> Ghc SuccessFlag
 loadProj hsc proj src gflags tr_con = do
     beta_flags <- getSessionDynFlags
     let gen_flags = gflags
@@ -98,14 +98,11 @@ loadProj hsc proj src gflags tr_con = do
     let init_beta_flags = gopt_unset beta_flags Opt_StaticArgumentTransformation
 
     let beta_flags' = foldl' gopt_set init_beta_flags gen_flags
-    let dflags = beta_flags' { -- Profiling fails to load a profiler friendly version of the base
-                               -- without this special casing for hscTarget, but we can't use HscInterpreted when we have certain unboxed types
+    let dflags = beta_flags' {
 #if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
-                               backend = if hostIsProfiled 
-                                                then interpreterBackend
-                                                else case hsc of
-                                                    Just hsc' -> hsc'
-                                                    _ -> backend beta_flags'
+                               backend = case hsc of
+                                            Just hsc' -> hsc'
+                                            _ -> backend beta_flags'
 #elif MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
                                backend = if hostIsProfiled 
                                                 then Interpreter
@@ -125,6 +122,10 @@ loadProj hsc proj src gflags tr_con = do
                                                 else case hsc of
                                                     Just hsc' -> hsc'
                                                     _ -> hscTarget beta_flags'
+#endif
+#if MIN_VERSION_GLASGOW_HASKELL(9,4,0,0)
+                             -- Profiling gives warnings without this special case
+                             , targetWays_ = if hostIsProfiled then addWay WayProf (targetWays_ beta_flags') else targetWays_ beta_flags'
 #endif
                              , ghcLink = LinkInMemory
                              , ghcMode = CompManager
