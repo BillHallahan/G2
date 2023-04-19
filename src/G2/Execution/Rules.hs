@@ -759,7 +759,22 @@ retCastFrame s ng e c stck =
     , ng)
 
 retCurrExpr :: State t -> Expr -> CEAction -> CurrExpr -> S.Stack Frame -> (Rule, [NewPC t])
-retCurrExpr s@(State { expr_env = eenv }) e1 (ProveEq e2) orig_ce stck
+retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (ProveEq e2) orig_ce stck
+    | isExprValueForm eenv e2
+    , isPrimType (typeOf e2) =
+        ( RuleReturnCurrExprFr
+        , [NewPC { state = s { curr_expr = orig_ce
+                             , exec_stack = stck}
+                    , new_pcs = [ExtCond (mkEqPrimExpr kv e1 e2) True]
+                    , concretized = [] }] )
+    | Var (Id n t) <- e2
+    , E.isSymbolic n eenv =
+        ( RuleReturnCurrExprFr
+        , [NewPC { state = s { curr_expr = orig_ce
+                             , expr_env = E.insert n e1 eenv
+                             , exec_stack = stck}
+                , new_pcs = []
+                , concretized = [] }] )
     | Data dc1:es1 <- unApp e1
     , Data dc2:es2 <- unApp e2
     , dc1 == dc2 =
@@ -773,7 +788,15 @@ retCurrExpr s@(State { expr_env = eenv }) e1 (ProveEq e2) orig_ce stck
                 , new_pcs = []
                 , concretized = [] }] )
           
-    | otherwise = assert (isExprValueForm eenv e1 || isExprValueForm  eenv e2) error "retCurrExpr ProveEq"
+    | otherwise =
+        assert (not (isExprValueForm eenv e2))
+                ( RuleReturnCurrExprFr
+                , [NewPC { state = s { curr_expr = CurrExpr Evaluate e2
+                                    , non_red_path_conds = non_red_path_conds s
+                                    , exec_stack = S.push (CurrExprFrame (ProveEq e1) orig_ce) stck}
+                        , new_pcs = []
+                        , concretized = [] }] )
+
     -- ( RuleReturnCurrExprFr
     -- , [NewPC { state = s { curr_expr = e2
     --                      , exec_stack = stck}

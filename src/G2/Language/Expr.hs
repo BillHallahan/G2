@@ -191,9 +191,9 @@ mkEqExpr :: KnownValues -> Expr -> Expr -> Expr
 mkEqExpr kv e1 e2 = App (App eq e1) e2
     where eq = mkEqPrimType (typeOf e1) kv
 
-mkEqPrimExpr :: Type -> KnownValues -> Expr -> Expr -> Expr
-mkEqPrimExpr t kv e1 e2 = App (App eq e1) e2
-    where eq = mkEqPrimType t kv
+mkEqPrimExpr :: KnownValues -> Expr -> Expr -> Expr
+mkEqPrimExpr kv e1 e2 = App (App eq e1) e2
+    where eq = mkEqPrimType (typeOf e1) kv
 
 mkGeIntExpr :: KnownValues -> Expr -> Integer -> Expr
 mkGeIntExpr kv e num = App (App ge e) (Lit (LitInt num))
