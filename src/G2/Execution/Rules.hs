@@ -760,8 +760,18 @@ retCastFrame s ng e c stck =
 
 retCurrExpr :: State t -> Expr -> CEAction -> CurrExpr -> S.Stack Frame -> (Rule, [NewPC t])
 retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (ProveEq e2) orig_ce stck
+    | e1 == e2 =
+        ( RuleReturnCurrExprFr
+        , [NewPC { state = s { curr_expr = orig_ce
+                             , exec_stack = stck }
+                    , new_pcs = []
+                    , concretized = [] }] )
+    | Cast e1' c1 <- e1
+    , Cast e2' c2 <- e2
+    , c1 == c2 =  retCurrExpr s e1' (ProveEq e2') orig_ce stck
     | isExprValueForm eenv e2
-    , isPrimType (typeOf e2) =
+    , t2 <- typeOf e2 
+    , isPrimType t2 || t2 == tyBool kv =
         ( RuleReturnCurrExprFr
         , [NewPC { state = s { curr_expr = orig_ce
                              , exec_stack = stck}
@@ -776,18 +786,24 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (ProveEq e2) ori
                 , new_pcs = []
                 , concretized = [] }] )
     | Data dc1:es1 <- unApp e1
-    , Data dc2:es2 <- unApp e2
-    , dc1 == dc2 =
-        let
-            es = zip es1 es2
-        in
-        ( RuleReturnCurrExprFr
-        , [NewPC { state = s { curr_expr = orig_ce
-                             , non_red_path_conds = es ++ non_red_path_conds s
-                             , exec_stack = stck}
-                , new_pcs = []
-                , concretized = [] }] )
-          
+    , Data dc2:es2 <- unApp e2 =
+        case dc1 == dc2 of
+            True ->
+                let
+                    es = zip es1 es2
+                in
+                ( RuleReturnCurrExprFr
+                , [NewPC { state = s { curr_expr = orig_ce
+                                    , non_red_path_conds = es ++ non_red_path_conds s
+                                    , exec_stack = stck}
+                        , new_pcs = []
+                        , concretized = [] }] )
+            False ->
+                ( RuleReturnCurrExprFr
+                , [NewPC { state = s { curr_expr = orig_ce
+                                     , exec_stack = stck}
+                        , new_pcs = [ExtCond (mkFalse kv) True]
+                        , concretized = [] }] )
     | otherwise =
         assert (not (isExprValueForm eenv e2))
                 ( RuleReturnCurrExprFr
