@@ -362,8 +362,6 @@ mkPrimHaskell Undefined = "undefined"
 mkPrimHaskell Implies = "undefined"
 mkPrimHaskell Iff = "undefined"
 
-mkPrimHaskell BindFunc = "undefined"
-
 mkTypeHaskell :: Type -> String
 mkTypeHaskell = mkTypeHaskellPG (mkPrettyGuide ())
 

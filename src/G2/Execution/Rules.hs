@@ -150,13 +150,6 @@ evalApp s@(State { expr_env = eenv
                  , known_values = kv
                  , exec_stack = stck })
         ng e1 e2
-    | (App (Prim BindFunc _) v) <- e1
-    , Var i1 <- findSym v
-    , v2 <- e2 =
-        ( RuleBind
-        , [newPCEmpty $ s { expr_env = E.insert (idName i1) v2 eenv
-                          , curr_expr = CurrExpr Return (mkTrue kv) }]
-        , ng)
     | ac@(Prim Error _) <- appCenter e1 =
         (RuleError, [newPCEmpty $ s { curr_expr = CurrExpr Return ac }], ng)
     | Just (e, eenv', pc, ng') <- evalPrimSymbolic eenv tenv ng kv (App e1 e2) =
