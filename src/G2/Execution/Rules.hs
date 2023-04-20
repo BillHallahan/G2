@@ -759,7 +759,7 @@ retCastFrame s ng e c stck =
     , ng)
 
 retCurrExpr :: State t -> Expr -> CEAction -> CurrExpr -> S.Stack Frame -> (Rule, [NewPC t])
-retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (ProveEq e2) orig_ce stck
+retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) orig_ce stck
     | e1 == e2 =
         ( RuleReturnCurrExprFr
         , [NewPC { state = s { curr_expr = orig_ce
@@ -768,7 +768,7 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (ProveEq e2) ori
                     , concretized = [] }] )
     | Cast e1' c1 <- e1
     , Cast e2' c2 <- e2
-    , c1 == c2 =  retCurrExpr s e1' (ProveEq e2') orig_ce stck
+    , c1 == c2 =  retCurrExpr s e1' (EnsureEq e2') orig_ce stck
     | isExprValueForm eenv e2
     , t2 <- typeOf e2 
     , isPrimType t2 || t2 == tyBool kv =
@@ -809,7 +809,7 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (ProveEq e2) ori
                 ( RuleReturnCurrExprFr
                 , [NewPC { state = s { curr_expr = CurrExpr Evaluate e2
                                     , non_red_path_conds = non_red_path_conds s
-                                    , exec_stack = S.push (CurrExprFrame (ProveEq e1) orig_ce) stck}
+                                    , exec_stack = S.push (CurrExprFrame (EnsureEq e1) orig_ce) stck}
                         , new_pcs = []
                         , concretized = [] }] )
 

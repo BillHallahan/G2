@@ -130,7 +130,7 @@ instance Hashable Frame
 
 -- | What to do with the current expression when a @CurrExprFrame@ reaches the
 -- top of the stack and it is time to replace the `curr_expr`.
-data CEAction = ProveEq Expr | NoAction
+data CEAction = EnsureEq Expr | NoAction
                 deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 instance Hashable CEAction

@@ -453,7 +453,7 @@ prettyFrame pg (AssertFrame m_fc e) =
     "assert frame: " ++ fc ++ mkDirtyExprHaskell pg e
 
 prettyCEAction :: PrettyGuide -> CEAction -> String
-prettyCEAction pg (ProveEq e) = "ProveEq " ++ mkDirtyExprHaskell pg e
+prettyCEAction pg (EnsureEq e) = "EnsureEq " ++ mkDirtyExprHaskell pg e
 prettyCEAction _ NoAction = "NoAction"
 
 prettyEEnv :: PrettyGuide -> ExprEnv -> String

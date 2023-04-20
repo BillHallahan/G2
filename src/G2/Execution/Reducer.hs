@@ -416,7 +416,7 @@ nonRedPCRedFunc _
                          , non_red_path_conds = (nre1, nre2):nrs
                          , model = m })
                 b@(Bindings { higher_order_inst = inst }) = do
-    let stck' = Stck.push (CurrExprFrame (ProveEq nre2) cexpr) stck
+    let stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
 
     let cexpr' = CurrExpr Evaluate nre1
 
@@ -481,7 +481,7 @@ nonRedPCRedConstFunc _
                               , non_red_path_conds = (nre1, nre2):nrs
                               , model = m })
                      b@(Bindings { name_gen = ng }) = do
-    let stck' = Stck.push (CurrExprFrame (ProveEq nre2) cexpr) stck
+    let stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
 
     let cexpr' = CurrExpr Evaluate nre1
 
