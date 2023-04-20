@@ -83,7 +83,8 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
     | Just rs <- symb_func_eval s ng ce = return rs
     | Just (CaseFrame i t a, stck') <- frstck = return $ retCaseFrame s ng ce i t a stck'
     | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ng ce c stck'
-    | Lam u i e <- ce = return $ retLam s ng u i e
+    | Lam u i e <- ce
+    , Just (ApplyFrame ae, stck') <- S.pop stck = return $ retLam s ng u i e ae stck'
     | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ng ce e stck'
     | Just (AssumeFrame e, stck') <- frstck = do
         let (r, xs, ng') = retAssumeFrame s ng ce e stck'
@@ -203,13 +204,11 @@ repeatedLookup _ e = e
 evalLam :: State t -> LamUse -> Id -> Expr -> (Rule, [State t])
 evalLam = undefined
 
-retLam :: State t -> NameGen -> LamUse -> Id -> Expr -> (Rule, [State t], NameGen)
-retLam s@(State { expr_env = eenv
-                , exec_stack = stck })
-       ng u i e
-    | TypeL <- u
-    , Just (ApplyFrame tf, stck') <- S.pop stck =
-        case traceType eenv tf of
+retLam :: State t -> NameGen -> LamUse -> Id -> Expr -> Expr -> S.Stack Frame -> (Rule, [State t], NameGen)
+retLam s@(State { expr_env = eenv })
+       ng u i e ae stck'
+    | TypeL <- u =
+        case traceType eenv ae of
         Just t ->
             let
                 e' = retypeRespectingTyForAll i t e
@@ -221,9 +220,8 @@ retLam s@(State { expr_env = eenv
                  , curr_expr = CurrExpr Evaluate e''
                  , exec_stack = stck' }]
             , ng')
-        Nothing -> error $ "retLam: Bad type\ni = " ++ show i ++ "\nstck = " ++ show (S.pop stck) 
-    | TermL <- u
-    , Just (ApplyFrame ae, stck') <- S.pop stck =
+        Nothing -> error $ "retLam: Bad type\ni = " ++ show i
+    | otherwise =
         let
             (eenv', e', ng', news) = liftBind i ae eenv e ng
         in
@@ -232,7 +230,6 @@ retLam s@(State { expr_env = eenv
              , curr_expr = CurrExpr Evaluate e'
              , exec_stack = stck' }]
         ,ng')
-    | otherwise = error "retLam: Bad type"
 
 traceType :: E.ExprEnv -> Expr -> Maybe Type
 traceType _ (Type t) = Just t
@@ -762,6 +759,16 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
     | Cast e1' c1 <- e1
     , Cast e2' c2 <- e2
     , c1 == c2 =  retCurrExpr s e1' (EnsureEq e2') orig_ce stck
+
+    -- Symmetric cases for e1/e2 being reduced primitive types 
+    | isExprValueForm eenv e1
+    , t1 <- typeOf e1
+    , isPrimType t1 || t1 == tyBool kv =
+        ( RuleReturnCurrExprFr
+        , [NewPC { state = s { curr_expr = orig_ce
+                             , exec_stack = stck}
+                    , new_pcs = [ExtCond (mkEqPrimExpr kv e1 e2) True]
+                    , concretized = [] }] )
     | isExprValueForm eenv e2
     , t2 <- typeOf e2 
     , isPrimType t2 || t2 == tyBool kv =
@@ -770,7 +777,17 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
                              , exec_stack = stck}
                     , new_pcs = [ExtCond (mkEqPrimExpr kv e1 e2) True]
                     , concretized = [] }] )
-    | Var (Id n t) <- e2
+
+    -- Symmetric cases for e1/e2 being reduced symbolic variables 
+    | Var (Id n _) <- e1
+    , E.isSymbolic n eenv =
+        ( RuleReturnCurrExprFr
+        , [NewPC { state = s { curr_expr = orig_ce
+                             , expr_env = E.insert n e2 eenv
+                             , exec_stack = stck}
+                , new_pcs = []
+                , concretized = [] }] )
+    | Var (Id n _) <- e2
     , E.isSymbolic n eenv =
         ( RuleReturnCurrExprFr
         , [NewPC { state = s { curr_expr = orig_ce
@@ -778,6 +795,7 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
                              , exec_stack = stck}
                 , new_pcs = []
                 , concretized = [] }] )
+
     | Data dc1:es1 <- unApp e1
     , Data dc2:es2 <- unApp e2 =
         case dc1 == dc2 of

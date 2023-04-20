@@ -415,21 +415,38 @@ nonRedPCRedFunc _
                          , exec_stack = stck
                          , non_red_path_conds = (nre1, nre2):nrs
                          , model = m })
-                b@(Bindings { higher_order_inst = inst }) = do
-    let stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
+                b@(Bindings { higher_order_inst = inst })
+    | Var (Id n t) <- nre2
+    , E.isSymbolic n eenv
+    , hasFuncType (PresType t) =
+        let
+            s' = s { expr_env = E.insert n nre1 eenv
+                   , non_red_path_conds  = nrs }
+        in
+        return (InProgress, [(s', ())], b)
+    | Var (Id n t) <- nre1
+    , E.isSymbolic n eenv
+    , hasFuncType (PresType t) =
+        let
+            s' = s { expr_env = E.insert n nre2 eenv
+                   , non_red_path_conds  = nrs }
+        in
+        return (InProgress, [(s', ())], b)
+    | otherwise= do
+        let stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
 
-    let cexpr' = CurrExpr Evaluate nre1
+        let cexpr' = CurrExpr Evaluate nre1
 
-    let eenv_si_ces = substHigherOrder eenv m inst cexpr'
+        let eenv_si_ces = substHigherOrder eenv m inst cexpr'
 
-    let s' = s { exec_stack = stck'
-               , non_red_path_conds = nrs
-               }
-        xs = map (\(eenv', m', ce) -> (s' { expr_env = eenv'
-                                          , model = m'
-                                          , curr_expr = ce }, ())) eenv_si_ces
+        let s' = s { exec_stack = stck'
+                   , non_red_path_conds = nrs
+                   }
+            xs = map (\(eenv', m', ce) -> (s' { expr_env = eenv'
+                                              , model = m'
+                                              , curr_expr = ce }, ())) eenv_si_ces
 
-    return (InProgress, xs, b)
+        return (InProgress, xs, b)
 nonRedPCRedFunc _ s b = return (Finished, [(s, ())], b)
 
 -- [Higher-Order Model]
