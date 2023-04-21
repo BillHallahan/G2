@@ -816,11 +816,6 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
                         , new_pcs = []
                         , concretized = [] }] )
 
-    -- ( RuleReturnCurrExprFr
-    -- , [NewPC { state = s { curr_expr = e2
-    --                      , exec_stack = stck}
-    --          , new_pcs = [ExtCond e1 True]
-    --          , concretized = []}] )
 retCurrExpr s _ NoAction orig_ce stck = 
     ( RuleReturnCurrExprFr
     , [NewPC { state = s { curr_expr = orig_ce
