@@ -764,6 +764,7 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
     , isExprValueForm eenv e2
     , t1 <- typeOf e1
     , isPrimType t1 || t1 == tyBool kv =
+        assert (typeOf e2 == t1)
         ( RuleReturnCurrExprFr
         , [NewPC { state = s { curr_expr = orig_ce
                              , exec_stack = stck}
