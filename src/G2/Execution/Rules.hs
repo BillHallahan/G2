@@ -760,8 +760,8 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
     , Cast e2' c2 <- e2
     , c1 == c2 =  retCurrExpr s e1' (EnsureEq e2') orig_ce stck
 
-    -- Symmetric cases for e1/e2 being reduced primitive types 
     | isExprValueForm eenv e1
+    , isExprValueForm eenv e2
     , t1 <- typeOf e1
     , isPrimType t1 || t1 == tyBool kv =
         ( RuleReturnCurrExprFr
@@ -769,16 +769,8 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
                              , exec_stack = stck}
                     , new_pcs = [ExtCond (mkEqPrimExpr kv e1 e2) True]
                     , concretized = [] }] )
-    | isExprValueForm eenv e2
-    , t2 <- typeOf e2 
-    , isPrimType t2 || t2 == tyBool kv =
-        ( RuleReturnCurrExprFr
-        , [NewPC { state = s { curr_expr = orig_ce
-                             , exec_stack = stck}
-                    , new_pcs = [ExtCond (mkEqPrimExpr kv e1 e2) True]
-                    , concretized = [] }] )
 
-    -- Symmetric cases for e1/e2 being reduced symbolic variables 
+    -- Symmetric cases for e1/e2 being  symbolic variables 
     | Var (Id n _) <- e1
     , E.isSymbolic n eenv =
         ( RuleReturnCurrExprFr
