@@ -783,7 +783,7 @@ checkRule config nc init_state bindings total rule = do
              [(rewrite_state_l'', rewrite_state_r'')]
              bindings'' config nc sym_ids 0 (limit nc)
   let pg = if have_summary $ print_summary nc
-           then mkPrettyGuide w-- $ map (\(Marker _ am) -> am) w
+           then mkPrettyGuide w
            else reducedGuide (reverse w)
   if have_summary $ print_summary nc then do
     putStrLn "--- SUMMARY ---"
