@@ -243,8 +243,8 @@ library
                        -fno-ignore-asserts
                        -- -ddump-rule-rewrites
                        -- -ddump-splices
-                       -- -fprof-auto
                        -- -fexternal-interpreter
+  ghc-prof-options:    -fprof-auto
   other-extensions:    CPP
   if flag(support-lh) && impl(ghc < 9)
     cpp-options: -DSUPPORT_LH
@@ -263,9 +263,8 @@ executable G2
                        , unordered-containers >= 0.2 && < 0.3
   default-language:    Haskell2010
   ghc-options:         -threaded -Wall
-                      --  -fprof-auto "-with-rtsopts=+RTS -xc"
-                       -- -fprof-auto "-with-rtsopts=-p"
                        -- -fexternal-interpreter -opti+RTS -opti-p
+  ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
   hs-source-dirs:      exe
   main-is:             Main.hs
 
@@ -287,6 +286,7 @@ executable G2LH
   ghc-options:         -threaded -Wall
                        -- -fprof-auto "-with-rtsopts=-p"
                        -- -fexternal-interpreter -opti+RTS -opti-p
+  ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
   hs-source-dirs:      lh
   main-is:             Main.hs
 
@@ -308,7 +308,7 @@ executable Inference
   default-language:    Haskell2010
   ghc-options:         -threaded -Wall
                        -- -O1
-                       -- -fprof-auto "-with-rtsopts=-p"
+  ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
   hs-source-dirs:      inference
   main-is:             Main.hs
 
@@ -324,7 +324,7 @@ executable Nebula
                        , unordered-containers >= 0.2 && < 0.3
   default-language:    Haskell2010
   ghc-options:         -threaded -Wall
-                       -- -fprof-auto "-with-rtsopts=-p"
+  ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
   hs-source-dirs:      nebula
   main-is:             Main.hs
 
@@ -362,8 +362,8 @@ test-suite test
                        , UnionFindTests
                        , RewriteVerify.RewriteVerifyTest
   ghc-options:         -Wall
-                       -- -fprof-auto "-with-rtsopts=-p"
                        -threaded
+  ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
   type:                exitcode-stdio-1.0
 
 test-suite test-lh
@@ -396,8 +396,8 @@ test-suite test-lh
                        , TestUtils
                        , UnionPoly
   ghc-options:         -Wall
-                       -- -fprof-auto "-with-rtsopts=-p"
                        -threaded
+  ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
   type:                exitcode-stdio-1.0
 
 test-suite test-g2q
@@ -427,8 +427,8 @@ test-suite test-g2q
                        , Simple.Simple1
                        , Simple.SimpleTest1
   ghc-options:         -Wall
-                       -- -fprof-auto "-with-rtsopts=-p"
                        -threaded
+  ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
   type:                exitcode-stdio-1.0
 
 test-suite test-nebula-plugin
@@ -441,6 +441,6 @@ test-suite test-nebula-plugin
   main-is:             Main.hs
   -- other-modules:         
   ghc-options:         -Wall
-                       -- -fprof-auto "-with-rtsopts=-p"
                        -threaded
+  ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
   type:                exitcode-stdio-1.0
