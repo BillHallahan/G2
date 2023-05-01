@@ -17,6 +17,7 @@ module G2.Equiv.G2Calls ( StateET
                         , isLabeledError
 
                         , lookupBoth
+                        , lookupConcOrSymBoth
                         , isSymbolicBoth ) where
 
 import G2.Config
@@ -447,12 +448,15 @@ totalExpr s@(State { expr_env = h, track = EquivTracker _ _ total _ h' _ }) ns n
 -- helper function to circumvent syncSymbolic
 -- for symbolic things, lookup returns the variable
 lookupBoth :: Name -> ExprEnv -> ExprEnv -> Maybe Expr
-lookupBoth n h1 h2 = case E.lookupConcOrSym n h1 of
-  Just (E.Conc e) -> Just e
-  Just (E.Sym i) -> case E.lookup n h2 of
-                      Nothing -> Just $ Var i
+lookupBoth n h1 = fmap E.concOrSymToExpr . lookupConcOrSymBoth n h1
+
+lookupConcOrSymBoth :: Name -> ExprEnv -> ExprEnv -> Maybe E.ConcOrSym
+lookupConcOrSymBoth n h1 h2 = case E.lookupConcOrSym n h1 of
+  e@(Just (E.Conc _)) -> e
+  sym@(Just (E.Sym _)) -> case E.lookupConcOrSym n h2 of
+                      Nothing -> sym
                       m -> m
-  Nothing -> E.lookup n h2
+  Nothing -> E.lookupConcOrSym n h2
 
 -- doesn't count as symbolic if it's unmapped
 -- condition we need:  n is symbolic in every env where it's mapped
