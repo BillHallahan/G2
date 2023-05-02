@@ -208,16 +208,14 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
     (Tick t e1', _) | isNothing $ labeledErrorName t -> moreRestrictive s1 s2 ns hm active n1 n2 e1' e2
     (_, Tick t e2') | isNothing $ labeledErrorName t -> moreRestrictive s1 s2 ns hm active n1 n2 e1 e2'
     (Var i, _) | m <- idName i
-               , not $ isSymbolicBoth m h1 h1'
                , not $ HS.member m ns
                , not $ (m, e2) `elem` n1
-               , Just e <- lookupBoth m h1 h1' ->
+               , Just (E.Conc e) <- lookupConcOrSymBoth m h1 h1' ->
                  moreRestrictive s1 s2 ns hm active ((m, e2):n1) n2 e e2
     (_, Var i) | m <- idName i
-               , not $ isSymbolicBoth m h2 h2'
                , not $ HS.member m ns
                , not $ (m, e1) `elem` n2
-               , Just e <- lookupBoth m h2 h2' ->
+               , Just (E.Conc e) <- lookupConcOrSymBoth m h2 h2' ->
                  moreRestrictive s1 s2 ns hm active n1 ((m, e1):n2) e1 e
     (Var i1, Var i2) | HS.member (idName i1) ns
                      , idName i1 == idName i2 -> Right hm
@@ -354,24 +352,30 @@ replaceVars = foldr (\(Id n _, e) -> replaceVar n e)
 inlineTop :: [Name] -> ExprEnv -> ExprEnv -> Expr -> Expr
 inlineTop acc h h' v@(Var (Id n _))
     | n `elem` acc = v
-    | isSymbolicBoth n h h' = v
-    | Just e <- lookupBoth n h h' = inlineTop (n:acc) h h' e
+    | Just cs <- lookupConcOrSymBoth n h h' =
+        case cs of
+            E.Sym _ -> v
+            E.Conc e -> inlineTop (n:acc) h h' e
 inlineTop acc h h' (Tick _ e) = inlineTop acc h h' e
 inlineTop _ _ _ e = e
 
 inlineFull :: [Name] -> ExprEnv -> ExprEnv -> Expr -> Expr
 inlineFull acc h h' v@(Var (Id n _))
     | n `elem` acc = v
-    | isSymbolicBoth n h h' = v
-    | Just e <- lookupBoth n h h' = inlineFull (n:acc) h h' e
+    | Just cs <- lookupConcOrSymBoth n h h' =
+        case cs of
+            E.Sym _ -> v
+            E.Conc e -> inlineFull (n:acc) h h' e
 inlineFull acc h h' e = modifyChildren (inlineFull acc h h') e
 
 inlineEquiv :: [Name] -> ExprEnv -> ExprEnv -> HS.HashSet Name -> Expr -> Expr
 inlineEquiv acc h h' ns v@(Var (Id n _))
     | n `elem` acc = v
-    | isSymbolicBoth n h h' = v
+    | Just (E.Sym _) <- cs = v
     | HS.member n ns = v
-    | Just e <- lookupBoth n h h' = inlineEquiv (n:acc) h h' ns e
+    | Just (E.Conc e) <- cs = inlineEquiv (n:acc) h h' ns e
+    where
+        cs = lookupConcOrSymBoth n h h'
 inlineEquiv acc h h' ns e = modifyChildren (inlineEquiv acc h h' ns) e
 
 -- ids are the same between both sides; no need to insert twice
