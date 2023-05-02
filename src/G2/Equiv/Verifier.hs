@@ -20,6 +20,7 @@ import qualified G2.Language.CallGraph as G
 import Data.Maybe
 import Data.List
 import qualified Data.Text as DT
+import qualified Data.Text.IO as DT
 
 import qualified Data.HashSet as HS
 import qualified G2.Solver as S
@@ -774,10 +775,10 @@ checkRule config nc init_state bindings total rule = do
 
   S.SomeSolver solver <- initSolver config
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
-  putStrLn $ printHaskellDirty e_l
-  putStrLn $ printHaskellDirty e_r
-  putStrLn $ printHaskellDirty $ exprExtract $ latest rewrite_state_l''
-  putStrLn $ printHaskellDirty $ exprExtract $ latest rewrite_state_r''
+  DT.putStrLn $ printHaskellDirty e_l
+  DT.putStrLn $ printHaskellDirty e_r
+  DT.putStrLn $ printHaskellDirty $ exprExtract $ latest rewrite_state_l''
+  DT.putStrLn $ printHaskellDirty $ exprExtract $ latest rewrite_state_r''
   (res, w) <- W.runWriterT $ verifyLoop solver (num_lemmas nc) ns
              emptyLemmas
              [(rewrite_state_l'', rewrite_state_r'')]

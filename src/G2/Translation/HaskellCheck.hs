@@ -7,6 +7,7 @@ import GHC.Paths
 import Data.Either
 import Data.List
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 import Text.Regex
 import Unsafe.Coerce
 
@@ -35,7 +36,7 @@ runCheck modN entry chAll (ExecRes {final_state = s, conc_args = ars, conc_out =
     (v, chAllR) <- runCheck' modN entry chAll s ars out
 
     v' <- liftIO $ (unsafeCoerce v :: IO (Either SomeException Bool))
-    let outStr = printHaskell s out
+    let outStr = T.unpack $ printHaskell s out
     let v'' = case v' of
                     Left _ -> outStr == "error"
                     Right b -> b && outStr /= "error"
@@ -52,11 +53,11 @@ runCheck' modN entry chAll s ars out = do
     let pg = updatePrettyGuide (exprNames e)
            . updatePrettyGuide (exprNames out)
            $ mkPrettyGuide $ varIds v
-    let arsStr = printHaskellPG pg s e
-    let outStr = printHaskellPG pg s out
+    let arsStr = T.unpack $ printHaskellPG pg s e
+    let outStr = T.unpack $ printHaskellPG pg s out
 
-    let arsType = mkTypeHaskell (typeOf e)
-        outType = mkTypeHaskell (typeOf out)
+    let arsType = T.unpack $ mkTypeHaskell (typeOf e)
+        outType = T.unpack $ mkTypeHaskell (typeOf out)
 
     let chck = case outStr == "error" of
                     False -> "try (evaluate (" ++ arsStr ++ " == " ++ "("
@@ -67,7 +68,7 @@ runCheck' modN entry chAll s ars out = do
     v' <- compileExpr chck
 
     let chArgs = ars ++ [out] 
-    let chAllStr = map (\f -> printHaskellPG pg s $ mkApp ((simpVar $ T.pack f):chArgs)) chAll
+    let chAllStr = map (\f -> T.unpack $ printHaskellPG pg s $ mkApp ((simpVar $ T.pack f):chArgs)) chAll
     let chAllStr' = map (\str -> "try (evaluate (" ++ str ++ ")) :: IO (Either SomeException Bool)") chAllStr
 
     chAllR <- mapM compileExpr chAllStr'
@@ -125,7 +126,7 @@ runHPC' src modN ars = do
     -- putStrLn mainFunc
 
 toCall :: String -> State t -> [Expr] -> Expr -> String
-toCall entry s ars _ = printHaskell s $ mkApp ((simpVar $ T.pack entry):ars)
+toCall entry s ars _ = T.unpack . printHaskell s $ mkApp ((simpVar $ T.pack entry):ars)
 
 removeModule :: String -> String -> String
 removeModule modN s =

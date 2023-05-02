@@ -90,6 +90,7 @@ import qualified Data.Map as M
 import Data.Maybe
 import Data.Monoid ((<>))
 import qualified Data.List as L
+import qualified Data.Text as T
 import Data.Tuple
 import Data.Time.Clock
 import System.Directory
@@ -545,7 +546,7 @@ prettyLogger fp =
             pg <- SM.get
             let pg' = updatePrettyGuide (s { track = () }) pg
             SM.put pg'
-            liftIO $ outputState fp li s b (\s_ _ -> prettyState pg' s_)
+            liftIO $ outputState fp li s b (\s_ _ -> T.unpack $ prettyState pg' s_)
             return (NoProgress, [(s, li)], b)
         )
     ) { updateWithAll = \s -> map (\(l, i) -> l ++ [i]) $ zip (map snd s) [1..]

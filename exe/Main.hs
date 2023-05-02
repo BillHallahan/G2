@@ -10,6 +10,7 @@ import System.FilePath
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 
 import G2.Lib.Printers
 
@@ -64,7 +65,7 @@ printFuncCalls config entry b =
 
         let funcOut = printHaskellPG pg s $ (conc_out execr)
 
-        putStrLn $ funcCall ++ " = " ++ funcOut)
+        T.putStrLn $ funcCall <> " = " <> funcOut)
 
 ppStatePiece :: Bool -> String -> String -> IO ()
 ppStatePiece b n res =
