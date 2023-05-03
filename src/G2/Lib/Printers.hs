@@ -442,6 +442,7 @@ prettyFrame pg (ApplyFrame e) = "apply frame: " <> mkDirtyExprHaskell pg e
 prettyFrame pg (UpdateFrame n) = "update frame: " <> mkNameHaskell pg n
 prettyFrame pg (CastFrame (t1 :~ t2)) = "cast frame: " <> mkTypeHaskellPG pg t1 <> " ~ " <> mkTypeHaskellPG pg t2
 prettyFrame pg (CurrExprFrame act ce) = "curr_expr frame: " <> prettyCEAction pg act <> prettyCurrExpr pg ce
+prettyFrame pg (AssumeFrame e) = "assume frame: " <> mkDirtyExprHaskell pg e
 prettyFrame pg (AssertFrame m_fc e) =
     let
         fc = case m_fc of
