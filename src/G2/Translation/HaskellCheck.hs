@@ -1,13 +1,12 @@
 module G2.Translation.HaskellCheck ( validateStates
                                    , runHPC) where
 
-import GHC hiding (Name)
+import GHC hiding (Name, entry)
 import GHC.Paths
 
 import Data.Either
 import Data.List
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
 import Text.Regex
 import Unsafe.Coerce
 
