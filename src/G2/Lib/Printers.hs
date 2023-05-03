@@ -450,11 +450,11 @@ prettyFrame pg (AssertFrame m_fc e) =
     in
     "assert frame: " <> fc <> mkDirtyExprHaskell pg e
 
-prettyCEAction :: PrettyGuide -> CEAction -> String
-prettyCEAction pg (EnsureEq e) = "EnsureEq " ++ mkDirtyExprHaskell pg e
+prettyCEAction :: PrettyGuide -> CEAction -> T.Text
+prettyCEAction pg (EnsureEq e) = "EnsureEq " <> mkDirtyExprHaskell pg e
 prettyCEAction _ NoAction = "NoAction"
 
-prettyEEnv :: PrettyGuide -> ExprEnv -> String
+prettyEEnv :: PrettyGuide -> ExprEnv -> T.Text
 prettyEEnv pg =
   T.intercalate "\n\n" . map (\(n, e) -> mkNameHaskell pg n <> " = " <> printEnvObj pg e ) . E.toList
 
