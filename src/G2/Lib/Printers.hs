@@ -34,6 +34,7 @@ import Data.Char
 import Data.List as L
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
+import Data.Monoid ((<>))
 import qualified Data.Text as T
 
 data Clean = Cleaned | Dirty deriving Eq
