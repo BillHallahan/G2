@@ -34,38 +34,39 @@ import Data.Char
 import Data.List as L
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
+import Data.Monoid ((<>))
 import qualified Data.Text as T
 
 data Clean = Cleaned | Dirty deriving Eq
 
-mkIdHaskell :: PrettyGuide -> Id -> String
+mkIdHaskell :: PrettyGuide -> Id -> T.Text
 mkIdHaskell pg (Id n _) = mkNameHaskell pg n
 
-printName :: PrettyGuide -> Name -> String
+printName :: PrettyGuide -> Name -> T.Text
 printName = mkNameHaskell
 
-mkNameHaskell :: PrettyGuide -> Name -> String
+mkNameHaskell :: PrettyGuide -> Name -> T.Text
 mkNameHaskell pg n
     | Just s <- lookupPG n pg = s
-    | otherwise = T.unpack (nameOcc n)
+    | otherwise = nameOcc n
 
-mkUnsugaredExprHaskell :: State t -> Expr -> String
+mkUnsugaredExprHaskell :: State t -> Expr -> T.Text
 mkUnsugaredExprHaskell (State {known_values = kv, type_classes = tc}) =
     mkExprHaskell Cleaned (mkPrettyGuide ()) . modifyMaybe (mkCleanExprHaskell' kv tc)
 
-printHaskell :: State t -> Expr -> String
+printHaskell :: State t -> Expr -> T.Text
 printHaskell = mkCleanExprHaskell (mkPrettyGuide ())
 
-printHaskellDirty :: Expr -> String
+printHaskellDirty :: Expr -> T.Text
 printHaskellDirty = mkExprHaskell Dirty (mkPrettyGuide ())
 
-printHaskellDirtyPG :: PrettyGuide -> Expr -> String
+printHaskellDirtyPG :: PrettyGuide -> Expr -> T.Text
 printHaskellDirtyPG = mkExprHaskell Dirty
 
-printHaskellPG :: PrettyGuide -> State t -> Expr -> String
+printHaskellPG :: PrettyGuide -> State t -> Expr -> T.Text
 printHaskellPG = mkCleanExprHaskell
 
-mkCleanExprHaskell :: PrettyGuide -> State t -> Expr -> String
+mkCleanExprHaskell :: PrettyGuide -> State t -> Expr -> T.Text
 mkCleanExprHaskell pg (State {known_values = kv, type_classes = tc}) = 
     mkExprHaskell Cleaned pg . modifyMaybe (mkCleanExprHaskell' kv tc)
 
@@ -97,25 +98,25 @@ elimPrimDC (Alt (DataAlt (DataCon (Name n _ _ _) t) is) e)
                         Just $ Alt (DataAlt (DataCon (Name "" Nothing 0 Nothing) t) is) e
 elimPrimDC _ = Nothing
 
-mkDirtyExprHaskell :: PrettyGuide -> Expr -> String
+mkDirtyExprHaskell :: PrettyGuide -> Expr -> T.Text
 mkDirtyExprHaskell = mkExprHaskell Dirty
 
-mkExprHaskell :: Clean -> PrettyGuide -> Expr -> String
+mkExprHaskell :: Clean -> PrettyGuide -> Expr -> T.Text
 mkExprHaskell = mkExprHaskell' 0
 
-mkExprHaskell' :: Int -> Clean -> PrettyGuide -> Expr -> String
+mkExprHaskell' :: Int -> Clean -> PrettyGuide -> Expr -> T.Text
 mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
     where
         isCleaned = cleaned == Cleaned
 
         mkExprHaskell'' :: Int -- ^ How much should a new line be indented?
                        -> Expr
-                       -> String
+                       -> T.Text
         mkExprHaskell'' _ (Var ids) = mkIdHaskell pg ids
         mkExprHaskell'' _ (Lit c) = mkLitHaskell c
         mkExprHaskell'' _ (Prim p _) = mkPrimHaskell p
         mkExprHaskell'' off (Lam _ ids e) =
-            "(\\" ++ mkIdHaskell pg ids ++ " -> " ++ mkExprHaskell'' off e ++ ")"
+            "(\\" <> mkIdHaskell pg ids <> " -> " <> mkExprHaskell'' off e <> ")"
 
         mkExprHaskell'' off a@(App ea@(App e1 e2) e3)
             | Data (DataCon n _) <- appCenter a
@@ -133,118 +134,118 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
             | isInfixable e1
             , isCleaned =
                 let
-                    e2P = if isApp e2 then "(" ++ mkExprHaskell'' off e2 ++ ")" else mkExprHaskell'' off e2
-                    e3P = if isApp e3 then "(" ++ mkExprHaskell'' off e3 ++ ")" else mkExprHaskell'' off e3
+                    e2P = if isApp e2 then "(" <> mkExprHaskell'' off e2 <> ")" else mkExprHaskell'' off e2
+                    e3P = if isApp e3 then "(" <> mkExprHaskell'' off e3 <> ")" else mkExprHaskell'' off e3
                 in
-                e2P ++ " " ++ mkExprHaskell'' off e1 ++ " " ++ e3P
+                e2P <> " " <> mkExprHaskell'' off e1 <> " " <> e3P
 
-            | App _ _ <- e3 = mkExprHaskell'' off ea ++ " (" ++ mkExprHaskell'' off e3 ++ ")"
-            | otherwise = mkExprHaskell'' off ea ++ " " ++ mkExprHaskell'' off e3
+            | App _ _ <- e3 = mkExprHaskell'' off ea <> " (" <> mkExprHaskell'' off e3 <> ")"
+            | otherwise = mkExprHaskell'' off ea <> " " <> mkExprHaskell'' off e3
 
-        mkExprHaskell'' off (App e1 ea@(App _ _)) = mkExprHaskell'' off e1 ++ " (" ++ mkExprHaskell'' off ea ++ ")"
+        mkExprHaskell'' off (App e1 ea@(App _ _)) = mkExprHaskell'' off e1 <> " (" <> mkExprHaskell'' off ea <> ")"
         mkExprHaskell'' off (App e1 e2) =
-            parenWrap e1 (mkExprHaskell'' off e1) ++ " " ++ mkExprHaskell'' off e2
+            parenWrap e1 (mkExprHaskell'' off e1) <> " " <> mkExprHaskell'' off e2
         mkExprHaskell'' _ (Data d) = mkDataConHaskell pg d
         mkExprHaskell'' off (Case e bndr _ ae) =
-               "case " ++ parenWrap e (mkExprHaskell'' off e) ++ " of\n" 
-            ++ intercalate "\n" (map (mkAltHaskell (off + 2) cleaned pg bndr) ae)
-        mkExprHaskell'' _ (Type t) = "@" ++ mkTypeHaskellPG pg t
+               "case " <> parenWrap e (mkExprHaskell'' off e) <> " of\n" 
+            <> T.intercalate "\n" (map (mkAltHaskell (off + 2) cleaned pg bndr) ae)
+        mkExprHaskell'' _ (Type t) = "@" <> mkTypeHaskellPG pg t
         mkExprHaskell'' off (Cast e (t1 :~ t2)) =
             let
                 e_str = mkExprHaskell'' off e
                 t1_str = mkTypeHaskellPG pg t1
                 t2_str = mkTypeHaskellPG pg t2
             in
-            "((coerce (" ++ e_str ++ " :: " ++ t1_str ++ ")) :: " ++ t2_str ++ ")"
+            "((coerce (" <> e_str <> " :: " <> t1_str <> ")) :: " <> t2_str <> ")"
         mkExprHaskell'' off (Let binds e) =
             let
-                binds' = intercalate (offset off ++ "\n")
-                       $ map (\(i, be) -> mkIdHaskell pg i ++ " = " ++ mkExprHaskell'' off be) binds 
+                binds' = T.intercalate (offset off <> "\n")
+                       $ map (\(i, be) -> mkIdHaskell pg i <> " = " <> mkExprHaskell'' off be) binds 
             in
-            "let " ++ binds' ++ " in " ++ mkExprHaskell'' off e
-        mkExprHaskell'' off (Tick nl e) = "TICK[" ++ printTickish pg nl ++ "]{" ++ mkExprHaskell'' off e ++ "}"
+            "let " <> binds' <> " in " <> mkExprHaskell'' off e
+        mkExprHaskell'' off (Tick nl e) = "TICK[" <> printTickish pg nl <> "]{" <> mkExprHaskell'' off e <> "}"
         mkExprHaskell'' off (Assume m_fc e1 e2) =
             let
-                print_fc = maybe "" (\fc -> "(" ++ printFuncCallPG pg fc ++ ") ") m_fc
+                print_fc = maybe "" (\fc -> "(" <> printFuncCallPG pg fc <> ") ") m_fc
             in
-            "assume " ++ print_fc
-                ++ "(" ++ mkExprHaskell'' off e1
-                ++ ") (" ++ mkExprHaskell'' off e2 ++ ")"
+            "assume " <> print_fc
+                <> "(" <> mkExprHaskell'' off e1
+                <> ") (" <> mkExprHaskell'' off e2 <> ")"
         mkExprHaskell'' off (Assert m_fc e1 e2) =
             let
-                print_fc = maybe "" (\fc -> "(" ++ printFuncCallPG pg fc ++ ") ") m_fc
+                print_fc = maybe "" (\fc -> "(" <> printFuncCallPG pg fc <> ") ") m_fc
             in
-            "assert " ++ print_fc
-                ++ "(" ++ mkExprHaskell'' off e1
-                ++ ") (" ++ mkExprHaskell'' off e2 ++ ")"
+            "assert " <> print_fc
+                <> "(" <> mkExprHaskell'' off e1
+                <> ") (" <> mkExprHaskell'' off e2 <> ")"
         mkExprHaskell'' off (NonDet es) =
             let
                 print_es = map (mkExprHaskell'' off) es
             in
-            intercalate ("\n" ++ offset off ++ "[NonDet]\n") print_es 
-        mkExprHaskell'' _ (SymGen t) = "(symgen " ++ mkTypeHaskellPG pg t ++ ")"
-        mkExprHaskell'' _ e = "e = " ++ show e ++ " NOT SUPPORTED"
+            T.intercalate ("\n" <> offset off <> "[NonDet]\n") print_es 
+        mkExprHaskell'' _ (SymGen t) = "(symgen " <> mkTypeHaskellPG pg t <> ")"
+        mkExprHaskell'' _ e = "e = " <> T.pack (show e) <> " NOT SUPPORTED"
 
-        parenWrap :: Expr -> String -> String
-        parenWrap (Case _ _ _ _) s = "(" ++ s ++ ")"
-        parenWrap (Let _ _) s = "(" ++ s ++ ")"
+        parenWrap :: Expr -> T.Text -> T.Text
+        parenWrap (Case _ _ _ _) s = "(" <> s <> ")"
+        parenWrap (Let _ _) s = "(" <> s <> ")"
         parenWrap (Tick _ e) s = parenWrap e s
         parenWrap _ s = s
 
-mkAltHaskell :: Int -> Clean -> PrettyGuide -> Id -> Alt -> String
+mkAltHaskell :: Int -> Clean -> PrettyGuide -> Id -> Alt -> T.Text
 mkAltHaskell off cleaned pg i_bndr@(Id bndr_name _) (Alt am e) =
     let
         needs_bndr = bndr_name `elem` names e
     in
-    offset off ++ mkAltMatchHaskell (if needs_bndr then Just i_bndr else Nothing) am ++ " -> " ++ mkExprHaskell' off cleaned pg e
+    offset off <> mkAltMatchHaskell (if needs_bndr then Just i_bndr else Nothing) am <> " -> " <> mkExprHaskell' off cleaned pg e
     where
-        mkAltMatchHaskell :: Maybe Id -> AltMatch -> String
+        mkAltMatchHaskell :: Maybe Id -> AltMatch -> T.Text
         mkAltMatchHaskell m_bndr (DataAlt dc@(DataCon n _) ids) | isTuple n =
             let
                 pr_am = printTuple pg $ mkApp (Data dc:map Var ids)
             in
             case m_bndr of
-                Just bndr | not (L.null ids) -> mkIdHaskell pg bndr ++ "@" ++ pr_am ++ ""
+                Just bndr | not (L.null ids) -> mkIdHaskell pg bndr <> "@" <> pr_am <> ""
                           | otherwise -> mkIdHaskell pg bndr
                 Nothing -> pr_am
         mkAltMatchHaskell m_bndr (DataAlt dc@(DataCon n _) [id1, id2]) | isInfixableName n =
             let
-                pr_am = mkIdHaskell pg id1 ++ " " ++ mkDataConHaskell pg dc ++ " " ++ mkIdHaskell pg id2
+                pr_am = mkIdHaskell pg id1 <> " " <> mkDataConHaskell pg dc <> " " <> mkIdHaskell pg id2
             in
             case m_bndr of
-                Just bndr -> mkIdHaskell pg bndr ++ "@(" ++ pr_am ++ ")" 
+                Just bndr -> mkIdHaskell pg bndr <> "@(" <> pr_am <> ")" 
                 Nothing -> pr_am
         mkAltMatchHaskell m_bndr (DataAlt dc ids) =
             let
-                pr_am = mkDataConHaskell pg dc ++ " " ++ intercalate " "  (map (mkIdHaskell pg) ids)
+                pr_am = mkDataConHaskell pg dc <> " " <> T.intercalate " "  (map (mkIdHaskell pg) ids)
             in
             case m_bndr of
-                Just bndr | not (L.null ids) -> mkIdHaskell pg bndr ++ "@(" ++ pr_am ++ ")"
+                Just bndr | not (L.null ids) -> mkIdHaskell pg bndr <> "@(" <> pr_am <> ")"
                           | otherwise -> mkIdHaskell pg bndr
                 Nothing -> pr_am
         mkAltMatchHaskell m_bndr (LitAlt l) =
             case m_bndr of
-                Just bndr -> mkIdHaskell pg bndr ++ "@" ++ mkLitHaskell l
+                Just bndr -> mkIdHaskell pg bndr <> "@" <> mkLitHaskell l
                 Nothing -> mkLitHaskell l
         mkAltMatchHaskell (Just bndr) Default = mkIdHaskell pg bndr
         mkAltMatchHaskell _ Default = "_"
 
-mkDataConHaskell :: PrettyGuide -> DataCon -> String
+mkDataConHaskell :: PrettyGuide -> DataCon -> T.Text
 -- Special casing for Data.Map in the modified base
 mkDataConHaskell _ (DataCon (Name "Assocs" _ _ _) _) = "fromList"
 mkDataConHaskell pg (DataCon n _) = mkNameHaskell pg n
 
-offset :: Int -> String
+offset :: Int -> T.Text
 offset i = duplicate "   " i
 
-printList :: PrettyGuide -> Expr -> String
+printList :: PrettyGuide -> Expr -> T.Text
 printList pg a =
     let (strs, b) = printList' pg a
     in case b of
-        False -> "(" ++ intercalate ":" strs ++ ")"
-        _ -> "[" ++ intercalate ", " strs ++ "]"
+        False -> "(" <> T.intercalate ":" strs <> ")"
+        _ -> "[" <> T.intercalate ", " strs <> "]"
 
-printList' :: PrettyGuide -> Expr -> ([String], Bool)
+printList' :: PrettyGuide -> Expr -> ([T.Text], Bool)
 printList' pg (App (App e1 e) e') | Data (DataCon n1 _) <- e1
                                   , nameOcc n1 == ":" =
     let (strs, b) = printList' pg e'
@@ -253,26 +254,26 @@ printList' pg e | Data (DataCon n _) <- appCenter e
                 , nameOcc n == "[]" = ([], True)
                 | otherwise = ([mkExprHaskell Cleaned pg e], False)
 
-printString :: PrettyGuide -> Expr -> String
+printString :: PrettyGuide -> Expr -> T.Text
 printString pg a =
     let
         maybe_str = printString' a
     in case maybe_str of
-        Just str -> if all isPrint str then "\"" ++ str ++ "\""
-                    else "[" ++ intercalate ", " (map stringToEnum str) ++ "]"
+        Just str -> if T.all isPrint str then "\"" <> str <> "\""
+                    else "[" <> T.intercalate ", " (map (T.pack . stringToEnum) $ T.unpack str) <> "]"
         Nothing -> printList pg a
     where
         stringToEnum c
             | isPrint c = '\'':c:'\'':[]
             | otherwise = "toEnum " ++ show (ord c)
 
-printString' :: Expr -> Maybe String
+printString' :: Expr -> Maybe T.Text
 printString' (App (App _ (Lit (LitChar c))) e') =
     case printString' e' of
         Nothing -> Nothing
-        Just str -> Just (c:str)
+        Just str -> Just (T.cons c str)
 printString' e | Data (DataCon n _) <- appCenter e
-               , nameOcc n == "[]" = Just []
+               , nameOcc n == "[]" = Just ""
                | otherwise = Nothing
 
 isTuple :: Name -> Bool
@@ -284,13 +285,13 @@ isPrimTuple (Name n _ _ _) = fmap fst (T.uncons n) == Just '(' && fmap snd (T.un
                      && T.all (\c -> c == '(' || c == ')' || c == ',' || c == '#') n
                      && T.any (\c -> c == '#') n
 
-printTuple :: PrettyGuide -> Expr -> String
-printTuple pg a = "(" ++ intercalate ", " (reverse $ printTuple' pg a) ++ ")"
+printTuple :: PrettyGuide -> Expr -> T.Text
+printTuple pg a = "(" <> T.intercalate ", " (reverse $ printTuple' pg a) <> ")"
 
-printPrimTuple :: PrettyGuide -> Expr -> String
-printPrimTuple pg a = "(#" ++ intercalate ", " (reverse $ printTuple' pg a) ++ "#)"
+printPrimTuple :: PrettyGuide -> Expr -> T.Text
+printPrimTuple pg a = "(#" <> T.intercalate ", " (reverse $ printTuple' pg a) <> "#)"
 
-printTuple' :: PrettyGuide -> Expr -> [String]
+printTuple' :: PrettyGuide -> Expr -> [T.Text]
 printTuple' pg (App e e') = mkExprHaskell Cleaned pg e':printTuple' pg e
 printTuple' _ _ = []
 
@@ -298,7 +299,7 @@ printTuple' _ _ = []
 isInfixable :: Expr -> Bool
 isInfixable (Var (Id n _)) = isInfixableName n
 isInfixable (Data (DataCon n _)) = isInfixableName n
-isInfixable (Prim p _) = not . any isAlphaNum $ mkPrimHaskell p
+isInfixable (Prim p _) = not . T.any isAlphaNum $ mkPrimHaskell p
 isInfixable _ = False
 
 isInfixableName :: Name -> Bool
@@ -312,15 +313,15 @@ isLitChar :: Expr -> Bool
 isLitChar (Lit (LitChar _)) = True
 isLitChar _ = False
 
-mkLitHaskell :: Lit -> String
-mkLitHaskell (LitInt i) = if i < 0 then "(" ++ show i ++ ")" else show i
-mkLitHaskell (LitInteger i) = if i < 0 then "(" ++ show i ++ ")" else show i
-mkLitHaskell (LitFloat r) = "(" ++ show ((fromRational r) :: Float) ++ ")"
-mkLitHaskell (LitDouble r) = "(" ++ show ((fromRational r) :: Double) ++ ")"
-mkLitHaskell (LitChar c) = ['\'', c, '\'']
-mkLitHaskell (LitString s) = s
+mkLitHaskell :: Lit -> T.Text
+mkLitHaskell (LitInt i) = T.pack $ if i < 0 then "(" <> show i <> ")" else show i
+mkLitHaskell (LitInteger i) = T.pack $ if i < 0 then "(" <> show i <> ")" else show i
+mkLitHaskell (LitFloat r) = "(" <> T.pack (show ((fromRational r) :: Float)) <> ")"
+mkLitHaskell (LitDouble r) = "(" <> T.pack (show ((fromRational r) :: Double)) <> ")"
+mkLitHaskell (LitChar c) = T.pack ['\'', c, '\'']
+mkLitHaskell (LitString s) = T.pack s
 
-mkPrimHaskell :: Primitive -> String
+mkPrimHaskell :: Primitive -> T.Text
 mkPrimHaskell Ge = ">="
 mkPrimHaskell Gt = ">"
 mkPrimHaskell Eq = "=="
@@ -362,36 +363,36 @@ mkPrimHaskell Undefined = "undefined"
 mkPrimHaskell Implies = "undefined"
 mkPrimHaskell Iff = "undefined"
 
-mkTypeHaskell :: Type -> String
+mkTypeHaskell :: Type -> T.Text
 mkTypeHaskell = mkTypeHaskellPG (mkPrettyGuide ())
 
-mkTypeHaskellPG :: PrettyGuide -> Type -> String
+mkTypeHaskellPG :: PrettyGuide -> Type -> T.Text
 mkTypeHaskellPG pg (TyVar i) = mkIdHaskell pg i
-mkTypeHaskellPG pg (TyFun t1 t2) = mkTypeHaskellPG pg t1 ++ " -> " ++ mkTypeHaskellPG pg t2
+mkTypeHaskellPG pg (TyFun t1 t2) = mkTypeHaskellPG pg t1 <> " -> " <> mkTypeHaskellPG pg t2
 mkTypeHaskellPG pg (TyCon n _) | nameOcc n == "List"
                                , nameModule n == Just "GHC.Types" = "[]"
                                | otherwise = mkNameHaskell pg n
-mkTypeHaskellPG pg (TyApp t1 t2) = "(" ++ mkTypeHaskellPG pg t1 ++ " " ++ mkTypeHaskellPG pg t2 ++ ")"
-mkTypeHaskellPG pg (TyForAll i t) = "forall " ++ mkIdHaskell pg i ++ " . " ++ mkTypeHaskellPG pg t
+mkTypeHaskellPG pg (TyApp t1 t2) = "(" <> mkTypeHaskellPG pg t1 <> " " <> mkTypeHaskellPG pg t2 <> ")"
+mkTypeHaskellPG pg (TyForAll i t) = "forall " <> mkIdHaskell pg i <> " . " <> mkTypeHaskellPG pg t
 mkTypeHaskellPG _ TYPE = "Type"
-mkTypeHaskellPG _ t = "Unsupported type in printer. " ++ show t
+mkTypeHaskellPG _ t = "Unsupported type in printer. " <> T.pack (show t)
 
-duplicate :: String -> Int -> String
+duplicate :: T.Text -> Int -> T.Text
 duplicate _ 0 = ""
-duplicate s n = s ++ duplicate s (n - 1)
+duplicate s n = s <> duplicate s (n - 1)
 
-printTickish :: PrettyGuide -> Tickish -> String
-printTickish _ (Breakpoint sp) = printLoc (start sp) ++ " - " ++ printLoc (end sp)
+printTickish :: PrettyGuide -> Tickish -> T.Text
+printTickish _ (Breakpoint sp) = printLoc (start sp) <> " - " <> printLoc (end sp)
 printTickish pg (NamedLoc n) = mkNameHaskell pg n
 
-printLoc :: Loc -> String
-printLoc (Loc ln cl fl) = "(line " ++ show ln ++ " column " ++ show cl ++ " in " ++  fl ++ ")" 
+printLoc :: Loc -> T.Text
+printLoc (Loc ln cl fl) = "(line " <> T.pack (show ln) <> " column " <> T.pack (show cl) <> " in " <>  T.pack fl <> ")" 
 
 -------------------------------------------------------------------------------
 
-prettyState :: Show t => PrettyGuide -> State t -> String
+prettyState :: Show t => PrettyGuide -> State t -> T.Text
 prettyState pg s =
-    injNewLine
+    T.intercalate "\n"
         [ ">>>>> [State] >>>>>>>>>>>>>>>>>>>>>"
         , "----- [Code] ----------------------"
         , pretty_curr_expr
@@ -404,11 +405,11 @@ prettyState pg s =
         , "----- [Non Red Paths] ---------------------"
         , pretty_non_red_paths
         , "----- [True Assert] ---------------------"
-        , show (true_assert s)
+        , T.pack (show (true_assert s))
         , "----- [Assert FC] ---------------------"
         , pretty_assert_fcs
         , "----- [Tracker] ---------------------"
-        , show (track s)
+        , T.pack (show (track s))
         , "----- [Pretty] ---------------------"
         , pretty_names
         ]
@@ -422,70 +423,70 @@ prettyState pg s =
         pretty_names = prettyGuideStr pg
 
 
-prettyCurrExpr :: PrettyGuide -> CurrExpr -> String
+prettyCurrExpr :: PrettyGuide -> CurrExpr -> T.Text
 prettyCurrExpr pg (CurrExpr er e) =
     let
         e_str = mkDirtyExprHaskell pg e
     in
     case er of
-        Evaluate -> "evaluate: " ++ e_str
-        Return -> "return: " ++ e_str
+        Evaluate -> "evaluate: " <> e_str
+        Return -> "return: " <> e_str
 
-prettyStack :: PrettyGuide -> Stack Frame -> String
-prettyStack pg = intercalate "\n" . map (prettyFrame pg) . toList
+prettyStack :: PrettyGuide -> Stack Frame -> T.Text
+prettyStack pg = T.intercalate "\n" . map (prettyFrame pg) . toList
 
-prettyFrame :: PrettyGuide -> Frame -> String
+prettyFrame :: PrettyGuide -> Frame -> T.Text
 prettyFrame pg (CaseFrame i _ as) =
-    "case frame: bindee:" ++ mkIdHaskell pg i ++ "\n" ++ intercalate "\n" (map (mkAltHaskell 1 Dirty pg i) as)
-prettyFrame pg (ApplyFrame e) = "apply frame: " ++ mkDirtyExprHaskell pg e
-prettyFrame pg (UpdateFrame n) = "update frame: " ++ mkNameHaskell pg n
-prettyFrame pg (CastFrame (t1 :~ t2)) = "cast frame: " ++ mkTypeHaskellPG pg t1 ++ " ~ " ++ mkTypeHaskellPG pg t2
-prettyFrame pg (CurrExprFrame act ce) = "curr_expr frame: " ++ prettyCEAction pg act ++ " " ++ prettyCurrExpr pg ce
-prettyFrame pg (AssumeFrame e) = "assume frame: " ++ mkDirtyExprHaskell pg e
+    "case frame: bindee:" <> mkIdHaskell pg i <> "\n" <> T.intercalate "\n" (map (mkAltHaskell 1 Dirty pg i) as)
+prettyFrame pg (ApplyFrame e) = "apply frame: " <> mkDirtyExprHaskell pg e
+prettyFrame pg (UpdateFrame n) = "update frame: " <> mkNameHaskell pg n
+prettyFrame pg (CastFrame (t1 :~ t2)) = "cast frame: " <> mkTypeHaskellPG pg t1 <> " ~ " <> mkTypeHaskellPG pg t2
+prettyFrame pg (CurrExprFrame act ce) = "curr_expr frame: " <> prettyCEAction pg act <> prettyCurrExpr pg ce
+prettyFrame pg (AssumeFrame e) = "assume frame: " <> mkDirtyExprHaskell pg e
 prettyFrame pg (AssertFrame m_fc e) =
     let
         fc = case m_fc of
-                  Just fc_ -> "(from call " ++ printFuncCallPG pg fc_ ++ ")"
+                  Just fc_ -> "(from call " <> printFuncCallPG pg fc_ <> ")"
                   Nothing -> ""
     in
-    "assert frame: " ++ fc ++ mkDirtyExprHaskell pg e
+    "assert frame: " <> fc <> mkDirtyExprHaskell pg e
 
-prettyCEAction :: PrettyGuide -> CEAction -> String
-prettyCEAction pg (EnsureEq e) = "EnsureEq " ++ mkDirtyExprHaskell pg e
+prettyCEAction :: PrettyGuide -> CEAction -> T.Text
+prettyCEAction pg (EnsureEq e) = "EnsureEq " <> mkDirtyExprHaskell pg e
 prettyCEAction _ NoAction = "NoAction"
 
-prettyEEnv :: PrettyGuide -> ExprEnv -> String
+prettyEEnv :: PrettyGuide -> ExprEnv -> T.Text
 prettyEEnv pg =
-  intercalate "\n\n" . map (\(n, e) -> mkNameHaskell pg n ++ " = " ++ printEnvObj pg e ) . E.toList
+  T.intercalate "\n\n" . map (\(n, e) -> mkNameHaskell pg n <> " = " <> printEnvObj pg e ) . E.toList
 
-printEnvObj :: PrettyGuide -> E.EnvObj -> String
+printEnvObj :: PrettyGuide -> E.EnvObj -> T.Text
 printEnvObj pg (E.ExprObj e) = mkDirtyExprHaskell pg e
-printEnvObj pg (E.SymbObj (Id _ t)) = "symbolic " ++ mkTypeHaskellPG pg t
-printEnvObj pg (E.RedirObj n) = "redir to " ++ mkNameHaskell pg n
+printEnvObj pg (E.SymbObj (Id _ t)) = "symbolic " <> mkTypeHaskellPG pg t
+printEnvObj pg (E.RedirObj n) = "redir to " <> mkNameHaskell pg n
 
-prettyPathConds :: PrettyGuide -> PathConds -> String
-prettyPathConds pg = intercalate "\n" . map (prettyPathCond pg) . PC.toList
+prettyPathConds :: PrettyGuide -> PathConds -> T.Text
+prettyPathConds pg = T.intercalate "\n" . map (prettyPathCond pg) . PC.toList
 
-prettyPathCond :: PrettyGuide -> PathCond -> String
+prettyPathCond :: PrettyGuide -> PathCond -> T.Text
 prettyPathCond pg (AltCond l e b) =
     let
-        eq = mkLitHaskell l ++ " = " ++ mkDirtyExprHaskell pg e
+        eq = mkLitHaskell l <> " = " <> mkDirtyExprHaskell pg e
     in
-    if b then eq else "not (" ++ eq ++ ")"
+    if b then eq else "not (" <> eq <> ")"
 prettyPathCond pg (ExtCond e b) =
-    if b then mkDirtyExprHaskell pg e else "not (" ++ mkDirtyExprHaskell pg e ++ ")"
+    if b then mkDirtyExprHaskell pg e else "not (" <> mkDirtyExprHaskell pg e <> ")"
 prettyPathCond pg (SoftPC pc) =
-    "soft (" ++ prettyPathCond pg pc ++ ")"
+    "soft (" <> prettyPathCond pg pc <> ")"
 prettyPathCond pg (MinimizePC e) =
-    "minimize (" ++ mkDirtyExprHaskell pg e ++ ")"
+    "minimize (" <> mkDirtyExprHaskell pg e <> ")"
 prettyPathCond pg (AssumePC i l pc) =
     let
         pc' = map PC.unhashedPC $ HS.toList pc
     in
-    mkIdHaskell pg i ++ " = " ++ show l ++ "=> (" ++ intercalate "\nand " (map (prettyPathCond pg) pc') ++ ")"
+    mkIdHaskell pg i <> " = " <> T.pack (show l) <> "=> (" <> T.intercalate "\nand " (map (prettyPathCond pg) pc') <> ")"
 
-prettyNonRedPaths :: PrettyGuide -> [(Expr, Expr)] -> String
-prettyNonRedPaths pg = intercalate "\n" . map (\(e1, e2) -> mkDirtyExprHaskell pg e1 ++ " == " ++ mkDirtyExprHaskell pg e2)
+prettyNonRedPaths :: PrettyGuide -> [(Expr, Expr)] -> T.Text
+prettyNonRedPaths pg = T.intercalate "\n" . map (\(e1, e2) -> mkDirtyExprHaskell pg e1 <> " == " <> mkDirtyExprHaskell pg e2)
 
 -------------------------------------------------------------------------------
 
@@ -596,16 +597,16 @@ pprPathCondStr = show
 pprCleanedNamesStr :: CleanedNames -> String
 pprCleanedNamesStr = injNewLine . map show . HM.toList
 
-printFuncCall :: FuncCall -> String
+printFuncCall :: FuncCall -> T.Text
 printFuncCall = printFuncCallPG (mkPrettyGuide ())
 
-printFuncCallPG :: PrettyGuide -> FuncCall -> String
+printFuncCallPG :: PrettyGuide -> FuncCall -> T.Text
 printFuncCallPG pg (FuncCall { funcName = f, arguments = ars, returns = r}) =
     let
         call_str fn = mkDirtyExprHaskell pg . foldl (\a a' -> App a a') (Var (Id fn TyUnknown)) $ ars
         r_str = mkDirtyExprHaskell pg r
     in
-    "(" ++ call_str f ++ " " ++ r_str ++ ")"
+    "(" <> call_str f <> " " <> r_str <> ")"
 
 -------------------------------------------------------------------------------
 -- Pretty Guide
@@ -617,7 +618,7 @@ printFuncCallPG pg (FuncCall { funcName = f, arguments = ars, returns = r}) =
 -- The `PrettyGuide` will only work on `Name`s it "knows" about.
 -- It "knows" about names in the `Named` value it is passed in it's creation
 -- (via `mkPrettyGuide`) and all `Name`s that it is passed via `updatePrettyGuide`.
-data PrettyGuide = PG { pg_assigned :: HM.HashMap Name String, pg_nums :: HM.HashMap T.Text Int }
+data PrettyGuide = PG { pg_assigned :: HM.HashMap Name T.Text, pg_nums :: HM.HashMap T.Text Int }
 
 mkPrettyGuide :: Named a => a -> PrettyGuide
 mkPrettyGuide = foldr insertPG (PG HM.empty HM.empty) . names
@@ -630,15 +631,15 @@ insertPG n pg@(PG { pg_assigned = as, pg_nums = nms })
     | not (HM.member n as) =
         case HM.lookup (nameOcc n) nms of
             Just i ->
-                PG { pg_assigned = HM.insert n (T.unpack (nameOcc n) ++ "'" ++ show i) as
+                PG { pg_assigned = HM.insert n (nameOcc n <> "'" <> T.pack (show i)) as
                    , pg_nums = HM.insert (nameOcc n) (i + 1) nms }
             Nothing ->
-                PG { pg_assigned = HM.insert n (T.unpack $ nameOcc n) as
+                PG { pg_assigned = HM.insert n (nameOcc n) as
                    , pg_nums = HM.insert (nameOcc n) 1 nms }
     | otherwise = pg
 
-lookupPG :: Name -> PrettyGuide -> Maybe String
+lookupPG :: Name -> PrettyGuide -> Maybe T.Text
 lookupPG n = HM.lookup n . pg_assigned
 
-prettyGuideStr :: PrettyGuide -> String
-prettyGuideStr = intercalate "\n" . map (\(n, s) -> s ++ " <-> " ++ show n) . HM.toList . pg_assigned
+prettyGuideStr :: PrettyGuide -> T.Text
+prettyGuideStr = T.intercalate "\n" . map (\(n, s) -> s <> " <-> " <> T.pack (show n)) . HM.toList . pg_assigned
