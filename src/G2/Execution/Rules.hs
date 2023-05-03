@@ -83,7 +83,8 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
     | Just rs <- symb_func_eval s ng ce = return rs
     | Just (CaseFrame i t a, stck') <- frstck = return $ retCaseFrame s ng ce i t a stck'
     | Just (CastFrame c, stck') <- frstck = return $ retCastFrame s ng ce c stck'
-    | Lam u i e <- ce = return $ retLam s ng u i e
+    | Lam u i e <- ce
+    , Just (ApplyFrame ae, stck') <- S.pop stck = return $ retLam s ng u i e ae stck'
     | Just (ApplyFrame e, stck') <- S.pop stck = return $ retApplyFrame s ng ce e stck'
     | Just (AssumeFrame e, stck') <- frstck = do
         let (r, xs, ng') = retAssumeFrame s ng ce e stck'
@@ -150,13 +151,6 @@ evalApp s@(State { expr_env = eenv
                  , known_values = kv
                  , exec_stack = stck })
         ng e1 e2
-    | (App (Prim BindFunc _) v) <- e1
-    , Var i1 <- findSym v
-    , v2 <- e2 =
-        ( RuleBind
-        , [newPCEmpty $ s { expr_env = E.insert (idName i1) v2 eenv
-                          , curr_expr = CurrExpr Return (mkTrue kv) }]
-        , ng)
     | ac@(Prim Error _) <- appCenter e1 =
         (RuleError, [newPCEmpty $ s { curr_expr = CurrExpr Return ac }], ng)
     | Just (e, eenv', pc, ng') <- evalPrimSymbolic eenv tenv ng kv (App e1 e2) =
@@ -210,13 +204,11 @@ repeatedLookup _ e = e
 evalLam :: State t -> LamUse -> Id -> Expr -> (Rule, [State t])
 evalLam = undefined
 
-retLam :: State t -> NameGen -> LamUse -> Id -> Expr -> (Rule, [State t], NameGen)
-retLam s@(State { expr_env = eenv
-                , exec_stack = stck })
-       ng u i e
-    | TypeL <- u
-    , Just (ApplyFrame tf, stck') <- S.pop stck =
-        case traceType eenv tf of
+retLam :: State t -> NameGen -> LamUse -> Id -> Expr -> Expr -> S.Stack Frame -> (Rule, [State t], NameGen)
+retLam s@(State { expr_env = eenv })
+       ng u i e ae stck'
+    | TypeL <- u =
+        case traceType eenv ae of
         Just t ->
             let
                 e' = retypeRespectingTyForAll i t e
@@ -228,9 +220,8 @@ retLam s@(State { expr_env = eenv
                  , curr_expr = CurrExpr Evaluate e''
                  , exec_stack = stck' }]
             , ng')
-        Nothing -> error $ "retLam: Bad type\ni = " ++ show i ++ "\nstck = " ++ show (S.pop stck) 
-    | TermL <- u
-    , Just (ApplyFrame ae, stck') <- S.pop stck =
+        Nothing -> error $ "retLam: Bad type\ni = " ++ show i
+    | otherwise =
         let
             (eenv', e', ng', news) = liftBind i ae eenv e ng
         in
@@ -239,7 +230,6 @@ retLam s@(State { expr_env = eenv
              , curr_expr = CurrExpr Evaluate e'
              , exec_stack = stck' }]
         ,ng')
-    | otherwise = error "retLam: Bad type"
 
 traceType :: E.ExprEnv -> Expr -> Maybe Type
 traceType _ (Type t) = Just t
@@ -759,15 +749,77 @@ retCastFrame s ng e c stck =
     , ng)
 
 retCurrExpr :: State t -> Expr -> CEAction -> CurrExpr -> S.Stack Frame -> (Rule, [NewPC t])
-retCurrExpr s e1 AddPC e2 stck = 
+retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) orig_ce stck
+    | e1 == e2 =
+        ( RuleReturnCurrExprFr
+        , [NewPC { state = s { curr_expr = orig_ce
+                             , exec_stack = stck }
+                    , new_pcs = []
+                    , concretized = [] }] )
+    | Cast e1' c1 <- e1
+    , Cast e2' c2 <- e2
+    , c1 == c2 =  retCurrExpr s e1' (EnsureEq e2') orig_ce stck
+
+    | isExprValueForm eenv e1
+    , isExprValueForm eenv e2
+    , t1 <- typeOf e1
+    , isPrimType t1 || t1 == tyBool kv =
+        assert (typeOf e2 == t1)
+        ( RuleReturnCurrExprFr
+        , [NewPC { state = s { curr_expr = orig_ce
+                             , exec_stack = stck}
+                    , new_pcs = [ExtCond (mkEqPrimExpr kv e1 e2) True]
+                    , concretized = [] }] )
+
+    -- Symmetric cases for e1/e2 being  symbolic variables 
+    | Var (Id n _) <- e1
+    , E.isSymbolic n eenv =
+        ( RuleReturnCurrExprFr
+        , [NewPC { state = s { curr_expr = orig_ce
+                             , expr_env = E.insert n e2 eenv
+                             , exec_stack = stck}
+                , new_pcs = []
+                , concretized = [] }] )
+    | Var (Id n _) <- e2
+    , E.isSymbolic n eenv =
+        ( RuleReturnCurrExprFr
+        , [NewPC { state = s { curr_expr = orig_ce
+                             , expr_env = E.insert n e1 eenv
+                             , exec_stack = stck}
+                , new_pcs = []
+                , concretized = [] }] )
+
+    | Data dc1:es1 <- unApp e1
+    , Data dc2:es2 <- unApp e2 =
+        case dc1 == dc2 of
+            True ->
+                let
+                    es = zip es1 es2
+                in
+                ( RuleReturnCurrExprFr
+                , [NewPC { state = s { curr_expr = orig_ce
+                                    , non_red_path_conds = es ++ non_red_path_conds s
+                                    , exec_stack = stck}
+                        , new_pcs = []
+                        , concretized = [] }] )
+            False ->
+                ( RuleReturnCurrExprFr
+                , [NewPC { state = s { curr_expr = orig_ce
+                                     , exec_stack = stck}
+                        , new_pcs = [ExtCond (mkFalse kv) True]
+                        , concretized = [] }] )
+    | otherwise =
+        assert (not (isExprValueForm eenv e2))
+                ( RuleReturnCurrExprFr
+                , [NewPC { state = s { curr_expr = CurrExpr Evaluate e2
+                                    , non_red_path_conds = non_red_path_conds s
+                                    , exec_stack = S.push (CurrExprFrame (EnsureEq e1) orig_ce) stck}
+                        , new_pcs = []
+                        , concretized = [] }] )
+
+retCurrExpr s _ NoAction orig_ce stck = 
     ( RuleReturnCurrExprFr
-    , [NewPC { state = s { curr_expr = e2
-                         , exec_stack = stck}
-             , new_pcs = [ExtCond e1 True]
-             , concretized = []}] )
-retCurrExpr s _ NoAction e2 stck = 
-    ( RuleReturnCurrExprFr
-    , [NewPC { state = s { curr_expr = e2
+    , [NewPC { state = s { curr_expr = orig_ce
                          , exec_stack = stck}
              , new_pcs = []
              , concretized = []}] )
@@ -1033,25 +1085,15 @@ retReplaceSymbFuncVar s@(State { expr_env = eenv
     , E.isSymbolic f eenv
     , isTyFun idt
     , t <- typeOf ce
-    , not (isTyFun t)
-    , Just eq_tc <- concreteSatStructEq kv tc t =
+    , not (isTyFun t) =
         let
             (new_sym, ng') = freshSeededString "sym" ng
             new_sym_id = Id new_sym t
-
-            s_eq_f = KV.structEqFunc kv
-
-            nrpc_e = mkApp $ 
-                           [ Var (Id s_eq_f TyUnknown)
-                           , Type t
-                           , eq_tc
-                           , Var new_sym_id
-                           , ce ]
         in
         Just (RuleReturnReplaceSymbFunc, 
             [s { expr_env = E.insertSymbolic new_sym_id eenv
                , curr_expr = CurrExpr Return (Var new_sym_id)
-               , non_red_path_conds = non_red_path_conds s ++ [nrpc_e] }]
+               , non_red_path_conds = non_red_path_conds s ++ [(ce, Var new_sym_id)] }]
             , ng')
     | otherwise = Nothing
 

@@ -61,7 +61,6 @@ library
                        , G2.Initialization.InitVarLocs
                        , G2.Initialization.KnownValues
                        , G2.Initialization.MkCurrExpr
-                       , G2.Initialization.StructuralEq
                        , G2.Initialization.Types
 
                        , G2.Interface

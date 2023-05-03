@@ -414,23 +414,40 @@ nonRedPCRedFunc _
                 s@(State { expr_env = eenv
                          , curr_expr = cexpr
                          , exec_stack = stck
-                         , non_red_path_conds = nr:nrs
+                         , non_red_path_conds = (nre1, nre2):nrs
                          , model = m })
-                b@(Bindings { higher_order_inst = inst }) = do
-    let stck' = Stck.push (CurrExprFrame AddPC cexpr) stck
+                b@(Bindings { higher_order_inst = inst })
+    | Var (Id n t) <- nre2
+    , E.isSymbolic n eenv
+    , hasFuncType (PresType t) =
+        let
+            s' = s { expr_env = E.insert n nre1 eenv
+                   , non_red_path_conds  = nrs }
+        in
+        return (InProgress, [(s', ())], b)
+    | Var (Id n t) <- nre1
+    , E.isSymbolic n eenv
+    , hasFuncType (PresType t) =
+        let
+            s' = s { expr_env = E.insert n nre2 eenv
+                   , non_red_path_conds  = nrs }
+        in
+        return (InProgress, [(s', ())], b)
+    | otherwise = do
+        let stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
 
-    let cexpr' = CurrExpr Evaluate nr
+        let cexpr' = CurrExpr Evaluate nre1
 
-    let eenv_si_ces = substHigherOrder eenv m inst cexpr'
+        let eenv_si_ces = substHigherOrder eenv m inst cexpr'
 
-    let s' = s { exec_stack = stck'
-               , non_red_path_conds = nrs
-               }
-        xs = map (\(eenv', m', ce) -> (s' { expr_env = eenv'
-                                          , model = m'
-                                          , curr_expr = ce }, ())) eenv_si_ces
+        let s' = s { exec_stack = stck'
+                   , non_red_path_conds = nrs
+                   }
+            xs = map (\(eenv', m', ce) -> (s' { expr_env = eenv'
+                                              , model = m'
+                                              , curr_expr = ce }, ())) eenv_si_ces
 
-    return (InProgress, xs, b)
+        return (InProgress, xs, b)
 nonRedPCRedFunc _ s b = return (Finished, [(s, ())], b)
 
 -- [Higher-Order Model]
@@ -469,7 +486,10 @@ substHigherOrder' eenvsice ((i, es):iss) =
                             ) eenvsice)
         es) iss
 
--- | Removes and reduces the values in a State's non_red_path_conds field by instantiating higher order functions to be constant
+-- | Removes and reduces the values in a State's non_red_path_conds field
+-- by instantiating higher order functions to be constant.
+-- Does not return any states if the state does not contain at least one
+-- higher order symbolic variable.
 nonRedPCRedConst :: Monad m => Reducer m () t
 nonRedPCRedConst = mkSimpleReducer (\_ -> ())
                                    nonRedPCRedConstFunc
@@ -479,33 +499,34 @@ nonRedPCRedConstFunc _
                      s@(State { expr_env = eenv
                               , curr_expr = cexpr
                               , exec_stack = stck
-                              , non_red_path_conds = nr:nrs
+                              , non_red_path_conds = (nre1, nre2):nrs
                               , model = m })
-                     b@(Bindings { name_gen = ng }) = do
-    let stck' = Stck.push (CurrExprFrame AddPC cexpr) stck
+                     b@(Bindings { name_gen = ng })
+    | higher_ord <- L.filter (isTyFun . typeOf) $ E.symbolicIds eenv
+    , not (null higher_ord) = do
+        let stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
 
-    let cexpr' = CurrExpr Evaluate nr
+        let cexpr' = CurrExpr Evaluate nre1
 
-    let higher_ord = L.filter (isTyFun . typeOf) $ E.symbolicIds eenv
-        (ng', new_lam_is) = L.mapAccumL (\ng_ ts -> swap $ freshIds ts ng_) ng (map anonArgumentTypes higher_ord)
-        (new_sym_gen, ng'') = freshIds (map returnType higher_ord) ng'
+        let (ng', new_lam_is) = L.mapAccumL (\ng_ ts -> swap $ freshIds ts ng_) ng (map anonArgumentTypes higher_ord)
+            (new_sym_gen, ng'') = freshIds (map returnType higher_ord) ng'
 
-        es = map (\(f_id, lam_i, sg_i) -> (f_id, mkLams (zip (repeat TermL) lam_i) (Var sg_i)) )
-           $ zip3 higher_ord new_lam_is new_sym_gen
+            es = map (\(f_id, lam_i, sg_i) -> (f_id, mkLams (zip (repeat TermL) lam_i) (Var sg_i)) )
+               $ zip3 higher_ord new_lam_is new_sym_gen
 
-        eenv' = foldr (uncurry E.insert) eenv (map (\(i, e) -> (idName i, e)) es)
-        eenv'' = foldr E.insertSymbolic eenv' new_sym_gen
-        m' = foldr (\(i, e) -> HM.insert (idName i) e) m es
+            eenv' = foldr (uncurry E.insert) eenv (map (\(i, e) -> (idName i, e)) es)
+            eenv'' = foldr E.insertSymbolic eenv' new_sym_gen
+            m' = foldr (\(i, e) -> HM.insert (idName i) e) m es
 
-    let s' = s { expr_env = eenv''
-               , curr_expr = cexpr'
-               , model = m'
-               , exec_stack = stck'
-               , non_red_path_conds = nrs
-               }
+        let s' = s { expr_env = eenv''
+                , curr_expr = cexpr'
+                , model = m'
+                , exec_stack = stck'
+                , non_red_path_conds = nrs
+                }
 
-    return (InProgress, [(s', ())], b { name_gen = ng'' })
-nonRedPCRedConstFunc _ s b = return (Finished, [(s, ())], b)
+        return (InProgress, [(s', ())], b { name_gen = ng'' })
+nonRedPCRedConstFunc _ s b = return (Finished, [], b)
 
 {-# INLINE taggerRed #-}
 taggerRed :: Monad m => Name -> Reducer m () t
