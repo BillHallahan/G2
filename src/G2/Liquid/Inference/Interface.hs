@@ -47,6 +47,7 @@ import qualified Data.HashMap.Lazy as HM
 import Data.List
 import Data.Maybe
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 
 -- Run inference, with an extra, final check of correctness at the end.
 -- Assuming inference is working correctly, this check should neve fail.
@@ -310,7 +311,7 @@ inferenceB con iter ghci m_modname lrs nls evals meas_ex gs fc max_fc ut blk_mdl
 
                 Crash e1 e2 -> error $ "inferenceB: LiquidHaskell crashed" ++ "\n" ++ show e1 ++ "\n" ++ e2
         SynthFail sf_fc -> do
-            liftIO . putStrLn $ "synthfail fc = " ++ (printFCs lrs sf_fc)
+            liftIO . T.putStrLn $ "synthfail fc = " <> (printFCs lrs sf_fc)
             incrBackTrackLog
             return $ (Raise meas_ex fc (unionFC max_fc sf_fc), evals')
 
@@ -399,7 +400,7 @@ refineUnsafe ghci m_modname lrs gs bad = do
     case new_fc of
         Left cex -> return $ Left cex
         Right new_fc' -> do
-            liftIO . putStrLn $ "new_fc' = " ++ printFCs lrs new_fc'
+            liftIO . T.putStrLn $ "new_fc' = " <> printFCs lrs new_fc'
             return $ Right (if nullFC new_fc'
                                     then Nothing
                                     else Just (new_fc', emptyBlockedModels), fromListFC no_viol)
@@ -525,7 +526,7 @@ getCEx ghci m_modname lrs gs bad = do
     case new_fc of
         Left cex -> return $ Left cex
         Right new_fc' -> do
-            liftIO . putStrLn $ "new_fc' = " ++ printFCs lrs new_fc'
+            liftIO . T.putStrLn $ "new_fc' = " <> printFCs lrs new_fc'
             return $ Right new_fc'
 
 checkForCEx :: MonadIO m =>

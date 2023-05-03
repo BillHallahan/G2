@@ -883,14 +883,14 @@ deleteEvalsForFunc n (Evals { pre_evals = pre_ev, post_evals = post_ev }) =
     Evals { pre_evals = HM.delete (zeroOutName n) pre_ev
           , post_evals = HM.delete (zeroOutName n) post_ev }
 
-printEvals :: (a -> String) -> Evals a -> String
+printEvals :: (a -> T.Text) -> Evals a -> T.Text
 printEvals f (Evals { pre_evals = pre, post_evals = post }) =
-    "Evals {\npre_evals = " ++ printEvals' f pre ++ "\npost_evals = " ++ printEvals' f post ++ "\n}"
+    "Evals {\npre_evals = " <> printEvals' f pre <> "\npost_evals = " <> printEvals' f post <> "\n}"
 
-printEvals' :: (a -> String) -> FCEvals a -> String
+printEvals' :: (a -> T.Text) -> FCEvals a -> T.Text
 printEvals' f =
-      intercalate "\n"
-    . map (\(fc, v) -> printFuncCall fc ++ " -> " ++ f v)
+      T.intercalate "\n"
+    . map (\(fc, v) -> printFuncCall fc <> " -> " <> f v)
     . HM.toList
     . HM.unions
     . HM.elems
