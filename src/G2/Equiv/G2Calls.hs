@@ -40,6 +40,7 @@ import qualified Data.Text as T
 
 import Data.Hashable
 import qualified Data.List as L
+import Data.Monoid
 
 import GHC.Generics (Generic)
 
