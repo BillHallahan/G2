@@ -437,21 +437,11 @@ prettyStack pg = T.intercalate "\n" . map (prettyFrame pg) . toList
 
 prettyFrame :: PrettyGuide -> Frame -> T.Text
 prettyFrame pg (CaseFrame i _ as) =
-<<<<<<< HEAD
     "case frame: bindee:" <> mkIdHaskell pg i <> "\n" <> T.intercalate "\n" (map (mkAltHaskell 1 Dirty pg i) as)
 prettyFrame pg (ApplyFrame e) = "apply frame: " <> mkDirtyExprHaskell pg e
 prettyFrame pg (UpdateFrame n) = "update frame: " <> mkNameHaskell pg n
 prettyFrame pg (CastFrame (t1 :~ t2)) = "cast frame: " <> mkTypeHaskellPG pg t1 <> " ~ " <> mkTypeHaskellPG pg t2
-prettyFrame pg (CurrExprFrame act ce) = "curr_expr frame: " <> T.pack (show act) <> prettyCurrExpr pg ce
-prettyFrame pg (AssumeFrame e) = "assume frame: " <> mkDirtyExprHaskell pg e
-=======
-    "case frame: bindee:" ++ mkIdHaskell pg i ++ "\n" ++ intercalate "\n" (map (mkAltHaskell 1 Dirty pg i) as)
-prettyFrame pg (ApplyFrame e) = "apply frame: " ++ mkDirtyExprHaskell pg e
-prettyFrame pg (UpdateFrame n) = "update frame: " ++ mkNameHaskell pg n
-prettyFrame pg (CastFrame (t1 :~ t2)) = "cast frame: " ++ mkTypeHaskellPG pg t1 ++ " ~ " ++ mkTypeHaskellPG pg t2
-prettyFrame pg (CurrExprFrame act ce) = "curr_expr frame: " ++ prettyCEAction pg act ++ " " ++ prettyCurrExpr pg ce
-prettyFrame pg (AssumeFrame e) = "assume frame: " ++ mkDirtyExprHaskell pg e
->>>>>>> master
+prettyFrame pg (CurrExprFrame act ce) = "curr_expr frame: " <> prettyCEAction pg act <> prettyCurrExpr pg ce
 prettyFrame pg (AssertFrame m_fc e) =
     let
         fc = case m_fc of
@@ -460,15 +450,11 @@ prettyFrame pg (AssertFrame m_fc e) =
     in
     "assert frame: " <> fc <> mkDirtyExprHaskell pg e
 
-<<<<<<< HEAD
-prettyEEnv :: PrettyGuide -> ExprEnv -> T.Text
-=======
 prettyCEAction :: PrettyGuide -> CEAction -> String
 prettyCEAction pg (EnsureEq e) = "EnsureEq " ++ mkDirtyExprHaskell pg e
 prettyCEAction _ NoAction = "NoAction"
 
 prettyEEnv :: PrettyGuide -> ExprEnv -> String
->>>>>>> master
 prettyEEnv pg =
   T.intercalate "\n\n" . map (\(n, e) -> mkNameHaskell pg n <> " = " <> printEnvObj pg e ) . E.toList
 
@@ -498,13 +484,8 @@ prettyPathCond pg (AssumePC i l pc) =
     in
     mkIdHaskell pg i <> " = " <> T.pack (show l) <> "=> (" <> T.intercalate "\nand " (map (prettyPathCond pg) pc') <> ")"
 
-<<<<<<< HEAD
-prettyNonRedPaths :: PrettyGuide -> [Expr] -> T.Text
-prettyNonRedPaths pg = T.intercalate "\n" . map (mkDirtyExprHaskell pg)
-=======
-prettyNonRedPaths :: PrettyGuide -> [(Expr, Expr)] -> String
-prettyNonRedPaths pg = intercalate "\n" . map (\(e1, e2) -> mkDirtyExprHaskell pg e1 ++ " == " ++ mkDirtyExprHaskell pg e2)
->>>>>>> master
+prettyNonRedPaths :: PrettyGuide -> [(Expr, Expr)] -> T.Text
+prettyNonRedPaths pg = T.intercalate "\n" . map (\(e1, e2) -> mkDirtyExprHaskell pg e1 <> " == " <> mkDirtyExprHaskell pg e2)
 
 -------------------------------------------------------------------------------
 
