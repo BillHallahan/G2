@@ -6,7 +6,6 @@ import G2.Initialization.DeepSeqWalks
 import G2.Initialization.ElimTicks
 import G2.Initialization.ElimTypeSynonyms
 import G2.Initialization.InitVarLocs
-import G2.Initialization.StructuralEq
 import G2.Initialization.Types as IT
 
 type MkArgTypes = IT.SimpleState -> [Type]
@@ -31,7 +30,5 @@ runInitialization2 s@(IT.SimpleState { IT.expr_env = eenv
                , IT.type_env = tenv2
                , IT.name_gen = ng2
                , IT.type_classes = tc2 }
-
-        s'' = execSimpleStateM (createStructEqFuncs ts) s'
     in
-    (s'', ds_walkers)
+    (s', ds_walkers)

@@ -362,8 +362,6 @@ mkPrimHaskell Undefined = "undefined"
 mkPrimHaskell Implies = "undefined"
 mkPrimHaskell Iff = "undefined"
 
-mkPrimHaskell BindFunc = "undefined"
-
 mkTypeHaskell :: Type -> String
 mkTypeHaskell = mkTypeHaskellPG (mkPrettyGuide ())
 
@@ -442,7 +440,7 @@ prettyFrame pg (CaseFrame i _ as) =
 prettyFrame pg (ApplyFrame e) = "apply frame: " ++ mkDirtyExprHaskell pg e
 prettyFrame pg (UpdateFrame n) = "update frame: " ++ mkNameHaskell pg n
 prettyFrame pg (CastFrame (t1 :~ t2)) = "cast frame: " ++ mkTypeHaskellPG pg t1 ++ " ~ " ++ mkTypeHaskellPG pg t2
-prettyFrame pg (CurrExprFrame act ce) = "curr_expr frame: " ++ show act ++ prettyCurrExpr pg ce
+prettyFrame pg (CurrExprFrame act ce) = "curr_expr frame: " ++ prettyCEAction pg act ++ " " ++ prettyCurrExpr pg ce
 prettyFrame pg (AssumeFrame e) = "assume frame: " ++ mkDirtyExprHaskell pg e
 prettyFrame pg (AssertFrame m_fc e) =
     let
@@ -451,6 +449,10 @@ prettyFrame pg (AssertFrame m_fc e) =
                   Nothing -> ""
     in
     "assert frame: " ++ fc ++ mkDirtyExprHaskell pg e
+
+prettyCEAction :: PrettyGuide -> CEAction -> String
+prettyCEAction pg (EnsureEq e) = "EnsureEq " ++ mkDirtyExprHaskell pg e
+prettyCEAction _ NoAction = "NoAction"
 
 prettyEEnv :: PrettyGuide -> ExprEnv -> String
 prettyEEnv pg =
@@ -482,8 +484,8 @@ prettyPathCond pg (AssumePC i l pc) =
     in
     mkIdHaskell pg i ++ " = " ++ show l ++ "=> (" ++ intercalate "\nand " (map (prettyPathCond pg) pc') ++ ")"
 
-prettyNonRedPaths :: PrettyGuide -> [Expr] -> String
-prettyNonRedPaths pg = intercalate "\n" . map (mkDirtyExprHaskell pg)
+prettyNonRedPaths :: PrettyGuide -> [(Expr, Expr)] -> String
+prettyNonRedPaths pg = intercalate "\n" . map (\(e1, e2) -> mkDirtyExprHaskell pg e1 ++ " == " ++ mkDirtyExprHaskell pg e2)
 
 -------------------------------------------------------------------------------
 
