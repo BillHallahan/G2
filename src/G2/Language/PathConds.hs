@@ -209,14 +209,6 @@ relatedSets (PathConds ufm) =
     P.map (\(k, v) -> PathConds $ UF.insert k v c_ufm) $ HM.toList (UF.toSimpleMap ufm) 
 
 varIdsInPC :: PathCond -> [Id]
--- [AltCond]
--- Optimization
--- When we have an AltCond with a Var expr, we only have to look at
--- other PC's with that Var's name.  This is because we assign all
--- DCs from the same part in a DC tree the same name, and a DC's
--- parents/children can't impose restrictions on it.  We are completely
--- guided by pattern matching from case statements.
--- See note [ChildrenNames] in Execution/Rules.hs
 varIdsInPC (AltCond _ e _) = varIds e
 varIdsInPC (ExtCond e _) = varIds e
 varIdsInPC (MinimizePC e) = varIds e

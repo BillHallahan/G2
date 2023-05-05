@@ -45,8 +45,6 @@ module G2.Language.Naming
     , freshIds
     , freshVar
 
-    , childrenNames
-
     , mapNG
     ) where
 
@@ -86,8 +84,7 @@ nameLoc :: Name -> Maybe Span
 nameLoc (Name _ _ _ s) = s
 
 -- | Allows the creation of fresh `Name`s.
-data NameGen = NameGen { max_uniq :: (HM.HashMap (T.Text, Maybe T.Text) Int)
-                       , dc_children :: (HM.HashMap Name [Name]) }
+newtype NameGen = NameGen (HM.HashMap (T.Text, Maybe T.Text) Int)
                 deriving (Show, Eq, Read, Typeable, Data)
 
 -- nameToStr relies on NameCleaner eliminating all '_', to preserve uniqueness
@@ -131,13 +128,7 @@ mkNameGen nmd =
     let
         allNames = toList $ names nmd
     in
-    NameGen {
-          max_uniq = HM.fromListWith max $ map (\(Name n m i _) -> ((n, m), i + 1)) allNames
-            -- (foldr (\(Name n m i _) hm -> HM.insertWith max (n, m) (i + 1) hm) 
-            --     HM.empty allNames
-            -- )
-            , dc_children = HM.empty
-    }
+    NameGen (HM.fromListWith max $ map (\(Name n m i _) -> ((n, m), i + 1)) allNames)
 
 -- | Returns all @Var@ Ids in an ASTContainer
 varIds :: (ASTContainer m Expr) => m -> [Id]
@@ -879,17 +870,14 @@ freshSeededStrings :: [T.Text] -> NameGen -> ([Name], NameGen)
 freshSeededStrings t = freshSeededNames (map (\t' -> Name t' Nothing 0 Nothing) t)
 
 freshSeededName :: Name -> NameGen -> (Name, NameGen)
-freshSeededName (Name n m _ l) (NameGen { max_uniq = hm, dc_children = chm }) =
-    (Name n m i' l, NameGen hm' chm)
+freshSeededName (Name n m _ l) (NameGen hm) =
+    (Name n m i' l, NameGen hm')
     where 
         i' = HM.lookupDefault 0 (n, m) hm
         hm' = HM.insert (n, m) (i' + 1) hm
 
 freshSeededNames :: [Name] -> NameGen -> ([Name], NameGen)
-freshSeededNames [] r = ([], r)
-freshSeededNames (n:ns) r = (n':ns', ngen'') 
-  where (n', ngen') = freshSeededName n r
-        (ns', ngen'') = freshSeededNames ns ngen'
+freshSeededNames ns ng = swap $ mapAccumR (\ng' n -> swap $ freshSeededName n ng') ng ns
 
 freshName :: NameGen -> (Name, NameGen)
 freshName ngen = freshSeededName seed ngen
@@ -924,39 +912,6 @@ freshVar t ngen =
         (i, ngen') = freshId t ngen
     in
     (Var i, ngen')
-
--- | Given the name n of a datacon, and some names for it's children,
--- returns new names ns for the children
--- Returns a new NameGen that will always return the same ns for that n
--- If this is called with different length ns's, the shorter will be the prefix
--- of the longer
-childrenNames :: Name -> [Name] -> NameGen -> ([Name], NameGen)
-childrenNames n ns ng@(NameGen { dc_children = chm }) =
-    case HM.lookup n chm of
-        Just ens' -> childrenNamesExisting n ns ens' ng
-        Nothing -> childrenNamesNew n ns ng-- []
-
-childrenNamesExisting :: Name -> [Name] -> [Name] -> NameGen -> ([Name], NameGen)
-childrenNamesExisting n ns ens ng =
-    let
-        (fns, NameGen hm chm) = freshSeededNames (drop (length ens) ns) ng
-        ns' = ens ++ fns
-
-        chm' = HM.insert n ns' chm
-    in
-    case length ns `compare` length ens of
-        LT -> (take (length ns) ens, ng)
-        EQ -> (ens, ng)
-        GT -> (ns', NameGen hm chm')
-
-childrenNamesNew :: Name -> [Name] -> NameGen -> ([Name], NameGen)
-childrenNamesNew n ns ng =
-    let
-        (fns, NameGen hm chm) = freshSeededNames ns ng
-        chm' = HM.insert n fns chm
-    in
-    (fns, NameGen hm chm')
-
 
 -- | Allows mapping, while passing a NameGen along
 mapNG :: (a -> NameGen -> (b, NameGen)) -> [a] -> NameGen -> ([b], NameGen)

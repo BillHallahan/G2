@@ -419,14 +419,8 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv})
     olds = map idName params
     clean_olds = map cleanName olds
 
-    -- [ChildrenNames]
-    -- Optimization
-    -- We use the same names repeatedly for the children of the same ADT
-    -- Haskell is purely functional, so this is OK!  The children can't change
-    -- Then, in the constraint solver, we can consider fewer constraints at once
-    -- (see note [AltCond] in Language/PathConds.hs) 
     mexpr_n = idName mexpr_id
-    (news, ngen') = childrenNames mexpr_n clean_olds ngen
+    (news, ngen') = freshSeededNames clean_olds ngen
 
     --Update the expr environment
     newIds = map (\(Id _ t, n) -> Id n t) (zip params news)
