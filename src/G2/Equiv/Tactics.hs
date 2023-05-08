@@ -287,7 +287,7 @@ moreRestrictive s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) ns hm acti
                                   let (hm', hs) = hm
                                   in Right (hm', HS.insert (inlineFull [] h1 h1' e1, inlineFull [] h2 h2' e2) hs)
     (_, App _ _) | e2':_ <- unApp e2
-                 , (Prim _ _) <- inlineTop [] h1 h1' e2'
+                 , (Prim _ _) <- inlineTop [] h2 h2' e2'
                  , T.isPrimType $ typeOf e2
                  , T.isPrimType $ typeOf e1
                  , isSWHNF $ (s1 { curr_expr = CurrExpr Evaluate e1 }) ->
