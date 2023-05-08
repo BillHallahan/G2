@@ -3,8 +3,33 @@ module G2.Execution.NormalForms where
 import G2.Language
 import qualified G2.Language.Stack as S
 import qualified G2.Language.ExprEnv as E
+import G2.Language.Typing
 
 import qualified Data.HashSet as HS
+
+-- A Var counts as being in EVF if it's symbolic or if it's unmapped.
+isSWHNF :: State t -> Bool
+isSWHNF (State { expr_env = h, curr_expr = CurrExpr _ e }) =
+  let e' = modifyASTs stripTicks e
+      t = typeOf e'
+  in case e' of
+    Var _ -> (isPrimType t || not (concretizable t)) && isExprValueForm h e'
+    _ -> isExprValueForm h e'
+
+stripTicks :: Expr -> Expr
+stripTicks (Tick _ e) = e
+stripTicks e = e
+
+-- used by EquivADT and Tactics
+concretizable :: Type -> Bool
+concretizable (TyVar _) = False
+concretizable (TyForAll _ _) = False
+concretizable (TyFun _ _) = False
+concretizable t@(TyApp _ _) =
+  concretizable $ last $ unTyApp t
+concretizable TYPE = False
+concretizable TyUnknown = False
+concretizable _ = True
 
 -- | If something is in "value form", then it is essentially ready to be
 -- returned and popped off the heap. This will be the SSTG equivalent of having

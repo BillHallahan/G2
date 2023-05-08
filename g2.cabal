@@ -67,6 +67,7 @@ library
 
                        , G2.Language
                        , G2.Language.AlgDataTy
+                       , G2.Language.Approximation
                        , G2.Language.ArbValueGen
                        , G2.Language.AST
                        , G2.Language.CallGraph
