@@ -1,14 +1,27 @@
-module G2.Language.Approximation where
+module G2.Language.Approximation ( GenerateLemma
+                                 , Lookup
+                                 , MRCont
+                                 
+                                 , moreRestrictive
+                                 , moreRestrictive'
+                                 , moreRestrictivePC
+
+                                 , applySolver
+                                 
+                                 , inlineEquiv) where
 
 import G2.Execution.NormalForms
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Naming
+import qualified G2.Language.PathConds as P
 import G2.Language.Support
 import G2.Language.Syntax
 import G2.Language.Typing as T
+import qualified G2.Solver as S
 
 import Control.Monad.Extra
+import Control.Monad.IO.Class
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 
@@ -26,40 +39,41 @@ type MRCont t l =  State t
                 -> Expr
                 -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
 
--- s1 is the old state, s2 is the new state
--- If any recursively-defined functions or other expressions manage to slip
--- through the cracks with the other mechanisms in place for avoiding infinite
--- inlining loops, then we can handle them here by keeping track of all of the
--- variables that have been inlined previously.
--- Keeping track of inlinings by adding to ns only lets a variable be inlined
--- on one side.  We need to have two separate lists of variables that have been
--- inlined previously so that inlinings on one side do not block any inlinings
+-------------------------------------------------------------------------------
+-- [Inlining]
+-- We keep two separate lists of variables that have been inlined previously on
+-- the LHS and RHS. This means that inlinings on one side do not block any inlinings
 -- that need to happen on the other side.
+--
 -- Whenever a variable is inlined, we record the expression that was on the
--- opposite side at the time.  Under the original system, a variable could not
--- be inlined at all on one side in any sub-expressions that resulted from an
--- inlining of it, and that was too restrictive.  Under the current system,
--- repeated inlinings of a variable are allowed as long as the expression on
+-- opposite side at the time.  Not allowing a variable to be inlined at all on one
+-- side in any sub-expressions that resulted from an inlining of it is too restrictive
+-- in practice.  We allow repeated inlinings of a variable as long as the expression on
 -- the opposite side is not the same as it was when a previous inlining of the
 -- same variable happened.
--- When we make the two sides for a new lemma, if the two expressions
--- contain any variables that aren't present in the expression environment,
--- we add them to the expression environment as non-total symbolic
--- variables.  This can happen if an expression for a lemma is a
--- sub-expression of a Case branch, a Let statement, or a lambda expression
--- body.  It is possible that we may lose information about the variables
--- because of these insertions, but this cannot lead to spurious
--- counterexamples because these insertions apply only to lemmas and lemmas
--- are not used for counterexample generation.
-moreRestrictive' :: MRCont t l
+-------------------------------------------------------------------------------
+
+-- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
+moreRestrictive :: MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
+                -> GenerateLemma t l
+                -> Lookup t -- ^ How to lookup variable names
+                -> State t -- ^ s1
+                -> State t -- ^ s2
+                -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
+                -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+                -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
+moreRestrictive mr_cont gen_lemma lkp s1 s2 ns hm =
+    moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm True [] [] (getExpr s1) (getExpr s2)
+
+moreRestrictive' :: MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive'
                  -> GenerateLemma t l
                  -> Lookup t
                  -> State t
                  -> State t
-                 -> HS.HashSet Name
+                 -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                  -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
                  -> Bool -- ^ indicates whether this is part of the "active expression"
-                 -> [(Name, Expr)] -- ^ variables inlined previously on the LHS
+                 -> [(Name, Expr)] -- ^ variables inlined previously on the LHS (see [Inlining])
                  -> [(Name, Expr)] -- ^ variables inlined previously on the RHS
                  -> Expr
                  -> Expr
@@ -82,10 +96,10 @@ moreRestrictive' mr_cont gen_lemma lkp s1@(State {expr_env = h1}) s2@(State {exp
                      | HS.member (idName i2) ns -> Left []
     (Var i, _) | Just (E.Sym _) <- lkp (idName i) s1
                , (hm', hs) <- hm
-               , Nothing <- HM.lookup i hm' -> Right (HM.insert i (inlineEquiv lkp [] s2 ns e2) hm', hs)
+               , Nothing <- HM.lookup i hm' -> Right (HM.insert i (inlineEquiv lkp s2 ns e2) hm', hs)
                | Just (E.Sym _) <- lkp (idName i) s1
                , Just e <- HM.lookup i (fst hm)
-               , e == inlineEquiv lkp [] s2 ns e2 -> Right hm
+               , e == inlineEquiv lkp s2 ns e2 -> Right hm
                -- this last case means there's a mismatch
                | Just (E.Sym _) <- lkp (idName i) s1 -> Left []
                | not $ (idName i, e2) `elem` n1
@@ -113,20 +127,23 @@ moreRestrictive' mr_cont gen_lemma lkp s1@(State {expr_env = h1}) s2@(State {exp
     -- These two cases should come after the main App-App case.  If an
     -- expression pair fits both patterns, then discharging it in a way that
     -- does not add any extra proof obligations is preferable.
+    --
+    -- We use an empty HashSet when inlining because when generating a path constraint
+    -- we DO NOT want any top level names being preserved- these would just confuse the SMT solver.
     (App _ _, _) | e1':_ <- unApp e1
-                 , (Prim _ _) <- inlineTop lkp [] s1 e1'
+                 , (Prim _ _) <- inlineEquiv lkp s1 HS.empty e1'
                  , T.isPrimType $ typeOf e1
                  , T.isPrimType $ typeOf e2
                  , isSWHNF $ (s2 { curr_expr = CurrExpr Evaluate e2 }) ->
                                   let (hm', hs) = hm
-                                  in Right (hm', HS.insert (inlineFull lkp [] s1 e1, inlineFull lkp [] s2 e2) hs)
+                                  in Right (hm', HS.insert (inlineEquiv lkp s1 HS.empty e1, inlineEquiv lkp s2 HS.empty e2) hs)
     (_, App _ _) | e2':_ <- unApp e2
-                 , (Prim _ _) <- inlineTop lkp [] s2 e2'
+                 , (Prim _ _) <- inlineEquiv lkp s2 HS.empty e2'
                  , T.isPrimType $ typeOf e2
                  , T.isPrimType $ typeOf e1
                  , isSWHNF $ (s1 { curr_expr = CurrExpr Evaluate e1 }) ->
                                   let (hm', hs) = hm
-                                  in Right (hm', HS.insert (inlineFull lkp [] s1 e1, inlineFull lkp [] s2 e2) hs)
+                                  in Right (hm', HS.insert (inlineEquiv lkp s1 HS.empty e1, inlineEquiv lkp s2 HS.empty e2) hs)
     -- We just compare the names of the DataCons, not the types of the DataCons.
     -- This is because (1) if two DataCons share the same name, they must share the
     -- same type, but (2) "the same type" may be represented in different syntactic
@@ -194,35 +211,14 @@ altEquiv (LitAlt l1) (LitAlt l2) = l1 == l2
 altEquiv Default Default = True
 altEquiv _ _ = False
 
--- These helper functions have safeguards to avoid cyclic inlining.
-inlineTop :: Lookup t -> [Name] -> State t -> Expr -> Expr
-inlineTop lkp acc s v@(Var (Id n _))
-    | n `elem` acc = v
-    | Just cs <- lkp n s =
-        case cs of
-            E.Sym _ -> v
-            E.Conc e -> inlineTop lkp (n:acc) s e
-inlineTop lkp acc s (Tick _ e) = inlineTop lkp acc s e
-inlineTop _ _ _ e = e
-
-inlineFull :: Lookup t -> [Name] -> State t -> Expr -> Expr
-inlineFull lkp acc s v@(Var (Id n _))
-    | n `elem` acc = v
-    | Just cs <- lkp n s =
-        case cs of
-            E.Sym _ -> v
-            E.Conc e -> inlineFull lkp (n:acc) s e
-inlineFull lkp acc s e = modifyChildren (inlineFull lkp acc s) e
-
-inlineEquiv :: Lookup t -> [Name] -> State t -> HS.HashSet Name -> Expr -> Expr
-inlineEquiv lkp acc s ns v@(Var (Id n _))
-    | n `elem` acc = v
+inlineEquiv :: Lookup t  -> State t -> HS.HashSet Name -> Expr -> Expr
+inlineEquiv lkp s ns v@(Var (Id n _))
     | Just (E.Sym _) <- cs = v
     | HS.member n ns = v
-    | Just (E.Conc e) <- cs = inlineEquiv lkp (n:acc) s ns e
+    | Just (E.Conc e) <- cs = inlineEquiv lkp s (HS.insert n ns) e
     where
         cs = lkp n s
-inlineEquiv lkp acc s ns e = modifyChildren (inlineEquiv lkp acc s ns) e
+inlineEquiv lkp s ns e = modifyChildren (inlineEquiv lkp s ns) e
 
 -- ids are the same between both sides; no need to insert twice
 moreRestrictiveAlt :: MRCont t l
@@ -245,3 +241,69 @@ moreRestrictiveAlt mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 (Alt am1 e1) (
                     in moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns' hm active n1 n2 e1 e2
     _ -> moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns hm active n1 n2 e1 e2
   else Left []
+
+-- s1 is old state, s2 is new state
+-- only apply to old-new state pairs for which moreRestrictive' works
+moreRestrictivePC :: (MonadIO m, S.Solver solver) =>
+                     solver ->
+                     State t ->
+                     State t ->
+                     HM.HashMap Id Expr ->
+                     m Bool
+moreRestrictivePC solver s1 s2 hm = do
+  let new_conds = map extractCond (P.toList $ path_conds s2)
+      old_conds = map extractCond (P.toList $ path_conds s1)
+      l = map (\(i, e) -> (Var i, e)) $ HM.toList hm
+      -- this should only be used with primitive types
+      -- no apparent problems come from using TyUnknown
+      l' = map (\(e1, e2) ->
+                  if (T.isPrimType $ typeOf e1) && (T.isPrimType $ typeOf e2)
+                  then Just $ App (App (Prim Eq TyUnknown) e1) e2
+                  else Nothing) l
+      l'' = [c | Just c <- l']
+      new_conds' = l'' ++ new_conds
+      -- not safe to use unless the lists are non-empty
+      conj_new = foldr1 (\o1 o2 -> App (App (Prim And TyUnknown) o1) o2) new_conds'
+      conj_old = foldr1 (\o1 o2 -> App (App (Prim And TyUnknown) o1) o2) old_conds
+
+      imp = App (App (Prim Implies TyUnknown) conj_new) conj_old
+      neg_imp = ExtCond (App (Prim Not TyUnknown) imp) True
+      neg_conj = ExtCond (App (Prim Not TyUnknown) conj_old) True
+  
+  res <- if null old_conds
+         then return $ S.UNSAT ()
+         else if null new_conds'
+                then liftIO $ applySolver solver (P.insert neg_conj P.empty) s1 s2
+                else liftIO $ applySolver solver (P.insert neg_imp P.empty) s1 s2
+  case res of
+    S.UNSAT () -> return True
+    _ -> return False
+
+-- shortcut:  don't invoke Z3 if there are no path conds
+applySolver :: S.Solver solver =>
+               solver ->
+               PathConds ->
+               State t ->
+               State t ->
+               IO (S.Result () () ())
+applySolver solver extraPC s1 s2 =
+    let unionEnv = E.union (expr_env s1) (expr_env s2)
+        rightPC = P.toList $ path_conds s2
+        unionPC = foldr P.insert (path_conds s1) rightPC
+        -- adding extraPC in here may be redundant
+        allPC = foldr P.insert unionPC (P.toList extraPC)
+        newState = s1 { expr_env = unionEnv, path_conds = extraPC }
+    in case (P.toList allPC) of
+      [] -> return $ S.SAT ()
+      _ -> S.check solver newState allPC
+
+-- All the PathConds that this receives are generated by symbolic execution.
+-- Consequently, non-primitive types are not an issue here.
+extractCond :: PathCond -> Expr
+extractCond (ExtCond e True) = e
+extractCond (ExtCond e False) = App (Prim Not TyUnknown) e
+extractCond (AltCond l e True) =
+  App (App (Prim Eq TyUnknown) e) (Lit l)
+extractCond (AltCond l e False) =
+  App (App (Prim Neq TyUnknown) e) (Lit l)
+extractCond _ = error "Not Supported"

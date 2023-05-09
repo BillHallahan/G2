@@ -55,7 +55,7 @@ generalizeAux solver num_lems ns lemmas s1_list s2 = do
 
 adjustStateForGeneralization :: Expr -> Name -> StateET -> StateET
 adjustStateForGeneralization e_old fresh_name s =
-  let e = exprExtract s
+  let e = getExpr s
       fresh_id = Id fresh_name (typeOf e)
       fresh_var = Var fresh_id
       e' = replaceScrutinee e fresh_var e_old
@@ -80,10 +80,10 @@ generalize solver num_lems ns lemmas fresh_name (s1, s2) | dc_path (track s1) ==
   -- the largest ones are on the outside
   -- take the earliest array entry that works
   -- for anything on one side, there can only be one match on the other side
-  let e1 = exprExtract s1
+  let e1 = getExpr s1
       scr1 = innerScrutinees e1
       scr_states1 = map (\e -> s1 { curr_expr = CurrExpr Evaluate e }) scr1
-      e2 = exprExtract s2
+      e2 = getExpr s2
       scr2 = innerScrutinees e2
       scr_states2 = map (\e -> s2 { curr_expr = CurrExpr Evaluate e }) scr2
   res <- mapM (generalizeAux solver num_lems ns lemmas scr_states1) scr_states2
