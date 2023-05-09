@@ -17,7 +17,7 @@ module G2.Equiv.Tactics
     , LA.applySolver
     , backtrackOne
     , syncSymbolic
-    , A.syncEnvs
+    , syncEnvs
 
     , emptyLemmas
     , insertProposedLemma
@@ -29,7 +29,7 @@ module G2.Equiv.Tactics
     , disprovenLemmas
     , insertDisprovenLemma
 
-    , A.mkProposedLemma
+    , mkProposedLemma
     , checkCycle
     )
     where
@@ -38,7 +38,7 @@ import G2.Language
 
 import qualified Control.Monad.State.Lazy as CM
 
-import qualified G2.Equiv.Approximation as A
+import G2.Equiv.Approximation
 import qualified G2.Language.Approximation as LA
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad.AST
@@ -140,7 +140,7 @@ restrictHelper s1 s2 ns hm_hs =
     (\(hm, hs) -> if (validTotal s1 s2 ns hm) && (validTypes hm)
                               then Right (hm, hs)
                               else Left [])
-    =<< A.moreRestrictive s1 s2 ns =<< hm_hs
+    =<< moreRestrictive s1 s2 ns =<< hm_hs
 
 syncSymbolic :: StateET -> StateET -> (StateET, StateET)
 syncSymbolic s1 s2 =
@@ -298,20 +298,6 @@ moreRestrictiveEqual solver num_lems ns lemmas s1 s2 = do
         isIdentity (i1, (Var i2)) = i1 == i2
         isIdentity _ = False
 
--- This attempts to find a pair of equal expressions between the left and right
--- sides.  The state used for the left side stays constant, but the recursion
--- iterates through all of the states in the right side's history.
-equalFoldL :: S.Solver solver =>
-              solver ->
-              Int ->
-              HS.HashSet Name ->
-              Lemmas ->
-              [StateET] ->
-              StateET ->
-              W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
-equalFoldL solver num_lems ns lemmas prev2 s1 =
-    firstJustM (moreRestrictiveEqual solver num_lems ns lemmas s1) prev2
-
 -- This tries all of the allowable combinations for equality checking.  First
 -- it tries matching the left-hand present state with all of the previously
 -- encountered right-hand states.  If all of those fail, it tries matching the
@@ -324,26 +310,26 @@ equalFold :: S.Solver solver =>
              Lemmas ->
              (StateH, StateH) ->
              (StateET, StateET) ->
-             W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker, Side))
+             W.WriterT [Marker] IO (Maybe (PrevMatch EquivTracker))
 equalFold solver num_lems ns lemmas (sh1, sh2) (s1, s2) = do
-  pm_l <- equalFoldL solver num_lems ns lemmas (s2:history sh2) s1
+  -- This attempts to find a pair of equal expressions between the left and right
+  -- sides.  The state used for the left side stays constant, but the recursion
+  -- iterates through all of the states in the right side's history.
+  let equalFoldL s = firstJustM (moreRestrictiveEqual solver num_lems ns lemmas s)
+
+  pm_l <- equalFoldL s1 (s2:history sh2)
   case pm_l of
-    Just pm -> return $ Just (pm, ILeft)
+    Just pm -> return $ Just pm
     _ -> do
-      pm_r <- equalFoldL solver num_lems ns lemmas (s1:history sh1) s2
-      case pm_r of
-        Just pm' -> return $ Just (pm', IRight)
-        _ -> return Nothing
+      pm_r <- equalFoldL s2 (s1:history sh1)
+      return $ fmap (\pm -> pm { present = swap $ present pm }) pm_r
 
 tryEquality :: S.Solver s => Tactic s
 tryEquality solver num_lems ns lemmas _ sh_pair (s1, s2) = do
   res <- equalFold solver num_lems ns lemmas sh_pair (s1, s2)
   case res of
-    Just (pm, sd) -> do
-      let (q1, q2) = case sd of
-                       ILeft -> present pm
-                       IRight -> swap $ present pm
-      W.tell $ [Marker sh_pair $ Equality $ EqualMarker (s1, s2) (q1, q2)]
+    Just pm -> do
+      W.tell $ [Marker sh_pair $ Equality $ EqualMarker (s1, s2) (present pm)]
       return Success
     _ -> return (NoProof [])
 
@@ -351,8 +337,7 @@ backtrackOne :: StateH -> Maybe StateH
 backtrackOne sh =
   case history sh of
     [] -> Nothing
-    h:t -> Just $ sh {
-                       latest = h
+    h:t -> Just $ sh { latest = h
                      , history = t
                      }
 
@@ -400,13 +385,13 @@ tryCoinduction solver num_lems ns lemmas _ (sh1, sh2) (s1, s2) = do
     Left l_lemmas -> do
       res_r <- coinductionFoldL solver num_lems ns lemmas [] (sh2, sh1) (s2, s1)
       case res_r of
-        Right (lem_l', lem_r', pm') -> do
+        Right (lem_l, lem_r, pm) -> do
           let cmr = CoMarker {
             co_real_present = (s2, s1)
-          , co_used_present = present pm'
-          , co_past = past pm'
-          , lemma_used_left = lem_l'
-          , lemma_used_right = lem_r'
+          , co_used_present = present pm
+          , co_past = past pm
+          , lemma_used_left = lem_l
+          , lemma_used_right = lem_r
           }
           W.tell [Marker (sh1, sh2) $ Coinduction $ reverseCoMarker cmr]
           return Success
@@ -614,7 +599,7 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma
                     new_info = map (\(Id n _) -> n `elem` (total_vars $ track rhs_s)) new_ids
                     
                     lkp n s = lookupConcOrSymBoth n (expr_env s) (opp_env $ track s)
-                    rhs_e' = A.replaceVars (LA.inlineEquiv lkp rhs_s ns $ getExpr rhs_s) v_rep
+                    rhs_e' = replaceVars (LA.inlineEquiv lkp rhs_s ns $ getExpr rhs_s) v_rep
                 CM.put $ Just $ zip new_ids new_info
                 return rhs_e'
             Left _ -> do
