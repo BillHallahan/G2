@@ -1,10 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Equiv.Generalize
-    ( prevFiltered
-    , generalizeFull
-    )
-    where
+module G2.Equiv.Generalize ( generalizeFull ) where
 
 import G2.Language
 
