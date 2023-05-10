@@ -22,6 +22,7 @@ module G2.Equiv.G2Calls ( StateET
 
 import G2.Config
 import G2.Execution
+import G2.Execution.NormalForms
 import G2.Interface
 import G2.Language
 import G2.Lib.Printers
@@ -334,17 +335,6 @@ recursionInCase (State { curr_expr = CurrExpr _ e }) =
         Tick (NamedLoc (Name p _ _ _)) _ ->
             p == T.pack "REC" -- && containsCase sk
         _ -> False
-
--- used by EquivADT and Tactics
-concretizable :: Type -> Bool
-concretizable (TyVar _) = False
-concretizable (TyForAll _ _) = False
-concretizable (TyFun _ _) = False
-concretizable t@(TyApp _ _) =
-  concretizable $ last $ TY.unTyApp t
-concretizable TYPE = False
-concretizable TyUnknown = False
-concretizable _ = True
 
 enforceProgressHalter :: Monad m => Halter m () EquivTracker
 enforceProgressHalter = mkSimpleHalter

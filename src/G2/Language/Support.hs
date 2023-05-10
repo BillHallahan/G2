@@ -88,6 +88,10 @@ data CurrExpr = CurrExpr EvalOrReturn Expr
 
 instance Hashable CurrExpr
 
+getExpr :: State t -> Expr
+getExpr (State { curr_expr = CurrExpr _ e }) = e
+
+
 -- | Tracks whether the `CurrExpr` is being evaluated, or if
 -- it is in some terminal form that is simply returned. Technically we do not
 -- need to make this distinction, and could simply call a `isTerm` function

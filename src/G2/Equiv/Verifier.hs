@@ -16,6 +16,7 @@ import qualified Control.Monad.State.Lazy as CM
 
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.CallGraph as G
+import qualified G2.Language.Typing as T
 
 import Data.Maybe
 import Data.List
@@ -58,6 +59,14 @@ statePairReadyForSolver (s1, s2) =
       CurrExpr _ e2 = curr_expr s2
   in
   exprReadyForSolver h1 e1 && exprReadyForSolver h2 e2
+
+exprReadyForSolver :: ExprEnv -> Expr -> Bool
+exprReadyForSolver h (Tick _ e) = exprReadyForSolver h e
+exprReadyForSolver h (Var i) = E.isSymbolic (idName i) h && T.isPrimType (typeOf i)
+exprReadyForSolver h (App f a) = exprReadyForSolver h f && exprReadyForSolver h a
+exprReadyForSolver _ (Prim _ _) = True
+exprReadyForSolver _ (Lit _) = True
+exprReadyForSolver _ _ = False
 
 -- don't log when the base folder name is empty
 logStatesFolder :: String -> LogMode -> LogMode
@@ -223,7 +232,7 @@ wrapAllRecursion cg h n e =
 -- stack tick not added here anymore
 prepareState :: StateET -> StateET
 prepareState s =
-  let e = exprExtract s
+  let e = getExpr s
   in s {
     curr_expr = CurrExpr Evaluate $ stackWrap (exec_stack s) $ e
   , num_steps = 0
@@ -586,8 +595,8 @@ hasSolverFail (_:es) = hasSolverFail es
 -- covers all of the solver obligations at once
 trySolver :: S.Solver s => Tactic s
 trySolver solver _ _ _ _ _ (s1, s2) | statePairReadyForSolver (s1, s2) = do
-  let e1 = exprExtract s1
-      e2 = exprExtract s2
+  let e1 = getExpr s1
+      e2 = getExpr s2
   res <- W.liftIO $ checkObligations solver s1 s2 (HS.fromList [(e1, e2)])
   case res of
     S.UNSAT () -> return Success
@@ -663,7 +672,7 @@ getObligations :: HS.HashSet Name ->
                   State t ->
                   Maybe [Obligation]
 getObligations ns s1 s2 =
-  case proofObligations ns s1 s2 (exprExtract s1) (exprExtract s2) of
+  case proofObligations ns s1 s2 (getExpr s1) (getExpr s2) of
     Nothing -> Nothing
     Just obs -> Just $ HS.toList obs
 
@@ -697,7 +706,7 @@ startingState et ns s =
       all_names = E.keys h
       s' = s {
       track = et
-    , curr_expr = CurrExpr Evaluate $ tickWrap ns h $ foldr wrap_cg (exprExtract s) all_names
+    , curr_expr = CurrExpr Evaluate $ tickWrap ns h $ foldr wrap_cg (getExpr s) all_names
     , expr_env = h'
     }
   in newStateH s'
@@ -765,9 +774,9 @@ checkRule config nc init_state bindings total rule = do
       ns_r = HS.fromList $ E.keys $ expr_env rewrite_state_r
       -- no need for two separate name sets
       ns = HS.filter (\n -> not (E.isSymbolic n $ expr_env rewrite_state_l)) $ HS.union ns_l ns_r
-      e_l = exprExtract rewrite_state_l
+      e_l = getExpr rewrite_state_l
       (rewrite_state_l',_) = cleanState (rewrite_state_l { curr_expr = CurrExpr Evaluate e_l }) bindings
-      e_r = exprExtract rewrite_state_r
+      e_r = getExpr rewrite_state_r
       (rewrite_state_r',_) = cleanState (rewrite_state_r { curr_expr = CurrExpr Evaluate e_r }) bindings
       
       rewrite_state_l'' = startingState start_equiv_tracker ns rewrite_state_l'
@@ -777,8 +786,8 @@ checkRule config nc init_state bindings total rule = do
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
   DT.putStrLn $ printHaskellDirty e_l
   DT.putStrLn $ printHaskellDirty e_r
-  DT.putStrLn $ printHaskellDirty $ exprExtract $ latest rewrite_state_l''
-  DT.putStrLn $ printHaskellDirty $ exprExtract $ latest rewrite_state_r''
+  DT.putStrLn $ printHaskellDirty $ getExpr $ latest rewrite_state_l''
+  DT.putStrLn $ printHaskellDirty $ getExpr $ latest rewrite_state_r''
   (res, w) <- W.runWriterT $ verifyLoop solver (num_lemmas nc) ns
              emptyLemmas
              [(rewrite_state_l'', rewrite_state_r'')]

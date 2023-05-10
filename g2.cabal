@@ -34,6 +34,7 @@ library
                        , G2.Data.UnionFind
                        , G2.Data.Utils
 
+                       , G2.Equiv.Approximation
                        , G2.Equiv.Config
                        , G2.Equiv.InitRewrite
                        , G2.Equiv.EquivADT
@@ -67,6 +68,7 @@ library
 
                        , G2.Language
                        , G2.Language.AlgDataTy
+                       , G2.Language.Approximation
                        , G2.Language.ArbValueGen
                        , G2.Language.AST
                        , G2.Language.CallGraph
