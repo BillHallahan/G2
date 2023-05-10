@@ -17,7 +17,7 @@ module G2.Equiv.Tactics
     , LA.applySolver
     , backtrackOne
     , syncSymbolic
-    , syncEnvs
+    , A.syncEnvs
 
     , emptyLemmas
     , insertProposedLemma
@@ -29,7 +29,7 @@ module G2.Equiv.Tactics
     , disprovenLemmas
     , insertDisprovenLemma
 
-    , mkProposedLemma
+    , A.mkProposedLemma
     , checkCycle
     )
     where
@@ -38,7 +38,7 @@ import G2.Language
 
 import qualified Control.Monad.State.Lazy as CM
 
-import G2.Equiv.Approximation
+import qualified G2.Equiv.Approximation as A
 import qualified G2.Language.Approximation as LA
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad.AST
@@ -94,40 +94,6 @@ validTotal s1 s2 ns hm =
       check (i, e) = (not $ (idName i) `elem` total_hs) || (totalExpr s2 ns [] e)
   in all check hm_list
 
--- This function helps us to avoid certain spurious counterexamples when
--- dealing with symbolic functions.  Specifically, it detects apparent
--- counterexamples that are invalid because they map expressions with
--- differently-concretized symbolic function mappings to each other.
-validHigherOrder :: StateET ->
-                    StateET ->
-                    HS.HashSet Name ->
-                    Either [Lemma] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
-                    Bool
-validHigherOrder s1 s2 ns hm_hs | Right (hm, _) <- hm_hs =
-  let -- empty these to avoid an infinite loop
-      s1' = s1 { track = (track s1) { higher_order = HM.empty } }
-      s2' = s2 { track = (track s2) { higher_order = HM.empty } }
-      -- if the Id isn't present, the mapping isn't relevant
-      mappings1 = HM.toList $ higher_order $ track s1
-      mappings2 = HM.toList $ higher_order $ track s2
-      old_pairs = filter (\(_, i) -> (E.member (idName i) (expr_env s1)) || (E.member (idName i) (opp_env $ track s1))) mappings1
-      new_pairs = filter (\(_, i) -> (E.member (idName i) (expr_env s2)) || (E.member (idName i) (opp_env $ track s2))) mappings2
-      old_states = map (\(e, i) -> (s1' { curr_expr = CurrExpr Evaluate e },
-                                    s1' { curr_expr = CurrExpr Evaluate (Var i) })) old_pairs
-      new_states = map (\(e, i) -> (s2' { curr_expr = CurrExpr Evaluate e },
-                                    s2' { curr_expr = CurrExpr Evaluate (Var i) })) new_pairs
-      zipped = [(p, q) | p <- old_states, q <- new_states]
-      -- only current expressions change between all these states
-      -- I can keep the other-side expr envs the same
-      check ((p1, p2), (q1, q2)) =
-        case restrictHelper p1 q1 ns hm_hs of
-          Right (hm', hs') -> if HM.size hm' == HM.size hm
-                              then restrictHelper p2 q2 ns (Right (hm', hs'))
-                              else Right (hm', hs')
-          _ -> hm_hs
-  in all isRight $ map check zipped
-  | otherwise = False
-
 validTypes :: HM.HashMap Id Expr -> Bool
 validTypes hm = all (\((Id _ t), e) -> e T..:: t) $ HM.toList hm
 
@@ -140,7 +106,7 @@ restrictHelper s1 s2 ns hm_hs =
     (\(hm, hs) -> if (validTotal s1 s2 ns hm) && (validTypes hm)
                               then Right (hm, hs)
                               else Left [])
-    =<< moreRestrictive s1 s2 ns =<< hm_hs
+    =<< A.moreRestrictive s1 s2 ns =<< hm_hs
 
 syncSymbolic :: StateET -> StateET -> (StateET, StateET)
 syncSymbolic s1 s2 =
@@ -170,17 +136,6 @@ checkObligations solver s1 s2 obligation_set | not $ HS.null obligation_set =
         Just allPO -> LA.applySolver solver (P.insert allPO P.empty) s1 s2
   | otherwise = return $ S.UNSAT ()
 
-validCoinduction :: (StateET, StateET) -> (StateET, StateET) -> Bool
-validCoinduction (p1, p2) (q1, q2) =
-  let dcp1 = dc_path $ track p1
-      dcp2 = dc_path $ track p2
-      dcq1 = dc_path $ track q1
-      dcq2 = dc_path $ track q2
-      consistent = dcp1 == dcp2 && dcq1 == dcq2
-      unguarded = all (not . isSWHNF) [p1, p2, q1, q2]
-      guarded = length dcp1 < length dcq1
-  in consistent && (guarded || unguarded)
-
 -- extra filter on top of isJust for maybe_pairs
 -- if restrictHelper end result is Just, try checking the corresponding PCs
 -- for True output, there needs to be an entry for which that check succeeds
@@ -189,16 +144,16 @@ validCoinduction (p1, p2) (q1, q2) =
 -- if there are multiple, just return the first
 -- first pair is "current," second pair is the match from the past
 -- the third entry in a prev triple is the original for left or right
-moreRestrictivePairAux :: S.Solver solver =>
-                          solver ->
-                          ((StateET, StateET) -> (StateET, StateET) -> Bool) ->
-                          HS.HashSet Name ->
-                          [(StateET, StateET, StateET)] ->
-                          (StateET, StateET) ->
-                          W.WriterT [Marker] IO (Either [Lemma] (PrevMatch EquivTracker))
-moreRestrictivePairAux solver valid ns prev (s1, s2) | dc_path (track s1) == dc_path (track s2) = do
+moreRestrictivePair :: S.Solver solver =>
+                       solver ->
+                       ((StateET, StateET) -> (StateET, StateET) -> Bool) ->
+                       HS.HashSet Name ->
+                       [(StateET, StateET)] ->
+                       (StateET, StateET) ->
+                        W.WriterT [Marker] IO (Either [Lemma] (PrevMatch EquivTracker))
+moreRestrictivePair solver valid ns prev (s1, s2) | dc_path (track s1) == dc_path (track s2) = do
   let (s1', s2') = syncSymbolic s1 s2
-      mr (p1, p2, pc) =
+      mr (p1, p2) =
           if valid (p1, p2) (s1', s2') then
             let hm_obs = let (p1', p2') = syncSymbolic p1 p2
                          in restrictHelper p2' s2' ns $
@@ -212,7 +167,7 @@ moreRestrictivePairAux solver valid ns prev (s1, s2) | dc_path (track s1) == dc_
                                                   ++ " present_1 = " ++ folder s1
                                                   ++ " past_2 = " ++ folder p2
                                                   ++ " present_2 = " ++ folder s2  }))
-            $ fmap (\hm_obs' -> PrevMatch (s1, s2) (p1, p2) hm_obs' pc) hm_obs_
+            $ fmap (\hm_obs' -> PrevMatch (s1, s2) (p1, p2) hm_obs' p2) hm_obs_
           else Left []
       
       (possible_lemmas, possible_matches) = partitionEithers $ map mr prev
@@ -236,18 +191,6 @@ moreRestrictivePairAux solver valid ns prev (s1, s2) | dc_path (track s1) == dc_
       isUnsat (S.UNSAT _) = return True
       isUnsat _ = return False
 
--- the third entry in prev tuples is meaningless here
-moreRestrictivePair :: S.Solver solver =>
-                       solver ->
-                       ((StateET, StateET) -> (StateET, StateET) -> Bool) ->
-                       HS.HashSet Name ->
-                       [(StateET, StateET)] ->
-                       (StateET, StateET) ->
-                       W.WriterT [Marker] IO (Either [Lemma] (PrevMatch EquivTracker))
-moreRestrictivePair solver valid ns prev (s1, s2) =
-  let prev' = map (\(p1, p2) -> (p1, p2, p2)) prev in
-  moreRestrictivePairAux solver valid ns prev' (s1, s2)
-
 moreRestrictiveSingle :: S.Solver solver =>
                          solver ->
                          HS.HashSet Name ->
@@ -263,12 +206,13 @@ moreRestrictiveSingle solver ns s1 s2 = do
                 False -> return $ Left []
                 True -> do
                     obs' <- W.liftIO (checkObligations solver s1 s2 obs)
-                    case isUnsat obs' of
-                        True -> return (Right hm)
-                        False -> return $ Left []
-    where
-        isUnsat (S.UNSAT _) = True
-        isUnsat _ = False
+                    case obs' of
+                        S.UNSAT _ -> return (Right hm)
+                        _ -> return $ Left []
+
+-------------------------------------------------------------------------------
+-- Equality
+-------------------------------------------------------------------------------
 
 -- approximation should be the identity map
 -- needs to be enforced, won't just happen naturally
@@ -333,13 +277,9 @@ tryEquality solver num_lems ns lemmas _ sh_pair (s1, s2) = do
       return Success
     _ -> return (NoProof [])
 
-backtrackOne :: StateH -> Maybe StateH
-backtrackOne sh =
-  case history sh of
-    [] -> Nothing
-    h:t -> Just $ sh { latest = h
-                     , history = t
-                     }
+-------------------------------------------------------------------------------
+-- Coinduction
+-------------------------------------------------------------------------------
 
 -- This attempts to find a past-present combination that works for coinduction.
 -- The left-hand present state stays fixed, but the recursion iterates through
@@ -367,6 +307,25 @@ coinductionFoldL solver num_lems ns lemmas gen_lemmas (sh1, sh2) (s1, s2) = do
               Nothing -> return . Left $ new_lems_ ++ gen_lemmas
               Just sh2' -> coinductionFoldL solver num_lems ns lemmas
                                        (new_lems_ ++ gen_lemmas) (sh1, sh2') (s1, latest sh2')
+
+validCoinduction :: (StateET, StateET) -> (StateET, StateET) -> Bool
+validCoinduction (p1, p2) (q1, q2) =
+  let dcp1 = dc_path $ track p1
+      dcp2 = dc_path $ track p2
+      dcq1 = dc_path $ track q1
+      dcq2 = dc_path $ track q2
+      consistent = dcp1 == dcp2 && dcq1 == dcq2
+      unguarded = all (not . isSWHNF) [p1, p2, q1, q2]
+      guarded = length dcp1 < length dcq1
+  in consistent && (guarded || unguarded)
+
+backtrackOne :: StateH -> Maybe StateH
+backtrackOne sh =
+  case history sh of
+    [] -> Nothing
+    h:t -> Just $ sh { latest = h
+                     , history = t
+                     }
 
 tryCoinduction :: S.Solver s => Tactic s
 tryCoinduction solver num_lems ns lemmas _ (sh1, sh2) (s1, s2) = do
@@ -599,7 +558,7 @@ replaceMoreRestrictiveSubExpr' solver ns lemma@(Lemma { lemma_lhs = lhs_s, lemma
                     new_info = map (\(Id n _) -> n `elem` (total_vars $ track rhs_s)) new_ids
                     
                     lkp n s = lookupConcOrSymBoth n (expr_env s) (opp_env $ track s)
-                    rhs_e' = replaceVars (LA.inlineEquiv lkp rhs_s ns $ getExpr rhs_s) v_rep
+                    rhs_e' = A.replaceVars (LA.inlineEquiv lkp rhs_s ns $ getExpr rhs_s) v_rep
                 CM.put $ Just $ zip new_ids new_info
                 return rhs_e'
             Left _ -> do
@@ -702,6 +661,10 @@ moreRestrictivePairWithLemmasPast solver num_lems ns lemmas past_list s_pair = d
         past_list' = [pair_past pair1 pair2 | pair1 <- xs_past1', pair2 <- xs_past2']
     moreRestrictivePairWithLemmas solver num_lems (\_ _ -> True) ns lemmas past_list' s_pair
 
+-------------------------------------------------------------------------------
+-- CounterExample Generation
+-------------------------------------------------------------------------------
+
 checkCycle :: S.Solver s => Tactic s
 checkCycle solver _ ns _ _ (sh1, sh2) (s1, s2) = do
   --W.liftIO $ putStrLn $ "Cycle?" ++ (folder_name $ track s1) ++ (folder_name $ track s2)
@@ -730,3 +693,37 @@ checkCycle solver _ ns _ _ (sh1, sh2) (s1, s2) = do
         W.tell [Marker (sh1, sh2) $ CycleFound $ CycleMarker (s1, s2) p1 hm ILeft]
         return $ Failure True
       _ -> return $ NoProof []
+
+-- This function helps us to avoid certain spurious counterexamples when
+-- dealing with symbolic functions.  Specifically, it detects apparent
+-- counterexamples that are invalid because they map expressions with
+-- differently-concretized symbolic function mappings to each other.
+validHigherOrder :: StateET ->
+                    StateET ->
+                    HS.HashSet Name ->
+                    Either [Lemma] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) ->
+                    Bool
+validHigherOrder s1 s2 ns hm_hs | Right (hm, _) <- hm_hs =
+  let -- empty these to avoid an infinite loop
+      s1' = s1 { track = (track s1) { higher_order = HM.empty } }
+      s2' = s2 { track = (track s2) { higher_order = HM.empty } }
+      -- if the Id isn't present, the mapping isn't relevant
+      mappings1 = HM.toList $ higher_order $ track s1
+      mappings2 = HM.toList $ higher_order $ track s2
+      old_pairs = filter (\(_, i) -> (E.member (idName i) (expr_env s1)) || (E.member (idName i) (opp_env $ track s1))) mappings1
+      new_pairs = filter (\(_, i) -> (E.member (idName i) (expr_env s2)) || (E.member (idName i) (opp_env $ track s2))) mappings2
+      old_states = map (\(e, i) -> (s1' { curr_expr = CurrExpr Evaluate e },
+                                    s1' { curr_expr = CurrExpr Evaluate (Var i) })) old_pairs
+      new_states = map (\(e, i) -> (s2' { curr_expr = CurrExpr Evaluate e },
+                                    s2' { curr_expr = CurrExpr Evaluate (Var i) })) new_pairs
+      zipped = [(p, q) | p <- old_states, q <- new_states]
+      -- only current expressions change between all these states
+      -- I can keep the other-side expr envs the same
+      check ((p1, p2), (q1, q2)) =
+        case restrictHelper p1 q1 ns hm_hs of
+          Right (hm', hs') -> if HM.size hm' == HM.size hm
+                              then restrictHelper p2 q2 ns (Right (hm', hs'))
+                              else Right (hm', hs')
+          _ -> hm_hs
+  in all isRight $ map check zipped
+  | otherwise = False
