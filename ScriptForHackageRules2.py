@@ -13,38 +13,55 @@ pattern = r"{-# RULE.*#-}"
 def reading_info(directory):
     # nested folder 
     if os.path.isdir(directory):
-        for file in os.listdir(directory):
-            file_path = os.path.join(directory, file)
-            result = reading_info(file_path)
-            if(result):
-                return result
-        return False
+        try:
+            for file in os.listdir(directory):
+                file_path = os.path.join(directory, file)
+                result = reading_info(file_path)
+                if(result):
+                    return result
+            return False
+        except PermissionError:
+            pass
     else:
         return reading_file(directory)
 
 # reading file
+# trying different technique for decoding 
+def decode_file(file_path):
+    encodings = ['utf-8','Latin-1','utf-16']
+    for encoding in encodings:
+        try:
+            with open(file_path,'r',encoding=encoding) as file:
+                content = file.read()
+            return content
+        except UnicodeDecodeError:
+            pass
+        except PermissionError:
+            pass
+    return None
+
 def reading_file(file_path):
-        with open(file_path, "r") as file:
-            content = file.read()
-            # if we do find a rule
-            if re.search(pattern, content):
-                path = os.path.split(file_path)
-                duplicate = path[0]
-                with open('hackageRules1.txt', 'a+') as f:
-                    f.seek(0)
-                    file_content = f.read()
-                    if duplicate not in file_content:
-                        print("We found a rule in " + duplicate + "\n")
-                        f.write(duplicate + "\n")
-                return True
+        print("We are currently reading file " + file_path + "\n")
+        extensions = [".hs",".lhs"]
+        if any(file_path.endswith(ext) for ext in extensions):
+                content = decode_file(file_path)
+                # if we do find a rule
+                if content == None: raise Exception("Need more decoding format.")
+                if re.search(pattern, content):
+                    path = os.path.split(file_path)
+                    duplicate = path[0]
+                    with open('hackageRules1.txt', 'a+') as f:
+                            f.write(duplicate + "\n")
+                    return True
         return False
+
 
 # starter code for getting into the directory 
 def starter(directory):
     # getting all the tar.gz file into a directory call contain_rules
     for filename in os.listdir(directory):
         full_path = os.path.join(directory, filename)
-        if full_path.endswith(".tar.gz"):
+        if full_path.endswith(".tar.gz") and not full_path.endswith("bgzf-0.1.0.0.tar.gz"):
             with tarfile.open(full_path, "r:gz") as tar:
                 tar.extractall(path = "./contain_rules")
                 #I am moving everything into a new folder call contain_rule
