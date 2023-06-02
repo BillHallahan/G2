@@ -7,11 +7,15 @@ import re  # regular epxression
 import sys  # command line arguments
 import shutil  # removing directory
 # regular expression pattern
-pattern = r"{-# RULE.*#-}"
+#regex = r'{.*-#\s*.*RULE.*\s#-.*}'
+#pattern = re.compile(regex, re.DOTALL)
+pattern = r'{-#[\s\S]*?RULES[\s\S]*?#-}'
+
 
 
 def reading_info(directory):
-    # nested folder 
+    # nested folder
+    print("We are currently reading " + directory + "\n")
     if os.path.isdir(directory):
         try:
             for file in os.listdir(directory):
@@ -25,6 +29,7 @@ def reading_info(directory):
     else:
         return reading_file(directory)
 
+       
 # reading file
 # trying different technique for decoding 
 def decode_file(file_path):
@@ -42,16 +47,16 @@ def decode_file(file_path):
 
 def reading_file(file_path):
         print("We are currently reading file " + file_path + "\n")
-        extensions = [".hs",".lhs"]
+        extensions = [".hs",".lhs",'.hsc']
         if any(file_path.endswith(ext) for ext in extensions):
                 content = decode_file(file_path)
                 # if we do find a rule
                 if content == None: raise Exception("Need more decoding format.")
-                if re.search(pattern, content):
-                    path = os.path.split(file_path)
-                    duplicate = path[0]
+                find = re.search(pattern,content)
+                if find:
                     with open('hackageRules1.txt', 'a+') as f:
-                            f.write(duplicate + "\n")
+                        print('we find a rule in ' + file_path + '\n')
+                        f.write(file_path + "\n")
                     return True
         return False
 
@@ -72,7 +77,7 @@ def starter(directory):
                 result = reading_info(file_path)
                 if result == False: 
                     shutil.rmtree(file_path)
-
+        
 
 # "main"
 args = sys.argv
