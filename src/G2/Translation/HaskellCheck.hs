@@ -1,7 +1,7 @@
 module G2.Translation.HaskellCheck ( validateStates
                                    , runHPC) where
 
-import GHC hiding (Name)
+import GHC hiding (Name, entry)
 import GHC.Paths
 
 import Data.Either
@@ -35,7 +35,7 @@ runCheck modN entry chAll (ExecRes {final_state = s, conc_args = ars, conc_out =
     (v, chAllR) <- runCheck' modN entry chAll s ars out
 
     v' <- liftIO $ (unsafeCoerce v :: IO (Either SomeException Bool))
-    let outStr = printHaskell s out
+    let outStr = T.unpack $ printHaskell s out
     let v'' = case v' of
                     Left _ -> outStr == "error"
                     Right b -> b && outStr /= "error"
@@ -49,11 +49,14 @@ runCheck' :: String -> String -> [String] -> State t -> [Expr] -> Expr -> Ghc (H
 runCheck' modN entry chAll s ars out = do
     let Left (v, _) = findFunc (T.pack entry) (Just $ T.pack modN) (expr_env s)
     let e = mkApp $ Var v:ars
-    let arsStr = printHaskell s e
-    let outStr = printHaskell s out
+    let pg = updatePrettyGuide (exprNames e)
+           . updatePrettyGuide (exprNames out)
+           $ mkPrettyGuide $ varIds v
+    let arsStr = T.unpack $ printHaskellPG pg s e
+    let outStr = T.unpack $ printHaskellPG pg s out
 
-    let arsType = mkTypeHaskell (typeOf e)
-        outType = mkTypeHaskell (typeOf out)
+    let arsType = T.unpack $ mkTypeHaskell (typeOf e)
+        outType = T.unpack $ mkTypeHaskell (typeOf out)
 
     let chck = case outStr == "error" of
                     False -> "try (evaluate (" ++ arsStr ++ " == " ++ "("
@@ -64,7 +67,7 @@ runCheck' modN entry chAll s ars out = do
     v' <- compileExpr chck
 
     let chArgs = ars ++ [out] 
-    let chAllStr = map (\f -> printHaskell s $ mkApp ((simpVar $ T.pack f):chArgs)) chAll
+    let chAllStr = map (\f -> T.unpack $ printHaskellPG pg s $ mkApp ((simpVar $ T.pack f):chArgs)) chAll
     let chAllStr' = map (\str -> "try (evaluate (" ++ str ++ ")) :: IO (Either SomeException Bool)") chAllStr
 
     chAllR <- mapM compileExpr chAllStr'
@@ -122,7 +125,7 @@ runHPC' src modN ars = do
     -- putStrLn mainFunc
 
 toCall :: String -> State t -> [Expr] -> Expr -> String
-toCall entry s ars _ = printHaskell s $ mkApp ((simpVar $ T.pack entry):ars)
+toCall entry s ars _ = T.unpack . printHaskell s $ mkApp ((simpVar $ T.pack entry):ars)
 
 removeModule :: String -> String -> String
 removeModule modN s =

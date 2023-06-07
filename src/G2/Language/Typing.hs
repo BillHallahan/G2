@@ -48,6 +48,7 @@ module G2.Language.Typing
     , numArgs
 
     , applyTypeMap
+    , applyTypeHashMap
 
     , ArgType (..)
     , argumentTypes
@@ -79,6 +80,7 @@ import G2.Language.AST
 import qualified G2.Language.KnownValues as KV
 import G2.Language.Syntax
 
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.List as L
@@ -416,6 +418,15 @@ applyTypeMap' :: M.Map Name Type -> Type -> Type
 applyTypeMap' m (TyVar (Id n _))
     | Just t <- M.lookup n m = t
 applyTypeMap' _ t = t
+
+applyTypeHashMap :: ASTContainer e Type => HM.HashMap Name Type -> e -> e
+applyTypeHashMap m = modifyASTs (applyTypeHashMap' m)
+
+applyTypeHashMap' :: HM.HashMap Name Type -> Type -> Type
+applyTypeHashMap' m (TyVar (Id n _))
+    | Just t <- HM.lookup n m = t
+applyTypeHashMap' _ t = t
+
 
 hasFuncType :: (Typed t) => t -> Bool
 hasFuncType t =

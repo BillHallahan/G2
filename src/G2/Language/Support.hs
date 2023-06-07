@@ -45,7 +45,8 @@ data State t = State { expr_env :: E.ExprEnv
                      , type_env :: TypeEnv
                      , curr_expr :: CurrExpr
                      , path_conds :: PathConds -- ^ Path conditions, in SWHNF
-                     , non_red_path_conds :: [Expr] -- ^ Path conditions that still need further reduction
+                     , non_red_path_conds :: [(Expr, Expr)] -- ^ Path conditions, in the form of (possibly non-reduced)
+                                                            -- expression pairs that must be proved equivalent
                      , true_assert :: Bool -- ^ Have we violated an assertion?
                      , assert_ids :: Maybe FuncCall
                      , type_classes :: TypeClasses
@@ -86,6 +87,10 @@ data CurrExpr = CurrExpr EvalOrReturn Expr
               deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 instance Hashable CurrExpr
+
+getExpr :: State t -> Expr
+getExpr (State { curr_expr = CurrExpr _ e }) = e
+
 
 -- | Tracks whether the `CurrExpr` is being evaluated, or if
 -- it is in some terminal form that is simply returned. Technically we do not
@@ -129,7 +134,7 @@ instance Hashable Frame
 
 -- | What to do with the current expression when a @CurrExprFrame@ reaches the
 -- top of the stack and it is time to replace the `curr_expr`.
-data CEAction = AddPC | NoAction
+data CEAction = EnsureEq Expr | NoAction
                 deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 instance Hashable CEAction

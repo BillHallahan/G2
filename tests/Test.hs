@@ -327,6 +327,18 @@ testFileTests = testGroup "TestFiles"
     
     , checkInputOutputs "tests/TestFiles/BadDC.hs" [ ("f", 400, [AtLeast 5])
                                                    , ("g", 400, [AtLeast 3]) ]
+
+    , checkInputOutputsTemplate "tests/HigherOrder/HigherOrder.hs" [ ("f", 50, [AtLeast 5])
+                                                                   , ("h", 100, [AtLeast 3])
+                                                                   , ("assoc", 200, [AtLeast 5])
+                                                                   , ("sf", 150, [AtLeast 5])
+                                                                   , ("thirdOrder", 75, [AtLeast 10])
+                                                                   , ("tupleTestMono", 175, [AtLeast 10])]
+    , checkInputOutputsTemplate "tests/HigherOrder/PolyHigherOrder.hs" [ ("f", 50, [AtLeast 5])
+                                                                       , ("h", 200, [AtLeast 3])
+                                                                       , ("assoc", 200, [AtLeast 5])
+                                                                       , ("sf", 150, [AtLeast 5])
+                                                                       , ("tupleTest", 175, [AtLeast 8])]
     -- , checkInputOutput "tests/TestFiles/BadBool.hs" "BadBool" "f" 1400 [AtLeast 1]
     -- , checkExprAssumeAssert "tests/TestFiles/Coercions/GADT.hs" 400 Nothing Nothing "g" 2
     --     [ AtLeast 2
@@ -402,7 +414,7 @@ primTests = testGroup "Prims"
     , checkExpr "tests/Prim/DataTag.hs" 1000 "tagToEnum2" [Exactly 1, RForAll (\[r] -> isError r)]
 
     , checkInputOutputs "tests/Prim/Chr.hs" [ ("lowerLetters", 9000, [AtLeast 1])
-                                            , ("allLetters", 9000, [AtLeast 1])
+                                            , ("allLetters", 20000, [AtLeast 1])
                                             , ("printBasedOnChr", 1500, [AtLeast 7])
                                             , ("printBasedOnOrd", 1500, [AtLeast 7]) ]
     ]

@@ -54,8 +54,8 @@ printPG :: PrettyGuide -> HS.HashSet Name -> [Id] -> StateET -> String
 printPG pg ns sym_ids s =
   let label_str = trackName s
       h = expr_env s
-      e = inlineVars ns h $ exprExtract s
-      e_str = printHaskellDirtyPG pg e
+      e = inlineVars ns h $ getExpr s
+      e_str = DT.unpack $ printHaskellDirtyPG pg e
       -- sym exec keeps higher_order in sync but not concretizations
       -- this means that the ids in func_ids are not always mapped
       -- if they are unmapped, they will not be printed for a state
@@ -148,11 +148,11 @@ exprChain h ns inlined e = case e of
 printVar :: PrettyGuide -> HS.HashSet Name -> StateET -> Id -> String
 printVar pg ns (State{ expr_env = h }) i =
   let (chain, c_end) = varChain h ns [] i
-      chain_strs = map (\i_ -> printHaskellDirtyPG pg $ Var i_) chain
+      chain_strs = map (\i_ -> DT.unpack . printHaskellDirtyPG pg $ Var i_) chain
       end_str = case c_end of
-        Symbolic (Id _ t) -> "Symbolic " ++ mkTypeHaskellPG pg t
-        Cycle i' -> "Cycle " ++ printHaskellDirtyPG pg (Var i')
-        Terminal e -> printHaskellDirtyPG pg e
+        Symbolic (Id _ t) -> "Symbolic " ++ DT.unpack (mkTypeHaskellPG pg t)
+        Cycle i' -> "Cycle " ++ DT.unpack (printHaskellDirtyPG pg (Var i'))
+        Terminal e -> DT.unpack $ printHaskellDirtyPG pg e
         Unmapped -> ""
   in case c_end of
     Unmapped -> ""
@@ -166,8 +166,8 @@ printVars pg ns s v_ids =
 
 printMapping :: PrettyGuide -> (Expr, Id) -> String
 printMapping pg (e, i) =
-  let e_str = printHaskellDirtyPG pg e
-      i_str = printHaskellDirtyPG pg (Var i)
+  let e_str = DT.unpack $ printHaskellDirtyPG pg e
+      i_str = DT.unpack $ printHaskellDirtyPG pg (Var i)
   in e_str ++ " --> " ++ i_str
 
 printMappings :: PrettyGuide -> StateET -> String
@@ -415,7 +415,7 @@ summarize s_mode pg ns sym_ids (LMarker lm) =
 printDC :: PrettyGuide -> [BlockInfo] -> String -> String
 printDC _ [] str = str
 printDC pg ((BlockDC d i n):ds) str =
-  let d_str = printHaskellDirtyPG pg $ Data d
+  let d_str = DT.unpack $ printHaskellDirtyPG pg $ Data d
       str' = "(" ++ printDC pg ds str ++ ")"
       pre_blanks = replicate i "_"
       post_blanks = replicate (n - (i + 1)) "_"
@@ -434,7 +434,7 @@ printLams :: PrettyGuide ->
 printLams _ _ _ [] str = str
 printLams pg ns h ((BlockLam i):ds) str =
   let arg = inlineVars ns h $ Var i
-      arg_str = printHaskellDirtyPG pg arg
+      arg_str = DT.unpack $ printHaskellDirtyPG pg arg
       str' = "(" ++ str ++ ") " ++ arg_str
   in printLams pg ns h ds str'
 printLams pg ns h (_:ds) str = printLams pg ns h ds str
@@ -453,11 +453,11 @@ printCX pg ns sym_ids (sh1, sh2) (s1, s2) (q1', q2') end1_str end2_str =
   let h = expr_env q2'
       names1 = map trackName $ (latest sh1):history sh1
       names2 = map trackName $ (latest sh2):history sh2
-      e1 = inlineVars ns (expr_env q1') $ exprExtract s1
-      e1_str = printHaskellPG pg q1' e1
+      e1 = inlineVars ns (expr_env q1') $ getExpr s1
+      e1_str = DT.unpack $ printHaskellPG pg q1' e1
       e1_str' = printLams pg ns (expr_env q1') (dc_path $ track q1') e1_str
-      e2 = inlineVars ns h $ exprExtract s2
-      e2_str = printHaskellPG pg q2' e2
+      e2 = inlineVars ns h $ getExpr s2
+      e2_str = DT.unpack $ printHaskellPG pg q2' e2
       e2_str' = printLams pg ns (expr_env q2') (dc_path $ track q2') e2_str
       cx_str = e1_str' ++ " = " ++ end1_str ++ " but " ++
                e2_str' ++ " = " ++ end2_str
@@ -467,7 +467,7 @@ printCX pg ns sym_ids (sh1, sh2) (s1, s2) (q1', q2') end1_str end2_str =
       sym_print = case sym_str of
         "" -> ""
         _ -> "\nMain Symbolic Variables:\n" ++ sym_str
-      other_vars = varsFull h ns (App (exprExtract q1') (exprExtract q2')) \\ sym_vars
+      other_vars = varsFull h ns (App (getExpr q1') (getExpr q2')) \\ sym_vars
       var_str = printVars pg ns q2' other_vars
       var_print = case var_str of
         "" -> ""
@@ -495,10 +495,10 @@ showCX :: PrettyGuide ->
 showCX pg ns sym_ids sh_pair s_pair (q1, q2) =
   -- main part showing contradiction
   let (q1', q2') = syncEnvs q1 q2
-      end1 = inlineVars ns (expr_env q1') $ exprExtract q1'
-      end1_str = printDC pg (dc_path $ track q1') $ printHaskellPG pg q1' end1
-      end2 = inlineVars ns (expr_env q2') $ exprExtract q2'
-      end2_str = printDC pg (dc_path $ track q2') $ printHaskellPG pg q2' end2
+      end1 = inlineVars ns (expr_env q1') $ getExpr q1'
+      end1_str = printDC pg (dc_path $ track q1') . DT.unpack $ printHaskellPG pg q1' end1
+      end2 = inlineVars ns (expr_env q2') $ getExpr q2'
+      end2_str = printDC pg (dc_path $ track q2') . DT.unpack $ printHaskellPG pg q2' end2
   in printCX pg ns sym_ids sh_pair s_pair (q1', q2') end1_str end2_str
 
 showCycle :: PrettyGuide ->
@@ -511,13 +511,13 @@ showCycle :: PrettyGuide ->
 showCycle pg ns sym_ids sh_pair s_pair cm =
   let (q1, q2) = cycle_real_present cm
       (q1', q2') = syncEnvs q1 q2
-      end1 = inlineVars ns (expr_env q1') $ exprExtract q1'
+      end1 = inlineVars ns (expr_env q1') $ getExpr q1'
       end1_str = case cycle_side cm of
         ILeft -> "{HAS NON-TERMINATING PATH}"
-        IRight -> printDC pg (dc_path $ track q1') $ printHaskellPG pg q1' end1
-      end2 = inlineVars ns (expr_env q2') $ exprExtract q2'
+        IRight -> printDC pg (dc_path $ track q1')  . DT.unpack $ printHaskellPG pg q1' end1
+      end2 = inlineVars ns (expr_env q2') $ getExpr q2'
       end2_str = case cycle_side cm of
-        ILeft -> printDC pg (dc_path $ track q2') $ printHaskellPG pg q2' end2
+        ILeft -> printDC pg (dc_path $ track q2') . DT.unpack $ printHaskellPG pg q2' end2
         IRight -> "{HAS NON-TERMINATING PATH}"
       mappings = map swap $ HM.toList $ cycle_mapping cm
       mapping_str = intercalate "\n" $ map (printMapping pg) mappings

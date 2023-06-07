@@ -1,8 +1,9 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
 
--- Defines most of the central language in G2. This language closely resembles Core Haskell.
--- The central datatypes are `Expr` and `Type`.
+-- | Defines most of the central language in G2. This language closely resembles Core Haskell.
+-- The central datatypes are `Expr` and t`Type`.
+
 module G2.Language.Syntax
     ( module G2.Language.Syntax
     ) where
@@ -51,7 +52,7 @@ instance Hashable Name where
         n `hashWithSalt`
         m `hashWithSalt` i
 
--- | Pairing of a `Name` with a `Type`
+-- | Pairing of a `Name` with a t`Type`
 data Id = Id Name Type deriving (Show, Eq, Read, Generic, Typeable, Data, Ord)
 
 instance Hashable Id
@@ -63,18 +64,19 @@ data LamUse = TermL -- ^ Binds at the term level
 
 instance Hashable LamUse
 
+-- | Extract a `Name` from an `Id`.
 idName :: Id -> Name
 idName (Id name _) = name
  
 {-| This is the main data type for our expression language.
 
  1. @`Var` `Id`@ is a variable.  Variables may be bound by a `Lam`, `Let`
- or `Case` `Expr`, or be bound in the `ExprEnv`.  A variable may also be
+ or `Case` `Expr`, or be bound in the `G2.Language.ExprEnv.ExprEnv`.  A variable may also be
  free (unbound), in which case it is symbolic
 
- 2. @`Lit` `Lit`@ denotes a literal.
+ 2. @v`Lit` t`Lit`@ denotes a literal.
 
- 3. @`Data` `DataCon`@ denotes a Data Constructor
+ 3. @v`Data` `DataCon`@ denotes a Data Constructor
 
  4. @`App` `Expr` `Expr`@ denotes function application.
     For example, the function call:
@@ -91,28 +93,28 @@ idName (Id name _) = name
 
  5. @`Lam` `LamUse` `Id` `Expr`@ denotes a lambda function.
     The `Id` is bound in the `Expr`.
-    This binding may be on the type type or term level, depending on the `LamUse`.
+    This binding may be on the type or term level, depending on the `LamUse`.
 
  6. @`Case` e i as@ splits into multiple `Alt`s (Alternatives),
     Depending on the value of @e@.  In each Alt, the `Id` @i@ is bound to @e@.
     The `Alt`s must always be exhaustive- there should never be a case where no `Alt`
     can match a given `Expr`.
 
- 7. @`Type` `Type`@ gives a `Expr` level representation of a `Type`.
+ 7. @v`Type` t`Type`@ gives a `Expr` level representation of a t`Type`.
     These only ever appear as the arguments to polymorphic functions,
-    to determine the `Type` bound to type level variables.
+    to determine the t`Type` bound to type level variables.
 
- 8. @`Cast` e (t1 `:~` t2)@ casts @e@ from the type @t1@ to @t2@
+ 8. @`Cast` e (t1 `:~` t2)@ casts @e@ from the t`Type` @t1@ to @t2@
     This requires that @t1@ and @t2@ have the same representation.
 
- 9. @`Coercion` `Coercion`@ allows runtime passing of `Coercion`s to `Cast`s.
+ 9. @v`Coercion` t`Coercion`@ allows runtime passing of t`Coercion`s to `Cast`s.
 
  10. @`Tick` `Tickish` `Expr`@ records some extra information into an `Expr`.
 
  11. @`NonDet` [`Expr`] gives a nondeterministic choice between multiple options
      to continue execution with.
 
- 12. @`SymGen` `Type`@ evaluates to a fresh symbolic variable of the given type.
+ 12. @`SymGen` t`Type`@ evaluates to a fresh symbolic variable of the given type.
 
  13. @`Assume` b e@ takes a boolean typed expression @b@,
      and an expression of arbitrary type @e@.
@@ -193,9 +195,6 @@ data Primitive = Ge
                
                | Error
                | Undefined
-
-
-               | BindFunc
                deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 instance Hashable Primitive
@@ -216,7 +215,7 @@ data DataCon = DataCon Name Type deriving (Show, Eq, Read, Generic, Typeable, Da
 
 instance Hashable DataCon
 
--- | AltMatches.
+-- | Describe the conditions to match on a particular `Alt`.
 data AltMatch = DataAlt DataCon [Id] -- ^ Match a datacon. The number of `Id`s
                                      -- must match the number of term arguments
                                      -- for the datacon.
@@ -229,16 +228,11 @@ instance Hashable AltMatch
 -- | `Alt`s consist of the `AltMatch` that is used to match
 -- them, and the `Expr` that is evaluated provided that the `AltMatch`
 -- successfully matches.
-data Alt = Alt AltMatch Expr deriving (Show, Eq, Read, Generic, Typeable, Data)
+data Alt = Alt { altMatch :: AltMatch, altExpr :: Expr } deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 instance Hashable Alt
 
-altMatch :: Alt -> AltMatch
-altMatch (Alt am _) = am
-
-altExpr :: Alt -> Expr
-altExpr (Alt _ e) = e
-
+-- | Concrete evidence of the equality or compatibility of two types.
 data Coercion = Type :~ Type deriving (Eq, Show, Read, Generic, Typeable, Data)
 
 instance Hashable Coercion
@@ -266,15 +260,17 @@ data Type = TyVar Id
           | TyUnknown
           deriving (Show, Eq, Read, Generic, Typeable, Data, Ord)
 
+-- | A `Kind` is a t`Type` of a t`Type`.
 type Kind = Type
 
 instance Hashable Type
 
+-- | A `Tickish` allows storing extra information in a `Tick`.
 data Tickish = Breakpoint Span -- ^ A breakpoint for the GHC Debugger
              | NamedLoc Name -- ^ A G2 specific tick, intended to allow,
-                             -- in concert with a @`Reducer`@, for domain
+                             -- in concert with a @`G2.Execution.Reducer.Reducer`@, for domain
                              -- specific modifications to a
-                             -- @`State`@'s tracking field.
+                             -- @`G2.Language.Support.State`@'s tracking field.
              deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 instance Hashable Tickish

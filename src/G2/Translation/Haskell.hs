@@ -81,12 +81,16 @@ equivMods = HM.fromList
             , ("GHC.Integer.Type2", "GHC.Integer.Type")
 #endif
             , ("GHC.Prim2", "GHC.Prim")
+#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+            , ("GHC.Tuple2", "GHC.Tuple.Prim")
+#else
             , ("GHC.Tuple2", "GHC.Tuple")
+#endif
             , ("GHC.Magic2", "GHC.Magic")
             , ("GHC.CString2", "GHC.CString")
             , ("Data.Map.Base", "Data.Map")]
 
-loadProj ::  Maybe HscTarget -> [FilePath] -> [FilePath] -> [GeneralFlag] -> G2.TranslationConfig -> Ghc SuccessFlag
+loadProj :: Maybe HscTarget -> [FilePath] -> [FilePath] -> [GeneralFlag] -> G2.TranslationConfig -> Ghc SuccessFlag
 loadProj hsc proj src gflags tr_con = do
     beta_flags <- getSessionDynFlags
     let gen_flags = gflags
@@ -94,9 +98,12 @@ loadProj hsc proj src gflags tr_con = do
     let init_beta_flags = gopt_unset beta_flags Opt_StaticArgumentTransformation
 
     let beta_flags' = foldl' gopt_set init_beta_flags gen_flags
-    let dflags = beta_flags' { -- Profiling fails to load a profiler friendly version of the base
-                               -- without this special casing for hscTarget, but we can't use HscInterpreted when we have certain unboxed types
-#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
+    let dflags = beta_flags' {
+#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+                               backend = case hsc of
+                                            Just hsc' -> hsc'
+                                            _ -> backend beta_flags'
+#elif MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
                                backend = if hostIsProfiled 
                                                 then Interpreter
                                                 else case hsc of
@@ -115,6 +122,10 @@ loadProj hsc proj src gflags tr_con = do
                                                 else case hsc of
                                                     Just hsc' -> hsc'
                                                     _ -> hscTarget beta_flags'
+#endif
+#if MIN_VERSION_GLASGOW_HASKELL(9,4,0,0)
+                             -- Profiling gives warnings without this special case
+                             , targetWays_ = if hostIsProfiled then addWay WayProf (targetWays_ beta_flags') else targetWays_ beta_flags'
 #endif
                              , ghcLink = LinkInMemory
                              , ghcMode = CompManager
@@ -648,11 +659,14 @@ mkType _ (CastTy _ _) = G2.TyUnknown
 mkType _ (CoercionTy _) = G2.TyUnknown
 -- mkType _ (CoercionTy _) = error "mkType: Coercion"
 mkType tm (TyConApp tc ts)
+#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+#else
     | isFunTyCon tc
     , length ts == 2 =
         case ts of
             [t1, t2] -> G2.TyFun (mkType tm t1) (mkType tm t2)
             _ -> error "mkType: non-arity 2 FunTyCon from GHC"
+#endif
     | G2.Name "Type" _ _ _ <- mkName $ tyConName tc = G2.TYPE
     | G2.Name "TYPE" _ _ _ <- mkName $ tyConName tc = G2.TYPE
     | G2.Name "->" _ _ _ <- mkName $ tyConName tc

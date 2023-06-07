@@ -18,7 +18,8 @@ jobs:
                     { ghc: '8.10.7', cabal: '3.6' },
                     { ghc: '9.0.2', cabal: '3.6' },
                     { ghc: '9.2.4', cabal: '3.6' },
-                    { ghc: '9.4.4', cabal: '3.6' } ]
+                    { ghc: '9.4.4', cabal: '3.6' },
+                    { ghc: '9.6.1', cabal: '3.10' } ]
         test: [ { test: test, lh: '-support-lh' },
                 { test: test-g2q, lh: '-support-lh' },
                 { test: test-lh, lh: 'support-lh' } ]
@@ -30,6 +31,8 @@ jobs:
           - compiler: { ghc: '9.2.4', cabal: '3.6' }
             test: { test: test-lh }
           - compiler: { ghc: '9.4.4', cabal: '3.6' }
+            test: { test: test-lh }
+          - compiler: { ghc: '9.6.1', cabal: '3.10' }
             test: { test: test-lh }
 
     steps:

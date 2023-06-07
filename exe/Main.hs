@@ -9,7 +9,9 @@ import System.FilePath
 
 import qualified Data.Map as M
 import Data.Maybe
+import Data.Monoid ((<>))
 import qualified Data.Text as T
+import qualified Data.Text.IO as T
 
 import G2.Lib.Printers
 
@@ -58,12 +60,13 @@ runWithArgs as = do
 printFuncCalls :: Config -> Id -> Bindings -> [ExecRes t] -> IO ()
 printFuncCalls config entry b =
     mapM_ (\execr@(ExecRes { final_state = s}) -> do
-        let funcCall = printHaskell s
+        let pg = mkPrettyGuide (exprNames $ conc_args execr)
+        let funcCall = printHaskellPG pg s
                      . foldl (\a a' -> App a a') (Var entry) $ (conc_args execr)
 
-        let funcOut = printHaskell s $ (conc_out execr)
+        let funcOut = printHaskellPG pg s $ (conc_out execr)
 
-        putStrLn $ funcCall ++ " = " ++ funcOut)
+        T.putStrLn $ funcCall <> " = " <> funcOut)
 
 ppStatePiece :: Bool -> String -> String -> IO ()
 ppStatePiece b n res =

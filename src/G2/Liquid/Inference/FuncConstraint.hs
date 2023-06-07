@@ -44,9 +44,9 @@ import GHC.Generics (Generic)
 import Data.Hashable
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
-import Data.List
 import qualified Data.Map as M
 import Data.Monoid hiding (All)
+import qualified Data.Text as T
 
 newtype FuncConstraints = FuncConstraints (M.Map Name (HS.HashSet FuncConstraint))
                      deriving (Eq, Show, Read)
@@ -132,11 +132,11 @@ allCalls (NotFC fc) = allCalls fc
 allCallsFC :: FuncConstraints -> [(FuncCall, [HigherOrderFuncCall])]
 allCallsFC = concatMap allCalls . toListFC
 
-printFCs :: LiquidReadyState -> FuncConstraints -> String
+printFCs :: LiquidReadyState -> FuncConstraints -> T.Text
 printFCs lrs fcs =
-    intercalate "\n" . map (printFC (state . lr_state $ lrs)) $ toListFC fcs
+    T.intercalate "\n" . map (printFC (state . lr_state $ lrs)) $ toListFC fcs
 
-printFC :: State t -> FuncConstraint -> String
+printFC :: State t -> FuncConstraint -> T.Text
 printFC s (Call sp (FuncCall { funcName = Name f _ _ _, arguments = ars, returns = r}) hclls) =
     let
         call_str fn = printHaskell s . foldl (\a a' -> App a a') (Var (Id fn TyUnknown)) $ ars
@@ -144,22 +144,22 @@ printFC s (Call sp (FuncCall { funcName = Name f _ _ _, arguments = ars, returns
 
         hclls_str = case null hclls of
                         True -> ""
-                        False -> ", higher_calls = " ++ intercalate ", " (map printFuncCall hclls)
+                        False -> ", higher_calls = " <> T.intercalate ", " (map printFuncCall hclls)
     in
     case sp of
-        Pre -> "(" ++ call_str (Name (f <> "_pre") Nothing 0 Nothing) ++ hclls_str ++ ")"
-        Post -> "(" ++ call_str (Name (f <> "_post") Nothing 0 Nothing) ++ " " ++ r_str ++ hclls_str ++ ")"
-        All -> "(" ++ call_str (Name f Nothing 0 Nothing) ++ " " ++ r_str ++ hclls_str ++ ")"
+        Pre -> "(" <> call_str (Name (f <> "_pre") Nothing 0 Nothing) <> hclls_str <> ")"
+        Post -> "(" <> call_str (Name (f <> "_post") Nothing 0 Nothing) <> " " <> r_str <> hclls_str <> ")"
+        All -> "(" <> call_str (Name f Nothing 0 Nothing) <> " " <> r_str <> hclls_str <> ")"
 printFC s (AndFC fcs) =
     case fcs of
-        (f:fcs') -> foldr (\fc fcs'' -> fcs'' ++ " && " ++ printFC s fc) (printFC s f) fcs'
+        (f:fcs') -> foldr (\fc fcs'' -> fcs'' <> " && " <> printFC s fc) (printFC s f) fcs'
         [] -> "True"
 printFC s (OrFC fcs) =
     case fcs of
-        (f:fcs') -> foldr (\fc fcs'' -> fcs'' ++ " || " ++ printFC s fc) (printFC s f) fcs'
+        (f:fcs') -> foldr (\fc fcs'' -> fcs'' <> " || " <> printFC s fc) (printFC s f) fcs'
         [] -> "False"
-printFC s (ImpliesFC fc1 fc2) = "(" ++ printFC s fc1 ++ ") => (" ++ printFC s fc2 ++ ")"
-printFC s (NotFC fc) = "not (" ++ printFC s fc ++ ")"
+printFC s (ImpliesFC fc1 fc2) = "(" <> printFC s fc1 <> ") => (" <> printFC s fc2 <> ")"
+printFC s (NotFC fc) = "not (" <> printFC s fc <> ")"
 
 instance ASTContainer FuncConstraint Expr where
     containedASTs (Call _ fc hcalls) = containedASTs fc ++ containedASTs hcalls

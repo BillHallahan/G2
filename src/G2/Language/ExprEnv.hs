@@ -8,6 +8,9 @@ module G2.Language.ExprEnv
     ( ExprEnv
     , ConcOrSym (..)
     , EnvObj (..)
+
+    , concOrSymToExpr
+
     , empty
     , singleton
     , fromList
@@ -85,6 +88,10 @@ import GHC.Generics (Generic)
 data ConcOrSym = Conc Expr
                | Sym Id
                deriving (Show)
+
+concOrSymToExpr :: ConcOrSym -> Expr
+concOrSymToExpr (Conc e) = e
+concOrSymToExpr (Sym i) = Var i
 
 -- From a user perspective, `ExprEnv`s are mappings from `Name` to
 -- `Expr`s. however, there are two complications:
