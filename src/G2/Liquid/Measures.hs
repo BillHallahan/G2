@@ -171,7 +171,7 @@ fixNamesType' tenv (TyCon n k) =
 fixNamesType' _ t = t
 
 getTypeNameMod :: TypeEnv -> Name -> Maybe Name
-getTypeNameMod tenv (Name n m _ _) = find (\(Name n' m' _ _) -> n == n' && m == m') $ M.keys tenv
+getTypeNameMod tenv (Name n m _ _) = find (\(Name n' m' _ _) -> n == n' && m == m') $ HM.keys tenv
 
 mkExprFromBody :: Maybe Type -> LHDictMap -> BoundTypes -> Body -> LHStateM Expr
 mkExprFromBody ret m bt (E e) = convertLHExpr (mkDictMaps m) bt ret e
