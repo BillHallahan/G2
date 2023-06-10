@@ -227,7 +227,7 @@ allIds (PathConds pc) = HS.unions . P.map pcs_contains $ UF.elems pc
 scc :: [Name] -> PathConds -> PathConds
 scc ns (PathConds pcc) =
     let
-        ns' = P.map (flip UF.lookupRep pcc . Just) ns
+        ns' = P.map (flip UF.find pcc . Just) ns
     in
     PathConds $ UF.filterWithKey (\k _ -> k `L.elem` ns') pcc
 
