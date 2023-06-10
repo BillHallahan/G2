@@ -787,7 +787,7 @@ convertEVar nm@(Name n md _ _) bt mt
            | Just t <- mt -> return $ Var (Id nm t)
            | otherwise -> error $ "convertEVar: Required type not found" ++ "\n" ++ show n ++ "\nbt = " ++ show bt
     where
-        getDataConNameMod' tenv n = find (flip dataConHasNameMod n) $ concatMap dataCon $ M.elems tenv
+        getDataConNameMod' tenv n = find (flip dataConHasNameMod n) $ concatMap dataCon $ HM.elems tenv
         dataConHasNameMod (DataCon (Name n m _ _) _) (Name n' m' _ _) = n == n' && m == m'
 
 
