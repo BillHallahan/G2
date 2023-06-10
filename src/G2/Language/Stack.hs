@@ -9,7 +9,6 @@ module G2.Language.Stack
     , null
     , push
     , pop
-    , popN
     , toList
     , filter) where
 
@@ -35,26 +34,14 @@ empty = Stack []
 null :: Stack a -> Bool
 null = L.null . toList
 
--- | Push a `Frame` onto the `Stack`.
+-- | Push a value onto the `Stack`.
 push :: a -> Stack a -> Stack a
 push x (Stack xs) = Stack (x : xs)
 
--- | Pop a `Frame` from the `Stack`, should it exist.
+-- | Pop a value from the `Stack`, should it exist.
 pop :: Stack a -> Maybe (a, Stack a)
 pop (Stack []) = Nothing
 pop (Stack (x:xs)) = Just (x, Stack xs)
-
--- | Pop @n@ frames from the `Stack`, or, if the `Stack` has less than @n@
--- frames, empty the `Stack`.
-popN :: Stack a -> Int -> ([a], Stack a)
-popN s 0 = ([], s)
-popN s n = case pop s of
-    Just (x, s') -> 
-        let
-            (xs, s'') = popN s' (n - 1)
-        in
-        (x:xs, s'')
-    Nothing -> ([], s)
 
 -- | Convert a `Stack` to a list.
 toList :: Stack a -> [a]

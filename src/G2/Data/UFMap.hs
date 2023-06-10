@@ -13,7 +13,6 @@ module G2.Data.UFMap ( UFMap
                      , joinAll
                      , lookup
                      , lookupWithRep
-                     , lookupRep
                      , (!)
                      , find
                      , insert
@@ -57,15 +56,24 @@ import GHC.Generics (Generic)
 
 import Test.Tasty.QuickCheck
 
+-- | A map allowing inserts and lookups via keys, and for sets of keys to be
+-- unioned so that all keys in the set point to the same element.
+-- Keys @k1@ and @k2@ may be unioned regardless of whether both are already in the `UFMap`.
+-- If @k1@ and @k2@ are unioned without either being in the `UFMap`, and then a value
+-- for either is inserted, the other will also then point to that value.
 data UFMap k v = UFMap { joined :: UF.UnionFind k
                        , store :: M.HashMap k v }
                        deriving (Typeable, Data, Generic)
 
 instance (Eq k, Hashable k, Hashable v) => Hashable (UFMap k v)
 
+-- | An empty `UFMap`. 
 empty :: UFMap k v
 empty = UFMap UF.empty M.empty
 
+-- | Convert a @`UFMap` k v@ to a list.  Each tuple in the list contains a list of
+-- unioned keys, alongside a @`Maybe` v@.  If the keys were pointing to a value
+-- @v@ in the Map, this is @`Just` v@, otherwise it is `Nothing`. 
 toList :: (Eq k, Hashable k) => UFMap k v -> [([k], Maybe v)]
 toList uf =
     let
@@ -127,25 +135,31 @@ joinAll :: (Eq k, Hashable k) => (v -> v -> v) -> [k] -> UFMap k v -> UFMap k v
 joinAll _ [] uf = uf
 joinAll f xs@(x:_) uf = foldr (join f x) uf xs
 
+-- | Lookup the value at a key in the `UFMap`.
+-- Returns the corresponding @`Just` v@, or `Nothing` if the key isn't in the map.
 lookup :: (Eq k, Hashable k) => k -> UFMap k v -> Maybe v
 lookup k = snd . lookupWithRep k
 
+-- | Lookup the value at a key in the `UFMap`, as well as the representative of the key.
+-- Returns the corresponding value as @`Just` v@, or `Nothing` if the key isn't in the map.
 lookupWithRep :: (Eq k, Hashable k) => k -> UFMap k v -> (k, Maybe v)
 lookupWithRep k (UFMap uf m) =
     let r = UF.find k uf in
     (r, M.lookup r m)
 
-lookupRep :: (Eq k, Hashable k) => k -> UFMap k v -> k
-lookupRep k (UFMap uf _) = UF.find k uf
+-- | Find the representative of the key in the `UFMap`.
+find :: (Eq k, Hashable k) => k -> UFMap k v -> k
+find k = UF.find k . joined
 
+-- | Lookup the value at a key in the `UFMap`.
+-- The function will call error if the key isn't in the map.
 (!) :: (Eq k, Hashable k) => UFMap k v -> k -> v
 uf ! k = case lookup k uf of
                 Just v -> v
                 Nothing -> error "!: key not found"
 
-find :: (Eq k, Hashable k) => k -> UFMap k v -> k
-find k = UF.find k . joined
-
+-- | Adds a key-value pair to the `UFMap`.
+-- If the key is already in the map, it's value is overwritten.
 insert :: (Eq k, Hashable k) => k -> v -> UFMap k v -> UFMap k v
 insert k v (UFMap uf m) =
     let

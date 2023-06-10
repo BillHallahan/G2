@@ -97,9 +97,6 @@ initKnownValues eenv tenv tc =
     , impliesFunc = exprWithStrName eenv "implies"
     , iffFunc = exprWithStrName eenv "iff"
 
-    , structEqTC = Name "NotDefinedYet" Nothing 0 Nothing
-    , structEqFunc = Name "NotDefinedYet" Nothing 0 Nothing
-
     , andFunc = exprWithStrName eenv "&&"
     , orFunc = exprWithStrName eenv "||"
     , notFunc = exprWithStrName eenv "not"

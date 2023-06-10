@@ -8,8 +8,17 @@
 {-# LANGUAGE UndecidableInstances #-}
 
 module G2.Execution.Reducer ( Reducer (..)
+
                             , Halter (..)
+                            , InitHalter
+                            , UpdatePerStateHalt
+                            , StopRed
+                            , StepHalter
+
                             , Orderer (..)
+                            , InitOrderer
+                            , OrderStates
+                            , UpdateSelected
 
                             , Processed (..)
                             , mapProcessed

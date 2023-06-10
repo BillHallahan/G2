@@ -1,4 +1,4 @@
--- | Defines typeclasses and functions for ease of AST manipulation.
+-- | Defines typeclasses and functions to make it easier to write functions that require traversing ASTs.
 
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -25,7 +25,6 @@ module G2.Language.AST
     , evalASTsMonoid
     , evalContainedASTs
     , replaceASTs
-    , replaceASTsShallow
     ) where
 
 import qualified G2.Data.UFMap as UF
@@ -42,11 +41,19 @@ import qualified Data.Text as T
 class AST t where
     -- | Gets the direct children of the given node.
     children :: t -> [t]
-    -- | Applies the given function to all children of the given node.
+    -- | Applies the given function to all direct children of the given node.
     modifyChildren :: (t -> t) -> t -> t
 
+
 -- | Calls the given function on the given node, and all of the descendants
--- in a recursive, top down, manner.
+-- top down recursively.
+-- Typically, the passed higher order function will modify some subset
+-- of the constructors of the given type, and leave the rest unchanged.
+--
+-- >>> let go e = case e of Var (Id _ t) -> SymGen t; _ -> e
+-- >>> let n = Name "x" Nothing 0 Nothing
+-- >>> modify go (Lam TypeL (Id n TyLitInt) (App (Var $ Id n TyLitInt) (Var $ Id n TyLitFloat)))
+-- Lam TypeL (Id (Name "x" Nothing 0 Nothing) TyLitInt) (App (SymGen TyLitInt) (SymGen TyLitFloat))
 modify :: AST t => (t -> t) -> t -> t
 modify f t = go t
     where
@@ -105,6 +112,11 @@ modifyFixMonoid f = go f mempty
 
 -- | Recursively runs the given function on each node, top down. Uses mappend
 -- to combine the results after evaluation of the entire tree.
+--
+-- >>> let go e = case e of Lit l -> [l]; _ -> []
+-- >>> plusInt = Prim Plus (TyFun TyLitInt (TyFun TyLitInt TyLitInt))
+-- >>> eval go $ App (App plusInt (Lit $ LitInt 0)) (Lit $ LitInt 1)
+-- [LitInt 0, LitInt 1]
 {-# INLINE eval #-}
 eval :: (AST t, Monoid a) => (t -> a) -> t -> a
 eval f t = go t
@@ -218,8 +230,7 @@ instance AST DataCon where
     children _ = []
     modifyChildren _ (DataCon n ty) = DataCon n ty
 
--- | Instance ASTContainer of Itself
---   Every AST is defined as an ASTContainer of itself. Generally, functions
+-- | Every AST is defined as an ASTContainer of itself. Generally, functions
 --   should be written using the ASTContainer typeclass.
 instance AST t => ASTContainer t t where
     containedASTs t = [t]
@@ -415,10 +426,11 @@ instance
 
         modifyContainedASTs f (x, y, z, w, a) = (modifyContainedASTs f x, modifyContainedASTs f y, modifyContainedASTs f z, modifyContainedASTs f w, modifyContainedASTs f  a)
 
--- | Miscellaneous Instances
+-- Miscellaneous Instances
 --   These instances exist so that we can use them in other types that contain
 --   ASTs and still consider those types ASTContainers. For example (Expr, Bool)
 --   should be an ASTContainer.
+
 instance ASTContainer Lit Expr where
     containedASTs _ = []
     modifyContainedASTs _ t = t
@@ -492,17 +504,9 @@ instance (ASTContainer k t, ASTContainer v t, Eq k, Hashable k) => ASTContainer 
 -- AST Helper functions
 -- ====== --
 
--- | Replaces all instances of old with new in the ASTContainer
+-- | `replaceASTs old new container` returns `container` but with all occurences of `old` replaced with `new`.
 replaceASTs :: (Eq e, ASTContainer c e) => e -> e -> c -> c
 replaceASTs old new = modifyContainedASTs (replaceASTs' old new)
 
 replaceASTs' :: (Eq e, AST e) => e -> e -> e -> e
 replaceASTs' old new e = if e == old then new else modifyChildren (replaceASTs' old new) e
-
-
-
-replaceASTsShallow :: (Eq e, ASTContainer c e) => e -> e -> c -> c
-replaceASTsShallow old new = modifyContainedASTs (replaceASTsShallow' old new)
-
-replaceASTsShallow' :: (Eq e, AST e) => e -> e -> e -> e
-replaceASTsShallow' old new e = if e == old then new else e

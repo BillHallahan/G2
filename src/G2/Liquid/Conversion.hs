@@ -21,6 +21,7 @@ import G2.Language
 import qualified G2.Language.KnownValues as KV
 import G2.Language.Monad
 import qualified G2.Language.ExprEnv as E
+import G2.Language.TypeEnv
 import G2.Liquid.Types
 import G2.Translation.Haskell
 
@@ -785,6 +786,10 @@ convertEVar nm@(Name n md _ _) bt mt
            | Just dc <- getDataConNameMod' tenv nm -> return $ Data dc
            | Just t <- mt -> return $ Var (Id nm t)
            | otherwise -> error $ "convertEVar: Required type not found" ++ "\n" ++ show n ++ "\nbt = " ++ show bt
+    where
+        getDataConNameMod' tenv n = find (flip dataConHasNameMod n) $ concatMap dataCon $ HM.elems tenv
+        dataConHasNameMod (DataCon (Name n m _ _) _) (Name n' m' _ _) = n == n' && m == m'
+
 
 convertCon :: Maybe Type -> Constant -> LHStateM Expr
 convertCon (Just (TyCon n _)) (Ref.I i) = do
