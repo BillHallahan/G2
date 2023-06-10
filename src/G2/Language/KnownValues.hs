@@ -10,7 +10,7 @@ import Data.Data (Data, Typeable)
 import Data.Hashable
 import GHC.Generics (Generic)
 
--- A `KnownValues` tracks the names of  data types we know should
+-- | A `KnownValues` tracks the names of  data types we know should
 -- exist, and that we care about for some special reason.
 data KnownValues = KnownValues {
                    tyInt :: Name
@@ -95,6 +95,7 @@ data KnownValues = KnownValues {
 
 instance Hashable KnownValues
 
+-- | Checks if the `Name` corresponds to a function that is an error.
 isErrorFunc :: KnownValues -> Name -> Bool
 isErrorFunc kv n =    n == errorFunc kv
                    || n == errorEmptyListFunc kv    
