@@ -580,9 +580,6 @@ instance Named KnownValues where
             , impliesFunc = impF
             , iffFunc = iffF
 
-            , structEqTC = seT
-            , structEqFunc = seF
-
             , andFunc = andF
             , orFunc = orF
             , notFunc = notF
@@ -602,7 +599,7 @@ instance Named KnownValues where
                 , eqF, neqF, plF, minusF, tmsF, divF, negF, modF
                 , fromIntegerF, toIntegerF
                 , toRatioF, fromRationalF
-                , geF, gtF, ltF, leF, seT, seF
+                , geF, gtF, ltF, leF
                 , impF, iffF
                 , andF, orF, notF
                 , errF, errEmpListF, errWOST, patE]
@@ -672,9 +669,6 @@ instance Named KnownValues where
 
                    , impliesFunc = impF
                    , iffFunc = iffF
-
-                   , structEqTC = seT
-                   , structEqFunc = seF
 
                    , andFunc = andF
                    , orFunc = orF
@@ -750,9 +744,6 @@ instance Named KnownValues where
           
                         , impliesFunc = rename old new impF
                         , iffFunc = rename old new iffF
-
-                        , structEqTC = rename old new seT
-                        , structEqFunc = rename old new seF
 
                         , andFunc = rename old new andF
                         , orFunc = rename old new orF

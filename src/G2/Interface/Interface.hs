@@ -439,8 +439,7 @@ runG2Pre :: ( Named t
             , ASTContainer t Type) => MemConfig -> State t -> Bindings -> (State t, Bindings)
 runG2Pre mem s@(State { known_values = kv, type_classes = tc }) bindings =
     let
-        (swept, bindings') = markAndSweepPreserving
-                              ( namesList (lookupStructEqDicts kv tc) `addSearchNames` mem) s bindings
+        (swept, bindings') = markAndSweepPreserving mem s bindings
     in
     runPreprocessing swept bindings'
 

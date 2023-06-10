@@ -785,6 +785,10 @@ convertEVar nm@(Name n md _ _) bt mt
            | Just dc <- getDataConNameMod' tenv nm -> return $ Data dc
            | Just t <- mt -> return $ Var (Id nm t)
            | otherwise -> error $ "convertEVar: Required type not found" ++ "\n" ++ show n ++ "\nbt = " ++ show bt
+    where
+        getDataConNameMod' tenv n = find (flip dataConHasNameMod n) $ concatMap dataCon $ M.elems tenv
+
+
 
 convertCon :: Maybe Type -> Constant -> LHStateM Expr
 convertCon (Just (TyCon n _)) (Ref.I i) = do
