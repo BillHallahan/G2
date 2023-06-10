@@ -130,12 +130,8 @@ convertDefs [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})
     , st_t <- tyAppArgs l_t
     , dc' <- mkData HM.empty HM.empty dc = do
     tenv <- typeEnv
-    let 
-        -- (TyCon tn _) = tyAppCenter $ returnType $ PresType t
-        -- dc' = getDataConNameMod tenv tn n
-        
+    let         
         -- See [1] below, we only evaluate this if Just
-        -- dc''@(DataCon _ dct) = fromJust dc'
         dc''@(DataCon _ dct) = fixNamesDC tenv dc'
         bnds = tyForAllBindings $ PresType dct
         dctarg = anonArgumentTypes $ PresType dct
