@@ -14,6 +14,7 @@ import G2.Translation.Haskell
 
 import Control.Monad.Extra
 
+import Data.List
 import Data.Maybe
 import qualified GHC as GHC
 
