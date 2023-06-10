@@ -21,6 +21,7 @@ import G2.Language
 import qualified G2.Language.KnownValues as KV
 import G2.Language.Monad
 import qualified G2.Language.ExprEnv as E
+import G2.Language.TypeEnv
 import G2.Liquid.Types
 import G2.Translation.Haskell
 
