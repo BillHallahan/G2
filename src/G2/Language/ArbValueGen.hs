@@ -192,14 +192,14 @@ getADT cutoff m tenv av adt ts
     | dcs <- dataCon adt
     , _:_ <- dcs =
         let
-            ids = boundIds adt
+            ids = bound_ids adt
 
             -- Finds the DataCon for adt with the least arguments
-            min_dc = minimumBy (comparing (length . dataConArgs)) dcs
+            min_dc = minimumBy (comparing (length . anonArgumentTypes)) dcs
 
             m' = foldr (uncurry HM.insert) m $ zip (map idName ids) ts
 
-            (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite' (cutoff - 1) m' (applyTypeHashMap m' t) tenv av_) av $ dataConArgs min_dc
+            (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite' (cutoff - 1) m' (applyTypeHashMap m' t) tenv av_) av $ anonArgumentTypes min_dc
 
             final_av = if cutoff >= 0 then av' else av
         in

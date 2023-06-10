@@ -64,84 +64,75 @@ data LamUse = TermL -- ^ Binds at the term level
 
 instance Hashable LamUse
 
--- | Extract a `Name` from an `Id`.
+-- | Extract the `Name` from an `Id`.
 idName :: Id -> Name
 idName (Id name _) = name
  
-{-| This is the main data type for our expression language.
-
- 1. @`Var` `Id`@ is a variable.  Variables may be bound by a `Lam`, `Let`
- or `Case` `Expr`, or be bound in the `G2.Language.ExprEnv.ExprEnv`.  A variable may also be
- free (unbound), in which case it is symbolic
-
- 2. @v`Lit` t`Lit`@ denotes a literal.
-
- 3. @v`Data` `DataCon`@ denotes a Data Constructor
-
- 4. @`App` `Expr` `Expr`@ denotes function application.
-    For example, the function call:
-
-     @ f x y @
-    would be represented as
-
-     @ `App`
-       (`App`
-         (`Var` (`Id` (`Name` "f" Nothing 0 Nothing) (`TyFun` t (`TyFun` t t))))
-         (`Var` (`Id` (`Name` "x" Nothing 0 Nothing) t))
-       )
-       (`Var` (`Id` (`Name` "y" Nothing 0 Nothing) t)) @
-
- 5. @`Lam` `LamUse` `Id` `Expr`@ denotes a lambda function.
-    The `Id` is bound in the `Expr`.
-    This binding may be on the type or term level, depending on the `LamUse`.
-
- 6. @`Case` e i as@ splits into multiple `Alt`s (Alternatives),
-    Depending on the value of @e@.  In each Alt, the `Id` @i@ is bound to @e@.
-    The `Alt`s must always be exhaustive- there should never be a case where no `Alt`
-    can match a given `Expr`.
-
- 7. @v`Type` t`Type`@ gives a `Expr` level representation of a t`Type`.
-    These only ever appear as the arguments to polymorphic functions,
-    to determine the t`Type` bound to type level variables.
-
- 8. @`Cast` e (t1 `:~` t2)@ casts @e@ from the t`Type` @t1@ to @t2@
-    This requires that @t1@ and @t2@ have the same representation.
-
- 9. @v`Coercion` t`Coercion`@ allows runtime passing of t`Coercion`s to `Cast`s.
-
- 10. @`Tick` `Tickish` `Expr`@ records some extra information into an `Expr`.
-
- 11. @`NonDet` [`Expr`] gives a nondeterministic choice between multiple options
-     to continue execution with.
-
- 12. @`SymGen` t`Type`@ evaluates to a fresh symbolic variable of the given type.
-
- 13. @`Assume` b e@ takes a boolean typed expression @b@,
-     and an expression of arbitrary type @e@.
-     During exectuion, @b@ is reduced to SWHNF, and assumed.
-     Then, execution continues with @b@.
-
- 14. @`Assert` fc b e@ is similar to `Assume`, but asserts the @b@ holds.
-     The `Maybe` `FuncCall` allows us to optionally indicate that the
-     assertion is related to a specific function. -}
-data Expr = Var Id
+-- | Expressions, representing G2's intermediate language.
+data Expr =
+          -- | @`Var` `Id`@ is a variable.  Variables may be bound by a `Lam`, `Let`
+          -- or `Case` `Expr`, or be bound in the `G2.Language.ExprEnv.ExprEnv`.  A variable may also be
+          -- free (unbound), in which case it is symbolic
+            Var Id
+          -- | @v`Lit` t`Lit`@ denotes a literal.
           | Lit Lit
+          -- | Primitive functions.  Should be wrapped in `App`s.
           | Prim Primitive Type
+          -- | @v`Data` `DataCon`@ denotes a Data Constructor
           | Data DataCon
+          {-| @`App` `Expr` `Expr`@ denotes function application.
+            For example, the function call:
+
+            @ f x y @
+            would be represented as
+
+            @ `App`
+            (`App`
+                (`Var` (`Id` (`Name` "f" Nothing 0 Nothing) (`TyFun` t (`TyFun` t t))))
+                (`Var` (`Id` (`Name` "x" Nothing 0 Nothing) t))
+            )
+            (`Var` (`Id` (`Name` "y" Nothing 0 Nothing) t)) @
+          -}
           | App Expr Expr
+          -- | @`Lam` `LamUse` `Id` `Expr`@ denotes a lambda function.
+          -- The `Id` is bound in the `Expr`.
+          -- This binding may be on the type or term level, depending on the `LamUse`.
           | Lam LamUse Id Expr
+          -- | @`Let` b e@ gives a mapping of `Name`s to `Expr`s in `b`, allowing those names
+          -- to be used in `e`.
           | Let Binds Expr
+          -- | @`Case` e i as@ splits into multiple `Alt`s (Alternatives),
+          -- Depending on the value of @e@.  In each Alt, the `Id` @i@ is bound to @e@.
+          -- The `Alt`s must always be exhaustive- there should never be a case where no `Alt`
+          -- can match a given `Expr`.
           | Case Expr -- ^ Scrutinee
                  Id -- ^ Bindee
                  Type -- ^ Type of the case expression
                  [Alt] -- ^ Alternatives
+                 
+          -- | @v`Type` t`Type`@ gives a `Expr` level representation of a t`Type`.
+          -- These only ever appear as the arguments to polymorphic functions,
+          -- to determine the t`Type` bound to type level variables.
           | Type Type
+          -- | @`Cast` e (t1 `:~` t2)@ casts @e@ from the t`Type` @t1@ to @t2@
+          -- This requires that @t1@ and @t2@ have the same representation.
           | Cast Expr Coercion
+          -- | @v`Coercion` t`Coercion`@ allows runtime passing of t`Coercion`s to `Cast`s.
           | Coercion Coercion
+          -- | @`Tick` `Tickish` `Expr`@ records some extra information into an `Expr`.
           | Tick Tickish Expr
+          -- | @`NonDet` [`Expr`]@ gives a nondeterministic choice between multiple options
+          -- to continue execution with.
           | NonDet [Expr]
+          -- | @`SymGen` t`Type`@ evaluates to a fresh symbolic variable of the given type.
           | SymGen Type
+          -- | @`Assume` b e@ takes a boolean typed expression @b@,  and an expression of
+          -- arbitrary type @e@. During exectuion, @b@ is reduced to SWHNF, and assumed.
+          -- Then, execution continues with @b@.
           | Assume (Maybe FuncCall) Expr Expr
+          -- | @`Assert` fc b e@ is similar to `Assume`, but asserts the @b@ holds.
+          -- The `Maybe` `FuncCall` allows us to optionally indicate that the
+          -- assertion is related to a specific function.
           | Assert (Maybe FuncCall) Expr Expr
           deriving (Show, Eq, Read, Generic, Typeable, Data)
 
@@ -215,6 +206,10 @@ data DataCon = DataCon Name Type deriving (Show, Eq, Read, Generic, Typeable, Da
 
 instance Hashable DataCon
 
+-- | Extract the `Name` of a `DataCon`.
+dcName :: DataCon -> Name
+dcName (DataCon n _) = n
+
 -- | Describe the conditions to match on a particular `Alt`.
 data AltMatch = DataAlt DataCon [Id] -- ^ Match a datacon. The number of `Id`s
                                      -- must match the number of term arguments
@@ -237,25 +232,18 @@ data Coercion = Type :~ Type deriving (Eq, Show, Read, Generic, Typeable, Data)
 
 instance Hashable Coercion
 
--- | Types are decomposed as follows:
--- * Type variables correspond to the aliasing of a type
--- * TyLitInt, TyLitFloat etc denote unwrapped primitive types.
--- * Function type. For instance (assume Int): \x -> x + 1 :: TyFun TyInt TyInt
--- * Application, often reducible: (TyApp (TyFun TyInt TyInt) TyInt) :: TyInt
--- * Type constructor (see below) application creates an actual type
--- * For all types
--- * BOTTOM
-data Type = TyVar Id
-          | TyLitInt 
-          | TyLitFloat 
-          | TyLitDouble
-          | TyLitChar 
-          | TyLitString
-          | TyFun Type Type
-          | TyApp Type Type
-          | TyCon Name Kind
-          | TyForAll Id Type
-          | TyBottom
+-- | Types information.
+data Type = TyVar Id -- ^ Polymorphic type variable.
+          | TyLitInt -- ^ Unwrapped primitive Int type.
+          | TyLitFloat -- ^ Unwrapped primitive Float type.
+          | TyLitDouble -- ^ Unwrapped primitive Int type.
+          | TyLitChar -- ^ Unwrapped primitive Int type.
+          | TyLitString -- ^ Unwrapped primitive String type.
+          | TyFun Type Type -- ^ Function type. For instance (assume Int): \x -> x + 1 :: TyFun TyInt TyInt
+          | TyApp Type Type -- ^ Application of a type.
+          | TyCon Name Kind -- ^ Type constructor for a concrete type
+          | TyForAll Id Type -- ^ Introduces a type variable.
+          | TyBottom -- ^ Type for erroring/non-terminating expressions.
           | TYPE
           | TyUnknown
           deriving (Show, Eq, Read, Generic, Typeable, Data, Ord)

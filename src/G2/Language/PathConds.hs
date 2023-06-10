@@ -65,9 +65,11 @@ import Prelude hiding (map, filter, null)
 import qualified Prelude as P (map)
 import Data.Semigroup (Semigroup (..))
 
--- | Conceptually, the path constraints are a graph, with (Maybe Name)'s Nodes.
+-- Conceptually, the path constraints are a graph, with (Maybe Name)'s Nodes.
 -- Edges exist between any names that are in the same path constraint.
 -- Strongly connected components in the graph must be checked and solved together.
+
+-- A collection of path constraints- requirements on symbolic variables.
 newtype PathConds = PathConds (UF.UFMap (Maybe Name) PCGroup)
                     deriving (Show, Eq, Read, Generic, Typeable, Data)
 
@@ -109,7 +111,7 @@ data PathCond = AltCond Lit Expr Bool -- ^ The expression and Lit must match
               | ExtCond Expr Bool -- ^ The expression must be a (true) boolean
               | SoftPC PathCond -- ^ A `PathCond` to satisfy if possible, but which is not absolutely required.
               | MinimizePC Expr -- ^ An expression to minimize
-              | AssumePC Id Integer (HS.HashSet HashedPathCond)
+              | AssumePC Id Integer (HS.HashSet HashedPathCond) -- ^ An implication- if the `Id` equals the integer, that implies the `HashedPathCond` in the `HS.HashSet`
               deriving (Show, Eq, Read, Generic, Typeable, Data)
 
 type Constraint = PathCond
@@ -221,7 +223,7 @@ varNamesInPC = P.map idName . varIdsInPC
 allIds :: PathConds -> HS.HashSet Id
 allIds (PathConds pc) = HS.unions . P.map pcs_contains $ UF.elems pc
 
--- {-# INLINE scc #-}
+-- | Computes the path constraints that relate to the `Names` in the passed list.
 scc :: [Name] -> PathConds -> PathConds
 scc ns (PathConds pcc) =
     let

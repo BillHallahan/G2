@@ -174,6 +174,9 @@ fixNamesType' tenv (TyCon n k) =
         Nothing -> error "fixNamesType: Bad Type"
 fixNamesType' _ t = t
 
+getTypeNameMod :: TypeEnv -> Name -> Maybe Name
+getTypeNameMod tenv (Name n m _ _) = find (\(Name n' m' _ _) -> n == n' && m == m') $ M.keys tenv
+
 mkExprFromBody :: Maybe Type -> LHDictMap -> BoundTypes -> Body -> LHStateM Expr
 mkExprFromBody ret m bt (E e) = convertLHExpr (mkDictMaps m) bt ret e
 mkExprFromBody ret m bt (P e) = convertLHExpr (mkDictMaps m) bt ret e
