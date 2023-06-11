@@ -360,6 +360,8 @@ extensionTests = testGroup "Extensions"
                                                                          , ("funcArg", 400, [AtLeast 2])
                                                                          
                                                                          , ("consArrow", 400, [AtLeast 2]) ]
+    , checkInputOutputs "tests/TestFiles/Extensions/ViewPatterns1.hs" [ ("shapeToNumSides", 4000, [Exactly 4]) ]
+
     ]
 
 baseTests ::  TestTree
