@@ -361,7 +361,13 @@ extensionTests = testGroup "Extensions"
                                                                          
                                                                          , ("consArrow", 400, [AtLeast 2]) ]
     , checkInputOutputs "tests/TestFiles/Extensions/ViewPatterns1.hs" [ ("shapeToNumSides", 4000, [Exactly 4]) ]
-
+    , checkInputOutputs "tests/TestFiles/Extensions/MultiParamTypeClasses1.hs" [ ("total", 2000, [Exactly 8])
+                                                                               , ("totalGen", 2000, [AtLeast 2])
+                                                                               , ("totalGenNum", 2000, [Exactly 2])
+                                                                               , ("total3", 2000, [AtLeast 8])
+                                                                               , ("totalGen3", 2000, [AtLeast 2])
+                                                                               , ("totalGenNum3", 2000, [AtLeast 2])
+                                                                               , ("testG", 2000, [AtLeast 2]) ]
     ]
 
 baseTests ::  TestTree
