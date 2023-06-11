@@ -318,7 +318,8 @@ mkLitHaskell (LitInt i) = T.pack $ if i < 0 then "(" <> show i <> ")" else show 
 mkLitHaskell (LitInteger i) = T.pack $ if i < 0 then "(" <> show i <> ")" else show i
 mkLitHaskell (LitFloat r) = "(" <> T.pack (show ((fromRational r) :: Float)) <> ")"
 mkLitHaskell (LitDouble r) = "(" <> T.pack (show ((fromRational r) :: Double)) <> ")"
-mkLitHaskell (LitChar c) = T.pack ['\'', c, '\'']
+mkLitHaskell (LitChar c) | isPrint c = T.pack ['\'', c, '\'']
+                         | otherwise = "(chr " <> T.pack (show $ ord c) <> ")"
 mkLitHaskell (LitString s) = T.pack s
 
 mkPrimHaskell :: Primitive -> T.Text
