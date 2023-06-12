@@ -82,7 +82,7 @@ def starter(directory):
 # "main"
 args = sys.argv
 if len(args) != 2:
-    raise Exception("Invalid number of commands provided.")
+    raise Exception("Invalid number of commands provided. The first argument is the script name. The second argument is the name of the directory contain all of the download hackage")
 with open("./hackageRules1.txt", 'w') as file:
     file.truncate()
 directory = sys.argv[1]

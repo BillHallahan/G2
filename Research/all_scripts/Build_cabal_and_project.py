@@ -3,7 +3,7 @@
 # Three arguments needed:
 # first argument is the python file
 # second argument is the directory that contain all the package that contain rules
-# third argument is the location of g2 in one's computer so we can 
+# third argument is the location of g2 in one's computer
 import os 
 import sys
 import re
@@ -28,7 +28,7 @@ def changing_cabal(directory):
                             search_build_depends = re.search("Build-Depends:",line,re.IGNORECASE)
                             if search_build_depends:
                                 print("The build-depends before update is " + line)
-                                line = line.replace(search_build_depends.group(), search_build_depends.group() + " g2 >= 0.1.0.2 ",1)
+                                line = line.replace(search_build_depends.group(), search_build_depends.group() + " g2 >= 0.1.0.2, ",1)
                                 print("The build-depends after update is " + line)
                                 found_build = True
                             search_ghc_option = re.search("ghc-options:",line,re.IGNORECASE)
@@ -71,7 +71,7 @@ def changing_project(directory,g2_location):
         temp_path_info =  tempfile.mkstemp(dir=os.path.dirname(directory))
         temp_path = temp_path_info[1]
         with open(temp_path,'w') as temp:
-            temp.write("packages: " + g2_location + "\n")
+            temp.write('packages: . ' +  '\n' + '\t' + g2_location + '\n')
         os.rename(temp_path,directory+"/cabal.project")
         #print('Finished creating a cabal.project in ' + os.path.dirname(directory))
     # if there is one, simply adding a new line indicating the location of g2 in one's computer
@@ -79,7 +79,7 @@ def changing_project(directory,g2_location):
         cabal_project = directory + '/cabal.project'
         print('we did have a cabal project in directory ' + directory)
         with open(cabal_project,'a') as file:
-            file.write('\n' + 'packages: ' + g2_location + '\n')
+            file.write('\n' + 'packages: . ' +  '\n' + "\t" + g2_location)
 
 def starter(home_directory,g2_location):
      for filename in os.listdir(directory):
@@ -96,7 +96,7 @@ def starter(home_directory,g2_location):
 # main:
 args = sys.argv
 if len(args) != 3:
-    raise Exception("Invalid number of commands provided.")
+    raise Exception("Invalid number of commands provided. The first argument is the script name. The second argument is the directory contain all the package that have rules. The third argument describe g2's location in one's computer.")
 directory = sys.argv[1]
 g2_location = sys.argv[2]
 starter(directory,g2_location)
