@@ -405,6 +405,8 @@ prettyState pg s =
         , pretty_paths
         , "----- [Non Red Paths] ---------------------"
         , pretty_non_red_paths
+        , "----- [Typeclasses] ---------------------"
+        , pretty_tc
         , "----- [True Assert] ---------------------"
         , T.pack (show (true_assert s))
         , "----- [Assert FC] ---------------------"
@@ -420,6 +422,7 @@ prettyState pg s =
         pretty_eenv = prettyEEnv pg (expr_env s)
         pretty_paths = prettyPathConds pg (path_conds s)
         pretty_non_red_paths = prettyNonRedPaths pg (non_red_path_conds s)
+        pretty_tc = prettyTypeClasses pg (type_classes s)
         pretty_assert_fcs = maybe "None" (printFuncCallPG pg) (assert_ids s)
         pretty_names = prettyGuideStr pg
 
@@ -488,6 +491,20 @@ prettyPathCond pg (AssumePC i l pc) =
 
 prettyNonRedPaths :: PrettyGuide -> [(Expr, Expr)] -> T.Text
 prettyNonRedPaths pg = T.intercalate "\n" . map (\(e1, e2) -> mkDirtyExprHaskell pg e1 <> " == " <> mkDirtyExprHaskell pg e2)
+
+prettyTypeClasses :: PrettyGuide -> TypeClasses -> T.Text
+prettyTypeClasses pg = T.intercalate "\n" . map (\(n, tc) -> mkNameHaskell pg n <> " = " <> prettyClass pg tc) . HM.toList . toMap
+
+prettyClass :: PrettyGuide -> Class -> T.Text
+prettyClass pg cls =
+    let
+        sc = T.intercalate ", " $ map (\(t, i) -> mkTypeHaskellPG pg t <> " " <> mkIdHaskell pg i) (superclasses cls)
+        ti = T.intercalate " " . map (mkIdHaskell pg) $ typ_ids cls
+        ins = T.intercalate "\n\t\t" $ map (\(t, i) -> mkTypeHaskellPG pg t <> " " <> mkIdHaskell pg i) (insts cls)
+    in
+       "\n\tsuper_classes = " <> sc
+    <> "\n\ttype_ids = " <> ti
+    <> "\n\tinsts = " <> ins
 
 -------------------------------------------------------------------------------
 
