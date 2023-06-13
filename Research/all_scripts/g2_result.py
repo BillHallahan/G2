@@ -20,6 +20,7 @@ def using_subprocess(file_path):
         print("creating a file called in " + file_name + " in current directory " + os.getcwd())
         with open(file_name,'a') as file:
             # merging the standard out and standard error and redirecting them to the file 
+            subprocess.run(['cabal','clean'])
             subprocess.run(['cabal','build'],text=True,stdout=file,stderr=subprocess.STDOUT)
            
         # changing back the home directory
