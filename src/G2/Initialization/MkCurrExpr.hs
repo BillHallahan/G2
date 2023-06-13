@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings #-}
 
 module G2.Initialization.MkCurrExpr ( mkCurrExpr
                                     , checkReaches
@@ -118,10 +118,10 @@ instantiateArgTypes tc kv e =
 instantitateTypes :: TypeClasses -> KnownValues -> [ArgType] -> ([Expr], [Type])
 instantitateTypes tc kv ts = 
     let
-        tv = map (typeNamedId) $ filter (typeNamed) ts
+        tv = mapMaybe (\case NamedType i -> Just i; AnonType _ -> Nothing) ts
 
         -- Get non-TyForAll type reqs, identify typeclasses
-        ts' = map typeAnonType $ filter (not . typeNamed) ts
+        ts' = mapMaybe (\case AnonType t -> Just t; NamedType _ -> Nothing) ts
         tcSat = map (\i -> (i, satisfyingTCTypes kv tc i ts')) tv
 
         -- TyForAll type reqs
@@ -147,18 +147,6 @@ instantiateTCDict :: TypeClasses -> [(Id, Type)] -> Type -> Maybe Expr
 instantiateTCDict tc it tyapp@(TyApp _ (TyVar i)) | TyCon n _ <- tyAppCenter tyapp =
     return . Var =<< lookupTCDict tc n =<< lookup i it
 instantiateTCDict _ _ _ = Nothing
-
-typeNamedId :: ArgType -> Id
-typeNamedId (NamedType i) = i
-typeNamedId (AnonType _) = error "No Id in T"
-
-typeAnonType :: ArgType -> Type
-typeAnonType (NamedType _) = error "No type in NamedType"
-typeAnonType (AnonType t) = t 
-
-typeNamed :: ArgType -> Bool
-typeNamed (NamedType _) = True
-typeNamed _ = False
 
 checkReaches :: ExprEnv -> KnownValues -> Maybe T.Text -> Maybe T.Text -> ExprEnv
 checkReaches eenv _ Nothing _ = eenv
