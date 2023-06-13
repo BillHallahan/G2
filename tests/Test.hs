@@ -361,7 +361,9 @@ extensionTests = testGroup "Extensions"
                                                                          
                                                                          , ("consArrow", 400, [AtLeast 2]) ]
     , checkInputOutputs "tests/TestFiles/Extensions/ViewPatterns1.hs" [ ("shapeToNumSides", 4000, [Exactly 4]) ]
-
+    , checkInputOutputs "tests/TestFiles/Extensions/FlexibleContexts1.hs" [ ("callF", 400, [AtLeast 2])
+                                                                          , ("callF2", 400, [AtLeast 2])
+                                                                          , ("callF3", 400, [AtLeast 2]) ]
     ]
 
 baseTests ::  TestTree
