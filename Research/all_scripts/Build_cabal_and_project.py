@@ -79,7 +79,7 @@ def changing_project(directory,g2_location):
         cabal_project = directory + '/cabal.project'
         print('we did have a cabal project in directory ' + directory)
         with open(cabal_project,'a') as file:
-            file.write('\n' + 'packages: . ' +  '\n' + "\t" + g2_location)
+            file.write('\n' + 'packages: . ' +  '\n' + "\t" + g2_location + "\n")
 
 def starter(home_directory,g2_location):
      for filename in os.listdir(directory):
