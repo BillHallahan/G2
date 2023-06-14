@@ -187,7 +187,7 @@ prop_toList_fromList_joins i1 i2 ufm =
     let
         ufm' = fromList . toList $ join S.union i1 i2 ufm
     in
-    property $ lookupRep i1 ufm' == lookupRep i2 ufm'
+    property $ find i1 ufm' == find i2 ufm'
 
 prop_toList_fromList_values :: Integer
                             -> S.HashSet Integer

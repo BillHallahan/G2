@@ -562,7 +562,7 @@ reqNames (State { expr_env = eenv
           ++
           Lang.namesList 
             (HM.filterWithKey 
-                (\k _ -> k == eqTC kv || k == numTC kv || k == ordTC kv || k == integralTC kv || k == fractionalTC kv || k == structEqTC kv) 
+                (\k _ -> k == eqTC kv || k == numTC kv || k == ordTC kv || k == integralTC kv || k == fractionalTC kv) 
                 (toMap tc)
             )
           ++

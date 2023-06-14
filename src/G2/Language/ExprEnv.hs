@@ -106,6 +106,7 @@ data EnvObj = ExprObj Expr
 
 instance Hashable EnvObj
 
+-- | Maps `Name`s to `Expr`s.  Tracks `Type`s of symbolic variables. 
 newtype ExprEnv = ExprEnv (M.HashMap Name EnvObj)
                   deriving (Show, Eq, Read, Generic, Typeable, Data)
 
@@ -134,7 +135,7 @@ singleton n e = ExprEnv $ M.singleton n (ExprObj e)
 fromList :: [(Name, Expr)] -> ExprEnv
 fromList = ExprEnv . M.fromList . Pre.map (\(n, e) -> (n, ExprObj e))
 
--- Is the `ExprEnv` empty?
+-- | Is the `ExprEnv` empty?
 null :: ExprEnv -> Bool
 null = M.null . unwrapExprEnv
 
@@ -223,12 +224,14 @@ difference :: ExprEnv -> ExprEnv -> ExprEnv
 difference (ExprEnv m1) (ExprEnv m2) =
     ExprEnv $ M.difference m1 m2
 
+-- | Get the union of two `ExprEnv`.  If names overlap, keep the mapping in the left `ExprEnv`.
 union :: ExprEnv -> ExprEnv -> ExprEnv
 union (ExprEnv eenv) (ExprEnv eenv') = ExprEnv $ eenv `M.union` eenv'
 
 union' :: M.HashMap Name Expr -> ExprEnv -> ExprEnv
 union' m (ExprEnv eenv) = ExprEnv (M.map ExprObj m `M.union` eenv)
 
+-- | Get the union of two `ExprEnv`.  If names overlap, use the passed function to get an `EnvObj`.
 unionWith :: (EnvObj -> EnvObj -> EnvObj) -> ExprEnv -> ExprEnv -> ExprEnv
 unionWith f (ExprEnv m1) (ExprEnv m2) =
     ExprEnv $ M.unionWith f m1 m2
@@ -253,11 +256,12 @@ unionWithNameM f (ExprEnv m1) (ExprEnv m2) =
 
 -- | Map a function over all `Expr` in the `ExprEnv`.
 -- Will not replace symbolic variables with non-symbolic values,
--- but will rename symbolic values.
+-- but will rename symbolic values if the passed function
+-- returns a `Var`.
 map :: (Expr -> Expr) -> ExprEnv -> ExprEnv
 map f = mapWithKey (\_ -> f)
 
--- | Maps a function with an arbitrary return type over all `Expr` in the `ExprEnv`, to get a `Data.Map`.
+-- | Maps a function with an arbitrary return type over all `Expr` in the `ExprEnv`, to get a `Data.HashMap`.
 map' :: (Expr -> a) -> ExprEnv -> M.HashMap Name a
 map' f = mapWithKey' (\_ -> f)
 

@@ -1,5 +1,8 @@
+-- | A union-find data structure.
 -- Based on:
+-- 
 -- A Persistent Union-Find Data Structure
+--
 -- by Sylvain Conchon and Jean-Cristophe Filliatre
 
 {-# OPTIONS_GHC -fno-warn-orphans -fno-full-laziness #-}
@@ -36,6 +39,7 @@ data UnionFind k = UF { rank :: M.HashMap k Int
                       deriving (Typeable, Data)
 
 {-# NOINLINE empty #-}
+-- | A `UnionFind` with nothing unioned. 
 empty :: UnionFind k
 empty = UF { rank = M.empty
            , parent = unsafePerformIO $ newIORef M.empty }
@@ -45,9 +49,17 @@ empty = UF { rank = M.empty
 fromList :: (Eq k, Hashable k) => [[k]] -> UnionFind k
 fromList = foldr unions empty
 
+unions :: (Eq k, Hashable k) => [k] -> UnionFind k -> UnionFind k
+unions ks uf = foldr (uncurry union) uf prod
+    where prod = [(k1, k2) | k1 <- ks, k2 <- ks]
+
+-- | Convert a `UnionFind` into a list of lists.
+-- Elements in the same list in the returned list were unioned in the `UnionFind`. 
 toList :: (Eq k, Hashable k) => UnionFind k -> [[k]]
 toList = map S.toList . S.toList . toSet
 
+-- | Convert a `UnionFind` into a `S.HashSet` of `S.HashSet`s.
+-- Elements in the same `S.HashSet` in the returned `S.HashSet` were unioned in the `UnionFind`. 
 toSet :: (Eq k, Hashable k) => UnionFind k -> S.HashSet (S.HashSet k)
 toSet uf =
     let
@@ -57,6 +69,7 @@ toSet uf =
     S.fromList . map (\(k, v) -> S.insert k v) $ M.toList m
 
 {-# NOINLINE union #-}
+-- | @`union` k1 k2 uf@ unions the keys @k1@ and @k2@ in @uf@.
 union :: (Eq k, Hashable k) => k -> k -> UnionFind k -> UnionFind k
 union x y h =
     let
@@ -86,11 +99,7 @@ union x y h =
                            , parent = par_h' } 
         else h
 
-unions :: (Eq k, Hashable k) => [k] -> UnionFind k -> UnionFind k
-unions ks uf = foldr (uncurry union) uf prod
-    where prod = [(k1, k2) | k1 <- ks, k2 <- ks]
-
--- | Take the union of two @UnionFind@s, by taking the union of any overlapping sets.
+-- | Take the union of two `UnionFind`s, by taking the union of any overlapping sets.
 {-# NOINLINE unionOfUFs #-}
 unionOfUFs :: (Eq k, Hashable k) => UnionFind k -> UnionFind k -> UnionFind k
 unionOfUFs uf1 (UF { parent = par }) = unsafePerformIO $ do
@@ -98,6 +107,7 @@ unionOfUFs uf1 (UF { parent = par }) = unsafePerformIO $ do
     return $ M.foldrWithKey union uf1 par'
 
 {-# NOINLINE find #-}
+-- | @`find` k uf@ returns the representative of @k@ in @uf@.
 find :: (Eq k, Hashable k) => k -> UnionFind k -> k
 find x h =
     unsafePerformIO (do

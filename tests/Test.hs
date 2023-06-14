@@ -180,6 +180,8 @@ testFileTests = testGroup "TestFiles"
     , checkExprAssumeAssert "tests/TestFiles/AssumeAssert.hs" 400
         (Just "assumeGt5") (Just "assertGt5") "outShouldBeGe5" [Exactly 0]
 
+    , checkInputOutputs "tests/TestFiles/Char.hs" [ ("char", 400, [Exactly 2]) ]
+
     , checkExpr "tests/TestFiles/CheckSq.hs" 400 "checkSq"
         [AtLeast 2, RExists (\[x, _] -> isInt x (\x' -> x' == 3 || x' == -3))]
 
@@ -358,6 +360,8 @@ extensionTests = testGroup "Extensions"
                                                                          , ("funcArg", 400, [AtLeast 2])
                                                                          
                                                                          , ("consArrow", 400, [AtLeast 2]) ]
+    , checkInputOutputs "tests/TestFiles/Extensions/ViewPatterns1.hs" [ ("shapeToNumSides", 4000, [Exactly 4]) ]
+
     ]
 
 baseTests ::  TestTree
