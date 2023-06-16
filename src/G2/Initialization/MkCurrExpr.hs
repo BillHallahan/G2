@@ -10,6 +10,7 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 
 import Data.List
+import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
@@ -144,9 +145,12 @@ pickForTyVar kv ts
 
 
 instantiateTCDict :: TypeClasses -> [(Id, Type)] -> Type -> Maybe Expr
-instantiateTCDict tc it tyapp@(TyApp _ (TyVar i)) | TyCon n _ <- tyAppCenter tyapp =
-    return . Var =<< lookupTCDict tc n =<< lookup i it
-instantiateTCDict _ _ _ = Nothing
+instantiateTCDict tc it tyapp@(TyApp _ t) | TyCon n _ <- tyAppCenter tyapp =
+    let
+        t' = applyTypeMap (M.fromList $ map (\(Id n _, t) -> (n,t)) it) t
+    in
+    return . Var =<< lookupTCDict tc n t'
+instantiateTCDict _ _ t = Nothing
 
 checkReaches :: ExprEnv -> KnownValues -> Maybe T.Text -> Maybe T.Text -> ExprEnv
 checkReaches eenv _ Nothing _ = eenv

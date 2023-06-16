@@ -4,19 +4,14 @@ module FlexibleContexts1 where
 
 class F a where
     f :: a -> a
-    g :: a -> a
-
+    
 instance F [Char] where
     f [] = []
     f (x:xs) = x:x:xs
 
-    g = id
-
 instance F [Float] where
     f [] = []
     f (x:xs) = x + 1:xs
-
-    g = id
     
 callF :: F a => a -> a
 callF = f
