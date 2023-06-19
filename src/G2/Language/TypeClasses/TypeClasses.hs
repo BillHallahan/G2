@@ -187,7 +187,8 @@ satisfyTCReq :: TypeClasses -> Id -> [Type] -> [Type]
 satisfyTCReq tc i = filter (isFor i) . filter (isTypeClass tc)
     where
       isFor :: Id -> Type -> Bool
-      isFor ii (TyApp _ a) = ii `elem` tyVarIds a
+      isFor ii (TyVar tvi) = ii == tvi
+      isFor ii (TyApp _ a) = isFor ii a -- ii `elem` tyVarIds a
       isFor _ _ = False
 
 toMap :: TypeClasses -> M.HashMap Name Class
