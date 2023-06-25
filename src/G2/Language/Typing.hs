@@ -368,11 +368,11 @@ specializes = specializes' M.empty
 
 specializes' :: M.Map Name Type -> Type -> Type -> Maybe (M.Map Name Type)
 specializes' m _ TYPE = Just m
-specializes' m t (TyVar (Id n _)) =
+specializes' m t (TyVar (Id n vt)) =
     case M.lookup n m of
         Just t' | t == t' -> Just m
                 | otherwise -> Nothing
-        Nothing -> Just (M.insert n t m)
+        Nothing -> M.insert n t <$> specializes' m (typeOf t) vt
 specializes' m (TyFun t1 t2) (TyFun t1' t2') = do
     m' <- specializes' m t1 t1'
     specializes' m' t2 t2'

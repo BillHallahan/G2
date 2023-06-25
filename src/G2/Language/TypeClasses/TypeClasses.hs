@@ -184,12 +184,12 @@ tyFunToTyApp t = modifyChildren tyFunToTyApp t
 
 -- | Finds the names of the required typeclasses for a TyVar Id
 satisfyTCReq :: TypeClasses -> Id -> [Type] -> [Type]
-satisfyTCReq tc i = filter (isFor i) . filter (isTypeClass tc)
+satisfyTCReq tc (Id n _) = filter isFor . filter (isTypeClass tc)
     where
-      isFor :: Id -> Type -> Bool
-      isFor ii (TyVar tvi) = ii == tvi
-      isFor ii (TyApp _ a) = isFor ii a -- ii `elem` tyVarIds a
-      isFor _ _ = False
+      isFor :: Type -> Bool
+      isFor (TyVar (Id n' _)) = n == n'
+      isFor (TyApp a1 a2) = isFor a1 || isFor a2
+      isFor _ = False
 
 toMap :: TypeClasses -> M.HashMap Name Class
 toMap = coerce

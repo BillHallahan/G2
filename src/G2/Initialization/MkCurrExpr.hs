@@ -125,7 +125,8 @@ instantitateTypes tc kv ts =
         ts' = mapMaybe (\case AnonType t -> Just t; NamedType _ -> Nothing) ts
         tcSat = snd $ mapAccumL (\ts'' i ->
                                 let
-                                    pt = pickForTyVar kv $ satisfyingTCTypes kv tc i ts''
+                                    sat = satisfyingTCTypes kv tc i ts''
+                                    pt = pickForTyVar kv sat
                                 in
                                 (replaceTyVar (idName i) pt ts'', (i, pt))) ts' tv
 
