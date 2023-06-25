@@ -123,16 +123,19 @@ instantitateTypes tc kv ts =
 
         -- Get non-TyForAll type reqs, identify typeclasses
         ts' = mapMaybe (\case AnonType t -> Just t; NamedType _ -> Nothing) ts
-        tcSat = map (\i -> (i, satisfyingTCTypes kv tc i ts')) tv
+        tcSat = snd $ mapAccumL (\ts'' i ->
+                                let
+                                    pt = pickForTyVar kv $ satisfyingTCTypes kv tc i ts''
+                                in
+                                (replaceTyVar (idName i) pt ts'', (i, pt))) ts' tv
 
-        -- TyForAll type reqs
-        tv' = map (\(i, ts'') -> (i, pickForTyVar kv ts'')) tcSat
-        tvt = map (\(i, t) -> (TyVar i, t)) tv'
-        -- Dictionary arguments
-        vi = mapMaybe (instantiateTCDict tc tv') ts'
+        -- Get dictionary arguments
+        vi = mapMaybe (instantiateTCDict tc tcSat) ts'
 
-        ex = map (Type . snd) tv' ++ vi
-        tss = filter (not . isTypeClass tc) $ foldr (uncurry replaceASTs) ts' tvt
+        ex = map (Type . snd) tcSat ++ vi
+        tss = filter (not . isTypeClass tc)
+            . foldr (uncurry replaceASTs) ts'
+            $ map (\(i, t) -> (TyVar i, t)) tcSat
     in
     (ex, tss)
 
@@ -147,10 +150,10 @@ pickForTyVar kv ts
 instantiateTCDict :: TypeClasses -> [(Id, Type)] -> Type -> Maybe Expr
 instantiateTCDict tc it tyapp@(TyApp _ t) | TyCon n _ <- tyAppCenter tyapp =
     let
-        t' = applyTypeMap (M.fromList $ map (\(Id n _, t) -> (n,t)) it) t
+        t' = applyTypeMap (M.fromList $ map (\(Id ni _, ti) -> (ni,ti)) it) t
     in
     return . Var =<< lookupTCDict tc n t'
-instantiateTCDict _ _ t = Nothing
+instantiateTCDict _ _ _ = Nothing
 
 checkReaches :: ExprEnv -> KnownValues -> Maybe T.Text -> Maybe T.Text -> ExprEnv
 checkReaches eenv _ Nothing _ = eenv

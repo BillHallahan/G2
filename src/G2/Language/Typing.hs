@@ -41,6 +41,7 @@ module G2.Language.Typing
     , tyVarNames
     , numArgs
 
+    , replaceTyVar
     , applyTypeMap
     , applyTypeHashMap
 
@@ -389,6 +390,13 @@ specializes' m _ TyUnknown = Just m
 specializes' m TyBottom _ = Just m
 specializes' _ _ TyBottom = Nothing
 specializes' m t1 t2 = if t1 == t2 then Just m else Nothing
+
+replaceTyVar :: ASTContainer e Type => Name -> Type -> e -> e
+replaceTyVar n t = modifyASTs (replaceTyVar' n t)
+
+replaceTyVar' :: Name -> Type -> Type -> Type
+replaceTyVar' n t  (TyVar (Id n' _)) | n == n' = t
+replaceTyVar' _ _ t = t
 
 applyTypeMap :: ASTContainer e Type => M.Map Name Type -> e -> e
 applyTypeMap m = modifyASTs (applyTypeMap' m)
