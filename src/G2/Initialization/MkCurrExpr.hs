@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings #-}
 
 module G2.Initialization.MkCurrExpr ( mkCurrExpr
                                     , checkReaches
@@ -10,6 +10,7 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 
 import Data.List
+import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
 
@@ -118,20 +119,24 @@ instantiateArgTypes tc kv e =
 instantitateTypes :: TypeClasses -> KnownValues -> [ArgType] -> ([Expr], [Type])
 instantitateTypes tc kv ts = 
     let
-        tv = map (typeNamedId) $ filter (typeNamed) ts
+        tv = mapMaybe (\case NamedType i -> Just i; AnonType _ -> Nothing) ts
 
         -- Get non-TyForAll type reqs, identify typeclasses
-        ts' = map typeAnonType $ filter (not . typeNamed) ts
-        tcSat = map (\i -> (i, satisfyingTCTypes kv tc i ts')) tv
+        ts' = mapMaybe (\case AnonType t -> Just t; NamedType _ -> Nothing) ts
+        tcSat = snd $ mapAccumL (\ts'' i ->
+                                let
+                                    sat = satisfyingTCTypes kv tc i ts''
+                                    pt = pickForTyVar kv sat
+                                in
+                                (replaceTyVar (idName i) pt ts'', (i, pt))) ts' tv
 
-        -- TyForAll type reqs
-        tv' = map (\(i, ts'') -> (i, pickForTyVar kv ts'')) tcSat
-        tvt = map (\(i, t) -> (TyVar i, t)) tv'
-        -- Dictionary arguments
-        vi = mapMaybe (instantiateTCDict tc tv') ts'
+        -- Get dictionary arguments
+        vi = mapMaybe (instantiateTCDict tc tcSat) ts'
 
-        ex = map (Type . snd) tv' ++ vi
-        tss = filter (not . isTypeClass tc) $ foldr (uncurry replaceASTs) ts' tvt
+        ex = map (Type . snd) tcSat ++ vi
+        tss = filter (not . isTypeClass tc)
+            . foldr (uncurry replaceASTs) ts'
+            $ map (\(i, t) -> (TyVar i, t)) tcSat
     in
     (ex, tss)
 
@@ -144,21 +149,12 @@ pickForTyVar kv ts
 
 
 instantiateTCDict :: TypeClasses -> [(Id, Type)] -> Type -> Maybe Expr
-instantiateTCDict tc it tyapp@(TyApp _ (TyVar i)) | TyCon n _ <- tyAppCenter tyapp =
-    return . Var =<< lookupTCDict tc n =<< lookup i it
+instantiateTCDict tc it tyapp@(TyApp _ t) | TyCon n _ <- tyAppCenter tyapp =
+    let
+        t' = applyTypeMap (M.fromList $ map (\(Id ni _, ti) -> (ni,ti)) it) t
+    in
+    return . Var =<< lookupTCDict tc n t'
 instantiateTCDict _ _ _ = Nothing
-
-typeNamedId :: ArgType -> Id
-typeNamedId (NamedType i) = i
-typeNamedId (AnonType _) = error "No Id in T"
-
-typeAnonType :: ArgType -> Type
-typeAnonType (NamedType _) = error "No type in NamedType"
-typeAnonType (AnonType t) = t 
-
-typeNamed :: ArgType -> Bool
-typeNamed (NamedType _) = True
-typeNamed _ = False
 
 checkReaches :: ExprEnv -> KnownValues -> Maybe T.Text -> Maybe T.Text -> ExprEnv
 checkReaches eenv _ Nothing _ = eenv

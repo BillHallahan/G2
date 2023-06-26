@@ -361,7 +361,11 @@ extensionTests = testGroup "Extensions"
                                                                          
                                                                          , ("consArrow", 400, [AtLeast 2]) ]
     , checkInputOutputs "tests/TestFiles/Extensions/ViewPatterns1.hs" [ ("shapeToNumSides", 4000, [Exactly 4]) ]
-
+    , checkInputOutputs "tests/TestFiles/Extensions/FlexibleContexts1.hs" [ ("callF", 400, [AtLeast 2])
+                                                                          , ("callF2", 400, [AtLeast 2])
+                                                                          , ("callF3", 400, [AtLeast 2])
+                                                                          , ("callG", 400, [AtLeast 1])
+                                                                          , ("callG2", 400, [AtLeast 1]) ]
     ]
 
 baseTests ::  TestTree
@@ -543,7 +547,7 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
         assertBool ("Assume/Assert for file " ++ src
                                     ++ " with functions [" ++ (fromMaybe "" m_assume) ++ "] "
                                     ++ "[" ++ (fromMaybe "" m_assert) ++ "] "
-                                    ++  entry ++ " failed.\n")
+                                    ++  entry ++ " failed.\n" ++ show res)
                    ch
         )
 
