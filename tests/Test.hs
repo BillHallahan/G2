@@ -547,7 +547,7 @@ checkExprWithConfig src m_assume m_assert m_reaches entry reqList config_f = do
         assertBool ("Assume/Assert for file " ++ src
                                     ++ " with functions [" ++ (fromMaybe "" m_assume) ++ "] "
                                     ++ "[" ++ (fromMaybe "" m_assert) ++ "] "
-                                    ++  entry ++ " failed.\n")
+                                    ++  entry ++ " failed.\n" ++ show res)
                    ch
         )
 

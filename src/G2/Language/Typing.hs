@@ -307,6 +307,7 @@ instance Typed Type where
             at = typeOf' m t2
         in
         case (ft, at) of
+            ((TyForAll _ t2'), _) -> t2'
             ((TyFun _ t2'), _) -> t2'
             ((TyApp t1' _), _) -> t1'
             _ -> error $ "Overapplied Type\n" ++ show t1 ++ "\n" ++ show t2 ++ "\n\n" ++ show ft ++ "\n" ++ show at
