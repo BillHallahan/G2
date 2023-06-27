@@ -472,9 +472,14 @@ symbVars' eenv (Id n _) = E.isSymbolic n eenv
 freeVars :: ASTContainer m Expr => E.ExprEnv -> m -> [Id]
 freeVars eenv = evalASTsMonoid (freeVars' eenv)
 
+freeAltMatch :: AltMatch -> [Id]
+freeAltMatch (DataAlt _ is) = is
+freeAltMatch _ = []
+
 freeVars' :: E.ExprEnv -> [Id] -> Expr -> ([Id], [Id])
 freeVars' _ _ (Let b _) = (map fst b, [])
 freeVars' _ _ (Lam _ b _) = ([b], [])
+freeVars' _ _ (Case _ b _ alt) = (b:concatMap (freeAltMatch . altMatch) alt, [])
 freeVars' eenv bound (Var i) =
     if E.member (idName i) eenv || i `elem` bound then
         ([], [])

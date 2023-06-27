@@ -19,7 +19,8 @@ data NebulaConfig = NC { limit :: Int
                        , print_summary :: SummaryMode
                        , use_labeled_errors :: UseLabeledErrors
                        , log_states :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
-                       , sync :: Bool }
+                       , sync :: Bool 
+                       , symbolic_unmapped :: Bool}
 
 data SummaryMode = SM { have_summary :: Bool
                       , have_history :: Bool

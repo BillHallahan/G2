@@ -44,6 +44,7 @@ library
                        , G2.Equiv.Types
                        , G2.Equiv.Generalize
                        , G2.Equiv.Summary
+                       , G2.Equiv.Uninterpreted
 
                        , G2.Execution
                        , G2.Execution.Interface

@@ -1,2 +1,3 @@
 packages: .
           ./../../../../g2.cabal
+          ./../Import/Import.cabal

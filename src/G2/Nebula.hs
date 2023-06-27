@@ -73,7 +73,7 @@ nebulaPluginPass' m_entry nebula_config env modguts = do
                                      (\_ ng _ _ _ _ _ -> (Prim Undefined TyBottom, [], [], ng))
                                      (E.higherOrderExprs . IT.expr_env)
                                      config
-
+    
     let total = []
     case m_entry of
         Just entry -> do
