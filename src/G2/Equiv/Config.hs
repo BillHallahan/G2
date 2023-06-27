@@ -76,6 +76,7 @@ mkNebulaConfig = NC
         <*> flag UseLabeledErrors NoLabeledErrors (long "no-labeled-errors" <> help "disable labeled errors, treating all errors as equivalent")
         <*> mkLogMode
         <*> flag False True (long "sync" <> help "sync the left and right expressions prior to symbolic execution")
+        <*> flag True False (long "sym-unmapped" <> help "automatically treat unmapped function as symbolic")
 
 mkSummaryMode :: Parser SummaryMode
 mkSummaryMode =

@@ -14,6 +14,7 @@ import G2.Interface
 
 import qualified Control.Monad.State.Lazy as CM
 
+
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.CallGraph as G
 import qualified G2.Language.Typing as T
@@ -34,6 +35,7 @@ import G2.Equiv.G2Calls
 import G2.Equiv.Tactics
 import G2.Equiv.Generalize
 import G2.Equiv.Summary
+import G2.Equiv.Uninterpreted 
 
 import qualified Data.Map as M
 import G2.Execution.Memory
@@ -762,8 +764,11 @@ checkRule :: Config
           -> RewriteRule
           -> IO (S.Result () () ())
 checkRule config nc init_state bindings total rule = do
-  let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
-      (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
+  let init_state' = if symbolic_unmapped nc 
+                    then  init_state {expr_env = addFreeVarsAsSymbolic (expr_env init_state)}
+                    else init_state
+      (rewrite_state_l, bindings') = initWithLHS init_state' bindings $ rule
+      (rewrite_state_r, bindings'') = initWithRHS init_state' bindings' $ rule
       sym_ids = ru_bndrs rule
       total_names = filter (includedName total) (map idName sym_ids)
       total_hs = foldr HS.insert HS.empty total_names
