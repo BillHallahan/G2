@@ -3,7 +3,7 @@
 # Three arguments needed:
 # first argument is the python file
 # second argument is the directory that contain all the package that contain rules
-# third argument is the location of g2 in one's computer so we can 
+# third argument is the location of g2 in one's computer
 import os 
 import sys
 import re
@@ -12,6 +12,7 @@ import tempfile
 def changing_cabal(directory):
     found_ghc = False
     found_build = False
+    extension_to_check = ['library','test-suite','executable']
     for root, dirs, files in os.walk(directory):
         for file_name in files:
             # process for replace cabal file 
@@ -24,19 +25,24 @@ def changing_cabal(directory):
                 # writing information of the cabal file into a temp file and then replace the build depends
                 try:
                     with open(file_path,'r') as file, open(temp_path,'a') as temp_file:
-                        for line in file:
+                        lines = file.readlines()
+                        # reading two lines together 
+                        for line,next_line in zip(lines,lines[1:]):
                             search_build_depends = re.search("Build-Depends:",line,re.IGNORECASE)
                             if search_build_depends:
                                 print("The build-depends before update is " + line)
-                                line = line.replace(search_build_depends.group(), search_build_depends.group() + " g2 >= 0.1.0.2 ",1)
+                                line = line.replace(search_build_depends.group(), search_build_depends.group() + " g2 >= 0.1.0.2, ",1)
                                 print("The build-depends after update is " + line)
                                 found_build = True
-                            search_ghc_option = re.search("ghc-options:",line,re.IGNORECASE)
-                            if  search_ghc_option:
-                                print('the ghc before update is ' + line + '\n')
-                                line = line.replace(search_ghc_option.group(), search_ghc_option.group() + "  -fplugin=G2.Nebula -fplugin-opt=G2.Nebula:--limit -fplugin-opt=G2.Nebula:10 ",1) + '\n'
-                                print("the ghc option after update is " + line)
-                                found_ghc = True
+                            for extension in extension_to_check:
+                                if line.startswith(extension):
+                             # finding the correct amount of whitespace to insert in the next line 
+                                    without_whitespace = next_line.lstrip()
+                                    whitespace_amount = len(next_line) - len(without_whitespace)
+                                    line = line + "\n" + " " * whitespace_amount +  "ghc-options:  -fplugin=G2.Nebula -fplugin-opt=G2.Nebula:--limit -fplugin-opt=G2.Nebula:10" + "\n"
+                                    print("Chaging line for ghc-option")
+                                    print("the line after changing is " + line )
+                                    found_ghc = True
                             temp_file.write(line)
                     #writing build-depends and ghc-option in case of not founding those
                     with open(temp_path, 'a+') as temp:
@@ -71,7 +77,7 @@ def changing_project(directory,g2_location):
         temp_path_info =  tempfile.mkstemp(dir=os.path.dirname(directory))
         temp_path = temp_path_info[1]
         with open(temp_path,'w') as temp:
-            temp.write("packages: " + g2_location + "\n")
+            temp.write('packages: . ' +  '\n' + '\t' + g2_location + '\n')
         os.rename(temp_path,directory+"/cabal.project")
         #print('Finished creating a cabal.project in ' + os.path.dirname(directory))
     # if there is one, simply adding a new line indicating the location of g2 in one's computer
@@ -79,7 +85,7 @@ def changing_project(directory,g2_location):
         cabal_project = directory + '/cabal.project'
         print('we did have a cabal project in directory ' + directory)
         with open(cabal_project,'a') as file:
-            file.write('\n' + 'packages: ' + g2_location + '\n')
+            file.write('\n' + 'packages: . ' +  '\n' + "\t" + g2_location + "\n")
 
 def starter(home_directory,g2_location):
      for filename in os.listdir(directory):
@@ -96,7 +102,7 @@ def starter(home_directory,g2_location):
 # main:
 args = sys.argv
 if len(args) != 3:
-    raise Exception("Invalid number of commands provided.")
+    raise Exception("Invalid number of commands provided. The first argument is the script name. The second argument is the directory contain all the package that have rules. The third argument describe g2's location in one's computer.")
 directory = sys.argv[1]
 g2_location = sys.argv[2]
 starter(directory,g2_location)
