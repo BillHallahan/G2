@@ -12,6 +12,7 @@ import tempfile
 def changing_cabal(directory):
     found_ghc = False
     found_build = False
+    extension_to_check = ['library','test-suite','executable']
     for root, dirs, files in os.walk(directory):
         for file_name in files:
             # process for replace cabal file 
@@ -24,19 +25,24 @@ def changing_cabal(directory):
                 # writing information of the cabal file into a temp file and then replace the build depends
                 try:
                     with open(file_path,'r') as file, open(temp_path,'a') as temp_file:
-                        for line in file:
+                        lines = file.readlines()
+                        # reading two lines together 
+                        for line,next_line in zip(lines,lines[1:]):
                             search_build_depends = re.search("Build-Depends:",line,re.IGNORECASE)
                             if search_build_depends:
                                 print("The build-depends before update is " + line)
                                 line = line.replace(search_build_depends.group(), search_build_depends.group() + " g2 >= 0.1.0.2, ",1)
                                 print("The build-depends after update is " + line)
                                 found_build = True
-                            search_ghc_option = re.search("ghc-options:",line,re.IGNORECASE)
-                            if  search_ghc_option:
-                                print('the ghc before update is ' + line + '\n')
-                                line = line.replace(search_ghc_option.group(), search_ghc_option.group() + "  -fplugin=G2.Nebula -fplugin-opt=G2.Nebula:--limit -fplugin-opt=G2.Nebula:10 ",1) + '\n'
-                                print("the ghc option after update is " + line)
-                                found_ghc = True
+                            for extension in extension_to_check:
+                                if line.startswith(extension):
+                             # finding the correct amount of whitespace to insert in the next line 
+                                    without_whitespace = next_line.lstrip()
+                                    whitespace_amount = len(next_line) - len(without_whitespace)
+                                    line = line + "\n" + " " * whitespace_amount +  "ghc-options:  -fplugin=G2.Nebula -fplugin-opt=G2.Nebula:--limit -fplugin-opt=G2.Nebula:10" + "\n"
+                                    print("Chaging line for ghc-option")
+                                    print("the line after changing is " + line )
+                                    found_ghc = True
                             temp_file.write(line)
                     #writing build-depends and ghc-option in case of not founding those
                     with open(temp_path, 'a+') as temp:
