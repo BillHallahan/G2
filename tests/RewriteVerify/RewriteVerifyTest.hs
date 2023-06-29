@@ -50,6 +50,7 @@ nebulaConfig = NC { limit = 20
                   , print_summary = SM False False False
                   , use_labeled_errors = UseLabeledErrors
                   , log_states = NoLog
+                  , symbolic_unmapped = False
                   , sync = False}
 
 good_names :: [String]
