@@ -39,8 +39,10 @@ def runZ3():
     return runOther("z3", z3GetTime, ["time"])
 
 def z3GetTime(res, res_err):
-    time = re.match("\s*(\d*\.\d*)", res_err)
-    return time.group(1)
+    time_re = re.match("\s*(\d*\.\d*)", res_err)
+    time = time_re.group(1)
+    print(time)
+    return time
 
 def runCHC():
     return runOther("./tests/LiquidInf/Paper/Eval/chc_verifier", chcGetTime)
