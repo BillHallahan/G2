@@ -24,6 +24,7 @@ module G2.Language.ExprEnv
     , isSymbolic
     , occLookup
     , lookupNameMod
+    , nameModMap
     , insert
     , insertSymbolic
     , insertExprs
@@ -195,6 +196,9 @@ occLookup n m (ExprEnv eenv) =
 lookupNameMod :: T.Text -> Maybe T.Text -> ExprEnv -> Maybe (Name, Expr)
 lookupNameMod ns ms =
     listToMaybe . L.filter (\(Name n m _ _, _) -> ns == n && ms == m) . toExprList
+
+nameModMap :: ExprEnv -> M.HashMap (T.Text, Maybe T.Text) (Name, Expr)
+nameModMap = M.fromList . L.map (\(n@(Name n' m _ _), e) -> ((n', m), (n, e))) . toExprList
 
 -- | Looks  up a `Name` in the `ExprEnv`.  Crashes if the `Name` is not found.
 (!) :: ExprEnv -> Name -> Expr
