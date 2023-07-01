@@ -154,6 +154,7 @@ def test_pos_folder(folder, timeout, extra_opts=[], skip = []):
 
     log = []
 
+    all_files.sort()
     for file in all_files:
         if file in skip:
             continue;
