@@ -180,14 +180,13 @@ getAbstracted g2call solver simplifier share s bindings abs_fc@(FuncCall { funcN
                     s { curr_expr = CurrExpr Evaluate strict_call
                       , track = ([] :: [FuncCall], False)}
 
-        let pres = HS.fromList $ namesList s' ++ namesList bindings
         (er, bindings') <- g2call 
                               (SomeReducer ((nonRedPCRed .|. nonRedPCRedConst)
                                                 <~| (stdRed share retReplaceSymbFuncVar solver simplifier <~ hitsLibErrorGatherer)))
                               (SomeHalter (swhnfHalter <~> acceptOnlyOneHalter <~> switchEveryNHalter 200))
                               (SomeOrderer (incrAfterN 2000 (adtSizeOrderer 0 Nothing)))
                               solver simplifier
-                              (emptyMemConfig { pres_func = \_ _ _ -> pres })
+                              PreserveAllMC
                               s' bindings
 
         case er of
