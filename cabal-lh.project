@@ -1,0 +1,13 @@
+if impl(ghc >= 9.2.4) && impl(ghc <= 9.2.7)
+    packages: .
+
+    source-repository-package
+        type: git
+        location: https://github.com/ucsd-progsys/liquidhaskell
+        tag: fc4a89b91fad8b7a02b72901381d4358a470e230
+        subdir: . liquidhaskell-boot liquid-prelude liquid-vector
+
+    source-repository-package
+        type: git
+        location: https://github.com/ucsd-progsys/liquid-fixpoint
+        tag: eb339f9abdf073f8d9f0c446c309006fdf49ed42

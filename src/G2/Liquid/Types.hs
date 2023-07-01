@@ -143,7 +143,42 @@ type GhcSpec= LT.TargetSpec
 
 pattern GI{giSrc,giSpec} = LT.TargetInfo giSrc giSpec
 
+pattern SP 
+  { gsSig
+  , gsQual
+  , gsData
+  , gsName
+  , gsVars
+  , gsTerm
+  , gsRefl
+  , gsLaws
+  , gsImps        
+  , gsConfig                  
+  } = LT.TargetSpec gsSig gsQual gsData gsName gsVars gsTerm gsRefl gsLaws gsImps gsConfig                  
+#endif
 
+#if MIN_VERSION_liquidhaskell(0,9,02)
+pattern Src
+  { giTarget
+  , giTargetMod
+  , giCbs
+  , gsTcs
+  , gsCls
+  , giDerVars
+  , giImpVars
+  , giDefVars
+  , giUseVars
+  , gsExports
+  , gsFiTcs
+  , gsFiDcs
+  , gsPrimTcs
+  , gsQualImps
+  , gsAllImps
+  , gsTyThings
+  } = LT.TargetSrc giTarget giTargetMod giCbs gsTcs gsCls giDerVars giImpVars
+                   giDefVars giUseVars gsExports gsFiTcs gsFiDcs gsPrimTcs gsQualImps
+                   gsAllImps gsTyThings
+#elif MIN_VERSION_liquidhaskell(0,8,10)
 pattern Src
   { giIncDir
   , giTarget
@@ -165,23 +200,6 @@ pattern Src
   } = LT.TargetSrc giIncDir giTarget giTargetMod giCbs gsTcs gsCls giDerVars giImpVars
                    giDefVars giUseVars gsExports gsFiTcs gsFiDcs gsPrimTcs gsQualImps
                    gsAllImps gsTyThings
-
-
-
-
-pattern SP 
-  { gsSig
-  , gsQual
-  , gsData
-  , gsName
-  , gsVars
-  , gsTerm
-  , gsRefl
-  , gsLaws
-  , gsImps        
-  , gsConfig                  
-  } = LT.TargetSpec gsSig gsQual gsData gsName gsVars gsTerm gsRefl gsLaws gsImps gsConfig                  
-
 #endif
 
 data LHOutput = LHOutput { ghcI :: GhcInfo

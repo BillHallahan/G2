@@ -27,10 +27,15 @@ import Language.Haskell.Liquid.Types
 import Language.Haskell.Liquid.UX.CmdLine
 import Text.PrettyPrint.HughesPJ
 
+#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
+import GHC.Types.SourceError
+#elif MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
+import GHC.Driver.Types
+#endif
+
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import GHC.Core
 import GHC.Types.Var as V
-import GHC.Driver.Types
 
 import Liquid.GHC.Interface
 import Liquid.GHC.Misc
