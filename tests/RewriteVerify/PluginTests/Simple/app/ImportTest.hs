@@ -12,6 +12,8 @@ import Import
 myId :: a -> a
 myId x = x
 
+
+{-# NOINLINE foo #-}
 foo :: SomeType->Int 
 foo (SomeType x) = x 
 
