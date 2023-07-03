@@ -32,6 +32,6 @@ library
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
-    build-depends:    base >=4.12.0.0
+    build-depends:    base >=4.8.0.0
     hs-source-dirs:   app
     default-language: Haskell2010
