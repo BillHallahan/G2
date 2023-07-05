@@ -1,7 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module G2.Liquid.Inference.GeneratedSpecs ( GeneratedSpecs
+module G2.Liquid.Inference.GeneratedSpecs ( GeneratedSpecs (..)
                                           , emptyGS
                                           , namesGS
 

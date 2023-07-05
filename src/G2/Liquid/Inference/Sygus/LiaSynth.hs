@@ -574,9 +574,71 @@ sySpecNamesForModel sys =
 modelToGS :: M.Map Name SpecInfo -> SMTModel -> GeneratedSpecs
 modelToGS m_si mdl =
   let
-      lh_spec = M.map (\si -> buildLIA_LH si mdl) . M.filter (\si -> s_status si == Synth) $ m_si
+      lh_spec = M.map (\si -> liftTupleSpecs si $ buildLIA_LH si mdl) . M.filter (\si -> s_status si == Synth) $ m_si
   in
   M.foldrWithKey insertAssertGS emptyGS lh_spec
+
+-- | Only use measures for tuple specs
+liftTupleSpecs :: SpecInfo -> [PolyBound LHF.Expr] -> [PolyBound LHF.Expr]
+liftTupleSpecs si  = map (uncurry3 liftTupleSpecs')
+                   . zip3 (s_type_pre si ++ [s_type_post si]) (s_syn_pre si ++ [s_syn_post si])
+
+liftTupleSpecs' :: Type -> PolyBound SynthSpec -> PolyBound LHF.Expr -> PolyBound LHF.Expr
+liftTupleSpecs' t sy_spec pbe | Just i <- tupleCount (tyAppCenter t) =
+                                    liftTupleSpecs'' i
+                                                     (map lh_rep . sy_rets $ headValue sy_spec)
+                                                     (headValue pbe)
+                                                     (removeHead sy_spec)
+                                                     (removeHead pbe)
+                              | otherwise = pbe
+
+tupleCount :: Type -> Maybe Int
+tupleCount (TyCon (Name n _ _ _) _)
+    | Just ('(', _) <- T.uncons n
+    , T.last n == ')'
+    , T.all (== ',') (T.init $ T.tail n) = Just (T.length n - 2)
+tupleCount _ = Nothing
+
+liftTupleSpecs'' :: Int
+                 -> [LH.Expr] -- ^ Tuple extractors, i.e. x_Tuple##
+                 -> LH.Expr
+                 -> [PolyBound SynthSpec]
+                 -> [PolyBound LHF.Expr]
+                 -> PolyBound LH.Expr
+liftTupleSpecs'' tuple_size extractors e pb_syspec pb_e =
+    let
+        extract_ns = map (\j -> LHF.symbol $ "x_Tuple" ++ show tuple_size ++ show j) [1..tuple_size]
+        e' = map (uncurry3 liftTupleSpecs''') $ zip3 extractors (map headValue pb_syspec) (map headValue pb_e)
+    in
+    PolyBound (PAnd $ e:e') $ map (\(PolyBound _ ps) -> PolyBound LHF.PTrue ps) pb_e
+
+liftTupleSpecs''' :: LHF.Expr -> SynthSpec -> LHF.Expr -> LHF.Expr
+liftTupleSpecs''' _ (SynthSpec { sy_rets = [] }) = id
+liftTupleSpecs''' extracter (SynthSpec { sy_rets = (SpecArg { lh_rep = rep }):_}) = go
+    where
+        go e | e == rep = extracter
+        go e@(ESym _) = e
+        go e@(ECon _) = e
+        go e@(EVar _) = e
+        go (EApp e1 e2) = EApp (go e1) (go e2)
+        go (ENeg e) = ENeg (go e)
+        go (EBin bop e1 e2) = EBin bop (go e1) (go e2)
+        go (EIte e1 e2 e3) = EIte (go e1) (go e2) (go e3)
+        go (ECst e s) = ECst (go e) s
+        go (ELam sy e) = ELam sy (go e)
+        go (ETApp e s) = ETApp (go e) s
+        go (ETAbs e s) = ETAbs (go e) s
+        go (PAnd es) = PAnd (map go es)
+        go (POr es) = POr (map go es)
+        go (PNot e) = PNot (go e)
+        go (PImp e1 e2) = PImp (go e1) (go e2)
+        go (PIff e1 e2) = PIff (go e1) (go e2)
+        go (PAtom brel e1 e2) = PAtom brel (go e1) (go e2)
+        go e@(PKVar _ _) = e
+        go (PAll s e) = PAll s (go e)
+        go (PExist s e) = PExist s (go e)
+        go (PGrad k sub g e) = PGrad k sub g (go e)
+        go (ECoerc s1 s2 e) = ECoerc s1 s2 (go e)
 
 -- | Generates an Assert that, when added to a formula with the relevant variables,
 -- blocks it from returning the model
