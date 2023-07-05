@@ -61,7 +61,7 @@ def runOther(tool, getTime, pre=[]):
     
     for file in all_files:
         print(file)
-        args = pre + ["gtimeout", "1", tool, "tests/LiquidInf/Paper/Eval/Compare_CHC/" + file]
+        args = pre + ["gtimeout", "600", tool, "tests/LiquidInf/Paper/Eval/Compare_CHC/" + file]
         res = subprocess.run(args, capture_output = True);
         out = res.stdout.decode('utf-8')
         err = res.stderr.decode('utf-8')
@@ -87,7 +87,7 @@ def main():
     log_z3 = runZ3()
     log_chc = runCHC()
 
-    (log_haskell, safe_compare, num_compare) = eval.test_pos_folder("tests/LiquidInf/Paper/Eval/Compare", "10", ["--use-invs"]);
+    (log_haskell, safe_compare, num_compare) = eval.test_pos_folder("tests/LiquidInf/Paper/Eval/Compare", "600", ["--use-invs"]);
     print(str(safe_compare) + "/" + str(num_compare) + " Safe");
 
     eval.create_table(log_haskell)
