@@ -367,7 +367,8 @@ negInfTests = testGroup "Tests"
 cexInfTests :: TestTree
 cexInfTests = testGroup "Tests"
             [ cexTest "tests_lh/test_files/CEx/CEx1.hs" "zipWith"
-            , cexTest "tests_lh/test_files/CEx/CEx2.hs" "mapReduce" ]
+            , cexTest "tests_lh/test_files/CEx/CEx2.hs" "mapReduce"
+            , cexTest "tests_lh/test_files/CEx/CEx3.hs" "kmeans1" ]
 
 todoTests :: TestTree
 todoTests = testGroup "To Do"
