@@ -21,6 +21,7 @@ import G2.Language
 import qualified G2.Language.KnownValues as KV
 import G2.Language.Monad
 import qualified G2.Language.ExprEnv as E
+import G2.Language.TypeEnv
 import G2.Liquid.Types
 import G2.Translation.Haskell
 
@@ -97,15 +98,19 @@ copyIds n1 n2 dm@(DictMaps { lh_dicts = lhd
 -- | A mapping of variable names to the corresponding types
 type BoundTypes = HM.HashMap Name Type
 
-mergeLHSpecState :: [(Var.Var, LocSpecType)] -> LHStateM ()
-mergeLHSpecState = mapM_ (uncurry mergeLHSpecState')
+type NMExprEnv = HM.HashMap (T.Text, Maybe T.Text) (Name, Expr)
 
-mergeLHSpecState' :: Var.Var -> LocSpecType -> LHStateM ()
-mergeLHSpecState' v lst = do
+mergeLHSpecState :: [(Var.Var, LocSpecType)] -> LHStateM ()
+mergeLHSpecState var_st = do
     eenv <- exprEnv
+    let nm_eenv = E.nameModMap eenv
+    mapM_ (uncurry (mergeLHSpecState' nm_eenv)) var_st
+
+mergeLHSpecState' :: NMExprEnv -> Var.Var -> LocSpecType -> LHStateM ()
+mergeLHSpecState' nm_eenv v lst = do
     let
         (Id (Name n m _ _) _) = mkIdUnsafe v
-        g2N = E.lookupNameMod n m eenv
+        g2N = HM.lookup (n, m) nm_eenv
 
     case g2N of
         Just (n', e) -> do
@@ -785,6 +790,10 @@ convertEVar nm@(Name n md _ _) bt mt
            | Just dc <- getDataConNameMod' tenv nm -> return $ Data dc
            | Just t <- mt -> return $ Var (Id nm t)
            | otherwise -> error $ "convertEVar: Required type not found" ++ "\n" ++ show n ++ "\nbt = " ++ show bt
+    where
+        getDataConNameMod' tenv n = find (flip dataConHasNameMod n) $ concatMap dataCon $ HM.elems tenv
+        dataConHasNameMod (DataCon (Name n m _ _) _) (Name n' m' _ _) = n == n' && m == m'
+
 
 convertCon :: Maybe Type -> Constant -> LHStateM Expr
 convertCon (Just (TyCon n _)) (Ref.I i) = do

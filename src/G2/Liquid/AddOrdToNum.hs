@@ -145,7 +145,7 @@ ordDictFunc = do
                     Just ndc -> dataCon ndc
                     Nothing -> error "ordDictFunc: No NumDC"
 
-    let numA = dataConArgs numDC'
+    let numA = anonArgumentTypes numDC'
 
     lamI <- freshIdN numT
     caseI <- freshIdN numT

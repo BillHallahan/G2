@@ -32,21 +32,16 @@ module G2.Language.Typing
     , specializes
     , specializes'
     , hasFuncType
-    , appendType
     , higherOrderFuncs
     , isTYPE
     , isTyFun
     , hasTYPE
     , isTyVar
-    , hasTyBottom
-    , tyVars
     , tyVarIds
     , tyVarNames
-    , hasTyFuns
-    , isPolyFunc
-    , isPolyType
     , numArgs
 
+    , replaceTyVar
     , applyTypeMap
     , applyTypeHashMap
 
@@ -59,10 +54,8 @@ module G2.Language.Typing
     , tyForAllBindings
     , anonArgumentTypes
     , returnType
-    , polyIds
     , splitTyForAlls
     , splitTyFuns
-    , retypeSelective
     , retype
     , retypeRespectingTyForAll
     , mapInTyForAlls
@@ -120,8 +113,7 @@ tyUnit kv = TyCon (KV.tyUnit kv) (TyFun TYPE TYPE)
 tyTYPE :: KV.KnownValues -> Type
 tyTYPE _ = TYPE
 
--- | mkTyFun
--- Turns the Expr list into an application spine
+-- | Turns the Expr list into an application spine
 mkTyFun :: [Type] -> Type
 mkTyFun [] = error "mkTyFun: empty list"
 mkTyFun [t] = t
@@ -159,13 +151,12 @@ mkFullAppedTyCon n ts k =
     in
     mkTyApp $ TyCon n tsk:ts
 
--- | unTyApp
--- Unravels the application spine.
+-- | Unravels the application spine of (nested) `TyApp`s.
 unTyApp :: Type -> [Type]
 unTyApp (TyApp t t') = unTyApp t ++ [t']
 unTyApp t = [t]
 
--- | Typed typeclass.
+-- | Typeclass for things that have type information.
 class Typed a where
     typeOf :: a -> Type
     typeOf = typeOf' M.empty
@@ -316,6 +307,7 @@ instance Typed Type where
             at = typeOf' m t2
         in
         case (ft, at) of
+            ((TyForAll _ t2'), _) -> t2'
             ((TyFun _ t2'), _) -> t2'
             ((TyApp t1' _), _) -> t1'
             _ -> error $ "Overapplied Type\n" ++ show t1 ++ "\n" ++ show t2 ++ "\n\n" ++ show ft ++ "\n" ++ show at
@@ -334,17 +326,6 @@ newtype PresType = PresType Type deriving (Show, Read)
 
 instance Typed PresType where
     typeOf' _ (PresType t) = t
-
--- | Retypes Types in Vars, Type Expr's, Coercions, and Casts
-retypeSelective :: (ASTContainer m Expr, Show m) => Id -> Type -> m -> m
-retypeSelective key new e = modifyASTs (retypeSelective' key new) $ e
-
-retypeSelective' :: Id -> Type -> Expr -> Expr
-retypeSelective' i t (Var v) = Var (retype i t v)
-retypeSelective' i t (Type t') = Type (retype' i t t')
-retypeSelective' i t (Cast e c) = Cast e (retype i t c)
-retypeSelective' i t (Coercion c) = Coercion (retype i t c)
-retypeSelective' _ _ e = e
 
 -- | Retyping
 -- We look to see if the type we potentially replace has a TyVar whose Id is a
@@ -388,11 +369,11 @@ specializes = specializes' M.empty
 
 specializes' :: M.Map Name Type -> Type -> Type -> Maybe (M.Map Name Type)
 specializes' m _ TYPE = Just m
-specializes' m t (TyVar (Id n _)) =
+specializes' m t (TyVar (Id n vt)) =
     case M.lookup n m of
         Just t' | t == t' -> Just m
                 | otherwise -> Nothing
-        Nothing -> Just (M.insert n t m)
+        Nothing -> M.insert n t <$> specializes' m (typeOf t) vt
 specializes' m (TyFun t1 t2) (TyFun t1' t2') = do
     m' <- specializes' m t1 t1'
     specializes' m' t2 t2'
@@ -410,6 +391,13 @@ specializes' m _ TyUnknown = Just m
 specializes' m TyBottom _ = Just m
 specializes' _ _ TyBottom = Nothing
 specializes' m t1 t2 = if t1 == t2 then Just m else Nothing
+
+replaceTyVar :: ASTContainer e Type => Name -> Type -> e -> e
+replaceTyVar n t = modifyASTs (replaceTyVar' n t)
+
+replaceTyVar' :: Name -> Type -> Type -> Type
+replaceTyVar' n t  (TyVar (Id n' _)) | n == n' = t
+replaceTyVar' _ _ t = t
 
 applyTypeMap :: ASTContainer e Type => M.Map Name Type -> e -> e
 applyTypeMap m = modifyASTs (applyTypeMap' m)
@@ -434,13 +422,6 @@ hasFuncType t =
         (TyFun _ _) -> True
         (TyForAll _ _)  -> True
         _ -> False
-
--- | appendType
--- Converts the (function) type t1 to return t2
--- appendType (a -> b) c = (a -> b -> c)
-appendType :: Type -> Type -> Type
-appendType (TyFun t t1) t2 = TyFun t (appendType t1 t2)
-appendType t1 t2 = TyFun t1 t2
 
 -- | higherOrderFuncs
 -- Returns all internal higher order function types
@@ -474,29 +455,6 @@ isTyFun :: Type -> Bool
 isTyFun (TyFun _ _) = True
 isTyFun _ = False
 
--- | isPolyFunc
--- Checks if the given function is a polymorphic function
-isPolyFunc ::  Typed t => t -> Bool
-isPolyFunc = isPolyFunc' . typeOf
-
-isPolyFunc' :: Type -> Bool
-isPolyFunc' (TyForAll _ _) = True
-isPolyFunc' _ = False
-
-
--- | Checks if the given type is polymorphic
-isPolyType :: Typed t => t -> Bool
-isPolyType = not . null . tyVars . typeOf
-
--- tyVars
--- Returns a list of all tyVars
-tyVars :: ASTContainer m Type => m -> [Type]
-tyVars = evalASTs tyVars'
-
-tyVars' :: Type -> [Type]
-tyVars' t@(TyVar _) = [t]
-tyVars' _ = []
-
 -- | Returns a list of all tyVars Ids
 tyVarIds :: ASTContainer m Type => m -> [Id]
 tyVarIds = evalASTs tyVarIds'
@@ -509,23 +467,7 @@ tyVarIds' _ = []
 tyVarNames :: ASTContainer m Type => m -> [Name]
 tyVarNames = map idName . tyVarIds
 
--- | hasTyFuns
-hasTyFuns :: ASTContainer m Type => m -> Bool
-hasTyFuns = getAny . evalASTs hasTyFuns'
-
-hasTyFuns' :: Type -> Any
-hasTyFuns' (TyFun _ _) = Any True
-hasTyFuns' _ = Any False
-
--- hasTyBottom
-hasTyBottom :: ASTContainer m Type => m -> Bool
-hasTyBottom = getAny . evalASTs hasTyBottom'
-
-hasTyBottom' :: Type -> Any
-hasTyBottom' TyBottom = Any True
-hasTyBottom' _ = Any False
-
--- | numArgs
+-- | Computes the number of type and value level arguments 
 numArgs :: Typed t => t -> Int
 numArgs = length . argumentTypes
 
@@ -588,10 +530,6 @@ returnType' (TyForAll _ t) = returnType' t
 returnType' (TyFun _ t) = returnType' t
 returnType' t = t
 
--- | Returns all polymorphic Ids in the given type
-polyIds :: Type -> [Id]
-polyIds = fst . splitTyForAlls
-
 -- | Turns TyForAll types into a list of type ids
 splitTyForAlls :: Type -> ([Id], Type)
 splitTyForAlls (TyForAll i t) =
@@ -600,7 +538,6 @@ splitTyForAlls (TyForAll i t) =
     in
     (i:i', t')
 splitTyForAlls t = ([], t)
-
 
 -- | Turns TyFun types into a list of types
 splitTyFuns :: Type -> [Type]

@@ -318,7 +318,8 @@ mkLitHaskell (LitInt i) = T.pack $ if i < 0 then "(" <> show i <> ")" else show 
 mkLitHaskell (LitInteger i) = T.pack $ if i < 0 then "(" <> show i <> ")" else show i
 mkLitHaskell (LitFloat r) = "(" <> T.pack (show ((fromRational r) :: Float)) <> ")"
 mkLitHaskell (LitDouble r) = "(" <> T.pack (show ((fromRational r) :: Double)) <> ")"
-mkLitHaskell (LitChar c) = T.pack ['\'', c, '\'']
+mkLitHaskell (LitChar c) | isPrint c = T.pack ['\'', c, '\'']
+                         | otherwise = "(chr " <> T.pack (show $ ord c) <> ")"
 mkLitHaskell (LitString s) = T.pack s
 
 mkPrimHaskell :: Primitive -> T.Text
@@ -368,14 +369,22 @@ mkTypeHaskell = mkTypeHaskellPG (mkPrettyGuide ())
 
 mkTypeHaskellPG :: PrettyGuide -> Type -> T.Text
 mkTypeHaskellPG pg (TyVar i) = mkIdHaskell pg i
-mkTypeHaskellPG pg (TyFun t1 t2) = mkTypeHaskellPG pg t1 <> " -> " <> mkTypeHaskellPG pg t2
+mkTypeHaskellPG _ TyLitInt = "Int#"
+mkTypeHaskellPG _ TyLitFloat = "Float#"
+mkTypeHaskellPG _ TyLitDouble = "Double#"
+mkTypeHaskellPG _ TyLitChar = "Char#"
+mkTypeHaskellPG _ TyLitString = "String#"
+mkTypeHaskellPG pg (TyFun t1 t2)
+    | isTyFun t1 = "(" <> mkTypeHaskellPG pg t1 <> ") -> " <> mkTypeHaskellPG pg t2
+    | otherwise = mkTypeHaskellPG pg t1 <> " -> " <> mkTypeHaskellPG pg t2
 mkTypeHaskellPG pg (TyCon n _) | nameOcc n == "List"
                                , nameModule n == Just "GHC.Types" = "[]"
                                | otherwise = mkNameHaskell pg n
 mkTypeHaskellPG pg (TyApp t1 t2) = "(" <> mkTypeHaskellPG pg t1 <> " " <> mkTypeHaskellPG pg t2 <> ")"
 mkTypeHaskellPG pg (TyForAll i t) = "forall " <> mkIdHaskell pg i <> " . " <> mkTypeHaskellPG pg t
+mkTypeHaskellPG _ TyBottom = "Bottom"
 mkTypeHaskellPG _ TYPE = "Type"
-mkTypeHaskellPG _ t = "Unsupported type in printer. " <> T.pack (show t)
+mkTypeHaskellPG _ (TyUnknown) = "Unknown"
 
 duplicate :: T.Text -> Int -> T.Text
 duplicate _ 0 = ""
@@ -404,6 +413,8 @@ prettyState pg s =
         , pretty_paths
         , "----- [Non Red Paths] ---------------------"
         , pretty_non_red_paths
+        , "----- [Typeclasses] ---------------------"
+        , pretty_tc
         , "----- [True Assert] ---------------------"
         , T.pack (show (true_assert s))
         , "----- [Assert FC] ---------------------"
@@ -419,6 +430,7 @@ prettyState pg s =
         pretty_eenv = prettyEEnv pg (expr_env s)
         pretty_paths = prettyPathConds pg (path_conds s)
         pretty_non_red_paths = prettyNonRedPaths pg (non_red_path_conds s)
+        pretty_tc = prettyTypeClasses pg (type_classes s)
         pretty_assert_fcs = maybe "None" (printFuncCallPG pg) (assert_ids s)
         pretty_names = prettyGuideStr pg
 
@@ -456,13 +468,22 @@ prettyCEAction pg (EnsureEq e) = "EnsureEq " <> mkDirtyExprHaskell pg e
 prettyCEAction _ NoAction = "NoAction"
 
 prettyEEnv :: PrettyGuide -> ExprEnv -> T.Text
-prettyEEnv pg =
-  T.intercalate "\n\n" . map (\(n, e) -> mkNameHaskell pg n <> " = " <> printEnvObj pg e ) . E.toList
+prettyEEnv pg eenv = T.intercalate "\n\n"
+                   . map (uncurry printFunc)
+                   . E.toList $ eenv
+    where
+        printFunc n e = mkNameHaskell pg n <> " :: " <> mkTypeHaskellPG pg (envObjType eenv e)
+                            <> "\n" <> mkNameHaskell pg n <> " = " <> printEnvObj pg e
 
 printEnvObj :: PrettyGuide -> E.EnvObj -> T.Text
 printEnvObj pg (E.ExprObj e) = mkDirtyExprHaskell pg e
 printEnvObj pg (E.SymbObj (Id _ t)) = "symbolic " <> mkTypeHaskellPG pg t
 printEnvObj pg (E.RedirObj n) = "redir to " <> mkNameHaskell pg n
+
+envObjType :: ExprEnv -> E.EnvObj -> Type
+envObjType _ (E.ExprObj e) = typeOf e
+envObjType _ (E.SymbObj (Id _ t)) = t
+envObjType eenv (E.RedirObj n) = maybe (TyCon (Name "???" Nothing 0 Nothing) TYPE) typeOf $ E.lookup n eenv
 
 prettyPathConds :: PrettyGuide -> PathConds -> T.Text
 prettyPathConds pg = T.intercalate "\n" . map (prettyPathCond pg) . PC.toList
@@ -487,6 +508,20 @@ prettyPathCond pg (AssumePC i l pc) =
 
 prettyNonRedPaths :: PrettyGuide -> [(Expr, Expr)] -> T.Text
 prettyNonRedPaths pg = T.intercalate "\n" . map (\(e1, e2) -> mkDirtyExprHaskell pg e1 <> " == " <> mkDirtyExprHaskell pg e2)
+
+prettyTypeClasses :: PrettyGuide -> TypeClasses -> T.Text
+prettyTypeClasses pg = T.intercalate "\n" . map (\(n, tc) -> mkNameHaskell pg n <> " = " <> prettyClass pg tc) . HM.toList . toMap
+
+prettyClass :: PrettyGuide -> Class -> T.Text
+prettyClass pg cls =
+    let
+        sc = T.intercalate ", " $ map (\(t, i) -> mkTypeHaskellPG pg t <> " " <> mkIdHaskell pg i) (superclasses cls)
+        ti = T.intercalate " " . map (mkIdHaskell pg) $ typ_ids cls
+        ins = T.intercalate "\n\t\t" $ map (\(t, i) -> mkTypeHaskellPG pg t <> " " <> mkIdHaskell pg i) (insts cls)
+    in
+       "\n\tsuper_classes = " <> sc
+    <> "\n\ttype_ids = " <> ti
+    <> "\n\tinsts = " <> ins
 
 -------------------------------------------------------------------------------
 

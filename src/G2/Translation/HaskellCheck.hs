@@ -87,10 +87,13 @@ loadToCheck proj src modN gflags = do
         let coerceN = mkModuleName "Data.Coerce"
         let coerceImD = simpleImportDecl coerceN
 
+        let charN = mkModuleName "Data.Char"
+        let charD = simpleImportDecl charN
+
         let mdN = mkModuleName modN
         let imD = simpleImportDecl mdN
 
-        setContext [IIDecl prImD, IIDecl exImD, IIDecl coerceImD, IIDecl imD]
+        setContext [IIDecl prImD, IIDecl exImD, IIDecl coerceImD, IIDecl imD, IIDecl charD]
 
 simpVar :: T.Text -> Expr
 simpVar s = Var (Id (Name s Nothing 0 Nothing) TyBottom)

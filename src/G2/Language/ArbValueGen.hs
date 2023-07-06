@@ -17,6 +17,7 @@ import qualified Data.HashMap.Lazy as HM
 import Data.Ord
 import Data.Tuple
 
+-- | A default `ArbValueGen`.
 arbValueInit :: ArbValueGen
 arbValueInit = ArbValueGen { intGen = 0
                            , floatGen = 0
@@ -34,8 +35,7 @@ type ArbValueFunc = Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
 charGenInit :: [Char]
 charGenInit = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9']
 
--- | arbValue
--- Allows the generation of arbitrary values of the given type.
+-- | Allows the generation of arbitrary values of the given type.
 -- Cuts off recursive ADTs with a Prim Undefined
 -- Returns a new ArbValueGen that (in the case of the primitives)
 -- will give a different value the next time arbValue is called with
@@ -43,15 +43,13 @@ charGenInit = ['a'..'z'] ++ ['A'..'Z'] ++ ['0'..'9']
 arbValue :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
 arbValue t tenv = arbValue' getFiniteADT HM.empty t tenv
 
--- | arbValue
--- Allows the generation of arbitrary values of the given type.
+-- | Allows the generation of arbitrary values of the given type.
 -- Cuts off recursive ADTs with a Prim Undefined
 -- Returns a new ArbValueGen that is identical to the passed ArbValueGen
 constArbValue :: Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
 constArbValue = constArbValue' getFiniteADT HM.empty
 
--- | arbValue
--- Allows the generation of arbitrary values of the given type.
+-- | Allows the generation of arbitrary values of the given type.
 -- Does not always cut off recursive ADTs.
 -- Returns a new ArbValueGen that (in the case of the primitives)
 -- will give a different value the next time arbValue is called with
@@ -192,14 +190,14 @@ getADT cutoff m tenv av adt ts
     | dcs <- dataCon adt
     , _:_ <- dcs =
         let
-            ids = boundIds adt
+            ids = bound_ids adt
 
             -- Finds the DataCon for adt with the least arguments
-            min_dc = minimumBy (comparing (length . dataConArgs)) dcs
+            min_dc = minimumBy (comparing (length . anonArgumentTypes)) dcs
 
             m' = foldr (uncurry HM.insert) m $ zip (map idName ids) ts
 
-            (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite' (cutoff - 1) m' (applyTypeHashMap m' t) tenv av_) av $ dataConArgs min_dc
+            (av', es) = mapAccumL (\av_ t -> swap $ arbValueInfinite' (cutoff - 1) m' (applyTypeHashMap m' t) tenv av_) av $ anonArgumentTypes min_dc
 
             final_av = if cutoff >= 0 then av' else av
         in

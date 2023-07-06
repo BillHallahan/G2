@@ -182,7 +182,7 @@ arbDC use_labels tenv ng t n total
         let
             dcs = dataCon adt
 
-            bound = boundIds adt
+            bound = bound_ids adt
             bound_ts = zip bound ts
 
             (err_lab, ng') = freshLabeledError ng

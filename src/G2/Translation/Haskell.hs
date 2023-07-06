@@ -721,7 +721,6 @@ mkTyCon nm tm t = case dcs of
                         (nm, tm', Just $ G2.TypeSynonym { G2.bound_ids = tv'
                                                         , G2.synonym_of = st'})
                     False -> (nm, tm, Nothing)
-    -- dcs = if isDataTyCon t then map mkData . data_cons . algTyConRhs $ t else []
 
 mkTyConName :: G2.TypeNameMap -> TyCon -> G2.Name
 mkTyConName tm tc =

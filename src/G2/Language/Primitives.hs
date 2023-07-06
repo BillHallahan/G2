@@ -1,7 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
-
-module G2.Language.Primitives ( strToPrim
-                              , mkGe
+module G2.Language.Primitives ( mkGe
                               , mkGt
                               , mkEq
                               , mkNeq
@@ -36,32 +33,6 @@ module G2.Language.Primitives ( strToPrim
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues as KV
 import G2.Language.Syntax
-
-import qualified Data.Text as T
-
-strToPrim :: T.Text -> Maybe Primitive
-strToPrim "not" = Just Not
-strToPrim "&&" = Just And
-strToPrim "||" = Just Or
-strToPrim ">=" = Just Ge
-strToPrim ">" = Just Gt
-strToPrim "==" = Just Eq
-strToPrim "/=" = Just Neq
-strToPrim "<=" = Just Le
-strToPrim "<" = Just Lt
-strToPrim "+" = Just Plus
-strToPrim "-" = Just Minus
-strToPrim "*" = Just Mult
-strToPrim "quot" = Just Quot
-strToPrim "/" = Just Div
-strToPrim "mod" = Just Mod
-strToPrim "negate" = Just Negate
-strToPrim "abs" = Just Abs
-strToPrim "sqrt" = Just SqRt
-strToPrim "error" = Just Error
-strToPrim "implies" = Just Implies
-strToPrim "iff" = Just Iff
-strToPrim _ = Nothing
 
 mkGe :: KnownValues -> E.ExprEnv -> Expr
 mkGe kv eenv = eenv E.! (geFunc kv)

@@ -28,6 +28,9 @@ source-repository head
 library
   exposed-modules:       
                          G2.Config
+                       , G2.Config.Config
+                       , G2.Config.Interface
+                       , G2.Config.ParseConfig
 
                        , G2.Data.Timer
                        , G2.Data.UFMap
@@ -66,6 +69,8 @@ library
                        , G2.Initialization.Types
 
                        , G2.Interface
+                       , G2.Interface.Interface
+                       , G2.Interface.OutputTypes
 
                        , G2.Language
                        , G2.Language.AlgDataTy
@@ -114,10 +119,17 @@ library
                        , G2.Preprocessing.Interface
                        , G2.Preprocessing.NameCleaner
 
+                       , G2.Postprocessing.NameSwitcher
+
                        , G2.Solver
+                       , G2.Solver.ADTNumericalSolver
+                       , G2.Solver.Converters
                        , G2.Solver.Interface
+                       , G2.Solver.Language
                        , G2.Solver.Maximize
+                       , G2.Solver.ParseSMT
                        , G2.Solver.Simplifier
+                       , G2.Solver.SMT2
                        , G2.Solver.Solver
 
                        , G2.QuasiQuotes.Internals.G2Rep
@@ -130,6 +142,13 @@ library
                        , G2.Translation
                        , G2.Translation.Cabal.Cabal
                        , G2.Translation.GHC
+                       , G2.Translation.Haskell
+                       , G2.Translation.HaskellCheck
+                       , G2.Translation.InjectSpecials
+                       , G2.Translation.Interface
+                       , G2.Translation.PrimInject
+                       , G2.Translation.TransTypes
+
   if flag(support-lh) && impl(ghc < 9.2)
       exposed-modules: 
                            G2.Liquid.AddCFBranch
@@ -171,28 +190,6 @@ library
                          , G2.Liquid.Inference.Verify
                          , G2.Liquid.Inference.GeneratedSpecs
                          , G2.Liquid.Inference.QualifGen
-
-  other-modules:         G2.Config.Config
-                       , G2.Config.Interface
-                       , G2.Config.ParseConfig
-
-                       , G2.Interface.Interface
-                       , G2.Interface.OutputTypes
-
-                       , G2.Postprocessing.NameSwitcher
-
-                       , G2.Solver.ADTNumericalSolver
-                       , G2.Solver.Converters
-                       , G2.Solver.Language
-                       , G2.Solver.ParseSMT
-                       , G2.Solver.SMT2
-
-                       , G2.Translation.Haskell
-                       , G2.Translation.HaskellCheck
-                       , G2.Translation.InjectSpecials
-                       , G2.Translation.Interface
-                       , G2.Translation.PrimInject
-                       , G2.Translation.TransTypes
 
   build-depends:         array >= 0.5.1.1 && <= 0.5.5.0 
                        , Cabal >= 2.0.1.0 && < 3.11

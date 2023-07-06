@@ -14,6 +14,7 @@ import G2.Translation.Haskell
 
 import Control.Monad.Extra
 
+import Data.List
 import Data.Maybe
 import qualified GHC as GHC
 
@@ -130,12 +131,8 @@ convertDefs [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})
     , st_t <- tyAppArgs l_t
     , dc' <- mkData HM.empty HM.empty dc = do
     tenv <- typeEnv
-    let 
-        -- (TyCon tn _) = tyAppCenter $ returnType $ PresType t
-        -- dc' = getDataConNameMod tenv tn n
-        
+    let         
         -- See [1] below, we only evaluate this if Just
-        -- dc''@(DataCon _ dct) = fromJust dc'
         dc''@(DataCon _ dct) = fixNamesDC tenv dc'
         bnds = tyForAllBindings $ PresType dct
         dctarg = anonArgumentTypes $ PresType dct
@@ -173,6 +170,9 @@ fixNamesType' tenv (TyCon n k) =
         Just n' -> TyCon n' k
         Nothing -> error "fixNamesType: Bad Type"
 fixNamesType' _ t = t
+
+getTypeNameMod :: TypeEnv -> Name -> Maybe Name
+getTypeNameMod tenv (Name n m _ _) = find (\(Name n' m' _ _) -> n == n' && m == m') $ HM.keys tenv
 
 mkExprFromBody :: Maybe Type -> LHDictMap -> BoundTypes -> Body -> LHStateM Expr
 mkExprFromBody ret m bt (E e) = convertLHExpr (mkDictMaps m) bt ret e

@@ -18,7 +18,6 @@ module G2.Language.TypeClasses.TypeClasses ( TypeClasses
                                            , tcDicts
                                            , typeClassInst
                                            , satisfyingTCTypes
-                                           , satisfyingTC
                                            , toMap) where
 
 import G2.Language.AST
@@ -31,6 +30,7 @@ import Data.Coerce
 import Data.Data (Data, Typeable)
 import Data.Hashable
 import Data.List
+import qualified Data.Map.Lazy as MM
 import qualified Data.HashMap.Lazy as M
 import Data.Maybe
 import Data.Monoid ((<>))
@@ -77,27 +77,32 @@ affectedType :: Type -> Maybe Type
 affectedType (TyApp _ t) = Just t
 affectedType _ = Nothing
 
+-- | Is there a typeclass with the given `Name`?
 isTypeClassNamed :: Name -> TypeClasses -> Bool
 isTypeClassNamed n = M.member n . (coerce :: TypeClasses -> TCType)
 
+-- | Is the given type a type class?
 isTypeClass :: TypeClasses -> Type -> Bool
 isTypeClass tc (TyCon n _) = isTypeClassNamed n tc 
 isTypeClass tc (TyApp t _) = isTypeClass tc t
 isTypeClass _ _ = False
 
--- Returns the dictionary for the given typeclass and Type,
--- if one exists
-lookupTCDict :: TypeClasses -> Name -> Type -> Maybe Id
+-- | Returns the dictionary for the given typeclass and Type,
+-- if one exists.
+lookupTCDict :: TypeClasses
+             -> Name -- ^ `Name` of the typeclass to look for
+             -> Type -- ^ The `Type` you want a dictionary for
+             -> Maybe Id
 lookupTCDict tc n t =
     case fmap insts $ M.lookup n (toMap tc) of
         Just c -> fmap snd $ find (\(t', _) -> PresType t .:: t') c
         Nothing -> Nothing
 
+-- | Given a typeclass `Name`, gives an association list of
+-- `Type`s that have instances of that typeclass, and the
+-- typeclass dictionaries.
 lookupTCDicts :: Name -> TypeClasses -> Maybe [(Type, Id)]
 lookupTCDicts n = fmap insts . M.lookup n . coerce
-
-lookupTCDictsTypes :: TypeClasses -> Name -> Maybe [Type]
-lookupTCDictsTypes tc = fmap (map fst) . flip lookupTCDicts tc
 
 lookupTCClass :: Name -> TypeClasses -> Maybe Class
 lookupTCClass n = M.lookup n . coerce
@@ -133,7 +138,7 @@ typeClassInst tc m tcn t
     | tca@(TyCon _ _) <- tyAppCenter t
     , ts <- tyAppArgs t
     , tcs <- map (typeClassInst tc m tcn) ts
-    , all (isJust) tcs =
+    , all isJust tcs =
         case lookupTCDict tc tcn tca of
             Just i -> Just (foldl' App (Var i) $ map Type ts ++ map fromJust tcs)
             Nothing -> Nothing
@@ -146,19 +151,27 @@ typeClassInst tc m tcn t
             Nothing -> Nothing
 typeClassInst _ _ _ _ = Nothing
 
--- satisfyingTCTypes
--- Finds types/dict pairs that satisfy the given TC requirements for the given polymorphic argument
--- returns a list of acceptable types
-satisfyingTCTypes :: KnownValues -> TypeClasses -> Id -> [Type] -> [Type]
+-- | Finds `Type`s that satisfy the given typeclass requirements for the given polymorphic argument.
+-- Returns "Int" by default if there are no typeclass requirements.
+satisfyingTCTypes :: KnownValues
+                  -> TypeClasses
+                  -> Id -- ^ The type variable to look for possible instantiations of 
+                  -> [Type] -- ^ Function arguments to satisfy typeclass requirements for
+                  -> [Type]
 satisfyingTCTypes kv tc i ts =
     let
         tcReq = satisfyTCReq tc i ts
     in
-    substKind i . inter kv $ mapMaybe (lookupTCDictsTypes tc) tcReq
-
-inter :: KnownValues -> [[Type]] -> [Type]
-inter kv [] = [tyInt kv]
-inter _ xs = foldr1 intersect xs
+    case mapMaybe lookupTCDictsTypes tcReq of
+        [] -> [tyInt kv]
+        xs -> substKind i $ foldr1 intersect xs
+    where
+        lookupTCDictsTypes (TyApp t1 t2) =
+              fmap (mapMaybe (\t' -> MM.lookup (idName i) =<< specializes t' t2))
+            . fmap (map fst)
+            . flip lookupTCDicts tc
+            =<< (tyConAppName . tyAppCenter $ t1)
+        lookupTCDictsTypes _ = Nothing
 
 substKind :: Id -> [Type] -> [Type]
 substKind (Id _ t) ts = map (\t' -> case t' of 
@@ -169,27 +182,14 @@ tyFunToTyApp :: Type -> Type
 tyFunToTyApp (TyFun t1 (TyFun t2 t3)) = TyApp (TyApp (tyFunToTyApp t1) (tyFunToTyApp t2)) (tyFunToTyApp t3)
 tyFunToTyApp t = modifyChildren tyFunToTyApp t
 
--- satisfyingTCReq
--- Finds the names of the required typeclasses for a TyVar Id
--- See satisfyingTCTypes
-satisfyTCReq :: TypeClasses -> Id -> [Type] -> [Name]
-satisfyTCReq tc i =
-    mapMaybe (tyConAppName . tyAppCenter) . filter (isFor i) . filter (isTypeClass tc)
+-- | Finds the names of the required typeclasses for a TyVar Id
+satisfyTCReq :: TypeClasses -> Id -> [Type] -> [Type]
+satisfyTCReq tc (Id n _) = filter isFor . filter (isTypeClass tc)
     where
-      isFor :: Id -> Type -> Bool
-      isFor ii (TyApp _ a) = ii `elem` tyVarIds a
-      isFor _ _ = False
-
--- Given a list of type arguments and a mapping of TyVar Ids to actual Types
--- Gives the required TC's to pass to any TC arguments
-satisfyingTC :: TypeClasses -> [Type] -> Id -> Type -> [Expr]
-satisfyingTC  tc ts i t =
-    let
-        tcReq = satisfyTCReq tc i ts
-    in
-    map (\n -> case lookupTCDict tc n t of
-                    Just i' -> Var i'
-                    Nothing -> error "No typeclass found.") tcReq
+      isFor :: Type -> Bool
+      isFor (TyVar (Id n' _)) = n == n'
+      isFor (TyApp a1 a2) = isFor a1 || isFor a2
+      isFor _ = False
 
 toMap :: TypeClasses -> M.HashMap Name Class
 toMap = coerce
