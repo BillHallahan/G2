@@ -37,8 +37,10 @@ subModel (State { expr_env = eenv
                                 Just e@(Lam _ _ _) -> Just . Var $ Id n (typeOf e)
                                 Just e -> Just e
                                 Nothing -> Nothing) inputNames
+        
+        sv = subVar False m eenv tc (is, cexpr, ais')
     in
-    untilEq (simplifyLams . pushCaseAppArgIn) $ subVar False m eenv tc (is, cexpr, ais')
+    untilEq (simplifyLams . pushCaseAppArgIn) sv
     where
         untilEq f x = let x' = f x in if x == x' then x' else untilEq f x'
 

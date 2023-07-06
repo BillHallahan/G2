@@ -225,6 +225,7 @@ data AbstractedInfo = AbstractedInfo { init_call :: Abstracted
                                      , ai_all_calls :: [L.FuncCall]
 
                                      , ai_higher_order_calls :: [L.FuncCall] }
+                                     deriving (Eq, Show, Read)
 
 mapAbstractedFCs :: (L.FuncCall -> L.FuncCall) ->  Abstracted -> Abstracted
 mapAbstractedFCs f (Abstracted { abstract = a
