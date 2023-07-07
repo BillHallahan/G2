@@ -76,7 +76,7 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
     , Just (AssertFrame is _, stck') <- S.pop stck =
         return (RuleError, [s { exec_stack = stck'
                               , true_assert = True
-                              , assert_ids = is }], ng)
+                              , assert_ids = fmap (\fc -> fc { returns = Prim Error TyBottom }) is }], ng)
     | Just (UpdateFrame n, stck') <- frstck = return $ retUpdateFrame s ng n stck'
     | isError ce
     , Just (_, stck') <- S.pop stck = return (RuleError, [s { exec_stack = stck' }], ng)

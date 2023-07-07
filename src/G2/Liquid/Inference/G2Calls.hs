@@ -195,6 +195,7 @@ cleanupResultsInference solver simplifier config init_id bindings ers = do
     (bindings', ers4) <- liftIO $ mapAccumM (reduceCalls runG2ThroughExecutionInference solver simplifier config) bindings ers3
     ers5 <- liftIO $ mapM (checkAbstracted runG2ThroughExecutionInference solver simplifier config init_id bindings') ers4
     ers6 <- liftIO $ mapM (runG2SolvingInference solver simplifier bindings') ers5
+
     let ers7 = 
           map (\er@(ExecRes { final_state = s }) ->
                 (er { final_state =
@@ -494,9 +495,6 @@ runLHInferenceCore entry m lrs ghci = do
     (exec_res, final_bindings) <- liftIO $ SM.evalStateT (runLHG2Inference g2config red hal ord solver simplifier pres_names ifi final_st' bindings) (mkPrettyGuide ())
 
     liftIO $ close solver
-
-    liftIO . print $ input_names final_bindings 
-    liftIO $ putStrLn "end runLHInferenceCore"
 
     return ((exec_res, final_bindings), ifi)
 

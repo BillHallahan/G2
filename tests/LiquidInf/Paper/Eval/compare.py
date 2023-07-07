@@ -84,11 +84,12 @@ def main():
     # log = log_test
     # (log_haskell, safe_compare, num_compare) = eval.test_pos_folder("tests/LiquidInf/Paper/Eval/Compare", "600", ["--use-invs"], skip = skip_list());
 
-    log_z3 = runZ3()
-    log_chc = runCHC()
-
     (log_haskell, safe_compare, num_compare) = eval.test_pos_folder("tests/LiquidInf/Paper/Eval/Compare", "600", ["--use-invs"]);
     print(str(safe_compare) + "/" + str(num_compare) + " Safe");
+
+
+    log_z3 = runZ3()
+    log_chc = runCHC()
 
     eval.create_table(log_haskell)
     eval.create_simple_table(log_haskell)
