@@ -4,15 +4,20 @@
 # first argument is the python file
 # second argument is the directory that contain all the package that contain rules
 # third argument is the location of g2 in one's computer
+
+
 import os 
 import sys
 import re
 import tempfile
+import itertools
 
 def changing_cabal(directory):
     found_ghc = False
     found_build = False
     extension_to_check = ['library','test-suite','executable']
+    # common stanza: binding or expression reused in different parts of the module
+    modularity = ['import'] 
     for root, dirs, files in os.walk(directory):
         for file_name in files:
             # process for replace cabal file 
@@ -27,7 +32,7 @@ def changing_cabal(directory):
                     with open(file_path,'r') as file, open(temp_path,'a') as temp_file:
                         lines = file.readlines()
                         # reading two lines together 
-                        for line,next_line in zip(lines,lines[1:]):
+                        for line,next_line in itertools.zip_longest(lines, lines[1:], fillvalue=''):
                             search_build_depends = re.search("Build-Depends:",line,re.IGNORECASE)
                             if search_build_depends:
                                 print("The build-depends before update is " + line)
@@ -36,22 +41,44 @@ def changing_cabal(directory):
                                 found_build = True
                             for extension in extension_to_check:
                                 if line.startswith(extension):
+                                    for module in modularity:
+                                        next_line_strip = next_line.lstrip()
+                                        if not next_line_strip.startswith(module):
                              # finding the correct amount of whitespace to insert in the next line 
+                                            print("The next line's content " + next_line)
+                                            without_whitespace = next_line.lstrip()
+                                            whitespace_amount = len(next_line) - len(without_whitespace)
+                                            line = line + "\n" + " " * whitespace_amount +  "ghc-options:  -fplugin=G2.Nebula -fplugin-opt=G2.Nebula:--limit -fplugin-opt=G2.Nebula:10" + "\n"
+                                            print("Chaging line for ghc-option")
+                                            print("the line after changing is " + line)
+                                            found_ghc = True
+                            # taking care of the common stanza case 
+                            for module in modularity:
+                                line_without_space = line.lstrip()
+                                if line_without_space.startswith(module):
                                     without_whitespace = next_line.lstrip()
                                     whitespace_amount = len(next_line) - len(without_whitespace)
                                     line = line + "\n" + " " * whitespace_amount +  "ghc-options:  -fplugin=G2.Nebula -fplugin-opt=G2.Nebula:--limit -fplugin-opt=G2.Nebula:10" + "\n"
                                     print("Chaging line for ghc-option")
-                                    print("the line after changing is " + line )
+                                    print("the line after changing is " + line)
                                     found_ghc = True
                             temp_file.write(line)
                     #writing build-depends and ghc-option in case of not founding those
                     with open(temp_path, 'a+') as temp:
-                        if found_build == False:
-                            print("build-depends not found \n")
-                            temp.write( "build-depends: g2 >= 0.1.0.2 " + '\n')
-                        if found_ghc == False:
-                            print("ghc-option not found \n")
-                            temp.write("ghc-options:  -fplugin=G2.Nebula -fplugin-opt=G2.Nebula:--limit -fplugin-opt=G2.Nebula:10")
+                        lines = temp.readlines()
+                        if lines:
+                            # format the ghc option and build-depends against previous line of the file
+                            last_line = lines[-1]
+                            last_line_whitespace = last_line.lstrip()
+                            whitespace_amount = len(last_line) - len(last_line_whitespace)
+                            if found_build == False:
+                                print("build-depends not found \n")
+                                write_line = whitespace_amount * " " + "build-depends: g2 >= 0.1.0.2 " + '\n'
+                                temp.write(write_line)
+                            if found_ghc == False:
+                                print("ghc-option not found \n")
+                                write_line = whitespace_amount * " " + "ghc-options:  -fplugin=G2.Nebula -fplugin-opt=G2.Nebula:--limit -fplugin-opt=G2.Nebula:10"
+                                temp.write(write_line)
                     os.replace(temp_path, file_path)
                 # checking for error just in case and left a error file in the directory 
                 except BaseException:

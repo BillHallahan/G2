@@ -40,16 +40,10 @@ allTypes = evalASTs allTypes'
 
 allTypes' :: Type -> [(Name, Kind)]
 allTypes' t = case t of 
-        TyCon n k -> mapMaybe (\(TyCon n k) -> case n k of 
-                                               (Name text _ _) k -> Just (n, k)
-                                               (Name _ _ _) k -> Nothing
-                                                _  _ -> Nothing) t
-        --data Name = Name T.Text (Maybe T.Text) Int (Maybe Span)
+        TyCon n k -> [(n,k)]
         _ -> []
 
 -- argTypesTEnv :: TypeEnv -> [Type]
--- maybe use argTypesTEnv first to get [Type]
--- then uses allTypes to filter the name, kind pair
--- maybe need tweak for alltypes since allTypes handle only 1 at a time
+-- problem with the types we got list of pair instead of list of [(Name,Kind)]
 freeTypes :: ASTContainer t Type => TypeEnv -> t -> [(Name, Kind)]
-freeTypes typeEnv t = HM.difference . (allTypes t) . (allTypes . T.argTypesTEnv $ typeEnv)
+freeTypes typeEnv t = HM.toList $ HM.difference (HM.fromList $ allTypes t) typeEnv 
