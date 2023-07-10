@@ -10,6 +10,7 @@ import os
 import sys
 import re
 import tempfile
+import itertools
 
 def changing_cabal(directory):
     found_ghc = False
@@ -31,7 +32,7 @@ def changing_cabal(directory):
                     with open(file_path,'r') as file, open(temp_path,'a') as temp_file:
                         lines = file.readlines()
                         # reading two lines together 
-                        for line,next_line in zip(lines,lines[1:]):
+                        for line,next_line in itertools.zip_longest(lines, lines[1:], fillvalue=''):
                             search_build_depends = re.search("Build-Depends:",line,re.IGNORECASE)
                             if search_build_depends:
                                 print("The build-depends before update is " + line)
@@ -39,18 +40,22 @@ def changing_cabal(directory):
                                 print("The build-depends after update is " + line)
                                 found_build = True
                             for extension in extension_to_check:
-                                for module in modularity:
-                                    if line.startswith(extension) and not next_line.startswith(module):
+                                if line.startswith(extension):
+                                    for module in modularity:
+                                        next_line_strip = next_line.lstrip()
+                                        if not next_line_strip.startswith(module):
                              # finding the correct amount of whitespace to insert in the next line 
-                                        without_whitespace = next_line.lstrip()
-                                        whitespace_amount = len(next_line) - len(without_whitespace)
-                                        line = line + "\n" + " " * whitespace_amount +  "ghc-options:  -fplugin=G2.Nebula -fplugin-opt=G2.Nebula:--limit -fplugin-opt=G2.Nebula:10" + "\n"
-                                        print("Chaging line for ghc-option")
-                                        print("the line after changing is " + line )
-                                        found_ghc = True
+                                            print("The next line's content " + next_line)
+                                            without_whitespace = next_line.lstrip()
+                                            whitespace_amount = len(next_line) - len(without_whitespace)
+                                            line = line + "\n" + " " * whitespace_amount +  "ghc-options:  -fplugin=G2.Nebula -fplugin-opt=G2.Nebula:--limit -fplugin-opt=G2.Nebula:10" + "\n"
+                                            print("Chaging line for ghc-option")
+                                            print("the line after changing is " + line)
+                                            found_ghc = True
                             # taking care of the common stanza case 
                             for module in modularity:
-                                if line.startswith(module):
+                                line_without_space = line.lstrip()
+                                if line_without_space.startswith(module):
                                     without_whitespace = next_line.lstrip()
                                     whitespace_amount = len(next_line) - len(without_whitespace)
                                     line = line + "\n" + " " * whitespace_amount +  "ghc-options:  -fplugin=G2.Nebula -fplugin-opt=G2.Nebula:--limit -fplugin-opt=G2.Nebula:10" + "\n"
