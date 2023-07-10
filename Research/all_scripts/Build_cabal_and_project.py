@@ -6,7 +6,6 @@
 # third argument is the location of g2 in one's computer
 
 
-# import after library, make the ghc option stuck after the import 
 import os 
 import sys
 import re
