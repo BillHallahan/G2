@@ -1,8 +1,8 @@
-{-# LANGUAGE  FlexibleContexts #-}
+{-# LANGUAGE  FlexibleContexts, OverloadedStrings #-}
 
 
 module G2.Equiv.Uninterpreted where 
- 
+
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import Data.Foldable
@@ -23,7 +23,7 @@ allDC = evalASTs allDC'
 allDC' :: Expr -> [DataCon]
 allDC' e = case e of 
     Data dc -> [dc] 
-    Case _ _ _ as -> mapMaybe (\(Alt altMatch _) -> case altMatch of 
+    Case _ _ _ as -> mapMaybe (\(Alt am _) -> case am of 
                                                         DataAlt dc _ -> Just dc
                                                         _ -> Nothing) as 
     _ -> []
@@ -43,7 +43,36 @@ allTypes' t = case t of
         TyCon n k -> [(n,k)]
         _ -> []
 
--- argTypesTEnv :: TypeEnv -> [Type]
--- problem with the types we got list of pair instead of list of [(Name,Kind)]
+
 freeTypes :: ASTContainer t Type => TypeEnv -> t -> [(Name, Kind)]
 freeTypes typeEnv t = HM.toList $ HM.difference (HM.fromList $ allTypes t) typeEnv 
+
+
+-- | 
+-- 
+
+freeTypesToTypeEnv :: [(Name,Kind)] -> NameGen -> (TypeEnv, NameGen)
+freeTypesToTypeEnv nks ng = 
+    let (adts, ng') = mapNG freeTypesToTypeEnv' nks ng 
+    in  (HM.fromList adts, ng') 
+
+freeTypesToTypeEnv' :: (Name, Kind) -> NameGen -> ( (Name, AlgDataTy), NameGen)
+freeTypesToTypeEnv' (n,k) ng =
+    let (bids, ng') = freshIds (argumentTypes $ PresType k) ng 
+        (dcs,ng'') = unknownDC ng' n k bids
+        n_adt = (n, DataTyCon {bound_ids = bids,
+                               data_cons = [dcs]})
+        in (n_adt, ng'')
+
+unknownDC :: NameGen -> Name -> Kind -> [Id] -> (DataCon, NameGen)
+unknownDC ng n@(Name occn _ _ _) k is =
+    let tc = TyCon n k 
+        tv = map TyVar is
+        ta = foldl' TyApp tc tv 
+        ti = TyLitInt `TyFun` ta 
+        tfa = foldl' (flip TyForAll) ti is
+        (dc_n, ng') = freshSeededString ("Unknown" <> occn) ng   
+        in (DataCon dc_n tfa, ng')
+
+
+
