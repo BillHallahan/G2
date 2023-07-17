@@ -19,7 +19,7 @@ addFreeVarsAsSymbolic eenv = let xs = freeVars eenv eenv
 allDC :: ASTContainer t Expr => t -> [DataCon]
 allDC = evalASTs allDC' 
 
--- problem: not generate one list but two separate list
+
 allDC' :: Expr -> [DataCon]
 allDC' e = case e of 
     Data dc -> [dc] 
@@ -29,9 +29,7 @@ allDC' e = case e of
     _ -> []
 
 
--- difference from Data.HashMap.Lazy
--- get all algDataType with elems and  get the DataCon out of a AlgDataTy
---- in e 
+
 freeDC :: ASTContainer e Expr => TypeEnv -> e -> [DataCon]
 freeDC typeEnv e = allDC e \\ (concatMap dataCon . HM.elems $ typeEnv)
 
@@ -48,8 +46,7 @@ freeTypes :: ASTContainer t Type => TypeEnv -> t -> [(Name, Kind)]
 freeTypes typeEnv t = HM.toList $ HM.difference (HM.fromList $ allTypes t) typeEnv 
 
 
--- | 
--- 
+-- |
 
 freeTypesToTypeEnv :: [(Name,Kind)] -> NameGen -> (TypeEnv, NameGen)
 freeTypesToTypeEnv nks ng = 
@@ -74,5 +71,16 @@ unknownDC ng n@(Name occn _ _ _) k is =
         (dc_n, ng') = freshSeededString ("Unknown" <> occn) ng   
         in (DataCon dc_n tfa, ng')
 
+addDataCons :: TypeEnv -> [DataCon] -> TypeEnv
+addDataCons = foldl' addDataCon
 
-
+addDataCon :: TypeEnv -> DataCon -> TypeEnv
+addDataCon te dc = 
+    let TyCon n _ = head $ unTyApp $ returnType dc
+        dtc = HM.lookup n te
+        adt = case dtc of 
+                   Just (DataTyCon ids dcs) -> DataTyCon {bound_ids = ids,
+                                                          data_cons = dcs'}
+                                                                where dcs' = dc : dcs
+                   Nothing -> error "addDataCons: cannot find corresponding Name in TypeEnv"
+        in HM.insert n adt te 
