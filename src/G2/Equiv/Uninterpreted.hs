@@ -16,6 +16,13 @@ addFreeVarsAsSymbolic :: ExprEnv -> ExprEnv
 addFreeVarsAsSymbolic eenv = let xs = freeVars eenv eenv 
                              in foldl' (flip E.insertSymbolic) eenv xs 
 
+addFreeTypes :: (ASTContainer e Type, ASTContainer e Expr) => e -> TypeEnv -> NameGen -> (TypeEnv, NameGen) 
+addFreeTypes e te ng = let adc = addDataCons te $ freeDC te e 
+                           ft = freeTypes adc e
+                           tn = freeTypesToTypeEnv ft ng 
+                           in tn 
+
+
 allDC :: ASTContainer t Expr => t -> [DataCon]
 allDC = evalASTs allDC' 
 
@@ -46,8 +53,7 @@ freeTypes :: ASTContainer t Type => TypeEnv -> t -> [(Name, Kind)]
 freeTypes typeEnv t = HM.toList $ HM.difference (HM.fromList $ allTypes t) typeEnv 
 
 
--- |
-
+-- | we getting "free" (located in different package) types and insert it into the TypeEnv 
 freeTypesToTypeEnv :: [(Name,Kind)] -> NameGen -> (TypeEnv, NameGen)
 freeTypesToTypeEnv nks ng = 
     let (adts, ng') = mapNG freeTypesToTypeEnv' nks ng 
@@ -76,11 +82,9 @@ addDataCons = foldl' addDataCon
 
 addDataCon :: TypeEnv -> DataCon -> TypeEnv
 addDataCon te dc = 
-    let TyCon n _ = head $ unTyApp $ returnType dc
+    let (TyCon n _):_ = unTyApp $ returnType dc
         dtc = HM.lookup n te
         adt = case dtc of 
-                   Just (DataTyCon ids dcs) -> DataTyCon {bound_ids = ids,
-                                                          data_cons = dcs'}
-                                                                where dcs' = dc : dcs
+                   Just (DataTyCon _ dcs) -> DataTyCon { data_cons = dc : dcs}
                    Nothing -> error "addDataCons: cannot find corresponding Name in TypeEnv"
         in HM.insert n adt te 

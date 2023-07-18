@@ -1,5 +1,6 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module G2.Equiv.Verifier
     ( verifyLoop
@@ -756,7 +757,7 @@ reducedGuide ((Marker _ m):ms) = case m of
   _ -> reducedGuide ms
 reducedGuide (_:ms) = reducedGuide ms
 
-checkRule :: Config
+checkRule :: (ASTContainer t Type, ASTContainer t Expr) => Config
           -> NebulaConfig
           -> State t
           -> Bindings
@@ -764,10 +765,14 @@ checkRule :: Config
           -> RewriteRule
           -> IO (S.Result () () ())
 checkRule config nc init_state bindings total rule = do
-  let init_state' = if symbolic_unmapped nc 
-                    then  init_state {expr_env = addFreeVarsAsSymbolic (expr_env init_state)}
-                    else init_state
-      (rewrite_state_l, bindings') = initWithLHS init_state' bindings $ rule
+  let (te, te_ng) = addFreeTypes init_state (type_env init_state) (name_gen bindings)
+      (init_state', ng') = if symbolic_unmapped nc 
+                              then  
+                                ( init_state {expr_env = addFreeVarsAsSymbolic (expr_env init_state),
+                                              type_env = te }
+                                , te_ng)
+                              else (init_state, name_gen bindings)
+      (rewrite_state_l, bindings') = initWithLHS init_state' (bindings { name_gen = ng' }) $ rule
       (rewrite_state_r, bindings'') = initWithRHS init_state' bindings' $ rule
       sym_ids = ru_bndrs rule
       total_names = filter (includedName total) (map idName sym_ids)

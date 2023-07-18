@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP, FlexibleContexts #-}
 
 module G2.Nebula (plugin) where
 
@@ -89,7 +89,7 @@ nebulaPluginPass' m_entry nebula_config env modguts = do
             mapM_ (checkRulePrinting config nebula_config init_state bindings total)
                 $ filter (\r -> L.ru_module r == mod_name) (rewrite_rules bindings)
 
-checkRulePrinting :: Config
+checkRulePrinting :: (ASTContainer t L.Type, ASTContainer t L.Expr) => Config
                   -> NebulaConfig
                   -> State t
                   -> Bindings
