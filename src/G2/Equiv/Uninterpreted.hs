@@ -7,6 +7,7 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 import Data.Foldable
 import Data.Maybe 
+import Data.Monoid
 import qualified Data.HashMap.Lazy as HM 
 import Data.List  
 import qualified G2.Language.TypeEnv as T
