@@ -7,7 +7,7 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 import Data.Foldable
 import Data.Maybe 
-import Data.Monoid
+import qualified Data.Monoid as DM
 import qualified Data.HashMap.Lazy as HM 
 import Data.List  
 import qualified G2.Language.TypeEnv as T
@@ -75,7 +75,7 @@ unknownDC ng n@(Name occn _ _ _) k is =
         ta = foldl' TyApp tc tv 
         ti = TyLitInt `TyFun` ta 
         tfa = foldl' (flip TyForAll) ti is
-        (dc_n, ng') = freshSeededString ("Unknown" <> occn) ng   
+        (dc_n, ng') = freshSeededString ("Unknown" DM.<> occn) ng   
         in (DataCon dc_n tfa, ng')
 
 addDataCons :: TypeEnv -> [DataCon] -> TypeEnv
