@@ -38,7 +38,7 @@ acceptRule config init_state bindings rule = do
     S.UNSAT _ -> True
     _ -> error "Failed to Produce a Result")
 
-rejectRule :: Config -> State t -> Bindings -> RewriteRule -> IO Bool
+rejectRule :: (ASTContainer t Type, ASTContainer t Expr) => Config -> State t -> Bindings -> RewriteRule -> IO Bool
 rejectRule config init_state bindings rule = do
   res <- checkRule config nebulaConfig init_state bindings [] rule
   return (case res of
