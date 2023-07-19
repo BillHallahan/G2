@@ -28,7 +28,7 @@ findRule rule_list rule_name =
       Just r -> r
       Nothing -> error $ "not found " ++ show rule_name
 
-acceptRule :: Config -> State t -> Bindings -> RewriteRule -> IO Bool
+acceptRule ::  (ASTContainer t Type, ASTContainer t Expr) => Config -> State t -> Bindings -> RewriteRule -> IO Bool
 acceptRule config init_state bindings rule = do
   res <- checkRule config nebulaConfig init_state bindings [] rule
   return (case res of
