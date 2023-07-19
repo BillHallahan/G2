@@ -107,7 +107,7 @@ stdReduce' _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Re
             isError (Prim Undefined _) = True
             isError _ = False
 
-evalVarSharing :: (ASTContainer t Type, ASTContainer t Expr) => State t -> NameGen -> Id -> (Rule, [State t], NameGen)
+evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing s@(State { expr_env = eenv
                         , exec_stack = stck })
                ng i

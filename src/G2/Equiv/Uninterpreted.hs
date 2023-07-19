@@ -27,7 +27,6 @@ addFreeTypes e te ng = let adc = addDataCons te $ freeDC te e
 allDC :: ASTContainer t Expr => t -> [DataCon]
 allDC = evalASTs allDC' 
 
-
 allDC' :: Expr -> [DataCon]
 allDC' e = case e of 
     Data dc -> [dc] 
@@ -89,3 +88,11 @@ addDataCon te dc =
                    Just (DataTyCon _ dcs) -> DataTyCon { data_cons = dc : dcs}
                    Nothing -> error "addDataCons: cannot find corresponding Name in TypeEnv"
         in HM.insert n adt te 
+
+
+
+addMapping :: ASTContainer e Expr => TypeEnv -> e -> ExprEnv -> ExprEnv 
+addMapping te e ee = foldl' addMapping' ee (freeDC te e) 
+
+addMapping' :: ExprEnv -> DataCon -> ExprEnv 
+addMapping' ee dc@(DataCon name _) = E.insert name (Data dc) ee
