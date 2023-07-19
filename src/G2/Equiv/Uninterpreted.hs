@@ -85,11 +85,9 @@ addDataCon te dc =
     let (TyCon n _):_ = unTyApp $ returnType dc
         dtc = HM.lookup n te
         adt = case dtc of 
-                   Just (DataTyCon _ dcs) -> DataTyCon { data_cons = dc : dcs}
+                   Just (DataTyCon ids dcs) -> DataTyCon {bound_ids = ids, data_cons = dc : dcs}
                    Nothing -> error "addDataCons: cannot find corresponding Name in TypeEnv"
         in HM.insert n adt te 
-
-
 
 addMapping :: ASTContainer e Expr => TypeEnv -> e -> ExprEnv -> ExprEnv 
 addMapping te e ee = foldl' addMapping' ee (freeDC te e) 
