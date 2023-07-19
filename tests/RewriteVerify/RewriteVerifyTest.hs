@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module RewriteVerify.RewriteVerifyTest ( rewriteTests ) where
 
 import qualified Data.Map as M
