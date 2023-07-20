@@ -19,5 +19,5 @@ executable PluginTests
                       , Import
     default-extensions: LambdaCase
     hs-source-dirs:   app
-    ghc-options:      -fplugin=G2.Nebula 
+    ghc-options:      -fplugin=G2.Nebula
     default-language: Haskell2010
