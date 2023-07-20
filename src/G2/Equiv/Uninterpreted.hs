@@ -21,7 +21,7 @@ addFreeTypes :: (ASTContainer e Type, ASTContainer e Expr) => e -> TypeEnv -> Ex
 addFreeTypes e te ee ng = let (te', ng') = freeTypesToTypeEnv (freeTypes te e) ng
                               te'' = HM.union te te'
                               n_te = addDataCons te'' (freeDC te' e) 
-                              ee' = addMapping te'' e ee
+                              ee' = addMapping n_te e ee
                            in (n_te, ee', ng')
 
 
