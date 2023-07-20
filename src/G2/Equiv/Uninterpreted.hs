@@ -17,11 +17,12 @@ addFreeVarsAsSymbolic :: ExprEnv -> ExprEnv
 addFreeVarsAsSymbolic eenv = let xs = freeVars eenv eenv 
                              in foldl' (flip E.insertSymbolic) eenv xs 
 
-addFreeTypes :: (ASTContainer e Type, ASTContainer e Expr) => e -> TypeEnv -> NameGen -> (TypeEnv, NameGen) 
-addFreeTypes e te ng = let adc = addDataCons te $ freeDC te e 
-                           ft = freeTypes adc e
-                           tn = freeTypesToTypeEnv ft ng 
-                           in tn 
+addFreeTypes :: (ASTContainer e Type, ASTContainer e Expr) => e -> TypeEnv -> ExprEnv -> NameGen -> (TypeEnv, ExprEnv, NameGen) 
+addFreeTypes e te ee ng = let adc = addDataCons te $ freeDC te e 
+                              ft = freeTypes adc e
+                              (te', ng') = freeTypesToTypeEnv ft ng 
+                              ee' = addMapping te' e ee
+                           in (te', ee', ng')
 
 
 allDC :: ASTContainer t Expr => t -> [DataCon]

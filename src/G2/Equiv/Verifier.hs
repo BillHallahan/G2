@@ -765,10 +765,10 @@ checkRule :: (ASTContainer t Type, ASTContainer t Expr) => Config
           -> RewriteRule
           -> IO (S.Result () () ())
 checkRule config nc init_state bindings total rule = do
-  let (te, te_ng) = addFreeTypes init_state (type_env init_state) (name_gen bindings)
+  let (te, ee, te_ng) = addFreeTypes init_state (type_env init_state) (expr_env init_state) (name_gen bindings)
       (init_state', ng') = if symbolic_unmapped nc 
                               then  
-                                ( init_state {expr_env = addFreeVarsAsSymbolic (expr_env init_state),
+                                ( init_state {expr_env = addFreeVarsAsSymbolic ee,
                                               type_env = te }
                                 , te_ng)
                               else (init_state, name_gen bindings)
