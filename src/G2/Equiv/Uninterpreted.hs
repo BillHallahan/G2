@@ -18,13 +18,16 @@ addFreeVarsAsSymbolic :: ExprEnv -> ExprEnv
 addFreeVarsAsSymbolic eenv = let xs = freeVars eenv eenv 
                              in foldl' (flip E.insertSymbolic) eenv xs 
 
-addFreeTypes :: (ASTContainer e Type, ASTContainer e Expr) => e -> TypeEnv -> ExprEnv -> NameGen -> (TypeEnv, ExprEnv, NameGen) 
-addFreeTypes e te ee ng = let (te', ng') = freeTypesToTypeEnv (freeTypes te e) ng
-                              te'' = HM.union te te'
-                              free_dc = HS.toList $ freeDC te'' e 
-                              n_te = addDataCons te'' free_dc
-                              ee' = addMapping free_dc ee
-                           in (n_te, ee', ng')
+addFreeTypes :: (ASTContainer t Expr, ASTContainer t Type) => State t -> NameGen -> (State t, NameGen) 
+addFreeTypes s@(State {type_env = tenv }) ng =
+    let 
+        (tenv', ng') = freeTypesToTypeEnv (freeTypes tenv s) ng
+        tenv'' = HM.union tenv tenv'
+        free_dc = HS.toList $ freeDC tenv'' s
+        m = dataConMapping free_dc 
+        s' = subVars m s
+        n_te = addDataCons tenv'' free_dc
+    in (s' { type_env = n_te }, ng')
 
 
 allDC :: ASTContainer t Expr => t -> HS.HashSet DataCon
@@ -122,7 +125,7 @@ dataConMapping' dc@(DataCon n _) = case n of
                                         Name t mt _ _-> ((t,mt), dc)
                                         _  -> error "dataConMapping': The dataCon don't have occurence name"
 
-subVars :: ASTContainer e Expr => HM.HashMap (T.Text, Maybe T.Text) DataCon -> e -> e 
+subVars :: ASTContainer t Expr => HM.HashMap (T.Text, Maybe T.Text) DataCon -> t -> t
 subVars m = modifyASTs (subVars' m) 
 
 subVars' :: HM.HashMap (T.Text, Maybe T.Text) DataCon -> Expr -> Expr
