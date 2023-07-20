@@ -19,9 +19,10 @@ addFreeVarsAsSymbolic eenv = let xs = freeVars eenv eenv
 
 addFreeTypes :: (ASTContainer e Type, ASTContainer e Expr) => e -> TypeEnv -> ExprEnv -> NameGen -> (TypeEnv, ExprEnv, NameGen) 
 addFreeTypes e te ee ng = let (te', ng') = freeTypesToTypeEnv (freeTypes te e) ng
-                              te'' = addDataCons te' (freeDC te' e) 
+                              te'' = HM.union te te'
+                              n_te = addDataCons te'' (freeDC te' e) 
                               ee' = addMapping te'' e ee
-                           in (te'', ee', ng')
+                           in (n_te, ee', ng')
 
 
 allDC :: ASTContainer t Expr => t -> [DataCon]
