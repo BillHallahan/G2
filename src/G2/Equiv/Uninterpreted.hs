@@ -18,12 +18,10 @@ addFreeVarsAsSymbolic eenv = let xs = freeVars eenv eenv
                              in foldl' (flip E.insertSymbolic) eenv xs 
 
 addFreeTypes :: (ASTContainer e Type, ASTContainer e Expr) => e -> TypeEnv -> ExprEnv -> NameGen -> (TypeEnv, ExprEnv, NameGen) 
-addFreeTypes e te ee ng = let adc = addDataCons te $ freeDC te e 
-                              ft = freeTypes adc e
-                              (te', ng') = freeTypesToTypeEnv ft ng 
-                              n_te = HM.union te' adc 
-                              ee' = addMapping n_te e ee
-                           in (n_te, ee', ng')
+addFreeTypes e te ee ng = let (te', ng') = freeTypesToTypeEnv (freeTypes te e) ng
+                              te'' = addDataCons te' (freeDC te' e) 
+                              ee' = addMapping te'' e ee
+                           in (te'', ee', ng')
 
 
 allDC :: ASTContainer t Expr => t -> [DataCon]
@@ -55,7 +53,8 @@ freeTypes :: ASTContainer t Type => TypeEnv -> t -> [(Name, Kind)]
 freeTypes typeEnv t = HM.toList $ HM.difference (HM.fromList $ allTypes t) typeEnv 
 
 
--- | we getting "free" (located in different package) types and insert it into the TypeEnv 
+-- | we getting "free" typesnames and insert it into the TypeEnv with a "uninterprted " dataCons 
+-- Uninterpreted means there are potentially unlimited amount of datacons for a free type
 freeTypesToTypeEnv :: [(Name,Kind)] -> NameGen -> (TypeEnv, NameGen)
 freeTypesToTypeEnv nks ng = 
     let (adts, ng') = mapNG freeTypesToTypeEnv' nks ng 
@@ -79,6 +78,7 @@ unknownDC ng n@(Name occn _ _ _) k is =
         (dc_n, ng') = freshSeededString ("Unknown" DM.<> occn) ng   
         in (DataCon dc_n tfa, ng')
 
+-- | add free Datacons into the TypeEnv at the appriorpate Type)
 addDataCons :: TypeEnv -> [DataCon] -> TypeEnv
 addDataCons = foldl' addDataCon
 
@@ -87,7 +87,7 @@ addDataCon te dc =
     let (TyCon n _):_ = unTyApp $ returnType dc
         dtc = HM.lookup n te
         adt = case dtc of 
-                   Just (DataTyCon ids dcs) -> DataTyCon {bound_ids = ids, data_cons = dc : dcs}
+                   Just (DataTyCon ids' dcs) -> DataTyCon {bound_ids = ids', data_cons = dc : dcs}
                    Nothing -> error "addDataCons: cannot find corresponding Name in TypeEnv"
         in HM.insert n adt te 
 
