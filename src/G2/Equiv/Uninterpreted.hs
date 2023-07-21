@@ -121,18 +121,17 @@ dataConMapping :: [DataCon] -> HM.HashMap (T.Text, Maybe T.Text) DataCon
 dataConMapping dcs = HM.fromList $ map dataConMapping' dcs 
 
 dataConMapping' :: DataCon -> ((T.Text, Maybe T.Text ), DataCon)
-dataConMapping' dc@(DataCon n _) = case n of 
-                                        Name t mt _ _-> ((t,mt), dc)
-                                        _  -> error "dataConMapping': The dataCon don't have occurence name"
+dataConMapping' dc@(DataCon (Name t mt _ _ ) _ ) = ((t,mt), dc)
 
 subVars :: ASTContainer t Expr => HM.HashMap (T.Text, Maybe T.Text) DataCon -> t -> t
 subVars m = modifyASTs (subVars' m) 
 
 subVars' :: HM.HashMap (T.Text, Maybe T.Text) DataCon -> Expr -> Expr
-subVars' m (Var i) = case i of 
-                          Id n _ -> case n of 
-                                           Name t mt _ _  -> case HM.lookup (t,mt) m of 
-                                                                Just (DataCon n k) -> Data (DataCon n k)
-                                                                _ -> error "subVars: can't find a corresponding dataCon from the occurence name, module name"
+subVars' m expr = case expr of 
+                    (Var i) -> case i of 
+                                    Id n _ -> case n of 
+                                                   Name t mt _ _  -> case HM.lookup (t,mt) m of 
+                                                                            Just (DataCon n' k) -> Data (DataCon n' k)
+                                                                            _ -> error "subVars: can't find a corresponding dataCon from the occurence name, module name"
 
-                          _ -> error "subVars: the type pass in isn't a Name type"  
+                    _ -> error "subVars: the type pass in isn't a Var type"  
