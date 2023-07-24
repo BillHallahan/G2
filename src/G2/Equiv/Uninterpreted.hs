@@ -123,6 +123,7 @@ dataConMapping dcs = HM.fromList $ map dataConMapping' dcs
 dataConMapping' :: DataCon -> ((T.Text, Maybe T.Text ), DataCon)
 dataConMapping' dc@(DataCon (Name t mt _ _ ) _ ) = ((t,mt), dc)
 
+
 subVars :: ASTContainer t Expr => HM.HashMap (T.Text, Maybe T.Text) DataCon -> t -> t
 subVars m = modifyASTs (subVars' m) 
 
@@ -134,4 +135,4 @@ subVars' m expr = case expr of
                                                                             Just (DataCon n' k) -> Data (DataCon n' k)
                                                                             _ -> error "subVars: can't find a corresponding dataCon from the occurence name, module name"
 
-                    _ -> error "subVars: the type pass in isn't a Var type"  
+                    e -> e
