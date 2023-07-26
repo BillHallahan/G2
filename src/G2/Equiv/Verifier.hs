@@ -90,25 +90,25 @@ runSymExec :: S.Solver solver =>
               CM.StateT (Bindings, Int) IO [(StateET, StateET)]
 runSymExec solver config nc@(NC { sync = sy }) ns s1 s2 = do
   (bindings, k) <- CM.get
-  let nc' = nc { log_states = logStatesFolder ("a" ++ show k) (log_states nc) }
+  let config' = config { logStates = logStatesFolder ("a" ++ show k) (log_states nc) }
       t1 = (track s1) { folder_name = logStatesET ("a" ++ show k) (log_states nc) }
       CurrExpr r1 e1 = curr_expr s1
       e1' = addStackTickIfNeeded ns (expr_env s1) e1
       s1' = s1 { track = t1, curr_expr = CurrExpr r1 e1' }
   --CM.liftIO $ putStrLn $ (folder_name $ track s1) ++ " becomes " ++ (folder_name t1)
-  (er1, bindings') <- CM.lift $ runG2ForNebula solver s1' (expr_env s2) (track s2) config nc' bindings
+  (er1, bindings') <- CM.lift $ runG2ForNebula solver s1' (expr_env s2) (track s2) config' nc bindings
   CM.put (bindings', k + 1)
   let final_s1 = map final_state er1
   pairs <- mapM (\s1_ -> do
                     (b_, k_) <- CM.get
                     let s2_ = transferInfo sy s1_ (snd $ syncSymbolic s1_ s2)
-                    let nc'' = nc { log_states = logStatesFolder ("b" ++ show k_) (log_states nc) }
+                    let config'' = config { logStates = logStatesFolder ("b" ++ show k_) (log_states nc) }
                         t2 = (track s2_) { folder_name = logStatesET ("b" ++ show k_) (log_states nc) }
                         CurrExpr r2 e2 = curr_expr s2_
                         e2' = addStackTickIfNeeded ns (expr_env s2) e2
                         s2' = s2_ { track = t2, curr_expr = CurrExpr r2 e2' }
                     --CM.liftIO $ putStrLn $ (folder_name $ track s2_) ++ " becomes " ++ (folder_name t2)
-                    (er2, b_') <- CM.lift $ runG2ForNebula solver s2' (expr_env s1_) (track s1_) config nc'' b_
+                    (er2, b_') <- CM.lift $ runG2ForNebula solver s2' (expr_env s1_) (track s1_) config'' nc b_
                     CM.put (b_', k_ + 1)
                     return $ map (\er2_ -> 
                                     let
