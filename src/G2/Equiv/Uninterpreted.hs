@@ -27,7 +27,7 @@ addFreeTypes s@(State {type_env = tenv }) ng =
         m = dataConMapping free_dc 
         s' = subVars m s
         n_te = addDataCons tenv'' free_dc
-    in (s' { type_env = n_te }, ng')
+    in trace ("show map " ++ show m) (s' { type_env = n_te }, ng') 
 
 
 allDC :: ASTContainer t Expr => t -> HS.HashSet DataCon
@@ -51,7 +51,7 @@ freeDC typeEnv e =
                . HS.fromList
                . concatMap dataCon
                . HM.elems $ typeEnv in
-    trace ("diff = " ++ show (HS.filter (\(DataCon n _) -> not (HS.member n inTEnv)) al)) HS.filter (\(DataCon n _) -> not (HS.member n inTEnv)) al
+    HS.filter (\(DataCon n _) -> not (HS.member n inTEnv)) al
 
 
 allTypes :: ASTContainer t Type => t -> [(Name, Kind)]
@@ -128,11 +128,7 @@ subVars :: ASTContainer t Expr => HM.HashMap (T.Text, Maybe T.Text) DataCon -> t
 subVars m = modifyASTs (subVars' m) 
 
 subVars' :: HM.HashMap (T.Text, Maybe T.Text) DataCon -> Expr -> Expr
-subVars' m expr = case expr of 
-                    (Var i) -> case i of 
-                                    Id n _ -> case n of 
-                                                   Name t mt _ _  -> case HM.lookup (t,mt) m of 
-                                                                            Just (DataCon n' k) -> Data (DataCon n' k)
-                                                                            _ -> error "subVars: can't find a corresponding dataCon from the occurence name, module name"
-
-                    e -> e
+subVars' m expr@(Var (Id (Name t mt _ _) _ )) = case HM.lookup (t,mt) m of 
+                                                        Just (DataCon n' k) -> Data (DataCon n' k)
+                                                        Nothing -> expr  
+subVars' _ expr = expr
