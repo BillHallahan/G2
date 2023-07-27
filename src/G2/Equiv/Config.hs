@@ -19,6 +19,7 @@ data NebulaConfig = NC { limit :: Int
                        , print_summary :: SummaryMode
                        , use_labeled_errors :: UseLabeledErrors
                        , log_states :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
+                       , log_rule :: Maybe String -- ^ Allow user to log the states for specific rule. 
                        , sync :: Bool 
                        , symbolic_unmapped :: Bool}
 
@@ -75,8 +76,17 @@ mkNebulaConfig = NC
         <*> mkSummaryMode
         <*> flag UseLabeledErrors NoLabeledErrors (long "no-labeled-errors" <> help "disable labeled errors, treating all errors as equivalent")
         <*> mkLogMode
+        <*> mkLogRule
         <*> flag False True (long "sync" <> help "sync the left and right expressions prior to symbolic execution")
         <*> flag True False (long "sym-unmapped" <> help "automatically treat unmapped function as symbolic")
+
+mkLogRule :: Parser (Maybe String)
+mkLogRule =
+    option (maybeReader (Just . Just))
+            ( long "log-rule"
+            <> metavar "RULE"
+            <> value Nothing
+            <> help "Output states for this rule when logging")
 
 mkSummaryMode :: Parser SummaryMode
 mkSummaryMode =

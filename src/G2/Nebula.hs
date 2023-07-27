@@ -98,8 +98,13 @@ checkRulePrinting :: (ASTContainer t L.Type, ASTContainer t L.Expr) => Config
                   -> IO (S.Result () () ())
 checkRulePrinting config nebula_config init_state bindings total rule = do
     let rule_name = T.unpack $ L.ru_name rule
+        nebula_config' = case log_rule nebula_config of
+                              Just n -> if n == rule_name then nebula_config
+                                        else nebula_config {log_states = NoLog}
+                              Nothing -> nebula_config
+    putStrLn $ "Log-rule nebula config = " ++ show (log_rule nebula_config)
     putStrLn $ "Checking " ++ rule_name
-    res <- checkRule config nebula_config init_state bindings total rule
+    res <- checkRule config nebula_config' init_state bindings total rule 
     case res of
         S.SAT _ -> putStrLn $ rule_name ++ " - counterexample found"
         S.UNSAT _ -> putStrLn $ rule_name ++ " - verified"
