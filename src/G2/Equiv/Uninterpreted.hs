@@ -18,16 +18,22 @@ addFreeVarsAsSymbolic :: ExprEnv -> ExprEnv
 addFreeVarsAsSymbolic eenv = let xs = freeVars eenv eenv 
                              in foldl' (flip E.insertSymbolic) eenv xs 
 
-addFreeTypes :: (ASTContainer t Expr, ASTContainer t Type) => State t -> NameGen -> (State t, NameGen) 
-addFreeTypes s@(State {type_env = tenv }) ng =
+-- | changing the signature of addFreeTypes so that we have 
+-- we want to modify the rewrite-rules passed in checkrule 
+--  (AstContainer c Expr, Astcontainer c Type, AstContainer t Expr, Astcontainer t Type) => c -> State t -> NameGen -> (c, State t, NameGen)
+-- | apply subvars to the rule 
+addFreeTypes :: (ASTContainer c Expr, ASTContainer c Type, ASTContainer t Expr, ASTContainer t Type) => c -> State t -> NameGen -> (c, State t, NameGen) 
+addFreeTypes c s@(State {type_env = tenv }) ng =
     let 
         (tenv', ng') = freeTypesToTypeEnv (freeTypes tenv s) ng
         tenv'' = HM.union tenv tenv'
         free_dc = HS.toList $ freeDC tenv'' s
-        m = dataConMapping free_dc 
+        m = dataConMapping free_dc
         s' = subVars m s
+        c' = subVars m c
         n_te = addDataCons tenv'' free_dc
-    in trace ("show map " ++ show m) (s' { type_env = n_te }, ng') 
+    in (c', s' { type_env = n_te }, ng' )
+    -- trace ("show map " ++ show m) (s' { type_env = n_te }, ng') 
 
 
 allDC :: ASTContainer t Expr => t -> HS.HashSet DataCon
@@ -122,7 +128,6 @@ dataConMapping dcs = HM.fromList $ map dataConMapping' dcs
 
 dataConMapping' :: DataCon -> ((T.Text, Maybe T.Text ), DataCon)
 dataConMapping' dc@(DataCon (Name t mt _ _ ) _ ) = ((t,mt), dc)
-
 
 subVars :: ASTContainer t Expr => HM.HashMap (T.Text, Maybe T.Text) DataCon -> t -> t
 subVars m = modifyASTs (subVars' m) 
