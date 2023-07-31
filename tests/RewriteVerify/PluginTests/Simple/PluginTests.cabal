@@ -20,6 +20,6 @@ executable PluginTests
     default-extensions: LambdaCase
     hs-source-dirs:   app
     ghc-options:      -fplugin=G2.Nebula -fplugin-opt=G2.Nebula:--limit -fplugin-opt=G2.Nebula:10
-     -- ghc option for creating folder and logging the states
+     -- ghc option for creating folder and logging the states: 
      -- -fplugin=G2.Nebula -fplugin-opt=G2.Nebula:--log-pretty -fplugin-opt=G2.Nebula:test_folder -fplugin-opt=G2.Nebula:--log-rule -fplugin-opt=G2.Nebula:importTypes
     default-language: Haskell2010
