@@ -1,5 +1,6 @@
 {-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module G2.Equiv.Verifier
     ( verifyLoop
@@ -13,6 +14,7 @@ import G2.Config
 import G2.Interface
 
 import qualified Control.Monad.State.Lazy as CM
+
 
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.CallGraph as G
@@ -34,6 +36,7 @@ import G2.Equiv.G2Calls
 import G2.Equiv.Tactics
 import G2.Equiv.Generalize
 import G2.Equiv.Summary
+import G2.Equiv.Uninterpreted 
 
 import qualified Data.Map as M
 import G2.Execution.Memory
@@ -754,7 +757,7 @@ reducedGuide ((Marker _ m):ms) = case m of
   _ -> reducedGuide ms
 reducedGuide (_:ms) = reducedGuide ms
 
-checkRule :: Config
+checkRule :: (ASTContainer t Type, ASTContainer t Expr) => Config
           -> NebulaConfig
           -> State t
           -> Bindings
@@ -762,9 +765,15 @@ checkRule :: Config
           -> RewriteRule
           -> IO (S.Result () () ())
 checkRule config nc init_state bindings total rule = do
-  let (rewrite_state_l, bindings') = initWithLHS init_state bindings $ rule
-      (rewrite_state_r, bindings'') = initWithRHS init_state bindings' $ rule
-      sym_ids = ru_bndrs rule
+  let (rule' ,mod_state@(State { expr_env = ee }), te_ng) = addFreeTypes rule init_state (name_gen bindings)
+      (mod_state', ng') = if symbolic_unmapped nc 
+                              then  
+                                ( mod_state { expr_env = addFreeVarsAsSymbolic ee }
+                                , te_ng)
+                              else (init_state, name_gen bindings)
+      (rewrite_state_l, bindings') = initWithLHS mod_state' (bindings { name_gen = ng' }) $ rule'
+      (rewrite_state_r, bindings'') = initWithRHS mod_state' bindings' $ rule'
+      sym_ids = ru_bndrs rule' 
       total_names = filter (includedName total) (map idName sym_ids)
       total_hs = foldr HS.insert HS.empty total_names
       EquivTracker et m _ _ _ _ = emptyEquivTracker
@@ -781,6 +790,8 @@ checkRule config nc init_state bindings total rule = do
       
       rewrite_state_l'' = startingState start_equiv_tracker ns rewrite_state_l'
       rewrite_state_r'' = startingState start_equiv_tracker ns rewrite_state_r'
+      
+  print (curr_expr rewrite_state_l)
 
   S.SomeSolver solver <- initSolver config
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"

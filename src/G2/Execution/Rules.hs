@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings,  FlexibleContexts #-}
 
 module G2.Execution.Rules ( module G2.Execution.RuleTypes
                           , Sharing (..)

@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP, FlexibleContexts #-}
 
 module G2.Nebula (plugin) where
 
@@ -73,7 +73,7 @@ nebulaPluginPass' m_entry nebula_config env modguts = do
                                      (\_ ng _ _ _ _ _ -> (Prim Undefined TyBottom, [], [], ng))
                                      (E.higherOrderExprs . IT.expr_env)
                                      config
-
+    
     let total = []
     case m_entry of
         Just entry -> do
@@ -89,7 +89,7 @@ nebulaPluginPass' m_entry nebula_config env modguts = do
             mapM_ (checkRulePrinting config nebula_config init_state bindings total)
                 $ filter (\r -> L.ru_module r == mod_name) (rewrite_rules bindings)
 
-checkRulePrinting :: Config
+checkRulePrinting :: (ASTContainer t L.Type, ASTContainer t L.Expr) => Config
                   -> NebulaConfig
                   -> State t
                   -> Bindings
@@ -98,8 +98,13 @@ checkRulePrinting :: Config
                   -> IO (S.Result () () ())
 checkRulePrinting config nebula_config init_state bindings total rule = do
     let rule_name = T.unpack $ L.ru_name rule
+        nebula_config' = case log_rule nebula_config of
+                              Just n -> if n == rule_name then nebula_config
+                                        else nebula_config {log_states = NoLog}
+                              Nothing -> nebula_config
+    putStrLn $ "Log-rule nebula config = " ++ show (log_rule nebula_config)
     putStrLn $ "Checking " ++ rule_name
-    res <- checkRule config nebula_config init_state bindings total rule
+    res <- checkRule config nebula_config' init_state bindings total rule 
     case res of
         S.SAT _ -> putStrLn $ rule_name ++ " - counterexample found"
         S.UNSAT _ -> putStrLn $ rule_name ++ " - verified"

@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module RewriteVerify.RewriteVerifyTest ( rewriteTests ) where
 
 import qualified Data.Map as M
@@ -28,7 +30,7 @@ findRule rule_list rule_name =
       Just r -> r
       Nothing -> error $ "not found " ++ show rule_name
 
-acceptRule :: Config -> State t -> Bindings -> RewriteRule -> IO Bool
+acceptRule ::  (ASTContainer t Type, ASTContainer t Expr) => Config -> State t -> Bindings -> RewriteRule -> IO Bool
 acceptRule config init_state bindings rule = do
   res <- checkRule config nebulaConfig init_state bindings [] rule
   return (case res of
@@ -36,7 +38,7 @@ acceptRule config init_state bindings rule = do
     S.UNSAT _ -> True
     _ -> error "Failed to Produce a Result")
 
-rejectRule :: Config -> State t -> Bindings -> RewriteRule -> IO Bool
+rejectRule :: (ASTContainer t Type, ASTContainer t Expr) => Config -> State t -> Bindings -> RewriteRule -> IO Bool
 rejectRule config init_state bindings rule = do
   res <- checkRule config nebulaConfig init_state bindings [] rule
   return (case res of
@@ -50,6 +52,7 @@ nebulaConfig = NC { limit = 20
                   , print_summary = SM False False False
                   , use_labeled_errors = UseLabeledErrors
                   , log_states = NoLog
+                  , symbolic_unmapped = False
                   , sync = False}
 
 good_names :: [String]

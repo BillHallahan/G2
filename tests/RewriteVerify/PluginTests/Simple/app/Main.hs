@@ -1,6 +1,7 @@
 module Main where
 
 import Nat
+import ImportTest
 
 f :: Int -> Int
 f x = x

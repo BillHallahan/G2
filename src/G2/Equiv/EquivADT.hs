@@ -94,7 +94,7 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
                | m <- idName i
                , not $ m `elem` ns
                , Just e <- E.lookup m h2 -> exprPairing ns s1 s2 e1 e pairs n1 (m:n2)
-               | not $ (idName i) `elem` ns -> error "unmapped variable"
+               | not $ (idName i) `elem` ns -> error $ "unmapped variable" ++ show (idName i)
     (Prim p1 _, Prim p2 _) | p1 == Error || p1 == Undefined
                            , p2 == Error || p2 == Undefined -> Just pairs
     -- extra cases for avoiding Error problems

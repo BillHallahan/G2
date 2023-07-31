@@ -199,7 +199,8 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                       (containedASTs $ path_conds s) ++
                       (containedASTs $ assert_ids s) ++
                       (containedASTs $ exec_stack s) ++
-                      (containedASTs $ track s)
+                      (containedASTs $ track s) ++ 
+                      (containedASTs $ rules s)
 
     modifyContainedASTs f s = s { type_env  = modifyContainedASTs f $ type_env s
                                 , expr_env  = modifyContainedASTs f $ expr_env s
@@ -207,7 +208,8 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                                 , path_conds = modifyContainedASTs f $ path_conds s
                                 , assert_ids = modifyContainedASTs f $ assert_ids s
                                 , exec_stack = modifyContainedASTs f $ exec_stack s
-                                , track = modifyContainedASTs f $ track s }
+                                , track = modifyContainedASTs f $ track s 
+                                , rules = modifyContainedASTs f $ rules s }
 
 instance ASTContainer t Type => ASTContainer (State t) Type where
     containedASTs s = ((containedASTs . expr_env) s) ++
@@ -217,7 +219,8 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                       ((containedASTs . assert_ids) s) ++
                       ((containedASTs . type_classes) s) ++
                       ((containedASTs . exec_stack) s) ++
-                      (containedASTs $ track s)
+                      (containedASTs $ track s) ++ 
+                      (containedASTs $ rules s)
 
     modifyContainedASTs f s = s { type_env  = (modifyContainedASTs f . type_env) s
                                 , expr_env  = (modifyContainedASTs f . expr_env) s
@@ -226,7 +229,8 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                                 , assert_ids = (modifyContainedASTs f . assert_ids) s
                                 , type_classes = (modifyContainedASTs f . type_classes) s
                                 , exec_stack = (modifyContainedASTs f . exec_stack) s
-                                , track = modifyContainedASTs f $ track s }
+                                , track = modifyContainedASTs f $ track s 
+                                , rules = modifyContainedASTs f $ rules s }
 
 instance Named Bindings where
     names b = names (fixed_inputs b)
