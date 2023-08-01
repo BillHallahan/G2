@@ -40,10 +40,10 @@ def changing_cabal(directory):
                                 print("The build-depends after update is " + line)
                                 found_build = True
                             for extension in extension_to_check:
-                                if line.startswith(extension):
+                                if line.lower().startswith(extension):
                                     for module in modularity:
                                         next_line_strip = next_line.lstrip()
-                                        if not next_line_strip.startswith(module):
+                                        if not next_line_strip.lower().startswith(module):
                              # finding the correct amount of whitespace to insert in the next line 
                                             print("The next line's content " + next_line)
                                             without_whitespace = next_line.lstrip()
@@ -55,7 +55,7 @@ def changing_cabal(directory):
                             # taking care of the common stanza case 
                             for module in modularity:
                                 line_without_space = line.lstrip()
-                                if line_without_space.startswith(module):
+                                if line_without_space.lower().startswith(module):
                                     without_whitespace = next_line.lstrip()
                                     whitespace_amount = len(next_line) - len(without_whitespace)
                                     line = line + "\n" + " " * whitespace_amount +  "ghc-options:  -fplugin=G2.Nebula -fplugin-opt=G2.Nebula:--limit -fplugin-opt=G2.Nebula:10" + "\n"
