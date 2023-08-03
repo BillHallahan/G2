@@ -157,6 +157,12 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                 t2_str = mkTypeHaskellPG pg t2
             in
             "((coerce (" <> e_str <> " :: " <> t1_str <> ")) :: " <> t2_str <> ")"
+        mkExprHaskell'' off (Coercion (t1 :~ t2)) =
+            let
+                t1_str = mkTypeHaskellPG pg t1
+                t2_str = mkTypeHaskellPG pg t2
+            in
+            "(" <> t1_str <> " :~ " <> t2_str <> ")"
         mkExprHaskell'' off (Let binds e) =
             let
                 binds' = T.intercalate (offset off <> "\n")
