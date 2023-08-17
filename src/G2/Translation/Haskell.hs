@@ -57,8 +57,6 @@ import Data.Tuple.Extra
 import System.FilePath
 import System.Directory
 
-import Debug.Trace
-
 -- Copying from Language.Typing so the thing we stuff into Ghc
 -- does not have to rely on Language.Typing, which depends on other things.
 mkG2TyApp :: [G2.Type] -> G2.Type
