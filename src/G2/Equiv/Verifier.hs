@@ -791,8 +791,6 @@ checkRule config nc init_state bindings total rule = do
       rewrite_state_l'' = startingState start_equiv_tracker ns rewrite_state_l'
       rewrite_state_r'' = startingState start_equiv_tracker ns rewrite_state_r'
       
-  print (curr_expr rewrite_state_l)
-
   S.SomeSolver solver <- initSolver config
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
   (res, w) <- W.runWriterT $ verifyLoop solver (num_lemmas nc) ns

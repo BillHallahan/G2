@@ -57,6 +57,8 @@ import Data.Tuple.Extra
 import System.FilePath
 import System.Directory
 
+import Debug.Trace
+
 -- Copying from Language.Typing so the thing we stuff into Ghc
 -- does not have to rely on Language.Typing, which depends on other things.
 mkG2TyApp :: [G2.Type] -> G2.Type
@@ -250,21 +252,33 @@ mkCgGutsModDetailsClosures tr_con env modgutss = do
   tidys <- mapM (tidyProgram env) simplgutss
 #endif
 
-  let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure cg md
+  let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure (mg_binds mg) cg md
                                       , mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
   return pairs
 #endif
 
 -- | The core program in the CgGuts does not include local rules after tidying.
--- As such, we pass in the CoreProgram from the ModGuts
-mkCgGutsClosure :: CgGuts -> ModDetails -> G2.CgGutsClosure
-mkCgGutsClosure cgguts md =
+mkCgGutsClosure :: CoreProgram -> CgGuts -> ModDetails -> G2.CgGutsClosure
+mkCgGutsClosure binds cgguts md =
+  let
+      binds_rules = concatMap ruleInfoRules
+                  . map ruleInfo
+                  . map idInfo 
+                  . concatMap bindersOf $ binds
+  in
   G2.CgGutsClosure
     { G2.cgcc_mod_name = Just $ moduleNameString $ moduleName $ cg_module cgguts
     , G2.cgcc_binds = cg_binds cgguts
     , G2.cgcc_breaks = cg_modBreaks cgguts
     , G2.cgcc_tycons = cg_tycons cgguts
-    , G2.cgcc_rules = md_rules md }
+    -- Getting all rules is complicated by the facts that:
+    --    1) The core program in the CgGuts does not include local rules after tidying.
+    --    2) The ModDetails does not include all rules.
+    --    3) Names of functions in rules in the ModDetails may have been changed by bindings.
+    -- As such, we keep:
+    --    1) Rules from the ModDetails
+    --    2) Rules from the untidied CoreBinds, if a rule with the same name is not in ModDetails
+    , G2.cgcc_rules = nubBy (\r1 r2 -> ru_name r1 == ru_name r2) (md_rules md ++ binds_rules) }
 
 
 mkModDetailsClosure :: Dependencies -> ModDetails -> G2.ModDetailsClosure
