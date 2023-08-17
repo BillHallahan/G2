@@ -795,10 +795,6 @@ checkRule config nc init_state bindings total rule = do
 
   S.SomeSolver solver <- initSolver config
   putStrLn $ "***\n" ++ (show $ ru_name rule) ++ "\n***"
-  DT.putStrLn $ printHaskellDirty e_l
-  DT.putStrLn $ printHaskellDirty e_r
-  DT.putStrLn $ printHaskellDirty $ getExpr $ latest rewrite_state_l''
-  DT.putStrLn $ printHaskellDirty $ getExpr $ latest rewrite_state_r''
   (res, w) <- W.runWriterT $ verifyLoop solver (num_lemmas nc) ns
              emptyLemmas
              [(rewrite_state_l'', rewrite_state_r'')]
