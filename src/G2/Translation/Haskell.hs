@@ -236,7 +236,7 @@ mkCgGutsModDetailsClosures :: G2.TranslationConfig -> HscEnv -> [ModGuts] -> IO 
 mkCgGutsModDetailsClosures tr_con env modgutss = do
   simplgutss <- mapM (if G2.simpl tr_con then hscSimplify env else return . id) modgutss
   tidys <- mapM (tidyProgram env) simplgutss
-  let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure (mg_binds mg) cg
+  let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure cg md
                                           , mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
   return pairs
 #else
@@ -250,22 +250,21 @@ mkCgGutsModDetailsClosures tr_con env modgutss = do
   tidys <- mapM (tidyProgram env) simplgutss
 #endif
 
-  let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure (mg_binds mg) cg
+  let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure cg md
                                       , mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
   return pairs
 #endif
 
 -- | The core program in the CgGuts does not include local rules after tidying.
 -- As such, we pass in the CoreProgram from the ModGuts
-mkCgGutsClosure :: CoreProgram -> CgGuts -> G2.CgGutsClosure
-mkCgGutsClosure bndrs cgguts =
+mkCgGutsClosure :: CgGuts -> ModDetails -> G2.CgGutsClosure
+mkCgGutsClosure cgguts md =
   G2.CgGutsClosure
     { G2.cgcc_mod_name = Just $ moduleNameString $ moduleName $ cg_module cgguts
     , G2.cgcc_binds = cg_binds cgguts
     , G2.cgcc_breaks = cg_modBreaks cgguts
     , G2.cgcc_tycons = cg_tycons cgguts
-    , G2.cgcc_rules = concatMap ruleInfoRules . map ruleInfo . map idInfo 
-                            . concatMap bindersOf $ bndrs }
+    , G2.cgcc_rules = md_rules md }
 
 
 mkModDetailsClosure :: Dependencies -> ModDetails -> G2.ModDetailsClosure
