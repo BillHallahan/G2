@@ -277,8 +277,8 @@ mkCgGutsClosure binds cgguts md =
     --    3) Names of functions in rules in the original CoreProgram may have been changed by bindings
     --       (in which case it seems like those rules ARE in the ModDetails.)
     -- We can't just take the rules from the ModDetails, because some are eliminated during tidying.
-    -- But we can't just take the rules from the original CoreProgram, because they might have names
-    -- that no longer exist.
+    -- But we can't just take the rules from the original CoreProgram, because they might have function/variables
+    -- names that no longer exist.
     -- As such, we keep:
     --    1) Rules from the ModDetails
     --    2) Rules from the CoreProgram, IF a rule with the same name is not in ModDetails
