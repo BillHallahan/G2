@@ -231,13 +231,14 @@ envModSumModGutsFromFile hsc proj src tr_con =
 envModSumModGutsImports :: EnvModSumModGuts -> [String]
 envModSumModGutsImports (EnvModSumModGuts _ ms _) = concatMap (map (\(_, L _ m) -> moduleNameString m) . ms_textual_imps) ms
 
+-- | Extract information from GHC into a form that G2 can process.
 mkCgGutsModDetailsClosures :: G2.TranslationConfig -> HscEnv -> [ModGuts] -> IO [( G2.CgGutsClosure, G2.ModDetailsClosure)]
 #if __GLASGOW_HASKELL__ < 806
 mkCgGutsModDetailsClosures tr_con env modgutss = do
   simplgutss <- mapM (if G2.simpl tr_con then hscSimplify env else return . id) modgutss
   tidys <- mapM (tidyProgram env) simplgutss
-  let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure (mg_binds mg) cg
-                                          , mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
+  let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure (mg_binds mg) cg md
+                                      , mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
   return pairs
 #else
 mkCgGutsModDetailsClosures tr_con env modgutss = do
@@ -250,22 +251,38 @@ mkCgGutsModDetailsClosures tr_con env modgutss = do
   tidys <- mapM (tidyProgram env) simplgutss
 #endif
 
-  let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure (mg_binds mg) cg
+  let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure (mg_binds mg) cg md
                                       , mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
   return pairs
 #endif
 
--- | The core program in the CgGuts does not include local rules after tidying.
--- As such, we pass in the CoreProgram from the ModGuts
-mkCgGutsClosure :: CoreProgram -> CgGuts -> G2.CgGutsClosure
-mkCgGutsClosure bndrs cgguts =
+-- | Extract information from GHC into a form that G2 can process.
+mkCgGutsClosure :: CoreProgram -> CgGuts -> ModDetails -> G2.CgGutsClosure
+mkCgGutsClosure binds cgguts md =
+  let
+      binds_rules = concatMap ruleInfoRules
+                  . map ruleInfo
+                  . map idInfo 
+                  . concatMap bindersOf $ binds
+  in
   G2.CgGutsClosure
     { G2.cgcc_mod_name = Just $ moduleNameString $ moduleName $ cg_module cgguts
     , G2.cgcc_binds = cg_binds cgguts
     , G2.cgcc_breaks = cg_modBreaks cgguts
     , G2.cgcc_tycons = cg_tycons cgguts
-    , G2.cgcc_rules = concatMap ruleInfoRules . map ruleInfo . map idInfo 
-                            . concatMap bindersOf $ bndrs }
+    -- Getting all rules is complicated by GHC's build process.  GHC goes through a "tidying"
+    -- process, which performs various transformation on the Core code. Unfortunately:
+    --    1) The core program in the CgGuts does not include rules after tidying.
+    --    2) The ModDetails does not include all rules after tidying.
+    --    3) Names of functions in rules in the original CoreProgram may have been changed by bindings
+    --       (in which case it seems like those rules ARE in the ModDetails.)
+    -- We can't just take the rules from the ModDetails, because some are eliminated during tidying.
+    -- But we can't just take the rules from the original CoreProgram, because they might have function/variables
+    -- names that no longer exist.
+    -- As such, we keep:
+    --    1) Rules from the ModDetails
+    --    2) Rules from the CoreProgram, IF a rule with the same name is not in ModDetails
+    , G2.cgcc_rules = nubBy (\r1 r2 -> ru_name r1 == ru_name r2) (md_rules md ++ binds_rules) }
 
 
 mkModDetailsClosure :: Dependencies -> ModDetails -> G2.ModDetailsClosure
