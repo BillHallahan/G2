@@ -43,9 +43,10 @@ instance Ided Type where
             go (TyForAll b _) = ids b
             go _ = []
 
+-- DCInstance DC ids 
 instance Ided DataCon where
     {-# INLINE ids #-}
-    ids (DataCon _ t) = ids t
+    ids (DataCon _ _ t) = ids t
 
 instance Ided AltMatch where
     {-# INLINE ids #-}

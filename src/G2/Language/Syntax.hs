@@ -202,13 +202,21 @@ data Lit = LitInt Integer
 instance Hashable Lit
 
 -- | Data constructor.
-data DataCon = DataCon Name Type deriving (Show, Eq, Read, Generic, Typeable, Data, Ord)
+data DataCon = DataCon { dc_name :: Name
+                       , dc_type :: Type 
+                       , ex_tyvars :: [Id]}
+                       deriving(Show, Eq, Read, Generic, Typeable, Data, Ord)
+-- | need to set of existential typcon which
+-- will be the typcon that get perserved with fancy types: existenailly quantified
+-- dataCon record types
+
+
 
 instance Hashable DataCon
 
 -- | Extract the `Name` of a `DataCon`.
 dcName :: DataCon -> Name
-dcName (DataCon n _) = n
+dcName (DataCon n _ _) = n
 
 -- | Describe the conditions to match on a particular `Alt`.
 data AltMatch = DataAlt DataCon [Id] -- ^ Match a datacon. The number of `Id`s

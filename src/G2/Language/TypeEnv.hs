@@ -87,4 +87,4 @@ dataConWithNameMod (DataTyCon _ dcs) n = find (`dataConHasNameMod` n) dcs
 dataConWithNameMod _ _ = Nothing
 
 dataConHasNameMod :: DataCon -> Name -> Bool
-dataConHasNameMod (DataCon (Name n m _ _) _) (Name n' m' _ _) = n == n' && m == m'
+dataConHasNameMod (DataCon (Name n m _ _) _ _) (Name n' m' _ _) = n == n' && m == m'

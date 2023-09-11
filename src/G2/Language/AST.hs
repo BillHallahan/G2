@@ -228,7 +228,7 @@ instance AST Type where
 
 instance AST DataCon where
     children _ = []
-    modifyChildren _ (DataCon n ty) = DataCon n ty
+    modifyChildren _ (DataCon n ty tyvars) = DataCon n ty tyvars
 
 -- | Every AST is defined as an ASTContainer of itself. Generally, functions
 --   should be written using the ASTContainer typeclass.
@@ -308,8 +308,8 @@ instance ASTContainer DataCon Expr where
     modifyContainedASTs _ d = d
 
 instance ASTContainer DataCon Type where
-    containedASTs (DataCon _ t) = [t]
-    modifyContainedASTs f (DataCon n t) = DataCon n (f t)
+    containedASTs (DataCon _ t _) = [t]
+    modifyContainedASTs f (DataCon n t tyvars) = DataCon n (f t) tyvars
 
 instance ASTContainer AltMatch Expr where
     containedASTs _ = []
