@@ -179,7 +179,7 @@ altMatchNames (DataAlt dc i) = dataConName dc ++ (map idName i)
 altMatchNames _ = []
 
 dataConName :: DataCon -> [Name]
-dataConName (DataCon n _) = [n]
+dataConName (DataCon n _ _) = [n]
 
 typeNames :: (ASTContainer m Type) => m -> [Name]
 typeNames = evalASTs typeTopNames
@@ -336,8 +336,9 @@ renameVars' _ _ e = e
 renameExprId :: Name -> Name -> Id -> Id
 renameExprId old new (Id n t) = Id (rename old new n) t
 
+--DCInstance renameExprDataCon
 renameExprDataCon :: Name -> Name -> DataCon -> DataCon
-renameExprDataCon old new (DataCon n t) = DataCon (rename old new n) t
+renameExprDataCon old new (DataCon n t tyvars) = DataCon (rename old new n) t tyvars
 
 renameExprAlt :: Name -> Name -> Alt -> Alt
 renameExprAlt old new (Alt (DataAlt dc is) e) =
@@ -372,8 +373,9 @@ renamesExprs' _ e = e
 renamesExprId :: HM.HashMap Name Name -> Id -> Id
 renamesExprId hm (Id n t) = Id (renames hm n) t
 
+--DCInstance renamesExprDataCon
 renamesExprDataCon :: HM.HashMap Name Name -> DataCon -> DataCon
-renamesExprDataCon hm (DataCon n t) = DataCon (renames hm n) t
+renamesExprDataCon hm (DataCon n t tyvars) = DataCon (renames hm n) t tyvars
 
 renamesExprAlt :: HM.HashMap Name Name -> Alt -> Alt
 renamesExprAlt hm (Alt (DataAlt dc is) e) =
@@ -429,17 +431,21 @@ instance Named Alt where
     {-# INLINE renames #-}
     renames hm (Alt am e) = Alt (renames hm am) (renames hm e)
 
+--DCInstance instance Named DataCon
 instance Named DataCon where
     {-# INLINE names #-}
-    names (DataCon n t) = n S.<| names t
+    names (DataCon n t tyvars) = undefined
+                             -- n S.<| names t
 
+--DCInstance instance rename
     {-# INLINE rename #-}
-    rename old new (DataCon n t) =
-        DataCon (rename old new n) (rename old new t)
+    rename old new (DataCon n t tyvars) = undefined
+        -- DataCon (rename old new n) (rename old new t)
 
+--DCInstance instance renames
     {-# INLINE renames #-}
-    renames hm (DataCon n t) =
-        DataCon (renames hm n) (renames hm t)
+    renames hm (DataCon n t tyvars) = undefined
+        -- DataCon (renames hm n) (renames hm t)
 
 instance Named AltMatch where
     {-# INLINE names #-}

@@ -140,15 +140,16 @@ qqDataConLookupFallBack :: Int -- The number of TyVars
                         -> QQName -> QQName -> QQMap -> QQMap -> TypeEnv -> DataCon
 qqDataConLookupFallBack tyv_n arg_n qqtn qqdc type_nm_qqm dc_nm_qqm tenv
     | Just dc <- qqDataConLookup qqtn qqdc type_nm_qqm dc_nm_qqm tenv = dc
-    | otherwise =
-        let
+    | otherwise = undefined
+    --DCInstance qqDataConLookupFallBack
+      {- let
             n = G2.Name "unknown" Nothing 0 Nothing
             i = Id n TYPE
 
             t = mkTyFun $ replicate (arg_n + 1) (TyCon n TYPE)
             t' = foldr TyForAll t (replicate tyv_n i)
         in
-        DataCon (qqNameToName0 qqdc) t'
+        DataCon (qqNameToName0 qqdc) t'  -} 
 
 newField :: TH.Name -> TH.Name -> (TH.Name, StrictType) -> Q Exp
 newField _ _ (x, (_, ConT n))

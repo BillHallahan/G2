@@ -748,6 +748,9 @@ mkTyConName tm tc =
     Just (G2.Name n'' m' i _) -> G2.Name n'' m' i l
     Nothing -> n
 
+-- | need to make new type in the transtype for the extraction of the tycovars
+-- We then need to include a new field that will describe the tycovars in mkdata
+-- lastly, use function dataConUnivTyVars from GHC.Core.DataCon to extract the tycovars
 mkData :: G2.NameMap -> G2.TypeNameMap -> DataCon -> G2.DataCon
 mkData nm tm datacon = G2.DataCon name ty
   where

@@ -171,7 +171,7 @@ cutOffVal = 3
 
 cutOff :: [Name] -> Expr -> Expr
 cutOff ns a@(App _ _)
-    | Data (DataCon n _) <- appCenter a =
+    | Data (DataCon n _ _) <- appCenter a =
         case length (filter (== n) ns) > cutOffVal of
             True -> Prim Undefined TyBottom
             False -> mapArgs (cutOff (n:ns)) a

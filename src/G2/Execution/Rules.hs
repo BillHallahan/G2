@@ -279,7 +279,7 @@ evalCase s@(State { expr_env = eenv
   -- We do not want to remove casting from any of the arguments since this could
   -- mess up there types later
   | (Data dcon):ar <- unApp $ exprInCasts mexpr
-  , (DataCon _ _) <- dcon
+  , (DataCon _ _ _) <- dcon
   , ar' <- removeTypes ar eenv
   , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
   , length params == length ar' =
@@ -369,8 +369,8 @@ matchDefaultAlts alts = [a | a@(Alt Default _) <- alts]
 
 -- | Match data constructor based `Alt`s.
 matchDataAlts :: DataCon -> [Alt] -> [Alt]
-matchDataAlts (DataCon n _) alts =
-  [a | a@(Alt (DataAlt (DataCon n' _) _) _) <- alts, n == n']
+matchDataAlts (DataCon n _ _) alts =
+  [a | a@(Alt (DataAlt (DataCon n' _ _) _) _) <- alts, n == n']
 
 -- | Match literal constructor based `Alt`s.
 matchLitAlts :: Lit -> [Alt] -> [Alt]
@@ -463,7 +463,7 @@ mexprTyToExpr' mexpr_t tenv
 
 -- | Given a DataCon, and an (Id, Type) mapping, returns list of Expression level Type Arguments to DataCon
 dconTyToExpr :: DataCon -> [(Id, Type)] -> [Expr]
-dconTyToExpr (DataCon _ t) bindings =
+dconTyToExpr (DataCon _ t _) bindings =
     case (getTyApps t) of
         (Just tApps) -> tyAppsToExpr tApps bindings
         Nothing -> []
@@ -491,15 +491,16 @@ createExtCond s ngen mexpr cvar (dcon, _, aexpr) =
     res = s {curr_expr = CurrExpr Evaluate aexpr'}
 
 getBoolFromDataCon :: KnownValues -> DataCon -> Bool
-getBoolFromDataCon kv dcon
-    | (DataCon dconName dconType) <- dcon
+getBoolFromDataCon kv dcon = undefined
+-- DCInstance getBoolFromDataCon 
+  {-| (DataCon dconName dconType) <- dcon
     , dconType == (tyBool kv)
     , dconName == (KV.dcTrue kv) = True
     | (DataCon dconName dconType) <- dcon
     , dconType == (tyBool kv)
     , dconName == (KV.dcFalse kv) = False
     | otherwise = error $ "getBoolFromDataCon: invalid DataCon passed in\n" ++ show dcon ++ "\n"
-
+ -} 
 liftSymLitAlt :: State t -> Expr -> Id -> [(Lit, Expr)] -> [NewPC t]
 liftSymLitAlt s mexpr cvar = map (liftSymLitAlt' s mexpr cvar)
 
@@ -539,9 +540,9 @@ liftSymDefAlt' s@(State {type_env = tenv}) ng mexpr aexpr cvar alts
                 _ -> Nothing
             dcs = dataCon adt
             badDCs = mapMaybe (\alt -> case alt of
-                (Alt (DataAlt (DataCon dcn _) _) _) -> Just dcn
+                (Alt (DataAlt (DataCon dcn _ _) _) _) -> Just dcn
                 _ -> Nothing) alts
-            dcs' = filter (\(DataCon dcn _) -> dcn `notElem` badDCs) dcs
+            dcs' = filter (\(DataCon dcn _ _) -> dcn `notElem` badDCs) dcs
 
             (newId, ng') = freshId TyLitInt ng
 
@@ -591,8 +592,10 @@ defAltExpr (_:xs) = defAltExpr xs
 
 -- | Creates and applies new symbolic variables for arguments of Data Constructor
 concretizeSym :: [(Id, Type)] -> Maybe Coercion -> (State t, NameGen) -> DataCon -> ((State t, NameGen), Expr)
-concretizeSym bi maybeC (s, ng) dc@(DataCon _ ts) =
-    let dc' = Data dc
+concretizeSym bi maybeC (s, ng) dc@(DataCon _ ts tyvars) = undefined 
+-- DCInstance concretizeSym 
+
+{- let dc' = Data dc
         ts' = anonArgumentTypes $ PresType ts
         ts'' = foldr (\(i, t) e -> retype i t e) ts' bi
         (ns, ng') = freshNames (length ts'') ng
@@ -604,7 +607,7 @@ concretizeSym bi maybeC (s, ng) dc@(DataCon _ ts) =
             Nothing -> dc''
         eenv = foldr E.insertSymbolic (expr_env s) newParams
     in ((s {expr_env = eenv} , ng'), dc''')
-
+-}    
 createCaseExpr :: Id -> Type -> [Expr] -> Expr
 createCaseExpr _ _ [e] = e
 createCaseExpr newId t es@(_:_) =

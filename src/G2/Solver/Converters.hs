@@ -333,12 +333,13 @@ exprToSMT (Lit c) =
         LitDouble d -> VDouble d
         LitChar ch -> VChar ch
         err -> error $ "exprToSMT: invalid Expr: " ++ show err
-exprToSMT (Data (DataCon n (TyCon (Name "Bool" _ _ _) _))) =
+--DCInstance exprToSMT
+{-exprToSMT (Data (DataCon n (TyCon (Name "Bool" _ _ _) _ ))) =
     case nameOcc n of
         "True" -> VBool True
         "False" -> VBool False
         _ -> error "Invalid bool in exprToSMT"
-exprToSMT (Data (DataCon n t)) = V (nameToStr n) (typeToSMT t)
+exprToSMT (Data (DataCon n t)) = V (nameToStr n) (typeToSMT t) -}
 exprToSMT a@(App _ _) =
     let
         f = getFunc a
@@ -587,8 +588,9 @@ smtastToExpr :: SMTAST -> Expr
 smtastToExpr (VInt i) = (Lit $ LitInt i)
 smtastToExpr (VFloat f) = (Lit $ LitFloat f)
 smtastToExpr (VDouble d) = (Lit $ LitDouble d)
-smtastToExpr (VBool b) =
-    Data (DataCon (Name (T.pack $ show b) Nothing 0 Nothing) (TyCon (Name "Bool" Nothing 0 Nothing) TYPE))
+--DCInstnace smtastToExpr (VBool b)
+smtastToExpr (VBool b) = undefined
+    --Data (DataCon (Name (T.pack $ show b) Nothing 0 Nothing) (TyCon (Name "Bool" Nothing 0 Nothing) TYPE))
 smtastToExpr (VChar c) = Lit $ LitChar c
 smtastToExpr (V n s) = Var $ Id (certainStrToName n) (sortToType s)
 smtastToExpr _ = error "Conversion of this SMTAST to an Expr not supported."

@@ -71,7 +71,8 @@ inlineFuncInCase eenv e =
 
 caseOfKnownCons :: Expr -> Expr
 caseOfKnownCons (Case e i _ as)
-    | Data (DataCon n t):es <- unApp e
+--DCInstance caseOfKnownCons
+    | Data (DataCon n t tyvars):es <- unApp e
     , Just (Alt (DataAlt _ is) ae) <- find (matchingDataAlt n) as =
         let
             tfa_count = length (leadingTyForAllBindings $ PresType t)
@@ -89,7 +90,7 @@ caseOfKnownCons (Case e i _ as)
 caseOfKnownCons e = modifyChildren caseOfKnownCons e
 
 matchingDataAlt :: Name -> Alt -> Bool
-matchingDataAlt n (Alt (DataAlt (DataCon n' _) _) _) = n == n'
+matchingDataAlt n (Alt (DataAlt (DataCon n' _ _) _) _) = n == n'
 matchingDataAlt _ _ = False
 
 matchingLitAlt :: Lit -> Alt -> Bool

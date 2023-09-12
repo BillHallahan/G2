@@ -100,7 +100,7 @@ eqUpToTypes :: Expr -> Expr -> Bool
 eqUpToTypes (Var (Id n _)) (Var (Id n' _)) = n == n'
 eqUpToTypes (Lit l) (Lit l') = l == l'
 eqUpToTypes (Prim p _) (Prim p' _) = p == p'
-eqUpToTypes (Data (DataCon n _)) (Data (DataCon n' _)) = n == n'
+eqUpToTypes (Data (DataCon n _ _)) (Data (DataCon n' _ _)) = n == n'
 eqUpToTypes (App e1 e2) (App e1' e2') = e1 `eqUpToTypes` e1' && e2 `eqUpToTypes` e2'
 eqUpToTypes (Lam lu (Id n _) e) (Lam lu' (Id n' _) e') = lu == lu' && n == n' && e `eqUpToTypes` e'
 eqUpToTypes (Let b e) (Let b' e') =
@@ -149,18 +149,20 @@ mkDCDouble kv tenv = Data . fromJust $ getDataCon tenv (KV.tyDouble kv) (KV.dcDo
 
 mkDCChar :: KnownValues -> TypeEnv -> Expr
 mkDCChar kv tenv = Data . fromJust $ getDataCon tenv (KV.tyChar kv) (KV.dcChar kv)
-
+--DCInstance mkDCTrue DataCon
 mkDCTrue :: KnownValues -> TypeEnv -> DataCon
-mkDCTrue kv tenv = fromJust $ getDataCon tenv (KV.tyBool kv) (KV.dcTrue kv)
-
+mkDCTrue kv tenv = undefined --fromJust $ getDataCon tenv (KV.tyBool kv) (KV.dcTrue kv)
+--DCInstance mkDCFalse DataCon
 mkDCFalse :: KnownValues -> TypeEnv -> DataCon
-mkDCFalse kv tenv = fromJust $ getDataCon tenv (KV.tyBool kv) (KV.dcFalse kv)
+mkDCFalse kv tenv = undefined --fromJust $ getDataCon tenv (KV.tyBool kv) (KV.dcFalse kv)
 
+--DCInstance mkTrue Expr 
 mkTrue :: KnownValues -> Expr
-mkTrue kv = Data $ DataCon (KV.dcTrue kv) (TyCon (KV.tyBool kv) TYPE)
+mkTrue kv = undefined --Data $ DataCon (KV.dcTrue kv) (TyCon (KV.tyBool kv) TYPE)
 
+--DCInstance mkFalse Expr 
 mkFalse :: KnownValues -> Expr
-mkFalse kv = Data $ DataCon (KV.dcFalse kv) (TyCon (KV.tyBool kv) TYPE)
+mkFalse kv = undefined -- Data $ DataCon (KV.dcFalse kv) (TyCon (KV.tyBool kv) TYPE)
 
 mkBool :: KnownValues -> Bool -> Expr
 mkBool kv b = if b then mkTrue kv else mkFalse kv
