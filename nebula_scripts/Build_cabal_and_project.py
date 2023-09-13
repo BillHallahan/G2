@@ -36,7 +36,11 @@ def changing_cabal(directory):
                             search_build_depends = re.search("Build-Depends:",line,re.IGNORECASE)
                             if search_build_depends:
                                 print("The build-depends before update is " + line)
-                                line = line.replace(search_build_depends.group(), search_build_depends.group() + " g2 >= 0.1.0.2, ",1)
+                                next_line_strip = next_line.lstrip()
+                                if next_line_strip.startswith(","):
+                                    line = line.replace(search_build_depends.group(), search_build_depends.group() + " g2 >= 0.1.0.2 ",1)
+                                else:
+                                    line = line.replace(search_build_depends.group(), search_build_depends.group() + " g2 >= 0.1.0.2, ",1)
                                 print("The build-depends after update is " + line)
                                 found_build = True
                             for extension in extension_to_check:
