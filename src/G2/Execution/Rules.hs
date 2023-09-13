@@ -831,7 +831,7 @@ retAssumeFrame s@(State {known_values = kv
             _ -> []
         -- Special handling in case we just have a concrete DataCon, or a lone Var
         (newPCs, ng') = case unApp $ unsafeElimOuterCast e1 of
-            [Data (DataCon dcn _)]
+            [Data (DataCon dcn _ _)]
                 | dcn == KV.dcFalse kv -> ([], ng)
                 | dcn == KV.dcTrue kv ->
                     ( [NewPC { state = s { curr_expr = CurrExpr Evaluate e2
@@ -855,7 +855,7 @@ retAssertFrame s@(State {known_values = kv
             _ -> []
         -- Special handling in case we just have a concrete DataCon, or a lone Var
         (newPCs, ng') = case unApp $ unsafeElimOuterCast e1 of
-            [Data (DataCon dcn _)]
+            [Data (DataCon dcn _ _)]
                 | dcn == KV.dcFalse kv ->
                     ( [NewPC { state = s { curr_expr = CurrExpr Evaluate e2
                                          , exec_stack = stck
@@ -887,7 +887,7 @@ concretizeExprToBool s ng mexpr_id (x:xs) e2 stck =
 concretizeExprToBool' :: State t -> NameGen -> Id -> DataCon -> Expr -> S.Stack Frame -> (NewPC t, NameGen)
 concretizeExprToBool' s@(State {expr_env = eenv
                         , known_values = kv})
-                ngen mexpr_id dcon@(DataCon dconName _) e2 stck = 
+                ngen mexpr_id dcon@(DataCon dconName _ _) e2 stck = 
         (NewPC { state = s { expr_env = eenv'
                         , exec_stack = stck
                         , curr_expr = CurrExpr Evaluate e2
@@ -982,7 +982,7 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
         (x, ng') = freshId t1 ng
         (x', ng'') = freshId t1 ng'
         (alts, symIds, ng''') =
-            foldr (\dc@(DataCon _ dcty) (as, sids, ng1) ->
+            foldr (\dc@(DataCon _ dcty _) (as, sids, ng1) ->
                         let (argIds, ng1') = genArgIds dc ng1
                             data_alt = DataAlt dc argIds
                             sym_fun_ty = mkTyFun $ fst (argTypes dcty) ++ [t2]
@@ -1032,11 +1032,12 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
         eqT1 = mkEqPrimType t1 kv
         (f1Id:f2Id:xId:discrimId:[], ng') = freshIds [t2, TyFun t1 t2, t1, boolTy] ng
         x = Var xId
-        e = Lam TermL xId $ Case (mkApp [eqT1, x, ea]) discrimId t2
+        --DCInstance retReplaceSymbFuncTemplate line 1035
+        e = undefined {- Lam TermL xId $ Case (mkApp [eqT1, x, ea]) discrimId t2
            [ Alt (DataAlt trueDc []) (Var f1Id)
-           , Alt (DataAlt falseDc []) (App (Var f2Id) x)]
+           , Alt (DataAlt falseDc []) (App (Var f2Id) x)] -}
         eenv' = foldr E.insertSymbolic eenv [f1Id, f2Id]
-        eenv'' = E.insert n e eenv'
+        eenv'' = E.insert n e eenv' 
     in Just (RuleReturnReplaceSymbFunc, [s {
         -- because we are always going down true branch
         curr_expr = CurrExpr Return (Var f1Id),
@@ -1048,7 +1049,7 @@ argTypes :: Type -> ([Type], Type)
 argTypes t = (anonArgumentTypes $ PresType t, returnType $ PresType t)
 
 genArgIds :: DataCon -> NameGen -> ([Id], NameGen)
-genArgIds (DataCon _ dcty) ng =
+genArgIds (DataCon _ dcty _) ng =
     let (argTys, _) = argTypes dcty
     in foldr (\ty (is, ng') -> let (i, ng'') = freshId ty ng' in ((i:is), ng'')) ([], ng) argTys
 

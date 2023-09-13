@@ -41,14 +41,16 @@ dataInject prog progTy =
 
 -- TODO: Polymorphic types?
 dataInject' :: [(Name, [Type])] -> Expr -> Expr
-dataInject' ns v@(Var (Id (Name n m _ _) t)) = 
-    case find (\(Name n' m' _ _, _) -> n == n' && m == m') ns of
+-- DCInstance dataInject'
+dataInject' ns v@(Var (Id (Name n m _ _) t)) = undefined 
+   {-  case find (\(Name n' m' _ _, _) -> n == n' && m == m') ns of
         Just (n', _) -> Data (DataCon n' t)
         Nothing -> v
 dataInject' _ e = e
-
+-}
+-- DCInstance conName
 conName :: DataCon -> (Name, [Type])
-conName (DataCon n t) = (n, anonArgumentTypes $ t)
+conName (DataCon n t tyvars) = undefined -- (n, anonArgumentTypes $ t)
 
 primDefs :: HM.HashMap Name AlgDataTy -> [(T.Text, Expr)]
 primDefs pt = case boolName pt of

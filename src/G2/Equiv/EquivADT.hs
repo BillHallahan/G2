@@ -108,8 +108,8 @@ exprPairing ns s1@(State {expr_env = h1}) s2@(State {expr_env = h2}) e1 e2 pairs
     (Type _, Type _) -> Just pairs
     -- See note in `moreRestrictive` regarding comparing DataCons
     _
-        | (Data d@(DataCon d1 _)):l1 <- unAppNoTicks e1
-        , (Data (DataCon d2 _)):l2 <- unAppNoTicks e2 ->
+        | (Data d@(DataCon d1 _ _)):l1 <- unAppNoTicks e1
+        , (Data (DataCon d2 _ _)):l2 <- unAppNoTicks e2 ->
             if d1 == d2 then
                 let ep = uncurry (exprPairing ns s1 s2)
                     ep' hs p = ep p hs n1 n2

@@ -25,15 +25,16 @@ specialTypes' (n, m, ns) dcn =
     in
     (tn, DataTyCon {bound_ids = map (flip Id TYPE) ns, data_cons = dc})
 
+-- DCInstance specialDC
 specialDC :: [Name] -> Name -> (T.Text, Maybe T.Text, [Type]) -> DataCon
-specialDC ns tn (n, m, ts) = 
-    let
+specialDC ns tn (n, m, ts) = undefined 
+   {-  let
         tv = map (TyVar . flip Id TYPE) ns
 
         t = foldr (TyFun) (mkFullAppedTyCon tn tv TYPE) ts
         t' = foldr (\n' -> TyForAll (Id n' TYPE)) t ns
     in
-    DataCon (Name n m 0 Nothing) t'
+    DataCon (Name n m 0 Nothing) t' -}
 
 specialTypeNames :: HM.HashMap (T.Text, Maybe T.Text) Name
 specialTypeNames = -- HM.fromList $ map (\(n, m, _) -> ((n, m), Name n m 0 Nothing)) specialTypeNames'
@@ -43,7 +44,7 @@ specialConstructors :: HM.HashMap (T.Text, Maybe T.Text) Name
 specialConstructors =
     -- GHC 9.4 on use different constructors than our base for Integers, so we add a special mapping
     -- for those constructor (via `integerConstructor` to adjust Names accordingly)
-    HM.fromList $ integerConstructor:map (\(DataCon nm@(Name n m _ _) _)-> ((n, m), nm)) specialConstructors'
+    HM.fromList $ integerConstructor:map (\(DataCon nm@(Name n m _ _) _ _)-> ((n, m), nm)) specialConstructors'
 
 integerConstructor :: ((T.Text, Maybe T.Text), Name)
 integerConstructor = (("IS", Just "GHC.Num.Integer"), Name "Z#" (Just "GHC.Num.Integer") 0 Nothing)
@@ -135,7 +136,8 @@ mkPrimTuples' n | n < 0 = []
                             t = foldr (TyFun) (mkFullAppedTyCon tn tv TYPE) tv
                             t' = foldr (\n' -> TyForAll (Id n' TYPE)) t ns
                             t'' = foldr (\n' -> TyForAll (Id n' TYPE)) t' rt_ns
-                            dc = DataCon (Name s m 0 Nothing) t''
-                        in
+                            --DCInstance mkPrimTuples
+                            dc = undefined -- DataCon (Name s m 0 Nothing) t''
+                        in  
                         -- ((s, m, []), [(s, m, [])]) : mkTuples (n - 1)
                         (s, m, rt_ns ++ ns, dc) : mkPrimTuples' (n - 1)
