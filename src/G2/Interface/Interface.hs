@@ -262,13 +262,14 @@ initRedHaltOrd solver simplifier config =
         state_name = Name "state" Nothing 0 Nothing
 
         m_logger = fmap SomeReducer $ getLogger config
+
+        logger_std_red f = case m_logger of
+                            Just logger -> logger .~> SomeReducer (stdRed share f solver simplifier)
+                            Nothing -> SomeReducer (stdRed share f solver simplifier)
     in
     case higherOrderSolver config of
         AllFuncs ->
-            (SomeReducer (nonRedPCRed)
-                 .<~| (case m_logger of
-                        Just logger -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier) .<~ logger
-                        Nothing -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier))
+            ( logger_std_red retReplaceSymbFuncVar .== Finished .--> SomeReducer nonRedPCRed
              , SomeHalter
                  (switchEveryNHalter 20
                  <~> maxOutputsHalter (maxOutputs config)
@@ -276,10 +277,7 @@ initRedHaltOrd solver simplifier config =
                  <~> acceptIfViolatedHalter)
              , SomeOrderer $ pickLeastUsedOrderer)
         SingleFunc ->
-            ( SomeReducer (nonRedPCRed <~| taggerRed state_name)
-                 .<~| (case m_logger of
-                        Just logger -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier) .<~ logger
-                        Nothing -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier))
+            ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
              , SomeHalter
                  (discardIfAcceptedTagHalter state_name
                  <~> switchEveryNHalter 20
@@ -288,10 +286,7 @@ initRedHaltOrd solver simplifier config =
                  <~> acceptIfViolatedHalter)
              , SomeOrderer $ pickLeastUsedOrderer)
         SymbolicFunc ->
-            (SomeReducer (nonRedPCRed)
-                 .<~| (case m_logger of
-                        Just logger -> SomeReducer (stdRed share retReplaceSymbFuncTemplate solver simplifier) .<~ logger
-                        Nothing -> SomeReducer (stdRed share retReplaceSymbFuncTemplate solver simplifier))
+            ( logger_std_red retReplaceSymbFuncTemplate .== Finished .--> SomeReducer nonRedPCRed
              , SomeHalter
                  (switchEveryNHalter 20
                  <~> maxOutputsHalter (maxOutputs config)

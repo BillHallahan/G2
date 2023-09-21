@@ -44,6 +44,13 @@ module G2.Execution.Reducer ( Reducer (..)
                             , limLogger
                             , LimLogger (..)
 
+                            , ReducerEq (..)
+                            , (.==)
+                            , (~>)
+                            , (.~>)
+                            , (-->)
+                            , (.-->)
+
                             , (<~)
                             , (<~?)
                             , (<~|)
@@ -278,6 +285,87 @@ data SomeOrderer t where
 -- We should never define any other instance of Reducer with RC, or export it
 -- because this could lead to undecidable instances
 data RC a b = RC a b
+
+-- | Check if a `Reducer` returned some `ReducerRes`
+-- data ReducerEq m rv1 t = Reducer m rv1 t :== ReducerRes
+data ReducerEq m t where
+    (:==) :: forall m rv t . Reducer m rv t -> ReducerRes -> ReducerEq m t
+
+(.==) :: SomeReducer m t -> ReducerRes -> ReducerEq m t
+SomeReducer r .== res = r :== res
+
+infixr 8 .==
+
+infixr 7 ~>, .~>
+
+infixr 5 -->, .-->
+
+-- | `r1 ~> r2` applies `Reducer` `r1`, followed by reducer `r2`. 
+(~>) :: Monad m => Reducer m rv1 t -> Reducer m rv2 t -> Reducer m (RC rv1 rv2) t
+r1 ~> r2 =
+    Reducer { initReducer = \s -> RC (initReducer r1 s) (initReducer r2 s)
+
+            , redRules = \(RC rv1 rv2) s b -> do
+                (rr1, srv1, b') <- redRules r1 rv1 s b
+                (rr2, srv2, b'') <- redRulesToStates' r2 rv2 srv1 b'
+
+                return (progPrioritizer rr1 rr2, srv2, b'')
+
+            , updateWithAll = updateWithAllPair (updateWithAll r1) (updateWithAll r2)
+
+            , onAccept = \s (RC rv1 rv2) -> do
+                onAccept r1 s rv1
+                onAccept r2 s rv2
+            }
+{-# INLINE (~>) #-}
+
+(.~>) :: Monad m => SomeReducer m t -> SomeReducer m t -> SomeReducer m t
+SomeReducer r1 .~> SomeReducer r2 = SomeReducer (r1 ~> r2)
+{-# INLINE (.~>) #-}
+
+-- | `r1 := res --> r2` applies `Reducer` `r1`.  If `r`` returns the `ReducerRes` `res`,
+-- then `Reducer` `r2` is applied.  Otherwise, reduction halts.  
+(-->) :: Monad m => ReducerEq m t -> Reducer m rv2 t -> SomeReducer m t
+(r1 :== res) --> r2 =
+    SomeReducer $
+        Reducer { initReducer = \s -> RC (initReducer r1 s) (initReducer r2 s)
+
+                , redRules = \(RC rv1 rv2) s b -> do
+                    (rr1, srv1, b') <- redRules r1 rv1 s b
+                    let (s', rv1') = unzip srv1
+
+                    case rr1 == res of
+                        True -> do
+                            (rr2, ss, b'') <- redRulesToStates' r2 rv2 srv1 b'
+                            return (rr2, ss, b'')
+                        False -> return (rr1, zip s' (map (flip RC rv2) rv1'), b')
+
+                , updateWithAll = updateWithAllPair (updateWithAll r1) (updateWithAll r2)
+
+                , onAccept = \s (RC rv1 rv2) -> do
+                    onAccept r1 s rv1
+                    onAccept r2 s rv2
+                }
+{-# INLINE (-->) #-}
+
+(.-->) :: Monad m => ReducerEq m t -> SomeReducer m t -> SomeReducer m t
+req .--> SomeReducer r = req --> r
+
+redRulesToStatesAux' :: Monad m =>  Reducer m rv2 t -> rv2 -> Bindings -> (State t, rv1) -> m (Bindings, (ReducerRes, [(State t, RC rv1 rv2)]))
+redRulesToStatesAux' r rv2 b (is, rv1) = do
+        (rr_, is', b') <- redRules r rv2 is b
+        return (b', (rr_, map (\(is'', rv2') -> (is'', RC rv1 rv2') ) is'))
+
+redRulesToStates' :: Monad m => Reducer m rv2 t -> rv2 -> [(State t, rv1)] -> Bindings -> m (ReducerRes, [(State t, RC rv1 rv2)], Bindings)
+redRulesToStates' r rv1 s b = do
+    let redRulesToStatesAux'' = redRulesToStatesAux' r rv1
+    (b', rs) <- MD.mapMAccumB redRulesToStatesAux'' b s
+
+    let (rr, s') = L.unzip rs
+
+    let rf = foldr progPrioritizer NoProgress rr
+
+    return $ (rf, concat s', b')
 
 {-# INLINE (<~) #-}
 (<~) :: Monad m => Reducer m rv1 t -> Reducer m rv2 t -> Reducer m (RC rv1 rv2) t
