@@ -445,13 +445,16 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
         non_red = nonRedPCRed .|. nonRedPCRedConst
 
         m_logger = fmap SomeReducer $ getLogger config
+
+        lh_std_red = existentialInstRed :== NoProgress .--> lhRed cfn :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier
+        opt_logger_red = case m_logger of
+                            Just logger -> logger .~> lh_std_red
+                            Nothing -> lh_std_red
     in
     if higherOrderSolver config == AllFuncs then
-        ( SomeReducer non_red
-            .<~| (SomeReducer (nonRedAbstractReturnsRed <~| taggerRed abs_ret_name))
-            .<~| (case m_logger of
-                  Just logger -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier <~| lhRed cfn <~? existentialInstRed) .<~ logger
-                  Nothing -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier <~| lhRed cfn <~? existentialInstRed))
+        (opt_logger_red .== Finished .-->
+            (taggerRed abs_ret_name :== Finished --> nonRedAbstractReturnsRed) .== Finished .-->
+            SomeReducer non_red
         , SomeHalter
                 (maxOutputsHalter (maxOutputs config)
                   <~> zeroHalter (steps config)
@@ -461,11 +464,9 @@ lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st
                   <~> lhAcceptIfViolatedHalter)
         , SomeOrderer lhLimitByAcceptedOrderer)
     else
-        (SomeReducer (nonRedAbstractReturnsRed <~| taggerRed abs_ret_name)
-            .<~| (SomeReducer (non_red <~| taggerRed state_name))
-            .<~| (case m_logger of
-                  Just logger -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier <~| lhRed cfn <~? existentialInstRed) .<~ logger
-                  Nothing -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier <~| lhRed cfn <~? existentialInstRed))
+        (opt_logger_red .== Finished .-->
+            ((taggerRed state_name :== Finished --> non_red)) .== Finished .-->
+            (taggerRed abs_ret_name :== Finished --> nonRedAbstractReturnsRed)
         , SomeHalter
             (discardIfAcceptedTagHalter state_name
               <~> discardIfAcceptedTagHalter abs_ret_name

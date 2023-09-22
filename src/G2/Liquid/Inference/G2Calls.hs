@@ -412,11 +412,12 @@ gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
 
     timer_halter <- stdTimerHalter (timeout_se infconfig * 3)
 
+    let red = case m_logger of
+                    Just logger -> logger .~> SomeReducer (gathererReducer ~> stdRed share retReplaceSymbFuncVar solver simplifier)
+                    Nothing -> SomeReducer (gathererReducer ~> stdRed share retReplaceSymbFuncVar solver simplifier)
+
     return
-        (SomeReducer (nonRedPCRed <~| taggerRed state_name)
-            .<~| (case m_logger of
-                    Just logger -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier <~ gathererReducer) .<~ logger
-                    Nothing -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier <~ gathererReducer))
+        (red .== Finished .--> (taggerRed state_name :== Finished --> nonRedPCRed)
         , SomeHalter
             (discardIfAcceptedTagHalter state_name
               <~> switchEveryNHalter (switch_after lhconfig)
@@ -542,19 +543,20 @@ inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry 
                  <~> lhSWHNFHalter
                  <~> timer_halter
                  <~> lh_timer_halter
-    let some_red = SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier
-                             <~ higherOrderCallsRed
-                             <~ allCallsRed
-                             <~| redArbErrors
-                             <~| lhRed cfn
-                             <~? existentialInstRed)
+    let some_red = existentialInstRed :== NoProgress .-->
+                    lhRed cfn :== Finished .--> 
+                    redArbErrors :== Finished .-->
+                SomeReducer (allCallsRed ~>
+                             higherOrderCallsRed ~>
+                             stdRed share retReplaceSymbFuncVar solver simplifier)
 
     return $
-        (SomeReducer (nonRedAbstractReturnsRed <~| taggerRed abs_ret_name)
-            .<~| (SomeReducer (nonRedPCRed <~| taggerRed state_name))
-            .<~| (case m_logger of
-                    Just logger -> some_red .<~ logger
-                    Nothing -> some_red)
+        (
+            (case m_logger of
+                    Just logger -> logger .~> some_red
+                    Nothing -> some_red) .== Finished .-->
+            (taggerRed state_name :== Finished --> nonRedPCRed) .== Finished .-->
+            (taggerRed abs_ret_name :== Finished --> nonRedAbstractReturnsRed)
         , SomeHalter
             (discardIfAcceptedTagHalter state_name <~> halter)
         , SomeOrderer (incrAfterN 2000 (quotTrueAssert (ordComb (+) (pcSizeOrderer 0) (adtSizeOrderer 0 (Just instFuncTickName))))))
@@ -626,13 +628,16 @@ realCExReducerHalterOrderer infconfig config lhconfig entry modname solver simpl
                  <~> zeroHalter (0 + extra_depth)
                  <~> lhAcceptIfViolatedHalter
                  <~> timer_halter
+        
+        lh_std_red = lhRed cfn :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier
+        log_opt_red = case m_logger of
+                        Just logger -> logger .~> lh_std_red
+                        Nothing -> lh_std_red
 
     return $
-        (SomeReducer (nonRedAbstractReturnsRed <~| taggerRed abs_ret_name)
-            .<~| (SomeReducer (nonRedPCRed <~| taggerRed state_name))
-            .<~| (case m_logger of
-                      Just logger -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier <~| lhRed cfn) .<~ logger
-                      Nothing -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier <~| lhRed cfn))
+        (log_opt_red .== Finished .-->
+            (taggerRed state_name :== Finished --> nonRedPCRed) .== Finished .-->
+            (taggerRed abs_ret_name :== Finished --> nonRedAbstractReturnsRed)
         , SomeHalter
             (discardIfAcceptedTagHalter state_name <~> halter)
         , SomeOrderer (incrAfterN 1000 (adtSizeOrderer 0 Nothing)))
@@ -1095,7 +1100,7 @@ genericG2CallLogging config solver s bindings lg = do
     let simplifier = IdSimplifier
         share = sharing config
 
-    fslb <- runG2WithSomes (SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier <~ prettyLogger lg))
+    fslb <- runG2WithSomes (SomeReducer (prettyLogger lg ~> stdRed share retReplaceSymbFuncVar solver simplifier))
                            (SomeHalter swhnfHalter)
                            (SomeOrderer nextOrderer)
                            solver simplifier PreserveAllMC s bindings

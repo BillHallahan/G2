@@ -51,13 +51,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , (-->)
                             , (.-->)
 
-                            , (<~)
-                            , (<~?)
-                            , (<~|)
                             , (.|.)
-                            , (.<~)
-                            , (.<~?)
-                            , (.<~|)
 
                             -- Halters
                             , mkSimpleHalter
@@ -367,68 +361,6 @@ redRulesToStates' r rv1 s b = do
 
     return $ (rf, concat s', b')
 
-{-# INLINE (<~) #-}
-(<~) :: Monad m => Reducer m rv1 t -> Reducer m rv2 t -> Reducer m (RC rv1 rv2) t
-r1 <~ r2 =
-    Reducer { initReducer = \s -> RC (initReducer r1 s) (initReducer r2 s)
-
-            , redRules = \(RC rv1 rv2) s b -> do
-                (rr2, srv2, b') <- redRules r2 rv2 s b
-                (rr1, srv1, b'') <- redRulesToStates r1 rv1 srv2 b'
-
-                return (progPrioritizer rr1 rr2, srv1, b'')
-
-            , updateWithAll = updateWithAllPair (updateWithAll r1) (updateWithAll r2)
-
-            , onAccept = \s (RC rv1 rv2) -> do
-                onAccept r1 s rv1
-                onAccept r2 s rv2
-            }
-
-{-# INLINE (<~?) #-}
-(<~?) :: Monad m => Reducer m rv1 t -> Reducer m rv2 t -> Reducer m (RC rv1 rv2) t
-r1 <~? r2 =
-    Reducer { initReducer = \s -> RC (initReducer r1 s) (initReducer r2 s)
-
-            , redRules = \(RC rv1 rv2) s b -> do
-                (rr2, srv2, b') <- redRules r2 rv2 s b
-                let (s', rv2') = unzip srv2
-
-                case rr2 of
-                    NoProgress -> do
-                        (rr1, ss, b'') <- redRulesToStates r1 rv1 srv2 b'
-                        return (rr1, ss, b'')
-                    _ -> return (rr2, zip s' (map (RC rv1) rv2'), b')
-
-            , updateWithAll = updateWithAllPair (updateWithAll r1) (updateWithAll r2)
-
-            , onAccept = \s (RC rv1 rv2) -> do
-                onAccept r1 s rv1
-                onAccept r2 s rv2
-            }
-
-{-# INLINE (<~|) #-}
-(<~|) :: Monad m => Reducer m rv1 t -> Reducer m rv2 t -> Reducer m (RC rv1 rv2) t
-r1 <~| r2 =
-    Reducer { initReducer = \s -> RC (initReducer r1 s) (initReducer r2 s)
-
-            , redRules = \(RC rv1 rv2) s b -> do
-                (rr2, srv2, b') <- redRules r2 rv2 s b
-                let (s', rv2') = unzip srv2
-
-                case rr2 of
-                    Finished -> do
-                        (rr1, ss, b'') <- redRulesToStates r1 rv1 srv2 b'
-                        return (rr1, ss, b'')
-                    _ -> return (rr2, zip s' (map (RC rv1) rv2'), b')
-
-            , updateWithAll = updateWithAllPair (updateWithAll r1) (updateWithAll r2)
-
-            , onAccept = \s (RC rv1 rv2) -> do
-                onAccept r1 s rv1
-                onAccept r2 s rv2
-            }
-
 {-# INLINE (.|.) #-}
 (.|.) :: Monad m => Reducer m rv1 t -> Reducer m rv2 t -> Reducer m (RC rv1 rv2) t
 r1 .|. r2 =
@@ -449,18 +381,6 @@ r1 .|. r2 =
                 onAccept r1 s rv1
                 onAccept r2 s rv2
             }
-
-{-# INLINE (.<~) #-}
-(.<~) :: Monad m => SomeReducer m t -> SomeReducer m t -> SomeReducer m t
-SomeReducer r1 .<~ SomeReducer r2 = SomeReducer (r1 <~ r2)
-
-{-# INLINE (.<~?) #-}
-(.<~?) :: Monad m => SomeReducer m t -> SomeReducer m t -> SomeReducer m t
-SomeReducer r1 .<~? SomeReducer r2 = SomeReducer (r1 <~? r2)
-
-{-# INLINE (.<~|) #-}
-(.<~|) :: Monad m => SomeReducer m t -> SomeReducer m t -> SomeReducer m t
-SomeReducer r1 .<~| SomeReducer r2 = SomeReducer (r1 <~| r2)
 
 updateWithAllPair :: ([(State t, rv1)] -> [rv1]) -> ([(State t, rv2)] -> [rv2]) -> [(State t, RC rv1 rv2)] -> [RC rv1 rv2]
 updateWithAllPair update1 update2 srv =
