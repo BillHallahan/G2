@@ -279,6 +279,14 @@ evalCase s@(State { expr_env = eenv
   -- We do not want to remove casting from any of the arguments since this could
   -- mess up there types later
   | (Data dcon):ar <- unApp $ exprInCasts mexpr
+  -- returnType :: Typed t :: t -> Type 
+  -- tyAppCenter :: Type -> Type
+  --  tyCon n k =  typAppCenter( returnType datacon)
+  --  n is the name of the type of datacon 
+  -- look up in the type-env
+-- get bound ids , drop (length of bound_ids ) from dc args
+-- drop (length bound_ids from the beginning of the bound_ids) replace the use of remove-types
+-- from dc args in 291
   , (DataCon _ _ _) <- dcon
   , ar' <- removeTypes ar eenv
   , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
@@ -491,16 +499,15 @@ createExtCond s ngen mexpr cvar (dcon, _, aexpr) =
     res = s {curr_expr = CurrExpr Evaluate aexpr'}
 
 getBoolFromDataCon :: KnownValues -> DataCon -> Bool
-getBoolFromDataCon kv dcon = undefined
--- DCInstance getBoolFromDataCon 
-  {-| (DataCon dconName dconType) <- dcon
+getBoolFromDataCon kv dcon
+    | (DataCon dconName dconType _) <- dcon
     , dconType == (tyBool kv)
     , dconName == (KV.dcTrue kv) = True
-    | (DataCon dconName dconType) <- dcon
+    | (DataCon dconName dconType _) <- dcon
     , dconType == (tyBool kv)
     , dconName == (KV.dcFalse kv) = False
     | otherwise = error $ "getBoolFromDataCon: invalid DataCon passed in\n" ++ show dcon ++ "\n"
- -} 
+ 
 liftSymLitAlt :: State t -> Expr -> Id -> [(Lit, Expr)] -> [NewPC t]
 liftSymLitAlt s mexpr cvar = map (liftSymLitAlt' s mexpr cvar)
 
@@ -592,10 +599,8 @@ defAltExpr (_:xs) = defAltExpr xs
 
 -- | Creates and applies new symbolic variables for arguments of Data Constructor
 concretizeSym :: [(Id, Type)] -> Maybe Coercion -> (State t, NameGen) -> DataCon -> ((State t, NameGen), Expr)
-concretizeSym bi maybeC (s, ng) dc@(DataCon _ ts tyvars) = undefined 
--- DCInstance concretizeSym 
-
-{- let dc' = Data dc
+concretizeSym bi maybeC (s, ng) dc@(DataCon _ ts []) = 
+    let dc' = Data dc
         ts' = anonArgumentTypes $ PresType ts
         ts'' = foldr (\(i, t) e -> retype i t e) ts' bi
         (ns, ng') = freshNames (length ts'') ng
@@ -607,7 +612,8 @@ concretizeSym bi maybeC (s, ng) dc@(DataCon _ ts tyvars) = undefined
             Nothing -> dc''
         eenv = foldr E.insertSymbolic (expr_env s) newParams
     in ((s {expr_env = eenv} , ng'), dc''')
--}    
+concretizeSym _ _ _ (DataCon _ _ (_:_)) = error "concretizeSym: Symbolic GADTs not supported"
+
 createCaseExpr :: Id -> Type -> [Expr] -> Expr
 createCaseExpr _ _ [e] = e
 createCaseExpr newId t es@(_:_) =
@@ -1027,15 +1033,14 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
     , E.isSymbolic n eenv
     = let
         boolTy = (TyCon (KV.tyBool kv) TYPE)
-        trueDc = DataCon (KV.dcTrue kv) boolTy
-        falseDc = DataCon (KV.dcFalse kv) boolTy
+        trueDc = DataCon (KV.dcTrue kv) boolTy []
+        falseDc = DataCon (KV.dcFalse kv) boolTy []
         eqT1 = mkEqPrimType t1 kv
         (f1Id:f2Id:xId:discrimId:[], ng') = freshIds [t2, TyFun t1 t2, t1, boolTy] ng
         x = Var xId
-        --DCInstance retReplaceSymbFuncTemplate line 1035
-        e = undefined {- Lam TermL xId $ Case (mkApp [eqT1, x, ea]) discrimId t2
+        e = Lam TermL xId $ Case (mkApp [eqT1, x, ea]) discrimId t2
            [ Alt (DataAlt trueDc []) (Var f1Id)
-           , Alt (DataAlt falseDc []) (App (Var f2Id) x)] -}
+           , Alt (DataAlt falseDc []) (App (Var f2Id) x)]
         eenv' = foldr E.insertSymbolic eenv [f1Id, f2Id]
         eenv'' = E.insert n e eenv' 
     in Just (RuleReturnReplaceSymbFunc, [s {

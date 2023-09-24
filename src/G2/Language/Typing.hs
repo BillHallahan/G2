@@ -173,10 +173,8 @@ instance Typed Lit where
     typeOf (LitChar _)   = TyLitChar
     typeOf (LitString _) = TyLitString
     typeOf (LitInteger _) = TyLitInt
-
     typeOf' _ t = typeOf t
 
--- DCInstance DCtype 
 instance Typed DataCon where
     typeOf' _ (DataCon _ ty _) = ty
 

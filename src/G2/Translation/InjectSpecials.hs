@@ -25,16 +25,15 @@ specialTypes' (n, m, ns) dcn =
     in
     (tn, DataTyCon {bound_ids = map (flip Id TYPE) ns, data_cons = dc})
 
--- DCInstance specialDC
 specialDC :: [Name] -> Name -> (T.Text, Maybe T.Text, [Type]) -> DataCon
-specialDC ns tn (n, m, ts) = undefined 
-   {-  let
+specialDC ns tn (n, m, ts) =
+    let
         tv = map (TyVar . flip Id TYPE) ns
 
         t = foldr (TyFun) (mkFullAppedTyCon tn tv TYPE) ts
-        t' = foldr (\n' -> TyForAll (Id n' TYPE)) t ns
+        t' = foldr (\n' -> TyForAll (Id n' TYPE)) t ns\
     in
-    DataCon (Name n m 0 Nothing) t' -}
+    DataCon {dc_name = Name n m 0 Nothing, dc_type = t', ex_tyvars = []}
 
 specialTypeNames :: HM.HashMap (T.Text, Maybe T.Text) Name
 specialTypeNames = -- HM.fromList $ map (\(n, m, _) -> ((n, m), Name n m 0 Nothing)) specialTypeNames'
@@ -136,8 +135,7 @@ mkPrimTuples' n | n < 0 = []
                             t = foldr (TyFun) (mkFullAppedTyCon tn tv TYPE) tv
                             t' = foldr (\n' -> TyForAll (Id n' TYPE)) t ns
                             t'' = foldr (\n' -> TyForAll (Id n' TYPE)) t' rt_ns
-                            --DCInstance mkPrimTuples
-                            dc = undefined -- DataCon (Name s m 0 Nothing) t''
+                            dc = DataCon (Name s m 0 Nothing) t'' []
                         in  
                         -- ((s, m, []), [(s, m, [])]) : mkTuples (n - 1)
                         (s, m, rt_ns ++ ns, dc) : mkPrimTuples' (n - 1)

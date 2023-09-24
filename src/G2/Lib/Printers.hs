@@ -91,11 +91,11 @@ mkCleanExprHaskell' kv tc e
     | App e' (Type _) <- e = Just e'
 
     | otherwise = Nothing
---DCInstance elimPrimDC 
+
 elimPrimDC :: Alt -> Maybe Alt
-elimPrimDC (Alt (DataAlt (DataCon (Name n _ _ _) t tyvars) is) e) = undefined
-   {- | n == "I#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" =
-                        Just $ Alt (DataAlt (DataCon (Name "" Nothing 0 Nothing) t) is) e -}
+elimPrimDC (Alt (DataAlt (DataCon (Name n _ _ _) t tyvars) is) e)
+    | n == "I#" || n == "F#" || n == "D#" || n == "Z#" || n == "C#" =
+                        Just $ Alt (DataAlt (DataCon (Name "" Nothing 0 Nothing) t tyvars) is) e
 elimPrimDC _ = Nothing
 
 mkDirtyExprHaskell :: PrettyGuide -> Expr -> T.Text
@@ -205,7 +205,6 @@ mkAltHaskell off cleaned pg i_bndr@(Id bndr_name _) (Alt am e) =
     in
     offset off <> mkAltMatchHaskell (if needs_bndr then Just i_bndr else Nothing) am <> " -> " <> mkExprHaskell' off cleaned pg e
     where
-        --DCInstance mkAltHaskell
         mkAltMatchHaskell :: Maybe Id -> AltMatch -> T.Text
         mkAltMatchHaskell m_bndr (DataAlt dc@(DataCon n _ _) ids) | isTuple n =
             let
@@ -215,7 +214,6 @@ mkAltHaskell off cleaned pg i_bndr@(Id bndr_name _) (Alt am e) =
                 Just bndr | not (L.null ids) -> mkIdHaskell pg bndr <> "@" <> pr_am <> ""
                           | otherwise -> mkIdHaskell pg bndr
                 Nothing -> pr_am
-        --DCInstance mkAltMatchHaskell
         mkAltMatchHaskell m_bndr (DataAlt dc@(DataCon n _ _) [id1, id2]) | isInfixableName n =
             let
                 pr_am = mkIdHaskell pg id1 <> " " <> mkDataConHaskell pg dc <> " " <> mkIdHaskell pg id2

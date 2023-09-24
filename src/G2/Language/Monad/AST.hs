@@ -161,10 +161,11 @@ instance ASTContainerM DataCon Expr where
     {-# INLINE modifyContainedASTsM #-}
     modifyContainedASTsM _ dc = return dc
 
--- DCInstance ASTContainer DC instance 
 instance ASTContainerM DataCon Type where
-    modifyContainedASTsM f (DataCon n t tyvars) = undefined 
-                                                    -- return . DataCon n =<< f t
+    modifyContainedASTsM f (DataCon n t tyvars) = do
+        t' <- f t
+        tyvars' <- modifyContainedASTsM f tyvars 
+        return (DataCon n t' tyvars')
 
 instance ASTContainerM AltMatch Expr where
     {-# INLINE modifyContainedASTsM #-}

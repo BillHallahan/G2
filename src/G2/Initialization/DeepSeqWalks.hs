@@ -101,7 +101,6 @@ createDeepSeqCase1 _ _ _ _ _ _ _ _ = error "createDeepSeqCase1: bad argument pas
 
 createDeepSeqDataConCase1Alts :: TypeEnv -> Walkers -> [(Name, Id)] -> Name -> Id -> RenameMap -> [BoundName] -> NameGen -> [DataCon] -> ([Alt], NameGen)
 createDeepSeqDataConCase1Alts _ _ _ _ _ _ _ ng [] = ([], ng)
---DCInstance createDeepSeqDataConCase1Alts 
 createDeepSeqDataConCase1Alts tenv w ti n i rm bn ng (dc@(DataCon _ _ _):xs) =
     let
         ts = renames rm $ anonArgumentTypes dc

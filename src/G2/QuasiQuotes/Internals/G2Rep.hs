@@ -140,16 +140,15 @@ qqDataConLookupFallBack :: Int -- The number of TyVars
                         -> QQName -> QQName -> QQMap -> QQMap -> TypeEnv -> DataCon
 qqDataConLookupFallBack tyv_n arg_n qqtn qqdc type_nm_qqm dc_nm_qqm tenv
     | Just dc <- qqDataConLookup qqtn qqdc type_nm_qqm dc_nm_qqm tenv = dc
-    | otherwise = undefined
-    --DCInstance qqDataConLookupFallBack
-      {- let
+    | otherwise = 
+        let
             n = G2.Name "unknown" Nothing 0 Nothing
             i = Id n TYPE
 
             t = mkTyFun $ replicate (arg_n + 1) (TyCon n TYPE)
             t' = foldr TyForAll t (replicate tyv_n i)
         in
-        DataCon (qqNameToName0 qqdc) t'  -} 
+        DataCon (qqNameToName0 qqdc) t' []
 
 newField :: TH.Name -> TH.Name -> (TH.Name, StrictType) -> Q Exp
 newField _ _ (x, (_, ConT n))
@@ -179,7 +178,7 @@ genG2UnRepClause' tyVarNum dcNme fieldTypes = do
 
     fieldNames <- replicateM (length fieldTypes) (newName "x")
     g2DCName <- newName "g2_dc"
-    let guardPat1 = listP $ [p|Data (DataCon (G2.Name $(varP g2DCName) _ _ _) _)|]:replicate tyVarNum wildP ++ map varP fieldNames
+    let guardPat1 = listP $ [p|Data (DataCon (G2.Name $(varP g2DCName) _ _ _) _ _)|]:replicate tyVarNum wildP ++ map varP fieldNames
         guardPat2 = [|T.unpack $(varE g2DCName) ==  $(litE . stringL $ nameBase dcNme) |]
     
     guardPat <- patG [bindS guardPat1 (varE 'unApp `appE` varE expr), noBindS guardPat2]

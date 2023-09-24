@@ -19,6 +19,7 @@ import G2.Language.TypeEnv
 import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Text as T
+import qualified G2.Language.AlgDataTy as ADT 
 
 primInject :: ASTContainer p Type => p -> p
 primInject = modifyASTs primInjectT
@@ -40,17 +41,31 @@ dataInject prog progTy =
     modifyASTs (dataInject' dcNames) prog
 
 -- TODO: Polymorphic types?
-dataInject' :: [(Name, [Type])] -> Expr -> Expr
--- DCInstance dataInject'
-dataInject' ns v@(Var (Id (Name n m _ _) t)) = undefined 
-   {-  case find (\(Name n' m' _ _, _) -> n == n' && m == m') ns of
-        Just (n', _) -> Data (DataCon n' t)
-        Nothing -> v
-dataInject' _ e = e
--}
--- DCInstance conName
-conName :: DataCon -> (Name, [Type])
-conName (DataCon n t tyvars) = undefined -- (n, anonArgumentTypes $ t)
+-- New type signature dataInject' :: HM.Hashmap Name Datacon -> Expr -> Expr
+
+
+-- DcNamesMap :: TypeEnv -> Hashmap Name DataCon
+-- TypeEnv have the type M.HashMap Name AlgDataTy
+-- we can use datacon from algDataTy to pull out all the datacon
+-- Then, we construct a hashmap Name DataCon in the DcNamesMap
+-- dataInject' check whether the Var Id is in the hashamp of Name DataCon
+-- if I we do find in the hashmap which means it should be a dataCon 
+-- so we just wrap the new var id into a datacon and change the expression. 
+dataInject' :: HM.HashMap Name DataCon -> Expr -> Expr
+dataInject' hm v@(Var (Id n _ )) = case HM.lookup n hm of 
+                                                    Just (DataCon n' k extyvars) -> Data (DataCon n' k extyvars)
+                                                    Nothing -> v
+dataInject' _ v = v 
+
+dcNamesMap :: TypeEnv -> HM.HashMap Name DataCon
+dcNamesMap te = 
+    let algs = HM.elems te 
+        dcs = concatMap ADT.dataCon algs
+        dcmap dc = case dc of dc@(DataCon n _ _) -> (n,dc)
+        dcs' = map dcmap dcs
+    in HM.fromList dcs'
+
+
 
 primDefs :: HM.HashMap Name AlgDataTy -> [(T.Text, Expr)]
 primDefs pt = case boolName pt of

@@ -149,20 +149,18 @@ mkDCDouble kv tenv = Data . fromJust $ getDataCon tenv (KV.tyDouble kv) (KV.dcDo
 
 mkDCChar :: KnownValues -> TypeEnv -> Expr
 mkDCChar kv tenv = Data . fromJust $ getDataCon tenv (KV.tyChar kv) (KV.dcChar kv)
---DCInstance mkDCTrue DataCon
+
 mkDCTrue :: KnownValues -> TypeEnv -> DataCon
-mkDCTrue kv tenv = undefined --fromJust $ getDataCon tenv (KV.tyBool kv) (KV.dcTrue kv)
---DCInstance mkDCFalse DataCon
+mkDCTrue kv tenv = fromJust $ getDataCon tenv (KV.tyBool kv) (KV.dcTrue kv)
+
 mkDCFalse :: KnownValues -> TypeEnv -> DataCon
-mkDCFalse kv tenv = undefined --fromJust $ getDataCon tenv (KV.tyBool kv) (KV.dcFalse kv)
+mkDCFalse kv tenv = fromJust $ getDataCon tenv (KV.tyBool kv) (KV.dcFalse kv)
 
---DCInstance mkTrue Expr 
 mkTrue :: KnownValues -> Expr
-mkTrue kv = undefined --Data $ DataCon (KV.dcTrue kv) (TyCon (KV.tyBool kv) TYPE)
+mkTrue kv = Data $ DataCon (KV.dcTrue kv) (TyCon (KV.tyBool kv) TYPE) []
 
---DCInstance mkFalse Expr 
 mkFalse :: KnownValues -> Expr
-mkFalse kv = undefined -- Data $ DataCon (KV.dcFalse kv) (TyCon (KV.tyBool kv) TYPE)
+mkFalse kv = Data $ DataCon (KV.dcFalse kv) (TyCon (KV.tyBool kv) TYPE) []
 
 mkBool :: KnownValues -> Bool -> Expr
 mkBool kv b = if b then mkTrue kv else mkFalse kv

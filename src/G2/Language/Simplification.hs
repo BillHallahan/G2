@@ -71,8 +71,7 @@ inlineFuncInCase eenv e =
 
 caseOfKnownCons :: Expr -> Expr
 caseOfKnownCons (Case e i _ as)
---DCInstance caseOfKnownCons
-    | Data (DataCon n t tyvars):es <- unApp e
+    | Data (DataCon n t _):es <- unApp e
     , Just (Alt (DataAlt _ is) ae) <- find (matchingDataAlt n) as =
         let
             tfa_count = length (leadingTyForAllBindings $ PresType t)

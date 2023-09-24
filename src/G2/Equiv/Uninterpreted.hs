@@ -88,16 +88,15 @@ freeTypesToTypeEnv' (n,k) ng =
                                data_cons = [dcs]})
         in (n_adt, ng'')
 
---DCInstance unknownDC 
 unknownDC :: NameGen -> Name -> Kind -> [Id] -> (DataCon, NameGen)
-unknownDC ng n@(Name occn _ _ _) k is = undefined
-     {- let tc = TyCon n k 
-        tv = map TyVar is
-        ta = foldl' TyApp tc tv 
-        ti = TyLitInt `TyFun` ta 
-        tfa = foldl' (flip TyForAll) ti is
-        (dc_n, ng') = freshSeededString ("Unknown" DM.<> occn) ng   
-        in (DataCon dc_n tfa, ng') -}
+unknownDC ng n@(Name occn _ _ _) k is =
+     let tc = TyCon n k 
+         tv = map TyVar is
+         ta = foldl' TyApp tc tv 
+         ti = TyLitInt `TyFun` ta 
+         tfa = foldl' (flip TyForAll) ti is
+         (dc_n, ng') = freshSeededString ("Unknown" DM.<> occn) ng   
+     in (DataCon dc_n tfa [], ng') 
 
 -- | add free Datacons into the TypeEnv at the appriorpate Type)
 addDataCons :: TypeEnv -> [DataCon] -> TypeEnv
@@ -133,9 +132,8 @@ dataConMapping' dc@(DataCon (Name t mt _ _ ) _ _) = ((t,mt), dc)
 subVars :: ASTContainer t Expr => HM.HashMap (T.Text, Maybe T.Text) DataCon -> t -> t
 subVars m = modifyASTs (subVars' m) 
 
---DCInstance subVars
 subVars' :: HM.HashMap (T.Text, Maybe T.Text) DataCon -> Expr -> Expr
-subVars' m expr@(Var (Id (Name t mt _ _) _ )) = undefined {- case HM.lookup (t,mt) m of 
-                                                        Just (DataCon n' k) -> Data (DataCon n' k)
-                                                        Nothing -> expr -}
+subVars' m expr@(Var (Id (Name t mt _ _) _ )) = case HM.lookup (t,mt) m of 
+                                                        Just (DataCon n' k extyvars) -> Data (DataCon n' k extyvars)
+                                                        Nothing -> expr
 subVars' _ expr = expr
