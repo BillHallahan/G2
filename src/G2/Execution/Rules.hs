@@ -237,7 +237,7 @@ traceType eenv (Var (Id n _)) = traceType eenv =<< E.lookup n eenv
 traceType _ _ = Nothing
 
 evalLet :: State t -> NameGen -> Binds -> Expr -> (Rule, [State t], NameGen)
-evalLet s@(State { expr_env = eenv }) 
+evalLet s@(State { expr_env = eenv}) 
         ng binds e =
     let
         (binds_lhs, binds_rhs) = unzip binds
@@ -257,7 +257,8 @@ evalLet s@(State { expr_env = eenv })
 -- | Handle the Case forms of Evaluate.
 evalCase :: State t -> NameGen -> Expr -> Id -> Type -> [Alt] -> (Rule, [NewPC t], NameGen)
 evalCase s@(State { expr_env = eenv
-                  , exec_stack = stck })
+                  , exec_stack = stck
+                  , type_env = tenv})
          ng mexpr bind t alts
   -- Is the current expression able to match with a literal based `Alt`? If
   -- so, we do the cvar binding, and proceed with evaluation of the body.
@@ -287,8 +288,17 @@ evalCase s@(State { expr_env = eenv
 -- get bound ids , drop (length of bound_ids ) from dc args
 -- drop (length bound_ids from the beginning of the bound_ids) replace the use of remove-types
 -- from dc args in 291
+-- , ar' <- removeTypes ar eenv
   , (DataCon _ _ _) <- dcon
-  , ar' <- removeTypes ar eenv
+  , ar' = 
+      let 
+          tyCon n k = typAppCenter $ returnType dcon
+          alg = case HM.lookup n tenv of 
+                        Just DataTyCon ids _ _ -> ids
+                        Just NewTyCon ids _ _ -> ids
+                        Just TypeSynonym ids _ -> ids
+                        Nothing -> error "evalCase: can't find name in the type environment"
+      in drop (length alg) (dc args)             
   , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
   , length params == length ar' =
       let
