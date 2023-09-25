@@ -7,6 +7,17 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
 
+{-| Module: G2.Execution.Reducer
+
+Controls reduction of `State`s.
+
+The `runReducer` function reduces States, guided by a `Reducer`, `Halter`, and `Orderer`.
+The `Reducer` defines the reduction rules used to map a State to one or more further States.
+The `Halter` determines when to accept (return) or completely discard a state,
+and allows /temporarily/ stopping reduction of a particular state, to allow reduction of other states.
+The `Orderer` determines which state should be executed next when the Halter chooses to accept, reject,
+or switch to executing a different state.
+-}
 module G2.Execution.Reducer ( Reducer (..)
 
                             , Halter (..)
@@ -281,8 +292,6 @@ data SomeOrderer t where
     SomeOrderer :: forall sov b t . Ord b => Orderer sov b t -> SomeOrderer t
 
 
--- $reducerCombs.
---
 -- Combines multiple reducers together into a single reducer.
 
 -- We use RC to combine the reducer values for RCombiner
@@ -372,7 +381,10 @@ redRulesToStates' r rv1 s b = do
 
     return $ (rf, concat s', b')
 
-{-# INLINE (.|.) #-}
+-- | @r1 .|. r2@ applies both Reducer r1 and Reducer r2 to the \inital\ state passed to the reducer,
+-- and returns the list of states returned from both reducers combined.
+-- Care should be taken to avoid unwanted duplication of states if, for example, neither of the reducers
+-- makes progress.
 (.|.) :: Monad m => Reducer m rv1 t -> Reducer m rv2 t -> Reducer m (RC rv1 rv2) t
 r1 .|. r2 =
     Reducer { initReducer = \s -> RC (initReducer r1 s) (initReducer r2 s)
@@ -392,6 +404,7 @@ r1 .|. r2 =
                 onAccept r1 s rv1
                 onAccept r2 s rv2
             }
+{-# INLINE (.|.) #-}
 
 updateWithAllPair :: ([(State t, rv1)] -> [rv1]) -> ([(State t, rv2)] -> [rv2]) -> [(State t, RC rv1 rv2)] -> [RC rv1 rv2]
 updateWithAllPair update1 update2 srv =
