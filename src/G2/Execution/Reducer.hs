@@ -319,7 +319,7 @@ r1 ~> r2 =
 
             , redRules = \(RC rv1 rv2) s b -> do
                 (rr1, srv1, b') <- redRules r1 rv1 s b
-                (rr2, srv2, b'') <- redRulesToStates' r2 rv2 srv1 b'
+                (rr2, srv2, b'') <- redRulesToStates r2 rv2 srv1 b'
 
                 return (progPrioritizer rr1 rr2, srv2, b'')
 
@@ -349,7 +349,7 @@ SomeReducer r1 .~> SomeReducer r2 = SomeReducer (r1 ~> r2)
 
                     case rr1 == res of
                         True -> do
-                            (rr2, ss, b'') <- redRulesToStates' r2 rv2 srv1 b'
+                            (rr2, ss, b'') <- redRulesToStates r2 rv2 srv1 b'
                             return (rr2, ss, b'')
                         False -> return (rr1, zip s' (map (flip RC rv2) rv1'), b')
 
@@ -365,15 +365,15 @@ SomeReducer r1 .~> SomeReducer r2 = SomeReducer (r1 ~> r2)
 (.-->) :: Monad m => ReducerEq m t -> SomeReducer m t -> SomeReducer m t
 req .--> SomeReducer r = req --> r
 
-redRulesToStatesAux' :: Monad m =>  Reducer m rv2 t -> rv2 -> Bindings -> (State t, rv1) -> m (Bindings, (ReducerRes, [(State t, RC rv1 rv2)]))
-redRulesToStatesAux' r rv2 b (is, rv1) = do
+redRulesToStatesAux :: Monad m =>  Reducer m rv2 t -> rv2 -> Bindings -> (State t, rv1) -> m (Bindings, (ReducerRes, [(State t, RC rv1 rv2)]))
+redRulesToStatesAux r rv2 b (is, rv1) = do
         (rr_, is', b') <- redRules r rv2 is b
         return (b', (rr_, map (\(is'', rv2') -> (is'', RC rv1 rv2') ) is'))
 
-redRulesToStates' :: Monad m => Reducer m rv2 t -> rv2 -> [(State t, rv1)] -> Bindings -> m (ReducerRes, [(State t, RC rv1 rv2)], Bindings)
-redRulesToStates' r rv1 s b = do
-    let redRulesToStatesAux'' = redRulesToStatesAux' r rv1
-    (b', rs) <- MD.mapMAccumB redRulesToStatesAux'' b s
+redRulesToStates :: Monad m => Reducer m rv2 t -> rv2 -> [(State t, rv1)] -> Bindings -> m (ReducerRes, [(State t, RC rv1 rv2)], Bindings)
+redRulesToStates r rv1 s b = do
+    let redRulesToStatesAux' = redRulesToStatesAux r rv1
+    (b', rs) <- MD.mapMAccumB redRulesToStatesAux' b s
 
     let (rr, s') = L.unzip rs
 
@@ -416,22 +416,6 @@ updateWithAllPair update1 update2 srv =
                     rv2' = update2 srv2
                 in
                 map (uncurry RC) $ zip rv1' rv2'
-
-redRulesToStatesAux :: Monad m =>  Reducer m rv t -> rv -> Bindings -> (State t, rv2) -> m (Bindings, (ReducerRes, [(State t, RC rv rv2)]))
-redRulesToStatesAux r rv1 b (is, rv2) = do
-        (rr_, is', b') <- redRules r rv1 is b
-        return (b', (rr_, map (\(is'', rv1') -> (is'', RC rv1' rv2) ) is'))
-
-redRulesToStates :: Monad m => Reducer m rv t -> rv -> [(State t, rv2)] -> Bindings -> m (ReducerRes, [(State t, RC rv rv2)], Bindings)
-redRulesToStates r rv1 s b = do
-    let redRulesToStatesAux' = redRulesToStatesAux r rv1
-    (b', rs) <- MD.mapMAccumB redRulesToStatesAux' b s
-
-    let (rr, s') = L.unzip rs
-
-    let rf = foldr progPrioritizer NoProgress rr
-
-    return $ (rf, concat s', b')
 
 {-#INLINE stdRed #-}
 {-# SPECIALIZE stdRed :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> Reducer IO () t #-}
