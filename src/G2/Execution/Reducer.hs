@@ -30,7 +30,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , SomeHalter (..)
                             , SomeOrderer (..)
 
-                            -- Reducers
+                            -- * Reducers
                             , InitReducer
                             , RedRules
                             , mkSimpleReducer
@@ -53,7 +53,7 @@ module G2.Execution.Reducer ( Reducer (..)
 
                             , (.|.)
 
-                            -- Halters
+                            -- * Halters
                             , mkSimpleHalter
                             , swhnfHalter
                             , acceptIfViolatedHalter
@@ -66,7 +66,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , stdTimerHalter
                             , timerHalter
 
-                            -- Orderers
+                            -- * Orderers
                             , mkSimpleOrderer
                             , (<->)
                             , ordComb
@@ -79,6 +79,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , incrAfterN
                             , quotTrueAssert
 
+                            -- * Execution
                             , runReducer ) where
 
 import G2.Config
@@ -146,11 +147,9 @@ type InitReducer rv t = State t -> rv
 type RedRules m rv t = rv -> State t -> Bindings -> m (ReducerRes, [(State t, rv)], Bindings)
 
 
--- | A Reducer is used to describe a set of Reduction Rules.
--- Reduction Rules take a State, and output new states.
--- The type parameter r is used to disambiguate between different producers.
--- To create a new reducer, define some new type, and use it as r. 
--- The reducer value, rv, can be used to track special, per Reducer, information.
+-- | A Reducer is used to define a set of Reduction Rules.
+-- Reduction Rules take a `State`, and output new `State`s.
+-- The reducer value, rv, can be used to track extra information, on a per `State` basis.
 data Reducer m rv t = Reducer {
         -- | Initialized the reducer value
           initReducer :: InitReducer rv t
@@ -159,8 +158,8 @@ data Reducer m rv t = Reducer {
         , redRules :: RedRules m rv t
 
         -- | After a reducer returns multiple states,
-        -- gives an opportunity to update with all States and Reducer Val's,
-        -- output by all Reducer's, visible
+        -- gives an opportunity to update with all States and Reducer values's,
+        -- visible.
         -- Errors if the returned list is too short.
         -- If only one state is returned by all reducers, updateWithAll does not run.
         , updateWithAll :: [(State t, rv)] -> [rv]
@@ -168,7 +167,9 @@ data Reducer m rv t = Reducer {
         , onAccept :: State t -> rv -> m ()
     }
 
-{-# INLINE mkSimpleReducer #-}
+-- | A simple, default reducer.
+-- `updateWithAll` does not change or adjust the reducer values.
+-- `onAccept` immediately returns the empty tuple.
 mkSimpleReducer :: Monad m => InitReducer rv t -> RedRules m rv t -> Reducer m rv t
 mkSimpleReducer init_red red_rules =
     Reducer {
@@ -177,6 +178,7 @@ mkSimpleReducer init_red red_rules =
     , updateWithAll = map snd
     , onAccept = \_ _ -> return ()
     }
+{-# INLINE mkSimpleReducer #-}
 
 type InitHalter hv t = State t -> hv
 type UpdatePerStateHalt hv t = hv -> Processed (State t) -> State t -> hv
@@ -184,8 +186,7 @@ type StopRed m hv t = hv -> Processed (State t) -> State t -> m HaltC
 type StepHalter hv t = hv -> Processed (State t) -> [State t] -> State t -> hv
 
 -- | Determines when to stop evaluating a state
--- The type parameter h is used to disambiguate between different producers.
--- To create a new Halter, define some new type, and use it as h.
+-- The halter value, hv, can be used to track extra information, on a per `State` basis.
 data Halter m hv t = Halter {
     -- | Initializes each state halter value
       initHalt :: InitHalter hv t
@@ -213,7 +214,7 @@ data Halter m hv t = Halter {
     , updateHalterWithAll :: [(State t, hv)] -> [hv]
     }
 
-{-# INLINE mkSimpleHalter #-}
+-- | A simple, default halter.
 mkSimpleHalter :: Monad m => InitHalter hv t -> UpdatePerStateHalt hv t -> StopRed m hv t -> StepHalter hv t -> Halter m hv t
 mkSimpleHalter initial update stop step = Halter { initHalt = initial
                                                  , updatePerStateHalt = update
@@ -221,6 +222,7 @@ mkSimpleHalter initial update stop step = Halter { initHalt = initial
                                                  , stopRed = stop
                                                  , stepHalter = step
                                                  , updateHalterWithAll = map snd }
+{-# INLINE mkSimpleHalter #-}
 
 {-# INLINE mkStoppingHalter #-}
 mkStoppingHalter :: Monad m => StopRed m () t -> Halter m () t
@@ -236,9 +238,11 @@ type InitOrderer sov t = State t -> sov
 type OrderStates sov b t = sov -> Processed (State t) -> State t -> b
 type UpdateSelected sov t = sov -> Processed (State t) -> State t -> sov
 
--- | Picks an order to evaluate the states, to allow prioritizing some over others 
--- The type parameter or is used to disambiguate between different producers.
--- To create a new reducer, define some new type, and use it as or.
+-- | Picks an order to evaluate the states, to allow prioritizing some over others.
+-- The orderer value, sov, can be used to track extra information, on a per `State` basis.
+-- The ordering type b, is used to determine what order to execute the states in.
+-- In practice, `b` must be an instance of `Ord`.  When the orderer is called, the `State` corresponding
+-- to the minimal `b` is executed.
 data Orderer sov b t = Orderer {
     -- | Initializing the per state ordering value 
       initPerStateOrder :: InitOrderer sov t
@@ -254,6 +258,7 @@ data Orderer sov b t = Orderer {
     , stepOrderer :: sov -> Processed (State t) -> [State t] -> State t -> sov
     }
 
+-- | A simple, default orderer.
 mkSimpleOrderer :: InitOrderer sov t -> OrderStates sov b t -> UpdateSelected sov t -> Orderer sov b t
 mkSimpleOrderer initial order update = Orderer { initPerStateOrder = initial
                                                , orderStates = order
@@ -263,25 +268,29 @@ mkSimpleOrderer initial order update = Orderer { initPerStateOrder = initial
 getState :: M.Map b [s] -> Maybe (b, [s])
 getState = M.lookupMin
 
+-- | Hide the details of a Reducer's reducer value.
 data SomeReducer m t where
     SomeReducer :: forall m rv t . Reducer m rv t -> SomeReducer m t
 
+-- | Hide the details of a Halter's halter value.
 data SomeHalter m t where
     SomeHalter :: forall m hv t . Halter m hv t -> SomeHalter m t
 
+-- | Hide the details of an Orderer's orderer value and ordering type.
 data SomeOrderer t where
     SomeOrderer :: forall sov b t . Ord b => Orderer sov b t -> SomeOrderer t
 
-----------------------------------------------------
--- Combines reducers in various ways
+
+-- $reducerCombs.
+--
+-- Combines multiple reducers together into a single reducer.
 
 -- We use RC to combine the reducer values for RCombiner
 -- We should never define any other instance of Reducer with RC, or export it
 -- because this could lead to undecidable instances
 data RC a b = RC a b
 
--- | Check if a `Reducer` returned some `ReducerRes`
--- data ReducerEq m rv1 t = Reducer m rv1 t :== ReducerRes
+-- | Check if a `Reducer` returns some specific `ReducerRes`
 data ReducerEq m t where
     (:==) :: forall m rv t . Reducer m rv t -> ReducerRes -> ReducerEq m t
 
@@ -294,7 +303,7 @@ infixr 7 ~>, .~>
 
 infixr 5 -->, .-->
 
--- | `r1 ~> r2` applies `Reducer` `r1`, followed by reducer `r2`. 
+-- | @r1 ~> r2@ applies `Reducer` `r1`, followed by reducer `r2`. 
 (~>) :: Monad m => Reducer m rv1 t -> Reducer m rv2 t -> Reducer m (RC rv1 rv2) t
 r1 ~> r2 =
     Reducer { initReducer = \s -> RC (initReducer r1 s) (initReducer r2 s)
@@ -313,11 +322,12 @@ r1 ~> r2 =
             }
 {-# INLINE (~>) #-}
 
+-- | `~>` adjusted to work on `SomeReducer`s, rather than `Reducer`s.
 (.~>) :: Monad m => SomeReducer m t -> SomeReducer m t -> SomeReducer m t
 SomeReducer r1 .~> SomeReducer r2 = SomeReducer (r1 ~> r2)
 {-# INLINE (.~>) #-}
 
--- | `r1 := res --> r2` applies `Reducer` `r1`.  If `r`` returns the `ReducerRes` `res`,
+-- | @r1 := res --> r2@ applies `Reducer` `r1`.  If `r1` returns the `ReducerRes` `res`,
 -- then `Reducer` `r2` is applied.  Otherwise, reduction halts.  
 (-->) :: Monad m => ReducerEq m t -> Reducer m rv2 t -> SomeReducer m t
 (r1 :== res) --> r2 =
@@ -342,6 +352,7 @@ SomeReducer r1 .~> SomeReducer r2 = SomeReducer (r1 ~> r2)
                 }
 {-# INLINE (-->) #-}
 
+-- | `.-->` adjusted to take a `SomeReducer`, rather than a `Reducer`s.
 (.-->) :: Monad m => ReducerEq m t -> SomeReducer m t -> SomeReducer m t
 req .--> SomeReducer r = req --> r
 
@@ -1107,7 +1118,7 @@ quotTrueAssert ord = (mkSimpleOrderer (initPerStateOrder ord)
                           -> SM.StateT PrettyGuide IO (Processed (State t), Bindings)
     #-}
 -- | Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
-runReducer :: (MonadIO m, Ord b) =>
+runReducer :: (Monad m, Ord b) =>
               Reducer m rv t
            -> Halter m hv t
            -> Orderer sov b t
@@ -1124,7 +1135,7 @@ runReducer red hal ord s b = do
     (states, b') <- runReducer' red hal ord pr s' b M.empty
     return (states, b')
 
-runReducer' :: (MonadIO m, Ord b)
+runReducer' :: (Monad m, Ord b)
             => Reducer m rv t
             -> Halter m hv t
             -> Orderer sov b t
@@ -1203,7 +1214,7 @@ runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_
                         runReducer' red hal ord pr s_h b' xs'
                     [] -> runReducerList red hal ord pr xs b'
 
-switchState :: (MonadIO m, Ord b)
+switchState :: (Monad m, Ord b)
             => Reducer m rv t
             -> Halter m hv t
             -> Orderer sov b t
@@ -1221,7 +1232,7 @@ switchState red hal ord pr rs b xs
         rs' = rs { halter_val = updatePerStateHalt hal (halter_val rs) pr (state rs) }
 
 -- To be used when we we need to select a state without switching 
-runReducerList :: (MonadIO m, Ord b)
+runReducerList :: (Monad m, Ord b)
                => Reducer m rv t
                -> Halter m hv t
                -> Orderer sov b t
@@ -1239,7 +1250,7 @@ runReducerList red hal ord pr m binds =
         Nothing -> return (pr, binds)
 
 -- To be used when we are possibly switching states 
-runReducerListSwitching :: (MonadIO m, Ord b)
+runReducerListSwitching :: (Monad m, Ord b)
                         => Reducer m rv t
                         -> Halter m hv t
                         -> Orderer sov b t

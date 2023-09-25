@@ -432,7 +432,7 @@ runG2WithSomes red hal ord solver simplifier mem state bindings =
 runG2Pre :: ( Named t
             , ASTContainer t Expr
             , ASTContainer t Type) => MemConfig -> State t -> Bindings -> (State t, Bindings)
-runG2Pre mem s@(State { known_values = kv, type_classes = tc }) bindings =
+runG2Pre mem s bindings =
     let
         (swept, bindings') = markAndSweepPreserving mem s bindings
     in
@@ -465,7 +465,7 @@ runG2Post red hal ord solver simplifier is bindings = do
     , Ord b) => Reducer (SM.StateT PrettyGuide IO) rv t -> Halter (SM.StateT PrettyGuide IO) hv t -> Orderer sov b t ->
     MemConfig -> State t -> Bindings -> SM.StateT PrettyGuide IO ([State t], Bindings) #-}
 runG2ThroughExecution ::
-    ( MonadIO m
+    ( Monad m
     , Named t
     , ASTContainer t Expr
     , ASTContainer t Type
