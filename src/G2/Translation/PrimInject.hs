@@ -34,12 +34,8 @@ primInjectT (TyCon (Name "Char#" _ _ _) _) = TyLitChar
 primInjectT t = t
 
 dataInject :: (ASTContainer t Expr) => t -> HM.HashMap Name AlgDataTy -> t
-dataInject prog progTy = 
-    let
-        dcNames = concatMap (map conName . dataCon) $ progTy
-    in
-    modifyASTs (dataInject' dcNames) prog
-
+dataInject t hm = (modifyASTs $ dataInject' (dcNamesMap hm)) t
+    
 -- TODO: Polymorphic types?
 -- New type signature dataInject' :: HM.Hashmap Name Datacon -> Expr -> Expr
 
@@ -61,7 +57,7 @@ dcNamesMap :: TypeEnv -> HM.HashMap Name DataCon
 dcNamesMap te = 
     let algs = HM.elems te 
         dcs = concatMap ADT.dataCon algs
-        dcmap dc = case dc of dc@(DataCon n _ _) -> (n,dc)
+        dcmap dc' = case dc' of dc@(DataCon n _ _) -> (n,dc)
         dcs' = map dcmap dcs
     in HM.fromList dcs'
 

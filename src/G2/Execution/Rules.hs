@@ -290,15 +290,13 @@ evalCase s@(State { expr_env = eenv
 -- from dc args in 291
 -- , ar' <- removeTypes ar eenv
   , (DataCon _ _ _) <- dcon
-  , ar' = 
+  , ar' <-
       let 
-          tyCon n k = typAppCenter $ returnType dcon
+          TyCon n _ = tyAppCenter $ returnType dcon
           alg = case HM.lookup n tenv of 
-                        Just DataTyCon ids _ _ -> ids
-                        Just NewTyCon ids _ _ -> ids
-                        Just TypeSynonym ids _ -> ids
+                        Just adt -> bound_ids adt
                         Nothing -> error "evalCase: can't find name in the type environment"
-      in drop (length alg) (dc args)             
+      in drop (length alg) ar    
   , (Alt (DataAlt _ params) expr):_ <- matchDataAlts dcon alts
   , length params == length ar' =
       let
