@@ -42,6 +42,8 @@ import qualified Data.List as L
 
 import Control.Exception
 
+import Debug.Trace
+
 stdReduce :: (Solver solver, Simplifier simplifier) => Sharing -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [(State t, ())], Bindings)
 stdReduce share symb_func_eval solver simplifier s b@(Bindings {name_gen = ng}) = do
     (r, s', ng') <- stdReduce' share symb_func_eval solver simplifier s ng
@@ -966,7 +968,7 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
                            ng ce
 
     -- DC-SPLIT
-    | Var (Id n (TyFun t1 t2)) <- ce
+    | Var (Id n (TyFun t1 t2)):es <- unApp ce
     , TyCon tname _:ts <- unTyApp t1 
     , E.isSymbolic n eenv
     , Just alg_data_ty <- HM.lookup tname tenv
@@ -989,16 +991,17 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
                         ) ([], [], ng'') dcs
         -- alts = map (\dc -> Alt (Alt)) dcs
         e = Lam TermL x $ Case (Var x) x' t2 alts
+        e' = mkApp (e:es)
         eenv' = foldr E.insertSymbolic eenv symIds
         eenv'' = E.insert n e eenv'
-        (constState, ng'''') = mkFuncConst s n t1 t2 ng'''
+        (constState, ng'''') = mkFuncConst s es n t1 t2 ng'''
     in Just (RuleReturnReplaceSymbFunc, [s {
-        curr_expr = CurrExpr Return e,
+        curr_expr = CurrExpr Return e',
         expr_env = eenv''
     }, constState], ng'''')
 
     -- FUNC-APP
-    | Var (Id n (TyFun t1@(TyFun _ _) t2)) <- ce
+    | Var (Id n (TyFun t1@(TyFun _ _) t2)):es <- unApp ce
     , E.isSymbolic n eenv
     = let
         (tfs, tr) = argTypes t1
@@ -1012,9 +1015,9 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
         -- eenv'' = E.insertSymbolic (idName fId) fId eenv'
         eenv'' = E.insertSymbolic fId eenv'
         eenv''' = E.insert n e eenv''
-        (constState, ng'''') = mkFuncConst s n t1 t2 ng'''
+        (constState, ng'''') = mkFuncConst s es n t1 t2 ng'''
     in Just (RuleReturnReplaceSymbFunc, [s {
-        curr_expr = CurrExpr Return e,
+        curr_expr = CurrExpr Return $ mkApp (e:es),
         expr_env = eenv'''
     }, constState], ng'''')
 
@@ -1049,15 +1052,15 @@ genArgIds (DataCon _ dcty) ng =
     let (argTys, _) = argTypes dcty
     in foldr (\ty (is, ng') -> let (i, ng'') = freshId ty ng' in ((i:is), ng'')) ([], ng) argTys
 
-mkFuncConst :: State t -> Name -> Type -> Type -> NameGen -> (State t, NameGen)
-mkFuncConst s@(State { expr_env = eenv } ) n t1 t2 ng =
+mkFuncConst :: State t -> [Expr] -> Name -> Type -> Type -> NameGen -> (State t, NameGen)
+mkFuncConst s@(State { expr_env = eenv } ) es n t1 t2 ng =
     let
         (fId:xId:[], ng') = freshIds [t2, t1] ng
         eenv' = foldr E.insertSymbolic eenv [fId]
         e = Lam TermL xId $ Var fId
         eenv'' = E.insert n e eenv'
     in (s {
-        curr_expr = CurrExpr Return e,
+        curr_expr = CurrExpr Return $ mkApp (e:es),
         -- symbolic_ids = fId:symbolic_ids state,
         expr_env = eenv''
     }, ng')

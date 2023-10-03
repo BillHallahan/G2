@@ -288,10 +288,10 @@ initRedHaltOrd solver simplifier config =
                  <~> acceptIfViolatedHalter)
              , SomeOrderer $ pickLeastUsedOrderer)
         SymbolicFunc ->
-            (SomeReducer (nonRedPCRed)
+            (SomeReducer (nonRedPCTemplates)
                  .<~| (case m_logger of
-                        Just logger -> SomeReducer (stdRed share retReplaceSymbFuncTemplate solver simplifier) .<~ logger
-                        Nothing -> SomeReducer (stdRed share retReplaceSymbFuncTemplate solver simplifier))
+                        Just logger -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier) .<~ logger
+                        Nothing -> SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier))
              , SomeHalter
                  (switchEveryNHalter 20
                  <~> maxOutputsHalter (maxOutputs config)
