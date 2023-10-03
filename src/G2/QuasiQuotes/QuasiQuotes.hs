@@ -277,9 +277,7 @@ qqRedHaltOrd config solver simplifier =
 
         state_name = G2.Name "state" Nothing 0 Nothing
     in
-    ( SomeReducer
-        (nonRedPCRed <~| taggerRed state_name)
-            .<~| (SomeReducer (stdRed share retReplaceSymbFuncVar solver simplifier))
+    ( taggerRed state_name :== Finished .--> nonRedPCRed :== Finished --> stdRed share retReplaceSymbFuncVar solver simplifier
     , SomeHalter
         (discardIfAcceptedTagHalter state_name 
         <~> acceptIfViolatedHalter)
