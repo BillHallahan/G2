@@ -18,8 +18,6 @@ import qualified Data.List as L
 import Data.Maybe
 import qualified G2.Language.ExprEnv as E
 
-import GHC.Unicode
-
 evalPrims :: ASTContainer m Expr => TypeEnv -> KnownValues -> m -> m
 evalPrims tenv kv = modifyContainedASTs (evalPrims' tenv kv . simplifyCasts)
 
@@ -67,7 +65,7 @@ evalPrim1 IntToFloat (LitInt x) = Just . Lit $ LitFloat (fromIntegral x)
 evalPrim1 IntToDouble (LitInt x) = Just . Lit $ LitDouble (fromIntegral x)
 evalPrim1 Chr (LitInt x) = Just . Lit $ LitChar (chr $ fromInteger x)
 evalPrim1 OrdChar (LitChar x) = Just . Lit $ LitInt (toInteger $ ord x)
-evalPrim1 WGenCat (LitInt x) = Just . Lit $ LitInt (toInteger $ wgencat $ fromInteger x)
+evalPrim1 WGenCat (LitInt x) = Just . Lit $ LitInt (toInteger . fromEnum . generalCategory . toEnum $ fromInteger x)
 evalPrim1 _ _ = Nothing
 
 evalPrim2 :: KnownValues -> Primitive -> Lit -> Lit -> Maybe Expr
