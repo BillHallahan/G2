@@ -66,6 +66,7 @@ tests = testGroup "Tests"
         , extensionTests
         , baseTests
         , primTests
+        , ioTests
         , exprTests
         , typingTests
         , simplificationTests
@@ -279,6 +280,8 @@ testFileTests = testGroup "TestFiles"
     , checkExpr "tests/TestFiles/MatchesFunc1.hs" 400 "f"
         [RExists (\[x, y] -> getIntB x $ \x' -> getIntB y $ \y' ->  y' == 6 + x'), AtLeast 1]
 
+    , checkInputOutput "tests/TestFiles/Read.hs" "concRead" 20000 [Exactly 1]
+
     , checkExpr "tests/TestFiles/RecordFields1.hs" 400 "f"
         [ RExists 
             (\[x, y] -> appNthArgIs x notCast 0
@@ -425,6 +428,12 @@ primTests = testGroup "Prims"
                                             , ("allLetters", 20000, [AtLeast 1])
                                             , ("printBasedOnChr", 1500, [AtLeast 7])
                                             , ("printBasedOnOrd", 1500, [AtLeast 7]) ]
+    ]
+
+ioTests :: TestTree
+ioTests = testGroup "IO"
+    [
+        checkInputOutput "tests/IO/UnsafePerformIO1.hs" "f" 1000 [Exactly 1]
     ]
 
 -- To Do Tests

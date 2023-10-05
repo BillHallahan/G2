@@ -520,7 +520,7 @@ mkIdUnsafe vid = G2.Id ((mkName . varName) vid) (mkType HM.empty . varType $ vid
 mkIdLookup :: Id -> G2.NameMap -> G2.TypeNameMap -> G2.Id
 mkIdLookup i nm tm =
     let
-        n = mkNameLookup (varName i) nm
+        n@(G2.Name n' _ _ _) = mkNameLookup (varName i) nm
         t = mkType tm . varType $ i
     in
     G2.Id n t

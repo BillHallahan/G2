@@ -51,12 +51,13 @@ conName :: DataCon -> (Name, [Type])
 conName (DataCon n t) = (n, anonArgumentTypes $ t)
 
 primDefs :: HM.HashMap Name AlgDataTy -> [(T.Text, Expr)]
-primDefs pt = case boolName pt of
-                Just n -> primDefs' n
-                Nothing -> error "Bool type not found"
+primDefs pt = case (boolName pt, charName pt) of
+                (Just b, Just c) -> primDefs' b c
+                _ -> error "primDefs: Required types not found"
 
-primDefs' :: Name -> [(T.Text, Expr)]
-primDefs' b = [ ("$==#", Prim Eq $ tyIntIntBool b)
+primDefs' :: Name -> Name -> [(T.Text, Expr)]
+primDefs' b c =
+              [ ("$==#", Prim Eq $ tyIntIntBool b)
               , ("$/=#", Prim Neq $ tyIntIntBool b)
               , ("+#", Prim Plus tyIntIntInt)
               , ("*#", Prim Mult tyIntIntInt)
@@ -104,6 +105,12 @@ primDefs' b = [ ("$==#", Prim Eq $ tyIntIntBool b)
               , ("ord#", Prim OrdChar $ tyCharIntBool b )
               , ("smtEqChar#", Prim Eq $ tyCharCharBool b )
               , ("smtNeChar#", Prim Neq $ tyCharCharBool b )
+              , ("smtEqChar#", Prim Eq $ tyCharCharBool b )
+              , ("gtChar#", Prim Gt $ tyCharCharBool b )
+              , ("geChar#", Prim Ge $ tyCharCharBool b )
+              , ("ltChar#", Prim Lt $ tyCharCharBool b )
+              , ("leChar#", Prim Le $ tyCharCharBool b )
+              , ("wgencat#", Prim WGenCat $ tyIntInt )
 
               , ("float2Int#", Prim ToInt (TyFun TyLitFloat TyLitInt))
               , ("int2Float#", Prim IntToFloat (TyFun TyLitInt TyLitFloat))
@@ -112,6 +119,21 @@ primDefs' b = [ ("$==#", Prim Eq $ tyIntIntBool b)
               , ("int2Double#", Prim IntToDouble (TyFun TyLitInt TyLitDouble))
               , ("rationalToDouble#", Prim RationalToDouble (TyFun TyLitInt $ TyFun TyLitInt TyLitDouble))
               , ("fromIntToDouble", Prim IntToDouble (TyFun TyLitInt TyLitDouble))
+
+              -- TODO: G2 doesn't currently draw a distinction between Integers and Words
+              , ("integerToWord#", Lam TermL (x TyLitInt) (Var (x TyLitInt)))
+              , ("plusWord#", Prim Plus tyIntIntInt)
+              , ("minusWord#", Prim Minus tyIntIntInt)
+              , ("timesWord#", Prim Mult tyIntIntInt)
+              , ("eqWord#", Prim Eq $ tyIntIntBool b)
+              , ("neWord#", Prim Neq $ tyIntIntBool b)
+              , ("gtWord#", Prim Gt $ tyIntIntBool b)
+              , ("geWord#", Prim Ge $ tyIntIntBool b)
+              , ("ltWord#", Prim Lt $ tyIntIntBool b)
+              , ("leWord#", Prim Le $ tyIntIntBool b)
+
+              -- Hack to convert GHC Char to G2 Chars in base
+              , ("char2char", Lam TermL (x $ TyCon c TYPE) (Var . x $ TyCon c TYPE))
 
               , ("dataToTag##", Prim DataToTag (TyForAll a (TyFun (TyVar a) TyLitInt)))
               , ("tagToEnum#", 
@@ -191,6 +213,9 @@ tyCharCharBool n = TyFun TyLitChar $ TyFun TyLitChar (TyCon n TYPE)
 
 boolName :: HM.HashMap Name AlgDataTy -> Maybe Name
 boolName = find ((==) "Bool" . nameOcc) . HM.keys
+
+charName :: HM.HashMap Name AlgDataTy -> Maybe Name
+charName = find ((==) "Char" . nameOcc) . HM.keys
 
 replaceFromPD :: HM.HashMap Name AlgDataTy -> Name -> Expr -> Expr
 replaceFromPD pt n e =
