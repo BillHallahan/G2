@@ -21,7 +21,6 @@ module G2.Translation.Haskell
 
     , mergeExtractedG2s
     , mkExpr
-    , mkId
     , mkIdUnsafe
     , mkName
     , mkTyConName
@@ -451,13 +450,13 @@ mergeExtractedG2s (g2:g2s) =
 
 mkBinds :: Maybe ModBreaks -> CoreBind -> G2.NamesM (HM.HashMap G2.Name G2.Expr)
 mkBinds mb (NonRec var expr) = do
-    i <- mkIdUpdatingNM var
+    i <- mkIdLookup var
     e <- mkExpr mb expr
     return $ HM.singleton (G2.idName i) e
 mkBinds mb (Rec ves) =
     return . HM.fromList =<<
         mapM (\(v, expr) -> do
-                  i <- mkIdUpdatingNM v
+                  i <- mkIdLookup v
                   e <- mkExpr mb expr
                   return (G2.idName i, e)) ves
 
@@ -465,11 +464,11 @@ mkExpr :: Maybe ModBreaks -> CoreExpr -> G2.NamesM G2.Expr
 mkExpr _ (Var var) = return . G2.Var =<< mkIdLookup var
 mkExpr _ (Lit lit) = return $ G2.Lit (mkLit lit)
 mkExpr mb (App fxpr axpr) = liftM2 G2.App (mkExpr mb fxpr) (mkExpr mb axpr)
-mkExpr mb (Lam var expr) = liftM2 (G2.Lam (mkLamUse var)) (mkId var) (mkExpr mb expr)
+mkExpr mb (Lam var expr) = liftM2 (G2.Lam (mkLamUse var)) (valId var) (mkExpr mb expr)
 mkExpr mb (Let bnd expr) = liftM2 G2.Let (mkBind mb bnd) (mkExpr mb expr)
 mkExpr mb (Case mxpr var t alts) = do
     bindee <- mkExpr mb mxpr
-    binder <- mkId var
+    binder <- valId var
     ty <- mkType t
     alts <- mkAlts mb alts
     return $ G2.Case bindee binder ty alts
@@ -497,8 +496,11 @@ mkLamUse v
     | isTyVar v = G2.TypeL
     | otherwise = G2.TermL
 
-mkId :: Id -> G2.NamesM G2.Id
-mkId vid = liftM2 G2.Id (return . mkName . varName $ vid) (mkType . varType $ vid)
+valId :: Id -> G2.NamesM G2.Id
+valId vid = liftM2 G2.Id (valNameLookup . varName $ vid) (mkType . varType $ vid)
+
+typeId :: Id -> G2.NamesM G2.Id
+typeId vid = liftM2 G2.Id (typeNameLookup . varName $ vid) (mkType . varType $ vid)
 
 -- Makes an Id, not respecting UniqueIds
 mkIdUnsafe :: Id -> G2.NamesM G2.Id
@@ -509,16 +511,6 @@ mkIdLookup i = do
     n <- valNameLookup (varName i)
     t <- mkType . varType $ i
     return $ G2.Id n t
-
-mkIdUpdatingNM :: Id -> G2.NamesM G2.Id
-mkIdUpdatingNM vid = do
-    n@(G2.Name n' m _ _) <- valNameLookup . varName $ vid
-    i <- liftM (G2.Id n) $ (mkType . varType) vid
-
-    (nm, tm) <- SM.get
-    SM.put $ (HM.insert (n', m) n nm, tm)
-    
-    return i
 
 mkName :: Name -> G2.Name
 mkName name = G2.Name occ mdl unq sp
@@ -533,23 +525,27 @@ mkName name = G2.Name occ mdl unq sp
 
 valNameLookup :: Name -> G2.NamesM G2.Name
 valNameLookup n = do
-    (nm, _) <- SM.get
-    valNameLookup' nm n
+    (nm, tm) <- SM.get
+    (n, nm') <- nameLookup nm n
+    SM.put (nm', tm)
+    return n
 
 typeNameLookup :: Name -> G2.NamesM G2.Name
 typeNameLookup n = do
-    (_, nm) <- SM.get
-    valNameLookup' nm n
+    (nm, tm) <- SM.get
+    (n, tm') <- nameLookup tm n
+    SM.put (nm, tm')
+    return n
 
-valNameLookup' :: HM.HashMap (T.Text, Maybe T.Text) G2.Name -> Name -> G2.NamesM G2.Name
-valNameLookup' nm name = do
+nameLookup :: HM.HashMap (T.Text, Maybe T.Text) G2.Name -> Name -> G2.NamesM (G2.Name, HM.HashMap (T.Text, Maybe T.Text) G2.Name)
+nameLookup nm name = do
     -- We only lookup in the G2.NameMap if the Module name is not Nothing
     -- Internally, a module may use multiple variables with the same name and a module Nothing
     return $ case mdl of
-                  Nothing -> G2.Name occ mdl unq sp
+                  Nothing -> (G2.Name occ mdl unq sp, nm)
                   _ -> case HM.lookup (occ, mdl) nm of
-                          Just (G2.Name n' m i _) -> G2.Name n' m i sp
-                          Nothing -> G2.Name occ mdl unq sp
+                          Just (G2.Name n' m i _) -> (G2.Name n' m i sp, nm)
+                          Nothing -> let n = G2.Name occ mdl unq sp in (n, HM.insert (occ, mdl) n nm)
     where
         occ = T.pack . occNameString . nameOccName $ name
         unq = getKey . nameUnique $ name
@@ -637,10 +633,10 @@ mkLit _ = error "mkLit: unhandled Lit"
 
 mkBind :: Maybe ModBreaks -> CoreBind -> G2.NamesM [(G2.Id, G2.Expr)]
 mkBind mb (NonRec var expr) = do
-    i <- mkId var
+    i <- valId var
     e <- mkExpr mb expr
     return [(i, e)]
-mkBind mb (Rec ves) = mapM (\(v, e) -> do i <- mkId v
+mkBind mb (Rec ves) = mapM (\(v, e) -> do i <- valId v
                                           e <- mkExpr mb e
                                           return (i, e)) ves
 
@@ -655,12 +651,12 @@ mkAlt mb (acon, prms, expr) = liftM2 G2.Alt (mkAltMatch acon prms) (mkExpr mb ex
 #endif
 
 mkAltMatch :: AltCon -> [Var] -> G2.NamesM G2.AltMatch
-mkAltMatch (DataAlt dcon) params = liftM2 G2.DataAlt (mkData dcon) (mapM mkId params)
+mkAltMatch (DataAlt dcon) params = liftM2 G2.DataAlt (mkData dcon) (mapM valId params)
 mkAltMatch (LitAlt lit) _ = return $ G2.LitAlt (mkLit lit)
 mkAltMatch DEFAULT _ = return G2.Default
 
 mkType :: Type -> G2.NamesM G2.Type
-mkType (TyVarTy v) = liftM G2.TyVar $ mkId v
+mkType (TyVarTy v) = liftM G2.TyVar $ typeId v
 mkType (AppTy t1 t2) = liftM2 G2.TyApp (mkType t1) (mkType t2)
 #if __GLASGOW_HASKELL__ < 808
 mkType (FunTy t1 t2) = liftM2 G2.TyFun (mkType t1) (mkType t2)
@@ -702,7 +698,7 @@ mkTyCon t = do
             . map (\n_@(G2.Name n'_ m_ _ _) -> ((n'_, m_), n_)) 
             $ dc_names 
 
-    bv <- mapM mkId $ tyConTyVars t
+    bv <- mapM typeId $ tyConTyVars t
 
     dcs <-
         case isAlgTyCon t of 
@@ -731,7 +727,7 @@ mkTyCon t = do
                         SM.put (nm, tm')
                         let (tv, st) = fromJust $ synTyConDefn_maybe t
                         st' <- mkType st
-                        tv' <- mapM mkId tv
+                        tv' <- mapM typeId tv
                         return . Just $ G2.TypeSynonym { G2.bound_ids = tv'
                                                        , G2.synonym_of = st'}
                     False -> return Nothing
@@ -759,9 +755,9 @@ mkDataName datacon = valNameLookup . dataConName $ datacon
 
 mkTyBinder :: TyVarBinder -> G2.NamesM G2.Id
 #if __GLASGOW_HASKELL__ < 808
-mkTyBinder (TvBndr v _) = mkId v
+mkTyBinder (TvBndr v _) = typeId v
 #else
-mkTyBinder (Bndr v _) = mkId v
+mkTyBinder (Bndr v _) = typeId v
 #endif
 
 mkCoercion :: Coercion -> G2.NamesM G2.Coercion
@@ -774,8 +770,8 @@ mkCoercion c = do
 mkClass :: ClsInst -> G2.NamesM (G2.Name, G2.Id, [G2.Id], [(G2.Type, G2.Id)])
 mkClass (ClsInst { is_cls = c, is_dfun = dfun }) = do
     class_name <-  valNameLookup . className $ c
-    i <- mkId dfun
-    tyvars <- mapM mkId $ classTyVars c
+    i <- valId dfun
+    tyvars <- mapM typeId $ classTyVars c
 
     sctheta <- mapM mkType $ classSCTheta c
     sel_ids <- mapM mkIdLookup $ classAllSelIds c
@@ -796,7 +792,7 @@ mkRewriteRule breaks (Rule { ru_name = n
                            , ru_rhs = rhs }) = do
     head_name <- valNameLookup fn
     rough' <- mapM (maybe (return Nothing) (\n -> return . Just =<< valNameLookup n)) rough
-    bndrs' <- mapM mkId bndrs
+    bndrs' <- mapM valId bndrs
     args' <- mapM (mkExpr breaks) args
     rhs' <- mkExpr breaks rhs
     let r = G2.RewriteRule { G2.ru_name = T.pack $ unpackFS n
