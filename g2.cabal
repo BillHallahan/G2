@@ -226,7 +226,8 @@ library
                        , time >= 1.6 && <= 1.13
                        , unordered-containers >= 0.2.10.0 && < 0.3
                        
-                       , deferred-folds <= 0.9.18.3 -- remove this eventually
+                        -- remove this eventually
+                       , deferred-folds <= 0.9.18.3
   
   if flag(support-lh) && impl(ghc < 9.2)
     build-depends:       liquidhaskell >= 0.8.10.2 && <= 0.9.0.2.1
