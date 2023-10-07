@@ -21,7 +21,6 @@ module G2.Translation.Haskell
 
     , mergeExtractedG2s
     , mkExpr
-    , mkIdUnsafe
     , mkName
     , mkTyConName
     , mkData
@@ -32,6 +31,10 @@ module G2.Translation.Haskell
     , readAllExtractedG2s
     , mergeFileExtractedG2s
     , findCabal
+    
+    , mkIdUnsafe
+    , mkTyConNameUnsafe
+    , mkDataUnsafe
     ) where
 
 import qualified G2.Language.TypeEnv as G2 (AlgDataTy (..))
@@ -53,7 +56,6 @@ import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Text as T
-import Data.Tuple.Extra
 import System.FilePath
 import System.Directory
 
@@ -470,8 +472,8 @@ mkExpr mb (Case mxpr var t alts) = do
     bindee <- mkExpr mb mxpr
     binder <- valId var
     ty <- mkType t
-    alts <- mkAlts mb alts
-    return $ G2.Case bindee binder ty alts
+    as <- mkAlts mb alts
+    return $ G2.Case bindee binder ty as
 mkExpr mb (Cast expr c) =  liftM2 G2.Cast (mkExpr mb expr) (mkCoercion c)
 mkExpr _ (Coercion c) = liftM G2.Coercion (mkCoercion c)
 mkExpr mb (Tick t expr) =
@@ -502,10 +504,6 @@ valId vid = liftM2 G2.Id (valNameLookup . varName $ vid) (mkType . varType $ vid
 typeId :: Id -> G2.NamesM G2.Id
 typeId vid = liftM2 G2.Id (typeNameLookup . varName $ vid) (mkType . varType $ vid)
 
--- Makes an Id, not respecting UniqueIds
-mkIdUnsafe :: Id -> G2.NamesM G2.Id
-mkIdUnsafe vid = liftM2 G2.Id (return . mkName . varName $ vid) (mkType . varType $ vid)
-
 mkIdLookup :: Id -> G2.NamesM G2.Id
 mkIdLookup i = do
     n <- valNameLookup (varName i)
@@ -526,16 +524,16 @@ mkName name = G2.Name occ mdl unq sp
 valNameLookup :: Name -> G2.NamesM G2.Name
 valNameLookup n = do
     (nm, tm) <- SM.get
-    (n, nm') <- nameLookup nm n
+    (n', nm') <- nameLookup nm n
     SM.put (nm', tm)
-    return n
+    return n'
 
 typeNameLookup :: Name -> G2.NamesM G2.Name
 typeNameLookup n = do
     (nm, tm) <- SM.get
-    (n, tm') <- nameLookup tm n
+    (n', tm') <- nameLookup tm n
     SM.put (nm, tm')
-    return n
+    return n'
 
 nameLookup :: HM.HashMap (T.Text, Maybe T.Text) G2.Name -> Name -> G2.NamesM (G2.Name, HM.HashMap (T.Text, Maybe T.Text) G2.Name)
 nameLookup nm name = do
@@ -637,8 +635,8 @@ mkBind mb (NonRec var expr) = do
     e <- mkExpr mb expr
     return [(i, e)]
 mkBind mb (Rec ves) = mapM (\(v, e) -> do i <- valId v
-                                          e <- mkExpr mb e
-                                          return (i, e)) ves
+                                          e' <- mkExpr mb e
+                                          return (i, e')) ves
 
 mkAlts :: Maybe ModBreaks -> [CoreAlt] -> G2.NamesM [G2.Alt]
 mkAlts mb = mapM (mkAlt mb)
@@ -711,11 +709,11 @@ mkTyCon t = do
                             NewTyCon { data_con = dc
                                      , nt_rhs = rhst} -> do
                                         dc' <- mkData dc
-                                        t <- mkType rhst
+                                        t' <- mkType rhst
                                         return .
                                           Just $ G2.NewTyCon { G2.bound_ids = bv
                                                              , G2.data_con = dc'
-                                                             , G2.rep_type = t}
+                                                             , G2.rep_type = t'}
                             AbstractTyCon {} -> error "Unhandled TyCon AbstractTyCon"
                             -- TupleTyCon {} -> error "Unhandled TyCon TupleTyCon"
                             TupleTyCon { data_con = dc } -> do
@@ -791,7 +789,7 @@ mkRewriteRule breaks (Rule { ru_name = n
                            , ru_args = args
                            , ru_rhs = rhs }) = do
     head_name <- valNameLookup fn
-    rough' <- mapM (maybe (return Nothing) (\n -> return . Just =<< valNameLookup n)) rough
+    rough' <- mapM (maybe (return Nothing) (\nm -> return . Just =<< valNameLookup nm)) rough
     bndrs' <- mapM valId bndrs
     args' <- mapM (mkExpr breaks) args
     rhs' <- mkExpr breaks rhs
@@ -961,3 +959,23 @@ findCabal fp = do
   dir <- guessProj fp
   files <- listDirectory dir
   return $ find (\f -> ".cabal" `isSuffixOf` f) files
+
+-------------------------------------------------------------------------------
+-- Unsafe construction
+-------------------------------------------------------------------------------
+
+mkUnsafe :: G2.NamesM a -> a
+mkUnsafe nms = SM.evalState nms (HM.empty, HM.empty)
+
+-- | Makes an Id, not respecting uniques
+mkIdUnsafe :: Id -> G2.Id
+mkIdUnsafe vid = 
+    mkUnsafe (liftM2 G2.Id (return . mkName . varName $ vid) (mkType . varType $ vid))
+
+-- | Makes a TyCon, not respecting uniques
+mkTyConNameUnsafe :: TyCon -> G2.Name
+mkTyConNameUnsafe tc = mkUnsafe (mkTyConName tc)
+
+-- | Makes a Data, not respecting uniques
+mkDataUnsafe :: DataCon -> G2.DataCon
+mkDataUnsafe dc = mkUnsafe (mkData dc)
