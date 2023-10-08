@@ -27,6 +27,7 @@ import G2.Language.Syntax
 import G2.Language.Typing
 
 import Data.Coerce
+import Data.Containers.ListUtils
 import Data.Data (Data, Typeable)
 import Data.Hashable
 import Data.List
@@ -54,7 +55,7 @@ initTypeClasses nsi =
         ns = map (\(n, _, i, sc) -> (n, i, sc)) nsi
         nsi' = filter (not . null . insts . snd)
              $ map (\(n, i, sc) -> 
-                (n, Class { insts = mapMaybe (nameIdToTypeId n) nsi
+                (n, Class { insts = nubOrd $ mapMaybe (nameIdToTypeId n) nsi
                           , typ_ids = i
                           , superclasses = sc } )) ns
     in
