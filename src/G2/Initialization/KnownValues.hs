@@ -136,7 +136,7 @@ superClassExtractor tc tc_n sc_n =
     case lookupTCClass tc_n tc of
         Just c
             | Just (_, i) <- find extractsSC (superclasses c) -> idName i
-            | otherwise -> error $ "superClassExtractor: Extractor not found " ++ show (superclasses c)
+            | otherwise -> error $ "superClassExtractor: Extractor not found\n" ++ show sc_n ++ "\n" ++ show (superclasses c)
         Nothing -> error $ "superClassExtractor: Class not found " ++ show tc_n
     where
         extractsSC (t, _) =

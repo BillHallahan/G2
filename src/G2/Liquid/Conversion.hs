@@ -848,7 +848,7 @@ rTyConType :: RTyCon -> [SpecType]-> LHStateM (Maybe Type)
 rTyConType rtc sts = do
     tenv <- typeEnv
 
-    let tcn = mkTyConName HM.empty . rtc_tc $ rtc
+    let tcn = mkTyConNameUnsafe . rtc_tc $ rtc
         n = nameModMatch tcn tenv
 
     ts <- mapM specTypeToType sts

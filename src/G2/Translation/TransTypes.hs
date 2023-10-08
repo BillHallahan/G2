@@ -1,5 +1,8 @@
 module G2.Translation.TransTypes where
 
+import Control.Monad.Identity
+import qualified Control.Monad.State.Lazy as SM
+
 import G2.Translation.GHC
 
 import qualified Data.HashMap.Lazy as HM
@@ -11,6 +14,10 @@ import qualified G2.Language.AlgDataTy as G2
 type NameMap = HM.HashMap (T.Text, Maybe T.Text) G2.Name
 
 type TypeNameMap = HM.HashMap (T.Text, Maybe T.Text) G2.Name
+
+type Names = (NameMap, TypeNameMap)
+type NamesT m a = SM.StateT Names m a
+type NamesM a = NamesT Identity a
 
 type ExportedName = G2.Name
 

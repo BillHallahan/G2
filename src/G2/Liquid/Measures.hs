@@ -129,7 +129,7 @@ convertDefs :: [Type] -> Maybe Type -> LHDictMap -> BoundTypes -> Def SpecType G
 convertDefs [l_t] ret m bt (Def { ctor = dc, body = b, binds = bds})
     | TyCon _ _ <- tyAppCenter l_t
     , st_t <- tyAppArgs l_t
-    , dc' <- mkData HM.empty HM.empty dc = do
+    , dc' <- mkDataUnsafe dc = do
     tenv <- typeEnv
     let         
         -- See [1] below, we only evaluate this if Just
