@@ -768,7 +768,7 @@ mkCoercion c = do
 
 mkClass :: ClsInst -> G2.NamesM (G2.Name, G2.Id, [G2.Id], [(G2.Type, G2.Id)])
 mkClass (ClsInst { is_cls = c, is_dfun = dfun }) = do
-    class_name <-  valNameLookup . className $ c
+    class_name <-  typeNameLookup . className $ c
     i <- valId dfun
     tyvars <- mapM typeId $ classTyVars c
 
