@@ -90,16 +90,13 @@ rewriteRedHaltOrd solver simplifier h_opp track_opp config (NC { use_labeled_err
         state_name = Name "state" Nothing 0 Nothing
 
         m_logger = fmap SomeReducer $ getLogger config
+        some_std_red = enforceProgressRed :== NoProgress --> stdRed share retReplaceSymbFuncVar solver simplifier
+        extra_red = symbolicSwapperRed h_opp track_opp ~> concSymReducer use_labels ~> labeledErrorsRed
+        red = equivReducer :== NoProgress .--> extra_red :== NoProgress .--> some_std_red
     in
     (case m_logger of
-            Just logger -> SomeReducer (
-                                (stdRed share retReplaceSymbFuncVar solver simplifier <~?
-                                        enforceProgressRed) <~? labeledErrorsRed <~ concSymReducer use_labels <~ symbolicSwapperRed h_opp track_opp) .<~?
-                                        (logger .<~ SomeReducer equivReducer)
-            Nothing -> SomeReducer (
-                                ((stdRed share retReplaceSymbFuncVar solver simplifier <~?
-                                    enforceProgressRed) <~? labeledErrorsRed <~ concSymReducer use_labels <~ symbolicSwapperRed h_opp track_opp) <~?
-                                    equivReducer)
+        Just logger -> logger .~> red             
+        Nothing -> red                            
      , SomeHalter
          (discardIfAcceptedTagHalter state_name
          <~> enforceProgressHalter
