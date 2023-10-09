@@ -65,14 +65,15 @@ evalPrim1 IntToFloat (LitInt x) = Just . Lit $ LitFloat (fromIntegral x)
 evalPrim1 IntToDouble (LitInt x) = Just . Lit $ LitDouble (fromIntegral x)
 evalPrim1 Chr (LitInt x) = Just . Lit $ LitChar (chr $ fromInteger x)
 evalPrim1 OrdChar (LitChar x) = Just . Lit $ LitInt (toInteger $ ord x)
+evalPrim1 WGenCat (LitInt x) = Just . Lit $ LitInt (toInteger . fromEnum . generalCategory . toEnum $ fromInteger x)
 evalPrim1 _ _ = Nothing
 
 evalPrim2 :: KnownValues -> Primitive -> Lit -> Lit -> Maybe Expr
-evalPrim2 kv Ge x y = evalPrim2NumBool (>=) kv x y
-evalPrim2 kv Gt x y = evalPrim2NumBool (>) kv x y
-evalPrim2 kv Eq x y = evalPrim2NumBool (==) kv x y
-evalPrim2 kv Lt x y = evalPrim2NumBool (<) kv x y
-evalPrim2 kv Le x y = evalPrim2NumBool (<=) kv x y
+evalPrim2 kv Ge x y = evalPrim2NumCharBool (>=) kv x y
+evalPrim2 kv Gt x y = evalPrim2NumCharBool (>) kv x y
+evalPrim2 kv Eq x y = evalPrim2NumCharBool (==) kv x y
+evalPrim2 kv Lt x y = evalPrim2NumCharBool (<) kv x y
+evalPrim2 kv Le x y = evalPrim2NumCharBool (<=) kv x y
 evalPrim2 _ Plus x y = evalPrim2Num (+) x y
 evalPrim2 _ Minus x y = evalPrim2Num (-) x y
 evalPrim2 _ Mult x y = evalPrim2Num (*) x y
@@ -115,11 +116,12 @@ isZero (LitFloat 0) = True
 isZero (LitDouble 0) = True
 isZero _ = False
 
-evalPrim2NumBool :: (forall a . Ord a => a -> a -> Bool) -> KnownValues -> Lit -> Lit -> Maybe Expr
-evalPrim2NumBool f kv (LitInt x) (LitInt y) = Just . mkBool kv $ f x y
-evalPrim2NumBool f kv (LitFloat x) (LitFloat y) = Just . mkBool kv $ f x y
-evalPrim2NumBool f kv (LitDouble x) (LitDouble y) = Just . mkBool kv $ f x y
-evalPrim2NumBool _ _ _ _ = Nothing
+evalPrim2NumCharBool :: (forall a . Ord a => a -> a -> Bool) -> KnownValues -> Lit -> Lit -> Maybe Expr
+evalPrim2NumCharBool f kv (LitInt x) (LitInt y) = Just . mkBool kv $ f x y
+evalPrim2NumCharBool f kv (LitFloat x) (LitFloat y) = Just . mkBool kv $ f x y
+evalPrim2NumCharBool f kv (LitDouble x) (LitDouble y) = Just . mkBool kv $ f x y
+evalPrim2NumCharBool f kv (LitChar x) (LitChar y) = Just . mkBool kv $ f x y
+evalPrim2NumCharBool _ _ _ _ = Nothing
 
 evalPrim2Num  :: (forall a . Num a => a -> a -> a) -> Lit -> Lit -> Maybe Expr
 evalPrim2Num f (LitInt x) (LitInt y) = Just . Lit . LitInt $ f x y

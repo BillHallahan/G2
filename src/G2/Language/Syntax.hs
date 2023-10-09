@@ -183,6 +183,7 @@ data Primitive = Ge
                | Chr
                | OrdChar
                
+               | WGenCat
                
                | Error
                | Undefined

@@ -363,6 +363,8 @@ mkPrimHaskell ToInteger = "toInteger"
 mkPrimHaskell Chr = "chr"
 mkPrimHaskell OrdChar = "ord"
 
+mkPrimHaskell WGenCat = "wgencat"
+
 mkPrimHaskell ToInt = "toInt"
 
 mkPrimHaskell Error = "error"

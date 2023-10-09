@@ -74,7 +74,8 @@ mkG2TyCon n ts k = mkG2TyApp $ G2.TyCon n k:ts
 
 equivMods :: HM.HashMap T.Text T.Text
 equivMods = HM.fromList
-            [ ("GHC.Classes2", "GHC.Classes")
+            [ ("GHC.BaseMonad", "GHC.Base")
+            , ("GHC.Classes2", "GHC.Classes")
             , ("GHC.Types2", "GHC.Types")
             , ("GHC.Integer2", "GHC.Integer")
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
@@ -767,7 +768,7 @@ mkCoercion c = do
 
 mkClass :: ClsInst -> G2.NamesM (G2.Name, G2.Id, [G2.Id], [(G2.Type, G2.Id)])
 mkClass (ClsInst { is_cls = c, is_dfun = dfun }) = do
-    class_name <-  valNameLookup . className $ c
+    class_name <-  typeNameLookup . className $ c
     i <- valId dfun
     tyvars <- mapM typeId $ classTyVars c
 
