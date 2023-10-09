@@ -54,7 +54,7 @@ initTypeClasses nsi =
         ns = map (\(n, _, i, sc) -> (n, i, sc)) nsi
         nsi' = filter (not . null . insts . snd)
              $ map (\(n, i, sc) -> 
-                (n, Class { insts = mapMaybe (nameIdToTypeId n) nsi
+                (n, Class { insts = nub $ mapMaybe (nameIdToTypeId n) nsi
                           , typ_ids = i
                           , superclasses = sc } )) ns
     in
