@@ -767,16 +767,18 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv }) e1 (EnsureEq e2) or
                     , concretized = [] }] )
 
     -- Symmetric cases for e1/e2 being  symbolic variables 
-    | Var (Id n _) <- e1
-    , E.isSymbolic n eenv =
+    | Var (Id n t) <- e1
+    , E.isSymbolic n eenv
+    , not (isPrimType t || t == tyBool kv) =
         ( RuleReturnCurrExprFr
         , [NewPC { state = s { curr_expr = orig_ce
                              , expr_env = E.insert n e2 eenv
                              , exec_stack = stck}
                 , new_pcs = []
                 , concretized = [] }] )
-    | Var (Id n _) <- e2
-    , E.isSymbolic n eenv =
+    | Var (Id n t) <- e2
+    , E.isSymbolic n eenv
+    , not (isPrimType t || t == tyBool kv) =
         ( RuleReturnCurrExprFr
         , [NewPC { state = s { curr_expr = orig_ce
                              , expr_env = E.insert n e1 eenv
@@ -996,7 +998,7 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
         eenv'' = E.insert n e eenv'
         (constState, ng'''') = mkFuncConst s es n t1 t2 ng'''
     in Just (RuleReturnReplaceSymbFunc, [s {
-        curr_expr = CurrExpr Return e',
+        curr_expr = CurrExpr Evaluate e',
         expr_env = eenv''
     }, constState], ng'''')
 
@@ -1017,7 +1019,7 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
         eenv''' = E.insert n e eenv''
         (constState, ng'''') = mkFuncConst s es n t1 t2 ng'''
     in Just (RuleReturnReplaceSymbFunc, [s {
-        curr_expr = CurrExpr Return $ mkApp (e:es),
+        curr_expr = CurrExpr Evaluate $ mkApp (e:es),
         expr_env = eenv'''
     }, constState], ng'''')
 
@@ -1039,7 +1041,7 @@ retReplaceSymbFuncTemplate s@(State { expr_env = eenv
         eenv'' = E.insert n e eenv'
     in Just (RuleReturnReplaceSymbFunc, [s {
         -- because we are always going down true branch
-        curr_expr = CurrExpr Return (Var f1Id),
+        curr_expr = CurrExpr Evaluate (Var f1Id),
         expr_env = eenv''
     }], ng')
     | otherwise = Nothing
@@ -1060,7 +1062,7 @@ mkFuncConst s@(State { expr_env = eenv } ) es n t1 t2 ng =
         e = Lam TermL xId $ Var fId
         eenv'' = E.insert n e eenv'
     in (s {
-        curr_expr = CurrExpr Return $ mkApp (e:es),
+        curr_expr = CurrExpr Evaluate $ mkApp (e:es),
         -- symbolic_ids = fId:symbolic_ids state,
         expr_env = eenv''
     }, ng')

@@ -293,6 +293,15 @@ initRedHaltOrd solver simplifier config =
                  <~> zeroHalter (steps config)
                  <~> acceptIfViolatedHalter)
              , SomeOrderer $ pickLeastUsedOrderer)
+        SymbolicFuncTemplate ->
+            ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCTemplates
+             , SomeHalter
+                 (discardIfAcceptedTagHalter state_name
+                 <~> switchEveryNHalter 20
+                 <~> maxOutputsHalter (maxOutputs config) 
+                 <~> zeroHalter (steps config)
+                 <~> acceptIfViolatedHalter)
+             , SomeOrderer $ pickLeastUsedOrderer)
 
 initSolver :: Config -> IO SomeSolver
 initSolver = initSolver' arbValue
