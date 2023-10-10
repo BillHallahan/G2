@@ -345,6 +345,7 @@ testFileTests = testGroup "TestFiles"
                                                                    , ("h", 150, [Exactly 2])
                                                                    , ("assoc", 200, [Exactly 2])
                                                                    , ("sf", 200, [Exactly 2])
+                                                                   , ("thirdOrder", 300, [Exactly 2])
                                                                    , ("thirdOrder2", 300, [Exactly 3])
                                                                    , ("tupleTestMono", 175, [Exactly 2])] 
     -- , checkInputOutput "tests/TestFiles/BadBool.hs" "BadBool" "f" 1400 [AtLeast 1]

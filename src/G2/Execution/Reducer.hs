@@ -117,7 +117,6 @@ import qualified Data.Text as T
 import Data.Tuple
 import Data.Time.Clock
 import System.Directory
-import Debug.Trace
 
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
@@ -430,6 +429,7 @@ stdRed share symb_func_eval solver simplifier =
                             return (if r == RuleIdentity then Finished else InProgress, s', b')
                         )
 
+-- | Pushes non_red_path_conds onto the exec_stack for solving higher order symbolic function 
 nonRedPCTemplates :: Monad m => Reducer m () t
 nonRedPCTemplates = mkSimpleReducer (\_ -> ())
                         nonRedPCTemplatesFunc
