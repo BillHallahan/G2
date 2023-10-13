@@ -421,6 +421,8 @@ prettyState pg s =
         , pretty_paths
         , "----- [Non Red Paths] ---------------------"
         , pretty_non_red_paths
+        , "----- [Types] ---------------------"
+        , pretty_tenv
         , "----- [Typeclasses] ---------------------"
         , pretty_tc
         , "----- [True Assert] ---------------------"
@@ -438,6 +440,7 @@ prettyState pg s =
         pretty_eenv = prettyEEnv pg (expr_env s)
         pretty_paths = prettyPathConds pg (path_conds s)
         pretty_non_red_paths = prettyNonRedPaths pg (non_red_path_conds s)
+        pretty_tenv = prettyTypeEnv pg (type_env s)
         pretty_tc = prettyTypeClasses pg (type_classes s)
         pretty_assert_fcs = maybe "None" (printFuncCallPG pg) (assert_ids s)
         pretty_names = prettyGuideStr pg
@@ -516,6 +519,26 @@ prettyPathCond pg (AssumePC i l pc) =
 
 prettyNonRedPaths :: PrettyGuide -> [(Expr, Expr)] -> T.Text
 prettyNonRedPaths pg = T.intercalate "\n" . map (\(e1, e2) -> mkDirtyExprHaskell pg e1 <> " == " <> mkDirtyExprHaskell pg e2)
+
+prettyTypeEnv :: PrettyGuide -> TypeEnv -> T.Text
+prettyTypeEnv pg = T.intercalate "\n" . map (uncurry (prettyADT pg)) . HM.toList
+
+prettyADT :: PrettyGuide -> Name -> AlgDataTy -> T.Text
+prettyADT pg n DataTyCon { bound_ids = bids, data_cons = dcs } =
+    "data " <> mkNameHaskell pg n <> " "
+            <> T.intercalate " " (map (mkIdHaskell pg) bids)
+            <> " = " <> T.intercalate " | " (map (prettyDCWithType pg) dcs)
+prettyADT pg n NewTyCon { bound_ids = bids, data_con = dc } =
+    "newtype " <> mkNameHaskell pg n <> " "
+               <> T.intercalate " " (map (mkIdHaskell pg) bids)
+               <> " = " <> prettyDCWithType pg dc
+prettyADT pg n TypeSynonym { bound_ids = bids, synonym_of = t } =
+    "type " <> mkNameHaskell pg n <> " "
+            <> T.intercalate " " (map (mkIdHaskell pg) bids)
+            <> " = " <> mkTypeHaskellPG pg t
+
+prettyDCWithType :: PrettyGuide -> DataCon -> T.Text
+prettyDCWithType pg dc = mkDataConHaskell pg dc <> " :: " <> mkTypeHaskellPG pg (typeOf dc)
 
 prettyTypeClasses :: PrettyGuide -> TypeClasses -> T.Text
 prettyTypeClasses pg = T.intercalate "\n" . map (\(n, tc) -> mkNameHaskell pg n <> " = " <> prettyClass pg tc) . HM.toList . toMap
