@@ -48,6 +48,7 @@ module G2.Language.Typing
     , ArgType (..)
     , argumentTypes
     , argTypeToType
+    , argTypeToId 
     , argTypeToLamUse
     , spArgumentTypes
     , leadingTyForAllBindings
@@ -484,6 +485,13 @@ argumentTypes' _ = []
 argTypeToType :: ArgType -> Type
 argTypeToType (AnonType t) = t
 argTypeToType (NamedType i) = TyVar i
+
+argTypeToId :: ArgType -> Id
+argTypeToId (AnonType t) = case t of 
+                                (TyVar i) -> i 
+                                (TyForAll i _) -> i
+                                _ -> error "argTypeToId: Can't find id from Type"
+argTypeToId (NamedType i) = i 
 
 argTypeToLamUse :: ArgType -> LamUse
 argTypeToLamUse (AnonType _) = TermL

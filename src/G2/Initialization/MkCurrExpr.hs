@@ -63,6 +63,13 @@ mkMainExpr tc kv ng ex =
         app_ex = foldl' App ex $ typsE ++ var_ids
     in
     (app_ex, is, typsE, ng')
+-- write a new mkmainExprNoInstantineTypes and replace the occurrence of mkMainExpr in MkCurrExpr 17 
+mkmainExprNoInstantiateTypes :: Expr -> ExprEnv -> ExprEnv 
+mkmainExprNoInstantiateTypes e eenv = 
+    let 
+        types = spArgumentTypes e  
+        ids = map argTypeToId types
+    in foldl' (flip E.insertSymbolic) eenv ids
 
 mkInputs :: NameGen -> [Type] -> ([Expr], [Id], NameGen)
 mkInputs ng [] = ([], [], ng)

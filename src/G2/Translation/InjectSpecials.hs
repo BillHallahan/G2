@@ -31,7 +31,7 @@ specialDC ns tn (n, m, ts) =
         tv = map (TyVar . flip Id TYPE) ns
 
         t = foldr (TyFun) (mkFullAppedTyCon tn tv TYPE) ts
-        t' = foldr (\n' -> TyForAll (Id n' TYPE)) t ns\
+        t' = foldr (\n' -> TyForAll (Id n' TYPE)) t ns
     in
     DataCon {dc_name = Name n m 0 Nothing, dc_type = t', ex_tyvars = []}
 

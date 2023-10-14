@@ -57,6 +57,8 @@ import Data.Tuple.Extra
 import System.FilePath
 import System.Directory
 
+import Debug.Trace
+
 -- Copying from Language.Typing so the thing we stuff into Ghc
 -- does not have to rely on Language.Typing, which depends on other things.
 mkG2TyApp :: [G2.Type] -> G2.Type
@@ -755,7 +757,7 @@ mkData nm tm datacon = G2.DataCon { G2.dc_name = name
   where
     name = mkDataName nm datacon
     ty = (mkType tm . dataConRepType) datacon
-    tycovars = map (mkId tm) $ dataConUnivTyVars datacon
+    tycovars = map (mkId tm) $ dataConExTyCoVars datacon
 
 mkDataName :: G2.NameMap -> DataCon -> G2.Name
 mkDataName nm datacon = (flip mkNameLookup nm . dataConName) datacon
@@ -774,7 +776,15 @@ mkCoercion tm c =
     in
     (pFst k) G2.:~ (pSnd k)
 
-mkClass :: G2.NameMap -> G2.TypeNameMap -> ClsInst -> (G2.Name, G2.Id, [G2.Id], [(G2.Type, G2.Id)])
+mkClass :: G2.NameMap
+        -> G2.TypeNameMap
+        -> ClsInst
+        ->
+           ( G2.Name -- ^ The name of the typeclass
+           , G2.Id -- ^ A dictionary for the typeclass
+           , [G2.Id] -- ^ Type arguments
+           , [(G2.Type, G2.Id)] -- ^ Superclasses
+           )
 mkClass nm tm (ClsInst { is_cls = c, is_dfun = dfun }) =
     ( flip mkNameLookup tm . className $ c
     , mkId tm dfun

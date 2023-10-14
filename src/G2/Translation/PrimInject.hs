@@ -35,29 +35,19 @@ primInjectT t = t
 
 dataInject :: (ASTContainer t Expr) => t -> HM.HashMap Name AlgDataTy -> t
 dataInject t hm = (modifyASTs $ dataInject' (dcNamesMap hm)) t
-    
--- TODO: Polymorphic types?
--- New type signature dataInject' :: HM.Hashmap Name Datacon -> Expr -> Expr
 
-
--- DcNamesMap :: TypeEnv -> Hashmap Name DataCon
--- TypeEnv have the type M.HashMap Name AlgDataTy
--- we can use datacon from algDataTy to pull out all the datacon
--- Then, we construct a hashmap Name DataCon in the DcNamesMap
--- dataInject' check whether the Var Id is in the hashamp of Name DataCon
--- if I we do find in the hashmap which means it should be a dataCon 
--- so we just wrap the new var id into a datacon and change the expression. 
-dataInject' :: HM.HashMap Name DataCon -> Expr -> Expr
-dataInject' hm v@(Var (Id n _ )) = case HM.lookup n hm of 
-                                                    Just (DataCon n' k extyvars) -> Data (DataCon n' k extyvars)
-                                                    Nothing -> v
+dataInject' :: HM.HashMap (T.Text, Maybe T.Text) DataCon -> Expr -> Expr
+dataInject' hm v@(Var (Id (Name n m _ _) _ )) =
+    case HM.lookup (n, m) hm of 
+            Just dc -> Data dc
+            Nothing -> v
 dataInject' _ v = v 
 
-dcNamesMap :: TypeEnv -> HM.HashMap Name DataCon
+dcNamesMap :: TypeEnv -> HM.HashMap (T.Text, Maybe T.Text) DataCon
 dcNamesMap te = 
     let algs = HM.elems te 
         dcs = concatMap ADT.dataCon algs
-        dcmap dc' = case dc' of dc@(DataCon n _ _) -> (n,dc)
+        dcmap dc' = case dc' of dc@(DataCon (Name n m _ _) _ _) -> ((n, m),dc)
         dcs' = map dcmap dcs
     in HM.fromList dcs'
 
