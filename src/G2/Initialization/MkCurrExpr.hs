@@ -64,6 +64,14 @@ mkMainExpr tc kv ng ex =
     in
     (app_ex, is, typsE, ng')
 
+-- write a new mkmainExprNoInstantineTypes and replace the occurrence of mkMainExpr in MkCurrExpr 17 
+mkmainExprNoInstantiateTypes :: Expr -> NameGen -> ([Id], NameGen)
+mkmainExprNoInstantiateTypes e ng = 
+    let 
+        argts = spArgumentTypes e
+        ts  = map argTypeToType argts
+    in freshIds ts ng 
+
 mkInputs :: NameGen -> [Type] -> ([Expr], [Id], NameGen)
 mkInputs ng [] = ([], [], ng)
 mkInputs ng (t:ts) =
