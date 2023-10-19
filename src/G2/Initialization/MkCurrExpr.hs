@@ -85,10 +85,10 @@ mkmainExprNoInstantiateTypes e ng =
         argts' = renames ntmap argts
        --  annontype implementation:
        --  making a new name for the symbolic variable with freshName
-        nnameats ((AnonType (TyVar (Id _ t)))) nameg = 
+        nnameats (((AnonType (TyVar (Id _ t)))):ts) nameg = 
             let  (n',nameg') = freshName nameg
-                in (Id n' t, nemeg')
-        (ats',ng''') = 
+                in (Id n' t, nemeg'): (nnameats ts nameg')
+        (ats',ng'') = nnameats ats ng'
 
        -- constructing new id from the name and constructing new variable
        -- i.e  var_id = Var i
