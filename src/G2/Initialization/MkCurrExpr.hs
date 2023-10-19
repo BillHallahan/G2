@@ -13,6 +13,7 @@ import Data.List
 import qualified Data.Map as M
 import Data.Maybe
 import qualified Data.Text as T
+import qualified Data.HashMap.Lazy as HM 
 
 mkCurrExpr :: Maybe T.Text -> Maybe T.Text -> Id
            -> TypeClasses -> NameGen -> ExprEnv -> TypeEnv -> Walkers
@@ -65,13 +66,40 @@ mkMainExpr tc kv ng ex =
     (app_ex, is, typsE, ng')
 
 -- write a new mkmainExprNoInstantineTypes and replace the occurrence of mkMainExpr in MkCurrExpr 17 
-mkmainExprNoInstantiateTypes :: Expr -> NameGen -> ([Id], NameGen)
+mkmainExprNoInstantiateTypes :: Expr -> NameGen -> (Expr, [Id], [Expr], NameGen)
 mkmainExprNoInstantiateTypes e ng = 
     let 
         argts = spArgumentTypes e
-        ts  = map argTypeToType argts
-    in freshIds ts ng 
+        -- filtering nametype and anontype
+        anontype argt = 
+            case argt of 
+                AnonType _ -> True
+                _ -> False
+        (ats,nts) = partition anontype argts 
+        -- rename id in nametype and making annotype arguments symbolic variable
+        nnames (NamedType (Id n _)) = n 
+        ns = map nnames nts
+        (ns', ng') = renameAll ns ng
+        -- name type map with all the renames and non-renames
+        ntmap = HM.fromList $ zip ns ns' 
+        argts' = renames ntmap argts
+       --  annontype implementation:
+       --  making a new name for the symbolic variable with freshName
+        nnameats ((AnonType (TyVar (Id _ t)))) nameg = 
+            let  (n',nameg') = freshName nameg
+                in (Id n' t, nemeg')
+        (ats',ng''') = 
 
+       -- constructing new id from the name and constructing new variable
+       -- i.e  var_id = Var i
+       -- Namedtype i   var_id = var i
+       --  app_ex = foldl' App ex var_ids
+       -- apply polymorphic variable function
+        getvar id = Var id 
+        e' = map getvar ids 
+        e'' = e : e'
+        ne = NonDet e''
+    in (ne, ids,[],ng')
 mkInputs :: NameGen -> [Type] -> ([Expr], [Id], NameGen)
 mkInputs ng [] = ([], [], ng)
 mkInputs ng (t:ts) =
