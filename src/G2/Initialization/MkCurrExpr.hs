@@ -32,7 +32,7 @@ mkCurrExpr m_assume m_assert f@(Id (Name _ m_mod _ _) _) tc ng eenv _ walkers kv
                 -- -- We refind the type of f, because type synonyms get replaced during the initializaton,
                 -- -- after we first got the type of f.
                 -- app_ex = foldl' App var_ex $ typsE ++ var_ids
-                (app_ex, is, typsE, ng') = mkMainExpr tc kv ng var_ex
+                (app_ex, is, typsE, ng') = mkmainExprNoInstantiateTypes var_ex ng
                 var_ids = map Var is
 
                 -- strict_app_ex = app_ex
@@ -65,7 +65,11 @@ mkMainExpr tc kv ng ex =
     in
     (app_ex, is, typsE, ng')
 
--- write a new mkmainExprNoInstantineTypes and replace the occurrence of mkMainExpr in MkCurrExpr 17 
+-- | This implementation aims to symoblically execute function 
+-- In function f: forall a b . [(a, b)] -> Int -> b
+-- a b inside forall become Named type
+-- It means we are going to have a polymorphic variable with this name
+-- [(a, b)], Int, b become Anon type which means we expect to pass argument of this type
 mkmainExprNoInstantiateTypes :: Expr -> NameGen -> (Expr, [Id], [Expr], NameGen)
 mkmainExprNoInstantiateTypes e ng = 
     let 
@@ -76,30 +80,25 @@ mkmainExprNoInstantiateTypes e ng =
                 AnonType _ -> True
                 _ -> False
         (ats,nts) = partition anontype argts 
-        -- rename id in nametype and making annotype arguments symbolic variable
+        -- rename id in nametype and return the ids from the nametype as symbolic variable 
         nnames (NamedType (Id n _)) = n 
         ns = map nnames nts
         (ns', ng') = renameAll ns ng
-        -- name type map with all the renames and non-renames
+        -- name type map with all the renames
         ntmap = HM.fromList $ zip ns ns' 
-        argts' = renames ntmap argts
+        -- getting the id from name type now and return them as symbolic variable
+        idfromNameType (NamedType id) = id 
+        ntids = map idfromNameType nts
+        ntids' = renames ntmap ntids
        --  annontype implementation:
-       --  making a new name for the symbolic variable with freshName
-        nnameats (((AnonType (TyVar (Id _ t)))):ts) nameg = 
-            let  (n',nameg') = freshName nameg
-                in (Id n' t, nemeg'): (nnameats ts nameg')
-        (ats',ng'') = nnameats ats ng'
+        ats' = map argTypeToType ats
+        (atsToIds,ng'') = freshIds ats' ng'
+        ids = ntids' ++ atsToIds
+        var_id i = Var i 
+        app_ex = foldl' App e $ map var_id atsToIds
+    in (app_ex, ids,[],ng'')
 
-       -- constructing new id from the name and constructing new variable
-       -- i.e  var_id = Var i
-       -- Namedtype i   var_id = var i
-       --  app_ex = foldl' App ex var_ids
-       -- apply polymorphic variable function
-        getvar id = Var id 
-        e' = map getvar ids 
-        e'' = e : e'
-        ne = NonDet e''
-    in (ne, ids,[],ng')
+
 mkInputs :: NameGen -> [Type] -> ([Expr], [Id], NameGen)
 mkInputs ng [] = ([], [], ng)
 mkInputs ng (t:ts) =
