@@ -93,6 +93,7 @@ mkmainExprNoInstantiateTypes e ng =
        --  annontype implementation:
         ats' = map argTypeToType ats
         (atsToIds,ng'') = freshIds ats' ng'
+      -- creating full list of symoblic ids and applying it to the expr
         ids = ntids' ++ atsToIds
         var_id i = Var i 
         app_ex = foldl' App e $ map var_id atsToIds
