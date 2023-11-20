@@ -46,6 +46,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , RedRules
                             , mkSimpleReducer
                             , stdRed
+                            , nonRedPCTemplates
                             , nonRedPCRed
                             , nonRedPCRedConst
                             , taggerRed
@@ -427,6 +428,32 @@ stdRed share symb_func_eval solver simplifier =
 
                             return (if r == RuleIdentity then Finished else InProgress, s', b')
                         )
+
+-- | Pushes non_red_path_conds onto the exec_stack for solving higher order symbolic function 
+nonRedPCTemplates :: Monad m => Reducer m () t
+nonRedPCTemplates = mkSimpleReducer (\_ -> ())
+                        nonRedPCTemplatesFunc
+
+nonRedPCTemplatesFunc :: Monad m => RedRules m () t
+nonRedPCTemplatesFunc _
+                      s@(State { expr_env = eenv
+                         , curr_expr = cexpr
+                         , exec_stack = stck
+                         , non_red_path_conds = (nre1, nre2):nrs
+                         , model = m })
+                        b@(Bindings { name_gen = ng }) =
+    
+    let
+        stck' = Stck.push (CurrExprFrame (EnsureEq nre2) cexpr) stck
+        s' = s { exec_stack = stck', non_red_path_conds = nrs }
+    in
+    case retReplaceSymbFuncTemplate s' ng nre1 of
+        Just (r, s'', ng') -> return (InProgress, zip s'' (repeat ()), b {name_gen = ng'})
+        Nothing ->
+            let 
+                s'' = s' {curr_expr = CurrExpr Evaluate nre1}
+            in return (InProgress, [(s'', ())], b)
+nonRedPCTemplatesFunc _ s b = return (Finished, [(s, ())], b)
 
 -- | Removes and reduces the values in a State's non_red_path_conds field. 
 {-#INLINE nonRedPCRed #-}

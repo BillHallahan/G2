@@ -221,7 +221,7 @@ instance Named TypeClasses where
         coerce $ M.mapKeys (renames hm) $ renames hm m
 
 instance Named Class where
-    names = names . insts
+    names (Class { insts = i, typ_ids = tids, superclasses = sc }) = names i <> names tids <> names sc
     rename old new c = Class { insts = rename old new $ insts c
                              , typ_ids = rename old new $ typ_ids c
                              , superclasses = rename old new $ superclasses c }
