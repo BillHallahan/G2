@@ -40,7 +40,8 @@ data SMTSolver = ConZ3 | ConCVC4 deriving (Eq, Show, Read)
 
 data HigherOrderSolver = AllFuncs
                        | SingleFunc
-                       | SymbolicFunc deriving (Eq, Show, Read)
+                       | SymbolicFunc 
+                       | SymbolicFuncTemplate deriving (Eq, Show, Read)
 
 type IncludePath = FilePath
 
@@ -137,6 +138,7 @@ mkHigherOrder =
                                     "all" -> Right AllFuncs
                                     "single" -> Right SingleFunc
                                     "symbolic" -> Right SymbolicFunc
+                                    "symbolic-temp" -> Right SymbolicFuncTemplate
                                     _ -> Left "Unsupported higher order function handling"))
             ( long "higher-order"
             <> metavar "HANDLING"

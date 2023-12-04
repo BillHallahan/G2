@@ -588,7 +588,7 @@ smtastToExpr (VInt i) = (Lit $ LitInt i)
 smtastToExpr (VFloat f) = (Lit $ LitFloat f)
 smtastToExpr (VDouble d) = (Lit $ LitDouble d)
 smtastToExpr (VBool b) =
-    Data (DataCon (Name (T.pack $ show b) Nothing 0 Nothing) (TyCon (Name "Bool" Nothing 0 Nothing) TYPE))
+    Data (DataCon (Name (T.pack $ show b) (Just "GHC.Types") 0 Nothing) (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE))
 smtastToExpr (VChar c) = Lit $ LitChar c
 smtastToExpr (V n s) = Var $ Id (certainStrToName n) (sortToType s)
 smtastToExpr _ = error "Conversion of this SMTAST to an Expr not supported."

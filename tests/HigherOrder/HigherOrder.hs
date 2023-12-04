@@ -25,6 +25,12 @@ sf f s = f s == f (streamTail s)
 thirdOrder :: ((Bool -> Bool) -> Bool) -> Bool
 thirdOrder f = f (\b -> case b of { True -> False; False -> True })
 
+thirdOrder2 :: ((Bool -> Bool) -> Bool) -> Int
+thirdOrder2 f =
+    case f (\b -> case b of { True -> False; False -> True }) of
+        True -> 1
+        False -> if f (\b -> b) then 2 else 3
+
 data IntPair = IntPair Int Int
 
 tupleTestMono :: (IntPair -> IntPair) -> Bool

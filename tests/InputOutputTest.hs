@@ -1,7 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module InputOutputTest ( checkInputOutput
                        , checkInputOutputs
-                       , checkInputOutputsTemplate ) where
+                       , checkInputOutputsTemplate
+                       , checkInputOutputsNonRedTemp ) where
 
 import Test.Tasty
 import Test.Tasty.HUnit
@@ -35,6 +36,13 @@ checkInputOutputsTemplate :: FilePath -> [(String, Int, [Reqs String])] -> TestT
 checkInputOutputsTemplate src tests = do
     checkInputOutput'
         (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymbolicFunc }))
+        src
+        tests
+
+checkInputOutputsNonRedTemp :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputsNonRedTemp src tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymbolicFuncTemplate }))
         src
         tests
 
