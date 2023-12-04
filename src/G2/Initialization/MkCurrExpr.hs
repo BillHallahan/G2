@@ -65,11 +65,8 @@ mkMainExpr tc kv ng ex =
     in
     (app_ex, is, typsE, ng')
 
--- | This implementation aims to symoblically execute function 
--- In function f: forall a b . [(a, b)] -> Int -> b
--- a b inside forall become Named type
--- It means we are going to have a polymorphic variable with this name
--- [(a, b)], Int, b become Anon type which means we expect to pass argument of this type
+-- | This implementation aims to symbolically execute function 
+-- functions treating both types and value level argument as symbolic
 mkmainExprNoInstantiateTypes :: Expr -> NameGen -> (Expr, [Id], [Expr], NameGen)
 mkmainExprNoInstantiateTypes e ng = 
     let 
@@ -87,17 +84,18 @@ mkmainExprNoInstantiateTypes e ng =
         -- name type map with all the renames
         ntmap = HM.fromList $ zip ns ns' 
         -- getting the id from name type now and return them as symbolic variable
-        idfromNameType (NamedType id) = id 
+        idfromNameType (NamedType i) = i 
         ntids = map idfromNameType nts
         ntids' = renames ntmap ntids
        --  annontype implementation:
         ats' = map argTypeToType ats
         (atsToIds,ng'') = freshIds ats' ng'
+        atsToIds' = renames ntmap atsToIds
       -- creating full list of symoblic ids and applying it to the expr
-        ids = ntids' ++ atsToIds
-        var_id i = Var i 
-        app_ex = foldl' App e $ map var_id atsToIds
-    in (app_ex, ids,[],ng'')
+        all_ids = ntids' ++ atsToIds'
+        var_id  = Var 
+        app_ex = foldl' App e $ map var_id all_ids
+    in (app_ex, all_ids,[],ng'')
 
 
 mkInputs :: NameGen -> [Type] -> ([Expr], [Id], NameGen)
