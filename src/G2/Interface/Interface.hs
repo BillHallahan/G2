@@ -44,7 +44,7 @@ import G2.Initialization.Interface
 import G2.Initialization.KnownValues
 import G2.Initialization.MkCurrExpr
 import qualified G2.Initialization.Types as IT
-
+import Debug.Trace
 import G2.Preprocessing.Interface
 
 import G2.Execution.Interface
@@ -280,9 +280,12 @@ initRedHaltOrd solver simplifier config =
             ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCRed
              , SomeHalter
                  (discardIfAcceptedTagHalter state_name
+                 -- check the state of each halter like stopRed switchEveryNHalter
+                 -- and we can use this like detecting which halter tell us to stop though we shouldn't
+                 -- current problem since we want to wrap halter h
                  <~> switchEveryNHalter 20
                  <~> maxOutputsHalter (maxOutputs config) 
-                 <~> zeroHalter (steps config)
+                 <~> zeroHalter (steps config) --definitely not zeroHalter, so we need to investigate other three halters
                  <~> acceptIfViolatedHalter)
              , SomeOrderer $ pickLeastUsedOrderer)
         SymbolicFunc ->
@@ -548,6 +551,11 @@ runG2 :: ( MonadIO m
          solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
 runG2 red hal ord solver simplifier mem is bindings = do
     (exec_states, bindings') <- runG2ThroughExecution red hal ord mem is bindings
-    sol_states <- mapM (runG2Solving solver simplifier bindings') exec_states
-
+    liftIO . print $ map length (map non_red_path_conds exec_states)
+    liftIO . putStrLn $ " curr_expr of exec_states " ++ show  ( map curr_expr exec_states)
+    sol_states <- mapM (runG2Solving solver simplifier bindings') exec_states 
+    -- print out the states from exec_states.
+    -- then print out something from run G2 solving to narrow down why it's getting false 
+    liftIO . putStrLn $ " curr_expr of sol_states " ++ show  (map (curr_expr . final_state) $ catMaybes sol_states)
+    liftIO . putStrLn $ " conc_out of sol_states " ++ show  (map conc_out $ catMaybes sol_states)
     return (catMaybes sol_states, bindings')

@@ -48,3 +48,7 @@ evalMyExpr (Add a1 a2) = evalMyExpr a1 + evalMyExpr a2
 
 testeval :: Int -> MyExpr Int 
 testeval a1 = testeval $ evalMyExpr $ Lt (2*a1)
+
+
+checkeq :: Eq a => a -> a -> Bool
+checkeq a a1 = a == a1

@@ -233,7 +233,10 @@ retLam s@(State { expr_env = eenv })
 
 traceType :: E.ExprEnv -> Expr -> Maybe Type
 traceType _ (Type t) = Just t
-traceType eenv (Var (Id n _)) = traceType eenv =<< E.lookup n eenv
+traceType eenv (Var (Id n _)) = case E.lookupConcOrSym n eenv of 
+                                        Just (E.Sym i) -> Just (TyVar i)
+                                        Just (E.Conc e) -> traceType eenv e
+                                        Nothing -> Nothing
 traceType _ _ = Nothing
 
 evalLet :: State t -> NameGen -> Binds -> Expr -> (Rule, [State t], NameGen)
