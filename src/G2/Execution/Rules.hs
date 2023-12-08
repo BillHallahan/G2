@@ -1207,8 +1207,7 @@ retReplaceSymbFuncVar s@(State { expr_env = eenv
                                , type_classes = tc
                                , exec_stack = stck })
                       ng ce
-    | Just (frm, _) <- S.pop stck
-    , not (isApplyFrame frm)
+    | notApplyFrame
     , (Var (Id f idt):_) <- unApp ce
     , E.isSymbolic f eenv
     , isTyFun idt
@@ -1224,6 +1223,9 @@ retReplaceSymbFuncVar s@(State { expr_env = eenv
                , non_red_path_conds = non_red_path_conds s ++ [(ce, Var new_sym_id)] }]
             , ng')
     | otherwise = Nothing
+    where
+        notApplyFrame | Just (frm, _) <- S.pop stck = not (isApplyFrame frm)
+                      | otherwise = True
 
 isApplyFrame :: Frame -> Bool
 isApplyFrame (ApplyFrame _) = True

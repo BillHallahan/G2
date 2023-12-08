@@ -62,11 +62,16 @@ isExprValueForm _ _ = True
 -- * The `Stack` is empty.
 -- * The `ExecCode` is in a `Return` form.
 -- * We have no path conds to reduce
+-- * We are not able to run a symbolic function
 isExecValueForm :: State t -> Bool
-isExecValueForm state | Nothing <- S.pop (exec_stack state)
-                      , CurrExpr Return _ <- curr_expr state
-                      , non_red_path_conds state == [] = True
-                      | otherwise = False
+isExecValueForm state@(State { expr_env = eenv, curr_expr = CurrExpr _ e})
+    | Nothing <- S.pop (exec_stack state)
+    , CurrExpr Return _ <- curr_expr state
+    , non_red_path_conds state == [] =
+        case unApp e of
+            Var (Id _ _):_ -> False
+            _ -> True
+    | otherwise = False
 
 
 isExecValueFormDisNonRedPC :: State t -> Bool
