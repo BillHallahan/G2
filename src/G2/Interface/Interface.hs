@@ -44,6 +44,7 @@ import G2.Language
 
 import G2.Initialization.Interface
 import G2.Initialization.KnownValues
+import G2.Execution.InstTypes
 import G2.Initialization.MkCurrExpr
 import qualified G2.Initialization.Types as IT
 import Debug.Trace
@@ -78,7 +79,7 @@ import qualified Data.HashSet as S
 import Data.Maybe
 import qualified Data.Sequence as Seq
 import qualified Data.Text as T
-
+import qualified Data.List as L 
 import System.Timeout
 
 type AssumeFunc = T.Text
@@ -609,11 +610,6 @@ runG2 :: ( MonadIO m
          solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
 runG2 red hal ord solver simplifier mem is bindings = do
     (exec_states, bindings') <- runG2ThroughExecution red hal ord mem is bindings
-    liftIO . print $ map length (map non_red_path_conds exec_states)
-    liftIO . putStrLn $ " curr_expr of exec_states " ++ show  ( map curr_expr exec_states)
-    sol_states <- mapM (runG2Solving solver simplifier bindings') exec_states 
-    -- print out the states from exec_states.
-    -- then print out something from run G2 solving to narrow down why it's getting false 
-    liftIO . putStrLn $ " curr_expr of sol_states " ++ show  (map (curr_expr . final_state) $ catMaybes sol_states)
-    liftIO . putStrLn $ " conc_out of sol_states " ++ show  (map conc_out $ catMaybes sol_states)
+    let (exec_states', ng'') = L.foldl' instType (name_gen bindings') exec_states
+    sol_states <- mapM (runG2Solving solver simplifier bindings') exec_states' 
     return (catMaybes sol_states, bindings')

@@ -52,3 +52,6 @@ testeval a1 = testeval $ evalMyExpr $ Lt (2*a1)
 
 checkeq :: Eq a => a -> a -> Bool
 checkeq a a1 = a == a1
+
+id2 :: a -> a 
+id2 x = x
