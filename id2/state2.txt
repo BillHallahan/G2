@@ -1,0 +1,1641 @@
+>>>>> [State] >>>>>>>>>>>>>>>>>>>>>
+----- [Code] ----------------------
+evaluate: id2 a'50 fs
+----- [Stack] ----------------------
+update frame: fs'2
+----- [Env] -----------------------
+% :: forall a'95 . (Integral a'95) -> a'95 -> a'95 -> (Ratio a'95)
+% = (\a'95 -> (\$dIntegral'2 -> let $dReal'2 = $p1Integral @a'95 $dIntegral'2 in let $dNum'3 = $p1Real @a'95 $dReal'2 in (\x'69 -> (\y'35 -> reduce @a'95 $dIntegral'2 (* @a'95 $dNum'3 x'69 (signum @a'95 $dNum'3 y'35)) (abs @a'95 $dNum'3 y'35)))))
+
+otherwise :: Bool
+otherwise = True
+
+ltInt :: Int -> Int -> Bool
+ltInt = (\ds'38 -> (\ds1'25 -> case ds'38 of
+      I# x'68 -> case ds1'25 of
+            I# y'34 -> $<# x'68 y'34))
+
+minusInteger :: Integer -> Integer -> Integer
+minusInteger = (\x'67 -> (\y'33 -> plusInteger x'67 (negateInteger y'33)))
+
+$csqrt1 :: Double -> Double
+$csqrt1 = (\x'66 -> case x'66 of
+      D# x1 -> case sqrtDouble# of
+)
+
+a'50 :: Type
+a'50 = symbolic Type
+
+eqInteger# :: Integer -> Integer -> Bool
+eqInteger# = (\ds'37 -> (\ds1'24 -> case ds'37 of
+      Z# x'65 -> case ds1'24 of
+            Z# y'32 -> $==# x'65 y'32))
+
+* :: forall a'63 . (Num a'63) -> a'63 -> a'63 -> a'63
+* = (\a'63 -> (\v'1 -> case v'1 of
+      C:Num v'2 v v'7 v'6 v'5 v'3 v'4 -> v'7))
+
+$fEqInteger :: (Eq Integer)
+$fEqInteger = C:Eq @Integer eqInteger neqInteger
+
+timesInteger :: Integer -> Integer -> Integer
+timesInteger = (\ds'36 -> (\ds1'23 -> case ds'36 of
+      Z# x'64 -> case ds1'23 of
+            Z# y'31 -> case *# x'64 y'31 of
+                  wild2 -> Z# wild2))
+
+errorEmptyList :: forall a'93 . ([] Char) -> a'93
+errorEmptyList = (\a'93 -> (\fun -> errorWithoutStackTrace @([] Char) -> a'93 (++ @Char prel_list_str (++ @Char fun (map @Char'1 @Char char2char (: @Char (C# ':') (: @Char (C# ' ') (: @Char (C# 'e') (: @Char (C# 'm') (: @Char (C# 'p') (: @Char (C# 't') (: @Char (C# 'y') (: @Char (C# ' ') (: @Char (C# 'l') (: @Char (C# 'i') (: @Char (C# 's') (: @Char (C# 't') ([] @Char))))))))))))))))))
+
+zeroInteger :: Integer
+zeroInteger = Z# 0
+
+$cpi1 :: Double
+$cpi1 = D# (3.141592653589793)
+
+testeval :: Int -> (MyExpr Int)
+testeval = (\a1'4 -> $ @LiftedRep @Int @(MyExpr Int) testeval ($ @LiftedRep @(MyExpr Int) @Int (evalMyExpr @Int) (Lt @Int (Int :~ Int) (* @Int $fNumInt (I# 2) a1'4))))
+
+eqInteger :: Integer -> Integer -> Bool
+eqInteger = eqInteger#
+
+absDouble :: Double -> Double
+absDouble = (\x'63 -> case == @Double $fEqDouble x'63 (fromIntegerDouble zeroInteger) of
+      False  -> case > @Double $fOrdDouble x'63 (fromIntegerDouble zeroInteger) of
+            False  -> case otherwise of
+                  False  -> case patError @LiftedRep'1 @() (: @Char (C# '/') (: @Char (C# 'U') (: @Char (C# 's') (: @Char (C# 'e') (: @Char (C# 'r') (: @Char (C# 's') (: @Char (C# '/') (: @Char (C# 'q') (: @Char (C# 'i') (: @Char (C# 'n') (: @Char (C# 'g') (: @Char (C# 'h') (: @Char (C# 'o') (: @Char (C# 'n') (: @Char (C# 'g') (: @Char (C# 'w') (: @Char (C# 'u') (: @Char (C# '/') (: @Char (C# '.') (: @Char (C# 'g') (: @Char (C# '2') (: @Char (C# '/') (: @Char (C# 'b') (: @Char (C# 'a') (: @Char (C# 's') (: @Char (C# 'e') (: @Char (C# '-') (: @Char (C# '4') (: @Char (C# '.') (: @Char (C# '9') (: @Char (C# '.') (: @Char (C# '1') (: @Char (C# '.') (: @Char (C# '0') (: @Char (C# '/') (: @Char (C# 'G') (: @Char (C# 'H') (: @Char (C# 'C') (: @Char (C# '/') (: @Char (C# 'F') (: @Char (C# 'l') (: @Char (C# 'o') (: @Char (C# 'a') (: @Char (C# 't') (: @Char (C# '.') (: @Char (C# 'h') (: @Char (C# 's') (: @Char (C# ':') (: @Char (C# '(') (: @Char (C# '1') (: @Char (C# '1') (: @Char (C# '8') (: @Char (C# '2') (: @Char (C# ',') (: @Char (C# '1') (: @Char (C# ')') (: @Char (C# '-') (: @Char (C# '(') (: @Char (C# '1') (: @Char (C# '1') (: @Char (C# '8') (: @Char (C# '4') (: @Char (C# ',') (: @Char (C# '4') (: @Char (C# '0') (: @Char (C# ')') (: @Char (C# '|') (: @Char (C# 'f') (: @Char (C# 'u') (: @Char (C# 'n') (: @Char (C# 'c') (: @Char (C# 't') (: @Char (C# 'i') (: @Char (C# 'o') (: @Char (C# 'n') (: @Char (C# ' ') (: @Char (C# 'a') (: @Char (C# 'b') (: @Char (C# 's') (: @Char (C# 'D') (: @Char (C# 'o') (: @Char (C# 'u') (: @Char (C# 'b') (: @Char (C# 'l') (: @Char (C# 'e') ([] @Char)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) of
+
+                  True  -> negateDouble x'63
+            True  -> x'63
+      True  -> fromIntegerDouble zeroInteger)
+
+signumInt :: Int -> Int
+signumInt = (\n'3 -> case ltInt n'3 (fromIntegerInt zeroInteger) of
+      False  -> case eqInt n'3 (fromIntegerInt zeroInteger) of
+            False  -> case otherwise of
+                  False  -> case patError @LiftedRep'1 @() (: @Char (C# '/') (: @Char (C# 'U') (: @Char (C# 's') (: @Char (C# 'e') (: @Char (C# 'r') (: @Char (C# 's') (: @Char (C# '/') (: @Char (C# 'q') (: @Char (C# 'i') (: @Char (C# 'n') (: @Char (C# 'g') (: @Char (C# 'h') (: @Char (C# 'o') (: @Char (C# 'n') (: @Char (C# 'g') (: @Char (C# 'w') (: @Char (C# 'u') (: @Char (C# '/') (: @Char (C# '.') (: @Char (C# 'g') (: @Char (C# '2') (: @Char (C# '/') (: @Char (C# 'b') (: @Char (C# 'a') (: @Char (C# 's') (: @Char (C# 'e') (: @Char (C# '-') (: @Char (C# '4') (: @Char (C# '.') (: @Char (C# '9') (: @Char (C# '.') (: @Char (C# '1') (: @Char (C# '.') (: @Char (C# '0') (: @Char (C# '/') (: @Char (C# 'G') (: @Char (C# 'H') (: @Char (C# 'C') (: @Char (C# '/') (: @Char (C# 'N') (: @Char (C# 'u') (: @Char (C# 'm') (: @Char (C# '.') (: @Char (C# 'h') (: @Char (C# 's') (: @Char (C# ':') (: @Char (C# '(') (: @Char (C# '1') (: @Char (C# '3') (: @Char (C# '3') (: @Char (C# ',') (: @Char (C# '1') (: @Char (C# ')') (: @Char (C# '-') (: @Char (C# '(') (: @Char (C# '1') (: @Char (C# '3') (: @Char (C# '5') (: @Char (C# ',') (: @Char (C# '5') (: @Char (C# '0') (: @Char (C# ')') (: @Char (C# '|') (: @Char (C# 'f') (: @Char (C# 'u') (: @Char (C# 'n') (: @Char (C# 'c') (: @Char (C# 't') (: @Char (C# 'i') (: @Char (C# 'o') (: @Char (C# 'n') (: @Char (C# ' ') (: @Char (C# 's') (: @Char (C# 'i') (: @Char (C# 'g') (: @Char (C# 'n') (: @Char (C# 'u') (: @Char (C# 'm') (: @Char (C# 'I') (: @Char (C# 'n') (: @Char (C# 't') ([] @Char)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) of
+
+                  True  -> fromIntegerInt oneInteger
+            True  -> fromIntegerInt zeroInteger
+      True  -> negateInt (fromIntegerInt oneInteger))
+
+leInteger# :: Integer -> Integer -> Bool
+leInteger# = (\ds'35 -> (\ds1'22 -> case ds'35 of
+      Z# x'62 -> case ds1'22 of
+            Z# y'30 -> $<=# x'62 y'30))
+
+$ccosh1 :: Double -> Double
+$ccosh1 = (\x'61 -> undefined @Double)
+
+$c>=2 :: Double -> Double -> Bool
+$c>=2 = (\ds'34 -> (\ds1'21 -> case ds'34 of
+      D# x'60 -> case ds1'21 of
+            D# y'29 -> $>=## x'60 y'29))
+
+fromRational :: forall a'54 . (Fractional a'54) -> (Ratio Integer) -> a'54
+fromRational = (\a'54 -> (\v'1 -> case v'1 of
+      C:Fractional v'2 v v'7 v'6 -> v'6))
+
+$fNumDouble :: (Num Double)
+$fNumDouble = C:Num @Double plusDouble minusDouble timesDouble negateDouble absDouble signumDouble fromIntegerDouble
+
+$fNumInt :: (Num Int)
+$fNumInt = C:Num @Int plusInt minusInt timesInt negateInt absInt signumInt fromIntegerInt
+
+negate :: forall a'63 . (Num a'63) -> a'63 -> a'63
+negate = (\a'63 -> (\v'1 -> case v'1 of
+      C:Num v'2 v v'7 v'6 v'5 v'3 v'4 -> v'6))
+
+$cacosh1 :: Double -> Double
+$cacosh1 = (\x'59 -> case plusDouble x'59 (timesDouble (plusDouble x'59 (D# (1.0))) case divideDouble (minusDouble x'59 (D# (1.0))) (plusDouble x'59 (D# (1.0))) of
+      D# x1 -> case sqrtDouble# of
+) of
+      D# x1'1 -> case logDouble# of
+)
+
+expDouble# :: Double# -> Double#
+expDouble# = expDouble#
+
+toInteger :: forall a'55 . (Integral a'55) -> a'55 -> Integer
+toInteger = (\a'55 -> (\v'1 -> case v'1 of
+      C:Integral v'2 v v'7 v'6 v'5 v'3 v'4 v'9 v'8 -> v'8))
+
+$cmax1 :: Double -> Double -> Double
+$cmax1 = (\x'58 -> (\y'28 -> case x'58 of
+      wild'1@(D# x1'3) -> case y'28 of
+            wild1'1@(D# y1) -> case $<=## x1'3 y1 of
+                  False  -> wild'1
+                  True  -> wild1'1))
+
+logDouble# :: Double# -> Double#
+logDouble# = logDouble#
+
+$># :: Int# -> Int# -> Bool
+$># = >
+
+$==# :: Int# -> Int# -> Bool
+$==# = ==
+
+$fFloatingDouble :: (Floating Double)
+$fFloatingDouble = C:Floating @Double $fFractionalDouble $cpi1 $cexp1 $clog1 $csqrt1 $c**1 $clogBase1 $csin1 $ccos1 $ctan1 $casin1 $cacos1 $catan1 $csinh1 $ccosh1 $ctanh1 $casinh1 $cacosh1 $catanh1 (undefined @Double -> Double) (undefined @Double -> Double) $clog1pexp1 (undefined @Double -> Double)
+
+$csinh1 :: Double -> Double
+$csinh1 = (\x'57 -> undefined @Double)
+
+oneInteger :: Integer
+oneInteger = Z# 1
+
+ltInteger# :: Integer -> Integer -> Bool
+ltInteger# = (\ds'33 -> (\ds1'20 -> case ds'33 of
+      Z# x'56 -> case ds1'20 of
+            Z# y'27 -> $<# x'56 y'27))
+
+abs :: forall a'63 . (Num a'63) -> a'63 -> a'63
+abs = (\a'63 -> (\v'1 -> case v'1 of
+      C:Num v'2 v v'7 v'6 v'5 v'3 v'4 -> v'5))
+
+$c**1 :: Double -> Double -> Double
+$c**1 = (\x'55 -> (\y'26 -> undefined @Double))
+
+$catanh1 :: Double -> Double
+$catanh1 = (\x'54 -> timesDouble (D# (0.5)) case divideDouble (plusDouble (D# (1.0)) x'54) (minusDouble (D# (1.0)) x'54) of
+      D# x1'1 -> case logDouble# of
+)
+
+$c/= :: Double -> Double -> Bool
+$c/= = (\eta -> (\eta1 -> case eta of
+      D# x'49 -> case eta1 of
+            D# y'21 -> case $==## x'49 y'21 of
+                  False  -> True
+                  True  -> False))
+
+geInt :: Int -> Int -> Bool
+geInt = (\ds'32 -> (\ds1'19 -> case ds'32 of
+      I# x'53 -> case ds1'19 of
+            I# y'25 -> $>=# x'53 y'25))
+
+ratioZeroDenominatorError :: Bottom
+ratioZeroDenominatorError = error
+
+$p2Real :: forall a'62 . (Real a'62) -> (Ord a'62)
+$p2Real = (\a'62 -> (\v'1 -> case v'1 of
+      C:Real v'2 v v'7 -> v))
+
+fromIntegerDouble :: Integer -> Double
+fromIntegerDouble = (\i'1 -> case doubleFromInteger i'1 of
+      wild -> D# wild)
+
+$<# :: Int# -> Int# -> Bool
+$<# = <
+
+fromIntToDouble :: Int# -> Double#
+fromIntToDouble = fromIntegral
+
+> :: forall a'53 . (Ord a'53) -> a'53 -> a'53 -> Bool
+> = (\a'53 -> (\v'1 -> case v'1 of
+      C:Ord v'2 v v'7 v'6 v'5 v'3 v'4 v'9 -> v'5))
+
+neqInteger# :: Integer -> Integer -> Bool
+neqInteger# = (\ds'31 -> (\ds1'18 -> case ds'31 of
+      Z# x'52 -> case ds1'18 of
+            Z# y'24 -> $==# x'52 y'24))
+
+iff :: Bool -> Bool -> Bool
+iff = (\x'51 -> (\y'23 -> && case x'51 of
+      False  -> True
+      True  -> y'23 case y'23 of
+      False  -> True
+      True  -> x'51))
+
+$cmin1 :: Double -> Double -> Double
+$cmin1 = (\x'50 -> (\y'22 -> case x'50 of
+      wild'1@(D# x1'3) -> case y'22 of
+            wild1'1@(D# y1) -> case $<=## x1'3 y1 of
+                  False  -> wild1'1
+                  True  -> wild'1))
+
+fs'2 :: a'51
+fs'2 = id2 a'50 fs
+
+eqDouble :: Double -> Double -> Bool
+eqDouble = (\ds'30 -> (\ds1'17 -> case ds'30 of
+      D# x'49 -> case ds1'17 of
+            D# y'21 -> $==## x'49 y'21))
+
+neqInteger :: Integer -> Integer -> Bool
+neqInteger = neqInteger#
+
+<= :: forall a'53 . (Ord a'53) -> a'53 -> a'53 -> Bool
+<= = (\a'53 -> (\v'1 -> case v'1 of
+      C:Ord v'2 v v'7 v'6 v'5 v'3 v'4 v'9 -> v'6))
+
+$>=# :: Int# -> Int# -> Bool
+$>=# = >=
+
+eqInt :: Int -> Int -> Bool
+eqInt = (\ds'29 -> (\ds1'16 -> case ds'29 of
+      I# x'48 -> case ds1'16 of
+            I# y'20 -> $==# x'48 y'20))
+
+$==## :: Double# -> Double# -> Bool
+$==## = ==
+
+negateInteger :: Integer -> Integer
+negateInteger = (\ds'28 -> case ds'28 of
+      Z# x'47 -> case negateInt# x'47 of
+            wild1'1 -> Z# wild1'1)
+
+minusDouble :: Double -> Double -> Double
+minusDouble = (\ds'27 -> (\ds1'15 -> case ds'27 of
+      D# x'46 -> case ds1'15 of
+            D# y'19 -> case -## x'46 y'19 of
+                  wild2 -> D# wild2))
+
+fs :: a'50
+fs = symbolic a'50
+
+$fOrdDouble :: (Ord Double)
+$fOrdDouble = C:Ord @Double $fEqDouble $ccompare1 $c<2 $c<=4 $c>2 $c>=2 $cmax1 $cmin1
+
+/## :: Double# -> Double# -> Double#
+/## = /
+
+$fEqDouble :: (Eq Double)
+$fEqDouble = C:Eq @Double eqDouble $c/=
+
+error :: Bottom
+error = error
+
+id2 :: forall a'51 . a'51 -> a'51
+id2 = (\a'51 -> (\x'45 -> x'45))
+
+plusInteger :: Integer -> Integer -> Integer
+plusInteger = (\ds'26 -> (\ds1'14 -> case ds'26 of
+      Z# x'44 -> case ds1'14 of
+            Z# y'18 -> case +# x'44 y'18 of
+                  wild2 -> Z# wild2))
+
+implies :: Bool -> Bool -> Bool
+implies = (\ds'25 -> (\ds1'13 -> case ds'25 of
+      False  -> True
+      True  -> ds1'13))
+
+$>=## :: Double# -> Double# -> Bool
+$>=## = >=
+
+timesInt :: Int -> Int -> Int
+timesInt = (\ds'24 -> (\ds1'12 -> case ds'24 of
+      I# x'43 -> case ds1'12 of
+            I# y'17 -> case *# x'43 y'17 of
+                  wild2 -> I# wild2))
+
+rationalToDouble :: Integer -> Integer -> Double
+rationalToDouble = (\n'2 -> (\d'2 -> case n'2 of
+      wild@(Z# n') -> case d'2 of
+            wild1'1@(Z# d') -> case && (== @Integer $fEqInteger wild (fromInteger @Integer $fNumInteger zeroInteger)) (== @Integer $fEqInteger wild1'1 (fromInteger @Integer $fNumInteger zeroInteger)) of
+                  False  -> case && (< @Integer $fOrdInteger wild (fromInteger @Integer $fNumInteger zeroInteger)) (== @Integer $fEqInteger wild1'1 (fromInteger @Integer $fNumInteger zeroInteger)) of
+                        False  -> case == @Integer $fEqInteger wild1'1 (fromInteger @Integer $fNumInteger zeroInteger) of
+                              False  -> case otherwise of
+                                    False  -> case patError @LiftedRep'1 @() (: @Char (C# '/') (: @Char (C# 'U') (: @Char (C# 's') (: @Char (C# 'e') (: @Char (C# 'r') (: @Char (C# 's') (: @Char (C# '/') (: @Char (C# 'q') (: @Char (C# 'i') (: @Char (C# 'n') (: @Char (C# 'g') (: @Char (C# 'h') (: @Char (C# 'o') (: @Char (C# 'n') (: @Char (C# 'g') (: @Char (C# 'w') (: @Char (C# 'u') (: @Char (C# '/') (: @Char (C# '.') (: @Char (C# 'g') (: @Char (C# '2') (: @Char (C# '/') (: @Char (C# 'b') (: @Char (C# 'a') (: @Char (C# 's') (: @Char (C# 'e') (: @Char (C# '-') (: @Char (C# '4') (: @Char (C# '.') (: @Char (C# '9') (: @Char (C# '.') (: @Char (C# '1') (: @Char (C# '.') (: @Char (C# '0') (: @Char (C# '/') (: @Char (C# 'G') (: @Char (C# 'H') (: @Char (C# 'C') (: @Char (C# '/') (: @Char (C# 'F') (: @Char (C# 'l') (: @Char (C# 'o') (: @Char (C# 'a') (: @Char (C# 't') (: @Char (C# '.') (: @Char (C# 'h') (: @Char (C# 's') (: @Char (C# ':') (: @Char (C# '(') (: @Char (C# '4') (: @Char (C# '7') (: @Char (C# '6') (: @Char (C# ',') (: @Char (C# '1') (: @Char (C# ')') (: @Char (C# '-') (: @Char (C# '(') (: @Char (C# '4') (: @Char (C# '8') (: @Char (C# '0') (: @Char (C# ',') (: @Char (C# '4') (: @Char (C# '6') (: @Char (C# ')') (: @Char (C# '|') (: @Char (C# 'f') (: @Char (C# 'u') (: @Char (C# 'n') (: @Char (C# 'c') (: @Char (C# 't') (: @Char (C# 'i') (: @Char (C# 'o') (: @Char (C# 'n') (: @Char (C# ' ') (: @Char (C# 'r') (: @Char (C# 'a') (: @Char (C# 't') (: @Char (C# 'i') (: @Char (C# 'o') (: @Char (C# 'n') (: @Char (C# 'a') (: @Char (C# 'l') (: @Char (C# 'T') (: @Char (C# 'o') (: @Char (C# 'D') (: @Char (C# 'o') (: @Char (C# 'u') (: @Char (C# 'b') (: @Char (C# 'l') (: @Char (C# 'e') ([] @Char))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) of
+
+                                    True  -> case rationalToDouble# n' d' of
+
+                              True  -> divideDouble (fromIntegerDouble oneInteger) (fromIntegerDouble zeroInteger)
+                        True  -> divideDouble (negateDouble (fromIntegerDouble oneInteger)) (fromIntegerDouble zeroInteger)
+                  True  -> divideDouble (fromIntegerDouble zeroInteger) (fromIntegerDouble zeroInteger)))
+
+$>## :: Double# -> Double# -> Bool
+$>## = >
+
++## :: Double# -> Double# -> Double#
++## = +
+
+geInteger# :: Integer -> Integer -> Bool
+geInteger# = (\ds'23 -> (\ds1'11 -> case ds'23 of
+      Z# x'42 -> case ds1'11 of
+            Z# y'16 -> $>=# x'42 y'16))
+
+*## :: Double# -> Double# -> Double#
+*## = *
+
+fromIntegerInteger :: Integer -> Integer
+fromIntegerInteger = (\x'41 -> x'41)
+
+prel_list_str :: ([] Char)
+prel_list_str = map @Char'1 @Char char2char (: @Char (C# 'P') (: @Char (C# 'r') (: @Char (C# 'e') (: @Char (C# 'l') (: @Char (C# 'u') (: @Char (C# 'd') (: @Char (C# 'e') (: @Char (C# '.') ([] @Char)))))))))
+
+$ctanh1 :: Double -> Double
+$ctanh1 = (\x'40 -> undefined @Double)
+
+>= :: forall a'53 . (Ord a'53) -> a'53 -> a'53 -> Bool
+>= = (\a'53 -> (\v'1 -> case v'1 of
+      C:Ord v'2 v v'7 v'6 v'5 v'3 v'4 v'9 -> v'3))
+
+rem :: forall a'55 . (Integral a'55) -> a'55 -> a'55 -> a'55
+rem = (\a'55 -> (\v'1 -> case v'1 of
+      C:Integral v'2 v v'7 v'6 v'5 v'3 v'4 v'9 v'8 -> v'6))
+
+gtInteger# :: Integer -> Integer -> Bool
+gtInteger# = (\ds'22 -> (\ds1'10 -> case ds'22 of
+      Z# x'39 -> case ds1'10 of
+            Z# y'15 -> $># x'39 y'15))
+
+ltInteger :: Integer -> Integer -> Bool
+ltInteger = ltInteger#
+
+$cmax :: Integer -> Integer -> Integer
+$cmax = (\x'38 -> (\y'14 -> case leInteger# x'38 y'14 of
+      False  -> x'38
+      True  -> y'14))
+
+signumInteger :: Integer -> Integer
+signumInteger = (\x'37 -> case eqInteger# x'37 zeroInteger of
+      False  -> case gtInteger# x'37 zeroInteger of
+            False  -> negativeOneInteger
+            True  -> oneInteger
+      True  -> zeroInteger)
+
+char2char :: Char -> Char
+char2char = (\x'36 -> x'36)
+
+*# :: Int# -> Int# -> Int#
+*# = *
+
+signumDouble :: Double -> Double
+signumDouble = (\x'35 -> case > @Double $fOrdDouble x'35 (fromIntegerDouble zeroInteger) of
+      False  -> case < @Double $fOrdDouble x'35 (fromIntegerDouble zeroInteger) of
+            False  -> case otherwise of
+                  False  -> case patError @LiftedRep'1 @() (: @Char (C# '/') (: @Char (C# 'U') (: @Char (C# 's') (: @Char (C# 'e') (: @Char (C# 'r') (: @Char (C# 's') (: @Char (C# '/') (: @Char (C# 'q') (: @Char (C# 'i') (: @Char (C# 'n') (: @Char (C# 'g') (: @Char (C# 'h') (: @Char (C# 'o') (: @Char (C# 'n') (: @Char (C# 'g') (: @Char (C# 'w') (: @Char (C# 'u') (: @Char (C# '/') (: @Char (C# '.') (: @Char (C# 'g') (: @Char (C# '2') (: @Char (C# '/') (: @Char (C# 'b') (: @Char (C# 'a') (: @Char (C# 's') (: @Char (C# 'e') (: @Char (C# '-') (: @Char (C# '4') (: @Char (C# '.') (: @Char (C# '9') (: @Char (C# '.') (: @Char (C# '1') (: @Char (C# '.') (: @Char (C# '0') (: @Char (C# '/') (: @Char (C# 'G') (: @Char (C# 'H') (: @Char (C# 'C') (: @Char (C# '/') (: @Char (C# 'F') (: @Char (C# 'l') (: @Char (C# 'o') (: @Char (C# 'a') (: @Char (C# 't') (: @Char (C# '.') (: @Char (C# 'h') (: @Char (C# 's') (: @Char (C# ':') (: @Char (C# '(') (: @Char (C# '1') (: @Char (C# '1') (: @Char (C# '8') (: @Char (C# '8') (: @Char (C# ',') (: @Char (C# '1') (: @Char (C# ')') (: @Char (C# '-') (: @Char (C# '(') (: @Char (C# '1') (: @Char (C# '1') (: @Char (C# '9') (: @Char (C# '0') (: @Char (C# ',') (: @Char (C# '3') (: @Char (C# '0') (: @Char (C# ')') (: @Char (C# '|') (: @Char (C# 'f') (: @Char (C# 'u') (: @Char (C# 'n') (: @Char (C# 'c') (: @Char (C# 't') (: @Char (C# 'i') (: @Char (C# 'o') (: @Char (C# 'n') (: @Char (C# ' ') (: @Char (C# 's') (: @Char (C# 'i') (: @Char (C# 'g') (: @Char (C# 'n') (: @Char (C# 'u') (: @Char (C# 'm') (: @Char (C# 'D') (: @Char (C# 'o') (: @Char (C# 'u') (: @Char (C# 'b') (: @Char (C# 'l') (: @Char (C# 'e') ([] @Char))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) of
+
+                  True  -> x'35
+            True  -> negateDouble (fromIntegerDouble oneInteger)
+      True  -> fromIntegerDouble oneInteger)
+
+divideDouble :: Double -> Double -> Double
+divideDouble = (\ds'21 -> (\dy -> case ds'21 of
+      D# x'34 -> case dy of
+            wild1'1@(D# y'13) -> case == @Double $fEqDouble wild1'1 (fromIntegerDouble zeroInteger) of
+                  False  -> case otherwise of
+                        False  -> case patError @LiftedRep'1 @() (: @Char (C# '/') (: @Char (C# 'U') (: @Char (C# 's') (: @Char (C# 'e') (: @Char (C# 'r') (: @Char (C# 's') (: @Char (C# '/') (: @Char (C# 'q') (: @Char (C# 'i') (: @Char (C# 'n') (: @Char (C# 'g') (: @Char (C# 'h') (: @Char (C# 'o') (: @Char (C# 'n') (: @Char (C# 'g') (: @Char (C# 'w') (: @Char (C# 'u') (: @Char (C# '/') (: @Char (C# '.') (: @Char (C# 'g') (: @Char (C# '2') (: @Char (C# '/') (: @Char (C# 'b') (: @Char (C# 'a') (: @Char (C# 's') (: @Char (C# 'e') (: @Char (C# '-') (: @Char (C# '4') (: @Char (C# '.') (: @Char (C# '9') (: @Char (C# '.') (: @Char (C# '1') (: @Char (C# '.') (: @Char (C# '0') (: @Char (C# '/') (: @Char (C# 'G') (: @Char (C# 'H') (: @Char (C# 'C') (: @Char (C# '/') (: @Char (C# 'F') (: @Char (C# 'l') (: @Char (C# 'o') (: @Char (C# 'a') (: @Char (C# 't') (: @Char (C# '.') (: @Char (C# 'h') (: @Char (C# 's') (: @Char (C# ':') (: @Char (C# '(') (: @Char (C# '1') (: @Char (C# '1') (: @Char (C# '7') (: @Char (C# '2') (: @Char (C# ',') (: @Char (C# '1') (: @Char (C# ')') (: @Char (C# '-') (: @Char (C# '(') (: @Char (C# '1') (: @Char (C# '1') (: @Char (C# '7') (: @Char (C# '4') (: @Char (C# ',') (: @Char (C# '2') (: @Char (C# '8') (: @Char (C# ')') (: @Char (C# '|') (: @Char (C# 'f') (: @Char (C# 'u') (: @Char (C# 'n') (: @Char (C# 'c') (: @Char (C# 't') (: @Char (C# 'i') (: @Char (C# 'o') (: @Char (C# 'n') (: @Char (C# ' ') (: @Char (C# 'd') (: @Char (C# 'i') (: @Char (C# 'v') (: @Char (C# 'i') (: @Char (C# 'd') (: @Char (C# 'e') (: @Char (C# 'D') (: @Char (C# 'o') (: @Char (C# 'u') (: @Char (C# 'b') (: @Char (C# 'l') (: @Char (C# 'e') ([] @Char))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) of
+
+                        True  -> case /## x'34 y'13 of
+                              wild4 -> D# wild4
+                  True  -> divZeroError @Double))
+
+negateDouble# :: Double# -> Double#
+negateDouble# = -
+
+rationalToDouble# :: Int# -> Int# -> Double#
+rationalToDouble# = fromRational
+
+doubleFromInteger :: Integer -> Double#
+doubleFromInteger = (\ds'20 -> case ds'20 of
+      Z# x'33 -> fromIntToDouble x'33)
+
+quot :: forall a'55 . (Integral a'55) -> a'55 -> a'55 -> a'55
+quot = (\a'55 -> (\v'1 -> case v'1 of
+      C:Integral v'2 v v'7 v'6 v'5 v'3 v'4 v'9 v'8 -> v'7))
+
+-# :: Int# -> Int# -> Int#
+-# = -
+
+undefined :: Bottom
+undefined = error
+
+$crecip1 :: Double -> Double
+$crecip1 = (\x'32 -> divideDouble (fromIntegerDouble oneInteger) x'32)
+
+$fOrdInteger :: (Ord Integer)
+$fOrdInteger = C:Ord @Integer $fEqInteger compareInteger ltInteger leInteger gtInteger geInteger $cmax $cmin
+
+timesDouble :: Double -> Double -> Double
+timesDouble = (\ds'19 -> (\ds1'9 -> case ds'19 of
+      D# x'31 -> case ds1'9 of
+            D# y'12 -> case *## x'31 y'12 of
+                  wild2 -> D# wild2))
+
+errorWithoutStackTrace :: Bottom
+errorWithoutStackTrace = error
+
+divZeroError :: Bottom
+divZeroError = error
+
+absInteger :: Integer -> Integer
+absInteger = (\x'30 -> case geInteger# x'30 zeroInteger of
+      False  -> negateInteger x'30
+      True  -> x'30)
+
+$clogBase1 :: Double -> Double -> Double
+$clogBase1 = (\x'29 -> (\y'11 -> divideDouble case y'11 of
+      D# x1'1 -> case logDouble# of
+ case x'29 of
+      D# x1'1 -> case logDouble# of
+))
+
+$fFractionalDouble :: (Fractional Double)
+$fFractionalDouble = C:Fractional @Double $fNumDouble divideDouble $crecip1 $cfromRational1
+
+minusInt :: Int -> Int -> Int
+minusInt = (\ds'18 -> (\ds1'8 -> case ds'18 of
+      I# x'28 -> case ds1'8 of
+            I# y'10 -> case -# x'28 y'10 of
+                  wild2 -> I# wild2))
+
+$csin1 :: Double -> Double
+$csin1 = (\x'27 -> undefined @Double)
+
+$fNumInteger :: (Num Integer)
+$fNumInteger = C:Num @Integer plusInteger minusInteger timesInteger negateInteger absInteger signumInteger fromIntegerInteger
+
+$p1Integral :: forall a'55 . (Integral a'55) -> (Real a'55)
+$p1Integral = (\a'55 -> (\v'1 -> case v'1 of
+      C:Integral v'2 v v'7 v'6 v'5 v'3 v'4 v'9 v'8 -> v'2))
+
+$<=# :: Int# -> Int# -> Bool
+$<=# = <=
+
+$ :: forall r'5 . forall a'87 . forall b'7 . (a'87 -> b'7) -> a'87 -> b'7
+$ = (\r'5 -> (\a'87 -> (\b'7 -> (\f'5 -> (\x'26 -> f'5 x'26)))))
+
+$p1Real :: forall a'62 . (Real a'62) -> (Num a'62)
+$p1Real = (\a'62 -> (\v'1 -> case v'1 of
+      C:Real v'2 v v'7 -> v'2))
+
+plusInt :: Int -> Int -> Int
+plusInt = (\ds'17 -> (\ds1'7 -> case ds'17 of
+      I# x'25 -> case ds1'7 of
+            I# y'9 -> case +# x'25 y'9 of
+                  wild2 -> I# wild2))
+
+not :: Bool -> Bool
+not = (\ds'16 -> case ds'16 of
+      False  -> True
+      True  -> False)
+
++# :: Int# -> Int# -> Int#
++# = +
+
+negateDouble :: Double -> Double
+negateDouble = (\ds'15 -> case ds'15 of
+      D# x'24 -> case negateDouble# x'24 of
+            wild1'1 -> D# wild1'1)
+
+negateInt :: Int -> Int
+negateInt = (\ds'14 -> case ds'14 of
+      I# x'23 -> case negateInt# x'23 of
+            wild1'1 -> I# wild1'1)
+
+hlistHeadStr :: HList -> ([] Char)
+hlistHeadStr = (\ds'13 -> case ds'13 of
+      Nil  -> case patError @LiftedRep @() (: @Char (C# '/') (: @Char (C# 'U') (: @Char (C# 's') (: @Char (C# 'e') (: @Char (C# 'r') (: @Char (C# 's') (: @Char (C# '/') (: @Char (C# 'q') (: @Char (C# 'i') (: @Char (C# 'n') (: @Char (C# 'g') (: @Char (C# 'h') (: @Char (C# 'o') (: @Char (C# 'n') (: @Char (C# 'g') (: @Char (C# 'w') (: @Char (C# 'u') (: @Char (C# '/') (: @Char (C# 'D') (: @Char (C# 'o') (: @Char (C# 'w') (: @Char (C# 'n') (: @Char (C# 'l') (: @Char (C# 'o') (: @Char (C# 'a') (: @Char (C# 'd') (: @Char (C# 's') (: @Char (C# '/') (: @Char (C# 'G') (: @Char (C# '2') (: @Char (C# '/') (: @Char (C# 't') (: @Char (C# 'e') (: @Char (C# 's') (: @Char (C# 't') (: @Char (C# 's') (: @Char (C# '/') (: @Char (C# 'T') (: @Char (C# 'e') (: @Char (C# 's') (: @Char (C# 't') (: @Char (C# 'F') (: @Char (C# 'i') (: @Char (C# 'l') (: @Char (C# 'e') (: @Char (C# 's') (: @Char (C# '/') (: @Char (C# 'E') (: @Char (C# 'x') (: @Char (C# 't') (: @Char (C# 'e') (: @Char (C# 'n') (: @Char (C# 's') (: @Char (C# 'i') (: @Char (C# 'o') (: @Char (C# 'n') (: @Char (C# 's') (: @Char (C# '/') (: @Char (C# 'G') (: @Char (C# 'A') (: @Char (C# 'D') (: @Char (C# 'T') (: @Char (C# 's') (: @Char (C# '1') (: @Char (C# '.') (: @Char (C# 'h') (: @Char (C# 's') (: @Char (C# ':') (: @Char (C# '2') (: @Char (C# '1') (: @Char (C# ':') (: @Char (C# '1') (: @Char (C# '-') (: @Char (C# '3') (: @Char (C# '7') (: @Char (C# '|') (: @Char (C# 'f') (: @Char (C# 'u') (: @Char (C# 'n') (: @Char (C# 'c') (: @Char (C# 't') (: @Char (C# 'i') (: @Char (C# 'o') (: @Char (C# 'n') (: @Char (C# ' ') (: @Char (C# 'h') (: @Char (C# 'l') (: @Char (C# 'i') (: @Char (C# 's') (: @Char (C# 't') (: @Char (C# 'H') (: @Char (C# 'e') (: @Char (C# 'a') (: @Char (C# 'd') (: @Char (C# 'S') (: @Char (C# 't') (: @Char (C# 'r') ([] @Char)))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))) of
+
+      :> a'85 $dNum'2 $dShow x'22 xs'2 -> show @a'85 $dShow (+ @a'85 $dNum'2 x'22 (fromInteger @a'85 $dNum'2 (Z# 1))))
+
+$catan1 :: Double -> Double
+$catan1 = (\x'21 -> undefined @Double)
+
+reduce :: forall a'82 . (Integral a'82) -> a'82 -> a'82 -> (Ratio a'82)
+reduce = (\a'82 -> (\$dIntegral'1 -> let $dReal'1 = $p1Integral @a'82 $dIntegral'1 in let $dNum'1 = $p1Real @a'82 $dReal'1 in let $dEq5'1 = $p2Real @a'82 $dReal'1 in let $dEq6'1 = $p1Ord @a'82 $dEq5'1 in (\x'20 -> (\y'8 -> case == @a'82 $dEq6'1 y'8 (fromInteger @a'82 $dNum'1 zeroInteger) of
+      False  -> let d'1 = gcd @a'82 $dIntegral'1 x'20 y'8 in case quot @a'82 $dIntegral'1 x'20 d'1 of
+            dt -> case quot @a'82 $dIntegral'1 y'8 d'1 of
+                  dt1 -> :% @a'82 dt dt1
+      True  -> ratioZeroDenominatorError @(Ratio a'82)))))
+
+|| :: Bool -> Bool -> Bool
+|| = (\ds'12 -> (\ds1'6 -> case ds'12 of
+      False  -> ds1'6
+      True  -> True))
+
+fromIntegerInt :: Integer -> Int
+fromIntegerInt = (\i -> case integerToInt i of
+      wild -> I# wild)
+
+$ccos1 :: Double -> Double
+$ccos1 = (\x'19 -> undefined @Double)
+
+negativeOneInteger :: Integer
+negativeOneInteger = minusInteger zeroInteger oneInteger
+
+- :: forall a'63 . (Num a'63) -> a'63 -> a'63 -> a'63
+- = (\a'63 -> (\v'1 -> case v'1 of
+      C:Num v'2 v v'7 v'6 v'5 v'3 v'4 -> v))
+
+$clog1pexp1 :: Double -> Double
+$clog1pexp1 = (\eta -> undefined @Double -> Double case eta of
+      D# x'18 -> case expDouble# of
+)
+
+== :: forall a'66 . (Eq a'66) -> a'66 -> a'66 -> Bool
+== = (\a'66 -> (\v'1 -> case v'1 of
+      C:Eq v'2 v -> v'2))
+
+compareInteger :: Integer -> Integer -> Ordering
+compareInteger = (\x'17 -> (\y'7 -> case eqInteger# (minusInteger x'17 y'7) zeroInteger of
+      False  -> case gtInteger# (minusInteger x'17 y'7) zeroInteger of
+            False  -> LT
+            True  -> GT
+      True  -> EQ))
+
+gcd :: forall a'78 . (Integral a'78) -> a'78 -> a'78 -> a'78
+gcd = (\a'78 -> (\$dIntegral -> let $dReal = $p1Integral @a'78 $dIntegral in let $dNum = $p1Real @a'78 $dReal in (\x'16 -> (\y'6 -> let $dReal1 = $p1Integral @a'78 $dIntegral in let $dNum1 = $p1Real @a'78 $dReal1 in let $dEq5 = $p2Real @a'78 $dReal1 in let $dEq6 = $p1Ord @a'78 $dEq5 in let gcd' = (\a1'3 -> (\b'6 -> case == @a'78 $dEq6 b'6 (fromInteger @a'78 $dNum1 zeroInteger) of
+      False  -> gcd' b'6 (rem @a'78 $dIntegral a1'3 b'6)
+      True  -> a1'3)) in gcd' (abs @a'78 $dNum x'16) (abs @a'78 $dNum y'6)))))
+
+$p1Ord :: forall a'53 . (Ord a'53) -> (Eq a'53)
+$p1Ord = (\a'53 -> (\v'1 -> case v'1 of
+      C:Ord v'2 v v'7 v'6 v'5 v'3 v'4 v'9 -> v'2))
+
+plusDouble :: Double -> Double -> Double
+plusDouble = (\ds'11 -> (\ds1'5 -> case ds'11 of
+      D# x'15 -> case ds1'5 of
+            D# y'5 -> case +## x'15 y'5 of
+                  wild2 -> D# wild2))
+
+integerToInt :: Integer -> Int#
+integerToInt = (\ds'10 -> case ds'10 of
+      Z# x'14 -> x'14)
+
+fromInteger :: forall a'63 . (Num a'63) -> Integer -> a'63
+fromInteger = (\a'63 -> (\v'1 -> case v'1 of
+      C:Num v'2 v v'7 v'6 v'5 v'3 v'4 -> v'4))
+
+$c<=4 :: Double -> Double -> Bool
+$c<=4 = (\ds'9 -> (\ds1'4 -> case ds'9 of
+      D# x'13 -> case ds1'4 of
+            D# y'4 -> $<=## x'13 y'4))
+
+$c>2 :: Double -> Double -> Bool
+$c>2 = (\ds'8 -> (\ds1'3 -> case ds'8 of
+      D# x'12 -> case ds1'3 of
+            D# y'3 -> $>## x'12 y'3))
+
+/ :: forall a'54 . (Fractional a'54) -> a'54 -> a'54 -> a'54
+/ = (\a'54 -> (\v'1 -> case v'1 of
+      C:Fractional v'2 v v'7 v'6 -> v))
+
+patError :: Bottom
+patError = error
+
++ :: forall a'63 . (Num a'63) -> a'63 -> a'63 -> a'63
++ = (\a'63 -> (\v'1 -> case v'1 of
+      C:Num v'2 v v'7 v'6 v'5 v'3 v'4 -> v'2))
+
+$<=## :: Double# -> Double# -> Bool
+$<=## = <=
+
+sqrtDouble# :: Double# -> Double# -> Double#
+sqrtDouble# = sqrt
+
+< :: forall a'53 . (Ord a'53) -> a'53 -> a'53 -> Bool
+< = (\a'53 -> (\v'1 -> case v'1 of
+      C:Ord v'2 v v'7 v'6 v'5 v'3 v'4 v'9 -> v'7))
+
+-## :: Double# -> Double# -> Double#
+-## = -
+
+$cacos1 :: Double -> Double
+$cacos1 = (\x'11 -> undefined @Double)
+
+gtInteger :: Integer -> Integer -> Bool
+gtInteger = gtInteger#
+
+geInteger :: Integer -> Integer -> Bool
+geInteger = geInteger#
+
+map :: forall a'76 . forall b'4 . (a'76 -> b'4) -> ([] a'76) -> ([] b'4)
+map = (\a'76 -> (\b'4 -> (\ds'7 -> (\ds1'2 -> case ds1'2 of
+      []  -> [] @b'4
+      x'10 : xs'1 -> : @b'4 (ds'7 x'10) (map @a'76 @b'4 ds'7 xs'1)))))
+
+negateInt# :: Int# -> Int#
+negateInt# = -
+
+$ccompare1 :: Double -> Double -> Ordering
+$ccompare1 = (\ds'6 -> (\ds1'1 -> case ds'6 of
+      D# x'9 -> case ds1'1 of
+            D# y'2 -> case $<## x'9 y'2 of
+                  False  -> case $==## x'9 y'2 of
+                        False  -> GT
+                        True  -> EQ
+                  True  -> LT))
+
+$casin1 :: Double -> Double
+$casin1 = (\x'8 -> undefined @Double)
+
+$cexp1 :: Double -> Double
+$cexp1 = (\x'7 -> case x'7 of
+      D# x1'2 -> case expDouble# of
+)
+
+pi :: forall a'60 . (Floating a'60) -> a'60
+pi = (\a'60 -> (\v'1 -> case v'1 of
+      C:Floating v'2 v v'7 v'6 v'5 v'3 v'4 v'9 v'8 v'23 v'22 v'21 v'20 v'19 v'18 v'17 v'16 v'15 v'14 v'13 v'12 v'11 v'10 -> v))
+
+$clog1 :: Double -> Double
+$clog1 = (\x'6 -> case x'6 of
+      D# x1'1 -> case logDouble# of
+)
+
+$c<2 :: Double -> Double -> Bool
+$c<2 = (\ds'5 -> (\ds1 -> case ds'5 of
+      D# x'5 -> case ds1 of
+            D# y'1 -> $<## x'5 y'1))
+
+leInteger :: Integer -> Integer -> Bool
+leInteger = leInteger#
+
+$cmin :: Integer -> Integer -> Integer
+$cmin = (\x'4 -> (\y -> case leInteger# x'4 y of
+      False  -> y
+      True  -> x'4))
+
+evalMyExpr :: forall a'74 . (MyExpr a'74) -> a'74
+evalMyExpr = (\a'74 -> (\ds'4 -> case ds'4 of
+      Lt co'2 a1'2 -> ((coerce (a1'2 :: Int)) :: a'74)
+      Mul co'1 a1'1 a2'1 -> * @a'74 ((coerce ($fNumInt :: (Num Int))) :: (Num a'74)) (evalMyExpr @a'74 ((coerce (a1'1 :: (MyExpr Int))) :: (MyExpr a'74))) (evalMyExpr @a'74 ((coerce (a2'1 :: (MyExpr Int))) :: (MyExpr a'74)))
+      Add co a1 a2 -> + @a'74 ((coerce ($fNumInt :: (Num Int))) :: (Num a'74)) (evalMyExpr @a'74 ((coerce (a1 :: (MyExpr Int))) :: (MyExpr a'74))) (evalMyExpr @a'74 ((coerce (a2 :: (MyExpr Int))) :: (MyExpr a'74)))))
+
+$ctan1 :: Double -> Double
+$ctan1 = (\x'3 -> undefined @Double)
+
+mod :: forall a'55 . (Integral a'55) -> a'55 -> a'55 -> a'55
+mod = (\a'55 -> (\v'1 -> case v'1 of
+      C:Integral v'2 v v'7 v'6 v'5 v'3 v'4 v'9 v'8 -> v'3))
+
+signum :: forall a'63 . (Num a'63) -> a'63 -> a'63
+signum = (\a'63 -> (\v'1 -> case v'1 of
+      C:Num v'2 v v'7 v'6 v'5 v'3 v'4 -> v'3))
+
+area :: Shape -> Double
+area = (\ds'3 -> case ds'3 of
+      CircleShape radius -> * @Double $fNumDouble (* @Double $fNumDouble (pi @Double $fFloatingDouble) radius) radius
+      RectangleShape width height -> * @Double $fNumDouble width height)
+
+$casinh1 :: Double -> Double
+$casinh1 = (\x'2 -> case plusDouble x'2 case plusDouble (D# (1.0)) (timesDouble x'2 x'2) of
+      D# x1 -> case sqrtDouble# of
+ of
+      D# x1'1 -> case logDouble# of
+)
+
+/= :: forall a'66 . (Eq a'66) -> a'66 -> a'66 -> Bool
+/= = (\a'66 -> (\v'1 -> case v'1 of
+      C:Eq v'2 v -> v))
+
+absInt :: Int -> Int
+absInt = (\n'1 -> case geInt n'1 (fromIntegerInt zeroInteger) of
+      False  -> negateInt n'1
+      True  -> n'1)
+
+&& :: Bool -> Bool -> Bool
+&& = (\ds'2 -> (\x'1 -> case ds'2 of
+      False  -> False
+      True  -> x'1))
+
+$cfromRational1 :: (Ratio Integer) -> Double
+$cfromRational1 = (\ds'1 -> case ds'1 of
+      n :% d -> rationalToDouble n d)
+
+$<## :: Double# -> Double# -> Bool
+$<## = <
+
+++ :: forall a'67 . ([] a'67) -> ([] a'67) -> ([] a'67)
+++ = (\a'67 -> (\ds -> (\ys -> case ds of
+      []  -> ys
+      x : xs -> : @a'67 x (++ @a'67 xs ys))))
+----- [Paths] -----------------------
+
+----- [Non Red Paths] ---------------------
+
+----- [Types] ---------------------
+data Int  = I# :: Int# -> Int
+data Integer  = Z# :: Int# -> Integer
+data Eq a'66 = C:Eq :: forall a'66 . (a'66 -> a'66 -> Bool) -> (a'66 -> a'66 -> Bool) -> (Eq a'66)
+data Bool  = False :: Bool | True :: Bool
+data (,) a'65 a'64 = (,) :: forall a'65 . forall a'64 . a'65 -> a'64 -> (((,) a'65) a'64)
+data Num a'63 = C:Num :: forall a'63 . (a'63 -> a'63 -> a'63) -> (a'63 -> a'63 -> a'63) -> (a'63 -> a'63 -> a'63) -> (a'63 -> a'63) -> (a'63 -> a'63) -> (a'63 -> a'63) -> (Integer -> a'63) -> (Num a'63)
+data Real a'62 = C:Real :: forall a'62 . (Num a'62) -> (Ord a'62) -> (a'62 -> (Ratio Integer)) -> (Real a'62)
+data HList  = Nil :: HList | :> :: forall a'61 . (Num a'61) -> (Show a'61) -> a'61 -> HList -> HList
+data Floating a'60 = C:Floating :: forall a'60 . (Fractional a'60) -> a'60 -> (a'60 -> a'60) -> (a'60 -> a'60) -> (a'60 -> a'60) -> (a'60 -> a'60 -> a'60) -> (a'60 -> a'60 -> a'60) -> (a'60 -> a'60) -> (a'60 -> a'60) -> (a'60 -> a'60) -> (a'60 -> a'60) -> (a'60 -> a'60) -> (a'60 -> a'60) -> (a'60 -> a'60) -> (a'60 -> a'60) -> (a'60 -> a'60) -> (a'60 -> a'60) -> (a'60 -> a'60) -> (a'60 -> a'60) -> (a'60 -> a'60) -> (a'60 -> a'60) -> (a'60 -> a'60) -> (a'60 -> a'60) -> (Floating a'60)
+data MyExpr a'59 = Lt :: forall a'59 . ((((~# Type) Type) a'59) Int) -> Int -> (MyExpr a'59) | Mul :: forall a'59 . ((((~# Type) Type) a'59) Int) -> (MyExpr Int) -> (MyExpr Int) -> (MyExpr a'59) | Add :: forall a'59 . ((((~# Type) Type) a'59) Int) -> (MyExpr Int) -> (MyExpr Int) -> (MyExpr a'59)
+data Char  = C# :: Char# -> Char
+data ()  = () :: ()
+data Addr#  = Addr#'1 :: Int# -> Addr#
+data Enum a'58 = C:Enum :: forall a'58 . (a'58 -> a'58) -> (a'58 -> a'58) -> (Int -> a'58) -> (a'58 -> Int) -> (a'58 -> ([] a'58)) -> (a'58 -> a'58 -> ([] a'58)) -> (a'58 -> a'58 -> ([] a'58)) -> (a'58 -> a'58 -> a'58 -> ([] a'58)) -> (Enum a'58)
+data [] a'57 = [] :: forall a'57 . ([] a'57) | : :: forall a'57 . a'57 -> ([] a'57) -> ([] a'57)
+data LiftedRep  = LiftedRep'2 :: LiftedRep
+data Ratio a'56 = :% :: forall a'56 . a'56 -> a'56 -> (Ratio a'56)
+data Double  = D# :: Double# -> Double
+data Integral a'55 = C:Integral :: forall a'55 . (Real a'55) -> (Enum a'55) -> (a'55 -> a'55 -> a'55) -> (a'55 -> a'55 -> a'55) -> (a'55 -> a'55 -> a'55) -> (a'55 -> a'55 -> a'55) -> (a'55 -> a'55 -> (((,) a'55) a'55)) -> (a'55 -> a'55 -> (((,) a'55) a'55)) -> (a'55 -> Integer) -> (Integral a'55)
+data Fractional a'54 = C:Fractional :: forall a'54 . (Num a'54) -> (a'54 -> a'54 -> a'54) -> (a'54 -> a'54) -> ((Ratio Integer) -> a'54) -> (Fractional a'54)
+data Ord a'53 = C:Ord :: forall a'53 . (Eq a'53) -> (a'53 -> a'53 -> Ordering) -> (a'53 -> a'53 -> Bool) -> (a'53 -> a'53 -> Bool) -> (a'53 -> a'53 -> Bool) -> (a'53 -> a'53 -> Bool) -> (a'53 -> a'53 -> a'53) -> (a'53 -> a'53 -> a'53) -> (Ord a'53)
+data Maybe a'52 = Nothing :: forall a'52 . (Maybe a'52) | Just :: forall a'52 . a'52 -> (Maybe a'52)
+data Ordering  = LT :: Ordering | EQ :: Ordering | GT :: Ordering
+data Float  = F# :: Float# -> Float
+data Shape  = CircleShape :: Double -> Shape | RectangleShape :: Double -> Double -> Shape
+----- [Typeclasses] ---------------------
+Functor = 
+	super_classes = 
+	type_ids = f'4
+	insts = (Either a'49) $fFunctorEither
+		Product $fFunctorProduct
+		Sum $fFunctorSum
+		IO $fFunctorIO
+		(((-> (BoxedRep Lifted)) LiftedRep'1) r'4) $fFunctorFUN
+		((,) a'48) $fFunctor(,)
+		Maybe $fFunctorMaybe
+		[] $fFunctor[]
+		(Either a'47) $fFunctorEither
+		(((-> (BoxedRep Lifted)) LiftedRep) r'3) $fFunctorFUN
+		((,) a'46) $fFunctor(,)
+Eq = 
+	super_classes = 
+	type_ids = a'37
+	insts = () $fEq()
+		(((,) a'45) b'3) $fEq(,)
+		([] a'44) $fEq[]
+		Bool $fEqBool
+		Ordering $fEqOrdering
+		Word $fEqWord
+		Char $fEqChar
+		Float $fEqFloat
+		Double $fEqDouble
+		Int $fEqInt
+		Integer $fEqInteger
+		(Maybe a'43) $fEqMaybe
+		(Ratio a'42) $fEqRatio
+		SrcLoc $fEqSrcLoc
+		(((,) a'41) b'2) $fEq(,)
+		([] a'40) $fEq[]
+		(Maybe a'39) $fEqMaybe
+		(Ratio a'38) $fEqRatio
+Alternative = 
+	super_classes = (Applicative f'3) $p1Alternative
+	type_ids = f'3
+	insts = Maybe $fAlternativeMaybe
+		[] $fAlternative[]
+Num = 
+	super_classes = 
+	type_ids = a'36
+	insts = Float $fNumFloat
+		Double $fNumDouble
+		Int $fNumInt
+		Integer $fNumInteger
+Real = 
+	super_classes = (Num a'35) $p1Real, (Ord a'35) $p2Real
+	type_ids = a'35
+	insts = Float $fRealFloat
+		Double $fRealDouble
+		Int $fRealInt
+		Integer $fRealInteger
+Floating = 
+	super_classes = (Fractional a'34) $p1Floating
+	type_ids = a'34
+	insts = Float $fFloatingFloat
+		Double $fFloatingDouble
+Enum = 
+	super_classes = 
+	type_ids = a'33
+	insts = Bool $fEnumBool
+		Ordering $fEnumOrdering
+		Int $fEnumInt
+		Integer $fEnumInteger
+		Float $fEnumFloat
+		Double $fEnumDouble
+Monad = 
+	super_classes = (Applicative m) $p1Monad
+	type_ids = m
+	insts = (Either e'3) $fMonadEither
+		Product $fMonadProduct
+		Sum $fMonadSum
+		(((-> (BoxedRep Lifted)) LiftedRep'1) r'2) $fMonadFUN
+		Maybe $fMonadMaybe
+		[] $fMonad[]
+		IO $fMonadIO
+		(Either e'2) $fMonadEither
+		(((-> (BoxedRep Lifted)) LiftedRep) r'1) $fMonadFUN
+Applicative = 
+	super_classes = (Functor f'2) $p1Applicative
+	type_ids = f'2
+	insts = (Either e'1) $fApplicativeEither
+		Product $fApplicativeProduct
+		Sum $fApplicativeSum
+		IO $fApplicativeIO
+		(((-> (BoxedRep Lifted)) LiftedRep'1) a'32) $fApplicativeFUN
+		Maybe $fApplicativeMaybe
+		[] $fApplicative[]
+		(Either e) $fApplicativeEither
+		(((-> (BoxedRep Lifted)) LiftedRep) a'31) $fApplicativeFUN
+Bounded = 
+	super_classes = 
+	type_ids = a'30
+	insts = Bool $fBoundedBool
+		Ordering $fBoundedOrdering
+		Char $fBoundedChar
+		Int $fBoundedInt
+Foldable = 
+	super_classes = 
+	type_ids = t'1
+	insts = [] $fFoldable[]
+Integral = 
+	super_classes = (Real a'29) $p1Integral, (Enum a'29) $p2Integral
+	type_ids = a'29
+	insts = Int $fIntegralInt
+		Integer $fIntegralInteger
+Fractional = 
+	super_classes = (Num a'28) $p1Fractional
+	type_ids = a'28
+	insts = Float $fFractionalFloat
+		Double $fFractionalDouble
+Ord = 
+	super_classes = (Eq a'21) $p1Ord
+	type_ids = a'21
+	insts = (((,) a'27) b'1) $fOrd(,)
+		([] a'26) $fOrd[]
+		Bool $fOrdBool
+		Ordering $fOrdOrdering
+		Char $fOrdChar
+		Float $fOrdFloat
+		Double $fOrdDouble
+		Int $fOrdInt
+		Word $fOrdWord
+		Integer $fOrdInteger
+		(Maybe a'25) $fOrdMaybe
+		(((,) a'24) b) $fOrd(,)
+		([] a'23) $fOrd[]
+		(Maybe a'22) $fOrdMaybe
+Monoid = 
+	super_classes = 
+	type_ids = a
+	insts = (Min a'20) $fMonoidMin
+		(Max a'19) $fMonoidMax
+		(((Alt Type) f'1) a'18) $fMonoidAlt
+		(Last a'17) $fMonoidLast
+		(First a'16) $fMonoidFirst
+		(Product a'15) $fMonoidProduct
+		(Sum a'14) $fMonoidSum
+		Any $fMonoidAny
+		All $fMonoidAll
+		(Endo a'13) $fMonoidEndo
+		(Dual a'12) $fMonoidDual
+		([] a'11) $fMonoid[]
+		(Min a'10) $fMonoidMin
+		(Max a'9) $fMonoidMax
+		(((Alt Type) f) a'8) $fMonoidAlt
+		(Last a'7) $fMonoidLast
+		(First a'6) $fMonoidFirst
+		(Product a'5) $fMonoidProduct
+		(Sum a'4) $fMonoidSum
+		(Endo a'3) $fMonoidEndo
+		(Dual a'2) $fMonoidDual
+		([] a'1) $fMonoid[]
+Traversable = 
+	super_classes = (Functor t) $p1Traversable, (Foldable t) $p2Traversable
+	type_ids = t
+	insts = [] $fTraversable[]
+----- [True Assert] ---------------------
+True
+----- [Assert FC] ---------------------
+None
+----- [Tracker] ---------------------
+()
+----- [Pretty] ---------------------
+% <-> Name "%" (Just "GHC.Real") 8214565720323791738 (Just (Span {start = Loc {line = 124, col = 3, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 124, col = 4, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+dt1 <-> Name "dt1" Nothing 6341068275337658375 Nothing
+Functor <-> Name "Functor" (Just "GHC.Base") 8214565720323791541 Nothing
+x'16 <-> Name "x" Nothing 6989586621679035062 Nothing
+v'7 <-> Name "v" Nothing 4755801206503243780 Nothing
+x'14 <-> Name "x" Nothing 6989586621679029974 Nothing
+otherwise <-> Name "otherwise" (Just "GHC.Base") 8214565720323791524 Nothing
+x'17 <-> Name "x" Nothing 6989586621679030006 Nothing
+$fEq(,) <-> Name "$fEq(,)" (Just "GHC.Classes") 8214565720323791385 (Just (Span {start = Loc {line = 58, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 58, col = 38, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+b'7 <-> Name "b" Nothing 6989586621679024552 (Just (Span {start = Loc {line = 1096, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 1096, col = 52, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+$fEnumOrdering <-> Name "$fEnumOrdering" (Just "GHC.Enum") 8214565720323791728 (Just (Span {start = Loc {line = 310, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}, end = Loc {line = 310, col = 23, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}}))
+$fEq[] <-> Name "$fEq[]" (Just "GHC.Classes") 8214565720323791393 (Just (Span {start = Loc {line = 92, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 92, col = 26, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+ltInt <-> Name "ltInt" (Just "GHC.Classes") 8214565720323791355 Nothing
+k'1 <-> Name "k" Nothing 6989586621679020987 (Just (Span {start = Loc {line = 210, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 210, col = 38, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+ds1'25 <-> Name "ds1" Nothing 7205759403792822926 Nothing
+ds'15 <-> Name "ds" Nothing 7205759403792823384 Nothing
+ds1'22 <-> Name "ds1" Nothing 7205759403792823598 Nothing
+n <-> Name "n" Nothing 6989586621679028252 Nothing
+Int <-> Name "Int" (Just "GHC.Types") 8214565720323791292 (Just (Span {start = Loc {line = 18, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 18, col = 19, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}}))
+False <-> Name "False" (Just "GHC.Types") 0 Nothing
+C:Integral <-> Name "C:Integral" (Just "GHC.Real") 8214565720323791797 (Just (Span {start = Loc {line = 138, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 168, col = 56, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+ds'9 <-> Name "ds" Nothing 7205759403792823000 Nothing
+a'93 <-> Name "a" Nothing 6989586621679032233 (Just (Span {start = Loc {line = 1042, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/List.hs"}, end = Loc {line = 1042, col = 30, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/List.hs"}}))
+f'5 <-> Name "f" Nothing 6989586621679023284 Nothing
+minusInteger <-> Name "minusInteger" (Just "GHC.Num.Integer") 8214565720323791467 (Just (Span {start = Loc {line = 365, col = 3, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}, end = Loc {line = 365, col = 17, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}}))
+y'27 <-> Name "y" Nothing 6989586621679030017 Nothing
+$fMonadEither <-> Name "$fMonadEither" (Just "Data.Either") 8214565720323792146 (Just (Span {start = Loc {line = 136, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Either.hs"}, end = Loc {line = 136, col = 26, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Either.hs"}}))
+wild5 <-> Name "wild5" Nothing 6341068275337658374 Nothing
+$csqrt1 <-> Name "$csqrt1" Nothing 8214565720323817039 (Just (Span {start = Loc {line = 495, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 495, col = 9, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+y'12 <-> Name "y" Nothing 6989586621679028320 Nothing
+v'6 <-> Name "v" Nothing 4755801206503243781 Nothing
+$fOrdOrdering <-> Name "$fOrdOrdering" (Just "GHC.Classes") 8214565720323791400 (Just (Span {start = Loc {line = 272, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 272, col = 22, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+x'33 <-> Name "x" Nothing 6989586621679029975 Nothing
+a'72 <-> Name "a" Nothing 6989586621679013352 Nothing
+C:Num <-> Name "C:Num" (Just "GHC.Num") 8214565720323791636 (Just (Span {start = Loc {line = 33, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}, end = Loc {line = 58, col = 56, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}}))
+a'50 <-> Name "a" Nothing 7566047373982488968 (Just (Span {start = Loc {line = 56, col = 1, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 56, col = 14, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}}))
+eqInteger# <-> Name "eqInteger#" (Just "GHC.Num.Integer") 8214565720323791455 (Just (Span {start = Loc {line = 495, col = 8, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}, end = Loc {line = 495, col = 20, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}}))
+* <-> Name "*" (Just "GHC.Num") 8214565720323791621 (Just (Span {start = Loc {line = 36, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}, end = Loc {line = 36, col = 39, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}}))
+x'2 <-> Name "x" Nothing 6989586621679028247 Nothing
+n'2 <-> Name "n" Nothing 6989586621679028285 Nothing
+y'28 <-> Name "y" Nothing 6989586621679025728 Nothing
+$dNum'2 <-> Name "$dNum" Nothing 6989586621679014385 Nothing
+$fEnumBool <-> Name "$fEnumBool" (Just "GHC.Enum") 8214565720323791725 (Just (Span {start = Loc {line = 284, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}, end = Loc {line = 284, col = 19, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}}))
+EQ <-> Name "EQ" (Just "GHC.Types") 8214565720323791297 (Just (Span {start = Loc {line = 28, col = 22, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 28, col = 24, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}}))
+Integer <-> Name "Integer" (Just "GHC.Num.Integer") 8214565720323791487 (Just (Span {start = Loc {line = 19, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}, end = Loc {line = 19, col = 23, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}}))
+a'70 <-> Name "a" Nothing 7566047373982445544 Nothing
+Dual <-> Name "Dual" (Just "Data.Monoid") 8214565720323791912 (Just (Span {start = Loc {line = 70, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 70, col = 39, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+~# <-> Name "~#" (Just "GHC.Prim") 3674937295934324842 Nothing
+$fEqInteger <-> Name "$fEqInteger" (Just "GHC.Num.Integer") 8214565720323791489 (Just (Span {start = Loc {line = 516, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}, end = Loc {line = 516, col = 21, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}}))
+timesInteger <-> Name "timesInteger" (Just "GHC.Num.Integer") 8214565720323791484 Nothing
+a'16 <-> Name "a" Nothing 6989586621679020840 (Just (Span {start = Loc {line = 189, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 189, col = 26, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+Word <-> Name "Word" (Just "GHC.Types") 8214565720323791302 Nothing
+radius <-> Name "radius" Nothing 6989586621679014083 Nothing
+y'13 <-> Name "y" Nothing 6989586621679028323 Nothing
+v'5 <-> Name "v" Nothing 4755801206503243782 Nothing
+errorEmptyList <-> Name "errorEmptyList" (Just "GHC.List") 8214565720323792003 (Just (Span {start = Loc {line = 1043, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/List.hs"}, end = Loc {line = 1043, col = 15, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/List.hs"}}))
+Last <-> Name "Last" (Just "Data.Monoid") 8214565720323791921 (Just (Span {start = Loc {line = 198, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 198, col = 45, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+Eq <-> Name "Eq" (Just "GHC.Classes") 8214565720323791363 (Just (Span {start = Loc {line = 45, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 52, col = 32, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+zeroInteger <-> Name "zeroInteger" (Just "GHC.Num.Integer") 8214565720323791486 Nothing
+$cpi1 <-> Name "$cpi1" Nothing 8214565720323817033 (Just (Span {start = Loc {line = 492, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 492, col = 7, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+$fEqChar <-> Name "$fEqChar" (Just "GHC.Classes") 8214565720323791387 (Just (Span {start = Loc {line = 123, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 123, col = 17, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+ds1'11 <-> Name "ds1" Nothing 7205759403792823596 Nothing
+$fIntegralInt <-> Name "$fIntegralInt" (Just "GHC.Real") 8214565720323791782 (Just (Span {start = Loc {line = 255, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 255, col = 23, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+Alternative <-> Name "Alternative" (Just "GHC.Base") 8214565720323791531 Nothing
+ds'8 <-> Name "ds" Nothing 7205759403792823002 Nothing
+testeval <-> Name "testeval" (Just "GADTS1") 8214565720323785716 (Just (Span {start = Loc {line = 50, col = 1, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 50, col = 9, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}}))
+eqInteger <-> Name "eqInteger" (Just "GHC.Num.Integer") 8214565720323791454 (Just (Span {start = Loc {line = 513, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}, end = Loc {line = 513, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}}))
+y'15 <-> Name "y" Nothing 6989586621679030019 Nothing
+$fRealDouble <-> Name "$fRealDouble" (Just "GHC.Float") 8214565720323791887 (Just (Span {start = Loc {line = 454, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 454, col = 22, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+absDouble <-> Name "absDouble" (Just "GHC.Float") 8214565720323791804 (Just (Span {start = Loc {line = 1182, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 1182, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+Add <-> Name "Add" (Just "GADTS1") 8214565720323788013 (Just (Span {start = Loc {line = 42, col = 3, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 42, col = 49, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}}))
+signumInt <-> Name "signumInt" (Just "GHC.Num") 8214565720323791617 (Just (Span {start = Loc {line = 133, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}, end = Loc {line = 133, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}}))
+v'3 <-> Name "v" Nothing 4755801206503243783 Nothing
+a'51 <-> Name "a" Nothing 6989586621679014314 (Just (Span {start = Loc {line = 56, col = 1, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 56, col = 14, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}}))
+-> <-> Name "->" (Just "GHC.Types") 3674937295934325132 Nothing
+$fFunctor[] <-> Name "$fFunctor[]" (Just "GHC.Base") 8214565720323791582 (Just (Span {start = Loc {line = 774, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 774, col = 20, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+leInteger# <-> Name "leInteger#" (Just "GHC.Num.Integer") 8214565720323791464 (Just (Span {start = Loc {line = 538, col = 8, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}, end = Loc {line = 538, col = 20, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}}))
+a'1 <-> Name "a" Nothing 6989586621679050442 (Just (Span {start = Loc {line = 280, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 280, col = 20, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+x'29 <-> Name "x" Nothing 6989586621679028245 Nothing
+$fOrd(,) <-> Name "$fOrd(,)" (Just "GHC.Classes") 8214565720323791394 (Just (Span {start = Loc {line = 222, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 222, col = 38, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+$ccosh1 <-> Name "$ccosh1" Nothing 8214565720323817024 (Just (Span {start = Loc {line = 503, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 503, col = 9, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+i <-> Name "i" Nothing 6989586621679033618 Nothing
+$fApplicativeSum <-> Name "$fApplicativeSum" (Just "Data.Monoid") 8214565720323791931 (Just (Span {start = Loc {line = 123, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 123, col = 25, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+y'22 <-> Name "y" Nothing 6989586621679025730 Nothing
+x'26 <-> Name "x" Nothing 6989586621679023285 Nothing
+b'1 <-> Name "b" Nothing 6989586621679025771 (Just (Span {start = Loc {line = 222, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 222, col = 38, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+a'27 <-> Name "a" Nothing 6989586621679025770 (Just (Span {start = Loc {line = 222, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 222, col = 38, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+$c>=2 <-> Name "$c>=2" Nothing 8214565720323816763 (Just (Span {start = Loc {line = 308, col = 12, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 308, col = 14, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+$dEq5'1 <-> Name "$dEq5" Nothing 8286623314361744222 Nothing
+fromRational <-> Name "fromRational" (Just "GHC.Real") 8214565720323791755 (Just (Span {start = Loc {line = 182, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 182, col = 41, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+IO <-> Name "IO" (Just "GHC.Types") 8214565720323791290 Nothing
+$fBoundedBool <-> Name "$fBoundedBool" (Just "GHC.Enum") 8214565720323791721 (Just (Span {start = Loc {line = 280, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}, end = Loc {line = 280, col = 22, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}}))
+Bool <-> Name "Bool" (Just "GHC.Types") 0 Nothing
+y'8 <-> Name "y" Nothing 6341068275337658373 Nothing
+$fMonoid[] <-> Name "$fMonoid[]" (Just "GHC.Base") 8214565720323791587 (Just (Span {start = Loc {line = 280, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 280, col = 20, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+$fNumDouble <-> Name "$fNumDouble" (Just "GHC.Float") 8214565720323791885 (Just (Span {start = Loc {line = 430, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 430, col = 21, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+a'79 <-> Name "a" Nothing 7566047373982441517 Nothing
+F# <-> Name "F#" (Just "GHC.Types") 8214565720323791289 (Just (Span {start = Loc {line = 24, col = 14, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 24, col = 23, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}}))
+ds'19 <-> Name "ds" Nothing 7205759403792823420 Nothing
+$fNumInt <-> Name "$fNumInt" (Just "GHC.Num") 8214565720323791630 (Just (Span {start = Loc {line = 69, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}, end = Loc {line = 69, col = 18, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}}))
+x'40 <-> Name "x" Nothing 6989586621679028242 Nothing
+a'56 <-> Name "a" Nothing 6989586621679034989 (Just (Span {start = Loc {line = 74, col = 13, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 74, col = 14, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+wild3 <-> Name "wild3" Nothing 6341068275337658421 Nothing
+a'90 <-> Name "a" Nothing 7566047373982443437 Nothing
+ds'34 <-> Name "ds" Nothing 7205759403792823004 Nothing
+Either <-> Name "Either" (Just "Data.Either") 8214565720323792141 (Just (Span {start = Loc {line = 124, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Either.hs"}, end = Loc {line = 124, col = 38, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Either.hs"}}))
+y'30 <-> Name "y" Nothing 6989586621679030021 Nothing
+a'15 <-> Name "a" Nothing 6989586621679020845 (Just (Span {start = Loc {line = 134, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 134, col = 37, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+wild2 <-> Name "wild2" Nothing 6341068275337658371 Nothing
+$dReal1 <-> Name "$dReal1" Nothing 6989586621679036428 Nothing
+dt <-> Name "dt" Nothing 6341068275337658368 Nothing
+$fMonoidAll <-> Name "$fMonoidAll" (Just "Data.Monoid") 8214565720323791936 (Just (Span {start = Loc {line = 99, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 99, col = 20, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+ds'1 <-> Name "ds" Nothing 7205759403792823581 Nothing
+v'1 <-> Name "v" Nothing 4755801206503243777 Nothing
+(,) <-> Name "(,)" (Just "GHC.Tuple") 0 Nothing
+negate <-> Name "negate" (Just "GHC.Num") 8214565720323791626 (Just (Span {start = Loc {line = 38, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}, end = Loc {line = 38, col = 34, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}}))
+$cacosh1 <-> Name "$cacosh1" Nothing 8214565720323817098 (Just (Span {start = Loc {line = 509, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 509, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+f'2 <-> Name "f" Nothing 6989586621679050385 (Just (Span {start = Loc {line = 434, col = 32, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 434, col = 33, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+x'55 <-> Name "x" Nothing 6989586621679028243 Nothing
+C:Enum <-> Name "C:Enum" (Just "GHC.Enum") 8214565720323791736 (Just (Span {start = Loc {line = 80, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}, end = Loc {line = 112, col = 36, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}}))
+expDouble# <-> Name "expDouble#" (Just "GHC.Float") 8214565720323791809 (Just (Span {start = Loc {line = 1230, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 1230, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+a'62 <-> Name "a" Nothing 6989586621679034988 (Just (Span {start = Loc {line = 133, col = 31, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 133, col = 32, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+$fMonoidEndo <-> Name "$fMonoidEndo" (Just "Data.Monoid") 8214565720323791940 (Just (Span {start = Loc {line = 91, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 91, col = 25, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+ds1'2 <-> Name "ds1" Nothing 7205759403792822731 Nothing
+x'41 <-> Name "x" Nothing 6989586621679033619 Nothing
+$fEqInt <-> Name "$fEqInt" (Just "GHC.Classes") 8214565720323791390 (Just (Span {start = Loc {line = 150, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 150, col = 16, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+a'36 <-> Name "a" Nothing 6989586621679060876 (Just (Span {start = Loc {line = 33, col = 12, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}, end = Loc {line = 33, col = 13, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}}))
+x'12 <-> Name "x" Nothing 6989586621679025744 Nothing
+v'2 <-> Name "v" Nothing 4755801206503243778 Nothing
+toInteger <-> Name "toInteger" (Just "GHC.Real") 8214565720323791764 (Just (Span {start = Loc {line = 156, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 156, col = 40, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+x'30 <-> Name "x" Nothing 6989586621679030032 Nothing
+a'8 <-> Name "a" Nothing 6989586621679048111 (Just (Span {start = Loc {line = 214, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 214, col = 43, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+Num <-> Name "Num" (Just "GHC.Num") 8214565720323791620 (Just (Span {start = Loc {line = 33, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}, end = Loc {line = 58, col = 56, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}}))
+Real <-> Name "Real" (Just "GHC.Real") 8214565720323791768 (Just (Span {start = Loc {line = 133, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 135, col = 42, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+x'57 <-> Name "x" Nothing 6989586621679028240 Nothing
+C:Floating <-> Name "C:Floating" (Just "GHC.Float") 8214565720323791892 (Just (Span {start = Loc {line = 62, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 129, col = 40, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+$cmax1 <-> Name "$cmax1" Nothing 8214565720323816773 (Just (Span {start = Loc {line = 300, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 300, col = 20, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+y'35 <-> Name "y" Nothing 6989586621679035047 Nothing
+logDouble# <-> Name "logDouble#" (Just "GHC.Float") 8214565720323791823 (Just (Span {start = Loc {line = 1231, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 1231, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+HList <-> Name "HList" (Just "GADTS1") 8214565720323785701 (Just (Span {start = Loc {line = 16, col = 1, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 18, col = 60, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}}))
+$># <-> Name "$>#" (Just "GHC.PrimSMT") 8214565720323790321 Nothing
+b'8 <-> Name "b" Nothing 7566047373982443438 Nothing
+y'16 <-> Name "y" Nothing 6989586621679030023 Nothing
+$fApplicative[] <-> Name "$fApplicative[]" (Just "GHC.Base") 8214565720323791577 (Just (Span {start = Loc {line = 779, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 779, col = 24, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+a'23 <-> Name "a" Nothing 6989586621679053038 (Just (Span {start = Loc {line = 256, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 256, col = 28, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+x'68 <-> Name "x" Nothing 6989586621679025809 Nothing
+Floating <-> Name "Floating" (Just "GHC.Float") 8214565720323791846 (Just (Span {start = Loc {line = 62, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 129, col = 40, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+v <-> Name "v" Nothing 4755801206503243779 Nothing
+x'37 <-> Name "x" Nothing 6989586621679030033 Nothing
+ds1'6 <-> Name "ds1" Nothing 7205759403792822889 Nothing
+ds'27 <-> Name "ds" Nothing 7205759403792823423 Nothing
+$==# <-> Name "$==#" (Just "GHC.PrimSMT") 8214565720323790319 Nothing
+x'61 <-> Name "x" Nothing 6989586621679028241 Nothing
+r'4 <-> Name "r" Nothing 6989586621679023167 (Just (Span {start = Loc {line = 678, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 678, col = 26, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+$fFloatingDouble <-> Name "$fFloatingDouble" (Just "GHC.Float") 8214565720323791881 (Just (Span {start = Loc {line = 491, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 491, col = 26, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+a'42 <-> Name "a" Nothing 6989586621679035022 (Just (Span {start = Loc {line = 76, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 76, col = 32, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+$csinh1 <-> Name "$csinh1" Nothing 8214565720323817025 (Just (Span {start = Loc {line = 502, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 502, col = 9, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+x'18 <-> Name "x" Nothing 6989586621679028337 Nothing
+$fMonad[] <-> Name "$fMonad[]" (Just "GHC.Base") 8214565720323791586 (Just (Span {start = Loc {line = 788, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 788, col = 18, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+$fEqSrcLoc <-> Name "$fEqSrcLoc" (Just "GHC.Stack.Types") 8214565720323791417 (Just (Span {start = Loc {line = 222, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Stack/Types.hs"}, end = Loc {line = 222, col = 19, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Stack/Types.hs"}}))
+$fMonoidMax <-> Name "$fMonoidMax" (Just "Data.Foldable") 8214565720323792096 (Just (Span {start = Loc {line = 413, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Foldable.hs"}, end = Loc {line = 413, col = 33, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Foldable.hs"}}))
+co <-> Name "co" Nothing 6989586621679014334 Nothing
+x'38 <-> Name "x" Nothing 7566047373982463377 Nothing
+$fFunctorProduct <-> Name "$fFunctorProduct" (Just "Data.Monoid") 8214565720323791932 (Just (Span {start = Loc {line = 139, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 139, col = 25, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+Show <-> Name "Show" (Just "GHC.Show") 3602879701896396817 Nothing
+x'51 <-> Name "x" Nothing 6989586621679038110 Nothing
+a'69 <-> Name "a" Nothing 3530822107858468865 Nothing
+v'22 <-> Name "v" Nothing 4755801206503243788 Nothing
+x'64 <-> Name "x" Nothing 6989586621679029982 Nothing
+$dReal'2 <-> Name "$dReal" Nothing 6989586621679036483 Nothing
+f'3 <-> Name "f" Nothing 6989586621679050364 (Just (Span {start = Loc {line = 726, col = 36, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 726, col = 37, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+oneInteger <-> Name "oneInteger" (Just "GHC.Num.Integer") 8214565720323791473 (Just (Span {start = Loc {line = 117, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}, end = Loc {line = 117, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}}))
+ltInteger# <-> Name "ltInteger#" (Just "GHC.Num.Integer") 8214565720323791466 (Just (Span {start = Loc {line = 522, col = 8, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}, end = Loc {line = 522, col = 20, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}}))
+$dIntegral'1 <-> Name "$dIntegral" Nothing 6989586621679035971 Nothing
+abs <-> Name "abs" (Just "GHC.Num") 8214565720323791624 Nothing
+a'41 <-> Name "a" Nothing 6989586621679053057 (Just (Span {start = Loc {line = 58, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 58, col = 38, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+$c**1 <-> Name "$c**1" Nothing 8214565720323817032 (Just (Span {start = Loc {line = 505, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 505, col = 9, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+a'21 <-> Name "a" Nothing 7566047373982468801 Nothing
+q <-> Name "q" Nothing 3530822107858468881 Nothing
+ds1'13 <-> Name "ds1" Nothing 7205759403792824614 Nothing
+x'32 <-> Name "x" Nothing 6989586621679028254 Nothing
+a'34 <-> Name "a" Nothing 6989586621679055489 (Just (Span {start = Loc {line = 62, col = 35, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 62, col = 36, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+$catanh1 <-> Name "$catanh1" Nothing 8214565720323817099 (Just (Span {start = Loc {line = 510, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 510, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+a'83 <-> Name "a" Nothing 6989586621679035041 (Just (Span {start = Loc {line = 59, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 59, col = 31, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+y'2 <-> Name "y" Nothing 6989586621679025737 Nothing
+$c/= <-> Name "$c/=" Nothing 8214565720323816772 (Just (Span {start = Loc {line = 142, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 142, col = 19, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+geInt <-> Name "geInt" (Just "GHC.Classes") 8214565720323791349 Nothing
+ratioZeroDenominatorError <-> Name "ratioZeroDenominatorError" (Just "GHC.Real") 8214565720323791750 (Just (Span {start = Loc {line = 60, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 60, col = 26, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+$fEqOrdering <-> Name "$fEqOrdering" (Just "GHC.Classes") 8214565720323791391 (Just (Span {start = Loc {line = 105, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 105, col = 21, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+a'39 <-> Name "a" Nothing 6989586621679060769 (Just (Span {start = Loc {line = 36, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Maybe.hs"}, end = Loc {line = 36, col = 32, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Maybe.hs"}}))
+x'58 <-> Name "x" Nothing 6989586621679025727 Nothing
+xs <-> Name "xs" Nothing 6989586621679023269 Nothing
+$fEqMaybe <-> Name "$fEqMaybe" (Just "GHC.Maybe") 8214565720323791441 (Just (Span {start = Loc {line = 36, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Maybe.hs"}, end = Loc {line = 36, col = 32, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Maybe.hs"}}))
+$fOrd[] <-> Name "$fOrd[]" (Just "GHC.Classes") 8214565720323791402 (Just (Span {start = Loc {line = 256, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 256, col = 28, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+ds'33 <-> Name "ds" Nothing 7205759403792823601 Nothing
+a'11 <-> Name "a" Nothing 6989586621679023168 (Just (Span {start = Loc {line = 280, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 280, col = 20, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+a'57 <-> Name "a" Nothing 0 Nothing
+a'61 <-> Name "a" Nothing 6341068275337658368 (Just (Span {start = Loc {line = 18, col = 18, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 18, col = 19, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}}))
+v'21 <-> Name "v" Nothing 4755801206503243789 Nothing
+a'3 <-> Name "a" Nothing 6989586621679048128 (Just (Span {start = Loc {line = 91, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 91, col = 25, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+MyExpr <-> Name "MyExpr" (Just "GADTS1") 8214565720323785694 (Just (Span {start = Loc {line = 39, col = 1, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 42, col = 49, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}}))
+a'76 <-> Name "a" Nothing 6989586621679024608 (Just (Span {start = Loc {line = 908, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 908, col = 30, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+b'4 <-> Name "b" Nothing 6989586621679024609 (Just (Span {start = Loc {line = 908, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 908, col = 30, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+$p2Real <-> Name "$p2Real" (Just "GHC.Real") 8214565720323791776 (Just (Span {start = Loc {line = 133, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 135, col = 42, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+y'21 <-> Name "y" Nothing 6989586621679025800 Nothing
+x'31 <-> Name "x" Nothing 6989586621679028319 Nothing
+a <-> Name "a" Nothing 6989586621679050400 (Just (Span {start = Loc {line = 266, col = 14, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 266, col = 15, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+ds'24 <-> Name "ds" Nothing 7205759403792824177 Nothing
+$fBoundedChar <-> Name "$fBoundedChar" (Just "GHC.Enum") 8214565720323791722 (Just (Span {start = Loc {line = 336, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}, end = Loc {line = 336, col = 23, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}}))
+fromIntegerDouble <-> Name "fromIntegerDouble" (Just "GHC.Float") 8214565720323791814 (Just (Span {start = Loc {line = 1194, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 1194, col = 18, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+a'19 <-> Name "a" Nothing 6989586621679017920 (Just (Span {start = Loc {line = 413, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Foldable.hs"}, end = Loc {line = 413, col = 33, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Foldable.hs"}}))
+$fMonoidFirst <-> Name "$fMonoidFirst" (Just "Data.Monoid") 8214565720323791941 (Just (Span {start = Loc {line = 189, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 189, col = 26, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+e'2 <-> Name "e" Nothing 6989586621679044700 (Just (Span {start = Loc {line = 136, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Either.hs"}, end = Loc {line = 136, col = 26, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Either.hs"}}))
+$p1Monad <-> Name "$p1Monad" (Just "GHC.Base") 8214565720323791570 (Just (Span {start = Loc {line = 516, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 541, col = 43, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+$fEnumInteger <-> Name "$fEnumInteger" (Just "GHC.Enum") 8214565720323791727 (Just (Span {start = Loc {line = 812, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}, end = Loc {line = 812, col = 23, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}}))
+$dReal'1 <-> Name "$dReal" Nothing 6341068275337658369 Nothing
+v'20 <-> Name "v" Nothing 4755801206503243790 Nothing
+x'67 <-> Name "x" Nothing 6989586621679029980 Nothing
+a'2 <-> Name "a" Nothing 6989586621679048131 (Just (Span {start = Loc {line = 73, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 73, col = 37, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+a'91 <-> Name "a" Nothing 6989586621679013251 Nothing
+Addr#'1 <-> Name "Addr#" (Just "GHC.Prim") 8214565720323791261 (Just (Span {start = Loc {line = 313, col = 14, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Prim2.hs"}, end = Loc {line = 313, col = 24, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Prim2.hs"}}))
+Char <-> Name "Char" (Just "GHC.Types") 8214565720323791284 (Just (Span {start = Loc {line = 16, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 16, col = 21, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}}))
+ds'21 <-> Name "ds" Nothing 7205759403792823410 Nothing
+b'2 <-> Name "b" Nothing 6989586621679053058 (Just (Span {start = Loc {line = 58, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 58, col = 38, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+r <-> Name "r" Nothing 3530822107858468882 Nothing
+Lifted <-> Name "Lifted" (Just "GHC.Types") 3891110078048108808 Nothing
+y'1 <-> Name "y" Nothing 6989586621679025739 Nothing
+a'66 <-> Name "a" Nothing 6989586621679025731 (Just (Span {start = Loc {line = 45, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 45, col = 12, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+() <-> Name "()" (Just "GHC.Tuple") 0 Nothing
+fs'1 <-> Name "fs" Nothing 6989586621679071604 Nothing
+$dEq5 <-> Name "$dEq5" Nothing 8286623314361744183 Nothing
+Min <-> Name "Min" (Just "Data.Foldable") 8214565720323792099 (Just (Span {start = Loc {line = 411, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Foldable.hs"}, end = Loc {line = 411, col = 40, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Foldable.hs"}}))
+co'2 <-> Name "co" Nothing 6989586621679014323 Nothing
+$<# <-> Name "$<#" (Just "GHC.PrimSMT") 8214565720323790315 Nothing
+fromIntToDouble <-> Name "fromIntToDouble" (Just "GHC.Prim") 8214565720323791224 Nothing
+xs'2 <-> Name "xs" Nothing 6989586621679014087 Nothing
+> <-> Name ">" (Just "GHC.Classes") 8214565720323791369 (Just (Span {start = Loc {line = 199, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 199, col = 43, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+ds'31 <-> Name "ds" Nothing 7205759403792823603 Nothing
+v'19 <-> Name "v" Nothing 4755801206503243791 Nothing
+neqInteger# <-> Name "neqInteger#" (Just "GHC.Num.Integer") 8214565720323791472 (Just (Span {start = Loc {line = 503, col = 8, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}, end = Loc {line = 503, col = 21, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}}))
+a'49 <-> Name "a" Nothing 6989586621679017410 (Just (Span {start = Loc {line = 127, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Either.hs"}, end = Loc {line = 127, col = 28, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Either.hs"}}))
+Addr# <-> Name "Addr#" (Just "GHC.Prim") 8214565720323791260 (Just (Span {start = Loc {line = 313, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Prim2.hs"}, end = Loc {line = 313, col = 24, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Prim2.hs"}}))
+Alt <-> Name "Alt" (Just "Data.Monoid") 8214565720323791906 (Just (Span {start = Loc {line = 210, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 210, col = 38, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+$fMonadMaybe <-> Name "$fMonadMaybe" (Just "GHC.Base") 8214565720323791585 (Just (Span {start = Loc {line = 705, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 705, col = 22, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+a'63 <-> Name "a" Nothing 6989586621679033602 (Just (Span {start = Loc {line = 33, col = 12, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}, end = Loc {line = 33, col = 13, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}}))
+y'9 <-> Name "y" Nothing 6989586621679033610 Nothing
+y'20 <-> Name "y" Nothing 6989586621679025802 Nothing
+iff <-> Name "iff" (Just "Prelude") 8214565720323792289 (Just (Span {start = Loc {line = 187, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Prelude.hs"}, end = Loc {line = 187, col = 4, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Prelude.hs"}}))
+x'46 <-> Name "x" Nothing 6989586621679028317 Nothing
+ds1'14 <-> Name "ds1" Nothing 7205759403792823621 Nothing
+wild'3 <-> Name "wild" Nothing 6341068275337658374 Nothing
+x'10 <-> Name "x" Nothing 6989586621679023261 Nothing
+a'82 <-> Name "a" Nothing 6989586621679035970 (Just (Span {start = Loc {line = 114, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 114, col = 45, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+$fEqWord <-> Name "$fEqWord" (Just "GHC.Classes") 8214565720323791392 (Just (Span {start = Loc {line = 111, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 111, col = 17, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+$cmin1 <-> Name "$cmin1" Nothing 8214565720323816774 (Just (Span {start = Loc {line = 300, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 300, col = 20, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+e'1 <-> Name "e" Nothing 6989586621679017406 (Just (Span {start = Loc {line = 131, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Either.hs"}, end = Loc {line = 131, col = 32, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Either.hs"}}))
+fs'2 <-> Name "fs" Nothing 6989586621679071605 Nothing
+eqDouble <-> Name "eqDouble" (Just "GHC.Classes") 8214565720323791345 (Just (Span {start = Loc {line = 148, col = 8, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 148, col = 18, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+a'28 <-> Name "a" Nothing 7566047373982479106 Nothing
+neqInteger <-> Name "neqInteger" (Just "GHC.Num.Integer") 8214565720323791471 (Just (Span {start = Loc {line = 514, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}, end = Loc {line = 514, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}}))
+<= <-> Name "<=" (Just "GHC.Classes") 8214565720323791368 (Just (Span {start = Loc {line = 199, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 199, col = 43, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+$dReal <-> Name "$dReal" Nothing 6989586621679036423 Nothing
+v'4 <-> Name "v" Nothing 4755801206503243784 Nothing
+x'44 <-> Name "x" Nothing 6989586621679029978 Nothing
+x'52 <-> Name "x" Nothing 6989586621679030010 Nothing
+b'9 <-> Name "b" Nothing 6989586621679013252 Nothing
+$dIntegral'2 <-> Name "$dIntegral" Nothing 6989586621679036007 Nothing
+True <-> Name "True" (Just "GHC.Types") 0 Nothing
+$>=# <-> Name "$>=#" (Just "GHC.PrimSMT") 8214565720323790323 Nothing
+a'30 <-> Name "a" Nothing 6989586621679054149 (Just (Span {start = Loc {line = 48, col = 16, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}, end = Loc {line = 48, col = 17, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}}))
+Enum <-> Name "Enum" (Just "GHC.Enum") 8214565720323791706 Nothing
+$fMonoidAlt <-> Name "$fMonoidAlt" (Just "Data.Monoid") 8214565720323791937 (Just (Span {start = Loc {line = 214, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 214, col = 43, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+a'31 <-> Name "a" Nothing 6989586621679050437 (Just (Span {start = Loc {line = 681, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 681, col = 30, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+$fAlternative[] <-> Name "$fAlternative[]" (Just "GHC.Base") 8214565720323791573 (Just (Span {start = Loc {line = 796, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 796, col = 24, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+ds1'23 <-> Name "ds1" Nothing 7205759403792823618 Nothing
+wild <-> Name "wild" Nothing 6341068275337658369 Nothing
+eqInt <-> Name "eqInt" (Just "GHC.Classes") 8214565720323791347 Nothing
+y'4 <-> Name "y" Nothing 6989586621679025741 Nothing
+ds'18 <-> Name "ds" Nothing 7205759403792824180 Nothing
+n' <-> Name "n'" Nothing 6989586621679028286 Nothing
+$==## <-> Name "$==##" (Just "GHC.PrimSMT") 8214565720323790320 Nothing
+n'1 <-> Name "n" Nothing 6989586621679033616 Nothing
+ds'6 <-> Name "ds" Nothing 7205759403792822996 Nothing
+a'17 <-> Name "a" Nothing 6989586621679020837 (Just (Span {start = Loc {line = 202, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 202, col = 25, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+a'29 <-> Name "a" Nothing 6989586621679062244 (Just (Span {start = Loc {line = 138, col = 37, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 138, col = 38, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+negateInteger <-> Name "negateInteger" (Just "GHC.Num.Integer") 8214565720323791469 Nothing
+ds'37 <-> Name "ds" Nothing 7205759403792823605 Nothing
+a'47 <-> Name "a" Nothing 6989586621679044708 (Just (Span {start = Loc {line = 127, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Either.hs"}, end = Loc {line = 127, col = 28, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Either.hs"}}))
+minusDouble <-> Name "minusDouble" (Just "GHC.Float") 8214565720323791828 (Just (Span {start = Loc {line = 1164, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 1164, col = 12, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+v'9 <-> Name "v" Nothing 4755801206503243785 Nothing
+Monad <-> Name "Monad" (Just "GHC.Base") 8214565720323791544 (Just (Span {start = Loc {line = 516, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 541, col = 43, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+y'10 <-> Name "y" Nothing 6989586621679033612 Nothing
+$fMonadProduct <-> Name "$fMonadProduct" (Just "Data.Monoid") 8214565720323791934 (Just (Span {start = Loc {line = 146, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 146, col = 23, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+$fApplicativeMaybe <-> Name "$fApplicativeMaybe" (Just "GHC.Base") 8214565720323791576 (Just (Span {start = Loc {line = 696, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 696, col = 27, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+x'15 <-> Name "x" Nothing 6989586621679028315 Nothing
+a'26 <-> Name "a" Nothing 6989586621679025764 (Just (Span {start = Loc {line = 256, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 256, col = 28, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+n'3 <-> Name "n" Nothing 6989586621679033617 Nothing
+fs <-> Name "fs" Nothing 6989586621679071603 Nothing
+$fBoundedOrdering <-> Name "$fBoundedOrdering" (Just "GHC.Enum") 8214565720323791724 (Just (Span {start = Loc {line = 306, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}, end = Loc {line = 306, col = 26, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}}))
+ds'29 <-> Name "ds" Nothing 7205759403792822933 Nothing
+ds1'5 <-> Name "ds1" Nothing 7205759403792823427 Nothing
+$fOrdDouble <-> Name "$fOrdDouble" (Just "GHC.Classes") 8214565720323791397 (Just (Span {start = Loc {line = 300, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 300, col = 20, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+a'18 <-> Name "a" Nothing 6989586621679020836 (Just (Span {start = Loc {line = 214, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 214, col = 43, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+Char'1 <-> Name "Char" (Just "GHC.Types") 3674937295934324752 Nothing
+v'8 <-> Name "v" Nothing 4755801206503243786 Nothing
+[] <-> Name "[]" (Just "GHC.Types") 0 Nothing
+/## <-> Name "/##" (Just "GHC.Prim") 8214565720323791204 Nothing
+x'65 <-> Name "x" Nothing 6989586621679030008 Nothing
+$fMonoidDual <-> Name "$fMonoidDual" (Just "Data.Monoid") 8214565720323791939 (Just (Span {start = Loc {line = 73, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 73, col = 37, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+LiftedRep <-> Name "LiftedRep" (Just "GHC.Types") 8214565720323791294 Nothing
+a'87 <-> Name "a" Nothing 6989586621679024551 (Just (Span {start = Loc {line = 1096, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 1096, col = 52, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+Endo <-> Name "Endo" (Just "Data.Monoid") 8214565720323791915 (Just (Span {start = Loc {line = 88, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 88, col = 44, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+Applicative <-> Name "Applicative" (Just "GHC.Base") 8214565720323791536 (Just (Span {start = Loc {line = 434, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 449, col = 24, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+$fEqDouble <-> Name "$fEqDouble" (Just "GHC.Classes") 8214565720323791388 (Just (Span {start = Loc {line = 142, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 142, col = 19, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+x'59 <-> Name "x" Nothing 6989586621679028248 Nothing
+t <-> Name "t" Nothing 6989586621679049876 (Just (Span {start = Loc {line = 151, col = 46, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Traversable.hs"}, end = Loc {line = 151, col = 47, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Traversable.hs"}}))
+y'29 <-> Name "y" Nothing 6989586621679025743 Nothing
+error <-> Name "error" (Just "GHC.Err") 8214565720323790307 (Just (Span {start = Loc {line = 105, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Err.hs"}, end = Loc {line = 105, col = 6, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Err.hs"}}))
+x'45 <-> Name "x" Nothing 6989586621679014104 Nothing
+id2 <-> Name "id2" (Just "GADTS1") 8214565720323785718 (Just (Span {start = Loc {line = 57, col = 1, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 57, col = 4, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}}))
+x1'3 <-> Name "x1" Nothing 6989586621679025740 Nothing
+plusInteger <-> Name "plusInteger" (Just "GHC.Num.Integer") 8214565720323791474 Nothing
+C:Fractional <-> Name "C:Fractional" (Just "GHC.Real") 8214565720323791796 (Just (Span {start = Loc {line = 171, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 187, col = 38, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+ds'5 <-> Name "ds" Nothing 7205759403792822998 Nothing
+$fApplicativeProduct <-> Name "$fApplicativeProduct" (Just "Data.Monoid") 8214565720323791930 (Just (Span {start = Loc {line = 142, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 142, col = 29, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+x'4 <-> Name "x" Nothing 7566047373982463384 Nothing
+ds1'15 <-> Name "ds1" Nothing 7205759403792823424 Nothing
+implies <-> Name "implies" (Just "Prelude") 8214565720323792290 (Just (Span {start = Loc {line = 183, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Prelude.hs"}, end = Loc {line = 183, col = 8, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Prelude.hs"}}))
+$p2Integral <-> Name "$p2Integral" (Just "GHC.Real") 8214565720323791799 (Just (Span {start = Loc {line = 138, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 168, col = 56, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+t'1 <-> Name "t" Nothing 6989586621679045141 (Just (Span {start = Loc {line = 118, col = 16, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Foldable.hs"}, end = Loc {line = 118, col = 17, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Foldable.hs"}}))
+v'23 <-> Name "v" Nothing 4755801206503243787 Nothing
+BoxedRep <-> Name "BoxedRep" (Just "GHC.Types") 3891110078048108766 Nothing
+x'47 <-> Name "x" Nothing 6989586621679029977 Nothing
+Ratio <-> Name "Ratio" (Just "GHC.Real") 8214565720323791765 (Just (Span {start = Loc {line = 74, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 74, col = 25, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+LiftedRep'2 <-> Name "LiftedRep" (Just "GHC.Types") 8214565720323791295 (Just (Span {start = Loc {line = 39, col = 18, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 39, col = 27, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}}))
+$>=## <-> Name "$>=##" (Just "GHC.PrimSMT") 8214565720323790324 Nothing
+y'17 <-> Name "y" Nothing 6989586621679033614 Nothing
+f'4 <-> Name "f" Nothing 6989586621679050395 (Just (Span {start = Loc {line = 381, col = 16, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 381, col = 17, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+x'54 <-> Name "x" Nothing 6989586621679028249 Nothing
+r'2 <-> Name "r" Nothing 6989586621679023159 (Just (Span {start = Loc {line = 685, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 685, col = 24, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+$dNum1 <-> Name "$dNum1" Nothing 6989586621679035595 Nothing
+timesInt <-> Name "timesInt" (Just "GHC.Num") 8214565720323791619 (Just (Span {start = Loc {line = 121, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}, end = Loc {line = 121, col = 9, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}}))
+d'1 <-> Name "d" Nothing 6989586621679035045 Nothing
+rationalToDouble <-> Name "rationalToDouble" (Just "GHC.Float") 8214565720323791834 (Just (Span {start = Loc {line = 476, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 476, col = 17, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+a'95 <-> Name "a" Nothing 6989586621679036006 (Just (Span {start = Loc {line = 98, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 98, col = 61, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+$>## <-> Name "$>##" (Just "GHC.PrimSMT") 8214565720323790322 Nothing
+ds'17 <-> Name "ds" Nothing 7205759403792824183 Nothing
+fun <-> Name "fun" Nothing 6989586621679030916 Nothing
+Double <-> Name "Double" (Just "GHC.Types") 8214565720323791286 (Just (Span {start = Loc {line = 26, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 26, col = 25, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}}))
+e'3 <-> Name "e" Nothing 6989586621679017402 (Just (Span {start = Loc {line = 136, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Either.hs"}, end = Loc {line = 136, col = 26, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Either.hs"}}))
+ds'30 <-> Name "ds" Nothing 7205759403792822935 Nothing
++## <-> Name "+##" (Just "GHC.Prim") 8214565720323791201 Nothing
+co'1 <-> Name "co" Nothing 6989586621679014326 Nothing
+geInteger# <-> Name "geInteger#" (Just "GHC.Num.Integer") 8214565720323791459 (Just (Span {start = Loc {line = 547, col = 8, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}, end = Loc {line = 547, col = 20, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}}))
+a'94 <-> Name "a" Nothing 7566047373982443430 Nothing
+$p1Alternative <-> Name "$p1Alternative" (Just "GHC.Base") 8214565720323791564 (Just (Span {start = Loc {line = 726, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 744, col = 41, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+Bounded <-> Name "Bounded" (Just "GHC.Enum") 8214565720323791703 (Just (Span {start = Loc {line = 48, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}, end = Loc {line = 49, col = 28, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}}))
+*## <-> Name "*##" (Just "GHC.Prim") 8214565720323791199 Nothing
+a'68 <-> Name "a" Nothing 6989586621679023193 (Just (Span {start = Loc {line = 963, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 963, col = 26, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+x'69 <-> Name "x" Nothing 6989586621679035046 Nothing
+Just <-> Name "Just" (Just "GHC.Maybe") 8214565720323791439 (Just (Span {start = Loc {line = 31, col = 29, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Maybe.hs"}, end = Loc {line = 31, col = 35, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Maybe.hs"}}))
+v'14 <-> Name "v" Nothing 4755801206503243796 Nothing
+x1'1 <-> Name "x1" Nothing 6989586621679028338 Nothing
+x'42 <-> Name "x" Nothing 6989586621679030022 Nothing
+fromIntegerInteger <-> Name "fromIntegerInteger" (Just "GHC.Num") 8214565720323791613 (Just (Span {start = Loc {line = 143, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}, end = Loc {line = 143, col = 19, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}}))
+prel_list_str <-> Name "prel_list_str" Nothing 8214565720323805486 (Just (Span {start = Loc {line = 1049, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/List.hs"}, end = Loc {line = 1049, col = 14, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/List.hs"}}))
+Sum <-> Name "Sum" (Just "Data.Monoid") 8214565720323791927 (Just (Span {start = Loc {line = 112, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 112, col = 36, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+x'35 <-> Name "x" Nothing 6989586621679028326 Nothing
+y'3 <-> Name "y" Nothing 6989586621679025745 Nothing
+$ctanh1 <-> Name "$ctanh1" Nothing 8214565720323817023 (Just (Span {start = Loc {line = 504, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 504, col = 9, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+Mul <-> Name "Mul" (Just "GADTS1") 8214565720323788007 (Just (Span {start = Loc {line = 41, col = 3, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 41, col = 49, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}}))
+b'3 <-> Name "b" Nothing 6989586621679025784 (Just (Span {start = Loc {line = 58, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 58, col = 38, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+x'22 <-> Name "x" Nothing 6989586621679014086 Nothing
+Foldable <-> Name "Foldable" (Just "Data.Foldable") 8214565720323792065 Nothing
+a'20 <-> Name "a" Nothing 6989586621679017913 (Just (Span {start = Loc {line = 423, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Foldable.hs"}, end = Loc {line = 423, col = 33, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Foldable.hs"}}))
+>= <-> Name ">=" (Just "GHC.Classes") 8214565720323791370 (Just (Span {start = Loc {line = 199, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 199, col = 43, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+rem <-> Name "rem" (Just "GHC.Real") 8214565720323791763 (Just (Span {start = Loc {line = 144, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 144, col = 39, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+$dIntegral <-> Name "$dIntegral" Nothing 6989586621679035579 Nothing
+Z# <-> Name "Z#" (Just "GHC.Num.Integer") 8214565720323791494 (Just (Span {start = Loc {line = 19, col = 16, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}, end = Loc {line = 19, col = 23, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}}))
+gtInteger# <-> Name "gtInteger#" (Just "GHC.Num.Integer") 8214565720323791461 (Just (Span {start = Loc {line = 530, col = 8, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}, end = Loc {line = 530, col = 20, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}}))
+show <-> Name "show" (Just "GHC.Show") 8214565720323784870 Nothing
+ds'12 <-> Name "ds" Nothing 7205759403792822888 Nothing
+a'89 <-> Name "a" Nothing 7566047373982452537 Nothing
+ds'3 <-> Name "ds" Nothing 7205759403792798280 Nothing
+ltInteger <-> Name "ltInteger" (Just "GHC.Num.Integer") 8214565720323791465 (Just (Span {start = Loc {line = 561, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}, end = Loc {line = 561, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}}))
+$cmax <-> Name "$cmax" Nothing 8214565720323817118 (Just (Span {start = Loc {line = 564, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}, end = Loc {line = 564, col = 21, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}}))
+a'59 <-> Name "a" Nothing 6989586621679014072 (Just (Span {start = Loc {line = 39, col = 13, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 39, col = 14, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}}))
+signumInteger <-> Name "signumInteger" (Just "GHC.Num.Integer") 8214565720323791482 Nothing
+x'49 <-> Name "x" Nothing 6989586621679025799 Nothing
+$fFunctor(,) <-> Name "$fFunctor(,)" (Just "GHC.Base") 8214565720323791578 (Just (Span {start = Loc {line = 688, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 688, col = 25, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+a'88 <-> Name "a" Nothing 7566047373982451832 Nothing
+r'3 <-> Name "r" Nothing 6989586621679050441 (Just (Span {start = Loc {line = 678, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 678, col = 26, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+v'13 <-> Name "v" Nothing 4755801206503243797 Nothing
+x1 <-> Name "x1" Nothing 6989586621679028339 Nothing
+$fEnumFloat <-> Name "$fEnumFloat" (Just "GHC.Float") 8214565720323791880 (Just (Span {start = Loc {line = 630, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 630, col = 21, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+a'5 <-> Name "a" Nothing 6989586621679048120 (Just (Span {start = Loc {line = 134, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 134, col = 37, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+$fEqBool <-> Name "$fEqBool" (Just "GHC.Classes") 8214565720323791386 (Just (Span {start = Loc {line = 100, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 100, col = 17, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+a'38 <-> Name "a" Nothing 6989586621679062296 (Just (Span {start = Loc {line = 76, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 76, col = 32, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+x'7 <-> Name "x" Nothing 6989586621679028231 Nothing
+char2char <-> Name "char2char" (Just "GHC.Types") 8214565720323791282 Nothing
+y'25 <-> Name "y" Nothing 6989586621679025808 Nothing
+*# <-> Name "*#" (Just "GHC.Prim") 8214565720323791198 Nothing
+RuntimeRep <-> Name "RuntimeRep" (Just "GHC.Types") 3674937295934324926 Nothing
+I# <-> Name "I#" (Just "GHC.Types") 8214565720323791331 (Just (Span {start = Loc {line = 18, col = 12, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 18, col = 19, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}}))
+$fFunctorIO <-> Name "$fFunctorIO" (Just "GHC.Base") 8214565720323791580 (Just (Span {start = Loc {line = 1126, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 1126, col = 21, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+wild3'2 <-> Name "wild3" Nothing 3458764513820540928 Nothing
+signumDouble <-> Name "signumDouble" (Just "GHC.Float") 8214565720323791838 (Just (Span {start = Loc {line = 1188, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 1188, col = 13, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+$p2Traversable <-> Name "$p2Traversable" (Just "Data.Traversable") 8214565720323792135 (Just (Span {start = Loc {line = 151, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Traversable.hs"}, end = Loc {line = 176, col = 25, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Traversable.hs"}}))
+divideDouble <-> Name "divideDouble" (Just "GHC.Float") 8214565720323791806 (Just (Span {start = Loc {line = 1172, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 1172, col = 13, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+negateDouble# <-> Name "negateDouble#" (Just "GHC.Prim") 8214565720323791244 Nothing
+a'12 <-> Name "a" Nothing 6989586621679020856 (Just (Span {start = Loc {line = 73, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 73, col = 37, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+xs'1 <-> Name "xs" Nothing 6989586621679023262 Nothing
+rationalToDouble# <-> Name "rationalToDouble#" (Just "GHC.Float") 8214565720323791835 (Just (Span {start = Loc {line = 489, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 489, col = 18, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+C:Eq <-> Name "C:Eq" (Just "GHC.Classes") 8214565720323791408 (Just (Span {start = Loc {line = 45, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 52, col = 32, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+ds'7 <-> Name "ds" Nothing 7205759403792822730 Nothing
+$fFunctorEither <-> Name "$fFunctorEither" (Just "Data.Either") 8214565720323792145 (Just (Span {start = Loc {line = 127, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Either.hs"}, end = Loc {line = 127, col = 28, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Either.hs"}}))
+doubleFromInteger <-> Name "doubleFromInteger" (Just "GHC.Num.Integer") 8214565720323791453 Nothing
+quot <-> Name "quot" (Just "GHC.Real") 8214565720323791761 (Just (Span {start = Loc {line = 140, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 140, col = 39, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+C# <-> Name "C#" (Just "GHC.Types") 8214565720323791326 (Just (Span {start = Loc {line = 16, col = 13, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 16, col = 21, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}}))
+v'12 <-> Name "v" Nothing 4755801206503243798 Nothing
+-# <-> Name "-#" (Just "GHC.Prim") 8214565720323791202 Nothing
+ds'20 <-> Name "ds" Nothing 7205759403792823626 Nothing
+a'32 <-> Name "a" Nothing 6989586621679023163 (Just (Span {start = Loc {line = 681, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 681, col = 30, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+undefined <-> Name "undefined" (Just "GHC.Err") 8214565720323790309 Nothing
+x'62 <-> Name "x" Nothing 6989586621679030020 Nothing
+$crecip1 <-> Name "$crecip1" Nothing 8214565720323817096 (Just (Span {start = Loc {line = 472, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 472, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+$fOrdMaybe <-> Name "$fOrdMaybe" (Just "GHC.Maybe") 8214565720323791442 (Just (Span {start = Loc {line = 40, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Maybe.hs"}, end = Loc {line = 40, col = 34, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Maybe.hs"}}))
+a'4 <-> Name "a" Nothing 6989586621679048123 (Just (Span {start = Loc {line = 115, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 115, col = 33, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+$p1Fractional <-> Name "$p1Fractional" (Just "GHC.Real") 8214565720323791771 Nothing
+$dShow <-> Name "$dShow" Nothing 6989586621679014386 Nothing
+SrcLoc <-> Name "SrcLoc" (Just "GHC.Stack.Types") 8214565720323791418 (Just (Span {start = Loc {line = 212, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Stack/Types.hs"}, end = Loc {line = 220, col = 4, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Stack/Types.hs"}}))
+b'6 <-> Name "b" Nothing 6989586621679035066 Nothing
+x'24 <-> Name "x" Nothing 6989586621679028324 Nothing
+x <-> Name "x" Nothing 6989586621679023268 Nothing
+$fEq() <-> Name "$fEq()" (Just "GHC.Classes") 8214565720323791384 (Just (Span {start = Loc {line = 55, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 55, col = 15, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+$fOrdInteger <-> Name "$fOrdInteger" (Just "GHC.Num.Integer") 8214565720323791490 (Just (Span {start = Loc {line = 564, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}, end = Loc {line = 564, col = 21, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}}))
+wild6 <-> Name "wild6" Nothing 3458764513820540928 Nothing
+$dNum'1 <-> Name "$dNum" Nothing 6341068275337658370 Nothing
+$p1Applicative <-> Name "$p1Applicative" (Just "GHC.Base") 8214565720323791558 (Just (Span {start = Loc {line = 434, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 449, col = 24, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+ds'2 <-> Name "ds" Nothing 7205759403792822890 Nothing
+a'40 <-> Name "a" Nothing 6989586621679053050 (Just (Span {start = Loc {line = 92, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 92, col = 26, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+a'78 <-> Name "a" Nothing 6989586621679035578 (Just (Span {start = Loc {line = 643, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 643, col = 47, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+ds'23 <-> Name "ds" Nothing 7205759403792823595 Nothing
+timesDouble <-> Name "timesDouble" (Just "GHC.Float") 8214565720323791844 (Just (Span {start = Loc {line = 1168, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 1168, col = 12, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+x'1 <-> Name "x" Nothing 6989586621679025829 Nothing
+v'11 <-> Name "v" Nothing 4755801206503243799 Nothing
+x1'2 <-> Name "x1" Nothing 6989586621679028337 Nothing
+:% <-> Name ":%" (Just "GHC.Real") 8214565720323791766 (Just (Span {start = Loc {line = 74, col = 17, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 74, col = 25, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+a'73 <-> Name "a" Nothing 7566047373982452794 Nothing
+errorWithoutStackTrace <-> Name "errorWithoutStackTrace" (Just "GHC.Err") 8214565720323790308 (Just (Span {start = Loc {line = 108, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Err.hs"}, end = Loc {line = 108, col = 23, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Err.hs"}}))
+CircleShape <-> Name "CircleShape" (Just "GADTS1") 8214565720323785705 (Just (Span {start = Loc {line = 7, col = 3, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 7, col = 33, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}}))
+y'14 <-> Name "y" Nothing 7566047373982463378 Nothing
+: <-> Name ":" (Just "GHC.Types") 0 Nothing
+ds1'21 <-> Name "ds1" Nothing 7205759403792823005 Nothing
+y'34 <-> Name "y" Nothing 6989586621679025810 Nothing
+a'58 <-> Name "a" Nothing 6989586621679026874 (Just (Span {start = Loc {line = 80, col = 13, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}, end = Loc {line = 80, col = 14, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}}))
+x'63 <-> Name "x" Nothing 6989586621679028325 Nothing
+a'55 <-> Name "a" Nothing 6989586621679034970 (Just (Span {start = Loc {line = 138, col = 37, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 138, col = 38, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+$fMonoidSum <-> Name "$fMonoidSum" (Just "Data.Monoid") 8214565720323791944 (Just (Span {start = Loc {line = 115, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 115, col = 33, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+ds1'9 <-> Name "ds1" Nothing 7205759403792823421 Nothing
+Integral <-> Name "Integral" (Just "GHC.Real") 8214565720323791757 (Just (Span {start = Loc {line = 138, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 168, col = 56, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+divZeroError <-> Name "divZeroError" (Just "GHC.Real") 8214565720323791742 Nothing
+RectangleShape <-> Name "RectangleShape" (Just "GADTS1") 8214565720323785706 (Just (Span {start = Loc {line = 8, col = 3, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 8, col = 46, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}}))
+LiftedRep'1 <-> Name "LiftedRep" (Just "GHC.Types") 3674937295934324932 Nothing
+absInteger <-> Name "absInteger" (Just "GHC.Num.Integer") 8214565720323791449 Nothing
+a'77 <-> Name "a" Nothing 6989586621679023197 (Just (Span {start = Loc {line = 908, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 908, col = 30, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+$clogBase1 <-> Name "$clogBase1" Nothing 8214565720323817100 (Just (Span {start = Loc {line = 506, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 506, col = 12, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+width <-> Name "width" Nothing 6989586621679014084 Nothing
+$fFractionalDouble <-> Name "$fFractionalDouble" (Just "GHC.Float") 8214565720323791883 (Just (Span {start = Loc {line = 467, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 467, col = 28, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+Fractional <-> Name "Fractional" (Just "GHC.Real") 8214565720323791753 (Just (Span {start = Loc {line = 171, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 187, col = 38, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+v'18 <-> Name "v" Nothing 4755801206503243792 Nothing
+a1'3 <-> Name "a1" Nothing 6989586621679035065 Nothing
+x'39 <-> Name "x" Nothing 6989586621679030018 Nothing
+d' <-> Name "d'" Nothing 6989586621679028288 Nothing
+$fOrdInt <-> Name "$fOrdInt" (Just "GHC.Classes") 8214565720323791399 (Just (Span {start = Loc {line = 311, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 311, col = 17, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+$fFloatingFloat <-> Name "$fFloatingFloat" (Just "GHC.Float") 8214565720323791882 (Just (Span {start = Loc {line = 358, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 358, col = 25, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+$fMonoidAny <-> Name "$fMonoidAny" (Just "Data.Monoid") 8214565720323791938 (Just (Span {start = Loc {line = 107, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 107, col = 20, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+dy <-> Name "dy" Nothing 6989586621679028322 Nothing
+minusInt <-> Name "minusInt" (Just "GHC.Num") 8214565720323791614 (Just (Span {start = Loc {line = 117, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}, end = Loc {line = 117, col = 9, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}}))
+$csin1 <-> Name "$csin1" Nothing 8214565720323817031 (Just (Span {start = Loc {line = 496, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 496, col = 8, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+$fApplicativeEither <-> Name "$fApplicativeEither" (Just "Data.Either") 8214565720323792144 (Just (Span {start = Loc {line = 131, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Either.hs"}, end = Loc {line = 131, col = 32, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Either.hs"}}))
+a'46 <-> Name "a" Nothing 6989586621679050429 (Just (Span {start = Loc {line = 688, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 688, col = 25, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+$fRealFloat <-> Name "$fRealFloat" (Just "GHC.Float") 8214565720323791888 (Just (Span {start = Loc {line = 265, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 265, col = 21, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+$fNumInteger <-> Name "$fNumInteger" (Just "GHC.Num") 8214565720323791631 (Just (Span {start = Loc {line = 100, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}, end = Loc {line = 100, col = 22, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}}))
+$dNum'3 <-> Name "$dNum" Nothing 6989586621679036484 Nothing
+$p1Integral <-> Name "$p1Integral" (Just "GHC.Real") 8214565720323791774 (Just (Span {start = Loc {line = 138, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 168, col = 56, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+$<=# <-> Name "$<=#" (Just "GHC.PrimSMT") 8214565720323790317 Nothing
+k0 <-> Name "k0" Nothing 3530822107858468864 Nothing
+$ <-> Name "$" (Just "GHC.Base") 8214565720323791496 Nothing
+Addr#'2 <-> Name "Addr#" (Just "GHC.Prim") 3674937295934324738 Nothing
+Max <-> Name "Max" (Just "Data.Foldable") 8214565720323792094 (Just (Span {start = Loc {line = 410, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Foldable.hs"}, end = Loc {line = 410, col = 40, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Foldable.hs"}}))
+ds'35 <-> Name "ds" Nothing 7205759403792823597 Nothing
+v'17 <-> Name "v" Nothing 4755801206503243793 Nothing
+$dEq6 <-> Name "$dEq6" Nothing 6989586621679035593 Nothing
+y'26 <-> Name "y" Nothing 6989586621679028244 Nothing
+ds'10 <-> Name "ds" Nothing 7205759403792823629 Nothing
+d'2 <-> Name "d" Nothing 6989586621679028287 Nothing
+$fMonadIO <-> Name "$fMonadIO" (Just "GHC.Base") 8214565720323791584 (Just (Span {start = Loc {line = 1136, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 1136, col = 19, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+Ord <-> Name "Ord" (Just "GHC.Classes") 8214565720323791366 (Just (Span {start = Loc {line = 197, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 218, col = 35, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+$fTraversable[] <-> Name "$fTraversable[]" (Just "Data.Traversable") 8214565720323792130 (Just (Span {start = Loc {line = 184, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Traversable.hs"}, end = Loc {line = 184, col = 24, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Traversable.hs"}}))
+ds1'3 <-> Name "ds1" Nothing 7205759403792823003 Nothing
+wild3'1 <-> Name "wild3" Nothing 6341068275337658372 Nothing
+e <-> Name "e" Nothing 6989586621679044704 (Just (Span {start = Loc {line = 131, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Either.hs"}, end = Loc {line = 131, col = 32, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Either.hs"}}))
+ds'38 <-> Name "ds" Nothing 7205759403792822925 Nothing
+$p1Real <-> Name "$p1Real" (Just "GHC.Real") 8214565720323791775 (Just (Span {start = Loc {line = 133, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 135, col = 42, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+$fNumFloat <-> Name "$fNumFloat" (Just "GHC.Float") 8214565720323791886 (Just (Span {start = Loc {line = 242, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 242, col = 20, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+plusInt <-> Name "plusInt" (Just "GHC.Num") 8214565720323791616 (Just (Span {start = Loc {line = 113, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}, end = Loc {line = 113, col = 8, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}}))
+$fOrdBool <-> Name "$fOrdBool" (Just "GHC.Classes") 8214565720323791395 (Just (Span {start = Loc {line = 266, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 266, col = 18, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+$fApplicativeFUN <-> Name "$fApplicativeFUN" (Just "GHC.Base") 8214565720323791574 (Just (Span {start = Loc {line = 681, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 681, col = 30, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+ds1'7 <-> Name "ds1" Nothing 7205759403792824184 Nothing
+a'75 <-> Name "a" Nothing 6989586621679014079 (Just (Span {start = Loc {line = 44, col = 1, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 44, col = 28, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}}))
+a'81 <-> Name "a" Nothing 7566047373982441663 Nothing
+not <-> Name "not" (Just "GHC.Classes") 8214565720323791361 (Just (Span {start = Loc {line = 381, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 381, col = 4, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+b'5 <-> Name "b" Nothing 6989586621679023198 (Just (Span {start = Loc {line = 908, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 908, col = 30, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+v'16 <-> Name "v" Nothing 4755801206503243794 Nothing
+x'56 <-> Name "x" Nothing 6989586621679030016 Nothing
++# <-> Name "+#" (Just "GHC.Prim") 8214565720323791200 Nothing
+ds1'17 <-> Name "ds1" Nothing 7205759403792822936 Nothing
+negateDouble <-> Name "negateDouble" (Just "GHC.Float") 8214565720323791830 (Just (Span {start = Loc {line = 1178, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 1178, col = 13, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+C:Ord <-> Name "C:Ord" (Just "GHC.Classes") 8214565720323791410 (Just (Span {start = Loc {line = 197, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 218, col = 35, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+negateInt <-> Name "negateInt" (Just "GHC.Num") 8214565720323791615 (Just (Span {start = Loc {line = 125, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}, end = Loc {line = 125, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}}))
+x'36 <-> Name "x" Nothing 0 Nothing
+a'33 <-> Name "a" Nothing 7566047373982479103 Nothing
+y'7 <-> Name "y" Nothing 6989586621679030007 Nothing
+y'6 <-> Name "y" Nothing 6989586621679035063 Nothing
+hlistHeadStr <-> Name "hlistHeadStr" (Just "GADTS1") 8214565720323785711 (Just (Span {start = Loc {line = 21, col = 1, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 21, col = 13, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}}))
+First <-> Name "First" (Just "Data.Monoid") 8214565720323791918 (Just (Span {start = Loc {line = 185, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 185, col = 48, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+i'1 <-> Name "i" Nothing 6989586621679028327 Nothing
+$catan1 <-> Name "$catan1" Nothing 8214565720323817026 (Just (Span {start = Loc {line = 501, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 501, col = 9, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+reduce <-> Name "reduce" (Just "GHC.Real") 8214565720323791752 (Just (Span {start = Loc {line = 116, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 116, col = 7, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+|| <-> Name "||" (Just "GHC.Classes") 8214565720323791362 (Just (Span {start = Loc {line = 376, col = 7, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 376, col = 9, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+x'50 <-> Name "x" Nothing 6989586621679025729 Nothing
+f'1 <-> Name "f" Nothing 6989586621679020835 (Just (Span {start = Loc {line = 214, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 214, col = 43, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+ds'22 <-> Name "ds" Nothing 7205759403792823599 Nothing
+v'15 <-> Name "v" Nothing 4755801206503243795 Nothing
+d <-> Name "d" Nothing 6989586621679028253 Nothing
+y'11 <-> Name "y" Nothing 6989586621679028246 Nothing
+ds1'4 <-> Name "ds1" Nothing 7205759403792823001 Nothing
+a'96 <-> Name "a" Nothing 6989586621679035038 (Just (Span {start = Loc {line = 114, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 114, col = 45, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+x'34 <-> Name "x" Nothing 6989586621679028321 Nothing
+Product <-> Name "Product" (Just "Data.Monoid") 8214565720323791924 (Just (Span {start = Loc {line = 131, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 131, col = 48, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+ds'14 <-> Name "ds" Nothing 7205759403792824175 Nothing
+ds'32 <-> Name "ds" Nothing 7205759403792822927 Nothing
+Levity <-> Name "Levity" (Just "GHC.Types") 3674937295934324924 Nothing
+a'22 <-> Name "a" Nothing 6989586621679060766 (Just (Span {start = Loc {line = 40, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Maybe.hs"}, end = Loc {line = 40, col = 34, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Maybe.hs"}}))
+wild'2 <-> Name "wild" Nothing 7566047373982463386 Nothing
+x'60 <-> Name "x" Nothing 6989586621679025742 Nothing
+y1 <-> Name "y1" Nothing 6989586621679025741 Nothing
+$fMonoidProduct <-> Name "$fMonoidProduct" (Just "Data.Monoid") 8214565720323791943 (Just (Span {start = Loc {line = 134, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 134, col = 37, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+fromIntegerInt <-> Name "fromIntegerInt" (Just "GHC.Num") 8214565720323791612 (Just (Span {start = Loc {line = 139, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}, end = Loc {line = 139, col = 15, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}}))
+$ccos1 <-> Name "$ccos1" Nothing 8214565720323817030 (Just (Span {start = Loc {line = 497, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 497, col = 8, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+negativeOneInteger <-> Name "negativeOneInteger" (Just "GHC.Num.Integer") 8214565720323791470 (Just (Span {start = Loc {line = 126, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}, end = Loc {line = 126, col = 19, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}}))
+y <-> Name "y" Nothing 7566047373982463385 Nothing
+- <-> Name "-" (Just "GHC.Num") 8214565720323791623 (Just (Span {start = Loc {line = 36, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}, end = Loc {line = 36, col = 39, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}}))
+Maybe <-> Name "Maybe" (Just "GHC.Maybe") 8214565720323791438 (Just (Span {start = Loc {line = 31, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Maybe.hs"}, end = Loc {line = 31, col = 35, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Maybe.hs"}}))
+Ordering <-> Name "Ordering" (Just "GHC.Types") 8214565720323791296 Nothing
+ds1'16 <-> Name "ds1" Nothing 7205759403792822934 Nothing
+$fMonoidMin <-> Name "$fMonoidMin" (Just "Data.Foldable") 8214565720323792101 (Just (Span {start = Loc {line = 423, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Foldable.hs"}, end = Loc {line = 423, col = 33, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Foldable.hs"}}))
+$clog1pexp1 <-> Name "$clog1pexp1" Nothing 8214565720323817102 (Just (Span {start = Loc {line = 491, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 491, col = 26, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+ds1'24 <-> Name "ds1" Nothing 7205759403792823606 Nothing
+x'11 <-> Name "x" Nothing 6989586621679028238 Nothing
+== <-> Name "==" (Just "GHC.Classes") 8214565720323791365 (Just (Span {start = Loc {line = 46, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 46, col = 43, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+$fFunctorFUN <-> Name "$fFunctorFUN" (Just "GHC.Base") 8214565720323791579 (Just (Span {start = Loc {line = 678, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 678, col = 26, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+y'32 <-> Name "y" Nothing 6989586621679030009 Nothing
+compareInteger <-> Name "compareInteger" (Just "GHC.Num.Integer") 8214565720323791450 (Just (Span {start = Loc {line = 479, col = 3, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}, end = Loc {line = 479, col = 19, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}}))
+a1'4 <-> Name "a1" Nothing 6989586621679014101 Nothing
+a2 <-> Name "a2" Nothing 6989586621679014100 Nothing
+gcd <-> Name "gcd" (Just "GHC.Real") 8214565720323791745 (Just (Span {start = Loc {line = 645, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 645, col = 4, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+$fMonadSum <-> Name "$fMonadSum" (Just "Data.Monoid") 8214565720323791935 (Just (Span {start = Loc {line = 127, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 127, col = 19, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+$dNum <-> Name "$dNum" Nothing 6989586621679036424 Nothing
+$p1Ord <-> Name "$p1Ord" (Just "GHC.Classes") 8214565720323791381 Nothing
+plusDouble <-> Name "plusDouble" (Just "GHC.Float") 8214565720323791832 (Just (Span {start = Loc {line = 1160, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 1160, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+$fApplicativeIO <-> Name "$fApplicativeIO" (Just "GHC.Base") 8214565720323791575 (Just (Span {start = Loc {line = 1129, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 1129, col = 24, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+x'53 <-> Name "x" Nothing 6989586621679025807 Nothing
+r'1 <-> Name "r" Nothing 6989586621679050433 (Just (Span {start = Loc {line = 685, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 685, col = 24, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+ds'36 <-> Name "ds" Nothing 7205759403792823617 Nothing
+a'85 <-> Name "a" Nothing 6989586621679014384 (Just (Span {start = Loc {line = 21, col = 15, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 21, col = 22, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}}))
+a'7 <-> Name "a" Nothing 6989586621679048112 (Just (Span {start = Loc {line = 202, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 202, col = 25, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+wild4 <-> Name "wild4" Nothing 6341068275337658373 Nothing
+wild1'1 <-> Name "wild1" Nothing 6341068275337658370 Nothing
+height <-> Name "height" Nothing 6989586621679014085 Nothing
+integerToInt <-> Name "integerToInt" (Just "GHC.Num.Integer") 8214565720323791462 Nothing
+ds1 <-> Name "ds1" Nothing 7205759403792822999 Nothing
+x'21 <-> Name "x" Nothing 6989586621679028239 Nothing
+fromInteger <-> Name "fromInteger" (Just "GHC.Num") 8214565720323791625 (Just (Span {start = Loc {line = 53, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}, end = Loc {line = 53, col = 40, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}}))
+wild'1 <-> Name "wild" Nothing 6341068275337658420 Nothing
+a'10 <-> Name "a" Nothing 6989586621679045200 (Just (Span {start = Loc {line = 423, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Foldable.hs"}, end = Loc {line = 423, col = 33, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Foldable.hs"}}))
+a'44 <-> Name "a" Nothing 6989586621679025776 (Just (Span {start = Loc {line = 92, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 92, col = 26, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+Float <-> Name "Float" (Just "GHC.Types") 8214565720323791288 (Just (Span {start = Loc {line = 24, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 24, col = 23, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}}))
+x'23 <-> Name "x" Nothing 6989586621679033615 Nothing
+$fMonoidLast <-> Name "$fMonoidLast" (Just "Data.Monoid") 8214565720323791942 (Just (Span {start = Loc {line = 202, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 202, col = 25, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+$c<=4 <-> Name "$c<=4" Nothing 8214565720323816765 (Just (Span {start = Loc {line = 307, col = 12, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 307, col = 14, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+eta1 <-> Name "eta1" Nothing 4755801206503243777 Nothing
+a'14 <-> Name "a" Nothing 6989586621679020848 (Just (Span {start = Loc {line = 115, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 115, col = 33, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+ds'13 <-> Name "ds" Nothing 7205759403792798273 Nothing
+Shape <-> Name "Shape" (Just "GADTS1") 8214565720323785704 (Just (Span {start = Loc {line = 6, col = 1, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 8, col = 46, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}}))
+x'13 <-> Name "x" Nothing 6989586621679025740 Nothing
+$fEnumInt <-> Name "$fEnumInt" (Just "GHC.Enum") 8214565720323791726 (Just (Span {start = Loc {line = 469, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}, end = Loc {line = 469, col = 19, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}}))
+a'52 <-> Name "a" Nothing 6989586621679033491 (Just (Span {start = Loc {line = 31, col = 13, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Maybe.hs"}, end = Loc {line = 31, col = 14, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Maybe.hs"}}))
+Nil <-> Name "Nil" (Just "GADTS1") 8214565720323785702 (Just (Span {start = Loc {line = 17, col = 3, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 17, col = 15, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}}))
+m <-> Name "m" Nothing 6989586621679050375 (Just (Span {start = Loc {line = 516, col = 30, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 516, col = 31, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+a'48 <-> Name "a" Nothing 6989586621679023155 (Just (Span {start = Loc {line = 688, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 688, col = 25, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+ds'11 <-> Name "ds" Nothing 7205759403792823426 Nothing
+$c>2 <-> Name "$c>2" Nothing 8214565720323816764 (Just (Span {start = Loc {line = 309, col = 12, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 309, col = 13, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+a'6 <-> Name "a" Nothing 6989586621679048115 (Just (Span {start = Loc {line = 189, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 189, col = 26, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+$fFoldable[] <-> Name "$fFoldable[]" (Just "Data.Foldable") 8214565720323792107 (Just (Span {start = Loc {line = 284, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Foldable.hs"}, end = Loc {line = 284, col = 21, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Foldable.hs"}}))
+$fFunctorSum <-> Name "$fFunctorSum" (Just "Data.Monoid") 8214565720323791933 (Just (Span {start = Loc {line = 120, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 120, col = 21, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+/ <-> Name "/" (Just "GHC.Real") 8214565720323791754 (Just (Span {start = Loc {line = 175, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 175, col = 39, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+ds1'18 <-> Name "ds1" Nothing 7205759403792823604 Nothing
+x'3 <-> Name "x" Nothing 6989586621679028236 Nothing
+y'18 <-> Name "y" Nothing 6989586621679029979 Nothing
+y'24 <-> Name "y" Nothing 6989586621679030011 Nothing
+f <-> Name "f" Nothing 6989586621679048110 (Just (Span {start = Loc {line = 214, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 214, col = 43, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+a'37 <-> Name "a" Nothing 7566047373982468947 Nothing
+r'6 <-> Name "r" Nothing 6989586621679013250 Nothing
+$fIntegralInteger <-> Name "$fIntegralInteger" (Just "GHC.Real") 8214565720323791783 (Just (Span {start = Loc {line = 347, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 347, col = 27, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+a'64 <-> Name "a" (Just "GHC.Tuple") 1 Nothing
+patError <-> Name "patError" (Just "Control.Exception.Base") 8214565720323789388 (Just (Span {start = Loc {line = 420, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Control/Exception/Base.hs"}, end = Loc {line = 420, col = 9, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Control/Exception/Base.hs"}}))
+a'80 <-> Name "a" Nothing 7566047373982441682 Nothing
+$fOrdChar <-> Name "$fOrdChar" (Just "GHC.Classes") 8214565720323791396 (Just (Span {start = Loc {line = 283, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 283, col = 18, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
++ <-> Name "+" (Just "GHC.Num") 8214565720323791622 (Just (Span {start = Loc {line = 36, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}, end = Loc {line = 36, col = 39, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}}))
+$fFractionalFloat <-> Name "$fFractionalFloat" (Just "GHC.Float") 8214565720323791884 (Just (Span {start = Loc {line = 278, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 278, col = 27, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+a'71 <-> Name "a" Nothing 6989586621679013010 Nothing
+ds1'8 <-> Name "ds1" Nothing 7205759403792824181 Nothing
+$fFunctorMaybe <-> Name "$fFunctorMaybe" (Just "GHC.Base") 8214565720323791581 (Just (Span {start = Loc {line = 692, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 692, col = 24, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+$<=## <-> Name "$<=##" (Just "GHC.PrimSMT") 8214565720323790318 Nothing
+$p1Floating <-> Name "$p1Floating" (Just "GHC.Float") 8214565720323791870 (Just (Span {start = Loc {line = 62, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 129, col = 40, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+sqrtDouble# <-> Name "sqrtDouble#" (Just "GHC.Float") 8214565720323791841 (Just (Span {start = Loc {line = 1232, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 1232, col = 12, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+a'74 <-> Name "a" Nothing 6989586621679014322 (Just (Span {start = Loc {line = 44, col = 1, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 44, col = 28, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}}))
+wild1 <-> Name "wild1" Nothing 3458764513820540928 Nothing
+< <-> Name "<" (Just "GHC.Classes") 8214565720323791367 (Just (Span {start = Loc {line = 199, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 199, col = 43, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+ds1'1 <-> Name "ds1" Nothing 7205759403792822997 Nothing
+Nothing <-> Name "Nothing" (Just "GHC.Maybe") 8214565720323791440 (Just (Span {start = Loc {line = 31, col = 19, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Maybe.hs"}, end = Loc {line = 31, col = 26, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Maybe.hs"}}))
+x'8 <-> Name "x" Nothing 6989586621679028237 Nothing
+-## <-> Name "-##" (Just "GHC.Prim") 8214565720323791203 Nothing
+$cacos1 <-> Name "$cacos1" Nothing 8214565720323817027 (Just (Span {start = Loc {line = 500, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 500, col = 9, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+x'43 <-> Name "x" Nothing 6989586621679033613 Nothing
+gtInteger <-> Name "gtInteger" (Just "GHC.Num.Integer") 8214565720323791460 (Just (Span {start = Loc {line = 560, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}, end = Loc {line = 560, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}}))
+ds'4 <-> Name "ds" Nothing 7205759403792798243 Nothing
+a'65 <-> Name "a" (Just "GHC.Tuple") 0 Nothing
+$p1Traversable <-> Name "$p1Traversable" (Just "Data.Traversable") 8214565720323792129 (Just (Span {start = Loc {line = 151, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Traversable.hs"}, end = Loc {line = 176, col = 25, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Traversable.hs"}}))
+x'5 <-> Name "x" Nothing 6989586621679025738 Nothing
+ds1'12 <-> Name "ds1" Nothing 7205759403792824178 Nothing
+a'92 <-> Name "a" Nothing 7566047373982445653 Nothing
+$fBoundedInt <-> Name "$fBoundedInt" (Just "GHC.Enum") 8214565720323791723 (Just (Span {start = Loc {line = 465, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}, end = Loc {line = 465, col = 22, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Enum.hs"}}))
+v'10 <-> Name "v" Nothing 4755801206503243800 Nothing
+gcd' <-> Name "gcd'" Nothing 6989586621679035582 Nothing
+ds'26 <-> Name "ds" Nothing 7205759403792823620 Nothing
+eta <-> Name "eta" Nothing 4755801206503243776 Nothing
+$fRealInt <-> Name "$fRealInt" (Just "GHC.Real") 8214565720323791784 (Just (Span {start = Loc {line = 252, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 252, col = 19, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+$fRealInteger <-> Name "$fRealInteger" (Just "GHC.Real") 8214565720323791785 (Just (Span {start = Loc {line = 332, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 332, col = 23, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+$fMonadFUN <-> Name "$fMonadFUN" (Just "GHC.Base") 8214565720323791583 (Just (Span {start = Loc {line = 685, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 685, col = 24, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+wild4'1 <-> Name "wild4" Nothing 3458764513820540928 Nothing
+$fOrdWord <-> Name "$fOrdWord" (Just "GHC.Classes") 8214565720323791401 (Just (Span {start = Loc {line = 338, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 338, col = 18, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+geInteger <-> Name "geInteger" (Just "GHC.Num.Integer") 8214565720323791458 (Just (Span {start = Loc {line = 562, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}, end = Loc {line = 562, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}}))
+map <-> Name "map" (Just "GHC.Base") 8214565720323791518 (Just (Span {start = Loc {line = 913, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 913, col = 4, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+ds1'20 <-> Name "ds1" Nothing 7205759403792823602 Nothing
+x'27 <-> Name "x" Nothing 6989586621679028234 Nothing
+y'33 <-> Name "y" Nothing 6989586621679029981 Nothing
+negateInt# <-> Name "negateInt#" (Just "GHC.Prim") 8214565720323791246 Nothing
+a1'1 <-> Name "a1" Nothing 6989586621679014097 Nothing
+D# <-> Name "D#" (Just "GHC.Types") 8214565720323791287 (Just (Span {start = Loc {line = 26, col = 15, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 26, col = 25, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}}))
+$fOrdFloat <-> Name "$fOrdFloat" (Just "GHC.Classes") 8214565720323791398 (Just (Span {start = Loc {line = 289, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 289, col = 19, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+ys <-> Name "ys" Nothing 6989586621679023267 Nothing
+a'13 <-> Name "a" Nothing 6989586621679020853 (Just (Span {start = Loc {line = 91, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 91, col = 25, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+$ccompare1 <-> Name "$ccompare1" Nothing 8214565720323816767 (Just (Span {start = Loc {line = 301, col = 12, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 301, col = 21, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+a'24 <-> Name "a" Nothing 6989586621679053044 (Just (Span {start = Loc {line = 222, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 222, col = 38, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+b <-> Name "b" Nothing 6989586621679053045 (Just (Span {start = Loc {line = 222, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 222, col = 38, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+a'86 <-> Name "a" Nothing 6989586621679013012 Nothing
+k <-> Name "k" Nothing 6989586621679048262 (Just (Span {start = Loc {line = 210, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 210, col = 38, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+a'25 <-> Name "a" Nothing 6989586621679033492 (Just (Span {start = Loc {line = 40, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Maybe.hs"}, end = Loc {line = 40, col = 34, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Maybe.hs"}}))
+ds <-> Name "ds" Nothing 7205759403792822725 Nothing
+$casin1 <-> Name "$casin1" Nothing 8214565720323817028 (Just (Span {start = Loc {line = 499, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 499, col = 9, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+ds'25 <-> Name "ds" Nothing 7205759403792824613 Nothing
+y'5 <-> Name "y" Nothing 6989586621679028316 Nothing
+$cexp1 <-> Name "$cexp1" Nothing 8214565720323817037 (Just (Span {start = Loc {line = 493, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 493, col = 8, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+Lt <-> Name "Lt" (Just "GADTS1") 8214565720323788001 (Just (Span {start = Loc {line = 40, col = 3, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 40, col = 26, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}}))
+Rational <-> Name "Rational" (Just "GHC.Real") 8214565720323791767 (Just (Span {start = Loc {line = 83, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 83, col = 41, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+pi <-> Name "pi" (Just "GHC.Float") 8214565720323791863 Nothing
+x'20 <-> Name "x" Nothing 6341068275337658379 Nothing
+x'19 <-> Name "x" Nothing 6989586621679028235 Nothing
+a'84 <-> Name "a" Nothing 6989586621679035028 (Just (Span {start = Loc {line = 643, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 643, col = 47, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+$clog1 <-> Name "$clog1" Nothing 8214565720323817038 (Just (Span {start = Loc {line = 494, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 494, col = 8, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+a1'2 <-> Name "a1" Nothing 6989586621679014096 Nothing
+GT <-> Name "GT" (Just "GHC.Types") 8214565720323791298 (Just (Span {start = Loc {line = 28, col = 27, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 28, col = 29, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}}))
+a'53 <-> Name "a" Nothing 6989586621679025716 (Just (Span {start = Loc {line = 197, col = 22, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 197, col = 23, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+$fEqRatio <-> Name "$fEqRatio" (Just "GHC.Real") 8214565720323791781 (Just (Span {start = Loc {line = 76, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 76, col = 32, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+x'28 <-> Name "x" Nothing 6989586621679033611 Nothing
+Constraint <-> Name "Constraint" (Just "GHC.Types") 3674937295934324920 Nothing
+All <-> Name "All" (Just "Data.Monoid") 8214565720323791903 (Just (Span {start = Loc {line = 96, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 96, col = 37, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+$c<2 <-> Name "$c<2" Nothing 8214565720323816766 (Just (Span {start = Loc {line = 306, col = 12, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 306, col = 13, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+x'9 <-> Name "x" Nothing 6989586621679025736 Nothing
+a'43 <-> Name "a" Nothing 6989586621679033495 (Just (Span {start = Loc {line = 36, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Maybe.hs"}, end = Loc {line = 36, col = 32, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Maybe.hs"}}))
+leInteger <-> Name "leInteger" (Just "GHC.Num.Integer") 8214565720323791463 (Just (Span {start = Loc {line = 559, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}, end = Loc {line = 559, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}}))
+$cmin <-> Name "$cmin" Nothing 8214565720323817119 (Just (Span {start = Loc {line = 564, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}, end = Loc {line = 564, col = 21, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Integer/Type2.hs"}}))
+ds1'19 <-> Name "ds1" Nothing 7205759403792822928 Nothing
+$fAlternativeMaybe <-> Name "$fAlternativeMaybe" (Just "GHC.Base") 8214565720323791572 (Just (Span {start = Loc {line = 747, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 747, col = 27, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+k1 <-> Name "k1" Nothing 3530822107858468865 Nothing
+ds1'10 <-> Name "ds1" Nothing 7205759403792823600 Nothing
+x'6 <-> Name "x" Nothing 6989586621679028232 Nothing
+y'31 <-> Name "y" Nothing 6989586621679029983 Nothing
+$fEnumDouble <-> Name "$fEnumDouble" (Just "GHC.Float") 8214565720323791879 (Just (Span {start = Loc {line = 640, col = 11, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 640, col = 22, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+y'23 <-> Name "y" Nothing 6989586621679038111 Nothing
+a'9 <-> Name "a" Nothing 6989586621679045207 (Just (Span {start = Loc {line = 413, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Foldable.hs"}, end = Loc {line = 413, col = 33, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Foldable.hs"}}))
+a1 <-> Name "a1" Nothing 6989586621679014099 Nothing
+a2'1 <-> Name "a2" Nothing 6989586621679014098 Nothing
+a'45 <-> Name "a" Nothing 6989586621679025783 (Just (Span {start = Loc {line = 58, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 58, col = 38, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+C:Real <-> Name "C:Real" (Just "GHC.Real") 8214565720323791803 (Just (Span {start = Loc {line = 133, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 135, col = 42, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+evalMyExpr <-> Name "evalMyExpr" (Just "GADTS1") 8214565720323785715 (Just (Span {start = Loc {line = 47, col = 42, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 47, col = 11, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}}))
+a'60 <-> Name "a" Nothing 6989586621679028215 (Just (Span {start = Loc {line = 62, col = 35, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 62, col = 36, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+r'5 <-> Name "r" Nothing 6989586621679024550 (Just (Span {start = Loc {line = 1096, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 1096, col = 52, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+wild'4 <-> Name "wild" Nothing 7566047373982463379 Nothing
+$ctan1 <-> Name "$ctan1" Nothing 8214565720323817029 (Just (Span {start = Loc {line = 498, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 498, col = 8, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+$dEq6'1 <-> Name "$dEq6" Nothing 6341068275337658371 Nothing
+a'35 <-> Name "a" Nothing 6989586621679062262 (Just (Span {start = Loc {line = 133, col = 31, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 133, col = 32, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+mod <-> Name "mod" (Just "GHC.Real") 8214565720323791760 (Just (Span {start = Loc {line = 150, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 150, col = 39, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+signum <-> Name "signum" (Just "GHC.Num") 8214565720323791627 Nothing
+x'48 <-> Name "x" Nothing 6989586621679025801 Nothing
+y'19 <-> Name "y" Nothing 6989586621679028318 Nothing
+:> <-> Name ":>" (Just "GADTS1") 8214565720323785703 (Just (Span {start = Loc {line = 18, col = 3, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 18, col = 60, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}}))
+ds'28 <-> Name "ds" Nothing 7205759403792823623 Nothing
+a'67 <-> Name "a" Nothing 6989586621679024598 (Just (Span {start = Loc {line = 963, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 963, col = 26, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+area <-> Name "area" (Just "GADTS1") 8214565720323785710 (Just (Span {start = Loc {line = 11, col = 1, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}, end = Loc {line = 11, col = 5, file = "/Users/qinghongwu/Downloads/G2/tests/TestFiles/Extensions/GADTs1.hs"}}))
+Monoid <-> Name "Monoid" (Just "GHC.Base") 8214565720323791552 (Just (Span {start = Loc {line = 266, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 278, col = 39, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+Traversable <-> Name "Traversable" (Just "Data.Traversable") 8214565720323792120 (Just (Span {start = Loc {line = 151, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Traversable.hs"}, end = Loc {line = 176, col = 25, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Traversable.hs"}}))
+x'66 <-> Name "x" Nothing 6989586621679028233 Nothing
+$casinh1 <-> Name "$casinh1" Nothing 8214565720323817101 (Just (Span {start = Loc {line = 508, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 508, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+/= <-> Name "/=" (Just "GHC.Classes") 8214565720323791364 (Just (Span {start = Loc {line = 46, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 46, col = 43, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+absInt <-> Name "absInt" (Just "GHC.Num") 8214565720323791611 (Just (Span {start = Loc {line = 129, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}, end = Loc {line = 129, col = 7, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Num.hs"}}))
+&& <-> Name "&&" (Just "GHC.Classes") 8214565720323791338 (Just (Span {start = Loc {line = 371, col = 7, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 371, col = 9, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+a'54 <-> Name "a" Nothing 6989586621679034966 (Just (Span {start = Loc {line = 171, col = 30, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}, end = Loc {line = 171, col = 31, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Real.hs"}}))
+Any <-> Name "Any" (Just "Data.Monoid") 8214565720323791909 (Just (Span {start = Loc {line = 104, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}, end = Loc {line = 104, col = 37, file = "/Users/qinghongwu/.g2/base-4.9.1.0/Data/Monoid.hs"}}))
+$cfromRational1 <-> Name "$cfromRational1" Nothing 8214565720323817097 (Just (Span {start = Loc {line = 470, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}, end = Loc {line = 470, col = 17, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Float.hs"}}))
+$<## <-> Name "$<##" (Just "GHC.PrimSMT") 8214565720323790316 Nothing
+++ <-> Name "++" (Just "GHC.Base") 8214565720323791498 (Just (Span {start = Loc {line = 967, col = 1, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}, end = Loc {line = 967, col = 5, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Base.hs"}}))
+$fEqFloat <-> Name "$fEqFloat" (Just "GHC.Classes") 8214565720323791389 (Just (Span {start = Loc {line = 134, col = 10, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}, end = Loc {line = 134, col = 18, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Classes2.hs"}}))
+x'25 <-> Name "x" Nothing 6989586621679033609 Nothing
+LT <-> Name "LT" (Just "GHC.Types") 8214565720323791299 (Just (Span {start = Loc {line = 28, col = 17, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}, end = Loc {line = 28, col = 19, file = "/Users/qinghongwu/.g2/base-4.9.1.0/GHC/Types2.hs"}}))
+ds'16 <-> Name "ds" Nothing 7205759403792822887 Nothing
