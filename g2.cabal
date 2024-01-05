@@ -51,6 +51,7 @@ library
 
                        , G2.Execution
                        , G2.Execution.HPC
+                       , G2.Execution.InstTypes
                        , G2.Execution.Interface
                        , G2.Execution.Memory
                        , G2.Execution.NewPC
@@ -59,6 +60,7 @@ library
                        , G2.Execution.Reducer
                        , G2.Execution.Rules
                        , G2.Execution.RuleTypes
+                       
 
                        , G2.Initialization.FpToRational
                        , G2.Initialization.Interface
