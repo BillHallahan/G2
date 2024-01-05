@@ -561,6 +561,7 @@ runG2 :: ( MonadIO m
          solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
 runG2 red hal ord solver simplifier mem is bindings = do
     (exec_states, bindings') <- runG2ThroughExecution red hal ord mem is bindings
-    let (exec_states', ng'') = L.foldl' instType (name_gen bindings') exec_states
-    sol_states <- mapM (runG2Solving solver simplifier bindings') exec_states' 
-    return (catMaybes sol_states, bindings')
+    let (ng'',exec_states') = L.mapAccumL instType (name_gen bindings') exec_states
+    let bindings'' = bindings'{ name_gen = ng''}
+    sol_states <- mapM (runG2Solving solver simplifier bindings'') exec_states' 
+    return (catMaybes sol_states, bindings'')

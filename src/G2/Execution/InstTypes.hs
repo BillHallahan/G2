@@ -21,17 +21,17 @@ newType ng te =
     in
         (TyCon tn TYPE, te', ng'')
 
-instType :: NameGen -> State t -> (State t, NameGen)
+instType :: NameGen -> State t -> (NameGen, State t)
 instType ng st = 
     let 
         is = tyVarIds $ curr_expr st
-        (st', ng') = L.foldl' instType' (st, ng) is
+        (ng', st') = L.foldl' instType' (ng, st) is
     in
-        (st', ng')
+        (ng', st')
 
 -- Introducing a new type for a type variable and substituting the variable in the curr_expr
-instType' :: (State t, NameGen) -> Id -> (State t, NameGen)
-instType' (st, ng) i =
+instType' :: (NameGen, State t) -> Id -> (NameGen, State t)
+instType' (ng, st) i =
     let 
         (t,te,ng') = newType ng (type_env st)
         n = idName i
@@ -41,4 +41,4 @@ instType' (st, ng) i =
         cexpr = replaceTyVar n t (curr_expr st')
         st'' = st' {curr_expr = cexpr}
     in
-        (st'',ng')
+        (ng',st'')
