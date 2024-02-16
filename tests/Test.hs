@@ -357,7 +357,7 @@ testFileTests = testGroup "TestFiles"
     --     , RExists (\[x, y] -> x == Lit (LitInt 0) && y == App (Data (PrimCon I)) (Lit (LitInt 0)))
     --     , RExists (\[x, _] -> x /= Lit (LitInt 0))]
     -- , checkExprAssumeAssert "tests/TestFiles/HigherOrderList.hs" 400 Nothing Nothing "g" [AtLeast  10] 
-    
+    , checkExpr "tests/TestFiles/MkSymbolic.hs" 1000 "f" [ Exactly 5 ]
     ]
 
 extensionTests :: TestTree
