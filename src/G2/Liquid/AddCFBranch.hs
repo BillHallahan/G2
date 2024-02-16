@@ -105,7 +105,7 @@ cfRetValue ars rt
         
         return . Let ((ir_bndr, inst_ret_call):ex_let_bnds) $ Tick (NamedLoc instFuncTickName) (Var ir_bndr)
     | otherwise = do 
-        return (SymGen rt)
+        return (SymGen SNoLog rt)
 
 nullNonDet :: Expr -> Bool
 nullNonDet (NonDet []) = False

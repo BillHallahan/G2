@@ -189,7 +189,8 @@ mkExprHaskell' off_init cleaned pg ex = mkExprHaskell'' off_init ex
                 print_es = map (mkExprHaskell'' off) es
             in
             T.intercalate ("\n" <> offset off <> "[NonDet]\n") print_es 
-        mkExprHaskell'' _ (SymGen t) = "(symgen " <> mkTypeHaskellPG pg t <> ")"
+        mkExprHaskell'' _ (SymGen SLog t) = "(symgen log " <> mkTypeHaskellPG pg t <> ")"
+        mkExprHaskell'' _ (SymGen SNoLog t) = "(symgen no_log " <> mkTypeHaskellPG pg t <> ")"
         mkExprHaskell'' _ e = "e = " <> T.pack (show e) <> " NOT SUPPORTED"
 
         parenWrap :: Expr -> T.Text -> T.Text

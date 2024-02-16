@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns #-}
+
 module HigherOrder where
 
 data List = Cons Bool List | EmptyList
@@ -35,3 +37,10 @@ data IntPair = IntPair Int Int
 
 tupleTestMono :: (IntPair -> IntPair) -> Bool
 tupleTestMono f = let (IntPair a b) = f (IntPair 3 6) in a <= b
+
+staggered :: (Int -> Int -> Int) -> Int
+staggered f =
+    let
+        !g = f 1
+    in
+    g 2

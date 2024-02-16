@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module G2.Translation.Interface ( translateBase
                                 , translateLoaded
@@ -12,12 +13,12 @@ import qualified Data.Text as T
 import System.Directory
 
 import G2.Config
+import G2.Language as G2
 import G2.Translation.GHC
 import G2.Translation.Haskell
 import G2.Translation.InjectSpecials
 import G2.Translation.PrimInject
 import G2.Translation.TransTypes
-
 
 translateBase :: TranslationConfig
   -> Config
@@ -75,10 +76,11 @@ translateLoaded proj src tr_con config = do
   (base_exg2, b_nm, b_tnm) <- translateBase tr_con config extra_imp Nothing
 
   -- Now the stuff with the actual target
-  (_, _, exg2) <- hskToG2ViaEMS tr_con tar_ems b_nm b_tnm
+  (f_nm, f_tm, exg2) <- hskToG2ViaEMS tr_con tar_ems b_nm b_tnm
   let mb_modname = head $ exg2_mod_names exg2
+  let exg2' = adjustMkSymbolicPrim f_nm exg2
 
-  let merged_exg2 = mergeExtractedG2s [exg2, base_exg2]
+  let merged_exg2 = mergeExtractedG2s [exg2', base_exg2]
   let injected_exg2@ExtractedG2 { exg2_binds = near_final_prog } = specialInject merged_exg2
 
   final_prog <- absVarLoc near_final_prog
@@ -86,6 +88,17 @@ translateLoaded proj src tr_con config = do
   let final_exg2 = injected_exg2 { exg2_binds = final_prog }
 
   return (mb_modname, final_exg2)
+
+adjustMkSymbolicPrim :: NameMap -> ExtractedG2 -> ExtractedG2
+adjustMkSymbolicPrim nm exg2@(ExtractedG2 { exg2_binds = binds}) =
+    let
+        a = Id (Name "a" Nothing 0 Nothing) TYPE
+        m_sym_n = HM.lookup ("symgen", Just "G2.Symbolic") nm
+        symgen_e = G2.Lam TypeL a (SymGen SLog $ TyVar a)
+    in
+    case m_sym_n of
+        Just sym_n -> exg2 { exg2_binds = HM.insert sym_n symgen_e binds }
+        Nothing -> exg2
 
 specialInject :: ExtractedG2 -> ExtractedG2
 specialInject exg2 =

@@ -35,6 +35,7 @@ import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
+import qualified Data.Sequence as S
 import qualified Data.Text as T
 
 -- | Describes data types that define an AST.
@@ -50,10 +51,10 @@ class AST t where
 -- Typically, the passed higher order function will modify some subset
 -- of the constructors of the given type, and leave the rest unchanged.
 --
--- >>> let go e = case e of Var (Id _ t) -> SymGen t; _ -> e
+-- >>> let go e = case e of Var (Id _ t) -> SymGen SLog t; _ -> e
 -- >>> let n = Name "x" Nothing 0 Nothing
 -- >>> modify go (Lam TypeL (Id n TyLitInt) (App (Var $ Id n TyLitInt) (Var $ Id n TyLitFloat)))
--- Lam TypeL (Id (Name "x" Nothing 0 Nothing) TyLitInt) (App (SymGen TyLitInt) (SymGen TyLitFloat))
+-- Lam TypeL (Id (Name "x" Nothing 0 Nothing) TyLitInt) (App (SymGen SLog TyLitInt) (SymGen SLog TyLitFloat))
 modify :: AST t => (t -> t) -> t -> t
 modify f t = go t
     where
@@ -193,7 +194,7 @@ instance AST Expr where
     children (Type _) = []
     children (Tick _ e) = [e]
     children (NonDet es) = es
-    children (SymGen _) = []
+    children (SymGen _ _) = []
     children (Assume _ e e') = [e, e']
     children (Assert _ e e') = [e, e']
 
@@ -250,7 +251,7 @@ instance ASTContainer Expr Type where
     containedASTs (Type t) = [t]
     containedASTs (Tick _ e) = containedASTs e
     containedASTs (NonDet es) = containedASTs es
-    containedASTs (SymGen t) = [t]
+    containedASTs (SymGen _ t) = [t]
     containedASTs (Assume is e e') = containedASTs is ++ containedASTs e ++ containedASTs e'
     containedASTs (Assert is e e') = containedASTs is ++ containedASTs e ++ containedASTs e'
     containedASTs _ = []
@@ -267,7 +268,7 @@ instance ASTContainer Expr Type where
     modifyContainedASTs f (Coercion c) = Coercion (modifyContainedASTs f c)
     modifyContainedASTs f (Tick t e) = Tick t (modifyContainedASTs f e)
     modifyContainedASTs f (NonDet es) = NonDet (modifyContainedASTs f es)
-    modifyContainedASTs f (SymGen t) = SymGen (f t)
+    modifyContainedASTs f (SymGen sl t) = SymGen sl (f t)
     modifyContainedASTs f (Assume is e e') = Assume (modifyContainedASTs f is) (modifyContainedASTs f e) (modifyContainedASTs f e')
     modifyContainedASTs f (Assert is e e') = 
         Assert (modifyContainedASTs f is) (modifyContainedASTs f e) (modifyContainedASTs f e')
@@ -370,23 +371,28 @@ instance ASTContainer RewriteRule Type where
 --     modifyContainedASTs f = fmap (modifyContainedASTs f)
 
 instance ASTContainer c t => ASTContainer [c] t where
-    containedASTs = foldMap (containedASTs)
+    containedASTs = foldMap containedASTs
+
+    modifyContainedASTs f = fmap (modifyContainedASTs f)
+
+instance ASTContainer c t => ASTContainer (S.Seq c) t where
+    containedASTs = foldMap containedASTs
 
     modifyContainedASTs f = fmap (modifyContainedASTs f)
 
 instance ASTContainer c t => ASTContainer (Maybe c) t where
-    containedASTs = foldMap (containedASTs)
+    containedASTs = foldMap containedASTs
 
     modifyContainedASTs f = fmap (modifyContainedASTs f)
 
 
 instance ASTContainer c t => ASTContainer (HM.HashMap k c) t where
-    containedASTs = foldMap (containedASTs)
+    containedASTs = foldMap containedASTs
 
     modifyContainedASTs f = fmap (modifyContainedASTs f)
 
 instance ASTContainer c t => ASTContainer (M.Map k c) t where
-    containedASTs = foldMap (containedASTs)
+    containedASTs = foldMap containedASTs
 
     modifyContainedASTs f = fmap (modifyContainedASTs f)
 
