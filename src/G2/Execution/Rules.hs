@@ -39,6 +39,7 @@ import Control.Monad.Extra
 import Data.Maybe
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
+import qualified Data.Sequence as S
 
 import Debug.Trace
 
@@ -68,7 +69,7 @@ stdReduce' share _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce
     | Cast e c <- ce = return $ evalCast s ng e c
     | Tick t e <- ce = return $ evalTick s ng t e
     | NonDet es <- ce = return $ evalNonDet s ng es
-    | SymGen t <- ce = return $ evalSymGen s ng t
+    | SymGen sl t <- ce = return $ evalSymGen s ng sl t
     | Assume fc e1 e2 <- ce = return $ evalAssume s ng fc e1 e2
     | Assert fc e1 e2 <- ce = return $ evalAssert s ng fc e1 e2
     | otherwise = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
@@ -667,17 +668,21 @@ evalNonDet s ng es =
     in
     (RuleNonDet, s', ng)
 
-evalSymGen :: State t -> NameGen -> Type -> (Rule, [State t], NameGen)
+evalSymGen :: State t -> NameGen -> SymLog -> Type -> (Rule, [State t], NameGen)
 evalSymGen s@( State { expr_env = eenv }) 
-           ng t =
+           ng sl t =
     let
           (n, ng') = freshSeededString "symG" ng
           i = Id n t
 
           eenv' = E.insertSymbolic i eenv
+          sg = case sl of
+                    SLog -> sym_gens s S.:|> n
+                    SNoLog -> sym_gens s
     in
     (RuleSymGen, [s { expr_env = eenv'
-                    , curr_expr = CurrExpr Evaluate (Var i) }]
+                    , curr_expr = CurrExpr Evaluate (Var i)
+                    , sym_gens = sg }]
                 , ng')
 
 evalAssume :: State t -> NameGen -> Maybe FuncCall -> Expr -> Expr -> (Rule, [State t], NameGen)

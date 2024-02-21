@@ -36,6 +36,7 @@ import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
+import qualified Data.Sequence as Seq
 import Data.IORef
 import qualified Data.Text as T
 
@@ -331,6 +332,7 @@ moveOutStatePieces tenv_name s = do
              , rules = $(rules_exp)
              , num_steps = $(num_steps_exp)
              , tags = $(tags_exp) 
+             , sym_gens = Seq.empty
              , track = $(track_exp) } |]
 
 -- Returns an Q Exp represeting a [(Name, Expr)] list

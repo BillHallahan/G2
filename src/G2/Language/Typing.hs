@@ -205,7 +205,7 @@ instance Typed Expr where
     typeOf' m (Tick _ e) = typeOf' m e
     typeOf' m (NonDet (e:_)) = typeOf' m e
     typeOf' _ (NonDet []) = TyBottom
-    typeOf' _ (SymGen t) = t
+    typeOf' _ (SymGen _ t) = t
     typeOf' m (Assert _ _ e) = typeOf' m e
     typeOf' m (Assume _ _ e) = typeOf' m e
 
@@ -262,7 +262,7 @@ check' uf (Cast e (t :~ t')) = check' uf e
 check' uf (Coercion (t :~ t')) = Just uf
 check' uf (Tick _ t) = check' uf t
 check' uf (NonDet es) = foldM check' uf es
-check' uf (SymGen _) = Just uf
+check' uf (SymGen _ _) = Just uf
 check' uf (Assert _ e1 e2) = check' uf e1 >>= flip check' e2
 check' uf (Assume _ e1 e2) = check' uf e1 >>= flip check' e2
 check' _ _ = error "check'"

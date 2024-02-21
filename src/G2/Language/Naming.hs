@@ -252,7 +252,7 @@ instance Named Expr where
             go (Cast _ c) = names c
             go (Coercion c) = names c
             go (Tick t _) = names t
-            go (SymGen t) = names t
+            go (SymGen _ t) = names t
             go (Assume is _ _) = names is
             go (Assert is _ _) = names is
             go _ = S.empty
@@ -272,7 +272,7 @@ instance Named Expr where
         go (Cast e c) = Cast e (rename old new c)
         go (Coercion c) = Coercion (rename old new c)
         go (Tick t e) = Tick (rename old new t) e
-        go (SymGen t) = SymGen (rename old new t)
+        go (SymGen sl t) = SymGen sl (rename old new t)
         go (Assume is e e') = Assume (rename old new is) e e'
         go (Assert is e e') = Assert (rename old new is) e e'
         go e = e
@@ -294,7 +294,7 @@ instance Named Expr where
             go (Cast e c) = Cast e (renames hm c)
             go (Coercion c) = Coercion (renames hm c)
             go (Tick t e) = Tick (renames hm t) e
-            go (SymGen t) = SymGen (renames hm t)
+            go (SymGen sl t) = SymGen sl (renames hm t)
             go (Assume is e e') = Assume (renames hm is) e e'
             go (Assert is e e') = Assert (renames hm is) e e'
             go e = e
@@ -773,6 +773,14 @@ instance Named KnownValues where
                         })
 
 instance Named a => Named [a] where
+    {-# INLINE names #-}
+    names = foldMap names
+    {-# INLINE rename #-}
+    rename old new = fmap (rename old new)
+    {-# INLINE renames #-}
+    renames hm = fmap (renames hm)
+
+instance Named a => Named (S.Seq a) where
     {-# INLINE names #-}
     names = foldMap names
     {-# INLINE rename #-}

@@ -507,14 +507,14 @@ elimSymGens arb s = s { expr_env = E.map esg $ expr_env s }
             else e
 
 elimSymGens' :: TypeEnv -> ArbValueGen -> Expr -> Expr
-elimSymGens' tenv arb (SymGen t) = fst $ arbValue t tenv arb
+elimSymGens' tenv arb (SymGen _ t) = fst $ arbValue t tenv arb
 elimSymGens' _ _ e = e
 
 hasSymGen :: Expr -> Bool
 hasSymGen = getAny . eval hasSymGen'
 
 hasSymGen' :: Expr -> Any
-hasSymGen' (SymGen _) = Any True
+hasSymGen' (SymGen _ _) = Any True
 hasSymGen' _ = Any False
 
 -------------------------------

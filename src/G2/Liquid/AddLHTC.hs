@@ -126,7 +126,7 @@ addLHTCExprEnvNextLams (Tick t e) = do
 addLHTCExprEnvNextLams (NonDet es) = do
     (es', ms) <- return . unzip =<< mapM addLHTCExprEnvNextLams es
     return (NonDet es', foldr HM.union HM.empty ms)
-addLHTCExprEnvNextLams e@(SymGen _) = return (e, HM.empty)
+addLHTCExprEnvNextLams e@(SymGen _ _) = return (e, HM.empty)
 addLHTCExprEnvNextLams (Assume fc e1 e2) = do
     (e1', m1) <- addLHTCExprEnvNextLams e1
     (e2', m2) <- addLHTCExprEnvNextLams e2

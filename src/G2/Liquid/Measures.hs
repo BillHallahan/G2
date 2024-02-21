@@ -184,7 +184,7 @@ mkExprFromBody ret m bt (R s e) = do
 
         bt' = HM.insert s_nm t bt
     g2_e <- convertLHExpr (mkDictMaps m) bt' ret e
-    return . Let [(i, SymGen t)] . Assume Nothing g2_e $ Var i 
+    return . Let [(i, SymGen SNoLog t)] . Assume Nothing g2_e $ Var i 
 
 mkDictMaps :: LHDictMap -> DictMaps
 mkDictMaps ldm = DictMaps { lh_dicts = ldm

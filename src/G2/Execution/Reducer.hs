@@ -1013,7 +1013,7 @@ adtHeightOrderer pref_height mn =
             h
 
         step (v, _) _ _
-                      (State { curr_expr = CurrExpr _ (SymGen _) }) = (v, True)
+                      (State { curr_expr = CurrExpr _ (SymGen _ _) }) = (v, True)
         step(v, True) _ _ s =
             (v `HS.union` (HS.fromList . map idName . E.symbolicIds . expr_env $ s), False)
         step (v, _) _ _
@@ -1068,7 +1068,7 @@ adtSizeOrderer pref_height mn =
             h
 
         step (v, _) _ _
-                      (State { curr_expr = CurrExpr _ (SymGen _) }) = (v, True)
+                      (State { curr_expr = CurrExpr _ (SymGen _ _) }) = (v, True)
         step (v, True) _ _ s =
             (v `HS.union` (HS.fromList . map idName . E.symbolicIds . expr_env $ s), False)
         step (v, _) _ _
