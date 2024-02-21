@@ -517,7 +517,7 @@ lhPPCall lhm fnm t
         let bind_app = mkApp $ Var bind_i:map Var let_is
         pp <- lhPPCall lhm fnm rt
         let pp_app = App pp bind_app
-        return . Lam TermL bind_i $ Let (zip let_is $ map SymGen ts) pp_app
+        return . Lam TermL bind_i $ Let (zip let_is $ map (SymGen SNoLog) ts) pp_app
         -- i <- freshIdN t
         -- return . Lam TermL i =<< mkTrueE
     | TyForAll _ _ <- t = do

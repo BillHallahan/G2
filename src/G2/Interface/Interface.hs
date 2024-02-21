@@ -72,6 +72,7 @@ import qualified Control.Monad.State as SM
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
 import Data.Maybe
+import qualified Data.Sequence as Seq
 import qualified Data.Text as T
 
 import System.Timeout
@@ -182,6 +183,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr argTys config =
     , rules = []
     , num_steps = 0
     , track = ()
+    , sym_gens = Seq.empty
     , tags = S.empty
     }
     , Bindings {
@@ -530,10 +532,11 @@ runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
     let
         s' = s { model = m }
 
-        (es, e, ais) = subModel s' bindings
+        (es, e, ais, gens) = subModel s' bindings
         sm = ExecRes { final_state = s'
                      , conc_args = es
                      , conc_out = e
+                     , conc_sym_gens = gens
                      , violated = ais}
 
         sm' = runPostprocessing bindings sm
@@ -541,6 +544,7 @@ runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
         sm'' = ExecRes { final_state = final_state sm'
                        , conc_args = fixed_inputs bindings ++ conc_args sm'
                        , conc_out = evalPrims tenv kv (conc_out sm')
+                       , conc_sym_gens = gens
                        , violated = evalPrims tenv kv (violated sm')}
     in
     sm''

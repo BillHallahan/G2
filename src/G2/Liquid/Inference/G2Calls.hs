@@ -74,6 +74,7 @@ import qualified Data.HashMap.Lazy as HM
 import Data.List
 import qualified Data.Map as M
 import Data.Maybe
+import qualified Data.Sequence as S
 import qualified Data.Text as T
 import Data.Tuple.Extra
 
@@ -266,7 +267,7 @@ runG2SolvingInference solver simplifier bindings (ExecRes { final_state = s }) =
                 _ -> error "runG2SolvingInference: solving failed with no minimization"
 
 earlyExecRes :: Bindings -> State t -> ExecRes t
-earlyExecRes b s@(State { expr_env = eenv, curr_expr = CurrExpr _ cexpr }) =
+earlyExecRes b s@(State { expr_env = eenv, curr_expr = CurrExpr _ cexpr, sym_gens = gens }) =
     let
         viol = assert_ids s
         viol' = if fmap funcName viol == Just initiallyCalledFuncName
@@ -276,6 +277,7 @@ earlyExecRes b s@(State { expr_env = eenv, curr_expr = CurrExpr _ cexpr }) =
     ExecRes { final_state = s
             , conc_args = fixed_inputs b ++ mapMaybe getArg (input_names b)
             , conc_out = cexpr
+            , conc_sym_gens = fmap fromJust . S.filter isJust $ fmap getArg gens
             , violated = viol' }
     where
         getArg n = case E.lookup n eenv of
@@ -663,7 +665,7 @@ swapForSG i eenv =
 
         sg_i = Id (Name "sym_gen" Nothing 0 Nothing) r
     in
-    E.insert (idName i) (Let [(sg_i, SymGen r)] $ mkLams as (Var sg_i)) eenv
+    E.insert (idName i) (Let [(sg_i, SymGen SNoLog r)] $ mkLams as (Var sg_i)) eenv
 
 -------------------------------
 -- Checking Counterexamples

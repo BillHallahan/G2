@@ -158,7 +158,7 @@ primDefs' b c =
               , ("succError", Prim Error TyBottom)
               , ("toEnumError", Prim Error TyBottom)
               , ("ratioZeroDenominatorError", Prim Error TyBottom)
-              , ("undefined", Prim Error TyBottom)]
+              , ("undefined", Prim Error TyBottom) ]
 
 a :: Id
 a = Id (Name "a" Nothing 0 Nothing) TYPE
