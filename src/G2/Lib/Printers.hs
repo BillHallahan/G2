@@ -401,6 +401,7 @@ duplicate s n = s <> duplicate s (n - 1)
 
 printTickish :: PrettyGuide -> Tickish -> T.Text
 printTickish _ (Breakpoint sp) = printLoc (start sp) <> " - " <> printLoc (end sp)
+printTickish _ (HpcTick i m) = "(hpc " <> T.pack (show i) <> " " <> m <> ")" 
 printTickish pg (NamedLoc n) = mkNameHaskell pg n
 
 printLoc :: Loc -> T.Text

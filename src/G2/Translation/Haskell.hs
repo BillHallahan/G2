@@ -96,7 +96,7 @@ equivMods = HM.fromList
 loadProj :: Maybe HscTarget -> [FilePath] -> [FilePath] -> [GeneralFlag] -> G2.TranslationConfig -> Ghc SuccessFlag
 loadProj hsc proj src gflags tr_con = do
     beta_flags <- getSessionDynFlags
-    let gen_flags = gflags
+    let gen_flags = if G2.hpc_ticks tr_con then Opt_Hpc:gflags else gflags
 
     let init_beta_flags = gopt_unset beta_flags Opt_StaticArgumentTransformation
 
@@ -492,6 +492,8 @@ createTickish (Just mb) (Breakpoint {breakpointId = bid}) =
     case mkSpan $ modBreaks_locs mb A.! bid of
         Just s -> Just $ G2.Breakpoint $ s
         Nothing -> Nothing
+createTickish _ (HpcTick { tickModule = md, tickId = i}) =
+    Just . G2.HpcTick i . T.pack . moduleNameString $ moduleName md
 createTickish _ _ = Nothing
 
 mkLamUse :: Id -> G2.LamUse
