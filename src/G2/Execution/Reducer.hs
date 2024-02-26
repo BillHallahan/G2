@@ -595,7 +595,7 @@ taggerRedStep n _ s@(State {tags = ts}) b@(Bindings { name_gen = ng }) =
         return (Finished, [(s, ())], b)
 
 
-getLogger :: (MonadIO m, Show t) => Config -> Maybe (Reducer (SM.StateT PrettyGuide m) [Int] t)
+getLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => Config -> Maybe (Reducer m [Int] t)
 getLogger config = case logStates config of
                         Log Raw fp -> Just (simpleLogger fp)
                         Log Pretty fp -> Just (prettyLogger fp)
@@ -611,7 +611,7 @@ simpleLogger fn =
                     { updateWithAll = \s -> map (\(l, i) -> l ++ [i]) $ zip (map snd s) [1..] }
 
 -- | A Reducer to producer logging output 
-prettyLogger :: (MonadIO m, Show t) => FilePath -> Reducer (SM.StateT PrettyGuide m) [Int] t
+prettyLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => FilePath -> Reducer m [Int] t
 prettyLogger fp =
     (mkSimpleReducer
         (const [])

@@ -29,7 +29,7 @@ data TranslationConfig = TranslationConfig
   }
 
 simplTranslationConfig :: TranslationConfig
-simplTranslationConfig = TranslationConfig { simpl = True, load_rewrite_rules = False, hpc_ticks = False }
+simplTranslationConfig = TranslationConfig { simpl = True, load_rewrite_rules = False, hpc_ticks = True }
 
 data ModGutsClosure = ModGutsClosure
   { mgcc_mod_name :: Maybe String

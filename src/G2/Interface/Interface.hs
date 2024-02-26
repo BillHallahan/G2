@@ -47,6 +47,7 @@ import qualified G2.Initialization.Types as IT
 
 import G2.Preprocessing.Interface
 
+import G2.Execution.HPC
 import G2.Execution.Interface
 import G2.Execution.Reducer
 import G2.Execution.Rules
