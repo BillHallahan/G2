@@ -45,6 +45,8 @@ module G2.Execution.Reducer ( Reducer (..)
                             , InitReducer
                             , RedRules
                             , mkSimpleReducer
+                            , liftReducer
+
                             , stdRed
                             , nonRedPCTemplates
                             , nonRedPCRed
@@ -191,6 +193,12 @@ mkSimpleReducer init_red red_rules =
     , onAccept = \_ _ -> return ()
     }
 {-# INLINE mkSimpleReducer #-}
+
+liftReducer :: (Monad m1, SM.MonadTrans m2) => Reducer m1 rv t -> Reducer (m2 m1) rv t
+liftReducer r = Reducer { initReducer = initReducer r
+                        , redRules = \rv s b -> SM.lift ((redRules r) rv s b)
+                        , updateWithAll = updateWithAll r
+                        , onAccept = \s rv -> SM.lift ((onAccept r) s rv) }
 
 type InitHalter hv t = State t -> hv
 type UpdatePerStateHalt hv t = hv -> Processed (State t) -> State t -> hv
