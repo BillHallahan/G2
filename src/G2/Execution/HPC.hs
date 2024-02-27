@@ -45,6 +45,7 @@ data HpcTracker = HPC
 -- we track the total tick count as a `Maybe Int`, which is `Nothing` (if we have not yet computed
 -- the total tick count) or `Just i`, where `i` is the total tick count.
 
+-- | State used by `hpcReducer`.
 hpcTracker :: HpcTracker
 hpcTracker = HPC HS.empty Nothing
 
@@ -61,6 +62,7 @@ totalTickCount m s = do
             SM.put . HPC tr $ Just i
             return i
 
+-- | A reducer that tracks and prints the number of HPC ticks encountered during execution.
 hpcReducer :: (MonadIO m, SM.MonadState HpcTracker m) =>
               Maybe T.Text -- ^ A module to track tick count in
            -> Reducer m () t
@@ -86,6 +88,7 @@ countHPCTicks _ _ = 0
 
 newtype LengthNTrack = LNT { unLNT :: HM.HashMap [(Int, T.Text)] Int }
 
+-- | State used by `lengthNSubpathOrderer`.
 lnt :: LengthNTrack
 lnt = LNT HM.empty
 
