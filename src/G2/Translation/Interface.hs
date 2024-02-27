@@ -51,7 +51,7 @@ translateLibPairs :: NameMap
   -> IO (ExtractedG2, NameMap, TypeNameMap)
 translateLibPairs nm tnm _ _ exg2 _ _ [] = return (exg2, nm, tnm)
 translateLibPairs nm tnm tr_con config exg2 hsc inc_paths (f: fs) = do
-  (new_nm, new_tnm, exg2') <- hskToG2ViaCgGutsFromFile hsc inc_paths [f] nm tnm tr_con
+  (new_nm, new_tnm, exg2') <- hskToG2ViaCgGutsFromFile hsc inc_paths [f] nm tnm tr_con config
   translateLibPairs new_nm new_tnm tr_con config (mergeExtractedG2s [exg2, exg2']) hsc inc_paths fs
 
 selectBackend :: Maybe Backend
@@ -71,7 +71,7 @@ translateLoaded :: [FilePath]
 translateLoaded proj src tr_con config = do
   -- Stuff with the actual target
   let def_proj = extraDefaultInclude config
-  tar_ems <- envModSumModGutsFromFile selectBackend (def_proj ++ proj) src tr_con
+  tar_ems <- envModSumModGutsFromFile selectBackend (def_proj ++ proj) src tr_con config
   let imports = envModSumModGutsImports tar_ems
   extra_imp <- return . catMaybes =<< mapM (findImports (baseInclude config)) imports
 

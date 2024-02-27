@@ -37,6 +37,7 @@ module G2.Translation.Haskell
     , mkDataUnsafe
     ) where
 
+import qualified G2.Config.Config as G2
 import qualified G2.Language.TypeEnv as G2 (AlgDataTy (..))
 import qualified G2.Language.Syntax as G2
 -- import qualified G2.Language.Typing as G2
@@ -93,10 +94,10 @@ equivMods = HM.fromList
             , ("GHC.CString2", "GHC.CString")
             , ("Data.Map.Base", "Data.Map")]
 
-loadProj :: Maybe HscTarget -> [FilePath] -> [FilePath] -> [GeneralFlag] -> G2.TranslationConfig -> Ghc SuccessFlag
-loadProj hsc proj src gflags tr_con = do
+loadProj :: Maybe HscTarget -> [FilePath] -> [FilePath] -> [GeneralFlag] -> G2.TranslationConfig -> G2.Config -> Ghc SuccessFlag
+loadProj hsc proj src gflags tr_con config = do
     beta_flags <- getSessionDynFlags
-    let gen_flags = if G2.hpc_ticks tr_con then Opt_Hpc:gflags else gflags
+    let gen_flags = if G2.hpc config then Opt_Hpc:gflags else gflags
 
     let init_beta_flags = gopt_unset beta_flags Opt_StaticArgumentTransformation
 
@@ -164,9 +165,10 @@ hskToG2ViaCgGutsFromFile :: Maybe HscTarget
   -> G2.NameMap
   -> G2.TypeNameMap
   -> G2.TranslationConfig
+  -> G2.Config
   -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
-hskToG2ViaCgGutsFromFile hsc proj src nm tm tr_con = do
-  ems <- envModSumModGutsFromFile hsc proj src tr_con
+hskToG2ViaCgGutsFromFile hsc proj src nm tm tr_con config = do
+  ems <- envModSumModGutsFromFile hsc proj src tr_con config
   hskToG2ViaEMS tr_con ems nm tm
 
 hskToG2ViaEMS :: G2.TranslationConfig
@@ -211,11 +213,12 @@ data EnvModSumModGuts = EnvModSumModGuts HscEnv [ModSummary] [ModGuts]
 envModSumModGutsFromFile :: Maybe HscTarget
                          -> [FilePath]
                          -> [FilePath]
-                         -> G2.TranslationConfig 
+                         -> G2.TranslationConfig
+                         -> G2.Config
                          -> IO EnvModSumModGuts
-envModSumModGutsFromFile hsc proj src tr_con =
+envModSumModGutsFromFile hsc proj src tr_con config =
   runGhc (Just libdir) $ do
-      _ <- loadProj hsc proj src [] tr_con
+      _ <- loadProj hsc proj src [] tr_con config
       env <- getSession
 
       mod_graph <- getModuleGraph
@@ -301,9 +304,10 @@ hskToG2ViaModGutsFromFile :: Maybe HscTarget
   -> G2.NameMap
   -> G2.TypeNameMap
   -> G2.TranslationConfig
+  -> G2.Config
   -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
-hskToG2ViaModGutsFromFile hsc proj src nm tm tr_con = do
-  closures <- mkModGutsClosuresFromFile hsc proj src tr_con
+hskToG2ViaModGutsFromFile hsc proj src nm tm tr_con config = do
+  closures <- mkModGutsClosuresFromFile hsc proj src tr_con config
   let (ex_g2, (nm', tm')) = SM.runState (hskToG2ViaModGuts closures tr_con) (nm, tm)
   return (nm', tm', ex_g2)
    
@@ -358,10 +362,11 @@ mkModGutsClosuresFromFile :: Maybe HscTarget
   -> [FilePath]
   -> [FilePath]
   -> G2.TranslationConfig
+  -> G2.Config
   -> IO [G2.ModGutsClosure]
-mkModGutsClosuresFromFile hsc proj src tr_con = do
+mkModGutsClosuresFromFile hsc proj src tr_con config = do
   (env, modgutss) <- runGhc (Just libdir) $ do
-      _ <- loadProj hsc proj src [] tr_con
+      _ <- loadProj hsc proj src [] tr_con config
       env <- getSession
 
       mod_graph <- getModuleGraph

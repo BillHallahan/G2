@@ -83,7 +83,7 @@ rewriteRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                      NebulaConfig ->
                      ( SomeReducer (SM.StateT PrettyGuide m) EquivTracker
                      , SomeHalter (SM.StateT PrettyGuide m) EquivTracker
-                     , SomeOrderer EquivTracker)
+                     , SomeOrderer (SM.StateT PrettyGuide m) EquivTracker)
 rewriteRedHaltOrd solver simplifier h_opp track_opp config (NC { use_labeled_errors = use_labels }) =
     let
         share = sharing config

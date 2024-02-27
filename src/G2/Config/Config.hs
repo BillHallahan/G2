@@ -58,6 +58,7 @@ data Config = Config {
     , higherOrderSolver :: HigherOrderSolver -- ^ How to try and solve higher order functions
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
     , steps :: Int -- ^ How many steps to take when running States
+    , hpc :: Bool -- ^ Should HPC ticks be generated and tracked during execution?
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
     , timeLimit :: Int -- ^ Seconds
     , validate :: Bool -- ^ If True, run on G2's input, and check against expected output.
@@ -79,6 +80,8 @@ mkConfig homedir = Config Regular
                    <> metavar "N"
                    <> value 1000
                    <> help "how many steps to take when running states")
+    <*> flag False True (long "hpc"
+                      <> help "Generate and report on HPC ticks")
     <*> flag True False (long "no-strict" <> help "do not evaluate the output strictly")
     <*> option auto (long "time"
                    <> metavar "T"
@@ -172,6 +175,7 @@ mkConfigDirect homedir as m = Config {
     , higherOrderSolver = strArg "higher-order" as m higherOrderSolArg SingleFunc
     , smt = strArg "smt" as m smtSolverArg ConZ3
     , steps = strArg "n" as m read 1000
+    , hpc = False
     , strict = boolArg "strict" as m On
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off

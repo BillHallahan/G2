@@ -10,6 +10,7 @@ import qualified Data.Text as T
 import Text.Regex
 import Unsafe.Coerce
 
+import G2.Config.Config
 import G2.Initialization.MkCurrExpr
 import G2.Interface.OutputTypes
 import G2.Language
@@ -76,7 +77,7 @@ runCheck' modN entry chAll s ars out = do
 
 loadToCheck :: [FilePath] -> [FilePath] -> String -> [GeneralFlag] -> Ghc ()
 loadToCheck proj src modN gflags = do
-        _ <- loadProj Nothing proj src gflags simplTranslationConfig
+        _ <- loadProj Nothing proj src gflags simplTranslationConfig (mkConfigDirect "" [] mempty)
 
         let prN = mkModuleName "Prelude"
         let prImD = simpleImportDecl prN
