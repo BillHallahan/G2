@@ -284,7 +284,7 @@ initRedHaltOrd (Name _ m _ _) solver simplifier config =
                  <~> acceptIfViolatedHalter
 
         orderer = case hpc config of
-                        True -> SomeOrderer $ lengthNSubpassOrderer 2
+                        True -> SomeOrderer $ lengthNSubpathOrderer 2
                         False -> SomeOrderer $ pickLeastUsedOrderer
     in
     case higherOrderSolver config of

@@ -11,7 +11,7 @@ module G2.Execution.HPC ( HpcT
                         , hpcReducer
                         
                         , lnt
-                        , lengthNSubpassOrderer) where
+                        , lengthNSubpathOrderer) where
 
 import G2.Execution.Reducer
 import G2.Language
@@ -96,10 +96,10 @@ lnt = LNT HM.empty
 -- Based on the paper:
 --     Steering Symbolic Execution to Less Traveled Paths
 --     You Li, Zhendong Su, Linzhang Wang, Xuandong Li
-lengthNSubpassOrderer :: SM.MonadState LengthNTrack m =>
+lengthNSubpathOrderer :: SM.MonadState LengthNTrack m =>
                          Int -- ^ N, the length of the subpaths to track
                       -> Orderer m [(Int, T.Text)] Int t
-lengthNSubpassOrderer n = (mkSimpleOrderer initial order update) { stepOrderer  = step }
+lengthNSubpathOrderer n = (mkSimpleOrderer initial order update) { stepOrderer  = step }
     where
         initial _ = []
 
@@ -111,6 +111,6 @@ lengthNSubpassOrderer n = (mkSimpleOrderer initial order update) { stepOrderer  
 
         step p _ _ (State { curr_expr = CurrExpr _ (Tick (HpcTick i m) _) }) = do
             let p' = take n $ (i, m):p
-            SM.modify (LNT . HM.insertWith (+) p' 1 . HM.adjust (\x -> x - 1) p . unLNT)
+            SM.modify (LNT . HM.insertWith (+) p' 1 . unLNT)
             return p'
         step p _ _ _ = return p
