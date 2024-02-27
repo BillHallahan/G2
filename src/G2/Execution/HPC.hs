@@ -24,6 +24,7 @@ import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
 import Data.Monoid
 import qualified Data.Text as T
+import System.IO
 
 newtype HpcT m a = HpcT (SM.StateT (HS.HashSet (Int, T.Text)) m a) deriving (Functor, Applicative, Monad)
 
@@ -74,6 +75,7 @@ hpcReducer md = mkSimpleReducer (const ()) logTick
                 HPC seen _ <- SM.get
                 hpc_tick_num <- totalTickCount md s
                 liftIO $ putStr ("\r" ++ show (HS.size seen) ++ " / " ++ show hpc_tick_num)
+                liftIO $ hFlush stdout
                 return (NoProgress, [(s, ())], b)
         logTick _ s b = return (NoProgress, [(s, ())], b)
 
