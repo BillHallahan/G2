@@ -398,6 +398,8 @@ runG2WithConfig entry_f state config bindings = do
     SomeSolver solver <- initSolver config
     let simplifier = IdSimplifier
 
+    hpc_t <- hpcTracker
+
     (in_out, bindings') <- case initRedHaltOrd entry_f solver simplifier config of
                 (red, hal, ord) ->
                     SM.evalStateT
@@ -408,7 +410,7 @@ runG2WithConfig entry_f state config bindings = do
                             )
                             (mkPrettyGuide ())
                         )
-                        hpcTracker
+                        hpc_t
 
     close solver
 
