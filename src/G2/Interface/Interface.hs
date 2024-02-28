@@ -283,9 +283,9 @@ initRedHaltOrd (Name _ m _ _) solver simplifier config =
                  <~> zeroHalter (steps config)
                  <~> acceptIfViolatedHalter
 
-        orderer = case hpc config of
-                        True -> SomeOrderer $ lengthNSubpathOrderer 2
-                        False -> SomeOrderer $ pickLeastUsedOrderer
+        orderer = case search_strat config of
+                        Subpath -> SomeOrderer $ lengthNSubpathOrderer 2
+                        Iterative -> SomeOrderer $ pickLeastUsedOrderer
     in
     case higherOrderSolver config of
         AllFuncs ->

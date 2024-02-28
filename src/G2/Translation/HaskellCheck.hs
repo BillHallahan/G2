@@ -77,7 +77,7 @@ runCheck' modN entry chAll s ars out = do
 
 loadToCheck :: [FilePath] -> [FilePath] -> String -> [GeneralFlag] -> Ghc ()
 loadToCheck proj src modN gflags = do
-        _ <- loadProj Nothing proj src gflags simplTranslationConfig (mkConfigDirect "" [] mempty)
+        _ <- loadProj Nothing proj src gflags simplTranslationConfig
 
         let prN = mkModuleName "Prelude"
         let prImD = simpleImportDecl prN
