@@ -60,6 +60,7 @@ data Config = Config {
     , returnsTrue :: Bool -- ^ If True, shows only those inputs that do not return True
     , higherOrderSolver :: HigherOrderSolver -- ^ How to try and solve higher order functions
     , search_strat :: SearchStrategy -- ^ The search strategy for the symbolic executor to use
+    , subpath_length :: Int -- ^ When using subpath search strategy, the length of the subpaths.
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
     , steps :: Int -- ^ How many steps to take when running States
     , hpc :: Bool -- ^ Should HPC ticks be generated and tracked during execution?
@@ -80,6 +81,10 @@ mkConfig homedir = Config Regular
     <*> switch (long "returns-true" <> help "assert that the function returns true, show only those outputs which return false")
     <*> mkHigherOrder
     <*> mkSearchStrategy
+    <*> option auto (long "subpath-len"
+                   <> metavar "L"
+                   <> value 4
+                   <> help "when using subpath search strategy, the length of the subpaths")
     <*> mkSMTSolver
     <*> option auto (long "n"
                    <> metavar "N"
