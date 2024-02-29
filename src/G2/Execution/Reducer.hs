@@ -1165,6 +1165,7 @@ quotTrueAssert ord = (mkSimpleOrderer (initPerStateOrder ord)
 --------
 --------
 
+{-# INLINABLE runReducer #-}
 {-# SPECIALIZE runReducer :: Ord b =>
                              Reducer IO rv t
                           -> Halter IO hv t
@@ -1200,6 +1201,7 @@ runReducer red hal ord s b = do
     afterRed red
     return (states, b')
 
+{-# INLINABLE runReducer' #-}
 runReducer' :: (Monad m, Ord b)
             => Reducer m rv t
             -> Halter m hv t
@@ -1273,6 +1275,7 @@ runReducer' red hal ord pr rs@(ExState { state = s, reducer_val = r_val, halter_
                         runReducer' red hal ord pr s_h b' xs'
                     [] -> runReducerList red hal ord pr xs b'
 
+{-# INLINABLE switchState #-}
 switchState :: (Monad m, Ord b)
             => Reducer m rv t
             -> Halter m hv t
@@ -1290,6 +1293,7 @@ switchState red hal ord pr rs b xs
     where
         rs' = rs { halter_val = updatePerStateHalt hal (halter_val rs) pr (state rs) }
 
+{-# INLINABLE runReducerList #-}
 -- To be used when we we need to select a state without switching 
 runReducerList :: (Monad m, Ord b)
                => Reducer m rv t
@@ -1308,6 +1312,7 @@ runReducerList red hal ord pr m binds =
             runReducer' red hal ord pr rs' binds m'
         Nothing -> return (pr, binds)
 
+{-# INLINABLE runReducerListSwitching #-}
 -- To be used when we are possibly switching states 
 runReducerListSwitching :: (Monad m, Ord b)
                         => Reducer m rv t
@@ -1322,6 +1327,7 @@ runReducerListSwitching red hal ord pr m binds =
         Just (x, m') -> switchState red hal ord pr x binds m'
         Nothing -> return (pr, binds)
 
+{-# INLINABLE minState #-}
 -- Uses the Orderer to determine which state to continue execution on.
 -- Returns that State, and a list of the rest of the states 
 minState :: Ord b

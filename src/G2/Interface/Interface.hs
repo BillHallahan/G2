@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -248,21 +250,30 @@ initCheckReaches s@(State { expr_env = eenv
 
 type RHOStack m = SM.StateT LengthNTrack (SM.StateT PrettyGuide (SM.StateT HpcTracker m))
 
+{-# SPECIALIZE runReducer :: Ord b =>
+                             Reducer (RHOStack IO) rv ()
+                          -> Halter (RHOStack IO) hv ()
+                          -> Orderer (RHOStack IO) sov b ()
+                          -> State ()
+                          -> Bindings
+                          -> (RHOStack IO) (Processed (State ()), Bindings)
+    #-}
+
 {-# SPECIALIZE 
     initRedHaltOrd :: (Solver solver, Simplifier simplifier) =>
-                      Name
+                      Maybe T.Text
                    -> solver
                    -> simplifier
                    -> Config
                    -> (SomeReducer (RHOStack IO) (), SomeHalter (RHOStack IO) (), SomeOrderer (RHOStack IO) ())
     #-}
 initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
-                  Name
+                  Maybe T.Text
                -> solver
                -> simplifier
                -> Config
                -> (SomeReducer (RHOStack m) (), SomeHalter (RHOStack m) (), SomeOrderer (RHOStack m) ())
-initRedHaltOrd (Name _ m _ _) solver simplifier config =
+initRedHaltOrd mod_name solver simplifier config =
     let
         share = sharing config
 
@@ -271,7 +282,7 @@ initRedHaltOrd (Name _ m _ _) solver simplifier config =
         m_logger = fmap SomeReducer $ getLogger config
 
         hpc_red f = case hpc config of
-                        True -> SomeReducer (hpcReducer m ~> stdRed share f solver simplifier)
+                        True -> SomeReducer (hpcReducer mod_name ~> stdRed share f solver simplifier)
                         False -> SomeReducer (stdRed share f solver simplifier)
 
         logger_std_red f = case m_logger of
@@ -389,18 +400,18 @@ runG2FromFile proj src m_assume m_assert m_reach def_assert f transConfig config
                                     m_reach def_assert f (mkCurrExpr m_assume m_assert) (mkArgTys)
                                     transConfig config
 
-    r <- runG2WithConfig (idName entry_f) init_state config bindings
+    r <- runG2WithConfig (nameModule $ idName entry_f) init_state config bindings
 
     return (r, entry_f)
 
-runG2WithConfig :: Name -> State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
-runG2WithConfig entry_f state config bindings = do
+runG2WithConfig :: Maybe T.Text -> State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
+runG2WithConfig mod_name state config bindings = do
     SomeSolver solver <- initSolver config
     let simplifier = IdSimplifier
 
     hpc_t <- hpcTracker
 
-    (in_out, bindings') <- case initRedHaltOrd entry_f solver simplifier config of
+    (in_out, bindings') <- case initRedHaltOrd mod_name solver simplifier config of
                 (red, hal, ord) ->
                     SM.evalStateT
                         (SM.evalStateT
@@ -558,6 +569,13 @@ runG2SubstModel m s@(State { type_env = tenv, known_values = kv }) bindings =
                        , violated = evalPrims tenv kv (violated sm')}
     in
     sm''
+
+{-# SPECIALIZE runG2 :: ( Solver solver
+                        , Simplifier simplifier
+                        , Ord b) => Reducer (RHOStack IO) rv () -> Halter (RHOStack IO) hv () -> Orderer (RHOStack IO) sov b () ->
+                        solver -> simplifier -> MemConfig -> State () -> Bindings -> RHOStack IO ([ExecRes ()], Bindings)
+    #-}
+
 
 -- | Runs G2, returning both fully executed states,
 -- and states that have only been partially executed.
