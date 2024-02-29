@@ -183,7 +183,11 @@ data Reducer m rv t = Reducer {
         -- If only one state is returned by all reducers, updateWithAll does not run.
         , updateWithAll :: [(State t, rv)] -> [rv]
 
+        -- Action to run after a State is accepted.
         , onAccept :: State t -> rv -> m ()
+
+        -- | Action to run after execution of all states has terminated.
+        , afterRed :: m ()
     }
 
 -- | A simple, default reducer.
@@ -196,6 +200,7 @@ mkSimpleReducer init_red red_rules =
     , redRules = red_rules
     , updateWithAll = map snd
     , onAccept = \_ _ -> return ()
+    , afterRed = return ()
     }
 {-# INLINE mkSimpleReducer #-}
 
@@ -204,7 +209,8 @@ liftReducer :: (Monad m1, SM.MonadTrans m2) => Reducer m1 rv t -> Reducer (m2 m1
 liftReducer r = Reducer { initReducer = initReducer r
                         , redRules = \rv s b -> SM.lift ((redRules r) rv s b)
                         , updateWithAll = updateWithAll r
-                        , onAccept = \s rv -> SM.lift ((onAccept r) s rv) }
+                        , onAccept = \s rv -> SM.lift ((onAccept r) s rv)
+                        , afterRed = SM.lift (afterRed r)}
 
 -- | Lift a SomeReducer from a component monad to a constructed monad. 
 liftSomeReducer :: (Monad m1, SM.MonadTrans m2) => SomeReducer m1 t -> SomeReducer (m2 m1) t
@@ -359,6 +365,11 @@ r1 ~> r2 =
             , onAccept = \s (RC rv1 rv2) -> do
                 onAccept r1 s rv1
                 onAccept r2 s rv2
+
+            , afterRed = do
+                afterRed r1
+                afterRed r2
+
             }
 {-# INLINE (~>) #-}
 
@@ -389,6 +400,10 @@ SomeReducer r1 .~> SomeReducer r2 = SomeReducer (r1 ~> r2)
                 , onAccept = \s (RC rv1 rv2) -> do
                     onAccept r1 s rv1
                     onAccept r2 s rv2
+
+                , afterRed = do
+                    afterRed r1
+                    afterRed r2
                 }
 {-# INLINE (-->) #-}
 
@@ -434,6 +449,11 @@ r1 .|. r2 =
             , onAccept = \s (RC rv1 rv2) -> do
                 onAccept r1 s rv1
                 onAccept r2 s rv2
+
+            , afterRed = do
+                afterRed r1
+                afterRed r2
+
             }
 {-# INLINE (.|.) #-}
 
@@ -1177,6 +1197,7 @@ runReducer red hal ord s b = do
                      , order_val = initPerStateOrder ord s }
 
     (states, b') <- runReducer' red hal ord pr s' b M.empty
+    afterRed red
     return (states, b')
 
 runReducer' :: (Monad m, Ord b)

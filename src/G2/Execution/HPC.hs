@@ -65,8 +65,6 @@ hpcInsert i t hpc@(HPC { hpc_ticks = tr, num_reached = nr, times_reached = reach
         True -> return hpc
         False -> do
             ts <- liftIO $ getTime Monotonic
-            liftIO $ putStrLn "\n"
-            liftIO $ print (ts - init_ts)
             return $ hpc { hpc_ticks = HS.insert (i, t) tr, num_reached = nr + 1, times_reached =  ts:reached }
 
 totalTickCount :: SM.MonadState HpcTracker m => Maybe T.Text -> State t -> m Int
@@ -83,7 +81,7 @@ totalTickCount m s = do
 hpcReducer :: (MonadIO m, SM.MonadState HpcTracker m) =>
               Maybe T.Text -- ^ A module to track tick count in
            -> Reducer m () t
-hpcReducer md = mkSimpleReducer (const ()) logTick
+hpcReducer md = (mkSimpleReducer (const ()) logTick) { afterRed = after }
     where
         logTick _ s@(State {curr_expr = CurrExpr _ (Tick (HpcTick i tm) _)}) b
             | Just tm == md = do
@@ -95,6 +93,18 @@ hpcReducer md = mkSimpleReducer (const ()) logTick
                 liftIO $ hFlush stdout
                 return (NoProgress, [(s, ())], b)
         logTick _ s b = return (NoProgress, [(s, ())], b)
+
+        after = do
+            hpc <- SM.get
+            let init_ts = initial_time hpc
+                ts = times_reached hpc
+            liftIO $ putStrLn $ "\nTicks reached: " ++ show (num_reached hpc)
+            case ts of
+                [] -> liftIO $ putStrLn $ "Last tick reached: N/A"
+                (t:_) -> liftIO $ putStrLn $ "Last tick reached: " ++ showTS (t - init_ts)
+
+showTS :: TimeSpec -> String
+showTS (TimeSpec { sec = s, nsec = n }) = let str_n = show n in show s ++ "." ++ replicate (9 - length str_n) '0' ++ show n
 
 countHPCTicks :: Maybe T.Text -> Expr -> Sum Int
 countHPCTicks m (Tick (HpcTick _ m2) _) | m == Just m2 = Sum 1
