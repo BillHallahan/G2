@@ -10,7 +10,6 @@ import qualified Data.Text as T
 import Text.Regex
 import Unsafe.Coerce
 
-import G2.Config.Config
 import G2.Initialization.MkCurrExpr
 import G2.Interface.OutputTypes
 import G2.Language
