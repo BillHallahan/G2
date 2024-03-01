@@ -1,4 +1,4 @@
-{-# Language FlexibleContexts, FlexibleInstances, GeneralisedNewtypeDeriving,
+{-# Language FlexibleContexts, FlexibleInstances, GeneralizedNewtypeDeriving,
              MultiParamTypeClasses, StandaloneDeriving #-}
 
 -- | Provides infrastructure to track which HPC ticks have been encountered during symbolic execution.
