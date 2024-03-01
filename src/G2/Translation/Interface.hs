@@ -53,13 +53,15 @@ translateLibPairs nm tnm tr_con exg2 hsc inc_paths (f: fs) = do
   (new_nm, new_tnm, exg2') <- hskToG2ViaCgGutsFromFile hsc inc_paths [f] nm tnm tr_con
   translateLibPairs new_nm new_tnm tr_con (mergeExtractedG2s [exg2, exg2']) hsc inc_paths fs
 
-selectBackend :: Maybe Backend
 #if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+selectBackend :: Maybe Backend
 selectBackend = Just noBackend
 #elif MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
+selectBackend :: Maybe Backend
 selectBackend = Just NoBackend
 #else
-selectBackend = Just NoBackend
+selectBackend :: Maybe HscTarget
+selectBackend = Just HscNothing
 #endif
 
 translateLoaded :: [FilePath]
