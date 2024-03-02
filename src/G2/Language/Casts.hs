@@ -34,9 +34,23 @@ unsafeElimOuterCast (Cast e (t1 :~ t2)) = replaceASTs t1 t2 e
 unsafeElimOuterCast e = e
 
 -- | Given a function cast from (t1 -> t2) to (t1' -> t2'), decomposes it to two
--- seperate casts, from t1 to t1', and from t2 to t2'.  Given a cast (t1 ~ t2)
--- where t1 is a NewTyCon N t3 such that t2 /= t3, changes the cast to be
--- (t1 ~ t3) (t3 ~ t2).
+-- seperate casts, from t1' to t1, and from t2 to t2'.
+-- Note that the direction of the cast differs intentionally.  Consider:
+--
+-- @ newtype Money = Money Int
+--   newtype Person = Person String 
+--   f :: String -> Money
+--   p :: Person
+--   
+--   g = coerce (f :: Person -> Int) p
+--   g' = coerce (f (coerce p :: String)) :: Int
+-- @
+-- g and g' are equivalent. To shift the coercion from a function coercion to coercions on the inputs and outputs,
+-- we keep the same result type coercion, but have to flip the argument coercion. 
+--
+-- In addition to splitting function casts, given a cast (t1 ~ t2) where t1 is a NewTyCon N t3 such that t2 /= t3,
+-- we change the cast to be (t1 ~ t3) (t3 ~ t2).
+--
 -- Given any other expression, acts as the identity function
 splitCast :: NameGen -> Expr -> (Expr, NameGen)
 splitCast ng (Cast e ((TyFun t1 t2) :~ (TyFun t1' t2'))) =
@@ -47,7 +61,7 @@ splitCast ng (Cast e ((TyFun t1 t2) :~ (TyFun t1' t2'))) =
                 (Cast 
                     (App 
                         e
-                        (Cast (Var i) (t1 :~ t1'))
+                        (Cast (Var i) (t1' :~ t1))
                     )
                     (t2 :~ t2')
                 )
