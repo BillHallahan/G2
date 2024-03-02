@@ -55,7 +55,7 @@ translateLibPairs nm tnm tr_con exg2 hsc inc_paths (f: fs) = do
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
 selectBackend :: TranslationConfig -> Maybe Backend
-selectBackend tr | interpreter tr = Just interpreter
+selectBackend tr | interpreter tr = Just interpreterBackend
 selectBackend _ = Just noBackend
 #elif MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
 selectBackend :: TranslationConfig -> Maybe Backend
