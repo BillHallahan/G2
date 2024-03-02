@@ -202,7 +202,7 @@ parseHaskellIO mods qext = do
                 config <- qqConfig
 
                 translateLoaded projs [filepath]
-                    simplTranslationConfig
+                    (simplTranslationConfig { interpreter = True })
                     config)
     return exG2
     where

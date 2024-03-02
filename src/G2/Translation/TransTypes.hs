@@ -24,12 +24,13 @@ type ExportedName = G2.Name
 data TranslationConfig = TranslationConfig
   {
     simpl :: Bool
+  , interpreter :: Bool
   , load_rewrite_rules :: Bool
   , hpc_ticks :: Bool
   }
 
 simplTranslationConfig :: TranslationConfig
-simplTranslationConfig = TranslationConfig { simpl = True, load_rewrite_rules = False, hpc_ticks = False }
+simplTranslationConfig = TranslationConfig { simpl = True, interpreter = False, load_rewrite_rules = False, hpc_ticks = False }
 
 data ModGutsClosure = ModGutsClosure
   { mgcc_mod_name :: Maybe String

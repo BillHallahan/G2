@@ -54,14 +54,17 @@ translateLibPairs nm tnm tr_con exg2 hsc inc_paths (f: fs) = do
   translateLibPairs new_nm new_tnm tr_con (mergeExtractedG2s [exg2, exg2']) hsc inc_paths fs
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
-selectBackend :: Maybe Backend
-selectBackend = Just noBackend
+selectBackend :: TranslationConfig -> Maybe Backend
+selectBackend tr | interpreter tr = Just interpreter
+selectBackend _ = Just noBackend
 #elif MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
-selectBackend :: Maybe Backend
-selectBackend = Just NoBackend
+selectBackend :: TranslationConfig -> Maybe Backend
+selectBackend tr | interpreter tr = Just Interpreter
+selectBackend _ = Just NoBackend
 #else
-selectBackend :: Maybe HscTarget
-selectBackend = Just HscNothing
+selectBackend :: TranslationConfig -> Maybe HscTarget
+selectBackend tr | interpreter tr = Just HscInterpreted
+selectBackend _ = Just HscNothing
 #endif
 
 translateLoaded :: [FilePath]
@@ -73,7 +76,7 @@ translateLoaded proj src tr_con config = do
   let tr_con' = tr_con { hpc_ticks = hpc config || search_strat config == Subpath }
   -- Stuff with the actual target
   let def_proj = extraDefaultInclude config
-  tar_ems <- envModSumModGutsFromFile selectBackend (def_proj ++ proj) src tr_con' 
+  tar_ems <- envModSumModGutsFromFile (selectBackend tr_con') (def_proj ++ proj) src tr_con' 
   let imports = envModSumModGutsImports tar_ems
   extra_imp <- return . catMaybes =<< mapM (findImports (baseInclude config)) imports
 
