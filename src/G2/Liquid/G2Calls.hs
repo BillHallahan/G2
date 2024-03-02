@@ -39,7 +39,7 @@ type G2Call solver simplifier =
                  , Named t
                  , ASTContainer t Expr
                  , ASTContainer t Type) =>
-        SomeReducer m t -> SomeHalter m t -> SomeOrderer t -> solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
+        SomeReducer m t -> SomeHalter m t -> SomeOrderer m t -> solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
 
 -------------------------------
 -- Check Abstracted

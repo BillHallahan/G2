@@ -150,7 +150,7 @@ instance Solver solver => Solver (SpreadOutSolver solver) where
                     => Config
                     -> SomeReducer (SM.StateT PrettyGuide IO) LHTracker
                     -> SomeHalter (SM.StateT PrettyGuide IO) LHTracker
-                    -> SomeOrderer LHTracker
+                    -> SomeOrderer (SM.StateT PrettyGuide IO) LHTracker
                     -> solver
                     -> simplifier
                     -> MemConfig
@@ -163,7 +163,7 @@ runLHG2Inference :: (MonadIO m, Solver solver, Simplifier simplifier)
                  => Config
                  -> SomeReducer m LHTracker
                  -> SomeHalter m LHTracker
-                 -> SomeOrderer LHTracker
+                 -> SomeOrderer m LHTracker
                  -> solver
                  -> simplifier
                  -> MemConfig
@@ -403,7 +403,7 @@ gatherReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
                            -> simplifier
                            -> IO ( SomeReducer (SM.StateT PrettyGuide m) [FuncCall]
                                  , SomeHalter (SM.StateT PrettyGuide m) [FuncCall]
-                                 , SomeOrderer [FuncCall])
+                                 , SomeOrderer (SM.StateT PrettyGuide m) [FuncCall])
 gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
     let
         share = sharing config
@@ -513,7 +513,7 @@ inferenceReducerHalterOrderer :: (MonadIO m, MonadIO m_run, Solver solver, Simpl
                               -> State LHTracker
                               -> InfStack m ( SomeReducer (SM.StateT PrettyGuide m_run) LHTracker
                                             , SomeHalter  (SM.StateT PrettyGuide m_run) LHTracker
-                                            , SomeOrderer LHTracker)
+                                            , SomeOrderer (SM.StateT PrettyGuide m_run) LHTracker)
 inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry mb_modname cfn st = do
     extra_ce <- extraMaxCExI (entry, mb_modname)
     extra_time <- extraMaxTimeI (entry, mb_modname)
@@ -605,7 +605,7 @@ realCExReducerHalterOrderer :: (MonadIO m, MonadIO m_run, Solver solver, Simplif
                             -> Name
                             -> InfStack m ( SomeReducer (SM.StateT PrettyGuide m_run) LHTracker
                                           , SomeHalter (SM.StateT PrettyGuide m_run) LHTracker
-                                          , SomeOrderer LHTracker)
+                                          , SomeOrderer (SM.StateT PrettyGuide m_run) LHTracker)
 realCExReducerHalterOrderer infconfig config lhconfig entry modname solver simplifier  cfn = do
     extra_ce <- extraMaxCExI (entry, modname)
     extra_depth <- extraMaxDepthI
