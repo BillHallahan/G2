@@ -1,12 +1,12 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module G2.Initialization.ElimTicks (elimTicks) where
+module G2.Initialization.ElimTicks (elimBreakpoints) where
 
 import G2.Language
 
-elimTicks :: ASTContainer m Expr => m -> m
-elimTicks = modifyASTs elimTicks'
+elimBreakpoints :: ASTContainer m Expr => m -> m
+elimBreakpoints = modifyASTs elimBreakpoints'
 
-elimTicks' :: Expr -> Expr
-elimTicks' (Tick _ e) = elimTicks' e
-elimTicks' e = e
+elimBreakpoints' :: Expr -> Expr
+elimBreakpoints' (Tick (Breakpoint _) e) = elimBreakpoints' e
+elimBreakpoints' e = e

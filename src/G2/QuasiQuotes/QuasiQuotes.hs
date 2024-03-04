@@ -202,7 +202,7 @@ parseHaskellIO mods qext = do
                 config <- qqConfig
 
                 translateLoaded projs [filepath]
-                    simplTranslationConfig
+                    (simplTranslationConfig { interpreter = True })
                     config)
     return exG2
     where
@@ -271,7 +271,7 @@ moduleName = "THTemp"
 functionName :: String
 functionName = "g2Expr"
 
-qqRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) => Config -> solver -> simplifier -> (SomeReducer m (), SomeHalter m (), SomeOrderer ())
+qqRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) => Config -> solver -> simplifier -> (SomeReducer m (), SomeHalter m (), SomeOrderer m ())
 qqRedHaltOrd config solver simplifier =
     let
         share = sharing config

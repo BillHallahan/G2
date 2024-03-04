@@ -369,7 +369,7 @@ runLHG2 :: (MonadIO m, Solver solver, Simplifier simplifier)
         => Config
         -> SomeReducer m LHTracker
         -> SomeHalter m LHTracker
-        -> SomeOrderer LHTracker
+        -> SomeOrderer m LHTracker
         -> solver
         -> simplifier
         -> MemConfig
@@ -432,7 +432,7 @@ lhReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
                        -> State t
                        -> ( SomeReducer (SM.StateT PrettyGuide m) LHTracker
                           , SomeHalter (SM.StateT PrettyGuide m) LHTracker
-                          , SomeOrderer LHTracker)
+                          , SomeOrderer (SM.StateT PrettyGuide m) LHTracker)
 lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st =
     let
 

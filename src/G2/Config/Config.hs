@@ -3,6 +3,7 @@ module G2.Config.Config ( Mode (..)
                         , LogMethod (..)
                         , Sharing (..)
                         , SMTSolver (..)
+                        , SearchStrategy (..)
                         , HigherOrderSolver (..)
                         , IncludePath
                         , Config (..)
@@ -38,6 +39,8 @@ data Sharing = Sharing | NoSharing deriving (Eq, Show, Read)
 
 data SMTSolver = ConZ3 | ConCVC4 deriving (Eq, Show, Read)
 
+data SearchStrategy = Iterative | Subpath deriving (Eq, Show, Read)
+
 data HigherOrderSolver = AllFuncs
                        | SingleFunc
                        | SymbolicFunc 
@@ -56,8 +59,11 @@ data Config = Config {
     , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
     , returnsTrue :: Bool -- ^ If True, shows only those inputs that do not return True
     , higherOrderSolver :: HigherOrderSolver -- ^ How to try and solve higher order functions
+    , search_strat :: SearchStrategy -- ^ The search strategy for the symbolic executor to use
+    , subpath_length :: Int -- ^ When using subpath search strategy, the length of the subpaths.
     , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
     , steps :: Int -- ^ How many steps to take when running States
+    , hpc :: Bool -- ^ Should HPC ticks be generated and tracked during execution?
     , strict :: Bool -- ^ Should the function output be strictly evaluated?
     , timeLimit :: Int -- ^ Seconds
     , validate :: Bool -- ^ If True, run on G2's input, and check against expected output.
@@ -74,11 +80,18 @@ mkConfig homedir = Config Regular
     <*> mkMaxOutputs
     <*> switch (long "returns-true" <> help "assert that the function returns true, show only those outputs which return false")
     <*> mkHigherOrder
+    <*> mkSearchStrategy
+    <*> option auto (long "subpath-len"
+                   <> metavar "L"
+                   <> value 4
+                   <> help "when using subpath search strategy, the length of the subpaths")
     <*> mkSMTSolver
     <*> option auto (long "n"
                    <> metavar "N"
                    <> value 1000
                    <> help "how many steps to take when running states")
+    <*> flag False True (long "hpc"
+                      <> help "Generate and report on HPC ticks")
     <*> flag True False (long "no-strict" <> help "do not evaluate the output strictly")
     <*> option auto (long "time"
                    <> metavar "T"
@@ -156,6 +169,17 @@ mkSMTSolver =
             <> value ConZ3
             <> help "either z3 or cvc4, to select the solver to use")
 
+mkSearchStrategy :: Parser SearchStrategy
+mkSearchStrategy =
+    option (eitherReader (\s -> case s of
+                                    "iter" -> Right Iterative
+                                    "subpath" -> Right Subpath
+                                    _ -> Left "Unsupported search strategy"))
+            ( long "search"
+            <> metavar "SEARCH"
+            <> value Iterative
+            <> help "either iter or subpath, to select a search strategy")
+
 mkConfigDirect :: String -> [String] -> M.Map String [String] -> Config
 mkConfigDirect homedir as m = Config {
       mode = Regular
@@ -170,8 +194,11 @@ mkConfigDirect homedir as m = Config {
     , maxOutputs = strArg "max-outputs" as m (Just . read) Nothing
     , returnsTrue = boolArg "returns-true" as m Off
     , higherOrderSolver = strArg "higher-order" as m higherOrderSolArg SingleFunc
+    , search_strat = Iterative
+    , subpath_length = 4
     , smt = strArg "smt" as m smtSolverArg ConZ3
     , steps = strArg "n" as m read 1000
+    , hpc = False
     , strict = boolArg "strict" as m On
     , timeLimit = strArg "time" as m read 300
     , validate  = boolArg "validate" as m Off

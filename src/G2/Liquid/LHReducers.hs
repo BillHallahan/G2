@@ -242,8 +242,8 @@ lhLimitByAcceptedHalter co =
             return $ if num_steps s > nAcc + co then Switch else Continue
 
 -- | Runs the state that had the fewest number of rules applied.
-lhLimitByAcceptedOrderer :: Orderer () Int t
-lhLimitByAcceptedOrderer = mkSimpleOrderer (const ()) (\_ _ -> num_steps) (\_ _ _ -> ())
+lhLimitByAcceptedOrderer :: Monad m => Orderer m () Int t
+lhLimitByAcceptedOrderer = mkSimpleOrderer (const ()) (\_ _ -> return . num_steps ) (\_ _ -> return ())
 
 allMin :: Ord b => (a -> b) -> [a] -> [a]
 allMin f xs =
