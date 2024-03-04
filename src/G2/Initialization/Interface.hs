@@ -11,7 +11,7 @@ import G2.Initialization.Types as IT
 type MkArgTypes = IT.SimpleState -> [Type]
 
 runInitialization1 :: IT.SimpleState -> IT.SimpleState
-runInitialization1 = elimTicks . initVarLocs
+runInitialization1 = elimBreakpoints . initVarLocs
 
 runInitialization2 :: IT.SimpleState -> MkArgTypes -> (IT.SimpleState, Walkers)
 runInitialization2 s@(IT.SimpleState { IT.expr_env = eenv

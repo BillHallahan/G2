@@ -265,6 +265,9 @@ instance Hashable Type
 
 -- | A `Tickish` allows storing extra information in a `Tick`.
 data Tickish = Breakpoint Span -- ^ A breakpoint for the GHC Debugger
+             | HpcTick !Int T.Text -- ^ A tick used by HPC to track each subexpression in the original source code.
+                                   --
+                                   -- Together, the `Int` identifier and the Module Name indicate a unique location.
              | NamedLoc Name -- ^ A G2 specific tick, intended to allow,
                              -- in concert with a @`G2.Execution.Reducer.Reducer`@, for domain
                              -- specific modifications to a

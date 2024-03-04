@@ -52,6 +52,7 @@ nebulaConfig = NC { limit = 20
                   , print_summary = SM False False False
                   , use_labeled_errors = UseLabeledErrors
                   , log_states = NoLog
+                  , log_rule = Nothing
                   , symbolic_unmapped = False
                   , sync = False}
 
@@ -154,7 +155,7 @@ rvTest check src rule_names =
         proj <- guessProj src
         config <- empty_config
         initialStateNoStartFunc [proj] [src]
-                  (TranslationConfig {simpl = True, load_rewrite_rules = True})
+                  (simplTranslationConfig {simpl = True, load_rewrite_rules = True})
                   config
     )
     (\_ -> return ())

@@ -463,12 +463,15 @@ instance Named Coercion where
 
 instance Named Tickish where
     names (Breakpoint _) = S.empty
+    names (HpcTick _ _) = S.empty
     names (NamedLoc n) = S.singleton n
 
     rename _ _ bp@(Breakpoint _) = bp
+    rename _ _ hpc@(HpcTick _ _) = hpc
     rename old new (NamedLoc n) = NamedLoc $ rename old new n
 
     renames _ bp@(Breakpoint _) = bp
+    renames _ hpc@(HpcTick _ _) = hpc
     renames hm (NamedLoc n) = NamedLoc $ renames hm n
 
 instance Named RewriteRule where
