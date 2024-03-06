@@ -84,7 +84,7 @@ checkInputOutput'' :: [FilePath]
                    -> Config 
                    -> (String, Int, [Reqs String])
                    -> IO (Bool, [ExecRes ()])
-{-checkInputOutput'' src exg2 mb_modname config (entry, stps, req) = do
+checkInputOutput'' src exg2 mb_modname config (entry, stps, req) = do
     let config' = config { steps = stps }
         (init_state, bindings) = initStateWithCall exg2 False (T.pack entry) mb_modname (mkCurrExpr Nothing Nothing) mkArgTys config'
     
@@ -97,7 +97,7 @@ checkInputOutput'' :: [FilePath]
 
     let chEx = checkExprInOutCount io req
     
-    return $ (mr && chEx, r)-}
+    return $ (mr && chEx, r)
 
 ------------
 

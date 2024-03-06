@@ -526,11 +526,11 @@ nonRedLibFuncs names _ s@(State { expr_env = eenv
         in
             case isMember of
                 True -> let
-                            (new_sym, ng') = freshSeededName n ng
+                            (new_sym, ng') = freshSeededString "sym" ng
                             new_sym_id = Id new_sym (typeOf ce)
                             eenv' = E.insertSymbolic new_sym_id eenv
                             cexpr' = CurrExpr Return (Var new_sym_id)
-                            -- nonRedBlocker is just a tick name to avoid reducing function and adding to non-reduced path constraint
+                            -- nonRedBlocker is just a tick name to avoid reducing function again and adding to non-reduced path constraint
                             nonRedBlocker = Name "NonRedBlocker" Nothing 0 Nothing
                             tick = NamedLoc nonRedBlocker
                             ce' = mkApp $ (Tick tick (Var (Id n t))):es
