@@ -6,6 +6,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 {-| Module: G2.Execution.Reducer
 
@@ -47,6 +48,7 @@ module G2.Execution.Reducer ( Reducer (..)
                             , mkSimpleReducer
                             , stdRed
                             , nonRedPCTemplates
+                            , nonRedLibFuncsReducer
                             , nonRedPCRed
                             , nonRedPCRedConst
                             , taggerRed
@@ -117,6 +119,7 @@ import qualified Data.Text as T
 import Data.Tuple
 import Data.Time.Clock
 import System.Directory
+import Debug.Trace
 
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
@@ -454,6 +457,43 @@ nonRedPCTemplatesFunc _
                 s'' = s' {curr_expr = CurrExpr Evaluate nre1}
             in return (InProgress, [(s'', ())], b)
 nonRedPCTemplatesFunc _ s b = return (Finished, [(s, ())], b)
+
+nonRedLibFuncsReducer :: Monad m => HS.HashSet Name -> Reducer m () t
+nonRedLibFuncsReducer n = mkSimpleReducer (\_ -> ())
+                            (nonRedLibFuncs n)
+
+nonRedLibFuncs :: Monad m => HS.HashSet Name -> RedRules m () t
+nonRedLibFuncs names _ s@(State { expr_env = eenv
+                         , curr_expr = CurrExpr _ ce
+                         , non_red_path_conds = nrs
+                         }) 
+                         b@(Bindings { name_gen = ng })
+    | Var (Id n t):es <- unApp ce
+    , hasFuncType (PresType t)
+    , not (hasFuncType ce) = 
+        let
+            isMember =  HS.member n names
+        in
+            case isMember of
+                True -> let
+                            (new_sym, ng') = freshSeededName n ng
+                            new_sym_id = Id new_sym (typeOf ce)
+                            eenv' = E.insertSymbolic new_sym_id eenv
+                            cexpr' = CurrExpr Return (Var new_sym_id)
+                            -- nonRedBlocker is just a tick name to avoid reducing function and adding to non-reduced path constraint
+                            nonRedBlocker = Name "NonRedBlocker" Nothing 0 Nothing
+                            tick = NamedLoc nonRedBlocker
+                            ce' = mkApp $ (Tick tick (Var (Id n t))):es
+                            s' = s { expr_env = eenv',
+                                    curr_expr = cexpr',
+                                    non_red_path_conds = nrs ++ [(ce', Var new_sym_id)] } 
+                        in 
+                            return (Finished, [(s', ())], b {name_gen = ng'})
+                False -> return (Finished, [(s, ())], b)
+
+    | otherwise = return (Finished, [(s, ())], b)
+     
+
 
 -- | Removes and reduces the values in a State's non_red_path_conds field. 
 {-#INLINE nonRedPCRed #-}

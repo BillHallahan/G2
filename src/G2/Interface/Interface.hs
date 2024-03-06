@@ -66,6 +66,7 @@ import G2.Postprocessing.Interface
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stack
+import G2.Language.Support
 
 import Control.Monad.IO.Class
 import qualified Control.Monad.State as SM
@@ -73,6 +74,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as S
 import Data.Maybe
 import qualified Data.Text as T
+import Debug.Trace
 
 import System.Timeout
 
@@ -248,14 +250,16 @@ initCheckReaches s@(State { expr_env = eenv
                       solver
                    -> simplifier
                    -> Config
+                   -> S.HashSet Name
                    -> (SomeReducer (SM.StateT PrettyGuide IO) (), SomeHalter (SM.StateT PrettyGuide IO) (), SomeOrderer ())
     #-}
 initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                   solver
                -> simplifier
                -> Config
+               -> S.HashSet Name
                -> (SomeReducer (SM.StateT PrettyGuide m) (), SomeHalter (SM.StateT PrettyGuide m) (), SomeOrderer ())
-initRedHaltOrd solver simplifier config =
+initRedHaltOrd solver simplifier config libFunNames =
     let
         share = sharing config
 
@@ -294,7 +298,7 @@ initRedHaltOrd solver simplifier config =
                  <~> acceptIfViolatedHalter)
              , SomeOrderer $ pickLeastUsedOrderer)
         SymbolicFuncTemplate ->
-            ( logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCTemplates
+            ( nonRedLibFuncsReducer libFunNames :== Finished .--> logger_std_red retReplaceSymbFuncVar .== Finished .--> taggerRed state_name :== Finished --> nonRedPCTemplates
              , SomeHalter
                  (discardIfAcceptedTagHalter state_name
                  <~> switchEveryNHalter 20
@@ -372,6 +376,9 @@ initialStateFromFile proj src m_reach def_assert f mkCurr argTys transConfig con
 
     return (reaches_state, ie, bindings)
 
+getExprEnv :: State t -> E.ExprEnv
+getExprEnv (State { expr_env = e }) = e
+
 runG2FromFile :: [FilePath]
               -> [FilePath]
               -> Maybe AssumeFunc
@@ -386,17 +393,24 @@ runG2FromFile proj src m_assume m_assert m_reach def_assert f transConfig config
     (init_state, entry_f, bindings) <- initialStateFromFile proj src
                                     m_reach def_assert f (mkCurrExpr m_assume m_assert) (mkArgTys)
                                     transConfig config
+    let entry_f_module_name = case entry_f of
+                            (Id n _) -> nameModule n
 
-    r <- runG2WithConfig init_state config bindings
+    r <- runG2WithConfig init_state entry_f_module_name config bindings
 
     return (r, entry_f)
 
-runG2WithConfig :: State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
-runG2WithConfig state config bindings = do
+runG2WithConfig :: State () -> Maybe T.Text -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
+runG2WithConfig state entry_module config bindings = do
     SomeSolver solver <- initSolver config
     let simplifier = IdSimplifier
-
-    (in_out, bindings') <- case initRedHaltOrd solver simplifier config of
+        exp_env = E.keys $ getExprEnv state
+        lib_funcs = case entry_module  of
+                      Just a -> filter (\x -> case nameModule x of
+                                                Just n -> a /= n
+                                                Nothing -> True) exp_env
+                      Nothing -> exp_env
+    (in_out, bindings') <- case initRedHaltOrd solver simplifier config (S.fromList lib_funcs) of
                 (red, hal, ord) ->
                     SM.evalStateT (runG2WithSomes red hal ord solver simplifier emptyMemConfig state bindings) (mkPrettyGuide ())
 
@@ -557,6 +571,6 @@ runG2 :: ( MonadIO m
          solver -> simplifier -> MemConfig -> State t -> Bindings -> m ([ExecRes t], Bindings)
 runG2 red hal ord solver simplifier mem is bindings = do
     (exec_states, bindings') <- runG2ThroughExecution red hal ord mem is bindings
-    sol_states <- mapM (runG2Solving solver simplifier bindings') exec_states
+    sol_states <- trace("Lenght of states: "++ show (length exec_states)) (mapM (runG2Solving solver simplifier bindings') exec_states)
 
     return (catMaybes sol_states, bindings')
