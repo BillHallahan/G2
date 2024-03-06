@@ -416,11 +416,11 @@ runG2FromFile proj src m_assume m_assert m_reach def_assert f transConfig config
 runG2WithConfig :: Maybe T.Text -> State () -> Config -> Bindings -> IO ([ExecRes ()], Bindings)
 runG2WithConfig mod_name state config bindings = do
     SomeSolver solver <- initSolver config
+    hpc_t <- hpcTracker
     let simplifier = IdSimplifier
         exp_env = E.keys $ getExprEnv state
-    hpc_t <- hpcTracker
 
-        lib_funcs = case entry_module  of
+        lib_funcs = case mod_name  of
                       Just a -> filter (\x -> case nameModule x of
                                                 Just n -> a /= n
                                                 Nothing -> True) exp_env
