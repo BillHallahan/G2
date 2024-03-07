@@ -22,7 +22,7 @@ module G2.Config.Config ( Mode (..)
 
 
 import Data.Char
-import Data.List
+import Data.List as L
 import qualified Data.Map as M
 import Data.Monoid ((<>))
 import Options.Applicative
@@ -54,6 +54,7 @@ data Config = Config {
     , base :: [FilePath] -- ^ Filepath(s) to base libraries.  Get compiled in order from left to right
     , extraDefaultInclude :: [IncludePath]
     , extraDefaultMods :: [FilePath]
+    , includePaths :: Maybe [FilePath] -- ^ Paths to search for modules
     , logStates :: LogMode -- ^ Determines whether to Log states, and if logging states, how to do so.
     , sharing :: Sharing
     , maxOutputs :: Maybe Int -- ^ Maximum number of examples/counterexamples to output.  TODO: Currently works only with LiquidHaskell
@@ -75,6 +76,7 @@ mkConfig homedir = Config Regular
     <*> mkBase homedir
     <*> mkExtraDefault homedir
     <*> pure []
+    <*> mkIncludePaths
     <*> mkLogMode
     <*> flag Sharing NoSharing (long "no-sharing" <> help "disable sharing")
     <*> mkMaxOutputs
@@ -122,6 +124,14 @@ mkExtraDefault homedir =
             <> metavar "FILE"
             <> value (extraDefaultIncludePaths homedir)
             <> help "where to look for base files")
+
+mkIncludePaths :: Parser (Maybe [FilePath])
+mkIncludePaths = 
+    option (maybeReader (Just . Just . (:[])))
+            ( long "include"
+            <> metavar "I"
+            <> value Nothing
+            <> help "paths to search for included modules")
 
 mkLogMode :: Parser LogMode
 mkLogMode =
@@ -187,6 +197,7 @@ mkConfigDirect homedir as m = Config {
     , base = baseDef (strArg "base" as m id homedir)
     , extraDefaultInclude = extraDefaultIncludePaths (strArg "extra-base-inc" as m id homedir)
     , extraDefaultMods = []
+    , includePaths = Nothing
     , logStates = strArg "log-states" as m (Log Raw)
                         (strArg "log-pretty" as m (Log Pretty) NoLog)
     , sharing = boolArg' "sharing" as Sharing Sharing NoSharing

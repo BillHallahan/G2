@@ -932,8 +932,9 @@ mergeFileExtractedG2s ((nm1, tnm1, ex1) : (nm2, tnm2, ex2) : exs) =
     mergeFileExtractedG2s $ (nm', tnm', ex') : exs
 
 -- Look for the directory that contains the first instance of a *.cabal file
-guessProj :: FilePath -> IO FilePath
-guessProj tgt = do
+guessProj :: Maybe [FilePath] -> FilePath -> IO [FilePath]
+guessProj (Just fp) _ = return fp
+guessProj Nothing tgt = do
   absTgt <- makeAbsolute tgt
   let splits = splitOn "/" absTgt
   potentialDirs <- filterM (dirContainsCabal)
@@ -942,10 +943,10 @@ guessProj tgt = do
                     $ inits splits
 
   case potentialDirs of
-    (d : _) -> return d
+    (d : _) -> return [d]
     -- Unable to find a .cabal file at all, so we take the first one
     -- with the file loped off.
-    [] -> return $ takeDirectory absTgt
+    [] -> return $ [takeDirectory absTgt]
 
 dirContainsCabal :: FilePath -> IO Bool
 dirContainsCabal "" = return False
@@ -959,9 +960,9 @@ dirContainsCabal dir = do
 
 findCabal :: FilePath -> IO (Maybe FilePath)
 findCabal fp = do
-  dir <- guessProj fp
-  files <- listDirectory dir
-  return $ find (\f -> ".cabal" `isSuffixOf` f) files
+  dir <- guessProj Nothing fp
+  files <- mapM listDirectory dir
+  return $ find (\f -> ".cabal" `isSuffixOf` f) (concat files)
 
 -------------------------------------------------------------------------------
 -- Unsafe construction

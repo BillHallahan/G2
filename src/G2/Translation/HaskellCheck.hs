@@ -47,7 +47,7 @@ runCheck modN entry chAll (ExecRes {final_state = s, conc_args = ars, conc_out =
 
 runCheck' :: String -> String -> [String] -> State t -> [Expr] -> Expr -> Ghc (HValue, [HValue])
 runCheck' modN entry chAll s ars out = do
-    let Left (v, _) = findFunc (T.pack entry) (Just $ T.pack modN) (expr_env s)
+    let Left (v, _) = findFunc (T.pack entry) [Just $ T.pack modN] (expr_env s)
     let e = mkApp $ Var v:ars
     let pg = updatePrettyGuide (exprNames e)
            . updatePrettyGuide (exprNames out)

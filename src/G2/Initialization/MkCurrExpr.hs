@@ -80,7 +80,7 @@ mkInputs ng (t:ts) =
 mkAssumeAssert :: (Expr -> Expr -> Expr) -> Maybe T.Text -> Maybe T.Text
                -> [Expr] -> Expr -> Expr -> ExprEnv -> Expr
 mkAssumeAssert p (Just f) m_mod var_ids inter pre_ex eenv =
-    case findFunc f m_mod eenv of
+    case findFunc f [m_mod] eenv of
         Left (f', _) -> 
             let
                 app_ex = foldl' App (Var f') (var_ids ++ [pre_ex])
@@ -92,22 +92,16 @@ mkAssumeAssert _ Nothing _ _ e _ _ = e
 retsTrue :: Expr -> Expr
 retsTrue e = Assert Nothing e e
 
-findFunc :: T.Text -> Maybe T.Text -> ExprEnv -> Either (Id, Expr) String
+findFunc :: T.Text -> [Maybe T.Text] -> ExprEnv -> Either (Id, Expr) String
 findFunc s m_mod eenv =
     let
-        match = E.toExprList $ E.filterWithKey (\n _ -> nameOcc n == s) eenv
+        match = E.toExprList $ E.filterWithKey (\(Name n m _ _) _ -> n == s && m `elem` m_mod) eenv
     in
     case match of
         [] -> Right $ "No functions with name " ++ (T.unpack s)
         [(n, e)] -> Left (Id n (typeOf e) , e)
-        pairs -> case m_mod of
-            Nothing -> Right $ "Multiple functions with same name. " ++ show s ++ " " ++ show m_mod ++
-                               "Wrap the target function in a module so we can try again!"
-            Just m -> case filter (\(n, _) -> nameModule n == Just m) pairs of
-                [(n, e)] -> Left (Id n (typeOf e), e)
-                [] -> Right $ "No function with name " ++ (T.unpack s) ++ " in module " ++ (T.unpack m)
-                _ -> Right $ "Multiple functions with same name " ++ (T.unpack s) ++
-                             " in module " ++ (T.unpack m)
+        _ -> Right $ "Multiple functions with same name. " ++ show s ++
+                         " Wrap the target function in a module so we can try again!"
 
 instantiateArgTypes :: TypeClasses -> KnownValues -> Expr -> ([Expr], [Type])
 instantiateArgTypes tc kv e =
@@ -159,6 +153,6 @@ instantiateTCDict _ _ _ = Nothing
 checkReaches :: ExprEnv -> KnownValues -> Maybe T.Text -> Maybe T.Text -> ExprEnv
 checkReaches eenv _ Nothing _ = eenv
 checkReaches eenv kv (Just s) m_mod =
-    case findFunc s m_mod eenv of
+    case findFunc s [m_mod] eenv of
         Left (Id n _, e) -> E.insert n (Assert Nothing (mkFalse kv) e) eenv
         Right err -> error  err
