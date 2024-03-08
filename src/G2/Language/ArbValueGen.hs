@@ -11,7 +11,7 @@ import G2.Language.Expr
 import G2.Language.Support
 import G2.Language.Syntax
 import G2.Language.Typing
-
+import Debug.Trace
 import Data.List
 import qualified Data.HashMap.Lazy as HM
 import Data.Ord
@@ -113,7 +113,7 @@ arbValue' _ _ TyLitChar _ av =
     (Lit (LitChar c), av { charGen = cs})
 arbValue' getADTF m (TyVar (Id n _)) tenv av
     | Just t <- HM.lookup n m = arbValue' getADTF m t tenv av
-arbValue' _ _ t _ av = (Prim Undefined t, av)
+arbValue' _ _ t _ av = trace("in arbValue' " ++ show t) (Prim Undefined t, av)
 
 
 constArbValue' :: GetADT -> HM.HashMap Name Type -> Type -> TypeEnv -> ArbValueGen -> (Expr, ArbValueGen)
@@ -212,5 +212,5 @@ getADT cutoff m tenv av adt ts
 
             final_av = if cutoff >= 0 then av' else av
         in
-        (mkApp $ Data min_dc:map Type ts ++ es, final_av)
-    | otherwise = (Prim Undefined TyBottom, av)
+       trace("we are in getADT ") (mkApp $ Data min_dc:map Type ts ++ es, final_av)
+    | otherwise = trace("we are in getADT ")(Prim Undefined TyBottom, av)

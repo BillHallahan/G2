@@ -69,10 +69,10 @@ isExecValueForm state@(State { expr_env = eenv, curr_expr = CurrExpr _ e})
     , CurrExpr Return _ <- curr_expr state
     , non_red_path_conds state == [] =
         case unApp e of
+            [_] -> True
             Var (Id _ _):_ -> False
             _ -> True
     | otherwise = False
-
 
 isExecValueFormDisNonRedPC :: State t -> Bool
 isExecValueFormDisNonRedPC s = isExecValueForm $ s {non_red_path_conds = []}
