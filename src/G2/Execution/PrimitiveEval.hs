@@ -39,7 +39,10 @@ maybeEvalPrim tenv kv = maybeEvalPrim' tenv kv . unApp
 maybeEvalPrim' :: TypeEnv -> KnownValues -> [Expr] -> Maybe Expr
 maybeEvalPrim' tenv kv xs
     | [Prim p _, x] <- xs
-    , Lit x' <- x = evalPrim1 p x'
+    , Lit x' <- x
+    , Just e <- evalPrim1 p x' = Just e
+    | [Prim p _, x] <- xs
+    , Lit x' <- x = evalPrim1' tenv kv p x'
 
     | [Prim p _, x, y] <- xs
     , Lit x' <- x
@@ -67,6 +70,14 @@ evalPrim1 Chr (LitInt x) = Just . Lit $ LitChar (chr $ fromInteger x)
 evalPrim1 OrdChar (LitChar x) = Just . Lit $ LitInt (toInteger $ ord x)
 evalPrim1 WGenCat (LitInt x) = Just . Lit $ LitInt (toInteger . fromEnum . generalCategory . toEnum $ fromInteger x)
 evalPrim1 _ _ = Nothing
+
+evalPrim1' :: TypeEnv -> KnownValues -> Primitive -> Lit -> Maybe Expr
+evalPrim1' tenv kv IntToString (LitInt x) =
+    let
+        char_dc = mkDCChar kv tenv
+    in
+    Just . mkG2List kv tenv TyLitChar . map (App char_dc . Lit . LitChar) $ show x
+evalPrim1' _ _ _ _ = Nothing
 
 evalPrim2 :: KnownValues -> Primitive -> Lit -> Lit -> Maybe Expr
 evalPrim2 kv Ge x y = evalPrim2NumCharBool (>=) kv x y

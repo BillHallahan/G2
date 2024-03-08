@@ -30,6 +30,7 @@ import G2.Execution.RuleTypes
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.TypeEnv as TE
+import qualified G2.Language.Typing as T
 import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.Stack as S
 import G2.Preprocessing.NameCleaner
@@ -405,27 +406,22 @@ concretizeVarExpr s ng mexpr_id cvar (x:xs) maybeC =
         (newPCs, ng'') = concretizeVarExpr s ng' mexpr_id cvar xs maybeC
 
 concretizeVarExpr' :: State t -> NameGen -> Id -> Id -> (DataCon, [Id], Expr) -> Maybe Coercion -> (NewPC t, NameGen)
-concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv})
+concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv})
                 ngen mexpr_id cvar (dcon, params, aexpr) maybeC =
           (NewPC { state =  s { expr_env = eenv''
                               , curr_expr = CurrExpr Evaluate aexpr''}
                  -- It is VERY important that we insert the mexpr_id in `concretized`
                  -- This forces reduceNewPC to check that the concretized data constructor does
                  -- not violate any path constraints from default cases. 
-                 , new_pcs = []
+                 , new_pcs = pcs
                  , concretized = [mexpr_id]
-                 }, ngen')
+                 }, ngen'')
   where
     -- Make sure that the parameters do not conflict in their symbolic reps.
     olds = map idName params
     clean_olds = map cleanName olds
 
-    mexpr_n = idName mexpr_id
     (news, ngen') = freshSeededNames clean_olds ngen
-
-    --Update the expr environment
-    newIds = map (\(Id _ t, n) -> Id n t) (zip params news)
-    eenv' = foldr E.insertSymbolic eenv newIds
 
     (dcon', aexpr') = renameExprs (zip olds news) (Data dcon, aexpr)
 
@@ -444,12 +440,57 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv})
                 (Just (t1 :~ t2)) -> Cast dcon'' (t2 :~ t1)
                 Nothing -> dcon''
 
-    -- concretizes the mexpr to have same form as the DataCon specified
-    eenv'' = E.insert mexpr_n dcon''' eenv' 
-
     -- Now do a round of rename for binding the cvar.
     binds = [(cvar, (Var mexpr_id))]
     aexpr'' = liftCaseBinds binds aexpr'
+
+    (eenv'', pcs, ngen'') = adjustExprEnvAndPathConds kv tenv eenv ngen' dcon dcon''' mexpr_id params news
+
+adjustExprEnvAndPathConds :: KnownValues
+                  -> TypeEnv
+                  -> ExprEnv
+                  -> NameGen
+                  -> DataCon
+                  -> Expr
+                  -> Id -- ^ Symbolic Variable Id 
+                  -> [Id] -- ^ Constructor Argument Ids
+                  -> [Name]
+                  -> (ExprEnv, [PathCond], NameGen)
+adjustExprEnvAndPathConds kv tenv eenv ng dc dc_e mexpr params dc_args
+    | Just (dcName dc) == fmap dcName (getDataCon tenv (KV.tyList kv) (KV.dcEmpty kv))
+    , typeOf mexpr == TyApp (T.tyList kv) (T.tyChar kv) =
+        assert (length params == 0)
+        (eenv''
+        , [ExtCond (mkEqExpr kv
+                    (App (mkStringLen kv) (Var mexpr))
+                    (Lit (LitInt 0)))
+                True]
+        , ng)
+    | Just (dcName dc) == fmap dcName (getDataCon tenv (KV.tyList kv) (KV.dcCons kv))
+    , typeOf mexpr == TyApp (T.tyList kv) (T.tyChar kv)
+    , [_, _] <- params
+    , [arg_h, arg_t] <- newIds =
+        let
+            (char_i, ng') = freshId TyLitChar ng
+            char_dc = App (mkDCChar kv tenv) (Var char_i)
+            eenv''' = E.insertSymbolic char_i $ E.insert (idName arg_h) char_dc eenv''
+        in
+        assert (length params == 2)
+        (eenv'''
+        , [ExtCond (mkEqExpr kv
+                    (App (App (mkStringAppend kv) (Var char_i)) (Var arg_t))
+                    (Var mexpr))
+                True]
+        , ng')
+    | otherwise = (eenv'', [], ng)
+    where
+        mexpr_n = idName mexpr
+
+        --Update the expr environment
+        newIds = zipWith (\(Id _ t) n -> Id n t) params dc_args
+        eenv' = foldr E.insertSymbolic eenv newIds
+        -- concretizes the mexpr to have same form as the DataCon specified
+        eenv'' = E.insert mexpr_n dc_e eenv' 
 
 -- | Given the Type of the matched Expr, looks for Type in the TypeEnv, and returns Expr level representation of the Type
 mexprTyToExpr :: Type -> TypeEnv -> [Expr]
@@ -478,18 +519,74 @@ createExtConds s ng mexpr cvar (x:xs) =
         (newPCs, ng'') = createExtConds s ng' mexpr cvar xs
 
 createExtCond :: State t -> NameGen -> Expr -> Id -> (DataCon, [Id], Expr) -> (NewPC t, NameGen)
-createExtCond s ngen mexpr cvar (dcon, _, aexpr) =
-        (NewPC { state = res, new_pcs = [cond] , concretized = []}, ngen)
-  where
-    -- Get the Bool value specified by the matching DataCon
-    -- Throws an error if dcon is not a Bool Data Constructor
-    boolValue = getBoolFromDataCon (known_values s) dcon
-    cond = ExtCond mexpr boolValue
+createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
+    | typeOf mexpr == tyBool kv =
+        let
+            -- Get the Bool value specified by the matching DataCon
+            -- Throws an error if dcon is not a Bool Data Constructor
+            boolValue = getBoolFromDataCon (known_values s) dcon
+            cond = ExtCond mexpr boolValue
 
-    -- Now do a round of rename for binding the cvar.
-    binds = [(cvar, mexpr)]
-    aexpr' = liftCaseBinds binds aexpr
-    res = s {curr_expr = CurrExpr Evaluate aexpr'}
+            -- Now do a round of rename for binding the cvar.
+            binds = [(cvar, mexpr)]
+            aexpr' = liftCaseBinds binds aexpr
+            res = s {curr_expr = CurrExpr Evaluate aexpr'}
+        in
+        (NewPC { state = res, new_pcs = [cond] , concretized = []}, ngen)
+    | Just (dcName dcon) == fmap dcName (getDataCon tenv (KV.tyList kv) (KV.dcEmpty kv)) =
+        -- Concretize a primitive application which creates a symbolic [Char] into an empty list.
+        -- We are careful to keep  the expression environment and the path constraints in sync-
+        -- splitting must occur in the same way in each.
+        let
+            eq_str = ExtCond (mkEqExpr kv
+                                    (App (mkStringLen kv) mexpr)
+                                    (Lit (LitInt 0)))
+                             True
+            
+            new_list = App (mkEmpty kv tenv) (Type $ tyChar kv)
+            binds = [(cvar, new_list)]
+            aexpr' = liftCaseBinds binds aexpr
+            res = s { curr_expr = CurrExpr Return aexpr' }
+        in
+        (NewPC { state = res, new_pcs = [eq_str] , concretized = []}, ngen)
+
+    | Just (dcName dcon) == fmap dcName (getDataCon tenv (KV.tyList kv) (KV.dcCons kv))
+    , [h, t] <- bindees =
+        -- Concretize a primitive application which creates a symbolic [Char] into symbolic head and tail.
+        -- We are careful to keep  the expression environment and the path constraints in sync-
+        -- splitting must occur in the same way in each.
+        let
+            ty_char_list = TyApp (tyList kv) (tyChar kv)
+
+            (n_char, ng') = freshSeededName (idName cvar) ngen
+            (n_char_list, ng'') = freshSeededName (idName cvar) ng'
+            
+            i_char = Id n_char TyLitChar
+            v_char = Var i_char
+            dc_char = App (mkDCChar kv tenv) v_char
+            
+            i_char_list = Id n_char_list ty_char_list
+            v_char_list = Var i_char_list
+
+            eq_str = ExtCond (mkEqExpr kv
+                                    (App (App (mkStringAppend kv) v_char) v_char_list)
+                                    mexpr)
+                             True
+
+            new_list = App (App (App (mkCons kv tenv) (Type $ tyChar kv)) dc_char) v_char_list
+            binds = [(cvar, new_list), (h, dc_char), (t, v_char_list)]
+            aexpr' = liftCaseBinds binds aexpr
+            res = s { expr_env = E.insertSymbolic i_char $ E.insertSymbolic i_char_list (expr_env s)
+                    , curr_expr = CurrExpr Return aexpr' }
+        in
+        (NewPC { state = res, new_pcs = [eq_str] , concretized = [i_char, i_char_list]}, ng'')
+    | otherwise = error $ "createExtCond: unsupported type" ++ "\n" ++ show (typeOf mexpr) ++ "\n" ++ show dcon
+        where
+            kv = known_values s
+            tenv = type_env s
+
+            
+
 
 getBoolFromDataCon :: KnownValues -> DataCon -> Bool
 getBoolFromDataCon kv dcon

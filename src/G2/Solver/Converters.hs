@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -371,8 +372,10 @@ funcToSMT1Prim SqRt e = SqrtSMT (exprToSMT e)
 funcToSMT1Prim Not e = (:!) (exprToSMT e)
 funcToSMT1Prim IntToFloat e = ItoR (exprToSMT e)
 funcToSMT1Prim IntToDouble e = ItoR (exprToSMT e)
+funcToSMT1Prim IntToString e = FromInt (exprToSMT e)
 funcToSMT1Prim Chr e = FromCode (exprToSMT e)
 funcToSMT1Prim OrdChar e = ToCode (exprToSMT e)
+funcToSMT1Prim StrLen e = StrLenSMT (exprToSMT e)
 funcToSMT1Prim err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 
 funcToSMT2Prim :: Primitive -> Expr -> Expr -> SMTAST
@@ -394,6 +397,7 @@ funcToSMT2Prim Quot a1 a2 = exprToSMT a1 `QuotSMT` exprToSMT a2
 funcToSMT2Prim Mod a1 a2 = exprToSMT a1 `Modulo` exprToSMT a2
 funcToSMT2Prim Rem a1 a2 = exprToSMT a1 :- ((exprToSMT a1 `QuotSMT` exprToSMT a2) :* exprToSMT a2) -- TODO: more efficient encoding?
 funcToSMT2Prim RationalToDouble a1 a2  = exprToSMT a1 :/ exprToSMT a2
+funcToSMT2Prim StrAppend a1 a2  = exprToSMT a1 :++ exprToSMT a2
 funcToSMT2Prim op lhs rhs = error $ "funcToSMT2Prim: invalid case with (op, lhs, rhs): " ++ show (op, lhs, rhs)
 
 altToSMT :: Lit -> Expr -> SMTAST
@@ -407,7 +411,7 @@ createUniqVarDecls :: [(Name, Sort)] -> [SMTHeader]
 createUniqVarDecls [] = []
 createUniqVarDecls ((n,SortChar):xs) =
     let
-        lenAssert = Assert $ StrLen (V (nameToStr n) SortChar) := VInt 1
+        lenAssert = Assert $ StrLenSMT (V (nameToStr n) SortChar) := VInt 1
     in
     VarDecl (nameToBuilder n) SortChar:lenAssert:createUniqVarDecls xs
 createUniqVarDecls ((n,s):xs) = VarDecl (nameToBuilder n) s:createUniqVarDecls xs
@@ -431,6 +435,11 @@ typeToSMT TyLitDouble = SortDouble
 typeToSMT TyLitFloat = SortFloat
 typeToSMT TyLitChar = SortChar
 typeToSMT (TyCon (Name "Bool" _ _ _) _) = SortBool
+#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+typeToSMT (TyApp (TyCon (Name "List" _ _ _) _) (TyCon (Name "Char" _ _ _) _)) = SortString
+#else
+typeToSMT (TyApp (TyCon (Name "[]" _ _ _) _) (TyCon (Name "Char" _ _ _) _)) = SortString
+#endif
 typeToSMT t = error $ "Unsupported type in typeToSMT: " ++ show t
 
 merge :: TB.Builder -> TB.Builder -> TB.Builder
@@ -514,7 +523,9 @@ toSolverAST (ArrayStore arr ind val) =
 
 toSolverAST (Func n xs) = smtFunc n $ map (toSolverAST) xs
 
-toSolverAST (StrLen x) = function1 "str.len" $ toSolverAST x
+toSolverAST (x :++ y) = function2 "str.++" (toSolverAST x) (toSolverAST y)
+toSolverAST (FromInt x) = function1 "str.from_int" $ toSolverAST x
+toSolverAST (StrLenSMT x) = function1 "str.len" $ toSolverAST x
 toSolverAST (ItoR x) = function1 "to_real" $ toSolverAST x
 
 toSolverAST (Ite x y z) =
@@ -562,6 +573,7 @@ sortName :: Sort -> TB.Builder
 sortName SortInt = "Int"
 sortName SortFloat = "Real"
 sortName SortDouble = "Real"
+sortName SortString = "String"
 sortName SortChar = "String"
 sortName SortBool = "Bool"
 sortName (SortArray ind val) = "(Array " <> sortName ind <> " " <> sortName val <> ")"
@@ -589,6 +601,7 @@ smtastToExpr (VFloat f) = (Lit $ LitFloat f)
 smtastToExpr (VDouble d) = (Lit $ LitDouble d)
 smtastToExpr (VBool b) =
     Data (DataCon (Name (T.pack $ show b) (Just "GHC.Types") 0 Nothing) (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE))
+smtastToExpr (VString cs) = fakeG2CharList $ map (Lit . LitChar) cs
 smtastToExpr (VChar c) = Lit $ LitChar c
 smtastToExpr (V n s) = Var $ Id (certainStrToName n) (sortToType s)
 smtastToExpr _ = error "Conversion of this SMTAST to an Expr not supported."
@@ -611,3 +624,15 @@ certainStrToName s =
     case maybe_StrToName s of
         Just n -> n
         Nothing -> Name (T.pack s) Nothing 0 Nothing
+
+fakeG2CharList :: [Expr] -> Expr
+fakeG2CharList = foldr go (App emp (Type ty_char))
+    where
+        ty_char = TyCon (Name "Char" Nothing 0 Nothing) TYPE
+        a = Id (Name "a" Nothing 0 Nothing) TYPE
+
+        ty_list = TyApp (TyCon (Name "[]" Nothing 0 Nothing) (TyFun TYPE TYPE)) (TyVar a)
+        emp = Data (DataCon (Name "[]" Nothing 0 Nothing) (TyForAll a ty_list))
+        cons = Data (DataCon (Name ":" Nothing 0 Nothing) (TyForAll a (TyFun (TyVar a) (TyFun ty_list ty_list))))
+
+        go e es = App (App (App cons (Type ty_char)) e) es
