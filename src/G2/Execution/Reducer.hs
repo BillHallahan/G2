@@ -770,15 +770,14 @@ acceptIfViolatedHalter = mkStoppingHalter stop
                 True
                     | true_assert s -> return $ trace ("acceptIfViolatedHalter " ++ (show $ (non_red_path_conds s))) Accept
                     | otherwise -> return  $ trace ("acceptIfViolatedHalter discard") Discard
-                False -> return Continue
+                False -> return $ trace( "acceptIfViolatedHalter false") Continue
 
 -- | Allows execution to continue until the step counter hits 0, then discards the state
 zeroHalter :: Monad m => Int -> Halter m Int t
 zeroHalter n = mkSimpleHalter
                     (const n)
                     (\h _ _ -> h)
-                    (\h _ _ -> if h == 0 then return $ trace("zeroHalter StopRed discard and h is " ++ show h) Discard else return $
-                                                       trace("zeroHalter StopRed Continue and h is " ++ show h)     Continue)
+                    (\h _ _ -> if h == 0 then return Discard else return Continue)
                     (\h _ _ _ -> h - 1)
 
 maxOutputsHalter :: Monad m => Maybe Int -> Halter m (Maybe Int) t
@@ -787,7 +786,7 @@ maxOutputsHalter m = mkSimpleHalter
                         (\hv _ _ -> hv)
                         (\_ (Processed {accepted = acc}) _ ->
                             case m of
-                                Just m' -> trace ("maxOutputsHalter stopRed" ++ show m') (return $ if length acc >= m' then Discard else Continue)
+                                Just m' -> return $ if length acc >= m' then Discard else Continue
                                 _ -> return Continue)
                         (\hv _ _ _ -> hv)
 
@@ -797,8 +796,7 @@ switchEveryNHalter :: Monad m => Int -> Halter m Int t
 switchEveryNHalter sw = (mkSimpleHalter
                             (const sw)
                             (\_ _ _ -> sw)
-                            (\i _ _ ->  (return $ if i <= 0 then trace("switchEveryNHalter stopRed with switch and i= " ++ show i) Switch 
-                                                            else trace("switchEveryNHalter stopRed with continue and i= " ++ show i) Continue))
+                            (\i _ _ ->  (return $ if i <= 0 then Switch else Continue))
                             (\i _ _ _ -> i - 1))
                         { updateHalterWithAll = updateAll } 
     where

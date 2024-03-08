@@ -67,7 +67,7 @@ instance Hashable LamUse
 -- | Extract the `Name` from an `Id`.
 idName :: Id -> Name
 idName (Id name _) = name
- 
+
 -- | Expressions, representing G2's intermediate language.
 data Expr =
           -- | @`Var` `Id`@ is a variable.  Variables may be bound by a `Lam`, `Let`
