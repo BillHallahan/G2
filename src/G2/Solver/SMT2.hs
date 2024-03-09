@@ -111,8 +111,8 @@ instance SMTConverter Z3 where
         T.hPutStrLn h_in (TB.run $ toSolverText formula)
         r <- checkSat' h_in h_out
 
-        T.putStrLn (TB.run $ toSolverText formula)
-        putStrLn $ show r
+        -- T.putStrLn (TB.run $ toSolverText formula)
+        -- putStrLn $ show r
 
         return r
 
