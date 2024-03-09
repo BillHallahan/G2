@@ -446,12 +446,41 @@ concretizeVarExpr' s@(State {expr_env = eenv, type_env = tenv, known_values = kv
 
     (eenv'', pcs, ngen'') = adjustExprEnvAndPathConds kv tenv eenv ngen' dcon dcon''' mexpr_id params news
 
+-- [String Concretizations and Constraints]
+-- Generally speaking, the values of symbolic variable are determined by one of two methods:
+-- in the case of primitive values (Int#, Float#, ...), we generate path constraints, which can be solved
+-- via an SMT solver.  In the case of algebraic data types, we use concretization, in which
+-- the symbolic variable is replaced by a (partially) concrete expression.
+--
+-- We play a bit of a funny trick for Strings.  In Haskell, String is really just a type alias
+-- for a list of Chars:
+--     type String = [Char]  
+-- The obvious thing to do, then, is just allow concretization to kick in: and indeed, this is sometimes
+-- necessary, if a String is directly pattern matched on, or if a String is passed to a function expecting
+-- a generic list [a].
+--
+-- However, SMT solvers also support reasoning about Strings, and concretization can sometimes lead to a blow up
+-- in the state space. For instance, when applying
+--     show :: Int -> String
+-- concretization would result in infinite recursive branching to potentially print different Ints. 
+-- Thus, it is appealing to allow reasoning about Strings in the SMT solver, when possible, to avoid this blowup. 
+--
+-- In principle, allowing reasoning about Strings both via concretization and the SMT solver: we simply perform both
+-- concretization and path constraint generation.  Care must be taken to keep this in sync.  That is, we must
+-- ensure that the value of a String is equally constrained by both the concretization and the generated path constraints.
+-- When a String s is concretized to the empty String, [], we generate a path constraint that `strLen s == 0`.
+-- When a String s is concretized to a cons, (C# c:xs), we generate a path constraint that `c ++ xs == s`.
+-- Note that in the cons case, we must also concretize the Char in the list to obtain the primitive Char#,
+-- as this will be the symbolic variable that may be inserted into other path constraints.
+
+-- | Determines an ExprEnv and Path Constraints from following a particular branch of symbolic execution.
+-- Has special handling for Strings- see [String Concretizations and Constraints]
 adjustExprEnvAndPathConds :: KnownValues
                   -> TypeEnv
                   -> ExprEnv
                   -> NameGen
-                  -> DataCon
-                  -> Expr
+                  -> DataCon -- ^ The data con in the scrutinee (as in `case scrutinee of ...`)
+                  -> Expr -- ^ The scrutinee
                   -> Id -- ^ Symbolic Variable Id 
                   -> [Id] -- ^ Constructor Argument Ids
                   -> [Name]
@@ -518,6 +547,8 @@ createExtConds s ng mexpr cvar (x:xs) =
         (x', ng') = createExtCond s ng mexpr cvar x
         (newPCs, ng'') = createExtConds s ng' mexpr cvar xs
 
+-- | Creating a path constraint.  The passed Expr should have type Bool or type [Char].
+-- In the latter case, the note [String Concretizations and Constraints] is relevant.
 createExtCond :: State t -> NameGen -> Expr -> Id -> (DataCon, [Id], Expr) -> (NewPC t, NameGen)
 createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
     | typeOf mexpr == tyBool kv =
@@ -535,8 +566,6 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
         (NewPC { state = res, new_pcs = [cond] , concretized = []}, ngen)
     | Just (dcName dcon) == fmap dcName (getDataCon tenv (KV.tyList kv) (KV.dcEmpty kv)) =
         -- Concretize a primitive application which creates a symbolic [Char] into an empty list.
-        -- We are careful to keep  the expression environment and the path constraints in sync-
-        -- splitting must occur in the same way in each.
         let
             eq_str = ExtCond (mkEqExpr kv
                                     (App (mkStringLen kv) mexpr)
@@ -553,8 +582,6 @@ createExtCond s ngen mexpr cvar (dcon, bindees, aexpr)
     | Just (dcName dcon) == fmap dcName (getDataCon tenv (KV.tyList kv) (KV.dcCons kv))
     , [h, t] <- bindees =
         -- Concretize a primitive application which creates a symbolic [Char] into symbolic head and tail.
-        -- We are careful to keep  the expression environment and the path constraints in sync-
-        -- splitting must occur in the same way in each.
         let
             ty_char_list = TyApp (tyList kv) (tyChar kv)
 
