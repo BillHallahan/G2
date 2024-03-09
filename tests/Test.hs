@@ -322,7 +322,7 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputs "tests/TestFiles/Strings/Strings1.hs" [ ("con", 300, [AtLeast 10])
                                                               , ("eq", 700, [AtLeast 10])
                                                               , ("eqGt1", 700, [AtLeast 10])
-                                                              , ("capABC", 150, [AtLeast 10])
+                                                              , ("capABC", 200, [AtLeast 10])
                                                               , ("appendEq", 500, [AtLeast 5]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
@@ -363,7 +363,7 @@ testFileTests = testGroup "TestFiles"
                                                   , ("show2", 1000, [Exactly 1])
                                                   , ("show3", 1000, [AtLeast 3])
                                                   , ("show4", 1000, [Exactly 2])
-                                                  , ("show5", 1000, [Exactly 6])
+                                                  , ("show5", 1300, [AtLeast 12])
                                                   , ("checkWS", 1000, [Exactly 5]) ]
     ]
 

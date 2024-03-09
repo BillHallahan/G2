@@ -16,10 +16,16 @@ show4 x = case show x of
             y:_ -> y
             [] -> error "HERE"
 
+bad :: Int -> (String, Char)
+bad x | 10 <= x, x <= 20 = ("10 <= x: " ++ y, 'a')
+      | otherwise = ("otherwise: " ++ y, 'b')
+        where
+            y = show x
+
 show5 :: Int -> (String, Char)
-show5 x | 10 <= x && x <= 20 = ("10 < x && x < 20: " ++ y, f y)
-        | 200 <= x && x <= 300  = ("200 <= x && x < 300: " ++ y, f y)
-        | 3000 <= x && x < 4000  = ("3000 <= x && x < 4000: " ++ y, f y)
+show5 x | 10 < x && x < 20 = ("range 1: " ++ y, f y)
+        | 200 < x && x < 300  = ("range 2: " ++ y, f y)
+        | 3000 < x && x < 4000  = ("range 3: " ++ y, f y)
         | otherwise = ("otherwise: " ++ y, f y)
         where
             y = show x
