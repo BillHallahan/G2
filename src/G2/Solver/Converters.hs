@@ -601,7 +601,7 @@ smtastToExpr _ _ (VFloat f) = (Lit $ LitFloat f)
 smtastToExpr _ _ (VDouble d) = (Lit $ LitDouble d)
 smtastToExpr kv _ (VBool True) = mkTrue kv
 smtastToExpr kv _ (VBool False) = mkFalse kv
-smtastToExpr kv tenv (VString cs) = fakeG2CharList $ map (App (mkDCChar kv tenv) . Lit . LitChar) cs
+smtastToExpr kv tenv (VString cs) = mkG2List kv tenv (tyChar kv) $ map (App (mkDCChar kv tenv) . Lit . LitChar) cs
 smtastToExpr _ _ (VChar c) = Lit $ LitChar c
 smtastToExpr _ _ (V n s) = Var $ Id (certainStrToName n) (sortToType s)
 smtastToExpr _ _ _ = error "Conversion of this SMTAST to an Expr not supported."
@@ -624,15 +624,3 @@ certainStrToName s =
     case maybe_StrToName s of
         Just n -> n
         Nothing -> Name (T.pack s) Nothing 0 Nothing
-
-fakeG2CharList :: [Expr] -> Expr
-fakeG2CharList = foldr go (App emp (Type ty_char))
-    where
-        ty_char = TyCon (Name "Char" Nothing 0 Nothing) TYPE
-        a = Id (Name "a" Nothing 0 Nothing) TYPE
-
-        ty_list = TyApp (TyCon (Name "[]" Nothing 0 Nothing) (TyFun TYPE TYPE)) (TyVar a)
-        emp = Data (DataCon (Name "[]" Nothing 0 Nothing) (TyForAll a ty_list))
-        cons = Data (DataCon (Name ":" Nothing 0 Nothing) (TyForAll a (TyFun (TyVar a) (TyFun ty_list ty_list))))
-
-        go e es = App (App (App cons (Type ty_char)) e) es
