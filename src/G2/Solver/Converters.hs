@@ -109,27 +109,27 @@ checkModel' avf con s b (i:is) pc
             r -> return r
 
 getModelVal :: SMTConverter con => ArbValueFunc -> con -> State t -> Bindings -> Id -> PathConds -> IO (Result Model () (), ArbValueGen)
-getModelVal avf con s b (Id n _) pc = do
-    let (Just (Var (Id n' t))) = E.lookup n (expr_env s)
+getModelVal avf con (State { expr_env = eenv, type_env = tenv, known_values = kv }) b (Id n _) pc = do
+    let (Just (Var (Id n' t))) = E.lookup n eenv
      
     case PC.null pc of
                 True -> 
                     let
-                        (e, av) = avf t (type_env s) (arb_value_gen b)
+                        (e, av) = avf t tenv (arb_value_gen b)
                     in
                     return (SAT $ HM.singleton n' e, av) 
                 False -> do
-                    m <- solveNumericConstraintsPC con pc
+                    m <- solveNumericConstraintsPC con kv tenv pc
                     return (m, arb_value_gen b)
 
-solveNumericConstraintsPC :: SMTConverter con => con -> PathConds -> IO (Result Model () ())
-solveNumericConstraintsPC con pc = do
+solveNumericConstraintsPC :: SMTConverter con => con -> KnownValues -> TypeEnv -> PathConds -> IO (Result Model () ())
+solveNumericConstraintsPC con kv tenv pc = do
     let headers = toSMTHeaders pc
     let vs = map (\(n', srt) -> (nameToStr n', srt)) . HS.toList . pcVars $ pc
 
     m <- solveConstraints con headers vs
     case m of
-        SAT m' -> return . SAT $ modelAsExpr m'
+        SAT m' -> return . SAT $ modelAsExpr kv tenv m'
         UNSAT () -> return $ UNSAT ()
         Unknown s () -> return $ Unknown s ()
 
@@ -595,16 +595,16 @@ toSolverSetLogic lgc =
     "(set-logic " <> s <> ")"
 
 -- | Converts an `SMTAST` to an `Expr`.
-smtastToExpr :: SMTAST -> Expr
-smtastToExpr (VInt i) = (Lit $ LitInt i)
-smtastToExpr (VFloat f) = (Lit $ LitFloat f)
-smtastToExpr (VDouble d) = (Lit $ LitDouble d)
-smtastToExpr (VBool b) =
-    Data (DataCon (Name (T.pack $ show b) (Just "GHC.Types") 0 Nothing) (TyCon (Name "Bool" (Just "GHC.Types") 0 Nothing) TYPE))
-smtastToExpr (VString cs) = fakeG2CharList $ map (Lit . LitChar) cs
-smtastToExpr (VChar c) = Lit $ LitChar c
-smtastToExpr (V n s) = Var $ Id (certainStrToName n) (sortToType s)
-smtastToExpr _ = error "Conversion of this SMTAST to an Expr not supported."
+smtastToExpr :: KnownValues -> TypeEnv -> SMTAST -> Expr
+smtastToExpr _ _ (VInt i) = (Lit $ LitInt i)
+smtastToExpr _ _ (VFloat f) = (Lit $ LitFloat f)
+smtastToExpr _ _ (VDouble d) = (Lit $ LitDouble d)
+smtastToExpr kv _ (VBool True) = mkTrue kv
+smtastToExpr kv _ (VBool False) = mkFalse kv
+smtastToExpr kv tenv (VString cs) = fakeG2CharList $ map (App (mkDCChar kv tenv) . Lit . LitChar) cs
+smtastToExpr _ _ (VChar c) = Lit $ LitChar c
+smtastToExpr _ _ (V n s) = Var $ Id (certainStrToName n) (sortToType s)
+smtastToExpr _ _ _ = error "Conversion of this SMTAST to an Expr not supported."
 
 -- | Converts a `Sort` to an `Type`.
 sortToType :: Sort -> Type
@@ -616,8 +616,8 @@ sortToType (SortBool) = TyCon (Name "Bool" Nothing 0 Nothing) TYPE
 sortToType _ = error "Conversion of this Sort to a Type not supported."
 
 -- | Coverts an `SMTModel` to a `Model`.
-modelAsExpr :: SMTModel -> Model
-modelAsExpr = HM.fromList . M.toList . M.mapKeys strToName . M.map smtastToExpr
+modelAsExpr :: KnownValues -> TypeEnv ->SMTModel -> Model
+modelAsExpr kv tenv = HM.fromList . M.toList . M.mapKeys strToName . M.map (smtastToExpr kv tenv)
 
 certainStrToName :: String -> Name
 certainStrToName s =
