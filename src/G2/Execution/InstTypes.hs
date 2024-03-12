@@ -33,14 +33,14 @@ newType ng i te =
         (ng''', all_ids) = L.mapAccumL generateIds ng'' ats
         -- turn those id (argument of the type) into tyforall and tyfun
         argtys = map generateTyForAll all_ids
-        tyforalls' = mkTyApp argtys
-        tyapps = i_k : argtys
-        tyfuns = TyFun TyLitInt (mkTyApp tyapps)
-
+        argtys' = i_k : argtys
+        tyapps = mkTyApp argtys'
+        tyfuns = TyFun TyLitInt tyapps
+        
         nadt = DataTyCon 
         -- the bound_ids are the same ids you get from the generate_arg_type (should rename those into generate new ids)
                     {bound_ids = all_ids
-                    ,data_cons = [DataCon dc (TyApp tyforalls' tyfuns)]}
+                    ,data_cons = [DataCon dc (TyApp tyapps tyfuns)]}
         te' = HM.insert tn nadt te 
     in
      (i_k, te', ng''')
