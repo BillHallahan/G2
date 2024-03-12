@@ -28,11 +28,15 @@ module G2.Language.Primitives ( mkGe
                               , mkEqPrimType
                               , mkOrPrim
                               , mkImpliesPrim
-                              , mkNotPrim) where
+                              , mkNotPrim
+                              
+                              , mkStringAppend
+                              , mkStringLen) where
 
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues as KV
 import G2.Language.Syntax
+import qualified G2.Language.Typing as T
 
 mkGe :: KnownValues -> E.ExprEnv -> Expr
 mkGe kv eenv = eenv E.! (geFunc kv)
@@ -133,3 +137,11 @@ mkNotPrim kv = Prim Not $ TyFun t (TyCon (KV.tyBool kv) TYPE)
 mkImpliesPrim :: KnownValues -> Expr
 mkImpliesPrim kv = Prim Implies $ TyFun t (TyFun t t)
     where t = (TyCon (KV.tyBool kv) TYPE)
+
+mkStringAppend :: KnownValues -> Expr
+mkStringAppend kv = Prim StrAppend $ TyFun t (TyFun t t)
+    where t = TyApp (T.tyList kv) (T.tyChar kv)
+
+mkStringLen :: KnownValues -> Expr
+mkStringLen kv = Prim StrLen $ TyFun t TyLitInt
+    where t = TyApp (T.tyList kv) (T.tyChar kv)

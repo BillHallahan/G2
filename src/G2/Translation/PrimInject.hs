@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE CPP, FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- | Primitive inejction into the environment
@@ -51,12 +51,12 @@ conName :: DataCon -> (Name, [Type])
 conName (DataCon n t) = (n, anonArgumentTypes $ t)
 
 primDefs :: HM.HashMap Name AlgDataTy -> [(T.Text, Expr)]
-primDefs pt = case (boolName pt, charName pt) of
-                (Just b, Just c) -> primDefs' b c
+primDefs pt = case (boolName pt, charName pt, listName pt) of
+                (Just b, Just c, Just l) -> primDefs' b c l
                 _ -> error "primDefs: Required types not found"
 
-primDefs' :: Name -> Name -> [(T.Text, Expr)]
-primDefs' b c =
+primDefs' :: Name -> Name -> Name -> [(T.Text, Expr)]
+primDefs' b c l =
               [ ("$==#", Prim Eq $ tyIntIntBool b)
               , ("$/=#", Prim Neq $ tyIntIntBool b)
               , ("+#", Prim Plus tyIntIntInt)
@@ -149,6 +149,8 @@ primDefs' b c =
 
                             ])
 
+              , ("intToString#", Prim IntToString (TyFun TyLitInt (TyApp (TyCon l (TyFun TYPE TYPE)) (TyCon c TYPE))))
+
               , ("absentErr", Prim Error TyBottom)
               , ("error", Prim Error TyBottom)
               , ("errorWithoutStackTrace", Prim Error TyBottom)
@@ -216,6 +218,13 @@ boolName = find ((==) "Bool" . nameOcc) . HM.keys
 
 charName :: HM.HashMap Name AlgDataTy -> Maybe Name
 charName = find ((==) "Char" . nameOcc) . HM.keys
+
+listName :: HM.HashMap Name AlgDataTy -> Maybe Name
+#if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
+listName = find ((==) "List" . nameOcc) . HM.keys
+#else
+listName = find ((==) "[]" . nameOcc) . HM.keys
+#endif
 
 replaceFromPD :: HM.HashMap Name AlgDataTy -> Name -> Expr -> Expr
 replaceFromPD pt n e =

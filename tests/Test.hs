@@ -322,7 +322,7 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputs "tests/TestFiles/Strings/Strings1.hs" [ ("con", 300, [AtLeast 10])
                                                               , ("eq", 700, [AtLeast 10])
                                                               , ("eqGt1", 700, [AtLeast 10])
-                                                              , ("capABC", 150, [AtLeast 10])
+                                                              , ("capABC", 200, [AtLeast 10])
                                                               , ("appendEq", 500, [AtLeast 5]) ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
@@ -358,6 +358,13 @@ testFileTests = testGroup "TestFiles"
     --     , RExists (\[x, _] -> x /= Lit (LitInt 0))]
     -- , checkExprAssumeAssert "tests/TestFiles/HigherOrderList.hs" 400 Nothing Nothing "g" [AtLeast  10] 
     , checkExpr "tests/TestFiles/MkSymbolic.hs" 1500 "f" [ Exactly 9 ]
+
+    , checkInputOutputs "tests/TestFiles/Show.hs" [ ("show1", 1000, [Exactly 1])
+                                                  , ("show2", 1000, [Exactly 1])
+                                                  , ("show3", 1000, [AtLeast 3])
+                                                  , ("show4", 1000, [Exactly 2])
+                                                  , ("show5", 1300, [AtLeast 12])
+                                                  , ("checkWS", 1000, [Exactly 5]) ]
     ]
 
 extensionTests :: TestTree
