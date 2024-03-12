@@ -132,9 +132,6 @@ primDefs' b c =
               , ("ltWord#", Prim Lt $ tyIntIntBool b)
               , ("leWord#", Prim Le $ tyIntIntBool b)
 
-              -- Hack to convert GHC Char to G2 Chars in base
-              , ("char2char", Lam TermL (x $ TyCon c TYPE) (Var . x $ TyCon c TYPE))
-
               , ("dataToTag##", Prim DataToTag (TyForAll a (TyFun (TyVar a) TyLitInt)))
               , ("tagToEnum#", 
                     Lam TypeL a

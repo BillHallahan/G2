@@ -738,12 +738,7 @@ mkTyCon t = do
         Nothing -> return (n, Nothing)
 
 mkTyConName :: TyCon -> G2.NamesM G2.Name
-mkTyConName tc = do
-    (_, tm) <- SM.get
-    let  n@(G2.Name n' m _ l) = mkName $ tyConName tc
-    case HM.lookup (n', m) tm of
-        Just (G2.Name n'' m' i _) -> return $ G2.Name n'' m' i l
-        Nothing -> return n
+mkTyConName tc = typeNameLookup (tyConName tc)
 
 mkData :: DataCon -> G2.NamesM G2.DataCon
 mkData datacon = do
