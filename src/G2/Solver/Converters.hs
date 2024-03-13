@@ -524,8 +524,8 @@ toSolverAST (FromCode chr) = function1 "str.from_code" (toSolverAST chr)
 toSolverAST (ToCode chr) = function1 "str.to_code" (toSolverAST chr)
 
 toSolverAST (VInt i) = if i >= 0 then showText i else "(- " <> showText (abs i) <> ")"
-toSolverAST (VFloat f) = "(/ " <> showText (numerator f) <> " " <> showText (denominator f) <> ")"
-toSolverAST (VDouble d) = "(/ " <> showText (numerator d) <> " " <> showText (denominator d) <> ")"
+toSolverAST (VFloat f) = if f >= 0 then showText f else "(- " <> showText (abs f) <> ")" 
+toSolverAST (VDouble d) = if d >= 0 then showText d else "(- " <> showText (abs d) <> ")"
 toSolverAST (VChar c) = "\"" <> TB.string [c] <> "\""
 toSolverAST (VBool b) = if b then "true" else "false"
 toSolverAST (V n _) = TB.string n

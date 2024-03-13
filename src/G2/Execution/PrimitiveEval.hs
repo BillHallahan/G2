@@ -139,8 +139,8 @@ evalPrim2Integral f (LitInt x) (LitInt y) = Just . Lit . LitInt $ f x y
 evalPrim2Integral _ _ _ = Nothing
 
 evalPrim1Floating :: (forall a . Floating a => a -> a) -> Lit -> Maybe Expr
-evalPrim1Floating f (LitFloat x) = Just . Lit . LitFloat . toRational $ f (fromRational x :: Double)
-evalPrim1Floating f (LitDouble x)  = Just . Lit . LitDouble . toRational $ f (fromRational x :: Double)
+evalPrim1Floating f (LitFloat x) = Just . Lit . LitFloat $ f x
+evalPrim1Floating f (LitDouble x)  = Just . Lit . LitDouble $ f x
 evalPrim1Floating _ _ = Nothing
 
 -- | Evaluate certain primitives applied to symbolic expressions, when possible

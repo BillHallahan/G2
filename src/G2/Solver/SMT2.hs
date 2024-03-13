@@ -31,6 +31,7 @@ import qualified Data.Map as M
 import Data.Semigroup
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import GHC.Float
 import qualified Text.Builder as TB
 import System.IO
 import System.Process
@@ -372,8 +373,8 @@ parseToSMTAST :: String -> Sort -> SMTAST
 parseToSMTAST str s = correctTypes s . parseGetValues $ str
     where
         correctTypes :: Sort -> SMTAST -> SMTAST
-        correctTypes (SortFloat) (VDouble r) = VFloat r
-        correctTypes (SortDouble) (VFloat r) = VDouble r
+        correctTypes (SortFloat) (VDouble r) = VFloat (double2Float r)
+        correctTypes (SortDouble) (VFloat r) = VDouble (float2Double r)
         correctTypes _ a = a
 
 getModelZ3 :: Handle -> Handle -> [(SMTName, Sort)] -> IO [(SMTName, String, Sort)]

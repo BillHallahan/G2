@@ -85,8 +85,8 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | ToCode !SMTAST
 
             | VInt Integer
-            | VFloat Rational
-            | VDouble Rational
+            | VFloat Float
+            | VDouble Double
             | VChar Char
             | VBool Bool
 

@@ -154,9 +154,9 @@ newField :: TH.Name -> TH.Name -> (TH.Name, StrictType) -> Q Exp
 newField _ _ (x, (_, ConT n))
     | nameBase n == "Int#" = [|Lit . LitInt . toInteger $ $(conE 'I# `appE` varE x)|]
 newField _ _ (x, (_, ConT n))
-    | nameBase n == "Float#" = [|Lit . LitFloat . toRational $ $(conE 'F# `appE` varE x)|]
+    | nameBase n == "Float#" = [|Lit . LitFloat $ $(conE 'F# `appE` varE x)|]
 newField _ _ (x, (_, ConT n))
-    | nameBase n == "Double#" = [|Lit . LitDouble . toRational $ $(conE 'D# `appE` varE x)|]
+    | nameBase n == "Double#" = [|Lit . LitDouble $ $(conE 'D# `appE` varE x)|]
 newField _ _ (x, (_, ConT n))
     | nameBase n == "Char#" = [|Lit . LitChar $ $(conE 'C# `appE` varE x)|]
 newField tenv cleaned (x, _) = do
@@ -267,15 +267,11 @@ intPrimFromLit (Lit (LitInt x)) =
 intPrimFromLit e = error $ "intPrimFromLit: Unhandled Expr" ++ show e
 
 floatPrimFromLit :: G2.Expr -> Float#
-floatPrimFromLit (Lit (LitFloat x)) =
-    case fromRational x of
-        F# x' -> x'
+floatPrimFromLit (Lit (LitFloat (F# x))) = x
 floatPrimFromLit _ = error "floatPrimFromLit: Unhandled Expr"
 
 doublePrimFromLit :: G2.Expr -> Double#
-doublePrimFromLit (Lit (LitDouble x)) =
-    case fromRational x of
-        D# x' -> x'
+doublePrimFromLit (Lit (LitDouble (D# x))) = x
 doublePrimFromLit _ = error "intPrimFromLit: Unhandled Expr"
 
 charPrimFromLit :: G2.Expr -> Char#

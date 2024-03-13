@@ -625,8 +625,8 @@ mkLit (LitNumber LitNumWord64 i) = G2.LitInt (fromInteger i)
 mkLit (MachFloat rat) = G2.LitFloat rat
 mkLit (MachDouble rat) = G2.LitDouble rat
 #else
-mkLit (LitFloat rat) = G2.LitFloat rat
-mkLit (LitDouble rat) = G2.LitDouble rat
+mkLit (LitFloat rat) = G2.LitFloat (fromRational rat)
+mkLit (LitDouble rat) = G2.LitDouble (fromRational rat)
 #endif
 mkLit _ = error "mkLit: unhandled Lit"
 -- mkLit (MachNullAddr) = error "mkLit: MachNullAddr"

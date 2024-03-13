@@ -6,6 +6,7 @@ import G2.Solver.Language
 
 import Data.Char
 import Data.Ratio
+import GHC.Float
 import Numeric
 
 import Text.Parsec (Parsec)
@@ -116,7 +117,7 @@ doubleFloatExprRat = do
     s <- optionMaybe (reserved "/")
     f <- flexDoubleFloat
     f' <- flexDoubleFloat
-    let r = approxRational (f / f') (0.000001)
+    let r = (f / f')
     case s of 
         Just _ -> return (VDouble r)
         Nothing -> return (VDouble r)
@@ -125,25 +126,24 @@ doubleFloatExprDec :: Parser SMTAST
 doubleFloatExprDec = do
     r <- doubleFloat
     _ <- optionMaybe (reserved "?")
-    return (VDouble r)
+    return (VFloat r)
 
-doubleFloat :: Parser Rational
+doubleFloat :: Parser Float
 doubleFloat = do
     s <- optionMaybe (reserved "-")
     f <- floatT
-    let r = approxRational f (0.00001)
+    let r = double2Float f
     case s of 
         Just _ -> return (-r)
         Nothing -> return r
 
-flexDoubleFloat :: Parser Rational
+flexDoubleFloat :: Parser Double
 flexDoubleFloat = do
     s <- optionMaybe (reserved "-")
     f <- flexFloatT
-    let r = approxRational f (0.00001)
     case s of 
-        Just _ -> return (-r)
-        Nothing -> return r
+        Just _ -> return (-f)
+        Nothing -> return f
 
 stringExpr :: Parser SMTAST
 stringExpr = do

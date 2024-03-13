@@ -202,8 +202,8 @@ instance Hashable Primitive
 
 -- | Literals for denoting unwrapped types such as Int#, Double#.
 data Lit = LitInt Integer
-         | LitFloat Rational
-         | LitDouble Rational
+         | LitFloat Float
+         | LitDouble Double
          | LitChar Char
          | LitString String
          | LitInteger Integer
