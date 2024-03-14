@@ -28,12 +28,14 @@ module G2.Solver.Converters
     , constraintsToModelOrUnsatCoreNoReset
     , SMTConverter (..) ) where
 
+import qualified Data.Bits as Bits
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Monoid
 import Data.Ratio
 import qualified Data.Text as T
+import GHC.Float
 import qualified Text.Builder as TB
 
 import G2.Language hiding (Assert, vars)
@@ -524,7 +526,13 @@ toSolverAST (FromCode chr) = function1 "str.from_code" (toSolverAST chr)
 toSolverAST (ToCode chr) = function1 "str.to_code" (toSolverAST chr)
 
 toSolverAST (VInt i) = if i >= 0 then showText i else "(- " <> showText (abs i) <> ")"
-toSolverAST (VFloat f) = if f >= 0 then showText f else "(- " <> showText (abs f) <> ")" 
+toSolverAST (VFloat f) =
+    let
+        (sb, eb) = decodeFloat f
+        bits_sb = convertBits (fromIntegral sb :: Int)
+        bits_eb = convertBits eb
+    in
+    "(#b1 #b" <> TB.string bits_eb <> " #b" <> TB.string bits_sb <> ")" -- if f >= 0 then showText f else "(- " <> showText (abs f) <> ")" 
 toSolverAST (VDouble d) = if d >= 0 then showText d else "(- " <> showText (abs d) <> ")"
 toSolverAST (VChar c) = "\"" <> TB.string [c] <> "\""
 toSolverAST (VBool b) = if b then "true" else "false"
@@ -533,6 +541,10 @@ toSolverAST (V n _) = TB.string n
 toSolverAST (Named x n) = "(! " <> toSolverAST x <> " :named " <> TB.string n <> ")"
 
 toSolverAST ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
+
+-- | Convert to a little endian list of bits
+convertBits :: (Num b, Bits.FiniteBits b) => b -> String
+convertBits b = map (\x -> if x then '1' else '0') $ map (Bits.testBit b) [0..Bits.finiteBitSize b - 1]
 
 smtFunc :: String -> [TB.Builder] -> TB.Builder
 smtFunc n [] = TB.string n
@@ -560,8 +572,8 @@ toSolverVarDecl n s = "(declare-const " <> n <> " " <> sortName s <> ")"
 
 sortName :: Sort -> TB.Builder
 sortName SortInt = "Int"
-sortName SortFloat = "Real"
-sortName SortDouble = "Real"
+sortName SortFloat = "Float32"
+sortName SortDouble = "Float64"
 sortName SortChar = "String"
 sortName SortBool = "Bool"
 sortName (SortArray ind val) = "(Array " <> sortName ind <> " " <> sortName val <> ")"
