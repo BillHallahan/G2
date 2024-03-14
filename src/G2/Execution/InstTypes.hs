@@ -7,6 +7,7 @@ import qualified Data.HashMap.Lazy as HM
 import qualified G2.Language.ExprEnv as E 
 import qualified Data.List as L 
 import Debug.Trace
+import Data.Foldable (foldl')
 
 
 
@@ -15,10 +16,7 @@ generateIds ng t =
     let 
         (tn, ng') = freshSeededString "t" ng 
     in
-        (ng', Id tn t)
-
-generateTyForAll :: Id -> Type 
-generateTyForAll i@(Id _ t) = TyForAll i t
+    (ng', Id tn t)
 
 newType :: NameGen -> Id -> TypeEnv -> (Type, TypeEnv, NameGen)
 newType ng i te = 
@@ -28,22 +26,26 @@ newType ng i te =
         (dc, ng'') = freshSeededString "DC" ng' 
 
         i_k = typeOf i
+        ty = TyCon tn i_k
         -- getting the arguments of the kind
-        ats = argumentTypes i_k
-        (ng''', all_ids) = L.mapAccumL generateIds ng'' ats
-        -- turn those id (argument of the type) into tyforall and tyfun
-        argtys = map generateTyForAll all_ids
-        argtys' = i_k : argtys
-        tyapps = mkTyApp argtys'
+        (ng''', all_ids) = L.mapAccumL generateIds ng'' (argumentTypes $ PresType i_k)
+        -- make those id into tyvars
+        -- make a nested Tyapp centered at ty and
+        -- the centered of tyforalls is the result from the previous lines
+        tys = ty : map TyVar all_ids
+        tyapps = mkTyApp tys
         tyfuns = TyFun TyLitInt tyapps
         
+        tyforall = foldl' (flip TyForAll) tyfuns all_ids
+
         nadt = DataTyCon 
         -- the bound_ids are the same ids you get from the generate_arg_type (should rename those into generate new ids)
                     {bound_ids = all_ids
-                    ,data_cons = [DataCon dc (TyApp tyapps tyfuns)]}
+                    ,data_cons = [DataCon dc tyforall]}
         te' = HM.insert tn nadt te 
     in
-     (i_k, te', ng''')
+    trace ("all_ids = " ++ show all_ids ++ "\ntyforall = " ++ show tyforall)
+    (ty, te', ng''')
 
 instType :: ASTContainer t Type => NameGen -> State t -> (NameGen, State t)
 instType ng st = 
@@ -51,7 +53,7 @@ instType ng st =
         is = tyVarIds $ curr_expr st
         (ng', st') = L.foldl' instType' (ng, st) is
     in
-    (ng', st')
+    trace ("curr_expr = " ++ show (curr_expr st')) (ng', st')
 
 -- Introducing a new type for a type variable and substituting the variable in the curr_expr
 instType' :: ASTContainer t Type => (NameGen, State t) -> Id -> (NameGen, State t)
@@ -62,6 +64,6 @@ instType' (ng, st) i =
         eenv' = E.insert n (Var i) (expr_env st)
         st' = st {expr_env = eenv'
                  ,type_env = te}
-        st'' = replaceTyVar n t  st'
+        st'' = replaceTyVar n t st'
     in
-  (ng',st'')
+    trace ("i = " ++ show i ++ "\nt = " ++ show t) (ng',st'')
