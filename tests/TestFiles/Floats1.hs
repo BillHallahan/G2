@@ -34,3 +34,8 @@ showFloat1 x | x > 100 * 100 * 100 = "large " ++ show x
 
 showFloat2 :: Float -> String
 showFloat2 = show . f
+
+m :: Float -> Float
+m x | x == 9.1  = x + 0.1
+    | otherwise = x
+

@@ -32,6 +32,7 @@ module G2.Solver.Converters
 import qualified Data.Bits as Bits
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
+import Data.Int
 import qualified Data.Map as M
 import Data.Monoid
 import Data.Ratio
@@ -44,6 +45,8 @@ import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 import G2.Solver.Language
 import G2.Solver.Solver
+
+import Debug.Trace
 
 -- | Used to describe the specific output format required by various solvers
 -- By defining these functions, we can automatically convert from the SMTHeader and SMTAST
@@ -566,8 +569,10 @@ toSolverAST (VFloat f) =
     let
         (sb, eb) = decodeFloat f
         bits_sb = convertBits 23 (fromIntegral sb :: Int)
-        bits_eb = convertBits 8 eb
+        adj_eb = (fromIntegral eb :: Int8) - 127
+        bits_eb = convertBits 8 adj_eb
     in
+    trace ("f = " ++ show f ++ "\neb = " ++ show eb ++ "\nadj_eb = " ++ show adj_eb ++ "\n" ++ show (bits_eb))
     "(fp #b1 #b" <> TB.string bits_eb <> " #b" <> TB.string bits_sb <> ")" -- if f >= 0 then showText f else "(- " <> showText (abs f) <> ")" 
 toSolverAST (VDouble d) = if d >= 0 then showText d else "(- " <> showText (abs d) <> ")"
 toSolverAST (VChar c) = "\"" <> TB.string [c] <> "\""
@@ -579,8 +584,8 @@ toSolverAST (Named x n) = "(! " <> toSolverAST x <> " :named " <> TB.string n <>
 toSolverAST ast = error $ "toSolverAST: invalid SMTAST: " ++ show ast
 
 -- | Convert to a little endian list of bits
-convertBits :: (Num b, Bits.Bits b) => Int -> b -> String
-convertBits sz b = map (\x -> if x then '1' else '0') $ map (Bits.testBit b) [0..sz - 1]
+convertBits :: (Num b, Bits.FiniteBits b) => Int -> b -> String
+convertBits sz b = map (\x -> if x then '1' else '0') . reverse $ map (Bits.testBit b) [0..sz - 1]
 
 smtFunc :: String -> [TB.Builder] -> TB.Builder
 smtFunc n [] = TB.string n
