@@ -15,6 +15,8 @@ import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Language
 import qualified Text.ParserCombinators.Parsec.Token as Token
 
+import Debug.Trace
+
 -- This is not complete!  It currently only covers the small amount of the SMT
 -- language needed to parse models
 
@@ -143,10 +145,10 @@ fpNum = do
     eb <- parseBitVec
     _ <- whiteSpace
     sp <- parseBitVec
-    return (VFloat $ mkFloat (eb ++ i ++ sp)) 
+    trace ("i ++ eb ++ sp = " ++ show (i ++ eb ++ sp)) return (VFloat $ mkFloat (i ++ eb ++ sp)) 
 
 mkFloat :: [Int] -> Float
-mkFloat = castWord32ToFloat . foldr (\(i, v) w -> if v == 0 then clearBit w i else setBit w i) 0 . zip [0..]
+mkFloat = castWord32ToFloat . foldr (\(i, v) w -> if v == 0 then w else setBit w i) 0 . zip [0..] . reverse
 
 parseBitVec :: Parser [Int]
 parseBitVec = try parseBin <|> parseHex

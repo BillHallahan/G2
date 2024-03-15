@@ -566,8 +566,8 @@ toSolverAST (VInt i) = if i >= 0 then showText i else "(- " <> showText (abs i) 
 toSolverAST (VFloat f) =
     let
         w32 = convertBits $ castFloatToWord32 f
-        eb = take 8 w32
-        h = w32 !! 8
+        h:_ = w32
+        eb = take 8 $ drop 1 w32
         sb = drop 9 w32
     in
     "(fp #b" <> TB.char h <> " #b" <> TB.string eb <> " #b" <> TB.string sb <> ")"
